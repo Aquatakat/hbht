@@ -22,8 +22,21 @@ public enum FlagRole
     DialogueCheck,
     /// <summary>The script's done flag, set when a cut-scene, backdrop or help script finishes.</summary>
     ScriptDone,
-    /// <summary>Winning the battle the script starts.</summary>
-    ScriptBattleWon,
+    /// <summary>
+    /// The encounter flag of the battle the script starts (<see cref="EngineTables.ScriptBattleFlags"/>).
+    /// Losing the Goblin Ambush sets it.
+    /// </summary>
+    ScriptBattle,
+    /// <summary>An AddItem effect, a container's item or loot, that gives a key item and so sets its flags.</summary>
+    ItemGiven,
+    /// <summary>A TakeItem effect on a key item, which clears its flag once the party has none.</summary>
+    ItemTaken,
+    /// <summary>An AddMember effect: sets the member's joined flag and clears their left flag.</summary>
+    MemberAdded,
+    /// <summary>A RemoveMember effect: clears the member's joined flag and sets their left flag.</summary>
+    MemberRemoved,
+    /// <summary>A battle with a boss in its first four enemy slots, which sets the boss's flag when won.</summary>
+    BossBeaten,
 
     // Map objects.
     /// <summary>Flag C: whether the object is there.</summary>
@@ -36,6 +49,11 @@ public enum FlagRole
     PartyBeaten,
     /// <summary>A monster party's flag B when it has a dialogue: set when talked to.</summary>
     PartyTalkedTo,
+    /// <summary>
+    /// A monster party's flag C when its dialogue can start a battle: that battle gets flag C as its
+    /// encounter flag, and winning sets it.
+    /// </summary>
+    PartyFought,
     ContainerOpened,
     ContainerExploded,
     DoorLocked,
@@ -49,8 +67,10 @@ public enum FlagRole
     // Other.
     /// <summary>An input of a derived flag.</summary>
     NetworkInput,
-    /// <summary>Written by engine code (see <see cref="EngineFlags"/>).</summary>
+    /// <summary>Written by engine code (see <see cref="EngineFlags"/> and <see cref="EngineTables"/>).</summary>
     Engine,
+    /// <summary>Read by engine code.</summary>
+    EngineCheck,
 }
 
 /// <summary>Where a flag reference is.</summary>
@@ -95,6 +115,9 @@ public sealed class QuestAtlas
     /// <summary>The names of entities, dialogue entities and items, for showing operands.</summary>
     public required IReadOnlyDictionary<ItemId, string> Names { get; init; }
 
+    /// <summary>What engine code means by a flag, such as "Brenna is in the party", where it says.</summary>
+    public required IReadOnlyDictionary<ushort, string> Labels { get; init; }
+
     /// <summary>Journal entries by their flag.</summary>
     public ILookup<ushort, int> JournalByFlag => Journal.Select((e, i) => (e.Flag, i)).ToLookup(e => e.Flag, e => e.i);
 
@@ -104,16 +127,37 @@ public sealed class QuestAtlas
     {
         var archive = BorgArchive.Open(rom);
         var db = GameDb.Read(rom);
+        var tables = EngineTables.Read(rom);
         var funnel = db.GameStateFunnel;
         var refs = new List<FlagReference>();
+        var names = db.Entities.Select(e => (e.Id, e.Name))
+            .Concat(db.DialogEntities.Select(e => (e.Id, e.Name)))
+            .Concat(db.Weapons.Select(e => (e.Id, e.Name)))
+            .Concat(db.Armor.Select(e => (e.Id, e.Name)))
+            .Concat(db.Gear.Select(e => (e.Id, e.Name)))
+            .Concat(db.Spells.Select(e => (e.Id, e.Name)))
+            .Concat(db.Loot.Select(e => (e.Id, e.Name)))
+            .DistinctBy(e => e.Id)
+            .ToDictionary(e => e.Id, e => e.Name);
+        string Name(ItemId id) => names.TryGetValue(id, out var n) ? $"{n} ({id})" : id.ToString();
+
+        var keyItems = tables.KeyItems.ToDictionary(k => k.Item);
+        var members = tables.Party.ToDictionary(p => p.Member);
+        var loot = db.Loot.ToDictionary(l => l.Id);
+        // Key items that containers and monster parties give. Their loot fields name either a loot
+        // table or a single item.
+        IEnumerable<KeyItemFlags> KeyItemsIn(params ItemId[] given) => given
+            .SelectMany(i => i.Type == DbType.Loot && loot.TryGetValue(i, out var l) ? l.Drops.Select(d => d.Item) : [i])
+            .Where(keyItems.ContainsKey)
+            .Select(i => keyItems[i]);
 
         void Write(int flag, FlagAccess access, FlagRole role, AtlasSource source, bool secondEffect = false) =>
             refs.Add(new((ushort)flag, access, role, source, secondEffect || flag < 2 || flag >= funnel.BitFlagCount));
         // Map objects leave flag fields they don't use at 0.
-        void WriteField(int flag, FlagAccess access, FlagRole role, AtlasSource source)
+        void WriteField(int flag, FlagAccess access, FlagRole role, AtlasSource source, bool secondEffect = false)
         {
             if (flag >= 2)
-                Write(flag, access, role, source);
+                Write(flag, access, role, source, secondEffect);
         }
         void Read(int flag, FlagRole role, AtlasSource source)
         {
@@ -136,26 +180,61 @@ public sealed class QuestAtlas
         {
             if (script.StartMode is Borg13StartMode.Cutscene or Borg13StartMode.Backdrop or Borg13StartMode.Help)
                 Write(script.DoneFlag, FlagAccess.Set, FlagRole.ScriptDone, new ScriptSource(index, null));
-            if (EngineFlags.BattleFlags.TryGetValue(index, out var battleFlag))
-                Write(battleFlag, FlagAccess.Set, FlagRole.ScriptBattleWon, new ScriptSource(index, null));
+            if (tables.ScriptBattleFlags.TryGetValue(index, out var battleFlag))
+                Write(battleFlag, FlagAccess.Set, FlagRole.ScriptBattle, new ScriptSource(index, null));
 
+            var fights = script.Nodes.Any(n => n.Ops.Any(o => o.Opcode == Borg13Opcode.Battle));
             foreach (var node in script.Nodes)
             {
                 var source = new ScriptSource(index, node.Index);
                 if (node.Kind == Borg13NodeKind.If && node.Condition is { Opcode: Borg13Opcode.CheckFlag } check)
                     Read(check.Value, FlagRole.DialogueCheck, source);
 
+                // Enemies accumulate across nodes, so this assumes the script adds them in node order.
+                foreach (var op in node.Ops.Where(o => o.Opcode == Borg13Opcode.AddEnemy))
+                {
+                    if (fights && EngineFlags.BossFlags.TryGetValue(new ItemId(op.Value), out var boss))
+                        Write(boss, FlagAccess.Set, FlagRole.BossBeaten, source);
+                }
+
                 var effects = node.Ops.Where(o => o.Opcode.IsEffect()).ToList();
                 for (var i = 0; i < effects.Count; i++)
                 {
                     var op = effects[i];
-                    if (op.Opcode is Borg13Opcode.SetFlag or Borg13Opcode.ClearFlag)
-                        Write(op.Value, op.Opcode == Borg13Opcode.SetFlag ? FlagAccess.Set : FlagAccess.Clear,
-                            FlagRole.DialogueEffect, source, secondEffect: i > 0);
-                    else if (op.Opcode == Borg13Opcode.RandomLine && startedBy.TryGetValue(op.Value, out var by))
-                        by.Add(source);
+                    var second = i > 0;
+                    var id = new ItemId(op.Value);
+                    switch (op.Opcode)
+                    {
+                        case Borg13Opcode.SetFlag or Borg13Opcode.ClearFlag:
+                            Write(op.Value, op.Opcode == Borg13Opcode.SetFlag ? FlagAccess.Set : FlagAccess.Clear,
+                                FlagRole.DialogueEffect, source, second);
+                            break;
+                        case Borg13Opcode.RandomLine when startedBy.TryGetValue(op.Value, out var by):
+                            by.Add(source);
+                            break;
+                        case Borg13Opcode.AddItem when keyItems.TryGetValue(id, out var key):
+                            GiveKeyItem(key, source, second);
+                            break;
+                        case Borg13Opcode.TakeItem when keyItems.TryGetValue(id, out var key):
+                            Write(key.Held, FlagAccess.Clear, FlagRole.ItemTaken, source, second);
+                            break;
+                        case Borg13Opcode.AddMember when members.TryGetValue(id, out var member):
+                            Write(member.Joined, FlagAccess.Set, FlagRole.MemberAdded, source, second);
+                            WriteField(member.Left, FlagAccess.Clear, FlagRole.MemberAdded, source, second);
+                            break;
+                        case Borg13Opcode.RemoveMember when members.TryGetValue(id, out var member):
+                            Write(member.Joined, FlagAccess.Clear, FlagRole.MemberRemoved, source, second);
+                            WriteField(member.Left, FlagAccess.Set, FlagRole.MemberRemoved, source, second);
+                            break;
+                    }
                 }
             }
+        }
+
+        void GiveKeyItem(KeyItemFlags key, AtlasSource source, bool secondEffect = false)
+        {
+            Write(key.Held, FlagAccess.Set, FlagRole.ItemGiven, source, secondEffect);
+            WriteField(key.Region, FlagAccess.Set, FlagRole.ItemGiven, source, secondEffect);
         }
 
         // Map objects.
@@ -188,19 +267,34 @@ public sealed class QuestAtlas
                     WriteField(c.OpenFlag, FlagAccess.Set, FlagRole.ContainerOpened, source);
                     WriteField(c.ExplodeFlag, FlagAccess.Set, FlagRole.ContainerExploded, source);
                     WriteField(o.FlagB, used, FlagRole.ObjectUsed, source);
+                    foreach (var key in KeyItemsIn(c.Item, c.Loot))
+                        GiveKeyItem(key, source);
                     break;
                 case MonsterPartyData m:
                     Gate(o.Enabled, FlagRole.ObjectEnabled, source);
+                    var fought = true;
                     if (m.Dialogue != 0)
                     {
                         WriteField(o.FlagB, FlagAccess.Set, FlagRole.PartyTalkedTo, source);
                         if (startedBy.TryGetValue(m.Dialogue, out var by))
                             by.Add(source);
+                        // The dialogue decides whether there's a fight. If there is, flag C is its encounter flag.
+                        fought = scripts.TryGetValue(m.Dialogue, out var talk)
+                            && talk.Nodes.Any(n => n.Ops.Any(op => op.Opcode == Borg13Opcode.Battle));
+                        if (fought)
+                            WriteField(o.FlagC, FlagAccess.Set, FlagRole.PartyFought, source);
                     }
                     else
                     {
                         Read(o.FlagB, FlagRole.PartyBeaten, source);
                         WriteField(o.FlagB, FlagAccess.Set, FlagRole.PartyBeaten, source);
+                    }
+                    if (fought)
+                    {
+                        foreach (var boss in BossesInFirstSlots(m))
+                            Write(boss, FlagAccess.Set, FlagRole.BossBeaten, source);
+                        foreach (var key in KeyItemsIn(m.Loot))
+                            GiveKeyItem(key, source);
                     }
                     break;
                 case TeleporterData t:
@@ -245,11 +339,60 @@ public sealed class QuestAtlas
                 Read(input, FlagRole.NetworkInput, new FlagSource((ushort)flag));
         }
 
+        // Engine code.
+        var labels = new Dictionary<ushort, string>();
+        void Engine(ushort flag, FlagAccess access, string description, string? label = null)
+        {
+            if (access == FlagAccess.Read)
+                Read(flag, FlagRole.EngineCheck, new EngineSource(description));
+            else
+                Write(flag, access, FlagRole.Engine, new EngineSource(description));
+            if (label != null && flag >= 2)
+                labels.TryAdd(flag, label);
+        }
+
         foreach (var range in EngineFlags.Ranges)
         {
             for (var flag = range.First; flag <= range.Last; flag++)
-                Write(flag, FlagAccess.Set, FlagRole.Engine, new EngineSource(range.Description));
+                Engine(flag, FlagAccess.Set, range.Description);
         }
+        foreach (var e in EngineFlags.Cinematics)
+            Engine(e.Flag, FlagAccess.Set, $"Set when {e.Description} ends", $"Saw {e.Description}");
+        foreach (var (boss, flag) in EngineFlags.BossFlags)
+            Engine(flag, FlagAccess.Set, $"Set when the party beats {Name(boss)}", $"Beat {names[boss]}");
+
+        foreach (var m in tables.Party)
+        {
+            var who = names[m.Member];
+            Engine(m.Joined, FlagAccess.Set, $"Set when {Name(m.Member)} joins, cleared when removed alive", $"{who} is in the party");
+            if (m.Left != 0)
+                Engine(m.Left, FlagAccess.Set, $"Set when {Name(m.Member)} is removed alive, cleared when they join", $"{who} left the party");
+            Engine(m.Died, FlagAccess.Set, $"Set while {Name(m.Member)} is dead in the party", $"{who} is dead");
+        }
+        foreach (var k in tables.KeyItems)
+        {
+            Engine(k.Held, FlagAccess.Set, $"Set when the party gains {Name(k.Item)}, cleared when it has none",
+                $"Has {names.GetValueOrDefault(k.Item, k.Item.ToString())}");
+            Engine(k.Held, FlagAccess.Read, $"Restores {Name(k.Item)} to the inventory when a save loads");
+            if (k.Region != 0)
+                Engine(k.Region, FlagAccess.Set, $"Set when the party gains {Name(k.Item)}");
+        }
+        var chunkNames = MapChunks.Read(rom).Where(c => c.Set == MapSet.Overworld).ToDictionary(c => (c.Row, c.Column), c => c.Name);
+        var firstRegion = tables.Regions.Min(r => r.Flag);
+        foreach (var region in tables.Regions.GroupBy(r => r.Flag).OrderBy(g => g.Key))
+        {
+            var chunks = string.Join(", ", region.Select(r => chunkNames.GetValueOrDefault((r.Row, r.Column), $"{r.Row},{r.Column}")));
+            Engine(region.Key, FlagAccess.Set, $"Set on entering Overworld {chunks}", $"World map region {region.Key - firstRegion + 1}");
+            Engine(region.Key, FlagAccess.Read, "Shows its piece of the world map");
+        }
+        foreach (var flag in tables.CampDialogueFlags)
+            Engine(flag, FlagAccess.Read, "Marks a dialogue object as a camp scene: camping near it starts the dialogue while the flag holds");
+        foreach (var title in db.CinematicTitles)
+            Engine(title.Flag, FlagAccess.Read, $"Unlocks “{title.Text}” in the Theatre menu");
+        foreach (var e in EngineFlags.Writes)
+            Engine(e.Flag, FlagAccess.Set, e.Description, e.Description);
+        foreach (var e in EngineFlags.Reads)
+            Engine(e.Flag, FlagAccess.Read, e.Description, e.Description);
 
         return new QuestAtlas
         {
@@ -258,16 +401,27 @@ public sealed class QuestAtlas
             Scripts = scripts.ToDictionary(s => s.Key, s => new AtlasScript(s.Key, s.Value, startedBy[s.Key])),
             Objects = objects,
             References = refs,
-            Names = db.Entities.Select(e => (e.Id, e.Name))
-                .Concat(db.DialogEntities.Select(e => (e.Id, e.Name)))
-                .Concat(db.Weapons.Select(e => (e.Id, e.Name)))
-                .Concat(db.Armor.Select(e => (e.Id, e.Name)))
-                .Concat(db.Gear.Select(e => (e.Id, e.Name)))
-                .Concat(db.Spells.Select(e => (e.Id, e.Name)))
-                .Concat(db.Loot.Select(e => (e.Id, e.Name)))
-                .DistinctBy(e => e.Id)
-                .ToDictionary(e => e.Id, e => e.Name),
+            Names = names,
+            Labels = labels,
         };
+    }
+
+    /// <summary>
+    /// The bosses a monster party puts in the first four enemy slots, which are all
+    /// <c>set_boss_flag</c> looks at. The slots take each entry's minimum count in order, then
+    /// random extras, so an entry with no minimum can only land after every minimum.
+    /// </summary>
+    private static IEnumerable<ushort> BossesInFirstSlots(MonsterPartyData party)
+    {
+        var minimums = party.Enemies.Sum(e => e.Min);
+        var slot = 0;
+        foreach (var (enemy, min, _) in party.Enemies)
+        {
+            var first = min > 0 ? slot : minimums;
+            if (first < 4 && EngineFlags.BossFlags.TryGetValue(enemy, out var flag))
+                yield return flag;
+            slot += min;
+        }
     }
 
     /// <summary>A derived flag's inputs, without the unused ones.</summary>

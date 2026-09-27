@@ -46,7 +46,7 @@ public class QuestAtlasTests
 
     /// <summary>
     /// <c>setEventFlag</c> only writes plain flags from 2 up, so these writes do nothing: a node's
-    /// second effect, derived flags named as done or beaten flags, and two odd triggers.
+    /// second effect, derived flags named as done, beaten or fought flags, and two odd triggers.
     /// </summary>
     [Fact]
     public void IgnoredWritesArePinned()
@@ -55,11 +55,40 @@ public class QuestAtlasTests
 
         Assert.Equal(
         [
-            (3691, FlagRole.DialogueEffect), (5250, FlagRole.ScriptBattleWon), (5264, FlagRole.PartyTalkedTo),
-            (5495, FlagRole.TriggerSets), (5495, FlagRole.ObjectUsed), (5227, FlagRole.PartyBeaten),
-            (5244, FlagRole.PartyTalkedTo), (0, FlagRole.TriggerSets), (5257, FlagRole.PartyBeaten),
-            (5256, FlagRole.PartyBeaten), (5260, FlagRole.PartyBeaten), (5259, FlagRole.PartyBeaten),
+            (3691, FlagRole.DialogueEffect), (5250, FlagRole.ScriptBattle), (5264, FlagRole.PartyTalkedTo),
+            (5264, FlagRole.PartyFought), (5495, FlagRole.TriggerSets), (5495, FlagRole.ObjectUsed),
+            (5227, FlagRole.PartyBeaten), (5244, FlagRole.PartyTalkedTo), (0, FlagRole.TriggerSets),
+            (5257, FlagRole.PartyBeaten), (5256, FlagRole.PartyBeaten), (5260, FlagRole.PartyBeaten),
+            (5259, FlagRole.PartyBeaten),
         ], ignored);
+    }
+
+    /// <summary>
+    /// The 49 flags the checkpoints set that 1E found no data setter for. Engine code sets all but
+    /// eight, which nothing in the data or the retail code names (see the reference rig).
+    /// </summary>
+    [Fact]
+    public void CheckpointFlagsHaveSetters()
+    {
+        var atlas = Na10.Value;
+        var set = atlas.References.Where(r => r.Access != FlagAccess.Read && !r.Ignored).Select(r => (int)r.Flag).ToHashSet();
+        int[] checkpointOnly =
+        [
+            3, 154, 456, 458, 533, 566, 686, 689, 692, 697, .. Enumerable.Range(788, 18), 955, 956, 957, 958,
+            960, 961, 962, 963, 3404, 3426, 3428, 3432, 3611, 3612, .. Enumerable.Range(3733, 7),
+        ];
+
+        Assert.Equal(49, checkpointOnly.Length);
+        Assert.Equal([955, 956, 957, 958, 960, 961, 962, 963], checkpointOnly.Where(f => !set.Contains(f)));
+    }
+
+    /// <summary>Every boss flag has a battle in the data that can set it.</summary>
+    [Fact]
+    public void BossesHaveBattles()
+    {
+        var beaten = Na10.Value.References.Where(r => r.Role == FlagRole.BossBeaten).Select(r => r.Flag).ToHashSet();
+
+        Assert.All(EngineFlags.BossFlags.Values, f => Assert.Contains(f, beaten));
     }
 
     /// <summary>A dialogue object's flag B is always its script's done flag, or 0. The game doesn't read it.</summary>

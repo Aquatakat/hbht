@@ -114,6 +114,7 @@ function flagLabel(f) {
   const j = A.journal.findIndex(e => e.flag === f);
   if (j >= 0) return `Journal ${j}`;
   if (f >= A.bitFlagCount && f - 5556 >= 0 && f - 5556 < A.journal.length) return `Journal ${f - 5556} trigger`;
+  if (A.labels?.[f]) return A.labels[f];
   const e = A.engine.find(e => f >= e.first && f <= e.last);
   return e ? e.description : f >= A.bitFlagCount ? 'derived' : '';
 }
@@ -157,7 +158,7 @@ function showFlag(f) {
   A.journal.forEach((e, i) => { if (e.flag === f) h += `<div class="journal"><b>Journal ${i}</b><br>${text(e.text)}</div>`; });
   const lbl = flagLabel(f); if (lbl && !lbl.startsWith('Journal ') && lbl !== 'derived') h += `<p class="engine">${esc(lbl)}</p>`;
   const set = refs.filter(r => r.access !== 'Read'), read = refs.filter(r => r.access === 'Read');
-  const none = f >= A.bitFlagCount ? 'Computed from its inputs.' : 'Nothing in the data. Engine code (roadmap 1H), or never.';
+  const none = f >= A.bitFlagCount ? 'Computed from its inputs.' : 'Nothing in the data or the engine code the atlas knows of.';
   h += `<h3>Set or cleared by</h3>${set.length ? '<ul>' + set.map(r => refItem(r, srcLink(r.src))).join('') + '</ul>' : `<p class="muted">${none}</p>`}`;
   h += `<h3>Read by</h3>${read.length ? '<ul>' + read.map(r => refItem(r, srcLink(r.src))).join('') + '</ul>' : '<p class="muted">Nothing in the data.</p>'}`;
   $('side').innerHTML = h; $('side').scrollTop = 0;
@@ -215,6 +216,7 @@ function search(q, updateHash = true) {
   if (/^\d+$/.test(q)) { location.hash = `flag/${q}`; return; }
   const m = q.match(/^(?:script|borg13|b13)\s*(\d+)$/i); if (m) { location.hash = `script/${m[1]}`; return; }
   const needle = q.toLowerCase(), hits = [];
+  for (const [f, l] of Object.entries(A.labels ?? {})) if (l.toLowerCase().includes(needle)) hits.push(`<li>${flagLink(+f)}: ${esc(l)}</li>`);
   A.journal.forEach((e, i) => { if (e.text.toLowerCase().includes(needle)) hits.push(`<li><a class="flag" href="#flag/${e.flag}">Journal ${i}</a>: ${esc(e.text.slice(0, 120))}</li>`); });
   for (const [n, s] of Object.entries(A.scripts)) s.nodes.forEach((node, i) => {
     if (node.text?.toLowerCase().includes(needle)) hits.push(`<li>${scriptLink(n, i)}: <span class="quote">${esc(plain(node.text).slice(0, 120))}</span></li>`);

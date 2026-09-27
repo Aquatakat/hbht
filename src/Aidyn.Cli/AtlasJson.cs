@@ -65,6 +65,11 @@ internal static class AtlasJson
             }
             w.WriteEndArray();
 
+            w.WriteStartObject("labels");
+            foreach (var (flag, label) in atlas.Labels.OrderBy(l => l.Key))
+                w.WriteString(flag.ToString(CultureInfo.InvariantCulture), label);
+            w.WriteEndObject();
+
             // Derived flags' definitions, and plain flags that start set.
             w.WriteStartObject("flags");
             for (var flag = 0; flag < atlas.Funnel.Flags.Count; flag++)

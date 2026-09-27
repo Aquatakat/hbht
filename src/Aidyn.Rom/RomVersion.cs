@@ -65,6 +65,32 @@ public enum DbTable
 }
 
 /// <summary>
+/// Content tables in the code segment that engine code reads (roadmap 1H). Each range is the
+/// table's data, including its terminator where it has one.
+/// </summary>
+public enum CodeTable
+{
+    /// <summary>One byte per entity: the entity index the code's own tables use (the decomp's <c>entityList</c>).</summary>
+    EntityList,
+    /// <summary>Entity list index, joined flag, left flag, per recruitable member (<c>Party::CheckFlags</c>).</summary>
+    PartyFlags,
+    /// <summary>Entity list index and died flag, per recruitable member.</summary>
+    PartyDeathFlags,
+    /// <summary>The key items' "has" flags, in <see cref="KeyItems"/> order.</summary>
+    KeyItemFlags,
+    /// <summary>The 31 key items that get their own inventory slots and flags (<c>PartyInventory</c>).</summary>
+    KeyItems,
+    /// <summary>The world map region each key item reveals, or 0.</summary>
+    KeyItemRegionFlags,
+    /// <summary>Overworld row, column and region flag, as u32s (the decomp's <c>set_map_event_flag</c>).</summary>
+    RegionFlags,
+    /// <summary>The flag A values that mark a dialogue object as a camp scene (<c>Camp.cpp</c>).</summary>
+    CampDialogueFlags,
+    /// <summary>Script and flag pairs: winning the battle the script starts sets the flag (<c>dialoug_func</c>).</summary>
+    ScriptBattleFlags,
+}
+
+/// <summary>
 /// Where things are in one ROM version (ADR 0007). Every ROM offset the code uses comes from here.
 /// Entries are added as a reader is written and tested against them, so a missing table means
 /// "not verified for this version yet", not "absent".
@@ -94,6 +120,9 @@ public sealed record RomLayout
 
     public IReadOnlyDictionary<DbTable, RomRange> DbTables { get; init; } =
         new Dictionary<DbTable, RomRange>();
+
+    public IReadOnlyDictionary<CodeTable, RomRange> CodeTables { get; init; } =
+        new Dictionary<CodeTable, RomRange>();
 }
 
 /// <param name="Sha1">Lowercase hex SHA-1 of the big-endian image.</param>
@@ -114,6 +143,18 @@ public static class RomVersions
             BorgList = 0x1F89C10,
             DbBlock = 0x1FC2BB0,
             MapChunkLists = 0x00DBD90,
+            CodeTables = new Dictionary<CodeTable, RomRange>
+            {
+                [CodeTable.EntityList] = new(0x00E3440, 0xDD),
+                [CodeTable.PartyFlags] = new(0x00D42C4, 0x54),
+                [CodeTable.PartyDeathFlags] = new(0x00D4318, 0x38),
+                [CodeTable.KeyItemFlags] = new(0x00E39B0, 0x3E),
+                [CodeTable.KeyItems] = new(0x00E39F0, 0x3E),
+                [CodeTable.KeyItemRegionFlags] = new(0x00E3A30, 0x3E),
+                [CodeTable.RegionFlags] = new(0x00D1E6C, 0x7A4),
+                [CodeTable.CampDialogueFlags] = new(0x00D85F0, 0x12),
+                [CodeTable.ScriptBattleFlags] = new(0x00D2A80, 0xC),
+            },
             DbTables = new Dictionary<DbTable, RomRange>
             {
                 [DbTable.Entities] = new(0x1FC2BB0, 0x7588),
@@ -164,6 +205,18 @@ public static class RomVersions
             BorgList = 0x1F89C50,
             DbBlock = 0x1FC2BF0,
             MapChunkLists = 0x00DBDD0,
+            CodeTables = new Dictionary<CodeTable, RomRange>
+            {
+                [CodeTable.EntityList] = new(0x00E3480, 0xDD),
+                [CodeTable.PartyFlags] = new(0x00D42B4, 0x54),
+                [CodeTable.PartyDeathFlags] = new(0x00D4308, 0x38),
+                [CodeTable.KeyItemFlags] = new(0x00E39F0, 0x3E),
+                [CodeTable.KeyItems] = new(0x00E3A30, 0x3E),
+                [CodeTable.KeyItemRegionFlags] = new(0x00E3A70, 0x3E),
+                [CodeTable.RegionFlags] = new(0x00D1E5C, 0x7A4),
+                [CodeTable.CampDialogueFlags] = new(0x00D85E0, 0x12),
+                [CodeTable.ScriptBattleFlags] = new(0x00D2A70, 0xC),
+            },
             DbTables = new Dictionary<DbTable, RomRange>
             {
                 [DbTable.Entities] = new(0x1FC2BF0, 0x7588),
@@ -212,6 +265,18 @@ public static class RomVersions
             BorgList = 0x1F98790,
             DbBlock = 0x1FD1730,
             MapChunkLists = 0x00EA850,
+            CodeTables = new Dictionary<CodeTable, RomRange>
+            {
+                [CodeTable.EntityList] = new(0x00F1FB0, 0xDD),
+                [CodeTable.PartyFlags] = new(0x00E173C, 0x54),
+                [CodeTable.PartyDeathFlags] = new(0x00E1790, 0x38),
+                [CodeTable.KeyItemFlags] = new(0x00F2530, 0x3E),
+                [CodeTable.KeyItems] = new(0x00F2570, 0x3E),
+                [CodeTable.KeyItemRegionFlags] = new(0x00F25B0, 0x3E),
+                [CodeTable.RegionFlags] = new(0x00DE7CC, 0x7A4),
+                [CodeTable.CampDialogueFlags] = new(0x00E6E00, 0x12),
+                [CodeTable.ScriptBattleFlags] = new(0x00DF740, 0xC),
+            },
             DbTables = new Dictionary<DbTable, RomRange>
             {
                 [DbTable.Entities] = new(0x1FD1730, 0x7588),
