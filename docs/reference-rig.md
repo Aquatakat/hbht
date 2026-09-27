@@ -55,14 +55,18 @@ Mupen64Plus saves are in `%APPDATA%\Mupen64Plus\save`. Only `AIDYN_CHRONICLES (u
 
 Mupen `.mpk` files are four 32 KB paks back to back. The saves are in pak 1, in four 28-page notes (`NAYE`/`78`, "CHRONICLES" A–D). The `SaveDatStruct` header (see `include/savefiles.h` in the decomp) decodes as:
 
-| Slot | Play time (60 Hz ticks, assumed) | Flags set | Map shorts | Party IDs |
-| --- | --- | --- | --- | --- |
-| A | ~18.1 h | 562 | 13, 6 | 23f 24c 243 24d |
-| B | ~7.8 h | 315 | 16, 17 | 23f 24c 243 24a |
-| C | ~17.3 h | 547 | 2, 1 | 23f 24c 243 24d |
-| D | ~18.7 h | 580 | 7, 1 | 23f 24c 243 24d |
+Play time is `PlayTime` in 60 Hz ticks (`TICKSPERSECOND`, `world.h`), advanced by the frame delta. The frame delta counts 60 Hz polls and is capped at 1–6. The map position is the chunk the debug overlay shows as `mapShort1 + 'A'-1` followed by `mapShort2`.
 
-Slot D is the furthest. All slots are named "Alaron".
+| Slot | Play time | Flags set | Chunk | Party IDs | Story position (user) |
+| --- | --- | --- | --- | --- | --- |
+| B | 7:45:26 | 315 | P17 | 23f 24c 243 24a | About 3/5 through, before a major dungeon |
+| C | 17:17:43 | 547 | B01 | 23f 24c 243 24d | Partway through the scripted walk (standing by a horse) |
+| A | 18:04:28 | 562 | M06 | 23f 24c 243 24d | See note |
+| D | 18:44:19 | 580 | G01 | 23f 24c 243 24d | See note |
+
+Note: the user described the longest save as "right before the final set of encounters" and the second longest as "right before unlocking the penultimate cinematic". Which of A and D is which still needs confirming in game.
+
+All slots are named "Alaron". The playthrough used a hacked ROM with low-level enemies, so party stats, equipment and spells are below par for the story position. These saves are good for flag, map and quest state, but not for combat parity. All four load on the debug ROM too.
 
 ### Converting Mupen `.mpk` to ares `.pak`
 
@@ -75,6 +79,35 @@ head -c 32768 "AIDYN_CHRONICLES (unknown rom).mpk" > "roms/Aidyn Chronicles - Th
 This was checked against an ares-written `AidynDebug.pak`. Note table, inode table and save data layout are identical. The only difference is the page-0 ID block: Mupen writes a fixed template with serial `051a5f13`, and ares writes its own. Both pass libultra's ID checksums in all four copies (`0x20/0x60/0x80/0xC0`) and the inode-table checksums. The game's own save checksum sits inside the note data, so it is unaffected.
 
 The debug and retail saves use the same note (`NAYE`/`78`, "CHRONICLES"), the same 28-page size, and the same header layout. Whether the debug ROM can load a retail save, which would put the flag viewer on a late-game state, is untested.
+
+## Debug ROM controls
+
+These are gated on `gDebugFlag` (`0x800E68A0`), which is on in the debug build. Sources are in the decomp.
+
+| Input (overworld) | Effect | Source |
+| --- | --- | --- |
+| C-up | Cycle the performance overlay (6 states): memory bars, object count, ground type, chunk plus position, fps | `PlayerMove.cpp`, `app.cpp` |
+| **L + Start** | **Open the big debug menu** | `gametrek.cpp` |
+| R + A (minimap open) | Minimap shows everything | `gametrek.cpp` |
+| L + D-left | Load only the centre map chunk | `PlayerMove.cpp` |
+| R + D-right | Replace the next loaded scene voxels with boulders (reference objects) | `PlayerMove.cpp` |
+
+Big debug menu entries (`debug_menu_funcs` in `debug.cpp`; labels come from `COMMONSTRING_DebugBigMenu00+i`):
+
+| # | Function |
+| --- | --- |
+| 0 | `debug_gamestatefunnel`: the event-flag viewer and editor |
+| 2 | `gamestste_cheats` |
+| 3 | `debug_add_party_member` |
+| 14 | Clear inventory |
+| 15 | Play the credits |
+| 16 | Unused debug toggle widget |
+| 17 | Toggle enemies hostile |
+| 18 | Toggle "only teleporters active" |
+| 19 | Item DB browser: armor, shield, item, weapon, potion; A adds the item to the inventory |
+| 20 | Bad-reference object hunt (voxel index display) |
+
+Entries 1 and 4–13 are null in the function table.
 
 ## Checkpoint library
 
