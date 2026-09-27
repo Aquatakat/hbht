@@ -10,7 +10,7 @@ public enum VoxelType : ushort
 {
     /// <summary>A model: a Borg5 scene or a Borg7 actor.</summary>
     Scene,
-    /// <summary>Loot: a chest, sack, crate or barrel, or a herb, spice or gem source.</summary>
+    /// <summary>Loot: a chest, sack, crate or barrel, a herb, spice or gem source, or loot with its own model.</summary>
     Container,
     Light,
     Audio,
@@ -106,6 +106,10 @@ public abstract record VoxelData;
 /// <param name="OpenFlag">Set when the container is opened. It stays empty once set.</param>
 /// <param name="ExplodeFlag">Set when its trap destroys it.</param>
 /// <param name="Loot">A chest loot table, or none.</param>
+/// <param name="Kind">
+/// Chest, sack, crate, barrel, herb, spice, gem, or loot with its own model (0-7). Kinds 4-7 are
+/// gated by flags A and C like triggers; the others show until opened or destroyed.
+/// </param>
 /// <param name="Item">A fixed item, or none.</param>
 public sealed record ContainerData(ushort OpenFlag, ushort ExplodeFlag, ItemId Loot, ushort Kind, ushort Gold, ItemId Item)
     : VoxelData;

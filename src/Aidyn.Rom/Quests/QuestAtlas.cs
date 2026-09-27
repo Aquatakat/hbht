@@ -256,9 +256,10 @@ public sealed class QuestAtlas
             switch (o.Data)
             {
                 case ContainerData c:
-                    // Herb, spice and gem sources are gated like triggers. Other containers show
-                    // until they're opened or destroyed.
-                    if (c.Kind is >= 4 and <= 6)
+                    // Herb, spice and gem sources and custom-model loot (kinds 4-7) are gated
+                    // like triggers. Chests, sacks, crates and barrels show until they're
+                    // opened or destroyed.
+                    if (c.Kind is >= 4 and <= 7)
                     {
                         Gate(o.Visible, FlagRole.ObjectVisible, source);
                         Gate(o.Enabled, FlagRole.ObjectEnabled, source);

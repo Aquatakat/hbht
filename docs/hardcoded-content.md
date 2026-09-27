@@ -32,7 +32,7 @@ The quest atlas shows every item below that involves a flag. Search for a name s
 | New journal entry waiting (3617) | `set_journalentry_flag` | 2: trigger on `journal.added` | Fact |
 | Calendar, weather, terrain and best party stat and skill flags | `gameStateFunnel.cpp` | 3: state exposed as flags | Fact |
 | Camp dialogue check (4240, set while it runs) | `Camp.cpp` | 3: camping | Fact |
-| Cheat flags (3673, 3675, 3693, 3694) | `CheatCodes.cpp` | 1: cheat records | Fact (flags only) |
+| Cheat flags (3673, 3675, 3693, 3694) | `CheatCodes.cpp` | 2: cheat triggers (see below) | Fact (flags only) |
 
 ## Flags the engine reads
 
@@ -62,6 +62,25 @@ The quest atlas shows every item below that involves a flag. Search for a name s
 | Game over: script 1298 starts from its object in the Dreamscape Borg9 (3423) | `Gameover_func` | 1: game setting | ROM (script only) |
 | Camping with no camp scene nearby starts the Campsite Borg9's (6236) first dialogue object | `campfire_func` | 1: game setting | To do |
 | The help menu is script 1355 | `gametrek.cpp` | 1: game setting | Fact |
+
+## Cheats
+
+Cheats are typed as Alaron's name, in the title menu's name entry or the options menu (`Cheats::Check`). The name is lowercased first. A cheat only takes effect when the pause menu exists, which also stops the XP and gold cheats crashing the title screen. The codes are the `Cheats` string table, so they're in the ROM; which string runs which effect is code.
+
+| Code | Effect | Layer |
+| --- | --- | --- |
+| `!balloon`, `!bigw` | Toggle drawing heads, or weapons, at double size | 3: render options |
+| `!flea` | Toggles a quarter-size Alaron who jumps with A | 3: player option |
+| `!slashing` | Sets 3673, which shows the Hockey Stick and its container in Gwernia Castle E03 | 2: trigger, set flag |
+| `!darkside` | Sets 3675, which shows the Lightreaver and its container in MiscInteriors E03 | 2: trigger, set flag |
+| `!crawdaddy`, `!fatboy`, `!tweety` | Change the player's model to the chaos trooper, ogre or gryphon, or back to Alaron if it already is | 3: player model |
+| `!cheater` | Once (flag 3693): 500,000 XP to each party member. The decomp's comment says 750,000; the code and ROM say 500,000. | 2: trigger, add XP |
+| `!bingo` | Once (flag 3694): 100,000 gold | 2: trigger, add gold |
+| `Keepbusy`, `Imadoofus` | Each tells you to enter the other. The decomp's function names for these two are swapped. | 2: trigger, show a message |
+| `!version` | Shows the version, compile time and code size, and turns on the coordinate display | 3: debug option |
+| `!gene`, `!gotmilk` | Strings with no effect | None |
+
+The debug ROM also has a game state cheats menu. Only its "appear" option is read, and only in the debug build.
 
 ## Assets engine code names
 
@@ -113,6 +132,7 @@ Code uses 1,990 of the 2,076 names in the decomp's `Borgindecies.h`. The map chu
 - **The ending cinematic has six shots.** The decomp lists five Borg6 animations and five Borg12s for it, but the ROM has six of each, which matches its six clip planes and flag entries.
 - **Each cinematic shot names its own caption list.** The flag list the decomp calls `SeqenceFlags` holds a caption list per shot (or none), then the done flag. Each of the 15 caption lists shows over exactly one shot.
 - **Only the first death scene plays.** All three have dialogue objects in the Dreamscape, but the game over code only looks for 1298.
+- **Containers with their own model are gated like herb sources.** The code gates container kinds 4–7 by flags A and C: herbs, spices, gems and loot with its own model. The atlas only gated 4–6 before. 46 of the 49 kind-7 containers set a flag C, including the cheats' Hockey Stick and Lightreaver, Kendall's Hat and an Amaranth.
 - **Bosses count only in the first four slots.** A monster party fills slots with each entry's minimum count, in order, then random extras, so a boss listed after four guaranteed enemies wouldn't set its flag. In the data, only three monster parties include a boss (Kitarak, and Lugash twice), each listed first. Scripts add the other bosses.
 
 ### Checked against the checkpoints
@@ -127,7 +147,6 @@ The hacked ROM the playthrough used only changed enemy stats (with AidynEditor),
 
 ## Not audited yet
 
-- Cheat codes and what each does.
 - Party rules in code, if any: Brenna never leaving, Rheda's condition.
 - Special-case trainers (AidynEditor notes Becan).
 - Where the map items come from. The atlas doesn't count shops as a source yet, and one shop sells Map 7.
