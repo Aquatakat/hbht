@@ -115,6 +115,21 @@ The debug ROM's `Borg_List` is at `0x1F98790` and its DB block starts at `0x1FD1
   - **Billboards:** the user doesn't recall any that visibly turn to follow the camera, except maybe a bush in later areas. This can wait until one turns up.
   - **Texture filtering:** probably not worth emulating. Aidyn doesn't use the N64's three-point filtering for artistic effect, and its textures, especially the faces, have far more texels than the screen shows.
 
+### What the dialogue reader found (1E)
+
+`aidyn dialogue <rom> [<index>...]` writes each Borg13 as text to `out/<version>/dialogue/`, with speakers named from the DB.
+
+- **Borg13 (892 scripts)** is a 0x18-byte header, then 0x38-byte nodes, then 8-byte actor entries, then plain ASCII text padded to 8 bytes. The text isn't encrypted, unlike the DB strings. It keeps `\n` and `\xHH` escapes, and a run of 20 `#` stands for the player's name. 513 scripts carry leftover strings that no node uses. 153 scripts end with a blank node that nothing links to.
+- **Header:** `ID` is the script's number in the original tools (1004–13147), not its archive index. `flag` is set when a cut-scene, backdrop or help script finishes, but not after a conversation or sign. `start_func` is the presentation: 596 conversations, 211 cut-scenes, 78 backdrops (text over a picture, such as a book), 6 signposts and the help menu. `libraryType` picks the backdrop's picture and is 14 everywhere else. Op 19 duplicates it in each backdrop's first node, and the game never reads op 19.
+- **Nodes** have four ops (a u16 operand, a command byte, then six zero bytes), a text offset and length, a `[a, b]` range, a first link, seven more links, the node's own index and a flags byte. Links end at the first 0xFF. The flags byte gives the kind:
+  - **0x1, line** (24,955): shows its text, then follows its one link. With no link it goes back to the last menu or case.
+  - **0x2, if** (937): evaluates a condition (party member, flag or item) and follows the first link if it's nonzero, else the second.
+  - **0x4, case** (118): evaluates a value (skill, party size or gold) and considers the links whose `[a, b]` holds it. 65000 means no upper bound. One match is followed, and several are offered as a menu.
+  - **Otherwise, menu** (674): offers its links as choices. Choices already taken are hidden, except in backdrops and the help menu.
+  - 0x40 is on most menu choices and is never read. 0x80 is the run-time "visited" bit.
+- **Ops run in three passes:** every setup op (speaker, cameras, actors, enemies) when the node is reached, the first condition op when branching, and **only the first effect op** when a line is left, or at once for menus and cases. The data agrees: only 4 of 26,684 nodes have a second effect. One of them, node 88 of script 1019, is a `SetFlag` that never runs.
+- **Quirks:** script 1294 has 0xCCCC, the tools' fill value, as an actor and a speaker. Ops 1 and 2 are never read by the game.
+
 ## Emulator: ares v148
 
 Installed with winget (`ares-emulator.ares`). Launch through the script, which enables the GDB server for that run only:

@@ -3,6 +3,7 @@ using System.Text;
 using Aidyn.Rom;
 using Aidyn.Rom.Borg;
 using Aidyn.Rom.Db;
+using Aidyn.Rom.Dialogue;
 using Aidyn.Rom.Graphics;
 using Aidyn.Rom.Text;
 
@@ -16,6 +17,9 @@ const string Usage = """
       aidyn scenes <rom> [<index>...] [--out <dir>]
                                            Borg5 scenes as glTF (all, or the given archive indices);
                                            default dir: out/<version>/scenes
+      aidyn dialogue <rom> [<index>...] [--out <dir>]
+                                           Borg13 scripts as text (all, or the given archive indices);
+                                           default dir: out/<version>/dialogue
       aidyn strings <rom> <table>
     """;
 
@@ -32,6 +36,7 @@ try
         ["textures", var rom] => Textures(rom, null),
         ["textures", var rom, "--out", var dir] => Textures(rom, dir),
         ["scenes", var rom, .. var rest] => Scenes(rom, rest),
+        ["dialogue", var rom, .. var rest] => Dialogue(rom, rest),
         ["strings", var rom, var table] => Strings(rom, table),
         _ => Fail(Usage),
     };
@@ -160,17 +165,8 @@ static int Textures(string path, string? outDir)
 
 static int Scenes(string path, string[] args)
 {
-    string? outDir = null;
-    var only = new List<int>();
-    for (var i = 0; i < args.Length; i++)
-    {
-        if (args[i] == "--out" && i + 1 < args.Length)
-            outDir = args[++i];
-        else if (int.TryParse(args[i], CultureInfo.InvariantCulture, out var index))
-            only.Add(index);
-        else
-            return Fail(Usage);
-    }
+    if (!IndicesAndOut(args, out var only, out var outDir))
+        return Fail(Usage);
 
     var rom = RomImage.Load(path);
     var archive = BorgArchive.Open(rom);
@@ -180,7 +176,7 @@ static int Scenes(string path, string[] args)
     var scenes = only.Count > 0 ? only : archive.Listings.Where(l => l.Type == BorgType.Scene).Select(l => l.Index).ToList();
     foreach (var index in scenes)
     {
-        if (index < 0 || index >= archive.Count || archive.Listings[index].Type != BorgType.Scene)
+        if (!IsType(archive, index, BorgType.Scene))
             return Fail($"Borg {index} isn't a scene.");
         var scene = Borg5Scene.Parse(archive.Read(index));
         File.WriteAllBytes(Path.Combine(outDir, $"{index:D5}.glb"), SceneGltf.Export(scene, archive.Read, index));
@@ -189,6 +185,51 @@ static int Scenes(string path, string[] args)
     Console.WriteLine($"Wrote {scenes.Count} scenes to {Path.GetFullPath(outDir)}");
     return 0;
 }
+
+static int Dialogue(string path, string[] args)
+{
+    if (!IndicesAndOut(args, out var only, out var outDir))
+        return Fail(Usage);
+
+    var rom = RomImage.Load(path);
+    var archive = BorgArchive.Open(rom);
+    var db = GameDb.Read(rom);
+    outDir ??= Path.Combine("out", rom.Version.Id.ToString().ToLowerInvariant(), "dialogue");
+    Directory.CreateDirectory(outDir);
+
+    var names = db.Entities.Select(e => (e.Id, e.Name)).Concat(db.DialogEntities.Select(e => (e.Id, e.Name)))
+        .ToDictionary(e => e.Id, e => e.Name);
+    var scripts = only.Count > 0 ? only : archive.Listings.Where(l => l.Type == BorgType.Dialogue).Select(l => l.Index).ToList();
+    foreach (var index in scripts)
+    {
+        if (!IsType(archive, index, BorgType.Dialogue))
+            return Fail($"Borg {index} isn't a dialogue.");
+        var script = Borg13Script.Parse(archive.Read(index));
+        File.WriteAllText(Path.Combine(outDir, $"{index:D5}.txt"), Borg13Text.Format(script, index, names.GetValueOrDefault));
+    }
+
+    Console.WriteLine($"Wrote {scripts.Count} dialogues to {Path.GetFullPath(outDir)}");
+    return 0;
+}
+
+static bool IndicesAndOut(string[] args, out List<int> indices, out string? outDir)
+{
+    indices = [];
+    outDir = null;
+    for (var i = 0; i < args.Length; i++)
+    {
+        if (args[i] == "--out" && i + 1 < args.Length)
+            outDir = args[++i];
+        else if (int.TryParse(args[i], CultureInfo.InvariantCulture, out var index))
+            indices.Add(index);
+        else
+            return false;
+    }
+    return true;
+}
+
+static bool IsType(BorgArchive archive, int index, BorgType type) =>
+    index >= 0 && index < archive.Count && archive.Listings[index].Type == type;
 
 static int Strings(string path, string tableName)
 {
