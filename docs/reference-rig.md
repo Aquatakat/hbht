@@ -110,7 +110,10 @@ The debug ROM's `Borg_List` is at `0x1F98790` and its DB block starts at `0x1FD1
   - Environment-mapped draws lose their texture, because glTF can't generate texture coordinates.
 - **Viewer:** `tools/scene-viewer.html` is a three.js page. Serve the repo root on localhost (the `scene-viewer` entry in `.claude/launch.json`, or `python -m http.server 8123 --bind 127.0.0.1`) and open `/tools/scene-viewer.html?scene=2558`. The **Scene camera** option views through the Borg3 at 4:3. The scenes are ROM-derived, so keep them local.
 - **Checked against the emulator:** the user captured frames of the Gwernia house (scene 2558) and of Brenna (scene 10696, in combat). The house matched. Brenna's texture placement matched once `G_MODIFYVTX` was fixed.
-- **Not yet checked against the emulator:** the lighting model (the decomp's draw code seems to ignore Borg4 lights in favour of a fixed white light), billboard orientation, and N64 texture filtering.
+- **Left for the renderer.** These points are from the user's review:
+  - **Lighting:** the viewer's lighting looks like sunny daytime in-game. Real scene lighting varies with time of day and weather. The decomp's draw code seems to ignore Borg4 lights in favour of a fixed white light, which is still unresolved.
+  - **Billboards:** the user doesn't recall any that visibly turn to follow the camera, except maybe a bush in later areas. This can wait until one turns up.
+  - **Texture filtering:** probably not worth emulating. Aidyn doesn't use the N64's three-point filtering for artistic effect, and its textures, especially the faces, have far more texels than the screen shows.
 
 ## Emulator: ares v148
 
