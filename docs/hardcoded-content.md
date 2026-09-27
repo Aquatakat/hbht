@@ -39,7 +39,7 @@ The quest atlas shows every item below that involves a flag. Search for a name s
 | What | Code | Layer | Status |
 | --- | --- | --- | --- |
 | Camp scenes: a dialogue object whose flag A is one of eight flags starts when the party camps near it | `Camp_CheckDialougFlags` | 1: dialogue object field | ROM |
-| Camp ambushes only happen while derived flag 5004 holds | `Party::CampCheck` | 1: camping setting | Fact |
+| Camp ambushes only happen while derived flag 5004 holds: two of Abrecan, Godric and Rheda have joined | `Party::CampCheck` | 1: camping setting | Fact |
 | Alaron has his True Name while 590 is set | `entityInfo.cpp` | 1: character condition | Fact |
 | When the Rooughah scene (Borg13 1268) ends, the Roog cinematic plays if 3442 is set | `dialogmode.cpp` | 2: trigger on script end | Fact |
 | World map pieces: each shows while its region flag is set | `WorldMapPieces` | 1: map piece record | ROM |
@@ -62,6 +62,24 @@ The quest atlas shows every item below that involves a flag. Search for a name s
 | Game over: script 1298 starts from its object in the Dreamscape Borg9 (3423) | `Gameover_func` | 1: game setting | ROM (script only) |
 | Camping with no camp scene nearby starts the Campsite Borg9's (6236) first dialogue object | `campfire_func` | 1: game setting | To do |
 | The help menu is script 1355 | `gametrek.cpp` | 1: game setting | Fact |
+
+## Party and camping rules
+
+- **Brenna never leaves because no script removes her.** Her row in the party table has no left flag (0), and nothing else in the code names her. It's data, not a rule.
+- **Rheda has no rule in code.** Apart from the party tables, no code names her. Scripts add and remove her like the other recruits.
+- **Camp ambushes** (`Party::CampCheck`): while 5004 holds, camping is ambushed if a d100 roll is at most (15 − the party's best Ranger, capped at 10) × 0.666 × the terrain's factor. Otherwise the party heals. The 15, 10 and 0.666 are camping settings (layer 1); the factor is a terrain field.
+- **Camping is refused** on terrain whose factor is 0 ("The party cannot camp here").
+
+## Terrain and weather
+
+Terrain types are the 0–29 index that map chunks carry and the camp encounters are keyed by. These tables are terrain and season records (layer 1), identical in all three ROMs.
+
+| What | Code | NA 1.0 | Status |
+| --- | --- | --- | --- |
+| Camp ambush factor per terrain type; 0 means no camping | `camp_float_array` | `0xE3B38` | To do |
+| Precipitation chance per season (8) and per terrain type (28), and precipitation scale per terrain type | `sSeasonPrecipChance`, `sTerrainPrecipChance`, `sTerrainPrecipScale` | `0xE3C40`, `0xE3C48`, `0xE3C64` | To do |
+| Snow falls instead of rain on terrain type 5 only | `World::SetWeather` | Literal | To do |
+| The weather rolls again at each change in the time of day, with a 25% chance of clearing and then trying for precipitation | `World::SetWeather` | Literals | To do |
 
 ## Cheats
 
@@ -147,7 +165,6 @@ The hacked ROM the playthrough used only changed enemy stats (with AidynEditor),
 
 ## Not audited yet
 
-- Party rules in code, if any: Brenna never leaving, Rheda's condition.
 - Special-case trainers (AidynEditor notes Becan).
 - Where the map items come from. The atlas doesn't count shops as a source yet, and one shop sells Map 7.
 - The bespoke behaviours ADR 0008 lists: the Goblin Ambush in full, Brenna's Ranger check in Gwernia, the Lugash fight, shadow merge, Sholeh's death and Alaron's True Name.
