@@ -20,8 +20,8 @@ A .NET 10 solution (`Aidyn.slnx`, SDK pinned in `global.json`), laid out per ADR
 
 Update this section when a roadmap task finishes or starts.
 
-- **Done:** 0.1 reference rig, 0.2 ROM identification, 0.3 Borg archive reader, 0.4 DB readers, 0.5 ADRs, 1A static graphics (textures, UI images, geometry, scenes, glTF export; the Gwernia house and Brenna match emulator captures).
-- **In progress:** 1E quest atlas. Borg13 decoding, map objects, the cross-reference (`aidyn atlas`, `aidyn flag`) and the graph viewer are done, and checked against the checkpoints.
+- **Done:** 0.1 reference rig, 0.2 ROM identification, 0.3 Borg archive reader, 0.4 DB readers, 0.5 ADRs, 1A static graphics (textures, UI images, geometry, scenes, glTF export; the Gwernia house and Brenna match emulator captures), 1E quest atlas (Borg13 dialogue, map objects, the flag network, journal links, the cross-reference and its viewer; checked against the four checkpoints).
+- **Next:** 1H hardcoded-content audit. Start with the 49 flags the checkpoints set that no data sets (listed under the quest atlas in the reference rig), and add what it finds to `EngineFlags` so the atlas shows it.
 - **Left for later:** 1A's leftovers for the renderer (lighting, billboards, texture filtering) are in the reference rig.
 - **Not started:** 0.6 asset inspector (needs Godot installed and pinned), and everything else after Phase 0.
 - **Open rig follow-ups** (from ADR 0006): measure the frame `delta` distribution in trek and combat, and get gdb working after loading a save state.

@@ -157,7 +157,8 @@ function showFlag(f) {
   A.journal.forEach((e, i) => { if (e.flag === f) h += `<div class="journal"><b>Journal ${i}</b><br>${text(e.text)}</div>`; });
   const lbl = flagLabel(f); if (lbl && !lbl.startsWith('Journal ') && lbl !== 'derived') h += `<p class="engine">${esc(lbl)}</p>`;
   const set = refs.filter(r => r.access !== 'Read'), read = refs.filter(r => r.access === 'Read');
-  h += `<h3>Set or cleared by</h3>${set.length ? '<ul>' + set.map(r => refItem(r, srcLink(r.src))).join('') + '</ul>' : '<p class="muted">Nothing in the data. Engine code (roadmap 1H), or never.</p>'}`;
+  const none = f >= A.bitFlagCount ? 'Computed from its inputs.' : 'Nothing in the data. Engine code (roadmap 1H), or never.';
+  h += `<h3>Set or cleared by</h3>${set.length ? '<ul>' + set.map(r => refItem(r, srcLink(r.src))).join('') + '</ul>' : `<p class="muted">${none}</p>`}`;
   h += `<h3>Read by</h3>${read.length ? '<ul>' + read.map(r => refItem(r, srcLink(r.src))).join('') + '</ul>' : '<p class="muted">Nothing in the data.</p>'}`;
   $('side').innerHTML = h; $('side').scrollTop = 0;
   graph(`f:${f}`);

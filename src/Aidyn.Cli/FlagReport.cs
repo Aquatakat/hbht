@@ -23,7 +23,9 @@ internal static class FlagReport
             s.AppendLine(CultureInfo.InvariantCulture, $"Shows the new-entry notice for journal {flag - EngineFlags.JournalTriggers}.");
 
         var refs = atlas.References.Where(r => r.Flag == flag).ToList();
-        Section("Set or cleared by", refs.Where(r => r.Access != FlagAccess.Read));
+        var writes = refs.Where(r => r.Access != FlagAccess.Read).ToList();
+        if (atlas.IsBitFlag(flag) || writes.Count > 0)
+            Section("Set or cleared by", writes);
         Section("Read by", refs.Where(r => r.Access == FlagAccess.Read));
         return s.ToString();
 
