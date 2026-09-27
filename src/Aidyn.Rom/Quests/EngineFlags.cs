@@ -100,15 +100,6 @@ public static class EngineFlags
         new(5004, "Camping can be ambushed while set"),
         new(5017, "The lighthouse chunks swap to their lit scenes while set"),
         new(5626, "Read after some map object actions; the result is never used"),
-        new(4286, "Chooses the minimap image of an interior"),
-        new(4287, "Chooses the minimap image of an interior"),
-        new(4288, "Chooses the minimap image of an interior"),
-        new(4289, "Chooses the minimap image of an interior"),
-        new(4290, "Chooses the minimap image of an interior"),
-        new(4291, "Chooses the minimap image of an interior"),
-        new(4292, "Chooses the minimap image of an interior"),
-        new(4293, "Chooses the minimap image of an interior"),
-        new(4294, "Chooses the minimap image of an interior"),
     ];
 
     /// <summary>

@@ -393,6 +393,12 @@ public sealed class QuestAtlas
         }
         foreach (var piece in tables.WorldMap)
             Engine(piece.Flag, FlagAccess.Read, $"Shows its piece of the world map (Borg8 {piece.Image})");
+        var minimaps = Minimaps.Read(rom);
+        foreach (var (images, place) in new[] { (minimaps.Ehud, "the Ehud underground"), (minimaps.RoogEntrance, "the Roog entrance"), (minimaps.Barrows, "the Barrows") })
+        {
+            foreach (var m in images)
+                Engine(m.Flag, FlagAccess.Read, $"Chooses the minimap image of {place} (Borg8 {m.Image})");
+        }
         foreach (var flag in tables.CampDialogueFlags)
             Engine(flag, FlagAccess.Read, "Marks a dialogue object as a camp scene: camping near it starts the dialogue while the flag holds");
         foreach (var title in db.CinematicTitles)

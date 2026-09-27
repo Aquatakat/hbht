@@ -45,7 +45,7 @@ The quest atlas shows every item below that involves a flag. Search for a name s
 | World map pieces: each shows while its region flag is set | `WorldMapPieces` | 1: map piece record | ROM |
 | The lighthouse chunks swap to their lit scenes while 5017 holds | `ZoneEngine.cpp` | 1: chunk alt-scene condition | Fact |
 | Party skill checks in dialogue roll 0–21 while 3717 is set | `DialogEvalCallback` | 3: debug option | Fact |
-| Interior minimaps swap images on 4286–4294 | `MiniMap::BarrowsFlags` | 1: minimap records | Fact (flags only) |
+| Minimap images chosen by flags: the Ehud underground (4222–4232), the Roog entrance (4233–4237) and the Barrows (4286–4294). Which Barrows piece each flag changes is code. | `minimap_dats_2`, `MiniMap::BarrowsFlags` | 1: minimap records | ROM (Barrows logic to do) |
 | The Theatre menu lists a cinematic once its title's flag is set | `TheatreMenu.cpp` | 1: DB | ROM (DB block) |
 | Key item flags restore the key items when a save loads | `LoadKeyItems` | 1: item record | ROM |
 | Flag 5626, read after some map object actions; the result is never used | `objectJumpTables.cpp` | None | Fact |
@@ -62,6 +62,43 @@ The quest atlas shows every item below that involves a flag. Search for a name s
 | Game over: script 1298 starts from its object in the Dreamscape Borg9 (3423) | `Gameover_func` | 1: game setting | ROM (script only) |
 | Camping with no camp scene nearby starts the Campsite Borg9's (6236) first dialogue object | `campfire_func` | 1: game setting | To do |
 | The help menu is script 1355 | `gametrek.cpp` | 1: game setting | Fact |
+
+## Assets engine code names
+
+Code uses 1,990 of the 2,076 names in the decomp's `Borgindecies.h`. The map chunk lists account for 1,127 of them, and those are read from the ROM already (`MapChunks`). The rest fall into four groups.
+
+**Content tables** pair records with their assets. Mods adding a monster, weapon or item need to set these, so each becomes a record field (layer 1). They're data in the code segment, identical in all three ROMs. The 1.0 offsets below are where each starts; they aren't read yet, so they aren't in `RomLayout`.
+
+| What | Code | NA 1.0 | Status |
+| --- | --- | --- | --- |
+| Each entity's model (Borg7), portrait (Borg8), height, collision radius, scale and one unknown float, keyed by entity list position + 1. Entities without an entry get the bat model and a generic portrait. | `gEntityExtras` | `0xE1930` | To do |
+| Each dialogue entity's model, portrait, height and scale | `dailougEnt_info_array` | `0xE3178` | To do |
+| The position lists that code tables use for dialogue entities, spells, armor, weapons and items, like the entity list | `DialougEntList`, `SpellList`, `ArmorList`, `weaponList`, `itemID_array` | `0xE1900`, `0xE3740`, `0xE1850`, `0xE3790`, `0xE3590` | To do |
+| The 66 weapon models (Borg5), by weapon position | `weapons_with_borg5`, `weapon_borg5_ID` | `0xE3520`, `0xD3B14` | To do |
+| Models for six items: Txomin's letter, the banner, the Horn of Kynon, Kendal's helm, Stormbreaker and the Amulet of Haste | `D_800f14d4`, `ItemBorg5Search` | `0xE3564`, `0xD3B9C` | To do |
+| Shield models | `ArmorDB::GetBorg5` | Switch | To do |
+| Item icons (286, by item ID; others get a default, and every potion shares one), then skill, aspect, school and spell-symbol icons, each list followed by its count | `menuimages.cpp` | `0xDF700` | To do |
+| Each spell's icon symbol, by spell position | `SpellDB::GetIcon` | `0xD3C58` | To do |
+| Spell and potion effects: Borg7 and Borg5 per spell or potion, with a memory size | `spellvisuals.cpp` | Switches | To do |
+| Models whose actors fly: bat, wyvern, harpy, dryads, Pandara, gryphon, manticore and scorpion | `Actor::IsFlyingModel` | `0xCE650` | To do |
+| The 39 Borg12 sounds that Borg13 PlaySound operands index | `dialoug_SFX` | `0xE0960` | To do |
+| Minimap pieces for eight interiors: chunk, group, image and position | `minimap.cpp` | | ROM |
+
+**Settings and features** are engine behaviour that names specific assets. Each becomes a game setting (layer 1) or a field of the feature that uses it (layer 3).
+
+- The six title-screen fly-throughs: a Borg6 and eight unknown u16s each (`gFlycamSequences`, `0xE15DC`).
+- Battle music: one of four Borg12s at random without the Expansion Pak, or one of five with it. Gwernia castle and Chaos Isle choose their own music; Chaos Isle picks between two by a map field (`BorgMaps.cpp`).
+- The player's model is Alaron's; three cheats swap it (see cheats, not audited yet).
+- The camp, game over and new-game Borg9s (see above).
+- Sky gradients, sun, moon and stars, clouds, lens flare, rain ambience and four thunder sounds (`sky.cpp`, `skyObjects.cpp`, `Clouds.cpp`, `Lensflare.cpp`, `weather.cpp`).
+- Combat visuals: the arrow and thrown-potion models, target and spell markers, the stat indicator digits and the player shadow (`combatEntity.cpp`, `CombatMarkers.cpp`, `SpellMarker.cpp`, `StatIndicator.cpp`, `ZoneEngine.cpp`).
+- The particle textures (`ZoneEngine.cpp`).
+- Oriana's path lights: scene objects whose second model is `BORG5_OrianaLight` get special handling in the scene renderer. Not read closely yet.
+- Coin, chime and level-up sounds in dialogue, shops and training.
+
+**UI chrome** is the rest: fonts, the compass, menu backgrounds and titles, the calendar and sundial, logos and Controller Pak screens. These need no records. Mods override them as assets under their Borg IDs ([ADR 0004](adr/0004-record-ids.md), [ADR 0005](adr/0005-plugin-format.md)).
+
+**Debug only:** the boulder that replaces scene models, and the debug menu's models.
 
 ## Findings
 
@@ -90,7 +127,6 @@ The hacked ROM the playthrough used only changed enemy stats (with AidynEditor),
 
 ## Not audited yet
 
-- The asset indices in `Borgindecies.h` that code names directly.
 - Cheat codes and what each does.
 - Party rules in code, if any: Brenna never leaving, Rheda's condition.
 - Special-case trainers (AidynEditor notes Becan).

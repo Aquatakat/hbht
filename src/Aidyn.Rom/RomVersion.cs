@@ -100,6 +100,13 @@ public enum CodeTable
     Cinematics,
     /// <summary>Pointers to each cinematic's fades (<c>sCFadePs</c>).</summary>
     CinematicFades,
+    /// <summary>Pointers to the minimap section lists, ending with null (<c>minimap_sec_pointers</c>).</summary>
+    MinimapSections,
+    /// <summary>
+    /// Flag and Borg8 pairs, as u32s, in three lists that each end with zeros: the Ehud
+    /// underground's, the Roog entrance's and the Barrows' (<c>minimap_dats_2</c>).
+    /// </summary>
+    MinimapFlagImages,
 }
 
 /// <summary>
@@ -172,6 +179,8 @@ public static class RomVersions
                 [CodeTable.WorldMapPieces] = new(0x00DFC40, 0xA0),
                 [CodeTable.Cinematics] = new(0x00E1380, 0x40),
                 [CodeTable.CinematicFades] = new(0x00E1598, 0x10),
+                [CodeTable.MinimapSections] = new(0x00E07A4, 0x24),
+                [CodeTable.MinimapFlagImages] = new(0x00E07C8, 0xE0),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {
@@ -240,6 +249,8 @@ public static class RomVersions
                 [CodeTable.WorldMapPieces] = new(0x00DFC80, 0xA0),
                 [CodeTable.Cinematics] = new(0x00E13C0, 0x40),
                 [CodeTable.CinematicFades] = new(0x00E15D8, 0x10),
+                [CodeTable.MinimapSections] = new(0x00E07E4, 0x24),
+                [CodeTable.MinimapFlagImages] = new(0x00E0808, 0xE0),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {
@@ -306,6 +317,8 @@ public static class RomVersions
                 [CodeTable.WorldMapPieces] = new(0x00EE7A0, 0xA0),
                 [CodeTable.Cinematics] = new(0x00EFEF0, 0x40),
                 [CodeTable.CinematicFades] = new(0x00F0108, 0x10),
+                [CodeTable.MinimapSections] = new(0x00EF304, 0x24),
+                [CodeTable.MinimapFlagImages] = new(0x00EF328, 0xE0),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {
