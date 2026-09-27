@@ -76,7 +76,24 @@ The debug ROM's `Borg_List` is at `0x1F98790` and its DB block starts at `0x1FD1
   In total there are 14,996 display lists and 319,709 triangles. 1,013 of the lists are empty, and 101 models have no lists at all. Every mesh lies inside its bounding box.
 - **Material flag 0x8 means *unlit*.** The decomp names it "Lighting", but its code turns lighting on when the bit is clear, and the data agrees. In lists with the bit clear, 99.9% of vertices hold unit normals. In lists with it set, they hold colours. 9,833 lists are unlit (pre-lit vertex colours) and 5,163 are lit. On a contact sheet the lit ones look mostly like character body parts.
 - **Material flags 0x1000 and 0x2000 wrap S and T, and 0x4000 and 0x8000 mirror them.** This is inferred from the data: with both wrap bits set, texture coordinates span many texture widths, and without them the coordinates stay within one. The decomp's tile setup reads these bits so that T always clamps. That can't be right for the tiled terrain, so it's probably a misread. Confirm this against the emulator when textured export lands.
-- **Header:** the scale is 1/16 on 5,267 models. The position and rotation are set on only a few. The word at 0x28 is 1 on 162 models, and the decomp's draw code skips their display lists. Vertex `flag` (0–3) is ignored by the RSP and its meaning is unknown.
+- **Header:** the scale is 1/16 on 5,267 of the 5,636 models. The position and rotation are set on only a few. The word at 0x28 is 1 on 162 models, and the decomp's draw code skips their display lists. Vertex `flag` (0–3) is ignored by the RSP and its meaning is unknown.
+
+### What the scene reader found (1A)
+
+- **Borg5 (1,402 scenes)** has a 0x44-byte header, then 0x40-byte transforms, then these lists:
+  - the transforms' child lists;
+  - the archive indices of the scene's lights, models and textures;
+  - a u16 instruction stream;
+  - particle emitters, each a pointer plus 0xBC bytes.
+
+  Every scene names a Borg3 camera. No scene has animated textures, which the game would crash on. 75 scenes have particle emitters (218 in total), and those aren't parsed yet.
+- **Transform order:** transform 0 is the camera, which uses op 4 (look-at). Next comes one direction (op 3) per light except the last, then the model nodes, which all use op 1 (scale, rotate about a pivot, translate). Ops 0 and 2 are never used. The last light has no direction and is presumably ambient. In multi-light scenes it's the strictly darkest in 112, the first light is in 15, and the rest tie.
+- **Hierarchy:** flag 0x100 marks exactly the transforms with no parent, every other transform has exactly one parent, and children always come after their parent. Flag 0x200 is a billboard (321 transforms).
+- **Matrix conventions:** the game uses row vectors, like `System.Numerics`, and a child's world matrix is `local × parentWorld`. Rotations are in degrees and apply as roll about X, then pitch about Y, then heading about Z (libultra's `guRotateRPYF` order). The pivot ends up at the position. The per-axis scale that the game keeps in the fourth column is always 1 for op 1, so the composition reduces to the ordinary one.
+- **Units:** the game draws at 16 times scene units and scales vertices by the Borg2's scale, so a vertex lands at `v × scale / 16` in scene units. At the usual scale of 1/16, 256 vertex units make one scene unit.
+- **Instructions:** these are `LoadTexture` (0xFF unbinds), `LoadModel`, `Matrix` and `Draw`. The stream flattens to 16,597 draws, of which 15,230 are textured. Five scenes (5246, 13851, 13922, 13924 and 13928) draw display lists that their models don't have. The operands are 8-bit, so in the 4 scenes with 256 or more transforms, the transforms from 256 on can't be drawn.
+- **Texture coordinates are 64 units per texel,** not 32. The game sets a texture scale of ½ (`gSPTexture 0x8000`). As a check, 71 textured billboards span their texture exactly once at 64 units per texel, and none do at 32. So UV = S / (64 × width), with T = 0 at the texture's first row.
+- **Borg3 (5 cameras):** each is 45° wide at 4:3. Near and far are 0.1 and 1000, 0.01 and 1000, or 0.25 and 25 scene units. **Borg4 (507 lights)** is 1.0 followed by an RGB colour, and most are greys.
 
 ## Emulator: ares v148
 
