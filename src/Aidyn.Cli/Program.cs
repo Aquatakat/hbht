@@ -3,6 +3,7 @@ using System.Text;
 using Aidyn.Rom;
 using Aidyn.Rom.Borg;
 using Aidyn.Rom.Db;
+using Aidyn.Rom.Graphics;
 using Aidyn.Rom.Text;
 
 const string Usage = """
@@ -11,6 +12,7 @@ const string Usage = """
       aidyn borg summary <rom>
       aidyn borg dump <rom> [--out <dir>]    default dir: out/<version>/borg
       aidyn db dump <rom> [--out <dir>]      default dir: out/<version>/db
+      aidyn textures <rom> [--out <dir>]     Borg1 and Borg8 as PNG; default dir: out/<version>/textures
       aidyn strings <rom> <table>
     """;
 
@@ -24,6 +26,8 @@ try
         ["borg", "dump", var rom, "--out", var dir] => BorgDump(rom, dir),
         ["db", "dump", var rom] => DbDump(rom, null),
         ["db", "dump", var rom, "--out", var dir] => DbDump(rom, dir),
+        ["textures", var rom] => Textures(rom, null),
+        ["textures", var rom, "--out", var dir] => Textures(rom, dir),
         ["strings", var rom, var table] => Strings(rom, table),
         _ => Fail(Usage),
     };
@@ -109,6 +113,44 @@ static int DbDump(string path, string? outDir)
         File.WriteAllText(Path.Combine(outDir, name + ".json"), DbJson.Serialize(value));
 
     Console.WriteLine($"Wrote {tables.Length} tables to {Path.GetFullPath(outDir)}");
+    return 0;
+}
+
+static int Textures(string path, string? outDir)
+{
+    var rom = RomImage.Load(path);
+    var archive = BorgArchive.Open(rom);
+    outDir ??= Path.Combine("out", rom.Version.Id.ToString().ToLowerInvariant(), "textures");
+
+    var index = new StringBuilder("index,type,format,width,height,lods,flags,move\n");
+    foreach (var listing in archive.Listings)
+    {
+        string row;
+        RgbaImage image;
+        switch (listing.Type)
+        {
+            case BorgType.Texture:
+                var texture = Borg1Texture.Parse(archive.Read(listing.Index));
+                image = texture.Decode();
+                row = $"{texture.Format},{texture.Width},{texture.Height},{texture.Lods},0x{(int)texture.Flags:X},0x{texture.Move:X2}";
+                break;
+            case BorgType.UiImage:
+                var ui = Borg8Image.Parse(archive.Read(listing.Index));
+                image = ui.Decode();
+                row = $"{ui.Format},{ui.Width},{ui.Height},,,";
+                break;
+            default:
+                continue;
+        }
+
+        var typeDir = Path.Combine(outDir, TypeFolder(listing.Type));
+        Directory.CreateDirectory(typeDir);
+        File.WriteAllBytes(Path.Combine(typeDir, $"{listing.Index:D5}.png"), Png.Encode(image));
+        index.Append(CultureInfo.InvariantCulture, $"{listing.Index},{listing.Type},{row}\n");
+    }
+
+    File.WriteAllText(Path.Combine(outDir, "index.csv"), index.ToString());
+    Console.WriteLine($"Wrote textures to {Path.GetFullPath(outDir)}");
     return 0;
 }
 
