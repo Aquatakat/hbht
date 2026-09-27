@@ -69,7 +69,7 @@ The debug ROM's `Borg_List` is at `0x1F98790` and its DB block starts at `0x1FD1
 - **The display lists are F3DEX2** and use only six commands:
   - `G_VTX`, the vertex loads, which never go past buffer slot 31.
   - `G_TRI1`. There are 313,655 of these, but also 3,027 `G_TRI2`, so they don't only use TRI1.
-  - `G_MODIFYVTX`, which only ever rewrites texture coordinates (`0x14`), and only in lit lists.
+  - `G_MODIFYVTX`, which only ever rewrites texture coordinates (`0x14`), and only in lit lists. The RSP applies the texture scale as it loads vertices, and `G_MODIFYVTX` writes over the already-scaled values, so the edited coordinates are in half the units of the loaded ones. The data confirms this: 17,296 edited coordinates equal half the original, shifted by whole textures, against 369 that equal the original shifted, which is about chance. Reading them unscaled put Brenna's cuff pattern up her bare arms and misplaced her hood trim.
   - `G_CULLDL` against the list's own bounding box, always first.
   - `G_ENDDL`.
 
@@ -109,6 +109,7 @@ The debug ROM's `Borg_List` is at `0x1F98790` and its DB block starts at `0x1FD1
   - Culling maps to `doubleSided`.
   - Environment-mapped draws lose their texture, because glTF can't generate texture coordinates.
 - **Viewer:** `tools/scene-viewer.html` is a three.js page. Serve the repo root on localhost (the `scene-viewer` entry in `.claude/launch.json`, or `python -m http.server 8123 --bind 127.0.0.1`) and open `/tools/scene-viewer.html?scene=2558`. The **Scene camera** option views through the Borg3 at 4:3. The scenes are ROM-derived, so keep them local.
+- **Checked against the emulator:** the user captured frames of the Gwernia house (scene 2558) and of Brenna (scene 10696, in combat). The house matched. Brenna's texture placement matched once `G_MODIFYVTX` was fixed.
 - **Not yet checked against the emulator:** the lighting model (the decomp's draw code seems to ignore Borg4 lights in favour of a fixed white light), billboard orientation, and N64 texture filtering.
 
 ## Emulator: ares v148

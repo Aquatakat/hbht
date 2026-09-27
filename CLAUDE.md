@@ -21,7 +21,7 @@ A .NET 10 solution (`Aidyn.slnx`, SDK pinned in `global.json`), laid out per ADR
 Update this section when a roadmap task finishes or starts.
 
 - **Done:** 0.1 reference rig, 0.2 ROM identification, 0.3 Borg archive reader, 0.4 DB readers, 0.5 ADRs.
-- **In progress:** 1A static graphics. Borg1 textures, Borg8 UI images, Borg2 geometry and Borg5 scenes (with Borg3 cameras and Borg4 lights) and the glTF export are done. What's left is checking a building and a character against the emulator.
+- **In progress:** 1A static graphics. Borg1 textures, Borg8 UI images, Borg2 geometry and Borg5 scenes (with Borg3 cameras and Borg4 lights) and the glTF export are done, and the Gwernia house and Brenna match emulator captures. Open questions for 1A are the lighting model, billboard facing and texture filtering (see the reference rig).
 - **Next:** 1E quest atlas, in its own session after 1A.
 - **Not started:** 0.6 asset inspector (needs Godot installed and pinned), and everything else after Phase 0.
 - **Open rig follow-ups** (from ADR 0006): measure the frame `delta` distribution in trek and combat, and get gdb working after loading a save state.

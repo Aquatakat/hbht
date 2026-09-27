@@ -21,6 +21,10 @@ public class GeometryTests
         Assert.Equal([(0, 1, 2), (3, 2, 1), (0, 3, 1)], triangles.Select(t => (t.A.X, t.B.X, t.C.X)).Select(Ints));
     }
 
+    /// <summary>
+    /// G_MODIFYVTX writes texture coordinates that the texture scale has already been applied to,
+    /// so at a scale of ½ they come back doubled.
+    /// </summary>
     [Fact]
     public void ModifyVtxChangesTextureCoordinatesOnly()
     {
@@ -28,10 +32,10 @@ public class GeometryTests
             0x0100_3006, 0x0A00_0000,
             0x0214_0002, 0x1234_FFFE,
             0x0500_0204, 0x0000_0000,
-            0xDF00_0000, 0), 0, Segments);
+            0xDF00_0000, 0), 0, Segments, textureScale: 0x8000);
 
         var edited = triangles[0].B;
-        Assert.Equal((0x1234, -2), (edited.S, edited.T));
+        Assert.Equal((0x2468, -4), (edited.S, edited.T));
         Assert.Equal(Vertices(4).Span.Slice(N64Vertex.Size, 8).ToArray(), Bytes(edited)[..8]);
     }
 

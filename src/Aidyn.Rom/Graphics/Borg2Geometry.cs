@@ -81,6 +81,11 @@ public sealed class Borg2Geometry
     private const int VertexSegment = 0xA;
     private const int BoundingBoxSegment = 0xE;
 
+    /// <summary>
+    /// The <c>gSPTexture</c> scale the game draws Borg2s with (½), so a texel is 64 units of S or T.
+    /// </summary>
+    public const int TextureScale = 0x8000;
+
     private Borg2Geometry(float alpha, float scale, Vector3 position, Vector3 rotation, uint unknown24, uint unknown28,
         N64Vertex[] vertices, Borg2Mesh[] meshes)
     {
@@ -169,7 +174,7 @@ public sealed class Borg2Geometry
             var flags = (Borg2MaterialFlags)BinaryPrimitives.ReadUInt32BigEndian(m);
             var tint = new Vector4(ReadSingle(m, 4), ReadSingle(m, 8), ReadSingle(m, 0xC), ReadSingle(m, 0x10));
             var box = ReadVertices(h[(boxes + i * BoundingBoxVertices * N64Vertex.Size)..], BoundingBoxVertices);
-            var (meshVertices, indices) = Index(F3dex2.Run(h[..table], list, segments));
+            var (meshVertices, indices) = Index(F3dex2.Run(h[..table], list, segments, TextureScale));
             meshes[i] = new Borg2Mesh(flags, tint, box, meshVertices, indices);
         }
 

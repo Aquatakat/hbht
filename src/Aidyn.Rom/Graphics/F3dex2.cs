@@ -28,11 +28,17 @@ public static class F3dex2
     /// its triangles, in order. <paramref name="segments"/> maps segment numbers to the memory
     /// that <c>G_VTX</c> addresses in that segment point into.
     /// </summary>
+    /// <param name="textureScale">
+    /// The <c>gSPTexture</c> scale the list runs under, where 0x10000 is 1. The RSP scales texture
+    /// coordinates as it loads vertices, and <c>G_MODIFYVTX</c> writes over the scaled values, so
+    /// edited coordinates are divided by the scale to match the loaded ones.
+    /// </param>
     /// <remarks>
     /// <c>G_CULLDL</c> is ignored: it only skips the rest of the list when its vertices are all
     /// off screen, and here everything is drawn.
     /// </remarks>
-    public static List<N64Triangle> Run(ReadOnlySpan<byte> data, int offset, IReadOnlyDictionary<int, ReadOnlyMemory<byte>> segments)
+    public static List<N64Triangle> Run(ReadOnlySpan<byte> data, int offset, IReadOnlyDictionary<int, ReadOnlyMemory<byte>> segments,
+        int textureScale = 0x10000)
     {
         var buffer = new N64Vertex?[VertexBufferSize];
         var triangles = new List<N64Triangle>();
@@ -52,7 +58,11 @@ public static class F3dex2
                     if (where != ModifySt)
                         throw new InvalidDataException($"G_MODIFYVTX of 0x{where:X2} at 0x{pc:X} isn't supported.");
                     var index = (int)(w0 & 0xFFFF) >> 1;
-                    buffer[index] = Loaded(buffer, index, pc) with { S = (short)(w1 >> 16), T = (short)w1 };
+                    buffer[index] = Loaded(buffer, index, pc) with
+                    {
+                        S = Unscale((short)(w1 >> 16), textureScale, pc),
+                        T = Unscale((short)w1, textureScale, pc),
+                    };
                     break;
                 case GCullDl:
                     break;
@@ -89,6 +99,14 @@ public static class F3dex2
         var source = memory.Span[address..];
         for (var i = 0; i < count; i++)
             buffer[first + i] = N64Vertex.Read(source[(i * N64Vertex.Size)..]);
+    }
+
+    private static short Unscale(short value, int scale, int pc)
+    {
+        var unscaled = (long)value * 0x10000 / scale;
+        if (unscaled * scale != (long)value * 0x10000 || unscaled is < short.MinValue or > short.MaxValue)
+            throw new InvalidDataException($"G_MODIFYVTX at 0x{pc:X} sets a texture coordinate of {value}, which scale 0x{scale:X} can't have produced.");
+        return (short)unscaled;
     }
 
     /// <summary>A triangle from the low three bytes of a word, which hold buffer indices times 2.</summary>
