@@ -28,6 +28,6 @@ Update this section when a roadmap task finishes or starts.
 ## Ground rules
 
 - Never commit ROMs or anything derived from them. `roms/` is gitignored.
-- The decomp ([blackgamma7/Aidyn](https://github.com/blackgamma7/Aidyn)) isn't vendored. Clone it into scratch space to read it. It has no licence, so port from understanding and don't copy its code.
+- The decomp ([blackgamma7/Aidyn](https://github.com/blackgamma7/Aidyn)) isn't vendored. A local clone lives in the gitignored `ref/Aidyn`, next to `ref/AidynEditor`. Read it there and `git -C ref/Aidyn pull` to update it; don't re-clone into scratch space. If `ref/` is missing, clone both repos into it. The decomp has no licence, so port from understanding and don't copy its code.
 - The user reaches story checkpoints by playing the game. Don't drive gameplay in the emulator. Ask for in-game actions instead.
 - Commit as you go, without asking: commit each finished slice of work once its tests pass, along with its doc and status updates. This is specific to this project. Pushing still waits for the user.
