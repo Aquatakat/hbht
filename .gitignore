@@ -4,3 +4,6 @@ roms
 *.v64
 *.mpk
 *.pak
+bin/
+obj/
+out/
