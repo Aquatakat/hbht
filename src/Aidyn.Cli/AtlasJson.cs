@@ -189,6 +189,10 @@ internal static class AtlasJson
             case FlagSource f:
                 w.WriteNumber("derived", f.Flag);
                 break;
+            case ShopSource p:
+                w.WriteNumber("shop", p.Shop);
+                w.WriteString("shopkeeper", p.Shopkeeper.ToString());
+                break;
             case EngineSource e:
                 w.WriteString("engine", e.Description);
                 break;

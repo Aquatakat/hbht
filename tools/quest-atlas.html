@@ -62,7 +62,7 @@ let A, cy;
 const idx = { refsByFlag: new Map(), refsBySrc: new Map(), engineFlags: new Set() };
 
 const srcKey = s => s.script !== undefined ? `s:${s.script}` : s.object !== undefined ? `o:${s.object}`
-  : s.derived !== undefined ? `f:${s.derived}` : `e:${s.engine}`;
+  : s.derived !== undefined ? `f:${s.derived}` : s.shop !== undefined ? `p:${s.shop}` : `e:${s.engine}`;
 const push = (m, k, v) => { if (!m.has(k)) m.set(k, []); m.get(k).push(v); };
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const name = id => A.names[id] ?? id;
@@ -135,6 +135,7 @@ function srcLink(s) {
   if (s.script !== undefined) return scriptLink(s.script, s.node);
   if (s.object !== undefined) return objectLink(s.object);
   if (s.derived !== undefined) return `<a class="derived" href="#flag/${s.derived}">derived flag ${s.derived}</a> <span class="muted">${esc(flagLabel(s.derived))}</span>`;
+  if (s.shop !== undefined) return `<span class="object">shop ${s.shop}, run by ${esc(name(s.shopkeeper))}</span>`;
   return `<span class="engine">engine: ${esc(s.engine)}</span>`;
 }
 function derivation(f) {
@@ -247,7 +248,7 @@ function downstream(key) {
   const [t, v] = [key[0], +key.slice(2)], out = [];
   if (t === 'f') {
     for (const r of idx.refsByFlag.get(v) ?? []) if (r.access === 'Read') out.push([key, srcKey(r.src), r.role]);
-  } else if (t === 's' || t === 'o') {
+  } else if (t === 's' || t === 'o' || t === 'p') {
     for (const r of idx.refsBySrc.get(key) ?? []) if (r.access !== 'Read' && !r.ignored) out.push([key, `f:${r.flag}`, r.role, r.access === 'Clear']);
     if (t === 'o' && A.objects[v].script) out.push([key, `s:${A.objects[v].script}`, 'starts']);
   }
@@ -282,6 +283,7 @@ function look(k) {
   const v = +k.slice(2);
   if (k[0] === 'f') { const l = flagLabel(v); return { label: `${v}${l && l !== 'derived' ? '\n' + l : ''}`, color: v >= A.bitFlagCount ? '#c58af0' : '#e0b04a' }; }
   if (k[0] === 's') { const s = A.scripts[v]; const t = plain(s.nodes.find(x => x.text)?.text); return { label: `B13 ${v} ${s.mode}\n${t.slice(0, 40)}`, color: '#6fa8ff', shape: 'round-rectangle' }; }
+  if (k[0] === 'p') { const s = idx.refsBySrc.get(k)[0].src; return { label: `Shop ${v}\n${name(s.shopkeeper)}`, color: '#7ccf8a', shape: 'round-rectangle' }; }
   if (k[0] === 'o') { const o = A.objects[v]; return { label: `${o.type}${o.name ? ' ' + o.name : o.entity ? ' ' + name(o.entity) : ''}\n${o.chunks[0] ?? 'Borg9 ' + o.borg9}`, color: '#7ccf8a', shape: 'diamond' }; }
   return { label: k, color: '#9a9cab' };
 }

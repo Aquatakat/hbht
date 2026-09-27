@@ -81,6 +81,12 @@ Terrain types are the 0–29 index that map chunks carry and the camp encounters
 | Snow falls instead of rain on terrain type 5 only | `World::SetWeather` | Literal | To do |
 | The weather rolls again at each change in the time of day, with a 25% chance of clearing and then trying for precipitation | `World::SetWeather` | Literals | To do |
 
+## Trainers
+
+The Train effect teaches from the record of the entity being talked to: its skills, shield skill and spells (`init_skill_trainer`). No trainer is special-cased in code. Most trainers are entities with code names, such as STER0904 in Erromon and STTA05 in Talewok; Becan, Oriana, a female dryad and a Jundar man train from their own records.
+
+Becan is also a recruit, so one record sets both what he teaches and what his party character can learn. That's why AidynEditor treats him as a special case: it writes a blank skill as 255 for him, which a party character reads as "can't learn", and as 0 for other trainers. It's data (layer 1), read from the entity DB.
+
 ## Cheats
 
 Cheats are typed as Alaron's name, in the title menu's name entry or the options menu (`Cheats::Check`). The name is lowercased first. A cheat only takes effect when the pause menu exists, which also stops the XP and gold cheats crashing the title screen. The codes are the `Cheats` string table, so they're in the ROM; which string runs which effect is code.
@@ -144,7 +150,7 @@ Code uses 1,990 of the 2,076 names in the decomp's `Borgindecies.h`. The map chu
 - **Code tables refer to entities by list position, not ID.** A 221-byte `entityList` in the code maps each position to an entity. The party tables use these positions, and so does the boss switch, which is a jump table over positions 168–186.
 - **Map 13's region flag is on Cradawgh's Body.** Gaining Map 13 reveals nothing. The decomp notes this as a bug.
 - **Two world map entries can't apply.** They name overworld chunks G18 and R29, which don't exist.
-- **Most map items are never given.** Only Map 2 has a source in the data, so the world map fills in as the party explores. The Skull Key has no source either; it's possibly cut content. The Blood Key is the only key item given as a monster party's direct loot.
+- **Most map items are never given.** Only Map 2 (in a container) and Map 7 (sold by shop 17, STTA05 in Talewok) have sources, so the world map fills in as the party explores. No script, container, monster party, loot table or shop gives Map 5. Its region flag (791) is set on entering Talewok's chunks, which shows the same piece of the world map, so that may be what's remembered as getting it. The checkpoints can't settle it: they hold no maps at all. The Skull Key and the Map to the Goblin Lair have no source either; they're possibly cut content. The Blood Key is the only key item given as a monster party's direct loot.
 - **Talking monster parties fight under flag C.** When a talking party's dialogue starts a battle, the battle's encounter flag is the party's flag C, and winning sets it. Most such parties have C equal to B. One names derived flag 5264, so the write does nothing.
 - **Script battles don't set their flag on a win.** Only monster-party battles set the encounter flag on a win. The Goblin Ambush's flag, 978, is set when the party *loses*, and every special rule of that fight keys on it.
 - **The ending cinematic has six shots.** The decomp lists five Borg6 animations and five Borg12s for it, but the ROM has six of each, which matches its six clip planes and flag entries.
@@ -165,6 +171,4 @@ The hacked ROM the playthrough used only changed enemy stats (with AidynEditor),
 
 ## Not audited yet
 
-- Special-case trainers (AidynEditor notes Becan).
-- Where the map items come from. The atlas doesn't count shops as a source yet, and one shop sells Map 7.
 - The bespoke behaviours ADR 0008 lists: the Goblin Ambush in full, Brenna's Ranger check in Gwernia, the Lugash fight, shadow merge, Sholeh's death and Alaron's True Name.

@@ -82,6 +82,26 @@ public class QuestAtlasTests
         Assert.Equal([955, 956, 957, 958, 960, 961, 962, 963], checkpointOnly.Where(f => !set.Contains(f)));
     }
 
+    /// <summary>
+    /// Of the maps, only Map 2 (in a container) and Map 7 (in a Talewok shop) can be got. The Skull
+    /// Key and the Map to the Goblin Lair have no source either.
+    /// </summary>
+    [Fact]
+    public void KeyItemSourcesArePinned()
+    {
+        var atlas = Na10.Value;
+        var rom = TestRoms.Get(RomVersionId.Na10);
+        var given = atlas.References.Where(r => r.Role == FlagRole.ItemGiven && !r.Ignored).ToLookup(r => r.Flag);
+        var unsourced = EngineTables.Read(rom).KeyItems.Where(k => !given[k.Held].Any()).Select(k => atlas.Names[k.Item]).ToList();
+
+        Assert.Equal(
+        [
+            "Map 1", "Map 4", "Map 5", "Map 6", "Map 8", "Map 9", "Map 10", "Map 11", "Map 12", "Map 13", "Map 14",
+            "Map 15", "Map 16", "Map to Goblin Lair", "Map 17", "Map 18", "Skull Key",
+        ], unsourced);
+        Assert.Equal([new ShopSource(17, GameDb.Read(rom).Shops[17].Shopkeeper)], given[3411].Select(r => r.Source));
+    }
+
     /// <summary>Every boss flag has a battle in the data that can set it.</summary>
     [Fact]
     public void BossesHaveBattles()

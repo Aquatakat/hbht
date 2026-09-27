@@ -82,6 +82,8 @@ internal static class FlagReport
                 return Object(atlas, os);
             case FlagSource fs:
                 return $"derived flag {fs.Flag}";
+            case ShopSource ps:
+                return $"shop {ps.Shop}, run by {atlas.Names.GetValueOrDefault(ps.Shopkeeper, ps.Shopkeeper.ToString())}";
             case EngineSource es:
                 return $"engine: {es.Description}";
             default:

@@ -28,7 +28,7 @@ public enum FlagRole
     /// Losing the Goblin Ambush sets it.
     /// </summary>
     ScriptBattle,
-    /// <summary>An AddItem effect, a container's item or loot, that gives a key item and so sets its flags.</summary>
+    /// <summary>An AddItem effect, a container's item or loot, or a shop's stock, that gives a key item and so sets its flags.</summary>
     ItemGiven,
     /// <summary>A TakeItem effect on a key item, which clears its flag once the party has none.</summary>
     ItemTaken,
@@ -82,6 +82,9 @@ public sealed record ScriptSource(int Script, int? Node) : AtlasSource;
 
 /// <param name="Borg9">The Borg9 holding the object.</param>
 public sealed record ObjectSource(int Borg9, int Index) : AtlasSource;
+
+/// <summary>A shop in the DB, which the Shop effect opens when talking to its shopkeeper.</summary>
+public sealed record ShopSource(int Shop, ItemId Shopkeeper) : AtlasSource;
 
 /// <summary>A derived flag that reads this one.</summary>
 public sealed record FlagSource(ushort Flag) : AtlasSource;
@@ -332,6 +335,16 @@ public sealed class QuestAtlas
                         Gate(o.Visible, FlagRole.ObjectVisible, source);
                     break;
             }
+        }
+
+        // Shops. The game stocks a slot only when its third byte is nonzero, and the extra slots
+        // whenever they name an item.
+        for (var i = 0; i < db.Shops.Count; i++)
+        {
+            var shop = db.Shops[i];
+            var stock = shop.Stock.Where(s => s.Unk2 != 0).Select(s => s.Item).Concat(shop.ExtraStock);
+            foreach (var key in stock.Where(keyItems.ContainsKey))
+                GiveKeyItem(keyItems[key], new ShopSource(i, shop.Shopkeeper));
         }
 
         // The flag network.
