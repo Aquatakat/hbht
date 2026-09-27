@@ -49,7 +49,8 @@ public readonly record struct Borg13Op(Borg13Opcode Opcode, ushort Value)
 /// <param name="Ops">Up to four, without the trailing <see cref="Borg13Opcode.None"/>s.</param>
 /// <param name="Text">
 /// As stored: <c>\n</c> and <c>\xHH</c> escapes are left as written, and a run of 20 <c>#</c> stands
-/// for the player's name.
+/// for the player's name. Many lines start with <c>V</c> and four digits, which the game strips and
+/// never uses.
 /// </param>
 /// <param name="Min">When this node is a Case's link: the lowest value that selects it.</param>
 /// <param name="Max">The highest value that selects it. 65000 means no upper bound.</param>
