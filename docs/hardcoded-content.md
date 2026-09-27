@@ -27,7 +27,7 @@ The quest atlas shows every item below that involves a flag. Search for a name s
 | The encounter flag of the Goblin Ambush and Lugash scripts' battles | `dialoug_func` | 1: script field | ROM |
 | Flag 47 after losing the Goblin Ambush, with the heal and the move to Oriana's hut | `clear_combat_func` | 3: encounter `onDefeat` | Fact (flag only) |
 | Flag 566 when the Shadow merges with Alaron | `shadowMerge.cpp` | 3 or 4: shadow merge | Fact (flag only) |
-| Flag 622 when Sholeh dies in combat, as well as her died flag | `combatEntity.cpp` | 1: member record | Fact |
+| Sholeh's died flag (622) whenever she dies in battle, including as an ally | `CombatEntity::Death` | 1: member record | Fact |
 | First spell learned (3611) and first potion bought (3612), which show help | `WidgetSpellTrain`, `WidgetBarterControl` | 2: triggers | Fact |
 | New journal entry waiting (3617) | `set_journalentry_flag` | 2: trigger on `journal.added` | Fact |
 | Calendar, weather, terrain and best party stat and skill flags | `gameStateFunnel.cpp` | 3: state exposed as flags | Fact |
@@ -63,6 +63,53 @@ The quest atlas shows every item below that involves a flag. Search for a name s
 | Camping with no camp scene nearby starts the Campsite Borg9's (6236) first dialogue object | `campfire_func` | 1: game setting | To do |
 | The help menu is script 1355 | `gametrek.cpp` | 1: game setting | Fact |
 
+## Bespoke behaviours
+
+ADR 0008 names six behaviours as bespoke. Read closely, only two need layer 3 features: the Goblin Ambush and the Shadow. The other four are records and triggers. None needs a script.
+
+### The Goblin Ambush (encounter flag 978)
+
+`gameCombat.cpp`, `combatEntity.cpp`, `turn.cpp` and `combatEngine.cpp` key on the encounter flag. As encounter fields:
+
+| Field | Value | Code |
+| --- | --- | --- |
+| `canFlee` | false | `encounter_id_check` |
+| `onStart` | Heal Alaron to full | `init_combat_struct` |
+| `keelOverAfterHits` | 2. Each hit on Alaron that does damage deals and shows 1 instead. The second drops his Strength to 0, so he keels over and can't move. | `GoblinAmbushAttack`, `func_keel_over_after_ambush` |
+| `nonLethal` | When the party is down, there's no game over. The combat text shows the "PlotPoison" string, locked to Alaron. Then the encounter flag is set, the monster party is marked beaten if the battle came from one, and the clock moves to 6:00 the next day. | `CombatTurn::PartyDead`, `CombatStateFunc_13` |
+| `suppressVictoryText` | true. Winning still sets boss flags and gives loot. | `CombatTurn::EnemiesDead` |
+| `onEnd` | Win or lose: restore Alaron's Strength, heal him to full, set flag 47, and move the party to Oriana's hut (MiscInteriors E03) at (5.9, 0.5, 3.0), facing +x | `clear_combat_func` |
+
+These are ADR 0008's example fields, except that the move to the hut happens on any ending, not only after a win.
+
+### The Shadow (entity 0x0226)
+
+A feature on the entity, with the Horn of Kynon as its item. The fields:
+
+| Field | Value | Code |
+| --- | --- | --- |
+| `canFlee` | true while the Shadow is in the battle, before the encounter table has the last word | `look_for_boss_shadow` |
+| `aura` | Radius 10. At the start of each turn, each living combatant within it that isn't chaos-aligned takes 10 − distance damage, squared without the item. A hit that would kill ends the battle instead, as if the Shadow reached Alaron. | `shadow_combat_func` |
+| `slow` | Anyone within 10 has a move range of 1, with the "XShadow" message | `CombatEntity` turn setup, `movement_checking_shadow` |
+| `noPotionHealing` | Potions heal nothing while the Shadow is in the battle | `Entity::HealByPotion` |
+| `vanishAfterTurns` | 3, without the item. The "ShadowVanish" text shows and the battle ends. | `shadow_combat_func`, `merge_no_horn` |
+| `merge` | When the Shadow's and Alaron's collision radii + 0.5 overlap: with the item, the Shadow cinematic plays and Alaron merges; without it, the Shadow vanishes | `alaron_shadow_merge_attempt` |
+| `mergeBoost` | Alaron's base Strength +6, Intelligence, Willpower and Endurance +3, Stamina +10, protection +5. For each skill and weapon skill the Shadow has, Alaron gains the difference to the Shadow's, or 2 if that isn't positive. The shield skill is the same, but the code's test is inverted, so it applies when the Shadow has no shield skill. Each Shadow spell is learned, or raised by the difference or 2, up to 10. Then flag 566 is set. | `ShadowMergeBoost` |
+
+### The other four
+
+- **Brenna's Ranger check in Gwernia** is the camp ambush roll. The code only names Brenna in the flag `FLAG_Gwernia2MembersNoBrenna` (5004), which `Party::CampCheck` reads before rolling against the party's best Ranger. See "Party and camping rules".
+- **The Lugash fight** has no code of its own. It's script battle 1233, whose encounter flag (5250) is derived, so a win never sets it. The encounter table lets the party flee, Lugash uses the AI's boss attack style, and beating him sets boss flag 533. All of these are records.
+- **Sholeh** is two entity fields (layer 1). If an encounter lists her in its first four enemy slots, she fights on the party's side instead (`find_sholeh`). Her died flag, 622, is set whenever she dies in battle (`CombatEntity::Death`). The decomp's `find_sholeh` looks garbled, returning a slot the caller treats as one-based.
+- **Alaron's True Name** is a character flag. The entity DB has it (`HasTrueName`), and spells marked True Name need it. Alaron gains it when the Roog cinematic ends, and again whenever his character sheet is built while 590, that cinematic's done flag, is set (`entityInfo.cpp`). As a record: Alaron's True Name comes from flag 590.
+
+### Fleeing and bosses
+
+| What | Code | NA 1.0 | Status |
+| --- | --- | --- | --- |
+| Fleeing: monster party battles allow it, camp ambushes don't, and script battles allow it unless the script is a cutscene. Then a boss among the enemies forbids it (Kitarak, the Marquis, Pochanargat, Shamsuk, Sheridan, Ksathra, Shatrevar, Mehrdad, Golnar, Nasim, Behrooz and Assim), the Shadow allows it, and last, three encounter flags override: 978 forbids it, 5250 (Lugash) and 3749 (the Marquis) allow it. | `look_for_boss_shadow`, `encounter_id_check` | `0xD3288`, `0xD32A0` | To do |
+| Enemies with spells that use the AI's boss attack style: 13 entities, including Lugash and the Wight | `CombatAI::IsBoss` | Switch | To do |
+
 ## Party and camping rules
 
 - **Brenna never leaves because no script removes her.** Her row in the party table has no left flag (0), and nothing else in the code names her. It's data, not a rule.
@@ -96,7 +143,7 @@ Cheats are typed as Alaron's name, in the title menu's name entry or the options
 | `!balloon`, `!bigw` | Toggle drawing heads, or weapons, at double size | 3: render options |
 | `!flea` | Toggles a quarter-size Alaron who jumps with A | 3: player option |
 | `!slashing` | Sets 3673, which shows the Hockey Stick and its container in Gwernia Castle E03 | 2: trigger, set flag |
-| `!darkside` | Sets 3675, which shows the Lightreaver and its container in MiscInteriors E03 | 2: trigger, set flag |
+| `!darkside` | Sets 3675, which shows the Lightreaver and its container in Oriana's hut (MiscInteriors E03) | 2: trigger, set flag |
 | `!crawdaddy`, `!fatboy`, `!tweety` | Change the player's model to the chaos trooper, ogre or gryphon, or back to Alaron if it already is | 3: player model |
 | `!cheater` | Once (flag 3693): 500,000 XP to each party member. The decomp's comment says 750,000; the code and ROM say 500,000. | 2: trigger, add XP |
 | `!bingo` | Once (flag 3694): 100,000 gold | 2: trigger, add gold |
@@ -169,6 +216,10 @@ Code uses 1,990 of the 2,076 names in the decomp's `Borgindecies.h`. The map chu
 
 The hacked ROM the playthrough used only changed enemy stats (with AidynEditor), so it isn't the cause. They may come from code that computes a flag number. Nothing reads them.
 
-## Not audited yet
+## Still open
 
-- The bespoke behaviours ADR 0008 lists: the Goblin Ambush in full, Brenna's Ranger check in Gwernia, the Lugash fight, shadow merge, Sholeh's death and Alaron's True Name.
+Everything the first pass found is audited. What's left:
+
+- Flags 955–958 and 960–963 (see above).
+- Which Barrows minimap piece each of its flags changes (`MiniMap::BarrowsFlags`), and Oriana's path lights.
+- The content tables and switches marked To do are located but not read. The importer will need them.

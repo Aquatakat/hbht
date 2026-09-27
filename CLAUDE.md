@@ -20,9 +20,8 @@ A .NET 10 solution (`Aidyn.slnx`, SDK pinned in `global.json`), laid out per ADR
 
 Update this section when a roadmap task finishes or starts.
 
-- **Done:** 0.1 reference rig, 0.2 ROM identification, 0.3 Borg archive reader, 0.4 DB readers, 0.5 ADRs, 1A static graphics (textures, UI images, geometry, scenes, glTF export; the Gwernia house and Brenna match emulator captures), 1E quest atlas (Borg13 dialogue, map objects, the flag network, journal links, the cross-reference and its viewer; checked against the four checkpoints).
-- **In progress:** 1H hardcoded-content audit, tracked in [docs/hardcoded-content.md](docs/hardcoded-content.md). The engine's flag tables are read from the code segment (`EngineTables`) or carried in `EngineFlags`, and the atlas shows them. So are the cinematics, minimaps, world map pieces, camp scenes and script endings. Flags 955–958 and 960–963 are still unexplained. Next: the items under "Not audited yet" there.
-- **Left for later:** 1A's leftovers for the renderer (lighting, billboards, texture filtering) are in the reference rig.
+- **Done:** 0.1 reference rig, 0.2 ROM identification, 0.3 Borg archive reader, 0.4 DB readers, 0.5 ADRs, 1A static graphics (textures, UI images, geometry, scenes, glTF export; the Gwernia house and Brenna match emulator captures), 1E quest atlas (Borg13 dialogue, map objects, the flag network, journal links, the cross-reference and its viewer; checked against the four checkpoints), 1H hardcoded-content audit ([docs/hardcoded-content.md](docs/hardcoded-content.md): every item has its ADR 0008 layer; the tables the atlas needs are read from the ROM, the rest are located).
+- **Left for later:** 1A's leftovers for the renderer (lighting, billboards, texture filtering) are in the reference rig. 1H's are at the end of its audit: flags 955–958 and 960–963 are unexplained, and the content tables marked To do are located but not read; the importer will need them.
 - **Not started:** 0.6 asset inspector (needs Godot installed and pinned), and everything else after Phase 0.
 - **Open rig follow-ups** (from ADR 0006): measure the frame `delta` distribution in trek and combat, and get gdb working after loading a save state.
 
