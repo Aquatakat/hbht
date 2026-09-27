@@ -56,7 +56,7 @@ The quest atlas shows every item below that involves a flag. Search for a name s
 - **Code tables refer to entities by list position, not ID.** A 221-byte `entityList` in the code maps each position to an entity. The party tables use these positions, and so does the boss switch, which is a jump table over positions 168–186.
 - **Map 13's region flag is on Cradawgh's Body.** Gaining Map 13 reveals nothing. The decomp notes this as a bug.
 - **Two world map entries can't apply.** They name overworld chunks G18 and R29, which don't exist.
-- **Most map items are never given.** Only Map 2 has a source in the data, so the world map fills in as the party explores. The Skull Key has no source either; it's documented cut content. The Blood Key is the only key item given as a monster party's direct loot.
+- **Most map items are never given.** Only Map 2 has a source in the data, so the world map fills in as the party explores. The Skull Key has no source either; it's possibly cut content. The Blood Key is the only key item given as a monster party's direct loot.
 - **Talking monster parties fight under flag C.** When a talking party's dialogue starts a battle, the battle's encounter flag is the party's flag C, and winning sets it. Most such parties have C equal to B. One names derived flag 5264, so the write does nothing.
 - **Script battles don't set their flag on a win.** Only monster-party battles set the encounter flag on a win. The Goblin Ambush's flag, 978, is set when the party *loses*, and every special rule of that fight keys on it.
 - **Bosses count only in the first four slots.** A monster party fills slots with each entry's minimum count, in order, then random extras, so a boss listed after four guaranteed enemies wouldn't set its flag. In the data, only three monster parties include a boss (Kitarak, and Lugash twice), each listed first. Scripts add the other bosses.
@@ -80,5 +80,5 @@ The hacked ROM the playthrough used only changed enemy stats (with AidynEditor),
 - Cheat codes and what each does.
 - Party rules in code, if any: Brenna never leaving, Rheda's condition.
 - Special-case trainers (AidynEditor notes Becan).
-- Where the map items come from. The atlas doesn't count shops as a source yet, and one shop sells Map 7. The user remembers getting Map 5, which no data source gives.
+- Where the map items come from. The atlas doesn't count shops as a source yet, and one shop sells Map 7.
 - The bespoke behaviours ADR 0008 lists: the Goblin Ambush in full, Brenna's Ranger check in Gwernia, the Lugash fight, shadow merge, Sholeh's death and Alaron's True Name.
