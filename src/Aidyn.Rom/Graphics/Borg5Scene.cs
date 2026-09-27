@@ -39,8 +39,9 @@ public sealed record Borg5Transform(Borg5TransformFlags Flags, Borg5TransformOp 
     /// </summary>
     public Matrix4x4 LocalMatrix() => Op switch
     {
-        // Scale, then roll about X, pitch about Y and heading about Z (libultra's guRotateRPYF
-        // order), then move the pivot to the position.
+        // Scale, then roll about X by Rotation.Y, pitch about Y by Rotation.X and heading about Z
+        // by Rotation.Z (libultra's guRotateRPYF order, with X and Y swapped as the camera and
+        // lights also have them), then move the pivot to the position.
         Borg5TransformOp.PivotRotate => PivotRotate(),
         // Only the Z row is set, to the direction; the rest is 0.
         Borg5TransformOp.Direction => new Matrix4x4 { M31 = Direction.X, M32 = Direction.Y, M33 = Direction.Z, M44 = 1 },
@@ -64,14 +65,17 @@ public sealed record Borg5Transform(Borg5TransformFlags Flags, Borg5TransformOp 
     {
         if (Op != Borg5TransformOp.PivotRotate)
             return null;
-        var rotation = Rpy(Rotation.X, Rotation.Y, Rotation.Z);
+        var rotation = Rpy(Rotation.Y, Rotation.X, Rotation.Z);
         var translation = Position - Vector3.TransformNormal(Pivot, Matrix4x4.CreateScale(Scale) * rotation);
         return (Scale, Quaternion.Normalize(Quaternion.CreateFromRotationMatrix(rotation)), translation);
     }
 
     private Matrix4x4 PivotRotate()
     {
-        var m = Matrix4x4.CreateScale(Scale) * Rpy(Rotation.X, Rotation.Y, Rotation.Z);
+        // The decomp's Borg5Transform_op1 reads the angles the other way round, but the machine
+        // code (0x8009E4C4 on the debug ROM) takes its roll from Rotation.Y and its pitch from
+        // Rotation.X.
+        var m = Matrix4x4.CreateScale(Scale) * Rpy(Rotation.Y, Rotation.X, Rotation.Z);
         m.Translation = Position - Vector3.TransformNormal(Pivot, m);
         return m;
     }

@@ -10,7 +10,7 @@ public class SceneTests
     public void PivotRotateTurnsAboutThePivotAndPutsItAtThePosition()
     {
         var t = new Borg5Transform(Borg5TransformFlags.Root, Borg5TransformOp.PivotRotate, [],
-            Rotation: new Vector3(90, 0, 0), Position: new Vector3(10, 20, 30), Scale: new Vector3(2, 2, 2),
+            Rotation: new Vector3(0, 90, 0), Position: new Vector3(10, 20, 30), Scale: new Vector3(2, 2, 2),
             Pivot: new Vector3(0, 1, 0));
         var m = t.LocalMatrix();
 
@@ -19,14 +19,23 @@ public class SceneTests
         AssertNear(new Vector3(10, 20, 32), Vector3.Transform(new Vector3(0, 2, 0), m));
     }
 
+    /// <summary>
+    /// Rotation.Y rolls about X, then Rotation.X pitches about Y, then Rotation.Z turns about Z:
+    /// the order of the game's machine code, not of the decomp's pseudocode. With Y up, as the
+    /// scenes are, Rotation.X turns a model about the vertical, as the camera's does.
+    /// </summary>
     [Fact]
     public void RotationsApplyRollThenPitchThenHeading()
     {
         var t = new Borg5Transform(Borg5TransformFlags.Root, Borg5TransformOp.PivotRotate, [],
             new Vector3(90, 90, 0), Vector3.Zero, Vector3.One, Vector3.Zero);
 
-        // Roll takes +Y to +Z; pitch then takes +Z to +X.
+        // Roll (Rotation.Y) takes +Y to +Z; pitch (Rotation.X) then takes +Z to +X.
         AssertNear(Vector3.UnitX, Vector3.Transform(Vector3.UnitY, t.LocalMatrix()));
+
+        var turn = t with { Rotation = new Vector3(90, 0, 0) };
+        AssertNear(Vector3.UnitY, Vector3.Transform(Vector3.UnitY, turn.LocalMatrix()));
+        AssertNear(Vector3.UnitX, Vector3.Transform(Vector3.UnitZ, turn.LocalMatrix()));
     }
 
     [Fact]

@@ -298,7 +298,9 @@ $('time').oninput = e => {
 $('actor').onchange = e => { $('drive').checked = drive.on = false; selectActor(+e.target.value); };
 $('drive').onchange = e => {
   drive.on = e.target.checked;
-  drive.request = drive.lastRequest = +$('request').value;
+  // The actor starts idle, so a request other than idle can interrupt at once.
+  drive.request = +$('request').value;
+  drive.lastRequest = 0;
   home();
   if (drive.on) enterState(0); else playClip(+$('anim').value);
 };
