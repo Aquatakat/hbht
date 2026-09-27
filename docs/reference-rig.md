@@ -59,12 +59,10 @@ Play time is `PlayTime` in 60 Hz ticks (`TICKSPERSECOND`, `world.h`), advanced b
 
 | Slot | Play time | Flags set | Chunk | Party IDs | Story position (user) |
 | --- | --- | --- | --- | --- | --- |
-| B | 7:45:26 | 315 | P17 | 23f 24c 243 24a | About 3/5 through, before a major dungeon |
-| C | 17:17:43 | 547 | B01 | 23f 24c 243 24d | Partway through the scripted walk (standing by a horse) |
-| A | 18:04:28 | 562 | M06 | 23f 24c 243 24d | See note |
-| D | 18:44:19 | 580 | G01 | 23f 24c 243 24d | See note |
-
-Note: the user described the longest save as "right before the final set of encounters" and the second longest as "right before unlocking the penultimate cinematic". Which of A and D is which still needs confirming in game.
+| B | 7:45:26 | 315 | P17 | 23f 24c 243 24a | Before Shamsuk's Tower |
+| C | 17:17:43 | 547 | B01 | 23f 24c 243 24d | Before Rooughah |
+| A | 18:04:28 | 562 | M06 | 23f 24c 243 24d | Before the final encounter |
+| D | 18:44:19 | 580 | G01 | 23f 24c 243 24d | Before Rooughah, in Terminor. This is the latest save; the user walked back across the map to stand by a horse. |
 
 All slots are named "Alaron". The playthrough used a hacked ROM with low-level enemies, so party stats, equipment and spells are below par for the story position. These saves are good for flag, map and quest state, but not for combat parity. All four load on the debug ROM too.
 
@@ -111,4 +109,41 @@ Entries 1 and 4–13 are null in the function table.
 
 ## Checkpoint library
 
-To do. Save states are captured by the user playing, not scripted. Each state should record the ROM, the ares version, the slot, and a one-line story position.
+Save states are captured by the user playing, not scripted. They live in `roms/` and are named `<rom basename> - <label>.bsN`. They were made with ares v148, whose state header reads `BST1` with serializer tag `v152`. Each state's `PlayTime` was read back with `tools/bst.py`, and all eight match their pak slot plus the time spent before saving the state.
+
+| Label | Pak slot | 1.0 state `PlayTime` | Debug state `PlayTime` |
+| --- | --- | --- | --- |
+| Before Shamsuk's Tower | B | 7:45:33 | 7:45:42 |
+| Before Rooughah | C | 17:18:24 | 17:18:00 |
+| Before final encounter | A | 18:04:54 | 18:06:44 |
+| Before Rooughah, in Terminor | D | 18:45:11 | 18:44:32 |
+
+Load a checkpoint by label:
+
+```powershell
+tools/ares.ps1 debug -Checkpoint "Before final encounter"
+```
+
+This copies the named state to the ROM's `.bs9` slot and passes `--save-state 9`. Slot 9 is scratch, and the named files are never written. The ares slot convention is `<rom basename>.bsN`.
+
+### Reading state RAM offline: `tools/bst.py`
+
+ares states store RDRAM uncompressed as 32-bit little-endian words. `bst.py` locates RDRAM by fingerprinting the code segment against the matching ROM, found by filename prefix. It then reads it as big-endian KSEG0 addresses:
+
+```bash
+python tools/bst.py "<state>" 0x800f1bbc 16     # hexdump
+python tools/bst.py "<state>" --word 0x800f1bbc # one u32
+python tools/bst.py "<state>" --dump out.bin    # 8 MB RDRAM image
+```
+
+This is the preferred way to inspect checkpoints: it's deterministic, repeatable, and doesn't need a live emulator. Symbols useful so far:
+
+| Symbol | Debug | 1.0 |
+| --- | --- | --- |
+| `TerrainPointer` | `0x800F1BBC` | `0x800E303C` |
+| `TerrainStruct.PlayTime` | `+0x34` | `+0x34` |
+| `TerrainStruct.InGameTime` | `+0x20` | `+0x20` |
+
+### Known issue: GDB after loading a state
+
+When the debug ROM was booted with `--save-state`, gdb got `Ignoring packet error` on connect. After the failed handshake the GDB port stopped listening, and on one attempt ares stopped responding. A plain boot with no state attached fine earlier. The cause isn't isolated yet: it could be state loading, or the stub not recovering from a client that exits without detaching. Until it's fixed, use `bst.py` for checkpoint inspection and keep gdb for live sessions started from a cold boot.
