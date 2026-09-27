@@ -130,6 +130,29 @@ The debug ROM's `Borg_List` is at `0x1F98790` and its DB block starts at `0x1FD1
 - **Ops run in three passes:** every setup op (speaker, cameras, actors, enemies) when the node is reached, the first condition op when branching, and **only the first effect op** when a line is left, or at once for menus and cases. The data agrees: only 4 of 26,684 nodes have a second effect. One of them, node 88 of script 1019, is a `SetFlag` that never runs.
 - **Quirks:** script 1294 has 0xCCCC, the tools' fill value, as an actor and a speaker. Ops 1 and 2 are never read by the game.
 
+### What the map object reader found (1E)
+
+1E reads only the map objects (voxels) of each Borg9, since they're what gate on flags and start dialogues. The rest of Borg9 is 1C's.
+
+- **Map chunk lists** are 17 zero-terminated lists of 12-byte entries (row, column, scene, alternate scene, Borg9, terrain), back to back in the code segment. They're at `0xDBD90` in 1.0, `0xDBDD0` in 1.1 and `0xEA850` in the debug ROM, identical in all three: 543 chunks. 57 Borg9s aren't in any list.
+- **Map objects** are 0x6C bytes: a 0x28-byte header (position, radius, a run-time time stamp, flags, type, two links, flags A, B and C, and a run-time pointer), then 0x44 bytes that depend on the type. The Borg9 header's count and pointer at 0x28 and 0x44 find them, and the collision sections start right after, 8-byte aligned. There are 26,091 across 584 Borg9s.
+- **The three flag slots.** A flag check is the flag's value XOR an invert bit, where flag 0 is always false and flag 1 always true, so an inverted 0 means "always".
+  - **C** (inverted by bit 0x80) says whether a scene, light, sound, teleporter or trigger is there at all.
+  - **A** (inverted by 0x100) says whether a teleporter, trigger or dialogue works, and whether a monster party is there.
+  - **B** is written when the object is used: set, or cleared if bit 0x200 is on. A monster party without a dialogue is gone while its B is set, and winning its fight sets it. With a dialogue, talking to it sets B. A dialogue object's B always equals its script's done flag (273 of them; 91 are 0) and the game doesn't read it.
+- **Type-specific flags:** containers have an "opened" and an "exploded" flag; teleporters have lock, unlock, trap, disarm and secret-door flags.
+- **Dead writes:** the game only writes plain flags from 2 up. Two SetFlag triggers name derived flag 5495 and flag 0, and six monster parties name derived flags as their B.
+
+### The quest atlas (1E)
+
+`aidyn atlas <rom>` writes `out/<version>/atlas/atlas.json`, and `aidyn flag <rom> <flag>...` prints what sets and reads a flag, with the nearest dialogue line and where each script is started. The atlas cross-references the dialogue ops, script done flags, map objects, the flag network and the engine's calendar, weather, terrain and party-stat flags.
+
+- **The flag network:** derived flags are evaluated in index order until nothing changes. Logic flags are AND, OR, exactly-one (EOR), none (NOT) or "inputs as bits equal the operand" (MSK). Value flags compare the inputs as bits, and count flags compare how many are set, using ==, >, < or !=. Inputs of 0xFFFF are skipped. Evaluating the network from each checkpoint's plain flags reproduces every derived flag in its RAM, in all four checkpoints.
+- **The journal:** entry *i* has flag 5556 + *i*, which is "entry *i*'s flag is set". When a flag from 5556 up turns on, the game raises flag 3617 and shows the new-entry notice.
+- **Coverage, checked against the checkpoints:** 2,031 plain flags have a setter in the data, and 140 are read but never set by data. Of the roughly 560 flags set in the late checkpoints, only 49 have no known setter. They're engine code for 1H to list: 3, 154, 456, 458, 533, 566, 686, 689, 692, 697, 788–805, 955–958, 960–963, 3404, 3426, 3428, 3432, 3611, 3612 and 3733–3739.
+- **Scripts:** 79 scripts aren't started by any map object or script. Code starts some of them, such as the help menu and the death scenes.
+- **Reading flags from a checkpoint:** `gameStates` (1.0: `0x800DAF00`) points to the loaded `GameStateFunnel`. Its word at +8 points to the 8-byte flag entries, and each entry's byte at +6 is the flag's current value.
+
 ## Emulator: ares v148
 
 Installed with winget (`ares-emulator.ares`). Launch through the script, which enables the GDB server for that run only:

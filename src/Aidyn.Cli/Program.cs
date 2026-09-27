@@ -5,6 +5,7 @@ using Aidyn.Rom.Borg;
 using Aidyn.Rom.Db;
 using Aidyn.Rom.Dialogue;
 using Aidyn.Rom.Graphics;
+using Aidyn.Rom.Quests;
 using Aidyn.Rom.Text;
 
 const string Usage = """
@@ -20,6 +21,9 @@ const string Usage = """
       aidyn dialogue <rom> [<index>...] [--out <dir>]
                                            Borg13 scripts as text (all, or the given archive indices);
                                            default dir: out/<version>/dialogue
+      aidyn atlas <rom> [--out <dir>]        the quest atlas as JSON, for tools/quest-atlas.html;
+                                           default dir: out/<version>/atlas
+      aidyn flag <rom> <flag>...             what sets and reads each flag
       aidyn strings <rom> <table>
     """;
 
@@ -37,6 +41,9 @@ try
         ["textures", var rom, "--out", var dir] => Textures(rom, dir),
         ["scenes", var rom, .. var rest] => Scenes(rom, rest),
         ["dialogue", var rom, .. var rest] => Dialogue(rom, rest),
+        ["atlas", var rom] => Atlas(rom, null),
+        ["atlas", var rom, "--out", var dir] => Atlas(rom, dir),
+        ["flag", var rom, .. var flags] when flags.Length > 0 => Flags(rom, flags),
         ["strings", var rom, var table] => Strings(rom, table),
         _ => Fail(Usage),
     };
@@ -209,6 +216,30 @@ static int Dialogue(string path, string[] args)
     }
 
     Console.WriteLine($"Wrote {scripts.Count} dialogues to {Path.GetFullPath(outDir)}");
+    return 0;
+}
+
+static int Atlas(string path, string? outDir)
+{
+    var rom = RomImage.Load(path);
+    var atlas = QuestAtlas.Build(rom);
+    outDir ??= Path.Combine("out", rom.Version.Id.ToString().ToLowerInvariant(), "atlas");
+    Directory.CreateDirectory(outDir);
+    File.WriteAllBytes(Path.Combine(outDir, "atlas.json"), AtlasJson.Serialize(atlas, rom.Version.Name));
+    Console.WriteLine($"Wrote the atlas to {Path.GetFullPath(outDir)}: {atlas.References.Count} flag references, " +
+        $"{atlas.Scripts.Count} scripts, {atlas.Objects.Count} map objects");
+    return 0;
+}
+
+static int Flags(string path, string[] flags)
+{
+    var atlas = QuestAtlas.Build(RomImage.Load(path));
+    foreach (var arg in flags)
+    {
+        if (!int.TryParse(arg, CultureInfo.InvariantCulture, out var flag) || flag < 0 || flag >= atlas.Funnel.Flags.Count)
+            return Fail($"\"{arg}\" isn't a flag number (0 to {atlas.Funnel.Flags.Count - 1}).");
+        Console.WriteLine(FlagReport.Describe(atlas, flag));
+    }
     return 0;
 }
 

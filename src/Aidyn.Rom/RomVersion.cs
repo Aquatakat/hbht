@@ -83,6 +83,12 @@ public sealed record RomLayout
     /// <summary>Start of the fixed databases (EntityDB onwards).</summary>
     public required int DbBlock { get; init; }
 
+    /// <summary>
+    /// The map sets' chunk lists, in the code segment (the decomp's <c>BorgMapLists.cpp</c>): one
+    /// list per <see cref="Maps.MapSet"/>, back to back, each ending with an all-zero entry.
+    /// </summary>
+    public required int MapChunkLists { get; init; }
+
     public IReadOnlyDictionary<RomStringTable, RomRange> StringTables { get; init; } =
         new Dictionary<RomStringTable, RomRange>();
 
@@ -107,6 +113,7 @@ public static class RomVersions
             BorgArchive = 0x00E7220,
             BorgList = 0x1F89C10,
             DbBlock = 0x1FC2BB0,
+            MapChunkLists = 0x00DBD90,
             DbTables = new Dictionary<DbTable, RomRange>
             {
                 [DbTable.Entities] = new(0x1FC2BB0, 0x7588),
@@ -156,6 +163,7 @@ public static class RomVersions
             BorgArchive = 0x00E7260,
             BorgList = 0x1F89C50,
             DbBlock = 0x1FC2BF0,
+            MapChunkLists = 0x00DBDD0,
             DbTables = new Dictionary<DbTable, RomRange>
             {
                 [DbTable.Entities] = new(0x1FC2BF0, 0x7588),
@@ -203,6 +211,7 @@ public static class RomVersions
             BorgArchive = 0x00F5DA0,
             BorgList = 0x1F98790,
             DbBlock = 0x1FD1730,
+            MapChunkLists = 0x00EA850,
             DbTables = new Dictionary<DbTable, RomRange>
             {
                 [DbTable.Entities] = new(0x1FD1730, 0x7588),
