@@ -88,6 +88,18 @@ public enum CodeTable
     CampDialogueFlags,
     /// <summary>Script and flag pairs: winning the battle the script starts sets the flag (<c>dialoug_func</c>).</summary>
     ScriptBattleFlags,
+    /// <summary>Scripts after which eight hours pass, as s32s ending with -1 (<c>isCampfireScene</c>).</summary>
+    CampfireScenes,
+    /// <summary>Scripts whose end leads somewhere: script, padding and ending kind (the decomp's <c>borg_short_list</c>).</summary>
+    ScriptEndings,
+    /// <summary>The death scene scripts. Only the first is used (<c>Gameover_func</c>).</summary>
+    GameOverScenes,
+    /// <summary>Flag, Borg8 image, x and y of each world map piece (<c>WorldMapPieces</c>).</summary>
+    WorldMapPieces,
+    /// <summary>Pointers to each cinematic's Borg6 scenes, flags, Borg12 audio and clip planes (<c>gCinematicPointers</c>).</summary>
+    Cinematics,
+    /// <summary>Pointers to each cinematic's fades (<c>sCFadePs</c>).</summary>
+    CinematicFades,
 }
 
 /// <summary>
@@ -154,6 +166,12 @@ public static class RomVersions
                 [CodeTable.RegionFlags] = new(0x00D1E6C, 0x7A4),
                 [CodeTable.CampDialogueFlags] = new(0x00D85F0, 0x12),
                 [CodeTable.ScriptBattleFlags] = new(0x00D2A80, 0xC),
+                [CodeTable.CampfireScenes] = new(0x00D8604, 0x28),
+                [CodeTable.ScriptEndings] = new(0x00E0A1C, 0x30),
+                [CodeTable.GameOverScenes] = new(0x00CEDE0, 0xC),
+                [CodeTable.WorldMapPieces] = new(0x00DFC40, 0xA0),
+                [CodeTable.Cinematics] = new(0x00E1380, 0x40),
+                [CodeTable.CinematicFades] = new(0x00E1598, 0x10),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {
@@ -216,6 +234,12 @@ public static class RomVersions
                 [CodeTable.RegionFlags] = new(0x00D1E5C, 0x7A4),
                 [CodeTable.CampDialogueFlags] = new(0x00D85E0, 0x12),
                 [CodeTable.ScriptBattleFlags] = new(0x00D2A70, 0xC),
+                [CodeTable.CampfireScenes] = new(0x00D85F4, 0x28),
+                [CodeTable.ScriptEndings] = new(0x00E0A5C, 0x30),
+                [CodeTable.GameOverScenes] = new(0x00CEDD0, 0xC),
+                [CodeTable.WorldMapPieces] = new(0x00DFC80, 0xA0),
+                [CodeTable.Cinematics] = new(0x00E13C0, 0x40),
+                [CodeTable.CinematicFades] = new(0x00E15D8, 0x10),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {
@@ -276,6 +300,12 @@ public static class RomVersions
                 [CodeTable.RegionFlags] = new(0x00DE7CC, 0x7A4),
                 [CodeTable.CampDialogueFlags] = new(0x00E6E00, 0x12),
                 [CodeTable.ScriptBattleFlags] = new(0x00DF740, 0xC),
+                [CodeTable.CampfireScenes] = new(0x00E6E14, 0x28),
+                [CodeTable.ScriptEndings] = new(0x00EF57C, 0x30),
+                [CodeTable.GameOverScenes] = new(0x00DAAA0, 0xC),
+                [CodeTable.WorldMapPieces] = new(0x00EE7A0, 0xA0),
+                [CodeTable.Cinematics] = new(0x00EFEF0, 0x40),
+                [CodeTable.CinematicFades] = new(0x00F0108, 0x10),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {

@@ -29,6 +29,10 @@ public class EngineTablesTests
         Assert.Equal(a.Regions, b.Regions);
         Assert.Equal(a.CampDialogueFlags, b.CampDialogueFlags);
         Assert.Equal(a.ScriptBattleFlags, b.ScriptBattleFlags);
+        Assert.Equal(a.CampfireScenes, b.CampfireScenes);
+        Assert.Equal(a.ScriptEndings, b.ScriptEndings);
+        Assert.Equal(a.GameOverScript, b.GameOverScript);
+        Assert.Equal(a.WorldMap, b.WorldMap);
     }
 
     [Fact]
@@ -106,6 +110,35 @@ public class EngineTablesTests
 
         Assert.Equal([5056, 5150, 5151, 5154, 5155, 5163, 5191, 5011], tables.CampDialogueFlags.Select(f => (int)f));
         Assert.Equal(new Dictionary<int, ushort> { [0x365] = 978, [0x4D1] = 5250 }, tables.ScriptBattleFlags);
+    }
+
+    /// <summary>
+    /// The camp scenes include the Campsite Borg9's own script (6235), which plays when no camp
+    /// scene is nearby. Of the three death scenes, the game only uses the first.
+    /// </summary>
+    [Fact]
+    public void ScriptTablesArePinned()
+    {
+        var tables = EngineTables.Read(TestRoms.Get(RomVersionId.Na10));
+
+        Assert.Equal([972, 1180, 1181, 1184, 1185, 1194, 1259, 978, 6235], tables.CampfireScenes);
+        Assert.Equal(new Dictionary<int, ScriptEnding>
+        {
+            [1298] = ScriptEnding.GameOver, [1299] = ScriptEnding.GameOver, [1300] = ScriptEnding.GameOver,
+            [1268] = ScriptEnding.RoogCinematic, [1278] = ScriptEnding.EndingCinematic,
+        }, tables.ScriptEndings);
+        Assert.Equal(1298, tables.GameOverScript);
+    }
+
+    /// <summary>The world map has a piece for each region flag, in order, each with its own image.</summary>
+    [Fact]
+    public void WorldMapPiecesFollowTheRegions()
+    {
+        var tables = EngineTables.Read(TestRoms.Get(RomVersionId.Na10));
+
+        Assert.Equal(tables.Regions.Select(r => r.Flag).Distinct().Order(), tables.WorldMap.Select(p => p.Flag));
+        Assert.Equal(Enumerable.Range(457, 18), tables.WorldMap.Select(p => p.Image));
+        Assert.Equal((58, 29), (tables.WorldMap[0].X, tables.WorldMap[0].Y));
     }
 
     [Fact]

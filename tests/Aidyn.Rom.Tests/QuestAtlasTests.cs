@@ -37,11 +37,11 @@ public class QuestAtlasTests
         Assert.Equal(258, counts[FlagRole.TriggerSets]);
         Assert.Equal(612 * 2, counts[FlagRole.PartyBeaten]);
 
-        // 79 scripts aren't started by any map object or script. Code starts some, such as
-        // the help menu (1355) and the death scenes; the rest may be unused.
+        // 78 scripts aren't started by any map object, script or engine code, so may be unused.
+        // Code alone starts the help menu (1355).
         var unstarted = atlas.Scripts.Values.Where(s => s.StartedBy.Count == 0).Select(s => s.Borg).ToList();
-        Assert.Equal(79, unstarted.Count);
-        Assert.Contains(1355, unstarted);
+        Assert.Equal(78, unstarted.Count);
+        Assert.DoesNotContain(EngineFlags.HelpScript, unstarted);
     }
 
     /// <summary>

@@ -95,6 +95,7 @@ internal static class FlagReport
             {
                 ObjectSource os => Object(atlas, os),
                 ScriptSource ss => $"Borg13 {ss.Script}",
+                EngineSource es => es.Description,
                 _ => s.ToString(),
             })) + (entry.StartedBy.Count > 3 ? $" and {entry.StartedBy.Count - 3} more" : "");
 

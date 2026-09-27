@@ -9,7 +9,7 @@ This is the audit of content that lives in the game's code rather than its data.
 
 **Status** says where the reimplementation gets the fact:
 
-- **ROM:** read from the code segment at a per-version offset (`CodeTable` in `RomVersion.cs`). Tables that sit in the code verbatim are read rather than copied, so they stay right for every version.
+- **ROM:** read from the code segment at a per-version offset (`CodeTable` in `RomVersion.cs`). Tables that sit in the code verbatim are read rather than copied, so they stay right for every version. The flag tables are in `EngineTables`; the rest are in `Aidyn.Rom.Engine`.
 - **Fact:** carried in `EngineFlags`, because the code expresses it as a switch or a literal. Each is checked against 1.0's code.
 - **To do:** found, but not carried yet.
 
@@ -23,7 +23,7 @@ The quest atlas shows every item below that involves a flag. Search for a name s
 | Key items: each gets an inventory slot, a "has" flag, and sometimes a world map region flag | `PartyInventory.cpp` | 1: item record | ROM |
 | World map regions: entering an overworld chunk sets its region's flag | `set_map_event_flag` | 1: chunk field | ROM |
 | Boss flags: winning a battle with a boss in its first four enemy slots | `set_boss_flag` | 1: entity field | Fact |
-| Cinematic done flags (3, 569, 590, 601) | `Cinematic::EndCase` | 1: cinematic record | Fact |
+| Cinematic done flags (3, 569, 590, 601) | `Cinematic::EndCase` | 1: cinematic record | ROM |
 | The encounter flag of the Goblin Ambush and Lugash scripts' battles | `dialoug_func` | 1: script field | ROM |
 | Flag 47 after losing the Goblin Ambush, with the heal and the move to Oriana's hut | `clear_combat_func` | 3: encounter `onDefeat` | Fact (flag only) |
 | Flag 566 when the Shadow merges with Alaron | `shadowMerge.cpp` | 3 or 4: shadow merge | Fact (flag only) |
@@ -42,12 +42,26 @@ The quest atlas shows every item below that involves a flag. Search for a name s
 | Camp ambushes only happen while derived flag 5004 holds | `Party::CampCheck` | 1: camping setting | Fact |
 | Alaron has his True Name while 590 is set | `entityInfo.cpp` | 1: character condition | Fact |
 | When the Rooughah scene (Borg13 1268) ends, the Roog cinematic plays if 3442 is set | `dialogmode.cpp` | 2: trigger on script end | Fact |
+| World map pieces: each shows while its region flag is set | `WorldMapPieces` | 1: map piece record | ROM |
 | The lighthouse chunks swap to their lit scenes while 5017 holds | `ZoneEngine.cpp` | 1: chunk alt-scene condition | Fact |
 | Party skill checks in dialogue roll 0–21 while 3717 is set | `DialogEvalCallback` | 3: debug option | Fact |
 | Interior minimaps swap images on 4286–4294 | `MiniMap::BarrowsFlags` | 1: minimap records | Fact (flags only) |
 | The Theatre menu lists a cinematic once its title's flag is set | `TheatreMenu.cpp` | 1: DB | ROM (DB block) |
 | Key item flags restore the key items when a save loads | `LoadKeyItems` | 1: item record | ROM |
 | Flag 5626, read after some map object actions; the result is never used | `objectJumpTables.cpp` | None | Fact |
+
+## Scripts and cinematics the engine starts
+
+| What | Code | Layer | Status |
+| --- | --- | --- | --- |
+| The four cinematics: each shot's Borg6 animation, Borg12 audio, caption list and clip planes, the fades, and the done flag | `Cinematics.cpp`, `CinematicFade.cpp` | 1: cinematic record | ROM |
+| What starts each cinematic: a new game, the Shadow merging with Alaron, and the ends of the Rooughah and last scenes | `Cinematic::Load`'s callers | 2: triggers | Fact (text only) |
+| What follows each cinematic: the opening starts script 866 from its object in Overworld I08, the Roog cinematic gives Alaron his True Name, and the ending goes to the credits | `Cinematic::EndCase` | 2: triggers on `cinematic.ended` | To do |
+| Scripts whose end leads somewhere: the three death scenes end the game, 1268 plays the Roog cinematic, and 1278 plays the ending | `borg_short_list`, `dialogmode.cpp` | 2: triggers on script end | ROM |
+| Scripts after which eight hours pass: the eight camp scenes and the Campsite's own script | `isCampfireScene` | 1: script field | ROM |
+| Game over: script 1298 starts from its object in the Dreamscape Borg9 (3423) | `Gameover_func` | 1: game setting | ROM (script only) |
+| Camping with no camp scene nearby starts the Campsite Borg9's (6236) first dialogue object | `campfire_func` | 1: game setting | To do |
+| The help menu is script 1355 | `gametrek.cpp` | 1: game setting | Fact |
 
 ## Findings
 
@@ -59,6 +73,9 @@ The quest atlas shows every item below that involves a flag. Search for a name s
 - **Most map items are never given.** Only Map 2 has a source in the data, so the world map fills in as the party explores. The Skull Key has no source either; it's possibly cut content. The Blood Key is the only key item given as a monster party's direct loot.
 - **Talking monster parties fight under flag C.** When a talking party's dialogue starts a battle, the battle's encounter flag is the party's flag C, and winning sets it. Most such parties have C equal to B. One names derived flag 5264, so the write does nothing.
 - **Script battles don't set their flag on a win.** Only monster-party battles set the encounter flag on a win. The Goblin Ambush's flag, 978, is set when the party *loses*, and every special rule of that fight keys on it.
+- **The ending cinematic has six shots.** The decomp lists five Borg6 animations and five Borg12s for it, but the ROM has six of each, which matches its six clip planes and flag entries.
+- **Each cinematic shot names its own caption list.** The flag list the decomp calls `SeqenceFlags` holds a caption list per shot (or none), then the done flag. Each of the 15 caption lists shows over exactly one shot.
+- **Only the first death scene plays.** All three have dialogue objects in the Dreamscape, but the game over code only looks for 1298.
 - **Bosses count only in the first four slots.** A monster party fills slots with each entry's minimum count, in order, then random extras, so a boss listed after four guaranteed enemies wouldn't set its flag. In the data, only three monster parties include a boss (Kitarak, and Lugash twice), each listed first. Scripts add the other bosses.
 
 ### Checked against the checkpoints
@@ -74,9 +91,6 @@ The hacked ROM the playthrough used only changed enemy stats (with AidynEditor),
 ## Not audited yet
 
 - The asset indices in `Borgindecies.h` that code names directly.
-- `isCampfireScene` (eight scripts that pass eight hours) and the death-scene table (`borg_short_list`: three game-over scripts, the ending, and the Rooughah scene).
-- The rest of the cinematic tables: Borg6 scenes, Borg12 music and clip planes.
-- The world map pieces (flag, Borg8 image, position).
 - Cheat codes and what each does.
 - Party rules in code, if any: Brenna never leaving, Rheda's condition.
 - Special-case trainers (AidynEditor notes Becan).

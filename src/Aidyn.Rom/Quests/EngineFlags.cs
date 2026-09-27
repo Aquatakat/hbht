@@ -62,14 +62,20 @@ public static class EngineFlags
         [new(0x0262)] = 533,  // Lugash
     };
 
-    /// <summary>The four cinematics, in the game's order, and the flag each sets when it ends (<c>Cinematics.cpp</c>).</summary>
-    public static IReadOnlyList<EngineFlag> Cinematics { get; } =
+    /// <summary>
+    /// What starts each of the four cinematics (<see cref="Engine.Cinematics"/>), in the game's order
+    /// (<c>Cinematic::Load</c>'s callers). The last two come from <see cref="EngineTables.ScriptEndings"/>.
+    /// </summary>
+    public static IReadOnlyList<string> CinematicStarts { get; } =
     [
-        new(3, "the opening cinematic"),
-        new(569, "the Shadow cinematic"),
-        new(590, "the Roog cinematic"),
-        new(601, "the ending cinematic"),
+        "a new game starts",
+        "the Shadow merges with Alaron in combat",
+        "the Rooughah scene (Borg13 1268) ends while flag 3442 is set",
+        "the last scene (Borg13 1278) ends",
     ];
+
+    /// <summary>The help menu's script, which only code starts (<c>gametrek.cpp</c>).</summary>
+    public const int HelpScript = 1355;
 
     /// <summary>Other flags the engine sets.</summary>
     public static IReadOnlyList<EngineFlag> Writes { get; } =

@@ -1,5 +1,5 @@
-using System.Buffers.Binary;
 using Aidyn.Rom.Db;
+using Aidyn.Rom.Engine;
 
 namespace Aidyn.Rom.Quests;
 
@@ -17,6 +17,21 @@ public sealed record KeyItemFlags(ItemId Item, ushort Held, ushort Region);
 /// <summary>Entering this overworld chunk sets the flag of the world map region it's in.</summary>
 public sealed record RegionChunk(int Row, int Column, ushort Flag);
 
+/// <summary>A piece of the world map, shown while its flag is set.</summary>
+/// <param name="Image">The piece's Borg8.</param>
+public sealed record WorldMapPiece(ushort Flag, int Image, int X, int Y);
+
+/// <summary>What happens when one of the <see cref="EngineTables.ScriptEndings"/> scripts ends.</summary>
+public enum ScriptEnding
+{
+    /// <summary>The ending cinematic plays, then the credits.</summary>
+    EndingCinematic = 1,
+    /// <summary>The game ends and goes back to the title screen.</summary>
+    GameOver = 2,
+    /// <summary>The Roog cinematic plays if flag 3442 is set.</summary>
+    RoogCinematic = 3,
+}
+
 /// <summary>
 /// Content tables that engine code keeps in the code segment (roadmap 1H), read from the ROM.
 /// Flags the code names directly, rather than through a table, are in <see cref="EngineFlags"/>.
@@ -33,13 +48,22 @@ public sealed record RegionChunk(int Row, int Column, ushort Flag);
 /// Winning the battle one of these scripts starts sets the flag. Other scripts' battles leave
 /// the encounter flag as it was.
 /// </param>
+/// <param name="CampfireScenes">Eight hours pass when one of these scripts ends.</param>
+/// <param name="GameOverScript">
+/// When the party is wiped out, this script starts from its dialogue object in the Dreamscape
+/// Borg9. The code's list has two more death scenes that it never uses.
+/// </param>
 public sealed record EngineTables(
     IReadOnlyList<ItemId> EntityList,
     IReadOnlyList<PartyMemberFlags> Party,
     IReadOnlyList<KeyItemFlags> KeyItems,
     IReadOnlyList<RegionChunk> Regions,
     IReadOnlyList<ushort> CampDialogueFlags,
-    IReadOnlyDictionary<int, ushort> ScriptBattleFlags)
+    IReadOnlyDictionary<int, ushort> ScriptBattleFlags,
+    IReadOnlyList<int> CampfireScenes,
+    IReadOnlyDictionary<int, ScriptEnding> ScriptEndings,
+    int GameOverScript,
+    IReadOnlyList<WorldMapPiece> WorldMap)
 {
     private const ushort End = 0xFFFF;
 
@@ -79,23 +103,44 @@ public sealed record EngineTables(
         var battles = Rows(U16s(Table(rom, CodeTable.ScriptBattleFlags)), 2, CodeTable.ScriptBattleFlags)
             .ToDictionary(r => (int)r[0], r => r[1]);
 
-        return new EngineTables(entityList, party, keyItems, chunks, camp, battles);
+        var campfire = new List<int>();
+        var campfireData = Table(rom, CodeTable.CampfireScenes);
+        for (var at = 0; (int)U32(campfireData, at) is var script and not -1; at += 4)
+            campfire.Add(script);
+
+        // Script, padding and ending, up to a script of -1.
+        var endings = new Dictionary<int, ScriptEnding>();
+        var endingData = Table(rom, CodeTable.ScriptEndings);
+        for (var at = 0; (int)U32(endingData, at) is var script and not -1; at += 8)
+        {
+            var ending = CodeSegment.U16(endingData, at + 6);
+            endings.Add(script, Enum.IsDefined((ScriptEnding)ending)
+                ? (ScriptEnding)ending
+                : throw new InvalidDataException($"Script {script} has an unknown ending, {ending}."));
+        }
+
+        // Pieces up to an all-zero entry.
+        var pieces = U16s(Table(rom, CodeTable.WorldMapPieces)).Chunk(4)
+            .TakeWhile(r => r.Any(v => v != 0))
+            .Select(r => new WorldMapPiece(r[0], r[1], r[2], r[3]))
+            .ToList();
+
+        var gameOver = (int)U32(Table(rom, CodeTable.GameOverScenes), 0);
+
+        return new EngineTables(entityList, party, keyItems, chunks, camp, battles, campfire, endings, gameOver, pieces);
     }
 
-    private static ReadOnlySpan<byte> Table(RomImage rom, CodeTable table) =>
-        rom.Layout.CodeTables.TryGetValue(table, out var range)
-            ? rom.Slice(range)
-            : throw new NotSupportedException($"{rom.Version.Name} has no verified location for the {table} table.");
+    private static ReadOnlySpan<byte> Table(RomImage rom, CodeTable table) => CodeSegment.Table(rom, table);
 
     private static ushort[] U16s(ReadOnlySpan<byte> data)
     {
         var values = new ushort[data.Length / 2];
         for (var i = 0; i < values.Length; i++)
-            values[i] = BinaryPrimitives.ReadUInt16BigEndian(data[(i * 2)..]);
+            values[i] = CodeSegment.U16(data, i * 2);
         return values;
     }
 
-    private static uint U32(ReadOnlySpan<byte> data, int at) => BinaryPrimitives.ReadUInt32BigEndian(data[at..]);
+    private static uint U32(ReadOnlySpan<byte> data, int at) => CodeSegment.U32(data, at);
 
     /// <summary>Fixed-width rows up to the one that starts with 0xFFFF, which must be the table's last.</summary>
     private static List<ushort[]> Rows(ushort[] values, int width, CodeTable table)

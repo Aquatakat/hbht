@@ -1,6 +1,7 @@
 using Aidyn.Rom.Borg;
 using Aidyn.Rom.Db;
 using Aidyn.Rom.Dialogue;
+using Aidyn.Rom.Engine;
 using Aidyn.Rom.Maps;
 
 namespace Aidyn.Rom.Quests;
@@ -356,8 +357,14 @@ public sealed class QuestAtlas
             for (var flag = range.First; flag <= range.Last; flag++)
                 Engine(flag, FlagAccess.Set, range.Description);
         }
-        foreach (var e in EngineFlags.Cinematics)
-            Engine(e.Flag, FlagAccess.Set, $"Set when {e.Description} ends", $"Saw {e.Description}");
+        var cinematics = Cinematics.Read(rom);
+        var titles = db.CinematicTitles.ToDictionary(t => t.Flag, t => t.Text.Trim());
+        for (var i = 0; i < cinematics.Count; i++)
+        {
+            var flag = cinematics[i].DoneFlag;
+            var title = titles.TryGetValue(flag, out var t) ? $"the cinematic “{t}”" : $"cinematic {i}";
+            Engine(flag, FlagAccess.Set, $"Set when {title} ends. It plays when {EngineFlags.CinematicStarts[i]}.", $"Saw {title}");
+        }
         foreach (var (boss, flag) in EngineFlags.BossFlags)
             Engine(flag, FlagAccess.Set, $"Set when the party beats {Name(boss)}", $"Beat {names[boss]}");
 
@@ -383,8 +390,9 @@ public sealed class QuestAtlas
         {
             var chunks = string.Join(", ", region.Select(r => chunkNames.GetValueOrDefault((r.Row, r.Column), $"{r.Row},{r.Column}")));
             Engine(region.Key, FlagAccess.Set, $"Set on entering Overworld {chunks}", $"World map region {region.Key - firstRegion + 1}");
-            Engine(region.Key, FlagAccess.Read, "Shows its piece of the world map");
         }
+        foreach (var piece in tables.WorldMap)
+            Engine(piece.Flag, FlagAccess.Read, $"Shows its piece of the world map (Borg8 {piece.Image})");
         foreach (var flag in tables.CampDialogueFlags)
             Engine(flag, FlagAccess.Read, "Marks a dialogue object as a camp scene: camping near it starts the dialogue while the flag holds");
         foreach (var title in db.CinematicTitles)
@@ -393,6 +401,8 @@ public sealed class QuestAtlas
             Engine(e.Flag, FlagAccess.Set, e.Description, e.Description);
         foreach (var e in EngineFlags.Reads)
             Engine(e.Flag, FlagAccess.Read, e.Description, e.Description);
+
+        startedBy[EngineFlags.HelpScript].Add(new EngineSource("The help menu"));
 
         return new QuestAtlas
         {
