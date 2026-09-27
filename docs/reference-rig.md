@@ -145,6 +145,15 @@ The debug ROM's `Borg_List` is at `0x1F98790` and its DB block starts at `0x1FD1
 - **Textures** come from the engine's particle list (`partTextInds`, 1.0 `0xCE460`), not from the scene. It has 17 slots, which hold Borg1s 0–12 or are empty.
 - **Export and viewer.** Every emitter's fields go in the scene's `extras` as `particleEmitters`. Those on the scene's own locators also become child nodes of the locator's transform, so they follow its animation, and the viewer marks them in their particles' brightest colour. Oriana's (scene 11211, request 5) is on the orb in her hand.
 
+### 1B review and leftovers
+
+The user reviewed the scene viewer against the game on Sep 27, 2026. All 13 shots of the opening cinematic play correctly, including the camera, and Brenna's animation set is exactly as in the game. Oriana's actor has animations that look like the ending's, or like ones that were cut. They're in her data, so they're kept. Left for the renderer:
+
+- **Lighting**, as in 1A. The cinematics look flat without it.
+- **Animated textures.** No Borg5 uses the scene-level kind, which the game would crash on. The effects the user remembers are probably the 103 Borg1s that scroll (flags `0x200` and `0x100`), which the export doesn't animate yet.
+- **Some odd rendering** the user noticed in the cinematics. It isn't pinned down yet.
+- **The particle simulation** (see the particle notes above), and each cinematic shot's near and far planes, which the cinematic table overrides and the viewer ignores.
+
 ### What the dialogue reader found (1E)
 
 `aidyn dialogue <rom> [<index>...]` writes each Borg13 as text to `out/<version>/dialogue/`, with speakers named from the DB.
