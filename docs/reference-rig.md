@@ -115,6 +115,15 @@ The debug ROM's `Borg_List` is at `0x1F98790` and its DB block starts at `0x1FD1
   - **Billboards:** the user doesn't recall any that visibly turn to follow the camera, except maybe a bush in later areas. This can wait until one turns up.
   - **Texture filtering:** probably not worth emulating. Aidyn doesn't use the N64's three-point filtering for artistic effect, and its textures, especially the faces, have far more texels than the screen shows.
 
+### What the animation reader found (1B)
+
+- **Borg6 (1,988 animations)** animate the transforms of 259 Borg5 scenes. The file is a 0x10-byte header (the scene, the target count and offset, and the length in ticks), then 0x18-byte targets, 0x10-byte tracks, 8-byte keys and their floats, at offsets from the start of the data. Files are padded to 8 bytes.
+- **A target is one transform,** with a 9-bit mask of the channels it drives: rotation XYZ, then position XYZ, then scale XYZ, one track per set bit. There are 29,473 targets and 84,958 tracks. Most drive a model node. 32 drive the camera and 35 turn a light, all in cinematics. No animation drives a transform twice.
+- **Tracks are polynomials stepped by forward differences.** A track's state is a value and its first three differences. Each 60 Hz tick adds each difference to the one before, as far as the current key's mask reaches: mask 1 holds, 2 and 3 step linearly, 6 and 7 quadratically, 14 and 15 cubically. The first key is always at tick 1 and sets a value (mask 15, 3, 1 or 7). Later keys mostly load only the differences (mask 14 or 2: 638,243 of them), so the curve carries on from its value. Only 1,286 later keys (mask 15) jump. Each key list ends with a marker at the animation's length, which the game never loads.
+- **Timing** (`Borg6Player`, from `anim.cpp`): a track's counter starts at 1. On a tick where it equals the next key's tick, that key loads, then the state steps and the counter goes up. When the counter reaches the length, the track reloads its first key instead, without stepping. So the scene clock `aniTime` starts at 1, and at time *t* each value is its curve at *t*. The animation loops every `Length` ticks, which the tests confirm bit for bit for all 1,988.
+- **Driven channels are replaced, not offset.** Each tick the game zeroes a driven channel, then adds the value times the animation's weight, which is always 1. The differences are also added into four vectors per transform that nothing reads.
+- **What the game supports and the data never uses:** target types 0, 2 and 3 (fields of other Borgs, such as a Borg2 material's tint), playback modes other than looping, tracks shorter than their animation, and blending several animations by weight.
+
 ### What the dialogue reader found (1E)
 
 `aidyn dialogue <rom> [<index>...]` writes each Borg13 as text to `out/<version>/dialogue/`, with speakers named from the DB.
