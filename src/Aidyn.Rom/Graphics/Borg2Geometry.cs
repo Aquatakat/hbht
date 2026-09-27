@@ -110,8 +110,15 @@ public sealed class Borg2Geometry
     /// <summary>In radians.</summary>
     public Vector3 Rotation { get; }
 
-    /// <summary>Usually 0xFFFFFFFF, otherwise 0 to 7. Unknown.</summary>
+    /// <summary>Usually 0xFFFFFFFF, otherwise 0 to 7: see <see cref="Locator"/>.</summary>
     public uint Unknown24 { get; }
+
+    /// <summary>
+    /// Which of its scene's locators the model is, or null. A scene's locator <c>i</c> is the first
+    /// of its models with this set to <c>i</c>, and is at the model's <see cref="Position"/>.
+    /// Particle emitters sit on locators.
+    /// </summary>
+    public int? Locator => Unknown24 == uint.MaxValue ? null : (int)(Unknown24 & 0xFF);
 
     /// <summary>0 or 1. Per the decomp, the game doesn't draw the display lists when bit 0 is set.</summary>
     public uint Unknown28 { get; }

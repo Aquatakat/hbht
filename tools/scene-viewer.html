@@ -43,6 +43,8 @@
   <button id="prev">◀</button><button id="next">▶</button>
   <label><input id="useCamera" type="checkbox"> Scene camera (4:3)</label>
   <label><input id="wire" type="checkbox"> Wireframe</label>
+  <label id="emittersLabel" style="display: none" title="Particle emitters on the scene's own locators, in their particles' brightest colour">
+    <input id="emitters" type="checkbox" checked> Emitters</label>
   <span id="anims">
     <select id="anim"></select>
     <button id="play">❚❚</button>
@@ -221,6 +223,27 @@ function resize() {
   if (sceneCamera) { sceneCamera.aspect = 4 / 3; sceneCamera.updateProjectionMatrix(); }
 }
 
+// Emitter nodes get a marker that shows through the model.
+function markEmitters(gltf, radius) {
+  const list = gltf.scene.userData?.particleEmitters ?? [];
+  const markers = [];
+  gltf.scene.traverse(o => {
+    if (o.userData?.emitter === undefined) return;
+    const e = list[o.userData.emitter];
+    const [r, g, b] = e.color[1];
+    const m = new THREE.Mesh(new THREE.SphereGeometry(radius, 12, 8),
+      new THREE.MeshBasicMaterial({ color: new THREE.Color(r, g, b), depthTest: false, transparent: true, opacity: 0.8 }));
+    m.renderOrder = 1;
+    // Undo the node's inherited scale so markers stay the same size.
+    m.onBeforeRender = () => { const s = new THREE.Vector3(); o.getWorldScale(s); m.scale.set(1 / s.x, 1 / s.y, 1 / s.z); };
+    o.add(m);
+    markers.push(m);
+  });
+  $('emittersLabel').style.display = list.length ? '' : 'none';
+  markers.forEach(m => m.visible = $('emitters').checked);
+  return list.length ? `; ${list.length} emitters, ${markers.length} on this scene's locators` : '';
+}
+
 async function load(index) {
   $('scene').value = index;
   const url = `../out/${version}/scenes/${String(index).padStart(5, '0')}.glb`;
@@ -254,7 +277,8 @@ async function load(index) {
   orbit.position.copy(centre).add(new THREE.Vector3(1, 0.6, 1.4).normalize().multiplyScalar(r * 2.6));
   controls.target.copy(centre); controls.update();
   const meshes = []; root.traverse(o => { if (o.isMesh) meshes.push(o); });
-  $('info').textContent = `Borg5 ${index}: ${meshes.length} meshes, ${size.x.toFixed(2)} × ${size.y.toFixed(2)} × ${size.z.toFixed(2)} scene units, ${clips.length} animations${stillText}`;
+  const emitterText = markEmitters(gltf, r / 40);
+  $('info').textContent = `Borg5 ${index}: ${meshes.length} meshes, ${size.x.toFixed(2)} × ${size.y.toFixed(2)} × ${size.z.toFixed(2)} scene units, ${clips.length} animations${stillText}${emitterText}`;
   resize();
 }
 
@@ -262,7 +286,8 @@ $('scene').addEventListener('change', e => load(+e.target.value));
 $('prev').onclick = () => load(+$('scene').value - 1);
 $('next').onclick = () => load(+$('scene').value + 1);
 $('useCamera').onchange = () => load(+$('scene').value);
-$('wire').onchange = () => root?.traverse(o => { if (o.isMesh) o.material.wireframe = $('wire').checked; });
+$('wire').onchange = () => root?.traverse(o => { if (o.isMesh && !o.geometry.isSphereGeometry) o.material.wireframe = $('wire').checked; });
+$('emitters').onchange = () => root?.traverse(o => { if (o.userData?.emitter !== undefined) o.children.forEach(m => m.visible = $('emitters').checked); });
 $('anim').onchange = e => playClip(+e.target.value);
 $('play').onclick = () => { playing = !playing; if (action && !drive.on) action.paused = !playing; $('play').textContent = playing ? '❚❚' : '▶'; };
 $('time').oninput = e => {

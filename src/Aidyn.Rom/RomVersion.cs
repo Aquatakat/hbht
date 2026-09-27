@@ -119,6 +119,8 @@ public enum CodeTable
     /// (<c>dailougEnt_info_array</c>). Keyed by position in <see cref="DialogEntityList"/> + 1.
     /// </summary>
     DialogEntityModels,
+    /// <summary>17 s32 Borg1 indices, one per particle texture slot, −1 for empty (<c>partTextInds</c>).</summary>
+    ParticleTextures,
 }
 
 /// <summary>
@@ -196,6 +198,7 @@ public static class RomVersions
                 [CodeTable.EntityModels] = new(0x00E1930, 0x1848),
                 [CodeTable.DialogEntityList] = new(0x00E1900, 0x25),
                 [CodeTable.DialogEntityModels] = new(0x00E3178, 0x294),
+                [CodeTable.ParticleTextures] = new(0x00CE460, 0x44),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {
@@ -269,6 +272,7 @@ public static class RomVersions
                 [CodeTable.EntityModels] = new(0x00E1970, 0x1848),
                 [CodeTable.DialogEntityList] = new(0x00E1940, 0x25),
                 [CodeTable.DialogEntityModels] = new(0x00E31B8, 0x294),
+                [CodeTable.ParticleTextures] = new(0x00CE450, 0x44),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {
@@ -340,6 +344,7 @@ public static class RomVersions
                 [CodeTable.EntityModels] = new(0x00F04A0, 0x1848),
                 [CodeTable.DialogEntityList] = new(0x00F0470, 0x25),
                 [CodeTable.DialogEntityModels] = new(0x00F1CE8, 0x294),
+                [CodeTable.ParticleTextures] = new(0x00D94B8, 0x44),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {

@@ -135,6 +135,34 @@ public static class SceneGltf
             }));
         }
 
+        // Emitters on one of the scene's own locators become child nodes of the locator's transform,
+        // so they follow its animation. The others sit on scenes attached at run time.
+        if (scene.ParticleEmitters.Count > 0)
+        {
+            var list = new JsonArray();
+            for (var i = 0; i < scene.ParticleEmitters.Count; i++)
+            {
+                var emitter = scene.ParticleEmitters[i];
+                var json = EmitterJson(emitter);
+                if (emitter.Locator.Scene == 0 && Locator(emitter.Locator.Index) is var (t, position) && nodes.TryGetValue(t, out var parent))
+                {
+                    var node = gltf.AddNode(new JsonObject
+                    {
+                        ["name"] = $"emitter {i}",
+                        ["translation"] = new JsonArray(position.X, position.Y, position.Z),
+                        ["extras"] = new JsonObject { ["emitter"] = i },
+                    });
+                    var p = gltf.Node(parent);
+                    if (p["children"] is not JsonArray children)
+                        p["children"] = children = [];
+                    children.Add(node);
+                    json["node"] = node;
+                }
+                list.Add(json);
+            }
+            extras["particleEmitters"] = list;
+        }
+
         // An animation with no targets only holds the scene still for its length. glTF can't have
         // an empty animation, so those are listed in the extras.
         var still = new JsonArray();
@@ -151,6 +179,20 @@ public static class SceneGltf
             extras["stillAnimations"] = still;
 
         return gltf.ToGlb(roots, extras);
+
+        // A locator is the first model marked with its number, at the model's position, drawn
+        // with the transform it's last loaded with.
+        (int Transform, Vector3 Position)? Locator(int index)
+        {
+            for (var m = 0; m < models.Length; m++)
+            {
+                var model = models[m].Value;
+                if (model.Locator != index)
+                    continue;
+                return scene.ModelTransform(m) is { } t && t >= first ? (t, model.Position * model.Scale / 16) : null;
+            }
+            return null;
+        }
 
         int Material(int? texture, Borg2Mesh mesh, float modelAlpha)
         {
@@ -325,6 +367,41 @@ public static class SceneGltf
                 m *= posed[parent].LocalMatrix();
             return m;
         }
+    }
+
+    private static JsonObject EmitterJson(Borg5ParticleEmitter e)
+    {
+        static JsonArray V3(Vector3 v) => new(v.X, v.Y, v.Z);
+        static JsonArray V4(Vector4 v) => new(v.X, v.Y, v.Z, v.W);
+        return new JsonObject
+        {
+            ["locator"] = e.Locator.Index,
+            ["locatorScene"] = e.Locator.Scene,
+            ["flags"] = e.Flags.ToString(),
+            ["request"] = e.Flags.HasFlag(Borg5EmitterFlags.ActorRequest) ? e.Request : null,
+            ["texture"] = e.Texture,
+            ["delay"] = e.Delay,
+            ["lifetime"] = e.Lifetime,
+            ["particleLifetime"] = e.ParticleLifetime,
+            ["interval"] = e.Interval,
+            ["burst"] = e.Burst,
+            ["spawnJitter"] = e.SpawnJitter,
+            ["velocityJitter"] = e.VelocityJitter,
+            ["direction"] = V3(e.Direction),
+            ["speed"] = e.Speed,
+            ["acceleration"] = V4(e.Acceleration),
+            ["accelerationChange"] = V4(e.AccelerationChange),
+            ["target"] = e.Flags.HasFlag(Borg5EmitterFlags.Target) ? new JsonObject
+            {
+                ["locator"] = e.Target.Index,
+                ["locatorScene"] = e.Target.Scene,
+                ["jitter"] = e.TargetJitter,
+            } : null,
+            ["scale"] = new JsonArray(e.MinScale, e.MaxScale),
+            ["endScale"] = e.EndScale,
+            ["color"] = new JsonArray(V4(e.MinColor), V4(e.MaxColor)),
+            ["fadeColor"] = V4(e.FadeColor),
+        };
     }
 
     /// <summary>What the game skips: hidden models, missing or empty display lists, and fully transparent ones.</summary>

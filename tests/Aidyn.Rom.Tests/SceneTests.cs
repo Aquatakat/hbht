@@ -53,7 +53,7 @@ public class SceneTests
         {
             var scene = Borg5Scene.Parse(archive.Read(listing.Index));
             scenes++;
-            emitters += scene.ParticleEmitterCount;
+            emitters += scene.ParticleEmitters.Count;
             billboards += scene.Transforms.Count(t => t.Flags.HasFlag(Borg5TransformFlags.Billboard));
             Assert.Equal(BorgType.Camera, archive.Listings[scene.Camera].Type);
             Assert.All(scene.Lights, i => Assert.Equal(BorgType.Light, archive.Listings[i].Type));

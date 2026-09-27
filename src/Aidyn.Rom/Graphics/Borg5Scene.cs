@@ -130,8 +130,8 @@ public readonly record struct Borg5Draw(int? Texture, int Transform, int Model, 
 /// The 0x44-byte header is the counts of transforms, lights, models, textures, animated textures
 /// and instructions. Then come offsets from the start of the data to the transforms, two words that
 /// are always 0, the Borg3's archive index, offsets to the lists of light, model and texture archive
-/// indices, to the animated textures (there are none), the instructions and the particle emitters,
-/// and the emitter count.
+/// indices, to the animated textures (there are none), the instructions and the 0xC0-byte particle
+/// emitters, and the emitter count.
 /// </para>
 /// <para>
 /// Transform 0 is the camera. Next come one direction per light but the last (the last light is
@@ -147,12 +147,11 @@ public sealed class Borg5Scene
 {
     public const int HeaderSize = 0x44;
     private const byte Untextured = 0xFF;
-    private const int ParticleEmitterSize = 0xBC;
 
     private readonly int[] _parents;
 
     private Borg5Scene(int camera, int[] lights, int[] models, int[] textures, Borg5Transform[] transforms,
-        (Borg5Opcode, byte)[] instructions, Borg5Draw[] draws, int particleEmitters, int[] parents)
+        (Borg5Opcode, byte)[] instructions, Borg5Draw[] draws, Borg5ParticleEmitter[] particleEmitters, int[] parents)
     {
         Camera = camera;
         Lights = lights;
@@ -161,7 +160,7 @@ public sealed class Borg5Scene
         Transforms = transforms;
         Instructions = instructions;
         Draws = draws;
-        ParticleEmitterCount = particleEmitters;
+        ParticleEmitters = particleEmitters;
         _parents = parents;
     }
 
@@ -186,13 +185,30 @@ public sealed class Borg5Scene
     /// <summary>What the instructions draw, in order.</summary>
     public IReadOnlyList<Borg5Draw> Draws { get; }
 
-    /// <summary>Particle emitters (0xBC bytes each) aren't parsed yet.</summary>
-    public int ParticleEmitterCount { get; }
+    public IReadOnlyList<Borg5ParticleEmitter> ParticleEmitters { get; }
 
     /// <summary>The index of the first model node, after the camera and the light directions.</summary>
     public int FirstNode => 1 + Math.Max(0, Lights.Count - 1);
 
     public int? Parent(int transform) => _parents[transform] < 0 ? null : _parents[transform];
+
+    /// <summary>
+    /// The transform the game last draws a model with: at each <see cref="Borg5Opcode.Matrix"/>
+    /// instruction, the game records the matrix on the model loaded at the time. Locators are found
+    /// through it. Null if the model is never loaded when a matrix is set.
+    /// </summary>
+    public int? ModelTransform(int model)
+    {
+        int? current = null, result = null;
+        foreach (var (op, value) in Instructions)
+        {
+            if (op == Borg5Opcode.LoadModel)
+                current = value;
+            else if (op == Borg5Opcode.Matrix && current == model)
+                result = value;
+        }
+        return result;
+    }
 
     /// <summary>The transform relative to the scene.</summary>
     public Matrix4x4 WorldMatrix(int transform)
@@ -255,12 +271,15 @@ public sealed class Borg5Scene
         }
         var draws = Interpret(instructionList, textureCount, modelCount, firstNode, transformCount);
 
-        var end = particleCount == 0 ? particles : particles + particleCount * (4 + ParticleEmitterSize);
+        var end = particleCount == 0 ? particles : particles + particleCount * Borg5ParticleEmitter.Size;
         if (particles < instructions + instructionCount * 2 || end != data.Length)
             throw new InvalidDataException($"The particle emitters at 0x{particles:X} don't end the Borg5 at 0x{data.Length:X}.");
+        var emitters = new Borg5ParticleEmitter[particleCount];
+        for (var i = 0; i < particleCount; i++)
+            emitters[i] = Borg5ParticleEmitter.Parse(Slice(data, particles + i * Borg5ParticleEmitter.Size, Borg5ParticleEmitter.Size));
 
         return new Borg5Scene(camera, lightList, modelList, textureList, transformList, instructionList, draws,
-            particleCount, parents);
+            emitters, parents);
     }
 
     private static Borg5Transform ReadTransform(byte[] data, int offset, int transformCount)

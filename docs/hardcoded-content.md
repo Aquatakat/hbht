@@ -182,7 +182,7 @@ Code uses 1,990 of the 2,076 names in the decomp's `Borgindecies.h`. The map chu
 - The camp, game over and new-game Borg9s (see above).
 - Sky gradients, sun, moon and stars, clouds, lens flare, rain ambience and four thunder sounds (`sky.cpp`, `skyObjects.cpp`, `Clouds.cpp`, `Lensflare.cpp`, `weather.cpp`).
 - Combat visuals: the arrow and thrown-potion models, target and spell markers, the stat indicator digits and the player shadow (`combatEntity.cpp`, `CombatMarkers.cpp`, `SpellMarker.cpp`, `StatIndicator.cpp`, `ZoneEngine.cpp`).
-- The particle textures (`ZoneEngine.cpp`).
+- The particle textures: 17 slots of Borg1s 0–12, some empty (`partTextInds`, `ZoneEngine.cpp`, `0xCE460`). Read (`ParticleTextures`).
 - Oriana's path lights: scene objects whose second model is `BORG5_OrianaLight` get special handling in the scene renderer. Not read closely yet.
 - Coin, chime and level-up sounds in dialogue, shops and training.
 
