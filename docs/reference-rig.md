@@ -64,6 +64,18 @@ Mupen `.mpk` files are four 32 KB paks back to back. The saves are in pak 1, in 
 
 Slot D is the furthest. All slots are named "Alaron".
 
+### Converting Mupen `.mpk` to ares `.pak`
+
+ares stores one 32 KB Controller Pak next to the ROM as `<rom basename>.pak`. It uses the same raw big-endian layout as Mupen, so converting means taking the first 32 KB:
+
+```bash
+head -c 32768 "AIDYN_CHRONICLES (unknown rom).mpk" > "roms/Aidyn Chronicles - The First Mage (U) (V1.0) [!].pak"
+```
+
+This was checked against an ares-written `AidynDebug.pak`. Note table, inode table and save data layout are identical. The only difference is the page-0 ID block: Mupen writes a fixed template with serial `051a5f13`, and ares writes its own. Both pass libultra's ID checksums in all four copies (`0x20/0x60/0x80/0xC0`) and the inode-table checksums. The game's own save checksum sits inside the note data, so it is unaffected.
+
+The debug and retail saves use the same note (`NAYE`/`78`, "CHRONICLES"), the same 28-page size, and the same header layout. Whether the debug ROM can load a retail save, which would put the flag viewer on a late-game state, is untested.
+
 ## Checkpoint library
 
 To do. Save states are captured by the user playing, not scripted. Each state should record the ROM, the ares version, the slot, and a one-line story position.
