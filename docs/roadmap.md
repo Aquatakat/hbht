@@ -139,7 +139,7 @@ Each track ends with an exporter to an open format and a viewer in the inspector
 | Track | Tasks | Size | Validation |
 | --- | --- | --- | --- |
 | **1A Static graphics** | Borg1 textures (every N64 format, de-interleave, TLUT), Borg8 UI images, Borg2 via a minimal F3DEX interpreter, Borg3 camera, Borg4 lights, Borg5 scene graph (transforms, instruction list, texture binds) | L | glTF export of a building and a character matches the emulator |
-| **1B Animation** | Borg6 tracks and keyframes (map every unknown field), Borg7 actor animation sets, branches, and transitions, Borg5 particles | **XL, highest risk** | The opening cinematic plays in the inspector |
+| **1B Animation** | Borg6 tracks and keyframes (map every unknown field), Borg7 actor animation sets, branches, and transitions, Borg5 particles | L (first sized XL, as the highest risk; see the risk register) | The opening cinematic plays in the inspector (the scene viewer stands in until 0.6) |
 | **1C Maps** | Chunk tables per map region (from the code segment), Borg9 collision (triangles, collide sections, ground types), all voxel object types, Expansion Pak variants | L | A map viewer shows a whole region, with objects overlaid by type |
 | **1D Audio** | Borg11 PCM, Borg12 sequence format and playback, the audiokey table | M | BGM plays correctly |
 | **1E Quest atlas** | Borg13 decoding, including **branching semantics** (`text_marker`, `a/b`, `index`, `bitmask`, choices; see `DialogNode.cpp`), the GameStateFunnel logic network, flag cross-referencing, and journal linkage | L | See below |
@@ -247,7 +247,7 @@ graph LR
 
 | Risk | Impact | Mitigation |
 | --- | --- | --- |
-| Borg6 animation format has many unknown fields | Actors and cinematics stall | Start 1B as soon as 1A can render a static Borg5. Diff interpolated poses against emulator frames. Treat it as its own research project. |
+| Borg6 animation format has many unknown fields | Actors and cinematics stall | **Retired (Sep 27, 2026).** Borg6 turned out to be forward-differenced polynomial tracks on Borg5 transforms, and the data uses none of the variants the code allows but the decomp couldn't explain. Every animation plays bit for bit as the game steps it. See the reference rig's 1B notes. |
 | Combat and AI formulas are hard to verify by eye | Balance feels "off" | Exact RNG port plus scripted differential tests (2.9). Read constants straight from the pseudocode rather than inferring them from play. |
 | F3DEX render modes and combiner modes | Visual mismatches | Implement only what the game uses; the decomp says mostly `G_TRI1`. Map combiner states to a few shader variants. |
 | Logic tied to frame rate | Breaks higher frame rates | Resolve the tick model in 0.5 and run the core on a fixed tick. |
