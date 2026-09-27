@@ -76,7 +76,7 @@ The following systems have to be ported by reading pseudocode rather than parsed
 
 ## Architecture decisions to make in Phase 0
 
-These decisions shape the importer's output format, so they have to be settled before anything is extracted at scale.
+These decisions shape the importer's output format, so they have to be settled before anything is extracted at scale. They are written up as ADRs in [adr/](adr/README.md). The ADRs take precedence where they differ from the summaries below. Decision 6 changed the most: the original's single RNG stream depends on frame rate, so differential tests replay captured values instead of reproducing the stream.
 
 ### 1. The runtime never reads the ROM
 
@@ -129,7 +129,7 @@ Sizes are relative: S, M, L, XL. **Bold** tasks block other work.
 | **0.2 ROM identification.** Hashing, byte-order normalisation, header parsing, and a per-version offset table. | S | `RomImage` class |
 | **0.3 Borg archive reader.** Parse `Borg_List` and port the LZB and LZ01x decompressors. Dump every Borg as raw decompressed blobs, grouped by type, with counts and sizes. | M | **Critical path.** Unblocks all of Phase 1. |
 | **0.4 DB table readers.** Entity, Weapon, Armor, Spell, Item, Chest, DialogEntity, shop, journal, CampEncounters, cinematic text, the GameStateFunnel raw table, and strings (with decrypt). Cross-check field meanings against AidynEditor. | M | Typed records |
-| **0.5 Architecture decisions** 1–7 above, written up as short ADRs. | S | `docs/adr/` |
+| **0.5 Architecture decisions** 1–7 above, plus content logic (ADR 0008), written up as short ADRs. | S | `docs/adr/` (done) |
 | **0.6 Asset inspector.** A Godot tool app for browsing Borgs by type and index, showing hex, decoded fields, and a preview. It grows with every Phase 1 track and later becomes the mod editor. | M, ongoing | The tool you'll use most |
 
 ### Phase 1: Format decoding (parallel tracks, after 0.3)
@@ -163,7 +163,7 @@ Render the database as a graph. At that point, "how does the Rheda / Niesen ques
 - Party join and leave rules, such as Brenna never leaving and Rheda's condition, if they're in code.
 - Special-case trainers (AidynEditor notes Becan).
 
-Each of these becomes a data record in `aidyn.base` so mods can change it. This is the actual code-side quest-logic work, and it's bounded.
+Each of these is assigned to one of the four layers in [ADR 0008](adr/0008-content-logic-layers.md): a record, a trigger, a parameterised engine feature, or, rarely, a script. Whichever layer it lands in, mods can change it. A first pass found most of the flag references are tables written as code, and only about half a dozen are truly bespoke behaviours, led by the Goblin Ambush. This is the actual code-side quest-logic work, and it's bounded.
 
 ### Phase 2: Rules core (headless, test-driven)
 
@@ -179,7 +179,8 @@ Work can start once 0.4 and 0.5 are done; each part slots in as its Phase 1 trac
 | **2.6 Enemy AI.** Port `aiScore` and `ai.cpp`. | L | `combat/ai*.cpp` |
 | **2.7 Time & camping.** The day clock, the 8-hour camp, battery regeneration, the ambush roll, camp encounters. | S | `Camp.cpp`, `sundail.cpp` |
 | **2.8 Save/load** in the engine's own format. | S | |
-| **2.9 Differential tests.** Script emulator runs (such as a fixed-seed battle) and compare damage and turn logs against the core. | L, ongoing | |
+| **2.9 Differential tests.** Capture the random values the emulator consumed (see ADR 0006), replay them into the core, and compare damage and turn logs. | L, ongoing | |
+| **2.10 Events and triggers.** The core's named event list, and the trigger records (*on event, if condition, do effects*) using Borg13's condition and effect vocabulary. Engine features that replace bespoke code (ADR 0008 layer 3) land with the system they belong to. | M | 1H audit, `bossflag.cpp`, `WidgetBarterControl.cpp`, etc. |
 
 ### Phase 3: Godot runtime
 
@@ -209,7 +210,7 @@ This phase is sized XL, but most of the time goes into testing rather than engin
 | Plugin loader: load order, dependencies, field-level merge, conflict report | M |
 | Flag and ID allocation for mod namespaces | S |
 | Asset overrides (glTF, PNG, OGG) and new assets | M |
-| Scripting: a Borg13 superset first (new opcodes as needed), then an optional sandboxed Lua or C# hook layer for things bytecode can't express | L |
+| Scripting: a Borg13 superset for dialogue and cut-scenes (new opcodes as needed), plus sandboxed Lua event handlers on the 2.10 events, per ADR 0008. Mods can't load .NET assemblies. | L |
 | **Editor.** Grow the Phase 0.6 inspector into a Construction Set: record editing, dialogue graph editing, voxel placement in the map viewer, and a quest atlas that includes mod content | XL |
 | Documentation and a sample mod (for example, a new trainer, a new quest, and a rebalanced spell) | M |
 

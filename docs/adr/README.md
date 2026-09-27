@@ -1,0 +1,16 @@
+# Architecture decision records
+
+These are the Phase 0 decisions from the [roadmap](../roadmap.md) (task 0.5). Each record states the context, the decision, and what follows from it. When a decision changes, add a new record that supersedes the old one rather than rewriting it.
+
+| # | Decision | Status |
+| --- | --- | --- |
+| [0001](0001-importer-owns-the-rom.md) | The runtime never reads the ROM; an importer turns it into a base plugin | Accepted |
+| [0002](0002-godot-and-csharp.md) | Engine: Godot 4 with C# (.NET) | Accepted |
+| [0003](0003-headless-rules-core.md) | Game rules live in a headless C# library | Accepted |
+| [0004](0004-record-ids.md) | Record ID scheme | Accepted |
+| [0005](0005-plugin-format.md) | Plugin format: JSON with comments, field-level overrides | Accepted |
+| [0006](0006-tick-model-and-rng.md) | Tick model and RNG | Accepted |
+| [0007](0007-rom-versions.md) | ROM version support | Accepted |
+| [0008](0008-content-logic-layers.md) | Content logic: records, triggers, engine features, then Lua scripts | Accepted |
+
+Statuses: **Proposed** means drafted and waiting for review. **Accepted** means agreed. **Superseded** means replaced by a later record, which it links to.
