@@ -21,7 +21,11 @@ public enum Borg1Format : ushort
 public enum Borg1Flags : ushort
 {
     None = 0,
-    Unknown20 = 0x20,
+    /// <summary>
+    /// Some texels aren't opaque. It's set on exactly those textures. The game blends IA16, IA8
+    /// and RGBA32 textures with it, and alpha-tests the other formats.
+    /// </summary>
+    HasTransparency = 0x20,
     /// <summary>Sets <c>G_TD_DETAIL</c>.</summary>
     Detail = 0x40,
     /// <summary>Sets <c>G_TD_SHARPEN</c>.</summary>

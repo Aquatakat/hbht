@@ -125,6 +125,30 @@ public class SceneTests
         Assert.Equal((71, 0), (exact64, exact32));
     }
 
+    [Fact]
+    public void EverySceneExportsDeterministically()
+    {
+        var archive = BorgArchive.Open(TestRoms.Get(RomVersionId.Na10));
+        var scenes = archive.Listings.Where(l => l.Type == BorgType.Scene).ToList();
+        long meshes = 0;
+        foreach (var listing in scenes)
+        {
+            var glb = SceneGltf.Export(Borg5Scene.Parse(archive.Read(listing.Index)), archive.Read, listing.Index);
+
+            Assert.Equal("glTF"u8.ToArray(), glb[..4]);
+            Assert.Equal(glb.Length, BitConverter.ToInt32(glb, 8));
+            var json = System.Text.Json.JsonDocument.Parse(glb.AsMemory(20, BitConverter.ToInt32(glb, 12)));
+            if (json.RootElement.TryGetProperty("meshes", out var m))
+                meshes += m.GetArrayLength();
+        }
+
+        // Every drawn transform gets one mesh; billboards get theirs on a separate node.
+        Assert.Equal(6437, meshes);
+
+        var house = Borg5Scene.Parse(archive.Read(2558));
+        Assert.Equal(SceneGltf.Export(house, archive.Read, 2558), SceneGltf.Export(house, archive.Read, 2558));
+    }
+
     private static void AssertNear(Vector3 expected, Vector3 actual) =>
         Assert.True(Vector3.Distance(expected, actual) < 1e-4, $"Expected {expected}, got {actual}.");
 }

@@ -52,8 +52,8 @@ The debug ROM's `Borg_List` is at `0x1F98790` and its DB block starts at `0x1FD1
 - **Borg1 (2,183 textures)** is a 0x18-byte header, then every mip level back to back, then an RGBA16 palette for CI8 (256 entries) and CI4 (16). There are `lods + 1` levels. Each level halves both sides, and each row is padded to at least 8 bytes. All 2,183 match this layout exactly. No texture has its own display list, and every bitmap starts at 0x18.
 - **Borg1 bitmaps are stored in TMEM order.** The game uploads each one with a single `LoadBlock`, so odd rows have each pair of 32-bit words swapped (64-bit words for RGBA32). Undoing the swap is what makes the first mip level match a downsample of the base level: 1,718 of the 1,723 mipmapped textures match better, and the other 5 are a single flat colour.
 - **Borg1 formats:** CI8 1,769, RGBA16 137, CI4 135, IA8 62, IA16 56, RGBA32 12, I4 6, I8 5, IA4 1. The largest is 64×64, apart from one 32×128. Most are 32×32.
-- **Borg1 flags:** 0x20 (unknown) is on 349 textures. 103 scroll (`0x200`), and all of those also have 0x100, which gives them a second, writable bitmap.
-- **Some textures are upside down,** the digit glyphs among them. The models presumably flip them with their texture coordinates. Check this when Borg2 lands.
+- **Borg1 flags:** 0x20 is on exactly the 407 textures with transparent texels. The game's render modes blend IA16, IA8 and RGBA32 textures with it and alpha-test the rest. 103 scroll (`0x200`), and all of those also have 0x100, which gives them a second, writable bitmap.
+- **Some textures are upside down,** the digit glyphs among them. T = 0 is the first row, and the models' texture coordinates are exported as they are, so any flip is the model's own.
 - **Borg8 (560 UI images)** is a 0x10-byte header, then the palette (CI only) and a linear bitmap, at offsets from the start of the data. The game draws them with `LoadTile`, so there's no TMEM swap. Formats: IA8 275, CI8 267, RGBA32 16, RGBA16 1, I4 1. The largest are the 320×240 menu backdrops.
 
 ### What the geometry reader found (1A)
@@ -94,6 +94,22 @@ The debug ROM's `Borg_List` is at `0x1F98790` and its DB block starts at `0x1FD1
 - **Instructions:** these are `LoadTexture` (0xFF unbinds), `LoadModel`, `Matrix` and `Draw`. The stream flattens to 16,597 draws, of which 15,230 are textured. Five scenes (5246, 13851, 13922, 13924 and 13928) draw display lists that their models don't have. The operands are 8-bit, so in the 4 scenes with 256 or more transforms, the transforms from 256 on can't be drawn.
 - **Texture coordinates are 64 units per texel,** not 32. The game sets a texture scale of ½ (`gSPTexture 0x8000`). As a check, 71 textured billboards span their texture exactly once at 64 units per texel, and none do at 32. So UV = S / (64 × width), with T = 0 at the texture's first row.
 - **Borg3 (5 cameras):** each is 45° wide at 4:3. Near and far are 0.1 and 1000, 0.01 and 1000, or 0.25 and 25 scene units. **Borg4 (507 lights)** is 1.0 followed by an RGB colour, and most are greys.
+
+### glTF export (1A)
+
+`aidyn scenes <rom> [<index>...]` writes each Borg5 as `out/<version>/scenes/<index>.glb`. All 1,402 pass the Khronos glTF validator with no errors or warnings. The only notes are degenerate triangles, which are in the game's data. Units are scene units, and these look like metres: the character in scene 10696 is 1.84 tall, and the house in scene 2558 is 9.4 × 8.5 × 19.8.
+
+- **Nodes:** there's one node per model transform, using translation, rotation and scale. Billboards draw on a separate root node that holds only their scale and world position, facing the way they were modelled. The camera is a glTF perspective camera, and each directional light uses `KHR_lights_punctual`. The ambient light goes in the scene's `extras`.
+- **Meshes:** each draw becomes a primitive. The draws the game skips are left out: hidden models, fully transparent ones, empty display lists and missing ones. So are draws through non-op-1 transforms, which the game squashes onto a line. Positions have the Borg2 scale baked in.
+- **Materials** follow the game's combiners:
+  - Textured draws are texture × shade (the vertex colour or the lighting), with alpha = texture alpha × (1 − tint alpha). The tint's colour isn't used.
+  - Untextured draws are shade × tint colour.
+  - Unlit display lists use `KHR_materials_unlit` with `COLOR_0`. Lit ones have normals.
+  - The wrap and mirror flags map to sampler wrap modes, and flag 0x80 maps to nearest filtering.
+  - Culling maps to `doubleSided`.
+  - Environment-mapped draws lose their texture, because glTF can't generate texture coordinates.
+- **Viewer:** `tools/scene-viewer.html` is a three.js page. Serve the repo root on localhost (the `scene-viewer` entry in `.claude/launch.json`, or `python -m http.server 8123 --bind 127.0.0.1`) and open `/tools/scene-viewer.html?scene=2558`. The **Scene camera** option views through the Borg3 at 4:3. The scenes are ROM-derived, so keep them local.
+- **Not yet checked against the emulator:** the lighting model (the decomp's draw code seems to ignore Borg4 lights in favour of a fixed white light), billboard orientation, and N64 texture filtering.
 
 ## Emulator: ares v148
 

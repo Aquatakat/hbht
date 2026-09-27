@@ -56,6 +56,19 @@ public sealed record Borg5Transform(Borg5TransformFlags Flags, Borg5TransformOp 
     public Vector3 Direction =>
         Vector3.Transform(Vector3.UnitZ, Rpy(Rotation.Y, Rotation.X, 0));
 
+    /// <summary>
+    /// For <see cref="Borg5TransformOp.PivotRotate"/>, <see cref="LocalMatrix"/> as scale, then
+    /// rotation, then translation. The other ops have no such form.
+    /// </summary>
+    public (Vector3 Scale, Quaternion Rotation, Vector3 Translation)? Trs()
+    {
+        if (Op != Borg5TransformOp.PivotRotate)
+            return null;
+        var rotation = Rpy(Rotation.X, Rotation.Y, Rotation.Z);
+        var translation = Position - Vector3.TransformNormal(Pivot, Matrix4x4.CreateScale(Scale) * rotation);
+        return (Scale, Quaternion.Normalize(Quaternion.CreateFromRotationMatrix(rotation)), translation);
+    }
+
     private Matrix4x4 PivotRotate()
     {
         var m = Matrix4x4.CreateScale(Scale) * Rpy(Rotation.X, Rotation.Y, Rotation.Z);

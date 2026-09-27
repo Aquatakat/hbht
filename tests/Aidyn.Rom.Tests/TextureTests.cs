@@ -137,6 +137,24 @@ public class TextureTests
     }
 
     [Fact]
+    public void TransparencyFlagMarksExactlyTheTexturesWithAlpha()
+    {
+        var archive = BorgArchive.Open(TestRoms.Get(RomVersionId.Na10));
+        var flagged = 0;
+        foreach (var listing in archive.Listings.Where(l => l.Type == BorgType.Texture))
+        {
+            var texture = Borg1Texture.Parse(archive.Read(listing.Index));
+            var pixels = texture.Decode().Pixels;
+            var transparent = Enumerable.Range(0, pixels.Length / 4).Any(i => pixels[i * 4 + 3] != 255);
+            var flag = texture.Flags.HasFlag(Borg1Flags.HasTransparency);
+            Assert.True(flag == transparent, $"Borg {listing.Index}: flag {flag}, transparent texels {transparent}");
+            flagged += flag ? 1 : 0;
+        }
+
+        Assert.Equal(407, flagged);
+    }
+
+    [Fact]
     public void EveryBorg8Decodes()
     {
         var archive = BorgArchive.Open(TestRoms.Get(RomVersionId.Na10));

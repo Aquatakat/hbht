@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Scene viewer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  Views the glTF scenes that `aidyn scenes <rom>` writes to out/<version>/scenes. Serve the repo
+  root on localhost (see .claude/launch.json) and open
+  /tools/scene-viewer.html?v=na10&scene=1940. The files are ROM-derived: keep them local.
+-->
+<style>
+  :root { --bg: #20222a; --fg: #e8e8ec; --muted: #9a9cab; --panel: #2c2f3a; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px system-ui, sans-serif; overflow: hidden; }
+  #bar { position: fixed; top: 0; left: 0; right: 0; display: flex; gap: 8px; align-items: center; padding: 8px 12px;
+         background: var(--panel); flex-wrap: wrap; z-index: 1; }
+  #bar input { width: 6em; }
+  #info { color: var(--muted); }
+  canvas { display: block; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="bar">
+  <label>Scene <input id="scene" type="number" min="0"></label>
+  <button id="prev">◀</button><button id="next">▶</button>
+  <label><input id="useCamera" type="checkbox"> Scene camera (4:3)</label>
+  <label><input id="wire" type="checkbox"> Wireframe</label>
+  <span id="info"></span>
+</div>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const params = new URLSearchParams(location.search);
+const version = params.get('v') ?? 'na10';
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(devicePixelRatio);
+document.body.appendChild(renderer.domElement);
+const orbit = new THREE.PerspectiveCamera(45, 1, 0.001, 10000);
+const controls = new OrbitControls(orbit, renderer.domElement);
+const loader = new GLTFLoader();
+let root = null, sceneCamera = null;
+const world = new THREE.Scene();
+world.background = new THREE.Color(0x20222a);
+
+const $ = id => document.getElementById(id);
+$('useCamera').checked = params.get('camera') === '1';
+
+function resize() {
+  const top = $('bar').offsetHeight;
+  let w = innerWidth, h = innerHeight - top;
+  if ($('useCamera').checked) { if (w / h > 4 / 3) w = Math.round(h * 4 / 3); else h = Math.round(w * 3 / 4); }
+  renderer.setSize(w, h);
+  renderer.domElement.style.marginTop = top + 'px';
+  orbit.aspect = w / h; orbit.updateProjectionMatrix();
+  if (sceneCamera) { sceneCamera.aspect = 4 / 3; sceneCamera.updateProjectionMatrix(); }
+}
+
+async function load(index) {
+  $('scene').value = index;
+  history.replaceState(null, '', `?v=${version}&scene=${index}${$('useCamera').checked ? '&camera=1' : ''}`);
+  const url = `../out/${version}/scenes/${String(index).padStart(5, '0')}.glb`;
+  let gltf;
+  try { gltf = await loader.loadAsync(url); }
+  catch { $('info').textContent = `No scene at ${url}`; return; }
+  if (root) world.remove(root);
+  root = gltf.scene;
+  world.add(root);
+  world.children.filter(c => c.isAmbientLight).forEach(c => world.remove(c));
+  const extras = gltf.scene.userData ?? {};
+  const ambient = extras.ambientLight ?? [0.6, 0.6, 0.6];
+  world.add(new THREE.AmbientLight(new THREE.Color(...ambient), Math.PI));
+  let lights = 0;
+  root.traverse(o => {
+    if (o.isLight) { lights++; o.intensity *= Math.PI; }
+    if (o.isMesh) o.material.wireframe = $('wire').checked;
+  });
+  if (!lights) { const d = new THREE.DirectionalLight(0xffffff, 1.5); d.position.set(1, 2, 3); root.add(d); }
+  sceneCamera = gltf.cameras[0] ?? null;
+
+  const box = new THREE.Box3();
+  root.traverse(o => { if (o.isMesh) box.expandByObject(o); });
+  const size = box.getSize(new THREE.Vector3()), centre = box.getCenter(new THREE.Vector3());
+  const r = Math.max(size.length() / 2, 1e-3);
+  orbit.near = r / 100; orbit.far = r * 100; orbit.updateProjectionMatrix();
+  orbit.position.copy(centre).add(new THREE.Vector3(1, 0.6, 1.4).normalize().multiplyScalar(r * 2.6));
+  controls.target.copy(centre); controls.update();
+  const meshes = []; root.traverse(o => { if (o.isMesh) meshes.push(o); });
+  $('info').textContent = `Borg5 ${index}: ${meshes.length} meshes, ${size.x.toFixed(2)} × ${size.y.toFixed(2)} × ${size.z.toFixed(2)} scene units`;
+  resize();
+}
+
+$('scene').addEventListener('change', e => load(+e.target.value));
+$('prev').onclick = () => load(+$('scene').value - 1);
+$('next').onclick = () => load(+$('scene').value + 1);
+$('useCamera').onchange = () => load(+$('scene').value);
+$('wire').onchange = () => root?.traverse(o => { if (o.isMesh) o.material.wireframe = $('wire').checked; });
+addEventListener('resize', resize);
+renderer.setAnimationLoop(() => renderer.render(world, $('useCamera').checked && sceneCamera ? sceneCamera : orbit));
+load(+(params.get('scene') ?? 1940));
+</script>
+</body>
+</html>

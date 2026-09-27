@@ -13,6 +13,9 @@ const string Usage = """
       aidyn borg dump <rom> [--out <dir>]    default dir: out/<version>/borg
       aidyn db dump <rom> [--out <dir>]      default dir: out/<version>/db
       aidyn textures <rom> [--out <dir>]     Borg1 and Borg8 as PNG; default dir: out/<version>/textures
+      aidyn scenes <rom> [<index>...] [--out <dir>]
+                                           Borg5 scenes as glTF (all, or the given archive indices);
+                                           default dir: out/<version>/scenes
       aidyn strings <rom> <table>
     """;
 
@@ -28,6 +31,7 @@ try
         ["db", "dump", var rom, "--out", var dir] => DbDump(rom, dir),
         ["textures", var rom] => Textures(rom, null),
         ["textures", var rom, "--out", var dir] => Textures(rom, dir),
+        ["scenes", var rom, .. var rest] => Scenes(rom, rest),
         ["strings", var rom, var table] => Strings(rom, table),
         _ => Fail(Usage),
     };
@@ -151,6 +155,38 @@ static int Textures(string path, string? outDir)
 
     File.WriteAllText(Path.Combine(outDir, "index.csv"), index.ToString());
     Console.WriteLine($"Wrote textures to {Path.GetFullPath(outDir)}");
+    return 0;
+}
+
+static int Scenes(string path, string[] args)
+{
+    string? outDir = null;
+    var only = new List<int>();
+    for (var i = 0; i < args.Length; i++)
+    {
+        if (args[i] == "--out" && i + 1 < args.Length)
+            outDir = args[++i];
+        else if (int.TryParse(args[i], CultureInfo.InvariantCulture, out var index))
+            only.Add(index);
+        else
+            return Fail(Usage);
+    }
+
+    var rom = RomImage.Load(path);
+    var archive = BorgArchive.Open(rom);
+    outDir ??= Path.Combine("out", rom.Version.Id.ToString().ToLowerInvariant(), "scenes");
+    Directory.CreateDirectory(outDir);
+
+    var scenes = only.Count > 0 ? only : archive.Listings.Where(l => l.Type == BorgType.Scene).Select(l => l.Index).ToList();
+    foreach (var index in scenes)
+    {
+        if (index < 0 || index >= archive.Count || archive.Listings[index].Type != BorgType.Scene)
+            return Fail($"Borg {index} isn't a scene.");
+        var scene = Borg5Scene.Parse(archive.Read(index));
+        File.WriteAllBytes(Path.Combine(outDir, $"{index:D5}.glb"), SceneGltf.Export(scene, archive.Read, index));
+    }
+
+    Console.WriteLine($"Wrote {scenes.Count} scenes to {Path.GetFullPath(outDir)}");
     return 0;
 }
 
