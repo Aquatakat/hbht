@@ -179,6 +179,47 @@ public class AnimationTests
         }
     }
 
+    /// <summary>Every actor starts in state 0, moves by transform 2, and animates one scene.</summary>
+    [Fact]
+    public void EveryBorg7Parses()
+    {
+        var archive = BorgArchive.Open(TestRoms.Get(RomVersionId.Na10));
+        int actors = 0, states = 0, branches = 0, interrupts = 0, initial = 0;
+        var animations = new HashSet<int>();
+        var requests = new SortedSet<int>();
+        var unmarked = new List<int>();
+        foreach (var listing in archive.Listings.Where(l => l.Type == BorgType.Actor))
+        {
+            var actor = Borg7Actor.Parse(archive.Read(listing.Index));
+            actors++;
+            Assert.Equal((2, 0), (actor.RootTransform, actor.InitialState));
+            var scenes = new HashSet<int>();
+            foreach (var state in actor.States)
+            {
+                states++;
+                initial += state.Initial ? 1 : 0;
+                Assert.Equal(BorgType.Animation, archive.Listings[state.Animation].Type);
+                animations.Add(state.Animation);
+                scenes.Add(Borg6Animation.Parse(archive.Read(state.Animation)).Scene);
+                foreach (var branch in state.Branches)
+                {
+                    branches++;
+                    interrupts += branch.Interrupts ? 1 : 0;
+                    requests.Add(branch.Request);
+                }
+            }
+            Assert.Single(scenes);
+            Assert.Equal(actor.States[0].Initial ? 1 : 0, actor.States.Count(s => s.Initial));
+            if (!actor.States[0].Initial)
+                unmarked.Add(listing.Index);
+        }
+
+        Assert.Equal((203, 1932, 9227, 3755, 201), (actors, states, branches, interrupts, initial));
+        Assert.Equal(1923, animations.Count);
+        Assert.Equal([7613, 7620], unmarked);
+        Assert.Equal([.. Enumerable.Range(0, 23), 25, 255], requests);
+    }
+
     /// <summary>Builds a Borg6 of one target on transform 1 with one track.</summary>
     private static byte[] Build(int length, Borg6Channels channel, params (int Tick, int Mask, float[] Values)[] keys)
     {

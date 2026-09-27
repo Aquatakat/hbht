@@ -107,6 +107,18 @@ public enum CodeTable
     /// underground's, the Roog entrance's and the Barrows' (<c>minimap_dats_2</c>).
     /// </summary>
     MinimapFlagImages,
+    /// <summary>
+    /// Each entity's Borg7, Borg8 portrait and sizes, 0x1C bytes each, ending with zeros
+    /// (<c>gEntityExtras</c>). Keyed by position in <see cref="EntityList"/> + 1.
+    /// </summary>
+    EntityModels,
+    /// <summary>One byte per dialogue entity, like <see cref="EntityList"/> (the decomp's <c>DialougEntList</c>).</summary>
+    DialogEntityList,
+    /// <summary>
+    /// Each dialogue entity's Borg7, Borg8 portrait and sizes, 0x14 bytes each, ending with zeros
+    /// (<c>dailougEnt_info_array</c>). Keyed by position in <see cref="DialogEntityList"/> + 1.
+    /// </summary>
+    DialogEntityModels,
 }
 
 /// <summary>
@@ -181,6 +193,9 @@ public static class RomVersions
                 [CodeTable.CinematicFades] = new(0x00E1598, 0x10),
                 [CodeTable.MinimapSections] = new(0x00E07A4, 0x24),
                 [CodeTable.MinimapFlagImages] = new(0x00E07C8, 0xE0),
+                [CodeTable.EntityModels] = new(0x00E1930, 0x1848),
+                [CodeTable.DialogEntityList] = new(0x00E1900, 0x25),
+                [CodeTable.DialogEntityModels] = new(0x00E3178, 0x294),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {
@@ -251,6 +266,9 @@ public static class RomVersions
                 [CodeTable.CinematicFades] = new(0x00E15D8, 0x10),
                 [CodeTable.MinimapSections] = new(0x00E07E4, 0x24),
                 [CodeTable.MinimapFlagImages] = new(0x00E0808, 0xE0),
+                [CodeTable.EntityModels] = new(0x00E1970, 0x1848),
+                [CodeTable.DialogEntityList] = new(0x00E1940, 0x25),
+                [CodeTable.DialogEntityModels] = new(0x00E31B8, 0x294),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {
@@ -319,6 +337,9 @@ public static class RomVersions
                 [CodeTable.CinematicFades] = new(0x00F0108, 0x10),
                 [CodeTable.MinimapSections] = new(0x00EF304, 0x24),
                 [CodeTable.MinimapFlagImages] = new(0x00EF328, 0xE0),
+                [CodeTable.EntityModels] = new(0x00F04A0, 0x1848),
+                [CodeTable.DialogEntityList] = new(0x00F0470, 0x25),
+                [CodeTable.DialogEntityModels] = new(0x00F1CE8, 0x294),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {

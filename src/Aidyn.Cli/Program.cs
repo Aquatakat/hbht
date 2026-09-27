@@ -18,6 +18,8 @@ const string Usage = """
       aidyn scenes <rom> [<index>...] [--out <dir>]
                                            Borg5 scenes as glTF, with the Borg6s that animate them
                                            (all, or the given archive indices); default dir: out/<version>/scenes
+      aidyn actors <rom> [--out <dir>]       Borg7 actors' states and branches as JSON, for
+                                           tools/scene-viewer.html; default dir: out/<version>/actors
       aidyn dialogue <rom> [<index>...] [--out <dir>]
                                            Borg13 scripts as text (all, or the given archive indices);
                                            default dir: out/<version>/dialogue
@@ -40,6 +42,8 @@ try
         ["textures", var rom] => Textures(rom, null),
         ["textures", var rom, "--out", var dir] => Textures(rom, dir),
         ["scenes", var rom, .. var rest] => Scenes(rom, rest),
+        ["actors", var rom] => Actors(rom, null),
+        ["actors", var rom, "--out", var dir] => Actors(rom, dir),
         ["dialogue", var rom, .. var rest] => Dialogue(rom, rest),
         ["atlas", var rom] => Atlas(rom, null),
         ["atlas", var rom, "--out", var dir] => Atlas(rom, dir),
@@ -194,6 +198,16 @@ static int Scenes(string path, string[] args)
     }
 
     Console.WriteLine($"Wrote {scenes.Count} scenes to {Path.GetFullPath(outDir)}");
+    return 0;
+}
+
+static int Actors(string path, string? outDir)
+{
+    var rom = RomImage.Load(path);
+    outDir ??= Path.Combine("out", rom.Version.Id.ToString().ToLowerInvariant(), "actors");
+    Directory.CreateDirectory(outDir);
+    File.WriteAllBytes(Path.Combine(outDir, "actors.json"), ActorsJson.Serialize(rom, BorgArchive.Open(rom)));
+    Console.WriteLine($"Wrote the actors to {Path.GetFullPath(outDir)}");
     return 0;
 }
 

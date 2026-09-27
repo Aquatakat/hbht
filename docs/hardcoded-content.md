@@ -157,13 +157,13 @@ The debug ROM also has a game state cheats menu. Only its "appear" option is rea
 
 Code uses 1,990 of the 2,076 names in the decomp's `Borgindecies.h`. The map chunk lists account for 1,127 of them, and those are read from the ROM already (`MapChunks`). The rest fall into four groups.
 
-**Content tables** pair records with their assets. Mods adding a monster, weapon or item need to set these, so each becomes a record field (layer 1). They're data in the code segment, identical in all three ROMs. The 1.0 offsets below are where each starts; they aren't read yet, so they aren't in `RomLayout`.
+**Content tables** pair records with their assets. Mods adding a monster, weapon or item need to set these, so each becomes a record field (layer 1). They're data in the code segment, identical in all three ROMs. The 1.0 offsets below are where each starts. The ones marked Read are in `RomLayout`; the rest aren't read yet.
 
 | What | Code | NA 1.0 | Status |
 | --- | --- | --- | --- |
-| Each entity's model (Borg7), portrait (Borg8), height, collision radius, scale and one unknown float, keyed by entity list position + 1. Entities without an entry get the bat model and a generic portrait. | `gEntityExtras` | `0xE1930` | To do |
-| Each dialogue entity's model, portrait, height and scale | `dailougEnt_info_array` | `0xE3178` | To do |
-| The position lists that code tables use for dialogue entities, spells, armor, weapons and items, like the entity list | `DialougEntList`, `SpellList`, `ArmorList`, `weaponList`, `itemID_array` | `0xE1900`, `0xE3740`, `0xE1850`, `0xE3790`, `0xE3590` | To do |
+| Each entity's model (Borg7), portrait (Borg8), height, collision radius, scale and one unknown float, keyed by entity list position + 1. Every entity has one; the code's fallback to the bat model and a generic portrait never runs. | `gEntityExtras` | `0xE1930` | Read (`EntityModels`) |
+| Each dialogue entity's model, portrait, height and scale, keyed by dialogue entity list position + 1. 32 of the 37 dialogue entities have one. | `dailougEnt_info_array` | `0xE3178` | Read (`EntityModels`) |
+| The position lists that code tables use for dialogue entities, spells, armor, weapons and items, like the entity list. The entity and dialogue entity lists are in the same order as their DB tables. | `DialougEntList`, `SpellList`, `ArmorList`, `weaponList`, `itemID_array` | `0xE1900`, `0xE3740`, `0xE1850`, `0xE3790`, `0xE3590` | Dialogue entities read; the rest to do |
 | The 66 weapon models (Borg5), by weapon position | `weapons_with_borg5`, `weapon_borg5_ID` | `0xE3520`, `0xD3B14` | To do |
 | Models for six items: Txomin's letter, the banner, the Horn of Kynon, Kendal's helm, Stormbreaker and the Amulet of Haste | `D_800f14d4`, `ItemBorg5Search` | `0xE3564`, `0xD3B9C` | To do |
 | Shield models | `ArmorDB::GetBorg5` | Switch | To do |
