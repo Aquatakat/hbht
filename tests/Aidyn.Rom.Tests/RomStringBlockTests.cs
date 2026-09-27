@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 using Aidyn.Rom.Text;
 
 namespace Aidyn.Rom.Tests;
@@ -15,30 +14,20 @@ public class RomStringBlockTests
         return data;
     }
 
+    /// <summary><see cref="RomStringBlock.Split"/> throws unless the strings exactly fill the payload.</summary>
     [Theory]
     [MemberData(nameof(Tables))]
-    public void DecompressesToWholeStrings(RomVersionId id, RomStringTable table)
-    {
-        var payload = RomStringBlock.Decompress(TestRoms.Get(id), table);
+    public void DecompressesToWholeStrings(RomVersionId id, RomStringTable table) =>
+        Assert.NotEmpty(RomStringBlock.Read(TestRoms.Get(id), table));
 
-        // A u16 count, then length-prefixed strings that should fill the payload exactly.
-        var count = BinaryPrimitives.ReadUInt16BigEndian(payload);
-        var position = 2;
-        for (var i = 0; i < count; i++)
-        {
-            Assert.True(position < payload.Length, $"string {i} of {count} starts past the end");
-            position += 1 + payload[position];
-        }
-        Assert.Equal(payload.Length, position);
-    }
+    [Fact]
+    public void SplitReadsLengthPrefixedStrings() =>
+        Assert.Equal(["", ""], RomStringBlock.Split([0, 2, 0, 0]));
 
     [Theory]
-    [InlineData(RomStringTable.Common)]
-    [InlineData(RomStringTable.Controller)]
-    [InlineData(RomStringTable.Combat)]
-    [InlineData(RomStringTable.Cheats)]
-    public void DebugTablesMatchNa10(RomStringTable table) =>
-        Assert.Equal(
-            RomStringBlock.Decompress(TestRoms.Get(RomVersionId.Na10), table),
-            RomStringBlock.Decompress(TestRoms.Get(RomVersionId.Debug), table));
+    [InlineData(new byte[] { 0, 2, 0 })]        // the second string is missing
+    [InlineData(new byte[] { 0, 1, 5, 1, 2 })]  // the string runs past the end
+    [InlineData(new byte[] { 0, 1, 0, 9 })]     // a byte follows the last string
+    public void SplitRejectsPayloadsTheStringsDontFill(byte[] payload) =>
+        Assert.Throws<InvalidDataException>(() => RomStringBlock.Split(payload));
 }

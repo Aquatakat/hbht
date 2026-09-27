@@ -20,9 +20,9 @@ There is a real second revision. Compared with 1.0:
 
 - **Borg archive and `Borg_List`:** byte-identical, shifted by `+0x40`. `Borg_List` is at `0x1F89C50` and the DB block starts at `0x1FC2BF0`.
 - **Code segment:** changed (about 760k bytes differ even after allowing for the shift).
-- **DB block:** mostly identical after the shift. There are small edits near `0x1FE7B80` (1.0 offset), and about 18 KB differs from `0x1FEA3AA` to the end of the block. Not yet identified.
+- **DB block:** every record is identical. The only change is new text: five Controller Pak error messages appended to `String/Common` and four to `String/Controller`. The two tables grew, which moves everything after them (see below).
 
-So 1.1 contains code fixes plus some table changes, and all assets are shared. The decomp's `us.yaml` targets 1.0, which stays the primary target. 1.1 needs its own offset table, and its DB changes are worth diffing properly once 0.4 can decode the tables.
+So 1.1 contains code fixes and a few new messages, and all assets and records are shared. The decomp's `us.yaml` targets 1.0, which stays the primary target.
 
 The debug ROM's `Borg_List` is at `0x1F98790` and its DB block starts at `0x1FD1730`.
 
@@ -33,6 +33,17 @@ The debug ROM's `Borg_List` is at `0x1F98790` and its DB block starts at `0x1FD1
 - **Stored sizes are padded to 8 bytes** with zeros, and entries start on 16-byte boundaries. An LZB stream therefore ends 0–7 bytes before its stored size.
 - **Compression:** 14,047 Borgs are LZB and 538 are stored raw. None use LZ01x, which is only used for text. LZB is UCL's NRV2B with an 8-bit bit buffer. LZ01x is LZO1X from LZO 1.06.
 - **1.1's text changed.** `String/Common` sits at 1.0's offset plus `0x40`, but it was edited and now decompresses to `0x357E` bytes instead of `0x340C`. Everything after it moves by `+0x270`. `String/Combat` and `String/Cheats` are unchanged apart from the move. `String/Controller` has changed too. The debug ROM's four `RomString` tables match 1.0's.
+
+### What the DB readers found (0.4)
+
+- **Layout.** `RomVersions` has every table in the DB block for all three ROMs. 1.1 is 1.0 at `+0x40` up to `String/Common`, which is `0x2960` bytes (1.0: `0x2830`). Copyright through the cinematic text are at `+0x170`. `String/Controller` is at `0x1FED6B0` and is `0x510` bytes (1.0: `0x410`), so everything after it is at `+0x270`. The debug ROM is 1.0 at `+0xEB80` throughout, except that its credits are `0x6F0` bytes, not `0x720`: three names are missing and one date differs. us.yaml has no ShopDB segment. It starts at `0x1FD31B0`, inside what the yaml calls ChestDB.
+- **All records are identical in all three ROMs.** Only the text tables noted above differ.
+- **The decomp's string decryption is slightly wrong.** `decrypt_sub_a` shifts the second seed right by 8, not 7, and the key setup mixes all 16 bytes, not 14. This was found by solving for the key from the six stat descriptions, whose plaintext is in the decomp. Every string in every table then decrypts to printable ASCII. The only markup is `\n` and `\xHH`, where `\x83` and `\x84` are controller button glyphs. The readers keep both as written.
+- **Grouped tables.** EntityDB, WeaponDB, ArmorDB, SpellDB and ItemDB split their records into groups. Each group matches a field: entity category, weapon class, armor slot, spell school, and the item ID's type. EntityDB has 7 categories, one more than the decomp's `ENTITY_CATEGORY`, and category 4 is empty.
+- **AidynEditor agrees with the decomp** on the field offsets of entities, weapons, gear and loot tables.
+- **Shops.** The game stocks a priced slot only when its third byte is nonzero, and it always stocks one item. The first byte is never read. The three trailing slots are always stocked at base price.
+- **Camp encounters** are indexed as `terrain × 5 + level tier`, with 54 terrains. Mean enemy level rises with the tier, which confirms the order. Their item IDs are big-endian, unlike the DB tables.
+- **Odd values the game tolerates.** A few entities have an "is heavy" byte other than 0 or 1 (Alaron's is 220). The game only tests it for nonzero.
 
 ## Emulator: ares v148
 

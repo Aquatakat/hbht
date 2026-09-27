@@ -12,16 +12,16 @@ A PC reimplementation of Aidyn Chronicles: The First Mage (N64). It runs on cont
 
 A .NET 10 solution (`Aidyn.slnx`, SDK pinned in `global.json`), laid out per ADR 0002.
 
-- `src/Aidyn.Rom`: ROM identification and per-version offsets (`RomImage`, `RomVersions`), the LZB and LZ01x decompressors, and the Borg archive (`BorgArchive`).
-- `src/Aidyn.Cli`: the `aidyn` command-line tool, e.g. `dotnet run --project src/Aidyn.Cli -- borg dump <rom>`. Output goes to the gitignored `out/`.
+- `src/Aidyn.Rom`: ROM identification and per-version offsets (`RomImage`, `RomVersions`), the LZB and LZ01x decompressors, the Borg archive (`BorgArchive`), the text cipher and string tables (`Text/`), and the DB block's typed records (`Db/GameDb`).
+- `src/Aidyn.Cli`: the `aidyn` command-line tool, e.g. `dotnet run --project src/Aidyn.Cli -- borg dump <rom>`, `db dump <rom>` (every table as JSON) or `strings <rom> <table>`. Output goes to the gitignored `out/`.
 - `tests/Aidyn.Rom.Tests`: `dotnet test` from the repo root. Real-data tests find ROMs in `roms/` (or `AIDYN_ROMS`) by hash and skip when they're missing.
 
 ## Status
 
 Update this section when a roadmap task finishes or starts.
 
-- **Done:** 0.1 reference rig, 0.2 ROM identification, 0.3 Borg archive reader, 0.5 ADRs.
-- **Next:** 0.4 DB readers. That includes finding 1.1's `String/Common` length and `String/Controller` location (see the rig doc), then Phase 1 tracks 1A and 1E.
+- **Done:** 0.1 reference rig, 0.2 ROM identification, 0.3 Borg archive reader, 0.4 DB readers, 0.5 ADRs.
+- **Next:** Phase 1 tracks 1A and 1E.
 - **Not started:** 0.6 asset inspector (needs Godot installed and pinned), and everything after Phase 0.
 - **Open rig follow-ups** (from ADR 0006): measure the frame `delta` distribution in trek and combat, and get gdb working after loading a save state.
 

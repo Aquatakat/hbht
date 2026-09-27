@@ -2,12 +2,16 @@ using System.Globalization;
 using System.Text;
 using Aidyn.Rom;
 using Aidyn.Rom.Borg;
+using Aidyn.Rom.Db;
+using Aidyn.Rom.Text;
 
 const string Usage = """
     Usage:
       aidyn identify <rom>
       aidyn borg summary <rom>
       aidyn borg dump <rom> [--out <dir>]    default dir: out/<version>/borg
+      aidyn db dump <rom> [--out <dir>]      default dir: out/<version>/db
+      aidyn strings <rom> <table>
     """;
 
 try
@@ -18,6 +22,9 @@ try
         ["borg", "summary", var rom] => BorgSummary(rom),
         ["borg", "dump", var rom] => BorgDump(rom, null),
         ["borg", "dump", var rom, "--out", var dir] => BorgDump(rom, dir),
+        ["db", "dump", var rom] => DbDump(rom, null),
+        ["db", "dump", var rom, "--out", var dir] => DbDump(rom, dir),
+        ["strings", var rom, var table] => Strings(rom, table),
         _ => Fail(Usage),
     };
 }
@@ -81,6 +88,38 @@ static int BorgDump(string path, string? outDir)
     File.WriteAllText(Path.Combine(outDir, "summary.txt"), summary);
     Console.Write(summary);
     Console.WriteLine($"Wrote {archive.Count} Borgs to {Path.GetFullPath(outDir)}");
+    return 0;
+}
+
+static int DbDump(string path, string? outDir)
+{
+    var rom = RomImage.Load(path);
+    var db = GameDb.Read(rom);
+    outDir ??= Path.Combine("out", rom.Version.Id.ToString().ToLowerInvariant(), "db");
+    Directory.CreateDirectory(outDir);
+
+    var tables = new (string Name, object Value)[]
+    {
+        ("entities", db.Entities), ("weapons", db.Weapons), ("armor", db.Armor), ("spells", db.Spells),
+        ("gear", db.Gear), ("loot", db.Loot), ("shops", db.Shops), ("dialog_entities", db.DialogEntities),
+        ("game_state_funnel", db.GameStateFunnel), ("journal", db.Journal), ("cinematic_titles", db.CinematicTitles),
+        ("captions", db.Captions), ("camp_encounters", db.CampEncounters), ("strings", db.Strings),
+    };
+    foreach (var (name, value) in tables)
+        File.WriteAllText(Path.Combine(outDir, name + ".json"), DbJson.Serialize(value));
+
+    Console.WriteLine($"Wrote {tables.Length} tables to {Path.GetFullPath(outDir)}");
+    return 0;
+}
+
+static int Strings(string path, string tableName)
+{
+    if (!Enum.TryParse<RomStringTable>(tableName, ignoreCase: true, out var table))
+        return Fail($"Unknown string table \"{tableName}\". Tables: {string.Join(", ", Enum.GetNames<RomStringTable>())}.");
+
+    var strings = RomStringBlock.Read(RomImage.Load(path), table);
+    for (var i = 0; i < strings.Count; i++)
+        Console.WriteLine($"{i,4}  {strings[i]}");
     return 0;
 }
 
