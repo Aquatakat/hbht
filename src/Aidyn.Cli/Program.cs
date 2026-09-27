@@ -16,8 +16,8 @@ const string Usage = """
       aidyn db dump <rom> [--out <dir>]      default dir: out/<version>/db
       aidyn textures <rom> [--out <dir>]     Borg1 and Borg8 as PNG; default dir: out/<version>/textures
       aidyn scenes <rom> [<index>...] [--out <dir>]
-                                           Borg5 scenes as glTF (all, or the given archive indices);
-                                           default dir: out/<version>/scenes
+                                           Borg5 scenes as glTF, with the Borg6s that animate them
+                                           (all, or the given archive indices); default dir: out/<version>/scenes
       aidyn dialogue <rom> [<index>...] [--out <dir>]
                                            Borg13 scripts as text (all, or the given archive indices);
                                            default dir: out/<version>/dialogue
@@ -181,12 +181,16 @@ static int Scenes(string path, string[] args)
     Directory.CreateDirectory(outDir);
 
     var scenes = only.Count > 0 ? only : archive.Listings.Where(l => l.Type == BorgType.Scene).Select(l => l.Index).ToList();
+    var animations = archive.Listings.Where(l => l.Type == BorgType.Animation)
+        .Select(l => (l.Index, Animation: Borg6Animation.Parse(archive.Read(l.Index))))
+        .ToLookup(a => a.Animation.Scene);
     foreach (var index in scenes)
     {
         if (!IsType(archive, index, BorgType.Scene))
             return Fail($"Borg {index} isn't a scene.");
         var scene = Borg5Scene.Parse(archive.Read(index));
-        File.WriteAllBytes(Path.Combine(outDir, $"{index:D5}.glb"), SceneGltf.Export(scene, archive.Read, index));
+        File.WriteAllBytes(Path.Combine(outDir, $"{index:D5}.glb"),
+            SceneGltf.Export(scene, archive.Read, index, animations[index].ToList()));
     }
 
     Console.WriteLine($"Wrote {scenes.Count} scenes to {Path.GetFullPath(outDir)}");

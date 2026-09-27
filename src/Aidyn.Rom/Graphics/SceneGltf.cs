@@ -14,7 +14,9 @@ public static class SceneGltf
 
     /// <param name="read">Reads a Borg by archive index.</param>
     /// <param name="index">The scene's archive index, recorded in the file.</param>
-    public static byte[] Export(Borg5Scene scene, Func<int, byte[]> read, int index)
+    /// <param name="animations">Borg6s of this scene, by archive index, to include as glTF animations.</param>
+    public static byte[] Export(Borg5Scene scene, Func<int, byte[]> read, int index,
+        IReadOnlyList<(int Index, Borg6Animation Animation)>? animations = null)
     {
         var gltf = new GltfBuilder();
         var models = scene.Models.Select(m => new Lazy<Borg2Geometry>(() => Borg2Geometry.Parse(read(m)))).ToArray();
@@ -52,6 +54,8 @@ public static class SceneGltf
         var first = scene.FirstNode;
         var roots = new List<int>();
         var billboards = new List<int>();
+        var nodes = new Dictionary<int, int>();
+        var billboardNodes = new Dictionary<int, int>();
         for (var t = first; t < scene.Transforms.Count; t++)
         {
             var transform = scene.Transforms[t];
@@ -70,7 +74,9 @@ public static class SceneGltf
                     node["mesh"] = gltf.AddMesh(new JsonObject { ["primitives"] = list });
             }
             node["extras"] = new JsonObject { ["transform"] = t, ["op"] = transform.Op.ToString(), ["billboard"] = billboard };
-            var n = gltf.AddNode(node);
+            if (transform.Pivot != Vector3.Zero)
+                node["extras"]!["pivot"] = new JsonArray(transform.Pivot.X, transform.Pivot.Y, transform.Pivot.Z);
+            var n = nodes[t] = gltf.AddNode(node);
             if (scene.Parent(t) is null)
                 roots.Add(n);
         }
@@ -80,7 +86,7 @@ public static class SceneGltf
             SetTrs(node, scene.Transforms[t].Scale, Quaternion.Identity, scene.WorldMatrix(t).Translation);
             node["mesh"] = gltf.AddMesh(new JsonObject { ["primitives"] = primitives[t] });
             node["extras"] = new JsonObject { ["transform"] = t, ["billboard"] = true };
-            roots.Add(gltf.AddNode(node));
+            roots.Add(billboardNodes[t] = gltf.AddNode(node));
         }
 
         var camera = Borg3Camera.Parse(read(scene.Camera));
@@ -101,6 +107,7 @@ public static class SceneGltf
         }));
         var view = scene.Transforms[0].LocalMatrix();
         SetTrs(gltf, roots[^1], Vector3.One, Quaternion.CreateFromRotationMatrix(view), view.Translation);
+        nodes[0] = roots[^1];
 
         var extras = new JsonObject { ["borg5"] = index, ["borg3"] = scene.Camera };
         for (var i = 0; i < scene.Lights.Count; i++)
@@ -113,7 +120,7 @@ public static class SceneGltf
                 extras["ambientBorg4"] = scene.Lights[i];
                 break;
             }
-            roots.Add(gltf.AddNode(new JsonObject
+            roots.Add(nodes[1 + i] = gltf.AddNode(new JsonObject
             {
                 ["name"] = $"light {i}",
                 ["rotation"] = QuaternionJson(Facing(scene.Transforms[1 + i].Direction)),
@@ -127,6 +134,21 @@ public static class SceneGltf
                 ["extras"] = new JsonObject { ["borg4"] = scene.Lights[i] },
             }));
         }
+
+        // An animation with no targets only holds the scene still for its length. glTF can't have
+        // an empty animation, so those are listed in the extras.
+        var still = new JsonArray();
+        foreach (var (borg6, animation) in animations ?? [])
+        {
+            if (animation.Scene != index)
+                throw new ArgumentException($"Borg6 {borg6} animates scene {animation.Scene}, not {index}.", nameof(animations));
+            if (animation.Targets.Count == 0)
+                still.Add(new JsonObject { ["borg6"] = borg6, ["length"] = animation.Length });
+            else
+                gltf.AddAnimation(Animation(gltf, scene, borg6, animation, nodes, billboardNodes));
+        }
+        if (still.Count > 0)
+            extras["stillAnimations"] = still;
 
         return gltf.ToGlb(roots, extras);
 
@@ -185,6 +207,123 @@ public static class SceneGltf
             if (!gltfTextures.TryGetValue((image, sampler), out var result))
                 gltfTextures[(image, sampler)] = result = gltf.AddTexture(image, sampler);
             return result;
+        }
+    }
+
+    /// <summary>
+    /// Bakes a Borg6 into one sample per tick, from time 1 to time <c>Length + 1</c>, which is time 1
+    /// again, so the clip lasts one loop. Linear interpolation then matches the game at every tick.
+    /// </summary>
+    private static JsonObject Animation(GltfBuilder gltf, Borg5Scene scene, int index, Borg6Animation animation,
+        Dictionary<int, int> nodes, Dictionary<int, int> billboardNodes)
+    {
+        var count = animation.Length + 1;
+        var driven = animation.Targets.Select(t => t.Transform).ToHashSet();
+        var moved = Enumerable.Range(0, scene.Transforms.Count).Where(Moves).ToList();
+
+        // Each path of each node the animation moves, at each sample.
+        var translations = new SortedDictionary<int, Vector3[]>();
+        var rotations = new SortedDictionary<int, Quaternion[]>();
+        var scales = new SortedDictionary<int, Vector3[]>();
+
+        var player = new Borg6Player(animation);
+        var posed = scene.Transforms.ToArray();
+        for (var sample = 0; sample < count; sample++)
+        {
+            if (sample > 0)
+                player.Tick();
+            for (var i = 0; i < animation.Targets.Count; i++)
+                posed[animation.Targets[i].Transform] = player.Pose(i, scene.Transforms[animation.Targets[i].Transform]);
+
+            foreach (var t in moved)
+            {
+                var transform = posed[t];
+                if (t == 0)
+                {
+                    var view = transform.LocalMatrix();
+                    Samples(translations, nodes[0])[sample] = view.Translation;
+                    SetRotation(nodes[0], sample, Quaternion.CreateFromRotationMatrix(view));
+                }
+                else if (t < scene.FirstNode)
+                {
+                    SetRotation(nodes[t], sample, Quaternion.CreateFromRotationMatrix(Facing(transform.Direction)));
+                }
+                else
+                {
+                    if (driven.Contains(t) && transform.Trs() is { } trs)
+                    {
+                        Samples(translations, nodes[t])[sample] = trs.Translation;
+                        SetRotation(nodes[t], sample, trs.Rotation);
+                        Samples(scales, nodes[t])[sample] = trs.Scale;
+                    }
+                    if (billboardNodes.TryGetValue(t, out var billboard))
+                    {
+                        Samples(translations, billboard)[sample] = World(t).Translation;
+                        Samples(scales, billboard)[sample] = transform.Scale;
+                    }
+                }
+            }
+        }
+
+        var times = gltf.AddTimes(Enumerable.Range(0, count).Select(i => i / 60f).ToList());
+        var samplers = new JsonArray();
+        var channels = new JsonArray();
+        void Channel(int node, string path, int output)
+        {
+            channels.Add(new JsonObject
+            {
+                ["sampler"] = samplers.Count,
+                ["target"] = new JsonObject { ["node"] = node, ["path"] = path },
+            });
+            samplers.Add(new JsonObject { ["input"] = times, ["output"] = output, ["interpolation"] = "LINEAR" });
+        }
+        foreach (var (node, values) in translations)
+            Channel(node, "translation", gltf.AddKeyValues(values));
+        foreach (var (node, values) in rotations)
+            Channel(node, "rotation", gltf.AddKeyValues(values));
+        foreach (var (node, values) in scales)
+            Channel(node, "scale", gltf.AddKeyValues(values));
+
+        return new JsonObject
+        {
+            ["name"] = $"borg6 {index}",
+            ["channels"] = channels,
+            ["samplers"] = samplers,
+            ["extras"] = new JsonObject { ["borg6"] = index, ["length"] = animation.Length },
+        };
+
+        T[] Samples<T>(SortedDictionary<int, T[]> paths, int node) =>
+            paths.TryGetValue(node, out var values) ? values : paths[node] = new T[count];
+
+        // Neighbouring samples stay in the same hemisphere, so interpolation takes the short way.
+        void SetRotation(int node, int sample, Quaternion rotation)
+        {
+            var q = Samples(rotations, node);
+            rotation = Quaternion.Normalize(rotation);
+            q[sample] = sample > 0 && Quaternion.Dot(q[sample - 1], rotation) < 0 ? -rotation : rotation;
+        }
+
+        // A transform moves if it's driven, or if it's a billboard below one that is: billboards
+        // are drawn at their world position, on a separate node. The game flattens model nodes with
+        // other ops, so they aren't exported.
+        bool Moves(int t)
+        {
+            if (driven.Contains(t))
+                return t < scene.FirstNode || scene.Transforms[t].Op == Borg5TransformOp.PivotRotate;
+            if (!billboardNodes.ContainsKey(t))
+                return false;
+            for (var p = scene.Parent(t); p is { } parent; p = scene.Parent(parent))
+                if (driven.Contains(parent))
+                    return true;
+            return false;
+        }
+
+        Matrix4x4 World(int t)
+        {
+            var m = posed[t].LocalMatrix();
+            for (var p = scene.Parent(t); p is { } parent; p = scene.Parent(parent))
+                m *= posed[parent].LocalMatrix();
+            return m;
         }
     }
 

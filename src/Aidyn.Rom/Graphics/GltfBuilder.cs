@@ -21,7 +21,7 @@ public sealed class GltfBuilder
 
     private readonly MemoryStream _buffer = new();
     private readonly JsonArray _bufferViews = [], _accessors = [], _images = [], _samplers = [], _textures = [];
-    private readonly JsonArray _materials = [], _meshes = [], _nodes = [], _cameras = [], _lights = [];
+    private readonly JsonArray _materials = [], _meshes = [], _nodes = [], _cameras = [], _lights = [], _animations = [];
     private readonly SortedSet<string> _extensionsUsed = new(StringComparer.Ordinal);
 
     public int AddPositions(IReadOnlyList<Vector3> values)
@@ -45,6 +45,18 @@ public sealed class GltfBuilder
 
     public int AddVectors(IReadOnlyList<Vector4> values) =>
         AddAccessor(Floats(values.SelectMany(v => new[] { v.X, v.Y, v.Z, v.W })), Float, values.Count, "VEC4", ArrayBuffer);
+
+    /// <summary>An animation sampler's input: key times in seconds, which need their bounds.</summary>
+    public int AddTimes(IReadOnlyList<float> times) =>
+        AddAccessor(Floats(times), Float, times.Count, "SCALAR", null, new JsonArray(times.Min()), new JsonArray(times.Max()));
+
+    /// <summary>An animation sampler's output of translations or scales.</summary>
+    public int AddKeyValues(IReadOnlyList<Vector3> values) =>
+        AddAccessor(Floats(values.SelectMany(v => new[] { v.X, v.Y, v.Z })), Float, values.Count, "VEC3", null);
+
+    /// <summary>An animation sampler's output of rotations.</summary>
+    public int AddKeyValues(IReadOnlyList<Quaternion> values) =>
+        AddAccessor(Floats(values.SelectMany(q => new[] { q.X, q.Y, q.Z, q.W })), Float, values.Count, "VEC4", null);
 
     public int AddIndices(IReadOnlyList<int> indices, int vertexCount)
     {
@@ -86,6 +98,7 @@ public sealed class GltfBuilder
     /// <summary>A node added earlier, to finish it.</summary>
     public JsonObject Node(int index) => _nodes[index]!.AsObject();
     public int AddCamera(JsonObject camera) => Add(_cameras, camera);
+    public int AddAnimation(JsonObject animation) => Add(_animations, animation);
 
     /// <summary>A <c>KHR_lights_punctual</c> light.</summary>
     public int AddLight(JsonObject light)
@@ -113,7 +126,7 @@ public sealed class GltfBuilder
         foreach (var (name, array) in new[]
                  {
                      ("nodes", _nodes), ("meshes", _meshes), ("materials", _materials), ("textures", _textures),
-                     ("images", _images), ("samplers", _samplers), ("cameras", _cameras), ("accessors", _accessors),
+                     ("images", _images), ("samplers", _samplers), ("cameras", _cameras), ("animations", _animations), ("accessors", _accessors),
                      ("bufferViews", _bufferViews),
                  })
             if (array.Count > 0)
@@ -145,7 +158,7 @@ public sealed class GltfBuilder
         return glb;
     }
 
-    private int AddAccessor(byte[] data, int componentType, int count, string type, int target,
+    private int AddAccessor(byte[] data, int componentType, int count, string type, int? target,
         JsonArray? min = null, JsonArray? max = null)
     {
         var accessor = new JsonObject

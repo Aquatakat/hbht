@@ -7,7 +7,8 @@
 <!--
   Views the glTF scenes that `aidyn scenes <rom>` writes to out/<version>/scenes. Serve the repo
   root on localhost (see .claude/launch.json) and open
-  /tools/scene-viewer.html?v=na10&scene=1940. The files are ROM-derived: keep them local.
+  /tools/scene-viewer.html?v=na10&scene=1940 (add &anim=<borg6> to start an animation). The files
+  are ROM-derived: keep them local.
 -->
 <style>
   :root { --bg: #20222a; --fg: #e8e8ec; --muted: #9a9cab; --panel: #2c2f3a; }
@@ -15,7 +16,10 @@
   #bar { position: fixed; top: 0; left: 0; right: 0; display: flex; gap: 8px; align-items: center; padding: 8px 12px;
          background: var(--panel); flex-wrap: wrap; z-index: 1; }
   #bar input { width: 6em; }
-  #info { color: var(--muted); }
+  #info, #clock { color: var(--muted); }
+  #anims { display: none; gap: 8px; align-items: center; }
+  #time { width: 16em; }
+  #clock { font-variant-numeric: tabular-nums; }
   canvas { display: block; }
 </style>
 <script type="importmap">
@@ -31,6 +35,13 @@
   <button id="prev">◀</button><button id="next">▶</button>
   <label><input id="useCamera" type="checkbox"> Scene camera (4:3)</label>
   <label><input id="wire" type="checkbox"> Wireframe</label>
+  <span id="anims">
+    <select id="anim"></select>
+    <button id="play">❚❚</button>
+    <input id="time" type="range" min="0" step="1">
+    <span id="clock"></span>
+    <label title="Actors are drawn with transform 2 at the origin; the game moves them by its motion instead"><input id="inPlace" type="checkbox"> Root in place</label>
+  </span>
   <span id="info"></span>
 </div>
 <script type="module">
@@ -46,12 +57,50 @@ document.body.appendChild(renderer.domElement);
 const orbit = new THREE.PerspectiveCamera(45, 1, 0.001, 10000);
 const controls = new OrbitControls(orbit, renderer.domElement);
 const loader = new GLTFLoader();
-let root = null, sceneCamera = null;
+let root = null, sceneCamera = null, mixer = null, clips = [], action = null, actorRoot = null, playing = true;
+const clock = new THREE.Clock();
 const world = new THREE.Scene();
 world.background = new THREE.Color(0x20222a);
 
 const $ = id => document.getElementById(id);
 $('useCamera').checked = params.get('camera') === '1';
+
+// Animations are baked at one sample per 60 Hz tick; tick 0 of the clip is the game's time 1.
+function showAnimations(gltf) {
+  clips = gltf.animations;
+  mixer = clips.length ? new THREE.AnimationMixer(gltf.scene) : null;
+  action = null;
+  const still = gltf.scene.userData?.stillAnimations ?? [];
+  $('anims').style.display = clips.length ? 'flex' : 'none';
+  $('anim').replaceChildren(...clips.map((c, i) => new Option(`${c.name} (${Math.round(c.duration * 60)} ticks)`, i)));
+  actorRoot = null;
+  gltf.scene.traverse(o => { if (o.userData?.transform === 2 && !o.userData.billboard) actorRoot = o; });
+  const wanted = clips.findIndex(c => c.name === `borg6 ${params.get('anim')}`);
+  if (clips.length) playClip(wanted >= 0 ? wanted : 0);
+  return still.length ? `; ${still.length} still (${still.map(a => a.borg6).join(', ')})` : '';
+}
+
+function playClip(i) {
+  action?.stop();
+  $('anim').value = i;
+  action = mixer.clipAction(clips[i]);
+  action.play();
+  action.paused = !playing;
+  $('time').max = Math.round(clips[i].duration * 60);
+  updateUrl();
+}
+
+function holdRoot() {
+  if (!$('inPlace').checked || !actorRoot) return;
+  // With its position zeroed, a pivot-rotate transform's translation is −(pivot × scale) rotated.
+  const p = actorRoot.userData.pivot ?? [0, 0, 0];
+  actorRoot.position.set(...p).multiply(actorRoot.scale).applyQuaternion(actorRoot.quaternion).negate();
+}
+
+function updateUrl() {
+  const anim = action ? `&anim=${clips[+$('anim').value].name.replace('borg6 ', '')}` : '';
+  history.replaceState(null, '', `?v=${version}&scene=${$('scene').value}${anim}${$('useCamera').checked ? '&camera=1' : ''}`);
+}
 
 function resize() {
   const top = $('bar').offsetHeight;
@@ -65,7 +114,6 @@ function resize() {
 
 async function load(index) {
   $('scene').value = index;
-  history.replaceState(null, '', `?v=${version}&scene=${index}${$('useCamera').checked ? '&camera=1' : ''}`);
   const url = `../out/${version}/scenes/${String(index).padStart(5, '0')}.glb`;
   let gltf;
   try { gltf = await loader.loadAsync(url); }
@@ -84,6 +132,8 @@ async function load(index) {
   });
   if (!lights) { const d = new THREE.DirectionalLight(0xffffff, 1.5); d.position.set(1, 2, 3); root.add(d); }
   sceneCamera = gltf.cameras[0] ?? null;
+  const stillText = showAnimations(gltf);
+  updateUrl();
 
   const box = new THREE.Box3();
   root.traverse(o => { if (o.isMesh) box.expandByObject(o); });
@@ -93,7 +143,7 @@ async function load(index) {
   orbit.position.copy(centre).add(new THREE.Vector3(1, 0.6, 1.4).normalize().multiplyScalar(r * 2.6));
   controls.target.copy(centre); controls.update();
   const meshes = []; root.traverse(o => { if (o.isMesh) meshes.push(o); });
-  $('info').textContent = `Borg5 ${index}: ${meshes.length} meshes, ${size.x.toFixed(2)} × ${size.y.toFixed(2)} × ${size.z.toFixed(2)} scene units`;
+  $('info').textContent = `Borg5 ${index}: ${meshes.length} meshes, ${size.x.toFixed(2)} × ${size.y.toFixed(2)} × ${size.z.toFixed(2)} scene units, ${clips.length} animations${stillText}`;
   resize();
 }
 
@@ -102,8 +152,34 @@ $('prev').onclick = () => load(+$('scene').value - 1);
 $('next').onclick = () => load(+$('scene').value + 1);
 $('useCamera').onchange = () => load(+$('scene').value);
 $('wire').onchange = () => root?.traverse(o => { if (o.isMesh) o.material.wireframe = $('wire').checked; });
+$('anim').onchange = e => playClip(+e.target.value);
+$('play').onclick = () => { playing = !playing; if (action) action.paused = !playing; $('play').textContent = playing ? '❚❚' : '▶'; };
+$('time').oninput = e => {
+  if (!action) return;
+  playing = false; action.paused = true; $('play').textContent = '▶';
+  action.time = +e.target.value / 60; mixer.update(0);
+};
+addEventListener('keydown', e => {
+  if (!action || e.target.tagName === 'INPUT' && e.target.type !== 'range') return;
+  if (e.key === ' ') { e.preventDefault(); $('play').click(); }
+  if (e.key === ',' || e.key === '.') {
+    playing = false; action.paused = true; $('play').textContent = '▶';
+    const ticks = Math.round(action.time * 60) + (e.key === '.' ? 1 : -1);
+    action.time = Math.max(0, Math.min(+$('time').max, ticks)) / 60; mixer.update(0);
+  }
+});
 addEventListener('resize', resize);
-renderer.setAnimationLoop(() => renderer.render(world, $('useCamera').checked && sceneCamera ? sceneCamera : orbit));
+renderer.setAnimationLoop(() => {
+  const dt = clock.getDelta();
+  if (mixer) {
+    mixer.update(playing ? dt : 0);
+    holdRoot();
+    const tick = Math.round(action.time * 60);
+    $('time').value = tick;
+    $('clock').textContent = `time ${tick + 1} / ${$('time').max}`;
+  }
+  renderer.render(world, $('useCamera').checked && sceneCamera ? sceneCamera : orbit);
+});
 load(+(params.get('scene') ?? 1940));
 </script>
 </body>

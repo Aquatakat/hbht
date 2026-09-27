@@ -1,4 +1,6 @@
 using System.Buffers.Binary;
+using System.Numerics;
+using System.Text.Json;
 using Aidyn.Rom.Borg;
 using Aidyn.Rom.Graphics;
 
@@ -102,6 +104,79 @@ public class AnimationTests
 
         static float[] Values(Borg6Player p) => p.Animation.Targets
             .SelectMany((t, i) => t.Tracks.Select((_, j) => p.Value(i, j))).ToArray();
+    }
+
+    /// <summary>
+    /// Every animation exports with the scene it animates, except those with no targets, which
+    /// only hold their scene still and are listed in the extras instead.
+    /// </summary>
+    [Fact]
+    public void EveryBorg6ExportsWithItsScene()
+    {
+        var archive = BorgArchive.Open(TestRoms.Get(RomVersionId.Na10));
+        var byScene = archive.Listings.Where(l => l.Type == BorgType.Animation)
+            .Select(l => (l.Index, Animation: Borg6Animation.Parse(archive.Read(l.Index))))
+            .ToLookup(a => a.Animation.Scene);
+        int animations = 0, still = 0;
+        foreach (var group in byScene)
+        {
+            var glb = SceneGltf.Export(Borg5Scene.Parse(archive.Read(group.Key)), archive.Read, group.Key, group.ToList());
+            var json = JsonDocument.Parse(glb.AsMemory(20, BitConverter.ToInt32(glb, 12))).RootElement;
+            if (json.TryGetProperty("animations", out var list))
+                animations += list.GetArrayLength();
+            if (json.GetProperty("scenes")[0].GetProperty("extras").TryGetProperty("stillAnimations", out var s))
+                still += s.GetArrayLength();
+        }
+
+        Assert.Equal((1886, 102), (animations, still));
+    }
+
+    /// <summary>A driven node's samples are the player's poses, one per tick, and the clip lasts one loop.</summary>
+    [Fact]
+    public void ExportedSamplesAreThePlayersPoses()
+    {
+        var archive = BorgArchive.Open(TestRoms.Get(RomVersionId.Na10));
+        const int brenna = 10696, cast = 10711;
+        var scene = Borg5Scene.Parse(archive.Read(brenna));
+        var animation = Borg6Animation.Parse(archive.Read(cast));
+        var glb = SceneGltf.Export(scene, archive.Read, brenna, [(cast, animation)]);
+        var json = JsonDocument.Parse(glb.AsMemory(20, BitConverter.ToInt32(glb, 12))).RootElement;
+        var bin = glb.AsSpan(20 + BitConverter.ToInt32(glb, 12) + 8);
+
+        var target = animation.Targets.First(t => t.Transform >= scene.FirstNode);
+        var node = target.Transform - scene.FirstNode;
+        var clip = json.GetProperty("animations")[0];
+        var channel = clip.GetProperty("channels").EnumerateArray().First(c =>
+            c.GetProperty("target").GetProperty("node").GetInt32() == node &&
+            c.GetProperty("target").GetProperty("path").GetString() == "rotation");
+        var sampler = clip.GetProperty("samplers")[channel.GetProperty("sampler").GetInt32()];
+        var times = Floats(json, bin, sampler.GetProperty("input").GetInt32());
+        var rotations = Floats(json, bin, sampler.GetProperty("output").GetInt32());
+
+        Assert.Equal(animation.Length + 1, times.Length);
+        Assert.Equal(animation.Length / 60f, times[^1], 1e-6f);
+        var player = new Borg6Player(animation);
+        var index = animation.Targets.ToList().IndexOf(target);
+        for (var tick = 0; tick <= animation.Length; tick++)
+        {
+            if (tick > 0)
+                player.Tick();
+            var expected = Quaternion.Normalize(player.Pose(index, scene.Transforms[target.Transform]).Trs()!.Value.Rotation);
+            var actual = new Quaternion(rotations[tick * 4], rotations[tick * 4 + 1], rotations[tick * 4 + 2], rotations[tick * 4 + 3]);
+            Assert.True(MathF.Abs(Quaternion.Dot(expected, actual)) > 0.99999f, $"Tick {tick}: {expected} vs {actual}");
+        }
+
+        static float[] Floats(JsonElement json, ReadOnlySpan<byte> bin, int accessor)
+        {
+            var a = json.GetProperty("accessors")[accessor];
+            var view = json.GetProperty("bufferViews")[a.GetProperty("bufferView").GetInt32()];
+            var width = a.GetProperty("type").GetString() switch { "SCALAR" => 1, "VEC3" => 3, _ => 4 };
+            var floats = new float[a.GetProperty("count").GetInt32() * width];
+            var at = view.GetProperty("byteOffset").GetInt32();
+            for (var i = 0; i < floats.Length; i++)
+                floats[i] = BinaryPrimitives.ReadSingleLittleEndian(bin[(at + i * 4)..]);
+            return floats;
+        }
     }
 
     /// <summary>Builds a Borg6 of one target on transform 1 with one track.</summary>
