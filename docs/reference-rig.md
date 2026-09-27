@@ -56,6 +56,28 @@ The debug ROM's `Borg_List` is at `0x1F98790` and its DB block starts at `0x1FD1
 - **Some textures are upside down,** the digit glyphs among them. The models presumably flip them with their texture coordinates. Check this when Borg2 lands.
 - **Borg8 (560 UI images)** is a 0x10-byte header, then the palette (CI only) and a linear bitmap, at offsets from the start of the data. The game draws them with `LoadTile`, so there's no TMEM swap. Formats: IA8 275, CI8 267, RGBA32 16, RGBA16 1, I4 1. The largest are the 320×240 menu backdrops.
 
+### What the geometry reader found (1A)
+
+- **Borg2 (5,636 models)** has a 0x50-byte header, followed by these parts in order:
+  1. 8 bounding-box vertices per display list.
+  2. The vertices.
+  3. The display lists, back to back.
+  4. A table of their offsets.
+  5. A 0x14-byte material per display list: flags plus an RGBA float tint.
+
+  Every file follows this layout, and every file ends exactly after the materials. The `unk0x3c` block the decomp fixes up never occurs. The game points segment 0xE at the bounding boxes and segment 0xA at the vertices, then runs one display list per Borg5 instruction. The texture is bound by the Borg5 scene, not the Borg2.
+- **The display lists are F3DEX2** and use only six commands:
+  - `G_VTX`, the vertex loads, which never go past buffer slot 31.
+  - `G_TRI1`. There are 313,655 of these, but also 3,027 `G_TRI2`, so they don't only use TRI1.
+  - `G_MODIFYVTX`, which only ever rewrites texture coordinates (`0x14`), and only in lit lists.
+  - `G_CULLDL` against the list's own bounding box, always first.
+  - `G_ENDDL`.
+
+  In total there are 14,996 display lists and 319,709 triangles. 1,013 of the lists are empty, and 101 models have no lists at all. Every mesh lies inside its bounding box.
+- **Material flag 0x8 means *unlit*.** The decomp names it "Lighting", but its code turns lighting on when the bit is clear, and the data agrees. In lists with the bit clear, 99.9% of vertices hold unit normals. In lists with it set, they hold colours. 9,833 lists are unlit (pre-lit vertex colours) and 5,163 are lit. On a contact sheet the lit ones look mostly like character body parts.
+- **Material flags 0x1000 and 0x2000 wrap S and T, and 0x4000 and 0x8000 mirror them.** This is inferred from the data: with both wrap bits set, texture coordinates span many texture widths, and without them the coordinates stay within one. The decomp's tile setup reads these bits so that T always clamps. That can't be right for the tiled terrain, so it's probably a misread. Confirm this against the emulator when textured export lands.
+- **Header:** the scale is 1/16 on 5,267 models. The position and rotation are set on only a few. The word at 0x28 is 1 on 162 models, and the decomp's draw code skips their display lists. Vertex `flag` (0–3) is ignored by the RSP and its meaning is unknown.
+
 ## Emulator: ares v148
 
 Installed with winget (`ares-emulator.ares`). Launch through the script, which enables the GDB server for that run only:
