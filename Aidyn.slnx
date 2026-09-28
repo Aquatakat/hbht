@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/Aidyn.Cli/Aidyn.Cli.csproj" />
+    <Project Path="src/Aidyn.Inspector/Aidyn.Inspector.csproj" />
     <Project Path="src/Aidyn.Rom/Aidyn.Rom.csproj" />
   </Folder>
   <Folder Name="/tests/">

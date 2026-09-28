@@ -216,6 +216,18 @@ The user reviewed the scene viewer against the game on Sep 27, 2026. All 13 shot
 - **Scripts:** 79 scripts aren't started by any map object or script. Code starts some of them, such as the help menu and the death scenes.
 - **Reading flags from a checkpoint:** `gameStates` (1.0: `0x800DAF00`) points to the loaded `GameStateFunnel`. Its word at +8 points to the 8-byte flag entries, and each entry's byte at +6 is the flag's current value.
 
+### The asset inspector (0.6)
+
+`src/Aidyn.Inspector` is a Godot app for browsing every Borg by type and index. Run it with `tools/godot.ps1 --path src/Aidyn.Inspector` (build it first with `dotnet build`, or open it in the editor). It finds the ROMs in `roms/` (or `AIDYN_ROMS`) by hash and opens 1.0 first, or use **Open ROM…**.
+
+- **The list** filters by type, and by index or summary text. Summaries fill in as it decodes the archive in the background, which takes a few seconds.
+- **Preview:** textures with every mip level, and UI images. Models are shown alone and untextured, since scenes bind the textures. Scenes play all their animations. An animation plays in its scene, an actor plays its initial state, and a map chunk's collision shows where its first map set places it. Dialogue shows as text. Drag to turn, right-drag to pan, scroll to zoom. The 3D views are the CLI's glTF, loaded at run time with Godot's `GltfDocument`, so they match the scene viewer.
+- **Fields:** the decoded record, read by reflection, so a new decoder's fields show up with no inspector code. Lists expand in pages of 256. The Borg's `Borg_List` entry is below it.
+- **Hex:** the decompressed bytes. Samples and sequences (1D) have only this so far.
+- **For scripts and screenshots:** `tools/godot.ps1 --path src/Aidyn.Inspector -- --borg 10723 --tab preview --screenshot out/shot.png` opens a Borg, saves the window and quits. It gives up after a minute, so a hang can't block a script.
+
+The decoding lives in `Aidyn.Rom.Inspection` (`BorgInspector`, `FieldTree`), which the tests check against every Borg; the Godot project is only UI. Like the CLI, it reads the ROM through `Aidyn.Rom` as a research tool. ADR 0001 keeps the runtime off the ROM, and when this grows into the mod editor (Phase 5) it will need to open plugins as well.
+
 ## Emulator: ares v148
 
 Installed with winget (`ares-emulator.ares`). Launch through the script, which enables the GDB server for that run only:

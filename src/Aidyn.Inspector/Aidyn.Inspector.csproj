@@ -1,0 +1,14 @@
+<Project Sdk="Godot.NET.Sdk/4.7.2">
+
+  <PropertyGroup>
+    <!-- Explicit, or the Godot editor writes its own default (net8.0) into this file. -->
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Aidyn.Inspector</RootNamespace>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Aidyn.Rom\Aidyn.Rom.csproj" />
+  </ItemGroup>
+
+</Project>
