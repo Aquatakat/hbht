@@ -149,7 +149,12 @@ public sealed record SceneData(
     Vector3 Rotation,
     Vector3 Scale,
     Rgba Tint,
-    SceneObjectFlags SceneFlags) : VoxelData;
+    SceneObjectFlags SceneFlags) : VoxelData
+{
+    /// <summary><see cref="Rotation"/> as a quaternion, for row vectors as in <see cref="System.Numerics"/>.</summary>
+    public Quaternion Orientation => Quaternion.Normalize(Quaternion.CreateFromRotationMatrix(
+        Matrix4x4.CreateRotationX(Rotation.X) * Matrix4x4.CreateRotationY(Rotation.Y) * Matrix4x4.CreateRotationZ(Rotation.Z)));
+}
 
 public readonly record struct Rgba(byte R, byte G, byte B, byte A);
 

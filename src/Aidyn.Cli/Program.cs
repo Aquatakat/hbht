@@ -5,6 +5,7 @@ using Aidyn.Rom.Borg;
 using Aidyn.Rom.Db;
 using Aidyn.Rom.Dialogue;
 using Aidyn.Rom.Graphics;
+using Aidyn.Rom.Maps;
 using Aidyn.Rom.Quests;
 using Aidyn.Rom.Text;
 
@@ -20,6 +21,10 @@ const string Usage = """
                                            (all, or the given archive indices); default dir: out/<version>/scenes
       aidyn actors <rom> [--out <dir>]       Borg7 actors' states and branches as JSON, for
                                            tools/scene-viewer.html; default dir: out/<version>/actors
+      aidyn maps <rom> [<set>...] [--out <dir>]
+                                           map sets' chunks and objects as JSON and their collision as
+                                           glTF (all, or the given sets), for tools/map-viewer.html;
+                                           default dir: out/<version>/maps
       aidyn dialogue <rom> [<index>...] [--out <dir>]
                                            Borg13 scripts as text (all, or the given archive indices);
                                            default dir: out/<version>/dialogue
@@ -44,6 +49,7 @@ try
         ["scenes", var rom, .. var rest] => Scenes(rom, rest),
         ["actors", var rom] => Actors(rom, null),
         ["actors", var rom, "--out", var dir] => Actors(rom, dir),
+        ["maps", var rom, .. var rest] => Maps(rom, rest),
         ["dialogue", var rom, .. var rest] => Dialogue(rom, rest),
         ["atlas", var rom] => Atlas(rom, null),
         ["atlas", var rom, "--out", var dir] => Atlas(rom, dir),
@@ -208,6 +214,44 @@ static int Actors(string path, string? outDir)
     Directory.CreateDirectory(outDir);
     File.WriteAllBytes(Path.Combine(outDir, "actors.json"), ActorsJson.Serialize(rom, BorgArchive.Open(rom)));
     Console.WriteLine($"Wrote the actors to {Path.GetFullPath(outDir)}");
+    return 0;
+}
+
+static int Maps(string path, string[] args)
+{
+    string? outDir = null;
+    var sets = new List<MapSet>();
+    for (var i = 0; i < args.Length; i++)
+    {
+        if (args[i] == "--out" && i + 1 < args.Length)
+            outDir = args[++i];
+        else if (Enum.TryParse<MapSet>(args[i], ignoreCase: true, out var set) && Enum.IsDefined(set))
+            sets.Add(set);
+        else
+            return Fail($"Unknown map set \"{args[i]}\". Sets: {string.Join(", ", Enum.GetNames<MapSet>())}.");
+    }
+    if (sets.Count == 0)
+        sets = [.. Enum.GetValues<MapSet>()];
+
+    var rom = RomImage.Load(path);
+    var archive = BorgArchive.Open(rom);
+    var db = GameDb.Read(rom);
+    outDir ??= Path.Combine("out", rom.Version.Id.ToString().ToLowerInvariant(), "maps");
+    Directory.CreateDirectory(outDir);
+
+    var actorScenes = archive.Listings.Where(l => l.Type == BorgType.Actor).ToDictionary(l => l.Index,
+        l => Borg6Animation.Parse(archive.Read(Borg7Actor.Parse(archive.Read(l.Index)).States[0].Animation)).Scene);
+    var names = db.Entities.Select(e => (e.Id, e.Name)).Concat(db.DialogEntities.Select(e => (e.Id, e.Name)))
+        .ToDictionary(e => e.Id, e => e.Name);
+    var chunks = MapChunks.Read(rom);
+    foreach (var set in sets)
+    {
+        var maps = chunks.Where(c => c.Set == set).Select(c => (c, Borg9Map.Parse(archive.Read(c.Collision)))).ToList();
+        File.WriteAllBytes(Path.Combine(outDir, $"{set}.json"), MapJson.Serialize(rom.Version.Name, set, maps, actorScenes, names));
+        File.WriteAllBytes(Path.Combine(outDir, $"{set}.glb"), CollisionGltf.Export(maps));
+    }
+
+    Console.WriteLine($"Wrote {sets.Count} map sets to {Path.GetFullPath(outDir)}");
     return 0;
 }
 

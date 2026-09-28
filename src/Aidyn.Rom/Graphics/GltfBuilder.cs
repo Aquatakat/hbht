@@ -37,6 +37,10 @@ public sealed class GltfBuilder
             new JsonArray(min.X, min.Y, min.Z), new JsonArray(max.X, max.Y, max.Z));
     }
 
+    /// <summary>A float per vertex, for an application-specific attribute such as <c>_SURFACE</c>.</summary>
+    public int AddScalars(IReadOnlyList<float> values) =>
+        AddAccessor(Floats(values), Float, values.Count, "SCALAR", ArrayBuffer);
+
     public int AddVectors(IReadOnlyList<Vector2> values) =>
         AddAccessor(Floats(values.SelectMany(v => new[] { v.X, v.Y })), Float, values.Count, "VEC2", ArrayBuffer);
 

@@ -188,6 +188,24 @@ public class CollisionTests
         Assert.True(agree < compared * 0.1, $"{agree} of {compared} agree with rows along Z.");
     }
 
+    [Fact]
+    public void CollisionExportsANodePerChunkAtItsOrigin()
+    {
+        var rom = TestRoms.Get(RomVersionId.Na10);
+        var maps = AllMaps.Value.ToDictionary(m => m.Index, m => m.Map);
+        var chunks = MapChunks.Read(rom).Where(c => c.Set == MapSet.Lighthouse).Select(c => (c, maps[c.Collision])).ToList();
+
+        var glb = CollisionGltf.Export(chunks);
+        var json = System.Text.Json.Nodes.JsonNode.Parse(glb.AsSpan(20, BitConverter.ToInt32(glb, 12)))!;
+        var nodes = json["nodes"]!.AsArray();
+        Assert.Equal(chunks.Count, nodes.Count);
+        Assert.Equal([100f, 0, 100], nodes[0]!["translation"]!.AsArray().Select(v => (float)v!));
+        var attributes = json["meshes"]![0]!["primitives"]![0]!["attributes"]!.AsObject().Select(a => a.Key);
+        Assert.Equal(["POSITION", "_SURFACE", "_ROLE", "_FLAGS"], attributes);
+        Assert.Equal(chunks.Sum(c => c.Item2.Triangles.Count) * 3,
+            json["meshes"]!.AsArray().Sum(m => (int)json["accessors"]![(int)m!["primitives"]![0]!["attributes"]!["POSITION"]!]!["count"]!));
+    }
+
     /// <summary>The highest upward-facing triangle at <paramref name="p"/> (X, Z), or null.</summary>
     private static float? Ground(Borg9Map map, Vector2 p)
     {
