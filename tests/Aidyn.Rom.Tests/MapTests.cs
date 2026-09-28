@@ -82,4 +82,47 @@ public class MapTests
         // 5495 and one names flag 0.
         Assert.Equal([5495, 0], ignoredWrites);
     }
+
+    [Fact]
+    public void ObjectsNameAssetsAndObjectsThatExist()
+    {
+        var archive = BorgArchive.Open(TestRoms.Get(RomVersionId.Na10));
+        var shapes = new List<string>();
+        foreach (var listing in archive.Listings.Where(l => l.Type == BorgType.MapChunk))
+        {
+            var objects = Borg9Voxels.Read(archive.Read(listing.Index));
+            var refPoints = objects.Select(o => o.Data).OfType<ReferencePointData>().Select(r => r.Id).ToHashSet();
+            foreach (var o in objects)
+            {
+                switch (o.Data)
+                {
+                    case SceneData s:
+                        var type = s.SceneFlags.HasFlag(SceneObjectFlags.Actor) ? BorgType.Actor : BorgType.Scene;
+                        Assert.All(s.Models, m => Assert.Equal(type, archive.Listings[m.Borg].Type));
+                        shapes.Add($"{s.Lods}/{s.Models.Count} {type}");
+                        break;
+                    case AudioData a:
+                        Assert.Equal(BorgType.Sequence, archive.Listings[a.Sequence].Type);
+                        break;
+                    case WanderNodeData w:
+                        Assert.All(w.Next, n => Assert.Equal(VoxelType.WanderNode, objects[n].Type));
+                        break;
+                    case CameraData c:
+                        Assert.True(c.RefPoint == 0 || refPoints.Contains(c.RefPoint), $"Camera {o.Index} in {listing.Index}");
+                        break;
+                    case LightData l:
+                        Assert.InRange(l.Kind, LightKind.Static, LightKind.Random);
+                        break;
+                }
+                if (o.Type is VoxelType.Code or VoxelType.SavePoint)
+                    Assert.Null(o.Data);
+            }
+        }
+
+        // Levels of detail, a container's model with its opened and destroyed ones, or an actor.
+        Assert.Equal(new Dictionary<string, int>
+        {
+            ["1/1 Scene"] = 6629, ["2/2 Scene"] = 1284, ["1/3 Scene"] = 371, ["1/1 Actor"] = 163,
+        }, shapes.CountBy(s => s).ToDictionary());
+    }
 }

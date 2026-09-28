@@ -1,0 +1,214 @@
+using System.Numerics;
+using Aidyn.Rom.Borg;
+using Aidyn.Rom.Maps;
+
+namespace Aidyn.Rom.Tests;
+
+public class CollisionTests
+{
+    private static readonly Lazy<List<(int Index, Borg9Map Map)>> AllMaps = new(() =>
+    {
+        var archive = BorgArchive.Open(TestRoms.Get(RomVersionId.Na10));
+        return [.. archive.Listings.Where(l => l.Type == BorgType.MapChunk)
+            .Select(l => (l.Index, Borg9Map.Parse(archive.Read(l.Index))))];
+    });
+
+    private static IEnumerable<CollisionTriangle> AllTriangles => AllMaps.Value.SelectMany(m => m.Map.Triangles);
+
+    [Fact]
+    public void EveryBorg9Parses()
+    {
+        var maps = AllMaps.Value;
+        Assert.Equal(584, maps.Count);
+        Assert.Equal(168_317, AllTriangles.Count());
+        Assert.Equal(26_091, maps.Sum(m => m.Map.Objects.Count));
+
+        var surfaces = AllTriangles.CountBy(t => t.Surface).ToDictionary();
+        Assert.Equal(101_394, surfaces[CollisionSurface.PlayerAndCamera]);
+        Assert.Equal(10_345, surfaces[CollisionSurface.Player]);
+        Assert.Equal(3_165, surfaces[CollisionSurface.Water]);
+        Assert.Equal(19, surfaces.Count);
+
+        // The grid starts at the collision's minimum corner and covers all of it, give or take
+        // rounding.
+        Assert.All(maps.Where(m => m.Map.Vertices.Count > 0), m =>
+        {
+            var min = m.Map.Vertices.Aggregate(Vector3.Min);
+            var max = m.Map.Vertices.Aggregate(Vector3.Max);
+            Assert.Equal(m.Map.Origin, min);
+            Assert.True(max.X <= m.Map.Origin.X + m.Map.Columns * m.Map.CellSize.X + 0.01f);
+            Assert.True(max.Z <= m.Map.Origin.Z + m.Map.Rows * m.Map.CellSize.Y + 0.01f);
+        });
+    }
+
+    [Fact]
+    public void FlagsAreTheOnesThePhysicsReads()
+    {
+        var flags = AllTriangles.Aggregate(TriangleFlags.None, (all, t) => all | t.Flags);
+        Assert.Equal(TriangleFlags.None, flags & (TriangleFlags.Passable | TriangleFlags.TakesSpeed |
+            TriangleFlags.RecomputeNormal | TriangleFlags.NoMargin));
+        // Invisible walls: the player's surface blocks the player, and the camera sees through it.
+        Assert.All(AllTriangles, t =>
+            Assert.Equal(t.Surface == CollisionSurface.Player, t.Flags.HasFlag(TriangleFlags.SeeThrough)));
+    }
+
+    [Fact]
+    public void TrianglesWindCounterClockwiseAboutTheirNormals()
+    {
+        var mismatched = 0;
+        foreach (var (_, map) in AllMaps.Value)
+        {
+            foreach (var t in map.Triangles)
+            {
+                var v = map.Vertices;
+                var cross = Vector3.Cross(v[t.B] - v[t.A], v[t.C] - v[t.A]);
+                if (cross.Length() < 1e-9f || Vector3.Dot(Vector3.Normalize(cross), t.Normal) < 0.99f)
+                    mismatched++;
+            }
+        }
+        // 27 have no area, and the rest are slivers whose stored normals point elsewhere.
+        Assert.Equal(46, mismatched);
+    }
+
+    [Fact]
+    public void EdgesNoOtherTriangleSharesHaveTheirEdgeBit()
+    {
+        foreach (var (index, map) in AllMaps.Value)
+        {
+            // Some triangles share an edge through different vertices at the same place.
+            (float, float, float) Key(int vertex) => (MathF.Round(map.Vertices[vertex].X, 3),
+                MathF.Round(map.Vertices[vertex].Y, 3), MathF.Round(map.Vertices[vertex].Z, 3));
+            ((float, float, float), (float, float, float)) Edge(int a, int b)
+            {
+                var (ka, kb) = (Key(a), Key(b));
+                return ka.CompareTo(kb) < 0 ? (ka, kb) : (kb, ka);
+            }
+            var counts = map.Triangles.SelectMany(t => new[] { Edge(t.A, t.B), Edge(t.B, t.C), Edge(t.C, t.A) })
+                .CountBy(e => e).ToDictionary();
+            foreach (var t in map.Triangles)
+            {
+                foreach (var (a, b, bit) in new[] { (t.A, t.B, TriangleFlags.EdgeAB), (t.B, t.C, TriangleFlags.EdgeBC),
+                    (t.C, t.A, TriangleFlags.EdgeCA) })
+                {
+                    if (counts[Edge(a, b)] == 1)
+                        Assert.True(t.Flags.HasFlag(bit), $"Borg9 {index}: an open edge without {bit}.");
+                }
+            }
+        }
+    }
+
+    [Fact]
+    public void TriggerAndToggleTrianglesNameTheirObjects()
+    {
+        var triggered = new List<VoxelType>();
+        var toggles = 0;
+        foreach (var (_, map) in AllMaps.Value)
+        {
+            triggered.AddRange(map.Triangles.Where(t => t.TriggerObject != null)
+                .Select(t => map.Objects[t.TriggerObject!.Value].Type));
+
+            var changes = map.Objects.Select(o => o.Data).OfType<TriggerData>()
+                .Where(t => t.Kind == TriggerKind.ChangeCollision).ToList();
+            var ids = map.Triangles.Where(t => t.ToggleId != null).Select(t => (int)t.ToggleId!).ToList();
+            toggles += ids.Count;
+            Assert.Equal(changes.Select(c => (int)c.A).Order(), ids.Distinct().Order());
+            // Each keeps the triangles' flags and adds Passable, so the way opens.
+            Assert.All(changes, c => Assert.Equal((0xFFFF, (int)TriangleFlags.Passable), (c.B, c.C)));
+        }
+
+        Assert.Equal(1_849, triggered.Count);
+        Assert.Equal(1_532, triggered.Count(t => t == VoxelType.Camera));
+        Assert.Equal(317, triggered.Count(t => t == VoxelType.Dialogue));
+        Assert.Equal(62, toggles);
+        Assert.Equal(5_932, AllTriangles.Count(t => t.Role == TriangleRole.ExpansionPak));
+    }
+
+    [Fact]
+    public void CellsListNearbyTrianglesAndUsableObjects()
+    {
+        var listed = new HashSet<VoxelType>();
+        var unlisted = new List<int>();
+        foreach (var (index, map) in AllMaps.Value)
+        {
+            var inCells = map.Cells.SelectMany(c => c.Triangles).ToHashSet();
+            unlisted.AddRange(Enumerable.Repeat(index, map.Triangles.Count - inCells.Count));
+            listed.UnionWith(map.Cells.SelectMany(c => c.Objects).Select(o => map.Objects[o].Type));
+        }
+        // Nothing collides with these: no cell lists them.
+        Assert.Equal(26, unlisted.Count);
+        Assert.Equal([5211, 5784, 6143, 6294, 6328, 6503, 6515, 13668], unlisted.Distinct());
+        Assert.Equal([VoxelType.Scene, VoxelType.Container, VoxelType.Light, VoxelType.Teleporter, VoxelType.Camera,
+            VoxelType.Dialogue, VoxelType.Trigger, VoxelType.SavePoint], listed.Order());
+    }
+
+    /// <summary>
+    /// Neighbouring chunks' collision overlaps, and where it does, the ground should be at the same
+    /// height once each chunk is placed at its <see cref="MapSets.ChunkOrigin"/>. Placing rows
+    /// along Z instead gets almost none right.
+    /// </summary>
+    [Fact]
+    public void OverworldNeighboursMeetAtTheirBorders()
+    {
+        var rom = TestRoms.Get(RomVersionId.Na10);
+        var maps = AllMaps.Value.ToDictionary(m => m.Index, m => m.Map);
+        var chunks = MapChunks.Read(rom).Where(c => c.Set == MapSet.Overworld).ToDictionary(c => (c.Row, c.Column));
+
+        (int Agree, int Compared) Compare(Func<MapChunk, Vector3> origin)
+        {
+            var (agree, compared) = (0, 0);
+            foreach (var chunk in chunks.Values)
+            {
+                foreach (var next in new[] { (chunk.Row + 1, chunk.Column), (chunk.Row, chunk.Column + 1) })
+                {
+                    if (!chunks.TryGetValue(next, out var neighbour))
+                        continue;
+                    var offset = origin(neighbour) - origin(chunk);
+                    // Points in a band 10 units deep along the shared side, in the chunk's coordinates.
+                    for (var along = 2.5f; along < 100; along += 5)
+                    {
+                        for (var into = 1f; into < 10; into += 2)
+                        {
+                            var p = offset.X != 0 ? new Vector2(100 - into, along) : new Vector2(along, 100 - into);
+                            if (Ground(maps[chunk.Collision], p) is not { } a ||
+                                Ground(maps[neighbour.Collision], p - new Vector2(offset.X, offset.Z)) is not { } b)
+                                continue;
+                            compared++;
+                            if (MathF.Abs(a - b) < 0.05f)
+                                agree++;
+                        }
+                    }
+                }
+            }
+            return (agree, compared);
+        }
+
+        var (agree, compared) = Compare(MapSets.ChunkOrigin);
+        Assert.True(compared > 1000 && agree > compared * 0.9, $"{agree} of {compared} agree.");
+        (agree, compared) = Compare(c => new Vector3(c.Column, 0, c.Row) * 100);
+        Assert.True(agree < compared * 0.1, $"{agree} of {compared} agree with rows along Z.");
+    }
+
+    /// <summary>The highest upward-facing triangle at <paramref name="p"/> (X, Z), or null.</summary>
+    private static float? Ground(Borg9Map map, Vector2 p)
+    {
+        float? best = null;
+        foreach (var t in map.Triangles)
+        {
+            if (t.Normal.Y < 0.3f)
+                continue;
+            Vector3 a = map.Vertices[t.A], b = map.Vertices[t.B], c = map.Vertices[t.C];
+            var d = (b.Z - c.Z) * (a.X - c.X) + (c.X - b.X) * (a.Z - c.Z);
+            if (MathF.Abs(d) < 1e-9f)
+                continue;
+            var l1 = ((b.Z - c.Z) * (p.X - c.X) + (c.X - b.X) * (p.Y - c.Z)) / d;
+            var l2 = ((c.Z - a.Z) * (p.X - c.X) + (a.X - c.X) * (p.Y - c.Z)) / d;
+            var l3 = 1 - l1 - l2;
+            if (l1 < -1e-6f || l2 < -1e-6f || l3 < -1e-6f)
+                continue;
+            var y = l1 * a.Y + l2 * b.Y + l3 * c.Y;
+            if (best == null || y > best)
+                best = y;
+        }
+        return best;
+    }
+}

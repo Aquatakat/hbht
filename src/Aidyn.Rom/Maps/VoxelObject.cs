@@ -49,6 +49,8 @@ public enum VoxelFlags : ushort
     ClearFlagBOnUse = 0x200,
     /// <summary>The player can reach the object to use it.</summary>
     Reachable = 0x400,
+    /// <summary>A light that collision can block.</summary>
+    Occludable = 0x1000,
     /// <summary>Walking into the object uses it.</summary>
     Tangible = 0x2000,
     Unknown4000 = 0x4000,
@@ -102,6 +104,149 @@ public sealed record VoxelObject(
 
 /// <summary>A map object's type-specific fields.</summary>
 public abstract record VoxelData;
+
+/// <summary><c>Scene_obj_dat.sceneflags</c>.</summary>
+[Flags]
+public enum SceneObjectFlags : ushort
+{
+    None = 0,
+    /// <summary>Stays opaque when it comes between the camera and the player. Others fade.</summary>
+    Solid = 0x1,
+    /// <summary>The model is a Borg7 actor, not a Borg5 scene.</summary>
+    Actor = 0x2,
+    /// <summary>Drawn within half its draw distance even when out of view.</summary>
+    DrawWhenNear = 0x4,
+    Unknown8 = 0x8,
+    /// <summary>Drawn with <see cref="SceneData.Tint"/>'s alpha.</summary>
+    Tint = 0x10,
+    /// <summary>Unlit.</summary>
+    Fullbright = 0x20,
+    /// <summary>Drawn in the later pass, with the see-through scenery.</summary>
+    Deferred = 0x40,
+}
+
+/// <param name="Borg">A Borg5, or a Borg7 with <see cref="SceneObjectFlags.Actor"/>.</param>
+/// <param name="DrawDistance">
+/// Drawn out to this far from the camera, and from 2 short of the previous model's distance.
+/// </param>
+public readonly record struct SceneModel(int Borg, float DrawDistance);
+
+/// <summary>
+/// A model placed in the chunk. The object's radius is how far away it's drawn at all. The game
+/// scales it, then rotates it, then moves it to the object's position.
+/// </summary>
+/// <param name="Models">
+/// The first <paramref name="Lods"/> are levels of detail, nearest first. A container's model has
+/// one, followed by the models it shows once opened and once destroyed.
+/// </param>
+/// <param name="Rotation">
+/// In radians: roll about X, then pitch about Y, then heading about Z (<c>guRotateRPYF</c>, checked
+/// against 1.0's code). Most objects only turn about Y, the vertical.
+/// </param>
+public sealed record SceneData(
+    IReadOnlyList<SceneModel> Models,
+    int Lods,
+    Vector3 Rotation,
+    Vector3 Scale,
+    Rgba Tint,
+    SceneObjectFlags SceneFlags) : VoxelData;
+
+public readonly record struct Rgba(byte R, byte G, byte B, byte A);
+
+/// <summary>How a light's colour changes (<c>LightTypes</c>).</summary>
+public enum LightKind : ushort
+{
+    Static,
+    /// <summary>Fades back and forth between the colours, each way taking <see cref="LightData.Speed"/> × 30 ticks.</summary>
+    Alternate,
+    /// <summary>Swings between the colours along a sine, a cycle taking <see cref="LightData.Speed"/> × 60 ticks.</summary>
+    Sine,
+    /// <summary>Drifts toward random points between the colours, 1 / (<see cref="LightData.Speed"/> × 60) of the way a tick.</summary>
+    Random,
+}
+
+/// <summary>A light that colours the actors near it (<c>light_dat</c>).</summary>
+/// <param name="From">The colour it starts at. <see cref="LightKind.Static"/> lights stay there.</param>
+public sealed record LightData(Rgba From, Rgba To, LightKind Kind, float Speed) : VoxelData;
+
+/// <summary><c>audio_obj_dat.soundFlag</c> (<c>VoxAudioFlags</c>).</summary>
+[Flags]
+public enum AudioFlags : ushort
+{
+    None = 0,
+    Loop = 0x1,
+    /// <summary>Plays again after a random wait between <see cref="AudioData.MinWait"/> and <see cref="AudioData.MaxWait"/> seconds.</summary>
+    Repeat = 0x2,
+    /// <summary>Doesn't get quieter with distance.</summary>
+    NoFalloff = 0x4,
+    /// <summary>Doesn't pan with the camera.</summary>
+    NoPan = 0x8,
+    /// <summary>Music, at the music volume. Only played with the Expansion Pak.</summary>
+    Music = 0x10,
+}
+
+/// <summary>A sound or piece of music that plays near the object (<c>audio_obj_dat</c>).</summary>
+/// <param name="Sequence">The Borg12 it plays.</param>
+public sealed record AudioData(int Sequence, float Volume, float MinWait, float MaxWait, AudioFlags AudioFlags) : VoxelData;
+
+/// <summary><c>wandernode_dat.nodeflags</c>.</summary>
+[Flags]
+public enum WanderFlags : ushort
+{
+    None = 0,
+    /// <summary>Wanderers walk to the node.</summary>
+    Move = 0x1,
+    /// <summary>Wanderers turn to face away from the node instead.</summary>
+    Rotate = 0x2,
+}
+
+/// <summary>
+/// A point wandering NPCs move between (<c>wandernode_dat</c>). Their monster party names the
+/// first one.
+/// </summary>
+/// <param name="Radius">How far a wanderer can stray from its goal before it walks back.</param>
+/// <param name="Scatter">Each visit's goal is up to this far from the node, in a random direction.</param>
+/// <param name="Chance">The chance of going on to <see cref="Next"/>[1] rather than [0].</param>
+/// <param name="Wait">Ticks before moving on.</param>
+/// <param name="Next">Indices of the nodes that follow, in the same Borg9.</param>
+public sealed record WanderNodeData(float Radius, float Scatter, float Chance, ushort Wait, WanderFlags WanderFlags,
+    IReadOnlyList<ushort> Next) : VoxelData;
+
+/// <summary><c>voxelCamera.CameraFlags</c> (<c>CamObjFlags</c>).</summary>
+[Flags]
+public enum CameraFlags : ushort
+{
+    None = 0,
+    /// <summary>Jumps straight there.</summary>
+    Cut = 0x1,
+    /// <summary>Moves there at a steady speed over <see cref="CameraData.Duration"/> ticks.</summary>
+    Pan = 0x2,
+    /// <summary>Eases there over <see cref="CameraData.Duration"/> ticks.</summary>
+    Sine = 0x4,
+    Unknown8 = 0x8,
+    Unknown10 = 0x10,
+    /// <summary>Sets a camera field from <see cref="CameraData.Values"/>.Y.</summary>
+    Unknown100 = 0x100,
+    /// <summary>Sets a camera field from <see cref="CameraData.Values"/>.X.</summary>
+    Unknown200 = 0x200,
+    /// <summary>Keeps the camera aimed at the player.</summary>
+    Track = 0x2000,
+    /// <summary>Moves the camera's aim to the reference point.</summary>
+    Aim = 0x4000,
+    /// <summary>Moves the camera to the reference point.</summary>
+    Position = 0x8000,
+}
+
+/// <summary>
+/// Takes over the camera while the player is within the object's radius, or walks on a trigger
+/// triangle that names it (<c>voxelCamera</c>).
+/// </summary>
+/// <param name="RefPoint">The reference point to move to, or 0 for just above the player.</param>
+/// <param name="Values">Z is <see cref="Duration"/>. X and Y are read with two unexplained flags.</param>
+public sealed record CameraData(ushort RefPoint, CameraFlags CameraFlags, Vector3 Values) : VoxelData
+{
+    public float Duration => Values.Z;
+}
 
 /// <param name="OpenFlag">Set when the container is opened. It stays empty once set.</param>
 /// <param name="ExplodeFlag">Set when its trap destroys it.</param>
@@ -166,7 +311,7 @@ public enum TriggerKind : short
 
 public sealed record TriggerData(TriggerKind Kind, ushort A, ushort B, ushort C) : VoxelData;
 
-/// <summary>Reads the map objects of a Borg9. The rest of the Borg9, its collision, is roadmap 1C.</summary>
+/// <summary>Reads the map objects of a Borg9. <see cref="Borg9Map"/> reads the rest.</summary>
 public static class Borg9Voxels
 {
     private const int HeaderSize = 0x4C;
@@ -202,6 +347,12 @@ public static class Borg9Voxels
         var p = v[PayloadOffset..];
         VoxelData? data = (VoxelType)type switch
         {
+            VoxelType.Scene => Scene(p),
+            VoxelType.Light => new LightData(Colour(p, 4), Colour(p, 8), (LightKind)U16(p, 0xC), F32(p, 0x14)),
+            VoxelType.Audio => new AudioData((int)U32(p, 0), F32(p, 8), F32(p, 0xC), F32(p, 0x10), (AudioFlags)U16(p, 0x14)),
+            VoxelType.WanderNode => new WanderNodeData(F32(p, 8), F32(p, 0xC), F32(p, 0x10), U16(p, 0x14),
+                (WanderFlags)U16(p, 0x16), [U16(p, 0x18), U16(p, 0x1A)]),
+            VoxelType.Camera => new CameraData(U16(p, 0), (CameraFlags)U16(p, 2), new Vector3(F32(p, 8), F32(p, 0xC), F32(p, 0x10))),
             VoxelType.Container => new ContainerData(U16(p, 0x8), U16(p, 0xA), new ItemId(U16(p, 0x10)), U16(p, 0x12),
                 U16(p, 0x16), new ItemId(U16(p, 0x18))),
             VoxelType.Teleporter => new TeleporterData(((MapSet)U16(p, 0), U16(p, 2), U16(p, 4)), U16(p, 6), U16(p, 0xC),
@@ -225,6 +376,18 @@ public static class Borg9Voxels
             U16(v, 0x1C), U16(v, 0x1E), U16(v, 0x20),
             data);
     }
+
+    private static SceneData Scene(ReadOnlySpan<byte> p)
+    {
+        // Three model slots, each a draw distance, an index and a run-time pointer.
+        var models = new List<SceneModel>();
+        for (var i = 0; i < 3 && U32(p, i * 12 + 4) is var borg and not 0; i++)
+            models.Add(new SceneModel((int)borg, F32(p, i * 12)));
+        return new SceneData(models, U16(p, 0x40), new Vector3(F32(p, 0x24), F32(p, 0x28), F32(p, 0x2C)),
+            new Vector3(F32(p, 0x30), F32(p, 0x34), F32(p, 0x38)), Colour(p, 0x3C), (SceneObjectFlags)U16(p, 0x42));
+    }
+
+    private static Rgba Colour(ReadOnlySpan<byte> p, int at) => new(p[at], p[at + 1], p[at + 2], p[at + 3]);
 
     private static List<(ItemId, byte, byte)> Enemies(ReadOnlySpan<byte> p)
     {
