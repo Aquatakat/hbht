@@ -123,6 +123,15 @@ public enum CodeTable
     ParticleTextures,
     /// <summary>The Borg8 sky gradients by sky number, as u32s; number 0 is unused (<c>sky_borg8s</c>, <c>Sky::loadDay</c>).</summary>
     SkyGradients,
+    /// <summary>
+    /// The sun, moon and stars, 20 bytes each, ending with a type 3 entry (<c>skyobjectStructs</c>).
+    /// The stars come first, then the sun and the moon.
+    /// </summary>
+    SkyObjects,
+    /// <summary>The clouds, 28 bytes each, ending with an image 3 entry (<c>gCloudData</c>).</summary>
+    Clouds,
+    /// <summary>The lens flare's eight pieces, 16 bytes each (<c>gLensFlareData</c>).</summary>
+    LensFlare,
 }
 
 /// <summary>
@@ -202,6 +211,9 @@ public static class RomVersions
                 [CodeTable.DialogEntityModels] = new(0x00E3178, 0x294),
                 [CodeTable.ParticleTextures] = new(0x00CE460, 0x44),
                 [CodeTable.SkyGradients] = new(0x00CEB50, 0x24),
+                [CodeTable.SkyObjects] = new(0x00DEE48, 0x758),
+                [CodeTable.Clouds] = new(0x00DE808, 0x620),
+                [CodeTable.LensFlare] = new(0x00DE770, 0x80),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {
@@ -277,6 +289,9 @@ public static class RomVersions
                 [CodeTable.DialogEntityModels] = new(0x00E31B8, 0x294),
                 [CodeTable.ParticleTextures] = new(0x00CE450, 0x44),
                 [CodeTable.SkyGradients] = new(0x00CEB40, 0x24),
+                [CodeTable.SkyObjects] = new(0x00DEE88, 0x758),
+                [CodeTable.Clouds] = new(0x00DE848, 0x620),
+                [CodeTable.LensFlare] = new(0x00DE7B0, 0x80),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {
@@ -350,6 +365,9 @@ public static class RomVersions
                 [CodeTable.DialogEntityModels] = new(0x00F1CE8, 0x294),
                 [CodeTable.ParticleTextures] = new(0x00D94B8, 0x44),
                 [CodeTable.SkyGradients] = new(0x00DA6A0, 0x24),
+                [CodeTable.SkyObjects] = new(0x00ED908, 0x758),
+                [CodeTable.Clouds] = new(0x00ED2C8, 0x620),
+                [CodeTable.LensFlare] = new(0x00ED230, 0x80),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {

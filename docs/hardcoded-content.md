@@ -185,6 +185,10 @@ Code uses 1,990 of the 2,076 names in the decomp's `Borgindecies.h`. The map chu
 - Each map set's chunk spacing: literals in `BorgMaps::LoadMap`, a map set field (layer 1). Carried as a fact (`MapSets.CellSize`).
 - Sky gradients, sun, moon and stars, clouds, lens flare, rain ambience and four thunder sounds (`sky.cpp`, `skyObjects.cpp`, `Clouds.cpp`, `Lensflare.cpp`, `weather.cpp`).
   - The eight sky gradients' Borg8s (`sky_borg8s`, `0xCEB50`). Read (`Skies.ReadGradients`).
+  - The sun, moon and stars (`skyobjectStructs`, `0xDEE48`): 20 bytes each, ending with a type 3 entry. 91 stars, then the sun and the moon. Read (`Skies.ReadSkyObjects`).
+  - The clouds (`gCloudData`, `0xDE808`): 28 bytes each, 55 and an end entry. Read (`Skies.ReadClouds`).
+  - The lens flare's eight pieces (`gLensFlareData`, `0xDE770`). Read (`Skies.ReadLensFlare`).
+  - The images those draw with: literals in `skyObjects.cpp`, `Clouds.cpp` and `Lensflare.cpp` (the sun, star, six moon phases, three clouds and the flare's ring and disc), and the stars' scale of 0.19, which `Skyobjects::Init` sets in place of the table's 0.2. Sky record fields (layer 1). Carried as facts (`Skies.SunImage`, `MoonImages` and so on), on the sky record.
   - Each terrain type's sky, and whether it's drawn: a switch in `BorgMaps::GetMapTerrain`, a terrain field (layer 1). Carried as a fact (`Skies.ForTerrain`, checked against the debug ROM's jump table), on the terrain records.
   - How the colours come from a gradient: the constants in `Sky::SetColors` (0.65, 0.15 and 0.2), and the change of sky over 600 ticks. Engine behaviour (layer 3), in `Aidyn.Core.Sky`.
   - A new game's date and time, noon on day 2 of week 6, and the 72 in-game ticks per tick (`InitGameGlobals`, `World::init`). Game settings (layer 1). Carried as facts (`GameClock`).

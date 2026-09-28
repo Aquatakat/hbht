@@ -79,6 +79,22 @@ public sealed class ImportTests : IDisposable
         Assert.Equal(28, terrains.Count);
         Assert.All(terrains, t => Assert.NotNull(set.FindAsset(t.Sky, "png")));
         Assert.Equal(RecordId.Hex(RecordTypes.Image, 0x19F), set.Get<TerrainRecord>(RecordId.Decimal(RecordTypes.Terrain, i08.Terrain)).Sky);
+
+        // The one sky record, with every image it names there as PNG.
+        var sky = set.Get<SkyRecord>(RecordId.Parse("aidyn:sky/0"));
+        Assert.Equal((91, 55, 8), (sky.Stars.Count, sky.Clouds.Count, sky.LensFlare.Count));
+        Assert.Equal((RecordId.Hex(RecordTypes.Image, 0x1A2), 0f, 90f), (sky.Sun.Image, sky.Sun.Height, sky.Sun.Azimuth));
+        Assert.Equal(RecordId.Hex(RecordTypes.Image, 0x198), sky.Moon.Image);
+        Assert.All(sky.Stars, s => Assert.Equal(0.19f, s.Scale));
+        var phases = sky.MoonPhases;
+        RecordId[] skyImages =
+        [
+            sky.Sun.Image, sky.Moon.Image, .. sky.Stars.Select(s => s.Image), .. sky.CloudImages, .. sky.FlareImages,
+            phases.New, phases.WaxingCrescent, phases.WaningCrescent, phases.FirstQuarter, phases.ThirdQuarter, phases.Full,
+        ];
+        Assert.All(skyImages, id => Assert.NotNull(set.FindAsset(id, "png")));
+        Assert.All(sky.Clouds, c => Assert.InRange(c.Image, 0, sky.CloudImages.Count - 1));
+        Assert.All(sky.LensFlare, f => Assert.InRange(f.Image, 0, sky.FlareImages.Count - 1));
     }
 
     [Fact]

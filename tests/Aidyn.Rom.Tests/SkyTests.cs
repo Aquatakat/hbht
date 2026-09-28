@@ -25,6 +25,60 @@ public class SkyTests
         }
     }
 
+    [Theory]
+    [MemberData(nameof(Versions))]
+    public void TheSunMoonAndStarsReadTheSameInEveryVersion(RomVersionId id)
+    {
+        var objects = Skies.ReadSkyObjects(TestRoms.Get(id));
+        Assert.Equal(Skies.ReadSkyObjects(TestRoms.Get(RomVersionId.Na10)), objects);
+
+        // The table's range is exactly its entries, 91 stars, the sun and the moon, and the end entry.
+        Assert.Equal(93, objects.Count);
+        Assert.Equal(91, objects.Count(o => o.Kind == SkyObjectKind.Star));
+        Assert.Equal(new SkyObjectEntry(SkyObjectKind.Sun, 1f, 0f, 90f, new Maps.Rgba(250, 250, 250, 250)), objects.Single(o => o.Kind == SkyObjectKind.Sun));
+        var moon = objects.Single(o => o.Kind == SkyObjectKind.Moon);
+        Assert.Equal((1f, 0f, 0f), (moon.Scale, moon.Height, moon.Azimuth));
+        Assert.All(objects.Where(o => o.Kind == SkyObjectKind.Star), o => Assert.Equal(0.2f, o.Scale));
+    }
+
+    [Theory]
+    [MemberData(nameof(Versions))]
+    public void TheCloudsReadTheSameInEveryVersion(RomVersionId id)
+    {
+        var clouds = Skies.ReadClouds(TestRoms.Get(id));
+        Assert.Equal(Skies.ReadClouds(TestRoms.Get(RomVersionId.Na10)), clouds);
+
+        Assert.Equal(55, clouds.Count);
+        Assert.Equal(new CloudEntry(0, -530f, -530f, 255, 0.2f), clouds[0]);
+        Assert.All(clouds, c => Assert.InRange(c.Image, 0, 2));
+    }
+
+    [Theory]
+    [MemberData(nameof(Versions))]
+    public void TheLensFlareReadsTheSameInEveryVersion(RomVersionId id)
+    {
+        var pieces = Skies.ReadLensFlare(TestRoms.Get(id));
+        Assert.Equal(Skies.ReadLensFlare(TestRoms.Get(RomVersionId.Na10)), pieces);
+
+        Assert.Equal(8, pieces.Count);
+        Assert.Equal(new FlareEntry(0, 1f, 5.02f, new Maps.Rgba(250, 250, 250, 50)), pieces[0]);
+        Assert.All(pieces, p => Assert.InRange(p.Image, 0, 2));
+    }
+
+    [Theory]
+    [MemberData(nameof(Versions))]
+    public void EveryImageTheSkyDrawsWithIsABorg8(RomVersionId id)
+    {
+        var archive = BorgArchive.Open(TestRoms.Get(id));
+        var moon = Skies.MoonImages;
+        int[] images =
+        [
+            Skies.SunImage, Skies.StarImage, .. Skies.CloudImages, .. Skies.FlareImages,
+            moon.New, moon.WaxingCrescent, moon.WaningCrescent, moon.FirstQuarter, moon.ThirdQuarter, moon.Full,
+        ];
+        Assert.All(images, i => Assert.Equal(BorgType.UiImage, archive.Listings[i].Type));
+    }
+
     [Fact]
     public void EveryTerrainHasASkyAndTheCaveLikeOnesAreNotDrawn()
     {

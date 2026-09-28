@@ -35,8 +35,9 @@ public static class BasePlugin
     /// first slice for M1: map sets, chunks, scene objects, actors, and scene and collision assets.
     /// 2 adds locator nodes to scenes and Alaron's head. 3 adds every texture as PNG. 4 writes
     /// vertex colours and tints as linear, and adds terrains and every UI image as PNG.
+    /// 5 adds the sky record.
     /// </summary>
-    public const int ImporterVersion = 4;
+    public const int ImporterVersion = 5;
 }
 
 /// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>

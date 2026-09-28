@@ -40,10 +40,13 @@ public static class RecordTypes
     /// <summary>A terrain type, which chunks carry, keyed by its decimal number.</summary>
     public const string Terrain = "terrain";
 
+    /// <summary>What the outdoor sky draws: its sun, moon, stars, clouds and lens flare. There's one, <c>aidyn:sky/0</c>.</summary>
+    public const string Sky = "sky";
+
     private static readonly HashSet<string> All =
     [
         Entity, Weapon, Armor, Spell, Item, Flag, Texture, Geometry, Camera, Light, Scene, Animation, Actor, Image, Map,
-        Sample, Sequence, Dialogue, Voxel, MapSet, Terrain,
+        Sample, Sequence, Dialogue, Voxel, MapSet, Terrain, Sky,
     ];
 
     public static bool IsKnown(string type) => All.Contains(type);

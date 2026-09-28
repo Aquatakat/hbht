@@ -65,6 +65,9 @@ public static class BaseImporter
             return new TerrainRecord(RecordId.Decimal(RecordTypes.Terrain, t), RecordId.Hex(RecordTypes.Image, gradients[sky]), drawn);
         }).ToList());
 
+        progress?.Report("Sky");
+        WriteJson(Path.Combine(staging, "records", "sky.json"), BuildSky(rom, archive));
+
         progress?.Report("Maps and collision");
         var maps = chunks.Select(c => c.Collision).Distinct().Order().ToList();
         var actors = archive.Listings.Where(l => l.Type == BorgType.Actor).Select(l => l.Index).ToHashSet();
@@ -136,6 +139,35 @@ public static class BaseImporter
                     RecordId.Hex(RecordTypes.Map, c.Collision), c.Terrain)),
             ])),
     ];
+
+    /// <summary>
+    /// The sun, moon, stars, clouds and lens flare, with the Borg8 images engine code draws them with
+    /// (<see cref="Skies"/> carries those as facts). Every image must be a UI image in the archive.
+    /// </summary>
+    private static SkyRecord BuildSky(RomImage rom, BorgArchive archive)
+    {
+        var uiImages = archive.Listings.Where(l => l.Type == BorgType.UiImage).Select(l => l.Index).ToHashSet();
+        RecordId Image(int index) => uiImages.Contains(index)
+            ? RecordId.Hex(RecordTypes.Image, index)
+            : throw new InvalidDataException($"The sky's image 0x{index:X} isn't a Borg8 in {rom.Version.Name}.");
+        static Plugins.Records.Rgba Colour(Maps.Rgba c) => new(c.R, c.G, c.B, c.A);
+
+        var objects = Skies.ReadSkyObjects(rom);
+        SkyBody Body(SkyObjectEntry o, int image, float? scale = null) =>
+            new(Image(image), scale ?? o.Scale, o.Height, o.Azimuth, Colour(o.Color));
+        var moon = Skies.MoonImages;
+        return new SkyRecord(
+            RecordId.Decimal(RecordTypes.Sky, 0),
+            Body(objects.Single(o => o.Kind == SkyObjectKind.Sun), Skies.SunImage),
+            Body(objects.Single(o => o.Kind == SkyObjectKind.Moon), moon.Full),
+            new MoonImages(Image(moon.New), Image(moon.WaxingCrescent), Image(moon.WaningCrescent),
+                Image(moon.FirstQuarter), Image(moon.ThirdQuarter), Image(moon.Full)),
+            [.. objects.Where(o => o.Kind == SkyObjectKind.Star).Select(o => Body(o, Skies.StarImage, Skies.StarScale))],
+            [.. Skies.CloudImages.Select(Image)],
+            [.. Skies.ReadClouds(rom).Select(c => new Cloud(c.Image, c.X, c.Z, c.Alpha, c.Cover))],
+            [.. Skies.FlareImages.Select(Image)],
+            [.. Skies.ReadLensFlare(rom).Select(f => new FlarePiece(f.Image, f.Distance, f.Scale, Colour(f.Color)))]);
+    }
 
     private static MapRecord BuildMap(int index, Borg9Map map, IReadOnlySet<int> actors)
     {
