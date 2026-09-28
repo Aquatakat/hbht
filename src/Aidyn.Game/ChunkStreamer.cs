@@ -125,7 +125,7 @@ public partial class ChunkStreamer : Node3D
         {
             var model = o.Models[i];
             var end = Math.Min(model.DrawDistance, o.Radius);
-            if (Instantiate(model.Model) is { } instance)
+            if (Instantiate(model.Model, o.Flags) is { } instance)
             {
                 // The original averages a tinted object's tint with the scenery's (SetSceneColors).
                 // Actors are lit instead.
@@ -143,11 +143,16 @@ public partial class ChunkStreamer : Node3D
         return node;
     }
 
-    private Node3D? Instantiate(RecordId model)
+    /// <summary>
+    /// A scene object's model. Its actors are lit by the tint and the sun, unless they're
+    /// fullbright, when they're tinted like scenery (<c>set_sun_light</c>).
+    /// </summary>
+    private Node3D? Instantiate(RecordId model, SceneObjectFlags flags)
     {
         if (model.Type != RecordTypes.Actor)
             return _models!.Instantiate(model);
-        return _models!.InstantiateActor(_plugins!.Get<ActorRecord>(model))?.Node;
+        var lighting = flags.HasFlag(SceneObjectFlags.Fullbright) ? N64Material.Lighting.Scenery : N64Material.Lighting.SceneObject;
+        return _models!.InstantiateActor(_plugins!.Get<ActorRecord>(model), lighting)?.Node;
     }
 
     private static bool IsNever(FlagGate gate) => gate.Flag.Key switch

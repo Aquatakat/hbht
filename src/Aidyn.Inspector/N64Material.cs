@@ -18,16 +18,21 @@ namespace Aidyn.Inspector;
 /// <para>
 /// Textured draws are texel × shade × prim, and untextured ones shade × prim (<c>setStaticMode</c>'s
 /// combine modes, cycle 2 multiplying by <c>PRIMITIVE</c>). Shade is the vertex colour on unlit
-/// display lists; on lit ones Godot's lights stand in for the RSP's. Prim is the scene's tint
-/// (<c>SceneData.colorFloats</c>, <c>FUN_800a1184</c>): <see cref="TintParameter"/> for scenery,
-/// averaged with a scene object's own tint where it has one, and white for bodies, which are lit
-/// instead. Untextured draws also take the mesh's tint colour.
+/// display lists, and the RSP's lighting on lit ones (see <see cref="Lighting"/>). Prim is the
+/// scene's tint (<c>SceneData.colorFloats</c>, <c>FUN_800a1184</c>): <see cref="TintParameter"/> for
+/// scenery, averaged with a scene object's own tint where it has one, and white for what the sun
+/// lights instead. Untextured draws also take the mesh's tint colour.
+/// </para>
+/// <para>
+/// With <see cref="RspLighting"/>, as in the runtime, lit display lists are lit per vertex as the
+/// RSP lights them: an ambient plus the sun's colour times the cosine to it, clamped to 1, in
+/// on-screen values. Without it, as in the Inspector, Godot's lights stand in.
 /// </para>
 /// <para>
 /// Fog is the RSP's: a per-vertex amount from the depth buffer's <c>z / w</c>, between the fog
 /// start and end on the 0–1000 scale <c>gSPFogPosition</c> takes, blended toward the fog colour
-/// before the pixel is drawn (<c>G_RM_FOG_SHADE_A</c>). Unlit draws fog in on-screen values; lit ones
-/// through Godot's <c>FOG</c>, after its lighting, in linear light.
+/// in on-screen values before the pixel is drawn (<c>G_RM_FOG_SHADE_A</c>). Draws that Godot's
+/// lights light fog through its <c>FOG</c> instead, after its lighting, in linear light.
 /// </para>
 /// <para>
 /// Borg2 materials clamp, repeat or mirror S and T separately (faces are often half a texture,
@@ -47,8 +52,28 @@ internal static class N64Material
     public const string FogParameter = "n64_fog";
     /// <summary>Per instance: a scene object's tint, in on-screen values, with alpha 1, or 0 for none.</summary>
     public const string ObjectTintParameter = "object_tint";
-    /// <summary>Per instance: a body, which is lit rather than tinted.</summary>
-    public const string BodyParameter = "body";
+    /// <summary>Per instance: how its lit display lists are lit, a <see cref="Lighting"/>.</summary>
+    public const string LightingParameter = "lighting";
+    /// <summary>Global: the way to the sun, <c>gGlobals.SunPos</c>, in world space.</summary>
+    public const string SunDirectionParameter = "n64_sun_direction";
+    /// <summary>Global: the sun's light, <c>gSunColor</c>, in on-screen values; black where there's no sun.</summary>
+    public const string SunColorParameter = "n64_sun_color";
+    /// <summary>Global: bodies' ambient light, half <c>gSkyColor</c>, in on-screen values.</summary>
+    public const string BodyAmbientParameter = "n64_body_ambient";
+
+    /// <summary>How a model's lit display lists are lit, and whether the scenery's tint colours it.</summary>
+    public enum Lighting
+    {
+        /// <summary>Tinted, and lit by a white ambient alone (<c>Scene::SetLightData</c>'s): scenery and fullbright scene objects.</summary>
+        Scenery,
+        /// <summary>Untinted, lit by half the sky colour and the sun (<c>some_player_render_sub</c>): the player and other bodies.</summary>
+        Body,
+        /// <summary>Untinted, lit by the tint and the sun (<c>set_sun_light</c>): scene objects' actors, unless fullbright.</summary>
+        SceneObject,
+    }
+
+    /// <summary>Whether lit display lists are lit as the RSP does, from the globals, rather than by Godot's lights.</summary>
+    public static bool RspLighting { get; set; }
 
     private enum Wrap { Repeat, Clamp, Mirror }
     private enum Blend { Opaque, Mask, Blend }
@@ -70,6 +95,9 @@ internal static class N64Material
         RenderingServer.GlobalShaderParameterAdd(TintParameter, RenderingServer.GlobalShaderParameterType.Vec3, new Vector3(1, 1, 1));
         RenderingServer.GlobalShaderParameterAdd(FogColorParameter, RenderingServer.GlobalShaderParameterType.Vec3, new Vector3(1, 1, 1));
         RenderingServer.GlobalShaderParameterAdd(FogParameter, RenderingServer.GlobalShaderParameterType.Vec4, new Vector4(0, 1000, 0, 0));
+        RenderingServer.GlobalShaderParameterAdd(SunDirectionParameter, RenderingServer.GlobalShaderParameterType.Vec3, new Vector3(0, 1, 0));
+        RenderingServer.GlobalShaderParameterAdd(SunColorParameter, RenderingServer.GlobalShaderParameterType.Vec3, new Vector3(0, 0, 0));
+        RenderingServer.GlobalShaderParameterAdd(BodyAmbientParameter, RenderingServer.GlobalShaderParameterType.Vec3, new Vector3(1, 1, 1));
     }
 
     /// <summary>Replaces the imported materials of <paramref name="scene"/>, loaded from <paramref name="glb"/>.</summary>
@@ -124,8 +152,8 @@ internal static class N64Material
         }
     }
 
-    /// <summary>Marks every mesh under <paramref name="root"/> as part of a body, which is lit rather than tinted.</summary>
-    public static void MarkBody(Node root) => SetOnMeshes(root, BodyParameter, true);
+    /// <summary>Sets how every mesh under <paramref name="root"/> is lit.</summary>
+    public static void SetLighting(Node root, Lighting lighting) => SetOnMeshes(root, LightingParameter, (int)lighting);
 
     /// <summary>Gives every mesh under <paramref name="root"/> a scene object's tint, which the original averages with the scenery's.</summary>
     public static void SetObjectTint(Node root, Color onScreen) =>
@@ -200,12 +228,13 @@ internal static class N64Material
     /// <summary>A shader for a material's fixed state. Each combination is compiled once.</summary>
     private static Shader ShaderFor(bool unlit, bool cull, bool nearest, Blend blend, bool textured)
     {
-        var key = $"{unlit} {cull} {nearest} {blend} {textured}";
+        var rsp = RspLighting && !unlit;
+        var key = $"{unlit} {rsp} {cull} {nearest} {blend} {textured}";
         if (Shaders.TryGetValue(key, out var shader))
             return shader;
 
         var modes = new List<string> { cull ? "cull_back" : "cull_disabled" };
-        modes.AddRange(unlit ? ["unshaded"] : ["diffuse_lambert", "specular_disabled"]);
+        modes.AddRange(unlit || rsp ? ["unshaded"] : ["diffuse_lambert", "specular_disabled"]);
         if (blend == Blend.Blend)
             modes.Add("depth_draw_opaque");
 
@@ -217,8 +246,18 @@ internal static class N64Material
                 	vec4 texel = textureGrad(albedo_texture, uv, dFdx(UV), dFdy(UV));
                 """
             : "vec4 texel = vec4(1.0);";
-        var shade = unlit ? "vec4(to_screen(COLOR.rgb), COLOR.a)" : "vec4(1.0)";
-        var fog = unlit
+        var shade = unlit ? "vec4(to_screen(COLOR.rgb), COLOR.a)" : rsp ? "vec4(lit_shade, 1.0)" : "vec4(1.0)";
+        var light = rsp
+            ? """
+
+                	// The RSP's lighting, per vertex, in on-screen values.
+                	vec3 normal = normalize(MODEL_NORMAL_MATRIX * NORMAL);
+                	vec3 ambient = lighting == 1 ? n64_body_ambient : lighting == 2 ? n64_tint : vec3(1.0);
+                	vec3 sun = lighting == 0 ? vec3(0.0) : n64_sun_color * max(dot(normal, n64_sun_direction), 0.0);
+                	lit_shade = min(ambient + sun, vec3(1.0));
+                """
+            : "";
+        var fog = unlit || rsp
             ? "ALBEDO = to_linear(mix(color, n64_fog_color, fog));"
             : "ALBEDO = to_linear(color);\n\tFOG = vec4(to_linear(n64_fog_color), fog);";
         var alpha = blend switch
@@ -238,8 +277,12 @@ internal static class N64Material
                 global uniform vec3 n64_fog_color;
                 // Start and end on the 0–1000 scale, then the near and far planes.
                 global uniform vec4 n64_fog;
+                global uniform vec3 n64_sun_direction;
+                global uniform vec3 n64_sun_color;
+                global uniform vec3 n64_body_ambient;
                 instance uniform vec4 object_tint = vec4(0.0);
-                instance uniform bool body = false;
+                // 0 scenery, 1 a body, 2 a scene object's actor.
+                instance uniform int lighting = 0;
 
                 // On-screen colour and alpha: the mesh's tint when untextured, and its alpha.
                 uniform vec4 prim = vec4(1.0);
@@ -250,6 +293,7 @@ internal static class N64Material
                 uniform float alpha_scissor = 0.5;
 
                 varying float fog;
+                varying vec3 lit_shade;
 
                 vec3 to_screen(vec3 c) {
                 	return mix(1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, c * 12.92, lessThan(c, vec3(0.0031308)));
@@ -276,13 +320,13 @@ internal static class N64Material
                 	float far = n64_fog.w;
                 	float depth = max(-(MODELVIEW_MATRIX * vec4(VERTEX, 1.0)).z, 0.0001);
                 	float z = (far + near) / (far - near) - 2.0 * far * near / ((far - near) * depth);
-                	fog = far > near ? clamp((z * 500.0 + 500.0 - n64_fog.x) / (n64_fog.y - n64_fog.x), 0.0, 1.0) : 0.0;
+                	fog = far > near ? clamp((z * 500.0 + 500.0 - n64_fog.x) / (n64_fog.y - n64_fog.x), 0.0, 1.0) : 0.0;{{light}}
                 }
 
                 void fragment() {
                 	{{texel}}
                 	vec4 shade = {{shade}};
-                	vec3 tint = body ? vec3(1.0) : (object_tint.a > 0.0 ? (n64_tint + object_tint.rgb) * 0.5 : n64_tint);
+                	vec3 tint = lighting != 0 ? vec3(1.0) : (object_tint.a > 0.0 ? (n64_tint + object_tint.rgb) * 0.5 : n64_tint);
                 	vec3 color = texel.rgb * shade.rgb * prim.rgb * tint;
                 	float alpha = texel.a * shade.a * prim.a;
                 	{{fog}}

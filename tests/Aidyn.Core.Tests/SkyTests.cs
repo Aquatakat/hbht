@@ -111,6 +111,36 @@ public class SkyTests
         Assert.Equal(MathF.Floor(0.25f * fog.Y * 255) / 255, quarter[0].Y, 0.0001f);
     }
 
+    [Theory]
+    [InlineData(6, 1, 0)]
+    [InlineData(9, 0.7071f, 0.7071f)]
+    [InlineData(12, 0, 1)]
+    [InlineData(18, -1, 0)]
+    [InlineData(0, 0, -1)]
+    public void TheSunRisesInPlusXAndLightsFromBelowAtNight(float hour, float x, float y)
+    {
+        var sun = SkyLight.SunDirection(hour / 24);
+        Assert.Equal(x, sun.X, 0.0001f);
+        Assert.Equal(y, sun.Y, 0.0001f);
+        Assert.Equal(0, sun.Z, 0.0001f);
+    }
+
+    [Fact]
+    public void BodiesTakeHalfTheSkyColourAsAmbientAndTheSunOnTop()
+    {
+        var colors = SkyColors.At(Noon(), null, 0, 0.5f);
+        var ambient = SkyLight.BodyAmbient(colors);
+        // Sky 225 → 112.5, truncated.
+        Assert.Equal(112f / 255, ambient.Y, 0.0001f);
+
+        var sun = new Vector3(0.5f, 0.6f, 0.7f);
+        var up = SkyLight.Shade(Vector3.UnitY, ambient, Vector3.UnitY, sun);
+        Assert.Equal(Vector3.Min(ambient + sun, Vector3.One), up);
+        // Facing away from the sun, the ambient alone.
+        Assert.Equal(ambient, SkyLight.Shade(-Vector3.UnitY, ambient, Vector3.UnitY, sun));
+        Assert.Equal(Vector3.Zero, SkyLight.SunColor(colors, outdoor: false));
+    }
+
     [Fact]
     public void TheClockStartsAtNoonAndADayLastsTwentyMinutes()
     {

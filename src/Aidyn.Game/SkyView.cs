@@ -8,8 +8,9 @@ using Godot;
 namespace Aidyn.Game;
 
 /// <summary>
-/// The time of day and the sky, and the colours they give the scenery: its tint and fog, which the
-/// <see cref="N64Material"/> reads as global shader parameters.
+/// The time of day and the sky, and the colours they give the scenery: its tint and fog, and the
+/// ambient and sun that light bodies, which the <see cref="N64Material"/> reads as global shader
+/// parameters.
 /// </summary>
 /// <remarks>
 /// The chunk the player is in chooses the sky by its terrain. With no fog in the weather, as at a
@@ -75,6 +76,9 @@ public partial class SkyView : Node
         RenderingServer.GlobalShaderParameterSet(N64Material.TintParameter, Colors.Tint.ToGodot());
         RenderingServer.GlobalShaderParameterSet(N64Material.FogColorParameter, Colors.Fog.ToGodot());
         RenderingServer.GlobalShaderParameterSet(N64Material.FogParameter, new Vector4(996 - (int)(FogTime * 40), 1000, Near, Far));
+        RenderingServer.GlobalShaderParameterSet(N64Material.BodyAmbientParameter, SkyLight.BodyAmbient(Colors).ToGodot());
+        RenderingServer.GlobalShaderParameterSet(N64Material.SunColorParameter, SkyLight.SunColor(Colors, State.Drawn).ToGodot());
+        RenderingServer.GlobalShaderParameterSet(N64Material.SunDirectionParameter, SkyLight.SunDirection(Clock.TimeOfDay).ToGodot());
     }
 
     private SkyGradient? Gradient(RecordId image)

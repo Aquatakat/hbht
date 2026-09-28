@@ -2,6 +2,7 @@ using System.Globalization;
 using Aidyn.Core.Cameras;
 using Aidyn.Core.Movement;
 using Aidyn.Core.Physics;
+using Aidyn.Inspector;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 using Godot;
@@ -95,12 +96,10 @@ public partial class Game : Node3D
                 // The sky's backdrop, a canvas layer behind the scene.
                 BackgroundMode = Godot.Environment.BGMode.Canvas,
                 BackgroundCanvasMaxLayer = SkyBackdropView.Layer,
-                // Placeholders until bodies are lit by the sky.
-                AmbientLightSource = Godot.Environment.AmbientSource.Color,
-                AmbientLightColor = new Color(0.5f, 0.5f, 0.5f),
             },
         });
-        AddChild(new DirectionalLight3D { RotationDegrees = new Vector3(-55, 30, 0), LightEnergy = 0.9f });
+        // Lit meshes are lit as the RSP lights them, by the sky and the sun, not by Godot's lights.
+        N64Material.RspLighting = true;
 
         _sky = new SkyView(plugins);
         AddChild(_sky);

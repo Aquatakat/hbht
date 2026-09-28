@@ -25,7 +25,8 @@ public sealed class Models(PluginSet plugins) : IDisposable
     /// <summary>
     /// An actor's scene with its head, if it has one, and an animator running its state machine.
     /// </summary>
-    public (Node3D Node, ActorAnimator? Animator)? InstantiateActor(ActorRecord actor)
+    /// <param name="lighting">How it's lit: as a body, unless it's a scene object's.</param>
+    internal (Node3D Node, ActorAnimator? Animator)? InstantiateActor(ActorRecord actor, N64Material.Lighting lighting = N64Material.Lighting.Body)
     {
         if (Instantiate(actor.Scene) is not { } node)
             return null;
@@ -39,8 +40,7 @@ public sealed class Models(PluginSet plugins) : IDisposable
             else
                 GD.PushWarning($"{actor.Scene} has no {locatorName} for its head.");
         }
-        // Bodies are lit, not tinted like scenery.
-        N64Material.MarkBody(node);
+        N64Material.SetLighting(node, lighting);
         return (node, ActorAnimator.Attach(node, actor, Glb(actor.Scene)!));
     }
 
