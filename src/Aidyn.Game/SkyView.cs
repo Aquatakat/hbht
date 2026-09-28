@@ -10,7 +10,8 @@ namespace Aidyn.Game;
 /// <summary>
 /// The time of day and the sky, and the colours they give the scenery: its tint and fog, and the
 /// ambient and sun that light bodies, which the <see cref="N64Material"/> reads as global shader
-/// parameters.
+/// parameters. It also keeps the sky's sun, moon, stars, clouds and lens flare, which
+/// <see cref="SkyBackdropView"/> and <see cref="LensFlareView"/> draw.
 /// </summary>
 /// <remarks>
 /// The chunk the player is in chooses the sky by its terrain. With no fog in the weather, as at a
@@ -25,20 +26,40 @@ public partial class SkyView : Node
 
     private readonly PluginSet _plugins;
     private readonly Dictionary<RecordId, SkyGradient?> _gradients = [];
+    private readonly Dictionary<RecordId, Texture2D?> _images = [];
     private (int Row, int Column)? _chunk;
 
     public SkyView(PluginSet plugins)
     {
         _plugins = plugins;
         Name = "Sky";
+        if (plugins.TryGet<SkyRecord>(RecordId.Decimal(RecordTypes.Sky, 0)) is { } sky)
+        {
+            Objects = new SkyObjects(sky);
+            Clouds = new Clouds(sky);
+            Flare = new LensFlare(sky);
+        }
+        else
+        {
+            GD.PushWarning("No sky record: no sun, moon, stars, clouds or lens flare.");
+        }
     }
 
     public GameClock Clock { get; } = GameClock.NewGame();
     public SkyState State { get; } = new();
     public SkyColors Colors { get; private set; }
+    public SkyObjects? Objects { get; }
+    public Clouds? Clouds { get; }
+    public LensFlare? Flare { get; }
 
     /// <summary>How thick the weather's fog is, 0 to 1 (<c>weather.fogTime</c>). There's no weather yet.</summary>
     public float FogTime { get; set; }
+
+    /// <summary>
+    /// Whether the sky shows at a point on the original's 320 × 240 screen, with nothing drawn over
+    /// it, which the lens flare needs. The original reads the depth buffer there.
+    /// </summary>
+    public Func<System.Numerics.Vector2, bool>? SkyShows { get; set; }
 
     /// <summary>
     /// Chooses the sky of the chunk the player is in, when that changes. Every new chunk chooses
@@ -59,11 +80,20 @@ public partial class SkyView : Node
         State.Choose(gradient, terrain.SkyDrawn, gradual: !first);
     }
 
-    /// <summary>One tick: the clock and any change of sky move on, and the colours follow.</summary>
+    /// <summary>
+    /// One tick: the clock and any change of sky move on, the clouds blow along, the lens flare
+    /// fades, and the colours follow.
+    /// </summary>
     public void Step()
     {
         Clock.Step();
         State.Step();
+        Clouds?.Step();
+        if (Flare is not null && Objects is not null)
+        {
+            var sun = Objects.SunMiddle;
+            Flare.Step(sun, SkyShows?.Invoke(sun) ?? false, Colors.Tint.X, State.Drawn);
+        }
         Apply();
     }
 
@@ -72,7 +102,7 @@ public partial class SkyView : Node
     {
         if (State.Current is null)
             return;
-        Colors = State.Colors(Clock.TimeOfDay);
+        Colors = SkyColors.At(State.Current, State.Next, State.Change, Clock.TimeOfDay, LensFlareValue);
         RenderingServer.GlobalShaderParameterSet(N64Material.TintParameter, Colors.Tint.ToGodot());
         RenderingServer.GlobalShaderParameterSet(N64Material.FogColorParameter, Colors.Fog.ToGodot());
         RenderingServer.GlobalShaderParameterSet(N64Material.FogParameter, new Vector4(996 - (int)(FogTime * 40), 1000, Near, Far));
@@ -80,6 +110,31 @@ public partial class SkyView : Node
         RenderingServer.GlobalShaderParameterSet(N64Material.SunColorParameter, SkyLight.SunColor(Colors, State.Drawn).ToGodot());
         RenderingServer.GlobalShaderParameterSet(N64Material.SunDirectionParameter, SkyLight.SunDirection(Clock.TimeOfDay).ToGodot());
     }
+
+    /// <summary>How much the lens flare darkens the scenery and lifts the sky, from the last frame.</summary>
+    public float LensFlareValue => Flare?.Value ?? 0;
+
+    /// <summary>A UI image, as a texture, or null if no plugin has it.</summary>
+    public Texture2D? Image(RecordId image)
+    {
+        if (_images.TryGetValue(image, out var texture))
+            return texture;
+        if (_plugins.FindAsset(image, "png") is { } png)
+        {
+            var data = new Image();
+            if (data.LoadPngFromBuffer(File.ReadAllBytes(png)) == Error.Ok)
+                texture = ImageTexture.CreateFromImage(data);
+        }
+        else
+        {
+            GD.PushWarning($"No asset for {image}.");
+        }
+        return _images[image] = texture;
+    }
+
+    /// <summary>A UI image's size in pixels, or nothing if it's missing.</summary>
+    public System.Numerics.Vector2 ImageSize(RecordId image) =>
+        Image(image) is { } texture ? texture.GetSize().ToNumerics() : default;
 
     private SkyGradient? Gradient(RecordId image)
     {
@@ -89,7 +144,7 @@ public partial class SkyView : Node
         {
             var data = new Image();
             data.LoadPngFromBuffer(File.ReadAllBytes(png));
-            data.Convert(Image.Format.Rgba8);
+            data.Convert(Godot.Image.Format.Rgba8);
             if (data.GetWidth() == SkyGradient.Columns && data.GetHeight() == SkyGradient.Rows)
                 gradient = new SkyGradient(data.GetData());
         }

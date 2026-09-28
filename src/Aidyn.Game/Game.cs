@@ -104,6 +104,8 @@ public partial class Game : Node3D
         _sky = new SkyView(plugins);
         AddChild(_sky);
         AddChild(SkyBackdropView.Create(_sky));
+        AddChild(LensFlareView.Create(_sky));
+        _sky.SkyShows = SkyShows;
         if (args.TryGetValue("time", out var time))
             _sky.Clock.SetTimeOfDay(float.Parse(time, CultureInfo.InvariantCulture));
 
@@ -227,6 +229,24 @@ public partial class Game : Node3D
             _camera.ResetPhysicsInterpolation();
             _shadow?.ResetPhysicsInterpolation();
         }
+    }
+
+    /// <summary>
+    /// Whether the sky shows at a point on the original's 320 × 240 screen, for the lens flare. The
+    /// original reads the depth buffer there; this sends a ray through it from the camera to the far
+    /// plane, against the collision, which has the ground and buildings but not every leaf.
+    /// </summary>
+    private bool SkyShows(System.Numerics.Vector2 at)
+    {
+        if (_camera is null)
+            return false;
+        var camera = _camera.Current;
+        var size = GetViewport().GetVisibleRect().Size;
+        var scale = size.Y / Core.Sky.SkyScreen.Height;
+        var pixel = new Vector2((size.X - Core.Sky.SkyScreen.Width * scale) / 2, 0) + at.ToGodot() * scale;
+        var from = camera.ProjectRayOrigin(pixel);
+        var to = from + camera.ProjectRayNormal(pixel) * SkyView.Far;
+        return !SpherePhysics.Sweep(_world, from.ToNumerics(), to.ToNumerics(), 0.05f, false, out _, out _);
     }
 
     /// <summary>The player's shadow, placed after he and the camera move, as the original draws it.</summary>
