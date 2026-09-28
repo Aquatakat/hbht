@@ -247,7 +247,7 @@ graph LR
 
 | Risk | Impact | Mitigation |
 | --- | --- | --- |
-| Borg6 animation format has many unknown fields | Actors and cinematics stall | **Retired (Sep 27, 2026).** Borg6 turned out to be forward-differenced polynomial tracks on Borg5 transforms, and the data uses none of the variants the code allows but the decomp couldn't explain. Every animation plays bit for bit as the game steps it. See the reference rig's 1B notes. |
+| Borg6 animation format has many unknown fields | Actors and cinematics stall | **Retired (Sep 27, 2026).** Borg6 turned out to be forward-differenced polynomial tracks on Borg5 transforms, and the data uses none of the variants the code allows but the decomp couldn't explain. Every animation plays bit for bit as the game steps it. See [formats/animation.md](formats/animation.md). |
 | Combat and AI formulas are hard to verify by eye | Balance feels "off" | Exact RNG port plus scripted differential tests (2.9). Read constants straight from the pseudocode rather than inferring them from play. |
 | F3DEX render modes and combiner modes | Visual mismatches | Implement only what the game uses; the decomp says mostly `G_TRI1`. Map combiner states to a few shader variants. |
 | Logic tied to frame rate | Breaks higher frame rates | Resolve the tick model in 0.5 and run the core on a fixed tick. |

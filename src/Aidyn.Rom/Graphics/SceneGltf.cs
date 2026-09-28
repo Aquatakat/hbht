@@ -5,7 +5,7 @@ namespace Aidyn.Rom.Graphics;
 
 /// <summary>
 /// Converts a Borg5 scene, with its models, textures, camera and lights, to a glTF file in scene
-/// units (roadmap 1A). See docs/reference-rig.md for how each part maps.
+/// units (roadmap 1A). See docs/formats/scenes.md for how each part maps.
 /// </summary>
 public static class SceneGltf
 {

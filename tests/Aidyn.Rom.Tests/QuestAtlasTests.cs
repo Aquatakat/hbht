@@ -65,7 +65,7 @@ public class QuestAtlasTests
 
     /// <summary>
     /// The 49 flags the checkpoints set that 1E found no data setter for. Engine code sets all but
-    /// eight, which nothing in the data or the retail code names (see the reference rig).
+    /// eight, which nothing in the data or the retail code names (see docs/formats/quests.md).
     /// </summary>
     [Fact]
     public void CheckpointFlagsHaveSetters()

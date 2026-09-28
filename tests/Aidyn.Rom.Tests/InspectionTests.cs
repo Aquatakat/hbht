@@ -96,7 +96,7 @@ public class InspectionTests
     {
         var inspector = new BorgInspector(TestRoms.Get(RomVersionId.Na10));
 
-        // The Gwernia house, Brenna's actor and the first shot of the opening, as in the reference rig.
+        // The Gwernia house, Brenna's actor and the first shot of the opening, as in docs/formats/animation.md and scenes.md.
         Assert.Null(inspector.Model(2558)!.Animation);
         Assert.Equal("borg6 8729", inspector.Model(8729)!.Animation);
         Assert.StartsWith("In scene 8728.", inspector.Model(8729)!.Note, StringComparison.Ordinal);

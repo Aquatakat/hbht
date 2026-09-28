@@ -4,7 +4,7 @@ Status: Accepted · Sep 27, 2026
 
 ## Context
 
-Players bring their own ROM, so the importer sees whatever version and byte order they have. The decomp's `us.yaml` targets NA 1.0. The rig ([reference-rig.md](../reference-rig.md)) found that NA 1.1 is a real revision:
+Players bring their own ROM, so the importer sees whatever version and byte order they have. The decomp's `us.yaml` targets NA 1.0. The rig found that NA 1.1 is a real revision ([formats/rom.md](../formats/rom.md)):
 
 - **Borg archive and `Borg_List`:** byte-identical to 1.0, shifted by `+0x40`.
 - **Code segment:** changed. About 760 KB differs even after allowing for the shift.

@@ -2,11 +2,47 @@
 
 A PC reimplementation of Aidyn Chronicles: The First Mage (N64). It runs on content imported from a user-supplied ROM and has a plugin-based mod system.
 
-## Where things are decided
+## Where to look
 
-- [docs/roadmap.md](docs/roadmap.md): the phased plan. Task numbers (0.3, 1E, 2.10, …) refer to it.
-- [docs/adr/](docs/adr/README.md): accepted architecture decisions. They are binding. To change one, write a new ADR that supersedes it rather than editing the old one.
-- [docs/reference-rig.md](docs/reference-rig.md): the emulator, the pinned Godot, the ROMs, the checkpoint save states, and `tools/`.
+Read what your task needs, not all of it.
+
+| For | Read |
+| --- | --- |
+| The plan, and what a task number (0.3, 1E, 2.10, M1, …) means | [docs/roadmap.md](docs/roadmap.md) |
+| Decisions. These are binding. To change one, write a new ADR that supersedes it rather than editing the old one. | [docs/adr/](docs/adr/README.md) |
+| How the original plays, from the player's side, written from memory | [docs/engine-behaviour.md](docs/engine-behaviour.md) |
+| How a ROM format is laid out, and what decoding it found | [docs/formats/](docs/formats/): `rom`, `db`, `textures`, `geometry`, `scenes`, `animation`, `actors`, `particles`, `dialogue`, `maps`, `quests` |
+| Content the engine hardcodes, and which ADR 0008 layer it goes in | [docs/hardcoded-content.md](docs/hardcoded-content.md) |
+| How our code ports or runs a system | [docs/systems/](docs/systems/): `importer`, `runtime`, `movement`, `cameras`, `rendering`, `inspector` |
+| The user's notes from playing the runtime and timing the original | [docs/playtests.md](docs/playtests.md) |
+| The emulator, gdb, the pinned Godot, the ROMs, checkpoint save states and `tools/` | [docs/reference-rig.md](docs/reference-rig.md) |
+
+When you learn something, write it in the doc for that format or system. Add a file only for a new format or subsystem, and add it to this table. The reference rig is only for the rig.
+
+## Glossary
+
+Use these words in code and docs. Where the decomp's name clashes with ours, use ours and cite the decomp's in a `<c>` tag (ADR 0009).
+
+| Term | Means | Don't confuse with |
+| --- | --- | --- |
+| **Trek** | Free exploration, the original's out-of-combat mode (`gametrek.cpp`). | The systems trek shares with combat, which aren't trek's (ADR 0009). |
+| **Combat** | Turn-based fighting (`gameCombat.cpp`, `GameMode_Combat`). The player-facing docs call it battle mode. Arenas are the Battle arenas map set. | |
+| **Tick** | 1/60 s, the core's unit of time. `Step(ticks)` takes these (ADR 0006). | A **frame**: one rendered frame of the original, covering `delta` ticks (1–6). **Cadence** is how the port matches per-frame behaviour: a 30 fps frame, 2 ticks. |
+| **Borg** | An asset in the ROM's archive, by type (Borg1 texture … Borg13 script) and archive index. | |
+| **Scene** | A Borg5: a tree of transforms with models, a camera and lights. Record `aidyn:scene/0x…`. | A Godot scene (`.tscn`). Say "Godot scene" for those. |
+| **Actor** | A Borg7: a scene with a state machine of animations. Record `aidyn:actor/0x…`. | The decomp's `Actor::` functions and `PlayerData`, which are a **body** moving through the world: the player, an NPC or a combatant. That code is in `Movement` and `Physics`. |
+| **Request** | The animation number the game asks an actor for (0 idle, 2 walk, 3 run, …). | An actor's states. |
+| **Entity** | An EntityDB record: a kind of character or creature, with its stats. Record `aidyn:entity/0x…`. | An ECS entity. |
+| **Map set** | One of the 17 grids of chunks: the Overworld, the Gwernia interiors, the Battle arenas and so on (`EnumMapDatA`). Record `aidyn:mapset/<n>`. | |
+| **Chunk** | One cell of a map set, named by row letter and column (I08, M07): a Borg9 and up to two scenes. The 3×3 around the player are loaded (the decomp's `ZoneEngine`; ours is the chunk streamer). | |
+| **Map** | Record `aidyn:map/0x…`: one Borg9, a chunk's collision and map objects. | The world map in the pause menu, and the minimap. |
+| **Map object** | An object a Borg9 places: a scene, container, teleporter, trigger, monster party and so on. | The decomp's **voxel**. Don't use that word. |
+| **World** | The worldspace: the loaded map set. `CollisionWorld` is its loaded collision. | The decomp's `World` and `TerrainPointer`, which are the calendar, time of day, weather and terrain. |
+| **Flag** | One of the 5,627 event flags in `GameStateFunnel`. A flag is **plain** (set by scripts, map objects or code) or **derived** (computed from others). Record `aidyn:flag/<n>`. | The decomp's "game state" and "event flag" mean the same thing. |
+| **Script** | A Borg13: a conversation, cut-scene, backdrop or sign. | A **Lua script**, ADR 0008's layer 4. Always say "Lua" for those. |
+| **Cut-scene** | A script that moves the camera and actors in the game world. | A **cinematic**: one of the four pre-animated scenes (`CinematicStruct`). |
+| **Base plugin** | `aidyn.base`, the plugin the importer writes from the ROM. The runtime and the editor read only plugins (ADR 0001). | |
+| **Checkpoint** | A save state the user captured by playing (see the reference rig). | |
 
 ## Code
 
@@ -14,19 +50,24 @@ A .NET 10 solution (`Aidyn.slnx`, SDK pinned in `global.json`), laid out per ADR
 
 - `src/Aidyn.Rom`: ROM identification and per-version offsets (`RomImage`, `RomVersions`), the LZB and LZ01x decompressors, the Borg archive (`BorgArchive`), the text cipher and string tables (`Text/`), the DB block's typed records (`Db/GameDb`), and N64 texel decoding, Borg1 textures, Borg8 UI images, a PNG writer, a minimal F3DEX2 interpreter, Borg2 geometry, Borg5 scenes with Borg3 cameras and Borg4 lights, Borg6 animations and a player that steps them as the game does, Borg7 actors, Borg5 particle emitters, and a glTF writer (`Graphics/`); Borg13 dialogue scripts (`Dialogue/`); map chunk lists, map sets' chunk placement, and Borg9 collision, grids and map objects, with a collision glTF export (`Maps/`); the quest atlas, with the flag tables engine code holds (`Quests/`); and other content tables in the code segment, such as the cinematics and entities' models (`Engine/`).
 - `src/Aidyn.Plugins`: the plugin format (ADRs 0004 and 0005): record IDs, plugin loading with field-level merges and the conflict report, asset lookup by record ID, and the typed records (`Records/`). The importer (`Aidyn.Rom/Import`) writes the base plugin with these types, and the runtime reads it.
-- `src/Aidyn.Core`: the headless rules core (ADR 0003). Organised by subsystem, not game mode (ADR 0009). So far `Physics/` (the collision world and the original's sphere physics), `Movement/` (the player's movement) and `Cameras/` (the outdoor follow camera), stepped per 60 Hz tick with per-frame behaviour matched to 30 fps (`Cadence`).
-- `src/Aidyn.Cli`: the `aidyn` command-line tool, e.g. `import <rom>` (the ROM as `aidyn.base`, in the data folder or `AIDYN_DATA`), `dotnet run --project src/Aidyn.Cli -- borg dump <rom>`, `db dump <rom>` (every table as JSON), `textures <rom>` (Borg1 and Borg8 as PNG), `scenes <rom>` (Borg5 as glTF, with their Borg6 animations), `actors <rom>` (Borg7 state machines as JSON), `dialogue <rom>` (Borg13 as text), `maps <rom>` (each map set's chunks and objects as JSON, and its collision as glTF), `atlas <rom>` (the quest atlas as JSON), `flag <rom> <n>` (what sets and reads a flag) or `strings <rom> <table>`. View exported scenes with `tools/scene-viewer.html`, map sets with `tools/map-viewer.html` and the atlas with `tools/quest-atlas.html` (see the reference rig). Output goes to the gitignored `out/`.
+- `src/Aidyn.Core`: the headless rules core (ADR 0003), organised by subsystem, not game mode (ADR 0009). So far `Physics/` (the collision world and the original's sphere physics), `Movement/` (the player's movement) and `Cameras/` (the outdoor follow camera), stepped per 60 Hz tick with per-frame behaviour matched to 30 fps (`Cadence`).
+- `src/Aidyn.Cli`: the `aidyn` command-line tool, e.g. `import <rom>` (the ROM as `aidyn.base`, in the data folder or `AIDYN_DATA`), `dotnet run --project src/Aidyn.Cli -- borg dump <rom>`, `db dump <rom>` (every table as JSON), `textures <rom>` (Borg1 and Borg8 as PNG), `scenes <rom>` (Borg5 as glTF, with their Borg6 animations), `actors <rom>` (Borg7 state machines as JSON), `dialogue <rom>` (Borg13 as text), `maps <rom>` (each map set's chunks and objects as JSON, and its collision as glTF), `atlas <rom>` (the quest atlas as JSON), `flag <rom> <n>` (what sets and reads a flag) or `strings <rom> <table>`. Output goes to the gitignored `out/`.
+- `tools/scene-viewer.html`, `map-viewer.html` and `quest-atlas.html`: three.js viewers for the CLI's output (the formats docs say how to serve them). They get fixes only, no new features (ADR 0009).
 - `src/Aidyn.Game`: the Godot runtime (roadmap Phase 3). It loads plugins only, never the ROM. It streams a map set's chunks with their scenery and collision, and steps the core's player and camera each physics tick. Run it with `tools/godot.ps1 --path src/Aidyn.Game` after `aidyn import`.
-- `src/Aidyn.Inspector`: the asset inspector (roadmap 0.6), a Godot app over `Aidyn.Rom.Inspection`: every Borg by type and index, with a preview, its decoded fields and a hex dump. Run it with `tools/godot.ps1 --path src/Aidyn.Inspector`.
+- `src/Aidyn.Inspector`: the asset inspector (roadmap 0.6), a Godot app over `Aidyn.Rom.Inspection`: every Borg by type and index, with a preview, its decoded fields and a hex dump. It grows into the editor, which reads and edits the imported plugins, like Bethesda's Creation Kit (ADR 0009). Run it with `tools/godot.ps1 --path src/Aidyn.Inspector`.
 - `tests/Aidyn.Core.Tests`, `tests/Aidyn.Plugins.Tests` and `tests/Aidyn.Rom.Tests`: `dotnet test` from the repo root. Real-data tests find ROMs in `roms/` (or `AIDYN_ROMS`) by hash and skip when they're missing.
 
 ## Status
 
-Update this section when a roadmap task finishes or starts.
+Update this section when a roadmap task finishes or starts. Findings go in the docs above, not here.
 
-- **Done:** 0.1 reference rig, 0.2 ROM identification, 0.3 Borg archive reader, 0.4 DB readers, 0.5 ADRs, 1A static graphics (textures, UI images, geometry, scenes, glTF export; the Gwernia house and Brenna match emulator captures), 1E quest atlas (Borg13 dialogue, map objects, the flag network, journal links, the cross-reference and its viewer; checked against the four checkpoints), 1H hardcoded-content audit ([docs/hardcoded-content.md](docs/hardcoded-content.md): every item has its ADR 0008 layer; the tables the atlas needs are read from the ROM, the rest are located), 1B animation (Borg6 animations played as the game steps them, glTF animation export, Borg7 actors and entities' models, Borg5 particle emitters; the user confirmed all 13 opening shots and Brenna's animation set in the scene viewer), 1C maps (Borg9 collision and its grid, every map object type, Expansion Pak variants, chunk placement per map set, and the map viewer; the user confirmed the layout, terrain, objects and enemy spawns).
-- **Left for later:** 1A's and 1B's leftovers for the renderer (lighting, billboards, texture filtering, scrolling textures, the particle simulation, the cinematics' clip planes) are in the reference rig. 1H's are at the end of its audit: flags 955–958 and 960–963 are unexplained, and the content tables marked To do are located but not read; the importer will need them.
-- **In progress:** M1 Walk Gwernia. The importer's first slice writes `aidyn.base`: map sets, chunks, scene objects and actors as records, and every scene and chunk collision as glTF (see the reference rig). `Aidyn.Game` streams the chunks around Alaron, with scenery and actors. The user walked it to Gwernia; their notes are in the reference rig's runtime section. The player's movement, collision and outdoor camera are now ports of the original in `Aidyn.Core`. Next: the player's shadow, then the N64 material (vertex colour, combiners, fog, scrolling textures, billboards) and the sky. 0.6 asset inspector. Godot 4.7.2 (.NET) is pinned, and the first slice browses every Borg with previews, fields and hex (see the reference rig). It grows with each track from here.
+- **Done:** 0.1 reference rig, 0.2 ROM identification, 0.3 Borg archive reader, 0.4 DB readers, 0.5 ADRs, 1A static graphics, 1B animation, 1C maps, 1E quest atlas, 1H hardcoded-content audit. The user confirmed each against the emulator or the checkpoints where it's visible.
+- **In progress:** M1 Walk Gwernia. The importer writes `aidyn.base` with map sets, chunks, scene objects and actors, and `Aidyn.Game` streams Gwernia's chunks with scenery, actors, and ports of the original's movement, collision and outdoor camera. Also 0.6, the asset inspector, which grows with each track.
+- **Next:** the player's shadow, then the N64 material (vertex colour, combiners, fog, scrolling textures, billboards) and the sky.
+- **Left for later:**
+  - The renderer's leftovers from 1A and 1B: [docs/systems/rendering.md](docs/systems/rendering.md).
+  - 1H's leftovers, at the end of its audit: flags 955–958 and 960–963 are unexplained, and the content tables marked To do are located but not read. The importer will need them.
+  - Feature parity between the Inspector and the HTML viewers, after which the viewers are deleted (ADR 0009).
 - **Not started:** everything else after Phase 0.
 - **Open rig follow-ups** (from ADR 0006): measure the frame `delta` distribution in trek and combat, and get gdb working after loading a save state.
 
