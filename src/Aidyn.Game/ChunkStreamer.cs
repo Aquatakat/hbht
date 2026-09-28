@@ -1,3 +1,4 @@
+using Aidyn.Core.Trek;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Assets;
 using Aidyn.Plugins.Records;
@@ -8,13 +9,14 @@ namespace Aidyn.Game;
 /// <summary>
 /// Keeps the 3×3 chunks around a point loaded, as the original's zone engine does
 /// (<c>ZoneDatMtx</c>): each chunk's scenery, its see-through scenery, the models its scene
-/// objects place, and its collision.
+/// objects place, and its collision, which goes into the <see cref="CollisionWorld"/>.
 /// </summary>
 public partial class ChunkStreamer : Node3D
 {
     private readonly PluginSet? _plugins;
     private readonly Models? _models;
     private readonly MapSetRecord? _set;
+    private readonly CollisionWorld? _world;
     private readonly Dictionary<(int Row, int Column), ChunkEntry> _chunks = [];
     private readonly Dictionary<(int Row, int Column), Node3D> _loaded = [];
 
@@ -22,12 +24,15 @@ public partial class ChunkStreamer : Node3D
     {
     }
 
-    public ChunkStreamer(PluginSet plugins, Models models, MapSetRecord set)
+    public ChunkStreamer(PluginSet plugins, Models models, MapSetRecord set, CollisionWorld world)
     {
         _plugins = plugins;
         _models = models;
         _set = set;
+        _world = world;
         Name = "Chunks";
+        // Actors here animate with the frame, not the physics tick, so there's nothing to interpolate.
+        PhysicsInterpolationMode = PhysicsInterpolationModeEnum.Off;
         foreach (var chunk in set.Chunks)
             _chunks[(chunk.Row, chunk.Column)] = chunk;
     }
@@ -42,7 +47,7 @@ public partial class ChunkStreamer : Node3D
 
     public ChunkEntry? Find(string name) => _chunks.Values.FirstOrDefault(c => c.Name == name);
 
-    public Vector3 Origin(ChunkEntry chunk) => Collision.ToGodot(MapSet.Origin(chunk.Row, chunk.Column));
+    public Vector3 Origin(ChunkEntry chunk) => MapSet.Origin(chunk.Row, chunk.Column).ToGodot();
 
     /// <summary>Loads the chunks around <paramref name="position"/> and frees the rest. Returns whether any changed.</summary>
     public bool Update(Vector3 position)
@@ -63,6 +68,7 @@ public partial class ChunkStreamer : Node3D
         {
             _loaded[cell].QueueFree();
             _loaded.Remove(cell);
+            _world!.Remove(cell);
             changed = true;
         }
         foreach (var cell in wanted.Where(k => !_loaded.ContainsKey(k)))
@@ -84,8 +90,9 @@ public partial class ChunkStreamer : Node3D
                 root.AddChild(node);
         }
 
+        // Toggles stay as they're stored until a trigger changes them, which needs the flag engine (M2).
         if (_plugins!.FindAsset(chunk.Map, "glb") is { } collision)
-            root.AddChild(Collision.Build(CollisionMesh.Read(File.ReadAllBytes(collision))));
+            _world!.Add((chunk.Row, chunk.Column), CollisionMesh.Read(File.ReadAllBytes(collision)), MapSet.Origin(chunk.Row, chunk.Column));
 
         var scenery = new Node3D { Name = "Scenery" };
         root.AddChild(scenery);
@@ -109,8 +116,8 @@ public partial class ChunkStreamer : Node3D
         var node = new Node3D
         {
             Name = $"Object {o.Index}",
-            Transform = new Transform3D(new Basis(new Quaternion(q.X, q.Y, q.Z, q.W)) * Basis.FromScale(Collision.ToGodot(o.Scale)),
-                Collision.ToGodot(o.Position)),
+            Transform = new Transform3D(new Basis(new Quaternion(q.X, q.Y, q.Z, q.W)) * Basis.FromScale(o.Scale.ToGodot()),
+                o.Position.ToGodot()),
         };
         var begin = 0f;
         for (var i = 0; i < Math.Min(o.Lods, o.Models.Count); i++)

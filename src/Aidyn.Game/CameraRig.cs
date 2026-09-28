@@ -1,39 +1,41 @@
+using Aidyn.Core.Trek;
 using Godot;
 
 namespace Aidyn.Game;
 
 /// <summary>
-/// A third-person camera behind the player, pulled in by walls it can't see through. Hold the right
-/// mouse button, or use Q and E or the right stick, to turn it. F toggles a free-flying camera for
-/// looking around, which WASD, Space and C move.
+/// Shows the view from the core's <see cref="TrekCamera"/>, and a free-flying camera for looking
+/// around, which F toggles and WASD, Space and C move. Dragging with the right mouse button orbits
+/// the trek camera, or turns the free one.
 /// </summary>
-/// <remarks>A stand-in for the original's SM64-style camera (<c>camera.cpp</c>), which comes later in M1.</remarks>
 public partial class CameraRig : Node3D
 {
-    private const float Distance = 5f, Height = 1.6f, TurnSpeed = 2.5f, FlySpeed = 15f, MouseSpeed = 0.005f;
+    private const float FlySpeed = 15f, MouseSpeed = 0.005f;
 
-    private readonly SpringArm3D _arm = new() { SpringLength = Distance, CollisionMask = Collision.CameraLayer, Margin = 0.2f };
-    private readonly Camera3D _camera = new() { Fov = 45, Near = 0.1f, Far = 1000 };
-    private readonly Camera3D _fly = new() { Fov = 45, Near = 0.1f, Far = 2000 };
+    private readonly Camera3D _camera = new() { Name = "Trek", Fov = 45, Near = 0.1f, Far = 1000 };
+    // Moved every frame rather than every tick, so not interpolated.
+    private readonly Camera3D _fly = new() { Name = "Fly", Fov = 45, Near = 0.1f, Far = 2000, PhysicsInterpolationMode = PhysicsInterpolationModeEnum.Off };
+    private Vector2 _drag;
 
-    /// <summary>The node the camera follows.</summary>
-    public Node3D? Target { get; set; }
+    public TrekCamera? Trek { get; set; }
 
+    /// <summary>For placing the free camera from the command line: radians, as Godot's rotations.</summary>
     public float Yaw { get; set; }
-    public float Pitch { get; set; } = -0.3f;
+    public float Pitch { get; set; }
     public bool Flying { get; private set; }
+
+    /// <summary>Whether the right mouse button is down, which holds the trek camera's orbit.</summary>
+    public bool Dragging { get; private set; }
 
     public override void _Ready()
     {
         Name = "Camera";
-        _arm.AddChild(_camera);
-        AddChild(_arm);
+        AddChild(_camera);
         AddChild(_fly);
         _camera.MakeCurrent();
     }
 
-    /// <summary>Places the orbit camera by the command line's <c>--distance</c>, if given.</summary>
-    public void SetDistance(float distance) => _arm.SpringLength = distance;
+    public Camera3D Current => Flying ? _fly : _camera;
 
     public void ToggleFly()
     {
@@ -49,11 +51,32 @@ public partial class CameraRig : Node3D
         }
     }
 
-    public Camera3D Current => Flying ? _fly : _camera;
+    /// <summary>Puts the view where the trek camera is. Call after each tick.</summary>
+    public void Sync()
+    {
+        if (Trek is null)
+            return;
+        var from = Trek.Position.ToGodot();
+        var to = Trek.Aim.ToGodot();
+        if (!from.IsEqualApprox(to))
+            _camera.LookAtFromPosition(from, to, Vector3.Up);
+    }
+
+    /// <summary>The mouse movement, in pixels, since the last call, while dragging.</summary>
+    public Vector2 TakeDrag()
+    {
+        var drag = _drag;
+        _drag = Vector2.Zero;
+        return drag;
+    }
 
     public override void _UnhandledInput(InputEvent e)
     {
-        if (e is InputEventMouseMotion m && (m.ButtonMask & MouseButtonMask.Right) != 0)
+        if (e is InputEventMouseButton { ButtonIndex: MouseButton.Right } button)
+        {
+            Dragging = button.Pressed;
+        }
+        else if (e is InputEventMouseMotion m && (m.ButtonMask & MouseButtonMask.Right) != 0)
         {
             if (Flying)
             {
@@ -64,29 +87,19 @@ public partial class CameraRig : Node3D
             }
             else
             {
-                Yaw -= m.Relative.X * MouseSpeed;
-                Pitch = Mathf.Clamp(Pitch - m.Relative.Y * MouseSpeed, -1.3f, 0.6f);
+                _drag += m.Relative;
             }
         }
     }
 
     public override void _Process(double delta)
     {
-        var dt = (float)delta;
-        if (Flying)
-        {
-            var input = Input.GetVector("move_left", "move_right", "move_forward", "move_back");
-            var up = (Input.IsActionPressed("fly_up") ? 1 : 0) - (Input.IsActionPressed("fly_down") ? 1 : 0);
-            var basis = _fly.GlobalTransform.Basis;
-            var speed = Input.IsActionPressed("walk") ? FlySpeed * 4 : FlySpeed;
-            _fly.GlobalPosition += (basis.X * input.X + basis.Z * input.Y + Vector3.Up * up) * speed * dt;
+        if (!Flying)
             return;
-        }
-
-        Yaw += Input.GetAxis("camera_right", "camera_left") * TurnSpeed * dt;
-        if (Target is not null)
-            GlobalPosition = Target.GlobalPosition + new Vector3(0, Height, 0);
-        Rotation = new Vector3(0, Yaw, 0);
-        _arm.Rotation = new Vector3(Pitch, 0, 0);
+        var input = Input.GetVector("move_left", "move_right", "move_forward", "move_back");
+        var up = (Input.IsActionPressed("fly_up") ? 1 : 0) - (Input.IsActionPressed("fly_down") ? 1 : 0);
+        var basis = _fly.GlobalTransform.Basis;
+        var speed = Input.IsActionPressed("walk") ? FlySpeed * 4 : FlySpeed;
+        _fly.GlobalPosition += (basis.X * input.X + basis.Z * input.Y + Vector3.Up * up) * speed * (float)delta;
     }
 }

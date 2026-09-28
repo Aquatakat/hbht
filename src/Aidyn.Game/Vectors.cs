@@ -1,0 +1,9 @@
+namespace Aidyn.Game;
+
+/// <summary>Between Godot's vectors and <see cref="System.Numerics"/>, which the plugins and the core use. The axes are the same.</summary>
+public static class Vectors
+{
+    public static Godot.Vector3 ToGodot(this System.Numerics.Vector3 v) => new(v.X, v.Y, v.Z);
+
+    public static System.Numerics.Vector3 ToNumerics(this Godot.Vector3 v) => new(v.X, v.Y, v.Z);
+}

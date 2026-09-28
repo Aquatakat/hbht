@@ -11,6 +11,16 @@ public enum CollisionFlags
     None = 0,
     /// <summary>Things pass through it. A trigger can set this on a toggle to open the way.</summary>
     Passable = 0x1,
+    /// <summary>Spheres collide with the edge from A to B as well as the face. Every edge no other triangle shares has its bit.</summary>
+    EdgeAB = 0x4,
+    /// <summary>The edge from C to A.</summary>
+    EdgeCA = 0x8,
+    /// <summary>The edge from B to C.</summary>
+    EdgeBC = 0x10,
+    /// <summary>Spheres collide with the corner at A.</summary>
+    VertexA = 0x20,
+    VertexB = 0x40,
+    VertexC = 0x80,
     /// <summary>Line-of-sight tests ignore it, so the camera passes through. Invisible walls.</summary>
     SeeThrough = 0x200,
 }

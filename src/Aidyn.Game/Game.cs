@@ -1,4 +1,5 @@
 using System.Globalization;
+using Aidyn.Core.Trek;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 using Godot;
@@ -10,23 +11,47 @@ namespace Aidyn.Game;
 /// It never reads the ROM; <c>aidyn import &lt;rom&gt;</c> writes the base plugin it loads (ADR 0001).
 /// </summary>
 /// <remarks>
+/// The player and camera are the core's port of the original, stepped once per 60 Hz tick in the
+/// physics process; Godot interpolates between ticks for display.
 /// Command-line options, after <c>--</c>: <c>--set &lt;n&gt;</c> (default 0, the overworld),
 /// <c>--chunk &lt;name&gt;</c> and <c>--at &lt;x&gt;,&lt;z&gt;</c> in the chunk's coordinates
-/// (default I08 at 16, 62, where a new game starts), <c>--yaw</c>, <c>--pitch</c> and
-/// <c>--distance</c> for the camera, <c>--fly &lt;x&gt;,&lt;y&gt;,&lt;z&gt;</c> to start with the free
-/// camera there in world coordinates, looking along <c>--yaw</c> and <c>--pitch</c>, and
-/// <c>--hold &lt;action&gt;,&lt;seconds&gt;</c>, which holds an input such as <c>move_forward</c>,
+/// (default I08 at 16, 62, where a new game starts), <c>--yaw</c> in degrees for the way the
+/// player and camera face (0 looks along −Z), <c>--pitch</c> (negative looks down, default −15)
+/// and <c>--distance</c> for the camera, <c>--pace</c> for the player's speed (1 is the
+/// original's), <c>--fly &lt;x&gt;,&lt;y&gt;,&lt;z&gt;</c> to start with the free camera there in
+/// world coordinates, looking along <c>--yaw</c> and <c>--pitch</c>, and
+/// <c>--hold &lt;action&gt;,&lt;seconds&gt;</c>, which holds an input such as <c>move_forward</c>
+/// (join several with <c>+</c>, as in <c>move_forward+walk</c>),
 /// and <c>--screenshot &lt;png&gt;</c>, which saves the window after that and quits.
-/// F toggles the free camera, and F3 the debug overlay.
+/// F toggles the free camera, F3 the debug overlay and F5 the pace.
 /// </remarks>
 public partial class Game : Node3D
 {
+    /// <summary>A faster pace than the original's, which feels slow on a PC (ADR 0006's fidelity settings).</summary>
+    private const float BriskPace = 1.3f;
+
+    /// <summary>Mouse drag in pixels to stick units: about 0.3° of orbit, and 0.02 of height, a pixel.</summary>
+    private static readonly Vector2 DragToStick = new(0.2f, 0.4f);
+
+    private static readonly string[] Surfaces =
+    [
+        "Default", "Player and camera", "Player", "Snow", "Grass", "Sand", "Mucky", "Sizzle", "Cave", "Wood",
+        "Wood (echo)", "Stone", "Stone (echo)", "Stone (huge echo)", "Water", "Trans snow", "Trans grass",
+        "Trans sand", "Trans mucky", "Trans sizzle", "Trans cave", "Trans wood", "Trans wood (echo)",
+        "Trans stone", "Trans stone (echo)", "Trans stone (huge echo)",
+    ];
+
     private readonly Label _overlay = new() { Position = new Vector2(8, 8) };
     private readonly Label _message = new() { Position = new Vector2(16, 16) };
+    private readonly CollisionWorld _world = new();
     private Models? _models;
     private ChunkStreamer? _chunks;
     private Player? _player;
     private CameraRig? _camera;
+    private TrekCamera? _trek;
+    private IRootMotion _animation = new Still();
+    /// <summary>The player's last second of positions, for the overlay's speed.</summary>
+    private readonly Queue<System.Numerics.Vector3> _track = new();
 
     public override void _Ready()
     {
@@ -72,34 +97,46 @@ public partial class Game : Node3D
         AddChild(new DirectionalLight3D { RotationDegrees = new Vector3(-55, 30, 0), LightEnergy = 0.9f });
 
         var models = _models = new Models(plugins);
-        _chunks = new ChunkStreamer(plugins, models, set);
+        _chunks = new ChunkStreamer(plugins, models, set, _world);
         AddChild(_chunks);
 
         var chunkName = args.GetValueOrDefault("chunk", "I08");
         var chunk = _chunks.Find(chunkName) ?? throw new KeyNotFoundException($"{set.Label} has no chunk {chunkName}.");
         var at = Floats(args.GetValueOrDefault("at", "16,62"));
-        _player = new Player { Position = _chunks.Origin(chunk) + new Vector3(at[0], 10, at[1]) };
+        // The original drops the player in from a height of 10 at a new game's spawn. This puts him
+        // on the highest ground below 1000, so --at works anywhere.
+        var spawn = _chunks.Origin(chunk) + new Vector3(at[0], 10, at[1]);
+        _chunks.Update(spawn);
+        var centre = spawn.ToNumerics();
+        var above = centre with { Y = 1000 };
+        if (SpherePhysics.Sweep(_world, above, above - new System.Numerics.Vector3(0, 2000, 0), 0.5f, false, out var ground, out var normal))
+            centre = ground + normal * 0.5f;
+
+        var yaw = Mathf.DegToRad(Float(args, "yaw", 0));
+        var look = new System.Numerics.Vector2(-MathF.Sin(yaw), -MathF.Cos(yaw));
+        var motion = new PlayerMotion(centre, look) { Pace = Float(args, "pace", 1) };
+        _player = new Player(motion);
         AddChild(_player);
         // Alaron, as a new game sets the player's form (BORG7_Alaron).
         var alaron = plugins.Get<ActorRecord>(RecordId.Hex(RecordTypes.Actor, 0x25F9));
         if (models.InstantiateActor(alaron) is var (model, animator))
         {
             _player.SetModel(model);
-            _player.Animator = animator;
+            if (animator is not null)
+            {
+                animator.Driven = true;
+                _animation = animator;
+            }
         }
 
-        _camera = new CameraRig
-        {
-            Target = _player,
-            Yaw = Mathf.DegToRad(Float(args, "yaw", 0)),
-            Pitch = Mathf.DegToRad(Float(args, "pitch", -17)),
-        };
-        AddChild(_camera);
+        _trek = new TrekCamera(centre, look);
+        var pitch = -Float(args, "pitch", -15);
+        _trek.Pitch = _trek.DefaultPitch = pitch;
         if (args.TryGetValue("distance", out var distance))
-            _camera.SetDistance(float.Parse(distance, CultureInfo.InvariantCulture));
-        _player.CameraYaw = () => _camera.Yaw;
-        _chunks.Update(_player.GlobalPosition);
-        _ = SnapToGround(_player);
+            _trek.Distance = _trek.DefaultDistance = float.Parse(distance, CultureInfo.InvariantCulture);
+        _camera = new CameraRig { Trek = _trek, Yaw = yaw, Pitch = Mathf.DegToRad(-pitch) };
+        AddChild(_camera);
+        _camera.Sync();
 
         if (args.TryGetValue("fly", out var fly))
         {
@@ -107,14 +144,19 @@ public partial class Game : Node3D
             var p = Floats(fly);
             _camera.Current.GlobalPosition = new Vector3(p[0], p[1], p[2]);
             _camera.Current.Rotation = new Vector3(_camera.Pitch, _camera.Yaw, 0);
-            _player.Frozen = true;
         }
         var hold = 0.0;
         if (args.TryGetValue("hold", out var held) && held.Split(',') is [var action, var seconds])
         {
             hold = double.Parse(seconds, CultureInfo.InvariantCulture);
-            Input.ActionPress(action);
-            GetTree().CreateTimer(hold).Timeout += () => Input.ActionRelease(action);
+            var actions = action.Split('+');
+            foreach (var a in actions)
+                Input.ActionPress(a);
+            GetTree().CreateTimer(hold).Timeout += () =>
+            {
+                foreach (var a in actions)
+                    Input.ActionRelease(a);
+            };
         }
         if (args.TryGetValue("screenshot", out var png))
             _ = Screenshot(png, hold);
@@ -135,6 +177,63 @@ public partial class Game : Node3D
 
     public override void _ExitTree() => _models?.Dispose();
 
+    /// <summary>One 60 Hz tick: the camera, then the player, as the original orders them.</summary>
+    public override void _PhysicsProcess(double delta)
+    {
+        if (_player is null || _camera is null || _trek is null || _camera.Flying)
+            return;
+        var input = ReadInput();
+        var motion = _player.Motion;
+        var before = motion.Sphere.Position;
+        _trek.Step(_world, motion.Sphere.Position, motion.Heading);
+        motion.Step(_world, input, _trek, _animation);
+        _player.Sync();
+        _camera.Sync();
+        _track.Enqueue(motion.Sphere.Position);
+        if (_track.Count > Engine.PhysicsTicksPerSecond)
+            _track.Dequeue();
+        // A fall that sends him back to safe ground is a jump, not a move.
+        if (System.Numerics.Vector3.Distance(before, motion.Sphere.Position) > 2)
+        {
+            _player.ResetPhysicsInterpolation();
+            _camera.ResetPhysicsInterpolation();
+        }
+    }
+
+    /// <summary>
+    /// The controls as the original reads them: the stick walks under 80% tilt and runs above,
+    /// and R with the stick orbits the camera. On a PC, Shift walks, Ctrl sneaks, and dragging
+    /// with the right mouse button, the right stick, or Q and E orbit it.
+    /// </summary>
+    private TrekInput ReadInput()
+    {
+        var move = Input.GetVector("move_left", "move_right", "move_forward", "move_back");
+        var stick = new System.Numerics.Vector2(move.X, -move.Y);
+        if (Input.IsActionPressed("walk") && stick.Length() > 0.5f)
+            stick = System.Numerics.Vector2.Normalize(stick) * 0.5f;
+
+        var orbit = false;
+        var orbitStick = System.Numerics.Vector2.Zero;
+        var look = Input.GetVector("camera_left", "camera_right", "camera_down", "camera_up");
+        if (look != Vector2.Zero)
+        {
+            orbit = true;
+            orbitStick += new System.Numerics.Vector2(look.X, look.Y);
+        }
+        if (Input.IsActionPressed("orbit"))
+        {
+            orbit = true;
+            orbitStick += stick;
+        }
+        var drag = _camera!.TakeDrag();
+        if (_camera.Dragging)
+        {
+            orbit = true;
+            orbitStick += new System.Numerics.Vector2(drag.X * DragToStick.X, drag.Y * DragToStick.Y);
+        }
+        return new TrekInput(stick, Input.IsActionPressed("sneak"), orbit, orbitStick);
+    }
+
     public override void _Process(double delta)
     {
         if (_chunks is null || _player is null || _camera is null)
@@ -146,50 +245,38 @@ public partial class Game : Node3D
         {
             var chunk = _chunks.ChunkAt(focus);
             var local = chunk is null ? focus : focus - _chunks.Origin(chunk);
+            var motion = _player.Motion;
+            var sphere = motion.Sphere;
             _overlay.Text = $"{_chunks.MapSet.Label} {chunk?.Name ?? "(no chunk)"}  " +
                 $"({local.X:F1}, {local.Y:F1}, {local.Z:F1})  {Engine.GetFramesPerSecond()} fps" +
-                (_camera.Flying ? "  [free camera]" : "") + "\n" + Ground(focus);
+                (_camera.Flying ? "  [free camera]" : "") + "\n" +
+                (sphere.Touching ? $"on {Surfaces.ElementAtOrDefault(sphere.Surface) ?? sphere.Surface.ToString()}" : "in the air") +
+                $"  speed {Speed():F2}/s  request {motion.Request}  pace {motion.Pace:0.##} (F5)";
         }
     }
 
-    /// <summary>
-    /// Puts the player on the ground below the spawn point, once the chunks' collision is in the
-    /// physics world. The original spawns at a height of 10 and resolves collision straight away.
-    /// </summary>
-    private async Task SnapToGround(Player player)
+    /// <summary>How far the player went in X and Z over the last second, per second.</summary>
+    private float Speed()
     {
-        await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
-        var from = player.GlobalPosition;
-        var query = PhysicsRayQueryParameters3D.Create(from, from + Vector3.Down * 1000, Collision.PlayerLayer);
-        var hit = GetWorld3D().DirectSpaceState.IntersectRay(query);
-        if (hit.Count > 0)
-        {
-            player.GlobalPosition = (Vector3)hit["position"];
-            player.Velocity = Vector3.Zero;
-        }
-    }
-
-    /// <summary>What collision is below a point, for the overlay.</summary>
-    private string Ground(Vector3 at)
-    {
-        var query = PhysicsRayQueryParameters3D.Create(at + Vector3.Up, at + Vector3.Down * 100, Collision.PlayerLayer);
-        var hit = GetWorld3D().DirectSpaceState.IntersectRay(query);
-        if (hit.Count == 0)
-            return "no ground below";
-        var body = (Node)hit["collider"];
-        return $"ground at {((Vector3)hit["position"]).Y:F2}: {body.GetParent().GetParent().Name} {body.Name}";
+        if (_track.Count < 2)
+            return 0;
+        var span = _track.Last() - _track.Peek();
+        return new System.Numerics.Vector2(span.X, span.Z).Length() * Engine.PhysicsTicksPerSecond / (_track.Count - 1);
     }
 
     public override void _UnhandledInput(InputEvent e)
     {
-        if (e.IsActionPressed("toggle_fly") && _camera is not null && _player is not null)
+        if (e.IsActionPressed("toggle_fly") && _camera is not null)
         {
             _camera.ToggleFly();
-            _player.Frozen = _camera.Flying;
         }
         else if (e.IsActionPressed("toggle_overlay"))
         {
             _overlay.Visible = !_overlay.Visible;
+        }
+        else if (e.IsActionPressed("toggle_pace") && _player is not null)
+        {
+            _player.Motion.Pace = _player.Motion.Pace == 1 ? BriskPace : 1;
         }
     }
 
@@ -201,7 +288,7 @@ public partial class Game : Node3D
             GD.PrintErr("Timed out before the screenshot.");
             GetTree().Quit(2);
         };
-        // Time for the player to land and the frame to settle.
+        // Time for the frame to settle.
         await ToSignal(GetTree().CreateTimer(1.5 + after), SceneTreeTimer.SignalName.Timeout);
         for (var i = 0; i < 3; i++)
             await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
@@ -218,22 +305,28 @@ public partial class Game : Node3D
         Add("move_right", Key.D, Key.Right, JoyAxis.LeftX, 1);
         Add("camera_left", Key.Q, null, JoyAxis.RightX, -1);
         Add("camera_right", Key.E, null, JoyAxis.RightX, 1);
+        Add("camera_up", null, null, JoyAxis.RightY, -1);
+        Add("camera_down", null, null, JoyAxis.RightY, 1);
         Add("walk", Key.Shift);
+        Add("sneak", Key.Ctrl, null, JoyAxis.TriggerLeft, 1);
+        Add("orbit", null, null, button: JoyButton.RightShoulder);
         Add("fly_up", Key.Space);
         Add("fly_down", Key.C);
         Add("toggle_fly", Key.F);
         Add("toggle_overlay", Key.F3);
+        Add("toggle_pace", Key.F5);
 
-        static void Add(string action, Key key, Key? alternative = null, JoyAxis? axis = null, float direction = 0)
+        static void Add(string action, Key? key, Key? alternative = null, JoyAxis? axis = null, float direction = 0, JoyButton? button = null)
         {
             if (InputMap.HasAction(action))
                 return;
             InputMap.AddAction(action, 0.1f);
-            InputMap.ActionAddEvent(action, new InputEventKey { PhysicalKeycode = key });
-            if (alternative is { } a)
-                InputMap.ActionAddEvent(action, new InputEventKey { PhysicalKeycode = a });
+            foreach (var k in new[] { key, alternative }.OfType<Key>())
+                InputMap.ActionAddEvent(action, new InputEventKey { PhysicalKeycode = k });
             if (axis is { } j)
                 InputMap.ActionAddEvent(action, new InputEventJoypadMotion { Axis = j, AxisValue = direction });
+            if (button is { } b)
+                InputMap.ActionAddEvent(action, new InputEventJoypadButton { ButtonIndex = b });
         }
     }
 
@@ -256,4 +349,10 @@ public partial class Game : Node3D
 
     private static float[] Floats(string text) =>
         [.. text.Split(',').Select(s => float.Parse(s, CultureInfo.InvariantCulture))];
+
+    /// <summary>For a player with no animations: he stands still.</summary>
+    private sealed class Still : IRootMotion
+    {
+        public float Tick(int request) => 0;
+    }
 }

@@ -8,7 +8,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Only the plugin format: the runtime never reads the ROM (ADR 0001), and the build enforces it. -->
+    <!-- The plugin format and the rules core: the runtime never reads the ROM (ADR 0001), and the build enforces it. -->
+    <ProjectReference Include="..\Aidyn.Core\Aidyn.Core.csproj" />
     <ProjectReference Include="..\Aidyn.Plugins\Aidyn.Plugins.csproj" />
   </ItemGroup>
 

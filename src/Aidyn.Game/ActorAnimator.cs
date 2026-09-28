@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Aidyn.Core.Trek;
 using Aidyn.Plugins.Records;
 using Godot;
 
@@ -12,17 +13,20 @@ namespace Aidyn.Game;
 /// </summary>
 /// <remarks>
 /// Requests include 0 idle, 2 walk, 3 run and 25 sneak. The rolls use their own random stream, as
-/// the original's actor animations do; nothing in the rules depends on them.
+/// the original's actor animations do; nothing in the rules depends on them. An actor that moves
+/// by its animations, such as the player, is <see cref="Driven"/>: its owner ticks it and gets
+/// the root's motion back.
 /// </remarks>
-public sealed class ActorAnimator
+public sealed class ActorAnimator : IRootMotion
 {
     private readonly ActorRecord _actor;
     private readonly AnimationPlayer _player;
     private readonly Node3D? _root;
     private readonly Vector3 _pivot;
     private readonly Random _random = new(0x3DBB6CD);
-    private int _state, _clock = 1, _lastRequest;
+    private int _state, _clock = 1, _lastRequest, _settle;
     private double _fraction;
+    private Vector3 _rootPosition, _lastRoot;
 
     private ActorAnimator(ActorRecord actor, AnimationPlayer player, Node3D? root, Vector3 pivot)
     {
@@ -34,6 +38,9 @@ public sealed class ActorAnimator
 
     /// <summary>The animation the actor is asked for.</summary>
     public int Request { get; set; }
+
+    /// <summary>Set when the owner ticks it with <see cref="Tick(int)"/> rather than it ticking with the frame.</summary>
+    public bool Driven { get; set; }
 
     /// <summary>
     /// Adds an animator to an instance of the actor's scene. Returns null if the scene has no
@@ -53,30 +60,54 @@ public sealed class ActorAnimator
 
     private void Update(double delta)
     {
+        if (Driven)
+            return;
         _fraction += delta * 60;
         for (; _fraction >= 1; _fraction--)
             Tick();
         Show(Math.Min(_clock - 1 + _fraction, Length(_state) - 1) / 60);
     }
 
-    private void Tick()
+    /// <summary>
+    /// One tick toward <paramref name="request"/>, returning how far the root moved forward, along
+    /// the model's +Z (<c>Borg7Header.unk2c</c>). The original moves nothing on a tick that enters
+    /// a state, as the root jumps back to its start, or on the two ticks after.
+    /// </summary>
+    public float Tick(int request)
+    {
+        Request = request;
+        var entered = Tick();
+        Show((_clock - 1) / 60.0);
+        var forward = !entered && _settle == 0 ? _rootPosition.Z - _lastRoot.Z : 0;
+        if (entered)
+            _settle = 2;
+        else if (_settle > 0)
+            _settle--;
+        _lastRoot = _rootPosition;
+        return forward;
+    }
+
+    /// <summary>Advances the clock a tick. Returns whether it entered a state.</summary>
+    private bool Tick()
     {
         var changed = Request != _lastRequest;
         _lastRequest = Request;
         if (_clock >= Length(_state))
         {
             Enter(Roll(b => b.Request == Request || b.Request == 255)?.State ?? _state);
-            return;
+            return true;
         }
         // A new request can cut the animation short through a branch that interrupts. Either way,
         // the original doesn't advance the animation on the tick the request changes.
         if (changed)
         {
-            if (Roll(b => b.Request == Request && b.Interrupts) is { } branch)
-                Enter(branch.State);
-            return;
+            if (Roll(b => b.Request == Request && b.Interrupts) is not { } branch)
+                return false;
+            Enter(branch.State);
+            return true;
         }
         _clock++;
+        return false;
     }
 
     /// <summary>Rolls 0–99 and walks the branches in order, subtracting each match's chance.</summary>
@@ -114,7 +145,11 @@ public sealed class ActorAnimator
         _player.Seek(seconds, update: true);
         // With its position zeroed, a pivot-rotate transform's translation is −(pivot × scale) rotated.
         if (_root is not null)
-            _root.Position = -(_root.Quaternion * (_pivot * _root.Scale));
+        {
+            var pivot = _root.Quaternion * (_pivot * _root.Scale);
+            _rootPosition = _root.Position + pivot;
+            _root.Position = -pivot;
+        }
     }
 
     private string AnimationName(int state) => $"borg6 {Convert.ToInt32(_actor.States[state].Animation.Key, 16)}";
