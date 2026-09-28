@@ -188,6 +188,45 @@ public class CollisionTests
         Assert.True(agree < compared * 0.1, $"{agree} of {compared} agree with rows along Z.");
     }
 
+    /// <summary>
+    /// Chests have collision boxes baked into the chunk. Each face of a box should lie along one
+    /// of the chest model's axes as <see cref="SceneData.Orientation"/> turns them. That checks the
+    /// rotation's axes, order and direction against data the machine code didn't cover: some
+    /// chests are knocked over, and Borg5's order (roll and pitch swapped) gets 9 of those 11 wrong.
+    /// </summary>
+    [Fact]
+    public void ChestsLineUpWithTheirCollisionBoxes()
+    {
+        var results = new List<(bool Tilted, bool Aligned)>();
+        foreach (var (_, map) in AllMaps.Value)
+        {
+            foreach (var chest in map.Objects.Where(o => o.Data is ContainerData { Kind: 0 }))
+            {
+                foreach (var model in chest.Links.Where(l => l >= 0).Distinct().Select(l => map.Objects[l]))
+                {
+                    if (model.Data is not SceneData scene)
+                        continue;
+                    // Triangles within 1 of the chest, leaving out level ground, which says nothing.
+                    var near = map.Triangles.Where(t => MathF.Abs(t.Normal.Y) < 0.999f && new[] { t.A, t.B, t.C }.All(v =>
+                        Vector2.Distance(new(map.Vertices[v].X, map.Vertices[v].Z), new(model.Position.X, model.Position.Z)) < 1))
+                        .ToList();
+                    if (near.Count == 0)
+                        continue;
+                    var axes = new[] { Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ }
+                        .Select(a => Vector3.Transform(a, scene.Orientation)).ToList();
+                    var aligned = near.All(t => axes.Any(a => MathF.Abs(Vector3.Dot(a, t.Normal)) > 0.999f));
+                    results.Add((MathF.Abs(scene.Rotation.X) > 0.01f || MathF.Abs(scene.Rotation.Z) > 0.01f, aligned));
+                }
+            }
+        }
+        // Every knocked-over chest's box lines up. The upright ones that don't have other walls
+        // within reach.
+        Assert.Equal(11, results.Count(r => r.Tilted && r.Aligned));
+        Assert.Equal(0, results.Count(r => r.Tilted && !r.Aligned));
+        Assert.Equal(156, results.Count(r => !r.Tilted && r.Aligned));
+        Assert.Equal(12, results.Count(r => !r.Tilted && !r.Aligned));
+    }
+
     [Fact]
     public void CollisionExportsANodePerChunkAtItsOrigin()
     {

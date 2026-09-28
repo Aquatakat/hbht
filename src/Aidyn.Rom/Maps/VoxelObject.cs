@@ -18,7 +18,10 @@ public enum VoxelType : ushort
     WanderNode,
     /// <summary>An NPC or a group of enemies.</summary>
     MonsterParty,
-    /// <summary>A named point that teleporters, cameras and dialogues refer to.</summary>
+    /// <summary>
+    /// A named point that teleporters, cameras and dialogues refer to. Most sit in clusters where
+    /// cut-scenes place their cameras.
+    /// </summary>
     ReferencePoint,
     /// <summary>A door, ladder or portal to another chunk or map set.</summary>
     Teleporter,
