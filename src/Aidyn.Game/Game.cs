@@ -1,5 +1,7 @@
 using System.Globalization;
-using Aidyn.Core.Trek;
+using Aidyn.Core.Cameras;
+using Aidyn.Core.Movement;
+using Aidyn.Core.Physics;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 using Godot;
@@ -48,7 +50,7 @@ public partial class Game : Node3D
     private ChunkStreamer? _chunks;
     private Player? _player;
     private CameraRig? _camera;
-    private TrekCamera? _trek;
+    private FollowCamera? _follow;
     private IRootMotion _animation = new Still();
     /// <summary>The player's last second of positions, for the overlay's speed.</summary>
     private readonly Queue<System.Numerics.Vector3> _track = new();
@@ -129,12 +131,12 @@ public partial class Game : Node3D
             }
         }
 
-        _trek = new TrekCamera(centre, look);
+        _follow = new FollowCamera(centre, look);
         var pitch = -Float(args, "pitch", -15);
-        _trek.Pitch = _trek.DefaultPitch = pitch;
+        _follow.Pitch = _follow.DefaultPitch = pitch;
         if (args.TryGetValue("distance", out var distance))
-            _trek.Distance = _trek.DefaultDistance = float.Parse(distance, CultureInfo.InvariantCulture);
-        _camera = new CameraRig { Trek = _trek, Yaw = yaw, Pitch = Mathf.DegToRad(-pitch) };
+            _follow.Distance = _follow.DefaultDistance = float.Parse(distance, CultureInfo.InvariantCulture);
+        _camera = new CameraRig { Follow = _follow, Yaw = yaw, Pitch = Mathf.DegToRad(-pitch) };
         AddChild(_camera);
         _camera.Sync();
 
@@ -180,13 +182,13 @@ public partial class Game : Node3D
     /// <summary>One 60 Hz tick: the camera, then the player, as the original orders them.</summary>
     public override void _PhysicsProcess(double delta)
     {
-        if (_player is null || _camera is null || _trek is null || _camera.Flying)
+        if (_player is null || _camera is null || _follow is null || _camera.Flying)
             return;
         var input = ReadInput();
         var motion = _player.Motion;
         var before = motion.Sphere.Position;
-        _trek.Step(_world, motion.Sphere.Position, motion.Heading);
-        motion.Step(_world, input, _trek, _animation);
+        _follow.Step(_world, motion.Sphere.Position, motion.Heading);
+        motion.Step(_world, input, _follow, _animation);
         _player.Sync();
         _camera.Sync();
         _track.Enqueue(motion.Sphere.Position);
@@ -205,7 +207,7 @@ public partial class Game : Node3D
     /// and R with the stick orbits the camera. On a PC, Shift walks, Ctrl sneaks, and dragging
     /// with the right mouse button, the right stick, or Q and E orbit it.
     /// </summary>
-    private TrekInput ReadInput()
+    private PlayerInput ReadInput()
     {
         var move = Input.GetVector("move_left", "move_right", "move_forward", "move_back");
         var stick = new System.Numerics.Vector2(move.X, -move.Y);
@@ -231,7 +233,7 @@ public partial class Game : Node3D
             orbit = true;
             orbitStick += new System.Numerics.Vector2(drag.X * DragToStick.X, drag.Y * DragToStick.Y);
         }
-        return new TrekInput(stick, Input.IsActionPressed("sneak"), orbit, orbitStick);
+        return new PlayerInput(stick, Input.IsActionPressed("sneak"), orbit, orbitStick);
     }
 
     public override void _Process(double delta)

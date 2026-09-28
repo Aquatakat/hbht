@@ -1,6 +1,6 @@
 using System.Numerics;
 
-namespace Aidyn.Core.Trek;
+namespace Aidyn.Core.Physics;
 
 /// <summary>
 /// A sphere that moves and collides with the world: an actor's collision (<c>collisionSphere</c>,

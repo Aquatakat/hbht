@@ -1,7 +1,7 @@
 using System.Numerics;
 using Aidyn.Plugins.Assets;
 
-namespace Aidyn.Core.Trek;
+namespace Aidyn.Core.Physics;
 
 /// <summary>
 /// The collision of the loaded chunks, in world coordinates, with a grid to find the triangles near

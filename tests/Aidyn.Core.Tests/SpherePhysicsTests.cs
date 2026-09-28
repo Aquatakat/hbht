@@ -1,5 +1,5 @@
 using System.Numerics;
-using Aidyn.Core.Trek;
+using Aidyn.Core.Physics;
 using Aidyn.Plugins.Assets;
 
 namespace Aidyn.Core.Tests;

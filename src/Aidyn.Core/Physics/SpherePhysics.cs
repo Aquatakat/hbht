@@ -1,8 +1,8 @@
 using System.Numerics;
 using Aidyn.Plugins.Assets;
-using Triangle = Aidyn.Core.Trek.CollisionWorld.Triangle;
+using Triangle = Aidyn.Core.Physics.CollisionWorld.Triangle;
 
-namespace Aidyn.Core.Trek;
+namespace Aidyn.Core.Physics;
 
 /// <summary>
 /// The original's sphere physics (<c>collide.cpp</c>, <c>collide2.cpp</c>, <c>physics.cpp</c>):

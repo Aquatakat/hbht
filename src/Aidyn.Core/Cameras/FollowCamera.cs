@@ -1,6 +1,7 @@
 using System.Numerics;
+using Aidyn.Core.Physics;
 
-namespace Aidyn.Core.Trek;
+namespace Aidyn.Core.Cameras;
 
 /// <summary>
 /// The outdoor camera (<c>Camera::Mode0</c>), and orbiting it with R (<c>FUN_800b0fac</c>).
@@ -26,7 +27,7 @@ namespace Aidyn.Core.Trek;
 /// </para>
 /// Checked against the 1.0 ROM's machine code.
 /// </remarks>
-public sealed class TrekCamera
+public sealed class FollowCamera
 {
     /// <summary>R held (<c>holdCamera</c>).</summary>
     private enum HoldState { None, Starting, Holding, Releasing }
@@ -87,7 +88,7 @@ public sealed class TrekCamera
     private HoldState _hold;
 
     /// <summary>Places the camera behind a point, looking along <paramref name="look"/>, as a map load does.</summary>
-    public TrekCamera(Vector3 target, Vector2 look)
+    public FollowCamera(Vector3 target, Vector2 look)
     {
         LookXZ = Vector2.Normalize(look);
         Aim = AimGoal = target;

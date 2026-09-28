@@ -1,13 +1,15 @@
 using System.Numerics;
+using Aidyn.Core.Cameras;
+using Aidyn.Core.Physics;
 
-namespace Aidyn.Core.Trek;
+namespace Aidyn.Core.Movement;
 
 /// <summary>The player's controls for one tick, as the original reads its controller.</summary>
 /// <param name="Stick">The movement stick, each axis −1 to 1, up and right positive.</param>
 /// <param name="Sneak">Z held: sneak instead of walking or running.</param>
 /// <param name="Orbit">R held: the stick turns the camera instead of moving.</param>
 /// <param name="OrbitStick">What turns the camera while <paramref name="Orbit"/> is held, in stick units a frame.</param>
-public readonly record struct TrekInput(Vector2 Stick, bool Sneak = false, bool Orbit = false, Vector2 OrbitStick = default);
+public readonly record struct PlayerInput(Vector2 Stick, bool Sneak = false, bool Orbit = false, Vector2 OrbitStick = default);
 
 /// <summary>Plays an actor's animations and reports how far their root moves.</summary>
 public interface IRootMotion
@@ -21,7 +23,7 @@ public interface IRootMotion
 }
 
 /// <summary>
-/// The player walking about in trek mode (<c>Actor::Move</c> and the player loop in
+/// The player walking about (<c>Actor::Move</c>, which combat also uses, and the player loop in
 /// <c>PlayerData.cpp</c>). Alaron is a sphere of radius 0.5 that the stick turns and that his
 /// animations move: walking and running speeds are his animations' root motion, about 1.26 and
 /// 3.6 units a second.
@@ -68,7 +70,7 @@ public sealed class PlayerMotion
     public Vector3 Feet => Sphere.Position - new Vector3(0, Sphere.Radius, 0);
 
     /// <summary>One 60 Hz tick.</summary>
-    public void Step(CollisionWorld world, TrekInput input, TrekCamera camera, IRootMotion animation)
+    public void Step(CollisionWorld world, PlayerInput input, FollowCamera camera, IRootMotion animation)
     {
         Control(input, camera);
 
@@ -109,7 +111,7 @@ public sealed class PlayerMotion
     }
 
     /// <summary>Reads the controls (<c>Actor::Move</c>, the trek parts).</summary>
-    private void Control(TrekInput input, TrekCamera camera)
+    private void Control(PlayerInput input, FollowCamera camera)
     {
         Request = Idle;
         if (input.Orbit)

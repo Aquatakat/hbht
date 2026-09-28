@@ -1,30 +1,30 @@
-using Aidyn.Core.Trek;
+using Aidyn.Core.Cameras;
 using Godot;
 
 namespace Aidyn.Game;
 
 /// <summary>
-/// Shows the view from the core's <see cref="TrekCamera"/>, and a free-flying camera for looking
+/// Shows the view from the core's <see cref="FollowCamera"/>, and a free-flying camera for looking
 /// around, which F toggles and WASD, Space and C move. Dragging with the right mouse button orbits
-/// the trek camera, or turns the free one.
+/// the follow camera, or turns the free one.
 /// </summary>
 public partial class CameraRig : Node3D
 {
     private const float FlySpeed = 15f, MouseSpeed = 0.005f;
 
-    private readonly Camera3D _camera = new() { Name = "Trek", Fov = 45, Near = 0.1f, Far = 1000 };
+    private readonly Camera3D _camera = new() { Name = "Follow", Fov = 45, Near = 0.1f, Far = 1000 };
     // Moved every frame rather than every tick, so not interpolated.
     private readonly Camera3D _fly = new() { Name = "Fly", Fov = 45, Near = 0.1f, Far = 2000, PhysicsInterpolationMode = PhysicsInterpolationModeEnum.Off };
     private Vector2 _drag;
 
-    public TrekCamera? Trek { get; set; }
+    public FollowCamera? Follow { get; set; }
 
     /// <summary>For placing the free camera from the command line: radians, as Godot's rotations.</summary>
     public float Yaw { get; set; }
     public float Pitch { get; set; }
     public bool Flying { get; private set; }
 
-    /// <summary>Whether the right mouse button is down, which holds the trek camera's orbit.</summary>
+    /// <summary>Whether the right mouse button is down, which holds the follow camera's orbit.</summary>
     public bool Dragging { get; private set; }
 
     public override void _Ready()
@@ -51,13 +51,13 @@ public partial class CameraRig : Node3D
         }
     }
 
-    /// <summary>Puts the view where the trek camera is. Call after each tick.</summary>
+    /// <summary>Puts the view where the follow camera is. Call after each tick.</summary>
     public void Sync()
     {
-        if (Trek is null)
+        if (Follow is null)
             return;
-        var from = Trek.Position.ToGodot();
-        var to = Trek.Aim.ToGodot();
+        var from = Follow.Position.ToGodot();
+        var to = Follow.Aim.ToGodot();
         if (!from.IsEqualApprox(to))
             _camera.LookAtFromPosition(from, to, Vector3.Up);
     }

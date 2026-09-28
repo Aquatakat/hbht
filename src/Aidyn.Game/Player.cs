@@ -1,4 +1,4 @@
-using Aidyn.Core.Trek;
+using Aidyn.Core.Movement;
 using Godot;
 
 namespace Aidyn.Game;

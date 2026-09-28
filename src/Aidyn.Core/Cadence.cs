@@ -1,4 +1,4 @@
-namespace Aidyn.Core.Trek;
+namespace Aidyn.Core;
 
 /// <summary>
 /// How the port turns the original's per-frame behaviour into per-tick steps (ADR 0006).
