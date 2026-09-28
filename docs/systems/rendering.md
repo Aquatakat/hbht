@@ -5,6 +5,7 @@ What the decoders found that the runtime's renderer still has to do. The runtime
 ## Blending
 
 - **The N64 blends what's on screen.** Godot blends in linear light, where the same alpha darkens the screen about half as much. Found with the player's shadow, whose 31% on the N64 looked like 15%. For black over the scene, darkening by 1 − a on screen is darkening by (1 − a)^2.2 in linear light, so the shadow's decal uses that alpha. The N64 material's translucent surfaces will need the same correction, and coloured blends don't reduce to one alpha, so they need their own treatment.
+- **Vertex colours are on-screen values too, but the export writes them as linear.** `SceneGltf` puts each unlit vertex's colour straight into `COLOR_0`, which glTF defines as linear. So a vertex the N64 shades to half brightness shows at about 73% in Godot, which would make baked shading look faint. That may be why the user saw it as missing. Decoding them as sRGB (in the export, or with `vertex_color_is_srgb`) makes multiplying by the texture come out almost as the N64 does, because a power curve carries through a product (sRGB is nearly one). Only unlit meshes have vertex colours. On lit ones the N64 reads those bytes as normals and lights them, so a lit tree looking wrong is a lighting question, not a vertex-colour one. Check a tree's `Unlit` flag first. `WrapMaterials` only replaces materials that don't repeat on both axes, so most surfaces still use Godot's imported `StandardMaterial3D`, and its vertex-colour flags are whatever Godot's glTF import set.
 
 ## Normals
 
