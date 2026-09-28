@@ -258,7 +258,7 @@ ADR 0002 has the Godot version pinned in the repository. `tools/godot.ps1` runs 
 ```powershell
 tools/godot.ps1 --path src/Aidyn.Inspector --editor   # the editor
 tools/godot.ps1 --path src/Aidyn.Inspector            # run the project
-tools/godot.ps1 -Path                                 # print the executable's path
+tools/godot.ps1 -ExePath                              # print the executable's path
 ```
 
 - **The pin is in two places:** the version and hash in `tools/godot.ps1`, and `Godot.NET.Sdk/4.7.2` in each Godot project's `.csproj`. Change them together.

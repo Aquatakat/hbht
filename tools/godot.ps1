@@ -1,6 +1,6 @@
 # Run the pinned Godot editor (.NET build), downloading it on first use.
 # Usage: tools/godot.ps1 [<godot arguments>...]
-#        tools/godot.ps1 -Path       # print the executable's path and exit
+#        tools/godot.ps1 -ExePath    # print the executable's path and exit
 #
 # Examples:
 #   tools/godot.ps1 --path src/Aidyn.Inspector --editor
@@ -9,10 +9,11 @@
 # The editor is fetched from the official GitHub release, checked against the
 # release's SHA-512 and unpacked into the gitignored .tools/. Change the version
 # here and the Godot.NET.Sdk version in the Godot projects' .csproj together.
-param(
-    [switch]$Path,
-    [Parameter(ValueFromRemainingArguments)] [string[]]$GodotArgs
-)
+#
+# There's no param block on purpose: PowerShell would bind Godot's own options
+# to it (it read --path as a -Path switch), so every argument goes to Godot as is.
+$printPath = $args.Count -eq 1 -and $args[0] -eq '-ExePath'
+$godotArgs = $args
 $ErrorActionPreference = 'Stop'
 
 $version = '4.7.2-stable'
@@ -43,6 +44,6 @@ if (-not (Test-Path -LiteralPath $exe)) {
 }
 
 $exe = (Resolve-Path -LiteralPath $exe).Path
-if ($Path) { return $exe }
-& $exe @GodotArgs
+if ($printPath) { return $exe }
+& $exe @godotArgs
 exit $LASTEXITCODE
