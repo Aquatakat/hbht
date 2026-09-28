@@ -52,6 +52,17 @@ public partial class SkyView : Node
     public Clouds? Clouds { get; }
     public LensFlare? Flare { get; }
 
+    /// <summary>How the sky places the clouds, sun, moon and stars across the screen (F6).</summary>
+    public SkyPlacement Placement
+    {
+        get => Objects?.Placement ?? SkyPlacement.Projected;
+        set
+        {
+            Objects?.Placement = value;
+            Clouds?.Placement = value;
+        }
+    }
+
     /// <summary>How thick the weather's fog is, 0 to 1 (<c>weather.fogTime</c>). There's no weather yet.</summary>
     public float FogTime { get; set; }
 

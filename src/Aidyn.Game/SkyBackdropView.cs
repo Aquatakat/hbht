@@ -54,7 +54,9 @@ public partial class SkyBackdropView : Control
             DrawRect(GetRect(), Colors.Black);
             return;
         }
-        var look = (-camera.GlobalBasis.Z).Normalized().ToNumerics();
+        // Where the scenery is drawn from this frame: between ticks, Godot draws the camera
+        // interpolated, and the sky has to match it or it runs up to a tick ahead as the camera turns.
+        var look = (-camera.GetGlobalTransformInterpolated().Basis.Z).Normalized().ToNumerics();
         var colors = _sky.Colors;
         SkyBackdrop.Draw(state.Current, state.Next, state.Change, _sky.Clock.TimeOfDay, look, colors.Fog, _lines,
             _sky.FogTime, _sky.LensFlareValue);

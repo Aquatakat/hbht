@@ -130,6 +130,39 @@ public class SkyObjectsTests
         Assert.Equal(new Vector2(160 - 160 * near / 2, 120 - near * 240 - 60 * near / 2), cloud.At);
     }
 
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(30f)]
+    [InlineData(60f)]
+    public void ProjectedPlacementIsPerspectivesAtAnyHeight(float height)
+    {
+        // The sun at an azimuth of 90° (+X), with the camera looking level, 25° to its right.
+        var off = 25 * MathF.PI / 180;
+        var look = new Vector3(MathF.Cos(off), 0, MathF.Sin(off));
+        var projected = SkyObjects.Place(height, 90, false, look, SkyPlacement.Projected)!.Value;
+        var original = SkyObjects.Place(height, 90, false, look)!.Value;
+
+        var focal = 120 / MathF.Tan(22.5f * MathF.PI / 180);
+        Assert.Equal(160 - focal * MathF.Tan(off), projected.X, 0.01f);
+        Assert.Equal(160 - 300 * MathF.Sin(off), original.X, 0.01f);
+        // Only across: the height is placed the same.
+        Assert.Equal(original.Y, projected.Y);
+    }
+
+    [Fact]
+    public void ProjectedCloudsTurnWithTheScenery()
+    {
+        // The cloud at −Z, which the game sees at +X (with X and Z swapped), and a look 40° to its
+        // right, from +Z toward +X: the original draws it 300 × sin 40° left of the middle.
+        var clouds = new Clouds(Sky()) { Placement = SkyPlacement.Projected };
+        var sprites = new List<SkySprite>();
+        var look = 50 * MathF.PI / 180;
+        clouds.Draw(sprites, new Vector3(MathF.Sin(look), 0, MathF.Cos(look)), new Vector3(0.8f), Size);
+        var cloud = Assert.Single(sprites);
+        var near = 1 - 530f / 750;
+        Assert.Equal(160 - SkyScreen.Focal * MathF.Tan(40 * MathF.PI / 180), cloud.At.X + 160 * near / 2, 0.01f);
+    }
+
     [Fact]
     public void TheWindBlowsCloudsRoundToTheOtherSide()
     {

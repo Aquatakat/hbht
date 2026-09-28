@@ -27,7 +27,8 @@ namespace Aidyn.Game;
 /// <c>--hold &lt;action&gt;,&lt;seconds&gt;</c>, which holds an input such as <c>move_forward</c>
 /// (join several with <c>+</c>, as in <c>move_forward+walk</c>),
 /// and <c>--screenshot &lt;png&gt;</c>, which saves the window after that and quits.
-/// F toggles the free camera, F3 the debug overlay and F5 the pace.
+/// <c>--sky original</c> places the sky's sprites as the original does rather than projected.
+/// F toggles the free camera, F3 the debug overlay, F5 the pace and F6 the sky's placement.
 /// </remarks>
 public partial class Game : Node3D
 {
@@ -106,6 +107,7 @@ public partial class Game : Node3D
         AddChild(SkyBackdropView.Create(_sky));
         AddChild(LensFlareView.Create(_sky));
         _sky.SkyShows = SkyShows;
+        _sky.Placement = args.GetValueOrDefault("sky") == "original" ? Core.Sky.SkyPlacement.Original : Core.Sky.SkyPlacement.Projected;
         if (args.TryGetValue("time", out var time))
             _sky.Clock.SetTimeOfDay(float.Parse(time, CultureInfo.InvariantCulture));
 
@@ -314,7 +316,7 @@ public partial class Game : Node3D
                 (_camera.Flying ? "  [free camera]" : "") + "\n" +
                 (sphere.Touching ? $"on {Surfaces.ElementAtOrDefault(sphere.Surface) ?? sphere.Surface.ToString()}" : "in the air") +
                 $"  speed {Speed():F2}/s  request {motion.Request}  pace {motion.Pace:0.##} (F5)" +
-                $"  {Clock(_sky!.Clock.TimeOfDay)}";
+                $"  {Clock(_sky!.Clock.TimeOfDay)}  sky {_sky.Placement.ToString().ToLowerInvariant()} (F6)";
         }
     }
 
@@ -346,6 +348,10 @@ public partial class Game : Node3D
         else if (e.IsActionPressed("toggle_pace") && _player is not null)
         {
             _player.Motion.Pace = _player.Motion.Pace == 1 ? BriskPace : 1;
+        }
+        else if (e.IsActionPressed("toggle_sky_placement") && _sky is not null)
+        {
+            _sky.Placement = _sky.Placement == Core.Sky.SkyPlacement.Original ? Core.Sky.SkyPlacement.Projected : Core.Sky.SkyPlacement.Original;
         }
     }
 
@@ -384,6 +390,7 @@ public partial class Game : Node3D
         Add("toggle_fly", Key.F);
         Add("toggle_overlay", Key.F3);
         Add("toggle_pace", Key.F5);
+        Add("toggle_sky_placement", Key.F6);
 
         static void Add(string action, Key? key, Key? alternative = null, JoyAxis? axis = null, float direction = 0, JoyButton? button = null)
         {

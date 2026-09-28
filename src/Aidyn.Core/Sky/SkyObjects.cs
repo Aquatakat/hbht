@@ -27,6 +27,9 @@ public sealed class SkyObjects(SkyRecord sky)
     /// </summary>
     public Vector2 SunMiddle { get; private set; } = new(-1, -1);
 
+    /// <summary>How they're placed across the screen: the original's way, or projected.</summary>
+    public SkyPlacement Placement { get; set; }
+
     /// <summary>Adds this frame's sprites to <paramref name="sprites"/>, in the order they're drawn.</summary>
     /// <param name="look">The way the camera looks, normalised.</param>
     /// <param name="sunColor">The sky's sun colour (<see cref="SkyColors.Sun"/>), which the sun is drawn in.</param>
@@ -56,7 +59,7 @@ public sealed class SkyObjects(SkyRecord sky)
 
         Vector2? Add(SkyBody body, RecordId image, float height, Rgba color, float fogFade, float? night, bool moon = false)
         {
-            if (Place(height, body.Azimuth, moon, look) is not { } at)
+            if (Place(height, body.Azimuth, moon, look, Placement) is not { } at)
                 return null;
             float a = color.A;
             var fog = a * fogTime * fogFade;
@@ -84,7 +87,7 @@ public sealed class SkyObjects(SkyRecord sky)
     /// The second, in degrees, turned half round while the height is between 90° and 270°, so an
     /// object that passes overhead carries on across the sky. The moon also sways 40° either side.
     /// </param>
-    public static Vector2? Place(float height, float azimuth, bool moon, Vector3 look)
+    public static Vector2? Place(float height, float azimuth, bool moon, Vector3 look, SkyPlacement placement = SkyPlacement.Original)
     {
         var across = MathF.Sqrt(look.X * look.X + look.Z * look.Z);
         if (across == 0)
@@ -96,7 +99,7 @@ public sealed class SkyObjects(SkyRecord sky)
         var (se, ce) = MathF.SinCos(-(MathF.Sin(height * Deg) * 90) * Deg);
         if (ca * z + sa * x <= 0 || ce * across - se * look.Y <= 0)
             return null;
-        return new Vector2((ca * x - sa * z) * SkyScreen.Spread + SkyScreen.Middle.X, (ce * look.Y + se * across) * SkyScreen.Spread + SkyScreen.Middle.Y);
+        return new Vector2(SkyScreen.Across(ca * x - sa * z, placement), (ce * look.Y + se * across) * SkyScreen.Spread + SkyScreen.Middle.Y);
     }
 
     /// <summary>The moon's first angle, in degrees (<c>Skyobjects::UpdateMoon</c>).</summary>

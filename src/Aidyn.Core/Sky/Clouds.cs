@@ -46,6 +46,9 @@ public sealed class Clouds
 
     public Vector3 Wind { get; set; } = NewGameWind;
 
+    /// <summary>How the clouds are placed across the screen: the original's way, or projected.</summary>
+    public SkyPlacement Placement { get; set; }
+
     /// <summary>Where each cloud is on its plane, around the camera, as (X, Z).</summary>
     public IReadOnlyList<Vector2> Positions => _at;
 
@@ -91,7 +94,7 @@ public sealed class Clouds
 
             var image = _sky.CloudImages[_sky.Clouds[i].Image];
             var extent = size(image);
-            var x = (toCamera.X * lx - toCamera.Y * lz) * SkyScreen.Spread + SkyScreen.Middle.X;
+            var x = SkyScreen.Across(toCamera.X * lx - toCamera.Y * lz, Placement);
             var at = new Vector2(x - extent.X * near * 0.5f, horizon - near * SkyScreen.Height - extent.Y * near * 0.5f);
             sprites.Add(new SkySprite(image, at, near + 0.2f, color, alpha / 255f));
         }
