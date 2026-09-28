@@ -33,9 +33,9 @@ public static class BasePlugin
     /// <summary>
     /// Raised whenever the importer's output changes, so existing imports are redone. 1 was the
     /// first slice for M1: map sets, chunks, scene objects, actors, and scene and collision assets.
-    /// 2 adds locator nodes to scenes and Alaron's head.
+    /// 2 adds locator nodes to scenes and Alaron's head. 3 adds every texture as PNG.
     /// </summary>
-    public const int ImporterVersion = 2;
+    public const int ImporterVersion = 3;
 }
 
 /// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>

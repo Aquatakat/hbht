@@ -50,6 +50,7 @@ public partial class Game : Node3D
     private ChunkStreamer? _chunks;
     private Player? _player;
     private CameraRig? _camera;
+    private ShadowDecal? _shadow;
     private FollowCamera? _follow;
     private IRootMotion _animation = new Still();
     /// <summary>The player's last second of positions, for the overlay's speed.</summary>
@@ -124,11 +125,21 @@ public partial class Game : Node3D
         if (models.InstantiateActor(alaron) is var (model, animator))
         {
             _player.SetModel(model);
+            ShadowDecal.MarkBody(model);
             if (animator is not null)
             {
                 animator.Driven = true;
                 _animation = animator;
             }
+        }
+
+        // The texture engine code gives bodies' shadows (BORG1_PlayerShadow).
+        if (plugins.FindAsset(RecordId.Hex(RecordTypes.Texture, 0x0003), "png") is { } shadowPng)
+        {
+            var image = new Image();
+            image.LoadPngFromBuffer(File.ReadAllBytes(shadowPng));
+            _shadow = new ShadowDecal(ImageTexture.CreateFromImage(image));
+            AddChild(_shadow);
         }
 
         _follow = new FollowCamera(centre, look);
@@ -191,6 +202,7 @@ public partial class Game : Node3D
         motion.Step(_world, input, _follow, _animation);
         _player.Sync();
         _camera.Sync();
+        PlaceShadow();
         _track.Enqueue(motion.Sphere.Position);
         if (_track.Count > Engine.PhysicsTicksPerSecond)
             _track.Dequeue();
@@ -199,7 +211,21 @@ public partial class Game : Node3D
         {
             _player.ResetPhysicsInterpolation();
             _camera.ResetPhysicsInterpolation();
+            _shadow?.ResetPhysicsInterpolation();
         }
+    }
+
+    /// <summary>The player's shadow, placed after he and the camera move, as the original draws it.</summary>
+    private void PlaceShadow()
+    {
+        if (_shadow is null)
+            return;
+        var sphere = _player!.Motion.Sphere;
+        var alpha = BodyShadow.DrawAlpha(BodyShadow.TrekDistance, System.Numerics.Vector3.Distance(_follow!.Aim, sphere.Position), player: true);
+        if (alpha is { } a)
+            _shadow.Shadow.Place(_world, sphere.Position, sphere.Radius, a);
+        _shadow.Sync();
+        _shadow.Visible &= alpha is not null;
     }
 
     /// <summary>

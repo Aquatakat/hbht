@@ -2,6 +2,10 @@
 
 What the decoders found that the runtime's renderer still has to do. The runtime's own stand-ins are in [runtime](runtime.md).
 
+## Blending
+
+- **The N64 blends what's on screen.** Godot blends in linear light, where the same alpha darkens the screen about half as much. Found with the player's shadow, whose 31% on the N64 looked like 15%. For black over the scene, darkening by 1 − a on screen is darkening by (1 − a)^2.2 in linear light, so the shadow's decal uses that alpha. The N64 material's translucent surfaces will need the same correction, and coloured blends don't reduce to one alpha, so they need their own treatment.
+
 ## From static graphics (1A)
 
 - **Lighting:** the viewer's lighting looks like sunny daytime in-game. Real scene lighting varies with time of day and weather. The decomp's draw code seems to ignore Borg4 lights in favour of a fixed white light, which is still unresolved.

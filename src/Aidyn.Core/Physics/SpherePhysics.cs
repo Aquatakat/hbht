@@ -19,7 +19,7 @@ namespace Aidyn.Core.Physics;
 public static class SpherePhysics
 {
     /// <summary>What the original treats as zero length (<c>NORMALIZE_MIN</c>).</summary>
-    private const float Epsilon = 1e-6f;
+    public const float Epsilon = 1e-6f;
 
     [ThreadStatic] private static List<Triangle>? _near;
 

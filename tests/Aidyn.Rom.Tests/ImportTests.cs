@@ -67,6 +67,12 @@ public sealed class ImportTests : IDisposable
             Assert.Equal((int)expected.Flags, (int)actual.Flags);
         }
         Assert.Contains(collision, t => t.Flags.HasFlag(CollisionFlags.SeeThrough));
+
+        // Every texture is there as PNG, such as the one bodies' shadows use (BORG1_PlayerShadow).
+        var textures = archive.Listings.Where(l => l.Type == Borg.BorgType.Texture).ToList();
+        Assert.All(textures, l => Assert.NotNull(set.FindAsset(RecordId.Hex(RecordTypes.Texture, l.Index), "png")));
+        var shadow = File.ReadAllBytes(set.FindAsset(RecordId.Parse("aidyn:texture/0x0003"), "png")!);
+        Assert.Equal(Graphics.Png.Encode(Graphics.Borg1Texture.Parse(archive.Read(3)).Decode()), shadow);
     }
 
     [Fact]

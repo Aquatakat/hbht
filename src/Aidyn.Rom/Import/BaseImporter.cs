@@ -18,8 +18,8 @@ namespace Aidyn.Rom.Import;
 /// </summary>
 /// <remarks>
 /// This is the slice M1 needs: map sets and their chunks, scene objects, actors, every scene as
-/// glTF and every chunk's collision. Records for the rest of the content come with the tracks that
-/// use them.
+/// glTF, every chunk's collision, and every texture as PNG for what the engine draws itself.
+/// Records for the rest of the content come with the tracks that use them.
 /// </remarks>
 public static class BaseImporter
 {
@@ -96,6 +96,13 @@ public static class BaseImporter
             if (Interlocked.Increment(ref done) % 200 == 0)
                 progress?.Report($"Scenes {done}/{scenes.Count}");
         });
+
+        // Scenes carry their own textures. These are for what the engine draws with a texture
+        // alone, such as bodies' shadows and particles. Only the full-size level is kept.
+        progress?.Report("Textures");
+        var textures = archive.Listings.Where(l => l.Type == BorgType.Texture).Select(l => l.Index).ToList();
+        Parallel.ForEach(textures, index =>
+            WriteAsset(staging, RecordId.Hex(RecordTypes.Texture, index), "png", Png.Encode(Borg1Texture.Parse(archive.Read(index)).Decode())));
 
         if (Directory.Exists(directory))
             Directory.Delete(directory, recursive: true);
