@@ -6,7 +6,7 @@ A PC reimplementation of Aidyn Chronicles: The First Mage (N64). It runs on cont
 
 - [docs/roadmap.md](docs/roadmap.md): the phased plan. Task numbers (0.3, 1E, 2.10, …) refer to it.
 - [docs/adr/](docs/adr/README.md): accepted architecture decisions. They are binding. To change one, write a new ADR that supersedes it rather than editing the old one.
-- [docs/reference-rig.md](docs/reference-rig.md): the emulator, the ROMs, the checkpoint save states, and `tools/`.
+- [docs/reference-rig.md](docs/reference-rig.md): the emulator, the pinned Godot, the ROMs, the checkpoint save states, and `tools/`.
 
 ## Code
 
@@ -22,7 +22,8 @@ Update this section when a roadmap task finishes or starts.
 
 - **Done:** 0.1 reference rig, 0.2 ROM identification, 0.3 Borg archive reader, 0.4 DB readers, 0.5 ADRs, 1A static graphics (textures, UI images, geometry, scenes, glTF export; the Gwernia house and Brenna match emulator captures), 1E quest atlas (Borg13 dialogue, map objects, the flag network, journal links, the cross-reference and its viewer; checked against the four checkpoints), 1H hardcoded-content audit ([docs/hardcoded-content.md](docs/hardcoded-content.md): every item has its ADR 0008 layer; the tables the atlas needs are read from the ROM, the rest are located), 1B animation (Borg6 animations played as the game steps them, glTF animation export, Borg7 actors and entities' models, Borg5 particle emitters; the user confirmed all 13 opening shots and Brenna's animation set in the scene viewer), 1C maps (Borg9 collision and its grid, every map object type, Expansion Pak variants, chunk placement per map set, and the map viewer; the user confirmed the layout, terrain, objects and enemy spawns).
 - **Left for later:** 1A's and 1B's leftovers for the renderer (lighting, billboards, texture filtering, scrolling textures, the particle simulation, the cinematics' clip planes) are in the reference rig. 1H's are at the end of its audit: flags 955–958 and 960–963 are unexplained, and the content tables marked To do are located but not read; the importer will need them.
-- **Not started:** 0.6 asset inspector (needs Godot installed and pinned), and everything else after Phase 0.
+- **In progress:** 0.6 asset inspector (Godot 4.7.2 .NET is pinned; see the reference rig).
+- **Not started:** everything else after Phase 0.
 - **Open rig follow-ups** (from ADR 0006): measure the frame `delta` distribution in trek and combat, and get gdb working after loading a save state.
 
 ## Ground rules

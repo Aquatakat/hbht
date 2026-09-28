@@ -239,6 +239,20 @@ gdb-multiarch -ex "set architecture mips:4300" -ex "set endian big" -ex "target 
 
 Resolve addresses against the decomp's `symbol_addrs.debug.txt` (debug ROM) or `symbol_addrs.us.txt` (1.0). A first attach to the debug ROM sampled `InitProc+0x1fc` and libultra thread code, which confirms the game is running.
 
+## Engine: Godot 4.7.2 (.NET)
+
+ADR 0002 has the Godot version pinned in the repository. `tools/godot.ps1` runs the pinned editor. On first use it downloads `Godot_v4.7.2-stable_mono_win64.zip` from the official GitHub release, checks it against the release's SHA-512 and unpacks it into the gitignored `.tools/godot/`. The editor runs self-contained (the `._sc_` file beside it), so its settings and caches stay in `.tools/` and don't touch another Godot install. The script runs the console build, so Godot's output and exit code reach the terminal.
+
+```powershell
+tools/godot.ps1 --path src/Aidyn.Inspector --editor   # the editor
+tools/godot.ps1 --path src/Aidyn.Inspector            # run the project
+tools/godot.ps1 -Path                                 # print the executable's path
+```
+
+- **The pin is in two places:** the version and hash in `tools/godot.ps1`, and `Godot.NET.Sdk/4.7.2` in each Godot project's `.csproj`. Change them together.
+- **Godot projects state `TargetFramework` themselves.** The editor doesn't see `Directory.Build.props`, and if the `.csproj` has no `TargetFramework` it writes in its own default, `net8.0`, which can't reference the net10 libraries. Godot 4.7.2 runs net10 assemblies without trouble.
+- **No `.sln` is needed.** The editor builds the `.csproj`, and `dotnet build` builds Godot projects like any other, into `.godot/mono/temp/bin/`. The project's `.godot/` folder is a cache and is gitignored. The `.uid` files Godot writes beside scripts are committed.
+
 ## Existing saves
 
 Mupen64Plus saves are in `%APPDATA%\Mupen64Plus\save`. Only `AIDYN_CHRONICLES (unknown rom).mpk` (Oct 2025) holds Aidyn data. The other Aidyn `.mpk` files are empty paks.
