@@ -12,7 +12,8 @@ public partial class CameraRig : Node3D
 {
     private const float FlySpeed = 15f, MouseSpeed = 0.005f;
 
-    private readonly Camera3D _camera = new() { Name = "Follow", Fov = 45, Near = 0.1f, Far = 1000 };
+    // The original's far plane, where the fog is full. Its near plane is 1.
+    private readonly Camera3D _camera = new() { Name = "Follow", Fov = 45, Near = 0.1f, Far = SkyView.Far };
     // Moved every frame rather than every tick, so not interpolated.
     private readonly Camera3D _fly = new() { Name = "Fly", Fov = 45, Near = 0.1f, Far = 2000, PhysicsInterpolationMode = PhysicsInterpolationModeEnum.Off };
     private Vector2 _drag;

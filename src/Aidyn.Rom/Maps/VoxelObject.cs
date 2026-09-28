@@ -120,7 +120,10 @@ public enum SceneObjectFlags : ushort
     /// <summary>Drawn within half its draw distance even when out of view.</summary>
     DrawWhenNear = 0x4,
     Unknown8 = 0x8,
-    /// <summary>Drawn with <see cref="SceneData.Tint"/>'s alpha.</summary>
+    /// <summary>
+    /// Tinted: unless the tint is all zero, its colour is averaged with the scenery's
+    /// (<c>SetSceneColors</c>). Its alpha isn't used.
+    /// </summary>
     Tint = 0x10,
     /// <summary>Unlit.</summary>
     Fullbright = 0x20,

@@ -121,6 +121,8 @@ public enum CodeTable
     DialogEntityModels,
     /// <summary>17 s32 Borg1 indices, one per particle texture slot, −1 for empty (<c>partTextInds</c>).</summary>
     ParticleTextures,
+    /// <summary>The Borg8 sky gradients by sky number, as u32s; number 0 is unused (<c>sky_borg8s</c>, <c>Sky::loadDay</c>).</summary>
+    SkyGradients,
 }
 
 /// <summary>
@@ -199,6 +201,7 @@ public static class RomVersions
                 [CodeTable.DialogEntityList] = new(0x00E1900, 0x25),
                 [CodeTable.DialogEntityModels] = new(0x00E3178, 0x294),
                 [CodeTable.ParticleTextures] = new(0x00CE460, 0x44),
+                [CodeTable.SkyGradients] = new(0x00CEB50, 0x24),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {
@@ -273,6 +276,7 @@ public static class RomVersions
                 [CodeTable.DialogEntityList] = new(0x00E1940, 0x25),
                 [CodeTable.DialogEntityModels] = new(0x00E31B8, 0x294),
                 [CodeTable.ParticleTextures] = new(0x00CE450, 0x44),
+                [CodeTable.SkyGradients] = new(0x00CEB40, 0x24),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {
@@ -345,6 +349,7 @@ public static class RomVersions
                 [CodeTable.DialogEntityList] = new(0x00F0470, 0x25),
                 [CodeTable.DialogEntityModels] = new(0x00F1CE8, 0x294),
                 [CodeTable.ParticleTextures] = new(0x00D94B8, 0x44),
+                [CodeTable.SkyGradients] = new(0x00DA6A0, 0x24),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {

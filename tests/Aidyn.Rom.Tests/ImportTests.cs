@@ -73,6 +73,12 @@ public sealed class ImportTests : IDisposable
         Assert.All(textures, l => Assert.NotNull(set.FindAsset(RecordId.Hex(RecordTypes.Texture, l.Index), "png")));
         var shadow = File.ReadAllBytes(set.FindAsset(RecordId.Parse("aidyn:texture/0x0003"), "png")!);
         Assert.Equal(Graphics.Png.Encode(Graphics.Borg1Texture.Parse(archive.Read(3)).Decode()), shadow);
+
+        // Every terrain names its sky gradient, which is there as PNG. I08's is sky 1 (BORG8_SkyGradient0).
+        var terrains = set.All<TerrainRecord>(RecordTypes.Terrain).ToList();
+        Assert.Equal(28, terrains.Count);
+        Assert.All(terrains, t => Assert.NotNull(set.FindAsset(t.Sky, "png")));
+        Assert.Equal(RecordId.Hex(RecordTypes.Image, 0x19F), set.Get<TerrainRecord>(RecordId.Decimal(RecordTypes.Terrain, i08.Terrain)).Sky);
     }
 
     [Fact]

@@ -14,8 +14,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Shared with the inspector until the N64 material replaces it. -->
-    <Compile Include="..\Aidyn.Inspector\WrapMaterials.cs" Link="WrapMaterials.cs" />
+    <!-- Shared with the inspector, which previews scenes as the runtime draws them. -->
+    <Compile Include="..\Aidyn.Inspector\N64Material.cs" Link="N64Material.cs" />
   </ItemGroup>
 
 </Project>

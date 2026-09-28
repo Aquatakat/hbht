@@ -39,6 +39,8 @@ public sealed class Models(PluginSet plugins) : IDisposable
             else
                 GD.PushWarning($"{actor.Scene} has no {locatorName} for its head.");
         }
+        // Bodies are lit, not tinted like scenery.
+        N64Material.MarkBody(node);
         return (node, ActorAnimator.Attach(node, actor, Glb(actor.Scene)!));
     }
 
@@ -75,7 +77,7 @@ public sealed class Models(PluginSet plugins) : IDisposable
             GD.PushWarning($"Godot couldn't load {scene}'s glTF.");
             return null;
         }
-        WrapMaterials.Apply(glb, state, node);
+        N64Material.Apply(glb, state, node);
         node.Name = scene.ToString().Replace(':', '_').Replace('/', '_');
         return node;
     }

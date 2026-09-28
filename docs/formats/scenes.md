@@ -25,6 +25,7 @@
   - Textured draws are texture × shade (the vertex colour or the lighting), with alpha = texture alpha × (1 − tint alpha). The tint's colour isn't used.
   - Untextured draws are shade × tint colour.
   - Unlit display lists use `KHR_materials_unlit` with `COLOR_0`. Lit ones have normals.
+  - Vertex colours and untextured tints are the values the N64 puts on screen, so they're decoded as sRGB into glTF's linear `COLOR_0` and `baseColorFactor`. Written as they were, they multiplied the texture as if about 1.5 times brighter at half shade (see [rendering](../systems/rendering.md)).
   - The wrap and mirror flags map to sampler wrap modes, and flag 0x80 maps to nearest filtering.
   - Culling maps to `doubleSided`.
   - Environment-mapped draws lose their texture, because glTF can't generate texture coordinates.

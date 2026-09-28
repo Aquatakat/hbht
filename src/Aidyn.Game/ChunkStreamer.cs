@@ -1,4 +1,5 @@
 using Aidyn.Core.Physics;
+using Aidyn.Inspector;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Assets;
 using Aidyn.Plugins.Records;
@@ -126,6 +127,10 @@ public partial class ChunkStreamer : Node3D
             var end = Math.Min(model.DrawDistance, o.Radius);
             if (Instantiate(model.Model) is { } instance)
             {
+                // The original averages a tinted object's tint with the scenery's (SetSceneColors).
+                // Actors are lit instead.
+                if (o.Flags.HasFlag(SceneObjectFlags.Tint) && o.Tint != default && model.Model.Type != RecordTypes.Actor)
+                    N64Material.SetObjectTint(instance, Color.Color8(o.Tint.R, o.Tint.G, o.Tint.B));
                 foreach (var mesh in FindAll<GeometryInstance3D>(instance))
                 {
                     mesh.VisibilityRangeBegin = begin;

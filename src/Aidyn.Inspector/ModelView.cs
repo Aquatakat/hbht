@@ -80,7 +80,7 @@ public partial class ModelView : VBoxContainer
             _note.Text = $"Godot couldn't load the glTF ({error}).";
             return;
         }
-        WrapMaterials.Apply(preview.Glb, state, scene);
+        N64Material.Apply(preview.Glb, state, scene);
         _content = scene;
         _viewport.AddChild(scene);
         _camera.MakeCurrent();

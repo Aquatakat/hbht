@@ -233,7 +233,7 @@ public static class SceneGltf
             }
             else
             {
-                pbr["baseColorFactor"] = new JsonArray(mesh.Tint.X, mesh.Tint.Y, mesh.Tint.Z, alpha);
+                pbr["baseColorFactor"] = LinearColor(mesh.Tint, alpha);
             }
 
             var material = new JsonObject
@@ -290,7 +290,7 @@ public static class SceneGltf
             {
                 ["pbrMetallicRoughness"] = new JsonObject
                 {
-                    ["baseColorFactor"] = new JsonArray(mesh.Tint.X, mesh.Tint.Y, mesh.Tint.Z, alpha),
+                    ["baseColorFactor"] = LinearColor(mesh.Tint, alpha),
                     ["metallicFactor"] = 0f,
                     ["roughnessFactor"] = 1f,
                 },
@@ -482,9 +482,9 @@ public static class SceneGltf
         if (!mesh.Flags.HasFlag(Borg2MaterialFlags.Unlit))
             attributes["NORMAL"] = gltf.AddVectors(mesh.Vertices.Select(Normal).ToList());
         else if (texture is not null)
-            attributes["COLOR_0"] = gltf.AddVectors(mesh.Vertices.Select(v => new Vector3(v.R, v.G, v.B) / 255).ToList());
+            attributes["COLOR_0"] = gltf.AddVectors(mesh.Vertices.Select(v => ToLinear(new Vector3(v.R, v.G, v.B) / 255)).ToList());
         else
-            attributes["COLOR_0"] = gltf.AddVectors(mesh.Vertices.Select(v => new Vector4(v.R, v.G, v.B, v.A) / 255).ToList());
+            attributes["COLOR_0"] = gltf.AddVectors(mesh.Vertices.Select(v => new Vector4(ToLinear(new Vector3(v.R, v.G, v.B) / 255), v.A / 255f)).ToList());
         if (texture is not null)
         {
             // 64 units of S or T per texel; T = 0 is the texture's first row, which is glTF's top.
@@ -497,6 +497,21 @@ public static class SceneGltf
             ["attributes"] = attributes,
             ["indices"] = gltf.AddIndices(mesh.Indices, mesh.Vertices.Length),
         };
+    }
+
+    /// <summary>
+    /// The N64 has no linear light: its vertex colours and tints are the values it puts on screen,
+    /// which glTF colours aren't. Decoding them as sRGB makes a renderer that multiplies in linear
+    /// light come out almost as the N64 does, because a power curve carries through a product.
+    /// </summary>
+    public static Vector3 ToLinear(Vector3 srgb) => new(ToLinear(srgb.X), ToLinear(srgb.Y), ToLinear(srgb.Z));
+
+    private static float ToLinear(float c) => c <= 0.04045f ? c / 12.92f : MathF.Pow((c + 0.055f) / 1.055f, 2.4f);
+
+    private static JsonArray LinearColor(Vector4 tint, float alpha)
+    {
+        var c = ToLinear(new Vector3(tint.X, tint.Y, tint.Z));
+        return new JsonArray(c.X, c.Y, c.Z, alpha);
     }
 
     private static Vector3 Normal(N64Vertex v)

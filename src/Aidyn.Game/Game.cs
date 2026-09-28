@@ -21,7 +21,8 @@ namespace Aidyn.Game;
 /// player and camera face (0 looks along −Z), <c>--pitch</c> (negative looks down, default −15)
 /// and <c>--distance</c> for the camera, <c>--pace</c> for the player's speed (1 is the
 /// original's), <c>--fly &lt;x&gt;,&lt;y&gt;,&lt;z&gt;</c> to start with the free camera there in
-/// world coordinates, looking along <c>--yaw</c> and <c>--pitch</c>, and
+/// world coordinates, looking along <c>--yaw</c> and <c>--pitch</c>, <c>--time &lt;hours&gt;</c>
+/// for the time of day (a new game starts at 12), and
 /// <c>--hold &lt;action&gt;,&lt;seconds&gt;</c>, which holds an input such as <c>move_forward</c>
 /// (join several with <c>+</c>, as in <c>move_forward+walk</c>),
 /// and <c>--screenshot &lt;png&gt;</c>, which saves the window after that and quits.
@@ -51,6 +52,7 @@ public partial class Game : Node3D
     private Player? _player;
     private CameraRig? _camera;
     private ShadowDecal? _shadow;
+    private SkyView? _sky;
     private FollowCamera? _follow;
     private IRootMotion _animation = new Still();
     /// <summary>The player's last second of positions, for the overlay's speed.</summary>
@@ -99,6 +101,11 @@ public partial class Game : Node3D
         });
         AddChild(new DirectionalLight3D { RotationDegrees = new Vector3(-55, 30, 0), LightEnergy = 0.9f });
 
+        _sky = new SkyView(plugins);
+        AddChild(_sky);
+        if (args.TryGetValue("time", out var time))
+            _sky.Clock.SetTimeOfDay(float.Parse(time, CultureInfo.InvariantCulture));
+
         var models = _models = new Models(plugins);
         _chunks = new ChunkStreamer(plugins, models, set, _world);
         AddChild(_chunks);
@@ -110,6 +117,8 @@ public partial class Game : Node3D
         // on the highest ground below 1000, so --at works anywhere.
         var spawn = _chunks.Origin(chunk) + new Vector3(at[0], 10, at[1]);
         _chunks.Update(spawn);
+        _sky.Enter(chunk);
+        _sky.Apply();
         var centre = spawn.ToNumerics();
         var above = centre with { Y = 1000 };
         if (SpherePhysics.Sweep(_world, above, above - new System.Numerics.Vector3(0, 2000, 0), 0.5f, false, out var ground, out var normal))
@@ -193,7 +202,11 @@ public partial class Game : Node3D
     /// <summary>One 60 Hz tick: the camera, then the player, as the original orders them.</summary>
     public override void _PhysicsProcess(double delta)
     {
-        if (_player is null || _camera is null || _follow is null || _camera.Flying)
+        if (_player is null || _camera is null || _follow is null)
+            return;
+        _sky!.Enter(_chunks!.ChunkAt(_player.Motion.Sphere.Position.ToGodot()));
+        _sky.Step();
+        if (_camera.Flying)
             return;
         var input = ReadInput();
         var motion = _player.Motion;
@@ -279,8 +292,15 @@ public partial class Game : Node3D
                 $"({local.X:F1}, {local.Y:F1}, {local.Z:F1})  {Engine.GetFramesPerSecond()} fps" +
                 (_camera.Flying ? "  [free camera]" : "") + "\n" +
                 (sphere.Touching ? $"on {Surfaces.ElementAtOrDefault(sphere.Surface) ?? sphere.Surface.ToString()}" : "in the air") +
-                $"  speed {Speed():F2}/s  request {motion.Request}  pace {motion.Pace:0.##} (F5)";
+                $"  speed {Speed():F2}/s  request {motion.Request}  pace {motion.Pace:0.##} (F5)" +
+                $"  {Clock(_sky!.Clock.TimeOfDay)}";
         }
+    }
+
+    private static string Clock(float timeOfDay)
+    {
+        var minutes = (int)(timeOfDay * 24 * 60);
+        return $"{minutes / 60:D2}:{minutes % 60:D2}";
     }
 
     /// <summary>How far the player went in X and Z over the last second, per second.</summary>

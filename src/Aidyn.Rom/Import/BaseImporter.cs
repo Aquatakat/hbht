@@ -2,6 +2,7 @@ using System.Text.Json;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 using Aidyn.Rom.Borg;
+using Aidyn.Rom.Engine;
 using Aidyn.Rom.Graphics;
 using Aidyn.Rom.Maps;
 using FlagGate = Aidyn.Plugins.Records.FlagGate;
@@ -17,8 +18,9 @@ namespace Aidyn.Rom.Import;
 /// <see cref="BasePlugin.ImporterVersion"/> always give the same bytes.
 /// </summary>
 /// <remarks>
-/// This is the slice M1 needs: map sets and their chunks, scene objects, actors, every scene as
-/// glTF, every chunk's collision, and every texture as PNG for what the engine draws itself.
+/// This is the slice M1 needs: map sets and their chunks, terrains, scene objects, actors, every
+/// scene as glTF, every chunk's collision, and every texture and UI image as PNG for what the
+/// engine draws itself.
 /// Records for the rest of the content come with the tracks that use them.
 /// </remarks>
 public static class BaseImporter
@@ -54,6 +56,14 @@ public static class BaseImporter
 
         progress?.Report("Map sets");
         WriteJson(Path.Combine(staging, "records", "mapsets.json"), BuildMapSets(chunks));
+
+        progress?.Report("Terrains");
+        var gradients = Skies.ReadGradients(rom);
+        WriteJson(Path.Combine(staging, "records", "terrains.json"), Enumerable.Range(0, Skies.TerrainCount).Select(t =>
+        {
+            var (sky, drawn) = Skies.ForTerrain(t);
+            return new TerrainRecord(RecordId.Decimal(RecordTypes.Terrain, t), RecordId.Hex(RecordTypes.Image, gradients[sky]), drawn);
+        }).ToList());
 
         progress?.Report("Maps and collision");
         var maps = chunks.Select(c => c.Collision).Distinct().Order().ToList();
@@ -103,6 +113,12 @@ public static class BaseImporter
         var textures = archive.Listings.Where(l => l.Type == BorgType.Texture).Select(l => l.Index).ToList();
         Parallel.ForEach(textures, index =>
             WriteAsset(staging, RecordId.Hex(RecordTypes.Texture, index), "png", Png.Encode(Borg1Texture.Parse(archive.Read(index)).Decode())));
+
+        // UI images, and the sky gradients the scenery's colours come from.
+        progress?.Report("Images");
+        var images = archive.Listings.Where(l => l.Type == BorgType.UiImage).Select(l => l.Index).ToList();
+        Parallel.ForEach(images, index =>
+            WriteAsset(staging, RecordId.Hex(RecordTypes.Image, index), "png", Png.Encode(Borg8Image.Parse(archive.Read(index)).Decode())));
 
         if (Directory.Exists(directory))
             Directory.Delete(directory, recursive: true);

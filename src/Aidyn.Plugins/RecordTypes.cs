@@ -37,10 +37,13 @@ public static class RecordTypes
     /// <summary>A set of chunks loaded as one world, keyed by the original's set number.</summary>
     public const string MapSet = "mapset";
 
+    /// <summary>A terrain type, which chunks carry, keyed by its decimal number.</summary>
+    public const string Terrain = "terrain";
+
     private static readonly HashSet<string> All =
     [
         Entity, Weapon, Armor, Spell, Item, Flag, Texture, Geometry, Camera, Light, Scene, Animation, Actor, Image, Map,
-        Sample, Sequence, Dialogue, Voxel, MapSet,
+        Sample, Sequence, Dialogue, Voxel, MapSet, Terrain,
     ];
 
     public static bool IsKnown(string type) => All.Contains(type);

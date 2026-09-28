@@ -12,7 +12,8 @@
   - The original draws a flat square without a depth test, before the bodies and the centre chunk's objects, so it never sinks into the ground. The runtime projects the same square as a decal, which bodies' visual layer (2) is left out of. It looks the same, but can't sink where the visible ground and the collision differ. The decal's box reaches 0.75 above and below the ground and fades toward its ends, so where the ground bends there's no hard edge. A wall or tree right beside him still takes a little, as the original's square would.
   - Its alpha is corrected for blending in linear light (see [rendering](rendering.md)).
 - **Collision** is the collision assets in the core's `CollisionWorld`, which the chunk streamer fills and empties. Godot physics isn't used. Toggles stay as stored until the flag engine can change them.
-- **Stand-ins** still to replace: the flat sky colour and fixed light, and materials that are Godot's glTF import plus `WrapMaterials`. Objects gated on real flags are all shown until the flag engine exists (M2). Alaron's head follows his neck, but the game keeps it upright and turns it toward nearby objects.
+- **Drawing.** Scenes use the N64 material, and the sky of the player's chunk sets the scenery's tint and fog by the time of day, which starts at a new game's noon and runs at the original's pace. The follow camera stops at the original's far plane, 180. See [rendering](rendering.md).
+- **Stand-ins** still to replace: the flat sky colour, and the fixed light on bodies. Objects gated on real flags are all shown until the flag engine exists (M2). Alaron's head follows his neck, but the game keeps it upright and turns it toward nearby objects.
 - **Controls.**
   - WASD or the left stick moves. The stick walks under 80% tilt and runs above. On a keyboard, Shift walks. Ctrl or the left trigger sneaks (Z on the N64).
   - The original orbits the camera with R and the stick, and he can't move while it does. Here that's the gamepad's right shoulder with the left stick, dragging with the right mouse button, the right stick, or Q and E.
@@ -21,6 +22,6 @@
 - **For scripts:** `-- --chunk I08 --at 16,62 --yaw 0 --pitch -15 --distance 5 --hold move_forward,4 --screenshot <absolute path>.png` starts somewhere, holds an input, saves the window and quits.
   - `--hold` takes several actions joined with `+`, as in `move_forward+walk,4`.
   - The screenshot path must be absolute, or Godot saves it relative to the project.
-  - `--fly x,y,z` starts with the free camera. The run gives up after a minute.
+  - `--fly x,y,z` starts with the free camera. `--time <hours>` sets the time of day. The run gives up after a minute.
   - Gwernia's open ground is around (30–80, 30–80) in M07, for example `--chunk M07 --at 40,55`. Elsewhere in M07 there's no ground, so he falls and is put back again and again.
 - **The spawn point** is tight. A rock stands in a hole in the terrain in front of it, with collision walls and no top, and a birch's collision box is beside it. The original drops the player from a height of 10; the runtime puts him on the highest ground below the spawn instead.
