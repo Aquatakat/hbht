@@ -52,6 +52,65 @@ public class SkyTests
         Assert.Equal(110f / 255, gradient.Sample(0, 23 / 24f).X, 0.0001f);
     }
 
+    /// <summary>A gradient that runs from 0 at the top to 31 × 8 at row 31, in red.</summary>
+    private static SkyGradient Ramp() => Gradient((_, row) => ((byte)(row < SkyGradient.SkyRows ? row * 8 : 0), 0, 0));
+
+    private static Vector3[] Backdrop(SkyGradient gradient, Vector3 look, float fogTime = 0, Vector3 fog = default)
+    {
+        var lines = new Vector3[SkyBackdrop.ScreenLines];
+        SkyBackdrop.Draw(gradient, null, 0, 0.5f, look, fog, lines, fogTime);
+        return lines;
+    }
+
+    [Fact]
+    public void LookingLevelTheGradientSpansTwoHundredLines()
+    {
+        var lines = Backdrop(Ramp(), -Vector3.UnitZ);
+
+        // Line 0 is at 1/200 of the way down: looking level drops the top line.
+        Assert.Equal(MathF.Floor(1 / 200f * 31 * 8) / 255, lines[0].X);
+        // The foot, 199/200 of the way to row 31, then the same to the bottom of the screen.
+        var foot = MathF.Floor((30 + 0.845f) * 8) / 255;
+        Assert.Equal(foot, lines[198].X, 0.0001f);
+        Assert.Equal(foot, lines[239].X, 0.0001f);
+    }
+
+    [Fact]
+    public void LookingDownMovesTheHorizonUpBySinOfTheLooksHeight()
+    {
+        var look = Vector3.Normalize(new Vector3(0, -0.5f, -1));
+        var lines = Backdrop(Ramp(), look);
+
+        // sin(0.447) × 240 is 103 lines up, so the foot is at line 96, drawn from line 103 of 200.
+        var drawn = SkyBackdrop.Span - (int)(MathF.Sin(-look.Y) * SkyBackdrop.ScreenLines);
+        Assert.Equal(97, drawn);
+        Assert.Equal(MathF.Floor(103 / 200f * 31 * 8) / 255, lines[0].X, 0.0001f);
+        Assert.Equal(lines[drawn - 1], lines[drawn]);
+        Assert.Equal(lines[drawn - 1], lines[239]);
+        Assert.NotEqual(lines[drawn - 2], lines[drawn - 1]);
+    }
+
+    [Fact]
+    public void LookingNearlyStraightDownLeavesTheBackgroundBlack()
+    {
+        var lines = Backdrop(Ramp(), Vector3.Normalize(new Vector3(0, -1, -0.05f)));
+        Assert.All(lines, c => Assert.Equal(Vector3.Zero, c));
+    }
+
+    [Fact]
+    public void FogFadesTheSkyToTheFogColourByHalfThick()
+    {
+        var fog = new Vector3(100, 110, 120) / 255;
+        var lines = Backdrop(Ramp(), -Vector3.UnitZ, fogTime: 0.5f, fog);
+        // Within a byte: the float arithmetic can land just under and truncate, as the game's would.
+        Assert.All(lines, c => Assert.True(Vector3.Distance(fog, c) < 1.8f / 255));
+
+        // A quarter thick: halfway to half the fog colour.
+        var quarter = Backdrop(Ramp(), -Vector3.UnitZ, fogTime: 0.25f, fog);
+        Assert.Equal(MathF.Floor((0.5f * (1 / 200f * 31 * 8 / 255) + 0.25f * fog.X) * 255) / 255, quarter[0].X, 0.0001f);
+        Assert.Equal(MathF.Floor(0.25f * fog.Y * 255) / 255, quarter[0].Y, 0.0001f);
+    }
+
     [Fact]
     public void TheClockStartsAtNoonAndADayLastsTwentyMinutes()
     {

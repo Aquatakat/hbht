@@ -52,6 +52,6 @@ public readonly record struct SkyColors(Vector3 Tint, Vector3 Sky, Vector3 Fog, 
     }
 
     /// <summary>As the game stores them, truncated to 8 bits (<c>V3ToRGB</c>).</summary>
-    private static Vector3 ToBytes(Vector3 c) =>
+    internal static Vector3 ToBytes(Vector3 c) =>
         new(MathF.Floor(Math.Clamp(c.X, 0, 1) * 255) / 255, MathF.Floor(Math.Clamp(c.Y, 0, 1) * 255) / 255, MathF.Floor(Math.Clamp(c.Z, 0, 1) * 255) / 255);
 }

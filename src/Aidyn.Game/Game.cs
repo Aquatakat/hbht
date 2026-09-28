@@ -92,9 +92,10 @@ public partial class Game : Node3D
         {
             Environment = new Godot.Environment
             {
-                BackgroundMode = Godot.Environment.BGMode.Color,
-                // Placeholders until the sky, fog and time of day are ported.
-                BackgroundColor = new Color(0.55f, 0.7f, 0.9f),
+                // The sky's backdrop, a canvas layer behind the scene.
+                BackgroundMode = Godot.Environment.BGMode.Canvas,
+                BackgroundCanvasMaxLayer = SkyBackdropView.Layer,
+                // Placeholders until bodies are lit by the sky.
                 AmbientLightSource = Godot.Environment.AmbientSource.Color,
                 AmbientLightColor = new Color(0.5f, 0.5f, 0.5f),
             },
@@ -103,6 +104,7 @@ public partial class Game : Node3D
 
         _sky = new SkyView(plugins);
         AddChild(_sky);
+        AddChild(SkyBackdropView.Create(_sky));
         if (args.TryGetValue("time", out var time))
             _sky.Clock.SetTimeOfDay(float.Parse(time, CultureInfo.InvariantCulture));
 
