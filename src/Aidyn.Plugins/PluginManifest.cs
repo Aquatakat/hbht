@@ -31,10 +31,11 @@ public static class BasePlugin
     public const string Folder = "aidyn.base";
 
     /// <summary>
-    /// Raised whenever the importer's output changes, so existing imports are redone. 1 is the
+    /// Raised whenever the importer's output changes, so existing imports are redone. 1 was the
     /// first slice for M1: map sets, chunks, scene objects, actors, and scene and collision assets.
+    /// 2 adds locator nodes to scenes and Alaron's head.
     /// </summary>
-    public const int ImporterVersion = 1;
+    public const int ImporterVersion = 2;
 }
 
 /// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>

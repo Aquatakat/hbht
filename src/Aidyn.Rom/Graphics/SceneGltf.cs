@@ -163,6 +163,24 @@ public static class SceneGltf
             extras["particleEmitters"] = list;
         }
 
+        // Every locator becomes a node on its transform, for what the game attaches there at run
+        // time: particle emitters, items in hand, and Alaron's head (locator 3).
+        for (var i = 0; i < 8; i++)
+        {
+            if (Locator(i) is not var (t, position) || !nodes.TryGetValue(t, out var parent))
+                continue;
+            var node = gltf.AddNode(new JsonObject
+            {
+                ["name"] = $"locator {i}",
+                ["translation"] = new JsonArray(position.X, position.Y, position.Z),
+                ["extras"] = new JsonObject { ["locator"] = i },
+            });
+            var p = gltf.Node(parent);
+            if (p["children"] is not JsonArray children)
+                p["children"] = children = [];
+            children.Add(node);
+        }
+
         // An animation with no targets only holds the scene still for its length. glTF can't have
         // an empty animation, so those are listed in the extras.
         var still = new JsonArray();

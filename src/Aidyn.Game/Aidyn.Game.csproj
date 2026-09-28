@@ -1,0 +1,20 @@
+<Project Sdk="Godot.NET.Sdk/4.7.2">
+
+  <PropertyGroup>
+    <!-- Explicit, or the Godot editor writes its own default (net8.0) into this file. -->
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Aidyn.Game</RootNamespace>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Only the plugin format: the runtime never reads the ROM (ADR 0001), and the build enforces it. -->
+    <ProjectReference Include="..\Aidyn.Plugins\Aidyn.Plugins.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Shared with the inspector until the N64 material replaces it. -->
+    <Compile Include="..\Aidyn.Inspector\WrapMaterials.cs" Link="WrapMaterials.cs" />
+  </ItemGroup>
+
+</Project>

@@ -179,6 +179,8 @@ Code uses 1,990 of the 2,076 names in the decomp's `Borgindecies.h`. The map chu
 - The six title-screen fly-throughs: a Borg6 and eight unknown u16s each (`gFlycamSequences`, `0xE15DC`).
 - Battle music: one of four Borg12s at random without the Expansion Pak, or one of five with it. Gwernia castle and Chaos Isle choose their own music; Chaos Isle picks between two by a map field (`BorgMaps.cpp`).
 - The player's model is Alaron's; three cheats swap it (see cheats, not audited yet).
+- Alaron's head is its own scene, `0x25AA` (`some_borg5`). `Actor::ChangeAppearance` loads it only for his actor, whose body has a hidden one-triangle placeholder at the neck, and the player renderer draws it at locator 3 of his body's scene, turned toward the object the player is near, up to 80°. An actor record field (layer 1). Carried as a fact: the importer writes it on actor `0x25F9` (`ActorHead`).
+- Each map set's spawn points: literals in `BorgMaps::LoadMap` giving a chunk and a position in it per portal number. A new game uses the Overworld's portal 0: I08 at (16, 62), dropped from a height of 10. A map set field (layer 1). To do: the runtime starts there by default.
 - The camp, game over and new-game Borg9s (see above).
 - Each map set's chunk spacing: literals in `BorgMaps::LoadMap`, a map set field (layer 1). Carried as a fact (`MapSets.CellSize`).
 - Sky gradients, sun, moon and stars, clouds, lens flare, rain ambience and four thunder sounds (`sky.cpp`, `skyObjects.cpp`, `Clouds.cpp`, `Lensflare.cpp`, `weather.cpp`).

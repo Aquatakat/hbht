@@ -24,6 +24,13 @@ namespace Aidyn.Rom.Import;
 public static class BaseImporter
 {
     /// <summary>
+    /// Alaron's actor (<c>BORG7_Alaron</c>) and the head scene the game draws on its locator 3
+    /// (<c>some_borg5</c>, <c>Actor::ChangeAppearance</c>). Engine code holds both as literals; see
+    /// the hardcoded-content audit.
+    /// </summary>
+    private const int AlaronActor = 0x25F9, AlaronHead = 0x25AA;
+
+    /// <summary>
     /// Imports <paramref name="rom"/> into <paramref name="directory"/>, replacing what's there. It
     /// writes to a sibling folder first, so a failed import leaves the old one in place.
     /// </summary>
@@ -70,7 +77,8 @@ public static class BaseImporter
             actorRecords.Add(new ActorRecord(RecordId.Hex(RecordTypes.Actor, index), RecordId.Hex(RecordTypes.Scene, scene),
                 actor.RootTransform, actor.InitialState,
                 [.. actor.States.Select(s => new ActorState(RecordId.Hex(RecordTypes.Animation, s.Animation),
-                    [.. s.Branches.Select(b => new ActorBranch(b.Request, b.Chance, b.Interrupts, b.State))]))]));
+                    [.. s.Branches.Select(b => new ActorBranch(b.Request, b.Chance, b.Interrupts, b.State))]))],
+                index == AlaronActor ? new ActorHead(RecordId.Hex(RecordTypes.Scene, AlaronHead), 3) : null));
         }
         WriteJson(Path.Combine(staging, "records", "actors.json"), actorRecords);
 

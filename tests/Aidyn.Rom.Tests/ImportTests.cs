@@ -1,4 +1,5 @@
 using Aidyn.Plugins;
+using Aidyn.Plugins.Assets;
 using Aidyn.Plugins.Records;
 using Aidyn.Rom.Import;
 
@@ -51,6 +52,21 @@ public sealed class ImportTests : IDisposable
             }
         }
         Assert.True(sceneObjects > 7000, $"{sceneObjects} scene objects");
+
+        // A chunk's collision reads back as its Borg9's triangles, in the chunk's own coordinates.
+        var archive = Borg.BorgArchive.Open(rom);
+        var i08 = overworld.Chunks.Single(c => c.Name == "I08");
+        var borg9 = Maps.Borg9Map.Parse(archive.Read(Convert.ToInt32(i08.Map.Key, 16)));
+        var collision = CollisionMesh.Read(File.ReadAllBytes(set.FindAsset(i08.Map, "glb")!));
+        Assert.Equal(borg9.Triangles.Count, collision.Count);
+        for (var t = 0; t < collision.Count; t++)
+        {
+            var (expected, actual) = (borg9.Triangles[t], collision[t]);
+            Assert.Equal((borg9.Vertices[expected.A], borg9.Vertices[expected.B], borg9.Vertices[expected.C]), (actual.A, actual.B, actual.C));
+            Assert.Equal((int)expected.Surface, actual.Surface);
+            Assert.Equal((int)expected.Flags, (int)actual.Flags);
+        }
+        Assert.Contains(collision, t => t.Flags.HasFlag(CollisionFlags.SeeThrough));
     }
 
     [Fact]

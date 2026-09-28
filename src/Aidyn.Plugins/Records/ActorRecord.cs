@@ -8,7 +8,16 @@ namespace Aidyn.Plugins.Records;
 /// <param name="RootTransform">
 /// The scene transform drawn with its position zeroed. Its motion moves the actor instead.
 /// </param>
-public sealed record ActorRecord(RecordId Id, RecordId Scene, int RootTransform, int InitialState, IReadOnlyList<ActorState> States);
+/// <param name="Head">A head drawn on the actor, which it turns to look at things nearby.</param>
+public sealed record ActorRecord(RecordId Id, RecordId Scene, int RootTransform, int InitialState, IReadOnlyList<ActorState> States,
+    ActorHead? Head = null);
+
+/// <summary>
+/// A head scene drawn at one of the actor's locators. Only Alaron's actor has one: his body's scene
+/// has only a placeholder at the neck (<c>Actor::ChangeAppearance</c>, <c>some_borg5</c>).
+/// </summary>
+/// <param name="Locator">The locator of the actor's scene it sits on, and faces along.</param>
+public sealed record ActorHead(RecordId Scene, int Locator);
 
 /// <param name="Branches">Tried in order when the animation ends, or when the request changes.</param>
 public sealed record ActorState(RecordId Animation, IReadOnlyList<ActorBranch> Branches);
