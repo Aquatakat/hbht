@@ -11,9 +11,10 @@ namespace Aidyn.Rom.Maps;
 /// <c>_ROLE</c> (0 normal, 1 toggle, 2 trigger, 3 Expansion Pak only) and <c>_FLAGS</c>
 /// (<see cref="TriangleFlags"/>). With no normals, viewers shade them flat.
 /// </summary>
+/// <remarks>The importer exports each chunk alone, in its own coordinates, with <c>placeInSet</c> off.</remarks>
 public static class CollisionGltf
 {
-    public static byte[] Export(IEnumerable<(MapChunk Chunk, Borg9Map Map)> chunks)
+    public static byte[] Export(IEnumerable<(MapChunk Chunk, Borg9Map Map)> chunks, bool placeInSet = true)
     {
         var gltf = new GltfBuilder();
         var material = gltf.AddMaterial(new JsonObject
@@ -31,7 +32,7 @@ public static class CollisionGltf
                 ["name"] = $"{chunk.Name} borg9 {chunk.Collision}",
                 ["extras"] = new JsonObject { ["chunk"] = chunk.Name, ["borg9"] = chunk.Collision },
             };
-            var origin = MapSets.ChunkOrigin(chunk);
+            var origin = placeInSet ? MapSets.ChunkOrigin(chunk) : Vector3.Zero;
             if (origin != Vector3.Zero)
                 node["translation"] = new JsonArray(origin.X, origin.Y, origin.Z);
 

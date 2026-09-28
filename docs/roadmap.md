@@ -188,7 +188,7 @@ Work moves through a series of vertical slices, each one playable.
 
 | Slice | Contents | Needs |
 | --- | --- | --- |
-| **M1: Walk Gwernia** | The 3×3 chunk streamer, terrain rendering, an N64-look shader (vertex colour, fog, three-point filtering option), collision, the player controller, the SM64-style camera, sky, sun and moon, clouds, lens flare, draw-distance tiers | 1A, 1C |
+| **M1: Walk Gwernia** | The 3×3 chunk streamer, terrain rendering, an N64-look shader (vertex colour, fog, three-point filtering option), collision, the player controller, the SM64-style camera, sky, sun and moon, clouds, lens flare, draw-distance tiers. **Started Sep 27, 2026:** the importer's first slice writes the base plugin M1 loads. | 1A, 1C |
 | **M2: Talk and trade** | Voxel runtime (containers, teleporters with fade, triggers, dialogue triggers), actors with wander nodes, dialogue UI with portraits and choices, shops, the pause menu (Party, System, World tabs), journal | 1E, 1F, 2.1–2.4 |
 | **M3: Fight** | Arena loading, spawns, the turn UI, radius targeting, spell visuals and particles, the combat log, status icons, post-battle XP and loot screens | 1B, 2.5, 2.6 |
 | **M4: The prologue** | From the opening through leaving Gwernia, end to end: cinematics, scripted cut-scenes, party joins, camping, audio | Everything above |

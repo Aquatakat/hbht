@@ -4,7 +4,9 @@ using Aidyn.Rom;
 using Aidyn.Rom.Borg;
 using Aidyn.Rom.Db;
 using Aidyn.Rom.Dialogue;
+using Aidyn.Plugins;
 using Aidyn.Rom.Graphics;
+using Aidyn.Rom.Import;
 using Aidyn.Rom.Maps;
 using Aidyn.Rom.Quests;
 using Aidyn.Rom.Text;
@@ -12,6 +14,8 @@ using Aidyn.Rom.Text;
 const string Usage = """
     Usage:
       aidyn identify <rom>
+      aidyn import <rom> [--out <dir>]       the ROM as the base plugin the game loads (ADR 0001);
+                                           default dir: aidyn.base in the data folder (AIDYN_DATA)
       aidyn borg summary <rom>
       aidyn borg dump <rom> [--out <dir>]    default dir: out/<version>/borg
       aidyn db dump <rom> [--out <dir>]      default dir: out/<version>/db
@@ -39,6 +43,8 @@ try
     return args switch
     {
         ["identify", var rom] => Identify(rom),
+        ["import", var rom] => Import(rom, null),
+        ["import", var rom, "--out", var dir] => Import(rom, dir),
         ["borg", "summary", var rom] => BorgSummary(rom),
         ["borg", "dump", var rom] => BorgDump(rom, null),
         ["borg", "dump", var rom, "--out", var dir] => BorgDump(rom, dir),
@@ -83,6 +89,16 @@ static int Identify(string path)
     Console.WriteLine($"Game code   {rom.Header.GameCode}");
     Console.WriteLine($"Revision    {rom.Header.Revision}");
     Console.WriteLine($"CRC         {rom.Header.Crc1:X8} {rom.Header.Crc2:X8}");
+    return 0;
+}
+
+static int Import(string path, string? outDir)
+{
+    var rom = RomImage.Load(path);
+    outDir ??= DataPaths.Base;
+    var watch = System.Diagnostics.Stopwatch.StartNew();
+    BaseImporter.Import(rom, outDir, new Progress<string>(step => Console.Error.WriteLine(step)));
+    Console.WriteLine($"Imported {rom.Version.Name} to {Path.GetFullPath(outDir)} in {watch.Elapsed.TotalSeconds:F0} s");
     return 0;
 }
 

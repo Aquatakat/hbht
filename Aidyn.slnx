@@ -2,9 +2,11 @@
   <Folder Name="/src/">
     <Project Path="src/Aidyn.Cli/Aidyn.Cli.csproj" />
     <Project Path="src/Aidyn.Inspector/Aidyn.Inspector.csproj" />
+    <Project Path="src/Aidyn.Plugins/Aidyn.Plugins.csproj" />
     <Project Path="src/Aidyn.Rom/Aidyn.Rom.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Aidyn.Plugins.Tests/Aidyn.Plugins.Tests.csproj" />
     <Project Path="tests/Aidyn.Rom.Tests/Aidyn.Rom.Tests.csproj" />
   </Folder>
 </Solution>

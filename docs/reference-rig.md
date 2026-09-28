@@ -229,6 +229,15 @@ The user reviewed the scene viewer against the game on Sep 27, 2026. All 13 shot
 
 The decoding lives in `Aidyn.Rom.Inspection` (`BorgInspector`, `FieldTree`), which the tests check against every Borg; the Godot project is only UI. Like the CLI, it reads the ROM through `Aidyn.Rom` as a research tool. ADR 0001 keeps the runtime off the ROM, and when this grows into the mod editor (Phase 5) it will need to open plugins as well.
 
+## The importer and the base plugin (M1)
+
+`aidyn import <rom>` turns a ROM into `aidyn.base`, the plugin the runtime loads (ADR 0001). It goes to `plugins/aidyn.base` in the data folder: `AIDYN_DATA` if set, else `%LOCALAPPDATA%\Aidyn`. `--out` puts it elsewhere. It takes about 5 seconds and writes about 270 MB. It refuses the debug ROM (ADR 0007).
+
+- **Layout.** `plugin.json` records the importer version (`BasePlugin.ImporterVersion`) and the ROM's SHA-1, so the runtime can tell when to re-import. `records/` holds `mapsets.json`, `maps.json` and `actors.json`. `assets/aidyn/<type>/<key>.glb` holds every scene (`aidyn:scene/0xHHHH`, the same glTF as `aidyn scenes`) and every chunk's collision (`aidyn:map/0xHHHH`, as `aidyn maps` writes it but in the chunk's own coordinates). A mod replaces an asset by putting a file at the same path in its own `assets/`.
+- **Records so far.** Map sets are `aidyn:mapset/<n>`, numbered as the original's `EnumMapDatA`, with the cell size and chunk list. A map (`aidyn:map/0xHHHH`, a Borg9) holds its scene objects, keyed by index. Their models name a scene or an actor, and they keep the original's rotation angles. Actors (`aidyn:actor/0xHHHH`) hold their scene and state machine. The other map object types, the DB tables and the flags come with the tracks that use them.
+- **Deterministic.** Two imports are byte-identical, which a test checks. JSON is indented, with vectors and colours on one line, so two imports diff cleanly.
+- **Merging** follows ADR 0005: patches merge field by field (RFC 7386), and `PluginSet.Conflicts` lists the top-level fields more than one plugin set. Lists are still replaced whole. Keyed lists need the record schema, which is Phase 5 work.
+
 ## Emulator: ares v148
 
 Installed with winget (`ares-emulator.ares`). Launch through the script, which enables the GDB server for that run only:
