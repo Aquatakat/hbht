@@ -21,6 +21,14 @@ namespace Aidyn.Core.Movement;
 /// Its alpha is at most 160 × 128 / 255, about 80 in 255 (<see cref="DrawAlpha"/>). The
 /// original also scales it by the screen brightness, which isn't ported.
 /// </para>
+/// <para>
+/// One deliberate difference: the original lies on the first triangle its collision grid lists
+/// that the sweep touches, which beside a leaning wall is often the wall, so the shadow stands up
+/// on it. This lies on the one the sweep touches soonest of those no steeper than
+/// <see cref="Steepest"/>, and treats walls as no ground at all. Over I08, with the body settled
+/// by the physics at each point of a half-unit grid, the original's rule tilts the shadow past 45°
+/// at 263 of 23,039 points, nearly all against walls, and this at 12.
+/// </para>
 /// Checked against the 1.0 ROM's machine code.
 /// </remarks>
 public sealed class BodyShadow
@@ -33,6 +41,9 @@ public sealed class BodyShadow
 
     /// <summary>Other bodies' shadows are drawn only this close to the camera's aim, fading out toward it.</summary>
     public const float OthersDistance = 10;
+
+    /// <summary>The steepest ground it lies on, as the Y of the normal: 60°.</summary>
+    public const float Steepest = 0.5f;
 
     /// <summary>The alpha the draw loop starts from, before fading (<c>renderPlayerShadows</c>).</summary>
     private const byte BaseAlpha = 0x80;
@@ -63,7 +74,7 @@ public sealed class BodyShadow
     public bool Place(CollisionWorld world, Vector3 centre, float radius, byte alpha)
     {
         var from = centre + new Vector3(0, 0.05f, 0);
-        if (!SpherePhysics.Sweep(world, from, from - new Vector3(0, Reach, 0), 0.5f, skipSeeThrough: true, out var point, out var normal))
+        if (!SpherePhysics.SweepNearest(world, from, from - new Vector3(0, Reach, 0), 0.5f, skipSeeThrough: true, Steepest, out var point, out var normal))
         {
             Position.X = centre.X;
             Position.Z = centre.Z;

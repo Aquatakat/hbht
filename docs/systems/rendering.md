@@ -6,6 +6,10 @@ What the decoders found that the runtime's renderer still has to do. The runtime
 
 - **The N64 blends what's on screen.** Godot blends in linear light, where the same alpha darkens the screen about half as much. Found with the player's shadow, whose 31% on the N64 looked like 15%. For black over the scene, darkening by 1 − a on screen is darkening by (1 − a)^2.2 in linear light, so the shadow's decal uses that alpha. The N64 material's translucent surfaces will need the same correction, and coloured blends don't reduce to one alpha, so they need their own treatment.
 
+## Normals
+
+- **Unlit meshes have no normals that face up.** They're exported without `NORMAL`, as the N64 doesn't light them, and Godot generates its own. A decal's angle fade (`normal_fade`), which compares the decal with the surface's normal, hid the player's shadow even on level unlit ground, so those generated normals don't face up. Anything that reads unlit geometry's normals, such as fog or a lighting effect, will need them exported, or the winding checked.
+
 ## From static graphics (1A)
 
 - **Lighting:** the viewer's lighting looks like sunny daytime in-game. Real scene lighting varies with time of day and weather. The decomp's draw code seems to ignore Borg4 lights in favour of a fixed white light, which is still unresolved.

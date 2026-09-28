@@ -53,6 +53,45 @@ public class BodyShadowTests
     }
 
     [Fact]
+    public void StaysOnTheGroundBesideALeaningWall()
+    {
+        // A bank facing −X, leaning back 0.4 in X for each unit up, just beyond his reach, and
+        // listed before the ground, so the first triangle the sweep touches is the bank.
+        static Vector3 Bank(float y, float z) => new(0.55f + 0.4f * y, y, z);
+        var world = new CollisionWorld();
+        world.Add("bank", [
+            Worlds.Triangle(Bank(-3, -10), Bank(-3, 10), Bank(3, -10)),
+            Worlds.Triangle(Bank(3, -10), Bank(-3, 10), Bank(3, 10)),
+        ], Vector3.Zero);
+        world.Add("ground", Worlds.Floor(0, -20, 0.55f, -20, 20), Vector3.Zero);
+
+        var centre = new Vector3(0, 0.5f, 0);
+        var from = centre + new Vector3(0, 0.05f, 0);
+        Assert.True(SpherePhysics.Sweep(world, from, from - new Vector3(0, 3, 0), 0.5f, true, out _, out var first));
+        Assert.True(first.X < 0, "the original's sweep lands on the bank");
+
+        var shadow = new BodyShadow();
+        Assert.True(shadow.Place(world, centre, 0.5f, 0x80));
+        Assert.Equal(Vector3.UnitY, shadow.Normal);
+        Assert.Equal(0, shadow.Position.Y, 0.0001f);
+    }
+
+    [Fact]
+    public void StaysOnTheGroundWhenPressedAgainstAWall()
+    {
+        // He's walked into a leaning wall, which touches his sphere just as the ground does.
+        static Vector3 Bank(float y, float z) => new(0.5f / 0.928f + 0.4f * y, y, z);
+        var world = Worlds.Flat();
+        world.Add("bank", [
+            Worlds.Triangle(Bank(-3, -10), Bank(-3, 10), Bank(3, -10)),
+            Worlds.Triangle(Bank(3, -10), Bank(-3, 10), Bank(3, 10)),
+        ], Vector3.Zero);
+        var shadow = new BodyShadow();
+        Assert.True(shadow.Place(world, new Vector3(0, 0.5f, 0), 0.5f, 0x80));
+        Assert.Equal(Vector3.UnitY, shadow.Normal);
+    }
+
+    [Fact]
     public void TurnsToASlope()
     {
         // Ground rising along +X at 45°.

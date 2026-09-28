@@ -11,6 +11,13 @@ namespace Aidyn.Game;
 /// objects, which draw over it. So it never sinks into ground that's uneven or that isn't quite
 /// where the collision is. A decal of the same square, projected onto the ground, looks the same
 /// without that trouble. It leaves out <see cref="BodyLayer"/>, so bodies stay on top.
+/// <para>
+/// Where the ground bends, the flat square would carry on through it. The decal instead fades out
+/// toward the top and bottom of its box, so no edge of the box shows, and a bank or wall beside
+/// the body takes only a little. Godot can also fade a decal off surfaces angled away from it,
+/// but that hid the shadow even on level ground: unlit meshes carry no normals, and the ones
+/// Godot makes for them don't face up.
+/// </para>
 /// </remarks>
 public partial class ShadowDecal : Decal
 {
@@ -18,13 +25,19 @@ public partial class ShadowDecal : Decal
     public const int BodyLayer = 2;
 
     /// <summary>How far above and below the collision's ground it projects, to reach the visible ground.</summary>
-    private const float Depth = 0.5f;
+    private const float Depth = 0.75f;
+
+    /// <summary>
+    /// How it fades toward the top and bottom of its box, as an exponent: 95% left a tenth of the
+    /// way out, 71% halfway.
+    /// </summary>
+    private const float EndFade = 0.5f;
 
     public ShadowDecal(Texture2D texture)
     {
         Name = "Shadow";
         TextureAlbedo = texture;
-        UpperFade = LowerFade = 0;
+        UpperFade = LowerFade = EndFade;
         CullMask &= ~(1u << (BodyLayer - 1));
         Visible = false;
     }

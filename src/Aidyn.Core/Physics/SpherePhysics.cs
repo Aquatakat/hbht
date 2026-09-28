@@ -82,6 +82,30 @@ public static class SpherePhysics
     }
 
     /// <summary>
+    /// Like <see cref="Sweep"/>, but the triangle it touches soonest rather than the first in the
+    /// grid's order, of those facing at least <paramref name="minUp"/> upward (the Y of their
+    /// normal). The original has no such query; bodies' shadows use it to stay off walls.
+    /// </summary>
+    public static bool SweepNearest(CollisionWorld world, Vector3 from, Vector3 to, float radius, bool skipSeeThrough, float minUp, out Vector3 point, out Vector3 normal)
+    {
+        var delta = to - from;
+        var best = float.MaxValue;
+        point = normal = Vector3.Zero;
+        foreach (var t in Near(world, from, delta, radius))
+        {
+            if ((skipSeeThrough && t.Has(CollisionFlags.SeeThrough)) || t.Normal.Y < minUp)
+                continue;
+            if (Vector3.Dot(delta, t.Normal) <= 0 && SweepPlane(from, delta, radius, t, out var p, out var share) && share < best)
+            {
+                best = share;
+                point = p;
+                normal = t.Normal;
+            }
+        }
+        return best != float.MaxValue;
+    }
+
+    /// <summary>
     /// Whether there's ground within <paramref name="depth"/> below a sphere, other than plain
     /// collision surfaces 1 and 2 (<c>processPlayers_sub</c>).
     /// </summary>
@@ -201,15 +225,20 @@ public static class SpherePhysics
     }
 
     /// <summary>Whether a sphere's front, moving by <paramref name="delta"/>, crosses the triangle (<c>FUN_800aec1c</c>).</summary>
-    private static bool SweepPlane(Vector3 from, Vector3 delta, float radius, in Triangle t, out Vector3 point)
+    private static bool SweepPlane(Vector3 from, Vector3 delta, float radius, in Triangle t, out Vector3 point) =>
+        SweepPlane(from, delta, radius, t, out point, out _);
+
+    /// <param name="share">How much of <paramref name="delta"/> it moves before it touches.</param>
+    private static bool SweepPlane(Vector3 from, Vector3 delta, float radius, in Triangle t, out Vector3 point, out float share)
     {
         var start = from - t.Normal * radius;
         var before = Vector3.Dot(start - t.A, t.Normal);
         var after = Vector3.Dot(start + delta - t.A, t.Normal);
         point = default;
+        share = 0;
         if (before < 0 || after > 0)
             return false;
-        var share = after < 0 ? before - after : before + after;
+        share = after < 0 ? before - after : before + after;
         if (share > 0)
             share = MathF.Abs(before) / share;
         point = start + delta * share;
