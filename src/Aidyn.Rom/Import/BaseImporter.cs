@@ -5,6 +5,7 @@ using Aidyn.Rom.Borg;
 using Aidyn.Rom.Engine;
 using Aidyn.Rom.Graphics;
 using Aidyn.Rom.Maps;
+using Aidyn.Rom.Quests;
 using FlagGate = Aidyn.Plugins.Records.FlagGate;
 using PluginSceneModel = Aidyn.Plugins.Records.SceneModel;
 using PluginSceneObjectFlags = Aidyn.Plugins.Records.SceneObjectFlags;
@@ -64,6 +65,13 @@ public static class BaseImporter
             var (sky, drawn) = Skies.ForTerrain(t);
             return new TerrainRecord(RecordId.Decimal(RecordTypes.Terrain, t), RecordId.Hex(RecordTypes.Image, gradients[sky]), drawn);
         }).ToList());
+
+        progress?.Report("Flags");
+        var atlas = QuestAtlas.Build(rom);
+        WriteJson(Path.Combine(staging, "records", "flags.json"), BuildFlags(atlas));
+        WriteJson(Path.Combine(staging, "records", "journal.json"), atlas.Journal
+            .Select((e, i) => new JournalRecord(RecordId.Decimal(RecordTypes.Journal, i), Flag(e.Flag), e.Text)).ToList());
+        WriteJson(Path.Combine(staging, "records", "stateflags.json"), BuildStateFlags());
 
         progress?.Report("Sky");
         WriteJson(Path.Combine(staging, "records", "sky.json"), BuildSky(rom, archive));
@@ -192,7 +200,60 @@ public static class BaseImporter
         return new MapRecord(RecordId.Hex(RecordTypes.Map, index), objects);
     }
 
-    private static FlagGate Gate(Maps.FlagGate gate) => new(RecordId.Decimal(RecordTypes.Flag, gate.Flag), gate.Inverted);
+    private static FlagGate Gate(Maps.FlagGate gate) => new(Flag(gate.Flag), gate.Inverted);
+
+    private static RecordId Flag(int flag) => RecordId.Decimal(RecordTypes.Flag, flag);
+
+    /// <summary>The flags the engine writes its state into (<see cref="EngineFlags"/>).</summary>
+    internal static StateFlagsRecord BuildStateFlags() => new(
+        RecordId.Decimal(RecordTypes.StateFlags, 0),
+        Flags(EngineFlags.MoonPhase), Flags(EngineFlags.TimeOfDay), Flags(EngineFlags.DayOfSeason), Flags(EngineFlags.Season),
+        Flags(EngineFlags.DayOfWeek), Flags(EngineFlags.Week), Flags(EngineFlags.Rain), Flags(EngineFlags.Terrain),
+        Flag(EngineFlags.NewJournalEntry));
+
+    private static RecordId[] Flags(EngineFlagRange range) => [.. Enumerable.Range(range.First, range.Bits).Select(Flag)];
+
+    /// <summary>
+    /// Every flag of the <c>GameStateFunnel</c>, with the labels engine code gives them. Derived
+    /// flags from <see cref="EngineFlags.JournalTriggers"/> on each add the journal entry of their
+    /// position after it (<c>set_journalentry_flag</c>).
+    /// </summary>
+    internal static List<FlagRecord> BuildFlags(QuestAtlas atlas)
+    {
+        var funnel = atlas.Funnel;
+        var records = new List<FlagRecord>(funnel.Flags.Count);
+        for (var i = 0; i < funnel.Flags.Count; i++)
+        {
+            var flag = funnel.Flags[i];
+            var label = atlas.Labels.GetValueOrDefault((ushort)i) ?? i switch { 0 => "Always clear", 1 => "Always set", _ => null };
+            if (i < funnel.BitFlagCount)
+            {
+                if (flag.Kind != Db.FlagKind.Bit)
+                    throw new InvalidDataException($"Flag {i} is below the derived flags, but it's {flag.Kind}.");
+                records.Add(new FlagRecord(Flag(i), label, flag.InitialValue != 0));
+                continue;
+            }
+
+            var kind = flag.Kind switch
+            {
+                Db.FlagKind.Logic => FlagFormulaKind.Logic,
+                Db.FlagKind.Value => FlagFormulaKind.Value,
+                Db.FlagKind.Count => FlagFormulaKind.Count,
+                _ => throw new InvalidDataException($"Derived flag {i} is {flag.Kind}."),
+            };
+            var inputs = Enumerable.Range(flag.InputStart, flag.InputCount).Select(n => funnel.Inputs[n]).ToList();
+            // An unused input still takes its bit, so leaving it out would move the others.
+            if (flag.Op == Db.FlagOp.Invalid || inputs.Contains((ushort)0xFFFF) || inputs.Count > 16 || flag.InitialValue != 0)
+                throw new InvalidDataException($"Derived flag {i} ({flag}) can't be written as a formula.");
+            var formula = new FlagFormula(kind, (FlagOperation)flag.Op, flag.Operand, [.. inputs.Select(n => Flag(n))]);
+            var entry = i - EngineFlags.JournalTriggers;
+            RecordId? journal = entry < 0 ? null
+                : entry < atlas.Journal.Count ? RecordId.Decimal(RecordTypes.Journal, entry)
+                : throw new InvalidDataException($"Journal trigger {i} has no journal entry.");
+            records.Add(new FlagRecord(Flag(i), label, false, formula, journal));
+        }
+        return records;
+    }
 
     private static void WriteJson<T>(string path, T value)
     {

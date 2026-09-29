@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Globalization;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 
 namespace Aidyn.Plugins;
@@ -152,6 +153,19 @@ public sealed class PluginCatalog
             case RecordTypes.Terrain when json is not null:
                 parts.Add($"sky {Key(json["sky"])}" + ((bool?)json["skyDrawn"] == false ? ", not drawn" : ""));
                 break;
+            case RecordTypes.Flag when json is not null:
+                if (json["formula"] is JsonObject formula)
+                    parts.Add("derived: " + formula.Deserialize<Records.FlagFormula>(PluginJson.Options)!.Describe());
+                else if ((bool?)json["initial"] == true)
+                    parts.Add("starts set");
+                if ((string?)json["label"] is { } label)
+                    parts.Add(label);
+                if (json["journal"] is { } journal)
+                    parts.Add($"journal entry {Key(journal)}");
+                break;
+            case RecordTypes.Journal when json is not null:
+                parts.Add($"flag {Key(json["flag"])}: {Truncate((string?)json["text"] ?? "", 80)}");
+                break;
             case RecordTypes.Sky when json is not null:
                 parts.Add($"{Count(json["stars"], "star")}, {Count(json["clouds"], "cloud")}, {Count(json["lensFlare"], "flare piece")}");
                 break;
@@ -162,6 +176,8 @@ public sealed class PluginCatalog
             parts.Add(usedBy == 0 ? "used by nothing" : $"used by {Plural(usedBy, "record")}");
         return string.Join(", ", parts);
     }
+
+    private static string Truncate(string text, int length) => text.Length <= length ? text : text[..(length - 1)] + "…";
 
     private static string Key(JsonNode? id) => (string?)id is { } s && RecordId.TryParse(s, out var r) ? r.Key : "?";
 

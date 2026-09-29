@@ -18,6 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Aidyn.Core\Aidyn.Core.csproj" />
     <ProjectReference Include="..\..\src\Aidyn.Rom\Aidyn.Rom.csproj" />
   </ItemGroup>
 

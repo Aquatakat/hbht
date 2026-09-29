@@ -19,28 +19,46 @@ public sealed record EngineFlag(ushort Flag, string Description);
 /// </summary>
 public static class EngineFlags
 {
+    // The runs of flags the engine writes its state into (SetFlagArray_on_Time, set_weather_flags
+    // and set_terrain_flags). The importer writes these as the state flags record.
+    public static EngineFlagRange MoonPhase { get; } = new(2299, 2, "Moon phase");
+    public static EngineFlagRange TimeOfDay { get; } = new(2301, 3, "Time of day");
+    public static EngineFlagRange DayOfSeason { get; } = new(2304, 6, "Day of the season (week × 7 + day of the week)");
+    public static EngineFlagRange Season { get; } = new(2310, 3, "Season");
+    public static EngineFlagRange DayOfWeek { get; } = new(2313, 3, "Day of the week");
+    public static EngineFlagRange Week { get; } = new(2316, 3, "Week of the season");
+    public static EngineFlagRange Rain { get; } = new(2319, 2, "Rain");
+    // Four flags for 28 terrain types, so types from 16 on wrap round.
+    public static EngineFlagRange Terrain { get; } = new(2321, 4, "Terrain type");
+
+    /// <summary>Set when a flag with a journal entry turns on (<c>set_journalentry_flag</c>).</summary>
+    public const ushort NewJournalEntry = 3617;
+
     /// <summary>Values the engine writes into runs of flags (<c>gameStateFunnel.cpp</c>).</summary>
     public static IReadOnlyList<EngineFlagRange> Ranges { get; } =
     [
-        new(2299, 2, "Moon phase"),
-        new(2301, 3, "Time of day"),
-        new(2304, 6, "Day of the month (week × 7 + day)"),
-        new(2310, 3, "Season"),
-        new(2313, 3, "Day of the week"),
-        new(2316, 3, "Week of the month"),
-        new(2319, 2, "Rain"),
-        new(2321, 4, "Terrain type"),
+        MoonPhase, TimeOfDay, DayOfSeason, Season, DayOfWeek, Week, Rain, Terrain,
+        new(NewJournalEntry, 1, "A new journal entry is waiting"),
+        new(4240, 1, "Set while the game checks for a camp dialogue"),
+    ];
+
+    /// <summary>
+    /// Runs of flags for the party's best stats and skills, which derived flags read, but which the
+    /// engine never writes. <c>Event_flag_stat</c> and <c>event_flag_skill_</c> look the stat up in
+    /// their table with a count of 0, so the lookup always fails. None is set in any checkpoint.
+    /// </summary>
+    public static IReadOnlyList<EngineFlagRange> NeverWritten { get; } =
+    [
         new(2325, 5, "Party's best Intelligence"),
         new(2330, 5, "Party's best Willpower"),
         new(2335, 5, "Party's best Endurance"),
         new(2340, 5, "Party's best Dexterity"),
         new(2345, 5, "Party's best Strength"),
         new(2350, 5, "Party's best Mechanic"),
-        // The skill table's Loremaster entry starts and ends at 2360, so only the lowest bit is written.
-        new(2360, 1, "Party's best Loremaster (lowest bit only)"),
+        // The skill table's Loremaster entry starts and ends at 2360.
+        new(2355, 5, "Party's best Diplomat (no table entry)"),
+        new(2360, 5, "Party's best Loremaster (the table's entry is 2360 alone)"),
         new(2365, 5, "Party's best Wizard"),
-        new(3617, 1, "A new journal entry is waiting"),
-        new(4240, 1, "Set while the game checks for a camp dialogue"),
     ];
 
     /// <summary>

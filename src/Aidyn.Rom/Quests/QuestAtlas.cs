@@ -366,10 +366,17 @@ public sealed class QuestAtlas
                 labels.TryAdd(flag, label);
         }
 
+        static string Bit(EngineFlagRange range, int flag) =>
+            range.Bits == 1 ? range.Description : $"{range.Description}, bit {flag - range.First} of {range.Bits}";
         foreach (var range in EngineFlags.Ranges)
         {
             for (var flag = range.First; flag <= range.Last; flag++)
-                Engine(flag, FlagAccess.Set, range.Description);
+                Engine(flag, FlagAccess.Set, range.Description, Bit(range, flag));
+        }
+        foreach (var range in EngineFlags.NeverWritten)
+        {
+            for (var flag = range.First; flag <= range.Last; flag++)
+                labels.TryAdd(flag, Bit(range, flag) + " (never written)");
         }
         var cinematics = Cinematics.Read(rom);
         var titles = db.CinematicTitles.ToDictionary(t => t.Flag, t => t.Text.Trim());

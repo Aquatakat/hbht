@@ -96,6 +96,27 @@ public sealed class ImportTests : IDisposable
         Assert.All(sky.Clouds, c => Assert.InRange(c.Image, 0, sky.CloudImages.Count - 1));
         Assert.All(sky.LensFlare, f => Assert.InRange(f.Image, 0, sky.FlareImages.Count - 1));
 
+        // Every flag, and a network that runs on them. 5423 ("5 set, 9 and 47 clear") enables the Shadow
+        // after the Kendall cut-scene sets 5.
+        var flags = set.All<FlagRecord>(RecordTypes.Flag).ToList();
+        Assert.Equal((5627, 626), (flags.Count, flags.Count(f => f.Formula is not null)));
+        Assert.Contains(flags, f => f.Label == "Brenna is in the party");
+        var network = Core.Flags.FlagNetwork.Load(set);
+        Assert.False(network.Get(5423));
+        network.Set(5, true);
+        Assert.True(network.Get(5423));
+
+        // Journal entry i is added by flag 5556 + i, which turns on with the entry's own flag.
+        var journal = set.All<JournalRecord>(RecordTypes.Journal).ToList();
+        Assert.Equal(71, journal.Count);
+        var first = set.Get<FlagRecord>(RecordId.Parse("aidyn:flag/5556"));
+        Assert.Equal((RecordId.Parse("aidyn:journal/0"), journal.Single(j => j.Id.Key == "0").Flag), (first.Journal, first.Formula!.Inputs.Single()));
+        network.Set(journal[0].Flag, true);
+        Assert.True(network.Get(5556));
+        Assert.Equal((RecordId.Parse("aidyn:journal/0"), true), (network.NewestJournalEntry, network.Get(3617)));
+        var state = set.Get<StateFlagsRecord>(RecordId.Parse("aidyn:stateflags/0"));
+        Assert.Equal(RecordId.Parse("aidyn:flag/2301"), state.TimeOfDay[0]);
+
         // The editor's catalog: every record and asset with a summary, and what names what.
         var catalog = PluginCatalog.Build(set);
         Assert.DoesNotContain(catalog.Entries, e => e.Summary.StartsWith('‹'));
@@ -108,6 +129,8 @@ public sealed class ImportTests : IDisposable
         Assert.Equal("12×37", catalog.Find(RecordId.Hex(RecordTypes.Image, 0x19F))!.Summary);
         Assert.Contains(catalog.ReferencesTo(RecordId.Hex(RecordTypes.Image, 0x19F)), r => r.From.Type == RecordTypes.Terrain);
         Assert.All(textures, l => Assert.NotNull(catalog.Find(RecordId.Hex(RecordTypes.Texture, l.Index))));
+        Assert.Equal("derived: how many of 1 set > 0, journal entry 0", catalog.Find(first.Id)!.Summary);
+        Assert.Contains(catalog.ReferencesTo(RecordId.Parse("aidyn:flag/5")), r => r.From == RecordId.Parse("aidyn:flag/5423"));
     }
 
     [Fact]

@@ -36,9 +36,9 @@ public static class BasePlugin
     /// 2 adds locator nodes to scenes and Alaron's head. 3 adds every texture as PNG. 4 writes
     /// vertex colours and tints as linear, and adds terrains and every UI image as PNG.
     /// 5 adds the sky record. 6 gives scenes' billboards a node to turn to the camera and a card that
-    /// rolls, and lists the textures each scene scrolls.
+    /// rolls, and lists the textures each scene scrolls. 7 adds the flags, the journal and the state flags.
     /// </summary>
-    public const int ImporterVersion = 6;
+    public const int ImporterVersion = 7;
 }
 
 /// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>

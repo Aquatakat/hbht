@@ -146,6 +146,8 @@ This is the preferred way to inspect checkpoints: it's deterministic, repeatable
 | `TerrainStruct.PlayTime` | `+0x34` | `+0x34` |
 | `TerrainStruct.InGameTime` | `+0x20` | `+0x20` |
 
+The C# side reads states with `AresCheckpoint` (`Aidyn.Rom.Rig`), which needs no ROM: it finds RDRAM by the flag table's header, which is in RAM exactly once, and whose pointers give its own address. The tests use it to check the [flag engine](systems/flags.md) against every checkpoint, and the editor loads a checkpoint's flags with it.
+
 ### Known issue: GDB after loading a state
 
 When the debug ROM was booted with `--save-state`, gdb got `Ignoring packet error` on connect. After the failed handshake the GDB port stopped listening, and on one attempt ares stopped responding. A plain boot with no state attached fine earlier. The cause isn't isolated yet: it could be state loading, or the stub not recovering from a client that exits without detaching. Until it's fixed, use `bst.py` for checkpoint inspection and keep gdb for live sessions started from a cold boot.
