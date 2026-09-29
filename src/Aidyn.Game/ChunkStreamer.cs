@@ -26,11 +26,12 @@ public partial class ChunkStreamer : Node3D
     private (int Row, int Column) _centre;
 
     /// <summary>
-    /// A scene the original may draw: a chunk's own, when the chunk is drawn, or a scene object's
-    /// level of detail, when it's also within <see cref="Radius"/> of the player and from
-    /// <see cref="Near"/> to <see cref="Far"/> away (<c>RenderVoxelScenes</c>).
+    /// A copy of a scene with scrolling textures that the original may draw: a chunk's own, when
+    /// the chunk is drawn, or a scene object's level of detail, when it's also within
+    /// <see cref="Radius"/> of the player and from <see cref="Near"/> to <see cref="Far"/> away
+    /// (<c>RenderVoxelScenes</c>).
     /// </summary>
-    private readonly record struct Draw(RecordId Scene, Vector3? Position = null, float Radius = 0, float Near = 0, float Far = 0);
+    private readonly record struct Draw(ScrollingScene Scene, Vector3? Position = null, float Radius = 0, float Near = 0, float Far = 0);
 
     public ChunkStreamer()
     {
@@ -101,7 +102,7 @@ public partial class ChunkStreamer : Node3D
     public IEnumerable<Node3D> BillboardFacings => _billboards.Values.SelectMany(b => b);
 
     /// <summary>
-    /// The scenes the original would draw this frame, for their scrolling textures: the centre
+    /// The scenes with scrolling textures the original would draw this frame: the centre
     /// chunk's, a neighbour's when it's in the camera's view (<see cref="ChunkView"/>), and the
     /// scene objects of those chunks within their ranges of the player.
     /// </summary>
@@ -112,7 +113,7 @@ public partial class ChunkStreamer : Node3D
     /// <param name="player">The player's position, which the chunks are centred on.</param>
     /// <param name="camera">The camera's position.</param>
     /// <param name="look">The way the camera looks.</param>
-    public IEnumerable<RecordId> DrawnScenes(Vector3 player, Vector3 camera, Vector3 look)
+    public IEnumerable<ScrollingScene> DrawnScenes(Vector3 player, Vector3 camera, Vector3 look)
     {
         var corner = MapSet.Origin(_centre.Row, _centre.Column).ToGodot();
         var eye = new System.Numerics.Vector2(camera.X - corner.X, camera.Z - corner.Z);
@@ -142,9 +143,11 @@ public partial class ChunkStreamer : Node3D
         var root = new Node3D { Name = chunk.Name, Position = Origin(chunk) };
         foreach (var scene in new[] { chunk.Scene, chunk.AltScene }.OfType<RecordId>())
         {
-            if (_models!.Instantiate(scene) is { } node)
-                root.AddChild(node);
-            draws.Add(new Draw(scene));
+            if (_models!.Instantiate(scene) is not { } node)
+                continue;
+            root.AddChild(node);
+            if (_models.Scrolls.Attach(scene, node) is { } scrolling)
+                draws.Add(new Draw(scrolling));
         }
 
         // Toggles stay as they're stored until a trigger changes them, which needs the flag engine (M2).
@@ -193,11 +196,12 @@ public partial class ChunkStreamer : Node3D
                     mesh.VisibilityRangeEnd = end;
                 }
                 node.AddChild(instance);
+                // The original measures levels of detail from the player; this draws them by the
+                // camera's distance, which Godot's visibility ranges take.
+                var scene = model.Model.Type == RecordTypes.Actor ? _plugins!.Get<ActorRecord>(model.Model).Scene : model.Model;
+                if (_models!.Scrolls.Attach(scene, instance) is { } scrolling)
+                    draws.Add(new Draw(scrolling, origin + o.Position.ToGodot(), o.Radius, i == 0 ? float.NegativeInfinity : begin, model.DrawDistance));
             }
-            // The original measures levels of detail from the player; this draws them by the
-            // camera's distance, which Godot's visibility ranges take.
-            var scene = model.Model.Type == RecordTypes.Actor ? _plugins!.Get<ActorRecord>(model.Model).Scene : model.Model;
-            draws.Add(new Draw(scene, origin + o.Position.ToGodot(), o.Radius, i == 0 ? float.NegativeInfinity : begin, model.DrawDistance));
             begin = Math.Max(0, model.DrawDistance - 2);
         }
         return node;

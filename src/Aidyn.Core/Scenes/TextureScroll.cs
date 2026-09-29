@@ -19,9 +19,12 @@ namespace Aidyn.Core.Scenes;
 /// RGBA32, and those three formats are the only ones that scroll.
 /// </para>
 /// <para>
-/// There's no check for a new frame. A texture that several scenes draw is loaded once by each,
-/// and once per <c>LoadTexture</c> of it in each scene's instructions, so it scrolls faster the
-/// more of them are drawn.
+/// There's no check for a new frame, but the state isn't shared. The game loads each scene it
+/// places as a copy of its own (<c>BorgAnimLoadScene</c> sets <c>borgFlag</c>), and a scrolling
+/// texture leaves the Borg cache as it's loaded (<c>InitBorgTexture</c>, for flag 0x100), so each
+/// copy of a scene has a copy of the texture of its own. It moves once per <c>LoadTexture</c> of it
+/// in the scene's instructions each time that copy of the scene is drawn, which is once a frame,
+/// and stays put while the scene isn't drawn. Checked against the debug ROM's machine code.
 /// </para>
 /// </remarks>
 public sealed class TextureScroll(int width, byte move)

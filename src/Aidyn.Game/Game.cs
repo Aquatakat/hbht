@@ -236,8 +236,8 @@ public partial class Game : Node3D
     }
 
     /// <summary>
-    /// Once a frame at the port's cadence, the scenes the original would draw load their scrolling
-    /// textures, which moves them on.
+    /// Once a frame at the port's cadence, the scenes the original would draw load their own copies
+    /// of their scrolling textures, which moves them on.
     /// </summary>
     private void ScrollTextures()
     {
@@ -245,7 +245,8 @@ public partial class Game : Node3D
             return;
         var camera = _camera!.Current.GlobalTransform;
         var focus = _camera.Flying ? camera.Origin : _player!.Motion.Sphere.Position.ToGodot();
-        _models!.Scrolls.Frame(_chunks!.DrawnScenes(focus, camera.Origin, -camera.Basis.Z));
+        foreach (var scene in _chunks!.DrawnScenes(focus, camera.Origin, -camera.Basis.Z))
+            scene.Draw();
     }
 
     /// <summary>
