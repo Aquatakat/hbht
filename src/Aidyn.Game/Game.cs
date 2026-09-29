@@ -236,12 +236,12 @@ public partial class Game : Node3D
     }
 
     /// <summary>
-    /// Once a frame at the port's cadence, the scenes the original would draw load their own copies
-    /// of their scrolling textures, which moves them on.
+    /// Once a frame at the console's average 20 fps, the scenes the original would draw load their
+    /// own copies of their scrolling textures, which moves them on.
     /// </summary>
     private void ScrollTextures()
     {
-        if (++_ticks % Core.Cadence.FrameTicks != 0)
+        if (++_ticks % Core.Cadence.TextureFrameTicks != 0)
             return;
         var camera = _camera!.Current.GlobalTransform;
         var focus = _camera.Flying ? camera.Origin : _player!.Motion.Sphere.Position.ToGodot();

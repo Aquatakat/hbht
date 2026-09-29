@@ -16,6 +16,16 @@ public static class Cadence
     /// <summary>The ticks in the frame that per-frame behaviour is matched to: 30 fps.</summary>
     public const int FrameTicks = 2;
 
+    /// <summary>
+    /// The ticks in the frame that scrolling textures are matched to: 20 fps, the console's average.
+    /// </summary>
+    /// <remarks>
+    /// Textures scroll once a frame, and at 30 fps they ran about twice as fast as on the console
+    /// by the fire and gore outside Gwernia, where it runs at about 15 fps. The user chose 20 fps as
+    /// a middle between such spots and interiors, which run faster.
+    /// </remarks>
+    public const int TextureFrameTicks = 3;
+
     /// <summary>An amount added once a frame, spread evenly over the frame's ticks.</summary>
     public static float PerTick(float perFrame) => perFrame / FrameTicks;
 
