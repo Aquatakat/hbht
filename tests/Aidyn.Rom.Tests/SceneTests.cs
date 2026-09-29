@@ -158,6 +158,51 @@ public class SceneTests
         Assert.Equal(SceneGltf.Export(house, archive.Read, 2558), SceneGltf.Export(house, archive.Read, 2558));
     }
 
+    [Fact]
+    public void BillboardsExportAsANodeToTurnAndACardThatRolls()
+    {
+        var archive = BorgArchive.Open(TestRoms.Get(RomVersionId.Na10));
+        // A scene whose billboard, transform 7, is rolled by −20.9°.
+        var root = Json(archive, 0x1A7B);
+        var nodes = root.GetProperty("nodes").EnumerateArray().ToList();
+        var billboard = nodes.Single(n => n.GetProperty("name").GetString() == "transform 7 billboard");
+        Assert.False(billboard.TryGetProperty("mesh", out _));
+        var facing = nodes[billboard.GetProperty("children")[0].GetInt32()];
+        Assert.Equal("transform 7 facing", facing.GetProperty("name").GetString());
+        Assert.False(facing.TryGetProperty("rotation", out _));
+        var card = nodes[facing.GetProperty("children")[0].GetInt32()];
+        Assert.Equal("transform 7 card", card.GetProperty("name").GetString());
+        Assert.True(card.TryGetProperty("mesh", out _));
+        var q = card.GetProperty("rotation");
+        var roll = Borg5Scene.Parse(archive.Read(0x1A7B)).Transforms[7].Rotation.Z;
+        Assert.Equal(-20.932812f, roll, 0.0001f);
+        AssertNear(new Vector3(0, 0, MathF.Sin(roll * MathF.PI / 360)), new Vector3(q[0].GetSingle(), q[1].GetSingle(), q[2].GetSingle()));
+    }
+
+    [Fact]
+    public void ScenesListTheTexturesTheyScroll()
+    {
+        var archive = BorgArchive.Open(TestRoms.Get(RomVersionId.Na10));
+        // Gwernia's chunk, M07, whose water scrolls 2 texels every third load.
+        var root = Json(archive, 0x105E);
+        var scrolling = root.GetProperty("scenes")[0].GetProperty("extras").GetProperty("scrollingTextures");
+        Assert.Equal(1, scrolling.GetArrayLength());
+        var water = scrolling[0];
+        Assert.Equal((0xEAB, 32, 2, 1), (water.GetProperty("borg1").GetInt32(), water.GetProperty("width").GetInt32(),
+            water.GetProperty("move").GetInt32(), water.GetProperty("loads").GetInt32()));
+        Assert.Contains(root.GetProperty("materials").EnumerateArray(),
+            m => m.GetProperty("extras").TryGetProperty("borg1", out var b) && b.GetInt32() == 0xEAB);
+
+        // Bushes don't scroll.
+        Assert.False(Json(archive, 0x0B5E).GetProperty("scenes")[0].GetProperty("extras").TryGetProperty("scrollingTextures", out _));
+    }
+
+    private static System.Text.Json.JsonElement Json(BorgArchive archive, int index)
+    {
+        var glb = SceneGltf.Export(Borg5Scene.Parse(archive.Read(index)), archive.Read, index);
+        return System.Text.Json.JsonDocument.Parse(glb.AsMemory(20, BitConverter.ToInt32(glb, 12))).RootElement;
+    }
+
     private static void AssertNear(Vector3 expected, Vector3 actual) =>
         Assert.True(Vector3.Distance(expected, actual) < 1e-4, $"Expected {expected}, got {actual}.");
 }

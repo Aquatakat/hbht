@@ -49,8 +49,8 @@ public static class SceneGltf
         }
 
         // Model nodes come first, in transform order, so a transform's node is at t - FirstNode. A
-        // billboard is drawn with only its scale and world position, turned to face the camera, so
-        // its meshes go on a separate root node that faces the way it was modelled.
+        // billboard is drawn with only its scale and world position, turned to face the camera and
+        // rolled by its rot.z, so its meshes go on a separate root node (see docs/formats/scenes.md).
         var first = scene.FirstNode;
         var roots = new List<int>();
         var billboards = new List<int>();
@@ -80,11 +80,22 @@ public static class SceneGltf
             if (scene.Parent(t) is null)
                 roots.Add(n);
         }
+        var cards = new Dictionary<int, int>();
         foreach (var t in billboards)
         {
-            var node = new JsonObject { ["name"] = $"transform {t} billboard" };
+            var card = new JsonObject { ["name"] = $"transform {t} card" };
+            SetTrs(card, Vector3.One, Roll(scene.Transforms[t]), Vector3.Zero);
+            card["mesh"] = gltf.AddMesh(new JsonObject { ["primitives"] = primitives[t] });
+            card["extras"] = new JsonObject { ["transform"] = t, ["card"] = true };
+            cards[t] = gltf.AddNode(card);
+            var facing = gltf.AddNode(new JsonObject
+            {
+                ["name"] = $"transform {t} facing",
+                ["children"] = new JsonArray(cards[t]),
+                ["extras"] = new JsonObject { ["transform"] = t, ["facing"] = true },
+            });
+            var node = new JsonObject { ["name"] = $"transform {t} billboard", ["children"] = new JsonArray(facing) };
             SetTrs(node, scene.Transforms[t].Scale, Quaternion.Identity, scene.WorldMatrix(t).Translation);
-            node["mesh"] = gltf.AddMesh(new JsonObject { ["primitives"] = primitives[t] });
             node["extras"] = new JsonObject { ["transform"] = t, ["billboard"] = true };
             roots.Add(billboardNodes[t] = gltf.AddNode(node));
         }
@@ -110,6 +121,8 @@ public static class SceneGltf
         nodes[0] = roots[^1];
 
         var extras = new JsonObject { ["borg5"] = index, ["borg3"] = scene.Camera };
+        if (ScrollingTextures(scene, textures) is { Count: > 0 } scrolling)
+            extras["scrollingTextures"] = scrolling;
         for (var i = 0; i < scene.Lights.Count; i++)
         {
             var light = Borg4Light.Parse(read(scene.Lights[i]));
@@ -191,7 +204,7 @@ public static class SceneGltf
             if (animation.Targets.Count == 0)
                 still.Add(new JsonObject { ["borg6"] = borg6, ["length"] = animation.Length });
             else
-                gltf.AddAnimation(Animation(gltf, scene, borg6, animation, nodes, billboardNodes));
+                gltf.AddAnimation(Animation(gltf, scene, borg6, animation, nodes, billboardNodes, cards));
         }
         if (still.Count > 0)
             extras["stillAnimations"] = still;
@@ -243,6 +256,8 @@ public static class SceneGltf
                 ["doubleSided"] = !mesh.Flags.HasFlag(Borg2MaterialFlags.CullBack),
                 ["extras"] = new JsonObject { ["borg2Flags"] = (uint)mesh.Flags },
             };
+            if (texture is { } bound)
+                material["extras"]!["borg1"] = scene.Textures[bound];
             if (alphaMode == "MASK")
                 material["alphaCutoff"] = 0.5f;
             if (mesh.Flags.HasFlag(Borg2MaterialFlags.Unlit))
@@ -320,7 +335,7 @@ public static class SceneGltf
     /// again, so the clip lasts one loop. Linear interpolation then matches the game at every tick.
     /// </summary>
     private static JsonObject Animation(GltfBuilder gltf, Borg5Scene scene, int index, Borg6Animation animation,
-        Dictionary<int, int> nodes, Dictionary<int, int> billboardNodes)
+        Dictionary<int, int> nodes, Dictionary<int, int> billboardNodes, Dictionary<int, int> cards)
     {
         var count = animation.Length + 1;
         var driven = animation.Targets.Select(t => t.Transform).ToHashSet();
@@ -365,6 +380,8 @@ public static class SceneGltf
                     {
                         Samples(translations, billboard)[sample] = World(t).Translation;
                         Samples(scales, billboard)[sample] = transform.Scale;
+                        if (driven.Contains(t))
+                            SetRotation(cards[t], sample, Roll(transform));
                     }
                 }
             }
@@ -534,6 +551,39 @@ public static class SceneGltf
 
     private static void SetTrs(GltfBuilder gltf, int node, Vector3 scale, Quaternion rotation, Vector3 translation) =>
         SetTrs(gltf.Node(node), scale, rotation, translation);
+
+    /// <summary>
+    /// The scene's textures that scroll, with how many times each draw of the scene loads each one,
+    /// which is how many times it scrolls (see <c>Aidyn.Core.Scenes.TextureScroll</c>).
+    /// </summary>
+    private static JsonArray ScrollingTextures(Borg5Scene scene, Lazy<Borg1Texture>[] textures)
+    {
+        var loads = new List<(int Texture, int Count)>();
+        foreach (var (op, value) in scene.Instructions)
+        {
+            if (op != Borg5Opcode.LoadTexture || value >= textures.Length || !textures[value].Value.Flags.HasFlag(Borg1Flags.Moving))
+                continue;
+            var i = loads.FindIndex(l => l.Texture == value);
+            if (i < 0)
+                loads.Add((value, 1));
+            else
+                loads[i] = (value, loads[i].Count + 1);
+        }
+        return new JsonArray(loads.Select(l => (JsonNode)new JsonObject
+        {
+            ["borg1"] = scene.Textures[l.Texture],
+            ["width"] = textures[l.Texture].Value.Width,
+            ["move"] = textures[l.Texture].Value.Move,
+            ["loads"] = l.Count,
+        }).ToArray());
+    }
+
+    /// <summary>
+    /// How a billboard's card rolls about its own +Z before it's turned to the camera: by
+    /// <c>rot.z</c>, which <c>guAlignF</c> takes as its angle.
+    /// </summary>
+    private static Quaternion Roll(Borg5Transform transform) =>
+        Quaternion.CreateFromAxisAngle(Vector3.UnitZ, transform.Rotation.Z * (MathF.PI / 180));
 
     private static JsonArray QuaternionJson(Quaternion q)
     {

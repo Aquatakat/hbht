@@ -58,6 +58,22 @@ The sky lights bodies and animated scene objects; scenery it only tints. `Aidyn.
 - **The moon** adds a light only when `playerData.tintScale` is non-zero, which only combat's tints change, so in trek it's black. Not ported.
 - **Map lights and dynamic lights** (`light_init_func`, `passto_InitLight_2`: torches, spells) add more lights to bodies. Not ported yet.
 
+## Billboards
+
+A Borg5 transform with flag 0x200 is a card the game turns to the camera (see [scenes](../formats/scenes.md)). `Aidyn.Core.Scenes.Billboard` ports the matrix, and the runtime's `Billboards` applies it.
+
+- **What the game draws.** Only the transform's world position and its scale times the scene object's survive. The card rolls by the transform's `rot.z`, turns so its +Z points at the camera's position, not along the way it looks, and is scaled along the world's axes (`guAlignF`). So it tilts back as the camera looks down on it, and it can roll as the camera passes overhead.
+- **In the runtime.** The export puts a facing node between the billboard's node and its card. The runtime makes the facing node top-level and, every frame, sets it to the billboard's world position, turned and scaled as the game does. It uses the camera's interpolated position, as the scenery is drawn from. Animations still move and scale the billboard's node and roll the card, and the facing node reads them.
+- **Around Gwernia** they're the forest trees' far level of detail, Oriana's path lights between 5 and 24 away, and what look like bushes. Nearly every chunk has some.
+
+## Scrolling textures
+
+Water and fire scroll: the game shifts the texture's bitmap sideways each time a scene loads it (see [textures](../formats/textures.md)). `Aidyn.Core.Scenes.TextureScroll` ports the counter, and the runtime's `TextureScrolls` applies it.
+
+- **The shader** takes how far the image has moved as a share of its width (`scroll`), and subtracts it from S after the material's own clamping or mirroring, then samples with repeat. That wraps the image round inside the texture as the game's shift does. It moves in whole texels, as the original's does, so it steps rather than glides.
+- **When it moves.** Once a frame at the port's cadence (every 2 ticks), each scene the original would draw loads its scrolling textures, and each load moves the texture on. A texture is one image however many scenes use it, so, as in the original, it moves faster when more of them are drawn. The original draws the centre chunk's two scenes always, and a neighbour's when the camera's view crosses it (`ChunkView`, from `FUN_80010598`). The view is a kite of five lines on the ground, 200 long, straight ahead and 42.5° either side. It draws a scene object's levels of detail by their distance from the player. At Gwernia's statue the sea (0x0EAB) is in both of M07's scenes, and in its neighbours'.
+- **Checked** by two screenshots half a second apart, looking over Gwernia's sea: the water changed and nothing else did. Two screenshots at the same moment were identical. The speed hasn't been compared with the emulator. The console runs at 15 to 25 fps, so at the port's 30 fps cadence the water moves 20% to 100% faster than on the console, as the camera does.
+
 ## Normals
 
 - **Unlit meshes have no normals that face up.** They're exported without `NORMAL`, as the N64 doesn't light them, and Godot generates its own. A decal's angle fade (`normal_fade`), which compares the decal with the surface's normal, hid the player's shadow even on level unlit ground, so those generated normals don't face up. Anything that reads unlit geometry's normals will need them exported, or the winding checked.
@@ -73,9 +89,13 @@ The sky lights bodies and animated scene objects; scenery it only tints. `Aidyn.
   - *The camera is rebuilt from its look.* `SkyScreen.Project` gets only the way the camera looks, and assumes it's level from side to side (no roll) and 45° high. Looking exactly straight up or down draws no sprites at all. A camera that rolls leaves the sky upright while the scenery tilts, and one that pitches over the top draws the sky upside down against the scenery. A camera with another field of view, such as a cinematic shot's, unpins the sky from the scenery. The fix is easy: hand the core the camera's basis and field of view from Godot, not its look alone.
   - *The gradient* isn't projected, and doesn't move when the camera looks up (see [the sky's colours](#the-skys-colours)), which the original shares.
 - **The weather**: rain's sky, the wind's changes, and the fog that fades the sky, its objects and the scenery.
-- **Billboards:** the user doesn't recall any that visibly turn to follow the camera, except maybe a bush in later areas. This can wait until one turns up.
 - **Texture filtering:** probably not worth emulating. Aidyn doesn't use the N64's three-point filtering for artistic effect, and its textures, especially the faces, have far more texels than the screen shows.
-- **Animated textures.** No Borg5 uses the scene-level kind, which the game would crash on. The effects the user remembers are probably the 103 Borg1s that scroll (flags `0x200` and `0x100`), which the export doesn't animate yet.
+- **Animated textures.** No Borg5 uses the scene-level kind, which the game would crash on. The Borg1s that scroll are ported (see [scrolling textures](#scrolling-textures)).
+- **Which scenes are drawn**, which also sets how fast textures scroll. Three parts of the original's choice aren't ported:
+  - *Its collision grid lists the scene objects to draw* from each square: the player's in the centre chunk, and the squares along a neighbour's edge. The runtime draws every object within its range.
+  - *Levels of detail are chosen by distance from the player.* The runtime uses Godot's visibility ranges, which measure from the camera. The scroll counts the original's way.
+  - *A map can force neighbours to be drawn* out of view (`Borg9Data.byte0x1b`). None of Gwernia's maps do; 21 chunks of the Overworld do, from C15 to O22.
+- **Billboards in the Inspector** face the way they were modelled, as the HTML viewer's do.
 - **Some odd rendering** the user noticed in the cinematics. It isn't pinned down yet.
 - **The particle simulation** (see [particles](../formats/particles.md)), and each cinematic shot's near and far planes, which the cinematic table overrides and the viewer ignores.
 - **Borg4 lights:** the decomp's draw code seems to ignore them in favour of the lights the engine sets, which is still unresolved.

@@ -59,6 +59,7 @@ public partial class Game : Node3D
     private IRootMotion _animation = new Still();
     /// <summary>The player's last second of positions, for the overlay's speed.</summary>
     private readonly Queue<System.Numerics.Vector3> _track = new();
+    private long _ticks;
 
     public override void _Ready()
     {
@@ -211,6 +212,7 @@ public partial class Game : Node3D
             return;
         _sky!.Enter(_chunks!.ChunkAt(_player.Motion.Sphere.Position.ToGodot()));
         _sky.Step();
+        ScrollTextures();
         if (_camera.Flying)
             return;
         var input = ReadInput();
@@ -231,6 +233,19 @@ public partial class Game : Node3D
             _camera.ResetPhysicsInterpolation();
             _shadow?.ResetPhysicsInterpolation();
         }
+    }
+
+    /// <summary>
+    /// Once a frame at the port's cadence, the scenes the original would draw load their scrolling
+    /// textures, which moves them on.
+    /// </summary>
+    private void ScrollTextures()
+    {
+        if (++_ticks % Core.Cadence.FrameTicks != 0)
+            return;
+        var camera = _camera!.Current.GlobalTransform;
+        var focus = _camera.Flying ? camera.Origin : _player!.Motion.Sphere.Position.ToGodot();
+        _models!.Scrolls.Frame(_chunks!.DrawnScenes(focus, camera.Origin, -camera.Basis.Z));
     }
 
     /// <summary>
@@ -304,6 +319,8 @@ public partial class Game : Node3D
             return;
         var focus = _camera.Flying ? _camera.Current.GlobalPosition : _player.GlobalPosition;
         _chunks.Update(focus);
+        // From where the scenery is drawn this frame: between ticks, the camera interpolated.
+        Billboards.Face(_chunks.BillboardFacings, _camera.Current.GetGlobalTransformInterpolated().Origin);
 
         if (_overlay.Visible)
         {

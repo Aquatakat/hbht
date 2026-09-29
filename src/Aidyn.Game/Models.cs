@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Aidyn.Inspector;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
@@ -13,6 +14,9 @@ public sealed class Models(PluginSet plugins) : IDisposable
 {
     private readonly Dictionary<RecordId, Node3D?> _templates = [];
     private readonly Dictionary<RecordId, byte[]?> _files = [];
+
+    /// <summary>The scenes' scrolling textures, which every copy of a scene shares.</summary>
+    public TextureScrolls Scrolls { get; } = new();
 
     /// <summary>A new copy of the scene's nodes, or null if no plugin has its asset.</summary>
     public Node3D? Instantiate(RecordId scene)
@@ -79,6 +83,11 @@ public sealed class Models(PluginSet plugins) : IDisposable
         }
         N64Material.Apply(glb, state, node);
         node.Name = scene.ToString().Replace(':', '_').Replace('/', '_');
+        using (var json = JsonDocument.Parse(glb.AsMemory(20, BitConverter.ToInt32(glb, 12))))
+            Scrolls.Add(scene, json.RootElement, node);
+        // Billboards are turned to the camera in world space, whatever their parents do.
+        foreach (var facing in Billboards.Facings(node))
+            facing.TopLevel = true;
         return node;
     }
 }

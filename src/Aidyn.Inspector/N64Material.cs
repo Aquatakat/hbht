@@ -37,6 +37,8 @@ namespace Aidyn.Inspector;
 /// <para>
 /// Borg2 materials clamp, repeat or mirror S and T separately (faces are often half a texture,
 /// mirrored), which a <see cref="BaseMaterial3D"/> can't, so the shader wraps each axis itself.
+/// A scrolling texture's image then wraps round within the texture by <see cref="ScrollParameter"/>,
+/// which the runtime sets; each material keeps its Borg1 in <see cref="Borg1Meta"/> for that.
 /// </para>
 /// </remarks>
 internal static class N64Material
@@ -60,6 +62,10 @@ internal static class N64Material
     public const string SunColorParameter = "n64_sun_color";
     /// <summary>Global: bodies' ambient light, half <c>gSkyColor</c>, in on-screen values.</summary>
     public const string BodyAmbientParameter = "n64_body_ambient";
+    /// <summary>Per material: how far a scrolling texture has moved toward +S, as a share of its width.</summary>
+    public const string ScrollParameter = "scroll";
+    /// <summary>A textured material's metadata: its texture's Borg1 archive index.</summary>
+    public const string Borg1Meta = "borg1";
 
     /// <summary>How a model's lit display lists are lit, and whether the scenery's tint colours it.</summary>
     public enum Lighting
@@ -214,6 +220,8 @@ internal static class N64Material
         }
         if (m.TryGetProperty("alphaCutoff", out var cutoff))
             material.SetShaderParameter("alpha_scissor", cutoff.GetSingle());
+        if (m.TryGetProperty("extras", out var extras) && extras.TryGetProperty("borg1", out var borg1))
+            material.SetMeta(Borg1Meta, borg1.GetInt32());
         return material;
 
         static Wrap ToWrap(JsonElement sampler, string name) =>
@@ -241,7 +249,8 @@ internal static class N64Material
         var texel = textured
             ? """
                 vec2 half_texel = 0.5 / vec2(textureSize(albedo_texture, 0));
-                	vec2 uv = vec2(wrap_axis(UV.x, wrap.x, half_texel.x), wrap_axis(UV.y, wrap.y, half_texel.y));
+                	// A scrolling texture's image wraps round within the texture, after the tile's own wrapping.
+                	vec2 uv = vec2(wrap_axis(UV.x, wrap.x, half_texel.x) - scroll, wrap_axis(UV.y, wrap.y, half_texel.y));
                 	// The unwrapped coordinates' gradients, so the mip level doesn't jump at a seam.
                 	vec4 texel = textureGrad(albedo_texture, uv, dFdx(UV), dFdy(UV));
                 """
@@ -290,6 +299,8 @@ internal static class N64Material
                 uniform sampler2D albedo_texture : {{(nearest ? "filter_nearest_mipmap" : "filter_linear_mipmap")}}, repeat_enable;
                 // Per axis: 0 repeat, 1 clamp, 2 mirror.
                 uniform ivec2 wrap;
+                // How far a scrolling texture's image has moved toward +S, as a share of its width.
+                uniform float scroll = 0.0;
                 uniform float alpha_scissor = 0.5;
 
                 varying float fog;
