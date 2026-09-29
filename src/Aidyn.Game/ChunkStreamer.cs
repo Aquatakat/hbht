@@ -46,7 +46,32 @@ public partial class ChunkStreamer : Node3D
         public Node3D Node { get; } = node;
         public GeometryInstance3D[] Meshes { get; } = [.. FindAll<GeometryInstance3D>(node)];
         public ScrollingScene? Scrolling { get; } = scrolling;
-        public byte Alpha { get; set; }
+        public byte Alpha { get; private set; }
+
+        /// <summary>The surfaces whose materials change while the model is faded: its cut-outs.</summary>
+        private readonly (MeshInstance3D Mesh, int Surface, Material Opaque, Material Faded)[] _cutOuts =
+        [
+            .. FindAll<MeshInstance3D>(node).SelectMany(mesh => Enumerable.Range(0, mesh.GetSurfaceOverrideMaterialCount())
+                .Select(surface => (mesh, surface, material: mesh.GetSurfaceOverrideMaterial(surface)))
+                .Where(s => s.material is not null && N64Material.Faded(s.material) is not null)
+                .Select(s => (s.mesh, s.surface, s.material, (Material)N64Material.Faded(s.material)!))),
+        ];
+
+        /// <summary>Shows the model at an alpha, hiding it at 0.</summary>
+        public void Show(byte alpha)
+        {
+            var faded = alpha is > 0 and < 0xFF;
+            if (faded != (Alpha is > 0 and < 0xFF))
+            {
+                foreach (var (mesh, surface, opaque, fadedMaterial) in _cutOuts)
+                    mesh.SetSurfaceOverrideMaterial(surface, faded ? fadedMaterial : opaque);
+            }
+            Node.Visible = alpha != 0;
+            Alpha = alpha;
+            var transparency = faded ? 1 - alpha / 255f : 0;
+            foreach (var mesh in Meshes)
+                mesh.Transparency = transparency;
+        }
     }
 
     public ChunkStreamer()
@@ -120,7 +145,8 @@ public partial class ChunkStreamer : Node3D
     /// <summary>
     /// Shows the levels of detail of each scene object that the original would draw from this
     /// view, faded as it fades them (<see cref="SceneObjectFade"/>). Godot draws a faded one
-    /// blended, after the opaque scenery, without writing depth, as the original does.
+    /// blended, after the opaque scenery, without writing depth, as the original does, and its
+    /// cut-outs blended rather than cut (<see cref="N64Material.Faded"/>).
     /// </summary>
     public void Fade(in SceneView view, DrawDistance range)
     {
@@ -132,13 +158,8 @@ public partial class ChunkStreamer : Node3D
                 SceneObjectFade.Alphas(placed.Object, placed.Origin, view, alphas, range);
                 for (var i = 0; i < placed.Levels.Length; i++)
                 {
-                    if (placed.Levels[i] is not { } level || level.Alpha == alphas[i])
-                        continue;
-                    level.Node.Visible = alphas[i] != 0;
-                    level.Alpha = alphas[i];
-                    var transparency = alphas[i] is 0 or 0xFF ? 0 : 1 - alphas[i] / 255f;
-                    foreach (var mesh in level.Meshes)
-                        mesh.Transparency = transparency;
+                    if (placed.Levels[i] is { } level && level.Alpha != alphas[i])
+                        level.Show(alphas[i]);
                 }
             }
         }

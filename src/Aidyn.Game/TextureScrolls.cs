@@ -53,7 +53,7 @@ public sealed class TextureScrolls
                     continue;
                 if (!copies.TryGetValue(material, out var copy))
                 {
-                    copies[material] = copy = (ShaderMaterial)material.Duplicate();
+                    copies[material] = copy = N64Material.Copy(material);
                     textures[i].Materials.Add(copy);
                 }
                 mesh.SetSurfaceOverrideMaterial(surface, copy);
@@ -78,7 +78,7 @@ public sealed class TextureScrolls
                 return;
             _shown = Scroll.Offset;
             foreach (var material in Materials)
-                material.SetShaderParameter(N64Material.ScrollParameter, (float)Scroll.Offset / Scroll.Width);
+                N64Material.SetScroll(material, (float)Scroll.Offset / Scroll.Width);
         }
     }
 }

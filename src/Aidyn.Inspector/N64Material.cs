@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Godot;
 
@@ -86,6 +87,10 @@ internal static class N64Material
 
     private const int Nearest = 9728, ClampToEdge = 33071, MirroredRepeat = 33648;
     private static readonly Dictionary<string, Shader> Shaders = [];
+    /// <summary>Cut-out materials' blended shaders, for drawing them faded.</summary>
+    private static readonly ConditionalWeakTable<Material, Shader> FadedShaders = [];
+    /// <summary>Cut-out materials' blended copies, made as they're first faded.</summary>
+    private static readonly ConditionalWeakTable<Material, ShaderMaterial> FadedCopies = [];
     private static bool _declared;
 
     /// <summary>
@@ -158,6 +163,45 @@ internal static class N64Material
         }
     }
 
+    /// <summary>
+    /// The material to draw a surface with while its model is faded, or null if it's the same one.
+    /// </summary>
+    /// <remarks>
+    /// The original draws a faded scene blended, texel alpha times the fade, with no alpha test
+    /// (<c>FUN_800a1184</c>'s <c>0x1049D8</c>), so its cut-outs blend too. Godot draws an alpha-scissor
+    /// material at full alpha wherever it passes the test, whatever the instance's transparency, so
+    /// a cut-out gets a copy that blends instead. Blended and opaque materials fade as they are.
+    /// </remarks>
+    public static ShaderMaterial? Faded(Material material)
+    {
+        if (!FadedShaders.TryGetValue(material, out var shader))
+            return null;
+        if (!FadedCopies.TryGetValue(material, out var copy))
+        {
+            copy = (ShaderMaterial)material.Duplicate();
+            copy.Shader = shader;
+            FadedCopies.Add(material, copy);
+        }
+        return copy;
+    }
+
+    /// <summary>Moves a scrolling texture's image, in its material and the material's faded copy.</summary>
+    public static void SetScroll(ShaderMaterial material, float scroll)
+    {
+        material.SetShaderParameter(ScrollParameter, scroll);
+        if (FadedCopies.TryGetValue(material, out var copy))
+            copy.SetShaderParameter(ScrollParameter, scroll);
+    }
+
+    /// <summary>A copy of a material for a copy of a scene, which fades as the original does.</summary>
+    public static ShaderMaterial Copy(ShaderMaterial material)
+    {
+        var copy = (ShaderMaterial)material.Duplicate();
+        if (FadedShaders.TryGetValue(material, out var shader))
+            FadedShaders.Add(copy, shader);
+        return copy;
+    }
+
     /// <summary>Sets how every mesh under <paramref name="root"/> is lit.</summary>
     public static void SetLighting(Node root, Lighting lighting) => SetOnMeshes(root, LightingParameter, (int)lighting);
 
@@ -222,6 +266,8 @@ internal static class N64Material
             material.SetShaderParameter("alpha_scissor", cutoff.GetSingle());
         if (m.TryGetProperty("extras", out var extras) && extras.TryGetProperty("borg1", out var borg1))
             material.SetMeta(Borg1Meta, borg1.GetInt32());
+        if (blend == Blend.Mask)
+            FadedShaders.Add(material, ShaderFor(unlit, cull, nearest, Blend.Blend, albedo is not null));
         return material;
 
         static Wrap ToWrap(JsonElement sampler, string name) =>
