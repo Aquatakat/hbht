@@ -2,7 +2,7 @@
 
 `src/Aidyn.Game` is the Godot game. It references `Aidyn.Plugins` and `Aidyn.Core`, and not `Aidyn.Rom`, so the build enforces ADR 0001. Import first (see [importer](importer.md)), then run it with `tools/godot.ps1 --path src/Aidyn.Game` (build with `dotnet build` first). It reads the plugins from the data folder, so set `AIDYN_DATA` for both if the import went elsewhere.
 
-- **What it does so far.** It streams the 3×3 chunks around the player: each chunk's scene and see-through scene, the models its scene objects place (Expansion Pak set; each level of detail over its own distance range), actors running their Borg7 state machines, and the collision. Alaron starts where a new game does, on the ground. The core's ports of the original's player movement and camera ([movement](movement.md), [cameras](cameras.md)) move him and follow him.
+- **What it does so far.** It streams the 3×3 chunks around the player: each chunk's scene and see-through scene, the models its scene objects place (Expansion Pak set; each level of detail faded in and out by the player's distance, as the original does), actors running their Borg7 state machines, and the collision. Alaron starts where a new game does, on the ground. The core's ports of the original's player movement and camera ([movement](movement.md), [cameras](cameras.md)) move him and follow him.
 - **The tick.** The player and camera are stepped once per 60 Hz tick in `_PhysicsProcess`, and Godot's physics interpolation smooths the display. Where the original acts once per frame, or loops toward a target fixed for the frame, the port matches what it does at an idealized 30 fps, a `delta` of 2 (`Aidyn.Core.Cadence`). The user chose this. The console runs at 15–25 fps, and the camera feels snappier on an overclocked emulator.
 - **Alaron's shadow** is the original's (`Aidyn.Core.Movement.BodyShadow`, from `Actor::CalculateShadow`, `renderPlayerShadows` and `PlaneObj_Render`, checked against the ROM).
   - Each tick, after he and the camera move, it sweeps a sphere of radius 0.5 from his centre down 3, skipping see-through triangles. It lies where that hits, directly below him, turned to the triangle's normal.
@@ -22,6 +22,7 @@
 - **For scripts:** `-- --chunk I08 --at 16,62 --yaw 0 --pitch -15 --distance 5 --hold move_forward,4 --screenshot <absolute path>.png` starts somewhere, holds an input, saves the window and quits.
   - `--hold` takes several actions joined with `+`, as in `move_forward+walk,4`.
   - The screenshot path must be absolute, or Godot saves it relative to the project.
-  - `--fly x,y,z` starts with the free camera. `--time <hours>` sets the time of day. The run gives up after a minute.
+  - `--fly x,y,z` starts with the free camera, which scene objects' distances are then measured from. `--time <hours>` sets the time of day. The run gives up after a minute.
+  - `--draw-distance <scale>` draws scene objects that many times as far, and `--detail nearest` only their nearest level of detail (see [rendering](rendering.md#draw-distance)).
   - Gwernia's open ground is around (30–80, 30–80) in M07, for example `--chunk M07 --at 40,55`. Elsewhere in M07 there's no ground, so he falls and is put back again and again.
 - **The spawn point** is tight. A rock stands in a hole in the terrain in front of it, with collision walls and no top, and a birch's collision box is beside it. The original drops the player from a height of 10; the runtime puts him on the highest ground below the spawn instead.

@@ -71,7 +71,7 @@ There are three observable draw distance tiers:
 | Objects | Trees, some buildings | Medium |
 | Actors and containers | NPCs, creatures, chests, herb piles, etc. | Short, sometimes quite short |
 
-**(decomp)** Each placed scene object stores its own draw distance, so the object tier is a content convention rather than a fixed engine setting.
+**(decomp)** Each placed scene object stores its own draw distance, so the object tier is a content convention rather than a fixed engine setting. Distances are from the player, not the camera, and each model fades over its last unit rather than popping. Chests are drawn to 10, most trees to 40–70. See [rendering](systems/rendering.md#draw-distance).
 
 ## Time, weather, and aspect
 

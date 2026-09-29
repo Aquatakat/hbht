@@ -2,6 +2,7 @@ using System.Globalization;
 using Aidyn.Core.Cameras;
 using Aidyn.Core.Movement;
 using Aidyn.Core.Physics;
+using Aidyn.Core.Scenes;
 using Aidyn.Inspector;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
@@ -60,6 +61,7 @@ public partial class Game : Node3D
     /// <summary>The player's last second of positions, for the overlay's speed.</summary>
     private readonly Queue<System.Numerics.Vector3> _track = new();
     private long _ticks;
+    private DrawDistance _drawDistance = DrawDistance.Original;
 
     public override void _Ready()
     {
@@ -112,6 +114,7 @@ public partial class Game : Node3D
         if (args.TryGetValue("time", out var time))
             _sky.Clock.SetTimeOfDay(float.Parse(time, CultureInfo.InvariantCulture));
 
+        _drawDistance = new DrawDistance(Float(args, "draw-distance", 1), args.GetValueOrDefault("detail") == "nearest");
         var models = _models = new Models(plugins);
         _chunks = new ChunkStreamer(plugins, models, set, _world);
         AddChild(_chunks);
@@ -244,9 +247,30 @@ public partial class Game : Node3D
         if (++_ticks % Core.Cadence.TextureFrameTicks != 0)
             return;
         var camera = _camera!.Current.GlobalTransform;
-        var focus = _camera.Flying ? camera.Origin : _player!.Motion.Sphere.Position.ToGodot();
-        foreach (var scene in _chunks!.DrawnScenes(focus, camera.Origin, -camera.Basis.Z))
+        foreach (var scene in _chunks!.DrawnScenes(camera.Origin, -camera.Basis.Z))
             scene.Draw();
+    }
+
+    /// <summary>
+    /// Where scene objects are drawn from: the player, and the follow camera's place and aim, or
+    /// the free camera alone. The cone of view widens with the window (<see cref="ViewCone.For"/>).
+    /// </summary>
+    private SceneView View()
+    {
+        var size = GetViewport().GetVisibleRect().Size;
+        var cone = ViewCone.For(size.X / size.Y);
+        if (_camera!.Flying)
+        {
+            var transform = _camera.Current.GlobalTransform;
+            var look = -transform.Basis.Z;
+            var flat = new System.Numerics.Vector2(look.X, look.Z);
+            flat = flat.LengthSquared() < 1e-6f ? default : System.Numerics.Vector2.Normalize(flat);
+            return new SceneView(transform.Origin.ToNumerics(), new(transform.Origin.X, transform.Origin.Z), flat, 0, cone);
+        }
+        var camera = new System.Numerics.Vector2(_follow!.Position.X, _follow.Position.Z);
+        var toAim = new System.Numerics.Vector2(_follow.Aim.X, _follow.Aim.Z) - camera;
+        var distance = toAim.Length();
+        return new SceneView(_player!.Motion.Sphere.Position, camera, distance > 0 ? toAim / distance : default, distance, cone);
     }
 
     /// <summary>
@@ -320,6 +344,7 @@ public partial class Game : Node3D
             return;
         var focus = _camera.Flying ? _camera.Current.GlobalPosition : _player.GlobalPosition;
         _chunks.Update(focus);
+        _chunks.Fade(View(), _drawDistance);
         // From where the scenery is drawn this frame: between ticks, the camera interpolated.
         Billboards.Face(_chunks.BillboardFacings, _camera.Current.GetGlobalTransformInterpolated().Origin);
 

@@ -269,10 +269,12 @@ internal static class N64Material
         var fog = unlit || rsp
             ? "ALBEDO = to_linear(mix(color, n64_fog_color, fog));"
             : "ALBEDO = to_linear(color);\n\tFOG = vec4(to_linear(n64_fog_color), fog);";
+        // ALPHA starts as 1 − the instance's transparency, which fades scene objects, so it's
+        // multiplied rather than set, and a cut-out's threshold fades with it to keep its shape.
         var alpha = blend switch
         {
-            Blend.Blend => "ALPHA = alpha;",
-            Blend.Mask => "ALPHA = alpha;\n\tALPHA_SCISSOR_THRESHOLD = alpha_scissor;",
+            Blend.Blend => "ALPHA *= alpha;",
+            Blend.Mask => "ALPHA_SCISSOR_THRESHOLD = alpha_scissor * ALPHA;\n\tALPHA *= alpha;",
             _ => "",
         };
 
