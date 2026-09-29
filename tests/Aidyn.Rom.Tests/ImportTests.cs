@@ -95,6 +95,19 @@ public sealed class ImportTests : IDisposable
         Assert.All(skyImages, id => Assert.NotNull(set.FindAsset(id, "png")));
         Assert.All(sky.Clouds, c => Assert.InRange(c.Image, 0, sky.CloudImages.Count - 1));
         Assert.All(sky.LensFlare, f => Assert.InRange(f.Image, 0, sky.FlareImages.Count - 1));
+
+        // The editor's catalog: every record and asset with a summary, and what names what.
+        var catalog = PluginCatalog.Build(set);
+        Assert.DoesNotContain(catalog.Entries, e => e.Summary.StartsWith('‹'));
+        var i08Map = catalog.Find(i08.Map)!;
+        Assert.True(i08Map.HasRecord);
+        Assert.Equal(Convert.ToInt32(i08.Map.Key, 16), i08Map.Borg);
+        Assert.Contains("Overworld I08", i08Map.Summary, StringComparison.Ordinal);
+        Assert.NotNull(i08Map.Asset("glb"));
+        Assert.Contains(catalog.ReferencesTo(i08.Map), r => r.From == overworld.Id && r.Path.StartsWith("chunks[", StringComparison.Ordinal));
+        Assert.Equal("12×37", catalog.Find(RecordId.Hex(RecordTypes.Image, 0x19F))!.Summary);
+        Assert.Contains(catalog.ReferencesTo(RecordId.Hex(RecordTypes.Image, 0x19F)), r => r.From.Type == RecordTypes.Terrain);
+        Assert.All(textures, l => Assert.NotNull(catalog.Find(RecordId.Hex(RecordTypes.Texture, l.Index))));
     }
 
     [Fact]

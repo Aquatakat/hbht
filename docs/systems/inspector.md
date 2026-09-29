@@ -1,14 +1,29 @@
-# The asset inspector (roadmap 0.6)
+# The editor (roadmap 0.6)
 
-Per [ADR 0009](../adr/0009-code-organisation.md), the Inspector is the one tool app, and the HTML viewers in `tools/` get no new features. Per [ADR 0010](../adr/0010-editor-reads-plugins.md), it becomes the editor, which reads only the imported plugins and draws them with the runtime's code. What this page describes is the raw Borg browser, which is now frozen: it gets fixes only, and it's deleted along with the HTML viewers once the editor shows what they show.
+Per [ADR 0009](../adr/0009-code-organisation.md), the Inspector is the one tool app, and the HTML viewers in `tools/` get no new features. Per [ADR 0010](../adr/0010-editor-reads-plugins.md), it becomes the editor, which reads only the imported plugins and draws them with the runtime's code. The CLAUDE.md status lists the steps to parity with the viewers.
 
-`src/Aidyn.Inspector` is a Godot app for browsing every Borg by type and index. Run it with `tools/godot.ps1 --path src/Aidyn.Inspector` (build it first with `dotnet build`, or open it in the editor). It finds the ROMs in `roms/` (or `AIDYN_ROMS`) by hash and opens 1.0 first, or use **Open ROM…**.
+`src/Aidyn.Inspector` is a Godot app. Run it with `tools/godot.ps1 --path src/Aidyn.Inspector` (build it first with `dotnet build`, or open it in the editor). It has two tabs: **Plugins**, the editor, and **ROM Borgs (frozen)**, the raw Borg browser.
+
+## Plugins
+
+It loads the plugins folder as the runtime does (`PluginSet.LoadInstalled`: `aidyn.base`, then the rest by ID), from the data folder (`AIDYN_DATA`, else `%LOCALAPPDATA%\Aidyn`) or wherever **Plugins folder…** points. **Import ROM…** runs the importer into that folder's `aidyn.base`, as the game's first-run screen will, and reloads.
+
+- **The list** is every record and every asset, by type: `PluginCatalog` in `Aidyn.Plugins`, which the tests check against a fresh import. Scenes, textures and UI images are assets with no record, so they're listed by their asset's ID. The Borg column is the archive index a base-game ID's hex key stands for. The summary names what the ID alone doesn't: where a map set places a map (`Overworld I08`) and what objects it holds, an actor's states and scene, a terrain's sky gradient, an image's size, and for a bare asset how many records use it. The search filters by ID, Borg index or summary, so `I08` finds the chunk's map. Enter opens a record ID typed in full, or the only match.
+- **Links.** Any field whose value parses as a record ID is a link, so new record types need no editor code. Double-click one in the fields to open it. Back and forward are the ◀ ▶ buttons, Alt+Left and Alt+Right, or the mouse's side buttons. A link to a record no plugin has yet, such as a flag, is dimmer, and opening it shows what names it.
+- **Preview.** A scene or a map's collision (in the chunk's own coordinates) in the model view, with the N64 material. An actor is its scene playing its initial state's animation, without Alaron's head for now. A texture or UI image at its size, blown up. A map set is its grid of chunks, rows down and columns across, each a button to its map. Other records show the images they name, such as a terrain's sky gradient or the sky's sun, moon, stars, clouds and flare; click one to open it.
+- **Fields:** the merged record as its JSON, with the plugins that set each top-level field, in load order (`PluginSet.Setters`). Lists come in pages of 256. The header says which plugin defines the record, which patch it, and which plugin each asset file comes from.
+- **Used by:** every record that names this one, with the fields that do, which is Bethesda's "use info". It's how to find what places a scene, or which maps' objects a flag gates. Terrains show nothing here, since chunks name them by number rather than record ID.
+- **For scripts and screenshots:** `tools/godot.ps1 --path src/Aidyn.Inspector -- --record aidyn:mapset/0 --tab preview --screenshot out/shot.png` opens a record, saves the window and quits. `--tab` takes `preview`, `fields` or `used-by`, and `--data` a plugins folder. It gives up after a minute, so a hang can't block a script.
+
+## ROM Borgs (frozen)
+
+The raw Borg browser gets fixes only (ADR 0010), and is deleted with the HTML viewers. It reads the ROM only once its tab is opened. It finds the ROMs in `roms/` (or `AIDYN_ROMS`) by hash and opens 1.0 first, or use **Open ROM…**.
 
 - **The list** filters by type, and by index or summary text. Summaries fill in as it decodes the archive in the background, which takes a few seconds.
 - **Preview:** textures with every mip level, and UI images. Models are shown alone and untextured, since scenes bind the textures. Scenes play all their animations. An animation plays in its scene, an actor plays its initial state, and a map chunk's collision shows where its first map set places it. Dialogue shows as text. Drag to turn, right-drag to pan, scroll to zoom. The 3D views are the CLI's glTF, loaded at run time with Godot's `GltfDocument`, so they match the scene viewer.
 - **Godot loses texture wrap modes on import.** A `BaseMaterial3D` has one repeat switch for both axes and can't mirror, so glTF's mirrored repeat and one-axis clamp come out wrong. Faces are often half a texture mirrored across the middle (Donovan, scene 10363, lost half his face), and the knight's pauldrons (scene 9765) and the Gwernia house's door clamp or mirror too. `WrapMaterials` swaps those materials for a shader that wraps each axis itself. The runtime's N64 material will need the same.
 - **Fields:** the decoded record, read by reflection, so a new decoder's fields show up with no inspector code. Lists expand in pages of 256. The Borg's `Borg_List` entry is below it.
 - **Hex:** the decompressed bytes. Samples and sequences (1D) have only this so far.
-- **For scripts and screenshots:** `tools/godot.ps1 --path src/Aidyn.Inspector -- --borg 10723 --tab preview --screenshot out/shot.png` opens a Borg, saves the window and quits. It gives up after a minute, so a hang can't block a script.
+- **For scripts and screenshots:** `--borg 10723` (and `--rom <path>`) opens this tab at a Borg, with `--tab preview|fields|hex` and `--screenshot` as above.
 
 The decoding lives in `Aidyn.Rom.Inspection` (`BorgInspector`, `FieldTree`), which the tests check against every Borg; the Godot project is only UI. Like the CLI, it reads the ROM through `Aidyn.Rom` as a research tool. The editor won't: ADR 0010 keeps it on plugins, like the runtime.

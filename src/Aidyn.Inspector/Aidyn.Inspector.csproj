@@ -8,6 +8,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- The editor reads plugins (ADR 0010). The ROM is only for the frozen Borg browser and running the importer. -->
+    <ProjectReference Include="..\Aidyn.Plugins\Aidyn.Plugins.csproj" />
     <ProjectReference Include="..\Aidyn.Rom\Aidyn.Rom.csproj" />
   </ItemGroup>
 

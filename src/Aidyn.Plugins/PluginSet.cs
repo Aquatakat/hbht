@@ -23,6 +23,10 @@ public sealed record FieldConflict(RecordId Record, string Field, IReadOnlyList<
     public string Winner => Plugins[^1];
 }
 
+/// <summary>A record's asset file: the one <see cref="PluginSet.FindAsset"/> picks.</summary>
+/// <param name="Plugin">The ID of the plugin it comes from.</param>
+public sealed record AssetFile(RecordId Id, string Extension, string Path, string Plugin);
+
 /// <summary>
 /// The records and assets of plugins loaded in order, merged field by field (ADR 0005).
 /// </summary>
@@ -36,6 +40,7 @@ public sealed class PluginSet
 {
     private readonly Dictionary<RecordId, JsonObject> _records = [];
     private readonly Dictionary<(RecordId, string), List<string>> _setters = [];
+    private readonly Dictionary<RecordId, string> _definedBy = [];
 
     private PluginSet(IReadOnlyList<Plugin> plugins) => Plugins = plugins;
 
@@ -82,6 +87,40 @@ public sealed class PluginSet
     }
 
     public bool Contains(RecordId id) => _records.ContainsKey(id);
+
+    /// <summary>The ID of the plugin that defines the record, or null if none does.</summary>
+    public string? DefinedBy(RecordId id) => _definedBy.GetValueOrDefault(id);
+
+    /// <summary>The plugins that set one of the record's top-level fields, in load order. The last one's value holds.</summary>
+    public IReadOnlyList<string> Setters(RecordId id, string field) => _setters.GetValueOrDefault((id, field)) ?? [];
+
+    /// <summary>
+    /// Every asset file, from the plugin that <see cref="FindAsset"/> would take it from. Files whose
+    /// path isn't a record ID are left out.
+    /// </summary>
+    public IEnumerable<AssetFile> Assets()
+    {
+        var found = new Dictionary<(RecordId, string), AssetFile>();
+        foreach (var plugin in Plugins)
+        {
+            var root = Path.Combine(plugin.Directory, "assets");
+            if (!Directory.Exists(root))
+                continue;
+            foreach (var path in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+            {
+                // assets/<namespace>/<type>/<key>.<extension>, with nested keys as folders.
+                var parts = Path.GetRelativePath(root, path).Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                var extension = Path.GetExtension(path);
+                if (parts.Length < 3 || extension.Length < 2)
+                    continue;
+                parts[^1] = Path.GetFileNameWithoutExtension(parts[^1]);
+                if (!RecordId.TryParse($"{parts[0]}:{parts[1]}/{string.Join('/', parts[2..])}", out var id))
+                    continue;
+                found[(id, extension[1..])] = new AssetFile(id, extension[1..], path, plugin.Manifest.Id);
+            }
+        }
+        return found.Values;
+    }
 
     /// <summary>The merged record as JSON.</summary>
     public JsonObject? GetJson(RecordId id) => _records.GetValueOrDefault(id);
@@ -148,10 +187,11 @@ public sealed class PluginSet
                 throw new InvalidDataException($"{file}: {pluginId} can only add records in its own namespace, not {id}. Patch it instead.");
             if (!_records.TryAdd(id, (JsonObject)o.DeepClone()))
                 throw new InvalidDataException($"{file}: {id} is defined twice.");
+            _definedBy[id] = pluginId;
             foreach (var (field, _) in o)
             {
                 if (field != "id")
-                    Setters(id, field).Add(pluginId);
+                    SetterList(id, field).Add(pluginId);
             }
         }
         else if (o["patch"] is JsonValue patchValue && o["id"] is null)
@@ -164,7 +204,7 @@ public sealed class PluginSet
                 if (field == "patch")
                     continue;
                 MergePatch.Apply(target, field, value);
-                var setters = Setters(id, field);
+                var setters = SetterList(id, field);
                 if (setters.Count == 0 || setters[^1] != pluginId)
                     setters.Add(pluginId);
             }
@@ -175,7 +215,7 @@ public sealed class PluginSet
         }
     }
 
-    private List<string> Setters(RecordId id, string field)
+    private List<string> SetterList(RecordId id, string field)
     {
         if (!_setters.TryGetValue((id, field), out var list))
             _setters[(id, field)] = list = [];

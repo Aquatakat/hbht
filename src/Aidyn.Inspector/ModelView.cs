@@ -67,20 +67,24 @@ public partial class ModelView : VBoxContainer
         _note.Text = "";
     }
 
-    public void Show(ModelPreview preview)
+    public void Show(ModelPreview preview) => Show(preview.Glb, preview.Animation, preview.Note);
+
+    /// <summary>Shows a glTF binary, playing <paramref name="animation"/> if it has one by that name.</summary>
+    /// <param name="note">What the preview shows, when that isn't just the asset itself.</param>
+    public void Show(byte[] glb, string? animation, string? note)
     {
         Clear();
-        _note.Text = preview.Note ?? "";
+        _note.Text = note ?? "";
 
         var document = new GltfDocument();
         var state = new GltfState();
-        var error = document.AppendFromBuffer(preview.Glb, "", state);
+        var error = document.AppendFromBuffer(glb, "", state);
         if (error != Error.Ok || document.GenerateScene(state) is not Node3D scene)
         {
             _note.Text = $"Godot couldn't load the glTF ({error}).";
             return;
         }
-        N64Material.Apply(preview.Glb, state, scene);
+        N64Material.Apply(glb, state, scene);
         _content = scene;
         _viewport.AddChild(scene);
         _camera.MakeCurrent();
@@ -100,7 +104,7 @@ public partial class ModelView : VBoxContainer
             }
             if (names.Count > 0)
             {
-                var start = preview.Animation is { } a && names.IndexOf(a) is >= 0 and var i ? i : 0;
+                var start = animation is { } a && names.IndexOf(a) is >= 0 and var i ? i : 0;
                 _animations.Select(start);
                 _animations.Visible = _play.Visible = true;
                 PlaySelected();

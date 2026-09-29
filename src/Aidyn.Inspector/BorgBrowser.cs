@@ -8,15 +8,14 @@ using Godot;
 namespace Aidyn.Inspector;
 
 /// <summary>
-/// The asset inspector (roadmap 0.6): browse Borgs by type and index, with a preview, the decoded
-/// fields and a hex dump. The decoding is in <see cref="BorgInspector"/>; this is only the UI.
+/// The raw Borg browser: Borgs by type and index, with a preview, the decoded fields and a hex
+/// dump. The decoding is in <see cref="BorgInspector"/>; this is only the UI.
 /// </summary>
 /// <remarks>
-/// Command-line options, after <c>--</c>: <c>--rom &lt;path&gt;</c>, <c>--borg &lt;index&gt;</c>,
-/// <c>--tab preview|fields|hex</c>, and <c>--screenshot &lt;png&gt;</c>, which saves the window
-/// once the Borg is shown and quits.
+/// Frozen by ADR 0010: it gets fixes only, since the editor reads imported data, and it's deleted
+/// along with the HTML viewers. It reads the ROM, so it starts only when first shown.
 /// </remarks>
-public partial class Inspector : Control
+public partial class BorgBrowser : Control
 {
     private const string Preview = "Preview", Fields = "Fields", Hex = "Hex";
     private const int AllTypes = 1000;
@@ -42,12 +41,13 @@ public partial class Inspector : Control
     private int _generation;
     private Task _showing = Task.CompletedTask;
 
-    public override void _Ready()
-    {
-        CultureInfo.DefaultThreadCurrentCulture = CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
-        BuildUi();
-        _ = Report(StartAsync(Options(OS.GetCmdlineUserArgs())));
-    }
+    /// <summary>Whether <see cref="StartAsync"/> has been called.</summary>
+    public bool Started { get; private set; }
+
+    public override void _Ready() => BuildUi();
+
+    /// <summary>Shows the Preview, Fields or Hex tab.</summary>
+    public void SelectTab(string tab) => _tabs.CurrentTab = tab.ToLowerInvariant() switch { "fields" => 1, "hex" => 2, _ => 0 };
 
     /// <summary>Prints what a fire-and-forget task threw, which would otherwise vanish.</summary>
     private async Task Report(Task task)
@@ -63,18 +63,15 @@ public partial class Inspector : Control
         }
     }
 
-    /// <summary>Finds and loads the ROMs off the main thread, so the window draws straight away.</summary>
-    private async Task StartAsync(Dictionary<string, string> args)
+    /// <summary>
+    /// Finds and loads the ROMs off the main thread, so the window draws straight away, and shows
+    /// <paramref name="borg"/> if given.
+    /// </summary>
+    public async Task StartAsync(string? rom, int? borg)
     {
-        var png = args.GetValueOrDefault("screenshot");
-        if (png is not null)
-            _ = Watchdog();
-        if (args.TryGetValue("tab", out var tab))
-            _tabs.CurrentTab = tab.ToLowerInvariant() switch { "fields" => 1, "hex" => 2, _ => 0 };
-
+        Started = true;
         _status.Text = "Looking for ROMs…";
-        var first = args.GetValueOrDefault("rom");
-        SetRoms(await Task.Run(() => FindRoms(first)));
+        SetRoms(await Task.Run(() => FindRoms(rom)));
         if (_romFiles.Count == 0)
         {
             _status.Text = "No ROM found in roms/. Open one to start.";
@@ -82,10 +79,8 @@ public partial class Inspector : Control
         }
         await LoadRomAsync(0);
 
-        if (args.TryGetValue("borg", out var borg) && int.TryParse(borg, CultureInfo.InvariantCulture, out var index))
+        if (borg is { } index)
             await SelectAsync(index);
-        if (png is not null)
-            await Screenshot(png);
     }
 
     private void BuildUi()
@@ -407,34 +402,10 @@ public partial class Inspector : Control
         return (BorgInspector.Hex(data), summary, [fields, inspector.Listing(index)], preview);
     }
 
-    private static ScrollContainer ImagesView(IReadOnlyList<RgbaImage> images)
-    {
-        var flow = new HFlowContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-        flow.AddThemeConstantOverride("h_separation", 16);
-        // Small textures are blown up, in whole steps, to about 256 pixels.
-        var zoom = Math.Max(1, 256 / Math.Max(images[0].Width, images[0].Height));
-        for (var level = 0; level < images.Count; level++)
-        {
-            var image = images[level];
-            var texture = ImageTexture.CreateFromImage(Image.CreateFromData(image.Width, image.Height, false, Image.Format.Rgba8, image.Pixels));
-            var box = new VBoxContainer();
-            box.AddChild(new Label { Text = images.Count > 1 ? $"Level {level}: {image.Width}×{image.Height}" : $"{image.Width}×{image.Height}" });
-            var backdrop = new Panel { CustomMinimumSize = new Vector2(image.Width, image.Height) * zoom };
-            backdrop.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color(0.3f, 0.3f, 0.3f) });
-            backdrop.AddChild(new TextureRect
-            {
-                Texture = texture,
-                TextureFilter = TextureFilterEnum.Nearest,
-                ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
-                Size = new Vector2(image.Width, image.Height) * zoom,
-            });
-            box.AddChild(backdrop);
-            flow.AddChild(box);
-        }
-        var scroll = new ScrollContainer();
-        scroll.AddChild(flow);
-        return scroll;
-    }
+    private static Control ImagesView(IReadOnlyList<RgbaImage> images) => ImageGallery.Create(images.Select((image, level) =>
+        new ImageGallery.Item(
+            images.Count > 1 ? $"Level {level}: {image.Width}×{image.Height}" : $"{image.Width}×{image.Height}",
+            Image.CreateFromData(image.Width, image.Height, false, Image.Format.Rgba8, image.Pixels))));
 
     private void SetPreview(Control content)
     {
@@ -449,34 +420,5 @@ public partial class Inspector : Control
         _preview.AddChild(content);
     }
 
-    /// <summary>In screenshot mode, quits with an error if the screenshot hasn't been taken within a minute.</summary>
-    private async Task Watchdog()
-    {
-        await ToSignal(GetTree().CreateTimer(60), SceneTreeTimer.SignalName.Timeout);
-        GD.PrintErr($"Timed out: {_status.Text}");
-        GetTree().Quit(2);
-    }
-
     private static readonly string ProjectPath = ProjectSettings.GlobalizePath("res://");
-
-    private async Task Screenshot(string path)
-    {
-        // A few frames for the layout to settle and the preview to draw.
-        for (var i = 0; i < 5; i++)
-            await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
-        var error = GetViewport().GetTexture().GetImage().SavePng(path);
-        GD.Print(error == Error.Ok ? $"Saved {path}" : $"Couldn't save {path}: {error}");
-        GetTree().Quit(error == Error.Ok ? 0 : 1);
-    }
-
-    private static Dictionary<string, string> Options(string[] args)
-    {
-        var options = new Dictionary<string, string>();
-        for (var i = 0; i + 1 < args.Length; i += 2)
-        {
-            if (args[i].StartsWith("--", StringComparison.Ordinal))
-                options[args[i][2..]] = args[i + 1];
-        }
-        return options;
-    }
 }

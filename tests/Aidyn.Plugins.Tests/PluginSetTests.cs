@@ -129,6 +129,72 @@ public sealed class PluginSetTests : IDisposable
     }
 
     [Fact]
+    public void FieldsRememberWhichPluginsSetThem()
+    {
+        var set = PluginSet.Load([
+            Base(),
+            Plugin("mymod", ["aidyn"], ("club.json", """{ "patch": "aidyn:weapon/0x0712", "damage": 9 }""")),
+        ]);
+        var club = RecordId.Parse("aidyn:weapon/0x0712");
+        Assert.Equal("aidyn", set.DefinedBy(club));
+        Assert.Equal(["aidyn", "mymod"], set.Setters(club, "damage"));
+        Assert.Equal(["aidyn"], set.Setters(club, "name"));
+        Assert.Empty(set.Setters(club, "weight"));
+        Assert.Null(set.DefinedBy(RecordId.Parse("aidyn:weapon/0x0799")));
+    }
+
+    [Fact]
+    public void TheCatalogListsRecordsAndAssetsAndWhatNamesThem()
+    {
+        var baseDir = Plugin("aidyn", null,
+            ("mapsets.json", """[{ "id": "aidyn:mapset/0", "label": "Overworld", "cellSize": 100, "chunks": [{ "row": 9, "column": 8, "map": "aidyn:map/0x0E87" }] }]"""),
+            ("maps.json", """
+                [{ "id": "aidyn:map/0x0E87", "objects": [
+                  { "type": "scene", "index": 0, "visible": { "flag": "aidyn:flag/5" }, "models": [{ "model": "aidyn:scene/0x0B48" }] },
+                  { "type": "scene", "index": 1, "visible": { "flag": "aidyn:flag/0" }, "models": [{ "model": "aidyn:scene/0x0B48" }] },
+                ] }]
+                """));
+        var modDir = Plugin("mymod", ["aidyn"]);
+        void Asset(string dir, string path, byte[] bytes)
+        {
+            var full = Path.Combine([dir, "assets", .. path.Split('/')]);
+            Directory.CreateDirectory(Path.GetDirectoryName(full)!);
+            File.WriteAllBytes(full, bytes);
+        }
+        Asset(baseDir, "aidyn/scene/0x0B48.glb", []);
+        Asset(baseDir, "aidyn/map/0x0E87.glb", []);
+        Asset(modDir, "aidyn/scene/0x0B48.glb", []);
+        Asset(baseDir, "aidyn/scene/0x0B49.glb", []);
+        Asset(baseDir, "aidyn/image/0x019F.png", [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13, .. "IHDR"u8, 0, 0, 0, 12, 0, 0, 0, 37]);
+        Asset(baseDir, "aidyn/scene/not-an-id.glb", []);
+
+        var catalog = PluginCatalog.Build(PluginSet.Load([baseDir, modDir]));
+
+        Assert.Equal(["aidyn:image/0x019F", "aidyn:map/0x0E87", "aidyn:mapset/0", "aidyn:scene/0x0B48", "aidyn:scene/0x0B49"],
+            catalog.Entries.Select(e => e.Id.ToString()));
+        var map = catalog.Find(RecordId.Parse("aidyn:map/0x0E87"))!;
+        Assert.True(map.HasRecord);
+        Assert.Equal(0x0E87, map.Borg);
+        Assert.Equal("Overworld I08, 2 scene objects", map.Summary);
+        Assert.Equal("aidyn", map.Asset("glb")!.Plugin);
+        Assert.Equal("Overworld, 1 chunk", catalog.Find(RecordId.Parse("aidyn:mapset/0"))!.Summary);
+        Assert.Null(catalog.Find(RecordId.Parse("aidyn:mapset/0"))!.Borg);
+
+        var tree = catalog.Find(RecordId.Parse("aidyn:scene/0x0B48"))!;
+        Assert.False(tree.HasRecord);
+        Assert.Equal("mymod", tree.Asset("glb")!.Plugin);
+        Assert.Equal("used by 2 records", tree.Summary);
+        Assert.Equal(["objects[0].models[0].model", "objects[1].models[0].model"],
+            catalog.ReferencesTo(tree.Id).Select(r => r.Path));
+        Assert.Equal("used by nothing", catalog.Find(RecordId.Parse("aidyn:scene/0x0B49"))!.Summary);
+        Assert.Equal("12×37", catalog.Find(RecordId.Parse("aidyn:image/0x019F"))!.Summary);
+
+        // Records that no plugin defines yet, such as flags, still have their references.
+        Assert.Null(catalog.Find(RecordId.Parse("aidyn:flag/5")));
+        Assert.Equal("objects[0].visible.flag", Assert.Single(catalog.ReferencesTo(RecordId.Parse("aidyn:flag/5"))).Path);
+    }
+
+    [Fact]
     public void TypedRecordsRoundTrip()
     {
         var original = new SceneObject(3, new(1.5f, 2, -3), 45, PakVariant.With, new FlagGate(RecordId.Parse("aidyn:flag/0"), true),
