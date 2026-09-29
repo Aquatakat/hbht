@@ -84,9 +84,21 @@ public sealed class Clouds
             if (distance == 0)
                 continue;
             var toCamera = -_at[i] / distance;
-            if (toCamera.X * lz + toCamera.Y * lx <= 0)
-                continue;
             var near = 1 - distance / Reach;
+            Vector2 middle;
+            if (Placement == SkyPlacement.Projected)
+            {
+                if (SkyScreen.Project(Direction(toCamera, near), look) is not { } projected)
+                    continue;
+                middle = projected;
+            }
+            else
+            {
+                if (toCamera.X * lz + toCamera.Y * lx <= 0)
+                    continue;
+                middle = new Vector2(SkyScreen.Middle.X + SkyScreen.Spread * (toCamera.X * lx - toCamera.Y * lz),
+                    horizon - near * SkyScreen.Height);
+            }
             float a = _sky.Clouds[i].Alpha;
             var fog = a * fogTime * 1.5f;
             var faded = fog <= a ? MathF.Max(fog, 0) : a;
@@ -94,9 +106,19 @@ public sealed class Clouds
 
             var image = _sky.CloudImages[_sky.Clouds[i].Image];
             var extent = size(image);
-            var x = SkyScreen.Across(toCamera.X * lx - toCamera.Y * lz, Placement);
-            var at = new Vector2(x - extent.X * near * 0.5f, horizon - near * SkyScreen.Height - extent.Y * near * 0.5f);
+            var at = middle - extent * near * 0.5f;
             sprites.Add(new SkySprite(image, at, near + 0.2f, color, alpha / 255f));
         }
     }
+
+    /// <summary>
+    /// The way to a cloud, for <see cref="SkyPlacement.Projected"/>: the heading the original draws
+    /// it at, with X and Z swapped, and the elevation it's drawn at when the camera looks straight at
+    /// it, where the original's screen and perspective agree. 240 × nearness pixels at 300 to the
+    /// unit of the look's height is a sine of 0.8 × nearness: from the horizon at the edge of the
+    /// plane to 53° up over the camera. It's a dome at any distance, since the plane goes with the
+    /// camera: only the wind moves a cloud against the scenery, not walking or turning.
+    /// </summary>
+    public static Vector3 Direction(Vector2 toCamera, float near) =>
+        SkyScreen.Direction(toCamera.Y, toCamera.X, near * SkyScreen.Height / SkyScreen.Spread);
 }

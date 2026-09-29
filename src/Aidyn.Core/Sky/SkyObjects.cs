@@ -97,9 +97,12 @@ public sealed class SkyObjects(SkyRecord sky)
         var a = height <= 90 || height >= 270 ? azimuth + sway : azimuth + 180 - sway;
         var (sa, ca) = MathF.SinCos(a * Deg);
         var (se, ce) = MathF.SinCos(-(MathF.Sin(height * Deg) * 90) * Deg);
+        // The azimuth's heading is (sin, cos) in X and Z, and the elevation is −e.
+        if (placement == SkyPlacement.Projected)
+            return SkyScreen.Project(SkyScreen.Direction(sa, ca, -se), look);
         if (ca * z + sa * x <= 0 || ce * across - se * look.Y <= 0)
             return null;
-        return new Vector2(SkyScreen.Across(ca * x - sa * z, placement), (ce * look.Y + se * across) * SkyScreen.Spread + SkyScreen.Middle.Y);
+        return new Vector2(ca * x - sa * z, ce * look.Y + se * across) * SkyScreen.Spread + SkyScreen.Middle;
     }
 
     /// <summary>The moon's first angle, in degrees (<c>Skyobjects::UpdateMoon</c>).</summary>

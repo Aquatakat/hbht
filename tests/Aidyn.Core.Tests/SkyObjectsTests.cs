@@ -145,22 +145,65 @@ public class SkyObjectsTests
         var focal = 120 / MathF.Tan(22.5f * MathF.PI / 180);
         Assert.Equal(160 - focal * MathF.Tan(off), projected.X, 0.01f);
         Assert.Equal(160 - 300 * MathF.Sin(off), original.X, 0.01f);
-        // Only across: the height is placed the same.
-        Assert.Equal(original.Y, projected.Y);
+        // Off to the side, a point above the horizon sits higher: 1 / cos of the angle off the look.
+        var up = MathF.Sin(height * MathF.PI / 180) * 90 * MathF.PI / 180;
+        Assert.Equal(120 - focal * MathF.Tan(up) / MathF.Cos(off), projected.Y, 0.01f);
+    }
+
+    [Theory]
+    [InlineData(0f, 0f)]
+    [InlineData(-15f, 0f)]
+    [InlineData(-15f, 30f)]
+    [InlineData(10f, -35f)]
+    public void ProjectedSpritesLandWherePerspectivePutsTheirDirection(float pitch, float turn)
+    {
+        // A camera pitched as the follow camera is, 15° down, turned 30° off the sun and its cloud,
+        // against a 4:3 look-at and 45° perspective, as the scenery is drawn.
+        var (sp, cp) = MathF.SinCos(pitch * MathF.PI / 180);
+        var (st, ct) = MathF.SinCos((90 + turn) * MathF.PI / 180);
+        var look = new Vector3(st * cp, sp, ct * cp);
+        var view = Matrix4x4.CreateLookAt(Vector3.Zero, look, Vector3.UnitY);
+        var projection = Matrix4x4.CreatePerspectiveFieldOfView(45 * MathF.PI / 180, 4f / 3, 1, 1000);
+        Vector2 Screen(Vector3 direction)
+        {
+            var clip = Vector4.Transform(Vector4.Transform(new Vector4(direction, 1), view), projection);
+            return new Vector2(160 + clip.X / clip.W * 160, 120 - clip.Y / clip.W * 120);
+        }
+
+        // The sun at 08:00, 30° up, in +X.
+        var sun = SkyObjects.Place(30, 90, false, look, SkyPlacement.Projected)!.Value;
+        var elevation = MathF.Sin(30 * MathF.PI / 180) * 90 * MathF.PI / 180;
+        Near(Screen(new Vector3(MathF.Cos(elevation), MathF.Sin(elevation), 0)), sun, 0.01f);
+
+        // The cloud at −Z, which the game sees at +X (with X and Z swapped).
+        var clouds = new Clouds(Sky()) { Placement = SkyPlacement.Projected };
+        var sprites = new List<SkySprite>();
+        clouds.Draw(sprites, look, new Vector3(0.8f), Size);
+        var near = 1 - 530f / 750;
+        var up = MathF.Asin(0.8f * near);
+        var cloud = Assert.Single(sprites);
+        Near(Screen(new Vector3(MathF.Cos(up), MathF.Sin(up), 0)), cloud.At + new Vector2(160, 60) * near / 2, 0.01f);
     }
 
     [Fact]
-    public void ProjectedCloudsTurnWithTheScenery()
+    public void ProjectedCloudsAreWhereTheOriginalPutsThemWhenLookedAtStraight()
     {
-        // The cloud at −Z, which the game sees at +X (with X and Z swapped), and a look 40° to its
-        // right, from +Z toward +X: the original draws it 300 × sin 40° left of the middle.
-        var clouds = new Clouds(Sky()) { Placement = SkyPlacement.Projected };
-        var sprites = new List<SkySprite>();
-        var look = 50 * MathF.PI / 180;
-        clouds.Draw(sprites, new Vector3(MathF.Sin(look), 0, MathF.Cos(look)), new Vector3(0.8f), Size);
-        var cloud = Assert.Single(sprites);
+        // The cloud at −Z, seen at +X. Looking at its heading, level, both draw it 240 × nearness up.
         var near = 1 - 530f / 750;
-        Assert.Equal(160 - SkyScreen.Focal * MathF.Tan(40 * MathF.PI / 180), cloud.At.X + 160 * near / 2, 0.01f);
+        var original = new List<SkySprite>();
+        var projected = new List<SkySprite>();
+        new Clouds(Sky()).Draw(original, Vector3.UnitX, new Vector3(0.8f), Size);
+        new Clouds(Sky()) { Placement = SkyPlacement.Projected }.Draw(projected, Vector3.UnitX, new Vector3(0.8f), Size);
+        Assert.Equal(original[0].At.X, projected[0].At.X, 0.01f);
+        Assert.Equal(original[0].At.Y, projected[0].At.Y, 1f);
+
+        // Looking up at it until it's in the middle, they agree exactly.
+        var look = Vector3.Normalize(new Vector3(MathF.Sqrt(1 - MathF.Pow(0.8f * near, 2)), 0.8f * near, 0));
+        original.Clear();
+        projected.Clear();
+        new Clouds(Sky()).Draw(original, look, new Vector3(0.8f), Size);
+        new Clouds(Sky()) { Placement = SkyPlacement.Projected }.Draw(projected, look, new Vector3(0.8f), Size);
+        Near(original[0].At, projected[0].At, 0.01f);
     }
 
     [Fact]
@@ -201,8 +244,8 @@ public class SkyObjectsTests
         Assert.Equal(0, flare.Value);
     }
 
-    private static void Near(Vector2 expected, Vector2? actual) =>
-        Assert.True(actual is { } a && Vector2.Distance(expected, a) < 0.001f, $"Expected {expected}, got {actual}.");
+    private static void Near(Vector2 expected, Vector2? actual, float within = 0.001f) =>
+        Assert.True(actual is { } a && Vector2.Distance(expected, a) < within, $"Expected {expected}, got {actual}.");
 
     private sealed class Tolerance : IEqualityComparer<Vector3>
     {

@@ -36,28 +36,45 @@ public static class SkyScreen
     public static readonly float Focal = Middle.Y / MathF.Tan(22.5f * MathF.PI / 180);
 
     /// <summary>
-    /// Where a sky sprite goes across the screen, given the sine of its angle off the look, in X and
-    /// Z, for a point in front of the camera.
+    /// Where perspective puts a direction on the screen, as it puts the scenery, for a camera that
+    /// looks along <paramref name="look"/> without rolling; or null when it's behind the camera. A
+    /// sprite placed here stays pinned to its direction however the camera turns, as if infinitely
+    /// far away, like a skybox. Off the 320 × 240 screen it carries on, onto a wider window's sides.
     /// </summary>
-    public static float Across(float sine, SkyPlacement placement) => Middle.X + placement switch
+    /// <param name="look">The way the camera looks, normalised, not straight up or down.</param>
+    public static Vector2? Project(Vector3 direction, Vector3 look)
     {
-        // Perspective puts a direction at the tangent of its angle, whatever its height, when the
-        // camera looks level.
-        SkyPlacement.Projected => Focal * sine / MathF.Sqrt(MathF.Max(1 - sine * sine, 1e-6f)),
-        _ => Spread * sine,
-    };
+        var ahead = Vector3.Dot(direction, look);
+        if (ahead <= 1e-3f)
+            return null;
+        var right = Vector3.Normalize(Vector3.Cross(look, Vector3.UnitY));
+        var up = Vector3.Cross(right, look);
+        return Middle + new Vector2(Vector3.Dot(direction, right), -Vector3.Dot(direction, up)) * (Focal / ahead);
+    }
+
+    /// <summary>A direction from its heading in X and Z, normalised, and the sine of its elevation.</summary>
+    public static Vector3 Direction(float x, float z, float sineUp)
+    {
+        var level = MathF.Sqrt(MathF.Max(1 - sineUp * sineUp, 0));
+        return new Vector3(x * level, sineUp, z * level);
+    }
 }
 
 /// <summary>How the sky places its sprites across the screen (a fidelity setting, ADR 0006).</summary>
 public enum SkyPlacement
 {
     /// <summary>
-    /// The original's: 300 × the sine of the angle off the look. It's close to perspective in the
-    /// middle of the screen, but toward the edges the scenery turns up to about 30% faster than
-    /// the sky, so clouds, sun, moon and stars seem to drag along with the camera.
+    /// The original's: 300 × the sine of the angle off the look, across and up separately. It's
+    /// close to perspective in the middle of the screen, but toward the edges the scenery turns up
+    /// to about 30% faster than the sky, so clouds, sun, moon and stars seem to drag along with the
+    /// camera, and a 16:9 window shows more of the edges than the N64's 4:3 did.
     /// </summary>
     Original,
 
-    /// <summary>At the tangent, as perspective puts the scenery, so the sky stays put against it as the camera turns.</summary>
+    /// <summary>
+    /// Each sprite is given a direction and projected as the scenery is (<see cref="SkyScreen.Project"/>),
+    /// so the sky stays pinned against the scenery as the camera turns, at any pitch. The
+    /// directions agree with the original's where the camera looks straight at them.
+    /// </summary>
     Projected,
 }
