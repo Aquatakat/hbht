@@ -12,6 +12,7 @@ These are the Phase 0 decisions from the [roadmap](../roadmap.md) (task 0.5). Ea
 | [0006](0006-tick-model-and-rng.md) | Tick model and RNG | Accepted |
 | [0007](0007-rom-versions.md) | ROM version support | Accepted |
 | [0008](0008-content-logic-layers.md) | Content logic: records, triggers, engine features, then Lua scripts | Accepted |
-| [0009](0009-code-organisation.md) | Code is organised by subsystem, and the Inspector is the one tool | Accepted |
+| [0009](0009-code-organisation.md) | Code is organised by subsystem, and the Inspector is the one tool | Accepted, partly superseded by [0010](0010-editor-reads-plugins.md) |
+| [0010](0010-editor-reads-plugins.md) | The editor reads only imported data | Accepted |
 
 Statuses: **Proposed** means drafted and waiting for review. **Accepted** means agreed. **Superseded** means replaced by a later record, which it links to.

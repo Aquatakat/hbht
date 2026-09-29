@@ -1,6 +1,6 @@
 # The asset inspector (roadmap 0.6)
 
-Per [ADR 0009](../adr/0009-code-organisation.md), the Inspector is the one tool app. It grows into the editor, reading and editing the imported plugins, and the HTML viewers in `tools/` get no new features.
+Per [ADR 0009](../adr/0009-code-organisation.md), the Inspector is the one tool app, and the HTML viewers in `tools/` get no new features. Per [ADR 0010](../adr/0010-editor-reads-plugins.md), it becomes the editor, which reads only the imported plugins and draws them with the runtime's code. What this page describes is the raw Borg browser, which is now frozen: it gets fixes only, and it's deleted along with the HTML viewers once the editor shows what they show.
 
 `src/Aidyn.Inspector` is a Godot app for browsing every Borg by type and index. Run it with `tools/godot.ps1 --path src/Aidyn.Inspector` (build it first with `dotnet build`, or open it in the editor). It finds the ROMs in `roms/` (or `AIDYN_ROMS`) by hash and opens 1.0 first, or use **Open ROM…**.
 
@@ -11,4 +11,4 @@ Per [ADR 0009](../adr/0009-code-organisation.md), the Inspector is the one tool 
 - **Hex:** the decompressed bytes. Samples and sequences (1D) have only this so far.
 - **For scripts and screenshots:** `tools/godot.ps1 --path src/Aidyn.Inspector -- --borg 10723 --tab preview --screenshot out/shot.png` opens a Borg, saves the window and quits. It gives up after a minute, so a hang can't block a script.
 
-The decoding lives in `Aidyn.Rom.Inspection` (`BorgInspector`, `FieldTree`), which the tests check against every Borg; the Godot project is only UI. Like the CLI, it reads the ROM through `Aidyn.Rom` as a research tool. ADR 0001 keeps the runtime off the ROM, and when this grows into the mod editor (Phase 5) it will need to open plugins as well.
+The decoding lives in `Aidyn.Rom.Inspection` (`BorgInspector`, `FieldTree`), which the tests check against every Borg; the Godot project is only UI. Like the CLI, it reads the ROM through `Aidyn.Rom` as a research tool. The editor won't: ADR 0010 keeps it on plugins, like the runtime.
