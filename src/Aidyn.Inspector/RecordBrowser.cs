@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json.Nodes;
+using Aidyn.Core.Flags;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 using Aidyn.Rom;
@@ -45,6 +46,7 @@ public partial class RecordBrowser : Control
     private readonly List<string> _typeNames = [];
 
     private PluginCatalog? _catalog;
+    private FlagState? _flags;
     private string _pluginsDirectory = DataPaths.Plugins;
     private int _position = -1;
     private RecordId? _current;
@@ -79,10 +81,24 @@ public partial class RecordBrowser : Control
 
         _status.Text = $"Loading {pluginsDirectory}…";
         var generation = ++_generation;
-        var catalog = await Task.Run(() => PluginCatalog.Build(PluginSet.LoadInstalled(pluginsDirectory)));
+        var (catalog, flags) = await Task.Run(() =>
+        {
+            var plugins = PluginSet.LoadInstalled(pluginsDirectory);
+            FlagState? flags = null;
+            try
+            {
+                flags = new FlagState(FlagNetwork.Load(plugins));
+            }
+            catch (Exception e) when (e is InvalidOperationException or InvalidDataException or KeyNotFoundException)
+            {
+                GD.PrintErr($"No flag network: {e.Message}");
+            }
+            return (PluginCatalog.Build(plugins), flags);
+        });
         if (generation != _generation)
             return;
         _catalog = catalog;
+        _flags = flags;
 
         _typeNames.Clear();
         _typeNames.AddRange(catalog.Types);
@@ -93,6 +109,9 @@ public partial class RecordBrowser : Control
         Populate();
         ShowNothing(Welcome(catalog));
     }
+
+    /// <summary>Shows a checkpoint's flags on flag pages, for scripts (<c>--checkpoint</c>).</summary>
+    public void LoadCheckpoint(string path) => _flags?.LoadCheckpoint(path);
 
     /// <summary>Opens a record, adding it to the history. The task completes when its preview is shown.</summary>
     public async Task OpenAsync(RecordId id)
@@ -449,6 +468,8 @@ public partial class RecordBrowser : Control
     private async Task<object> BuildPreviewAsync(PluginCatalog catalog, RecordId id, CatalogEntry? entry, JsonObject? json)
     {
         var plugins = catalog.Plugins;
+        if (id.Type is RecordTypes.Flag or RecordTypes.Journal)
+            return _flags is null ? Message("These plugins have no flag network.") : new FlagPanel(catalog, _flags, id, FollowLink);
         if (id.Type == RecordTypes.Actor && json is not null)
         {
             // An actor is its scene, playing its initial state's animation.

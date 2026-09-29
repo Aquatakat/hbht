@@ -1,3 +1,4 @@
+using Aidyn.Core.Flags;
 using Aidyn.Core.Physics;
 using Aidyn.Core.Scenes;
 using Aidyn.Inspector;
@@ -16,6 +17,7 @@ namespace Aidyn.Game;
 public partial class ChunkStreamer : Node3D
 {
     private readonly PluginSet? _plugins;
+    private readonly FlagNetwork? _flags;
     private readonly Models? _models;
     private readonly MapSetRecord? _set;
     private readonly CollisionWorld? _world;
@@ -78,9 +80,10 @@ public partial class ChunkStreamer : Node3D
     {
     }
 
-    public ChunkStreamer(PluginSet plugins, Models models, MapSetRecord set, CollisionWorld world)
+    public ChunkStreamer(PluginSet plugins, Models models, MapSetRecord set, CollisionWorld world, FlagNetwork flags)
     {
         _plugins = plugins;
+        _flags = flags;
         _models = models;
         _set = set;
         _world = world;
@@ -229,9 +232,9 @@ public partial class ChunkStreamer : Node3D
     /// <summary>A scene object's levels of detail, hidden until <see cref="Fade"/> shows them.</summary>
     private Node3D? Place(SceneObject o, Vector3 origin, ChunkScenes scenes)
     {
-        // The runtime plays with the Expansion Pak. Objects gated on real flags wait for the flag
-        // engine (M2), so for now only those that can never appear are left out.
-        if (o.Pak == PakVariant.Without || IsNever(o.Visible))
+        // The runtime plays with the Expansion Pak. Whether an object is there is decided as its
+        // chunk loads, as the original does (VoxelObjects_Activate), not every frame.
+        if (o.Pak == PakVariant.Without || _flags!.Get(o.Visible.Flag) == o.Visible.Invert)
             return null;
 
         var q = o.Orientation();
@@ -271,13 +274,6 @@ public partial class ChunkStreamer : Node3D
         var lighting = flags.HasFlag(SceneObjectFlags.Fullbright) ? N64Material.Lighting.Scenery : N64Material.Lighting.SceneObject;
         return _models!.InstantiateActor(_plugins!.Get<ActorRecord>(model), lighting)?.Node;
     }
-
-    private static bool IsNever(FlagGate gate) => gate.Flag.Key switch
-    {
-        "0" => !gate.Invert,
-        "1" => gate.Invert,
-        _ => false,
-    };
 
     public static List<T> FindAll<T>(Node root) where T : Node
     {

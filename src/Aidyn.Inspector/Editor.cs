@@ -16,7 +16,7 @@ namespace Aidyn.Inspector;
 /// which saves the window once the record or Borg is shown and quits. For a record's 3D preview,
 /// <c>--drive &lt;request&gt;</c> runs an actor's state machine, <c>--wireframe 1</c> and
 /// <c>--scene-camera 1</c> set those switches, and <c>--wait &lt;seconds&gt;</c> waits before the
-/// screenshot.
+/// screenshot. <c>--checkpoint &lt;state&gt;</c> shows a checkpoint's flags on flag pages.
 /// </remarks>
 public partial class Editor : Control
 {
@@ -60,6 +60,18 @@ public partial class Editor : Control
             if (args.TryGetValue("tab", out var tab))
                 _records.SelectTab(tab);
             await _records.LoadAsync(args.GetValueOrDefault("data") ?? DataPaths.Plugins);
+            if (args.TryGetValue("checkpoint", out var checkpoint))
+            {
+                // A bad checkpoint shouldn't stop the record opening, or a script waits for the watchdog.
+                try
+                {
+                    _records.LoadCheckpoint(checkpoint);
+                }
+                catch (Exception e)
+                {
+                    GD.PrintErr($"Couldn't load the checkpoint {checkpoint}: {e.Message}");
+                }
+            }
             if (args.TryGetValue("record", out var record))
                 await _records.OpenAsync(RecordId.Parse(record));
             if (args.TryGetValue("drive", out var request))

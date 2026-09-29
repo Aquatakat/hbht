@@ -1,5 +1,6 @@
 using System.Globalization;
 using Aidyn.Core.Cameras;
+using Aidyn.Core.Flags;
 using Aidyn.Core.Movement;
 using Aidyn.Core.Physics;
 using Aidyn.Core.Scenes;
@@ -56,6 +57,8 @@ public partial class Game : Node3D
     private CameraRig? _camera;
     private ShadowDecal? _shadow;
     private SkyView? _sky;
+    private StateFlags? _state;
+    private ChunkEntry? _chunk;
     private FollowCamera? _follow;
     private IRootMotion _animation = new Still();
     /// <summary>The player's last second of positions, for the overlay's speed.</summary>
@@ -114,9 +117,17 @@ public partial class Game : Node3D
         if (args.TryGetValue("time", out var time))
             _sky.Clock.SetTimeOfDay(float.Parse(time, CultureInfo.InvariantCulture));
 
+        // A new game's flags, with the time's written in, and any plain flags --flags sets, such as
+        // --flags 5,11 for after the Kendall and ambush cut-scenes.
+        var flags = FlagNetwork.Load(plugins);
+        _state = new StateFlags(flags, plugins.All<StateFlagsRecord>(RecordTypes.StateFlags).Single());
+        _state.SetTime(_sky.Clock);
+        foreach (var flag in args.GetValueOrDefault("flags", "").Split(',', StringSplitOptions.RemoveEmptyEntries))
+            flags.Set(int.Parse(flag, CultureInfo.InvariantCulture), true);
+
         _drawDistance = new DrawDistance(Float(args, "draw-distance", 1), args.GetValueOrDefault("detail") == "nearest");
         var models = _models = new Models(plugins);
-        _chunks = new ChunkStreamer(plugins, models, set, _world);
+        _chunks = new ChunkStreamer(plugins, models, set, _world, flags);
         AddChild(_chunks);
 
         var chunkName = args.GetValueOrDefault("chunk", "I08");
@@ -125,8 +136,8 @@ public partial class Game : Node3D
         // The original drops the player in from a height of 10 at a new game's spawn. This puts him
         // on the highest ground below 1000, so --at works anywhere.
         var spawn = _chunks.Origin(chunk) + new Vector3(at[0], 10, at[1]);
+        Enter(chunk);
         _chunks.Update(spawn);
-        _sky.Enter(chunk);
         _sky.Apply();
         var centre = spawn.ToNumerics();
         var above = centre with { Y = 1000 };
@@ -208,13 +219,24 @@ public partial class Game : Node3D
 
     public override void _ExitTree() => _models?.Dispose();
 
+    /// <summary>The chunk the player is in: its sky, and its terrain written into the flags.</summary>
+    private void Enter(ChunkEntry? chunk)
+    {
+        _sky!.Enter(chunk);
+        if (chunk is null || chunk == _chunk)
+            return;
+        _chunk = chunk;
+        _state!.SetTerrain(chunk.Terrain);
+    }
+
     /// <summary>One 60 Hz tick: the camera, then the player, as the original orders them.</summary>
     public override void _PhysicsProcess(double delta)
     {
         if (_player is null || _camera is null || _follow is null)
             return;
-        _sky!.Enter(_chunks!.ChunkAt(_player.Motion.Sphere.Position.ToGodot()));
-        _sky.Step();
+        Enter(_chunks!.ChunkAt(_player.Motion.Sphere.Position.ToGodot()));
+        _sky!.Step();
+        _state!.SetTime(_sky.Clock);
         ScrollTextures();
         if (_camera.Flying)
             return;
