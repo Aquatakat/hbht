@@ -182,28 +182,54 @@ public class SkyObjectsTests
         var near = 1 - 530f / 750;
         var up = MathF.Asin(0.8f * near);
         var cloud = Assert.Single(sprites);
-        Near(Screen(new Vector3(MathF.Cos(up), MathF.Sin(up), 0)), cloud.At + new Vector2(160, 60) * near / 2, 0.01f);
+        // It's centred on its direction by nearness, while drawn at nearness + 0.2.
+        var middle = near / 2 / (near + 0.2f);
+        Near(Screen(new Vector3(MathF.Cos(up), MathF.Sin(up), 0)), cloud.Patch!.Value.At(middle, middle), 0.01f);
+        Near(cloud.At, cloud.Patch.Value.At(0, 0));
+    }
+
+    [Fact]
+    public void ProjectedSpritesStretchAndTiltTowardTheEdgesAsTheSceneryDoes()
+    {
+        // Looking 15° down, with a patch of sky 30° to the right of the look.
+        var look = Vector3.Normalize(new Vector3(0, -MathF.Tan(15 * MathF.PI / 180), -1));
+        var heading = new Vector2(MathF.Sin(30 * MathF.PI / 180), -MathF.Cos(30 * MathF.PI / 180));
+        var direction = SkyScreen.Direction(heading.X, heading.Y, 0.3f);
+        var patch = SkyPatch.Lay(direction, heading, Vector2.Zero, new Vector2(40, 40), look);
+        var (topLeft, topRight) = (patch.At(0, 0)!.Value, patch.At(1, 0)!.Value);
+        var (bottomLeft, bottomRight) = (patch.At(0, 1)!.Value, patch.At(1, 1)!.Value);
+
+        // Wider than 40 on the screen, and its top rises toward the edge, as a height above the
+        // horizon does: 1 / cos of the angle off the look, and more so looking down.
+        Assert.True(topRight.X - topLeft.X > 40);
+        Assert.True(topRight.Y < topLeft.Y);
+        // It's a trapezoid, not a rectangle: its far side is taller.
+        Assert.True(bottomRight.Y - topRight.Y > bottomLeft.Y - topLeft.Y);
     }
 
     [Fact]
     public void ProjectedCloudsAreWhereTheOriginalPutsThemWhenLookedAtStraight()
     {
-        // The cloud at −Z, seen at +X. Looking at its heading, level, both draw it 240 × nearness up.
+        // The cloud at −Z, seen at +X. Looking at its heading, level, both put it 240 × nearness up.
         var near = 1 - 530f / 750;
+        var middle = near / 2 / (near + 0.2f);
         var original = new List<SkySprite>();
         var projected = new List<SkySprite>();
         new Clouds(Sky()).Draw(original, Vector3.UnitX, new Vector3(0.8f), Size);
         new Clouds(Sky()) { Placement = SkyPlacement.Projected }.Draw(projected, Vector3.UnitX, new Vector3(0.8f), Size);
-        Assert.Equal(original[0].At.X, projected[0].At.X, 0.01f);
-        Assert.Equal(original[0].At.Y, projected[0].At.Y, 1f);
+        var anchor = projected[0].Patch!.Value.At(middle, middle)!.Value;
+        Assert.Equal(160, anchor.X, 0.01f);
+        Assert.Equal(original[0].At.Y + 60 * near / 2, anchor.Y, 1f);
 
-        // Looking up at it until it's in the middle, they agree exactly.
+        // Looking up at it until it's in the middle, they agree exactly, corner to corner.
         var look = Vector3.Normalize(new Vector3(MathF.Sqrt(1 - MathF.Pow(0.8f * near, 2)), 0.8f * near, 0));
         original.Clear();
         projected.Clear();
         new Clouds(Sky()).Draw(original, look, new Vector3(0.8f), Size);
         new Clouds(Sky()) { Placement = SkyPlacement.Projected }.Draw(projected, look, new Vector3(0.8f), Size);
-        Near(original[0].At, projected[0].At, 0.01f);
+        var patch = projected[0].Patch!.Value;
+        Near(original[0].At, patch.At(0, 0), 0.01f);
+        Near(original[0].At + new Vector2(160, 60) * (near + 0.2f), patch.At(1, 1), 0.01f);
     }
 
     [Fact]

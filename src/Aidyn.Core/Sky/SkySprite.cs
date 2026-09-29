@@ -9,7 +9,43 @@ namespace Aidyn.Core.Sky;
 /// </summary>
 /// <param name="Color">In on-screen values, 0 to 1.</param>
 /// <param name="Alpha">0 to 1, from the byte the game draws with.</param>
-public readonly record struct SkySprite(RecordId Image, Vector2 At, float Scale, Vector3 Color, float Alpha);
+/// <param name="Patch">
+/// Where the image lies on the sky, when it's projected (<see cref="SkyPlacement.Projected"/>): then
+/// it's drawn over the patch's projection, not as a rectangle at <see cref="At"/>.
+/// </param>
+public readonly record struct SkySprite(RecordId Image, Vector2 At, float Scale, Vector3 Color, float Alpha, SkyPatch? Patch = null);
+
+/// <summary>
+/// An image pinned to the sky: a flat patch a unit from the camera, facing it, projected as the
+/// scenery is. Nearby sprites keep their places against each other however the camera turns, and
+/// they stretch and tilt toward the screen's edges as the scenery does.
+/// </summary>
+/// <param name="Corner">The image's top-left corner.</param>
+/// <param name="Across">From its left edge to its right.</param>
+/// <param name="Down">From its top edge to its bottom.</param>
+/// <param name="Look">The way the camera looks, which it's projected for.</param>
+public readonly record struct SkyPatch(Vector3 Corner, Vector3 Across, Vector3 Down, Vector3 Look)
+{
+    /// <summary>
+    /// Where a point of the image goes on the 320 × 240 screen, from 0 to 1 across and down it, or
+    /// null when it's behind the camera.
+    /// </summary>
+    public Vector2? At(float across, float down) => SkyScreen.Project(Corner + Across * across + Down * down, Look);
+
+    /// <summary>
+    /// Lays an image on the sky as it's drawn on the 320 × 240 screen when the camera looks straight
+    /// along <paramref name="direction"/>: its top-left corner <paramref name="offset"/> pixels from
+    /// the middle, <paramref name="size"/> pixels large, and upright against the horizon.
+    /// </summary>
+    /// <param name="heading">The direction's heading in X and Z, normalised, which keeps it upright even overhead.</param>
+    public static SkyPatch Lay(Vector3 direction, Vector2 heading, Vector2 offset, Vector2 size, Vector3 look)
+    {
+        var right = new Vector3(-heading.Y, 0, heading.X);
+        var up = Vector3.Cross(right, direction);
+        var corner = direction + (right * offset.X - up * offset.Y) / SkyScreen.Focal;
+        return new SkyPatch(corner, right * (size.X / SkyScreen.Focal), -up * (size.Y / SkyScreen.Focal), look);
+    }
+}
 
 /// <summary>The size of an image in pixels, which placing some sprites needs.</summary>
 public delegate Vector2 ImageSize(RecordId image);
@@ -72,9 +108,9 @@ public enum SkyPlacement
     Original,
 
     /// <summary>
-    /// Each sprite is given a direction and projected as the scenery is (<see cref="SkyScreen.Project"/>),
-    /// so the sky stays pinned against the scenery as the camera turns, at any pitch. The
-    /// directions agree with the original's where the camera looks straight at them.
+    /// Each sprite is laid on the sky from a direction and projected as the scenery is
+    /// (<see cref="SkyPatch"/>), so the sky stays pinned against the scenery as the camera turns, at
+    /// any pitch. Where the camera looks straight at a sprite, it's drawn as the original draws it.
     /// </summary>
     Projected,
 }

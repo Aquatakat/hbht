@@ -53,14 +53,20 @@ public sealed class SkyObjects(SkyRecord sky)
         if (Add(sky.Sun, sky.Sun.Image, sunHeight, Bytes(sunColor, sky.Sun.Color.A), 1, null) is { } sun)
         {
             var image = size(sky.Sun.Image);
-            SunMiddle = sun + new Vector2((int)image.X >> 1, (int)image.Y >> 1) * sky.Sun.Scale;
+            SunMiddle = sun.Patch?.At(0.5f, 0.5f) ?? sun.At + new Vector2((int)image.X >> 1, (int)image.Y >> 1) * sky.Sun.Scale;
         }
         Add(sky.Moon, MoonImage(sky.MoonPhases, time), MoonHeight(timeOfDay), sky.Moon.Color, 1.5f, null, moon: true);
 
-        Vector2? Add(SkyBody body, RecordId image, float height, Rgba color, float fogFade, float? night, bool moon = false)
+        SkySprite? Add(SkyBody body, RecordId image, float height, Rgba color, float fogFade, float? night, bool moon = false)
         {
             if (Place(height, body.Azimuth, moon, look, Placement) is not { } at)
                 return null;
+            SkyPatch? patch = null;
+            if (Placement == SkyPlacement.Projected)
+            {
+                var (direction, heading) = Direction(height, body.Azimuth, moon);
+                patch = SkyPatch.Lay(direction, heading, Vector2.Zero, size(image) * body.Scale, look);
+            }
             float a = color.A;
             var fog = a * fogTime * fogFade;
             var faded = fog <= a ? MathF.Max(fog, 0) : a;
@@ -73,8 +79,9 @@ public sealed class SkyObjects(SkyRecord sky)
                 rgb = new Vector3(MathF.Floor(rgb.X * brightness), MathF.Floor(rgb.Y * brightness), MathF.Floor(rgb.Z * brightness));
                 alpha = (ushort)(alpha * brightness);
             }
-            sprites.Add(new SkySprite(image, at, body.Scale, rgb / 255, (byte)alpha / 255f));
-            return at;
+            var sprite = new SkySprite(image, at, body.Scale, rgb / 255, (byte)alpha / 255f, patch);
+            sprites.Add(sprite);
+            return sprite;
         }
     }
 
@@ -93,16 +100,32 @@ public sealed class SkyObjects(SkyRecord sky)
         if (across == 0)
             return null;
         var (x, z) = (look.X / across, look.Z / across);
+        if (placement == SkyPlacement.Projected)
+            return SkyScreen.Project(Direction(height, azimuth, moon).Direction, look);
+        var (sa, ca, se, ce) = Angles(height, azimuth, moon);
+        if (ca * z + sa * x <= 0 || ce * across - se * look.Y <= 0)
+            return null;
+        return new Vector2(ca * x - sa * z, ce * look.Y + se * across) * SkyScreen.Spread + SkyScreen.Middle;
+    }
+
+    /// <summary>
+    /// The way to an object, for <see cref="SkyPlacement.Projected"/>, and its heading in X and Z:
+    /// the azimuth's heading is (sin, cos), and the elevation is the negative of the angle the game
+    /// works with.
+    /// </summary>
+    public static (Vector3 Direction, Vector2 Heading) Direction(float height, float azimuth, bool moon)
+    {
+        var (sa, ca, se, _) = Angles(height, azimuth, moon);
+        return (SkyScreen.Direction(sa, ca, -se), new Vector2(sa, ca));
+    }
+
+    private static (float SinA, float CosA, float SinE, float CosE) Angles(float height, float azimuth, bool moon)
+    {
         var sway = moon ? MathF.Sin(height * Deg) * 40 : 0;
         var a = height <= 90 || height >= 270 ? azimuth + sway : azimuth + 180 - sway;
         var (sa, ca) = MathF.SinCos(a * Deg);
         var (se, ce) = MathF.SinCos(-(MathF.Sin(height * Deg) * 90) * Deg);
-        // The azimuth's heading is (sin, cos) in X and Z, and the elevation is −e.
-        if (placement == SkyPlacement.Projected)
-            return SkyScreen.Project(SkyScreen.Direction(sa, ca, -se), look);
-        if (ca * z + sa * x <= 0 || ce * across - se * look.Y <= 0)
-            return null;
-        return new Vector2(ca * x - sa * z, ce * look.Y + se * across) * SkyScreen.Spread + SkyScreen.Middle;
+        return (sa, ca, se, ce);
     }
 
     /// <summary>The moon's first angle, in degrees (<c>Skyobjects::UpdateMoon</c>).</summary>

@@ -85,29 +85,32 @@ public sealed class Clouds
                 continue;
             var toCamera = -_at[i] / distance;
             var near = 1 - distance / Reach;
-            Vector2 middle;
+            var image = _sky.CloudImages[_sky.Clouds[i].Image];
+            var extent = size(image);
+            // Centred by nearness, not by the scale it's drawn at, so a little off.
+            var offset = -extent * near * 0.5f;
+            SkySprite sprite;
             if (Placement == SkyPlacement.Projected)
             {
-                if (SkyScreen.Project(Direction(toCamera, near), look) is not { } projected)
+                var direction = Direction(toCamera, near);
+                var patch = SkyPatch.Lay(direction, new Vector2(toCamera.Y, toCamera.X), offset, extent * (near + 0.2f), look);
+                if (SkyScreen.Project(direction, look) is null || patch.At(0, 0) is not { } corner)
                     continue;
-                middle = projected;
+                sprite = new SkySprite(image, corner, near + 0.2f, color, 0, patch);
             }
             else
             {
                 if (toCamera.X * lz + toCamera.Y * lx <= 0)
                     continue;
-                middle = new Vector2(SkyScreen.Middle.X + SkyScreen.Spread * (toCamera.X * lx - toCamera.Y * lz),
+                var middle = new Vector2(SkyScreen.Middle.X + SkyScreen.Spread * (toCamera.X * lx - toCamera.Y * lz),
                     horizon - near * SkyScreen.Height);
+                sprite = new SkySprite(image, middle + offset, near + 0.2f, color, 0);
             }
             float a = _sky.Clouds[i].Alpha;
             var fog = a * fogTime * 1.5f;
             var faded = fog <= a ? MathF.Max(fog, 0) : a;
             var alpha = (byte)((a - faded) * MathF.Sqrt(near));
-
-            var image = _sky.CloudImages[_sky.Clouds[i].Image];
-            var extent = size(image);
-            var at = middle - extent * near * 0.5f;
-            sprites.Add(new SkySprite(image, at, near + 0.2f, color, alpha / 255f));
+            sprites.Add(sprite with { Alpha = alpha / 255f });
         }
     }
 

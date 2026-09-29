@@ -87,8 +87,46 @@ public partial class SkyBackdropView : Control
         {
             if (sky.Image(sprite.Image) is not { } texture)
                 continue;
+            var color = new Color(sprite.Color.X, sprite.Color.Y, sprite.Color.Z, sprite.Alpha);
+            if (sprite.Patch is { } patch)
+            {
+                DrawPatch(canvas, texture, patch, color, origin, scale);
+                continue;
+            }
             var rect = new Rect2(origin + sprite.At.ToGodot() * scale, texture.GetSize() * sprite.Scale * scale);
-            canvas.DrawTextureRect(texture, rect, false, new Color(sprite.Color.X, sprite.Color.Y, sprite.Color.Z, sprite.Alpha));
+            canvas.DrawTextureRect(texture, rect, false, color);
         }
+    }
+
+    /// <summary>How many cells a side a sky patch is drawn in, so its texture follows the perspective.</summary>
+    private const int PatchCells = 4;
+
+    private static readonly int[] PatchIndices = [.. Enumerable.Range(0, PatchCells * PatchCells).SelectMany(cell =>
+    {
+        var (row, column) = Math.DivRem(cell, PatchCells);
+        var corner = row * (PatchCells + 1) + column;
+        return new[] { corner, corner + 1, corner + PatchCells + 2, corner, corner + PatchCells + 2, corner + PatchCells + 1 };
+    })];
+
+    private static readonly Vector2[] PatchPoints = new Vector2[(PatchCells + 1) * (PatchCells + 1)];
+    private static readonly Vector2[] PatchUvs = [.. Enumerable.Range(0, PatchPoints.Length)
+        .Select(i => new Vector2(i % (PatchCells + 1), i / (PatchCells + 1)) / PatchCells)];
+    private static readonly Color[] PatchColors = new Color[PatchPoints.Length];
+
+    /// <summary>
+    /// Draws a sprite over its patch's projection, as a grid of triangles: projection doesn't keep
+    /// a patch's texture even across it, which two triangles would kink along their diagonal.
+    /// </summary>
+    private static void DrawPatch(Control canvas, Texture2D texture, SkyPatch patch, Color color, Vector2 origin, float scale)
+    {
+        for (var i = 0; i < PatchPoints.Length; i++)
+        {
+            if (patch.At(PatchUvs[i].X, PatchUvs[i].Y) is not { } at)
+                return;
+            PatchPoints[i] = origin + at.ToGodot() * scale;
+            PatchColors[i] = color;
+        }
+        RenderingServer.CanvasItemAddTriangleArray(canvas.GetCanvasItem(), PatchIndices, PatchPoints, PatchColors, PatchUvs,
+            texture: texture.GetRid());
     }
 }
