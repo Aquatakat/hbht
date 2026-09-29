@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Aidyn.Core.Actors;
 using Aidyn.Core.Movement;
 using Aidyn.Plugins.Records;
 using Godot;
@@ -6,131 +7,105 @@ using Godot;
 namespace Aidyn.Game;
 
 /// <summary>
-/// Plays an actor's animations as the original's state machine does (<c>Borg7_TickAnimation</c>):
-/// each 60 Hz tick advances the clock, and at the end of an animation, or when the request
-/// changes, the state's branches are rolled for. The root transform is drawn with its position
-/// zeroed, since the original moves the actor by that motion instead.
+/// Plays an actor's animations on an instance of its scene, stepped by the core's
+/// <see cref="ActorStateMachine"/>. The root transform is drawn with its position zeroed, since the
+/// original moves the actor by that motion instead.
 /// </summary>
 /// <remarks>
-/// Requests include 0 idle, 2 walk, 3 run and 25 sneak. The rolls use their own random stream, as
-/// the original's actor animations do; nothing in the rules depends on them. An actor that moves
-/// by its animations, such as the player, is <see cref="Driven"/>: its owner ticks it and gets
-/// the root's motion back.
+/// An actor that moves by its animations, such as the player, is <see cref="Driven"/>: its owner
+/// ticks it and gets the root's motion back. Otherwise something calls <see cref="Update"/> each
+/// frame. The editor shares this file, so it holds no nodes of its own.
 /// </remarks>
 public sealed class ActorAnimator : IRootMotion
 {
-    private readonly ActorRecord _actor;
     private readonly AnimationPlayer _player;
     private readonly Node3D? _root;
     private readonly Vector3 _pivot;
-    private readonly Random _random = new(0x3DBB6CD);
-    private int _state, _clock = 1, _lastRequest, _settle;
     private double _fraction;
     private Vector3 _rootPosition, _lastRoot;
 
     private ActorAnimator(ActorRecord actor, AnimationPlayer player, Node3D? root, Vector3 pivot)
     {
-        _actor = actor;
         _player = player;
         _root = root;
         _pivot = pivot;
+        Machine = new ActorStateMachine(actor, Length);
+        Enter(actor.InitialState);
     }
 
+    public ActorStateMachine Machine { get; }
+
     /// <summary>The animation the actor is asked for.</summary>
-    public int Request { get; set; }
+    public int Request
+    {
+        get => Machine.Request;
+        set => Machine.Request = value;
+    }
 
     /// <summary>Set when the owner ticks it with <see cref="Tick(int)"/> rather than it ticking with the frame.</summary>
     public bool Driven { get; set; }
 
     /// <summary>
-    /// Adds an animator to an instance of the actor's scene. Returns null if the scene has no
-    /// animations.
+    /// An animator for an instance of the actor's scene, starting in its initial state. Returns null
+    /// if the scene has no animations.
     /// </summary>
-    public static ActorAnimator? Attach(Node3D instance, ActorRecord actor, byte[] glb)
+    public static ActorAnimator? Create(Node3D instance, ActorRecord actor, byte[] glb)
     {
         if (Find<AnimationPlayer>(instance) is not { } player)
             return null;
         var rootName = $"transform {actor.RootTransform}";
         var root = FindNode(instance, n => n is Node3D && n.Name == rootName) as Node3D;
-        var animator = new ActorAnimator(actor, player, root, Pivot(glb, actor.RootTransform));
-        instance.AddChild(new FrameCallback(animator.Update) { Name = "ActorAnimator" });
-        animator.Enter(actor.InitialState);
-        return animator;
+        return new ActorAnimator(actor, player, root, Pivot(glb, actor.RootTransform));
     }
 
-    private void Update(double delta)
+    /// <summary>Ticks at 60 Hz with the frame, unless <see cref="Driven"/>.</summary>
+    public void Update(double delta)
     {
         if (Driven)
             return;
         _fraction += delta * 60;
         for (; _fraction >= 1; _fraction--)
-            Tick();
-        Show(Math.Min(_clock - 1 + _fraction, Length(_state) - 1) / 60);
+            Step();
+        Show(Math.Min(Machine.Clock - 1 + _fraction, Machine.Length(Machine.State) - 1) / 60);
     }
 
     /// <summary>
     /// One tick toward <paramref name="request"/>, returning how far the root moved forward, along
-    /// the model's +Z (<c>Borg7Header.unk2c</c>). The original moves nothing on a tick that enters
-    /// a state, as the root jumps back to its start, or on the two ticks after.
+    /// the model's +Z (<c>Borg7Header.unk2c</c>).
     /// </summary>
-    public float Tick(int request)
+    public float Tick(int request) => TickMotion(request).Z;
+
+    /// <summary>One tick toward <paramref name="request"/>, returning how far the root moved in the model's space.</summary>
+    public Vector3 TickMotion(int request)
     {
         Request = request;
-        var entered = Tick();
-        Show((_clock - 1) / 60.0);
-        var forward = !entered && _settle == 0 ? _rootPosition.Z - _lastRoot.Z : 0;
-        if (entered)
-            _settle = 2;
-        else if (_settle > 0)
-            _settle--;
+        Step();
+        Show((Machine.Clock - 1) / 60.0);
+        var moved = Machine.RootMoves ? _rootPosition - _lastRoot : Vector3.Zero;
         _lastRoot = _rootPosition;
-        return forward;
+        return moved;
     }
 
-    /// <summary>Advances the clock a tick. Returns whether it entered a state.</summary>
-    private bool Tick()
+    /// <summary>Plays a state from its first tick, as a branch does.</summary>
+    public void Enter(int state)
     {
-        var changed = Request != _lastRequest;
-        _lastRequest = Request;
-        if (_clock >= Length(_state))
-        {
-            Enter(Roll(b => b.Request == Request || b.Request == 255)?.State ?? _state);
-            return true;
-        }
-        // A new request can cut the animation short through a branch that interrupts. Either way,
-        // the original doesn't advance the animation on the tick the request changes.
-        if (changed)
-        {
-            if (Roll(b => b.Request == Request && b.Interrupts) is not { } branch)
-                return false;
-            Enter(branch.State);
-            return true;
-        }
-        _clock++;
-        return false;
+        Machine.Enter(state);
+        Play();
     }
 
-    /// <summary>Rolls 0–99 and walks the branches in order, subtracting each match's chance.</summary>
-    private ActorBranch? Roll(Func<ActorBranch, bool> matches)
+    private void Step()
     {
-        var roll = _random.Next(100);
-        foreach (var branch in _actor.States[_state].Branches)
-        {
-            if (matches(branch) && (roll -= branch.Chance) < 1)
-                return branch;
-        }
-        return null;
+        if (Machine.Tick())
+            Play();
     }
 
-    private void Enter(int state)
+    private void Play()
     {
-        _state = state;
-        _clock = 1;
         _fraction = 0;
-        var name = AnimationName(state);
+        var name = AnimationName(Machine.State);
         if (!_player.HasAnimation(name))
         {
-            GD.PushWarning($"{_actor.Id} has no animation {name}.");
+            GD.PushWarning($"{Machine.Actor.Id} has no animation {name}.");
             return;
         }
         _player.Play(name);
@@ -140,26 +115,36 @@ public sealed class ActorAnimator : IRootMotion
 
     private void Show(double seconds)
     {
-        if (!_player.HasAnimation(AnimationName(_state)))
+        if (!_player.HasAnimation(AnimationName(Machine.State)))
             return;
         _player.Seek(seconds, update: true);
-        // With its position zeroed, a pivot-rotate transform's translation is −(pivot × scale) rotated.
         if (_root is not null)
-        {
-            var pivot = _root.Quaternion * (_pivot * _root.Scale);
-            _rootPosition = _root.Position + pivot;
-            _root.Position = -pivot;
-        }
+            _rootPosition = HoldRoot(_root, _pivot);
     }
 
-    private string AnimationName(int state) => $"borg6 {Convert.ToInt32(_actor.States[state].Animation.Key, 16)}";
+    /// <summary>
+    /// Zeroes a root transform's position, as the original draws it, and returns the position it had.
+    /// With its position zeroed, a pivot-rotate transform's translation is −(pivot × scale) rotated.
+    /// </summary>
+    public static Vector3 HoldRoot(Node3D root, Vector3 pivot)
+    {
+        var turned = root.Quaternion * (pivot * root.Scale);
+        var position = root.Position + turned;
+        root.Position = -turned;
+        return position;
+    }
+
+    /// <summary>The name the importer gives a state's animation in the scene's glTF.</summary>
+    public static string AnimationName(ActorState state) => $"borg6 {Convert.ToInt32(state.Animation.Key, 16)}";
+
+    private string AnimationName(int state) => AnimationName(Machine.Actor.States[state]);
 
     /// <summary>In ticks. A clip lasts one loop of its animation.</summary>
     private int Length(int state) =>
         _player.HasAnimation(AnimationName(state)) ? (int)Math.Round(_player.GetAnimation(AnimationName(state)).Length * 60) : 1;
 
     /// <summary>The transform's pivot, which the exporter keeps in the node's extras.</summary>
-    private static Vector3 Pivot(byte[] glb, int transform)
+    public static Vector3 Pivot(byte[] glb, int transform)
     {
         var length = BitConverter.ToInt32(glb, 12);
         using var json = JsonDocument.Parse(glb.AsMemory(20, length));
@@ -190,18 +175,4 @@ public sealed class ActorAnimator : IRootMotion
         }
         return null;
     }
-}
-
-/// <summary>Calls a function every frame while it's in the tree, for classes that aren't nodes.</summary>
-public partial class FrameCallback : Node
-{
-    private readonly Action<double>? _update;
-
-    public FrameCallback()
-    {
-    }
-
-    public FrameCallback(Action<double> update) => _update = update;
-
-    public override void _Process(double delta) => _update?.Invoke(delta);
 }

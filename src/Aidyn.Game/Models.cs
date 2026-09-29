@@ -45,7 +45,10 @@ public sealed class Models(PluginSet plugins) : IDisposable
                 GD.PushWarning($"{actor.Scene} has no {locatorName} for its head.");
         }
         N64Material.SetLighting(node, lighting);
-        return (node, ActorAnimator.Attach(node, actor, Glb(actor.Scene)!));
+        var animator = ActorAnimator.Create(node, actor, Glb(actor.Scene)!);
+        if (animator is not null)
+            node.AddChild(new FrameCallback(animator.Update) { Name = "ActorAnimator" });
+        return (node, animator);
     }
 
     /// <summary>The asset's glTF, for what Godot's importer doesn't keep, such as node extras.</summary>

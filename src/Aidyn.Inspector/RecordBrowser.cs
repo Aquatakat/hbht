@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json.Nodes;
 using Aidyn.Plugins;
+using Aidyn.Plugins.Records;
 using Aidyn.Rom;
 using Aidyn.Rom.Import;
 using Godot;
@@ -52,6 +53,9 @@ public partial class RecordBrowser : Control
     private Task _showing = Task.CompletedTask;
 
     public override void _Ready() => BuildUi();
+
+    /// <summary>The 3D preview, for scripted screenshots.</summary>
+    public ModelView Model => _model;
 
     /// <summary>Shows the Preview, Fields or Used by tab.</summary>
     public void SelectTab(string tab) => _tabs.CurrentTab = tab.ToLowerInvariant() switch { "fields" => 1, "used-by" => 2, _ => 0 };
@@ -162,9 +166,9 @@ public partial class RecordBrowser : Control
         _usedBy.ItemActivated += () =>
         {
             if (_usedBy.GetSelected()?.GetMetadata(0).AsString() is { } text && RecordId.TryParse(text, out var id))
-                Navigate(id);
+                FollowLink(id);
         };
-        _fields.Opened += id => Navigate(id);
+        _fields.Opened += FollowLink;
 
         _back.Pressed += () => Step(-1);
         _forward.Pressed += () => Step(1);
@@ -311,6 +315,13 @@ public partial class RecordBrowser : Control
 
     // ---- Navigation -----------------------------------------------------------------------------
 
+    /// <summary>Opens a record from a link, on its preview.</summary>
+    private void FollowLink(RecordId id)
+    {
+        _tabs.CurrentTab = 0;
+        Navigate(id);
+    }
+
     private void Navigate(RecordId id)
     {
         if (_current == id)
@@ -389,7 +400,8 @@ public partial class RecordBrowser : Control
                 break;
             case (byte[] glb, string animation, string note):
                 SetPreview(_model);
-                _model.Show(glb, animation.Length > 0 ? animation : null, note.Length > 0 ? note : null);
+                _model.Show(glb, animation.Length > 0 ? animation : null, note.Length > 0 ? note : null,
+                    id.Type == RecordTypes.Actor ? plugins.TryGet<ActorRecord>(id) : null);
                 break;
         }
     }
@@ -446,7 +458,7 @@ public partial class RecordBrowser : Control
             var animation = (string?)json["states"]?[initial]?["animation"] is { } a && RecordId.TryParse(a, out var animationId)
                 ? $"borg6 {Convert.ToInt32(animationId.Key, 16)}"
                 : "";
-            var note = $"Scene {scene.Key}, playing its initial state ({initial})." + (json["head"] is not null ? " Its head isn't drawn here yet." : "");
+            var note = $"Scene {scene.Key}, in its initial state ({initial})." + (json["head"] is not null ? " Its head isn't drawn here yet." : "");
             return (await File.ReadAllBytesAsync(path), animation, note);
         }
         if (entry?.Asset("glb") is { } glb)
@@ -495,7 +507,7 @@ public partial class RecordBrowser : Control
             if (await LoadPngAsync(catalog.Find(target)!.Asset("png")!.Path) is not { } image)
                 continue;
             var label = count > 1 ? $"{path} and {count - 1} more" : path;
-            items.Add(new ImageGallery.Item(label, image, () => Navigate(target), $"{target}. Click to open."));
+            items.Add(new ImageGallery.Item(label, image, () => FollowLink(target), $"{target}. Click to open."));
         }
         return items;
     }
@@ -561,7 +573,7 @@ public partial class RecordBrowser : Control
                     CustomMinimumSize = new Vector2(48, 28),
                     TooltipText = $"{map}\n{catalog.Find(map)?.Summary}",
                 };
-                button.Pressed += () => Navigate(map);
+                button.Pressed += () => FollowLink(map);
                 grid.AddChild(button);
             }
         }

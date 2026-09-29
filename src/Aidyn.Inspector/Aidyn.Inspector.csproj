@@ -9,8 +9,14 @@
 
   <ItemGroup>
     <!-- The editor reads plugins (ADR 0010). The ROM is only for the frozen Borg browser and running the importer. -->
+    <ProjectReference Include="..\Aidyn.Core\Aidyn.Core.csproj" />
     <ProjectReference Include="..\Aidyn.Plugins\Aidyn.Plugins.csproj" />
     <ProjectReference Include="..\Aidyn.Rom\Aidyn.Rom.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The runtime's, so the editor plays actors as the game does (ADR 0010). -->
+    <Compile Include="..\Aidyn.Game\ActorAnimator.cs" Link="Shared\ActorAnimator.cs" />
   </ItemGroup>
 
 </Project>

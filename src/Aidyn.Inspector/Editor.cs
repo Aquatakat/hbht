@@ -13,7 +13,10 @@ namespace Aidyn.Inspector;
 /// Command-line options, after <c>--</c>: <c>--data &lt;plugins folder&gt;</c> (default: the
 /// data folder's), <c>--record &lt;id&gt;</c>, <c>--borg &lt;index&gt;</c> and <c>--rom &lt;path&gt;</c>
 /// for the Borg browser, <c>--tab preview|fields|used-by|hex</c>, and <c>--screenshot &lt;png&gt;</c>,
-/// which saves the window once the record or Borg is shown and quits.
+/// which saves the window once the record or Borg is shown and quits. For a record's 3D preview,
+/// <c>--drive &lt;request&gt;</c> runs an actor's state machine, <c>--wireframe 1</c> and
+/// <c>--scene-camera 1</c> set those switches, and <c>--wait &lt;seconds&gt;</c> waits before the
+/// screenshot.
 /// </remarks>
 public partial class Editor : Control
 {
@@ -59,7 +62,13 @@ public partial class Editor : Control
             await _records.LoadAsync(args.GetValueOrDefault("data") ?? DataPaths.Plugins);
             if (args.TryGetValue("record", out var record))
                 await _records.OpenAsync(RecordId.Parse(record));
+            if (args.TryGetValue("drive", out var request))
+                _records.Model.Drive(int.Parse(request, CultureInfo.InvariantCulture));
+            _records.Model.SetWireframe(args.GetValueOrDefault("wireframe") == "1");
+            _records.Model.SetSceneCamera(args.GetValueOrDefault("scene-camera") == "1");
         }
+        if (args.TryGetValue("wait", out var wait))
+            await ToSignal(GetTree().CreateTimer(double.Parse(wait, CultureInfo.InvariantCulture)), SceneTreeTimer.SignalName.Timeout);
         if (png is not null)
             await Screenshot(png);
     }
