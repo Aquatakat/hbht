@@ -7,7 +7,7 @@ using Aidyn.Rom.Maps;
 using Aidyn.Rom.Quests;
 
 /// <summary>
-/// The quest atlas as one JSON file for <c>tools/quest-atlas.html</c>. Map objects are included
+/// The quest atlas as one JSON file. Map objects are included
 /// only if they use a flag or start a script, and are referred to by their position in
 /// <c>objects</c>.
 /// </summary>

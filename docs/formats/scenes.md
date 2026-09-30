@@ -31,7 +31,7 @@
   - Culling maps to `doubleSided`.
   - Environment-mapped draws lose their texture, because glTF can't generate texture coordinates.
   - A textured material's `extras` has its Borg1 as `borg1`. The scene's `extras` lists the textures that scroll as `scrollingTextures`, each with its Borg1, width, scroll byte and how many times the scene's instructions load it (see [textures](textures.md)). 391 scenes scroll 97 of the 103 textures that can, and none loads one more than once.
-- **Viewer:** `tools/scene-viewer.html` is a three.js page. Serve the repo root on localhost (the `scene-viewer` entry in `.claude/launch.json`, or `python -m http.server 8123 --bind 127.0.0.1`) and open `/tools/scene-viewer.html?scene=2558`. The **Scene camera** option views through the Borg3 at 4:3. The scenes are ROM-derived, so keep them local.
+- **Viewing:** `aidyn scenes <rom>` still writes every scene as glTF for other tools, and the editor draws the imported ones with the N64 material (see [inspector](../systems/inspector.md)); its **Scene camera** views through the Borg3 at 4:3. The three.js scene viewer that did this first was deleted on Sep 30, 2026.
 - **Checked against the emulator:** the user captured frames of the Gwernia house (scene 2558) and of Brenna (scene 10696, in combat). The house matched. Brenna's texture placement matched once `G_MODIFYVTX` was fixed. Neither tested rotations (see the matrix conventions above).
 
 What the renderer still has to do for scenes is in [rendering](../systems/rendering.md).

@@ -23,17 +23,15 @@ const string Usage = """
       aidyn scenes <rom> [<index>...] [--out <dir>]
                                            Borg5 scenes as glTF, with the Borg6s that animate them
                                            (all, or the given archive indices); default dir: out/<version>/scenes
-      aidyn actors <rom> [--out <dir>]       Borg7 actors' states and branches as JSON, for
-                                           tools/scene-viewer.html; default dir: out/<version>/actors
+      aidyn actors <rom> [--out <dir>]       Borg7 actors' states and branches as JSON;
+                                           default dir: out/<version>/actors
       aidyn maps <rom> [<set>...] [--out <dir>]
                                            map sets' chunks and objects as JSON and their collision as
-                                           glTF (all, or the given sets), for tools/map-viewer.html;
-                                           default dir: out/<version>/maps
+                                           glTF (all, or the given sets); default dir: out/<version>/maps
       aidyn dialogue <rom> [<index>...] [--out <dir>]
                                            Borg13 scripts as text (all, or the given archive indices);
                                            default dir: out/<version>/dialogue
-      aidyn atlas <rom> [--out <dir>]        the quest atlas as JSON, for tools/quest-atlas.html;
-                                           default dir: out/<version>/atlas
+      aidyn atlas <rom> [--out <dir>]        the quest atlas as JSON; default dir: out/<version>/atlas
       aidyn flag <rom> <flag>...             what sets and reads each flag
       aidyn strings <rom> <table>
     """;

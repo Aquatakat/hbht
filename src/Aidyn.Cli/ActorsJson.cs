@@ -8,7 +8,7 @@ using Aidyn.Rom.Engine;
 using Aidyn.Rom.Graphics;
 
 /// <summary>
-/// Every Borg7 actor as one JSON file, for <c>tools/scene-viewer.html</c>: its scene, its states
+/// Every Borg7 actor as one JSON file: its scene, its states
 /// and branches, and the entities that use it.
 /// </summary>
 internal static class ActorsJson

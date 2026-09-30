@@ -1,8 +1,8 @@
 # The editor (roadmap 0.6)
 
-Per [ADR 0009](../adr/0009-code-organisation.md), the Inspector is the one tool app, and the HTML viewers in `tools/` get no new features. Per [ADR 0010](../adr/0010-editor-reads-plugins.md), it becomes the editor, which reads only the imported plugins and draws them with the runtime's code. The CLAUDE.md status lists the steps to parity with the viewers.
+Per [ADR 0009](../adr/0009-code-organisation.md), the Inspector is the one tool app. Per [ADR 0010](../adr/0010-editor-reads-plugins.md), it's the editor, which reads only the imported plugins and draws them with the runtime's code. On Sep 30, 2026 it reached parity with the three.js scene viewer, map viewer and quest atlas, and they were deleted along with the raw Borg browser, its first feature. New research into formats uses the CLI's dumps and exports.
 
-`src/Aidyn.Inspector` is a Godot app. Run it with `tools/godot.ps1 --path src/Aidyn.Inspector` (build it first with `dotnet build`, or open it in the editor). It has two tabs: **Plugins**, the editor, and **ROM Borgs (frozen)**, the raw Borg browser.
+`src/Aidyn.Inspector` is a Godot app. Run it with `tools/godot.ps1 --path src/Aidyn.Inspector` (build it first with `dotnet build`, or open it in the editor).
 
 ## Plugins
 
@@ -29,16 +29,3 @@ It loads the plugins folder as the runtime does (`PluginSet.LoadInstalled`: `aid
 - **Searching script text:** the list's search also finds scripts by what they say, from three letters, and shows the first line that matches in place of the summary.
 - **Many objects at once.** Every mesh the N64 material draws has instance uniforms, so the project raises Godot's global shader variable buffer (`rendering/limits/global_shader_variables/buffer_size`) for a whole map set's worth.
 - **For scripts and screenshots:** `tools/godot.ps1 --path src/Aidyn.Inspector -- --record aidyn:mapset/0 --tab preview --screenshot out/shot.png` opens a record, saves the window and quits. `--tab` takes `preview`, `fields` or `used-by`, and `--data` a plugins folder. `--checkpoint <state>` loads a checkpoint's flags, `--play <moves>` plays a script that many moves (taking first choices), `--drive <request>` drives an actor, `--wireframe 1` and `--scene-camera 1` set those switches, `--collision surface|role` colours a map's collision, and `--wait <seconds>` waits before the screenshot. It gives up after a minute, so a hang can't block a script.
-
-## ROM Borgs (frozen)
-
-The raw Borg browser gets fixes only (ADR 0010), and is deleted with the HTML viewers. It reads the ROM only once its tab is opened. It finds the ROMs in `roms/` (or `AIDYN_ROMS`) by hash and opens 1.0 first, or use **Open ROM…**.
-
-- **The list** filters by type, and by index or summary text. Summaries fill in as it decodes the archive in the background, which takes a few seconds.
-- **Preview:** textures with every mip level, and UI images. Models are shown alone and untextured, since scenes bind the textures. Scenes play all their animations. An animation plays in its scene, an actor plays its initial state, and a map chunk's collision shows where its first map set places it. Dialogue shows as text. Drag to turn, right-drag to pan, scroll to zoom. The 3D views are the CLI's glTF, loaded at run time with Godot's `GltfDocument`, so they match the scene viewer.
-- **Godot loses texture wrap modes on import.** A `BaseMaterial3D` has one repeat switch for both axes and can't mirror, so glTF's mirrored repeat and one-axis clamp come out wrong. Faces are often half a texture mirrored across the middle (Donovan, scene 10363, lost half his face), and the knight's pauldrons (scene 9765) and the Gwernia house's door clamp or mirror too. `WrapMaterials` swaps those materials for a shader that wraps each axis itself. The runtime's N64 material will need the same.
-- **Fields:** the decoded record, read by reflection, so a new decoder's fields show up with no inspector code. Lists expand in pages of 256. The Borg's `Borg_List` entry is below it.
-- **Hex:** the decompressed bytes. Samples and sequences (1D) have only this so far.
-- **For scripts and screenshots:** `--borg 10723` (and `--rom <path>`) opens this tab at a Borg, with `--tab preview|fields|hex` and `--screenshot` as above.
-
-The decoding lives in `Aidyn.Rom.Inspection` (`BorgInspector`, `FieldTree`), which the tests check against every Borg; the Godot project is only UI. Like the CLI, it reads the ROM through `Aidyn.Rom` as a research tool. The editor won't: ADR 0010 keeps it on plugins, like the runtime.

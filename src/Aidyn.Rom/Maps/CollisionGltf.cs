@@ -5,7 +5,7 @@ using Aidyn.Rom.Graphics;
 namespace Aidyn.Rom.Maps;
 
 /// <summary>
-/// Exports a map set's collision as glTF, for <c>tools/map-viewer.html</c>: a node per chunk at
+/// Exports a map set's collision as glTF: a node per chunk at
 /// its <see cref="MapSets.ChunkOrigin"/>, with one mesh of its triangles. The triangles don't share
 /// vertices, so each vertex carries its triangle's <c>_SURFACE</c> (<see cref="CollisionSurface"/>),
 /// <c>_ROLE</c> (0 normal, 1 toggle, 2 trigger, 3 Expansion Pak only) and <c>_FLAGS</c>

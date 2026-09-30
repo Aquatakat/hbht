@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- The editor reads plugins (ADR 0010). The ROM is only for the frozen Borg browser and running the importer. -->
+    <!-- The editor reads plugins (ADR 0010). Aidyn.Rom is only for running the importer and reading checkpoints, which needs no ROM. -->
     <ProjectReference Include="..\Aidyn.Core\Aidyn.Core.csproj" />
     <ProjectReference Include="..\Aidyn.Plugins\Aidyn.Plugins.csproj" />
     <ProjectReference Include="..\Aidyn.Rom\Aidyn.Rom.csproj" />

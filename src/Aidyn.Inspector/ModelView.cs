@@ -2,7 +2,6 @@ using System.Globalization;
 using System.Text.Json;
 using Aidyn.Game;
 using Aidyn.Plugins.Records;
-using Aidyn.Rom.Inspection;
 using Godot;
 
 namespace Aidyn.Inspector;
@@ -138,8 +137,6 @@ public partial class ModelView : VBoxContainer
         _actorPanel.Visible = false;
         _note.Text = "";
     }
-
-    public void Show(ModelPreview preview) => Show(preview.Glb, preview.Animation, preview.Note);
 
     /// <summary>Shows a glTF binary, playing <paramref name="animation"/> if it has one by that name.</summary>
     /// <param name="note">What the preview shows, when that isn't just the asset itself.</param>

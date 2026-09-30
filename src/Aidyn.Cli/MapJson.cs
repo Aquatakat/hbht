@@ -8,7 +8,7 @@ using Aidyn.Rom.Db;
 using Aidyn.Rom.Maps;
 
 /// <summary>
-/// A map set's chunks and map objects as JSON, for <c>tools/map-viewer.html</c>. Its collision
+/// A map set's chunks and map objects as JSON. Its collision
 /// goes in a glTF file beside it (<see cref="CollisionGltf"/>).
 /// </summary>
 internal static class MapJson
