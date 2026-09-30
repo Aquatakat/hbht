@@ -15,7 +15,8 @@ namespace Aidyn.Inspector;
 /// <c>--scene-camera 1</c> set those switches, <c>--collision surface|role</c> colours a map's
 /// collision, and <c>--wait &lt;seconds&gt;</c> waits before the
 /// screenshot. <c>--checkpoint &lt;state&gt;</c> shows a checkpoint's flags on flag pages, and
-/// <c>--play &lt;moves&gt;</c> plays a script's page that many moves.
+/// <c>--play &lt;moves&gt;</c> plays a script's page that many moves, with its conversation box shown at
+/// <c>--zoom &lt;1-3&gt;</c> and <c>--ui-filter pixels|videoout|smooth</c>.
 /// </remarks>
 public partial class Editor : Control
 {
@@ -54,6 +55,11 @@ public partial class Editor : Control
             await _records.OpenAsync(RecordId.Parse(record));
         if (args.TryGetValue("play", out var moves))
             _records.PlayScript(int.Parse(moves, CultureInfo.InvariantCulture));
+        if (args.ContainsKey("zoom") || args.ContainsKey("ui-filter"))
+        {
+            _records.SetScriptScreen(args.TryGetValue("zoom", out var zoom) ? int.Parse(zoom, CultureInfo.InvariantCulture) : null,
+                args.TryGetValue("ui-filter", out var filter) ? Enum.Parse<Aidyn.Game.UiFilter>(filter, ignoreCase: true) : null);
+        }
         if (args.TryGetValue("drive", out var request))
             _records.Model.Drive(int.Parse(request, CultureInfo.InvariantCulture));
         _records.Model.SetWireframe(args.GetValueOrDefault("wireframe") == "1");

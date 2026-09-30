@@ -1,6 +1,7 @@
 using System.Globalization;
 using Aidyn.Core.Rng;
 using Aidyn.Core.Scripts;
+using Aidyn.Game;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 using Godot;
@@ -49,6 +50,10 @@ public partial class ScriptPanel : VBoxContainer
     private readonly VBoxContainer _answers = new();
     private readonly ItemList _log = new() { SizeFlagsVertical = SizeFlags.ExpandFill, CustomMinimumSize = new Vector2(0, 160) };
     private readonly EditorWorld _world;
+    private readonly UiScreen _screen = new() { CustomMinimumSize = new Vector2(UiScreen.Width, UiScreen.Height), Backdrop = new Color(0.22f, 0.25f, 0.3f) };
+    private readonly ConversationBoxView? _conversation;
+    private ScriptPage? _shown;
+    private OptionButton? _filterChoice, _zoomChoice;
     private ScriptRunner? _runner;
     private bool[]? _before;
     private bool _arranged;
@@ -58,6 +63,9 @@ public partial class ScriptPanel : VBoxContainer
         (_catalog, _flags, _script, _open) = (catalog, flags, script, open);
         _world = new EditorWorld(Log, NameOf);
         AddThemeConstantOverride("separation", 6);
+        // Plugins from before the importer wrote fonts have none to draw with.
+        if (catalog.Plugins.Contains(RecordId.Decimal(RecordTypes.Font, 0)))
+            _screen.Canvas.AddChild(_conversation = new ConversationBoxView(catalog.Plugins) { PlayerName = PlayerName, Visible = false });
 
         AddChild(Header());
         var split = new HSplitContainer { SizeFlagsVertical = SizeFlags.ExpandFill };
@@ -413,7 +421,11 @@ public partial class ScriptPanel : VBoxContainer
         };
         bar.AddChild(play);
         bar.AddChild(skip);
+        bar.AddChild(FilterChoice());
+        bar.AddChild(ZoomChoice());
         box.AddChild(bar);
+        if (_conversation is not null)
+            box.AddChild(_screen);
         box.AddChild(_status);
         box.AddChild(_page);
         box.AddChild(new HSeparator());
@@ -428,6 +440,42 @@ public partial class ScriptPanel : VBoxContainer
         _status.Text = _flags is null ? "These plugins have no flag network, so it can't play." : $"Press Play to run it against {_flags.Name}'s flags.";
         play.Disabled = _flags is null;
         return box;
+    }
+
+    /// <summary>Sets how the conversation box's screen is shown (<c>--zoom</c>, <c>--ui-filter</c>).</summary>
+    public void SetScreen(int? zoom, UiFilter? filter)
+    {
+        if (zoom is { } z && _zoomChoice!.GetItemIndex(z) is var i and >= 0)
+        {
+            _zoomChoice.Select(i);
+            _zoomChoice.EmitSignal(OptionButton.SignalName.ItemSelected, i);
+        }
+        if (filter is { } f && _filterChoice!.GetItemIndex((int)f) is var j and >= 0)
+        {
+            _filterChoice.Select(j);
+            _filterChoice.EmitSignal(OptionButton.SignalName.ItemSelected, j);
+        }
+    }
+
+    /// <summary>How the conversation box is scaled up, to compare with the console.</summary>
+    private OptionButton FilterChoice()
+    {
+        var choice = _filterChoice = new OptionButton { TooltipText = "How the original's 320 × 240 screen is scaled up to show the box." };
+        foreach (var (filter, name) in new[] { (UiFilter.VideoOut, "As the console outputs it"), (UiFilter.Pixels, "Sharp pixels"), (UiFilter.Smooth, "Smooth") })
+            choice.AddItem(name, (int)filter);
+        choice.ItemSelected += i => _screen.Filter = (UiFilter)choice.GetItemId((int)i);
+        choice.Disabled = _conversation is null;
+        return choice;
+    }
+
+    private OptionButton ZoomChoice()
+    {
+        var choice = _zoomChoice = new OptionButton { TooltipText = "How large the original's screen is shown." };
+        for (var zoom = 1; zoom <= 3; zoom++)
+            choice.AddItem($"{zoom}×", zoom);
+        choice.ItemSelected += i => _screen.CustomMinimumSize = new Vector2(UiScreen.Width, UiScreen.Height) * choice.GetItemId((int)i);
+        choice.Disabled = _conversation is null;
+        return choice;
     }
 
     /// <summary>A control for each thing the script checks, other than flags.</summary>
@@ -516,6 +564,11 @@ public partial class ScriptPanel : VBoxContainer
         if (_runner is not { } runner)
             return;
 
+        if (runner.Status != ScriptStatus.Showing && _conversation is not null)
+        {
+            _conversation.Visible = false;
+            _shown = null;
+        }
         switch (runner.Status)
         {
             case ScriptStatus.Ended:
@@ -541,11 +594,18 @@ public partial class ScriptPanel : VBoxContainer
         }
 
         var page = runner.Page!;
+        if (!ReferenceEquals(page, _shown))
+        {
+            _shown = page;
+            _conversation?.Show(page);
+        }
+        // A line from the speaker of the choices under it shows alone first, and A brings them up.
+        var lineFirst = _conversation?.Box.ShowsLineBeforeChoices == true;
         Focus(page.Line.Node);
         _status.Text = runner.Wait == ScriptWait.Player ? "Waiting for A." : $"At node {page.Line.Node}.";
         _page.AddChild(Dimmed(page.Line.Speaker is { } speaker ? NameOf(speaker) : "No speaker"));
         _page.AddChild(new Label { Text = Display(page.Line.Text), AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(360, 0) });
-        if (page.Choices.Count > 0 && runner.Wait != ScriptWait.Player)
+        if (page.Choices.Count > 0 && runner.Wait != ScriptWait.Player && !lineFirst)
         {
             for (var i = 0; i < page.Choices.Count; i++)
             {
@@ -558,13 +618,21 @@ public partial class ScriptPanel : VBoxContainer
                     TooltipText = $"Node {page.Choices[i].Node}",
                 };
                 button.Pressed += () => Act(() => runner.Choose(choice));
+                button.MouseEntered += () => _conversation?.Point(choice);
+                button.FocusEntered += () => _conversation?.Point(choice);
                 _page.AddChild(button);
             }
         }
         else
         {
             var next = new Button { Text = "Continue (A)" };
-            next.Pressed += () => Act(runner.Continue);
+            next.Pressed += lineFirst
+                ? () =>
+                {
+                    _conversation!.ShowChoices();
+                    ShowPage();
+                }
+                : () => Act(runner.Continue);
             _page.AddChild(next);
         }
     }

@@ -33,7 +33,9 @@ const string Usage = """
                                            default dir: out/<version>/dialogue
       aidyn atlas <rom> [--out <dir>]        the quest atlas as JSON; default dir: out/<version>/atlas
       aidyn flag <rom> <flag>...             what sets and reads each flag
-      aidyn strings <rom> <table>
+      aidyn strings <rom> <table>            one string table, numbered by line
+      aidyn strings <rom> [--out <dir>]      every string table as text, a file each;
+                                           default dir: out/<version>/strings
     """;
 
 try
@@ -58,6 +60,8 @@ try
         ["atlas", var rom] => Atlas(rom, null),
         ["atlas", var rom, "--out", var dir] => Atlas(rom, dir),
         ["flag", var rom, .. var flags] when flags.Length > 0 => Flags(rom, flags),
+        ["strings", var rom] => AllStrings(rom, null),
+        ["strings", var rom, "--out", var dir] => AllStrings(rom, dir),
         ["strings", var rom, var table] => Strings(rom, table),
         _ => Fail(Usage),
     };
@@ -346,6 +350,22 @@ static int Strings(string path, string tableName)
     var strings = RomStringBlock.Read(RomImage.Load(path), table);
     for (var i = 0; i < strings.Count; i++)
         Console.WriteLine($"{i,4}  {strings[i]}");
+    return 0;
+}
+
+static int AllStrings(string path, string? outDir)
+{
+    var rom = RomImage.Load(path);
+    outDir ??= Path.Combine("out", rom.Version.Id.ToString().ToLowerInvariant(), "strings");
+    Directory.CreateDirectory(outDir);
+    var lines = 0;
+    foreach (var table in Enum.GetValues<RomStringTable>())
+    {
+        var strings = RomStringBlock.Read(rom, table);
+        File.WriteAllLines(Path.Combine(outDir, $"{(int)table:D2}-{table}.txt"), strings.Select((s, i) => $"{i,4}  {s}"));
+        lines += strings.Count;
+    }
+    Console.WriteLine($"Wrote {Enum.GetValues<RomStringTable>().Length} string tables, {lines} lines, to {Path.GetFullPath(outDir)}");
     return 0;
 }
 

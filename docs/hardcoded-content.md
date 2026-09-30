@@ -202,7 +202,7 @@ Code uses 1,990 of the 2,076 names in the decomp's `Borgindecies.h`. The map chu
 
 **Portraits:** the fallback for a speaker with none, `BORG8_PortraitNPCMale1` (`0x0125`), and Alaron's entity, whose portrait shows over a conversation's choices when the line before them was the other speaker's alone (`DialougeClass::Setup`). Carried as facts by the runtime's conversation box.
 
-**UI chrome** is the rest: the conversation box's portrait border, black band and gradient (`BORG8_PortraitHighlight`, `BORG8_Pixel`, `BORG8_GradientC`), the compass, menu backgrounds and titles, the calendar and sundial, logos and Controller Pak screens. These need no records. Mods override them as assets under their Borg IDs ([ADR 0004](adr/0004-record-ids.md), [ADR 0005](adr/0005-plugin-format.md)).
+**UI chrome** is the rest: the conversation box's portrait border, black band and gradient (`BORG8_PortraitHighlight`, `BORG8_Pixel`, and `0x1C3`, which the decomp calls `BORG8_GradientD`: its names for the four gradients `0x1C0`–`0x1C3` don't match the machine code, where the image above a box is `0x1C3`, below `0x1C2`, left `0x1C0` and right `0x1C1`, each fading away from the box), the compass, menu backgrounds and titles, the calendar and sundial, logos and Controller Pak screens. These need no records. Mods override them as assets under their Borg IDs ([ADR 0004](adr/0004-record-ids.md), [ADR 0005](adr/0005-plugin-format.md)).
 
 **Debug only:** the boulder that replaces scene models, and the debug menu's models.
 

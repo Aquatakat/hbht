@@ -19,10 +19,12 @@
     <Compile Include="..\Aidyn.Game\ActorAnimator.cs" Link="Shared\ActorAnimator.cs" />
     <Compile Include="..\Aidyn.Game\Billboards.cs" Link="Shared\Billboards.cs" />
     <Compile Include="..\Aidyn.Game\ChunkScenery.cs" Link="Shared\ChunkScenery.cs" />
+    <Compile Include="..\Aidyn.Game\ConversationBoxView.cs" Link="Shared\ConversationBoxView.cs" />
     <Compile Include="..\Aidyn.Game\FrameCallback.cs" Link="Shared\FrameCallback.cs" />
     <Compile Include="..\Aidyn.Game\Models.cs" Link="Shared\Models.cs" />
     <Compile Include="..\Aidyn.Game\Nodes.cs" Link="Shared\Nodes.cs" />
     <Compile Include="..\Aidyn.Game\TextureScrolls.cs" Link="Shared\TextureScrolls.cs" />
+    <Compile Include="..\Aidyn.Game\UiScreen.cs" Link="Shared\UiScreen.cs" />
     <Compile Include="..\Aidyn.Game\Vectors.cs" Link="Shared\Vectors.cs" />
   </ItemGroup>
 

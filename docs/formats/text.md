@@ -4,7 +4,7 @@ The string tables, the fonts and the portraits beside what characters say. Dialo
 
 ## String tables
 
-`aidyn strings <rom> <table>` prints one. The base plugin has each as a record, `aidyn:strings/0` to `/11`, numbered in the order they sit in the ROM, with the escapes decoded as the game does when it loads a table (`some_string_func`): `\n` is a newline and `\xHH` that character. Nothing else is escaped: across every table there are 35 `\n`s and three button glyphs, `\x83` (C-down) twice in Common and `\x84` (C-up) once. `%s` and `%d` are for the engine to fill in.
+`aidyn strings <rom>` writes every table to `out/<version>/strings/`, and `aidyn strings <rom> <table>` prints one. The base plugin has each as a record, `aidyn:strings/0` to `/11`, numbered in the order they sit in the ROM, with the escapes decoded as the game does when it loads a table (`some_string_func`): `\n` is a newline and `\xHH` that character. Nothing else is escaped: across every table there are 35 `\n`s and three button glyphs, `\x83` (C-down) twice in Common and `\x84` (C-up) once. `%s` and `%d` are for the engine to fill in.
 
 | # | Table | Lines (1.0) | What reads it |
 | --- | --- | --- | --- |
