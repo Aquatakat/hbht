@@ -147,6 +147,25 @@ public enum CodeTable
     /// eleven controller buttons, then zeros (<c>extraFontColors</c>).
     /// </summary>
     FontColors,
+    /// <summary>
+    /// The experience each level starts at, as s32s from level 0 to 40, then a 0 (<c>EXP_TNL</c>).
+    /// </summary>
+    LevelExp,
+    /// <summary>
+    /// The most each stat's base value reads as (<c>base_stat_cap</c>) and then the most its modified
+    /// value reads as (<c>modded_stat_cap</c>), 7 s32s each, by stat: Intelligence, Willpower,
+    /// Dexterity, Endurance, Strength, Stamina, Level.
+    /// </summary>
+    StatCaps,
+    /// <summary>
+    /// What training each stat costs, per square of the level raised to, as 7 s32s (<c>stat_multiplier</c>
+    /// in <c>CharStats::GetTraningPrice</c>). The level's is never used.
+    /// </summary>
+    StatTrainingCosts,
+    /// <summary>The same for the 12 skills, as s32s (the multipliers <c>CharSkills::GetSkillXpMod</c> copies).</summary>
+    SkillTrainingCosts,
+    /// <summary>The same for the 11 weapon classes, as s32s (<c>CharSkills::GetWeaponXpMod</c>).</summary>
+    WeaponTrainingCosts,
 }
 
 /// <summary>
@@ -232,6 +251,11 @@ public static class RomVersions
                 [CodeTable.FontFaces] = new(0x00DAF08, 0x18),
                 [CodeTable.FontGlyphs] = new(0x00E56C0, 0x6C),
                 [CodeTable.FontColors] = new(0x00E572C, 0x24),
+                [CodeTable.LevelExp] = new(0x00E3804, 0xA8),
+                [CodeTable.StatCaps] = new(0x00E3BE4, 0x38),
+                [CodeTable.StatTrainingCosts] = new(0x00D4620, 0x1C),
+                [CodeTable.SkillTrainingCosts] = new(0x00D44D0, 0x30),
+                [CodeTable.WeaponTrainingCosts] = new(0x00D4500, 0x2C),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {
@@ -313,6 +337,11 @@ public static class RomVersions
                 [CodeTable.FontFaces] = new(0x00DAF48, 0x18),
                 [CodeTable.FontGlyphs] = new(0x00E5700, 0x6C),
                 [CodeTable.FontColors] = new(0x00E576C, 0x24),
+                [CodeTable.LevelExp] = new(0x00E3844, 0xA8),
+                [CodeTable.StatCaps] = new(0x00E3C24, 0x38),
+                [CodeTable.StatTrainingCosts] = new(0x00D4610, 0x1C),
+                [CodeTable.SkillTrainingCosts] = new(0x00D44C0, 0x30),
+                [CodeTable.WeaponTrainingCosts] = new(0x00D44F0, 0x2C),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {
@@ -392,6 +421,11 @@ public static class RomVersions
                 [CodeTable.FontFaces] = new(0x00E9918, 0x18),
                 [CodeTable.FontGlyphs] = new(0x00F4240, 0x6C),
                 [CodeTable.FontColors] = new(0x00F42AC, 0x24),
+                [CodeTable.LevelExp] = new(0x00F2378, 0xA8),
+                [CodeTable.StatCaps] = new(0x00F2764, 0x38),
+                [CodeTable.StatTrainingCosts] = new(0x00E1AF0, 0x1C),
+                [CodeTable.SkillTrainingCosts] = new(0x00E193C, 0x30),
+                [CodeTable.WeaponTrainingCosts] = new(0x00E197C, 0x2C),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {

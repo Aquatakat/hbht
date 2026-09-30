@@ -7,7 +7,14 @@ using RomFlagRole = Aidyn.Rom.Quests.FlagRole;
 
 namespace Aidyn.Rom.Tests;
 
-/// <summary>Imports NA 1.0 once for <see cref="MapObjectImportTests"/>, when the first test needs it.</summary>
+/// <summary>The tests that share one import of NA 1.0 (<see cref="MapObjectFixture"/>).</summary>
+[CollectionDefinition(Name)]
+public sealed class ImportedPluginCollection : ICollectionFixture<MapObjectFixture>
+{
+    public const string Name = "NA 1.0 imported";
+}
+
+/// <summary>Imports NA 1.0 once for the tests in <see cref="ImportedPluginCollection"/>, when the first test needs it.</summary>
 public sealed class MapObjectFixture : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "aidyn-mapobjects-" + Guid.NewGuid().ToString("N"));
@@ -77,7 +84,8 @@ public sealed class MapObjectFixture : IDisposable
     }
 }
 
-public sealed class MapObjectImportTests(MapObjectFixture fixture) : IClassFixture<MapObjectFixture>
+[Collection(ImportedPluginCollection.Name)]
+public sealed class MapObjectImportTests(MapObjectFixture fixture)
 {
     private MapObjectFixture.Loaded Data => fixture.Data;
 

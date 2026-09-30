@@ -29,7 +29,7 @@ public class ScriptRunnerTests
 
         public bool InParty(RecordId entity) => Answer(_members, entity);
         public bool HasItem(RecordId item) => Answer(_items, item);
-        public int BestSkill(int skill) => random.Next(0, 11);
+        public int SkillCheck(int skill, IRandom rolls) => random.Next(0, 22);
         public int BestStat(int stat) => random.Next(0, 31);
         public int WorstStat(int stat) => random.Next(0, 31);
         public int MemberStat(RecordId? member, int stat) => random.Next(0, 31);

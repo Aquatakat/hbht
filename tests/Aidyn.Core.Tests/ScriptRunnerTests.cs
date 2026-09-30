@@ -32,7 +32,7 @@ public class ScriptRunnerTests
 
         public bool InParty(RecordId entity) => Members.Contains(entity);
         public bool HasItem(RecordId item) => Items.Contains(item);
-        public int BestSkill(int skill) => Skills.GetValueOrDefault(skill);
+        public int SkillCheck(int skill, IRandom random) => Skills.GetValueOrDefault(skill);
         public int BestStat(int stat) => 0;
         public int WorstStat(int stat) => 0;
         public int MemberStat(RecordId? member, int stat) => 0;

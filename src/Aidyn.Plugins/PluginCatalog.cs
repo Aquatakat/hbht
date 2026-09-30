@@ -175,6 +175,15 @@ public sealed class PluginCatalog
                 or RecordTypes.Item or RecordTypes.Loot when json is not null:
                 parts.Add((string?)json["name"] ?? "");
                 break;
+            case RecordTypes.Stat when json is not null:
+                parts.Add($"{(string?)json["name"]}, cap {(int?)json["baseCap"]}/{(int?)json["cap"]}");
+                break;
+            case RecordTypes.Skill or RecordTypes.WeaponSkill when json is not null:
+                parts.Add($"{(string?)json["name"]}, training cost {(int?)json["trainingCost"]}");
+                break;
+            case RecordTypes.Progression when json is not null:
+                parts.Add(Count(json["levels"], "level"));
+                break;
             case RecordTypes.Sky when json is not null:
                 parts.Add($"{Count(json["stars"], "star")}, {Count(json["clouds"], "cloud")}, {Count(json["lensFlare"], "flare piece")}");
                 break;

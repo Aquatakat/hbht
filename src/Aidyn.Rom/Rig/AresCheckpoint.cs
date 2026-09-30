@@ -24,6 +24,7 @@ public sealed class AresCheckpoint
     private readonly int _base;
     private readonly uint _funnel;
     private bool[]? _flags;
+    private IReadOnlyList<CheckpointCharacter>? _party;
 
     private AresCheckpoint(byte[] state, int rdramStart, uint funnel)
     {
@@ -73,6 +74,64 @@ public sealed class AresCheckpoint
         return new AresCheckpoint(state, f.Offset, f.Address);
     }
 
+    /// <summary>
+    /// Where <c>gGlobals.party</c> is in 1.0 and in the debug build. The state doesn't say which
+    /// build it's of, so <see cref="Party"/> takes whichever holds a party.
+    /// </summary>
+    private static readonly uint[] PartyPointers = [0x800D9684, 0x800E7EA0];
+
+    /// <summary>
+    /// The party's character sheets, in slot order (<c>Party::Members</c>, <c>CharSheet</c>), as the
+    /// console holds them.
+    /// </summary>
+    public IReadOnlyList<CheckpointCharacter> Party => _party ??= ReadParty();
+
+    /// <summary>The party's gold (<c>Party::Gold</c>).</summary>
+    public uint Gold => ReadWord(FindParty() + 0x14);
+
+    private uint FindParty()
+    {
+        foreach (var pointer in PartyPointers)
+        {
+            var party = ReadWord(pointer);
+            if (!InRam(party))
+                continue;
+            var members = Enumerable.Range(0, 4).Select(i => ReadWord(party + (uint)(i * 4))).ToList();
+            if (members.All(m => m == 0 || InRam(m)) && members.Count(m => m != 0) == ReadByte(party + 0x24)
+                && members.Where(m => m != 0).All(m => ReadByte(m) == 0x02))
+                return party;
+        }
+        throw new InvalidDataException("Can't find the party in this state.");
+    }
+
+    private List<CheckpointCharacter> ReadParty()
+    {
+        var party = FindParty();
+        var sheets = new List<CheckpointCharacter>();
+        for (var slot = 0u; slot < 4; slot++)
+        {
+            var sheet = ReadWord(party + slot * 4);
+            if (sheet == 0)
+                continue;
+            // CharSheet: the ID, then pointers to CharExp at 0x14, CharStats_s at 0x18 and CharSkills at 0x1C.
+            var exp = ReadWord(sheet + 0x14);
+            var stats = ReadWord(sheet + 0x18);
+            var skills = ReadWord(sheet + 0x1C);
+            sheets.Add(new CheckpointCharacter(
+                (ushort)(ReadByte(sheet) << 8 | ReadByte(sheet + 1)),
+                Bytes(stats, 7), Signed(stats + 7, 7), Bytes(stats + 0xE, 7), Signed(stats + 0x15, 7),
+                Signed(skills, 24), Signed(skills + 0x18, 24),
+                ReadWord(exp + 4), ReadWord(exp + 8), ReadByte(exp + 1), ReadByte(exp + 2), ReadByte(exp + 3), ReadByte(exp + 0xC)));
+        }
+        return sheets;
+    }
+
+    private int[] Bytes(uint address, int count) => [.. Enumerable.Range(0, count).Select(i => (int)ReadByte(address + (uint)i))];
+
+    private int[] Signed(uint address, int count) => [.. Enumerable.Range(0, count).Select(i => (int)(sbyte)ReadByte(address + (uint)i))];
+
+    private static bool InRam(uint address) => address is >= 0x80000000 and < 0x80000000 + RdramSize;
+
     /// <summary>A byte of RAM, by KSEG0 address (0x80000000–0x807FFFFF).</summary>
     public byte ReadByte(uint address) => _state[_base + (Physical(address) ^ 3)];
 
@@ -94,3 +153,26 @@ public sealed class AresCheckpoint
         return (int)(address & 0x7FFFFF);
     }
 }
+
+/// <summary>A party member's character sheet as the console holds it (<c>CharSheet</c>).</summary>
+/// <param name="Trained">The stats' trained values (<c>CharStats_s.Base</c>), Intelligence to Level.</param>
+/// <param name="Current">Trained less damage (<c>health</c>).</param>
+/// <param name="Base">Trained plus spells and potions (<c>magicMod</c>).</param>
+/// <param name="Modified">Everything (<c>Modded</c>).</param>
+/// <param name="SkillBase">The 12 skills, 11 weapon skills and the shield (<c>CharSkills</c>); −1 can't be learnt.</param>
+/// <param name="SkillModified">The same, modified.</param>
+/// <param name="Flags">True Name 1, heavy 2, Solar 4 (<c>CharExp::flags</c>).</param>
+public sealed record CheckpointCharacter(
+    ushort Id,
+    IReadOnlyList<int> Trained,
+    IReadOnlyList<int> Current,
+    IReadOnlyList<int> Base,
+    IReadOnlyList<int> Modified,
+    IReadOnlyList<int> SkillBase,
+    IReadOnlyList<int> SkillModified,
+    uint TotalExp,
+    uint SpendableExp,
+    int School,
+    int Protection,
+    int Damage,
+    int Flags);

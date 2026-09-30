@@ -606,7 +606,7 @@ public sealed class ScriptRunner
     }
 
     /// <summary>
-    /// The party's best level in a skill (<c>dialougSkillCheck</c>). The first check in a script is
+    /// The party's check of a skill (<c>dialougSkillCheck</c>). The first check in a script is
     /// kept for the rest of it, and the map object remembers it, except for Troubadour. While the
     /// random flag is set, the result is a roll instead, which isn't kept.
     /// </summary>
@@ -614,7 +614,7 @@ public sealed class ScriptRunner
     {
         if (!_skills.TryGetValue(skill, out var level))
         {
-            level = _world.BestSkill(skill) & 0xFF;
+            level = _world.SkillCheck(skill, _random) & 0xFF;
             if (skill != Troubadour && _start.MapObject is { } source)
             {
                 var memory = new ScriptMemory(source, ScriptMemoryKind.SkillCheck, skill);

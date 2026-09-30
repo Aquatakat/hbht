@@ -173,11 +173,17 @@ Characters have six attributes, twelve general skills, and six weapon skills, al
 
 Level rises at increasing XP thresholds, in the usual JRPG pattern.
 
+**(decomp)** Level 1 starts at 500 XP, level 2 at 2,500, level 3 at 7,000, level 10 at 192,500, level 20 at 1,435,000, and the last, level 40, at 11,070,000. Every XP award is multiplied by 1.5, so an enemy's reward is worth 75 XP per point of its record's byte.
+
 Maximum HP is the sum of level, Endurance, and Stamina.
+
+**(decomp)** The sum counts each at most at its cap (40, 90 and 40). Damage takes the level's points first, then Stamina's, then Endurance's; healing restores Endurance first, then Stamina, then the level. Skills and spells spend Stamina, then Endurance, but never the level's points. A level gained also restores its point.
 
 ### Attributes
 
 Attributes are raised by spending XP after a battle.
+
+**(decomp)** Only after a battle: trainers don't offer them. Raising an attribute from *n* costs (n + 1)² × 12 XP, or × 24 for Dexterity and × 4 for Stamina. They stop at 30, Endurance at 40 and Stamina at 90; gear and spells can take them 10 higher, and Stamina 30.
 
 | Attribute | Effect |
 | --- | --- |
@@ -188,6 +194,8 @@ Attributes are raised by spending XP after a battle.
 | Endurance | Hit points (believed to be its only use) |
 | Stamina | Hit points, and the depletable resource for skill and spell use |
 
+**(decomp)** The game's own descriptions add a few: Intelligence also helps Loremaster and the other knowledge skills, Dexterity helps hit chance and defence against weapons, and Strength helps melee hit chance.
+
 Because Stamina is both part of max HP and the resource spent on skills, using most skills and spells effectively costs hit points.
 
 ### General skills
@@ -195,7 +203,7 @@ Because Stamina is both part of max HP and the resource spent on skills, using m
 | Skill | Effect |
 | --- | --- |
 | Alchemist | Brewing potions; throwing potions in battle |
-| Diplomat | Makes NPCs friendlier (no practical effect) |
+| Diplomat | Makes NPCs friendlier. **(decomp)** Conversations check it 45 times, so it opens dialogue. |
 | Healer | Healing effectiveness in and out of battle |
 | Loremaster | Length and number of books readable in libraries |
 | Mechanic | Disarming container traps; crafting armour |
@@ -224,9 +232,23 @@ Weapon skills primarily affect hit chance. A character with zero in a weapon ski
 
 Skills and weapon skills can be raised two ways: by spending XP after a battle, or at a trainer for gold plus a smaller XP cost. A skill at level zero must be taught to at least level 1 by a trainer; it can't be started from nothing after a battle.
 
+**(decomp)** The details:
+
+- Raising a skill from level *n* costs (n + 1)² × its cost in XP. The costs are 1,500 for Alchemist and Wizard, 1,000 for Healer, Ranger, Thief, Troubadour and Warrior, 750 for Loremaster and Merchant, 500 for Diplomat, Mechanic and Stealth, 600 for Missile and Sword, 400 for Hafted, Pole and Thrown, and 500 for Shield.
+- A trainer takes 80% of that, plus (n + 1) × 40 gold, or 200 gold from level 0. Oriana takes no gold.
+- A trainer teaches only up to their own level in it, and what they're above level 0 in.
+- Skills stop at 10. Gear and spells can raise them to 15, and armour can lower Stealth below 0, which counts as 0.
+- Spells cost (n + 1)² × their own cost to raise, and are learnt at a trainer, for 200 gold and the cost once. They stop at 10.
+
 ### Skill restrictions
 
 Some characters can never learn some skills. For example, most magic users can't use shields, and warrior characters can't learn Wizard.
+
+**(decomp)** A character who can't learn Wizard can't learn any spell. Learning one also needs Wizard at least the spell's requirement, and the spell of the character's school or unschooled; Alaron's school, Chaos, takes any.
+
+### Skill checks in conversation
+
+**(decomp)** Conversations only check Diplomat, Loremaster and Troubadour. The check rolls d100 against a bonus and gives a step from 0 to 21. Diplomat's bonus is the best Intelligence of the living party × 3, plus 10 per level of Diplomat across it, plus 50; Loremaster's is the best Intelligence × 3 plus 6 per level across the party; Troubadour's is the best Troubadour's level plus their Dexterity × 3. The first check in a conversation is remembered, so talking again can't do better, except for Troubadour.
 
 ## Magic
 

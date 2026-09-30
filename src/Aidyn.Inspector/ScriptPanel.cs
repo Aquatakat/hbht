@@ -697,7 +697,7 @@ public partial class ScriptPanel : VBoxContainer
 
         public bool InParty(RecordId entity) => Members.Contains(entity);
         public bool HasItem(RecordId item) => Items.Contains(item);
-        public int BestSkill(int skill) => Skills.GetValueOrDefault(skill);
+        public int SkillCheck(int skill, IRandom random) => Skills.GetValueOrDefault(skill);
         public int BestStat(int stat) => Stats.GetValueOrDefault(stat);
         public int WorstStat(int stat) => Stats.GetValueOrDefault(stat);
         public int MemberStat(RecordId? member, int stat) => Stats.GetValueOrDefault(stat);

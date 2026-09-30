@@ -59,10 +59,23 @@ public static class RecordTypes
     /// <summary>A string table, keyed by its decimal position in the ROM.</summary>
     public const string Strings = "strings";
 
+    /// <summary>An attribute or the level, keyed by the original's decimal stat number.</summary>
+    public const string Stat = "stat";
+
+    /// <summary>A skill, keyed by the original's decimal skill number.</summary>
+    public const string Skill = "skill";
+
+    /// <summary>A weapon skill, keyed by the original's decimal weapon class; 11 is the shield.</summary>
+    public const string WeaponSkill = "weaponskill";
+
+    /// <summary>How characters level and train. There's one, <c>aidyn:progression/0</c>.</summary>
+    public const string Progression = "progression";
+
     private static readonly HashSet<string> All =
     [
         Entity, Weapon, Armor, Spell, Item, DialogEntity, Loot, Flag, Texture, Geometry, Camera, Light, Scene, Animation, Actor, Image, Map,
-        Sample, Sequence, Dialogue, Voxel, MapSet, Terrain, Sky, Journal, StateFlags, Font, Strings,
+        Sample, Sequence, Dialogue, Voxel, MapSet, Terrain, Sky, Journal, StateFlags, Font, Strings, Stat, Skill, WeaponSkill,
+        Progression,
     ];
 
     public static bool IsKnown(string type) => All.Contains(type);

@@ -10,3 +10,11 @@ The fixed databases at the end of the ROM: entities, items, spells, shops, camp 
 - **Shops.** The game stocks a priced slot only when its third byte is nonzero, and it always stocks one item. The first byte is never read. The three trailing slots are always stocked at base price.
 - **Camp encounters** are indexed as `terrain × 5 + level tier`, with 54 terrains. Mean enemy level rises with the tier, which confirms the order. Their item IDs are big-endian, unlike the DB tables.
 - **Odd values the game tolerates.** A few entities have an "is heavy" byte other than 0 or 1 (Alaron's is 220). The game only tests it for nonzero.
+- **Entities' fields** (see [characters](../systems/characters.md) for what the base plugin makes of them):
+  - **Categories** are 0 plain NPCs and trainers, 1 humanoids, 2 named characters, 3 recruits, 5 Chaos troops and bosses, and 6 animals; 4 is empty. The decomp's enum puts Chaos at 4, but the code tests 5 (Charming fails on it).
+  - **A skill of 255** can never be learnt. Values above 10 occur (13 and 15), which read as 10.
+  - **Attributes** can be above their caps: some enemies have 120 Stamina, which reads as 90 but counts in full once modified.
+  - **Resistances** are an element and a damage multiplier in quarters: 0 is immune, 4 normal and 8 double. 99 entities have (None, 4), which combat ignores.
+  - **The reward byte** is × 50 on load, and × 1.5 again when awarded.
+  - **Spell slots** with no spell still hold a level, usually 10.
+- **Spells' training cost** is their last byte × 50 (`TempSpell::Init`).

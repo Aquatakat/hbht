@@ -82,8 +82,18 @@ public static class BaseImporter
 
         progress?.Report("Names");
         var db = GameDb.Read(rom);
-        foreach (var (file, records) in BuildNames(db, EntityModels.Read(rom)))
+        var models = EntityModels.Read(rom);
+        foreach (var (file, records) in BuildNames(db, models))
             WriteJson(Path.Combine(staging, "records", file), records);
+
+        progress?.Report("Characters");
+        var characterTables = CharacterTables.Read(rom);
+        WriteJson(Path.Combine(staging, "records", "entities.json"), CharacterImporter.BuildEntities(db, models));
+        WriteJson(Path.Combine(staging, "records", "spells.json"), CharacterImporter.BuildSpells(db));
+        WriteJson(Path.Combine(staging, "records", "stats.json"), CharacterImporter.BuildStats(db, characterTables));
+        WriteJson(Path.Combine(staging, "records", "skills.json"), CharacterImporter.BuildSkills(db, characterTables));
+        WriteJson(Path.Combine(staging, "records", "weaponskills.json"), CharacterImporter.BuildWeaponSkills(db, characterTables));
+        WriteJson(Path.Combine(staging, "records", "progression.json"), new[] { CharacterImporter.BuildProgression(db, characterTables) });
 
         progress?.Report("Text");
         WriteJson(Path.Combine(staging, "records", "strings.json"), BuildStrings(db));
@@ -401,23 +411,20 @@ public static class BaseImporter
     }
 
     /// <summary>
-    /// The names of the DB records scripts, map objects and tools name, by file: entities, dialogue
-    /// entities, weapons, armor, spells, items (potions among them) and loot tables. Records whose ID has no record type are left out.
-    /// Entities and dialogue entities have their portraits. The five dialogue entities without one
-    /// get the code's fallback at run time, as speakers that aren't entities do.
+    /// The names of the DB records scripts, map objects and tools name, by file: dialogue entities,
+    /// weapons, armor, items (potions among them) and loot tables. Records whose ID has no record type are left out.
+    /// Dialogue entities have their portraits. The five without one get the code's fallback at run
+    /// time, as speakers that aren't entities do. Entities and spells have records of their own
+    /// (<see cref="CharacterImporter"/>).
     /// </summary>
     internal static List<(string File, List<DbRecord> Records)> BuildNames(GameDb db, EntityModels models)
     {
-        var portraits = models.Entities.Select(m => (m.Entity, m.Portrait))
-            .Concat(models.DialogEntities.Select(m => (m.Entity, m.Portrait)))
-            .ToDictionary(m => m.Entity, m => RecordId.Hex(RecordTypes.Image, m.Portrait));
+        var portraits = models.DialogEntities.ToDictionary(m => m.Entity, m => RecordId.Hex(RecordTypes.Image, m.Portrait));
         return
         [
-            ("entities.json", Names(db.Entities.Select(e => (e.Id, e.Name)), portraits)),
             ("dialogentities.json", Names(db.DialogEntities.Select(e => (e.Id, e.Name)), portraits)),
             ("weapons.json", Names(db.Weapons.Select(w => (w.Id, w.Name)))),
             ("armor.json", Names(db.Armor.Select(a => (a.Id, a.Name)))),
-            ("spells.json", Names(db.Spells.Select(s => (s.Id, s.Name)))),
             // Potions aren't in the gear table: potion n is named by line n of their own string table (ItemInstance::InitPotion).
             ("items.json", Names(db.Gear.Select(g => (g.Id, g.Name))
                 .Concat(db.Strings[RomStringTable.PotionNames].Select((name, i) => (ItemId.Of(DbType.Potion, (byte)i), name))))),

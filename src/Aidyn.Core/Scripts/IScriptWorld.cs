@@ -1,10 +1,12 @@
+using Aidyn.Core.Rng;
 using Aidyn.Plugins;
 
 namespace Aidyn.Core.Scripts;
 
 /// <summary>
 /// The game state scripts read and change, apart from flags, which the runner reaches through the
-/// flag network. The party and its inventory implement it once 2.2 and 2.3 port them.
+/// flag network. The party (<see cref="Characters.Party"/>) answers the skill and stat questions, and
+/// its inventory will answer the item ones with 2.3.
 /// </summary>
 /// <remarks>
 /// Where the debug build crashes on a failed call (taking an item the party doesn't have, adding a
@@ -18,8 +20,11 @@ public interface IScriptWorld
     /// <summary>Carried or equipped.</summary>
     bool HasItem(RecordId item);
 
-    /// <summary>The party's best level in a skill (<c>Party::SkillCheck</c>).</summary>
-    int BestSkill(int skill);
+    /// <summary>
+    /// The party's check of a skill, 0 to 21, rolled from <paramref name="random"/>
+    /// (<c>Party::SkillCheck</c>; see <see cref="Characters.Party.SkillCheck"/>).
+    /// </summary>
+    int SkillCheck(int skill, IRandom random);
 
     int BestStat(int stat);
 

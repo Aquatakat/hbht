@@ -107,16 +107,21 @@ public class TextImportTests
     public void EntitiesAndDialogueEntitiesHavePortraits()
     {
         var rom = TestRoms.Get(RomVersionId.Na10);
-        var names = BaseImporter.BuildNames(GameDb.Read(rom), EntityModels.Read(rom)).ToDictionary(f => f.File, f => f.Records);
+        var db = GameDb.Read(rom);
+        var models = EntityModels.Read(rom);
+        var names = BaseImporter.BuildNames(db, models).ToDictionary(f => f.File, f => f.Records);
+        var entities = CharacterImporter.BuildEntities(db, models);
 
-        Assert.Equal(221, names["entities.json"].Count);
-        Assert.All(names["entities.json"], r => Assert.NotNull(r.Portrait));
-        Assert.Equal(RecordId.Hex(RecordTypes.Image, 0x0108), names["entities.json"].Single(r => r.Id == RecordId.Hex(RecordTypes.Entity, 0x023F)).Portrait);
+        Assert.Equal(221, entities.Count);
+        Assert.All(entities, r => Assert.NotNull(r.Portrait));
+        Assert.Equal(RecordId.Hex(RecordTypes.Image, 0x0108), entities.Single(r => r.Id == RecordId.Hex(RecordTypes.Entity, 0x023F)).Portrait);
 
         Assert.Equal((37, 32), (names["dialogentities.json"].Count, names["dialogentities.json"].Count(r => r.Portrait is not null)));
         Assert.All(names["dialogentities.json"].Where(r => r.Portrait is not null), r => Assert.Equal(RecordTypes.Image, r.Portrait!.Value.Type));
 
-        foreach (var file in new[] { "weapons.json", "armor.json", "spells.json", "items.json", "loot.json" })
+        Assert.DoesNotContain("entities.json", names.Keys);
+        Assert.DoesNotContain("spells.json", names.Keys);
+        foreach (var file in new[] { "weapons.json", "armor.json", "items.json", "loot.json" })
             Assert.All(names[file], r => Assert.Null(r.Portrait));
     }
 }

@@ -40,4 +40,16 @@ public static class RandomExtensions
         var (low, high) = a < b ? (a, b) : (b, a);
         return (int)random.Below((uint)(high - low + 1)) + low;
     }
+
+    /// <summary>
+    /// The sum of <paramref name="dice"/> rolls of 1 to <paramref name="sides"/> (<c>RollD</c>), as a u16.
+    /// Each roll is <c>rand_range</c>, which is <see cref="Range"/> for these bounds.
+    /// </summary>
+    public static int RollD(this IRandom random, int dice, int sides)
+    {
+        var sum = 0;
+        for (var i = 0; i < (byte)dice; i++)
+            sum = (ushort)(sum + random.Range(1, (byte)sides));
+        return sum;
+    }
 }

@@ -40,7 +40,7 @@ The quest atlas shows every item below that involves a flag. Search for a name s
 | --- | --- | --- | --- |
 | Camp scenes: a dialogue object whose flag A is one of eight flags starts when the party camps near it | `Camp_CheckDialougFlags` | 1: dialogue object field | ROM |
 | Camp ambushes only happen while derived flag 5004 holds: two of Abrecan, Godric and Rheda have joined | `Party::CampCheck` | 1: camping setting | Fact |
-| Alaron has his True Name while 590 is set | `entityInfo.cpp` | 1: character condition | Fact |
+| Alaron has his True Name while 590 is set | `entityInfo.cpp` | 1: character condition | Fact, on his entity record |
 | When the Rooughah scene (Borg13 1268) ends, the Roog cinematic plays if 3442 is set | `dialogmode.cpp` | 2: trigger on script end | Fact |
 | World map pieces: each shows while its region flag is set | `WorldMapPieces` | 1: map piece record | ROM |
 | The lighthouse chunks swap to their lit scenes while 5017 holds | `ZoneEngine.cpp` | 1: chunk scene condition | Fact |
@@ -128,9 +128,28 @@ Terrain types are the 0–29 index that map chunks carry and the camp encounters
 | Snow falls instead of rain on terrain type 5 only | `World::SetWeather` | Literal | To do |
 | The weather rolls again at each change in the time of day, with a 25% chance of clearing and then trying for precipitation | `World::SetWeather` | Literals | To do |
 
+## Characters
+
+How characters level and train is tables and literals in code (roadmap 2.2; see [characters](systems/characters.md)). Identical in all three ROMs.
+
+| What | Code | NA 1.0 | Status |
+| --- | --- | --- | --- |
+| The experience each level starts at, levels 0–40 | `EXP_TNL` | `0xE3804` | ROM, on the progression record |
+| Each stat's base cap and cap | `base_stat_cap`, `modded_stat_cap` | `0xE3BE4` | ROM, on the stat records |
+| Each stat's training cost; the Level's (500) is unused, as the level isn't trained | `stat_multiplier` | `0xD4620` | ROM, on the stat records |
+| Each skill's training cost | `CharSkills::GetSkillXpMod` | `0xD44D0` | ROM, on the skill records |
+| Each weapon class's training cost | `CharSkills::GetWeaponXpMod` | `0xD4500` | ROM, on the weapon skill records |
+| The shield's training cost (500) and name ("Shield") | `GetShieldXpPrice`, `WidgetSkillInfo` | Literals | Fact, on `aidyn:weaponskill/11` |
+| Skills' caps, 10 and 15 | `SKILLMAXBASE`, `SKILLMAXMOD` | Literals | Fact, on the skill records |
+| An award of experience is multiplied by 1.5; an entity's reward byte by 50 | `Entity::AddExp`, `EntityDB::Load` | Literals | Fact, on the progression and entity records |
+| Trainers charge 200 gold from level 0, and (n + 1) × 40 for level *n*, and 80% of the experience | `GetSkillTrainGoldPrice`, `WidgetSkillTrain::Confirm` | Literals | Fact, on the progression record |
+| Spells stop at level 10, and cost their byte × 50 per level squared | `TempSpell::IsMaxRank`, `TempSpell::Init` | Literals | Fact, on the progression and spell records |
+| Oriana trains for no gold: entity list position 144 | `shopkeepNotOriana` | Literal | Fact, the progression record's free trainers |
+| Alaron's True Name from flag 590: entity DB position 153 | `CharExp::Init` | Literals | Fact, on Alaron's entity record (`trueNameFlag`) |
+
 ## Trainers
 
-The Train effect teaches from the record of the entity being talked to: its skills, shield skill and spells (`init_skill_trainer`). No trainer is special-cased in code. Most trainers are entities with code names, such as STER0904 in Erromon and STTA05 in Talewok; Becan, Oriana, a female dryad and a Jundar man train from their own records.
+The Train effect teaches from the record of the entity being talked to: its skills, shield skill and spells (`init_skill_trainer`). No trainer is special-cased in code, apart from Oriana charging no gold (above). Most trainers are entities with code names, such as STER0904 in Erromon and STTA05 in Talewok; Becan, Oriana, a female dryad and a Jundar man train from their own records.
 
 Becan is also a recruit, so one record sets both what he teaches and what his party character can learn. That's why AidynEditor treats him as a special case: it writes a blank skill as 255 for him, which a party character reads as "can't learn", and as 0 for other trainers. It's data (layer 1), read from the entity DB.
 

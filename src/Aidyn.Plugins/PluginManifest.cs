@@ -40,8 +40,9 @@ public static class BasePlugin
     /// 8 adds the dialogue scripts. 9 adds the random skill checks flag to the state flags. 10 adds
     /// every other type of map object, and the loot tables' names. 11 writes the maps a file per map set.
     /// 12 adds the fonts, the string tables and entities' portraits.
+    /// 13 gives entities and spells their fields, and adds the stats, skills, weapon skills and progression.
     /// </summary>
-    public const int ImporterVersion = 12;
+    public const int ImporterVersion = 13;
 }
 
 /// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>
