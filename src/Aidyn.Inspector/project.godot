@@ -16,3 +16,7 @@ project/assembly_name="Aidyn.Inspector"
 
 window/size/viewport_width=1600
 window/size/viewport_height=900
+
+[rendering]
+
+limits/global_shader_variables/buffer_size=1048576

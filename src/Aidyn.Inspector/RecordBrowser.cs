@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json.Nodes;
 using Aidyn.Core.Flags;
+using Aidyn.Game;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 using Aidyn.Rom;
@@ -42,11 +43,13 @@ public partial class RecordBrowser : Control
     private readonly Tree _usedBy = new() { Name = UsedBy };
     private readonly AtlasView _atlas = new() { Name = Atlas };
     private readonly ModelView _model = new() { SizeFlagsVertical = SizeFlags.ExpandFill };
+    private readonly MapSetView _map = new() { SizeFlagsVertical = SizeFlags.ExpandFill };
     private readonly Dictionary<RecordId, TreeItem> _rows = [];
     private readonly List<RecordId> _history = [];
     private readonly List<string> _typeNames = [];
 
     private PluginCatalog? _catalog;
+    private Models? _models;
     private QuestIndex? _quests;
     private FlagState? _flags;
     private string _pluginsDirectory = DataPaths.Plugins;
@@ -61,6 +64,9 @@ public partial class RecordBrowser : Control
     /// <summary>The 3D preview, for scripted screenshots.</summary>
     public ModelView Model => _model;
 
+    /// <summary>The map set preview, for scripted screenshots.</summary>
+    public MapSetView Map => _map;
+
     /// <summary>Shows the Preview, Fields or Used by tab.</summary>
     public void SelectTab(string tab) => _tabs.CurrentTab = tab.ToLowerInvariant() switch { "fields" => 1, "used-by" => 2, "atlas" => 3, _ => 0 };
 
@@ -69,6 +75,9 @@ public partial class RecordBrowser : Control
     {
         _pluginsDirectory = pluginsDirectory;
         _catalog = null;
+        _map.Clear();
+        _models?.Dispose();
+        _models = null;
         _quests = null;
         _current = null;
         _history.Clear();
@@ -101,6 +110,7 @@ public partial class RecordBrowser : Control
         if (generation != _generation)
             return;
         _catalog = catalog;
+        _models = new Models(catalog.Plugins);
         _quests = quests;
         _flags = flags;
 
@@ -200,6 +210,7 @@ public partial class RecordBrowser : Control
                 FollowLink(id);
         };
         _fields.Opened += FollowLink;
+        _map.Opened += FollowLink;
 
         _back.Pressed += () => Step(-1);
         _forward.Pressed += () => Step(1);
@@ -364,13 +375,8 @@ public partial class RecordBrowser : Control
         Navigate(id);
     }
 
-    /// <summary>Opens a record from the atlas, staying on its tab. A map object opens its map.</summary>
-    private void Explore(RecordId id)
-    {
-        if (id.Type == RecordTypes.Voxel && id.Key.IndexOf('/', StringComparison.Ordinal) is > 0 and var slash)
-            id = RecordId.Parse($"{id.Namespace}:{RecordTypes.Map}/{id.Key[..slash]}");
-        Navigate(id);
-    }
+    /// <summary>Opens a record from the atlas, staying on its tab.</summary>
+    private void Explore(RecordId id) => Navigate(id);
 
     private void Navigate(RecordId id)
     {
@@ -432,11 +438,14 @@ public partial class RecordBrowser : Control
         _current = id;
         var plugins = catalog.Plugins;
         var entry = catalog.Find(id);
-        var json = plugins.GetJson(id);
+        var voxel = id.Type == RecordTypes.Voxel;
+        // A map object's fields are its map record's.
+        var json = voxel ? MapObjects.Json(plugins, id) : plugins.GetJson(id);
         var references = catalog.ReferencesTo(id);
 
-        _header.Text = Header(catalog, id, entry, json, references.Count);
-        _fields.Show(json, field => plugins.Setters(id, field), other => catalog.Find(other) is not null);
+        _header.Text = voxel ? ObjectHeader(catalog, id, json) : Header(catalog, id, entry, json, references.Count);
+        _fields.Show(json, field => voxel ? plugins.Setters(MapRecord.MapOf(id), "objects") : plugins.Setters(id, field),
+            other => catalog.Find(other) is not null || other.Type == RecordTypes.Voxel);
         ShowUsedBy(catalog, references);
         if (_quests is { } quests)
         {
@@ -452,6 +461,10 @@ public partial class RecordBrowser : Control
         {
             case Control control:
                 SetPreview(control);
+                break;
+            case MapSetView.Focus focus when _models is { } models:
+                SetPreview(_map);
+                await _map.ShowAsync(catalog, models, _flags, focus);
                 break;
             case (byte[] glb, string animation, string note):
                 SetPreview(_model);
@@ -477,6 +490,14 @@ public partial class RecordBrowser : Control
         else if (entry.Summary.Length > 0)
             lines.Add(entry.Summary);
         return string.Join("\n", lines);
+    }
+
+    private static string ObjectHeader(PluginCatalog catalog, RecordId id, JsonObject? json)
+    {
+        var map = MapRecord.MapOf(id);
+        if (json is null)
+            return $"{id}\nNo plugin has this map object.";
+        return $"{id}\n{MapObjects.Describe(catalog, id)}\nObject {MapObjects.Index(id)} of {map}, defined by {catalog.Plugins.DefinedBy(map)}";
     }
 
     private void ShowUsedBy(PluginCatalog catalog, IReadOnlyList<RecordReference> references)
@@ -520,6 +541,8 @@ public partial class RecordBrowser : Control
             var note = $"Scene {scene.Key}, in its initial state ({initial})." + (json["head"] is not null ? " Its head isn't drawn here yet." : "");
             return (await File.ReadAllBytesAsync(path), animation, note);
         }
+        if (MapFocus(plugins, id) is { } focus)
+            return focus;
         if (entry?.Asset("glb") is { } glb)
         {
             var note = id.Type == RecordTypes.Map ? "Collision, in the chunk's own coordinates." : "";
@@ -531,8 +554,6 @@ public partial class RecordBrowser : Control
             return image is null ? Message("Godot couldn't read the PNG.")
                 : ImageGallery.Create([new ImageGallery.Item($"{image.GetWidth()}×{image.GetHeight()}", image)]);
         }
-        if (id.Type == RecordTypes.MapSet && json is not null)
-            return ChunkGrid(catalog, json);
         if (json is not null && await ImagesNamedAsync(catalog, json) is { Count: > 0 } images)
             return ImageGallery.Create(images);
         return Message(json is null ? "" : "No preview for this type. See the fields.");
@@ -598,58 +619,29 @@ public partial class RecordBrowser : Control
         }
     }
 
-    /// <summary>A map set's chunks as a grid of buttons, rows down and columns across, each opening its map.</summary>
-    private Control ChunkGrid(PluginCatalog catalog, JsonObject set)
+    /// <summary>
+    /// A map set shows whole. A map shows the 3×3 chunks around it, as the game loads them, and a
+    /// map object its map's, picked, unless more of its map set is loaded already.
+    /// </summary>
+    private static MapSetView.Focus? MapFocus(PluginSet plugins, RecordId id)
     {
-        var chunks = (set["chunks"] as JsonArray ?? []).OfType<JsonObject>()
-            .Select(c => (Row: (int?)c["row"] ?? 0, Column: (int?)c["column"] ?? 0, Map: (string?)c["map"]))
-            .ToList();
-        var box = new VBoxContainer();
-        box.AddChild(Message("Chunks by row (down) and column (across). Click one to open its map."));
-        if (chunks.Count == 0)
-            return box;
-        var (rows, columns) = ((chunks.Min(c => c.Row), chunks.Max(c => c.Row)), (chunks.Min(c => c.Column), chunks.Max(c => c.Column)));
-        var grid = new GridContainer { Columns = columns.Item2 - columns.Item1 + 2 };
-        grid.AddThemeConstantOverride("h_separation", 2);
-        grid.AddThemeConstantOverride("v_separation", 2);
-        var byCell = chunks.GroupBy(c => (c.Row, c.Column)).ToDictionary(g => g.Key, g => g.First());
-        grid.AddChild(new Control());
-        for (var column = columns.Item1; column <= columns.Item2; column++)
-            grid.AddChild(new Label { Text = column.ToString("D2", CultureInfo.InvariantCulture), HorizontalAlignment = HorizontalAlignment.Center });
-        for (var row = rows.Item1; row <= rows.Item2; row++)
-        {
-            grid.AddChild(new Label { Text = RowName(row), VerticalAlignment = VerticalAlignment.Center });
-            for (var column = columns.Item1; column <= columns.Item2; column++)
-            {
-                if (!byCell.TryGetValue((row, column), out var chunk) || !RecordId.TryParse(chunk.Map, out var map))
-                {
-                    grid.AddChild(new Control { CustomMinimumSize = new Vector2(48, 28) });
-                    continue;
-                }
-                var button = new Button
-                {
-                    Text = RowName(row) + column.ToString("D2", CultureInfo.InvariantCulture),
-                    CustomMinimumSize = new Vector2(48, 28),
-                    TooltipText = $"{map}\n{catalog.Find(map)?.Summary}",
-                };
-                button.Pressed += () => FollowLink(map);
-                grid.AddChild(button);
-            }
-        }
-        var scroll = new ScrollContainer { SizeFlagsVertical = SizeFlags.ExpandFill };
-        scroll.AddChild(grid);
-        box.AddChild(scroll);
-        return box;
+        if (id.Type == RecordTypes.MapSet)
+            return plugins.TryGet<MapSetRecord>(id) is { } set ? new MapSetView.Focus(set, set.Chunks) : null;
+        if (id.Type is not (RecordTypes.Map or RecordTypes.Voxel))
+            return null;
+        var map = id.Type == RecordTypes.Map ? id : MapRecord.MapOf(id);
+        if (MapObjects.Places(plugins).GetValueOrDefault(map) is not { } place)
+            return null;
+        var around = place.Set.Chunks.Where(c => Math.Abs(c.Row - place.Chunk.Row) <= 1 && Math.Abs(c.Column - place.Chunk.Column) <= 1).ToList();
+        return new MapSetView.Focus(place.Set, around, place.Chunk, id.Type == RecordTypes.Voxel ? id : null);
     }
-
-    private static string RowName(int row) => row is >= 1 and <= 26 ? ((char)('A' + row - 1)).ToString() : row.ToString(CultureInfo.InvariantCulture);
 
     private void SetPreview(Control content)
     {
         foreach (var child in _preview.GetChildren())
         {
             _preview.RemoveChild(child);
-            if (child != _model)
+            if (child != _model && child != _map)
                 child.QueueFree();
         }
         if (content != _model)

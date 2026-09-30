@@ -41,8 +41,6 @@ public partial class AtlasView : VBoxContainer
     private Action<RecordId>? _open;
     private IReadOnlyList<RecordId> _keys = [];
     private HashSet<RecordId> _engine = [];
-    private PluginCatalog? _placed;
-    private Dictionary<RecordId, string> _places = [];
 
     public AtlasView()
     {
@@ -86,17 +84,6 @@ public partial class AtlasView : VBoxContainer
     public void Show(PluginCatalog catalog, QuestIndex index, RecordId id, Action<RecordId> open)
     {
         (_catalog, _index, _open) = (catalog, index, open);
-        if (_placed != catalog)
-        {
-            // Where each map's chunk is, such as Overworld I08, for naming its objects.
-            _placed = catalog;
-            _places = [];
-            foreach (var set in catalog.Plugins.All<MapSetRecord>(RecordTypes.MapSet))
-            {
-                foreach (var chunk in set.Chunks)
-                    _places.TryAdd(chunk.Map, $"{set.Label} {chunk.Name}");
-            }
-        }
         _engine = [.. catalog.Plugins.All<StateFlagsRecord>(RecordTypes.StateFlags).SelectMany(s => index.UsesBy(s.Id)).Select(u => u.Flag)];
         _keys = id.Type == RecordTypes.Map && catalog.Plugins.TryGet<MapRecord>(id) is { } map
             ? [.. map.Objects.Select(o => RecordId.Parse($"{id.Namespace}:{RecordTypes.Voxel}/{id.Key}/{o.Index}"))]
@@ -296,23 +283,7 @@ public partial class AtlasView : VBoxContainer
     private string Summary(RecordId key)
     {
         if (key.Type == RecordTypes.Voxel)
-        {
-            var map = MapRecord.MapOf(key);
-            var index = int.Parse(key.Key[(key.Key.IndexOf('/', StringComparison.Ordinal) + 1)..], CultureInfo.InvariantCulture);
-            var what = _catalog!.Plugins.TryGet<MapRecord>(map)?.Objects.FirstOrDefault(o => o.Index == index) switch
-            {
-                DialogueObject d => $"Dialogue object {d.Name}",
-                MonsterPartyObject m => $"Monster party: {_catalog.Find(m.Entity)?.Summary}",
-                TeleporterObject t => $"Teleporter {t.Name}",
-                ContainerObject c => c.Kind.ToString(),
-                TriggerObject t => $"{t.Kind} trigger",
-                ReferencePointObject r => $"Reference point {r.Name}",
-                SceneObject => "Scene object",
-                { } o => o.GetType().Name.Replace("Object", "", StringComparison.Ordinal),
-                null => "Object",
-            };
-            return $"{what}, in {_places.GetValueOrDefault(map) ?? $"map {map.Key}"}";
-        }
+            return MapObjects.Describe(_catalog!, key);
         var summary = _catalog!.Find(key)?.Summary;
         return !string.IsNullOrEmpty(summary) ? summary : key.Type == RecordTypes.Flag ? "Plain flag" : key.ToString();
     }

@@ -34,8 +34,7 @@ public partial class ModelView : VBoxContainer
     private Camera3D? _ownCamera;
     private AnimationPlayer? _player;
     private bool _playing = true;
-    private Vector3 _target;
-    private float _yaw = 0.6f, _pitch = -0.35f, _distance = 5;
+    private readonly Orbit _orbit = new();
 
     // An actor's: its record, the root transform and its pivot, and the animator while driving.
     private ActorRecord? _actor;
@@ -164,15 +163,15 @@ public partial class ModelView : VBoxContainer
         _viewport.AddChild(scene);
 
         // The scene's own lights replace the headlight; unlit materials ignore both.
-        _headlight.Visible = FindAll<Light3D>(scene).Count == 0;
+        _headlight.Visible = Nodes.FindAll<Light3D>(scene).Count == 0;
         var radius = Frame(scene);
-        _ownCamera = FindAll<Camera3D>(scene).FirstOrDefault();
+        _ownCamera = Nodes.FindAll<Camera3D>(scene).FirstOrDefault();
         _sceneCamera.Visible = _ownCamera is not null;
         UseCamera();
         // Sized for the view, so they show on effects with little or no geometry.
-        MarkEmitters(glb, scene, _distance / 90);
+        MarkEmitters(glb, scene, _orbit.Distance / 90);
 
-        _player = FindAll<AnimationPlayer>(scene).FirstOrDefault();
+        _player = Nodes.FindAll<AnimationPlayer>(scene).FirstOrDefault();
         if (_player is not null)
         {
             // Advanced here, so ticks can be stepped and the actor's root held.
@@ -197,7 +196,7 @@ public partial class ModelView : VBoxContainer
         {
             _actor = actor;
             var rootName = $"transform {actor.RootTransform}";
-            _root = FindAll<Node3D>(scene).FirstOrDefault(n => n.Name == rootName);
+            _root = Nodes.FindAll<Node3D>(scene).FirstOrDefault(n => n.Name == rootName);
             _pivot = ActorAnimator.Pivot(glb, actor.RootTransform);
             _motion = Vector3.Zero;
             _actorPanel.Show(actor, n => Ticks(ActorAnimator.AnimationName(actor.States[n])));
@@ -250,8 +249,8 @@ public partial class ModelView : VBoxContainer
             }
             _content!.Position = _motion;
             // The camera follows the actor over the ground's grid.
-            _target += _motion - before;
-            UpdateCamera();
+            _orbit.Target += _motion - before;
+            _orbit.Apply(_camera);
         }
         else
         {
@@ -353,8 +352,8 @@ public partial class ModelView : VBoxContainer
 
     private void Home()
     {
-        _target -= _motion;
-        UpdateCamera();
+        _orbit.Target -= _motion;
+        _orbit.Apply(_camera);
         _motion = Vector3.Zero;
         if (_content is not null)
             _content.Position = Vector3.Zero;
@@ -392,7 +391,7 @@ public partial class ModelView : VBoxContainer
         if (!json.RootElement.TryGetProperty("scenes", out var scenes) || !scenes[0].TryGetProperty("extras", out var extras) ||
             !extras.TryGetProperty("particleEmitters", out var emitters))
             return;
-        var nodes = FindAll<Node3D>(scene).Where(n => n.Name.ToString().StartsWith("emitter ", StringComparison.Ordinal)).ToList();
+        var nodes = Nodes.FindAll<Node3D>(scene).Where(n => n.Name.ToString().StartsWith("emitter ", StringComparison.Ordinal)).ToList();
         foreach (var node in nodes)
         {
             if (!int.TryParse(node.Name.ToString()["emitter ".Length..], CultureInfo.InvariantCulture, out var i) || i >= emitters.GetArrayLength())
@@ -448,7 +447,7 @@ public partial class ModelView : VBoxContainer
     private float Frame(Node3D scene)
     {
         Aabb? bounds = null;
-        foreach (var mesh in FindAll<MeshInstance3D>(scene))
+        foreach (var mesh in Nodes.FindAll<MeshInstance3D>(scene))
         {
             if (mesh.Mesh is null)
                 continue;
@@ -456,20 +455,9 @@ public partial class ModelView : VBoxContainer
             bounds = bounds is { } b ? b.Merge(box) : box;
         }
         var aabb = bounds ?? new Aabb(-Vector3.One, 2 * Vector3.One);
-        _target = aabb.GetCenter();
         var radius = Mathf.Max(aabb.Size.Length() / 2, 0.01f);
-        _distance = radius / Mathf.Sin(Mathf.DegToRad(_camera.Fov / 2)) * 1.1f;
-        UpdateCamera();
+        _orbit.Frame(_camera, aabb.GetCenter(), radius);
         return radius;
-    }
-
-    private void UpdateCamera()
-    {
-        var offset = new Vector3(0, 0, _distance).Rotated(Vector3.Right, _pitch).Rotated(Vector3.Up, _yaw);
-        _camera.Position = _target + offset;
-        _camera.Near = _distance / 1000;
-        _camera.Far = _distance * 100;
-        _camera.LookAt(_target, Vector3.Up);
     }
 
     private void OnViewInput(InputEvent e)
@@ -492,41 +480,6 @@ public partial class ModelView : VBoxContainer
                 _container.AcceptEvent();
                 return;
         }
-        switch (e)
-        {
-            case InputEventMouseMotion m when (m.ButtonMask & MouseButtonMask.Left) != 0:
-                _yaw -= m.Relative.X * 0.01f;
-                _pitch = Mathf.Clamp(_pitch - m.Relative.Y * 0.01f, -1.55f, 1.55f);
-                UpdateCamera();
-                break;
-            case InputEventMouseMotion m when (m.ButtonMask & (MouseButtonMask.Right | MouseButtonMask.Middle)) != 0:
-                var basis = _camera.GlobalTransform.Basis;
-                _target += (-basis.X * m.Relative.X + basis.Y * m.Relative.Y) * _distance * 0.0015f;
-                UpdateCamera();
-                break;
-            case InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.WheelUp }:
-                _distance *= 0.9f;
-                UpdateCamera();
-                break;
-            case InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.WheelDown }:
-                _distance /= 0.9f;
-                UpdateCamera();
-                break;
-        }
-    }
-
-    private static List<T> FindAll<T>(Node root) where T : Node
-    {
-        var found = new List<T>();
-        var stack = new Stack<Node>([root]);
-        while (stack.Count > 0)
-        {
-            var node = stack.Pop();
-            if (node is T t)
-                found.Add(t);
-            foreach (var child in node.GetChildren())
-                stack.Push(child);
-        }
-        return found;
+        _orbit.Handle(e, _camera);
     }
 }
