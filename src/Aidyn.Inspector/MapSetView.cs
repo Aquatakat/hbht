@@ -178,6 +178,8 @@ public partial class MapSetView : VBoxContainer
                 _ = Report(ShowAsync(catalog, models, _flags, new Focus(set, set.Chunks)));
         };
         _fields.Opened += id => Opened?.Invoke(id);
+        _orbit.PointUnder = point => Cast(point)?.Point;
+        _orbit.Near = 0.05f;
     }
 
     /// <summary>A link was followed, or an object picked: its voxel ID.</summary>
@@ -312,11 +314,36 @@ public partial class MapSetView : VBoxContainer
                     scene.Draw();
             }
         }
+        Fly(delta);
         if (_pointer is { } pointer)
         {
             _pointer = null;
             ShowHover(pointer);
         }
+    }
+
+    /// <summary>
+    /// W, A, S and D fly the camera forward, left, back and right, and E and Q up and down, faster
+    /// with Shift, at a pace that suits how far away what it's looking at is.
+    /// </summary>
+    private void Fly(double delta)
+    {
+        if (!_container.HasFocus())
+            return;
+        var basis = _camera.GlobalBasis;
+        var move = Vector3.Zero;
+        foreach (var (key, direction) in new[]
+        {
+            (Key.W, -basis.Z), (Key.S, basis.Z), (Key.A, -basis.X), (Key.D, basis.X), (Key.E, Vector3.Up), (Key.Q, Vector3.Down),
+        })
+        {
+            if (Input.IsKeyPressed(key))
+                move += direction;
+        }
+        if (move == Vector3.Zero)
+            return;
+        var speed = Mathf.Clamp(_orbit.Distance, 5, 2000) * (Input.IsKeyPressed(Key.Shift) ? 3 : 1);
+        _orbit.Fly(_camera, move.Normalized() * speed * (float)delta);
     }
 
     // ---- Filters --------------------------------------------------------------------------------
@@ -469,6 +496,8 @@ public partial class MapSetView : VBoxContainer
         }
         if (box is not { } framed)
             return;
+        // Far enough to see the whole set from well outside it.
+        _orbit.Far = Mathf.Max(10000, (set.Chunks.Max(c => Math.Max(c.Row, c.Column)) + 1) * set.CellSize * 4);
         _orbit.Pitch = -0.85f;
         _orbit.Yaw = 0.35f;
         _orbit.Frame(_camera, framed.GetCenter(), Mathf.Max(framed.Size.Length() / 2, 5) * 0.6f);
@@ -505,7 +534,7 @@ public partial class MapSetView : VBoxContainer
             case InputEventMouseButton { Pressed: true, DoubleClick: true, ButtonIndex: MouseButton.Left } click:
                 if (Cast(click.Position) is { } hit)
                 {
-                    _orbit.Distance = Mathf.Min(_orbit.Distance, _camera.GlobalPosition.DistanceTo(hit.Point));
+                    _orbit.Distance = _camera.GlobalPosition.DistanceTo(hit.Point);
                     _orbit.Target = hit.Point;
                     _orbit.Apply(_camera);
                 }
