@@ -44,6 +44,13 @@ Playing every base-game script 40 times with random flags, party and choices fin
 - **Node 24 of script 1040** (the harbour reunion, id 2192) is Dougal's line, and it lost its link to node 25 (its siblings have one, and an op 2 naming the next node). With Dougal in the party, the original reads a node past the end of the script, and the rest of the scene doesn't play. The runner ends the scene there, setting its done flag.
 - **Trahern's conversation** (936) goes round nodes 64–69 forever once flags 67 and 84 are both set. Nothing sets 84, so it can't happen.
 
+## To check in the emulator
+
+Two things the runner reads from the code that the user hasn't seen play yet:
+
+- **The lighthouse keeper handing over his key** (Borg13 890 node 13). The runner has "Here... take the key" need A twice, with no animation, since the original looks up who animates from the page it has just cleared (`PlayAnimation`, above). If the keeper does animate, the lookup is wrong, and so are the other eight nodes that do this.
+- **Dougal at the harbour reunion** (script 1040). With Dougal in the party, the runner ends the scene at his line (node 24), where the original reads past the end of the script. What the console does there, whether it ends, hangs or plays something else, decides what the runner should do.
+
 ## Checked against the machine code
 
 The decomp's pseudocode differs from the debug build's code in four places, all in the walk:
