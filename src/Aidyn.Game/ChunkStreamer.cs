@@ -22,59 +22,8 @@ public partial class ChunkStreamer : Node3D
     private readonly MapSetRecord? _set;
     private readonly CollisionWorld? _world;
     private readonly Dictionary<(int Row, int Column), ChunkEntry> _chunks = [];
-    private readonly Dictionary<(int Row, int Column), Node3D> _loaded = [];
-    private readonly Dictionary<(int Row, int Column), ChunkScenes> _scenes = [];
-    private readonly Dictionary<(int Row, int Column), List<Node3D>> _billboards = [];
+    private readonly Dictionary<(int Row, int Column), ChunkScenery> _loaded = [];
     private (int Row, int Column) _centre;
-
-    /// <summary>A chunk's scrolling scenes, which are drawn when the chunk is, and its scene objects.</summary>
-    private sealed class ChunkScenes
-    {
-        public List<ScrollingScene> Own { get; } = [];
-        public List<PlacedObject> Objects { get; } = [];
-    }
-
-    /// <summary>A scene object and its levels of detail, which <see cref="Fade"/> shows and fades.</summary>
-    private sealed class PlacedObject(SceneObject o, Vector3 origin, Level?[] levels)
-    {
-        public SceneObject Object { get; } = o;
-        public System.Numerics.Vector3 Origin { get; } = origin.ToNumerics();
-        public Level?[] Levels { get; } = levels;
-    }
-
-    /// <summary>A level of detail's model, and the alpha it was last drawn at.</summary>
-    private sealed class Level(Node3D node, ScrollingScene? scrolling)
-    {
-        public Node3D Node { get; } = node;
-        public GeometryInstance3D[] Meshes { get; } = [.. FindAll<GeometryInstance3D>(node)];
-        public ScrollingScene? Scrolling { get; } = scrolling;
-        public byte Alpha { get; private set; }
-
-        /// <summary>The surfaces whose materials change while the model is faded: its cut-outs.</summary>
-        private readonly (MeshInstance3D Mesh, int Surface, Material Opaque, Material Faded)[] _cutOuts =
-        [
-            .. FindAll<MeshInstance3D>(node).SelectMany(mesh => Enumerable.Range(0, mesh.GetSurfaceOverrideMaterialCount())
-                .Select(surface => (mesh, surface, material: mesh.GetSurfaceOverrideMaterial(surface)))
-                .Where(s => s.material is not null && N64Material.Faded(s.material) is not null)
-                .Select(s => (s.mesh, s.surface, s.material, (Material)N64Material.Faded(s.material)!))),
-        ];
-
-        /// <summary>Shows the model at an alpha, hiding it at 0.</summary>
-        public void Show(byte alpha)
-        {
-            var faded = alpha is > 0 and < 0xFF;
-            if (faded != (Alpha is > 0 and < 0xFF))
-            {
-                foreach (var (mesh, surface, opaque, fadedMaterial) in _cutOuts)
-                    mesh.SetSurfaceOverrideMaterial(surface, faded ? fadedMaterial : opaque);
-            }
-            Node.Visible = alpha != 0;
-            Alpha = alpha;
-            var transparency = faded ? 1 - alpha / 255f : 0;
-            foreach (var mesh in Meshes)
-                mesh.Transparency = transparency;
-        }
-    }
 
     public ChunkStreamer()
     {
@@ -123,49 +72,28 @@ public partial class ChunkStreamer : Node3D
         var changed = false;
         foreach (var cell in _loaded.Keys.Where(k => !wanted.Contains(k)).ToList())
         {
-            _loaded[cell].QueueFree();
+            _loaded[cell].Root.QueueFree();
             _loaded.Remove(cell);
-            _scenes.Remove(cell);
-            _billboards.Remove(cell);
             _world!.Remove(cell);
             changed = true;
         }
         foreach (var cell in wanted.Where(k => !_loaded.ContainsKey(k)))
         {
-            var scenes = _scenes[cell] = new ChunkScenes();
-            var node = Load(_chunks[cell], scenes);
-            AddChild(node);
-            _loaded[cell] = node;
-            _billboards[cell] = Billboards.Facings(node);
+            var scenery = _loaded[cell] = Load(_chunks[cell]);
+            AddChild(scenery.Root);
             changed = true;
         }
         return changed;
     }
 
     /// <summary>The loaded chunks' billboards.</summary>
-    public IEnumerable<Node3D> BillboardFacings => _billboards.Values.SelectMany(b => b);
+    public IEnumerable<Node3D> BillboardFacings => _loaded.Values.SelectMany(c => c.Billboards);
 
-    /// <summary>
-    /// Shows the levels of detail of each scene object that the original would draw from this
-    /// view, faded as it fades them (<see cref="SceneObjectFade"/>). Godot draws a faded one
-    /// blended, after the opaque scenery, without writing depth, as the original does, and its
-    /// cut-outs blended rather than cut (<see cref="N64Material.Faded"/>).
-    /// </summary>
+    /// <summary>Shows and fades the loaded chunks' scene objects for this view (<see cref="ChunkScenery.Fade"/>).</summary>
     public void Fade(in SceneView view, DrawDistance range)
     {
-        Span<byte> alphas = stackalloc byte[3];
-        foreach (var scenes in _scenes.Values)
-        {
-            foreach (var placed in scenes.Objects)
-            {
-                SceneObjectFade.Alphas(placed.Object, placed.Origin, view, alphas, range);
-                for (var i = 0; i < placed.Levels.Length; i++)
-                {
-                    if (placed.Levels[i] is { } level && level.Alpha != alphas[i])
-                        level.Show(alphas[i]);
-                }
-            }
-        }
+        foreach (var scenery in _loaded.Values)
+            scenery.Fade(view, range);
     }
 
     /// <summary>
@@ -186,107 +114,24 @@ public partial class ChunkStreamer : Node3D
         var flat = new System.Numerics.Vector2(look.X, look.Z);
         flat = flat == default ? System.Numerics.Vector2.UnitX : System.Numerics.Vector2.Normalize(flat);
         var cell = new System.Numerics.Vector2(MapSet.CellSize);
-        foreach (var ((row, column), scenes) in _scenes)
+        foreach (var ((row, column), scenery) in _loaded)
         {
             if (!ChunkView.Drawn(eye, flat, row - _centre.Row, column - _centre.Column, cell))
                 continue;
-            foreach (var scene in scenes.Own)
+            foreach (var scene in scenery.Scrolling())
                 yield return scene;
-            foreach (var placed in scenes.Objects)
-            {
-                foreach (var level in placed.Levels)
-                {
-                    if (level is { Alpha: > 0, Scrolling: { } scrolling })
-                        yield return scrolling;
-                }
-            }
         }
     }
 
-    private Node3D Load(ChunkEntry chunk, ChunkScenes scenes)
+    private ChunkScenery Load(ChunkEntry chunk)
     {
-        var root = new Node3D { Name = chunk.Name, Position = Origin(chunk) };
-        foreach (var scene in new[] { chunk.Scene, chunk.AltScene }.OfType<RecordId>())
-        {
-            if (_models!.Instantiate(scene) is not { } node)
-                continue;
-            root.AddChild(node);
-            if (_models.Scrolls.Attach(scene, node) is { } scrolling)
-                scenes.Own.Add(scrolling);
-        }
-
         // Toggles stay as they're stored until a trigger changes them, which needs the flag engine (M2).
         if (_plugins!.FindAsset(chunk.Map, "glb") is { } collision)
             _world!.Add((chunk.Row, chunk.Column), CollisionMesh.Read(File.ReadAllBytes(collision)), MapSet.Origin(chunk.Row, chunk.Column));
 
-        var scenery = new Node3D { Name = "Scenery" };
-        root.AddChild(scenery);
-        foreach (var o in _plugins.Get<MapRecord>(chunk.Map).Objects.OfType<SceneObject>())
-        {
-            if (Place(o, root.Position, scenes) is { } node)
-                scenery.AddChild(node);
-        }
-        return root;
-    }
-
-    /// <summary>A scene object's levels of detail, hidden until <see cref="Fade"/> shows them.</summary>
-    private Node3D? Place(SceneObject o, Vector3 origin, ChunkScenes scenes)
-    {
         // The runtime plays with the Expansion Pak. Whether an object is there is decided as its
         // chunk loads, as the original does (VoxelObjects_Activate), not every frame.
-        if (o.Pak == PakVariant.Without || o.Visible is { } gate && _flags!.Get(gate.Flag) == gate.Invert)
-            return null;
-
-        var q = o.Orientation();
-        var node = new Node3D
-        {
-            Name = $"Object {o.Index}",
-            Transform = new Transform3D(new Basis(new Quaternion(q.X, q.Y, q.Z, q.W)) * Basis.FromScale(o.Scale.ToGodot()),
-                o.Position.ToGodot()),
-        };
-        var levels = new Level?[Math.Min(o.Lods, o.Models.Count)];
-        for (var i = 0; i < levels.Length; i++)
-        {
-            var model = o.Models[i];
-            if (Instantiate(model.Model, o.Flags) is not { } instance)
-                continue;
-            // The original averages a tinted object's tint with the scenery's (SetSceneColors).
-            // Actors are lit instead.
-            if (o.Flags.HasFlag(SceneObjectFlags.Tint) && o.Tint != default && model.Model.Type != RecordTypes.Actor)
-                N64Material.SetObjectTint(instance, Color.Color8(o.Tint.R, o.Tint.G, o.Tint.B));
-            instance.Visible = false;
-            node.AddChild(instance);
-            var scene = model.Model.Type == RecordTypes.Actor ? _plugins!.Get<ActorRecord>(model.Model).Scene : model.Model;
-            levels[i] = new Level(instance, _models!.Scrolls.Attach(scene, instance));
-        }
-        scenes.Objects.Add(new PlacedObject(o, origin, levels));
-        return node;
-    }
-
-    /// <summary>
-    /// A scene object's model. Its actors are lit by the tint and the sun, unless they're
-    /// fullbright, when they're tinted like scenery (<c>set_sun_light</c>).
-    /// </summary>
-    private Node3D? Instantiate(RecordId model, SceneObjectFlags flags)
-    {
-        if (model.Type != RecordTypes.Actor)
-            return _models!.Instantiate(model);
-        var lighting = flags.HasFlag(SceneObjectFlags.Fullbright) ? N64Material.Lighting.Scenery : N64Material.Lighting.SceneObject;
-        return _models!.InstantiateActor(_plugins!.Get<ActorRecord>(model), lighting)?.Node;
-    }
-
-    public static List<T> FindAll<T>(Node root) where T : Node
-    {
-        var found = new List<T>();
-        var stack = new Stack<Node>([root]);
-        while (stack.Count > 0)
-        {
-            var node = stack.Pop();
-            if (node is T t)
-                found.Add(t);
-            foreach (var child in node.GetChildren())
-                stack.Push(child);
-        }
-        return found;
+        return ChunkScenery.Load(_plugins, _models!, MapSet, chunk,
+            o => o.Pak != PakVariant.Without && !(o.Visible is { } gate && _flags!.Get(gate.Flag) == gate.Invert));
     }
 }

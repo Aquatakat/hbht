@@ -39,7 +39,7 @@ public sealed class Models(PluginSet plugins) : IDisposable
             // The original aligns the head with the locator but keeps it upright, and turns it
             // toward things the player could use. Parenting it follows the neck, which is close.
             var locatorName = $"locator {head.Locator}";
-            if (ChunkStreamer.FindAll<Node3D>(node).FirstOrDefault(n => n.Name == locatorName) is { } locator)
+            if (Nodes.FindAll<Node3D>(node).FirstOrDefault(n => n.Name == locatorName) is { } locator)
                 locator.AddChild(headNode);
             else
                 GD.PushWarning($"{actor.Scene} has no {locatorName} for its head.");

@@ -41,7 +41,7 @@ public sealed class TextureScrolls
             return null;
         var textures = specs.Select(s => new Texture(new TextureScroll(s.Width, s.Move), s.Loads)).ToArray();
         var copies = new Dictionary<Material, ShaderMaterial>();
-        foreach (var mesh in ChunkStreamer.FindAll<MeshInstance3D>(instance))
+        foreach (var mesh in Nodes.FindAll<MeshInstance3D>(instance))
         {
             for (var surface = 0; surface < mesh.GetSurfaceOverrideMaterialCount(); surface++)
             {
