@@ -53,7 +53,9 @@ public partial class ScriptPanel : VBoxContainer
     private readonly UiScreen _screen = new() { CustomMinimumSize = new Vector2(UiScreen.Width, UiScreen.Height), Backdrop = new Color(0.22f, 0.25f, 0.3f) };
     private readonly ConversationBoxView? _conversation;
     private ScriptPage? _shown;
-    private OptionButton? _filterChoice, _zoomChoice;
+    private OptionButton? _filterChoice, _zoomChoice, _aspectChoice, _linesChoice;
+    private int _zoom = 1;
+    private bool _wide;
     private ScriptRunner? _runner;
     private bool[]? _before;
     private bool _arranged;
@@ -421,11 +423,12 @@ public partial class ScriptPanel : VBoxContainer
         };
         bar.AddChild(play);
         bar.AddChild(skip);
-        bar.AddChild(FilterChoice());
-        bar.AddChild(ZoomChoice());
         box.AddChild(bar);
         if (_conversation is not null)
+        {
+            box.AddChild(ScreenOptions());
             box.AddChild(_screen);
+        }
         box.AddChild(_status);
         box.AddChild(_page);
         box.AddChild(new HSeparator());
@@ -442,41 +445,61 @@ public partial class ScriptPanel : VBoxContainer
         return box;
     }
 
-    /// <summary>Sets how the conversation box's screen is shown (<c>--zoom</c>, <c>--ui-filter</c>).</summary>
-    public void SetScreen(int? zoom, UiFilter? filter)
+    /// <summary>
+    /// Sets how the conversation box's screen is shown (<c>--zoom</c>, <c>--ui-filter</c>,
+    /// <c>--aspect</c>, <c>--ui-lines</c>). Options that aren't offered are ignored.
+    /// </summary>
+    public void SetScreen(int? zoom, UiFilter? filter, bool? wide, int? lines)
     {
-        if (zoom is { } z && _zoomChoice!.GetItemIndex(z) is var i and >= 0)
+        Pick(_zoomChoice, zoom);
+        Pick(_filterChoice, (int?)filter);
+        Pick(_aspectChoice, wide is { } w ? (w ? 1 : 0) : null);
+        Pick(_linesChoice, lines);
+
+        static void Pick(OptionButton? choice, int? id)
         {
-            _zoomChoice.Select(i);
-            _zoomChoice.EmitSignal(OptionButton.SignalName.ItemSelected, i);
-        }
-        if (filter is { } f && _filterChoice!.GetItemIndex((int)f) is var j and >= 0)
-        {
-            _filterChoice.Select(j);
-            _filterChoice.EmitSignal(OptionButton.SignalName.ItemSelected, j);
+            if (choice is not null && id is { } value && choice.GetItemIndex(value) is var i and >= 0)
+            {
+                choice.Select(i);
+                choice.EmitSignal(OptionButton.SignalName.ItemSelected, i);
+            }
         }
     }
 
-    /// <summary>How the conversation box is scaled up, to compare with the console.</summary>
-    private OptionButton FilterChoice()
+    /// <summary>How the conversation box's screen is shown: its filter, size, shape and lines, to compare with the console.</summary>
+    private HFlowContainer ScreenOptions()
     {
-        var choice = _filterChoice = new OptionButton { TooltipText = "How the original's 320 × 240 screen is scaled up to show the box." };
-        foreach (var (filter, name) in new[] { (UiFilter.VideoOut, "As the console outputs it"), (UiFilter.Pixels, "Sharp pixels"), (UiFilter.Smooth, "Smooth") })
-            choice.AddItem(name, (int)filter);
-        choice.ItemSelected += i => _screen.Filter = (UiFilter)choice.GetItemId((int)i);
-        choice.Disabled = _conversation is null;
-        return choice;
+        var row = new HFlowContainer();
+        row.AddThemeConstantOverride("h_separation", 6);
+        row.AddChild(_filterChoice = Choice("How the UI screen is scaled up to the window.",
+            [((int)UiFilter.VideoOut, "As the console outputs it"), ((int)UiFilter.Pixels, "Sharp pixels"), ((int)UiFilter.Smooth, "Smooth")],
+            id => _screen.Filter = (UiFilter)id));
+        row.AddChild(_zoomChoice = Choice("How large the preview is.", [(1, "1×"), (2, "2×"), (3, "3×")], id =>
+        {
+            _zoom = id;
+            SizeScreen();
+        }));
+        row.AddChild(_aspectChoice = Choice("The window's shape: on a wider one the box floats at the bottom centre.", [(0, "4:3"), (1, "16:9")], id =>
+        {
+            _wide = id == 1;
+            SizeScreen();
+        }));
+        row.AddChild(_linesChoice = Choice("How many pixels tall the UI screen is: 240 is the original's, and more draws the UI smaller.",
+            [(240, "240 lines"), (360, "360 lines"), (480, "480 lines")], id => _screen.Lines = id));
+        return row;
+
+        static OptionButton Choice(string tooltip, (int Id, string Name)[] items, Action<int> apply)
+        {
+            var choice = new OptionButton { TooltipText = tooltip };
+            foreach (var (id, name) in items)
+                choice.AddItem(name, id);
+            choice.ItemSelected += i => apply(choice.GetItemId((int)i));
+            return choice;
+        }
     }
 
-    private OptionButton ZoomChoice()
-    {
-        var choice = _zoomChoice = new OptionButton { TooltipText = "How large the original's screen is shown." };
-        for (var zoom = 1; zoom <= 3; zoom++)
-            choice.AddItem($"{zoom}×", zoom);
-        choice.ItemSelected += i => _screen.CustomMinimumSize = new Vector2(UiScreen.Width, UiScreen.Height) * choice.GetItemId((int)i);
-        choice.Disabled = _conversation is null;
-        return choice;
-    }
+    private void SizeScreen() =>
+        _screen.CustomMinimumSize = new Vector2(_wide ? MathF.Round(UiScreen.Height * 16 / 9f) : UiScreen.Width, UiScreen.Height) * _zoom;
 
     /// <summary>A control for each thing the script checks, other than flags.</summary>
     private void BuildAnswers()

@@ -26,8 +26,8 @@ public class DialogueBoxTests
     {
         var layout = Box().Show(new ScriptPage(Line("a", Trahern), []));
 
-        // One line is 11 tall, which would put the box's top at 215: it's never shorter than the border.
-        Assert.Equal((180, 232, Trahern), (layout.Top, layout.Bottom, layout.Speaker));
+        // One line is 11 tall, which would put the box's top at 215: it's never shorter than the border. The band ends at the overscan bar, 228.
+        Assert.Equal((180, 228, Trahern), (layout.Top, layout.Bottom, layout.Speaker));
         Assert.Equal(new TextBlock("a", 78, 184, new ScreenRect(78, 184, 294, 230)), layout.Line);
         Assert.Equal((20, 180, 26, 186), (layout.BorderX, layout.BorderY, layout.PortraitX, layout.PortraitY));
         Assert.Empty(layout.Choices);
@@ -40,7 +40,7 @@ public class DialogueBoxTests
         // Six lines are 66 tall: 232 - 2 - 66 - 4 = 160.
         var layout = Box().Show(new ScriptPage(Line(Lines(6), Trahern), []));
 
-        Assert.Equal((160, 232), (layout.Top, layout.Bottom));
+        Assert.Equal((160, 228), (layout.Top, layout.Bottom));
         Assert.Equal(new TextBlock(Lines(6), 78, 164, new ScreenRect(78, 164, 294, 230)), layout.Line);
         Assert.Equal((20, 160, 26, 166), (layout.BorderX, layout.BorderY, layout.PortraitX, layout.PortraitY));
     }
@@ -79,7 +79,7 @@ public class DialogueBoxTests
         ], layout.Choices);
         // The line's text ends 2 above them. Three lines are 33 tall: 200 - 33 - 4 = 163.
         Assert.Equal(new TextBlock("a\na\na", 78, 167, new ScreenRect(78, 167, 294, 200)), layout.Line);
-        Assert.Equal((163, 232, Trahern), (layout.Top, layout.Bottom, layout.Speaker));
+        Assert.Equal((163, 228, Trahern), (layout.Top, layout.Bottom, layout.Speaker));
         Assert.Equal((20, 163, 26, 169), (layout.BorderX, layout.BorderY, layout.PortraitX, layout.PortraitY));
     }
 
@@ -114,7 +114,7 @@ public class DialogueBoxTests
         Assert.True(box.ShowsLineBeforeChoices);
         Assert.Empty(alone.Choices);
         Assert.Equal(new TextBlock(Lines(6), 78, 164, new ScreenRect(78, 164, 294, 230)), alone.Line);
-        Assert.Equal((160, 232, Trahern), (alone.Top, alone.Bottom, alone.Speaker));
+        Assert.Equal((160, 228, Trahern), (alone.Top, alone.Bottom, alone.Speaker));
 
         var choices = box.ShowChoices();
 
@@ -123,7 +123,7 @@ public class DialogueBoxTests
         Assert.Equal(Player, choices.Speaker);
         Assert.Equal([202, 217], choices.Choices.Select(c => c.Y));
         Assert.Equal(202, choices.Top);
-        Assert.Equal(232, choices.Bottom);
+        Assert.Equal(228, choices.Bottom);
         // The portrait and its border stay where the line put them.
         Assert.Equal((20, 160, 26, 166), (choices.BorderX, choices.BorderY, choices.PortraitX, choices.PortraitY));
         Assert.Same(choices, box.Layout);
@@ -244,5 +244,32 @@ public class DialogueBoxTests
 
         StepFrames(box, 1);
         Assert.Equal(new Rgba(194, 175, 97, 247), box.HighlightNow);
+    }
+
+    [Fact]
+    public void ThePanelIsInsideTheOverscanBarsAndFeatheredWhereTheyWere()
+    {
+        var layout = Box().Show(new ScriptPage(Line("a", Trahern), []));
+
+        Assert.Equal(new FeatheredPanel(new ScreenRect(16, 180, 304, 228), 10, 12, 16, 16), layout.Panel);
+    }
+
+    [Fact]
+    public void OnAWiderOrTallerScreenTheBoxKeepsItsSizeAtTheBottomCentre()
+    {
+        var box = Box();
+        var page = Page("a", "a", "b");
+        var small = box.Show(page);
+
+        // A 16:9 screen with twice the original's lines: the frame is at (266, 240).
+        box.Resize(852, 480);
+        var large = box.Layout!;
+
+        Assert.Equal((266, 240), box.Frame);
+        Assert.Equal(small.Panel.Offset(266, 240), large.Panel);
+        Assert.Equal((small.BorderX + 266, small.BorderY + 240), (large.BorderX, large.BorderY));
+        Assert.Equal(small.Line!.X + 266, large.Line!.X);
+        Assert.Equal(small.Line.Bounds.Right - small.Line.Bounds.Left, large.Line.Bounds.Right - large.Line.Bounds.Left);
+        Assert.Equal(small.Choices.Select(c => c.Y + 240), large.Choices.Select(c => c.Y));
     }
 }

@@ -148,11 +148,11 @@ public partial class RecordBrowser : Control
             panel.Play(moves);
     }
 
-    /// <summary>Sets how the script's conversation box is shown, if it's showing one (<c>--zoom</c>, <c>--ui-filter</c>).</summary>
-    public void SetScriptScreen(int? zoom, Aidyn.Game.UiFilter? filter)
+    /// <summary>Sets how the script's conversation box is shown, if it's showing one (<c>--zoom</c>, <c>--ui-filter</c>, <c>--aspect</c>, <c>--ui-lines</c>).</summary>
+    public void SetScriptScreen(int? zoom, Aidyn.Game.UiFilter? filter, bool? wide, int? lines)
     {
         if (_preview.GetChildren().OfType<ScriptPanel>().FirstOrDefault() is { } panel)
-            panel.SetScreen(zoom, filter);
+            panel.SetScreen(zoom, filter, wide, lines);
     }
 
     /// <summary>Opens a record, adding it to the history. The task completes when its preview is shown.</summary>

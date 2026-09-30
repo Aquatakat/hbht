@@ -20,17 +20,22 @@ public enum UiFilter
 }
 
 /// <summary>
-/// The original's 320 × 240 screen, which its UI is drawn on, scaled to fit this control and
-/// centred. Views that draw UI go in <see cref="Canvas"/>, in the original's pixels.
+/// A low-resolution screen that UI is drawn on and then scaled up to fill this control: the
+/// original's 320 × 240, or taller for smaller UI, and as wide as the control's shape. Views that
+/// draw UI go in <see cref="Canvas"/>, in its pixels, and lay themselves out by its size.
 /// </summary>
 /// <remarks>
 /// The original draws its UI images pixel for pixel: they're texture rectangles with bilinear
 /// filtering on, which at 1:1 samples each texel exactly, and only a scaled image, such as the
 /// conversation box's gradient, is filtered. So the canvas filters linearly, as the console does,
 /// and the screen is drawn at its own size and scaled up afterwards by <see cref="Filter"/>.
+/// <see cref="Lines"/> sets its height: 240 is the original's, and 480 draws everything half the
+/// size, with room for twice as much. It's never narrower than 4:3; a narrower control shows it
+/// letterboxed.
 /// </remarks>
 public partial class UiScreen : Control
 {
+    /// <summary>The original's screen.</summary>
     public const int Width = 320, Height = 240;
 
     // The canvas is premultiplied: alpha blending into a transparent target leaves colour times alpha.
@@ -75,6 +80,7 @@ public partial class UiScreen : Control
     private readonly ShaderMaterial _material = new() { Shader = Shader };
     private readonly ColorRect _backdrop = new() { Name = "Backdrop", Size = new Vector2(Width, Height), Visible = false, MouseFilter = MouseFilterEnum.Ignore };
     private UiFilter _filter;
+    private int _lines = Height;
 
     public UiScreen()
     {
@@ -89,8 +95,22 @@ public partial class UiScreen : Control
         Filter = UiFilter.VideoOut;
     }
 
-    /// <summary>What views draw in: the original's screen, in its pixels.</summary>
+    /// <summary>What views draw in, in the screen's pixels.</summary>
     public Control Canvas { get; }
+
+    /// <summary>How many pixels tall the screen is.</summary>
+    public int Lines
+    {
+        get => _lines;
+        set
+        {
+            _lines = Math.Max(value, 1);
+            Fit();
+        }
+    }
+
+    /// <summary>The screen's size in its pixels.</summary>
+    public Vector2I CanvasSize => _viewport.Size;
 
     public UiFilter Filter
     {
@@ -118,8 +138,9 @@ public partial class UiScreen : Control
     {
         get
         {
-            var scale = Math.Min(Size.X / Width, Size.Y / Height);
-            var size = new Vector2(Width, Height) * scale;
+            var canvas = (Vector2)CanvasSize;
+            var scale = Math.Min(Size.X / canvas.X, Size.Y / canvas.Y);
+            var size = canvas * scale;
             return new Rect2((Size - size) / 2, size);
         }
     }
@@ -127,7 +148,22 @@ public partial class UiScreen : Control
     public override void _Notification(int what)
     {
         if (what == NotificationResized)
-            QueueRedraw();
+            Fit();
+    }
+
+    /// <summary>Sizes the screen to <see cref="Lines"/> and this control's shape.</summary>
+    private void Fit()
+    {
+        var minimum = (int)Math.Round(_lines * 4 / 3.0);
+        var width = Size.Y > 0 ? Math.Max(minimum, (int)Math.Round(_lines * Size.X / Size.Y)) : minimum;
+        var size = new Vector2I(width, _lines);
+        if (_viewport.Size != size)
+        {
+            _viewport.Size = size;
+            Canvas.Size = size;
+            _backdrop.Size = size;
+        }
+        QueueRedraw();
     }
 
     public override void _Draw() => DrawTextureRect(_viewport.GetTexture(), ScreenRect, false);

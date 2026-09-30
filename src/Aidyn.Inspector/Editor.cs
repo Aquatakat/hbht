@@ -16,7 +16,8 @@ namespace Aidyn.Inspector;
 /// collision, and <c>--wait &lt;seconds&gt;</c> waits before the
 /// screenshot. <c>--checkpoint &lt;state&gt;</c> shows a checkpoint's flags on flag pages, and
 /// <c>--play &lt;moves&gt;</c> plays a script's page that many moves, with its conversation box shown at
-/// <c>--zoom &lt;1-3&gt;</c> and <c>--ui-filter pixels|videoout|smooth</c>.
+/// <c>--zoom &lt;1-3&gt;</c>, <c>--ui-filter pixels|videoout|smooth</c>, <c>--aspect 4:3|16:9</c> and
+/// <c>--ui-lines 240|360|480</c>.
 /// </remarks>
 public partial class Editor : Control
 {
@@ -55,11 +56,10 @@ public partial class Editor : Control
             await _records.OpenAsync(RecordId.Parse(record));
         if (args.TryGetValue("play", out var moves))
             _records.PlayScript(int.Parse(moves, CultureInfo.InvariantCulture));
-        if (args.ContainsKey("zoom") || args.ContainsKey("ui-filter"))
-        {
-            _records.SetScriptScreen(args.TryGetValue("zoom", out var zoom) ? int.Parse(zoom, CultureInfo.InvariantCulture) : null,
-                args.TryGetValue("ui-filter", out var filter) ? Enum.Parse<Aidyn.Game.UiFilter>(filter, ignoreCase: true) : null);
-        }
+        _records.SetScriptScreen(args.TryGetValue("zoom", out var zoom) ? int.Parse(zoom, CultureInfo.InvariantCulture) : null,
+            args.TryGetValue("ui-filter", out var filter) ? Enum.Parse<Aidyn.Game.UiFilter>(filter, ignoreCase: true) : null,
+            args.TryGetValue("aspect", out var aspect) ? aspect == "16:9" : null,
+            args.TryGetValue("ui-lines", out var lines) ? int.Parse(lines, CultureInfo.InvariantCulture) : null);
         if (args.TryGetValue("drive", out var request))
             _records.Model.Drive(int.Parse(request, CultureInfo.InvariantCulture));
         _records.Model.SetWireframe(args.GetValueOrDefault("wireframe") == "1");

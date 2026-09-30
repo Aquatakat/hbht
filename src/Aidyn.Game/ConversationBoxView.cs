@@ -15,29 +15,27 @@ public partial class ConversationBoxView : Control
     /// <summary>Alaron's entity, whose portrait shows over choices alone (<c>IDEntInd(Alaron)</c>).</summary>
     public static readonly RecordId Alaron = RecordId.Hex(RecordTypes.Entity, 0x023F);
 
-    // Engine code's literals: the portrait's border (BORG8_PortraitHighlight), the gradient over the
-    // box, and the portrait of a speaker without one (BORG8_PortraitNPCMale1). The decomp names the
-    // gradient BORG8_GradientC, 0x1C2, but the machine code loads 0x1C3, which fades upward.
+    // Engine code's literals: the portrait's border (BORG8_PortraitHighlight) and the portrait of a
+    // speaker without one (BORG8_PortraitNPCMale1).
     private static readonly RecordId BorderImage = RecordId.Hex(RecordTypes.Image, 0x00DF);
-    private static readonly RecordId GradientImage = RecordId.Hex(RecordTypes.Image, 0x01C3);
     private static readonly RecordId FallbackPortrait = RecordId.Hex(RecordTypes.Image, 0x0125);
 
     private readonly PluginSet _plugins;
+    private readonly UiImages _images;
     private readonly TextLayout _text;
-    private readonly Dictionary<RecordId, Texture2D?> _images = [];
-    private readonly Texture2D? _sheet, _border, _gradient;
+    private readonly Texture2D? _sheet, _border;
 
     public ConversationBoxView(PluginSet plugins)
     {
         _plugins = plugins;
+        _images = new UiImages(plugins);
         Name = "Conversation";
         MouseFilter = MouseFilterEnum.Ignore;
-        Size = new Vector2(UiScreen.Width, UiScreen.Height);
+        SetAnchorsPreset(LayoutPreset.FullRect);
         var font = plugins.Get<FontRecord>(RecordId.Decimal(RecordTypes.Font, 0));
         _text = new TextLayout(font);
-        _sheet = Image(font.Image);
-        _border = Image(BorderImage);
-        _gradient = Image(GradientImage);
+        _sheet = _images.Get(font.Image);
+        _border = _images.Get(BorderImage);
         var border = _border?.GetSize() ?? new Vector2(52, 52);
         Box = new DialogueBox(_text, (int)border.X, (int)border.Y, Alaron);
     }
@@ -69,6 +67,16 @@ public partial class ConversationBoxView : Control
         QueueRedraw();
     }
 
+    public override void _Notification(int what)
+    {
+        // The UI screen's canvas is as wide as the window's shape, so the box follows it.
+        if (what == NotificationResized)
+        {
+            Box.Resize((int)Size.X, (int)Size.Y);
+            QueueRedraw();
+        }
+    }
+
     public override void _PhysicsProcess(double delta)
     {
         Box.Step();
@@ -80,12 +88,10 @@ public partial class ConversationBoxView : Control
     {
         if (Box.Layout is not { } layout)
             return;
-        DrawRect(new Rect2(0, layout.Top, UiScreen.Width, layout.Bottom - layout.Top), Colors.Black);
-        if (_gradient is not null)
-            DrawTextureRect(_gradient, new Rect2(0, layout.Top - DialogueBox.GradientHeight, UiScreen.Width, DialogueBox.GradientHeight), false, Colors.Black);
+        _images.DrawPanel(this, layout.Panel);
         if (_border is not null)
             DrawTexture(_border, new Vector2(layout.BorderX, layout.BorderY));
-        if (Image(PortraitOf(layout.Speaker)) is { } portrait)
+        if (_images.Get(PortraitOf(layout.Speaker)) is { } portrait)
             DrawTexture(portrait, new Vector2(layout.PortraitX, layout.PortraitY));
 
         if (layout.Line is { } line)
@@ -112,21 +118,4 @@ public partial class ConversationBoxView : Control
     private ScriptLine Named(ScriptLine line) => line with { Text = line.Text.Replace("{player}", PlayerName, StringComparison.Ordinal) };
 
     private static Color Color8(Rgba c) => Color.Color8(c.R, c.G, c.B, c.A);
-
-    private Texture2D? Image(RecordId image)
-    {
-        if (_images.TryGetValue(image, out var texture))
-            return texture;
-        if (_plugins.FindAsset(image, "png") is { } png)
-        {
-            var data = new Image();
-            if (data.LoadPngFromBuffer(File.ReadAllBytes(png)) == Error.Ok)
-                texture = ImageTexture.CreateFromImage(data);
-        }
-        else
-        {
-            GD.PushWarning($"No asset for {image}.");
-        }
-        return _images[image] = texture;
-    }
 }

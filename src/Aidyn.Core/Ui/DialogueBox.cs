@@ -8,17 +8,14 @@ namespace Aidyn.Core.Ui;
 public sealed record TextBlock(string Text, int X, int Y, ScreenRect Bounds);
 
 /// <summary>
-/// Where a conversation box puts everything on the 320 × 240 screen. The runtime draws, in order:
-/// a black band across the screen from <see cref="Top"/> to <see cref="Bottom"/>, a black gradient
-/// <see cref="DialogueBox.GradientHeight"/> tall above it, the portrait's border, the portrait, the
-/// line and the choices.
+/// Where a conversation box puts everything on the UI screen. The runtime draws, in order: the
+/// panel, the portrait's border, the portrait, the line and the choices.
 /// </summary>
 /// <param name="Speaker">Whose portrait shows: the line's speaker, or Alaron's once only the choices are up. None if the line has no speaker.</param>
 /// <param name="Line">The line, or none once only the choices are up.</param>
 /// <param name="Highlight">Which choice the cursor is on.</param>
 public sealed record DialogueBoxLayout(
-    int Top,
-    int Bottom,
+    FeatheredPanel Panel,
     RecordId? Speaker,
     int BorderX,
     int BorderY,
@@ -26,7 +23,14 @@ public sealed record DialogueBoxLayout(
     int PortraitY,
     TextBlock? Line,
     IReadOnlyList<TextBlock> Choices,
-    int Highlight);
+    int Highlight)
+{
+    /// <summary>The top of the panel's band.</summary>
+    public int Top => Panel.Band.Top;
+
+    /// <summary>The bottom of the panel's band.</summary>
+    public int Bottom => Panel.Band.Bottom;
+}
 
 /// <summary>
 /// The box a conversation shows its pages in, at the bottom of the screen with the speaker's portrait
@@ -34,11 +38,22 @@ public sealed record DialogueBoxLayout(
 /// and the other modes that draw no backdrop; backdrops and the help menu use a full-screen image.
 /// </summary>
 /// <remarks>
+/// <para>
+/// The original lays the box out on its 320 × 240 screen, and so does this, in a frame of that size
+/// at the bottom centre of the UI screen, so its text wraps as authored whatever the screen's size.
+/// The original draws a translucent band right across the screen, with a gradient above it, and
+/// the black bars it draws over the screen's edges for overscan cut it off (<c>Graphics::EndList</c>).
+/// The port draws a floating panel instead, the band inside those bars with feathering where they
+/// were, built from the original's own popup pieces. On a 4:3 screen it looks as the original's does
+/// inside its bars; on a wider one it has margins either side.
+/// </para>
+/// <para>
 /// The box grows upward to fit, and a line sits just above its choices. When a page's first choice
 /// has the line's speaker, the line shows alone first, and A brings up the choices alone under
 /// Alaron's portrait. Then the portrait and its border stay where the line put them, since the
 /// original doesn't move them, but the box shrinks to the choices. The cursor's choice pulses from
 /// tan to a dim brown and back, a step a frame (<c>WidgetScrollMenu::Tick</c>).
+/// </para>
 /// </remarks>
 /// <param name="font">The font the box's text is in: the main font.</param>
 /// <param name="borderWidth">The portrait border image's size, which the layout is built around.</param>
@@ -48,6 +63,13 @@ public sealed class DialogueBox(TextLayout font, int borderWidth, int borderHeig
     /// <summary>Where the box's bottom part starts, before it grows to fit.</summary>
     public const int BaseTop = 180;
 
+    /// <summary>The original's screen, which the box is laid out in.</summary>
+    public const int FrameWidth = 320, FrameHeight = 240;
+
+    /// <summary>How much of the frame's edges the original covers with black bars: 16 pixels either side and 12 at the bottom (1.0 and 1.1).</summary>
+    public const int OverscanSide = 16, OverscanBottom = 12;
+
+    /// <summary>How tall the gradient above the band is: its image, 16 tall, squeezed (<c>DiaMenuSub</c>).</summary>
     public const int GradientHeight = 10;
 
     /// <summary>The line's colour.</summary>
@@ -65,6 +87,7 @@ public sealed class DialogueBox(TextLayout font, int borderWidth, int borderHeig
     private const int Margin = 26, BorderX = 20, PortraitInset = 6, ChoiceIndent = 10, ChoiceSpacing = 4;
 
     private ScriptPage? _page;
+    private int _screenWidth = FrameWidth, _screenHeight = FrameHeight;
     private bool _choicesAlone;
     private int _borderY = BaseTop;
     private int _pulse, _pulseSign = 1, _ticks;
@@ -77,6 +100,17 @@ public sealed class DialogueBox(TextLayout font, int borderWidth, int borderHeig
 
     /// <summary>Whether A moves the box on by itself, bringing up the choices, rather than the script.</summary>
     public bool ShowsLineBeforeChoices => _page is { Choices.Count: > 0 } page && !_choicesAlone && page.Choices[0].Speaker == page.Line.Speaker;
+
+    /// <summary>Sets the UI screen's size, in its pixels, and lays the page out again.</summary>
+    public void Resize(int width, int height)
+    {
+        (_screenWidth, _screenHeight) = (width, height);
+        if (_page is not null)
+            Lay();
+    }
+
+    /// <summary>Where the original's screen is on the UI screen: at the bottom, in the middle.</summary>
+    public (int X, int Y) Frame => ((_screenWidth - FrameWidth) / 2, _screenHeight - FrameHeight);
 
     /// <summary>Shows a new page, with the cursor on its first choice.</summary>
     public DialogueBoxLayout Show(ScriptPage page)
@@ -133,7 +167,7 @@ public sealed class DialogueBox(TextLayout font, int borderWidth, int borderHeig
         var page = _page!;
         var bottom = BaseTop + borderHeight;
         var textLeft = borderWidth + Margin;
-        var textRight = 320 - Margin;
+        var textRight = FrameWidth - Margin;
         var top = bottom;
         var choices = new List<TextBlock>();
 
@@ -165,7 +199,19 @@ public sealed class DialogueBox(TextLayout font, int borderWidth, int borderHeig
             _borderY = lineTop;
         }
 
-        return Layout = new DialogueBoxLayout(top, bottom, _choicesAlone ? player : page.Line.Speaker,
-            BorderX, _borderY, BorderX + PortraitInset, _borderY + PortraitInset, line, choices, Highlight);
+        // The band ends where the original's bars cut it, and the feathering fills where they were.
+        var panel = new FeatheredPanel(new ScreenRect(OverscanSide, top, FrameWidth - OverscanSide, Math.Min(bottom, FrameHeight - OverscanBottom)),
+            GradientHeight, OverscanBottom, OverscanSide, OverscanSide);
+        var (frameX, frameY) = Frame;
+        return Layout = new DialogueBoxLayout(panel.Offset(frameX, frameY), _choicesAlone ? player : page.Line.Speaker,
+            BorderX + frameX, _borderY + frameY, BorderX + PortraitInset + frameX, _borderY + PortraitInset + frameY,
+            line is null ? null : Shift(line, frameX, frameY), [.. choices.Select(c => Shift(c, frameX, frameY))], Highlight);
     }
+
+    private static TextBlock Shift(TextBlock block, int x, int y) => block with
+    {
+        X = block.X + x,
+        Y = block.Y + y,
+        Bounds = new ScreenRect(block.Bounds.Left + x, block.Bounds.Top + y, block.Bounds.Right + x, block.Bounds.Bottom + y),
+    };
 }
