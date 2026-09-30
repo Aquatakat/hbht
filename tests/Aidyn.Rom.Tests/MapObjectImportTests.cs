@@ -355,10 +355,17 @@ public sealed class MapObjectImportTests(MapObjectFixture fixture) : IClassFixtu
     }
 
     [Fact]
-    public void TheMapRecordsWriteBackAsTheFileTheyCameFrom()
+    public void TheMapRecordsWriteBackAsTheFilesTheyCameFrom()
     {
-        var written = File.ReadAllBytes(Path.Combine(Data.Dir, "records", "maps.json"));
-        Assert.Equal(written, JsonSerializer.SerializeToUtf8Bytes(Data.Maps.ToList(), PluginJson.Options));
+        // A file per map set, holding the maps its chunks name, in ID order.
+        var files = Directory.GetFiles(Path.Combine(Data.Dir, "records", "maps")).Select(Path.GetFileNameWithoutExtension).Order().ToList();
+        Assert.Equal(Data.MapSets.Where(s => s.Chunks.Count > 0).Select(s => s.Label).Order(), files);
+        foreach (var set in Data.MapSets.Where(s => s.Chunks.Count > 0))
+        {
+            var maps = set.Chunks.Select(c => c.Map).ToHashSet();
+            var written = File.ReadAllBytes(Path.Combine(Data.Dir, "records", "maps", set.Label + ".json"));
+            Assert.Equal(written, JsonSerializer.SerializeToUtf8Bytes(Data.Maps.Where(m => maps.Contains(m.Id)).ToList(), PluginJson.Options));
+        }
     }
 
     [Fact]

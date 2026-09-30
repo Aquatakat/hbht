@@ -349,7 +349,10 @@ public enum PartyFlags
     None = 0,
     /// <summary>Set on most parties. The game doesn't read it.</summary>
     Unknown2 = 0x2,
-    /// <summary>Talking to it does nothing, though it has a dialogue.</summary>
+    /// <summary>
+    /// Talking to it does nothing, though it has a dialogue: it's the body in a scene a dialogue
+    /// object starts.
+    /// </summary>
     Silent = 0x4,
 }
 

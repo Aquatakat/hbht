@@ -94,8 +94,11 @@ public static class BaseImporter
         progress?.Report("Maps and collision");
         var maps = chunks.Select(c => c.Collision).Distinct().Order().ToDictionary(i => i, i => Borg9Map.Parse(archive.Read(i)));
         var actors = archive.Listings.Where(l => l.Type == BorgType.Actor).Select(l => l.Index).ToHashSet();
-        WriteJson(Path.Combine(staging, "records", "maps.json"), BuildMaps(archive, chunks, maps.ToDictionary(m => m.Key, m => m.Value.Objects),
-            [.. db.Loot.Select(l => l.Id)]));
+        // A file per map set, since each map is in one, such as records/maps/Overworld.json.
+        var mapRecords = BuildMaps(archive, chunks, maps.ToDictionary(m => m.Key, m => m.Value.Objects), [.. db.Loot.Select(l => l.Id)]);
+        var setOf = chunks.ToLookup(c => RecordId.Hex(RecordTypes.Map, c.Collision), c => c.Set);
+        foreach (var set in mapRecords.GroupBy(m => setOf[m.Id].Distinct().Single()))
+            WriteJson(Path.Combine(staging, "records", "maps", set.Key + ".json"), set.ToList());
         foreach (var (index, map) in maps)
         {
             var chunk = chunks.First(c => c.Collision == index);
