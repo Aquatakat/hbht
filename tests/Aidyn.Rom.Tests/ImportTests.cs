@@ -131,6 +131,15 @@ public sealed class ImportTests : IDisposable
         Assert.All(textures, l => Assert.NotNull(catalog.Find(RecordId.Hex(RecordTypes.Texture, l.Index))));
         Assert.Equal("derived: how many of 1 set > 0, journal entry 0", catalog.Find(first.Id)!.Summary);
         Assert.Contains(catalog.ReferencesTo(RecordId.Parse("aidyn:flag/5")), r => r.From == RecordId.Parse("aidyn:flag/5423"));
+
+        // Every script, and the entry a conversation makes in the catalog.
+        var scripts = set.All<DialogueRecord>(RecordTypes.Dialogue).ToList();
+        Assert.Equal(892, scripts.Count);
+        var dialogueId = RecordId.Hex(RecordTypes.Dialogue, 475);
+        var conversation = set.Get<DialogueRecord>(dialogueId);
+        Assert.Equal(DialogueMode.Conversation, conversation.Mode);
+        Assert.StartsWith($"Conversation, {conversation.Nodes.Count} nodes: ", catalog.Find(dialogueId)!.Summary, StringComparison.Ordinal);
+        Assert.Contains(catalog.ReferencesTo(RecordId.Parse("aidyn:flag/5")), r => r.From.Type == RecordTypes.Dialogue);
     }
 
     [Fact]

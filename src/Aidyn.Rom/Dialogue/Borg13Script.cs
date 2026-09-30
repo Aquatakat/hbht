@@ -95,13 +95,15 @@ public sealed record Borg13Node(
 /// </param>
 /// <param name="Backdrop">For Backdrop scripts, which picture to show (the decomp's <c>libraryType</c>). 14 for all others.</param>
 /// <param name="Actors">The entities a Cutscene spawns and directs.</param>
+/// <param name="BlankNodes">How many blank nodes the header counts after the last node: 0, or 1 in 153 scripts.</param>
 public sealed record Borg13Script(
     ushort Id,
     ushort DoneFlag,
     Borg13StartMode StartMode,
     byte Backdrop,
     IReadOnlyList<ItemId> Actors,
-    IReadOnlyList<Borg13Node> Nodes)
+    IReadOnlyList<Borg13Node> Nodes,
+    int BlankNodes = 0)
 {
     private const int HeaderSize = 0x18;
     private const int ActorSize = 8;
@@ -157,7 +159,7 @@ public sealed record Borg13Script(
                 throw new InvalidDataException($"Borg13 actor {i} padding isn't zero.");
         }
 
-        return new Borg13Script(id, doneFlag, (Borg13StartMode)startMode, backdrop, actors, nodes);
+        return new Borg13Script(id, doneFlag, (Borg13StartMode)startMode, backdrop, actors, nodes, nodeCount - nodes.Count);
     }
 
     /// <summary>Reads a node, or returns null for a blank one: no ops, text or links, and no index.</summary>

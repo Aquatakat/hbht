@@ -166,6 +166,11 @@ public sealed class PluginCatalog
             case RecordTypes.Journal when json is not null:
                 parts.Add($"flag {Key(json["flag"])}: {Truncate((string?)json["text"] ?? "", 80)}");
                 break;
+            case RecordTypes.Dialogue when json is not null:
+                var nodes = json["nodes"] as JsonArray ?? [];
+                var first = nodes.OfType<JsonObject>().Select(n => (string?)n["text"]).FirstOrDefault(t => !string.IsNullOrWhiteSpace(t));
+                parts.Add($"{(string?)json["mode"]}, {Count(nodes, "node")}" + (first is null ? "" : $": {Truncate(first.Replace("\n", " ", StringComparison.Ordinal), 60)}"));
+                break;
             case RecordTypes.Sky when json is not null:
                 parts.Add($"{Count(json["stars"], "star")}, {Count(json["clouds"], "cloud")}, {Count(json["lensFlare"], "flare piece")}");
                 break;
