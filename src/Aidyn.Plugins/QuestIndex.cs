@@ -30,8 +30,40 @@ public enum FlagRole
     JournalListed,
     /// <summary>A map object's visibility gate. <see cref="FlagUse.By"/> is the object (<c>aidyn:voxel/…</c>), which reads the flag.</summary>
     ObjectVisible,
+    /// <summary>A map object's enabled gate: whether it works, or for a monster party whether it's there.</summary>
+    ObjectEnabled,
+    /// <summary>What a container or trigger writes when it's used.</summary>
+    ObjectUsed,
+    /// <summary>A monster party without a dialogue: it's gone while the flag is set, and beating it sets it.</summary>
+    PartyBeaten,
+    /// <summary>A monster party with a dialogue: talking to it sets the flag.</summary>
+    PartyTalkedTo,
+    /// <summary>A monster party's battle flag, which winning the battle its dialogue starts sets.</summary>
+    PartyFought,
+    /// <summary>A container's opened flag: it's empty while set, and opening it sets it.</summary>
+    ContainerOpened,
+    /// <summary>A container's exploded flag: it's destroyed while set, and its trap going off sets it.</summary>
+    ContainerExploded,
+    /// <summary>A locked teleporter's lock flag, which unlocks it while set.</summary>
+    DoorLocked,
+    /// <summary>A locked teleporter's picked flag, which picking the lock sets.</summary>
+    DoorUnlocked,
+    /// <summary>A trapped teleporter's trap flag, which disarms it while set.</summary>
+    TrapArmed,
+    /// <summary>A trapped teleporter's disarm flag, which disarming it sets.</summary>
+    TrapDisarmed,
+    /// <summary>A secret door's flag: it works while set, and finding it sets it.</summary>
+    SecretFound,
+    /// <summary>A SetFlag trigger.</summary>
+    TriggerSets,
     /// <summary>The state flags record: the engine writes the flags it keeps its state in, and reads the random skill check option.</summary>
     Engine,
+    /// <summary>
+    /// Not a use of a flag, but an edge of the graph: from a map object to the script it starts, or
+    /// from a script to the one its RandomLine op takes a line from (<see cref="ScriptStarter"/>).
+    /// Its access is <see cref="FlagAccess.Set"/>.
+    /// </summary>
+    StartsScript,
 }
 
 /// <summary>One use of a flag.</summary>
@@ -44,8 +76,14 @@ public enum FlagRole
 public sealed record FlagUse(RecordId Flag, RecordId By, FlagAccess Access, FlagRole Role, int? At = null, bool Inverted = false);
 
 /// <summary>
+/// What starts a script: a dialogue object or a monster party (<c>aidyn:voxel/…</c>), or another
+/// script, whose RandomLine op at node <see cref="At"/> takes a line from it.
+/// </summary>
+public sealed record ScriptStarter(RecordId Script, RecordId By, int? At = null);
+
+/// <summary>
 /// An edge of the atlas graph, pointing the way things happen: from a setter to the flag it sets,
-/// and from a flag to what reads it.
+/// from a flag to what reads it, and from what starts a script to the script.
 /// </summary>
 public sealed record QuestEdge(RecordId From, RecordId To, FlagRole Role, FlagAccess Access);
 
@@ -64,13 +102,20 @@ public sealed class QuestIndex
     private readonly ILookup<RecordId, QuestEdge> _into;
     private readonly ILookup<RecordId, QuestEdge> _outOf;
     private readonly List<(RecordId Script, int Node, string Text)> _text;
+    private readonly ILookup<RecordId, ScriptStarter> _startersOf;
+    private readonly ILookup<RecordId, ScriptStarter> _startedBy;
 
-    private QuestIndex(List<FlagUse> uses, List<(RecordId, int, string)> text)
+    private QuestIndex(List<FlagUse> uses, List<ScriptStarter> starters, List<(RecordId, int, string)> text)
     {
         _text = text;
         _byFlag = uses.OrderBy(u => u, Comparer<FlagUse>.Create(CompareByUser)).ToLookup(u => u.Flag);
         _byUser = uses.OrderBy(u => u, Comparer<FlagUse>.Create(CompareByFlag)).ToLookup(u => u.By);
-        var edges = uses.Select(Edge).Distinct().ToList();
+        var byStarter = Comparer<ScriptStarter>.Create((a, b) => Compare(a.By, b.By) is var c and not 0 ? c : Nullable.Compare(a.At, b.At));
+        _startersOf = starters.OrderBy(s => s, byStarter).ToLookup(s => s.Script);
+        _startedBy = starters.OrderBy(s => s.Script, Comparer<RecordId>.Create(Compare)).ThenBy(s => s.At).ToLookup(s => s.By);
+        var edges = uses.Select(Edge)
+            .Concat(starters.Select(s => new QuestEdge(s.By, s.Script, FlagRole.StartsScript, FlagAccess.Set)))
+            .Distinct().ToList();
         _into = edges.OrderBy(e => e, Comparer<QuestEdge>.Create((a, b) => CompareEdges(a, b, a.From, b.From))).ToLookup(e => e.To);
         _outOf = edges.OrderBy(e => e, Comparer<QuestEdge>.Create((a, b) => CompareEdges(a, b, a.To, b.To))).ToLookup(e => e.From);
     }
@@ -79,7 +124,9 @@ public sealed class QuestIndex
     public static QuestIndex Build(PluginSet plugins)
     {
         var uses = new List<FlagUse>();
+        var starters = new List<ScriptStarter>();
         var text = new List<(RecordId, int, string)>();
+        var battles = new HashSet<RecordId>();
 
         foreach (var script in plugins.All<DialogueRecord>(RecordTypes.Dialogue))
         {
@@ -91,6 +138,10 @@ public sealed class QuestIndex
                 {
                     if (op.Target is { Type: RecordTypes.Flag } flag && ScriptAccess(op.Command) is { } access)
                         uses.Add(new FlagUse(flag, script.Id, access, FlagRole.ScriptOp, node.Index));
+                    else if (op is { Command: DialogueCommand.RandomLine, Target: { } lines })
+                        starters.Add(new ScriptStarter(lines, script.Id, node.Index));
+                    else if (op.Command == DialogueCommand.Battle)
+                        battles.Add(script.Id);
                 }
             }
             if (script.DoneFlag is { } done)
@@ -113,11 +164,68 @@ public sealed class QuestIndex
         foreach (var map in plugins.All<MapRecord>(RecordTypes.Map))
         {
             foreach (var mapObject in map.Objects)
+                AddObject(MapRecord.VoxelId(map.Id, mapObject.Index), mapObject);
+        }
+
+        // Flags 0 and 1 are constants, not quest state, so neither reads nor writes of them count.
+        void Use(RecordId? flag, RecordId voxel, FlagAccess access, FlagRole role, bool inverted = false)
+        {
+            if (flag is { } f && !IsConstant(f))
+                uses.Add(new FlagUse(f, voxel, access, role, Inverted: inverted));
+        }
+
+        void AddObject(RecordId voxel, MapObject o)
+        {
+            if (o.Visible is { } visible)
+                Use(visible.Flag, voxel, FlagAccess.Read, FlagRole.ObjectVisible, visible.Invert);
+            if (o.Enabled is { } enabled)
+                Use(enabled.Flag, voxel, FlagAccess.Read, FlagRole.ObjectEnabled, enabled.Invert);
+            var used = o.Used is { Clear: true } ? FlagAccess.Clear : FlagAccess.Set;
+            switch (o)
             {
-                if (IsConstant(mapObject.Visible.Flag))
-                    continue;
-                var voxel = RecordId.Parse($"{map.Id.Namespace}:{RecordTypes.Voxel}/{map.Id.Key}/{mapObject.Index}");
-                uses.Add(new FlagUse(mapObject.Visible.Flag, voxel, FlagAccess.Read, FlagRole.ObjectVisible, Inverted: mapObject.Visible.Invert));
+                case ContainerObject c:
+                    Use(c.Opened, voxel, FlagAccess.Read, FlagRole.ContainerOpened);
+                    Use(c.Opened, voxel, FlagAccess.Set, FlagRole.ContainerOpened);
+                    Use(c.Exploded, voxel, FlagAccess.Read, FlagRole.ContainerExploded);
+                    Use(c.Exploded, voxel, FlagAccess.Set, FlagRole.ContainerExploded);
+                    Use(c.Used?.Flag, voxel, used, FlagRole.ObjectUsed);
+                    break;
+                case TriggerObject t:
+                    if (t.Kind == TriggerKind.SetFlag)
+                        Use(t.Flag, voxel, FlagAccess.Set, FlagRole.TriggerSets);
+                    Use(t.Used?.Flag, voxel, used, FlagRole.ObjectUsed);
+                    break;
+                // A silent party does nothing when the player uses it.
+                case MonsterPartyObject m when m.Dialogue is { } dialogue:
+                    if (!m.Flags.HasFlag(PartyFlags.Silent))
+                    {
+                        starters.Add(new ScriptStarter(dialogue, voxel));
+                        Use(m.Used?.Flag, voxel, FlagAccess.Set, FlagRole.PartyTalkedTo);
+                        if (battles.Contains(dialogue))
+                            Use(m.BattleFlag, voxel, FlagAccess.Set, FlagRole.PartyFought);
+                    }
+                    break;
+                case MonsterPartyObject m:
+                    Use(m.Used?.Flag, voxel, FlagAccess.Read, FlagRole.PartyBeaten);
+                    Use(m.Used?.Flag, voxel, FlagAccess.Set, FlagRole.PartyBeaten);
+                    break;
+                case TeleporterObject t:
+                    if (t.LockLevel != 0)
+                    {
+                        Use(t.LockFlag, voxel, FlagAccess.Read, FlagRole.DoorLocked);
+                        Use(t.PickedFlag, voxel, FlagAccess.Set, FlagRole.DoorUnlocked);
+                    }
+                    if (t.TrapLevel != 0)
+                    {
+                        Use(t.TrapFlag, voxel, FlagAccess.Read, FlagRole.TrapArmed);
+                        Use(t.DisarmFlag, voxel, FlagAccess.Set, FlagRole.TrapDisarmed);
+                    }
+                    Use(t.SecretFlag, voxel, FlagAccess.Read, FlagRole.SecretFound);
+                    Use(t.SecretFlag, voxel, FlagAccess.Set, FlagRole.SecretFound);
+                    break;
+                case DialogueObject d:
+                    starters.Add(new ScriptStarter(d.Script, voxel));
+                    break;
             }
         }
 
@@ -131,7 +239,7 @@ public sealed class QuestIndex
                 uses.Add(new FlagUse(option, state.Id, FlagAccess.Read, FlagRole.Engine));
         }
 
-        return new QuestIndex(uses, text);
+        return new QuestIndex(uses, starters, text);
     }
 
     /// <summary>Every use of a flag, by role, then by the record that uses it, then by script node.</summary>
@@ -145,16 +253,23 @@ public sealed class QuestIndex
 
     /// <summary>
     /// The edges into <paramref name="key"/>, by where they come from: for a flag, its setters and,
-    /// if it's derived, its inputs; for a script, the flags it checks; for a map object, the flag
-    /// that gates it.
+    /// if it's derived, its inputs; for a script, the flags it checks and what starts it; for a map
+    /// object, the flags that gate it.
     /// </summary>
     public IReadOnlyList<QuestEdge> Upstream(RecordId key) => [.. _into[key]];
 
     /// <summary>
     /// The edges out of <paramref name="key"/>, by where they lead: for a flag, what reads it; for a
-    /// script, the flags it sets or clears, its done and battle flags included.
+    /// script, the flags it sets or clears, its done and battle flags included, and the scripts it
+    /// takes random lines from; for a map object, the flags it writes and the script it starts.
     /// </summary>
     public IReadOnlyList<QuestEdge> Downstream(RecordId key) => [.. _outOf[key]];
+
+    /// <summary>What starts a script, by the record that does, then by script node.</summary>
+    public IReadOnlyList<ScriptStarter> StartersOf(RecordId script) => [.. _startersOf[script]];
+
+    /// <summary>The scripts a map object starts, or that a script's RandomLine ops take lines from, by script, then by node.</summary>
+    public IReadOnlyList<ScriptStarter> StartedBy(RecordId record) => [.. _startedBy[record]];
 
     /// <summary>The nodes whose text holds <paramref name="text"/>, ignoring case, in script order and then node order.</summary>
     public IReadOnlyList<(RecordId Script, int Node)> FindText(string text) =>

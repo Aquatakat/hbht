@@ -8,10 +8,15 @@ using Aidyn.Rom.Engine;
 using Aidyn.Rom.Graphics;
 using Aidyn.Rom.Maps;
 using Aidyn.Rom.Quests;
+using CameraFlags = Aidyn.Plugins.Records.CameraFlags;
 using FlagGate = Aidyn.Plugins.Records.FlagGate;
+using LightKind = Aidyn.Plugins.Records.LightKind;
+using PartyFlags = Aidyn.Plugins.Records.PartyFlags;
 using PluginSceneModel = Aidyn.Plugins.Records.SceneModel;
 using PluginSceneObjectFlags = Aidyn.Plugins.Records.SceneObjectFlags;
 using RomSceneObjectFlags = Aidyn.Rom.Maps.SceneObjectFlags;
+using TriggerKind = Aidyn.Plugins.Records.TriggerKind;
+using WanderFlags = Aidyn.Plugins.Records.WanderFlags;
 
 namespace Aidyn.Rom.Import;
 
@@ -21,9 +26,9 @@ namespace Aidyn.Rom.Import;
 /// <see cref="BasePlugin.ImporterVersion"/> always give the same bytes.
 /// </summary>
 /// <remarks>
-/// This is the slice M1 needs: map sets and their chunks, terrains, scene objects, actors, every
-/// scene as glTF, every chunk's collision, and every texture and UI image as PNG for what the
-/// engine draws itself.
+/// This is the slice M1 and M2 need so far: map sets and their chunks, terrains, map objects,
+/// actors, flags, scripts, the names of DB records, the sky, every scene as glTF, every chunk's
+/// collision, and every texture and UI image as PNG for what the engine draws itself.
 /// Records for the rest of the content come with the tracks that use them.
 /// </remarks>
 public static class BaseImporter
@@ -76,7 +81,8 @@ public static class BaseImporter
         WriteJson(Path.Combine(staging, "records", "stateflags.json"), BuildStateFlags());
 
         progress?.Report("Names");
-        foreach (var (file, records) in BuildNames(GameDb.Read(rom)))
+        var db = GameDb.Read(rom);
+        foreach (var (file, records) in BuildNames(db))
             WriteJson(Path.Combine(staging, "records", file), records);
 
         progress?.Report("Scripts");
@@ -86,17 +92,15 @@ public static class BaseImporter
         WriteJson(Path.Combine(staging, "records", "sky.json"), BuildSky(rom, archive));
 
         progress?.Report("Maps and collision");
-        var maps = chunks.Select(c => c.Collision).Distinct().Order().ToList();
+        var maps = chunks.Select(c => c.Collision).Distinct().Order().ToDictionary(i => i, i => Borg9Map.Parse(archive.Read(i)));
         var actors = archive.Listings.Where(l => l.Type == BorgType.Actor).Select(l => l.Index).ToHashSet();
-        var mapRecords = new List<MapRecord>();
-        foreach (var index in maps)
+        WriteJson(Path.Combine(staging, "records", "maps.json"), BuildMaps(archive, chunks, maps.ToDictionary(m => m.Key, m => m.Value.Objects),
+            [.. db.Loot.Select(l => l.Id)]));
+        foreach (var (index, map) in maps)
         {
-            var map = Borg9Map.Parse(archive.Read(index));
-            mapRecords.Add(BuildMap(index, map, actors));
             var chunk = chunks.First(c => c.Collision == index);
             WriteAsset(staging, RecordId.Hex(RecordTypes.Map, index), "glb", CollisionGltf.Export([(chunk, map)], placeInSet: false));
         }
-        WriteJson(Path.Combine(staging, "records", "maps.json"), mapRecords);
 
         progress?.Report("Actors");
         var actorRecords = new List<ActorRecord>();
@@ -167,7 +171,6 @@ public static class BaseImporter
         RecordId Image(int index) => uiImages.Contains(index)
             ? RecordId.Hex(RecordTypes.Image, index)
             : throw new InvalidDataException($"The sky's image 0x{index:X} isn't a Borg8 in {rom.Version.Name}.");
-        static Plugins.Records.Rgba Colour(Maps.Rgba c) => new(c.R, c.G, c.B, c.A);
 
         var objects = Skies.ReadSkyObjects(rom);
         SkyBody Body(SkyObjectEntry o, int image, float? scale = null) =>
@@ -186,28 +189,153 @@ public static class BaseImporter
             [.. Skies.ReadLensFlare(rom).Select(f => new FlarePiece(f.Image, f.Distance, f.Scale, Colour(f.Color)))]);
     }
 
-    private static MapRecord BuildMap(int index, Borg9Map map, IReadOnlySet<int> actors)
+    /// <summary>
+    /// Every map's objects, but the code objects. References to other objects become voxel IDs:
+    /// links and wander nodes in the same map, a camera's reference point in its own, and a
+    /// teleporter's arrival and camera in its destination, found by ID as the original does. A
+    /// reference point that isn't there is left out.
+    /// </summary>
+    /// <param name="lootTables">ChestDB's IDs, in order.</param>
+    internal static List<MapRecord> BuildMaps(BorgArchive archive, IReadOnlyList<MapChunk> chunks,
+        IReadOnlyDictionary<int, IReadOnlyList<VoxelObject>> maps, IReadOnlyList<ItemId> lootTables)
     {
-        var objects = new List<MapObject>();
-        foreach (var o in map.Objects)
+        var types = archive.Listings.ToDictionary(l => l.Index, l => l.Type);
+        var chunkMaps = chunks.ToDictionary(c => (c.Set, c.Row, c.Column), c => c.Collision);
+        return [.. maps.OrderBy(m => m.Key).Select(m => BuildMap(m.Key, m.Value, types, chunkMaps, maps, lootTables))];
+    }
+
+    private static MapRecord BuildMap(int index, IReadOnlyList<VoxelObject> objects, IReadOnlyDictionary<int, BorgType> types,
+        IReadOnlyDictionary<(MapSet, int, int), int> chunkMaps, IReadOnlyDictionary<int, IReadOnlyList<VoxelObject>> maps,
+        IReadOnlyList<ItemId> lootTables)
+    {
+        var id = RecordId.Hex(RecordTypes.Map, index);
+        RecordId Voxel(int map, int i) => MapRecord.VoxelId(RecordId.Hex(RecordTypes.Map, map), i);
+        RecordId Own(int i, VoxelType type, string what) =>
+            i < objects.Count && objects[i].Type == type ? Voxel(index, i)
+            : throw new InvalidDataException($"Borg9 {index}: {what} {i} isn't a {type}.");
+        RecordId Borg(BorgType type, int borg, string recordType) =>
+            types.GetValueOrDefault(borg) == type ? RecordId.Hex(recordType, borg)
+            : throw new InvalidDataException($"Borg9 {index}: Borg {borg} isn't a {type}.");
+        RecordId Db(ItemId item) => DbRecordIds.For(item) ?? throw new InvalidDataException($"Borg9 {index}: DB ID {item} has no record.");
+        RecordId? OptionalDb(ItemId item) => item.IsNone ? null : Db(item);
+        // The game finds a loot table by GetIDIndex, which for a potion's ID is its low byte, so
+        // a potion in a loot field names the table at that position. Two containers do this.
+        RecordId? Loot(ItemId loot) => loot.Type switch
         {
-            if (o is not { Type: VoxelType.Scene, Data: SceneData scene })
+            DbType.None => null,
+            DbType.Loot => Db(loot),
+            DbType.Potion when loot.Index < lootTables.Count => Db(lootTables[loot.Index]),
+            _ => throw new InvalidDataException($"Borg9 {index}: loot {loot} isn't a loot table."),
+        };
+        RecordId? OptionalFlag(int flag) => flag == 0 ? null : Flag(flag);
+        int ChunkMap((MapSet Set, int Row, int Column) c) => chunkMaps.TryGetValue(c, out var m) ? m
+            : throw new InvalidDataException($"Borg9 {index}: no chunk {c.Set} {c.Row},{c.Column}.");
+        ChunkRef Chunk((MapSet Set, int Row, int Column) c)
+        {
+            ChunkMap(c);
+            return new ChunkRef(RecordId.Decimal(RecordTypes.MapSet, (int)c.Set), c.Row, c.Column);
+        }
+        // The first reference point with the ID, as FindReferncePoint finds it. A few are missing.
+        RecordId? RefPoint(int map, int refPoint) =>
+            maps[map].FirstOrDefault(o => o.Data is ReferencePointData r && r.Id == refPoint) is { } found ? Voxel(map, found.Index) : null;
+
+        var records = new List<MapObject>();
+        foreach (var o in objects)
+        {
+            if (o.Type == VoxelType.Code)
                 continue;
             var pak = o.Flags.HasFlag(VoxelFlags.ExpansionPak) ? PakVariant.With
                 : o.Flags.HasFlag(VoxelFlags.NoExpansionPak) ? PakVariant.Without
                 : PakVariant.Any;
-            var isActor = scene.SceneFlags.HasFlag(RomSceneObjectFlags.Actor);
-            objects.Add(new SceneObject(o.Index, o.Position, o.Radius, pak, Gate(o.Visible),
-                [
-                    .. scene.Models.Select(m => new PluginSceneModel(
-                        RecordId.Hex(isActor && actors.Contains(m.Borg) ? RecordTypes.Actor : RecordTypes.Scene, m.Borg),
-                        m.DrawDistance)),
-                ],
-                scene.Lods, scene.Rotation, scene.Scale, new Plugins.Records.Rgba(scene.Tint.R, scene.Tint.G, scene.Tint.B, scene.Tint.A),
-                (PluginSceneObjectFlags)((int)scene.SceneFlags & ~(int)RomSceneObjectFlags.Actor)));
+            var visible = Gate(o.Visible);
+            var enabled = Gate(o.Enabled);
+            var used = o.FlagB == 0 ? null : new FlagWrite(Flag(o.FlagB), o.Flags.HasFlag(VoxelFlags.ClearFlagBOnUse));
+            MapObject record = o.Data switch
+            {
+                SceneData scene => new SceneObject(o.Index, o.Position, o.Radius, pak, visible,
+                    [
+                        .. scene.Models.Select(m => new PluginSceneModel(
+                            scene.SceneFlags.HasFlag(RomSceneObjectFlags.Actor) && types.GetValueOrDefault(m.Borg) == BorgType.Actor
+                                ? RecordId.Hex(RecordTypes.Actor, m.Borg) : RecordId.Hex(RecordTypes.Scene, m.Borg),
+                            m.DrawDistance)),
+                    ],
+                    scene.Lods, scene.Rotation, scene.Scale, new Plugins.Records.Rgba(scene.Tint.R, scene.Tint.G, scene.Tint.B, scene.Tint.A),
+                    (PluginSceneObjectFlags)((int)scene.SceneFlags & ~(int)RomSceneObjectFlags.Actor)),
+                // Herb, spice, gem and custom containers are gated as triggers are.
+                ContainerData c => c.Kind > (int)ContainerKind.Custom
+                    ? throw new InvalidDataException($"Borg9 {index}: container {o.Index} is kind {c.Kind}.")
+                    : new ContainerObject(o.Index, o.Position, o.Radius, pak, c.Kind >= (int)ContainerKind.Herb ? visible : null,
+                        (ContainerKind)c.Kind, OptionalFlag(c.OpenFlag), OptionalFlag(c.ExplodeFlag), c.LockLevel, c.TrapLevel,
+                        Loot(c.Loot), c.Gold, OptionalDb(c.Item))
+                    {
+                        Enabled = c.Kind >= (int)ContainerKind.Herb ? enabled : null,
+                        Used = used,
+                    },
+                LightData l => new LightObject(o.Index, o.Position, o.Radius, pak, visible, Colour(l.From), Colour(l.To),
+                    (LightKind)l.Kind, l.Speed, o.Flags.HasFlag(VoxelFlags.Occludable)),
+                AudioData a => new SoundObject(o.Index, o.Position, o.Radius, pak, visible, Borg(BorgType.Sequence, a.Sequence, RecordTypes.Sequence),
+                    a.Volume, a.MinWait, a.MaxWait, (SoundFlags)a.AudioFlags),
+                WanderNodeData w => new WanderNodeObject(o.Index, o.Position, o.Radius, pak, visible, w.Radius, w.Scatter, w.Chance, w.Wait,
+                    (WanderFlags)w.WanderFlags, [.. w.Next.Select(n => Own(n, VoxelType.WanderNode, "wander node"))]),
+                MonsterPartyData m => new MonsterPartyObject(o.Index, o.Position, o.Radius, pak, null,
+                    [.. m.Enemies.Select(e => new PartyEnemy(Db(e.Enemy), e.Min, e.Max))], Db(m.Entity), OptionalDb(m.Loot),
+                    m.MinSize, m.MaxSize, Own(m.WanderNode, VoxelType.WanderNode, "home node"), (PartyFlags)m.PartyFlags,
+                    m.Dialogue == 0 ? null : Borg(BorgType.Dialogue, m.Dialogue, RecordTypes.Dialogue),
+                    m.Dialogue == 0 ? null : OptionalFlag(o.FlagC))
+                {
+                    Enabled = enabled,
+                    // Talking to it or beating it always sets the flag.
+                    Used = used is null ? null : used with { Clear = false },
+                },
+                ReferencePointData r => new ReferencePointObject(o.Index, o.Position, o.Radius, pak, visible, r.Id, r.Name,
+                    r.Facing == System.Numerics.Vector3.Zero ? null : r.Facing),
+                TeleporterData t => new TeleporterObject(o.Index, o.Position, o.Radius, pak, visible, Chunk(t.Destination),
+                    t.RefPoint == TeleporterData.OwnPosition ? null : RefPoint(ChunkMap(t.Destination), t.RefPoint),
+                    t.CameraRefPoint == 0 ? null : RefPoint(ChunkMap(t.Destination), t.CameraRefPoint),
+                    t.LockLevel, OptionalFlag(t.LockFlag), OptionalFlag(t.UnlockFlag), t.TrapLevel, OptionalFlag(t.TrapFlag),
+                    OptionalFlag(t.DisarmFlag), t.SecretFlag is 0 or 1 ? null : Flag(t.SecretFlag), t.SecretLevel, t.Name)
+                {
+                    Enabled = enabled,
+                    Tangible = o.Flags.HasFlag(VoxelFlags.Tangible),
+                },
+                CameraData c => new CameraObject(o.Index, o.Position, o.Radius, pak, visible,
+                    c.RefPoint == 0 ? null : RefPoint(index, c.RefPoint), (CameraFlags)c.CameraFlags, c.Values),
+                DialogueData d => new DialogueObject(o.Index, o.Position, o.Radius, pak, null,
+                    Borg(BorgType.Dialogue, d.Script, RecordTypes.Dialogue), d.Map.Row == 0 ? null : Chunk(d.Map), d.RefPoint, d.Name)
+                {
+                    Enabled = enabled,
+                    Tangible = o.Flags.HasFlag(VoxelFlags.Tangible),
+                },
+                TriggerData t => t.Kind switch
+                {
+                    Maps.TriggerKind.SetFlag => new TriggerObject(o.Index, o.Position, o.Radius, pak, visible, TriggerKind.SetFlag, Flag: Flag(t.A)),
+                    Maps.TriggerKind.Animate => new TriggerObject(o.Index, o.Position, o.Radius, pak, visible, TriggerKind.Animate, Request: t.A),
+                    Maps.TriggerKind.ChangeCollision => new TriggerObject(o.Index, o.Position, o.Radius, pak, visible, TriggerKind.ChangeCollision,
+                        Toggle: t.A, KeepFlags: t.B, AddFlags: t.C),
+                    _ => new TriggerObject(o.Index, o.Position, o.Radius, pak, visible, (TriggerKind)t.Kind),
+                } with
+                {
+                    Enabled = enabled,
+                    Used = used,
+                    Tangible = o.Flags.HasFlag(VoxelFlags.Tangible),
+                },
+                null when o.Type == VoxelType.SavePoint => new SavePointObject(o.Index, o.Position, o.Radius, pak, null),
+                _ => throw new InvalidDataException($"Borg9 {index}: object {o.Index} is a {o.Type} with no data."),
+            };
+            // Both link slots are always the same, and the game only follows the first.
+            var link = o.Links[0];
+            if (link >= objects.Count || link >= 0 && objects[link].Type == VoxelType.Code || o.Links[1] != link)
+                throw new InvalidDataException($"Borg9 {index}: object {o.Index} links to {o.Links[0]} and {o.Links[1]}.");
+            records.Add(record with
+            {
+                Reachable = o.Flags.HasFlag(VoxelFlags.Reachable),
+                Link = link < 0 ? null : Voxel(index, link),
+            });
         }
-        return new MapRecord(RecordId.Hex(RecordTypes.Map, index), objects);
+        return new MapRecord(id, records);
     }
+
+    private static Plugins.Records.Rgba Colour(Maps.Rgba c) => new(c.R, c.G, c.B, c.A);
 
     private static FlagGate Gate(Maps.FlagGate gate) => new(Flag(gate.Flag), gate.Inverted);
 
@@ -266,8 +394,8 @@ public static class BaseImporter
     }
 
     /// <summary>
-    /// The names of the DB records scripts and tools name, by file: entities, dialogue entities,
-    /// weapons, armor, spells and items. Records whose ID has no record type are left out.
+    /// The names of the DB records scripts, map objects and tools name, by file: entities, dialogue
+    /// entities, weapons, armor, spells, items (potions among them) and loot tables. Records whose ID has no record type are left out.
     /// </summary>
     internal static List<(string File, List<DbRecord> Records)> BuildNames(GameDb db)
     {
@@ -278,7 +406,10 @@ public static class BaseImporter
             ("weapons.json", Names(db.Weapons.Select(w => (w.Id, w.Name)))),
             ("armor.json", Names(db.Armor.Select(a => (a.Id, a.Name)))),
             ("spells.json", Names(db.Spells.Select(s => (s.Id, s.Name)))),
-            ("items.json", Names(db.Gear.Select(g => (g.Id, g.Name)))),
+            // Potions aren't in the gear table: potion n is named by line n of their own string table (ItemInstance::InitPotion).
+            ("items.json", Names(db.Gear.Select(g => (g.Id, g.Name))
+                .Concat(db.Strings[RomStringTable.PotionNames].Select((name, i) => (ItemId.Of(DbType.Potion, (byte)i), name))))),
+            ("loot.json", Names(db.Loot.Select(l => (l.Id, l.Name)))),
         ];
 
         static List<DbRecord> Names(IEnumerable<(ItemId Id, string Name)> records) =>

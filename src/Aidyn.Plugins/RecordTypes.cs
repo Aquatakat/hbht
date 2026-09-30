@@ -14,6 +14,8 @@ public static class RecordTypes
     public const string Item = "item";
     /// <summary>A <c>DialogEntity</c>: a sign, animal or other simple speaker.</summary>
     public const string DialogEntity = "dialogentity";
+    /// <summary>A loot table (<c>ChestDB</c>), which containers and monster parties roll.</summary>
+    public const string Loot = "loot";
 
     // Event flags, keyed by their decimal index.
     public const string Flag = "flag";
@@ -53,7 +55,7 @@ public static class RecordTypes
 
     private static readonly HashSet<string> All =
     [
-        Entity, Weapon, Armor, Spell, Item, DialogEntity, Flag, Texture, Geometry, Camera, Light, Scene, Animation, Actor, Image, Map,
+        Entity, Weapon, Armor, Spell, Item, DialogEntity, Loot, Flag, Texture, Geometry, Camera, Light, Scene, Animation, Actor, Image, Map,
         Sample, Sequence, Dialogue, Voxel, MapSet, Terrain, Sky, Journal, StateFlags,
     ];
 

@@ -237,7 +237,8 @@ public class DialogueImportTests
         Assert.Equal(RecordTypes.Item, DbRecordIds.For(ItemId.Of(DbType.KeyItem, 1))!.Value.Type);
         Assert.Equal(RecordTypes.Weapon, DbRecordIds.For(ItemId.Of(DbType.Weapon, 9))!.Value.Type);
         Assert.Equal(RecordTypes.Spell, DbRecordIds.For(ItemId.Of(DbType.Spell, 2))!.Value.Type);
-        Assert.All(new ushort[] { 0, 0x0401, 0x0801, 0xCCCC, 0x1501 }, v => Assert.Null(DbRecordIds.For(new ItemId(v))));
+        Assert.Equal(RecordId.Parse("aidyn:loot/0x0801"), DbRecordIds.For(new ItemId(0x0801)));
+        Assert.All(new ushort[] { 0, 0x0401, 0xCCCC, 0x1501 }, v => Assert.Null(DbRecordIds.For(new ItemId(v))));
     }
 
     [Fact]
@@ -264,14 +265,16 @@ public class DialogueImportTests
         var names = BaseImporter.BuildNames(GameDb.Read(rom)).SelectMany(f => f.Records).ToDictionary(r => r.Id, r => r.Name);
         Assert.Equal("Alaron", names[RecordId.Hex(RecordTypes.Entity, 0x023F)]);
         Assert.Equal("Trahern", names[RecordId.Hex(RecordTypes.Entity, 0x0239)]);
+        // Potions have no DB table: they're named by their own string table, by index.
+        Assert.Equal("Healing Potion", names[RecordId.Hex(RecordTypes.Item, 0x1004)]);
 
         var named = Build(RomVersionId.Na10).Records
             .SelectMany(r => (r.Actors ?? []).Concat(Ops([r]).Select(o => o.Target).OfType<RecordId>()))
             .Where(id => id.Type is not (RecordTypes.Flag or RecordTypes.Dialogue))
             .Distinct().ToList();
         Assert.NotEmpty(named);
-        // Potions have no DB table, and scene 1076 shows two "spells", which have no model, so nothing shows (get_item_borg5).
-        Assert.Equal(["aidyn:item/0x1004", "aidyn:item/0x1006", "aidyn:spell/0x03EB", "aidyn:spell/0x03ED"],
+        // Scene 1076 shows two "spells", which have no model, so nothing shows (get_item_borg5).
+        Assert.Equal(["aidyn:spell/0x03EB", "aidyn:spell/0x03ED"],
             named.Where(id => !names.ContainsKey(id)).Select(id => id.ToString()).Order());
     }
 }

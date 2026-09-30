@@ -37,9 +37,10 @@ public static class BasePlugin
     /// vertex colours and tints as linear, and adds terrains and every UI image as PNG.
     /// 5 adds the sky record. 6 gives scenes' billboards a node to turn to the camera and a card that
     /// rolls, and lists the textures each scene scrolls. 7 adds the flags, the journal and the state flags.
-    /// 8 adds the dialogue scripts.
+    /// 8 adds the dialogue scripts. 9 adds the random skill checks flag to the state flags. 10 adds
+    /// every other type of map object, and the loot tables' names.
     /// </summary>
-    public const int ImporterVersion = 9;
+    public const int ImporterVersion = 10;
 }
 
 /// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>

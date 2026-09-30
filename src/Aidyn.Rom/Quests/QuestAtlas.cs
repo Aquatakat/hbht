@@ -280,14 +280,19 @@ public sealed class QuestAtlas
                     var fought = true;
                     if (m.Dialogue != 0)
                     {
-                        WriteField(o.FlagB, FlagAccess.Set, FlagRole.PartyTalkedTo, source);
-                        if (startedBy.TryGetValue(m.Dialogue, out var by))
-                            by.Add(source);
-                        // The dialogue decides whether there's a fight. If there is, flag C is its encounter flag.
-                        fought = scripts.TryGetValue(m.Dialogue, out var talk)
-                            && talk.Nodes.Any(n => n.Ops.Any(op => op.Opcode == Borg13Opcode.Battle));
-                        if (fought)
-                            WriteField(o.FlagC, FlagAccess.Set, FlagRole.PartyFought, source);
+                        // A silent party does nothing when the player uses it (checked in 1.0's code).
+                        fought = false;
+                        if (!m.PartyFlags.HasFlag(PartyFlags.Silent))
+                        {
+                            WriteField(o.FlagB, FlagAccess.Set, FlagRole.PartyTalkedTo, source);
+                            if (startedBy.TryGetValue(m.Dialogue, out var by))
+                                by.Add(source);
+                            // The dialogue decides whether there's a fight. If there is, flag C is its encounter flag.
+                            fought = scripts.TryGetValue(m.Dialogue, out var talk)
+                                && talk.Nodes.Any(n => n.Ops.Any(op => op.Opcode == Borg13Opcode.Battle));
+                            if (fought)
+                                WriteField(o.FlagC, FlagAccess.Set, FlagRole.PartyFought, source);
+                        }
                     }
                     else
                     {
@@ -310,9 +315,14 @@ public sealed class QuestAtlas
                         Read(t.LockFlag, FlagRole.DoorLocked, source);
                         WriteField(t.UnlockFlag, FlagAccess.Set, FlagRole.DoorUnlocked, source);
                     }
-                    Read(t.TrapFlag, FlagRole.TrapArmed, source);
-                    WriteField(t.DisarmFlag, FlagAccess.Set, FlagRole.TrapDisarmed, source);
-                    if (t.SecretLevel != 0)
+                    // The game reads a trap's flags only when it has a level (checked in 1.0's code).
+                    if (t.TrapLevel != 0)
+                    {
+                        Read(t.TrapFlag, FlagRole.TrapArmed, source);
+                        WriteField(t.DisarmFlag, FlagAccess.Set, FlagRole.TrapDisarmed, source);
+                    }
+                    // Any secret flag but 0 and 1 makes it secret, whatever its level (checked in 1.0's code).
+                    if (t.SecretFlag is not (0 or 1))
                     {
                         Read(t.SecretFlag, FlagRole.SecretFound, source);
                         WriteField(t.SecretFlag, FlagAccess.Set, FlagRole.SecretFound, source);

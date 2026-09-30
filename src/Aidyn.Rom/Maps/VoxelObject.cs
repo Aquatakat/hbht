@@ -261,44 +261,89 @@ public sealed record CameraData(ushort RefPoint, CameraFlags CameraFlags, Vector
 
 /// <param name="OpenFlag">Set when the container is opened. It stays empty once set.</param>
 /// <param name="ExplodeFlag">Set when its trap destroys it.</param>
+/// <param name="TrapLevel">
+/// The trap's level, or 0 for none. The word before it is 0 while it's armed and 0xFF once it's
+/// disarmed or has gone off; it's 0 in all the data. The decomp names the two the other way round,
+/// but <c>TrapMenu::GetTrapLV</c> returns the first and the menu reads the level from the second.
+/// </param>
 /// <param name="Loot">A chest loot table, or none.</param>
 /// <param name="Kind">
 /// Chest, sack, crate, barrel, herb, spice, gem, or loot with its own model (0-7). Kinds 4-7 are
 /// gated by flags A and C like triggers; the others show until opened or destroyed.
 /// </param>
+/// <param name="LockLevel">The lock's level, or 0 for none. Picking it clears it.</param>
+/// <param name="Gold">Gold, or for a herb, spice or gem source, how many it gives before the Ranger skill's bonus.</param>
 /// <param name="Item">A fixed item, or none.</param>
-public sealed record ContainerData(ushort OpenFlag, ushort ExplodeFlag, ItemId Loot, ushort Kind, ushort Gold, ItemId Item)
-    : VoxelData;
+public sealed record ContainerData(ushort OpenFlag, ushort ExplodeFlag, ushort TrapLevel, ItemId Loot, ushort Kind, ushort LockLevel,
+    ushort Gold, ItemId Item) : VoxelData;
 
 /// <param name="Destination">Where it leads. Row and column are those of a <see cref="MapChunk"/>.</param>
+/// <param name="RefPoint">
+/// The reference point in the destination chunk to arrive at, facing the way it points, or
+/// <see cref="OwnPosition"/> to arrive at the teleporter's own position.
+/// </param>
+/// <param name="TrapLevel">The trap's level, or 0 for none. As for a container, the word before it is 0 in all the data.</param>
+/// <param name="LockLevel">The lock's level, or 0 for none.</param>
+/// <param name="CameraRefPoint">A reference point in the destination chunk for the camera, or 0.</param>
 /// <param name="LockFlag">Unlocked while set.</param>
 /// <param name="UnlockFlag">Set when the lock is opened.</param>
 /// <param name="TrapFlag">Disarmed while set.</param>
 /// <param name="DisarmFlag">Set when the trap is disarmed.</param>
-/// <param name="SecretFlag">Found while set, and set when found.</param>
-/// <param name="SecretLevel">The skill needed to find it, or 0 if it isn't secret.</param>
+/// <param name="SecretFlag">
+/// Unless it's 0, a secret door: using it while the flag is clear finds it and sets the flag, and
+/// only then does it work.
+/// </param>
+/// <param name="SecretLevel">
+/// The skill a secret door needs before it's there at all, until it's found. 0 in all the data.
+/// </param>
 public sealed record TeleporterData(
     (MapSet Set, int Row, int Column) Destination,
     ushort RefPoint,
+    ushort TrapLevel,
     ushort LockLevel,
+    ushort CameraRefPoint,
     ushort LockFlag,
     ushort UnlockFlag,
     ushort TrapFlag,
     ushort DisarmFlag,
     ushort SecretFlag,
     ushort SecretLevel,
-    string Name) : VoxelData;
+    string Name) : VoxelData
+{
+    /// <summary>The <see cref="RefPoint"/> that means the teleporter's own position.</summary>
+    public const ushort OwnPosition = 0x7FF8;
+}
+
+/// <summary><c>monsterparty_dat.flags</c>.</summary>
+[Flags]
+public enum PartyFlags : ushort
+{
+    None = 0,
+    /// <summary>Set on most parties. The game doesn't read it.</summary>
+    Unknown2 = 0x2,
+    /// <summary>Talking to it does nothing, though it has a dialogue (checked in 1.0's code).</summary>
+    Silent = 0x4,
+}
 
 /// <param name="Entity">The NPC, or the group's leader.</param>
+/// <param name="MinSize">A battle with fewer enemies than this, after the random extras, has none.</param>
+/// <param name="MaxSize">The most enemies a battle with the party has.</param>
+/// <param name="WanderNode">The index of its home wander node, in the same Borg9.</param>
 /// <param name="Dialogue">The Borg13 that talking to it starts, or 0 for a fight.</param>
 public sealed record MonsterPartyData(
     IReadOnlyList<(ItemId Enemy, byte Min, byte Max)> Enemies,
     ItemId Entity,
     ItemId Loot,
-    ushort PartyFlags,
+    ushort MinSize,
+    ushort MaxSize,
+    ushort WanderNode,
+    PartyFlags PartyFlags,
     int Dialogue) : VoxelData;
 
-public sealed record ReferencePointData(ushort Id, string Name) : VoxelData;
+/// <param name="Id">What teleporters, cameras and scripts name it by.</param>
+/// <param name="Name">Battle arenas find their spawn and retreat points by name.</param>
+/// <param name="Facing">The way a teleporter that arrives at it turns the player, or zero.</param>
+public sealed record ReferencePointData(ushort Id, string Name, Vector3 Facing) : VoxelData;
 
 /// <param name="Script">The Borg13 to start.</param>
 /// <param name="Map">For cut-scenes, the chunk to stage it in.</param>
@@ -364,13 +409,15 @@ public static class Borg9Voxels
             VoxelType.WanderNode => new WanderNodeData(F32(p, 8), F32(p, 0xC), F32(p, 0x10), U16(p, 0x14),
                 (WanderFlags)U16(p, 0x16), [U16(p, 0x18), U16(p, 0x1A)]),
             VoxelType.Camera => new CameraData(U16(p, 0), (CameraFlags)U16(p, 2), new Vector3(F32(p, 8), F32(p, 0xC), F32(p, 0x10))),
-            VoxelType.Container => new ContainerData(U16(p, 0x8), U16(p, 0xA), new ItemId(U16(p, 0x10)), U16(p, 0x12),
-                U16(p, 0x16), new ItemId(U16(p, 0x18))),
-            VoxelType.Teleporter => new TeleporterData(((MapSet)U16(p, 0), U16(p, 2), U16(p, 4)), U16(p, 6), U16(p, 0xC),
-                U16(p, 0x10), U16(p, 0x12), U16(p, 0x14), U16(p, 0x16), U16(p, 0x18), U16(p, 0x1A), GameText.Field(p.Slice(0x1C, 16))),
+            VoxelType.Container => new ContainerData(U16(p, 0x8), U16(p, 0xA), U16(p, 0xE), new ItemId(U16(p, 0x10)), U16(p, 0x12),
+                U16(p, 0x14), U16(p, 0x16), new ItemId(U16(p, 0x18))),
+            VoxelType.Teleporter => new TeleporterData(((MapSet)U16(p, 0), U16(p, 2), U16(p, 4)), U16(p, 6), U16(p, 0xA), U16(p, 0xC),
+                U16(p, 0xE), U16(p, 0x10), U16(p, 0x12), U16(p, 0x14), U16(p, 0x16), U16(p, 0x18), U16(p, 0x1A),
+                GameText.Field(p.Slice(0x1C, 16))),
             VoxelType.MonsterParty => new MonsterPartyData(Enemies(p), new ItemId(U16(p, 0x20)), new ItemId(U16(p, 0x22)),
-                U16(p, 0x30), (int)U32(p, 0x34)),
-            VoxelType.ReferencePoint => new ReferencePointData(U16(p, 0), GameText.Field(p.Slice(4, 16))),
+                U16(p, 0x28), U16(p, 0x2A), U16(p, 0x2E), (PartyFlags)U16(p, 0x30), (int)U32(p, 0x34)),
+            VoxelType.ReferencePoint => new ReferencePointData(U16(p, 0), GameText.Field(p.Slice(4, 16)),
+                new Vector3(F32(p, 0x14), F32(p, 0x18), F32(p, 0x1C))),
             VoxelType.Dialogue => new DialogueData(U16(p, 0), ((MapSet)U16(p, 2), U16(p, 4), U16(p, 6)), U16(p, 8),
                 GameText.Field(p.Slice(0xC, 56))),
             VoxelType.Trigger => new TriggerData((TriggerKind)(short)U16(p, 0), U16(p, 4), U16(p, 6), U16(p, 8)),

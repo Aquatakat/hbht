@@ -41,6 +41,8 @@ public partial class AtlasView : VBoxContainer
     private Action<RecordId>? _open;
     private IReadOnlyList<RecordId> _keys = [];
     private HashSet<RecordId> _engine = [];
+    private PluginCatalog? _placed;
+    private Dictionary<RecordId, string> _places = [];
 
     public AtlasView()
     {
@@ -84,6 +86,17 @@ public partial class AtlasView : VBoxContainer
     public void Show(PluginCatalog catalog, QuestIndex index, RecordId id, Action<RecordId> open)
     {
         (_catalog, _index, _open) = (catalog, index, open);
+        if (_placed != catalog)
+        {
+            // Where each map's chunk is, such as Overworld I08, for naming its objects.
+            _placed = catalog;
+            _places = [];
+            foreach (var set in catalog.Plugins.All<MapSetRecord>(RecordTypes.MapSet))
+            {
+                foreach (var chunk in set.Chunks)
+                    _places.TryAdd(chunk.Map, $"{set.Label} {chunk.Name}");
+            }
+        }
         _engine = [.. catalog.Plugins.All<StateFlagsRecord>(RecordTypes.StateFlags).SelectMany(s => index.UsesBy(s.Id)).Select(u => u.Flag)];
         _keys = id.Type == RecordTypes.Map && catalog.Plugins.TryGet<MapRecord>(id) is { } map
             ? [.. map.Objects.Select(o => RecordId.Parse($"{id.Namespace}:{RecordTypes.Voxel}/{id.Key}/{o.Index}"))]
@@ -107,20 +120,28 @@ public partial class AtlasView : VBoxContainer
                 Row(root, Does(use, flagFirst: true), use.By, use);
             foreach (var use in _index.UsesBy(key))
                 Row(root, Does(use, flagFirst: false), use.Flag, use, key == _keys[0] && _keys.Count == 1 ? null : key);
+            // What starts a script, and what a map object or a script starts.
+            foreach (var starter in _index.StartersOf(key))
+                Row(root, starter.At is null ? "started by" : "lines taken by", starter.By, starter.At);
+            foreach (var starter in _index.StartedBy(key))
+                Row(root, starter.At is null ? "starts" : "takes lines from", starter.Script, starter.At, key == _keys[0] && _keys.Count == 1 ? null : key);
         }
         if (Count == 0)
             _uses.CreateItem(root).SetText(3, "Nothing here reads or sets a flag.");
     }
 
-    private void Row(TreeItem root, string does, RecordId other, FlagUse use, RecordId? of = null)
+    private void Row(TreeItem root, string does, RecordId other, FlagUse use, RecordId? of = null) =>
+        Row(root, does, other, use.At, of);
+
+    private void Row(TreeItem root, string does, RecordId other, int? at, RecordId? of = null)
     {
         var row = _uses.CreateItem(root);
         row.SetText(0, does);
         row.SetText(1, other.ToString());
         row.SetMetadata(1, other.ToString());
         row.SetTooltipText(1, other.ToString());
-        row.SetText(2, use.At is { } node ? $"node {node}" : of is { } key ? key.Key : "");
-        var summary = _catalog!.Find(other)?.Summary ?? "";
+        row.SetText(2, at is { } node ? $"node {node}" : of is { } key ? key.Key : "");
+        var summary = other.Type == RecordTypes.Voxel ? Summary(other) : _catalog!.Find(other)?.Summary ?? "";
         row.SetText(3, summary);
         row.SetTooltipText(3, summary);
         Count++;
@@ -144,6 +165,19 @@ public partial class AtlasView : VBoxContainer
             FlagRole.JournalAdds => "the entry it adds",
             FlagRole.JournalListed => "the journal's list",
             FlagRole.ObjectVisible => use.Inverted ? "a gate, while clear" : "a gate",
+            FlagRole.ObjectEnabled => use.Inverted ? "whether it works, while clear" : "whether it works",
+            FlagRole.ObjectUsed => "using it",
+            FlagRole.PartyBeaten => use.Access == FlagAccess.Read ? "the party's gone while set" : "beating the party",
+            FlagRole.PartyTalkedTo => "talking to it",
+            FlagRole.PartyFought => "winning its dialogue's battle",
+            FlagRole.ContainerOpened => use.Access == FlagAccess.Read ? "empty while set" : "opening it",
+            FlagRole.ContainerExploded => use.Access == FlagAccess.Read ? "destroyed while set" : "its trap going off",
+            FlagRole.DoorLocked => "unlocked while set",
+            FlagRole.DoorUnlocked => "picking its lock",
+            FlagRole.TrapArmed => "disarmed while set",
+            FlagRole.TrapDisarmed => "disarming it",
+            FlagRole.SecretFound => use.Access == FlagAccess.Read ? "a secret door, found while set" : "finding the secret door",
+            FlagRole.TriggerSets => "a trigger",
             FlagRole.Engine => "the engine",
             _ => use.Role.ToString(),
         };
@@ -263,8 +297,21 @@ public partial class AtlasView : VBoxContainer
     {
         if (key.Type == RecordTypes.Voxel)
         {
-            var map = RecordId.Parse($"{key.Namespace}:{RecordTypes.Map}/{key.Key[..key.Key.IndexOf('/', StringComparison.Ordinal)]}");
-            return $"In map {map.Key}: {_catalog!.Find(map)?.Summary}";
+            var map = MapRecord.MapOf(key);
+            var index = int.Parse(key.Key[(key.Key.IndexOf('/', StringComparison.Ordinal) + 1)..], CultureInfo.InvariantCulture);
+            var what = _catalog!.Plugins.TryGet<MapRecord>(map)?.Objects.FirstOrDefault(o => o.Index == index) switch
+            {
+                DialogueObject d => $"Dialogue object {d.Name}",
+                MonsterPartyObject m => $"Monster party: {_catalog.Find(m.Entity)?.Summary}",
+                TeleporterObject t => $"Teleporter {t.Name}",
+                ContainerObject c => c.Kind.ToString(),
+                TriggerObject t => $"{t.Kind} trigger",
+                ReferencePointObject r => $"Reference point {r.Name}",
+                SceneObject => "Scene object",
+                { } o => o.GetType().Name.Replace("Object", "", StringComparison.Ordinal),
+                null => "Object",
+            };
+            return $"{what}, in {_places.GetValueOrDefault(map) ?? $"map {map.Key}"}";
         }
         var summary = _catalog!.Find(key)?.Summary;
         return !string.IsNullOrEmpty(summary) ? summary : key.Type == RecordTypes.Flag ? "Plain flag" : key.ToString();

@@ -234,7 +234,7 @@ public partial class ChunkStreamer : Node3D
     {
         // The runtime plays with the Expansion Pak. Whether an object is there is decided as its
         // chunk loads, as the original does (VoxelObjects_Activate), not every frame.
-        if (o.Pak == PakVariant.Without || _flags!.Get(o.Visible.Flag) == o.Visible.Invert)
+        if (o.Pak == PakVariant.Without || o.Visible is { } gate && _flags!.Get(gate.Flag) == gate.Invert)
             return null;
 
         var q = o.Orientation();

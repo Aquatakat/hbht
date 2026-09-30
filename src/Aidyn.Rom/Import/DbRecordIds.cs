@@ -8,7 +8,7 @@ internal static class DbRecordIds
 {
     /// <summary>
     /// The record an ID names, keyed by the whole u16, such as <c>aidyn:entity/0x023F</c>. Null for
-    /// IDs that have no record: none, rituals and loot tables, and bytes the game never defined,
+    /// IDs that have no record: none, rituals, and bytes the game never defined,
     /// such as the tools' fill value 0xCC.
     /// </summary>
     public static RecordId? For(ItemId id)
@@ -18,6 +18,7 @@ internal static class DbRecordIds
             DbType.Entity => RecordTypes.Entity,
             DbType.DialogEntity => RecordTypes.DialogEntity,
             DbType.Spell => RecordTypes.Spell,
+            DbType.Loot => RecordTypes.Loot,
             DbType.Weapon => RecordTypes.Weapon,
             DbType.Armor or DbType.Shield => RecordTypes.Armor,
             DbType.Misc or DbType.Helmet or DbType.Cloak or DbType.Glove or DbType.Ring or DbType.Wand

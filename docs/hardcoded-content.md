@@ -220,18 +220,11 @@ Code uses 1,990 of the 2,076 names in the decomp's `Borgindecies.h`. The map chu
 
 ### Checked against the checkpoints
 
-49 flags are set in the checkpoints that 1E found no data setter for. With the engine's flags in the atlas, all but eight have a setter. The eight are **955–958 and 960–963**, which turn on between Shamsuk's Tower and Rooughah:
-
-- No map object, script, DB table or network input names them.
-- No retail code loads them as a constant. The debug ROM has one unrelated match.
-- The GameStateMod table gives them consecutive designer IDs (7763–7771), like their neighbours. Flags 944–987 are mostly the "talked to" flags of NPCs around Gwernia, the H13 and I13 village and Jundar, so these were probably allocated as talk flags too.
-
-The hacked ROM the playthrough used only changed enemy stats (with AidynEditor), so it isn't the cause. They may come from code that computes a flag number. Nothing reads them.
+49 flags are set in the checkpoints that 1E found no data setter for. With the engine's flags in the atlas, all but eight had a setter. The eight, **955–958 and 960–963**, which turn on between Shamsuk's Tower and Rooughah, are **secret doors** in Ehud's underground: EhudUnder C11 has five (954–958) and E11 four (960–963). The atlas missed them because it took a teleporter as secret only when its secret level was nonzero, and that's 0 in all the data. The code (checked in 1.0) treats a teleporter as secret whenever its secret flag isn't 0: using it while the flag is clear shows "secret door" and sets the flag, and only then does it work. The 493 teleporters with flag 1, which is always set, aren't secret.
 
 ## Still open
 
 Everything the first pass found is audited. What's left:
 
-- Flags 955–958 and 960–963 (see above).
 - Which Barrows minimap piece each of its flags changes (`MiniMap::BarrowsFlags`), and Oriana's path lights.
 - The content tables and switches marked To do are located but not read. The importer will need them.

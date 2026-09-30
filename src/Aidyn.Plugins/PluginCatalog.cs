@@ -142,7 +142,7 @@ public sealed class PluginCatalog
                 if (json?["objects"] is JsonArray objects)
                 {
                     parts.Add(objects.Count == 0 ? "no objects" : string.Join(", ", objects.OfType<JsonObject>()
-                        .GroupBy(o => (string?)o["type"] ?? "?").Select(g => Plural(g.Count(), $"{g.Key} object"))));
+                        .GroupBy(o => (string?)o["type"] ?? "?").Select(g => Plural(g.Count(), ObjectName(g.Key)))));
                 }
                 break;
             case RecordTypes.Actor when json is not null:
@@ -172,7 +172,7 @@ public sealed class PluginCatalog
                 parts.Add($"{(string?)json["mode"]}, {Count(nodes, "node")}" + (first is null ? "" : $": {Truncate(first.Replace("\n", " ", StringComparison.Ordinal), 60)}"));
                 break;
             case RecordTypes.Entity or RecordTypes.DialogEntity or RecordTypes.Weapon or RecordTypes.Armor or RecordTypes.Spell
-                or RecordTypes.Item when json is not null:
+                or RecordTypes.Item or RecordTypes.Loot when json is not null:
                 parts.Add((string?)json["name"] ?? "");
                 break;
             case RecordTypes.Sky when json is not null:
@@ -186,13 +186,26 @@ public sealed class PluginCatalog
         return string.Join(", ", parts);
     }
 
+    /// <summary>A map object's type as the summary counts it, from its JSON discriminator.</summary>
+    private static string ObjectName(string type) => type switch
+    {
+        "scene" => "scene object",
+        "wanderNode" => "wander node",
+        "monsterParty" => "monster party",
+        "refPoint" => "reference point",
+        "dialogue" => "dialogue object",
+        "savePoint" => "save point",
+        _ => type,
+    };
+
     private static string Truncate(string text, int length) => text.Length <= length ? text : text[..(length - 1)] + "…";
 
     private static string Key(JsonNode? id) => (string?)id is { } s && RecordId.TryParse(s, out var r) ? r.Key : "?";
 
     private static string Count(JsonNode? list, string one) => Plural((list as JsonArray)?.Count ?? 0, one);
 
-    private static string Plural(int n, string one) => string.Create(CultureInfo.InvariantCulture, $"{n:N0} {one}{(n == 1 ? "" : "s")}");
+    private static string Plural(int n, string one) => string.Create(CultureInfo.InvariantCulture,
+        $"{n:N0} {(n == 1 ? one : one.EndsWith('y') ? one[..^1] + "ies" : one + "s")}");
 
     /// <summary>A PNG's size, from its header.</summary>
     private static (int Width, int Height)? PngSize(string path)

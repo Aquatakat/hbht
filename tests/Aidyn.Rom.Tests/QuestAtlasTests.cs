@@ -37,10 +37,10 @@ public class QuestAtlasTests
         Assert.Equal(258, counts[FlagRole.TriggerSets]);
         Assert.Equal(612 * 2, counts[FlagRole.PartyBeaten]);
 
-        // 78 scripts aren't started by any map object, script or engine code, so may be unused.
-        // Code alone starts the help menu (1355).
+        // 80 scripts aren't started by any map object, script or engine code, so may be unused. Two
+        // of them belong to monster parties that are silent. Code alone starts the help menu (1355).
         var unstarted = atlas.Scripts.Values.Where(s => s.StartedBy.Count == 0).Select(s => s.Borg).ToList();
-        Assert.Equal(78, unstarted.Count);
+        Assert.Equal(80, unstarted.Count);
         Assert.DoesNotContain(EngineFlags.HelpScript, unstarted);
     }
 
@@ -57,7 +57,7 @@ public class QuestAtlasTests
         [
             (3691, FlagRole.DialogueEffect), (5250, FlagRole.ScriptBattle), (5264, FlagRole.PartyTalkedTo),
             (5264, FlagRole.PartyFought), (5495, FlagRole.TriggerSets), (5495, FlagRole.ObjectUsed),
-            (5227, FlagRole.PartyBeaten), (5244, FlagRole.PartyTalkedTo), (0, FlagRole.TriggerSets),
+            (5227, FlagRole.PartyBeaten), (0, FlagRole.TriggerSets),
             (5257, FlagRole.PartyBeaten), (5256, FlagRole.PartyBeaten), (5260, FlagRole.PartyBeaten),
             (5259, FlagRole.PartyBeaten),
         ], ignored);
@@ -79,7 +79,8 @@ public class QuestAtlasTests
         ];
 
         Assert.Equal(49, checkpointOnly.Length);
-        Assert.Equal([955, 956, 957, 958, 960, 961, 962, 963], checkpointOnly.Where(f => !set.Contains(f)));
+        // The last eight, 955-958 and 960-963, are secret doors in Ehud's underground.
+        Assert.All(checkpointOnly, f => Assert.Contains(f, set));
     }
 
     /// <summary>

@@ -56,9 +56,9 @@ public sealed class QuestIndexImportTests : IDisposable
         Assert.Equal(found, index.FindText("LIGHTHOUSE"));
         Assert.All(found, t => Assert.Contains("lighthouse", plugins.Get<DialogueRecord>(t.Script).Nodes[t.Node].Text, StringComparison.OrdinalIgnoreCase));
 
-        // An object's gate is a use by its voxel ID, except a gate on the constant flags 0 and 1.
+        // A scene object's gate is a use by its voxel ID, except a gate on the constant flags 0 and 1.
         var gated = plugins.All<MapRecord>(RecordTypes.Map)
-            .SelectMany(m => m.Objects.Select(o => (Voxel: RecordId.Parse($"{m.Id.Namespace}:voxel/{m.Id.Key}/{o.Index}"), Gate: o.Visible)))
+            .SelectMany(m => m.Objects.OfType<SceneObject>().Select(o => (Voxel: MapRecord.VoxelId(m.Id, o.Index), Gate: o.Visible!)))
             .ToList();
         Assert.Contains(gated, g => Number(g.Gate.Flag) > 1);
         foreach (var (voxel, gate) in gated.Take(2000))
