@@ -220,6 +220,8 @@ The mod format is designed in Phase 0 and exercised all the time, because the ba
 
 Widescreen, higher resolution, higher frame rate (which depends on the tick model), longer draw distance, rebindable controls, quality-of-life options such as visible stealth feedback, and bug-fix toggles. Keep every enhancement behind a fidelity profile.
 
+Some came early and are the default. The UI floats a feathered conversation box and draws on a screen of any shape and size, and the faithful mode they replace, with its overscan bars, is left for here: see [ui](systems/ui.md#a-faithful-mode-later).
+
 ## Dependency graph
 
 ```mermaid

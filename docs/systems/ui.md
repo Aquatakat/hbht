@@ -43,6 +43,17 @@ The box is laid out in the original's 320 × 240 screen, placed at the bottom ce
 
 Not ported yet: the widgets' fade in and out (`fadeFloatMirror`), scrolling a menu taller than its bounds, and the full-screen backdrops' text with its shadow (`WidgetShadowText`).
 
+## A faithful mode, later
+
+The floating panel and the resizable screen are enhancements. The user chose them over the original's look for now (Sep 30, 2026), and left a faithful mode for the fidelity profile at the very end ([roadmap](../roadmap.md), Phase 6's enhancements). What it would take:
+
+- **The screen.** `UiScreen` fixed at 320 × 240 whatever the window's shape (`Lines` 240, width 320), shown pillarboxed at 4:3, with the VideoOut filter. The 3D view would need the same 4:3 frame, since the bars below cover it too.
+- **The overscan bars.** Black rectangles over everything, drawn last, as `Graphics::EndList` does: 16 pixels at the left and right and 12 at the top and bottom in 1.0 and 1.1, 18 and 12 in the EU version. They'd belong over the whole frame, 3D and UI, not in a UI view, and they'd cut the conversation box off at 16, 304 and 228 as the original's is.
+- **The conversation box.** A style for `DialogueBox`: a band right across the frame, from 0 to 320 and down to 180 plus the border's height (232), with only the 10-pixel gradient above it. That's a `FeatheredPanel` whose bottom and side feathering are 0, which `UiImages.DrawPanel` already skips, and the frame at (0, 0).
+- **Other UI.** Everything laid out by the screen's size would be at its original place once the screen is 320 × 240, as the conversation box is. Nothing else changes.
+- **High-resolution mode**, if the fidelity profile offers the Expansion Pak's option: a 512 × 240 screen, where the original lays UI out in 320 × 240 and `borg8DlistInit` stretches every image 1.6 times across, bilinear, so text is filtered horizontally. `UiScreen` would draw its 320-wide canvas into a 512-wide one with linear filtering before the VideoOut filter. Its overscan bars are 20 pixels at the sides.
+- **The VI and the TV**, which apply to either mode: the VI's anti-aliasing and divot filters and a composite or CRT look are further `UiFilter`s.
+
 ## In the editor
 
 A script's player shows the conversation box above the page's controls, over a plain backdrop, at 1×, 2× or 3×, on a 4:3 or 16:9 window, with a UI screen of 240, 360 or 480 lines and with any of the three filters. When a line shows alone before its choices, Continue brings them up, as A does. Hovering a choice puts the cursor on it. `--zoom <1-3>`, `--aspect 4:3|16:9`, `--ui-lines <n>` and `--ui-filter pixels|videoout|smooth` set these for screenshots.
