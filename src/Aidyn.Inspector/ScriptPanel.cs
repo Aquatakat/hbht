@@ -14,7 +14,7 @@ namespace Aidyn.Inspector;
 /// </summary>
 public partial class ScriptPanel : VBoxContainer
 {
-    private const float NodeWidth = 300, ColumnGap = 90, RowGap = 28;
+    private const float NodeWidth = 300, ColumnGap = 70, RowGap = 28;
     private const string PlayerName = "Alaron";
     private static readonly Color Dim = new(0.65f, 0.65f, 0.65f);
     private static readonly StyleBoxFlat Plain = new() { BgColor = Colors.Transparent, ContentMarginLeft = 4, ContentMarginRight = 4, ContentMarginTop = 2, ContentMarginBottom = 2 };
@@ -237,7 +237,7 @@ public partial class ScriptPanel : VBoxContainer
         if (op.Target is { } target)
             row.AddChild(Link(target));
         else if (op.Value is { } value)
-            row.AddChild(Dimmed(op.Command == DialogueCommand.CheckSkill && value < Skills.Length ? Skills[value] : value.ToString(CultureInfo.InvariantCulture)));
+            row.AddChild(Dimmed(op.Command == DialogueCommand.CheckSkill && value < Skills.Length ? Skills[value] : value.ToString(CultureInfo.InvariantCulture), wrap: false));
         return row;
     }
 
@@ -256,9 +256,10 @@ public partial class ScriptPanel : VBoxContainer
         return range.Length + text.Length > 0 ? (range + text).TrimEnd() : null;
     }
 
-    private static Label Dimmed(string text)
+    /// <summary>Grey text, wrapped at the card's width unless it's a word beside another.</summary>
+    private static Label Dimmed(string text, bool wrap = true)
     {
-        var label = new Label { Text = text, AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(NodeWidth, 0) };
+        var label = wrap ? new Label { Text = text, AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(NodeWidth, 0) } : new Label { Text = text };
         label.AddThemeColorOverride("font_color", Dim);
         return label;
     }
@@ -291,12 +292,19 @@ public partial class ScriptPanel : VBoxContainer
         Reach(_nodes[0]);
         var offsets = new Dictionary<GraphNode, float>();
         var bottom = Measure(_nodes[0]).Max(c => c.Bottom) + RowGap;
+        // Columns are as wide as their widest card, since a long name can widen one.
+        var columns = new Dictionary<GraphNode, int>();
         Place(_nodes[0], 0, 0);
+        var lefts = new List<float> { 0 };
+        foreach (var width in columns.GroupBy(c => c.Value).OrderBy(g => g.Key).Select(g => g.Max(c => c.Key.Size.X)))
+            lefts.Add(lefts[^1] + width + ColumnGap);
+        foreach (var (card, column) in columns)
+            card.PositionOffset = card.PositionOffset with { X = lefts[column] };
         var x = 0f;
         foreach (var card in heads.Keys.Where(n => !reached.Contains(n)))
         {
             card.PositionOffset = new Vector2(x, bottom);
-            x += NodeWidth + ColumnGap;
+            x += card.Size.X + ColumnGap;
         }
         // The graph only scrolls as far as its cards were a frame ago.
         await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
@@ -346,7 +354,8 @@ public partial class ScriptPanel : VBoxContainer
 
         void Place(GraphNode card, int column, float top)
         {
-            card.PositionOffset = new Vector2(column * (NodeWidth + ColumnGap), top);
+            card.PositionOffset = new Vector2(0, top);
+            columns[card] = column;
             foreach (var child in children[card])
                 Place(child, column + 1, top + offsets[child]);
         }
