@@ -20,7 +20,7 @@ namespace Aidyn.Inspector;
 /// </remarks>
 public partial class RecordBrowser : Control
 {
-    private const string Preview = "Preview", Fields = "Fields", UsedBy = "Used by";
+    private const string Preview = "Preview", Fields = "Fields", UsedBy = "Used by", Atlas = "Atlas";
 
     private readonly Button _back = new() { Text = "◀", TooltipText = "Back (Alt+Left)", Disabled = true };
     private readonly Button _forward = new() { Text = "▶", TooltipText = "Forward (Alt+Right)", Disabled = true };
@@ -29,7 +29,7 @@ public partial class RecordBrowser : Control
     private readonly OptionButton _types = new() { TooltipText = "Type" };
     private readonly LineEdit _search = new()
     {
-        PlaceholderText = "Record ID, Borg index or summary text",
+        PlaceholderText = "Record ID, Borg index, summary or script text",
         CustomMinimumSize = new Vector2(280, 0),
         TooltipText = "Filters the list. Enter opens a record ID, or the only match.",
     };
@@ -40,12 +40,14 @@ public partial class RecordBrowser : Control
     private readonly Control _preview = new MarginContainer { Name = Preview };
     private readonly RecordFieldsView _fields = new() { Name = Fields };
     private readonly Tree _usedBy = new() { Name = UsedBy };
+    private readonly AtlasView _atlas = new() { Name = Atlas };
     private readonly ModelView _model = new() { SizeFlagsVertical = SizeFlags.ExpandFill };
     private readonly Dictionary<RecordId, TreeItem> _rows = [];
     private readonly List<RecordId> _history = [];
     private readonly List<string> _typeNames = [];
 
     private PluginCatalog? _catalog;
+    private QuestIndex? _quests;
     private FlagState? _flags;
     private string _pluginsDirectory = DataPaths.Plugins;
     private int _position = -1;
@@ -60,13 +62,14 @@ public partial class RecordBrowser : Control
     public ModelView Model => _model;
 
     /// <summary>Shows the Preview, Fields or Used by tab.</summary>
-    public void SelectTab(string tab) => _tabs.CurrentTab = tab.ToLowerInvariant() switch { "fields" => 1, "used-by" => 2, _ => 0 };
+    public void SelectTab(string tab) => _tabs.CurrentTab = tab.ToLowerInvariant() switch { "fields" => 1, "used-by" => 2, "atlas" => 3, _ => 0 };
 
     /// <summary>Loads the plugins in a folder, as the runtime does: <c>aidyn.base</c> first, then the rest by ID.</summary>
     public async Task LoadAsync(string pluginsDirectory)
     {
         _pluginsDirectory = pluginsDirectory;
         _catalog = null;
+        _quests = null;
         _current = null;
         _history.Clear();
         _position = -1;
@@ -81,7 +84,7 @@ public partial class RecordBrowser : Control
 
         _status.Text = $"Loading {pluginsDirectory}…";
         var generation = ++_generation;
-        var (catalog, flags) = await Task.Run(() =>
+        var (catalog, quests, flags) = await Task.Run(() =>
         {
             var plugins = PluginSet.LoadInstalled(pluginsDirectory);
             FlagState? flags = null;
@@ -93,11 +96,12 @@ public partial class RecordBrowser : Control
             {
                 GD.PrintErr($"No flag network: {e.Message}");
             }
-            return (PluginCatalog.Build(plugins), flags);
+            return (PluginCatalog.Build(plugins), QuestIndex.Build(plugins), flags);
         });
         if (generation != _generation)
             return;
         _catalog = catalog;
+        _quests = quests;
         _flags = flags;
 
         _typeNames.Clear();
@@ -176,6 +180,7 @@ public partial class RecordBrowser : Control
         _tabs.AddChild(_preview);
         _tabs.AddChild(_fields);
         _tabs.AddChild(_usedBy);
+        _tabs.AddChild(_atlas);
 
         _usedBy.Columns = 3;
         _usedBy.HideRoot = true;
@@ -295,10 +300,21 @@ public partial class RecordBrowser : Control
             return;
         var type = _types.GetSelectedId() is > 0 and var t ? _typeNames[t - 1] : null;
         var search = _search.Text.Trim();
+        // Scripts whose text holds the search, with the first line that does.
+        var said = new Dictionary<RecordId, string>();
+        if (search.Length >= 3 && _quests is { } quests)
+        {
+            foreach (var (script, node) in quests.FindText(search))
+            {
+                if (!said.ContainsKey(script) && _catalog.Plugins.TryGet<DialogueRecord>(script) is { } record)
+                    said[script] = $"node {node}: {record.Nodes[node].Text.Replace('\n', ' ')}";
+            }
+        }
         var root = _list.CreateItem();
         foreach (var entry in _catalog.Entries)
         {
-            if ((type is not null && entry.Id.Type != type) || !Matches(entry, search))
+            var line = said.GetValueOrDefault(entry.Id);
+            if ((type is not null && entry.Id.Type != type) || (line is null && !Matches(entry, search)))
                 continue;
             var row = _list.CreateItem(root);
             var id = entry.Id.ToString();
@@ -306,8 +322,8 @@ public partial class RecordBrowser : Control
             row.SetTooltipText(0, id);
             row.SetText(1, entry.Borg?.ToString(CultureInfo.InvariantCulture) ?? "");
             row.SetTextAlignment(1, HorizontalAlignment.Right);
-            row.SetText(2, entry.Summary);
-            row.SetTooltipText(2, entry.Summary);
+            row.SetText(2, line ?? entry.Summary);
+            row.SetTooltipText(2, line ?? entry.Summary);
             row.SetMetadata(0, id);
             _rows[entry.Id] = row;
         }
@@ -345,6 +361,14 @@ public partial class RecordBrowser : Control
     private void FollowLink(RecordId id)
     {
         _tabs.CurrentTab = 0;
+        Navigate(id);
+    }
+
+    /// <summary>Opens a record from the atlas, staying on its tab. A map object opens its map.</summary>
+    private void Explore(RecordId id)
+    {
+        if (id.Type == RecordTypes.Voxel && id.Key.IndexOf('/', StringComparison.Ordinal) is > 0 and var slash)
+            id = RecordId.Parse($"{id.Namespace}:{RecordTypes.Map}/{id.Key[..slash]}");
         Navigate(id);
     }
 
@@ -414,6 +438,11 @@ public partial class RecordBrowser : Control
         _header.Text = Header(catalog, id, entry, json, references.Count);
         _fields.Show(json, field => plugins.Setters(id, field), other => catalog.Find(other) is not null);
         ShowUsedBy(catalog, references);
+        if (_quests is { } quests)
+        {
+            _atlas.Show(catalog, quests, id, Explore);
+            _tabs.SetTabTitle(3, _atlas.Count == 0 ? Atlas : $"{Atlas} ({_atlas.Count:N0})");
+        }
         SetPreview(new Label { Text = "Loading…" });
 
         var preview = await BuildPreviewAsync(catalog, id, entry, json);

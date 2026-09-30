@@ -161,7 +161,7 @@ public partial class FlagPanel : VBoxContainer
 
         if (flag.Formula is not { } formula)
         {
-            Line($"Plain: scripts, map objects or the engine set it. A new game starts with it {(flag.Initial ? "set" : "clear")}. Used by lists what names it.", Dim);
+            Line($"Plain: scripts, map objects or the engine set it. A new game starts with it {(flag.Initial ? "set" : "clear")}. The Atlas tab lists what sets and reads it.", Dim);
         }
         else
         {
