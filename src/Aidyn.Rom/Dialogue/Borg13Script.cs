@@ -23,7 +23,7 @@ public enum Borg13NodeKind
 {
     /// <summary>Shows its text, then goes to its one link. With no link, it goes back to the last menu or case, if any.</summary>
     Line,
-    /// <summary>Evaluates its condition: nonzero goes to the first link, zero to the second.</summary>
+    /// <summary>Evaluates its condition: exactly 1 goes to the first link, anything else to the second.</summary>
     If,
     /// <summary>
     /// Shows its text and evaluates its condition, then considers the links whose

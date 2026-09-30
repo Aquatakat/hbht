@@ -1,0 +1,72 @@
+using Aidyn.Plugins;
+
+namespace Aidyn.Core.Scripts;
+
+/// <summary>
+/// The game state scripts read and change, apart from flags, which the runner reaches through the
+/// flag network. The party and its inventory implement it once 2.2 and 2.3 port them.
+/// </summary>
+/// <remarks>
+/// Where the debug build crashes on a failed call (taking an item the party doesn't have, adding a
+/// member to a full party, giving experience to someone not in it), retail does nothing, and so
+/// does the runner.
+/// </remarks>
+public interface IScriptWorld
+{
+    bool InParty(RecordId entity);
+
+    /// <summary>Carried or equipped.</summary>
+    bool HasItem(RecordId item);
+
+    /// <summary>The party's best level in a skill (<c>Party::SkillCheck</c>).</summary>
+    int BestSkill(int skill);
+
+    int BestStat(int stat);
+
+    int WorstStat(int stat);
+
+    /// <summary>A party member's value of a stat, or 0 if <paramref name="member"/> isn't one.</summary>
+    int MemberStat(RecordId? member, int stat);
+
+    int PartySize { get; }
+
+    uint Gold { get; set; }
+
+    void AddItem(RecordId item);
+
+    /// <summary>Takes one, from the inventory or equipment. False if the party has none.</summary>
+    bool TakeItem(RecordId item);
+
+    /// <summary>False if the party is full.</summary>
+    bool AddMember(RecordId entity);
+
+    /// <summary>Removes a living member without killing them.</summary>
+    void RemoveMember(RecordId entity);
+
+    /// <summary>False if <paramref name="member"/> isn't in the party.</summary>
+    bool AddExp(RecordId member, int amount);
+
+    /// <summary>Heals the party fully (<c>Party::CampHeal</c>). The hours pass when the script ends.</summary>
+    void CampHeal();
+
+    /// <summary>
+    /// What the map object that started a script remembers from an earlier run, such as the
+    /// party's skill level the last time a check was made (the original's <c>VoxelChart</c>).
+    /// Recalling a memory keeps it for longer.
+    /// </summary>
+    bool TryRecall(ScriptMemory memory, out int value);
+
+    void Remember(ScriptMemory memory, int value);
+}
+
+/// <summary>What a map object remembers for its script.</summary>
+/// <param name="Skill">For <see cref="ScriptMemoryKind.SkillCheck"/>, which skill.</param>
+public readonly record struct ScriptMemory(RecordId MapObject, ScriptMemoryKind Kind, int Skill = 0);
+
+public enum ScriptMemoryKind
+{
+    /// <summary>The roll, 0–100, that picked a random line, so talking again shows the same one.</summary>
+    RandomLine,
+    /// <summary>The party's level in a skill when it was first checked, so talking again can't do better.</summary>
+    SkillCheck,
+}

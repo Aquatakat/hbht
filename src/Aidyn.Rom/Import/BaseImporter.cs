@@ -213,7 +213,8 @@ public static class BaseImporter
         RecordId.Decimal(RecordTypes.StateFlags, 0),
         Flags(EngineFlags.MoonPhase), Flags(EngineFlags.TimeOfDay), Flags(EngineFlags.DayOfSeason), Flags(EngineFlags.Season),
         Flags(EngineFlags.DayOfWeek), Flags(EngineFlags.Week), Flags(EngineFlags.Rain), Flags(EngineFlags.Terrain),
-        Flag(EngineFlags.NewJournalEntry));
+        Flag(EngineFlags.NewJournalEntry),
+        Flag(EngineFlags.RandomSkillChecks));
 
     private static RecordId[] Flags(EngineFlagRange range) => [.. Enumerable.Range(range.First, range.Bits).Select(Flag)];
 

@@ -39,7 +39,7 @@ public static class BasePlugin
     /// rolls, and lists the textures each scene scrolls. 7 adds the flags, the journal and the state flags.
     /// 8 adds the dialogue scripts.
     /// </summary>
-    public const int ImporterVersion = 8;
+    public const int ImporterVersion = 9;
 }
 
 /// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>

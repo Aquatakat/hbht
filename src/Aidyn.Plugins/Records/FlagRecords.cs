@@ -86,9 +86,9 @@ public sealed record FlagFormula(FlagFormulaKind Kind, FlagOperation Op, int Ope
 public sealed record JournalRecord(RecordId Id, RecordId Flag, string Text);
 
 /// <summary>
-/// The flags the engine writes its own state into, so that content can read it (<c>aidyn:stateflags/0</c>,
-/// the only one; <c>gameStateFunnel.cpp</c>). Each list holds a number's bits, lowest first; a number
-/// too large for its flags keeps only its low bits.
+/// The flags the engine writes its own state into, so that content can read it, and the flags it
+/// reads as options (<c>aidyn:stateflags/0</c>, the only one; <c>gameStateFunnel.cpp</c>). Each list
+/// holds a number's bits, lowest first; a number too large for its flags keeps only its low bits.
 /// </summary>
 /// <remarks>
 /// The original also names flags for the party's best Intelligence, Willpower, Endurance, Dexterity,
@@ -104,6 +104,10 @@ public sealed record JournalRecord(RecordId Id, RecordId Flag, string Text);
 /// <param name="Rain">0 clear, 1 rain, 2 snow.</param>
 /// <param name="Terrain">The terrain type of the chunk the player is in. The original has four flags for 28 types.</param>
 /// <param name="NewJournalEntry">Set when a flag with a journal entry turns on, until the player sees the notice.</param>
+/// <param name="RandomSkillChecks">
+/// A flag the engine reads: while it's set, party skill checks in scripts roll 0–21. A debug
+/// option that nothing in the game sets.
+/// </param>
 public sealed record StateFlagsRecord(
     RecordId Id,
     IReadOnlyList<RecordId> MoonPhase,
@@ -114,4 +118,5 @@ public sealed record StateFlagsRecord(
     IReadOnlyList<RecordId> Week,
     IReadOnlyList<RecordId> Rain,
     IReadOnlyList<RecordId> Terrain,
-    RecordId NewJournalEntry);
+    RecordId NewJournalEntry,
+    RecordId? RandomSkillChecks = null);

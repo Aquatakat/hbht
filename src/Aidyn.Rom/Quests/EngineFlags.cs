@@ -34,6 +34,9 @@ public static class EngineFlags
     /// <summary>Set when a flag with a journal entry turns on (<c>set_journalentry_flag</c>).</summary>
     public const ushort NewJournalEntry = 3617;
 
+    /// <summary>While set, party skill checks in scripts roll 0–21 (<c>DialogEvalCallback</c>). A debug option.</summary>
+    public const ushort RandomSkillChecks = 3717;
+
     /// <summary>Values the engine writes into runs of flags (<c>gameStateFunnel.cpp</c>).</summary>
     public static IReadOnlyList<EngineFlagRange> Ranges { get; } =
     [
@@ -114,7 +117,7 @@ public static class EngineFlags
     [
         new(590, "Alaron has his True Name while set"),
         new(3442, "When the Rooughah scene (Borg13 1268) ends, the Roog cinematic plays if this is set"),
-        new(3717, "Party skill checks in dialogue roll 0–21 while set"),
+        new(RandomSkillChecks, "Party skill checks in dialogue roll 0–21 while set"),
         new(5004, "Camping can be ambushed while set"),
         new(5017, "The lighthouse chunks swap to their lit scenes while set"),
         new(5626, "Read after some map object actions; the result is never used"),

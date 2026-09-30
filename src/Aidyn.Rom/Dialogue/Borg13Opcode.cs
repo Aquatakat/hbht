@@ -36,7 +36,7 @@ public enum Borg13Opcode : byte
     CameraSineTo = 12,
     CameraSineToActor = 13,
     CameraTrackOn = 14,
-    /// <summary>How many frames later camera moves take. The default is 60.</summary>
+    /// <summary>How many ticks later camera moves take. The default is 60.</summary>
     CameraTime = 15,
     /// <summary>Adds this entity to the enemies of a later <see cref="Battle"/>, up to 12.</summary>
     AddEnemy = 16,
@@ -117,7 +117,7 @@ public enum Borg13Opcode : byte
     Unknown55 = 55,
     /// <summary>Gives the speaker experience.</summary>
     AddExp = 56,
-    /// <summary>Waits this many frames.</summary>
+    /// <summary>Waits this many ticks.</summary>
     Wait = 57,
     /// <summary>Waits for the scripted camera to finish.</summary>
     WaitForCamera = 58,
