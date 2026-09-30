@@ -170,6 +170,7 @@ public partial class ScriptPanel : VBoxContainer
         // Cards are placed by their size, which they have once their text has wrapped.
         _graph.Modulate = Colors.Transparent;
         Callable.From(Arrange).CallDeferred();
+        _graph.GuiInput += FollowConnection;
     }
 
     /// <summary>
@@ -264,8 +265,8 @@ public partial class ScriptPanel : VBoxContainer
 
     /// <summary>
     /// Lays the cards out to read across: a card's first unplaced link goes to its right, level with
-    /// where it leaves, and each other branch starts a new row below everything so far. Cards nothing
-    /// reaches go in a last row. Waits for the cards' text to wrap, since that sets their height.
+    /// where it leaves, and each other branch goes below, as high as it fits. Cards nothing reaches
+    /// go in a last row. Waits for the cards' text to wrap, since that sets their height.
     /// </summary>
     private async void Arrange()
     {
@@ -282,14 +283,19 @@ public partial class ScriptPanel : VBoxContainer
             height = total;
         }
 
-        var placed = new HashSet<GraphNode>();
-        var bottom = 0f;
-        Place(_cards[0], 0, 0);
+        // The tree the layout follows: each card under the first card that links to it, in the
+        // order a walk from the start reaches them.
+        var heads = _cards.ToDictionary(c => _nodes[c[0]]);
+        var children = heads.Keys.ToDictionary(c => c, _ => new List<GraphNode>());
+        var reached = new HashSet<GraphNode>();
+        Reach(_nodes[0]);
+        var offsets = new Dictionary<GraphNode, float>();
+        var bottom = Measure(_nodes[0]).Max(c => c.Bottom) + RowGap;
+        Place(_nodes[0], 0, 0);
         var x = 0f;
-        var top = bottom;
-        foreach (var card in _cards.Select(c => _nodes[c[0]]).Where(n => !placed.Contains(n)))
+        foreach (var card in heads.Keys.Where(n => !reached.Contains(n)))
         {
-            card.PositionOffset = new Vector2(x, top);
+            card.PositionOffset = new Vector2(x, bottom);
             x += NodeWidth + ColumnGap;
         }
         // The graph only scrolls as far as its cards were a frame ago.
@@ -298,24 +304,72 @@ public partial class ScriptPanel : VBoxContainer
         _arranged = true;
         Focus(_runner?.Page?.Line.Node ?? 0);
 
-        void Place(List<int> nodes, int column, float rowTop)
+        void Reach(GraphNode card)
         {
-            var card = _nodes[nodes[0]];
-            placed.Add(card);
-            card.PositionOffset = new Vector2(column * (NodeWidth + ColumnGap), rowTop);
-            bottom = Math.Max(bottom, rowTop + card.Size.Y + RowGap);
-            var first = true;
-            foreach (var link in _script.Nodes[nodes[^1]].Links ?? [])
+            reached.Add(card);
+            foreach (var link in _script.Nodes[heads[card][^1]].Links ?? [])
             {
-                var next = _nodes[link];
-                if (placed.Contains(next))
-                    continue;
-                // The first branch lines its way in up with this card's way out.
-                var linkTop = first ? rowTop + Math.Max(0, card.GetOutputPortPosition(0).Y - next.GetInputPortPosition(0).Y) : bottom;
-                Place(_cards.First(c => c.Contains(link)), column + 1, linkTop);
-                first = false;
+                if (reached.Add(_nodes[link]))
+                {
+                    children[card].Add(_nodes[link]);
+                    Reach(_nodes[link]);
+                }
             }
         }
+
+        // Lays out a card's subtree with the card at the top of column 0, and returns how far down
+        // each column's cards reach. The first branch lines its way in up with the card's way out;
+        // each other branch goes as high as it can without meeting the branches above it.
+        List<(float Top, float Bottom)> Measure(GraphNode card)
+        {
+            var contour = new List<(float Top, float Bottom)> { (0, card.Size.Y) };
+            var first = true;
+            foreach (var child in children[card])
+            {
+                var shape = Measure(child);
+                var top = first ? Math.Max(0, card.GetOutputPortPosition(0).Y - child.GetInputPortPosition(0).Y) : 0;
+                for (var column = 0; column < shape.Count && column + 1 < contour.Count; column++)
+                    top = Math.Max(top, contour[column + 1].Bottom + RowGap - shape[column].Top);
+                for (var column = 0; column < shape.Count; column++)
+                {
+                    var (childTop, childBottom) = (shape[column].Top + top, shape[column].Bottom + top);
+                    if (column + 1 < contour.Count)
+                        contour[column + 1] = (Math.Min(contour[column + 1].Top, childTop), Math.Max(contour[column + 1].Bottom, childBottom));
+                    else
+                        contour.Add((childTop, childBottom));
+                }
+                offsets[child] = top;
+                first = false;
+            }
+            return contour;
+        }
+
+        void Place(GraphNode card, int column, float top)
+        {
+            card.PositionOffset = new Vector2(column * (NodeWidth + ColumnGap), top);
+            foreach (var child in children[card])
+                Place(child, column + 1, top + offsets[child]);
+        }
+    }
+
+    /// <summary>Double-clicking a link scrolls to the card at its far end from the click.</summary>
+    private void FollowConnection(InputEvent input)
+    {
+        if (input is not InputEventMouseButton { ButtonIndex: MouseButton.Left, DoubleClick: true, Pressed: true } click)
+            return;
+        var connection = _graph.GetClosestConnectionAtPoint(click.Position, 8);
+        if (connection.Count == 0)
+            return;
+        var from = _graph.GetNode<GraphNode>(connection["from_node"].AsString());
+        var to = _graph.GetNode<GraphNode>(connection["to_node"].AsString());
+        var at = (click.Position + _graph.ScrollOffset) / _graph.Zoom;
+        var fromPort = from.PositionOffset + from.GetOutputPortPosition(0);
+        var toPort = to.PositionOffset + to.GetInputPortPosition(0);
+        var (card, port) = at.DistanceTo(toPort) >= at.DistanceTo(fromPort) ? (to, toPort) : (from, fromPort);
+        var middle = new Vector2(card.PositionOffset.X + card.Size.X / 2, port.Y);
+        _graph.CreateTween().TweenProperty(_graph, "scroll_offset", middle * _graph.Zoom - _graph.Size / 2, 0.25)
+            .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
+        _graph.AcceptEvent();
     }
 
     /// <summary>Lights up a node and scrolls the graph to put it in the middle.</summary>
