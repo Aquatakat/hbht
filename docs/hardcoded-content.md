@@ -198,7 +198,11 @@ Code uses 1,990 of the 2,076 names in the decomp's `Borgindecies.h`. The map chu
 - Oriana's path lights: scene objects whose second model is `BORG5_OrianaLight` get special handling in the scene renderer. Not read closely yet.
 - Coin, chime and level-up sounds in dialogue, shops and training.
 
-**UI chrome** is the rest: fonts, the compass, menu backgrounds and titles, the calendar and sundial, logos and Controller Pak screens. These need no records. Mods override them as assets under their Borg IDs ([ADR 0004](adr/0004-record-ids.md), [ADR 0005](adr/0005-plugin-format.md)).
+**Fonts** are records (layer 1), since each has a layout: its sheet, grid and glyph widths, the character map and the buttons' colours (`font_face`, `struct_unk_.textIndexies`, `extraFontColors`). Read (`Fonts`), as `aidyn:font/0` and `/1`; see [text](formats/text.md).
+
+**Portraits:** the fallback for a speaker with none, `BORG8_PortraitNPCMale1` (`0x0125`), and Alaron's entity, whose portrait shows over a conversation's choices when the line before them was the other speaker's alone (`DialougeClass::Setup`). Carried as facts by the runtime's conversation box.
+
+**UI chrome** is the rest: the conversation box's portrait border, black band and gradient (`BORG8_PortraitHighlight`, `BORG8_Pixel`, `BORG8_GradientC`), the compass, menu backgrounds and titles, the calendar and sundial, logos and Controller Pak screens. These need no records. Mods override them as assets under their Borg IDs ([ADR 0004](adr/0004-record-ids.md), [ADR 0005](adr/0005-plugin-format.md)).
 
 **Debug only:** the boulder that replaces scene models, and the debug menu's models.
 

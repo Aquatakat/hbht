@@ -132,6 +132,21 @@ public enum CodeTable
     Clouds,
     /// <summary>The lens flare's eight pieces, 16 bytes each (<c>gLensFlareData</c>).</summary>
     LensFlare,
+    /// <summary>
+    /// The fonts, 8 bytes each, ending with zeros (<c>font_face</c>): a u32 Borg8, then its rows
+    /// and columns of glyph cells as bytes. The main font, then the slim one.
+    /// </summary>
+    FontFaces,
+    /// <summary>
+    /// Each character's glyph cell, one byte per character from <c>0x20</c> to <c>0x8B</c>, where
+    /// 43 means the character isn't drawn (<c>struct_unk_.textIndexies</c>).
+    /// </summary>
+    FontGlyphs,
+    /// <summary>
+    /// The colours characters from <c>0x7F</c> draw in, in place of the text's: RGB bytes for the
+    /// eleven controller buttons, then zeros (<c>extraFontColors</c>).
+    /// </summary>
+    FontColors,
 }
 
 /// <summary>
@@ -214,6 +229,9 @@ public static class RomVersions
                 [CodeTable.SkyObjects] = new(0x00DEE48, 0x758),
                 [CodeTable.Clouds] = new(0x00DE808, 0x620),
                 [CodeTable.LensFlare] = new(0x00DE770, 0x80),
+                [CodeTable.FontFaces] = new(0x00DAF08, 0x18),
+                [CodeTable.FontGlyphs] = new(0x00E56C0, 0x6C),
+                [CodeTable.FontColors] = new(0x00E572C, 0x24),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {
@@ -292,6 +310,9 @@ public static class RomVersions
                 [CodeTable.SkyObjects] = new(0x00DEE88, 0x758),
                 [CodeTable.Clouds] = new(0x00DE848, 0x620),
                 [CodeTable.LensFlare] = new(0x00DE7B0, 0x80),
+                [CodeTable.FontFaces] = new(0x00DAF48, 0x18),
+                [CodeTable.FontGlyphs] = new(0x00E5700, 0x6C),
+                [CodeTable.FontColors] = new(0x00E576C, 0x24),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {
@@ -368,6 +389,9 @@ public static class RomVersions
                 [CodeTable.SkyObjects] = new(0x00ED908, 0x758),
                 [CodeTable.Clouds] = new(0x00ED2C8, 0x620),
                 [CodeTable.LensFlare] = new(0x00ED230, 0x80),
+                [CodeTable.FontFaces] = new(0x00E9918, 0x18),
+                [CodeTable.FontGlyphs] = new(0x00F4240, 0x6C),
+                [CodeTable.FontColors] = new(0x00F42AC, 0x24),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {

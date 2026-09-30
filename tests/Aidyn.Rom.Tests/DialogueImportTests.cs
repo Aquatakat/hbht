@@ -5,6 +5,7 @@ using Aidyn.Plugins.Records;
 using Aidyn.Rom.Borg;
 using Aidyn.Rom.Db;
 using Aidyn.Rom.Dialogue;
+using Aidyn.Rom.Engine;
 using Aidyn.Rom.Import;
 using Aidyn.Rom.Quests;
 
@@ -262,7 +263,7 @@ public class DialogueImportTests
     public void EveryDbRecordAScriptNamesHasAName()
     {
         var rom = TestRoms.Get(RomVersionId.Na10);
-        var names = BaseImporter.BuildNames(GameDb.Read(rom)).SelectMany(f => f.Records).ToDictionary(r => r.Id, r => r.Name);
+        var names = BaseImporter.BuildNames(GameDb.Read(rom), EntityModels.Read(rom)).SelectMany(f => f.Records).ToDictionary(r => r.Id, r => r.Name);
         Assert.Equal("Alaron", names[RecordId.Hex(RecordTypes.Entity, 0x023F)]);
         Assert.Equal("Trahern", names[RecordId.Hex(RecordTypes.Entity, 0x0239)]);
         // Potions have no DB table: they're named by their own string table, by index.

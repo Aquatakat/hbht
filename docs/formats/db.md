@@ -1,6 +1,6 @@
 # DB tables (roadmap 0.4)
 
-The fixed databases at the end of the ROM: entities, items, spells, shops, camp encounters and the string tables (`Aidyn.Rom.Db`, `Aidyn.Rom.Text`).
+The fixed databases at the end of the ROM: entities, items, spells, shops, camp encounters and the string tables (`Aidyn.Rom.Db`, `Aidyn.Rom.Text`). What each string table holds, and how the base plugin carries them, is in [text](text.md).
 
 - **Layout.** `RomVersions` has every table in the DB block for all three ROMs. 1.1 is 1.0 at `+0x40` up to `String/Common`, which is `0x2960` bytes (1.0: `0x2830`). Copyright through the cinematic text are at `+0x170`. `String/Controller` is at `0x1FED6B0` and is `0x510` bytes (1.0: `0x410`), so everything after it is at `+0x270`. The debug ROM is 1.0 at `+0xEB80` throughout, except that its credits are `0x6F0` bytes, not `0x720`: three names are missing and one date differs. us.yaml has no ShopDB segment. It starts at `0x1FD31B0`, inside what the yaml calls ChestDB.
 - **All records are identical in all three ROMs.** Only the text tables noted in [rom.md](rom.md) differ.

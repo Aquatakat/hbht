@@ -33,7 +33,15 @@ internal static partial class DialogueText
         text = NamePlaceholder().Replace(text, Player);
         if (text.Contains('#', StringComparison.Ordinal))
             throw new InvalidDataException($"Dialogue text \"{text}\" has a # that isn't a run of 20.");
+        return Unescape(text);
+    }
 
+    /// <summary>
+    /// Decodes the <c>\n</c> and <c>\xHH</c> escapes, as the game does when it loads text
+    /// (<c>some_string_func</c>). Throws on any other escape.
+    /// </summary>
+    public static string Unescape(string text)
+    {
         var result = new StringBuilder(text.Length);
         for (var i = 0; i < text.Length; i++)
         {
@@ -55,7 +63,7 @@ internal static partial class DialogueText
             }
             else
             {
-                throw new InvalidDataException($"Dialogue text \"{text}\" has an escape at {i} that isn't \\n or \\xHH.");
+                throw new InvalidDataException($"Text \"{text}\" has an escape at {i} that isn't \\n or \\xHH.");
             }
         }
         return result.ToString();

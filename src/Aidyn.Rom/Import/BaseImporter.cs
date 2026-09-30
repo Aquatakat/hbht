@@ -82,8 +82,12 @@ public static class BaseImporter
 
         progress?.Report("Names");
         var db = GameDb.Read(rom);
-        foreach (var (file, records) in BuildNames(db))
+        foreach (var (file, records) in BuildNames(db, EntityModels.Read(rom)))
             WriteJson(Path.Combine(staging, "records", file), records);
+
+        progress?.Report("Text");
+        WriteJson(Path.Combine(staging, "records", "strings.json"), BuildStrings(db));
+        WriteJson(Path.Combine(staging, "records", "fonts.json"), BuildFonts(Fonts.Read(rom), archive));
 
         progress?.Report("Scripts");
         WriteJson(Path.Combine(staging, "records", "dialogue.json"), BuildDialogues(archive, EngineTables.Read(rom)));
@@ -399,13 +403,18 @@ public static class BaseImporter
     /// <summary>
     /// The names of the DB records scripts, map objects and tools name, by file: entities, dialogue
     /// entities, weapons, armor, spells, items (potions among them) and loot tables. Records whose ID has no record type are left out.
+    /// Entities and dialogue entities have their portraits. The five dialogue entities without one
+    /// get the code's fallback at run time, as speakers that aren't entities do.
     /// </summary>
-    internal static List<(string File, List<DbRecord> Records)> BuildNames(GameDb db)
+    internal static List<(string File, List<DbRecord> Records)> BuildNames(GameDb db, EntityModels models)
     {
+        var portraits = models.Entities.Select(m => (m.Entity, m.Portrait))
+            .Concat(models.DialogEntities.Select(m => (m.Entity, m.Portrait)))
+            .ToDictionary(m => m.Entity, m => RecordId.Hex(RecordTypes.Image, m.Portrait));
         return
         [
-            ("entities.json", Names(db.Entities.Select(e => (e.Id, e.Name)))),
-            ("dialogentities.json", Names(db.DialogEntities.Select(e => (e.Id, e.Name)))),
+            ("entities.json", Names(db.Entities.Select(e => (e.Id, e.Name)), portraits)),
+            ("dialogentities.json", Names(db.DialogEntities.Select(e => (e.Id, e.Name)), portraits)),
             ("weapons.json", Names(db.Weapons.Select(w => (w.Id, w.Name)))),
             ("armor.json", Names(db.Armor.Select(a => (a.Id, a.Name)))),
             ("spells.json", Names(db.Spells.Select(s => (s.Id, s.Name)))),
@@ -415,10 +424,48 @@ public static class BaseImporter
             ("loot.json", Names(db.Loot.Select(l => (l.Id, l.Name)))),
         ];
 
-        static List<DbRecord> Names(IEnumerable<(ItemId Id, string Name)> records) =>
+        static List<DbRecord> Names(IEnumerable<(ItemId Id, string Name)> records, IReadOnlyDictionary<ItemId, RecordId>? portraits = null) =>
         [
-            .. records.Select(r => (Id: DbRecordIds.For(r.Id), r.Name)).Where(r => r.Id is not null)
-                .Select(r => new DbRecord(r.Id!.Value, r.Name)).DistinctBy(r => r.Id).OrderBy(r => r.Id.Key, StringComparer.Ordinal),
+            .. records.Select(r => (Id: DbRecordIds.For(r.Id), r.Name, Portrait: portraits?.TryGetValue(r.Id, out var p) == true ? p : (RecordId?)null)).Where(r => r.Id is not null)
+                .Select(r => new DbRecord(r.Id!.Value, r.Name, r.Portrait)).DistinctBy(r => r.Id).OrderBy(r => r.Id.Key, StringComparer.Ordinal),
+        ];
+    }
+
+    /// <summary>Every string table, numbered in ROM order, with its escapes decoded as the game loads them.</summary>
+    internal static List<StringsRecord> BuildStrings(GameDb db) =>
+    [
+        .. Enum.GetValues<RomStringTable>().Select(table => new StringsRecord(
+            RecordId.Decimal(RecordTypes.Strings, (int)table), table.ToString(), [.. db.Strings[table].Select(DialogueText.Unescape)])),
+    ];
+
+    /// <summary>
+    /// The fonts, with each glyph's width measured from its sheet as the game does, and the character
+    /// map and button colours every font shares.
+    /// </summary>
+    internal static List<FontRecord> BuildFonts(Fonts fonts, BorgArchive archive)
+    {
+        var glyphs = new SortedDictionary<string, int>(StringComparer.Ordinal);
+        for (var i = 0; i < fonts.Glyphs.Count; i++)
+        {
+            if (fonts.Glyphs[i] != Fonts.NotDrawn)
+                glyphs[((char)(Fonts.FirstCharacter + i)).ToString()] = fonts.Glyphs[i];
+        }
+        var colors = new SortedDictionary<string, Plugins.Records.Rgba>(StringComparer.Ordinal);
+        for (var i = 0; i < fonts.ButtonColors.Count; i++)
+        {
+            var (r, g, b) = fonts.ButtonColors[i];
+            colors[((char)(Fonts.FirstButton + i)).ToString()] = new Plugins.Records.Rgba(r, g, b, 255);
+        }
+
+        return
+        [
+            .. fonts.Faces.Select((face, i) =>
+            {
+                var sheet = Borg8Image.Parse(archive.Read(face.Image));
+                return new FontRecord(RecordId.Decimal(RecordTypes.Font, i), RecordId.Hex(RecordTypes.Image, face.Image),
+                    face.Rows, face.Columns, sheet.Width / face.Columns, sheet.Height / face.Rows,
+                    Fonts.MeasureGlyphs(sheet, face.Rows, face.Columns), glyphs, colors);
+            }),
         ];
     }
 

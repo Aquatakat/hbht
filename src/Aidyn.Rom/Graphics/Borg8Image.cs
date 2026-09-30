@@ -79,6 +79,9 @@ public sealed class Borg8Image
         return new Borg8Image(data, format, width, height, paletteBytes > 0 ? (int)palette : 0, (int)bitmap);
     }
 
+    /// <summary>The bitmap's bytes, row after row, as the game reads them.</summary>
+    public ReadOnlySpan<byte> Bitmap => _data.AsSpan(BitmapOffset, RowBytes * Height);
+
     public RgbaImage Decode()
     {
         var palette = PaletteOffset == 0

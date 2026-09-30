@@ -53,10 +53,16 @@ public static class RecordTypes
     /// <summary>What the outdoor sky draws: its sun, moon, stars, clouds and lens flare. There's one, <c>aidyn:sky/0</c>.</summary>
     public const string Sky = "sky";
 
+    /// <summary>A font: its sheet, its glyphs' widths and which character draws which, keyed by its decimal number.</summary>
+    public const string Font = "font";
+
+    /// <summary>A string table, keyed by its decimal position in the ROM.</summary>
+    public const string Strings = "strings";
+
     private static readonly HashSet<string> All =
     [
         Entity, Weapon, Armor, Spell, Item, DialogEntity, Loot, Flag, Texture, Geometry, Camera, Light, Scene, Animation, Actor, Image, Map,
-        Sample, Sequence, Dialogue, Voxel, MapSet, Terrain, Sky, Journal, StateFlags,
+        Sample, Sequence, Dialogue, Voxel, MapSet, Terrain, Sky, Journal, StateFlags, Font, Strings,
     ];
 
     public static bool IsKnown(string type) => All.Contains(type);

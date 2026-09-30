@@ -39,8 +39,9 @@ public static class BasePlugin
     /// rolls, and lists the textures each scene scrolls. 7 adds the flags, the journal and the state flags.
     /// 8 adds the dialogue scripts. 9 adds the random skill checks flag to the state flags. 10 adds
     /// every other type of map object, and the loot tables' names. 11 writes the maps a file per map set.
+    /// 12 adds the fonts, the string tables and entities' portraits.
     /// </summary>
-    public const int ImporterVersion = 11;
+    public const int ImporterVersion = 12;
 }
 
 /// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>
