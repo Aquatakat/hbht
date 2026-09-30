@@ -2,6 +2,7 @@ using System.Text.Json;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 using Aidyn.Rom.Borg;
+using Aidyn.Rom.Db;
 using Aidyn.Rom.Dialogue;
 using Aidyn.Rom.Engine;
 using Aidyn.Rom.Graphics;
@@ -73,6 +74,10 @@ public static class BaseImporter
         WriteJson(Path.Combine(staging, "records", "journal.json"), atlas.Journal
             .Select((e, i) => new JournalRecord(RecordId.Decimal(RecordTypes.Journal, i), Flag(e.Flag), e.Text)).ToList());
         WriteJson(Path.Combine(staging, "records", "stateflags.json"), BuildStateFlags());
+
+        progress?.Report("Names");
+        foreach (var (file, records) in BuildNames(GameDb.Read(rom)))
+            WriteJson(Path.Combine(staging, "records", file), records);
 
         progress?.Report("Scripts");
         WriteJson(Path.Combine(staging, "records", "dialogue.json"), BuildDialogues(archive, EngineTables.Read(rom)));
@@ -261,6 +266,29 @@ public static class BaseImporter
     }
 
     /// <summary>
+    /// The names of the DB records scripts and tools name, by file: entities, dialogue entities,
+    /// weapons, armor, spells and items. Records whose ID has no record type are left out.
+    /// </summary>
+    internal static List<(string File, List<DbRecord> Records)> BuildNames(GameDb db)
+    {
+        return
+        [
+            ("entities.json", Names(db.Entities.Select(e => (e.Id, e.Name)))),
+            ("dialogentities.json", Names(db.DialogEntities.Select(e => (e.Id, e.Name)))),
+            ("weapons.json", Names(db.Weapons.Select(w => (w.Id, w.Name)))),
+            ("armor.json", Names(db.Armor.Select(a => (a.Id, a.Name)))),
+            ("spells.json", Names(db.Spells.Select(s => (s.Id, s.Name)))),
+            ("items.json", Names(db.Gear.Select(g => (g.Id, g.Name)))),
+        ];
+
+        static List<DbRecord> Names(IEnumerable<(ItemId Id, string Name)> records) =>
+        [
+            .. records.Select(r => (Id: DbRecordIds.For(r.Id), r.Name)).Where(r => r.Id is not null)
+                .Select(r => new DbRecord(r.Id!.Value, r.Name)).DistinctBy(r => r.Id).OrderBy(r => r.Id.Key, StringComparer.Ordinal),
+        ];
+    }
+
+    /// <summary>
     /// Every Borg13 as a <see cref="DialogueRecord"/>, in archive order. Text is cleaned
     /// (<see cref="DialogueText"/>), the ops the game never reads are dropped, and operands that name
     /// a DB record, a flag or another script become record IDs. A node a Case links to gets its range.
@@ -317,7 +345,7 @@ public static class BaseImporter
                 or Borg13Opcode.AddEnemy or Borg13Opcode.CheckMember or Borg13Opcode.AddMember or Borg13Opcode.RemoveMember
                 or Borg13Opcode.CheckItem or Borg13Opcode.AddItem or Borg13Opcode.TakeItem or Borg13Opcode.ShowItem:
                 // An ID with no record, such as the tools' 0xCCCC, keeps its number.
-                return DbRecordIds.For(new Db.ItemId(op.Value)) is { } target
+                return DbRecordIds.For(new ItemId(op.Value)) is { } target
                     ? new DialogueOp(command, Target: target)
                     : new DialogueOp(command, op.Value);
             case Borg13Opcode.CheckFlag or Borg13Opcode.SetFlag or Borg13Opcode.ClearFlag:

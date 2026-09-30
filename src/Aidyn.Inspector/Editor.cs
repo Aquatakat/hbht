@@ -16,7 +16,8 @@ namespace Aidyn.Inspector;
 /// which saves the window once the record or Borg is shown and quits. For a record's 3D preview,
 /// <c>--drive &lt;request&gt;</c> runs an actor's state machine, <c>--wireframe 1</c> and
 /// <c>--scene-camera 1</c> set those switches, and <c>--wait &lt;seconds&gt;</c> waits before the
-/// screenshot. <c>--checkpoint &lt;state&gt;</c> shows a checkpoint's flags on flag pages.
+/// screenshot. <c>--checkpoint &lt;state&gt;</c> shows a checkpoint's flags on flag pages, and
+/// <c>--play &lt;moves&gt;</c> plays a script's page that many moves.
 /// </remarks>
 public partial class Editor : Control
 {
@@ -74,6 +75,8 @@ public partial class Editor : Control
             }
             if (args.TryGetValue("record", out var record))
                 await _records.OpenAsync(RecordId.Parse(record));
+            if (args.TryGetValue("play", out var moves))
+                _records.PlayScript(int.Parse(moves, CultureInfo.InvariantCulture));
             if (args.TryGetValue("drive", out var request))
                 _records.Model.Drive(int.Parse(request, CultureInfo.InvariantCulture));
             _records.Model.SetWireframe(args.GetValueOrDefault("wireframe") == "1");

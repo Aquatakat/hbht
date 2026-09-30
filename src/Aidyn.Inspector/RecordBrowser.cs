@@ -113,6 +113,13 @@ public partial class RecordBrowser : Control
     /// <summary>Shows a checkpoint's flags on flag pages, for scripts (<c>--checkpoint</c>).</summary>
     public void LoadCheckpoint(string path) => _flags?.LoadCheckpoint(path);
 
+    /// <summary>Plays the script on the preview, if it's showing one, for a number of moves (<c>--play</c>).</summary>
+    public void PlayScript(int moves)
+    {
+        if (_preview.GetChildren().OfType<ScriptPanel>().FirstOrDefault() is { } panel)
+            panel.Play(moves);
+    }
+
     /// <summary>Opens a record, adding it to the history. The task completes when its preview is shown.</summary>
     public async Task OpenAsync(RecordId id)
     {
@@ -470,6 +477,8 @@ public partial class RecordBrowser : Control
         var plugins = catalog.Plugins;
         if (id.Type is RecordTypes.Flag or RecordTypes.Journal)
             return _flags is null ? Message("These plugins have no flag network.") : new FlagPanel(catalog, _flags, id, FollowLink);
+        if (id.Type == RecordTypes.Dialogue && plugins.TryGet<DialogueRecord>(id) is { } script)
+            return new ScriptPanel(catalog, _flags, script, FollowLink);
         if (id.Type == RecordTypes.Actor && json is not null)
         {
             // An actor is its scene, playing its initial state's animation.
