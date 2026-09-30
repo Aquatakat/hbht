@@ -17,6 +17,13 @@ public partial class ScriptPanel : VBoxContainer
     private const float NodeWidth = 300, ColumnGap = 90, RowGap = 28;
     private const string PlayerName = "Alaron";
     private static readonly Color Dim = new(0.65f, 0.65f, 0.65f);
+    private static readonly StyleBoxFlat Plain = new() { BgColor = Colors.Transparent, ContentMarginLeft = 4, ContentMarginRight = 4, ContentMarginTop = 2, ContentMarginBottom = 2 };
+    private static readonly StyleBoxFlat Current = new()
+    {
+        BgColor = new Color(0.42f, 0.66f, 1f, 0.2f),
+        ContentMarginLeft = 4, ContentMarginRight = 4, ContentMarginTop = 2, ContentMarginBottom = 2,
+        CornerRadiusTopLeft = 3, CornerRadiusTopRight = 3, CornerRadiusBottomLeft = 3, CornerRadiusBottomRight = 3,
+    };
     private static readonly string[] Skills =
         ["Alchemist", "Diplomat", "Healer", "Loremaster", "Mechanic", "Merchant", "Ranger", "Stealth", "Thief", "Troubadour", "Warrior", "Wizard"];
 
@@ -33,7 +40,10 @@ public partial class ScriptPanel : VBoxContainer
         ZoomMin = 0.1f,
         RightDisconnects = false,
     };
+    // Each node's card, and its section of it.
     private readonly Dictionary<int, GraphNode> _nodes = [];
+    private readonly Dictionary<int, PanelContainer> _sections = [];
+    private readonly List<List<int>> _cards = [];
     private readonly Label _status = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart };
     private readonly VBoxContainer _page = new();
     private readonly VBoxContainer _answers = new();
@@ -41,7 +51,7 @@ public partial class ScriptPanel : VBoxContainer
     private readonly EditorWorld _world;
     private ScriptRunner? _runner;
     private bool[]? _before;
-    private bool _focused;
+    private bool _arranged;
 
     public ScriptPanel(PluginCatalog catalog, FlagState? flags, DialogueRecord script, Action<RecordId> open)
     {
@@ -52,6 +62,7 @@ public partial class ScriptPanel : VBoxContainer
         AddChild(Header());
         var split = new HSplitContainer { SizeFlagsVertical = SizeFlags.ExpandFill };
         split.AddChild(_graph);
+        GraphMenu.MoveToBottom(_graph);
         split.AddChild(Player());
         AddChild(split);
         BuildGraph();
@@ -118,45 +129,96 @@ public partial class ScriptPanel : VBoxContainer
 
     // ---- The graph ------------------------------------------------------------------------------
 
+    /// <summary>
+    /// Draws the script as cards. A run of lines, each the only way into the next, is one card, read
+    /// down; a card ends where the script branches, and another starts where branches join. Each node
+    /// is a section of its card, which lights up while the player is at it.
+    /// </summary>
     private void BuildGraph()
     {
-        var positions = Layout();
-        foreach (var node in _script.Nodes)
+        foreach (var card in Cards(_script.Nodes))
         {
+            var head = _script.Nodes[card[0]];
+            var tail = _script.Nodes[card[^1]];
             var graphNode = new GraphNode
             {
-                Name = $"n{node.Index}",
-                Title = $"{node.Index} · {node.Kind}",
-                PositionOffset = positions[node.Index],
-                TooltipText = node.Text,
+                Name = $"n{head.Index}",
+                Title = card.Count == 1 ? $"{head.Index} · {head.Kind}" : $"{head.Index}–{tail.Index} · {card.Count} lines",
             };
-            var color = KindColor(node.Kind);
+            var color = KindColor(head.Kind);
             graphNode.AddThemeStyleboxOverride("titlebar", new StyleBoxFlat { BgColor = color.Darkened(0.55f), ContentMarginLeft = 8, ContentMarginTop = 4, ContentMarginBottom = 4 });
             graphNode.AddThemeStyleboxOverride("titlebar_selected", new StyleBoxFlat { BgColor = color.Darkened(0.1f), ContentMarginLeft = 8, ContentMarginTop = 4, ContentMarginBottom = 4 });
-            var body = new VBoxContainer { CustomMinimumSize = new Vector2(NodeWidth, 0) };
-            graphNode.AddChild(body);
-            graphNode.SetSlot(0, true, 0, color, true, 0, color);
-
-            if (node.Text.Length > 0)
-                body.AddChild(new Label { Text = Truncate(Display(node.Text), 240), AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(NodeWidth, 0) });
-            foreach (var op in node.Ops ?? [])
-                body.AddChild(OpRow(op));
-            if (LinkText(node) is { } links)
-                body.AddChild(Dimmed(links));
-            _nodes[node.Index] = graphNode;
+            foreach (var index in card)
+            {
+                var section = Section(_script.Nodes[index], numbered: card.Count > 1, withLinks: index == tail.Index);
+                graphNode.AddChild(section);
+                _sections[index] = section;
+                _nodes[index] = graphNode;
+            }
+            // In at the top, out at the bottom, where the card's last node says where it goes.
+            graphNode.SetSlot(0, true, 0, color, card.Count == 1, 0, color);
+            if (card.Count > 1)
+                graphNode.SetSlot(card.Count - 1, false, 0, color, true, 0, color);
+            _cards.Add(card);
             _graph.AddChild(graphNode);
         }
-        foreach (var node in _script.Nodes)
+        foreach (var card in _cards)
         {
-            foreach (var link in node.Links ?? [])
-                _graph.ConnectNode($"n{node.Index}", 0, $"n{link}", 0);
+            foreach (var link in _script.Nodes[card[^1]].Links ?? [])
+                _graph.ConnectNode(_nodes[card[0]].Name, 0, _nodes[link].Name, 0);
         }
-        // The graph has no size until it's laid out.
-        _graph.Resized += () =>
+        // Cards are placed by their size, which they have once their text has wrapped.
+        _graph.Modulate = Colors.Transparent;
+        Callable.From(Arrange).CallDeferred();
+    }
+
+    /// <summary>
+    /// Splits the nodes into cards: a line with one link continues into the node it links to, when
+    /// that's a line with nothing else leading to it. Each card lists its nodes in reading order.
+    /// </summary>
+    private static List<List<int>> Cards(IReadOnlyList<DialogueNode> nodes)
+    {
+        var into = new int[nodes.Count];
+        foreach (var link in nodes.SelectMany(n => n.Links ?? []))
+            into[link]++;
+        var carded = new bool[nodes.Count];
+        var cards = new List<List<int>>();
+        // Heads first, so a card starts where its run does, then any loop that nothing leads into.
+        foreach (var start in nodes.Where(n => !Continued(n.Index)).Concat(nodes).Select(n => n.Index))
         {
-            if (!_focused)
-                Focus(_runner?.Page?.Line.Node ?? 0);
-        };
+            if (carded[start])
+                continue;
+            var card = new List<int>();
+            for (int? index = start; index is { } i && !carded[i]; index = Next(i))
+            {
+                carded[i] = true;
+                card.Add(i);
+            }
+            cards.Add(card);
+        }
+        return cards;
+
+        bool Runs(DialogueNode node) => node.Kind == DialogueNodeKind.Line && node.Links is { Count: 1 };
+        int? Next(int index) => Runs(nodes[index]) && Continued(nodes[index].Links![0]) ? nodes[index].Links![0] : null;
+        bool Continued(int index) => index != 0 && nodes[index].Kind == DialogueNodeKind.Line && into[index] == 1
+            && nodes.Any(n => Runs(n) && n.Links![0] == index);
+    }
+
+    private PanelContainer Section(DialogueNode node, bool numbered, bool withLinks)
+    {
+        var section = new PanelContainer { TooltipText = node.Text };
+        section.AddThemeStyleboxOverride("panel", Plain);
+        var body = new VBoxContainer { CustomMinimumSize = new Vector2(NodeWidth, 0) };
+        section.AddChild(body);
+        if (numbered)
+            body.AddChild(Dimmed(node.Index.ToString(CultureInfo.InvariantCulture)));
+        if (node.Text.Length > 0)
+            body.AddChild(new Label { Text = Truncate(Display(node.Text), 240), AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(NodeWidth, 0) });
+        foreach (var op in node.Ops ?? [])
+            body.AddChild(OpRow(op));
+        if (LinkText(node, withLinks) is { } links)
+            body.AddChild(Dimmed(links));
+        return section;
     }
 
     private static Color KindColor(DialogueNodeKind kind) => kind switch
@@ -178,18 +240,19 @@ public partial class ScriptPanel : VBoxContainer
         return row;
     }
 
-    private string? LinkText(DialogueNode node)
+    /// <summary>A node's range, if a case selects it, and where it goes, which a card shows under its last node.</summary>
+    private static string? LinkText(DialogueNode node, bool withLinks)
     {
         var links = node.Links ?? [];
         var range = node.Selects is { } r ? $"selected by {r.Min}{(r.Max is { } max ? max == r.Min ? "" : $"–{max}" : "+")}. " : "";
-        var text = node.Kind switch
+        var text = !withLinks ? "" : node.Kind switch
         {
             DialogueNodeKind.If when links.Count == 2 => $"1 → {links[0]}, else → {links[1]}",
             _ when links.Count > 0 => "→ " + string.Join(", ", links),
             DialogueNodeKind.Line => "No link: back to the last menu.",
             _ => "",
         };
-        return range.Length + text.Length > 0 ? range + text : null;
+        return range.Length + text.Length > 0 ? (range + text).TrimEnd() : null;
     }
 
     private static Label Dimmed(string text)
@@ -200,55 +263,74 @@ public partial class ScriptPanel : VBoxContainer
     }
 
     /// <summary>
-    /// Lays the script out to read across: a node's first unplaced link goes to its right, and each
-    /// other branch starts a new row below everything so far. Nodes nothing reaches go in a last row.
-    /// Ports are on the nodes' sides, so chains read along a row with short links.
+    /// Lays the cards out to read across: a card's first unplaced link goes to its right, level with
+    /// where it leaves, and each other branch starts a new row below everything so far. Cards nothing
+    /// reaches go in a last row. Waits for the cards' text to wrap, since that sets their height.
     /// </summary>
-    private Dictionary<int, Vector2> Layout()
+    private async void Arrange()
     {
-        var positions = new Dictionary<int, Vector2>();
+        var height = -1f;
+        for (var frame = 0; frame < 10; frame++)
+        {
+            // A card grows while its text wraps, but doesn't shrink back by itself.
+            foreach (var card in _cards)
+                _nodes[card[0]].Size = Vector2.Zero;
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            var total = _cards.Sum(c => _nodes[c[0]].Size.Y);
+            if (total == height && _graph.Size.X > 0)
+                break;
+            height = total;
+        }
+
+        var placed = new HashSet<GraphNode>();
         var bottom = 0f;
-        Place(0, 0, 0);
+        Place(_cards[0], 0, 0);
         var x = 0f;
         var top = bottom;
-        foreach (var node in _script.Nodes.Where(n => !positions.ContainsKey(n.Index)))
+        foreach (var card in _cards.Select(c => _nodes[c[0]]).Where(n => !placed.Contains(n)))
         {
-            positions[node.Index] = new Vector2(x, top);
+            card.PositionOffset = new Vector2(x, top);
             x += NodeWidth + ColumnGap;
         }
-        return positions;
+        // The graph only scrolls as far as its cards were a frame ago.
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        _graph.Modulate = Colors.White;
+        _arranged = true;
+        Focus(_runner?.Page?.Line.Node ?? 0);
 
-        void Place(int index, int column, float rowTop)
+        void Place(List<int> nodes, int column, float rowTop)
         {
-            positions[index] = new Vector2(column * (NodeWidth + ColumnGap), rowTop);
-            bottom = Math.Max(bottom, rowTop + EstimatedHeight(_script.Nodes[index]) + RowGap);
+            var card = _nodes[nodes[0]];
+            placed.Add(card);
+            card.PositionOffset = new Vector2(column * (NodeWidth + ColumnGap), rowTop);
+            bottom = Math.Max(bottom, rowTop + card.Size.Y + RowGap);
             var first = true;
-            foreach (var link in _script.Nodes[index].Links ?? [])
+            foreach (var link in _script.Nodes[nodes[^1]].Links ?? [])
             {
-                if (positions.ContainsKey(link))
+                var next = _nodes[link];
+                if (placed.Contains(next))
                     continue;
-                Place(link, column + 1, first ? rowTop : bottom);
+                // The first branch lines its way in up with this card's way out.
+                var linkTop = first ? rowTop + Math.Max(0, card.GetOutputPortPosition(0).Y - next.GetInputPortPosition(0).Y) : bottom;
+                Place(_cards.First(c => c.Contains(link)), column + 1, linkTop);
                 first = false;
             }
         }
     }
 
-    private static float EstimatedHeight(DialogueNode node)
-    {
-        var lines = node.Text.Length == 0 ? 0 : Math.Min(240, node.Text.Length) / 42 + 1 + node.Text.Count(c => c == '\n');
-        return 40 + lines * 23 + (node.Ops?.Count ?? 0) * 31 + 23 + (node.Selects is null ? 0 : 23);
-    }
-
-    /// <summary>Selects a node and scrolls the graph to it, with more room for what follows than for what came before.</summary>
+    /// <summary>Lights up a node and scrolls the graph to put it in the middle.</summary>
     private void Focus(int index)
     {
-        foreach (var (i, node) in _nodes)
-            node.Selected = i == index;
-        if (!_nodes.TryGetValue(index, out var focused) || _graph.Size.X <= 0)
+        foreach (var (i, section) in _sections)
+            section.AddThemeStyleboxOverride("panel", i == index ? Current : Plain);
+        foreach (var card in _nodes.Values.Distinct())
+            card.Selected = card == _nodes.GetValueOrDefault(index);
+        if (!_arranged || !_nodes.TryGetValue(index, out var focused))
             return;
-        _focused = true;
         var zoom = _graph.Zoom;
-        _graph.ScrollOffset = new Vector2(focused.PositionOffset.X * zoom - _graph.Size.X / 4, (focused.PositionOffset.Y + focused.Size.Y / 2) * zoom - _graph.Size.Y / 2);
+        var at = _sections[index];
+        var middle = focused.PositionOffset + new Vector2(focused.Size.X / 2, at.Position.Y + Math.Min(at.Size.Y, _graph.Size.Y / zoom) / 2);
+        _graph.ScrollOffset = middle * zoom - _graph.Size / 2;
     }
 
     // ---- Playing it -----------------------------------------------------------------------------

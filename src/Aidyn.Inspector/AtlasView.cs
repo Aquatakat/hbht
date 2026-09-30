@@ -77,6 +77,7 @@ public partial class AtlasView : VBoxContainer
         bar.AddChild(_info);
         AddChild(bar);
         AddChild(_graph);
+        GraphMenu.MoveToBottom(_graph);
     }
 
     /// <summary>Shows a record's uses and graph. A map is shown through its objects.</summary>
