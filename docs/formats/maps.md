@@ -4,7 +4,7 @@ A map set is a grid of chunks, and each chunk is a Borg9 (collision, its grid an
 
 ## Map objects (1E)
 
-1E reads only the map objects (voxels) of each Borg9, since they're what gate on flags and start dialogues. The rest of Borg9 is 1C's.
+1E reads only the map objects of each Borg9, since they're what gate on flags and start dialogues. The rest of Borg9 is 1C's. The original's own name for them is voxel objects: the ROM's crash and debug strings name `RenderVoxelScenes` (in all three ROMs), and `GetVoxelObjectFromLink`, `ProcessVoxelObjects` and "Invalid Voxel Object for trap" (in the debug ROM). The decomp took the word from these, and their record IDs keep it (`aidyn:voxel/…`).
 
 - **Map chunk lists** are 17 zero-terminated lists of 12-byte entries (row, column, scene, alternate scene, Borg9, terrain), back to back in the code segment. They're at `0xDBD90` in 1.0, `0xDBDD0` in 1.1 and `0xEA850` in the debug ROM, identical in all three: 543 chunks. 57 Borg9s aren't in any list.
 - **Map objects** are 0x6C bytes: a 0x28-byte header (position, radius, a run-time time stamp, flags, type, two links, flags A, B and C, and a run-time pointer), then 0x44 bytes that depend on the type. The Borg9 header's count and pointer at 0x28 and 0x44 find them, and the collision sections start right after, 8-byte aligned. There are 26,091 across 584 Borg9s.

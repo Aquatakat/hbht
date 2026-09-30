@@ -36,7 +36,7 @@ Use these words in code and docs. Where the decomp's name clashes with ours, use
 | **Map set** | One of the 17 grids of chunks: the Overworld, the Gwernia interiors, the Battle arenas and so on (`EnumMapDatA`). Record `aidyn:mapset/<n>`. | |
 | **Chunk** | One cell of a map set, named by row letter and column (I08, M07): a Borg9 and up to two scenes. The 3×3 around the player are loaded (the decomp's `ZoneEngine`; ours is the chunk streamer). | |
 | **Map** | Record `aidyn:map/0x…`: one Borg9, a chunk's collision and map objects. | The world map in the pause menu, and the minimap. |
-| **Map object** | An object a Borg9 places: a scene, container, teleporter, trigger, monster party and so on. | The decomp's **voxel**. Don't use that word. |
+| **Map object** | An object a Borg9 places: a scene, container, teleporter, trigger, monster party and so on. Record `aidyn:voxel/0x…/<n>`, after the original's own name, a voxel object. | A **voxel** alone: the original also uses the word for a chunk's collision (`CollideCollisionSphereWithVoxelPolys`). Say map object in code and docs, and voxel only in record IDs. |
 | **World** | The worldspace: the loaded map set. `CollisionWorld` is its loaded collision. | The decomp's `World` and `TerrainPointer`, which are the calendar, time of day, weather and terrain. |
 | **Flag** | One of the 5,627 event flags in `GameStateFunnel`. A flag is **plain** (set by scripts, map objects or code) or **derived** (computed from others). Record `aidyn:flag/<n>`. | The decomp's "game state" and "event flag" mean the same thing. |
 | **Script** | A Borg13: a conversation, cut-scene, backdrop or sign. | A **Lua script**, ADR 0008's layer 4. Always say "Lua" for those. |

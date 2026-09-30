@@ -10,7 +10,7 @@ The most important finding from the research: **quest logic is almost entirely d
 
 - An event-flag logic network (`GameStateFunnel`).
 - A dialogue and cut-scene bytecode (Borg13).
-- Map objects gated by flags (Borg9 voxel objects).
+- Map objects gated by flags (Borg9).
 
 Extracting quests is therefore mostly a file-format problem, not a code-lifting problem. The real code-lifting work is in **combat formulas, AI, and the roughly 270 places where engine code hardcodes specific flags**.
 
@@ -43,7 +43,7 @@ Compression comes in two schemes, LZB (most Borgs) and LZ01x (text). Both decomp
 | 6 | Animation | Keyframe tracks bound to a Borg5. Many fields are still unknown. |
 | 7 | Actor | A Borg5 plus a set of Borg6 animations with branch and transition data |
 | 8 | UI image | Viewable in Texture64 |
-| 9 | Map chunk | Collision triangles, ground types, and **voxel objects** |
+| 9 | Map chunk | Collision triangles, ground types, and **map objects** |
 | 11 | DCM sample | 44.1 kHz mono PCM, 8-bit or 16-bit BE |
 | 12 | Sequence | Music and SFX sequences over Borg11 instruments |
 | 13 | Dialogue / cut-scene script | Bytecode with about 60 opcodes, already enumerated |
@@ -53,7 +53,7 @@ Compression comes in two schemes, LZB (most Borgs) and LZ01x (text). Both decomp
 
 - **`GameStateFunnel`** is a table of 5,627 event flags. There are 5,001 plain bits and 626 derived flags, each computed from other flags by one of these ops: AND, IOR, EOR, NOT, MSK, EQU, GRT, LST, NEQ, or a count. The runtime evaluates it as a logic network (`ProcessGameStates`). Journal entries, calendar and moon phase, weather, terrain, and even party stats (`eventflagArrayStats`) are all exposed as flags.
 - **Borg13** scripts drive dialogue and scripted cut-scenes. They cover condition checks (flag, party member, skill, item, best or worst stat, gold, party size) and effects (set or unset flag, add gold, add item, add XP, add or remove member, shop, train, battle, camp heal). They also handle camera cues (cut, pan, sine, track) and actor cues (walk, run, face, create, show an item).
-- **Borg9 voxel objects** place content in the world. The types are scene, container, light, audio, wander node, monster party, reference point, teleporter, camera, dialogue trigger, and trigger. Every voxel carries `flagA/B/C` gates and an Expansion Pak or no-pak variant bit.
+- **Borg9 map objects** place content in the world. The types are scene, container, light, audio, wander node, monster party, reference point, teleporter, camera, dialogue trigger, and trigger. Every map object carries `flagA/B/C` gates and an Expansion Pak or no-pak variant bit.
 
 ### Cinematics use the actor animation system
 
@@ -140,7 +140,7 @@ Each track ends with an exporter to an open format and a viewer in the inspector
 | --- | --- | --- | --- |
 | **1A Static graphics** | Borg1 textures (every N64 format, de-interleave, TLUT), Borg8 UI images, Borg2 via a minimal F3DEX interpreter, Borg3 camera, Borg4 lights, Borg5 scene graph (transforms, instruction list, texture binds) | L | glTF export of a building and a character matches the emulator |
 | **1B Animation** | Borg6 tracks and keyframes (map every unknown field), Borg7 actor animation sets, branches, and transitions, Borg5 particles | L (first sized XL, as the highest risk; see the risk register) | The opening cinematic plays in the inspector (the scene viewer stands in until 0.6). **Done Sep 27, 2026:** the user confirmed all 13 shots. |
-| **1C Maps** | Chunk tables per map region (from the code segment), Borg9 collision (triangles, collide sections, ground types), all voxel object types, Expansion Pak variants | L | A map viewer shows a whole region, with objects overlaid by type. **Done Sep 27, 2026:** the user confirmed the layout, terrain, objects and enemy spawns in `tools/map-viewer.html`. |
+| **1C Maps** | Chunk tables per map region (from the code segment), Borg9 collision (triangles, collide sections, ground types), all map object types, Expansion Pak variants | L | A map viewer shows a whole region, with objects overlaid by type. **Done Sep 27, 2026:** the user confirmed the layout, terrain, objects and enemy spawns in `tools/map-viewer.html`. |
 | **1D Audio** | Borg11 PCM, Borg12 sequence format and playback, the audiokey table | M | BGM plays correctly |
 | **1E Quest atlas** | Borg13 decoding, including **branching semantics** (`text_marker`, `a/b`, `index`, `bitmask`, choices; see `DialogNode.cpp`), the GameStateFunnel logic network, flag cross-referencing, and journal linkage | L | See below |
 | **1F Text & UI assets** | All string tables, the font (`fontFace`), portraits, menu images | S | Full text dump; the dialogue box renders in the right font |
@@ -148,8 +148,8 @@ Each track ends with an exporter to an open format and a viewer in the inspector
 
 **Track 1E is how quest extraction becomes tractable.** Build a cross-reference database that answers, for every flag:
 
-- What sets it: Borg13 `SetFlag`, trigger voxels, code, or time and weather setters.
-- What reads it: voxel `flagA/B/C` gates, Borg13 checks, logic-network inputs, or code.
+- What sets it: Borg13 `SetFlag`, trigger map objects, code, or time and weather setters.
+- What reads it: map objects' `flagA/B/C` gates, Borg13 checks, logic-network inputs, or code.
 - Which journal entry it maps to.
 
 Render the database as a graph. At that point, "how does the Rheda / Niesen quest work?" becomes a graph query rather than an investigation. The debug ROM's flag viewer lets each finding be confirmed live.
@@ -189,7 +189,7 @@ Work moves through a series of vertical slices, each one playable.
 | Slice | Contents | Needs |
 | --- | --- | --- |
 | **M1: Walk Gwernia** | The 3×3 chunk streamer, terrain rendering, an N64-look shader (vertex colour, fog, three-point filtering option), collision, the player controller, the SM64-style camera, sky, sun and moon, clouds, lens flare, draw-distance tiers. **Started Sep 27, 2026:** the importer's first slice writes the base plugin M1 loads. **Done Sep 29, 2026:** draw distance turned out to be per object, with fades, not tiers. Comparing day and night lighting with the console moved to the weather pass. | 1A, 1C |
-| **M2: Talk and trade** | Voxel runtime (containers, teleporters with fade, triggers, dialogue triggers), actors with wander nodes, dialogue UI with portraits and choices, shops, the pause menu (Party, System, World tabs), journal | 1E, 1F, 2.1–2.4 |
+| **M2: Talk and trade** | Map objects at run time (containers, teleporters with fade, triggers, dialogue triggers), actors with wander nodes, dialogue UI with portraits and choices, shops, the pause menu (Party, System, World tabs), journal | 1E, 1F, 2.1–2.4 |
 | **M3: Fight** | Arena loading, spawns, the turn UI, radius targeting, spell visuals and particles, the combat log, status icons, post-battle XP and loot screens | 1B, 2.5, 2.6 |
 | **M4: The prologue** | From the opening through leaving Gwernia, end to end: cinematics, scripted cut-scenes, party joins, camping, audio | Everything above |
 | **M5: Full playthrough parity** | Every region, every quest, and the ending, checked against the quest atlas | Phase 4 |
@@ -211,7 +211,7 @@ This phase is sized XL, but most of the time goes into testing rather than engin
 | Flag and ID allocation for mod namespaces | S |
 | Asset overrides (glTF, PNG, OGG) and new assets | M |
 | Scripting: a Borg13 superset for dialogue and cut-scenes (new opcodes as needed), plus sandboxed Lua event handlers on the 2.10 events, per ADR 0008. Mods can't load .NET assemblies. | L |
-| **Editor.** Grow the Phase 0.6 inspector into a Construction Set: record editing, dialogue graph editing, voxel placement in the map viewer, and a quest atlas that includes mod content | XL |
+| **Editor.** Grow the Phase 0.6 inspector into a Construction Set: record editing, dialogue graph editing, map object placement in the map viewer, and a quest atlas that includes mod content | XL |
 | Documentation and a sample mod (for example, a new trainer, a new quest, and a rebalanced spell) | M |
 
 The mod format is designed in Phase 0 and exercised all the time, because the base game is a plugin. Phase 5 is only about exposing it and building tooling on top.
@@ -261,11 +261,11 @@ graph LR
 These address questions in [engine-behaviour.md](engine-behaviour.md). Each needs confirming in the emulator, but the code points clearly one way.
 
 - **Loading:** it's chunk streaming. The engine keeps a 3×3 `ZoneDatMtx` of map chunks around the player. Each chunk has two Borg5 scene slots and a Borg9.
-- **Interiors:** many are separate map sets, not part of the overworld. The sets include `GwerniaInterior`, `Interior` (miscellaneous), `JundarInteriors`, `EhudUnder`, and `Ugarit2`. Teleporter voxels move between them. There are 17 map sets in total, including the battle arenas.
+- **Interiors:** many are separate map sets, not part of the overworld. The sets include `GwerniaInterior`, `Interior` (miscellaneous), `JundarInteriors`, `EhudUnder`, and `Ugarit2`. Teleporters move between them. There are 17 map sets in total, including the battle arenas.
 - **Weather and calendar:** time of day, day, week, month, weather, and terrain are all written into event flags (`SetFlagArray_on_Time`, `set_weather_flags`). Content can react to them, but whether the calendar drives weather still has to be read out of `weather.cpp`.
 - **Draw distance:** each scene object has its own `renderProx` and up to three model slots. Draw distance is data, not fixed tiers.
-- **Save points:** a `SavePoint` voxel type exists but is unused.
-- **Expansion Pak:** some voxels only exist with the Expansion Pak and others only without it. The reimplementation should pick the Expansion Pak set.
+- **Save points:** a `SavePoint` map object type exists but is unused.
+- **Expansion Pak:** some map objects only exist with the Expansion Pak and others only without it. The reimplementation should pick the Expansion Pak set.
 - **Stat soup** (turn order, movement radius, spell radius): it's in `combatEntity.cpp` and can be read directly.
 
 ## First month: suggested order

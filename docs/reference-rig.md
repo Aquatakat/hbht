@@ -24,7 +24,7 @@ tools/ares.ps1 debug      # or v10, v11; -SaveState 1..9 to load a slot
 
 - The GDB server listens on port 9123. Note that it binds `0.0.0.0`, so it is reachable from the LAN while running.
 - `Input/Defocus` is overridden to `Allow`. The user setting is `Pause`, which freezes emulation as soon as gdb takes focus. If the PC is stuck in IPL3 (`0xA40014xx`), this setting is the cause.
-- The Expansion Pak is on (the ares default). This matches the voxel set the reimplementation targets.
+- The Expansion Pak is on (the ares default). This matches the set of map objects the reimplementation targets.
 - **Pin ares at v148.** Save states are tied to the emulator version.
 
 ## Debugger: gdb-multiarch 18.1 (MSYS2 UCRT64)
@@ -90,7 +90,7 @@ These are gated on `gDebugFlag` (`0x800E68A0`), which is on in the debug build. 
 | **L + Start** | **Open the big debug menu** | `gametrek.cpp` |
 | R + A (minimap open) | Minimap shows everything | `gametrek.cpp` |
 | L + D-left | Load only the centre map chunk | `PlayerMove.cpp` |
-| R + D-right | Replace the next loaded scene voxels with boulders (reference objects) | `PlayerMove.cpp` |
+| R + D-right | Replace the next loaded scene objects with boulders (reference objects) | `PlayerMove.cpp` |
 
 Big debug menu entries (`debug_menu_funcs` in `debug.cpp`; labels come from `COMMONSTRING_DebugBigMenu00+i`):
 
