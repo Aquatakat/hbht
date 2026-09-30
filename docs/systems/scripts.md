@@ -12,6 +12,7 @@
 - **Waits** end with `Resume` from the runtime: an actor arriving, an animation ending or the camera stopping. `Step(ticks)` counts down `Wait`, whose operand is in ticks.
 - **Map objects remember** a skill check's result and a random line's roll (the original's `VoxelChart`), through `IScriptWorld.TryRecall` and `Remember`. So talking to someone again can't reroll a check or a rumour. Troubadour checks aren't remembered. The chart itself (19 slots that expire and are saved with the game) comes with the map objects.
 - **Randomness** comes from an `IRandom` stream (ADR 0006). `Lcg` is the original's generator, and `Range` is `Random::Range`.
+- **When a conversation ends**, the original reloads the map and gates its objects again by the flags (`loadGameBorgScenes`), so what the script changed shows at once. The runtime will need that with M2's dialogue triggers.
 
 ## How it walks
 
