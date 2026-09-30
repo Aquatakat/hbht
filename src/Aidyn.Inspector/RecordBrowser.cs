@@ -61,6 +61,20 @@ public partial class RecordBrowser : Control
 
     public override void _Ready() => BuildUi();
 
+    public override void _Notification(int what)
+    {
+        if (what != NotificationPredelete)
+            return;
+        // The preview not showing is out of the tree, and the models' templates never were in
+        // it, so nothing else frees them. Godot reports them leaked at exit, one by one.
+        foreach (var view in new Control[] { _model, _map })
+        {
+            if (view.GetParent() is null)
+                view.Free();
+        }
+        _models?.Dispose();
+    }
+
     /// <summary>The 3D preview, for scripted screenshots.</summary>
     public ModelView Model => _model;
 
