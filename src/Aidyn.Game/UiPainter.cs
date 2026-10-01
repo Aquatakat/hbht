@@ -150,10 +150,14 @@ public sealed class UiPainter
     }
 
     /// <summary>The parchment popup at (x, y), with its shadow 5 to the right and 2 down (<c>WidgetMenuPopup</c>).</summary>
-    /// <param name="mirror">Flips it left to right, its wide torn edge at the right; the shadow stays to the right.</param>
+    /// <param name="mirror">
+    /// Flips it left to right, its straight edge at the right, and its shadow with it: 5 to the left,
+    /// past the torn edge, rather than to the right.
+    /// </param>
     public void Parchment(CanvasItem canvas, int x, int y, Vector2I? size = null, bool mirror = false)
     {
-        Image(canvas, MenuImages.ParchmentShadow, x + 5, y + 2, size is { } s ? s + new Vector2I(2, 2) : null, mirror: mirror);
+        // The shadow is 2 wider than the parchment, so mirrored it starts 5 + 2 to the left.
+        Image(canvas, MenuImages.ParchmentShadow, mirror ? x - 7 : x + 5, y + 2, size is { } s ? s + new Vector2I(2, 2) : null, mirror: mirror);
         Image(canvas, MenuImages.Parchment, x, y, size, mirror: mirror);
     }
 

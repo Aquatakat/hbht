@@ -78,6 +78,9 @@ public partial class PartyTabView : Control
     /// <summary>The wide list's bottom margin, which holds the arrow under it.</summary>
     private const int SliderMargin = 30;
 
+    /// <summary>How far the wide details' text keeps from the parchment's straight edge.</summary>
+    private const int DetailsEdge = 8;
+
     private readonly UiPainter _ui;
     private ScreenRect _listBounds = ClassicList;
     private Vector2I _origin;
@@ -191,14 +194,13 @@ public partial class PartyTabView : Control
         var size = new Vector2I((int)Size.X, (int)Size.Y);
         Sheet(size);
 
-        // The columns' widths: the member's, the knotwork's and the list's, about half the room left,
-        // and the details' the rest, up to 300. Any room over centres them.
+        // The columns' widths: the member's, the knotwork's and the list's, about half the room left.
+        // The details take the rest, out to the screen's edge.
         var knotOffset = HealthPiece.Size.X + WideGap;
         var listOffset = knotOffset + KnotTop.Size.X + 4;
         var room = size.X - 2 * WideMargin - listOffset - WideGap;
         var listWidth = Math.Clamp(room * 11 / 20, 220, 300);
-        var detailsWidth = Math.Min(room - listWidth + 8, 300);
-        var left = WideMargin + Math.Max(0, (room - listWidth - detailsWidth + 8) / 2);
+        var left = WideMargin;
         // The member's column and the list sit a line of the slim font below the sheet's torn edge.
         var top = TopEdge.Size.Y + 2;
         var columnTop = top + _ui.Slim.LineHeight;
@@ -228,14 +230,16 @@ public partial class PartyTabView : Control
         List(new ScreenRect(listLeft, listTop, listLeft + listWidth, listTop + rows), _ui.Main, Columns.Wide);
 
         var detailsLeft = listLeft + listWidth + WideGap;
-        var detailsSize = new Vector2I(detailsWidth, bottom - top + 6);
-        // Mirrored, so its wide torn edge is at the screen's edge rather than the list's.
+        var detailsSize = new Vector2I(size.X - detailsLeft, bottom - top + 6);
+        // Mirrored, so its straight edge, which the original puts against the screen's left, is
+        // against its right, and its shadow falls to the left, on the list's side.
         _ui.Parchment(this, detailsLeft, top - 4, detailsSize, mirror: true);
         if (Menu.Details() is { } details)
         {
-            // The parchment's torn edges, scaled from the original's 23, 11, 12 and 5 of 160, left and right swapped.
+            // Clear of the torn edges, as the original's text is of its right one (11 of 160), and 8 in
+            // from the straight edge, as it is from the overscan bar's edge.
             var area = new ScreenRect(detailsLeft + detailsSize.X * 11 / 160, top - 4 + detailsSize.Y * 12 / 160,
-                detailsLeft + detailsSize.X - detailsSize.X * 23 / 160, top - 4 + detailsSize.Y - detailsSize.Y * 8 / 160);
+                detailsLeft + detailsSize.X - DetailsEdge, top - 4 + detailsSize.Y - detailsSize.Y * 8 / 160);
             Details(details, area, _ui.Main, classic: false);
         }
     }
