@@ -72,12 +72,15 @@ public sealed class UiPainter
     /// Draws an image at (x, y), at its own size or scaled to <paramref name="size"/>, as a texture
     /// rectangle times a colour (<c>WidgetBorg8</c>). Scaled images are filtered, as the console's are.
     /// </summary>
-    public void Image(CanvasItem canvas, RecordId image, int x, int y, Vector2I? size = null, Rgba? color = null)
+    /// <param name="mirror">Draws it flipped left to right.</param>
+    public void Image(CanvasItem canvas, RecordId image, int x, int y, Vector2I? size = null, Rgba? color = null, bool mirror = false)
     {
         if (Images.Get(image) is not { } texture)
             return;
         var drawn = size ?? (Vector2I)texture.GetSize();
-        canvas.DrawTextureRectRegion(texture, new Rect2(x, y, drawn.X, drawn.Y), Sampled(new Rect2(Vector2.Zero, texture.GetSize()), drawn),
+        // A rectangle of negative width draws its texture flipped, in the same place.
+        var rect = new Rect2(x, y, mirror ? -drawn.X : drawn.X, drawn.Y);
+        canvas.DrawTextureRectRegion(texture, rect, Sampled(new Rect2(Vector2.Zero, texture.GetSize()), drawn),
             color is { } c ? Color8(c) : Colors.White);
     }
 
@@ -147,10 +150,11 @@ public sealed class UiPainter
     }
 
     /// <summary>The parchment popup at (x, y), with its shadow 5 to the right and 2 down (<c>WidgetMenuPopup</c>).</summary>
-    public void Parchment(CanvasItem canvas, int x, int y, Vector2I? size = null)
+    /// <param name="mirror">Flips it left to right, its wide torn edge at the right; the shadow stays to the right.</param>
+    public void Parchment(CanvasItem canvas, int x, int y, Vector2I? size = null, bool mirror = false)
     {
-        Image(canvas, MenuImages.ParchmentShadow, x + 5, y + 2, size is { } s ? s + new Vector2I(2, 2) : null);
-        Image(canvas, MenuImages.Parchment, x, y, size);
+        Image(canvas, MenuImages.ParchmentShadow, x + 5, y + 2, size is { } s ? s + new Vector2I(2, 2) : null, mirror: mirror);
+        Image(canvas, MenuImages.Parchment, x, y, size, mirror: mirror);
     }
 
     /// <summary>

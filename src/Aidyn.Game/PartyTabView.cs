@@ -75,6 +75,9 @@ public partial class PartyTabView : Control
     /// <summary>The wide layout's gaps: round the sheet's columns, and between them, and how far a piece's edges fade.</summary>
     private const int WideMargin = 16, WideGap = 10, Feather = 6;
 
+    /// <summary>The wide list's bottom margin, which holds the arrow under it.</summary>
+    private const int SliderMargin = 30;
+
     private readonly UiPainter _ui;
     private ScreenRect _listBounds = ClassicList;
     private Vector2I _origin;
@@ -196,35 +199,43 @@ public partial class PartyTabView : Control
         var listWidth = Math.Clamp(room * 11 / 20, 220, 300);
         var detailsWidth = Math.Min(room - listWidth + 8, 300);
         var left = WideMargin + Math.Max(0, (room - listWidth - detailsWidth + 8) / 2);
+        // The member's column and the list sit a line of the slim font below the sheet's torn edge.
         var top = TopEdge.Size.Y + 2;
-        Piece(PortraitPiece, left, top);
-        Portraits(new Vector2I(left, top));
-        var healthTop = top + PortraitPiece.Size.Y + 14;
+        var columnTop = top + _ui.Slim.LineHeight;
+        Piece(PortraitPiece, left, columnTop);
+        Portraits(new Vector2I(left, columnTop));
+        var healthTop = columnTop + PortraitPiece.Size.Y + 14;
         Piece(HealthPiece, left, healthTop);
         Health(new Vector2I(left, healthTop), _ui.Main);
         var silhouetteTop = healthTop + HealthPiece.Size.Y + 2;
-        Piece(SilhouettePiece, left, silhouetteTop);
-        Silhouette(new Vector2I(left, silhouetteTop));
+        // The silhouette is centred in the column.
+        var silhouetteLeft = left + (HealthPiece.Size.X - SilhouettePiece.Size.X) / 2;
+        Piece(SilhouettePiece, silhouetteLeft, silhouetteTop);
+        Silhouette(new Vector2I(silhouetteLeft, silhouetteTop));
 
         var knotX = left + knotOffset;
         var listLeft = left + listOffset;
         var bottom = size.Y - BottomEdge.Size.Y;
-        var rulesTop = top + 4;
+        var rulesTop = columnTop + 4;
         var listTop = rulesTop + 17;
-        var rows = (bottom - 8 - listTop) / 13 * 13;
+        // A deep margin under the list holds the arrow, centred on the screen: it says the tabs are either side.
+        var rows = (bottom - SliderMargin - listTop) / 13 * 13;
         Rules(listLeft - 5, rulesTop, listWidth + 10);
-        var knotBottom = Knot(knotX, listTop - 3, rows + 4);
-        _ui.Image(this, InCombat ? MenuImages.SliderLeft : MenuImages.SliderBoth, knotX - 14, knotBottom - 1, color: PartyMenu.TextColor);
+        Knot(knotX, listTop - 3, rows + 4);
+        var slider = InCombat ? MenuImages.SliderLeft : MenuImages.SliderBoth;
+        _ui.Image(this, slider, (size.X - _ui.Size(slider).X) / 2, listTop + rows + (bottom - listTop - rows - _ui.Size(slider).Y) / 2,
+            color: PartyMenu.TextColor);
         List(new ScreenRect(listLeft, listTop, listLeft + listWidth, listTop + rows), _ui.Main, Columns.Wide);
 
         var detailsLeft = listLeft + listWidth + WideGap;
         var detailsSize = new Vector2I(detailsWidth, bottom - top + 6);
-        _ui.Parchment(this, detailsLeft, top - 4, detailsSize);
+        // Mirrored, so its wide torn edge is at the screen's edge rather than the list's.
+        _ui.Parchment(this, detailsLeft, top - 4, detailsSize, mirror: true);
         if (Menu.Details() is { } details)
         {
-            // The parchment's torn edges, scaled from the original's 23, 11, 12 and 5 of 160.
-            var area = new ScreenRect(detailsLeft + detailsSize.X * 23 / 160, top - 4 + detailsSize.Y * 12 / 160,
-                detailsLeft + detailsSize.X - detailsSize.X * 11 / 160, top - 4 + detailsSize.Y - detailsSize.Y * 8 / 160);
+            // The parchment's torn edges, scaled from the original's 23, 11, 12 and 5 of 160, left and right swapped.
+            var area = new ScreenRect(detailsLeft + detailsSize.X * 11 / 160, top - 4 + detailsSize.Y * 12 / 160,
+                detailsLeft + detailsSize.X - detailsSize.X * 23 / 160, top - 4 + detailsSize.Y - detailsSize.Y * 8 / 160);
             Details(details, area, _ui.Main, classic: false);
         }
     }
