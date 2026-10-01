@@ -1,3 +1,4 @@
+using Aidyn.Core.Items;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 
@@ -25,9 +26,10 @@ public sealed class LearnedSpell(SpellRecord spell, int level)
 /// then Stamina, then Level (<c>Entity::addHP</c>). Skills and spells spend Stamina's points.
 /// </para>
 /// <para>
-/// Equipment (2.3) and spell and potion effects (2.5) come with the systems that own them; the
-/// sheet has the hooks they change: <see cref="CharacterStats.ChangeModified"/>,
-/// <see cref="CharacterStats.ChangeBase"/> and <see cref="CharacterSkills.Modify"/>.
+/// What it has equipped is its <see cref="Equipment"/>, which changes the sheet as items go on and off.
+/// Spell and potion effects come with combat (2.5); the sheet has the hooks they change:
+/// <see cref="CharacterStats.ChangeModified"/>, <see cref="CharacterStats.ChangeBase"/> and
+/// <see cref="CharacterSkills.Modify"/>.
 /// </para>
 /// </remarks>
 public sealed class Character
@@ -43,6 +45,7 @@ public sealed class Character
         Stats = stats;
         Skills = skills;
         _spells = spells;
+        Equipment = new Equipment(this);
     }
 
     public RecordId Entity { get; }
@@ -54,6 +57,17 @@ public sealed class Character
     public CharacterStats Stats { get; }
 
     public CharacterSkills Skills { get; }
+
+    public Equipment Equipment { get; }
+
+    /// <summary>The only weapon it can wield (<see cref="EntityRecord.SoleWeapon"/>): Niesen's staff.</summary>
+    public RecordId? SoleWeapon { get; init; }
+
+    /// <summary>
+    /// Weapons its entity brings that it doesn't wield. Joining the party puts them in the inventory
+    /// (<c>Entity::EquipFunc0</c>).
+    /// </summary>
+    public List<Item> Spares { get; } = [];
 
     public Aspect Aspect { get; init; }
 
@@ -81,12 +95,16 @@ public sealed class Character
 
     /// <summary>
     /// A character as <paramref name="entity"/>'s record starts it (<c>Entity::Init</c>): its stats,
-    /// skills, spells and experience at its level's threshold, as a joining party member's.
+    /// skills, spells and experience at its level's threshold, as a joining party member's. With
+    /// <paramref name="items"/>, it wears its armor, carries its shield if it has the skill, and wields
+    /// the first of its weapons it can; the rest it brings as <see cref="Spares"/>, if it wields one
+    /// (<c>Entity::EquipFunc0</c>, a party member's way). A weapon it can't wield, while it wields none,
+    /// is lost.
     /// </summary>
     /// <param name="spells">The spell records its spells name.</param>
     /// <param name="flags">Whether a flag is set, for <see cref="EntityRecord.TrueNameFlag"/>.</param>
     public static Character Create(EntityRecord entity, CharacterRules rules, Func<RecordId, SpellRecord> spells,
-        Func<RecordId, bool>? flags = null)
+        Func<RecordId, bool>? flags = null, ItemCatalog? items = null)
     {
         var a = entity.Attributes;
         var stats = new CharacterStats(rules, [a.Intelligence, a.Willpower, a.Dexterity, a.Endurance, a.Strength, a.Stamina, entity.Level]);
@@ -100,9 +118,27 @@ public sealed class Character
             Heavy = entity.Heavy,
             Protection = (byte)entity.Protection,
             Damage = (byte)entity.Damage,
+            SoleWeapon = entity.SoleWeapon,
         };
+        if (items is not null)
+        {
+            if (entity.Armor is { } armor)
+                character.Equipment.EquipArmor(new ItemInstance(items[armor]));
+            if (entity.Shield is { } shield)
+                character.Equipment.EquipShield(new ItemInstance(items[shield]));
+        }
         // Entity::EquipFunc0, as a party member joins. Enemies' sheets start at 0, which nothing reads.
         character.TotalExp = (uint)rules.Progression.Levels[Math.Min(stats.Base(Stat.Level), rules.Progression.Levels.Count - 1)];
+        if (items is not null)
+        {
+            foreach (var weapon in entity.Weapons.OfType<RecordId>().Select(w => items[w]))
+            {
+                if (character.Equipment.Weapon is null)
+                    character.Equipment.EquipWeapon(new ItemInstance(weapon));
+                else
+                    character.Spares.Add(weapon);
+            }
+        }
         return character;
     }
 
@@ -119,6 +155,7 @@ public sealed class Character
         Heavy = entity.Heavy,
         Protection = (byte)entity.Protection,
         Damage = (byte)entity.Damage,
+        SoleWeapon = entity.SoleWeapon,
     };
 
     /// <summary>An entity's skill levels by <see cref="SkillId.Slot"/>.</summary>
@@ -225,7 +262,8 @@ public sealed class Character
 
     /// <summary>
     /// Camping heals <paramref name="fraction"/> of the maximum hit points, truncated, up to what's
-    /// missing (<c>Entity::CampHeal</c>). The time passing for effects and gear's charges comes with them.
+    /// missing, and refills the worn items' batteries by the same fraction (<c>Entity::CampHeal</c>).
+    /// The time passing for effects comes with them (2.5).
     /// </summary>
     public void CampHeal(float fraction)
     {
@@ -233,6 +271,7 @@ public sealed class Character
         var amount = (ushort)(max * fraction);
         var missing = (ushort)(max - Hp);
         Heal(Math.Min(amount, missing));
+        Equipment.RechargeBatteries(fraction);
     }
 
     /// <summary>

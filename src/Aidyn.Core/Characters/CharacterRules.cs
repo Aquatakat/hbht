@@ -62,6 +62,14 @@ public readonly record struct SkillId(int Slot)
 
     public static IEnumerable<SkillId> All => Enumerable.Range(0, Count).Select(s => new SkillId(s));
 
+    /// <summary>The skill a record names: <c>aidyn:skill/n</c> or <c>aidyn:weaponskill/n</c>.</summary>
+    public static SkillId FromRecord(RecordId record) => record.Type switch
+    {
+        RecordTypes.Skill => new(int.Parse(record.Key)),
+        RecordTypes.WeaponSkill => new(12 + int.Parse(record.Key)),
+        _ => throw new ArgumentException($"{record} isn't a skill.", nameof(record)),
+    };
+
     public override string ToString() => IsSkill ? Skill.ToString() : IsWeapon ? Weapon.ToString() : "Shield";
 }
 

@@ -89,6 +89,45 @@ public sealed class AresCheckpoint
     /// <summary>The party's gold (<c>Party::Gold</c>).</summary>
     public uint Gold => ReadWord(FindParty() + 0x14);
 
+    /// <summary>
+    /// The party's inventory, by slot (<c>PartyInventory</c>): 252 slots of an <c>ItemInstance</c> and a
+    /// quantity each, after the object's vtable. Slots from 128 are items with slots of their own.
+    /// </summary>
+    public IReadOnlyList<CheckpointStack> Inventory
+    {
+        get
+        {
+            var inventory = ReadWord(FindParty() + 0x10);
+            var stacks = new List<CheckpointStack>();
+            for (var slot = 0u; slot < InventorySlots; slot++)
+            {
+                var entry = inventory + 4 + slot * InventoryEntrySize;
+                if (ReadWord(entry + 0x14) is var quantity and > 0 and < 0x80000000)
+                    stacks.Add(new CheckpointStack((int)slot, Item(entry), (int)quantity));
+            }
+            return stacks;
+        }
+    }
+
+    private const uint InventorySlots = 252, InventoryEntrySize = 0x18, GearSlots = 12;
+
+    /// <summary>
+    /// An <c>ItemInstance</c>: the ID, the price at <c>0xA</c>, then pointers to its <c>StatMod</c> (stat
+    /// and amount, signed bytes) and its <c>SpellCharges</c> (the charges at 4).
+    /// </summary>
+    private CheckpointItem Item(uint instance)
+    {
+        var statMod = ReadWord(instance + 0xC);
+        var charges = ReadWord(instance + 0x10);
+        return new CheckpointItem(
+            (ushort)(ReadByte(instance) << 8 | ReadByte(instance + 1)),
+            ReadByte(instance + 0xA) << 8 | ReadByte(instance + 0xB),
+            InRam(statMod) ? (ReadByte(statMod), (sbyte)ReadByte(statMod + 1)) : null,
+            InRam(charges) ? ReadByte(charges + 4) : null);
+    }
+
+    private CheckpointItem? OptionalItem(uint pointer) => InRam(pointer) ? Item(pointer) : null;
+
     private uint FindParty()
     {
         foreach (var pointer in PartyPointers)
@@ -128,11 +167,23 @@ public sealed class AresCheckpoint
                         spells.Add(((ushort)(ReadByte(spell) << 8 | ReadByte(spell + 1)), ReadByte(spell + 0x14)));
                 }
             }
+            // The armor pointer at 0x20 points to body armor's and the shield's, the weapon's is at 0x24, and
+            // the CharGear at 0x28 holds the gear slots' pointers and how many are worn.
+            var armor = ReadWord(sheet + 0x20);
+            var gear = ReadWord(sheet + 0x28);
+            var slots = InRam(gear) ? ReadWord(gear) : 0;
             sheets.Add(new CheckpointCharacter(
                 (ushort)(ReadByte(sheet) << 8 | ReadByte(sheet + 1)),
                 Bytes(stats, 7), Signed(stats + 7, 7), Bytes(stats + 0xE, 7), Signed(stats + 0x15, 7),
                 Signed(skills, 24), Signed(skills + 0x18, 24),
-                ReadWord(exp + 4), ReadWord(exp + 8), ReadByte(exp + 1), ReadByte(exp + 2), ReadByte(exp + 3), ReadByte(exp + 0xC), spells));
+                ReadWord(exp + 4), ReadWord(exp + 8), ReadByte(exp + 1), ReadByte(exp + 2), ReadByte(exp + 3), ReadByte(exp + 0xC), spells)
+            {
+                Weapon = OptionalItem(ReadWord(sheet + 0x24)),
+                Armor = InRam(armor) ? OptionalItem(ReadWord(armor)) : null,
+                Shield = InRam(armor) ? OptionalItem(ReadWord(armor + 4)) : null,
+                Gear = InRam(slots) ? [.. Enumerable.Range(0, (int)GearSlots).Select(i => OptionalItem(ReadWord(slots + (uint)i * 4)))] : [],
+                GearCount = InRam(gear) ? ReadByte(gear + 4) : 0,
+            });
         }
         return sheets;
     }
@@ -188,4 +239,25 @@ public sealed record CheckpointCharacter(
     int Protection,
     int Damage,
     int Flags,
-    IReadOnlyList<(ushort Spell, int Level)> Spells);
+    IReadOnlyList<(ushort Spell, int Level)> Spells)
+{
+    public CheckpointItem? Weapon { get; init; }
+
+    public CheckpointItem? Armor { get; init; }
+
+    public CheckpointItem? Shield { get; init; }
+
+    /// <summary>The 12 gear slots, empty ones null.</summary>
+    public IReadOnlyList<CheckpointItem?> Gear { get; init; } = [];
+
+    /// <summary>How many gear slots are used (<c>CharGear::usedItems</c>).</summary>
+    public int GearCount { get; init; }
+}
+
+/// <summary>An item as the console holds one (<c>ItemInstance</c>).</summary>
+/// <param name="StatMod">Its stat and amount, if it has a <c>StatMod</c>: for a battery, the Stamina it has left.</param>
+/// <param name="Charges">Its spell's charges, if it has a spell.</param>
+public sealed record CheckpointItem(ushort Id, int Price, (int Stat, int Amount)? StatMod, int? Charges);
+
+/// <summary>A stack in the party's inventory, by slot.</summary>
+public sealed record CheckpointStack(int Slot, CheckpointItem Item, int Quantity);

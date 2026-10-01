@@ -10,9 +10,9 @@ namespace Aidyn.Core.Characters;
 /// <remarks>
 /// Who joins and leaves with what sheet comes with M2: the original sets each recruit's joined, left
 /// and died flags (<c>Party::CheckFlags</c>), and keeps a sheet for each member who leaves, which it
-/// restores if they rejoin (<c>SaveEntity</c>). The inventory comes with 2.3.
+/// restores if they rejoin (<c>SaveEntity</c>). Its items are in <c>Party.Items.cs</c>.
 /// </remarks>
-public sealed class Party
+public sealed partial class Party
 {
     public const int MaxSize = 4;
 
@@ -27,13 +27,19 @@ public sealed class Party
 
     public uint Gold { get; set; }
 
-    /// <summary>Puts a character in the first free slot (<c>Party::AddMember</c>). False if the party is full.</summary>
+    /// <summary>
+    /// Puts a character in the first free slot (<c>Party::AddMember</c>), and the weapons they bring but
+    /// don't wield in the inventory (<see cref="Character.Spares"/>). False if the party is full.
+    /// </summary>
     public bool Add(Character member)
     {
         var slot = Array.IndexOf(_slots, null);
         if (Count == MaxSize || slot < 0)
             return false;
         _slots[slot] = member;
+        foreach (var spare in member.Spares)
+            Inventory?.Add(spare);
+        member.Spares.Clear();
         return true;
     }
 

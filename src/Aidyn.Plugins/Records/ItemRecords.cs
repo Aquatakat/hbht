@@ -85,11 +85,18 @@ public sealed record ItemRecord(
     ItemTraits? Traits = null,
     KeyItemFlags? KeyItem = null);
 
-/// <summary>What an item is (the original's <c>DBTypeEnum</c>, the high byte of its ID).</summary>
+/// <summary>
+/// What an item is (the original's <c>DBTypeEnum</c>, the high byte of its ID). Weapons and armor have
+/// records of their own; their kinds are here for rules that take any item.
+/// </summary>
 public enum ItemKind
 {
     /// <summary>Reagents, hides, letters, maps and other things that aren't worn.</summary>
     Misc = 1,
+    /// <summary>Body armor.</summary>
+    Armor = 5,
+    Shield = 6,
+    Weapon = 7,
     Helmet = 9,
     Cloak = 10,
     Gloves = 11,

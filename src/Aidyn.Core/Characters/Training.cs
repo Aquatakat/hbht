@@ -1,3 +1,4 @@
+using Aidyn.Core.Items;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 
@@ -103,8 +104,8 @@ public static class Training
     /// (<c>WidgetSkillTrain::Purchase</c>). Returns the quote.
     /// </summary>
     /// <remarks>
-    /// When a skill goes from 0 to 1, the original also applies the equipped gear's bonus to it,
-    /// which comes with equipment (2.3).
+    /// When a skill (not a weapon skill or the shield) goes from 0 to 1, what's worn adds its bonus to
+    /// it, since equipping skipped a skill at 0 (<see cref="Equipment.SkillBonus"/>).
     /// </remarks>
     public static TrainingQuote TrainSkill(Character student, SkillId skill, Trainer? trainer, ref uint gold)
     {
@@ -115,6 +116,8 @@ public static class Training
         student.Skills.Train(skill, 1);
         if (student.Skills.Base(skill) == before)
             return quote;
+        if (before == 0 && skill.IsSkill)
+            student.Skills.Modify(skill, student.Equipment.SkillBonus(skill));
         student.SpendableExp -= quote.Exp;
         gold -= quote.Gold;
         return quote;

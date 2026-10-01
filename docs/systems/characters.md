@@ -16,7 +16,7 @@ The tables are read from the code segment for each ROM version; the literals are
 
 ## A character sheet
 
-`Character` is a `CharSheet`: stats, skills, experience, aspect, school, True Name, heavy, protection, damage and a spellbook. `Character.Create` builds one from an entity record (`Entity::Init`), with its experience at its level's threshold, as a joining party member's is. Equipment comes with 2.3, and spell and potion effects with 2.5; the sheet has the hooks they use.
+`Character` is a `CharSheet`: stats, skills, experience, aspect, school, True Name, heavy, protection, damage and a spellbook. `Character.Create` builds one from an entity record (`Entity::Init`), with its experience at its level's threshold, as a joining party member's is. Equipment is in [items](items.md); spell and potion effects come with 2.5, and the sheet has the hooks they use.
 
 **Stats** (`CharacterStats`) are held four ways, as bytes that wrap as the original's do:
 
@@ -89,7 +89,6 @@ The checkpoints confirm the sheets: levels, hit points, the skills that can't be
 
 ## What's left
 
-- **Equipment (2.3):** gear's stat and skill bonuses, protection and damage, what can be equipped (Strength, weapon skill, shield skill, Niesen's staff), and the bonus a skill gets from gear when it's raised from 0.
 - **Effects (2.5):** spells' and potions' stat changes, their timers, Cheat Death, and what dying clears.
 - **Joining and leaving (M2):** the member flags and the sheets kept for members who leave.
 - **Saves (2.8):** the original saves a character's spells by school, in the spell DB's order (`SaveParty::SaveSpell`), so after loading a save the spellbook is in that order, not the order learnt. The checkpoints show it.
