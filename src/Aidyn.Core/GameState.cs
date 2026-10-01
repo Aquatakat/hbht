@@ -113,19 +113,7 @@ public sealed class GameState : IScriptWorld
         game.Clock.Time = save.Time % GameClock.Year;
         game.StateFlags.SetTime(game.Clock);
 
-        game.Party.Gold = save.Party.Gold;
-        for (var slot = 0; slot < save.Party.Members.Count; slot++)
-        {
-            if (game.LoadCharacter(save.Party.Members[slot], alaron: slot == 0) is { } member && !game.Party.Add(member))
-                game._problems.Add($"{member.Name} doesn't fit in the party.");
-        }
-        foreach (var stack in save.Party.Inventory)
-        {
-            if (game.Instance(stack.Item, stack.Battery, stack.Charges) is not { } held)
-                continue;
-            if (!game.Party.Inventory!.Add(held.Item, stack.Quantity, held))
-                game._problems.Add($"{held.Item.Name} doesn't fit in the inventory.");
-        }
+        game.Fill(game.Party, save.Party, game._problems);
 
         foreach (var memory in save.Memories)
         {
@@ -156,19 +144,61 @@ public sealed class GameState : IScriptWorld
         Place = Place,
         Flags = [.. Enumerable.Range(FlagNetwork.True + 1, Flags.Count - FlagNetwork.True - 1)
             .Where(h => !Flags.IsDerived(h) && Flags.Peek(h)).Select(Flags.Id)],
-        Party = new SaveParty
-        {
-            Gold = Party.Gold,
-            Members = [.. Party.Members.Select(SaveCharacter)],
-            Inventory = [.. (Party.Inventory?.Stacks ?? []).Select(s =>
-                new SaveStack(s.Item.Id, s.Quantity) { Battery = s.Instance.Battery, Charges = s.Instance.Charges })],
-        },
+        Party = SaveParty(),
         Memories = [.. Memory.Entries.Select(e => new SaveMemory(e.Key.MapObject, e.Key.Kind.ToString(), e.Value, e.Lifetime)
         {
             Skill = e.Key.Kind == MemoryKind.SkillCheck ? e.Key.Skill : null,
         })],
         Random = new SaveRandom(Random.Combat.Seed, Random.Loot.Seed, Random.World.Seed, Random.Wander.Seed, Random.Cosmetic.Seed),
     };
+
+    /// <summary>The party as a save holds it: its members' sheets, its gold and its inventory.</summary>
+    public SaveParty SaveParty() => new()
+    {
+        Gold = Party.Gold,
+        Members = [.. Party.Members.Select(SaveCharacter)],
+        Inventory = [.. (Party.Inventory?.Stacks ?? []).Select(s =>
+            new SaveStack(s.Item.Id, s.Quantity) { Battery = s.Instance.Battery, Charges = s.Instance.Charges })],
+    };
+
+    /// <summary>
+    /// Puts the party as a save holds it in place of the one there, as loading does. Key items' flags
+    /// stay as they are, and those it holds are set.
+    /// </summary>
+    public void LoadParty(SaveParty saved)
+    {
+        Party.Clear();
+        Fill(Party, saved, _problems);
+    }
+
+    /// <summary>
+    /// A copy of the party, made as saving and loading it would, for trying things on without
+    /// changing the game. Its key items don't write the flags.
+    /// </summary>
+    public Party CopyParty()
+    {
+        var party = new Party(Items);
+        Fill(party, SaveParty(), []);
+        return party;
+    }
+
+    // QuestData::Load's party: the members in slot order, the first being Alaron, the gold and the inventory.
+    private void Fill(Party party, SaveParty saved, ICollection<string> problems)
+    {
+        party.Gold = saved.Gold;
+        for (var slot = 0; slot < saved.Members.Count; slot++)
+        {
+            if (LoadCharacter(saved.Members[slot], slot == 0, problems) is { } member && !party.Add(member))
+                problems.Add($"{member.Name} doesn't fit in the party.");
+        }
+        foreach (var stack in saved.Inventory)
+        {
+            if (Instance(stack.Item, stack.Battery, stack.Charges, problems) is not { } held)
+                continue;
+            if (!party.Inventory!.Add(held.Item, stack.Quantity, held))
+                problems.Add($"{held.Item.Name} doesn't fit in the inventory.");
+        }
+    }
 
     /// <summary>
     /// Time passing in trek, <paramref name="ticks"/> of play: the clock runs, and the calendar's flags
@@ -228,11 +258,13 @@ public sealed class GameState : IScriptWorld
     /// Whether it's the party's first member, whose save also holds the Elemental, Naming and
     /// Necromancy spells (<c>SaveParty::SaveAlaron</c>).
     /// </param>
-    public Character? LoadCharacter(SaveCharacter saved, bool alaron = false)
+    public Character? LoadCharacter(SaveCharacter saved, bool alaron = false) => LoadCharacter(saved, alaron, _problems);
+
+    private Character? LoadCharacter(SaveCharacter saved, bool alaron, ICollection<string> problems)
     {
         if (Plugins.TryGet<EntityRecord>(saved.Entity) is not { } entity)
         {
-            _problems.Add($"{saved.Entity} isn't a character any plugin has.");
+            problems.Add($"{saved.Entity} isn't a character any plugin has.");
             return null;
         }
         var trained = saved.Trained.ToArray();
@@ -255,7 +287,7 @@ public sealed class GameState : IScriptWorld
             if (Plugins.TryGet<SpellRecord>(known.Spell) is { } spell)
                 spells.Add(new LearnedSpell(spell, known.Level));
             else
-                _problems.Add($"{entity.Name} knows {known.Spell}, which no plugin has.");
+                problems.Add($"{entity.Name} knows {known.Spell}, which no plugin has.");
         }
         var character = Character.Restore(entity, Rules, stats, skills, SpellOrder(spells, entity.School, alaron));
         character.TrueName = entity.TrueName || (entity.TrueNameFlag is { } flag && IsSet(flag));
@@ -263,7 +295,7 @@ public sealed class GameState : IScriptWorld
         character.SpendableExp = saved.SpendableExp;
 
         var equipment = character.Equipment;
-        if (Instance(saved.Armor) is { } armor)
+        if (Instance(saved.Armor, problems) is { } armor)
             equipment.EquipArmor(armor);
         Wear(saved.Shield, equipment.EquipShield);
         Wear(saved.Weapon, equipment.EquipWeapon);
@@ -273,8 +305,8 @@ public sealed class GameState : IScriptWorld
 
         void Wear(SaveItem? item, Func<ItemInstance, EquipRefusal> equip)
         {
-            if (Instance(item) is { } instance && equip(instance) is var refusal and not EquipRefusal.None)
-                _problems.Add($"{entity.Name} can't wear the {instance.Item.Name} ({refusal}), so it's lost.");
+            if (Instance(item, problems) is { } instance && equip(instance) is var refusal and not EquipRefusal.None)
+                problems.Add($"{entity.Name} can't wear the {instance.Item.Name} ({refusal}), so it's lost.");
         }
     }
 
@@ -293,14 +325,15 @@ public sealed class GameState : IScriptWorld
             .ThenBy(s => s.Spell.Position ?? int.MaxValue)];
     }
 
-    private ItemInstance? Instance(SaveItem? item) => item is null ? null : Instance(item.Item, item.Battery, item.Charges);
+    private ItemInstance? Instance(SaveItem? item, ICollection<string> problems) =>
+        item is null ? null : Instance(item.Item, item.Battery, item.Charges, problems);
 
     // SaveParty::LoadItem: a new instance of the item, with the save's charges and battery. The price is the item's.
-    private ItemInstance? Instance(RecordId id, int? battery, int? charges)
+    private ItemInstance? Instance(RecordId id, int? battery, int? charges, ICollection<string> problems)
     {
         if (Items.TryGet(id) is not { } item)
         {
-            _problems.Add($"{id} isn't an item any plugin has.");
+            problems.Add($"{id} isn't an item any plugin has.");
             return null;
         }
         var instance = new ItemInstance(item);

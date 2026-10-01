@@ -3,14 +3,13 @@ using Aidyn.Core.Characters;
 using Aidyn.Core.Items;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
-using Aidyn.Rom.Rig;
 using Godot;
 
 namespace Aidyn.Inspector;
 
 /// <summary>
-/// The characters the editor works with: an entity's sheet as its record starts it, or a party
-/// member's as a loaded checkpoint holds it, and the party scripts play against, with its inventory.
+/// The characters the editor works with: an entity's sheet as its record starts it, or a copy of
+/// the editor's game's party to try things on.
 /// </summary>
 public static class EditorCharacters
 {
@@ -43,98 +42,28 @@ public static class EditorCharacters
     }
 
     /// <summary>An entity as its record starts it, with its True Name by the editor's flags, wearing its gear.</summary>
-    public static Character? Create(PluginSet plugins, CharacterRules rules, RecordId entity, FlagState? flags, ItemCatalog? items) =>
+    public static Character? Create(PluginSet plugins, CharacterRules rules, RecordId entity, EditorGame? game, ItemCatalog? items) =>
         plugins.TryGet<EntityRecord>(entity) is { } record
             ? Character.Create(record, rules, plugins.Get<SpellRecord>,
-                flag => flags is not null && flags.Network.TryHandle(flag, out var handle) && flags.Network.Get(handle), items)
+                flag => game is not null && game.Network.TryHandle(flag, out var handle) && game.Network.Get(handle), items)
             : null;
 
     /// <summary>
-    /// A party member as a checkpoint holds them, wearing what they wear, or null if their records are
-    /// missing. The sheet already counts what's worn, so it isn't applied again.
+    /// A copy of the editor's game's party to try things on, with its gold and inventory, or for plugins
+    /// too old for a game, a new game's Alaron alone.
     /// </summary>
-    public static Character? Restore(PluginSet plugins, CharacterRules rules, CheckpointCharacter sheet, ItemCatalog? items)
+    public static Party CopyParty(PluginSet plugins, CharacterRules rules, EditorGame? game, ItemCatalog? items)
     {
-        if (plugins.TryGet<EntityRecord>(RecordId.Hex(RecordTypes.Entity, sheet.Id)) is not { } entity)
-            return null;
-        var spells = new List<LearnedSpell>();
-        foreach (var (id, level) in sheet.Spells)
-        {
-            if (plugins.TryGet<SpellRecord>(RecordId.Hex(RecordTypes.Spell, id)) is { } spell)
-                spells.Add(new LearnedSpell(spell, level));
-        }
-        var character = Character.Restore(entity, rules, new CharacterStats(rules, sheet.Trained, sheet.Current, sheet.Base, sheet.Modified),
-            new CharacterSkills(rules, sheet.SkillBase, sheet.SkillModified), spells);
-        character.TrueName = (sheet.Flags & 1) != 0;
-        character.TotalExp = sheet.TotalExp;
-        character.SpendableExp = sheet.SpendableExp;
-        character.Protection = sheet.Protection;
-        character.Damage = sheet.Damage;
-        if (items is not null)
-        {
-            foreach (var worn in new[] { sheet.Weapon, sheet.Armor, sheet.Shield }.OfType<CheckpointItem>())
-            {
-                if (Instance(items, worn) is { } instance)
-                    character.Equipment.Restore(instance);
-            }
-            for (var slot = 0; slot < sheet.Gear.Count; slot++)
-            {
-                if (sheet.Gear[slot] is { } gear && Instance(items, gear) is { } instance)
-                    character.Equipment.Restore(instance, slot);
-            }
-        }
-        return character;
-    }
-
-    /// <summary>
-    /// The loaded checkpoint's party, with its gold and inventory, or a new game's: Alaron alone, with
-    /// the weapons he doesn't wield in the inventory.
-    /// </summary>
-    /// <param name="writesFlags">Whether key items set and clear the editor's flags as the party gains and loses them.</param>
-    public static Party NewParty(PluginSet plugins, CharacterRules rules, FlagState? flags, ItemCatalog? items, bool writesFlags = false)
-    {
-        var party = items is null ? new Party() : new Party(items, writesFlags ? flags?.Network : null);
-        if (flags?.ConsoleParty is { } sheets)
-        {
-            foreach (var sheet in sheets)
-            {
-                if (Restore(plugins, rules, sheet, items) is { } member)
-                    party.Add(member);
-            }
-            party.Gold = flags.ConsoleGold ?? 0;
-            foreach (var stack in flags.ConsoleInventory ?? [])
-            {
-                if (items is not null && Instance(items, stack.Item) is { } held)
-                    party.Inventory!.Add(held.Item, stack.Quantity, held);
-            }
-        }
-        else if (Create(plugins, rules, Alaron, flags, items) is { } alaron)
-        {
+        if (game is not null)
+            return game.CopyParty();
+        var party = items is null ? new Party() : new Party(items);
+        if (Create(plugins, rules, Alaron, null, items) is { } alaron)
             party.Add(alaron);
-        }
         return party;
     }
 
-    /// <summary>A member of <see cref="NewParty"/> as pages that try things on it name them: "New game Alaron", or a checkpoint's member by name.</summary>
-    public static string Label(FlagState? flags, Character member) => flags?.ConsoleParty is not null ? member.Name : $"New game {member.Name}";
-
-    /// <summary>An item's record ID from the console's: weapons are 0x07…, armor and shields 0x05… and 0x06…, the rest items.</summary>
-    public static RecordId ItemId(ushort id) => (id >> 8) switch
-    {
-        7 => RecordId.Hex(RecordTypes.Weapon, id),
-        5 or 6 => RecordId.Hex(RecordTypes.Armor, id),
-        _ => RecordId.Hex(RecordTypes.Item, id),
-    };
-
-    /// <summary>An item as the console holds one, with its price, battery and charges, or null if no record has it.</summary>
-    public static ItemInstance? Instance(ItemCatalog items, CheckpointItem held) => items.TryGet(ItemId(held.Id)) is { } item
-        ? new ItemInstance(item)
-        {
-            Price = held.Price,
-            Battery = held.StatMod is { Stat: 5, Amount: var left } ? left : null,
-            Charges = held.Charges,
-        }
-        : null;
+    /// <summary>A member of the editor's party as pages that try things on it name them: "New game Alaron", or a loaded game's member by name.</summary>
+    public static string Label(EditorGame? game, Character member) => game is { IsNewGame: false } ? member.Name : $"New game {member.Name}";
 }
 
 /// <summary>
@@ -145,7 +74,7 @@ public static class EditorCharacters
 /// </summary>
 public partial class CharacterPanel : PagePanel
 {
-    private readonly FlagState? _flags;
+    private readonly EditorGame? _game;
     private readonly EntityRecord _entity;
     private readonly CharacterRules _rules;
     private readonly ItemCatalog? _items;
@@ -155,33 +84,33 @@ public partial class CharacterPanel : PagePanel
     private Party? _party;
     private Trainer? _trainer;
     private uint _gold;
-    private bool _fromCheckpoint;
+    private bool _fromGame;
 
-    public CharacterPanel(PluginCatalog catalog, FlagState? flags, EntityRecord entity, CharacterRules rules, ItemCatalog? items, Action<RecordId> open)
+    public CharacterPanel(PluginCatalog catalog, EditorGame? game, EntityRecord entity, CharacterRules rules, ItemCatalog? items, Action<RecordId> open)
         : base(catalog, open)
     {
-        (_flags, _entity, _rules, _items) = (flags, entity, rules, items);
+        (_game, _entity, _rules, _items) = (game, entity, rules, items);
         // Trainers are the plain NPCs, recruits who teach and anyone who trains for free.
         _trainers = [.. catalog.Plugins.All<EntityRecord>(RecordTypes.Entity)
             .Where(e => e.Category is EntityCategory.Generic or EntityCategory.Party || rules.Training.FreeTrainers.Contains(e.Id))
             .OrderBy(e => e.Name, StringComparer.OrdinalIgnoreCase)];
-        _fromCheckpoint = CheckpointSheet() is not null;
+        _fromGame = InGame;
         _character = Build();
         Refresh();
     }
 
-    private CheckpointCharacter? CheckpointSheet() =>
-        _flags?.ConsoleParty?.FirstOrDefault(s => RecordId.Hex(RecordTypes.Entity, s.Id) == _entity.Id);
+    /// <summary>Whether the entity is in the editor's game's party, a loaded one's.</summary>
+    private bool InGame => _game is { IsNewGame: false } game && game.Game.Party.Contains(_entity.Id);
 
     /// <summary>
-    /// The sheet as it starts, and the party's gold with it: the checkpoint's, or plenty to try training
-    /// with. It's alone in a party whose inventory holds what it takes off, and the weapons it brings.
+    /// The sheet as it starts, and the party's gold with it: a copy of the game's, or plenty to try
+    /// training with. It's alone in a party whose inventory holds what it takes off, and the weapons it brings.
     /// </summary>
     private Character Build()
     {
-        _gold = _fromCheckpoint ? _flags?.ConsoleGold ?? 0 : 10_000;
-        var character = (_fromCheckpoint && CheckpointSheet() is { } sheet ? EditorCharacters.Restore(Plugins, _rules, sheet, _items) : null)
-            ?? EditorCharacters.Create(Plugins, _rules, _entity.Id, _flags, _items)!;
+        _gold = _fromGame ? _game!.Game.Party.Gold : 10_000;
+        var character = (_fromGame ? _game!.CopyParty().Get(_entity.Id) : null)
+            ?? EditorCharacters.Create(Plugins, _rules, _entity.Id, _game, _items)!;
         _party = _items is null ? null : new Party(_items);
         _party?.Add(character);
         return character;
@@ -193,12 +122,12 @@ public partial class CharacterPanel : PagePanel
         var c = _character;
 
         Body.AddChild(Header());
-        if (CheckpointSheet() is not null)
+        if (InGame)
         {
-            var source = new OptionButton { TooltipText = "Whose sheet: the record's, or the loaded checkpoint's." };
+            var source = new OptionButton { TooltipText = "Whose sheet: the record's, or the loaded game's." };
             source.AddItem("The record's sheet", 0);
-            source.AddItem($"The sheet in {_flags!.Name}", 1);
-            source.Selected = _fromCheckpoint ? 1 : 0;
+            source.AddItem($"The sheet in {_game!.Name}", 1);
+            source.Selected = _fromGame ? 1 : 0;
             source.ItemSelected += i => Reset(i == 1);
             Body.AddChild(source);
         }
@@ -414,14 +343,14 @@ public partial class CharacterPanel : PagePanel
         row.AddChild(gold);
 
         var reset = new Button { Text = "Reset", TooltipText = "Back to the sheet as it started." };
-        reset.Pressed += () => Reset(_fromCheckpoint);
+        reset.Pressed += () => Reset(_fromGame);
         row.AddChild(reset);
         return row;
     }
 
-    private void Reset(bool fromCheckpoint)
+    private void Reset(bool fromGame)
     {
-        _fromCheckpoint = fromCheckpoint;
+        _fromGame = fromGame;
         _character = Build();
         _result.Text = "";
         Refresh();

@@ -14,7 +14,8 @@ namespace Aidyn.Inspector;
 /// <c>--drive &lt;request&gt;</c> runs an actor's state machine, <c>--wireframe 1</c> and
 /// <c>--scene-camera 1</c> set those switches, <c>--collision surface|role</c> colours a map's
 /// collision, and <c>--wait &lt;seconds&gt;</c> waits before the
-/// screenshot. <c>--checkpoint &lt;state&gt;</c> shows a checkpoint's flags on flag pages, and
+/// screenshot. <c>--checkpoint &lt;state&gt;</c> and <c>--save &lt;save&gt;</c> load a checkpoint's or a
+/// save's game, which flag pages, scripts and the party's pages show, and
 /// <c>--play &lt;moves&gt;</c> plays a script's page that many moves, with its conversation box shown at
 /// <c>--zoom &lt;1-3&gt;</c>, <c>--ui-filter pixels|videoout|smooth</c>, <c>--aspect 4:3|16:9</c> and
 /// <c>--ui-lines 240|360|480</c>. The inventory record's Party tab takes the same, and
@@ -45,9 +46,9 @@ public partial class Editor : Control
         if (args.TryGetValue("tab", out var tab))
             _records.SelectTab(tab);
         await _records.LoadAsync(args.GetValueOrDefault("data") ?? DataPaths.Plugins);
+        // A bad checkpoint or save shouldn't stop the record opening, or a script waits for the watchdog.
         if (args.TryGetValue("checkpoint", out var checkpoint))
         {
-            // A bad checkpoint shouldn't stop the record opening, or a script waits for the watchdog.
             try
             {
                 _records.LoadCheckpoint(checkpoint);
@@ -55,6 +56,17 @@ public partial class Editor : Control
             catch (Exception e)
             {
                 GD.PrintErr($"Couldn't load the checkpoint {checkpoint}: {e.Message}");
+            }
+        }
+        if (args.TryGetValue("save", out var save))
+        {
+            try
+            {
+                _records.LoadSave(save);
+            }
+            catch (Exception e)
+            {
+                GD.PrintErr($"Couldn't load the save {save}: {e.Message}");
             }
         }
         if (args.TryGetValue("record", out var record))

@@ -53,7 +53,7 @@ public partial class RecordBrowser : Control
     private PluginCatalog? _catalog;
     private Models? _models;
     private QuestIndex? _quests;
-    private FlagState? _flags;
+    private EditorGame? _game;
     private CharacterRules? _rules;
     private ItemCatalog? _items;
     private string _pluginsDirectory = DataPaths.Plugins;
@@ -111,26 +111,26 @@ public partial class RecordBrowser : Control
 
         _status.Text = $"Loading {pluginsDirectory}…";
         var generation = ++_generation;
-        var (catalog, quests, flags, rules, items) = await Task.Run(() =>
+        var (catalog, quests, game, rules, items) = await Task.Run(() =>
         {
             var plugins = PluginSet.LoadInstalled(pluginsDirectory);
-            FlagState? flags = null;
+            EditorGame? game = null;
             try
             {
-                flags = new FlagState(FlagNetwork.Load(plugins));
+                game = new EditorGame(plugins);
             }
-            catch (Exception e) when (e is InvalidOperationException or InvalidDataException or KeyNotFoundException)
+            catch (Exception e) when (e is InvalidOperationException or InvalidDataException or KeyNotFoundException or ArgumentException)
             {
-                GD.PrintErr($"No flag network: {e.Message}");
+                GD.PrintErr($"No game: {e.Message}");
             }
-            return (PluginCatalog.Build(plugins), QuestIndex.Build(plugins), flags, EditorCharacters.Rules(plugins), EditorCharacters.Items(plugins));
+            return (PluginCatalog.Build(plugins), QuestIndex.Build(plugins), game, EditorCharacters.Rules(plugins), EditorCharacters.Items(plugins));
         });
         if (generation != _generation)
             return;
         _catalog = catalog;
         _models = new Models(catalog.Plugins);
         _quests = quests;
-        _flags = flags;
+        _game = game;
         _rules = rules;
         _items = items;
 
@@ -144,8 +144,11 @@ public partial class RecordBrowser : Control
         ShowNothing(Welcome(catalog));
     }
 
-    /// <summary>Shows a checkpoint's flags on flag pages, for scripts (<c>--checkpoint</c>).</summary>
-    public void LoadCheckpoint(string path) => _flags?.LoadCheckpoint(path);
+    /// <summary>Loads a checkpoint's game, for scripts (<c>--checkpoint</c>).</summary>
+    public void LoadCheckpoint(string path) => _game?.LoadCheckpoint(path);
+
+    /// <summary>Loads a save's game, for scripts (<c>--save</c>).</summary>
+    public void LoadSave(string path) => _game?.LoadSave(path);
 
     /// <summary>Plays the script on the preview, if it's showing one, for a number of moves (<c>--play</c>).</summary>
     public void PlayScript(int moves)
@@ -503,7 +506,7 @@ public partial class RecordBrowser : Control
                 break;
             case MapSetView.Focus focus when _models is { } models:
                 SetPreview(_map);
-                await _map.ShowAsync(catalog, models, _flags, focus);
+                await _map.ShowAsync(catalog, models, _game, focus);
                 break;
             case (byte[] glb, string animation, string note):
                 SetPreview(_model);
@@ -565,23 +568,23 @@ public partial class RecordBrowser : Control
     {
         var plugins = catalog.Plugins;
         if (id.Type is RecordTypes.Flag or RecordTypes.Journal)
-            return _flags is null ? Message("These plugins have no flag network.") : new FlagPanel(catalog, _flags, id, FollowLink);
+            return _game is null ? Message("These plugins are too old for a game: import the ROM again.") : new FlagPanel(catalog, _game, id, FollowLink);
         if (id.Type == RecordTypes.Dialogue && plugins.TryGet<DialogueRecord>(id) is { } script)
-            return new ScriptPanel(catalog, _flags, _rules, _items, script, FollowLink);
+            return new ScriptPanel(catalog, _game, _rules, _items, script, FollowLink);
         if (id.Type == RecordTypes.Entity && plugins.TryGet<EntityRecord>(id) is { } entity && _rules is { } rules)
-            return new CharacterPanel(catalog, _flags, entity, rules, _items, FollowLink);
+            return new CharacterPanel(catalog, _game, entity, rules, _items, FollowLink);
         if (_items is { } items)
         {
             if (id.Type is RecordTypes.Weapon or RecordTypes.Armor or RecordTypes.Item && items.TryGet(id) is { } item)
-                return new ItemPanel(catalog, _flags, _rules, items, item, FollowLink);
+                return new ItemPanel(catalog, _game, _rules, items, item, FollowLink);
             if (id.Type == RecordTypes.Shop && plugins.TryGet<ShopRecord>(id) is { } shop)
-                return new ShopPanel(catalog, _flags, _rules, items, shop, FollowLink);
+                return new ShopPanel(catalog, _game, _rules, items, shop, FollowLink);
             if (id.Type == RecordTypes.Loot && plugins.TryGet<LootRecord>(id) is { } loot)
                 return new LootPanel(catalog, items, loot, FollowLink);
             if (id.Type == RecordTypes.Recipe && plugins.TryGet<RecipeRecord>(id) is { } recipe)
-                return new RecipePanel(catalog, _flags, _rules, items, recipe, FollowLink);
+                return new RecipePanel(catalog, _game, _rules, items, recipe, FollowLink);
             if (id.Type == RecordTypes.Inventory && _rules is { } partyRules && plugins.Contains(RecordId.Decimal(RecordTypes.Font, 0)))
-                return new PartyTabPanel(catalog, _flags, partyRules, items);
+                return new PartyTabPanel(catalog, _game, partyRules, items);
         }
         if (id.Type == RecordTypes.Actor && json is not null)
         {

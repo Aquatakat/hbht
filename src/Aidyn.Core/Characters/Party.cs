@@ -56,6 +56,14 @@ public sealed partial class Party
         return true;
     }
 
+    /// <summary>Empties the party: its members, its gold and its inventory. Key items' flags stay as they are.</summary>
+    public void Clear()
+    {
+        Array.Clear(_slots);
+        Gold = 0;
+        Inventory?.Clear();
+    }
+
     public Character? Get(RecordId entity) => Members.FirstOrDefault(m => m.Entity == entity);
 
     public bool Contains(RecordId entity) => Get(entity) is not null;

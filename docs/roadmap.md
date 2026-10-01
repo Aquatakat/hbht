@@ -178,7 +178,7 @@ Work can start once 0.4 and 0.5 are done; each part slots in as its Phase 1 trac
 | **2.5 Combat rules.** Turn order, field-of-influence radius, hit, damage, and crit, spells (targeting modes, radius formula, reagents, battery), status effects, reserve spawns, leader and flee logic, rewards. | **XL** | `combat/` |
 | **2.6 Enemy AI.** Port `aiScore` and `ai.cpp`. | L | `combat/ai*.cpp` |
 | **2.7 Time & camping.** The day clock, the 8-hour camp, battery regeneration, the ambush roll, camp encounters. | S | `Camp.cpp`, `sundail.cpp` |
-| **2.8 Save/load** in the engine's own format. | S | |
+| **2.8 Save/load** in the engine's own format. **Done Oct 1, 2026:** the core's `GameState`, a JSON format holding what the original's save holds, loading as the original does, and the checkpoints converted into saves; see [saves](systems/saves.md). The System tab's saving and loading come with M2. | S | `QuestData.cpp`, `saveParty.cpp` |
 | **2.9 Differential tests.** Capture the random values the emulator consumed (see ADR 0006), replay them into the core, and compare damage and turn logs. | L, ongoing | |
 | **2.10 Events and triggers.** The core's named event list, and the trigger records (*on event, if condition, do effects*) using Borg13's condition and effect vocabulary. Engine features that replace bespoke code (ADR 0008 layer 3) land with the system they belong to. | M | 1H audit, `bossflag.cpp`, `WidgetBarterControl.cpp`, etc. |
 

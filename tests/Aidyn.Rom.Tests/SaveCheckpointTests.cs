@@ -271,4 +271,41 @@ public sealed class SaveCheckpointTests(MapObjectFixture fixture)
         Assert.Empty(again.Problems);
         Assert.Equal(first, SaveFile.Serialize(again.Save()));
     }
+
+    [Theory]
+    [MemberData(nameof(Checkpoints))]
+    public void ACopiedPartyIsTheGamesAndChangingItLeavesTheGameAlone(string name)
+    {
+        var game = Game(name, Load(name));
+        var saved = SaveFile.Serialize(game.Save());
+
+        var copy = game.CopyParty();
+        Assert.Equal(game.Party.Members.Select(m => (m.Entity, m.Hp, m.Stats.Modified(Stat.Strength))),
+            copy.Members.Select(m => (m.Entity, m.Hp, m.Stats.Modified(Stat.Strength))));
+        Assert.Equal(game.Party.Gold, copy.Gold);
+        Assert.Equal(game.Party.Inventory!.Stacks.Select(s => (s.Item.Id, s.Quantity)), copy.Inventory!.Stacks.Select(s => (s.Item.Id, s.Quantity)));
+
+        // Taking every key item from the copy clears no flag, and leaves the game's party as it was.
+        foreach (var stack in copy.Inventory.Stacks.Where(s => s.Item.KeyItem is not null).ToList())
+            copy.Inventory.Take(stack.Item.Id, stack.Quantity);
+        copy.Members.First().TakeDamage(10);
+        Assert.Equal(saved, SaveFile.Serialize(game.Save()));
+    }
+
+    [Theory]
+    [MemberData(nameof(Checkpoints))]
+    public void LoadingThePartyAgainPutsItBackAsSaved(string name)
+    {
+        var game = Game(name, Load(name));
+        var saved = game.SaveParty();
+        var before = SaveFile.Serialize(game.Save());
+
+        game.Party.Remove(game.Party.Members.Last().Entity);
+        game.Party.Gold = 0;
+        game.Party.Members.First().TakeDamage(10);
+        game.LoadParty(saved);
+
+        Assert.Empty(game.Problems);
+        Assert.Equal(before, SaveFile.Serialize(game.Save()));
+    }
 }

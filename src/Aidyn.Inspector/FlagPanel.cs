@@ -1,82 +1,14 @@
 using Aidyn.Core.Flags;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
-using Aidyn.Rom.Rig;
+using Aidyn.Plugins.Saves;
 using Godot;
 
 namespace Aidyn.Inspector;
 
 /// <summary>
-/// The game state the editor shows: a new game's, or a checkpoint's plain flags with the derived
-/// flags the port evaluates from them, which it checks against the console's, and its party's
-/// sheets, gold and inventory, which character pages and the script player start from.
-/// </summary>
-public sealed class FlagState(FlagNetwork network)
-{
-    public FlagNetwork Network { get; } = network;
-
-    /// <summary>What the values are, such as "a new game" or a checkpoint's label.</summary>
-    public string Name { get; private set; } = "a new game";
-
-    /// <summary>After loading a checkpoint, how the port's derived flags compare with the console's.</summary>
-    public string? Check { get; private set; }
-
-    /// <summary>The console's values, from the loaded checkpoint.</summary>
-    public IReadOnlyList<bool>? Console { get; private set; }
-
-    /// <summary>The loaded checkpoint's party sheets, which character pages and the script player use.</summary>
-    public IReadOnlyList<CheckpointCharacter>? ConsoleParty { get; private set; }
-
-    /// <summary>The loaded checkpoint's gold.</summary>
-    public uint? ConsoleGold { get; private set; }
-
-    /// <summary>The loaded checkpoint's inventory.</summary>
-    public IReadOnlyList<CheckpointStack>? ConsoleInventory { get; private set; }
-
-    public void NewGame()
-    {
-        Network.NewGame();
-        (Name, Check, Console, ConsoleParty, ConsoleGold, ConsoleInventory) = ("a new game", null, null, null, null, null);
-    }
-
-    /// <summary>
-    /// Restores a checkpoint's plain flags (an ares state, see docs/reference-rig.md). Base-game
-    /// flags are numbered as the console's, and other plugins' flags start clear.
-    /// </summary>
-    public void LoadCheckpoint(string path)
-    {
-        var checkpoint = AresCheckpoint.Read(path);
-        var console = checkpoint.Flags;
-        try
-        {
-            (ConsoleParty, ConsoleGold, ConsoleInventory) = (checkpoint.Party, checkpoint.Gold, checkpoint.Inventory);
-        }
-        catch (InvalidDataException)
-        {
-            (ConsoleParty, ConsoleGold, ConsoleInventory) = (null, null, null);
-        }
-        Network.Restore(h => h < console.Count && console[h]);
-        var derived = Enumerable.Range(0, Math.Min(console.Count, Network.Count)).Where(Network.IsDerived).ToList();
-        var wrong = derived.Where(h => Network.Peek(h) != console[h]).ToList();
-        var file = Path.GetFileNameWithoutExtension(path);
-        Name = file.Contains(" - ", StringComparison.Ordinal) ? file[(file.LastIndexOf(" - ", StringComparison.Ordinal) + 3)..] : file;
-        Console = console;
-        Check = wrong.Count == 0
-            ? $"The network reproduces all {derived.Count:N0} of the checkpoint's derived flags. {console.Count(v => v):N0} flags are set."
-            : $"{wrong.Count:N0} of {derived.Count:N0} derived flags differ from the console's: {string.Join(", ", wrong.Take(20))}{(wrong.Count > 20 ? "…" : "")}";
-    }
-
-    /// <summary>After a flag is set or cleared by hand.</summary>
-    public void Edited()
-    {
-        if (!Name.EndsWith(", edited", StringComparison.Ordinal))
-            Name += ", edited";
-    }
-}
-
-/// <summary>
 /// A flag's page: what it means, its journal entry, a derived flag's formula with each input's value,
-/// and its own value under the <see cref="FlagState"/>. A journal entry's page shows its text and
+/// and its own value under the <see cref="EditorGame"/>. A journal entry's page shows its text and
 /// its flags. Plain flags can be set and cleared, to see what follows.
 /// </summary>
 public partial class FlagPanel : VBoxContainer
@@ -84,9 +16,10 @@ public partial class FlagPanel : VBoxContainer
     private static readonly Color Dim = new(0.65f, 0.65f, 0.65f);
 
     private readonly PluginCatalog _catalog;
-    private readonly FlagState _state;
+    private readonly EditorGame _state;
     private readonly RecordId _id;
     private readonly Action<RecordId> _open;
+    private string? _saved;
     private readonly VBoxContainer _body = new() { SizeFlagsVertical = SizeFlags.ExpandFill };
     private readonly FileDialog _dialog = new()
     {
@@ -96,20 +29,28 @@ public partial class FlagPanel : VBoxContainer
         UseNativeDialog = true,
         Title = "A checkpoint: an ares save state of 1.0 or the debug ROM",
     };
+    private readonly FileDialog _openSave = SaveDialog(FileDialog.FileModeEnum.OpenFile, "A save to load");
+    private readonly FileDialog _saveAs = SaveDialog(FileDialog.FileModeEnum.SaveFile, "Save the game");
 
-    public FlagPanel(PluginCatalog catalog, FlagState state, RecordId id, Action<RecordId> open)
+    public FlagPanel(PluginCatalog catalog, EditorGame state, RecordId id, Action<RecordId> open)
     {
         (_catalog, _state, _id, _open) = (catalog, state, id, open);
         AddThemeConstantOverride("separation", 8);
 
         var bar = new HBoxContainer();
-        var load = new Button { Text = "Load checkpoint…", TooltipText = "Show a checkpoint's flags, and check the network against them." };
-        var newGame = new Button { Text = "New game", TooltipText = "Show a new game's flags." };
+        var load = new Button { Text = "Load checkpoint…", TooltipText = "Load a checkpoint's game, and check the network against its flags." };
+        var loadSave = new Button { Text = "Load save…", TooltipText = "Load a save's game." };
+        var saveAs = new Button { Text = "Save game…", TooltipText = "Save the game as the editor has it, flags, party and all, for the runtime to start from." };
+        var newGame = new Button { Text = "New game", TooltipText = "Go back to a new game." };
         bar.AddChild(load);
+        bar.AddChild(loadSave);
+        bar.AddChild(saveAs);
         bar.AddChild(newGame);
         AddChild(bar);
         AddChild(_body);
         AddChild(_dialog);
+        AddChild(_openSave);
+        AddChild(_saveAs);
 
         load.Pressed += () => _dialog.PopupCentered(new Vector2I(800, 500));
         _dialog.FileSelected += path =>
@@ -124,12 +65,58 @@ public partial class FlagPanel : VBoxContainer
             }
             Refresh();
         };
+        loadSave.Pressed += () => _openSave.PopupCentered(new Vector2I(800, 500));
+        _openSave.FileSelected += path =>
+        {
+            try
+            {
+                _state.LoadSave(path);
+            }
+            catch (Exception e) when (e is IOException or InvalidDataException or System.Text.Json.JsonException)
+            {
+                GD.PrintErr(e.ToString());
+            }
+            Refresh();
+        };
+        saveAs.Pressed += () =>
+        {
+            _saveAs.CurrentFile = _state.Name.Replace(", edited", "", StringComparison.Ordinal) + SaveFile.Extension;
+            _saveAs.PopupCentered(new Vector2I(800, 500));
+        };
+        _saveAs.FileSelected += path =>
+        {
+            try
+            {
+                _state.Save(path);
+                _saved = $"Saved to {path}.";
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                _saved = $"Couldn't save to {path}: {e.Message}";
+            }
+            Refresh();
+        };
         newGame.Pressed += () =>
         {
             _state.NewGame();
             Refresh();
         };
         Refresh();
+    }
+
+    /// <summary>A file dialog for saves, in the data folder's saves.</summary>
+    private static FileDialog SaveDialog(FileDialog.FileModeEnum mode, string title)
+    {
+        Directory.CreateDirectory(DataPaths.Saves);
+        return new FileDialog
+        {
+            FileMode = mode,
+            Access = FileDialog.AccessEnum.Filesystem,
+            Filters = ["*.json ; saves"],
+            UseNativeDialog = true,
+            Title = title,
+            CurrentDir = DataPaths.Saves,
+        };
     }
 
     private void Refresh()
@@ -143,6 +130,11 @@ public partial class FlagPanel : VBoxContainer
         Line($"Values: {_state.Name}.", Dim);
         if (_state.Check is { } check)
             Line(check, Dim);
+        if (_saved is { } saved)
+        {
+            Line(saved, Dim);
+            _saved = null;
+        }
         if (_id.Type == RecordTypes.Journal)
             ShowJournal();
         else

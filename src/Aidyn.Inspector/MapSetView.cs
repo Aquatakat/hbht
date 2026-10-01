@@ -69,7 +69,7 @@ public partial class MapSetView : VBoxContainer
     private readonly CheckBox _gate = new()
     {
         Text = "Flags",
-        TooltipText = "Leave out what isn't there with the editor's flags, as a chunk loads in the game: a new game's, or a checkpoint's loaded on a flag page",
+        TooltipText = "Leave out what isn't there with the editor's flags, as a chunk loads in the game: a new game's, or a checkpoint's or save's loaded on a flag page",
     };
     private readonly CheckBox _grid = new() { Text = "Chunk grid" };
     private readonly Button _all = new() { Text = "Whole map set", TooltipText = "Load every chunk of the map set, not just those around this one" };
@@ -99,7 +99,7 @@ public partial class MapSetView : VBoxContainer
 
     private PluginCatalog? _catalog;
     private Models? _models;
-    private FlagState? _flags;
+    private EditorGame? _game;
     private MapSetRecord? _set;
     private Marked? _selected;
     private int _generation;
@@ -175,7 +175,7 @@ public partial class MapSetView : VBoxContainer
         _all.Pressed += () =>
         {
             if (_set is { } set && _catalog is { } catalog && _models is { } models)
-                _ = Report(ShowAsync(catalog, models, _flags, new Focus(set, set.Chunks)));
+                _ = Report(ShowAsync(catalog, models, _game, new Focus(set, set.Chunks)));
         };
         _fields.Opened += id => Opened?.Invoke(id);
         _orbit.PointUnder = point => Cast(point)?.Point;
@@ -216,13 +216,13 @@ public partial class MapSetView : VBoxContainer
     /// Shows chunks of a map set, loading those not loaded yet, nearest the focus first, a few a
     /// frame. Chunks already loaded from the same set stay. Completes once they're all loaded.
     /// </summary>
-    public async Task ShowAsync(PluginCatalog catalog, Models models, FlagState? flags, Focus focus)
+    public async Task ShowAsync(PluginCatalog catalog, Models models, EditorGame? game, Focus focus)
     {
         if (_catalog != catalog || _models != models || _set?.Id != focus.Set.Id)
             Clear();
         var generation = ++_generation;
-        (_catalog, _models, _flags, _set) = (catalog, models, flags, focus.Set);
-        _gate.Disabled = flags is null;
+        (_catalog, _models, _game, _set) = (catalog, models, game, focus.Set);
+        _gate.Disabled = game is null;
         foreach (var chunk in focus.Set.Chunks)
             _chunkOfMap.TryAdd(chunk.Map, chunk);
 
@@ -353,7 +353,7 @@ public partial class MapSetView : VBoxContainer
     {
         if (o.Pak == (_pak.ButtonPressed ? PakVariant.Without : PakVariant.With))
             return false;
-        return !_gate.ButtonPressed || _flags is not { Network: var network }
+        return !_gate.ButtonPressed || _game is not { Network: var network }
             || MapObjectPresence.There(o, id => network.TryHandle(id, out var handle) && network.Get(handle));
     }
 

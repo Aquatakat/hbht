@@ -92,15 +92,15 @@ public static class ItemText
 /// </summary>
 public partial class ItemPanel : PagePanel
 {
-    private readonly FlagState? _flags;
+    private readonly EditorGame? _game;
     private readonly CharacterRules? _rules;
     private readonly ItemCatalog _items;
     private readonly Item _item;
 
-    public ItemPanel(PluginCatalog catalog, FlagState? flags, CharacterRules? rules, ItemCatalog items, Item item, Action<RecordId> open)
+    public ItemPanel(PluginCatalog catalog, EditorGame? game, CharacterRules? rules, ItemCatalog items, Item item, Action<RecordId> open)
         : base(catalog, open)
     {
-        (_flags, _rules, _items, _item) = (flags, rules, items, item);
+        (_game, _rules, _items, _item) = (game, rules, items, item);
         Build();
     }
 
@@ -231,13 +231,13 @@ public partial class ItemPanel : PagePanel
                 result = (replaced.Count > 0 ? $"replacing {string.Join(", ", replaced)}: " : "")
                     + (changes.Count > 0 ? string.Join(", ", changes) : "no change to the sheet");
             }
-            grid.AddChild(new Label { Text = EditorCharacters.Label(_flags, member) });
+            grid.AddChild(new Label { Text = EditorCharacters.Label(_game, member) });
             grid.AddChild(new Label { Text = result, AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill });
         }
         Body.AddChild(grid);
     }
 
-    private Party NewParty(CharacterRules rules) => EditorCharacters.NewParty(Plugins, rules, _flags, _items);
+    private Party NewParty(CharacterRules rules) => EditorCharacters.CopyParty(Plugins, rules, _game, _items);
 
     /// <summary>The values putting an item on can change, by name.</summary>
     private static List<(string Name, int Value)> Sheet(Character c, CharacterRules rules)
@@ -260,7 +260,7 @@ public partial class ShopPanel : PagePanel
 {
     private const int AppraisalLine = 384;
 
-    private readonly FlagState? _flags;
+    private readonly EditorGame? _game;
     private readonly CharacterRules? _rules;
     private readonly ItemCatalog _items;
     private readonly ShopRecord _record;
@@ -271,10 +271,10 @@ public partial class ShopPanel : PagePanel
     private Shop? _shop;
     private string _barter = "";
 
-    public ShopPanel(PluginCatalog catalog, FlagState? flags, CharacterRules? rules, ItemCatalog items, ShopRecord record, Action<RecordId> open)
+    public ShopPanel(PluginCatalog catalog, EditorGame? game, CharacterRules? rules, ItemCatalog items, ShopRecord record, Action<RecordId> open)
         : base(catalog, open)
     {
-        (_flags, _rules, _items, _record) = (flags, rules, items, record);
+        (_game, _rules, _items, _record) = (game, rules, items, record);
         _shopkeeper = Plugins.TryGet<EntityRecord>(record.Shopkeeper);
         _common = Plugins.All<StringsRecord>(RecordTypes.Strings).FirstOrDefault(s => s.Name == "Common")?.Lines;
         OpenShop();
@@ -284,7 +284,7 @@ public partial class ShopPanel : PagePanel
     /// <summary>A fresh copy of the party opens the shop, which sets the barter factor and may cost the barterer Stamina.</summary>
     private void OpenShop()
     {
-        _party = _rules is null ? new Party(_items) : EditorCharacters.NewParty(Plugins, _rules, _flags, _items);
+        _party = _rules is null ? new Party(_items) : EditorCharacters.CopyParty(Plugins, _rules, _game, _items);
         if (_shopkeeper is null)
             return;
         var stamina = _party.Members.Select(m => m.Stats.Modified(Stat.Stamina)).ToList();
@@ -305,7 +305,7 @@ public partial class ShopPanel : PagePanel
         }
         Body.AddChild(LinkButton(_shopkeeper.Id, $"{_shopkeeper.Name}'s shop, Merchant {_shopkeeper.Skills.Merchant ?? 0}"));
         var members = string.Join(", ", _party.Members.Select(m => m.Name));
-        Line($"For {(_flags?.ConsoleParty is not null ? $"{_flags.Name}'s party" : "a new game's party")} ({members}): {_barter} "
+        Line($"For {(_game is { IsNewGame: false } ? $"{_game.Name}'s party" : "a new game's party")} ({members}): {_barter} "
             + $"The barter factor is {Num(shop.Barter)}: buying costs the price × {Num(1 + shop.Barter)}, and selling pays it × {Num((1 - shop.Barter) * _items.Rules.SellShare)}.");
 
         var row = new HBoxContainer();
@@ -476,15 +476,15 @@ public partial class LootPanel : PagePanel
 /// </summary>
 public partial class RecipePanel : PagePanel
 {
-    private readonly FlagState? _flags;
+    private readonly EditorGame? _game;
     private readonly CharacterRules? _rules;
     private readonly ItemCatalog _items;
     private readonly RecipeRecord _recipe;
 
-    public RecipePanel(PluginCatalog catalog, FlagState? flags, CharacterRules? rules, ItemCatalog items, RecipeRecord recipe, Action<RecordId> open)
+    public RecipePanel(PluginCatalog catalog, EditorGame? game, CharacterRules? rules, ItemCatalog items, RecipeRecord recipe, Action<RecordId> open)
         : base(catalog, open)
     {
-        (_flags, _rules, _items, _recipe) = (flags, rules, items, recipe);
+        (_game, _rules, _items, _recipe) = (game, rules, items, recipe);
         Build();
     }
 
@@ -524,7 +524,7 @@ public partial class RecipePanel : PagePanel
     private void ShowOnParty(CharacterRules rules)
     {
         Heading("Making it");
-        var count = EditorCharacters.NewParty(Plugins, rules, _flags, _items).Members.Count();
+        var count = EditorCharacters.CopyParty(Plugins, rules, _game, _items).Members.Count();
         var grid = Grid(["", ""]);
         for (var i = 0; i < count; i++)
         {
@@ -532,9 +532,9 @@ public partial class RecipePanel : PagePanel
             var made = 0;
             for (var roll = 1; roll <= 100 && result is null; roll++)
             {
-                var party = EditorCharacters.NewParty(Plugins, rules, _flags, _items);
+                var party = EditorCharacters.CopyParty(Plugins, rules, _game, _items);
                 var member = party.Members.ElementAt(i);
-                name = EditorCharacters.Label(_flags, member);
+                name = EditorCharacters.Label(_game, member);
                 foreach (var ingredient in _recipe.Ingredients)
                     party.Inventory!.Add(ingredient.Item, ingredient.Count);
                 if (!Crafting.Offered(party, member, [_recipe]).Any())

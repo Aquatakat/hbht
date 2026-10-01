@@ -1,12 +1,13 @@
 using System.Globalization;
+using Aidyn.Core;
 using Aidyn.Core.Characters;
 using Aidyn.Core.Items;
 using Aidyn.Core.MapObjects;
 using Aidyn.Core.Rng;
 using Aidyn.Core.Scripts;
 using Aidyn.Game;
-using Aidyn.Plugins.Records;
 using Aidyn.Plugins;
+using Aidyn.Plugins.Records;
 using Godot;
 
 namespace Aidyn.Inspector;
@@ -34,7 +35,7 @@ public partial class ScriptPanel : VBoxContainer
         ["Alchemist", "Diplomat", "Healer", "Loremaster", "Mechanic", "Merchant", "Ranger", "Stealth", "Thief", "Troubadour", "Warrior", "Wizard"];
 
     private readonly PluginCatalog _catalog;
-    private readonly FlagState? _flags;
+    private readonly EditorGame? _game;
     private readonly DialogueRecord _script;
     private readonly Action<RecordId> _open;
     private readonly GraphEdit _graph = new()
@@ -54,7 +55,7 @@ public partial class ScriptPanel : VBoxContainer
     private readonly VBoxContainer _page = new();
     private readonly VBoxContainer _answers = new();
     private readonly ItemList _log = new() { SizeFlagsVertical = SizeFlags.ExpandFill, CustomMinimumSize = new Vector2(0, 160) };
-    private readonly EditorWorld _world;
+    private readonly EditorWorld? _world;
     private readonly CharacterRules? _rules;
     private readonly ItemCatalog? _items;
     private readonly Label _party = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart };
@@ -69,10 +70,10 @@ public partial class ScriptPanel : VBoxContainer
     private bool[]? _before;
     private bool _arranged;
 
-    public ScriptPanel(PluginCatalog catalog, FlagState? flags, CharacterRules? rules, ItemCatalog? items, DialogueRecord script, Action<RecordId> open)
+    public ScriptPanel(PluginCatalog catalog, EditorGame? game, CharacterRules? rules, ItemCatalog? items, DialogueRecord script, Action<RecordId> open)
     {
-        (_catalog, _flags, _rules, _items, _script, _open) = (catalog, flags, rules, items, script, open);
-        _world = new EditorWorld(Log, NameOf, entity => _rules is null ? null : EditorCharacters.Create(catalog.Plugins, _rules, entity, flags, items));
+        (_catalog, _game, _rules, _items, _script, _open) = (catalog, game, rules, items, script, open);
+        _world = game is null ? null : new EditorWorld(game, Log, NameOf);
         AddThemeConstantOverride("separation", 6);
         // Plugins from before the importer wrote fonts have none to draw with.
         if (catalog.Plugins.Contains(RecordId.Decimal(RecordTypes.Font, 0)))
@@ -422,7 +423,7 @@ public partial class ScriptPanel : VBoxContainer
         var box = new VBoxContainer { CustomMinimumSize = new Vector2(380, 0) };
         box.AddThemeConstantOverride("separation", 6);
         var bar = new HBoxContainer();
-        var play = new Button { Text = "Play", TooltipText = "Run the script from the start with the core's runner, against the flags the editor shows." };
+        var play = new Button { Text = "Play", TooltipText = "Run the script from the start with the core's runner, against the editor's game: its flags and party." };
         var skip = new Button { Text = "Skip", TooltipText = "End it, as R + A + Z + B does." };
         play.Pressed += Restart;
         skip.Pressed += () =>
@@ -442,10 +443,15 @@ public partial class ScriptPanel : VBoxContainer
         box.AddChild(_page);
         box.AddChild(new HSeparator());
         box.AddChild(Dimmed("What the script checks, answered here:"));
-        var reset = new Button { Text = "Reset party", SizeFlagsVertical = SizeFlags.ShrinkCenter, TooltipText = "Back to the loaded checkpoint's party, or a new game's: Alaron alone." };
+        var reset = new Button
+        {
+            Text = "Reset party", SizeFlagsVertical = SizeFlags.ShrinkCenter,
+            TooltipText = "Back to the party the game was loaded with: a checkpoint's or a save's, or a new game's Alaron alone.",
+        };
         reset.Pressed += () =>
         {
-            NewParty();
+            _game?.ResetParty();
+            ShowParty();
             Log("The party is reset");
         };
         var partyRow = new HBoxContainer();
@@ -461,9 +467,9 @@ public partial class ScriptPanel : VBoxContainer
         box.AddChild(Dimmed("What it did:"));
         box.AddChild(_log);
         BuildAnswers();
-        NewParty();
-        _status.Text = _flags is null ? "These plugins have no flag network, so it can't play." : $"Press Play to run it against {_flags.Name}'s flags.";
-        play.Disabled = _flags is null;
+        ShowParty();
+        _status.Text = _game is null ? "These plugins are too old for a game, so it can't play." : $"Press Play to run it against {_game.Name}.";
+        play.Disabled = _game is null;
         return box;
     }
 
@@ -483,8 +489,10 @@ public partial class ScriptPanel : VBoxContainer
             var box = new CheckBox { Text = $"{NameOf(member)} is in the party" };
             box.Toggled += on =>
             {
+                if (_world is null)
+                    return;
                 if (!on)
-                    _world.Leave(member);
+                    _world.Party.Remove(member);
                 else if (!_world.Join(member))
                     Log($"{NameOf(member)} can't join: the party is full, or there's no character record");
                 ShowParty();
@@ -502,7 +510,7 @@ public partial class ScriptPanel : VBoxContainer
             _gold = new SpinBox { MinValue = 0, MaxValue = 10_000_000, Step = 1 };
             _gold.ValueChanged += v =>
             {
-                _world.Gold = (uint)v;
+                _world?.Party.Gold = (uint)v;
                 ShowParty();
             };
             row.AddChild(new Label { Text = "Gold", SizeFlagsHorizontal = SizeFlags.ExpandFill });
@@ -523,6 +531,8 @@ public partial class ScriptPanel : VBoxContainer
             choice.AddItem($"Fixed at {step}", step);
         choice.ItemSelected += i =>
         {
+            if (_world is null)
+                return;
             if (choice.GetItemId((int)i) is var step and >= 0)
                 _world.FixedChecks[skill] = step;
             else
@@ -535,21 +545,17 @@ public partial class ScriptPanel : VBoxContainer
 
     private static string SkillName(int skill) => skill >= 0 && skill < Skills.Length ? Skills[skill] : $"Skill {skill}";
 
-    /// <summary>The party as it starts: the loaded checkpoint's, or a new game's.</summary>
-    private void NewParty()
-    {
-        _world.Party = _rules is null ? new Party() : EditorCharacters.NewParty(_catalog.Plugins, _rules, _flags, _items, writesFlags: true);
-        ShowParty();
-    }
-
     /// <summary>Shows the party, its gold and the stats the script checks, after it or the answers change them.</summary>
     private void ShowParty()
     {
+        if (_world is null)
+        {
+            _party.Text = "These plugins are too old for a game, so there's no party. Import the ROM again.";
+            return;
+        }
         var party = _world.Party;
         var members = party.Members.Select(m => $"{m.Name} ({m.Level}, {m.Hp}/{m.MaxHp} HP)").ToList();
-        var text = _rules is null
-            ? "These plugins are older than the characters' records, so the party is empty. Import the ROM again."
-            : $"Party, by level and hit points: {(members.Count == 0 ? "no one" : string.Join(", ", members))}. {party.Gold:N0} gold.";
+        var text = $"The game's party, by level and hit points: {(members.Count == 0 ? "no one" : string.Join(", ", members))}. {party.Gold:N0} gold.";
         var stats = _script.Nodes.SelectMany(n => n.Ops ?? [])
             .Where(o => o.Command is DialogueCommand.CheckBestStat or DialogueCommand.CheckWorstStat or DialogueCommand.CheckSpeakerStat)
             .Select(o => o.Value ?? 0).Where(v => v is >= 0 and <= (int)Stat.Level).Distinct().Order();
@@ -577,7 +583,8 @@ public partial class ScriptPanel : VBoxContainer
         var box = new CheckBox { Text = $"The party has {NameOf(item)}" };
         box.Toggled += on =>
         {
-            var party = _world.Party;
+            if (_world?.Party is not { } party)
+                return;
             if (party.Inventory is null)
                 Log("These plugins are older than the item records, so the party carries nothing. Import the ROM again.");
             else if (on)
@@ -589,7 +596,7 @@ public partial class ScriptPanel : VBoxContainer
                 }
             }
             // A key item sets or clears its flags.
-            _flags?.Network.Process();
+            _game?.Network.Process();
             ShowParty();
         };
         return box;
@@ -597,12 +604,11 @@ public partial class ScriptPanel : VBoxContainer
 
     private void Restart()
     {
-        if (_flags is null)
+        if (_game is null || _world is null)
             return;
         _log.Clear();
-        _world.Memory.Clear();
         var randomSkillChecks = _catalog.Plugins.All<StateFlagsRecord>(RecordTypes.StateFlags).SingleOrDefault()?.RandomSkillChecks;
-        _runner = new ScriptRunner(_script, _flags.Network, _world, new Host(cue => Log(Describe(cue))), new Lcg(), id => _catalog.Plugins.TryGet<DialogueRecord>(id),
+        _runner = new ScriptRunner(_script, _game.Network, _world, new Host(cue => Log(Describe(cue))), new Lcg(), id => _catalog.Plugins.TryGet<DialogueRecord>(id),
             randomSkillChecks: randomSkillChecks);
         Act(_runner.Start);
     }
@@ -610,9 +616,9 @@ public partial class ScriptPanel : VBoxContainer
     /// <summary>Makes a move, then logs the flags it changed and shows where the script is.</summary>
     private void Act(Action move)
     {
-        if (_flags is null || _runner is null)
+        if (_game is null || _runner is null)
             return;
-        var network = _flags.Network;
+        var network = _game.Network;
         _before ??= new bool[network.Count];
         for (var h = 0; h < network.Count; h++)
             _before[h] = network.Peek(h);
@@ -623,7 +629,7 @@ public partial class ScriptPanel : VBoxContainer
         foreach (var h in changed)
             Log($"Flag {network.Id(h).Key} {(network.Peek(h) ? "set" : "cleared")}: {NameOf(network.Id(h))}");
         if (changed.Count > 0)
-            _flags.Edited();
+            _game.Edited();
         ShowPage();
     }
 
@@ -737,30 +743,34 @@ public partial class ScriptPanel : VBoxContainer
         public void Cue(ScriptCue cue) => log(cue);
     }
 
-    /// <summary>The party, with its inventory, which the script and the answers change. The script's changes are logged.</summary>
-    private sealed class EditorWorld(Action<string> log, Func<RecordId, string> name, Func<RecordId, Character?> create) : IScriptWorld
+    /// <summary>
+    /// The editor's game as scripts see it (the core's <see cref="GameState"/>, which the editor can
+    /// load anew, so it's looked up each time), with what the script does logged, and skill checks
+    /// fixed by hand where asked.
+    /// </summary>
+    private sealed class EditorWorld(EditorGame editor, Action<string> log, Func<RecordId, string> name) : IScriptWorld
     {
-        public Party Party { get; set; } = new();
+        private GameState Game => editor.Game;
+        private IScriptWorld World => editor.Game;
+
+        public Party Party => Game.Party;
         /// <summary>Skill checks fixed by hand, by skill; the rest roll.</summary>
         public Dictionary<int, int> FixedChecks { get; } = [];
-        public Dictionary<Memory, int> Memory { get; } = [];
-        public int PartySize => Party.Count;
+        public int PartySize => World.PartySize;
 
         public uint Gold
         {
-            get => Party.Gold;
-            set => Party.Gold = value;
+            get => World.Gold;
+            set => World.Gold = value;
         }
 
-        public bool InParty(RecordId entity) => Party.Contains(entity);
-        public bool HasItem(RecordId item) => Party.HasItem(item);
-        public int BestStat(int stat) => IsStat(stat) ? Party.BestStat((Stat)stat) : 0;
-        public int WorstStat(int stat) => IsStat(stat) ? Party.WorstStat((Stat)stat) : 0;
-        public int MemberStat(RecordId? member, int stat) => member is { } m && IsStat(stat) ? Party.MemberStat(m, (Stat)stat) : 0;
-        public bool TryRecall(Memory memory, out int value) => Memory.TryGetValue(memory, out value);
-        public void Remember(Memory memory, int value) => Memory[memory] = value;
-
-        private static bool IsStat(int stat) => stat is >= 0 and <= (int)Stat.Level;
+        public bool InParty(RecordId entity) => World.InParty(entity);
+        public bool HasItem(RecordId item) => World.HasItem(item);
+        public int BestStat(int stat) => World.BestStat(stat);
+        public int WorstStat(int stat) => World.WorstStat(stat);
+        public int MemberStat(RecordId? member, int stat) => World.MemberStat(member, stat);
+        public bool TryRecall(Memory memory, out int value) => World.TryRecall(memory, out value);
+        public void Remember(Memory memory, int value) => World.Remember(memory, value);
 
         public int SkillCheck(int skill, IRandom random)
         {
@@ -769,30 +779,31 @@ public partial class ScriptPanel : VBoxContainer
                 log($"{SkillName(skill)} check: fixed at {step}");
                 return step;
             }
-            var result = Party.SkillCheck((Skill)skill, random);
+            var result = World.SkillCheck(skill, random);
             log($"{SkillName(skill)} check: rolled {result}");
             return result;
         }
 
         public void CampHeal()
         {
-            Party.CampHeal();
+            World.CampHeal();
             log("The party is healed");
         }
 
         public void AddItem(RecordId item)
         {
-            if (Party.Inventory is null)
-                log($"{name(item)} would be added, but the plugins are older than the item records");
-            else if (Party.Inventory.Catalog.TryGet(item) is null)
+            if (Game.Items.TryGet(item) is null)
+            {
                 log($"{name(item)} would be added, but no plugin has it");
-            else
-                log(Party.Inventory.Add(item) ? $"{name(item)} added" : $"{name(item)} isn't added: the inventory is full");
+                return;
+            }
+            // As the game's world adds one, to say whether it fit.
+            log(Party.Inventory!.Add(item) ? $"{name(item)} added" : $"{name(item)} isn't added: the inventory is full");
         }
 
         public bool TakeItem(RecordId item)
         {
-            var taken = Party.TakeItem(item);
+            var taken = World.TakeItem(item);
             log(taken ? $"{name(item)} taken" : $"{name(item)} isn't held, so nothing is taken");
             return taken;
         }
@@ -800,17 +811,19 @@ public partial class ScriptPanel : VBoxContainer
         public bool AddMember(RecordId entity)
         {
             var joined = Join(entity);
-            log(joined ? $"{name(entity)} joins" : $"{name(entity)} can't join: " + (create(entity) is null ? "there's no character record" : "the party is full"));
+            log(joined ? $"{name(entity)} joins" : $"{name(entity)} can't join: " + (Game.Recruit(entity) is null ? "there's no character record" : "the party is full"));
             return joined;
         }
 
-        public void RemoveMember(RecordId entity) =>
-            log(Leave(entity) ? $"{name(entity)} leaves" : $"{name(entity)} isn't in the party, so no one leaves");
+        public void RemoveMember(RecordId entity)
+        {
+            var member = Party.Contains(entity);
+            World.RemoveMember(entity);
+            log(member ? $"{name(entity)} leaves" : $"{name(entity)} isn't in the party, so no one leaves");
+        }
 
         /// <summary>Adds a member as their record starts them. True if they're in the party after.</summary>
-        public bool Join(RecordId entity) => Party.Contains(entity) || (create(entity) is { } member && Party.Add(member));
-
-        public bool Leave(RecordId entity) => Party.Remove(entity);
+        public bool Join(RecordId entity) => World.AddMember(entity);
 
         public bool AddExp(RecordId member, int amount)
         {
@@ -820,7 +833,7 @@ public partial class ScriptPanel : VBoxContainer
                 return false;
             }
             var (level, before) = (character.Level, character.TotalExp);
-            character.AddExp(amount);
+            World.AddExp(member, amount);
             log($"{name(member)} gains {character.TotalExp - before:N0} experience" + (character.Level > level ? $" and reaches level {character.Level}" : ""));
             return true;
         }

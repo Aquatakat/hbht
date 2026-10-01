@@ -8,8 +8,8 @@ using Godot;
 namespace Aidyn.Inspector;
 
 /// <summary>
-/// The pause menu's Party tab, drawn by the runtime's view with the editor's party: a loaded
-/// checkpoint's, or a new game's Alaron. It's the inventory record's preview, since the tab is where
+/// The pause menu's Party tab, drawn by the runtime's view with the editor's game's party: a loaded
+/// checkpoint's or save's, or a new game's Alaron. It's the inventory record's preview, since the tab is where
 /// the party's items show.
 /// </summary>
 public partial class PartyTabPanel : VBoxContainer
@@ -22,17 +22,17 @@ public partial class PartyTabPanel : VBoxContainer
     private readonly PartyTabView _view;
     private readonly CheckBox _details = new() { Text = "Details (C-down)", TooltipText = "Show what C-down shows for the cursor's row, as it does while held." };
 
-    public PartyTabPanel(PluginCatalog catalog, FlagState? flags, CharacterRules rules, ItemCatalog items)
+    public PartyTabPanel(PluginCatalog catalog, EditorGame? game, CharacterRules rules, ItemCatalog items)
     {
         AddThemeConstantOverride("separation", 6);
-        var party = EditorCharacters.NewParty(catalog.Plugins, rules, flags, items);
+        var party = game?.Game.Party ?? EditorCharacters.CopyParty(catalog.Plugins, rules, null, items);
         _view = new PartyTabView(catalog.Plugins, PartyMenu.From(catalog.Plugins, party));
         _screen.Canvas.AddChild(_view);
 
         AddChild(new Label
         {
-            Text = $"{(flags?.ConsoleParty is not null ? $"{flags.Name}'s party" : "A new game's party")} in the pause menu's Party tab. "
-                + "Hover a row or scroll to move the cursor. Load a checkpoint on a flag page to show its party.",
+            Text = $"{(game is { IsNewGame: false } ? $"{game.Name}'s party" : "A new game's party")} in the pause menu's Party tab. "
+                + "Hover a row or scroll to move the cursor. Load a checkpoint or a save on a flag page to show its party.",
             AutowrapMode = TextServer.AutowrapMode.WordSmart,
         });
         var bar = new HFlowContainer();
