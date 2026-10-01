@@ -99,12 +99,13 @@ public sealed class UiPainter
     /// Draws part of an image: <paramref name="source"/>, in the image's pixels, at (x, y) at its own
     /// size or scaled to <paramref name="size"/>. The wide layouts compose their parchment from cut-outs.
     /// </summary>
-    public void Cut(CanvasItem canvas, RecordId image, Rect2I source, int x, int y, Vector2I? size = null, Rgba? color = null)
+    public void Cut(CanvasItem canvas, RecordId image, Rect2I source, int x, int y, Vector2I? size = null, Rgba? color = null, bool mirror = false)
     {
         if (Images.Get(image) is not { } texture)
             return;
         var drawn = size ?? source.Size;
-        canvas.DrawTextureRectRegion(texture, new Rect2(x, y, drawn.X, drawn.Y), Sampled(source, drawn), color is { } c ? Color8(c) : Colors.White);
+        canvas.DrawTextureRectRegion(texture, new Rect2(x, y, mirror ? -drawn.X : drawn.X, drawn.Y), Sampled(source, drawn),
+            color is { } c ? Color8(c) : Colors.White);
     }
 
     /// <summary>
@@ -112,7 +113,9 @@ public sealed class UiPainter
     /// pixels on each side (left, top, right, bottom), so a piece of parchment blends into the sheet
     /// it's placed on. It's nine quads, the outer corners of the outer ones transparent.
     /// </summary>
-    public void Feathered(CanvasItem canvas, RecordId image, Rect2I source, int x, int y, (int Left, int Top, int Right, int Bottom) feather)
+    /// <param name="mirror">Flips it left to right; the feathering is by the sides as drawn.</param>
+    public void Feathered(CanvasItem canvas, RecordId image, Rect2I source, int x, int y, (int Left, int Top, int Right, int Bottom) feather,
+        bool mirror = false)
     {
         if (Images.Get(image) is not { } texture)
             return;
@@ -129,7 +132,7 @@ public sealed class UiPainter
                 canvas.DrawPolygon(
                     [.. corners.Select(c => new Vector2(x + xs[c.I], y + ys[c.J]))],
                     [.. corners.Select(c => c.I is 1 or 2 && c.J is 1 or 2 ? Colors.White : Colors.Transparent)],
-                    [.. corners.Select(c => (source.Position + new Vector2(xs[c.I], ys[c.J])) * texel)],
+                    [.. corners.Select(c => (source.Position + new Vector2(mirror ? source.Size.X - xs[c.I] : xs[c.I], ys[c.J])) * texel)],
                     texture);
             }
         }

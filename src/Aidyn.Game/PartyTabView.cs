@@ -9,13 +9,12 @@ namespace Aidyn.Game;
 /// in one of two layouts chosen by the screen's size in its own pixels:
 /// <list type="bullet">
 /// <item><b>Classic</b>, the original's, in its 320 × 240 frame at the screen's centre.</item>
-/// <item><b>Wide</b>, from <see cref="WideMinimum"/> up, as 16:9 at 360 lines gives: one sheet of
-/// parchment across the screen with three columns, the member, the list in the main font with as
-/// many rows as fit, and C-down's details, open for the cursor's row.</item>
+/// <item><b>Wide</b>, from <see cref="WideMinimum"/> up, as 16:9 at 360 lines gives: the original's
+/// sheet grown across the screen, the list in the main font with as many rows as fit, and C-down's
+/// details at the right, open for the cursor's row.</item>
 /// </list>
-/// Both place the same blocks. Each is painted on a piece of the tab's image, <c>0x00D9</c>, which
-/// the classic layout draws whole and the wide one cuts out and places on its sheet, so the art is
-/// the original's and the labels are its own.
+/// Both draw the tab's image, <c>0x00D9</c>, at its own size where the original has it, so the art
+/// is the original's and the labels are its own; the wide one grows it with plain parchment.
 /// </summary>
 public partial class PartyTabView : Control
 {
@@ -62,6 +61,17 @@ public partial class PartyTabView : Control
 
     private static readonly Rect2I TopEdge = new(0, 0, 320, 22), BottomEdge = new(0, 216, 236, 24), PlainPiece = new(236, 104, 60, 96);
 
+    /// <summary>
+    /// What the wide layout keeps of the image at its own size: its top, through the portraits, the hit
+    /// points and the rules, and the silhouette's column below it, down to the torn edge.
+    /// </summary>
+    private static readonly Rect2I TopPart = new(0, 0, 320, 102), SilhouetteColumn = new(0, 92, 138, 124);
+
+    /// <summary>The plain parchment under the original's list, which the wide sheet is laid with, and how far its copies overlap.</summary>
+    private static readonly Rect2I PlainSwatch = new(162, 102, 154, 102);
+
+    private const int PlainOverlap = 24;
+
     // DollMenuLists and WidgetTrainShop: the list's bounds; its title's centre is 70 into them and its
     // top 20 above, the arrows 15 in from each side and 13 above, and the arrow under the knotwork.
     private static readonly ScreenRect ClassicList = new(160, 101, 300, 205);
@@ -72,8 +82,8 @@ public partial class PartyTabView : Control
     private static readonly ScreenRect ClassicDetails = new(23, 70, 149, 218);
     private const int DetailsIndent = 16;
 
-    /// <summary>The wide layout's gaps: round the sheet's columns, and between them, and how far a piece's edges fade.</summary>
-    private const int WideMargin = 16, WideGap = 10, Feather = 6;
+    /// <summary>The wide layout's gap between columns, and how far a piece's edges fade.</summary>
+    private const int WideGap = 10, Feather = 6;
 
     /// <summary>The wide list's bottom margin, which holds the arrow under it.</summary>
     private const int SliderMargin = 30;
@@ -185,82 +195,113 @@ public partial class PartyTabView : Control
     }
 
     /// <summary>
-    /// The wide layout: a sheet across the screen, with the member's column at the left (portraits,
-    /// hit points, level and gold, the silhouette), the knotwork and the list beside it, and the
-    /// details on their parchment at the right.
+    /// The wide layout: the original's sheet, grown. Its left part is the tab's image at its own size
+    /// where the original has it, so the portraits, hit points and silhouette are the original's to
+    /// the pixel; the list widens and lengthens, its knotwork with it, and the details sit at the right.
+    /// Where the sheet grows past the image, it's plain parchment.
     /// </summary>
     private void DrawWide()
     {
         var size = new Vector2I((int)Size.X, (int)Size.Y);
-        Sheet(size);
-
-        // The columns' widths: the member's, the knotwork's and the list's, about half the room left.
-        // The details take the rest, out to the screen's edge.
-        var knotOffset = HealthPiece.Size.X + WideGap;
-        var listOffset = knotOffset + KnotTop.Size.X + 4;
-        var room = size.X - 2 * WideMargin - listOffset - WideGap;
-        var listWidth = Math.Clamp(room * 11 / 20, 220, 300);
-        var left = WideMargin;
-        // The member's column and the list sit a line of the slim font below the sheet's torn edge.
-        var top = TopEdge.Size.Y + 2;
-        var columnTop = top + _ui.Slim.LineHeight;
-        Piece(PortraitPiece, left, columnTop);
-        Portraits(new Vector2I(left, columnTop));
-        var healthTop = columnTop + PortraitPiece.Size.Y + 14;
-        Piece(HealthPiece, left, healthTop);
-        Health(new Vector2I(left, healthTop), _ui.Main);
-        var silhouetteTop = healthTop + HealthPiece.Size.Y + 2;
-        // The silhouette is centred in the column.
-        var silhouetteLeft = left + (HealthPiece.Size.X - SilhouettePiece.Size.X) / 2;
-        Piece(SilhouettePiece, silhouetteLeft, silhouetteTop);
-        Silhouette(new Vector2I(silhouetteLeft, silhouetteTop));
-
-        var knotX = left + knotOffset;
-        var listLeft = left + listOffset;
         var bottom = size.Y - BottomEdge.Size.Y;
-        var rulesTop = columnTop + 4;
-        var listTop = rulesTop + 17;
-        // A deep margin under the list holds the arrow, centred on the screen: it says the tabs are either side.
-        var rows = (bottom - SliderMargin - listTop) / 13 * 13;
-        Rules(listLeft - 5, rulesTop, listWidth + 10);
-        Knot(knotX, listTop - 3, rows + 4);
-        var slider = InCombat ? MenuImages.SliderLeft : MenuImages.SliderBoth;
-        _ui.Image(this, slider, (size.X - _ui.Size(slider).X) / 2, listTop + rows + (bottom - listTop - rows - _ui.Size(slider).Y) / 2,
-            color: PartyMenu.TextColor);
-        List(new ScreenRect(listLeft, listTop, listLeft + listWidth, listTop + rows), _ui.Main, Columns.Wide);
+        Sheet(size, bottom);
 
-        var detailsLeft = listLeft + listWidth + WideGap;
-        var detailsSize = new Vector2I(size.X - detailsLeft, bottom - top + 6);
+        // The image's top, to just under the rules, and the silhouette's column below it, faded into
+        // the plain parchment where they end.
+        _ui.Feathered(this, MenuImages.PartyTab, TopPart, 0, 0, (0, 0, Feather, Feather));
+        _ui.Feathered(this, MenuImages.PartyTab, SilhouetteColumn, 0, SilhouetteColumn.Position.Y, (0, 0, Feather, Feather));
+        Portraits(PortraitPiece.Position);
+        Health(HealthPiece.Position, _ui.Main);
+        Silhouette(SilhouettePiece.Position);
+
+        // The list from where the original's starts, as wide as about half the room right of the
+        // knotwork, the details the rest, out to the screen's edge. A deep margin under it holds the
+        // arrow, centred on the screen: it says the other tabs are either side.
+        var list = ClassicList;
+        var room = size.X - list.Left - WideGap;
+        var listWidth = Math.Clamp(room * 11 / 20, 220, 300);
+        var rows = (bottom - SliderMargin - list.Top) / 13 * 13;
+        Rules(RulesPiece.Position.X, RulesPiece.Position.Y, Math.Max(RulesPiece.Size.X, list.Left + listWidth + 10 - RulesPiece.Position.X));
+        Knot(KnotTop.Position.X, KnotTop.Position.Y, rows + 4);
+        var slider = InCombat ? MenuImages.SliderLeft : MenuImages.SliderBoth;
+        _ui.Image(this, slider, (size.X - _ui.Size(slider).X) / 2, list.Top + rows + (bottom - list.Top - rows - _ui.Size(slider).Y) / 2,
+            color: PartyMenu.TextColor);
+        List(list with { Right = list.Left + listWidth, Bottom = list.Top + rows }, _ui.Main, Columns.Wide);
+
+        var top = TopEdge.Size.Y - 2;
+        var detailsLeft = list.Left + listWidth + WideGap;
+        var detailsSize = new Vector2I(size.X - detailsLeft, bottom - top + 2);
         // Mirrored, so its straight edge, which the original puts against the screen's left, is
         // against its right, and its shadow falls to the left, on the list's side.
-        _ui.Parchment(this, detailsLeft, top - 4, detailsSize, mirror: true);
+        _ui.Parchment(this, detailsLeft, top, detailsSize, mirror: true);
         if (Menu.Details() is { } details)
         {
             // Clear of the torn edges, as the original's text is of its right one (11 of 160), and 8 in
             // from the straight edge, as it is from the overscan bar's edge.
-            var area = new ScreenRect(detailsLeft + detailsSize.X * 11 / 160, top - 4 + detailsSize.Y * 12 / 160,
-                detailsLeft + detailsSize.X - DetailsEdge, top - 4 + detailsSize.Y - detailsSize.Y * 8 / 160);
+            var area = new ScreenRect(detailsLeft + detailsSize.X * 11 / 160, top + detailsSize.Y * 12 / 160,
+                detailsLeft + detailsSize.X - DetailsEdge, top + detailsSize.Y - detailsSize.Y * 8 / 160);
             Details(details, area, _ui.Main, classic: false);
         }
     }
 
     /// <summary>
-    /// The sheet: the tab image's torn top edge tiled across, its plain parchment stretched below it,
-    /// and its torn bottom edge tiled along the foot.
+    /// The sheet under the image's pieces: plain parchment, its torn top edge along the top and its
+    /// torn bottom edge along the foot, each repeated mirrored so every join meets itself.
     /// </summary>
-    private void Sheet(Vector2I size)
+    private void Sheet(Vector2I size, int bottom)
     {
         var top = TopEdge.Size.Y;
-        var bottom = size.Y - BottomEdge.Size.Y;
-        _ui.Cut(this, MenuImages.PartyTab, PlainPiece, 0, top, new Vector2I(size.X, bottom - top));
-        for (var x = 0; x < size.X; x += TopEdge.Size.X)
-            _ui.Cut(this, MenuImages.PartyTab, TopEdge with { Size = new Vector2I(Math.Min(TopEdge.Size.X, size.X - x), TopEdge.Size.Y) }, x, 0);
-        for (var x = 0; x < size.X; x += BottomEdge.Size.X)
-            _ui.Cut(this, MenuImages.PartyTab, BottomEdge with { Size = new Vector2I(Math.Min(BottomEdge.Size.X, size.X - x), BottomEdge.Size.Y) }, x, bottom);
+        Plain(new ScreenRect(0, top, size.X, bottom));
+        Mirrored(TopEdge, 0, size.X);
+        Mirrored(BottomEdge, bottom, size.X);
     }
 
-    /// <summary>A piece of the tab's image, its edges faded into the sheet.</summary>
-    private void Piece(Rect2I piece, int x, int y) => _ui.Feathered(this, MenuImages.PartyTab, piece, x, y, (Feather, Feather, Feather, Feather));
+    /// <summary>A strip of the image repeated across, every other copy mirrored.</summary>
+    private void Mirrored(Rect2I strip, int y, int width)
+    {
+        var mirror = false;
+        for (var x = 0; x < width; x += strip.Size.X, mirror = !mirror)
+        {
+            // A part copy at the end is the start of the copy as drawn: mirrored, that's the strip's end.
+            var w = Math.Min(strip.Size.X, width - x);
+            var source = new Rect2I(strip.Position.X + (mirror ? strip.Size.X - w : 0), strip.Position.Y, w, strip.Size.Y);
+            _ui.Cut(this, MenuImages.PartyTab, source, x, y, mirror: mirror);
+        }
+    }
+
+    /// <summary>
+    /// Plain parchment over an area, at the image's own size: rows of the plain swatch under the
+    /// original's list, every other copy along a row mirrored so each join meets itself, each row
+    /// half a copy along from the last and faded into it, over a smear of the swatch. Copies are cut
+    /// to the area, so it stays inside the sheet's torn edges.
+    /// </summary>
+    private void Plain(ScreenRect area)
+    {
+        _ui.Cut(this, MenuImages.PartyTab, PlainPiece, area.Left, area.Top, new Vector2I(area.Right - area.Left, area.Bottom - area.Top));
+        var w = PlainSwatch.Size.X;
+        var stepY = PlainSwatch.Size.Y - PlainOverlap;
+        for (int y = area.Top, row = 0; y < area.Bottom; y += stepY, row++)
+        {
+            var mirror = false;
+            for (var x = area.Left - (row % 2 == 0 ? 0 : w / 2); x < area.Right; x += w, mirror = !mirror)
+            {
+                // The copy cut to the area: its source, mirrored if need be, and its fade only where it overlaps the row above.
+                var left = Math.Max(x, area.Left);
+                var right = Math.Min(x + w, area.Right);
+                var bottom = Math.Min(y + PlainSwatch.Size.Y, area.Bottom);
+                if (right <= left || bottom <= y)
+                    continue;
+                var from = mirror ? x + w - right : left - x;
+                var source = new Rect2I(PlainSwatch.Position.X + from, PlainSwatch.Position.Y, right - left, bottom - y);
+                var fade = row == 0 ? 0 : PlainOverlap;
+                if (mirror)
+                    _ui.Feathered(this, MenuImages.PartyTab, source, left, y, (0, fade, 0, 0), mirror: true);
+                else
+                    _ui.Feathered(this, MenuImages.PartyTab, source, left, y, (0, fade, 0, 0));
+            }
+        }
+    }
+
 
     /// <summary>The rules under a list's title, stretched along a line: its middle repeated, its ends faded.</summary>
     private void Rules(int x, int y, int width)
