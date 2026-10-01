@@ -42,8 +42,9 @@ public static class BasePlugin
     /// 12 adds the fonts, the string tables and entities' portraits.
     /// 13 gives entities and spells their fields, and adds the stats, skills, weapon skills and progression.
     /// 14 gives weapons, armor, items and loot tables their fields, and adds shops, recipes and the inventory's rules.
+    /// 15 gives spells their icons and descriptions, and items their descriptions.
     /// </summary>
-    public const int ImporterVersion = 14;
+    public const int ImporterVersion = 15;
 }
 
 /// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>

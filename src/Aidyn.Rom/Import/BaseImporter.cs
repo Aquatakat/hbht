@@ -89,15 +89,16 @@ public static class BaseImporter
         progress?.Report("Characters");
         var characterTables = CharacterTables.Read(rom);
         var itemTables = ItemTables.Read(rom);
+        var menuTables = MenuTables.Read(rom);
         WriteJson(Path.Combine(staging, "records", "entities.json"), ItemImporter.WithSoleWeapons(db, CharacterImporter.BuildEntities(db, models)));
-        WriteJson(Path.Combine(staging, "records", "spells.json"), CharacterImporter.BuildSpells(db));
+        WriteJson(Path.Combine(staging, "records", "spells.json"), CharacterImporter.BuildSpells(db, itemTables, menuTables));
         WriteJson(Path.Combine(staging, "records", "stats.json"), CharacterImporter.BuildStats(db, characterTables));
         WriteJson(Path.Combine(staging, "records", "skills.json"), ItemImporter.WithIcons(itemTables, CharacterImporter.BuildSkills(db, characterTables)));
         WriteJson(Path.Combine(staging, "records", "weaponskills.json"), CharacterImporter.BuildWeaponSkills(db, characterTables));
         WriteJson(Path.Combine(staging, "records", "progression.json"), new[] { CharacterImporter.BuildProgression(db, characterTables) });
 
         progress?.Report("Items");
-        var (weapons, armor, items) = ItemImporter.BuildItems(db, itemTables, EngineTables.Read(rom));
+        var (weapons, armor, items) = ItemImporter.BuildItems(db, itemTables, EngineTables.Read(rom), menuTables);
         WriteJson(Path.Combine(staging, "records", "weapons.json"), weapons);
         WriteJson(Path.Combine(staging, "records", "armor.json"), armor);
         WriteJson(Path.Combine(staging, "records", "items.json"), items);

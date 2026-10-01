@@ -70,6 +70,10 @@ public sealed record ArmorRecord(
 /// <param name="RequiredStrength">Wearing it needs at least this base Strength (<c>Entity::GearMinStatCheck</c>).</param>
 /// <param name="RequiredIntelligence">Wearing it needs at least this base Intelligence.</param>
 /// <param name="KeyItem">The flags a key item sets while the party has it.</param>
+/// <param name="Description">
+/// What C-down's details say of it: an item's line in <c>aidyn:strings/0</c>, or a potion's in
+/// <c>aidyn:strings/4</c>. Weapons and armor show their numbers instead.
+/// </param>
 public sealed record ItemRecord(
     RecordId Id,
     string Name,
@@ -83,7 +87,8 @@ public sealed record ItemRecord(
     int RequiredIntelligence = 0,
     GearBonuses? Bonuses = null,
     ItemTraits? Traits = null,
-    KeyItemFlags? KeyItem = null);
+    KeyItemFlags? KeyItem = null,
+    string? Description = null);
 
 /// <summary>
 /// What an item is (the original's <c>DBTypeEnum</c>, the high byte of its ID). Weapons and armor have

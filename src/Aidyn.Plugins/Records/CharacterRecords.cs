@@ -234,6 +234,11 @@ public sealed record TrainingPrices(int FirstLevelGold, int GoldPerLevel, float 
 /// it costs this (<c>TempSpell::GetExpPrice</c>). It's the record's byte × 50.
 /// </param>
 /// <param name="Unk1E">Copied to RAM as <c>aspect_flag</c>; bit 1 makes Solar resistance apply to it.</param>
+/// <param name="Icon">The spell's symbol (<c>GetSpellIcon</c>), which lists show beside its school's icon.</param>
+/// <param name="Description">
+/// What C-down's details say of it (<c>aidyn:strings/2</c>). Four spells have none, and the original
+/// can't show their details.
+/// </param>
 public sealed record SpellRecord(
     RecordId Id,
     string Name,
@@ -247,7 +252,9 @@ public sealed record SpellRecord(
     int Range,
     Reagent Reagent,
     int TrainingCost,
-    int Unk1E);
+    int Unk1E,
+    RecordId? Icon = null,
+    string? Description = null);
 
 /// <summary>How many targets a spell takes.</summary>
 public enum SpellTargetCount

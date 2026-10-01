@@ -192,6 +192,23 @@ public enum CodeTable
     KeyEquipment,
     /// <summary>The 21 items that loot can't be left behind with, as u16 IDs (<c>IInventory::HasNoKeyItem</c>).</summary>
     MustTakeItems,
+    /// <summary>The spells' positions that code tables key spells by: the low byte of each position's spell ID (<c>SpellList</c>).</summary>
+    SpellList,
+    /// <summary>
+    /// Each spell's icon symbol, as (position in <see cref="SpellList"/>, symbol) byte pairs ending with
+    /// 0xFF (<c>SpellDB::GetIcon</c>). A spell not listed has symbol 0.
+    /// </summary>
+    SpellSymbols,
+    /// <summary>Each potion's line in the PotionDetails string table, as (potion ID, line) u16 pairs ending with a 0 ID (<c>WidgetItemDetail</c>).</summary>
+    PotionDescriptions,
+    /// <summary>Each item's line in the Items string table, as (item ID, line) u16 pairs ending with a 0 ID.</summary>
+    ItemDescriptions,
+    /// <summary>Each spell's line in the Spells string table, as (spell ID, line) u16 pairs ending with a 0 ID.</summary>
+    SpellDescriptions,
+    /// <summary>The order the inventory list shows item kinds in, as u16 DB types ending with 0 (<c>D_800ed560</c>).</summary>
+    InventoryOrder,
+    /// <summary>Each equipment slot's empty image, 15 u32 Borg8 indices by slot (<c>gItemSlotBorg8Indecies</c>).</summary>
+    EquipmentSlotImages,
 }
 
 /// <summary>
@@ -289,6 +306,13 @@ public static class RomVersions
                 [CodeTable.ReservedItems] = new(0x00E3910, 0xA0),
                 [CodeTable.KeyEquipment] = new(0x00E3A70, 0x1A),
                 [CodeTable.MustTakeItems] = new(0x00E38E0, 0x2A),
+                [CodeTable.SpellList] = new(0x00E3740, 0x3B),
+                [CodeTable.SpellSymbols] = new(0x00D3C58, 0x6E),
+                [CodeTable.PotionDescriptions] = new(0x00D0360, 0x40),
+                [CodeTable.ItemDescriptions] = new(0x00D03A0, 0x14C),
+                [CodeTable.SpellDescriptions] = new(0x00D04EC, 0xE0),
+                [CodeTable.InventoryOrder] = new(0x00DF600, 0x20),
+                [CodeTable.EquipmentSlotImages] = new(0x00DF670, 0x3C),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {
@@ -382,6 +406,13 @@ public static class RomVersions
                 [CodeTable.ReservedItems] = new(0x00E3950, 0xA0),
                 [CodeTable.KeyEquipment] = new(0x00E3AB0, 0x1A),
                 [CodeTable.MustTakeItems] = new(0x00E3920, 0x2A),
+                [CodeTable.SpellList] = new(0x00E3780, 0x3B),
+                [CodeTable.SpellSymbols] = new(0x00D3C48, 0x6E),
+                [CodeTable.PotionDescriptions] = new(0x00D0350, 0x40),
+                [CodeTable.ItemDescriptions] = new(0x00D0390, 0x14C),
+                [CodeTable.SpellDescriptions] = new(0x00D04DC, 0xE0),
+                [CodeTable.InventoryOrder] = new(0x00DF640, 0x20),
+                [CodeTable.EquipmentSlotImages] = new(0x00DF6B0, 0x3C),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {
@@ -473,6 +504,13 @@ public static class RomVersions
                 [CodeTable.ReservedItems] = new(0x00F2490, 0xA0),
                 [CodeTable.KeyEquipment] = new(0x00F25F0, 0x1A),
                 [CodeTable.MustTakeItems] = new(0x00F2450, 0x2A),
+                [CodeTable.SpellList] = new(0x00F22B0, 0x3B),
+                [CodeTable.SpellSymbols] = new(0x00E0E54, 0x6E),
+                [CodeTable.PotionDescriptions] = new(0x00DC8E0, 0x40),
+                [CodeTable.ItemDescriptions] = new(0x00DC948, 0x14C),
+                [CodeTable.SpellDescriptions] = new(0x00DCAA8, 0xE0),
+                [CodeTable.InventoryOrder] = new(0x00EE160, 0x20),
+                [CodeTable.EquipmentSlotImages] = new(0x00EE1D0, 0x3C),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {

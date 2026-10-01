@@ -67,8 +67,16 @@ internal static class ItemImporter
     /// <summary>The Alchemist's and Mechanic's skill numbers.</summary>
     private const int Alchemist = 0, Mechanic = 4;
 
+    /// <summary>
+    /// The text of the line a description table gives <paramref name="id"/>, as the strings record holds it,
+    /// or null when the table has none for it.
+    /// </summary>
+    internal static string? Description(GameDb db, RomStringTable table, IReadOnlyDictionary<ItemId, int> lines, ItemId id) =>
+        lines.TryGetValue(id, out var line) ? DialogueText.Unescape(db.Strings[table][line]) : null;
+
+    /// <param name="menu">Where items' and potions' descriptions come from. Without it, none have one.</param>
     public static (List<PluginWeapon> Weapons, List<PluginArmor> Armor, List<ItemRecord> Items) BuildItems(
-        GameDb db, ItemTables tables, EngineTables engine)
+        GameDb db, ItemTables tables, EngineTables engine, MenuTables? menu = null)
     {
         var reserved = tables.ReservedItems.Concat(tables.KeyEquipment).Concat(engine.KeyItems.Select(k => k.Item)).ToHashSet();
         var mustTake = tables.MustTakeItems.ToHashSet();
@@ -95,7 +103,8 @@ internal static class ItemImporter
                 g.RequiredStrength, g.RequiredIntelligence, bonuses == new GearBonuses() ? null : bonuses, Traits(g.Id),
                 keyItems.TryGetValue(g.Id, out var key)
                     ? new KeyItemFlags(Flag(key.Held), key.Region == 0 ? null : Flag(key.Region))
-                    : null);
+                    : null,
+                menu is null ? null : Description(db, RomStringTable.Items, menu.ItemDescriptions, g.Id));
         });
 
         // Potions aren't in the item DB: potion n is named by line n of their own string table, and
@@ -105,7 +114,7 @@ internal static class ItemImporter
         {
             var id = ItemId.Of(DbType.Potion, (byte)i);
             return new ItemRecord(Record(id), names[i], Image(ItemTables.PotionIcon), tables.PotionPrices[i], ItemKind.Potion,
-                Traits: Traits(id));
+                Traits: Traits(id), Description: menu is null ? null : Description(db, RomStringTable.PotionDetails, menu.PotionDescriptions, id));
         });
 
         return (Sorted(weapons, w => w.Id), Sorted(armor, a => a.Id), Sorted(gear.Concat(potions), i => i.Id));

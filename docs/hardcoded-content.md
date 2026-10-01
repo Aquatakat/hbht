@@ -182,15 +182,18 @@ Code uses 1,990 of the 2,076 names in the decomp's `Borgindecies.h`. The map chu
 | --- | --- | --- | --- |
 | Each entity's model (Borg7), portrait (Borg8), height, collision radius, scale and one unknown float, keyed by entity list position + 1. Every entity has one; the code's fallback to the bat model and a generic portrait never runs. | `gEntityExtras` | `0xE1930` | Read (`EntityModels`) |
 | Each dialogue entity's model, portrait, height and scale, keyed by dialogue entity list position + 1. 32 of the 37 dialogue entities have one. | `dailougEnt_info_array` | `0xE3178` | Read (`EntityModels`) |
-| The position lists that code tables use for dialogue entities, spells, armor, weapons and items, like the entity list. The entity and dialogue entity lists are in the same order as their DB tables. | `DialougEntList`, `SpellList`, `ArmorList`, `weaponList`, `itemID_array` | `0xE1900`, `0xE3740`, `0xE1850`, `0xE3790`, `0xE3590` | Dialogue entities read; the rest to do |
+| The position lists that code tables use for dialogue entities, spells, armor, weapons and items, like the entity list. The entity and dialogue entity lists are in the same order as their DB tables. | `DialougEntList`, `SpellList`, `ArmorList`, `weaponList`, `itemID_array` | `0xE1900`, `0xE3740`, `0xE1850`, `0xE3790`, `0xE3590` | Dialogue entities and spells read (`MenuTables`, spells as the key of the symbols and descriptions); the rest to do |
 | The 66 weapon models (Borg5), by weapon position | `weapons_with_borg5`, `weapon_borg5_ID` | `0xE3520`, `0xD3B14` | To do |
 | Models for six items: Txomin's letter, the banner, the Horn of Kynon, Kendal's helm, Stormbreaker and the Amulet of Haste | `D_800f14d4`, `ItemBorg5Search` | `0xE3564`, `0xD3B9C` | To do |
 | Shield models | `ArmorDB::GetBorg5` | Switch | To do |
-| Item icons (286, by item ID; others get a default, and every potion shares one), then skill, aspect, school and spell-symbol icons, each list followed by its count | `menuimages.cpp` | `0xDF700` | Read (`ItemTables`): items' and skills' icons are on their records; aspects', schools' and spell symbols' wait for the UI |
+| Item icons (286, by item ID; others get a default, and every potion shares one), then skill, aspect, school and spell-symbol icons, each list followed by its count | `menuimages.cpp` | `0xDF700` | Read (`ItemTables`): items' and skills' icons are on their records. Aspects' and schools' icons are UI chrome (`Aidyn.Core.Ui.MenuImages`), checked against the ROM; spell symbols' are on spell records |
 | Potions' prices, by potion | `potion_prices` | `0xE38B0` | Read (`ItemTables`) |
 | The Alchemist's and Mechanic's recipes | `potionRecipies`, `ArmorRecipies` | `0xD8560`, `0xD8540` | Read (`ItemTables`), as recipe records |
 | The items with inventory slots of their own, the unique gear with its own, and the items loot can't be left behind with | `PartyInventory.cpp`, `key_item_ids` | `0xE3910`, `0xE3A70`, `0xE38E0` | Read (`ItemTables`), as item traits |
-| Each spell's icon symbol, by spell position | `SpellDB::GetIcon` | `0xD3C58` | To do |
+| Each spell's icon symbol, by spell position | `SpellDB::GetIcon` | `0xD3C58` | Read (`MenuTables`), as spell records' `Icon` |
+| Each item's, potion's and spell's line in the Items, PotionDetails and Spells string tables, for C-down's details. Two potions (`0x100B`, `0x100C`) and four spells (`0x030F`, `0x0311`, `0x0327`, `0x0328`) have none. | `WidgetItemDetail` | `0xD03A0`, `0xD0360`, `0xD04EC` | Read (`MenuTables`), as item and spell records' `Description` |
+| The order the inventory list shows item kinds in | `D_800ed560` | `0xDF600` | Read (`MenuTables`); a UI fact in `Aidyn.Core.Ui.InventoryOrder`, checked against the ROM |
+| Each equipment slot's empty image (15, by slot) | `gItemSlotBorg8Indecies` | `0xDF670` | Read (`MenuTables`); a UI fact in `Aidyn.Core.Ui.MenuImages`, checked against the ROM |
 | Spell and potion effects: Borg7 and Borg5 per spell or potion, with a memory size | `spellvisuals.cpp` | Switches | To do |
 | Models whose actors fly: bat, wyvern, harpy, dryads, Pandara, gryphon, manticore and scorpion | `Actor::IsFlyingModel` | `0xCE650` | To do |
 | The 39 Borg12 sounds that Borg13 PlaySound operands index | `dialoug_SFX` | `0xE0960` | To do |
