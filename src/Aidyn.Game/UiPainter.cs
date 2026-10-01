@@ -105,6 +105,34 @@ public sealed class UiPainter
     }
 
     /// <summary>
+    /// Draws part of an image at its own size with its edges faded out over <paramref name="feather"/>
+    /// pixels on each side (left, top, right, bottom), so a piece of parchment blends into the sheet
+    /// it's placed on. It's nine quads, the outer corners of the outer ones transparent.
+    /// </summary>
+    public void Feathered(CanvasItem canvas, RecordId image, Rect2I source, int x, int y, (int Left, int Top, int Right, int Bottom) feather)
+    {
+        if (Images.Get(image) is not { } texture)
+            return;
+        var texel = Vector2.One / texture.GetSize();
+        int[] xs = [0, feather.Left, source.Size.X - feather.Right, source.Size.X];
+        int[] ys = [0, feather.Top, source.Size.Y - feather.Bottom, source.Size.Y];
+        for (var j = 0; j < 3; j++)
+        {
+            for (var i = 0; i < 3; i++)
+            {
+                if (xs[i + 1] <= xs[i] || ys[j + 1] <= ys[j])
+                    continue;
+                (int I, int J)[] corners = [(i, j), (i + 1, j), (i + 1, j + 1), (i, j + 1)];
+                canvas.DrawPolygon(
+                    [.. corners.Select(c => new Vector2(x + xs[c.I], y + ys[c.J]))],
+                    [.. corners.Select(c => c.I is 1 or 2 && c.J is 1 or 2 ? Colors.White : Colors.Transparent)],
+                    [.. corners.Select(c => (source.Position + new Vector2(xs[c.I], ys[c.J])) * texel)],
+                    texture);
+            }
+        }
+    }
+
+    /// <summary>
     /// Draws an image cut off at a right edge, as a widget's bounds cut it: the hit points bar is
     /// drawn to the share of hit points left.
     /// </summary>

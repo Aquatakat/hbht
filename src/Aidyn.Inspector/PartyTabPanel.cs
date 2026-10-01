@@ -14,7 +14,10 @@ namespace Aidyn.Inspector;
 /// </summary>
 public partial class PartyTabPanel : VBoxContainer
 {
-    private readonly UiScreen _screen = new() { CustomMinimumSize = new Vector2(UiScreen.Width, UiScreen.Height), Backdrop = new Color(0.22f, 0.25f, 0.3f) };
+    private readonly UiScreen _screen = new()
+    {
+        CustomMinimumSize = new Vector2(UiScreen.Width, UiScreen.Height), Backdrop = new Color(0.22f, 0.25f, 0.3f), ForwardsMouse = true,
+    };
     private readonly UiScreenOptions _options;
     private readonly PartyTabView _view;
     private readonly CheckBox _details = new() { Text = "Details (C-down)", TooltipText = "Show what C-down shows for the cursor's row, as it does while held." };

@@ -166,6 +166,30 @@ public partial class UiScreen : Control
         QueueRedraw();
     }
 
+    /// <summary>
+    /// Whether the mouse reaches the views on the screen, its position mapped into the screen's
+    /// pixels. Off by default, so the screen doesn't take the mouse from what's under it.
+    /// </summary>
+    public bool ForwardsMouse
+    {
+        get => MouseFilter != MouseFilterEnum.Ignore;
+        set => MouseFilter = value ? MouseFilterEnum.Stop : MouseFilterEnum.Ignore;
+    }
+
+    public override void _GuiInput(InputEvent @event)
+    {
+        if (@event is not InputEventMouse mouse)
+            return;
+        var rect = ScreenRect;
+        if (rect.Size.X <= 0 || rect.Size.Y <= 0)
+            return;
+        var copy = (InputEventMouse)mouse.Duplicate();
+        copy.Position = (mouse.Position - rect.Position) / rect.Size * (Vector2)CanvasSize;
+        copy.GlobalPosition = copy.Position;
+        _viewport.PushInput(copy, true);
+        AcceptEvent();
+    }
+
     /// <summary>The screen as it's drawn, in its own pixels, before it's scaled up.</summary>
     public Image Capture() => _viewport.GetTexture().GetImage();
 
