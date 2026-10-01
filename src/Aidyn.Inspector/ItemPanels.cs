@@ -189,7 +189,10 @@ public partial class ItemPanel : PagePanel
     private void ShowOnParty(CharacterRules rules)
     {
         var count = NewParty(rules).Members.Count();
-        Heading(_item.Kind == ItemKind.Scroll ? $"Read by {Party()}" : $"Put on by {Party()}");
+        var scroll = _item.Kind == ItemKind.Scroll;
+        Heading(scroll ? "Reading it" : "Equipping it");
+        Line($"Tried on {EditorCharacters.Whose(_flags)}: what {(scroll ? "reading" : "equipping")} it would change on each sheet, "
+            + $"or why they can't {(scroll ? "read" : "equip")} it. Nothing here is kept.", Dim);
         var grid = Grid(["", ""]);
         for (var i = 0; i < count; i++)
         {
@@ -231,8 +234,6 @@ public partial class ItemPanel : PagePanel
     }
 
     private Party NewParty(CharacterRules rules) => EditorCharacters.NewParty(Plugins, rules, _flags, _items);
-
-    private string Party() => _flags?.ConsoleParty is not null ? $"{_flags.Name}'s party" : "a new game's Alaron";
 
     /// <summary>The values putting an item on can change, by name.</summary>
     private static List<(string Name, int Value)> Sheet(Character c, CharacterRules rules)
@@ -518,7 +519,8 @@ public partial class RecipePanel : PagePanel
     /// <summary>Makes it on a fresh copy of the party, with the ingredients, for each roll of the d100.</summary>
     private void ShowOnParty(CharacterRules rules)
     {
-        Heading(_flags?.ConsoleParty is not null ? $"Made by {_flags.Name}'s party" : "Made by a new game's Alaron");
+        Heading("Making it");
+        Line($"Tried by {EditorCharacters.Whose(_flags)}: whether each is offered it, and how often they'd make it. Nothing here is kept.", Dim);
         var count = EditorCharacters.NewParty(Plugins, rules, _flags, _items).Members.Count();
         var grid = Grid(["", ""]);
         for (var i = 0; i < count; i++)

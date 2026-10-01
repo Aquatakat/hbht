@@ -115,6 +115,10 @@ public static class EditorCharacters
         return party;
     }
 
+    /// <summary>Who <see cref="NewParty"/> is, for pages that try things on it.</summary>
+    public static string Whose(FlagState? flags) =>
+        flags?.ConsoleParty is not null ? $"each member of the party in {flags.Name}" : "Alaron as a new game starts him, in his starting gear";
+
     /// <summary>An item's record ID from the console's: weapons are 0x07…, armor and shields 0x05… and 0x06…, the rest items.</summary>
     public static RecordId ItemId(ushort id) => (id >> 8) switch
     {
