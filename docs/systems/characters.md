@@ -79,12 +79,12 @@ The debug build's code differs from the decomp's pseudocode in these places:
 - **Cheat Death.** `Entity::DamageToLevel` looks through all 15 effects for it; the pseudocode's loop never runs. That's for combat (2.5).
 - **Entity categories.** Charming fails on category 5, the Chaos troops and bosses. The decomp's enum puts Chaos at 4, which the entity DB leaves empty.
 
-## To check in the emulator
+## Confirmed in the emulator
 
-The checkpoints confirm the sheets: levels, hit points, the skills that can't be learnt and the True Name. Training prices need a playthrough, at a trainer and on the screen after a battle:
+The checkpoints confirm the sheets: levels, hit points, the skills that can't be learnt and the True Name. The user confirmed the training prices by playing, on Sep 30, 2026:
 
-- **Warrior from 3 to 4** costs 16,000 experience after a battle, and 12,800 experience and 160 gold at a trainer who knows Warrior at 4 or more.
-- **Merchant** costs 750 × (n + 1)² experience to raise from level *n* after a battle, so 3,000 from 1 to 2, not the decomp's ten times that.
+- **Warrior from 3 to 4** costs 16,000 experience after a battle, and 12,800 experience and 160 gold at a trainer.
+- **Merchant from 1 to 2** costs 3,000 experience after a battle, and 2,400 experience and 80 gold at a trainer: 750 × (n + 1)², not the decomp's ten times that.
 - **Oriana** charges no gold for what she teaches.
 
 ## What's left
