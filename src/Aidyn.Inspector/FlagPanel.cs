@@ -7,8 +7,9 @@ using Godot;
 namespace Aidyn.Inspector;
 
 /// <summary>
-/// The flags' values the editor shows: a new game's, or a checkpoint's plain flags with the derived
-/// flags the port evaluates from them, which it checks against the console's.
+/// The game state the editor shows: a new game's, or a checkpoint's plain flags with the derived
+/// flags the port evaluates from them, which it checks against the console's, and its party's
+/// sheets and gold, which character pages and the script player start from.
 /// </summary>
 public sealed class FlagState(FlagNetwork network)
 {
