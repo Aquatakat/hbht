@@ -161,11 +161,12 @@ internal static class CharacterImporter
     /// <param name="menu">Where each spell's symbol and description come from. Without it, spells have neither.</param>
     public static List<PluginSpell> BuildSpells(GameDb db, ItemTables? items = null, MenuTables? menu = null) =>
     [
-        .. db.Spells.Where(s => DbRecordIds.For(s.Id) is not null).Select(s => Spell(db, s, items, menu))
+        .. db.Spells.Select((s, position) => (s, position)).Where(p => DbRecordIds.For(p.s.Id) is not null)
+            .Select(p => Spell(db, p.s, p.position, items, menu))
             .DistinctBy(s => s.Id).OrderBy(s => s.Id.Key, StringComparer.Ordinal),
     ];
 
-    private static PluginSpell Spell(GameDb db, RomSpell s, ItemTables? items, MenuTables? menu)
+    private static PluginSpell Spell(GameDb db, RomSpell s, int position, ItemTables? items, MenuTables? menu)
     {
         var special = (SpellSpecial)s.Special;
         if (!Enum.IsDefined(special))
@@ -176,7 +177,8 @@ internal static class CharacterImporter
             s.ExpModifier * SpellCostPerPoint, s.Unk1E,
             items is not null && menu is not null && menu.SpellSymbols.TryGetValue(s.Id, out var symbol)
                 ? RecordId.Hex(RecordTypes.Image, items.SpellSymbolIcons[symbol]) : null,
-            menu is null ? null : ItemImporter.Description(db, RomStringTable.Spells, menu.SpellDescriptions, s.Id));
+            menu is null ? null : ItemImporter.Description(db, RomStringTable.Spells, menu.SpellDescriptions, s.Id),
+            position);
     }
 
     /// <summary>The seven stats, <c>aidyn:stat/0</c> to <c>6</c>.</summary>

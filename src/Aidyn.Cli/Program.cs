@@ -1,14 +1,17 @@
 using System.Globalization;
 using System.Text;
+using Aidyn.Core;
+using Aidyn.Plugins;
+using Aidyn.Plugins.Saves;
 using Aidyn.Rom;
 using Aidyn.Rom.Borg;
 using Aidyn.Rom.Db;
 using Aidyn.Rom.Dialogue;
-using Aidyn.Plugins;
 using Aidyn.Rom.Graphics;
 using Aidyn.Rom.Import;
 using Aidyn.Rom.Maps;
 using Aidyn.Rom.Quests;
+using Aidyn.Rom.Rig;
 using Aidyn.Rom.Text;
 
 const string Usage = """
@@ -36,6 +39,11 @@ const string Usage = """
       aidyn strings <rom> <table>            one string table, numbered by line
       aidyn strings <rom> [--out <dir>]      every string table as text, a file each;
                                            default dir: out/<version>/strings
+      aidyn save new [<save>]                a new game as a save, with the installed plugins;
+                                           default: new-game.json in the data folder's saves
+      aidyn save from <checkpoint> [<save>]  an ares checkpoint as a save; default: <its label>.json
+                                           in the data folder's saves
+      aidyn save show <save>                 what the game makes of a save, loaded with the installed plugins
     """;
 
 try
@@ -63,6 +71,11 @@ try
         ["strings", var rom] => AllStrings(rom, null),
         ["strings", var rom, "--out", var dir] => AllStrings(rom, dir),
         ["strings", var rom, var table] => Strings(rom, table),
+        ["save", "new"] => SaveNew(null),
+        ["save", "new", var save] => SaveNew(save),
+        ["save", "from", var checkpoint] => SaveFrom(checkpoint, null),
+        ["save", "from", var checkpoint, var save] => SaveFrom(checkpoint, save),
+        ["save", "show", var save] => SaveShow(save),
         _ => Fail(Usage),
     };
 }
@@ -70,7 +83,7 @@ catch (UnsupportedRomException e)
 {
     return Fail(e.Message);
 }
-catch (Exception e) when (e is IOException or InvalidDataException or UnauthorizedAccessException)
+catch (Exception e) when (e is IOException or InvalidDataException or UnauthorizedAccessException or System.Text.Json.JsonException)
 {
     return Fail(e.Message);
 }
@@ -384,4 +397,81 @@ static string Summary(BorgArchive archive)
         $"{label,-18} {ls.Count,6} {ls.Count(l => l.Compression == BorgCompression.None),8} " +
         $"{ls.Sum(l => (long)l.CompressedSize) / 1024,10:N0} {ls.Sum(l => (long)l.UncompressedSize) / 1024,10:N0} " +
         $"{ls.Min(l => l.UncompressedSize),9:N0} {ls.Max(l => l.UncompressedSize),9:N0}";
+}
+
+static PluginSet InstalledPlugins()
+{
+    if (!File.Exists(Path.Combine(DataPaths.Base, PluginManifest.FileName)))
+        throw new IOException($"The game hasn't been imported. Run: aidyn import <rom>\n(looked in {DataPaths.Base})");
+    return PluginSet.LoadInstalled(DataPaths.Plugins);
+}
+
+static string SavePath(string? path, string label) => path ?? Path.Combine(DataPaths.Saves, label + SaveFile.Extension);
+
+static int SaveNew(string? path)
+{
+    path = SavePath(path, "new-game");
+    SaveFile.Write(path, GameState.NewGame(InstalledPlugins()).Save());
+    Console.WriteLine($"Saved a new game to {Path.GetFullPath(path)}");
+    return 0;
+}
+
+static int SaveFrom(string checkpoint, string? path)
+{
+    var label = CheckpointSave.Label(checkpoint);
+    path = SavePath(path, label);
+    var problems = new List<string>();
+    var save = CheckpointSave.Convert(AresCheckpoint.Read(checkpoint), InstalledPlugins(), label, problems);
+    SaveFile.Write(path, save);
+    foreach (var problem in problems)
+        Console.Error.WriteLine(problem);
+    Console.WriteLine($"Saved {label} to {Path.GetFullPath(path)}");
+    return 0;
+}
+
+static int SaveShow(string path)
+{
+    var game = GameState.Load(InstalledPlugins(), SaveFile.Read(path));
+    var played = TimeSpan.FromSeconds(game.PlayTime / 60.0);
+    var date = game.Clock.Date;
+    Console.WriteLine(game.Label ?? Path.GetFileNameWithoutExtension(path));
+    Console.WriteLine($"Played      {(int)played.TotalHours}:{played.Minutes:D2}:{played.Seconds:D2}");
+    Console.WriteLine($"Date        season {date.Season}, week {date.Week}, day {date.DayOfWeek}, {date.Hour:D2}:00 ({date.PartOfDay})");
+    Console.WriteLine(game.Place is { } place
+        ? $"Place       {game.Plugins.TryGet<Aidyn.Plugins.Records.MapSetRecord>(place.MapSet)?.Label ?? place.MapSet.ToString()} {place.Chunk} " +
+            $"at ({place.Position.X:F2}, {place.Position.Y:F2}, {place.Position.Z:F2})"
+        : "Place       where a new game starts");
+    var plain = Enumerable.Range(0, game.Flags.Count).Count(h => !game.Flags.IsDerived(h) && game.Flags.Peek(h));
+    var derived = Enumerable.Range(0, game.Flags.Count).Count(h => game.Flags.IsDerived(h) && game.Flags.Get(h));
+    Console.WriteLine($"Flags       {plain:N0} plain and {derived:N0} derived set");
+    Console.WriteLine($"Gold        {game.Party.Gold:N0}");
+    foreach (var member in game.Party.Members)
+    {
+        var stats = string.Join(" ", Enum.GetValues<Aidyn.Core.Characters.Stat>().Take(6).Select(s => $"{s.ToString()[..3]} {member.Stats.Modified(s)}"));
+        Console.WriteLine($"  {member.Name,-10} level {member.Level,2}, {member.Hp}/{member.MaxHp} HP, {member.TotalExp:N0} XP; {stats}");
+        var worn = member.Equipment.All.Select(i => i.Item.Name).ToList();
+        if (worn.Count > 0)
+            Console.WriteLine($"  {"",-10} wears {string.Join(", ", worn)}");
+        if (member.Spells.Count > 0)
+            Console.WriteLine($"  {"",-10} knows {string.Join(", ", member.Spells.Select(s => $"{s.Spell.Name} {s.Level}"))}");
+    }
+    var stacks = game.Party.Inventory?.Stacks ?? [];
+    Console.WriteLine($"Inventory   {stacks.Count} {(stacks.Count == 1 ? "stack" : "stacks")}: " +
+        string.Join(", ", stacks.Select(s => s.Quantity == 1 ? s.Item.Name : $"{s.Item.Name} × {s.Quantity}")));
+    foreach (var memory in game.Memory.Entries)
+    {
+        var (kind, skill) = (memory.Key.Kind, memory.Key.Skill);
+        var what = kind switch
+        {
+            Aidyn.Core.MapObjects.MemoryKind.RandomLine => $"a random line's roll of {memory.Value}",
+            Aidyn.Core.MapObjects.MemoryKind.SkillCheck =>
+                $"a {game.Plugins.TryGet<Aidyn.Plugins.Records.SkillRecord>(RecordId.Decimal(RecordTypes.Skill, skill))?.Name ?? $"skill {skill}"} check's step of {memory.Value}",
+            Aidyn.Core.MapObjects.MemoryKind.Opened => "being emptied",
+            _ => "being beaten",
+        };
+        Console.WriteLine($"Remembers   {memory.Key.MapObject}: {what}, for {memory.Lifetime} more map loads");
+    }
+    foreach (var problem in game.Problems)
+        Console.Error.WriteLine(problem);
+    return game.Problems.Count == 0 ? 0 : 1;
 }

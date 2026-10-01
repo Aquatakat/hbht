@@ -239,6 +239,11 @@ public sealed record TrainingPrices(int FirstLevelGold, int GoldPerLevel, float 
 /// What C-down's details say of it (<c>aidyn:strings/2</c>). Four spells have none, and the original
 /// can't show their details.
 /// </param>
+/// <param name="Position">
+/// Its place in the spell table (<c>SpellDB</c>), which groups spells by school. Loading a save puts a
+/// spellbook in this order, school by school, as the original does (<c>SaveParty::LoadSpell</c>). A
+/// spell without one goes after those with one.
+/// </param>
 public sealed record SpellRecord(
     RecordId Id,
     string Name,
@@ -254,7 +259,8 @@ public sealed record SpellRecord(
     int TrainingCost,
     int Unk1E,
     RecordId? Icon = null,
-    string? Description = null);
+    string? Description = null,
+    int? Position = null);
 
 /// <summary>How many targets a spell takes.</summary>
 public enum SpellTargetCount

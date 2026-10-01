@@ -1,8 +1,9 @@
 using Aidyn.Core.Flags;
+using Aidyn.Core.MapObjects;
 using Aidyn.Core.Rng;
 using Aidyn.Core.Scripts;
-using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
+using Aidyn.Plugins;
 using Aidyn.Rom.Borg;
 using Aidyn.Rom.Import;
 using Aidyn.Rom.Quests;
@@ -25,7 +26,7 @@ public class ScriptRunnerTests
     private sealed class RandomWorld(Random random) : IScriptWorld
     {
         private readonly Dictionary<RecordId, bool> _members = [], _items = [];
-        private readonly Dictionary<ScriptMemory, int> _memory = [];
+        private readonly Dictionary<Memory, int> _memory = [];
 
         public bool InParty(RecordId entity) => Answer(_members, entity);
         public bool HasItem(RecordId item) => Answer(_items, item);
@@ -41,8 +42,8 @@ public class ScriptRunnerTests
         public void RemoveMember(RecordId entity) => _members[entity] = false;
         public bool AddExp(RecordId member, int amount) => InParty(member);
         public void CampHeal() { }
-        public bool TryRecall(ScriptMemory memory, out int value) => _memory.TryGetValue(memory, out value);
-        public void Remember(ScriptMemory memory, int value) => _memory[memory] = value;
+        public bool TryRecall(Memory memory, out int value) => _memory.TryGetValue(memory, out value);
+        public void Remember(Memory memory, int value) => _memory[memory] = value;
 
         private bool Answer(Dictionary<RecordId, bool> answers, RecordId id) =>
             answers.TryGetValue(id, out var answer) ? answer : answers[id] = random.Next(2) == 0;

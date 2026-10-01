@@ -1,0 +1,377 @@
+using Aidyn.Core.Calendar;
+using Aidyn.Core.Characters;
+using Aidyn.Core.Flags;
+using Aidyn.Core.Items;
+using Aidyn.Core.MapObjects;
+using Aidyn.Core.Rng;
+using Aidyn.Core.Scripts;
+using Aidyn.Plugins;
+using Aidyn.Plugins.Records;
+using Aidyn.Plugins.Saves;
+
+namespace Aidyn.Core;
+
+/// <summary>
+/// The game as it stands: the flags, the clock, the party with its inventory, what map objects
+/// remember, the random streams and where the player is (ADR 0003). A save is a snapshot of it
+/// (<see cref="Save"/>), and loading one rebuilds it with the rules, as the original's
+/// <c>QuestData::Load</c> does. Scripts read and change it as their <see cref="IScriptWorld"/>.
+/// </summary>
+public sealed class GameState : IScriptWorld
+{
+    /// <summary>Alaron, who a new game starts with and who is always first in the party.</summary>
+    public static readonly RecordId Alaron = RecordId.Hex(RecordTypes.Entity, 0x023F);
+
+    /// <summary>A new game's gold (<c>init_DBs</c>).</summary>
+    public const uint NewGameGold = 1;
+
+    private readonly List<string> _problems = [];
+
+    private GameState(PluginSet plugins)
+    {
+        Plugins = plugins;
+        Rules = CharacterRules.From(plugins);
+        Items = ItemCatalog.From(plugins);
+        Flags = FlagNetwork.Load(plugins);
+        StateFlagsRecord = plugins.All<StateFlagsRecord>(RecordTypes.StateFlags).Single();
+        StateFlags = new StateFlags(Flags, StateFlagsRecord);
+        Party = new Party(Items, Flags);
+    }
+
+    public PluginSet Plugins { get; }
+
+    public CharacterRules Rules { get; }
+
+    public ItemCatalog Items { get; }
+
+    public FlagNetwork Flags { get; }
+
+    public StateFlagsRecord StateFlagsRecord { get; }
+
+    /// <summary>Writes the clock, rain and terrain into the flags.</summary>
+    public StateFlags StateFlags { get; }
+
+    public GameClock Clock { get; } = GameClock.NewGame();
+
+    /// <summary>Time played, in 60 Hz ticks (<c>TerrainStruct.PlayTime</c>).</summary>
+    public uint PlayTime { get; set; }
+
+    public Party Party { get; }
+
+    public MapObjectMemory Memory { get; } = new();
+
+    public RandomStreams Random { get; } = new();
+
+    /// <summary>Where the player is, as the runtime last said. None is where a new game starts.</summary>
+    public SavePlace? Place { get; set; }
+
+    /// <summary>A name for the game, such as the checkpoint or save it came from.</summary>
+    public string? Label { get; set; }
+
+    /// <summary>What loading a save couldn't use, such as records no plugin has any more.</summary>
+    public IReadOnlyList<string> Problems => _problems;
+
+    /// <summary>
+    /// A new game (<c>init_DBs</c>): the flags' initial values, noon on day 2 of week 6, and Alaron
+    /// alone with 1 gold, wearing what his record gives him.
+    /// </summary>
+    public static GameState NewGame(PluginSet plugins)
+    {
+        var game = new GameState(plugins) { Label = "New game" };
+        game.StateFlags.SetTime(game.Clock);
+        if (game.Recruit(Alaron) is { } alaron)
+            game.Party.Add(alaron);
+        game.Party.Gold = NewGameGold;
+        return game;
+    }
+
+    /// <summary>
+    /// A saved game, rebuilt with the rules (<c>QuestData::LoadFile</c>): the plain flags, with the
+    /// derived ones evaluated and the new journal entry flag cleared; the clock; each member from
+    /// their record with the save's experience, stats and skills, putting on what they wear; the
+    /// inventory; and what map objects remember. What no plugin has any more is left out and
+    /// listed in <see cref="Problems"/>.
+    /// </summary>
+    public static GameState Load(PluginSet plugins, SaveGame save)
+    {
+        var game = new GameState(plugins) { Label = save.Label, Place = save.Place, PlayTime = save.PlayTime };
+        game.CheckPlugins(save.Plugins);
+
+        // Flag 1 is always set, and formulas read it as stored.
+        var set = new HashSet<int> { FlagNetwork.True };
+        foreach (var flag in save.Flags)
+        {
+            if (game.Flags.TryHandle(flag, out var handle) && !game.Flags.IsDerived(handle))
+                set.Add(handle);
+            else
+                game._problems.Add($"{flag} isn't a plain flag any plugin has.");
+        }
+        game.Flags.Restore(set.Contains);
+        game.Flags.Set(game.StateFlagsRecord.NewJournalEntry, false);
+        game.Flags.NewestJournalEntry = null;
+
+        game.Clock.Time = save.Time % GameClock.Year;
+        game.StateFlags.SetTime(game.Clock);
+
+        game.Party.Gold = save.Party.Gold;
+        for (var slot = 0; slot < save.Party.Members.Count; slot++)
+        {
+            if (game.LoadCharacter(save.Party.Members[slot], alaron: slot == 0) is { } member && !game.Party.Add(member))
+                game._problems.Add($"{member.Name} doesn't fit in the party.");
+        }
+        foreach (var stack in save.Party.Inventory)
+        {
+            if (game.Instance(stack.Item, stack.Battery, stack.Charges) is not { } held)
+                continue;
+            if (!game.Party.Inventory!.Add(held.Item, stack.Quantity, held))
+                game._problems.Add($"{held.Item.Name} doesn't fit in the inventory.");
+        }
+
+        foreach (var memory in save.Memories)
+        {
+            if (!Enum.TryParse<MemoryKind>(memory.Kind, out var kind))
+                game._problems.Add($"{memory.MapObject} remembers {memory.Kind}, which isn't a kind of memory.");
+            else
+                game.Memory.Remember(new Memory(memory.MapObject, kind, memory.Skill ?? 0), memory.Value, memory.Lifetime);
+        }
+
+        if (save.Random is { } random)
+        {
+            game.Random.Combat.Seed = random.Combat;
+            game.Random.Loot.Seed = random.Loot;
+            game.Random.World.Seed = random.World;
+            game.Random.Wander.Seed = random.Wander;
+            game.Random.Cosmetic.Seed = random.Cosmetic;
+        }
+        return game;
+    }
+
+    /// <summary>The game as a save, with the installed plugins named in it.</summary>
+    public SaveGame Save() => new()
+    {
+        Label = Label,
+        Plugins = [.. Plugins.Plugins.Select(p => new SavedPlugin(p.Manifest.Id, p.Manifest.Version))],
+        PlayTime = PlayTime,
+        Time = Clock.Time,
+        Place = Place,
+        Flags = [.. Enumerable.Range(FlagNetwork.True + 1, Flags.Count - FlagNetwork.True - 1)
+            .Where(h => !Flags.IsDerived(h) && Flags.Peek(h)).Select(Flags.Id)],
+        Party = new SaveParty
+        {
+            Gold = Party.Gold,
+            Members = [.. Party.Members.Select(SaveCharacter)],
+            Inventory = [.. (Party.Inventory?.Stacks ?? []).Select(s =>
+                new SaveStack(s.Item.Id, s.Quantity) { Battery = s.Instance.Battery, Charges = s.Instance.Charges })],
+        },
+        Memories = [.. Memory.Entries.Select(e => new SaveMemory(e.Key.MapObject, e.Key.Kind.ToString(), e.Value, e.Lifetime)
+        {
+            Skill = e.Key.Kind == MemoryKind.SkillCheck ? e.Key.Skill : null,
+        })],
+        Random = new SaveRandom(Random.Combat.Seed, Random.Loot.Seed, Random.World.Seed, Random.Wander.Seed, Random.Cosmetic.Seed),
+    };
+
+    /// <summary>
+    /// Time passing in trek, <paramref name="ticks"/> of play: the clock runs, and the calendar's flags
+    /// are written, as they are every frame (<c>World::IncGameTime</c>, <c>SetFlagArray_on_Time</c>).
+    /// </summary>
+    public void PassTime(int ticks)
+    {
+        Clock.Step(ticks);
+        StateFlags.SetTime(Clock);
+    }
+
+    /// <summary>
+    /// A character as their record starts them, wearing their gear, with their True Name by the flags
+    /// (<c>Entity::Init</c>), or null if no plugin has the record.
+    /// </summary>
+    public Character? Recruit(RecordId entity) => Plugins.TryGet<EntityRecord>(entity) is { } record
+        ? Character.Create(record, Rules, Plugins.Get<SpellRecord>, IsSet, Items)
+        : null;
+
+    private bool IsSet(RecordId flag) => Flags.TryHandle(flag, out var handle) && Flags.Get(handle);
+
+    /// <summary>A character sheet as a save holds it (<c>SaveParty::SaveCharSheet</c>).</summary>
+    public static SaveCharacter SaveCharacter(Character member)
+    {
+        var stats = Enumerable.Range(0, CharacterRules.StatCount).Select(s => (Stat)s).ToList();
+        var skills = Enumerable.Range(0, SkillId.Count).Select(i => member.Skills.RawBase(new SkillId(i)) is var level and >= 0 ? level : (int?)null).ToList();
+        var worn = member.Equipment;
+        return new SaveCharacter(member.Entity)
+        {
+            TotalExp = member.TotalExp,
+            SpendableExp = member.SpendableExp,
+            Trained = SaveStats.From([.. stats.Select(member.Stats.Trained)]),
+            Current = SaveStats.From([.. stats.Select(member.Stats.Current)]),
+            Skills = new SkillLevels(skills[0], skills[1], skills[2], skills[3], skills[4], skills[5], skills[6], skills[7], skills[8],
+                skills[9], skills[10], skills[11]),
+            WeaponSkills = new WeaponSkillLevels(skills[12], skills[13], skills[14], skills[15], skills[16], skills[17], skills[18],
+                skills[19], skills[20], skills[21], skills[22]),
+            ShieldSkill = skills[23],
+            Weapon = Item(worn.Weapon),
+            Armor = Item(worn.Armor),
+            Shield = Item(worn.Shield),
+            Gear = [.. worn.Gear.OfType<ItemInstance>().Select(g => Item(g)!)],
+            Spells = [.. member.Spells.Select(s => new KnownSpell(s.Spell.Id, s.Level))],
+        };
+
+        static SaveItem? Item(ItemInstance? item) => item is null ? null : new SaveItem(item.Id) { Battery = item.Battery, Charges = item.Charges };
+    }
+
+    /// <summary>
+    /// A character sheet from a save (<c>SaveParty::LoadCharSheet</c>): the record's sheet with the
+    /// save's experience, stats and base skills, which leaves the modified values the trained and
+    /// current ones, then the armor, shield, weapon and gear put on as the rules allow, which applies
+    /// them. A skill the record can't learn stays so. The spellbook is put in the original's order
+    /// (<see cref="SpellOrder"/>). Null if no plugin has the record.
+    /// </summary>
+    /// <param name="alaron">
+    /// Whether it's the party's first member, whose save also holds the Elemental, Naming and
+    /// Necromancy spells (<c>SaveParty::SaveAlaron</c>).
+    /// </param>
+    public Character? LoadCharacter(SaveCharacter saved, bool alaron = false)
+    {
+        if (Plugins.TryGet<EntityRecord>(saved.Entity) is not { } entity)
+        {
+            _problems.Add($"{saved.Entity} isn't a character any plugin has.");
+            return null;
+        }
+        var trained = saved.Trained.ToArray();
+        var current = saved.Current.ToArray();
+        var stats = new CharacterStats(Rules, trained, current, trained, current);
+
+        var recorded = Character.SkillLevels(entity);
+        var s = saved.Skills;
+        var w = saved.WeaponSkills;
+        int?[] levels = [s.Alchemist, s.Diplomat, s.Healer, s.Loremaster, s.Mechanic, s.Merchant, s.Ranger, s.Stealth, s.Thief,
+            s.Troubadour, s.Warrior, s.Wizard, w.Bite, w.Breath, w.Claw, w.Hafted, w.Missile, w.Pole, w.Spit, w.Sting, w.Sword, w.Thrown,
+            w.Tusk, saved.ShieldSkill];
+        // CharSkills::LoadOne: a skill the record can't learn stays unlearnable. The modified level starts at the
+        // base, or at 0 for one that can't be learnt, as the checkpoints hold it.
+        var skills = new CharacterSkills(Rules, [.. levels.Select((level, i) => recorded[i] is null ? null : (int?)(sbyte)(level ?? 0))]);
+
+        var spells = new List<LearnedSpell>();
+        foreach (var known in saved.Spells)
+        {
+            if (Plugins.TryGet<SpellRecord>(known.Spell) is { } spell)
+                spells.Add(new LearnedSpell(spell, known.Level));
+            else
+                _problems.Add($"{entity.Name} knows {known.Spell}, which no plugin has.");
+        }
+        var character = Character.Restore(entity, Rules, stats, skills, SpellOrder(spells, entity.School, alaron));
+        character.TrueName = entity.TrueName || (entity.TrueNameFlag is { } flag && IsSet(flag));
+        character.TotalExp = saved.TotalExp;
+        character.SpendableExp = saved.SpendableExp;
+
+        var equipment = character.Equipment;
+        if (Instance(saved.Armor) is { } armor)
+            equipment.EquipArmor(armor);
+        Wear(saved.Shield, equipment.EquipShield);
+        Wear(saved.Weapon, equipment.EquipWeapon);
+        foreach (var gear in saved.Gear)
+            Wear(gear, equipment.EquipGear);
+        return character;
+
+        void Wear(SaveItem? item, Func<ItemInstance, EquipRefusal> equip)
+        {
+            if (Instance(item) is { } instance && equip(instance) is var refusal and not EquipRefusal.None)
+                _problems.Add($"{entity.Name} can't wear the {instance.Item.Name} ({refusal}), so it's lost.");
+        }
+    }
+
+    /// <summary>
+    /// A spellbook in the order loading a save leaves it (<c>SaveParty::LoadSpellsFromSchool</c>,
+    /// <c>LoadAlaron</c>): unschooled spells, then the character's school's (Star for Chaos), then for
+    /// Alaron the Elemental, Naming and Necromancy spells, each school in the spell table's order. The
+    /// original drops a spell of any other school; the port keeps it, last.
+    /// </summary>
+    public static IReadOnlyList<LearnedSpell> SpellOrder(IEnumerable<LearnedSpell> spells, MagicSchool school, bool alaron)
+    {
+        List<MagicSchool> schools = [MagicSchool.None, school == MagicSchool.Chaos ? MagicSchool.Star : school];
+        if (alaron)
+            schools.AddRange([MagicSchool.Elemental, MagicSchool.Naming, MagicSchool.Necromancy]);
+        return [.. spells.OrderBy(s => schools.IndexOf(s.Spell.School) is var rank and >= 0 ? rank : schools.Count)
+            .ThenBy(s => s.Spell.Position ?? int.MaxValue)];
+    }
+
+    private ItemInstance? Instance(SaveItem? item) => item is null ? null : Instance(item.Item, item.Battery, item.Charges);
+
+    // SaveParty::LoadItem: a new instance of the item, with the save's charges and battery. The price is the item's.
+    private ItemInstance? Instance(RecordId id, int? battery, int? charges)
+    {
+        if (Items.TryGet(id) is not { } item)
+        {
+            _problems.Add($"{id} isn't an item any plugin has.");
+            return null;
+        }
+        var instance = new ItemInstance(item);
+        if (instance.Battery is not null && battery is { } left)
+            instance.Battery = (sbyte)left;
+        if (instance.Charges is not null && charges is { } count)
+            instance.Charges = (byte)count;
+        return instance;
+    }
+
+    private void CheckPlugins(IReadOnlyList<SavedPlugin> saved)
+    {
+        var installed = Plugins.Plugins.ToDictionary(p => p.Manifest.Id, p => p.Manifest.Version);
+        foreach (var plugin in saved)
+        {
+            if (!installed.TryGetValue(plugin.Id, out var version))
+                _problems.Add($"It was saved with {plugin.Id}, which isn't installed.");
+            else if (version != plugin.Version)
+                _problems.Add($"It was saved with {plugin.Id} {plugin.Version}; {version} is installed.");
+        }
+    }
+
+    // What scripts read and change.
+
+    bool IScriptWorld.InParty(RecordId entity) => Party.Contains(entity);
+
+    bool IScriptWorld.HasItem(RecordId item) => Party.HasItem(item);
+
+    int IScriptWorld.SkillCheck(int skill, IRandom random) => Party.SkillCheck((Skill)skill, random);
+
+    int IScriptWorld.BestStat(int stat) => IsStat(stat) ? Party.BestStat((Stat)stat) : 0;
+
+    int IScriptWorld.WorstStat(int stat) => IsStat(stat) ? Party.WorstStat((Stat)stat) : 0;
+
+    int IScriptWorld.MemberStat(RecordId? member, int stat) => member is { } m && IsStat(stat) ? Party.MemberStat(m, (Stat)stat) : 0;
+
+    int IScriptWorld.PartySize => Party.Count;
+
+    uint IScriptWorld.Gold
+    {
+        get => Party.Gold;
+        set => Party.Gold = value;
+    }
+
+    /// <summary>Adds one, if a plugin has the item and the inventory has room.</summary>
+    void IScriptWorld.AddItem(RecordId item)
+    {
+        if (Items.TryGet(item) is { } known)
+            Party.Inventory!.Add(known);
+    }
+
+    bool IScriptWorld.TakeItem(RecordId item) => Party.TakeItem(item);
+
+    /// <summary>Adds a member as their record starts them, unless they're already in the party.</summary>
+    bool IScriptWorld.AddMember(RecordId entity) => Party.Contains(entity) || (Recruit(entity) is { } member && Party.Add(member));
+
+    void IScriptWorld.RemoveMember(RecordId entity) => Party.Remove(entity);
+
+    bool IScriptWorld.AddExp(RecordId member, int amount)
+    {
+        if (Party.Get(member) is not { } character)
+            return false;
+        character.AddExp(amount);
+        return true;
+    }
+
+    void IScriptWorld.CampHeal() => Party.CampHeal();
+
+    bool IScriptWorld.TryRecall(Memory memory, out int value) => Memory.TryRecall(memory, out value);
+
+    void IScriptWorld.Remember(Memory memory, int value) => Memory.Remember(memory, value);
+
+    private static bool IsStat(int stat) => stat is >= 0 and <= (int)Stat.Level;
+}

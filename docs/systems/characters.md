@@ -89,7 +89,8 @@ The checkpoints confirm the sheets: levels, hit points, the skills that can't be
 
 ## What's left
 
+Saving and loading a sheet, with the spellbook reordered as the original's loading leaves it, is in [saves](saves.md).
+
 - **Effects (2.5):** spells' and potions' stat changes, their timers, Cheat Death, and what dying clears.
 - **Joining and leaving (M2):** the member flags and the sheets kept for members who leave.
-- **Saves (2.8):** the original saves a character's spells by school, in the spell DB's order (`SaveParty::SaveSpell`), so after loading a save the spellbook is in that order, not the order learnt. The checkpoints show it.
 - **Flags for the party's best stats and skills.** The original tries to raise them whenever a stat or skill changes (`Event_flag_stat`, `event_flag_skill_`), but its lookup never finds them, so the port doesn't either (see the [audit](../hardcoded-content.md)).

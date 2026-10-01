@@ -1,3 +1,4 @@
+using Aidyn.Core.MapObjects;
 using Aidyn.Core.Rng;
 using Aidyn.Plugins;
 
@@ -56,22 +57,10 @@ public interface IScriptWorld
 
     /// <summary>
     /// What the map object that started a script remembers from an earlier run, such as the
-    /// party's skill level the last time a check was made (the original's <c>VoxelChart</c>).
+    /// party's skill level the last time a check was made (<see cref="MapObjectMemory"/>).
     /// Recalling a memory keeps it for longer.
     /// </summary>
-    bool TryRecall(ScriptMemory memory, out int value);
+    bool TryRecall(Memory memory, out int value);
 
-    void Remember(ScriptMemory memory, int value);
-}
-
-/// <summary>What a map object remembers for its script.</summary>
-/// <param name="Skill">For <see cref="ScriptMemoryKind.SkillCheck"/>, which skill.</param>
-public readonly record struct ScriptMemory(RecordId MapObject, ScriptMemoryKind Kind, int Skill = 0);
-
-public enum ScriptMemoryKind
-{
-    /// <summary>The roll, 0–100, that picked a random line, so talking again shows the same one.</summary>
-    RandomLine,
-    /// <summary>The party's level in a skill when it was first checked, so talking again can't do better.</summary>
-    SkillCheck,
+    void Remember(Memory memory, int value);
 }

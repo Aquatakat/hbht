@@ -1,11 +1,12 @@
 using System.Globalization;
 using Aidyn.Core.Characters;
 using Aidyn.Core.Items;
+using Aidyn.Core.MapObjects;
 using Aidyn.Core.Rng;
 using Aidyn.Core.Scripts;
 using Aidyn.Game;
-using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
+using Aidyn.Plugins;
 using Godot;
 
 namespace Aidyn.Inspector;
@@ -742,7 +743,7 @@ public partial class ScriptPanel : VBoxContainer
         public Party Party { get; set; } = new();
         /// <summary>Skill checks fixed by hand, by skill; the rest roll.</summary>
         public Dictionary<int, int> FixedChecks { get; } = [];
-        public Dictionary<ScriptMemory, int> Memory { get; } = [];
+        public Dictionary<Memory, int> Memory { get; } = [];
         public int PartySize => Party.Count;
 
         public uint Gold
@@ -756,8 +757,8 @@ public partial class ScriptPanel : VBoxContainer
         public int BestStat(int stat) => IsStat(stat) ? Party.BestStat((Stat)stat) : 0;
         public int WorstStat(int stat) => IsStat(stat) ? Party.WorstStat((Stat)stat) : 0;
         public int MemberStat(RecordId? member, int stat) => member is { } m && IsStat(stat) ? Party.MemberStat(m, (Stat)stat) : 0;
-        public bool TryRecall(ScriptMemory memory, out int value) => Memory.TryGetValue(memory, out value);
-        public void Remember(ScriptMemory memory, int value) => Memory[memory] = value;
+        public bool TryRecall(Memory memory, out int value) => Memory.TryGetValue(memory, out value);
+        public void Remember(Memory memory, int value) => Memory[memory] = value;
 
         private static bool IsStat(int stat) => stat is >= 0 and <= (int)Stat.Level;
 

@@ -6,6 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Aidyn.Core\Aidyn.Core.csproj" />
     <ProjectReference Include="..\Aidyn.Rom\Aidyn.Rom.csproj" />
   </ItemGroup>
 

@@ -1,8 +1,9 @@
 using Aidyn.Core.Flags;
+using Aidyn.Core.MapObjects;
 using Aidyn.Core.Rng;
 using Aidyn.Core.Scripts;
-using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
+using Aidyn.Plugins;
 
 namespace Aidyn.Core.Tests;
 
@@ -26,7 +27,7 @@ public class ScriptRunnerTests
         public HashSet<RecordId> Members { get; } = [];
         public HashSet<RecordId> Items { get; } = [];
         public Dictionary<int, int> Skills { get; } = [];
-        public Dictionary<ScriptMemory, int> Memory { get; } = [];
+        public Dictionary<Memory, int> Memory { get; } = [];
         public bool Healed { get; private set; }
         public List<(RecordId, int)> Experience { get; } = [];
 
@@ -43,8 +44,8 @@ public class ScriptRunnerTests
         public bool AddMember(RecordId entity) => Members.Count < 4 && Members.Add(entity);
         public void RemoveMember(RecordId entity) => Members.Remove(entity);
         public void CampHeal() => Healed = true;
-        public bool TryRecall(ScriptMemory memory, out int value) => Memory.TryGetValue(memory, out value);
-        public void Remember(ScriptMemory memory, int value) => Memory[memory] = value;
+        public bool TryRecall(Memory memory, out int value) => Memory.TryGetValue(memory, out value);
+        public void Remember(Memory memory, int value) => Memory[memory] = value;
 
         public bool AddExp(RecordId member, int amount)
         {
@@ -364,7 +365,7 @@ public class ScriptRunnerTests
 
         Assert.Equal("Second rumour.", Text(first.Runner));
         Assert.Equal("Second rumour.", Text(again.Runner));
-        Assert.Equal(40, world.Memory[new ScriptMemory(Chest, ScriptMemoryKind.RandomLine)]);
+        Assert.Equal(40, world.Memory[new Memory(Chest, MemoryKind.RandomLine)]);
     }
 
     private static DialogueRecord LockPicking(int skill) => Script(DialogueMode.Conversation,

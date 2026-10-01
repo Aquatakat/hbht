@@ -43,8 +43,9 @@ public static class BasePlugin
     /// 13 gives entities and spells their fields, and adds the stats, skills, weapon skills and progression.
     /// 14 gives weapons, armor, items and loot tables their fields, and adds shops, recipes and the inventory's rules.
     /// 15 gives spells their icons and descriptions, and items their descriptions.
+    /// 16 gives spells their place in the spell table, which loading a save orders spellbooks by.
     /// </summary>
-    public const int ImporterVersion = 15;
+    public const int ImporterVersion = 16;
 }
 
 /// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>
@@ -58,4 +59,7 @@ public static class DataPaths
     public static string Plugins => Path.Combine(Root, "plugins");
 
     public static string Base => Path.Combine(Plugins, BasePlugin.Folder);
+
+    /// <summary>Where saved games go (<see cref="Saves.SaveGame"/>).</summary>
+    public static string Saves => Path.Combine(Root, "saves");
 }

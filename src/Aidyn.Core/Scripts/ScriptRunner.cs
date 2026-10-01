@@ -1,7 +1,8 @@
 using Aidyn.Core.Flags;
+using Aidyn.Core.MapObjects;
 using Aidyn.Core.Rng;
-using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
+using Aidyn.Plugins;
 
 namespace Aidyn.Core.Scripts;
 
@@ -617,7 +618,7 @@ public sealed class ScriptRunner
             level = _world.SkillCheck(skill, _random) & 0xFF;
             if (skill != Troubadour && _start.MapObject is { } source)
             {
-                var memory = new ScriptMemory(source, ScriptMemoryKind.SkillCheck, skill);
+                var memory = new Memory(source, MemoryKind.SkillCheck, skill);
                 if (_world.TryRecall(memory, out var recalled))
                     level = recalled;
                 else
@@ -753,7 +754,7 @@ public sealed class ScriptRunner
         var roll = _random.Range(0, 100);
         if (_start.MapObject is { } source)
         {
-            var memory = new ScriptMemory(source, ScriptMemoryKind.RandomLine);
+            var memory = new Memory(source, MemoryKind.RandomLine);
             if (_world.TryRecall(memory, out var recalled))
                 roll = recalled;
             else

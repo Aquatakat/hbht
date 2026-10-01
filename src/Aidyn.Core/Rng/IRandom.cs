@@ -53,3 +53,22 @@ public static class RandomExtensions
         return sum;
     }
 }
+
+/// <summary>
+/// The port's random streams, each the original's generator (ADR 0006): combat, loot, the world
+/// (weather and camp ambushes), wandering, and cosmetic effects, so that drawing for one can't
+/// shift another. A new game seeds them all as the original seeds its one stream at boot; a save
+/// keeps their states.
+/// </summary>
+public sealed class RandomStreams
+{
+    public Lcg Combat { get; } = new();
+
+    public Lcg Loot { get; } = new();
+
+    public Lcg World { get; } = new();
+
+    public Lcg Wander { get; } = new();
+
+    public Lcg Cosmetic { get; } = new();
+}

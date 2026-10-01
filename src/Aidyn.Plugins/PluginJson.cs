@@ -8,7 +8,7 @@ namespace Aidyn.Plugins;
 
 /// <summary>
 /// How plugin source is read and written: JSON with comments and trailing commas (ADR 0005),
-/// camelCase fields, enums as names, IDs as strings and vectors as arrays. The importer writes
+/// camelCase fields, enums as names, IDs as strings and vectors as arrays. Saves use the same. The importer writes
 /// indented output so that two imports diff cleanly.
 /// </summary>
 public static class PluginJson
@@ -22,7 +22,7 @@ public static class PluginJson
         IndentSize = 1,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-        Converters = { new RecordIdConverter(), new Vector3Converter(), new RgbaConverter(), new JsonStringEnumConverter() },
+        Converters = { new RecordIdConverter(), new Vector2Converter(), new Vector3Converter(), new RgbaConverter(), new JsonStringEnumConverter() },
     };
 
     public static JsonDocumentOptions DocumentOptions { get; } = new()
@@ -38,6 +38,18 @@ public static class PluginJson
 
         public override void Write(Utf8JsonWriter writer, RecordId value, JsonSerializerOptions options) =>
             writer.WriteStringValue(value.ToString());
+    }
+
+    private sealed class Vector2Converter : JsonConverter<Vector2>
+    {
+        public override Vector2 Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            var values = JsonSerializer.Deserialize<float[]>(ref reader, options);
+            return values is [var x, var y] ? new Vector2(x, y) : throw new JsonException("A 2D vector is [x, y].");
+        }
+
+        public override void Write(Utf8JsonWriter writer, Vector2 value, JsonSerializerOptions options) =>
+            writer.WriteRawValue($"[{JsonSerializer.Serialize(value.X)}, {JsonSerializer.Serialize(value.Y)}]");
     }
 
     private sealed class Vector3Converter : JsonConverter<Vector3>

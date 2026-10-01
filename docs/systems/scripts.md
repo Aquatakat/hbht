@@ -10,7 +10,7 @@
 - **Presentation** goes out as cues on `IScriptHost` (ADR 0003): cameras, spawning, facing, walking and running, animations, held items, sounds and the fade. The runtime carries them out, and tests record them.
 - **The player** answers the page: `Continue` moves on from a line, `Choose` takes a choice, and `Skip` ends the script, as the original's R + A + Z + B does. While the scripted camera moves, the original ignores input, so the runtime shouldn't pass it on.
 - **Waits** end with `Resume` from the runtime: an actor arriving, an animation ending or the camera stopping. `Step(ticks)` counts down `Wait`, whose operand is in ticks.
-- **Map objects remember** a skill check's result and a random line's roll (the original's `VoxelChart`), through `IScriptWorld.TryRecall` and `Remember`. So talking to someone again can't reroll a check or a rumour. Troubadour checks aren't remembered. The chart itself (19 slots that expire and are saved with the game) comes with the map objects.
+- **Map objects remember** a skill check's result and a random line's roll (the original's `VoxelChart`), through `IScriptWorld.TryRecall` and `Remember`. So talking to someone again can't reroll a check or a rumour. Troubadour checks aren't remembered. The chart itself, 19 memories that expire and are saved with the game, is `MapObjectMemory` (see [saves](saves.md#map-objects-memory)), and the game state answers for it.
 - **Randomness** comes from an `IRandom` stream (ADR 0006). `Lcg` is the original's generator, and `Range` is `Random::Range`.
 - **When a conversation ends**, the original reloads the map and gates its objects again by the flags (`loadGameBorgScenes`), so what the script changed shows at once. The runtime will need that with M2's dialogue triggers.
 
