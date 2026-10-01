@@ -29,9 +29,11 @@ public partial class SkyView : Node
     private readonly Dictionary<RecordId, Texture2D?> _images = [];
     private (int Row, int Column)? _chunk;
 
-    public SkyView(PluginSet plugins)
+    /// <param name="clock">The game's clock, which the game runs; the sky reads the time of day from it.</param>
+    public SkyView(PluginSet plugins, GameClock clock)
     {
         _plugins = plugins;
+        Clock = clock;
         Name = "Sky";
         if (plugins.TryGet<SkyRecord>(RecordId.Decimal(RecordTypes.Sky, 0)) is { } sky)
         {
@@ -45,7 +47,7 @@ public partial class SkyView : Node
         }
     }
 
-    public GameClock Clock { get; } = GameClock.NewGame();
+    public GameClock Clock { get; }
     public SkyState State { get; } = new();
     public SkyColors Colors { get; private set; }
     public SkyObjects? Objects { get; }
@@ -92,12 +94,11 @@ public partial class SkyView : Node
     }
 
     /// <summary>
-    /// One tick: the clock and any change of sky move on, the clouds blow along, the lens flare
-    /// fades, and the colours follow.
+    /// One tick, after the game's clock has moved on: any change of sky moves on, the clouds blow
+    /// along, the lens flare fades, and the colours follow.
     /// </summary>
     public void Step()
     {
-        Clock.Step();
         State.Step();
         Clouds?.Step();
         if (Flare is not null && Objects is not null)

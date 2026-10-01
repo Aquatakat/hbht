@@ -23,6 +23,8 @@ public partial class ChunkStreamer : Node3D
     private readonly CollisionWorld? _world;
     private readonly Dictionary<(int Row, int Column), ChunkEntry> _chunks = [];
     private readonly Dictionary<(int Row, int Column), ChunkScenery> _loaded = [];
+    /// <summary>Each loaded chunk's scene objects that its flags placed, by index.</summary>
+    private readonly Dictionary<(int Row, int Column), HashSet<int>> _placed = [];
     private (int Row, int Column) _centre;
 
     public ChunkStreamer()
@@ -74,6 +76,7 @@ public partial class ChunkStreamer : Node3D
         {
             _loaded[cell].Root.QueueFree();
             _loaded.Remove(cell);
+            _placed.Remove(cell);
             _world!.Remove(cell);
             changed = true;
         }
@@ -123,15 +126,41 @@ public partial class ChunkStreamer : Node3D
         }
     }
 
+    /// <summary>
+    /// Gates the loaded chunks' scene objects again by the flags, as the original does when it
+    /// reloads the map after a conversation, the pause menu or a teleport (<c>loadGameBorgScenes</c>).
+    /// A chunk whose objects come and go is built again; its collision stays.
+    /// </summary>
+    public void Regate()
+    {
+        foreach (var (cell, placed) in _placed.ToList())
+        {
+            var chunk = _chunks[cell];
+            if (Placed(chunk).SetEquals(placed))
+                continue;
+            _loaded[cell].Root.QueueFree();
+            var scenery = _loaded[cell] = Scenery(chunk);
+            AddChild(scenery.Root);
+        }
+    }
+
     private ChunkScenery Load(ChunkEntry chunk)
     {
-        // Toggles stay as they're stored until a trigger changes them, which needs the flag engine (M2).
+        // Toggles stay as they're stored until a trigger changes them (M2's map objects).
         if (_plugins!.FindAsset(chunk.Map, "glb") is { } collision)
             _world!.Add((chunk.Row, chunk.Column), CollisionMesh.Read(File.ReadAllBytes(collision)), MapSet.Origin(chunk.Row, chunk.Column));
-
-        // The runtime plays with the Expansion Pak. Whether an object is there is decided as its
-        // chunk loads, as the original does (VoxelObjects_Activate), not every frame.
-        return ChunkScenery.Load(_plugins, _models!, MapSet, chunk,
-            o => o.Pak != PakVariant.Without && !(o.Visible is { } gate && _flags!.Get(gate.Flag) == gate.Invert));
+        return Scenery(chunk);
     }
+
+    // Whether an object is there is decided as its chunk loads, as the original does
+    // (VoxelObjects_Activate), not every frame.
+    private ChunkScenery Scenery(ChunkEntry chunk)
+    {
+        var placed = _placed[(chunk.Row, chunk.Column)] = Placed(chunk);
+        return ChunkScenery.Load(_plugins!, _models!, MapSet, chunk, o => placed.Contains(o.Index));
+    }
+
+    /// <summary>The chunk's scene objects there now: the runtime plays with the Expansion Pak, and each by its flag gate.</summary>
+    private HashSet<int> Placed(ChunkEntry chunk) => [.. _plugins!.Get<MapRecord>(chunk.Map).Objects.OfType<SceneObject>()
+        .Where(o => o.Pak != PakVariant.Without && !(o.Visible is { } gate && _flags!.Get(gate.Flag) == gate.Invert)).Select(o => o.Index)];
 }

@@ -1,4 +1,5 @@
 using System.Globalization;
+using Aidyn.Core;
 using Aidyn.Core.Cameras;
 using Aidyn.Core.Flags;
 using Aidyn.Core.Movement;
@@ -7,18 +8,22 @@ using Aidyn.Core.Scenes;
 using Aidyn.Inspector;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
+using Aidyn.Plugins.Saves;
 using Godot;
 
 namespace Aidyn.Game;
 
 /// <summary>
-/// The runtime (roadmap M1): loads the installed plugins and walks the player through a map set.
-/// It never reads the ROM; <c>aidyn import &lt;rom&gt;</c> writes the base plugin it loads (ADR 0001).
+/// The runtime (roadmap M1, M2): loads the installed plugins and a game, a new one or a save, and
+/// walks the player through a map set. It never reads the ROM; <c>aidyn import &lt;rom&gt;</c> writes
+/// the base plugin it loads (ADR 0001).
 /// </summary>
 /// <remarks>
 /// The player and camera are the core's port of the original, stepped once per 60 Hz tick in the
-/// physics process; Godot interpolates between ticks for display.
-/// Command-line options, after <c>--</c>: <c>--set &lt;n&gt;</c> (default 0, the overworld),
+/// physics process; Godot interpolates between ticks for display. Start opens the pause menu.
+/// Command-line options, after <c>--</c>: <c>--save &lt;path&gt;</c> starts from a save (see
+/// docs/systems/saves.md), where it stands unless <c>--chunk</c> or <c>--at</c> say otherwise;
+/// <c>--set &lt;n&gt;</c> (default 0, the overworld),
 /// <c>--chunk &lt;name&gt;</c> and <c>--at &lt;x&gt;,&lt;z&gt;</c> in the chunk's coordinates
 /// (default I08 at 16, 62, where a new game starts), <c>--yaw</c> in degrees for the way the
 /// player and camera face (0 looks along −Z), <c>--pitch</c> (negative looks down, default −15)
@@ -30,7 +35,10 @@ namespace Aidyn.Game;
 /// (join several with <c>+</c>, as in <c>move_forward+walk</c>),
 /// and <c>--screenshot &lt;png&gt;</c>, which saves the window after that and quits.
 /// <c>--sky original</c> places the sky's sprites as the original does rather than projected.
-/// F toggles the free camera, F3 the debug overlay, F5 the pace and F6 the sky's placement.
+/// <c>--menu 1</c> opens the pause menu, <c>--ui-lines &lt;n&gt;</c> sets the UI screen's height, and
+/// <c>--press &lt;action&gt;,…</c> presses each action in turn, such as <c>pause,menu_member_next</c>.
+/// F toggles the free camera, F3 the debug overlay, F5 the pace, F6 the sky's placement and F7 the
+/// UI screen's height, and F8 saves to <c>quick.json</c> in the saves folder.
 /// </remarks>
 public partial class Game : Node3D
 {
@@ -49,15 +57,16 @@ public partial class Game : Node3D
     ];
 
     private readonly Label _overlay = new() { Position = new Vector2(8, 8) };
-    private readonly Label _message = new() { Position = new Vector2(16, 16) };
+    private readonly Label _message = new() { Position = new Vector2(8, 64) };
     private readonly CollisionWorld _world = new();
+    private GameState? _game;
+    private PauseMenu? _menu;
     private Models? _models;
     private ChunkStreamer? _chunks;
     private Player? _player;
     private CameraRig? _camera;
     private ShadowDecal? _shadow;
     private SkyView? _sky;
-    private StateFlags? _state;
     private ChunkEntry? _chunk;
     private FollowCamera? _follow;
     private IRootMotion _animation = new Still();
@@ -82,7 +91,8 @@ public partial class Game : Node3D
         {
             Start(args);
         }
-        catch (Exception e) when (e is IOException or InvalidDataException or KeyNotFoundException or System.Text.Json.JsonException)
+        catch (Exception e) when (e is IOException or InvalidDataException or KeyNotFoundException or System.Text.Json.JsonException
+            or ArgumentException)
         {
             GD.PrintErr(e.ToString());
             _message.Text = e.Message;
@@ -94,7 +104,19 @@ public partial class Game : Node3D
     private void Start(Dictionary<string, string> args)
     {
         var plugins = LoadPlugins();
-        var set = plugins.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, Int(args, "set", 0)));
+        var game = _game = args.TryGetValue("save", out var savePath)
+            ? GameState.Load(plugins, SaveFile.Read(savePath))
+            : GameState.NewGame(plugins);
+        foreach (var problem in game.Problems)
+            GD.PushWarning(problem);
+        // Where the save stands, unless the command line says otherwise.
+        var place = args.ContainsKey("chunk") || args.ContainsKey("at") ? null : game.Place;
+        var setId = args.TryGetValue("set", out var setArg)
+            ? RecordId.Decimal(RecordTypes.MapSet, int.Parse(setArg, CultureInfo.InvariantCulture))
+            : place?.MapSet ?? RecordId.Decimal(RecordTypes.MapSet, 0);
+        if (place?.MapSet != setId)
+            place = null;
+        var set = plugins.Get<MapSetRecord>(setId);
 
         AddChild(new WorldEnvironment
         {
@@ -108,43 +130,44 @@ public partial class Game : Node3D
         // Lit meshes are lit as the RSP lights them, by the sky and the sun, not by Godot's lights.
         N64Material.RspLighting = true;
 
-        _sky = new SkyView(plugins);
+        _sky = new SkyView(plugins, game.Clock);
         AddChild(_sky);
         AddChild(SkyBackdropView.Create(_sky));
         AddChild(LensFlareView.Create(_sky));
         _sky.SkyShows = SkyShows;
         _sky.Placement = args.GetValueOrDefault("sky") == "original" ? Core.Sky.SkyPlacement.Original : Core.Sky.SkyPlacement.Projected;
         if (args.TryGetValue("time", out var time))
-            _sky.Clock.SetTimeOfDay(float.Parse(time, CultureInfo.InvariantCulture));
+            game.Clock.SetTimeOfDay(float.Parse(time, CultureInfo.InvariantCulture));
 
-        // A new game's flags, with the time's written in, and any plain flags --flags sets, such as
-        // --flags 5,11 for after the Kendall and ambush cut-scenes.
-        var flags = FlagNetwork.Load(plugins);
-        _state = new StateFlags(flags, plugins.All<StateFlagsRecord>(RecordTypes.StateFlags).Single());
-        _state.SetTime(_sky.Clock);
+        // The time's written into the flags, and any plain flags --flags sets, such as --flags 5,11
+        // for after the Kendall and ambush cut-scenes.
+        game.StateFlags.SetTime(game.Clock);
         foreach (var flag in args.GetValueOrDefault("flags", "").Split(',', StringSplitOptions.RemoveEmptyEntries))
-            flags.Set(int.Parse(flag, CultureInfo.InvariantCulture), true);
+            game.Flags.Set(int.Parse(flag, CultureInfo.InvariantCulture), true);
 
         _drawDistance = new DrawDistance(Float(args, "draw-distance", 1), args.GetValueOrDefault("detail") == "nearest");
         var models = _models = new Models(plugins);
-        _chunks = new ChunkStreamer(plugins, models, set, _world, flags);
+        _chunks = new ChunkStreamer(plugins, models, set, _world, game.Flags);
         AddChild(_chunks);
 
-        var chunkName = args.GetValueOrDefault("chunk", "I08");
+        var chunkName = args.GetValueOrDefault("chunk", place?.Chunk ?? "I08");
         var chunk = _chunks.Find(chunkName) ?? throw new KeyNotFoundException($"{set.Label} has no chunk {chunkName}.");
         var at = Floats(args.GetValueOrDefault("at", "16,62"));
         // The original drops the player in from a height of 10 at a new game's spawn. This puts him
-        // on the highest ground below 1000, so --at works anywhere.
-        var spawn = _chunks.Origin(chunk) + new Vector3(at[0], 10, at[1]);
+        // on the highest ground below 1000, so --at works anywhere. A save puts him where he stood.
+        var spawn = _chunks.Origin(chunk) + (place is not null ? place.Position.ToGodot() : new Vector3(at[0], 10, at[1]));
         Enter(chunk);
         _chunks.Update(spawn);
         _sky.Apply();
         var centre = spawn.ToNumerics();
         var above = centre with { Y = 1000 };
-        if (SpherePhysics.Sweep(_world, above, above - new System.Numerics.Vector3(0, 2000, 0), 0.5f, false, out var ground, out var normal))
+        if (place is null && SpherePhysics.Sweep(_world, above, above - new System.Numerics.Vector3(0, 2000, 0), 0.5f, false, out var ground, out var normal))
             centre = ground + normal * 0.5f;
 
+        // The way he faces: --yaw, or the save's, or along -Z. The look is (-sin yaw, -cos yaw).
         var yaw = Mathf.DegToRad(Float(args, "yaw", 0));
+        if (!args.ContainsKey("yaw") && place is { Heading: var heading } && heading != default)
+            yaw = MathF.Atan2(-heading.X, -heading.Y);
         var look = new System.Numerics.Vector2(-MathF.Sin(yaw), -MathF.Cos(yaw));
         var motion = new PlayerMotion(centre, look) { Pace = Float(args, "pace", 1) };
         _player = new Player(motion);
@@ -180,6 +203,13 @@ public partial class Game : Node3D
         AddChild(_camera);
         _camera.Sync();
 
+        _menu = new PauseMenu(plugins, game.Party);
+        if (args.TryGetValue("ui-lines", out var lines))
+            _menu.Screen.Lines = int.Parse(lines, CultureInfo.InvariantCulture);
+        AddChild(_menu);
+        if (args.GetValueOrDefault("menu") == "1")
+            _menu.Open();
+
         if (args.TryGetValue("fly", out var fly))
         {
             _camera.ToggleFly();
@@ -199,6 +229,21 @@ public partial class Game : Node3D
                 foreach (var a in actions)
                     Input.ActionRelease(a);
             };
+        }
+        // Each action pressed and let go in turn, a fifth of a second apart, as input events.
+        if (args.TryGetValue("press", out var presses))
+        {
+            var pressed = presses.Split(',');
+            for (var i = 0; i < pressed.Length; i++)
+            {
+                var name = pressed[i];
+                GetTree().CreateTimer(0.5 + 0.2 * i).Timeout += () =>
+                {
+                    Input.ParseInputEvent(new InputEventAction { Action = name, Pressed = true });
+                    Input.ParseInputEvent(new InputEventAction { Action = name, Pressed = false });
+                };
+            }
+            hold = Math.Max(hold, 0.5 + 0.2 * pressed.Length);
         }
         if (args.TryGetValue("screenshot", out var png))
             _ = Screenshot(png, hold);
@@ -226,17 +271,23 @@ public partial class Game : Node3D
         if (chunk is null || chunk == _chunk)
             return;
         _chunk = chunk;
-        _state!.SetTerrain(chunk.Terrain);
+        _game!.StateFlags.SetTerrain(chunk.Terrain);
     }
 
-    /// <summary>One 60 Hz tick: the camera, then the player, as the original orders them.</summary>
+    /// <summary>
+    /// One 60 Hz tick: the time played, which counts in every mode, and in trek the clock, the
+    /// camera, then the player, as the original orders them. The pause menu stops trek.
+    /// </summary>
     public override void _PhysicsProcess(double delta)
     {
-        if (_player is null || _camera is null || _follow is null)
+        if (_player is null || _camera is null || _follow is null || _game is null)
+            return;
+        _game.PlayTime++;
+        if (_menu!.IsOpen)
             return;
         Enter(_chunks!.ChunkAt(_player.Motion.Sphere.Position.ToGodot()));
+        _game.PassTime(1);
         _sky!.Step();
-        _state!.SetTime(_sky.Clock);
         ScrollTextures();
         if (_camera.Flying)
             return;
@@ -381,7 +432,8 @@ public partial class Game : Node3D
                 (_camera.Flying ? "  [free camera]" : "") + "\n" +
                 (sphere.Touching ? $"on {Surfaces.ElementAtOrDefault(sphere.Surface) ?? sphere.Surface.ToString()}" : "in the air") +
                 $"  speed {Speed():F2}/s  request {motion.Request}  pace {motion.Pace:0.##} (F5)" +
-                $"  {Clock(_sky!.Clock.TimeOfDay)}  sky {_sky.Placement.ToString().ToLowerInvariant()} (F6)";
+                $"  {Clock(_sky!.Clock.TimeOfDay)}  sky {_sky.Placement.ToString().ToLowerInvariant()} (F6)" +
+                $"  UI {_menu!.Screen.Lines} lines (F7)";
         }
     }
 
@@ -402,7 +454,37 @@ public partial class Game : Node3D
 
     public override void _UnhandledInput(InputEvent e)
     {
-        if (e.IsActionPressed("toggle_fly") && _camera is not null)
+        if (_menu is { IsOpen: true } menu)
+        {
+            if (e.IsActionPressed("pause") || e.IsActionPressed("menu_back"))
+            {
+                menu.Close();
+                // The original reloads the map as the menu closes, so what changed shows.
+                _chunks!.Regate();
+                return;
+            }
+            if (menu.Handle(e))
+                return;
+        }
+        else if (e.IsActionPressed("pause") && _menu is not null)
+        {
+            _menu.Open();
+            return;
+        }
+
+        if (e.IsActionPressed("cycle_ui_lines") && _menu is not null)
+        {
+            _menu.Screen.Lines = _menu.Screen.Lines switch { < 360 => 360, < 480 => 480, _ => 240 };
+        }
+        else if (e.IsActionPressed("quick_save") && _game is not null)
+        {
+            QuickSave();
+        }
+        else if (_menu?.IsOpen == true && !e.IsActionPressed("toggle_overlay"))
+        {
+            return;
+        }
+        else if (e.IsActionPressed("toggle_fly") && _camera is not null)
         {
             _camera.ToggleFly();
         }
@@ -418,6 +500,32 @@ public partial class Game : Node3D
         {
             _sky.Placement = _sky.Placement == Core.Sky.SkyPlacement.Original ? Core.Sky.SkyPlacement.Projected : Core.Sky.SkyPlacement.Original;
         }
+    }
+
+    /// <summary>Saves the game to <c>quick.json</c> in the saves folder, with where the player stands.</summary>
+    private void QuickSave()
+    {
+        var position = _player!.Motion.Sphere.Position.ToGodot();
+        if (_chunks!.ChunkAt(position) is not { } chunk)
+        {
+            Say("Can't save: the player isn't in a chunk.");
+            return;
+        }
+        _game!.Place = new SavePlace(_chunks.MapSet.Id, chunk.Name, (position - _chunks.Origin(chunk)).ToNumerics(), _player.Motion.Heading);
+        var path = Path.Combine(DataPaths.Saves, "quick" + SaveFile.Extension);
+        SaveFile.Write(path, _game.Save());
+        Say($"Saved to {path}");
+    }
+
+    /// <summary>Shows a message for a few seconds.</summary>
+    private void Say(string text)
+    {
+        _message.Text = text;
+        GetTree().CreateTimer(4).Timeout += () =>
+        {
+            if (_message.Text == text)
+                _message.Text = "";
+        };
     }
 
     private async Task Screenshot(string path, double after)
@@ -456,6 +564,18 @@ public partial class Game : Node3D
         Add("toggle_overlay", Key.F3);
         Add("toggle_pace", Key.F5);
         Add("toggle_sky_placement", Key.F6);
+        Add("cycle_ui_lines", Key.F7);
+        Add("quick_save", Key.F8);
+        // The pause menu (PauseMenu).
+        Add("pause", Key.Enter, Key.Escape, button: JoyButton.Start);
+        Add("menu_back", Key.Backspace, button: JoyButton.B);
+        Add("menu_member_previous", Key.Q, button: JoyButton.LeftShoulder);
+        Add("menu_member_next", Key.E, button: JoyButton.RightShoulder);
+        Add("menu_details", Key.Tab, button: JoyButton.Y);
+        Add("menu_up", null, button: JoyButton.DpadUp);
+        Add("menu_down", null, button: JoyButton.DpadDown);
+        Add("menu_left", null, button: JoyButton.DpadLeft);
+        Add("menu_right", null, button: JoyButton.DpadRight);
 
         static void Add(string action, Key? key, Key? alternative = null, JoyAxis? axis = null, float direction = 0, JoyButton? button = null)
         {
