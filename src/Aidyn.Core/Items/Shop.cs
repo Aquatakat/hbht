@@ -161,8 +161,9 @@ public sealed class Shop
 
     /// <summary>
     /// What the party can see of a price (<c>Party::ApraisePrice</c>), 0 to 6, from "This is highway
-    /// robbery!" to the best of the Common table's lines from 385. The member best at it counts, dead or
-    /// not: Intelligence + Merchant × 6, which a curve turns into how well they judge the item's worth.
+    /// robbery!" to the best of the Common table's lines from 384 (counting from 0). The member best at
+    /// it counts, dead or not: Intelligence + Merchant × 6, which a curve turns into how well they judge
+    /// the item's worth.
     /// </summary>
     public int Appraise(ItemInstance item)
     {

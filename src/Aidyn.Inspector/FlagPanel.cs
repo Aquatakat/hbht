@@ -9,7 +9,7 @@ namespace Aidyn.Inspector;
 /// <summary>
 /// The game state the editor shows: a new game's, or a checkpoint's plain flags with the derived
 /// flags the port evaluates from them, which it checks against the console's, and its party's
-/// sheets and gold, which character pages and the script player start from.
+/// sheets, gold and inventory, which character pages and the script player start from.
 /// </summary>
 public sealed class FlagState(FlagNetwork network)
 {
@@ -30,10 +30,13 @@ public sealed class FlagState(FlagNetwork network)
     /// <summary>The loaded checkpoint's gold.</summary>
     public uint? ConsoleGold { get; private set; }
 
+    /// <summary>The loaded checkpoint's inventory.</summary>
+    public IReadOnlyList<CheckpointStack>? ConsoleInventory { get; private set; }
+
     public void NewGame()
     {
         Network.NewGame();
-        (Name, Check, Console, ConsoleParty, ConsoleGold) = ("a new game", null, null, null, null);
+        (Name, Check, Console, ConsoleParty, ConsoleGold, ConsoleInventory) = ("a new game", null, null, null, null, null);
     }
 
     /// <summary>
@@ -46,11 +49,11 @@ public sealed class FlagState(FlagNetwork network)
         var console = checkpoint.Flags;
         try
         {
-            (ConsoleParty, ConsoleGold) = (checkpoint.Party, checkpoint.Gold);
+            (ConsoleParty, ConsoleGold, ConsoleInventory) = (checkpoint.Party, checkpoint.Gold, checkpoint.Inventory);
         }
         catch (InvalidDataException)
         {
-            (ConsoleParty, ConsoleGold) = (null, null);
+            (ConsoleParty, ConsoleGold, ConsoleInventory) = (null, null, null);
         }
         Network.Restore(h => h < console.Count && console[h]);
         var derived = Enumerable.Range(0, Math.Min(console.Count, Network.Count)).Where(Network.IsDerived).ToList();

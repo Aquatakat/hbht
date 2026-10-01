@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Text.Json.Nodes;
+using Aidyn.Core.Characters;
 using Aidyn.Core.Flags;
+using Aidyn.Core.Items;
 using Aidyn.Game;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
@@ -52,6 +54,8 @@ public partial class RecordBrowser : Control
     private Models? _models;
     private QuestIndex? _quests;
     private FlagState? _flags;
+    private CharacterRules? _rules;
+    private ItemCatalog? _items;
     private string _pluginsDirectory = DataPaths.Plugins;
     private int _position = -1;
     private RecordId? _current;
@@ -107,7 +111,7 @@ public partial class RecordBrowser : Control
 
         _status.Text = $"Loading {pluginsDirectory}…";
         var generation = ++_generation;
-        var (catalog, quests, flags) = await Task.Run(() =>
+        var (catalog, quests, flags, rules, items) = await Task.Run(() =>
         {
             var plugins = PluginSet.LoadInstalled(pluginsDirectory);
             FlagState? flags = null;
@@ -119,7 +123,7 @@ public partial class RecordBrowser : Control
             {
                 GD.PrintErr($"No flag network: {e.Message}");
             }
-            return (PluginCatalog.Build(plugins), QuestIndex.Build(plugins), flags);
+            return (PluginCatalog.Build(plugins), QuestIndex.Build(plugins), flags, EditorCharacters.Rules(plugins), EditorCharacters.Items(plugins));
         });
         if (generation != _generation)
             return;
@@ -127,6 +131,8 @@ public partial class RecordBrowser : Control
         _models = new Models(catalog.Plugins);
         _quests = quests;
         _flags = flags;
+        _rules = rules;
+        _items = items;
 
         _typeNames.Clear();
         _typeNames.AddRange(catalog.Types);
@@ -549,9 +555,20 @@ public partial class RecordBrowser : Control
         if (id.Type is RecordTypes.Flag or RecordTypes.Journal)
             return _flags is null ? Message("These plugins have no flag network.") : new FlagPanel(catalog, _flags, id, FollowLink);
         if (id.Type == RecordTypes.Dialogue && plugins.TryGet<DialogueRecord>(id) is { } script)
-            return new ScriptPanel(catalog, _flags, script, FollowLink);
-        if (id.Type == RecordTypes.Entity && plugins.TryGet<EntityRecord>(id) is { } entity && EditorCharacters.Rules(plugins) is { } rules)
-            return new CharacterPanel(catalog, _flags, entity, rules, FollowLink);
+            return new ScriptPanel(catalog, _flags, _rules, _items, script, FollowLink);
+        if (id.Type == RecordTypes.Entity && plugins.TryGet<EntityRecord>(id) is { } entity && _rules is { } rules)
+            return new CharacterPanel(catalog, _flags, entity, rules, _items, FollowLink);
+        if (_items is { } items)
+        {
+            if (id.Type is RecordTypes.Weapon or RecordTypes.Armor or RecordTypes.Item && items.TryGet(id) is { } item)
+                return new ItemPanel(catalog, _flags, _rules, items, item, FollowLink);
+            if (id.Type == RecordTypes.Shop && plugins.TryGet<ShopRecord>(id) is { } shop)
+                return new ShopPanel(catalog, _flags, _rules, items, shop, FollowLink);
+            if (id.Type == RecordTypes.Loot && plugins.TryGet<LootRecord>(id) is { } loot)
+                return new LootPanel(catalog, items, loot, FollowLink);
+            if (id.Type == RecordTypes.Recipe && plugins.TryGet<RecipeRecord>(id) is { } recipe)
+                return new RecipePanel(catalog, _flags, _rules, items, recipe, FollowLink);
+        }
         if (id.Type == RecordTypes.Actor && json is not null)
         {
             // An actor is its scene, playing its initial state's animation.

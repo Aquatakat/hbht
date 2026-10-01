@@ -380,7 +380,7 @@ public sealed class MapObjectImportTests(MapObjectFixture fixture)
     public void MapObjectsUseFlagsAsTheRomsQuestAtlasSays()
     {
         var included = Data.RomObjects.Keys.ToHashSet();
-        RomFlagRole[] notIndexed = [RomFlagRole.ItemGiven, RomFlagRole.ItemTaken, RomFlagRole.MemberAdded, RomFlagRole.MemberRemoved, RomFlagRole.BossBeaten];
+        RomFlagRole[] notIndexed = [RomFlagRole.MemberAdded, RomFlagRole.MemberRemoved, RomFlagRole.BossBeaten];
 
         // The flag uses of map objects, with no more than the flag's number, as either side has them.
         var rom = Data.Atlas.References
@@ -412,6 +412,128 @@ public sealed class MapObjectImportTests(MapObjectFixture fixture)
 
         // Each way round, the starters agree with what the plugin's objects say they start.
         Assert.All(pluginStarters.Where(s => s.At is null), s => Assert.Contains(s, Data.Index.StartedBy(s.By)));
+    }
+
+    [Fact]
+    public void ScriptsAndShopsGiveAndTakeKeyItemsAsTheRomsQuestAtlasSays()
+    {
+        RomFlagRole[] itemRoles = [RomFlagRole.ItemGiven, RomFlagRole.ItemTaken];
+
+        // Every write of a key item's flags by a script or a shop, second effects of a node included: the
+        // ROM atlas marks those ignored, but the plugin index has no such mark and lists them as uses.
+        var rom = Data.Atlas.References
+            .Where(r => r.Flag > 1 && itemRoles.Contains(r.Role) && r.Source is Quests.ScriptSource or Quests.ShopSource)
+            .Select(r => r.Source switch
+            {
+                Quests.ScriptSource s => (By: Script(s.Script), At: s.Node, Flag: (int)r.Flag, Access: r.Access.ToString(), Role: r.Role.ToString()),
+                Quests.ShopSource s => (By: RecordId.Decimal(RecordTypes.Shop, s.Shop), At: null, Flag: (int)r.Flag, Access: r.Access.ToString(), Role: r.Role.ToString()),
+                _ => throw new InvalidOperationException(),
+            })
+            .ToHashSet();
+        var plugin = Data.Set.All<DialogueRecord>(RecordTypes.Dialogue).Select(s => s.Id)
+            .Concat(Data.Set.All<ShopRecord>(RecordTypes.Shop).Select(s => s.Id))
+            .SelectMany(id => Data.Index.UsesBy(id))
+            .Where(u => u.Role is FlagRole.ItemGiven or FlagRole.ItemTaken)
+            .Select(u => (u.By, u.At, Flag: Number(u.Flag), Access: u.Access.ToString(), Role: u.Role.ToString()))
+            .ToHashSet();
+        Assert.Contains(rom, u => u is { Role: "ItemGiven", By.Type: RecordTypes.Dialogue });
+        Assert.Contains(rom, u => u is { Role: "ItemTaken", By.Type: RecordTypes.Dialogue });
+        Assert.Contains(rom, u => u is { Role: "ItemGiven", By.Type: RecordTypes.Shop });
+        Assert.Empty(rom.Except(plugin).Select(u => $"ROM only: {u}"));
+        Assert.Empty(plugin.Except(rom).Select(u => $"plugin only: {u}"));
+
+        // Taking an item clears its held flag and never its region flag, and giving sets both.
+        var items = Data.Set.All<ItemRecord>(RecordTypes.Item).Where(i => i.KeyItem is not null).ToDictionary(i => i.KeyItem!.Held);
+        var regions = items.Values.Select(i => i.KeyItem!.Region).OfType<RecordId>().ToHashSet();
+        Assert.All(plugin.Where(u => u.Role == "ItemTaken"), u => Assert.Equal(("Clear", true), (u.Access, items.ContainsKey(Flag(u.Flag)))));
+        Assert.All(plugin.Where(u => u.Role == "ItemGiven"), u => Assert.Equal("Set", u.Access));
+        Assert.Contains(plugin, u => u.Role == "ItemGiven" && regions.Contains(Flag(u.Flag)));
+    }
+
+    [Fact]
+    public void KeyItemsAreGivenByTheKindsOfRecordTheGameGivesThemFrom()
+    {
+        var items = Data.Set.All<ItemRecord>(RecordTypes.Item).Where(i => i.KeyItem is not null).ToList();
+        Assert.Equal(31, items.Count);
+        Assert.Equal(18, items.Count(i => i.KeyItem!.Region is not null));
+
+        // Each key item lists its held flag and its region flag, and each flag lists the item.
+        foreach (var item in items)
+        {
+            var key = item.KeyItem!;
+            Assert.Contains(new FlagUse(key.Held, item.Id, FlagAccess.Set, FlagRole.KeyItem), Data.Index.UsesOf(key.Held));
+            if (key.Region is { } region)
+                Assert.Contains(new FlagUse(region, item.Id, FlagAccess.Set, FlagRole.KeyItem), Data.Index.UsesOf(region));
+            Assert.Equal(key.Region is null ? 1 : 2, Data.Index.UsesBy(item.Id).Count);
+            Assert.All(Data.Index.UsesBy(item.Id), u => Assert.Equal(FlagRole.KeyItem, u.Role));
+        }
+
+        // What gives them: scripts, shops, containers and a monster party that's fought.
+        var given = Data.Set.All<DialogueRecord>(RecordTypes.Dialogue).Select(s => s.Id)
+            .Concat(Data.Set.All<ShopRecord>(RecordTypes.Shop).Select(s => s.Id))
+            .Concat(Data.Objects.Keys)
+            .SelectMany(id => Data.Index.UsesBy(id))
+            .Where(u => u.Role == FlagRole.ItemGiven)
+            .ToList();
+        Assert.Equal(
+            new Dictionary<string, int> { [RecordTypes.Dialogue] = 8, [RecordTypes.Shop] = 2, [RecordTypes.Voxel] = 8 },
+            given.GroupBy(u => u.By.Type).ToDictionary(g => g.Key, g => g.Count()));
+        var voxels = given.Where(u => u.By.Type == RecordTypes.Voxel).GroupBy(u => Data.Objects[u.By].GetType().Name)
+            .ToDictionary(g => g.Key, g => g.Count());
+        Assert.Equal(new Dictionary<string, int> { [nameof(ContainerObject)] = 7, [nameof(MonsterPartyObject)] = 1 }, voxels);
+        Assert.All(given, u => Assert.Contains(items, i => i.KeyItem!.Held == u.Flag || i.KeyItem.Region == u.Flag));
+
+        // Map 7 is sold in shop 17, and its held and region flags both come with it.
+        var map7 = items.Single(i => i.Name == "Map 7");
+        Assert.Equal(Flag(3411), map7.KeyItem!.Held);
+        Assert.Equal(Flag(793), map7.KeyItem.Region);
+        var shop = Data.Set.Get<ShopRecord>(RecordId.Decimal(RecordTypes.Shop, 17));
+        Assert.Contains(shop.Stock, s => s.Item == map7.Id);
+        Assert.Equal(
+            [new FlagUse(Flag(793), shop.Id, FlagAccess.Set, FlagRole.ItemGiven), new FlagUse(Flag(3411), shop.Id, FlagAccess.Set, FlagRole.ItemGiven)],
+            Data.Index.UsesBy(shop.Id));
+    }
+
+    [Fact]
+    public void TheLighthouseKeeperGivesTheLighthouseKeyAtTwoNodes()
+    {
+        // The Lighthouse Key has a held flag and no region flag.
+        var key = Data.Set.Get<ItemRecord>(RecordId.Parse("aidyn:item/0x1205"));
+        Assert.Equal("Lighthouse Key", key.Name);
+        Assert.Equal(new KeyItemFlags(Flag(3430)), key.KeyItem);
+
+        // The keeper's conversation (Borg13 890) adds it in two nodes, and nothing takes it.
+        var keeper = Script(890);
+        var held = Data.Index.UsesOf(Flag(3430));
+        Assert.Equal(
+            [
+                new FlagUse(Flag(3430), keeper, FlagAccess.Set, FlagRole.ItemGiven, 15),
+                new FlagUse(Flag(3430), keeper, FlagAccess.Set, FlagRole.ItemGiven, 37),
+                new FlagUse(Flag(3430), key.Id, FlagAccess.Set, FlagRole.KeyItem),
+            ],
+            held.Where(u => u.Role is FlagRole.ItemGiven or FlagRole.ItemTaken or FlagRole.KeyItem));
+        var nodes = Data.Set.Get<DialogueRecord>(keeper).Nodes;
+        Assert.All([15, 37], n => Assert.Contains(nodes[n].Ops!, op => op.Command == DialogueCommand.AddItem && op.Target == key.Id));
+
+        // The conversation's own flag 285, which it checks first and sets, is a different flag from the key's.
+        Assert.Contains(new FlagUse(Flag(285), keeper, FlagAccess.Set, FlagRole.ScriptOp, 28), Data.Index.UsesOf(Flag(285)));
+        Assert.DoesNotContain(Data.Index.UsesOf(Flag(285)), u => u.Role is FlagRole.ItemGiven or FlagRole.KeyItem);
+
+        // The item is upstream of its flag, and its giver is too.
+        Assert.Contains(new QuestEdge(key.Id, Flag(3430), FlagRole.KeyItem, FlagAccess.Set), Data.Index.Upstream(Flag(3430)));
+        Assert.Contains(new QuestEdge(keeper, Flag(3430), FlagRole.ItemGiven, FlagAccess.Set), Data.Index.Downstream(keeper));
+    }
+
+    [Fact]
+    public void ATakenKeyItemClearsOnlyItsHeldFlag()
+    {
+        // Cradawgh's Body is given by one conversation (0x042D, node 52) and taken by another (0x043F, node 19).
+        var body = Data.Set.Get<ItemRecord>(RecordId.Parse("aidyn:item/0x0119"));
+        Assert.Equal(new KeyItemFlags(Flag(3417), Flag(799)), body.KeyItem);
+        var taker = RecordId.Parse("aidyn:dialogue/0x043F");
+        Assert.Equal([new FlagUse(Flag(3417), taker, FlagAccess.Clear, FlagRole.ItemTaken, 19)], Data.Index.UsesBy(taker).Where(u => u.Role == FlagRole.ItemTaken));
+        Assert.DoesNotContain(Data.Index.UsesOf(Flag(799)), u => u.Role == FlagRole.ItemTaken);
+        Assert.Contains(new FlagUse(Flag(799), RecordId.Parse("aidyn:dialogue/0x042D"), FlagAccess.Set, FlagRole.ItemGiven, 52), Data.Index.UsesOf(Flag(799)));
     }
 
     [Fact]

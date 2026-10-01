@@ -42,7 +42,7 @@ public sealed class QuestIndexImportTests : IDisposable
         Assert.Contains(index.UsesOf(Flag(50)), u => u.By == Script(916) && u.Access == FlagAccess.Set && u.Role == FlagRole.ScriptOp && u.At is not null);
         Assert.Contains(new QuestEdge(Flag(50), RecordId.Decimal(RecordTypes.Journal, 1), FlagRole.JournalListed, FlagAccess.Read), index.Downstream(Flag(50)));
 
-        // The lighthouse key (flag 285) comes from the keeper's conversation (890), which also checks it first.
+        // The keeper's conversation (890) checks flag 285 first and sets it. (The Lighthouse Key's own flag is 3430.)
         var keeper = Script(890);
         Assert.Equal([new QuestEdge(keeper, Flag(285), FlagRole.ScriptOp, FlagAccess.Set)], index.Upstream(Flag(285)));
         Assert.Contains(new FlagUse(Flag(285), keeper, FlagAccess.Read, FlagRole.ScriptOp, 0), index.UsesOf(Flag(285)));

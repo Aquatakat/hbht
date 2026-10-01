@@ -19,6 +19,22 @@ public enum FlagRole
     ScriptDone,
     /// <summary>A script's battle flag, set by winning its battle.</summary>
     ScriptBattle,
+    /// <summary>
+    /// Something that gives a key item, and so sets its held flag and its region flag: a script's
+    /// AddItem op (<see cref="FlagUse.At"/> is the node), a container's item or loot, a fought monster
+    /// party's loot, or a shop's stock. <see cref="FlagUse.By"/> is the giver.
+    /// </summary>
+    ItemGiven,
+    /// <summary>
+    /// A script's TakeItem op on a key item, which clears its held flag once the party has none. The
+    /// region flag stays set.
+    /// </summary>
+    ItemTaken,
+    /// <summary>
+    /// A key item's own flags: its held flag and its region flag. <see cref="FlagUse.By"/> is the item
+    /// record, which sets them when the party gains it.
+    /// </summary>
+    KeyItem,
     /// <summary>An input of a derived flag's formula. <see cref="FlagUse.By"/> is the derived flag, which reads it.</summary>
     DerivedInput,
     /// <summary>
@@ -127,6 +143,30 @@ public sealed class QuestIndex
         var starters = new List<ScriptStarter>();
         var text = new List<(RecordId, int, string)>();
         var battles = new HashSet<RecordId>();
+        var keyItems = plugins.All<ItemRecord>(RecordTypes.Item)
+            .Where(i => i.KeyItem is not null)
+            .ToDictionary(i => i.Id, i => i.KeyItem!);
+        var loot = plugins.All<LootRecord>(RecordTypes.Loot).ToDictionary(l => l.Id);
+
+        // The key items that something gives. A loot field names either a loot table, which gives
+        // whatever its drops name, or a single item.
+        IEnumerable<KeyItemFlags> KeyItemsIn(params RecordId?[] given) => given
+            .OfType<RecordId>()
+            .SelectMany(i => i.Type == RecordTypes.Loot && loot.TryGetValue(i, out var table)
+                ? table.Drops.Select(d => d.Item).OfType<RecordId>()
+                : [i])
+            .Where(keyItems.ContainsKey)
+            .Select(i => keyItems[i])
+            .Distinct();
+
+        void GiveKeyItems(IEnumerable<KeyItemFlags> keys, RecordId giver, int? at = null)
+        {
+            foreach (var key in keys)
+            {
+                Use(key.Held, giver, FlagAccess.Set, FlagRole.ItemGiven, at: at);
+                Use(key.Region, giver, FlagAccess.Set, FlagRole.ItemGiven, at: at);
+            }
+        }
 
         foreach (var script in plugins.All<DialogueRecord>(RecordTypes.Dialogue))
         {
@@ -142,6 +182,10 @@ public sealed class QuestIndex
                         starters.Add(new ScriptStarter(lines, script.Id, node.Index));
                     else if (op.Command == DialogueCommand.Battle)
                         battles.Add(script.Id);
+                    else if (op is { Command: DialogueCommand.AddItem, Target: { } given } && keyItems.TryGetValue(given, out var key))
+                        GiveKeyItems([key], script.Id, node.Index);
+                    else if (op is { Command: DialogueCommand.TakeItem, Target: { } taken } && keyItems.TryGetValue(taken, out var lost))
+                        Use(lost.Held, script.Id, FlagAccess.Clear, FlagRole.ItemTaken, at: node.Index);
                 }
             }
             if (script.DoneFlag is { } done)
@@ -168,10 +212,10 @@ public sealed class QuestIndex
         }
 
         // Flags 0 and 1 are constants, not quest state, so neither reads nor writes of them count.
-        void Use(RecordId? flag, RecordId voxel, FlagAccess access, FlagRole role, bool inverted = false)
+        void Use(RecordId? flag, RecordId by, FlagAccess access, FlagRole role, bool inverted = false, int? at = null)
         {
             if (flag is { } f && !IsConstant(f))
-                uses.Add(new FlagUse(f, voxel, access, role, Inverted: inverted));
+                uses.Add(new FlagUse(f, by, access, role, at, inverted));
         }
 
         void AddObject(RecordId voxel, MapObject o)
@@ -189,6 +233,7 @@ public sealed class QuestIndex
                     Use(c.Exploded, voxel, FlagAccess.Read, FlagRole.ContainerExploded);
                     Use(c.Exploded, voxel, FlagAccess.Set, FlagRole.ContainerExploded);
                     Use(c.Used?.Flag, voxel, used, FlagRole.ObjectUsed);
+                    GiveKeyItems(KeyItemsIn(c.Item, c.Loot), voxel);
                     break;
                 case TriggerObject t:
                     if (t.Kind == TriggerKind.SetFlag)
@@ -201,13 +246,18 @@ public sealed class QuestIndex
                     {
                         starters.Add(new ScriptStarter(dialogue, voxel));
                         Use(m.Used?.Flag, voxel, FlagAccess.Set, FlagRole.PartyTalkedTo);
+                        // The dialogue decides whether there's a fight, and only a fought party drops its loot.
                         if (battles.Contains(dialogue))
+                        {
                             Use(m.BattleFlag, voxel, FlagAccess.Set, FlagRole.PartyFought);
+                            GiveKeyItems(KeyItemsIn(m.Loot), voxel);
+                        }
                     }
                     break;
                 case MonsterPartyObject m:
                     Use(m.Used?.Flag, voxel, FlagAccess.Read, FlagRole.PartyBeaten);
                     Use(m.Used?.Flag, voxel, FlagAccess.Set, FlagRole.PartyBeaten);
+                    GiveKeyItems(KeyItemsIn(m.Loot), voxel);
                     break;
                 case TeleporterObject t:
                     if (t.LockLevel != 0)
@@ -227,6 +277,16 @@ public sealed class QuestIndex
                     starters.Add(new ScriptStarter(d.Script, voxel));
                     break;
             }
+        }
+
+        // The importer has already left out what the game doesn't stock.
+        foreach (var shop in plugins.All<ShopRecord>(RecordTypes.Shop))
+            GiveKeyItems(KeyItemsIn([.. shop.Stock.Select(s => (RecordId?)s.Item)]), shop.Id);
+
+        foreach (var (item, key) in keyItems)
+        {
+            Use(key.Held, item, FlagAccess.Set, FlagRole.KeyItem);
+            Use(key.Region, item, FlagAccess.Set, FlagRole.KeyItem);
         }
 
         foreach (var state in plugins.All<StateFlagsRecord>(RecordTypes.StateFlags))

@@ -72,7 +72,7 @@ A script's shop command opens the first shop of whoever is speaking (`InitShop`)
 
 Both are worked in single precision and truncated to 16 bits (`WidgetInvShop::GetGoldPrice`). An item that would sell for 1 gold or less is refused; that's the only sell filter, and it's what keeps key items (price 0) out of shops. Equipped items must be taken off to sell. Selling offers 1, 5, 10 and 20 below what's held, and all; the shop doesn't take what it buys.
 
-**Appraisal** (C-up on the shop's stock, `Party::ApraisePrice`): the member best at it, dead or not, judges by Intelligence + Merchant × 6 (x), as (−0.0186603x² + 2.366025x + 50) / 100, at most 1.25. The item's base price × that × 3 / the asking price, rounded, picks one of Common's lines 385–391, from "This is highway robbery!" up, past 6 the last.
+**Appraisal** (C-up on the shop's stock, `Party::ApraisePrice`): the member best at it, dead or not, judges by Intelligence + Merchant × 6 (x), as (−0.0186603x² + 2.366025x + 50) / 100, which a clamp to 125 never bounds. The item's base price × that × 3 / the asking price, rounded, picks one of Common's lines 384–390 (counting from 0), from "This is highway robbery!" up, past 6 the last.
 
 Buying or taking the first potion sets flag 3612, whose help is a trigger (2.10).
 
