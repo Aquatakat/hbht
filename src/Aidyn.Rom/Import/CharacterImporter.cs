@@ -14,6 +14,7 @@ using PluginTargetType = Aidyn.Plugins.Records.SpellTargetType;
 using RomElement = Aidyn.Rom.Db.Element;
 using RomEntity = Aidyn.Rom.Db.EntityRecord;
 using RomSpell = Aidyn.Rom.Db.SpellRecord;
+using WeaponClass = Aidyn.Rom.Db.WeaponClass;
 
 namespace Aidyn.Rom.Import;
 

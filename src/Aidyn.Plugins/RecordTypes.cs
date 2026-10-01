@@ -71,11 +71,20 @@ public static class RecordTypes
     /// <summary>How characters level and train. There's one, <c>aidyn:progression/0</c>.</summary>
     public const string Progression = "progression";
 
+    /// <summary>A shop, keyed by its decimal position in the original's shop DB.</summary>
+    public const string Shop = "shop";
+
+    /// <summary>A potion or piece of armor a skill makes, keyed by a decimal number: potions first.</summary>
+    public const string Recipe = "recipe";
+
+    /// <summary>How the party carries, buys and finds items. There's one, <c>aidyn:inventory/0</c>.</summary>
+    public const string Inventory = "inventory";
+
     private static readonly HashSet<string> All =
     [
         Entity, Weapon, Armor, Spell, Item, DialogEntity, Loot, Flag, Texture, Geometry, Camera, Light, Scene, Animation, Actor, Image, Map,
         Sample, Sequence, Dialogue, Voxel, MapSet, Terrain, Sky, Journal, StateFlags, Font, Strings, Stat, Skill, WeaponSkill,
-        Progression,
+        Progression, Shop, Recipe, Inventory,
     ];
 
     public static bool IsKnown(string type) => All.Contains(type);

@@ -186,7 +186,10 @@ Code uses 1,990 of the 2,076 names in the decomp's `Borgindecies.h`. The map chu
 | The 66 weapon models (Borg5), by weapon position | `weapons_with_borg5`, `weapon_borg5_ID` | `0xE3520`, `0xD3B14` | To do |
 | Models for six items: Txomin's letter, the banner, the Horn of Kynon, Kendal's helm, Stormbreaker and the Amulet of Haste | `D_800f14d4`, `ItemBorg5Search` | `0xE3564`, `0xD3B9C` | To do |
 | Shield models | `ArmorDB::GetBorg5` | Switch | To do |
-| Item icons (286, by item ID; others get a default, and every potion shares one), then skill, aspect, school and spell-symbol icons, each list followed by its count | `menuimages.cpp` | `0xDF700` | To do |
+| Item icons (286, by item ID; others get a default, and every potion shares one), then skill, aspect, school and spell-symbol icons, each list followed by its count | `menuimages.cpp` | `0xDF700` | Read (`ItemTables`): items' and skills' icons are on their records; aspects', schools' and spell symbols' wait for the UI |
+| Potions' prices, by potion | `potion_prices` | `0xE38B0` | Read (`ItemTables`) |
+| The Alchemist's and Mechanic's recipes | `potionRecipies`, `ArmorRecipies` | `0xD8560`, `0xD8540` | Read (`ItemTables`), as recipe records |
+| The items with inventory slots of their own, the unique gear with its own, and the items loot can't be left behind with | `PartyInventory.cpp`, `key_item_ids` | `0xE3910`, `0xE3A70`, `0xE38E0` | Read (`ItemTables`), as item traits |
 | Each spell's icon symbol, by spell position | `SpellDB::GetIcon` | `0xD3C58` | To do |
 | Spell and potion effects: Borg7 and Borg5 per spell or potion, with a memory size | `spellvisuals.cpp` | Switches | To do |
 | Models whose actors fly: bat, wyvern, harpy, dryads, Pandara, gryphon, manticore and scorpion | `Actor::IsFlyingModel` | `0xCE650` | To do |

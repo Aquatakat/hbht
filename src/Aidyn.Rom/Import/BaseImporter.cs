@@ -88,12 +88,23 @@ public static class BaseImporter
 
         progress?.Report("Characters");
         var characterTables = CharacterTables.Read(rom);
-        WriteJson(Path.Combine(staging, "records", "entities.json"), CharacterImporter.BuildEntities(db, models));
+        var itemTables = ItemTables.Read(rom);
+        WriteJson(Path.Combine(staging, "records", "entities.json"), ItemImporter.WithSoleWeapons(db, CharacterImporter.BuildEntities(db, models)));
         WriteJson(Path.Combine(staging, "records", "spells.json"), CharacterImporter.BuildSpells(db));
         WriteJson(Path.Combine(staging, "records", "stats.json"), CharacterImporter.BuildStats(db, characterTables));
-        WriteJson(Path.Combine(staging, "records", "skills.json"), CharacterImporter.BuildSkills(db, characterTables));
+        WriteJson(Path.Combine(staging, "records", "skills.json"), ItemImporter.WithIcons(itemTables, CharacterImporter.BuildSkills(db, characterTables)));
         WriteJson(Path.Combine(staging, "records", "weaponskills.json"), CharacterImporter.BuildWeaponSkills(db, characterTables));
         WriteJson(Path.Combine(staging, "records", "progression.json"), new[] { CharacterImporter.BuildProgression(db, characterTables) });
+
+        progress?.Report("Items");
+        var (weapons, armor, items) = ItemImporter.BuildItems(db, itemTables, EngineTables.Read(rom));
+        WriteJson(Path.Combine(staging, "records", "weapons.json"), weapons);
+        WriteJson(Path.Combine(staging, "records", "armor.json"), armor);
+        WriteJson(Path.Combine(staging, "records", "items.json"), items);
+        WriteJson(Path.Combine(staging, "records", "loot.json"), ItemImporter.BuildLoot(db));
+        WriteJson(Path.Combine(staging, "records", "shops.json"), ItemImporter.BuildShops(db));
+        WriteJson(Path.Combine(staging, "records", "recipes.json"), ItemImporter.BuildRecipes(db, itemTables));
+        WriteJson(Path.Combine(staging, "records", "inventory.json"), new[] { ItemImporter.BuildInventory(db) });
 
         progress?.Report("Text");
         WriteJson(Path.Combine(staging, "records", "strings.json"), BuildStrings(db));
@@ -411,11 +422,10 @@ public static class BaseImporter
     }
 
     /// <summary>
-    /// The names of the DB records scripts, map objects and tools name, by file: dialogue entities,
-    /// weapons, armor, items (potions among them) and loot tables. Records whose ID has no record type are left out.
-    /// Dialogue entities have their portraits. The five without one get the code's fallback at run
-    /// time, as speakers that aren't entities do. Entities and spells have records of their own
-    /// (<see cref="CharacterImporter"/>).
+    /// The names of the DB records that have no fields of their own yet, by file: dialogue entities, with
+    /// their portraits. The five without one get the code's fallback at run time, as speakers that
+    /// aren't entities do. Entities and spells have records of their own (<see cref="CharacterImporter"/>),
+    /// and so do weapons, armor, items and loot tables (<see cref="ItemImporter"/>).
     /// </summary>
     internal static List<(string File, List<DbRecord> Records)> BuildNames(GameDb db, EntityModels models)
     {
@@ -423,12 +433,6 @@ public static class BaseImporter
         return
         [
             ("dialogentities.json", Names(db.DialogEntities.Select(e => (e.Id, e.Name)), portraits)),
-            ("weapons.json", Names(db.Weapons.Select(w => (w.Id, w.Name)))),
-            ("armor.json", Names(db.Armor.Select(a => (a.Id, a.Name)))),
-            // Potions aren't in the gear table: potion n is named by line n of their own string table (ItemInstance::InitPotion).
-            ("items.json", Names(db.Gear.Select(g => (g.Id, g.Name))
-                .Concat(db.Strings[RomStringTable.PotionNames].Select((name, i) => (ItemId.Of(DbType.Potion, (byte)i), name))))),
-            ("loot.json", Names(db.Loot.Select(l => (l.Id, l.Name)))),
         ];
 
         static List<DbRecord> Names(IEnumerable<(ItemId Id, string Name)> records, IReadOnlyDictionary<ItemId, RecordId>? portraits = null) =>

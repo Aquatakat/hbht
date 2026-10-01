@@ -18,3 +18,8 @@ The fixed databases at the end of the ROM: entities, items, spells, shops, camp 
   - **The reward byte** is × 50 on load, and × 1.5 again when awarded.
   - **Spell slots** with no spell still hold a level, usually 10.
 - **Spells' training cost** is their last byte × 50 (`TempSpell::Init`).
+- **Weapons', armor's and gear's last 14 bytes** are what wearing them does (see [items](../systems/items.md)):
+  - **The spell bytes.** The first byte after the spell's ID is its charges for all three. The second is its level on armor and gear; a weapon's level is the byte at `0x1D`, which the decomp calls a spell level without saying whose, and its second byte is unread (`InitWeapon`, `InitArmor`, `ItemInstance::InitGear`).
+  - **The stat byte** is 0–5 or `0xFF` for none; the decomp's `InitGear` tests it for nonzero, but the code tests for `0xFF`. Stamina (5) isn't raised: it's a spell battery.
+  - **The skill byte** indexes the character's 24 bytes of skills, weapon skills and the shield, but the data names skills 0–11 only.
+- **Armor's Dexterity and Stealth bytes are signed.** Plate costs 3 Dexterity and up to 20 Stealth; some leathers add Stealth.

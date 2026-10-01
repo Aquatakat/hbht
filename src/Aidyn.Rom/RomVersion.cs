@@ -166,6 +166,32 @@ public enum CodeTable
     SkillTrainingCosts,
     /// <summary>The same for the 11 weapon classes, as s32s (<c>CharSkills::GetWeaponXpMod</c>).</summary>
     WeaponTrainingCosts,
+    /// <summary>The 17 potions' prices, as u16s by potion (<c>potion_prices</c>).</summary>
+    PotionPrices,
+    /// <summary>
+    /// The Alchemist's 15 recipes, 7 bytes each: potion, spice, herb, gemstone, Alchemist level, an
+    /// unread byte and the least step (<c>potionRecipies</c>).
+    /// </summary>
+    PotionRecipes,
+    /// <summary>
+    /// The Mechanic's 5 recipes, 6 bytes each: the hide's item DB position as a u16, the armor's armor
+    /// DB position, the least step, the Mechanic level and padding (<c>ArmorRecipies</c>).
+    /// </summary>
+    ArmorRecipes,
+    /// <summary>
+    /// The menus' icons (<c>menuimages.cpp</c>): lists of u16 key and Borg8 pairs, each followed by its
+    /// count as a u32. Items by ID, skills, aspects, schools and spell symbols.
+    /// </summary>
+    MenuIcons,
+    /// <summary>
+    /// The 80 items with their own inventory slots after the general ones, as u16 IDs: reagents,
+    /// hides, scrolls and potions (<c>PartyInventory::AddKeyItem</c>).
+    /// </summary>
+    ReservedItems,
+    /// <summary>The 13 unique weapons, armor and gear with their own inventory slots, as u16 IDs (<c>AddKeyEquipment</c>).</summary>
+    KeyEquipment,
+    /// <summary>The 21 items that loot can't be left behind with, as u16 IDs (<c>IInventory::HasNoKeyItem</c>).</summary>
+    MustTakeItems,
 }
 
 /// <summary>
@@ -256,6 +282,13 @@ public static class RomVersions
                 [CodeTable.StatTrainingCosts] = new(0x00D4620, 0x1C),
                 [CodeTable.SkillTrainingCosts] = new(0x00D44D0, 0x30),
                 [CodeTable.WeaponTrainingCosts] = new(0x00D4500, 0x2C),
+                [CodeTable.PotionPrices] = new(0x00E38B0, 0x22),
+                [CodeTable.PotionRecipes] = new(0x00D8560, 0x69),
+                [CodeTable.ArmorRecipes] = new(0x00D8540, 0x1E),
+                [CodeTable.MenuIcons] = new(0x00DF700, 0x504),
+                [CodeTable.ReservedItems] = new(0x00E3910, 0xA0),
+                [CodeTable.KeyEquipment] = new(0x00E3A70, 0x1A),
+                [CodeTable.MustTakeItems] = new(0x00E38E0, 0x2A),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {
@@ -342,6 +375,13 @@ public static class RomVersions
                 [CodeTable.StatTrainingCosts] = new(0x00D4610, 0x1C),
                 [CodeTable.SkillTrainingCosts] = new(0x00D44C0, 0x30),
                 [CodeTable.WeaponTrainingCosts] = new(0x00D44F0, 0x2C),
+                [CodeTable.PotionPrices] = new(0x00E38F0, 0x22),
+                [CodeTable.PotionRecipes] = new(0x00D8550, 0x69),
+                [CodeTable.ArmorRecipes] = new(0x00D8530, 0x1E),
+                [CodeTable.MenuIcons] = new(0x00DF740, 0x504),
+                [CodeTable.ReservedItems] = new(0x00E3950, 0xA0),
+                [CodeTable.KeyEquipment] = new(0x00E3AB0, 0x1A),
+                [CodeTable.MustTakeItems] = new(0x00E3920, 0x2A),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {
@@ -426,6 +466,13 @@ public static class RomVersions
                 [CodeTable.StatTrainingCosts] = new(0x00E1AF0, 0x1C),
                 [CodeTable.SkillTrainingCosts] = new(0x00E193C, 0x30),
                 [CodeTable.WeaponTrainingCosts] = new(0x00E197C, 0x2C),
+                [CodeTable.PotionPrices] = new(0x00F2420, 0x22),
+                [CodeTable.PotionRecipes] = new(0x00E6D30, 0x69),
+                [CodeTable.ArmorRecipes] = new(0x00E6D10, 0x1E),
+                [CodeTable.MenuIcons] = new(0x00EE260, 0x504),
+                [CodeTable.ReservedItems] = new(0x00F2490, 0xA0),
+                [CodeTable.KeyEquipment] = new(0x00F25F0, 0x1A),
+                [CodeTable.MustTakeItems] = new(0x00F2450, 0x2A),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {

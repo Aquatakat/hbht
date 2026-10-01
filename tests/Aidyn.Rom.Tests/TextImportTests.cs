@@ -121,7 +121,8 @@ public class TextImportTests
 
         Assert.DoesNotContain("entities.json", names.Keys);
         Assert.DoesNotContain("spells.json", names.Keys);
+        // Weapons, armor, items and loot tables have records of their own (ItemImporter).
         foreach (var file in new[] { "weapons.json", "armor.json", "items.json", "loot.json" })
-            Assert.All(names[file], r => Assert.Null(r.Portrait));
+            Assert.DoesNotContain(file, names.Keys);
     }
 }

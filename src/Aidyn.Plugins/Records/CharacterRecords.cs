@@ -33,6 +33,10 @@ namespace Aidyn.Plugins.Records;
 /// <param name="LootCategory">Which loot table beaten enemies roll. Resolved with combat's rewards (2.5).</param>
 /// <param name="Perception">How far it notices the party in trek, 10 or 0 (<c>EntityDB::GetPerception</c>).</param>
 /// <param name="Unk21">Read with <paramref name="Perception"/> (<c>EntityDB::GetVal_21h</c>); what for isn't known.</param>
+/// <param name="SoleWeapon">
+/// The only weapon it can equip (<c>Entity::canEquipWeapon</c>): Niesen's Archmage Staff. Null for
+/// everyone else.
+/// </param>
 public sealed record EntityRecord(
     RecordId Id,
     string Name,
@@ -59,7 +63,8 @@ public sealed record EntityRecord(
     int LootCategory,
     int Perception,
     int Unk21,
-    RecordId? TrueNameFlag = null);
+    RecordId? TrueNameFlag = null,
+    RecordId? SoleWeapon = null);
 
 /// <summary>An entity's kind (the entity DB's groups). The decomp's enum lacks 4, which is empty.</summary>
 public enum EntityCategory
@@ -188,7 +193,8 @@ public sealed record StatRecord(RecordId Id, string Name, string? Description, i
 /// </param>
 /// <param name="BaseCap">The most training raises it to, and the most its base level reads as (<c>SKILLMAXBASE</c>).</param>
 /// <param name="Cap">The most it reads as with gear and spells (<c>SKILLMAXMOD</c>).</param>
-public sealed record SkillRecord(RecordId Id, string Name, string? Description, int TrainingCost, int BaseCap, int Cap);
+/// <param name="Icon">The skill's icon (<c>GetSkillIcons</c>). Weapon skills have none.</param>
+public sealed record SkillRecord(RecordId Id, string Name, string? Description, int TrainingCost, int BaseCap, int Cap, RecordId? Icon = null);
 
 /// <summary>
 /// How characters level and train (<c>aidyn:progression/0</c>, the only one).

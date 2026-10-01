@@ -265,12 +265,15 @@ public class DialogueImportTests
         var rom = TestRoms.Get(RomVersionId.Na10);
         var db = GameDb.Read(rom);
         var models = EntityModels.Read(rom);
-        // Entities and spells have records of their own, which name them too.
+        // Entities, spells and items have records of their own, which name them too.
         var names = BaseImporter.BuildNames(db, models).SelectMany(f => f.Records).ToDictionary(r => r.Id, r => r.Name);
         foreach (var entity in CharacterImporter.BuildEntities(db, models))
             names.Add(entity.Id, entity.Name);
         foreach (var spell in CharacterImporter.BuildSpells(db))
             names.Add(spell.Id, spell.Name);
+        var (weapons, armor, items) = ItemImporter.BuildItems(db, ItemTables.Read(rom), Quests.EngineTables.Read(rom));
+        foreach (var (id, name) in weapons.Select(w => (w.Id, w.Name)).Concat(armor.Select(a => (a.Id, a.Name))).Concat(items.Select(i => (i.Id, i.Name))))
+            names.Add(id, name);
         Assert.Equal("Alaron", names[RecordId.Hex(RecordTypes.Entity, 0x023F)]);
         Assert.Equal("Trahern", names[RecordId.Hex(RecordTypes.Entity, 0x0239)]);
         // Potions have no DB table: they're named by their own string table, by index.

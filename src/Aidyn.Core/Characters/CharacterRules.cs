@@ -33,22 +33,6 @@ public enum Skill
     Wizard,
 }
 
-/// <summary>Weapon classes, which are also the weapon skills (<c>WeaponClassEnum</c>).</summary>
-public enum WeaponClass
-{
-    Bite,
-    Breath,
-    Claw,
-    Hafted,
-    Missile,
-    Pole,
-    Spit,
-    Sting,
-    Sword,
-    Thrown,
-    Tusk,
-}
-
 /// <summary>
 /// A skill, a weapon skill or the shield skill, by where a character holds it (<c>CharSkills</c>):
 /// the twelve skills, then the eleven weapon classes, then the shield.
