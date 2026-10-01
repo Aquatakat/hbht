@@ -87,7 +87,7 @@ public sealed class GameState : IScriptWorld
 
     /// <summary>
     /// A saved game, rebuilt with the rules (<c>QuestData::LoadFile</c>): the plain flags, with the
-    /// derived ones evaluated and the new journal entry flag cleared; the clock; each member from
+    /// new journal entry flag cleared and then the derived ones evaluated; the clock; each member from
     /// their record with the save's experience, stats and skills, putting on what they wear; the
     /// inventory; and what map objects remember. What no plugin has any more is left out and
     /// listed in <see cref="Problems"/>.
@@ -106,9 +106,11 @@ public sealed class GameState : IScriptWorld
             else
                 game._problems.Add($"{flag} isn't a plain flag any plugin has.");
         }
-        game.Flags.Restore(set.Contains);
-        game.Flags.Set(game.StateFlagsRecord.NewJournalEntry, false);
-        game.Flags.NewestJournalEntry = null;
+        // LoadFile clears the new journal entry flag before the derived flags are next evaluated, which they
+        // are from a new game's values, so every journal entry the save has turns on again: the flag is set,
+        // and the last of them becomes the newest.
+        var newJournalEntry = game.Flags.Handle(game.StateFlagsRecord.NewJournalEntry);
+        game.Flags.Restore(h => h != newJournalEntry && set.Contains(h));
 
         game.Clock.Time = save.Time % GameClock.Year;
         game.StateFlags.SetTime(game.Clock);

@@ -104,7 +104,8 @@ public partial class PartyTabView : Control
         SetAnchorsPreset(LayoutPreset.FullRect);
     }
 
-    public PartyMenu Menu { get; }
+    /// <summary>The tab's state, which the runtime's menu starts afresh each time it opens.</summary>
+    public PartyMenu Menu { get; set; }
 
     /// <summary>Whether C-down's details are showing, as they do while it's held. The wide layout always shows them.</summary>
     public bool DetailsOpen { get; set; }

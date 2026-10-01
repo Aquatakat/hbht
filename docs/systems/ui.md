@@ -78,7 +78,10 @@ Measured against the captures in the console's own pixels (every eighth column a
 
 Still as proposed: the tabs a screen apart, and the reuses' columns.
 
-**In the runtime** (`PauseMenu`), Start opens the tab over the world, on a `UiScreen` 240 lines tall by default, and the runtime's F7 changes it. C-left and C-right are Q and E or the shoulders, the stick is the movement keys, arrows, left stick or D-pad, C-down is Tab or the top face button, held, and Start or B closes it. Z/L and R, which change the tab, wait for the other tabs. The menu keeps its member, list and cursors from one opening to the next and rebuilds its rows from the party as it opens; whether the original's does is to check.
+**In the runtime** (`PauseMenu`), Start opens the tab over the world, on a `UiScreen` 240 lines tall by default, and the runtime's F7 changes it. C-left and C-right are Q and E or the shoulders, the stick is the movement keys, arrows, left stick or D-pad, C-down is Tab or the top face button, held, and Start or B closes it. The user found the shoulders and the top face button feel right (Oct 1, 2026). Z/L and R, which change the tab, wait for the other tabs.
+
+- **Each opening starts the tab afresh:** the first member, the inventory, the top row. The user knows the original's to remember only which tab was open (System, Party or World), not the member or where the cursor was, and that this makes the presses to reach something the same every time, which a player learns by heart. Remembering the tab waits for the other tabs.
+- **The stick counts once as it crosses the deadzone.** Godot sends an event whenever the stick moves, each past the deadzone reading as pressed, so at first a held stick changed the list once a frame. Held up or down, it repeats after 0.4 s every 0.1 s, as a held key does; that rate is the port's, not measured on the console.
 
 ## A faithful mode, later
 
