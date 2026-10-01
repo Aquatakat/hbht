@@ -173,7 +173,7 @@ Work can start once 0.4 and 0.5 are done; each part slots in as its Phase 1 trac
 | --- | --- | --- |
 | **2.1 Flag engine.** An exact port of `ProcessGameStates`, plus the time, calendar, weather, terrain, and stat flag setters. | M | `gamestatelib.cpp`, `gameStateFunnel.cpp` |
 | **2.2 Characters.** Attributes, skills, weapon skills, level thresholds, HP formula, XP costs, trainer costs, learnable-skill masks, stat modifiers, resistances. **Done Sep 30, 2026:** gear's modifiers wait for 2.3, and spells' and potions' for 2.5. | M | `gameclasses/` |
-| **2.3 Items & inventory.** Categories, equip rules, shops (buy and sell filters, Merchant pricing), chests (loot categories, Ranger bonus, locks and traps), crafting (Alchemist, Healer, Mechanic). | M | `itemdb`, `chestdb`, `shopdb`, crafting |
+| **2.3 Items & inventory.** Categories, equip rules, shops (buy and sell filters, Merchant pricing), chests (loot categories, Ranger bonus, locks and traps), crafting (Alchemist, Healer, Mechanic). **Started Sep 30, 2026:** the core is done; the editor's previews are next. | M | `itemdb`, `chestdb`, `shopdb`, crafting |
 | **2.4 Borg13 VM.** Executes scripts against core state. Camera and actor cues go out through a host interface, so the core stays headless. | M | `dialogue.cpp`, `DialogNode.cpp` |
 | **2.5 Combat rules.** Turn order, field-of-influence radius, hit, damage, and crit, spells (targeting modes, radius formula, reagents, battery), status effects, reserve spawns, leader and flee logic, rewards. | **XL** | `combat/` |
 | **2.6 Enemy AI.** Port `aiScore` and `ai.cpp`. | L | `combat/ai*.cpp` |
