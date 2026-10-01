@@ -1,4 +1,5 @@
 using System.Globalization;
+using Aidyn.Core.Characters;
 using Aidyn.Core.Rng;
 using Aidyn.Core.Scripts;
 using Aidyn.Game;
@@ -10,8 +11,9 @@ namespace Aidyn.Inspector;
 
 /// <summary>
 /// A script's page: its nodes drawn as a graph, with their ops' records as links, and a player
-/// that runs it with the core's <see cref="ScriptRunner"/> against the editor's flags. The party,
-/// items and skills the script checks are answered by controls beside it.
+/// that runs it with the core's <see cref="ScriptRunner"/> against the editor's flags and a party
+/// of the core's characters: the loaded checkpoint's, or a new game's. Skill checks roll as the
+/// original's do, or can be fixed to explore a branch; items are answered by hand until 2.3.
 /// </summary>
 public partial class ScriptPanel : VBoxContainer
 {
@@ -50,6 +52,10 @@ public partial class ScriptPanel : VBoxContainer
     private readonly VBoxContainer _answers = new();
     private readonly ItemList _log = new() { SizeFlagsVertical = SizeFlags.ExpandFill, CustomMinimumSize = new Vector2(0, 160) };
     private readonly EditorWorld _world;
+    private readonly CharacterRules? _rules;
+    private readonly Label _party = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart };
+    private readonly Dictionary<RecordId, CheckBox> _members = [];
+    private SpinBox? _gold;
     private readonly UiScreen _screen = new() { CustomMinimumSize = new Vector2(UiScreen.Width, UiScreen.Height), Backdrop = new Color(0.22f, 0.25f, 0.3f) };
     private readonly ConversationBoxView? _conversation;
     private ScriptPage? _shown;
@@ -63,7 +69,8 @@ public partial class ScriptPanel : VBoxContainer
     public ScriptPanel(PluginCatalog catalog, FlagState? flags, DialogueRecord script, Action<RecordId> open)
     {
         (_catalog, _flags, _script, _open) = (catalog, flags, script, open);
-        _world = new EditorWorld(Log, NameOf);
+        _rules = EditorCharacters.Rules(catalog.Plugins);
+        _world = new EditorWorld(Log, NameOf, entity => _rules is null ? null : EditorCharacters.Create(catalog.Plugins, _rules, entity, flags));
         AddThemeConstantOverride("separation", 6);
         // Plugins from before the importer wrote fonts have none to draw with.
         if (catalog.Plugins.Contains(RecordId.Decimal(RecordTypes.Font, 0)))
@@ -433,13 +440,26 @@ public partial class ScriptPanel : VBoxContainer
         box.AddChild(_page);
         box.AddChild(new HSeparator());
         box.AddChild(Dimmed("What the script checks, answered here:"));
-        var answers = new ScrollContainer { CustomMinimumSize = new Vector2(0, 120) };
+        var reset = new Button { Text = "Reset party", SizeFlagsVertical = SizeFlags.ShrinkCenter, TooltipText = "Back to the loaded checkpoint's party, or a new game's: Alaron alone." };
+        reset.Pressed += () =>
+        {
+            NewParty();
+            Log("The party is reset");
+        };
+        var partyRow = new HBoxContainer();
+        _party.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+        partyRow.AddChild(_party);
+        partyRow.AddChild(reset);
+        box.AddChild(partyRow);
+        var answers = new ScrollContainer { CustomMinimumSize = new Vector2(0, 120), HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
+        _answers.SizeFlagsHorizontal = SizeFlags.ExpandFill;
         answers.AddChild(_answers);
         box.AddChild(answers);
         box.AddChild(new HSeparator());
         box.AddChild(Dimmed("What it did:"));
         box.AddChild(_log);
         BuildAnswers();
+        NewParty();
         _status.Text = _flags is null ? "These plugins have no flag network, so it can't play." : $"Press Play to run it against {_flags.Name}'s flags.";
         play.Disabled = _flags is null;
         return box;
@@ -501,25 +521,92 @@ public partial class ScriptPanel : VBoxContainer
     private void SizeScreen() =>
         _screen.CustomMinimumSize = new Vector2(_wide ? MathF.Round(UiScreen.Height * 16 / 9f) : UiScreen.Width, UiScreen.Height) * _zoom;
 
-    /// <summary>A control for each thing the script checks, other than flags.</summary>
+    /// <summary>The party, and a control for each thing the script checks other than flags.</summary>
     private void BuildAnswers()
     {
-        var ops = _script.Nodes.SelectMany(n => n.Ops ?? []).Where(o => o.Command.IsCondition()).ToList();
-        foreach (var member in ops.Where(o => o.Command == DialogueCommand.CheckMember).Select(o => o.Target).OfType<RecordId>().Distinct())
-            _answers.AddChild(Answer($"{NameOf(member)} is in the party", _world.Members, member));
-        foreach (var item in ops.Where(o => o.Command == DialogueCommand.CheckItem).Select(o => o.Target).OfType<RecordId>().Distinct())
+        var ops = _script.Nodes.SelectMany(n => n.Ops ?? []).ToList();
+        var checks = ops.Where(o => o.Command.IsCondition()).ToList();
+        foreach (var member in checks.Where(o => o.Command == DialogueCommand.CheckMember).Select(o => o.Target).OfType<RecordId>().Distinct())
+        {
+            var box = new CheckBox { Text = $"{NameOf(member)} is in the party" };
+            box.Toggled += on =>
+            {
+                if (!on)
+                    _world.Leave(member);
+                else if (!_world.Join(member))
+                    Log($"{NameOf(member)} can't join: the party is full, or there's no character record");
+                ShowParty();
+            };
+            _members[member] = box;
+            _answers.AddChild(box);
+        }
+        foreach (var item in checks.Where(o => o.Command == DialogueCommand.CheckItem).Select(o => o.Target).OfType<RecordId>().Distinct())
             _answers.AddChild(Answer($"The party has {NameOf(item)}", _world.Items, item));
-        foreach (var skill in ops.Where(o => o.Command == DialogueCommand.CheckSkill).Select(o => o.Value ?? 0).Distinct().Order())
-            _answers.AddChild(Number($"Best {(skill < Skills.Length ? Skills[skill] : $"skill {skill}")}", 0, 30, v => _world.Skills[skill] = v));
-        foreach (var stat in ops.Where(o => o.Command is DialogueCommand.CheckBestStat or DialogueCommand.CheckWorstStat or DialogueCommand.CheckSpeakerStat)
-            .Select(o => o.Value ?? 0).Distinct().Order())
-            _answers.AddChild(Number($"Stat {stat}", 0, 40, v => _world.Stats[stat] = v));
-        if (ops.Any(o => o.Command == DialogueCommand.CheckPartySize))
-            _answers.AddChild(Number("Party size", 1, 4, v => _world.PartySize = v));
-        if (ops.Any(o => o.Command == DialogueCommand.CheckGold) || _script.Nodes.Any(n => n.Ops?.Any(o => o.Command is DialogueCommand.TakeGold) == true))
-            _answers.AddChild(Number("Gold", 0, 100_000, v => _world.Gold = (uint)v));
+        foreach (var skill in checks.Where(o => o.Command == DialogueCommand.CheckSkill).Select(o => o.Value ?? 0).Distinct().Order())
+            _answers.AddChild(FixedCheck(skill));
+        if (checks.Any(o => o.Command == DialogueCommand.CheckGold) || ops.Any(o => o.Command is DialogueCommand.TakeGold))
+        {
+            var row = new HBoxContainer();
+            _gold = new SpinBox { MinValue = 0, MaxValue = 10_000_000, Step = 1 };
+            _gold.ValueChanged += v =>
+            {
+                _world.Gold = (uint)v;
+                ShowParty();
+            };
+            row.AddChild(new Label { Text = "Gold", SizeFlagsHorizontal = SizeFlags.ExpandFill });
+            row.AddChild(_gold);
+            _answers.AddChild(row);
+        }
         if (_answers.GetChildCount() == 0)
-            _answers.AddChild(Dimmed("Nothing but flags."));
+            _answers.AddChild(Dimmed("Nothing but flags and the party."));
+    }
+
+    /// <summary>A skill check's result: rolled with the party's skills as the original rolls it, or fixed to see a branch.</summary>
+    private HBoxContainer FixedCheck(int skill)
+    {
+        var row = new HBoxContainer();
+        var choice = new OptionButton { TooltipText = "Roll it with the party's skills, as the original does, or fix the step it gives (0–21)." };
+        choice.AddItem("Rolled", -1);
+        for (var step = 0; step <= 21; step++)
+            choice.AddItem($"Fixed at {step}", step);
+        choice.ItemSelected += i =>
+        {
+            if (choice.GetItemId((int)i) is var step and >= 0)
+                _world.FixedChecks[skill] = step;
+            else
+                _world.FixedChecks.Remove(skill);
+        };
+        row.AddChild(new Label { Text = $"{SkillName(skill)} check", SizeFlagsHorizontal = SizeFlags.ExpandFill });
+        row.AddChild(choice);
+        return row;
+    }
+
+    private static string SkillName(int skill) => skill >= 0 && skill < Skills.Length ? Skills[skill] : $"Skill {skill}";
+
+    /// <summary>The party as it starts: the loaded checkpoint's, or a new game's.</summary>
+    private void NewParty()
+    {
+        _world.Party = _rules is null ? new Party() : EditorCharacters.NewParty(_catalog.Plugins, _rules, _flags);
+        ShowParty();
+    }
+
+    /// <summary>Shows the party, its gold and the stats the script checks, after it or the answers change them.</summary>
+    private void ShowParty()
+    {
+        var party = _world.Party;
+        var members = party.Members.Select(m => $"{m.Name} ({m.Level}, {m.Hp}/{m.MaxHp} HP)").ToList();
+        var text = _rules is null
+            ? "These plugins are older than the characters' records, so the party is empty. Import the ROM again."
+            : $"Party, by level and hit points: {(members.Count == 0 ? "no one" : string.Join(", ", members))}. {party.Gold:N0} gold.";
+        var stats = _script.Nodes.SelectMany(n => n.Ops ?? [])
+            .Where(o => o.Command is DialogueCommand.CheckBestStat or DialogueCommand.CheckWorstStat or DialogueCommand.CheckSpeakerStat)
+            .Select(o => o.Value ?? 0).Where(v => v is >= 0 and <= (int)Stat.Level).Distinct().Order();
+        foreach (var stat in stats)
+            text += $" {(Stat)stat}: best {party.BestStat((Stat)stat)}, worst {party.WorstStat((Stat)stat)}.";
+        _party.Text = text;
+        foreach (var (member, box) in _members)
+            box.SetPressedNoSignal(party.Contains(member));
+        _gold?.SetValueNoSignal(party.Gold);
     }
 
     private static CheckBox Answer(string text, HashSet<RecordId> set, RecordId id)
@@ -533,17 +620,6 @@ public partial class ScriptPanel : VBoxContainer
                 set.Remove(id);
         };
         return box;
-    }
-
-    private static HBoxContainer Number(string text, int min, int max, Action<int> set)
-    {
-        var row = new HBoxContainer();
-        var spin = new SpinBox { MinValue = min, MaxValue = max, Value = min, Step = 1 };
-        spin.ValueChanged += v => set((int)v);
-        set(min);
-        row.AddChild(new Label { Text = text, SizeFlagsHorizontal = SizeFlags.ExpandFill });
-        row.AddChild(spin);
-        return row;
     }
 
     private void Restart()
@@ -569,6 +645,7 @@ public partial class ScriptPanel : VBoxContainer
             _before[h] = network.Peek(h);
         move();
         network.Process();
+        ShowParty();
         var changed = Enumerable.Range(2, network.Count - 2).Where(h => !network.IsDerived(h) && network.Peek(h) != _before[h]).ToList();
         foreach (var h in changed)
             Log($"Flag {network.Id(h).Key} {(network.Peek(h) ? "set" : "cleared")}: {NameOf(network.Id(h))}");
@@ -684,26 +761,52 @@ public partial class ScriptPanel : VBoxContainer
         public void Cue(ScriptCue cue) => log(cue);
     }
 
-    /// <summary>The party and inventory, as the answers set them; the script's changes are logged.</summary>
-    private sealed class EditorWorld(Action<string> log, Func<RecordId, string> name) : IScriptWorld
+    /// <summary>
+    /// The party, which the script and the answers change, and the inventory, as the answers set it.
+    /// The script's changes are logged.
+    /// </summary>
+    private sealed class EditorWorld(Action<string> log, Func<RecordId, string> name, Func<RecordId, Character?> create) : IScriptWorld
     {
-        public HashSet<RecordId> Members { get; } = [];
+        public Party Party { get; set; } = new();
         public HashSet<RecordId> Items { get; } = [];
-        public Dictionary<int, int> Skills { get; } = [];
-        public Dictionary<int, int> Stats { get; } = [];
+        /// <summary>Skill checks fixed by hand, by skill; the rest roll.</summary>
+        public Dictionary<int, int> FixedChecks { get; } = [];
         public Dictionary<ScriptMemory, int> Memory { get; } = [];
-        public int PartySize { get; set; } = 1;
-        public uint Gold { get; set; }
+        public int PartySize => Party.Count;
 
-        public bool InParty(RecordId entity) => Members.Contains(entity);
+        public uint Gold
+        {
+            get => Party.Gold;
+            set => Party.Gold = value;
+        }
+
+        public bool InParty(RecordId entity) => Party.Contains(entity);
         public bool HasItem(RecordId item) => Items.Contains(item);
-        public int SkillCheck(int skill, IRandom random) => Skills.GetValueOrDefault(skill);
-        public int BestStat(int stat) => Stats.GetValueOrDefault(stat);
-        public int WorstStat(int stat) => Stats.GetValueOrDefault(stat);
-        public int MemberStat(RecordId? member, int stat) => Stats.GetValueOrDefault(stat);
+        public int BestStat(int stat) => IsStat(stat) ? Party.BestStat((Stat)stat) : 0;
+        public int WorstStat(int stat) => IsStat(stat) ? Party.WorstStat((Stat)stat) : 0;
+        public int MemberStat(RecordId? member, int stat) => member is { } m && IsStat(stat) ? Party.MemberStat(m, (Stat)stat) : 0;
         public bool TryRecall(ScriptMemory memory, out int value) => Memory.TryGetValue(memory, out value);
         public void Remember(ScriptMemory memory, int value) => Memory[memory] = value;
-        public void CampHeal() => log("The party is healed");
+
+        private static bool IsStat(int stat) => stat is >= 0 and <= (int)Stat.Level;
+
+        public int SkillCheck(int skill, IRandom random)
+        {
+            if (FixedChecks.TryGetValue(skill, out var step))
+            {
+                log($"{SkillName(skill)} check: fixed at {step}");
+                return step;
+            }
+            var result = Party.SkillCheck((Skill)skill, random);
+            log($"{SkillName(skill)} check: rolled {result}");
+            return result;
+        }
+
+        public void CampHeal()
+        {
+            Party.CampHeal();
+            log("The party is healed");
+        }
 
         public void AddItem(RecordId item)
         {
@@ -720,21 +823,30 @@ public partial class ScriptPanel : VBoxContainer
 
         public bool AddMember(RecordId entity)
         {
-            Members.Add(entity);
-            log($"{name(entity)} joins");
-            return true;
+            var joined = Join(entity);
+            log(joined ? $"{name(entity)} joins" : $"{name(entity)} can't join: " + (create(entity) is null ? "there's no character record" : "the party is full"));
+            return joined;
         }
 
-        public void RemoveMember(RecordId entity)
-        {
-            Members.Remove(entity);
-            log($"{name(entity)} leaves");
-        }
+        public void RemoveMember(RecordId entity) =>
+            log(Leave(entity) ? $"{name(entity)} leaves" : $"{name(entity)} isn't in the party, so no one leaves");
+
+        /// <summary>Adds a member as their record starts them. True if they're in the party after.</summary>
+        public bool Join(RecordId entity) => Party.Contains(entity) || (create(entity) is { } member && Party.Add(member));
+
+        public bool Leave(RecordId entity) => Party.Remove(entity);
 
         public bool AddExp(RecordId member, int amount)
         {
-            log($"{name(member)} gains {amount} experience" + (Members.Contains(member) ? "" : ", but isn't in the party"));
-            return Members.Contains(member);
+            if (Party.Get(member) is not { } character)
+            {
+                log($"{name(member)} would gain {amount} experience, but isn't in the party");
+                return false;
+            }
+            var (level, before) = (character.Level, character.TotalExp);
+            character.AddExp(amount);
+            log($"{name(member)} gains {character.TotalExp - before:N0} experience" + (character.Level > level ? $" and reaches level {character.Level}" : ""));
+            return true;
         }
     }
 }

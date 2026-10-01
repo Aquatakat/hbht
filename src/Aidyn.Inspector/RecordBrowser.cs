@@ -550,6 +550,8 @@ public partial class RecordBrowser : Control
             return _flags is null ? Message("These plugins have no flag network.") : new FlagPanel(catalog, _flags, id, FollowLink);
         if (id.Type == RecordTypes.Dialogue && plugins.TryGet<DialogueRecord>(id) is { } script)
             return new ScriptPanel(catalog, _flags, script, FollowLink);
+        if (id.Type == RecordTypes.Entity && plugins.TryGet<EntityRecord>(id) is { } entity && EditorCharacters.Rules(plugins) is { } rules)
+            return new CharacterPanel(catalog, _flags, entity, rules, FollowLink);
         if (id.Type == RecordTypes.Actor && json is not null)
         {
             // An actor is its scene, playing its initial state's animation.

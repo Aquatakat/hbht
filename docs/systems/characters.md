@@ -79,9 +79,18 @@ The debug build's code differs from the decomp's pseudocode in these places:
 - **Cheat Death.** `Entity::DamageToLevel` looks through all 15 effects for it; the pseudocode's loop never runs. That's for combat (2.5).
 - **Entity categories.** Charming fails on category 5, the Chaos troops and bosses. The decomp's enum puts Chaos at 4, which the entity DB leaves empty.
 
+## To check in the emulator
+
+The checkpoints confirm the sheets: levels, hit points, the skills that can't be learnt and the True Name. Training prices need a playthrough, at a trainer and on the screen after a battle:
+
+- **Warrior from 3 to 4** costs 16,000 experience after a battle, and 12,800 experience and 160 gold at a trainer who knows Warrior at 4 or more.
+- **Merchant** costs 750 × (n + 1)² experience to raise from level *n* after a battle, so 3,000 from 1 to 2, not the decomp's ten times that.
+- **Oriana** charges no gold for what she teaches.
+
 ## What's left
 
 - **Equipment (2.3):** gear's stat and skill bonuses, protection and damage, what can be equipped (Strength, weapon skill, shield skill, Niesen's staff), and the bonus a skill gets from gear when it's raised from 0.
 - **Effects (2.5):** spells' and potions' stat changes, their timers, Cheat Death, and what dying clears.
 - **Joining and leaving (M2):** the member flags and the sheets kept for members who leave.
+- **Saves (2.8):** the original saves a character's spells by school, in the spell DB's order (`SaveParty::SaveSpell`), so after loading a save the spellbook is in that order, not the order learnt. The checkpoints show it.
 - **Flags for the party's best stats and skills.** The original tries to raise them whenever a stat or skill changes (`Event_flag_stat`, `event_flag_skill_`), but its lookup never finds them, so the port doesn't either (see the [audit](../hardcoded-content.md)).

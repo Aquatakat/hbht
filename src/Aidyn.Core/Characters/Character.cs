@@ -106,9 +106,20 @@ public sealed class Character
         return character;
     }
 
-    /// <summary>A character from the sheet's parts, such as a save or the checkpoints' RAM holds.</summary>
-    public static Character Restore(RecordId entity, string name, CharacterRules rules, CharacterStats stats, CharacterSkills skills,
-        IEnumerable<LearnedSpell> spells) => new(entity, name, rules, stats, skills, [.. spells]);
+    /// <summary>
+    /// A character from the sheet's parts, such as a save or the checkpoints' RAM holds, with the
+    /// traits that don't change from <paramref name="entity"/>'s record. The caller sets the rest.
+    /// </summary>
+    public static Character Restore(EntityRecord entity, CharacterRules rules, CharacterStats stats, CharacterSkills skills,
+        IEnumerable<LearnedSpell> spells) => new(entity.Id, entity.Name, rules, stats, skills, [.. spells])
+    {
+        Aspect = entity.Aspect,
+        School = entity.School,
+        TrueName = entity.TrueName,
+        Heavy = entity.Heavy,
+        Protection = (byte)entity.Protection,
+        Damage = (byte)entity.Damage,
+    };
 
     /// <summary>An entity's skill levels by <see cref="SkillId.Slot"/>.</summary>
     public static int?[] SkillLevels(EntityRecord entity)

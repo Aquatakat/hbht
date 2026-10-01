@@ -113,15 +113,26 @@ public sealed class AresCheckpoint
             var sheet = ReadWord(party + slot * 4);
             if (sheet == 0)
                 continue;
-            // CharSheet: the ID, then pointers to CharExp at 0x14, CharStats_s at 0x18 and CharSkills at 0x1C.
+            // CharSheet: the ID, then pointers to CharExp at 0x14, CharStats_s at 0x18, CharSkills at 0x1C
+            // and the SpellBook at 0x2C, which points to its SpellInstances (the ID, and the level at 0x14).
             var exp = ReadWord(sheet + 0x14);
             var stats = ReadWord(sheet + 0x18);
             var skills = ReadWord(sheet + 0x1C);
+            var book = ReadWord(sheet + 0x2C);
+            var spells = new List<(ushort, int)>();
+            if (InRam(book) && ReadWord(book) is var list && InRam(list))
+            {
+                for (var i = 0u; i < ReadByte(book + 4); i++)
+                {
+                    if (ReadWord(list + i * 4) is var spell && InRam(spell))
+                        spells.Add(((ushort)(ReadByte(spell) << 8 | ReadByte(spell + 1)), ReadByte(spell + 0x14)));
+                }
+            }
             sheets.Add(new CheckpointCharacter(
                 (ushort)(ReadByte(sheet) << 8 | ReadByte(sheet + 1)),
                 Bytes(stats, 7), Signed(stats + 7, 7), Bytes(stats + 0xE, 7), Signed(stats + 0x15, 7),
                 Signed(skills, 24), Signed(skills + 0x18, 24),
-                ReadWord(exp + 4), ReadWord(exp + 8), ReadByte(exp + 1), ReadByte(exp + 2), ReadByte(exp + 3), ReadByte(exp + 0xC)));
+                ReadWord(exp + 4), ReadWord(exp + 8), ReadByte(exp + 1), ReadByte(exp + 2), ReadByte(exp + 3), ReadByte(exp + 0xC), spells));
         }
         return sheets;
     }
@@ -162,6 +173,7 @@ public sealed class AresCheckpoint
 /// <param name="SkillBase">The 12 skills, 11 weapon skills and the shield (<c>CharSkills</c>); −1 can't be learnt.</param>
 /// <param name="SkillModified">The same, modified.</param>
 /// <param name="Flags">True Name 1, heavy 2, Solar 4 (<c>CharExp::flags</c>).</param>
+/// <param name="Spells">The spellbook's spells' IDs and levels, in its order.</param>
 public sealed record CheckpointCharacter(
     ushort Id,
     IReadOnlyList<int> Trained,
@@ -175,4 +187,5 @@ public sealed record CheckpointCharacter(
     int School,
     int Protection,
     int Damage,
-    int Flags);
+    int Flags,
+    IReadOnlyList<(ushort Spell, int Level)> Spells);

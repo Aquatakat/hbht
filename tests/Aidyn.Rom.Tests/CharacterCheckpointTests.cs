@@ -25,8 +25,8 @@ public sealed class CharacterCheckpointTests(MapObjectFixture fixture)
         return AresCheckpoint.Read(Path.Combine(TestRoms.Folder, name));
     }
 
-    private static Character Restore(CheckpointCharacter sheet, EntityRecord entity, CharacterRules rules) => Character.Restore(entity.Id,
-        entity.Name, rules, new CharacterStats(rules, sheet.Trained, sheet.Current, sheet.Base, sheet.Modified),
+    private static Character Restore(CheckpointCharacter sheet, EntityRecord entity, CharacterRules rules) => Character.Restore(entity,
+        rules, new CharacterStats(rules, sheet.Trained, sheet.Current, sheet.Base, sheet.Modified),
         new CharacterSkills(rules, sheet.SkillBase, sheet.SkillModified), []);
 
     [Theory]
@@ -93,6 +93,24 @@ public sealed class CharacterCheckpointTests(MapObjectFixture fixture)
             var character = Restore(sheet, Set.Get<EntityRecord>(RecordId.Hex(RecordTypes.Entity, sheet.Id)), rules);
             Assert.InRange(character.Hp, 1, character.MaxHp);
             Assert.Equal(sheet.Base[(int)Stat.Endurance] + sheet.Base[(int)Stat.Stamina] + sheet.Base[(int)Stat.Level], character.MaxHp);
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(Checkpoints))]
+    public void SpellbooksKeepTheSpellsMembersStartedWith(string name)
+    {
+        var checkpoint = Load(name);
+
+        foreach (var sheet in checkpoint.Party)
+        {
+            var entity = Set.Get<EntityRecord>(RecordId.Hex(RecordTypes.Entity, sheet.Id));
+            var book = sheet.Spells.Select(s => RecordId.Hex(RecordTypes.Spell, s.Spell)).ToList();
+            Assert.All(sheet.Spells, s => Assert.InRange(s.Level, 1, 10));
+            Assert.All(book, s => Assert.NotNull(Set.TryGet<SpellRecord>(s)));
+            // Saves keep spells by school in the spell DB's order (SaveParty::SaveSpell), so after a
+            // load the book is in that order rather than the order learnt.
+            Assert.Subset(book.ToHashSet(), entity.Spells.Select(s => s.Spell).ToHashSet());
         }
     }
 }

@@ -23,10 +23,16 @@ public sealed class FlagState(FlagNetwork network)
     /// <summary>The console's values, from the loaded checkpoint.</summary>
     public IReadOnlyList<bool>? Console { get; private set; }
 
+    /// <summary>The loaded checkpoint's party sheets, which character pages and the script player use.</summary>
+    public IReadOnlyList<CheckpointCharacter>? ConsoleParty { get; private set; }
+
+    /// <summary>The loaded checkpoint's gold.</summary>
+    public uint? ConsoleGold { get; private set; }
+
     public void NewGame()
     {
         Network.NewGame();
-        (Name, Check, Console) = ("a new game", null, null);
+        (Name, Check, Console, ConsoleParty, ConsoleGold) = ("a new game", null, null, null, null);
     }
 
     /// <summary>
@@ -35,7 +41,16 @@ public sealed class FlagState(FlagNetwork network)
     /// </summary>
     public void LoadCheckpoint(string path)
     {
-        var console = AresCheckpoint.Read(path).Flags;
+        var checkpoint = AresCheckpoint.Read(path);
+        var console = checkpoint.Flags;
+        try
+        {
+            (ConsoleParty, ConsoleGold) = (checkpoint.Party, checkpoint.Gold);
+        }
+        catch (InvalidDataException)
+        {
+            (ConsoleParty, ConsoleGold) = (null, null);
+        }
         Network.Restore(h => h < console.Count && console[h]);
         var derived = Enumerable.Range(0, Math.Min(console.Count, Network.Count)).Where(Network.IsDerived).ToList();
         var wrong = derived.Where(h => Network.Peek(h) != console[h]).ToList();
