@@ -37,7 +37,7 @@ public static class ItemText
         if (bonuses.Skill is { } skill)
             yield return $"{skill.Amount:+0;-0} {name(skill.Skill)}";
         if (bonuses.Spell is { } spell)
-            yield return $"casts {name(spell.Spell)} at level {spell.Level}, {spell.Charges} charges";
+            yield return $"casts {name(spell.Spell)} at level {spell.Level}, {spell.Charges} charge{(spell.Charges == 1 ? "" : "s")}";
         if (bonuses.Enchantment is { } enchantment)
             yield return $"{name(enchantment.Spell)} at level {enchantment.Level} " + (item.Kind == ItemKind.Weapon ? "as it strikes" : "while worn");
         if (bonuses.Resistance is { } resistance)
@@ -55,13 +55,19 @@ public static class ItemText
         return string.Join(", ", parts);
     }
 
-    public static string Refusal(EquipRefusal refusal) => refusal switch
+    /// <summary>Why a character can't equip an item, said of the character as "they".</summary>
+    public static string Refusal(EquipRefusal refusal, Item item) => refusal switch
     {
-        EquipRefusal.CantUse => "it can't use it",
-        EquipRefusal.WrongAspect => "it's of another aspect",
-        EquipRefusal.NeedsStrength => "its base Strength is too low",
-        EquipRefusal.NeedsIntelligence => "its base Intelligence is too low",
-        EquipRefusal.NoRoom => "no room: its gear slots, rings or scrolls are full, or the inventory can't take back what it replaces",
+        EquipRefusal.CantUse => item.Kind switch
+        {
+            ItemKind.Weapon => $"they can't wield {item.Weapon!.Class} weapons",
+            ItemKind.Shield => "they have no shield skill",
+            _ => "it isn't worn",
+        },
+        EquipRefusal.WrongAspect => $"it's only for the {item.Bonuses.Aspect} aspect",
+        EquipRefusal.NeedsStrength => $"their base Strength is below {item.RequiredStrength}",
+        EquipRefusal.NeedsIntelligence => $"their base Intelligence is below {item.RequiredIntelligence}",
+        EquipRefusal.NoRoom => "they've no room for it",
         EquipRefusal.Fixed => "what it would replace can't be taken off",
         _ => "",
     };
@@ -191,8 +197,6 @@ public partial class ItemPanel : PagePanel
         var count = NewParty(rules).Members.Count();
         var scroll = _item.Kind == ItemKind.Scroll;
         Heading(scroll ? "Reading it" : "Equipping it");
-        Line($"Tried on {EditorCharacters.Whose(_flags)}: what {(scroll ? "reading" : "equipping")} it would change on each sheet, "
-            + $"or why they can't {(scroll ? "read" : "equip")} it. Nothing here is kept.", Dim);
         var grid = Grid(["", ""]);
         for (var i = 0; i < count; i++)
         {
@@ -207,17 +211,17 @@ public partial class ItemPanel : PagePanel
                 result = party.ReadScroll(member, _item.Id, Plugins.Get<SpellRecord>) switch
                 {
                     ScrollResult.Learned => $"learns {NameOf(_item.Bonuses.Spell!.Spell)}",
-                    ScrollResult.NotAWizard => "can't: it can't learn Wizard",
-                    ScrollResult.NoSpell => "can't: it holds no spell",
+                    ScrollResult.NotAWizard => "can't; they can't learn Wizard",
+                    ScrollResult.NoSpell => "can't; it holds no spell",
                     ScrollResult.AlreadyKnown => "knows its spell already",
-                    ScrollResult.NeedsWizard => "can't: its base Wizard is below the spell's",
-                    ScrollResult.WrongSchool => "can't: the spell is of another school",
+                    ScrollResult.NeedsWizard => $"can't; their base Wizard is below {Plugins.Get<SpellRecord>(_item.Bonuses.Spell!.Spell).Wizard}",
+                    ScrollResult.WrongSchool => "can't; the spell is of another school",
                     _ => "",
                 };
             }
             else if (party.Equip(member, _item.Id) is var refusal && refusal != EquipRefusal.None)
             {
-                result = $"can't: {ItemText.Refusal(refusal)}";
+                result = $"can't; {ItemText.Refusal(refusal, _item)}";
             }
             else
             {
@@ -227,7 +231,7 @@ public partial class ItemPanel : PagePanel
                 result = (replaced.Count > 0 ? $"replacing {string.Join(", ", replaced)}: " : "")
                     + (changes.Count > 0 ? string.Join(", ", changes) : "no change to the sheet");
             }
-            grid.AddChild(new Label { Text = member.Name });
+            grid.AddChild(new Label { Text = EditorCharacters.Label(_flags, member) });
             grid.AddChild(new Label { Text = result, AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill });
         }
         Body.AddChild(grid);
@@ -520,7 +524,6 @@ public partial class RecipePanel : PagePanel
     private void ShowOnParty(CharacterRules rules)
     {
         Heading("Making it");
-        Line($"Tried by {EditorCharacters.Whose(_flags)}: whether each is offered it, and how often they'd make it. Nothing here is kept.", Dim);
         var count = EditorCharacters.NewParty(Plugins, rules, _flags, _items).Members.Count();
         var grid = Grid(["", ""]);
         for (var i = 0; i < count; i++)
@@ -531,11 +534,11 @@ public partial class RecipePanel : PagePanel
             {
                 var party = EditorCharacters.NewParty(Plugins, rules, _flags, _items);
                 var member = party.Members.ElementAt(i);
-                name = member.Name;
+                name = EditorCharacters.Label(_flags, member);
                 foreach (var ingredient in _recipe.Ingredients)
                     party.Inventory!.Add(ingredient.Item, ingredient.Count);
                 if (!Crafting.Offered(party, member, [_recipe]).Any())
-                    result = "isn't offered it: its skill is too low";
+                    result = $"not offered; their {NameOf(_recipe.Skill)} is below {_recipe.Level}";
                 else if (Crafting.Make(party, member, _recipe, new Roll(roll)) == CraftResult.Made)
                     made++;
             }

@@ -115,9 +115,8 @@ public static class EditorCharacters
         return party;
     }
 
-    /// <summary>Who <see cref="NewParty"/> is, for pages that try things on it.</summary>
-    public static string Whose(FlagState? flags) =>
-        flags?.ConsoleParty is not null ? $"each member of the party in {flags.Name}" : "Alaron as a new game starts him, in his starting gear";
+    /// <summary>A member of <see cref="NewParty"/> as pages that try things on it name them: "New game Alaron", or a checkpoint's member by name.</summary>
+    public static string Label(FlagState? flags, Character member) => flags?.ConsoleParty is not null ? member.Name : $"New game {member.Name}";
 
     /// <summary>An item's record ID from the console's: weapons are 0x07…, armor and shields 0x05… and 0x06…, the rest items.</summary>
     public static RecordId ItemId(ushort id) => (id >> 8) switch
@@ -332,7 +331,7 @@ public partial class CharacterPanel : PagePanel
             var refusal = party.Equip(c, item.Id);
             if (refusal != EquipRefusal.None && given)
                 party.Inventory.Take(item.Id);
-            _result.Text = refusal == EquipRefusal.None ? $"{item.Name} put on." : $"{c.Name} can't put on {item.Name}: {ItemText.Refusal(refusal)}";
+            _result.Text = refusal == EquipRefusal.None ? $"{item.Name} put on." : $"{c.Name} can't put on {item.Name}: {ItemText.Refusal(refusal, item)}";
             Refresh();
         };
         row.AddChild(choice);
