@@ -43,6 +43,27 @@ The box is laid out in the original's 320 × 240 screen, placed at the bottom ce
 
 Not ported yet: the widgets' fade in and out (`fadeFloatMirror`), scrolling a menu taller than its bounds, and the full-screen backdrops' text with its shadow (`WidgetShadowText`).
 
+## The pause menu (M2)
+
+Not ported yet. What the decomp and the imported images show so far (`BigAssMenu.cpp`, `DollMenu*.cpp`):
+
+- **Three tabs side by side**, System, Party and World, each a widget tree laid out in its own 320 × 240 frame, 320 pixels apart. Changing tab slides them all 10 pixels a frame. Each tab has a full-screen background image (`pause_menu_borg8`): `0x00D8`, `0x00D9` and `0x00DA`, all 320 × 240.
+- **The Party tab's layout is painted into its background.** `0x00D9` is one parchment with the silhouette and its slot frames, the portrait frames, the labels HitPoints, Level and Gold, the HP bar's frame, the knotwork divider down the middle and "Details" with the C-down button. None of those labels are in the string tables. The widgets only fill it in: the portraits, the HP, level and gold numbers, the equipment icons in the slots, and the list on the right.
+- **The list** (`DollMenuLists`) is one of up to four (inventory, spells, skills, stats; training drops stats and adds a second column, barter keeps only the inventory). The one showing sits at (160, 101), bounded from x 160 to 300 and y 101 to 205; the others wait at x 20.
+- **Barter and post-battle training** draw over the silhouette on a separate 160 × 160 parchment (`0x00E2`), with its shadow (`0x00E4`, 162 × 162).
+- **A 3D actor** is drawn with the menu: `aidyn:actor/0x0E6B` (scene `0x0E63`), seen from above, which plays a state on opening, closing and changing tab and slides with the tabs. What it shows is still to look at.
+
+### Layouts, proposed (Oct 1, 2026)
+
+The user wants the menu responsive: exactly the original's at 4:3 and 240 lines, opened up where the screen has room. To settle in M2's first session:
+
+- **Chosen by the screen's size in its own pixels, not its shape.** The classic layout fits 320 × 240; the wide one needs about 560 × 320, as 16:9 at 360 lines (640 × 360) gives. A screen too small for the wide layout gets the classic one, placed at the centre as the conversation box is, with the space beside it dark, since the parchment is opaque and the menu covers the world.
+- **Classic** draws `0x00D9` whole and fills it in at the original's coordinates. At exactly 320 × 240 it's the original, row for row.
+- **Wide** has three columns: the character (portraits, HP, level, gold and the silhouette), the list, and C-down's details, kept open for the row under the cursor. Lists use the main font where the original squeezes rows into the slim one, and as many rows as fit. The parchment is composed: the silhouette, labels, divider and "Details" are cut out of `0x00D9` as image pieces and placed, on parchment panels built from its torn edges or `0x00E2`, so the art stays the original's and no new strings are needed.
+- **The reuses keep their columns.** Barter puts the shop's stock where the character was (as the original covers the silhouette with it), the party's inventory in the middle and the details on the right; training shows spells and skills side by side.
+- **One model, two layouts.** The menu's state (the member, the tab, each list's rows, order and cursor, and what A does in each reuse) is in the core, and a layout only places panels, so the reuses and both layouts share it.
+- **Controls:** C-left and C-right become the shoulders (LB, RB), changing the member; Z/L and R, which change the tab, become the triggers; C-down's details are a face button, and in the wide layout, where the details are always open, it does nothing.
+
 ## A faithful mode, later
 
 The floating panel and the resizable screen are enhancements. The user chose them over the original's look for now (Sep 30, 2026), and left a faithful mode for the fidelity profile at the very end ([roadmap](../roadmap.md), Phase 6's enhancements). What it would take:
