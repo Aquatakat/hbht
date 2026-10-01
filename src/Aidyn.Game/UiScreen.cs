@@ -166,5 +166,8 @@ public partial class UiScreen : Control
         QueueRedraw();
     }
 
+    /// <summary>The screen as it's drawn, in its own pixels, before it's scaled up.</summary>
+    public Image Capture() => _viewport.GetTexture().GetImage();
+
     public override void _Draw() => DrawTextureRect(_viewport.GetTexture(), ScreenRect, false);
 }

@@ -154,11 +154,23 @@ public partial class RecordBrowser : Control
             panel.Play(moves);
     }
 
-    /// <summary>Sets how the script's conversation box is shown, if it's showing one (<c>--zoom</c>, <c>--ui-filter</c>, <c>--aspect</c>, <c>--ui-lines</c>).</summary>
-    public void SetScriptScreen(int? zoom, Aidyn.Game.UiFilter? filter, bool? wide, int? lines)
+    /// <summary>
+    /// Sets how the preview's UI screen is shown, if it has one: a script's conversation box or the
+    /// Party tab (<c>--zoom</c>, <c>--ui-filter</c>, <c>--aspect</c>, <c>--ui-lines</c>).
+    /// </summary>
+    public void SetUiScreen(int? zoom, Aidyn.Game.UiFilter? filter, bool? wide, int? lines)
     {
-        if (_preview.GetChildren().OfType<ScriptPanel>().FirstOrDefault() is { } panel)
-            panel.SetScreen(zoom, filter, wide, lines);
+        if (_preview.GetChildren().OfType<ScriptPanel>().FirstOrDefault() is { } script)
+            script.SetScreen(zoom, filter, wide, lines);
+        if (_preview.GetChildren().OfType<PartyTabPanel>().FirstOrDefault() is { } party)
+            party.SetScreen(zoom, filter, wide, lines);
+    }
+
+    /// <summary>Shows a member, list, row and the details on the Party tab, if it's showing (<c>--member</c>, <c>--list</c>, <c>--row</c>, <c>--details</c>).</summary>
+    public void ShowPartyTab(int? member, Aidyn.Core.Ui.PartyList? list, int? row, bool? details)
+    {
+        if (_preview.GetChildren().OfType<PartyTabPanel>().FirstOrDefault() is { } party)
+            party.Show(member, list, row, details);
     }
 
     /// <summary>Opens a record, adding it to the history. The task completes when its preview is shown.</summary>
@@ -568,6 +580,8 @@ public partial class RecordBrowser : Control
                 return new LootPanel(catalog, items, loot, FollowLink);
             if (id.Type == RecordTypes.Recipe && plugins.TryGet<RecipeRecord>(id) is { } recipe)
                 return new RecipePanel(catalog, _flags, _rules, items, recipe, FollowLink);
+            if (id.Type == RecordTypes.Inventory && _rules is { } partyRules && plugins.Contains(RecordId.Decimal(RecordTypes.Font, 0)))
+                return new PartyTabPanel(catalog, _flags, partyRules, items);
         }
         if (id.Type == RecordTypes.Actor && json is not null)
         {

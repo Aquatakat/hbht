@@ -17,11 +17,15 @@ namespace Aidyn.Inspector;
 /// screenshot. <c>--checkpoint &lt;state&gt;</c> shows a checkpoint's flags on flag pages, and
 /// <c>--play &lt;moves&gt;</c> plays a script's page that many moves, with its conversation box shown at
 /// <c>--zoom &lt;1-3&gt;</c>, <c>--ui-filter pixels|videoout|smooth</c>, <c>--aspect 4:3|16:9</c> and
-/// <c>--ui-lines 240|360|480</c>.
+/// <c>--ui-lines 240|360|480</c>. The inventory record's Party tab takes the same, and
+/// <c>--member &lt;slot&gt;</c>, <c>--list inventory|spells|skills|stats</c>, <c>--row &lt;n&gt;</c> and
+/// <c>--details 1</c>. <c>--ui-screenshot &lt;png&gt;</c> saves the UI screen too, in its own pixels,
+/// before it's scaled up.
 /// </remarks>
 public partial class Editor : Control
 {
     private readonly RecordBrowser _records = new() { Name = "Plugins" };
+    private string? _uiShot;
 
     public override void _Ready()
     {
@@ -34,6 +38,7 @@ public partial class Editor : Control
     private async Task StartAsync(Dictionary<string, string> args)
     {
         var png = args.GetValueOrDefault("screenshot");
+        _uiShot = args.GetValueOrDefault("ui-screenshot");
         if (png is not null)
             _ = Watchdog();
 
@@ -56,10 +61,14 @@ public partial class Editor : Control
             await _records.OpenAsync(RecordId.Parse(record));
         if (args.TryGetValue("play", out var moves))
             _records.PlayScript(int.Parse(moves, CultureInfo.InvariantCulture));
-        _records.SetScriptScreen(args.TryGetValue("zoom", out var zoom) ? int.Parse(zoom, CultureInfo.InvariantCulture) : null,
+        _records.SetUiScreen(args.TryGetValue("zoom", out var zoom) ? int.Parse(zoom, CultureInfo.InvariantCulture) : null,
             args.TryGetValue("ui-filter", out var filter) ? Enum.Parse<Aidyn.Game.UiFilter>(filter, ignoreCase: true) : null,
             args.TryGetValue("aspect", out var aspect) ? aspect == "16:9" : null,
             args.TryGetValue("ui-lines", out var lines) ? int.Parse(lines, CultureInfo.InvariantCulture) : null);
+        _records.ShowPartyTab(args.TryGetValue("member", out var member) ? int.Parse(member, CultureInfo.InvariantCulture) : null,
+            args.TryGetValue("list", out var list) ? Enum.Parse<Aidyn.Core.Ui.PartyList>(list, ignoreCase: true) : null,
+            args.TryGetValue("row", out var row) ? int.Parse(row, CultureInfo.InvariantCulture) : null,
+            args.TryGetValue("details", out var details) ? details == "1" : null);
         if (args.TryGetValue("drive", out var request))
             _records.Model.Drive(int.Parse(request, CultureInfo.InvariantCulture));
         _records.Model.SetWireframe(args.GetValueOrDefault("wireframe") == "1");
@@ -100,8 +109,15 @@ public partial class Editor : Control
             await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
         var error = GetViewport().GetTexture().GetImage().SavePng(path);
         GD.Print(error == Error.Ok ? $"Saved {path}" : $"Couldn't save {path}: {error}");
+        if (_uiShot is { } ui && Descendants(this).OfType<Aidyn.Game.UiScreen>().FirstOrDefault(s => s.IsVisibleInTree()) is { } screen)
+        {
+            var saved = screen.Capture().SavePng(ui);
+            GD.Print(saved == Error.Ok ? $"Saved {ui}" : $"Couldn't save {ui}: {saved}");
+        }
         GetTree().Quit(error == Error.Ok ? 0 : 1);
     }
+
+    private static IEnumerable<Node> Descendants(Node node) => node.GetChildren().SelectMany(c => Descendants(c).Prepend(c));
 
     private static Dictionary<string, string> Options(string[] args)
     {
