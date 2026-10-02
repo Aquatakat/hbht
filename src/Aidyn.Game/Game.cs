@@ -329,8 +329,9 @@ public partial class Game : Node3D, IMapObjectHost
     /// <summary>
     /// One 60 Hz tick: the time played, which counts in every mode, and in trek the clock, the
     /// camera, then the player, as the original orders them. The pause menu stops trek. A popup
-    /// doesn't: the world goes on, and only the player's input goes to the popup, as the user knows
-    /// the original's to do. A teleport's fade takes the player's input too.
+    /// stops only the clock (<c>TickGameTime</c>, skipped while <c>isPaused</c>), which the user saw
+    /// in the original: the sun stops, while bodies, animations and clouds go on, and the player's
+    /// input goes to the popup. A teleport's fade takes the player's input too.
     /// </summary>
     public override void _PhysicsProcess(double delta)
     {
@@ -343,7 +344,8 @@ public partial class Game : Node3D, IMapObjectHost
         StepFade();
         var fading = _pending is not null || _fadingIn;
         Enter(_chunks!.ChunkAt(_player.Motion.Sphere.Position.ToGodot()));
-        _game.PassTime(1);
+        if (_use!.Popup is null)
+            _game.PassTime(1);
         _sky!.Step();
         ScrollTextures();
         if (_camera.Flying)

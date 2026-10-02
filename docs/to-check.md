@@ -8,7 +8,6 @@ Things only the user can settle, in the emulator or by reading the ROM. Each lin
 - **Dougal at the harbour reunion** (script 1040), with Dougal in the party: whether the scene ends at his line, hangs or plays on. See [scripts](systems/scripts.md#to-check-in-the-emulator).
 - **Shop prices.** A few prices, buying and selling, with a checkpoint's party, to compare with the port's barter factor. See [items](systems/items.md#shops).
 - **The Party tab's cursor after equipping the last item** of the inventory, when no item moves up into its row, when a save allows it. See [ui](systems/ui.md#the-party-tabs-actions).
-- **Whether a popup stops the clock.** The port lets trek's popups (a lock's message, the trap's menu, a secret door found, and later the conversation box) leave the world running, as the user remembers: a chasing enemy can keep running into the player through a conversation. The decomp reads the clock and wanderers' goals (`TickGameTime`, `WanderTick`) as stopping while one is up (`isPaused`), though bodies keep moving (`ProcessPlayers`), which would also let a chaser keep coming. Watching the sundial with a message up would tell. See [map-objects](systems/map-objects.md#popups).
 
 ## In the ROM
 

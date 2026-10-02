@@ -61,7 +61,7 @@ Using a container (`loot_func`), once it's neither opened, destroyed nor remembe
 
 ## Popups
 
-A popup takes the player's input until it's closed (`TrekPopup`), but doesn't stop the world: the clock runs, bodies move and tangible triggers still go off, while doors and dialogues wait for it to close (`vobject_pause_check`). The user knows the original's to behave so: a chasing enemy can keep running into the player through a conversation. The decomp reads the clock and wanderers' goals as stopping under a popup, so that's on the [list to check](../to-check.md).
+A popup takes the player's input until it's closed (`TrekPopup`), and stops the clock, with the potions working, but not the world (`isPaused`): bodies move, animations and clouds go on, and tangible triggers still go off, while doors and dialogues wait for it to close (`vobject_pause_check`). The user confirmed it in the original on Oct 1, 2026: the sun stops while a popup is up (the sundial is hidden), and Alaron's animations, the clouds and enemies' movements go on, so a chasing enemy can keep running into the player through a conversation. Wanderers don't choose new goals under a popup either (`WanderTick` is skipped), which the user couldn't see as easily but takes as true; it comes with wanderers in session 5.
 
 - **A message** (`TrekTextPopup`, `TextBox_Centered`): off-white text in a feathered black box at the screen's centre, as wide as the text up to 150, wrapping there, A or B closing it.
 - **The trap's damage** (`TrapMenu::TakeDamage`): white, in a box 16 wider than its widest line and as tall as its lines at the first line's height plus 2.
