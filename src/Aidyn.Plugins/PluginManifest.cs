@@ -45,8 +45,10 @@ public static class BasePlugin
     /// 15 gives spells their icons and descriptions, and items their descriptions.
     /// 16 gives spells their place in the spell table, which loading a save orders spellbooks by.
     /// 17 gives collision triangles the object a trigger triangle runs, or a toggle's id (<c>_TARGET</c>).
+    /// 18 gives containers their reach, and maps the grid of the objects each cell lists.
+    /// 19 names camera objects' flags 0x8, 0x10, 0x100 and 0x200.
     /// </summary>
-    public const int ImporterVersion = 18;
+    public const int ImporterVersion = 19;
 }
 
 /// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>

@@ -1,10 +1,14 @@
 using System.Numerics;
 using Aidyn.Core.Physics;
+using Aidyn.Plugins;
+using Aidyn.Plugins.Records;
 
 namespace Aidyn.Core.Cameras;
 
 /// <summary>
-/// The outdoor camera (<c>Camera::Mode0</c>), and orbiting it with R (<c>FUN_800b0fac</c>).
+/// The camera that follows the player in trek: outdoors (<c>Camera::Mode0</c>), in interiors
+/// (<c>Camera::Mode1</c>, see <see cref="CameraMode.Interior"/>), and orbiting it with R
+/// (<c>FUN_800b0fac</c>). Camera objects take it over for a while (<see cref="CameraMove"/>).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -23,11 +27,11 @@ namespace Aidyn.Core.Cameras;
 /// <para>
 /// Orbiting keeps the camera 0 to 5 above the aim at a distance easing to 5, which tops out at
 /// 45°, and pulls it in when a wall is behind. Outside that, <c>Mode0</c> doesn't avoid walls;
-/// interiors use another mode (<c>Mode1</c>), which isn't ported yet.
+/// interiors' does.
 /// </para>
 /// Checked against the 1.0 ROM's machine code.
 /// </remarks>
-public sealed class FollowCamera
+public sealed partial class FollowCamera
 {
     /// <summary>R held (<c>holdCamera</c>).</summary>
     private enum HoldState { None, Starting, Holding, Releasing }
@@ -87,6 +91,18 @@ public sealed class FollowCamera
     private int _distanceTimer;
     private HoldState _hold;
 
+    /// <summary>
+    /// Outdoors or in an interior (<c>camera_mode</c>). A teleport chooses it by the chunk it arrives
+    /// in (<see cref="Arrive"/>); walking from chunk to chunk keeps it.
+    /// </summary>
+    public CameraMode Mode { get; set; }
+
+    /// <summary>
+    /// Whether a camera object has the camera this tick, so the next <see cref="Step"/> leaves it be
+    /// (<c>camera_mode</c> 2, then <c>RevertMode</c>).
+    /// </summary>
+    public bool Held { get; private set; }
+
     /// <summary>Places the camera behind a point, looking along <paramref name="look"/>, as a map load does.</summary>
     public FollowCamera(Vector3 target, Vector2 look)
     {
@@ -103,6 +119,16 @@ public sealed class FollowCamera
     /// </summary>
     public void Step(CollisionWorld world, Vector3 target, Vector2 heading, bool checkView = true)
     {
+        if (Held)
+        {
+            Held = false;
+            return;
+        }
+        if (Mode == CameraMode.Interior)
+        {
+            StepInterior(world, target, heading);
+            return;
+        }
         var back = -heading;
         var before = Position;
         if (_distanceTimer != 0 && --_distanceTimer <= 0)
@@ -171,13 +197,85 @@ public sealed class FollowCamera
         Pitch += Cadence.PerTick(stick.Y);
     }
 
-    /// <summary>R not held (<c>Actor::Move</c>): stop orbiting and follow again.</summary>
+    /// <summary>
+    /// R not held (<c>Actor::Move</c>): stop orbiting and follow again. Outdoors that puts the pitch
+    /// back; in interiors it zeroes it, where it's only the orbit's.
+    /// </summary>
     public void Follow()
     {
         if (_hold != HoldState.None)
             _hold = HoldState.Releasing;
         OrbitAngle = 0;
+        Pitch = Mode == CameraMode.Outdoor ? DefaultPitch : 0;
+    }
+
+    /// <summary>
+    /// The mode a teleport into <paramref name="chunk"/> chooses (<c>TeleportPlayer</c>): interior where
+    /// its terrain doesn't draw the sky, the original's sky type 4.
+    /// </summary>
+    public static CameraMode ModeFor(PluginSet plugins, ChunkEntry chunk) =>
+        plugins.TryGet<TerrainRecord>(RecordId.Decimal(RecordTypes.Terrain, chunk.Terrain)) is { SkyDrawn: false }
+            ? CameraMode.Interior
+            : CameraMode.Outdoor;
+
+    /// <summary>A camera object has the camera this tick (<c>Camera::SetMode(cam, 2)</c>).</summary>
+    public void Hold() => Held = true;
+
+    /// <summary>Puts the camera at <paramref name="position"/>, and its goal there (<c>Camera::SetPos</c>).</summary>
+    public void PlaceAt(Vector3 position) => Position = PositionGoal = position;
+
+    /// <summary>Aims it at <paramref name="aim"/>, and its goal there (<c>Camera::SetAim</c>).</summary>
+    public void AimAt(Vector3 aim) => Aim = AimGoal = aim;
+
+    /// <summary>
+    /// Keeps it <paramref name="distance"/> behind the player, but no nearer than
+    /// <see cref="MinDistance"/>, for the next half second outdoors (a camera object's flag 0x100).
+    /// </summary>
+    public void HoldDistance(float distance)
+    {
+        Distance = MathF.Max(distance, MinDistance);
+        _distanceTimer = 30;
+    }
+
+    /// <summary>
+    /// The player went through a teleporter from <paramref name="from"/> to <paramref name="to"/>,
+    /// now facing <paramref name="heading"/> (<c>TeleportPlayer</c>). The camera moves with him, in
+    /// <paramref name="mode"/>, and stops orbiting. Then it's at <paramref name="point"/> if the
+    /// teleporter names one; otherwise in an interior it's 4 in front of him and 3 up, looking back
+    /// at him, and outdoors it's behind him, as a map load puts it. Outdoors it swings round
+    /// quickly for a few frames.
+    /// </summary>
+    public void Arrive(Vector3 from, Vector3 to, Vector2 heading, CameraMode mode, Vector3? point)
+    {
+        Mode = mode;
+        Held = false;
+        // ApplyZoneVelocity moves the camera with the player, and GiveCameraToPlayer stops the orbit.
+        var offset = to - from;
+        Position += offset;
+        Aim += offset;
+        PositionGoal += offset;
+        AimGoal += offset;
+        OrbitAngle = 0;
         Pitch = DefaultPitch;
+        Anchor(to);
+        var aim = to + new Vector3(0, Height, 0);
+        if (point is { } p)
+        {
+            PlaceAt(p);
+        }
+        else if (mode == CameraMode.Interior)
+        {
+            // The original's facing is the opposite of the heading, which this subtracts.
+            PlaceAt(new Vector3(to.X + heading.X * 4, to.Y + 3, to.Z + heading.Y * 4));
+            AimAt(aim);
+        }
+        else
+        {
+            AimAt(aim);
+            LookXZ = Vector2.Normalize(heading);
+            PlaceAt(Behind());
+        }
+        Snap = 5;
     }
 
     /// <summary>The player is standing still at <paramref name="player"/> (<c>SetFeild70</c>).</summary>
@@ -198,7 +296,8 @@ public sealed class FollowCamera
         }
     }
 
-    private void Orient()
+    /// <summary>Turns <see cref="LookXZ"/> to the way it looks (<c>Camera::Orient</c>).</summary>
+    internal void Orient()
     {
         var flat = new Vector2(Aim.X - Position.X, Aim.Z - Position.Z);
         var length = MathF.Max(flat.Length(), 1e-6f);
@@ -281,7 +380,7 @@ public sealed class FollowCamera
     /// Moves <paramref name="point"/> <c>1/rate</c> of the way to <paramref name="target"/>, but
     /// no more than <paramref name="most"/> (<c>AdjustAim</c>, one tick).
     /// </summary>
-    private static void Approach(ref Vector3 point, Vector3 target, float rate, float most)
+    internal static void Approach(ref Vector3 point, Vector3 target, float rate, float most)
     {
         var step = (point - target) / rate;
         var length = SpherePhysics.Normalize(ref step);
@@ -296,4 +395,17 @@ public sealed class FollowCamera
     /// </summary>
     internal static float GoalRate(float rate) =>
         Cadence.FrameTicks / (Cadence.FrameShare(rate) * Cadence.FrameShare(16) * 16);
+}
+
+/// <summary>The follow camera's modes (<c>camera_mode</c>).</summary>
+public enum CameraMode
+{
+    /// <summary>Outdoors (<c>Camera::Mode0</c>).</summary>
+    Outdoor,
+
+    /// <summary>
+    /// In interiors (<c>Camera::Mode1</c>): chunks whose terrain doesn't draw the sky
+    /// (<see cref="TerrainRecord.SkyDrawn"/>), the original's sky type 4.
+    /// </summary>
+    Interior,
 }

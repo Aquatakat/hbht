@@ -50,11 +50,11 @@ public interface IMapObjectHost
 /// the object again, so the next step follows; so does closing a door's trap's damage, which then opens it.
 /// </para>
 /// <para>
-/// Monster parties, which A also reaches, come with their wanderers (M2's fifth session), and camera
-/// objects with the interiors' camera (4c).
+/// Monster parties, which A also reaches, come with their wanderers (M2's fifth session). Camera
+/// objects take the camera (<see cref="Camera"/>).
 /// </para>
 /// </remarks>
-public sealed class MapObjectUse(GameState game, MenuText text, IMapObjectHost host)
+public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObjectHost host)
 {
     /// <summary>How many objects A weighs at once (<c>obj_ref_func</c>'s list).</summary>
     public const int MaxCandidates = 16;
@@ -217,6 +217,7 @@ public sealed class MapObjectUse(GameState game, MenuText text, IMapObjectHost h
     /// </summary>
     public void Touch(LoadedMap map, Vector3 at)
     {
+        TouchCameras(map, at);
         foreach (var o in map.Objects)
         {
             if (!o.Tangible || !map.IsActive(o.Index) || Vector3.Distance(o.Position, at) > o.Radius || !Holds(o.Enabled))
@@ -240,11 +241,17 @@ public sealed class MapObjectUse(GameState game, MenuText text, IMapObjectHost h
 
     /// <summary>
     /// What touching a trigger triangle does (<c>check_trigger</c>), if the object it names is active: a
-    /// teleporter takes the player through at once, whatever its gates; a dialogue starts its script if
-    /// the player is within its radius and its <see cref="MapObject.Enabled"/> holds. Cameras are 4c's.
+    /// camera takes the camera for the next second (<see cref="StepCameras"/>); a teleporter takes the
+    /// player through at once, whatever its gates; a dialogue starts its script if the player is within
+    /// its radius and its <see cref="MapObject.Enabled"/> holds.
     /// </summary>
     public void Tread(LoadedMap map, int index, Vector3 at)
     {
+        if (map.IsActive(index) && map[index] is CameraObject camera)
+        {
+            TreadCamera(map, camera);
+            return;
+        }
         if (Popup is not null || !map.IsActive(index) || map[index] is not { } o)
             return;
         switch (o)

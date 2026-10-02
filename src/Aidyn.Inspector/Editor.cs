@@ -22,7 +22,7 @@ namespace Aidyn.Inspector;
 /// <c>--member &lt;slot&gt;</c>, <c>--list inventory|spells|skills|stats</c>, <c>--row &lt;n&gt;</c> and
 /// <c>--details 1</c>, and <c>--press &lt;a,b,up,down&gt;</c> presses those buttons in turn after. <c>--roll 1</c> rolls a
 /// loot table's page, or opens the container a map object's page picks, in the loot window, whose buttons
-/// <c>--press</c> also takes, with <c>left</c> and <c>right</c>. <c>--ui-screenshot &lt;png&gt;</c> saves the UI screen too, in its own pixels,
+/// <c>--press</c> also takes, with <c>left</c> and <c>right</c>. <c>--look 1</c>, after the wait, looks through a camera object's page's camera. <c>--ui-screenshot &lt;png&gt;</c> saves the UI screen too, in its own pixels,
 /// before it's scaled up.
 /// </remarks>
 public partial class Editor : Control
@@ -95,6 +95,8 @@ public partial class Editor : Control
             _records.Map.SetCollision(collision);
         if (args.TryGetValue("wait", out var wait))
             await ToSignal(GetTree().CreateTimer(double.Parse(wait, CultureInfo.InvariantCulture)), SceneTreeTimer.SignalName.Timeout);
+        if (args.GetValueOrDefault("look") == "1")
+            _records.Map.LookThrough();
         if (png is not null)
             await Screenshot(png);
     }

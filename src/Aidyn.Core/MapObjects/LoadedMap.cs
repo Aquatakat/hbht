@@ -1,3 +1,5 @@
+using System.Numerics;
+using Aidyn.Core.Cameras;
 using Aidyn.Core.Flags;
 using Aidyn.Core.Items;
 using Aidyn.Core.Rng;
@@ -48,6 +50,7 @@ public sealed class LoadedMap
     private readonly Dictionary<int, Container> _containers = [];
     private readonly Dictionary<int, Teleporter> _teleporters = [];
     private readonly Dictionary<int, ContainerLook> _looks = [];
+    private readonly Dictionary<int, CameraMove> _cameraMoves = [];
 
     private LoadedMap(MapRecord record, object key)
     {
@@ -60,6 +63,9 @@ public sealed class LoadedMap
 
     /// <summary>What the runtime keys the chunk by, such as its collision's part in the world.</summary>
     public object Key { get; }
+
+    /// <summary>Where the chunk's origin is in the world, which its objects' positions are relative to.</summary>
+    public Vector3 Origin { get; private init; }
 
     /// <summary>
     /// The best Ranger's share of what herb, spice and gem sources give, rolled as the chunk's objects
@@ -87,6 +93,22 @@ public sealed class LoadedMap
 
     /// <summary>A teleporter's lock, trap and secret, or null if the object isn't one.</summary>
     public Teleporter? Teleporter(int index) => _teleporters.GetValueOrDefault(index);
+
+    /// <summary>
+    /// A camera object's move, which keeps where it's got to while the chunk is loaded, to its
+    /// reference point in the world (<c>FindReferncePoint</c>), or above the player without one.
+    /// </summary>
+    public CameraMove CameraMove(CameraObject camera)
+    {
+        if (!_cameraMoves.TryGetValue(camera.Index, out var move))
+        {
+            var point = camera.RefPoint is { } id && MapRecord.MapOf(id) == Record.Id && this[Index(id)] is ReferencePointObject reference
+                ? Origin + reference.Position
+                : (Vector3?)null;
+            _cameraMoves[camera.Index] = move = new CameraMove(camera.Flags, point, camera.Values);
+        }
+        return move;
+    }
 
     /// <summary>Which of its models a container's scene object shows.</summary>
     public ContainerLook Look(int sceneIndex) => _looks.GetValueOrDefault(sceneIndex);
@@ -131,9 +153,9 @@ public sealed class LoadedMap
     /// </list>
     /// </summary>
     public static LoadedMap Activate(MapRecord record, object key, FlagNetwork flags, MapObjectMemory memory, Characters.Party party,
-        IRandom random)
+        IRandom random, Vector3 origin = default)
     {
-        var map = new LoadedMap(record, key);
+        var map = new LoadedMap(record, key) { Origin = origin };
         bool IsSet(RecordId flag) => flags.TryHandle(flag, out var handle) && flags.Get(handle);
         map.HarvestShare = Containers.HarvestShare(party, random);
 

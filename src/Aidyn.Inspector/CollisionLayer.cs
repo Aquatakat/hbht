@@ -86,6 +86,26 @@ public sealed class CollisionLayer
     public Aabb? Bounds(ChunkEntry chunk) =>
         _chunks.TryGetValue((chunk.Row, chunk.Column), out var c) && c.Triangles.Length > 0 ? c.Bounds : null;
 
+    /// <summary>
+    /// The middle of the trigger triangles in a chunk that run its object <paramref name="target"/>, in
+    /// the map set's coordinates, or null if none do or the chunk isn't loaded.
+    /// </summary>
+    public Vector3? TriggerCentre(ChunkEntry entry, int target)
+    {
+        if (!_chunks.TryGetValue((entry.Row, entry.Column), out var chunk))
+            return null;
+        var sum = Vector3.Zero;
+        var count = 0;
+        for (var i = 0; i < chunk.Triangles.Length; i++)
+        {
+            if (chunk.Triangles[i].Role != CollisionRole.Trigger || chunk.Triangles[i].Target != target)
+                continue;
+            sum += chunk.Corners[3 * i] + chunk.Corners[3 * i + 1] + chunk.Corners[3 * i + 2];
+            count += 3;
+        }
+        return count > 0 ? sum / count : null;
+    }
+
     /// <summary>Adds a chunk's collision, read from its map's asset, at its origin.</summary>
     public void Add(ChunkEntry entry, IReadOnlyList<CollisionTriangle> triangles, Vector3 origin, Colouring colouring, bool pak)
     {

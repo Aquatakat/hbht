@@ -32,7 +32,16 @@ One alone is used. Of several, the one with the best (farthest − its distance)
 ## Walking into objects and onto triangles
 
 - **Tangible objects** (`ProcessVoxelObjects`), each tick, while the player is within the radius of an active one whose Enabled holds: a teleporter takes him through, skipping its secret, trap and lock; a trigger goes off, every tick he's there; a dialogue starts its script (session 5).
-- **Trigger triangles** (`check_trigger`), when the player touches one whose object is active: 1,532 name cameras (4c) and 317 dialogues, which start their script if he's within the dialogue's radius and its Enabled holds. A teleporter named by a triangle would take him through at once, whatever its gates, but none is. The collision asset carries each triangle's object as `_TARGET` ([maps](../formats/maps.md)).
+- **Trigger triangles** (`check_trigger`), when the player touches one whose object is active: 1,532 name cameras (below) and 317 dialogues, which start their script if he's within the dialogue's radius and its Enabled holds. A teleporter named by a triangle would take him through at once, whatever its gates, but none is. The collision asset carries each triangle's object as `_TARGET` ([maps](../formats/maps.md)).
+
+## Camera objects
+
+`MapObjectUse.Cameras.cs`; what a camera object does to the camera is in [cameras](cameras.md#camera-objects-processvoxelcamera). There are 244, reached two ways, and none both:
+
+- **182 the grid lists,** each with a radius under 200. Each tick, before the camera steps (`ProcessVoxelObjects`), those the player's grid cell lists take the camera while he's within their radius and they're active. They're mostly one to a room: each of Gwernia's houses has one that covers it, cutting to a point near the ceiling and tracking him.
+- **62 trigger triangles name,** 1,532 triangles between them. Each sits at its chunk's origin with a radius of 200, and no cell lists it. Touching one of its triangles (`set_camera_voxel_pointer`) gives the camera to it for 60 ticks, counting that one, and each touch starts the count again; it steps after the player moves (`ProcessScriptCamera`). A later triangle's camera takes over from an earlier one's, and going through a teleporter lets go (`clear_camera_voxel_pointer`). Gwernia's inn has four, which ease from point to point as he crosses it.
+
+216 move the camera or its aim to a reference point in their own map; the other 28 set how the outdoor camera follows. The original looks the reference point up in the chunk the player is in, and the port in the camera's own, as for trigger triangles. Camera objects work under popups, as the original runs `ProcessVoxelObjects` then; that a trigger triangle's does too is a guess. Teleporters' camera points are where a teleport puts the camera ([cameras](cameras.md#which-mode-m2-session-4c)); a house's door names the same point its room's camera cuts to.
 
 ## Triggers
 
@@ -75,6 +84,6 @@ The runtime's chunk streamer keeps each loaded chunk's `LoadedMap` beside its co
 
 - Alaron's animations for opening a container (request 11) and a door (19), which the original asks for only when it chose among several objects.
 - Sounds (containers' by kind, the coin jingle, the explosion), the explosion's lights and particles, and the popups' fades.
-- Camera objects and the interiors' camera (4c), and monster parties and dialogues (session 5).
+- Monster parties and dialogues (session 5), and cut-scenes' cameras (session 6).
 - The editor's map object pages don't use objects yet, but a container's opens in the loot window ([inspector](inspector.md)).
 - The trap menu's layout follows the decomp's reading of `WidgetChoiceDia::Update`, the question above the choices, with the cursor's choice pulsing grey to white, the scroll menu's defaults. The user finds it looks right, and will confirm it in the ROM ([to-check](../to-check.md)).

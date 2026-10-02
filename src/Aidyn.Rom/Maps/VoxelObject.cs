@@ -234,12 +234,14 @@ public enum CameraFlags : ushort
     Pan = 0x2,
     /// <summary>Eases there over <see cref="CameraData.Duration"/> ticks.</summary>
     Sine = 0x4,
-    Unknown8 = 0x8,
-    Unknown10 = 0x10,
-    /// <summary>Sets a camera field from <see cref="CameraData.Values"/>.Y.</summary>
-    Unknown100 = 0x100,
-    /// <summary>Sets a camera field from <see cref="CameraData.Values"/>.X.</summary>
-    Unknown200 = 0x200,
+    /// <summary>Eases in there, slow then fast (1 − cos), over <see cref="CameraData.Duration"/> ticks.</summary>
+    EaseIn = 0x8,
+    /// <summary>Eases out there, fast then slow (sin), over <see cref="CameraData.Duration"/> ticks.</summary>
+    EaseOut = 0x10,
+    /// <summary>Has the outdoor camera follow <see cref="CameraData.Values"/>.Y behind, but no nearer than 3.</summary>
+    Distance = 0x100,
+    /// <summary>Has the outdoor camera follow <see cref="CameraData.Values"/>.X degrees up.</summary>
+    Pitch = 0x200,
     /// <summary>Keeps the camera aimed at the player.</summary>
     Track = 0x2000,
     /// <summary>Moves the camera's aim to the reference point.</summary>
@@ -253,7 +255,7 @@ public enum CameraFlags : ushort
 /// triangle that names it (<c>voxelCamera</c>).
 /// </summary>
 /// <param name="RefPoint">The reference point to move to, or 0 for just above the player.</param>
-/// <param name="Values">Z is <see cref="Duration"/>. X and Y are read with two unexplained flags.</param>
+/// <param name="Values">Z is <see cref="Duration"/>; X is the pitch for <see cref="CameraFlags.Pitch"/> and Y the distance for <see cref="CameraFlags.Distance"/>.</param>
 public sealed record CameraData(ushort RefPoint, CameraFlags CameraFlags, Vector3 Values) : VoxelData
 {
     public float Duration => Values.Z;

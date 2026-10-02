@@ -98,6 +98,12 @@ public partial class MapSetView : VBoxContainer
         TooltipText = "Roll what it holds, as opening it does, and show the loot window against the editor's game, without setting its flags.",
     };
     private readonly Label _opened = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart };
+    private readonly Button _lookThrough = new()
+    {
+        Text = "Look through it",
+        TooltipText = "Put the view where this camera object puts the camera, aimed at where the player stands to trigger it: " +
+            "the middle of its reach, or of the trigger triangles that name it, at the player's height.",
+    };
     private readonly Lcg _random = new((uint)System.Random.Shared.Next());
     private Window? _lootWindow;
     private readonly RecordFieldsView _fields = new() { SizeFlagsVertical = SizeFlags.ExpandFill };
@@ -148,6 +154,8 @@ public partial class MapSetView : VBoxContainer
         _panel.AddChild(_title);
         _open.Pressed += Roll;
         _panel.AddChild(_open);
+        _lookThrough.Pressed += LookThrough;
+        _panel.AddChild(_lookThrough);
         _panel.AddChild(_opened);
         _panel.AddChild(_fields);
         _split.AddChild(_panel);
@@ -659,6 +667,7 @@ public partial class MapSetView : VBoxContainer
             _selection.AddChild(Points([.. linked.Select(l => l.Position)], Colors.White, 8, 0.97f));
 
         _open.Visible = o is ContainerObject && _game is not null;
+        _lookThrough.Visible = o is CameraObject { RefPoint: not null } camera && (camera.Flags & CameraFlags.Position) != 0;
         _opened.Text = "";
         var there = Shown(o) ? "" : " It isn't there with these switches.";
         _title.Text = $"{MapObjects.Describe(catalog, o)}\nObject {o.Index} of {marked.Chunk.Map}, in {_set!.Label} {marked.Chunk.Name}.{there}";
@@ -672,6 +681,29 @@ public partial class MapSetView : VBoxContainer
             _orbit.Pitch = -0.6f;
             _orbit.Frame(_camera, marked.Position, Mathf.Clamp(o.Radius * 1.5f, 8, 60));
         }
+    }
+
+    /// <summary>
+    /// Puts the view at the picked camera object's reference point, aimed where the player stands to
+    /// trigger it. A camera object that tracks aims at the player, 1.05 above his sphere's centre.
+    /// </summary>
+    public void LookThrough()
+    {
+        if (_selected is not { Object: CameraObject { RefPoint: { } id } camera } marked || _objects.FirstOrDefault(m => m.Id == id) is not { } point)
+            return;
+        // The middle of the triangles, raised to the player's sphere's centre and his camera's height.
+        var target = _collisionLayer.TriggerCentre(marked.Chunk, camera.Index) is { } floor
+            ? floor + new Vector3(0, 0.5f + 1.05f, 0)
+            : marked.Position;
+        var look = point.Position - target;
+        if (look.LengthSquared() < 1e-6f)
+            return;
+        _orbit.Target = target;
+        _orbit.Distance = look.Length();
+        look /= _orbit.Distance;
+        _orbit.Pitch = Mathf.Asin(Mathf.Clamp(-look.Y, -1, 1));
+        _orbit.Yaw = Mathf.Atan2(look.X, look.Z);
+        _orbit.Apply(_camera);
     }
 
     /// <summary>The loot window open on a container, if any.</summary>

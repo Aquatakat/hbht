@@ -174,7 +174,8 @@ public partial class ChunkStreamer : Node3D
         if (_plugins!.FindAsset(chunk.Map, "glb") is { } collision)
             _world!.Add(cell, CollisionMesh.Read(File.ReadAllBytes(collision)), MapSet.Origin(chunk.Row, chunk.Column));
         var game = _game!;
-        var map = _maps[cell] = LoadedMap.Activate(_plugins.Get<MapRecord>(chunk.Map), cell, game.Flags, game.Memory, game.Party, game.Random.World);
+        var map = _maps[cell] = LoadedMap.Activate(_plugins.Get<MapRecord>(chunk.Map), cell, game.Flags, game.Memory, game.Party, game.Random.World,
+            MapSet.Origin(chunk.Row, chunk.Column));
         return Scenery(chunk, map);
     }
 

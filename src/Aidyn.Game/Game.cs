@@ -34,7 +34,8 @@ namespace Aidyn.Game;
 /// and <c>--distance</c> for the camera, <c>--pace</c> for the player's speed (1 is the
 /// original's), <c>--fly &lt;x&gt;,&lt;y&gt;,&lt;z&gt;</c> to start with the free camera there in
 /// world coordinates, looking along <c>--yaw</c> and <c>--pitch</c>, <c>--time &lt;hours&gt;</c>
-/// for the time of day (a new game starts at 12), and
+/// for the time of day (a new game starts at 12), <c>--camera outdoor|interior</c> for the camera's
+/// mode (by default, what going through a door into the chunk gives), and
 /// <c>--hold &lt;action&gt;,&lt;seconds&gt;</c>, which holds an input such as <c>move_forward</c>
 /// (join several with <c>+</c>, as in <c>move_forward+walk</c>),
 /// and <c>--screenshot &lt;png&gt;</c>, which saves the window after that and quits.
@@ -228,6 +229,12 @@ public partial class Game : Node3D, IMapObjectHost
         _follow.Pitch = _follow.DefaultPitch = pitch;
         if (args.TryGetValue("distance", out var distance))
             _follow.Distance = _follow.DefaultDistance = float.Parse(distance, CultureInfo.InvariantCulture);
+        // A save loaded from the game's menu arrives as through a teleporter, which chooses the mode.
+        var mode = args.TryGetValue("camera", out var modeArg)
+            ? Enum.Parse<CameraMode>(modeArg, ignoreCase: true)
+            : FollowCamera.ModeFor(plugins, chunk);
+        if (mode == CameraMode.Interior)
+            _follow.Arrive(centre, centre, look, mode, null);
         _camera = new CameraRig { Follow = _follow, Yaw = yaw, Pitch = Mathf.DegToRad(-pitch) };
         AddChild(_camera);
         _camera.Sync();
@@ -243,7 +250,7 @@ public partial class Game : Node3D, IMapObjectHost
         _fade.Visible = false;
         trek.AddChild(_fade);
         AddChild(trek);
-        _use = new MapObjectUse(game, MenuText.From(plugins), this) { World = _world };
+        _use = new MapObjectUse(game, MenuText.From(plugins), this) { World = _world, Camera = _follow, PlayerRadius = motion.Sphere.Radius };
 
         _menu = new PauseMenu(plugins, game);
         // The original reloads the map as the menu closes, so what changed shows.
@@ -329,8 +336,8 @@ public partial class Game : Node3D, IMapObjectHost
     }
 
     /// <summary>
-    /// One 60 Hz tick: the time played, which counts in every mode, and in trek the clock, the
-    /// camera, then the player, as the original orders them. The pause menu stops trek. A popup
+    /// One 60 Hz tick: the time played, which counts in every mode, and in trek the clock, the map
+    /// objects, the camera, the player, then a trigger triangle's camera, as the original orders them. The pause menu stops trek. A popup
     /// stops only the clock (<c>TickGameTime</c>, skipped while <c>isPaused</c>), which the user saw
     /// in the original: the sun stops, while bodies, animations and clouds go on, and the player's
     /// input goes to the popup. A teleport's fade takes the player's input too.
@@ -367,6 +374,7 @@ public partial class Game : Node3D, IMapObjectHost
                 if (_chunks.Map(part) is { } map)
                     _use!.Tread(map, target, Local(map, motion.Sphere.Position));
             }
+            _use!.StepCameras(motion.Sphere.Position);
         }
         ShowPopup();
         _player.Sync();
@@ -429,7 +437,8 @@ public partial class Game : Node3D, IMapObjectHost
     /// <summary>
     /// Takes the player through a teleporter (<c>TeleportPlayer</c>): what map objects remember ages, the
     /// destination's chunks load, in another map set if need be, and he's set down at the arrival point
-    /// facing its way, with the camera behind him.
+    /// facing its way. The camera goes with him, outdoors or in an interior by the chunk's terrain, to the
+    /// teleporter's camera point if it has one (<see cref="FollowCamera.Arrive"/>).
     /// </summary>
     private void GoThrough(TeleporterObject teleporter)
     {
@@ -449,7 +458,9 @@ public partial class Game : Node3D, IMapObjectHost
         }
         var point = _chunks.Origin(arrival.Chunk) + arrival.Position.ToGodot();
         _chunks.Update(point);
+        _use!.ClearCameras();
         var motion = _player!.Motion;
+        var from = motion.Sphere.Position;
         motion.Sphere.Position = TeleportArrival.Settle(_world, point.ToNumerics(), motion.Sphere.Radius) ?? point.ToNumerics();
         motion.Sphere.Velocity = System.Numerics.Vector3.Zero;
         if (arrival.Heading is { } heading)
@@ -458,17 +469,9 @@ public partial class Game : Node3D, IMapObjectHost
         Enter(arrival.Chunk);
         _sky!.Apply();
 
-        // The camera starts behind him, as outdoors (Camera::FUN_800b050c). Camera points and the
-        // interiors' camera come with 4c.
-        var follow = new FollowCamera(motion.Sphere.Position, motion.Heading)
-        {
-            Pitch = _follow!.DefaultPitch,
-            DefaultPitch = _follow.DefaultPitch,
-            Distance = _follow.DefaultDistance,
-            DefaultDistance = _follow.DefaultDistance,
-        };
-        _follow = _camera!.Follow = follow;
-        _camera.Yaw = MathF.Atan2(-motion.Heading.X, -motion.Heading.Y);
+        var camera = arrival.Camera is { } local ? _chunks.Origin(arrival.Chunk).ToNumerics() + local : (System.Numerics.Vector3?)null;
+        _follow!.Arrive(from, motion.Sphere.Position, motion.Heading, FollowCamera.ModeFor(_plugins!, arrival.Chunk), camera);
+        _camera!.Yaw = MathF.Atan2(-motion.Heading.X, -motion.Heading.Y);
         _player.Sync();
         _camera.Sync();
         PlaceShadow();
@@ -599,6 +602,7 @@ public partial class Game : Node3D, IMapObjectHost
                 (_camera.Flying ? "  [free camera]" : "") + "\n" +
                 (sphere.Touching ? $"on {Surfaces.ElementAtOrDefault(sphere.Surface) ?? sphere.Surface.ToString()}" : "in the air") +
                 $"  speed {Speed():F2}/s  request {motion.Request}  pace {motion.Pace:0.##} (F5)" +
+                $"  camera {_follow!.Mode.ToString().ToLowerInvariant()}{(_use!.CurrentCamera is { } held ? $" (object {held.Index})" : "")}" +
                 $"  {Clock(_sky!.Clock.TimeOfDay)}  sky {_sky.Placement.ToString().ToLowerInvariant()} (F6)" +
                 $"  UI {_menu!.Screen.Lines} lines (F7)";
         }
