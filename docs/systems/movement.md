@@ -14,4 +14,5 @@ Ported (`Aidyn.Core.Physics` and `Movement`, from `Actor::Move`, the player loop
   - The edge test places its closest point with the sweep's parameter instead of the edge's.
   - A bounce off an edge or corner only turns velocity already heading away from it.
   - A point exactly on a triangle's edge counts as inside for only half the triangles. A sphere balanced exactly on some shared edges can drop through.
+- Other bodies, wanderers for now, move by the same rules, steered by a goal instead of a stick, and push each other and the player apart: see [wanderers](wanderers.md).
 - Left out: the original only collides with the chunk the player is in, and keeps him 0.05 from its edges. The port collides with every loaded chunk.

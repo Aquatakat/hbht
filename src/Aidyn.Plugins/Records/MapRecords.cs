@@ -374,8 +374,11 @@ public sealed record PartyEnemy(RecordId Entity, int Min, int Max);
 public enum PartyFlags
 {
     None = 0,
-    /// <summary>Set on most parties. The game doesn't read it.</summary>
-    Unknown2 = 0x2,
+    /// <summary>
+    /// Walks to its wander nodes rather than running (<c>FUN_80012d44</c>, which the decomp reads as a
+    /// wander node's flags; 1.0's code reads the party's). Set on 990 of the 1,079.
+    /// </summary>
+    Walks = 0x2,
     /// <summary>
     /// Talking to it does nothing, though it has a dialogue: it's the body in a scene a dialogue
     /// object starts.

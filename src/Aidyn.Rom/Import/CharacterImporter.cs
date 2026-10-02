@@ -107,14 +107,29 @@ internal static class CharacterImporter
     public static List<PluginEntity> BuildEntities(GameDb db, EntityModels models)
     {
         var portraits = models.Entities.ToDictionary(m => m.Entity, m => RecordId.Hex(RecordTypes.Image, m.Portrait));
+        var bodies = models.Entities.ToDictionary(m => m.Entity, m => new EntityBody(RecordId.Hex(RecordTypes.Actor, m.Actor), m.Radius, m.Scale, m.Height));
         var alaron = db.Entities[AlaronDbPosition].Id;
         return
         [
             .. db.Entities.Where(e => DbRecordIds.For(e.Id) is not null)
-                .Select(e => Entity(e, portraits.GetValueOrDefault(e.Id), e.Id == alaron))
+                .Select(e => Entity(e, portraits.GetValueOrDefault(e.Id), e.Id == alaron) with { Body = bodies.GetValueOrDefault(e.Id, Fallback(EntityRadius)) })
                 .DistinctBy(e => e.Id).OrderBy(e => e.Id.Key, StringComparer.Ordinal),
         ];
     }
+
+    /// <summary>
+    /// The body the code gives a record its tables leave out: a bat (<c>BORG7_Bat</c>) of scale and
+    /// height 1, with a radius of 0.75 for an entity and 0.55 for a dialogue entity
+    /// (<c>EntityDB::GetBorg7</c>, <c>GetCollideRadius</c>, <c>GetScale</c>, <c>GetHeight</c>).
+    /// Every entity has an entry; five dialogue entities don't.
+    /// </summary>
+    public static EntityBody Fallback(float radius) => new(RecordId.Hex(RecordTypes.Actor, BatActor), radius, 1, 1);
+
+    /// <summary>Every dialogue entity's collision radius (<c>EntityDB::GetCollideRadius</c>).</summary>
+    public const float DialogEntityRadius = 0.55f;
+
+    private const float EntityRadius = 0.75f;
+    private const int BatActor = 0x2D4A;
 
     private static PluginEntity Entity(RomEntity e, RecordId? portrait, bool alaron)
     {

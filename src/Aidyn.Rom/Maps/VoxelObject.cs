@@ -326,8 +326,11 @@ public sealed record TeleporterData(
 public enum PartyFlags : ushort
 {
     None = 0,
-    /// <summary>Set on most parties. The game doesn't read it.</summary>
-    Unknown2 = 0x2,
+    /// <summary>
+    /// Walks back to its wander node rather than running (<c>FUN_80012d44</c>, which the decomp reads
+    /// as a wander node's flags; 1.0's code reads the party's). Set on most.
+    /// </summary>
+    Walks = 0x2,
     /// <summary>Talking to it does nothing, though it has a dialogue (checked in 1.0's code).</summary>
     Silent = 0x4,
 }

@@ -96,12 +96,14 @@ public sealed class BodyShadow
     /// </summary>
     /// <remarks>
     /// Shadows fade out over the last 2 units of <paramref name="drawDistance"/>. Only the
-    /// player's is drawn farther than <see cref="OthersDistance"/>. The original measures that
-    /// second distance from the body's position in its own chunk, not in the loaded world, so for
-    /// a body in another chunk it's off by the chunks between them. That isn't ported: bodies
-    /// other than the player don't have shadows yet.
+    /// player's is drawn farther than <see cref="OthersDistance"/>, and others fade toward it.
     /// </remarks>
-    public static byte? DrawAlpha(float drawDistance, float fromAim, bool player, byte bodyAlpha = 0xFF)
+    /// <param name="ownAim">
+    /// The distance the original measures for that second test: from the body's position in its own
+    /// chunk's coordinates to the aim in the player's chunk's, which for a body in another chunk is
+    /// off by the chunks between them. Without it, <paramref name="fromAim"/>.
+    /// </param>
+    public static byte? DrawAlpha(float drawDistance, float fromAim, bool player, byte bodyAlpha = 0xFF, float? ownAim = null)
     {
         if (fromAim >= drawDistance)
             return null;
@@ -109,10 +111,20 @@ public sealed class BodyShadow
         alpha = Math.Min(alpha, bodyAlpha);
         if (player)
             return alpha;
-        if (fromAim >= OthersDistance)
+        var own = ownAim ?? fromAim;
+        if (own >= OthersDistance)
             return null;
-        return (byte)(int)(alpha * (1 - fromAim / OthersDistance));
+        return (byte)(int)(alpha * (1 - own / OthersDistance));
     }
+
+    /// <summary>
+    /// The alpha a body is drawn with, or null when it isn't drawn (<c>renderPlayers</c>,
+    /// <c>PlayerShadowAlpha</c>): bodies show within <paramref name="drawDistance"/> of the camera's
+    /// aim, fading out over its last 2 units.
+    /// </summary>
+    public static byte? BodyAlpha(float drawDistance, float fromAim, byte bodyAlpha = 0xFF) =>
+        fromAim >= drawDistance ? null
+            : Math.Min(drawDistance - 2 < fromAim ? (byte)(int)((drawDistance - fromAim) * 0.5f * 255) : (byte)0xFF, bodyAlpha);
 
     /// <summary>
     /// The directions the texture's S and T run across the ground: the plane's X and Y axes after

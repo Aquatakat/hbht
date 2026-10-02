@@ -149,7 +149,7 @@ public static class SpherePhysics
                 {
                     Bounce(ref s.Velocity, t.Normal);
                     s.Position -= t.Normal * distance;
-                    Dampen(s, t.Surface, t.Normal);
+                    Dampen(s, SurfaceKeep(t.Surface), t.Normal);
                     s.ContactNormal = t.Normal;
                     touching = true;
                 }
@@ -168,7 +168,7 @@ public static class SpherePhysics
                     {
                         Bounce(ref s.Velocity, direction);
                         s.Position += direction * (distance - s.Radius);
-                        Dampen(s, t.Surface, direction);
+                        Dampen(s, SurfaceKeep(t.Surface), direction);
                         s.ContactNormal = direction;
                         touching = hit = true;
                     }
@@ -187,7 +187,7 @@ public static class SpherePhysics
                     {
                         Bounce(ref s.Velocity, direction);
                         s.Position += direction * (distance - s.Radius);
-                        Dampen(s, t.Surface, direction);
+                        Dampen(s, SurfaceKeep(t.Surface), direction);
                         // Unlike the edges, a corner reports the face's normal.
                         s.ContactNormal = t.Normal;
                         touching = hit = true;
@@ -329,10 +329,12 @@ public static class SpherePhysics
 
     /// <summary>
     /// Takes the velocity along a contact out, one axis at a time, unless it's within 20° of the
-    /// last contact, then keeps the surface's share of what's left (<c>FUN_800af578</c>). Every
-    /// sphere and surface would scale the first part by one (<c>collisionTypeA.unk0</c> is always 0).
+    /// last contact, then keeps the surface's share of what's left, times the sphere's own
+    /// (<c>FUN_800af578</c>). Every sphere and surface would scale the first part by one
+    /// (<c>collisionTypeA.unk0</c> is always 0).
     /// </summary>
-    private static void Dampen(CollisionSphere s, int surface, Vector3 normal)
+    /// <param name="keep">The share of the velocity the other side keeps: a surface's, or another body's.</param>
+    private static void Dampen(CollisionSphere s, float keep, Vector3 normal)
     {
         if (!s.Touching || MathF.Abs(Vector3.Dot(normal, s.ContactNormal)) < 0.9397f)
         {
@@ -340,7 +342,34 @@ public static class SpherePhysics
             s.Velocity.Y *= 1 - MathF.Abs(normal.Y);
             s.Velocity.Z *= 1 - MathF.Abs(normal.Z);
         }
-        s.Velocity *= SurfaceKeep(surface) * s.Keep;
+        s.Velocity *= keep * s.Keep;
+    }
+
+    /// <summary>
+    /// Pushes a body's sphere out of another body's, across the ground only, each at its scale
+    /// (<c>FUN_800b003c</c>, <c>FUN_800af120</c>): it moves straight away from the other until they
+    /// touch, and its velocity bounces and dampens as off a wall. The other doesn't move.
+    /// </summary>
+    /// <param name="distance">
+    /// How far apart their centres are across the ground. When they don't touch, the original measures
+    /// it with the other's radius at this body's scale rather than its own, and so does this.
+    /// </param>
+    /// <returns>Whether they touched.</returns>
+    public static bool PushApart(CollisionSphere s, float scale, CollisionSphere other, float otherScale, out float distance)
+    {
+        var away = other.Position - s.Position;
+        away.Y = 0;
+        var gap = Normalize(ref away) - other.Radius * otherScale;
+        if (gap > s.Radius * scale)
+        {
+            distance = gap + other.Radius * scale;
+            return false;
+        }
+        Bounce(ref s.Velocity, away);
+        s.Position += away * (gap - s.Radius * scale);
+        Dampen(s, other.Keep, away);
+        distance = gap + other.Radius * otherScale;
+        return true;
     }
 
     /// <summary>Normalizes in place and returns the length, never less than <see cref="Epsilon"/> (<c>Vec3Normalize</c>).</summary>

@@ -2,6 +2,7 @@ using Aidyn.Core;
 using Aidyn.Core.MapObjects;
 using Aidyn.Core.Physics;
 using Aidyn.Core.Scenes;
+using Aidyn.Core.Trek;
 using Aidyn.Inspector;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Assets;
@@ -14,7 +15,8 @@ namespace Aidyn.Game;
 /// Keeps the 3×3 chunks around a point loaded, as the original's zone engine does
 /// (<c>ZoneDatMtx</c>): each chunk's scenery, its see-through scenery, the models its scene
 /// objects place, its collision, which goes into the <see cref="CollisionWorld"/> keyed by its row
-/// and column, and its map objects as they stand while it's loaded (<see cref="LoadedMap"/>).
+/// and column, its map objects as they stand while it's loaded (<see cref="LoadedMap"/>), and its
+/// monster parties' bodies (<see cref="Wanderers"/>).
 /// </summary>
 public partial class ChunkStreamer : Node3D
 {
@@ -27,15 +29,23 @@ public partial class ChunkStreamer : Node3D
     private readonly Dictionary<(int Row, int Column), ChunkScenery> _loaded = [];
     /// <summary>Each loaded chunk's map objects.</summary>
     private readonly Dictionary<(int Row, int Column), LoadedMap> _maps = [];
+    private readonly Wanderers? _wanderers;
+    private readonly Texture2D? _shadow;
+    private readonly Dictionary<Wanderer, WandererView> _views = [];
     private (int Row, int Column) _centre;
 
     public ChunkStreamer()
     {
     }
 
-    public ChunkStreamer(PluginSet plugins, Models models, MapSetRecord set, CollisionWorld world, GameState game)
+    /// <param name="wanderers">The game's wanderers, which should hold none when the streamer starts.</param>
+    /// <param name="shadow">The texture of bodies' shadows.</param>
+    public ChunkStreamer(PluginSet plugins, Models models, MapSetRecord set, CollisionWorld world, GameState game, Wanderers wanderers,
+        Texture2D? shadow)
     {
         _plugins = plugins;
+        _wanderers = wanderers;
+        _shadow = shadow;
         _game = game;
         _models = models;
         _set = set;
@@ -87,6 +97,11 @@ public partial class ChunkStreamer : Node3D
         {
             _loaded[cell].Root.QueueFree();
             _loaded.Remove(cell);
+            foreach (var gone in _wanderers!.Unload(_maps[cell]))
+            {
+                _views[gone].QueueFree();
+                _views.Remove(gone);
+            }
             _maps.Remove(cell);
             _world!.Remove(cell);
             changed = true;
@@ -99,6 +114,12 @@ public partial class ChunkStreamer : Node3D
         }
         return changed;
     }
+
+    /// <summary>The wanderers' bodies as they're drawn.</summary>
+    public IEnumerable<WandererView> Wanderers => _views.Values;
+
+    /// <summary>A wanderer's body as it's drawn.</summary>
+    public WandererView? View(Wanderer wanderer) => _views.GetValueOrDefault(wanderer);
 
     /// <summary>The loaded chunks' billboards.</summary>
     public IEnumerable<Node3D> BillboardFacings => _loaded.Values.SelectMany(c => c.Billboards);
@@ -176,6 +197,11 @@ public partial class ChunkStreamer : Node3D
         var game = _game!;
         var map = _maps[cell] = LoadedMap.Activate(_plugins.Get<MapRecord>(chunk.Map), cell, game.Flags, game.Memory, game.Party, game.Random.World,
             MapSet.Origin(chunk.Row, chunk.Column));
+        foreach (var wanderer in _wanderers!.Load(map, MapSet.CellSize, _world!, game.Memory))
+        {
+            var view = _views[wanderer] = new WandererView(wanderer, _plugins, _models!, _shadow);
+            AddChild(view);
+        }
         return Scenery(chunk, map);
     }
 

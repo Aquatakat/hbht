@@ -7,6 +7,8 @@ Things only the user can settle, in the emulator or by reading the ROM. Each lin
 - **The lighthouse keeper's key** (Borg13 890 node 13): whether the keeper animates as he hands it over. See [scripts](systems/scripts.md#to-check-in-the-emulator).
 - **Dougal at the harbour reunion** (script 1040), with Dougal in the party: whether the scene ends at his line, hangs or plays on. See [scripts](systems/scripts.md#to-check-in-the-emulator).
 - **Shop prices.** A few prices, buying and selling, with a checkpoint's party, to compare with the port's barter factor. See [items](systems/items.md#shops).
+- **The busiest 3×3 for wanderers**: standing in the Overworld's H13 on a new game, whose 3×3 holds 44 monster parties that would get bodies, more than the 39 the original has room for. Does it crash, or do some not show? See [wanderers](systems/wanderers.md#bodies-as-their-chunk-loads-5a).
+- **Wanderers walking home**: most NPCs and monsters should walk to their wander nodes, and the 89 parties without flag 0x2 run. See [wanderers](systems/wanderers.md#bodies-as-their-chunk-loads-5a).
 - **The Party tab's cursor after equipping the last item** of the inventory, when no item moves up into its row, when a save allows it. See [ui](systems/ui.md#the-party-tabs-actions).
 
 

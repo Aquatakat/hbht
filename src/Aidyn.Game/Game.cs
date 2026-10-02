@@ -7,6 +7,7 @@ using Aidyn.Core.MapObjects;
 using Aidyn.Core.Movement;
 using Aidyn.Core.Physics;
 using Aidyn.Core.Scenes;
+using Aidyn.Core.Trek;
 using Aidyn.Core.Ui;
 using Aidyn.Inspector;
 using Aidyn.Plugins;
@@ -79,10 +80,13 @@ public partial class Game : Node3D, IMapObjectHost
     private Player? _player;
     private CameraRig? _camera;
     private ShadowDecal? _shadow;
+    /// <summary>The texture of bodies' shadows (<c>BORG1_PlayerShadow</c>).</summary>
+    private Texture2D? _shadowTexture;
+    private Wanderers? _wanderers;
     private SkyView? _sky;
     private ChunkEntry? _chunk;
     private FollowCamera? _follow;
-    private IRootMotion _animation = new Still();
+    private IRootMotion _animation = Still.Instance;
     /// <summary>The player's last second of positions, for the overlay's speed.</summary>
     private readonly Queue<System.Numerics.Vector3> _track = new();
     private long _ticks;
@@ -177,7 +181,15 @@ public partial class Game : Node3D, IMapObjectHost
 
         _drawDistance = new DrawDistance(Float(args, "draw-distance", 1), args.GetValueOrDefault("detail") == "nearest");
         var models = _models = new Models(plugins);
-        _chunks = new ChunkStreamer(plugins, models, set, _world, game);
+        // The texture engine code gives bodies' shadows (BORG1_PlayerShadow).
+        if (plugins.FindAsset(RecordId.Hex(RecordTypes.Texture, 0x0003), "png") is { } shadowPng)
+        {
+            var image = new Image();
+            image.LoadPngFromBuffer(File.ReadAllBytes(shadowPng));
+            _shadowTexture = ImageTexture.CreateFromImage(image);
+        }
+        _wanderers = new Wanderers(plugins);
+        _chunks = new ChunkStreamer(plugins, models, set, _world, game, _wanderers, _shadowTexture);
         AddChild(_chunks);
 
         var chunkName = args.GetValueOrDefault("chunk", place?.Chunk ?? "I08");
@@ -215,12 +227,9 @@ public partial class Game : Node3D, IMapObjectHost
             }
         }
 
-        // The texture engine code gives bodies' shadows (BORG1_PlayerShadow).
-        if (plugins.FindAsset(RecordId.Hex(RecordTypes.Texture, 0x0003), "png") is { } shadowPng)
+        if (_shadowTexture is not null)
         {
-            var image = new Image();
-            image.LoadPngFromBuffer(File.ReadAllBytes(shadowPng));
-            _shadow = new ShadowDecal(ImageTexture.CreateFromImage(image));
+            _shadow = new ShadowDecal(_shadowTexture);
             AddChild(_shadow);
         }
 
@@ -375,6 +384,9 @@ public partial class Game : Node3D, IMapObjectHost
         var before = motion.Sphere.Position;
         _follow.Step(_world, motion.Sphere.Position, motion.Heading);
         motion.Step(_world, input, _follow, _animation);
+        // ProcessPlayers: the player is the first body, then the rest move and push.
+        _wanderers!.Step(_world, motion.Sphere, before, _chunks.MapAt(motion.Sphere.Position.ToGodot())?.Key, _follow.Aim,
+            w => _chunks.View(w)?.Animation ?? Still.Instance);
         foreach (var (part, target) in motion.Sphere.Trod)
         {
             if (_chunks.Map(part) is not { } map)
@@ -392,6 +404,7 @@ public partial class Game : Node3D, IMapObjectHost
         _player.Sync();
         _camera.Sync();
         PlaceShadow();
+        DrawWanderers();
         _track.Enqueue(motion.Sphere.Position);
         if (_track.Count > Engine.PhysicsTicksPerSecond)
             _track.Dequeue();
@@ -465,7 +478,8 @@ public partial class Game : Node3D, IMapObjectHost
             _chunks.QueueFree();
             _world.Clear();
             _changed.Clear();
-            _chunks = new ChunkStreamer(_plugins!, _models!, arrival.Set, _world, _game);
+            _wanderers!.Clear();
+            _chunks = new ChunkStreamer(_plugins!, _models!, arrival.Set, _world, _game, _wanderers, _shadowTexture);
             AddChild(_chunks);
         }
         var point = _chunks.Origin(arrival.Chunk) + arrival.Position.ToGodot();
@@ -556,6 +570,19 @@ public partial class Game : Node3D, IMapObjectHost
         _shadow.Visible &= alpha is not null;
     }
 
+    /// <summary>Moves the wanderers' bodies to where they are, and fades them and their shadows by the camera's aim.</summary>
+    private void DrawWanderers()
+    {
+        var aim = _follow!.Aim;
+        var centre = _chunks!.MapAt(_player!.Motion.Sphere.Position.ToGodot());
+        var ownAim = centre is null ? aim : aim - centre.Origin;
+        foreach (var view in _chunks.Wanderers)
+        {
+            view.Sync();
+            view.Draw(_world, aim, ownAim);
+        }
+    }
+
     /// <summary>
     /// The controls as the original reads them: the stick walks under 80% tilt and runs above,
     /// and R with the stick orbits the camera. On a PC, Shift walks, Ctrl sneaks, and dragging
@@ -616,7 +643,7 @@ public partial class Game : Node3D, IMapObjectHost
                 $"  speed {Speed():F2}/s  request {motion.Request}  pace {motion.Pace:0.##} (F5)" +
                 $"  camera {_follow!.Mode.ToString().ToLowerInvariant()}{(_use!.CurrentCamera is { } held ? $" (object {held.Index})" : "")}" +
                 $"  {Clock(_sky!.Clock.TimeOfDay)}  sky {_sky.Placement.ToString().ToLowerInvariant()} (F6)" +
-                $"  UI {_menu!.Screen.Lines} lines (F7)";
+                $"  UI {_menu!.Screen.Lines} lines (F7)  wanderers {_wanderers!.All.Count}";
         }
     }
 
@@ -857,9 +884,11 @@ public partial class Game : Node3D, IMapObjectHost
     private static float[] Floats(string text) =>
         [.. text.Split(',').Select(s => float.Parse(s, CultureInfo.InvariantCulture))];
 
-    /// <summary>For a player with no animations: he stands still.</summary>
+    /// <summary>For a body with no animations: it stands still.</summary>
     private sealed class Still : IRootMotion
     {
+        public static readonly Still Instance = new();
+
         public float Tick(int request) => 0;
     }
 }

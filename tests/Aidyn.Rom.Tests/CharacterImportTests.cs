@@ -303,4 +303,47 @@ public sealed class CharacterImportTests(MapObjectFixture fixture)
         Assert.Contains(catalog.ReferencesTo(RecordId.Decimal(RecordTypes.Flag, 590)), r => r.From == Alaron && r.Path == "trueNameFlag");
         Assert.Contains(catalog.ReferencesTo(RecordId.Hex(RecordTypes.Entity, 0x0236)), r => r.From == RecordId.Decimal(RecordTypes.Progression, 0));
     }
+
+    [Fact]
+    public void EveryEntityHasTheBodyTheRomsModelTableGivesIt()
+    {
+        var models = EntityModels.Read(TestRoms.Get(RomVersionId.Na10)).Entities.ToDictionary(m => DbRecordIds.For(m.Entity)!.Value);
+        var entities = Set.All<Plugins.Records.EntityRecord>(RecordTypes.Entity).ToList();
+
+        Assert.Equal(221, entities.Count);
+        Assert.Equal(entities.Count, models.Count);
+        Assert.All(entities, e =>
+        {
+            var model = models[e.Id];
+            Assert.Equal(new EntityBody(RecordId.Hex(RecordTypes.Actor, model.Actor), model.Radius, model.Scale, model.Height), e.Body);
+            Assert.NotNull(Set.TryGet<ActorRecord>(e.Body!.Actor));
+            Assert.Equal(e.Body, Set.Get<DbRecord>(e.Id).Body);
+        });
+    }
+
+    [Fact]
+    public void DialogueEntitiesHaveTheirTableBodiesWithTheCodesRadiusAndTheBatWhereTheTableLacksThem()
+    {
+        var rom = TestRoms.Get(RomVersionId.Na10);
+        var models = EntityModels.Read(rom).DialogEntities.ToDictionary(m => DbRecordIds.For(m.Entity)!.Value);
+        var records = GameDb.Read(rom).DialogEntities.Select(e => DbRecordIds.For(e.Id)).Where(id => id is not null).Select(id => id!.Value).Distinct().ToList();
+
+        Assert.Equal(37, records.Count);
+        var fallback = new EntityBody(RecordId.Hex(RecordTypes.Actor, 0x2D4A), 0.55f, 1, 1);
+        var without = new List<RecordId>();
+        foreach (var id in records)
+        {
+            var body = Set.Get<DbRecord>(id).Body;
+            if (models.TryGetValue(id, out var model))
+                Assert.Equal(new EntityBody(RecordId.Hex(RecordTypes.Actor, model.Actor), 0.55f, model.Scale, model.Height), body);
+            else
+            {
+                without.Add(id);
+                Assert.Equal(fallback, body);
+            }
+            Assert.NotNull(Set.TryGet<ActorRecord>(body!.Actor));
+        }
+        Assert.Equal(5, without.Count);
+        Assert.Equal(32, records.Count - without.Count);
+    }
 }

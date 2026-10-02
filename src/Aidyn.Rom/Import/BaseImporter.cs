@@ -438,16 +438,20 @@ public static class BaseImporter
 
     /// <summary>
     /// The names of the DB records that have no fields of their own yet, by file: dialogue entities, with
-    /// their portraits. The five without one get the code's fallback at run time, as speakers that
-    /// aren't entities do. Entities and spells have records of their own (<see cref="CharacterImporter"/>),
+    /// their portraits and bodies. The five without a portrait get the code's fallback at run time, as
+    /// speakers that aren't entities do, and a bat for a body. Entities and spells have records of their own (<see cref="CharacterImporter"/>),
     /// and so do weapons, armor, items and loot tables (<see cref="ItemImporter"/>).
     /// </summary>
     internal static List<(string File, List<DbRecord> Records)> BuildNames(GameDb db, EntityModels models)
     {
         var portraits = models.DialogEntities.ToDictionary(m => m.Entity, m => RecordId.Hex(RecordTypes.Image, m.Portrait));
+        var bodies = models.DialogEntities.Where(m => DbRecordIds.For(m.Entity) is not null).ToDictionary(m => DbRecordIds.For(m.Entity)!.Value,
+            m => new EntityBody(RecordId.Hex(RecordTypes.Actor, m.Actor), CharacterImporter.DialogEntityRadius, m.Scale, m.Height));
+        var fallback = CharacterImporter.Fallback(CharacterImporter.DialogEntityRadius);
         return
         [
-            ("dialogentities.json", Names(db.DialogEntities.Select(e => (e.Id, e.Name)), portraits)),
+            ("dialogentities.json", [.. Names(db.DialogEntities.Select(e => (e.Id, e.Name)), portraits)
+                .Select(r => r with { Body = bodies.GetValueOrDefault(r.Id, fallback) })]),
         ];
 
         static List<DbRecord> Names(IEnumerable<(ItemId Id, string Name)> records, IReadOnlyDictionary<ItemId, RecordId>? portraits = null) =>

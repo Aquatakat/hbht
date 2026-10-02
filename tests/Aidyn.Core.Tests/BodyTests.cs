@@ -1,0 +1,206 @@
+using System.Numerics;
+using Aidyn.Core.Movement;
+using Aidyn.Core.Physics;
+
+namespace Aidyn.Core.Tests;
+
+/// <summary>Bodies other than the player's: steered to a goal or turned (<c>MoveTo</c>, <c>SetAiDest</c>, <c>SetFacing</c>), and pushed apart.</summary>
+public class BodyTests
+{
+    private static readonly Vector3 Standing = new(0, 0.5f, 0);
+
+    private static Body Settled(Vector3 at, float scale = 1)
+    {
+        var body = new Body(at, 0.5f, scale);
+        body.Step(Worlds.Flat(), new SteadyMotion(0));
+        return body;
+    }
+
+    private static float Degrees(Vector2 a, Vector2 b) => MathF.Acos(Math.Clamp(Vector2.Dot(Vector2.Normalize(a), Vector2.Normalize(b)), -1, 1)) * 180 / MathF.PI;
+
+    [Fact]
+    public void ABodyNobodySteersKeepsItsRequestAndStandsStill()
+    {
+        var body = Settled(Standing);
+        body.Request = 4;
+        var at = body.Sphere.Position;
+        for (var i = 0; i < 30; i++)
+            body.Step(Worlds.Flat(), new SteadyMotion(0));
+        Assert.Equal(4, body.Request);
+        Assert.False(body.Steered);
+        Assert.Equal(at.X, body.Sphere.Position.X, 1e-4f);
+        Assert.Equal(at.Z, body.Sphere.Position.Z, 1e-4f);
+    }
+
+    [Theory]
+    [InlineData(true, PlayerMotion.Walk)]
+    [InlineData(false, PlayerMotion.Run)]
+    public void ItWalksOrRunsToItsGoalAndLetsGoWithinItsRadius(bool walk, int request)
+    {
+        var body = Settled(Standing);
+        body.Heading = Vector2.UnitX;
+        body.GoTo(new Vector2(0, 10), 1, walk);
+        var motion = new SteadyMotion(0.05f);
+        body.Step(Worlds.Flat(), motion);
+        Assert.Equal(request, body.Request);
+        Assert.Equal(walk ? 0.5f : 0.95f, body.Stick.Length(), 1e-5f);
+
+        var ticks = 1;
+        for (; body.Steered && ticks < 1000; ticks++)
+            body.Step(Worlds.Flat(), motion);
+        Assert.True(ticks < 1000);
+        Assert.Equal(PlayerMotion.Idle, body.Request);
+        Assert.False(body.Moving);
+        var left = Vector2.Distance(new Vector2(body.Sphere.Position.X, body.Sphere.Position.Z), new Vector2(0, 10));
+        Assert.True(left < 1, $"{left}");
+    }
+
+    [Fact]
+    public void ItTurnsTowardItsGoalTenDegreesATick()
+    {
+        var body = Settled(Standing);
+        body.Heading = Vector2.UnitX;
+        body.GoTo(new Vector2(0, 10), 1, walk: true);
+        body.Step(Worlds.Flat(), new SteadyMotion(0));
+        Assert.Equal(80, Degrees(body.Heading, Vector2.UnitY), 0.01f);
+        for (var i = 0; i < 8; i++)
+            body.Step(Worlds.Flat(), new SteadyMotion(0));
+        Assert.Equal(0, Degrees(body.Heading, Vector2.UnitY), 0.01f);
+    }
+
+    [Fact]
+    public void ItsAnimationsCarryItFartherAtALargerScale()
+    {
+        var small = Settled(Standing);
+        var large = Settled(Standing, scale: 2);
+        foreach (var body in new[] { small, large })
+        {
+            body.Heading = Vector2.UnitY;
+            body.GoTo(new Vector2(0, 40), 1, walk: true);
+            for (var i = 0; i < 10; i++)
+                body.Step(Worlds.Flat(), new SteadyMotion(0.02f));
+        }
+        Assert.Equal(2 * small.Sphere.Position.Z, large.Sphere.Position.Z, 1e-3f);
+    }
+
+    [Fact]
+    public void FacingTurnsItWhereItStandsThenLetsGo()
+    {
+        var body = Settled(Standing);
+        body.Heading = Vector2.UnitX;
+        body.Face(new Vector2(0, -3));
+        var at = body.Sphere.Position;
+        var ticks = 0;
+        for (; body.Steered && ticks < 100; ticks++)
+            body.Step(Worlds.Flat(), new SteadyMotion(0.05f));
+        // 90° at 10° a tick, a last step to land on it (the turn's test is a chord against the sine of
+        // its angle, which ten degrees left just misses), and a tick to let go.
+        Assert.Equal(11, ticks);
+        Assert.Equal(-Vector2.UnitY, body.Heading);
+        Assert.Equal(PlayerMotion.Idle, body.Request);
+        Assert.Equal(at.X, body.Sphere.Position.X, 1e-4f);
+        Assert.Equal(at.Z, body.Sphere.Position.Z, 1e-4f);
+    }
+
+    [Fact]
+    public void GoingSomewhereForgetsATurnAndFacingForgetsAGoal()
+    {
+        var body = Settled(Standing);
+        body.Face(Vector2.UnitX);
+        body.GoTo(new Vector2(5, 5), 1, walk: false);
+        Assert.True(body.Moving);
+        Assert.False(body.Turning);
+        body.Face(Vector2.UnitY);
+        Assert.False(body.Moving);
+        Assert.True(body.Turning);
+    }
+
+    [Fact]
+    public void ItsChunkKeepsItFiveHundredthsInsideItsEdges()
+    {
+        var body = Settled(new Vector3(9, 0.5f, 5));
+        body.Bounds = (new Vector2(0.05f), new Vector2(9.95f));
+        body.Heading = Vector2.UnitX;
+        body.GoTo(new Vector2(30, 5), 1, walk: false);
+        for (var i = 0; i < 120; i++)
+            body.Step(Worlds.Flat(), new SteadyMotion(0.05f));
+        Assert.Equal(9.95f, body.Sphere.Position.X, 1e-5f);
+    }
+
+    private static CrowdMember Member(Vector3 at, float radius = 0.5f, float scale = 1, object? chunk = null) =>
+        new(new CollisionSphere { Radius = radius, Position = at }, scale, chunk ?? "chunk");
+
+    [Fact]
+    public void ABodyIsPushedStraightAwayAcrossTheGroundUntilItTouchesTheOther()
+    {
+        var body = new CollisionSphere { Radius = 0.5f, Position = new(0, 0.5f, 0) };
+        var other = new CollisionSphere { Radius = 0.5f, Position = new(0.6f, 1.5f, 0) };
+        Assert.True(SpherePhysics.PushApart(body, 1, other, 1, out var distance));
+        // The distance is the one before the push.
+        Assert.Equal(0.6f, distance, 1e-5f);
+        Assert.Equal(-0.4f, body.Position.X, 1e-5f);
+        Assert.Equal(0.5f, body.Position.Y);
+        Assert.Equal(new Vector3(0.6f, 1.5f, 0), other.Position);
+    }
+
+    [Fact]
+    public void ScaleWidensBothSpheres()
+    {
+        var body = new CollisionSphere { Radius = 0.5f, Position = new(0, 0.5f, 0) };
+        var other = new CollisionSphere { Radius = 0.5f, Position = new(1.5f, 0.5f, 0) };
+        Assert.True(SpherePhysics.PushApart(body, 1.5f, other, 2, out _));
+        Assert.Equal(1.5f - 1.75f, body.Position.X, 1e-5f);
+    }
+
+    [Fact]
+    public void AMissMeasuresTheOthersRadiusAtThisBodysScale()
+    {
+        var body = new CollisionSphere { Radius = 0.5f, Position = Vector3.Zero };
+        var other = new CollisionSphere { Radius = 0.5f, Position = new(5, 0, 0) };
+        Assert.False(SpherePhysics.PushApart(body, 1, other, 2, out var distance));
+        Assert.Equal(5 - 1 + 0.5f, distance, 1e-5f);
+    }
+
+    [Fact]
+    public void TheCrowdReportsTheNearestOtherBeforeAnyPush()
+    {
+        var bodies = new CrowdMember?[] { Member(new(0, 0.5f, 0)), Member(new(0.6f, 1.5f, 0)), Member(new(4, 0.5f, 0)) };
+        var (nearest, distance) = Crowd.Push(bodies, 0, new Vector3(0, 0.5f, 0));
+        Assert.Equal(1, nearest);
+        Assert.Equal(0.6f, distance, 1e-5f);
+    }
+
+    [Fact]
+    public void BodiesInAnotherChunkOrMoreThanThreeApartInHeightDontPush()
+    {
+        var bodies = new CrowdMember?[]
+        {
+            Member(new(0, 0.5f, 0)),
+            Member(new(0.5f, 0.5f, 0), chunk: "beside"),
+            Member(new(0, 3.6f, 0.5f)),
+        };
+        var (nearest, _) = Crowd.Push(bodies, 0, Vector3.Zero);
+        Assert.Equal(new Vector3(0, 0.5f, 0), bodies[0]!.Value.Sphere.Position);
+        Assert.Equal(-1, nearest);
+    }
+
+    [Fact]
+    public void ASecondPushPutsTheBodyBackWhereItBeganTheTick()
+    {
+        var start = new Vector3(-3, 0.5f, 0);
+        var bodies = new CrowdMember?[] { Member(new(0, 0.5f, 0)), Member(new(0.6f, 0.5f, 0)), Member(new(-0.6f, 0.5f, 0)) };
+        Crowd.Push(bodies, 0, start);
+        Assert.Equal(start, bodies[0]!.Value.Sphere.Position);
+    }
+
+    [Fact]
+    public void AfterAPushTheTurnStartsAgainFromTheSecondBodySoTheFirstIsntWeighedAgain()
+    {
+        // Body 1 is pushed out of the first body, to x = 0.4. The turn starts again from body 1,
+        // itself, and body 2 is out of reach, so the first isn't weighed again and it stays.
+        var start = new Vector3(5, 0.5f, 5);
+        var bodies = new CrowdMember?[] { Member(new(-0.6f, 0.5f, 0)), Member(new(0, 0.5f, 0)), Member(new(-1, 0.5f, 3)) };
+        Crowd.Push(bodies, 1, start);
+        Assert.Equal(0.4f, bodies[1]!.Value.Sphere.Position.X, 1e-5f);
+    }
+}

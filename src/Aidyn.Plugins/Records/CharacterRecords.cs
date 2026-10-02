@@ -37,6 +37,7 @@ namespace Aidyn.Plugins.Records;
 /// The only weapon it can equip (<c>Entity::canEquipWeapon</c>): Niesen's Archmage Staff. Null for
 /// everyone else.
 /// </param>
+/// <param name="Body">How it stands in the world, as a wanderer.</param>
 public sealed record EntityRecord(
     RecordId Id,
     string Name,
@@ -64,7 +65,8 @@ public sealed record EntityRecord(
     int Perception,
     int Unk21,
     RecordId? TrueNameFlag = null,
-    RecordId? SoleWeapon = null);
+    RecordId? SoleWeapon = null,
+    EntityBody? Body = null);
 
 /// <summary>An entity's kind (the entity DB's groups). The decomp's enum lacks 4, which is empty.</summary>
 public enum EntityCategory

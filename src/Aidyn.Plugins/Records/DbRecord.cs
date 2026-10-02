@@ -9,4 +9,16 @@ namespace Aidyn.Plugins.Records;
 /// The image beside what an entity or a dialogue entity says (<c>EntityDB::GetPortrait</c>). None
 /// for other records.
 /// </param>
-public sealed record DbRecord(RecordId Id, string Name, RecordId? Portrait = null);
+/// <param name="Body">How an entity or a dialogue entity stands in the world. None for other records.</param>
+public sealed record DbRecord(RecordId Id, string Name, RecordId? Portrait = null, EntityBody? Body = null);
+
+/// <summary>
+/// How an entity or a dialogue entity stands in the world, as a wanderer or a cut-scene's actor
+/// (<c>gEntityExtras</c>, <c>dailougEnt_info_array</c>; <c>EntityDB::GetBorg7</c>, <c>GetCollideRadius</c>,
+/// <c>GetScale</c> and <c>GetHeight</c>).
+/// </summary>
+/// <param name="Actor">Its model. A record the tables leave out is a bat, as the code makes it.</param>
+/// <param name="Radius">Its collision sphere's radius, before <paramref name="Scale"/>. Every dialogue entity's is 0.55, which the code gives them.</param>
+/// <param name="Scale">How much bigger than its actor's model it's drawn, and how much bigger its sphere is when bodies push each other.</param>
+/// <param name="Height">About how tall its model is at a scale of 1, in scene units.</param>
+public sealed record EntityBody(RecordId Actor, float Radius, float Scale, float Height);
