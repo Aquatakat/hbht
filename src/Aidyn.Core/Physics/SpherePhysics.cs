@@ -48,6 +48,7 @@ public static class SpherePhysics
         // The original counts contacts per grid cell and reads the count while colliding; with one
         // pass over the triangles, it's always zero until the end, as it is in the first cell.
         s.Touching = false;
+        s.Trod.Clear();
         s.Touching = Collide(s, near);
 
         // Settle: a sphere that barely moved while touching stays where it was.
@@ -197,9 +198,14 @@ public static class SpherePhysics
                     }
                 }
             }
-            // Every triangle has the game's default callback, which keeps the surface as the ground type.
+            // Every triangle has the game's default callback, which keeps the surface as the ground type
+            // and runs a trigger triangle's object (check_trigger).
             if (hit)
+            {
                 s.Surface = t.Surface;
+                if (t.Role == CollisionRole.Trigger)
+                    s.Trod.Add((t.Part, t.Target));
+            }
         }
         return touching;
     }

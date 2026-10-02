@@ -44,8 +44,9 @@ public static class BasePlugin
     /// 14 gives weapons, armor, items and loot tables their fields, and adds shops, recipes and the inventory's rules.
     /// 15 gives spells their icons and descriptions, and items their descriptions.
     /// 16 gives spells their place in the spell table, which loading a save orders spellbooks by.
+    /// 17 gives collision triangles the object a trigger triangle runs, or a toggle's id (<c>_TARGET</c>).
     /// </summary>
-    public const int ImporterVersion = 16;
+    public const int ImporterVersion = 17;
 }
 
 /// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>

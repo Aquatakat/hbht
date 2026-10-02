@@ -195,6 +195,28 @@ public sealed class Container(ContainerObject record)
 
     public int LockLevel { get; private set; } = record.LockLevel;
 
+    /// <summary>Its gold, or a source's count, which a trap going off or the chest found empty clears.</summary>
+    public int Gold { get; private set; } = record.Gold;
+
+    /// <summary>Its loot table, which a trap going off clears.</summary>
+    public RecordId? Loot { get; private set; } = record.Loot;
+
+    /// <summary>
+    /// Whether the player can use it from within its radius (<c>container_obj_check</c>): a herb, spice,
+    /// gem or custom container always; a chest, sack, crate or barrel until it's opened, and only if it
+    /// holds gold, a loot table or an item.
+    /// </summary>
+    public bool Usable(FlagNetwork flags) => Record.Kind >= ContainerKind.Herb
+        || !(Record.Opened is { } opened && flags.Get(opened)) && (Gold != 0 || Loot is not null || Record.Item is not null);
+
+    /// <summary>Found opened as its chunk loads: no lock, trap or gold (<c>exploding_container_check</c>).</summary>
+    internal void Empty()
+    {
+        LockLevel = 0;
+        TrapLevel = 0;
+        Gold = 0;
+    }
+
     /// <summary>
     /// What using it leads to: nothing once its opened or exploded flag is set; a source is harvested
     /// whatever its trap and lock; otherwise its trap comes before its lock.
@@ -228,6 +250,9 @@ public sealed class Container(ContainerObject record)
         TrapLevel = 0;
         if (Containers.Disarm(party, level, random))
             return null;
+        // open_explosive_chest.
+        Gold = 0;
+        Loot = null;
         if (Record.Exploded is { } exploded)
             flags.Set(exploded, true);
         return Containers.TrapDamage(party, level, random);
@@ -245,8 +270,8 @@ public sealed class Container(ContainerObject record)
         if (Record.Used is { } used)
             flags.Set(used.Flag, !used.Clear);
         var pile = new ItemPile(items);
-        var gold = Record.Gold;
-        if (Record.Loot is { } table)
+        var gold = Gold;
+        if (Loot is { } table)
         {
             var roll = Containers.Roll(loot(table), items.Rules, random);
             gold = roll.Gold;
@@ -274,7 +299,7 @@ public sealed class Container(ContainerObject record)
             _ => items.Rules.Gemstone,
         };
         var pile = new ItemPile(items);
-        pile.Add(reagent, Containers.Harvest(Record.Gold, share));
+        pile.Add(reagent, Containers.Harvest(Gold, share));
         return pile;
     }
 }

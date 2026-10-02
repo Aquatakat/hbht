@@ -35,4 +35,10 @@ public sealed class CollisionSphere
     /// actors as their ground type, which picks footsteps.
     /// </summary>
     public int Surface;
+
+    /// <summary>
+    /// The trigger triangles it touched on the last step, each once: the key of the part each is in,
+    /// and the object it runs (<c>check_trigger</c>, which the original's default callback calls).
+    /// </summary>
+    public HashSet<(object Part, int Target)> Trod { get; } = [];
 }

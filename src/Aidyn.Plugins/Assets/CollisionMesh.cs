@@ -42,11 +42,15 @@ public enum CollisionRole
 /// The physics and footstep material, numbered as the original's surfaces: 0 Default, 1 blocks
 /// the player and the camera, 2 blocks only the player, then Snow, Grass, Sand and so on.
 /// </param>
-public readonly record struct CollisionTriangle(Vector3 A, Vector3 B, Vector3 C, int Surface, CollisionRole Role, CollisionFlags Flags);
+/// <param name="Target">
+/// For a <see cref="CollisionRole.Trigger"/>, the index in its map of the object it runs; for a
+/// <see cref="CollisionRole.Toggle"/>, the id its triggers name. Otherwise 0.
+/// </param>
+public readonly record struct CollisionTriangle(Vector3 A, Vector3 B, Vector3 C, int Surface, CollisionRole Role, CollisionFlags Flags, int Target = 0);
 
 /// <summary>
 /// Reads a map's collision asset: a glTF mesh whose triangles don't share vertices, each vertex
-/// carrying its triangle's <c>_SURFACE</c>, <c>_ROLE</c> and <c>_FLAGS</c> as floats.
+/// carrying its triangle's <c>_SURFACE</c>, <c>_ROLE</c>, <c>_FLAGS</c> and <c>_TARGET</c> as floats.
 /// </summary>
 public static class CollisionMesh
 {
@@ -71,11 +75,12 @@ public static class CollisionMesh
                 var surfaces = Floats(root, glb, bin, attributes.GetProperty("_SURFACE").GetInt32());
                 var roles = Floats(root, glb, bin, attributes.GetProperty("_ROLE").GetInt32());
                 var flags = Floats(root, glb, bin, attributes.GetProperty("_FLAGS").GetInt32());
+                var targets = attributes.TryGetProperty("_TARGET", out var target) ? Floats(root, glb, bin, target.GetInt32()) : null;
                 for (var v = 0; v + 2 < surfaces.Length; v += 3)
                 {
                     triangles.Add(new CollisionTriangle(
                         Position(positions, v), Position(positions, v + 1), Position(positions, v + 2),
-                        (int)surfaces[v], (CollisionRole)(int)roles[v], (CollisionFlags)(int)flags[v]));
+                        (int)surfaces[v], (CollisionRole)(int)roles[v], (CollisionFlags)(int)flags[v], targets is null ? 0 : (int)targets[v]));
                 }
             }
         }

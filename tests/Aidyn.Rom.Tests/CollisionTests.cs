@@ -240,7 +240,7 @@ public class CollisionTests
         Assert.Equal(chunks.Count, nodes.Count);
         Assert.Equal([100f, 0, 100], nodes[0]!["translation"]!.AsArray().Select(v => (float)v!));
         var attributes = json["meshes"]![0]!["primitives"]![0]!["attributes"]!.AsObject().Select(a => a.Key);
-        Assert.Equal(["POSITION", "_SURFACE", "_ROLE", "_FLAGS"], attributes);
+        Assert.Equal(["POSITION", "_SURFACE", "_ROLE", "_FLAGS", "_TARGET"], attributes);
         Assert.Equal(chunks.Sum(c => c.Item2.Triangles.Count) * 3,
             json["meshes"]!.AsArray().Sum(m => (int)json["accessors"]![(int)m!["primitives"]![0]!["attributes"]!["POSITION"]!]!["count"]!));
     }

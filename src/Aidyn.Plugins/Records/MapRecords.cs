@@ -34,7 +34,7 @@ public sealed record ChunkEntry(int Row, int Column, RecordId? Scene, RecordId? 
 /// <summary>
 /// One chunk's map objects (<c>aidyn:map/0xHHHH</c>, a Borg9). Its collision is the asset of the
 /// same ID: a glTF mesh in chunk coordinates whose vertices carry their triangle's
-/// <c>_SURFACE</c>, <c>_ROLE</c> and <c>_FLAGS</c>.
+/// <c>_SURFACE</c>, <c>_ROLE</c>, <c>_FLAGS</c> and <c>_TARGET</c>.
 /// </summary>
 /// <param name="Objects">
 /// Keyed by <see cref="MapObject.Index"/>, which is also the last segment of the object's

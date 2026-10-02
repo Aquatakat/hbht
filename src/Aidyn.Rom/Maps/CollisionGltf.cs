@@ -39,7 +39,7 @@ public static class CollisionGltf
             if (map.Triangles.Count > 0)
             {
                 var positions = new List<Vector3>();
-                List<float> surfaces = [], roles = [], flags = [];
+                List<float> surfaces = [], roles = [], flags = [], targets = [];
                 foreach (var t in map.Triangles)
                 {
                     positions.AddRange([map.Vertices[t.A], map.Vertices[t.B], map.Vertices[t.C]]);
@@ -52,6 +52,7 @@ public static class CollisionGltf
                         surfaces.Add((float)t.Surface);
                         roles.Add(role);
                         flags.Add((float)t.Flags);
+                        targets.Add(t.ToggleId ?? t.TriggerObject ?? 0);
                     }
                 }
                 node["mesh"] = gltf.AddMesh(new JsonObject
@@ -65,6 +66,7 @@ public static class CollisionGltf
                             ["_SURFACE"] = gltf.AddScalars(surfaces),
                             ["_ROLE"] = gltf.AddScalars(roles),
                             ["_FLAGS"] = gltf.AddScalars(flags),
+                            ["_TARGET"] = gltf.AddScalars(targets),
                         },
                         ["material"] = material,
                     }),

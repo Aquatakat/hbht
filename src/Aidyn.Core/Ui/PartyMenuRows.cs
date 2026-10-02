@@ -128,6 +128,26 @@ public sealed class MenuText(IReadOnlyList<string> common)
     /// <summary>"The %s contains powerful magic that only %s can control." (<c>WidgetInvShop::AFunc</c>).</summary>
     public const int PowerfulMagic = 554;
 
+    /// <summary>Finding a secret door (<c>secret_door_func</c>).</summary>
+    public const int SecretDoor = 379;
+
+    /// <summary>
+    /// The trap's menu (<c>TrapMenu</c>): its choices, its success, how dangerous it is (slightly, moderately,
+    /// very, then "There's a %s dangerous trap!"), and the damage when it goes off.
+    /// </summary>
+    public const int TrapExit = 427, TrapDisarm = 428, TrapDisarmed = 429, TrapSlightly = 430, TrapModerately = 431, TrapVery = 432,
+        TrapDanger = 433, TrapDamage = 434, TrapExploded = 435;
+
+    /// <summary>
+    /// Picking a lock (<c>Party::Lockpicking</c>): no one to, how far beyond the thief it is (far, a little,
+    /// definitely, then "The lock is %s beyond the ability of %s to pick."), too tired, and picked.
+    /// </summary>
+    public const int LockNoOne = 447, LockFar = 448, LockALittle = 449, LockDefinitely = 450, LockBeyond = 451, LockTooTired = 452,
+        LockPicked = 453;
+
+    /// <summary>"You just picked up %d gold!", from a container that held nothing else (<c>loot_func</c>).</summary>
+    public const int PickedUpGold = 482;
+
     public string this[int line] => line < common.Count ? common[line] : "";
 
     /// <summary>A line with its <c>%s</c>, <c>%d</c>, <c>%ld</c>, <c>%lu</c> and <c>%u</c> filled in order, as <c>sprintf</c> does.</summary>

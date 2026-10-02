@@ -15,8 +15,12 @@ public sealed class CollisionWorld
     private readonly Dictionary<object, Part> _parts = [];
     private readonly HashSet<int> _seen = [];
 
-    /// <summary>A collision triangle with its unit normal, which faces out of its front.</summary>
-    internal readonly record struct Triangle(Vector3 A, Vector3 B, Vector3 C, Vector3 Normal, int Surface, CollisionFlags Flags)
+    /// <summary>
+    /// A collision triangle with its unit normal, which faces out of its front, and the key of the
+    /// part it's in, which names the map a trigger triangle's <see cref="Target"/> is an object of.
+    /// </summary>
+    internal readonly record struct Triangle(Vector3 A, Vector3 B, Vector3 C, Vector3 Normal, int Surface, CollisionFlags Flags,
+        CollisionRole Role, int Target, object Part)
     {
         public Vector3 this[int i] => i switch { 0 => A, 1 => B, _ => C };
         public bool Has(CollisionFlags flag) => (Flags & flag) != 0;
@@ -39,7 +43,7 @@ public sealed class CollisionWorld
             var normal = Vector3.Cross(t.B - t.A, t.C - t.A);
             if (normal.Length() < 1e-6f)
                 continue;
-            list.Add(new Triangle(t.A + offset, t.B + offset, t.C + offset, Vector3.Normalize(normal), t.Surface, t.Flags));
+            list.Add(new Triangle(t.A + offset, t.B + offset, t.C + offset, Vector3.Normalize(normal), t.Surface, t.Flags, t.Role, t.Target, key));
         }
 
         var cells = new Dictionary<(int, int), List<int>>();
@@ -66,6 +70,30 @@ public sealed class CollisionWorld
     }
 
     public bool Remove(object key) => _parts.Remove(key);
+
+    /// <summary>
+    /// Changes the flags of a part's toggles with id <paramref name="toggle"/>: ANDs them with
+    /// <paramref name="keep"/>, then ORs in <paramref name="add"/>, as a <c>ChangeCollision</c> trigger
+    /// does (<c>trigger_vobject_func</c>). They stay so until the part is added again. Returns how many changed.
+    /// </summary>
+    public int ChangeToggles(object key, int toggle, int keep, int add)
+    {
+        if (!_parts.TryGetValue(key, out var part))
+            return 0;
+        var changed = 0;
+        for (var i = 0; i < part.Triangles.Length; i++)
+        {
+            var t = part.Triangles[i];
+            if (t.Role != CollisionRole.Toggle || t.Target != toggle)
+                continue;
+            var flags = (CollisionFlags)(((int)t.Flags & keep) | add);
+            if (flags == t.Flags)
+                continue;
+            part.Triangles[i] = t with { Flags = flags };
+            changed++;
+        }
+        return changed;
+    }
 
     /// <summary>
     /// The triangles that may touch the box from <paramref name="min"/> to <paramref name="max"/> in

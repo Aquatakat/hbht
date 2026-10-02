@@ -137,6 +137,17 @@ public sealed partial class Party
     };
 
     /// <summary>
+    /// The party's search for a secret door (<c>Party::SecretLock</c>): the best member's Intelligence × 3
+    /// + Ranger × 10, dead or not, against d100. Below it, the step for what's left; otherwise 0.
+    /// </summary>
+    public int SecretSearch(IRandom random)
+    {
+        var best = Members.Select(m => m.Stats.Modified(Stat.Intelligence) * 3 + m.Skills.Modified(Skill.Ranger) * 10).DefaultIfEmpty().Max();
+        var roll = random.RollD(1, 100);
+        return roll < best ? SkillCheckStep((short)(best - roll)) : 0;
+    }
+
+    /// <summary>
     /// A step from 1 to 21 for what a roll left (<c>gSkillCheck</c>): 1 below 26, then 2 from 26,
     /// 3 from 46, 4 from 62, 5 from 81, 6 from 96, 7 from 111, and one more every 11 up to 21 from 266.
     /// </summary>
