@@ -33,6 +33,7 @@ Ported (`FollowCamera.Interior.cs`), with the arguments `ProcessGameCamera` pass
 - When it has caught up with its goal and the aim is out of sight from there, its goal jumps to 3 behind the player, or to the wall in the way, and it doesn't do that again for 5 seconds.
 - R orbits as outdoors, at a distance easing to 3, between 0.5 and 2.5 above the aim. Letting go zeroes the pitch, which only the orbit uses here.
 - Every part loops over a frame's ticks or acts on a goal that only it moves, so stepping it each tick matches the original at any frame rate.
+- The user confirmed it in the emulator and the port alike (Oct 2, 2026): it sticks just off the walls and never wanders past one on its own. Running round a corner, it snaps back behind Alaron. R's orbit can push it through a wall, and letting go, it turns until it's back inside, with the same snap.
 
 ## Camera objects (`processVoxelCamera`)
 
