@@ -13,14 +13,20 @@ namespace Aidyn.Core.Movement;
 /// <remarks>
 /// The original steers it with a controller of its own: <c>MoveTo</c> puts the stick toward the goal
 /// through the camera's turn, and <c>Actor::Move</c> reads it back through the same turn, so the
-/// camera cancels out. A body walks at half tilt and runs at 0.95, and turns 20° a frame as the
-/// player does. Positions are in the world's coordinates; the original keeps each body's in its own
+/// camera cancels out. A body walks at half tilt and runs at 0.95, and turns 20° a frame on the
+/// move as the player does, and 10° where it stands. Positions are in the world's coordinates; the original keeps each body's in its own
 /// chunk's, and keeps it 0.05 inside that chunk (<see cref="Bounds"/>).
 /// </remarks>
 public sealed class Body
 {
     /// <summary>How far a body must come nearer its goal in a tick for the stick to follow it again.</summary>
     private const float Nearer = 0.01f;
+
+    /// <summary>
+    /// How far a body turns each frame where it stands (<c>MoveTo</c>'s 0x3E32B7FE): 10°, half what
+    /// it turns while walking or running.
+    /// </summary>
+    public const float FaceTurnPerFrame = 10 * MathF.PI / 180;
 
     /// <summary>How far inside its chunk's edges a body is kept.</summary>
     public const float EdgeMargin = 0.05f;
@@ -184,7 +190,7 @@ public sealed class Body
         if (Turning)
         {
             busy = true;
-            Heading = PlayerMotion.Turn(Heading, TurnTo, Cadence.PerTick(PlayerMotion.TurnPerFrame));
+            Heading = PlayerMotion.Turn(Heading, TurnTo, Cadence.PerTick(FaceTurnPerFrame));
             if (Heading == TurnTo)
                 Turning = false;
         }

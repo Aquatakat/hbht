@@ -19,7 +19,7 @@ A monster party is an NPC to talk to, if it has a dialogue, or a group of enemie
 A `Body` is the original's `playerData` for a body other than Alaron's, stepped each tick as `ProcessPlayers` steps it:
 
 - **Steering** (`MoveTo`). A body sent somewhere (`SetAiDest`) points its stick at the goal, at half tilt to walk or 0.95 to run, and the stick turns it 20° a frame as the player's does. The original routes the stick through the camera's turn and back, which cancels out. The stick follows the goal only while the body comes nearer than it's been, by 0.01; otherwise it keeps its last way, so a body that starts facing away walks a short curve. Within the goal's radius it stops. In trek a body that can't get nearer keeps trying; in cut-scenes the original gives up after 30 frames and puts it there.
-- **Turning** (`SetFacing`) turns it 20° a frame where it stands; the decomp reads 10°, and 1.0's constant is `0x3EB2B7FE`, as the player's is. A body with neither a goal nor a turn lets go of its stick, and keeps whatever animation it was last asked for.
+- **Turning** (`SetFacing`) turns it 10° a frame where it stands (`MoveTo`'s `0x3E32B7FE`), half what it turns on the move. A body with neither a goal nor a turn lets go of its stick, and keeps whatever animation it was last asked for.
 - **Then** the world's collision, the push down on plain collision, and its animation's root motion, as the player's ([movement](movement.md)). Bodies don't set off trigger triangles (`CSPHERE_NoTriggers`).
 - **Only near the camera.** In trek, bodies more than 30 from the camera's aim don't move or animate at all (`PlayerHandler.float_0x68`; 128 in combat).
 

@@ -93,9 +93,9 @@ public class BodyTests
         var ticks = 0;
         for (; body.Steered && ticks < 100; ticks++)
             body.Step(Worlds.Flat(), new SteadyMotion(0.05f));
-        // 90° at 10° a tick, a last step to land on it (the turn's test is a chord against the sine of
-        // its angle, which ten degrees left just misses), and a tick to let go.
-        Assert.Equal(11, ticks);
+        // 90° at 5° a tick, a last step to land on it (the turn's test is a chord against the sine of
+        // its angle, which five degrees left just misses), and a tick to let go.
+        Assert.Equal(20, ticks);
         Assert.Equal(-Vector2.UnitY, body.Heading);
         Assert.Equal(PlayerMotion.Idle, body.Request);
         Assert.Equal(at.X, body.Sphere.Position.X, 1e-4f);

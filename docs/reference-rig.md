@@ -132,6 +132,19 @@ This copies the named state to the ROM's `.bs9` slot and passes `--save-state 9`
 
 The user's screenshots of the original, for matching UI against. They live in `roms/` with the checkpoints, named for what they show, such as `menu-party-inventory-info.png` (the pause menu's Party tab with an item's details open). ares saves them at 2560 × 960, four times the 640 × 240 its video output gives (see [ui](systems/ui.md#the-screen)), so taking every fourth pixel both ways recovers that exactly; doubling its lines then shows it at 4:3.
 
+### Reading the original's code: `tools/n64dis.py`
+
+The decomp's pseudocode is often wrong in the details: a field read from the wrong object, a constant misread, a loop that restarts. When a value or a branch matters, read the machine code. `n64dis.py` disassembles a function by the decomp's symbol (from `ref/Aidyn/symbol_addrs.<rom>.txt`), naming the functions it calls and the floats it loads, and reads data as floats and doubles. It needs `pip install capstone`.
+
+```bash
+python tools/n64dis.py --find wander                 # symbols whose names hold the text
+python tools/n64dis.py WanderTick                    # a function, in 1.0 (or --rom debug)
+python tools/n64dis.py 0x8000f5b4 --count 60         # from an address
+python tools/n64dis.py --data 0x800cdb80 --count 2   # words as hex, float and double
+```
+
+The decomp's `FUN_xxxxxxxx` names are debug-build addresses; 1.0's functions sit in the same order, so find one by its neighbours with `--find`. Check a float's bits, not just its look: `0x3E32B7FE` is 10° in radians and `0x3EB2B7FE` is 20°.
+
 ### Reading state RAM offline: `tools/bst.py`
 
 ares states store RDRAM uncompressed as 32-bit little-endian words. `bst.py` locates RDRAM by fingerprinting the code segment against the matching ROM, found by filename prefix. It then reads it as big-endian KSEG0 addresses:
