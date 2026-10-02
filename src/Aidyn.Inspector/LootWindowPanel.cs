@@ -67,7 +67,7 @@ public partial class LootWindowPanel : VBoxContainer
     /// <summary>Sets how the screen is shown (<c>--zoom</c>, <c>--ui-filter</c>, <c>--aspect</c>, <c>--ui-lines</c>).</summary>
     public void SetScreen(int? zoom, UiFilter? filter, bool? wide, int? lines) => _options.Set(zoom, filter, wide, lines);
 
-    /// <summary>Presses A, B, the stick or C-down in turn (<c>--press</c>), for screenshots.</summary>
+    /// <summary>Presses A, B, the stick, or C-down, which stays held until pressed again, in turn (<c>--press</c>), for screenshots.</summary>
     public void Press(IEnumerable<string> buttons)
     {
         foreach (var button in buttons)
@@ -80,7 +80,8 @@ public partial class LootWindowPanel : VBoxContainer
                 case "down": Barter.MoveCursor(1); break;
                 case "left": Side(right: false); break;
                 case "right": Side(right: true); break;
-                default: GD.PrintErr($"--press: \"{button}\" isn't a, b, up, down, left or right."); break;
+                case "details": _details.ButtonPressed = !_details.ButtonPressed; break;
+                default: GD.PrintErr($"--press: \"{button}\" isn't a, b, up, down, left, right or details."); break;
             }
         }
         _view.QueueRedraw();
