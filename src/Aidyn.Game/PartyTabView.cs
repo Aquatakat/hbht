@@ -310,17 +310,8 @@ public partial class PartyTabView : Control
     /// as wide as its text up to 150, and as tall as it wraps, plus 5; a crafting popup's result has 16
     /// more across and 5 more down (<c>WidgetCrafting::TextPopup</c>).
     /// </summary>
-    private void Message(MenuMessage message)
-    {
-        var font = _ui.Main;
-        var wrap = Math.Min(font.Width(message.Text), MenuMessage.MaxWidth);
-        var height = font.Layout.Height(message.Text, 0, wrap);
-        var (w, h) = message.FromCrafting ? (wrap + 16, height + 10) : (wrap, height + 5);
-        var x0 = ((int)Size.X - w) / 2;
-        var y0 = ((int)Size.Y - h) / 2;
-        _ui.Images.DrawPanel(this, _ui.Images.Around(new ScreenRect(x0, y0, x0 + w + 8, y0 + h)));
-        _ui.Text(this, font, message.Text, x0 + 4, y0 + 4, new ScreenRect(x0 + 4, y0, x0 + 4 + w, y0 + h + 4), MenuMessage.Color);
-    }
+    private void Message(MenuMessage message) =>
+        _ui.Message(this, (Vector2I)Size, message.Text, MenuMessage.MaxWidth, MenuMessage.Color, message.FromCrafting ? 16 : 0, message.FromCrafting ? 5 : 0);
 
     /// <summary>
     /// The sheet under the image's pieces: plain parchment, its torn top edge along the top and its

@@ -39,7 +39,12 @@ public sealed class ChunkScenery
     /// which the runtime decides as the chunk loads, as the original does
     /// (<c>VoxelObjects_Activate</c>), not every frame.
     /// </summary>
-    public static ChunkScenery Load(PluginSet plugins, Models models, MapSetRecord set, ChunkEntry chunk, Func<SceneObject, bool> placed)
+    /// <param name="model">
+    /// Which of an object's models its nearest level shows: 0, its own, or for a container's, 1 opened
+    /// or 2 destroyed (<c>replace_container_voxel</c>). All 0 if not given.
+    /// </param>
+    public static ChunkScenery Load(PluginSet plugins, Models models, MapSetRecord set, ChunkEntry chunk, Func<SceneObject, bool> placed,
+        Func<SceneObject, int>? model = null)
     {
         var scenery = new ChunkScenery(chunk, new Node3D { Name = chunk.Name, Position = set.Origin(chunk.Row, chunk.Column).ToGodot() });
         foreach (var scene in new[] { chunk.Scene, chunk.AltScene }.OfType<RecordId>())
@@ -56,7 +61,7 @@ public sealed class ChunkScenery
         foreach (var o in plugins.Get<MapRecord>(chunk.Map).Objects.OfType<SceneObject>())
         {
             if (placed(o))
-                objects.AddChild(scenery.Place(plugins, models, o).Node);
+                objects.AddChild(scenery.Place(plugins, models, o, model?.Invoke(o) ?? 0).Node);
         }
         scenery.Billboards = global::Aidyn.Game.Billboards.Facings(scenery.Root);
         return scenery;
@@ -97,8 +102,11 @@ public sealed class ChunkScenery
         }
     }
 
-    /// <summary>A scene object's levels of detail, each hidden.</summary>
-    private PlacedObject Place(PluginSet plugins, Models models, SceneObject o)
+    /// <summary>The placed scene object at an index in the chunk's map, if it's placed.</summary>
+    public PlacedObject? Find(int index) => Objects.FirstOrDefault(p => p.Object.Index == index);
+
+    /// <summary>A scene object's levels of detail, each hidden, the nearest showing model <paramref name="first"/>.</summary>
+    private PlacedObject Place(PluginSet plugins, Models models, SceneObject o, int first)
     {
         var q = o.Orientation();
         var node = new Node3D
@@ -110,8 +118,8 @@ public sealed class ChunkScenery
         var levels = new Level?[Math.Min(o.Lods, o.Models.Count)];
         for (var i = 0; i < levels.Length; i++)
         {
-            var model = o.Models[i];
-            if (Instantiate(plugins, models, model.Model, o.Flags) is not { } instance)
+            var model = i == 0 && first < o.Models.Count ? o.Models[first] : o.Models[i];
+            if (Instantiate(plugins, models, model.Model, o.Flags) is not ({ } instance, var animator))
                 continue;
             // The original averages a tinted object's tint with the scenery's (SetSceneColors).
             // Actors are lit instead.
@@ -120,7 +128,7 @@ public sealed class ChunkScenery
             instance.Visible = false;
             node.AddChild(instance);
             var scene = model.Model.Type == RecordTypes.Actor ? plugins.Get<ActorRecord>(model.Model).Scene : model.Model;
-            levels[i] = new Level(instance, models.Scrolls.Attach(scene, instance));
+            levels[i] = new Level(instance, models.Scrolls.Attach(scene, instance)) { Animator = animator };
         }
         var placed = new PlacedObject(o, node, Root.Position, levels);
         Objects.Add(placed);
@@ -131,12 +139,12 @@ public sealed class ChunkScenery
     /// A scene object's model. Its actors are lit by the tint and the sun, unless they're
     /// fullbright, when they're tinted like scenery (<c>set_sun_light</c>).
     /// </summary>
-    private static Node3D? Instantiate(PluginSet plugins, Models models, RecordId model, SceneObjectFlags flags)
+    private static (Node3D Node, ActorAnimator? Animator)? Instantiate(PluginSet plugins, Models models, RecordId model, SceneObjectFlags flags)
     {
         if (model.Type != RecordTypes.Actor)
-            return models.Instantiate(model);
+            return models.Instantiate(model) is { } node ? (node, null) : null;
         var lighting = flags.HasFlag(SceneObjectFlags.Fullbright) ? N64Material.Lighting.Scenery : N64Material.Lighting.SceneObject;
-        return models.InstantiateActor(plugins.Get<ActorRecord>(model), lighting)?.Node;
+        return models.InstantiateActor(plugins.Get<ActorRecord>(model), lighting);
     }
 }
 
@@ -161,6 +169,10 @@ public sealed class Level(Node3D node, ScrollingScene? scrolling)
     public Node3D Node { get; } = node;
     public GeometryInstance3D[] Meshes { get; } = [.. Nodes.FindAll<GeometryInstance3D>(node)];
     public ScrollingScene? Scrolling { get; } = scrolling;
+
+    /// <summary>An actor's state machine, which a trigger can ask for an animation.</summary>
+    public ActorAnimator? Animator { get; init; }
+
     public byte Alpha { get; private set; }
 
     /// <summary>The surfaces whose materials change while the model is faded: its cut-outs.</summary>

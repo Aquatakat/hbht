@@ -159,6 +159,28 @@ public sealed class LoadedMap
         return map;
     }
 
+    /// <summary>
+    /// Gates the scene objects no container links to again by the flags, as the runtime does when the
+    /// pause menu closes, so what changed there shows. Returns whether any came or went.
+    /// </summary>
+    public bool Regate(FlagNetwork flags)
+    {
+        bool IsSet(RecordId flag) => flags.TryHandle(flag, out var handle) && flags.Get(handle);
+        var models = Record.Objects.OfType<ContainerObject>().Select(c => Linked<SceneObject>(c)?.Index).OfType<int>().ToHashSet();
+        var changed = false;
+        foreach (var scene in Record.Objects.OfType<SceneObject>())
+        {
+            if (scene.Pak == PakVariant.Without || models.Contains(scene.Index))
+                continue;
+            var there = MapObjectPresence.There(scene, IsSet);
+            if (there == IsActive(scene.Index))
+                continue;
+            SetActive(scene.Index, there);
+            changed = true;
+        }
+        return changed;
+    }
+
     /// <summary>Whether a container is remembered as emptied, which it is when it has no opened flag.</summary>
     public bool Remembered(MapObjectMemory memory, ContainerObject container) =>
         memory.Find(new Memory(MapRecord.VoxelId(Record.Id, container.Index), MemoryKind.Opened)) is not null;

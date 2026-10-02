@@ -67,8 +67,14 @@ A popup stops trek until it's closed (`TrekPopup`):
 - **The trap's damage** (`TrapMenu::TakeDamage`): white, in a box 16 wider than its widest line and as tall as its lines at the first line's height plus 2.
 - **The trap's menu** (`WidgetChoiceDia`): the stick moves the cursor, A chooses and B leaves.
 
+## In the runtime
+
+The runtime's chunk streamer keeps each loaded chunk's `LoadedMap` beside its collision and scenery, and builds a chunk's scenery again when a container's model changes. `Game` is the `IMapObjectHost`, and `TrekPopupView` draws the popups on a UI screen of their own, under the pause menu. On a new game, A beside the chest at the start gives 4 Healing Potions and shows it opened, and the door to Gwernia's house A (Overworld M07) leads into the Gwernia interiors' A03.
+
 ## Not ported yet
 
 - Alaron's animations for opening a container (request 11) and a door (19), which the original asks for only when it chose among several objects.
 - Sounds (containers' by kind, the coin jingle, the explosion), the explosion's lights and particles, and the popups' fades.
-- Camera objects (4c), monster parties and dialogues (session 5).
+- Camera objects and the interiors' camera (4c), the loot window (4b), and monster parties and dialogues (session 5).
+- The editor's map object pages don't use objects yet.
+- The trap menu's layout follows the decomp's reading of `WidgetChoiceDia::Update`, which places the question above the choices; the colours of the cursor's choice are the scroll menu's defaults, grey to white. Neither is checked against the console.

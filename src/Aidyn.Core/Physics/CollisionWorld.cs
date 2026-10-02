@@ -71,6 +71,9 @@ public sealed class CollisionWorld
 
     public bool Remove(object key) => _parts.Remove(key);
 
+    /// <summary>Removes every part, as changing map set does.</summary>
+    public void Clear() => _parts.Clear();
+
     /// <summary>
     /// Changes the flags of a part's toggles with id <paramref name="toggle"/>: ANDs them with
     /// <paramref name="keep"/>, then ORs in <paramref name="add"/>, as a <c>ChangeCollision</c> trigger

@@ -61,6 +61,30 @@ public sealed class UiPainter
         return run.Height;
     }
 
+    /// <summary>
+    /// A message box at the centre of a screen of the size (<c>TextPopup_New</c>): a feathered black box
+    /// <paramref name="width"/> + 8 across and <paramref name="height"/> down, with the text 4 in, in the
+    /// main font.
+    /// </summary>
+    public void MessageBox(CanvasItem canvas, Vector2I screen, string text, int width, int height, Rgba color)
+    {
+        var x0 = (screen.X - width) / 2;
+        var y0 = (screen.Y - height) / 2;
+        Images.DrawPanel(canvas, Images.Around(new ScreenRect(x0, y0, x0 + width + 8, y0 + height)));
+        Text(canvas, Main, text, x0 + 4, y0 + 4, new ScreenRect(x0 + 4, y0, x0 + 4 + width, y0 + height + 4), color);
+    }
+
+    /// <summary>
+    /// A message fitted to its text (<c>TextBox_Centered</c>): as wide as the text up to
+    /// <paramref name="wrap"/>, wrapping there, and as tall as it wraps plus 5, with
+    /// <paramref name="extraWidth"/> and <paramref name="extraHeight"/> more.
+    /// </summary>
+    public void Message(CanvasItem canvas, Vector2I screen, string text, int wrap, Rgba color, int extraWidth = 0, int extraHeight = 0)
+    {
+        var width = Math.Min(Main.Width(text), wrap);
+        MessageBox(canvas, screen, text, width + extraWidth, Main.Layout.Height(text, 0, width) + 5 + extraHeight, color);
+    }
+
     /// <summary>Prints one line unbounded but by the screen.</summary>
     public int Text(CanvasItem canvas, UiFont font, string text, int x, int y, Rgba color) =>
         Text(canvas, font, text, x, y, new ScreenRect(-4096, -4096, 4096, 4096), color);

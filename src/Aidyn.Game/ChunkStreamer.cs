@@ -1,4 +1,5 @@
-using Aidyn.Core.Flags;
+using Aidyn.Core;
+using Aidyn.Core.MapObjects;
 using Aidyn.Core.Physics;
 using Aidyn.Core.Scenes;
 using Aidyn.Inspector;
@@ -12,29 +13,30 @@ namespace Aidyn.Game;
 /// <summary>
 /// Keeps the 3×3 chunks around a point loaded, as the original's zone engine does
 /// (<c>ZoneDatMtx</c>): each chunk's scenery, its see-through scenery, the models its scene
-/// objects place, and its collision, which goes into the <see cref="CollisionWorld"/>.
+/// objects place, its collision, which goes into the <see cref="CollisionWorld"/> keyed by its row
+/// and column, and its map objects as they stand while it's loaded (<see cref="LoadedMap"/>).
 /// </summary>
 public partial class ChunkStreamer : Node3D
 {
     private readonly PluginSet? _plugins;
-    private readonly FlagNetwork? _flags;
+    private readonly GameState? _game;
     private readonly Models? _models;
     private readonly MapSetRecord? _set;
     private readonly CollisionWorld? _world;
     private readonly Dictionary<(int Row, int Column), ChunkEntry> _chunks = [];
     private readonly Dictionary<(int Row, int Column), ChunkScenery> _loaded = [];
-    /// <summary>Each loaded chunk's scene objects that its flags placed, by index.</summary>
-    private readonly Dictionary<(int Row, int Column), HashSet<int>> _placed = [];
+    /// <summary>Each loaded chunk's map objects.</summary>
+    private readonly Dictionary<(int Row, int Column), LoadedMap> _maps = [];
     private (int Row, int Column) _centre;
 
     public ChunkStreamer()
     {
     }
 
-    public ChunkStreamer(PluginSet plugins, Models models, MapSetRecord set, CollisionWorld world, FlagNetwork flags)
+    public ChunkStreamer(PluginSet plugins, Models models, MapSetRecord set, CollisionWorld world, GameState game)
     {
         _plugins = plugins;
-        _flags = flags;
+        _game = game;
         _models = models;
         _set = set;
         _world = world;
@@ -57,6 +59,15 @@ public partial class ChunkStreamer : Node3D
 
     public Vector3 Origin(ChunkEntry chunk) => MapSet.Origin(chunk.Row, chunk.Column).ToGodot();
 
+    /// <summary>A loaded chunk's map objects, by the key its collision is under.</summary>
+    public LoadedMap? Map(object key) => key is ValueTuple<int, int> cell ? _maps.GetValueOrDefault(cell) : null;
+
+    /// <summary>The map objects of the loaded chunk a point is in.</summary>
+    public LoadedMap? MapAt(Vector3 position) => _maps.GetValueOrDefault(CellAt(position));
+
+    /// <summary>Where a loaded chunk's map is, in the map set.</summary>
+    public Vector3 Origin(LoadedMap map) => map.Key is ValueTuple<int, int> cell ? MapSet.Origin(cell.Item1, cell.Item2).ToGodot() : Vector3.Zero;
+
     /// <summary>Loads the chunks around <paramref name="position"/> and frees the rest. Returns whether any changed.</summary>
     public bool Update(Vector3 position)
     {
@@ -76,7 +87,7 @@ public partial class ChunkStreamer : Node3D
         {
             _loaded[cell].Root.QueueFree();
             _loaded.Remove(cell);
-            _placed.Remove(cell);
+            _maps.Remove(cell);
             _world!.Remove(cell);
             changed = true;
         }
@@ -129,38 +140,46 @@ public partial class ChunkStreamer : Node3D
     /// <summary>
     /// Gates the loaded chunks' scene objects again by the flags, as the original does when it
     /// reloads the map after a conversation, the pause menu or a teleport (<c>loadGameBorgScenes</c>).
-    /// A chunk whose objects come and go is built again; its collision stays.
+    /// A chunk whose objects come and go is built again; its collision and the rest of its objects
+    /// stay as they are.
     /// </summary>
     public void Regate()
     {
-        foreach (var (cell, placed) in _placed.ToList())
+        foreach (var (cell, map) in _maps)
         {
-            var chunk = _chunks[cell];
-            if (Placed(chunk).SetEquals(placed))
-                continue;
-            _loaded[cell].Root.QueueFree();
-            var scenery = _loaded[cell] = Scenery(chunk);
-            AddChild(scenery.Root);
+            if (map.Regate(_game!.Flags))
+                Rebuild(map);
         }
     }
 
+    /// <summary>Builds a loaded chunk's scenery again, after a container's model changed or an object came or went.</summary>
+    public void Rebuild(LoadedMap map)
+    {
+        if (map.Key is not ValueTuple<int, int> cell || !_loaded.TryGetValue(cell, out var old))
+            return;
+        old.Root.QueueFree();
+        var scenery = _loaded[cell] = Scenery(_chunks[cell], map);
+        AddChild(scenery.Root);
+    }
+
+    /// <summary>The actor a loaded chunk's scene object places, if it's placed and animated.</summary>
+    public ActorAnimator? Animator(LoadedMap map, SceneObject actor) =>
+        map.Key is ValueTuple<int, int> cell && _loaded.TryGetValue(cell, out var scenery) ? scenery.Find(actor.Index)?.Levels.FirstOrDefault()?.Animator : null;
+
+    // The chunk's collision, its objects activated by the flags as the original does as it loads
+    // (VoxelObjects_Activate), and its scenery.
     private ChunkScenery Load(ChunkEntry chunk)
     {
-        // Toggles stay as they're stored until a trigger changes them (M2's map objects).
+        var cell = (chunk.Row, chunk.Column);
         if (_plugins!.FindAsset(chunk.Map, "glb") is { } collision)
-            _world!.Add((chunk.Row, chunk.Column), CollisionMesh.Read(File.ReadAllBytes(collision)), MapSet.Origin(chunk.Row, chunk.Column));
-        return Scenery(chunk);
+            _world!.Add(cell, CollisionMesh.Read(File.ReadAllBytes(collision)), MapSet.Origin(chunk.Row, chunk.Column));
+        var game = _game!;
+        var map = _maps[cell] = LoadedMap.Activate(_plugins.Get<MapRecord>(chunk.Map), cell, game.Flags, game.Memory, game.Party, game.Random.World);
+        return Scenery(chunk, map);
     }
 
-    // Whether an object is there is decided as its chunk loads, as the original does
-    // (VoxelObjects_Activate), not every frame.
-    private ChunkScenery Scenery(ChunkEntry chunk)
-    {
-        var placed = _placed[(chunk.Row, chunk.Column)] = Placed(chunk);
-        return ChunkScenery.Load(_plugins!, _models!, MapSet, chunk, o => placed.Contains(o.Index));
-    }
-
-    /// <summary>The chunk's scene objects there now: the runtime plays with the Expansion Pak, and each by its flag gate.</summary>
-    private HashSet<int> Placed(ChunkEntry chunk) => [.. _plugins!.Get<MapRecord>(chunk.Map).Objects.OfType<SceneObject>()
-        .Where(o => o.Pak != PakVariant.Without && !(o.Visible is { } gate && _flags!.Get(gate.Flag) == gate.Invert)).Select(o => o.Index)];
+    // Whether a scene object is there is decided as its chunk loads, not every frame. The runtime
+    // plays with the Expansion Pak.
+    private ChunkScenery Scenery(ChunkEntry chunk, LoadedMap map) =>
+        ChunkScenery.Load(_plugins!, _models!, MapSet, chunk, o => map.IsActive(o.Index), o => (int)map.Look(o.Index));
 }

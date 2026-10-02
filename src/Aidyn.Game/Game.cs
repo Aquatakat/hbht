@@ -2,9 +2,12 @@ using System.Globalization;
 using Aidyn.Core;
 using Aidyn.Core.Cameras;
 using Aidyn.Core.Flags;
+using Aidyn.Core.Items;
+using Aidyn.Core.MapObjects;
 using Aidyn.Core.Movement;
 using Aidyn.Core.Physics;
 using Aidyn.Core.Scenes;
+using Aidyn.Core.Ui;
 using Aidyn.Inspector;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
@@ -20,7 +23,8 @@ namespace Aidyn.Game;
 /// </summary>
 /// <remarks>
 /// The player and camera are the core's port of the original, stepped once per 60 Hz tick in the
-/// physics process; Godot interpolates between ticks for display. Start opens the pause menu.
+/// physics process; Godot interpolates between ticks for display. Start opens the pause menu, and A
+/// uses the map object the player reaches (<see cref="MapObjectUse"/>).
 /// Command-line options, after <c>--</c>: <c>--save &lt;path&gt;</c> starts from a save (see
 /// docs/systems/saves.md), where it stands unless <c>--chunk</c> or <c>--at</c> say otherwise;
 /// <c>--set &lt;n&gt;</c> (default 0, the overworld),
@@ -40,8 +44,16 @@ namespace Aidyn.Game;
 /// F toggles the free camera, F3 the debug overlay, F5 the pace, F6 the sky's placement and F7 the
 /// UI screen's height, and F8 saves to <c>quick.json</c> in the saves folder.
 /// </remarks>
-public partial class Game : Node3D
+public partial class Game : Node3D, IMapObjectHost
 {
+    /// <summary>
+    /// How a teleport fades (<c>set_teleport_pointer</c>, <c>handleZoneEngineFrame</c>, <c>appState_1</c>):
+    /// out at 2/3 of full brightness a tick, black for 3 frames, then in at 1/15 a tick.
+    /// </summary>
+    private const float FadeOutPerTick = 2f / 3, FadeInPerTick = 1f / 15;
+
+    private const int FadeHoldTicks = 3 * Core.Cadence.FrameTicks;
+
     /// <summary>A faster pace than the original's, which feels slow on a PC (ADR 0006's fidelity settings).</summary>
     private const float BriskPace = 1.3f;
 
@@ -74,6 +86,23 @@ public partial class Game : Node3D
     private readonly Queue<System.Numerics.Vector3> _track = new();
     private long _ticks;
     private DrawDistance _drawDistance = DrawDistance.Original;
+    private PluginSet? _plugins;
+    private MapObjectUse? _use;
+    private readonly UiScreen _trekScreen = new();
+    private TrekPopupView? _popupView;
+    private readonly ColorRect _fade = new() { Color = Colors.Black, MouseFilter = Control.MouseFilterEnum.Ignore };
+    /// <summary>The screen's brightness, which a teleport fades out and in.</summary>
+    private float _brightness = 1;
+    private bool _fadingIn;
+    private int _blackTicks;
+    /// <summary>The teleporter the player is going through once the screen is black.</summary>
+    private TeleporterObject? _pending;
+    /// <summary>The chunk the player was last in, to age what map objects remember as he crosses into another.</summary>
+    private (int Row, int Column)? _centre;
+    /// <summary>Chunks whose scenery changed this tick, built again before the frame is drawn.</summary>
+    private readonly HashSet<LoadedMap> _changed = [];
+    /// <summary>The last script a dialogue object asked to start, which conversations will run (session 5).</summary>
+    private RecordId? _lastScript;
 
     public override void _Ready()
     {
@@ -103,7 +132,7 @@ public partial class Game : Node3D
 
     private void Start(Dictionary<string, string> args)
     {
-        var plugins = LoadPlugins();
+        var plugins = _plugins = LoadPlugins();
         var game = _game = args.TryGetValue("save", out var savePath)
             ? GameState.Load(plugins, SaveFile.Read(savePath))
             : GameState.NewGame(plugins);
@@ -147,7 +176,7 @@ public partial class Game : Node3D
 
         _drawDistance = new DrawDistance(Float(args, "draw-distance", 1), args.GetValueOrDefault("detail") == "nearest");
         var models = _models = new Models(plugins);
-        _chunks = new ChunkStreamer(plugins, models, set, _world, game.Flags);
+        _chunks = new ChunkStreamer(plugins, models, set, _world, game);
         AddChild(_chunks);
 
         var chunkName = args.GetValueOrDefault("chunk", place?.Chunk ?? "I08");
@@ -202,6 +231,19 @@ public partial class Game : Node3D
         _camera = new CameraRig { Follow = _follow, Yaw = yaw, Pitch = Mathf.DegToRad(-pitch) };
         AddChild(_camera);
         _camera.Sync();
+
+        // Trek's popups, over the world and under the pause menu, and the fade over them.
+        var trek = new CanvasLayer { Name = "Trek UI", Layer = PauseMenu.MenuLayer - 1 };
+        _trekScreen.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        _trekScreen.MouseFilter = Control.MouseFilterEnum.Ignore;
+        trek.AddChild(_trekScreen);
+        _popupView = new TrekPopupView(plugins);
+        _trekScreen.Canvas.AddChild(_popupView);
+        _fade.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        _fade.Visible = false;
+        trek.AddChild(_fade);
+        AddChild(trek);
+        _use = new MapObjectUse(game, MenuText.From(plugins), this) { World = _world };
 
         _menu = new PauseMenu(plugins, game);
         if (args.TryGetValue("ui-lines", out var lines))
@@ -264,10 +306,20 @@ public partial class Game : Node3D
 
     public override void _ExitTree() => _models?.Dispose();
 
-    /// <summary>The chunk the player is in: its sky, and its terrain written into the flags.</summary>
+    /// <summary>
+    /// The chunk the player is in: its sky, and its terrain written into the flags. Crossing into
+    /// another chunk is a teleport in the original (<c>ConfirmPlayerWithinZone</c>), which ages what map
+    /// objects remember.
+    /// </summary>
     private void Enter(ChunkEntry? chunk)
     {
         _sky!.Enter(chunk);
+        if (chunk is not null && _centre != (chunk.Row, chunk.Column))
+        {
+            if (_centre is not null)
+                _game!.Memory.Age();
+            _centre = (chunk.Row, chunk.Column);
+        }
         if (chunk is null || chunk == _chunk)
             return;
         _chunk = chunk;
@@ -276,7 +328,8 @@ public partial class Game : Node3D
 
     /// <summary>
     /// One 60 Hz tick: the time played, which counts in every mode, and in trek the clock, the
-    /// camera, then the player, as the original orders them. The pause menu stops trek.
+    /// camera, then the player, as the original orders them. The pause menu stops trek, and a popup
+    /// stops the clock and the player; a teleport's fade stops the player.
     /// </summary>
     public override void _PhysicsProcess(double delta)
     {
@@ -285,17 +338,34 @@ public partial class Game : Node3D
         _game.PlayTime++;
         if (_menu!.IsOpen)
             return;
+        _popupView!.Step();
+        StepFade();
+        var paused = _use!.Popup is not null;
+        var fading = _pending is not null || _fadingIn;
         Enter(_chunks!.ChunkAt(_player.Motion.Sphere.Position.ToGodot()));
-        _game.PassTime(1);
+        if (!paused)
+            _game.PassTime(1);
         _sky!.Step();
         ScrollTextures();
-        if (_camera.Flying)
+        if (_camera.Flying || paused)
             return;
-        var input = ReadInput();
         var motion = _player.Motion;
+        // ProcessVoxelObjects comes before the player moves.
+        if (!fading && _chunks.MapAt(motion.Sphere.Position.ToGodot()) is { } centre)
+            _use.Touch(centre, Local(centre, motion.Sphere.Position));
+        var input = fading || _use.Popup is not null ? new PlayerInput(System.Numerics.Vector2.Zero) : ReadInput();
         var before = motion.Sphere.Position;
         _follow.Step(_world, motion.Sphere.Position, motion.Heading);
         motion.Step(_world, input, _follow, _animation);
+        if (!fading && _pending is null)
+        {
+            foreach (var (part, target) in motion.Sphere.Trod)
+            {
+                if (_chunks.Map(part) is { } map)
+                    _use.Tread(map, target, Local(map, motion.Sphere.Position));
+            }
+        }
+        ShowPopup();
         _player.Sync();
         _camera.Sync();
         PlaceShadow();
@@ -304,11 +374,102 @@ public partial class Game : Node3D
             _track.Dequeue();
         // A fall that sends him back to safe ground is a jump, not a move.
         if (System.Numerics.Vector3.Distance(before, motion.Sphere.Position) > 2)
+            ResetInterpolation();
+    }
+
+    private void ResetInterpolation()
+    {
+        _player!.ResetPhysicsInterpolation();
+        _camera!.ResetPhysicsInterpolation();
+        _shadow?.ResetPhysicsInterpolation();
+    }
+
+    /// <summary>A point in the world in a loaded chunk's coordinates.</summary>
+    private System.Numerics.Vector3 Local(LoadedMap map, System.Numerics.Vector3 world) => world - _chunks!.Origin(map).ToNumerics();
+
+    /// <summary>Shows the popup using map objects has up, if it changed.</summary>
+    private void ShowPopup()
+    {
+        if (_popupView!.Popup != _use!.Popup)
+            _popupView.Popup = _use.Popup;
+    }
+
+    /// <summary>
+    /// Steps a teleport's fade: out, black for a few frames, then the player goes through and it fades
+    /// in. The original fades out only if nothing else is fading, and teleports once it's done.
+    /// </summary>
+    private void StepFade()
+    {
+        if (_pending is { } teleporter)
         {
-            _player.ResetPhysicsInterpolation();
-            _camera.ResetPhysicsInterpolation();
-            _shadow?.ResetPhysicsInterpolation();
+            if (_brightness > 0)
+            {
+                _brightness = Math.Max(0, _brightness - FadeOutPerTick);
+            }
+            else if (++_blackTicks >= FadeHoldTicks)
+            {
+                _blackTicks = 0;
+                _pending = null;
+                _fadingIn = true;
+                GoThrough(teleporter);
+            }
         }
+        else if (_fadingIn)
+        {
+            _brightness = Math.Min(1, _brightness + FadeInPerTick);
+            _fadingIn = _brightness < 1;
+        }
+        _fade.Visible = _brightness < 1;
+        _fade.Color = new Color(0, 0, 0, 1 - _brightness);
+    }
+
+    /// <summary>
+    /// Takes the player through a teleporter (<c>TeleportPlayer</c>): what map objects remember ages, the
+    /// destination's chunks load, in another map set if need be, and he's set down at the arrival point
+    /// facing its way, with the camera behind him.
+    /// </summary>
+    private void GoThrough(TeleporterObject teleporter)
+    {
+        if (TeleportArrival.For(_plugins!, teleporter) is not { } arrival)
+        {
+            Say($"{teleporter.Name} leads to a chunk no plugin has.");
+            return;
+        }
+        _game!.Memory.Age();
+        if (arrival.Set.Id != _chunks!.MapSet.Id)
+        {
+            _chunks.QueueFree();
+            _world.Clear();
+            _changed.Clear();
+            _chunks = new ChunkStreamer(_plugins!, _models!, arrival.Set, _world, _game);
+            AddChild(_chunks);
+        }
+        var point = _chunks.Origin(arrival.Chunk) + arrival.Position.ToGodot();
+        _chunks.Update(point);
+        var motion = _player!.Motion;
+        motion.Sphere.Position = TeleportArrival.Settle(_world, point.ToNumerics(), motion.Sphere.Radius) ?? point.ToNumerics();
+        motion.Sphere.Velocity = System.Numerics.Vector3.Zero;
+        if (arrival.Heading is { } heading)
+            motion.Heading = heading;
+        _centre = (arrival.Chunk.Row, arrival.Chunk.Column);
+        Enter(arrival.Chunk);
+        _sky!.Apply();
+
+        // The camera starts behind him, as outdoors (Camera::FUN_800b050c). Camera points and the
+        // interiors' camera come with 4c.
+        var follow = new FollowCamera(motion.Sphere.Position, motion.Heading)
+        {
+            Pitch = _follow!.DefaultPitch,
+            DefaultPitch = _follow.DefaultPitch,
+            Distance = _follow.DefaultDistance,
+            DefaultDistance = _follow.DefaultDistance,
+        };
+        _follow = _camera!.Follow = follow;
+        _camera.Yaw = MathF.Atan2(-motion.Heading.X, -motion.Heading.Y);
+        _player.Sync();
+        _camera.Sync();
+        PlaceShadow();
+        ResetInterpolation();
     }
 
     /// <summary>
@@ -415,6 +576,9 @@ public partial class Game : Node3D
     {
         if (_chunks is null || _player is null || _camera is null)
             return;
+        foreach (var map in _changed)
+            _chunks.Rebuild(map);
+        _changed.Clear();
         var focus = _camera.Flying ? _camera.Current.GlobalPosition : _player.GlobalPosition;
         _chunks.Update(focus);
         _chunks.Fade(View(), _drawDistance);
@@ -466,9 +630,29 @@ public partial class Game : Node3D
             if (e.IsActionPressed("pause") || e.IsActionPressed("menu_back") || menu.Handle(e))
                 return;
         }
-        else if (e.IsActionPressed("pause") && _menu is not null)
+        else if (_use?.Popup is not null)
+        {
+            if (e.IsActionPressed("menu_accept"))
+                _use.Accept();
+            else if (e.IsActionPressed("menu_back"))
+                _use.Back();
+            else if (e.IsActionPressed("move_forward") || e.IsActionPressed("menu_up"))
+                _use.MoveCursor(-1);
+            else if (e.IsActionPressed("move_back") || e.IsActionPressed("menu_down"))
+                _use.MoveCursor(1);
+            else
+                return;
+            ShowPopup();
+            _popupView!.QueueRedraw();
+            return;
+        }
+        else if (e.IsActionPressed("pause") && _menu is not null && _pending is null)
         {
             _menu.Open();
+            return;
+        }
+        else if (e.IsActionPressed("menu_accept") && _camera is { Flying: false } && _pending is null && !_fadingIn && UseNearest())
+        {
             return;
         }
 
@@ -501,6 +685,59 @@ public partial class Game : Node3D
             _sky.Placement = _sky.Placement == Core.Sky.SkyPlacement.Original ? Core.Sky.SkyPlacement.Projected : Core.Sky.SkyPlacement.Original;
         }
     }
+
+    /// <summary>A in trek: uses the map object the player reaches in the chunk he's in (<c>obj_ref_func</c>).</summary>
+    private bool UseNearest()
+    {
+        var sphere = _player!.Motion.Sphere;
+        if (_chunks!.MapAt(sphere.Position.ToGodot()) is not { } map)
+            return false;
+        var used = _use!.UseNearest(map, Local(map, sphere.Position), _player.Motion.Heading, sphere.Radius);
+        ShowPopup();
+        return used;
+    }
+
+    // What using map objects asks of the runtime.
+
+    void IMapObjectHost.Teleport(LoadedMap from, TeleporterObject teleporter)
+    {
+        // set_teleport_pointer: the fade starts unless one is under way, and the teleport waits for it.
+        if (_pending is not null || _fadingIn)
+            return;
+        _pending = teleporter;
+        _blackTicks = 0;
+    }
+
+    /// <summary>Until the loot window (4b), what a container held goes straight into the inventory, as far as it fits.</summary>
+    void IMapObjectHost.OpenLoot(ItemPile loot, int gold)
+    {
+        var taken = new List<string>();
+        foreach (var stack in loot.Stacks)
+        {
+            if (_game!.Party.Inventory!.Add(stack.Item, stack.Quantity))
+                taken.Add(stack.Quantity > 1 ? $"{stack.Quantity} x {stack.Item.Name}" : stack.Item.Name);
+        }
+        Say($"Loot: {string.Join(", ", taken)}{(gold > 0 ? $", and {gold} gold" : "")}");
+    }
+
+    void IMapObjectHost.StartScript(LoadedMap map, DialogueObject dialogue)
+    {
+        // Conversations come with session 5. A tangible dialogue asks every tick, so say it once.
+        if (_lastScript == dialogue.Script)
+            return;
+        _lastScript = dialogue.Script;
+        Say($"{dialogue.Name} would start {dialogue.Script}.");
+    }
+
+    void IMapObjectHost.Animate(LoadedMap map, SceneObject actor, int request)
+    {
+        if (_chunks!.Animator(map, actor) is { } animator)
+            animator.Request = request;
+    }
+
+    void IMapObjectHost.Changed(LoadedMap map, SceneObject scene) => _changed.Add(map);
+
+    void IMapObjectHost.Sound(string cue) => GD.Print($"Sound: {cue}");
 
     /// <summary>Saves the game to <c>quick.json</c> in the saves folder, with where the player stands.</summary>
     private void QuickSave()
