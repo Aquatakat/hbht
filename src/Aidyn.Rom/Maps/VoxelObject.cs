@@ -274,8 +274,13 @@ public sealed record CameraData(ushort RefPoint, CameraFlags CameraFlags, Vector
 /// <param name="LockLevel">The lock's level, or 0 for none. Picking it clears it.</param>
 /// <param name="Gold">Gold, or for a herb, spice or gem source, how many it gives before the Ranger skill's bonus.</param>
 /// <param name="Item">A fixed item, or none.</param>
+/// <param name="Reach">
+/// How near the player's sphere has to be to use it (<c>chestSize</c>, which <c>container_obj_check</c>
+/// adds the player's radius to): 2 for most, from 1 to 5. The decomp says it seems the same as the
+/// object's radius, which is 10 for most; it isn't. The word before it is a copy of the radius.
+/// </param>
 public sealed record ContainerData(ushort OpenFlag, ushort ExplodeFlag, ushort TrapLevel, ItemId Loot, ushort Kind, ushort LockLevel,
-    ushort Gold, ItemId Item) : VoxelData;
+    ushort Gold, ItemId Item, float Reach) : VoxelData;
 
 /// <param name="Destination">Where it leads. Row and column are those of a <see cref="MapChunk"/>.</param>
 /// <param name="RefPoint">
@@ -410,7 +415,7 @@ public static class Borg9Voxels
                 (WanderFlags)U16(p, 0x16), [U16(p, 0x18), U16(p, 0x1A)]),
             VoxelType.Camera => new CameraData(U16(p, 0), (CameraFlags)U16(p, 2), new Vector3(F32(p, 8), F32(p, 0xC), F32(p, 0x10))),
             VoxelType.Container => new ContainerData(U16(p, 0x8), U16(p, 0xA), U16(p, 0xE), new ItemId(U16(p, 0x10)), U16(p, 0x12),
-                U16(p, 0x14), U16(p, 0x16), new ItemId(U16(p, 0x18))),
+                U16(p, 0x14), U16(p, 0x16), new ItemId(U16(p, 0x18)), F32(p, 0x4)),
             VoxelType.Teleporter => new TeleporterData(((MapSet)U16(p, 0), U16(p, 2), U16(p, 4)), U16(p, 6), U16(p, 0xA), U16(p, 0xC),
                 U16(p, 0xE), U16(p, 0x10), U16(p, 0x12), U16(p, 0x14), U16(p, 0x16), U16(p, 0x18), U16(p, 0x1A),
                 GameText.Field(p.Slice(0x1C, 16))),

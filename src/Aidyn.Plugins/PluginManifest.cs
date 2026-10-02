@@ -46,7 +46,7 @@ public static class BasePlugin
     /// 16 gives spells their place in the spell table, which loading a save orders spellbooks by.
     /// 17 gives collision triangles the object a trigger triangle runs, or a toggle's id (<c>_TARGET</c>).
     /// </summary>
-    public const int ImporterVersion = 17;
+    public const int ImporterVersion = 18;
 }
 
 /// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>

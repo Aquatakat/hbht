@@ -41,7 +41,8 @@ public sealed record ChunkEntry(int Row, int Column, RecordId? Scene, RecordId? 
 /// <c>aidyn:voxel/…</c> ID (<see cref="VoxelId"/>). Every type is imported except the code
 /// objects, which the game does nothing with.
 /// </param>
-public sealed record MapRecord(RecordId Id, IReadOnlyList<MapObject> Objects)
+/// <param name="Grid">The objects each cell of the chunk's grid lists, or none for a map without one.</param>
+public sealed record MapRecord(RecordId Id, IReadOnlyList<MapObject> Objects, ObjectGrid? Grid = null)
 {
     /// <summary>The ID of the object at <paramref name="index"/> in the map <paramref name="map"/>, such as <c>aidyn:voxel/0x1A20/12</c>.</summary>
     public static RecordId VoxelId(RecordId map, int index) =>
@@ -50,6 +51,27 @@ public sealed record MapRecord(RecordId Id, IReadOnlyList<MapObject> Objects)
     /// <summary>The map a voxel ID names an object of.</summary>
     public static RecordId MapOf(RecordId voxel) =>
         RecordId.Parse($"{voxel.Namespace}:{RecordTypes.Map}/{voxel.Key[..voxel.Key.IndexOf('/', StringComparison.Ordinal)]}");
+}
+
+/// <summary>
+/// The chunk's collision grid as it lists objects (<c>CollideSection</c>): A weighs only the objects the
+/// cell the player is in lists (<c>obj_ref_func</c>), which an object's radius alone doesn't bound. The
+/// grid is in the chunk's coordinates, from <see cref="Origin"/> in X and Z.
+/// </summary>
+/// <param name="Cells">Row by row: the cell at (x, z) is <c>Cells[z × Columns + x]</c>, each the indices of the objects it lists.</param>
+public sealed record ObjectGrid(Vector2 Origin, Vector2 CellSize, int Columns, int Rows, IReadOnlyList<IReadOnlyList<int>> Cells)
+{
+    /// <summary>
+    /// The objects listed by the cell a point is in (<c>getZonePositionShorts</c>, <c>getCollideSection</c>).
+    /// The cell is found truncating toward zero, so up to a cell before the grid counts as its first, and a
+    /// point off the grid, either way, counts as in the first cell, (0, 0), as the machine code has it.
+    /// </summary>
+    public IReadOnlyList<int> At(Vector3 point)
+    {
+        var x = (int)((point.X - Origin.X) / CellSize.X);
+        var z = (int)((point.Z - Origin.Y) / CellSize.Y);
+        return x < 0 || z < 0 || x >= Columns || z >= Rows ? Cells[0] : Cells[z * Columns + x];
+    }
 }
 
 /// <summary>Which Expansion Pak setting a map object exists under.</summary>
@@ -235,6 +257,10 @@ public enum ContainerKind
 /// </param>
 /// <param name="Gold">Gold, or for a herb, spice or gem source, how many it gives before the Ranger skill's bonus.</param>
 /// <param name="Item">An item it always holds.</param>
+/// <param name="Reach">
+/// How near the player's sphere has to be to use it, which the player's radius is added to: 2 for most,
+/// where <see cref="MapObject.Radius"/> is 10, and 2 if not given.
+/// </param>
 public sealed record ContainerObject(
     int Index,
     Vector3 Position,
@@ -248,7 +274,8 @@ public sealed record ContainerObject(
     int TrapLevel,
     RecordId? Loot,
     int Gold,
-    RecordId? Item) : MapObject(Index, Position, Radius, Pak, Visible);
+    RecordId? Item,
+    float Reach = 2) : MapObject(Index, Position, Radius, Pak, Visible);
 
 /// <summary>How a light's colour changes (the original's <c>LightTypes</c>).</summary>
 public enum LightKind

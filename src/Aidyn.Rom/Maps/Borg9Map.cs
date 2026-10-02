@@ -106,7 +106,8 @@ public sealed record CollisionTriangle(int A, int B, int C, Vector3 Normal, Coll
 /// <param name="Triangles">Indices into <see cref="Borg9Map.Triangles"/>.</param>
 /// <param name="Objects">
 /// Indices into <see cref="Borg9Map.Objects"/>: the scenes drawn and the objects the player can
-/// use from the cell. Sounds, wander nodes, monster parties and reference points are never listed.
+/// use from the cell, which A weighs only these of (<c>obj_ref_func</c>). Sounds, wander nodes,
+/// monster parties and reference points are never listed.
 /// </param>
 public sealed record CollisionCell(IReadOnlyList<int> Triangles, IReadOnlyList<int> Objects);
 

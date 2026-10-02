@@ -91,6 +91,118 @@ public sealed class MapObjectUseTests(MapObjectFixture fixture)
 
     private static bool IsChest(ContainerObject c) => c.Kind < ContainerKind.Herb;
 
+    // What A reaches.
+
+    /// <summary>The player's collision radius, which a container's reach adds.</summary>
+    private const float PlayerRadius = 0.5f;
+
+    [Fact]
+    public void AContainersReachIsItsOwnNotItsRadius()
+    {
+        var containers = Data.Maps.SelectMany(m => m.Objects).OfType<ContainerObject>().ToList();
+
+        // chestSize: 2 for most, where the radius is 10.
+        Assert.InRange(containers.Count(c => c.Reach == 2 && c.Radius == 10), 200, int.MaxValue);
+        Assert.All(containers, c => Assert.InRange(c.Reach, 1, 5));
+        Assert.All(Data.Maps, m => Assert.NotNull(m.Grid));
+    }
+
+    [Fact]
+    public void TheStartChestIsReachedWithinItsReachFacingAnyWayAndNotBeyond()
+    {
+        var play = NewGame();
+        var map = Load(play, I08);
+        var start = new Vector3(16, 0, 62);
+        var chest = map.Objects.OfType<ContainerObject>().Where(c => c.Loot == RecordId.Parse("aidyn:loot/0x0839"))
+            .MinBy(c => Vector2.Distance(new Vector2(c.Position.X, c.Position.Z), new Vector2(start.X, start.Z)))!;
+        Assert.Equal(2, chest.Reach);
+
+        var reachedNear = 0;
+        for (var i = 0; i < 16; i++)
+        {
+            var angle = MathF.Tau * i / 16;
+            var way = new Vector3(MathF.Cos(angle), 0, MathF.Sin(angle));
+            // Facing away from the chest.
+            var away = new Vector2(way.X, way.Z);
+            var near = chest.Position + way * (chest.Reach + PlayerRadius - 0.1f);
+            var far = chest.Position + way * (chest.Reach + PlayerRadius + 0.5f);
+            if (I08.Grid!.At(near).Contains(chest.Index))
+            {
+                Assert.Same(chest, play.Use.Reach(map, near, away, PlayerRadius));
+                reachedNear++;
+            }
+            Assert.NotSame(chest, play.Use.Reach(map, far, away, PlayerRadius));
+        }
+        Assert.InRange(reachedNear, 8, 16);
+    }
+
+    /// <summary>Whether a point is on a map's grid, as <c>getZonePositionShorts</c> finds its cell, truncating.</summary>
+    private static bool OnGrid(ObjectGrid grid, Vector3 point)
+    {
+        var x = (int)((point.X - grid.Origin.X) / grid.CellSize.X);
+        var z = (int)((point.Z - grid.Origin.Y) / grid.CellSize.Y);
+        return x >= 0 && z >= 0 && x < grid.Columns && z < grid.Rows;
+    }
+
+    /// <summary>Points in a disc about an object, across its reach.</summary>
+    private static IEnumerable<Vector3> Disc(Vector3 centre, float reach)
+    {
+        for (var dx = -reach; dx <= reach; dx += reach / 10)
+        {
+            for (var dz = -reach; dz <= reach; dz += reach / 10)
+            {
+                if (dx * dx + dz * dz <= reach * reach)
+                    yield return centre + new Vector3(dx, 0, dz);
+            }
+        }
+    }
+
+    [Fact]
+    public void OnTheGridEveryCellAnObjectsReachCoversListsIt()
+    {
+        var missed = new List<string>();
+        foreach (var map in Data.Maps)
+        {
+            foreach (var o in map.Objects.Where(o => !o.Tangible && o is ContainerObject or TeleporterObject or DialogueObject or TriggerObject))
+            {
+                var reach = o is ContainerObject c ? c.Reach + PlayerRadius : o.Radius;
+                if (Disc(o.Position, reach).Any(p => OnGrid(map.Grid!, p) && !map.Grid!.At(p).Contains(o.Index)))
+                    missed.Add($"{MapRecord.VoxelId(map.Id, o.Index)}");
+            }
+        }
+        // But one dialogue that's off its map's grid altogether, which the first cell doesn't list, so A never
+        // reaches it, as in the original; only a trigger triangle naming it could start it.
+        Assert.Equal(["aidyn:voxel/0x185C/0"], missed);
+    }
+
+    [Fact]
+    public void OffTheGridAWeighsOnlyTheFirstCellsObjects()
+    {
+        // A door whose radius reaches past its map's grid: within its radius but off the grid, the first
+        // cell's list counts, which doesn't hold it.
+        var play = NewGame();
+        bool Works(MapObject o) => o.Enabled is not { } gate || play.Flag(gate.Flag) != gate.Invert;
+        foreach (var record in Data.Maps)
+        {
+            var grid = record.Grid!;
+            foreach (var door in record.Objects.OfType<TeleporterObject>().Where(t => !t.Tangible && Works(t) && !grid.Cells[0].Contains(t.Index)))
+            {
+                var points = Disc(door.Position, door.Radius * 0.9f).ToList();
+                var off = points.FirstOrDefault(p => !OnGrid(grid, p));
+                var on = points.FirstOrDefault(p => OnGrid(grid, p));
+                if (off == default || on == default)
+                    continue;
+                var map = Load(play, record);
+                if (!map.IsActive(door.Index))
+                    continue;
+                Assert.NotSame(door, play.Use.Reach(map, off, Vector2.UnitX, PlayerRadius));
+                Assert.Contains(points.Where(p => OnGrid(grid, p)), p => play.Use.Reach(map, p, Vector2.UnitX, PlayerRadius) == door);
+                return;
+            }
+        }
+        Assert.Fail("No door reaches past its grid.");
+    }
+
     // Trigger triangles and toggles.
 
     [Fact]

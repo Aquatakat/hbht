@@ -18,11 +18,11 @@ Ported from `objectJumpTables.cpp`, `voxObjects.cpp`, `voxObjects2.cpp` (`obj_re
 
 ## What A reaches
 
-`MapObjectUse.Reach` (`obj_ref_func`): of the active objects that aren't tangible, those the player is within reach of by each type's test, up to 16:
+`MapObjectUse.Reach` (`obj_ref_func`): of the objects the grid cell under the player lists ([maps](../formats/maps.md#collision-the-grid-and-placement-1c)), the active ones that aren't tangible and that the player is within reach of by each type's test, up to 16:
 
 | Type | In reach |
 | --- | --- |
-| Container | Within its radius plus the player's, and a herb, spice, gem or custom container always; a chest, sack, crate or barrel only until opened, and only if it holds gold, a loot table or an item (`container_obj_check`) |
+| Container | Within its reach plus the player's radius (0.5), from the player's centre in 3D: 2.5 for most. Its reach isn't its radius, which is 10 for most (see [maps](../formats/maps.md#map-objects-in-the-base-plugin-06)). Then a herb, spice, gem or custom container always; a chest, sack, crate or barrel only until opened, and only if it holds gold, a loot table or an item (`container_obj_check`) |
 | Teleporter, trigger, dialogue | Within its radius, while its Enabled holds |
 | Save point | Within its radius, and using it does nothing |
 | Monster party | Comes with wanderers (session 5) |
@@ -69,7 +69,7 @@ A popup takes the player's input until it's closed (`TrekPopup`), and stops the 
 
 ## In the runtime
 
-The runtime's chunk streamer keeps each loaded chunk's `LoadedMap` beside its collision and scenery, and builds a chunk's scenery again when a container's model changes. `Game` is the `IMapObjectHost`, and `TrekPopupView` draws the popups on a UI screen of their own, under the pause menu. On a new game, A beside the chest at the start opens the loot window on 1 to 4 Healing Potions (its loot table, `aidyn:loot/0x0839`; 4 with a new game's seed) and shows it opened, and the door to Gwernia's house A (Overworld M07) leads into the Gwernia interiors' A03.
+The runtime's chunk streamer keeps each loaded chunk's `LoadedMap` beside its collision and scenery, and builds a chunk's scenery again when a container's model changes. `Game` is the `IMapObjectHost`, and `TrekPopupView` draws the popups on a UI screen of their own, under the pause menu. On a new game, the chest at the start is 2.6 from the player, just out of reach: a step toward it, and A, facing any way, opens the loot window on 1 to 4 Healing Potions (its loot table, `aidyn:loot/0x0839`; 4 with a new game's seed) and shows it opened, and the door to Gwernia's house A (Overworld M07) leads into the Gwernia interiors' A03.
 
 ## Not ported yet
 

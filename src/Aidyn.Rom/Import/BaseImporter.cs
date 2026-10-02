@@ -121,7 +121,8 @@ public static class BaseImporter
         var maps = chunks.Select(c => c.Collision).Distinct().Order().ToDictionary(i => i, i => Borg9Map.Parse(archive.Read(i)));
         var actors = archive.Listings.Where(l => l.Type == BorgType.Actor).Select(l => l.Index).ToHashSet();
         // A file per map set, since each map is in one, such as records/maps/Overworld.json.
-        var mapRecords = BuildMaps(archive, chunks, maps.ToDictionary(m => m.Key, m => m.Value.Objects), [.. db.Loot.Select(l => l.Id)]);
+        var mapRecords = BuildMaps(archive, chunks, maps.ToDictionary(m => m.Key, m => m.Value.Objects), [.. db.Loot.Select(l => l.Id)],
+            maps.ToDictionary(m => m.Key, m => Grid(m.Value)));
         var setOf = chunks.ToLookup(c => RecordId.Hex(RecordTypes.Map, c.Collision), c => c.Set);
         foreach (var set in mapRecords.GroupBy(m => setOf[m.Id].Distinct().Single()))
             WriteJson(Path.Combine(staging, "records", "maps", set.Key + ".json"), set.ToList());
@@ -225,12 +226,25 @@ public static class BaseImporter
     /// reference point that isn't there is left out.
     /// </summary>
     /// <param name="lootTables">ChestDB's IDs, in order.</param>
+    /// <param name="grids">Each map's grid of the objects its cells list, if it's known.</param>
     internal static List<MapRecord> BuildMaps(BorgArchive archive, IReadOnlyList<MapChunk> chunks,
-        IReadOnlyDictionary<int, IReadOnlyList<VoxelObject>> maps, IReadOnlyList<ItemId> lootTables)
+        IReadOnlyDictionary<int, IReadOnlyList<VoxelObject>> maps, IReadOnlyList<ItemId> lootTables,
+        IReadOnlyDictionary<int, ObjectGrid>? grids = null)
     {
         var types = archive.Listings.ToDictionary(l => l.Index, l => l.Type);
         var chunkMaps = chunks.ToDictionary(c => (c.Set, c.Row, c.Column), c => c.Collision);
-        return [.. maps.OrderBy(m => m.Key).Select(m => BuildMap(m.Key, m.Value, types, chunkMaps, maps, lootTables))];
+        return [.. maps.OrderBy(m => m.Key).Select(m => BuildMap(m.Key, m.Value, types, chunkMaps, maps, lootTables) with
+        {
+            Grid = grids?.GetValueOrDefault(m.Key),
+        })];
+    }
+
+    /// <summary>A Borg9's grid as its cells list objects, without the code objects, which the records leave out.</summary>
+    private static ObjectGrid Grid(Borg9Map map)
+    {
+        var code = map.Objects.Where(o => o.Type == VoxelType.Code).Select(o => o.Index).ToHashSet();
+        return new ObjectGrid(new System.Numerics.Vector2(map.Origin.X, map.Origin.Z), map.CellSize, map.Columns, map.Rows,
+            [.. map.Cells.Select(c => (IReadOnlyList<int>)[.. c.Objects.Where(i => !code.Contains(i))])]);
     }
 
     private static MapRecord BuildMap(int index, IReadOnlyList<VoxelObject> objects, IReadOnlyDictionary<int, BorgType> types,
@@ -295,7 +309,7 @@ public static class BaseImporter
                     ? throw new InvalidDataException($"Borg9 {index}: container {o.Index} is kind {c.Kind}.")
                     : new ContainerObject(o.Index, o.Position, o.Radius, pak, c.Kind >= (int)ContainerKind.Herb ? visible : null,
                         (ContainerKind)c.Kind, OptionalFlag(c.OpenFlag), OptionalFlag(c.ExplodeFlag), c.LockLevel, c.TrapLevel,
-                        Loot(c.Loot), c.Gold, OptionalDb(c.Item))
+                        Loot(c.Loot), c.Gold, OptionalDb(c.Item), c.Reach)
                     {
                         Enabled = c.Kind >= (int)ContainerKind.Herb ? enabled : null,
                         Used = used,

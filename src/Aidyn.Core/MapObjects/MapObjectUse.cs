@@ -130,17 +130,20 @@ public sealed class MapObjectUse(GameState game, MenuText text, IMapObjectHost h
     // What A reaches.
 
     /// <summary>
-    /// The object A uses (<c>obj_ref_func</c>): of the active objects that aren't tangible and that the
-    /// player is within reach of, by each type's test, the one alone, or else the best by nearness and by
-    /// facing: (farthest − its distance) / farthest + (1 + the cosine of its bearing off the heading) / 2,
-    /// the later on a tie. Null if none.
+    /// The object A uses (<c>obj_ref_func</c>): of the objects the grid cell the player is in lists (off the
+    /// grid, the first cell's; see <see cref="ObjectGrid.At"/>), those active, not tangible and within
+    /// reach by each type's test, the one alone, or else the best by nearness and by facing: (farthest −
+    /// its distance) / farthest + (1 + the cosine of its bearing off the heading) / 2, the later on a tie.
+    /// Null if none.
     /// </summary>
     /// <param name="at">The player's centre, in the chunk's coordinates.</param>
     /// <param name="heading">The way the player faces, in X and Z.</param>
     /// <param name="radius">The player's radius, which a container's reach adds.</param>
     public MapObject? Reach(LoadedMap map, Vector3 at, Vector2 heading, float radius)
     {
-        var candidates = map.Objects.Where(o => !o.Tangible && map.IsActive(o.Index) && InReach(map, o, at, radius))
+        // A map without a grid, which only a mod's could be, weighs all its objects.
+        var listed = map.Record.Grid is { } grid ? grid.At(at).Select(i => map[i]).OfType<MapObject>() : map.Objects;
+        var candidates = listed.Where(o => !o.Tangible && map.IsActive(o.Index) && InReach(map, o, at, radius))
             .Take(MaxCandidates).ToList();
         if (candidates.Count <= 1)
             return candidates.FirstOrDefault();
@@ -167,7 +170,7 @@ public sealed class MapObjectUse(GameState game, MenuText text, IMapObjectHost h
         var distance = Vector3.Distance(o.Position, at);
         return o switch
         {
-            ContainerObject => distance <= o.Radius + radius && map.Container(o.Index)!.Usable(Flags),
+            ContainerObject c => distance <= c.Reach + radius && map.Container(o.Index)!.Usable(Flags),
             TeleporterObject or TriggerObject or DialogueObject => distance <= o.Radius && Holds(o.Enabled),
             SavePointObject => distance <= o.Radius,
             _ => false,
