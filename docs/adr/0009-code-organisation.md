@@ -1,6 +1,6 @@
 # 0009. Code is organised by subsystem, and the Inspector is the one tool
 
-Status: Accepted · Sep 28, 2026 · Keeping raw Borg browsing as a research view is superseded by [0010](0010-editor-reads-plugins.md) · Making `Mode1` a sibling of `FollowCamera` is superseded by [0011](0011-one-follow-camera.md) (proposed)
+Status: Accepted · Sep 28, 2026 · Keeping raw Borg browsing as a research view is superseded by [0010](0010-editor-reads-plugins.md) · Making `Mode1` a sibling of `FollowCamera` is superseded by [0011](0011-one-follow-camera.md)
 
 ## Context
 

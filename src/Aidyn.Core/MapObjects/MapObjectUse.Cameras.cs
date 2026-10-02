@@ -52,14 +52,27 @@ public sealed partial class MapObjectUse
         _treadTicks = 0;
     }
 
+    /// <summary>
+    /// Touching a trigger triangle that names object <paramref name="index"/>, for its camera alone: as
+    /// <see cref="Tread"/> does, but leaving other objects be, as through a teleport's fade.
+    /// </summary>
+    public void TreadCamera(LoadedMap map, int index)
+    {
+        if (map.IsActive(index) && map[index] is CameraObject camera)
+            TreadCamera(map, camera);
+    }
+
     private void TreadCamera(LoadedMap map, CameraObject camera)
     {
         _trodden = (map, camera);
         _treadTicks = TreadCameraTicks;
     }
 
-    /// <summary>The cameras the player's grid cell lists, at <paramref name="at"/> in the chunk's coordinates.</summary>
-    private void TouchCameras(LoadedMap map, Vector3 at)
+    /// <summary>
+    /// The cameras the player's grid cell lists, at <paramref name="at"/> in the chunk's coordinates,
+    /// which <see cref="Touch"/> runs first. Alone, as through a teleport's fade, it leaves other objects be.
+    /// </summary>
+    public void TouchCameras(LoadedMap map, Vector3 at)
     {
         if (Camera is null || map.Record.Grid is not { } grid)
             return;

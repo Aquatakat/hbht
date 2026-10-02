@@ -1,6 +1,6 @@
 # 0011. One follow camera, with the original's modes
 
-Status: Proposed · Oct 2, 2026 · Supersedes the part of [0009](0009-code-organisation.md) that makes `Mode1` a sibling of `FollowCamera`
+Status: Accepted · Oct 2, 2026 · Supersedes the part of [0009](0009-code-organisation.md) that makes `Mode1` a sibling of `FollowCamera`
 
 ## Context
 

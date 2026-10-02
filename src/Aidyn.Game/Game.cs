@@ -360,22 +360,31 @@ public partial class Game : Node3D, IMapObjectHost
         if (_camera.Flying)
             return;
         var motion = _player.Motion;
-        // ProcessVoxelObjects comes before the player moves.
-        if (!fading && _chunks.MapAt(motion.Sphere.Position.ToGodot()) is { } centre)
-            _use!.Touch(centre, Local(centre, motion.Sphere.Position));
+        // ProcessVoxelObjects comes before the player moves. Through a teleport's fade, only camera
+        // objects work, so the camera is where the room's puts it as the screen comes up.
+        var playing = !fading && _pending is null;
+        if (_chunks.MapAt(motion.Sphere.Position.ToGodot()) is { } centre)
+        {
+            var at = Local(centre, motion.Sphere.Position);
+            if (playing)
+                _use!.Touch(centre, at);
+            else
+                _use!.TouchCameras(centre, at);
+        }
         var input = fading || _use!.Popup is not null ? new PlayerInput(System.Numerics.Vector2.Zero) : ReadInput();
         var before = motion.Sphere.Position;
         _follow.Step(_world, motion.Sphere.Position, motion.Heading);
         motion.Step(_world, input, _follow, _animation);
-        if (!fading && _pending is null)
+        foreach (var (part, target) in motion.Sphere.Trod)
         {
-            foreach (var (part, target) in motion.Sphere.Trod)
-            {
-                if (_chunks.Map(part) is { } map)
-                    _use!.Tread(map, target, Local(map, motion.Sphere.Position));
-            }
-            _use!.StepCameras(motion.Sphere.Position);
+            if (_chunks.Map(part) is not { } map)
+                continue;
+            if (playing)
+                _use!.Tread(map, target, Local(map, motion.Sphere.Position));
+            else
+                _use!.TreadCamera(map, target);
         }
+        _use!.StepCameras(motion.Sphere.Position);
         ShowPopup();
         _player.Sync();
         _camera.Sync();
