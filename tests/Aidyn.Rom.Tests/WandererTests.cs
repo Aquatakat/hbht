@@ -225,8 +225,8 @@ public sealed class WandererTests(MapObjectFixture fixture)
         new[] { (13, 7), (9, 8) }.SelectMany(c => Load(c.Item1, c.Item2).Added.Where(w => w.Body.Moving).Select(w => (c.Item1, c.Item2, w.Party.Index))).ToList();
 
     /// <summary>
-    /// Only the 3x3 around H13 has more than <see cref="Wanderers.Max"/> (44), where the original would crash if the
-    /// player stood in H13 on a new game; the port stops loading at the limit, so its last five parties have no body.
+    /// Only the 3x3 around H13 has more than <see cref="Wanderers.OriginalLimit"/> (44), past what the original has room
+    /// for if the player stood in H13 on a new game; the port has no limit, so all of them get a body.
     /// </summary>
     [Fact]
     public void OnlyTheBlockAroundH13HoldsMoreMonsterPartiesThanWanderersCanBe()
@@ -242,7 +242,7 @@ public sealed class WandererTests(MapObjectFixture fixture)
 
         int Block(int row, int column) => Enumerable.Range(row - 1, 3).Sum(r => Enumerable.Range(column - 1, 3).Sum(c => counts.GetValueOrDefault((r, c))));
 
-        var over = counts.Keys.Where(k => Block(k.Row, k.Column) > Wanderers.Max).ToList();
+        var over = counts.Keys.Where(k => Block(k.Row, k.Column) > Wanderers.OriginalLimit).ToList();
         Assert.Equal([(8, 13)], over);
         Assert.Equal(44, Block(8, 13));
         Assert.Equal(44, counts.Keys.Max(k => Block(k.Row, k.Column)));

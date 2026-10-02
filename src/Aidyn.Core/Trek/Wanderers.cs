@@ -94,8 +94,11 @@ public sealed class Wanderer
 /// </summary>
 public sealed class Wanderers(PluginSet plugins)
 {
-    /// <summary>How many there can be at once in trek (<c>WanderHead</c>), past which the original crashes.</summary>
-    public const int Max = 39;
+    /// <summary>
+    /// How many the original has room for at once in trek (<c>WanderHead</c>). The port has no limit,
+    /// as the user chose: mods will add their own, and memory isn't short.
+    /// </summary>
+    public const int OriginalLimit = 39;
 
     /// <summary>How far from the camera's aim bodies move and animate, in trek (<c>PlayerHandler.float_0x68</c>).</summary>
     public const float StepDistance = 30;
@@ -107,7 +110,7 @@ public sealed class Wanderers(PluginSet plugins)
 
     /// <summary>
     /// Gives the chunk's monster parties their bodies (<c>look_for_monsterparties</c>, <c>AllocWanderer</c>):
-    /// each that's active and not remembered as beaten, while there's room. Its body stands at the
+    /// each that's active and not remembered as beaten, however many there are already. Its body stands at the
     /// party's position, set down on the ground from the party's height, and makes for its home node.
     /// The chunk's collision must be in <paramref name="world"/>.
     /// </summary>
@@ -120,8 +123,6 @@ public sealed class Wanderers(PluginSet plugins)
         {
             if (!map.IsActive(party.Index) || memory.Find(new Memory(MapRecord.VoxelId(map.Record.Id, party.Index), MemoryKind.Beaten)) is not null)
                 continue;
-            if (_all.Count >= Max)
-                break;
             if (party.Home is not { } homeId || map[LoadedMap.Index(homeId)] is not WanderNodeObject home || (home.Flags & WanderFlags.Move) == 0)
                 continue;
             var look = plugins.TryGet<DbRecord>(party.Entity)?.Body;
