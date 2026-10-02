@@ -9,6 +9,8 @@ Things only the user can settle, in the emulator or by reading the ROM. Each lin
 - **Shop prices.** A few prices, buying and selling, with a checkpoint's party, to compare with the port's barter factor. See [items](systems/items.md#shops).
 - **The Party tab's cursor after equipping the last item** of the inventory, when no item moves up into its row, when a save allows it. See [ui](systems/ui.md#the-party-tabs-actions).
 
+- **The loot window.** Captures of it on a new game's first chest, to match the classic layout: the pile and its title, "Found: 0 gold.", then the help after taking the potions; the drop's question on the Club; and the leave-items choice after B with the potions left. And whether B does nothing in the drop's question and the leave-items choice, as the code reads. See [ui](systems/ui.md#the-loot-window).
+
 ## In the ROM
 
 - **The trap's menu** (`WidgetChoiceDia::Update`): the question above Disarm and Exit, and the cursor's option pulsing grey to white, the scroll menu's defaults. The user thinks it looks right. See [map-objects](systems/map-objects.md#popups).

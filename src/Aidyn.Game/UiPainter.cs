@@ -85,6 +85,33 @@ public sealed class UiPainter
         MessageBox(canvas, screen, text, width + extraWidth, Main.Layout.Height(text, 0, width) + 5 + extraHeight, color);
     }
 
+    /// <summary>
+    /// A question over choices (<c>WidgetChoiceDia::Update</c>): the question wrapped to
+    /// <paramref name="width"/> and its options under it, <paramref name="gap"/> apart, all centred on the
+    /// screen on a feathered panel as wide as the popup, with the cursor's option in <paramref name="cursor"/>.
+    /// </summary>
+    public void Choice(CanvasItem canvas, Vector2I screen, string text, int width, int gap, Rgba textColor, Rgba optionColor,
+        MenuList<string> options, Rgba cursor)
+    {
+        var font = Main;
+        var half = width / 2;
+        var centre = new Vector2I(screen.X / 2, screen.Y / 2);
+        var (left, right) = (centre.X - half, centre.X + half);
+        var textHeight = font.Layout.Height(text, left, right);
+        var rows = options.Rows;
+        var rowHeight = font.LineHeight;
+        var top = centre.Y - (rows.Count * rowHeight + textHeight + gap) / 2;
+        var choicesTop = top + textHeight + gap;
+        var bottom = choicesTop + rows.Count * rowHeight;
+        Images.DrawPanel(canvas, Images.Around(new ScreenRect(left, top, right, bottom)));
+        Text(canvas, font, text, left, top, new ScreenRect(left, top, right, choicesTop), textColor);
+        for (var i = 0; i < rows.Count; i++)
+        {
+            Text(canvas, font, rows[i], left - 1, choicesTop + i * rowHeight, new ScreenRect(left - 1, choicesTop, right + 1, bottom),
+                i == options.Cursor ? cursor : optionColor);
+        }
+    }
+
     /// <summary>Prints one line unbounded but by the screen.</summary>
     public int Text(CanvasItem canvas, UiFont font, string text, int x, int y, Rgba color) =>
         Text(canvas, font, text, x, y, new ScreenRect(-4096, -4096, 4096, 4096), color);

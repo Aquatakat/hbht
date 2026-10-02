@@ -58,6 +58,10 @@ public static class PartyMenuRows
         ];
     }
 
+    /// <summary>A pile's rows, a loot's or a shop's stock, sorted by <see cref="InventoryOrder"/> (<c>WidgetInvShop::InitMenu</c>).</summary>
+    public static IReadOnlyList<InventoryRow> Pile(ItemPile pile) =>
+        [.. pile.Stacks.Select(s => new InventoryRow(s.Instance, s.Quantity, null)).OrderBy(r => r.Item, ItemComparer.Instance)];
+
     /// <summary>The six attributes, without the level (<c>WidgetStatTrain::InitMenu</c>).</summary>
     public static IReadOnlyList<StatRow> Stats(Character character) =>
     [
@@ -147,6 +151,18 @@ public sealed class MenuText(IReadOnlyList<string> common)
 
     /// <summary>"You just picked up %d gold!", from a container that held nothing else (<c>loot_func</c>).</summary>
     public const int PickedUpGold = 482;
+
+    /// <summary>
+    /// The barter window's (<c>WidgetBarter</c>, <c>DollBarterConfirm</c>): selling's and dropping's question, its
+    /// refusal and agreement, the quantities and all; leaving loot behind and its choices; the help on the
+    /// first potion; and the refusals: nothing there, can't afford, the party's stack full, the inventory
+    /// full, the merchant refusing, can't drop, unequip to sell or drop. Then the gold the loot held, a
+    /// shop's price, and the must-take item's hint.
+    /// </summary>
+    public const int SellConfirm = 471, DropConfirm = 472, SellNo = 473, DropNo = 474, SellYes = 475, DropYes = 476, SellSome = 477,
+        DropSome = 478, SellAll = 479, DropAll = 480, LeaveItems = 485, LeaveItemsNo = 486, LeaveItemsYes = 487, FirstPotion = 521,
+        NothingThere = 522, CantAfford = 523, StackFull = 524, InventoryFull = 525, MerchantRefuses = 526, CantDrop = 527,
+        UnequipToSell = 528, UnequipToDrop = 529, FoundGold = 530, Value = 531, MustTake = 532;
 
     public string this[int line] => line < common.Count ? common[line] : "";
 

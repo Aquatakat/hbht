@@ -12,13 +12,31 @@ namespace Aidyn.Core.Ui;
 /// A crafting popup's result, whose box has 16 more pixels across and 5 more down, and whose closing
 /// closes the crafting popup too (<c>WidgetCrafting_ClosePopup</c>).
 /// </param>
-public sealed record MenuMessage(string Text, bool FromCrafting = false)
+/// <param name="Box">
+/// A box of a size of its own, rather than fitted to the text, with the text in white (<c>TextPopup_New</c>).
+/// </param>
+public sealed record MenuMessage(string Text, bool FromCrafting = false, (int Width, int Height)? Box = null)
 {
     /// <summary>The widest a message wraps at.</summary>
     public const int MaxWidth = 150;
 
     /// <summary>The message's off-white (<c>COLOR_OFFWHITE</c>).</summary>
     public static readonly Rgba Color = new(225, 225, 225, 255);
+
+    /// <summary>A sized box's text (<c>COLOR_WHITE</c>).</summary>
+    public static readonly Rgba White = new(255, 255, 255, 255);
+}
+
+/// <summary>
+/// A question over choices, centred on the screen on a feathered panel (<c>WidgetChoiceDia</c>): the stick
+/// moves the cursor, which pulses between a scroll menu's own colours, and A chooses.
+/// </summary>
+/// <param name="Width">The widest the question wraps at, and the panel's width.</param>
+/// <param name="Gap">The space between the question and its choices.</param>
+public sealed record MenuChoice(string Text, int Width, int Gap, Rgba Color, Rgba ChoiceColor, MenuList<string> Choices)
+{
+    /// <summary>The leave-items choice's question, in white, and its choices, in tan (<c>WidgetBarter::BFunc</c>).</summary>
+    public static readonly Rgba Tan = new(200, 180, 100, 255);
 }
 
 /// <summary>What a crafting popup is offering.</summary>

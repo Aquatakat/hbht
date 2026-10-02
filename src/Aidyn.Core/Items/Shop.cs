@@ -215,8 +215,12 @@ public sealed class LootWindow
     public static LootWindow Open(ItemPile loot, int gold, Party party, ItemCatalog items, FlagNetwork? flags = null)
     {
         party.Gold += (uint)gold;
-        return new LootWindow(loot, gold, party, items, flags);
+        return Showing(loot, gold, party, items, flags);
     }
+
+    /// <summary>Opens the window on gold the party already has, as a container gives it before the window opens.</summary>
+    public static LootWindow Showing(ItemPile loot, int gold, Party party, ItemCatalog items, FlagNetwork? flags = null) =>
+        new(loot, gold, party, items, flags);
 
     /// <summary>Takes a whole stack, or as many as the party's stack has room for (<c>WidgetBarter::AFunc</c>).</summary>
     public TradeResult Take(RecordId item)
@@ -227,7 +231,7 @@ public sealed class LootWindow
         if (held >= _items.Rules.StackLimit)
             return TradeResult.StackFull;
         var quantity = Math.Min(stack.Quantity, _items.Rules.StackLimit - held);
-        if (!_party.Inventory.Add(item, quantity))
+        if (!_party.Inventory.Add(item, quantity, stack.Instance))
             return TradeResult.InventoryFull;
         Loot.Take(item, quantity);
         Trade.NoteFirstPotion(stack.Item, _items, _flags);
@@ -242,11 +246,17 @@ public sealed class LootWindow
     {
         if (_party.Inventory!.Find(item) is not { } stack)
             return TradeResult.NoneLeft;
-        if ((ushort)(uint)(stack.Instance.Price * _items.Rules.SellShare) <= 1)
+        if (!Droppable(stack.Instance))
             return TradeResult.Refused;
         _party.Inventory.Take(item, quantity);
         return TradeResult.Done;
     }
+
+    /// <summary>
+    /// Whether an item can be dropped: it must be worth more than 1 gold at half its price, worked as the
+    /// shop's selling price with no barter (<c>WidgetInvShop::GetGoldPrice</c>).
+    /// </summary>
+    public bool Droppable(ItemInstance item) => (ushort)(uint)(item.Price * _items.Rules.SellShare) > 1;
 
     /// <summary>Whether the window can close with items left: not while it holds one that must be taken.</summary>
     public bool CanLeave => Loot.CanLeave;

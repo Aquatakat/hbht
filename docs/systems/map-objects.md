@@ -57,7 +57,7 @@ Using a container (`loot_func`), once it's neither opened, destroyed nor remembe
 2. **A custom container** (loot with its own model) writes its Used flag and is inactive before anything else.
 3. **A trap** opens the trap's menu: "There's a slightly / moderately / very dangerous trap!" (below 3, below 6, then the rest) over Disarm and Exit, in pale green on a feathered panel at the screen's centre, 180 wide with 10 between the question and the choices. Exit, or B, leaves it. Disarm tries ([items](items.md#containers)): disarmed, "Trap sucessfully disarmed" (the original's spelling, wrapped at 120), and closing it uses the container again; failed, the container is destroyed, its model swapped, and a box lists "The trap exploded!" and what each living member took. 85 containers are trapped, all chests, sacks, crates or barrels; three have no exploded flag, so they're whole again when their chunk next loads.
 4. **A lock** is picked ([items](items.md#containers)) or says why not: "The lock is a little / definitely / far beyond the ability of" the best thief "to pick.", "... is too weak to pick the lock." or "The party could not pick the lock!". Picked, "... successfully picks the lock.", and closing it uses the container again. 117 containers are locked, 61 of them trapped too.
-5. **Opened**, it sets its opened and Used flags, shows its opened model (or hides a custom container's), rolls its loot and adds its gold to the party's. Without an opened flag it's remembered as emptied for 10 map loads. With nothing else, "You just picked up N gold!"; otherwise the loot window opens.
+5. **Opened**, it sets its opened and Used flags, shows its opened model (or hides a custom container's), rolls its loot and adds its gold to the party's. Without an opened flag it's remembered as emptied for 10 map loads. With nothing else, "You just picked up N gold!"; otherwise the loot window opens ([ui](ui.md#the-loot-window)), which is the pause menu and stops trek until it closes.
 
 ## Popups
 
@@ -69,12 +69,12 @@ A popup takes the player's input until it's closed (`TrekPopup`), and stops the 
 
 ## In the runtime
 
-The runtime's chunk streamer keeps each loaded chunk's `LoadedMap` beside its collision and scenery, and builds a chunk's scenery again when a container's model changes. `Game` is the `IMapObjectHost`, and `TrekPopupView` draws the popups on a UI screen of their own, under the pause menu. On a new game, A beside the chest at the start gives 4 Healing Potions and shows it opened, and the door to Gwernia's house A (Overworld M07) leads into the Gwernia interiors' A03.
+The runtime's chunk streamer keeps each loaded chunk's `LoadedMap` beside its collision and scenery, and builds a chunk's scenery again when a container's model changes. `Game` is the `IMapObjectHost`, and `TrekPopupView` draws the popups on a UI screen of their own, under the pause menu. On a new game, A beside the chest at the start opens the loot window on 1 to 4 Healing Potions (its loot table, `aidyn:loot/0x0839`; 4 with a new game's seed) and shows it opened, and the door to Gwernia's house A (Overworld M07) leads into the Gwernia interiors' A03.
 
 ## Not ported yet
 
 - Alaron's animations for opening a container (request 11) and a door (19), which the original asks for only when it chose among several objects.
 - Sounds (containers' by kind, the coin jingle, the explosion), the explosion's lights and particles, and the popups' fades.
-- Camera objects and the interiors' camera (4c), the loot window (4b), and monster parties and dialogues (session 5).
-- The editor's map object pages don't use objects yet.
+- Camera objects and the interiors' camera (4c), and monster parties and dialogues (session 5).
+- The editor's map object pages don't use objects yet, but a container's opens in the loot window ([inspector](inspector.md)).
 - The trap menu's layout follows the decomp's reading of `WidgetChoiceDia::Update`, the question above the choices, with the cursor's choice pulsing grey to white, the scroll menu's defaults. The user finds it looks right, and will confirm it in the ROM ([to-check](../to-check.md)).

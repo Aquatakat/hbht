@@ -269,6 +269,12 @@ public sealed class Container(ContainerObject record)
             flags.Set(opened, true);
         if (Record.Used is { } used)
             flags.Set(used.Flag, !used.Clear);
+        return Contents(items, loot, random);
+    }
+
+    /// <summary>What opening it gives, without setting its flags: its loot table rolled, or its gold, and the item it always holds.</summary>
+    public (ItemPile Items, int Gold) Contents(ItemCatalog items, Func<RecordId, LootRecord> loot, IRandom random)
+    {
         var pile = new ItemPile(items);
         var gold = Gold;
         if (Loot is { } table)
@@ -292,6 +298,12 @@ public sealed class Container(ContainerObject record)
     {
         if (Record.Used is { } used)
             flags.Set(used.Flag, !used.Clear);
+        return Reagent(share, items);
+    }
+
+    /// <summary>What harvesting a source gives, without setting its flag.</summary>
+    public ItemPile Reagent(float share, ItemCatalog items)
+    {
         var reagent = Record.Kind switch
         {
             ContainerKind.Herb => items.Rules.Herb,

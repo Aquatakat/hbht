@@ -246,6 +246,8 @@ public partial class Game : Node3D, IMapObjectHost
         _use = new MapObjectUse(game, MenuText.From(plugins), this) { World = _world };
 
         _menu = new PauseMenu(plugins, game);
+        // The original reloads the map as the menu closes, so what changed shows.
+        _menu.Closed += () => _chunks!.Regate();
         if (args.TryGetValue("ui-lines", out var lines))
             _menu.Screen.Lines = int.Parse(lines, CultureInfo.InvariantCulture);
         AddChild(_menu);
@@ -624,8 +626,6 @@ public partial class Game : Node3D, IMapObjectHost
             if ((e.IsActionPressed("pause") || e.IsActionPressed("menu_back")) && !menu.Back())
             {
                 menu.Close();
-                // The original reloads the map as the menu closes, so what changed shows.
-                _chunks!.Regate();
                 return;
             }
             if (e.IsActionPressed("pause") || e.IsActionPressed("menu_back") || menu.Handle(e))
@@ -709,17 +709,8 @@ public partial class Game : Node3D, IMapObjectHost
         _blackTicks = 0;
     }
 
-    /// <summary>Until the loot window (4b), what a container held goes straight into the inventory, as far as it fits.</summary>
-    void IMapObjectHost.OpenLoot(ItemPile loot, int gold)
-    {
-        var taken = new List<string>();
-        foreach (var stack in loot.Stacks)
-        {
-            if (_game!.Party.Inventory!.Add(stack.Item, stack.Quantity))
-                taken.Add(stack.Quantity > 1 ? $"{stack.Quantity} x {stack.Item.Name}" : stack.Item.Name);
-        }
-        Say($"Loot: {string.Join(", ", taken)}{(gold > 0 ? $", and {gold} gold" : "")}");
-    }
+    /// <summary>The loot window: the pause menu in its barter state, which stops trek until it closes.</summary>
+    void IMapObjectHost.OpenLoot(ItemPile loot, int gold) => _menu!.OpenLoot(loot, gold);
 
     void IMapObjectHost.StartScript(LoadedMap map, DialogueObject dialogue)
     {

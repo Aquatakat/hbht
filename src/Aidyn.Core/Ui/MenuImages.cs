@@ -22,6 +22,9 @@ public static class MenuImages
     public static readonly RecordId InventoryTitle = Image(0x00E9), SkillsTitle = Image(0x00EC), SpellsTitle = Image(0x00ED),
         StatsTitle = Image(0x00EE);
 
+    /// <summary>The barter window's titles: the loot's, a shop's stock and the party's list beside a shop (<c>BORG8_TitleTreasure</c>, <c>Buy</c>, <c>Sell</c>).</summary>
+    public static readonly RecordId TreasureTitle = Image(0x00F0), BuyTitle = Image(0x00E7), SellTitle = Image(0x00EB);
+
     /// <summary>The arrows beside a list's title that show it has rows above or below (<c>BORG8_ScrollBarArrowUp</c>, <c>Down</c>).</summary>
     public static readonly RecordId ScrollUp = Image(0x38D0), ScrollDown = Image(0x38CF);
 

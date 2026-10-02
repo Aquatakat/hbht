@@ -167,6 +167,22 @@ public partial class RecordBrowser : Control
             script.SetScreen(zoom, filter, wide, lines);
         if (_preview.GetChildren().OfType<PartyTabPanel>().FirstOrDefault() is { } party)
             party.SetScreen(zoom, filter, wide, lines);
+        LootWindow?.SetScreen(zoom, filter, wide, lines);
+    }
+
+    /// <summary>The loot window open on the preview: a loot table's roll, or a container's on the map.</summary>
+    private LootWindowPanel? LootWindow => _preview.GetChildren().OfType<LootPanel>().FirstOrDefault()?.Window ?? _map.LootWindow;
+
+    /// <summary>
+    /// Rolls the loot table, or opens the container picked on the map, in the loot window, if the preview
+    /// shows one (<c>--roll</c>).
+    /// </summary>
+    public void Roll()
+    {
+        if (_preview.GetChildren().OfType<LootPanel>().FirstOrDefault() is { } loot)
+            loot.Roll();
+        else
+            _map.Roll();
     }
 
     /// <summary>Shows a member, list, row and the details on the Party tab, if it's showing (<c>--member</c>, <c>--list</c>, <c>--row</c>, <c>--details</c>).</summary>
@@ -181,6 +197,7 @@ public partial class RecordBrowser : Control
     {
         if (_preview.GetChildren().OfType<PartyTabPanel>().FirstOrDefault() is { } party)
             party.Press(buttons);
+        LootWindow?.Press(buttons);
     }
 
     /// <summary>Opens a record, adding it to the history. The task completes when its preview is shown.</summary>
@@ -587,7 +604,7 @@ public partial class RecordBrowser : Control
             if (id.Type == RecordTypes.Shop && plugins.TryGet<ShopRecord>(id) is { } shop)
                 return new ShopPanel(catalog, _game, _rules, items, shop, FollowLink);
             if (id.Type == RecordTypes.Loot && plugins.TryGet<LootRecord>(id) is { } loot)
-                return new LootPanel(catalog, items, loot, FollowLink);
+                return new LootPanel(catalog, _game, items, loot, FollowLink);
             if (id.Type == RecordTypes.Recipe && plugins.TryGet<RecipeRecord>(id) is { } recipe)
                 return new RecipePanel(catalog, _game, _rules, items, recipe, FollowLink);
             if (id.Type == RecordTypes.Inventory && _rules is { } partyRules && plugins.Contains(RecordId.Decimal(RecordTypes.Font, 0)))

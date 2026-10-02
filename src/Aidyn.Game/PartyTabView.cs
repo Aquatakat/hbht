@@ -1,5 +1,6 @@
 using Aidyn.Core.Ui;
 using Aidyn.Plugins;
+using Aidyn.Plugins.Records;
 using Godot;
 
 namespace Aidyn.Game;
@@ -14,7 +15,8 @@ namespace Aidyn.Game;
 /// details at the right, open for the cursor's row.</item>
 /// </list>
 /// Both draw the tab's image, <c>0x00D9</c>, at its own size where the original has it, so the art
-/// is the original's and the labels are its own; the wide one grows it with plain parchment.
+/// is the original's and the labels are its own; the wide one grows it with plain parchment. With a
+/// <see cref="Barter"/>, it's the menu's barter state, the loot window (see <c>PartyTabView.Barter.cs</c>).
 /// </summary>
 public partial class PartyTabView : Control
 {
@@ -131,21 +133,35 @@ public partial class PartyTabView : Control
 
     public override void _PhysicsProcess(double delta)
     {
-        Menu.Step();
+        if (Barter is { } barter)
+            barter.Step();
+        else
+            Menu.Step();
         QueueRedraw();
     }
 
     public override void _GuiInput(InputEvent @event)
     {
         // Hovering a row puts the cursor on it, and the wheel moves it.
-        if (@event is InputEventMouseMotion motion && RowAt(motion.Position) is { } row)
+        if (Barter is { } barter && @event is InputEventMouseMotion over && BarterRowAt(over.Position) is { } hit)
+            barter.Point(hit.Pile, hit.Row);
+        else if (Barter is null && @event is InputEventMouseMotion motion && RowAt(motion.Position) is { } row)
             Menu.Point(row);
         else if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.WheelUp or MouseButton.WheelDown } wheel)
-            Menu.MoveCursor(wheel.ButtonIndex == MouseButton.WheelUp ? -1 : 1);
+            MoveCursor(wheel.ButtonIndex == MouseButton.WheelUp ? -1 : 1);
         else
             return;
         QueueRedraw();
         AcceptEvent();
+    }
+
+    /// <summary>Moves the cursor of the barter state or of the tab.</summary>
+    private void MoveCursor(int by)
+    {
+        if (Barter is { } barter)
+            barter.MoveCursor(by);
+        else
+            Menu.MoveCursor(by);
     }
 
     /// <summary>The list row under a point, if any: the crafting popup's while it's open.</summary>
@@ -186,16 +202,24 @@ public partial class PartyTabView : Control
         if (Wide)
         {
             _origin = Vector2I.Zero;
-            DrawWide();
+            if (Barter is { } barter)
+                DrawBarterWide(barter);
+            else
+                DrawWide();
         }
         else
         {
             _origin = new Vector2I(((int)Size.X - FrameWidth) / 2, ((int)Size.Y - FrameHeight) / 2);
             DrawSetTransform(_origin);
-            DrawClassic();
+            if (Barter is { } barter)
+                DrawBarterClassic(barter);
+            else
+                DrawClassic();
             DrawSetTransform(Vector2.Zero);
         }
-        if (Menu.Message is { } message)
+        if (Barter is { } popups)
+            BarterPopups(popups);
+        else if (Menu.Message is { } message)
             Message(message);
     }
 
@@ -457,8 +481,11 @@ public partial class PartyTabView : Control
         public static readonly Columns Wide = new(27, 44, 32, -70, -40, -40, 38, 56, -72);
     }
 
-    /// <summary>The list showing, under its title, with its arrows and its rows in <paramref name="font"/>.</summary>
-    private void List(ScreenRect b, UiFont font, Columns columns)
+    /// <summary>
+    /// The list showing, under its title, with its arrows and its rows in <paramref name="font"/>, the
+    /// cursor's in <paramref name="cursor"/>, or pulsing if none is given.
+    /// </summary>
+    private void List(ScreenRect b, UiFont font, Columns columns, Rgba? cursor = null)
     {
         _listBounds = b;
         var title = Menu.List switch
@@ -478,27 +505,17 @@ public partial class PartyTabView : Control
         int X(int column) => column < 0 ? b.Right + column : b.Left + column;
         var x = b.Left;
         var y = b.Top;
-        var cursor = Menu.HighlightNow;
+        var highlight = cursor ?? Menu.HighlightNow;
         var color = PartyMenu.TextColor;
         var names = new ScreenRect(b.Left, b.Top, X(columns.NameRight), b.Bottom);
         switch (Menu.List)
         {
             case PartyList.Inventory:
-                Menu.Inventory.Visible = (b.Bottom - b.Top) / 13;
-                _ui.List(Menu.Inventory, y, 13, color, cursor, (row, top, c) =>
-                {
-                    if (row.Wearer is { } wearer && Menu.Party.Slots[wearer] is { } who && Menu.Portrait(who.Entity) is { } portrait)
-                        _ui.Image(this, portrait, x, top, new Vector2I(12, 12));
-                    _ui.Image(this, row.Item.Icon, x + 13, top, new Vector2I(12, 12));
-                    if (row.Quantity != 0)
-                        _ui.Text(this, font, Num(row.Quantity), x + columns.Quantity, top, b, color);
-                    _ui.Text(this, font, row.Item.Name, x + (row.Quantity != 0 ? columns.Name : columns.NameNoQuantity), top, b, c);
-                });
-                _ui.Arrows(this, Menu.Inventory, up, down);
+                Items(Menu.Inventory, b, font, columns, highlight);
                 break;
             case PartyList.Stats:
                 Menu.Stats.Visible = (b.Bottom - b.Top) / 11;
-                _ui.List(Menu.Stats, y, 11, color, cursor, (row, top, c) =>
+                _ui.List(Menu.Stats, y, 11, color, highlight, (row, top, c) =>
                 {
                     _ui.Text(this, font, row.Name, x, top, names, c);
                     _ui.Text(this, font, Num(row.Value), X(columns.Value), top, b, color);
@@ -520,7 +537,7 @@ public partial class PartyTabView : Control
                 break;
             case PartyList.Skills:
                 Menu.Skills.Visible = (b.Bottom - b.Top) / 13;
-                _ui.List(Menu.Skills, y, 13, color, cursor, (row, top, c) =>
+                _ui.List(Menu.Skills, y, 13, color, highlight, (row, top, c) =>
                 {
                     if (row.Icon is { } icon)
                         _ui.Image(this, icon, x, top);
@@ -533,7 +550,7 @@ public partial class PartyTabView : Control
                 break;
             default:
                 Menu.Spells.Visible = (b.Bottom - b.Top) / 13;
-                _ui.List(Menu.Spells, y, 13, color, cursor, (row, top, c) =>
+                _ui.List(Menu.Spells, y, 13, color, highlight, (row, top, c) =>
                 {
                     foreach (var (icon, dx) in new[] { (row.Aspect, 0), (row.School, 12), (row.Symbol, 24) })
                     {
@@ -546,6 +563,26 @@ public partial class PartyTabView : Control
                 _ui.Arrows(this, Menu.Spells, up, down);
                 break;
         }
+    }
+
+    /// <summary>
+    /// An inventory's or a pile's rows (<c>SMIItem</c>), 13 apart, with the arrows 15 in from each side and 13
+    /// above: the wearer's portrait and the item's icon at 12 square, then the count and the name.
+    /// </summary>
+    private void Items(MenuList<InventoryRow> list, ScreenRect b, UiFont font, Columns columns, Rgba cursor)
+    {
+        list.Visible = (b.Bottom - b.Top) / 13;
+        var x = b.Left;
+        _ui.List(list, b.Top, 13, PartyMenu.TextColor, cursor, (row, top, c) =>
+        {
+            if (row.Wearer is { } wearer && Menu.Party.Slots[wearer] is { } who && Menu.Portrait(who.Entity) is { } portrait)
+                _ui.Image(this, portrait, x, top, new Vector2I(12, 12));
+            _ui.Image(this, row.Item.Icon, x + 13, top, new Vector2I(12, 12));
+            if (row.Quantity != 0)
+                _ui.Text(this, font, Num(row.Quantity), x + columns.Quantity, top, b, PartyMenu.TextColor);
+            _ui.Text(this, font, row.Item.Name, x + (row.Quantity != 0 ? columns.Name : columns.NameNoQuantity), top, b, c);
+        });
+        _ui.Arrows(this, list, new Vector2I(b.Left + 15, b.Top - 13), new Vector2I(b.Right - 15, b.Top - 13));
     }
 
     /// <summary>

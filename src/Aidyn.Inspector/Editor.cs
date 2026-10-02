@@ -20,7 +20,9 @@ namespace Aidyn.Inspector;
 /// <c>--zoom &lt;1-3&gt;</c>, <c>--ui-filter pixels|videoout|smooth</c>, <c>--aspect 4:3|16:9</c> and
 /// <c>--ui-lines 240|360|480</c>. The inventory record's Party tab takes the same, and
 /// <c>--member &lt;slot&gt;</c>, <c>--list inventory|spells|skills|stats</c>, <c>--row &lt;n&gt;</c> and
-/// <c>--details 1</c>, and <c>--press &lt;a,b,up,down&gt;</c> presses those buttons in turn after. <c>--ui-screenshot &lt;png&gt;</c> saves the UI screen too, in its own pixels,
+/// <c>--details 1</c>, and <c>--press &lt;a,b,up,down&gt;</c> presses those buttons in turn after. <c>--roll 1</c> rolls a
+/// loot table's page, or opens the container a map object's page picks, in the loot window, whose buttons
+/// <c>--press</c> also takes, with <c>left</c> and <c>right</c>. <c>--ui-screenshot &lt;png&gt;</c> saves the UI screen too, in its own pixels,
 /// before it's scaled up.
 /// </remarks>
 public partial class Editor : Control
@@ -73,6 +75,8 @@ public partial class Editor : Control
             await _records.OpenAsync(RecordId.Parse(record));
         if (args.TryGetValue("play", out var moves))
             _records.PlayScript(int.Parse(moves, CultureInfo.InvariantCulture));
+        if (args.GetValueOrDefault("roll") == "1")
+            _records.Roll();
         _records.SetUiScreen(args.TryGetValue("zoom", out var zoom) ? int.Parse(zoom, CultureInfo.InvariantCulture) : null,
             args.TryGetValue("ui-filter", out var filter) ? Enum.Parse<Aidyn.Game.UiFilter>(filter, ignoreCase: true) : null,
             args.TryGetValue("aspect", out var aspect) ? aspect == "16:9" : null,

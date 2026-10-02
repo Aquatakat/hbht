@@ -381,15 +381,20 @@ public partial class LootPanel : PagePanel
 {
     private readonly ItemCatalog _items;
     private readonly LootRecord _loot;
+    private readonly EditorGame? _game;
     private readonly Lcg _random = new((uint)System.Random.Shared.Next());
     private readonly VBoxContainer _rolls = new();
+    private readonly VBoxContainer _window = new();
 
-    public LootPanel(PluginCatalog catalog, ItemCatalog items, LootRecord loot, Action<RecordId> open)
+    public LootPanel(PluginCatalog catalog, EditorGame? game, ItemCatalog items, LootRecord loot, Action<RecordId> open)
         : base(catalog, open)
     {
-        (_items, _loot) = (items, loot);
+        (_items, _loot, _game) = (items, loot, game);
         Build();
     }
+
+    /// <summary>The loot window on the last roll, if one is open.</summary>
+    public LootWindowPanel? Window => _window.GetChildren().OfType<LootWindowPanel>().FirstOrDefault();
 
     private void Build()
     {
@@ -420,14 +425,33 @@ public partial class LootPanel : PagePanel
 
         Heading("Rolls");
         var row = new HBoxContainer();
-        var once = new Button { Text = "Roll", TooltipText = "As a container opens: the core's Containers.Roll." };
-        once.Pressed += () => Show(Containers.Roll(_loot, _items.Rules, _random));
+        var once = new Button
+        {
+            Text = "Roll", TooltipText = "As a container opens: the core's Containers.Roll, in the loot window against the editor's game.",
+        };
+        once.Pressed += () => Roll();
         var many = new Button { Text = "Roll 10,000 times", TooltipText = "How often each item comes, and how much gold on average." };
         many.Pressed += RollMany;
         row.AddChild(once);
         row.AddChild(many);
         Body.AddChild(row);
         Body.AddChild(_rolls);
+        Body.AddChild(_window);
+    }
+
+    /// <summary>Rolls the table, as a container that names it opens, and opens the loot window on it (<c>--roll</c>).</summary>
+    public void Roll()
+    {
+        var roll = Containers.Roll(_loot, _items.Rules, _random);
+        Show(roll);
+        foreach (var child in _window.GetChildren())
+            child.QueueFree();
+        var pile = new ItemPile(_items);
+        foreach (var (item, count) in roll.Items)
+            pile.Add(item, count);
+        // With no items, a container gives the gold alone: "You just picked up n gold!"
+        if (_game is not null && pile.Stacks.Count > 0)
+            _window.AddChild(new LootWindowPanel(Catalog.Plugins, _game, pile, roll.Gold, $"A roll of {_loot.Name}"));
     }
 
     private static string Count(int min, int max) => min == max ? $"{min}" : $"{min} to {max}";

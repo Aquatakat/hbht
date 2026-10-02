@@ -13,13 +13,9 @@ namespace Aidyn.Game;
 /// </summary>
 public partial class TrekPopupView : Control
 {
-    /// <summary>The cursor's option pulses between these over 20 frames each way (<c>WidgetScrollMenu</c>'s defaults).</summary>
-    private static readonly Rgba PulseFrom = new(100, 100, 100, 100), PulseTo = new(255, 255, 255, 255);
-
-    private const int PulseFrames = 20;
-
     private readonly UiPainter _ui;
-    private int _pulse, _pulseSign = 1, _ticks;
+    /// <summary>The cursor's option pulses between a scroll menu's own colours.</summary>
+    private readonly MenuPulse _pulse = new();
 
     /// <summary>The popup to draw, or none.</summary>
     public TrekPopup? Popup
@@ -28,7 +24,7 @@ public partial class TrekPopupView : Control
         set
         {
             if (field != value)
-                (_pulse, _pulseSign) = (0, 1);
+                _pulse.Reset();
             field = value;
             QueueRedraw();
         }
@@ -51,12 +47,9 @@ public partial class TrekPopupView : Control
     /// <summary>Steps the cursor's pulse by a 60 Hz tick.</summary>
     public void Step()
     {
-        if (Popup is not { Kind: TrekPopupKind.Choice } || ++_ticks < Cadence.FrameTicks)
+        if (Popup is not { Kind: TrekPopupKind.Choice })
             return;
-        _ticks = 0;
-        _pulse += _pulseSign;
-        if (_pulse == 0 || _pulse >= PulseFrames - 1)
-            _pulseSign = -_pulseSign;
+        _pulse.Step();
         QueueRedraw();
     }
 
@@ -89,30 +82,8 @@ public partial class TrekPopupView : Control
         _ui.MessageBox(this, screen, popup.Text, width, height, popup.Color);
     }
 
-    // WidgetChoiceDia::Update: the question and its options centred on the screen, a gap between them,
-    // on a feathered panel as wide as the popup.
-    private void Choice(Vector2I screen, TrekPopup popup)
-    {
-        var font = _ui.Main;
-        var half = popup.Wrap / 2;
-        var centre = new Vector2I(screen.X / 2, screen.Y / 2);
-        var (left, right) = (centre.X - half, centre.X + half);
-        var textHeight = font.Layout.Height(popup.Text, left, right);
-        var rows = popup.Choices.Rows;
-        var rowHeight = font.LineHeight;
-        var top = centre.Y - (rows.Count * rowHeight + textHeight + popup.Gap) / 2;
-        var choicesTop = top + textHeight + popup.Gap;
-        var bottom = choicesTop + rows.Count * rowHeight;
-        _ui.Images.DrawPanel(this, _ui.Images.Around(new ScreenRect(left, top, right, bottom)));
-        _ui.Text(this, font, popup.Text, left, top, new ScreenRect(left, top, right, choicesTop), popup.Color);
-        for (var i = 0; i < rows.Count; i++)
-        {
-            var color = i == popup.Choices.Cursor ? Pulse() : popup.Color;
-            _ui.Text(this, font, rows[i], left - 1, choicesTop + i * rowHeight, new ScreenRect(left - 1, choicesTop, right + 1, bottom), color);
-        }
-    }
-
-    private Rgba Pulse() => new(Blend(PulseFrom.R, PulseTo.R), Blend(PulseFrom.G, PulseTo.G), Blend(PulseFrom.B, PulseTo.B), Blend(PulseFrom.A, PulseTo.A));
-
-    private byte Blend(byte from, byte to) => (byte)(from + (to - from) / PulseFrames * _pulse);
+    // WidgetChoiceDia::Update.
+    private void Choice(Vector2I screen, TrekPopup popup) =>
+        _ui.Choice(this, screen, popup.Text, popup.Wrap, popup.Gap, popup.Color, popup.Color, popup.Choices,
+            _pulse.Now(MenuPulse.ScrollFrom, MenuPulse.ScrollTo));
 }

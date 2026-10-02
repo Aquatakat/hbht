@@ -2,6 +2,8 @@ using System.Diagnostics;
 using System.Text.Json.Nodes;
 using Aidyn.Core;
 using Aidyn.Core.Flags;
+using Aidyn.Core.Items;
+using Aidyn.Core.Rng;
 using Aidyn.Game;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Assets;
@@ -90,6 +92,14 @@ public partial class MapSetView : VBoxContainer
     private readonly CollisionLayer _collisionLayer = new();
     private readonly VBoxContainer _panel = new() { Visible = false, CustomMinimumSize = new Vector2(380, 0) };
     private readonly Label _title = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart };
+    private readonly Button _open = new()
+    {
+        Text = "Open it in the loot window",
+        TooltipText = "Roll what it holds, as opening it does, and show the loot window against the editor's game, without setting its flags.",
+    };
+    private readonly Label _opened = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart };
+    private readonly Lcg _random = new((uint)System.Random.Shared.Next());
+    private Window? _lootWindow;
     private readonly RecordFieldsView _fields = new() { SizeFlagsVertical = SizeFlags.ExpandFill };
 
     private readonly Dictionary<(int Row, int Column), ChunkScenery> _chunks = [];
@@ -136,6 +146,9 @@ public partial class MapSetView : VBoxContainer
         };
         _split.AddChild(_container);
         _panel.AddChild(_title);
+        _open.Pressed += Roll;
+        _panel.AddChild(_open);
+        _panel.AddChild(_opened);
         _panel.AddChild(_fields);
         _split.AddChild(_panel);
         AddChild(_split);
@@ -645,6 +658,8 @@ public partial class MapSetView : VBoxContainer
         if (linked.Count > 0)
             _selection.AddChild(Points([.. linked.Select(l => l.Position)], Colors.White, 8, 0.97f));
 
+        _open.Visible = o is ContainerObject && _game is not null;
+        _opened.Text = "";
         var there = Shown(o) ? "" : " It isn't there with these switches.";
         _title.Text = $"{MapObjects.Describe(catalog, o)}\nObject {o.Index} of {marked.Chunk.Map}, in {_set!.Label} {marked.Chunk.Name}.{there}";
         _fields.Show(json, field => catalog.Plugins.Setters(marked.Chunk.Map, "objects"), id => catalog.Find(id) is not null || id.Type == RecordTypes.Voxel);
@@ -657,6 +672,48 @@ public partial class MapSetView : VBoxContainer
             _orbit.Pitch = -0.6f;
             _orbit.Frame(_camera, marked.Position, Mathf.Clamp(o.Radius * 1.5f, 8, 60));
         }
+    }
+
+    /// <summary>The loot window open on a container, if any.</summary>
+    public LootWindowPanel? LootWindow => _lootWindow is { } window && IsInstanceValid(window)
+        ? window.GetChildren().OfType<ScrollContainer>().FirstOrDefault()?.GetChildren().OfType<LootWindowPanel>().FirstOrDefault()
+        : null;
+
+    /// <summary>
+    /// Opens the container picked in the loot window against the editor's game (<c>--roll</c>): a source's
+    /// reagent at the party's harvest share, or its loot table rolled, or its gold, and the item it always
+    /// holds. Its flags stay as they are, so it can be opened again.
+    /// </summary>
+    public void Roll()
+    {
+        if (_selected?.Object is not ContainerObject record || _game is not { } game || _catalog is not { } catalog)
+            return;
+        var container = new Aidyn.Core.Items.Container(record);
+        var party = game.Game.Party;
+        var (pile, gold) = record.Kind is ContainerKind.Herb or ContainerKind.Spice or ContainerKind.Gem
+            ? (container.Reagent(Containers.HarvestShare(party, _random), game.Game.Items), 0)
+            : container.Contents(game.Game.Items, id => catalog.Plugins.Get<LootRecord>(id), _random);
+        if (pile.Stacks.Count == 0)
+        {
+            // loot_func: with no items, the gold alone, and a message rather than the window.
+            party.Gold += (uint)gold;
+            _opened.Text = gold > 0 ? $"It held {gold:N0} gold alone, which is the party's now." : "It held nothing.";
+            return;
+        }
+        _opened.Text = "";
+        if (_lootWindow is { } old && IsInstanceValid(old))
+            old.QueueFree();
+        var window = _lootWindow = new Window { Title = $"Loot: {MapObjects.Describe(catalog, record)}", Size = new Vector2I(720, 720), Transient = true };
+        window.CloseRequested += window.QueueFree;
+        var scroll = new ScrollContainer();
+        scroll.SetAnchorsPreset(LayoutPreset.FullRect);
+        scroll.AddChild(new LootWindowPanel(catalog.Plugins, game, pile, gold, MapObjects.Describe(catalog, record))
+        {
+            SizeFlagsHorizontal = SizeFlags.ExpandFill,
+        });
+        window.AddChild(scroll);
+        AddChild(window);
+        window.PopupCentered();
     }
 
     /// <summary>Every record ID the fields name.</summary>

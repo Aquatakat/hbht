@@ -24,6 +24,7 @@
     <Compile Include="..\Aidyn.Game\Models.cs" Link="Shared\Models.cs" />
     <Compile Include="..\Aidyn.Game\Nodes.cs" Link="Shared\Nodes.cs" />
     <Compile Include="..\Aidyn.Game\PartyTabView.cs" Link="Shared\PartyTabView.cs" />
+    <Compile Include="..\Aidyn.Game\PartyTabView.Barter.cs" Link="Shared\PartyTabView.Barter.cs" />
     <Compile Include="..\Aidyn.Game\TextureScrolls.cs" Link="Shared\TextureScrolls.cs" />
     <Compile Include="..\Aidyn.Game\UiImages.cs" Link="Shared\UiImages.cs" />
     <Compile Include="..\Aidyn.Game\UiPainter.cs" Link="Shared\UiPainter.cs" />

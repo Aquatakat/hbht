@@ -102,7 +102,7 @@ Buying or taking the first potion sets flag 3612, whose help is a trigger (2.10)
 
 Picking and disarming last until the chunk is loaded again, but each leads straight to opening.
 
-The **loot window** takes a stack at a time, as many as the party's stack has room for. The party can drop what it carries, which is lost, unless it's worth 1 gold or less at half price. It can't close while it holds a must-take item.
+The **loot window** (`LootWindow`, and the menu over it, [ui](ui.md#the-loot-window)) takes a stack at a time, as many as the party's stack has room for, each new stack with the pile's battery and charges. The party can drop what it carries, which is lost, unless it's worth 1 gold or less at half price, or it's worn. It can't close while it holds a must-take item. `Container.Contents` and `Container.Reagent` give what opening and harvesting give without setting the flags, for the editor.
 
 ## Crafting
 

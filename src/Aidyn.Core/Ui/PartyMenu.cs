@@ -32,18 +32,16 @@ public sealed partial class PartyMenu
     /// <summary>The colour of a row, and of the header's numbers (<c>COLOR_RED1</c>).</summary>
     public static readonly Rgba TextColor = MenuDetailsBuilder.TextColor;
 
-    /// <summary>What the cursor's row pulses toward (<c>COLOR_PURPLE1</c>), from the row's colour, over <see cref="PulseFrames"/>.</summary>
+    /// <summary>What the cursor's row pulses toward (<c>COLOR_PURPLE1</c>), from <see cref="HighlightFrom"/>, over <see cref="MenuPulse.Frames"/>.</summary>
     public static readonly Rgba HighlightColor = new(151, 141, 191, 255);
 
     /// <summary>The colour the cursor's row pulses from (<c>COLOR_BROWN2</c>).</summary>
     public static readonly Rgba HighlightFrom = new(68, 42, 34, 255);
 
-    public const int PulseFrames = 20;
-
     private readonly MenuText _text;
     private readonly Func<RecordId, SpellRecord?> _spells;
     private readonly Func<RecordId, RecordId?> _portraits;
-    private int _ticks, _pulse, _pulseSign = 1;
+    private readonly MenuPulse _pulse = new();
 
     /// <param name="portraits">Each entity's portrait.</param>
     public PartyMenu(Party party, MenuText text, Func<RecordId, SpellRecord?> spells, Func<RecordId, RecordId?> portraits, int member = 0)
@@ -234,6 +232,10 @@ public sealed partial class PartyMenu
         };
     }
 
+    /// <summary>What C-down shows for an item, for the member shown.</summary>
+    public MenuDetails? ItemDetails(ItemInstance item) =>
+        Shown is { } shown ? MenuDetailsBuilder.Item(item, shown, _text, _spells, Party.Inventory?.Catalog) : null;
+
     /// <summary>Rebuilds the rows from the party, as a member change or anything that changes the party does.</summary>
     public void Refresh()
     {
@@ -248,22 +250,11 @@ public sealed partial class PartyMenu
     }
 
     /// <summary>Steps the cursor's pulse by a tick.</summary>
-    public void Step()
-    {
-        if (++_ticks < Cadence.FrameTicks)
-            return;
-        _ticks = 0;
-        _pulse += _pulseSign;
-        if (_pulse == 0 || _pulse >= PulseFrames - 1)
-            _pulseSign = -_pulseSign;
-    }
+    public void Step() => _pulse.Step();
 
     /// <summary>
     /// The cursor's row's colour now: from <see cref="HighlightFrom"/> toward <see cref="HighlightColor"/>
     /// by whole steps, a 20th of the way rounded toward zero per frame (<c>WidgetFastScrollMenu::Tick</c>).
     /// </summary>
-    public Rgba HighlightNow => new(Blend(HighlightFrom.R, HighlightColor.R), Blend(HighlightFrom.G, HighlightColor.G),
-        Blend(HighlightFrom.B, HighlightColor.B), Blend(HighlightFrom.A, HighlightColor.A));
-
-    private byte Blend(byte from, byte to) => (byte)(from + (to - from) / PulseFrames * _pulse);
+    public Rgba HighlightNow => _pulse.Now(HighlightFrom, HighlightColor);
 }
