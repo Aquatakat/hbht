@@ -13,9 +13,15 @@ namespace Aidyn.Core.Cameras;
 /// <para>
 /// The first tick in reach starts the move from wherever the camera is: a cut jumps there, a pan goes
 /// at a steady speed and the eases follow their curve, each over <see cref="Duration"/> ticks. Tracking
-/// aims straight at the player then, and chases him after at 1/24 of the way a tick, but no more than
-/// 0.25. A finished move stays done while he stays in reach: the original marks it to start again,
-/// but the tick it's stepped overwrites the mark. Out of reach for a tick, it starts afresh next time.
+/// chases the player at 1/24 of the way a tick, but no more than 0.25. A finished move stays done while
+/// he stays in reach: the original marks it to start again, but the tick it's stepped overwrites the
+/// mark. Out of reach for a tick, it starts afresh next time.
+/// </para>
+/// <para>
+/// The original also aims straight at the player as every tracking move starts. Running, the aim
+/// trails him by about 1.4, so a pan or an ease taking over jolted the view; the user saw it in the
+/// original too, and chose to fix it outside the fidelity profile. The port snaps the aim only when
+/// the move cuts, where the view jumps anyway, and otherwise carries on chasing from where it was.
 /// </para>
 /// <para>
 /// While it moves the camera or its aim, the follow camera leaves the camera be (<see cref="FollowCamera.Hold"/>).
@@ -109,12 +115,13 @@ public sealed class CameraMove(CameraFlags flags, Vector3? point, Vector3 values
         _from = Taken(camera);
         _to = point ?? focus with { Y = focus.Y - focusRadius + (conversation ? 0.5f : camera.Height) };
         _progress = 0;
-        if (Has(CameraFlags.Track))
-            camera.AimAt(above);
         if (Has(CameraFlags.Cut))
         {
+            if (Has(CameraFlags.Track))
+                camera.AimAt(above);
             _from = _to;
             Put(camera, _to);
+            camera.Cut();
         }
         if (Has(CameraFlags.Pan))
         {

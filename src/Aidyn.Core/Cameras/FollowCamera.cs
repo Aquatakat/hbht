@@ -218,6 +218,19 @@ public sealed partial class FollowCamera
             ? CameraMode.Interior
             : CameraMode.Outdoor;
 
+    private bool _cut;
+
+    /// <summary>The camera jumped rather than moved, so a view shouldn't blend from where it was.</summary>
+    public void Cut() => _cut = true;
+
+    /// <summary>Whether the camera jumped since the last call, as a cut or a teleport does.</summary>
+    public bool TakeCut()
+    {
+        var cut = _cut;
+        _cut = false;
+        return cut;
+    }
+
     /// <summary>A camera object has the camera this tick (<c>Camera::SetMode(cam, 2)</c>).</summary>
     public void Hold() => Held = true;
 

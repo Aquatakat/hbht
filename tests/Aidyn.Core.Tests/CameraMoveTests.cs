@@ -41,6 +41,34 @@ public class CameraMoveTests
         }
     }
 
+    /// <summary>
+    /// The original snaps the aim onto the player as any tracking move starts, which jolts the view
+    /// when an ease takes over from a camera whose aim trails him; the port only snaps on a cut.
+    /// </summary>
+    [Theory]
+    [InlineData(CameraFlags.Sine)]
+    [InlineData(CameraFlags.Pan)]
+    [InlineData(CameraFlags.EaseIn)]
+    [InlineData(CameraFlags.EaseOut)]
+    public void AnEaseThatTracksKeepsChasingThePlayerRatherThanSnappingOntoHim(CameraFlags kind)
+    {
+        var camera = Camera();
+        var trailing = Focus + AboveHim - new Vector3(1.4f, 0, 0);
+        camera.AimAt(trailing);
+        Move(kind | CameraFlags.Track | CameraFlags.Position, Point).Step(camera, Focus, Radius, 0);
+        AssertNear(trailing + new Vector3(1.4f / 24, 0, 0), camera.Aim);
+        Assert.False(camera.TakeCut());
+    }
+
+    [Fact]
+    public void ACutTellsTheViewNotToBlendAcrossIt()
+    {
+        var camera = Camera();
+        Move(CameraFlags.Cut | CameraFlags.Track | CameraFlags.Position, Point).Step(camera, Focus, Radius, 0);
+        Assert.True(camera.TakeCut());
+        Assert.False(camera.TakeCut());
+    }
+
     [Fact]
     public void ACutThatTracksPutsTheCameraAtItsPointAndAimsAtThePlayerThenChasesHim()
     {

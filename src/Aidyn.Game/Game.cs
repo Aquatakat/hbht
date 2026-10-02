@@ -385,6 +385,9 @@ public partial class Game : Node3D, IMapObjectHost
                 _use!.TreadCamera(map, target);
         }
         _use!.StepCameras(motion.Sphere.Position);
+        // A camera object cutting jumps the view; it isn't blended from where it was.
+        if (_follow.TakeCut())
+            _camera.ResetPhysicsInterpolation();
         ShowPopup();
         _player.Sync();
         _camera.Sync();
