@@ -61,7 +61,7 @@ Using a container (`loot_func`), once it's neither opened, destroyed nor remembe
 
 ## Popups
 
-A popup stops trek until it's closed (`TrekPopup`):
+A popup takes the player's input until it's closed (`TrekPopup`), but doesn't stop the world: the clock runs, bodies move and tangible triggers still go off, while doors and dialogues wait for it to close (`vobject_pause_check`). The user knows the original's to behave so: a chasing enemy can keep running into the player through a conversation. The decomp reads the clock and wanderers' goals as stopping under a popup, so that's on the [list to check](../to-check.md).
 
 - **A message** (`TrekTextPopup`, `TextBox_Centered`): off-white text in a feathered black box at the screen's centre, as wide as the text up to 150, wrapping there, A or B closing it.
 - **The trap's damage** (`TrapMenu::TakeDamage`): white, in a box 16 wider than its widest line and as tall as its lines at the first line's height plus 2.
@@ -77,4 +77,4 @@ The runtime's chunk streamer keeps each loaded chunk's `LoadedMap` beside its co
 - Sounds (containers' by kind, the coin jingle, the explosion), the explosion's lights and particles, and the popups' fades.
 - Camera objects and the interiors' camera (4c), the loot window (4b), and monster parties and dialogues (session 5).
 - The editor's map object pages don't use objects yet.
-- The trap menu's layout follows the decomp's reading of `WidgetChoiceDia::Update`, which places the question above the choices; the colours of the cursor's choice are the scroll menu's defaults, grey to white. Neither is checked against the console.
+- The trap menu's layout follows the decomp's reading of `WidgetChoiceDia::Update`, the question above the choices, with the cursor's choice pulsing grey to white, the scroll menu's defaults. The user finds it looks right, and will confirm it in the ROM ([to-check](../to-check.md)).

@@ -328,8 +328,9 @@ public partial class Game : Node3D, IMapObjectHost
 
     /// <summary>
     /// One 60 Hz tick: the time played, which counts in every mode, and in trek the clock, the
-    /// camera, then the player, as the original orders them. The pause menu stops trek, and a popup
-    /// stops the clock and the player; a teleport's fade stops the player.
+    /// camera, then the player, as the original orders them. The pause menu stops trek. A popup
+    /// doesn't: the world goes on, and only the player's input goes to the popup, as the user knows
+    /// the original's to do. A teleport's fade takes the player's input too.
     /// </summary>
     public override void _PhysicsProcess(double delta)
     {
@@ -340,20 +341,18 @@ public partial class Game : Node3D, IMapObjectHost
             return;
         _popupView!.Step();
         StepFade();
-        var paused = _use!.Popup is not null;
         var fading = _pending is not null || _fadingIn;
         Enter(_chunks!.ChunkAt(_player.Motion.Sphere.Position.ToGodot()));
-        if (!paused)
-            _game.PassTime(1);
+        _game.PassTime(1);
         _sky!.Step();
         ScrollTextures();
-        if (_camera.Flying || paused)
+        if (_camera.Flying)
             return;
         var motion = _player.Motion;
         // ProcessVoxelObjects comes before the player moves.
         if (!fading && _chunks.MapAt(motion.Sphere.Position.ToGodot()) is { } centre)
-            _use.Touch(centre, Local(centre, motion.Sphere.Position));
-        var input = fading || _use.Popup is not null ? new PlayerInput(System.Numerics.Vector2.Zero) : ReadInput();
+            _use!.Touch(centre, Local(centre, motion.Sphere.Position));
+        var input = fading || _use!.Popup is not null ? new PlayerInput(System.Numerics.Vector2.Zero) : ReadInput();
         var before = motion.Sphere.Position;
         _follow.Step(_world, motion.Sphere.Position, motion.Heading);
         motion.Step(_world, input, _follow, _animation);
@@ -362,7 +361,7 @@ public partial class Game : Node3D, IMapObjectHost
             foreach (var (part, target) in motion.Sphere.Trod)
             {
                 if (_chunks.Map(part) is { } map)
-                    _use.Tread(map, target, Local(map, motion.Sphere.Position));
+                    _use!.Tread(map, target, Local(map, motion.Sphere.Position));
             }
         }
         ShowPopup();

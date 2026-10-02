@@ -208,15 +208,17 @@ public sealed class MapObjectUse(GameState game, MenuText text, IMapObjectHost h
     /// <summary>
     /// What walking within a tangible object's radius does, each tick (<c>ProcessVoxelObjects</c>): an
     /// active tangible teleporter whose <see cref="MapObject.Enabled"/> holds takes the player through,
-    /// skipping its secret, trap and lock; a trigger goes off; a dialogue starts its script.
+    /// skipping its secret, trap and lock; a trigger goes off; a dialogue starts its script. A popup
+    /// doesn't stop the world: triggers still go off under one, but a teleporter waits for it to close
+    /// (<c>vobject_pause_check</c>), and so does a dialogue.
     /// </summary>
     public void Touch(LoadedMap map, Vector3 at)
     {
-        if (Popup is not null)
-            return;
         foreach (var o in map.Objects)
         {
             if (!o.Tangible || !map.IsActive(o.Index) || Vector3.Distance(o.Position, at) > o.Radius || !Holds(o.Enabled))
+                continue;
+            if (Popup is not null && o is not TriggerObject)
                 continue;
             switch (o)
             {

@@ -47,7 +47,7 @@ Playing every base-game script 40 times with random flags, party and choices fin
 
 ## To check in the emulator
 
-Two things the runner reads from the code that the user hasn't seen play yet:
+Two things the runner reads from the code that the user hasn't seen play yet (listed in [to-check](../to-check.md)):
 
 - **The lighthouse keeper handing over his key** (Borg13 890 node 13). The runner has "Here... take the key" need A twice, with no animation, since the original looks up who animates from the page it has just cleared (`PlayAnimation`, above). If the keeper does animate, the lookup is wrong, and so are the other eight nodes that do this.
 - **Dougal at the harbour reunion** (script 1040). With Dougal in the party, the runner ends the scene at his line (node 24), where the original reads past the end of the script. What the console does there, whether it ends, hangs or plays something else, decides what the runner should do.
