@@ -9,7 +9,6 @@ Things only the user can settle, in the emulator or by reading the ROM. Each lin
 - **Shop prices.** A few prices, buying and selling, with a checkpoint's party, to compare with the port's barter factor. See [items](systems/items.md#shops).
 - **The Party tab's cursor after equipping the last item** of the inventory, when no item moves up into its row, when a save allows it. See [ui](systems/ui.md#the-party-tabs-actions).
 
-- **The start chest's reach.** On a new game, before moving: whether A opens the chest at once. The port starts the player 2.6 from it, beyond its reach of 2.5, so it takes a step. If A opens it at once, the start position or the player's radius is off. See [map-objects](systems/map-objects.md#what-a-reaches).
 
 ## In the ROM
 

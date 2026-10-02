@@ -69,7 +69,7 @@ A popup takes the player's input until it's closed (`TrekPopup`), and stops the 
 
 ## In the runtime
 
-The runtime's chunk streamer keeps each loaded chunk's `LoadedMap` beside its collision and scenery, and builds a chunk's scenery again when a container's model changes. `Game` is the `IMapObjectHost`, and `TrekPopupView` draws the popups on a UI screen of their own, under the pause menu. On a new game, the chest at the start is 2.6 from the player, just out of reach: a step toward it, and A, facing any way, opens the loot window on 1 to 4 Healing Potions (its loot table, `aidyn:loot/0x0839`; 4 with a new game's seed) and shows it opened, and the door to Gwernia's house A (Overworld M07) leads into the Gwernia interiors' A03.
+The runtime's chunk streamer keeps each loaded chunk's `LoadedMap` beside its collision and scenery, and builds a chunk's scenery again when a container's model changes. `Game` is the `IMapObjectHost`, and `TrekPopupView` draws the popups on a UI screen of their own, under the pause menu. On a new game, the chest at the start is 2.6 from the player, just out of reach: a step toward it, and A, facing any way, opens the loot window on 1 to 4 Healing Potions (its loot table, `aidyn:loot/0x0839`; 4 with a new game's seed) and shows it opened; the user confirmed the original takes that step too (Oct 1, 2026). The door to Gwernia's house A (Overworld M07) leads into the Gwernia interiors' A03.
 
 ## Not ported yet
 
