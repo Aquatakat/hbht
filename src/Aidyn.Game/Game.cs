@@ -384,6 +384,12 @@ public partial class Game : Node3D, IMapObjectHost
         var before = motion.Sphere.Position;
         _follow.Step(_world, motion.Sphere.Position, motion.Heading);
         motion.Step(_world, input, _follow, _animation);
+        // WanderTick, which a popup, the menu and a fade stop.
+        if (playing && _use!.Popup is null)
+        {
+            foreach (var w in _wanderers!.Tick(_world, motion.Sphere.Position, motion.Request, _game.Party, _game.Random.Wander))
+                GD.Print($"{MapRecord.VoxelId(w.Map.Record.Id, w.Party.Index)} ambushes the party; battles come with combat (2.5).");
+        }
         // ProcessPlayers: the player is the first body, then the rest move and push.
         _wanderers!.Step(_world, motion.Sphere, before, _chunks.MapAt(motion.Sphere.Position.ToGodot())?.Key, _follow.Aim,
             w => _chunks.View(w)?.Animation ?? Still.Instance);

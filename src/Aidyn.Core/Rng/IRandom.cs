@@ -42,6 +42,18 @@ public static class RandomExtensions
     }
 
     /// <summary>
+    /// A number from 0 to <paramref name="x"/> (<c>RAND.GetFloat0ToX</c>, checked in 1.0's code): the
+    /// next value as an unsigned number, rounded to a float, times 2⁻³² and then <paramref name="x"/>.
+    /// It reaches <paramref name="x"/> itself for the top 128 values. 0 draws nothing.
+    /// </summary>
+    public static float Float(this IRandom random, float x)
+    {
+        if (x == 0)
+            return x;
+        return (float)(double)random.Next() * (1f / 4294967296f) * x;
+    }
+
+    /// <summary>
     /// The sum of <paramref name="dice"/> rolls of 1 to <paramref name="sides"/> (<c>RollD</c>), as a u16.
     /// Each roll is <c>rand_range</c>, which is <see cref="Range"/> for these bounds.
     /// </summary>

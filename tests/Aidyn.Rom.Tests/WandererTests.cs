@@ -220,6 +220,126 @@ public sealed class WandererTests(MapObjectFixture fixture)
         Assert.True(arrived >= 6);
     }
 
+    /// <summary>The 3x3 chunks around a chunk of the Overworld, those that exist, loaded together on a new game.</summary>
+    private (Wanderers Wanderers, CollisionWorld World, GameState Game) LoadBlock(int row, int column)
+    {
+        var game = GameState.NewGame(Data.Set);
+        var world = new CollisionWorld();
+        var wanderers = new Wanderers(Data.Set);
+        for (var r = row - 1; r <= row + 1; r++)
+        {
+            for (var c = column - 1; c <= column + 1; c++)
+            {
+                if (Data.Chunk(new ChunkRef(Overworld, r, c)) is not null)
+                    Load(r, c, game, world, wanderers);
+            }
+        }
+        return (wanderers, world, game);
+    }
+
+    private static Vector2 Flat(Vector3 v) => new(v.X, v.Z);
+
+    /// <summary>
+    /// The blocks around M07 (7 chunks, 14 wanderers: 8 hunters and 6 talkers) and I08 (6 chunks, 17
+    /// wanderers: 16 hunters and 1 talker) wander with nobody near: they choose new goals as their timers
+    /// run out, go on from node to node, stay inside their chunks, and none chases.
+    /// </summary>
+    [Fact]
+    public void WanderersWithNobodyNearChooseNewGoalsAndStayInTheirChunks()
+    {
+        var motion = new SteadyMotion(0.05f);
+        var player = new CollisionSphere { Position = new Vector3(5000, 0, 5000) };
+        var nodeChanges = 0;
+        foreach (var (row, column, count) in new[] { (13, 7, 14), (9, 8, 17) })
+        {
+            var (wanderers, world, _) = LoadBlock(row, column);
+            Assert.Equal(count, wanderers.All.Count);
+            var random = new Lcg(1234);
+            var node = wanderers.All.ToDictionary(w => w, w => w.Node);
+            var goal = wanderers.All.ToDictionary(w => w, w => w.Goal);
+            var chose = new HashSet<Wanderer>();
+            var start = wanderers.All.ToDictionary(w => w, w => w.Body.Sphere.Position);
+            // The camera's aim goes from one wanderer to the next every 600 ticks, so that each has its turn
+            // to walk: only the bodies within 30 of it do.
+            for (var tick = 0; tick < 600 * count; tick++)
+            {
+                var aim = wanderers.All[tick / 600].Body.Sphere.Position;
+                Assert.Empty(wanderers.Tick(world, player.Position, PlayerMotion.Walk, null, random));
+                wanderers.Step(world, player, player.Position, "far", aim, _ => motion);
+                foreach (var w in wanderers.All)
+                {
+                    Assert.False(w.Chasing, $"{w.Map.Record.Id} party {w.Party.Index} chases at tick {tick}");
+                    if (w.Goal != goal[w])
+                    {
+                        chose.Add(w);
+                        goal[w] = w.Goal;
+                    }
+                    if (w.Node != node[w])
+                    {
+                        nodeChanges++;
+                        node[w] = w.Node;
+                    }
+                    var (min, max) = w.Body.Bounds!.Value;
+                    var at = Flat(w.Body.Sphere.Position);
+                    Assert.True(at.X >= min.X && at.X <= max.X && at.Y >= min.Y && at.Y <= max.Y,
+                        $"{w.Map.Record.Id} party {w.Party.Index} left its chunk at tick {tick}: {at}");
+                }
+            }
+            // Some nodes, as 0x0FB6's 211, link only to themselves, which scatter a new goal without changing the node.
+            Assert.True(chose.Count >= count / 2, $"{row},{column}: only {chose.Count} of {wanderers.All.Count} chose a new goal");
+            Assert.True(wanderers.All.Count(w => Vector3.Distance(w.Body.Sphere.Position, start[w]) > 1) >= count / 2);
+        }
+        Assert.True(nodeChanges > 0);
+    }
+
+    /// <summary>The first hunter of the block with the player placed 9 ahead of it, where it looks from 3 ahead.</summary>
+    private static (Wanderer Hunter, Vector3 Player) HunterWithPlayerAhead(Wanderers wanderers)
+    {
+        var hunter = wanderers.All.First(w => w.Hunts);
+        var at = hunter.Body.Sphere.Position;
+        var player = at + new Vector3(hunter.Body.Heading.X, 0, hunter.Body.Heading.Y) * 9;
+        return (hunter, player);
+    }
+
+    [Fact]
+    public void AHunterNoticesAWalkingPlayerBesideItAndChasesHimButNotOneStandingWithNoParty()
+    {
+        var (wanderers, world, game) = LoadBlock(13, 7);
+        var (hunter, player) = HunterWithPlayerAhead(wanderers);
+        Assert.Equal(10, hunter.Perception);
+
+        // Standing with nobody to hide him (the party's Stealth is 0 with no party), he isn't noticed.
+        wanderers.Tick(world, player, PlayerMotion.Idle, null, new Lcg());
+        Assert.False(hunter.Chasing);
+
+        var ambushes = wanderers.Tick(world, player, PlayerMotion.Walk, game.Party, new Lcg());
+        Assert.DoesNotContain(hunter, ambushes);
+        Assert.True(hunter.Chasing);
+        Assert.True(hunter.Body.Moving);
+        Assert.False(hunter.Body.Walks);
+        Assert.Equal(Flat(player), hunter.Body.Goal);
+        Assert.Equal(2, hunter.Body.GoalRadius);
+    }
+
+    [Fact]
+    public void AHunterChasingThePlayerCatchesHimAndAmbushesHim()
+    {
+        var (wanderers, world, game) = LoadBlock(13, 7);
+        var (hunter, player) = HunterWithPlayerAhead(wanderers);
+        var sphere = new CollisionSphere { Radius = 0.5f, Position = player };
+        var motion = new SteadyMotion(0.03f);
+        var ambushed = false;
+        for (var tick = 0; tick < 1500 && !ambushed; tick++)
+        {
+            ambushed = wanderers.Tick(world, sphere.Position, PlayerMotion.Walk, game.Party, new Lcg()).Contains(hunter);
+            wanderers.Step(world, sphere, sphere.Position, "far", sphere.Position, _ => motion);
+        }
+        Assert.True(ambushed);
+        Assert.False(hunter.Hunts);
+        Assert.False(hunter.Body.Moving);
+        Assert.True(Vector3.Distance(hunter.Body.Sphere.Position, sphere.Position) < Wanderer.AmbushDistance);
+    }
+
     /// <summary>The wanderers of M07 and I08 that set off for their nodes on loading: chunk row and column, and party index.</summary>
     private IEnumerable<(int Row, int Column, int Party)> Heading() =>
         new[] { (13, 7), (9, 8) }.SelectMany(c => Load(c.Item1, c.Item2).Added.Where(w => w.Body.Moving).Select(w => (c.Item1, c.Item2, w.Party.Index))).ToList();

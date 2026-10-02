@@ -1,91 +1,13 @@
 using System.Numerics;
+using Aidyn.Core.Characters;
 using Aidyn.Core.MapObjects;
 using Aidyn.Core.Movement;
 using Aidyn.Core.Physics;
+using Aidyn.Core.Rng;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 
 namespace Aidyn.Core.Trek;
-
-/// <summary>
-/// A monster party's body in the world, wandering from node to node (the original's <c>Wanderer</c>):
-/// an NPC to talk to, or the leader of a group of enemies, which the player sees alone.
-/// </summary>
-public sealed class Wanderer
-{
-    internal Wanderer(LoadedMap map, MonsterPartyObject party, EntityBody look, Body body)
-    {
-        Map = map;
-        Party = party;
-        Look = look;
-        Body = body;
-        Home = new Vector2(party.Position.X, party.Position.Z) + new Vector2(map.Origin.X, map.Origin.Z);
-    }
-
-    /// <summary>The chunk it belongs to, which it stays in.</summary>
-    public LoadedMap Map { get; }
-
-    public MonsterPartyObject Party { get; }
-
-    /// <summary>The party's entity's model and size.</summary>
-    public EntityBody Look { get; }
-
-    public Body Body { get; }
-
-    /// <summary>
-    /// Whether it talks rather than fights (<c>moveType</c> 0): a party with a dialogue. It never
-    /// chases the player.
-    /// </summary>
-    public bool Talks => Party.Dialogue is not null;
-
-    /// <summary>The party's position, in the world's X and Z (<c>Wanderer.position</c>).</summary>
-    public Vector2 Home { get; }
-
-    /// <summary>How far it strays from <see cref="Home"/> after the player: the party's radius (<c>size</c>).</summary>
-    public float Leash => Party.Radius;
-
-    /// <summary>The node it's going to or turning from.</summary>
-    public WanderNodeObject? Node { get; private set; }
-
-    /// <summary>
-    /// Where it's going, in the world's X and Z: the node, scattered on a visit after the first. For a
-    /// node it turns away from, the way to face instead (<c>start_position</c>).
-    /// </summary>
-    public Vector2 Goal { get; private set; }
-
-    /// <summary>Ticks before it may move on from <see cref="Node"/>, counting from when it chose it.</summary>
-    public ushort Timer { get; internal set; }
-
-    /// <summary>
-    /// Takes the node's values (<c>WanderGetNextNode</c>): where it is, how near to come, the scatter,
-    /// the chance of the second next node, the wait and what to do there. A node it turns from gives
-    /// the way from the node to the body instead of a place.
-    /// </summary>
-    internal void Take(WanderNodeObject node)
-    {
-        Node = node;
-        Timer = (ushort)node.Wait;
-        Goal = new Vector2(node.Position.X + Map.Origin.X, node.Position.Z + Map.Origin.Z);
-        if ((node.Flags & WanderFlags.Rotate) != 0)
-            Goal = Vector2.Normalize(new Vector2(Body.Sphere.Position.X, Body.Sphere.Position.Z) - Goal);
-    }
-
-    /// <summary>
-    /// Sets off for its goal, or turns (<c>FUN_80012d44</c>): to a node it walks to, if it's further
-    /// than the node's radius, walking if the party has <see cref="PartyFlags.Walks"/> and running
-    /// otherwise; from a node it turns from, facing away.
-    /// </summary>
-    internal void Resume()
-    {
-        if (Node is not { } node)
-            return;
-        if ((node.Flags & WanderFlags.Move) != 0
-            && Vector2.Distance(new Vector2(Body.Sphere.Position.X, Body.Sphere.Position.Z), Goal) > node.WanderRadius)
-            Body.GoTo(Goal, node.WanderRadius, (Party.Flags & PartyFlags.Walks) != 0);
-        if ((node.Flags & WanderFlags.Rotate) != 0)
-            Body.Face(Goal);
-    }
-}
 
 /// <summary>
 /// The wanderers of the loaded chunks (the original's <c>WanderManager</c>): each chunk's monster
@@ -102,6 +24,9 @@ public sealed class Wanderers(PluginSet plugins)
 
     /// <summary>How far from the camera's aim bodies move and animate, in trek (<c>PlayerHandler.float_0x68</c>).</summary>
     public const float StepDistance = 30;
+
+    /// <summary>A dialogue entity's perception (<c>EntityDB::GetPerception</c>).</summary>
+    public const int DialoguePerception = 10;
 
     private readonly List<Wanderer> _all = [];
     private readonly List<CrowdMember?> _crowd = [];
@@ -137,7 +62,8 @@ public sealed class Wanderers(PluginSet plugins)
             // Actor::CheckCollision: from 1 above the party to 1 below, or failing that from on high.
             if (TeleportArrival.Settle(world, at with { Y = at.Y + look.Radius }, look.Radius) is { } ground)
                 body.Sphere.Position = ground;
-            var wanderer = new Wanderer(map, party, look, body);
+            var perception = plugins.TryGet<EntityRecord>(party.Entity)?.Perception ?? DialoguePerception;
+            var wanderer = new Wanderer(map, party, look, body, perception);
             wanderer.Take(home);
             wanderer.Resume();
             _all.Add(wanderer);
@@ -156,6 +82,31 @@ public sealed class Wanderers(PluginSet plugins)
 
     /// <summary>Takes away every body, as going to another map set does.</summary>
     public void Clear() => _all.Clear();
+
+    /// <summary>
+    /// What the wanderers decide in a tick of trek (<c>WanderTick</c>, checked in 1.0's code): each
+    /// counts down its timer, hunters notice the player and chase him, give up and go back, and those
+    /// that don't hunt turn to face him when he's near; and each moves on to its next node when its
+    /// timer has run out and it's idle. The original skips it under a popup, the menu or a fade, and
+    /// outside trek, and so must the caller. It doesn't care how far they are from the camera.
+    /// </summary>
+    /// <param name="player">The player's sphere's centre.</param>
+    /// <param name="playerRequest">What he's doing: the animation he asks for.</param>
+    /// <param name="party">The party, whose best Stealth hides him; null for none.</param>
+    /// <param name="random">The wandering stream.</param>
+    /// <param name="fogTime">How thick the weather's fog is, 0 to 1.</param>
+    /// <returns>The hunters that ambush the player, starting a battle.</returns>
+    public IReadOnlyList<Wanderer> Tick(CollisionWorld world, Vector3 player, int playerRequest, Party? party, IRandom random, float fogTime = 0)
+    {
+        var tick = new WanderTick(world, player, playerRequest, NoticeRanges.SneakFor(party), fogTime, random);
+        List<Wanderer>? ambushes = null;
+        foreach (var w in _all)
+        {
+            if (w.Tick(tick))
+                (ambushes ??= []).Add(w);
+        }
+        return ambushes ?? (IReadOnlyList<Wanderer>)[];
+    }
 
     /// <summary>
     /// Steps the bodies after the player's own step, as <c>ProcessPlayers</c> does each tick: the
