@@ -284,6 +284,7 @@ public sealed record Ingredient(RecordId Item, int Count);
 /// <param name="Refused">Items no container, shop or loot window takes: the Cyclops Club (<c>GenericInventory::AddItem</c>).</param>
 /// <param name="Replaced">Items that become another when gained: the Aspect potion, which becomes a Healing potion.</param>
 /// <param name="FirstPotionFlag">Set when the party first gains a potion in a shop or loot, which shows help (a trigger, 2.10).</param>
+/// <param name="Messages">What the pause menu says when a potion or scroll can't be used, which the original has in code.</param>
 public sealed record InventoryRecord(
     RecordId Id,
     int StackLimit,
@@ -296,6 +297,12 @@ public sealed record InventoryRecord(
     float SellShare,
     IReadOnlyList<RecordId> Refused,
     IReadOnlyList<ItemReplacement> Replaced,
-    RecordId FirstPotionFlag);
+    RecordId FirstPotionFlag,
+    InventoryMessages? Messages = null);
 
 public sealed record ItemReplacement(RecordId Item, RecordId With);
+
+/// <param name="PotionNotNow">A potion that would do nothing now: one that heals at full health, and so on (<c>Entity::CanUsePotion</c>).</param>
+/// <param name="PotionNotInTrek">A flask, or a potion with no effect, drunk outside combat.</param>
+/// <param name="ScrollNoSpell">A scroll without a spell, read (<c>Party::UseScroll</c>): the Lighthouse scroll.</param>
+public sealed record InventoryMessages(string PotionNotNow, string PotionNotInTrek, string ScrollNoSpell);

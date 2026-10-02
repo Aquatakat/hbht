@@ -20,7 +20,7 @@ namespace Aidyn.Inspector;
 /// <c>--zoom &lt;1-3&gt;</c>, <c>--ui-filter pixels|videoout|smooth</c>, <c>--aspect 4:3|16:9</c> and
 /// <c>--ui-lines 240|360|480</c>. The inventory record's Party tab takes the same, and
 /// <c>--member &lt;slot&gt;</c>, <c>--list inventory|spells|skills|stats</c>, <c>--row &lt;n&gt;</c> and
-/// <c>--details 1</c>. <c>--ui-screenshot &lt;png&gt;</c> saves the UI screen too, in its own pixels,
+/// <c>--details 1</c>, and <c>--press &lt;a,b,up,down&gt;</c> presses those buttons in turn after. <c>--ui-screenshot &lt;png&gt;</c> saves the UI screen too, in its own pixels,
 /// before it's scaled up.
 /// </remarks>
 public partial class Editor : Control
@@ -81,6 +81,8 @@ public partial class Editor : Control
             args.TryGetValue("list", out var list) ? Enum.Parse<Aidyn.Core.Ui.PartyList>(list, ignoreCase: true) : null,
             args.TryGetValue("row", out var row) ? int.Parse(row, CultureInfo.InvariantCulture) : null,
             args.TryGetValue("details", out var details) ? details == "1" : null);
+        if (args.TryGetValue("press", out var presses))
+            _records.PressPartyTab(presses.Split(','));
         if (args.TryGetValue("drive", out var request))
             _records.Model.Drive(int.Parse(request, CultureInfo.InvariantCulture));
         _records.Model.SetWireframe(args.GetValueOrDefault("wireframe") == "1");

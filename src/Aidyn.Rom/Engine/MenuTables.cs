@@ -15,13 +15,15 @@ namespace Aidyn.Rom.Engine;
 /// <param name="SpellDescriptions">Each spell's line in the Spells string table. Four spells have none.</param>
 /// <param name="InventoryOrder">The DB types, as <see cref="DbType"/> values, in the order the inventory list shows them.</param>
 /// <param name="EquipmentSlotImages">The Borg8 image of each equipment slot while it's empty, by slot.</param>
+/// <param name="Messages">The inventory's messages that are in code rather than a string table.</param>
 public sealed record MenuTables(
     IReadOnlyDictionary<ItemId, int> SpellSymbols,
     IReadOnlyDictionary<ItemId, int> PotionDescriptions,
     IReadOnlyDictionary<ItemId, int> ItemDescriptions,
     IReadOnlyDictionary<ItemId, int> SpellDescriptions,
     IReadOnlyList<int> InventoryOrder,
-    IReadOnlyList<ushort> EquipmentSlotImages)
+    IReadOnlyList<ushort> EquipmentSlotImages,
+    CodeMessages Messages)
 {
     public static MenuTables Read(RomImage rom)
     {
@@ -56,7 +58,18 @@ public sealed record MenuTables(
         var slotImages = Enumerable.Range(0, slots.Length / 4).Select(i => checked((ushort)CodeSegment.U32(slots, i * 4))).ToList();
 
         return new MenuTables(spellSymbols, Descriptions(rom, CodeTable.PotionDescriptions), Descriptions(rom, CodeTable.ItemDescriptions),
-            Descriptions(rom, CodeTable.SpellDescriptions), kinds, slotImages);
+            Descriptions(rom, CodeTable.SpellDescriptions), kinds, slotImages,
+            new CodeMessages(Text(rom, CodeTable.PotionNotNow), Text(rom, CodeTable.PotionNotInTrek), Text(rom, CodeTable.ScrollNoSpell)));
+    }
+
+    /// <summary>A C string: ASCII up to its terminator, which the table's range includes.</summary>
+    private static string Text(RomImage rom, CodeTable table)
+    {
+        var data = CodeSegment.Table(rom, table);
+        var end = data.IndexOf((byte)0);
+        return end < 0
+            ? throw new InvalidDataException($"The {table} string has no terminator.")
+            : System.Text.Encoding.ASCII.GetString(data[..end]);
     }
 
     /// <summary>(ID, line) u16 pairs, ending with a 0 ID.</summary>
@@ -69,3 +82,9 @@ public sealed record MenuTables(
         return lines;
     }
 }
+
+/// <summary>The inventory's messages that are literals in code (<c>Entity::CanUsePotion</c>, <c>Party::UseScroll</c>).</summary>
+/// <param name="PotionNotNow">A potion that would do nothing now: one that heals at full health, and so on.</param>
+/// <param name="PotionNotInTrek">A flask, or a potion with no effect, drunk outside combat.</param>
+/// <param name="ScrollNoSpell">A scroll without a spell, read: the Lighthouse scroll.</param>
+public sealed record CodeMessages(string PotionNotNow, string PotionNotInTrek, string ScrollNoSpell);

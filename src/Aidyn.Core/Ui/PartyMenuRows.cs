@@ -113,7 +113,59 @@ public sealed class MenuText(IReadOnlyList<string> common)
         Spell = 0x21E, Resists = 0x21F, Protection = 0x220, Defense = 0x221, Dexterity = 0x222, Stealth = 0x223, TotalDefense = 0x224,
         TotalProtection = 0x225, MinIntelligence = 0x226, Charges = 0x227;
 
+    /// <summary>Why an item can't be equipped (<c>equip_error_labels</c>, from line 95): in general, by aspect, in combat, for rings, by Strength and by Intelligence.</summary>
+    public const int CantEquip = 96, WrongAspect = 97, NotInCombat = 98, NoMoreRings = 99, NeedsStrength = 100, NeedsIntelligence = 101;
+
+    /// <summary>The Healer's results (<c>Party::PrintHeal</c>, <c>HerbHeal</c>, <c>HealingFunc2</c>) and reading scrolls (<c>Party::UseScroll</c>).</summary>
+    public const int HealFailed = 438, AlreadyAtMaxHealth = 439, HealsBy = 440, OnlyWizards = 441, AlreadyKnows = 442, NeedsWizardRank = 443,
+        WrongSchool = 444, Learned = 445, RestoredBy = 446;
+
+    /// <summary>The crafting popups (<c>WidgetPotionCraft</c>, <c>WidgetArmorCraft</c>, <c>WidgetMenuHealer</c>).</summary>
+    public const int Alchemy = 454, PotionFailed = 455, PotionMade = 456, PotionComponents = 457, FlaskFailed = 458, FlaskMade = 459,
+        FlaskComponents = 460, NoArmorComponents = 461, CreateArmor = 462, ArmorFailed = 463, ArmorMade = 464, HealerTasks = 465,
+        LayOnHands = 466, HealWithHerbs = 467, Restore = 468, Health = 469, StatAtMax = 470;
+
+    /// <summary>"The %s contains powerful magic that only %s can control." (<c>WidgetInvShop::AFunc</c>).</summary>
+    public const int PowerfulMagic = 554;
+
     public string this[int line] => line < common.Count ? common[line] : "";
+
+    /// <summary>A line with its <c>%s</c>, <c>%d</c>, <c>%ld</c>, <c>%lu</c> and <c>%u</c> filled in order, as <c>sprintf</c> does.</summary>
+    public string Format(int line, params object[] args) => Fill(this[line], args);
+
+    /// <summary>Fills a C format's conversions in order.</summary>
+    public static string Fill(string format, params object[] args)
+    {
+        var text = new System.Text.StringBuilder();
+        var next = 0;
+        for (var i = 0; i < format.Length; i++)
+        {
+            if (format[i] != '%' || i + 1 >= format.Length)
+            {
+                text.Append(format[i]);
+                continue;
+            }
+            var end = i + 1;
+            while (end < format.Length && format[end] is 'l' or 'h')
+                end++;
+            if (end < format.Length && format[end] is 's' or 'd' or 'u' or 'i')
+            {
+                text.Append(next < args.Length ? Convert.ToString(args[next], System.Globalization.CultureInfo.InvariantCulture) : "");
+                next++;
+                i = end;
+            }
+            else if (end < format.Length && format[end] == '%')
+            {
+                text.Append('%');
+                i = end;
+            }
+            else
+            {
+                text.Append('%');
+            }
+        }
+        return text.ToString();
+    }
 
     /// <summary>The installed plugins' common strings.</summary>
     public static MenuText From(PluginSet plugins) =>

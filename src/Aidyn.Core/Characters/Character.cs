@@ -1,3 +1,4 @@
+using Aidyn.Core.Calendar;
 using Aidyn.Core.Items;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
@@ -27,14 +28,18 @@ public sealed class LearnedSpell(SpellRecord spell, int level)
 /// </para>
 /// <para>
 /// What it has equipped is its <see cref="Equipment"/>, which changes the sheet as items go on and off.
-/// Spell and potion effects come with combat (2.5); the sheet has the hooks they change:
-/// <see cref="CharacterStats.ChangeModified"/>, <see cref="CharacterStats.ChangeBase"/> and
-/// <see cref="CharacterSkills.Modify"/>.
+/// Potions' effects last a while (<see cref="PotionEffects"/>). Spells' come with combat (2.5); the sheet
+/// has the hooks they change: <see cref="CharacterStats.ChangeModified"/>, <see cref="CharacterStats.ChangeBase"/>
+/// and <see cref="CharacterSkills.Modify"/>.
 /// </para>
 /// </remarks>
 public sealed class Character
 {
+    /// <summary>How many potions' effects a character holds at once (<c>POTION_FXMAX</c>).</summary>
+    public const int PotionSlots = 7;
+
     private readonly List<LearnedSpell> _spells;
+    private readonly List<PotionEffect> _potions = [];
 
     private Character(RecordId entity, string name, CharacterRules rules, CharacterStats stats, CharacterSkills skills,
         List<LearnedSpell> spells)
@@ -291,6 +296,67 @@ public sealed class Character
     public uint? NextLevelExp => Rules.NextLevelExp(TotalExp);
 
     internal void LearnSpell(SpellRecord spell) => _spells.Add(new LearnedSpell(spell, 1));
+
+    /// <summary>The potions working on it, in the order drunk.</summary>
+    public IReadOnlyList<PotionEffect> PotionEffects => _potions;
+
+    public bool HasPotionEffect(Potion potion) => _potions.Any(p => p.Potion == potion);
+
+    /// <summary>
+    /// A potion starts working, if a slot is free (<c>Entity::ApplyPotionEffect</c>): Strength and
+    /// Dexterity raise the stat's base by 10, unless the character is dead; Clarity, Charisma and
+    /// Stealth raise Loremaster, Diplomat and Stealth by 3. Loading a save applies its effects so.
+    /// </summary>
+    public void ApplyPotionEffect(Potion potion, int power, uint timer)
+    {
+        if (_potions.Count >= PotionSlots)
+            return;
+        _potions.Add(new PotionEffect(potion, power, timer));
+        PotionChange(potion, 1);
+    }
+
+    /// <summary>
+    /// Time passing for its potions, <paramref name="ticks"/> of play in trek (<c>Entity::IncPotionEffect</c>):
+    /// each runs down by the game clock's ticks, and one already run down ends, undoing what it did. A
+    /// dead character's don't run.
+    /// </summary>
+    public void StepPotionEffects(int ticks)
+    {
+        if (IsDead)
+            return;
+        for (var i = 0; i < _potions.Count; i++)
+        {
+            var effect = _potions[i];
+            if (effect.Timer == 0)
+            {
+                _potions.RemoveAt(i--);
+                PotionChange(effect.Potion, -1);
+                continue;
+            }
+            var step = (ulong)ticks * GameClock.DaySpeed;
+            effect.Timer = step < effect.Timer ? effect.Timer - (uint)step : 0;
+        }
+    }
+
+    // Entity::ApplyPotionEffect and ReversePotionEffect.
+    private void PotionChange(Potion potion, int sign)
+    {
+        switch (potion)
+        {
+            case Potion.Strength or Potion.Dexterity when !IsDead:
+                Stats.ChangeBase(potion == Potion.Strength ? Stat.Strength : Stat.Dexterity, 10 * sign);
+                break;
+            case Potion.Clarity:
+                Skills.Modify(Skill.Loremaster, 3 * sign);
+                break;
+            case Potion.Charisma:
+                Skills.Modify(Skill.Diplomat, 3 * sign);
+                break;
+            case Potion.Stealth:
+                Skills.Modify(Skill.Stealth, 3 * sign);
+                break;
+        }
+    }
 
     public LearnedSpell? FindSpell(RecordId spell) => _spells.FirstOrDefault(s => s.Spell.Id == spell);
 }

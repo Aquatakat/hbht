@@ -91,8 +91,15 @@ public partial class PartyTabView : Control
     /// <summary>How far the wide details' text keeps from the parchment's straight edge.</summary>
     private const int DetailsEdge = 8;
 
+    // WidgetCrafting: the title centred at x 93 on the details' parchment, its list from x 23 to 163 under it,
+    // 122 tall for the Alchemist's recipes and 117 for the rest; a member's row is its portrait's 25.
+    private const int CraftingTitleCentre = 93, CraftingTitleTop = 70, CraftingLeft = 23, CraftingRight = 163;
+    private const int MemberRow = 25, MemberPortrait = 25;
+
     private readonly UiPainter _ui;
     private ScreenRect _listBounds = ClassicList;
+    private ScreenRect _craftingBounds;
+    private int _craftingRow = 11;
     private Vector2I _origin;
 
     public PartyTabView(PluginSet plugins, PartyMenu menu)
@@ -141,10 +148,20 @@ public partial class PartyTabView : Control
         AcceptEvent();
     }
 
-    /// <summary>The list row under a point, if any.</summary>
+    /// <summary>The list row under a point, if any: the crafting popup's while it's open.</summary>
     private int? RowAt(Vector2 point)
     {
         var at = point - (Vector2)_origin;
+        if (Menu.Message is not null)
+            return null;
+        if (Menu.Crafting is { } crafting)
+        {
+            var c = _craftingBounds;
+            if (at.X < c.Left || at.X >= c.Right || at.Y < c.Top || at.Y >= c.Bottom)
+                return null;
+            var hit = crafting.Rows.First + (int)(at.Y - c.Top) / _craftingRow;
+            return hit < crafting.Rows.Rows.Count ? hit : null;
+        }
         var b = _listBounds;
         if (at.X < b.Left || at.X >= b.Right || at.Y < b.Top || at.Y >= b.Bottom)
             return null;
@@ -178,6 +195,8 @@ public partial class PartyTabView : Control
             DrawClassic();
             DrawSetTransform(Vector2.Zero);
         }
+        if (Menu.Message is { } message)
+            Message(message);
     }
 
     private void DrawClassic()
@@ -188,6 +207,8 @@ public partial class PartyTabView : Control
         Silhouette(SilhouettePiece.Position);
         List(ClassicList, _ui.Slim, Columns.Classic);
         _ui.Image(this, InCombat ? MenuImages.SliderLeft : MenuImages.SliderBoth, SliderAt.X, SliderAt.Y, color: PartyMenu.TextColor);
+        if (Menu.Crafting is { } crafting)
+            Crafting(crafting, Vector2I.Zero);
         if (DetailsOpen && Menu.Details() is { } details)
         {
             _ui.Parchment(this, ClassicParchment.X, ClassicParchment.Y);
@@ -214,6 +235,9 @@ public partial class PartyTabView : Control
         Portraits(PortraitPiece.Position);
         Health(HealthPiece.Position, _ui.Main);
         Silhouette(SilhouettePiece.Position);
+        // A crafting popup covers the silhouette as the original's does; its recipe's product shows at the right.
+        if (Menu.Crafting is { } crafting)
+            Crafting(crafting, Vector2I.Zero);
 
         // The list from where the original's starts, as wide as about half the room right of the
         // knotwork, the details the rest, out to the screen's edge. A deep margin under it holds the
@@ -243,6 +267,59 @@ public partial class PartyTabView : Control
                 detailsLeft + detailsSize.X - DetailsEdge, top + detailsSize.Y - detailsSize.Y * 8 / 160);
             Details(details, area, _ui.Main, classic: false);
         }
+    }
+
+    /// <summary>
+    /// A skill's popup (<c>WidgetCrafting</c>, <c>WidgetMenuPopup</c>) on the details' parchment at its own
+    /// place: its title centred above a list in the slim font, of recipes, tasks, attributes, or members
+    /// with their portraits, names and health.
+    /// </summary>
+    private void Crafting(CraftingMenu crafting, Vector2I at)
+    {
+        var font = _ui.Slim;
+        _ui.Parchment(this, at.X + ClassicParchment.X, at.Y + ClassicParchment.Y);
+        // The original measures the title as it builds the popup, in the main font, and draws it in the slim one.
+        var titleWidth = _ui.Main.Width(crafting.Title);
+        _ui.Text(this, font, crafting.Title, at.X + CraftingTitleCentre - titleWidth / 2, at.Y + CraftingTitleTop, PartyMenu.TextColor);
+        var top = at.Y + CraftingTitleTop + font.LineHeight;
+        var height = crafting.Task == CraftingTask.Alchemy ? 0x7A : 0x75;
+        var bounds = new ScreenRect(at.X + CraftingLeft, top, at.X + CraftingRight, top + height);
+        _craftingBounds = bounds;
+        _craftingRow = crafting.ListsMembers ? MemberRow : font.LineHeight;
+        crafting.Rows.Visible = height / _craftingRow;
+        var x = bounds.Left;
+        _ui.List(crafting.Rows, top, _craftingRow, PartyMenu.TextColor, Menu.HighlightNow, (row, y, color) =>
+        {
+            if (row.Member is { } slot && Menu.Party.Slots.ElementAtOrDefault(slot) is { } member)
+            {
+                // WidgetMenuHealer::ShowHealedMember: the portrait, the name 2 after it, and the health under the name.
+                if (Menu.Portrait(member.Entity) is { } portrait)
+                    _ui.Image(this, portrait, x, y, new Vector2I(MemberPortrait, MemberPortrait));
+                _ui.Text(this, font, row.Text, x + MemberPortrait + 2, y, bounds, color);
+                _ui.Text(this, font, row.Health ?? "", x + MemberPortrait, y + font.LineHeight + 5, bounds, color);
+            }
+            else
+            {
+                _ui.Text(this, font, row.Text, x, y, bounds, color);
+            }
+        });
+    }
+
+    /// <summary>
+    /// A message in off-white over a feathered black box at the screen's centre (<c>TextBox_Centered</c>):
+    /// as wide as its text up to 150, and as tall as it wraps, plus 5; a crafting popup's result has 16
+    /// more across and 5 more down (<c>WidgetCrafting::TextPopup</c>).
+    /// </summary>
+    private void Message(MenuMessage message)
+    {
+        var font = _ui.Main;
+        var wrap = Math.Min(font.Width(message.Text), MenuMessage.MaxWidth);
+        var height = font.Layout.Height(message.Text, 0, wrap);
+        var (w, h) = message.FromCrafting ? (wrap + 16, height + 10) : (wrap, height + 5);
+        var x0 = ((int)Size.X - w) / 2;
+        var y0 = ((int)Size.Y - h) / 2;
+        _ui.Images.DrawPanel(this, _ui.Images.Around(new ScreenRect(x0, y0, x0 + w + 8, y0 + h)));
+        _ui.Text(this, font, message.Text, x0 + 4, y0 + 4, new ScreenRect(x0 + 4, y0, x0 + 4 + w, y0 + h + 4), MenuMessage.Color);
     }
 
     /// <summary>

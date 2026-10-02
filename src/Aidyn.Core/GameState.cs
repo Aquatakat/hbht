@@ -203,12 +203,15 @@ public sealed class GameState : IScriptWorld
     }
 
     /// <summary>
-    /// Time passing in trek, <paramref name="ticks"/> of play: the clock runs, and the calendar's flags
-    /// are written, as they are every frame (<c>World::IncGameTime</c>, <c>SetFlagArray_on_Time</c>).
+    /// Time passing in trek, <paramref name="ticks"/> of play: the clock runs, the calendar's flags are
+    /// written, as they are every frame, and the members' potions run down (<c>TickGameTime</c>,
+    /// <c>SetFlagArray_on_Time</c>).
     /// </summary>
     public void PassTime(int ticks)
     {
         Clock.Step(ticks);
+        foreach (var member in Party.Members)
+            member.StepPotionEffects(ticks);
         StateFlags.SetTime(Clock);
     }
 
@@ -244,6 +247,7 @@ public sealed class GameState : IScriptWorld
             Shield = Item(worn.Shield),
             Gear = [.. worn.Gear.OfType<ItemInstance>().Select(g => Item(g)!)],
             Spells = [.. member.Spells.Select(s => new KnownSpell(s.Spell.Id, s.Level))],
+            Potions = [.. member.PotionEffects.Select(p => new SavePotion(Potions.Id(p.Potion), p.Timer) { Power = p.Power })],
         };
 
         static SaveItem? Item(ItemInstance? item) => item is null ? null : new SaveItem(item.Id) { Battery = item.Battery, Charges = item.Charges };
@@ -303,6 +307,14 @@ public sealed class GameState : IScriptWorld
         Wear(saved.Weapon, equipment.EquipWeapon);
         foreach (var gear in saved.Gear)
             Wear(gear, equipment.EquipGear);
+        // SaveParty::LoadCharSheetEffects, after the sheet and what it wears.
+        foreach (var potion in saved.Potions)
+        {
+            if (Potions.Of(potion.Potion) is { } which)
+                character.ApplyPotionEffect(which, potion.Power, potion.Timer);
+            else
+                problems.Add($"{entity.Name} has {potion.Potion} working, which isn't a potion.");
+        }
         return character;
 
         void Wear(SaveItem? item, Func<ItemInstance, EquipRefusal> equip)

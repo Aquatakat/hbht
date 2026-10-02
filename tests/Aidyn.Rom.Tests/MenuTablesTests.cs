@@ -26,6 +26,23 @@ public class MenuTablesTests
         Assert.Equal(a.SpellDescriptions.OrderBy(e => e.Key), b.SpellDescriptions.OrderBy(e => e.Key));
         Assert.Equal(a.InventoryOrder, b.InventoryOrder);
         Assert.Equal(a.EquipmentSlotImages, b.EquipmentSlotImages);
+        Assert.Equal(a.Messages, b.Messages);
+    }
+
+    /// <summary>The potion and scroll messages in code are whole sentences, the second naming trek.</summary>
+    [Fact]
+    public void TheMessagesInCodeAreWholeSentences()
+    {
+        var messages = MenuTables.Read(TestRoms.Get(RomVersionId.Na10)).Messages;
+
+        Assert.All(new[] { messages.PotionNotNow, messages.PotionNotInTrek, messages.ScrollNoSpell }, m =>
+        {
+            Assert.EndsWith(".", m);
+            Assert.All(m, c => Assert.InRange(c, ' ', '~'));
+        });
+        Assert.StartsWith("That potion", messages.PotionNotNow);
+        Assert.Contains("Trek", messages.PotionNotInTrek);
+        Assert.Contains("Lighthouse", messages.ScrollNoSpell);
     }
 
     /// <summary>

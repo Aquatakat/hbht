@@ -203,7 +203,7 @@ public partial class Game : Node3D
         AddChild(_camera);
         _camera.Sync();
 
-        _menu = new PauseMenu(plugins, game.Party);
+        _menu = new PauseMenu(plugins, game);
         if (args.TryGetValue("ui-lines", out var lines))
             _menu.Screen.Lines = int.Parse(lines, CultureInfo.InvariantCulture);
         AddChild(_menu);
@@ -456,14 +456,14 @@ public partial class Game : Node3D
     {
         if (_menu is { IsOpen: true } menu)
         {
-            if (e.IsActionPressed("pause") || e.IsActionPressed("menu_back"))
+            if ((e.IsActionPressed("pause") || e.IsActionPressed("menu_back")) && !menu.Back())
             {
                 menu.Close();
                 // The original reloads the map as the menu closes, so what changed shows.
                 _chunks!.Regate();
                 return;
             }
-            if (menu.Handle(e))
+            if (e.IsActionPressed("pause") || e.IsActionPressed("menu_back") || menu.Handle(e))
                 return;
         }
         else if (e.IsActionPressed("pause") && _menu is not null)
@@ -569,6 +569,7 @@ public partial class Game : Node3D
         // The pause menu (PauseMenu).
         Add("pause", Key.Enter, Key.Escape, button: JoyButton.Start);
         Add("menu_back", Key.Backspace, button: JoyButton.B);
+        Add("menu_accept", Key.Space, button: JoyButton.A);
         Add("menu_member_previous", Key.Q, button: JoyButton.LeftShoulder);
         Add("menu_member_next", Key.E, button: JoyButton.RightShoulder);
         Add("menu_details", Key.Tab, button: JoyButton.Y);

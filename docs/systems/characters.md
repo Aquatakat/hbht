@@ -16,7 +16,9 @@ The tables are read from the code segment for each ROM version; the literals are
 
 ## A character sheet
 
-`Character` is a `CharSheet`: stats, skills, experience, aspect, school, True Name, heavy, protection, damage and a spellbook. `Character.Create` builds one from an entity record (`Entity::Init`), with its experience at its level's threshold, as a joining party member's is. Equipment is in [items](items.md); spell and potion effects come with 2.5, and the sheet has the hooks they use.
+`Character` is a `CharSheet`: stats, skills, experience, aspect, school, True Name, heavy, protection, damage and a spellbook. `Character.Create` builds one from an entity record (`Entity::Init`), with its experience at its level's threshold, as a joining party member's is. Equipment is in [items](items.md); potions' effects are below, and spells' come with 2.5, with the hooks they use on the sheet.
+
+**Potions' effects** (`PotionEffect`, `Entity::ApplyPotionEffect`): a character holds up to seven, each a potion, a power byte nothing reads, and a timer in the game clock's ticks. Strength and Dexterity raise the stat's base by 10, unless the character is dead; Clarity, Charisma and Stealth raise Loremaster, Diplomat and Stealth by 3, which does nothing to a skill the character can't learn; Defence's is combat's to read. Drinking one sets 3 hours of game time. In trek each tick of play runs every timer down by the clock's 72 (`Entity::IncPotionEffect`, `TickGameTime`), not while the pause menu is open nor for a dead character, and a timer already at 0 ends its effect on the next tick, undoing it. So a potion lasts 9,000 ticks of play, two and a half minutes. In combat a round runs them down by 10 seconds of game time, which comes with 2.5.
 
 **Stats** (`CharacterStats`) are held four ways, as bytes that wrap as the original's do:
 
@@ -91,6 +93,6 @@ The checkpoints confirm the sheets: levels, hit points, the skills that can't be
 
 Saving and loading a sheet, with the spellbook reordered as the original's loading leaves it, is in [saves](saves.md).
 
-- **Effects (2.5):** spells' and potions' stat changes, their timers, Cheat Death, and what dying clears.
+- **Effects (2.5):** spells' stat changes and their timers, potions' in combat, Cheat Death, and what dying clears.
 - **Joining and leaving (M2):** the member flags and the sheets kept for members who leave.
 - **Flags for the party's best stats and skills.** The original tries to raise them whenever a stat or skill changes (`Event_flag_stat`, `event_flag_skill_`), but its lookup never finds them, so the port doesn't either (see the [audit](../hardcoded-content.md)).

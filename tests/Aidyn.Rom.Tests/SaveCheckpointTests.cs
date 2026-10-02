@@ -310,4 +310,26 @@ public sealed class SaveCheckpointTests(MapObjectFixture fixture)
         Assert.Empty(game.Problems);
         Assert.Equal(before, SaveFile.Serialize(game.Save()));
     }
+
+    /// <summary>The potions working on a member save with what's left of them, and loading applies them again.</summary>
+    [Theory]
+    [MemberData(nameof(Checkpoints))]
+    public void APotionWorkingOnAMemberSavesAndLoadsAgain(string name)
+    {
+        var game = Game(name, Load(name));
+        var member = game.Party.Members.First();
+        var strength = member.Stats.RawBase(Stat.Strength);
+        member.ApplyPotionEffect(Aidyn.Core.Items.Potion.Strength, 0, 5000);
+        member.ApplyPotionEffect(Aidyn.Core.Items.Potion.Defence, 2, 70);
+        game.PassTime(1);
+
+        var again = GameState.Load(Set, SaveFile.Parse(SaveFile.Serialize(game.Save())));
+        var loaded = again.Party.Members.First();
+
+        Assert.Empty(again.Problems);
+        Assert.Equal([(Aidyn.Core.Items.Potion.Strength, 0, 5000u - 72), (Aidyn.Core.Items.Potion.Defence, 2, 0u)],
+            loaded.PotionEffects.Select(p => (p.Potion, p.Power, p.Timer)));
+        Assert.Equal(strength + 10, loaded.Stats.RawBase(Stat.Strength));
+        Assert.Equal(member.Stats.Modified(Stat.Strength), loaded.Stats.Modified(Stat.Strength));
+    }
 }

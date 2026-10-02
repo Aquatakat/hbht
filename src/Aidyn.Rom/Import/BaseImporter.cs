@@ -105,7 +105,7 @@ public static class BaseImporter
         WriteJson(Path.Combine(staging, "records", "loot.json"), ItemImporter.BuildLoot(db));
         WriteJson(Path.Combine(staging, "records", "shops.json"), ItemImporter.BuildShops(db));
         WriteJson(Path.Combine(staging, "records", "recipes.json"), ItemImporter.BuildRecipes(db, itemTables));
-        WriteJson(Path.Combine(staging, "records", "inventory.json"), new[] { ItemImporter.BuildInventory(db) });
+        WriteJson(Path.Combine(staging, "records", "inventory.json"), new[] { ItemImporter.BuildInventory(db, menuTables) });
 
         progress?.Report("Text");
         WriteJson(Path.Combine(staging, "records", "strings.json"), BuildStrings(db));

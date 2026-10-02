@@ -35,6 +35,17 @@ public sealed class UiImages(PluginSet plugins)
         return _textures[image] = texture;
     }
 
+    /// <summary>
+    /// A band feathered by each piece at its own size, as a message's box is (<c>IntroMenu_ShadowBG</c>):
+    /// the gradients' thickness is their images' height above and below and width beside.
+    /// </summary>
+    public FeatheredPanel Around(ScreenRect band)
+    {
+        int Height(RecordId image) => Get(image) is { } t ? t.GetHeight() : 0;
+        int Width(RecordId image) => Get(image) is { } t ? t.GetWidth() : 0;
+        return new FeatheredPanel(band, Height(Edges[0]), Height(Edges[1]), Width(Edges[2]), Width(Edges[3]));
+    }
+
     /// <summary>Draws a feathered panel in black, as the original's popups are drawn, each piece scaled to fit.</summary>
     public void DrawPanel(CanvasItem canvas, FeatheredPanel panel)
     {

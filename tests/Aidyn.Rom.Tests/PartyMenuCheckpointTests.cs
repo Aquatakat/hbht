@@ -86,6 +86,76 @@ public sealed class PartyMenuCheckpointTests(MapObjectFixture fixture)
 
     private static string Right(DetailLine line) => string.Concat(line.Right.OfType<DetailText>().Select(t => t.Text));
 
+    /// <summary>
+    /// The lines A's messages and popups read are the common strings the code reads: the popups' titles and
+    /// tasks, and the messages with their conversions in the order the port fills them.
+    /// </summary>
+    [Fact]
+    public void TheActionsLinesAreTheOnesTheCodeReads()
+    {
+        var text = MenuText.From(Set);
+        string Conversions(int line) => string.Concat(System.Text.RegularExpressions.Regex.Matches(text[line], "%l?[sdu]").Select(m => m.Value[^1]));
+
+        Assert.Equal(["Perform Alchemy", "Create Armor", "Healer Tasks", "Lay On Hands", "Heal With Herbs", "Restore", "Ok"],
+            new[] { MenuText.Alchemy, MenuText.CreateArmor, MenuText.HealerTasks, MenuText.LayOnHands, MenuText.HealWithHerbs, MenuText.Restore, 95 }
+                .Select(l => text[l]));
+        Assert.StartsWith("Health (", text[MenuText.Health]);
+        Assert.Equal("dd", Conversions(MenuText.Health));
+        Assert.Equal("ssd", Conversions(MenuText.HealsBy));
+        Assert.Equal("ssd", Conversions(MenuText.RestoredBy));
+        Assert.Equal("ss", Conversions(MenuText.StatAtMax));
+        Assert.Equal("ss", Conversions(MenuText.Learned));
+        Assert.Equal("ss", Conversions(MenuText.PowerfulMagic));
+        Assert.Equal("s", Conversions(MenuText.AlreadyKnows));
+        Assert.Equal("s", Conversions(MenuText.AlreadyAtMaxHealth));
+        Assert.Equal("s", Conversions(MenuText.HealFailed));
+        Assert.All(new[] { MenuText.CantEquip, MenuText.WrongAspect, MenuText.NeedsStrength, MenuText.NeedsIntelligence },
+            l => Assert.Contains("equip", text[l]));
+        Assert.Contains("Potion", text[MenuText.PotionMade]);
+        Assert.Contains("Flask", text[MenuText.FlaskMade]);
+        Assert.Contains("potion", text[MenuText.PotionComponents]);
+        Assert.Contains("flask", text[MenuText.FlaskComponents]);
+        Assert.Contains("Armor", text[MenuText.ArmorMade]);
+    }
+
+    /// <summary>
+    /// A on the inventory's first row, Alaron's sword, takes it off into the inventory, and A on it there puts it
+    /// back on, with the cursor left on what's left of its stack.
+    /// </summary>
+    [Fact]
+    public void AOnAWornWeaponTakesItOffAndAgainPutsItOn()
+    {
+        var menu = Menu();
+        var alaron = menu.Party.Slots[0]!;
+        var sword = alaron.Equipment.Weapon!;
+        Assert.Equal((sword, (int?)0), (menu.Inventory.Current!.Instance, menu.Inventory.Current.Wearer));
+        Assert.Equal("Lodin's Sword", sword.Item.Name);
+
+        menu.Accept();
+        Assert.Null(menu.Message);
+        Assert.Null(alaron.Equipment.Weapon);
+        Assert.True(menu.Party.Inventory!.Has(sword.Id));
+        Assert.Equal(0, menu.Inventory.Cursor);
+
+        menu.Point(menu.Inventory.Rows.Select((r, i) => (r, i)).First(e => e.r.Wearer is null && e.r.Item.Id == sword.Id).i);
+        menu.Accept();
+        Assert.Null(menu.Message);
+        Assert.Equal(sword.Id, alaron.Equipment.Weapon?.Id);
+        Assert.False(menu.Party.Inventory.Has(sword.Id));
+    }
+
+    /// <summary>The menu offers the imported recipes in order, the Alchemist's first.</summary>
+    [Fact]
+    public void TheMenuOffersTheRecipesInOrder()
+    {
+        var recipes = PartyMenu.From(Set, new CharacterParty(ItemCatalog.From(Set))).Recipes;
+
+        Assert.Equal(20, recipes.Count);
+        Assert.Equal(Enumerable.Range(0, 20).Select(i => RecordId.Decimal(RecordTypes.Recipe, i)), recipes.Select(r => r.Id));
+        Assert.All(recipes.Take(15), r => Assert.Equal(Crafting.Alchemist, r.Skill));
+        Assert.All(recipes.Skip(15), r => Assert.Equal(Crafting.Mechanic, r.Skill));
+    }
+
     /// <summary>The party is Alaron, Rheda, Brenna and Sholeh in slots 0 to 3, with the gold the capture shows.</summary>
     [Fact]
     public void ThePartyIsTheFourMembersInTheirSlotsWithTheirGold()

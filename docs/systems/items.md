@@ -10,7 +10,7 @@ Ported from `gameclasses/` (`item.cpp`, `generic.cpp`, `armor.cpp`, `weapon.cpp`
   - A weapon's spell level is its own field (the ROM's byte at `0x1D`); armor's and gear's is in the bonuses. The bonuses' first spell byte is the charges for all three (`malloc_equip_spell`).
   - Range is the ROM's byte × 5 / 3, up to 255 (`WeaponDB::Load`).
   - Armor's Dexterity and Stealth are signed: penalties, or Stealth bonuses on leathers.
-  - Potions aren't in the item DB. Potion *n* (`aidyn:item/0x10nn`) is named by line *n* of its own string table and priced by a table in code (`potion_prices`); all share one icon. What they do comes with combat (2.5).
+  - Potions aren't in the item DB. Potion *n* (`aidyn:item/0x10nn`) is named by line *n* of its own string table and priced by a table in code (`potion_prices`); all share one icon. Drinking one in trek is [below](#potions); in combat it comes with 2.5.
   - The Archmage Staff is `fixed`: once equipped it can't be taken off. Niesen's entity has it as its `soleWeapon`, the only weapon he can equip.
 - **Traits.** `ownSlot`: the item has an inventory slot of its own rather than one of the 128 general ones (reagents, hides, scrolls, potions, the key items and 13 unique pieces of gear). `mustTake`: loot can't be left behind while it holds the item (21 quest items and keys). Key items carry the flags they set (`keyItem`): `held` while the party has one, and a world map `region` they reveal.
 - **Loot tables** (`aidyn:loot/0x08…`): gold, the chances an enemy drops its armor, shield and weapons, a reagent roll, and six item rolls. Only the first two rolls give a count between bounds. An empty roll still rolls its chance.
@@ -48,6 +48,20 @@ A replaced item goes back to the inventory; if it can't, the new one does instea
 **One deviation.** The Archmage Staff can't be taken off (`Party::RemoveWeaponsFrom`), but the original lets whoever wields it equip another weapon, and the staff vanishes with its bonuses still applied. The port refuses to replace it. Only Niesen wields it in the base game, and he can wield nothing else.
 
 **Reading a scroll** (`Party::UseScroll`): a character who can't learn Wizard can't; nor can one who knows the spell, has less base Wizard than the spell, or is of another school when neither is Chaos nor the spell unschooled. Otherwise they learn it at level 1 and the scroll is used up.
+
+## Potions
+
+Potion *n* is `Potion` *n* (`PotionEnum`): the Fire, Inferno, Sleep Gas and Acid flasks, then Healing, Stamina, Curing, Antidote, Restore, Strength, Dexterity, the left-out Aspect and Jumping, Clarity, Charisma, Defence and Stealth. Drinking one from the pause menu (`Entity::UsePotion`) uses one up if it does something now (`Entity::CanUsePotion`), and otherwise says why and uses nothing:
+
+| Potion | Drinkable | Does |
+| --- | --- | --- |
+| Healing, Curing | Below full health | Heals 15–25% or 40–60% of the maximum, drawn whole, worked in single precision and truncated (`HealByPotion`) |
+| Stamina | Stamina below its base, or exhausted (2.5) | Restores Stamina to its base, and ends exhaustion |
+| Antidote, Restore | Poisoned, or under a weakening spell (2.5) | Ends the poison, or the weakening spells |
+| Strength, Dexterity, Clarity, Charisma, Defence, Stealth | Not already working | Works for 3 hours of game time ([characters](characters.md#a-character-sheet)) |
+| The flasks, Aspect, Jumping | Never outside combat | |
+
+The two refusals, "cannot be used right now" and "cannot be used in Trek mode", are C strings in code, not string table lines; the importer reads them onto the inventory record. Until 2.5 brings poison and spells' effects, the Antidote and Restore are never drinkable.
 
 **Starting gear** (`Entity::Init`, `EquipFunc0`): an entity wears its armor, carries its shield if it has the skill, and wields the first of its three weapons it can. The others go to the party's inventory as it joins, if it wields one; one it can't wield while it wields none is lost. Enemies choose their weapons another way, which comes with combat.
 
@@ -104,6 +118,8 @@ The skills used from the pause menu (`potionCraft.cpp`, `Armorcraft.cpp`, `HealM
 
 A potion isn't brewed while the party holds 99. The Mechanic's check rolls, and its Stamina is paid, before the hide is looked for. A herb is used up even when the Healer hasn't the Stamina.
 
+The pause menu's popups for these, and what they say, are in [ui](ui.md#the-party-tabs-actions).
+
 ## Checked against the machine code
 
 The debug build's code differs from the decomp's pseudocode in these places:
@@ -116,6 +132,9 @@ The debug build's code differs from the decomp's pseudocode in these places:
 - **Sources' reagents**: a herb source gives herbs and a spice source spice; the pseudocode's table has the two swapped.
 - **The barter window** passes the shopkeeper's Merchant byte; the pseudocode's `Barter(merchInt, merchSk)` reads as if both counted, but Intelligence is unused.
 - **Appraisal** clamps the judgement to 125 after dividing by 100, so the bound is never reached.
+- **The Stamina potion** is drinkable while Stamina is below its base (`slt`); the pseudocode reads it as drinkable at or above.
+- **The Mechanic's popup** makes each recipe's own armor; the pseudocode indexes the armor DB by the recipe's position.
+- **The Alchemist's messages** say Flask for the flasks and Potion for the rest; the decomp's names for the lines are each other's.
 
 ## Confirmed in the checkpoints
 

@@ -1,5 +1,6 @@
 using Aidyn.Core.Characters;
 using Aidyn.Core.Items;
+using Aidyn.Core.Rng;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 
@@ -26,7 +27,7 @@ public enum PartyList
 /// rebuilds the lists in place. The original animates both, and the details' parchment fading in;
 /// those aren't ported yet.
 /// </remarks>
-public sealed class PartyMenu
+public sealed partial class PartyMenu
 {
     /// <summary>The colour of a row, and of the header's numbers (<c>COLOR_RED1</c>).</summary>
     public static readonly Rgba TextColor = MenuDetailsBuilder.TextColor;
@@ -62,8 +63,13 @@ public sealed class PartyMenu
         Refresh();
     }
 
-    public static PartyMenu From(PluginSet plugins, Party party, int member = 0) => new(party, MenuText.From(plugins),
-        id => plugins.TryGet<SpellRecord>(id), id => plugins.TryGet<EntityRecord>(id)?.Portrait, member);
+    /// <param name="random">The stream skill checks and potions draw from; a fresh one if none.</param>
+    public static PartyMenu From(PluginSet plugins, Party party, int member = 0, IRandom? random = null) => new(party, MenuText.From(plugins),
+        id => plugins.TryGet<SpellRecord>(id), id => plugins.TryGet<EntityRecord>(id)?.Portrait, member)
+    {
+        Recipes = [.. plugins.All<RecipeRecord>(RecordTypes.Recipe).OrderBy(r => int.Parse(r.Id.Key, System.Globalization.CultureInfo.InvariantCulture))],
+        Random = random ?? new Lcg(),
+    };
 
     public Party Party { get; }
 
@@ -145,6 +151,8 @@ public sealed class PartyMenu
     /// <summary>Shows the next member, or with a negative step the one before (C-right and C-left).</summary>
     public void ChangeMember(int by)
     {
+        if (HasPopup)
+            return;
         var order = Enumerable.Range(0, Party.MaxSize).Where(i => Party.Slots.ElementAtOrDefault(i) is not null).ToList();
         if (order.Count < 2)
             return;
@@ -156,6 +164,8 @@ public sealed class PartyMenu
     /// <summary>Shows the next list, or with a negative step the one before (the stick).</summary>
     public void ChangeList(int by)
     {
+        if (HasPopup)
+            return;
         var count = Enum.GetValues<PartyList>().Length;
         List = (PartyList)((((int)List + by) % count + count) % count);
     }
@@ -163,9 +173,16 @@ public sealed class PartyMenu
     /// <summary>Shows a list.</summary>
     public void ShowList(PartyList list) => List = list;
 
-    /// <summary>Moves the cursor of the list showing.</summary>
+    /// <summary>Moves the cursor of the popup, or of the list showing.</summary>
     public void MoveCursor(int by)
     {
+        if (Message is not null)
+            return;
+        if (Crafting is { } crafting)
+        {
+            crafting.Rows.Move(by);
+            return;
+        }
         switch (List)
         {
             case PartyList.Inventory: Inventory.Move(by); break;
@@ -175,9 +192,16 @@ public sealed class PartyMenu
         }
     }
 
-    /// <summary>Puts the cursor of the list showing on a row.</summary>
+    /// <summary>Puts the cursor of the popup, or of the list showing, on a row.</summary>
     public void Point(int row)
     {
+        if (Message is not null)
+            return;
+        if (Crafting is { } crafting)
+        {
+            crafting.Rows.Point(row);
+            return;
+        }
         switch (List)
         {
             case PartyList.Inventory: Inventory.Point(row); break;
@@ -187,11 +211,18 @@ public sealed class PartyMenu
         }
     }
 
-    /// <summary>What C-down shows for the cursor's row, or null if it shows nothing.</summary>
+    /// <summary>What C-down shows for the cursor's row, or a crafting popup's recipe's product, or null if it shows nothing.</summary>
     public MenuDetails? Details()
     {
         if (Shown is not { } shown)
             return null;
+        if (Crafting is { } crafting)
+        {
+            // WidgetPotionCraft::CDownFunc and WidgetArmorCraft::CDownFunc; the Healer's popup has none.
+            return crafting.Rows.Current?.Recipe is { } recipe && Party.Inventory?.Catalog.TryGet(recipe.Product) is { } product
+                ? MenuDetailsBuilder.Item(new ItemInstance(product), shown, _text, _spells, Party.Inventory?.Catalog)
+                : null;
+        }
         return List switch
         {
             PartyList.Inventory when Inventory.Current is { } row =>

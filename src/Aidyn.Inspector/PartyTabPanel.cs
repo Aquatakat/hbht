@@ -10,7 +10,8 @@ namespace Aidyn.Inspector;
 /// <summary>
 /// The pause menu's Party tab, drawn by the runtime's view with the editor's game's party: a loaded
 /// checkpoint's or save's, or a new game's Alaron. It's the inventory record's preview, since the tab is where
-/// the party's items show.
+/// the party's items show. A and B act on the editor's game, so what's equipped, drunk, read or crafted
+/// stays in it, to save for the runtime.
 /// </summary>
 public partial class PartyTabPanel : VBoxContainer
 {
@@ -26,13 +27,14 @@ public partial class PartyTabPanel : VBoxContainer
     {
         AddThemeConstantOverride("separation", 6);
         var party = game?.Game.Party ?? EditorCharacters.CopyParty(catalog.Plugins, rules, null, items);
-        _view = new PartyTabView(catalog.Plugins, PartyMenu.From(catalog.Plugins, party));
+        _view = new PartyTabView(catalog.Plugins, PartyMenu.From(catalog.Plugins, party, random: game?.Game.Random.World));
         _screen.Canvas.AddChild(_view);
 
         AddChild(new Label
         {
             Text = $"{(game is { IsNewGame: false } ? $"{game.Name}'s party" : "A new game's party")} in the pause menu's Party tab. "
-                + "Hover a row or scroll to move the cursor. Load a checkpoint or a save on a flag page to show its party.",
+                + "Hover a row or scroll to move the cursor, and A to use it: equip, take off, drink, read, or a skill's popup. "
+                + "Load a checkpoint or a save on a flag page to show its party.",
             AutowrapMode = TextServer.AutowrapMode.WordSmart,
         });
         var bar = new HFlowContainer();
@@ -41,6 +43,8 @@ public partial class PartyTabPanel : VBoxContainer
         bar.AddChild(Button("Member ▶", "The next member (C-right).", () => _view.Menu.ChangeMember(1)));
         bar.AddChild(Button("◀ List", "The list before (the stick left).", () => _view.Menu.ChangeList(-1)));
         bar.AddChild(Button("List ▶", "The next list (the stick right).", () => _view.Menu.ChangeList(1)));
+        bar.AddChild(Button("A", "Use the cursor's row, choose in a popup, or close a message.", () => _view.Menu.Accept()));
+        bar.AddChild(Button("B", "Close the popup or the message.", () => _view.Menu.Back()));
         _details.Toggled += on => _view.DetailsOpen = on;
         bar.AddChild(_details);
         AddChild(bar);
@@ -69,6 +73,24 @@ public partial class PartyTabPanel : VBoxContainer
             menu.Point(r);
         if (details is { } d)
             _details.ButtonPressed = d;
+    }
+
+    /// <summary>Presses A, B, or the stick up or down, in turn (<c>--press</c>), for screenshots.</summary>
+    public void Press(IEnumerable<string> buttons)
+    {
+        var menu = _view.Menu;
+        foreach (var button in buttons)
+        {
+            switch (button.Trim().ToLowerInvariant())
+            {
+                case "a": menu.Accept(); break;
+                case "b": menu.Back(); break;
+                case "up": menu.MoveCursor(-1); break;
+                case "down": menu.MoveCursor(1); break;
+                default: GD.PrintErr($"--press: \"{button}\" isn't a, b, up or down."); break;
+            }
+        }
+        _view.QueueRedraw();
     }
 
     private Button Button(string text, string tooltip, Action act)

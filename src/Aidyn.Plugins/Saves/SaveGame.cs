@@ -110,6 +110,18 @@ public sealed record SaveCharacter(RecordId Entity)
 
     /// <summary>The spellbook. Loading puts it in the original's order: see <c>GameState</c>.</summary>
     public IReadOnlyList<KnownSpell> Spells { get; init; } = [];
+
+    /// <summary>The potions working on the character, which loading applies again (<c>SaveParty::SavePotionEffect</c>).</summary>
+    public IReadOnlyList<SavePotion> Potions { get; init; } = [];
+}
+
+/// <summary>A potion working on a character.</summary>
+/// <param name="Potion">The potion's item record.</param>
+/// <param name="Timer">What's left, in the game clock's ticks.</param>
+public sealed record SavePotion(RecordId Potion, uint Timer)
+{
+    /// <summary>A byte the original keeps, which nothing reads.</summary>
+    public int Power { get; init; }
 }
 
 /// <summary>Intelligence to Level (stats 0–6), as bytes.</summary>

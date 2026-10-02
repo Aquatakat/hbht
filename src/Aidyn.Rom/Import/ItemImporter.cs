@@ -167,14 +167,15 @@ internal static class ItemImporter
             RecordId.Decimal(RecordTypes.Skill, r.Skill), r.Product, r.Ingredients, r.Level, r.Step, r.Unk5))];
     }
 
-    public static InventoryRecord BuildInventory(GameDb db)
+    public static InventoryRecord BuildInventory(GameDb db, MenuTables menuTables)
     {
+        var m = menuTables.Messages;
         var (spice, herb, gemstone) = Reagents(db);
         return new InventoryRecord(RecordId.Decimal(RecordTypes.Inventory, 0), StackLimit, GeneralSlots, spice, herb, gemstone,
             Image(ItemTables.DefaultIcon), MerchantStep, SellShare,
             [Record(db.Weapons[CyclopsClubPosition].Id)],
             [new ItemReplacement(Record(AspectPotion), Record(HealingPotion))],
-            RecordId.Decimal(RecordTypes.Flag, FirstPotionFlag));
+            RecordId.Decimal(RecordTypes.Flag, FirstPotionFlag), new InventoryMessages(m.PotionNotNow, m.PotionNotInTrek, m.ScrollNoSpell));
     }
 
     private static (RecordId Spice, RecordId Herb, RecordId Gemstone) Reagents(GameDb db) =>

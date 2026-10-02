@@ -542,6 +542,8 @@ public sealed class ItemImportTests(MapObjectFixture fixture)
         Assert.Equal([new R.ItemReplacement(ItemRecordId(0x100B), ItemRecordId(0x1004))], inventory.Replaced);
         Assert.Equal(RecordId.Decimal(RecordTypes.Flag, 3612), inventory.FirstPotionFlag);
         Assert.Equal(["Spice", "Herb", "Gemstone"], new[] { inventory.Spice, inventory.Herb, inventory.Gemstone }.Select(i => Set.Get<R.ItemRecord>(i).Name));
+        var messages = MenuTables.Read(Rom).Messages;
+        Assert.Equal(new R.InventoryMessages(messages.PotionNotNow, messages.PotionNotInTrek, messages.ScrollNoSpell), inventory.Messages);
     }
 
     [Fact]

@@ -209,6 +209,12 @@ public enum CodeTable
     InventoryOrder,
     /// <summary>Each equipment slot's empty image, 15 u32 Borg8 indices by slot (<c>gItemSlotBorg8Indecies</c>).</summary>
     EquipmentSlotImages,
+    /// <summary>What drinking a potion says when it would do nothing now, a C string (<c>Entity::CanUsePotion</c>).</summary>
+    PotionNotNow,
+    /// <summary>What drinking a flask, or a potion with no effect, says outside combat, a C string.</summary>
+    PotionNotInTrek,
+    /// <summary>What reading a scroll without a spell says, a C string (<c>Party::UseScroll</c>): the Lighthouse scroll's.</summary>
+    ScrollNoSpell,
 }
 
 /// <summary>
@@ -313,6 +319,9 @@ public static class RomVersions
                 [CodeTable.SpellDescriptions] = new(0x00D04EC, 0xE0),
                 [CodeTable.InventoryOrder] = new(0x00DF600, 0x20),
                 [CodeTable.EquipmentSlotImages] = new(0x00DF670, 0x3C),
+                [CodeTable.PotionNotNow] = new(0x00D3D50, 0x26),
+                [CodeTable.PotionNotInTrek] = new(0x00D3D78, 0x29),
+                [CodeTable.ScrollNoSpell] = new(0x00D435C, 0x57),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {
@@ -413,6 +422,9 @@ public static class RomVersions
                 [CodeTable.SpellDescriptions] = new(0x00D04DC, 0xE0),
                 [CodeTable.InventoryOrder] = new(0x00DF640, 0x20),
                 [CodeTable.EquipmentSlotImages] = new(0x00DF6B0, 0x3C),
+                [CodeTable.PotionNotNow] = new(0x00D3D40, 0x26),
+                [CodeTable.PotionNotInTrek] = new(0x00D3D68, 0x29),
+                [CodeTable.ScrollNoSpell] = new(0x00D434C, 0x57),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {
@@ -511,6 +523,9 @@ public static class RomVersions
                 [CodeTable.SpellDescriptions] = new(0x00DCAA8, 0xE0),
                 [CodeTable.InventoryOrder] = new(0x00EE160, 0x20),
                 [CodeTable.EquipmentSlotImages] = new(0x00EE1D0, 0x3C),
+                [CodeTable.PotionNotNow] = new(0x00E0F68, 0x26),
+                [CodeTable.PotionNotInTrek] = new(0x00E0F90, 0x29),
+                [CodeTable.ScrollNoSpell] = new(0x00E17D4, 0x57),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {

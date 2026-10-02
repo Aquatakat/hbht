@@ -176,6 +176,13 @@ public partial class RecordBrowser : Control
             party.Show(member, list, row, details);
     }
 
+    /// <summary>Presses buttons on the Party tab, if it's showing (<c>--press</c>).</summary>
+    public void PressPartyTab(IEnumerable<string> buttons)
+    {
+        if (_preview.GetChildren().OfType<PartyTabPanel>().FirstOrDefault() is { } party)
+            party.Press(buttons);
+    }
+
     /// <summary>Opens a record, adding it to the history. The task completes when its preview is shown.</summary>
     public async Task OpenAsync(RecordId id)
     {

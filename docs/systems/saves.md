@@ -62,11 +62,11 @@ A save made from the "Before final encounter" checkpoint, cut short:
 
 - **The place** is the map set, the chunk by name, the centre of the player's sphere in the chunk's coordinates, and the way he faces in X and Z. The original keeps the opposite of that, `facing`. Without a place, the game starts where a new game does.
 - **Flags** are the plain flags that are set, but for flag 1, which always is. Derived flags are evaluated on loading.
-- **A member** is what the original saves of a character sheet (`SaveParty::SaveCharSheet`): experience, the trained and current stats, base skill levels, what's worn with each item's battery and charges, and the spellbook. A skill that can't be learnt is left out.
+- **A member** is what the original saves of a character sheet (`SaveParty::SaveCharSheet`): experience, the trained and current stats, base skill levels, what's worn with each item's battery and charges, the spellbook, and the potions working on them, each with its power and what's left of its timer (`SavePotionEffect`). A skill that can't be learnt is left out. Loading applies the potions again after what's worn, as the original does (`LoadCharSheetEffects`); the checkpoints' converter doesn't read them yet.
 - **Stacks and worn items** keep their battery and charges, where the item has them. Their price is the item's; only a shop's stock has its own.
 - **Memories** are below.
 - **The random streams** are the five streams' seeds. Without them, the streams start as a new game's.
-- **Not kept yet:** spell and potion effects (2.5), the sheets of members who left (M2's fifth session), the weather, the minimap's fog and the screenshot. The original also keeps three timers of how long the party has run, walked and sneaked (`Party::TickMoveCounters`), which nothing reads.
+- **Not kept yet:** spell effects (2.5), the sheets of members who left (M2's fifth session), the weather, the minimap's fog and the screenshot. The original also keeps three timers of how long the party has run, walked and sneaked (`Party::TickMoveCounters`), which nothing reads.
 
 ## Loading, as the original does
 
