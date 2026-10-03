@@ -379,12 +379,13 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
             return;
         var motion = _player.Motion;
         // ProcessVoxelObjects comes before the player moves. Through a teleport's fade, only camera
-        // objects work, so the camera is where the room's puts it as the screen comes up.
+        // objects work, so the camera is where the room's puts it as the screen comes up, and in a
+        // conversation too, so one holding the camera keeps it rather than the conversation's.
         var playing = !fading && _pending is null;
-        if (!talking && _chunks.MapAt(motion.Sphere.Position.ToGodot()) is { } centre)
+        if (_chunks.MapAt(motion.Sphere.Position.ToGodot()) is { } centre)
         {
             var at = Local(centre, motion.Sphere.Position);
-            if (playing)
+            if (playing && !talking)
                 _use!.Touch(centre, at);
             else
                 _use!.TouchCameras(centre, at);
@@ -409,11 +410,9 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
             ShowConversation();
         foreach (var (part, target) in motion.Sphere.Trod)
         {
-            if (talking)
-                break;
             if (_chunks.Map(part) is not { } map)
                 continue;
-            if (playing)
+            if (playing && !talking)
                 _use!.Tread(map, target, Local(map, motion.Sphere.Position));
             else
                 _use!.TreadCamera(map, target);

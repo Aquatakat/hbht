@@ -187,6 +187,26 @@ public class ConversationCameraTests
 
     private static Vector2 Ground(Vector3 from, Vector3 to) => new(to.X - from.X, to.Z - from.Z);
 
+    [Fact]
+    public void ACameraObjectHoldingTheCameraKeepsItWhereItIs()
+    {
+        var world = Worlds.Flat();
+        var a = new Vector3(0, 0.5f, 0);
+        var camera = new FollowCamera(a, new Vector2(0, -1));
+        var (position, aim) = (camera.Position, camera.Aim);
+        for (var i = 0; i < 60; i++)
+        {
+            camera.Hold();
+            camera.Frame(world, a, a + new Vector3(1.6f, 0, 0));
+        }
+        Assert.Equal(position, camera.Position);
+        Assert.Equal(aim, camera.Aim);
+        Assert.False(camera.Held);
+
+        camera.Frame(world, a, a + new Vector3(1.6f, 0, 0));
+        Assert.NotEqual(aim, camera.Aim);
+    }
+
     [Theory]
     [InlineData(1.6f, 0f)]
     [InlineData(20f, 0f)]

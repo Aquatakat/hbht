@@ -295,10 +295,16 @@ public sealed partial class FollowCamera
     /// One tick framing two bodies talking, by their spheres' centres (<c>ProcessPlayers</c> with the
     /// <c>ACTOR_800</c> bodies, and <c>CreateFocusFromMultiple</c>, checked in 1.0's code): it follows
     /// their midpoint from (|h.z|, −|h.x|), where h is the half of the gap between them, which is
-    /// always toward −X and +Z, at (|h| + 4) / tan 33.5° but at least 5, swinging quickly.
+    /// always toward −X and +Z, at (|h| + 4) / tan 33.5° but at least 5, swinging quickly. A camera
+    /// object holding the camera keeps it where it is instead, as the user saw in the original.
     /// </summary>
     public void Frame(CollisionWorld world, Vector3 a, Vector3 b)
     {
+        if (Held)
+        {
+            Held = false;
+            return;
+        }
         var focus = (a + b) * 0.5f;
         var h = focus - a;
         var away = new Vector2(-MathF.Abs(h.Z), MathF.Abs(h.X));
