@@ -113,7 +113,7 @@ A feature on the entity, with the Horn of Kynon as its item. The fields:
 ## Party and camping rules
 
 - **Brenna never leaves because no script removes her.** Her row in the party table has no left flag (0), and nothing else in the code names her. It's data, not a rule.
-- **Rheda has no rule in code.** Apart from the party tables, no code names her. Scripts add and remove her like the other recruits; the full-party template won't let her leave before flag 458, Beat Shamsuk ([characters](systems/characters.md#joining-and-leaving-m2-session-5d)).
+- **Rheda has no rule in code.** Apart from the party tables, no code names her. Scripts add and remove her like the other recruits; the full-party template won't let her leave before flag 458, Beat Shamsuk ([characters](systems/characters.md#joining-and-leaving)).
 - **Which members' sheets are kept when they leave** (`SaveEntity::GetSlot`, a jump table at 1.0 `0x800CDD88`): Abrecan, Arturo, Becan, Godric and Keelin, by their entity list positions. Layer 1, the member record (`MemberFlags.Kept`). Status: Fact, in the importer (`CharacterImporter.KeptMemberPositions`), as it's a switch.
 - **The Archmage Staff stays with a member who leaves** (`Party::StripMember`, through `RemoveWeaponsFrom`'s check), as it does when taking it off. It's the weapon record's `Fixed`.
 - **Camp ambushes** (`Party::CampCheck`): while 5004 holds, camping is ambushed if a d100 roll is at most (15 − the party's best Ranger, capped at 10) × 0.666 × the terrain's factor. Otherwise the party heals. The 15, 10 and 0.666 are camping settings (layer 1); the factor is a terrain field.

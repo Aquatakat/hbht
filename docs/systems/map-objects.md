@@ -1,4 +1,4 @@
-# Using map objects (M2 session 4)
+# Using map objects (M2)
 
 `Aidyn.Core.MapObjects`. What map objects are and how the base plugin holds them is in [maps](../formats/maps.md); the rules for containers, locks and traps are in [items](items.md#containers).
 
@@ -25,7 +25,7 @@ Ported from `objectJumpTables.cpp`, `voxObjects.cpp`, `voxObjects2.cpp` (`obj_re
 | Container | Within its reach plus the player's radius (0.5), from the player's centre in 3D: 2.5 for most. Its reach isn't its radius, which is 10 for most (see [maps](../formats/maps.md#map-objects-in-the-base-plugin-06)). Then a herb, spice, gem or custom container always; a chest, sack, crate or barrel only until opened, and only if it holds gold, a loot table or an item (`container_obj_check`) |
 | Teleporter, trigger, dialogue | Within its radius, while its Enabled holds |
 | Save point | Within its radius, and using it does nothing |
-| Monster party | Only the player's nearest body, if it's a wanderer's and its party isn't silent: within the two bodies' scaled radii plus 0.5 across the ground, and less than 2 apart in height. It's weighed by that distance and its body's position. See [wanderers](wanderers.md#talking-5c) |
+| Monster party | Only the player's nearest body, if it's a wanderer's and its party isn't silent: within the two bodies' scaled radii plus 0.5 across the ground, and less than 2 apart in height. It's weighed by that distance and its body's position. See [wanderers](wanderers.md#talking) |
 
 One alone is used. Of several, the one with the best (farthest − its distance) / farthest + (1 + the cosine of its bearing off the player's heading) / 2 is used, the later on a tie. The original walks its grid cell's object list rather than the chunk's; real-data checks show every container, teleporter, trigger and save point is listed in every cell it reaches, so the two agree, except for 11 dialogues whose radius reaches cells that don't list them.
 
@@ -41,7 +41,7 @@ One alone is used. Of several, the one with the best (farthest − its distance)
 - **182 the grid lists,** each with a radius under 200. Each tick, before the camera steps (`ProcessVoxelObjects`), those the player's grid cell lists take the camera while he's within their radius and they're active. They're mostly one to a room: each of Gwernia's houses has one that covers it, cutting to a point near the ceiling and tracking him.
 - **62 trigger triangles name,** 1,532 triangles between them. Each sits at its chunk's origin with a radius of 200, and no cell lists it. Touching one of its triangles (`set_camera_voxel_pointer`) gives the camera to it for 60 ticks, counting that one, and each touch starts the count again; it steps after the player moves (`ProcessScriptCamera`). A later triangle's camera takes over from an earlier one's, and going through a teleporter lets go (`clear_camera_voxel_pointer`). Gwernia's inn has four, which ease from point to point as he crosses it.
 
-216 move the camera or its aim to a reference point in their own map; the other 28 set how the outdoor camera follows. The original looks the reference point up in the chunk the player is in, and the port in the camera's own, as for trigger triangles. Camera objects work under popups, as the original runs `ProcessVoxelObjects` then; that a trigger triangle's does too is a guess. They work through a teleport's fade too, when nothing else does ([cameras](cameras.md#which-mode-m2-session-4c)). Teleporters' camera points are where a teleport puts the camera ([cameras](cameras.md#which-mode-m2-session-4c)); a house's door names the same point its room's camera cuts to.
+216 move the camera or its aim to a reference point in their own map; the other 28 set how the outdoor camera follows. The original looks the reference point up in the chunk the player is in, and the port in the camera's own, as for trigger triangles. Camera objects work under popups, as the original runs `ProcessVoxelObjects` then; that a trigger triangle's does too is a guess. They work through a teleport's fade too, when nothing else does ([cameras](cameras.md#which-mode)). Teleporters' camera points are where a teleport puts the camera ([cameras](cameras.md#which-mode)); a house's door names the same point its room's camera cuts to.
 
 ## Triggers
 
@@ -84,6 +84,6 @@ The runtime's chunk streamer keeps each loaded chunk's `LoadedMap` beside its co
 
 - Alaron's animations for opening a container (request 11) and a door (19), which the original asks for only when it chose among several objects.
 - Sounds (containers' by kind, the coin jingle, the explosion), the explosion's lights and particles, and the popups' fades.
-- Dialogue objects' backdrops, which the runtime names and skips. Their cut-scenes play ([scripts](scripts.md#cut-scenes-m2-session-6)). Signs show in the conversation box, and monster parties' bodies talk ([wanderers](wanderers.md#talking-5c)).
+- Dialogue objects' backdrops, which the runtime names and skips. Their cut-scenes play ([scripts](scripts.md#cut-scenes)). Signs show in the conversation box, and monster parties' bodies talk ([wanderers](wanderers.md#talking)).
 - The editor's map object pages don't use objects yet, but a container's opens in the loot window ([inspector](inspector.md)).
 - The trap menu's layout follows the decomp's reading of `WidgetChoiceDia::Update`, the question above the choices, with the cursor's choice pulsing grey to white, the scroll menu's defaults. The user finds it looks right, and will confirm it in the ROM ([to-check](../to-check.md)).

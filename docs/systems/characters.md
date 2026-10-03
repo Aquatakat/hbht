@@ -69,7 +69,7 @@ Base values read capped at the base cap, and modified ones at the cap and at lea
 | Warrior | Intelligence + Warrior × 7 + Stamina |
 | Wizard | (Wizard × 5 + Intelligence) × 2 |
 
-## Joining and leaving (M2 session 5d)
+## Joining and leaving
 
 Scripts add and take away members (Borg13 ops 47 and 48), and `GameState.AddMember` and `RemoveMember` do it as the original does. Nothing else does: the original has no menu to dismiss a member, and a battle's dead are taken out with 2.5 (`Party::BringOutYourDead`). From 1.0's code (Oct 2, 2026):
 

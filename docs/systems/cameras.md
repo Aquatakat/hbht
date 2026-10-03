@@ -15,7 +15,7 @@ Ported (`Aidyn.Core.Cameras.FollowCamera`, from `Camera::Mode0` and the R orbit 
 - Interiors use `Mode1`, which does keep the camera off walls (below).
 - Loading and dialogue set a quick swing (`unk80`), but the first tick after a load cancels it, because the anchor starts at the origin.
 
-## Which mode (M2 session 4c)
+## Which mode
 
 The camera's mode is chosen only when the player goes through a teleporter (`TeleportPlayer`), by the chunk he arrives in: `Mode1` where its terrain doesn't draw the sky (the original's sky type 4: terrains 6, 8, 9, 11 and 13–16, the importer's `TerrainRecord.SkyDrawn` false), `Mode0` elsewhere. Walking from chunk to chunk keeps it, so Gwernia castle's courtyard (terrain 25) keeps whatever mode the door into it gave. Loading a save from the game's menu teleports too, so it chooses the same way. Loading from the title screen doesn't: the zone engine starts in `Mode0` and keeps it until the next door, so the user saw the outdoor camera inside a house until a camera object took over (Oct 2, 2026). That's a bug, and the port fixes it, outside the fidelity profile: however the game starts, the chunk chooses. `FollowCamera.Mode` holds it, and `FollowCamera.ModeFor` chooses it.
 
@@ -44,10 +44,10 @@ Ported (`CameraMove`), checked against the debug ROM's machine code. A camera ob
 - **Tracking** (0x2000) chases 1.05 above the player at 1/24 of the way a tick, at most 0.25. Running, at 0.06 a tick, that leaves the aim about 1.4 behind him, so he runs ahead of the middle of the screen and the camera catches up when he stops, as the user saw in the original (Oct 2, 2026). In the original, a camera taking over snaps the aim onto him: a jump of 4° to 8° in one tick at 60 Hz, which the user saw jolt the view, less at the console's frame rate. They chose to treat it as a bug, so the port snaps the aim only on a cut, where the view jumps anyway, and the runtime doesn't blend a cut across frames.
 - **A finished move stays done** while the player stays in reach. The original marks it to start again, but the timestamp it writes at the end of the same call overwrites the mark. Out of reach for a tick, it starts afresh next time.
 - **Flags 0x100 and 0x200,** on the 28 objects that don't move the camera, set how far behind the outdoor camera follows (the values' Y, at least 3) for the next 30 ticks, and its pitch (X), anchoring it at the player. The interiors' camera reads neither.
-- Cut-scenes' cameras are the same moves (`AllocScriptCamera`): see [below](#cut-scenes-cameras-session-6).
+- Cut-scenes' cameras are the same moves (`AllocScriptCamera`): see [below](#cut-scenes-cameras).
 - In a conversation the original counts the cameras holding it, and while any does, R doesn't orbit. That comes with session 5.
 
-## The conversation camera (5c)
+## The conversation camera
 
 From 1.0's machine code (Oct 2, 2026, a Sonnet subagent; the constants spot-checked). Talking to a wanderer, both bodies are flagged `ACTOR_800`, and the player's camera focus is cleared (`ClearPlayerCamFocus`). Each frame, `ProcessPlayers` (`0x80012854`–`0x80012968`) gathers the flagged bodies and, in trek with no focus, frames them (`CreateFocusFromMultiple`, `0x800a77b4`):
 
@@ -59,7 +59,7 @@ From 1.0's machine code (Oct 2, 2026, a Sonnet subagent; the constants spot-chec
 - **A camera object holding the camera** keeps it where it is: the conversation doesn't take over, as the user saw in the original, which spares interiors' cameras (Oct 2, 2026), and confirmed in the port with a Gabrion at the edge of a camera's hold in a castle, late in the game. The port keeps camera objects and trigger triangles' cameras working through a conversation, and `FollowCamera.Frame` leaves a held camera be, as `Step` does.
 - At the end the camera is given back to the player (`GiveCameraToPlayer`) with a quick swing of 5 frames (`unk80` 5), and its pitch back to the default.
 
-## Cut-scenes' cameras (session 6)
+## Cut-scenes' cameras
 
 `ScriptCameras`, from 1.0's machine code (Oct 2, 2026, a Sonnet subagent; the jump table and planes spot-checked). Each camera op of a script starts a move that holds the camera for its duration (`DialougCreateScriptCamera`, `AllocScriptCamera` at `0x800168f8`): a camera object's move (`CameraMove`) with the op's flags, aimed at a point the op chose as it ran.
 

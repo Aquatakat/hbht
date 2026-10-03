@@ -8,7 +8,7 @@
 
 - **Rules** go to the flag network, and to `IScriptWorld` for the party, inventory, gold, skills, stats and experience. The party ([characters](characters.md)) answers the skill and stat questions; its inventory comes with 2.3. Where the debug build crashes on a failed call (taking an item the party doesn't have, adding to a full party, giving experience to a non-member), retail carries on, and so does the runner.
 - **Presentation** goes out as cues on `IScriptHost` (ADR 0003): cameras, spawning, facing, walking and running, animations, held items, sounds and the fade. The runtime carries them out, and tests record them.
-- **The player** answers the page: `Continue` moves on from a line, `Choose` takes a choice, and `Skip` ends the script, as the debug build's B does; 1.0 has no skip. While the scripted camera moves, the original drops input (see [cut-scenes](#cut-scenes-m2-session-6)).
+- **The player** answers the page: `Continue` moves on from a line, `Choose` takes a choice, and `Skip` ends the script, as the debug build's B does; 1.0 has no skip. While the scripted camera moves, the original drops input (see [cut-scenes](#cut-scenes)).
 - **Waits** end with `Resume` from the runtime: an actor arriving, an animation ending or the camera stopping. `Step(ticks)` counts down `Wait`, whose operand is in ticks.
 - **Map objects remember** a skill check's result and a random line's roll (the original's `VoxelChart`), through `IScriptWorld.TryRecall` and `Remember`. So talking to someone again can't reroll a check or a rumour. Troubadour checks aren't remembered. The chart itself, 19 memories that expire and are saved with the game, is `MapObjectMemory` (see [saves](saves.md#map-objects-memory)), and the game state answers for it.
 - **Randomness** comes from an `IRandom` stream (ADR 0006). `Lcg` is the original's generator, and `Range` is `Random::Range`.
@@ -34,7 +34,7 @@ A page is the line and the choices under it, as the original's `diags` list hold
 - **`PlayAnimation`** waits for the animation to end. In a conversation, the original looks the actor up from the page it has just cleared (`FUN_800591e4`), so no one animates, and the script waits for the player to press A with the previous line still showing. The runner reproduces this: an `AnimateCue` with no actor, and a `Player` wait. Nine conversation nodes do it, such as the lighthouse keeper handing over his key (Borg13 890 node 13), where the player presses A twice. Cut-scenes only animate actors they've spawned.
 - **`Battle`** hands over the enemies from `AddEnemy` (a thirteenth faults), the arena (above 27 becomes 0), the collision and animation bytes, whether the party can flee (not in cut-scenes), and the record's `battleFlag`. In a conversation with someone who wanders, the original fights their party instead, and a shop or training uses them as the keeper.
 - **`CampHeal`** heals the party and ends the script, and eight hours pass. A camp scene (`rest`) adds eight more, so a camp heal in one would pass sixteen.
-- **`AddMember` and `RemoveMember`** add and take away members, with their flags and kept sheets ([characters](characters.md#joining-and-leaving-m2-session-5d)). Retail ignores whether AddMember worked: the scripts check the party's size first. AddMember working in a conversation tells the runtime that the one talking leaves the map rather than going back to wandering ([wanderers](wanderers.md#joining)).
+- **`AddMember` and `RemoveMember`** add and take away members, with their flags and kept sheets ([characters](characters.md#joining-and-leaving)). Retail ignores whether AddMember worked: the scripts check the party's size first. AddMember working in a conversation tells the runtime that the one talking leaves the map rather than going back to wandering ([wanderers](wanderers.md#joining)).
 
 ## Faults
 
@@ -45,7 +45,7 @@ Playing every base-game script 40 times with random flags, party and choices fin
 - **Node 24 of script 1040** (the harbour reunion, id 2192) is Dougal's line, and it lost its link to node 25 (its siblings have one, and an op 2 naming the next node). With Dougal in the party, the original reads a node past the end of the script, and the rest of the scene doesn't play. The runner ends the scene there, setting its done flag.
 - **Trahern's conversation** (936) goes round nodes 64–69 forever once flags 67 and 84 are both set. Nothing sets 84, so it can't happen.
 
-## Cut-scenes (M2 session 6)
+## Cut-scenes
 
 `CutScene`, `CutSceneActor` and `CutSceneStage` in `Aidyn.Core.Scripts`, with `ScriptCameras` in `Aidyn.Core.Cameras` and `ScreenFade` at the core's root. Read from 1.0's machine code on Oct 2, 2026 by three Sonnet subagents, with the jump tables, fades, the walk's limits and the facing snap spot-checked. The decomp's `dialogmode.cpp` and `dialogue.cpp` are a fair map; where they're wrong is noted.
 

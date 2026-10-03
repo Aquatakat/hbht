@@ -43,7 +43,7 @@ The box is laid out in the original's 320 × 240 screen, placed at the bottom ce
 
 Not ported yet: the widgets' fade in and out (`fadeFloatMirror`), scrolling a menu taller than its bounds, and the full-screen backdrops' text with its shadow (`WidgetShadowText`).
 
-## The pause menu (M2)
+## The pause menu
 
 The Party tab is ported (M2's first session, Oct 1, 2026), with what A does in it (the third, the same day); the rest isn't yet. What the decomp, the machine code, the imported images and the user's captures (Oct 1, 2026, from the "Before final encounter" checkpoint; see the [reference rig](../reference-rig.md#emulator-captures)) show (`BigAssMenu.cpp`, `DollMenu*.cpp`). Positions are in the 320 × 240 frame.
 

@@ -1,10 +1,10 @@
-# Wanderers: monster parties' bodies (M2 session 5)
+# Wanderers: monster parties' bodies (M2)
 
 `Aidyn.Core.Trek` (`Wanderers`, `Wanderer`) and `Aidyn.Core.Movement` (`Body`, `Crowd`). Ported from `wander.cpp`, `PlayerMove.cpp` (`Actor::SetAiDest`, `SetFacing`, `MoveTo`, `Move`) and `PlayerData.cpp` (`ProcessPlayers`, `PlayerShadowAlpha`, `renderPlayers`). What a monster party holds is in [maps](../formats/maps.md#map-objects-in-the-base-plugin-06).
 
 A monster party is an NPC to talk to, if it has a dialogue, or a group of enemies the player sees as its leader. Either way it's one body in the world, which wanders between wander nodes. What it does on its own (5b) and talking to it (5c) are below.
 
-## Bodies as their chunk loads (5a)
+## Bodies as their chunk loads
 
 - **When.** As a chunk loads, each of its monster parties that's active by its flags ([map-objects](map-objects.md#a-chunks-objects-at-run-time)) and not remembered as beaten gets a body (`look_for_monsterparties`, `AllocWanderer`); as it goes, they go (`FreeWandererFromZone`). The original skips this in dialogue mode and on the title screen.
 - **No limit.** The original has room for 39 at once in trek (`WanderHead`) and crashes past it, at least in the debug build. At a new game the 3×3 around Overworld H13 holds 44 parties that would get one, the only block over 39 and the most anywhere; the user thinks the original leaves some out rather than crashing, but can't reach H13 to see. The port gives every party a body, as the user chose (Oct 2, 2026): mods will add their own, and there's no reason in play to leave any out. Across the Overworld's 172 chunks there are 441.
@@ -14,7 +14,7 @@ A monster party is an NPC to talk to, if it has a dialogue, or a group of enemie
 - **Its home node** must be one that wanderers walk to; every party's is. It takes the node's values (`WanderGetNextNode`), and if it's further from the node than the node's radius it sets off for it (`FUN_80012d44`), **walking if the party has flag 0x2 and running otherwise**. The decomp reads that flag as the node's; 1.0's code reads `voxelObjs[VoxelIndex] + 0x58`, the party's flags. 990 of the 1,079 parties walk. The user confirmed the 89 that run are the game's: a man in Port Saiid and a few monsters run about (Oct 2, 2026).
 - **Kept in its chunk.** A body other than the player's is kept 0.05 inside its chunk's edges, since the original keeps it in its chunk's coordinates.
 
-## Bodies moving (5a)
+## Bodies moving
 
 A `Body` is the original's `playerData` for a body other than Alaron's, stepped each tick as `ProcessPlayers` steps it:
 
@@ -23,7 +23,7 @@ A `Body` is the original's `playerData` for a body other than Alaron's, stepped 
 - **Then** the world's collision, the push down on plain collision, and its animation's root motion, as the player's ([movement](movement.md)). Bodies don't set off trigger triangles (`CSPHERE_NoTriggers`).
 - **Only near the camera.** In trek, bodies more than 30 from the camera's aim don't move or animate at all (`PlayerHandler.float_0x68`; 128 in combat).
 
-## Bodies pushing each other (5a)
+## Bodies pushing each other
 
 After each body moves, the player first, it's pushed out of the others in its chunk within 3 in height (`ProcessPlayers`, `FUN_800b003c`; checked in 1.0's code). The push is across the ground only, straight away from the other until they touch, with each sphere at its scale, and the body's velocity bounces and dampens as off a wall. The other doesn't move.
 
@@ -31,11 +31,11 @@ After each body moves, the player first, it's pushed out of the others in its ch
 - **A second push puts the body back** where it began the tick.
 - **The nearest body** to each, across the ground, is kept for A (`playerData.index`, `unk108`). On a miss the original measures it with the other's radius at this body's scale, and so does the port.
 
-## Drawing them (5a)
+## Drawing them
 
 In the runtime, `WandererView` draws each body's actor at its feet, facing its heading. Bodies show within 20 of the camera's aim and fade over the last 2 units (`PlayerShadowAlpha`). The original also skips those more than 5 from the aim that are outside its view, which only saves drawing. Their shadows show within 10 of the aim, measured from the body's position in its own chunk's coordinates against the aim in the player's chunk's, so a body in a neighbouring chunk seldom has one ([movement](movement.md)).
 
-## Wandering, noticing and chasing (5b)
+## Wandering, noticing and chasing
 
 `Wanderer.Tick`, run over them all by `Wanderers.Tick`, is `WanderTick` (`0x8000f6a4` in 1.0). The user confirmed the port against the emulator (Oct 2, 2026): enemies notice a walking Alaron about 13 in front and 7 behind, he can sneak up behind them, and they chase him to their leash and stand there idle. Its flow was read from the machine code on Oct 2, 2026, by a Sonnet subagent with `tools/n64dis.py`, and the constants and the points marked below spot-checked; the decomp's `goto`s untangle to the same flow, with the differences noted. `FUN_80012c58` is `0x8000f4c8` in 1.0, `FUN_80012d44` `0x8000f5b4`, `WanderGetNextNode` `0x8000f3e0`.
 
@@ -59,7 +59,7 @@ In the runtime, `WandererView` draws each body's actor at its feet, facing its h
 - **Flee** (`moveType` 2, running directly away to within 1) is in the code, but nothing sets it.
 - **Random numbers** come from the wandering stream. `GetFloat0ToX` (`0x80093428`) is 0 without a draw for 0, and otherwise `GetFloat0To1` (`0x800933d4`) × X in single precision: the new seed as an unsigned number, rounded to a float, × 2⁻³² (`0x2f800000`), which is X itself for the top 128 values. The decomp converts the seed as signed.
 
-## Talking (5c)
+## Talking
 
 Read from 1.0's machine code on Oct 2, 2026, by a Sonnet subagent, and the reach spot-checked.
 
@@ -67,10 +67,10 @@ Read from 1.0's machine code on Oct 2, 2026, by a Sonnet subagent, and the reach
 - **Using a hunter** starts a battle: `collisionByte` is whether the player is in front of it, `aniByte` 0, the party's flag B as the battle's flag. Until combat (2.5) the runtime logs it.
 - **Using a talker** (`monsterpary_func`, `0x800109fc`; nothing for a silent party): its script starts (`dialoug_func`, reference point 0, the party's index for what the script remembers), then the wanderer is held (`monsterparty_wanderstruct`): calmed (flag 1), its body held (`ACTOR_40`) and in the conversation (`ACTOR_800`), both asked for request 0, and each turns to face the other (`SetFacing`); then the party's flag B is set. Nothing stops a body still walking; a talker within 3 of the player has already stopped to face him (above). The game stays in trek (game state 3), with the box as a widget.
 - **During it**, the world runs on: bodies move and animate, the sky and chunk streaming go on, but the clock, `WanderTick` and the HUD stop, and the player gets no input. Every frame (`0x80051bd8`) the wanderer is held again and both are asked for request 0.
-- **The camera** frames the two (`ProcessPlayers`, `CreateFocusFromMultiple`): see [cameras](cameras.md#the-conversation-camera-5c).
+- **The camera** frames the two (`ProcessPlayers`, `CreateFocusFromMultiple`): see [cameras](cameras.md#the-conversation-camera).
 - **Talking.** Each button press (`0x80051c4c`) asks both for request 0, moves the conversation on, and then, unless the script played an animation in that press (`ApplyStimulus`), asks the speaker for request 4: Alaron if the shown line's speaker is Alaron, and otherwise the wanderer, whoever the speaker is (`0x800514cc`). A line with no speaker entity animates nobody. The next frame's request 0 replaces it.
 - **The end** (`0x80051ccc`), from the script's end, a shop, training, a battle or a camp: a shop, training or battle takes the game out of trek (a script's battle uses the party's flag C, not B). The camera goes back to following the player (`GiveCameraToPlayer`, the pitch back to its default) with a quick swing of 5 frames. The wanderer's body is let go and it sets off for its node again (`FUN_80012d44`), which ends its calm; or, if a member joined in the conversation (`DialougeAddPartyMember`, only in a conversation), its body is freed, and what keeps it from coming back when its chunk next loads is its party's enabled gate (see [joining](#joining)). Map objects aren't gated again; only a chunk loading does that, or a cut-scene's end, which loads them all again (see [joining](#joining)).
-- **Dialogue objects** (`dialouge_vobject_func`, `0x80010d68`) start their script with their own reference point and index, and hold no body. Of the 364 in the base plugin, 271 are cut-scenes (239 walked into), 72 backdrops and 20 signs; the one conversation is a placeholder ("this dialog isn't BORGED yet", map 0x127B, object 2). A sign shows the box with the player asked for request 0, and nothing else changes. A cut-scene fades out and leaves trek ([scripts](scripts.md#cut-scenes-m2-session-6)); a backdrop leaves it at once, which the runtime doesn't show yet. One already running stops another starting.
+- **Dialogue objects** (`dialouge_vobject_func`, `0x80010d68`) start their script with their own reference point and index, and hold no body. Of the 364 in the base plugin, 271 are cut-scenes (239 walked into), 72 backdrops and 20 signs; the one conversation is a placeholder ("this dialog isn't BORGED yet", map 0x127B, object 2). A sign shows the box with the player asked for request 0, and nothing else changes. A cut-scene fades out and leaves trek ([scripts](scripts.md#cut-scenes)); a backdrop leaves it at once, which the runtime doesn't show yet. One already running stops another starting.
 
 ### In the port
 
@@ -85,7 +85,7 @@ Read from 1.0's machine code on Oct 2, 2026, by a Sonnet subagent, and the reach
 
 ### Joining
 
-From 1.0's code and the base plugin (Oct 2, 2026). A member's joining or leaving is in [characters](characters.md#joining-and-leaving-m2-session-5d).
+From 1.0's code and the base plugin (Oct 2, 2026). A member's joining or leaving is in [characters](characters.md#joining-and-leaving).
 
 - **The speaker's body is freed** at the end (`0x80051ccc`, `Actor::FreePlayer`) when a conversation's AddMember worked (`DialougeAddPartyMember`, `0x80050970`, sets `dialogmode+0xA8` when the script's start function is 0). A cut-scene's AddMember doesn't set it.
 - **A cut-scene rebuilds trek instead** (from 1.0's code, Oct 2, 2026). `0x80051F4C`, which ends every cut-scene, backdrop and help script, sets their done flag and `+0xA8` too, but nothing reads that outside a conversation's end. What happens instead:
@@ -94,7 +94,7 @@ From 1.0's code and the base plugin (Oct 2, 2026). A member's joining or leaving
   3. When it ends, `initGameTrek` (`0x80020f40`) loads trek again where the player was. Every map object is gated again, and every wanderer whose party is still there starts at its home node.
 
   So Godric's late-game cut-scene (`0x0529`) takes him off the map because his party is there only while flag 90 is clear. Of the 45 monster parties whose script is a cut-scene, 42 are gated off by what their script sets; the other three (`0x042F`'s two and `0x050B`'s) come back at their home nodes.
-- **In the port**, `Conversation.RebuildsTrek` says a script is one of these, and the runtime loads the map set's chunks and wanderers again where the player stands when it ends (`Game.RebuildTrek`). The cut-scene plays on its own stage in between ([scripts](scripts.md#cut-scenes-m2-session-6)).
+- **In the port**, `Conversation.RebuildsTrek` says a script is one of these, and the runtime loads the map set's chunks and wanderers again where the player stands when it ends (`Game.RebuildTrek`). The cut-scene plays on its own stage in between ([scripts](scripts.md#cut-scenes)).
 - **What keeps a recruit away is their party's enabled gate.** Nearly every recruit's monster party is enabled by a derived flag that holds NOT their joined flag. For example:
   - Keelin's in Terminor (map `0x1436`, party 17) by 5413 = NOT 265 & NOT 619 & 363 & 263.
   - Godric's (`0x18D0`, party 4) by 5391, which also reads 73, the flag his script sets.
