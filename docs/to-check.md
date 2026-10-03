@@ -10,7 +10,7 @@ Things only the user can settle, in the emulator or by reading the ROM. Each lin
 - **The Party tab's cursor after equipping the last item** of the inventory, when no item moves up into its row, when a save allows it. See [ui](systems/ui.md#the-party-tabs-actions).
 - **Sholeh in Ugarit after she joins** (`aidyn:dialogue/0x04AD`), in full-game testing: whether she's there again once she's joined, and what keeps her away when the party has no free place, which the data doesn't show. See [wanderers](systems/wanderers.md#joining).
 
-- **Keelin's scene from her dialogue object** (`aidyn:voxel/0x1436/12`, used with A just beside her body, a little toward +X and +Z of her): whether it plays with its cameras on her and Alaron, rather than the scene her body starts, which reads another scene's reference points and crashes when she isn't recruited. Which A reaches depends on the score, so pressing from the far side of her, toward the object, should start it. See [scripts](systems/scripts.md#the-world-it-plays-in).
+- **Keelin's scene from her dialogue object** (`aidyn:voxel/0x1436/12`, 1.2 from her body toward +X and +Z): walk up against her, then turn about 45° or more to the right (screen right, as you face her from the room) without moving off, and press A. In the port that reaches her object, while facing her within about 30° reaches her body (simulated on Terminor's collision, Oct 3, 2026). Whether it plays with its cameras on her and Alaron, rather than the scene her body starts, which reads another scene's reference points and crashes when she isn't recruited. See [scripts](systems/scripts.md#the-world-it-plays-in).
 
 ## In the ROM
 
