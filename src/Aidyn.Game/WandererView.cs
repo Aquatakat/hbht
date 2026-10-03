@@ -1,4 +1,5 @@
 using Aidyn.Core.Movement;
+using Aidyn.Core.Scripts;
 using Aidyn.Core.Trek;
 using Godot;
 
@@ -52,7 +53,7 @@ public partial class WandererView : Node3D
     public Wanderer Wanderer { get; }
 
     /// <summary>Its animations, which the core ticks as the body steps.</summary>
-    public IRootMotion Animation { get; } = new Still();
+    public IRootMotion Animation { get; } = IActorMotion.Still;
 
     /// <summary>Moves the node to where the body is. Call after each tick.</summary>
     public void Sync()
@@ -86,10 +87,5 @@ public partial class WandererView : Node3D
             _shadow.Shadow.Place(world, sphere.Position, sphere.Radius, a);
         _shadow.Sync();
         _shadow.Visible &= alpha is not null;
-    }
-
-    private sealed class Still : IRootMotion
-    {
-        public float Tick(int request) => 0;
     }
 }

@@ -54,6 +54,10 @@ public readonly record struct CollisionTriangle(Vector3 A, Vector3 B, Vector3 C,
 /// </summary>
 public static class CollisionMesh
 {
+    /// <summary>A map's collision, from the plugin that provides its asset, or none if no plugin has one.</summary>
+    public static IReadOnlyList<CollisionTriangle> For(PluginSet plugins, RecordId map) =>
+        plugins.FindAsset(map, "glb") is { } path ? Read(File.ReadAllBytes(path)) : [];
+
     public static IReadOnlyList<CollisionTriangle> Read(byte[] glb)
     {
         if (glb.Length < 20 || BinaryPrimitives.ReadUInt32LittleEndian(glb) != 0x46546C67)

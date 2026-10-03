@@ -8,39 +8,28 @@ using Godot;
 namespace Aidyn.Game;
 
 /// <summary>
-/// Cut-scenes in the runtime (M2 session 6): trek fades out, its world goes, the script's stage loads,
+/// Cut-scenes in the runtime: trek fades out, its world goes, the script's stage loads,
 /// and the core's <see cref="CutScene"/> plays on it; when it's over, trek comes back where the player
 /// stood. See docs/systems/scripts.md.
 /// </summary>
 public partial class Game
 {
-    /// <summary>Trek fades out into a cut-scene, and in after it, at 1/30 a tick (<c>FUN_80024c54</c>, <c>initGameTrek</c>).</summary>
-    private const float TrekFadePerTick = 1f / 30;
-
-    /// <summary>Trek's own fades into and out of a cut-scene.</summary>
-    private readonly ScreenFade _trekFade = new();
-    /// <summary>A cut-scene waiting for trek to fade out.</summary>
-    private (DialogueRecord Script, ScriptStart Start, ChunkRef Stage)? _cueing;
     private CutScene? _scene;
     /// <summary>The cut-scene's chunks, in place of trek's.</summary>
-    private ChunkStreamer? _stage;
+    private Core.Chunks.ChunkStreamer? _stage;
+    private ChunkStreamerView? _stageView;
     private readonly Dictionary<CutSceneActor, CutSceneActorView> _actorViews = [];
     /// <summary>The line the box last showed in the cut-scene, to show a new page once.</summary>
     private ScriptLine? _sceneLine;
 
     /// <summary>The chunks the world shows now: the cut-scene's, or trek's.</summary>
-    private ChunkStreamer? Streamer => _scene is not null ? _stage : _chunks;
+    private ChunkStreamerView? Streamer => _scene is not null ? _stageView : _chunks;
 
-    /// <summary>
-    /// Asks for a cut-scene (<c>dialoug_func</c>, then <c>funcs0[1]</c>): trek fades out, and it starts once
-    /// the screen is black. One at a time.
-    /// </summary>
+    /// <summary>Asks trek for a cut-scene, unless one is playing (<see cref="TrekLoop.Cue"/>).</summary>
     private void CueCutScene(DialogueRecord script, ScriptStart start, ChunkRef stage)
     {
-        if (_cueing is not null || _scene is not null)
-            return;
-        _cueing = (script, start, stage);
-        _trekFade.Out(TrekFadePerTick);
+        if (_scene is null)
+            _trek!.Cue(script, start, stage);
     }
 
     /// <summary>
@@ -83,20 +72,22 @@ public partial class Game
     /// </summary>
     private void BeginCutScene()
     {
-        var (script, start, stageRef) = _cueing!.Value;
-        _cueing = null;
-        _trekSet = _chunks!.MapSet;
-        FreeTrek();
+        var (script, start, stageRef) = _trek!.BeginCutScene();
+        _changed.Clear();
+        _player!.Visible = false;
+        if (_shadow is not null)
+            _shadow.Visible = false;
         if (Core.Scripts.CutSceneStage.For(_plugins!, stageRef, _world) is not { } stage)
         {
             Say($"{script.Id} plays in a chunk no plugin has.");
             EndTrekPause();
             return;
         }
-        _stage = new ChunkStreamer(_plugins!, _models!, stage.Set, _world, _game!, null, _shadowTexture) { Name = "Stage" };
-        AddChild(_stage);
+        _stage = new Core.Chunks.ChunkStreamer(_plugins!, _game!, _world, stage.Set);
+        _stageView = new ChunkStreamerView(_plugins!, _models!, _stage, null, _shadowTexture) { Name = "Stage" };
+        AddChild(_stageView);
         var middle = stage.Origin + new System.Numerics.Vector3(stage.Set.CellSize / 2, 0, stage.Set.CellSize / 2);
-        _stage.Update(middle.ToGodot());
+        _stage.Update(middle);
         _sky!.Enter(stage.Chunk);
         _sky.Apply();
 
@@ -113,7 +104,7 @@ public partial class Game
     private void StepCutScene()
     {
         var scene = _scene!;
-        scene.Tick(actor => _actorViews.TryGetValue(actor, out var view) ? view.Motion : Idle.Instance);
+        scene.Tick(actor => _actorViews.TryGetValue(actor, out var view) ? view.Motion : IActorMotion.Still);
         _sky!.Step();
         ScrollTextures();
         SyncCutScene();
@@ -144,8 +135,7 @@ public partial class Game
         if (cut)
             _camera.ResetPhysicsInterpolation();
         ShowCutScenePage(force: false);
-        _fade.Visible = scene.Fade.Brightness < 1;
-        _fade.Color = new Color(0, 0, 0, 1 - scene.Fade.Brightness);
+        ShowFade(scene.Fade.Brightness);
     }
 
     /// <summary>Shows the cut-scene's page in the box, or hides it while there's none.</summary>
@@ -211,8 +201,10 @@ public partial class Game
         foreach (var view in _actorViews.Values)
             view.QueueFree();
         _actorViews.Clear();
-        _stage!.QueueFree();
+        _stage!.Clear();
         _stage = null;
+        _stageView!.QueueFree();
+        _stageView = null;
         _world.Clear();
         _box!.Visible = false;
         foreach (var problem in scene.Problems)
@@ -222,31 +214,17 @@ public partial class Game
             SayEnding(ending);
     }
 
-    /// <summary>Trek's world, the player's body and the follow camera come back, and the screen fades in.</summary>
+    /// <summary>Trek's world, the player's body and the follow camera come back, and the screen fades in (<see cref="TrekLoop.Resume"/>).</summary>
     private void EndTrekPause()
     {
-        RebuildTrek();
+        _trek!.Resume();
         _player!.Visible = true;
-        var at = _player.Motion.Sphere.Position;
-        Enter(_chunks!.ChunkAt(at.ToGodot()));
+        PlaceShadow();
         _sky!.Apply();
-        _follow!.AimAt(at);
-        _follow.Snap = 1;
         _camera!.Follow = _follow;
         _camera.Far = SkyView.Far;
         _camera.Sync();
         _player.Sync();
         ResetInterpolation();
-        _trekFade.In(TrekFadePerTick);
-    }
-
-    /// <summary>For an actor with no view yet: it stands, and its animation lasts a tick.</summary>
-    private sealed class Idle : IActorMotion
-    {
-        public static readonly Idle Instance = new();
-
-        public int StateLength => 1;
-
-        public float Tick(int request) => 0;
     }
 }

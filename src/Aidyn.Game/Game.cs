@@ -1,6 +1,7 @@
 using System.Globalization;
 using Aidyn.Core;
 using Aidyn.Core.Cameras;
+using Aidyn.Core.Chunks;
 using Aidyn.Core.Flags;
 using Aidyn.Core.Items;
 using Aidyn.Core.MapObjects;
@@ -46,16 +47,8 @@ namespace Aidyn.Game;
 /// F toggles the free camera, F3 the debug overlay, F5 the pace, F6 the sky's placement and F7 the
 /// UI screen's height, and F8 saves to <c>quick.json</c> in the saves folder.
 /// </remarks>
-public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
+public partial class Game : Node3D, ITrekHost
 {
-    /// <summary>
-    /// How a teleport fades (<c>set_teleport_pointer</c>, <c>handleZoneEngineFrame</c>, <c>appState_1</c>):
-    /// out at 2/3 of full brightness a tick, black for 3 frames, then in at 1/15 a tick.
-    /// </summary>
-    private const float FadeOutPerTick = 2f / 3, FadeInPerTick = 1f / 15;
-
-    private const int FadeHoldTicks = 3 * Core.Cadence.FrameTicks;
-
     /// <summary>A faster pace than the original's, which feels slow on a PC (ADR 0006's fidelity settings).</summary>
     private const float BriskPace = 1.3f;
 
@@ -76,45 +69,28 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
     private GameState? _game;
     private PauseMenu? _menu;
     private Models? _models;
-    private ChunkStreamer? _chunks;
+    /// <summary>Trek: the core's loop, which steps the player, the camera, the chunks and what's in them.</summary>
+    private TrekLoop? _trek;
+    /// <summary>Trek's chunks as they're drawn.</summary>
+    private ChunkStreamerView? _chunks;
     private Player? _player;
     private CameraRig? _camera;
     private ShadowDecal? _shadow;
     /// <summary>The texture of bodies' shadows (<c>BORG1_PlayerShadow</c>).</summary>
     private Texture2D? _shadowTexture;
-    private Wanderers? _wanderers;
     private SkyView? _sky;
-    private ChunkEntry? _chunk;
     private FollowCamera? _follow;
-    private IRootMotion _animation = Still.Instance;
     /// <summary>The player's last second of positions, for the overlay's speed.</summary>
     private readonly Queue<System.Numerics.Vector3> _track = new();
     private long _ticks;
     private DrawDistance _drawDistance = DrawDistance.Original;
     private PluginSet? _plugins;
-    private MapObjectUse? _use;
     private readonly UiScreen _trekScreen = new();
     private TrekPopupView? _popupView;
     private readonly ColorRect _fade = new() { Color = Colors.Black, MouseFilter = Control.MouseFilterEnum.Ignore };
-    /// <summary>The screen's brightness, which a teleport fades out and in.</summary>
-    private float _brightness = 1;
-    private bool _fadingIn;
-    private int _blackTicks;
-    /// <summary>The teleporter the player is going through once the screen is black.</summary>
-    private TeleporterObject? _pending;
-    /// <summary>The chunk the player was last in, to age what map objects remember as he crosses into another.</summary>
-    private (int Row, int Column)? _centre;
     /// <summary>Chunks whose scenery changed this tick, built again before the frame is drawn.</summary>
     private readonly HashSet<LoadedMap> _changed = [];
-    /// <summary>The last script a dialogue object asked to start that the runtime can't run yet, such as a backdrop.</summary>
-    private RecordId? _lastScript;
-    /// <summary>Trek's map set, kept while a cut-scene has the world.</summary>
-    private MapSetRecord? _trekSet;
-    /// <summary>The conversation or sign showing, if any.</summary>
-    private Conversation? _conversation;
     private ConversationBoxView? _box;
-    /// <summary>The player's nearest body and how far, from the last tick's push loop, which A can reach.</summary>
-    private (Wanderer? Nearest, float Distance) _nearest;
 
     public override void _Ready()
     {
@@ -195,18 +171,20 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
             image.LoadPngFromBuffer(File.ReadAllBytes(shadowPng));
             _shadowTexture = ImageTexture.CreateFromImage(image);
         }
-        _wanderers = new Wanderers(plugins);
-        _chunks = new ChunkStreamer(plugins, models, set, _world, game, _wanderers, _shadowTexture);
+        var streamer = new ChunkStreamer(plugins, game, _world, set);
+        var trek = _trek = new TrekLoop(game, this, streamer);
+        _chunks = new ChunkStreamerView(plugins, models, streamer, trek.Wanderers, _shadowTexture);
         AddChild(_chunks);
 
         var chunkName = args.GetValueOrDefault("chunk", place?.Chunk ?? "I08");
-        var chunk = _chunks.Find(chunkName) ?? throw new KeyNotFoundException($"{set.Label} has no chunk {chunkName}.");
+        var chunk = streamer.Find(chunkName) ?? throw new KeyNotFoundException($"{set.Label} has no chunk {chunkName}.");
         var at = Floats(args.GetValueOrDefault("at", "16,62"));
         // The original drops the player in from a height of 10 at a new game's spawn. This puts him
         // on the highest ground below 1000, so --at works anywhere. A save puts him where he stood.
         var spawn = _chunks.Origin(chunk) + (place is not null ? place.Position.ToGodot() : new Vector3(at[0], 10, at[1]));
-        Enter(chunk);
-        _chunks.Update(spawn);
+        // The terrain's flags are written before the chunks' objects are gated by them.
+        trek.Enter(chunk);
+        streamer.Update(spawn.ToNumerics());
         _sky.Apply();
         var centre = spawn.ToNumerics();
         var above = centre with { Y = 1000 };
@@ -230,7 +208,7 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
             if (animator is not null)
             {
                 animator.Driven = true;
-                _animation = animator;
+                trek.PlayerAnimation = animator;
             }
         }
 
@@ -251,24 +229,24 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
             : FollowCamera.ModeFor(plugins, chunk);
         if (mode == CameraMode.Interior)
             _follow.Arrive(centre, centre, look, mode, null);
+        trek.Begin(motion, _follow);
         _camera = new CameraRig { Follow = _follow, Yaw = yaw, Pitch = Mathf.DegToRad(-pitch) };
         AddChild(_camera);
         _camera.Sync();
 
         // Trek's popups, over the world and under the pause menu, and the fade over them.
-        var trek = new CanvasLayer { Name = "Trek UI", Layer = PauseMenu.MenuLayer - 1 };
+        var trekUi = new CanvasLayer { Name = "Trek UI", Layer = PauseMenu.MenuLayer - 1 };
         _trekScreen.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _trekScreen.MouseFilter = Control.MouseFilterEnum.Ignore;
-        trek.AddChild(_trekScreen);
+        trekUi.AddChild(_trekScreen);
         _popupView = new TrekPopupView(plugins);
         _trekScreen.Canvas.AddChild(_popupView);
         _box = new ConversationBoxView(plugins) { Visible = false };
         _trekScreen.Canvas.AddChild(_box);
         _fade.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _fade.Visible = false;
-        trek.AddChild(_fade);
-        AddChild(trek);
-        _use = new MapObjectUse(game, MenuText.From(plugins), this) { World = _world, Camera = _follow, PlayerRadius = motion.Sphere.Radius };
+        trekUi.AddChild(_fade);
+        AddChild(trekUi);
 
         _menu = new PauseMenu(plugins, game);
         // The original reloads the map as the menu closes, so what changed shows.
@@ -336,35 +314,12 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
     public override void _ExitTree() => _models?.Dispose();
 
     /// <summary>
-    /// The chunk the player is in: its sky, and its terrain written into the flags. Crossing into
-    /// another chunk is a teleport in the original (<c>ConfirmPlayerWithinZone</c>), which ages what map
-    /// objects remember.
-    /// </summary>
-    private void Enter(ChunkEntry? chunk)
-    {
-        _sky!.Enter(chunk);
-        if (chunk is not null && _centre != (chunk.Row, chunk.Column))
-        {
-            if (_centre is not null)
-                _game!.Memory.Age();
-            _centre = (chunk.Row, chunk.Column);
-        }
-        if (chunk is null || chunk == _chunk)
-            return;
-        _chunk = chunk;
-        _game!.StateFlags.SetTerrain(chunk.Terrain);
-    }
-
-    /// <summary>
-    /// One 60 Hz tick: the time played, which counts in every mode, and in trek the clock, the map
-    /// objects, the camera, the player, then a trigger triangle's camera, as the original orders them. The pause menu stops trek. A popup
-    /// stops only the clock (<c>TickGameTime</c>, skipped while <c>isPaused</c>), which the user saw
-    /// in the original: the sun stops, while bodies, animations and clouds go on, and the player's
-    /// input goes to the popup. A teleport's fade takes the player's input too.
+    /// One 60 Hz tick: the time played, which counts in every mode, then trek (<see cref="TrekLoop.Tick"/>)
+    /// or a cut-scene, and what draws them. The pause menu stops both.
     /// </summary>
     public override void _PhysicsProcess(double delta)
     {
-        if (_player is null || _camera is null || _follow is null || _game is null)
+        if (_player is null || _camera is null || _follow is null || _game is null || _trek is not { } trek)
             return;
         _game.PlayTime++;
         if (_menu!.IsOpen)
@@ -375,63 +330,18 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
             return;
         }
         _popupView!.Step();
-        StepFade();
-        if (_cueing is not null && !_trekFade.Fading)
+        var before = _player.Motion.Sphere.Position;
+        var step = trek.Tick(ReadInput, frozen: _camera.Flying);
+        ShowFade(trek.Brightness);
+        if (step == TrekStep.CutScene)
         {
             BeginCutScene();
             return;
         }
-        var fading = _pending is not null || _fadingIn || _trekFade.Fading;
-        Enter(_chunks!.ChunkAt(_player.Motion.Sphere.Position.ToGodot()));
-        // The clock stops under a popup or a conversation.
-        var talking = _conversation is not null;
-        if (_use!.Popup is null && !talking)
-            _game.PassTime(1);
         _sky!.Step();
         ScrollTextures();
-        if (_camera.Flying)
+        if (step == TrekStep.Frozen)
             return;
-        var motion = _player.Motion;
-        // ProcessVoxelObjects comes before the player moves. Through a teleport's fade, only camera
-        // objects work, so the camera is where the room's puts it as the screen comes up, and in a
-        // conversation too, so one holding the camera keeps it rather than the conversation's.
-        var playing = !fading && _pending is null;
-        if (_chunks.MapAt(motion.Sphere.Position.ToGodot()) is { } centre)
-        {
-            var at = Local(centre, motion.Sphere.Position);
-            if (playing && !talking)
-                _use!.Touch(centre, at);
-            else
-                _use!.TouchCameras(centre, at);
-        }
-        var input = fading || _use!.Popup is not null || talking ? new PlayerInput(System.Numerics.Vector2.Zero) : ReadInput();
-        var before = motion.Sphere.Position;
-        if (_conversation is { With: not null } framing)
-            framing.Frame(_follow, _world);
-        else
-            _follow.Step(_world, motion.Sphere.Position, motion.Heading);
-        motion.Step(_world, input, _follow, _animation);
-        // WanderTick, which a popup, a conversation, the menu and a fade stop.
-        if (playing && _use!.Popup is null && !talking)
-        {
-            foreach (var w in _wanderers!.Tick(_world, motion.Sphere.Position, motion.Request, _game.Party, _game.Random.Wander))
-                GD.Print($"{MapRecord.VoxelId(w.Map.Record.Id, w.Party.Index)} ambushes the party; battles come with combat (2.5).");
-        }
-        // ProcessPlayers: the player is the first body, then the rest move and push.
-        _nearest = _wanderers!.Step(_world, motion.Sphere, before, _chunks.MapAt(motion.Sphere.Position.ToGodot())?.Key, _follow.Aim,
-            w => _chunks.View(w)?.Animation ?? Still.Instance);
-        if (_conversation is { } conversation && conversation.Tick())
-            ShowConversation();
-        foreach (var (part, target) in motion.Sphere.Trod)
-        {
-            if (_chunks.Map(part) is not { } map)
-                continue;
-            if (playing && !talking)
-                _use!.Tread(map, target, Local(map, motion.Sphere.Position));
-            else
-                _use!.TreadCamera(map, target);
-        }
-        _use!.StepCameras(motion.Sphere.Position);
         ShowPopup();
         _player.Sync();
         // A camera object cutting jumps the view; it isn't blended from where it was. Godot resets interpolation
@@ -442,6 +352,7 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
             _camera.ResetPhysicsInterpolation();
         PlaceShadow();
         DrawWanderers();
+        var motion = _player.Motion;
         _track.Enqueue(motion.Sphere.Position);
         if (_track.Count > Engine.PhysicsTicksPerSecond)
             _track.Dequeue();
@@ -457,85 +368,29 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
         _shadow?.ResetPhysicsInterpolation();
     }
 
-    /// <summary>A point in the world in a loaded chunk's coordinates.</summary>
-    private System.Numerics.Vector3 Local(LoadedMap map, System.Numerics.Vector3 world) => world - _chunks!.Origin(map).ToNumerics();
-
     /// <summary>Shows the popup using map objects has up, if it changed.</summary>
     private void ShowPopup()
     {
-        if (_popupView!.Popup != _use!.Popup)
-            _popupView.Popup = _use.Popup;
+        if (_popupView!.Popup != _trek!.Use.Popup)
+            _popupView.Popup = _trek.Use.Popup;
     }
 
-    /// <summary>
-    /// Steps a teleport's fade: out, black for a few frames, then the player goes through and it fades
-    /// in. The original fades out only if nothing else is fading, and teleports once it's done.
-    /// </summary>
-    private void StepFade()
+    /// <summary>Darkens the screen to a brightness, from 0 for black to 1.</summary>
+    private void ShowFade(float brightness)
     {
-        if (_pending is { } teleporter)
-        {
-            if (_brightness > 0)
-            {
-                _brightness = Math.Max(0, _brightness - FadeOutPerTick);
-            }
-            else if (++_blackTicks >= FadeHoldTicks)
-            {
-                _blackTicks = 0;
-                _pending = null;
-                _fadingIn = true;
-                GoThrough(teleporter);
-            }
-        }
-        else if (_fadingIn)
-        {
-            _brightness = Math.Min(1, _brightness + FadeInPerTick);
-            _fadingIn = _brightness < 1;
-        }
-        _trekFade.Step();
-        var brightness = Math.Min(_brightness, _trekFade.Brightness);
         _fade.Visible = brightness < 1;
         _fade.Color = new Color(0, 0, 0, 1 - brightness);
     }
 
-    /// <summary>
-    /// Takes the player through a teleporter (<c>TeleportPlayer</c>): what map objects remember ages, the
-    /// destination's chunks load, in another map set if need be, and he's set down at the arrival point
-    /// facing its way. The camera goes with him, outdoors or in an interior by the chunk's terrain, to the
-    /// teleporter's camera point if it has one (<see cref="FollowCamera.Arrive"/>).
-    /// </summary>
-    private void GoThrough(TeleporterObject teleporter)
-    {
-        if (TeleportArrival.For(_plugins!, teleporter) is not { } arrival)
-        {
-            Say($"{teleporter.Name} leads to a chunk no plugin has.");
-            return;
-        }
-        _game!.Memory.Age();
-        if (arrival.Set.Id != _chunks!.MapSet.Id)
-        {
-            _chunks.QueueFree();
-            _world.Clear();
-            _changed.Clear();
-            _wanderers!.Clear();
-            _chunks = new ChunkStreamer(_plugins!, _models!, arrival.Set, _world, _game, _wanderers, _shadowTexture);
-            AddChild(_chunks);
-        }
-        var point = _chunks.Origin(arrival.Chunk) + arrival.Position.ToGodot();
-        _chunks.Update(point);
-        _use!.ClearCameras();
-        var motion = _player!.Motion;
-        var from = motion.Sphere.Position;
-        motion.Sphere.Position = TeleportArrival.Settle(_world, point.ToNumerics(), motion.Sphere.Radius) ?? point.ToNumerics();
-        motion.Sphere.Velocity = System.Numerics.Vector3.Zero;
-        if (arrival.Heading is { } heading)
-            motion.Heading = heading;
-        _centre = (arrival.Chunk.Row, arrival.Chunk.Column);
-        Enter(arrival.Chunk);
-        _sky!.Apply();
+    // What trek asks of the runtime.
 
-        var camera = arrival.Camera is { } local ? _chunks.Origin(arrival.Chunk).ToNumerics() + local : (System.Numerics.Vector3?)null;
-        _follow!.Arrive(from, motion.Sphere.Position, motion.Heading, FollowCamera.ModeFor(_plugins!, arrival.Chunk), camera);
+    void ITrekHost.Entered(ChunkEntry? chunk) => _sky!.Enter(chunk);
+
+    /// <summary>The player has come through a teleporter: the sky, the camera and his body are where he is now.</summary>
+    void ITrekHost.Arrived()
+    {
+        var motion = _player!.Motion;
+        _sky!.Apply();
         _camera!.Yaw = MathF.Atan2(-motion.Heading.X, -motion.Heading.Y);
         _player.Sync();
         _camera.Sync();
@@ -543,35 +398,11 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
         ResetInterpolation();
     }
 
-    /// <summary>
-    /// Loads the map set's chunks and their wanderers again where the player stands, as trek starts again
-    /// after a cut-scene, a backdrop or the help menu (<c>initGameTrek</c>): every map object is gated
-    /// by the flags as they are now, and the wanderers start at their home nodes.
-    /// </summary>
-    private void RebuildTrek()
-    {
-        var set = _chunks?.MapSet ?? _trekSet!;
-        FreeTrek();
-        _chunks = new ChunkStreamer(_plugins!, _models!, set, _world, _game!, _wanderers!, _shadowTexture);
-        AddChild(_chunks);
-        _chunks.Update(_player!.Motion.Sphere.Position.ToGodot());
-        PlaceShadow();
-    }
+    IRootMotion ITrekHost.Motion(Wanderer wanderer) => _chunks!.View(wanderer)?.Animation ?? Core.Scripts.IActorMotion.Still;
 
-    /// <summary>Frees trek's chunks, their collision and wanderers, and hides the player's body (<c>clear_HUD_elements</c>).</summary>
-    private void FreeTrek()
-    {
-        _chunks?.QueueFree();
-        _chunks = null;
-        _world.Clear();
-        _changed.Clear();
-        _wanderers!.Clear();
-        _nearest = default;
-        _use!.ClearCameras();
-        _player!.Visible = false;
-        if (_shadow is not null)
-            _shadow.Visible = false;
-    }
+    void ITrekHost.Say(string text) => Say(text);
+
+    void ITrekHost.Log(string text) => GD.Print(text);
 
     /// <summary>
     /// Once a frame at the console's average 20 fps, the scenes the original would draw load their
@@ -646,8 +477,9 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
     private void DrawWanderers()
     {
         var aim = _follow!.Aim;
-        var centre = _chunks!.MapAt(_player!.Motion.Sphere.Position.ToGodot());
+        var centre = _chunks!.Chunks.MapAt(_player!.Motion.Sphere.Position);
         var ownAim = centre is null ? aim : aim - centre.Origin;
+        _chunks.SyncWanderers();
         foreach (var view in _chunks.Wanderers)
         {
             view.Sync();
@@ -699,26 +531,26 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
         var focus = _camera.Flying ? _camera.Current.GlobalPosition : _scene is not null ? _scene.Camera.Aim.ToGodot() : _player.GlobalPosition;
         // A cut-scene's 3×3 stays as it loaded.
         if (_scene is null)
-            chunks.Update(focus);
+            chunks.Chunks.Update(focus.ToNumerics());
         chunks.Fade(View(), _drawDistance);
         // From where the scenery is drawn this frame: between ticks, the camera interpolated.
         Billboards.Face(chunks.BillboardFacings, _camera.Current.GetGlobalTransformInterpolated().Origin);
 
         if (_overlay.Visible)
         {
-            var chunk = chunks.ChunkAt(focus);
+            var chunk = chunks.Chunks.ChunkAt(focus.ToNumerics());
             var local = chunk is null ? focus : focus - chunks.Origin(chunk);
             var motion = _player.Motion;
             var sphere = motion.Sphere;
             _overlay.Text = (_scene is { } scene ? $"cut-scene {scene.Runner.Script.Id}, waiting for {scene.Runner.Wait?.ToString() ?? "nothing"}, {scene.Actors.Count} actors, {scene.Cameras.Count} camera moves\n" : "") +
-                $"{chunks.MapSet.Label} {chunk?.Name ?? "(no chunk)"}  " +
+                $"{chunks.Chunks.MapSet.Label} {chunk?.Name ?? "(no chunk)"}  " +
                 $"({local.X:F1}, {local.Y:F1}, {local.Z:F1})  {Engine.GetFramesPerSecond()} fps" +
                 (_camera.Flying ? "  [free camera]" : "") + "\n" +
                 (sphere.Touching ? $"on {Surfaces.ElementAtOrDefault(sphere.Surface) ?? sphere.Surface.ToString()}" : "in the air") +
                 $"  speed {Speed():F2}/s  request {motion.Request}  pace {motion.Pace:0.##} (F5)" +
-                $"  camera {_follow!.Mode.ToString().ToLowerInvariant()}{(_use!.CurrentCamera is { } held ? $" (object {held.Index})" : "")}" +
+                $"  camera {_follow!.Mode.ToString().ToLowerInvariant()}{(_trek!.Use.CurrentCamera is { } held ? $" (object {held.Index})" : "")}" +
                 $"  {Clock(_sky!.Clock.TimeOfDay)}  sky {_sky.Placement.ToString().ToLowerInvariant()} (F6)" +
-                $"  UI {_menu!.Screen.Lines} lines (F7)  wanderers {_wanderers!.All.Count}";
+                $"  UI {_menu!.Screen.Lines} lines (F7)  wanderers {_trek.Wanderers.All.Count}";
         }
     }
 
@@ -749,23 +581,23 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
             if (e.IsActionPressed("pause") || e.IsActionPressed("menu_back") || menu.Handle(e))
                 return;
         }
-        else if (_use?.Popup is not null)
+        else if (_trek?.Use is { Popup: not null } use)
         {
             if (e.IsActionPressed("menu_accept"))
-                _use.Accept();
+                use.Accept();
             else if (e.IsActionPressed("menu_back"))
-                _use.Back();
+                use.Back();
             else if (e.IsActionPressed("move_forward") || e.IsActionPressed("menu_up"))
-                _use.MoveCursor(-1);
+                use.MoveCursor(-1);
             else if (e.IsActionPressed("move_back") || e.IsActionPressed("menu_down"))
-                _use.MoveCursor(1);
+                use.MoveCursor(1);
             else
                 return;
             ShowPopup();
             _popupView!.QueueRedraw();
             return;
         }
-        else if (_conversation is not null)
+        else if (_trek?.Conversation is not null)
         {
             Converse(e);
             return;
@@ -776,18 +608,18 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
             if (!e.IsActionPressed("toggle_fly") && !e.IsActionPressed("toggle_overlay"))
                 return;
         }
-        else if (_cueing is not null || _trekFade.Fading)
+        else if (_trek is { Cued: not null } or { CutSceneFade.Fading: true })
         {
             // Trek's input is dead while it fades into or out of a cut-scene.
             if (e.IsActionPressed("pause") || e.IsActionPressed("menu_accept"))
                 return;
         }
-        else if (e.IsActionPressed("pause") && _menu is not null && _pending is null)
+        else if (e.IsActionPressed("pause") && _menu is not null && _trek is { Teleporting: false })
         {
             _menu.Open();
             return;
         }
-        else if (e.IsActionPressed("menu_accept") && _camera is { Flying: false } && _pending is null && !_fadingIn && UseNearest())
+        else if (e.IsActionPressed("menu_accept") && _camera is { Flying: false } && _trek is { TeleportFade.Fading: false } && UseNearest())
         {
             return;
         }
@@ -822,85 +654,16 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
         }
     }
 
-    /// <summary>A in trek: uses the map object the player reaches in the chunk he's in (<c>obj_ref_func</c>).</summary>
+    /// <summary>A in trek: uses the map object the player reaches, and shows any popup it brings up.</summary>
     private bool UseNearest()
     {
-        var sphere = _player!.Motion.Sphere;
-        if (_chunks!.MapAt(sphere.Position.ToGodot()) is not { } map)
-            return false;
-        (MonsterPartyObject, System.Numerics.Vector3, float)? body = null;
-        if (_nearest is ({ } nearest, var distance) && nearest.Map == map && Wanderers.Reaches(nearest, distance, sphere))
-            body = (nearest.Party, Local(map, nearest.Body.Sphere.Position), distance);
-        var used = _use!.UseNearest(map, Local(map, sphere.Position), _player.Motion.Heading, sphere.Radius, body);
+        var used = _trek!.UseNearest();
         ShowPopup();
         return used;
     }
 
-    // What using map objects asks of the runtime.
-
-    void IMapObjectHost.Teleport(LoadedMap from, TeleporterObject teleporter)
-    {
-        // set_teleport_pointer: the fade starts unless one is under way, and the teleport waits for it.
-        if (_pending is not null || _fadingIn)
-            return;
-        _pending = teleporter;
-        _blackTicks = 0;
-    }
-
     /// <summary>The loot window: the pause menu in its barter state, which stops trek until it closes.</summary>
-    void IMapObjectHost.OpenLoot(ItemPile loot, int gold) => _menu!.OpenLoot(loot, gold);
-
-    void IMapObjectHost.StartScript(LoadedMap map, DialogueObject dialogue)
-    {
-        // One script at a time (dialoug_func).
-        if (_conversation is not null)
-            return;
-        if (_plugins!.TryGet<DialogueRecord>(dialogue.Script) is { Mode: DialogueMode.Sign } sign)
-        {
-            _conversation = Conversation.Show(_game!, sign, new Core.Scripts.ScriptStart(dialogue.RefPointBase, MapRecord.VoxelId(map.Record.Id, dialogue.Index)),
-                this, _player!.Motion);
-            ShowConversation();
-            return;
-        }
-        var source = MapRecord.VoxelId(map.Record.Id, dialogue.Index);
-        if (_plugins.TryGet<DialogueRecord>(dialogue.Script) is { Mode: DialogueMode.Cutscene } cutscene && dialogue.Stage is { } stage)
-        {
-            CueCutScene(cutscene, new Core.Scripts.ScriptStart(dialogue.RefPointBase, source), stage);
-            return;
-        }
-        // Backdrops and the help menu come later. A tangible dialogue asks every tick, so say it once.
-        if (_lastScript == dialogue.Script)
-            return;
-        _lastScript = dialogue.Script;
-        Say($"{dialogue.Name} would start {dialogue.Script}.");
-    }
-
-    void IMapObjectHost.Talk(LoadedMap map, MonsterPartyObject party)
-    {
-        if (_conversation is not null || _wanderers!.Of(map, party) is not { } wanderer)
-            return;
-        if (party.Dialogue is null)
-        {
-            Say($"{MapRecord.VoxelId(map.Record.Id, party.Index)} would fight; battles come with combat (2.5).");
-            return;
-        }
-        // A talker whose script is a cut-scene stages it in the chunk the player is in, from reference
-        // point 0 (monsterpary_func), and holds still as trek fades out.
-        if (_plugins!.TryGet<DialogueRecord>(party.Dialogue.Value) is { Mode: DialogueMode.Cutscene } cutscene)
-        {
-            if ((party.Flags & PartyFlags.Silent) != 0 || _chunks!.ChunkAt(_player!.Motion.Sphere.Position.ToGodot()) is not { } chunk)
-                return;
-            wanderer.Calmed = true;
-            wanderer.Body.Held = true;
-            CueCutScene(cutscene, new Core.Scripts.ScriptStart(0, MapRecord.VoxelId(map.Record.Id, party.Index)),
-                new ChunkRef(_chunks.MapSet.Id, chunk.Row, chunk.Column));
-            if (party.Used is { } used)
-                _game!.Flags.Set(used.Flag, true);
-            return;
-        }
-        _conversation = Conversation.TalkTo(_game!, wanderer, this, _player!.Motion);
-        ShowConversation();
-    }
+    void ITrekHost.OpenLoot(ItemPile loot, int gold) => _menu!.OpenLoot(loot, gold);
 
     // Conversations.
 
@@ -910,7 +673,7 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
     /// </summary>
     private void Converse(InputEvent e)
     {
-        var conversation = _conversation!;
+        var conversation = _trek!.Conversation!;
         var runner = conversation.Runner;
         if (runner.Status != Core.Scripts.ScriptStatus.Showing || runner.Page is not { } page)
             return;
@@ -926,7 +689,7 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
                 conversation.Press(() => runner.Choose(box.Highlight));
             else
                 conversation.Press(runner.Continue);
-            ShowConversation();
+            _trek.Refresh();
         }
         else if (e.IsActionPressed("move_forward") || e.IsActionPressed("menu_up"))
         {
@@ -938,40 +701,20 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
         }
     }
 
-    /// <summary>
-    /// Shows what the conversation has come to: its page in the box, or its end. What a script waits
-    /// for that the runtime can't do yet (a camera, an actor walking or animating) is taken as done.
-    /// </summary>
-    private void ShowConversation()
+    /// <summary>Shows the conversation's page in the box, or hides the box once there's none.</summary>
+    void ITrekHost.ConversationChanged()
     {
-        if (_conversation is not { } conversation)
-            return;
-        var runner = conversation.Runner;
-        while (runner.Status == Core.Scripts.ScriptStatus.Waiting && runner.Wait != Core.Scripts.ScriptWait.Timer)
-        {
-            GD.Print($"{runner.Script.Id} waits for {runner.Wait}, which a conversation can't show; going on.");
-            runner.Resume();
-        }
-        if (runner.Status == Core.Scripts.ScriptStatus.Showing && runner.Page is { } page)
+        if (_trek!.Conversation?.Runner is { Status: Core.Scripts.ScriptStatus.Showing, Page: { } page })
             _box!.Show(page);
         else
             _box!.Visible = false;
-        if (conversation.Ended)
-            EndConversation();
     }
 
-    /// <summary>Ends the conversation, saying what the stand-ins for a shop, training, battle or camp would do.</summary>
-    private void EndConversation()
+    /// <summary>A conversation has ended: any fault, and what the stand-ins for a shop, training, battle or camp would do.</summary>
+    void ITrekHost.ScriptEnded(RecordId script, Core.Scripts.ScriptEnding ending)
     {
-        var conversation = _conversation!;
-        var ending = conversation.Runner.Ending!;
-        conversation.End(_wanderers!, _follow!);
-        _conversation = null;
-        _box!.Visible = false;
-        if (conversation.RebuildsTrek)
-            RebuildTrek();
         if (ending.Fault is { } fault)
-            GD.PushWarning($"{conversation.Runner.Script.Id}: {fault}");
+            GD.PushWarning($"{script}: {fault}");
         SayEnding(ending);
     }
 
@@ -997,26 +740,26 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
             GD.Print($"Sound: {sound}");
     }
 
-    void IMapObjectHost.Animate(LoadedMap map, SceneObject actor, int request)
+    void ITrekHost.Animate(LoadedMap map, SceneObject actor, int request)
     {
         if (_chunks!.Animator(map, actor) is { } animator)
             animator.Request = request;
     }
 
-    void IMapObjectHost.Changed(LoadedMap map, SceneObject scene) => _changed.Add(map);
+    void ITrekHost.Changed(LoadedMap map, SceneObject scene) => _changed.Add(map);
 
-    void IMapObjectHost.Sound(string cue) => GD.Print($"Sound: {cue}");
+    void ITrekHost.Sound(string cue) => GD.Print($"Sound: {cue}");
 
     /// <summary>Saves the game to <c>quick.json</c> in the saves folder, with where the player stands.</summary>
     private void QuickSave()
     {
         var position = _player!.Motion.Sphere.Position.ToGodot();
-        if (_chunks!.ChunkAt(position) is not { } chunk)
+        if (_chunks!.Chunks.ChunkAt(position.ToNumerics()) is not { } chunk)
         {
             Say("Can't save: the player isn't in a chunk.");
             return;
         }
-        _game!.Place = new SavePlace(_chunks.MapSet.Id, chunk.Name, (position - _chunks.Origin(chunk)).ToNumerics(), _player.Motion.Heading);
+        _game!.Place = new SavePlace(_chunks.Chunks.MapSet.Id, chunk.Name, (position - _chunks.Origin(chunk)).ToNumerics(), _player.Motion.Heading);
         var path = Path.Combine(DataPaths.Saves, "quick" + SaveFile.Extension);
         SaveFile.Write(path, _game.Save());
         Say($"Saved to {path}");
@@ -1116,12 +859,4 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
 
     private static float[] Floats(string text) =>
         [.. text.Split(',').Select(s => float.Parse(s, CultureInfo.InvariantCulture))];
-
-    /// <summary>For a body with no animations: it stands still.</summary>
-    private sealed class Still : IRootMotion
-    {
-        public static readonly Still Instance = new();
-
-        public float Tick(int request) => 0;
-    }
 }

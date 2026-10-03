@@ -60,7 +60,7 @@ public partial class CutSceneActorView : Node3D
     public CutSceneActor Actor { get; }
 
     /// <summary>Its animations, which the core ticks as the body steps.</summary>
-    public IActorMotion Motion { get; } = new Still();
+    public IActorMotion Motion { get; } = IActorMotion.Still;
 
     /// <summary>Moves the node to where the body is, and puts what it holds in its hand. Call after each tick.</summary>
     public void Sync()
@@ -104,12 +104,5 @@ public partial class CutSceneActorView : Node3D
             _shadow.Shadow.Place(world, sphere.Position, sphere.Radius, a);
         _shadow.Sync();
         _shadow.Visible &= shadow is not null;
-    }
-
-    private sealed class Still : IActorMotion
-    {
-        public int StateLength => 1;
-
-        public float Tick(int request) => 0;
     }
 }
