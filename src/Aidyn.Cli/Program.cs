@@ -10,7 +10,6 @@ using Aidyn.Rom.Dialogue;
 using Aidyn.Rom.Graphics;
 using Aidyn.Rom.Import;
 using Aidyn.Rom.Maps;
-using Aidyn.Rom.Quests;
 using Aidyn.Rom.Rig;
 using Aidyn.Rom.Text;
 
@@ -34,8 +33,9 @@ const string Usage = """
       aidyn dialogue <rom> [<index>...] [--out <dir>]
                                            Borg13 scripts as text (all, or the given archive indices);
                                            default dir: out/<version>/dialogue
-      aidyn atlas <rom> [--out <dir>]        the quest atlas as JSON; default dir: out/<version>/atlas
-      aidyn flag <rom> <flag>...             what sets and reads each flag
+      aidyn atlas [--out <dir>]              the quest atlas of the installed plugins as JSON;
+                                           default dir: out/atlas
+      aidyn flag <flag>...                   what sets, clears and reads each flag, in the installed plugins
       aidyn strings <rom> <table>            one string table, numbered by line
       aidyn strings <rom> [--out <dir>]      every string table as text, a file each;
                                            default dir: out/<version>/strings
@@ -65,9 +65,9 @@ try
         ["actors", var rom, "--out", var dir] => Actors(rom, dir),
         ["maps", var rom, .. var rest] => Maps(rom, rest),
         ["dialogue", var rom, .. var rest] => Dialogue(rom, rest),
-        ["atlas", var rom] => Atlas(rom, null),
-        ["atlas", var rom, "--out", var dir] => Atlas(rom, dir),
-        ["flag", var rom, .. var flags] when flags.Length > 0 => Flags(rom, flags),
+        ["atlas"] => Atlas(null),
+        ["atlas", "--out", var dir] => Atlas(dir),
+        ["flag", .. var flags] when flags.Length > 0 => Flags(flags),
         ["strings", var rom] => AllStrings(rom, null),
         ["strings", var rom, "--out", var dir] => AllStrings(rom, dir),
         ["strings", var rom, var table] => Strings(rom, table),
@@ -312,26 +312,27 @@ static int Dialogue(string path, string[] args)
     return 0;
 }
 
-static int Atlas(string path, string? outDir)
+static int Atlas(string? outDir)
 {
-    var rom = RomImage.Load(path);
-    var atlas = QuestAtlas.Build(rom);
-    outDir ??= Path.Combine("out", rom.Version.Id.ToString().ToLowerInvariant(), "atlas");
+    var plugins = InstalledPlugins();
+    var report = new FlagReport(plugins, QuestIndex.Build(plugins));
+    outDir ??= Path.Combine("out", "atlas");
     Directory.CreateDirectory(outDir);
-    File.WriteAllBytes(Path.Combine(outDir, "atlas.json"), AtlasJson.Serialize(atlas, rom.Version.Name));
-    Console.WriteLine($"Wrote the atlas to {Path.GetFullPath(outDir)}: {atlas.References.Count} flag references, " +
-        $"{atlas.Scripts.Count} scripts, {atlas.Objects.Count} map objects");
+    File.WriteAllBytes(Path.Combine(outDir, "atlas.json"), AtlasJson.Serialize(report, plugins));
+    Console.WriteLine($"Wrote the atlas to {Path.GetFullPath(outDir)}: {report.Flags.Count} flags, " +
+        $"{report.Journal.Count} journal entries, {plugins.All<Aidyn.Plugins.Records.DialogueRecord>(RecordTypes.Dialogue).Count()} scripts");
     return 0;
 }
 
-static int Flags(string path, string[] flags)
+static int Flags(string[] flags)
 {
-    var atlas = QuestAtlas.Build(RomImage.Load(path));
+    var plugins = InstalledPlugins();
+    var report = new FlagReport(plugins, QuestIndex.Build(plugins));
     foreach (var arg in flags)
     {
-        if (!int.TryParse(arg, CultureInfo.InvariantCulture, out var flag) || flag < 0 || flag >= atlas.Funnel.Flags.Count)
-            return Fail($"\"{arg}\" isn't a flag number (0 to {atlas.Funnel.Flags.Count - 1}).");
-        Console.WriteLine(FlagReport.Describe(atlas, flag));
+        if (!int.TryParse(arg, CultureInfo.InvariantCulture, out var flag) || flag < 0 || flag >= report.Flags.Count)
+            return Fail($"\"{arg}\" isn't a flag number (0 to {report.Flags.Count - 1}).");
+        Console.WriteLine(report.Describe(flag));
     }
     return 0;
 }

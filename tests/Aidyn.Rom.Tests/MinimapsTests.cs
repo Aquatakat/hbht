@@ -40,17 +40,4 @@ public class MinimapsTests
         Assert.Equal(Enumerable.Range(0x1E, 5), minimaps.RoogEntrance.Select(m => m.Image).Order());
         Assert.Equal(minimaps.Sections[5].Select(s => s.Image).Order(), minimaps.RoogEntrance.Select(m => m.Image).Order());
     }
-
-    /// <summary>Trigger objects set every flag the minimaps read.</summary>
-    [Fact]
-    public void MinimapFlagsHaveSetters()
-    {
-        var rom = TestRoms.Get(RomVersionId.Na10);
-        var minimaps = Minimaps.Read(rom);
-        var triggers = QuestAtlas.Build(rom).References.Where(r => r.Role == FlagRole.TriggerSets).Select(r => r.Flag).ToHashSet();
-        var flags = new[] { minimaps.Ehud, minimaps.RoogEntrance, minimaps.Barrows }.SelectMany(l => l).Select(m => m.Flag).ToList();
-
-        Assert.Equal([.. Enumerable.Range(4222, 16), .. Enumerable.Range(4286, 9)], flags.Select(f => (int)f).Order());
-        Assert.All(flags, f => Assert.Contains(f, triggers));
-    }
 }

@@ -1,161 +1,106 @@
 using System.Globalization;
 using System.Text.Encodings.Web;
 using System.Text.Json;
-using Aidyn.Rom.Db;
-using Aidyn.Rom.Dialogue;
-using Aidyn.Rom.Maps;
-using Aidyn.Rom.Quests;
+using Aidyn.Plugins;
+using Aidyn.Plugins.Records;
 
 /// <summary>
-/// The quest atlas as one JSON file. Map objects are included
-/// only if they use a flag or start a script, and are referred to by their position in
-/// <c>objects</c>.
+/// The quest index as one JSON file: every flag with its label, formula, journal entry and uses, every
+/// script with what starts it, and the map objects that use a flag or start a script, which the uses
+/// refer to by their voxel IDs.
 /// </summary>
 internal static class AtlasJson
 {
-    public static byte[] Serialize(QuestAtlas atlas, string version)
+    public static byte[] Serialize(FlagReport report, PluginSet plugins)
     {
-        var objectIndex = new Dictionary<(int, int), int>();
-        var objects = new List<AtlasObject>();
-        var byKey = atlas.Objects.ToDictionary(o => (o.Borg9, o.Object.Index));
-        void Use(AtlasSource source)
-        {
-            if (source is ObjectSource os && !objectIndex.ContainsKey((os.Borg9, os.Index)))
-            {
-                objectIndex[(os.Borg9, os.Index)] = objects.Count;
-                objects.Add(byKey[(os.Borg9, os.Index)]);
-            }
-        }
-        foreach (var r in atlas.References)
-            Use(r.Source);
-        foreach (var s in atlas.Scripts.Values.SelectMany(s => s.StartedBy))
-            Use(s);
+        var index = report.Index;
+        var voxels = new SortedSet<RecordId>(Comparer<RecordId>.Create((a, b) => string.CompareOrdinal(a.ToString(), b.ToString())));
+        var scripts = plugins.All<DialogueRecord>(RecordTypes.Dialogue).OrderBy(s => s.Number).ToList();
 
         using var stream = new MemoryStream();
         using (var w = new Utf8JsonWriter(stream, new JsonWriterOptions { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping }))
         {
             w.WriteStartObject();
-            w.WriteString("version", version);
-            w.WriteNumber("bitFlagCount", atlas.Funnel.BitFlagCount);
-            w.WriteNumber("flagCount", atlas.Funnel.Flags.Count);
-
-            w.WriteStartObject("names");
-            foreach (var (id, name) in atlas.Names.OrderBy(n => n.Key))
-                w.WriteString(id.ToString(), name);
-            w.WriteEndObject();
+            w.WriteString("version", plugins.Plugins.FirstOrDefault(p => p.Manifest.Import is not null)?.Manifest.Import?.RomVersion);
+            w.WriteNumber("bitFlagCount", report.Flags.Count(f => f.Formula is null));
+            w.WriteNumber("flagCount", report.Flags.Count);
 
             w.WriteStartArray("journal");
-            foreach (var entry in atlas.Journal)
+            foreach (var entry in report.Journal)
             {
                 w.WriteStartObject();
-                w.WriteNumber("flag", entry.Flag);
+                w.WriteNumber("flag", FlagReport.Number(entry.Flag));
                 w.WriteString("text", entry.Text);
                 w.WriteEndObject();
             }
             w.WriteEndArray();
 
-            w.WriteStartArray("engine");
-            foreach (var range in EngineFlags.Ranges)
-            {
-                w.WriteStartObject();
-                w.WriteNumber("first", range.First);
-                w.WriteNumber("last", range.Last);
-                w.WriteString("description", range.Description);
-                w.WriteEndObject();
-            }
-            w.WriteEndArray();
-
-            w.WriteStartObject("labels");
-            foreach (var (flag, label) in atlas.Labels.OrderBy(l => l.Key))
-                w.WriteString(flag.ToString(CultureInfo.InvariantCulture), label);
-            w.WriteEndObject();
-
-            // Derived flags' definitions, and plain flags that start set.
+            // Flags with something to say: a label, a formula, a journal entry, a start set, or a use.
             w.WriteStartObject("flags");
-            for (var flag = 0; flag < atlas.Funnel.Flags.Count; flag++)
+            foreach (var flag in report.Flags)
             {
-                var d = atlas.Funnel.Flags[flag];
-                var derived = !atlas.IsBitFlag(flag);
-                if (!derived && d.InitialValue == 0)
+                var uses = index.UsesOf(flag.Id);
+                if (flag.Label is null && flag.Formula is null && flag.Journal is null && !flag.Initial && uses.Count == 0)
                     continue;
-                w.WriteStartObject(flag.ToString(CultureInfo.InvariantCulture));
-                if (d.InitialValue != 0)
-                    w.WriteNumber("initial", d.InitialValue);
-                if (derived)
+                w.WriteStartObject(FlagReport.Number(flag.Id).ToString(CultureInfo.InvariantCulture));
+                if (flag.Label is not null)
+                    w.WriteString("label", flag.Label);
+                if (flag.Initial)
+                    w.WriteBoolean("initial", true);
+                if (flag.Journal is { } journal)
+                    w.WriteNumber("journal", FlagReport.Number(journal));
+                if (flag.Formula is { } formula)
                 {
-                    w.WriteString("kind", d.Kind.ToString());
-                    w.WriteString("op", d.Op.ToString());
-                    w.WriteNumber("operand", d.Operand);
+                    w.WriteStartObject("formula");
+                    w.WriteString("kind", formula.Kind.ToString());
+                    w.WriteString("operation", formula.Op.ToString());
+                    w.WriteNumber("operand", formula.Operand);
                     w.WriteStartArray("inputs");
-                    foreach (var input in QuestAtlas.Inputs(atlas.Funnel, flag))
-                        w.WriteNumberValue(input);
+                    foreach (var input in formula.Inputs)
+                        w.WriteNumberValue(FlagReport.Number(input));
                     w.WriteEndArray();
+                    w.WriteEndObject();
                 }
+                w.WriteStartArray("uses");
+                foreach (var use in uses)
+                {
+                    if (use.By.Type == RecordTypes.Voxel)
+                        voxels.Add(use.By);
+                    w.WriteStartObject();
+                    w.WriteString("by", use.By.ToString());
+                    w.WriteString("access", use.Access.ToString());
+                    w.WriteString("role", use.Role.ToString());
+                    if (use.At is { } at)
+                        w.WriteNumber("node", at);
+                    if (use.Inverted)
+                        w.WriteBoolean("inverted", true);
+                    w.WriteEndObject();
+                }
+                w.WriteEndArray();
                 w.WriteEndObject();
             }
             w.WriteEndObject();
-
-            w.WriteStartArray("refs");
-            foreach (var r in atlas.References)
-            {
-                w.WriteStartObject();
-                w.WriteNumber("flag", r.Flag);
-                w.WriteString("access", r.Access.ToString());
-                w.WriteString("role", r.Role.ToString());
-                if (r.Ignored)
-                    w.WriteBoolean("ignored", true);
-                WriteSource(w, "src", r.Source, objectIndex);
-                w.WriteEndObject();
-            }
-            w.WriteEndArray();
 
             w.WriteStartObject("scripts");
-            foreach (var (index, entry) in atlas.Scripts.OrderBy(s => s.Key))
+            foreach (var script in scripts)
             {
-                var script = entry.Script;
-                w.WriteStartObject(index.ToString(CultureInfo.InvariantCulture));
-                w.WriteString("mode", script.StartMode.ToString());
-                w.WriteNumber("id", script.Id);
-                w.WriteNumber("doneFlag", script.DoneFlag);
-                if (script.StartMode == Borg13StartMode.Backdrop)
-                    w.WriteNumber("backdrop", script.Backdrop);
-                w.WriteStartArray("actors");
-                foreach (var actor in script.Actors)
-                    w.WriteStringValue(actor.ToString());
-                w.WriteEndArray();
+                var starters = index.StartersOf(script.Id);
+                foreach (var starter in starters.Where(s => s.By.Type == RecordTypes.Voxel))
+                    voxels.Add(starter.By);
+                w.WriteStartObject(script.Id.ToString());
+                w.WriteNumber("number", script.Number);
+                w.WriteString("mode", script.Mode.ToString());
+                if (script.DoneFlag is { } done)
+                    w.WriteNumber("doneFlag", FlagReport.Number(done));
+                if (script.BattleFlag is { } battle)
+                    w.WriteNumber("battleFlag", FlagReport.Number(battle));
                 w.WriteStartArray("startedBy");
-                foreach (var source in entry.StartedBy)
+                foreach (var starter in starters)
                 {
                     w.WriteStartObject();
-                    WriteSource(w, "src", source, objectIndex);
-                    w.WriteEndObject();
-                }
-                w.WriteEndArray();
-                w.WriteStartArray("nodes");
-                foreach (var node in script.Nodes)
-                {
-                    w.WriteStartObject();
-                    w.WriteString("kind", node.Kind.ToString());
-                    if (node.Text.Length > 0)
-                        w.WriteString("text", node.Text);
-                    w.WriteStartArray("ops");
-                    foreach (var op in node.Ops)
-                    {
-                        w.WriteStartArray();
-                        w.WriteStringValue(op.Opcode.ToString());
-                        w.WriteNumberValue(op.Value);
-                        w.WriteEndArray();
-                    }
-                    w.WriteEndArray();
-                    w.WriteStartArray("links");
-                    foreach (var link in node.Links)
-                        w.WriteNumberValue(link);
-                    w.WriteEndArray();
-                    if (node.Min != 0 || node.Max != 0)
-                    {
-                        w.WriteNumber("min", node.Min);
-                        w.WriteNumber("max", node.Max);
-                    }
+                    w.WriteString("by", starter.By.ToString());
+                    if (starter.At is { } at)
+                        w.WriteNumber("node", at);
                     w.WriteEndObject();
                 }
                 w.WriteEndArray();
@@ -163,98 +108,13 @@ internal static class AtlasJson
             }
             w.WriteEndObject();
 
-            w.WriteStartArray("objects");
-            foreach (var o in objects)
-                WriteObject(w, o);
-            w.WriteEndArray();
+            w.WriteStartObject("objects");
+            foreach (var voxel in voxels)
+                w.WriteString(voxel.ToString(), report.Object(voxel));
+            w.WriteEndObject();
 
             w.WriteEndObject();
         }
         return stream.ToArray();
-    }
-
-    private static void WriteSource(Utf8JsonWriter w, string name, AtlasSource source, Dictionary<(int, int), int> objectIndex)
-    {
-        w.WriteStartObject(name);
-        switch (source)
-        {
-            case ScriptSource s:
-                w.WriteNumber("script", s.Script);
-                if (s.Node is { } node)
-                    w.WriteNumber("node", node);
-                break;
-            case ObjectSource o:
-                w.WriteNumber("object", objectIndex[(o.Borg9, o.Index)]);
-                break;
-            case FlagSource f:
-                w.WriteNumber("derived", f.Flag);
-                break;
-            case ShopSource p:
-                w.WriteNumber("shop", p.Shop);
-                w.WriteString("shopkeeper", p.Shopkeeper.ToString());
-                break;
-            case EngineSource e:
-                w.WriteString("engine", e.Description);
-                break;
-        }
-        w.WriteEndObject();
-    }
-
-    private static void WriteObject(Utf8JsonWriter w, AtlasObject entry)
-    {
-        var o = entry.Object;
-        w.WriteStartObject();
-        w.WriteNumber("borg9", entry.Borg9);
-        w.WriteNumber("index", o.Index);
-        w.WriteString("type", o.Type.ToString());
-        w.WriteStartArray("chunks");
-        foreach (var chunk in entry.Chunks)
-            w.WriteStringValue(chunk.ToString());
-        w.WriteEndArray();
-        w.WriteStartArray("pos");
-        w.WriteNumberValue(MathF.Round(o.Position.X, 2));
-        w.WriteNumberValue(MathF.Round(o.Position.Y, 2));
-        w.WriteNumberValue(MathF.Round(o.Position.Z, 2));
-        w.WriteEndArray();
-        w.WriteString("bits", "0x" + ((int)o.Flags).ToString("X4", CultureInfo.InvariantCulture));
-        w.WriteString("visible", o.Visible.ToString());
-        w.WriteString("enabled", o.Enabled.ToString());
-        w.WriteNumber("flagB", o.FlagB);
-        switch (o.Data)
-        {
-            case DialogueData d:
-                w.WriteNumber("script", d.Script);
-                w.WriteString("name", d.Name);
-                break;
-            case MonsterPartyData m:
-                w.WriteString("entity", m.Entity.ToString());
-                if (m.Dialogue != 0)
-                    w.WriteNumber("script", m.Dialogue);
-                w.WriteStartArray("enemies");
-                foreach (var e in m.Enemies)
-                    w.WriteStringValue(e.Enemy.ToString());
-                w.WriteEndArray();
-                break;
-            case TeleporterData t:
-                w.WriteString("name", t.Name);
-                w.WriteString("to", new MapChunk(t.Destination.Set, t.Destination.Row, t.Destination.Column, 0, 0, 0, 0).ToString());
-                break;
-            case ContainerData c:
-                if (!c.Loot.IsNone)
-                    w.WriteString("loot", c.Loot.ToString());
-                if (!c.Item.IsNone)
-                    w.WriteString("item", c.Item.ToString());
-                if (c.Gold != 0)
-                    w.WriteNumber("gold", c.Gold);
-                break;
-            case TriggerData t:
-                w.WriteString("trigger", t.Kind.ToString());
-                w.WriteNumber("a", t.A);
-                break;
-            case ReferencePointData r:
-                w.WriteString("name", r.Name);
-                break;
-        }
-        w.WriteEndObject();
     }
 }

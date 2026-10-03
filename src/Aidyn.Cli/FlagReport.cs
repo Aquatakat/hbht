@@ -1,136 +1,151 @@
 using System.Globalization;
 using System.Text;
-using Aidyn.Rom.Db;
-using Aidyn.Rom.Dialogue;
-using Aidyn.Rom.Maps;
-using Aidyn.Rom.Quests;
+using Aidyn.Plugins;
+using Aidyn.Plugins.Records;
 
-/// <summary>A flag's entry in the quest atlas, as text.</summary>
-internal static class FlagReport
+/// <summary>
+/// A flag's entry in the quest index, as text: what sets, clears and reads it, with each script's
+/// nearest line and where it's started from.
+/// </summary>
+internal sealed class FlagReport
 {
-    public static string Describe(QuestAtlas atlas, int flag)
+    private readonly PluginSet _plugins;
+    private readonly PluginCatalog _catalog;
+
+    public FlagReport(PluginSet plugins, QuestIndex index)
+    {
+        _plugins = plugins;
+        Index = index;
+        _catalog = PluginCatalog.Build(plugins);
+        Flags = [.. plugins.All<FlagRecord>(RecordTypes.Flag).OrderBy(f => Number(f.Id))];
+        Journal = [.. plugins.All<JournalRecord>(RecordTypes.Journal).OrderBy(j => Number(j.Id))];
+    }
+
+    public QuestIndex Index { get; }
+
+    /// <summary>Every flag, by number.</summary>
+    public IReadOnlyList<FlagRecord> Flags { get; }
+
+    /// <summary>Every journal entry, by number.</summary>
+    public IReadOnlyList<JournalRecord> Journal { get; }
+
+    public static int Number(RecordId id) => int.Parse(id.Key, CultureInfo.InvariantCulture);
+
+    public string Describe(int number)
     {
         var s = new StringBuilder();
-        var definition = atlas.Funnel.Flags[flag];
-        if (atlas.IsBitFlag(flag))
-            s.AppendLine(CultureInfo.InvariantCulture, $"Flag {flag}: plain, starts {(definition.InitialValue != 0 ? "set" : "clear")}");
+        var id = RecordId.Decimal(RecordTypes.Flag, number);
+        var flag = _plugins.Get<FlagRecord>(id);
+        if (flag.Formula is { } formula)
+            s.AppendLine(CultureInfo.InvariantCulture, $"Flag {number}: derived, {formula.Describe()}; inputs {string.Join(", ", formula.Inputs.Select(i => Number(i)))}");
         else
-            s.AppendLine(CultureInfo.InvariantCulture, $"Flag {flag}: derived, {Derivation(atlas, flag)}");
+            s.AppendLine(CultureInfo.InvariantCulture, $"Flag {number}: plain, starts {(flag.Initial ? "set" : "clear")}");
+        if (flag.Label is { } label)
+            s.AppendLine(label);
 
-        foreach (var entry in atlas.JournalByFlag[(ushort)flag])
-            s.AppendLine(CultureInfo.InvariantCulture, $"Journal {entry}: {atlas.Journal[entry].Text.Trim()}");
-        if (flag >= EngineFlags.JournalTriggers && flag - EngineFlags.JournalTriggers < atlas.Journal.Count)
-            s.AppendLine(CultureInfo.InvariantCulture, $"Shows the new-entry notice for journal {flag - EngineFlags.JournalTriggers}.");
+        foreach (var entry in Journal.Where(j => j.Flag == id))
+            s.AppendLine(CultureInfo.InvariantCulture, $"Journal {Number(entry.Id)}: {entry.Text.Trim()}");
+        if (flag.Journal is { } shown)
+            s.AppendLine(CultureInfo.InvariantCulture, $"Shows the new-entry notice for journal {Number(shown)}.");
 
-        var refs = atlas.References.Where(r => r.Flag == flag).ToList();
-        var writes = refs.Where(r => r.Access != FlagAccess.Read).ToList();
-        if (atlas.IsBitFlag(flag) || writes.Count > 0)
+        var uses = Index.UsesOf(id);
+        var writes = uses.Where(u => u.Access != FlagAccess.Read).ToList();
+        if (flag.Formula is null || writes.Count > 0)
             Section("Set or cleared by", writes);
-        Section("Read by", refs.Where(r => r.Access == FlagAccess.Read));
+        Section("Read by", uses.Where(u => u.Access == FlagAccess.Read));
         return s.ToString();
 
-        void Section(string title, IEnumerable<FlagReference> list)
+        void Section(string title, IEnumerable<FlagUse> list)
         {
             var items = list.ToList();
             s.AppendLine().AppendLine(CultureInfo.InvariantCulture, $"{title}: {(items.Count == 0 ? "nothing known" : "")}");
-            foreach (var r in items)
+            foreach (var use in items)
             {
-                s.Append("  ").Append(r.Role);
-                if (r.Access == FlagAccess.Clear)
+                s.Append("  ").Append(use.Role);
+                if (use.Access == FlagAccess.Clear)
                     s.Append(" (clears)");
-                if (r.Ignored)
-                    s.Append(" (ignored by the game)");
-                s.Append(": ").AppendLine(Where(atlas, r.Source));
+                if (use.Inverted)
+                    s.Append(" (while clear)");
+                s.Append(": ").AppendLine(Where(use.By, use.At));
             }
         }
     }
 
-    public static string Derivation(QuestAtlas atlas, int flag)
+    /// <summary>A record that uses a flag, as text. For a script, <paramref name="node"/> names the node.</summary>
+    public string Where(RecordId by, int? node = null)
     {
-        var d = atlas.Funnel.Flags[flag];
-        var inputs = string.Join(", ", QuestAtlas.Inputs(atlas.Funnel, flag));
-        return d.Kind switch
+        switch (by.Type)
         {
-            FlagKind.Logic when d.Op == FlagOp.Mask => $"inputs as bits == {d.Operand} [{inputs}]",
-            FlagKind.Logic => $"{d.Op.ToString().ToUpperInvariant()} [{inputs}]",
-            FlagKind.Value => $"inputs as bits {Compare(d.Op)} {d.Operand} [{inputs}]",
-            FlagKind.Count => $"count set {Compare(d.Op)} {d.Operand} [{inputs}]",
-            _ => d.Kind.ToString(),
-        };
-
-        static string Compare(FlagOp op) => op switch
-        {
-            FlagOp.Equal => "==", FlagOp.Greater => ">", FlagOp.Less => "<", FlagOp.NotEqual => "!=", _ => op.ToString(),
-        };
-    }
-
-    public static string Where(QuestAtlas atlas, AtlasSource source)
-    {
-        switch (source)
-        {
-            case ScriptSource ss:
-                var entry = atlas.Scripts[ss.Script];
-                var where = $"Borg13 {ss.Script} ({entry.Script.StartMode}){(ss.Node is { } n ? $" node {n}" : "")}";
-                if (ss.Node is { } node)
-                {
-                    var text = LineNear(entry.Script, node);
-                    if (text.Length > 0)
-                        where += $" near \"{Shorten(text)}\"";
-                }
-                return where + StartedBy(atlas, entry);
-            case ObjectSource os:
-                return Object(atlas, os);
-            case FlagSource fs:
-                return $"derived flag {fs.Flag}";
-            case ShopSource ps:
-                return $"shop {ps.Shop}, run by {atlas.Names.GetValueOrDefault(ps.Shopkeeper, ps.Shopkeeper.ToString())}";
-            case EngineSource es:
-                return $"engine: {es.Description}";
+            case RecordTypes.Dialogue when _plugins.TryGet<DialogueRecord>(by) is { } script:
+                var where = $"{by} ({script.Mode}){(node is { } n ? $" node {n}" : "")}";
+                if (node is { } at && LineNear(script, at) is { Length: > 0 } text)
+                    where += $" near \"{Shorten(text)}\"";
+                return where + StartedFrom(by);
+            case RecordTypes.Voxel:
+                return Object(by);
+            case RecordTypes.Flag:
+                return $"derived flag {by.Key}";
             default:
-                return source.ToString();
+                var summary = _catalog.Find(by)?.Summary;
+                return string.IsNullOrEmpty(summary) ? by.ToString() : $"{by} ({summary})";
         }
     }
 
-    private static string StartedBy(QuestAtlas atlas, AtlasScript entry) =>
-        entry.StartedBy.Count == 0 ? ", started by code or nothing"
-            : ", started from " + string.Join("; ", entry.StartedBy.Take(3).Select(s => s switch
-            {
-                ObjectSource os => Object(atlas, os),
-                ScriptSource ss => $"Borg13 {ss.Script}",
-                EngineSource es => es.Description,
-                _ => s.ToString(),
-            })) + (entry.StartedBy.Count > 3 ? $" and {entry.StartedBy.Count - 3} more" : "");
-
-    private static string Object(QuestAtlas atlas, ObjectSource os)
+    private string StartedFrom(RecordId script)
     {
-        var o = atlas.Objects.First(x => x.Borg9 == os.Borg9 && x.Object.Index == os.Index);
-        var chunk = o.Chunks.Count > 0 ? string.Join("/", o.Chunks) : $"Borg9 {o.Borg9}";
-        var name = o.Object.Data switch
+        var starters = Index.StartersOf(script);
+        if (starters.Count == 0)
+            return ", started by code or nothing";
+        return ", started from " + string.Join("; ", starters.Take(3).Select(s => s.By.Type == RecordTypes.Voxel ? Object(s.By) : s.By.ToString()))
+            + (starters.Count > 3 ? $" and {starters.Count - 3} more" : "");
+    }
+
+    /// <summary>A map object as text: its kind, its name, and the chunks that use its map.</summary>
+    public string Object(RecordId voxel)
+    {
+        var map = MapRecord.MapOf(voxel);
+        var index = int.Parse(voxel.Key[(voxel.Key.IndexOf('/', StringComparison.Ordinal) + 1)..], CultureInfo.InvariantCulture);
+        var o = _plugins.TryGet<MapRecord>(map)?.Objects.FirstOrDefault(x => x.Index == index);
+        var kind = o?.GetType().Name.Replace("Object", "", StringComparison.Ordinal) ?? "Object";
+        var name = o switch
         {
-            DialogueData d => $" \"{d.Name}\" (Borg13 {d.Script})",
-            TeleporterData t => $" \"{t.Name}\"",
-            MonsterPartyData m => $" {atlas.Names.GetValueOrDefault(m.Entity, m.Entity.ToString())}",
+            DialogueObject d => $" \"{d.Name}\" ({d.Script})",
+            TeleporterObject t => $" \"{t.Name}\"",
+            MonsterPartyObject m => $" {_catalog.Find(m.Entity)?.Summary ?? m.Entity.ToString()}",
             _ => "",
         };
-        return $"{o.Object.Type}{name} in {chunk} (object {o.Object.Index})";
+        return $"{kind}{name} in {Chunks(map)} (object {index})";
+    }
+
+    /// <summary>The chunks that use a map, such as <c>Overworld I08</c>, or the map's ID if none.</summary>
+    public string Chunks(RecordId map)
+    {
+        var chunks = _plugins.All<MapSetRecord>(RecordTypes.MapSet)
+            .SelectMany(set => set.Chunks.Where(c => c.Map == map).Select(c => $"{set.Label} {c.Name}"))
+            .Order(StringComparer.Ordinal).ToList();
+        return chunks.Count > 0 ? string.Join("/", chunks) : map.ToString();
     }
 
     /// <summary>The node's own text, or the nearest text on the way to it.</summary>
-    private static string LineNear(Borg13Script script, int node)
+    private static string LineNear(DialogueRecord script, int node)
     {
         var seen = new HashSet<int>();
         var queue = new Queue<int>([node]);
         while (queue.TryDequeue(out var i))
         {
-            if (!seen.Add(i))
+            if (!seen.Add(i) || i >= script.Nodes.Count)
                 continue;
             if (script.Nodes[i].Text.Length > 0)
                 return script.Nodes[i].Text;
-            foreach (var parent in script.Nodes.Where(n => n.Links.Contains(i)))
+            foreach (var parent in script.Nodes.Where(n => n.Links?.Contains(i) == true))
                 queue.Enqueue(parent.Index);
         }
         return "";
     }
 
-    private static string Shorten(string text) => text.Length <= 60 ? text : text[..57] + "...";
+    private static string Shorten(string text)
+    {
+        text = text.ReplaceLineEndings(" ");
+        return text.Length <= 60 ? text : text[..57] + "...";
+    }
 }
