@@ -84,6 +84,7 @@ public partial class CharacterPanel : PagePanel
     private Trainer? _trainer;
     private uint _gold;
     private bool _fromGame;
+    private TrainingWindowPanel? _window;
 
     public CharacterPanel(PluginCatalog catalog, EditorGame? game, EntityRecord entity, CharacterRules rules, ItemCatalog? items, Action<RecordId> open)
         : base(catalog, open)
@@ -95,8 +96,15 @@ public partial class CharacterPanel : PagePanel
             .OrderBy(e => e.Name, StringComparer.OrdinalIgnoreCase)];
         _fromGame = InGame;
         _character = Build();
+        // Someone who teaches has the training window, on the editor's game, as a script's Train opens it.
+        var teaches = Trainer.From(entity, rules, catalog.Plugins.Get<SpellRecord>);
+        if (game is not null && items is not null && (teaches.SkillsOffered.Any() || teaches.Spells.Count > 0))
+            _window = new TrainingWindowPanel(catalog.Plugins, game, teaches);
         Refresh();
     }
+
+    /// <summary>The training window, if the entity teaches anything.</summary>
+    public TrainingWindowPanel? Window => _window;
 
     /// <summary>Whether the entity is in the editor's game's party, a loaded one's.</summary>
     private bool InGame => _game is { IsNewGame: false } game && game.Game.Party.Contains(_entity.Id);
@@ -117,6 +125,9 @@ public partial class CharacterPanel : PagePanel
 
     private void Refresh()
     {
+        // The training window plays on the game, so it outlives the sheet's rebuilds.
+        if (_window?.GetParent() is { } parent)
+            parent.RemoveChild(_window);
         ClearBody();
         var c = _character;
 
@@ -200,6 +211,12 @@ public partial class CharacterPanel : PagePanel
                 Body.AddChild(LinkButton(gear, Catalog.Find(gear)?.Summary ?? gear.ToString()));
         }
         Line("Spell and potion effects, and what enchantments and resistances do, come with combat (2.5).", Dim);
+
+        if (_window is not null)
+        {
+            Heading("As a trainer");
+            Body.AddChild(_window);
+        }
     }
 
     /// <summary>

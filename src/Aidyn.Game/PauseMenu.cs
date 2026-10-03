@@ -10,7 +10,8 @@ namespace Aidyn.Game;
 /// The pause menu, which Start opens over the game (<c>BigAssMenu</c>). So far it's the Party tab
 /// alone (<see cref="PartyTabView"/>), on a <see cref="UiScreen"/> over the world, and its barter
 /// state: the loot window, which a container opens (<see cref="OpenLoot"/>), and a shop, which a
-/// script opens (<see cref="OpenShop"/>).
+/// script opens (<see cref="OpenShop"/>); and its training state, which a script opens at a trainer
+/// (<see cref="OpenTraining"/>).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -32,6 +33,10 @@ namespace Aidyn.Game;
 /// and C-right do nothing there, as in the original. B or Start closes it, unless items are left
 /// (<see cref="BarterMenu.Back"/>), and so does choosing to leave them. A shop's is the same, but B or
 /// Start closes it at once, and C-up, R or the left face button, appraises the stock's row.
+/// </para>
+/// <para>
+/// In training, the stick's up and down move the trainer's cursor, its left and right change both lists
+/// between skills and spells, and C-left and C-right change the member. B or Start closes it.
 /// </para>
 /// </remarks>
 public partial class PauseMenu : CanvasLayer
@@ -88,6 +93,7 @@ public partial class PauseMenu : CanvasLayer
             _view.Menu = menu;
         }
         _view.Barter = null;
+        _view.Training = null;
         Start();
     }
 
@@ -109,6 +115,13 @@ public partial class PauseMenu : CanvasLayer
     {
         Open();
         _view!.Barter = BarterMenu.ForShop(_plugins, shop, _game.Random.World);
+    }
+
+    /// <summary>Opens the menu in its training state at a trainer (<c>init_skill_trainer</c>). Training acts on the game.</summary>
+    public void OpenTraining(Core.Characters.Trainer trainer)
+    {
+        Open();
+        _view!.Training = TrainingMenu.For(_plugins, _game.Party, trainer, _game.Flags, _game.Random.World);
     }
 
     private void Start()
@@ -134,7 +147,7 @@ public partial class PauseMenu : CanvasLayer
     {
         if (_view is null)
             return false;
-        var held = _view.Barter is { } barter ? barter.Back() : _view.Menu.Back();
+        var held = _view.Barter is { } barter ? barter.Back() : _view.Training is { } training ? training.Back() : _view.Menu.Back();
         _view.QueueRedraw();
         return held;
     }
@@ -146,6 +159,8 @@ public partial class PauseMenu : CanvasLayer
             return false;
         if (_view.Barter is { } barter)
             return HandleBarter(e, barter);
+        if (_view.Training is { } training)
+            return HandleTraining(e, training);
         var menu = _view.Menu;
         if (e.IsActionPressed("menu_details") && menu.Message is not null)
             menu.CloseMessage();
@@ -219,6 +234,32 @@ public partial class PauseMenu : CanvasLayer
         return true;
     }
 
+    // The training state's presses.
+    private bool HandleTraining(InputEvent e, TrainingMenu training)
+    {
+        if (e.IsActionPressed("menu_details") && training.CloseMessage())
+        {
+        }
+        else if (e.IsActionPressed("menu_details") || e.IsActionReleased("menu_details"))
+            _view!.DetailsOpen = e.IsPressed();
+        else if (e.IsActionPressed("menu_accept"))
+            training.Accept();
+        else if (e.IsActionPressed("menu_member_previous"))
+            training.ChangeMember(-1);
+        else if (e.IsActionPressed("menu_member_next"))
+            training.ChangeMember(1);
+        else if (Pressed(e, "move_left") || e.IsActionPressed("menu_left") || Pressed(e, "move_right") || e.IsActionPressed("menu_right"))
+            training.Switch();
+        else if (Pressed(e, "move_forward") || e.IsActionPressed("menu_up", allowEcho: true))
+            training.MoveCursor(-1);
+        else if (Pressed(e, "move_back") || e.IsActionPressed("menu_down", allowEcho: true))
+            training.MoveCursor(1);
+        else
+            return e is InputEventJoypadMotion;
+        _view!.QueueRedraw();
+        return true;
+    }
+
     private void Side(BarterMenu barter, bool right)
     {
         if (right == _view!.PileOnRight)
@@ -260,6 +301,8 @@ public partial class PauseMenu : CanvasLayer
                 var by = action == "move_forward" ? -1 : 1;
                 if (_view.Barter is { } barter)
                     barter.MoveCursor(by);
+                else if (_view.Training is { } training)
+                    training.MoveCursor(by);
                 else
                     _view.Menu.MoveCursor(by);
                 _view.QueueRedraw();

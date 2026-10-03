@@ -130,6 +130,17 @@ public sealed class MenuText(IReadOnlyList<string> common)
         LayOnHands = 466, HealWithHerbs = 467, Restore = 468, Health = 469, StatAtMax = 470;
 
     /// <summary>
+    /// Training at a trainer (<c>WidgetSkillTrain::Confirm</c>, <c>WidgetSpellTrain::Confirm</c>, <c>GetPrices</c>):
+    /// the help on the first spell learnt; the spells' refusals (only wizards, can't teach further, Wizard
+    /// too low, the wrong school, too little experience and gold or experience alone) and questions; the
+    /// lines under the trainer's list; the skills' refusals and questions; and the spells' most.
+    /// </summary>
+    public const int FirstSpell = 497, OnlyWizardsTrain = 498, SpellCantTeach = 499, SpellWizardTooLow = 500, SpellWrongSchool = 501,
+        SpellNeeds = 502, SpellNeedsXp = 503, TrainSpellFor = 504, TrainSpellForXp = 505, XpCostMax = 493, XpCost = 494,
+        XpRemainingLine = 495, SkillCantLearn = 513, SkillCantTeach = 514, SkillAtMost = 515, SkillNeeds = 516, SkillNeedsXp = 517,
+        TrainSkillFor = 518, TrainSkillForXp = 519, GoldCost = 520, SpellAtMost = 552;
+
+    /// <summary>
     /// The first of the lines appraisal picks from (<c>Party::ApraisePrice</c>), "This is highway robbery!",
     /// and the six better after it.
     /// </summary>

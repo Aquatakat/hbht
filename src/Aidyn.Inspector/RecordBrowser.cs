@@ -168,7 +168,11 @@ public partial class RecordBrowser : Control
         if (_preview.GetChildren().OfType<PartyTabPanel>().FirstOrDefault() is { } party)
             party.SetScreen(zoom, filter, wide, lines);
         LootWindow?.SetScreen(zoom, filter, wide, lines);
+        TrainingWindow?.SetScreen(zoom, filter, wide, lines);
     }
+
+    /// <summary>The training window on the preview: a trainer's.</summary>
+    private TrainingWindowPanel? TrainingWindow => _preview.GetChildren().OfType<CharacterPanel>().FirstOrDefault()?.Window;
 
     /// <summary>The barter window open on the preview: a loot table's roll, a shop's, or a container's on the map.</summary>
     private BarterWindowPanel? LootWindow => _preview.GetChildren().OfType<LootPanel>().FirstOrDefault()?.Window
@@ -199,6 +203,7 @@ public partial class RecordBrowser : Control
         if (_preview.GetChildren().OfType<PartyTabPanel>().FirstOrDefault() is { } party)
             party.Press(buttons);
         LootWindow?.Press(buttons);
+        TrainingWindow?.Press(buttons);
     }
 
     /// <summary>Opens a record, adding it to the history. The task completes when its preview is shown.</summary>

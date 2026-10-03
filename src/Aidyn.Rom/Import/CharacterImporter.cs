@@ -56,6 +56,9 @@ internal static class CharacterImporter
     /// <summary>A spell can't be raised past this (<c>TempSpell::IsMaxRank</c>).</summary>
     internal const int SpellMaxLevel = 10;
 
+    /// <summary>Set the first time a character learns a spell at a trainer (<c>WidgetSpellTrain::Purchase</c>, flag <c>0xE1B</c>).</summary>
+    internal const int FirstSpellFlag = 3611;
+
     /// <summary>What every award of experience is multiplied by (<c>Entity::AddExp</c>).</summary>
     internal const float ExpAward = 1.5f;
 
@@ -262,5 +265,6 @@ internal static class CharacterImporter
     /// <summary>The progression, <c>aidyn:progression/0</c>. Oriana is the free trainer.</summary>
     public static ProgressionRecord BuildProgression(GameDb db, CharacterTables tables) => new(
         RecordId.Decimal(RecordTypes.Progression, 0), tables.LevelExperience, ExpAward,
-        new TrainingPrices(FirstLevelGold, GoldPerLevel, TrainerExp, [DbRecordIds.For(db.Entities[OrianaDbPosition].Id)!.Value], SpellMaxLevel));
+        new TrainingPrices(FirstLevelGold, GoldPerLevel, TrainerExp, [DbRecordIds.For(db.Entities[OrianaDbPosition].Id)!.Value], SpellMaxLevel,
+            RecordId.Decimal(RecordTypes.Flag, FirstSpellFlag)));
 }

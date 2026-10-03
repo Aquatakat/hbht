@@ -16,7 +16,8 @@ namespace Aidyn.Game;
 /// </list>
 /// Both draw the tab's image, <c>0x00D9</c>, at its own size where the original has it, so the art
 /// is the original's and the labels are its own; the wide one grows it with plain parchment. With a
-/// <see cref="Barter"/>, it's the menu's barter state, the loot window (see <c>PartyTabView.Barter.cs</c>).
+/// <see cref="Barter"/>, it's the menu's barter state, the loot window or a shop (see <c>PartyTabView.Barter.cs</c>), and
+/// with a <see cref="Training"/>, its training state (<c>PartyTabView.Training.cs</c>).
 /// </summary>
 public partial class PartyTabView : Control
 {
@@ -135,6 +136,8 @@ public partial class PartyTabView : Control
     {
         if (Barter is { } barter)
             barter.Step();
+        else if (Training is { } training)
+            training.Step();
         else
             Menu.Step();
         QueueRedraw();
@@ -145,7 +148,9 @@ public partial class PartyTabView : Control
         // Hovering a row puts the cursor on it, and the wheel moves it.
         if (Barter is { } barter && @event is InputEventMouseMotion over && BarterRowAt(over.Position) is { } hit)
             barter.Point(hit.Pile, hit.Row);
-        else if (Barter is null && @event is InputEventMouseMotion motion && RowAt(motion.Position) is { } row)
+        else if (Training is { } training && @event is InputEventMouseMotion hover && TrainerRowAt(hover.Position) is { } trainerRow)
+            training.Point(trainerRow);
+        else if (Barter is null && Training is null && @event is InputEventMouseMotion motion && RowAt(motion.Position) is { } row)
             Menu.Point(row);
         else if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.WheelUp or MouseButton.WheelDown } wheel)
             MoveCursor(wheel.ButtonIndex == MouseButton.WheelUp ? -1 : 1);
@@ -160,6 +165,8 @@ public partial class PartyTabView : Control
     {
         if (Barter is { } barter)
             barter.MoveCursor(by);
+        else if (Training is { } training)
+            training.MoveCursor(by);
         else
             Menu.MoveCursor(by);
     }
@@ -204,6 +211,8 @@ public partial class PartyTabView : Control
             _origin = Vector2I.Zero;
             if (Barter is { } barter)
                 DrawBarterWide(barter);
+            else if (Training is { } training)
+                DrawTrainingWide(training);
             else
                 DrawWide();
         }
@@ -213,12 +222,16 @@ public partial class PartyTabView : Control
             DrawSetTransform(_origin);
             if (Barter is { } barter)
                 DrawBarterClassic(barter);
+            else if (Training is { } training)
+                DrawTrainingClassic(training);
             else
                 DrawClassic();
             DrawSetTransform(Vector2.Zero);
         }
         if (Barter is { } popups)
             BarterPopups(popups);
+        else if (Training is { } trainingPopups)
+            TrainingPopups(trainingPopups);
         else if (Menu.Message is { } message)
             Message(message);
     }
@@ -498,9 +511,6 @@ public partial class PartyTabView : Control
         var wide = columns != Columns.Classic;
         var titleCentre = wide ? (b.Left + b.Right) / 2 : b.Left + 70;
         _ui.Image(this, title, titleCentre - _ui.Size(title).X / 2, b.Top - 20);
-        var up = new Vector2I(b.Left + 15, b.Top - 13);
-        var down = new Vector2I(b.Right - 15, b.Top - 13);
-
         // Negative columns count back from the right.
         int X(int column) => column < 0 ? b.Right + column : b.Left + column;
         var x = b.Left;
@@ -536,33 +546,60 @@ public partial class PartyTabView : Control
                 }
                 break;
             case PartyList.Skills:
-                Menu.Skills.Visible = (b.Bottom - b.Top) / 13;
-                _ui.List(Menu.Skills, y, 13, color, highlight, (row, top, c) =>
-                {
-                    if (row.Icon is { } icon)
-                        _ui.Image(this, icon, x, top);
-                    _ui.Text(this, font, row.Name, x + 12, top, names with { Left = x + 12 }, c);
-                    _ui.Text(this, font, Num(row.Value), X(columns.Value), top, b, color);
-                    if (row.Change != 0)
-                        _ui.Text(this, font, Change(row.Change), X(columns.SkillChange), top, b, row.Change < 0 ? MenuDetailsBuilder.Loss : MenuDetailsBuilder.Gain);
-                });
-                _ui.Arrows(this, Menu.Skills, up, down);
+                SkillRows(Menu.Skills, b, font, columns, highlight);
                 break;
             default:
-                Menu.Spells.Visible = (b.Bottom - b.Top) / 13;
-                _ui.List(Menu.Spells, y, 13, color, highlight, (row, top, c) =>
-                {
-                    foreach (var (icon, dx) in new[] { (row.Aspect, 0), (row.School, 12), (row.Symbol, 24) })
-                    {
-                        if (icon is { } i)
-                            _ui.Image(this, i, x + dx, top);
-                    }
-                    _ui.Text(this, font, Num(row.Rank), x + columns.Rank, top, b, color);
-                    _ui.Text(this, font, row.Name, x + columns.SpellName, top, wide ? b : names with { Left = x + columns.SpellName }, c);
-                });
-                _ui.Arrows(this, Menu.Spells, up, down);
+                SpellRows(Menu.Spells, b, font, columns, highlight);
                 break;
         }
+    }
+
+    /// <summary>
+    /// A skills list's rows (<c>WidgetSkillInfo</c>), 13 apart, with their arrows: the icon, the name 12 after
+    /// it, the level, and the difference gear makes when it isn't 0.
+    /// </summary>
+    private void SkillRows(MenuList<SkillRow> list, ScreenRect b, UiFont font, Columns columns, Rgba highlight)
+    {
+        int X(int column) => column < 0 ? b.Right + column : b.Left + column;
+        var x = b.Left;
+        var names = new ScreenRect(b.Left, b.Top, X(columns.NameRight), b.Bottom);
+        var color = PartyMenu.TextColor;
+        list.Visible = (b.Bottom - b.Top) / 13;
+        _ui.List(list, b.Top, 13, color, highlight, (row, top, c) =>
+        {
+            if (row.Icon is { } icon)
+                _ui.Image(this, icon, x, top);
+            _ui.Text(this, font, row.Name, x + 12, top, names with { Left = x + 12 }, c);
+            _ui.Text(this, font, Num(row.Value), X(columns.Value), top, b, color);
+            if (row.Change != 0)
+                _ui.Text(this, font, Change(row.Change), X(columns.SkillChange), top, b, row.Change < 0 ? MenuDetailsBuilder.Loss : MenuDetailsBuilder.Gain);
+        });
+        _ui.Arrows(this, list, new Vector2I(b.Left + 15, b.Top - 13), new Vector2I(b.Right - 15, b.Top - 13));
+    }
+
+    /// <summary>
+    /// A spells list's rows (<c>WidgetSpellEntry</c>), 13 apart, with their arrows: the aspect's, school's and
+    /// spell's icons, the rank and the name.
+    /// </summary>
+    private void SpellRows(MenuList<SpellRow> list, ScreenRect b, UiFont font, Columns columns, Rgba highlight)
+    {
+        int X(int column) => column < 0 ? b.Right + column : b.Left + column;
+        var x = b.Left;
+        var names = new ScreenRect(b.Left, b.Top, X(columns.NameRight), b.Bottom);
+        var color = PartyMenu.TextColor;
+        var wide = columns != Columns.Classic;
+        list.Visible = (b.Bottom - b.Top) / 13;
+        _ui.List(list, b.Top, 13, color, highlight, (row, top, c) =>
+        {
+            foreach (var (icon, dx) in new[] { (row.Aspect, 0), (row.School, 12), (row.Symbol, 24) })
+            {
+                if (icon is { } i)
+                    _ui.Image(this, i, x + dx, top);
+            }
+            _ui.Text(this, font, Num(row.Rank), x + columns.Rank, top, b, color);
+            _ui.Text(this, font, row.Name, x + columns.SpellName, top, wide ? b : names with { Left = x + columns.SpellName }, c);
+        });
+        _ui.Arrows(this, list, new Vector2I(b.Left + 15, b.Top - 13), new Vector2I(b.Right - 15, b.Top - 13));
     }
 
     /// <summary>

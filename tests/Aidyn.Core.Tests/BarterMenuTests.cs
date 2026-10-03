@@ -23,8 +23,11 @@ public sealed class BarterPlugins : IDisposable
         var dir = Path.Combine(_root, "aidyn");
         Directory.CreateDirectory(Path.Combine(dir, "records"));
         File.WriteAllText(Path.Combine(dir, "plugin.json"), """{ "id": "aidyn", "name": "aidyn", "version": "1.0.0" }""");
-        var lines = Enumerable.Range(0, 533).Select(i => i switch
+        var lines = Enumerable.Range(0, 560).Select(i => i switch
         {
+            MenuText.XpCost or MenuText.XpRemainingLine or MenuText.GoldCost or MenuText.SkillNeedsXp or MenuText.TrainSkillForXp
+                or MenuText.SpellNeedsXp or MenuText.TrainSpellForXp => $"L{i} %lu",
+            MenuText.SkillNeeds or MenuText.TrainSkillFor or MenuText.SpellNeeds or MenuText.TrainSpellFor => $"L{i} %ld %ld",
             MenuText.DropConfirm => $"L{i} %s",
             MenuText.DropSome => $"L{i} %d",
             MenuText.FoundGold => $"L{i} %lu",

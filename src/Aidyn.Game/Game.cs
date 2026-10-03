@@ -729,9 +729,13 @@ public partial class Game : Node3D, ITrekHost
             OpenShop(keeper);
             return;
         }
+        if (ending.Kind == Core.Scripts.ScriptEndKind.Train)
+        {
+            OpenTraining(keeper);
+            return;
+        }
         var what = ending.Kind switch
         {
-            Core.Scripts.ScriptEndKind.Train => "Training would open (session 7).",
             Core.Scripts.ScriptEndKind.Battle => "A battle would start; battles come with combat (2.5).",
             Core.Scripts.ScriptEndKind.Camp => $"The party is healed; {ending.RestHours} hours would pass (camping, 2.7).",
             _ => null,
@@ -754,6 +758,20 @@ public partial class Game : Node3D, ITrekHost
         }
         var party = _game!.Party;
         _menu!.OpenShop(Core.Items.Shop.Open(record, entity, party, party.Inventory!.Catalog, _game.Flags));
+    }
+
+    /// <summary>
+    /// Opens training with the keeper as the trainer (<c>init_skill_trainer</c>). The original opens it with
+    /// empty lists when there's no keeper; the port says so and stays in trek.
+    /// </summary>
+    private void OpenTraining(RecordId? keeper)
+    {
+        if (keeper is not { } id || _plugins!.TryGet<EntityRecord>(id) is not { } entity)
+        {
+            Say($"{keeper?.ToString() ?? "No one"} teaches nothing.");
+            return;
+        }
+        _menu!.OpenTraining(Core.Characters.Trainer.From(entity, _game!.Rules, _plugins.Get<SpellRecord>));
     }
 
     /// <summary>A script's sounds, which wait for audio (1D). The cut-scene carries out the rest of its cues.</summary>

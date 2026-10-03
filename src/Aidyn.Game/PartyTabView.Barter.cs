@@ -109,30 +109,7 @@ public partial class PartyTabView
     private void DrawBarterWide(BarterMenu barter)
     {
         var (party, pile) = Cursors(barter);
-        var size = new Vector2I((int)Size.X, (int)Size.Y);
-        var bottom = size.Y - BottomEdge.Size.Y;
-        Sheet(size, bottom);
-        _ui.Feathered(this, MenuImages.PartyTab, TopPart, 0, 0, (0, 0, Feather, Feather));
-        _ui.Feathered(this, MenuImages.PartyTab, SilhouetteColumn, 0, SilhouetteColumn.Position.Y, (0, 0, Feather, Feather));
-        Portraits(PortraitPiece.Position);
-        Health(HealthPiece.Position, _ui.Main);
-        Silhouette(SilhouettePiece.Position);
-
-        // The party's list as the tab has it, without the arrow under it: there are no tabs either side.
-        var list = ClassicList;
-        var room = size.X - list.Left - WideGap;
-        var listWidth = Math.Clamp(room * 11 / 20, 220, 300);
-        var rows = (bottom - SliderMargin - list.Top) / 13 * 13;
-        Rules(RulesPiece.Position.X, RulesPiece.Position.Y, Math.Max(RulesPiece.Size.X, list.Left + listWidth + 10 - RulesPiece.Position.X));
-        Knot(KnotTop.Position.X, KnotTop.Position.Y, rows + 4);
-        List(list with { Right = list.Left + listWidth, Bottom = list.Top + rows }, _ui.Main, Columns.Wide, party);
-
-        var top = TopEdge.Size.Y - 2;
-        var parchmentLeft = list.Left + listWidth + WideGap;
-        var parchment = new Vector2I(size.X - parchmentLeft, bottom - top + 2);
-        _ui.Parchment(this, parchmentLeft, top, parchment, mirror: true);
-        var area = new ScreenRect(parchmentLeft + parchment.X * 11 / 160, top + parchment.Y * 12 / 160,
-            parchmentLeft + parchment.X - DetailsEdge, top + parchment.Y - parchment.Y * 8 / 160);
+        var (area, parchmentLeft, top, parchment) = WideFrame(party);
 
         // The pile under its title, as tall as two fifths of the parchment or six rows, then the gold.
         var font = _ui.Main;
@@ -151,6 +128,39 @@ public partial class PartyTabView
         // The help covers the pile, on a parchment of its own at its own size.
         if (barter.Help is { } help)
             Help(help, new Vector2I(parchmentLeft + (parchment.X - 160) / 2, top + 12));
+    }
+
+    /// <summary>
+    /// The wide layout's frame for the menu's reuses, the barter and training states: the Party tab's sheet,
+    /// header and silhouette, its list without the arrow under it, as there are no tabs either side, and the
+    /// right-hand parchment, mirrored. Returns the area inside the parchment's edges, and the parchment.
+    /// </summary>
+    private (ScreenRect Area, int ParchmentLeft, int Top, Vector2I Parchment) WideFrame(Rgba partyCursor)
+    {
+        var size = new Vector2I((int)Size.X, (int)Size.Y);
+        var bottom = size.Y - BottomEdge.Size.Y;
+        Sheet(size, bottom);
+        _ui.Feathered(this, MenuImages.PartyTab, TopPart, 0, 0, (0, 0, Feather, Feather));
+        _ui.Feathered(this, MenuImages.PartyTab, SilhouetteColumn, 0, SilhouetteColumn.Position.Y, (0, 0, Feather, Feather));
+        Portraits(PortraitPiece.Position);
+        Health(HealthPiece.Position, _ui.Main);
+        Silhouette(SilhouettePiece.Position);
+
+        var list = ClassicList;
+        var room = size.X - list.Left - WideGap;
+        var listWidth = Math.Clamp(room * 11 / 20, 220, 300);
+        var rows = (bottom - SliderMargin - list.Top) / 13 * 13;
+        Rules(RulesPiece.Position.X, RulesPiece.Position.Y, Math.Max(RulesPiece.Size.X, list.Left + listWidth + 10 - RulesPiece.Position.X));
+        Knot(KnotTop.Position.X, KnotTop.Position.Y, rows + 4);
+        List(list with { Right = list.Left + listWidth, Bottom = list.Top + rows }, _ui.Main, Columns.Wide, partyCursor);
+
+        var top = TopEdge.Size.Y - 2;
+        var parchmentLeft = list.Left + listWidth + WideGap;
+        var parchment = new Vector2I(size.X - parchmentLeft, bottom - top + 2);
+        _ui.Parchment(this, parchmentLeft, top, parchment, mirror: true);
+        var area = new ScreenRect(parchmentLeft + parchment.X * 11 / 160, top + parchment.Y * 12 / 160,
+            parchmentLeft + parchment.X - DetailsEdge, top + parchment.Y - parchment.Y * 8 / 160);
+        return (area, parchmentLeft, top, parchment);
     }
 
     /// <summary>

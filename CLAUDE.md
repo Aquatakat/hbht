@@ -92,8 +92,8 @@ Keep this section to where things stand and what's next. When a roadmap task fin
   4. ~~Using map objects, the loot window and the interiors' camera~~ ([map-objects](docs/systems/map-objects.md), [ui](docs/systems/ui.md#the-loot-window), [cameras](docs/systems/cameras.md))
   5. ~~Conversations: bodies, wandering, talking, joining and leaving~~ ([wanderers](docs/systems/wanderers.md), [characters](docs/systems/characters.md#joining-and-leaving))
   6. ~~Cut-scenes~~ ([scripts](docs/systems/scripts.md#cut-scenes), [cameras](docs/systems/cameras.md#cut-scenes-cameras)). Backdrops and the help menu, the endings' cinematics, and the editor showing cut-scenes on its map are left; a later script type running ops side by side can share a `CutScene`'s stage.
-  7. **Barter and training, now,** from a conversation's end. The shop window is done ([ui](docs/systems/ui.md#the-shop)); the trainer's window is next.
-  8. **The System and World tabs, and the HUD:** saving and loading, options; the calendar, camping (2.7, its ambush waiting for 2.5), the world map with its fog, and the journal; the compass and the party's portraits.
+  7. ~~Barter and training~~ ([shop](docs/systems/ui.md#the-shop), [training](docs/systems/ui.md#training)). Training after a battle waits for 2.5.
+  8. **The System and World tabs, and the HUD, next:** saving and loading, options; the calendar, camping (2.7, its ambush waiting for 2.5), the world map with its fog, and the journal; the compass and the party's portraits.
 - **For the user to check,** in the emulator or the ROM: [to-check](docs/to-check.md). Add to it whatever only the user can settle.
 - **UI fit and finish, for a later session** (the user's notes, [playtests](docs/playtests.md)):
   - The Party tab's shield icon on the silhouette sits 2 pixels too high.
