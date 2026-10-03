@@ -546,6 +546,24 @@ public sealed class ConversationTests(MapObjectFixture fixture)
     }
 
     [Fact]
+    public void ARecruitWhoCantJoinBecauseThePartyIsFullDoesntTakeTheWanderersBodyAway()
+    {
+        var s = Make(ConversationPlugins.Joins);
+        foreach (var member in new[] { 0x024C, 0x0243, 0x024D })
+            Assert.True(s.Game.AddMember(RecordId.Hex(RecordTypes.Entity, member)));
+        var conversation = s.Talk();
+
+        Finish(conversation);
+
+        // Trahern's AddMember was refused, so the script says no one joined.
+        Assert.False(conversation.Runner.Ending!.PartnerJoined);
+        Assert.False(s.Game.Party.Contains(ConversationPlugins.Trahern));
+        Assert.Equal(4, s.Game.Party.Count);
+        conversation.End(s.Wanderers, s.Camera);
+        Assert.Contains(s.Wanderer, s.Wanderers.All);
+    }
+
+    [Fact]
     public void AnEndingWithNoOneJoinedKeepsTheWanderer()
     {
         var s = Make(ConversationPlugins.Talk);

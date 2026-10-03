@@ -35,6 +35,21 @@ public enum FlagRole
     /// record, which sets them when the party gains it.
     /// </summary>
     KeyItem,
+    /// <summary>
+    /// A script's AddMember op on a recruitable member, which sets their joined flag and clears their
+    /// left flag. <see cref="FlagUse.At"/> is the node.
+    /// </summary>
+    MemberAdded,
+    /// <summary>
+    /// A script's RemoveMember op on a recruitable member, which clears their joined flag and sets their
+    /// left flag. <see cref="FlagUse.At"/> is the node.
+    /// </summary>
+    MemberRemoved,
+    /// <summary>
+    /// A recruitable member's own flags: joined, left and died. <see cref="FlagUse.By"/> is the entity
+    /// record, which the engine keeps them in step with.
+    /// </summary>
+    Member,
     /// <summary>An input of a derived flag's formula. <see cref="FlagUse.By"/> is the derived flag, which reads it.</summary>
     DerivedInput,
     /// <summary>
@@ -147,6 +162,9 @@ public sealed class QuestIndex
             .Where(i => i.KeyItem is not null)
             .ToDictionary(i => i.Id, i => i.KeyItem!);
         var loot = plugins.All<LootRecord>(RecordTypes.Loot).ToDictionary(l => l.Id);
+        var members = plugins.All<EntityRecord>(RecordTypes.Entity)
+            .Where(e => e.Member is not null)
+            .ToDictionary(e => e.Id, e => e.Member!);
 
         // The key items that something gives. A loot field names either a loot table, which gives
         // whatever its drops name, or a single item.
@@ -186,6 +204,14 @@ public sealed class QuestIndex
                         GiveKeyItems([key], script.Id, node.Index);
                     else if (op is { Command: DialogueCommand.TakeItem, Target: { } taken } && keyItems.TryGetValue(taken, out var lost))
                         Use(lost.Held, script.Id, FlagAccess.Clear, FlagRole.ItemTaken, at: node.Index);
+                    else if (op is { Command: DialogueCommand.AddMember or DialogueCommand.RemoveMember, Target: { } member }
+                        && members.TryGetValue(member, out var flags))
+                    {
+                        var joins = op.Command == DialogueCommand.AddMember;
+                        var role = joins ? FlagRole.MemberAdded : FlagRole.MemberRemoved;
+                        Use(flags.Joined, script.Id, joins ? FlagAccess.Set : FlagAccess.Clear, role, at: node.Index);
+                        Use(flags.Left, script.Id, joins ? FlagAccess.Clear : FlagAccess.Set, role, at: node.Index);
+                    }
                 }
             }
             if (script.DoneFlag is { } done)
@@ -282,6 +308,13 @@ public sealed class QuestIndex
         // The importer has already left out what the game doesn't stock.
         foreach (var shop in plugins.All<ShopRecord>(RecordTypes.Shop))
             GiveKeyItems(KeyItemsIn([.. shop.Stock.Select(s => (RecordId?)s.Item)]), shop.Id);
+
+        foreach (var (entity, flags) in members)
+        {
+            Use(flags.Joined, entity, FlagAccess.Set, FlagRole.Member);
+            Use(flags.Left, entity, FlagAccess.Set, FlagRole.Member);
+            Use(flags.Died, entity, FlagAccess.Set, FlagRole.Member);
+        }
 
         foreach (var (item, key) in keyItems)
         {

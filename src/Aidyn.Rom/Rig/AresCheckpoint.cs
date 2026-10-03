@@ -26,6 +26,7 @@ public sealed class AresCheckpoint
     private readonly uint _funnel;
     private bool[]? _flags;
     private IReadOnlyList<CheckpointCharacter>? _party;
+    private IReadOnlyList<CheckpointCharacter>? _kept;
     private Build? _build;
     private CheckpointPlace? _place;
     private IReadOnlyList<CheckpointMemory>? _memories;
@@ -82,13 +83,17 @@ public sealed class AresCheckpoint
     /// Where the globals the port reads are in a build of the game: <c>gGlobals</c> with its
     /// <c>party</c> pointer, the <c>TerrainPointer</c>, and the <c>voxelChart</c>.
     /// </summary>
-    private sealed record Build(uint Globals, uint PartyPointer, uint TerrainPointer, uint VoxelChart);
+    private sealed record Build(uint Globals, uint PartyPointer, uint TerrainPointer, uint VoxelChart, uint KeptPointer);
 
-    /// <summary>1.0's addresses, then the debug build's. A state doesn't say which it's of, so the first whose party is there is.</summary>
+    /// <summary>
+    /// 1.0's addresses, then the debug build's. A state doesn't say which it's of, so the first whose
+    /// party is there is. The kept sheets' pointer is <c>gSaveEntity</c>, which <c>SaveEntity::Init</c>
+    /// stores (1.0 <c>0x80017CE0</c>, debug <c>0x8001BCC0</c>).
+    /// </summary>
     private static readonly Build[] Builds =
     [
-        new(0x800D8088, 0x800D9684, 0x800E303C, 0x800E0A74),
-        new(0x800E68A8, 0x800E7EA0, 0x800F1BBC, 0x800EF5E4),
+        new(0x800D8088, 0x800D9684, 0x800E303C, 0x800E0A74, 0x800DA4E0),
+        new(0x800E68A8, 0x800E7EA0, 0x800F1BBC, 0x800EF5E4, 0x800E8F10),
     ];
 
     /// <summary>The build this state is of, found once, by which one's party pointer leads to a party.</summary>
@@ -100,6 +105,13 @@ public sealed class AresCheckpoint
     /// console holds them.
     /// </summary>
     public IReadOnlyList<CheckpointCharacter> Party => _party ??= ReadParty();
+
+    /// <summary>
+    /// The sheets kept for rejoining (<c>gSaveEntity</c>'s slots 4 to 8: Abrecan's, Arturo's, Becan's,
+    /// Godric's and Keelin's), those there are. The game also keeps one for a member in the party,
+    /// copied when it last saved or someone left.
+    /// </summary>
+    public IReadOnlyList<CheckpointCharacter> Kept => _kept ??= ReadKept();
 
     /// <summary>
     /// Where the player is: the map set and chunk (<c>gGlobals.gameVars.mapDatA</c>, <c>mapShort1</c> and
@@ -213,46 +225,51 @@ public sealed class AresCheckpoint
     private List<CheckpointCharacter> ReadParty()
     {
         var party = FindParty();
-        var sheets = new List<CheckpointCharacter>();
-        for (var slot = 0u; slot < 4; slot++)
+        return [.. Enumerable.Range(0, 4).Select(slot => ReadWord(party + (uint)slot * 4)).Where(sheet => sheet != 0).Select(ReadSheet)];
+    }
+
+    private List<CheckpointCharacter> ReadKept()
+    {
+        var store = ReadWord(WhichBuild().KeptPointer);
+        if (!InRam(store))
+            return [];
+        return [.. Enumerable.Range(4, 5).Select(slot => ReadWord(store + (uint)slot * 4)).Where(sheet => InRam(sheet)).Select(ReadSheet)];
+    }
+
+    private CheckpointCharacter ReadSheet(uint sheet)
+    {
+        // CharSheet: the ID, then pointers to CharExp at 0x14, CharStats_s at 0x18, CharSkills at 0x1C
+        // and the SpellBook at 0x2C, which points to its SpellInstances (the ID, and the level at 0x14).
+        var exp = ReadWord(sheet + 0x14);
+        var stats = ReadWord(sheet + 0x18);
+        var skills = ReadWord(sheet + 0x1C);
+        var book = ReadWord(sheet + 0x2C);
+        var spells = new List<(ushort, int)>();
+        if (InRam(book) && ReadWord(book) is var list && InRam(list))
         {
-            var sheet = ReadWord(party + slot * 4);
-            if (sheet == 0)
-                continue;
-            // CharSheet: the ID, then pointers to CharExp at 0x14, CharStats_s at 0x18, CharSkills at 0x1C
-            // and the SpellBook at 0x2C, which points to its SpellInstances (the ID, and the level at 0x14).
-            var exp = ReadWord(sheet + 0x14);
-            var stats = ReadWord(sheet + 0x18);
-            var skills = ReadWord(sheet + 0x1C);
-            var book = ReadWord(sheet + 0x2C);
-            var spells = new List<(ushort, int)>();
-            if (InRam(book) && ReadWord(book) is var list && InRam(list))
+            for (var i = 0u; i < ReadByte(book + 4); i++)
             {
-                for (var i = 0u; i < ReadByte(book + 4); i++)
-                {
-                    if (ReadWord(list + i * 4) is var spell && InRam(spell))
-                        spells.Add(((ushort)(ReadByte(spell) << 8 | ReadByte(spell + 1)), ReadByte(spell + 0x14)));
-                }
+                if (ReadWord(list + i * 4) is var spell && InRam(spell))
+                    spells.Add(((ushort)(ReadByte(spell) << 8 | ReadByte(spell + 1)), ReadByte(spell + 0x14)));
             }
-            // The armor pointer at 0x20 points to body armor's and the shield's, the weapon's is at 0x24, and
-            // the CharGear at 0x28 holds the gear slots' pointers and how many are worn.
-            var armor = ReadWord(sheet + 0x20);
-            var gear = ReadWord(sheet + 0x28);
-            var slots = InRam(gear) ? ReadWord(gear) : 0;
-            sheets.Add(new CheckpointCharacter(
-                (ushort)(ReadByte(sheet) << 8 | ReadByte(sheet + 1)),
-                Bytes(stats, 7), Signed(stats + 7, 7), Bytes(stats + 0xE, 7), Signed(stats + 0x15, 7),
-                Signed(skills, 24), Signed(skills + 0x18, 24),
-                ReadWord(exp + 4), ReadWord(exp + 8), ReadByte(exp + 1), ReadByte(exp + 2), ReadByte(exp + 3), ReadByte(exp + 0xC), spells)
-            {
-                Weapon = OptionalItem(ReadWord(sheet + 0x24)),
-                Armor = InRam(armor) ? OptionalItem(ReadWord(armor)) : null,
-                Shield = InRam(armor) ? OptionalItem(ReadWord(armor + 4)) : null,
-                Gear = InRam(slots) ? [.. Enumerable.Range(0, (int)GearSlots).Select(i => OptionalItem(ReadWord(slots + (uint)i * 4)))] : [],
-                GearCount = InRam(gear) ? ReadByte(gear + 4) : 0,
-            });
         }
-        return sheets;
+        // The armor pointer at 0x20 points to body armor's and the shield's, the weapon's is at 0x24, and
+        // the CharGear at 0x28 holds the gear slots' pointers and how many are worn.
+        var armor = ReadWord(sheet + 0x20);
+        var gear = ReadWord(sheet + 0x28);
+        var slots = InRam(gear) ? ReadWord(gear) : 0;
+        return new CheckpointCharacter(
+            (ushort)(ReadByte(sheet) << 8 | ReadByte(sheet + 1)),
+            Bytes(stats, 7), Signed(stats + 7, 7), Bytes(stats + 0xE, 7), Signed(stats + 0x15, 7),
+            Signed(skills, 24), Signed(skills + 0x18, 24),
+            ReadWord(exp + 4), ReadWord(exp + 8), ReadByte(exp + 1), ReadByte(exp + 2), ReadByte(exp + 3), ReadByte(exp + 0xC), spells)
+        {
+            Weapon = OptionalItem(ReadWord(sheet + 0x24)),
+            Armor = InRam(armor) ? OptionalItem(ReadWord(armor)) : null,
+            Shield = InRam(armor) ? OptionalItem(ReadWord(armor + 4)) : null,
+            Gear = InRam(slots) ? [.. Enumerable.Range(0, (int)GearSlots).Select(i => OptionalItem(ReadWord(slots + (uint)i * 4)))] : [],
+            GearCount = InRam(gear) ? ReadByte(gear + 4) : 0,
+        };
     }
 
     private int[] Bytes(uint address, int count) => [.. Enumerable.Range(0, count).Select(i => (int)ReadByte(address + (uint)i))];

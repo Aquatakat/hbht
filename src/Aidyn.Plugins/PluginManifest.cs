@@ -48,8 +48,9 @@ public static class BasePlugin
     /// 18 gives containers their reach, and maps the grid of the objects each cell lists.
     /// 19 names camera objects' flags 0x8, 0x10, 0x100 and 0x200.
     /// 20 gives entities and dialogue entities their bodies: actor, radius, scale and height.
+    /// 21 gives recruitable members their joined, left and died flags, and whether their sheet is kept.
     /// </summary>
-    public const int ImporterVersion = 20;
+    public const int ImporterVersion = 21;
 }
 
 /// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>

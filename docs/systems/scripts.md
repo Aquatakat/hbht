@@ -34,7 +34,7 @@ A page is the line and the choices under it, as the original's `diags` list hold
 - **`PlayAnimation`** waits for the animation to end. In a conversation, the original looks the actor up from the page it has just cleared (`FUN_800591e4`), so no one animates, and the script waits for the player to press A with the previous line still showing. The runner reproduces this: an `AnimateCue` with no actor, and a `Player` wait. Nine conversation nodes do it, such as the lighthouse keeper handing over his key (Borg13 890 node 13), where the player presses A twice. Cut-scenes only animate actors they've spawned.
 - **`Battle`** hands over the enemies from `AddEnemy` (a thirteenth faults), the arena (above 27 becomes 0), the collision and animation bytes, whether the party can flee (not in cut-scenes), and the record's `battleFlag`. In a conversation with someone who wanders, the original fights their party instead, and a shop or training uses them as the keeper.
 - **`CampHeal`** heals the party and ends the script, and eight hours pass. A camp scene (`rest`) adds eight more, so a camp heal in one would pass sixteen.
-- **`AddMember`** in a conversation tells the runtime that the one talking leaves the map rather than going back to wandering.
+- **`AddMember` and `RemoveMember`** add and take away members, with their flags and kept sheets ([characters](characters.md#joining-and-leaving-m2-session-5d)). Retail ignores whether AddMember worked: the scripts check the party's size first. AddMember working in a conversation tells the runtime that the one talking leaves the map rather than going back to wandering ([wanderers](wanderers.md#joining)).
 
 ## Faults
 

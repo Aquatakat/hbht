@@ -154,11 +154,12 @@ public sealed class GameState : IScriptWorld
         Random = new SaveRandom(Random.Combat.Seed, Random.Loot.Seed, Random.World.Seed, Random.Wander.Seed, Random.Cosmetic.Seed),
     };
 
-    /// <summary>The party as a save holds it: its members' sheets, its gold and its inventory.</summary>
+    /// <summary>The party as a save holds it: its members' sheets, those kept for members who left, its gold and its inventory.</summary>
     public SaveParty SaveParty() => new()
     {
         Gold = Party.Gold,
         Members = [.. Party.Members.Select(SaveCharacter)],
+        Kept = [.. Party.Kept.Values],
         Inventory = [.. (Party.Inventory?.Stacks ?? []).Select(s =>
             new SaveStack(s.Item.Id, s.Quantity) { Battery = s.Instance.Battery, Charges = s.Instance.Charges })],
     };
@@ -184,7 +185,8 @@ public sealed class GameState : IScriptWorld
         return party;
     }
 
-    // QuestData::Load's party: the members in slot order, the first being Alaron, the gold and the inventory.
+    // QuestData::Load's party: the members in slot order, the first being Alaron, the sheets kept for those
+    // who left, the gold and the inventory.
     private void Fill(Party party, SaveParty saved, ICollection<string> problems)
     {
         party.Gold = saved.Gold;
@@ -192,6 +194,15 @@ public sealed class GameState : IScriptWorld
         {
             if (LoadCharacter(saved.Members[slot], slot == 0, problems) is { } member && !party.Add(member))
                 problems.Add($"{member.Name} doesn't fit in the party.");
+        }
+        foreach (var kept in saved.Kept)
+        {
+            if (Plugins.TryGet<EntityRecord>(kept.Entity) is null)
+                problems.Add($"{kept.Entity} was kept for rejoining, but isn't a character any plugin has.");
+            else if (party.Contains(kept.Entity))
+                problems.Add($"{kept.Entity} was kept for rejoining, but is in the party.");
+            else
+                party.Keep(kept);
         }
         foreach (var stack in saved.Inventory)
         {
@@ -401,10 +412,74 @@ public sealed class GameState : IScriptWorld
 
     bool IScriptWorld.TakeItem(RecordId item) => Party.TakeItem(item);
 
-    /// <summary>Adds a member as their record starts them, unless they're already in the party.</summary>
-    bool IScriptWorld.AddMember(RecordId entity) => Party.Contains(entity) || (Recruit(entity) is { } member && Party.Add(member));
+    bool IScriptWorld.AddMember(RecordId entity) => AddMember(entity);
 
-    void IScriptWorld.RemoveMember(RecordId entity) => Party.Remove(entity);
+    void IScriptWorld.RemoveMember(RecordId entity) => RemoveMember(entity);
+
+    /// <summary>
+    /// A member joins (<c>Party::AddMember</c>): as their record starts them, bringing the weapons they
+    /// don't wield to the inventory, then, if a sheet was kept when they left, with its experience,
+    /// stats, skills, spells and what it still wears in place of the record's. Their joined flag is set
+    /// and their left flag cleared. False if the party is full, which the scripts check for first.
+    /// </summary>
+    /// <remarks>
+    /// The original adds a second sheet for someone already in the party, and says they joined. Here
+    /// they're not added again, but it still says they joined, so the one talking leaves the map as
+    /// in the original. Only Sholeh's first meeting in Ugarit (<c>aidyn:dialogue/0x04AD</c>) can do it,
+    /// as nothing hides her after she joins.
+    /// </remarks>
+    public bool AddMember(RecordId entity)
+    {
+        if (Party.Count == Party.MaxSize)
+            return false;
+        if (!Party.Contains(entity))
+        {
+            if (Recruit(entity) is not { } member)
+                return false;
+            // SaveEntity::CopyMember, after Entity::Init has already put the spare weapons in the inventory.
+            if (Party.TakeKept(entity) is { } kept && LoadCharacter(kept) is { } restored)
+            {
+                restored.Spares.AddRange(member.Spares);
+                member = restored;
+            }
+            Party.Add(member);
+        }
+        WriteMemberFlags(entity, joined: true);
+        return true;
+    }
+
+    /// <summary>
+    /// A member leaves (<c>Party::removeAliveMemberByID</c>): what they wear goes to the inventory, but
+    /// the Archmage Staff and what there's no room for, and their sheet is kept if their record says
+    /// so, without the potions working on them. Their joined flag is cleared and their left flag set,
+    /// and the rest of the party moves up. Nothing happens for someone not in the party.
+    /// </summary>
+    public void RemoveMember(RecordId entity)
+    {
+        if (Party.Get(entity) is not { } member)
+            return;
+        Party.Strip(member);
+        if (Plugins.TryGet<EntityRecord>(entity)?.Member is { Kept: true })
+            Party.Keep(SaveCharacter(member) with { Potions = [] });
+        WriteMemberFlags(entity, joined: false);
+        Party.Remove(entity);
+    }
+
+    // Party::CheckFlags, for a member alive: the joined flag as they are, the left flag the other way.
+    private void WriteMemberFlags(RecordId entity, bool joined)
+    {
+        if (Plugins.TryGet<EntityRecord>(entity)?.Member is not { } flags)
+            return;
+        SetFlag(flags.Joined, joined);
+        if (flags.Left is { } left)
+            SetFlag(left, !joined);
+
+        void SetFlag(RecordId flag, bool value)
+        {
+            if (Flags.TryHandle(flag, out var handle))
+                Flags.Set(handle, value);
+        }
+    }
 
     bool IScriptWorld.AddExp(RecordId member, int amount)
     {

@@ -810,8 +810,13 @@ public partial class ScriptPanel : VBoxContainer
 
         public bool AddMember(RecordId entity)
         {
+            var already = Party.Contains(entity);
+            var kept = Party.Kept.ContainsKey(entity);
             var joined = Join(entity);
-            log(joined ? $"{name(entity)} joins" : $"{name(entity)} can't join: " + (Game.Recruit(entity) is null ? "there's no character record" : "the party is full"));
+            log(!joined ? $"{name(entity)} can't join: " + (Party.Count == Party.MaxSize ? "the party is full" : "there's no character record")
+                : already ? $"{name(entity)} is already in the party, so isn't added again"
+                : kept ? $"{name(entity)} rejoins as they were when they left"
+                : $"{name(entity)} joins");
             return joined;
         }
 
@@ -819,10 +824,11 @@ public partial class ScriptPanel : VBoxContainer
         {
             var member = Party.Contains(entity);
             World.RemoveMember(entity);
-            log(member ? $"{name(entity)} leaves" : $"{name(entity)} isn't in the party, so no one leaves");
+            log(member ? $"{name(entity)} leaves, and what they wore goes to the inventory" + (Party.Kept.ContainsKey(entity) ? "; their sheet is kept" : "")
+                : $"{name(entity)} isn't in the party, so no one leaves");
         }
 
-        /// <summary>Adds a member as their record starts them. True if they're in the party after.</summary>
+        /// <summary>Adds a member as the game does (<see cref="GameState.AddMember"/>). False if the party is full.</summary>
         public bool Join(RecordId entity) => World.AddMember(entity);
 
         public bool AddExp(RecordId member, int amount)

@@ -135,6 +135,23 @@ public sealed partial class Party
     }
 
     /// <summary>
+    /// Takes everything off a member who's leaving and puts it in the inventory (<c>Party::StripMember</c>):
+    /// the gear, then the weapon, the body armor and the shield. The Archmage Staff stays, and so does
+    /// whatever the inventory has no room for.
+    /// </summary>
+    public void Strip(Character member)
+    {
+        var equipment = member.Equipment;
+        foreach (var gear in equipment.Gear.OfType<ItemInstance>().ToList())
+            Unequip(member, gear);
+        foreach (var item in new[] { equipment.Weapon, equipment.Armor, equipment.Shield })
+        {
+            if (item is not null)
+                Unequip(member, item);
+        }
+    }
+
+    /// <summary>
     /// A member reads a scroll in trek and learns its spell at level 1, which uses it up
     /// (<c>Party::UseScroll</c>). The checks are in the original's order.
     /// </summary>

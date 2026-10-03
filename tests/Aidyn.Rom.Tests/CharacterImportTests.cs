@@ -109,6 +109,43 @@ public sealed class CharacterImportTests(MapObjectFixture fixture)
         Assert.Equal([Alaron], entities.Where(e => e.TrueNameFlag is not null).Select(e => e.Id));
     }
 
+    /// <summary>The flags of each recruitable member (<c>Party::CheckFlags</c>), from the engine's table in 1.0, and whose sheets the game keeps.</summary>
+    [Fact]
+    public void EveryRecruitableMemberHasTheFlagsTheEngineKeepsForThem()
+    {
+        (string Name, int Joined, int? Left, int Died, bool Kept)[] expected =
+        [
+            ("Farris", 455, 456, 450, false),
+            ("Abrecan", 89, 685, 615, true),
+            ("Arturo", 247, 689, 614, true),
+            ("Baird", 380, 690, 623, false),
+            ("Becan", 375, 697, 618, true),
+            ("Brenna", 92, null, 613, false),
+            ("Donovan", 382, 691, 620, false),
+            ("Dougal", 574, 695, 582, false),
+            ("Godric", 90, 686, 616, true),
+            ("Keelin", 265, 688, 619, true),
+            ("Niesen", 412, 692, 448, false),
+            ("Rheda", 91, 687, 617, false),
+            ("Sholeh", 523, 694, 622, false),
+        ];
+
+        var members = Set.All<Plugins.Records.EntityRecord>(RecordTypes.Entity).Where(e => e.Member is not null).ToList();
+        Assert.Equal(expected.Select(e => e.Name).Order(), members.Select(e => e.Name).Order());
+        foreach (var (name, joined, left, died, kept) in expected)
+        {
+            var member = members.Single(e => e.Name == name).Member!;
+            Assert.Equal(RecordId.Decimal(RecordTypes.Flag, joined), member.Joined);
+            Assert.Equal(left is { } l ? RecordId.Decimal(RecordTypes.Flag, l) : null, member.Left);
+            Assert.Equal(RecordId.Decimal(RecordTypes.Flag, died), member.Died);
+            Assert.Equal(kept, member.Kept);
+        }
+
+        // Alaron and Trahern are in the party, but not by flags the engine keeps.
+        Assert.Null(Set.Get<Plugins.Records.EntityRecord>(Alaron).Member);
+        Assert.Null(Set.Get<Plugins.Records.EntityRecord>(RecordId.Hex(RecordTypes.Entity, 0x0239)).Member);
+    }
+
     [Fact]
     public void AlaronsSkillsAndGearAreThoseOfTheRecord()
     {

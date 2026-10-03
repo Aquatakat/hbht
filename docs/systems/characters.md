@@ -69,7 +69,55 @@ Base values read capped at the base cap, and modified ones at the cap and at lea
 | Warrior | Intelligence + Warrior × 7 + Stamina |
 | Wizard | (Wizard × 5 + Intelligence) × 2 |
 
-Who joins and leaves with what sheet comes with M2. The original sets each recruit's joined, left and died flags (`Party::CheckFlags`, already read into the quest atlas), and keeps the sheet of each member who leaves in one of four slots, restoring it if they rejoin (`SaveEntity`).
+## Joining and leaving (M2 session 5d)
+
+Scripts add and take away members (Borg13 ops 47 and 48), and `GameState.AddMember` and `RemoveMember` do it as the original does. Nothing else does: the original has no menu to dismiss a member, and a battle's dead are taken out with 2.5 (`Party::BringOutYourDead`). From 1.0's code (Oct 2, 2026):
+
+- **Each recruitable member's record has their flags** (`MemberFlags`, from `Party::CheckFlags`'s tables at `0x800D36C4` and `0x800D3718`): joined, left and died. Alaron and Trahern have none.
+
+| Member | Joined | Left | Died | Kept |
+| --- | --- | --- | --- | --- |
+| Farris | 455 | 456 | 450 | |
+| Abrecan | 89 | 685 | 615 | yes |
+| Arturo | 247 | 689 | 614 | yes |
+| Baird | 380 | 690 | 623 | |
+| Becan | 375 | 697 | 618 | yes |
+| Brenna | 92 | none | 613 | |
+| Donovan | 382 | 691 | 620 | |
+| Dougal | 574 | 695 | 582 | |
+| Godric | 90 | 686 | 616 | yes |
+| Keelin | 265 | 688 | 619 | yes |
+| Niesen | 412 | 692 | 448 | |
+| Rheda | 91 | 687 | 617 | |
+| Sholeh | 523 | 694 | 622 | |
+
+- **Joining** (`Party::AddMember`, `0x80074AC4`) fails only when the party has four. Otherwise:
+  1. The member goes in the first free slot (slot 0 if it's empty), as their record starts them (`Entity::Init` mode 0). The weapons they bring but don't wield go into the inventory.
+  2. Their joined flag is set and their left flag cleared.
+  3. If a sheet was kept when they left, it replaces the new one (`SaveEntity::CopyMember`, `Copy`): experience, all four stat arrays, skills, the spellbook and what it wears. The record's gear is discarded, but the spare weapons are already in the inventory, so they come again each time.
+- **Someone already in the party.** The original doesn't check for this, and adds a second sheet. The port doesn't add them again, but still says they joined, so the one talking leaves the map as in the original. Only Sholeh's first meeting in Ugarit (`aidyn:dialogue/0x04AD`) can re-add someone, since nothing hides her after she joins ([wanderers](wanderers.md#joining)).
+- **Leaving** (`Party::RemoveAliveMember`, `0x80074DCC`):
+  1. Everything they wear goes into the inventory (`StripMember`): the gear, the weapon, the armor and the shield. The Archmage Staff stays, and so does what the inventory has no room for.
+  2. Their sheet is kept, if they're one of the five.
+  3. Their joined flag is cleared and their left flag set.
+  4. The rest move up. Removing someone not in the party does nothing.
+
+  No script removes Alaron, and the code wouldn't stop it.
+- **Kept sheets.** The original keeps sheets in nine slots (`gSaveEntity`).
+  - Slots 0 to 3 mirror the party.
+  - Slots 4 to 8 are fixed: Abrecan, Arturo, Becan, Godric and Keelin (`SaveEntity::GetSlot`, a jump table at `0x800CDD88`). Everyone else comes back new each time.
+  - It copies the party into them (`BenchParty`) on saving and on someone leaving. So a kept sheet is the member as they left, stripped, with no potions working.
+  - A member who dies in battle has theirs erased (`EraseEntityOfID`), for 2.5.
+
+  The port keeps only those who left (`Party.Kept`), and takes a sheet out when its member rejoins; the mirror changes nothing anyone sees. The importer marks the five (`MemberFlags.Kept`).
+- **A full party is the scripts' business.** Retail ignores whether AddMember worked; the debug build crashes with "Couldn't add %d to the party". 20 of the 29 joining scripts check the party's size, which counts Alaron. The other nine, Gwernia's, are gated so they can't come up with the party full: their map objects need fewer than two of Abrecan, Godric and Rheda (5004). Brenna's need two.
+- **The full party's prompt is a script template.** Eleven cut-scenes share it (Keelin's `0x0382` and `0x0410`, Arturo's `0x0383` and `0x0404`, Becan's `0x039F`, Baird's `0x045E`, Donovan's `0x045F`, Rheda's `0x0518`, Abrecan's `0x0527`, Godric's `0x0529`, Dougal's `0x04EA`), with Niesen's `0x0472` alike.
+  - After "no room", it asks each member in turn (`CheckMember`). One who would leave says why, and a menu offers to leave (a goodbye, RemoveMember, and back to the join) or stay.
+  - Brenna and Niesen never leave.
+  - Rheda won't until flag 458 (Beat Shamsuk): "I haven't found a cure for Niesen yet". Dougal's script doesn't gate her.
+  - Farris and Dougal aren't asked.
+
+  The VM runs all of it, so nothing in the engine is needed.
 
 ## Checked against the machine code
 
@@ -94,5 +142,5 @@ The checkpoints confirm the sheets: levels, hit points, the skills that can't be
 Saving and loading a sheet, with the spellbook reordered as the original's loading leaves it, is in [saves](saves.md).
 
 - **Effects (2.5):** spells' stat changes and their timers, potions' in combat, Cheat Death, and what dying clears.
-- **Joining and leaving (M2):** the member flags and the sheets kept for members who leave.
+- **Deaths (2.5):** the died flags (`Party::CheckDeaths`, which also clears them for the living) and taking the dead out after a battle, which erases their kept sheets and leaves their joined flag set.
 - **Flags for the party's best stats and skills.** The original tries to raise them whenever a stat or skill changes (`Event_flag_stat`, `event_flag_skill_`), but its lookup never finds them, so the port doesn't either (see the [audit](../hardcoded-content.md)).

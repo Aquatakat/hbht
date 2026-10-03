@@ -90,7 +90,7 @@ public static class BaseImporter
         var characterTables = CharacterTables.Read(rom);
         var itemTables = ItemTables.Read(rom);
         var menuTables = MenuTables.Read(rom);
-        WriteJson(Path.Combine(staging, "records", "entities.json"), ItemImporter.WithSoleWeapons(db, CharacterImporter.BuildEntities(db, models)));
+        WriteJson(Path.Combine(staging, "records", "entities.json"), CharacterImporter.WithMembers(ItemImporter.WithSoleWeapons(db, CharacterImporter.BuildEntities(db, models)), EngineTables.Read(rom)));
         WriteJson(Path.Combine(staging, "records", "spells.json"), CharacterImporter.BuildSpells(db, itemTables, menuTables));
         WriteJson(Path.Combine(staging, "records", "stats.json"), CharacterImporter.BuildStats(db, characterTables));
         WriteJson(Path.Combine(staging, "records", "skills.json"), ItemImporter.WithIcons(itemTables, CharacterImporter.BuildSkills(db, characterTables)));

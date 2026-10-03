@@ -69,7 +69,7 @@ Read from 1.0's machine code on Oct 2, 2026, by a Sonnet subagent, and the reach
 - **During it**, the world runs on: bodies move and animate, the sky and chunk streaming go on, but the clock, `WanderTick` and the HUD stop, and the player gets no input. Every frame (`0x80051bd8`) the wanderer is held again and both are asked for request 0.
 - **The camera** frames the two (`ProcessPlayers`, `CreateFocusFromMultiple`): see [cameras](cameras.md#the-conversation-camera-5c).
 - **Talking.** Each button press (`0x80051c4c`) asks both for request 0, moves the conversation on, and then, unless the script played an animation in that press (`ApplyStimulus`), asks the speaker for request 4: Alaron if the shown line's speaker is Alaron, and otherwise the wanderer, whoever the speaker is (`0x800514cc`). A line with no speaker entity animates nobody. The next frame's request 0 replaces it.
-- **The end** (`0x80051ccc`), from the script's end, a shop, training, a battle or a camp: a shop, training or battle takes the game out of trek (a script's battle uses the party's flag C, not B). The camera goes back to following the player (`GiveCameraToPlayer`, the pitch back to its default) with a quick swing of 5 frames. The wanderer's body is let go and it sets off for its node again (`FUN_80012d44`), which ends its calm; or, if a member joined in the conversation (`DialougeAddPartyMember`, only in a conversation), its body is freed, and the flags the script sets keep it from coming back when its chunk next loads. Map objects aren't gated again; only a chunk loading does that.
+- **The end** (`0x80051ccc`), from the script's end, a shop, training, a battle or a camp: a shop, training or battle takes the game out of trek (a script's battle uses the party's flag C, not B). The camera goes back to following the player (`GiveCameraToPlayer`, the pitch back to its default) with a quick swing of 5 frames. The wanderer's body is let go and it sets off for its node again (`FUN_80012d44`), which ends its calm; or, if a member joined in the conversation (`DialougeAddPartyMember`, only in a conversation), its body is freed, and what keeps it from coming back when its chunk next loads is its party's enabled gate (see [joining](#joining)). Map objects aren't gated again; only a chunk loading does that.
 - **Dialogue objects** (`dialouge_vobject_func`, `0x80010d68`) start their script with their own reference point and index, and hold no body. Of the 364 in the base plugin, 271 are cut-scenes (239 walked into), 72 backdrops and 20 signs; the one conversation is a placeholder ("this dialog isn't BORGED yet", map 0x127B, object 2). A sign shows the box with the player asked for request 0, and nothing else changes. A cut-scene fades out and leaves trek; a backdrop leaves it at once (session 6). One already running stops another starting.
 
 ### In the port
@@ -82,3 +82,19 @@ Read from 1.0's machine code on Oct 2, 2026, by a Sonnet subagent, and the reach
 - **A press** (`Conversation.Press`): A moves the box on, bringing up the choices behind a line that showed alone, or taking the cursor's choice; up and down move the cursor. The speaker talks for a tick: `PlayerMotion.Asked` for Alaron, the body's `Request` for the wanderer. Turning, or a steered body's step, overrides it, as `Actor::Move` does in the original.
 - **The end** (`Conversation.End`): the camera's released, and the wanderer sets off or is freed (`Wanderers.Free`). A shop, training, battle or camp is said in a message until sessions 7, 2.5 and 2.7. What a script waits for that the runtime can't show yet (a camera, an actor walking or animating) is taken as done, and its cues are logged, until session 6.
 - **Real data:** all 406 talkers that aren't silent, in 174 maps, start their scripts without a fault: 400 show a page, 3 end at once and 3 wait.
+
+### Joining
+
+From 1.0's code and the base plugin (Oct 2, 2026). A member's joining or leaving is in [characters](characters.md#joining-and-leaving-m2-session-5d).
+
+- **The speaker's body is freed** at the end (`0x80051ccc`, `Actor::FreePlayer`) when a conversation's AddMember worked (`DialougeAddPartyMember`, `0x80050970`, sets `dialogmode+0xA8` when the script's start function is 0). A cut-scene's AddMember doesn't set it.
+- **The fade-out ending sets it too.** `0x80051F4C` sets the script's done flag, then `+0xAB` to 2 and `+0xA8` to 1. So a script that ends that way also frees the wanderer it was started from. That's for session 6's cut-scenes.
+- **What keeps a recruit away is their party's enabled gate.** Nearly every recruit's monster party is enabled by a derived flag that holds NOT their joined flag. For example:
+  - Keelin's in Terminor (map `0x1436`, party 17) by 5413 = NOT 265 & NOT 619 & 363 & 263.
+  - Godric's (`0x18D0`, party 4) by 5391, which also reads 73, the flag his script sets.
+
+  So a member who leaves comes back to where they were recruited, which is how the ones dismissed come back in Terminor.
+- **The exceptions.**
+  - Niesen's and Farris's recruiting dialogue objects are gated by their scripts' done flags (373, 413 and 449).
+  - Sholeh's party in Ugarit (`0x118A`, party 1, for `aidyn:dialogue/0x04AD`) is enabled by 5432 = 490 & NOT 622 & NOT 492, which nothing her joining sets. She'd be there again, and her script, now greeting her return (491), runs AddMember again. The original adds a second Sholeh; the port doesn't, but frees her body again.
+- **Five joining scripts nothing starts:** `0x03AA` (Godric), `0x045B` (Becan), `0x045C` (Abrecan), `0x045D` (Godric) and `0x04EC` (Trahern). No map object or script names them, so they may be cut, or started from a table not yet found.

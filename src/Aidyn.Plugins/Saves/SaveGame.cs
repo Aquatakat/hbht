@@ -11,9 +11,8 @@ namespace Aidyn.Plugins.Saves;
 /// as the original's do: see <c>Aidyn.Core.GameState</c>.
 /// </summary>
 /// <remarks>
-/// Not kept yet: spell and potion effects (2.5), the members who left (M2's joining and leaving),
-/// the weather, the minimap's fog, the screenshot, and the party's three movement timers, which
-/// nothing reads.
+/// Not kept yet: spell effects (2.5), the weather, the minimap's fog, the screenshot, and the
+/// party's three movement timers, which nothing reads.
 /// </remarks>
 public sealed record SaveGame
 {
@@ -69,6 +68,12 @@ public sealed record SaveParty
 
     /// <summary>The members in slot order, Alaron first.</summary>
     public IReadOnlyList<SaveCharacter> Members { get; init; } = [];
+
+    /// <summary>
+    /// The sheets kept for members who left, which they rejoin with (<c>SaveEntity</c>'s slots 4 to 8).
+    /// The original keeps a copy for those in the party too, which the port has no need of.
+    /// </summary>
+    public IReadOnlyList<SaveCharacter> Kept { get; init; } = [];
 
     /// <summary>The inventory's stacks, in the order they were gained.</summary>
     public IReadOnlyList<SaveStack> Inventory { get; init; } = [];

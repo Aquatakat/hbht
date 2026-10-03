@@ -38,6 +38,7 @@ namespace Aidyn.Plugins.Records;
 /// everyone else.
 /// </param>
 /// <param name="Body">How it stands in the world, as a wanderer.</param>
+/// <param name="Member">The flags the engine keeps for a recruitable party member. Null for everyone else, Alaron and Trahern among them.</param>
 public sealed record EntityRecord(
     RecordId Id,
     string Name,
@@ -66,7 +67,21 @@ public sealed record EntityRecord(
     int Unk21,
     RecordId? TrueNameFlag = null,
     RecordId? SoleWeapon = null,
-    EntityBody? Body = null);
+    EntityBody? Body = null,
+    MemberFlags? Member = null);
+
+/// <summary>
+/// What the engine does for a recruitable party member (<c>Party::CheckFlags</c>, <c>SaveEntity::GetSlot</c>).
+/// </summary>
+/// <param name="Joined">Set when they join, and cleared when a script takes them out of the party.</param>
+/// <param name="Left">Cleared when they join, and set when a script takes them out. Null for Brenna, who never leaves.</param>
+/// <param name="Died">Set while they're in the party and dead (<c>Party::CheckDeaths</c>), with battles (2.5).</param>
+/// <param name="Kept">
+/// Whether their sheet is kept when they leave, so they come back as they were: experience, stats,
+/// skills and spells, though not what they wore, which leaving puts in the inventory. The original
+/// keeps only Abrecan's, Arturo's, Becan's, Godric's and Keelin's; the others come back new.
+/// </param>
+public sealed record MemberFlags(RecordId Joined, RecordId? Left, RecordId Died, bool Kept = false);
 
 /// <summary>An entity's kind (the entity DB's groups). The decomp's enum lacks 4, which is empty.</summary>
 public enum EntityCategory

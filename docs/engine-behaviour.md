@@ -157,6 +157,8 @@ If the party is full, the game prompts the player to speak to each current membe
 - Brenna never leaves.
 - Rheda only leaves after her quest to cure Niesen has concluded.
 
+**(code)** The prompt is the recruit's own script, not the party's: a template eleven cut-scenes share asks each member in turn, after the recruit says there's no room. Niesen never leaves either, and Rheda's condition is flag 458, Beat Shamsuk. Five members (Abrecan, Arturo, Becan, Godric and Keelin) come back with their experience and stats, but nothing they wore, which leaving puts in the inventory; the rest come back new. See [characters](systems/characters.md#joining-and-leaving-m2-session-5d).
+
 ### Party-aware cut-scenes
 
 Main story cut-scenes generally have a slot for every possible party member. If a character isn't in the party, their lines are skipped. Some character-specific cut-scenes only trigger with a particular combination of party members.

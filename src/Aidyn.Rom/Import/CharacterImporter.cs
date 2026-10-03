@@ -2,6 +2,7 @@ using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 using Aidyn.Rom.Db;
 using Aidyn.Rom.Engine;
+using Aidyn.Rom.Quests;
 using PluginAspect = Aidyn.Plugins.Records.Aspect;
 using PluginElement = Aidyn.Plugins.Records.Element;
 using PluginEntity = Aidyn.Plugins.Records.EntityRecord;
@@ -115,6 +116,23 @@ internal static class CharacterImporter
                 .Select(e => Entity(e, portraits.GetValueOrDefault(e.Id), e.Id == alaron) with { Body = bodies.GetValueOrDefault(e.Id, Fallback(EntityRadius)) })
                 .DistinctBy(e => e.Id).OrderBy(e => e.Id.Key, StringComparer.Ordinal),
         ];
+    }
+
+    /// <summary>
+    /// The entity list positions whose sheets <c>SaveEntity::GetSlot</c> keeps in slots 4 to 8 (a jump
+    /// table in 1.0 at <c>0x800CDD88</c>): Abrecan, Arturo, Becan, Godric and Keelin.
+    /// </summary>
+    internal static readonly int[] KeptMemberPositions = [0x98, 0x9A, 0x9C, 0xA0, 0xA1];
+
+    /// <summary>Gives each recruitable member the flags the engine keeps for them (<c>Party::CheckFlags</c>).</summary>
+    public static List<PluginEntity> WithMembers(List<PluginEntity> entities, EngineTables tables)
+    {
+        var kept = KeptMemberPositions.Select(p => tables.EntityList[p]).ToHashSet();
+        var members = tables.Party.ToDictionary(p => DbRecordIds.For(p.Member)!.Value, p => new MemberFlags(
+            Flag(p.Joined), p.Left == 0 ? null : Flag(p.Left), Flag(p.Died), kept.Contains(p.Member)));
+        return [.. entities.Select(e => members.TryGetValue(e.Id, out var member) ? e with { Member = member } : e)];
+
+        static RecordId Flag(ushort flag) => RecordId.Decimal(RecordTypes.Flag, flag);
     }
 
     /// <summary>

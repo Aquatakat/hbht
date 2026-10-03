@@ -51,6 +51,7 @@ A save made from the "Before final encounter" checkpoint, cut short:
    "gear": [],
    "spells": [{ "spell": "aidyn:spell/0x031D", "level": 10 }, …]
   }, …],
+  "kept": [{ "entity": "aidyn:entity/0x0240", "totalExp": 628818, … }, …],   // Arturo, Becan and Godric, who left
   "inventory": [{ "item": "aidyn:weapon/0x0711", "quantity": 1 }, { "item": "aidyn:weapon/0x072B", "quantity": 11 }, …]
  },
  "memories": [
@@ -62,11 +63,12 @@ A save made from the "Before final encounter" checkpoint, cut short:
 
 - **The place** is the map set, the chunk by name, the centre of the player's sphere in the chunk's coordinates, and the way he faces in X and Z. The original keeps the opposite of that, `facing`. Without a place, the game starts where a new game does.
 - **Flags** are the plain flags that are set, but for flag 1, which always is. Derived flags are evaluated on loading.
-- **A member** is what the original saves of a character sheet (`SaveParty::SaveCharSheet`): experience, the trained and current stats, base skill levels, what's worn with each item's battery and charges, the spellbook, and the potions working on them, each with its power and what's left of its timer (`SavePotionEffect`). A skill that can't be learnt is left out. Loading applies the potions again after what's worn, as the original does (`LoadCharSheetEffects`); the checkpoints' converter doesn't read them yet.
+- **A member** is what the original saves of a character sheet (`SaveParty::SaveCharSheet`): experience, the trained and current stats, base skill levels, what's worn with each item's battery and charges, the spellbook, and the potions working on them, each with its power and what's left of its timer (`SavePotionEffect`). A skill that can't be learnt is left out. Loading applies the potions again after what's worn, as the original does (`LoadCharSheetEffects`); the checkpoints' converter doesn't read them yet. From 1.0's code, though, the original seems to save none: it saves its copies of the party's sheets (`SaveEntity::BenchParty`), and the copy (`SaveEntity::Copy`) leaves out the effects. That's in [to-check](../to-check.md).
+- **Kept sheets** are those of members who left whose sheets the original keeps, saved as members are, which they rejoin with ([characters](characters.md#joining-and-leaving-m2-session-5d)). The original saves all nine of its slots (`QuestData::Save`): the party's four, then Abrecan's, Arturo's, Becan's, Godric's and Keelin's, each copied from the party for one in it. The port saves only those who left, and loading refuses a kept sheet for someone in the party.
 - **Stacks and worn items** keep their battery and charges, where the item has them. Their price is the item's; only a shop's stock has its own.
 - **Memories** are below.
 - **The random streams** are the five streams' seeds. Without them, the streams start as a new game's.
-- **Not kept yet:** spell effects (2.5), the sheets of members who left (M2's fifth session), the weather, the minimap's fog and the screenshot. The original also keeps three timers of how long the party has run, walked and sneaked (`Party::TickMoveCounters`), which nothing reads.
+- **Not kept yet:** spell effects (2.5), the weather, the minimap's fog and the screenshot. The original also keeps three timers of how long the party has run, walked and sneaked (`Party::TickMoveCounters`), which nothing reads.
 
 ## Loading, as the original does
 
@@ -110,4 +112,4 @@ A save made from the "Before final encounter" checkpoint, cut short:
 
 `gGlobals` is at 0x800D8088 in 1.0 and 0x800E68A8 in the debug build, and `TerrainPointer` at 0x800E303C and 0x800F1BBC.
 
-In all eight checkpoints, loading the converted save gives every member's stats (trained, current, base and modified), skills (base and modified), protection, damage, worn items and spellbook order as the console holds them, the party's gold and inventory, and every flag but 3617, which loading sets. Saving the loaded game and loading that again gives the same save.
+In all eight checkpoints, loading the converted save gives every member's stats (trained, current, base and modified), skills (base and modified), protection, damage, worn items and spellbook order as the console holds them, the party's gold and inventory, and every flag but 3617, which loading sets. Saving the loaded game and loading that again gives the same save. Every checkpoint keeps Arturo's, Becan's and Godric's sheets, with nothing worn, as leaving leaves them, and the converter carries them over (`AresCheckpoint.Kept`, from `gSaveEntity` at `0x800DA4E0` in 1.0 and `0x800E8F10` in the debug build).

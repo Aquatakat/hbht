@@ -43,6 +43,8 @@ public static class CheckpointSave
             {
                 Gold = checkpoint.Gold,
                 Members = [.. checkpoint.Party.Select(Member)],
+                // The game keeps a copy for kept members in the party too; the port keeps only those who left.
+                Kept = [.. checkpoint.Kept.Where(k => checkpoint.Party.All(m => m.Id != k.Id)).Select(Member)],
                 Inventory = [.. checkpoint.Inventory.Select(s => new SaveStack(ItemId(s.Item.Id), s.Quantity)
                 {
                     Battery = Battery(s.Item),

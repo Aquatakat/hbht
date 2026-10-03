@@ -376,6 +376,115 @@ public sealed class QuestIndexTests : IDisposable
         Assert.Empty(index.UsesBy(Id("aidyn:item/0x1202")));
     }
 
+    /// <summary>
+    /// Entity 0x0248 is recruitable, with joined flag 90, left flag 686 and died flag 616. Entity 0x0243 is too, but has no left flag
+    /// (joined 92, died 613), and entity 0x0239 isn't. Script 0x0100 adds 0x0248 at node 0, removes it at node 1, adds 0x0243 at
+    /// node 2, adds 0x0239 at node 3 and removes 0x0243 at node 4; its node 5 adds 0x0248 and 0x0243 together.
+    /// </summary>
+    private QuestIndex MemberIndex()
+    {
+        var dir = Path.Combine(_root, "aidyn");
+        Directory.CreateDirectory(Path.Combine(dir, "records"));
+        File.WriteAllText(Path.Combine(dir, "plugin.json"), """{ "id": "aidyn", "name": "aidyn", "version": "1.0.0" }""");
+        File.WriteAllText(Path.Combine(dir, "records", "members.json"), """
+            [
+              { "id": "aidyn:entity/0x0248", "name": "Godric", "member": { "joined": "aidyn:flag/90", "left": "aidyn:flag/686", "died": "aidyn:flag/616", "kept": true } },
+              { "id": "aidyn:entity/0x0243", "name": "Brenna", "member": { "joined": "aidyn:flag/92", "died": "aidyn:flag/613" } },
+              { "id": "aidyn:entity/0x0239", "name": "Trahern" },
+              {
+                "id": "aidyn:dialogue/0x0100", "number": 1, "mode": "Conversation",
+                "nodes": [
+                  { "index": 0, "kind": "Line", "text": "", "ops": [ { "command": "AddMember", "target": "aidyn:entity/0x0248" } ] },
+                  { "index": 1, "kind": "Line", "text": "", "ops": [ { "command": "RemoveMember", "target": "aidyn:entity/0x0248" } ] },
+                  { "index": 2, "kind": "Line", "text": "", "ops": [ { "command": "AddMember", "target": "aidyn:entity/0x0243" } ] },
+                  { "index": 3, "kind": "Line", "text": "", "ops": [ { "command": "AddMember", "target": "aidyn:entity/0x0239" } ] },
+                  { "index": 4, "kind": "Line", "text": "", "ops": [ { "command": "RemoveMember", "target": "aidyn:entity/0x0243" } ] },
+                  { "index": 5, "kind": "Line", "text": "", "ops": [ { "command": "AddMember", "target": "aidyn:entity/0x0248" }, { "command": "AddMember", "target": "aidyn:entity/0x0243" } ] },
+                ],
+              },
+            ]
+            """);
+        return QuestIndex.Build(PluginSet.Load([dir]));
+    }
+
+    private static readonly RecordId Godric = Id("aidyn:entity/0x0248");
+    private static readonly RecordId Brenna = Id("aidyn:entity/0x0243");
+
+    [Fact]
+    public void ScriptsThatAddAMemberSetTheirJoinedFlagAndClearTheirLeftFlagAtTheirNode()
+    {
+        var index = MemberIndex();
+
+        Assert.Equal(
+            [
+                new FlagUse(Flag(90), ScriptA, FlagAccess.Set, FlagRole.MemberAdded, 0),
+                new FlagUse(Flag(90), ScriptA, FlagAccess.Set, FlagRole.MemberAdded, 5),
+                new FlagUse(Flag(90), Godric, FlagAccess.Set, FlagRole.Member),
+            ],
+            index.UsesOf(Flag(90)).Where(u => u.Role is FlagRole.MemberAdded or FlagRole.Member));
+        Assert.Equal(
+            [
+                new FlagUse(Flag(686), ScriptA, FlagAccess.Clear, FlagRole.MemberAdded, 0),
+                new FlagUse(Flag(686), ScriptA, FlagAccess.Clear, FlagRole.MemberAdded, 5),
+            ],
+            index.UsesOf(Flag(686)).Where(u => u.Role == FlagRole.MemberAdded));
+        Assert.Contains(new QuestEdge(ScriptA, Flag(90), FlagRole.MemberAdded, FlagAccess.Set), index.Downstream(ScriptA));
+        Assert.Contains(new QuestEdge(ScriptA, Flag(686), FlagRole.MemberAdded, FlagAccess.Clear), index.Upstream(Flag(686)));
+    }
+
+    [Fact]
+    public void ScriptsThatRemoveAMemberClearTheirJoinedFlagAndSetTheirLeftFlagAtTheirNode()
+    {
+        var index = MemberIndex();
+
+        Assert.Equal([new FlagUse(Flag(90), ScriptA, FlagAccess.Clear, FlagRole.MemberRemoved, 1)],
+            index.UsesOf(Flag(90)).Where(u => u.Role == FlagRole.MemberRemoved));
+        Assert.Equal([new FlagUse(Flag(686), ScriptA, FlagAccess.Set, FlagRole.MemberRemoved, 1)],
+            index.UsesOf(Flag(686)).Where(u => u.Role == FlagRole.MemberRemoved));
+        Assert.Contains(new QuestEdge(ScriptA, Flag(686), FlagRole.MemberRemoved, FlagAccess.Set), index.Downstream(ScriptA));
+        Assert.Contains(new QuestEdge(ScriptA, Flag(90), FlagRole.MemberRemoved, FlagAccess.Clear), index.Upstream(Flag(90)));
+    }
+
+    [Fact]
+    public void AMemberWithNoLeftFlagOnlyUsesTheirJoinedFlagAndANonMemberUsesNone()
+    {
+        var index = MemberIndex();
+
+        // Brenna: joined at nodes 2 and 5, cleared at node 4, and nothing on a left flag.
+        Assert.Equal(
+            [
+                new FlagUse(Flag(92), ScriptA, FlagAccess.Set, FlagRole.MemberAdded, 2),
+                new FlagUse(Flag(92), ScriptA, FlagAccess.Clear, FlagRole.MemberRemoved, 4),
+                new FlagUse(Flag(92), ScriptA, FlagAccess.Set, FlagRole.MemberAdded, 5),
+            ],
+            index.UsesBy(ScriptA).Where(u => u.Flag == Flag(92)).OrderBy(u => u.At));
+        // The script touches only the three flags of Godric's and Brenna's records it names: no left flag for her, nothing for Trahern at node 3.
+        Assert.Equal([90, 92, 686], index.UsesBy(ScriptA).Select(u => int.Parse(u.Flag.Key)).Distinct().Order());
+        Assert.DoesNotContain(index.UsesBy(ScriptA), u => u.At == 3);
+    }
+
+    [Fact]
+    public void ARecruitableMembersRecordUsesItsJoinedLeftAndDiedFlagsAndBrennaHasNoLeftFlag()
+    {
+        var index = MemberIndex();
+
+        Assert.Equal(
+            [
+                new FlagUse(Flag(90), Godric, FlagAccess.Set, FlagRole.Member),
+                new FlagUse(Flag(686), Godric, FlagAccess.Set, FlagRole.Member),
+                new FlagUse(Flag(616), Godric, FlagAccess.Set, FlagRole.Member),
+            ],
+            index.UsesBy(Godric).OrderBy(u => u.Flag == Flag(90) ? 0 : u.Flag == Flag(686) ? 1 : 2));
+        Assert.Equal(
+            [new FlagUse(Flag(92), Brenna, FlagAccess.Set, FlagRole.Member), new FlagUse(Flag(613), Brenna, FlagAccess.Set, FlagRole.Member)],
+            index.UsesBy(Brenna).OrderBy(u => u.Flag == Flag(92) ? 0 : 1));
+        Assert.Empty(index.UsesBy(Id("aidyn:entity/0x0239")));
+        Assert.Contains(new FlagUse(Flag(616), Godric, FlagAccess.Set, FlagRole.Member), index.UsesOf(Flag(616)));
+        Assert.Contains(new QuestEdge(Godric, Flag(90), FlagRole.Member, FlagAccess.Set), index.Upstream(Flag(90)));
+        Assert.Contains(new QuestEdge(Godric, Flag(616), FlagRole.Member, FlagAccess.Set), index.Downstream(Godric));
+        Assert.DoesNotContain(index.UsesOf(Flag(686)), u => u.By == Brenna);
+    }
+
     [Fact]
     public void FindTextIgnoresCaseAndKeepsScriptThenNodeOrder()
     {

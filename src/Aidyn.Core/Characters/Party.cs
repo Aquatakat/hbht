@@ -1,5 +1,7 @@
 using Aidyn.Core.Rng;
 using Aidyn.Plugins;
+using Aidyn.Plugins.Records;
+using Aidyn.Plugins.Saves;
 
 namespace Aidyn.Core.Characters;
 
@@ -8,15 +10,15 @@ namespace Aidyn.Core.Characters;
 /// the questions scripts ask of it: skill checks, the best and worst of a stat, a member's stat.
 /// </summary>
 /// <remarks>
-/// Who joins and leaves with what sheet comes with M2: the original sets each recruit's joined, left
-/// and died flags (<c>Party::CheckFlags</c>), and keeps a sheet for each member who leaves, which it
-/// restores if they rejoin (<c>SaveEntity</c>). Its items are in <c>Party.Items.cs</c>.
+/// It also holds the sheets kept for members who left (<see cref="Kept"/>). The game state adds and
+/// removes members for scripts, with their flags. Its items are in <c>Party.Items.cs</c>.
 /// </remarks>
 public sealed partial class Party
 {
     public const int MaxSize = 4;
 
     private readonly Character?[] _slots = new Character?[MaxSize];
+    private readonly Dictionary<RecordId, SaveCharacter> _kept = [];
 
     /// <summary>The four slots. Members are packed to the front as others leave.</summary>
     public IReadOnlyList<Character?> Slots => _slots;
@@ -56,10 +58,23 @@ public sealed partial class Party
         return true;
     }
 
-    /// <summary>Empties the party: its members, its gold and its inventory. Key items' flags stay as they are.</summary>
+    /// <summary>
+    /// The sheets kept for members who left, by entity (<c>SaveEntity</c>'s slots 4 to 8): what they
+    /// come back with if they rejoin. Only members whose record says so are kept (<see cref="MemberFlags.Kept"/>).
+    /// </summary>
+    public IReadOnlyDictionary<RecordId, SaveCharacter> Kept => _kept;
+
+    /// <summary>Keeps a sheet for a member who left, in place of any kept before.</summary>
+    public void Keep(SaveCharacter sheet) => _kept[sheet.Entity] = sheet;
+
+    /// <summary>Takes the sheet kept for a member who rejoins, if there is one.</summary>
+    public SaveCharacter? TakeKept(RecordId entity) => _kept.Remove(entity, out var sheet) ? sheet : null;
+
+    /// <summary>Empties the party: its members, the sheets it keeps, its gold and its inventory. Key items' flags stay as they are.</summary>
     public void Clear()
     {
         Array.Clear(_slots);
+        _kept.Clear();
         Gold = 0;
         Inventory?.Clear();
     }
