@@ -62,13 +62,6 @@ public class ScriptRunnerTests
         public void Cue(ScriptCue cue) => Cues.Add(cue);
     }
 
-    /// <summary>Hands out the given values in turn.</summary>
-    private sealed class Scripted(params uint[] values) : IRandom
-    {
-        private int _next;
-        public uint Next() => values[_next++];
-    }
-
     /// <summary>The value that makes <see cref="RandomExtensions.Range"/> over <paramref name="count"/> numbers give <paramref name="n"/>.</summary>
     private static uint Draw(int n, int count) => (uint)(((ulong)n << 32) / (ulong)count + 1);
 
@@ -315,7 +308,7 @@ public class ScriptRunnerTests
     }
 
     [Fact]
-    public void ACutsceneAnimatesOnlyActorsItHasSpawned()
+    public void ACutSceneAnimatesOnlyActorsItHasSpawned()
     {
         var script = Script(DialogueMode.Cutscene,
             Line(0, "", 1, Op(DialogueCommand.SetSpeaker, target: Trahern), Op(DialogueCommand.CreateActor, 2), Op(DialogueCommand.PlayAnimation, 5)),
@@ -347,7 +340,7 @@ public class ScriptRunnerTests
     [InlineData(75, 1, "First rumour.")]
     public void ARandomLineIsPickedByARollOfTheOtherScriptsNodes(int roll, int blankNodes, string expected)
     {
-        var run = Start(Gossip(), random: new Scripted(Draw(roll, 101)), others: [RumourScript(blankNodes)]);
+        var run = Start(Gossip(), random: new ScriptedRandom(Draw(roll, 101)), others: [RumourScript(blankNodes)]);
 
         Assert.Equal(expected, Text(run.Runner));
         Assert.Equal(ScriptWait.Player, run.Runner.Wait);
@@ -360,8 +353,8 @@ public class ScriptRunnerTests
     {
         var world = new World();
         var start = new ScriptStart(MapObject: Chest);
-        var first = Start(Gossip(), world, new Scripted(Draw(40, 101)), start, others: [RumourScript(0)]);
-        var again = Start(Gossip(), world, new Scripted(Draw(90, 101)), start, others: [RumourScript(0)]);
+        var first = Start(Gossip(), world, new ScriptedRandom(Draw(40, 101)), start, others: [RumourScript(0)]);
+        var again = Start(Gossip(), world, new ScriptedRandom(Draw(90, 101)), start, others: [RumourScript(0)]);
 
         Assert.Equal("Second rumour.", Text(first.Runner));
         Assert.Equal("Second rumour.", Text(again.Runner));
@@ -402,7 +395,7 @@ public class ScriptRunnerTests
     {
         var flags = Flags();
         flags.Set(5, true);
-        var run = Start(LockPicking(4), new World { Skills = { [4] = 7 } }, new Scripted(Draw(3, 22)), flags: flags, randomSkillChecks: Flag(5));
+        var run = Start(LockPicking(4), new World { Skills = { [4] = 7 } }, new ScriptedRandom(Draw(3, 22)), flags: flags, randomSkillChecks: Flag(5));
 
         run.Runner.Continue();
         Assert.Equal("Too hard.", Text(run.Runner));

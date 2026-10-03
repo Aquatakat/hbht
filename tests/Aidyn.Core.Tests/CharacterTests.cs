@@ -46,14 +46,7 @@ internal static class Characters
     public static Character Create(EntityRecord entity) => Character.Create(entity, Rules, _ => Fireball);
 
     /// <summary>A stream whose d100 rolls come out as <paramref name="rolls"/>.</summary>
-    public static IRandom D100(params int[] rolls) => new Scripted([.. rolls.Select(r => (uint)(((ulong)(r - 1) * 0x1_0000_0000 + 99) / 100))]);
-
-    private sealed class Scripted(uint[] values) : IRandom
-    {
-        private int _next;
-
-        public uint Next() => values[_next++];
-    }
+    public static IRandom D100(params int[] rolls) => new ScriptedRandom([.. rolls.Select(r => (uint)(((ulong)(r - 1) * 0x1_0000_0000 + 99) / 100))]);
 }
 
 public class CharacterTests

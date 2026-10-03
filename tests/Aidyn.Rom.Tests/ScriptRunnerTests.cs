@@ -120,7 +120,7 @@ public class ScriptRunnerTests
     }
 
     [Fact]
-    public void TheKendallCutsceneSetsItsDoneFlag()
+    public void TheKendallCutSceneSetsItsDoneFlag()
     {
         var script = ById[RecordId.Hex(RecordTypes.Dialogue, 866)];
         var flags = new FlagNetwork(Data.Value.Flags, RecordId.Decimal(RecordTypes.Flag, EngineFlags.NewJournalEntry));
