@@ -291,6 +291,44 @@ public sealed partial class FollowCamera
         Snap = 5;
     }
 
+    /// <summary>
+    /// One tick framing two bodies talking, by their spheres' centres (<c>ProcessPlayers</c> with the
+    /// <c>ACTOR_800</c> bodies, and <c>CreateFocusFromMultiple</c>, checked in 1.0's code): it follows
+    /// their midpoint from (|h.z|, −|h.x|), where h is the half of the gap between them, which is
+    /// always toward −X and +Z, at (|h| + 4) / tan 33.5° but at least 5, swinging quickly.
+    /// </summary>
+    public void Frame(CollisionWorld world, Vector3 a, Vector3 b)
+    {
+        var focus = (a + b) * 0.5f;
+        var h = focus - a;
+        var away = new Vector2(-MathF.Abs(h.Z), MathF.Abs(h.X));
+        away = away.LengthSquared() > 0 ? Vector2.Normalize(away) : -LookXZ;
+        Distance = MathF.Max((h.Length() + ConversationMargin) / MathF.Tan(ConversationHalfAngle), ConversationMinDistance);
+        Snap = 1;
+        Anchor(focus);
+        Step(world, focus, -away);
+        Distance = DefaultDistance;
+    }
+
+    /// <summary>The margin <see cref="Frame"/> leaves around the two.</summary>
+    private const float ConversationMargin = 4;
+
+    /// <summary>Half the 75° field of view, less 8°, which <see cref="Frame"/> fits the two in.</summary>
+    private const float ConversationHalfAngle = (75 - 8) * 0.5f * MathF.PI / 180;
+
+    private const float ConversationMinDistance = 5;
+
+    /// <summary>
+    /// Gives the camera back to the player at <paramref name="player"/> after a conversation
+    /// (<c>GiveCameraToPlayer</c>): its pitch back to the default, and a quick swing for 5 frames.
+    /// </summary>
+    public void Release(Vector3 player)
+    {
+        Anchor(player);
+        Pitch = Mode == CameraMode.Outdoor ? DefaultPitch : 0;
+        Snap = 5;
+    }
+
     /// <summary>The player is standing still at <paramref name="player"/> (<c>SetFeild70</c>).</summary>
     public void Anchor(Vector3 player)
     {

@@ -46,3 +46,13 @@ Ported (`CameraMove`), checked against the debug ROM's machine code. A camera ob
 - **Flags 0x100 and 0x200,** on the 28 objects that don't move the camera, set how far behind the outdoor camera follows (the values' Y, at least 3) for the next 30 ticks, and its pitch (X), anchoring it at the player. The interiors' camera reads neither.
 - Cut-scenes' cameras are the same moves (`AllocScriptCamera`), aimed at an actor, so session 6 builds them from `CameraMove`.
 - In a conversation the original counts the cameras holding it, and while any does, R doesn't orbit. That comes with session 5.
+
+## The conversation camera (5c)
+
+From 1.0's machine code (Oct 2, 2026, a Sonnet subagent; the constants spot-checked). Talking to a wanderer, both bodies are flagged `ACTOR_800`, and the player's camera focus is cleared (`ClearPlayerCamFocus`). Each frame, `ProcessPlayers` (`0x80012854`–`0x80012968`) gathers the flagged bodies and, in trek with no focus, frames them (`CreateFocusFromMultiple`, `0x800a77b4`):
+
+- **The focus** is the midpoint of the two bodies farthest from their centroid: with two, the midpoint between them. It's anchored there (`SetFeild70`) and the camera aims at it as at the player.
+- **The way it looks:** with h from the farthest body to the focus, the facing passed is (−|h.z|, |h.x|), normalised, in the original's reversed facing (`0x800a79cc`–`7a08`, checked), so the camera sits that way from the focus: always toward −X and +Z, whoever stands where. That's across the line between the two when it runs from −X−Z to +X+Z, and along it, looking past one at the other, when it runs from −X+Z to +X−Z.
+- **The distance** is (|h| + 4) / tan 33.5°, at least 5 (`0x800cdb14`): 33.5° is half of the 75° field of view (`0x800cdb10`) less 8. The decomp has the tangent upside down. Two bodies 1.6 apart put it about 7.2 away.
+- It's stepped as the follow camera with that distance (`unk5c`) for the frame, then the distance goes back to the default, and `unk80` is 1, a quick swing each frame.
+- At the end the camera is given back to the player (`GiveCameraToPlayer`) with a quick swing of 5 frames (`unk80` 5), and its pitch back to the default.

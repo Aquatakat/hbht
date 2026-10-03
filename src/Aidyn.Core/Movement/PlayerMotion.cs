@@ -61,6 +61,23 @@ public sealed class PlayerMotion
     public int Request { get; private set; }
 
     /// <summary>
+    /// The heading he's turning to where he stands (<c>Actor::SetFacing</c>, as a conversation
+    /// turns him to the one he talks to), or null. He turns 10° a frame, as other bodies do, and
+    /// the stick cancels it.
+    /// </summary>
+    public Vector2? TurnTo { get; private set; }
+
+    /// <summary>
+    /// An animation asked for in place of standing, for the next tick only, as a conversation asks
+    /// for his talking (request 4). Turning, or the stick, overrides it, as <c>Actor::Move</c> does.
+    /// </summary>
+    public int? Asked { get; set; }
+
+    /// <summary>Turns him to face <paramref name="heading"/> where he stands (<c>Actor::SetFacing</c>).</summary>
+    public void Face(Vector2 heading) =>
+        TurnTo = heading.LengthSquared() > SpherePhysics.Epsilon * SpherePhysics.Epsilon ? Vector2.Normalize(heading) : null;
+
+    /// <summary>
     /// How many animation ticks he plays per tick, which scales his speed with his steps. 1 is the
     /// original's; faster profiles play him quicker (ADR 0006's fidelity settings).
     /// </summary>
@@ -113,7 +130,8 @@ public sealed class PlayerMotion
     /// <summary>Reads the controls (<c>Actor::Move</c>, the trek parts).</summary>
     private void Control(PlayerInput input, FollowCamera camera)
     {
-        Request = Idle;
+        Request = Asked ?? Idle;
+        Asked = null;
         if (input.Orbit)
         {
             camera.Orbit(Sphere.Position, input.OrbitStick);
@@ -125,8 +143,19 @@ public sealed class PlayerMotion
         if (tilt <= 0.05f)
         {
             camera.Anchor(Sphere.Position);
+            if (TurnTo is { } to)
+            {
+                Request = Idle;
+                Heading = Turn(Heading, to, Cadence.PerTick(Body.FaceTurnPerFrame));
+                if (Faces(Heading, to))
+                {
+                    Heading = to;
+                    TurnTo = null;
+                }
+            }
             return;
         }
+        TurnTo = null;
         Request = input.Sneak ? Sneak : tilt >= 0.8f ? Run : Walk;
         // Up on the stick is the way the camera looks, and right is to its right.
         var look = camera.LookXZ;
@@ -135,6 +164,12 @@ public sealed class PlayerMotion
         var wanted = Vector2.Normalize(new Vector2(look.Y * x + look.X * y, look.Y * y - look.X * x));
         Heading = Turn(Heading, wanted, Cadence.PerTick(TurnPerFrame));
     }
+
+    /// <summary>
+    /// Whether a turn has arrived: <see cref="Turn"/> normalizes what it arrives at again, which can
+    /// differ from a unit vector in its last bit.
+    /// </summary>
+    public static bool Faces(Vector2 heading, Vector2 to) => Vector2.DistanceSquared(heading, to) < 1e-10f;
 
     /// <summary>
     /// Turns <paramref name="from"/> toward <paramref name="to"/> by <paramref name="angle"/>,

@@ -191,8 +191,11 @@ public sealed class Body
         {
             busy = true;
             Heading = PlayerMotion.Turn(Heading, TurnTo, Cadence.PerTick(FaceTurnPerFrame));
-            if (Heading == TurnTo)
+            if (PlayerMotion.Faces(Heading, TurnTo))
+            {
+                Heading = TurnTo;
                 Turning = false;
+            }
         }
         if (!busy)
             Stop();

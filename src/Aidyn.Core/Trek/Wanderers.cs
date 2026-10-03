@@ -72,6 +72,33 @@ public sealed class Wanderers(PluginSet plugins)
         return added;
     }
 
+    /// <summary>
+    /// Whether A reaches the player's nearest body (<c>0x80004480</c> in 1.0, the decomp's
+    /// <c>FUN_80005d60</c>): it's a wanderer's, its party isn't silent, the distance between them across the
+    /// ground is at most its scaled radius plus his plus 0.5, and they're less than 2 apart in height.
+    /// </summary>
+    /// <param name="nearest">The nearest body the push loop found, and how far across the ground (<see cref="Step"/>'s result).</param>
+    /// <param name="player">The player's sphere, whose radius is his scaled radius.</param>
+    public static bool Reaches(Wanderer nearest, float distance, CollisionSphere player) =>
+        (nearest.Party.Flags & PartyFlags.Silent) == 0
+        && distance <= nearest.Body.ScaledRadius + player.Radius + TalkMargin
+        && MathF.Abs(player.Position.Y - nearest.Body.Sphere.Position.Y) < TalkHeight;
+
+    /// <summary>What A's reach of a body adds to the two radii.</summary>
+    public const float TalkMargin = 0.5f;
+
+    /// <summary>How far apart in height A reaches a body.</summary>
+    public const float TalkHeight = 2;
+
+    /// <summary>The wanderer whose party this is, in that chunk, if it has a body.</summary>
+    public Wanderer? Of(LoadedMap map, MonsterPartyObject party) => _all.FirstOrDefault(w => w.Map == map && w.Party == party);
+
+    /// <summary>
+    /// Takes away a wanderer's body, as when its party joins the player's (<c>Actor::FreePlayer</c>).
+    /// It comes back as its chunk next loads, if its flags still let it.
+    /// </summary>
+    public void Free(Wanderer wanderer) => _all.Remove(wanderer);
+
     /// <summary>Takes away the bodies of a chunk that's gone (<c>FreeWandererFromZone</c>). Returns those taken.</summary>
     public IReadOnlyList<Wanderer> Unload(LoadedMap map)
     {

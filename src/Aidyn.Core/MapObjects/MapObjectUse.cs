@@ -27,6 +27,12 @@ public interface IMapObjectHost
     /// <summary>Starts a dialogue object's script (<c>dialouge_vobject_func</c>).</summary>
     void StartScript(LoadedMap map, DialogueObject dialogue);
 
+    /// <summary>
+    /// A pressed on a monster party's body (<c>monsterpary_func</c>): a talker's conversation starts
+    /// (<see cref="Trek.Conversation"/>), and a hunter's battle. Does nothing by default.
+    /// </summary>
+    void Talk(LoadedMap map, MonsterPartyObject party) { }
+
     /// <summary>Asks an actor a scene object places for an animation (<c>Borg7_SetAnimation</c>).</summary>
     void Animate(LoadedMap map, SceneObject actor, int request);
 
@@ -132,30 +138,36 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
     /// <summary>
     /// The object A uses (<c>obj_ref_func</c>): of the objects the grid cell the player is in lists (off the
     /// grid, the first cell's; see <see cref="ObjectGrid.At"/>), those active, not tangible and within
-    /// reach by each type's test, the one alone, or else the best by nearness and by facing: (farthest −
-    /// its distance) / farthest + (1 + the cosine of its bearing off the heading) / 2, the later on a tie.
-    /// Null if none.
+    /// reach by each type's test, after the body A reaches, if any; the one alone, or else the best by
+    /// nearness and by facing: (farthest − its distance) / farthest + (1 + the cosine of its bearing off
+    /// the heading) / 2, the later on a tie. Null if none.
     /// </summary>
     /// <param name="at">The player's centre, in the chunk's coordinates.</param>
     /// <param name="heading">The way the player faces, in X and Z.</param>
     /// <param name="radius">The player's radius, which a container's reach adds.</param>
-    public MapObject? Reach(LoadedMap map, Vector3 at, Vector2 heading, float radius)
+    /// <param name="body">
+    /// The monster party whose body A reaches (see <see cref="Trek.Wanderers.Reaches"/>), where its body is in
+    /// the chunk's coordinates, and how far across the ground, which it's weighed by.
+    /// </param>
+    public MapObject? Reach(LoadedMap map, Vector3 at, Vector2 heading, float radius, (MonsterPartyObject Party, Vector3 At, float Distance)? body = null)
     {
         // A map without a grid, which only a mod's could be, weighs all its objects.
         var listed = map.Record.Grid is { } grid ? grid.At(at).Select(i => map[i]).OfType<MapObject>() : map.Objects;
-        var candidates = listed.Where(o => !o.Tangible && map.IsActive(o.Index) && InReach(map, o, at, radius))
-            .Take(MaxCandidates).ToList();
+        var candidates = new List<(MapObject Object, Vector3 At, float Distance)>();
+        if (body is var (party, bodyAt, bodyDistance))
+            candidates.Add((party, bodyAt, bodyDistance));
+        candidates.AddRange(listed.Where(o => !o.Tangible && map.IsActive(o.Index) && InReach(map, o, at, radius))
+            .Take(MaxCandidates - candidates.Count).Select(o => (o, o.Position, Vector3.Distance(o.Position, at))));
         if (candidates.Count <= 1)
-            return candidates.FirstOrDefault();
-        var farthest = candidates.Max(o => Vector3.Distance(o.Position, at));
+            return candidates.Count == 0 ? null : candidates[0].Object;
+        var farthest = candidates.Max(c => c.Distance);
         MapObject? best = null;
         var bestScore = 0f;
         var player = new Vector2(at.X, at.Z);
-        foreach (var o in candidates)
+        foreach (var (o, position, distance) in candidates)
         {
-            var distance = Vector3.Distance(o.Position, at);
             // The original keeps the way the player faces reversed, and the bearing from the object.
-            var bearing = new Vector2(o.Position.X, o.Position.Z) - player;
+            var bearing = new Vector2(position.X, position.Z) - player;
             bearing = bearing.LengthSquared() > 0 ? Vector2.Normalize(bearing) : bearing;
             var score = (farthest - distance) / farthest + (Vector2.Dot(bearing, heading) + 1) * 0.5f;
             if (bestScore <= score)
@@ -178,9 +190,9 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
     }
 
     /// <summary>A pressed in trek: uses what the player reaches, if anything. False if nothing.</summary>
-    public bool UseNearest(LoadedMap map, Vector3 at, Vector2 heading, float radius)
+    public bool UseNearest(LoadedMap map, Vector3 at, Vector2 heading, float radius, (MonsterPartyObject Party, Vector3 At, float Distance)? body = null)
     {
-        if (Popup is not null || Reach(map, at, heading, radius) is not { } o)
+        if (Popup is not null || Reach(map, at, heading, radius, body) is not { } o)
             return false;
         Use(map, o);
         return true;
@@ -202,6 +214,9 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
                 break;
             case TriggerObject trigger:
                 Trigger(map, trigger);
+                break;
+            case MonsterPartyObject party:
+                host.Talk(map, party);
                 break;
         }
     }

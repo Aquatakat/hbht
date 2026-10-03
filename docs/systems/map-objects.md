@@ -25,7 +25,7 @@ Ported from `objectJumpTables.cpp`, `voxObjects.cpp`, `voxObjects2.cpp` (`obj_re
 | Container | Within its reach plus the player's radius (0.5), from the player's centre in 3D: 2.5 for most. Its reach isn't its radius, which is 10 for most (see [maps](../formats/maps.md#map-objects-in-the-base-plugin-06)). Then a herb, spice, gem or custom container always; a chest, sack, crate or barrel only until opened, and only if it holds gold, a loot table or an item (`container_obj_check`) |
 | Teleporter, trigger, dialogue | Within its radius, while its Enabled holds |
 | Save point | Within its radius, and using it does nothing |
-| Monster party | Comes with talking to wanderers (session 5c, [wanderers](wanderers.md)) |
+| Monster party | Only the player's nearest body, if it's a wanderer's and its party isn't silent: within the two bodies' scaled radii plus 0.5 across the ground, and less than 2 apart in height. It's weighed by that distance and its body's position. See [wanderers](wanderers.md#talking-5c) |
 
 One alone is used. Of several, the one with the best (farthest − its distance) / farthest + (1 + the cosine of its bearing off the player's heading) / 2 is used, the later on a tie. The original walks its grid cell's object list rather than the chunk's; real-data checks show every container, teleporter, trigger and save point is listed in every cell it reaches, so the two agree, except for 11 dialogues whose radius reaches cells that don't list them.
 
@@ -84,6 +84,6 @@ The runtime's chunk streamer keeps each loaded chunk's `LoadedMap` beside its co
 
 - Alaron's animations for opening a container (request 11) and a door (19), which the original asks for only when it chose among several objects.
 - Sounds (containers' by kind, the coin jingle, the explosion), the explosion's lights and particles, and the popups' fades.
-- Monster parties and dialogues (session 5), and cut-scenes' cameras (session 6).
+- Dialogue objects' cut-scenes and backdrops, which the runtime names and skips, and cut-scenes' cameras (session 6). Signs show in the conversation box, and monster parties' bodies talk ([wanderers](wanderers.md#talking-5c)).
 - The editor's map object pages don't use objects yet, but a container's opens in the loot window ([inspector](inspector.md)).
 - The trap menu's layout follows the decomp's reading of `WidgetChoiceDia::Update`, the question above the choices, with the cursor's choice pulsing grey to white, the scroll menu's defaults. The user finds it looks right, and will confirm it in the ROM ([to-check](../to-check.md)).

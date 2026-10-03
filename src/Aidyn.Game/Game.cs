@@ -46,7 +46,7 @@ namespace Aidyn.Game;
 /// F toggles the free camera, F3 the debug overlay, F5 the pace, F6 the sky's placement and F7 the
 /// UI screen's height, and F8 saves to <c>quick.json</c> in the saves folder.
 /// </remarks>
-public partial class Game : Node3D, IMapObjectHost
+public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
 {
     /// <summary>
     /// How a teleport fades (<c>set_teleport_pointer</c>, <c>handleZoneEngineFrame</c>, <c>appState_1</c>):
@@ -106,8 +106,13 @@ public partial class Game : Node3D, IMapObjectHost
     private (int Row, int Column)? _centre;
     /// <summary>Chunks whose scenery changed this tick, built again before the frame is drawn.</summary>
     private readonly HashSet<LoadedMap> _changed = [];
-    /// <summary>The last script a dialogue object asked to start, which conversations will run (session 5).</summary>
+    /// <summary>The last script a dialogue object asked to start that the runtime can't run yet, which cut-scenes will (session 6).</summary>
     private RecordId? _lastScript;
+    /// <summary>The conversation or sign showing, if any.</summary>
+    private Conversation? _conversation;
+    private ConversationBoxView? _box;
+    /// <summary>The player's nearest body and how far, from the last tick's push loop, which A can reach.</summary>
+    private (Wanderer? Nearest, float Distance) _nearest;
 
     public override void _Ready()
     {
@@ -255,6 +260,8 @@ public partial class Game : Node3D, IMapObjectHost
         trek.AddChild(_trekScreen);
         _popupView = new TrekPopupView(plugins);
         _trekScreen.Canvas.AddChild(_popupView);
+        _box = new ConversationBoxView(plugins) { Visible = false };
+        _trekScreen.Canvas.AddChild(_box);
         _fade.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _fade.Visible = false;
         trek.AddChild(_fade);
@@ -362,7 +369,9 @@ public partial class Game : Node3D, IMapObjectHost
         StepFade();
         var fading = _pending is not null || _fadingIn;
         Enter(_chunks!.ChunkAt(_player.Motion.Sphere.Position.ToGodot()));
-        if (_use!.Popup is null)
+        // The clock stops under a popup or a conversation.
+        var talking = _conversation is not null;
+        if (_use!.Popup is null && !talking)
             _game.PassTime(1);
         _sky!.Step();
         ScrollTextures();
@@ -372,7 +381,7 @@ public partial class Game : Node3D, IMapObjectHost
         // ProcessVoxelObjects comes before the player moves. Through a teleport's fade, only camera
         // objects work, so the camera is where the room's puts it as the screen comes up.
         var playing = !fading && _pending is null;
-        if (_chunks.MapAt(motion.Sphere.Position.ToGodot()) is { } centre)
+        if (!talking && _chunks.MapAt(motion.Sphere.Position.ToGodot()) is { } centre)
         {
             var at = Local(centre, motion.Sphere.Position);
             if (playing)
@@ -380,21 +389,28 @@ public partial class Game : Node3D, IMapObjectHost
             else
                 _use!.TouchCameras(centre, at);
         }
-        var input = fading || _use!.Popup is not null ? new PlayerInput(System.Numerics.Vector2.Zero) : ReadInput();
+        var input = fading || _use!.Popup is not null || talking ? new PlayerInput(System.Numerics.Vector2.Zero) : ReadInput();
         var before = motion.Sphere.Position;
-        _follow.Step(_world, motion.Sphere.Position, motion.Heading);
+        if (_conversation is { With: not null } framing)
+            framing.Frame(_follow, _world);
+        else
+            _follow.Step(_world, motion.Sphere.Position, motion.Heading);
         motion.Step(_world, input, _follow, _animation);
-        // WanderTick, which a popup, the menu and a fade stop.
-        if (playing && _use!.Popup is null)
+        // WanderTick, which a popup, a conversation, the menu and a fade stop.
+        if (playing && _use!.Popup is null && !talking)
         {
             foreach (var w in _wanderers!.Tick(_world, motion.Sphere.Position, motion.Request, _game.Party, _game.Random.Wander))
                 GD.Print($"{MapRecord.VoxelId(w.Map.Record.Id, w.Party.Index)} ambushes the party; battles come with combat (2.5).");
         }
         // ProcessPlayers: the player is the first body, then the rest move and push.
-        _wanderers!.Step(_world, motion.Sphere, before, _chunks.MapAt(motion.Sphere.Position.ToGodot())?.Key, _follow.Aim,
+        _nearest = _wanderers!.Step(_world, motion.Sphere, before, _chunks.MapAt(motion.Sphere.Position.ToGodot())?.Key, _follow.Aim,
             w => _chunks.View(w)?.Animation ?? Still.Instance);
+        if (_conversation is { } conversation && conversation.Tick())
+            ShowConversation();
         foreach (var (part, target) in motion.Sphere.Trod)
         {
+            if (talking)
+                break;
             if (_chunks.Map(part) is not { } map)
                 continue;
             if (playing)
@@ -696,6 +712,11 @@ public partial class Game : Node3D, IMapObjectHost
             _popupView!.QueueRedraw();
             return;
         }
+        else if (_conversation is not null)
+        {
+            Converse(e);
+            return;
+        }
         else if (e.IsActionPressed("pause") && _menu is not null && _pending is null)
         {
             _menu.Open();
@@ -742,7 +763,10 @@ public partial class Game : Node3D, IMapObjectHost
         var sphere = _player!.Motion.Sphere;
         if (_chunks!.MapAt(sphere.Position.ToGodot()) is not { } map)
             return false;
-        var used = _use!.UseNearest(map, Local(map, sphere.Position), _player.Motion.Heading, sphere.Radius);
+        (MonsterPartyObject, System.Numerics.Vector3, float)? body = null;
+        if (_nearest is ({ } nearest, var distance) && nearest.Map == map && Wanderers.Reaches(nearest, distance, sphere))
+            body = (nearest.Party, Local(map, nearest.Body.Sphere.Position), distance);
+        var used = _use!.UseNearest(map, Local(map, sphere.Position), _player.Motion.Heading, sphere.Radius, body);
         ShowPopup();
         return used;
     }
@@ -763,12 +787,117 @@ public partial class Game : Node3D, IMapObjectHost
 
     void IMapObjectHost.StartScript(LoadedMap map, DialogueObject dialogue)
     {
-        // Conversations come with session 5. A tangible dialogue asks every tick, so say it once.
+        // One script at a time (dialoug_func).
+        if (_conversation is not null)
+            return;
+        if (_plugins!.TryGet<DialogueRecord>(dialogue.Script) is { Mode: DialogueMode.Sign } sign)
+        {
+            _conversation = Conversation.Show(_game!, sign, new Core.Scripts.ScriptStart(dialogue.RefPointBase, MapRecord.VoxelId(map.Record.Id, dialogue.Index)),
+                this, _player!.Motion);
+            ShowConversation();
+            return;
+        }
+        // Cut-scenes and backdrops come with session 6. A tangible dialogue asks every tick, so say it once.
         if (_lastScript == dialogue.Script)
             return;
         _lastScript = dialogue.Script;
         Say($"{dialogue.Name} would start {dialogue.Script}.");
     }
+
+    void IMapObjectHost.Talk(LoadedMap map, MonsterPartyObject party)
+    {
+        if (_conversation is not null || _wanderers!.Of(map, party) is not { } wanderer)
+            return;
+        if (party.Dialogue is null)
+        {
+            Say($"{MapRecord.VoxelId(map.Record.Id, party.Index)} would fight; battles come with combat (2.5).");
+            return;
+        }
+        _conversation = Conversation.TalkTo(_game!, wanderer, this, _player!.Motion);
+        ShowConversation();
+    }
+
+    // Conversations.
+
+    /// <summary>
+    /// The buttons in a conversation: A moves it on, bringing up the choices behind a line that showed
+    /// alone or taking the cursor's choice, and up and down move the cursor. Start does nothing.
+    /// </summary>
+    private void Converse(InputEvent e)
+    {
+        var conversation = _conversation!;
+        var runner = conversation.Runner;
+        if (runner.Status != Core.Scripts.ScriptStatus.Showing || runner.Page is not { } page)
+            return;
+        var box = _box!.Box;
+        if (e.IsActionPressed("menu_accept"))
+        {
+            if (box.ShowsLineBeforeChoices)
+            {
+                conversation.Press(_box.ShowChoices);
+                return;
+            }
+            if (page.Choices.Count > 0 && runner.Wait != Core.Scripts.ScriptWait.Player)
+                conversation.Press(() => runner.Choose(box.Highlight));
+            else
+                conversation.Press(runner.Continue);
+            ShowConversation();
+        }
+        else if (e.IsActionPressed("move_forward") || e.IsActionPressed("menu_up"))
+        {
+            _box.Point(box.Highlight - 1);
+        }
+        else if (e.IsActionPressed("move_back") || e.IsActionPressed("menu_down"))
+        {
+            _box.Point(box.Highlight + 1);
+        }
+    }
+
+    /// <summary>
+    /// Shows what the conversation has come to: its page in the box, or its end. What a script waits
+    /// for that the runtime can't do yet (a camera, an actor walking or animating) is taken as done.
+    /// </summary>
+    private void ShowConversation()
+    {
+        if (_conversation is not { } conversation)
+            return;
+        var runner = conversation.Runner;
+        while (runner.Status == Core.Scripts.ScriptStatus.Waiting && runner.Wait != Core.Scripts.ScriptWait.Timer)
+        {
+            GD.Print($"{runner.Script.Id} waits for {runner.Wait}, which comes with cut-scenes (session 6); going on.");
+            runner.Resume();
+        }
+        if (runner.Status == Core.Scripts.ScriptStatus.Showing && runner.Page is { } page)
+            _box!.Show(page);
+        else
+            _box!.Visible = false;
+        if (conversation.Ended)
+            EndConversation();
+    }
+
+    /// <summary>Ends the conversation, saying what the stand-ins for a shop, training, battle or camp would do.</summary>
+    private void EndConversation()
+    {
+        var conversation = _conversation!;
+        var ending = conversation.Runner.Ending!;
+        conversation.End(_wanderers!, _follow!);
+        _conversation = null;
+        _box!.Visible = false;
+        var what = ending.Kind switch
+        {
+            Core.Scripts.ScriptEndKind.Shop => "The shop would open (session 7).",
+            Core.Scripts.ScriptEndKind.Train => "Training would open (session 7).",
+            Core.Scripts.ScriptEndKind.Battle => "A battle would start; battles come with combat (2.5).",
+            Core.Scripts.ScriptEndKind.Camp => $"The party is healed; {ending.RestHours} hours would pass (camping, 2.7).",
+            _ => null,
+        };
+        if (ending.Fault is { } fault)
+            GD.PushWarning($"{conversation.Runner.Script.Id}: {fault}");
+        if (what is not null)
+            Say(what);
+    }
+
+    void Core.Scripts.IScriptHost.Cue(Core.Scripts.ScriptCue cue) => GD.Print($"Script cue, not shown until session 6: {cue}");
 
     void IMapObjectHost.Animate(LoadedMap map, SceneObject actor, int request)
     {
