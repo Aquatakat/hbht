@@ -137,6 +137,8 @@ The checkpoints confirm the sheets: levels, hit points, the skills that can't be
 - **Merchant from 1 to 2** costs 3,000 experience after a battle, and 2,400 experience and 80 gold at a trainer: 750 × (n + 1)², not the decomp's ten times that.
 - **Oriana** charges no gold for what she teaches.
 
+The user confirmed joining and leaving on Oct 2, 2026: the five kept members come back as they were and everyone else as new, which anyone who plays with their party runs into. Recruiting Godric in a late-game save takes him off the map at once, which the port now does too ([wanderers](wanderers.md#joining)).
+
 ## What's left
 
 Saving and loading a sheet, with the spellbook reordered as the original's loading leaves it, is in [saves](saves.md).

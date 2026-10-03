@@ -52,6 +52,16 @@ public sealed class Conversation
     public bool Ended => Runner.Status == ScriptStatus.Ended;
 
     /// <summary>
+    /// Whether trek's world is rebuilt when the script ends, as it is for a cut-scene, a backdrop or the
+    /// help menu. The original frees the chunks and every wanderer as one starts (<c>clear_HUD_elements</c>,
+    /// from <c>Trek_GameState</c> once <c>dialoug_func</c> asks for the dialog mode) and loads them again
+    /// when it ends (<c>initGameTrek</c>), so every map object is gated again and every wanderer whose
+    /// party is still there starts again at its home node. That's what takes a recruit away whose
+    /// cut-scene added them. A conversation or a sign stays in trek, and nothing is gated again.
+    /// </summary>
+    public bool RebuildsTrek => Runner.Script.Mode is DialogueMode.Cutscene or DialogueMode.Backdrop or DialogueMode.Help;
+
+    /// <summary>
     /// Talks to a wanderer (<c>monsterpary_func</c>, <c>monsterparty_wanderstruct</c>): its party's
     /// script starts, from reference point 0 and remembering by the party; the wanderer is held, both
     /// stand and turn to face each other, and the party's flag B is set. Null for a hunter or a silent

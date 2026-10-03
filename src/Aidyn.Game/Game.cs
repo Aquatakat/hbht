@@ -526,6 +526,26 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
     }
 
     /// <summary>
+    /// Loads the map set's chunks and their wanderers again where the player stands, as trek starts again
+    /// after a cut-scene, a backdrop or the help menu (<c>initGameTrek</c>): every map object is gated
+    /// by the flags as they are now, and the wanderers start at their home nodes.
+    /// </summary>
+    private void RebuildTrek()
+    {
+        var set = _chunks!.MapSet;
+        _chunks.QueueFree();
+        _world.Clear();
+        _changed.Clear();
+        _wanderers!.Clear();
+        _nearest = default;
+        _use!.ClearCameras();
+        _chunks = new ChunkStreamer(_plugins!, _models!, set, _world, _game!, _wanderers, _shadowTexture);
+        AddChild(_chunks);
+        _chunks.Update(_player!.Motion.Sphere.Position.ToGodot());
+        PlaceShadow();
+    }
+
+    /// <summary>
     /// Once a frame at the console's average 20 fps, the scenes the original would draw load their
     /// own copies of their scrolling textures, which moves them on.
     /// </summary>
@@ -882,6 +902,8 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
         conversation.End(_wanderers!, _follow!);
         _conversation = null;
         _box!.Visible = false;
+        if (conversation.RebuildsTrek)
+            RebuildTrek();
         var what = ending.Kind switch
         {
             Core.Scripts.ScriptEndKind.Shop => "The shop would open (session 7).",

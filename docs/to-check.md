@@ -8,9 +8,7 @@ Things only the user can settle, in the emulator or by reading the ROM. Each lin
 - **Dougal at the harbour reunion** (script 1040), with Dougal in the party: whether the scene ends at his line, hangs or plays on. See [scripts](systems/scripts.md#to-check-in-the-emulator).
 - **Shop prices.** A few prices, buying and selling, with a checkpoint's party, to compare with the port's barter factor. See [items](systems/items.md#shops).
 - **The Party tab's cursor after equipping the last item** of the inventory, when no item moves up into its row, when a save allows it. See [ui](systems/ui.md#the-party-tabs-actions).
-- **Potions across a save.** From the code, the original's saves drop the potions working on the party, which the port's keep. To check: drink a potion with a timer (Strength, say), save, load and see whether the stat is still raised. See [saves](systems/saves.md#the-format).
-- **Sholeh in Ugarit after she joins** (`aidyn:dialogue/0x04AD`): from the data, nothing hides her party once she's joined, so leaving the area and coming back should find her there, and talking to her should add a second Sholeh. If you're ever there with her freshly recruited, whether she's there again and what talking does. See [wanderers](systems/wanderers.md#joining).
-- **A kept member's return.** Godric, Abrecan, Arturo, Becan and Keelin come back with their experience and stats but nothing worn (it went to the inventory when they left); everyone else comes back as new, at their starting level. If a playthrough ever dismisses and rejoins one of each, whether that's what happens. See [characters](systems/characters.md#joining-and-leaving-m2-session-5d).
+- **Sholeh in Ugarit after she joins** (`aidyn:dialogue/0x04AD`), in full-game testing: whether she's there again once she's joined, and what keeps her away when the party has no free place, which the data doesn't show. See [wanderers](systems/wanderers.md#joining).
 
 
 ## In the ROM

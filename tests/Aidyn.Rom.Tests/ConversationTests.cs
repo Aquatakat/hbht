@@ -689,6 +689,51 @@ public sealed class ConversationTests(MapObjectFixture fixture)
     // Every party in the game.
 
     /// <summary>
+    /// Godric's late-game cut-scene (<c>aidyn:dialogue/0x0529</c>), from his party on Overworld map <c>0x0FC5</c>: he joins,
+    /// the cut-scene rebuilds trek as it ends, and the chunk loaded again has no body for him, as his party is there only
+    /// while his joined flag (90) is clear. Before, the cut-scene's AddMember left him wandering, to be recruited again.
+    /// </summary>
+    [Fact]
+    public void GodricsCutSceneTakesHimOffTheMapWhenTrekIsRebuilt()
+    {
+        var (_, record, party) = fixture.Data.Of<MonsterPartyObject>()
+            .Single(p => p.Map.Id == RecordId.Hex(RecordTypes.Map, 0x0FC5) && p.Object.Index == 26);
+        var godric = RecordId.Hex(RecordTypes.Entity, 0x0248);
+        Assert.Equal(godric, party.Entity);
+        var game = GameState.NewGame(Plugins);
+        var map = LoadedMap.Activate(record, "chunk", game.Flags, game.Memory, game.Party, new Lcg());
+        var wanderers = new Wanderers(game.Plugins);
+        wanderers.Load(map, 1_000_000, new CollisionWorld(), game.Memory);
+        var wanderer = Assert.IsType<Wanderer>(wanderers.Of(map, party));
+
+        var player = new PlayerMotion(wanderer.Body.Sphere.Position + new Vector3(-1, 0, -1), Vector2.UnitY);
+        var conversation = Assert.IsType<Conversation>(Conversation.TalkTo(game, wanderer, new CueLog(), player));
+        Assert.True(conversation.RebuildsTrek);
+        var runner = conversation.Runner;
+        for (var steps = 0; !conversation.Ended; steps++)
+        {
+            Assert.True(steps < 500, "The cut-scene doesn't end.");
+            if (runner.Status == ScriptStatus.Waiting)
+                runner.Resume();
+            else if (runner.Page is { Choices.Count: > 0 })
+                conversation.Press(() => runner.Choose(0));
+            else
+                conversation.Press(runner.Continue);
+        }
+        Assert.True(game.Party.Contains(godric));
+        Assert.False(runner.Ending!.PartnerJoined);
+        conversation.End(wanderers, new FollowCamera(player.Sphere.Position, Vector2.UnitY));
+        // A cut-scene's AddMember doesn't free the speaker: until trek is rebuilt he's still there.
+        Assert.NotNull(wanderers.Of(map, party));
+
+        // As the runtime rebuilds trek: the wanderers go, and the chunk loads again with the flags as they are now.
+        wanderers.Clear();
+        var again = LoadedMap.Activate(record, "chunk", game.Flags, game.Memory, game.Party, new Lcg());
+        wanderers.Load(again, 1_000_000, new CollisionWorld(), game.Memory);
+        Assert.Null(wanderers.Of(again, party));
+    }
+
+    /// <summary>
     /// Every monster party with a script that isn't silent, in every map of the game: each is made active, given a body
     /// on empty ground (a chunk's own collision isn't needed to start a conversation) and talked to on a new game, and
     /// its script must start without a fault.
