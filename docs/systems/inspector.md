@@ -1,6 +1,6 @@
 # The editor (roadmap 0.6)
 
-Per [ADR 0009](../adr/0009-code-organisation.md), the Inspector is the one tool app. Per [ADR 0010](../adr/0010-editor-reads-plugins.md), it's the editor, which reads only the imported plugins and draws them with the runtime's code. On Sep 30, 2026 it reached parity with the three.js scene viewer, map viewer and quest atlas, and they were deleted along with the raw Borg browser, its first feature. New research into formats uses the CLI's dumps and exports.
+Per [ADR 0009](../adr/0009-code-organisation.md), the Inspector is the one tool app. Per [ADR 0010](../adr/0010-editor-reads-plugins.md), it's the editor, which reads only the imported plugins and draws them with the runtime's code. New research into formats uses the CLI's dumps and exports.
 
 `src/Aidyn.Inspector` is a Godot app. Run it with `tools/godot.ps1 --path src/Aidyn.Inspector` (build it first with `dotnet build`, or open it in the editor).
 
@@ -21,7 +21,7 @@ It loads the plugins folder as the runtime does (`PluginSet.LoadInstalled`: `aid
 - **Links.** Any field whose value parses as a record ID is a link, so new record types need no editor code. Double-click one in the fields or in Used by to open it on its preview; picking from the list keeps the tab you're on. Back and forward are the ◀ ▶ buttons, Alt+Left and Alt+Right, or the mouse's side buttons. A link to a record no plugin has yet, such as a flag, is dimmer, and opening it shows what names it.
 - **Preview.** A scene in the model view, with the N64 material. Drag to turn, right-drag to pan, scroll to zoom.
   - **Animations** play looped, one at a time. The slider scrubs by the tick; with the view focused, space plays and pauses, and comma and full stop step a tick. A clip's length is one loop, as the runtime counts it.
-  - **Wireframe**, and **Scene camera**, which looks through the scene's own camera at 4:3, as the scene viewer's did.
+  - **Wireframe**, and **Scene camera**, which looks through the scene's own camera at 4:3.
   - **Emitters** marks each particle emitter on the scene's own locators (the importer's `emitter i` nodes), drawn through the model in its particles' brightest colour, and counts the scene's emitters and how many sit on its locators.
   - **An actor** is its scene in its initial state, without Alaron's head for now, with its states below: each state's animation, length and branches, with the interrupting ones in orange. Clicking a state plays its animation. **Root in place** zeroes the root transform's position as the game draws it. **Drive** runs the state machine for a request with the runtime's own `ActorAnimator` and the core's `ActorStateMachine`, so the actor branches, rolls and moves by its root motion as it does in the game, and the camera follows it over a grid a scene unit square. Clicking a state enters it, and ⟲ puts the actor back.
   - **A flag** shows whether it's set, its label, a derived flag's formula with each input's value (the first input is the lowest bit), and the journal entry it adds. A plain flag has a check box to set or clear it and see what follows. A journal entry shows its text, the flag the journal lists it by, and the flag that adds it. The values are the editor's game's (below).

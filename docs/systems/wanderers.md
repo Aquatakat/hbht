@@ -33,7 +33,7 @@ After each body moves, the player first, it's pushed out of the others in its ch
 
 ## Drawing them
 
-In the runtime, `WandererView` draws each body's actor at its feet, facing its heading. Bodies show within 20 of the camera's aim and fade over the last 2 units (`PlayerShadowAlpha`). The original also skips those more than 5 from the aim that are outside its view, which only saves drawing. Their shadows show within 10 of the aim, measured from the body's position in its own chunk's coordinates against the aim in the player's chunk's, so a body in a neighbouring chunk seldom has one ([movement](movement.md)).
+In the runtime, `WandererView` draws each body's actor at its feet, facing its heading. Bodies show within 20 of the camera's aim and fade over the last 2 units (`PlayerShadowAlpha`). The original also skips those more than 5 from the aim that are outside its view, which only saves drawing. Their shadows show within 10 of the aim, measured from the body's position in its own chunk's coordinates against the aim in the player's chunk's, so a body in a neighbouring chunk seldom has one ([movement](movement.md#shadows)).
 
 ## Wandering, noticing and chasing
 

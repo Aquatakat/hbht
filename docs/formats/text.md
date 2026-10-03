@@ -21,7 +21,7 @@ The string tables, the fonts and the portraits beside what characters say. Dialo
 | 10 | Credits | 133 | The credits |
 | 11 | PotionNames | 17 | Potions' names, which the item records already carry |
 
-1.1 has 560 lines of Common and 25 of Controller, the Controller Pak errors it added. The debug ROM's credits have 130 lines. The descriptions will move onto the item, spell and skill records with 2.2 and 2.3, which know which line is whose.
+1.1 has 560 lines of Common and 25 of Controller, the Controller Pak errors it added. The debug ROM's credits have 130 lines. The descriptions are on the item, spell, stat and skill records too, which know which line is whose.
 
 ## Fonts
 

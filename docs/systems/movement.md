@@ -16,3 +16,14 @@ Ported (`Aidyn.Core.Physics` and `Movement`, from `Actor::Move`, the player loop
   - A point exactly on a triangle's edge counts as inside for only half the triangles. A sphere balanced exactly on some shared edges can drop through.
 - Other bodies, wanderers for now, move by the same rules, steered by a goal instead of a stick, and push each other and the player apart: see [wanderers](wanderers.md).
 - Left out: the original only collides with the chunk the player is in, and keeps him 0.05 from its edges. The port collides with every loaded chunk.
+
+## Shadows
+
+`BodyShadow` (`Aidyn.Core.Movement`), from `Actor::CalculateShadow`, `renderPlayerShadows` and `PlaneObj_Render`, checked against the ROM. The runtime draws it.
+
+- Each tick, after he and the camera move, it sweeps a sphere of radius 0.5 from his centre down 3, skipping see-through triangles. It lies where that hits, directly below him, turned to the triangle's normal.
+- **Unlike the original, it skips walls.** The original takes the first triangle its collision grid lists that the sweep touches. Against a leaning wall that's often the wall, and the shadow stands up on it. The user has seen this in the original, but rarely. Our grid's order differs from the original's, and so do the spots where it happens. The port takes the nearest triangle no steeper than 60°, and treats walls as no ground. With Alaron settled by the physics at every half unit of I08, the original's rule tilts the shadow past 45° at 263 of 23,039 spots and the port's at 12. At 28, nothing under 60° is in reach, so it keeps its last placement.
+- It's a square whose corners are twice his radius from its middle, of the shadow texture (`aidyn:texture/0x0003`, `BORG1_PlayerShadow`) in black, with the texture's intensity as alpha, times 80 of 255. It shrinks and fades as he rises. With no ground in reach, it keeps its last height and follows him in X and Z.
+- Shadows are drawn within 20 of the camera's aim in trek and 128 in combat. Over the last 2 units, the fade starts from 255 rather than 128, so a shadow darkens before it goes. Other bodies' shadows show only within 10 of the aim, and come with the bodies.
+- The original draws a flat square without a depth test, before the bodies and the centre chunk's objects, so it never sinks into the ground. The runtime projects the same square as a decal, which bodies' visual layer (2) is left out of. It looks the same, but can't sink where the visible ground and the collision differ. The decal's box reaches 0.75 above and below the ground and fades toward its ends, so where the ground bends there's no hard edge. A wall or tree right beside him still takes a little, as the original's square would.
+- Its alpha is corrected for blending in linear light (see [rendering](rendering.md)).
