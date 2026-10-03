@@ -10,8 +10,6 @@ Things only the user can settle, in the emulator or by reading the ROM. Each lin
 - **The Party tab's cursor after equipping the last item** of the inventory, when no item moves up into its row, when a save allows it. See [ui](systems/ui.md#the-party-tabs-actions).
 - **Sholeh in Ugarit after she joins** (`aidyn:dialogue/0x04AD`), in full-game testing: whether she's there again once she's joined, and what keeps her away when the party has no free place, which the data doesn't show. See [wanderers](systems/wanderers.md#joining).
 
-- **Cut-scenes' held items**, such as the ambush's goblins' short swords (`--cutscene aidyn:dialogue/0x0365`): whether they sit in the hand at the size and angle the original draws them. The port puts the model on the actor's locator 0 as Alaron's head goes on locator 3, which may keep a scale the original takes out. See [scripts](systems/scripts.md#actors).
-- **A talker's cut-scene staged where the player stands**, with Keelin in Terminor (`aidyn:dialogue/0x0382`, a full party): the original stages it in the player's chunk, and its walk to reference point 34 names a point no chunk of Terminor has. Whether Keelin walks there, stands, or something odd happens. See [scripts](systems/scripts.md#the-world-it-plays-in).
 
 ## In the ROM
 
