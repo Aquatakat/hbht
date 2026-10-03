@@ -122,11 +122,16 @@ public sealed class Body
         TurnTo = Normalize(heading);
     }
 
-    /// <summary>Forgets its goal and turn, and lets go of its stick (<c>Actor::ClearInputMoveFlags</c>, <c>ResetMoveQueue</c>).</summary>
+    /// <summary>
+    /// Forgets its goal and turn, and lets go of its stick (<c>Actor::ResetMoveQueue</c>, and the flags
+    /// <c>0x800156e8</c> clears). It's still steered until its next step, which asks for standing
+    /// (request 0), as <c>MoveTo</c> and <c>Actor::Move</c> do in the original; otherwise it would go on
+    /// playing the walk or run it was last asked for, and its root motion would carry it on.
+    /// </summary>
     public void Stop()
     {
         Stick = default;
-        Steered = Moving = Turning = Walks = false;
+        Moving = Turning = Walks = false;
     }
 
     /// <summary>
@@ -197,8 +202,9 @@ public sealed class Body
                 Turning = false;
             }
         }
+        // MoveTo drops ACTOR_2 with nothing left to do, after this step's Actor::Move.
         if (!busy)
-            Stop();
+            Steered = false;
     }
 
     /// <summary>Reads the stick (<c>Actor::Move</c>, the trek parts): it walks under 80% tilt and runs above.</summary>

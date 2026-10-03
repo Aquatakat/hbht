@@ -84,6 +84,28 @@ public class BodyTests
     }
 
     [Fact]
+    public void StoppingItMidRunStandsItAtItsNextStep()
+    {
+        var body = Settled(Standing);
+        body.GoTo(new Vector2(30, 0), 1, walk: false);
+        for (var i = 0; i < 30; i++)
+            body.Step(Worlds.Flat(), new SteadyMotion(0.05f));
+        Assert.Equal(PlayerMotion.Run, body.Request);
+
+        // As a hunter giving up does (ResetMoveQueue): the next step asks for standing, so the run's root
+        // motion doesn't carry it on.
+        body.Stop();
+        body.Step(Worlds.Flat(), new SteadyMotion(0.05f));
+        Assert.Equal(PlayerMotion.Idle, body.Request);
+        Assert.False(body.Steered);
+        var at = body.Sphere.Position;
+        for (var i = 0; i < 30; i++)
+            body.Step(Worlds.Flat(), new SteadyMotion(0.05f));
+        Assert.Equal(at.X, body.Sphere.Position.X, 1e-4f);
+        Assert.Equal(at.Z, body.Sphere.Position.Z, 1e-4f);
+    }
+
+    [Fact]
     public void FacingTurnsItWhereItStandsThenLetsGo()
     {
         var body = Settled(Standing);
