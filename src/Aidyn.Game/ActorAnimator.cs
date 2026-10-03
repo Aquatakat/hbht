@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Aidyn.Core.Actors;
 using Aidyn.Core.Movement;
+using Aidyn.Core.Scripts;
 using Aidyn.Plugins.Records;
 using Godot;
 
@@ -16,7 +17,7 @@ namespace Aidyn.Game;
 /// ticks it and gets the root's motion back. Otherwise something calls <see cref="Update"/> each
 /// frame. The editor shares this file, so it holds no nodes of its own.
 /// </remarks>
-public sealed class ActorAnimator : IRootMotion
+public sealed class ActorAnimator : IActorMotion
 {
     private readonly AnimationPlayer _player;
     private readonly Node3D? _root;
@@ -34,6 +35,9 @@ public sealed class ActorAnimator : IRootMotion
     }
 
     public ActorStateMachine Machine { get; }
+
+    /// <summary>The length in ticks of the state playing, which a cut-scene's animation waits for.</summary>
+    public int StateLength => Machine.Length(Machine.State);
 
     /// <summary>The animation the actor is asked for.</summary>
     public int Request

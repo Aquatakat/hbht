@@ -255,8 +255,9 @@ public sealed class ScriptRunner
     }
 
     /// <summary>
-    /// Ends the script at once, as <see cref="DialogueCommand.EndDialogue"/> does: the original's
-    /// R + A + Z + B, and the debug build's B.
+    /// Ends the script at once, as <see cref="DialogueCommand.EndDialogue"/> does: the debug build's B.
+    /// 1.0 has no skip: the decomp's R + A + Z + B isn't in it (<c>cutScene_control_func</c> at
+    /// <c>0x80051378</c> only tests B, which does nothing).
     /// </summary>
     public void Skip()
     {

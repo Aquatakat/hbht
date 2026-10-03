@@ -167,7 +167,7 @@ public enum DialogueCommand
     SetFlag = 32,
     ClearFlag = 33,
     EndDialogue = 34,
-    /// <summary>The screen fades to black over a second.</summary>
+    /// <summary>The screen dips to black over a second and comes back over another, while the script carries on.</summary>
     FadeOut = 35,
     AddGold = 36,
     /// <summary>Does nothing if the party has less.</summary>

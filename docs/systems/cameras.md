@@ -44,7 +44,7 @@ Ported (`CameraMove`), checked against the debug ROM's machine code. A camera ob
 - **Tracking** (0x2000) chases 1.05 above the player at 1/24 of the way a tick, at most 0.25. Running, at 0.06 a tick, that leaves the aim about 1.4 behind him, so he runs ahead of the middle of the screen and the camera catches up when he stops, as the user saw in the original (Oct 2, 2026). In the original, a camera taking over snaps the aim onto him: a jump of 4° to 8° in one tick at 60 Hz, which the user saw jolt the view, less at the console's frame rate. They chose to treat it as a bug, so the port snaps the aim only on a cut, where the view jumps anyway, and the runtime doesn't blend a cut across frames.
 - **A finished move stays done** while the player stays in reach. The original marks it to start again, but the timestamp it writes at the end of the same call overwrites the mark. Out of reach for a tick, it starts afresh next time.
 - **Flags 0x100 and 0x200,** on the 28 objects that don't move the camera, set how far behind the outdoor camera follows (the values' Y, at least 3) for the next 30 ticks, and its pitch (X), anchoring it at the player. The interiors' camera reads neither.
-- Cut-scenes' cameras are the same moves (`AllocScriptCamera`), aimed at an actor, so session 6 builds them from `CameraMove`.
+- Cut-scenes' cameras are the same moves (`AllocScriptCamera`): see [below](#cut-scenes-cameras-session-6).
 - In a conversation the original counts the cameras holding it, and while any does, R doesn't orbit. That comes with session 5.
 
 ## The conversation camera (5c)
@@ -58,3 +58,31 @@ From 1.0's machine code (Oct 2, 2026, a Sonnet subagent; the constants spot-chec
 - The user found the port's framing matches the original's, the odd side included, and chose to keep it (Oct 2, 2026): it may be what keeps the camera out of walls somewhere. A better conversation camera, placed as cut-scenes' are, is an idea for much later.
 - **A camera object holding the camera** keeps it where it is: the conversation doesn't take over, as the user saw in the original, which spares interiors' cameras (Oct 2, 2026), and confirmed in the port with a Gabrion at the edge of a camera's hold in a castle, late in the game. The port keeps camera objects and trigger triangles' cameras working through a conversation, and `FollowCamera.Frame` leaves a held camera be, as `Step` does.
 - At the end the camera is given back to the player (`GiveCameraToPlayer`) with a quick swing of 5 frames (`unk80` 5), and its pitch back to the default.
+
+## Cut-scenes' cameras (session 6)
+
+`ScriptCameras`, from 1.0's machine code (Oct 2, 2026, a Sonnet subagent; the jump table and planes spot-checked). Each camera op of a script starts a move that holds the camera for its duration (`DialougCreateScriptCamera`, `AllocScriptCamera` at `0x800168f8`): a camera object's move (`CameraMove`) with the op's flags, aimed at a point the op chose as it ran.
+
+- **The ops** (`DialoguePreCallback`, jump table `0x800d1d80`), each over the script's camera time (60 until set), or one tick for a cut:
+
+  | Op | Moves | How | To |
+  | --- | --- | --- | --- |
+  | CutTo | camera | cut | a reference point |
+  | CutToActor | camera | cut | the actor's eyes, and hides it |
+  | On | aim | cut | a reference point |
+  | OnActor | aim | cut | the actor's eyes |
+  | AngleTo | aim | steady pan | a reference point |
+  | AngleToActor | aim | ease (sine) | the actor's eyes |
+  | PanTo | aim | ease (sine) | a reference point |
+  | PanToActor | aim | steady pan | the actor's eyes |
+  | SineTo | camera | ease (sine) | a reference point |
+  | SineToActor | camera | ease (sine) | the actor's eyes |
+  | TrackOn | aim | chase | where the speaker stood (no script uses it) |
+
+  Angle-to and pan-to are crossed between the point and actor forms: the decomp's gotos are right.
+- **An actor's eyes** are 0.15 in front of it, at its sphere's centre raised by its height × scale less 0.2 (`GetHeightMinPoint2`) and its scaled radius: Alaron's 1.62 above his feet. They're taken as the op runs, not followed. A point-of-view cut hides the actor (`ACTOR_2000`), but not its shadow or what it holds; a cut or sine to a point or an actor, or a spawn, shows every actor again (`0x80014dfc`).
+- **A move with no reference point goes to the focus itself**: `processVoxelCamera` takes 0.5 off for the missing player and adds 0.5 back in a dialogue.
+- **Several at once.** Up to seven (the eighth crashes), stepped in slot order, the last freed taken first, each writing the camera. A cut is done the step after it starts; an ease ends on its goal. The script's first nodes start their cuts together with any pan after them, which takes its first step in the same tick.
+- **Nothing else moves the camera.** While a move holds it, the follow camera's mode is 2 and does nothing; once the last is freed, the camera's focus is cleared, so the follow camera doesn't run at all. The camera stays where the last move left it. Camera objects don't run in a cut-scene.
+- **Waiting.** `counter1`, how many moves ran the step before, holds the player's presses and a `WaitForCamera` (`funcs1[1]`), so both carry on a step or two after the last move ends (`ScriptCameras.Busy`).
+- **The planes** are 0.1 and 125 in the dialogue state (`RenderZones`, `0x8000d66c`). The field of view never changes. Retail crashes if a step leaves the camera within 0.05 of its aim.

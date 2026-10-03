@@ -38,9 +38,12 @@ public partial class ChunkStreamer : Node3D
     {
     }
 
-    /// <param name="wanderers">The game's wanderers, which should hold none when the streamer starts.</param>
+    /// <param name="wanderers">
+    /// The game's wanderers, which should hold none when the streamer starts. None for a cut-scene's
+    /// stage, where monster parties have no bodies (<c>look_for_monsterparties</c>, <c>0x8000ef20</c>).
+    /// </param>
     /// <param name="shadow">The texture of bodies' shadows.</param>
-    public ChunkStreamer(PluginSet plugins, Models models, MapSetRecord set, CollisionWorld world, GameState game, Wanderers wanderers,
+    public ChunkStreamer(PluginSet plugins, Models models, MapSetRecord set, CollisionWorld world, GameState game, Wanderers? wanderers,
         Texture2D? shadow)
     {
         _plugins = plugins;
@@ -97,7 +100,7 @@ public partial class ChunkStreamer : Node3D
         {
             _loaded[cell].Root.QueueFree();
             _loaded.Remove(cell);
-            foreach (var gone in _wanderers!.Unload(_maps[cell]))
+            foreach (var gone in _wanderers?.Unload(_maps[cell]) ?? [])
             {
                 _views[gone].QueueFree();
                 _views.Remove(gone);
@@ -197,7 +200,7 @@ public partial class ChunkStreamer : Node3D
         var game = _game!;
         var map = _maps[cell] = LoadedMap.Activate(_plugins.Get<MapRecord>(chunk.Map), cell, game.Flags, game.Memory, game.Party, game.Random.World,
             MapSet.Origin(chunk.Row, chunk.Column));
-        foreach (var wanderer in _wanderers!.Load(map, MapSet.CellSize, _world!, game.Memory))
+        foreach (var wanderer in _wanderers?.Load(map, MapSet.CellSize, _world!, game.Memory) ?? [])
         {
             var view = _views[wanderer] = new WandererView(wanderer, _plugins, _models!, _shadow);
             AddChild(view);

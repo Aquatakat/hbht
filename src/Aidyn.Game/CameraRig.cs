@@ -20,6 +20,13 @@ public partial class CameraRig : Node3D
 
     public FollowCamera? Follow { get; set; }
 
+    /// <summary>The follow camera's far plane: the original's 180 in trek, 125 in a cut-scene.</summary>
+    public float Far
+    {
+        get => _camera.Far;
+        set => _camera.Far = value;
+    }
+
     /// <summary>For placing the free camera from the command line: radians, as Godot's rotations.</summary>
     public float Yaw { get; set; }
     public float Pitch { get; set; }

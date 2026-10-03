@@ -29,7 +29,9 @@ internal static class ConversationPlugins
     public static RecordId Script(int n) => RecordId.Parse($"convtest:dialogue/0x{n:x4}");
 
     public static readonly RecordId Talk = Script(1), Animates = Script(2), Waits = Script(3), Joins = Script(4), Menus = Script(5),
-        Ends = Script(6), Starts = Script(7);
+        Ends = Script(6), Starts = Script(7), CutSpawns = Script(8), CutCameras = Script(9), CutItems = Script(10), CutAnimates = Script(11);
+
+    public static readonly RecordId ShortSword = RecordId.Hex(RecordTypes.Weapon, 0x072C), ASpell = RecordId.Hex(RecordTypes.Spell, 0x03EB);
 
     private static readonly object Lock = new();
     private static PluginSet? _set;
@@ -44,6 +46,12 @@ internal static class ConversationPlugins
     private static readonly DialogueOp End = Op(DialogueCommand.EndDialogue);
 
     private static DialogueRecord Record(RecordId id, params DialogueNode[] nodes) => new(id, 9000, DialogueMode.Conversation, nodes);
+
+    /// <summary>A cut-scene of Alaron and Trahern.</summary>
+    private static DialogueRecord Cut(RecordId id, params DialogueNode[] nodes) =>
+        new(id, 9001, DialogueMode.Cutscene, nodes, [GameState.Alaron, Trahern]);
+
+    private static DialogueOp Op(DialogueCommand command, RecordId target) => new(command, null, target);
 
     private static IEnumerable<DialogueRecord> Scripts() =>
     [
@@ -73,6 +81,36 @@ internal static class ConversationPlugins
             Line(3, "Reply.", null, Says(Trahern))),
         // Over before it starts.
         Record(Ends, Line(0, "", null, End)),
+        // Alaron and Trahern spawn at reference points 1 and 2, and the camera cuts to 3, aimed at 4. Alaron turns to 2,
+        // which snaps, then to 4, which turns, then walks to 4.
+        Cut(CutSpawns,
+            Line(0, "", 1, Says(GameState.Alaron), Op(DialogueCommand.CreateActor, 1)),
+            Line(1, "", 2, Says(Trahern), Op(DialogueCommand.CreateActor, 2), Op(DialogueCommand.CameraCutTo, 3), Op(DialogueCommand.CameraOn, 4)),
+            Line(2, "Hello.", 3, Says(Trahern)),
+            Line(3, "", 4, Says(GameState.Alaron), Op(DialogueCommand.FaceRefPoint, 2)),
+            Line(4, "Turn.", 5, Op(DialogueCommand.FaceRefPoint, 4)),
+            Line(5, "", 6, Op(DialogueCommand.WalkTo, 4)),
+            Line(6, "Arrived.", null, End)),
+        // The camera pans its aim to 1 over 40 ticks (angle-to a point), eases it back to 4 (pan-to a point), waiting each
+        // time, then looks out of Trahern's eyes.
+        Cut(CutCameras,
+            Line(0, "", 1, Says(Trahern), Op(DialogueCommand.CreateActor, 2), Op(DialogueCommand.CameraCutTo, 3), Op(DialogueCommand.CameraOn, 4)),
+            Line(1, "", 2, Op(DialogueCommand.CameraTime, 40), Op(DialogueCommand.CameraAngleTo, 1), Op(DialogueCommand.WaitForCamera)),
+            Line(2, "", 3, Op(DialogueCommand.CameraPanTo, 4), Op(DialogueCommand.WaitForCamera)),
+            Line(3, "Eyes.", null, Op(DialogueCommand.CameraCutToActor, Trahern), End)),
+        // Alaron holds a short sword, then a spell, which has no model, then nothing.
+        Cut(CutItems,
+            Line(0, "", 1, Says(GameState.Alaron), Op(DialogueCommand.CreateActor, 1), Op(DialogueCommand.CameraCutTo, 3), Op(DialogueCommand.CameraOn, 4)),
+            Line(1, "Sword.", 2, Op(DialogueCommand.ShowItem, ShortSword)),
+            Line(2, "Spell.", 3, Op(DialogueCommand.ShowItem, ASpell)),
+            Line(3, "Hide.", 4, Op(DialogueCommand.HideItem)),
+            Line(4, "Bye.", null, End)),
+        // Alaron plays animation 7, then the screen dips, and a line shows.
+        Cut(CutAnimates,
+            Line(0, "", 1, Says(GameState.Alaron), Op(DialogueCommand.CreateActor, 1), Op(DialogueCommand.CameraCutTo, 3), Op(DialogueCommand.CameraOn, 4)),
+            Line(1, "", 2, Op(DialogueCommand.PlayAnimation, 7)),
+            Line(2, "", 3, Op(DialogueCommand.FadeOut)),
+            Line(3, "Done.", null, End)),
         // Checks a skill, which a map object remembers, and cuts the camera to reference point 2 from the script's own.
         Record(Starts,
             new DialogueNode(0, DialogueNodeKind.If, "", [Op(DialogueCommand.CheckSkill, 0)], [1, 2]),

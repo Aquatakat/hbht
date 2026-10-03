@@ -8,8 +8,8 @@ namespace Aidyn.Core.Scripts;
 /// carries them out, and the editor and tests record them.
 /// </summary>
 /// <remarks>
-/// While the scripted camera moves, the original ignores the player's input, so the runtime
-/// shouldn't pass it on (<c>cutScene_control_func</c>).
+/// A cut-scene carries out the cues on its stage (<see cref="CutScene"/>), and drops the player's input
+/// while the scripted camera moves (<c>cutScene_control_func</c>).
 /// </remarks>
 public interface IScriptHost
 {
@@ -52,7 +52,10 @@ public sealed record HoldCue(RecordId? Actor, RecordId? Item) : ScriptCue;
 /// <param name="Index">For <see cref="ScriptSound.Table"/>, the entry of the dialogue sound table.</param>
 public sealed record SoundCue(ScriptSound Sound, int Index = 0) : ScriptCue;
 
-/// <summary>The screen fades to black over 60 ticks.</summary>
+/// <summary>
+/// The screen dips to black over 60 ticks and comes back over 60 more, by itself; the script carries on meanwhile
+/// (<c>DialogCallbackC</c>, fade mode 3).
+/// </summary>
 public sealed record FadeOutCue : ScriptCue;
 
 public enum ScriptSound

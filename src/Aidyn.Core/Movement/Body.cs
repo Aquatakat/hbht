@@ -1,11 +1,12 @@
 using System.Numerics;
 using Aidyn.Core.Physics;
+using Aidyn.Core.Rng;
 
 namespace Aidyn.Core.Movement;
 
 /// <summary>
-/// A body other than the player's, moving through the world: a wanderer for now, and a cut-scene's
-/// actor later (the original's <c>playerData</c>, stepped by <c>ProcessPlayers</c>). It's a sphere
+/// A body other than the player's, moving through the world: a wanderer, or a cut-scene's actor (the
+/// original's <c>playerData</c>, stepped by <c>ProcessPlayers</c>). It's a sphere
 /// that its actor's animations move, as the player's is (<see cref="PlayerMotion"/>), steered toward a
 /// goal or turned to a heading instead of by a stick (<c>Actor::SetAiDest</c>, <c>SetFacing</c>,
 /// <c>MoveTo</c>).
@@ -34,6 +35,8 @@ public sealed class Body
     private float _pace;
     /// <summary>The goal's distance at its nearest so far (<c>aiDestDist</c>).</summary>
     private float _nearest;
+    /// <summary>Ticks it hasn't come nearer its goal (<c>aiTravelTime</c>).</summary>
+    private int _stalled;
 
     /// <param name="position">Its sphere's centre.</param>
     /// <param name="radius">Its sphere's radius, which <paramref name="scale"/> doesn't change for the world's collision.</param>
@@ -100,6 +103,25 @@ public sealed class Body
     public Vector2 Stick { get; private set; }
 
     /// <summary>
+    /// Whether its next <see cref="Face"/> turns it at once (<c>ACTOR_1000</c>, which a cut-scene's
+    /// <c>CreateActor</c> sets): the facing is written, the flag cleared, and its goal kept.
+    /// </summary>
+    public bool SnapNextFace { get; set; }
+
+    /// <summary>
+    /// After how many ticks of coming no nearer its goal it gives up and is put there
+    /// (<c>Actor::MoveTo</c>, <c>FUN_80019b08</c>): 300 in a cut-scene, 30 in combat. Null for trek,
+    /// where it keeps trying.
+    /// </summary>
+    public int? GiveUpTicks { get; set; }
+
+    /// <summary>
+    /// Whether the screen is fading (<c>screenFadeMode</c>): while it's steered, it's asked to stand and
+    /// its stick isn't read, though its steering, and so its giving up, carries on (<c>Actor::Move</c>).
+    /// </summary>
+    public bool Faded { get; set; }
+
+    /// <summary>
     /// Sets off for a point (<c>Actor::SetAiDest</c>), stopping within <paramref name="radius"/> of it,
     /// walking or running. It forgets any turn.
     /// </summary>
@@ -111,12 +133,19 @@ public sealed class Body
         Goal = goal;
         GoalRadius = radius;
         _nearest = 1000;
+        _stalled = 0;
     }
 
     /// <summary>Turns to face a way where it stands (<c>Actor::SetFacing</c>), forgetting any goal.</summary>
     /// <param name="heading">The way to face, which needn't be a unit vector.</param>
     public void Face(Vector2 heading)
     {
+        if (SnapNextFace)
+        {
+            SnapNextFace = false;
+            Heading = Normalize(heading);
+            return;
+        }
         Stop();
         Steered = Turning = true;
         TurnTo = Normalize(heading);
@@ -143,8 +172,11 @@ public sealed class Body
     {
         if (Steered)
         {
-            Steer();
-            Control();
+            Steer(world);
+            if (Faded)
+                Request = PlayerMotion.Idle;
+            else
+                Control();
         }
 
         SpherePhysics.Step(world, Sphere);
@@ -172,7 +204,7 @@ public sealed class Body
     /// starts facing away walks a short curve. In trek, a body that can't get nearer keeps trying.
     /// Once within its radius, it stops; with nothing left to do, it lets go of its stick.
     /// </summary>
-    private void Steer()
+    private void Steer(CollisionWorld world)
     {
         var busy = false;
         if (!Moving)
@@ -188,6 +220,11 @@ public sealed class Body
             {
                 _nearest = distance;
                 Stick = Normalize(toGoal) * (Walks ? 0.5f : 0.95f);
+            }
+            else if (GiveUpTicks is { } most && ++_stalled >= most)
+            {
+                GiveUp(world);
+                return;
             }
             if (distance < GoalRadius)
                 Moving = false;
@@ -205,6 +242,41 @@ public sealed class Body
         // MoveTo drops ACTOR_2 with nothing left to do, after this step's Actor::Move.
         if (!busy)
             Steered = false;
+    }
+
+    /// <summary>
+    /// Puts it at its goal, set down there, facing the way it was turning to if it was, and stops it
+    /// (<c>FUN_80019b08</c>).
+    /// </summary>
+    private void GiveUp(CollisionWorld world)
+    {
+        Sphere.Position = SetDown(world, new Vector3(Goal.X, Sphere.Position.Y, Goal.Y), Sphere.Radius, null);
+        Sphere.Velocity = Vector3.Zero;
+        if (Turning)
+            Heading = TurnTo;
+        Stop();
+    }
+
+    /// <summary>
+    /// Where a sphere is set down at a point (<c>Actor::CheckCollision(p, 0, 0, 0)</c>): swept from 100
+    /// above to 100 below, it rests on what it hits, 0.01 higher; the point's own height doesn't count.
+    /// On a miss, it tries again up to four times a little to the side, by up to 0.25 each way, with two
+    /// draws each from <paramref name="random"/>; with none, or nothing found, it stays where it was.
+    /// </summary>
+    public static Vector3 SetDown(CollisionWorld world, Vector3 at, float radius, IRandom? random)
+    {
+        var point = at;
+        for (var tries = 0; tries < 5; tries++)
+        {
+            if (SpherePhysics.Sweep(world, point with { Y = at.Y + 100 }, point with { Y = at.Y - 100 }, radius, false, out var hit, out var normal))
+                return new Vector3(hit.X + normal.X * radius, hit.Y + 0.01f + normal.Y * radius, hit.Z + normal.Z * radius);
+            if (random is null)
+                break;
+            var angle = random.Float(2 * MathF.PI);
+            var reach = random.Float(0.25f);
+            point = at + new Vector3((MathF.Sin(angle) + 1) * 0.5f * reach, 0, (MathF.Cos(angle) + 1) * 0.5f * reach);
+        }
+        return at;
     }
 
     /// <summary>Reads the stick (<c>Actor::Move</c>, the trek parts): it walks under 80% tilt and runs above.</summary>

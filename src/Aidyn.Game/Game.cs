@@ -43,6 +43,7 @@ namespace Aidyn.Game;
 /// <c>--sky original</c> places the sky's sprites as the original does rather than projected.
 /// <c>--menu 1</c> opens the pause menu, <c>--ui-lines &lt;n&gt;</c> sets the UI screen's height, and
 /// <c>--press &lt;action&gt;,…</c> presses each action in turn, such as <c>pause,menu_member_next</c>.
+/// <c>--cutscene &lt;id&gt;</c> plays a cut-scene at once, as what starts it would.
 /// F toggles the free camera, F3 the debug overlay, F5 the pace, F6 the sky's placement and F7 the
 /// UI screen's height, and F8 saves to <c>quick.json</c> in the saves folder.
 /// </remarks>
@@ -106,8 +107,10 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
     private (int Row, int Column)? _centre;
     /// <summary>Chunks whose scenery changed this tick, built again before the frame is drawn.</summary>
     private readonly HashSet<LoadedMap> _changed = [];
-    /// <summary>The last script a dialogue object asked to start that the runtime can't run yet, which cut-scenes will (session 6).</summary>
+    /// <summary>The last script a dialogue object asked to start that the runtime can't run yet, such as a backdrop.</summary>
     private RecordId? _lastScript;
+    /// <summary>Trek's map set, kept while a cut-scene has the world.</summary>
+    private MapSetRecord? _trekSet;
     /// <summary>The conversation or sign showing, if any.</summary>
     private Conversation? _conversation;
     private ConversationBoxView? _box;
@@ -312,6 +315,8 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
             }
             hold = Math.Max(hold, 0.5 + 0.2 * pressed.Length);
         }
+        if (args.TryGetValue("cutscene", out var cutscene))
+            CueFromCommandLine(RecordId.Parse(cutscene));
         if (args.TryGetValue("screenshot", out var png))
             _ = Screenshot(png, hold);
     }
@@ -365,9 +370,19 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
         _game.PlayTime++;
         if (_menu!.IsOpen)
             return;
+        if (_scene is not null)
+        {
+            StepCutScene();
+            return;
+        }
         _popupView!.Step();
         StepFade();
-        var fading = _pending is not null || _fadingIn;
+        if (_cueing is not null && !_trekFade.Fading)
+        {
+            BeginCutScene();
+            return;
+        }
+        var fading = _pending is not null || _fadingIn || _trekFade.Fading;
         Enter(_chunks!.ChunkAt(_player.Motion.Sphere.Position.ToGodot()));
         // The clock stops under a popup or a conversation.
         var talking = _conversation is not null;
@@ -476,8 +491,10 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
             _brightness = Math.Min(1, _brightness + FadeInPerTick);
             _fadingIn = _brightness < 1;
         }
-        _fade.Visible = _brightness < 1;
-        _fade.Color = new Color(0, 0, 0, 1 - _brightness);
+        _trekFade.Step();
+        var brightness = Math.Min(_brightness, _trekFade.Brightness);
+        _fade.Visible = brightness < 1;
+        _fade.Color = new Color(0, 0, 0, 1 - brightness);
     }
 
     /// <summary>
@@ -532,17 +549,27 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
     /// </summary>
     private void RebuildTrek()
     {
-        var set = _chunks!.MapSet;
-        _chunks.QueueFree();
+        var set = _chunks?.MapSet ?? _trekSet!;
+        FreeTrek();
+        _chunks = new ChunkStreamer(_plugins!, _models!, set, _world, _game!, _wanderers!, _shadowTexture);
+        AddChild(_chunks);
+        _chunks.Update(_player!.Motion.Sphere.Position.ToGodot());
+        PlaceShadow();
+    }
+
+    /// <summary>Frees trek's chunks, their collision and wanderers, and hides the player's body (<c>clear_HUD_elements</c>).</summary>
+    private void FreeTrek()
+    {
+        _chunks?.QueueFree();
+        _chunks = null;
         _world.Clear();
         _changed.Clear();
         _wanderers!.Clear();
         _nearest = default;
         _use!.ClearCameras();
-        _chunks = new ChunkStreamer(_plugins!, _models!, set, _world, _game!, _wanderers, _shadowTexture);
-        AddChild(_chunks);
-        _chunks.Update(_player!.Motion.Sphere.Position.ToGodot());
-        PlaceShadow();
+        _player!.Visible = false;
+        if (_shadow is not null)
+            _shadow.Visible = false;
     }
 
     /// <summary>
@@ -554,7 +581,7 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
         if (++_ticks % Core.Cadence.TextureFrameTicks != 0)
             return;
         var camera = _camera!.Current.GlobalTransform;
-        foreach (var scene in _chunks!.DrawnScenes(camera.Origin, -camera.Basis.Z))
+        foreach (var scene in Streamer!.DrawnScenes(camera.Origin, -camera.Basis.Z))
             scene.Draw();
     }
 
@@ -574,10 +601,13 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
             flat = flat.LengthSquared() < 1e-6f ? default : System.Numerics.Vector2.Normalize(flat);
             return new SceneView(transform.Origin.ToNumerics(), new(transform.Origin.X, transform.Origin.Z), flat, 0, cone);
         }
-        var camera = new System.Numerics.Vector2(_follow!.Position.X, _follow.Position.Z);
-        var toAim = new System.Numerics.Vector2(_follow.Aim.X, _follow.Aim.Z) - camera;
+        // In a cut-scene there's no player: levels of detail go by the camera's aim.
+        var follow = _scene?.Camera ?? _follow!;
+        var camera = new System.Numerics.Vector2(follow.Position.X, follow.Position.Z);
+        var toAim = new System.Numerics.Vector2(follow.Aim.X, follow.Aim.Z) - camera;
         var distance = toAim.Length();
-        return new SceneView(_player!.Motion.Sphere.Position, camera, distance > 0 ? toAim / distance : default, distance, cone);
+        var from = _scene is not null ? follow.Aim : _player!.Motion.Sphere.Position;
+        return new SceneView(from, camera, distance > 0 ? toAim / distance : default, distance, cone);
     }
 
     /// <summary>
@@ -660,24 +690,27 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
 
     public override void _Process(double delta)
     {
-        if (_chunks is null || _player is null || _camera is null)
+        if (Streamer is not { } chunks || _player is null || _camera is null)
             return;
         foreach (var map in _changed)
-            _chunks.Rebuild(map);
+            chunks.Rebuild(map);
         _changed.Clear();
-        var focus = _camera.Flying ? _camera.Current.GlobalPosition : _player.GlobalPosition;
-        _chunks.Update(focus);
-        _chunks.Fade(View(), _drawDistance);
+        var focus = _camera.Flying ? _camera.Current.GlobalPosition : _scene is not null ? _scene.Camera.Aim.ToGodot() : _player.GlobalPosition;
+        // A cut-scene's 3×3 stays as it loaded.
+        if (_scene is null)
+            chunks.Update(focus);
+        chunks.Fade(View(), _drawDistance);
         // From where the scenery is drawn this frame: between ticks, the camera interpolated.
-        Billboards.Face(_chunks.BillboardFacings, _camera.Current.GetGlobalTransformInterpolated().Origin);
+        Billboards.Face(chunks.BillboardFacings, _camera.Current.GetGlobalTransformInterpolated().Origin);
 
         if (_overlay.Visible)
         {
-            var chunk = _chunks.ChunkAt(focus);
-            var local = chunk is null ? focus : focus - _chunks.Origin(chunk);
+            var chunk = chunks.ChunkAt(focus);
+            var local = chunk is null ? focus : focus - chunks.Origin(chunk);
             var motion = _player.Motion;
             var sphere = motion.Sphere;
-            _overlay.Text = $"{_chunks.MapSet.Label} {chunk?.Name ?? "(no chunk)"}  " +
+            _overlay.Text = (_scene is { } scene ? $"cut-scene {scene.Runner.Script.Id}, waiting for {scene.Runner.Wait?.ToString() ?? "nothing"}, {scene.Actors.Count} actors, {scene.Cameras.Count} camera moves\n" : "") +
+                $"{chunks.MapSet.Label} {chunk?.Name ?? "(no chunk)"}  " +
                 $"({local.X:F1}, {local.Y:F1}, {local.Z:F1})  {Engine.GetFramesPerSecond()} fps" +
                 (_camera.Flying ? "  [free camera]" : "") + "\n" +
                 (sphere.Touching ? $"on {Surfaces.ElementAtOrDefault(sphere.Surface) ?? sphere.Surface.ToString()}" : "in the air") +
@@ -736,6 +769,18 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
             Converse(e);
             return;
         }
+        else if (_scene is not null)
+        {
+            CutSceneInput(e);
+            if (!e.IsActionPressed("toggle_fly") && !e.IsActionPressed("toggle_overlay"))
+                return;
+        }
+        else if (_cueing is not null || _trekFade.Fading)
+        {
+            // Trek's input is dead while it fades into or out of a cut-scene.
+            if (e.IsActionPressed("pause") || e.IsActionPressed("menu_accept"))
+                return;
+        }
         else if (e.IsActionPressed("pause") && _menu is not null && _pending is null)
         {
             _menu.Open();
@@ -750,7 +795,7 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
         {
             _menu.Screen.Lines = _menu.Screen.Lines switch { < 360 => 360, < 480 => 480, _ => 240 };
         }
-        else if (e.IsActionPressed("quick_save") && _game is not null)
+        else if (e.IsActionPressed("quick_save") && _game is not null && _scene is null)
         {
             QuickSave();
         }
@@ -816,7 +861,13 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
             ShowConversation();
             return;
         }
-        // Cut-scenes and backdrops come with session 6. A tangible dialogue asks every tick, so say it once.
+        var source = MapRecord.VoxelId(map.Record.Id, dialogue.Index);
+        if (_plugins.TryGet<DialogueRecord>(dialogue.Script) is { Mode: DialogueMode.Cutscene } cutscene && dialogue.Stage is { } stage)
+        {
+            CueCutScene(cutscene, new Core.Scripts.ScriptStart(dialogue.RefPointBase, source), stage);
+            return;
+        }
+        // Backdrops and the help menu come later. A tangible dialogue asks every tick, so say it once.
         if (_lastScript == dialogue.Script)
             return;
         _lastScript = dialogue.Script;
@@ -830,6 +881,20 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
         if (party.Dialogue is null)
         {
             Say($"{MapRecord.VoxelId(map.Record.Id, party.Index)} would fight; battles come with combat (2.5).");
+            return;
+        }
+        // A talker whose script is a cut-scene stages it in the chunk the player is in, from reference
+        // point 0 (monsterpary_func), and holds still as trek fades out.
+        if (_plugins!.TryGet<DialogueRecord>(party.Dialogue.Value) is { Mode: DialogueMode.Cutscene } cutscene)
+        {
+            if ((party.Flags & PartyFlags.Silent) != 0 || _chunks!.ChunkAt(_player!.Motion.Sphere.Position.ToGodot()) is not { } chunk)
+                return;
+            wanderer.Calmed = true;
+            wanderer.Body.Held = true;
+            CueCutScene(cutscene, new Core.Scripts.ScriptStart(0, MapRecord.VoxelId(map.Record.Id, party.Index)),
+                new ChunkRef(_chunks.MapSet.Id, chunk.Row, chunk.Column));
+            if (party.Used is { } used)
+                _game!.Flags.Set(used.Flag, true);
             return;
         }
         _conversation = Conversation.TalkTo(_game!, wanderer, this, _player!.Motion);
@@ -883,7 +948,7 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
         var runner = conversation.Runner;
         while (runner.Status == Core.Scripts.ScriptStatus.Waiting && runner.Wait != Core.Scripts.ScriptWait.Timer)
         {
-            GD.Print($"{runner.Script.Id} waits for {runner.Wait}, which comes with cut-scenes (session 6); going on.");
+            GD.Print($"{runner.Script.Id} waits for {runner.Wait}, which a conversation can't show; going on.");
             runner.Resume();
         }
         if (runner.Status == Core.Scripts.ScriptStatus.Showing && runner.Page is { } page)
@@ -904,6 +969,14 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
         _box!.Visible = false;
         if (conversation.RebuildsTrek)
             RebuildTrek();
+        if (ending.Fault is { } fault)
+            GD.PushWarning($"{conversation.Runner.Script.Id}: {fault}");
+        SayEnding(ending);
+    }
+
+    /// <summary>Says what the stand-ins for a shop, training, battle or camp would do after a script.</summary>
+    private void SayEnding(Core.Scripts.ScriptEnding ending)
+    {
         var what = ending.Kind switch
         {
             Core.Scripts.ScriptEndKind.Shop => "The shop would open (session 7).",
@@ -912,13 +985,16 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
             Core.Scripts.ScriptEndKind.Camp => $"The party is healed; {ending.RestHours} hours would pass (camping, 2.7).",
             _ => null,
         };
-        if (ending.Fault is { } fault)
-            GD.PushWarning($"{conversation.Runner.Script.Id}: {fault}");
         if (what is not null)
             Say(what);
     }
 
-    void Core.Scripts.IScriptHost.Cue(Core.Scripts.ScriptCue cue) => GD.Print($"Script cue, not shown until session 6: {cue}");
+    /// <summary>A script's sounds, which wait for audio (1D). The cut-scene carries out the rest of its cues.</summary>
+    void Core.Scripts.IScriptHost.Cue(Core.Scripts.ScriptCue cue)
+    {
+        if (cue is Core.Scripts.SoundCue sound)
+            GD.Print($"Sound: {sound}");
+    }
 
     void IMapObjectHost.Animate(LoadedMap map, SceneObject actor, int request)
     {
