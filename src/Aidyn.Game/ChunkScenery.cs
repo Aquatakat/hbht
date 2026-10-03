@@ -1,5 +1,4 @@
 using Aidyn.Core.Scenes;
-using Aidyn.Inspector;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 using Godot;

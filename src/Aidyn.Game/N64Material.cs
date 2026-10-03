@@ -2,7 +2,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Godot;
 
-namespace Aidyn.Inspector;
+namespace Aidyn.Game;
 
 /// <summary>
 /// Draws scene glTFs as the original's combiner and blender do (roadmap M1). Every material Godot's

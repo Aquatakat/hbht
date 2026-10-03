@@ -13,9 +13,4 @@
     <ProjectReference Include="..\Aidyn.Plugins\Aidyn.Plugins.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <!-- Shared with the inspector, which previews scenes as the runtime draws them. -->
-    <Compile Include="..\Aidyn.Inspector\N64Material.cs" Link="N64Material.cs" />
-  </ItemGroup>
-
 </Project>

@@ -3,7 +3,6 @@ using Aidyn.Core.MapObjects;
 using Aidyn.Core.Physics;
 using Aidyn.Core.Scenes;
 using Aidyn.Core.Trek;
-using Aidyn.Inspector;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Assets;
 using Aidyn.Plugins.Records;

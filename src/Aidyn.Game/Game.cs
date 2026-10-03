@@ -9,7 +9,6 @@ using Aidyn.Core.Physics;
 using Aidyn.Core.Scenes;
 using Aidyn.Core.Trek;
 using Aidyn.Core.Ui;
-using Aidyn.Inspector;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 using Aidyn.Plugins.Saves;

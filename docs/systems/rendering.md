@@ -13,7 +13,7 @@ The export now decodes vertex colours and untextured tints as sRGB, so they're c
 
 ## The N64 material
 
-`N64Material` (in the Inspector project, linked into the runtime) replaces every material Godot's glTF import makes, in the runtime and in the Inspector's previews. It builds each from the glTF's own material, because Godot's import converts colours and samplers in ways the N64 doesn't.
+`N64Material` (in the runtime, linked into the Inspector) replaces every material Godot's glTF import makes, in the runtime and in the Inspector's previews. It builds each from the glTF's own material, because Godot's import converts colours and samplers in ways the N64 doesn't.
 
 - **The combiner.** `setStaticMode` sets textured draws to `TEXEL0 × SHADE`, then `× PRIMITIVE` in the second cycle, and untextured ones to `SHADE × PRIMITIVE` (combine modes `0x127E03, 0xFF0FF3FF` and `0xFFFE03, 0xFF0E79FF`, decoded by hand). Alpha is texel alpha times prim alpha, or shade alpha times prim alpha. The shader reads raw texels (no `source_color`), turns the vertex colour back into on-screen values, multiplies there, and hands Godot the linear result.
 - **Shade** is the vertex colour on unlit display lists. On lit ones it's the RSP's lighting (see [bodies' light](#bodies-light) below), which the runtime works out per vertex (`N64Material.RspLighting`). The Inspector still lets Godot's lights stand in (Lambert diffuse, no specular).

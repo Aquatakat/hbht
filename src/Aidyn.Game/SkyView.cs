@@ -1,6 +1,5 @@
 using Aidyn.Core.Calendar;
 using Aidyn.Core.Sky;
-using Aidyn.Inspector;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 using Godot;

@@ -1,7 +1,6 @@
 using Aidyn.Core;
 using Aidyn.Core.Movement;
 using Aidyn.Core.Scripts;
-using Aidyn.Inspector;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 using Godot;
