@@ -45,7 +45,7 @@ Ported (`CameraMove`), checked against the debug ROM's machine code. A camera ob
 - **A finished move stays done** while the player stays in reach. The original marks it to start again, but the timestamp it writes at the end of the same call overwrites the mark. Out of reach for a tick, it starts afresh next time.
 - **Flags 0x100 and 0x200,** on the 28 objects that don't move the camera, set how far behind the outdoor camera follows (the values' Y, at least 3) for the next 30 ticks, and its pitch (X), anchoring it at the player. The interiors' camera reads neither.
 - Cut-scenes' cameras are the same moves (`AllocScriptCamera`): see [below](#cut-scenes-cameras).
-- In a conversation the original counts the cameras holding it, and while any does, R doesn't orbit. That comes with session 5.
+- In a conversation the original counts the cameras holding it, and while any does, R doesn't orbit; the player has no input in a conversation anyway ([the conversation camera](#the-conversation-camera)).
 
 ## The conversation camera
 

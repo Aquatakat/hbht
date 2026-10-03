@@ -74,48 +74,9 @@ The following systems have to be ported by reading pseudocode rather than parsed
 - Wander behaviour.
 - About 270 named flag references inside engine code.
 
-## Architecture decisions to make in Phase 0
+## Architecture decisions
 
-These decisions shape the importer's output format, so they have to be settled before anything is extracted at scale. They are written up as ADRs in [adr/](adr/README.md). The ADRs take precedence where they differ from the summaries below. Decision 6 changed the most: the original's single RNG stream depends on frame rate, so differential tests replay captured values instead of reproducing the stream.
-
-### 1. The runtime never reads the ROM
-
-Follow the OpenMW model, where `Morrowind.esm` is just another plugin. A one-time **importer** converts the user's ROM into:
-
-- a base plugin, `aidyn.base`, holding every record, and
-- an asset cache of converted meshes, textures, and audio.
-
-The engine loads only plugins. This forces the mod format to be complete and correct from day one, because the base game is itself a mod. It also means the ROM is only touched in one module.
-
-### 2. Engine: Godot 4 with C# (.NET)
-
-Rendering is the easy 10% of the engine. Godot provides the remaining 90%: a UI system for the dense pause menu, audio mixing, input remapping, cross-platform builds, and an editor to build mod tools in.
-
-C# is recommended over GDScript because the importer ships to end users, since they bring their own ROM. The importer, rules core, runtime, and mod tools can all share one language, with no Python dependency on user machines.
-
-A custom engine only makes sense if you want exact N64 fidelity, and N64Recomp is the better tool for that.
-
-### 3. A headless rules core
-
-Keep game rules in a pure C# library with no Godot dependency. That covers flags, the Borg13 VM, stats, combat math, inventory, AI, and the RNG. It gets unit-tested, and eventually differential-tested against emulator captures. Godot becomes only the presentation and input layer.
-
-### 4. Record ID scheme
-
-This decision is the hardest to change later, so settle it first. Every record gets a stable string ID in a namespace, such as `aidyn:entity/0x02A4`, `aidyn:flag/3617`, `aidyn:dialogue/0x0B12`, or `mymod:flag/met_the_hermit`. At load time the runtime resolves these to integer handles.
-
-The original u16 flag space, which uses 5,627 slots, becomes the `aidyn:` namespace. Mods declare their flags by name and have slots allocated at load time, so two mods can never collide on a flag number.
-
-### 5. Plugin format
-
-The source format should be text (JSON, TOML, or YAML) so that it's diffable and friendly to git, with a compiled binary cache for fast loading. Overrides should work at the **field level** from the start, rather than replacing whole records. That avoids the Skyrim-era "last plugin wins the whole record" conflicts. Asset overrides use open formats (glTF, PNG, OGG, WAV) keyed to the Borg ID they replace.
-
-### 6. Tick model and RNG
-
-Work out early whether the original logic is frame-tied or delta-based. There are frame-tick timers in wander nodes, and `Borg7_TickAnimation(delta)` is delta-based. Port `random.cpp` exactly, so battles and loot can be replayed deterministically in tests.
-
-### 7. Version support
-
-Target NA 1.0 first; that's the decomp's `us.yaml` target. Detect the ROM version by hash, and normalise byte order (`.z64`, `.v64`, `.n64`). Put all offsets in a per-version table so NA 1.1 and PAL can be added later. Use the debug ROM for research only.
+Phase 0 settled how the reimplementation is built: the importer owns the ROM, Godot with C#, a headless rules core, the record IDs, the plugin format, the tick model and RNG, ROM versions and the content logic layers. They're the ADRs in [adr/](adr/README.md), which are binding.
 
 ## Phases
 
@@ -129,7 +90,7 @@ Sizes are relative: S, M, L, XL. **Bold** tasks block other work.
 | **0.2 ROM identification.** Hashing, byte-order normalisation, header parsing, and a per-version offset table. | S | `RomImage` class |
 | **0.3 Borg archive reader.** Parse `Borg_List` and port the LZB and LZ01x decompressors. Dump every Borg as raw decompressed blobs, grouped by type, with counts and sizes. | M | **Critical path.** Unblocks all of Phase 1. |
 | **0.4 DB table readers.** Entity, Weapon, Armor, Spell, Item, Chest, DialogEntity, shop, journal, CampEncounters, cinematic text, the GameStateFunnel raw table, and strings (with decrypt). Cross-check field meanings against AidynEditor. | M | Typed records |
-| **0.5 Architecture decisions** 1–7 above, plus content logic (ADR 0008), written up as short ADRs. | S | `docs/adr/` (done) |
+| **0.5 Architecture decisions,** written up as short ADRs. | S | `docs/adr/` (done) |
 | **0.6 Asset inspector.** A Godot tool app for browsing Borgs by type and index, showing hex, decoded fields, and a preview. It grows with every Phase 1 track and later becomes the mod editor. | M, ongoing | The tool you'll use most. **Started Sep 27, 2026:** Godot 4.7.2 (.NET) is pinned, and `src/Aidyn.Inspector` browses every Borg with its preview, fields and hex. **Sep 29, 2026:** per [ADR 0010](adr/0010-editor-reads-plugins.md) it becomes the editor over imported data only. **Done Sep 30, 2026:** the editor shows everything the HTML viewers and the Borg browser did, over imported data, and they're deleted. It keeps growing into the mod editor (Phase 5). |
 
 ### Phase 1: Format decoding (parallel tracks, after 0.3)
@@ -257,23 +218,3 @@ graph LR
 | Content hardcoded in code that the audit misses | Mods can't reach it, or content is missing | The 1H audit and the quest-atlas reachability check in Phase 4 |
 | Scope fatigue over several years | Project dies | Vertical slices (M1–M4) so something is always playable. The inspector is useful to the community on its own, early. |
 | Legal | Takedown | Never distribute ROM-derived assets or data; plugins ship only as deltas and original assets. The decomp repo has **no license file**, so read it for understanding, but don't copy code wholesale into a project with its own license. Contact blackgamma7 early. Their README says no LLMs were used in their work, so it's worth being upfront about how this project is built when you approach them. |
-
-## Answers the decomp gives to open questions
-
-These address questions in [engine-behaviour.md](engine-behaviour.md). Each needs confirming in the emulator, but the code points clearly one way.
-
-- **Loading:** it's chunk streaming. The engine keeps a 3×3 `ZoneDatMtx` of map chunks around the player. Each chunk has two Borg5 scene slots and a Borg9.
-- **Interiors:** many are separate map sets, not part of the overworld. The sets include `GwerniaInterior`, `Interior` (miscellaneous), `JundarInteriors`, `EhudUnder`, and `Ugarit2`. Teleporters move between them. There are 17 map sets in total, including the battle arenas.
-- **Weather and calendar:** time of day, day, week, month, weather, and terrain are all written into event flags (`SetFlagArray_on_Time`, `set_weather_flags`). Content can react to them, but whether the calendar drives weather still has to be read out of `weather.cpp`.
-- **Draw distance:** each scene object has its own `renderProx` and up to three model slots. Draw distance is data, not fixed tiers.
-- **Save points:** a `SavePoint` map object type exists but is unused.
-- **Expansion Pak:** some map objects only exist with the Expansion Pak and others only without it. The reimplementation should pick the Expansion Pak set.
-- **Stat soup** (turn order, movement radius, spell radius): it's in `combatEntity.cpp` and can be read directly.
-
-## First month: suggested order
-
-1. Set up the reference rig (0.1) and get the debug ROM running with its flag viewer.
-2. Write the ADRs for decisions 1–7 (0.5). Settle the ID scheme and plugin text format before extracting anything.
-3. Build the ROM reader and Borg archive dumper (0.2, 0.3) as a C# library with tests that check Borg counts and sizes against `Borg_List`.
-4. Write the DB readers (0.4), checked against AidynEditor's values.
-5. Start two Phase 1 tracks together: **1A** (to reach something visible) and **1E** (to confirm the quest atlas idea on the Gwernia opening).

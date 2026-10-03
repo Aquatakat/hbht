@@ -31,7 +31,7 @@ One alone is used. Of several, the one with the best (farthest − its distance)
 
 ## Walking into objects and onto triangles
 
-- **Tangible objects** (`ProcessVoxelObjects`), each tick, while the player is within the radius of an active one whose Enabled holds: a teleporter takes him through, skipping its secret, trap and lock; a trigger goes off, every tick he's there; a dialogue starts its script (session 5).
+- **Tangible objects** (`ProcessVoxelObjects`), each tick, while the player is within the radius of an active one whose Enabled holds: a teleporter takes him through, skipping its secret, trap and lock; a trigger goes off, every tick he's there; a dialogue starts its script.
 - **Trigger triangles** (`check_trigger`), when the player touches one whose object is active: 1,532 name cameras (below) and 317 dialogues, which start their script if he's within the dialogue's radius and its Enabled holds. A teleporter named by a triangle would take him through at once, whatever its gates, but none is. The collision asset carries each triangle's object as `_TARGET` ([maps](../formats/maps.md)).
 
 ## Camera objects
@@ -70,7 +70,7 @@ Using a container (`loot_func`), once it's neither opened, destroyed nor remembe
 
 ## Popups
 
-A popup takes the player's input until it's closed (`TrekPopup`), and stops the clock, with the potions working, but not the world (`isPaused`): bodies move, animations and clouds go on, and tangible triggers still go off, while doors and dialogues wait for it to close (`vobject_pause_check`). The user confirmed it in the original on Oct 1, 2026: the sun stops while a popup is up (the sundial is hidden), and Alaron's animations, the clouds and enemies' movements go on, so a chasing enemy can keep running into the player through a conversation. Wanderers don't choose new goals under a popup either (`WanderTick` is skipped), which the user couldn't see as easily but takes as true; it comes with wanderers in session 5.
+A popup takes the player's input until it's closed (`TrekPopup`), and stops the clock, with the potions working, but not the world (`isPaused`): bodies move, animations and clouds go on, and tangible triggers still go off, while doors and dialogues wait for it to close (`vobject_pause_check`). The user confirmed it in the original on Oct 1, 2026: the sun stops while a popup is up (the sundial is hidden), and Alaron's animations, the clouds and enemies' movements go on, so a chasing enemy can keep running into the player through a conversation. Wanderers don't choose new goals under a popup either (`WanderTick` is skipped), which the user couldn't see as easily but takes as true, and the port does too ([wanderers](wanderers.md#wandering-noticing-and-chasing)).
 
 - **A message** (`TrekTextPopup`, `TextBox_Centered`): off-white text in a feathered black box at the screen's centre, as wide as the text up to 150, wrapping there, A or B closing it.
 - **The trap's damage** (`TrapMenu::TakeDamage`): white, in a box 16 wider than its widest line and as tall as its lines at the first line's height plus 2.
