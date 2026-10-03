@@ -15,6 +15,10 @@ namespace Aidyn.Plugins.Records;
 /// Once equipped, it can't be taken off (<c>Party::RemoveWeaponsFrom</c>): the Archmage Staff, which
 /// is Niesen's <see cref="EntityRecord.SoleWeapon"/>.
 /// </param>
+/// <param name="Model">
+/// The Borg5 scene (<c>aidyn:scene/0x…</c>) the original draws for it in a body's hand or on its arm
+/// (<c>get_item_borg5</c>), or null when it has none.
+/// </param>
 public sealed record WeaponRecord(
     RecordId Id,
     string Name,
@@ -30,7 +34,8 @@ public sealed record WeaponRecord(
     Element DamageType,
     GearBonuses Bonuses,
     ItemTraits? Traits = null,
-    bool Fixed = false);
+    bool Fixed = false,
+    RecordId? Model = null);
 
 /// <summary>
 /// Body armor or a shield (<c>aidyn:armor/0x05…</c> and <c>0x06…</c>), from the armor DB
@@ -42,6 +47,10 @@ public sealed record WeaponRecord(
 /// <param name="Stealth">What wearing it adds to modified Stealth.</param>
 /// <param name="Unk1D">Read into RAM with the rest, but nothing reads it there.</param>
 /// <param name="ExpBonus">Read into RAM; what reads it isn't known.</param>
+/// <param name="Model">
+/// The Borg5 scene (<c>aidyn:scene/0x…</c>) the original draws for it in a body's hand or on its arm
+/// (<c>get_item_borg5</c>), or null when it has none.
+/// </param>
 public sealed record ArmorRecord(
     RecordId Id,
     string Name,
@@ -55,7 +64,8 @@ public sealed record ArmorRecord(
     int Unk1D,
     int ExpBonus,
     GearBonuses Bonuses,
-    ItemTraits? Traits = null);
+    ItemTraits? Traits = null,
+    RecordId? Model = null);
 
 /// <summary>
 /// Any other item (<c>aidyn:item/…</c>): worn gear, wands, scrolls, keys and other key items, potions,
@@ -74,6 +84,10 @@ public sealed record ArmorRecord(
 /// What C-down's details say of it: an item's line in <c>aidyn:strings/0</c>, or a potion's in
 /// <c>aidyn:strings/4</c>. Weapons and armor show their numbers instead.
 /// </param>
+/// <param name="Model">
+/// The Borg5 scene (<c>aidyn:scene/0x…</c>) the original draws for it in a body's hand or on its arm
+/// (<c>get_item_borg5</c>), or null when it has none.
+/// </param>
 public sealed record ItemRecord(
     RecordId Id,
     string Name,
@@ -88,7 +102,8 @@ public sealed record ItemRecord(
     GearBonuses? Bonuses = null,
     ItemTraits? Traits = null,
     KeyItemFlags? KeyItem = null,
-    string? Description = null);
+    string? Description = null,
+    RecordId? Model = null);
 
 /// <summary>
 /// What an item is (the original's <c>DBTypeEnum</c>, the high byte of its ID). Weapons and armor have

@@ -87,16 +87,21 @@ internal static class ItemImporter
             reserved.Contains(id) || mustTake.Contains(id) ? new ItemTraits(reserved.Contains(id), mustTake.Contains(id)) : null;
         RecordId Icon(ItemId id) => Image(tables.ItemIcons.TryGetValue(id, out var icon) ? icon : ItemTables.DefaultIcon);
 
-        var weapons = db.Weapons.Select(w => new PluginWeapon(
+        RecordId? Model(IReadOnlyDictionary<int, ushort> models, int position) =>
+            models.TryGetValue(position, out var scene) ? Scene(scene) : null;
+
+        var weapons = db.Weapons.Select((w, i) => new PluginWeapon(
             Record(w.Id), w.Name, Icon(w.Id), w.Price, (PluginWeaponClass)w.Class, w.RequiredStrength, w.Hit, w.Damage,
             Math.Min(w.Range * RangeTimesThree / 3, 255), w.Animation, w.ExpModifier, (PluginElement)w.DamageType,
-            Bonuses(w.Bonuses, w.SpellLevel), Traits(w.Id), Fixed: w.Id == staff));
+            Bonuses(w.Bonuses, w.SpellLevel), Traits(w.Id), Fixed: w.Id == staff,
+            Model: Model(tables.WeaponModels, i)));
 
-        var armor = db.Armor.Select(a => new PluginArmor(
+        var armor = db.Armor.Select((a, i) => new PluginArmor(
             Record(a.Id), a.Name, Icon(a.Id), a.Price, a.Slot == 0 ? ArmorSlot.Body : ArmorSlot.Shield, a.Defense, a.Protection,
-            a.Dexterity, a.Stealth, a.Unk1D, a.ExpBonus, Bonuses(a.Bonuses, a.Bonuses.SpellLevel), Traits(a.Id)));
+            a.Dexterity, a.Stealth, a.Unk1D, a.ExpBonus, Bonuses(a.Bonuses, a.Bonuses.SpellLevel), Traits(a.Id),
+            Model(ItemTables.ShieldModels, i)));
 
-        var gear = db.Gear.Select(g =>
+        var gear = db.Gear.Select((g, i) =>
         {
             var bonuses = Bonuses(g.Bonuses, g.Bonuses.SpellLevel);
             return new ItemRecord(Record(g.Id), g.Name, Icon(g.Id), g.Price, (ItemKind)g.Id.Type, g.ExpMultiplier, g.Damage, g.Protection,
@@ -104,7 +109,8 @@ internal static class ItemImporter
                 keyItems.TryGetValue(g.Id, out var key)
                     ? new KeyItemFlags(Flag(key.Held), key.Region == 0 ? null : Flag(key.Region))
                     : null,
-                menu is null ? null : Description(db, RomStringTable.Items, menu.ItemDescriptions, g.Id));
+                menu is null ? null : Description(db, RomStringTable.Items, menu.ItemDescriptions, g.Id),
+                Model(tables.ItemModels, i));
         });
 
         // Potions aren't in the item DB: potion n is named by line n of their own string table, and
@@ -204,6 +210,8 @@ internal static class ItemImporter
     };
 
     private static RecordId Record(ItemId id) => DbRecordIds.For(id) ?? throw new InvalidDataException($"DB ID {id} has no record.");
+
+    private static RecordId Scene(int borg5) => RecordId.Hex(RecordTypes.Scene, borg5);
 
     private static RecordId Image(int borg8) => RecordId.Hex(RecordTypes.Image, borg8);
 

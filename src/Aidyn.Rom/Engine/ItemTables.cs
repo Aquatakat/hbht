@@ -15,6 +15,8 @@ namespace Aidyn.Rom.Engine;
 /// <param name="ReservedItems">Items with a slot of their own after the general ones, in slot order.</param>
 /// <param name="KeyEquipment">Unique gear with a slot of its own, after the key items', in slot order.</param>
 /// <param name="MustTakeItems">Items loot can't be left behind with.</param>
+/// <param name="WeaponModels">The Borg5 of each weapon that has one, by its position in the weapon DB (<c>Weapon_borg5_lookup</c>).</param>
+/// <param name="ItemModels">The Borg5 of each of the six items that have one, by position in the item DB (<c>ItemBorg5Search</c>).</param>
 public sealed record ItemTables(
     IReadOnlyList<int> PotionPrices,
     IReadOnlyList<PotionRecipe> PotionRecipes,
@@ -26,8 +28,23 @@ public sealed record ItemTables(
     IReadOnlyList<ushort> SpellSymbolIcons,
     IReadOnlyList<ItemId> ReservedItems,
     IReadOnlyList<ItemId> KeyEquipment,
-    IReadOnlyList<ItemId> MustTakeItems)
+    IReadOnlyList<ItemId> MustTakeItems,
+    IReadOnlyDictionary<int, ushort> WeaponModels,
+    IReadOnlyDictionary<int, ushort> ItemModels)
 {
+    /// <summary>
+    /// The Borg5 of each shield that has one, by its position in the armor DB. The original has these in
+    /// code, a switch on the position (<c>ArmorDB::GetBorg5</c>, 0x8006b3b8 in 1.0, with the same cases in
+    /// 1.1 and the debug build), which returns <c>ShieldNONE</c> (0x38F9, meaning none) for every other
+    /// position, body armor included. Positions 51 to 67, Sheridan's Shield to the Chaos Shield.
+    /// </summary>
+    public static readonly IReadOnlyDictionary<int, ushort> ShieldModels = new Dictionary<int, ushort>
+    {
+        [51] = 0x351B, [52] = 0x351D, [53] = 0x353C, [54] = 0x3540, [55] = 0x3542, [56] = 0x3526, [57] = 0x3521, [58] = 0x3534,
+        [59] = 0x3532, [60] = 0x352F, [61] = 0x353A, [62] = 0x3528, [63] = 0x351F, [64] = 0x353E, [65] = 0x3537, [66] = 0x352A,
+        [67] = 0x3523,
+    };
+
     /// <summary>The icon of an item that isn't in <see cref="ItemIcons"/>: a question mark (<c>GetItemImage</c>).</summary>
     public const ushort DefaultIcon = 0x35DC;
 
@@ -80,11 +97,32 @@ public sealed record ItemTables(
         return new ItemTables(potionPrices, potionRecipes, armorRecipes,
             items.ToDictionary(e => new ItemId(e.Key), e => e.Image),
             Ordered(skills), Ordered(aspects), Ordered(schools), Ordered(symbols),
-            Ids(rom, CodeTable.ReservedItems), Ids(rom, CodeTable.KeyEquipment), Ids(rom, CodeTable.MustTakeItems));
+            Ids(rom, CodeTable.ReservedItems), Ids(rom, CodeTable.KeyEquipment), Ids(rom, CodeTable.MustTakeItems),
+            Models(rom, CodeTable.WeaponsWithModels, CodeTable.WeaponModels, 1, 0xFF),
+            Models(rom, CodeTable.ItemsWithModels, CodeTable.ItemModels, 2, 0xFFFF));
 
         // Each list is keyed 0 to n − 1, in order.
         static List<ushort> Ordered(List<(ushort Key, ushort Image)> list) =>
             list.Select((e, i) => e.Key == i ? e.Image : throw new InvalidDataException($"Icon list key {e.Key} isn't at {i}.")).ToList();
+    }
+
+    /// <summary>
+    /// A list of positions ending with <paramref name="end"/>, each of <paramref name="width"/> bytes, and the
+    /// u16 Borg5 at the same index in the table of models. The tables' ranges hold the terminator and padding.
+    /// </summary>
+    private static Dictionary<int, ushort> Models(RomImage rom, CodeTable positionsTable, CodeTable modelsTable, int width, int end)
+    {
+        var positions = CodeSegment.Table(rom, positionsTable).ToArray();
+        var models = CodeSegment.Table(rom, modelsTable).ToArray();
+        var result = new Dictionary<int, ushort>();
+        for (var i = 0; (i + 1) * width <= positions.Length; i++)
+        {
+            var position = width == 1 ? positions[i] : CodeSegment.U16(positions, i * 2);
+            if (position == end)
+                return result;
+            result.Add(position, CodeSegment.U16(models, i * 2));
+        }
+        throw new InvalidDataException($"The {positionsTable} list has no terminator.");
     }
 
     private static List<ItemId> Ids(RomImage rom, CodeTable table)

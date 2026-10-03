@@ -97,6 +97,46 @@ public class ItemTablesTests
             icon => Assert.Equal(BorgType.UiImage, archive.Listings[icon].Type));
     }
 
+    /// <summary>The weapons' and items' models are lists of positions with the Borg5s at the same index; the shields' are a switch in code.</summary>
+    [Theory]
+    [MemberData(nameof(Versions))]
+    public void WeaponsShieldsAndSixItemsHaveModelsByTheirPositionsInTheDb(RomVersionId id)
+    {
+        var rom = TestRoms.Get(id);
+        var tables = ItemTables.Read(rom);
+        var db = GameDb.Read(rom);
+
+        Assert.Equal(66, tables.WeaponModels.Count);
+        var weapons = db.Weapons.Select((w, i) => (w.Id.Value, Model: tables.WeaponModels.TryGetValue(i, out var m) ? (int)m : 0)).ToDictionary(w => (int)w.Value, w => w.Model);
+        Assert.Equal(
+            [0x34E5, 0x34C2, 0x34D9, 0x34AA, 0x34A2],
+            new[] { 0x072C, 0x0726, 0x071E, 0x0739, 0x0734 }.Select(w => weapons[w]));
+        Assert.DoesNotContain(db.Weapons.Select((w, i) => (w, i)), x => x.w.Name.EndsWith("Bite", StringComparison.Ordinal) && tables.WeaponModels.ContainsKey(x.i));
+
+        Assert.Equal(17, ItemTables.ShieldModels.Count);
+        Assert.Equal(0x063E, db.Armor[51].Id.Value);
+        Assert.Equal(0x061B, db.Armor[67].Id.Value);
+        Assert.All(ItemTables.ShieldModels.Keys, position => Assert.Equal(DbType.Shield, db.Armor[position].Id.Type));
+
+        Assert.Equal(
+            new Dictionary<int, int> { [0x0100] = 0x0CCE, [0x0D00] = 0x09D0, [0x0D03] = 0x34FB, [0x0900] = 0x3502, [0x0D02] = 0x3553, [0x1300] = 0x3517 }
+                .OrderBy(m => m.Key),
+            tables.ItemModels.Select(m => new KeyValuePair<int, int>(db.Gear[m.Key].Id.Value, m.Value)).OrderBy(m => m.Key));
+    }
+
+    /// <summary>The models have to be scenes the importer exports as assets.</summary>
+    [Theory]
+    [MemberData(nameof(Versions))]
+    public void EveryModelIsABorg5Scene(RomVersionId id)
+    {
+        var rom = TestRoms.Get(id);
+        var tables = ItemTables.Read(rom);
+        var archive = BorgArchive.Open(rom);
+
+        Assert.All(tables.WeaponModels.Values.Concat(tables.ItemModels.Values).Concat(ItemTables.ShieldModels.Values),
+            model => Assert.Equal(BorgType.Scene, archive.Listings[model].Type));
+    }
+
     /// <summary>The table lists 0x110E twice, so it names 79 different items in its 80 entries.</summary>
     [Theory]
     [MemberData(nameof(Versions))]
@@ -296,6 +336,34 @@ public sealed class ItemImportTests(MapObjectFixture fixture)
 
         Assert.Equal("Chainmail", chainmail.Name);
         Assert.Equal((R.ArmorSlot.Body, 5, -2, -5), (chainmail.Slot, chainmail.Protection, chainmail.Dexterity, chainmail.Stealth));
+    }
+
+    [Fact]
+    public void WeaponsCarryTheModelsTheOriginalDrawsInAHand()
+    {
+        Assert.Equal(
+            ["0x34E5", "0x34C2", "0x34D9", "0x34AA", "0x34A2"],
+            new[] { 0x072C, 0x0726, 0x071E, 0x0739, 0x0734 }.Select(id => Weapon(id).Model!.Value.Key));
+        Assert.All(Weapons.Where(w => w.Model is not null), w => Assert.Equal(RecordTypes.Scene, w.Model!.Value.Type));
+        Assert.Equal(66, Weapons.Count(w => w.Model is not null));
+        Assert.Null(Weapon(0x0700).Model);
+    }
+
+    [Fact]
+    public void ShieldsAndSixItemsCarryTheirModelsAndBodyArmorHasNone()
+    {
+        Assert.Equal("0x351B", ArmorPiece(0x063E).Model!.Value.Key);
+        Assert.Equal("0x3523", ArmorPiece(0x061B).Model!.Value.Key);
+        Assert.Equal(17, Armor.Count(a => a.Model is not null));
+        Assert.Null(ArmorPiece(0x0503).Model);
+        Assert.Equal("0x353A", ArmorPiece(0x0615).Model!.Value.Key);
+        Assert.Null(ArmorPiece(0x063C).Model);
+        Assert.All(Armor.Where(a => a.Slot == R.ArmorSlot.Body), a => Assert.Null(a.Model));
+
+        Assert.Equal(
+            ["0x0CCE", "0x09D0", "0x34FB", "0x3502", "0x3553", "0x3517"],
+            new[] { 0x0100, 0x0D00, 0x0D03, 0x0900, 0x0D02, 0x1300 }.Select(id => Item(id).Model!.Value.Key));
+        Assert.Equal(6, Items.Count(i => i.Model is not null));
     }
 
     [Fact]

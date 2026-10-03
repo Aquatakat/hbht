@@ -209,6 +209,20 @@ public enum CodeTable
     InventoryOrder,
     /// <summary>Each equipment slot's empty image, 15 u32 Borg8 indices by slot (<c>gItemSlotBorg8Indecies</c>).</summary>
     EquipmentSlotImages,
+    /// <summary>
+    /// The positions in the weapon DB that have a model, as bytes ending with 0xFF (<c>weapons_with_borg5</c>).
+    /// <see cref="WeaponModels"/> has each one's Borg5 at the same index.
+    /// </summary>
+    WeaponsWithModels,
+    /// <summary>The Borg5 of each weapon in <see cref="WeaponsWithModels"/>, as u16s, 66 of them (<c>weapon_borg5_ID</c>).</summary>
+    WeaponModels,
+    /// <summary>
+    /// The positions in the item DB that have a model, as u16s ending with 0xFFFF (<c>ItemBorg5Search</c>).
+    /// <see cref="ItemModels"/> has each one's Borg5 at the same index.
+    /// </summary>
+    ItemsWithModels,
+    /// <summary>The Borg5 of each item in <see cref="ItemsWithModels"/>, as u16s.</summary>
+    ItemModels,
     /// <summary>What drinking a potion says when it would do nothing now, a C string (<c>Entity::CanUsePotion</c>).</summary>
     PotionNotNow,
     /// <summary>What drinking a flask, or a potion with no effect, says outside combat, a C string.</summary>
@@ -322,6 +336,10 @@ public static class RomVersions
                 [CodeTable.PotionNotNow] = new(0x00D3D50, 0x26),
                 [CodeTable.PotionNotInTrek] = new(0x00D3D78, 0x29),
                 [CodeTable.ScrollNoSpell] = new(0x00D435C, 0x57),
+                [CodeTable.WeaponsWithModels] = new(0x00E3520, 0x43),
+                [CodeTable.WeaponModels] = new(0x00D3B14, 0x86),
+                [CodeTable.ItemsWithModels] = new(0x00E3564, 0xE),
+                [CodeTable.ItemModels] = new(0x00D3B9C, 0xE),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {
@@ -425,6 +443,10 @@ public static class RomVersions
                 [CodeTable.PotionNotNow] = new(0x00D3D40, 0x26),
                 [CodeTable.PotionNotInTrek] = new(0x00D3D68, 0x29),
                 [CodeTable.ScrollNoSpell] = new(0x00D434C, 0x57),
+                [CodeTable.WeaponsWithModels] = new(0x00E3560, 0x43),
+                [CodeTable.WeaponModels] = new(0x00D3B04, 0x86),
+                [CodeTable.ItemsWithModels] = new(0x00E35A4, 0xE),
+                [CodeTable.ItemModels] = new(0x00D3B8C, 0xE),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {
@@ -526,6 +548,10 @@ public static class RomVersions
                 [CodeTable.PotionNotNow] = new(0x00E0F68, 0x26),
                 [CodeTable.PotionNotInTrek] = new(0x00E0F90, 0x29),
                 [CodeTable.ScrollNoSpell] = new(0x00E17D4, 0x57),
+                [CodeTable.WeaponsWithModels] = new(0x00F2090, 0x43),
+                [CodeTable.WeaponModels] = new(0x00E0D14, 0x86),
+                [CodeTable.ItemsWithModels] = new(0x00F20D4, 0xE),
+                [CodeTable.ItemModels] = new(0x00E0D9C, 0xE),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {
