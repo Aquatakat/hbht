@@ -146,15 +146,11 @@ public partial class ModelView : VBoxContainer
         Clear();
         _note.Text = note ?? "";
 
-        var document = new GltfDocument();
-        var state = new GltfState();
-        var error = document.AppendFromBuffer(glb, "", state);
-        if (error != Error.Ok || document.GenerateScene(state) is not Node3D scene)
+        if (GlbFile.Load(glb, out var error) is not { } scene)
         {
             _note.Text = $"Godot couldn't load the glTF ({error}).";
             return;
         }
-        N64Material.Apply(glb, state, scene);
         _content = scene;
         _glb = glb;
         _viewport.AddChild(scene);
@@ -384,7 +380,7 @@ public partial class ModelView : VBoxContainer
     /// </summary>
     private void MarkEmitters(byte[] glb, Node3D scene, float radius)
     {
-        using var json = JsonDocument.Parse(glb.AsMemory(20, BitConverter.ToInt32(glb, 12)));
+        using var json = GlbFile.Json(glb);
         if (!json.RootElement.TryGetProperty("scenes", out var scenes) || !scenes[0].TryGetProperty("extras", out var extras) ||
             !extras.TryGetProperty("particleEmitters", out var emitters))
             return;

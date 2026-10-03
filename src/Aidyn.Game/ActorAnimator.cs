@@ -150,8 +150,7 @@ public sealed class ActorAnimator : IActorMotion
     /// <summary>The transform's pivot, which the exporter keeps in the node's extras.</summary>
     public static Vector3 Pivot(byte[] glb, int transform)
     {
-        var length = BitConverter.ToInt32(glb, 12);
-        using var json = JsonDocument.Parse(glb.AsMemory(20, length));
+        using var json = GlbFile.Json(glb);
         foreach (var node in json.RootElement.GetProperty("nodes").EnumerateArray())
         {
             if (node.TryGetProperty("extras", out var extras) && extras.TryGetProperty("transform", out var t) &&

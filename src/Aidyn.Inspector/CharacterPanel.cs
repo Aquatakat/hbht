@@ -1,4 +1,5 @@
 using System.Globalization;
+using Aidyn.Core;
 using Aidyn.Core.Characters;
 using Aidyn.Core.Items;
 using Aidyn.Plugins;
@@ -13,8 +14,6 @@ namespace Aidyn.Inspector;
 /// </summary>
 public static class EditorCharacters
 {
-    public static readonly RecordId Alaron = RecordId.Hex(RecordTypes.Entity, 0x023F);
-
     /// <summary>The character rules, or null if the plugins are older than the characters' records.</summary>
     public static CharacterRules? Rules(PluginSet plugins)
     {
@@ -57,7 +56,7 @@ public static class EditorCharacters
         if (game is not null)
             return game.CopyParty();
         var party = items is null ? new Party() : new Party(items);
-        if (Create(plugins, rules, Alaron, null, items) is { } alaron)
+        if (Create(plugins, rules, GameState.Alaron, null, items) is { } alaron)
             party.Add(alaron);
         return party;
     }

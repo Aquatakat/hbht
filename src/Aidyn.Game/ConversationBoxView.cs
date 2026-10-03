@@ -1,3 +1,4 @@
+using Aidyn.Core;
 using Aidyn.Core.Scripts;
 using Aidyn.Core.Ui;
 using Aidyn.Plugins;
@@ -12,9 +13,6 @@ namespace Aidyn.Game;
 /// </summary>
 public partial class ConversationBoxView : Control
 {
-    /// <summary>Alaron's entity, whose portrait shows over choices alone (<c>IDEntInd(Alaron)</c>).</summary>
-    public static readonly RecordId Alaron = RecordId.Hex(RecordTypes.Entity, 0x023F);
-
     // Engine code's literals: the portrait's border (BORG8_PortraitHighlight) and the portrait of a
     // speaker without one (BORG8_PortraitNPCMale1).
     private static readonly RecordId BorderImage = RecordId.Hex(RecordTypes.Image, 0x00DF);
@@ -37,7 +35,7 @@ public partial class ConversationBoxView : Control
         _sheet = _images.Get(font.Image);
         _border = _images.Get(BorderImage);
         var border = _border?.GetSize() ?? new Vector2(52, 52);
-        Box = new DialogueBox(_text, (int)border.X, (int)border.Y, Alaron);
+        Box = new DialogueBox(_text, (int)border.X, (int)border.Y, GameState.Alaron);
     }
 
     public DialogueBox Box { get; }

@@ -74,18 +74,15 @@ public sealed class Models(PluginSet plugins) : IDisposable
             return null;
         }
         // A scene with no geometry has no binary chunk, which Godot's reader warns about.
-        if (glb.Length == 20 + BitConverter.ToInt32(glb, 12))
+        if (GlbFile.HasNoBinaryChunk(glb))
             return new Node3D { Name = scene.ToString().Replace(':', '_').Replace('/', '_') };
-        var document = new GltfDocument();
-        var state = new GltfState();
-        if (document.AppendFromBuffer(glb, "", state) != Error.Ok || document.GenerateScene(state) is not Node3D node)
+        if (GlbFile.Load(glb, out _) is not { } node)
         {
             GD.PushWarning($"Godot couldn't load {scene}'s glTF.");
             return null;
         }
-        N64Material.Apply(glb, state, node);
         node.Name = scene.ToString().Replace(':', '_').Replace('/', '_');
-        using (var json = JsonDocument.Parse(glb.AsMemory(20, BitConverter.ToInt32(glb, 12))))
+        using (var json = GlbFile.Json(glb))
             Scrolls.Add(scene, json.RootElement);
         // Billboards are turned to the camera in world space, whatever their parents do.
         foreach (var facing in Billboards.Facings(node))

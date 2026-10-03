@@ -115,8 +115,7 @@ internal static class N64Material
     public static void Apply(byte[] glb, GltfState state, Node scene)
     {
         DeclareGlobals();
-        var jsonLength = BitConverter.ToInt32(glb, 12);
-        using var json = JsonDocument.Parse(glb.AsMemory(20, jsonLength));
+        using var json = GlbFile.Json(glb);
         var root = json.RootElement;
         if (!root.TryGetProperty("materials", out var materials))
             return;
