@@ -74,14 +74,13 @@ public static class BaseImporter
         }).ToList());
 
         progress?.Report("Flags");
-        var atlas = QuestAtlas.Build(rom);
-        WriteJson(Path.Combine(staging, "records", "flags.json"), BuildFlags(atlas));
-        WriteJson(Path.Combine(staging, "records", "journal.json"), atlas.Journal
+        var db = GameDb.Read(rom);
+        WriteJson(Path.Combine(staging, "records", "flags.json"), BuildFlags(db, FlagLabels.Read(rom, db)));
+        WriteJson(Path.Combine(staging, "records", "journal.json"), db.Journal
             .Select((e, i) => new JournalRecord(RecordId.Decimal(RecordTypes.Journal, i), Flag(e.Flag), e.Text)).ToList());
         WriteJson(Path.Combine(staging, "records", "stateflags.json"), BuildStateFlags());
 
         progress?.Report("Names");
-        var db = GameDb.Read(rom);
         var models = EntityModels.Read(rom);
         foreach (var (file, records) in BuildNames(db, models))
             WriteJson(Path.Combine(staging, "records", file), records);
@@ -395,18 +394,24 @@ public static class BaseImporter
     private static RecordId[] Flags(EngineFlagRange range) => [.. Enumerable.Range(range.First, range.Bits).Select(Flag)];
 
     /// <summary>
-    /// Every flag of the <c>GameStateFunnel</c>, with the labels engine code gives them. Derived
+    /// Every flag of the <c>GameStateFunnel</c>, with the labels engine code gives them (<see cref="FlagLabels"/>). Derived
     /// flags from <see cref="EngineFlags.JournalTriggers"/> on each add the journal entry of their
     /// position after it (<c>set_journalentry_flag</c>).
     /// </summary>
-    internal static List<FlagRecord> BuildFlags(QuestAtlas atlas)
+    internal static List<FlagRecord> BuildFlags(RomImage rom)
     {
-        var funnel = atlas.Funnel;
+        var db = GameDb.Read(rom);
+        return BuildFlags(db, FlagLabels.Read(rom, db));
+    }
+
+    internal static List<FlagRecord> BuildFlags(GameDb db, IReadOnlyDictionary<ushort, string> labels)
+    {
+        var funnel = db.GameStateFunnel;
         var records = new List<FlagRecord>(funnel.Flags.Count);
         for (var i = 0; i < funnel.Flags.Count; i++)
         {
             var flag = funnel.Flags[i];
-            var label = atlas.Labels.GetValueOrDefault((ushort)i) ?? i switch { 0 => "Always clear", 1 => "Always set", _ => null };
+            var label = labels.GetValueOrDefault((ushort)i) ?? i switch { 0 => "Always clear", 1 => "Always set", _ => null };
             if (i < funnel.BitFlagCount)
             {
                 if (flag.Kind != Db.FlagKind.Bit)
@@ -429,7 +434,7 @@ public static class BaseImporter
             var formula = new FlagFormula(kind, (FlagOperation)flag.Op, flag.Operand, [.. inputs.Select(n => Flag(n))]);
             var entry = i - EngineFlags.JournalTriggers;
             RecordId? journal = entry < 0 ? null
-                : entry < atlas.Journal.Count ? RecordId.Decimal(RecordTypes.Journal, entry)
+                : entry < db.Journal.Count ? RecordId.Decimal(RecordTypes.Journal, entry)
                 : throw new InvalidDataException($"Journal trigger {i} has no journal entry.");
             records.Add(new FlagRecord(Flag(i), label, false, formula, journal));
         }

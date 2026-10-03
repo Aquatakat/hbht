@@ -22,7 +22,7 @@ public sealed class QuestIndexImportTests : IDisposable
     private static int Number(RecordId flag) => int.Parse(flag.Key, CultureInfo.InvariantCulture);
 
     [Fact]
-    public void TheBasePluginsFlagsAreUsedAsTheQuestAtlasSays()
+    public void TheBasePluginsFlagsAreUsedByScriptsJournalAndMaps()
     {
         var dir = Path.Combine(_root, BasePlugin.Folder);
         BaseImporter.Import(TestRoms.Get(RomVersionId.Na10), dir);

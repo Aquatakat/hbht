@@ -17,7 +17,7 @@ public class ScriptRunnerTests
     private static readonly Lazy<(List<DialogueRecord> Scripts, List<FlagRecord> Flags)> Data = new(() =>
     {
         var rom = TestRoms.Get(RomVersionId.Na10);
-        return (BaseImporter.BuildDialogues(BorgArchive.Open(rom), EngineTables.Read(rom)), BaseImporter.BuildFlags(QuestAtlas.Build(rom)));
+        return (BaseImporter.BuildDialogues(BorgArchive.Open(rom), EngineTables.Read(rom)), BaseImporter.BuildFlags(rom));
     });
 
     private static Dictionary<RecordId, DialogueRecord> ById => Data.Value.Scripts.ToDictionary(s => s.Id);

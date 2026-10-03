@@ -16,7 +16,7 @@ public class CheckpointTests
 {
     // The flags are the same in 1.0 and the debug ROM, so both are checked against 1.0's records.
     private static readonly Lazy<List<FlagRecord>> Records =
-        new(() => BaseImporter.BuildFlags(QuestAtlas.Build(TestRoms.Get(RomVersionId.Na10))));
+        new(() => BaseImporter.BuildFlags(TestRoms.Get(RomVersionId.Na10)));
 
     public static TheoryData<string> Checkpoints()
     {

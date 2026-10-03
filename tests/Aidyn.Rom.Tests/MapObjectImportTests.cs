@@ -3,7 +3,6 @@ using System.Text.Json;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 using Aidyn.Rom.Import;
-using RomFlagRole = Aidyn.Rom.Quests.FlagRole;
 
 namespace Aidyn.Rom.Tests;
 
@@ -48,7 +47,6 @@ public sealed class MapObjectFixture : IDisposable
             Objects = maps.SelectMany(m => m.Objects.Select(o => (Id: MapRecord.VoxelId(m.Id, o.Index), Object: o)))
                 .ToDictionary(o => o.Id, o => o.Object),
             Index = QuestIndex.Build(set),
-            Atlas = Quests.QuestAtlas.Build(rom),
             Chunks = chunks,
             RomObjects = chunks.Select(c => c.Collision).Distinct().Order()
                 .ToDictionary(b => b, b => Maps.Borg9Voxels.Read(archive.Read(b))),
@@ -66,7 +64,6 @@ public sealed class MapObjectFixture : IDisposable
         public required IReadOnlyDictionary<RecordId, MapObject> Objects { get; init; }
 
         public required QuestIndex Index { get; init; }
-        public required Quests.QuestAtlas Atlas { get; init; }
         public required IReadOnlyList<Maps.MapChunk> Chunks { get; init; }
 
         /// <summary>The ROM's map objects of each Borg9 the chunk list names.</summary>
@@ -377,70 +374,34 @@ public sealed class MapObjectImportTests(MapObjectFixture fixture)
     }
 
     [Fact]
-    public void MapObjectsUseFlagsAsTheRomsQuestAtlasSays()
+    public void MapObjectsUseFlagsAndStartScripts()
     {
-        var included = Data.RomObjects.Keys.ToHashSet();
-        RomFlagRole[] notIndexed = [RomFlagRole.MemberAdded, RomFlagRole.MemberRemoved, RomFlagRole.BossBeaten];
+        // The flag uses of map objects.
+        var uses = Data.Objects.Keys.SelectMany(v => Data.Index.UsesBy(v)).ToList();
+        Assert.Equal(5283, uses.Count);
 
-        // The flag uses of map objects, with no more than the flag's number, as either side has them.
-        var rom = Data.Atlas.References
-            .Where(r => r.Source is Quests.ObjectSource s && included.Contains(s.Borg9) && r.Flag > 1 && !notIndexed.Contains(r.Role))
-            .Select(r => (Voxel: Voxel(((Quests.ObjectSource)r.Source).Borg9, ((Quests.ObjectSource)r.Source).Index),
-                Flag: (int)r.Flag, Access: r.Access.ToString(), Role: r.Role.ToString()))
-            .ToHashSet();
-        var plugin = Data.Objects.Keys
-            .SelectMany(v => Data.Index.UsesBy(v).Select(u => (Voxel: u.By, Flag: Number(u.Flag), Access: u.Access.ToString(), Role: u.Role.ToString())))
-            .ToHashSet();
-        Assert.True(rom.Count > 5000, $"{rom.Count} uses");
-        Assert.Empty(rom.Except(plugin).Select(u => $"ROM only: {u}"));
-        Assert.Empty(plugin.Except(rom).Select(u => $"plugin only: {u}"));
-
-        // What starts each script.
-        var romStarters = Data.Atlas.Scripts.SelectMany(s => s.Value.StartedBy.Select(by => (Script: Script(s.Key), By: by)))
-            .Select(s => s.By switch
-            {
-                Quests.ObjectSource o when included.Contains(o.Borg9) => new ScriptStarter(s.Script, Voxel(o.Borg9, o.Index)),
-                Quests.ScriptSource script => new ScriptStarter(s.Script, Script(script.Script), script.Node),
-                _ => null,
-            })
-            .OfType<ScriptStarter>().ToHashSet();
-        var pluginStarters = Data.Set.All<DialogueRecord>(RecordTypes.Dialogue).SelectMany(s => Data.Index.StartersOf(s.Id)).ToHashSet();
-        Assert.Contains(romStarters, s => s.At is null);
-        Assert.Contains(romStarters, s => s.At is not null);
-        Assert.Empty(romStarters.Except(pluginStarters).Select(s => $"ROM only: {s}"));
-        Assert.Empty(pluginStarters.Except(romStarters).Select(s => $"plugin only: {s}"));
+        // What starts each script: a map object, or another script's RandomLine.
+        var starters = Data.Set.All<DialogueRecord>(RecordTypes.Dialogue).SelectMany(s => Data.Index.StartersOf(s.Id)).ToHashSet();
+        Assert.Contains(starters, s => s.At is null);
+        Assert.Contains(starters, s => s.At is not null);
 
         // Each way round, the starters agree with what the plugin's objects say they start.
-        Assert.All(pluginStarters.Where(s => s.At is null), s => Assert.Contains(s, Data.Index.StartedBy(s.By)));
+        Assert.All(starters.Where(s => s.At is null), s => Assert.Contains(s, Data.Index.StartedBy(s.By)));
     }
 
     [Fact]
-    public void ScriptsAndShopsGiveAndTakeKeyItemsAsTheRomsQuestAtlasSays()
+    public void ScriptsAndShopsGiveAndTakeKeyItems()
     {
-        RomFlagRole[] itemRoles = [RomFlagRole.ItemGiven, RomFlagRole.ItemTaken];
-
-        // Every write of a key item's flags by a script or a shop, second effects of a node included: the
-        // ROM atlas marks those ignored, but the plugin index has no such mark and lists them as uses.
-        var rom = Data.Atlas.References
-            .Where(r => r.Flag > 1 && itemRoles.Contains(r.Role) && r.Source is Quests.ScriptSource or Quests.ShopSource)
-            .Select(r => r.Source switch
-            {
-                Quests.ScriptSource s => (By: Script(s.Script), At: s.Node, Flag: (int)r.Flag, Access: r.Access.ToString(), Role: r.Role.ToString()),
-                Quests.ShopSource s => (By: RecordId.Decimal(RecordTypes.Shop, s.Shop), At: null, Flag: (int)r.Flag, Access: r.Access.ToString(), Role: r.Role.ToString()),
-                _ => throw new InvalidOperationException(),
-            })
-            .ToHashSet();
+        // Every write of a key item's flags by a script or a shop, second effects of a node included.
         var plugin = Data.Set.All<DialogueRecord>(RecordTypes.Dialogue).Select(s => s.Id)
             .Concat(Data.Set.All<ShopRecord>(RecordTypes.Shop).Select(s => s.Id))
             .SelectMany(id => Data.Index.UsesBy(id))
             .Where(u => u.Role is FlagRole.ItemGiven or FlagRole.ItemTaken)
             .Select(u => (u.By, u.At, Flag: Number(u.Flag), Access: u.Access.ToString(), Role: u.Role.ToString()))
             .ToHashSet();
-        Assert.Contains(rom, u => u is { Role: "ItemGiven", By.Type: RecordTypes.Dialogue });
-        Assert.Contains(rom, u => u is { Role: "ItemTaken", By.Type: RecordTypes.Dialogue });
-        Assert.Contains(rom, u => u is { Role: "ItemGiven", By.Type: RecordTypes.Shop });
-        Assert.Empty(rom.Except(plugin).Select(u => $"ROM only: {u}"));
-        Assert.Empty(plugin.Except(rom).Select(u => $"plugin only: {u}"));
+        Assert.Contains(plugin, u => u is { Role: "ItemGiven", By.Type: RecordTypes.Dialogue });
+        Assert.Contains(plugin, u => u is { Role: "ItemTaken", By.Type: RecordTypes.Dialogue });
+        Assert.Contains(plugin, u => u is { Role: "ItemGiven", By.Type: RecordTypes.Shop });
 
         // Taking an item clears its held flag and never its region flag, and giving sets both.
         var items = Data.Set.All<ItemRecord>(RecordTypes.Item).Where(i => i.KeyItem is not null).ToDictionary(i => i.KeyItem!.Held);

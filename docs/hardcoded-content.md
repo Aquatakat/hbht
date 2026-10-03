@@ -13,7 +13,7 @@ This is the audit of content that lives in the game's code rather than its data.
 - **Fact:** carried in `EngineFlags`, because the code expresses it as a switch or a literal. Each is checked against 1.0's code.
 - **To do:** found, but not carried yet.
 
-The quest atlas shows every item below that involves a flag. Search for a name such as "Brenna" or "Kitarak" to see its flags.
+Every flag below that engine code names carries its label on the flag record, which the editor shows. Search for a name such as "Brenna" or "Kitarak" to see its flags.
 
 ## Flags the engine writes
 
@@ -248,12 +248,12 @@ Code uses 1,990 of the 2,076 names in the decomp's `Borgindecies.h`. The map chu
 - **The ending cinematic has six shots.** The decomp lists five Borg6 animations and five Borg12s for it, but the ROM has six of each, which matches its six clip planes and flag entries.
 - **Each cinematic shot names its own caption list.** The flag list the decomp calls `SeqenceFlags` holds a caption list per shot (or none), then the done flag. Each of the 15 caption lists shows over exactly one shot.
 - **Only the first death scene plays.** All three have dialogue objects in the Dreamscape, but the game over code only looks for 1298.
-- **Containers with their own model are gated like herb sources.** The code gates container kinds 4–7 by flags A and C: herbs, spices, gems and loot with its own model. The atlas only gated 4–6 before. 46 of the 49 kind-7 containers set a flag C, including the cheats' Hockey Stick and Lightreaver, Kendall's Hat and an Amaranth.
+- **Containers with their own model are gated like herb sources.** The code gates container kinds 4–7 by flags A and C: herbs, spices, gems and loot with its own model. 46 of the 49 kind-7 containers set a flag C, including the cheats' Hockey Stick and Lightreaver, Kendall's Hat and an Amaranth.
 - **Bosses count only in the first four slots.** A monster party fills slots with each entry's minimum count, in order, then random extras, so a boss listed after four guaranteed enemies wouldn't set its flag. In the data, only three monster parties include a boss (Kitarak, and Lugash twice), each listed first. Scripts add the other bosses.
 
 ### Checked against the checkpoints
 
-49 flags are set in the checkpoints that 1E found no data setter for. With the engine's flags in the atlas, all but eight had a setter. The eight, **955–958 and 960–963**, which turn on between Shamsuk's Tower and Rooughah, are **secret doors** in Ehud's underground: EhudUnder C11 has five (954–958) and E11 four (960–963). The atlas missed them because it took a teleporter as secret only when its secret level was nonzero, and that's 0 in all the data. The code (checked in 1.0) treats a teleporter as secret whenever its secret flag isn't 0: using it while the flag is clear shows "secret door" and sets the flag, and only then does it work. The 493 teleporters with flag 1, which is always set, aren't secret.
+49 flags are set in the checkpoints that the data has no setter for. Engine code sets all but eight. The eight, **955–958 and 960–963**, which turn on between Shamsuk's Tower and Rooughah, are **secret doors** in Ehud's underground: EhudUnder C11 has five (954–958) and E11 four (960–963). A teleporter's secret level is 0 in all the data, so its flag, not the level, says whether it is secret. The code (checked in 1.0) treats a teleporter as secret whenever its secret flag isn't 0: using it while the flag is clear shows "secret door" and sets the flag, and only then does it work. The 493 teleporters with flag 1, which is always set, aren't secret.
 
 ## Still open
 

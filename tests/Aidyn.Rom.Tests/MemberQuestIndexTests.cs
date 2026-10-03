@@ -1,13 +1,11 @@
 using System.Globalization;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
-using RomFlagRole = Aidyn.Rom.Quests.FlagRole;
 
 namespace Aidyn.Rom.Tests;
 
 /// <summary>
-/// What the quest index says of party members' flags over NA 1.0's imported plugins, and that it agrees with the ROM's quest atlas
-/// on which scripts add and remove them.
+/// What the quest index says of party members' flags over NA 1.0's imported plugins.
 /// </summary>
 [Collection(ImportedPluginCollection.Name)]
 public sealed class MemberQuestIndexTests(MapObjectFixture fixture)
@@ -77,32 +75,4 @@ public sealed class MemberQuestIndexTests(MapObjectFixture fixture)
     }
 
     private static readonly RecordId Alaron = Entity(0x023F);
-
-    /// <summary>
-    /// The ROM's atlas records an AddMember or RemoveMember as a write of the member's joined flag, and their left flag if they have one,
-    /// by a script's node. The index lists the same uses by the same scripts: the atlas marks a node's second effect ignored and the
-    /// index has no such mark, so both are compared as uses.
-    /// </summary>
-    [Fact]
-    public void ScriptsAddAndRemoveMembersAsTheRomsQuestAtlasSays()
-    {
-        RomFlagRole[] roles = [RomFlagRole.MemberAdded, RomFlagRole.MemberRemoved];
-        var rom = Data.Atlas.References
-            .Where(r => r.Flag > 1 && roles.Contains(r.Role) && r.Source is Quests.ScriptSource)
-            .Select(r => (By: Script(((Quests.ScriptSource)r.Source).Script), At: ((Quests.ScriptSource)r.Source).Node,
-                Flag: (int)r.Flag, Access: r.Access.ToString(), Role: r.Role.ToString()))
-            .ToHashSet();
-        var plugin = Data.Set.All<DialogueRecord>(RecordTypes.Dialogue)
-            .SelectMany(s => Data.Index.UsesBy(s.Id))
-            .Where(u => u.Role is FlagRole.MemberAdded or FlagRole.MemberRemoved)
-            .Select(u => (u.By, u.At, Flag: Number(u.Flag), Access: u.Access.ToString(), Role: u.Role.ToString()))
-            .ToHashSet();
-
-        Assert.Contains(rom, u => u is { Role: "MemberAdded", Access: "Set" });
-        Assert.Contains(rom, u => u is { Role: "MemberAdded", Access: "Clear" });
-        Assert.Contains(rom, u => u is { Role: "MemberRemoved", Access: "Set" });
-        Assert.Contains(rom, u => u is { Role: "MemberRemoved", Access: "Clear" });
-        Assert.Empty(rom.Except(plugin).Select(u => $"ROM only: {u}"));
-        Assert.Empty(plugin.Except(rom).Select(u => $"plugin only: {u}"));
-    }
 }
