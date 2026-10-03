@@ -1,6 +1,6 @@
 # 0010. The editor reads only imported data
 
-Status: Accepted · Sep 29, 2026 · Supersedes the part of [0009](0009-code-organisation.md) that keeps browsing raw Borgs as a research view
+Status: Accepted · Sep 29, 2026 · Supersedes the part of [0009](0009-code-organisation.md) that keeps browsing raw Borgs as a research view · Its last consequence is superseded by [0012](0012-editor-holds-the-importer.md)
 
 ## Context
 

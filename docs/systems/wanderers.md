@@ -76,7 +76,7 @@ Read from 1.0's machine code on Oct 2, 2026, by a Sonnet subagent, and the reach
 
 `Conversation` (`Aidyn.Core.Trek`) is a script running in trek: talking to a wanderer (`Conversation.TalkTo`) or a sign (`Conversation.Show`). It runs the script with the game as its world and the World random stream, and the runtime and tests drive it:
 
-- **A.** The runtime keeps the push loop's nearest body each tick; if `Wanderers.Reaches` it, A weighs its party with the chunk's objects (`MapObjectUse.Reach`), and using it calls `IMapObjectHost.Talk`. The runtime starts the conversation with a talker and says a hunter's battle would start.
+- **A.** `TrekLoop` keeps the push loop's nearest body each tick; if `Wanderers.Reaches` it, A weighs its party with the chunk's objects (`MapObjectUse.Reach`), and using it calls `IMapObjectHost.Talk`. Trek starts the conversation with a talker and says a hunter's battle would start.
 - **Starting** holds the wanderer, sets the party's flag B, and turns both: the player turns as a body does (`PlayerMotion.Face`, 10° a frame).
 - **Each tick** the clock, `WanderTick` and the player's input stop, and so do walking into objects and onto triangles, except their cameras; the camera frames the two (`Conversation.Frame`, a sign leaves it be) unless a camera object holds it; after the bodies move, `Conversation.Tick` holds the wanderer again, asks both to stand, and counts a script's timer down.
 - **A press** (`Conversation.Press`): A moves the box on, bringing up the choices behind a line that showed alone, or taking the cursor's choice; up and down move the cursor. The speaker talks for a tick: `PlayerMotion.Asked` for Alaron, the body's `Request` for the wanderer. Turning, or a steered body's step, overrides it, as `Actor::Move` does in the original.
@@ -94,7 +94,7 @@ From 1.0's code and the base plugin (Oct 2, 2026). A member's joining or leaving
   3. When it ends, `initGameTrek` (`0x80020f40`) loads trek again where the player was. Every map object is gated again, and every wanderer whose party is still there starts at its home node.
 
   So Godric's late-game cut-scene (`0x0529`) takes him off the map because his party is there only while flag 90 is clear. Of the 45 monster parties whose script is a cut-scene, 42 are gated off by what their script sets; the other three (`0x042F`'s two and `0x050B`'s) come back at their home nodes.
-- **In the port**, `Conversation.RebuildsTrek` says a script is one of these, and the runtime loads the map set's chunks and wanderers again where the player stands when it ends (`Game.RebuildTrek`). The cut-scene plays on its own stage in between ([scripts](scripts.md#cut-scenes)).
+- **In the port**, `Conversation.RebuildsTrek` says a script is one of these, and the runtime loads the map set's chunks and wanderers again where the player stands when it ends (`TrekLoop.Rebuild`, `TrekLoop.Resume`). The cut-scene plays on its own stage in between ([scripts](scripts.md#cut-scenes)).
 - **What keeps a recruit away is their party's enabled gate.** Nearly every recruit's monster party is enabled by a derived flag that holds NOT their joined flag. For example:
   - Keelin's in Terminor (map `0x1436`, party 17) by 5413 = NOT 265 & NOT 619 & 363 & 263.
   - Godric's (`0x18D0`, party 4) by 5391, which also reads 73, the flag his script sets.
