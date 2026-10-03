@@ -490,7 +490,7 @@ public partial class PartyTabView : Control
         _listBounds = b;
         var title = Menu.List switch
         {
-            PartyList.Inventory => MenuImages.InventoryTitle,
+            PartyList.Inventory => Barter?.PartyTitle ?? MenuImages.InventoryTitle,
             PartyList.Stats => MenuImages.StatsTitle,
             PartyList.Skills => MenuImages.SkillsTitle,
             _ => MenuImages.SpellsTitle,

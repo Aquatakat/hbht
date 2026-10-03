@@ -9,7 +9,8 @@ namespace Aidyn.Game;
 /// <summary>
 /// The pause menu, which Start opens over the game (<c>BigAssMenu</c>). So far it's the Party tab
 /// alone (<see cref="PartyTabView"/>), on a <see cref="UiScreen"/> over the world, and its barter
-/// state, the loot window, which a container opens (<see cref="OpenLoot"/>).
+/// state: the loot window, which a container opens (<see cref="OpenLoot"/>), and a shop, which a
+/// script opens (<see cref="OpenShop"/>).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -29,7 +30,8 @@ namespace Aidyn.Game;
 /// In the loot window, the stick's left and right go to the list that way: the pile is left of the
 /// party's list in the classic layout, as the original's is, and right of it in the wide one. C-left
 /// and C-right do nothing there, as in the original. B or Start closes it, unless items are left
-/// (<see cref="BarterMenu.Back"/>), and so does choosing to leave them.
+/// (<see cref="BarterMenu.Back"/>), and so does choosing to leave them. A shop's is the same, but B or
+/// Start closes it at once, and C-up, R or the left face button, appraises the stock's row.
 /// </para>
 /// </remarks>
 public partial class PauseMenu : CanvasLayer
@@ -99,6 +101,16 @@ public partial class PauseMenu : CanvasLayer
         _view!.Barter = BarterMenu.ForLoot(_plugins, _game.Party, loot, gold, _game.Flags, _game.Random.World);
     }
 
+    /// <summary>
+    /// Opens the menu in its barter state on a shop (<c>InitShop</c>), which <see cref="Shop.Open"/> has
+    /// opened on the game's party. Buying and selling act on the game.
+    /// </summary>
+    public void OpenShop(Shop shop)
+    {
+        Open();
+        _view!.Barter = BarterMenu.ForShop(_plugins, shop, _game.Random.World);
+    }
+
     private void Start()
     {
         _view!.DetailsOpen = false;
@@ -164,6 +176,10 @@ public partial class PauseMenu : CanvasLayer
     {
         if (e.IsActionPressed("menu_details") && barter.CloseMessage())
         {
+        }
+        else if (e.IsActionPressed("menu_appraise"))
+        {
+            barter.Appraise();
         }
         else if (e.IsActionPressed("menu_details") || e.IsActionReleased("menu_details"))
         {

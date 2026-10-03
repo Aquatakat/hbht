@@ -1,6 +1,7 @@
 using Aidyn.Core.Characters;
 using Aidyn.Core.Items;
 using Aidyn.Core.Rng;
+using Aidyn.Core.Ui;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 using Godot;
@@ -253,20 +254,18 @@ public partial class ItemPanel : PagePanel
 
 /// <summary>
 /// A shop's page: its shopkeeper, and its stock at the prices the editor's party would pay, with what
-/// it would get for what it carries and how its best appraiser judges each price. Buying and selling
-/// work as the barter window does, with the core's rules, on a copy of the party.
+/// it would get for what it carries and how its best appraiser judges each price, on a copy of the
+/// party. Under that, the shop's window against the editor's game, as a script opens it.
 /// </summary>
 public partial class ShopPanel : PagePanel
 {
-    private const int AppraisalLine = 384;
-
     private readonly EditorGame? _game;
     private readonly CharacterRules? _rules;
     private readonly ItemCatalog _items;
     private readonly ShopRecord _record;
     private readonly EntityRecord? _shopkeeper;
     private readonly IReadOnlyList<string>? _common;
-    private readonly Label _result = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart };
+    private readonly VBoxContainer _window = new();
     private Party _party = new();
     private Shop? _shop;
     private string _barter = "";
@@ -277,27 +276,25 @@ public partial class ShopPanel : PagePanel
         (_game, _rules, _items, _record) = (game, rules, items, record);
         _shopkeeper = Plugins.TryGet<EntityRecord>(record.Shopkeeper);
         _common = Plugins.All<StringsRecord>(RecordTypes.Strings).FirstOrDefault(s => s.Name == "Common")?.Lines;
-        OpenShop();
-        Refresh();
-    }
-
-    /// <summary>A fresh copy of the party opens the shop, which sets the barter factor and may cost the barterer Stamina.</summary>
-    private void OpenShop()
-    {
         _party = _rules is null ? new Party(_items) : EditorCharacters.CopyParty(Plugins, _rules, _game, _items);
-        if (_shopkeeper is null)
-            return;
-        var stamina = _party.Members.Select(m => m.Stats.Modified(Stat.Stamina)).ToList();
-        _shop = Shop.Open(_record, _shopkeeper, _party, _items);
-        var barterer = _party.Members.Select((m, i) => (m, Paid: stamina[i] - m.Stats.Modified(Stat.Stamina))).FirstOrDefault(p => p.Paid != 0);
-        _barter = barterer.m is { } who
-            ? $"{who.Name} barters, with Merchant {who.Skills.Modified(Skill.Merchant)}, for {barterer.Paid} Stamina."
-            : "No one barters: no member has Merchant, or the Stamina it costs, so the party's counts as 0.";
+        if (_shopkeeper is not null)
+        {
+            var stamina = _party.Members.Select(m => m.Stats.Modified(Stat.Stamina)).ToList();
+            _shop = Shop.Open(_record, _shopkeeper, _party, _items);
+            var barterer = _party.Members.Select((m, i) => (m, Paid: stamina[i] - m.Stats.Modified(Stat.Stamina))).FirstOrDefault(p => p.Paid != 0);
+            _barter = barterer.m is { } who
+                ? $"{who.Name} barters, with Merchant {who.Skills.Modified(Skill.Merchant)}, for {barterer.Paid} Stamina."
+                : "No one barters: no member has Merchant, or the Stamina it costs, so the party's counts as 0.";
+        }
+        Build();
+        OpenWindow();
     }
 
-    private void Refresh()
+    /// <summary>The shop's window, if the editor has a game to open it against.</summary>
+    public BarterWindowPanel? Window => _window.GetChildren().OfType<BarterWindowPanel>().FirstOrDefault();
+
+    private void Build()
     {
-        ClearBody();
         if (_shopkeeper is null || _shop is not { } shop)
         {
             Line($"No entity {_record.Shopkeeper} runs it.");
@@ -308,72 +305,63 @@ public partial class ShopPanel : PagePanel
         Line($"For {(_game is { IsNewGame: false } ? $"{_game.Name}'s party" : "a new game's party")} ({members}): {_barter} "
             + $"The barter factor is {Num(shop.Barter)}: buying costs the price × {Num(1 + shop.Barter)}, and selling pays it × {Num((1 - shop.Barter) * _items.Rules.SellShare)}.");
 
-        var row = new HBoxContainer();
-        row.AddChild(new Label { Text = "Party gold" });
-        var gold = new SpinBox { MinValue = 0, MaxValue = 10_000_000, Step = 10, Value = _party.Gold };
-        gold.ValueChanged += v =>
-        {
-            _party.Gold = (uint)v;
-            Refresh();
-        };
-        row.AddChild(gold);
-        var reset = new Button { Text = "Reset", TooltipText = "Back to the party as it was, and open the shop again." };
-        reset.Pressed += () =>
-        {
-            _result.Text = "";
-            OpenShop();
-            Refresh();
-        };
-        row.AddChild(reset);
-        Body.AddChild(row);
-        _result.Text = _result.Text.Length == 0 ? " " : _result.Text;
-        Body.AddChild(_result);
-
         Heading("Stock");
-        var stock = Grid(["", "Base", "Shop's", "Buy for", "Sell for", "The party judges", ""]);
+        var stock = Grid(["", "Base", "Shop's", "Buy for", "Sell for", "The party judges"]);
         foreach (var stack in shop.Stock.Stacks)
         {
             stock.AddChild(ItemLink(stack.Item.Id, stack.Item.Icon, stack.Item.Name));
             var sell = shop.SellPrice(new ItemInstance(stack.Item));
             Row(stock, $"{stack.Item.Price:N0}", $"{stack.Instance.Price:N0}", $"{shop.BuyPrice(stack.Instance):N0}", sell <= 1 ? "won't buy" : $"{sell:N0}",
                 Appraisal(shop.Appraise(stack.Instance)));
-            var buy = new Button { Text = "Buy" };
-            var item = stack.Item;
-            buy.Pressed += () => Trade(shop.Buy(item.Id), $"Bought {item.Name}.");
-            stock.AddChild(buy);
         }
         Body.AddChild(stock);
         Line("Appraisal is the line the shop shows on C-up; the best appraiser counts, dead or not.", Dim);
 
         Heading("The party's inventory");
         if (_party.Inventory!.Stacks.Count == 0)
+        {
             Line("Nothing.", Dim);
+        }
         else
         {
-            var carried = Grid(["", "Held", "Sell for", ""]);
+            var carried = Grid(["", "Held", "Sell for"]);
             foreach (var stack in _party.Inventory.Stacks)
             {
                 carried.AddChild(ItemLink(stack.Item.Id, stack.Item.Icon, stack.Item.Name));
                 var price = shop.SellPrice(stack.Instance);
                 Row(carried, $"{stack.Quantity}", price <= 1 ? "won't buy" : $"{price:N0}");
-                var sell = new Button { Text = "Sell one", Disabled = price <= 1 };
-                var item = stack.Item;
-                sell.Pressed += () => Trade(shop.Sell(item.Id, 1), $"Sold {item.Name} for {price:N0}.");
-                carried.AddChild(sell);
             }
             Body.AddChild(carried);
         }
         Line("Equipped items must be taken off to sell. The shop doesn't stock what it buys.", Dim);
+
+        if (_game is null)
+            return;
+        Heading("The window");
+        var again = new Button
+        {
+            Text = "Open again",
+            TooltipText = "Open the shop's window afresh on the game's party, as a script does: the barterer pays its Stamina again.",
+        };
+        again.Pressed += OpenWindow;
+        Body.AddChild(again);
+        Body.AddChild(_window);
     }
 
-    private void Trade(TradeResult result, string done)
+    /// <summary>Opens the shop's window on the editor's game's party, which costs the barterer Stamina, as in the game.</summary>
+    private void OpenWindow()
     {
-        _result.Text = result == TradeResult.Done ? done : ItemText.Trade(result);
-        Refresh();
+        if (_game is null || _shopkeeper is null)
+            return;
+        foreach (var child in _window.GetChildren())
+            child.QueueFree();
+        var party = _game.Game.Party;
+        var shop = Shop.Open(_record, _shopkeeper, party, party.Inventory!.Catalog, _game.Game.Flags);
+        _window.AddChild(BarterWindowPanel.ForShop(Plugins, _game, shop));
     }
 
     private string Appraisal(int index) =>
-        _common is { } lines && AppraisalLine + index < lines.Count ? lines[AppraisalLine + index].Replace('\n', ' ') : $"line {AppraisalLine + index}";
+        _common is { } lines && MenuText.Appraisal + index < lines.Count ? lines[MenuText.Appraisal + index].Replace('\n', ' ') : $"line {MenuText.Appraisal + index}";
 }
 
 /// <summary>A loot table's page: what it gives and its chances, with rolls by the core's rules.</summary>
@@ -394,7 +382,7 @@ public partial class LootPanel : PagePanel
     }
 
     /// <summary>The loot window on the last roll, if one is open.</summary>
-    public LootWindowPanel? Window => _window.GetChildren().OfType<LootWindowPanel>().FirstOrDefault();
+    public BarterWindowPanel? Window => _window.GetChildren().OfType<BarterWindowPanel>().FirstOrDefault();
 
     private void Build()
     {
@@ -451,7 +439,7 @@ public partial class LootPanel : PagePanel
             pile.Add(item, count);
         // With no items, a container gives the gold alone: "You just picked up n gold!"
         if (_game is not null && pile.Stacks.Count > 0)
-            _window.AddChild(new LootWindowPanel(Catalog.Plugins, _game, pile, roll.Gold, $"A roll of {_loot.Name}"));
+            _window.AddChild(BarterWindowPanel.ForLoot(Catalog.Plugins, _game, pile, roll.Gold, $"A roll of {_loot.Name}"));
     }
 
     private static string Count(int min, int max) => min == max ? $"{min}" : $"{min} to {max}";

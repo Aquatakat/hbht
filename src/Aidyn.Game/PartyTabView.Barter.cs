@@ -5,7 +5,7 @@ using Godot;
 namespace Aidyn.Game;
 
 /// <summary>
-/// The menu's barter state (<see cref="BarterMenu"/>): the loot window, and later a shop's.
+/// The menu's barter state (<see cref="BarterMenu"/>): the loot window, or a shop's.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -13,7 +13,8 @@ namespace Aidyn.Game;
 /// silhouette and no arrow under the knotwork; the header and the party's inventory list where the Party
 /// tab has them, and over the silhouette the details' parchment at (0, 58) with the pile on it. Its title
 /// is centred on x 90 with its foot at y 85, the list from (20, 88) to (157, 166) in the slim font, and
-/// under it in red, at (30, 169), the gold the loot held.
+/// under it in red, at (30, 169), the gold the loot held, or in a shop, the active row's price. A shop's
+/// pile is titled Buy and the party's list Sell, and its stock has no counts.
 /// </para>
 /// <para>
 /// <b>Wide</b>: the Party tab's wide sheet, silhouette and all, with the pile on the right-hand parchment,
@@ -26,7 +27,7 @@ public partial class PartyTabView
     /// <summary>The pile's title's centre and foot in the classic layout.</summary>
     private const int PileTitleCentre = 90, PileTitleFoot = 0x55;
 
-    /// <summary>Where the gold the loot held is written in the classic layout.</summary>
+    /// <summary>Where the gold the loot held, or a shop's price, is written in the classic layout.</summary>
     private static readonly Vector2I ClassicGoldLine = new(0x1E, 0xA9);
 
     /// <summary>The help's text on its parchment, and how far it wraps (<c>WidgetMenuPrompt</c>, <c>WidgetMenuPopup</c>).</summary>
@@ -89,7 +90,7 @@ public partial class PartyTabView
         _ui.Image(this, barter.Title, PileTitleCentre - title.X / 2, PileTitleFoot - title.Y);
         _pileBounds = BarterMenu.ClassicPile;
         Items(barter.Pile, _pileBounds, _ui.Slim, Columns.Classic, pile);
-        _ui.Text(this, _ui.Slim, barter.GoldLine, ClassicGoldLine.X, ClassicGoldLine.Y, PartyMenu.TextColor);
+        _ui.Text(this, _ui.Slim, barter.PileLine, ClassicGoldLine.X, ClassicGoldLine.Y, PartyMenu.TextColor);
 
         // C-down's details cover the pile while it's held, as WidgetItemDetail covers WidgetBarter.
         if (DetailsOpen && barter.Details() is { } details)
@@ -142,7 +143,7 @@ public partial class PartyTabView
         _pileBounds = new ScreenRect(area.Left, pileTop, area.Right, pileTop + pileRows * 13);
         Items(barter.Pile, _pileBounds, font, Columns.Wide, pile);
         var goldTop = _pileBounds.Bottom + 4;
-        _ui.Text(this, font, barter.GoldLine, area.Left, goldTop, PartyMenu.TextColor);
+        _ui.Text(this, font, barter.PileLine, area.Left, goldTop, PartyMenu.TextColor);
 
         var detailsTop = goldTop + font.LineHeight + 12;
         if (barter.Details() is { } details && detailsTop < area.Bottom)

@@ -23,8 +23,11 @@ public interface ITrekHost : IScriptHost
     /// <summary>A conversation or sign showing has a new page, or has ended.</summary>
     void ConversationChanged();
 
-    /// <summary>A conversation or a cut-scene has ended: what it ends in (a shop, training, a battle, a camp), and any fault.</summary>
-    void ScriptEnded(RecordId script, ScriptEnding ending);
+    /// <summary>
+    /// A conversation has ended: what it ends in (a shop, training, a battle, a camp), and any fault.
+    /// </summary>
+    /// <param name="keeper">Who keeps a shop or training it opens (<see cref="Conversation.Keeper"/>).</param>
+    void ScriptEnded(RecordId script, ScriptEnding ending, RecordId? keeper);
 
     /// <summary>A wanderer's animation, which moves its body by its root motion.</summary>
     IRootMotion Motion(Wanderer wanderer);
@@ -380,7 +383,7 @@ public sealed class TrekLoop : IMapObjectHost
             if (conversation.RebuildsTrek)
                 Rebuild();
             _host.ConversationChanged();
-            _host.ScriptEnded(conversation.Runner.Script.Id, conversation.Runner.Ending!);
+            _host.ScriptEnded(conversation.Runner.Script.Id, conversation.Runner.Ending!, conversation.Keeper);
             return;
         }
         _host.ConversationChanged();

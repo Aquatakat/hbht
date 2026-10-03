@@ -129,6 +129,12 @@ public sealed class MenuText(IReadOnlyList<string> common)
         FlaskComponents = 460, NoArmorComponents = 461, CreateArmor = 462, ArmorFailed = 463, ArmorMade = 464, HealerTasks = 465,
         LayOnHands = 466, HealWithHerbs = 467, Restore = 468, Health = 469, StatAtMax = 470;
 
+    /// <summary>
+    /// The first of the lines appraisal picks from (<c>Party::ApraisePrice</c>), "This is highway robbery!",
+    /// and the six better after it.
+    /// </summary>
+    public const int Appraisal = 384;
+
     /// <summary>"The %s contains powerful magic that only %s can control." (<c>WidgetInvShop::AFunc</c>).</summary>
     public const int PowerfulMagic = 554;
 

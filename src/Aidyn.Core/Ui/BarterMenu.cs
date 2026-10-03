@@ -29,9 +29,9 @@ public sealed record BarterConfirm(string Text, MenuList<BarterOption> Options, 
 
 /// <summary>
 /// The pause menu's barter state (<c>WidgetDollMenu</c> with <c>WidgetBarter</c>): the Party tab's header
-/// and inventory list, with no silhouette, beside a pile on the details' parchment. So far it's loot
-/// (<c>Shopkeep</c> −1): a container's items, which the party takes a stack at a time, and drops what it
-/// carries. A shop is the same window with prices (session 7).
+/// and inventory list, with no silhouette, beside a pile on the details' parchment. The pile is loot
+/// (<c>Shopkeep</c> −1), a container's items, which the party takes a stack at a time; or a shop's stock,
+/// which it buys one at a time, selling what it carries.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -40,16 +40,24 @@ public sealed record BarterConfirm(string Text, MenuList<BarterOption> Options, 
 /// empty. C-left and C-right don't change the member here. C-down shows the active row's details.
 /// </para>
 /// <para>
-/// <b>A on the pile</b> takes the stack, or as many as the party's stack has room for. The first potion
-/// the party gains shows help. <b>A on the party's list</b> asks how many to drop, which are lost; an
+/// <b>Loot.</b> A on the pile takes the stack, or as many as the party's stack has room for. The first
+/// potion the party gains shows help. A on the party's list asks how many to drop, which are lost; an
 /// item worth 1 gold or less at half its price can't be dropped, and a worn one must be taken off first.
-/// <b>B</b> closes the window, unless items are left: then it asks whether to leave them, or with a
-/// must-take item among them, says there's something you really need in here.
+/// B closes the window, unless items are left: then it asks whether to leave them, or with a must-take
+/// item among them, says there's something you really need in here.
+/// </para>
+/// <para>
+/// <b>A shop</b> (checked in 1.0's code, <c>WidgetBarter</c> at <c>0x8003cb68</c>): its stock has no
+/// counts, as it never runs out, and under it is the active row's price, what buying or selling one
+/// would come to. A on the stock buys one at once, with no question, and the first potion bought shows
+/// the help as loot's does. A on the party's list asks how many to sell, at the price; the shopkeeper
+/// won't buy what would sell for 1 gold or less, and a worn item must be taken off first. C-up on the
+/// stock appraises the price. B closes the window.
 /// </para>
 /// <para>
 /// A popup takes every press while it's open, as the original's widget handler gives them to the top
-/// widget. A message closes with A, B, C-down or C-up, and the help with A or B; the drop's question and
-/// the leave-items choice only with A, on one of their options.
+/// widget. A message closes with A, B, C-down or C-up, and the help with A or B; the question and the
+/// leave-items choice only with A, on one of their options.
 /// </para>
 /// </remarks>
 public sealed class BarterMenu
@@ -60,12 +68,13 @@ public sealed class BarterMenu
     private readonly FlagNetwork? _flags;
     private readonly MenuPulse _popupPulse = new();
 
-    private BarterMenu(PartyMenu party, LootWindow loot, FlagNetwork? flags)
+    private BarterMenu(PartyMenu party, LootWindow? loot, Shop? shop, FlagNetwork? flags)
     {
         Party = party;
         Loot = loot;
+        Shop = shop;
         _flags = flags;
-        Pile = new MenuList<InventoryRow>(PartyMenuRows.Pile(loot.Loot));
+        Pile = new MenuList<InventoryRow>(PileRows());
         OnPile = Pile.Rows.Count > 0;
     }
 
@@ -75,13 +84,24 @@ public sealed class BarterMenu
     /// <param name="flags">The flags the first potion taken sets.</param>
     /// <param name="random">The stream skill checks draw from; a fresh one if none.</param>
     public static BarterMenu ForLoot(PluginSet plugins, Party party, ItemPile loot, int gold, FlagNetwork? flags, IRandom? random = null) =>
-        new(PartyMenu.From(plugins, party, random: random), LootWindow.Showing(loot, gold, party, party.Inventory!.Catalog, flags), flags);
+        new(PartyMenu.From(plugins, party, random: random), LootWindow.Showing(loot, gold, party, party.Inventory!.Catalog, flags), null, flags);
+
+    /// <summary>
+    /// A shop's window (<c>InitShop</c>, <c>build_loot_menu</c> with a shopkeeper), on the shop as
+    /// <see cref="Items.Shop.Open"/> opened it, which set the barter factor.
+    /// </summary>
+    /// <param name="random">The stream skill checks draw from; a fresh one if none.</param>
+    public static BarterMenu ForShop(PluginSet plugins, Shop shop, IRandom? random = null) =>
+        new(PartyMenu.From(plugins, shop.Party, random: random), null, shop, shop.Flags);
 
     /// <summary>The header and the party's inventory list.</summary>
     public PartyMenu Party { get; }
 
-    /// <summary>The loot's rules.</summary>
-    public LootWindow Loot { get; }
+    /// <summary>The loot's rules, or null in a shop.</summary>
+    public LootWindow? Loot { get; }
+
+    /// <summary>The shop's rules, or null for loot.</summary>
+    public Shop? Shop { get; }
 
     /// <summary>The pile's rows.</summary>
     public MenuList<InventoryRow> Pile { get; }
@@ -89,11 +109,28 @@ public sealed class BarterMenu
     /// <summary>Whether the cursor works in the pile's list, rather than the party's.</summary>
     public bool OnPile { get; private set; }
 
-    /// <summary>The pile's title.</summary>
-    public RecordId Title => MenuImages.TreasureTitle;
+    /// <summary>The pile's title: Treasure, or a shop's Buy.</summary>
+    public RecordId Title => Shop is null ? MenuImages.TreasureTitle : MenuImages.BuyTitle;
 
-    /// <summary>The line under the pile: the gold the loot held (<c>UpdateGoldText</c>).</summary>
-    public string GoldLine => Party.Text.Format(MenuText.FoundGold, Loot.Gold);
+    /// <summary>The party's list's title: Inventory, or beside a shop, Sell (<c>WidgetInvShop</c>).</summary>
+    public RecordId PartyTitle => Shop is null ? MenuImages.InventoryTitle : MenuImages.SellTitle;
+
+    /// <summary>
+    /// The line under the pile (<c>UpdateGoldText</c>, <c>0x8003cfd8</c>): the gold the loot held, or in a
+    /// shop the active row's price, what buying one from the stock costs or what selling one of the
+    /// party's brings, worn or not. With no row it's blank.
+    /// </summary>
+    public string PileLine
+    {
+        get
+        {
+            if (Shop is not { } shop)
+                return Party.Text.Format(MenuText.FoundGold, Loot!.Gold);
+            if ((OnPile ? Pile : Party.Inventory).Current is not { } row)
+                return " ";
+            return Party.Text.Format(MenuText.Value, OnPile ? shop.BuyPrice(row.Instance) : shop.SellPrice(row.Instance));
+        }
+    }
 
     /// <summary>A message over everything, which A, B, C-down or C-up closes.</summary>
     public MenuMessage? Message { get; private set; }
@@ -101,7 +138,7 @@ public sealed class BarterMenu
     /// <summary>The help on the first potion, on the parchment, which A or B closes (<c>WidgetMenuPrompt</c>).</summary>
     public string? Help { get; private set; }
 
-    /// <summary>The question that drops some of what the party carries.</summary>
+    /// <summary>The question that drops or sells some of what the party carries.</summary>
     public BarterConfirm? Confirm { get; private set; }
 
     /// <summary>Whether to leave the items that are left.</summary>
@@ -109,7 +146,7 @@ public sealed class BarterMenu
 
     public bool HasPopup => Message is not null || Help is not null || Confirm is not null || Choice is not null;
 
-    /// <summary>Whether the window closed itself: the party chose to leave the items.</summary>
+    /// <summary>Whether the window closed itself: the party chose to leave the loot's items.</summary>
     public bool Closed { get; private set; }
 
     /// <summary>The colour the popups' cursors pulse to now.</summary>
@@ -159,7 +196,7 @@ public sealed class BarterMenu
         _popupPulse.Step();
     }
 
-    /// <summary>A: closes a message or the help, chooses in a popup, or takes or drops the active row.</summary>
+    /// <summary>A: closes a message or the help, chooses in a popup, or takes, buys, drops or sells the active row.</summary>
     public void Accept()
     {
         if (Message is not null)
@@ -167,18 +204,19 @@ public sealed class BarterMenu
         else if (Help is not null)
             Help = null;
         else if (Confirm is { } confirm)
-            Drop(confirm);
+            Trade(confirm);
         else if (Choice is { } choice)
             Leave(choice);
         else if (OnPile)
             Take();
         else
-            AskDrop();
+            Ask();
     }
 
     /// <summary>
-    /// B, or Start: closes a message or the help, or asks before leaving items behind. False if nothing
-    /// holds the window open, so it closes (<c>WidgetBarter::BFunc</c>).
+    /// B, or Start: closes a message or the help, or asks before leaving loot behind. False if nothing
+    /// holds the window open, so it closes (<c>WidgetBarter::BFunc</c>): a shop closes at once, as the
+    /// machine code has it, where the decomp's would do nothing.
     /// </summary>
     public bool Back()
     {
@@ -188,7 +226,7 @@ public sealed class BarterMenu
             Help = null;
         else if (Confirm is not null || Choice is not null)
             return true;
-        else if (Loot.Loot.Stacks.Count == 0)
+        else if (Loot is null || Loot.Loot.Stacks.Count == 0)
             return false;
         else if (Loot.CanLeave)
             Choose(new MenuChoice(Party.Text[MenuText.LeaveItems], MenuMessage.MaxWidth, 0, MenuMessage.White, MenuChoice.Tan,
@@ -207,6 +245,18 @@ public sealed class BarterMenu
         return true;
     }
 
+    /// <summary>
+    /// C-up (<c>0x8003de10</c>): closes a message, or in a shop, on the stock's row, says how the party
+    /// judges its price (<see cref="Items.Shop.Appraise"/>), from "This is highway robbery!" up. It does
+    /// nothing on the party's list, or in loot.
+    /// </summary>
+    public void Appraise()
+    {
+        if (CloseMessage() || HasPopup || Shop is not { } shop || !OnPile || Pile.Current is not { } row)
+            return;
+        Message = new MenuMessage(Party.Text[MenuText.Appraisal + shop.Appraise(row.Instance)]);
+    }
+
     private void Say(int line) => Message = new MenuMessage(Party.Text[line]);
 
     private void Choose(MenuChoice choice)
@@ -215,7 +265,7 @@ public sealed class BarterMenu
         _popupPulse.Reset();
     }
 
-    // WidgetBarter::AFunc on the pile.
+    // WidgetBarter::AFunc on the pile: loot gives the stack, a shop sells one.
     private void Take()
     {
         if (Pile.Current is not { } row)
@@ -225,8 +275,11 @@ public sealed class BarterMenu
         }
         var item = row.Item;
         var firstPotion = item.Kind == ItemKind.Potion && _flags is not null && !_flags.Get(Party.Party.Inventory!.Catalog.Rules.FirstPotionFlag);
-        switch (Loot.Take(item.Id))
+        switch (Shop is { } shop ? shop.Buy(item.Id) : Loot!.Take(item.Id))
         {
+            case TradeResult.CantAfford:
+                Say(MenuText.CantAfford);
+                return;
             case TradeResult.StackFull:
                 Say(MenuText.StackFull);
                 return;
@@ -238,7 +291,7 @@ public sealed class BarterMenu
         Party.Refresh();
         if (Party.Inventory.Rows.Select((r, i) => (r, i)).FirstOrDefault(e => e.r.Wearer is null && e.r.Item.Id == item.Id) is { r: not null } taken)
             Party.Inventory.Point(taken.i);
-        Pile.Replace(PartyMenuRows.Pile(Loot.Loot), resetPastEnd: false);
+        Pile.Replace(PileRows(), resetPastEnd: false);
         if (firstPotion)
             Help = Party.Text[MenuText.FirstPotion];
         if (Pile.Rows.Count == 0)
@@ -246,43 +299,61 @@ public sealed class BarterMenu
     }
 
     // WidgetBarter::AFunc on the party's list: the price first, then whether it's worn.
-    private void AskDrop()
+    private void Ask()
     {
         if (Party.Inventory.Current is not { } row)
         {
             Say(MenuText.NothingThere);
             return;
         }
-        if (!Loot.Droppable(row.Instance))
+        var shop = Shop;
+        var selling = shop is not null;
+        var price = shop?.SellPrice(row.Instance) ?? 0;
+        if (selling ? price <= 1 : !Loot!.Droppable(row.Instance))
         {
-            Say(MenuText.CantDrop);
+            Say(selling ? MenuText.MerchantRefuses : MenuText.CantDrop);
             return;
         }
         if (row.Wearer is not null)
         {
-            Say(MenuText.UnequipToDrop);
+            Say(selling ? MenuText.UnequipToSell : MenuText.UnequipToDrop);
             return;
         }
         var held = Party.Party.Inventory!.Count(row.Item.Id);
         var text = Party.Text;
-        List<BarterOption> options = [new(text[MenuText.DropNo], 0)];
+        List<BarterOption> options = [new(text[selling ? MenuText.SellNo : MenuText.DropNo], 0)];
         if (held == 1)
-            options.Add(new BarterOption(text[MenuText.DropYes], 1));
+        {
+            options.Add(new BarterOption(text[selling ? MenuText.SellYes : MenuText.DropYes], 1));
+        }
         else
-            options.AddRange(Shop.Quantities(held).Select(q => new BarterOption(q == held ? text[MenuText.DropAll] : text.Format(MenuText.DropSome, q), q)));
-        Confirm = new BarterConfirm(text.Format(MenuText.DropConfirm, row.Item.Name), new MenuList<BarterOption>(options), row.Item.Id, 0);
+        {
+            options.AddRange(Items.Shop.Quantities(held).Select(q => new BarterOption(q == held
+                ? text[selling ? MenuText.SellAll : MenuText.DropAll]
+                : text.Format(selling ? MenuText.SellSome : MenuText.DropSome, q), q)));
+        }
+        var question = selling ? text.Format(MenuText.SellConfirm, price, row.Item.Name) : text.Format(MenuText.DropConfirm, row.Item.Name);
+        Confirm = new BarterConfirm(question, new MenuList<BarterOption>(options), row.Item.Id, price);
         _popupPulse.Reset();
     }
 
     // DollBarterConfirm::AFunc: the cursor stays on the row, which what's left or the next moves up into.
-    private void Drop(BarterConfirm confirm)
+    private void Trade(BarterConfirm confirm)
     {
         Confirm = null;
         if (confirm.Options.Current is not { Quantity: > 0 } option)
             return;
-        Loot.Drop(confirm.Item, option.Quantity);
+        if (Shop is { } shop)
+            shop.Sell(confirm.Item, option.Quantity);
+        else
+            Loot!.Drop(confirm.Item, option.Quantity);
         Party.Refresh();
     }
+
+    // A shop's stock has no counts (WidgetInvShop::InitMenu builds its rows with none), as it never runs out.
+    private IReadOnlyList<InventoryRow> PileRows() => Shop is { } shop
+        ? [.. PartyMenuRows.Pile(shop.Stock).Select(r => r with { Quantity = 0 })]
+        : PartyMenuRows.Pile(Loot!.Loot);
 
     // The leave-items choice: "Yes, leave them." closes the window (setGlobalsPointer); "No" only the choice.
     private void Leave(MenuChoice choice)

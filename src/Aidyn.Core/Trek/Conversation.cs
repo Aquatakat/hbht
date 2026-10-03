@@ -48,6 +48,12 @@ public sealed class Conversation
     /// <summary>The wanderer talked to, or none for a sign.</summary>
     public Wanderer? With { get; }
 
+    /// <summary>
+    /// Who keeps the shop or training the script ends in (<c>set_shopkeep</c>, <c>0x80050a34</c>): the
+    /// wanderer talked to, or with none, the speaker at the end.
+    /// </summary>
+    public RecordId? Keeper => With?.Party.Entity ?? Runner.Ending?.Speaker;
+
     /// <summary>Whether the script has ended, so the runtime should <see cref="End"/> it.</summary>
     public bool Ended => Runner.Status == ScriptStatus.Ended;
 

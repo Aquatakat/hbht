@@ -1,4 +1,3 @@
-using Aidyn.Core;
 using Aidyn.Core.Items;
 using Aidyn.Core.Ui;
 using Aidyn.Game;
@@ -8,12 +7,12 @@ using Godot;
 namespace Aidyn.Inspector;
 
 /// <summary>
-/// The loot window on a roll, drawn by the runtime's view in the pause menu's barter state, against the
-/// editor's game: the gold goes to its party as the window opens, as a container gives it, and what's
-/// taken or dropped stays in the game, to save for the runtime. The loot table's page and a container's
-/// on the map show it.
+/// The pause menu's barter state, drawn by the runtime's view against the editor's game: the loot window
+/// on a roll, or a shop's window. What's taken, bought, dropped or sold stays in the game, to save for
+/// the runtime. The loot table's page and a container's on the map show the loot window, and a shop's
+/// page its window.
 /// </summary>
-public partial class LootWindowPanel : VBoxContainer
+public partial class BarterWindowPanel : VBoxContainer
 {
     private readonly UiScreen _screen = new()
     {
@@ -25,21 +24,19 @@ public partial class LootWindowPanel : VBoxContainer
     private readonly HFlowContainer _bar = new();
     private readonly CheckBox _details = new() { Text = "Details (C-down)", TooltipText = "Show what C-down shows for the active row, as it does while held." };
 
-    /// <param name="what">What was rolled, such as a loot table's name.</param>
-    public LootWindowPanel(PluginSet plugins, EditorGame game, ItemPile loot, int gold, string what)
+    /// <param name="intro">What's open, and against which game.</param>
+    public BarterWindowPanel(PluginSet plugins, BarterMenu barter, string intro)
     {
         AddThemeConstantOverride("separation", 6);
-        var party = game.Game.Party;
-        party.Gold += (uint)gold;
-        var barter = BarterMenu.ForLoot(plugins, party, loot, gold, game.Game.Flags, game.Game.Random.World);
         _view = new PartyTabView(plugins, barter.Party) { Barter = barter };
         _screen.Canvas.AddChild(_view);
 
+        var shop = barter.Shop is not null;
         AddChild(new Label
         {
-            Text = $"{what}, in the loot window against {(game.IsNewGame ? "a new game" : game.Name)}: its gold is the party's already, "
-                + "and what's taken or dropped stays in the game. The stick's left and right reach the list on that side: the pile is "
-                + "left of the party's in the classic layout and right of it in the wide one. A takes or drops, B leaves.",
+            Text = intro + " The stick's left and right reach the list on that side: the pile is left of the party's in the classic layout "
+                + "and right of it in the wide one. "
+                + (shop ? "A buys one or sells, C-up appraises the stock's price, B leaves." : "A takes or drops, B leaves."),
             AutowrapMode = TextServer.AutowrapMode.WordSmart,
         });
         var bar = _bar;
@@ -48,8 +45,14 @@ public partial class LootWindowPanel : VBoxContainer
         bar.AddChild(Button("▶", "The stick right: the list on the right.", () => Side(right: true)));
         bar.AddChild(Button("▲", "The stick up.", () => Barter.MoveCursor(-1)));
         bar.AddChild(Button("▼", "The stick down.", () => Barter.MoveCursor(1)));
-        bar.AddChild(Button("A", "Take the pile's row, drop the party's, choose in a popup, or close a message.", Accept));
-        bar.AddChild(Button("B", "Close a message, or leave the window, which asks first if items are left.", Back));
+        bar.AddChild(shop
+            ? Button("A", "Buy one of the stock's row, sell the party's, choose in a popup, or close a message.", Accept)
+            : Button("A", "Take the pile's row, drop the party's, choose in a popup, or close a message.", Accept));
+        bar.AddChild(shop
+            ? Button("B", "Close a message, or leave the shop.", Back)
+            : Button("B", "Close a message, or leave the window, which asks first if items are left.", Back));
+        if (shop)
+            bar.AddChild(Button("C-up", "Appraise the stock's row: how the party judges its price.", () => Barter.Appraise()));
         _details.Toggled += on =>
         {
             if (!on || !Barter.CloseMessage())
@@ -62,12 +65,36 @@ public partial class LootWindowPanel : VBoxContainer
         AddChild(_state);
     }
 
+    /// <summary>
+    /// The loot window on a roll, whose gold goes to the game's party as the window opens, as a container
+    /// gives it.
+    /// </summary>
+    /// <param name="what">What was rolled, such as a loot table's name.</param>
+    public static BarterWindowPanel ForLoot(PluginSet plugins, EditorGame game, ItemPile loot, int gold, string what)
+    {
+        var party = game.Game.Party;
+        party.Gold += (uint)gold;
+        var barter = BarterMenu.ForLoot(plugins, party, loot, gold, game.Game.Flags, game.Game.Random.World);
+        return new BarterWindowPanel(plugins, barter,
+            $"{what}, in the loot window against {Against(game)}: its gold is the party's already, and what's taken or dropped stays in the game.");
+    }
+
+    /// <summary>A shop's window on the game's party, which opening it costs the barterer's Stamina.</summary>
+    public static BarterWindowPanel ForShop(PluginSet plugins, EditorGame game, Shop shop) =>
+        new(plugins, BarterMenu.ForShop(plugins, shop, game.Game.Random.World),
+            $"The shop's window against {Against(game)}: what's bought or sold stays in the game.");
+
+    private static string Against(EditorGame game) => game.IsNewGame ? "a new game" : game.Name;
+
     private BarterMenu Barter => _view.Barter!;
 
     /// <summary>Sets how the screen is shown (<c>--zoom</c>, <c>--ui-filter</c>, <c>--aspect</c>, <c>--ui-lines</c>).</summary>
     public void SetScreen(int? zoom, UiFilter? filter, bool? wide, int? lines) => _options.Set(zoom, filter, wide, lines);
 
-    /// <summary>Presses A, B, the stick, or C-down, which stays held until pressed again, in turn (<c>--press</c>), for screenshots.</summary>
+    /// <summary>
+    /// Presses A, B, C-up, the stick, or C-down, which stays held until pressed again, in turn
+    /// (<c>--press</c>), for screenshots.
+    /// </summary>
     public void Press(IEnumerable<string> buttons)
     {
         foreach (var button in buttons)
@@ -76,12 +103,13 @@ public partial class LootWindowPanel : VBoxContainer
             {
                 case "a": Accept(); break;
                 case "b": Back(); break;
+                case "cup": Barter.Appraise(); break;
                 case "up": Barter.MoveCursor(-1); break;
                 case "down": Barter.MoveCursor(1); break;
                 case "left": Side(right: false); break;
                 case "right": Side(right: true); break;
                 case "details": _details.ButtonPressed = !_details.ButtonPressed; break;
-                default: GD.PrintErr($"--press: \"{button}\" isn't a, b, up, down, left, right or details."); break;
+                default: GD.PrintErr($"--press: \"{button}\" isn't a, b, cup, up, down, left, right or details."); break;
             }
         }
         _view.QueueRedraw();
@@ -111,7 +139,8 @@ public partial class LootWindowPanel : VBoxContainer
     // The original's window is gone once it closes; here it stays, to look at, with nothing more to do.
     private void Leave(string how)
     {
-        _state.Text = $"{how} In the game, the menu closes and trek goes on. Roll again for another.";
+        _state.Text = $"{how} In the game, the menu closes and trek goes on. "
+            + (Barter.Shop is null ? "Roll again for another." : "Open the shop again for another.");
         foreach (var button in _bar.GetChildren().OfType<BaseButton>())
             button.Disabled = true;
     }

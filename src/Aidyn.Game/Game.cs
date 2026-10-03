@@ -710,20 +710,27 @@ public partial class Game : Node3D, ITrekHost
             _box!.Visible = false;
     }
 
-    /// <summary>A conversation has ended: any fault, and what the stand-ins for a shop, training, battle or camp would do.</summary>
-    void ITrekHost.ScriptEnded(RecordId script, Core.Scripts.ScriptEnding ending)
+    /// <summary>A conversation has ended: any fault, and the shop, training, battle or camp it ends in.</summary>
+    void ITrekHost.ScriptEnded(RecordId script, Core.Scripts.ScriptEnding ending, RecordId? keeper)
     {
         if (ending.Fault is { } fault)
             GD.PushWarning($"{script}: {fault}");
-        SayEnding(ending);
+        CarryOut(ending, keeper);
     }
 
-    /// <summary>Says what the stand-ins for a shop, training, battle or camp would do after a script.</summary>
-    private void SayEnding(Core.Scripts.ScriptEnding ending)
+    /// <summary>
+    /// Opens the shop or training a script ends in, kept by <paramref name="keeper"/>, or says what the
+    /// stand-ins for a battle or camp would do.
+    /// </summary>
+    private void CarryOut(Core.Scripts.ScriptEnding ending, RecordId? keeper)
     {
+        if (ending.Kind == Core.Scripts.ScriptEndKind.Shop)
+        {
+            OpenShop(keeper);
+            return;
+        }
         var what = ending.Kind switch
         {
-            Core.Scripts.ScriptEndKind.Shop => "The shop would open (session 7).",
             Core.Scripts.ScriptEndKind.Train => "Training would open (session 7).",
             Core.Scripts.ScriptEndKind.Battle => "A battle would start; battles come with combat (2.5).",
             Core.Scripts.ScriptEndKind.Camp => $"The party is healed; {ending.RestHours} hours would pass (camping, 2.7).",
@@ -731,6 +738,22 @@ public partial class Game : Node3D, ITrekHost
         };
         if (what is not null)
             Say(what);
+    }
+
+    /// <summary>
+    /// Opens the keeper's first shop (<c>InitShop</c>). The original crashes when the keeper runs no shop,
+    /// which no script in the game does; the port says so and stays in trek.
+    /// </summary>
+    private void OpenShop(RecordId? keeper)
+    {
+        var entity = keeper is { } id ? _plugins!.TryGet<EntityRecord>(id) : null;
+        if (entity is null || Core.Items.Shop.For(_plugins!.All<ShopRecord>(RecordTypes.Shop), entity.Id) is not { } record)
+        {
+            Say($"{entity?.Name ?? keeper?.ToString() ?? "No one"} keeps no shop.");
+            return;
+        }
+        var party = _game!.Party;
+        _menu!.OpenShop(Core.Items.Shop.Open(record, entity, party, party.Inventory!.Catalog, _game.Flags));
     }
 
     /// <summary>A script's sounds, which wait for audio (1D). The cut-scene carries out the rest of its cues.</summary>
@@ -821,6 +844,7 @@ public partial class Game : Node3D, ITrekHost
         Add("menu_member_previous", Key.Q, button: JoyButton.LeftShoulder);
         Add("menu_member_next", Key.E, button: JoyButton.RightShoulder);
         Add("menu_details", Key.Tab, button: JoyButton.Y);
+        Add("menu_appraise", Key.R, button: JoyButton.X);
         Add("menu_up", null, button: JoyButton.DpadUp);
         Add("menu_down", null, button: JoyButton.DpadDown);
         Add("menu_left", null, button: JoyButton.DpadLeft);

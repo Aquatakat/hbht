@@ -211,7 +211,7 @@ public partial class Game
             GD.PushWarning(problem);
         EndTrekPause();
         if (scene.Runner.Ending is { } ending)
-            SayEnding(ending);
+            CarryOut(ending, ending.Speaker);
     }
 
     /// <summary>Trek's world, the player's body and the follow camera come back, and the screen fades in (<see cref="TrekLoop.Resume"/>).</summary>

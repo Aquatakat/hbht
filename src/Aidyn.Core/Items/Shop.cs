@@ -51,6 +51,12 @@ public sealed class Shop
 
     public ShopRecord Record { get; }
 
+    /// <summary>The party it was opened for.</summary>
+    public Party Party => _party;
+
+    /// <summary>The flags the first potion bought sets.</summary>
+    public FlagNetwork? Flags => _flags;
+
     /// <summary>What it sells, each stack's instance at the shop's price.</summary>
     public ItemPile Stock { get; }
 

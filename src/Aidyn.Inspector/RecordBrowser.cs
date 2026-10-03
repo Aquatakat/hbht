@@ -170,8 +170,9 @@ public partial class RecordBrowser : Control
         LootWindow?.SetScreen(zoom, filter, wide, lines);
     }
 
-    /// <summary>The loot window open on the preview: a loot table's roll, or a container's on the map.</summary>
-    private LootWindowPanel? LootWindow => _preview.GetChildren().OfType<LootPanel>().FirstOrDefault()?.Window ?? _map.LootWindow;
+    /// <summary>The barter window open on the preview: a loot table's roll, a shop's, or a container's on the map.</summary>
+    private BarterWindowPanel? LootWindow => _preview.GetChildren().OfType<LootPanel>().FirstOrDefault()?.Window
+        ?? _preview.GetChildren().OfType<ShopPanel>().FirstOrDefault()?.Window ?? _map.LootWindow;
 
     /// <summary>
     /// Rolls the loot table, or opens the container picked on the map, in the loot window, if the preview

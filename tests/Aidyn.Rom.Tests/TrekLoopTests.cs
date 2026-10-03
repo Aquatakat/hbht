@@ -38,7 +38,7 @@ public sealed class TrekLoopTests(MapObjectFixture fixture)
 
         void ITrekHost.ConversationChanged() => ConversationChanges++;
 
-        void ITrekHost.ScriptEnded(RecordId script, ScriptEnding ending)
+        void ITrekHost.ScriptEnded(RecordId script, ScriptEnding ending, RecordId? keeper)
         {
         }
 

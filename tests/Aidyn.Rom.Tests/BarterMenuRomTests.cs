@@ -143,7 +143,7 @@ public sealed class BarterMenuRomTests(MapObjectFixture fixture)
         Assert.True(menu.OnPile);
         Assert.Equal(MenuImages.TreasureTitle, menu.Title);
         Assert.Equal(0, gold);
-        Assert.Equal($"Found: {gold} gold.", menu.GoldLine);
+        Assert.Equal($"Found: {gold} gold.", menu.PileLine);
         Assert.Equal(GameState.NewGameGold, game.Party.Gold);
     }
 

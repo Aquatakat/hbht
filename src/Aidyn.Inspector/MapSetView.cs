@@ -707,8 +707,8 @@ public partial class MapSetView : VBoxContainer
     }
 
     /// <summary>The loot window open on a container, if any.</summary>
-    public LootWindowPanel? LootWindow => _lootWindow is { } window && IsInstanceValid(window)
-        ? window.GetChildren().OfType<ScrollContainer>().FirstOrDefault()?.GetChildren().OfType<LootWindowPanel>().FirstOrDefault()
+    public BarterWindowPanel? LootWindow => _lootWindow is { } window && IsInstanceValid(window)
+        ? window.GetChildren().OfType<ScrollContainer>().FirstOrDefault()?.GetChildren().OfType<BarterWindowPanel>().FirstOrDefault()
         : null;
 
     /// <summary>
@@ -739,10 +739,9 @@ public partial class MapSetView : VBoxContainer
         window.CloseRequested += window.QueueFree;
         var scroll = new ScrollContainer();
         scroll.SetAnchorsPreset(LayoutPreset.FullRect);
-        scroll.AddChild(new LootWindowPanel(catalog.Plugins, game, pile, gold, MapObjects.Describe(catalog, record))
-        {
-            SizeFlagsHorizontal = SizeFlags.ExpandFill,
-        });
+        var panel = BarterWindowPanel.ForLoot(catalog.Plugins, game, pile, gold, MapObjects.Describe(catalog, record));
+        panel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+        scroll.AddChild(panel);
         window.AddChild(scroll);
         AddChild(window);
         window.PopupCentered();

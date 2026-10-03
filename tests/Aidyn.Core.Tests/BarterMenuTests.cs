@@ -28,6 +28,9 @@ public sealed class BarterPlugins : IDisposable
             MenuText.DropConfirm => $"L{i} %s",
             MenuText.DropSome => $"L{i} %d",
             MenuText.FoundGold => $"L{i} %lu",
+            MenuText.Value => $"L{i} %lu",
+            MenuText.SellConfirm => $"L{i} %ld %s",
+            MenuText.SellSome => $"L{i} %d",
             _ => $"L{i}",
         });
         var strings = new { id = "aidyn:strings/5", name = "Common", lines };
@@ -713,8 +716,8 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         var (menu, party, _, _) = Open(stock: party => party.Gold = 10, gold: 50);
 
         Assert.Equal(10u, party.Gold);
-        Assert.Equal($"{Line(MenuText.FoundGold)} 50", menu.GoldLine);
-        Assert.Equal(50, menu.Loot.Gold);
+        Assert.Equal($"{Line(MenuText.FoundGold)} 50", menu.PileLine);
+        Assert.Equal(50, menu.Loot!.Gold);
     }
 
     [Fact]
