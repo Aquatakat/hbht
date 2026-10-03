@@ -433,12 +433,14 @@ public partial class Game : Node3D, IMapObjectHost, Core.Scripts.IScriptHost
                 _use!.TreadCamera(map, target);
         }
         _use!.StepCameras(motion.Sphere.Position);
-        // A camera object cutting jumps the view; it isn't blended from where it was.
-        if (_follow.TakeCut())
-            _camera.ResetPhysicsInterpolation();
         ShowPopup();
         _player.Sync();
+        // A camera object cutting jumps the view; it isn't blended from where it was. Godot resets interpolation
+        // from where the camera is when it's called, so after it has moved.
+        var cut = _follow.TakeCut();
         _camera.Sync();
+        if (cut)
+            _camera.ResetPhysicsInterpolation();
         PlaceShadow();
         DrawWanderers();
         _track.Enqueue(motion.Sphere.Position);

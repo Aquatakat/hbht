@@ -131,14 +131,18 @@ public partial class Game
             {
                 view = _actorViews[actor] = new CutSceneActorView(actor, _plugins!, _models!, _shadowTexture);
                 AddChild(view);
+                // It was placed as it was made; Godot resets interpolation from where a node is now.
                 view.ResetPhysicsInterpolation();
             }
             view.Sync();
             view.Draw(_world, scene.Camera.Aim);
         }
-        if (scene.Camera.TakeCut())
-            _camera!.ResetPhysicsInterpolation();
+        // A cut jumps the view rather than blending it over the tick. Godot resets interpolation from where the
+        // camera is when it's called, so after the camera has moved.
+        var cut = scene.Camera.TakeCut();
         _camera!.Sync();
+        if (cut)
+            _camera.ResetPhysicsInterpolation();
         ShowCutScenePage(force: false);
         _fade.Visible = scene.Fade.Brightness < 1;
         _fade.Color = new Color(0, 0, 0, 1 - scene.Fade.Brightness);
