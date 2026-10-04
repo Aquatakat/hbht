@@ -11,3 +11,4 @@ ref/
 .tools/
 .godot/
 tools/ghidra_*/
+__pycache__/
