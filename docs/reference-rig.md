@@ -209,9 +209,20 @@ This is the preferred way to inspect checkpoints: it's deterministic, repeatable
 
 The C# side reads states with `AresCheckpoint` (`Aidyn.Rom.Rig`), which needs no ROM: it finds RDRAM by the flag table's header, which is in RAM exactly once, and whose pointers give its own address. The tests use it to check the [flag engine](systems/flags.md) against every checkpoint, and the editor loads a checkpoint's flags with it.
 
-### Known issue: GDB after loading a state
+### gdb on a checkpoint: `tools/gdb.ps1` (roadmap 0.11)
 
-When the debug ROM was booted with `--save-state`, gdb got `Ignoring packet error` on connect. After the failed handshake the GDB port stopped listening, and on one attempt ares stopped responding. A plain boot with no state attached fine earlier. The cause isn't isolated yet: it could be state loading, or the stub not recovering from a client that exits without detaching. Until it's fixed, use `bst.py` for checkpoint inspection and keep gdb for live sessions started from a cold boot.
+`tools/gdb.ps1` starts ares at a checkpoint (or a cold boot), lets the game run for `-Boot` seconds, attaches gdb in batch mode, runs the commands and detaches. gdb is killed after `-Timeout` seconds, and ares is closed afterwards unless `-Keep` is passed. Hardware watchpoints and breakpoints work, so "what writes this value?" takes one run:
+
+```powershell
+tools/gdb.ps1 -Checkpoint "Before Rooughah" -Commands 'set $t = *(unsigned int*)0x800e303c',
+    'watch *(unsigned int*)($t+0x20)', 'continue', 'p/x $pc'
+```
+
+That one watches 1.0's in-game clock (`TerrainStruct.InGameTime`) and stops at `0x8007C000`, in the function at `0x8007BFF0` that clamps the clock at `0x67D21FFF` and that the lapse functions call. gdb stops just after the write, so the writing store is the instruction before the stop or, after a branch, its delay slot.
+
+- **1.0's checkpoints attach, and so does a cold boot of either build. The debug build's checkpoints don't** (checked Oct 4, 2026, with "Before Rooughah" and "Before final encounter"). After loading one of them, ares runs the game and keeps its GDB port open, but its stub never answers gdb's first packet, not even with an ack. Waiting longer doesn't help. The cause isn't known. Research targets 1.0, so this rarely matters. For the debug build, use `bst.py`, or boot it cold.
+- ares reports its architecture as `mips:4000`, which the script sets.
+- The launcher now resolves the ROM's path literally, since `[!]` in 1.0's filename is a wildcard to PowerShell. `tools/ares.ps1 v10` didn't start before this was fixed.
 
 ## Finding the original's code
 

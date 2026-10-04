@@ -20,16 +20,16 @@ $ares = (Get-ChildItem "$env:LOCALAPPDATA\Microsoft\WinGet\Packages\ares-emulato
     Select-Object -First 1).FullName
 if (-not $ares) { throw 'ares not found; install with: winget install ares-emulator.ares' }
 
-$romPath = Join-Path $PSScriptRoot "..\roms\$($roms[$Rom])" | Resolve-Path
+$romPath = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..\roms\$($roms[$Rom])")).Path   # literal: 1.0's name has [!]
 $romBase = [IO.Path]::ChangeExtension($romPath, $null).TrimEnd('.')
 
 if ($Checkpoint) {
     $state = Get-ChildItem -LiteralPath (Split-Path $romPath) |
-        Where-Object { $_.Name -like "$([IO.Path]::GetFileName($romBase)) - $Checkpoint.bs?" } |
+        Where-Object { $_.Name -like "$([WildcardPattern]::Escape([IO.Path]::GetFileName($romBase))) - $Checkpoint.bs?" } |
         Select-Object -First 1
     if (-not $state) {
         $available = Get-ChildItem -LiteralPath (Split-Path $romPath) |
-            Where-Object { $_.Name -like "$([IO.Path]::GetFileName($romBase)) - *.bs?" } |
+            Where-Object { $_.Name -like "$([WildcardPattern]::Escape([IO.Path]::GetFileName($romBase))) - *.bs?" } |
             ForEach-Object { ($_.BaseName -split ' - ', 2)[1] }
         throw "No checkpoint '$Checkpoint' for $Rom. Available: $($available -join '; ')"
     }
