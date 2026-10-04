@@ -45,7 +45,7 @@ public sealed class Character
         List<LearnedSpell> spells)
     {
         Entity = entity;
-        Name = name;
+        Name = RecordName = name;
         Rules = rules;
         Stats = stats;
         Skills = skills;
@@ -55,7 +55,14 @@ public sealed class Character
 
     public RecordId Entity { get; }
 
-    public string Name { get; }
+    /// <summary>
+    /// The character's name: the record's, but Alaron's can be changed in the options menu (<c>InputMenu</c>),
+    /// and his save holds it (<c>SaveParty::SaveAlaron</c>).
+    /// </summary>
+    public string Name { get; set; }
+
+    /// <summary>The record's name, which <see cref="Name"/> starts as.</summary>
+    public string RecordName { get; }
 
     public CharacterRules Rules { get; }
 

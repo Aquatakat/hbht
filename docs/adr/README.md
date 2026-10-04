@@ -16,5 +16,6 @@ These are the Phase 0 decisions from the [roadmap](../roadmap.md) (task 0.5). Ea
 | [0010](0010-editor-reads-plugins.md) | The editor reads only imported data | Accepted, partly superseded by [0012](0012-editor-holds-the-importer.md) |
 | [0011](0011-one-follow-camera.md) | One follow camera, with the original's modes | Accepted |
 | [0012](0012-editor-holds-the-importer.md) | The editor holds the importer and is the first run; code flows from the core to the runtime to the editor | Accepted |
+| [0013](0013-settings-in-the-options-menu.md) | Graphics and fidelity settings live in the game's own options menu, kept per player rather than per save | Accepted |
 
 Statuses: **Proposed** means drafted and waiting for review. **Accepted** means agreed. **Superseded** means replaced by a later record, which it links to.

@@ -12,6 +12,19 @@ public static class MenuImages
     /// <summary>The Party tab's parchment, with the silhouette, frames and labels painted in.</summary>
     public static readonly RecordId PartyTab = Image(0x00D9);
 
+    /// <summary>The System tab's plain parchment (<c>BORG8_PauseBGOptions</c>), with nothing painted in.</summary>
+    public static readonly RecordId SystemTab = Image(0x00D8);
+
+    /// <summary>
+    /// The System tab's titles: its list's "Menu" (<c>BORG8_TitleMenui</c>), Options, Load Game, Save Game, and the
+    /// name entry's (<c>BORG8_TitleEnterName</c>).
+    /// </summary>
+    public static readonly RecordId MenuTitle = Image(0x00F2), OptionsTitle = Image(0x00FD), LoadTitle = Image(0x00F1),
+        SaveTitle = Image(0x00FF), EnterNameTitle = Image(0x00F9);
+
+    /// <summary>The options' volume bar, a braided rope 152 × 18, and the name entry's key cursor, 15 square.</summary>
+    public static readonly RecordId VolumeBar = Image(0x00D7), KeyCursor = Image(0x00F8);
+
     /// <summary>The parchment C-down's details, barter and training draw on (<c>BORG8_BarterBG</c>), and its shadow.</summary>
     public static readonly RecordId Parchment = Image(0x00E2), ParchmentShadow = Image(0x00E4);
 
@@ -31,8 +44,12 @@ public static class MenuImages
     /// <summary>The arrows beside a list's title that show it has rows above or below (<c>BORG8_ScrollBarArrowUp</c>, <c>Down</c>).</summary>
     public static readonly RecordId ScrollUp = Image(0x38D0), ScrollDown = Image(0x38CF);
 
-    /// <summary>The arrow under the knotwork: both ways in trek, left only in combat (<c>BORG8_SliderArrowLR</c>, <c>L</c>).</summary>
-    public static readonly RecordId SliderBoth = Image(0x3756), SliderLeft = Image(0x3755);
+    /// <summary>
+    /// The red arrows that say there's more either way: under the Party tab's knotwork, both ways in trek and left
+    /// only in combat; under the System tab's list, right only; and over a save's name (<c>BORG8_SliderArrowLR</c>,
+    /// <c>L</c>, <c>R</c>).
+    /// </summary>
+    public static readonly RecordId SliderBoth = Image(0x3756), SliderLeft = Image(0x3755), SliderRight = Image(0x3757);
 
     /// <summary>
     /// Each equipment slot's image of what it takes, by <see cref="EquipmentSlot"/>, which shows while

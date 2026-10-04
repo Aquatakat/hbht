@@ -244,6 +244,7 @@ public sealed class GameState : IScriptWorld
         var worn = member.Equipment;
         return new SaveCharacter(member.Entity)
         {
+            Name = member.Name != member.RecordName ? member.Name : null,
             TotalExp = member.TotalExp,
             SpendableExp = member.SpendableExp,
             Trained = SaveStats.From([.. stats.Select(member.Stats.Trained)]),
@@ -308,6 +309,8 @@ public sealed class GameState : IScriptWorld
         }
         var character = Character.Restore(entity, Rules, stats, skills, SpellOrder(spells, entity.School, alaron));
         character.TrueName = entity.TrueName || (entity.TrueNameFlag is { } flag && IsSet(flag));
+        if (saved.Name is { Length: > 0 } name)
+            character.Name = name;
         character.TotalExp = saved.TotalExp;
         character.SpendableExp = saved.SpendableExp;
 

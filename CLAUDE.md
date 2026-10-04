@@ -84,7 +84,7 @@ Many questions here are counts and cross-checks over thousands of records: how m
 
 Keep this section to where things stand and what's next. When a roadmap task finishes or starts, update it, and suggest a next step when one finishes. What was found and built goes in the docs, not here.
 
-- **Done:** Phase 0 (0.1–0.6), 1A, 1B, 1C, 1E, 1F, 1H, M1 Walk Gwernia, 2.1 (flags), 2.2 (characters), 2.3 (items), 2.4 (the Borg13 VM) and 2.8 (saves; the System tab's Save and Load come with M2 session 8). Shop prices wait for the user (see to-check).
+- **Done:** Phase 0 (0.1–0.6), 1A, 1B, 1C, 1E, 1F, 1H, M1 Walk Gwernia, 2.1 (flags), 2.2 (characters), 2.3 (items), 2.4 (the Borg13 VM) and 2.8 (saves, with the System tab's Save and Load). Shop prices wait for the user (see to-check).
 - **Now: M2 Talk and trade**, in eight sessions, each ending playable or previewable with its docs. 2.7 (camping) slots in, and boss flags come with 2.5 (combat). Sounds wait for 1D, so cues that play one are logged.
   1. ~~The Party tab, read-only~~ ([ui](docs/systems/ui.md#the-pause-menu))
   2. ~~A game in the runtime, and saves~~ ([saves](docs/systems/saves.md), [runtime](docs/systems/runtime.md))
@@ -93,7 +93,7 @@ Keep this section to where things stand and what's next. When a roadmap task fin
   5. ~~Conversations: bodies, wandering, talking, joining and leaving~~ ([wanderers](docs/systems/wanderers.md), [characters](docs/systems/characters.md#joining-and-leaving))
   6. ~~Cut-scenes~~ ([scripts](docs/systems/scripts.md#cut-scenes), [cameras](docs/systems/cameras.md#cut-scenes-cameras)). Backdrops and the help menu, the endings' cinematics, and the editor showing cut-scenes on its map are left; a later script type running ops side by side can share a `CutScene`'s stage.
   7. ~~Barter and training~~ ([shop](docs/systems/ui.md#the-shop), [training](docs/systems/ui.md#training)). Training after a battle waits for 2.5.
-  8. **The System and World tabs, and the HUD, next:** saving and loading, options; the calendar, camping (2.7, its ambush waiting for 2.5), the world map with its fog, and the journal; the compass and the party's portraits.
+  8. **The System and World tabs, and the HUD.** ~~The System tab: changing tab, saving and loading, options with the graphics page ([ADR 0013](docs/adr/0013-settings-in-the-options-menu.md)), renaming Alaron~~ ([ui](docs/systems/ui.md#the-system-tab)); Theater, Credits and Help wait for the cinematics and backdrops. **Next:** the World tab (the calendar, camping (2.7, its ambush waiting for 2.5), the world map with its fog, and the journal), then the HUD (the compass and the party's portraits).
 - **For the user to check,** in the emulator or the ROM: [to-check](docs/to-check.md). Add to it whatever only the user can settle.
 - **UI fit and finish, for a later session** (the user's notes, [playtests](docs/playtests.md)):
   - The Party tab's shield icon on the silhouette sits 2 pixels too high.

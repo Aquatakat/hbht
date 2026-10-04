@@ -332,4 +332,19 @@ public sealed class SaveCheckpointTests(MapObjectFixture fixture)
         Assert.Equal(strength + 10, loaded.Stats.RawBase(Stat.Strength));
         Assert.Equal(member.Stats.Modified(Stat.Strength), loaded.Stats.Modified(Stat.Strength));
     }
+
+    /// <summary>Alaron renamed in the options menu keeps his name in the save, as the original's does (<c>SaveAlaron</c>).</summary>
+    [Fact]
+    public void ARenamedAlaronSavesAndLoadsHisName()
+    {
+        var game = GameState.NewGame(Set);
+        var alaron = game.Party.Members.First();
+        Assert.Null(GameState.SaveCharacter(alaron).Name);
+        alaron.Name = "Bob";
+
+        var again = GameState.Load(Set, SaveFile.Parse(SaveFile.Serialize(game.Save())));
+
+        Assert.Equal("Bob", again.Party.Members.First().Name);
+        Assert.Equal(alaron.RecordName, again.Party.Members.First().RecordName);
+    }
 }

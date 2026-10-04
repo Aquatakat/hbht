@@ -78,7 +78,7 @@ public partial class Editor : Control
         if (args.GetValueOrDefault("roll") == "1")
             _records.Roll();
         _records.SetUiScreen(args.TryGetValue("zoom", out var zoom) ? int.Parse(zoom, CultureInfo.InvariantCulture) : null,
-            args.TryGetValue("ui-filter", out var filter) ? Enum.Parse<Aidyn.Game.UiFilter>(filter, ignoreCase: true) : null,
+            args.TryGetValue("ui-filter", out var filter) ? Enum.Parse<Aidyn.Core.Ui.UiFilter>(filter, ignoreCase: true) : null,
             args.TryGetValue("aspect", out var aspect) ? aspect == "16:9" : null,
             args.TryGetValue("ui-lines", out var lines) ? int.Parse(lines, CultureInfo.InvariantCulture) : null);
         _records.ShowPartyTab(args.TryGetValue("member", out var member) ? int.Parse(member, CultureInfo.InvariantCulture) : null,

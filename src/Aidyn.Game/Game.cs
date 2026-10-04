@@ -91,6 +91,14 @@ public partial class Game : Node3D, ITrekHost
     /// <summary>Chunks whose scenery changed this tick, built again before the frame is drawn.</summary>
     private readonly HashSet<LoadedMap> _changed = [];
     private ConversationBoxView? _box;
+    /// <summary>The player's settings, which the options menu changes and <see cref="ApplySettings"/> carries out.</summary>
+    private readonly Settings _settings = Settings.Load(DataPaths.Settings);
+
+    /// <summary>The plugins, kept loaded when the System tab loads a save and the scene starts again.</summary>
+    private static PluginSet? _loadedPlugins;
+
+    /// <summary>The save the System tab loaded, which the scene starts again from.</summary>
+    private static SaveGame? _pendingSave;
 
     public override void _Ready()
     {
@@ -104,6 +112,9 @@ public partial class Game : Node3D, ITrekHost
         AddChild(hud);
 
         var args = Options(OS.GetCmdlineUserArgs());
+        // A save loaded from the menu starts where it stands, and the command line's presses aren't made again.
+        if (_pendingSave is not null)
+            args = args.Where(a => a.Key == "screenshot").ToDictionary();
         try
         {
             Start(args);
@@ -120,10 +131,11 @@ public partial class Game : Node3D, ITrekHost
 
     private void Start(Dictionary<string, string> args)
     {
-        var plugins = _plugins = LoadPlugins();
-        var game = _game = args.TryGetValue("save", out var savePath)
-            ? GameState.Load(plugins, SaveFile.Read(savePath))
+        var plugins = _plugins = _loadedPlugins ??= LoadPlugins();
+        var game = _game = _pendingSave is { } pending ? GameState.Load(plugins, pending)
+            : args.TryGetValue("save", out var savePath) ? GameState.Load(plugins, SaveFile.Read(savePath))
             : GameState.NewGame(plugins);
+        _pendingSave = null;
         foreach (var problem in game.Problems)
             GD.PushWarning(problem);
         // Where the save stands, unless the command line says otherwise.
@@ -152,7 +164,8 @@ public partial class Game : Node3D, ITrekHost
         AddChild(SkyBackdropView.Create(_sky));
         AddChild(LensFlareView.Create(_sky));
         _sky.SkyShows = SkyShows;
-        _sky.Placement = args.GetValueOrDefault("sky") == "original" ? Core.Sky.SkyPlacement.Original : Core.Sky.SkyPlacement.Projected;
+        if (args.TryGetValue("sky", out var sky))
+            _settings.SkyPlacement = sky == "original" ? Core.Sky.SkyPlacement.Original : Core.Sky.SkyPlacement.Projected;
         if (args.TryGetValue("time", out var time))
             game.Clock.SetTimeOfDay(float.Parse(time, CultureInfo.InvariantCulture));
 
@@ -162,7 +175,11 @@ public partial class Game : Node3D, ITrekHost
         foreach (var flag in args.GetValueOrDefault("flags", "").Split(',', StringSplitOptions.RemoveEmptyEntries))
             game.Flags.Set(int.Parse(flag, CultureInfo.InvariantCulture), true);
 
-        _drawDistance = new DrawDistance(Float(args, "draw-distance", 1), args.GetValueOrDefault("detail") == "nearest");
+        // The command line's settings are for this run, and aren't kept unless the options menu changes something.
+        if (args.ContainsKey("draw-distance"))
+            _settings.DrawDistance = Float(args, "draw-distance", 1);
+        if (args.TryGetValue("detail", out var detail))
+            _settings.NearestDetail = detail == "nearest";
         var models = _models = new Models(plugins);
         // The texture engine code gives bodies' shadows (BORG1_PlayerShadow).
         if (plugins.FindAsset(RecordId.Hex(RecordTypes.Texture, 0x0003), "png") is { } shadowPng)
@@ -196,7 +213,7 @@ public partial class Game : Node3D, ITrekHost
         if (!args.ContainsKey("yaw") && place is { Heading: var heading } && heading != default)
             yaw = MathF.Atan2(-heading.X, -heading.Y);
         var look = new System.Numerics.Vector2(-MathF.Sin(yaw), -MathF.Cos(yaw));
-        var motion = new PlayerMotion(centre, look) { Pace = Float(args, "pace", 1) };
+        var motion = new PlayerMotion(centre, look);
         _player = new Player(motion);
         AddChild(_player);
         // Alaron, as a new game sets the player's form (BORG7_Alaron).
@@ -248,12 +265,18 @@ public partial class Game : Node3D, ITrekHost
         trekUi.AddChild(_fade);
         AddChild(trekUi);
 
-        _menu = new PauseMenu(plugins, game);
+        _menu = new PauseMenu(plugins, game, _settings) { SaveGame = SaveTo, LoadGame = LoadFrom };
         // The original reloads the map as the menu closes, so what changed shows.
         _menu.Closed += () => _chunks!.Regate();
         if (args.TryGetValue("ui-lines", out var lines))
-            _menu.Screen.Lines = int.Parse(lines, CultureInfo.InvariantCulture);
+            _settings.UiLines = int.Parse(lines, CultureInfo.InvariantCulture);
         AddChild(_menu);
+        ApplySettings();
+        if (args.ContainsKey("pace"))
+            _player.Motion.Pace = Float(args, "pace", 1);
+        _settings.Changed += ApplySettings;
+        _settings.Changed += () => _settings.Save(DataPaths.Settings);
+        GetViewport().SizeChanged += ApplyWorldLines;
         if (args.GetValueOrDefault("menu") == "1")
             _menu.Open();
 
@@ -296,6 +319,43 @@ public partial class Game : Node3D, ITrekHost
             CueFromCommandLine(RecordId.Parse(cutscene));
         if (args.TryGetValue("screenshot", out var png))
             _ = Screenshot(png, hold);
+    }
+
+    /// <summary>Carries out the settings: the window, the 3D view, the draw distance, the sky, the pace and the UI screens.</summary>
+    private void ApplySettings()
+    {
+        var s = _settings;
+        var mode = s.Fullscreen ? DisplayServer.WindowMode.Fullscreen : DisplayServer.WindowMode.Windowed;
+        if ((DisplayServer.WindowGetMode() is DisplayServer.WindowMode.Fullscreen or DisplayServer.WindowMode.ExclusiveFullscreen) != s.Fullscreen)
+            DisplayServer.WindowSetMode(mode);
+        DisplayServer.WindowSetVsyncMode(s.VSync ? DisplayServer.VSyncMode.Enabled : DisplayServer.VSyncMode.Disabled);
+        GetViewport().Msaa3D = s.Antialiasing switch
+        {
+            >= 8 => Viewport.Msaa.Msaa8X,
+            >= 4 => Viewport.Msaa.Msaa4X,
+            >= 2 => Viewport.Msaa.Msaa2X,
+            _ => Viewport.Msaa.Disabled,
+        };
+        ApplyWorldLines();
+        _drawDistance = new DrawDistance(s.DrawDistance, s.NearestDetail);
+        _sky?.Placement = s.SkyPlacement;
+        _player?.Motion.Pace = s.BriskPace ? BriskPace : 1;
+        foreach (var screen in new[] { _menu?.Screen, _trekScreen })
+        {
+            if (screen is null)
+                continue;
+            screen.Lines = s.UiLines;
+            screen.Filter = s.UiFilter;
+        }
+    }
+
+    /// <summary>Draws the 3D world at the lines the settings ask for, scaled up to the window, or at the window's own.</summary>
+    private void ApplyWorldLines()
+    {
+        var viewport = GetViewport();
+        var height = viewport.GetVisibleRect().Size.Y;
+        viewport.Scaling3DMode = Viewport.Scaling3DModeEnum.Bilinear;
+        viewport.Scaling3DScale = _settings.WorldLines > 0 && height > 0 ? Math.Min(1, _settings.WorldLines / height) : 1;
     }
 
     /// <summary>The installed plugins, after checking the base plugin is there and up to date.</summary>
@@ -573,12 +633,7 @@ public partial class Game : Node3D, ITrekHost
     {
         if (_menu is { IsOpen: true } menu)
         {
-            if ((e.IsActionPressed("pause") || e.IsActionPressed("menu_back")) && !menu.Back())
-            {
-                menu.Close();
-                return;
-            }
-            if (e.IsActionPressed("pause") || e.IsActionPressed("menu_back") || menu.Handle(e))
+            if (menu.Handle(e))
                 return;
         }
         else if (_trek?.Use is { Popup: not null } use)
@@ -626,7 +681,8 @@ public partial class Game : Node3D, ITrekHost
 
         if (e.IsActionPressed("cycle_ui_lines") && _menu is not null)
         {
-            _menu.Screen.Lines = _menu.Screen.Lines switch { < 360 => 360, < 480 => 480, _ => 240 };
+            _settings.UiLines = _settings.UiLines switch { < 360 => 360, < 480 => 480, _ => 240 };
+            _settings.Notify();
         }
         else if (e.IsActionPressed("quick_save") && _game is not null && _scene is null)
         {
@@ -646,11 +702,13 @@ public partial class Game : Node3D, ITrekHost
         }
         else if (e.IsActionPressed("toggle_pace") && _player is not null)
         {
-            _player.Motion.Pace = _player.Motion.Pace == 1 ? BriskPace : 1;
+            _settings.BriskPace = !_settings.BriskPace;
+            _settings.Notify();
         }
         else if (e.IsActionPressed("toggle_sky_placement") && _sky is not null)
         {
-            _sky.Placement = _sky.Placement == Core.Sky.SkyPlacement.Original ? Core.Sky.SkyPlacement.Projected : Core.Sky.SkyPlacement.Original;
+            _settings.SkyPlacement = _sky.Placement == Core.Sky.SkyPlacement.Original ? Core.Sky.SkyPlacement.Projected : Core.Sky.SkyPlacement.Original;
+            _settings.Notify();
         }
     }
 
@@ -791,18 +849,80 @@ public partial class Game : Node3D, ITrekHost
 
     void ITrekHost.Sound(string cue) => GD.Print($"Sound: {cue}");
 
-    /// <summary>Saves the game to <c>quick.json</c> in the saves folder, with where the player stands.</summary>
-    private void QuickSave()
+    /// <summary>
+    /// The System tab's Save: writes the game to a save file with where the player stands, and beside it the world as
+    /// the menu opened over it, the centre half of the view as the original's is (<c>QuestData::TakeSnapshot</c>), at
+    /// twice the size the screen shows it rather than the original's 64 × 32. Returns why it couldn't, or null.
+    /// </summary>
+    private string? SaveTo(string path, Image? snapshot)
+    {
+        if (_game is null || _player is null || _chunks is null)
+            return "There's no game to save.";
+        try
+        {
+            if (!NotePlace())
+                return "The player isn't in a chunk.";
+            _game.Label = null;
+            SaveFile.Write(path, _game.Save());
+            if (snapshot is not null)
+                Screenshot(snapshot).SavePng(SaveSlot.ScreenshotPath(path));
+            return null;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            GD.PushWarning(e.ToString());
+            return e.Message;
+        }
+    }
+
+    /// <summary>The centre half of a view, cut to 4:3 and scaled to 208 × 156.</summary>
+    private static Image Screenshot(Image view)
+    {
+        var height = view.GetHeight() / 2;
+        var width = Math.Min(view.GetWidth() / 2, height * 4 / 3);
+        var shot = view.GetRegion(new Rect2I((view.GetWidth() - width) / 2, (view.GetHeight() - height) / 2, width, height));
+        shot.Resize(208, 156, Image.Interpolation.Lanczos);
+        return shot;
+    }
+
+    /// <summary>
+    /// The System tab's Load: starts the game again from a save, as the original's teleports there. The plugins stay
+    /// loaded.
+    /// </summary>
+    private void LoadFrom(string path)
+    {
+        try
+        {
+            _pendingSave = SaveFile.Read(path);
+        }
+        catch (Exception e) when (e is IOException or System.Text.Json.JsonException or InvalidDataException)
+        {
+            Say(e.Message);
+            return;
+        }
+        GetTree().ReloadCurrentScene();
+    }
+
+    /// <summary>Notes where the player stands, for a save. False if he isn't in a chunk.</summary>
+    private bool NotePlace()
     {
         var position = _player!.Motion.Sphere.Position.ToGodot();
         if (_chunks!.Chunks.ChunkAt(position.ToNumerics()) is not { } chunk)
+            return false;
+        _game!.Place = new SavePlace(_chunks.Chunks.MapSet.Id, chunk.Name, (position - _chunks.Origin(chunk)).ToNumerics(), _player.Motion.Heading);
+        return true;
+    }
+
+    /// <summary>Saves the game to <c>quick.json</c> in the saves folder, with where the player stands.</summary>
+    private void QuickSave()
+    {
+        if (!NotePlace())
         {
             Say("Can't save: the player isn't in a chunk.");
             return;
         }
-        _game!.Place = new SavePlace(_chunks.Chunks.MapSet.Id, chunk.Name, (position - _chunks.Origin(chunk)).ToNumerics(), _player.Motion.Heading);
         var path = Path.Combine(DataPaths.Saves, "quick" + SaveFile.Extension);
-        SaveFile.Write(path, _game.Save());
+        SaveFile.Write(path, _game!.Save());
         Say($"Saved to {path}");
     }
 
@@ -863,6 +983,9 @@ public partial class Game : Node3D, ITrekHost
         Add("menu_member_next", Key.E, button: JoyButton.RightShoulder);
         Add("menu_details", Key.Tab, button: JoyButton.Y);
         Add("menu_appraise", Key.R, button: JoyButton.X);
+        // Z or L, and R, change the tab.
+        Add("menu_tab_previous", Key.Z, null, JoyAxis.TriggerLeft, 1);
+        Add("menu_tab_next", Key.X, null, JoyAxis.TriggerRight, 1);
         Add("menu_up", null, button: JoyButton.DpadUp);
         Add("menu_down", null, button: JoyButton.DpadDown);
         Add("menu_left", null, button: JoyButton.DpadLeft);

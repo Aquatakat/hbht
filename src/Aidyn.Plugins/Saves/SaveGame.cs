@@ -87,6 +87,12 @@ public sealed record SaveParty
 /// </summary>
 public sealed record SaveCharacter(RecordId Entity)
 {
+    /// <summary>
+    /// A name the player gave the character in place of the record's: the original lets Alaron be renamed, and
+    /// saves his name (<c>SaveParty::SaveAlaron</c>). None keeps the record's.
+    /// </summary>
+    public string? Name { get; init; }
+
     public uint TotalExp { get; init; }
 
     public uint SpendableExp { get; init; }

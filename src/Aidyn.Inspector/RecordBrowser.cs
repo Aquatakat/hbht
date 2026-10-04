@@ -161,7 +161,7 @@ public partial class RecordBrowser : Control
     /// Sets how the preview's UI screen is shown, if it has one: a script's conversation box or the
     /// Party tab (<c>--zoom</c>, <c>--ui-filter</c>, <c>--aspect</c>, <c>--ui-lines</c>).
     /// </summary>
-    public void SetUiScreen(int? zoom, Aidyn.Game.UiFilter? filter, bool? wide, int? lines)
+    public void SetUiScreen(int? zoom, Aidyn.Core.Ui.UiFilter? filter, bool? wide, int? lines)
     {
         if (_preview.GetChildren().OfType<ScriptPanel>().FirstOrDefault() is { } script)
             script.SetScreen(zoom, filter, wide, lines);

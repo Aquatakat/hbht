@@ -68,4 +68,7 @@ public static class DataPaths
 
     /// <summary>Where saved games go (<see cref="Saves.SaveGame"/>).</summary>
     public static string Saves => Path.Combine(Root, "saves");
+
+    /// <summary>The player's settings: volumes, graphics and fidelity (<c>Aidyn.Core.Settings</c>).</summary>
+    public static string Settings => Path.Combine(Root, "settings.json");
 }

@@ -45,7 +45,7 @@ Not ported yet: the widgets' fade in and out (`fadeFloatMirror`), scrolling a me
 
 ## The pause menu
 
-The Party tab is ported, with what A does in it; the System and World tabs aren't yet. What the decomp, the machine code, the imported images and the user's captures (Oct 1, 2026, from the "Before final encounter" checkpoint; see the [reference rig](../reference-rig.md#emulator-captures)) show (`BigAssMenu.cpp`, `DollMenu*.cpp`). Positions are in the 320 × 240 frame.
+The Party tab is ported, with what A does in it, and the [System tab](#the-system-tab); the World tab isn't yet. What the decomp, the machine code, the imported images and the user's captures (Oct 1, 2026, from the "Before final encounter" checkpoint; see the [reference rig](../reference-rig.md#emulator-captures)) show (`BigAssMenu.cpp`, `DollMenu*.cpp`). Positions are in the 320 × 240 frame.
 
 - **The tabs are one long scroll.** System, Party and World are each a widget tree in its own 320 × 240 frame, 320 pixels apart, and changing tab slides them all 10 pixels a frame. Under them is a 3D scroll, `aidyn:actor/0x0E6B` (scene `0x0E63`), seen from above, which slides with them: System shows its wooden roller at the left, World at the right, and Party, in the middle, neither. Its states unroll and roll it on opening and closing; the user reads some as the full menu's and some, shorter, as the smaller windows' (barter, training, containers). Past the torn top and bottom edges the world shows through.
 - **Each tab has a full-screen image** over the scroll (`pause_menu_borg8`): `0x00D8`, `0x00D9` and `0x00DA`, all 320 × 240. `0x00D9` is opaque inside its torn edges.
@@ -65,7 +65,7 @@ The Party tab is ported, with what A does in it; the System and World tabs aren'
 - **A red arrow** under the knotwork at (126, 207) points both ways in trek (`BORG8_SliderArrowLR`) and only left in combat, in (130, 80, 80).
 - **Later:** clicking. Hovering a row moves the cursor, but what a click lands on in the editor isn't clear yet, and the user has left it for later (Oct 1, 2026).
 - **Not ported yet:** the slides and fades (the list sliding in over 20 frames, the portraits moving and resizing over 15, the details fading in and out 60 a frame), the sounds, and the 3D scroll under the tabs.
-- **The other tabs:** System is a list (Load Game, Save Game, Options, Theater, Credits, Help) under its title image. World is the world map at the left with its compass, the calendar (the season's name, the month's days with the moon's phases, today boxed) and Camp and Journal. The journal is a book filling the screen, its entries in fixed order, scrolling, with the newest in purple and an arrow at the right.
+- **The World tab**, not ported yet: the world map at the left with its compass, the calendar (the season's name, the month's days with the moon's phases, today boxed) and Camp and Journal. The journal is a book filling the screen, its entries in fixed order, scrolling, with the newest in purple and an arrow at the right.
 
 Measured against the captures in the console's own pixels (every eighth column and fourth line of ares' 2560 × 960), the classic layout's text, icons and portraits match to within the noise the console's 16-bit framebuffer and dithering leave, about 6 per pixel.
 
@@ -78,9 +78,9 @@ Measured against the captures in the console's own pixels (every eighth column a
 
 Still as proposed: the tabs a screen apart, and the reuses' columns.
 
-**In the runtime** (`PauseMenu`), Start opens the tab over the world, on a `UiScreen` 240 lines tall by default, and the runtime's F7 changes it. C-left and C-right are Q and E or the shoulders, the stick is the movement keys, arrows, left stick or D-pad, C-down is Tab or the top face button, held, A is Space or the bottom face button, and Start or B closes a popup, or the menu if none is open. The user found the shoulders and the top face button feel right (Oct 1, 2026). Z/L and R, which change the tab, wait for the other tabs.
+**In the runtime** (`PauseMenu`), Start opens the tab over the world, on a `UiScreen` 240 lines tall by default, and the runtime's F7 changes it. C-left and C-right are Q and E or the shoulders, the stick is the movement keys, arrows, left stick or D-pad, C-down is Tab or the top face button, held, A is Space or the bottom face button, and Start or B closes a popup, or the menu if none is open. The user found the shoulders and the top face button feel right (Oct 1, 2026). Z or L, and R, change the tab: Z and X or the triggers ([below](#changing-tab)).
 
-- **Each opening starts the tab afresh:** the first member, the inventory, the top row. The user knows the original's to remember only which tab was open (System, Party or World), not the member or where the cursor was, and that this makes the presses to reach something the same every time, which a player learns by heart. Remembering the tab waits for the other tabs.
+- **Each opening starts the tab afresh:** the first member, the inventory, the top row. The user knows the original's to remember only which tab was open (System, Party or World), not the member or where the cursor was, and that this makes the presses to reach something the same every time, which a player learns by heart.
 - **The stick counts once as it crosses the deadzone.** Godot sends an event whenever the stick moves, each past the deadzone reading as pressed, so at first a held stick changed the list once a frame. Held up or down, it repeats after 0.4 s every 0.1 s, as a held key does; that rate is the port's, not measured on the console.
 
 ### The Party tab's actions
@@ -143,6 +143,78 @@ The pause menu's training state at a trainer (`WidgetDollMenu` with `WidgetMenuS
 - **Wide:** as the loot window's, with the trainer's list on the right-hand parchment, the price lines under it and the row's details below.
 - **After a battle**, with no trainer, the same window lists the member's spells, skills and stats and starts on stats, with what each member earned and who gained a level (pause state 5, lines 491 and 492). That comes with combat (2.5).
 - **Not ported yet:** the lists sliding 140 pixels over 20 frames as the stick changes them, and the sounds.
+
+### The System tab
+
+The pause menu's first tab (`WidgetOptionsMenu`, `MakeScrollList` at `0x8003f8c4` in 1.0), with Options (`WidgetOptionsConfig`), the save and load screens (`WidgetContPakData`, `ControllerPakSliders`) and the name entry (`InputMenu`). From the debug build's machine code and the user's captures (Oct 3, 2026, `roms/menu-main*.png`, the pause menu's; `roms/menu-main2*.png` are the title screen's, for later). `SystemMenu` in the core, with `OptionsMenu`, `SaveMenu` and `NameEntry`, drawn by `SystemTabView`. Everything is in the main font; only the Party tab's widgets use the slim one.
+
+- **The tab** is `0x00D8`, plain parchment with nothing painted in. The wooden roller in the captures is the 3D scroll under the tabs, which isn't ported. The classic layout draws it at the screen's centre. The wide one (from 560 × 320) puts the frame's contents at the centre of the Party tab's wide sheet, so the two tabs match as they slide. `0x00D8`'s own parchment is too streaked to tile without its mirrored copies showing.
+- **The list:** the title `0x00F2` ("Menu", 60 × 24), centred, then 16 below it six rows 16 apart (11 plus a vspace of 5), centred on x 160, in (130, 80, 80), the cursor's pulsing as the Party tab's does. The title and list are centred down the frame together, which puts the title at y 54 and the first row at 94. The rows are Load Game, Save Game, Options, Theater, Credits and Help (common lines 160, 377, 161, 162, a literal "Credits" in the code, and 173). In combat the original lists only Options, and Flee when the party can flee; that waits for 2.5. The cursor starts on the first row at each opening. Under the list, the arrow `0x3757` (right only) at (170, 204).
+- **Not ported yet:** Theater (the cinematics, flags 3, 569, 590 and 601 showing their titles or 16 dashes), Credits (the roll of the credits table) and Help (script `0x054B` on the book backdrop). They're drawn in (96, 96, 96), the colour the original greys its resolution row with, and A does nothing on them. The original never greys these rows.
+- **B or Start** on the list closes the menu. In a screen, B goes back to the list, or from the graphics page to the options.
+
+#### Changing tab
+
+- **Z or L goes left, R right** (`bigAssMenu_LZFunc`, `RFunc`), System, Party, World, with no wrap. In the runtime that's Z and X, or the triggers. The tabs slide 10 pixels a frame over 320, 32 frames, so the port slides a screen's width over 32 frames; presses wait while they slide.
+- **The System tab can be left only from its list**, as the original's can. The port also keeps the Party tab while a popup or message is up.
+- **The menu remembers the tab**, and only the tab, in `gGlobals.pauseMenuSection`, which isn't saved. A new game's first opening is on System. Barter and training open on Party and can't change tab. The World tab isn't ported, so for now Party is the last tab, though its arrow still points both ways.
+- **Not ported yet:** the slide of the 3D scroll with the tabs, its unrolling and rolling, and the sounds (the cursor `0x73B`, A `0x740`, B `0x741`, a tab `0x7D4`).
+
+#### Options
+
+The user laid this out (Oct 3, 2026), and it isn't the original's. The original's is in capitals under the headings AUDIO, GRAPHICS and GAME, shifted 25 right of centre to clear the roller. The port's has mixed case and no headings, and the graphics settings go on a page of their own. [ADR 0013](../adr/0013-settings-in-the-options-menu.md) has the decision.
+
+- **The page:** the Options title `0x00FD` centred at y 40. From y 74 at x 84 come "Sound volume:" and "Music volume:", each with its bar under it, then Graphics and Rename Character, each set off by half a line (5). Rows are 4 apart, and a volume's row is its label and the bar.
+- **The bars** are `0x00D7`, a braided rope 152 × 18. Each is drawn whole in (100, 100, 100) at a quarter of the widget's alpha, then again in the rows' colour, cut at 152 × the volume. The volumes are the original's floats from 0 to 1, which the stick steps by 0.01, so the port keeps them in hundredths. They start at 1.0 for sound and 0.65 for music (`app.cpp`). Holding the stick repeats.
+- **The cursor's row** pulses from (130, 80, 80) to dark brown (103, 70, 60), its alpha falling by 12 a step, so it fades nearly out at the deepest, as SOUND: does in the capture.
+- **Graphics** opens a page under the same title, listing each setting at x 44 with its value at x 176, 13 apart. The stick's left and right change the cursor's setting, wrapping round, and so does A. The settings take effect at once and are kept in `settings.json` in the data folder:
+
+  | Setting | Values |
+  | --- | --- |
+  | Display | Windowed, Fullscreen |
+  | V-sync | On, Off |
+  | 3D resolution | Full, 480 lines, 240 lines (bilinear, through Godot's 3D scaling) |
+  | Anti-aliasing | Off, 2x, 4x, 8x (MSAA) |
+  | Draw distance | Original, Farther (1.2×), Farthest (1.4×): see [rendering](rendering.md#draw-distance) |
+  | Model detail | Original, Highest (always the nearest level) |
+  | Sky | Projected, Original ([rendering](rendering.md#the-skys-objects)) |
+  | Menu size | Original (240 lines), Smaller (360), Smallest (480): the UI screen's height, for the menu and trek's popups and box |
+  | Menu filter | Video out, Sharp, Smooth (`UiFilter`) |
+  | Pace | Original, Brisk (1.3×) |
+
+- **The original's resolution row** switches to the Expansion Pak's high resolution (512 × 240) and back; without the pak, it's greyed and the cursor skips it. "32 Bit Color" is in the table, but nothing reaches it.
+- **The original keeps its volumes and resolution in every save** (`QuestData::Save`), so loading set them back. The port keeps the settings per player instead.
+
+#### Renaming Alaron
+
+Rename Character opens the name entry (`InputMenu`) over the options. It renames Alaron, and the save keeps his name (`SaveParty::SaveAlaron`, see [saves](saves.md)).
+
+- **The layout:** the title `0x00F9` centred at y 50, and the name centred at y 85 in (130, 80, 80). Below them the grid at (60, 110), 13 keys a row, 15 apart: A–Z, 0–9, then the symbol keys, which the font draws as its own symbols (a skull, a heart, a diamond for the underscore), then rub out, cancel and OK. The cursor is `0x00F8`, a white square 15 px across, pulsing grey between 100 and 225, with its key in black on it. The letter being chosen pulses the same way, and the port marks the next letter's place with a short line.
+- **The keys:** the stick moves over the grid, wrapping round its rows, and writes the key into the slot being chosen. A types it and moves on, but not past the tenth, the longest a name is (`IMNameLength`). Start goes to OK, and a second Start confirms. B cancels. The first letter and any letter after a space are capitals, the rest small. The cursor starts on OK, so Start, Start keeps the name.
+- **On a PC** the keyboard types into the name. A printable key types its character, Backspace rubs out the last letter, Enter confirms and Escape cancels, before any of them reach the menu's actions.
+- **Not ported:** the cheat codes, which the original checks the name against here (`Cheats::Check`; see [hardcoded content](../hardcoded-content.md)).
+
+#### Saving and loading
+
+One saved game at a time, which the stick's left and right step through. The positions are absolute in the frame and match the captures:
+
+- **The title** at (132, 24): Load Game `0x00F1` or Save Game `0x00FF`.
+- **The screenshot**, stretched to 104 × 78 at (73, 52).
+- **The party's portraits**, 40 square at x 73, 128, 183 and 238, y 133.
+- **The arrow** at (183, 101): right only on the first save, both ways between, left only on the last, and none with one save. The captures `menu-main-load-left`, `-middle` and `-right` show this.
+- **The name** at (183, 111) and "Hours: %u:%u:%u" (common 481) at (183, 122). The name is Alaron's, or a save's label, such as the checkpoint it was made from, in the slim font if it's too long for the main one. The hours are the time played: ticks ÷ 216000, then the minutes and seconds, unpadded, as in 18:4:28.
+- **The actions** at (237, 180), 11 apart: Load or Save (423, 424), Delete (425) and Exit (426), with the list's pulse. The decomp's cursor colours swap green and blue; the machine code's are the list's.
+
+The rules:
+
+- **The slots.** The original's saves are notes on the Controller Pak, up to 16, in the pak's order. The port's are the files in the saves folder, newest first.
+- **"Create New Save"** (553), in dark brown where the name goes, offers only Save and Exit. The original puts it last; the port puts it first, so a new save is a press away whatever's saved. It writes at once, to `Save n.json`. With nothing to load, the load screen says "There are no saved games." where the original talks about the Controller Pak, and offers only Exit.
+- **Saving over a game asks first:** "Are you sure you would like to save over that game?" (410), with Overwrite and Cancel. The decomp reads the delete question here, but the machine code reads 410. Saving says "Game successfully saved." (422) with Continue (176), which leads back to the System tab's list, showing the slot just written. The original's "Saving. Do not turn the power OFF…" step isn't needed.
+- **Deleting asks first:** "Are you sure you would like to delete that game?" (372), with Delete and Cancel. Deleting takes the screenshot with the save, and starts the list again from the first save.
+- **Loading** happens at once, with no question. The menu closes and the game starts again from the save, as the original's teleports there. The runtime reloads its Godot scene with the save, keeping the plugins loaded.
+- **The questions** are `WidgetChoiceDia` panels 150 wide in off-white, with no B, as the leave-items choice is.
+- **The screenshot** is taken as the menu opens (`QuestData::TakeSnapshot`). The original crops the frame's centre half, (80, 60) to (240, 180), and samples it down to 64 × 32 at 16 bits. That's why its screenshots look stretched: the decomp's 60 is 64 in the machine code. The port takes the centre half of the window's view, cut to 4:3, at 208 × 156, twice what the screen shows. It goes beside the save as a PNG of the same name.
+- **Not ported yet:** the slots sliding in as the stick changes them, and the screen's fade.
 
 ## A faithful mode, later
 

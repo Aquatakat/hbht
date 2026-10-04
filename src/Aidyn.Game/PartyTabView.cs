@@ -62,7 +62,7 @@ public partial class PartyTabView : Control
     /// <summary>The rules a list's title sits on, and plain parchment.</summary>
     private static readonly Rect2I RulesPiece = new(155, 84, 165, 16);
 
-    private static readonly Rect2I TopEdge = new(0, 0, 320, 22), BottomEdge = new(0, 216, 236, 24), PlainPiece = new(236, 104, 60, 96);
+    private static readonly Rect2I TopEdge = new(0, 0, 320, 22), BottomEdge = new(0, 216, 236, 24);
 
     /// <summary>
     /// What the wide layout keeps of the image at its own size: its top, through the portraits, the hit
@@ -70,10 +70,11 @@ public partial class PartyTabView : Control
     /// </summary>
     private static readonly Rect2I TopPart = new(0, 0, 320, 102), SilhouetteColumn = new(0, 92, 138, 124);
 
-    /// <summary>The plain parchment under the original's list, which the wide sheet is laid with, and how far its copies overlap.</summary>
-    private static readonly Rect2I PlainSwatch = new(162, 102, 154, 102);
-
-    private const int PlainOverlap = 24;
+    /// <summary>
+    /// The wide sheet: the torn edges, and the plain parchment under the original's list, which it's laid
+    /// with, over a smear of a plainer piece.
+    /// </summary>
+    public static readonly ParchmentSheet SheetArt = new(MenuImages.PartyTab, TopEdge, BottomEdge, new Rect2I(236, 104, 60, 96), new Rect2I(162, 102, 154, 102));
 
     // DollMenuLists and WidgetTrainShop: the list's bounds; its title's centre is 70 into them and its
     // top 20 above, the arrows 15 in from each side and 13 above, and the arrow under the knotwork.
@@ -350,64 +351,8 @@ public partial class PartyTabView : Control
     private void Message(MenuMessage message) =>
         _ui.Message(this, (Vector2I)Size, message.Text, MenuMessage.MaxWidth, MenuMessage.Color, message.FromCrafting ? 16 : 0, message.FromCrafting ? 5 : 0);
 
-    /// <summary>
-    /// The sheet under the image's pieces: plain parchment, its torn top edge along the top and its
-    /// torn bottom edge along the foot, each repeated mirrored so every join meets itself.
-    /// </summary>
-    private void Sheet(Vector2I size, int bottom)
-    {
-        var top = TopEdge.Size.Y;
-        Plain(new ScreenRect(0, top, size.X, bottom));
-        Mirrored(TopEdge, 0, size.X);
-        Mirrored(BottomEdge, bottom, size.X);
-    }
-
-    /// <summary>A strip of the image repeated across, every other copy mirrored.</summary>
-    private void Mirrored(Rect2I strip, int y, int width)
-    {
-        var mirror = false;
-        for (var x = 0; x < width; x += strip.Size.X, mirror = !mirror)
-        {
-            // A part copy at the end is the start of the copy as drawn: mirrored, that's the strip's end.
-            var w = Math.Min(strip.Size.X, width - x);
-            var source = new Rect2I(strip.Position.X + (mirror ? strip.Size.X - w : 0), strip.Position.Y, w, strip.Size.Y);
-            _ui.Cut(this, MenuImages.PartyTab, source, x, y, mirror: mirror);
-        }
-    }
-
-    /// <summary>
-    /// Plain parchment over an area, at the image's own size: rows of the plain swatch under the
-    /// original's list, every other copy along a row mirrored so each join meets itself, each row
-    /// half a copy along from the last and faded into it, over a smear of the swatch. Copies are cut
-    /// to the area, so it stays inside the sheet's torn edges.
-    /// </summary>
-    private void Plain(ScreenRect area)
-    {
-        _ui.Cut(this, MenuImages.PartyTab, PlainPiece, area.Left, area.Top, new Vector2I(area.Right - area.Left, area.Bottom - area.Top));
-        var w = PlainSwatch.Size.X;
-        var stepY = PlainSwatch.Size.Y - PlainOverlap;
-        for (int y = area.Top, row = 0; y < area.Bottom; y += stepY, row++)
-        {
-            var mirror = false;
-            for (var x = area.Left - (row % 2 == 0 ? 0 : w / 2); x < area.Right; x += w, mirror = !mirror)
-            {
-                // The copy cut to the area: its source, mirrored if need be, and its fade only where it overlaps the row above.
-                var left = Math.Max(x, area.Left);
-                var right = Math.Min(x + w, area.Right);
-                var bottom = Math.Min(y + PlainSwatch.Size.Y, area.Bottom);
-                if (right <= left || bottom <= y)
-                    continue;
-                var from = mirror ? x + w - right : left - x;
-                var source = new Rect2I(PlainSwatch.Position.X + from, PlainSwatch.Position.Y, right - left, bottom - y);
-                var fade = row == 0 ? 0 : PlainOverlap;
-                if (mirror)
-                    _ui.Feathered(this, MenuImages.PartyTab, source, left, y, (0, fade, 0, 0), mirror: true);
-                else
-                    _ui.Feathered(this, MenuImages.PartyTab, source, left, y, (0, fade, 0, 0));
-            }
-        }
-    }
-
+    /// <summary>The wide sheet under the image's pieces, from its own parchment.</summary>
+    private void Sheet(Vector2I size, int bottom) => _ui.Sheet(this, SheetArt, size, bottom);
 
     /// <summary>The rules under a list's title, stretched along a line: its middle repeated, its ends faded.</summary>
     private void Rules(int x, int y, int width)

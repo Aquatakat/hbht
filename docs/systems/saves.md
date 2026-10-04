@@ -18,7 +18,7 @@ The CLI makes saves without the game, with the installed plugins:
 - `aidyn save from <checkpoint> [<save>]` turns a checkpoint into a save (below).
 - `aidyn save show <save>` loads a save with the core and says what it makes of it: the time played, the date, the place, how many flags are set, each member's level, hit points, experience, attributes, what they wear and the spells they know, the gold, the inventory and the memories, then anything it couldn't use, with exit code 1.
 
-They write to the data folder's `saves` unless given a path. A save can be edited by hand between them, such as to give the party an item or set a flag, and `save show` says whether the game can use it.
+They write to the data folder's `saves` unless given a path, where the System tab's save and load screens find them too, newest first. A save can be edited by hand between them, such as to give the party an item or set a flag, and `save show` says whether the game can use it.
 
 ## The format
 
@@ -68,7 +68,9 @@ A save made from the "Before final encounter" checkpoint, cut short:
 - **Stacks and worn items** keep their battery and charges, where the item has them. Their price is the item's; only a shop's stock has its own.
 - **Memories** are below.
 - **The random streams** are the five streams' seeds. Without them, the streams start as a new game's.
-- **Not kept yet:** spell effects (2.5), the weather, the minimap's fog and the screenshot. The original also keeps three timers of how long the party has run, walked and sneaked (`Party::TickMoveCounters`), which nothing reads.
+- **Alaron's name**, when the player renamed him in the options menu ([ui](ui.md#renaming-alaron)): `name` on his sheet, left out while it's the record's. The original saves his name with his spells (`SaveParty::SaveAlaron`, 20 bytes); the checkpoints' converter doesn't read it yet.
+- **The screenshot** isn't in the save: the System tab writes it beside the save, a PNG of the same name, 208 × 156 ([ui](ui.md#saving-and-loading)). The original keeps a 64 × 32 one in the save. A save without one shows none.
+- **Not kept yet:** spell effects (2.5), the weather and the minimap's fog. The original's volumes and resolution, which it saves too, are the player's settings in the port ([ADR 0013](../adr/0013-settings-in-the-options-menu.md)). The original also keeps three timers of how long the party has run, walked and sneaked (`Party::TickMoveCounters`), which nothing reads.
 
 ## Loading, as the original does
 

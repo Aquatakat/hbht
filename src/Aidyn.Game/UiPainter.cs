@@ -14,6 +14,16 @@ public sealed record UiFont(TextLayout Layout, Texture2D? Sheet)
 }
 
 /// <summary>
+/// A parchment image's pieces that a sheet of any size is laid from (<see cref="UiPainter.Sheet"/>): its torn
+/// top and bottom edges, a plain piece smeared under the rest, and a swatch of plain parchment tiled over it.
+/// </summary>
+public sealed record ParchmentSheet(RecordId Image, Rect2I TopEdge, Rect2I BottomEdge, Rect2I Smear, Rect2I Swatch)
+{
+    /// <summary>How far the swatch's rows overlap, each faded into the last.</summary>
+    public const int Overlap = 24;
+}
+
+/// <summary>
 /// The menus' widget kit, drawn immediately on a <see cref="UiScreen"/>'s canvas in its pixels: text
 /// in either font, UI images whole, scaled or cut out, the original's parchment popup, and scrolling
 /// lists with a cursor and arrows. Views call it from <c>_Draw</c>.
@@ -185,6 +195,60 @@ public sealed class UiPainter
                     [.. corners.Select(c => c.I is 1 or 2 && c.J is 1 or 2 ? Colors.White : Colors.Transparent)],
                     [.. corners.Select(c => (source.Position + new Vector2(mirror ? source.Size.X - xs[c.I] : xs[c.I], ys[c.J])) * texel)],
                     texture);
+            }
+        }
+    }
+
+    /// <summary>
+    /// A sheet of parchment filling a screen of the size: plain parchment, its torn top edge along the top and
+    /// its torn bottom edge along the foot, from <paramref name="bottom"/>, each repeated mirrored so every
+    /// join meets itself.
+    /// </summary>
+    public void Sheet(CanvasItem canvas, ParchmentSheet art, Vector2I size, int bottom)
+    {
+        Plain(canvas, art, new ScreenRect(0, art.TopEdge.Size.Y, size.X, bottom));
+        Mirrored(canvas, art.Image, art.TopEdge, 0, size.X);
+        Mirrored(canvas, art.Image, art.BottomEdge, bottom, size.X);
+    }
+
+    /// <summary>A strip of an image repeated across, every other copy mirrored.</summary>
+    private void Mirrored(CanvasItem canvas, RecordId image, Rect2I strip, int y, int width)
+    {
+        var mirror = false;
+        for (var x = 0; x < width; x += strip.Size.X, mirror = !mirror)
+        {
+            // A part copy at the end is the start of the copy as drawn: mirrored, that's the strip's end.
+            var w = Math.Min(strip.Size.X, width - x);
+            var source = new Rect2I(strip.Position.X + (mirror ? strip.Size.X - w : 0), strip.Position.Y, w, strip.Size.Y);
+            Cut(canvas, image, source, x, y, mirror: mirror);
+        }
+    }
+
+    /// <summary>
+    /// Plain parchment over an area, at the image's own size: rows of the swatch, every other copy along a
+    /// row mirrored so each join meets itself, each row half a copy along from the last and faded into it,
+    /// over a smear of the plain piece. Copies are cut to the area, so it stays inside the sheet's torn edges.
+    /// Stretching one small swatch over the sheet instead smears the grain to streaks.
+    /// </summary>
+    private void Plain(CanvasItem canvas, ParchmentSheet art, ScreenRect area)
+    {
+        Cut(canvas, art.Image, art.Smear, area.Left, area.Top, new Vector2I(area.Right - area.Left, area.Bottom - area.Top));
+        var w = art.Swatch.Size.X;
+        var stepY = art.Swatch.Size.Y - ParchmentSheet.Overlap;
+        for (int y = area.Top, row = 0; y < area.Bottom; y += stepY, row++)
+        {
+            var mirror = false;
+            for (var x = area.Left - (row % 2 == 0 ? 0 : w / 2); x < area.Right; x += w, mirror = !mirror)
+            {
+                // The copy cut to the area: its source, mirrored if need be, and its fade only where it overlaps the row above.
+                var left = Math.Max(x, area.Left);
+                var right = Math.Min(x + w, area.Right);
+                var bottom = Math.Min(y + art.Swatch.Size.Y, area.Bottom);
+                if (right <= left || bottom <= y)
+                    continue;
+                var from = mirror ? x + w - right : left - x;
+                var source = new Rect2I(art.Swatch.Position.X + from, art.Swatch.Position.Y, right - left, bottom - y);
+                Feathered(canvas, art.Image, source, left, y, (0, row == 0 ? 0 : ParchmentSheet.Overlap, 0, 0), mirror);
             }
         }
     }
