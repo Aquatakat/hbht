@@ -16,6 +16,11 @@ From the code index (roadmap 0.7), which tools/ghidra.ps1 import writes to out/g
                           and the data words that point into it
   --strings <text>        the strings in the code segment holding the text, and who uses them
   --c <fn>                Ghidra's pseudocode for the function holding the address
+  --other <fn>            the same function in the other build
+  --file <text>           the functions placed in the original's source files whose names hold the text
+
+Names carry between the builds, and source files come from the debug build, by tools/builds.py
+(roadmap 0.9), which tools/ghidra.ps1 export runs.
 A function is a symbol or any address inside it.
 
 The code segment is at ROM 0x1000, loaded at 0x80000400, in both 1.0 ("us", the default) and the
@@ -41,18 +46,52 @@ ROM_NAMES = {"us": "*(V1.0)*.z64", "debug": "AidynDebug.z64"}
 LOAD, START = 0x80000400, 0x1000
 
 
+def read_map(which):
+    symbols = {}
+    path = os.path.join(HERE, "symbols", f"{which}.txt")
+    for line in open(path, encoding="utf-8") if os.path.exists(path) else []:
+        m = re.match(r"\s*([\w:.~]+)\s*=\s*0x([0-9a-fA-F]+);", line)
+        if m:
+            symbols.setdefault(int(m.group(2), 16), m.group(1))
+    return symbols
+
+
+def load_builds():
+    """The match between the builds and the source files, from tools/builds.py, or None."""
+    path = os.path.join(REPO, "out", "ghidra", "builds.json")
+    if not os.path.exists(path):
+        return None
+    data = json.load(open(path, encoding="utf-8"))
+    us_to_debug = {int(k): v for k, v in data["us_to_debug"].items()}
+    return {"us": us_to_debug, "debug": {v: k for k, v in us_to_debug.items()},
+            "files": {int(k): v for k, v in data["files"].items()}}
+
+
 def load(which):
+    """The ROM and its symbols: its own map, with the other build's names carried across the match."""
     matches = glob.glob(os.path.join(ROMS, ROM_NAMES[which]))
     if not matches:
         sys.exit(f"No {which} ROM in {ROMS}")
     rom = open(matches[0], "rb").read()
-    symbols = {}
-    path = os.path.join(HERE, "symbols", f"{which}.txt")
-    for line in open(path, encoding="utf-8") if os.path.exists(path) else []:
-        m = re.match(r"\s*([\w:~]+)\s*=\s*0x([0-9a-fA-F]+);", line)
-        if m:
-            symbols.setdefault(int(m.group(2), 16), m.group(1))
+    symbols = read_map(which)
+    builds = load_builds()
+    if builds:
+        other = "debug" if which == "us" else "us"
+        across = builds[other]
+        for address, name in read_map(other).items():
+            if address in across:
+                symbols.setdefault(across[address], name)
     return rom, symbols
+
+
+def source_file(which, address, builds):
+    """The original's source file for a function's entry, by the debug build's placement."""
+    if not builds:
+        return None
+    if which == "us":
+        address = builds["us"].get(address)
+    placed = builds["files"].get(address)
+    return placed["file"] + (f" (lines {placed['lines'][0]}-{placed['lines'][-1]})" if placed.get("lines") else "") if placed else None
 
 
 def load_index(which):
@@ -85,7 +124,7 @@ def main():
     p.add_argument("--count", type=int)
     p.add_argument("--data")
     p.add_argument("--find")
-    for name in ("callers", "callees", "refs", "strings", "c"):
+    for name in ("callers", "callees", "refs", "strings", "c", "other", "file"):
         p.add_argument(f"--{name}")
     a = p.parse_args()
     rom, symbols = load(a.rom)
@@ -110,6 +149,21 @@ def main():
             return name(address)
         return name(f["at"]) + (f" +0x{address - f['at']:x}" if address != f["at"] else "")
 
+    if a.other:
+        builds = load_builds() or sys.exit("No out/ghidra/builds.json; run tools/ghidra.ps1 export")
+        f = function(load_index(a.rom), a.other)
+        other = "debug" if a.rom == "us" else "us"
+        there = builds[a.rom].get(f["at"])
+        print(f"{name(f['at'])} ({a.rom}) is " + (f"{there:08x} in {other}" if there else f"unmatched in {other}"))
+        return
+    if a.file:
+        builds = load_builds() or sys.exit("No out/ghidra/builds.json; run tools/ghidra.ps1 export")
+        for at, placed in sorted(builds["files"].items()):
+            if a.file.lower() in placed["file"].lower():
+                here = at if a.rom == "debug" else builds["debug"].get(at)
+                lines = f" lines {placed['lines']}" if placed.get("lines") else ""
+                print(f"{placed['file']:36} {name(here) if here else '(not in 1.0)':40} {placed['how']}{lines}")
+        return
     if a.callers or a.callees:
         index = load_index(a.rom)
         f = function(index, a.callers or a.callees)
@@ -188,7 +242,8 @@ def main():
     f = containing(load_index(a.rom), start) if os.path.exists(index_path) else None
     later = [s for s in symbols if s > start and s < 0x80100000]
     end = start + 4 * a.count if a.count else f["end"] if f else (min(later) if later else start + 0x400)
-    print(f"; {symbols.get(start, hex(start))} ({a.rom}), {(end - start) // 4} instructions")
+    placed = source_file(a.rom, f["at"], load_builds()) if f else None
+    print(f"; {symbols.get(start, hex(start))} ({a.rom}), {(end - start) // 4} instructions" + (f", {placed}" if placed else ""))
     md = Cs(CS_ARCH_MIPS, CS_MODE_MIPS64 + CS_MODE_BIG_ENDIAN)
     upper = {}
     for i in md.disasm(rom[offset(start):offset(end)], start):

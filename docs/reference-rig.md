@@ -169,7 +169,21 @@ python tools/n64dis.py --c 0x80078d14                # Ghidra's pseudocode
 
 Calls through a pointer (a vtable, a callback) aren't in `--callers`. Find those by the data word that points at the function, then by `--refs` on that word's table.
 
-1.0's functions sit in the same order as the debug build's, so find one in the other by its neighbours. Check a float's bits, not just its look: `0x3E32B7FE` is 10° in radians and `0x3EB2B7FE` is 20°.
+### The two builds and the source files: `tools/builds.py` (roadmap 0.9)
+
+`tools/ghidra.ps1 export` runs `builds.py` between the index and the pseudocode. It writes `out/ghidra/builds.json`, which `n64dis.py` reads:
+
+```bash
+python tools/n64dis.py --other 0x800788cc            # the same function in the other build: 80081d2c in debug
+python tools/n64dis.py --file turn.cpp               # the functions placed in a source file, with the lines they cite
+```
+
+- **The match.** Both builds come from one source, linked in one order. The debug build adds asserts and debug code. A function's shape is its opcodes without registers or immediates. Shapes unique to both builds anchor the match, and between anchors an alignment pairs the rest by similarity. Then matched callers vote on how their callees pair, which settles neighbours that look alike. It matches 3,715 of 1.0's 3,740 functions, and 9,206 of the 9,217 calls between matched functions land on the matched callee. The 25 left unmatched are mostly two-word stubs.
+- **Names carry across.** A name in either build's map shows in both, in `n64dis.py` and in the pseudocode (`out/ghidra/<rom>.symbols.txt` is the merged map Ghidra applies). Where both maps name a matched pair differently, each build keeps its own, and `builds.py` reports the conflict.
+- **Source files.** The debug build passes a file name and line to its allocator, its free and its asserts. 338 functions cite a file that way, or in a message such as `scene.cpp, SceneGetLocatorMtx()`, and 173 of them give their line. A run of functions between two in the same file is in that file too, since a file's functions are linked together. That places 889 of the debug build's functions in 115 files. 1.0 cites 32 files itself, and every one agrees with the file its matched function was placed in. Functions in a run between two different files aren't placed yet.
+- **The disassembly's header** gives the function's source file, and its lines where it cites them.
+
+1.0's functions sit in the same order as the debug build's, so find one in the other by its neighbours, or with `--other`. Check a float's bits, not just its look: `0x3E32B7FE` is 10° in radians and `0x3EB2B7FE` is 20°.
 
 ### Reading state RAM offline: `tools/bst.py`
 
@@ -206,3 +220,17 @@ The project doesn't read the decomp ([ADR 0015](adr/0015-the-port-no-longer-read
 5. **The emulator.** Change a value in the game between two checkpoints and diff RAM. A watchpoint on that value then finds the code that writes it, and a trace finds what an action runs.
 
 Steps 2–4 are `n64dis.py --strings`, `--refs`, `--callers` and `--callees`, over the code index, and `--c` reads a function's pseudocode once it's found. Roadmap tasks 0.9–0.12 add the source-file map, `bst.py --diff`, gdb on a checkpoint and traces. Until each lands, do its step by hand with `n64dis.py` and `bst.py`. Write what a run settles into the system's doc with its addresses, and its names into the symbol map.
+
+### The symbol map (roadmap 0.8)
+
+`tools/symbols/us.txt` (1.0) and `tools/symbols/debug.txt` hold our names for the original's functions and globals, one per line, as `name = 0xaddress; // where the name comes from`. `n64dis.py` prints them, and `tools/ghidra.ps1 export` applies them to the pseudocode. The map holds only addresses and names, so it's committed.
+
+A name comes from the first of these that has one:
+
+1. **The original's own name,** from a string in the ROM: an assert or log message such as `No spell list (Entity::GetSpell())` or `World::SetTerrain`. Written as the string has it, with `::`. Cite the string's address in the comment.
+2. **The port's name:** the C# that ports the function or holds the value, dotted, as `Camping.AmbushRoll` or `Party.CampHeal`.
+3. **A name we coin,** dotted in the same way, after the system it belongs to, for code not ported yet: `Combat.ApplyDamage`.
+
+Library code takes the C library's or the N64 SDK's public names (`memcpy`, `sprintf`, `osRecvMesg`), recognised by what the function does.
+
+A name that the docs or the code cite only as the decomp's, whether in a `<c>` tag or in prose written before [ADR 0015](adr/0015-the-port-no-longer-reads-the-decomp.md), never goes in the map, even where it's apt. Leave those citations where they are, as credit.

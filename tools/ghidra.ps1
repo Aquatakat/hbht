@@ -1,6 +1,6 @@
 # Run Ghidra headless over the original's code (roadmap 0.14). Everything it writes is in the gitignored out/ghidra.
 # Usage: tools/ghidra.ps1 import [us|debug|all]    # extract the code segment, import and analyse it, then export
-#        tools/ghidra.ps1 export [us|debug|all]    # apply tools/symbols, write <rom>.index.json and <rom>.c
+#        tools/ghidra.ps1 export [us|debug|all]    # write <rom>.index.json, builds.json and <rom>.c, with tools/symbols applied
 #        tools/ghidra.ps1 run <us|debug> <Script.java> [<script args>...]   # run a script from tools/ghidra
 #
 # Run export after changing the symbol map. tools/n64dis.py reads the index (--callers, --refs, ...)
@@ -46,16 +46,26 @@ function Import-Rom([string]$which) {
     Select-String -Path (Join-Path $out "import-$which.log") -Pattern '\.java> ' | ForEach-Object { $_.Line -replace '^.*?\.java> ', "  " -replace ' \(GhidraScript\)\s*$', '' }
 }
 
-function Export-Rom([string]$which) {
-    & $headless $out aidyn -process "$which.bin" -noanalysis -scriptPath $scripts `
-        -postScript ApplySymbols.java -postScript ExportIndex.java -postScript DecompileAll.java *> (Join-Path $out "export-$which.log")
-    Select-String -Path (Join-Path $out "export-$which.log") -Pattern '\.java> ' | ForEach-Object { $_.Line -replace '^.*?\.java> ', "  " -replace ' \(GhidraScript\)\s*$', '' }
+function Invoke-Scripts([string]$which, [string]$log, [string[]]$scriptNames) {
+    $posts = $scriptNames | ForEach-Object { '-postScript', $_ }
+    & $headless $out aidyn -process "$which.bin" -noanalysis -scriptPath $scripts @posts *> (Join-Path $out $log)
+    Select-String -Path (Join-Path $out $log) -Pattern '\.java> ' | ForEach-Object { $_.Line -replace '^.*?\.java> ', "  " -replace ' \(GhidraScript\)\s*$', '' }
+}
+
+# The index first, then the builds' match and source files (tools/builds.py), which carry each build's
+# names to the other, then the names and the pseudocode.
+function Export-Roms([string[]]$which) {
+    foreach ($w in $which) { Invoke-Scripts $w "index-$w.log" ExportIndex.java }
+    if ((Test-Path (Join-Path $out 'us.index.json')) -and (Test-Path (Join-Path $out 'debug.index.json'))) {
+        python (Join-Path $PSScriptRoot 'builds.py') | ForEach-Object { "  $_" }
+    }
+    foreach ($w in $which) { Invoke-Scripts $w "export-$w.log" ApplySymbols.java, DecompileAll.java }
 }
 
 $roms = if ($Rom -eq 'all') { 'us', 'debug' } else { $Rom }
 switch ($Command) {
-    'import' { foreach ($which in $roms) { Import-Rom $which; Export-Rom $which } }
-    'export' { foreach ($which in $roms) { Export-Rom $which } }
+    'import' { foreach ($which in $roms) { Import-Rom $which }; Export-Roms $roms }
+    'export' { Export-Roms $roms }
     'run' {
         # The script's println lines carry its name; a multi-line one carries it on its first line only.
         $mine = $false
