@@ -282,12 +282,12 @@ public sealed class TrekLoopTests(MapObjectFixture fixture)
         Assert.Contains(sprites, s => s.Image == Aidyn.Core.Ui.Sundial.Rays);
         Assert.Contains(sprites, s => s.Image == Aidyn.Core.Ui.Sundial.SunGlow);
 
-        // Walking into a cave hides the sun and moon, and out shows them; trek starting shows them anywhere.
+        // Walking into a cave hides the sun and moon, and out shows them. Trek starting in a cave, as on loading there,
+        // leaves them hidden, where the original showed them until the player left and came back.
         trek.Hud.Arrive(false);
         Assert.False(trek.Hud.SunAndMoon);
-        trek.Hud.Arrive(false);
         trek.Hud.Start();
-        Assert.True(trek.Hud.SunAndMoon);
+        Assert.False(trek.Hud.SunAndMoon);
         trek.Hud.Arrive(true);
         Assert.True(trek.Hud.SunAndMoon);
 

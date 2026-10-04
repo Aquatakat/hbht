@@ -28,10 +28,11 @@ public sealed class TrekHud
     public Minimap Minimap { get; }
 
     /// <summary>
-    /// Whether the sundial shows the moon and the sun (<c>Sundial::ToggleSun</c>, <c>ToggleMoon</c>). Crossing from an
-    /// outdoor sky into a cave's hides them, and back shows them (<c>TeleportPlayer</c>, <c>0x8000bfd0</c> in 1.0); trek
-    /// starting shows them wherever it is (<c>Sundial::Init</c>), so they show in a cave entered by loading or after a
-    /// cut-scene. The Detect Moon and Sun Phase spells also show them, which aren't ported.
+    /// Whether the sundial shows the moon and the sun (<c>Sundial::ToggleSun</c>, <c>ToggleMoon</c>): under an outdoor
+    /// sky, not a cave's. The original decides only on crossing from one to the other (<c>TeleportPlayer</c>,
+    /// <c>0x8000bfd0</c> in 1.0), and trek starting shows them wherever it is (<c>Sundial::Init</c>), so they showed in a
+    /// cave after loading there until the player left and came back. The port decides by the sky when trek starts too,
+    /// which the user chose. The Detect Moon and Sun Phase spells also show them, which aren't ported.
     /// </summary>
     public bool SunAndMoon { get; private set; } = true;
 
@@ -47,10 +48,13 @@ public sealed class TrekHud
         Minimap.Toggle(up);
     }
 
-    /// <summary>Trek starts, or starts again after a cut-scene (<c>initGameTrek</c>): the portraits come up, and the sun and moon show.</summary>
+    /// <summary>
+    /// Trek starts, or starts again after a cut-scene (<c>initGameTrek</c>): the portraits come up, and the sun and moon
+    /// show if the player's under an outdoor sky.
+    /// </summary>
     public void Start()
     {
-        SunAndMoon = true;
+        SunAndMoon = _outdoors ?? true;
         Raise(true);
     }
 
