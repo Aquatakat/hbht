@@ -16,7 +16,7 @@ Read what your task needs, not all of it.
 | How our code ports or runs a system | [docs/systems/](docs/systems/): `importer`, `runtime`, `movement`, `cameras`, `rendering`, `flags`, `scripts`, `characters`, `items`, `map-objects`, `wanderers`, `camping`, `saves`, `inspector`, `ui` |
 | The user's notes from playing the runtime and timing the original | [docs/playtests.md](docs/playtests.md) |
 | What only the user can settle, in the emulator or the ROM | [docs/to-check.md](docs/to-check.md) |
-| The emulator, gdb, the pinned Godot, the ROMs, checkpoint save states, `tools/`, and finding the original's code in its machine code | [docs/reference-rig.md](docs/reference-rig.md) |
+| The emulator, gdb, the pinned Godot, Ghidra, the ROMs, checkpoint save states, `tools/`, the code index and the symbol map, and finding the original's code in its machine code | [docs/reference-rig.md](docs/reference-rig.md) |
 
 When you learn something, write it in the doc for that format or system. Add a file only for a new format or subsystem, and add it to this table. The reference rig is only for the rig.
 
@@ -76,7 +76,7 @@ Many questions here are counts and cross-checks over thousands of records: how m
   ```
 
   `#:project` needs the absolute path from the scratchpad. Without `PublishAot=false`, System.Text.Json refuses to load the records. Reference `Aidyn.Core` as well to run the rules over the data (`GameState`, `ScriptRunner`, `MapObjectUse`), or `Aidyn.Rom` for the ROM itself and the checkpoints (`AresCheckpoint`).
-- **Over the original's code or the checkpoints,** loop `tools/n64dis.py` or `tools/bst.py` in one shell command, over the functions of a jump table or the eight states.
+- **Over the original's code or the checkpoints,** loop `tools/n64dis.py` or `tools/bst.py` in one shell command, over the functions of a jump table or the eight states, or read the code index (`out/ghidra/<rom>.index.json`) and the pseudocode (`out/ghidra/<rom>.c`) in a script. `tools/ghidra.ps1 import` makes them.
 - **A finding that should keep holding** becomes a real-data test instead.
 - **Subagents** can work the same way: say so in the prompt when their question is about the data.
 
@@ -84,7 +84,7 @@ Many questions here are counts and cross-checks over thousands of records: how m
 
 - Never commit ROMs or anything derived from them. `roms/` is gitignored.
 - **The project doesn't read the decomp** ([blackgamma7/Aidyn](https://github.com/blackgamma7/Aidyn)), in light of its author's views ([ADR 0015](docs/adr/0015-the-port-no-longer-reads-the-decomp.md)). Don't clone, fetch or search it, and tell subagents the same. Its names already cited in the docs and code stay, as credit. [AidynEditor](https://github.com/TiberGuy/AidynEditor) (MIT) lives in the gitignored `ref/AidynEditor`; if it's missing, clone it there.
-- Settle what the original does from 1.0's machine code and the checkpoints, and cite the addresses in the doc. The [reference rig](docs/reference-rig.md#finding-the-originals-code) says how to find a system's code. The debug build's strings give the original's own names for its source files and some functions. Name the rest ourselves, and add each name settled to the symbol map (`tools/symbols/`).
+- Settle what the original does from 1.0's machine code and the checkpoints, and cite the addresses in the doc. The [reference rig](docs/reference-rig.md#finding-the-originals-code) says how to find a system's code. The debug build's strings give the original's own names for its source files and some functions. Name the rest ourselves, and add each name settled to the symbol map (`tools/symbols/`) by [its rules](docs/reference-rig.md#the-symbol-map-roadmap-08): the original's own name from a string, else the port's, else one we coin. A name the docs cite only as the decomp's never goes in it.
 - Where the port fixes one of the original's bugs, the user chose it, and the system's doc says so.
 - The user reaches story checkpoints by playing the game. Don't drive gameplay in the emulator. Ask for in-game actions instead.
 - Commit as you go, without asking: commit each finished slice of work once its tests pass, along with its doc and status updates.
