@@ -67,10 +67,11 @@ public static class BaseImporter
 
         progress?.Report("Terrains");
         var gradients = Skies.ReadGradients(rom);
+        var campFactors = CampFactors(rom);
         WriteJson(Path.Combine(staging, "records", "terrains.json"), Enumerable.Range(0, Skies.TerrainCount).Select(t =>
         {
             var (sky, drawn) = Skies.ForTerrain(t);
-            return new TerrainRecord(RecordId.Decimal(RecordTypes.Terrain, t), RecordId.Hex(RecordTypes.Image, gradients[sky]), drawn);
+            return new TerrainRecord(RecordId.Decimal(RecordTypes.Terrain, t), RecordId.Hex(RecordTypes.Image, gradients[sky]), drawn, campFactors[t]);
         }).ToList());
 
         progress?.Report("Flags");
@@ -79,6 +80,8 @@ public static class BaseImporter
         WriteJson(Path.Combine(staging, "records", "journal.json"), db.Journal
             .Select((e, i) => new JournalRecord(RecordId.Decimal(RecordTypes.Journal, i), Flag(e.Flag), e.Text)).ToList());
         WriteJson(Path.Combine(staging, "records", "stateflags.json"), BuildStateFlags());
+        WriteJson(Path.Combine(staging, "records", "worldmap.json"), new[] { BuildWorldMap(rom, EngineTables.Read(rom)) });
+        WriteJson(Path.Combine(staging, "records", "camping.json"), new[] { BuildCamping(EngineTables.Read(rom)) });
 
         progress?.Report("Names");
         var models = EntityModels.Read(rom);
@@ -390,6 +393,51 @@ public static class BaseImporter
         Flags(EngineFlags.DayOfWeek), Flags(EngineFlags.Week), Flags(EngineFlags.Rain), Flags(EngineFlags.Terrain),
         Flag(EngineFlags.NewJournalEntry),
         Flag(EngineFlags.RandomSkillChecks));
+
+    /// <summary>The camp ambush's factor for each terrain type (<c>camp_float_array</c>).</summary>
+    internal static float[] CampFactors(RomImage rom)
+    {
+        var data = CodeSegment.Table(rom, CodeTable.CampFactors).ToArray();
+        return [.. Enumerable.Range(0, data.Length / 4).Select(i => CodeSegment.F32(data, i * 4))];
+    }
+
+    /// <summary>
+    /// The World tab's map: the pieces (<c>worldMapPieces</c>) and the towns' names from the code's tables, and the
+    /// party's ring and where it goes, literals in <c>WidgetMenuWorldMap</c> (<c>0x80049234</c> in 1.0), carried as
+    /// facts. The original places the ring in any outdoor map set without a minimap; the port only in the Overworld.
+    /// </summary>
+    internal static WorldMapRecord BuildWorldMap(RomImage rom, EngineTables tables)
+    {
+        var towns = CodeSegment.Table(rom, CodeTable.WorldMapTowns).ToArray();
+        return new WorldMapRecord(
+            RecordId.Decimal(RecordTypes.WorldMap, 0),
+            [.. tables.WorldMap.Select(p => new MapPiece(Flag(p.Flag), RecordId.Hex(RecordTypes.Image, p.Image), p.X, p.Y))],
+            [.. Enumerable.Range(0, towns.Length / 6).Select(i => (Image: CodeSegment.U16(towns, i * 6), X: CodeSegment.S16(towns, i * 6 + 2), Y: CodeSegment.S16(towns, i * 6 + 4)))
+                .Select(t => new MapTown(RecordId.Hex(RecordTypes.Image, t.Image), t.X, t.Y))],
+            RecordId.Hex(RecordTypes.Image, 0x00F6),
+            RecordId.Decimal(RecordTypes.MapSet, 0),
+            new System.Numerics.Vector2(35, 29),
+            4,
+            new System.Numerics.Vector2(6.15f, 6.68f));
+    }
+
+    /// <summary>
+    /// Camping's settings: the camp scenes' flags from the code's table, and the rest literals in the code
+    /// (<c>get_ranger_camping_bool</c>, <c>Party::CampAmbushCheck</c>, <c>campfire_func</c>), carried as facts.
+    /// </summary>
+    internal static CampingRecord BuildCamping(EngineTables tables) => new(
+        RecordId.Decimal(RecordTypes.Camping, 0),
+        "The party cannot camp here.",
+        Flag(EngineFlags.CampAmbushes),
+        AmbushBase: 15,
+        RangerCap: 10,
+        AmbushScale: 0.0666667f,
+        Heal: 0.5f,
+        // HOURS(8) ÷ daySpeed: 8 hours of the clock at trek's speed.
+        EffectTicks: 8 * 60 * 60 * 60 / 72,
+        Flag(EngineFlags.CampCheck),
+        [.. tables.CampDialogueFlags.Select(f => Flag(f))],
+        RecordId.Hex(RecordTypes.Map, 0x185C));
 
     private static RecordId[] Flags(EngineFlagRange range) => [.. Enumerable.Range(range.First, range.Bits).Select(Flag)];
 

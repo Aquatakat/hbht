@@ -51,7 +51,7 @@ public static class BasePlugin
     /// 21 gives recruitable members their joined, left and died flags, and whether their sheet is kept.
     /// 22 gives weapons, shields and six items their models.
     /// </summary>
-    public const int ImporterVersion = 22;
+    public const int ImporterVersion = 23;
 }
 
 /// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>

@@ -96,6 +96,10 @@ public enum CodeTable
     GameOverScenes,
     /// <summary>Flag, Borg8 image, x and y of each world map piece (<c>WorldMapPieces</c>).</summary>
     WorldMapPieces,
+    /// <summary>Borg8 image, x and y of each town's name on the world map (<c>0x800d0b20</c> in 1.0).</summary>
+    WorldMapTowns,
+    /// <summary>The camp ambush's factor for each terrain type, 30 floats; 0 refuses camping (<c>camp_float_array</c>).</summary>
+    CampFactors,
     /// <summary>Pointers to each cinematic's Borg6 scenes, flags, Borg12 audio and clip planes (<c>gCinematicPointers</c>).</summary>
     Cinematics,
     /// <summary>Pointers to each cinematic's fades (<c>sCFadePs</c>).</summary>
@@ -299,6 +303,8 @@ public static class RomVersions
                 [CodeTable.ScriptEndings] = new(0x00E0A1C, 0x30),
                 [CodeTable.GameOverScenes] = new(0x00CEDE0, 0xC),
                 [CodeTable.WorldMapPieces] = new(0x00DFC40, 0xA0),
+                [CodeTable.WorldMapTowns] = new(0x00D1720, 0x24),
+                [CodeTable.CampFactors] = new(0x00E3B38, 0x78),
                 [CodeTable.Cinematics] = new(0x00E1380, 0x40),
                 [CodeTable.CinematicFades] = new(0x00E1598, 0x10),
                 [CodeTable.MinimapSections] = new(0x00E07A4, 0x24),
@@ -406,6 +412,8 @@ public static class RomVersions
                 [CodeTable.ScriptEndings] = new(0x00E0A5C, 0x30),
                 [CodeTable.GameOverScenes] = new(0x00CEDD0, 0xC),
                 [CodeTable.WorldMapPieces] = new(0x00DFC80, 0xA0),
+                [CodeTable.WorldMapTowns] = new(0x00D1710, 0x24),
+                [CodeTable.CampFactors] = new(0x00E3B78, 0x78),
                 [CodeTable.Cinematics] = new(0x00E13C0, 0x40),
                 [CodeTable.CinematicFades] = new(0x00E15D8, 0x10),
                 [CodeTable.MinimapSections] = new(0x00E07E4, 0x24),
@@ -511,6 +519,8 @@ public static class RomVersions
                 [CodeTable.ScriptEndings] = new(0x00EF57C, 0x30),
                 [CodeTable.GameOverScenes] = new(0x00DAAA0, 0xC),
                 [CodeTable.WorldMapPieces] = new(0x00EE7A0, 0xA0),
+                [CodeTable.WorldMapTowns] = new(0x00DDF50, 0x24),
+                [CodeTable.CampFactors] = new(0x00F26B8, 0x78),
                 [CodeTable.Cinematics] = new(0x00EFEF0, 0x40),
                 [CodeTable.CinematicFades] = new(0x00F0108, 0x10),
                 [CodeTable.MinimapSections] = new(0x00EF304, 0x24),

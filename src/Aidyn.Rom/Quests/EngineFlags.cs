@@ -37,12 +37,18 @@ public static class EngineFlags
     /// <summary>While set, party skill checks in scripts roll 0–21 (<c>DialogEvalCallback</c>). A debug option.</summary>
     public const ushort RandomSkillChecks = 3717;
 
+    /// <summary>Set while the game looks for a camp scene (<c>dialoug_ref_obj_func</c>).</summary>
+    public const ushort CampCheck = 4240;
+
+    /// <summary>Camping can be ambushed while set (<c>get_ranger_camping_bool</c>).</summary>
+    public const ushort CampAmbushes = 5004;
+
     /// <summary>Values the engine writes into runs of flags (<c>gameStateFunnel.cpp</c>).</summary>
     public static IReadOnlyList<EngineFlagRange> Ranges { get; } =
     [
         MoonPhase, TimeOfDay, DayOfSeason, Season, DayOfWeek, Week, Rain, Terrain,
         new(NewJournalEntry, 1, "A new journal entry is waiting"),
-        new(4240, 1, "Set while the game checks for a camp dialogue"),
+        new(CampCheck, 1, "Set while the game checks for a camp dialogue"),
     ];
 
     /// <summary>
@@ -118,7 +124,7 @@ public static class EngineFlags
         new(590, "Alaron has his True Name while set"),
         new(3442, "When the Rooughah scene (Borg13 1268) ends, the Roog cinematic plays if this is set"),
         new(RandomSkillChecks, "Party skill checks in dialogue roll 0–21 while set"),
-        new(5004, "Camping can be ambushed while set"),
+        new(CampAmbushes, "Camping can be ambushed while set"),
         new(5017, "The lighthouse chunks swap to their lit scenes while set"),
         new(5626, "Read after some map object actions; the result is never used"),
     ];

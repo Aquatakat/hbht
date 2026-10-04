@@ -117,6 +117,18 @@ public sealed class ImportTests : IDisposable
         var state = set.Get<StateFlagsRecord>(RecordId.Parse("aidyn:stateflags/0"));
         Assert.Equal(RecordId.Parse("aidyn:flag/2301"), state.TimeOfDay[0]);
 
+        // The World tab's map: eighteen pieces, the barrows' at x 93 and the goblins' at y 165 in the machine code,
+        // and six towns. Camping: refused on terrain 19, half the chance of terrain 10's, eight camp scenes.
+        var map = set.Get<WorldMapRecord>(RecordId.Parse("aidyn:worldmap/0"));
+        Assert.Equal(18, map.Pieces.Count);
+        Assert.Equal((93, 165), (map.Pieces.Single(p => p.Flag.Key == "801").X, map.Pieces.Single(p => p.Flag.Key == "803").Y));
+        Assert.Equal(6, map.Towns.Count);
+        Assert.All(map.Pieces.Select(p => p.Image).Concat(map.Towns.Select(t => t.Image)), i => Assert.NotNull(set.FindAsset(i, "png")));
+        Assert.Equal((50f, 0f), (set.Get<TerrainRecord>(RecordId.Parse("aidyn:terrain/10")).Camp, set.Get<TerrainRecord>(RecordId.Parse("aidyn:terrain/19")).Camp));
+        var camping = set.Get<CampingRecord>(RecordId.Parse("aidyn:camping/0"));
+        Assert.Equal(8, camping.Scenes.Count);
+        Assert.Contains(set.Get<MapRecord>(camping.Campsite).Objects, o => o is DialogueObject);
+
         // The editor's catalog: every record and asset with a summary, and what names what.
         var catalog = PluginCatalog.Build(set);
         Assert.DoesNotContain(catalog.Entries, e => e.Summary.StartsWith('‹'));

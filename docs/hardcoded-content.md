@@ -38,11 +38,11 @@ Every flag below that engine code names carries its label on the flag record, wh
 
 | What | Code | Layer | Status |
 | --- | --- | --- | --- |
-| Camp scenes: the first dialogue object in the player's chunk whose flag A is one of eight flags, and holds, starts when the party camps, however far it is | `Camp_CheckDialougFlags` | 1: dialogue object field | ROM |
-| Camp ambushes only happen while derived flag 5004 holds: two of Abrecan, Godric and Rheda have joined | `Party::CampCheck` | 1: camping setting | Fact |
+| Camp scenes: the first dialogue object in the player's chunk whose flag A is one of eight flags, and holds, starts when the party camps, however far it is | `Camp_CheckDialougFlags` | 1: the camping record's `scenes` | ROM |
+| Camp ambushes only happen while derived flag 5004 holds: two of Abrecan, Godric and Rheda have joined | `Party::CampCheck` | 1: the camping record's `ambushes` | Fact |
 | Alaron has his True Name while 590 is set | `entityInfo.cpp` | 1: character condition | Fact, on his entity record |
 | When the Rooughah scene (Borg13 1268) ends, the Roog cinematic plays if 3442 is set | `dialogmode.cpp` | 2: trigger on script end | Fact |
-| World map pieces: each shows while its region flag is set | `WorldMapPieces` | 1: map piece record | ROM |
+| World map pieces: each shows while its region flag is set | `WorldMapPieces` | 1: the world map record (`aidyn:worldmap/0`), with the towns' names and the party's ring | ROM |
 | The lighthouse chunks swap to their lit scenes while 5017 holds | `ZoneEngine.cpp` | 1: chunk scene condition | Fact |
 | Party skill checks in dialogue roll 0–21 while 3717 is set | `DialogEvalCallback` | 3: debug option, in the state flags record | Fact |
 | Minimap images chosen by flags: the Ehud underground (4222–4232), the Roog entrance (4233–4237) and the Barrows (4286–4294). Which Barrows piece each flag changes is code. | `minimap_dats_2`, `MiniMap::BarrowsFlags` | 1: minimap records | ROM (Barrows logic to do) |
@@ -60,7 +60,7 @@ Every flag below that engine code names carries its label on the flag record, wh
 | Scripts whose end leads somewhere: the three death scenes end the game, 1268 plays the Roog cinematic, and 1278 plays the ending | `borg_short_list`, `dialogmode.cpp` | 2: triggers on script end | ROM |
 | Scripts after which eight hours pass: the eight camp scenes and the Campsite's own script | `isCampfireScene` | 1: script field | ROM |
 | Game over: script 1298 starts from its object in the Dreamscape Borg9 (3423) | `Gameover_func` | 1: game setting | ROM (script only) |
-| Camping with no camp scene nearby starts the Campsite Borg9's (6236) first dialogue object | `campfire_func` | 1: game setting | To do |
+| Camping with no camp scene nearby starts the Campsite Borg9's (6236) first dialogue object | `campfire_func` | 1: the camping record's `campsite` | Fact |
 | The help menu is script 1355 | `gametrek.cpp` | 1: game setting | Fact |
 
 ## Bespoke behaviours
@@ -125,7 +125,7 @@ Terrain types are the 0–29 index that map chunks carry and the camp encounters
 
 | What | Code | NA 1.0 | Status |
 | --- | --- | --- | --- |
-| Camp ambush factor per terrain type; 0 means no camping | `camp_float_array` | `0xE3B38` | To do |
+| Camp ambush factor per terrain type; 0 means no camping | `camp_float_array` | `0xE3B38` | ROM, the terrain record's `camp` |
 | Precipitation chance per season (8) and per terrain type (28), and precipitation scale per terrain type | `sSeasonPrecipChance`, `sTerrainPrecipChance`, `sTerrainPrecipScale` | `0xE3C40`, `0xE3C48`, `0xE3C64` | To do |
 | Snow falls instead of rain on terrain type 5 only | `World::SetWeather` | Literal | To do |
 | The weather rolls again at each change in the time of day, with a 25% chance of clearing and then trying for precipitation | `World::SetWeather` | Literals | To do |
