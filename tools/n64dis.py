@@ -1,4 +1,4 @@
-"""Disassemble the original's code, or read its constants, by the decomp's symbols.
+"""Disassemble the original's code, or read its constants, by address or by the project's symbol map.
 
 Usage:
   python tools/n64dis.py <symbol|0xaddress> [--rom us|debug] [--count N]
@@ -10,9 +10,9 @@ Usage:
       Lists the symbols whose names contain the text.
 
 The code segment is at ROM 0x1000, loaded at 0x80000400, in both 1.0 ("us", the default) and the
-debug ROM. Symbols come from the decomp's symbol_addrs.<rom>.txt in ref/Aidyn; the decomp's
-FUN_xxxxxxxx names are debug-build addresses, so look them up with --rom debug or by their
-neighbours. ROMs are found in roms/ (or AIDYN_ROMS) by name. Needs capstone (pip install capstone).
+debug ROM. Symbols come from the project's map, tools/symbols/<rom>.txt (lines of
+"name = 0xaddress;"), and without one everything works by address. 1.0's functions sit in the
+same order as the debug build's, so find one in the other by its neighbours. ROMs are found in roms/ (or AIDYN_ROMS) by name. Needs capstone (pip install capstone).
 """
 import argparse
 import glob
@@ -36,7 +36,8 @@ def load(which):
         sys.exit(f"No {which} ROM in {ROMS}")
     rom = open(matches[0], "rb").read()
     symbols = {}
-    for line in open(os.path.join(REPO, "ref", "Aidyn", f"symbol_addrs.{which}.txt"), encoding="utf-8"):
+    path = os.path.join(HERE, "symbols", f"{which}.txt")
+    for line in open(path, encoding="utf-8") if os.path.exists(path) else []:
         m = re.match(r"\s*([\w:~]+)\s*=\s*0x([0-9a-fA-F]+);", line)
         if m:
             symbols.setdefault(int(m.group(2), 16), m.group(1))

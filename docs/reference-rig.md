@@ -35,7 +35,7 @@ Located at `C:\msys64\ucrt64\bin\gdb-multiarch.exe`.
 gdb-multiarch -ex "set architecture mips:4300" -ex "set endian big" -ex "target remote 127.0.0.1:9123"
 ```
 
-Resolve addresses against the decomp's `symbol_addrs.debug.txt` (debug ROM) or `symbol_addrs.us.txt` (1.0). A first attach to the debug ROM sampled `InitProc+0x1fc` and libultra thread code, which confirms the game is running.
+Resolve addresses against the project's symbol map, `tools/symbols/` (roadmap 0.8). A first attach to the debug ROM sampled `InitProc+0x1fc` and libultra thread code, which confirms the game is running.
 
 ## Engine: Godot 4.7.2 (.NET)
 
@@ -55,7 +55,7 @@ tools/godot.ps1 -ExePath                              # print the executable's p
 
 Mupen64Plus saves are in `%APPDATA%\Mupen64Plus\save`. Only `AIDYN_CHRONICLES (unknown rom).mpk` (Oct 2025) holds Aidyn data. The other Aidyn `.mpk` files are empty paks.
 
-Mupen `.mpk` files are four 32 KB paks back to back. The saves are in pak 1, in four 28-page notes (`NAYE`/`78`, "CHRONICLES" A–D). Their `SaveDatStruct` headers (see `include/savefiles.h` in the decomp) decode as the table below. Play time is `PlayTime` in 60 Hz ticks (`TICKSPERSECOND`, `world.h`), advanced by the frame delta. The frame delta counts 60 Hz polls and is capped at 1–6. The map position is the chunk the debug overlay shows as `mapShort1 + 'A'-1` followed by `mapShort2`.
+Mupen `.mpk` files are four 32 KB paks back to back. The saves are in pak 1, in four 28-page notes (`NAYE`/`78`, "CHRONICLES" A–D). Their save headers decode as the table below ([saves](systems/saves.md)). Play time is `PlayTime` in 60 Hz ticks (`TICKSPERSECOND`, `world.h`), advanced by the frame delta. The frame delta counts 60 Hz polls and is capped at 1–6. The map position is the chunk the debug overlay shows as `mapShort1 + 'A'-1` followed by `mapShort2`.
 
 | Slot | Play time | Flags set | Chunk | Party IDs | Story position (user) |
 | --- | --- | --- | --- | --- | --- |
@@ -80,7 +80,7 @@ The debug and retail saves use the same note (`NAYE`/`78`, "CHRONICLES"), the sa
 
 ## Debug ROM controls
 
-These are gated on `gDebugFlag` (`0x800E68A0`), which is on in the debug build. Sources are in the decomp.
+These are gated on `gDebugFlag` (`0x800E68A0`), which is on in the debug build. The sources named are the decomp's, from before [ADR 0015](adr/0015-the-port-no-longer-reads-the-decomp.md).
 
 | Input (overworld) | Effect | Source |
 | --- | --- | --- |
@@ -132,16 +132,15 @@ The user's screenshots of the original, for matching UI against. They live in `r
 
 ### Reading the original's code: `tools/n64dis.py`
 
-The decomp's pseudocode is often wrong in the details: a field read from the wrong object, a constant misread, a loop that restarts. When a value or a branch matters, read the machine code. `n64dis.py` disassembles a function by the decomp's symbol (from `ref/Aidyn/symbol_addrs.<rom>.txt`), naming the functions it calls and the floats it loads, and reads data as floats and doubles. It needs `pip install capstone`.
+When a value or a branch matters, read the machine code. `n64dis.py` disassembles a function by its name in the symbol map (`tools/symbols/<rom>.txt`, roadmap 0.8) or by its address, naming the functions it calls and the floats it loads, and reads data as floats and doubles. Without a map it works by address alone. It needs `pip install capstone`.
 
 ```bash
 python tools/n64dis.py --find wander                 # symbols whose names hold the text
-python tools/n64dis.py WanderTick                    # a function, in 1.0 (or --rom debug)
-python tools/n64dis.py 0x8000f5b4 --count 60         # from an address
+python tools/n64dis.py 0x8000f5b4 --count 60         # from an address, in 1.0 (or --rom debug)
 python tools/n64dis.py --data 0x800cdb80 --count 2   # words as hex, float and double
 ```
 
-The decomp's `FUN_xxxxxxxx` names are debug-build addresses; 1.0's functions sit in the same order, so find one by its neighbours with `--find`. Check a float's bits, not just its look: `0x3E32B7FE` is 10° in radians and `0x3EB2B7FE` is 20°.
+1.0's functions sit in the same order as the debug build's, so find one in the other by its neighbours. Check a float's bits, not just its look: `0x3E32B7FE` is 10° in radians and `0x3EB2B7FE` is 20°.
 
 ### Reading state RAM offline: `tools/bst.py`
 
@@ -166,3 +165,15 @@ The C# side reads states with `AresCheckpoint` (`Aidyn.Rom.Rig`), which needs no
 ### Known issue: GDB after loading a state
 
 When the debug ROM was booted with `--save-state`, gdb got `Ignoring packet error` on connect. After the failed handshake the GDB port stopped listening, and on one attempt ares stopped responding. A plain boot with no state attached fine earlier. The cause isn't isolated yet: it could be state loading, or the stub not recovering from a client that exits without detaching. Until it's fixed, use `bst.py` for checkpoint inspection and keep gdb for live sessions started from a cold boot.
+
+## Finding the original's code
+
+The project doesn't read the decomp ([ADR 0015](adr/0015-the-port-no-longer-reads-the-decomp.md)). A research run finds a system's code from what the project already knows and what the ROM and the checkpoints show, cheapest first:
+
+1. **The docs.** Each system's doc cites the functions it ports with their 1.0 addresses, and the symbol map names them. Start from the nearest known function.
+2. **Strings.** The function that loads a string is near the code that uses it. That includes the debug build's file names and assert messages, such as `GetAttackActor(), Attack type %i is not defined!`, and the ROM's own string tables, such as the combat strings.
+3. **Data.** A table the importer reads has an address, and the code that indexes it is found by what references that address. The same goes for a global that a checkpoint shows changing.
+4. **The call graph.** A known function's callers and callees, and the debug build's source files, whose functions sit together.
+5. **The emulator.** Change a value in the game between two checkpoints and diff RAM. A watchpoint on that value then finds the code that writes it, and a trace finds what an action runs.
+
+Roadmap tasks 0.7–0.12 turn steps 2–5 into tools: `n64dis.py --strings`, `--refs`, `--callers` and `--callees`, the source-file map, `bst.py --diff`, gdb on a checkpoint, and traces. Until each lands, do its step by hand with `n64dis.py` and `bst.py`. Write what a run settles into the system's doc with its addresses, and its names into the symbol map.

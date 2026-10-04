@@ -8,7 +8,7 @@ Read what your task needs, not all of it.
 
 | For | Read |
 | --- | --- |
-| The plan, and what a task number (0.3, 1E, 2.10, M1, …) means | [docs/roadmap.md](docs/roadmap.md) |
+| The plan, what a task number (0.3, 1E, 2.10, M1, …) means, and the one list of open work | [docs/roadmap.md](docs/roadmap.md) |
 | Decisions. These are binding. To change one, write a new ADR that supersedes it rather than editing the old one. | [docs/adr/](docs/adr/README.md) |
 | How the original plays, from the player's side, written from memory | [docs/engine-behaviour.md](docs/engine-behaviour.md) |
 | How a ROM format is laid out, and what decoding it found | [docs/formats/](docs/formats/): `rom`, `db`, `textures`, `geometry`, `scenes`, `animation`, `actors`, `particles`, `dialogue`, `maps`, `quests`, `text` |
@@ -16,13 +16,13 @@ Read what your task needs, not all of it.
 | How our code ports or runs a system | [docs/systems/](docs/systems/): `importer`, `runtime`, `movement`, `cameras`, `rendering`, `flags`, `scripts`, `characters`, `items`, `map-objects`, `wanderers`, `camping`, `saves`, `inspector`, `ui` |
 | The user's notes from playing the runtime and timing the original | [docs/playtests.md](docs/playtests.md) |
 | What only the user can settle, in the emulator or the ROM | [docs/to-check.md](docs/to-check.md) |
-| The emulator, gdb, the pinned Godot, the ROMs, checkpoint save states and `tools/` | [docs/reference-rig.md](docs/reference-rig.md) |
+| The emulator, gdb, the pinned Godot, the ROMs, checkpoint save states, `tools/`, and finding the original's code in its machine code | [docs/reference-rig.md](docs/reference-rig.md) |
 
 When you learn something, write it in the doc for that format or system. Add a file only for a new format or subsystem, and add it to this table. The reference rig is only for the rig.
 
 ## Glossary
 
-Use these words in code and docs. Where the decomp's name clashes with ours, use ours and cite the decomp's in a `<c>` tag (ADR 0009).
+Use these words in code and docs. Where the original's name clashes with ours, use ours and cite the original's in a `<c>` tag (ADR 0009). Older citations give the decomp's names, and stay (ADR 0015).
 
 | Term | Means | Don't confuse with |
 | --- | --- | --- |
@@ -82,27 +82,19 @@ Many questions here are counts and cross-checks over thousands of records: how m
 
 ## Status
 
-Keep this section to where things stand and what's next. When a roadmap task finishes or starts, update it, and suggest a next step when one finishes. What was found and built goes in the docs, not here.
+Keep this section short: where things stand and what's next. The to-do list is the roadmap's [Where things stand](docs/roadmap.md#where-things-stand). When a task finishes or starts, update it there and here, and suggest a next step when one finishes. What was found and built goes in the docs.
 
-- **Done:** Phase 0 (0.1–0.6), 1A, 1B, 1C, 1E, 1F, 1H, M1 Walk Gwernia, M2 Talk and trade (Oct 4, 2026), 2.1 (flags), 2.2 (characters), 2.3 (items), 2.4 (the Borg13 VM), 2.7 (camping, its ambush waiting for 2.5) and 2.8 (saves). Shop prices wait for the user (see to-check).
-- **M2's leftovers:** backdrops and the help menu, the endings' cinematics, the System tab's Theater, Credits and Help, and the editor showing cut-scenes on its map and the HUD. Training after a battle and the sundial's Detect Moon and Sun Phase spells wait for 2.5; sounds wait for 1D, so cues that play one are logged. The menus keep the original's layouts at every size ([ADR 0014](docs/adr/0014-menus-keep-the-originals-layouts.md)); the HUD keeps its parts to the screen's corners ([ui](docs/systems/ui.md#the-trek-hud)).
-- **Next:** M3 Fight, starting with 2.5 (combat rules) in the headless core, then 2.6 (enemy AI) and the battle UI, planned into sessions as M2 was.
+- **Done:** Phase 0 (0.1–0.6); Phase 1 but 1D (audio) and the optional 1G; 2.1–2.4, 2.7 and 2.8; M1 Walk Gwernia and M2 Talk and trade (Oct 4, 2026).
+- **Next:** reading the code without the decomp (0.7–0.14, [ADR 0015](docs/adr/0015-the-port-no-longer-reads-the-decomp.md)), then M3 Fight, starting with 2.5 (combat rules) in the headless core, planned into sessions as M2 was.
+- **Open work:** M2's leftovers, what waits for 2.5 and 1D, UI fit and finish, and the rest are in the roadmap's list. Add to it there, not here.
 - **For the user to check,** in the emulator or the ROM: [to-check](docs/to-check.md). Add to it whatever only the user can settle.
-- **UI fit and finish, for a later session** (the user's notes, [playtests](docs/playtests.md)):
-  - The Party tab's shield icon on the silhouette sits 2 pixels too high.
-  - The menu's animations (the list sliding in, the portraits moving, the details fading) draw the eye to where the controller has moved. Keep the top face button for details and the shoulders for the member.
-  - The Healer's popup needs a gap between its members' portraits, which overlap by 2 pixels ([capture](roms/menu-party-skills-healer-layonhands.png)).
-  - Some map areas may not unlock by travelling into them, specifically the stone area north of the desert via the eastern beach (possibly original-accurate behaviour).
-- **Maybe:** the editor showing wanderers on its map view.
-- **Decided, for the fidelity profile at the end:** the UI draws a floating conversation box on a screen of any shape and size; what a faithful mode would take is in [ui](docs/systems/ui.md#a-faithful-mode-later). Where the port fixes one of the original's bugs, the user chose it, and the system's doc says so.
-- **Left for later:** the renderer's leftovers ([rendering](docs/systems/rendering.md#whats-left)), the weather among them, and 1H's content tables marked To do, which the importer will need.
-- **Open rig follow-ups** (from ADR 0006): measure the frame `delta` distribution in trek and combat, and get gdb working after loading a save state.
 
 ## Ground rules
 
 - Never commit ROMs or anything derived from them. `roms/` is gitignored.
-- The decomp ([blackgamma7/Aidyn](https://github.com/blackgamma7/Aidyn)) isn't vendored. A local clone lives in the gitignored `ref/Aidyn`, next to `ref/AidynEditor`. Read it there and `git -C ref/Aidyn pull` to update it; don't re-clone into scratch space. If `ref/` is missing, clone both repos into it. The decomp has no licence, so port from understanding and don't copy its code.
-- The decomp is a map, not the truth: its pseudocode is often wrong in the details. Settle what the original does from 1.0's machine code (`tools/n64dis.py`), and cite the addresses in the doc.
+- **The project doesn't read the decomp** ([blackgamma7/Aidyn](https://github.com/blackgamma7/Aidyn)), in light of its author's views ([ADR 0015](docs/adr/0015-the-port-no-longer-reads-the-decomp.md)). Don't clone, fetch or search it, and tell subagents the same. Its names already cited in the docs and code stay, as credit. [AidynEditor](https://github.com/TiberGuy/AidynEditor) (MIT) lives in the gitignored `ref/AidynEditor`; if it's missing, clone it there.
+- Settle what the original does from 1.0's machine code and the checkpoints, and cite the addresses in the doc. The [reference rig](docs/reference-rig.md#finding-the-originals-code) says how to find a system's code. The debug build's strings give the original's own names for its source files and some functions. Name the rest ourselves, and add each name settled to the symbol map (`tools/symbols/`).
+- Where the port fixes one of the original's bugs, the user chose it, and the system's doc says so.
 - The user reaches story checkpoints by playing the game. Don't drive gameplay in the emulator. Ask for in-game actions instead.
 - Commit as you go, without asking: commit each finished slice of work once its tests pass, along with its doc and status updates.
-- **Keep the main context for judgement and building.** Reading decomp files and machine code fills a context fast, and Sonnet 5.5 subagents settle such questions well from the code. So send research into what the original does to a Sonnet subagent, batching what a slice needs into one run, and read the code yourself only for the lines you're porting. Sonnet subagents also do well with well-scoped work: readers and importers over known layouts, indexes over plugin records, and real-data tests, which they check against the data before asserting. Give them the contract and the facts. Then review what comes back: spot-check a constant or two in the disassembly, and write findings into the system's doc straight away. They don't build the Godot projects, so build those yourself. Take an Opus subagent when Sonnet can't settle something, or two answers disagree.
+- **Keep the main context for judgement and building.** Reading machine code fills a context fast, and Sonnet 5.5 subagents settle such questions well from the code. So send research into what the original does to a Sonnet subagent, batching what a slice needs into one run, and read the code yourself only for the lines you're porting. Point them at the docs, the symbol map and the rig's way of finding code, and have them return the names they settle for the map. Sonnet subagents also do well with well-scoped work: readers and importers over known layouts, indexes over plugin records, and real-data tests, which they check against the data before asserting. Give them the contract and the facts. Then review what comes back: spot-check a constant or two in the disassembly, and write findings into the system's doc straight away. They don't build the Godot projects, so build those yourself. Take an Opus subagent when Sonnet can't settle something, or two answers disagree.
