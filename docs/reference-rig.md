@@ -246,6 +246,6 @@ A name comes from the first of these that has one:
 2. **The port's name:** the C# that ports the function or holds the value, dotted, as `Camping.AmbushRoll` or `Party.CampHeal`.
 3. **A name we coin,** dotted in the same way, after the system it belongs to, for code not ported yet: `Combat.ApplyDamage`.
 
-Library code takes the C library's or the N64 SDK's public names (`memcpy`, `sprintf`, `osRecvMesg`), recognised by what the function does.
+Library code takes the C library's or the N64 SDK's public names (`memcpy`, `sprintf`, `osRecvMesg`), recognised by what the function does. In 1.0 the library is one run, `0x800B3B64`–`0x800CAE00`: libultra, libgu, libm, the printf family, the 64-bit divide helpers, the audio synthesizer and the Controller Pak code. The debug build has the same code at `+0x9F30`. The game's own string and memory functions (`memset`, `strcpy`, `strcmp`) sit apart, at `0x8008EF30`–`0x8008F644`. The debug and development-cart code inside the library run (`0x800B5F90`–`0x800B8C..`, `0x800BEB70`–`0x800C1270`), some audio functions, and the PI handle setup are still unnamed. `osEeprom*`, `alSeqp*`, `alBnk*`, `guOrtho` and `guLookAt` aren't linked.
 
 A name that the docs or the code cite only as the decomp's, whether in a `<c>` tag or in prose written before [ADR 0015](adr/0015-the-port-no-longer-reads-the-decomp.md), never goes in the map, even where it's apt. Leave those citations where they are, as credit.
