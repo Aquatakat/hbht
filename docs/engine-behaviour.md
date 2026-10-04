@@ -621,7 +621,7 @@ The game allows saving anywhere, and each save stores a small screenshot, which 
 Camping is started from the World tab and is allowed anywhere outside towns. It:
 
 - Advances time by eight hours.
-- Heals the party. **(machine code)** By half of each member's maximum, not fully ([camping](systems/camping.md)); to be checked in the emulator.
+- Heals the party by half of each member's maximum, not fully ([camping](systems/camping.md)), as the machine code has it and the user confirmed.
 - Regenerates spell battery. **(machine code)** By half each battery's capacity.
 - Has a chance of triggering an ambush battle. Ambush encounters vary by area, and the Ranger skill lowers the chance.
 

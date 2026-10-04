@@ -115,12 +115,13 @@ public partial class BarterWindowPanel : VBoxContainer
         _view.QueueRedraw();
     }
 
+    /// <summary>The stick's left reaches the pile, and its right the party's list, as they're laid out.</summary>
     private void Side(bool right)
     {
-        if (right == _view.PileOnRight)
-            Barter.ShowPile();
-        else
+        if (right)
             Barter.ShowParty();
+        else
+            Barter.ShowPile();
     }
 
     private void Accept()

@@ -8,9 +8,7 @@ namespace Aidyn.Game;
 /// <summary>
 /// Draws the pause menu's System tab (<see cref="SystemMenu"/>) on a <see cref="UiScreen"/>'s canvas: its list, the
 /// options with their graphics page, the save and load screens and the name entry, in the original's 320 × 240 frame
-/// at the screen's centre. Below the wide layout's size (<see cref="PartyTabView.WideMinimum"/>) it's on the tab's
-/// image, <c>0x00D8</c>, as the original's is; from there, on the Party tab's wide sheet, so the tabs match as they
-/// slide. <c>0x00D8</c>'s own parchment is too streaked to tile without its mirrored copies showing.
+/// at the screen's centre, on the tab's image, <c>0x00D8</c>.
 /// </summary>
 public partial class SystemTabView : Control
 {
@@ -56,10 +54,8 @@ public partial class SystemTabView : Control
 
     public SystemMenu Menu { get; set; }
 
-    /// <summary>How far the classic layout's widgets are faded into the parchment, from 0 to 1, as on <see cref="PartyTabView.Veil"/>.</summary>
+    /// <summary>How far the widgets are faded into the parchment, from 0 to 1, as on <see cref="PartyTabView.Veil"/>.</summary>
     public float Veil { get; set; }
-
-    public bool Wide => Size.X >= PartyTabView.WideMinimum.X && Size.Y >= PartyTabView.WideMinimum.Y;
 
     public override void _Notification(int what)
     {
@@ -114,16 +110,8 @@ public partial class SystemTabView : Control
     {
         var size = new Vector2I((int)Size.X, (int)Size.Y);
         _origin = new Vector2I((size.X - FrameWidth) / 2, (size.Y - FrameHeight) / 2);
-        if (Wide)
-        {
-            _ui.Sheet(this, PartyTabView.SheetArt, size, size.Y - PartyTabView.SheetArt.BottomEdge.Size.Y);
-            DrawSetTransform(_origin);
-        }
-        else
-        {
-            DrawSetTransform(_origin);
-            _ui.Image(this, MenuImages.SystemTab, 0, 0);
-        }
+        DrawSetTransform(_origin);
+        _ui.Image(this, MenuImages.SystemTab, 0, 0);
         switch (Menu.Page)
         {
             case SystemPage.List:
@@ -139,7 +127,7 @@ public partial class SystemTabView : Control
                 Rename(Menu.Rename!);
                 break;
         }
-        if (Veil > 0 && !Wide)
+        if (Veil > 0)
             _ui.Image(this, MenuImages.SystemTab, 0, 0, color: new Rgba(255, 255, 255, (byte)(Veil * 255)));
         DrawSetTransform(Vector2.Zero);
         if (Menu.Saves?.Choice is { } choice)

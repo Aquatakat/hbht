@@ -21,6 +21,16 @@ public partial class WorldTabView : Control
     private static readonly Vector2I Camp = new(215, 155), Journal = new(192, 174);
     private const int TodaySize = 17;
 
+    /// <summary>
+    /// Plain parchment from above the calendar, where the season's name is drawn by code, laid over the calendar's
+    /// days and moons as the tab is veiled, since they're painted into the tab's image and its veil can't fade them.
+    /// </summary>
+    /// <remarks>
+    /// The copies meet edge to edge, so the cover is even, and only the stack's outer edges fade.
+    /// </remarks>
+    private static readonly Rect2I PlainBand = new(155, 28, 110, 36);
+    private const int CoverTop = 58, CoverBottom = 144, CoverFeather = 5;
+
     // The journal: its arrows, and the strips of the book redrawn over the text at its edges, by how much of the
     // book's alpha (0x80052a90 on).
     private static readonly Vector2I BookUp = new(247, 30), BookDown = new(247, 184);
@@ -50,6 +60,12 @@ public partial class WorldTabView : Control
     /// <summary>How far the widgets are faded into the parchment, from 0 to 1, as on <see cref="PartyTabView.Veil"/>.</summary>
     public float Veil { get; set; }
 
+    /// <summary>
+    /// Whether the tab is the one showing, or being slid to. Beside it, the party's ring isn't drawn and Camp and
+    /// Journal don't pulse, though the cursor is kept.
+    /// </summary>
+    public bool Active { get; set; }
+
     public override void _Notification(int what)
     {
         if (what == NotificationResized)
@@ -66,11 +82,20 @@ public partial class WorldTabView : Control
         _ui.Text(this, _ui.Main, Menu.SeasonName, SeasonName.X, SeasonName.Y,
             new ScreenRect(SeasonName.X, SeasonName.Y, SeasonRight, FrameHeight), WorldMenu.TextColor);
         _ui.Image(this, MenuImages.Today, Menu.Today.X, Menu.Today.Y, new Vector2I(TodaySize, TodaySize));
-        var cursor = Menu.Pulse.Now(PartyMenu.HighlightFrom, PartyMenu.HighlightColor);
+        var cursor = Active ? Menu.Pulse.Now(PartyMenu.HighlightFrom, PartyMenu.HighlightColor) : WorldMenu.TextColor;
         _ui.Image(this, MenuImages.CampTitle, Camp.X, Camp.Y, color: Menu.Cursor == WorldChoice.Camp ? cursor : WorldMenu.TextColor);
         _ui.Image(this, MenuImages.JournalTitle, Journal.X, Journal.Y, color: Menu.Cursor == WorldChoice.Journal ? cursor : WorldMenu.TextColor);
         if (Veil > 0)
-            _ui.Image(this, MenuImages.WorldTab, 0, 0, color: new Rgba(255, 255, 255, (byte)(Veil * 255)));
+        {
+            var veil = new Rgba(255, 255, 255, (byte)(Veil * 255));
+            _ui.Image(this, MenuImages.WorldTab, 0, 0, color: veil);
+            for (var top = CoverTop; top < CoverBottom; top += PlainBand.Size.Y)
+            {
+                var band = PlainBand with { Size = new Vector2I(PlainBand.Size.X, Math.Min(PlainBand.Size.Y, CoverBottom - top)) };
+                var feather = (CoverFeather, top == CoverTop ? CoverFeather : 0, CoverFeather, top + band.Size.Y >= CoverBottom ? CoverFeather : 0);
+                _ui.Feathered(this, MenuImages.WorldTab, band, band.Position.X, top, feather, color: veil);
+            }
+        }
         if (Menu.Journal is { } journal)
             Book(journal);
         DrawSetTransform(Vector2.Zero);
@@ -87,7 +112,7 @@ public partial class WorldTabView : Control
             _ui.Image(this, piece.Image, piece.X, piece.Y, color: pieces);
         foreach (var town in Menu.Map.Towns)
             _ui.Image(this, town.Image, town.X, town.Y);
-        if (Menu.Marker is { } marker)
+        if (Active && Menu.Marker is { } marker)
             _ui.Image(this, Menu.Map.Marker, marker.X, marker.Y, color: Menu.MarkerNow);
     }
 

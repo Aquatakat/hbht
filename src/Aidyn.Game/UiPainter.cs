@@ -14,16 +14,6 @@ public sealed record UiFont(TextLayout Layout, Texture2D? Sheet)
 }
 
 /// <summary>
-/// A parchment image's pieces that a sheet of any size is laid from (<see cref="UiPainter.Sheet"/>): its torn
-/// top and bottom edges, a plain piece smeared under the rest, and a swatch of plain parchment tiled over it.
-/// </summary>
-public sealed record ParchmentSheet(RecordId Image, Rect2I TopEdge, Rect2I BottomEdge, Rect2I Smear, Rect2I Swatch)
-{
-    /// <summary>How far the swatch's rows overlap, each faded into the last.</summary>
-    public const int Overlap = 24;
-}
-
-/// <summary>
 /// The menus' widget kit, drawn immediately on a <see cref="UiScreen"/>'s canvas in its pixels: text
 /// in either font, UI images whole, scaled or cut out, the original's parchment popup, and scrolling
 /// lists with a cursor and arrows. Views call it from <c>_Draw</c>.
@@ -171,16 +161,17 @@ public sealed class UiPainter
 
     /// <summary>
     /// Draws part of an image at its own size with its edges faded out over <paramref name="feather"/>
-    /// pixels on each side (left, top, right, bottom), so a piece of parchment blends into the sheet
-    /// it's placed on. It's nine quads, the outer corners of the outer ones transparent.
+    /// pixels on each side (left, top, right, bottom), so a piece of parchment blends into what it's placed
+    /// on. It's nine quads, the outer corners of the outer ones transparent.
     /// </summary>
     /// <param name="mirror">Flips it left to right; the feathering is by the sides as drawn.</param>
     public void Feathered(CanvasItem canvas, RecordId image, Rect2I source, int x, int y, (int Left, int Top, int Right, int Bottom) feather,
-        bool mirror = false)
+        bool mirror = false, Rgba? color = null)
     {
         if (Images.Get(image) is not { } texture)
             return;
         var texel = Vector2.One / texture.GetSize();
+        var inside = color is { } c ? Color8(c) : Colors.White;
         int[] xs = [0, feather.Left, source.Size.X - feather.Right, source.Size.X];
         int[] ys = [0, feather.Top, source.Size.Y - feather.Bottom, source.Size.Y];
         for (var j = 0; j < 3; j++)
@@ -192,63 +183,9 @@ public sealed class UiPainter
                 (int I, int J)[] corners = [(i, j), (i + 1, j), (i + 1, j + 1), (i, j + 1)];
                 canvas.DrawPolygon(
                     [.. corners.Select(c => new Vector2(x + xs[c.I], y + ys[c.J]))],
-                    [.. corners.Select(c => c.I is 1 or 2 && c.J is 1 or 2 ? Colors.White : Colors.Transparent)],
+                    [.. corners.Select(c => c.I is 1 or 2 && c.J is 1 or 2 ? inside : inside with { A = 0 })],
                     [.. corners.Select(c => (source.Position + new Vector2(mirror ? source.Size.X - xs[c.I] : xs[c.I], ys[c.J])) * texel)],
                     texture);
-            }
-        }
-    }
-
-    /// <summary>
-    /// A sheet of parchment filling a screen of the size: plain parchment, its torn top edge along the top and
-    /// its torn bottom edge along the foot, from <paramref name="bottom"/>, each repeated mirrored so every
-    /// join meets itself.
-    /// </summary>
-    public void Sheet(CanvasItem canvas, ParchmentSheet art, Vector2I size, int bottom)
-    {
-        Plain(canvas, art, new ScreenRect(0, art.TopEdge.Size.Y, size.X, bottom));
-        Mirrored(canvas, art.Image, art.TopEdge, 0, size.X);
-        Mirrored(canvas, art.Image, art.BottomEdge, bottom, size.X);
-    }
-
-    /// <summary>A strip of an image repeated across, every other copy mirrored.</summary>
-    private void Mirrored(CanvasItem canvas, RecordId image, Rect2I strip, int y, int width)
-    {
-        var mirror = false;
-        for (var x = 0; x < width; x += strip.Size.X, mirror = !mirror)
-        {
-            // A part copy at the end is the start of the copy as drawn: mirrored, that's the strip's end.
-            var w = Math.Min(strip.Size.X, width - x);
-            var source = new Rect2I(strip.Position.X + (mirror ? strip.Size.X - w : 0), strip.Position.Y, w, strip.Size.Y);
-            Cut(canvas, image, source, x, y, mirror: mirror);
-        }
-    }
-
-    /// <summary>
-    /// Plain parchment over an area, at the image's own size: rows of the swatch, every other copy along a
-    /// row mirrored so each join meets itself, each row half a copy along from the last and faded into it,
-    /// over a smear of the plain piece. Copies are cut to the area, so it stays inside the sheet's torn edges.
-    /// Stretching one small swatch over the sheet instead smears the grain to streaks.
-    /// </summary>
-    private void Plain(CanvasItem canvas, ParchmentSheet art, ScreenRect area)
-    {
-        Cut(canvas, art.Image, art.Smear, area.Left, area.Top, new Vector2I(area.Right - area.Left, area.Bottom - area.Top));
-        var w = art.Swatch.Size.X;
-        var stepY = art.Swatch.Size.Y - ParchmentSheet.Overlap;
-        for (int y = area.Top, row = 0; y < area.Bottom; y += stepY, row++)
-        {
-            var mirror = false;
-            for (var x = area.Left - (row % 2 == 0 ? 0 : w / 2); x < area.Right; x += w, mirror = !mirror)
-            {
-                // The copy cut to the area: its source, mirrored if need be, and its fade only where it overlaps the row above.
-                var left = Math.Max(x, area.Left);
-                var right = Math.Min(x + w, area.Right);
-                var bottom = Math.Min(y + art.Swatch.Size.Y, area.Bottom);
-                if (right <= left || bottom <= y)
-                    continue;
-                var from = mirror ? x + w - right : left - x;
-                var source = new Rect2I(art.Swatch.Position.X + from, art.Swatch.Position.Y, right - left, bottom - y);
-                Feathered(canvas, art.Image, source, left, y, (0, row == 0 ? 0 : ParchmentSheet.Overlap, 0, 0), mirror);
             }
         }
     }
@@ -268,15 +205,10 @@ public sealed class UiPainter
     }
 
     /// <summary>The parchment popup at (x, y), with its shadow 5 to the right and 2 down (<c>WidgetMenuPopup</c>).</summary>
-    /// <param name="mirror">
-    /// Flips it left to right, its straight edge at the right, and its shadow with it: 5 to the left,
-    /// past the torn edge, rather than to the right.
-    /// </param>
-    public void Parchment(CanvasItem canvas, int x, int y, Vector2I? size = null, bool mirror = false)
+    public void Parchment(CanvasItem canvas, int x, int y)
     {
-        // The shadow is 2 wider than the parchment, so mirrored it starts 5 + 2 to the left.
-        Image(canvas, MenuImages.ParchmentShadow, mirror ? x - 7 : x + 5, y + 2, size is { } s ? s + new Vector2I(2, 2) : null, mirror: mirror);
-        Image(canvas, MenuImages.Parchment, x, y, size, mirror: mirror);
+        Image(canvas, MenuImages.ParchmentShadow, x + 5, y + 2);
+        Image(canvas, MenuImages.Parchment, x, y);
     }
 
     /// <summary>

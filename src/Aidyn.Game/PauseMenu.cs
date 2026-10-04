@@ -227,21 +227,18 @@ public partial class PauseMenu : CanvasLayer
     }
 
     /// <summary>
-    /// Lays the tabs side by side with the one at <see cref="_position"/> showing: 320 apart in the classic layout,
-    /// where those beside it show at the screen's edges, faded, or a screen's width apart in the wide one. Barter and
-    /// training show the Party tab alone.
+    /// Lays the tabs side by side, 320 apart, with the one at <see cref="_position"/> showing at the screen's centre
+    /// and those beside it at the screen's edges, faded. Barter and training show the Party tab alone.
     /// </summary>
     private void Place()
     {
         var screen = _screen.Canvas.GetViewportRect().Size;
-        var wide = _view!.Wide;
-        var spacing = wide ? screen.X : UiScreen.Width;
-        foreach (var (control, tab) in new (Control, PauseTab)[] { (_system!, PauseTab.System), (_view, PauseTab.Party), (_world!, PauseTab.World) })
+        foreach (var (control, tab) in new (Control, PauseTab)[] { (_system!, PauseTab.System), (_view!, PauseTab.Party), (_world!, PauseTab.World) })
         {
-            var offset = ((int)tab - _position) * spacing;
+            var offset = ((int)tab - _position) * UiScreen.Width;
             control.Position = new Vector2(Mathf.Round(offset), 0);
-            control.Visible = Math.Abs(offset) < (wide ? screen.X : (screen.X + UiScreen.Width) / 2) && (!_tabsLocked || tab == PauseTab.Party);
-            var veil = wide ? 0 : Math.Min(1, Math.Abs((int)tab - _position)) * NeighbourVeil;
+            control.Visible = Math.Abs(offset) < (screen.X + UiScreen.Width) / 2 && (!_tabsLocked || tab == PauseTab.Party);
+            var veil = Math.Min(1, Math.Abs((int)tab - _position)) * NeighbourVeil;
             if (control is PartyTabView party)
                 party.Veil = veil;
             else if (control is SystemTabView system)
@@ -264,8 +261,6 @@ public partial class PauseMenu : CanvasLayer
         if (Tab == PauseTab.World && (_world!.Menu.Message is not null || _world.Menu.Journal is not null))
             return;
         Tab = to;
-        if (to == PauseTab.World)
-            _world!.Menu.Arrived();
         _view!.DetailsOpen = false;
         Activate();
         Redraw();
@@ -293,10 +288,11 @@ public partial class PauseMenu : CanvasLayer
         }
         if (_system.Menu.Saves is { Request: not SaveRequest.None } saves)
             CarryOut(saves);
-        if (_world is { Visible: true } world)
+        if (_world is { } world)
         {
-            var journal = Tab == PauseTab.World && !Sliding;
-            world.Menu.Step(Sliding, journal && Held("move_forward"), journal && Held("move_back"));
+            var showing = Tab == PauseTab.World;
+            world.Active = showing;
+            world.Menu.Step(showing, Sliding, showing && Held("move_forward"), showing && Held("move_back"));
             world.QueueRedraw();
         }
     }
@@ -582,12 +578,13 @@ public partial class PauseMenu : CanvasLayer
         return true;
     }
 
-    private void Side(BarterMenu barter, bool right)
+    /// <summary>The stick's left reaches the pile, and its right the party's list, as they're laid out.</summary>
+    private static void Side(BarterMenu barter, bool right)
     {
-        if (right == _view!.PileOnRight)
-            barter.ShowPile();
-        else
+        if (right)
             barter.ShowParty();
+        else
+            barter.ShowPile();
     }
 
     private bool Pressed(InputEvent e, string action) => _stick.Pressed(e, action);

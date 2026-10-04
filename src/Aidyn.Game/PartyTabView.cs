@@ -6,16 +6,8 @@ using Godot;
 namespace Aidyn.Game;
 
 /// <summary>
-/// Draws the pause menu's Party tab (<see cref="PartyMenu"/>) on a <see cref="UiScreen"/>'s canvas,
-/// in one of two layouts chosen by the screen's size in its own pixels:
-/// <list type="bullet">
-/// <item><b>Classic</b>, the original's, in its 320 × 240 frame at the screen's centre.</item>
-/// <item><b>Wide</b>, from <see cref="WideMinimum"/> up, as 16:9 at 360 lines gives: the original's
-/// sheet grown across the screen, the list in the main font with as many rows as fit, and C-down's
-/// details at the right, open for the cursor's row.</item>
-/// </list>
-/// Both draw the tab's image, <c>0x00D9</c>, at its own size where the original has it, so the art
-/// is the original's and the labels are its own; the wide one grows it with plain parchment. With a
+/// Draws the pause menu's Party tab (<see cref="PartyMenu"/>) on a <see cref="UiScreen"/>'s canvas, as the
+/// original lays it out, in its 320 × 240 frame at the screen's centre, on the tab's image, <c>0x00D9</c>. With a
 /// <see cref="Barter"/>, it's the menu's barter state, the loot window or a shop (see <c>PartyTabView.Barter.cs</c>), and
 /// with a <see cref="Training"/>, its training state (<c>PartyTabView.Training.cs</c>).
 /// </summary>
@@ -23,9 +15,6 @@ public partial class PartyTabView : Control
 {
     /// <summary>The original's frame.</summary>
     private const int FrameWidth = 320, FrameHeight = 240;
-
-    /// <summary>The smallest screen the wide layout fits.</summary>
-    public static readonly Vector2I WideMinimum = new(560, 320);
 
     // The blocks, as pieces of 0x00D9 and what's drawn on them relative to each piece.
 
@@ -53,29 +42,6 @@ public partial class PartyTabView : Control
 
     private const int SlotSize = 16;
 
-    /// <summary>
-    /// The knotwork down the middle: its top, a twist of its braid, which repeats every 20 pixels, and
-    /// its foot. The original's is the top, two twists and the foot.
-    /// </summary>
-    private static readonly Rect2I KnotTop = new(140, 98, 20, 20), KnotTwist = new(140, 118, 20, 20), KnotFoot = new(140, 158, 20, 50);
-
-    /// <summary>The rules a list's title sits on, and plain parchment.</summary>
-    private static readonly Rect2I RulesPiece = new(155, 84, 165, 16);
-
-    private static readonly Rect2I TopEdge = new(0, 0, 320, 22), BottomEdge = new(0, 216, 236, 24);
-
-    /// <summary>
-    /// What the wide layout keeps of the image at its own size: its top, through the portraits, the hit
-    /// points and the rules, and the silhouette's column below it, down to the torn edge.
-    /// </summary>
-    private static readonly Rect2I TopPart = new(0, 0, 320, 102), SilhouetteColumn = new(0, 92, 138, 124);
-
-    /// <summary>
-    /// The wide sheet: the torn edges, and the plain parchment under the original's list, which it's laid
-    /// with, over a smear of a plainer piece.
-    /// </summary>
-    public static readonly ParchmentSheet SheetArt = new(MenuImages.PartyTab, TopEdge, BottomEdge, new Rect2I(236, 104, 60, 96), new Rect2I(162, 102, 154, 102));
-
     // DollMenuLists and WidgetTrainShop: the list's bounds; its title's centre is 70 into them and its
     // top 20 above, the arrows 15 in from each side and 13 above, and the arrow under the knotwork.
     private static readonly ScreenRect ClassicList = new(160, 101, 300, 205);
@@ -85,15 +51,6 @@ public partial class PartyTabView : Control
     private static readonly Vector2I ClassicParchment = new(0, 58);
     private static readonly ScreenRect ClassicDetails = new(23, 70, 149, 218);
     private const int DetailsIndent = 16;
-
-    /// <summary>The wide layout's gap between columns, and how far a piece's edges fade.</summary>
-    private const int WideGap = 10, Feather = 6;
-
-    /// <summary>The wide list's bottom margin, which holds the arrow under it.</summary>
-    private const int SliderMargin = 30;
-
-    /// <summary>How far the wide details' text keeps from the parchment's straight edge.</summary>
-    private const int DetailsEdge = 8;
 
     // WidgetCrafting: the title centred at x 93 on the details' parchment, its list from x 23 to 163 under it,
     // 122 tall for the Alchemist's recipes and 117 for the rest; a member's row is its portrait's 25.
@@ -118,20 +75,17 @@ public partial class PartyTabView : Control
     /// <summary>The tab's state, which the runtime's menu starts afresh each time it opens.</summary>
     public PartyMenu Menu { get; set; }
 
-    /// <summary>Whether C-down's details are showing, as they do while it's held. The wide layout always shows them.</summary>
+    /// <summary>Whether C-down's details are showing, as they do while it's held.</summary>
     public bool DetailsOpen { get; set; }
 
     /// <summary>Whether combat opened the menu, which turns the arrow under the knotwork to point left only.</summary>
     public bool InCombat { get; set; }
 
     /// <summary>
-    /// How far the classic layout's widgets are faded into the parchment, from 0 to 1: the pause menu fades a tab
+    /// How far the widgets are faded into the parchment, from 0 to 1: the pause menu fades a tab
     /// beside the one showing, whose edge shows on a screen wider than the frame.
     /// </summary>
     public float Veil { get; set; }
-
-    /// <summary>Whether the screen has room for the wide layout.</summary>
-    public bool Wide => Size.X >= WideMinimum.X && Size.Y >= WideMinimum.Y;
 
     public override void _Notification(int what)
     {
@@ -213,31 +167,18 @@ public partial class PartyTabView : Control
     {
         if (Menu.Shown is null)
             return;
-        if (Wide)
-        {
-            _origin = Vector2I.Zero;
-            if (Barter is { } barter)
-                DrawBarterWide(barter);
-            else if (Training is { } training)
-                DrawTrainingWide(training);
-            else
-                DrawWide();
-        }
+        _origin = new Vector2I(((int)Size.X - FrameWidth) / 2, ((int)Size.Y - FrameHeight) / 2);
+        DrawSetTransform(_origin);
+        if (Barter is { } barter)
+            DrawBarter(barter);
+        else if (Training is { } training)
+            DrawTraining(training);
         else
-        {
-            _origin = new Vector2I(((int)Size.X - FrameWidth) / 2, ((int)Size.Y - FrameHeight) / 2);
-            DrawSetTransform(_origin);
-            if (Barter is { } barter)
-                DrawBarterClassic(barter);
-            else if (Training is { } training)
-                DrawTrainingClassic(training);
-            else
-                DrawClassic();
-            // The tab's own image again, over its widgets, fades them into the parchment.
-            if (Veil > 0)
-                _ui.Image(this, MenuImages.PartyTab, 0, 0, color: new Rgba(255, 255, 255, (byte)(Veil * 255)));
-            DrawSetTransform(Vector2.Zero);
-        }
+            DrawTab();
+        // The tab's own image again, over its widgets, fades them into the parchment.
+        if (Veil > 0)
+            _ui.Image(this, MenuImages.PartyTab, 0, 0, color: new Rgba(255, 255, 255, (byte)(Veil * 255)));
+        DrawSetTransform(Vector2.Zero);
         if (Barter is { } popups)
             BarterPopups(popups);
         else if (Training is { } trainingPopups)
@@ -246,73 +187,20 @@ public partial class PartyTabView : Control
             Message(message);
     }
 
-    private void DrawClassic()
+    private void DrawTab()
     {
         _ui.Image(this, MenuImages.PartyTab, 0, 0);
         Portraits(PortraitPiece.Position);
         Health(HealthPiece.Position, _ui.Main);
         Silhouette(SilhouettePiece.Position);
-        List(ClassicList, _ui.Slim, Columns.Classic);
+        List(ClassicList, _ui.Slim);
         _ui.Image(this, InCombat ? MenuImages.SliderLeft : MenuImages.SliderBoth, SliderAt.X, SliderAt.Y, color: PartyMenu.TextColor);
         if (Menu.Crafting is { } crafting)
-            Crafting(crafting, Vector2I.Zero);
+            Crafting(crafting);
         if (DetailsOpen && Menu.Details() is { } details)
         {
             _ui.Parchment(this, ClassicParchment.X, ClassicParchment.Y);
-            Details(details, ClassicDetails, _ui.Slim, classic: true);
-        }
-    }
-
-    /// <summary>
-    /// The wide layout: the original's sheet, grown. Its left part is the tab's image at its own size
-    /// where the original has it, so the portraits, hit points and silhouette are the original's to
-    /// the pixel; the list widens and lengthens, its knotwork with it, and the details sit at the right.
-    /// Where the sheet grows past the image, it's plain parchment.
-    /// </summary>
-    private void DrawWide()
-    {
-        var size = new Vector2I((int)Size.X, (int)Size.Y);
-        var bottom = size.Y - BottomEdge.Size.Y;
-        Sheet(size, bottom);
-
-        // The image's top, to just under the rules, and the silhouette's column below it, faded into
-        // the plain parchment where they end.
-        _ui.Feathered(this, MenuImages.PartyTab, TopPart, 0, 0, (0, 0, Feather, Feather));
-        _ui.Feathered(this, MenuImages.PartyTab, SilhouetteColumn, 0, SilhouetteColumn.Position.Y, (0, 0, Feather, Feather));
-        Portraits(PortraitPiece.Position);
-        Health(HealthPiece.Position, _ui.Main);
-        Silhouette(SilhouettePiece.Position);
-        // A crafting popup covers the silhouette as the original's does; its recipe's product shows at the right.
-        if (Menu.Crafting is { } crafting)
-            Crafting(crafting, Vector2I.Zero);
-
-        // The list from where the original's starts, as wide as about half the room right of the
-        // knotwork, the details the rest, out to the screen's edge. A deep margin under it holds the
-        // arrow, centred on the screen: it says the other tabs are either side.
-        var list = ClassicList;
-        var room = size.X - list.Left - WideGap;
-        var listWidth = Math.Clamp(room * 11 / 20, 220, 300);
-        var rows = (bottom - SliderMargin - list.Top) / 13 * 13;
-        Rules(RulesPiece.Position.X, RulesPiece.Position.Y, Math.Max(RulesPiece.Size.X, list.Left + listWidth + 10 - RulesPiece.Position.X));
-        Knot(KnotTop.Position.X, KnotTop.Position.Y, rows + 4);
-        var slider = InCombat ? MenuImages.SliderLeft : MenuImages.SliderBoth;
-        _ui.Image(this, slider, (size.X - _ui.Size(slider).X) / 2, list.Top + rows + (bottom - list.Top - rows - _ui.Size(slider).Y) / 2,
-            color: PartyMenu.TextColor);
-        List(list with { Right = list.Left + listWidth, Bottom = list.Top + rows }, _ui.Main, Columns.Wide);
-
-        var top = TopEdge.Size.Y - 2;
-        var detailsLeft = list.Left + listWidth + WideGap;
-        var detailsSize = new Vector2I(size.X - detailsLeft, bottom - top + 2);
-        // Mirrored, so its straight edge, which the original puts against the screen's left, is
-        // against its right, and its shadow falls to the left, on the list's side.
-        _ui.Parchment(this, detailsLeft, top, detailsSize, mirror: true);
-        if (Menu.Details() is { } details)
-        {
-            // Clear of the torn edges, as the original's text is of its right one (11 of 160), and 8 in
-            // from the straight edge, as it is from the overscan bar's edge.
-            var area = new ScreenRect(detailsLeft + detailsSize.X * 11 / 160, top + detailsSize.Y * 12 / 160,
-                detailsLeft + detailsSize.X - DetailsEdge, top + detailsSize.Y - detailsSize.Y * 8 / 160);
-            Details(details, area, _ui.Main, classic: false);
+            Details(details, ClassicDetails, _ui.Slim);
         }
     }
 
@@ -321,10 +209,11 @@ public partial class PartyTabView : Control
     /// place: its title centred above a list in the slim font, of recipes, tasks, attributes, or members
     /// with their portraits, names and health.
     /// </summary>
-    private void Crafting(CraftingMenu crafting, Vector2I at)
+    private void Crafting(CraftingMenu crafting)
     {
+        var at = Vector2I.Zero;
         var font = _ui.Slim;
-        _ui.Parchment(this, at.X + ClassicParchment.X, at.Y + ClassicParchment.Y);
+        _ui.Parchment(this, ClassicParchment.X, ClassicParchment.Y);
         // The original measures the title as it builds the popup, in the main font, and draws it in the slim one.
         var titleWidth = _ui.Main.Width(crafting.Title);
         _ui.Text(this, font, crafting.Title, at.X + CraftingTitleCentre - titleWidth / 2, at.Y + CraftingTitleTop, PartyMenu.TextColor);
@@ -359,38 +248,6 @@ public partial class PartyTabView : Control
     /// </summary>
     private void Message(MenuMessage message) =>
         _ui.Message(this, (Vector2I)Size, message.Text, MenuMessage.MaxWidth, MenuMessage.Color, message.FromCrafting ? 16 : 0, message.FromCrafting ? 5 : 0);
-
-    /// <summary>The wide sheet under the image's pieces, from its own parchment.</summary>
-    private void Sheet(Vector2I size, int bottom) => _ui.Sheet(this, SheetArt, size, bottom);
-
-    /// <summary>The rules under a list's title, stretched along a line: its middle repeated, its ends faded.</summary>
-    private void Rules(int x, int y, int width)
-    {
-        var end = 40;
-        var middle = RulesPiece with { Position = RulesPiece.Position + new Vector2I(end, 0), Size = new Vector2I(RulesPiece.Size.X - 2 * end, RulesPiece.Size.Y) };
-        _ui.Feathered(this, MenuImages.PartyTab, RulesPiece with { Size = new Vector2I(end, RulesPiece.Size.Y) }, x, y, (Feather, Feather, 0, Feather));
-        for (var at = end; at < width - end; at += middle.Size.X)
-        {
-            var piece = middle with { Size = new Vector2I(Math.Min(middle.Size.X, width - end - at), middle.Size.Y) };
-            _ui.Feathered(this, MenuImages.PartyTab, piece, x + at, y, (0, Feather, 0, Feather));
-        }
-        _ui.Feathered(this, MenuImages.PartyTab, RulesPiece with { Position = RulesPiece.Position + new Vector2I(RulesPiece.Size.X - end, 0), Size = new Vector2I(end, RulesPiece.Size.Y) },
-            x + width - end, y, (0, Feather, Feather, Feather));
-    }
-
-    /// <summary>The knotwork, at least <paramref name="height"/> tall, with as many twists as it takes. Returns its foot.</summary>
-    private int Knot(int x, int y, int height)
-    {
-        _ui.Feathered(this, MenuImages.PartyTab, KnotTop, x, y, (Feather, Feather, Feather, 0));
-        var at = y + KnotTop.Size.Y;
-        for (var twists = Math.Max(0, (height - KnotTop.Size.Y - KnotFoot.Size.Y + KnotTwist.Size.Y - 1) / KnotTwist.Size.Y); twists > 0; twists--)
-        {
-            _ui.Feathered(this, MenuImages.PartyTab, KnotTwist, x, at, (Feather, 0, Feather, 0));
-            at += KnotTwist.Size.Y;
-        }
-        _ui.Feathered(this, MenuImages.PartyTab, KnotFoot, x, at, (Feather, 0, Feather, Feather));
-        return at + KnotFoot.Size.Y;
-    }
 
     /// <summary>The portraits from the member shown round, their name, and their aspect's and school's icons.</summary>
     private void Portraits(Vector2I at)
@@ -438,21 +295,21 @@ public partial class PartyTabView : Control
     private void Number(UiFont font, long value, Vector2I at) =>
         _ui.Text(this, font, value.ToString(System.Globalization.CultureInfo.InvariantCulture), at.X, at.Y, PartyMenu.TextColor);
 
-    /// <summary>Where a list's columns go, from its left edge, and how far its names reach.</summary>
-    private sealed record Columns(int Quantity, int Name, int NameNoQuantity, int Value, int Change, int SkillChange, int Rank, int SpellName, int NameRight)
+    /// <summary>
+    /// Where a list's columns go, from its left edge, and how far its names reach: the original's (<c>SMIItem</c>,
+    /// <c>SMStatItem</c>, <c>WidgetSkillInfo</c>, <c>WidgetSpellEntry</c>).
+    /// </summary>
+    private static class Columns
     {
-        /// <summary>The original's (<c>SMIItem</c>, <c>SMStatItem</c>, <c>WidgetSkillInfo</c>, <c>WidgetSpellEntry</c>).</summary>
-        public static readonly Columns Classic = new(26, 42, 30, 79, 100, 95, 36, 50, 140);
-
-        /// <summary>Room for the main font, with the numbers at the right.</summary>
-        public static readonly Columns Wide = new(27, 44, 32, -70, -40, -40, 38, 56, -72);
+        public const int Quantity = 26, Name = 42, NameNoQuantity = 30, Value = 79, Change = 100, SkillChange = 95, Rank = 36,
+            SpellName = 50, NameRight = 140;
     }
 
     /// <summary>
     /// The list showing, under its title, with its arrows and its rows in <paramref name="font"/>, the
     /// cursor's in <paramref name="cursor"/>, or pulsing if none is given.
     /// </summary>
-    private void List(ScreenRect b, UiFont font, Columns columns, Rgba? cursor = null)
+    private void List(ScreenRect b, UiFont font, Rgba? cursor = null)
     {
         _listBounds = b;
         var title = Menu.List switch
@@ -462,29 +319,25 @@ public partial class PartyTabView : Control
             PartyList.Skills => MenuImages.SkillsTitle,
             _ => MenuImages.SpellsTitle,
         };
-        var wide = columns != Columns.Classic;
-        var titleCentre = wide ? (b.Left + b.Right) / 2 : b.Left + 70;
-        _ui.Image(this, title, titleCentre - _ui.Size(title).X / 2, b.Top - 20);
-        // Negative columns count back from the right.
-        int X(int column) => column < 0 ? b.Right + column : b.Left + column;
+        _ui.Image(this, title, b.Left + 70 - _ui.Size(title).X / 2, b.Top - 20);
         var x = b.Left;
         var y = b.Top;
         var highlight = cursor ?? Menu.HighlightNow;
         var color = PartyMenu.TextColor;
-        var names = new ScreenRect(b.Left, b.Top, X(columns.NameRight), b.Bottom);
+        var names = new ScreenRect(b.Left, b.Top, x + Columns.NameRight, b.Bottom);
         switch (Menu.List)
         {
             case PartyList.Inventory:
-                Items(Menu.Inventory, b, font, columns, highlight);
+                Items(Menu.Inventory, b, font, highlight);
                 break;
             case PartyList.Stats:
                 Menu.Stats.Visible = (b.Bottom - b.Top) / 11;
                 _ui.List(Menu.Stats, y, 11, color, highlight, (row, top, c) =>
                 {
                     _ui.Text(this, font, row.Name, x, top, names, c);
-                    _ui.Text(this, font, Num(row.Value), X(columns.Value), top, b, color);
+                    _ui.Text(this, font, Num(row.Value), x + Columns.Value, top, b, color);
                     if (row.Change != 0)
-                        _ui.Text(this, font, Change(row.Change), X(columns.Change), top, b, row.Change < 0 ? MenuDetailsBuilder.Loss : MenuDetailsBuilder.Gain);
+                        _ui.Text(this, font, Change(row.Change), x + Columns.Change, top, b, row.Change < 0 ? MenuDetailsBuilder.Loss : MenuDetailsBuilder.Gain);
                 });
                 if (Menu.Experience is { } exp)
                 {
@@ -500,10 +353,10 @@ public partial class PartyTabView : Control
                 }
                 break;
             case PartyList.Skills:
-                SkillRows(Menu.Skills, b, font, columns, highlight);
+                SkillRows(Menu.Skills, b, font, highlight);
                 break;
             default:
-                SpellRows(Menu.Spells, b, font, columns, highlight);
+                SpellRows(Menu.Spells, b, font, highlight);
                 break;
         }
     }
@@ -512,11 +365,10 @@ public partial class PartyTabView : Control
     /// A skills list's rows (<c>WidgetSkillInfo</c>), 13 apart, with their arrows: the icon, the name 12 after
     /// it, the level, and the difference gear makes when it isn't 0.
     /// </summary>
-    private void SkillRows(MenuList<SkillRow> list, ScreenRect b, UiFont font, Columns columns, Rgba highlight)
+    private void SkillRows(MenuList<SkillRow> list, ScreenRect b, UiFont font, Rgba highlight)
     {
-        int X(int column) => column < 0 ? b.Right + column : b.Left + column;
         var x = b.Left;
-        var names = new ScreenRect(b.Left, b.Top, X(columns.NameRight), b.Bottom);
+        var names = new ScreenRect(b.Left, b.Top, x + Columns.NameRight, b.Bottom);
         var color = PartyMenu.TextColor;
         list.Visible = (b.Bottom - b.Top) / 13;
         _ui.List(list, b.Top, 13, color, highlight, (row, top, c) =>
@@ -524,9 +376,9 @@ public partial class PartyTabView : Control
             if (row.Icon is { } icon)
                 _ui.Image(this, icon, x, top);
             _ui.Text(this, font, row.Name, x + 12, top, names with { Left = x + 12 }, c);
-            _ui.Text(this, font, Num(row.Value), X(columns.Value), top, b, color);
+            _ui.Text(this, font, Num(row.Value), x + Columns.Value, top, b, color);
             if (row.Change != 0)
-                _ui.Text(this, font, Change(row.Change), X(columns.SkillChange), top, b, row.Change < 0 ? MenuDetailsBuilder.Loss : MenuDetailsBuilder.Gain);
+                _ui.Text(this, font, Change(row.Change), x + Columns.SkillChange, top, b, row.Change < 0 ? MenuDetailsBuilder.Loss : MenuDetailsBuilder.Gain);
         });
         _ui.Arrows(this, list, new Vector2I(b.Left + 15, b.Top - 13), new Vector2I(b.Right - 15, b.Top - 13));
     }
@@ -535,13 +387,11 @@ public partial class PartyTabView : Control
     /// A spells list's rows (<c>WidgetSpellEntry</c>), 13 apart, with their arrows: the aspect's, school's and
     /// spell's icons, the rank and the name.
     /// </summary>
-    private void SpellRows(MenuList<SpellRow> list, ScreenRect b, UiFont font, Columns columns, Rgba highlight)
+    private void SpellRows(MenuList<SpellRow> list, ScreenRect b, UiFont font, Rgba highlight)
     {
-        int X(int column) => column < 0 ? b.Right + column : b.Left + column;
         var x = b.Left;
-        var names = new ScreenRect(b.Left, b.Top, X(columns.NameRight), b.Bottom);
+        var names = new ScreenRect(b.Left, b.Top, x + Columns.NameRight, b.Bottom);
         var color = PartyMenu.TextColor;
-        var wide = columns != Columns.Classic;
         list.Visible = (b.Bottom - b.Top) / 13;
         _ui.List(list, b.Top, 13, color, highlight, (row, top, c) =>
         {
@@ -550,8 +400,8 @@ public partial class PartyTabView : Control
                 if (icon is { } i)
                     _ui.Image(this, i, x + dx, top);
             }
-            _ui.Text(this, font, Num(row.Rank), x + columns.Rank, top, b, color);
-            _ui.Text(this, font, row.Name, x + columns.SpellName, top, wide ? b : names with { Left = x + columns.SpellName }, c);
+            _ui.Text(this, font, Num(row.Rank), x + Columns.Rank, top, b, color);
+            _ui.Text(this, font, row.Name, x + Columns.SpellName, top, names with { Left = x + Columns.SpellName }, c);
         });
         _ui.Arrows(this, list, new Vector2I(b.Left + 15, b.Top - 13), new Vector2I(b.Right - 15, b.Top - 13));
     }
@@ -560,7 +410,7 @@ public partial class PartyTabView : Control
     /// An inventory's or a pile's rows (<c>SMIItem</c>), 13 apart, with the arrows 15 in from each side and 13
     /// above: the wearer's portrait and the item's icon at 12 square, then the count and the name.
     /// </summary>
-    private void Items(MenuList<InventoryRow> list, ScreenRect b, UiFont font, Columns columns, Rgba cursor)
+    private void Items(MenuList<InventoryRow> list, ScreenRect b, UiFont font, Rgba cursor)
     {
         list.Visible = (b.Bottom - b.Top) / 13;
         var x = b.Left;
@@ -570,17 +420,17 @@ public partial class PartyTabView : Control
                 _ui.Image(this, portrait, x, top, new Vector2I(12, 12));
             _ui.Image(this, row.Item.Icon, x + 13, top, new Vector2I(12, 12));
             if (row.Quantity != 0)
-                _ui.Text(this, font, Num(row.Quantity), x + columns.Quantity, top, b, PartyMenu.TextColor);
-            _ui.Text(this, font, row.Item.Name, x + (row.Quantity != 0 ? columns.Name : columns.NameNoQuantity), top, b, c);
+                _ui.Text(this, font, Num(row.Quantity), x + Columns.Quantity, top, b, PartyMenu.TextColor);
+            _ui.Text(this, font, row.Item.Name, x + (row.Quantity != 0 ? Columns.Name : Columns.NameNoQuantity), top, b, c);
         });
         _ui.Arrows(this, list, new Vector2I(b.Left + 15, b.Top - 13), new Vector2I(b.Right - 15, b.Top - 13));
     }
 
     /// <summary>
-    /// C-down's details (<c>WidgetItemDetail</c>) in an area: a heading, the lines, and the footer,
-    /// which the classic layout pins where the original does and the wide one at the area's foot.
+    /// C-down's details (<c>WidgetItemDetail</c>) in an area: a heading, the lines, and the footer, pinned where
+    /// the original pins it.
     /// </summary>
-    private void Details(MenuDetails details, ScreenRect area, UiFont font, bool classic)
+    private void Details(MenuDetails details, ScreenRect area, UiFont font)
     {
         var y = area.Top;
         if (details.Icon is { } icon)
@@ -597,9 +447,7 @@ public partial class PartyTabView : Control
             y += Line(line, y);
 
         var footerHeight = details.Footer.Count * font.LineHeight;
-        var footerTop = classic
-            ? details.FooterTop ?? (details.FooterBottom is { } bottom ? bottom - footerHeight : y)
-            : Math.Max(y, area.Bottom - footerHeight);
+        var footerTop = details.FooterTop ?? (details.FooterBottom is { } bottom ? bottom - footerHeight : y);
         foreach (var line in details.Footer)
             footerTop += Line(line, footerTop);
 

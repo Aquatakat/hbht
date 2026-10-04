@@ -83,7 +83,7 @@ public sealed class WorldMenu
     /// <summary>The map's pieces whose flags are set, in order.</summary>
     public IReadOnlyList<MapPiece> Pieces { get; }
 
-    /// <summary>The pieces' alpha, which fades in each time the tab is slid to.</summary>
+    /// <summary>The pieces' alpha, which fades in once the tab is slid to, and out once it's been left.</summary>
     public int PieceAlpha { get; private set; }
 
     /// <summary>The party's ring's top-left, or none away from the Overworld or indoors.</summary>
@@ -107,9 +107,6 @@ public sealed class WorldMenu
 
     /// <summary>Whether Camp was chosen where the party can camp: the menu closes and the party camps.</summary>
     public bool CampChosen { get; private set; }
-
-    /// <summary>The tab is slid to: the pieces fade in again (<c>bigAssMenu_RFunc</c>).</summary>
-    public void Arrived() => PieceAlpha = 0;
 
     /// <summary>Up or down: Camp or Journal. Left and right do nothing.</summary>
     public void MoveCursor(int by)
@@ -175,8 +172,13 @@ public sealed class WorldMenu
         return new JournalMenu(_font, [.. shown.Select(e => (e.Text, e.Id == newest))], _text[NoEntries]);
     }
 
-    /// <summary>A 60 Hz tick. The pieces and the ring move on only while the tab isn't sliding.</summary>
-    public void Step(bool sliding, bool upHeld = false, bool downHeld = false)
+    /// <summary>
+    /// A 60 Hz tick. The pieces and the ring move on only while the tabs aren't sliding: the pieces fade in on the tab,
+    /// as the original's do each time it's slid to (<c>bigAssMenu_RFunc</c> starts them from 0), and out at the same
+    /// rate once it's been left, so they don't vanish as it's slid to again. The port shows the tabs either side.
+    /// </summary>
+    /// <param name="showing">Whether the tab is the one showing, or being slid to.</param>
+    public void Step(bool showing, bool sliding, bool upHeld = false, bool downHeld = false)
     {
         Pulse.Step();
         if (Journal is { } journal)
@@ -187,6 +189,11 @@ public sealed class WorldMenu
         }
         if (sliding)
             return;
+        if (!showing)
+        {
+            PieceAlpha = Math.Max(PieceAlpha - PieceFade, 0);
+            return;
+        }
         PieceAlpha = PieceAlpha >= PieceFadeTop ? 255 : PieceAlpha + PieceFade;
         _markerStep += _markerSign;
         if (_markerStep is 0 or MarkerSteps)

@@ -244,7 +244,7 @@ public sealed class SaveCheckpointTests(MapObjectFixture fixture)
 
     [Theory]
     [MemberData(nameof(Checkpoints))]
-    public void ALoadedCheckpointHasTheConsolesFlagsAndANewJournalEntry(string name)
+    public void ALoadedCheckpointHasTheConsolesFlagsAndANewestJournalEntryButNoNotice(string name)
     {
         const int newJournalEntry = 3617;
         var checkpoint = Load(name);
@@ -256,8 +256,9 @@ public sealed class SaveCheckpointTests(MapObjectFixture fixture)
             .Select(h => $"{h} ({(network.IsDerived(h) ? "derived" : "plain")}, port {network.Peek(h)}, console {checkpoint.Flags[h]})")
             .ToList();
         Assert.True(differ.Count == 0, $"{differ.Count} flags differ in {name}: {string.Join(", ", differ)}");
-        // Loading clears it, and the journal entries the save has turn on again from a new game's, setting it.
-        Assert.True(network.Peek(newJournalEntry));
+        // The journal entries the save has turn on again from a new game's, which would set it, but the original
+        // says nothing after loading.
+        Assert.False(network.Peek(newJournalEntry));
         Assert.NotNull(network.NewestJournalEntry);
     }
 
