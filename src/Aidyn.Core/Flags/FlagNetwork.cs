@@ -27,6 +27,8 @@ public sealed class FlagNetwork
     /// <summary>The derived flags, in the order they're evaluated.</summary>
     private readonly int[] _derived;
     private readonly RecordId?[] _journal;
+    private readonly HashSet<RecordId> _entries;
+    private readonly List<RecordId> _journalOrder = [];
     private readonly int _newJournalEntry;
     private readonly byte[] _values;
 
@@ -57,6 +59,7 @@ public sealed class FlagNetwork
         }
         _initial = [.. ordered.Select(f => f.Formula is null && f.Initial)];
         _journal = [.. ordered.Select(f => f.Journal)];
+        _entries = [.. _journal.OfType<RecordId>()];
         _formulas = [.. ordered.Select(f => f.Formula is { } formula ? Compile(f.Id, formula) : (Formula?)null)];
         _derived = [.. Enumerable.Range(0, _ids.Length).Where(h => _formulas[h] is not null)];
         _values = new byte[_ids.Length];
@@ -85,6 +88,16 @@ public sealed class FlagNetwork
     /// journal clears it.
     /// </summary>
     public RecordId? NewestJournalEntry { get; set; }
+
+    /// <summary>
+    /// The journal entries in the order they were added, which the journal lists them in. The original lists them in
+    /// its table's order, and its saves keep only the flags; the port keeps the order, which the user chose
+    /// (Oct 3, 2026). An entry whose flag clears stays in its place, and the journal shows it if it's set again.
+    /// </summary>
+    public IReadOnlyList<RecordId> JournalOrder => _journalOrder;
+
+    /// <summary>Whether a flag adds this journal entry.</summary>
+    public bool HasJournalEntry(RecordId entry) => _entries.Contains(entry);
 
     public RecordId Id(int handle) => _ids[handle];
 
@@ -155,6 +168,7 @@ public sealed class FlagNetwork
         for (var h = 0; h < _values.Length; h++)
             _values[h] = (byte)(_initial[h] ? 1 : 0);
         NewestJournalEntry = null;
+        _journalOrder.Clear();
         Dirty = true;
         Process();
     }
@@ -163,15 +177,32 @@ public sealed class FlagNetwork
     /// Sets every plain flag and brings the derived flags up to date, as loading a save does
     /// (<c>LoadGameState</c>). Derived flags that turn on add their journal entries.
     /// </summary>
-    public void Restore(Func<int, bool> plain)
+    /// <param name="journal">
+    /// The journal's order as saved. Entries that turn on and aren't in it, as from a save made before the port kept
+    /// the order or from a checkpoint, come first, in their flags' order, the table's. When any turns on, the newest
+    /// is the last of the order that's on.
+    /// </param>
+    public void Restore(Func<int, bool> plain, IReadOnlyList<RecordId>? journal = null)
     {
         for (var h = 0; h < _values.Length; h++)
         {
             if (!IsDerived(h))
                 _values[h] = (byte)(plain(h) ? 1 : 0);
         }
+        var newest = NewestJournalEntry;
+        NewestJournalEntry = null;
         Dirty = true;
         Process();
+        var on = Enumerable.Range(0, _ids.Length).Where(h => _values[h] != 0 && _journal[h] is not null)
+            .Select(h => _journal[h]!.Value).Distinct().ToList();
+        var saved = (journal ?? []).Where(_entries.Contains).Distinct().ToList();
+        _journalOrder.Clear();
+        _journalOrder.AddRange(on.Where(e => !saved.Contains(e)));
+        _journalOrder.AddRange(saved);
+        if (NewestJournalEntry is null)
+            NewestJournalEntry = newest;
+        else if (saved.Count > 0)
+            NewestJournalEntry = _journalOrder.Last(on.Contains);
     }
 
     /// <summary>
@@ -201,6 +232,8 @@ public sealed class FlagNetwork
         {
             _values[_newJournalEntry] = 1;
             NewestJournalEntry = entry;
+            if (!_journalOrder.Contains(entry))
+                _journalOrder.Add(entry);
         }
     }
 

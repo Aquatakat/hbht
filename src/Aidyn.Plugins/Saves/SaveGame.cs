@@ -42,6 +42,12 @@ public sealed record SaveGame
     /// </summary>
     public IReadOnlyList<RecordId> Flags { get; init; } = [];
 
+    /// <summary>
+    /// The journal's entries in the order they were added, which the original doesn't keep. An entry whose flag is
+    /// set and isn't listed comes before those listed.
+    /// </summary>
+    public IReadOnlyList<RecordId> Journal { get; init; } = [];
+
     public SaveParty Party { get; init; } = new();
 
     /// <summary>What map objects remember (the original's <c>VoxelChart</c>), in the order it was remembered.</summary>

@@ -20,7 +20,7 @@ The importer writes three record types:
 - **Writing.** Only plain flags from 2 up can be set. Writes to 0, 1 and derived flags do nothing, as `setEventFlag` refuses them.
 - **Bringing it up to date.** Derived flags are evaluated in order, each one seeing those before it already updated. If any changed, it starts again from the first. 13 inputs name a later derived flag, so the order matters.
 - **Formulas.** The inputs are read as bits, the first the lowest, or counted. Logic flags test all (AND), any (OR), exactly one (EOR), none (NOT), or the bits equal to the operand (MSK). Value and count flags compare with the operand by =, >, < or ≠. A kind with the other kind's operation reads as clear, since the original reports it as an error. No base flag does that, and none has an unused input (0xFFFF) or more than 9 inputs.
-- **The journal.** When a flag that names a journal entry turns on, the new journal entry flag is set, and the entry becomes the one the journal opens at (`newestJournal`).
+- **The journal.** When a flag that names a journal entry turns on, the new journal entry flag is set, and the entry becomes the one the journal opens at (`newestJournal`). The port also lists the entry in `JournalOrder`, the order the journal shows them in and a save keeps ([saves](saves.md#the-format)); one whose flag clears keeps its place.
 - **New games and loading.** A new game starts from the plain flags' initial values and evaluates the rest. `Restore` sets every plain flag at once and evaluates, as loading a save does. Derived flags keep their old values until then, so any journal flag that turns on adds its entry again.
 
 ## What the engine writes

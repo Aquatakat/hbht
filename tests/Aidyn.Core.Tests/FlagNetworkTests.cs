@@ -114,6 +114,37 @@ public class FlagNetworkTests
     }
 
     [Fact]
+    public void TheJournalListsEntriesAsTheyTurnOnAndARestorePutsUnsavedOnesFirst()
+    {
+        RecordId Entry(int n) => RecordId.Decimal(RecordTypes.Journal, n);
+        var flags = JournalNetwork((Logic(FlagOperation.Or, 0, 2), Entry(0)), (Logic(FlagOperation.Or, 0, 3), Entry(1)),
+            (Logic(FlagOperation.Or, 0, 4), Entry(2)));
+
+        // Entry 2, then 0: the order they turned on, not the table's. Clearing one keeps its place.
+        flags.Set(4, true);
+        flags.Process();
+        flags.Set(2, true);
+        flags.Process();
+        flags.Set(2, false);
+        flags.Process();
+        flags.Set(2, true);
+        flags.Process();
+        Assert.Equal([Entry(2), Entry(0)], flags.JournalOrder);
+
+        // A save from before the port kept the order lists nothing, so it's the flags' order.
+        flags.Restore(h => h is 1 or 2 or 3 or 4);
+        Assert.Equal([Entry(0), Entry(1), Entry(2)], flags.JournalOrder);
+
+        flags.NewGame();
+        Assert.Empty(flags.JournalOrder);
+
+        // Loading: entry 1 isn't in the saved order, so it comes first, and the newest is the saved order's last.
+        flags.Restore(h => h is 1 or 2 or 3 or 4, [Entry(2), Entry(0)]);
+        Assert.Equal([Entry(1), Entry(2), Entry(0)], flags.JournalOrder);
+        Assert.Equal(Entry(0), flags.NewestJournalEntry);
+    }
+
+    [Fact]
     public void SetBitsWritesTheLowestBitFirstAndDropsTheRest()
     {
         var flags = Network();
