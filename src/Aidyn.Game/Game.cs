@@ -68,6 +68,8 @@ public partial class Game : Node3D, ITrekHost
     private readonly CollisionWorld _world = new();
     private GameState? _game;
     private PauseMenu? _menu;
+    /// <summary>The stick in menus, shared by the pause menu and trek's popups, conversations and cut-scenes.</summary>
+    private readonly MenuStick _stick = new();
     private Models? _models;
     /// <summary>Trek: the core's loop, which steps the player, the camera, the chunks and what's in them.</summary>
     private TrekLoop? _trek;
@@ -265,7 +267,7 @@ public partial class Game : Node3D, ITrekHost
         trekUi.AddChild(_fade);
         AddChild(trekUi);
 
-        _menu = new PauseMenu(plugins, game, _settings) { SaveGame = SaveTo, LoadGame = LoadFrom };
+        _menu = new PauseMenu(plugins, game, _settings, _stick) { SaveGame = SaveTo, LoadGame = LoadFrom };
         // The original reloads the map as the menu closes, so what changed shows.
         _menu.Closed += () => _chunks!.Regate();
         if (args.TryGetValue("ui-lines", out var lines))
@@ -593,6 +595,7 @@ public partial class Game : Node3D, ITrekHost
         if (_scene is null)
             chunks.Chunks.Update(focus.ToNumerics());
         chunks.Fade(View(), _drawDistance);
+        RepeatStick(delta);
         // From where the scenery is drawn this frame: between ticks, the camera interpolated.
         Billboards.Face(chunks.BillboardFacings, _camera.Current.GetGlobalTransformInterpolated().Origin);
 
@@ -612,6 +615,20 @@ public partial class Game : Node3D, ITrekHost
                 $"  {Clock(_sky!.Clock.TimeOfDay)}  sky {_sky.Placement.ToString().ToLowerInvariant()} (F6)" +
                 $"  UI {_menu!.Screen.Lines} lines (F7)  wanderers {_trek.Wanderers.All.Count}";
         }
+    }
+
+    /// <summary>
+    /// The stick held in trek's popups, conversations and cut-scenes moves their cursor on as the D-pad would. With
+    /// none up, what was held is forgotten, so the next doesn't start by repeating. The pause menu steps its own.
+    /// </summary>
+    private void RepeatStick(double delta)
+    {
+        if (_menu is { IsOpen: true })
+            return;
+        if (_trek?.Use is { Popup: not null } || _trek?.Conversation is not null || _scene is not null)
+            _stick.Step(delta, direction => _UnhandledInput(new InputEventAction { Action = MenuStick.Dpad(direction), Pressed = true }));
+        else
+            _stick.Clear();
     }
 
     private static string Clock(float timeOfDay)
@@ -642,9 +659,9 @@ public partial class Game : Node3D, ITrekHost
                 use.Accept();
             else if (e.IsActionPressed("menu_back"))
                 use.Back();
-            else if (e.IsActionPressed("move_forward") || e.IsActionPressed("menu_up"))
+            else if (_stick.Pressed(e, "move_forward") || e.IsActionPressed("menu_up", allowEcho: true))
                 use.MoveCursor(-1);
-            else if (e.IsActionPressed("move_back") || e.IsActionPressed("menu_down"))
+            else if (_stick.Pressed(e, "move_back") || e.IsActionPressed("menu_down", allowEcho: true))
                 use.MoveCursor(1);
             else
                 return;
@@ -749,11 +766,11 @@ public partial class Game : Node3D, ITrekHost
                 conversation.Press(runner.Continue);
             _trek.Refresh();
         }
-        else if (e.IsActionPressed("move_forward") || e.IsActionPressed("menu_up"))
+        else if (_stick.Pressed(e, "move_forward") || e.IsActionPressed("menu_up", allowEcho: true))
         {
             _box.Point(box.Highlight - 1);
         }
-        else if (e.IsActionPressed("move_back") || e.IsActionPressed("menu_down"))
+        else if (_stick.Pressed(e, "move_back") || e.IsActionPressed("menu_down", allowEcho: true))
         {
             _box.Point(box.Highlight + 1);
         }

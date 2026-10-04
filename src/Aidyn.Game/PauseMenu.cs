@@ -59,12 +59,6 @@ public partial class PauseMenu : CanvasLayer
     /// <summary>Above the lens flare and the debug overlay.</summary>
     public const int MenuLayer = 10;
 
-    /// <summary>
-    /// How long the stick held waits before the cursor moves on by itself, and how often it does then, in seconds:
-    /// the port's choice, as a held key repeats.
-    /// </summary>
-    private const double RepeatDelay = 0.4, RepeatEvery = 0.1;
-
     /// <summary>How far a tab slides a tick: the original's 10 pixels a frame of its 320.</summary>
     private const float SlidePerTick = 10f / 320 / Cadence.FrameTicks;
 
@@ -74,8 +68,6 @@ public partial class PauseMenu : CanvasLayer
     /// <summary>The last tab that can be slid to: World waits for its widgets.</summary>
     private const PauseTab LastTab = PauseTab.Party;
 
-    private static readonly string[] StickActions = ["move_forward", "move_back", "move_left", "move_right"];
-
     /// <summary>The tab the menu last showed, which a default opening goes back to (<c>gGlobals.pauseMenuSection</c>).</summary>
     private static PauseTab _lastTab = PauseTab.System;
 
@@ -83,8 +75,7 @@ public partial class PauseMenu : CanvasLayer
     private readonly GameState _game;
     private readonly Settings _settings;
     private readonly UiScreen _screen = new() { ForwardsMouse = true };
-    /// <summary>The stick's directions held past the deadzone, and how long until each repeats.</summary>
-    private readonly Dictionary<string, double> _stick = [];
+    private readonly MenuStick _stick;
     private PartyTabView? _view;
     private SystemTabView? _system;
     private WorldTabView? _world;
@@ -94,8 +85,9 @@ public partial class PauseMenu : CanvasLayer
     private Image? _snapshot;
     private bool _tabsLocked;
 
-    public PauseMenu(PluginSet plugins, GameState game, Settings settings)
+    public PauseMenu(PluginSet plugins, GameState game, Settings settings, MenuStick stick)
     {
+        _stick = stick;
         _plugins = plugins;
         _game = game;
         _settings = settings;
@@ -392,8 +384,7 @@ public partial class PauseMenu : CanvasLayer
     }
 
     /// <summary>Whether the stick, the movement keys or the D-pad hold a direction.</summary>
-    private static bool Held(string move) =>
-        Input.IsActionPressed(move) || Input.IsActionPressed(move == "move_left" ? "menu_left" : "menu_right");
+    private static bool Held(string move) => MenuStick.Held(move) || MenuStick.Held(MenuStick.Dpad(move));
 
     // The System tab's presses: the stick moves the cursor, steps an option or a save, or moves over the name entry's keys.
     private bool HandleSystem(InputEvent e, SystemMenu system)
@@ -521,41 +512,13 @@ public partial class PauseMenu : CanvasLayer
             barter.ShowParty();
     }
 
-    /// <summary>
-    /// Whether an event presses an action. A key repeats as it's held. The stick and the triggers send an event
-    /// whenever they move, each past the deadzone reading as pressed, so they count only as they cross the deadzone;
-    /// the stick, held, repeats in <see cref="_Process"/>.
-    /// </summary>
-    private bool Pressed(InputEvent e, string action)
-    {
-        if (e is not InputEventJoypadMotion)
-            return e.IsActionPressed(action, allowEcho: true);
-        if (!e.IsAction(action))
-            return false;
-        if (!e.IsActionPressed(action))
-        {
-            _stick.Remove(action);
-            return false;
-        }
-        return _stick.TryAdd(action, RepeatDelay);
-    }
+    private bool Pressed(InputEvent e, string action) => _stick.Pressed(e, action);
 
     public override void _Process(double delta)
     {
         if (!IsOpen || _view is null || _system is null || Sliding)
             return;
-        foreach (var action in StickActions)
-        {
-            if (!_stick.TryGetValue(action, out var left))
-                continue;
-            left -= delta;
-            if (left <= 0)
-            {
-                Repeat(action);
-                left += RepeatEvery;
-            }
-            _stick[action] = left;
-        }
+        _stick.Step(delta, Repeat);
     }
 
     /// <summary>The stick held: the cursor moves on, and on the System tab, an option or the name entry's key too.</summary>

@@ -178,11 +178,11 @@ public partial class Game
                 scene.Press(runner.Continue);
             ShowCutScenePage(force: true);
         }
-        else if (e.IsActionPressed("move_forward") || e.IsActionPressed("menu_up"))
+        else if (_stick.Pressed(e, "move_forward") || e.IsActionPressed("menu_up", allowEcho: true))
         {
             _box.Point(box.Highlight - 1);
         }
-        else if (e.IsActionPressed("move_back") || e.IsActionPressed("menu_down"))
+        else if (_stick.Pressed(e, "move_back") || e.IsActionPressed("menu_down", allowEcho: true))
         {
             _box.Point(box.Highlight + 1);
         }
