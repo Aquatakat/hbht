@@ -3,21 +3,27 @@ using Godot;
 namespace Aidyn.Game;
 
 /// <summary>
-/// The stick and the triggers in menus, the pause menu's and trek's popups and conversations alike. They send an event
-/// whenever they move, so a direction counts once as it crosses <see cref="Press"/>, and lets go below
-/// <see cref="Release"/>: well past the 0.1 trek moves at, so a push up doesn't also count as sideways. Held, the
-/// stick's directions repeat in <see cref="Step"/>. Keys and buttons repeat as the system repeats them.
+/// The stick, the D-pad and the triggers in menus, the pause menu's and trek's popups and conversations alike, as the
+/// original's widgets read them (<c>Controller::ReadInput</c>, <c>BaseWidget::Control</c>). The stick and the triggers
+/// send an event whenever they move, so a direction counts once as it crosses <see cref="Press"/>, and lets go below
+/// <see cref="Release"/>. Held, the stick's and the D-pad's directions repeat in <see cref="Step"/>. Keys repeat as the
+/// system repeats them. Every event goes through <see cref="Track"/> first.
 /// </summary>
 public sealed class MenuStick
 {
     /// <summary>
     /// How long a direction held waits before the cursor moves on by itself, and how often it does then, in seconds:
-    /// the user timed the original's at about 0.7 s, then 12 a second, every fifth frame of the menu's 60.
+    /// the original's widgets count 30 of the controller's samples, 60 a second, then 5 (<c>BaseWidget::Control</c>,
+    /// <c>0x800ad708</c> in 1.0). The user timed about 0.7 s and 12 a second.
     /// </summary>
-    public const double RepeatDelay = 0.7, RepeatEvery = 5.0 / 60;
+    public const double RepeatDelay = 30.0 / 60, RepeatEvery = 5.0 / 60;
 
-    /// <summary>How far the stick or a trigger must go to count, and how far back to let go. The user read the original's at about 0.58.</summary>
-    public const float Press = 0.5f, Release = 0.4f;
+    /// <summary>
+    /// How far the stick or a trigger must go to count, and how far back to let go. The original counts a direction
+    /// from 56 of the N64 stick's 80 (0.7, <c>Controller::ReadInput</c>), which the user read as 0.58 on a PC stick
+    /// through the emulator, as ares scales a stick pushed all the way to about 100. The original has no hysteresis.
+    /// </summary>
+    public const float Press = 0.58f, Release = 0.5f;
 
     /// <summary>The stick's directions, which repeat as they're held.</summary>
     public static readonly string[] Directions = ["move_forward", "move_back", "move_left", "move_right"];
@@ -25,28 +31,36 @@ public sealed class MenuStick
     /// <summary>The axes' actions the menus read: the stick's directions, and the triggers that change tab.</summary>
     private static readonly string[] Tracked = [.. Directions, "menu_tab_previous", "menu_tab_next"];
 
-    /// <summary>The actions held past the threshold, and how long until each repeats.</summary>
+    /// <summary>The axes' actions and the directions held, and how long until each repeats.</summary>
     private readonly Dictionary<string, double> _held = [];
-    /// <summary>The actions the last axis event pressed.</summary>
+    /// <summary>The axes' actions the last event pressed.</summary>
     private readonly HashSet<string> _pressed = [];
-    private InputEvent? _last;
 
     /// <summary>
-    /// Whether an event presses an action. For the axes, every action they drive is brought up to date with each new
-    /// event, so one that's let go is let go even when the caller has stopped asking.
+    /// Brings what's held up to date with an event: every action an axis drives, so one that's let go is let go even
+    /// when no menu asks, and the D-pad's directions, which Godot doesn't repeat.
     /// </summary>
-    public bool Pressed(InputEvent e, string action)
+    public void Track(InputEvent e)
     {
-        if (e is not InputEventJoypadMotion motion)
-            return e.IsActionPressed(action, allowEcho: true);
-        if (!ReferenceEquals(e, _last))
+        _pressed.Clear();
+        switch (e)
         {
-            _last = e;
-            _pressed.Clear();
-            foreach (var tracked in Tracked)
-                Update(motion, tracked);
+            case InputEventJoypadMotion motion:
+                foreach (var action in Tracked)
+                    Update(motion, action);
+                break;
+            case InputEventJoypadButton button:
+                foreach (var direction in Directions)
+                {
+                    if (!button.IsAction(Dpad(direction)))
+                        continue;
+                    if (button.Pressed)
+                        _held[direction] = RepeatDelay;
+                    else
+                        _held.Remove(direction);
+                }
+                break;
         }
-        return _pressed.Contains(action);
     }
 
     private void Update(InputEventJoypadMotion motion, string action)
@@ -59,6 +73,10 @@ public sealed class MenuStick
         else if (_held.TryAdd(action, RepeatDelay))
             _pressed.Add(action);
     }
+
+    /// <summary>Whether an event presses an action: for the axes, as <see cref="Track"/> found it.</summary>
+    public bool Pressed(InputEvent e, string action) =>
+        e is InputEventJoypadMotion ? _pressed.Contains(action) : e.IsActionPressed(action, allowEcho: true);
 
     /// <summary>Whether a direction is held past the threshold by the stick, or by a key or the D-pad.</summary>
     public static bool Held(string action) => Input.GetActionRawStrength(action) >= Press;
@@ -83,7 +101,7 @@ public sealed class MenuStick
         }
     }
 
-    /// <summary>The D-pad's action for a stick direction, which a repeat presses.</summary>
+    /// <summary>The D-pad's action for a stick direction.</summary>
     public static string Dpad(string direction) => direction switch
     {
         "move_forward" => "menu_up",

@@ -43,7 +43,7 @@ public class GameDbTests
         Assert.Equal(71, db.Journal.Count);
         Assert.Equal(4, db.CinematicTitles.Count);
         Assert.Equal(15, db.Captions.Count);
-        Assert.Equal(54 * CampEncounter.LevelTiers, db.CampEncounters.Count);
+        Assert.Equal(27 * CampEncounter.SlotsPerTerrain, db.CampEncounters.Count);
     }
 
     [Theory]

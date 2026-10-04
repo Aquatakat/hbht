@@ -648,6 +648,7 @@ public partial class Game : Node3D, ITrekHost
 
     public override void _UnhandledInput(InputEvent e)
     {
+        _stick.Track(e);
         if (_menu is { IsOpen: true } menu)
         {
             if (menu.Handle(e))
