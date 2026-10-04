@@ -235,7 +235,8 @@ python tools/gdb/trace.py --report out/trace-<time>.log                         
 ```
 
 - **Cost:** setting the 3,740 breakpoints takes about 21 s. The game then runs at about half speed until the hot functions have used up their breakpoints, which standing still in trek does within 17 s (410 functions). `-Files` or `-Range` sets fewer breakpoints and keeps the game near full speed.
-- **Checked Oct 4, 2026,** standing still in both windows, from "Before Rooughah": the action window finds nothing new, as it should. It hasn't yet been run with a real action.
+- **Checked Oct 4, 2026,** from "Before Rooughah". Standing still in both windows, the action window finds nothing new. Pressing Start in the action window finds 283 functions, in the order the menu opens: trek frees its memory (`FreeZoneEngineMemory`, `FreePlayerActor`), the last frame is kept (`GetSnapShot`), `BigAssMenu` loads the menu's Borgs from the ROM, and then the tabs (`OptionsMenu`, `DollMenu::InitMenu`, the inventory, `WorldMenu.Build`) and `MenuStick.Step` run. A trace is a quick way to find, and then name, the code behind a feature.
+- **Input is the user's.** Scripting key presses into ares isn't worth it: taking the foreground needs a key first, and an Alt tap opens ares's menu bar. Do the action by hand at the two beeps.
 - **How it's built:** `tools/gdb/trace.py` runs inside gdb, with gdb's own Python, and is driven through `tools/gdb.ps1 -Source`. A timer interrupts the target to close each window. gdb is given an empty stdin, because without a console (as in `trace.ps1`'s background job) it blocks before starting.
 
 ## Finding the original's code

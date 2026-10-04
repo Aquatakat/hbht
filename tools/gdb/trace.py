@@ -98,7 +98,8 @@ def report(path):
         if phase == last:
             at = int(address, 16)
             where = source_file(rom, at, builds) or ""
-            print(f"{float(seconds):8.3f}  {at:08x}  {symbols.get(at, ''):40} {where}")
+            name = symbols.get(at, "")
+            print(f"{float(seconds):8.3f}  {at:08x}  {name:40} {where}".rstrip() if where else f"{float(seconds):8.3f}  {at:08x}  {name}".rstrip())
 
 
 if __name__ == "__main__" and "--report" in sys.argv:
