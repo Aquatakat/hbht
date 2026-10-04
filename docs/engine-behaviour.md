@@ -59,7 +59,7 @@ Doors transport the player into interiors instantly, with a very short fade to b
 
 Doors are teleporter objects that can move the player to any chunk in any map set, which is why the transitions look identical. It's still unconfirmed whether town exteriors also exist in the overworld set, or only in their own sets.
 
-**(decomp)** Camping isn't blocked by geofenced town regions. No-camp zones are dialogue trigger volumes placed in the map and gated by a small set of camp-specific flags. When the player camps inside one, its dialogue plays instead of the normal campfire. The same mechanism provides the special story campfire scenes.
+**(machine code)** Camping isn't blocked by geofenced town regions, but by the chunk's terrain: town and interior terrains allow none. A chunk's dialogue objects gated by a small set of camp-specific flags provide the special story campfire scenes, wherever in the chunk the party camps. See [camping](systems/camping.md).
 
 ### Draw distance tiers
 
@@ -621,8 +621,8 @@ The game allows saving anywhere, and each save stores a small screenshot, which 
 Camping is started from the World tab and is allowed anywhere outside towns. It:
 
 - Advances time by eight hours.
-- Fully heals the party.
-- Regenerates spell battery by the amount eight in-game hours would, which may not be a full recharge.
+- Heals the party. **(machine code)** By half of each member's maximum, not fully ([camping](systems/camping.md)); to be checked in the emulator.
+- Regenerates spell battery. **(machine code)** By half each battery's capacity.
 - Has a chance of triggering an ambush battle. Ambush encounters vary by area, and the Ranger skill lowers the chance.
 
 ## Open questions

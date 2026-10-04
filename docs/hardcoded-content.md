@@ -38,7 +38,7 @@ Every flag below that engine code names carries its label on the flag record, wh
 
 | What | Code | Layer | Status |
 | --- | --- | --- | --- |
-| Camp scenes: a dialogue object whose flag A is one of eight flags starts when the party camps near it | `Camp_CheckDialougFlags` | 1: dialogue object field | ROM |
+| Camp scenes: the first dialogue object in the player's chunk whose flag A is one of eight flags, and holds, starts when the party camps, however far it is | `Camp_CheckDialougFlags` | 1: dialogue object field | ROM |
 | Camp ambushes only happen while derived flag 5004 holds: two of Abrecan, Godric and Rheda have joined | `Party::CampCheck` | 1: camping setting | Fact |
 | Alaron has his True Name while 590 is set | `entityInfo.cpp` | 1: character condition | Fact, on his entity record |
 | When the Rooughah scene (Borg13 1268) ends, the Roog cinematic plays if 3442 is set | `dialogmode.cpp` | 2: trigger on script end | Fact |
@@ -116,7 +116,7 @@ A feature on the entity, with the Horn of Kynon as its item. The fields:
 - **Rheda has no rule in code.** Apart from the party tables, no code names her. Scripts add and remove her like the other recruits; the full-party template won't let her leave before flag 458, Beat Shamsuk ([characters](systems/characters.md#joining-and-leaving)).
 - **Which members' sheets are kept when they leave** (`SaveEntity::GetSlot`, a jump table at 1.0 `0x800CDD88`): Abrecan, Arturo, Becan, Godric and Keelin, by their entity list positions. Layer 1, the member record (`MemberFlags.Kept`). Status: Fact, in the importer (`CharacterImporter.KeptMemberPositions`), as it's a switch.
 - **The Archmage Staff stays with a member who leaves** (`Party::StripMember`, through `RemoveWeaponsFrom`'s check), as it does when taking it off. It's the weapon record's `Fixed`.
-- **Camp ambushes** (`Party::CampCheck`): while 5004 holds, camping is ambushed if a d100 roll is at most (15 − the party's best Ranger, capped at 10) × 0.666 × the terrain's factor. Otherwise the party heals. The 15, 10 and 0.666 are camping settings (layer 1); the factor is a terrain field.
+- **Camp ambushes** (`Party::CampCheck`): while 5004 holds, camping is ambushed if a d100 roll is at most (15 − the party's best Ranger, capped at 10) × 1/15 × the terrain's factor (the decomp's 0.666 is 0.0666667 in the machine code). Otherwise the party heals by half. The 15, 10, 1/15 and the half are camping settings (layer 1); the factor is a terrain field. See [camping](systems/camping.md).
 - **Camping is refused** on terrain whose factor is 0 ("The party cannot camp here").
 
 ## Terrain and weather
