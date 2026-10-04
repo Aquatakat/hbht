@@ -56,6 +56,9 @@ public partial class SystemTabView : Control
 
     public SystemMenu Menu { get; set; }
 
+    /// <summary>How far the classic layout's widgets are faded into the parchment, from 0 to 1, as on <see cref="PartyTabView.Veil"/>.</summary>
+    public float Veil { get; set; }
+
     public bool Wide => Size.X >= PartyTabView.WideMinimum.X && Size.Y >= PartyTabView.WideMinimum.Y;
 
     public override void _Notification(int what)
@@ -136,6 +139,8 @@ public partial class SystemTabView : Control
                 Rename(Menu.Rename!);
                 break;
         }
+        if (Veil > 0 && !Wide)
+            _ui.Image(this, MenuImages.SystemTab, 0, 0, color: new Rgba(255, 255, 255, (byte)(Veil * 255)));
         DrawSetTransform(Vector2.Zero);
         if (Menu.Saves?.Choice is { } choice)
             _ui.Choice(this, size, choice.Text, choice.Width, choice.Gap, choice.Color, choice.ChoiceColor, choice.Choices,

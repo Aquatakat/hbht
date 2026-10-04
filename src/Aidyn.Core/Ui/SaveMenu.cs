@@ -129,11 +129,14 @@ public sealed class SaveMenu
         return alaron?.Name ?? _names(GameState.Alaron) ?? "";
     }
 
-    /// <summary>"Hours: h:m:s", unpadded, from the time played in 60 Hz ticks.</summary>
+    /// <summary>
+    /// "Hours: h:mm:ss" from the time played in 60 Hz ticks. The original prints the minutes and seconds unpadded,
+    /// as in 18:4:28; the port pads them, which the user chose (Oct 3, 2026).
+    /// </summary>
     public string Hours(SaveSlot slot)
     {
         var t = slot.Save.PlayTime;
-        return _text.Format(HoursLine, t / 216000, t % 216000 / 3600, t % 3600 / 60);
+        return _text.Format(HoursLine, t / 216000, $"{t % 216000 / 3600:D2}", $"{t % 3600 / 60:D2}");
     }
 
     /// <summary>The save's party's portraits, in slot order.</summary>

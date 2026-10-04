@@ -6,11 +6,12 @@ using Godot;
 
 namespace Aidyn.Game;
 
-/// <summary>The pause menu's tabs, left to right (<c>PauseMenuSection</c>). World isn't ported yet.</summary>
+/// <summary>The pause menu's tabs, left to right (<c>PauseMenuSection</c>). World isn't ported yet, so it can't be slid to.</summary>
 public enum PauseTab
 {
     System,
     Party,
+    World,
 }
 
 /// <summary>
@@ -22,9 +23,14 @@ public enum PauseTab
 /// </summary>
 /// <remarks>
 /// <para>
-/// Z or L, and R, change the tab, which slides a screen's width over 32 frames, as the original's moves 10 pixels a
-/// frame across its 320; presses wait while it slides. There's no wrap. The System tab can be left only from its
-/// list, as the original's can. On a PC, Z and X or the triggers change the tab.
+/// Z or L, and R, change the tab, which slides over 32 frames, as the original's moves 10 pixels a frame across its
+/// 320; presses wait while it slides. There's no wrap. The System tab can be left only from its list, as the
+/// original's can. On a PC, Z and X or the triggers change the tab.
+/// </para>
+/// <para>
+/// The tabs are one scroll, as their images are drawn. In the classic layout they're 320 apart, so a screen wider
+/// than the frame shows the edges of the tabs either side, their widgets faded into the parchment, which clears as a
+/// tab slides into the middle. In the wide layout each tab fills the screen, and they're a screen's width apart.
 /// </para>
 /// <para>
 /// The menu remembers which tab was open, as the original does, and nothing else: a new game's first opening is on
@@ -62,6 +68,12 @@ public partial class PauseMenu : CanvasLayer
     /// <summary>How far a tab slides a tick: the original's 10 pixels a frame of its 320.</summary>
     private const float SlidePerTick = 10f / 320 / Cadence.FrameTicks;
 
+    /// <summary>How far the widgets of a tab beside the one showing are faded into its parchment.</summary>
+    private const float NeighbourVeil = 0.6f;
+
+    /// <summary>The last tab that can be slid to: World waits for its widgets.</summary>
+    private const PauseTab LastTab = PauseTab.Party;
+
     private static readonly string[] StickActions = ["move_forward", "move_back", "move_left", "move_right"];
 
     /// <summary>The tab the menu last showed, which a default opening goes back to (<c>gGlobals.pauseMenuSection</c>).</summary>
@@ -75,6 +87,7 @@ public partial class PauseMenu : CanvasLayer
     private readonly Dictionary<string, double> _stick = [];
     private PartyTabView? _view;
     private SystemTabView? _system;
+    private WorldTabView? _world;
     /// <summary>Where the tabs are: the tab shown, or between two as they slide.</summary>
     private float _position;
     /// <summary>The world as it was drawn when the menu opened, which a save's screenshot is cut from.</summary>
@@ -145,6 +158,11 @@ public partial class PauseMenu : CanvasLayer
         {
             _system.Menu = system;
         }
+        if (_world is null)
+        {
+            _world = new WorldTabView(_plugins);
+            _screen.Canvas.AddChild(_world);
+        }
         Tab = tab;
         _position = (float)tab;
         _tabsLocked = tabsLocked;
@@ -202,28 +220,43 @@ public partial class PauseMenu : CanvasLayer
         _system.MouseFilter = Tab == PauseTab.System ? Control.MouseFilterEnum.Pass : Control.MouseFilterEnum.Ignore;
     }
 
-    /// <summary>Lays the tabs side by side, a screen's width apart, with the one at <see cref="_position"/> showing.</summary>
+    /// <summary>
+    /// Lays the tabs side by side with the one at <see cref="_position"/> showing: 320 apart in the classic layout,
+    /// where those beside it show at the screen's edges, faded, or a screen's width apart in the wide one. Barter and
+    /// training show the Party tab alone.
+    /// </summary>
     private void Place()
     {
-        var width = _screen.Canvas.GetViewportRect().Size.X;
-        _system!.Position = new Vector2(Mathf.Round(((int)PauseTab.System - _position) * width), 0);
-        _view!.Position = new Vector2(Mathf.Round(((int)PauseTab.Party - _position) * width), 0);
-        _system.Visible = Math.Abs((int)PauseTab.System - _position) < 1;
-        _view.Visible = Math.Abs((int)PauseTab.Party - _position) < 1;
+        var screen = _screen.Canvas.GetViewportRect().Size;
+        var wide = _view!.Wide;
+        var spacing = wide ? screen.X : UiScreen.Width;
+        foreach (var (control, tab) in new (Control, PauseTab)[] { (_system!, PauseTab.System), (_view, PauseTab.Party), (_world!, PauseTab.World) })
+        {
+            var offset = ((int)tab - _position) * spacing;
+            control.Position = new Vector2(Mathf.Round(offset), 0);
+            control.Visible = Math.Abs(offset) < (wide ? screen.X : (screen.X + UiScreen.Width) / 2) && (!_tabsLocked || tab == PauseTab.Party);
+            var veil = wide ? 0 : Math.Min(1, Math.Abs((int)tab - _position)) * NeighbourVeil;
+            if (control is PartyTabView party)
+                party.Veil = veil;
+            else if (control is SystemTabView system)
+                system.Veil = veil;
+        }
     }
 
     /// <summary>Z or R: slides to the tab that way, if there is one and the tab showing can be left.</summary>
     private void ChangeTab(int by)
     {
-        if (_tabsLocked || Sliding || !Enum.IsDefined((PauseTab)((int)Tab + by)))
+        var to = (PauseTab)((int)Tab + by);
+        if (_tabsLocked || Sliding || to < PauseTab.System || to > LastTab)
             return;
         if (Tab == PauseTab.System && !_system!.Menu.OnList)
             return;
         if (Tab == PauseTab.Party && (_view!.Menu.Message is not null || _view.Menu.Crafting is not null))
             return;
-        Tab += by;
+        Tab = to;
         _view!.DetailsOpen = false;
         Activate();
+        Redraw();
     }
 
     public override void _PhysicsProcess(double delta)
@@ -233,11 +266,18 @@ public partial class PauseMenu : CanvasLayer
         if (Sliding)
         {
             _position = Mathf.MoveToward(_position, (float)Tab, SlidePerTick);
-            Place();
+            Redraw();
         }
-        else
+        Place();
+        // A volume steps every tick the stick is held, from the first.
+        if (Tab == PauseTab.System && !Sliding && _system.Menu.OnVolume)
         {
-            Place();
+            var by = (Held("move_right") ? 1 : 0) - (Held("move_left") ? 1 : 0);
+            if (by != 0)
+            {
+                _system.Menu.Sideways(by);
+                _system.QueueRedraw();
+            }
         }
         if (_system.Menu.Saves is { Request: not SaveRequest.None } saves)
             CarryOut(saves);
@@ -348,13 +388,20 @@ public partial class PauseMenu : CanvasLayer
     {
         _view?.QueueRedraw();
         _system?.QueueRedraw();
+        _world?.QueueRedraw();
     }
+
+    /// <summary>Whether the stick, the movement keys or the D-pad hold a direction.</summary>
+    private static bool Held(string move) =>
+        Input.IsActionPressed(move) || Input.IsActionPressed(move == "move_left" ? "menu_left" : "menu_right");
 
     // The System tab's presses: the stick moves the cursor, steps an option or a save, or moves over the name entry's keys.
     private bool HandleSystem(InputEvent e, SystemMenu system)
     {
         if (e.IsActionPressed("menu_accept"))
             system.Accept();
+        else if (system.OnVolume && (e.IsAction("move_left") || e.IsAction("move_right") || e.IsAction("menu_left") || e.IsAction("menu_right")))
+            return true; // Stepped every tick it's held, in _PhysicsProcess.
         else if (Pressed(e, "move_left") || e.IsActionPressed("menu_left", allowEcho: true))
             system.Sideways(-1);
         else if (Pressed(e, "move_right") || e.IsActionPressed("menu_right", allowEcho: true))
@@ -520,8 +567,8 @@ public partial class PauseMenu : CanvasLayer
         {
             if (vertical)
                 _system!.Menu.MoveCursor(by);
-            else
-                _system!.Menu.Sideways(by);
+            else if (!_system!.Menu.OnVolume)
+                _system.Menu.Sideways(by);
             _system.QueueRedraw();
             return;
         }

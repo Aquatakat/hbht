@@ -124,6 +124,12 @@ public partial class PartyTabView : Control
     /// <summary>Whether combat opened the menu, which turns the arrow under the knotwork to point left only.</summary>
     public bool InCombat { get; set; }
 
+    /// <summary>
+    /// How far the classic layout's widgets are faded into the parchment, from 0 to 1: the pause menu fades a tab
+    /// beside the one showing, whose edge shows on a screen wider than the frame.
+    /// </summary>
+    public float Veil { get; set; }
+
     /// <summary>Whether the screen has room for the wide layout.</summary>
     public bool Wide => Size.X >= WideMinimum.X && Size.Y >= WideMinimum.Y;
 
@@ -227,6 +233,9 @@ public partial class PartyTabView : Control
                 DrawTrainingClassic(training);
             else
                 DrawClassic();
+            // The tab's own image again, over its widgets, fades them into the parchment.
+            if (Veil > 0)
+                _ui.Image(this, MenuImages.PartyTab, 0, 0, color: new Rgba(255, 255, 255, (byte)(Veil * 255)));
             DrawSetTransform(Vector2.Zero);
         }
         if (Barter is { } popups)

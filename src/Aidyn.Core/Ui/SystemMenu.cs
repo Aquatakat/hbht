@@ -82,6 +82,9 @@ public sealed class SystemMenu
 
     public NameEntry? Rename { get; private set; }
 
+    /// <summary>Whether the cursor is on a volume, which the stick steps every tick it's held (<see cref="OptionsMenu.OnVolume"/>).</summary>
+    public bool OnVolume => Page == SystemPage.Options && Options!.OnVolume;
+
     /// <summary>Whether the list is showing, which is the only time the tab can be left.</summary>
     public bool OnList => Page == SystemPage.List;
 

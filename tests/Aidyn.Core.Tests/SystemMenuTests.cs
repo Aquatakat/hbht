@@ -275,8 +275,8 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         Assert.Equal((true, false), (screen.MoreLeft, screen.MoreRight));
         screen.Shift(1);
         Assert.Equal(1, screen.Slot);
-        // 3,905,657 ticks is 18 hours, 4 minutes and 54 seconds, unpadded as the original prints it.
-        Assert.Equal("Hours: 18:4:54", screen.Hours(screen.Current!));
+        // 3,905,657 ticks is 18 hours, 4 minutes and 54 seconds, which the original prints unpadded and the port pads.
+        Assert.Equal("Hours: 18:04:54", screen.Hours(screen.Current!));
         Assert.Equal("Alaron", screen.Name(screen.Current!));
         Assert.Equal(2, screen.Portraits(screen.Current!).Count);
     }

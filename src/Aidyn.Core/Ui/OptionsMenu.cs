@@ -105,8 +105,13 @@ public sealed class OptionsMenu
 
     public void Point(int row) => Rows.Point(row);
 
+    /// <summary>Whether the cursor is on a volume, which steps every tick the stick is held rather than once a press.</summary>
+    public bool OnVolume => Rows.Current?.Kind == OptionKind.Volume;
+
     /// <summary>
-    /// The stick's left or right: steps a volume, which stops at its ends, or a choice, which wraps round.
+    /// The stick's left or right: steps a volume, which stops at its ends, or a choice, which wraps round. A volume
+    /// steps once a tick while the stick is held, at once and with no wait: the user timed the original's bar from
+    /// empty to full at about 1.5 s, and 100 steps at 60 a second take 1.67 s.
     /// </summary>
     public void Change(int by)
     {

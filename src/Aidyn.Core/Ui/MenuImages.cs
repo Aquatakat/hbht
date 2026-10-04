@@ -16,6 +16,12 @@ public static class MenuImages
     public static readonly RecordId SystemTab = Image(0x00D8);
 
     /// <summary>
+    /// The World tab's parchment, with the world map, the compass and the calendar's days painted in. The three tabs'
+    /// images are one scroll: their torn edges run on from one to the next.
+    /// </summary>
+    public static readonly RecordId WorldTab = Image(0x00DA);
+
+    /// <summary>
     /// The System tab's titles: its list's "Menu" (<c>BORG8_TitleMenui</c>), Options, Load Game, Save Game, and the
     /// name entry's (<c>BORG8_TitleEnterName</c>).
     /// </summary>
