@@ -45,7 +45,7 @@ Every flag below that engine code names carries its label on the flag record, wh
 | World map pieces: each shows while its region flag is set | `WorldMapPieces` | 1: the world map record (`aidyn:worldmap/0`), with the towns' names and the party's ring | ROM |
 | The lighthouse chunks swap to their lit scenes while 5017 holds | `ZoneEngine.cpp` | 1: chunk scene condition | Fact |
 | Party skill checks in dialogue roll 0–21 while 3717 is set | `DialogEvalCallback` | 3: debug option, in the state flags record | Fact |
-| Minimap images chosen by flags: the Ehud underground (4222–4232), the Roog entrance (4233–4237) and the Barrows (4286–4294). Which Barrows piece each flag changes is code. | `minimap_dats_2`, `MiniMap::BarrowsFlags` | 1: minimap records | ROM (Barrows logic to do) |
+| Minimap pieces chosen by flags: the Ehud underground (4222–4232), the Roog entrance (4233–4237) and the Barrows (4286–4294). Which Barrows piece each flag shows is code. | `minimap_dats_2`, `MiniMap::BarrowsFlags` | 1: the minimap records' rules | ROM, the Barrows' as facts |
 | The Theatre menu lists a cinematic once its title's flag is set | `TheatreMenu.cpp` | 1: DB | ROM (DB block) |
 | Key item flags restore the key items when a save loads | `LoadKeyItems` | 1: item record | ROM |
 | Flag 5626, read after some map object actions; the result is never used | `objectJumpTables.cpp` | None | Fact |
@@ -200,7 +200,7 @@ Code uses 1,990 of the 2,076 names in the decomp's `Borgindecies.h`. The map chu
 | Spell and potion effects: Borg7 and Borg5 per spell or potion, with a memory size | `spellvisuals.cpp` | Switches | To do |
 | Models whose actors fly: bat, wyvern, harpy, dryads, Pandara, gryphon, manticore and scorpion | `Actor::IsFlyingModel` | `0xCE650` | To do |
 | The 39 Borg12 sounds that Borg13 PlaySound operands index | `dialoug_SFX` | `0xE0960` | To do |
-| Minimap pieces for eight interiors: chunk, group, image and position | `minimap.cpp` | | ROM |
+| Minimap pieces for eight map sets: chunk, group, whether seen from the start, image and position. Which map set each is for, and the pieces chosen by where the player stands (Gwernia's courtyard, walls and tower, the mage school's stairs, the Ehud underground's C11 and I09, the Barrows' E01), are code. | `minimap.cpp`, `BorgMaps::LoadMap`, `ShowingSpecialSection` | 1: minimap records (`aidyn:minimap/<map set>`) | ROM, with facts (`MinimapImporter`) |
 
 **Settings and features** are engine behaviour that names specific assets. Each becomes a game setting (layer 1) or a field of the feature that uses it (layer 3).
 

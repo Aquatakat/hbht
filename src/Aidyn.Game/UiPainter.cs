@@ -136,6 +136,29 @@ public sealed class UiPainter
     }
 
     /// <summary>
+    /// Draws one of the HUD's images: at its place in quarter pixels, scaled or stretched, times its colour, and cut to
+    /// its clip, inclusive, which crops the image rather than squeezing it (<c>WidgetBorg8::Render</c>).
+    /// </summary>
+    public void Sprite(CanvasItem canvas, HudSprite sprite)
+    {
+        if (Images.Get(sprite.Image) is not { } texture)
+            return;
+        var source = new Rect2(Vector2.Zero, texture.GetSize());
+        var size = sprite.Size is var (w, h) ? new Vector2(w, h) : source.Size * sprite.Scale;
+        var rect = new Rect2(sprite.X, sprite.Y, size);
+        if (sprite.Clip is { } c)
+        {
+            var cut = rect.Intersection(new Rect2(c.Left, c.Top, c.Right - c.Left + 1, c.Bottom - c.Top + 1));
+            if (cut.Size.X <= 0 || cut.Size.Y <= 0)
+                return;
+            var texels = source.Size / size;
+            source = new Rect2((cut.Position - rect.Position) * texels, cut.Size * texels);
+            rect = cut;
+        }
+        canvas.DrawTextureRectRegion(texture, rect, Sampled(source, rect.Size), Color8(sprite.Color));
+    }
+
+    /// <summary>
     /// Where to read a source rectangle from so that scaling it samples as the RDP does: its first
     /// pixel on the first texel's centre and each next one a step of the scale on, where Godot's
     /// first sample is half a step in.

@@ -129,6 +129,12 @@ public sealed class ImportTests : IDisposable
         Assert.Equal(8, camping.Scenes.Count);
         Assert.Contains(set.Get<MapRecord>(camping.Campsite).Objects, o => o is DialogueObject);
 
+        // The minimaps: eight map sets', every piece's image imported and every rule's piece one of its own.
+        var minimaps = set.All<MinimapRecord>(RecordTypes.Minimap).ToList();
+        Assert.Equal([4, 6, 7, 9, 10, 11, 12, 14], minimaps.Select(m => int.Parse(m.Id.Key)).Order());
+        Assert.All(minimaps.SelectMany(m => m.Sections), s => Assert.NotNull(set.FindAsset(s.Image, "png")));
+        Assert.All(minimaps, m => Assert.All(m.Rules, r => Assert.True(r.Section is null || r.Section < m.Sections.Count)));
+
         // The editor's catalog: every record and asset with a summary, and what names what.
         var catalog = PluginCatalog.Build(set);
         Assert.DoesNotContain(catalog.Entries, e => e.Summary.StartsWith('‹'));

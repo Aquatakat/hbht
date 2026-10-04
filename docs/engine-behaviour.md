@@ -584,9 +584,10 @@ The journal is a list of entries, like the original Morrowind journal before que
 
 All trek-mode UI sits in feathered, semi-transparent black boxes. The pre-release HUD was more elaborate; the final one is pared down.
 
-- **Compass**, always visible. N, E, S, W rotate around the outside. The centre ring is a clock: a sun circles it by day and becomes a dim moon at night.
-- **Minimap**, only in a few areas such as inside Gwernia castle and some dungeons.
-- **Party portraits** appear at the bottom centre when the player stands still for a moment or presses B. Only portraits are shown. The minimap also grows at this point.
+- **Sundial**, at the bottom left, always visible: a ring with the moon's phase at its centre, around which a sun circles by day and becomes a dim dot at night.
+- **Compass**, at the bottom right, outdoors. N, E, S, W rotate around a ring of its own.
+- **Minimap**, in the compass's place, only in a few areas such as inside Gwernia castle and some dungeons.
+- **Party portraits** appear at the bottom centre when the player stands still for a moment or presses B. Only portraits are shown. The minimap also grows at this point. **(code)** Only B, and trek starting, raise them in 1.0's code; standing still doesn't (see [ui](systems/ui.md#the-partys-portraits)).
 
 ### Camera
 

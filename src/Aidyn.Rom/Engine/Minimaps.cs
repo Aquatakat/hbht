@@ -6,8 +6,11 @@ namespace Aidyn.Rom.Engine;
 /// Pieces that show together. The game reveals a group as the party explores it, and saves
 /// which pieces have been seen.
 /// </param>
+/// <param name="Seen">
+/// Whether the piece is seen from the start (<c>checked</c>). The game sets it when the piece is first shown, and saves it.
+/// </param>
 /// <param name="Image">The piece's Borg8.</param>
-public sealed record MinimapSection(int Row, int Column, int Group, int Image, int X, int Y);
+public sealed record MinimapSection(int Row, int Column, int Group, bool Seen, int Image, int X, int Y);
 
 /// <summary>A minimap image that shows while its flag is set.</summary>
 public sealed record MinimapFlagImage(ushort Flag, int Image);
@@ -16,9 +19,10 @@ public sealed record MinimapFlagImage(ushort Flag, int Image);
 /// The interior minimaps (<c>minimap.cpp</c>), read from the code segment.
 /// </summary>
 /// <param name="Sections">
-/// Pieces for each map that has a minimap: Gwernia, Ugarit, Erromon, the Ehud underground, the
-/// mage school, the Roog entrance, the Roog cave and the Barrows. Code chooses the list when it
-/// loads a map set.
+/// Pieces for each map set that has a minimap, in the order the game saves them: Gwernia castle (map set 4),
+/// Ugarit 2 (14), Erromon (7), the Ehud underground (12), the Jundar interiors' mage school (11), the Roog
+/// entrance in the misc interiors (6), the Barrows (9) and the Roog cave (10). Code chooses the list when it loads a
+/// map set (<c>BorgMaps::LoadMap</c>); the decomp's names for the last two are swapped.
 /// </param>
 /// <param name="Ehud">Images for the Ehud underground's O05 chunk, the first set flag winning.</param>
 /// <param name="RoogEntrance">Images for the Roog entrance, the first set flag winning.</param>
@@ -45,7 +49,7 @@ public sealed record Minimaps(
             for (var at = 0; CodeSegment.U16(data, at + 4) != 0; at += SectionSize)
             {
                 list.Add(new MinimapSection(CodeSegment.U16(data, at), CodeSegment.U16(data, at + 2),
-                    CodeSegment.U16(data, at + 4), CodeSegment.U16(data, at + 8),
+                    CodeSegment.U16(data, at + 4), CodeSegment.U16(data, at + 6) != 0, CodeSegment.U16(data, at + 8),
                     CodeSegment.U16(data, at + 10), CodeSegment.U16(data, at + 12)));
             }
             sections.Add(list);

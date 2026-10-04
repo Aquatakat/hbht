@@ -89,6 +89,8 @@ public partial class Game : Node3D, ITrekHost
     private PluginSet? _plugins;
     private readonly UiScreen _trekScreen = new();
     private TrekPopupView? _popupView;
+    /// <summary>Trek's HUD: the sundial, the portraits, and the compass or the minimap.</summary>
+    private HudView? _hud;
     private readonly ColorRect _fade = new() { Color = Colors.Black, MouseFilter = Control.MouseFilterEnum.Ignore };
     /// <summary>Chunks whose scenery changed this tick, built again before the frame is drawn.</summary>
     private readonly HashSet<LoadedMap> _changed = [];
@@ -258,6 +260,8 @@ public partial class Game : Node3D, ITrekHost
         _trekScreen.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _trekScreen.MouseFilter = Control.MouseFilterEnum.Ignore;
         trekUi.AddChild(_trekScreen);
+        _hud = new HudView(plugins) { Trek = trek };
+        _trekScreen.Canvas.AddChild(_hud);
         _popupView = new TrekPopupView(plugins);
         _trekScreen.Canvas.AddChild(_popupView);
         _box = new ConversationBoxView(plugins) { Visible = false };
@@ -385,7 +389,9 @@ public partial class Game : Node3D, ITrekHost
         if (_player is null || _camera is null || _follow is null || _game is null || _trek is not { } trek)
             return;
         _game.PlayTime++;
-        if (_menu!.IsOpen)
+        // The HUD is trek's alone: not under the pause menu or in a cut-scene.
+        _hud!.Visible = !_menu!.IsOpen && _scene is null;
+        if (_menu.IsOpen)
             return;
         if (_scene is not null)
         {
@@ -403,6 +409,8 @@ public partial class Game : Node3D, ITrekHost
         }
         _sky!.Step();
         ScrollTextures();
+        _hud.Outdoors = Where().Outdoors;
+        _hud.QueueRedraw();
         if (step == TrekStep.Frozen)
             return;
         ShowPopup();
@@ -466,6 +474,8 @@ public partial class Game : Node3D, ITrekHost
     void ITrekHost.Say(string text) => Say(text);
 
     void ITrekHost.Log(string text) => GD.Print(text);
+
+    (int Width, int Height) ITrekHost.ImageSize(RecordId image) => _hud?.ImageSize(image) ?? (0, 0);
 
     /// <summary>
     /// Once a frame at the console's average 20 fps, the scenes the original would draw load their
@@ -695,6 +705,12 @@ public partial class Game : Node3D, ITrekHost
         }
         else if (e.IsActionPressed("menu_accept") && _camera is { Flying: false } && _trek is { TeleportFade.Fading: false } && UseNearest())
         {
+            return;
+        }
+        else if (e.IsActionPressed("menu_back") && _camera is { Flying: false } && _trek is { } trek)
+        {
+            // B raises or lowers the party's portraits, and the minimap with them.
+            trek.PressB();
             return;
         }
 

@@ -71,7 +71,8 @@ A save made from the "Before final encounter" checkpoint, cut short:
 - **The random streams** are the five streams' seeds. Without them, the streams start as a new game's.
 - **Alaron's name**, when the player renamed him in the options menu ([ui](ui.md#renaming-alaron)): `name` on his sheet, left out while it's the record's. The original saves his name with his spells (`SaveParty::SaveAlaron`, 20 bytes); the checkpoints' converter doesn't read it yet.
 - **The screenshot** isn't in the save: the System tab writes it beside the save, a PNG of the same name, 208 × 156 ([ui](ui.md#saving-and-loading)). The original keeps a 64 × 32 one in the save. A save without one shows none.
-- **Not kept yet:** spell effects (2.5), the weather and the minimap's fog. The original's volumes and resolution, which it saves too, are the player's settings in the port ([ADR 0013](../adr/0013-settings-in-the-options-menu.md)). The original also keeps three timers of how long the party has run, walked and sneaked (`Party::TickMoveCounters`), which nothing reads.
+- **The minimaps' seen pieces** (`minimaps`), each minimap's by their place in its record, where they're not as it starts ([ui](ui.md#the-minimap)). The original saves one bit a piece for all eight. Without them, the pieces start as a new game's.
+- **Not kept yet:** spell effects (2.5) and the weather. The original's volumes and resolution, which it saves too, are the player's settings in the port ([ADR 0013](../adr/0013-settings-in-the-options-menu.md)). The original also keeps three timers of how long the party has run, walked and sneaked (`Party::TickMoveCounters`), which nothing reads.
 
 ## Loading, as the original does
 

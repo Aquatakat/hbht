@@ -53,6 +53,9 @@ public static class RecordTypes
     /// <summary>The World tab's map: its pieces, towns and the party's ring. There's one, <c>aidyn:worldmap/0</c>.</summary>
     public const string WorldMap = "worldmap";
 
+    /// <summary>A map set's minimap in trek, by the map set's number, such as <c>aidyn:minimap/4</c> for Gwernia castle's.</summary>
+    public const string Minimap = "minimap";
+
     /// <summary>How camping goes: the ambush, the heal and the camp scenes. There's one, <c>aidyn:camping/0</c>.</summary>
     public const string Camping = "camping";
 
@@ -89,7 +92,7 @@ public static class RecordTypes
     private static readonly HashSet<string> All =
     [
         Entity, Weapon, Armor, Spell, Item, DialogEntity, Loot, Flag, Texture, Geometry, Camera, Light, Scene, Animation, Actor, Image, Map,
-        Sample, Sequence, Dialogue, Voxel, MapSet, Terrain, Sky, Journal, StateFlags, WorldMap, Camping, Font, Strings, Stat, Skill, WeaponSkill,
+        Sample, Sequence, Dialogue, Voxel, MapSet, Terrain, Sky, Journal, StateFlags, WorldMap, Minimap, Camping, Font, Strings, Stat, Skill, WeaponSkill,
         Progression, Shop, Recipe, Inventory,
     ];
 

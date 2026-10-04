@@ -82,6 +82,7 @@ public static class BaseImporter
         WriteJson(Path.Combine(staging, "records", "stateflags.json"), BuildStateFlags());
         WriteJson(Path.Combine(staging, "records", "worldmap.json"), new[] { BuildWorldMap(rom, EngineTables.Read(rom)) });
         WriteJson(Path.Combine(staging, "records", "camping.json"), new[] { BuildCamping(EngineTables.Read(rom)) });
+        WriteJson(Path.Combine(staging, "records", "minimaps.json"), MinimapImporter.Build(Minimaps.Read(rom)));
 
         progress?.Report("Names");
         var models = EntityModels.Read(rom);

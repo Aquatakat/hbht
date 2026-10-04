@@ -40,4 +40,27 @@ public class MinimapsTests
         Assert.Equal(Enumerable.Range(0x1E, 5), minimaps.RoogEntrance.Select(m => m.Image).Order());
         Assert.Equal(minimaps.Sections[5].Select(s => s.Image).Order(), minimaps.RoogEntrance.Select(m => m.Image).Order());
     }
+
+    [Fact]
+    public void SomePiecesAreSeenFromTheStart()
+    {
+        var minimaps = Minimaps.Read(TestRoms.Get(RomVersionId.Na10));
+
+        // Gwernia castle's courtyard, all five pieces, and its tower's upper floor; the mage school's stairs' upper floors.
+        var seen = minimaps.Sections.SelectMany((list, i) => list.Where(s => s.Seen).Select(s => (i, s.Image)));
+        Assert.Equal([(0, 0x37), (0, 0x38), (0, 0x29), (0, 0x2A), (0, 0x2B), (0, 0x9D), (4, 0xA7), (4, 0xAA)], seen);
+    }
+
+    [Fact]
+    public void TheBarrowsRulesUseTheBarrowsFlags()
+    {
+        var rom = TestRoms.Get(RomVersionId.Na10);
+        var minimaps = Minimaps.Read(rom);
+        var barrows = Import.MinimapImporter.Build(minimaps).Single(m => m.MapSet.Key == "9");
+
+        // The code's literals are the flags of the Barrows list, though some show another piece than the list's.
+        Assert.Equal(minimaps.Barrows.Select(b => (int)b.Flag).Order(), barrows.Rules.Where(r => r.Flag is not null)
+            .Select(r => int.Parse(r.Flag!.Value.Key)).Distinct().Order());
+        Assert.Equal(24, barrows.Sections.Count);
+    }
 }

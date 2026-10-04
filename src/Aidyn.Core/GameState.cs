@@ -5,6 +5,7 @@ using Aidyn.Core.Items;
 using Aidyn.Core.MapObjects;
 using Aidyn.Core.Rng;
 using Aidyn.Core.Scripts;
+using Aidyn.Core.Ui;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 using Aidyn.Plugins.Saves;
@@ -36,6 +37,7 @@ public sealed class GameState : IScriptWorld
         StateFlagsRecord = plugins.All<StateFlagsRecord>(RecordTypes.StateFlags).Single();
         StateFlags = new StateFlags(Flags, StateFlagsRecord);
         Party = new Party(Items, Flags);
+        Minimaps = new MinimapSeen(plugins);
     }
 
     public PluginSet Plugins { get; }
@@ -66,6 +68,9 @@ public sealed class GameState : IScriptWorld
     public MapObjectMemory Memory { get; } = new();
 
     public RandomStreams Random { get; } = new();
+
+    /// <summary>Which minimaps' pieces the party has seen.</summary>
+    public MinimapSeen Minimaps { get; }
 
     /// <summary>Where the player is, as the runtime last said. None is where a new game starts.</summary>
     public SavePlace? Place { get; set; }
@@ -134,6 +139,8 @@ public sealed class GameState : IScriptWorld
                 game.Memory.Remember(new Memory(memory.MapObject, kind, memory.Skill ?? 0), memory.Value, memory.Lifetime);
         }
 
+        game.Minimaps.Load(save.Minimaps, game._problems);
+
         if (save.Random is { } random)
         {
             game.Random.Combat.Seed = random.Combat;
@@ -162,6 +169,7 @@ public sealed class GameState : IScriptWorld
             Skill = e.Key.Kind == MemoryKind.SkillCheck ? e.Key.Skill : null,
         })],
         Random = new SaveRandom(Random.Combat.Seed, Random.Loot.Seed, Random.World.Seed, Random.Wander.Seed, Random.Cosmetic.Seed),
+        Minimaps = Minimaps.Save(),
     };
 
     /// <summary>The party as a save holds it: its members' sheets, those kept for members who left, its gold and its inventory.</summary>

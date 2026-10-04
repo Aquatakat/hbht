@@ -1,4 +1,4 @@
-# UI: text, the conversation box and the pause menu (roadmap 1F, M2)
+# UI: text, the conversation box, the pause menu and the HUD (roadmap 1F, M2)
 
 How the port lays out and draws the original's UI. The fonts and string tables themselves are in [text](../formats/text.md).
 
@@ -242,6 +242,61 @@ The pause menu's last tab (`WidgetCalendar`, built by `PauseWidget::BuildCalenda
 - **Beside the tab in use**, on a screen wider than the frame, the tab is veiled as the others are, but more of it goes. The party's ring isn't drawn and Camp and Journal don't pulse, though the cursor is kept. The calendar's days and moons are painted into `0x00DA`, so its own veil can't fade them; the port lays plain parchment from the band above them, where the season's name is drawn by code, over them at the veil's alpha, the copies meeting edge to edge and feathered only at the outer edges. The map's pieces fade out at the rate they fade in once the tab has been left and the slide has finished, so they don't vanish as it's slid to again and fade in from nothing; the original, which shows one tab, starts them from 0 each time it's slid to. The user asked for these (Oct 4, 2026).
 - **In the runtime**, the stick, the D-pad or the movement keys move between Camp and Journal and scroll the journal, held or not; A chooses, or closes the journal or the message; B or Start closes the journal or the message, or the menu. Camp closes the menu and camps ([camping](camping.md)).
 - **Not ported yet:** the sounds (`0x73B` as the cursor moves, even when it doesn't), and the editor showing the tab.
+
+## The trek HUD
+
+Trek's HUD (`draw_hud_elements`, `0x80020bd4` in 1.0) is the sundial at the bottom left, the party's portraits at the bottom centre, and at the bottom right the minimap where the player's chunk has a piece, or else the compass under an outdoor sky (sky type 3), or nothing. The compass and the sundial are separate widgets. From 1.0's machine code and the user's captures (Oct 4, 2026, `roms/hud-*.png`: outside Gwernia castle with the portraits up and down, and inside it with the minimap large and small), which the port's positions match to the pixel. `TrekHud` (`Aidyn.Core.Ui`) is the state, with `Sundial`, `Compass`, `PartyPortraits` and `Minimap`; `TrekLoop` owns it and `HudView` draws it.
+
+- **Drawn only in trek frames**, and not while a conversation or sign shows (`diaClass->menu`): not under the pause menu, a shop, training or a cut-scene. Popups draw over it. Every colour and alpha is the scene's brightness times its own, so it fades with the screen.
+- **The images** are texture rectangles at quarter-pixel positions, texel × colour, blended (`borg8DlistInit` with flag 6, `Borg8_DrawSimple`). None uses the feathered popups' pieces: the rings and the frames have their feathering painted in.
+
+### The sundial
+
+`Sundial::Draw` (`0x800248a4`), centred on (49, 199):
+
+- **The ring** `0x001B` (60 square) at (19, 169), white at alpha 80: a dark disc with a thin white rim.
+- **The moon** at (39, 189), in (160, 160, 220) at alpha 160, by its phase ([rendering](rendering.md#the-skys-objects)): new `0x01B8`, crescent `0x01B3` or `0x01B4` and quarter `0x01B6` or `0x01B7` in the first and second halves of the moon's four weeks (`(week & 3) >> 1`), full `0x01B5`. It shows at every hour.
+- **The rays** `0x01BA` (50 square) at (24, 174), at alpha 80, in the hour's colour.
+- **The sun** goes round the ring **twice a day**, 30° an hour clockwise from the top, so noon and midnight are both at the top: its centre is (49 + 25 sin a, 199 − 25 cos a), a in whole degrees, (int)(time of day × 720) mod 720. By day it's the glow `0x01BB`, by night the small dot `0x01B9`, each 20 square. The capture's glow at about (72.5, 208.8) is a quarter to four in the afternoon, where one turn a day would put it at the lower left.
+- **The hour's colour**, for the rays and the sun: from 7 to 21 peach (255, 190, 150), the glow at alpha 160 and no dot; from 23 to 5 blue (120, 100, 190), the dot at 160 and no glow. At dawn (5 to 7) and dusk (21 to 23) the colour blends linearly between them, 67.5, 45 and 20 an hour a channel, and the glow and dot cross-fade at 80 an hour. The original dims day's and night's colour by the scene's brightness but not the blend's.
+- **The moon and sun hide in caves.** Crossing from a chunk under an outdoor sky into one under a cave's (sky type 4: terrains 6, 8, 9, 11 and 13–16, the port's terrains that don't draw the sky) hides both, and back shows them (`TeleportPlayer` at `0x8000bfd0`, through `Sundial::ToggleSun` and `ToggleMoon`, whose names are swapped). But trek starting shows them wherever it is (`Sundial::Init`): a new game, loading, or after a cut-scene or battle. So they show in a cave the game started in, as in the user's capture inside Gwernia castle. The Detect Moon Phase and Detect Sun Phase spells show them too (`0x800703c8`), which wait for 2.5. The ring and rays always show.
+
+### The compass
+
+`Compass::Draw` (`0x800240b8`), centred on (271, 199):
+
+- **The ring** is the sundial's, at (241, 169), white at alpha 80.
+- **The letters** are 16-square images, N `0x0018`, S `0x0019`, W `0x001A` and E `0x0017` (the decomp names them wrongly), drawn in that order in (160, 160, 220), each centred 25 out from the centre. With (a, b) the camera's look in X and Z, normalised (`rotationXZ`): N at (−25a, 25b) and alpha 160 − 95b, S at (25a, −25b) and 160 + 95b, W at (25b, 25a) and 160 − 95a, E at (−25b, −25a) and 160 + 95a. So the way the camera looks is at the top, at alpha 255, and behind it is at the bottom, at 65. North is −Z and east +X. The capture, the camera looking along about (−1, 0.11), has W at the top, its letter in (158, 158, 218), and E under the bottom overscan bar.
+- **It shows** only under an outdoor sky with no minimap showing.
+
+### The party's portraits
+
+`Portraits::Draw` (`0x8002569c`):
+
+- **The frames**, `0x00DF` (the conversation box's) at 0.8, so 41.6 square and overlapping by 3.6, at x 84, 122, 160 and 198, all four even for an empty slot, in white at alpha 128: they glow grey-white. **The portraits** at 0.75, 30 square, 6 inside, at x 90, 128, 166 and 204, at alpha 128 too, so they're half seen, in party order. A dead member looks the same; nothing shows hit points or who's chosen. The original never sets the portraits' blue, which carries the frames' over and is dimmed by the brightness again; at full brightness that's the same.
+- **They slide** 4 pixels a frame, once a rendered frame whatever its ticks: up to 184 while they're up, down to 240, off the screen, while they're down, 14 frames either way. Their top up is 184, the portraits' 190, which the capture shows.
+- **B raises or lowers them** (`Actor::Move` at `0x80015110`), but not through a fade. **Pushing the stick past 0.05 lowers them** (`0x8001536c`), unless R holds the camera. **Standing still doesn't raise them**: nothing in the code does but B and trek starting (`initGameTrek`), which raises them at a new game, on loading, and after a cut-scene or battle, but not after the pause menu. The user remembered them coming up when standing still for a moment (see [to-check](../to-check.md)).
+
+### The minimap
+
+The minimap (`MiniMap`, `minimap.cpp`) is pieces of a drawn plan, one per chunk or part of one, in eight map sets. From the machine code (`LoadData` `0x80049a08`, `Update` `0x8004a5a8`, `Render` `0x8004ad14`, `UpdateSection` `0x8004af0c`, `LoadSections` `0x8004b404`, `toggle_show_minimap` `0x8004b6f0`, `ShowingSpecialSection` `0x8004b96c` and `BarrowsFlags` `0x8004bfac`). The pieces and the rules are the minimap records ([hardcoded content](../hardcoded-content.md)).
+
+- **Which map sets:** Gwernia castle (4), Ugarit 2 (14), Erromon (7), the Ehud underground (12), the Jundar interiors' mage school (11), the misc interiors' Roog entrance (6, only K03), the Barrows (9) and the Roog cave (10), loaded with the map set (`BorgMaps::LoadMap`). Anywhere else there's none.
+- **The player's piece** is the first piece for the chunk he's in, but where a rule says otherwise. The rules: Gwernia's courtyard (I07) by floor, its ground by which side (y under 4: z above 26 or not; under 8; above); the castle walls (A01) by quarter (x under 35, z under 25); the tower (O09) and the mage school's stairs (A01) by floor; the Ehud underground's C11 by quarter (48) and I09 by x under 16; the Ehud maze room (O05) and the Roog entrance (K03) by the first of their room flags set (4222–4232, 4233–4237), or none; and in the Barrows, nine room flags (4286–4294) that show a room's other state, some another chunk's piece, and E01's strip under x 1.3 showing D01's. Positions are the player's in the chunk. The courtyard's piece `0x29` is never chosen, though it shows dim, seen from the start. A chunk with no piece shows no minimap, and the compass or nothing takes its place.
+- **The box** is `0x00F5`, a square with a feathered rim, in black, so a translucent dark box, stretched around the plan with a border of 8 times the scale. **Small**, with the portraits down: the plan from (237, 163) to (297, 223), the box 76 square at (229, 155), the player's piece centred, (267 − x − w/2, 193 − y − h/2) for a piece at (x, y) of width w and height h, halved by shifts. **Large**, with them up: from (177, 52) to (297, 172), the box 152 square at (161, 36), the whole plan from the corner. Over the pieces, the vignette `0x00F3` in black, stretched to the plan. The pieces are cut to the plan's area. The capture's corridor (`0x97`, Gwernia castle M05) is at (247, 187) small and (187, 101) large, and the round room beside it, seen earlier, dim.
+- **Growing and shrinking** go with the portraits (`toggle_show_minimap`, which does nothing if it's that size already): the box's edges, the scale and the plan's place each move a 14th of the way they started from a frame, so 14 frames, linearly.
+- **The group:** the pieces that show are the player's group's seen ones: a floor or a building. Another group's piece takes over at once; the old group stays where it was and fades out, 10 an alpha a frame, and the plan snaps to the new piece. A piece of the same group slides into place over 14 frames.
+- **The colours:** the player's piece starts at grey 155 and alpha 0, rises 10 an alpha a frame to 255 (26 frames), its grey shimmering between 165 and 175 until its alpha is past 145, then 155. The others settle at grey 96 and alpha 128, 10 a frame. The original draws the group's pieces in a list whose newest is drawn first, the first piece of the table on top.
+- **Seeing** a piece is when it's first chosen. The courtyard's five and the tower's upper floor in Gwernia castle, and the mage school's stairs' upper floors, are seen from the start. The original saves one bit a piece, 188 in all, in the table's order (`MiniMap_Save`, `0x80049760`); the port saves each minimap's seen pieces ([saves](saves.md)).
+- **No sounds.**
+
+### In the port
+
+- **On other screens,** each part keeps its place from the bottom and from its side: the sundial from the left, the compass or minimap from the right, and the portraits stay centred. On a 4:3 screen of 240 lines that's where the original has them. The user agreed (Oct 4, 2026).
+- **Frames:** the portraits' slide and the minimap's choice and animation step once every two ticks, the original's frame at an idealized 30 fps ([runtime](runtime.md)).
+- **The fade:** the runtime's fade is a black overlay on trek's whole UI screen, so the HUD is drawn at full brightness under it, where the original dims each colour and alpha.
+- **In the runtime** B is Backspace or the right face button. The pause menu, shops, training and cut-scenes hide the HUD.
+- **Not ported yet:** the Detect Moon Phase and Detect Sun Phase spells, and the editor showing the HUD.
 
 ## A faithful mode, later
 

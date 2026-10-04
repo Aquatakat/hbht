@@ -84,21 +84,15 @@ Many questions here are counts and cross-checks over thousands of records: how m
 
 Keep this section to where things stand and what's next. When a roadmap task finishes or starts, update it, and suggest a next step when one finishes. What was found and built goes in the docs, not here.
 
-- **Done:** Phase 0 (0.1–0.6), 1A, 1B, 1C, 1E, 1F, 1H, M1 Walk Gwernia, 2.1 (flags), 2.2 (characters), 2.3 (items), 2.4 (the Borg13 VM) and 2.8 (saves, with the System tab's Save and Load). Shop prices wait for the user (see to-check).
-- **Now: M2 Talk and trade**, in eight sessions, each ending playable or previewable with its docs. 2.7 (camping) slots in, and boss flags come with 2.5 (combat). Sounds wait for 1D, so cues that play one are logged.
-  1. ~~The Party tab, read-only~~ ([ui](docs/systems/ui.md#the-pause-menu))
-  2. ~~A game in the runtime, and saves~~ ([saves](docs/systems/saves.md), [runtime](docs/systems/runtime.md))
-  3. ~~The Party tab's actions~~ ([ui](docs/systems/ui.md#the-party-tabs-actions))
-  4. ~~Using map objects, the loot window and the interiors' camera~~ ([map-objects](docs/systems/map-objects.md), [ui](docs/systems/ui.md#the-loot-window), [cameras](docs/systems/cameras.md))
-  5. ~~Conversations: bodies, wandering, talking, joining and leaving~~ ([wanderers](docs/systems/wanderers.md), [characters](docs/systems/characters.md#joining-and-leaving))
-  6. ~~Cut-scenes~~ ([scripts](docs/systems/scripts.md#cut-scenes), [cameras](docs/systems/cameras.md#cut-scenes-cameras)). Backdrops and the help menu, the endings' cinematics, and the editor showing cut-scenes on its map are left; a later script type running ops side by side can share a `CutScene`'s stage.
-  7. ~~Barter and training~~ ([shop](docs/systems/ui.md#the-shop), [training](docs/systems/ui.md#training)). Training after a battle waits for 2.5.
-  8. **The System and World tabs, and the HUD.** ~~The System tab: changing tab, saving and loading, options with the graphics page ([ADR 0013](docs/adr/0013-settings-in-the-options-menu.md)), renaming Alaron~~ ([ui](docs/systems/ui.md#the-system-tab)); Theater, Credits and Help wait for the cinematics and backdrops. ~~The World tab: the map with its fog, the calendar, the journal in the order entries came, and camping (2.7, its ambush waiting for 2.5)~~ ([ui](docs/systems/ui.md#the-world-tab), [camping](docs/systems/camping.md)). The menus keep the original's layouts at every size ([ADR 0014](docs/adr/0014-menus-keep-the-originals-layouts.md)). **Next:** the HUD (the compass and the party's portraits).
+- **Done:** Phase 0 (0.1–0.6), 1A, 1B, 1C, 1E, 1F, 1H, M1 Walk Gwernia, M2 Talk and trade (Oct 4, 2026), 2.1 (flags), 2.2 (characters), 2.3 (items), 2.4 (the Borg13 VM), 2.7 (camping, its ambush waiting for 2.5) and 2.8 (saves). Shop prices wait for the user (see to-check).
+- **M2's leftovers:** backdrops and the help menu, the endings' cinematics, the System tab's Theater, Credits and Help, and the editor showing cut-scenes on its map and the HUD. Training after a battle and the sundial's Detect Moon and Sun Phase spells wait for 2.5; sounds wait for 1D, so cues that play one are logged. The menus keep the original's layouts at every size ([ADR 0014](docs/adr/0014-menus-keep-the-originals-layouts.md)); the HUD keeps its parts to the screen's corners ([ui](docs/systems/ui.md#the-trek-hud)).
+- **Next:** M3 Fight, starting with 2.5 (combat rules) in the headless core, then 2.6 (enemy AI) and the battle UI, planned into sessions as M2 was.
 - **For the user to check,** in the emulator or the ROM: [to-check](docs/to-check.md). Add to it whatever only the user can settle.
 - **UI fit and finish, for a later session** (the user's notes, [playtests](docs/playtests.md)):
   - The Party tab's shield icon on the silhouette sits 2 pixels too high.
   - The menu's animations (the list sliding in, the portraits moving, the details fading) draw the eye to where the controller has moved. Keep the top face button for details and the shoulders for the member.
   - The Healer's popup needs a gap between its members' portraits, which overlap by 2 pixels ([capture](roms/menu-party-skills-healer-layonhands.png)).
+  - Some map areas may not unlock by travelling into them, specifically the stone area north of the desert via the eastern beach (possibly original-accurate behaviour).
 - **Maybe:** the editor showing wanderers on its map view.
 - **Decided, for the fidelity profile at the end:** the UI draws a floating conversation box on a screen of any shape and size; what a faithful mode would take is in [ui](docs/systems/ui.md#a-faithful-mode-later). Where the port fixes one of the original's bugs, the user chose it, and the system's doc says so.
 - **Left for later:** the renderer's leftovers ([rendering](docs/systems/rendering.md#whats-left)), the weather among them, and 1H's content tables marked To do, which the importer will need.

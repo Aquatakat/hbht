@@ -11,7 +11,7 @@ namespace Aidyn.Plugins.Saves;
 /// as the original's do: see <c>Aidyn.Core.GameState</c>.
 /// </summary>
 /// <remarks>
-/// Not kept yet: spell effects (2.5), the weather, the minimap's fog, the screenshot, and the
+/// Not kept yet: spell effects (2.5), the weather, the screenshot, and the
 /// party's three movement timers, which nothing reads.
 /// </remarks>
 public sealed record SaveGame
@@ -55,7 +55,15 @@ public sealed record SaveGame
 
     /// <summary>The random streams' states (ADR 0006). None seeds them as a new game does.</summary>
     public SaveRandom? Random { get; init; }
+
+    /// <summary>
+    /// The minimaps' pieces the party has seen (<c>MiniMap_Save</c>), for each minimap where they're not as it starts.
+    /// </summary>
+    public IReadOnlyList<SaveMinimap> Minimaps { get; init; } = [];
 }
+
+/// <summary>A minimap's seen pieces, by their place in its record.</summary>
+public sealed record SaveMinimap(RecordId Minimap, IReadOnlyList<int> Seen);
 
 public sealed record SavedPlugin(string Id, string Version);
 

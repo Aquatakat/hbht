@@ -49,6 +49,9 @@ public interface ITrekHost : IScriptHost
 
     /// <summary>Notes something for whoever's watching the log.</summary>
     void Log(string text);
+
+    /// <summary>A UI image's width and height, which the HUD's minimap centres its pieces by.</summary>
+    (int Width, int Height) ImageSize(RecordId image);
 }
 
 /// <summary>What a tick of trek came to.</summary>
@@ -96,6 +99,7 @@ public sealed class TrekLoop : IMapObjectHost
         Chunks = chunks;
         Wanderers = new Wanderers(game.Plugins);
         Use = new MapObjectUse(game, MenuText.From(game.Plugins), this) { World = chunks.World };
+        Hud = new TrekHud(game, host.ImageSize);
         chunks.Loaded += (_, map) => Wanderers.Load(map, Chunks.MapSet.CellSize, Chunks.World, Game.Memory);
         chunks.Unloading += (_, map) => Wanderers.Unload(map);
     }
@@ -117,6 +121,12 @@ public sealed class TrekLoop : IMapObjectHost
 
     /// <summary>The player's animation, which moves him by its root motion.</summary>
     public IRootMotion PlayerAnimation { get; set; } = IActorMotion.Still;
+
+    /// <summary>The sundial, the party's portraits, and the compass or the minimap.</summary>
+    public TrekHud Hud { get; }
+
+    /// <summary>Whether the HUD is drawn and steps: not while a conversation or sign shows (<c>diaClass->menu</c>).</summary>
+    public bool HudShown => Conversation is null;
 
     /// <summary>The conversation or sign showing, if any.</summary>
     public Conversation? Conversation { get; private set; }
@@ -146,6 +156,7 @@ public sealed class TrekLoop : IMapObjectHost
         Camera = camera;
         Use.Camera = camera;
         Use.PlayerRadius = player.Sphere.Radius;
+        Hud.Start();
     }
 
     /// <summary>
@@ -165,6 +176,7 @@ public sealed class TrekLoop : IMapObjectHost
             return;
         _chunk = chunk;
         Game.StateFlags.SetTerrain(chunk.Terrain);
+        Hud.Arrive(Game.Plugins.TryGet<TerrainRecord>(RecordId.Decimal(RecordTypes.Terrain, chunk.Terrain))?.SkyDrawn ?? true);
     }
 
     /// <summary>What's said when a journal entry is added: a literal in the code (<c>0x800ce28c</c> in 1.0).</summary>
@@ -216,6 +228,9 @@ public sealed class TrekLoop : IMapObjectHost
                 Use.TouchCameras(centre, at);
         }
         var input = fading || Use.Popup is not null || talking ? new PlayerInput(Vector2.Zero) : readInput();
+        // Actor::Move: the stick pushed lowers the portraits, but not while it orbits the camera.
+        if (!input.Orbit && input.Stick.Length() > 0.05f)
+            Hud.Raise(false);
         var before = motion.Sphere.Position;
         if (Conversation is { With: not null } framing)
             framing.Frame(Camera, world);
@@ -242,6 +257,12 @@ public sealed class TrekLoop : IMapObjectHost
                 Use.TreadCamera(map, target);
         }
         Use.StepCameras(motion.Sphere.Position);
+        if (HudShown)
+        {
+            Hud.Enter(Chunks.MapSet);
+            var chunk = Chunks.ChunkAt(motion.Sphere.Position);
+            Hud.Tick(chunk, chunk is null ? motion.Sphere.Position : motion.Sphere.Position - Chunks.Origin(chunk), Game.Flags);
+        }
         return TrekStep.Ran;
     }
 
@@ -296,6 +317,13 @@ public sealed class TrekLoop : IMapObjectHost
         var camera = arrival.Camera is { } local ? origin + local : (Vector3?)null;
         Camera.Arrive(from, motion.Sphere.Position, motion.Heading, FollowCamera.ModeFor(Game.Plugins, arrival.Chunk), camera);
         _host.Arrived();
+    }
+
+    /// <summary>B in trek: raises or lowers the portraits, but not through a fade, a popup or a conversation (<c>Actor::Move</c>).</summary>
+    public void PressB()
+    {
+        if (!TeleportFade.Fading && !CutSceneFade.Fading && Cued is null && Use.Popup is null && Conversation is null)
+            Hud.PressB();
     }
 
     /// <summary>A in trek: uses the map object the player reaches in the chunk he's in (<c>obj_ref_func</c>).</summary>
@@ -357,6 +385,7 @@ public sealed class TrekLoop : IMapObjectHost
         Enter(Chunks.ChunkAt(at));
         Camera.AimAt(at);
         Camera.Snap = 1;
+        Hud.Start();
         CutSceneFade.In(CutSceneFadePerTick);
     }
 

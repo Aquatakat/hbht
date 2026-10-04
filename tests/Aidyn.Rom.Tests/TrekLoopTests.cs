@@ -25,7 +25,7 @@ public sealed class TrekLoopTests(MapObjectFixture fixture)
 
     private MapObjectFixture.Loaded Data => fixture.Data;
 
-    private sealed class Host : ITrekHost
+    private sealed class Host(PluginSet plugins) : ITrekHost
     {
         public List<ChunkEntry?> Entered { get; } = [];
         public int Arrivals { get; set; }
@@ -69,14 +69,23 @@ public sealed class TrekLoopTests(MapObjectFixture fixture)
         void IScriptHost.Cue(ScriptCue cue)
         {
         }
+
+        // A PNG's width and height are the first fields of its header.
+        (int Width, int Height) ITrekHost.ImageSize(RecordId image)
+        {
+            if (plugins.FindAsset(image, "png") is not { } png)
+                return (0, 0);
+            var header = File.ReadAllBytes(png).AsSpan(16, 8);
+            return (System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(header), System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(header[4..]));
+        }
     }
 
     /// <summary>Trek as a new game starts it, with the player on the ground at a chunk's point.</summary>
-    private (TrekLoop Trek, Host Host) Start(string chunkName = "I08", float x = 16, float z = 62)
+    private (TrekLoop Trek, Host Host) Start(string chunkName = "I08", float x = 16, float z = 62, int mapSet = 0)
     {
         var game = GameState.NewGame(Data.Set);
-        var host = new Host();
-        var streamer = new ChunkStreamer(Data.Set, game, new CollisionWorld(), Data.Set.Get<MapSetRecord>(Overworld));
+        var host = new Host(Data.Set);
+        var streamer = new ChunkStreamer(Data.Set, game, new CollisionWorld(), Data.Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, mapSet)));
         var trek = new TrekLoop(game, host, streamer);
         var chunk = streamer.Find(chunkName)!;
         var point = streamer.Origin(chunk) + new Vector3(x, 10, z);
@@ -225,5 +234,70 @@ public sealed class TrekLoopTests(MapObjectFixture fixture)
         Assert.NotEmpty(trek.Wanderers.All);
         Assert.True(trek.CutSceneFade.Fading);
         Assert.Equal(0, trek.Brightness);
+    }
+
+    [Fact]
+    public void TheMinimapShowsThePlayersPieceLargeWithThePortraitsUpAndSmallWhenHeMoves()
+    {
+        // Gwernia castle's M05, a corridor (image 0x97, 41 × 12, at (10, 49) in its plan), where the user's captures stood.
+        var (trek, _) = Start("M05", 50, 50, mapSet: 4);
+        for (var i = 0; i < 4; i++)
+            trek.Tick(Still);
+        var minimap = trek.Hud.Minimap;
+        Assert.True(minimap.Showing);
+        Assert.Equal(RecordId.Hex(RecordTypes.Image, 0x97), minimap.Record!.Sections[minimap.Section!.Value].Image);
+        Assert.True(trek.Game.Minimaps.IsSeen(minimap.Record, minimap.Section.Value));
+        // Seeing it is saved, and the pieces seen from the start aren't.
+        var save = trek.Game.Save();
+        Assert.Equal([minimap.Section.Value], save.Minimaps.Single(m => m.Minimap == minimap.Record.Id).Seen.Except(
+            minimap.Record.Sections.Select((s, i) => (s, i)).Where(p => p.s.Seen).Select(p => p.i)));
+        Assert.True(GameState.Load(Data.Set, Aidyn.Plugins.Saves.SaveFile.Parse(Aidyn.Plugins.Saves.SaveFile.Serialize(save))).Minimaps
+            .IsSeen(minimap.Record, minimap.Section.Value));
+        Assert.Equal((187f, 101f), Piece());
+
+        // Moving lowers the portraits and shrinks the minimap over 14 frames, the piece centred in the small box.
+        trek.Tick(() => new PlayerInput(new Vector2(0, 0.3f)));
+        for (var i = 0; i < 2 * 14 + 2; i++)
+            trek.Tick(Still);
+        Assert.False(trek.Hud.Portraits.Shown);
+        Assert.Equal((247f, 187f), Piece());
+
+        // B raises them again.
+        trek.PressB();
+        Assert.True(trek.Hud.Portraits.Shown && trek.Hud.Minimap.Large);
+
+        (float, float) Piece() => trek.Hud.Draw(trek.Game, false, Vector2.UnitY, 1)
+            .Where(s => s.Image == RecordId.Hex(RecordTypes.Image, 0x97)).Select(s => (s.X, s.Y)).Single();
+    }
+
+    [Fact]
+    public void TheCompassShowsOutdoorsAndNoMinimapLoadsThere()
+    {
+        var (trek, _) = Start();
+        for (var i = 0; i < 4; i++)
+            trek.Tick(Still);
+        Assert.Null(trek.Hud.Minimap.Record);
+        var sprites = trek.Hud.Draw(trek.Game, true, new Vector2(0, -1), 1).ToList();
+        Assert.Contains(sprites, s => s.Image == Aidyn.Core.Ui.Compass.North);
+        Assert.Contains(sprites, s => s.Image == Aidyn.Core.Ui.Sundial.Rays);
+        Assert.Contains(sprites, s => s.Image == Aidyn.Core.Ui.Sundial.SunGlow);
+
+        // Walking into a cave hides the sun and moon, and out shows them; trek starting shows them anywhere.
+        trek.Hud.Arrive(false);
+        Assert.False(trek.Hud.SunAndMoon);
+        trek.Hud.Arrive(false);
+        trek.Hud.Start();
+        Assert.True(trek.Hud.SunAndMoon);
+        trek.Hud.Arrive(true);
+        Assert.True(trek.Hud.SunAndMoon);
+
+        // On a 16:9 screen of 360 lines, the sundial keeps its place from the bottom left and the compass's ring from
+        // the bottom right; the portraits' frames stay centred.
+        var wide = trek.Hud.Draw(trek.Game, true, new Vector2(0, -1), 1, 640, 360).ToList();
+        Assert.Equal((19f, 289f), wide.Where(s => s.Image == Aidyn.Core.Ui.Sundial.Ring).Select(s => (s.X, s.Y)).First());
+        Assert.Equal((561f, 289f), wide.Where(s => s.Image == Aidyn.Core.Ui.Sundial.Ring).Select(s => (s.X, s.Y)).Last());
+        for (var i = 0; i < 2 * 14; i++)
+            trek.Tick(Still);
+        Assert.Equal(244f, trek.Hud.Draw(trek.Game, true, new Vector2(0, -1), 1, 640, 360).First(s => s.Image == Aidyn.Core.Ui.PartyPortraits.Frame).X);
     }
 }
