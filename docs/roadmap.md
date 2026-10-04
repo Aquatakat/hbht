@@ -18,7 +18,7 @@ The game's architecture also resembles an ESM already. Its content is keyed reco
 
 ## Where things stand
 
-This is the one list of what's open. A task's status is in its phase's table below, and what was found and built is in the docs. When something finishes, take it off here and mark its task. When a playtest or a finished task leaves work behind, add it here.
+This is the one list of what's open. A task's status is in its phase's table below, and what was found and built is in the docs. When something finishes, take it off here, mark its task and suggest what's next. When a playtest or a finished task leaves work behind, add it here.
 
 ### Next
 

@@ -1,6 +1,6 @@
 # hbht
 
-A PC reimplementation of Aidyn Chronicles: The First Mage (N64). It runs on content imported from a user-supplied ROM and has a plugin-based mod system.
+A PC reimplementation of Aidyn Chronicles: The First Mage (N64). It runs on content imported from a user-supplied ROM and has a plugin-based mod system. M1 and M2 are playable. The work now is reading the code without the decomp (roadmap 0.7–0.14), then M3 Fight. The roadmap's [Where things stand](docs/roadmap.md#where-things-stand) has the rest.
 
 ## Where to look
 
@@ -79,15 +79,6 @@ Many questions here are counts and cross-checks over thousands of records: how m
 - **Over the original's code or the checkpoints,** loop `tools/n64dis.py` or `tools/bst.py` in one shell command, over the functions of a jump table or the eight states.
 - **A finding that should keep holding** becomes a real-data test instead.
 - **Subagents** can work the same way: say so in the prompt when their question is about the data.
-
-## Status
-
-Keep this section short: where things stand and what's next. The to-do list is the roadmap's [Where things stand](docs/roadmap.md#where-things-stand). When a task finishes or starts, update it there and here, and suggest a next step when one finishes. What was found and built goes in the docs.
-
-- **Done:** Phase 0 (0.1–0.6); Phase 1 but 1D (audio) and the optional 1G; 2.1–2.4, 2.7 and 2.8; M1 Walk Gwernia and M2 Talk and trade (Oct 4, 2026).
-- **Next:** reading the code without the decomp (0.7–0.14, [ADR 0015](docs/adr/0015-the-port-no-longer-reads-the-decomp.md)), then M3 Fight, starting with 2.5 (combat rules) in the headless core, planned into sessions as M2 was.
-- **Open work:** M2's leftovers, what waits for 2.5 and 1D, UI fit and finish, and the rest are in the roadmap's list. Add to it there, not here.
-- **For the user to check,** in the emulator or the ROM: [to-check](docs/to-check.md). Add to it whatever only the user can settle.
 
 ## Ground rules
 
