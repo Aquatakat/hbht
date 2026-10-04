@@ -45,7 +45,7 @@ Not ported yet: the widgets' fade in and out (`fadeFloatMirror`), scrolling a me
 
 ## The pause menu
 
-The Party tab is ported, with what A does in it, and the [System tab](#the-system-tab); the World tab isn't yet. What the decomp, the machine code, the imported images and the user's captures (Oct 1, 2026, from the "Before final encounter" checkpoint; see the [reference rig](../reference-rig.md#emulator-captures)) show (`BigAssMenu.cpp`, `DollMenu*.cpp`). Positions are in the 320 × 240 frame.
+The Party tab is ported, with what A does in it, and the [System](#the-system-tab) and [World](#the-world-tab) tabs. What the decomp, the machine code, the imported images and the user's captures (Oct 1, 2026, from the "Before final encounter" checkpoint; see the [reference rig](../reference-rig.md#emulator-captures)) show (`BigAssMenu.cpp`, `DollMenu*.cpp`). Positions are in the 320 × 240 frame.
 
 - **The tabs are one long scroll.** System, Party and World are each a widget tree in its own 320 × 240 frame, 320 pixels apart, and changing tab slides them all 10 pixels a frame. Under them is a 3D scroll, `aidyn:actor/0x0E6B` (scene `0x0E63`), seen from above, which slides with them: System shows its wooden roller at the left, World at the right, and Party, in the middle, neither. Its states unroll and roll it on opening and closing; the user reads some as the full menu's and some, shorter, as the smaller windows' (barter, training, containers). Past the torn top and bottom edges the world shows through.
 - **Each tab has a full-screen image** over the scroll (`pause_menu_borg8`): `0x00D8`, `0x00D9` and `0x00DA`, all 320 × 240. `0x00D9` is opaque inside its torn edges.
@@ -156,9 +156,9 @@ The pause menu's first tab (`WidgetOptionsMenu`, `MakeScrollList` at `0x8003f8c4
 #### Changing tab
 
 - **Z or L goes left, R right** (`bigAssMenu_LZFunc`, `RFunc`), System, Party, World, with no wrap. In the runtime that's Z and X, or the triggers. The tabs slide 10 pixels a frame over 320, 32 frames; presses wait while they slide.
-- **The tabs are one scroll.** Their images, `0x00D8`, `0x00D9` and `0x00DA`, join edge to edge into one 960-pixel scroll, the torn edges running on from one to the next. In the classic layout the port lays them 320 apart, so a screen wider than the frame, such as 16:9 at 240 lines, shows the edges of the tabs either side. Their widgets are faded into the parchment by drawing the tab's image over them at 60%, which clears as a tab slides into the middle. The user suggested this (Oct 3, 2026), to keep the scroll in one piece as the original's is. Past the System tab's left and the World tab's right, the world shows, where the original's 3D scroll has its rollers. The World tab shows only its image until it's ported, and can't be slid to yet. In the wide layout each tab fills the screen, and they slide a screen's width over the same 32 frames. Barter and training show the Party tab alone.
+- **The tabs are one scroll.** Their images, `0x00D8`, `0x00D9` and `0x00DA`, join edge to edge into one 960-pixel scroll, the torn edges running on from one to the next. In the classic layout the port lays them 320 apart, so a screen wider than the frame, such as 16:9 at 240 lines, shows the edges of the tabs either side. Their widgets are faded into the parchment by drawing the tab's image over them at 60%, which clears as a tab slides into the middle. The user suggested this (Oct 3, 2026), to keep the scroll in one piece as the original's is. Past the System tab's left and the World tab's right, the world shows, where the original's 3D scroll has its rollers. In the wide layout each tab fills the screen, and they slide a screen's width over the same 32 frames. Barter and training show the Party tab alone.
 - **The System tab can be left only from its list**, as the original's can. The port also keeps the Party tab while a popup or message is up.
-- **The menu remembers the tab**, and only the tab, in `gGlobals.pauseMenuSection`, which isn't saved. A new game's first opening is on System, which the user confirmed. Barter and training open on Party and can't change tab. The World tab isn't ported, so for now Party is the last tab, though its arrow still points both ways.
+- **The menu remembers the tab**, and only the tab, in `gGlobals.pauseMenuSection`, which isn't saved. A new game's first opening is on System, which the user confirmed. Barter and training open on Party and can't change tab.
 - **Not ported yet:** the slide of the 3D scroll with the tabs, its unrolling and rolling, and the sounds (the cursor `0x73B`, A `0x740`, B `0x741`, a tab `0x7D4`).
 
 #### Options
@@ -240,7 +240,16 @@ The pause menu's last tab (`WidgetCalendar`, built by `PauseWidget::BuildCalenda
 - **Scrolling is by entry** (`WSL_DownFunc`, `WSL_UpFunc`): down brings the next entry whose foot is below 220 up until its foot meets 220, and up the first whose top is above 30 down until it meets 30, never past either end. The list slides 5 pixels a tick, and a press waits for it. Held, a direction keeps scrolling with no wait (`Journal::Control` falls back to the held bits), about 300 pixels a second.
 - **The edges fade** into the page: strips of the book redrawn over the text from x 62 to 245, at 0.75, 0.5, 0.25 and 0.125 of its alpha from y 28 to 40, and the same from 220 up to 210.
 - **The arrows**, `0x00D6` (8 × 36) at (247, 30) and `0x00D5` at (247, 184), in (130, 80, 80), each fading 30 a tick in while there's more that way: above 30 for the first item, below 220 for the last. The decomp reads the cursor's item for the last; the machine code reads the count. They draw only at the book's full alpha.
-- **A new entry's notice**: when flag 3617 is set in trek, with no fade or popup up, the game clears it and says "A new journal entry has been added." in trek's message box (`NewJournalEntryPopup`, `0x80020eb0`).
+- **A new entry's notice**: when flag 3617 is set in trek, with no fade or popup up, the game clears it and says "A new journal entry has been added.", a literal in the code, in trek's message box (`NewJournalEntryPopup`, `0x80020eb0`). As loading turns every entry on again, which sets 3617 ([saves](saves.md#loading-as-the-original-does)), the notice should show just after loading too; the port does that, and whether the original does is for the user to check.
+
+#### In the port
+
+`WorldMenu` (`Aidyn.Core.Ui`) is the tab's state and `JournalMenu` the journal's, drawn by `WorldTabView`. The map's pieces, the towns and the ring are the world map record (`aidyn:worldmap/0`, [hardcoded content](../hardcoded-content.md)), and trek's notice is `TrekLoop`'s.
+
+- **The ring** shows only in the Overworld, where the original's formula was made for: the original shows it in any outdoor map set without a minimap, at that set's row and column. "Outdoors" is the chunk's terrain drawing the sky.
+- **The tab is the original's frame** at the screen's centre in both layouts, on `0x00DA`. In the wide layout the other tabs fill the screen with the Party tab's wide sheet, and the World tab's scroll shows at its own size between them; a wide layout of its own is open.
+- **In the runtime**, the stick, the D-pad or the movement keys move between Camp and Journal and scroll the journal, held or not; A chooses, or closes the journal or the message; B or Start closes the journal or the message, or the menu. Camp closes the menu and camps ([camping](camping.md)).
+- **Not ported yet:** the sounds (`0x73B` as the cursor moves, even when it doesn't), and the editor showing the tab.
 
 ## A faithful mode, later
 

@@ -33,3 +33,10 @@ The eight camp scenes, each derived from 4240 and its own conditions, and each o
 ## The ambush's enemies
 
 From the camp encounters table ([db](../formats/db.md)): the terrain's row, at the tier of the party's average level (`Party::GetAvgLevel`, 5 or less, 6–10, 11–15, 16–20, over 20), two groups of an enemy with a minimum and maximum. Fleeing isn't allowed. The fight itself is combat's (2.5), with the monster parties' rules for how many of each come. Terrain 27, which allows camping, has no row; the original would read past the table.
+
+## In the port
+
+- **The records:** each terrain's factor is its `camp` (`aidyn:terrain/n`), and the rest is the camping record (`aidyn:camping/0`): the refusal's text, the ambush's flag and numbers, the heal's share and effect time, the check flag, the eight scenes' flags and the Campsite's map. The importer reads the factors and the scenes' flags from the ROM and carries the rest as facts ([hardcoded content](../hardcoded-content.md)).
+- **The rules:** the World tab checks the terrain (`WorldMenu.Accept`), and `TrekLoop.Camp` rolls the ambush (`Camping`, on the world's random stream), heals (`Party.CampHeal`, which a script's camp heal also uses, fully) and cues the scene as a dialogue object's cut-scene. The hours pass as the scene ends (`GameState.Lapse`), for any script that ends with rest hours: a camp scene, or a conversation's camp heal.
+- **The ambush** says so and stops there until combat (2.5): no heal and no time, as in the original.
+- **The camp encounters** aren't imported yet; combat will need them, with terrain 27's missing row decided.
