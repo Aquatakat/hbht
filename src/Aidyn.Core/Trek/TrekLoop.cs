@@ -167,6 +167,9 @@ public sealed class TrekLoop : IMapObjectHost
         Game.StateFlags.SetTerrain(chunk.Terrain);
     }
 
+    /// <summary>What's said when a journal entry is added: a literal in the code (<c>0x800ce28c</c> in 1.0).</summary>
+    public const string NewJournalEntry = "A new journal entry has been added.";
+
     /// <summary>
     /// One 60 Hz tick of trek, as the original orders it: the fades, the clock, the map objects the player
     /// touches, the camera, the player, the wanderers' decisions and then their bodies, a conversation's
@@ -186,6 +189,13 @@ public sealed class TrekLoop : IMapObjectHost
         Enter(Chunks.ChunkAt(Player.Sphere.Position));
         // The clock stops under a popup or a conversation.
         var talking = Conversation is not null;
+        // NewJournalEntryPopup: with nothing else up, a new entry is told once, and its flag cleared.
+        var newEntry = Game.Flags.Handle(Game.StateFlagsRecord.NewJournalEntry);
+        if (!fading && Use.Popup is null && !talking && Game.Flags.Peek(newEntry))
+        {
+            Game.Flags.Set(newEntry, false);
+            Use.Tell(NewJournalEntry);
+        }
         if (Use.Popup is null && !talking)
             Game.PassTime(1);
         if (frozen)

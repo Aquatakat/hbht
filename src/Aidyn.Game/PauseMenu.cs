@@ -6,7 +6,7 @@ using Godot;
 
 namespace Aidyn.Game;
 
-/// <summary>The pause menu's tabs, left to right (<c>PauseMenuSection</c>). World isn't ported yet, so it can't be slid to.</summary>
+/// <summary>The pause menu's tabs, left to right (<c>PauseMenuSection</c>).</summary>
 public enum PauseTab
 {
     System,
@@ -15,8 +15,9 @@ public enum PauseTab
 }
 
 /// <summary>
-/// The pause menu, which Start opens over the game (<c>BigAssMenu</c>): the System tab (<see cref="SystemTabView"/>)
-/// and the Party tab (<see cref="PartyTabView"/>) side by side on a <see cref="UiScreen"/> over the world, and the
+/// The pause menu, which Start opens over the game (<c>BigAssMenu</c>): the System tab (<see cref="SystemTabView"/>),
+/// the Party tab (<see cref="PartyTabView"/>) and the World tab (<see cref="WorldTabView"/>) side by side on a
+/// <see cref="UiScreen"/> over the world, and the
 /// Party tab's barter state: the loot window, which a container opens (<see cref="OpenLoot"/>), and a shop, which
 /// a script opens (<see cref="OpenShop"/>); and its training state, which a script opens at a trainer
 /// (<see cref="OpenTraining"/>).
@@ -65,8 +66,7 @@ public partial class PauseMenu : CanvasLayer
     /// <summary>How far the widgets of a tab beside the one showing are faded into its parchment.</summary>
     private const float NeighbourVeil = 0.6f;
 
-    /// <summary>The last tab that can be slid to: World waits for its widgets.</summary>
-    private const PauseTab LastTab = PauseTab.Party;
+    private const PauseTab LastTab = PauseTab.World;
 
     /// <summary>The tab the menu last showed, which a default opening goes back to (<c>gGlobals.pauseMenuSection</c>).</summary>
     private static PauseTab _lastTab = PauseTab.System;
@@ -76,6 +76,7 @@ public partial class PauseMenu : CanvasLayer
     private readonly Settings _settings;
     private readonly UiScreen _screen = new() { ForwardsMouse = true };
     private readonly MenuStick _stick;
+    private readonly TextLayout _mainFont;
     private PartyTabView? _view;
     private SystemTabView? _system;
     private WorldTabView? _world;
@@ -89,6 +90,7 @@ public partial class PauseMenu : CanvasLayer
     {
         _stick = stick;
         _plugins = plugins;
+        _mainFont = new TextLayout(plugins.Get<Plugins.Records.FontRecord>(RecordId.Decimal(RecordTypes.Font, 0)));
         _game = game;
         _settings = settings;
         Name = "Pause menu";
@@ -114,6 +116,12 @@ public partial class PauseMenu : CanvasLayer
 
     /// <summary>Loads the save file, ending this game.</summary>
     public Action<string>? LoadGame { get; set; }
+
+    /// <summary>The chunk the player is in, and whether it's outdoors, which the World tab's map and Camp read.</summary>
+    public Func<(Plugins.Records.ChunkRef? Place, bool Outdoors)>? Where { get; set; }
+
+    /// <summary>Camp was chosen on the World tab where the party can camp; the menu has closed.</summary>
+    public event Action? CampChosen;
 
     /// <summary>The UI screen, whose lines and filter the game sets.</summary>
     public UiScreen Screen => _screen;
@@ -150,10 +158,16 @@ public partial class PauseMenu : CanvasLayer
         {
             _system.Menu = system;
         }
+        var (place, outdoors) = Where?.Invoke() ?? (null, false);
+        var world = new WorldMenu(_plugins, _game, _mainFont, place, outdoors);
         if (_world is null)
         {
-            _world = new WorldTabView(_plugins);
+            _world = new WorldTabView(_plugins, world);
             _screen.Canvas.AddChild(_world);
+        }
+        else
+        {
+            _world.Menu = world;
         }
         Tab = tab;
         _position = (float)tab;
@@ -232,6 +246,8 @@ public partial class PauseMenu : CanvasLayer
                 party.Veil = veil;
             else if (control is SystemTabView system)
                 system.Veil = veil;
+            else if (control is WorldTabView world)
+                world.Veil = veil;
         }
     }
 
@@ -245,7 +261,11 @@ public partial class PauseMenu : CanvasLayer
             return;
         if (Tab == PauseTab.Party && (_view!.Menu.Message is not null || _view.Menu.Crafting is not null))
             return;
+        if (Tab == PauseTab.World && (_world!.Menu.Message is not null || _world.Menu.Journal is not null))
+            return;
         Tab = to;
+        if (to == PauseTab.World)
+            _world!.Menu.Arrived();
         _view!.DetailsOpen = false;
         Activate();
         Redraw();
@@ -273,6 +293,12 @@ public partial class PauseMenu : CanvasLayer
         }
         if (_system.Menu.Saves is { Request: not SaveRequest.None } saves)
             CarryOut(saves);
+        if (_world is { Visible: true } world)
+        {
+            var journal = Tab == PauseTab.World && !Sliding;
+            world.Menu.Step(Sliding, journal && Held("move_forward"), journal && Held("move_back"));
+            world.QueueRedraw();
+        }
     }
 
     /// <summary>Does what the save or load screen asks: writes the game, or loads a save.</summary>
@@ -317,7 +343,12 @@ public partial class PauseMenu : CanvasLayer
         {
             if (Sliding)
                 return true;
-            var held = Tab == PauseTab.System ? start ? _system.Menu.Start() : _system.Menu.Back() : Back();
+            var held = Tab switch
+            {
+                PauseTab.System => start ? _system.Menu.Start() : _system.Menu.Back(),
+                PauseTab.World => _world!.Menu.Back(),
+                _ => Back(),
+            };
             if (!held)
                 Close();
             Redraw();
@@ -337,6 +368,8 @@ public partial class PauseMenu : CanvasLayer
             return e is InputEventKey or InputEventJoypadButton or InputEventJoypadMotion;
         if (Tab == PauseTab.System)
             return HandleSystem(e, _system.Menu);
+        if (Tab == PauseTab.World)
+            return HandleWorld(e, _world!.Menu);
         if (_view.Barter is { } barter)
             return HandleBarter(e, barter);
         if (_view.Training is { } training)
@@ -405,6 +438,51 @@ public partial class PauseMenu : CanvasLayer
             return e is InputEventJoypadMotion;
         _system!.QueueRedraw();
         return true;
+    }
+
+    // The World tab's presses: up and down move between Camp and Journal, or scroll the journal; A chooses, or closes
+    // the journal or the message.
+    private bool HandleWorld(InputEvent e, WorldMenu world)
+    {
+        if (e.IsActionPressed("menu_accept"))
+        {
+            world.Accept();
+            if (world.CampChosen)
+            {
+                Close();
+                CampChosen?.Invoke();
+                return true;
+            }
+        }
+        else if (Pressed(e, "move_forward") || e.IsActionPressed("menu_up", allowEcho: true))
+        {
+            Vertical(world, -1);
+        }
+        else if (Pressed(e, "move_back") || e.IsActionPressed("menu_down", allowEcho: true))
+        {
+            Vertical(world, 1);
+        }
+        else
+        {
+            return e is InputEventJoypadMotion;
+        }
+        _world!.QueueRedraw();
+        return true;
+    }
+
+    private static void Vertical(WorldMenu world, int by)
+    {
+        if (world.Journal is { } journal)
+        {
+            if (by < 0)
+                journal.Up();
+            else
+                journal.Down();
+        }
+        else
+        {
+            world.MoveCursor(by);
+        }
     }
 
     /// <summary>
@@ -537,6 +615,12 @@ public partial class PauseMenu : CanvasLayer
         }
         if (!vertical)
             return;
+        if (Tab == PauseTab.World)
+        {
+            Vertical(_world!.Menu, by);
+            _world.QueueRedraw();
+            return;
+        }
         if (_view!.Barter is { } barter)
             barter.MoveCursor(by);
         else if (_view.Training is { } training)

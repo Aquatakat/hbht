@@ -22,6 +22,13 @@ public static class MenuImages
     public static readonly RecordId WorldTab = Image(0x00DA);
 
     /// <summary>
+    /// The World tab's widgets: today's square on the calendar (drawn 17 square), Camp (<c>BORG8_TitleCamp</c>) and
+    /// Journal; and the journal's book and its arrows, up and down.
+    /// </summary>
+    public static readonly RecordId Today = Image(0x00DC), CampTitle = Image(0x00DD), JournalTitle = Image(0x00E6),
+        Book = Image(0x0182), BookUp = Image(0x00D6), BookDown = Image(0x00D5);
+
+    /// <summary>
     /// The System tab's titles: its list's "Menu" (<c>BORG8_TitleMenui</c>), Options, Load Game, Save Game, and the
     /// name entry's (<c>BORG8_TitleEnterName</c>).
     /// </summary>

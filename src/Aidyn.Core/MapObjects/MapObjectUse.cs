@@ -119,6 +119,9 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
     /// <summary>Moves a choice's cursor.</summary>
     public void MoveCursor(int by) => Popup?.Choices.Move(by);
 
+    /// <summary>Says something in trek's message box (<c>TrekTextPopup</c>), which A or B closes.</summary>
+    public void Tell(string text) => Show(TrekPopup.Message(text));
+
     private void Close()
     {
         Popup = null;

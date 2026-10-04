@@ -267,7 +267,8 @@ public partial class Game : Node3D, ITrekHost
         trekUi.AddChild(_fade);
         AddChild(trekUi);
 
-        _menu = new PauseMenu(plugins, game, _settings, _stick) { SaveGame = SaveTo, LoadGame = LoadFrom };
+        _menu = new PauseMenu(plugins, game, _settings, _stick) { SaveGame = SaveTo, LoadGame = LoadFrom, Where = Where };
+        _menu.CampChosen += Camp;
         // The original reloads the map as the menu closes, so what changed shows.
         _menu.Closed += () => _chunks!.Regate();
         if (args.TryGetValue("ui-lines", out var lines))
@@ -728,6 +729,22 @@ public partial class Game : Node3D, ITrekHost
             _settings.SkyPlacement = _sky.Placement == Core.Sky.SkyPlacement.Original ? Core.Sky.SkyPlacement.Projected : Core.Sky.SkyPlacement.Original;
             _settings.Notify();
         }
+    }
+
+    /// <summary>The chunk the player is in, and whether its terrain has the outdoor sky, for the World tab.</summary>
+    private (ChunkRef? Place, bool Outdoors) Where()
+    {
+        if (_trek is not { } trek || trek.Chunks.ChunkAt(trek.Player.Sphere.Position) is not { } chunk)
+            return (null, false);
+        var terrain = _plugins!.TryGet<TerrainRecord>(RecordId.Decimal(RecordTypes.Terrain, chunk.Terrain));
+        return (new ChunkRef(trek.Chunks.MapSet.Id, chunk.Row, chunk.Column), terrain?.SkyDrawn ?? false);
+    }
+
+    /// <summary>The World tab's Camp: the party camps where the player stands (<see cref="TrekLoop.Camp"/>).</summary>
+    private void Camp()
+    {
+        var outcome = _trek!.Camp();
+        GD.Print($"Camping: {outcome}.");
     }
 
     /// <summary>A in trek: uses the map object the player reaches, and shows any popup it brings up.</summary>
