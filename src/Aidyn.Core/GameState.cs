@@ -48,6 +48,11 @@ public sealed class GameState : IScriptWorld
 
     public StateFlagsRecord StateFlagsRecord { get; }
 
+    /// <summary>How camping goes (<c>aidyn:camping/0</c>).</summary>
+    public CampingRecord Camping => _camping ??= Plugins.All<CampingRecord>(RecordTypes.Camping).Single();
+
+    private CampingRecord? _camping;
+
     /// <summary>Writes the clock, rain and terrain into the flags.</summary>
     public StateFlags StateFlags { get; }
 
@@ -227,6 +232,16 @@ public sealed class GameState : IScriptWorld
         Clock.Step(ticks);
         foreach (var member in Party.Members)
             member.StepPotionEffects(ticks);
+        StateFlags.SetTime(Clock);
+    }
+
+    /// <summary>
+    /// Hours passing at once, as after camping (<c>World::Lapse8Hours</c>): the clock moves on, within the year, and the
+    /// calendar's flags are written. Time played doesn't, and effects don't run down: camping's heal runs those.
+    /// </summary>
+    public void Lapse(int hours)
+    {
+        Clock.Time = (uint)((Clock.Time + (ulong)hours * GameClock.Hour) % GameClock.Year);
         StateFlags.SetTime(Clock);
     }
 
@@ -496,7 +511,7 @@ public sealed class GameState : IScriptWorld
         return true;
     }
 
-    void IScriptWorld.CampHeal() => Party.CampHeal();
+    void IScriptWorld.CampHeal() => Party.CampHeal(1f, Camping.EffectTicks);
 
     bool IScriptWorld.TryRecall(Memory memory, out int value) => Memory.TryRecall(memory, out value);
 

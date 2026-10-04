@@ -116,13 +116,20 @@ public sealed partial class Party
     }
 
     /// <summary>
-    /// Camping heals the living members, fully or by half (<c>Party::CampHeal</c>). The hours
-    /// passing, and gear's charges, come with camping (2.7).
+    /// Camping heals the living members by <paramref name="fraction"/> (<c>Party::CampHeal</c>, <c>camp_healing</c>): hit
+    /// points and their worn batteries, and <paramref name="effectTicks"/> of play pass for their potions. Then every
+    /// battery in the inventory refills by the same fraction (<c>multi_equip_StamMod</c>); the decomp's loop skips
+    /// the last stack, but the machine code's doesn't. Camping heals by half, and a script's camp heal fully.
     /// </summary>
-    public void CampHeal(bool half = false)
+    public void CampHeal(float fraction, int effectTicks)
     {
         foreach (var member in Members.Where(m => !m.IsDead))
-            member.CampHeal(half ? 0.5f : 1f);
+        {
+            member.CampHeal(fraction);
+            member.StepPotionEffects(effectTicks);
+        }
+        foreach (var stack in Inventory?.Stacks ?? [])
+            Items.Equipment.Recharge(stack.Instance, fraction);
     }
 
     /// <summary>

@@ -351,6 +351,47 @@ public sealed class TrekLoop : IMapObjectHost
     }
 
     /// <summary>
+    /// Camps where the player stands (<c>Party::CampAmbushCheck</c>): refused where the chunk's terrain allows none, as the
+    /// World tab's Camp already checks; otherwise ambushed, which waits for combat, or healed by half, with the camp
+    /// scene cued: the first dialogue object in the chunk whose enabling flag is one of the camping record's and holds
+    /// while its check flag is set, wherever it is (<c>dialoug_ref_obj_func</c>), or else the Campsite's
+    /// (<c>campfire_func</c>). Eight hours pass when the scene ends, as it's a <c>rest</c> script.
+    /// </summary>
+    public CampOutcome Camp()
+    {
+        var rules = Game.Camping;
+        var at = Player.Sphere.Position;
+        var terrain = Chunks.ChunkAt(at) is { } chunk ? Game.Plugins.TryGet<TerrainRecord>(RecordId.Decimal(RecordTypes.Terrain, chunk.Terrain)) : null;
+        var factor = terrain?.Camp ?? 0;
+        if (factor <= 0)
+            return CampOutcome.Refused;
+        if (Camping.Ambushed(rules, factor, Game.Party, Game.Flags.Get, Game.Random.World))
+        {
+            _host.Say("The party is ambushed; battles come with combat (2.5).");
+            return CampOutcome.Ambushed;
+        }
+        Game.Party.CampHeal(rules.Heal, rules.EffectTicks);
+
+        Game.Flags.Set(rules.Checking, true);
+        var map = Chunks.MapAt(at);
+        var scene = map?.Record.Objects.OfType<DialogueObject>().FirstOrDefault(d =>
+            d.Enabled is { } gate && rules.Scenes.Contains(gate.Flag) && Game.Flags.Get(gate.Flag) != gate.Invert);
+        Game.Flags.Set(rules.Checking, false);
+        RecordId? source = scene is not null ? MapRecord.VoxelId(map!.Record.Id, scene.Index) : null;
+        if (scene is null && Game.Plugins.TryGet<MapRecord>(rules.Campsite) is { } campsite
+            && campsite.Objects.OfType<DialogueObject>().FirstOrDefault() is { } fire)
+        {
+            scene = fire;
+            source = MapRecord.VoxelId(campsite.Id, fire.Index);
+        }
+        if (scene is not null && Game.Plugins.TryGet<DialogueRecord>(scene.Script) is { Mode: DialogueMode.Cutscene } script && scene.Stage is { } stage)
+            Cue(script, new ScriptStart(scene.RefPointBase, source), stage);
+        else
+            _host.Say("The party camps, but there's no camp scene to show; eight hours would pass.");
+        return CampOutcome.Camped;
+    }
+
+    /// <summary>
     /// Asks for a cut-scene (<c>dialoug_func</c>, then <c>funcs0[1]</c>): trek fades out, and it starts once
     /// the screen is black. One at a time.
     /// </summary>

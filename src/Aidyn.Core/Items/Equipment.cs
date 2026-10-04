@@ -328,11 +328,18 @@ public sealed class Equipment
     {
         foreach (var item in new[] { Weapon, Armor, Shield }.Concat(_gear.Take(GearCount)))
         {
-            if (item?.Battery is not { } battery || item.Item.BatteryCapacity is not { } capacity)
-                continue;
-            var gain = (sbyte)(int)(capacity * fraction);
-            item.Battery = capacity < battery + gain ? (sbyte)capacity : (sbyte)(battery + gain);
+            if (item is not null)
+                Recharge(item, fraction);
         }
+    }
+
+    /// <summary>Refills an item's battery by <paramref name="fraction"/> of its capacity, truncated, up to full (<c>ItemCampStamina</c>).</summary>
+    public static void Recharge(ItemInstance item, float fraction)
+    {
+        if (item.Battery is not { } battery || item.Item.BatteryCapacity is not { } capacity)
+            return;
+        var gain = (sbyte)(int)(capacity * fraction);
+        item.Battery = capacity < battery + gain ? (sbyte)capacity : (sbyte)(battery + gain);
     }
 
     // Entity::ApplyEquipment: the skill bonus if the skill's base level isn't 0, then the stat bonus.

@@ -795,11 +795,16 @@ public partial class Game : Node3D, ITrekHost
     }
 
     /// <summary>
-    /// Opens the shop or training a script ends in, kept by <paramref name="keeper"/>, or says what the
-    /// stand-ins for a battle or camp would do.
+    /// Passes the hours a camp heal or a camp scene takes, and opens the shop or training a script ends in, kept by
+    /// <paramref name="keeper"/>, or says what the stand-in for a battle would do.
     /// </summary>
     private void CarryOut(Core.Scripts.ScriptEnding ending, RecordId? keeper)
     {
+        if (ending.RestHours > 0)
+        {
+            _game!.Lapse(ending.RestHours);
+            GD.Print($"{ending.RestHours} hours pass.");
+        }
         if (ending.Kind == Core.Scripts.ScriptEndKind.Shop)
         {
             OpenShop(keeper);
@@ -813,7 +818,6 @@ public partial class Game : Node3D, ITrekHost
         var what = ending.Kind switch
         {
             Core.Scripts.ScriptEndKind.Battle => "A battle would start; battles come with combat (2.5).",
-            Core.Scripts.ScriptEndKind.Camp => $"The party is healed; {ending.RestHours} hours would pass (camping, 2.7).",
             _ => null,
         };
         if (what is not null)
