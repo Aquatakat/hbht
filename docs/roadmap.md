@@ -22,7 +22,7 @@ This is the one list of what's open. A task's status is in its phase's table bel
 
 ### Next
 
-1. **0.9 and 0.12: reading the code without the decomp** ([ADR 0015](adr/0015-the-port-no-longer-reads-the-decomp.md)). 0.9 has the functions between two source files left to place. 0.12 is traces, by breakpoints on the index's function entries through `tools/gdb.ps1`, since ares has no tracer on its command line. The code index, Ghidra's pseudocode, the symbol map, `bst.py --diff` and gdb on 1.0's checkpoints are done (0.7, 0.8, 0.10, 0.11, 0.14).
+1. **0.9: the rest of the source files** ([ADR 0015](adr/0015-the-port-no-longer-reads-the-decomp.md)). Place the functions in a run between two different files, by who calls them and by the lines the files cite. Every other task in reading the code without the decomp is done: the code index, Ghidra's pseudocode, the symbol map, `bst.py --diff`, gdb on 1.0's checkpoints and traces (0.7, 0.8, 0.10–0.12, 0.14).
 2. **0.13: combat captures,** by the user, whenever it suits.
 3. **M3 Fight:** 2.5 (combat rules) in the headless core, then 2.6 (enemy AI) and the battle UI, planned into sessions as M2 was. 2.5's first session maps combat's code and RAM with 0.7–0.13.
 
@@ -37,7 +37,7 @@ This is the one list of what's open. A task's status is in its phase's table bel
   - Spells' and potions' modifiers on characters.
   - The Antidote and Restore potions, which need combat's poison and spells.
 - **Waiting for 1D:** sounds. Cues that play one are logged.
-- **Waiting for the user:** shop selling prices ([to-check](to-check.md)).
+- **Waiting for the user:** shop selling prices ([to-check](to-check.md)), and a first trace with a real action. Run `tools/trace.ps1 -Checkpoint "Before Rooughah"` and open the pause menu at the two beeps; the report should list the menu's code.
 - **1H:** the content tables marked To do in [hardcoded-content](hardcoded-content.md), which the importer will need.
 - **Rendering:** the renderer's leftovers, the weather among them ([rendering](systems/rendering.md#whats-left)).
 - **Rig:** measure the frame `delta` distribution in trek and combat ([ADR 0006](adr/0006-tick-model-and-rng.md)'s follow-up).
@@ -143,7 +143,7 @@ Sizes are relative: S, M, L, XL. **Bold** tasks block other work.
 | **0.9 Source files and the two builds.** The debug build's allocations and asserts pass a file name and line, so each function that calls one can be tied to its file, and its line numbers order the file's functions. Then match 1.0's functions to the debug build's, by order and by instruction shape, so that a name settled in either build holds in both. | M | Every function placed in one of the original's ~140 source files. The debug build's names carry to 1.0. | First pass Oct 4, 2026 (`tools/builds.py`): 3,715 of 1.0's 3,740 functions matched, and names carry across. 889 placed in 115 files. Left: the functions between two files. |
 | **0.10 RAM maps.** `bst.py --diff` between two checkpoints, and a way to name a RAM structure's fields once they're settled. The structures go in the system's doc, as [saves](systems/saves.md) does for the save. | S | Where a value lives, found by changing it in the game | Done Oct 4, 2026: `bst.py --diff`, with a filter on old and new values. Structures' fields go in their system's doc. |
 | **0.11 gdb on a checkpoint.** Fix gdb after loading a save state (the [known issue](reference-rig.md#known-issue-gdb-after-loading-a-state)). If ares's stub can't, try another emulator with a GDB stub. Breakpoints and watchpoints then work from any checkpoint. | S–M | "What writes this value?" answered by a watchpoint, in one run | Done Oct 4, 2026: `tools/gdb.ps1`. 1.0's checkpoints attach, and the debug build's don't (see the [rig](reference-rig.md#gdb-on-a-checkpoint-toolsgdbps1-roadmap-011)). |
-| **0.12 Traces.** Log which functions run during an action, by breakpoints on function entries or by an emulator's tracer. Diff an action against standing still. | M | The code an action runs, such as one attack, found without guessing | After 0.7 and 0.11 |
+| **0.12 Traces.** Log which functions run during an action, by breakpoints on function entries or by an emulator's tracer. Diff an action against standing still. | M | The code an action runs, such as one attack, found without guessing | Done Oct 4, 2026: `tools/trace.ps1`, first-hit breakpoints on every function, a baseline window against an action window. Not yet run with a real action. |
 | **0.13 Combat captures** (the user). Checkpoints in and around battles: on the field just before one, its first turn, before and after a melee attack, before and after a spell, an enemy's turn, fleeing, and victory with its loot and experience screens. The existing saves are from a ROM hack with weak enemies, so these should come from an unmodified 1.0 game. | S | Combat's RAM, before and after each thing it does | Open |
 | **0.14 A decompiler of our own** (optional). Try Ghidra headless over 1.0, written to `out/` and never committed, with the symbol map applied. See whether its output makes research runs cheaper than raw disassembly. It needs Java and Ghidra installed. | S to try | Readable pseudocode that is ours, if it pays | Done Oct 4, 2026. It pays: every function decompiles, readably, and the analysis gives 0.7's index. |
 

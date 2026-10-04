@@ -224,6 +224,20 @@ That one watches 1.0's in-game clock (`TerrainStruct.InGameTime`) and stops at `
 - ares reports its architecture as `mips:4000`, which the script sets.
 - The launcher now resolves the ROM's path literally, since `[!]` in 1.0's filename is a wildcard to PowerShell. `tools/ares.ps1 v10` didn't start before this was fixed.
 
+### Traces: `tools/trace.ps1` (roadmap 0.12)
+
+What code does an action run? `tools/trace.ps1` starts ares at a checkpoint, and gdb puts a temporary breakpoint on every function entry in the code index. Each one is removed by its first hit, so a function that runs every frame costs one stop and then nothing. A baseline window runs first (one beep), where you stand still or do whatever the action is compared against. Then the action window runs (two beeps), where you do the thing in ares, until three beeps. The report lists the functions first run in the action window, which the baseline never ran, in order, with their names and source files. The log, one line per first hit, is in `out/`.
+
+```powershell
+tools/trace.ps1 -Checkpoint "Before Rooughah" -Baseline 20 -Action 30            # every function
+tools/trace.ps1 -Checkpoint "<a battle>" -Files combat -Action 60                 # only those placed in combat's files
+python tools/gdb/trace.py --report out/trace-<time>.log                           # the report again
+```
+
+- **Cost:** setting the 3,740 breakpoints takes about 21 s. The game then runs at about half speed until the hot functions have used up their breakpoints, which standing still in trek does within 17 s (410 functions). `-Files` or `-Range` sets fewer breakpoints and keeps the game near full speed.
+- **Checked Oct 4, 2026,** standing still in both windows, from "Before Rooughah": the action window finds nothing new, as it should. It hasn't yet been run with a real action.
+- **How it's built:** `tools/gdb/trace.py` runs inside gdb, with gdb's own Python, and is driven through `tools/gdb.ps1 -Source`. A timer interrupts the target to close each window. gdb is given an empty stdin, because without a console (as in `trace.ps1`'s background job) it blocks before starting.
+
 ## Finding the original's code
 
 The project doesn't read the decomp ([ADR 0015](adr/0015-the-port-no-longer-reads-the-decomp.md)). A research run finds a system's code from what the project already knows and what the ROM and the checkpoints show, cheapest first:
@@ -234,7 +248,7 @@ The project doesn't read the decomp ([ADR 0015](adr/0015-the-port-no-longer-read
 4. **The call graph.** A known function's callers and callees, and the debug build's source files, whose functions sit together.
 5. **The emulator.** Change a value in the game between two checkpoints and diff RAM. A watchpoint on that value then finds the code that writes it, and a trace finds what an action runs.
 
-Steps 2–4 are `n64dis.py --strings`, `--refs`, `--callers` and `--callees`, over the code index, and `--c` reads a function's pseudocode once it's found. Roadmap tasks 0.9–0.12 add the source-file map, `bst.py --diff`, gdb on a checkpoint and traces. Until each lands, do its step by hand with `n64dis.py` and `bst.py`. Write what a run settles into the system's doc with its addresses, and its names into the symbol map.
+Steps 2–4 are `n64dis.py --strings`, `--refs`, `--callers` and `--callees`, over the code index, and `--c` reads a function's pseudocode once it's found. Step 5 is `bst.py --diff`, `tools/gdb.ps1`'s watchpoints and `tools/trace.ps1`'s traces. Write what a run settles into the system's doc with its addresses, and its names into the symbol map.
 
 ### The symbol map (roadmap 0.8)
 

@@ -1,6 +1,6 @@
 # Run gdb commands against the original in ares, from a checkpoint or a cold boot (roadmap 0.11).
-# Usage: tools/gdb.ps1 [-Rom v10|v11|debug] [-Checkpoint "<label>"] -Commands '<gdb command>', ...
-#                      [-Boot <seconds>] [-Timeout <seconds>] [-Keep]
+# Usage: tools/gdb.ps1 [-Rom v10|v11|debug] [-Checkpoint "<label>"] [-Commands '<gdb command>', ...]
+#                      [-Source <gdb script, .py or .gdb>] [-Boot <seconds>] [-Timeout <seconds>] [-Keep]
 #
 # Example: what writes the in-game clock (TerrainStruct.InGameTime, the pointer at 0x800E303C + 0x20)?
 #   tools/gdb.ps1 -Checkpoint "Before Rooughah" -Commands 'set $t = *(unsigned int*)0x800e303c',
@@ -14,7 +14,8 @@
 param(
     [ValidateSet('debug', 'v10', 'v11')] [string]$Rom = 'v10',
     [string]$Checkpoint,
-    [Parameter(Mandatory)] [string[]]$Commands,
+    [string[]]$Commands = @(),
+    [string]$Source,
     [int]$Boot = 12,
     [int]$Timeout = 60,
     [switch]$Keep
@@ -30,14 +31,17 @@ Start-Sleep -Seconds $Boot
 $gdbArgs = @('-batch', '-ex', '"set architecture mips:4000"', '-ex', '"set endian big"', '-ex', '"set remotetimeout 5"',
     '-ex', '"target remote 127.0.0.1:9123"')
 foreach ($c in $Commands) { $gdbArgs += @('-ex', "`"$c`"") }
+if ($Source) { $gdbArgs += @('-x', "`"$((Resolve-Path -LiteralPath $Source).Path)`"") }
 $gdbArgs += @('-ex', 'detach')
 $log = Join-Path ([IO.Path]::GetTempPath()) "aidyn-gdb-$PID.log"
 try {
-    $p = Start-Process $gdb -ArgumentList $gdbArgs -PassThru -NoNewWindow -RedirectStandardOutput $log -RedirectStandardError "$log.err"
+    # An empty stdin: without a console (a background job), gdb otherwise blocks before it starts.
+    Set-Content "$log.in" '' -NoNewline
+    $p = Start-Process $gdb -ArgumentList $gdbArgs -PassThru -NoNewWindow -RedirectStandardOutput $log -RedirectStandardError "$log.err" -RedirectStandardInput "$log.in"
     if (-not $p.WaitForExit($Timeout * 1000)) { $p.Kill(); Write-Warning "gdb killed after $Timeout s" }
     Get-Content $log, "$log.err" -ErrorAction SilentlyContinue |
         Where-Object { $_ -and $_ -notmatch 'OS ABI|default mips|ambiguous with reported|No executable has been specified|determining executable automatically' }
 } finally {
-    Remove-Item $log, "$log.err" -ErrorAction SilentlyContinue
+    Remove-Item $log, "$log.err", "$log.in" -ErrorAction SilentlyContinue
     if (-not $Keep) { Get-Process ares -ErrorAction SilentlyContinue | Stop-Process -Force }
 }
