@@ -22,7 +22,7 @@ This is the one list of what's open. A task's status is in its phase's table bel
 
 ### Next
 
-1. **0.7–0.9: reading the code without the decomp** ([ADR 0015](adr/0015-the-port-no-longer-reads-the-decomp.md)). These are the code index, the symbol map, and the debug build's source files matched to 1.0. 0.10–0.12 can run alongside or after them, and 0.14 is worth trying early.
+1. **0.8–0.9: reading the code without the decomp** ([ADR 0015](adr/0015-the-port-no-longer-reads-the-decomp.md)). These are the symbol map and the debug build's source files matched to 1.0, on top of the code index and Ghidra's pseudocode (0.7, 0.14). 0.10–0.12 can run alongside or after them.
 2. **0.13: combat captures,** by the user, whenever it suits.
 3. **M3 Fight:** 2.5 (combat rules) in the headless core, then 2.6 (enemy AI) and the battle UI, planned into sessions as M2 was. 2.5's first session maps combat's code and RAM with 0.7–0.13.
 
@@ -138,14 +138,14 @@ Sizes are relative: S, M, L, XL. **Bold** tasks block other work.
 
 | Task | Size | Output | Status |
 | --- | --- | --- | --- |
-| **0.7 Code index.** Read both ROMs' code segments. List every function, starting from `jal` targets and prologues. Record each function's callers and callees, the data and strings it references (`lui` pairs), and the jump tables. Then `n64dis.py` gains `--callers`, `--callees`, `--refs <address>` and `--strings <text>`. | M | Finding code by what it touches: the string it prints, the table it reads, the global it writes | Next |
+| **0.7 Code index.** Read both ROMs' code segments. List every function, starting from `jal` targets and prologues. Record each function's callers and callees, the data and strings it references (`lui` pairs), and the jump tables. Then `n64dis.py` gains `--callers`, `--callees`, `--refs <address>` and `--strings <text>`. | M | Finding code by what it touches: the string it prints, the table it reads, the global it writes | Done Oct 4, 2026, as an export from Ghidra (0.14); see the [rig](reference-rig.md#ghidra-1214-roadmap-07-014) |
 | **0.8 Symbol map.** `tools/symbols/us.txt` and `debug.txt`, our names for addresses, which `n64dis.py` reads. Seed it from the ~150 addresses the docs and code already cite. Add the C runtime and libultra functions, recognised by what they do (`memcpy`, `sprintf`, `sinf`, `osRecvMesg`). Every research run adds the names it settles. | S, then ongoing | Calls named in every disassembly | Next, with 0.7 |
 | **0.9 Source files and the two builds.** The debug build's allocations and asserts pass a file name and line, so each function that calls one can be tied to its file, and its line numbers order the file's functions. Then match 1.0's functions to the debug build's, by order and by instruction shape, so that a name settled in either build holds in both. | M | Every function placed in one of the original's ~140 source files. The debug build's names carry to 1.0. | After 0.7 |
 | **0.10 RAM maps.** `bst.py --diff` between two checkpoints, and a way to name a RAM structure's fields once they're settled. The structures go in the system's doc, as [saves](systems/saves.md) does for the save. | S | Where a value lives, found by changing it in the game | Open |
 | **0.11 gdb on a checkpoint.** Fix gdb after loading a save state (the [known issue](reference-rig.md#known-issue-gdb-after-loading-a-state)). If ares's stub can't, try another emulator with a GDB stub. Breakpoints and watchpoints then work from any checkpoint. | S–M | "What writes this value?" answered by a watchpoint, in one run | Open |
 | **0.12 Traces.** Log which functions run during an action, by breakpoints on function entries or by an emulator's tracer. Diff an action against standing still. | M | The code an action runs, such as one attack, found without guessing | After 0.7 and 0.11 |
 | **0.13 Combat captures** (the user). Checkpoints in and around battles: on the field just before one, its first turn, before and after a melee attack, before and after a spell, an enemy's turn, fleeing, and victory with its loot and experience screens. The existing saves are from a ROM hack with weak enemies, so these should come from an unmodified 1.0 game. | S | Combat's RAM, before and after each thing it does | Open |
-| **0.14 A decompiler of our own** (optional). Try Ghidra headless over 1.0, written to `out/` and never committed, with the symbol map applied. See whether its output makes research runs cheaper than raw disassembly. It needs Java and Ghidra installed. | S to try | Readable pseudocode that is ours, if it pays | Worth trying early |
+| **0.14 A decompiler of our own** (optional). Try Ghidra headless over 1.0, written to `out/` and never committed, with the symbol map applied. See whether its output makes research runs cheaper than raw disassembly. It needs Java and Ghidra installed. | S to try | Readable pseudocode that is ours, if it pays | Done Oct 4, 2026. It pays: every function decompiles, readably, and the analysis gives 0.7's index. |
 
 ### Phase 1: Format decoding (parallel tracks, after 0.3)
 

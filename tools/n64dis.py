@@ -9,12 +9,23 @@ Usage:
   python tools/n64dis.py --find <text> [--rom us|debug]
       Lists the symbols whose names contain the text.
 
+From the code index (roadmap 0.7), which tools/ghidra.ps1 import writes to out/ghidra:
+  --callers <fn>          the functions that call it, and the data words that point at it
+  --callees <fn>          the functions it calls
+  --refs <addr>[..<end>]  the functions that read (r), write (w) or take (a) an address or range,
+                          and the data words that point into it
+  --strings <text>        the strings in the code segment holding the text, and who uses them
+  --c <fn>                Ghidra's pseudocode for the function holding the address
+A function is a symbol or any address inside it.
+
 The code segment is at ROM 0x1000, loaded at 0x80000400, in both 1.0 ("us", the default) and the
 debug ROM. Symbols come from the project's map, tools/symbols/<rom>.txt (lines of
 "name = 0xaddress;"), and without one everything works by address. 1.0's functions sit in the
 same order as the debug build's, so find one in the other by its neighbours. ROMs are found in roms/ (or AIDYN_ROMS) by name. Needs capstone (pip install capstone).
 """
 import argparse
+import bisect
+import json
 import glob
 import os
 import re
@@ -44,6 +55,21 @@ def load(which):
     return rom, symbols
 
 
+def load_index(which):
+    path = os.path.join(REPO, "out", "ghidra", f"{which}.index.json")
+    if not os.path.exists(path):
+        sys.exit(f"No code index at {path}; run tools/ghidra.ps1 import {which}")
+    index = json.load(open(path, encoding="utf-8"))
+    index["starts"] = [f["at"] for f in index["functions"]]
+    return index
+
+
+def containing(index, address):
+    i = bisect.bisect_right(index["starts"], address) - 1
+    f = index["functions"][i] if i >= 0 else None
+    return f if f and f["at"] <= address < f["end"] else None
+
+
 def offset(address):
     return address - LOAD + START
 
@@ -59,9 +85,87 @@ def main():
     p.add_argument("--count", type=int)
     p.add_argument("--data")
     p.add_argument("--find")
+    for name in ("callers", "callees", "refs", "strings", "c"):
+        p.add_argument(f"--{name}")
     a = p.parse_args()
     rom, symbols = load(a.rom)
     by_name = {v: k for k, v in symbols.items()}
+
+    def address_of(text):
+        value = int(text, 16) if text.lower().startswith("0x") else by_name.get(text)
+        if value is None:
+            sys.exit(f"No symbol {text}; try --find.")
+        return value
+
+    def name(address):
+        return f"{address:08x} {symbols[address]}" if address in symbols else f"{address:08x}"
+
+    def function(index, text):
+        f = containing(index, address_of(text))
+        return f or sys.exit(f"No function holds {text}.")
+
+    def where(index, address):
+        f = containing(index, address)
+        if not f:
+            return name(address)
+        return name(f["at"]) + (f" +0x{address - f['at']:x}" if address != f["at"] else "")
+
+    if a.callers or a.callees:
+        index = load_index(a.rom)
+        f = function(index, a.callers or a.callees)
+        print(f"; {name(f['at'])}-{f['end']:08x}" + (", unreferenced" if f.get("unreferenced") else ""))
+        if a.callees:
+            for c in f["calls"]:
+                print(where(index, c))
+            return
+        for g in index["functions"]:
+            if f["at"] in g["calls"]:
+                print(name(g["at"]))
+        for at, to in index["pointers"]:
+            if to == f["at"]:
+                print(f"pointed at by data {at:08x}")
+        return
+    if a.refs:
+        index = load_index(a.rom)
+        low, _, high = a.refs.partition("..")
+        low = address_of(low)
+        high = address_of(high) if high else low + 1
+        for g in index["functions"]:
+            hits = [(at, kind) for at, kind in g["refs"] if low <= at < high]
+            if hits:
+                print(f"{name(g['at']):40} " + " ".join(f"{at:08x}:{kind}" for at, kind in hits))
+        for at, to in index["pointers"]:
+            if low <= to < high:
+                print(f"pointed at by data {at:08x} -> {to:08x}")
+        return
+    if a.strings:
+        index = load_index(a.rom)
+        users = {}
+        for g in index["functions"]:
+            for at, _ in g["refs"]:
+                users.setdefault(at, []).append(g["at"])
+        for key, text in index["strings"].items():
+            if a.strings.lower() not in text.lower():
+                continue
+            at = int(key)
+            print(f"{at:08x} {text!r}")
+            for u in users.get(at, []):
+                print(f"    used by {name(u)}")
+            for ptr, to in index["pointers"]:
+                if to == at:
+                    print(f"    pointed at by data {ptr:08x}" + "".join(f", read by {name(u)}" for u in users.get(ptr, [])))
+        return
+    if a.c:
+        index = load_index(a.rom)
+        f = function(index, a.c)
+        path = os.path.join(REPO, "out", "ghidra", f"{a.rom}.c")
+        printing = False
+        for line in open(path, encoding="utf-8"):
+            if line.startswith("//@ "):
+                printing = int(line.split()[1], 16) == f["at"]
+            if printing:
+                print(line, end="")
+        return
 
     if a.find:
         for address, name in sorted(symbols.items()):
@@ -79,11 +183,11 @@ def main():
         return
 
     target = a.target or sys.exit("Give a symbol or an address.")
-    start = int(target, 16) if target.lower().startswith("0x") else by_name.get(target)
-    if start is None:
-        sys.exit(f"No symbol {target}; try --find.")
+    start = address_of(target)
+    index_path = os.path.join(REPO, "out", "ghidra", f"{a.rom}.index.json")
+    f = containing(load_index(a.rom), start) if os.path.exists(index_path) else None
     later = [s for s in symbols if s > start and s < 0x80100000]
-    end = start + 4 * a.count if a.count else (min(later) if later else start + 0x400)
+    end = start + 4 * a.count if a.count else f["end"] if f else (min(later) if later else start + 0x400)
     print(f"; {symbols.get(start, hex(start))} ({a.rom}), {(end - start) // 4} instructions")
     md = Cs(CS_ARCH_MIPS, CS_MODE_MIPS64 + CS_MODE_BIG_ENDIAN)
     upper = {}

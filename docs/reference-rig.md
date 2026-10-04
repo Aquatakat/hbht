@@ -51,6 +51,23 @@ tools/godot.ps1 -ExePath                              # print the executable's p
 - **Godot projects state `TargetFramework` themselves.** The editor doesn't see `Directory.Build.props`, and if the `.csproj` has no `TargetFramework` it writes in its own default, `net8.0`, which can't reference the net10 libraries. Godot 4.7.2 runs net10 assemblies without trouble.
 - **No `.sln` is needed.** The editor builds the `.csproj`, and `dotnet build` builds Godot projects like any other, into `.godot/mono/temp/bin/`. The project's `.godot/` folder is a cache and is gitignored. The `.uid` files Godot writes beside scripts are committed.
 
+## Ghidra 12.1.4 (roadmap 0.7, 0.14)
+
+Ghidra analyses the original's code headless, and the project's scripts export what the rest of the rig reads. It's unpacked into the gitignored `tools/ghidra_12.1.4_PUBLIC/` (or `GHIDRA_HOME`) and runs on the JDK 21 already installed (Eclipse Adoptium). Everything it writes goes to `out/ghidra/`, because it's derived from the ROMs.
+
+```powershell
+tools/ghidra.ps1 import          # both ROMs, about a minute: import, analyse, then export
+tools/ghidra.ps1 export          # after changing tools/symbols: re-apply names, re-write the index and pseudocode
+tools/ghidra.ps1 run us Decompile.java 0x80078d14   # a script from tools/ghidra, on us or debug
+```
+
+- **The import.** The code segment is extracted to `out/ghidra/<rom>.bin` and loaded raw at `0x80000400` as `MIPS:BE:64:64-32addr` with the o32 compiler spec. Its length comes from the boot code at `0x80000408`, whose BSS clear starts where the loaded segment ends: 1.0 loads `0x80000400`–`0x800E6620` (ROM `0x1000`–`0xE7220`) with BSS to `0x800F0EA0`, and the debug build loads to `0x800F51A0` with BSS to `0x800FFA50`. `SetupN64.java` maps the BSS, low memory, the rest of RDRAM and the hardware registers so references to them resolve.
+- **Finding functions.** Analysis follows calls from the entry point. `FindPointedFunctions.java` then makes a function wherever data or a `lui` pair points into undisassembled text (the vtables and callbacks, 105 in 1.0), and then from each remaining run that disassembles cleanly and returns, bookmarked as unreferenced (175 in 1.0: dead code the linker kept, or code only the debug build calls). 1.0 has 3,741 functions in a text that ends at `0x800CCEC0`, with data after it. The debug build has 3,889, with text ending at `0x800D6F80`.
+- **What stays undisassembled** in 1.0's text is about 5,500 words: chiefly the RSP microcode at `0x80000470`–`0x80002700`, whose `jal`s go to the RSP's IMEM at `0x84001xxx`.
+- **The export** writes `<rom>.index.json`, the code index, and `<rom>.c`, every function's pseudocode, after `ApplySymbols.java` names functions and globals from the symbol map. It takes about half a minute a ROM.
+- **The pseudocode** is readable, and cheaper to research from than the disassembly. Since the CPU is modelled as 64-bit, ints often show as `longlong`, and an address above `0x80000000` that's built by arithmetic can show as negative (`-0x7ff1d0c8` is `0x800E2F38`). The index's references and `n64dis.py` have the real address. Check a constant or a branch that matters against the disassembly.
+- **Ghidra misses many `lui` pairs,** a jump table's own address among them, so `ExportIndex.java` follows each `lui` through its function to the `addiu`, `ori`, load or store that completes it.
+
 ## Existing saves
 
 Mupen64Plus saves are in `%APPDATA%\Mupen64Plus\save`. Only `AIDYN_CHRONICLES (unknown rom).mpk` (Oct 2025) holds Aidyn data. The other Aidyn `.mpk` files are empty paks.
@@ -140,6 +157,18 @@ python tools/n64dis.py 0x8000f5b4 --count 60         # from an address, in 1.0 (
 python tools/n64dis.py --data 0x800cdb80 --count 2   # words as hex, float and double
 ```
 
+With the [Ghidra](#ghidra-1214-roadmap-07-014) export in `out/ghidra/`, it disassembles a whole function from any address inside it, and answers from the code index. A function is a symbol or any address inside it:
+
+```bash
+python tools/n64dis.py --callers 0x800788cc          # who calls it, and data words (vtables) pointing at it
+python tools/n64dis.py --callees 0x80078d14          # what it calls
+python tools/n64dis.py --refs 0x800e2f38..0x800e2f60 # who reads (r), writes (w) or takes (a) an address or range
+python tools/n64dis.py --strings gamecombat          # strings holding the text, and who uses them
+python tools/n64dis.py --c 0x80078d14                # Ghidra's pseudocode
+```
+
+Calls through a pointer (a vtable, a callback) aren't in `--callers`. Find those by the data word that points at the function, then by `--refs` on that word's table.
+
 1.0's functions sit in the same order as the debug build's, so find one in the other by its neighbours. Check a float's bits, not just its look: `0x3E32B7FE` is 10° in radians and `0x3EB2B7FE` is 20°.
 
 ### Reading state RAM offline: `tools/bst.py`
@@ -176,4 +205,4 @@ The project doesn't read the decomp ([ADR 0015](adr/0015-the-port-no-longer-read
 4. **The call graph.** A known function's callers and callees, and the debug build's source files, whose functions sit together.
 5. **The emulator.** Change a value in the game between two checkpoints and diff RAM. A watchpoint on that value then finds the code that writes it, and a trace finds what an action runs.
 
-Roadmap tasks 0.7–0.12 turn steps 2–5 into tools: `n64dis.py --strings`, `--refs`, `--callers` and `--callees`, the source-file map, `bst.py --diff`, gdb on a checkpoint, and traces. Until each lands, do its step by hand with `n64dis.py` and `bst.py`. Write what a run settles into the system's doc with its addresses, and its names into the symbol map.
+Steps 2–4 are `n64dis.py --strings`, `--refs`, `--callers` and `--callees`, over the code index, and `--c` reads a function's pseudocode once it's found. Roadmap tasks 0.9–0.12 add the source-file map, `bst.py --diff`, gdb on a checkpoint and traces. Until each lands, do its step by hand with `n64dis.py` and `bst.py`. Write what a run settles into the system's doc with its addresses, and its names into the symbol map.

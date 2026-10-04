@@ -10,3 +10,4 @@ out/
 ref/
 .tools/
 .godot/
+tools/ghidra_*/
