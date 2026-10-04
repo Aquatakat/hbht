@@ -193,7 +193,11 @@ ares states store RDRAM uncompressed as 32-bit little-endian words. `bst.py` loc
 python tools/bst.py "<state>" 0x800f1bbc 16     # hexdump
 python tools/bst.py "<state>" --word 0x800f1bbc # one u32
 python tools/bst.py "<state>" --dump out.bin    # 8 MB RDRAM image
+python tools/bst.py "<state>" --diff "<other state>" --range 0x800e0000..0x80100000   # changed runs of words
+python tools/bst.py "<state>" --diff "<other state>" --width 2 --was 25 --now 18      # values that went 25 -> 18
 ```
+
+`--diff` (roadmap 0.10) compares two states of one ROM. Without a filter it lists the runs of changed words, the first 200 (`--max`). With `--was`, `--now` or both, it lists the values of `--width` bytes that changed that way. That's how to find where a value lives: note it in the game, change it (take a hit, spend gold), and diff the two states. Static addresses are labelled by the nearest symbol in the map. Write a structure's fields, once settled, into its system's doc, as [saves](systems/saves.md) does.
 
 This is the preferred way to inspect checkpoints: it's deterministic, repeatable, and doesn't need a live emulator. Symbols useful so far:
 
