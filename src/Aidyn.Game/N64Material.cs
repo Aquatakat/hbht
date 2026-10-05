@@ -14,7 +14,9 @@ namespace Aidyn.Game;
 /// The N64 has no linear light. Texels, vertex colours and tints are the values it puts on screen
 /// (the game turns the VI's gamma off), and the combiner multiplies them as they are. The export
 /// stores colours as linear, as glTF requires, so the shader turns them back into on-screen values,
-/// multiplies and fogs there as the N64 does, and hands Godot the linear result.
+/// multiplies and fogs there as the N64 does, and hands Godot the linear result, or with
+/// <see cref="OnScreenFramebuffer"/> the on-screen values themselves, so that Godot blends them as
+/// the N64 does.
 /// </para>
 /// <para>
 /// Textured draws are texel × shade × prim, and untextured ones shade × prim (<c>setStaticMode</c>'s
@@ -81,6 +83,14 @@ internal static class N64Material
 
     /// <summary>Whether lit display lists are lit as the RSP does, from the globals, rather than by Godot's lights.</summary>
     public static bool RspLighting { get; set; }
+
+    /// <summary>
+    /// Whether draws write on-screen values rather than linear light, so that Godot blends them as
+    /// the N64 does. Godot's output then needs to show them as they are, as the runtime's
+    /// <c>OnScreenOutput</c> has it. Draws that Godot's lights light still write linear light, so it's for use with
+    /// <see cref="RspLighting"/>.
+    /// </summary>
+    public static bool OnScreenFramebuffer { get; set; }
 
     private enum Wrap { Repeat, Clamp, Mirror }
     private enum Blend { Opaque, Mask, Blend }
@@ -285,7 +295,8 @@ internal static class N64Material
     private static Shader ShaderFor(bool unlit, bool cull, bool nearest, Blend blend, bool textured)
     {
         var rsp = RspLighting && !unlit;
-        var key = $"{unlit} {rsp} {cull} {nearest} {blend} {textured}";
+        var onScreen = OnScreenFramebuffer && (unlit || rsp);
+        var key = $"{unlit} {rsp} {onScreen} {cull} {nearest} {blend} {textured}";
         if (Shaders.TryGetValue(key, out var shader))
             return shader;
 
@@ -314,7 +325,9 @@ internal static class N64Material
                 	lit_shade = min(ambient + sun, vec3(1.0));
                 """
             : "";
-        var fog = unlit || rsp
+        var fog = onScreen
+            ? "ALBEDO = mix(color, n64_fog_color, fog);"
+            : unlit || rsp
             ? "ALBEDO = to_linear(mix(color, n64_fog_color, fog));"
             : "ALBEDO = to_linear(color);\n\tFOG = vec4(to_linear(n64_fog_color), fog);";
         // ALPHA starts as 1 − the instance's transparency, which fades scene objects, so it's

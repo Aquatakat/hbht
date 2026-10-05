@@ -151,17 +151,18 @@ public partial class Game : Node3D, ITrekHost
             place = null;
         var set = plugins.Get<MapSetRecord>(setId);
 
-        AddChild(new WorldEnvironment
+        var environment = new Godot.Environment
         {
-            Environment = new Godot.Environment
-            {
-                // The sky's backdrop, a canvas layer behind the scene.
-                BackgroundMode = Godot.Environment.BGMode.Canvas,
-                BackgroundCanvasMaxLayer = SkyBackdropView.Layer,
-            },
-        });
+            // The sky's backdrop, a canvas layer behind the scene.
+            BackgroundMode = Godot.Environment.BGMode.Canvas,
+            BackgroundCanvasMaxLayer = SkyBackdropView.Layer,
+        };
+        // The scene is drawn in on-screen values, and blended there as the N64 blends.
+        OnScreenOutput.Apply(environment);
+        AddChild(new WorldEnvironment { Environment = environment });
         // Lit meshes are lit as the RSP lights them, by the sky and the sun, not by Godot's lights.
         N64Material.RspLighting = true;
+        N64Material.OnScreenFramebuffer = true;
 
         _sky = new SkyView(plugins, game.Clock);
         AddChild(_sky);

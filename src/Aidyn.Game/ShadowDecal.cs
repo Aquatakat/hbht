@@ -63,11 +63,9 @@ public partial class ShadowDecal : Decal
         var width = Shadow.HalfWidth * 2;
         Size = new Vector3(width, Depth * 2, width);
         // Black, with the texture's intensity times the vertex alpha as its alpha (G_CC_MODULATEIA).
-        // The N64 blends what's on screen, where Godot blends in linear light, in which the same
-        // alpha darkens the screen about half as much. Darkening by 1 − a on screen is darkening
-        // by (1 − a)^2.2 in linear light. That's exact where the texture is opaque, and a shade
-        // light toward its edges.
-        Modulate = new Color(0, 0, 0, 1 - Mathf.Pow(1 - Shadow.Alpha / 255f, 2.2f));
+        // The scenery is drawn in on-screen values (N64Material.OnScreenFramebuffer), so it darkens
+        // them as the N64's blend does.
+        Modulate = new Color(0, 0, 0, Shadow.Alpha / 255f);
     }
 
     /// <summary>Puts a body's meshes on <see cref="BodyLayer"/>, so shadows leave them out.</summary>
