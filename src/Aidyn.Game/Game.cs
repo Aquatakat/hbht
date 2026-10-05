@@ -575,13 +575,16 @@ public partial class Game : Node3D, ITrekHost
 
         var orbit = false;
         var orbitStick = System.Numerics.Vector2.Zero;
+        // The right stick, Q and E, and the mouse turn the camera while the left stick and WASD still move him; only
+        // R with the left stick, as on the N64, holds him still.
+        var shoulder = Input.IsActionPressed("orbit");
         var look = Input.GetVector("camera_left", "camera_right", "camera_down", "camera_up");
         if (look != Vector2.Zero)
         {
             orbit = true;
             orbitStick += new System.Numerics.Vector2(look.X, look.Y);
         }
-        if (Input.IsActionPressed("orbit"))
+        if (shoulder)
         {
             orbit = true;
             orbitStick += stick;
@@ -592,11 +595,11 @@ public partial class Game : Node3D, ITrekHost
             orbit = true;
             orbitStick += new System.Numerics.Vector2(drag.X * DragToStick.X, drag.Y * DragToStick.Y);
         }
-        return new PlayerInput(stick, Input.IsActionPressed("sneak"), orbit, orbitStick);
+        return new PlayerInput(stick, Input.IsActionPressed("sneak"), orbit, orbitStick, Free: !shoulder);
     }
 
-    /// <summary>Debug: the tick rate while a thumbstick is held down, to cross the map quickly (2.67×).</summary>
-    private const int FastTicksPerSecond = 160;
+    /// <summary>Debug: the tick rate while a thumbstick is held down, to cross the map quickly (3×).</summary>
+    private const int FastTicksPerSecond = 180;
 
     /// <summary>
     /// Clicking in either thumbstick unlocks the tick rate to <see cref="FastTicksPerSecond"/>, as far as the machine

@@ -229,7 +229,7 @@ public sealed class TrekLoop : IMapObjectHost
         }
         var input = fading || Use.Popup is not null || talking ? new PlayerInput(Vector2.Zero) : readInput();
         // Actor::Move: the stick pushed lowers the portraits, but not while it orbits the camera.
-        if (!input.Orbit && input.Stick.Length() > 0.05f)
+        if (!input.Locked && input.Stick.Length() > 0.05f)
             Hud.Raise(false);
         var before = motion.Sphere.Position;
         if (Conversation is { With: not null } framing)

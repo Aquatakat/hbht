@@ -122,6 +122,37 @@ public class FollowCameraTests
         Assert.Equal(3.1f, reach, 0.1f);
     }
 
+    /// <summary>
+    /// With a second stick (<see cref="PlayerInput.Free"/>), the orbit and the walk go together: he moves, and the
+    /// camera goes with him, still looking the way it was turned rather than swinging about where it started. In
+    /// the original, orbiting holds him still.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void OrbitingWhileWalking(bool free)
+    {
+        var world = Worlds.Flat();
+        var player = new PlayerMotion(new Vector3(0, 0.5f, 0), new Vector2(0, 1));
+        var camera = new FollowCamera(player.Sphere.Position + new Vector3(0, 1.05f, 0), new Vector2(0, 1));
+        var motion = new SteadyMotion(0.06f);
+        var look = camera.LookXZ;
+        for (var i = 0; i < 5 * TicksPerSecond; i++)
+        {
+            camera.Step(world, player.Sphere.Position, player.Heading);
+            player.Step(world, new PlayerInput(new Vector2(1, 0), Orbit: true, Free: free), camera, motion);
+        }
+        if (!free)
+        {
+            Assert.Equal(new Vector3(0, 0.5f, 0), player.Sphere.Position);
+            return;
+        }
+        Assert.True(new Vector2(player.Sphere.Position.X, player.Sphere.Position.Z).Length() > 3);
+        Assert.True(Vector2.Dot(camera.LookXZ, look) > 0.95f);
+        var reach = new Vector2(camera.Position.X - camera.Aim.X, camera.Position.Z - camera.Aim.Z).Length();
+        Assert.InRange(reach, 4, 5.5f);
+    }
+
     [Fact]
     public void GoalRateMatchesAThirtyFpsFrame()
     {

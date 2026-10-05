@@ -9,7 +9,15 @@ namespace Aidyn.Core.Movement;
 /// <param name="Sneak">Z held: sneak instead of walking or running.</param>
 /// <param name="Orbit">R held: the stick turns the camera instead of moving.</param>
 /// <param name="OrbitStick">What turns the camera while <paramref name="Orbit"/> is held, in stick units a frame.</param>
-public readonly record struct PlayerInput(Vector2 Stick, bool Sneak = false, bool Orbit = false, Vector2 OrbitStick = default);
+/// <param name="Free">
+/// A second stick turns the camera, so the first still moves him while it does. The original has one stick, and
+/// orbiting stops him; this is a port addition.
+/// </param>
+public readonly record struct PlayerInput(Vector2 Stick, bool Sneak = false, bool Orbit = false, Vector2 OrbitStick = default, bool Free = false)
+{
+    /// <summary>Orbiting holds him still, as in the original.</summary>
+    public bool Locked => Orbit && !Free;
+}
 
 /// <summary>Plays an actor's animations and reports how far their root moves.</summary>
 public interface IRootMotion
@@ -134,10 +142,14 @@ public sealed class PlayerMotion
         Asked = null;
         if (input.Orbit)
         {
-            camera.Orbit(Sphere.Position, input.OrbitStick);
-            return;
+            camera.Orbit(Sphere.Position, input.OrbitStick, moving: input.Free && input.Stick.Length() > 0.05f);
+            if (!input.Free)
+                return;
         }
-        camera.Follow();
+        else
+        {
+            camera.Follow();
+        }
 
         var tilt = input.Stick.Length();
         if (tilt <= 0.05f)

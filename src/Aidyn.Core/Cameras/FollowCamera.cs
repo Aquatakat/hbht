@@ -188,14 +188,24 @@ public sealed partial class FollowCamera
     /// R held with the stick at <paramref name="stick"/>, for the player at <paramref name="player"/>
     /// (<c>Actor::Move</c>). Right turns it one way at 3° a frame, and up raises it.
     /// </summary>
-    public void Orbit(Vector3 player, Vector2 stick)
+    public void Orbit(Vector3 player, Vector2 stick, bool moving = false)
     {
         if (_hold == HoldState.None)
             _hold = HoldState.Starting;
+        _carry = moving;
         Anchor(player);
         OrbitAngle -= Cadence.PerTick(stick.X * 3);
         Pitch += Cadence.PerTick(stick.Y);
     }
+
+    /// <summary>
+    /// The player is moving while the camera orbits, which the original never does (a port addition for a second
+    /// stick): the orbit carries with him, rather than turning about the point it started from.
+    /// </summary>
+    private bool _carry;
+
+    /// <summary>Where the aim was when the orbit last stepped, to carry the camera by how far it has moved.</summary>
+    private Vector3 _orbitAim;
 
     /// <summary>
     /// R not held (<c>Actor::Move</c>): stop orbiting and follow again. Outdoors that puts the pitch
@@ -205,6 +215,7 @@ public sealed partial class FollowCamera
     {
         if (_hold != HoldState.None)
             _hold = HoldState.Releasing;
+        _carry = false;
         OrbitAngle = 0;
         Pitch = Mode == CameraMode.Outdoor ? DefaultPitch : 0;
     }
@@ -392,6 +403,11 @@ public sealed partial class FollowCamera
             _hold = _hold == HoldState.Starting ? HoldState.Holding : HoldState.None;
             PositionGoal = Position;
         }
+        else if (_carry)
+        {
+            PositionGoal += Aim - _orbitAim;
+        }
+        _orbitAim = Aim;
         var reach = new Vector2(Position.X - Aim.X, Position.Z - Aim.Z).Length();
         reach = MathF.Max(reach, 1e-6f);
         reach -= (reach - distance) / 32;
