@@ -268,7 +268,9 @@ internal static class N64Material
         var onScreen = factor.LinearToSrgb();
         // A Vector4, not a Color: Duplicate() resets a Color set on a vec4 uniform to the default,
         // which turned scrolling textures' copies opaque.
-        material.SetShaderParameter("prim", new Vector4(onScreen.R, onScreen.G, onScreen.B, factor.A));
+        // The game truncates the alpha to a byte (Scene.SetRenderMode, 0x80097618): 0.1 is 25.
+        var alpha = MathF.Floor(factor.A * 255) / 255;
+        material.SetShaderParameter("prim", new Vector4(onScreen.R, onScreen.G, onScreen.B, alpha));
         if (albedo is not null)
         {
             material.SetShaderParameter("albedo_texture", albedo);
@@ -402,7 +404,7 @@ internal static class N64Material
                 	vec4 shade = {{shade}};
                 	vec3 tint = lighting != 0 ? vec3(1.0) : (object_tint.a > 0.0 ? (n64_tint + object_tint.rgb) * 0.5 : n64_tint);
                 	vec3 color = texel.rgb * shade.rgb * prim.rgb * tint;
-                	float alpha = texel.a * shade.a * prim.a;
+                	float alpha = {{(textured ? "texel.a" : "shade.a")}} * prim.a;
                 	{{fog}}
                 	{{alpha}}
                 }
