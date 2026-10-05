@@ -255,7 +255,10 @@ internal static class N64Material
 
         var material = new ShaderMaterial { Shader = ShaderFor(unlit, cull, nearest, blend, albedo is not null) };
         // Back to on-screen values; alpha was never gamma-encoded.
-        material.SetShaderParameter("prim", new Color(factor.LinearToSrgb(), factor.A));
+        var onScreen = factor.LinearToSrgb();
+        // A Vector4, not a Color: Duplicate() resets a Color set on a vec4 uniform to the default,
+        // which turned scrolling textures' copies opaque.
+        material.SetShaderParameter("prim", new Vector4(onScreen.R, onScreen.G, onScreen.B, factor.A));
         if (albedo is not null)
         {
             material.SetShaderParameter("albedo_texture", albedo);
