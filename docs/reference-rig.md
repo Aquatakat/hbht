@@ -175,13 +175,29 @@ Calls through a pointer (a vtable, a callback) aren't in `--callers`. Find those
 
 ```bash
 python tools/n64dis.py --other 0x800788cc            # the same function in the other build: 80081d2c in debug
-python tools/n64dis.py --file turn.cpp               # the functions placed in a source file, with the lines they cite
+python tools/n64dis.py --file turn.cpp               # the functions placed in a source file, how, and the lines they cite
 ```
 
 - **The match.** Both builds come from one source, linked in one order. The debug build adds asserts and debug code. A function's shape is its opcodes without registers or immediates. Shapes unique to both builds anchor the match, and between anchors an alignment pairs the rest by similarity. Then matched callers vote on how their callees pair, which settles neighbours that look alike. It matches 3,715 of 1.0's 3,740 functions, and 9,206 of the 9,217 calls between matched functions land on the matched callee. The 25 left unmatched are mostly two-word stubs.
 - **Names carry across.** A name in either build's map shows in both, in `n64dis.py` and in the pseudocode (`out/ghidra/<rom>.symbols.txt` is the merged map Ghidra applies). Where both maps name a matched pair differently, each build keeps its own, and `builds.py` reports the conflict.
-- **Source files.** The debug build passes a file name and line to its allocator, its free and its asserts. 338 functions cite a file that way, or in a message such as `scene.cpp, SceneGetLocatorMtx()`, and 173 of them give their line. A run of functions between two in the same file is in that file too, since a file's functions are linked together. That places 889 of the debug build's functions in 115 files. 1.0 cites 32 files itself, and every one agrees with the file its matched function was placed in. Functions in a run between two different files aren't placed yet.
-- **The disassembly's header** gives the function's source file, and its lines where it cites them.
+- **Source files.** The debug build passes a file name and line to its allocator, its free and its asserts. 342 functions cite a file that way, or in a message such as `scene.cpp, SceneGetLocatorMtx()` or `GetIdIndex (ids.cpp)`, and 173 of them give their line. The ROM names 117 files, counting two of one name (below).
+- **Where each file's code starts.** Every file's code starts on a 16-byte boundary, and the functions inside a file abut. So a file whose code ends off a boundary leaves one to three nops of padding, and those mark a file's start for certain: none falls inside a file that cites itself on both sides. `builds.py` finds them in the words, not only between the code index's functions, since a file can start with a function no call reaches, which the index misses (aiscores.cpp at debug `0x80064F60`). Taking both builds' padding together, the debug build splits into 341 **units**: 109 hold the 117 named files, 132 are the library's (libultra and the rest, which name no files), and 100 are game files the ROM never names, holding 1,182 functions. `builds.json` lists them.
+- **Hidden ends.** A file whose code ends exactly on a boundary in both builds leaves no padding, and its unit holds the next file too. That hid 8 of the 75 seams between two named files. Where a unit holds several named files, the next one starts at a function on a 16-byte boundary in both builds, and where only one such function lies between the two files' citing functions, it's settled. Rodata narrows the rest (below).
+- **Rodata.** Each file's rodata (strings, floats, jump tables and vtables, up to `0x800E5C90` in the debug build) is linked in the same order as its code. A rodata address only one function uses lies among the rodata of that function's file, which agrees with 34 of the 35 unit placements it can check. The one exception is a two-instruction stub that other files' vtables share. The data after `0x800E5C90` keeps file order less well, since a global is often used outside its file, and only its vtables are a guide.
+- **How sure a placement is.** `n64dis.py --file` gives how each function was placed:
+
+  | `how` | Means | Debug functions |
+  | --- | --- | --- |
+  | `cites` | It names the file. | 342 |
+  | `between` | It lies between two functions citing one file. | 573 |
+  | `unit` | It's in the unit of one named file, with no 16-byte boundary in both builds between it and that file's citing functions, where another file could start. | 501 |
+  | `probable` | The same, but such a boundary lies between, so an unnamed file could hide there. With 8 of 75 seams hidden, about one in ten of these runs may hold one. | 910 |
+  | `boundary`, `rodata` | Where a unit holds several files: placed by the only start possible, or by its rodata. | 6 |
+
+- **Two files are named `./src/audio.cpp`,** each with its own copy of the path in its own rodata: the game's sound, beside the dialogue code, and the audio driver (`AudioProcInit`, `dmaProc`), beside `dcm.cpp`. The second is `./src/audio.cpp (2)`. The game's own string functions (1.0 `0x8008EF30`) are `probable` in the second, and are likely a hidden file of their own.
+- **`scenes.cpp` and `scene.cpp` are probably one file.** Both are named only in messages. No function between them starts on a 16-byte boundary in both builds, and their rodata runs on without a break. `builds.py` reports this, and leaves the four functions between them unplaced.
+- 1.0 cites 32 files itself, and every one agrees with the file its matched function was placed in.
+- **The disassembly's header** gives the function's source file, and its lines where it cites them. A function in a file the ROM doesn't name shows that file's extent, as `an unnamed file (80084ce0-80085c1c in debug)`.
 
 1.0's functions sit in the same order as the debug build's, so find one in the other by its neighbours, or with `--other`. Check a float's bits, not just its look: `0x3E32B7FE` is 10° in radians and `0x3EB2B7FE` is 20°.
 

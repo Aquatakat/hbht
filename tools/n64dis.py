@@ -64,7 +64,7 @@ def load_builds():
     data = json.load(open(path, encoding="utf-8"))
     us_to_debug = {int(k): v for k, v in data["us_to_debug"].items()}
     return {"us": us_to_debug, "debug": {v: k for k, v in us_to_debug.items()},
-            "files": {int(k): v for k, v in data["files"].items()}}
+            "files": {int(k): v for k, v in data["files"].items()}, "units": data.get("units", [])}
 
 
 def load(which):
@@ -91,7 +91,15 @@ def source_file(which, address, builds):
     if which == "us":
         address = builds["us"].get(address)
     placed = builds["files"].get(address)
-    return placed["file"] + (f" (lines {placed['lines'][0]}-{placed['lines'][-1]})" if placed.get("lines") else "") if placed else None
+    if placed:
+        return placed["file"] + (f" (lines {placed['lines'][0]}-{placed['lines'][-1]})" if placed.get("lines") else "")
+    unit = next((u for u in builds["units"] if address is not None and u["at"] <= address < u["end"]), None)
+    if not unit:
+        return None
+    where = f"{unit['at']:08x}-{unit['end']:08x} in debug"
+    if unit["files"]:
+        return f"one of {', '.join(unit['files'])} ({where})"
+    return f"an unnamed file ({where})"
 
 
 def load_index(which):
