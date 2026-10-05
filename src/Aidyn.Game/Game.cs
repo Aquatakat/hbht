@@ -426,7 +426,7 @@ public partial class Game : Node3D, ITrekHost
         DrawWanderers();
         var motion = _player.Motion;
         _track.Enqueue(motion.Sphere.Position);
-        if (_track.Count > Engine.PhysicsTicksPerSecond)
+        if (_track.Count > Aidyn.Core.Calendar.GameClock.TicksPerSecond)
             _track.Dequeue();
         // A fall that sends him back to safe ground is a jump, not a move.
         if (System.Numerics.Vector3.Distance(before, motion.Sphere.Position) > 2)
@@ -595,8 +595,25 @@ public partial class Game : Node3D, ITrekHost
         return new PlayerInput(stick, Input.IsActionPressed("sneak"), orbit, orbitStick);
     }
 
+    /// <summary>Debug: the tick rate while a thumbstick is held down, to cross the map quickly (2.67×).</summary>
+    private const int FastTicksPerSecond = 160;
+
+    /// <summary>
+    /// Clicking in either thumbstick unlocks the tick rate to <see cref="FastTicksPerSecond"/>, as far as the machine
+    /// keeps up. The core steps per tick whatever its length, so more ticks a second is the game running faster. The
+    /// pause menu stays at the original's pace.
+    /// </summary>
+    private void SetTickRate()
+    {
+        var fast = Input.IsActionPressed("fast_forward") && _menu is not { IsOpen: true };
+        var rate = fast ? FastTicksPerSecond : Aidyn.Core.Calendar.GameClock.TicksPerSecond;
+        if (Engine.PhysicsTicksPerSecond != rate)
+            Engine.PhysicsTicksPerSecond = rate;
+    }
+
     public override void _Process(double delta)
     {
+        SetTickRate();
         if (Streamer is not { } chunks || _player is null || _camera is null)
             return;
         foreach (var map in _changed)
@@ -655,7 +672,7 @@ public partial class Game : Node3D, ITrekHost
         if (_track.Count < 2)
             return 0;
         var span = _track.Last() - _track.Peek();
-        return new System.Numerics.Vector2(span.X, span.Z).Length() * Engine.PhysicsTicksPerSecond / (_track.Count - 1);
+        return new System.Numerics.Vector2(span.X, span.Z).Length() * Aidyn.Core.Calendar.GameClock.TicksPerSecond / (_track.Count - 1);
     }
 
     public override void _UnhandledInput(InputEvent e)
@@ -1026,6 +1043,8 @@ public partial class Game : Node3D, ITrekHost
         Add("fly_up", Key.Space);
         Add("fly_down", Key.C);
         Add("toggle_fly", Key.F);
+        Add("fast_forward", null, button: JoyButton.LeftStick);
+        InputMap.ActionAddEvent("fast_forward", new InputEventJoypadButton { ButtonIndex = JoyButton.RightStick });
         Add("toggle_overlay", Key.F3);
         Add("toggle_pace", Key.F5);
         Add("toggle_sky_placement", Key.F6);
