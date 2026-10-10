@@ -199,13 +199,18 @@ Code uses 1,990 of the 2,076 names in the decomp's `Borgindecies.h`. The map chu
 | Each equipment slot's empty image (15, by slot) | `gItemSlotBorg8Indecies` | `0xDF670` | Read (`MenuTables`); a UI fact in `Aidyn.Core.Ui.MenuImages`, checked against the ROM |
 | Spell and potion effects: Borg7 and Borg5 per spell or potion, with a memory size | `spellvisuals.cpp` | Switches | To do |
 | Models whose actors fly: bat, wyvern, harpy, dryads, Pandara, gryphon, manticore and scorpion | `Actor::IsFlyingModel` | `0xCE650` | To do |
-| The 39 Borg12 sounds that Borg13 PlaySound operands index | `dialoug_SFX` | `0xE0960` | To do |
+| The 39 Borg12 sounds that Borg13 PlaySound operands index | `dialoug_SFX`, `Dialogue.SoundTable` | `0xE0960` | To do |
+| Footsteps: 49 entries of four step ids each (`AudioKeys.FootstepEntries`), the sets that pick them by body kind and surface, 26 × sneak, walk and run (`AudioKeys.StepSets`), and the 96 Borg12s step ids name (`Audio.StepSounds`). See [audio](systems/audio.md#bodies-sounds). | `audiokey.cpp` | `0xE0A60`, `0xE0BE8`, `0xE0D28` | To do |
+| The 126 Borg12s the audio keys' voices and weapons name (`Audio.VoiceSounds`), each weapon model's entry in them (`AudioKeys.WeaponSoundTable`, 8 bytes a weapon), and each spell's cast (`Audio.SpellSounds`, 59) | `audiokey.cpp` | `0xE0EA8`, `0xD50D0`, `0xE10A0` | To do |
+| The containers' sounds: eight by kind, then four for a trapped one exploding (`MapObjectUse.ContainerSounds`) | | `0xCE5D0` | To do |
+| The menus' sounds: the cursor `0x073B` and `0x073D`, A `0x0740`, B `0x0741`, the tabs `0x074D` and `0x074E`, changing member `0x0739`, the level-up page `0x05E8`, the cheat code `0x0718` and `0x0721`, the coins `0x072D` and `0x072E`, experience `0x05E7` | Literals in the menus and `Dialogue.ExecuteCommand` | | To do |
 | Minimap pieces for eight map sets: chunk, group, whether seen from the start, image and position. Which map set each is for, and the pieces chosen by where the player stands (Gwernia's courtyard, walls and tower, the mage school's stairs, the Ehud underground's C11 and I09, the Barrows' E01), are code. | `minimap.cpp`, `BorgMaps::LoadMap`, `ShowingSpecialSection` | 1: minimap records (`aidyn:minimap/<map set>`) | ROM, with facts (`MinimapImporter`) |
 
 **Settings and features** are engine behaviour that names specific assets. Each becomes a game setting (layer 1) or a field of the feature that uses it (layer 3).
 
 - The six title-screen fly-throughs: a Borg6 and eight unknown u16s each (`gFlycamSequences`, `0xE15DC`).
-- Battle music: one of four Borg12s at random without the Expansion Pak, or one of five with it. Gwernia castle and Chaos Isle choose their own music; Chaos Isle picks between two by a map field (`BorgMaps.cpp`).
+- Each map set's music, set as it's entered (`Zones.SetMapSet`): literals for Gwernia castle, Erromon, the Jundar interiors, Ehud's underground, Ugarit and Chaos Isle, which picks between two by the chunk's column; two Overworld lists of chunks by their scenes (`0xCF31C`, `0xCF338`), each with a piece with the Expansion Pak and one without; and the battle music, one of five at random with the Pak or four without (`0xCF378`, `0xCF384`). A map set field (layer 1). See [audio](systems/audio.md#music).
+- The title's and the credits' music, `0x0632` (`0x05D9` without the Pak) and `0x05D9`, and rain's `0x071B` and thunder's `0x071C`–`0x071F`.
 - The player's model is Alaron's; three cheats swap it (see [cheats](#cheats)).
 - Alaron's head is its own scene, `0x25AA` (`some_borg5`). `Actor::ChangeAppearance` loads it only for his actor, whose body has a hidden one-triangle placeholder at the neck, and the player renderer draws it at locator 3 of his body's scene, turned toward the object the player is near, up to 80°. An actor record field (layer 1). Carried as a fact: the importer writes it on actor `0x25F9` (`ActorHead`).
 - Each map set's spawn points: literals in `BorgMaps::LoadMap` giving a chunk and a position in it per portal number. A new game uses the Overworld's portal 0: I08 at (16, 62), dropped from a height of 10. A map set field (layer 1). To do: the runtime starts there by default.
@@ -225,7 +230,7 @@ Code uses 1,990 of the 2,076 names in the decomp's `Borgindecies.h`. The map chu
 - Bodies' shadows: the texture, Borg1 `0x0003` (`BORG1_PlayerShadow`, which `InitPlayerHandler` is given), and how far from the camera's aim they're drawn: 20 in trek, 128 in combat and none on the title screen (`InitZoneEngine`). A game setting (layer 1). Carried as a fact: the runtime draws `aidyn:texture/0x0003`, and the core holds the distances (`BodyShadow`).
 - The particle textures: 17 slots of Borg1s 0–12, some empty (`partTextInds`, `ZoneEngine.cpp`, `0xCE460`). Read (`ParticleTextures`).
 - Oriana's path lights: scene objects whose second model is `BORG5_OrianaLight` get special handling in the scene renderer. Not read closely yet.
-- Coin, chime and level-up sounds in dialogue, shops and training.
+- Coin, chime and level-up sounds in dialogue, shops and training (see the table above).
 
 **Fonts** are records (layer 1), since each has a layout: its sheet, grid and glyph widths, the character map and the buttons' colours (`font_face`, `struct_unk_.textIndexies`, `extraFontColors`). Read (`Fonts`), as `aidyn:font/0` and `/1`; see [text](formats/text.md).
 

@@ -33,6 +33,10 @@ const string Usage = """
       aidyn dialogue <rom> [<index>...] [--out <dir>]
                                            Borg13 scripts as text (all, or the given archive indices);
                                            default dir: out/<version>/dialogue
+      aidyn audio <rom> [<index>...] [--plays <n>] [--out <dir>]
+                                           Borg11 samples as WAV, and Borg12 sequences rendered to WAV
+                                           (all, or the given archive indices), each played n times
+                                           (default 1); default dir: out/<version>/audio
       aidyn atlas [--out <dir>]              the quest atlas of the installed plugins as JSON;
                                            default dir: out/atlas
       aidyn flag <flag>...                   what sets, clears and reads each flag, in the installed plugins
@@ -65,6 +69,7 @@ try
         ["actors", var rom, "--out", var dir] => Actors(rom, dir),
         ["maps", var rom, .. var rest] => Maps(rom, rest),
         ["dialogue", var rom, .. var rest] => Dialogue(rom, rest),
+        ["audio", var rom, .. var rest] => Audio(rom, rest),
         ["atlas"] => Atlas(null),
         ["atlas", "--out", var dir] => Atlas(dir),
         ["flag", .. var flags] when flags.Length > 0 => Flags(flags),
@@ -211,6 +216,61 @@ static int Textures(string path, string? outDir)
     return 0;
 }
 
+static int Audio(string path, string[] args)
+{
+    var plays = 1;
+    if (Array.IndexOf(args, "--plays") is var at and >= 0)
+    {
+        if (at + 1 >= args.Length || !int.TryParse(args[at + 1], CultureInfo.InvariantCulture, out plays) || plays < 1)
+            return Fail(Usage);
+        args = [.. args[..at], .. args[(at + 2)..]];
+    }
+    if (!IndicesAndOut(args, out var indices, out var outDir))
+        return Fail(Usage);
+
+    var rom = RomImage.Load(path);
+    var archive = BorgArchive.Open(rom);
+    outDir ??= Path.Combine("out", rom.Version.Id.ToString().ToLowerInvariant(), "audio");
+    var all = indices.Count == 0;
+
+    var samples = new Dictionary<int, short[]>();
+    short[] Sample(int index) => samples.TryGetValue(index, out var pcm) ? pcm : samples[index] = Aidyn.Rom.Audio.Borg11Sample.Parse(archive.Read(index)).Samples;
+
+    Directory.CreateDirectory(Path.Combine(outDir, "samples"));
+    foreach (var listing in archive.Listings.Where(l => l.Type == BorgType.Sample && (all || indices.Contains(l.Index))))
+        File.WriteAllBytes(Path.Combine(outDir, "samples", $"0x{listing.Index:X4}.wav"), Aidyn.Plugins.Assets.Wav.Encode(Sample(listing.Index), 22050));
+
+    // One sequence at a time, at 44.1 kHz, as the game would play it at full volume in the middle.
+    const int rate = 44100;
+    var index = new StringBuilder("index,tracks,instruments,looping instruments,seconds,samples\n");
+    Directory.CreateDirectory(Path.Combine(outDir, "sequences"));
+    foreach (var listing in archive.Listings.Where(l => l.Type == BorgType.Sequence && (all || indices.Contains(l.Index))))
+    {
+        var borg = Aidyn.Rom.Audio.Borg12Sequence.Parse(archive.Read(listing.Index));
+        var sequence = new Aidyn.Core.Audio.Sequence(borg.Tracks,
+            [.. borg.Instruments.Select(i => new Aidyn.Core.Audio.Instrument(Sample(i.Sample),
+                i is { LoopStart: { } start, LoopEnd: { } end } ? new Aidyn.Plugins.Records.SampleLoop(start, end) : null))],
+            borg.Stream, borg.LoopPosition);
+        var ms = Aidyn.Core.Audio.AudioEngine.Milliseconds(sequence);
+        var engine = new Aidyn.Core.Audio.AudioEngine(rate);
+        var handle = engine.Play(sequence, loop: plays > 1, durationMs: plays > 1 ? ms * plays : -1);
+        var pcm = new List<short>();
+        var block = new short[2048];
+        while (engine.IsPlaying(handle))
+        {
+            engine.Render(block);
+            pcm.AddRange(block);
+        }
+        File.WriteAllBytes(Path.Combine(outDir, "sequences", $"0x{listing.Index:X4}.wav"), Aidyn.Plugins.Assets.Wav.EncodeStereo([.. pcm], rate));
+        index.Append(CultureInfo.InvariantCulture,
+            $"0x{listing.Index:X4},{borg.Tracks},{borg.Instruments.Count},{borg.Instruments.Count(i => i.LoopStart is not null)},{ms / 1000.0:0.00},{string.Join(' ', borg.Instruments.Select(i => $"0x{i.Sample:X4}"))}\n");
+    }
+
+    File.WriteAllText(Path.Combine(outDir, "sequences.csv"), index.ToString());
+    Console.WriteLine($"Wrote audio to {Path.GetFullPath(outDir)}");
+    return 0;
+}
+
 static int Scenes(string path, string[] args)
 {
     if (!IndicesAndOut(args, out var only, out var outDir))
@@ -345,7 +405,9 @@ static bool IndicesAndOut(string[] args, out List<int> indices, out string? outD
     {
         if (args[i] == "--out" && i + 1 < args.Length)
             outDir = args[++i];
-        else if (int.TryParse(args[i], CultureInfo.InvariantCulture, out var index))
+        else if (int.TryParse(args[i], CultureInfo.InvariantCulture, out var index)
+            || args[i].StartsWith("0x", StringComparison.OrdinalIgnoreCase)
+            && int.TryParse(args[i].AsSpan(2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out index))
             indices.Add(index);
         else
             return false;

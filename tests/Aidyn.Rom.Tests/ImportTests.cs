@@ -68,6 +68,20 @@ public sealed class ImportTests : IDisposable
         }
         Assert.Contains(collision, t => t.Flags.HasFlag(CollisionFlags.SeeThrough));
 
+        // Every sequence loads with its samples, every sound map object plays one, and a sample's WAV
+        // holds the Borg11's PCM, widened to 16 bits if it was 8.
+        var sequences = set.All<SequenceRecord>(RecordTypes.Sequence).ToList();
+        Assert.Equal(476, sequences.Count);
+        var samples = new Dictionary<RecordId, short[]>();
+        foreach (var sequence in sequences)
+            Core.Audio.Sequence.Load(set, sequence.Id, samples);
+        Assert.Equal(145, samples.Count);
+        var sounds = mapSets.SelectMany(m => m.Chunks).Select(c => c.Map).Distinct()
+            .SelectMany(m => set.Get<MapRecord>(m).Objects.OfType<SoundObject>()).ToList();
+        Assert.Equal(1038, sounds.Count);
+        Assert.All(sounds, o => Assert.NotNull(set.TryGet<SequenceRecord>(o.Sound)));
+        Assert.Equal(Audio.Borg11Sample.Parse(archive.Read(0x559)).Samples, samples[RecordId.Hex(RecordTypes.Sample, 0x559)]);
+
         // Every texture is there as PNG, such as the one bodies' shadows use (BORG1_PlayerShadow).
         var textures = archive.Listings.Where(l => l.Type == Borg.BorgType.Texture).ToList();
         Assert.All(textures, l => Assert.NotNull(set.FindAsset(RecordId.Hex(RecordTypes.Texture, l.Index), "png")));

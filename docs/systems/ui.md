@@ -151,7 +151,7 @@ The pause menu's first tab (`WidgetOptionsMenu`, `MakeScrollList` at `0x8003f8c4
 - **The tabs are one scroll.** Their images, `0x00D8`, `0x00D9` and `0x00DA`, join edge to edge into one 960-pixel scroll, the torn edges running on from one to the next. The port lays them 320 apart, so a screen wider than the frame, such as 16:9 at 240 lines, shows the edges of the tabs either side. Their widgets are faded into the parchment by drawing the tab's image over them at 60%, which clears as a tab slides into the middle. The user suggested this (Oct 3, 2026), to keep the scroll in one piece as the original's is. Past the System tab's left and the World tab's right, the world shows, where the original's 3D scroll has its rollers. Barter and training show the Party tab alone.
 - **The System tab can be left only from its list**, as the original's can. The port also keeps the Party tab while a popup or message is up.
 - **The menu remembers the tab**, and only the tab, in `gGlobals.pauseMenuSection`, which isn't saved. A new game's first opening is on System, which the user confirmed. Barter and training open on Party and can't change tab.
-- **Not ported yet:** the slide of the 3D scroll with the tabs, its unrolling and rolling, and the sounds (the cursor `0x73B`, A `0x740`, B `0x741`, a tab `0x7D4`).
+- **Not ported yet:** the slide of the 3D scroll with the tabs, its unrolling and rolling, and the sounds (the cursor `0x73B`, A `0x740`, B `0x741`, a tab back `0x74D` and forward `0x74E`; see [audio](audio.md#sound-effects)).
 
 #### Options
 

@@ -11,6 +11,10 @@ Things only the user can settle, in the emulator or by reading the ROM. Each lin
 - **Sholeh in Ugarit after she joins** (`aidyn:dialogue/0x04AD`), in full-game testing: whether she's there again once she's joined, and what keeps her away when the party has no free place, which the data doesn't show. See [wanderers](systems/wanderers.md#joining).
 - **The journal after loading:** which entry is purple in the journal just after loading a save. The machine code suggests the highest-numbered, as loading turns every entry on again; the notice of a new entry doesn't show, which the user confirmed. See [ui](systems/ui.md#the-journal).
 
+- **Wrapped pitches in music:** 0x05DD and 0x05DE (and SFX such as 0x0759 and 0x075F) have notes whose pitch, above 65,535 Hz, the original keeps in 16 bits, so they'd play far too low. The port does the same. Listen for a low growl or rumble in those against `aidyn audio`'s render. See [audio](formats/audio.md#the-event-stream).
+- **The sound volume at half:** the menu's sounds take the sound volume twice and the containers' three times, by the machine code. Whether half sound volume makes them quarter loud is a check against the port's renders once it plays them. See [audio](systems/audio.md#volumes).
+- **Which way sounds pan:** a sound to the camera's right should come from the right speaker; the sign of the original's pan isn't settled. Any map sound with falloff, such as a fountain, turned side on. See [audio](systems/audio.md#sound-map-objects).
+
 ## In the ROM
 
 - **The trap's menu** (`WidgetChoiceDia::Update`): the question above Disarm and Exit, and the cursor's option pulsing grey to white, the scroll menu's defaults. The user thinks it looks right. See [map-objects](systems/map-objects.md#popups).

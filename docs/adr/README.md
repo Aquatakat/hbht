@@ -8,7 +8,7 @@ These are the Phase 0 decisions from the [roadmap](../roadmap.md) (task 0.5). Ea
 | [0002](0002-godot-and-csharp.md) | Engine: Godot 4 with C# (.NET) | Accepted |
 | [0003](0003-headless-rules-core.md) | Game rules live in a headless C# library | Accepted, partly superseded by [0015](0015-the-port-no-longer-reads-the-decomp.md) |
 | [0004](0004-record-ids.md) | Record ID scheme | Accepted |
-| [0005](0005-plugin-format.md) | Plugin format: JSON with comments, field-level overrides | Accepted |
+| [0005](0005-plugin-format.md) | Plugin format: JSON with comments, field-level overrides | Accepted, partly superseded by [0016](0016-sequences-keep-the-originals-events.md) |
 | [0006](0006-tick-model-and-rng.md) | Tick model and RNG | Accepted |
 | [0007](0007-rom-versions.md) | ROM version support | Accepted |
 | [0008](0008-content-logic-layers.md) | Content logic: records, triggers, engine features, then Lua scripts | Accepted |
@@ -19,5 +19,6 @@ These are the Phase 0 decisions from the [roadmap](../roadmap.md) (task 0.5). Ea
 | [0013](0013-settings-in-the-options-menu.md) | Graphics and fidelity settings live in the game's own options menu, kept per player rather than per save | Accepted |
 | [0014](0014-menus-keep-the-originals-layouts.md) | The menus keep the original's layouts at every screen size; new layouts are a modding feature after 1.0 | Accepted |
 | [0015](0015-the-port-no-longer-reads-the-decomp.md) | The port no longer reads the decomp; the rig grows its own index of the code | Accepted |
+| [0016](0016-sequences-keep-the-originals-events.md) | Sequences keep the original's event stream as an asset; samples are WAV | Accepted |
 
 Statuses: **Proposed** means drafted and waiting for review. **Accepted** means agreed. **Superseded** means replaced by a later record, which it links to.

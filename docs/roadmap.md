@@ -22,6 +22,13 @@ This is the one list of what's open. A task's status is in its phase's table bel
 
 ### Next
 
+1. **1D Audio:** Done first in order to fully complete the following. The formats, the importer and the player are done; the user listens to `aidyn audio`'s renders against the emulator. Next, the runtime plays them, in this order: the music by map set, the map's sound objects, the one-shots (menus, scripts, containers), then bodies' footsteps and voices and the weather ([audio](systems/audio.md)).
+2. **UI fit and finish:** Menu animations, speed adjustments on the scroll between system/party/world menus, console-accurate corrections to certain menus, sounds.
+3. **Rendering leftovers,** including weather.
+4. **Any other odds and ends,** including shop selling prices.
+
+Once every system built so far is at least at parity with the original, we'll move onto M3 Fight:
+
 1. **0.13: combat captures,** by the user, whenever it suits. Every other task in reading the code without the decomp is done (0.7–0.12, 0.14).
 2. **M3 Fight:** 2.5 (combat rules) in the headless core, then 2.6 (enemy AI) and the battle UI, planned into sessions as M2 was. 2.5's first session maps combat's code and RAM with 0.7–0.13.
 
@@ -82,8 +89,8 @@ Compression comes in two schemes, LZB (most Borgs) and LZ01x (text). Strings als
 | 7 | Actor | A Borg5 plus a set of Borg6 animations with branch and transition data |
 | 8 | UI image | Viewable in Texture64 |
 | 9 | Map chunk | Collision triangles, ground types, and **map objects** |
-| 11 | DCM sample | 44.1 kHz mono PCM, 8-bit or 16-bit BE |
-| 12 | Sequence | Music and SFX sequences over Borg11 instruments |
+| 11 | Sample | Mono PCM, signed 8-bit or 16-bit BE, with no rate of its own |
+| 12 | Sequence (a DCM module) | Music and sound effects: rows of events over up to 16 tracks, played by the original's own sequencer |
 | 13 | Dialogue / cut-scene script | Bytecode with about 60 opcodes |
 | 0, 10, 14 | Unused | Named GEN, CollisionMaterial, and GameState |
 
@@ -155,7 +162,7 @@ Each track ends with an exporter to an open format and a viewer in the inspector
 | **1A Static graphics** | Borg1 textures (every N64 format, de-interleave, TLUT), Borg8 UI images, Borg2 via a minimal F3DEX interpreter, Borg3 camera, Borg4 lights, Borg5 scene graph (transforms, instruction list, texture binds) | L | glTF export of a building and a character matches the emulator | Done |
 | **1B Animation** | Borg6 tracks and keyframes, Borg7 actor animation sets, branches, and transitions, Borg5 particles | L | The opening cinematic plays in the inspector | Done Sep 27, 2026: the user confirmed all 13 shots |
 | **1C Maps** | Chunk tables per map region (from the code segment), Borg9 collision (triangles, collide sections, ground types), all map object types, Expansion Pak variants | L | A map viewer shows a whole region, with objects overlaid by type | Done Sep 27, 2026 |
-| **1D Audio** | Borg11 PCM, Borg12 sequence format and playback, the audiokey table | M | BGM plays correctly | Open |
+| **1D Audio** | Borg11 PCM, Borg12 sequence format and playback, the audiokey table | M | BGM plays correctly | Started Oct 9, 2026: the formats, the importer and the player are done, and `aidyn audio` renders every sequence ([audio](formats/audio.md)). What plays what is researched ([audio](systems/audio.md)); the runtime plays nothing yet. |
 | **1E Quest atlas** | Borg13 decoding, including **branching semantics** (`text_marker`, `a/b`, `index`, `bitmask`, choices), the GameStateFunnel logic network, flag cross-referencing, and journal linkage | L | See below | Done |
 | **1F Text & UI assets** | All string tables, the font, portraits, menu images | S | Full text dump; the dialogue box renders in the right font | Done |
 | **1G Saves** (optional) | Importing the original's Controller Pak saves: the bit-packed party, the 640-byte flag block, the 1,984-byte game state, the 4 KB 64×32 screenshot, the minimap, the `voxelChart`, and the checksum | M | An original Controller Pak save imports | Open. The checkpoints already convert into saves (2.8). |

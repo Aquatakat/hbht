@@ -1,6 +1,6 @@
 # 0005. Plugin format
 
-Status: Accepted · Sep 26, 2026
+Status: Accepted · Sep 26, 2026 · Open formats for every asset is superseded for sequences by [0016](0016-sequences-keep-the-originals-events.md)
 
 ## Context
 

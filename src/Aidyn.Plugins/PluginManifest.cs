@@ -50,9 +50,9 @@ public static class BasePlugin
     /// 20 gives entities and dialogue entities their bodies: actor, radius, scale and height.
     /// 21 gives recruitable members their joined, left and died flags, and whether their sheet is kept.
     /// 22 gives weapons, shields and six items their models.
-    /// 23 adds the world map and camping. 24 adds the minimaps.
+    /// 23 adds the world map and camping. 24 adds the minimaps. 25 adds sequences and samples.
     /// </summary>
-    public const int ImporterVersion = 24;
+    public const int ImporterVersion = 25;
 }
 
 /// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>

@@ -1,6 +1,8 @@
 using System.Text.Json;
 using Aidyn.Plugins;
+using Aidyn.Plugins.Assets;
 using Aidyn.Plugins.Records;
+using Aidyn.Rom.Audio;
 using Aidyn.Rom.Borg;
 using Aidyn.Rom.Db;
 using Aidyn.Rom.Dialogue;
@@ -177,9 +179,40 @@ public static class BaseImporter
         Parallel.ForEach(images, index =>
             WriteAsset(staging, RecordId.Hex(RecordTypes.Image, index), "png", Png.Encode(Borg8Image.Parse(archive.Read(index)).Decode())));
 
+        progress?.Report("Audio");
+        WriteAudio(staging, archive);
+
         if (Directory.Exists(directory))
             Directory.Delete(directory, recursive: true);
         Directory.Move(staging, directory);
+    }
+
+    /// <summary>
+    /// Every Borg12 as a sequence record and its events as they are (<c>.dcm</c>, ADR 0016), and every
+    /// Borg11 as a WAV. A sample has no rate of its own, so its WAV says the one it's most often
+    /// played at, which is only for listening to it elsewhere.
+    /// </summary>
+    private static void WriteAudio(string staging, BorgArchive archive)
+    {
+        var sequences = archive.Listings.Where(l => l.Type == BorgType.Sequence)
+            .Select(l => (l.Index, Sequence: Borg12Sequence.Parse(archive.Read(l.Index)))).ToList();
+        WriteJson(Path.Combine(staging, "records", "sequences.json"), sequences.Select(s => new SequenceRecord(
+            RecordId.Hex(RecordTypes.Sequence, s.Index), s.Sequence.Tracks,
+            [
+                .. s.Sequence.Instruments.Select(i => new SequenceInstrument(RecordId.Hex(RecordTypes.Sample, i.Sample),
+                    i is { LoopStart: { } start, LoopEnd: { } end } ? new SampleLoop(start, end) : null)),
+            ],
+            s.Sequence.LoopPosition)).ToList());
+        foreach (var (index, sequence) in sequences)
+            WriteAsset(staging, RecordId.Hex(RecordTypes.Sequence, index), "dcm", sequence.Stream);
+
+        var rates = sequences
+            .SelectMany(s => s.Sequence.Notes().Where(n => n.Pitch > 0).Select(n => (s.Sequence.Instruments[n.Instrument].Sample, n.Pitch)))
+            .GroupBy(n => n.Sample)
+            .ToDictionary(g => g.Key, g => g.CountBy(n => n.Pitch).OrderByDescending(c => c.Value).ThenBy(c => c.Key).First().Key);
+        foreach (var listing in archive.Listings.Where(l => l.Type == BorgType.Sample))
+            WriteAsset(staging, RecordId.Hex(RecordTypes.Sample, listing.Index), "wav",
+                Wav.Encode(Borg11Sample.Parse(archive.Read(listing.Index)).Samples, rates.GetValueOrDefault(listing.Index, 22050)));
     }
 
     private static List<MapSetRecord> BuildMapSets(IReadOnlyList<MapChunk> chunks) =>
