@@ -1,5 +1,6 @@
 using System.Globalization;
 using Aidyn.Core;
+using Aidyn.Core.Audio;
 using Aidyn.Core.Cameras;
 using Aidyn.Core.Chunks;
 using Aidyn.Core.Flags;
@@ -101,6 +102,12 @@ public partial class Game : Node3D, ITrekHost
     /// <summary>The plugins, kept loaded when the System tab loads a save and the scene starts again.</summary>
     private static PluginSet? _loadedPlugins;
 
+    /// <summary>The sequences played so far, kept with the plugins.</summary>
+    private static SoundBank? _bank;
+
+    /// <summary>What plays: the music, map objects' sounds and one-shots, mixed by the core.</summary>
+    private GameAudio? _audio;
+
     /// <summary>The save the System tab loaded, which the scene starts again from.</summary>
     private static SaveGame? _pendingSave;
 
@@ -136,6 +143,13 @@ public partial class Game : Node3D, ITrekHost
     private void Start(Dictionary<string, string> args)
     {
         var plugins = _plugins = _loadedPlugins ??= LoadPlugins();
+        if (_bank is null)
+        {
+            _bank = new SoundBank(plugins);
+            _bank.Missing += (id, why) => GD.PushWarning($"{id} can't play: {why}");
+        }
+        _audio = new GameAudio(_bank, _settings, AudioOutput.MixRate);
+        AddChild(new AudioOutput(_audio));
         var game = _game = _pendingSave is { } pending ? GameState.Load(plugins, pending)
             : args.TryGetValue("save", out var savePath) ? GameState.Load(plugins, SaveFile.Read(savePath))
             : GameState.NewGame(plugins);
@@ -194,7 +208,7 @@ public partial class Game : Node3D, ITrekHost
             _shadowTexture = ImageTexture.CreateFromImage(image);
         }
         var streamer = new ChunkStreamer(plugins, game, _world, set);
-        var trek = _trek = new TrekLoop(game, this, streamer);
+        var trek = _trek = new TrekLoop(game, this, streamer, _audio);
         _chunks = new ChunkStreamerView(plugins, models, streamer, trek.Wanderers, _shadowTexture);
         AddChild(_chunks);
 
@@ -272,7 +286,7 @@ public partial class Game : Node3D, ITrekHost
         trekUi.AddChild(_fade);
         AddChild(trekUi);
 
-        _menu = new PauseMenu(plugins, game, _settings, _stick) { SaveGame = SaveTo, LoadGame = LoadFrom, Where = Where };
+        _menu = new PauseMenu(plugins, game, _settings, _stick) { SaveGame = SaveTo, LoadGame = LoadFrom, Where = Where, Audio = _audio };
         _menu.CampChosen += Camp;
         // The original reloads the map as the menu closes, so what changed shows.
         _menu.Closed += () => _chunks!.Regate();
@@ -390,10 +404,16 @@ public partial class Game : Node3D, ITrekHost
         if (_player is null || _camera is null || _follow is null || _game is null || _trek is not { } trek)
             return;
         _game.PlayTime++;
+        _audio!.Step();
         // The HUD is trek's alone: not under the pause menu or in a cut-scene.
         _hud!.Visible = !_menu!.IsOpen && _scene is null;
+        // The menu's frame keeps the map's sounds going, with everything held still (PauseMenu.Frame).
         if (_menu.IsOpen)
+        {
+            if (_scene is null)
+                trek.StepSounds();
             return;
+        }
         if (_scene is not null)
         {
             StepCutScene();
@@ -645,7 +665,8 @@ public partial class Game : Node3D, ITrekHost
                 $"  speed {Speed():F2}/s  request {motion.Request}  pace {motion.Pace:0.##} (F5)" +
                 $"  camera {_follow!.Mode.ToString().ToLowerInvariant()}{(_trek!.Use.CurrentCamera is { } held ? $" (object {held.Index})" : "")}" +
                 $"  {Clock(_sky!.Clock.TimeOfDay)}  sky {_sky.Placement.ToString().ToLowerInvariant()} (F6)" +
-                $"  UI {_menu!.Screen.Lines} lines (F7)  wanderers {_trek.Wanderers.All.Count}";
+                $"  UI {_menu!.Screen.Lines} lines (F7)  wanderers {_trek.Wanderers.All.Count}\n" +
+                $"music {_audio!.MusicPlaying?.Key ?? "none"}  sounds {_trek.Sounds.Playing} of the map's, {_audio.SoundsPlaying} one-shots";
         }
     }
 
@@ -908,11 +929,11 @@ public partial class Game : Node3D, ITrekHost
         _menu!.OpenTraining(Core.Characters.Trainer.From(entity, _game!.Rules, _plugins.Get<SpellRecord>));
     }
 
-    /// <summary>A script's sounds, which wait for audio (1D). The cut-scene carries out the rest of its cues.</summary>
+    /// <summary>A script's sounds. The cut-scene carries out the rest of its cues.</summary>
     void Core.Scripts.IScriptHost.Cue(Core.Scripts.ScriptCue cue)
     {
-        if (cue is Core.Scripts.SoundCue sound)
-            GD.Print($"Sound: {sound}");
+        if (cue is Core.Scripts.SoundCue sound && _game?.Sounds is { } sounds && ScriptSounds.For(sounds, sound) is { } play)
+            _audio!.Play(play);
     }
 
     void ITrekHost.Animate(LoadedMap map, SceneObject actor, int request)
@@ -922,8 +943,6 @@ public partial class Game : Node3D, ITrekHost
     }
 
     void ITrekHost.Changed(LoadedMap map, SceneObject scene) => _changed.Add(map);
-
-    void ITrekHost.Sound(string cue) => GD.Print($"Sound: {cue}");
 
     /// <summary>
     /// The System tab's Save: writes the game to a save file with where the player stands, and beside it the world as

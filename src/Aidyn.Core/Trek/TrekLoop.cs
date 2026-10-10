@@ -1,4 +1,5 @@
 using System.Numerics;
+using Aidyn.Core.Audio;
 using Aidyn.Core.Cameras;
 using Aidyn.Core.Chunks;
 using Aidyn.Core.Items;
@@ -40,9 +41,6 @@ public interface ITrekHost : IScriptHost
 
     /// <inheritdoc cref="IMapObjectHost.Changed"/>
     void Changed(LoadedMap map, SceneObject scene);
-
-    /// <inheritdoc cref="IMapObjectHost.Sound"/>
-    void Sound(string cue);
 
     /// <summary>Tells the player something the port can't do yet, such as a battle or a backdrop.</summary>
     void Say(string text);
@@ -92,19 +90,48 @@ public sealed class TrekLoop : IMapObjectHost
     /// <summary>The last script a dialogue object asked to start that trek can't run yet, such as a backdrop.</summary>
     private RecordId? _lastScript;
 
-    public TrekLoop(GameState game, ITrekHost host, ChunkStreamer chunks)
+    public TrekLoop(GameState game, ITrekHost host, ChunkStreamer chunks, GameAudio? audio = null)
     {
         Game = game;
+        Audio = audio ?? GameAudio.Silent(game.Plugins);
         _host = host;
         Chunks = chunks;
         Wanderers = new Wanderers(game.Plugins);
         Use = new MapObjectUse(game, MenuText.From(game.Plugins), this) { World = chunks.World };
         Hud = new TrekHud(game, host.ImageSize);
-        chunks.Loaded += (_, map) => Wanderers.Load(map, Chunks.MapSet.CellSize, Chunks.World, Game.Memory);
-        chunks.Unloading += (_, map) => Wanderers.Unload(map);
+        Sounds = new MapSounds(Audio, game.Random.Cosmetic,
+            o => Flags.MapObjectPresence.There(o, f => game.Flags.TryHandle(f, out var h) && game.Flags.Get(h)));
+        Keys = new AudioKeys(Audio, game.Sounds, game.Random.Cosmetic);
+        _playerSounds = game.Plugins.TryGet<EntityRecord>(GameState.Alaron)?.Sounds;
+        chunks.Loaded += (_, map) =>
+        {
+            Wanderers.Load(map, Chunks.MapSet.CellSize, Chunks.World, Game.Memory);
+            Sounds.Load(map);
+        };
+        chunks.Unloading += (_, map) =>
+        {
+            Wanderers.Unload(map);
+            Sounds.Unload(map);
+        };
     }
 
     public GameState Game { get; }
+
+    /// <summary>What plays: the map set's music, and the sounds of what's here.</summary>
+    public GameAudio Audio { get; }
+
+    /// <summary>The loaded chunks' sound map objects.</summary>
+    public MapSounds Sounds { get; }
+
+    /// <summary>Bodies' footsteps and voices.</summary>
+    public AudioKeys Keys { get; }
+
+    /// <summary>The player's sounds: Alaron's, which every body has until it's given its own (<c>Player.Reset</c>), as cut-scenes' actors keep.</summary>
+    public BodySounds? AlaronSounds => _playerSounds;
+
+    private readonly BodySounds? _playerSounds;
+
+    private readonly BodyAudio _playerAudio = new();
 
     /// <summary>The chunks around the player, which a teleport to another map set changes.</summary>
     public ChunkStreamer Chunks { get; private set; }
@@ -157,7 +184,14 @@ public sealed class TrekLoop : IMapObjectHost
         Use.Camera = camera;
         Use.PlayerRadius = player.Sphere.Radius;
         Hud.Start();
+        RequestMusic(Chunks.ChunkAt(player.Sphere.Position));
     }
+
+    /// <summary>
+    /// Asks for the music of the map set and the chunk the player is in (<c>Zones.SetMapSet</c>), as the original does on
+    /// every crossing into another chunk and every teleport. Out of the chunks with music, it stops.
+    /// </summary>
+    public void RequestMusic(ChunkEntry? chunk) => Audio.Music = MapMusic.For(Chunks.MapSet, chunk, Game.Random.Cosmetic);
 
     /// <summary>
     /// The player is in a chunk: its terrain is written into the flags. Crossing into another chunk is a
@@ -175,6 +209,7 @@ public sealed class TrekLoop : IMapObjectHost
         if (chunk is null || chunk == _chunk)
             return;
         _chunk = chunk;
+        RequestMusic(chunk);
         Game.StateFlags.SetTerrain(chunk.Terrain);
         Hud.Arrive(Game.Plugins.TryGet<TerrainRecord>(RecordId.Decimal(RecordTypes.Terrain, chunk.Terrain))?.SkyDrawn ?? true);
     }
@@ -198,6 +233,8 @@ public sealed class TrekLoop : IMapObjectHost
         if (Cued is not null && !CutSceneFade.Fading)
             return TrekStep.CutScene;
         var fading = TeleportFade.Fading || CutSceneFade.Fading;
+        // Bgm.Update waits for a fade to end, so the music changes once the screen is up.
+        Audio.HoldMusic = fading;
         Enter(Chunks.ChunkAt(Player.Sphere.Position));
         // The clock stops under a popup or a conversation.
         var talking = Conversation is not null;
@@ -236,7 +273,9 @@ public sealed class TrekLoop : IMapObjectHost
             framing.Frame(Camera, world);
         else
             Camera.Step(world, motion.Sphere.Position, motion.Heading);
-        motion.Step(world, input, Camera, PlayerAnimation);
+        Keys.Eye = Camera.Position;
+        Keys.Aim = Camera.Aim;
+        motion.Step(world, input, Camera, Keys.Sounding(PlayerAnimation, _playerAudio, _playerSounds, motion.Sphere));
         // WanderTick, which a popup, a conversation, the menu and a fade stop.
         if (playing && Use.Popup is null && !talking)
         {
@@ -244,7 +283,8 @@ public sealed class TrekLoop : IMapObjectHost
                 _host.Log($"{MapRecord.VoxelId(w.Map.Record.Id, w.Party.Index)} ambushes the party; battles come with combat (2.5).");
         }
         // ProcessPlayers: the player is the first body, then the rest move and push.
-        Nearest = Wanderers.Step(world, motion.Sphere, before, Chunks.MapAt(motion.Sphere.Position)?.Key, Camera.Aim, _host.Motion);
+        Nearest = Wanderers.Step(world, motion.Sphere, before, Chunks.MapAt(motion.Sphere.Position)?.Key, Camera.Aim,
+            w => Keys.Sounding(_host.Motion(w), w.Audio, w.Sounds, w.Body.Sphere));
         if (Conversation is { } conversation && conversation.Tick())
             Refresh();
         foreach (var (part, target) in motion.Sphere.Trod)
@@ -257,6 +297,7 @@ public sealed class TrekLoop : IMapObjectHost
                 Use.TreadCamera(map, target);
         }
         Use.StepCameras(motion.Sphere.Position);
+        StepSounds();
         if (HudShown)
         {
             Hud.Enter(Chunks.MapSet);
@@ -265,6 +306,12 @@ public sealed class TrekLoop : IMapObjectHost
         }
         return TrekStep.Ran;
     }
+
+    /// <summary>
+    /// The map's sounds follow the player and the camera, as in trek, and in the pause menu, which steps them too with
+    /// everything held still.
+    /// </summary>
+    public void StepSounds() => Sounds.Step(Player.Sphere.Position, Camera.Position, Camera.Aim);
 
     /// <summary>
     /// Steps a teleport's fade: out, black for a few frames, then the player goes through and it fades
@@ -359,6 +406,7 @@ public sealed class TrekLoop : IMapObjectHost
         Chunks.Clear();
         Chunks.World.Clear();
         Wanderers.Clear();
+        Sounds.Clear();
         Nearest = default;
         Use.ClearCameras();
     }
@@ -383,6 +431,8 @@ public sealed class TrekLoop : IMapObjectHost
         Rebuild();
         var at = Player.Sphere.Position;
         Enter(Chunks.ChunkAt(at));
+        // InitZoneEngine asks for the music again, which the cut-scene's stage may have changed.
+        RequestMusic(Chunks.ChunkAt(at));
         Camera.AimAt(at);
         Camera.Snap = 1;
         Hud.Start();
@@ -536,5 +586,5 @@ public sealed class TrekLoop : IMapObjectHost
 
     void IMapObjectHost.Changed(LoadedMap map, SceneObject scene) => _host.Changed(map, scene);
 
-    void IMapObjectHost.Sound(string cue) => _host.Sound(cue);
+    void IMapObjectHost.Sound(OneShot sound) => Audio.Play(sound);
 }

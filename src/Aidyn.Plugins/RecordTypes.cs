@@ -89,11 +89,14 @@ public static class RecordTypes
     /// <summary>How the party carries, buys and finds items. There's one, <c>aidyn:inventory/0</c>.</summary>
     public const string Inventory = "inventory";
 
+    /// <summary>The sounds engine code plays: the menus', the scripts', the containers' and so on. There's one, <c>aidyn:sounds/0</c>.</summary>
+    public const string Sounds = "sounds";
+
     private static readonly HashSet<string> All =
     [
         Entity, Weapon, Armor, Spell, Item, DialogEntity, Loot, Flag, Texture, Geometry, Camera, Light, Scene, Animation, Actor, Image, Map,
         Sample, Sequence, Dialogue, Voxel, MapSet, Terrain, Sky, Journal, StateFlags, WorldMap, Minimap, Camping, Font, Strings, Stat, Skill, WeaponSkill,
-        Progression, Shop, Recipe, Inventory,
+        Progression, Shop, Recipe, Inventory, Sounds,
     ];
 
     public static bool IsKnown(string type) => All.Contains(type);

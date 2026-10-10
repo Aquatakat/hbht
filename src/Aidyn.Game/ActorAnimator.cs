@@ -39,6 +39,8 @@ public sealed class ActorAnimator : IActorMotion
     /// <summary>The length in ticks of the state playing, which a cut-scene's animation waits for.</summary>
     public int StateLength => Machine.Length(Machine.State);
 
+    public int Frame => Machine.Clock;
+
     /// <summary>The animation the actor is asked for.</summary>
     public int Request
     {

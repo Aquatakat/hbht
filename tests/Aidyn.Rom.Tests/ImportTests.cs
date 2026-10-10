@@ -149,6 +149,28 @@ public sealed class ImportTests : IDisposable
         Assert.All(minimaps.SelectMany(m => m.Sections), s => Assert.NotNull(set.FindAsset(s.Image, "png")));
         Assert.All(minimaps, m => Assert.All(m.Rules, r => Assert.True(r.Section is null || r.Section < m.Sections.Count)));
 
+        // The engine's sounds and the map sets' music: every one a sequence. The Overworld's two lists of chunks with
+        // music, thirteen and twenty-two, and five battle pieces.
+        var engineSounds = set.Get<SoundsRecord>(RecordId.Parse("aidyn:sounds/0"));
+        Assert.Equal((39, 8, 4), (engineSounds.Script.Count, engineSounds.Containers.Count, engineSounds.Explosions.Count));
+        Assert.Equal((13, 22), (overworld.Chunks.Count(c => c.Music?.Key == "0x062C"), overworld.Chunks.Count(c => c.Music?.Key == "0x05EA")));
+        Assert.Equal("0x062C", overworld.Chunks.Single(c => c.Name == "M23").Music?.Key);
+        Assert.Equal(5, set.Get<MapSetRecord>(RecordId.Parse("aidyn:mapset/16")).Music?.Count);
+        var music = mapSets.SelectMany(s => (s.Music ?? []).Concat(s.Chunks.Select(c => c.Music).OfType<RecordId>()));
+        Assert.All(engineSounds.Script.Concat(engineSounds.Containers).Concat(engineSounds.Explosions).Concat(music)
+            .Append(engineSounds.Menu.Cursor).Append(engineSounds.Title), s => Assert.NotNull(set.TryGet<SequenceRecord>(s)));
+
+        // Bodies' sounds: Alaron's eight keys, his hurt voice two sequences, and people's footsteps on grass (surface 4)
+        // four, walking at the walk's last frame. The squid makes none.
+        var alaron = set.All<EntityRecord>(RecordTypes.Entity).Single(e => e.Name == "Alaron").Sounds!;
+        Assert.Equal((2, 8), (alaron.Kind, alaron.Keys.Count));
+        Assert.Equal(["0x06C1", "0x06C2"], alaron.Keys.Single(k => k.Request == 7).Sounds.Select(s => s.Key).Distinct().Order());
+        var grass = engineSounds.Kinds[2]!.Surfaces[4].Walk!;
+        Assert.Equal((65500, 2, "0x0649"), (grass.Frac, grass.Request, grass.Sounds.Select(s => s.Key).Order().First()));
+        Assert.Null(engineSounds.Kinds[0]);
+        Assert.Contains(set.All<WeaponRecord>(RecordTypes.Weapon), w => w.Sounds is [_, _]);
+        Assert.Equal(59, set.All<SpellRecord>(RecordTypes.Spell).Count(s => s.Cast is not null));
+
         // The editor's catalog: every record and asset with a summary, and what names what.
         var catalog = PluginCatalog.Build(set);
         Assert.DoesNotContain(catalog.Entries, e => e.Summary.StartsWith('‹'));

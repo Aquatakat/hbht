@@ -12,8 +12,10 @@ Things only the user can settle, in the emulator or by reading the ROM. Each lin
 - **The journal after loading:** which entry is purple in the journal just after loading a save. The machine code suggests the highest-numbered, as loading turns every entry on again; the notice of a new entry doesn't show, which the user confirmed. See [ui](systems/ui.md#the-journal).
 
 - **Wrapped pitches in music:** 0x05DD and 0x05DE (and SFX such as 0x0759 and 0x075F) have notes whose pitch, above 65,535 Hz, the original keeps in 16 bits, so they'd play far too low. The port does the same. Listen for a low growl or rumble in those against `aidyn audio`'s render. See [audio](formats/audio.md#the-event-stream).
-- **The sound volume at half:** the menu's sounds take the sound volume twice and the containers' three times, by the machine code. Whether half sound volume makes them quarter loud is a check against the port's renders once it plays them. See [audio](systems/audio.md#volumes).
-- **Which way sounds pan:** a sound to the camera's right should come from the right speaker; the sign of the original's pan isn't settled. Any map sound with falloff, such as a fountain, turned side on. See [audio](systems/audio.md#sound-map-objects).
+- **The sound volume at half:** the menu's sounds take the sound volume twice and the containers' three times, by the machine code. Whether half sound volume makes them quarter loud is a check against the port, which now plays them so. See [audio](systems/audio.md#volumes).
+- **Which way sounds pan:** a sound to the camera's right should come from the right speaker; the formula says right is positive, and the port plays it so, but nobody has listened. Any map sound with falloff, such as a fountain, turned side on. See [audio](systems/audio.md#sound-map-objects).
+- **Far bodies' footsteps:** a body's loudness isn't clamped, so by the machine code one 15.1 to 30 from where the camera looks plays loud again, fading to nothing at 30, and again to 45 ([audio](systems/audio.md#bodies-sounds)). The port does the same. Stand still in a town with wanderers walking 15 to 30 away (Gwernia's open ground, M07) and listen for their footsteps loud, against the port.
+- **The Party tab's cursor:** up and down there may play the cursor sound twice at once, once from the menu and once from the list, which would sound louder than on the World or System tab. The port plays it once. See [audio](systems/audio.md#sound-effects).
 
 ## In the ROM
 

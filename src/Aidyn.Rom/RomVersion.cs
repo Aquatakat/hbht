@@ -233,6 +233,46 @@ public enum CodeTable
     PotionNotInTrek,
     /// <summary>What reading a scroll without a spell says, a C string (<c>Party::UseScroll</c>): the Lighthouse scroll's.</summary>
     ScrollNoSpell,
+    /// <summary>The 39 Borg12s a script's <c>PlaySound</c> plays by its operand, as u32s, then a 0 (<c>dialoug_SFX</c>).</summary>
+    ScriptSounds,
+    /// <summary>
+    /// The containers' sounds, as u32 Borg12s: eight by container kind, then the four of a trapped one exploding
+    /// (<c>loot_func</c>, <c>open_explosive_chest</c>).
+    /// </summary>
+    ContainerSounds,
+    /// <summary>
+    /// The Overworld's chunks with music, by their Borg5 scenes as u16s, in two lists that each end with a 0
+    /// (<c>Zones.SetMapSet</c>).
+    /// </summary>
+    OverworldMusicScenes,
+    /// <summary>The Jundar interiors' chunks with music, by their Borg5 scenes as u16s, ending with a 0 (<c>Zones.JundarBgmList</c>).</summary>
+    JundarMusicScenes,
+    /// <summary>
+    /// The battle music as u16 Borg12s: five with the Expansion Pak, ending with a 0, then four without
+    /// (<c>Zones.SetMapSet</c>).
+    /// </summary>
+    BattleMusic,
+    /// <summary>
+    /// The 49 footstep keys, 8 bytes each as the audio keys' (<see cref="DbTable.AudioKeys"/>): a u16 frac, the request,
+    /// a count of step ids and four step ids. Entry 0 is empty (<c>AudioKeys.PlaySurfaceSteps</c>).
+    /// </summary>
+    FootstepEntries,
+    /// <summary>
+    /// The four footstep sets by body kind, 0x50 bytes each: 26 surfaces × the sneak, walk and run footstep keys' bytes,
+    /// 0 for none, then 2 bytes of padding.
+    /// </summary>
+    StepSets,
+    /// <summary>The 96 Borg12s step ids name, as u32s (<c>Audio.StepSounds</c>).</summary>
+    StepSounds,
+    /// <summary>The 126 Borg12s the audio keys' voice ids and the weapons' sounds name, as u32s (<c>Audio.VoiceSounds</c>).</summary>
+    VoiceSounds,
+    /// <summary>The 59 spells' casting sounds as u32 Borg12s, by spell position (<c>Audio.SpellSounds</c>).</summary>
+    SpellSounds,
+    /// <summary>
+    /// Each weapon's sound by its position in <see cref="WeaponsWithModels"/>, 8 bytes each: two u16 voice ids, one
+    /// picked at random, and padding, ending with 0xFFFF (<c>AudioKeys.WeaponSound</c>).
+    /// </summary>
+    WeaponSounds,
 }
 
 /// <summary>
@@ -342,6 +382,17 @@ public static class RomVersions
                 [CodeTable.PotionNotNow] = new(0x00D3D50, 0x26),
                 [CodeTable.PotionNotInTrek] = new(0x00D3D78, 0x29),
                 [CodeTable.ScrollNoSpell] = new(0x00D435C, 0x57),
+                [CodeTable.ScriptSounds] = new(0x00E0960, 0xA0),
+                [CodeTable.ContainerSounds] = new(0x00CE5D0, 0x30),
+                [CodeTable.OverworldMusicScenes] = new(0x00CF31C, 0x4C),
+                [CodeTable.JundarMusicScenes] = new(0x00CF368, 0x10),
+                [CodeTable.BattleMusic] = new(0x00CF378, 0x14),
+                [CodeTable.FootstepEntries] = new(0x00E0A60, 0x188),
+                [CodeTable.StepSets] = new(0x00E0BE8, 0x140),
+                [CodeTable.StepSounds] = new(0x00E0D28, 0x180),
+                [CodeTable.VoiceSounds] = new(0x00E0EA8, 0x1F8),
+                [CodeTable.SpellSounds] = new(0x00E10A0, 0xEC),
+                [CodeTable.WeaponSounds] = new(0x00D50D0, 0x218),
                 [CodeTable.WeaponsWithModels] = new(0x00E3520, 0x43),
                 [CodeTable.WeaponModels] = new(0x00D3B14, 0x86),
                 [CodeTable.ItemsWithModels] = new(0x00E3564, 0xE),
@@ -451,6 +502,17 @@ public static class RomVersions
                 [CodeTable.PotionNotNow] = new(0x00D3D40, 0x26),
                 [CodeTable.PotionNotInTrek] = new(0x00D3D68, 0x29),
                 [CodeTable.ScrollNoSpell] = new(0x00D434C, 0x57),
+                [CodeTable.ScriptSounds] = new(0x00E09A0, 0xA0),
+                [CodeTable.ContainerSounds] = new(0x00CE5C0, 0x30),
+                [CodeTable.OverworldMusicScenes] = new(0x00CF30C, 0x4C),
+                [CodeTable.JundarMusicScenes] = new(0x00CF358, 0x10),
+                [CodeTable.BattleMusic] = new(0x00CF368, 0x14),
+                [CodeTable.FootstepEntries] = new(0x00E0AA0, 0x188),
+                [CodeTable.StepSets] = new(0x00E0C28, 0x140),
+                [CodeTable.StepSounds] = new(0x00E0D68, 0x180),
+                [CodeTable.VoiceSounds] = new(0x00E0EE8, 0x1F8),
+                [CodeTable.SpellSounds] = new(0x00E10E0, 0xEC),
+                [CodeTable.WeaponSounds] = new(0x00D50C0, 0x218),
                 [CodeTable.WeaponsWithModels] = new(0x00E3560, 0x43),
                 [CodeTable.WeaponModels] = new(0x00D3B04, 0x86),
                 [CodeTable.ItemsWithModels] = new(0x00E35A4, 0xE),
@@ -558,6 +620,17 @@ public static class RomVersions
                 [CodeTable.PotionNotNow] = new(0x00E0F68, 0x26),
                 [CodeTable.PotionNotInTrek] = new(0x00E0F90, 0x29),
                 [CodeTable.ScrollNoSpell] = new(0x00E17D4, 0x57),
+                [CodeTable.ScriptSounds] = new(0x00EF4C0, 0xA0),
+                [CodeTable.ContainerSounds] = new(0x00D9A40, 0x30),
+                [CodeTable.OverworldMusicScenes] = new(0x00DB384, 0x4C),
+                [CodeTable.JundarMusicScenes] = new(0x00DB3D0, 0x10),
+                [CodeTable.BattleMusic] = new(0x00DB3E0, 0x14),
+                [CodeTable.FootstepEntries] = new(0x00EF5D0, 0x188),
+                [CodeTable.StepSets] = new(0x00EF758, 0x140),
+                [CodeTable.StepSounds] = new(0x00EF898, 0x180),
+                [CodeTable.VoiceSounds] = new(0x00EFA18, 0x1F8),
+                [CodeTable.SpellSounds] = new(0x00EFC10, 0xEC),
+                [CodeTable.WeaponSounds] = new(0x00E26C0, 0x218),
                 [CodeTable.WeaponsWithModels] = new(0x00F2090, 0x43),
                 [CodeTable.WeaponModels] = new(0x00E0D14, 0x86),
                 [CodeTable.ItemsWithModels] = new(0x00F20D4, 0xE),

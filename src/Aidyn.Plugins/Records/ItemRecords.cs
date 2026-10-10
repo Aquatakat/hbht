@@ -19,6 +19,7 @@ namespace Aidyn.Plugins.Records;
 /// The Borg5 scene (<c>aidyn:scene/0x…</c>) the original draws for it in a body's hand or on its arm
 /// (<c>get_item_borg5</c>), or null when it has none.
 /// </param>
+/// <param name="Sounds">What it plays as it strikes, in combat: one at random (<c>AudioKeys.WeaponSound</c>). Null for none.</param>
 public sealed record WeaponRecord(
     RecordId Id,
     string Name,
@@ -35,7 +36,8 @@ public sealed record WeaponRecord(
     GearBonuses Bonuses,
     ItemTraits? Traits = null,
     bool Fixed = false,
-    RecordId? Model = null);
+    RecordId? Model = null,
+    IReadOnlyList<RecordId>? Sounds = null);
 
 /// <summary>
 /// Body armor or a shield (<c>aidyn:armor/0x05…</c> and <c>0x06…</c>), from the armor DB

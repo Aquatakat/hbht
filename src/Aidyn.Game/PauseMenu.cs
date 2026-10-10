@@ -123,6 +123,20 @@ public partial class PauseMenu : CanvasLayer
     /// <summary>Camp was chosen on the World tab where the party can camp; the menu has closed.</summary>
     public event Action? CampChosen;
 
+    /// <summary>What plays the menu's sounds.</summary>
+    public Core.Audio.GameAudio? Audio { get; set; }
+
+    /// <summary>A menu sound (<c>Audio.PlaySound</c> at gain 1), for so many ticks.</summary>
+    private void Sound(Func<Plugins.Records.MenuSounds, RecordId> pick, int ticks)
+    {
+        if (_game.Sounds is { } sounds)
+            Audio?.Play(pick(sounds.Menu), ticks);
+    }
+
+    /// <summary>The tabs slide in as the menu opens, or out as it closes (<c>BigAssMenu</c>, <c>PauseMenu.SlideOut</c>).</summary>
+    private void SlideSound(bool opening) =>
+        Sound((opening ? Tab != PauseTab.World : Tab == PauseTab.World) ? m => m.TabBack : m => m.TabForward, Core.Audio.OneShot.MenuTicks);
+
     /// <summary>The UI screen, whose lines and filter the game sets.</summary>
     public UiScreen Screen => _screen;
 
@@ -177,6 +191,7 @@ public partial class PauseMenu : CanvasLayer
         _stick.Clear();
         Visible = true;
         Activate();
+        SlideSound(opening: true);
     }
 
     /// <summary>
@@ -187,6 +202,9 @@ public partial class PauseMenu : CanvasLayer
     {
         Open(PauseTab.Party, tabsLocked: true);
         _view!.Barter = BarterMenu.ForLoot(_plugins, _game.Party, loot, gold, _game.Flags, _game.Random.World);
+        // The coins, a second after the window opens, at the sound volume as their gain.
+        if (gold > 0 && _game.Sounds is { } sounds)
+            Audio?.Play(new Core.Audio.OneShot(sounds.GoldGained, Core.Audio.OneShot.LongTicks, Core.Audio.OneShot.MenuTicks, TimesSoundVolume: true));
     }
 
     /// <summary>
@@ -208,6 +226,7 @@ public partial class PauseMenu : CanvasLayer
 
     public void Close()
     {
+        SlideSound(opening: false);
         Visible = false;
         if (!_tabsLocked)
             _lastTab = Tab;
@@ -261,6 +280,7 @@ public partial class PauseMenu : CanvasLayer
         if (Tab == PauseTab.World && (_world!.Menu.Message is not null || _world.Menu.Journal is not null))
             return;
         Tab = to;
+        Sound(by < 0 ? m => m.TabBack : m => m.TabForward, 2 * Core.Audio.OneShot.MenuTicks);
         _view!.DetailsOpen = false;
         Activate();
         Redraw();
@@ -325,6 +345,51 @@ public partial class PauseMenu : CanvasLayer
     /// menu. True if the menu took it.
     /// </summary>
     public bool Handle(InputEvent e)
+    {
+        var sliding = Sliding;
+        var taken = HandleInput(e);
+        if (taken && !sliding && _view is not null)
+            PressSound(e);
+        return taken;
+    }
+
+    /// <summary>
+    /// The sounds the menu makes for a press it took, whatever the page did with it (<c>BigAssMenu</c>'s callbacks): the
+    /// cursor for up and down, A, B and Start, the member for C-left and C-right, and the page's cursor for the Party
+    /// tab's lists and the World tab. The details slide in and out with C-down. Tabs, opening and closing play their own.
+    /// </summary>
+    private void PressSound(InputEvent e)
+    {
+        const int Short = Core.Audio.OneShot.ShortTicks, Menu = Core.Audio.OneShot.MenuTicks;
+        var party = Tab == PauseTab.Party && _view!.Barter is null && _view.Training is null;
+        if (Tab == PauseTab.System && _system!.Menu.Rename is not null && e is InputEventKey)
+            return;
+        if (e.IsActionPressed("menu_accept"))
+            Sound(m => m.Accept, Menu);
+        else if (e.IsActionPressed("menu_back") || e.IsActionPressed("pause"))
+            Sound(m => m.Back, Menu);
+        else if (e.IsActionPressed("menu_details") || e.IsActionReleased("menu_details"))
+            Sound(e.IsPressed() ? m => m.TabBack : m => m.TabForward, Menu);
+        else if ((e.IsActionPressed("menu_member_previous") || e.IsActionPressed("menu_member_next")) && Tab == PauseTab.Party
+            && _view!.Barter is null && _game.Party.Members.Count() > 1)
+            Sound(m => m.Member, Menu);
+        else if (Pressed(e, "move_forward") || Pressed(e, "move_back") || e.IsActionPressed("menu_up", allowEcho: true)
+            || e.IsActionPressed("menu_down", allowEcho: true))
+            CursorSound();
+        else if ((party || (Tab == PauseTab.System && !_system!.Menu.OnVolume))
+            && (Pressed(e, "move_left") || Pressed(e, "move_right") || e.IsActionPressed("menu_left") || e.IsActionPressed("menu_right")))
+            Sound(m => m.PageCursor, Short);
+    }
+
+    /// <summary>Up or down: the menu's cursor sound, and the World tab's own besides.</summary>
+    private void CursorSound()
+    {
+        Sound(m => m.Cursor, Core.Audio.OneShot.ShortTicks);
+        if (Tab == PauseTab.World)
+            Sound(m => m.PageCursor, Core.Audio.OneShot.ShortTicks);
+    }
+
+    private bool HandleInput(InputEvent e)
     {
         if (_view is null || _system is null)
             return false;
@@ -601,6 +666,8 @@ public partial class PauseMenu : CanvasLayer
     {
         var by = action is "move_forward" or "move_left" ? -1 : 1;
         var vertical = action is "move_forward" or "move_back";
+        if (vertical)
+            CursorSound();
         if (Tab == PauseTab.System)
         {
             if (vertical)

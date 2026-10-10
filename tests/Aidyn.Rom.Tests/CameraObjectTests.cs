@@ -39,7 +39,7 @@ public sealed class CameraObjectTests(MapObjectFixture fixture)
 
         public void Changed(LoadedMap map, SceneObject scene) { }
 
-        public void Sound(string cue) { }
+        public void Sound(Aidyn.Core.Audio.OneShot sound) { }
     }
 
     private IReadOnlyList<CollisionTriangle> Collision(MapRecord map) =>

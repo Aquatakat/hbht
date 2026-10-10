@@ -39,8 +39,8 @@ public interface IMapObjectHost
     /// <summary>A scene object's look or presence changed: a container opened, destroyed or taken.</summary>
     void Changed(LoadedMap map, SceneObject scene);
 
-    /// <summary>Something the original plays a sound for, which waits for 1D.</summary>
-    void Sound(string cue);
+    /// <summary>A one-shot sound plays.</summary>
+    void Sound(Audio.OneShot sound);
 }
 
 /// <summary>
@@ -64,6 +64,9 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
 {
     /// <summary>How many objects A weighs at once (<c>obj_ref_func</c>'s list).</summary>
     public const int MaxCandidates = 16;
+
+    /// <summary>How long a container's opening sound and a trap's explosion play, in ticks.</summary>
+    public const int ContainerSoundTicks = 180, ExplosionTicks = 240;
 
     private Action? _onClose;
     private Action<int>? _onChoose;
@@ -391,8 +394,9 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
                 map.SetLook(scene.Index, ContainerLook.Opened);
             host.Changed(map, scene);
         }
-        if (o.Kind != ContainerKind.Custom)
-            host.Sound($"{o.Kind} opens");
+        // loot_func: by its kind, at the sound volume as its gain.
+        if (o.Kind != ContainerKind.Custom && game.Sounds?.Containers.ElementAtOrDefault((int)o.Kind) is { } opens)
+            host.Sound(new Audio.OneShot(opens, ContainerSoundTicks, TimesSoundVolume: true));
         map.SetActive(o.Index, false);
         // Without an opened flag, it's remembered as emptied for a while.
         if (o.Opened is null && !(o.Exploded is { } exploded && Flags.Get(exploded)))
@@ -400,7 +404,8 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
         Party.Gold += (uint)gold;
         if (loot.Stacks.Count == 0)
         {
-            host.Sound("coins");
+            if (game.Sounds is { } sounds)
+                host.Sound(new Audio.OneShot(sounds.GoldGained, Audio.OneShot.LongTicks));
             Show(TrekPopup.Message(text.Format(MenuText.PickedUpGold, gold)));
         }
         else
@@ -442,7 +447,10 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
                     host.Changed(map, scene);
                 }
                 map.SetActive(o.Index, false);
-                host.Sound("chest explodes");
+                // open_explosive_chest: one of four at random.
+                if (game.Sounds is { Explosions.Count: > 0 } sounds)
+                    host.Sound(new Audio.OneShot(sounds.Explosions[(int)Rng.RandomExtensions.Below(game.Random.Cosmetic, (uint)sounds.Explosions.Count)],
+                        ExplosionTicks, TimesSoundVolume: true));
             }
         }
         else

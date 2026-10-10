@@ -62,8 +62,9 @@ public sealed class Wanderers(PluginSet plugins)
             // Actor::CheckCollision: from 1 above the party to 1 below, or failing that from on high.
             if (TeleportArrival.Settle(world, at with { Y = at.Y + look.Radius }, look.Radius) is { } ground)
                 body.Sphere.Position = ground;
-            var perception = plugins.TryGet<EntityRecord>(party.Entity)?.Perception ?? DialoguePerception;
-            var wanderer = new Wanderer(map, party, look, body, perception);
+            var entity = plugins.TryGet<EntityRecord>(party.Entity);
+            var perception = entity?.Perception ?? DialoguePerception;
+            var wanderer = new Wanderer(map, party, look, body, perception) { Sounds = entity?.Sounds };
             wanderer.Take(home);
             wanderer.Resume();
             _all.Add(wanderer);

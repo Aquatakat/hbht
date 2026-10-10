@@ -48,6 +48,12 @@ public sealed class Wanderer
 
     public Body Body { get; }
 
+    /// <summary>Its entity's footsteps and voice, if any.</summary>
+    public BodySounds? Sounds { get; init; }
+
+    /// <summary>What its sounds keep between ticks.</summary>
+    public Audio.BodyAudio Audio { get; } = new();
+
     /// <summary>Whether it talks rather than fights: a party with a dialogue.</summary>
     public bool Talks => Party.Dialogue is not null;
 

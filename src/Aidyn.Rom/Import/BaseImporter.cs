@@ -65,7 +65,7 @@ public static class BaseImporter
             Import: new ImportInfo(BasePlugin.ImporterVersion, rom.Sha1, rom.Version.Name)));
 
         progress?.Report("Map sets");
-        WriteJson(Path.Combine(staging, "records", "mapsets.json"), BuildMapSets(chunks));
+        WriteJson(Path.Combine(staging, "records", "mapsets.json"), BuildMapSets(chunks, AudioTables.Read(rom)));
 
         progress?.Report("Terrains");
         var gradients = Skies.ReadGradients(rom);
@@ -95,8 +95,10 @@ public static class BaseImporter
         var characterTables = CharacterTables.Read(rom);
         var itemTables = ItemTables.Read(rom);
         var menuTables = MenuTables.Read(rom);
-        WriteJson(Path.Combine(staging, "records", "entities.json"), CharacterImporter.WithMembers(ItemImporter.WithSoleWeapons(db, CharacterImporter.BuildEntities(db, models)), EngineTables.Read(rom)));
-        WriteJson(Path.Combine(staging, "records", "spells.json"), CharacterImporter.BuildSpells(db, itemTables, menuTables));
+        var bodySounds = BodySoundTables.Read(rom);
+        WriteJson(Path.Combine(staging, "records", "entities.json"), BodySoundImporter.WithSounds(db, bodySounds,
+            CharacterImporter.WithMembers(ItemImporter.WithSoleWeapons(db, CharacterImporter.BuildEntities(db, models)), EngineTables.Read(rom))));
+        WriteJson(Path.Combine(staging, "records", "spells.json"), BodySoundImporter.WithSounds(db, bodySounds, CharacterImporter.BuildSpells(db, itemTables, menuTables)));
         WriteJson(Path.Combine(staging, "records", "stats.json"), CharacterImporter.BuildStats(db, characterTables));
         WriteJson(Path.Combine(staging, "records", "skills.json"), ItemImporter.WithIcons(itemTables, CharacterImporter.BuildSkills(db, characterTables)));
         WriteJson(Path.Combine(staging, "records", "weaponskills.json"), CharacterImporter.BuildWeaponSkills(db, characterTables));
@@ -104,7 +106,7 @@ public static class BaseImporter
 
         progress?.Report("Items");
         var (weapons, armor, items) = ItemImporter.BuildItems(db, itemTables, EngineTables.Read(rom), menuTables);
-        WriteJson(Path.Combine(staging, "records", "weapons.json"), weapons);
+        WriteJson(Path.Combine(staging, "records", "weapons.json"), BodySoundImporter.WithSounds(db, BodySoundTables.Read(rom), weapons));
         WriteJson(Path.Combine(staging, "records", "armor.json"), armor);
         WriteJson(Path.Combine(staging, "records", "items.json"), items);
         WriteJson(Path.Combine(staging, "records", "loot.json"), ItemImporter.BuildLoot(db));
@@ -180,7 +182,7 @@ public static class BaseImporter
             WriteAsset(staging, RecordId.Hex(RecordTypes.Image, index), "png", Png.Encode(Borg8Image.Parse(archive.Read(index)).Decode())));
 
         progress?.Report("Audio");
-        WriteAudio(staging, archive);
+        WriteAudio(staging, archive, rom);
 
         if (Directory.Exists(directory))
             Directory.Delete(directory, recursive: true);
@@ -192,8 +194,9 @@ public static class BaseImporter
     /// Borg11 as a WAV. A sample has no rate of its own, so its WAV says the one it's most often
     /// played at, which is only for listening to it elsewhere.
     /// </summary>
-    private static void WriteAudio(string staging, BorgArchive archive)
+    private static void WriteAudio(string staging, BorgArchive archive, RomImage rom)
     {
+        WriteJson(Path.Combine(staging, "records", "sounds.json"), new[] { BuildSounds(AudioTables.Read(rom), BodySoundTables.Read(rom)) });
         var sequences = archive.Listings.Where(l => l.Type == BorgType.Sequence)
             .Select(l => (l.Index, Sequence: Borg12Sequence.Parse(archive.Read(l.Index)))).ToList();
         WriteJson(Path.Combine(staging, "records", "sequences.json"), sequences.Select(s => new SequenceRecord(
@@ -215,7 +218,8 @@ public static class BaseImporter
                 Wav.Encode(Borg11Sample.Parse(archive.Read(listing.Index)).Samples, rates.GetValueOrDefault(listing.Index, 22050)));
     }
 
-    private static List<MapSetRecord> BuildMapSets(IReadOnlyList<MapChunk> chunks) =>
+    /// <summary>The map sets, with the music each plays as it's entered (<see cref="AudioFacts.MapMusic"/>).</summary>
+    private static List<MapSetRecord> BuildMapSets(IReadOnlyList<MapChunk> chunks, AudioTables audio) =>
     [
         .. Enum.GetValues<MapSet>().Select(set => new MapSetRecord(
             RecordId.Decimal(RecordTypes.MapSet, (int)set), set.ToString(), Maps.MapSets.CellSize(set),
@@ -223,8 +227,10 @@ public static class BaseImporter
                 .. chunks.Where(c => c.Set == set).Select(c => new ChunkEntry(c.Row, c.Column,
                     c.Scene == 0 ? null : RecordId.Hex(RecordTypes.Scene, c.Scene),
                     c.AltScene == 0 ? null : RecordId.Hex(RecordTypes.Scene, c.AltScene),
-                    RecordId.Hex(RecordTypes.Map, c.Collision), c.Terrain)),
-            ])),
+                    RecordId.Hex(RecordTypes.Map, c.Collision), c.Terrain,
+                    AudioFacts.ChunkMusic(c, audio) is { } music ? RecordId.Hex(RecordTypes.Sequence, music) : null)),
+            ],
+            AudioFacts.MapMusic(set, audio) is { Count: > 0 } setMusic ? [.. setMusic.Select(m => RecordId.Hex(RecordTypes.Sequence, m))] : null)),
     ];
 
     /// <summary>
@@ -472,6 +478,28 @@ public static class BaseImporter
         Flag(EngineFlags.CampCheck),
         [.. tables.CampDialogueFlags.Select(f => Flag(f))],
         RecordId.Hex(RecordTypes.Map, 0x185C));
+
+    /// <summary>The sounds engine code plays: from its tables where it has them, else its literals (<see cref="AudioFacts"/>).</summary>
+    internal static SoundsRecord BuildSounds(AudioTables tables, BodySoundTables bodies)
+    {
+        static RecordId Sequence(int index) => RecordId.Hex(RecordTypes.Sequence, index);
+        return new SoundsRecord(
+            RecordId.Decimal(RecordTypes.Sounds, 0),
+            new MenuSounds(Sequence(AudioFacts.Cursor), Sequence(AudioFacts.PageCursor), Sequence(AudioFacts.Accept), Sequence(AudioFacts.Back),
+                Sequence(AudioFacts.TabBack), Sequence(AudioFacts.TabForward), Sequence(AudioFacts.Member), Sequence(AudioFacts.LevelUp),
+                Sequence(AudioFacts.CheatAccepted), Sequence(AudioFacts.CheatRejected)),
+            [.. tables.Script.Select(Sequence)],
+            Sequence(AudioFacts.Experience),
+            Sequence(AudioFacts.GoldGained),
+            Sequence(AudioFacts.GoldPaid),
+            [.. tables.Containers.Select(Sequence)],
+            [.. tables.Explosions.Select(Sequence)],
+            Sequence(AudioFacts.Rain),
+            [.. AudioFacts.Thunder.Select(Sequence)],
+            Sequence(AudioFacts.Title),
+            Sequence(AudioFacts.Credits),
+            BodySoundImporter.Kinds(bodies));
+    }
 
     private static RecordId[] Flags(EngineFlagRange range) => [.. Enumerable.Range(range.First, range.Bits).Select(Flag)];
 

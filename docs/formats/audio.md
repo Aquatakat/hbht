@@ -77,4 +77,5 @@ Two players run on libultra's synthesizer, each called every 1000 µs of audio (
 ## In the base plugin
 
 - **A sequence** is `aidyn:sequence/0xHHHH` in `records/sequences.json`: its tracks, its loop position and its instruments, each naming its sample with its loop. Its event stream is the asset `sequence/0xHHHH.dcm`, as the ROM has it ([ADR 0016](../adr/0016-sequences-keep-the-originals-events.md)).
+- **What plays them** is on other records: the sounds engine code names in `aidyn:sounds/0`, the music on the map sets and their chunks, the audio keys on the entities, and weapons' and spells' sounds on theirs ([audio](../systems/audio.md#whats-ported)).
 - **A sample** is the asset `sample/0xHHHH.wav`, mono 16-bit. It has no record. A WAV needs a rate, so each says the pitch its sample is most often played at, which is only for listening to it elsewhere: the player ignores it.

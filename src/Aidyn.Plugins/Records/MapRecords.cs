@@ -9,7 +9,16 @@ namespace Aidyn.Plugins.Records;
 /// </summary>
 /// <param name="Label">The set's name, for tools.</param>
 /// <param name="CellSize">The spacing of the chunks, the same along X and Z.</param>
-public sealed record MapSetRecord(RecordId Id, string Label, float CellSize, IReadOnlyList<ChunkEntry> Chunks)
+/// <param name="Music">
+/// The music that plays in the set, one at random as each chunk is come into, where the chunk has none of its own
+/// (<see cref="ChunkEntry.Music"/>). With neither, the music stops.
+/// </param>
+public sealed record MapSetRecord(
+    RecordId Id,
+    string Label,
+    float CellSize,
+    IReadOnlyList<ChunkEntry> Chunks,
+    IReadOnlyList<RecordId>? Music = null)
 {
     /// <summary>Where a chunk's own coordinates start: rows run along X and columns along Z.</summary>
     public Vector3 Origin(int row, int column) => new Vector3(row, 0, column) * CellSize;
@@ -24,7 +33,15 @@ public sealed record MapSetRecord(RecordId Id, string Label, float CellSize, IRe
 /// <param name="AltScene">Its see-through scenery, such as water, drawn after everything else.</param>
 /// <param name="Map">Its collision and map objects.</param>
 /// <param name="Terrain">The terrain type, which weather and camp encounters use.</param>
-public sealed record ChunkEntry(int Row, int Column, RecordId? Scene, RecordId? AltScene, RecordId Map, int Terrain)
+/// <param name="Music">The music that plays as the player comes into it, before its map set's own.</param>
+public sealed record ChunkEntry(
+    int Row,
+    int Column,
+    RecordId? Scene,
+    RecordId? AltScene,
+    RecordId Map,
+    int Terrain,
+    RecordId? Music = null)
 {
     /// <summary>The chunk as the debug overlay names it, such as <c>I08</c>.</summary>
     [JsonIgnore]

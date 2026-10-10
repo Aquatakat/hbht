@@ -55,6 +55,11 @@ public sealed class GameState : IScriptWorld
 
     private CampingRecord? _camping;
 
+    /// <summary>The sounds engine code plays (<c>aidyn:sounds/0</c>), or null if no plugin has them, when nothing plays.</summary>
+    public SoundsRecord? Sounds => _sounds ??= Plugins.All<SoundsRecord>(RecordTypes.Sounds).SingleOrDefault();
+
+    private SoundsRecord? _sounds;
+
     /// <summary>Writes the clock, rain and terrain into the flags.</summary>
     public StateFlags StateFlags { get; }
 

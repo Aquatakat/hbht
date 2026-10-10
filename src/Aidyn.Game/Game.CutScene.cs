@@ -19,6 +19,8 @@ public partial class Game
     private Core.Chunks.ChunkStreamer? _stage;
     private ChunkStreamerView? _stageView;
     private readonly Dictionary<CutSceneActor, CutSceneActorView> _actorViews = [];
+    /// <summary>What each actor's sounds keep: they all have Alaron's (<see cref="TrekLoop.AlaronSounds"/>).</summary>
+    private readonly Dictionary<CutSceneActor, Core.Audio.BodyAudio> _actorAudio = [];
     /// <summary>The line the box last showed in the cut-scene, to show a new page once.</summary>
     private ScriptLine? _sceneLine;
 
@@ -84,6 +86,11 @@ public partial class Game
             return;
         }
         _stage = new Core.Chunks.ChunkStreamer(_plugins!, _game!, _world, stage.Set);
+        // The stage's chunks play their sounds, and its map set and chunk ask for their music (InitZoneEngine).
+        var sounds = _trek.Sounds;
+        _stage.Loaded += (_, map) => sounds.Load(map);
+        _stage.Unloading += (_, map) => sounds.Unload(map);
+        _audio!.Music = Core.Audio.MapMusic.For(stage.Set, stage.Chunk, _game!.Random.Cosmetic);
         _stageView = new ChunkStreamerView(_plugins!, _models!, _stage, null, _shadowTexture) { Name = "Stage" };
         AddChild(_stageView);
         var middle = stage.Origin + new System.Numerics.Vector3(stage.Set.CellSize / 2, 0, stage.Set.CellSize / 2);
@@ -104,7 +111,14 @@ public partial class Game
     private void StepCutScene()
     {
         var scene = _scene!;
-        scene.Tick(actor => _actorViews.TryGetValue(actor, out var view) ? view.Motion : IActorMotion.Still);
+        var keys = _trek!.Keys;
+        keys.Eye = scene.Camera.Position;
+        keys.Aim = scene.Camera.Aim;
+        scene.Tick(actor => _actorViews.TryGetValue(actor, out var view)
+            ? keys.Sounding(view.Motion, _actorAudio.TryGetValue(actor, out var audio) ? audio : _actorAudio[actor] = new(), _trek.AlaronSounds, actor.Body.Sphere)
+            : IActorMotion.Still);
+        // ProcessAudioBubbles hears the stage from where the camera looks.
+        _trek.Sounds.Step(scene.Camera.Aim, scene.Camera.Position, scene.Camera.Aim);
         _sky!.Step();
         ScrollTextures();
         SyncCutScene();
@@ -201,6 +215,7 @@ public partial class Game
         foreach (var view in _actorViews.Values)
             view.QueueFree();
         _actorViews.Clear();
+        _actorAudio.Clear();
         _stage!.Clear();
         _stage = null;
         _stageView!.QueueFree();

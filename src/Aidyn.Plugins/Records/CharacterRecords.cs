@@ -39,6 +39,7 @@ namespace Aidyn.Plugins.Records;
 /// </param>
 /// <param name="Body">How it stands in the world, as a wanderer.</param>
 /// <param name="Member">The flags the engine keeps for a recruitable party member. Null for everyone else, Alaron and Trahern among them.</param>
+/// <param name="Sounds">Its body's footsteps and voice (the original's audio keys), or null for silence.</param>
 public sealed record EntityRecord(
     RecordId Id,
     string Name,
@@ -68,7 +69,8 @@ public sealed record EntityRecord(
     RecordId? TrueNameFlag = null,
     RecordId? SoleWeapon = null,
     EntityBody? Body = null,
-    MemberFlags? Member = null);
+    MemberFlags? Member = null,
+    BodySounds? Sounds = null);
 
 /// <summary>
 /// What the engine does for a recruitable party member (<c>Party::CheckFlags</c>, <c>SaveEntity::GetSlot</c>).
@@ -258,6 +260,7 @@ public sealed record TrainingPrices(int FirstLevelGold, int GoldPerLevel, float 
 /// What C-down's details say of it (<c>aidyn:strings/2</c>). Four spells have none, and the original
 /// can't show their details.
 /// </param>
+/// <param name="Cast">What casting it plays, in combat (<c>AudioKeys.PlaySpellCast</c>).</param>
 /// <param name="Position">
 /// Its place in the spell table (<c>SpellDB</c>), which groups spells by school. Loading a save puts a
 /// spellbook in this order, school by school, as the original does (<c>SaveParty::LoadSpell</c>). A
@@ -279,7 +282,8 @@ public sealed record SpellRecord(
     int Unk1E,
     RecordId? Icon = null,
     string? Description = null,
-    int? Position = null);
+    int? Position = null,
+    RecordId? Cast = null);
 
 /// <summary>How many targets a spell takes.</summary>
 public enum SpellTargetCount

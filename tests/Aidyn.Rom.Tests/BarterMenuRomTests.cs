@@ -126,7 +126,7 @@ public sealed class BarterMenuRomTests(MapObjectFixture fixture)
 
         public void Changed(Aidyn.Core.MapObjects.LoadedMap map, SceneObject scene) { }
 
-        public void Sound(string cue) { }
+        public void Sound(Aidyn.Core.Audio.OneShot sound) { }
     }
 
     [Fact]

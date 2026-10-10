@@ -22,7 +22,7 @@ This is the one list of what's open. A task's status is in its phase's table bel
 
 ### Next
 
-1. **1D Audio:** Done first in order to fully complete the following. The formats, the importer and the player are done; the user listens to `aidyn audio`'s renders against the emulator. Next, the runtime plays them, in this order: the music by map set, the map's sound objects, the one-shots (menus, scripts, containers), then bodies' footsteps and voices and the weather ([audio](systems/audio.md)).
+1. **1D Audio:** the runtime plays the music by chunk, the map's sound objects, the menus', scripts' and containers' one-shots, and bodies' footsteps and voices. Next, the user listens against the emulator, with [to-check](to-check.md)'s audio entries. What's left plays with what isn't ported yet: the title, the cinematics, combat, the weather and the cheats ([audio](systems/audio.md#not-played-yet)).
 2. **UI fit and finish:** Menu animations, speed adjustments on the scroll between system/party/world menus, console-accurate corrections to certain menus, sounds.
 3. **Rendering leftovers,** including weather.
 4. **Any other odds and ends,** including shop selling prices.
@@ -42,7 +42,6 @@ Once every system built so far is at least at parity with the original, we'll mo
   - Boss flags, which battles set.
   - Spells' and potions' modifiers on characters.
   - The Antidote and Restore potions, which need combat's poison and spells.
-- **Waiting for 1D:** sounds. Cues that play one are logged.
 - **Waiting for the user:** shop selling prices ([to-check](to-check.md)).
 - **1H:** the content tables marked To do in [hardcoded-content](hardcoded-content.md), which the importer will need.
 - **Rendering:** the renderer's leftovers, the weather among them ([rendering](systems/rendering.md#whats-left)).
@@ -162,7 +161,7 @@ Each track ends with an exporter to an open format and a viewer in the inspector
 | **1A Static graphics** | Borg1 textures (every N64 format, de-interleave, TLUT), Borg8 UI images, Borg2 via a minimal F3DEX interpreter, Borg3 camera, Borg4 lights, Borg5 scene graph (transforms, instruction list, texture binds) | L | glTF export of a building and a character matches the emulator | Done |
 | **1B Animation** | Borg6 tracks and keyframes, Borg7 actor animation sets, branches, and transitions, Borg5 particles | L | The opening cinematic plays in the inspector | Done Sep 27, 2026: the user confirmed all 13 shots |
 | **1C Maps** | Chunk tables per map region (from the code segment), Borg9 collision (triangles, collide sections, ground types), all map object types, Expansion Pak variants | L | A map viewer shows a whole region, with objects overlaid by type | Done Sep 27, 2026 |
-| **1D Audio** | Borg11 PCM, Borg12 sequence format and playback, the audiokey table | M | BGM plays correctly | Started Oct 9, 2026: the formats, the importer and the player are done, and `aidyn audio` renders every sequence ([audio](formats/audio.md)). What plays what is researched ([audio](systems/audio.md)); the runtime plays nothing yet. |
+| **1D Audio** | Borg11 PCM, Borg12 sequence format and playback, the audiokey table | M | BGM plays correctly | Started Oct 9, 2026: the formats, the importer and the player are done, and `aidyn audio` renders every sequence ([audio](formats/audio.md)). Oct 10: the runtime plays the music, the map's sounds, the one-shots and bodies' footsteps and voices ([audio](systems/audio.md)). |
 | **1E Quest atlas** | Borg13 decoding, including **branching semantics** (`text_marker`, `a/b`, `index`, `bitmask`, choices), the GameStateFunnel logic network, flag cross-referencing, and journal linkage | L | See below | Done |
 | **1F Text & UI assets** | All string tables, the font, portraits, menu images | S | Full text dump; the dialogue box renders in the right font | Done |
 | **1G Saves** (optional) | Importing the original's Controller Pak saves: the bit-packed party, the 640-byte flag block, the 1,984-byte game state, the 4 KB 64×32 screenshot, the minimap, the `voxelChart`, and the checksum | M | An original Controller Pak save imports | Open. The checkpoints already convert into saves (2.8). |

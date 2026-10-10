@@ -56,10 +56,6 @@ public sealed class TrekLoopTests(MapObjectFixture fixture)
         {
         }
 
-        void ITrekHost.Sound(string cue)
-        {
-        }
-
         void ITrekHost.Say(string text) => Said.Add(text);
 
         void ITrekHost.Log(string text)

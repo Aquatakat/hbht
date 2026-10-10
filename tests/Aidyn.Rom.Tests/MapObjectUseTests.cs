@@ -47,7 +47,7 @@ public sealed class MapObjectUseTests(MapObjectFixture fixture)
         public List<DialogueObject> Scripts { get; } = [];
         public List<(SceneObject Actor, int Request)> Animations { get; } = [];
         public List<SceneObject> Changes { get; } = [];
-        public List<string> Sounds { get; } = [];
+        public List<Aidyn.Core.Audio.OneShot> Sounds { get; } = [];
 
         public bool Idle => Teleports.Count + Loots.Count + Scripts.Count + Animations.Count + Changes.Count + Sounds.Count == 0;
 
@@ -61,7 +61,7 @@ public sealed class MapObjectUseTests(MapObjectFixture fixture)
 
         public void Changed(LoadedMap map, SceneObject scene) => Changes.Add(scene);
 
-        public void Sound(string cue) => Sounds.Add(cue);
+        public void Sound(Aidyn.Core.Audio.OneShot sound) => Sounds.Add(sound);
     }
 
     private Play NewGame()
