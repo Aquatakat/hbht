@@ -23,7 +23,7 @@ This is the one list of what's open. A task's status is in its phase's table bel
 ### Next
 
 1. **1D Audio:** the runtime plays the music by chunk, the map's sound objects, the menus', scripts' and containers' one-shots, and bodies' footsteps and voices. Next, the user listens against the emulator, with [to-check](to-check.md)'s audio entries. What's left plays with what isn't ported yet: the title, the cinematics, combat, the weather and the cheats ([audio](systems/audio.md#not-played-yet)).
-2. **UI fit and finish:** Menu animations, speed adjustments on the scroll between system/party/world menus, console-accurate corrections to certain menus, sounds.
+2. **UI fit and finish:** Menu animations, console-accurate corrections to certain menus, sounds. The pause menu's opening and closing (the world darkening, the 3D scroll unrolling and rolling up) and its tabs' slide are done (Oct 12, 2026); the Party tab's list and portraits' slides and the details' and popups' fades are left.
 3. **Rendering leftovers,** including weather.
 4. **Any other odds and ends,** including shop selling prices.
 

@@ -26,6 +26,13 @@ public static class Cadence
     /// </remarks>
     public const int TextureFrameTicks = 3;
 
+    /// <summary>
+    /// The ticks in a frame of the pause menu: 60 fps. The menu steps its slides, fades and scroll once a frame, and
+    /// its frames are light: a slide of 32 frames at 2 ticks felt slow beside the emulator's to the user (Oct 12,
+    /// 2026), and 1 is the only shorter whole number.
+    /// </summary>
+    public const int MenuFrameTicks = 1;
+
     /// <summary>An amount added once a frame, spread evenly over the frame's ticks.</summary>
     public static float PerTick(float perFrame) => perFrame / FrameTicks;
 

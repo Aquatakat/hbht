@@ -24,8 +24,13 @@ public enum PauseTab
 /// </summary>
 /// <remarks>
 /// <para>
+/// Opening, the world as it was drawn freezes and darkens to half over 13 frames, and then the 3D scroll
+/// (<see cref="PauseScrollView"/>) unrolls with the tabs between its rollers; closing, it rolls up and the world
+/// brightens again (<see cref="PauseScroll"/>). The menu takes input only while it's open.
+/// </para>
+/// <para>
 /// Z or L, and R, change the tab, which slides over 32 frames, as the original's moves 10 pixels a frame across its
-/// 320; presses wait while it slides. There's no wrap. The System tab can be left only from its list, as the
+/// 320, with the scroll; presses wait while it slides. There's no wrap. The System tab can be left only from its list, as the
 /// original's can. On a PC, Z and X or the triggers change the tab.
 /// </para>
 /// <para>
@@ -61,7 +66,7 @@ public partial class PauseMenu : CanvasLayer
     public const int MenuLayer = 10;
 
     /// <summary>How far a tab slides a tick: the original's 10 pixels a frame of its 320.</summary>
-    private const float SlidePerTick = 10f / 320 / Cadence.FrameTicks;
+    private const float SlidePerTick = 10f / 320 / Cadence.MenuFrameTicks;
 
     /// <summary>How far the widgets of a tab beside the one showing are faded into its parchment.</summary>
     private const float NeighbourVeil = 0.6f;
@@ -77,6 +82,21 @@ public partial class PauseMenu : CanvasLayer
     private readonly UiScreen _screen = new() { ForwardsMouse = true };
     private readonly MenuStick _stick;
     private readonly TextLayout _mainFont;
+    /// <summary>The world as it was when the menu opened, darkened behind it (<c>GetSnapShot</c>, <c>PauseMenu.DrawBackdrop</c>).</summary>
+    private readonly TextureRect _backdrop = new()
+    {
+        Name = "Backdrop",
+        ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+        StretchMode = TextureRect.StretchModeEnum.Scale,
+        MouseFilter = Control.MouseFilterEnum.Ignore,
+    };
+    /// <summary>The tabs, cut to what the scroll has unrolled.</summary>
+    private readonly Control _tabs = new() { Name = "Tabs", ClipContents = true, MouseFilter = Control.MouseFilterEnum.Ignore };
+    private readonly Models _models;
+    private readonly PauseScrollView? _scrollView;
+    private PauseScroll _scroll = new(0);
+    private Action? _afterClosing;
+    private int _ticks;
     private PartyTabView? _view;
     private SystemTabView? _system;
     private WorldTabView? _world;
@@ -96,9 +116,21 @@ public partial class PauseMenu : CanvasLayer
         Name = "Pause menu";
         Layer = MenuLayer;
         Visible = false;
+        _models = new Models(plugins);
+        _backdrop.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        AddChild(_backdrop);
         _screen.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         AddChild(_screen);
+        _screen.Canvas.AddChild(_tabs);
+        _scrollView = PauseScrollView.Create(plugins, _models);
+        if (_scrollView is not null)
+        {
+            _scrollView.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+            _screen.Canvas.AddChild(_scrollView);
+        }
     }
+
+    public override void _ExitTree() => _models.Dispose();
 
     public bool IsOpen => Visible;
 
@@ -133,7 +165,7 @@ public partial class PauseMenu : CanvasLayer
             Audio?.Play(pick(sounds.Menu), ticks);
     }
 
-    /// <summary>The tabs slide in as the menu opens, or out as it closes (<c>BigAssMenu</c>, <c>PauseMenu.SlideOut</c>).</summary>
+    /// <summary>The scroll unrolls as the menu opens, or rolls up as it closes (<c>BigAssMenu</c>, <c>PauseMenu.SlideOut</c>).</summary>
     private void SlideSound(bool opening) =>
         Sound((opening ? Tab != PauseTab.World : Tab == PauseTab.World) ? m => m.TabBack : m => m.TabForward, Core.Audio.OneShot.MenuTicks);
 
@@ -145,16 +177,22 @@ public partial class PauseMenu : CanvasLayer
     /// <summary>Opens the menu afresh on the party as it is now, on the tab it last showed.</summary>
     public void Open() => Open(_lastTab, tabsLocked: false);
 
-    private void Open(PauseTab tab, bool tabsLocked)
+    /// <param name="brightens">Whether the world brightens again as it closes; the loot window and shops snap back.</param>
+    private void Open(PauseTab tab, bool tabsLocked, bool brightens = true)
     {
-        // The world as it was before the menu covered it; a save's screenshot is cut from it.
+        // The world as it was before the menu covered it, which it darkens behind it; a save's screenshot is cut from it.
         _snapshot = GetViewport().GetTexture().GetImage();
+        _backdrop.Texture = ImageTexture.CreateFromImage(_snapshot);
+        _scroll = new PauseScroll((int)tab, brightens);
+        _scrollView?.Restart();
+        _afterClosing = null;
+        _ticks = 0;
         // Skill checks and potions in trek draw from the world's stream.
         var menu = PartyMenu.From(_plugins, _game.Party, random: _game.Random.World);
         if (_view is null)
         {
             _view = new PartyTabView(_plugins, menu);
-            _screen.Canvas.AddChild(_view);
+            AddTab(_view);
         }
         else
         {
@@ -166,7 +204,7 @@ public partial class PauseMenu : CanvasLayer
         if (_system is null)
         {
             _system = new SystemTabView(_plugins, system);
-            _screen.Canvas.AddChild(_system);
+            AddTab(_system);
         }
         else
         {
@@ -177,7 +215,7 @@ public partial class PauseMenu : CanvasLayer
         if (_world is null)
         {
             _world = new WorldTabView(_plugins, world);
-            _screen.Canvas.AddChild(_world);
+            AddTab(_world);
         }
         else
         {
@@ -191,7 +229,14 @@ public partial class PauseMenu : CanvasLayer
         _stick.Clear();
         Visible = true;
         Activate();
-        SlideSound(opening: true);
+        ShowScroll();
+    }
+
+    /// <summary>A tab, laid out by <see cref="Place"/> at the screen's size rather than its parent's.</summary>
+    private void AddTab(Control tab)
+    {
+        _tabs.AddChild(tab);
+        tab.SetAnchorsPreset(Control.LayoutPreset.TopLeft);
     }
 
     /// <summary>
@@ -200,7 +245,7 @@ public partial class PauseMenu : CanvasLayer
     /// </summary>
     public void OpenLoot(ItemPile loot, int gold)
     {
-        Open(PauseTab.Party, tabsLocked: true);
+        Open(PauseTab.Party, tabsLocked: true, brightens: false);
         _view!.Barter = BarterMenu.ForLoot(_plugins, _game.Party, loot, gold, _game.Flags, _game.Random.World);
         // The coins, a second after the window opens, at the sound volume as their gain.
         if (gold > 0 && _game.Sounds is { } sounds)
@@ -213,7 +258,7 @@ public partial class PauseMenu : CanvasLayer
     /// </summary>
     public void OpenShop(Shop shop)
     {
-        Open(PauseTab.Party, tabsLocked: true);
+        Open(PauseTab.Party, tabsLocked: true, brightens: false);
         _view!.Barter = BarterMenu.ForShop(_plugins, shop, _game.Random.World);
     }
 
@@ -224,16 +269,82 @@ public partial class PauseMenu : CanvasLayer
         _view!.Training = TrainingMenu.For(_plugins, _game.Party, trainer, _game.Flags, _game.Random.World);
     }
 
-    public void Close()
+    /// <summary>Rolls the scroll up and closes the menu, and then does <paramref name="then"/>.</summary>
+    public void Close(Action? then = null)
     {
+        if (_scroll.Phase is PauseScrollPhase.Rolling or PauseScrollPhase.Brightening)
+            return;
+        if (_scroll.Phase != PauseScrollPhase.Open)
+        {
+            CloseNow();
+            then?.Invoke();
+            return;
+        }
         SlideSound(opening: false);
+        _scroll.Close((int)Tab);
+        // The scroll takes its closing state at once (SlideOut).
+        _scrollView?.Step(_scroll.TakeRequest());
+        _afterClosing = then;
+        _view!.DetailsOpen = false;
+        _stick.Clear();
+        ShowScroll();
+    }
+
+    /// <summary>Closes the menu at once, as loading a save does.</summary>
+    public void CloseNow()
+    {
+        if (!IsOpen)
+            return;
+        if (_scroll.Phase is not (PauseScrollPhase.Rolling or PauseScrollPhase.Brightening or PauseScrollPhase.Closed))
+            SlideSound(opening: false);
         Visible = false;
         if (!_tabsLocked)
             _lastTab = Tab;
         _snapshot = null;
+        _backdrop.Texture = null;
         _view?.ProcessMode = ProcessModeEnum.Disabled;
         _system?.ProcessMode = ProcessModeEnum.Disabled;
         Closed?.Invoke();
+        var then = _afterClosing;
+        _afterClosing = null;
+        then?.Invoke();
+    }
+
+    /// <summary>Whether the menu takes input: once the scroll has unrolled, and until it rolls up.</summary>
+    private bool Taking => _scroll.Phase == PauseScrollPhase.Open;
+
+    /// <summary>
+    /// One frame of the opening or closing: the world's tint, the scroll's step and where the tabs show. Closes the
+    /// menu once it has rolled up and the world is bright.
+    /// </summary>
+    private void StepScroll()
+    {
+        var wasDarkening = _scroll.Phase == PauseScrollPhase.Darkening;
+        // Without the scroll's actor, its animations take no time.
+        if (_scrollView is { } view)
+            _scroll.Step(view.Frame, view.Length);
+        else
+            _scroll.Step(1000, 1);
+        if (_scroll.StepsScroll)
+            _scrollView?.Step(_scroll.TakeRequest());
+        if (wasDarkening && _scroll.ShowsMenu)
+            SlideSound(opening: true);
+        if (_scroll.Phase == PauseScrollPhase.Closed)
+        {
+            CloseNow();
+            return;
+        }
+        ShowScroll();
+    }
+
+    /// <summary>Shows the opening or closing as it is: the world's tint and whether the tabs and scroll are drawn.</summary>
+    private void ShowScroll()
+    {
+        var tint = _scroll.Tint / 255f;
+        _backdrop.SelfModulate = new Color(tint, tint, tint);
+        _tabs.Visible = _scroll.ShowsMenu;
+        _scrollView?.Visible = _scroll.Phase != PauseScrollPhase.Darkening;
+        Place();
     }
 
     /// <summary>Only the tab showing steps, and takes the mouse.</summary>
@@ -247,15 +358,27 @@ public partial class PauseMenu : CanvasLayer
 
     /// <summary>
     /// Lays the tabs side by side, 320 apart, with the one at <see cref="_position"/> showing at the screen's centre
-    /// and those beside it at the screen's edges, faded. Barter and training show the Party tab alone.
+    /// and those beside it at the screen's edges, faded, and cuts them to what the scroll has unrolled. Barter and
+    /// training show the Party tab alone. The scroll moves with them.
     /// </summary>
     private void Place()
     {
         var screen = _screen.Canvas.GetViewportRect().Size;
+        // The frame's left edge, as the tabs centre it.
+        var frameLeft = ((int)screen.X - UiScreen.Width) / 2;
+        var (left, right) = _scroll.Clip is var (l, r)
+            ? (l <= 0 ? 0f : frameLeft + l, r >= UiScreen.Width ? screen.X : frameLeft + r)
+            : (0f, screen.X);
+        _tabs.Position = new Vector2(left, 0);
+        _tabs.Size = new Vector2(Math.Max(right - left, 0), screen.Y);
+        _scrollView?.X = _position <= 1
+            ? Mathf.Lerp(PauseScroll.TabX[0], PauseScroll.TabX[1], _position)
+            : Mathf.Lerp(PauseScroll.TabX[1], PauseScroll.TabX[2], _position - 1);
         foreach (var (control, tab) in new (Control, PauseTab)[] { (_system!, PauseTab.System), (_view!, PauseTab.Party), (_world!, PauseTab.World) })
         {
             var offset = ((int)tab - _position) * UiScreen.Width;
-            control.Position = new Vector2(Mathf.Round(offset), 0);
+            control.Position = new Vector2(Mathf.Round(offset) - left, 0);
+            control.Size = screen;
             control.Visible = Math.Abs(offset) < (screen.X + UiScreen.Width) / 2 && (!_tabsLocked || tab == PauseTab.Party);
             var veil = Math.Min(1, Math.Abs((int)tab - _position)) * NeighbourVeil;
             if (control is PartyTabView party)
@@ -271,7 +394,7 @@ public partial class PauseMenu : CanvasLayer
     private void ChangeTab(int by)
     {
         var to = (PauseTab)((int)Tab + by);
-        if (_tabsLocked || Sliding || to < PauseTab.System || to > LastTab)
+        if (_tabsLocked || Sliding || !Taking || to < PauseTab.System || to > LastTab)
             return;
         if (Tab == PauseTab.System && !_system!.Menu.OnList)
             return;
@@ -290,6 +413,12 @@ public partial class PauseMenu : CanvasLayer
     {
         if (!IsOpen || _system is null)
             return;
+        // The menu's frames.
+        if (++_ticks % Cadence.MenuFrameTicks != 0)
+            return;
+        StepScroll();
+        if (!IsOpen)
+            return;
         if (Sliding)
         {
             _position = Mathf.MoveToward(_position, (float)Tab, SlidePerTick);
@@ -297,7 +426,7 @@ public partial class PauseMenu : CanvasLayer
         }
         Place();
         // A volume steps every tick the stick is held, from the first.
-        if (Tab == PauseTab.System && !Sliding && _system.Menu.OnVolume)
+        if (Tab == PauseTab.System && !Sliding && Taking && _system.Menu.OnVolume)
         {
             var by = (Held("move_right") ? 1 : 0) - (Held("move_left") ? 1 : 0);
             if (by != 0)
@@ -325,7 +454,7 @@ public partial class PauseMenu : CanvasLayer
         {
             if (LoadGame is { } load)
             {
-                Close();
+                CloseNow();
                 load(target);
             }
             else
@@ -346,6 +475,9 @@ public partial class PauseMenu : CanvasLayer
     /// </summary>
     public bool Handle(InputEvent e)
     {
+        // Nothing reaches the menu while it opens or closes.
+        if (!Taking)
+            return e is InputEventKey or InputEventJoypadButton or InputEventJoypadMotion or InputEventAction;
         var sliding = Sliding;
         var taken = HandleInput(e);
         if (taken && !sliding && _view is not null)
@@ -510,8 +642,7 @@ public partial class PauseMenu : CanvasLayer
             world.Accept();
             if (world.CampChosen)
             {
-                Close();
-                CampChosen?.Invoke();
+                Close(() => CampChosen?.Invoke());
                 return true;
             }
         }
@@ -656,7 +787,7 @@ public partial class PauseMenu : CanvasLayer
 
     public override void _Process(double delta)
     {
-        if (!IsOpen || _view is null || _system is null || Sliding)
+        if (!IsOpen || _view is null || _system is null || Sliding || !Taking)
             return;
         _stick.Step(delta, Repeat);
     }

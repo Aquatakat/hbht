@@ -79,6 +79,11 @@ internal static class N64Material
         Body,
         /// <summary>Untinted, lit by the tint and the sun (<c>set_sun_light</c>): scene objects' actors, unless fullbright.</summary>
         SceneObject,
+        /// <summary>
+        /// Untinted and unfogged, lit by an ambient and two lights of its own (<see cref="SetOwnLights"/>), apart from the
+        /// world's: the pause menu's scroll, which its scene's lights light.
+        /// </summary>
+        Own,
     }
 
     /// <summary>Whether lit display lists are lit as the RSP does, from the globals, rather than by Godot's lights.</summary>
@@ -214,6 +219,19 @@ internal static class N64Material
     /// <summary>Sets how every mesh under <paramref name="root"/> is lit.</summary>
     public static void SetLighting(Node root, Lighting lighting) => SetOnMeshes(root, LightingParameter, (int)lighting);
 
+    /// <summary>
+    /// Lights every mesh under <paramref name="root"/> by an ambient and two lights, each a colour and the way to it in
+    /// world space, in on-screen values, for <see cref="Lighting.Own"/>.
+    /// </summary>
+    public static void SetOwnLights(Node root, Color ambient, (Color Color, Vector3 Toward) first, (Color Color, Vector3 Toward) second)
+    {
+        SetOnMeshes(root, "own_ambient", new Vector3(ambient.R, ambient.G, ambient.B));
+        SetOnMeshes(root, "own_light_color", new Vector3(first.Color.R, first.Color.G, first.Color.B));
+        SetOnMeshes(root, "own_light_direction", first.Toward.Normalized());
+        SetOnMeshes(root, "own_light2_color", new Vector3(second.Color.R, second.Color.G, second.Color.B));
+        SetOnMeshes(root, "own_light2_direction", second.Toward.Normalized());
+    }
+
     /// <summary>Gives every mesh under <paramref name="root"/> a scene object's tint, which the original averages with the scenery's.</summary>
     public static void SetObjectTint(Node root, Color onScreen) =>
         SetOnMeshes(root, ObjectTintParameter, new Color(onScreen, 1));
@@ -322,8 +340,10 @@ internal static class N64Material
 
                 	// The RSP's lighting, per vertex, in on-screen values.
                 	vec3 normal = normalize(MODEL_NORMAL_MATRIX * NORMAL);
-                	vec3 ambient = lighting == 1 ? n64_body_ambient : lighting == 2 ? n64_tint : vec3(1.0);
-                	vec3 sun = lighting == 0 ? vec3(0.0) : n64_sun_color * max(dot(normal, n64_sun_direction), 0.0);
+                	vec3 ambient = lighting == 1 ? n64_body_ambient : lighting == 2 ? n64_tint : lighting == 3 ? own_ambient : vec3(1.0);
+                	vec3 sun = lighting == 0 ? vec3(0.0)
+                		: lighting == 3 ? own_light_color * max(dot(normal, own_light_direction), 0.0) + own_light2_color * max(dot(normal, own_light2_direction), 0.0)
+                		: n64_sun_color * max(dot(normal, n64_sun_direction), 0.0);
                 	lit_shade = min(ambient + sun, vec3(1.0));
                 """
             : "";
@@ -355,8 +375,13 @@ internal static class N64Material
                 global uniform vec3 n64_sun_color;
                 global uniform vec3 n64_body_ambient;
                 instance uniform vec4 object_tint = vec4(0.0);
-                // 0 scenery, 1 a body, 2 a scene object's actor.
+                // 0 scenery, 1 a body, 2 a scene object's actor, 3 its own lights.
                 instance uniform int lighting = 0;
+                instance uniform vec3 own_ambient = vec3(1.0);
+                instance uniform vec3 own_light_color = vec3(0.0);
+                instance uniform vec3 own_light_direction = vec3(0.0, 1.0, 0.0);
+                instance uniform vec3 own_light2_color = vec3(0.0);
+                instance uniform vec3 own_light2_direction = vec3(0.0, 1.0, 0.0);
 
                 // On-screen colour and alpha: the mesh's tint when untextured, and its alpha.
                 uniform vec4 prim = vec4(1.0);
@@ -396,7 +421,7 @@ internal static class N64Material
                 	float far = n64_fog.w;
                 	float depth = max(-(MODELVIEW_MATRIX * vec4(VERTEX, 1.0)).z, 0.0001);
                 	float z = (far + near) / (far - near) - 2.0 * far * near / ((far - near) * depth);
-                	fog = far > near ? clamp((z * 500.0 + 500.0 - n64_fog.x) / (n64_fog.y - n64_fog.x), 0.0, 1.0) : 0.0;{{light}}
+                	fog = far > near && lighting != 3 ? clamp((z * 500.0 + 500.0 - n64_fog.x) / (n64_fog.y - n64_fog.x), 0.0, 1.0) : 0.0;{{light}}
                 }
 
                 void fragment() {
