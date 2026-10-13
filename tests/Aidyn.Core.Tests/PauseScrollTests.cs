@@ -6,7 +6,8 @@ public class PauseScrollTests
 {
     /// <summary>
     /// The scroll's actor as the menu steps it: a request enters its state on the first frame, holds the clock on the
-    /// next as the request goes back to 0, and then counts to the state's length, where it goes back to idle.
+    /// next as the request goes back to 0, and then counts to the state's length, where it goes to the request's
+    /// state, idle for 0. A join enters the request's state at its frame.
     /// </summary>
     private sealed class Scroll(Dictionary<int, int> lengths)
     {
@@ -14,14 +15,19 @@ public class PauseScrollTests
         public int State, Clock = 1;
         public int Length => lengths[State];
 
-        public void Step(int request)
+        public void Play(ScrollCue cue)
         {
-            var changed = request != _lastRequest;
-            _lastRequest = request;
+            if (cue.Join > 0)
+            {
+                (State, Clock) = (cue.Request, cue.Join);
+                return;
+            }
+            var changed = cue.Request != _lastRequest;
+            _lastRequest = cue.Request;
             if (Clock >= Length)
-                (State, Clock) = (0, 1);
-            else if (changed && request != 0)
-                (State, Clock) = (request, 1);
+                (State, Clock) = (cue.Request, 1);
+            else if (changed && cue.Request != 0)
+                (State, Clock) = (cue.Request, 1);
             else if (!changed)
                 Clock++;
         }
@@ -36,8 +42,24 @@ public class PauseScrollTests
     {
         menu.Step(scroll.Clock, scroll.Length);
         if (menu.StepsScroll)
-            scroll.Step(menu.TakeRequest());
+            scroll.Play(menu.TakeCue());
         return menu.Clip;
+    }
+
+    private static (PauseScroll, Scroll) Opened(int tab, bool holds = false, bool brightens = true)
+    {
+        var menu = new PauseScroll(tab, brightens, holds);
+        var scroll = NewScroll();
+        while (menu.Phase != PauseScrollPhase.Open)
+            Frame(menu, scroll);
+        return (menu, scroll);
+    }
+
+    /// <summary>Closes the menu as it does, stepping the scroll into its closing at once.</summary>
+    private static void Close(PauseScroll menu, Scroll scroll, int tab)
+    {
+        menu.Close(tab);
+        scroll.Play(menu.TakeCue());
     }
 
     [Fact]
@@ -55,20 +77,24 @@ public class PauseScrollTests
         Assert.True(menu.ShowsMenu);
         // The tabs show from this frame, cut as the opening starts: Party's to nothing.
         Assert.Equal((160, 160), menu.Clip);
-        Assert.Equal(10, menu.TakeRequest());
-        Assert.Equal(0, menu.TakeRequest());
+        Assert.Equal(new ScrollCue(10), menu.TakeCue());
+        Assert.Equal(default, menu.TakeCue());
     }
 
     [Fact]
-    public void PartyUnrollsFromTheMiddleAndTakesInputWhenTheAnimationEnds()
+    public void PartyUnrollsFromTheMiddleAndTakesInputWhenItsAnimationEnds()
     {
         var menu = new PauseScroll(tab: 1);
         var scroll = NewScroll();
         while (menu.Phase == PauseScrollPhase.Darkening)
             Frame(menu, scroll);
         var clips = new List<(int, int)?>();
+        var alphas = new List<float>();
         while (menu.Phase == PauseScrollPhase.Unrolling)
+        {
             clips.Add(Frame(menu, scroll));
+            alphas.Add(menu.Alpha);
+        }
         // Nothing until frame 37 of the 53, then wider each frame to the original's last, 17 to 303, which is in the
         // overscan, so the whole screen.
         Assert.Equal(54, clips.Count);
@@ -76,8 +102,41 @@ public class PauseScrollTests
         Assert.Equal((152, 168), clips[37]);
         Assert.Equal((26, 294), clips[^2]);
         Assert.Null(clips[^1]);
-        Assert.Null(Frame(menu, scroll));
+        // It fades in over its first 12 frames as it rises into the frame (the first shown twice).
+        Assert.Equal(1 / 12f, alphas[0], 4);
+        Assert.Equal(11 / 12f, alphas[11], 4);
+        Assert.All(alphas.Skip(12), a => Assert.Equal(1, a));
+    }
+
+    [Fact]
+    public void PartyRunsOnIntoTheOtherTabsOpeningAtItsTenthFrame()
+    {
+        var (menu, scroll) = Opened(tab: 1);
+        // Its last 9 frames are their first 9.
+        Assert.Equal((22, 10), (scroll.State, scroll.Clock));
+        Assert.True(menu.StepsScroll);
+        var frames = 0;
+        while (scroll.State == 22)
+        {
+            Assert.Null(Frame(menu, scroll));
+            frames++;
+        }
+        Assert.Equal(28, frames);
         Assert.Equal(0, scroll.State);
+    }
+
+    [Fact]
+    public void BarterAndTrainingHoldTheScrollWhereThePartyOpeningEnds()
+    {
+        var (menu, scroll) = Opened(tab: 1, holds: true);
+        Assert.Equal((10, 53), (scroll.State, scroll.Clock));
+        Assert.False(menu.StepsScroll);
+        for (var i = 0; i < 20; i++)
+            Assert.Null(Frame(menu, scroll));
+        Assert.Equal((10, 53), (scroll.State, scroll.Clock));
+        // Closing is the Party tab's own.
+        Close(menu, scroll, tab: 1);
+        Assert.Equal((19, 1), (scroll.State, scroll.Clock));
     }
 
     [Fact]
@@ -91,7 +150,10 @@ public class PauseScrollTests
                 Frame(menu, scroll);
             var clips = new List<(int, int)?>();
             while (menu.Phase == PauseScrollPhase.Unrolling)
+            {
                 clips.Add(Frame(menu, scroll));
+                Assert.Equal(1, menu.Alpha);
+            }
             Assert.Equal(first, clips[0]);
             Assert.Equal(last, clips[^1]);
             Assert.Null(Frame(menu, scroll));
@@ -99,32 +161,44 @@ public class PauseScrollTests
     }
 
     [Fact]
-    public void ClosingRollsUpThenBrightensTenAFrame()
+    public void ClosingFromPartyRunsTheOtherTabsClosingIntoThePartyTabsAndThenBrightens()
     {
-        var menu = new PauseScroll(tab: 1);
-        var scroll = NewScroll();
-        while (menu.Phase != PauseScrollPhase.Open)
+        var (menu, scroll) = Opened(tab: 1);
+        for (var i = 0; i < 40; i++)
             Frame(menu, scroll);
-        for (var i = 0; i < 20; i++)
-            Frame(menu, scroll);
-        menu.Close(tab: 1);
-        scroll.Step(menu.TakeRequest());
+        Close(menu, scroll, tab: 1);
+        Assert.Equal((11, 1), (scroll.State, scroll.Clock));
         var clips = new List<(int, int)?>();
+        var alphas = new List<float>();
         while (menu.Phase == PauseScrollPhase.Rolling)
+        {
             clips.Add(Frame(menu, scroll));
-        // To the middle over 13 frames, and gone after that.
-        Assert.Null(clips[0]);
-        // The first frame's 12 to 308 is in the overscan.
-        Assert.Null(clips[2]);
-        Assert.Equal((24, 296), clips[3]);
-        Assert.True(clips[14] is var (l, r) && l >= r);
+            alphas.Add(menu.Alpha);
+            // Their frames 31 to 39 are the Party tab's 1 to 9.
+            if (scroll.State == 19 && scroll.Clock == 1)
+                Assert.Equal(31, clips.Count);
+        }
+        // Their closing, its first frame shown twice, the rollers coming in to the frame's edges, with the tabs between.
+        Assert.All(clips.Take(31), Assert.Null);
+        // Then the Party tab's: to the middle over 13 frames, and gone after that.
+        var party = clips.Skip(31).ToList();
+        Assert.Null(party[0]);
+        // Its first frame's 12 to 308 is in the overscan.
+        Assert.Null(party[1]);
+        Assert.Equal((24, 296), party[2]);
+        Assert.True(party[13] is var (l, r) && l >= r);
+        Assert.Equal(53, party.Count);
+        // It fades out as it drops out of the frame, from its 41st frame.
+        Assert.All(alphas.Take(31 + 41), a => Assert.Equal(1, a));
+        Assert.Equal(6 / 12f, alphas[31 + 46], 4);
+        Assert.Equal(0, alphas[^1]);
         // The scroll stops on its last frame, and the world brightens back in 13 frames, the first with the last roll.
-        Assert.Equal(54, clips.Count);
         Assert.Equal(138, menu.Tint);
         var tints = new List<int> { menu.Tint };
         while (menu.Phase == PauseScrollPhase.Brightening)
         {
             Assert.False(menu.StepsScroll);
+            Assert.False(menu.ShowsMenu);
             Frame(menu, scroll);
             tints.Add(menu.Tint);
         }
@@ -133,32 +207,44 @@ public class PauseScrollTests
     }
 
     [Fact]
-    public void SystemRollsUpFromTheLeftAndWorldFromTheRight()
+    public void ClosingFromPartyWhileItRunsOnTurnsItsOpeningBack()
+    {
+        var (menu, scroll) = Opened(tab: 1);
+        for (var i = 0; i < 5; i++)
+            Frame(menu, scroll);
+        Assert.Equal((22, 15), (scroll.State, scroll.Clock));
+        Close(menu, scroll, tab: 1);
+        Assert.Equal((11, 25), (scroll.State, scroll.Clock));
+    }
+
+    [Fact]
+    public void SystemRollsUpFromTheLeftAndWorldFromTheRightFadingAsTheirRollersLeaveTheFrame()
     {
         foreach (var (tab, at10) in new[] { (0, (96, 320)), (2, (0, 235)) })
         {
-            var menu = new PauseScroll(tab);
-            var scroll = NewScroll();
-            while (menu.Phase != PauseScrollPhase.Open)
-                Frame(menu, scroll);
-            menu.Close(tab);
-            scroll.Step(menu.TakeRequest());
+            var (menu, scroll) = Opened(tab);
+            Close(menu, scroll, tab);
             var clips = new List<(int, int)?>();
+            var alphas = new List<float>();
             while (menu.Phase == PauseScrollPhase.Rolling)
+            {
                 clips.Add(Frame(menu, scroll));
+                alphas.Add(menu.Alpha);
+            }
             Assert.Equal(at10, clips[10]);
+            // The first frame is shown twice, so frame 29 is the 30th.
+            Assert.All(alphas.Take(30), a => Assert.Equal(1, a));
+            Assert.Equal(0.5f, alphas[34], 4);
+            Assert.Equal(0, alphas[^1]);
+            Assert.Equal(40, alphas.Count);
         }
     }
 
     [Fact]
     public void TheLootWindowSnapsBackToFullBrightness()
     {
-        var menu = new PauseScroll(tab: 1, brightens: false);
-        var scroll = NewScroll();
-        while (menu.Phase != PauseScrollPhase.Open)
-            Frame(menu, scroll);
-        menu.Close(tab: 1);
-        scroll.Step(menu.TakeRequest());
+        var (menu, scroll) = Opened(tab: 1, holds: true, brightens: false);
+        Close(menu, scroll, tab: 1);
         while (menu.Phase == PauseScrollPhase.Rolling)
             Frame(menu, scroll);
         Assert.Equal(PauseScrollPhase.Closed, menu.Phase);

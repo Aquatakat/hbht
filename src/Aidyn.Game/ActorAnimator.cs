@@ -99,6 +99,14 @@ public sealed class ActorAnimator : IActorMotion
         Play();
     }
 
+    /// <summary>Enters the state a request leads to partway through, at <paramref name="clock"/> (<see cref="ActorStateMachine.Join"/>).</summary>
+    public void Join(int request, int clock)
+    {
+        Machine.Join(request, clock);
+        Play();
+        Show((Machine.Clock - 1) / 60.0);
+    }
+
     private void Step()
     {
         if (Machine.Tick())

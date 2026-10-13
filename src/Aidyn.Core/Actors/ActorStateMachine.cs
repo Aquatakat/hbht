@@ -61,6 +61,19 @@ public sealed class ActorStateMachine
         Clock = 1;
     }
 
+    /// <summary>
+    /// Enters the state <paramref name="request"/> leads to from this one at <paramref name="clock"/>, as if it had
+    /// played up to there. It's the port's, for animations made to run on from one another, such as the pause menu's
+    /// scroll's; the original only enters a state at its start.
+    /// </summary>
+    public void Join(int request, int clock)
+    {
+        var branch = _actor.States[State].Branches.FirstOrDefault(b => b.Request == request)
+            ?? throw new ArgumentException($"{_actor.Id}'s state {State} has no branch for request {request}.", nameof(request));
+        Enter(branch.State);
+        Clock = Math.Clamp(clock, 1, Length(State));
+    }
+
     /// <summary>Advances a tick. Returns whether it entered a state, by a branch or by restarting.</summary>
     public bool Tick()
     {

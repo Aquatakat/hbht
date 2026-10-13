@@ -42,7 +42,8 @@ namespace Aidyn.Game;
 /// (join several with <c>+</c>, as in <c>move_forward+walk</c>),
 /// and <c>--screenshot &lt;png&gt;</c>, which saves the window after that and quits.
 /// <c>--sky original</c> places the sky's sprites as the original does rather than projected.
-/// <c>--menu 1</c> opens the pause menu, <c>--ui-lines &lt;n&gt;</c> sets the UI screen's height, and
+/// <c>--menu 1</c> opens the pause menu on the tab it last showed, <c>--menu system</c>, <c>party</c> or <c>world</c>
+/// on that tab, and <c>--menu loot</c> an empty loot window; <c>--ui-lines &lt;n&gt;</c> sets the UI screen's height, and
 /// <c>--press &lt;action&gt;,…</c> presses each action in turn, such as <c>pause,menu_member_next</c>.
 /// <c>--cutscene &lt;id&gt;</c> plays a cut-scene at once, as what starts it would.
 /// F toggles the free camera, F3 the debug overlay, F5 the pace, F6 the sky's placement and F7 the
@@ -299,8 +300,18 @@ public partial class Game : Node3D, ITrekHost
         _settings.Changed += ApplySettings;
         _settings.Changed += () => _settings.Save(DataPaths.Settings);
         GetViewport().SizeChanged += ApplyWorldLines;
-        if (args.GetValueOrDefault("menu") == "1")
-            _menu.Open();
+        switch (args.GetValueOrDefault("menu"))
+        {
+            case "1":
+                _menu.Open();
+                break;
+            case "loot":
+                _menu.OpenLoot(new ItemPile(game.Party.Inventory!.Catalog), 0);
+                break;
+            case { } tab when Enum.TryParse<PauseTab>(tab, ignoreCase: true, out var opening):
+                _menu.Open(opening);
+                break;
+        }
 
         if (args.TryGetValue("fly", out var fly))
         {

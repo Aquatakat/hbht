@@ -174,8 +174,8 @@ public partial class PauseMenu : CanvasLayer
 
     private bool Sliding => !Mathf.IsEqualApprox(_position, (float)Tab);
 
-    /// <summary>Opens the menu afresh on the party as it is now, on the tab it last showed.</summary>
-    public void Open() => Open(_lastTab, tabsLocked: false);
+    /// <summary>Opens the menu afresh on the party as it is now, on the tab given or else the one it last showed.</summary>
+    public void Open(PauseTab? tab = null) => Open(tab ?? _lastTab, tabsLocked: false);
 
     /// <param name="brightens">Whether the world brightens again as it closes; the loot window and shops snap back.</param>
     private void Open(PauseTab tab, bool tabsLocked, bool brightens = true)
@@ -183,8 +183,9 @@ public partial class PauseMenu : CanvasLayer
         // The world as it was before the menu covered it, which it darkens behind it; a save's screenshot is cut from it.
         _snapshot = GetViewport().GetTexture().GetImage();
         _backdrop.Texture = ImageTexture.CreateFromImage(_snapshot);
-        _scroll = new PauseScroll((int)tab, brightens);
+        _scroll = new PauseScroll((int)tab, brightens, holds: tabsLocked);
         _scrollView?.Restart();
+        _scrollView?.Rendering = true;
         _afterClosing = null;
         _ticks = 0;
         // Skill checks and potions in trek draw from the world's stream.
@@ -283,7 +284,7 @@ public partial class PauseMenu : CanvasLayer
         SlideSound(opening: false);
         _scroll.Close((int)Tab);
         // The scroll takes its closing state at once (SlideOut).
-        _scrollView?.Step(_scroll.TakeRequest());
+        _scrollView?.Play(_scroll.TakeCue());
         _afterClosing = then;
         _view!.DetailsOpen = false;
         _stick.Clear();
@@ -298,6 +299,7 @@ public partial class PauseMenu : CanvasLayer
         if (_scroll.Phase is not (PauseScrollPhase.Rolling or PauseScrollPhase.Brightening or PauseScrollPhase.Closed))
             SlideSound(opening: false);
         Visible = false;
+        _scrollView?.Rendering = false;
         if (!_tabsLocked)
             _lastTab = Tab;
         _snapshot = null;
@@ -326,7 +328,7 @@ public partial class PauseMenu : CanvasLayer
         else
             _scroll.Step(1000, 1);
         if (_scroll.StepsScroll)
-            _scrollView?.Step(_scroll.TakeRequest());
+            _scrollView?.Play(_scroll.TakeCue());
         if (wasDarkening && _scroll.ShowsMenu)
             SlideSound(opening: true);
         if (_scroll.Phase == PauseScrollPhase.Closed)
@@ -337,13 +339,18 @@ public partial class PauseMenu : CanvasLayer
         ShowScroll();
     }
 
-    /// <summary>Shows the opening or closing as it is: the world's tint and whether the tabs and scroll are drawn.</summary>
+    /// <summary>Shows the opening or closing as it is: the world's tint and whether, and how opaque, the tabs and scroll are drawn.</summary>
     private void ShowScroll()
     {
         var tint = _scroll.Tint / 255f;
         _backdrop.SelfModulate = new Color(tint, tint, tint);
         _tabs.Visible = _scroll.ShowsMenu;
-        _scrollView?.Visible = _scroll.Phase != PauseScrollPhase.Darkening;
+        _tabs.Modulate = new Color(1, 1, 1, _scroll.Alpha);
+        if (_scrollView is { } view)
+        {
+            view.Visible = _scroll.ShowsMenu;
+            view.Alpha = _scroll.Alpha;
+        }
         Place();
     }
 
@@ -358,7 +365,8 @@ public partial class PauseMenu : CanvasLayer
 
     /// <summary>
     /// Lays the tabs side by side, 320 apart, with the one at <see cref="_position"/> showing at the screen's centre
-    /// and those beside it at the screen's edges, faded, and cuts them to what the scroll has unrolled. Barter and
+    /// and those beside it at the screen's edges, faded, and cuts them to what the scroll has unrolled: within the
+    /// original's clip, and between the scroll's rollers, so that its parchment never shows past them. Barter and
     /// training show the Party tab alone. The scroll moves with them.
     /// </summary>
     private void Place()
@@ -367,19 +375,21 @@ public partial class PauseMenu : CanvasLayer
         // The frame's left edge, as the tabs centre it.
         var frameLeft = ((int)screen.X - UiScreen.Width) / 2;
         var (left, right) = _scroll.Clip is var (l, r)
-            ? (l <= 0 ? 0f : frameLeft + l, r >= UiScreen.Width ? screen.X : frameLeft + r)
-            : (0f, screen.X);
-        // The scroll ends at the System tab's roller and the World tab's, which move with the tabs.
-        if (!_tabsLocked)
+            ? (l <= 0 ? float.NegativeInfinity : frameLeft + l, r >= UiScreen.Width ? float.PositiveInfinity : frameLeft + r)
+            : (float.NegativeInfinity, float.PositiveInfinity);
+        if (_scrollView is { } view)
         {
-            left = Math.Max(left, Mathf.Round(frameLeft - _position * UiScreen.Width) + PauseScroll.SystemEnd);
-            right = Math.Min(right, Mathf.Round(frameLeft + ((int)LastTab - _position) * UiScreen.Width) + PauseScroll.WorldEnd);
+            view.X = _position <= 1
+                ? Mathf.Lerp(PauseScroll.TabX[0], PauseScroll.TabX[1], _position)
+                : Mathf.Lerp(PauseScroll.TabX[1], PauseScroll.TabX[2], _position - 1);
+            var (systemEnd, worldEnd) = view.Arrange();
+            left = Math.Max(left, Mathf.Round(systemEnd));
+            right = Math.Min(right, Mathf.Round(worldEnd));
         }
+        left = Math.Clamp(left, 0, screen.X);
+        right = Math.Clamp(right, 0, screen.X);
         _tabs.Position = new Vector2(left, 0);
         _tabs.Size = new Vector2(Math.Max(right - left, 0), screen.Y);
-        _scrollView?.X = _position <= 1
-            ? Mathf.Lerp(PauseScroll.TabX[0], PauseScroll.TabX[1], _position)
-            : Mathf.Lerp(PauseScroll.TabX[1], PauseScroll.TabX[2], _position - 1);
         foreach (var (control, tab) in new (Control, PauseTab)[] { (_system!, PauseTab.System), (_view!, PauseTab.Party), (_world!, PauseTab.World) })
         {
             var offset = ((int)tab - _position) * UiScreen.Width;

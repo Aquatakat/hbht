@@ -73,6 +73,22 @@ public class ActorStateMachineTests
     }
 
     [Fact]
+    public void AJoinEntersTheRequestsStatePartwayAndCountsOnFromThere()
+    {
+        var actor = Walker();
+        actor.Join(7, 3);
+        Assert.Equal((3, 3), (actor.State, actor.Clock));
+        Assert.False(actor.Tick());
+        Assert.Equal(4, actor.Clock);
+        // A state with no branch for the request can't join it.
+        Assert.Throws<ArgumentException>(() => actor.Join(2, 1));
+        // Past the end, it starts at the last frame.
+        actor.Enter(0);
+        actor.Join(7, 9);
+        Assert.Equal((3, 4), (actor.State, actor.Clock));
+    }
+
+    [Fact]
     public void TheRootDoesntMoveOnTheTickAStateIsEnteredOrTheTwoAfter()
     {
         var actor = Walker();
