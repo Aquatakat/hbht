@@ -126,17 +126,17 @@ public class PauseScrollTests
     }
 
     [Fact]
-    public void BarterAndTrainingHoldTheScrollWhereThePartyOpeningEnds()
+    public void BarterAndTrainingRunOnAFrameAndHold()
     {
         var (menu, scroll) = Opened(tab: 1, holds: true);
-        Assert.Equal((10, 53), (scroll.State, scroll.Clock));
-        Assert.False(menu.StepsScroll);
+        Assert.Equal((22, 10), (scroll.State, scroll.Clock));
         for (var i = 0; i < 20; i++)
             Assert.Null(Frame(menu, scroll));
-        Assert.Equal((10, 53), (scroll.State, scroll.Clock));
-        // Closing is the Party tab's own.
+        Assert.Equal((22, 11), (scroll.State, scroll.Clock));
+        Assert.False(menu.StepsScroll);
+        // Closing turns it back, as from the Party tab.
         Close(menu, scroll, tab: 1);
-        Assert.Equal((19, 1), (scroll.State, scroll.Clock));
+        Assert.Equal((11, 29), (scroll.State, scroll.Clock));
     }
 
     [Fact]

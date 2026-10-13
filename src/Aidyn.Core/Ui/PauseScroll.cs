@@ -53,8 +53,8 @@ public readonly record struct ScrollCue(int Request, int Join = 0);
 /// <item>The Party tab's scroll fades in as it rises into the frame and out as it drops out of it; the System and
 /// World tabs fade out with their scroll as it rolls past the frame's edge, instead of the rolled-up scroll hanging
 /// there.</item>
-/// <item>Barter and training, which can't change tab, hold the scroll where the Party tab's opening ends, its rollers
-/// at the frame's edges.</item>
+/// <item>Barter and training, which can't change tab, run on only a little way and hold there, the rollers just past
+/// what the Party tab draws, its parchment's edges still under them.</item>
 /// </list>
 /// </remarks>
 public sealed class PauseScroll
@@ -98,6 +98,14 @@ public sealed class PauseScroll
     /// <summary>The frame of the System and World tabs' opening that the Party tab's runs on into: its last 9 frames are their first 9.</summary>
     private const int PartyRunsOnAt = 10;
 
+    /// <summary>
+    /// The frame of the System and World tabs' opening that barter and training hold at, running on as the Party tab's
+    /// does: the rollers just past what the Party tab draws, its parchment's edges still under them. A frame sooner, the
+    /// right roller covers the edge of Details' button; a frame later, the world shows between the parchment and both
+    /// rollers.
+    /// </summary>
+    private const int HoldsAt = 11;
+
     /// <summary>The last frame of the System and World tabs' closing before the Party tab's: their frames 31 to 39 are its 1 to 9.</summary>
     private const int PartyClosingFrom = 30;
 
@@ -122,7 +130,9 @@ public sealed class PauseScroll
     private bool _runningOn;
     /// <summary>Closing from Party: the other tabs' closing, before the Party tab's own.</summary>
     private bool _rollingIn;
-    /// <summary>The frame the scroll shows while running on.</summary>
+    /// <summary>Barter and training's scroll, run on as far as it goes and held there.</summary>
+    private bool _held;
+    /// <summary>The frame the scroll shows while running on or held.</summary>
     private int _shown;
 
     /// <param name="tab">The tab it opens on: 0 System, 1 Party, 2 World.</param>
@@ -130,7 +140,7 @@ public sealed class PauseScroll
     /// Whether the world brightens again after rolling up. The loot window and shops snap back (Game.Mode 7).
     /// </param>
     /// <param name="holds">
-    /// Whether the scroll holds where the Party tab's opening ends, for barter and training, which can't change tab.
+    /// Whether the scroll runs on only a little way and holds there, for barter and training, which can't change tab.
     /// </param>
     public PauseScroll(int tab, bool brightens = true, bool holds = false)
     {
@@ -150,8 +160,8 @@ public sealed class PauseScroll
     /// <summary>Whether the tabs and the scroll are built and drawn: once the world has darkened, until the scroll has rolled up.</summary>
     public bool ShowsMenu => Phase is PauseScrollPhase.Unrolling or PauseScrollPhase.Open or PauseScrollPhase.Rolling;
 
-    /// <summary>Whether the scroll's actor steps this frame. It holds still once rolled up, and in barter and training once open.</summary>
-    public bool StepsScroll => Phase is PauseScrollPhase.Unrolling or PauseScrollPhase.Rolling || Phase == PauseScrollPhase.Open && !_holds;
+    /// <summary>Whether the scroll's actor steps this frame. It holds still once rolled up, and in barter and training once run on.</summary>
+    public bool StepsScroll => Phase is PauseScrollPhase.Unrolling or PauseScrollPhase.Rolling || Phase == PauseScrollPhase.Open && !_held;
 
     /// <summary>How opaque the tabs and the scroll are, 0 to 1.</summary>
     public float Alpha { get; private set; } = 1;
@@ -196,7 +206,7 @@ public sealed class PauseScroll
                 if (frame <= Openings[Tab].Start || frame < length)
                     return;
                 Phase = PauseScrollPhase.Open;
-                if (Tab == Party && !_holds)
+                if (Tab == Party)
                 {
                     _cue = new(Openings[System].Request, PartyRunsOnAt);
                     _runningOn = true;
@@ -206,11 +216,15 @@ public sealed class PauseScroll
             case PauseScrollPhase.Open:
                 Clip = null;
                 Alpha = 1;
-                if (_runningOn)
+                if (!_runningOn)
+                    return;
+                if (_holds && frame >= HoldsAt)
                 {
-                    _runningOn = frame < length;
-                    _shown = frame + 1;
+                    (_runningOn, _held, _shown) = (false, true, frame);
+                    return;
                 }
+                _runningOn = frame < length;
+                _shown = frame + 1;
                 return;
             case PauseScrollPhase.Rolling:
                 if (_rollingIn)
@@ -257,12 +271,12 @@ public sealed class PauseScroll
         Phase = PauseScrollPhase.Rolling;
         Clip = null;
         Alpha = 1;
-        if (tab == Party && !_holds)
+        if (tab == Party)
         {
-            // The other tabs' closing first, from where their opening has got to if it's still running on.
+            // The other tabs' closing first, from where their opening has got to if it's still running on or held.
             _rollingIn = true;
-            _cue = _runningOn ? new(Closings[System].Request, Reversed - _shown) : new(Closings[System].Request);
-            _runningOn = false;
+            _cue = _runningOn || _held ? new(Closings[System].Request, Reversed - _shown) : new(Closings[System].Request);
+            (_runningOn, _held) = (false, false);
         }
         else
         {
