@@ -369,6 +369,12 @@ public partial class PauseMenu : CanvasLayer
         var (left, right) = _scroll.Clip is var (l, r)
             ? (l <= 0 ? 0f : frameLeft + l, r >= UiScreen.Width ? screen.X : frameLeft + r)
             : (0f, screen.X);
+        // The scroll ends at the System tab's roller and the World tab's, which move with the tabs.
+        if (!_tabsLocked)
+        {
+            left = Math.Max(left, Mathf.Round(frameLeft - _position * UiScreen.Width) + PauseScroll.SystemEnd);
+            right = Math.Min(right, Mathf.Round(frameLeft + ((int)LastTab - _position) * UiScreen.Width) + PauseScroll.WorldEnd);
+        }
         _tabs.Position = new Vector2(left, 0);
         _tabs.Size = new Vector2(Math.Max(right - left, 0), screen.Y);
         _scrollView?.X = _position <= 1

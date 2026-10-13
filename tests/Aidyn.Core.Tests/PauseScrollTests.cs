@@ -53,6 +53,8 @@ public class PauseScrollTests
         }
         Assert.Equal([245, 235, 225, 215, 205, 195, 185, 175, 165, 155, 145, 135, 128, 128], tints);
         Assert.True(menu.ShowsMenu);
+        // The tabs show from this frame, cut as the opening starts: Party's to nothing.
+        Assert.Equal((160, 160), menu.Clip);
         Assert.Equal(10, menu.TakeRequest());
         Assert.Equal(0, menu.TakeRequest());
     }

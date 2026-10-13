@@ -28,7 +28,7 @@ public enum PauseScrollPhase
 /// The clip is in the 320-pixel frame's columns. The original cuts each tab's image to it, in x only, and draws
 /// nothing of the tabs outside it. On the console the TV's overscan hides the frame's outer 16 columns, and the
 /// original's clips stop short of the edges, behind it: Party's opens to 17 and 303. The port shows those columns, so
-/// a side within <see cref="Overscan"/> of the frame's edge counts as at it, and the tabs cover them rather than the
+/// a side within a column of <see cref="Overscan"/> of the frame's edge counts as at it, and the tabs cover them rather than the
 /// darkened world showing there. A side at the frame's edge reaches the screen's, so a screen wider than the frame
 /// shows the tabs beside the one opening, as it does once the menu is open.
 /// </remarks>
@@ -70,11 +70,18 @@ public sealed class PauseScroll
     /// <summary>The frame's width, which the clip is in.</summary>
     private const int FrameWidth = 320;
 
+    /// <summary>The columns at each side of the frame that the TV's overscan hides: the captures are black over them.</summary>
+    public const int Overscan = 16;
+
+    /// <summary>A side of the clip this near the frame's edge counts as at it: the overscan, and the column more the Party tab's clip stops short of it.</summary>
+    private const int ClipOverscan = Overscan + 1;
+
     /// <summary>
-    /// The columns at each side of the frame that the clip treats as off it: the TV's overscan, which the captures show
-    /// black over 16, and the column the Party tab's clip stops short of it.
+    /// Where the scroll ends: the columns of the System and World tabs' frames that their rollers are centred on once
+    /// open, measured from the port's draw. The tabs' parchment is cut there, at either end of the scroll, so it never
+    /// shows past a roller, which the TV's overscan hides on the console. The user asked for this (Oct 12, 2026).
     /// </summary>
-    public const int Overscan = 17;
+    public const int SystemEnd = 37, WorldEnd = 289;
 
     private readonly bool _brightens;
     private int _request;
@@ -134,6 +141,7 @@ public sealed class PauseScroll
                 }
                 Phase = PauseScrollPhase.Unrolling;
                 _request = Openings[Tab].Request;
+                Clip = OpenClip(Openings[Tab], 1);
                 return;
             case PauseScrollPhase.Unrolling:
                 Clip = OpenClip(Openings[Tab], frame);
@@ -200,9 +208,9 @@ public sealed class PauseScroll
     private static (int, int)? Overscanned(int left, int right)
     {
         // An edge that has crossed the other, closing, keeps its place.
-        if (left <= Overscan && left <= right)
+        if (left <= ClipOverscan && left <= right)
             left = 0;
-        if (right >= FrameWidth - Overscan && right >= left)
+        if (right >= FrameWidth - ClipOverscan && right >= left)
             right = FrameWidth;
         return (left, right) == (0, FrameWidth) ? null : (left, right);
     }
