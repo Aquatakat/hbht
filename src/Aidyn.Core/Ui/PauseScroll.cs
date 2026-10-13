@@ -26,8 +26,11 @@ public enum PauseScrollPhase
 /// </summary>
 /// <remarks>
 /// The clip is in the 320-pixel frame's columns. The original cuts each tab's image to it, in x only, and draws
-/// nothing of the tabs outside it. A side at or past the frame's edge (0 or 320) reaches the screen's edge, so a
-/// screen wider than the frame shows the tabs beside the one opening, as it does once the menu is open.
+/// nothing of the tabs outside it. On the console the TV's overscan hides the frame's outer 16 columns, and the
+/// original's clips stop short of the edges, behind it: Party's opens to 17 and 303. The port shows those columns, so
+/// a side within <see cref="Overscan"/> of the frame's edge counts as at it, and the tabs cover them rather than the
+/// darkened world showing there. A side at the frame's edge reaches the screen's, so a screen wider than the frame
+/// shows the tabs beside the one opening, as it does once the menu is open.
 /// </remarks>
 public sealed class PauseScroll
 {
@@ -67,9 +70,14 @@ public sealed class PauseScroll
     /// <summary>The frame's width, which the clip is in.</summary>
     private const int FrameWidth = 320;
 
+    /// <summary>
+    /// The columns at each side of the frame that the clip treats as off it: the TV's overscan, which the captures show
+    /// black over 16, and the column the Party tab's clip stops short of it.
+    /// </summary>
+    public const int Overscan = 17;
+
     private readonly bool _brightens;
     private int _request;
-    private int _lastFrame;
 
     /// <param name="tab">The tab it opens on: 0 System, 1 Party, 2 World.</param>
     /// <param name="brightens">
@@ -96,8 +104,8 @@ public sealed class PauseScroll
     public bool StepsScroll => Phase is PauseScrollPhase.Unrolling or PauseScrollPhase.Open or PauseScrollPhase.Rolling;
 
     /// <summary>
-    /// The columns of the frame the tabs show between, or null for all of them. A side at or past the frame's
-    /// edge reaches the screen's edge.
+    /// The columns of the frame the tabs show between, or null for all of them. A side at the frame's edge, 0 or 320,
+    /// reaches the screen's edge.
     /// </summary>
     public (int Left, int Right)? Clip { get; private set; } = (0, 0);
 
@@ -130,18 +138,10 @@ public sealed class PauseScroll
             case PauseScrollPhase.Unrolling:
                 Clip = OpenClip(Openings[Tab], frame);
                 if (frame > Openings[Tab].Start && frame >= length)
-                {
                     Phase = PauseScrollPhase.Open;
-                    _lastFrame = frame;
-                }
                 return;
             case PauseScrollPhase.Open:
-                // The port carries the clip on past the animation's end until it's off the frame, where the original
-                // stops it a few columns short, behind the TV's overscan.
-                if (Clip is { } open && (open.Left > 0 || open.Right < FrameWidth))
-                    Clip = OpenClip(Openings[Tab], ++_lastFrame);
-                else
-                    Clip = null;
+                Clip = null;
                 return;
             case PauseScrollPhase.Rolling:
                 Clip = CloseClip(Closings[Tab], frame);
@@ -181,10 +181,10 @@ public sealed class PauseScroll
     private static (int, int)? OpenClip(Opening o, int frame)
     {
         if (frame <= o.Start)
-            return (o.Left, o.Right);
+            return Overscanned(o.Left, o.Right);
         var span = (float)(o.End - o.Start);
         var by = frame - o.Start;
-        return (o.Left + (int)(-o.Left / span * by), o.Right + (int)((o.RightEnd - o.Right) / span * by));
+        return Overscanned(o.Left + (int)(-o.Left / span * by), o.Right + (int)((o.RightEnd - o.Right) / span * by));
     }
 
     private static (int, int)? CloseClip(Closing c, int frame)
@@ -193,6 +193,17 @@ public sealed class PauseScroll
             return null;
         var span = (float)(c.End - c.Start);
         var by = frame - c.Start;
-        return ((int)(c.LeftEnd / span * by), FrameWidth + (int)((c.RightEnd - FrameWidth) / span * by));
+        return Overscanned((int)(c.LeftEnd / span * by), FrameWidth + (int)((c.RightEnd - FrameWidth) / span * by));
+    }
+
+    /// <summary>The original's clip, with a side in the overscan moved to the frame's edge; null if both are.</summary>
+    private static (int, int)? Overscanned(int left, int right)
+    {
+        // An edge that has crossed the other, closing, keeps its place.
+        if (left <= Overscan && left <= right)
+            left = 0;
+        if (right >= FrameWidth - Overscan && right >= left)
+            right = FrameWidth;
+        return (left, right) == (0, FrameWidth) ? null : (left, right);
     }
 }

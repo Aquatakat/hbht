@@ -67,14 +67,13 @@ public class PauseScrollTests
         var clips = new List<(int, int)?>();
         while (menu.Phase == PauseScrollPhase.Unrolling)
             clips.Add(Frame(menu, scroll));
-        // Nothing until frame 37 of the 53, then wider each frame to the original's last, 17 to 303.
+        // Nothing until frame 37 of the 53, then wider each frame to the original's last, 17 to 303, which is in the
+        // overscan, so the whole screen.
         Assert.Equal(54, clips.Count);
         Assert.All(clips.Take(37), c => Assert.Equal((160, 160), c));
         Assert.Equal((152, 168), clips[37]);
-        Assert.Equal((17, 303), clips[^1]);
-        // The port carries on to the frame's edges, and then shows the whole screen.
-        Assert.Equal((9, 311), Frame(menu, scroll));
-        Assert.Equal((0, 320), Frame(menu, scroll));
+        Assert.Equal((26, 294), clips[^2]);
+        Assert.Null(clips[^1]);
         Assert.Null(Frame(menu, scroll));
         Assert.Equal(0, scroll.State);
     }
@@ -82,7 +81,7 @@ public class PauseScrollTests
     [Fact]
     public void SystemUnrollsFromTheRightAndWorldFromTheLeft()
     {
-        foreach (var (tab, first, last) in new[] { (0, (320, 320), (-11, 320)), (2, (0, -5), (0, 342)) })
+        foreach (var (tab, first, last) in new (int, (int, int)?, (int, int)?)[] { (0, (320, 320), null), (2, (0, -5), null) })
         {
             var menu = new PauseScroll(tab);
             var scroll = NewScroll();
@@ -113,7 +112,9 @@ public class PauseScrollTests
             clips.Add(Frame(menu, scroll));
         // To the middle over 13 frames, and gone after that.
         Assert.Null(clips[0]);
-        Assert.Equal((12, 308), clips[2]);
+        // The first frame's 12 to 308 is in the overscan.
+        Assert.Null(clips[2]);
+        Assert.Equal((24, 296), clips[3]);
         Assert.True(clips[14] is var (l, r) && l >= r);
         // The scroll stops on its last frame, and the world brightens back in 13 frames, the first with the last roll.
         Assert.Equal(54, clips.Count);
