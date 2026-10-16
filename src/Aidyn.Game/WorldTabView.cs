@@ -8,8 +8,8 @@ namespace Aidyn.Game;
 /// <summary>
 /// Draws the pause menu's World tab (<see cref="WorldMenu"/>) on a <see cref="UiScreen"/>'s canvas, in the original's
 /// 320 × 240 frame at the screen's centre, on the tab's image, <c>0x00DA</c>: the map's pieces, the towns and the
-/// party's ring, the season's name, today's square, Camp and Journal, and over them the journal's book
-/// (<see cref="JournalMenu"/>) and the refusal's message.
+/// party's ring, the season's name, today's square, Camp and Journal, and over them the refusal's message. The journal
+/// is drawn over the whole menu, by <see cref="JournalView"/>.
 /// </summary>
 public partial class WorldTabView : Control
 {
@@ -30,16 +30,6 @@ public partial class WorldTabView : Control
     /// </remarks>
     private static readonly Rect2I PlainBand = new(155, 28, 110, 36);
     private const int CoverTop = 58, CoverBottom = 144, CoverFeather = 5;
-
-    // The journal: its arrows, and the strips of the book redrawn over the text at its edges, by how much of the
-    // book's alpha (0x80052a90 on).
-    private static readonly Vector2I BookUp = new(247, 30), BookDown = new(247, 184);
-    private const int FadeLeft = 62, FadeRight = 245;
-    private static readonly (int Top, int Bottom, float Share)[] EdgeFades =
-    [
-        (28, 33, 0.75f), (33, 35, 0.5f), (35, 37, 0.25f), (37, 40, 0.125f),
-        (210, 213, 0.125f), (213, 215, 0.25f), (215, 217, 0.5f), (217, 220, 0.75f),
-    ];
 
     private readonly UiPainter _ui;
 
@@ -96,8 +86,6 @@ public partial class WorldTabView : Control
                 _ui.Feathered(this, MenuImages.WorldTab, band, band.Position.X, top, feather, color: veil);
             }
         }
-        if (Menu.Journal is { } journal)
-            Book(journal);
         DrawSetTransform(Vector2.Zero);
         if (Menu.Message is { } message)
             _ui.Message(this, size, message.Text, MenuMessage.MaxWidth, MenuMessage.Color);
@@ -114,34 +102,5 @@ public partial class WorldTabView : Control
             _ui.Image(this, town.Image, town.X, town.Y);
         if (Active && Menu.Marker is { } marker)
             _ui.Image(this, Menu.Map.Marker, marker.X, marker.Y, color: Menu.MarkerNow);
-    }
-
-    /// <summary>
-    /// The journal: the book at its alpha, the entries clipped to the list's bounds, the book's edges redrawn over
-    /// them so they fade into the page, and the arrows, which show only once the book is opaque.
-    /// </summary>
-    private void Book(JournalMenu journal)
-    {
-        var alpha = journal.Alpha / 255f;
-        _ui.Image(this, MenuImages.Book, 0, 0, color: new Rgba(255, 255, 255, (byte)journal.Alpha));
-        var bounds = new ScreenRect(JournalMenu.Left, JournalMenu.Top, JournalMenu.Right, JournalMenu.Bottom);
-        foreach (var item in journal.Items)
-        {
-            var top = journal.ScreenTop(item);
-            if (top + item.Height <= JournalMenu.Top || top >= JournalMenu.Bottom)
-                continue;
-            var color = item.Newest ? JournalMenu.NewestColor : JournalMenu.TextColor;
-            _ui.Text(this, _ui.Main, item.Text, JournalMenu.Left, top, bounds, color with { A = (byte)(color.A * alpha) });
-        }
-        foreach (var (top, bottom, share) in EdgeFades)
-        {
-            _ui.Cut(this, MenuImages.Book, new Rect2I(FadeLeft, top, FadeRight - FadeLeft, bottom - top), FadeLeft, top,
-                color: new Rgba(255, 255, 255, (byte)(journal.Alpha * share)));
-        }
-        if (journal.Alpha < 255)
-            return;
-        var arrow = WorldMenu.TextColor;
-        _ui.Image(this, MenuImages.BookUp, BookUp.X, BookUp.Y, color: arrow with { A = (byte)journal.UpArrow });
-        _ui.Image(this, MenuImages.BookDown, BookDown.X, BookDown.Y, color: arrow with { A = (byte)journal.DownArrow });
     }
 }

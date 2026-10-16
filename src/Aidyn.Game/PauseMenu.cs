@@ -94,6 +94,8 @@ public partial class PauseMenu : CanvasLayer
     private readonly Control _tabs = new() { Name = "Tabs", ClipContents = true, MouseFilter = Control.MouseFilterEnum.Ignore };
     private readonly Models _models;
     private readonly PauseScrollView? _scrollView;
+    /// <summary>The World tab's journal, over the tabs and the scroll, which fade out under it.</summary>
+    private readonly JournalView _journal;
     private PauseScroll _scroll = new(0);
     private Action? _afterClosing;
     private int _ticks;
@@ -128,6 +130,9 @@ public partial class PauseMenu : CanvasLayer
             _scrollView.SetAnchorsPreset(Control.LayoutPreset.FullRect);
             _screen.Canvas.AddChild(_scrollView);
         }
+        _journal = new JournalView(plugins);
+        _journal.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        _screen.Canvas.AddChild(_journal);
     }
 
     public override void _ExitTree() => _models.Dispose();
@@ -304,6 +309,7 @@ public partial class PauseMenu : CanvasLayer
             _lastTab = Tab;
         _snapshot = null;
         _backdrop.Texture = null;
+        _journal.Journal = null;
         _view?.ProcessMode = ProcessModeEnum.Disabled;
         _system?.ProcessMode = ProcessModeEnum.Disabled;
         Closed?.Invoke();
@@ -339,17 +345,21 @@ public partial class PauseMenu : CanvasLayer
         ShowScroll();
     }
 
-    /// <summary>Shows the opening or closing as it is: the world's tint and whether, and how opaque, the tabs and scroll are drawn.</summary>
+    /// <summary>
+    /// Shows the opening or closing as it is: the world's tint and whether, and how opaque, the tabs and scroll are
+    /// drawn. They fade out as the journal fades in over them, and back as it fades out.
+    /// </summary>
     private void ShowScroll()
     {
         var tint = _scroll.Tint / 255f;
         _backdrop.SelfModulate = new Color(tint, tint, tint);
-        _tabs.Visible = _scroll.ShowsMenu;
-        _tabs.Modulate = new Color(1, 1, 1, _scroll.Alpha);
+        var alpha = _scroll.Alpha * (1 - _journal.Shown);
+        _tabs.Visible = _scroll.ShowsMenu && alpha > 0;
+        _tabs.Modulate = new Color(1, 1, 1, alpha);
         if (_scrollView is { } view)
         {
-            view.Visible = _scroll.ShowsMenu;
-            view.Alpha = _scroll.Alpha;
+            view.Visible = _scroll.ShowsMenu && alpha > 0;
+            view.Alpha = alpha;
         }
         Place();
     }
@@ -459,6 +469,12 @@ public partial class PauseMenu : CanvasLayer
             world.Active = showing;
             world.Menu.Step(showing, Sliding, showing && Held("move_forward"), showing && Held("move_back"));
             world.QueueRedraw();
+            if (world.Menu.Journal is not null || _journal.Journal is not null)
+            {
+                _journal.Journal = world.Menu.Journal;
+                _journal.QueueRedraw();
+                ShowScroll();
+            }
         }
     }
 
