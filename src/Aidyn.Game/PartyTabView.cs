@@ -31,13 +31,16 @@ public partial class PartyTabView : Control
     private static readonly Vector2I HealthBarAt = new(60, 5), HealthBarSize = new(80, 10);
     private static readonly Vector2I HpAt = new(63, 19), MaxHpAt = new(95, 19), LevelAt = new(63, 33), GoldAt = new(63, 47);
 
-    /// <summary>The silhouette and its slots' frames (DollEquipmentMenu::SetSlotCoords).</summary>
+    /// <summary>
+    /// The silhouette and its slots' frames (DollEquipmentMenu::SetSlotCoords). The shield's is level with the first
+    /// scroll's, as its frame painted into <c>0x00D9</c> is and the user's captures show; at 45 it stood 2 above it.
+    /// </summary>
     private static readonly Rect2I SilhouettePiece = new(18, 72, 114, 142);
 
     private static readonly Vector2I[] Slots =
     [
         new(10, 47), new(10, 66), new(10, 85), new(40, 2), new(40, 24), new(30, 43), new(50, 43), new(40, 62),
-        new(40, 120), new(70, 45), new(70, 66), new(70, 85), new(90, 47), new(90, 66), new(90, 85),
+        new(40, 120), new(70, 47), new(70, 66), new(70, 85), new(90, 47), new(90, 66), new(90, 85),
     ];
 
     private const int SlotSize = 16;
@@ -53,9 +56,10 @@ public partial class PartyTabView : Control
     private const int DetailsIndent = 16;
 
     // WidgetCrafting: the title centred at x 93 on the details' parchment, its list from x 23 to 163 under it,
-    // 122 tall for the Alchemist's recipes and 117 for the rest; a member's row is its portrait's 25.
+    // 122 tall for the Alchemist's recipes and 117 for the rest. A member's row is its portrait's 25 in the original, so
+    // the portraits touch and the next name overlaps the health by 2; the port leaves 3 between them, as the user asked.
     private const int CraftingTitleCentre = 93, CraftingTitleTop = 70, CraftingLeft = 23, CraftingRight = 163;
-    private const int MemberRow = 25, MemberPortrait = 25;
+    private const int MemberRow = 28, MemberPortrait = 25;
 
     private readonly UiPainter _ui;
     private ScreenRect _listBounds = ClassicList;

@@ -22,8 +22,11 @@ public partial class SystemTabView : Control
     /// <summary>The options' title's top, the rows' left (under the bar, which is centred) and the first row's top.</summary>
     private const int OptionsTitleTop = 40, OptionsLeft = 84, OptionsTop = 74, OptionsSpacing = 4;
 
-    /// <summary>The graphics page's labels' and values' left edges, its first row's top and its rows' pitch.</summary>
-    private const int GraphicsLabel = 44, GraphicsValue = 176, GraphicsTop = 72, GraphicsPitch = 13;
+    /// <summary>
+    /// The graphics page's labels' and values' left edges, its first row's top and its rows' pitch. The labels clear the System
+    /// roller, whose inner edge is at about x 61, as the original's options are shifted 25 right of centre to clear it.
+    /// </summary>
+    private const int GraphicsLabel = 72, GraphicsValue = 204, GraphicsTop = 72, GraphicsPitch = 13;
 
     // WidgetContPakData and ControllerPakSliders: the title, the screenshot stretched to 104 × 78, the portraits,
     // the arrow, the name and the time played, and the actions.
