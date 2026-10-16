@@ -24,8 +24,8 @@ public enum PartyList
 /// <remarks>
 /// C-left and C-right change the member (<c>CHorizontal</c>), and the stick changes the list
 /// (<c>DollMenuLists::LRToggle</c>). Changing either keeps each list's cursor, as the original
-/// rebuilds the lists in place. The original animates both, and the details' parchment fading in;
-/// those aren't ported yet.
+/// rebuilds the lists in place. Both are animated (<c>PartyMenu.Motion.cs</c>); the details' parchment fading in
+/// isn't ported yet.
 /// </remarks>
 public sealed partial class PartyMenu
 {
@@ -42,6 +42,7 @@ public sealed partial class PartyMenu
     private readonly Func<RecordId, SpellRecord?> _spells;
     private readonly Func<RecordId, RecordId?> _portraits;
     private readonly MenuPulse _pulse = new();
+    private int _ticks;
 
     /// <param name="portraits">Each entity's portrait.</param>
     public PartyMenu(Party party, MenuText text, Func<RecordId, SpellRecord?> spells, Func<RecordId, RecordId?> portraits, int member = 0)
@@ -101,18 +102,27 @@ public sealed partial class PartyMenu
     public RecordId? Portrait(RecordId entity) => _portraits(entity);
 
     /// <summary>The share of the bar the member's hit points fill, of <paramref name="width"/> (<c>WidgetHealthGold</c>).</summary>
-    public int HealthBar(int width) => Shown is { MaxHp: > 0 } c ? (int)((float)c.Hp / c.MaxHp * width) : 0;
+    public int HealthBar(int width) => HealthBar(Shown, width);
+
+    /// <summary>The share of the bar a member's hit points fill.</summary>
+    public static int HealthBar(Character? member, int width) => member is { MaxHp: > 0 } c ? (int)((float)c.Hp / c.MaxHp * width) : 0;
 
     /// <summary>What a slot of the silhouette shows: the worn item's icon, or the slot's own image of what it takes.</summary>
-    public RecordId SlotImage(EquipmentSlot slot) => Worn(slot)?.Item.Icon ?? MenuImages.EmptySlots[(int)slot];
+    public RecordId SlotImage(EquipmentSlot slot) => SlotImage(slot, Shown);
+
+    /// <summary>What a slot of the silhouette shows for a member.</summary>
+    public static RecordId SlotImage(EquipmentSlot slot, Character? member) => Worn(slot, member)?.Item.Icon ?? MenuImages.EmptySlots[(int)slot];
+
+    /// <summary>What the member shown wears in a slot.</summary>
+    public ItemInstance? Worn(EquipmentSlot slot) => Worn(slot, Shown);
 
     /// <summary>
-    /// What the member shown wears in a slot (<c>DollEquipmentMenu::GetEntityItemId</c>): a gear slot
-    /// takes the first, second or third piece of its kind in the gear's order.
+    /// What a member wears in a slot (<c>DollEquipmentMenu::GetEntityItemId</c>): a gear slot takes the first,
+    /// second or third piece of its kind in the gear's order.
     /// </summary>
-    public ItemInstance? Worn(EquipmentSlot slot)
+    public static ItemInstance? Worn(EquipmentSlot slot, Character? member)
     {
-        if (Shown?.Equipment is not { } equipment)
+        if (member?.Equipment is not { } equipment)
             return null;
         return slot switch
         {
@@ -146,25 +156,35 @@ public sealed partial class PartyMenu
         _ => Spells.Cursor,
     };
 
-    /// <summary>Shows the next member, or with a negative step the one before (C-right and C-left).</summary>
+    /// <summary>
+    /// Shows the next member, or with a negative step the one before: C-left shows the next and C-right the one before
+    /// (<c>PartyMenu.OnCLeft</c> at <c>0x8003e1c8</c>, <c>OnCRight</c> <c>0x8003e1f4</c>). Not while the header or the
+    /// lists are still changing.
+    /// </summary>
     public void ChangeMember(int by)
     {
-        if (HasPopup)
+        if (HasPopup || Changing)
             return;
         var order = Enumerable.Range(0, Party.MaxSize).Where(i => Party.Slots.ElementAtOrDefault(i) is not null).ToList();
         if (order.Count < 2)
             return;
         var at = order.IndexOf(Member);
+        StartMemberChange();
         Member = order[((at + by) % order.Count + order.Count) % order.Count];
         Refresh();
     }
 
-    /// <summary>Shows the next list, or with a negative step the one before (the stick).</summary>
+    /// <summary>
+    /// Shows the next list, or with a negative step the one before: the stick's left shows the next, sliding the lists
+    /// right, and its right the one before, sliding them left (<c>PartyMenu.ListsOnLeft</c> at <c>0x800319f0</c>,
+    /// <c>ListsOnRight</c> <c>0x80031a10</c>). Not while they're still sliding.
+    /// </summary>
     public void ChangeList(int by)
     {
-        if (HasPopup)
+        if (HasPopup || Slide is not null)
             return;
         var count = Enum.GetValues<PartyList>().Length;
+        StartListSlide(by);
         List = (PartyList)((((int)List + by) % count + count) % count);
     }
 
@@ -249,8 +269,13 @@ public sealed partial class PartyMenu
         }
     }
 
-    /// <summary>Steps the cursor's pulse by a tick.</summary>
-    public void Step() => _pulse.Step();
+    /// <summary>Steps the cursor's pulse, and the member's and list's changes, by a tick.</summary>
+    public void Step()
+    {
+        _pulse.Step();
+        if (++_ticks % Cadence.MenuFrameTicks == 0)
+            StepMotion();
+    }
 
     /// <summary>
     /// The cursor's row's colour now: from <see cref="HighlightFrom"/> toward <see cref="HighlightColor"/>

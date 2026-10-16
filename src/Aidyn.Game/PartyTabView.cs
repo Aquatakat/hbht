@@ -48,6 +48,12 @@ public partial class PartyTabView : Control
     // DollMenuLists and WidgetTrainShop: the list's bounds; its title's centre is 70 into them and its
     // top 20 above, the arrows 15 in from each side and 13 above, and the arrow under the knotwork.
     private static readonly ScreenRect ClassicList = new(160, 101, 300, 205);
+
+    /// <summary>
+    /// What a list and its title are cut to as they slide: the list's bounds across, x 160 to 300, and from under the
+    /// gold to the list's foot. The original cuts the rows to the bounds and the title to x 170 to 300.
+    /// </summary>
+    private static readonly Rect2I ListClip = new(160, 78, 140, 128);
     private static readonly Vector2I SliderAt = new(126, 207);
 
     // WidgetItemDetail: the parchment, and its text's left and right edges and top.
@@ -66,14 +72,29 @@ public partial class PartyTabView : Control
     private ScreenRect _craftingBounds;
     private int _craftingRow = 11;
     private Vector2I _origin;
+    /// <summary>What's being drawn on: the tab, or one of its layers.</summary>
+    private CanvasItem _canvas;
+
+    /// <summary>The Party tab's list, cut to <see cref="ListClip"/>, over the tab's image and header.</summary>
+    private readonly Control _listClip = new() { Name = "List", ClipContents = true, MouseFilter = MouseFilterEnum.Ignore };
+    private readonly Control _listLayer = new() { MouseFilter = MouseFilterEnum.Ignore };
+    /// <summary>What's drawn over the list: the popups, the details, the veil and the messages.</summary>
+    private readonly Control _overlay = new() { Name = "Overlay", MouseFilter = MouseFilterEnum.Ignore };
 
     public PartyTabView(PluginSet plugins, PartyMenu menu)
     {
         _ui = new UiPainter(plugins);
+        _canvas = this;
         Menu = menu;
         Name = "Party tab";
         MouseFilter = MouseFilterEnum.Pass;
         SetAnchorsPreset(LayoutPreset.FullRect);
+        _listClip.AddChild(_listLayer);
+        AddChild(_listClip);
+        _listLayer.Draw += DrawLists;
+        _overlay.SetAnchorsPreset(LayoutPreset.FullRect);
+        AddChild(_overlay);
+        _overlay.Draw += DrawOverlay;
     }
 
     /// <summary>The tab's state, which the runtime's menu starts afresh each time it opens.</summary>
@@ -167,11 +188,25 @@ public partial class PartyTabView : Control
     /// <summary>A list's row height: 11 for stats, 13 for the rest.</summary>
     private static int RowHeight(PartyList list) => list == PartyList.Stats ? 11 : 13;
 
+    /// <summary>The tab's own state, not barter's or training's, whose list is drawn on its own layer.</summary>
+    private bool OwnTab => Barter is null && Training is null;
+
+    /// <summary>
+    /// The tab's image and what's on it, but for the Party tab's own list, which <see cref="DrawLists"/> draws over it,
+    /// and what <see cref="DrawOverlay"/> draws over that.
+    /// </summary>
     public override void _Draw()
     {
+        _listLayer.QueueRedraw();
+        _overlay.QueueRedraw();
         if (Menu.Shown is null)
             return;
         _origin = new Vector2I(((int)Size.X - FrameWidth) / 2, ((int)Size.Y - FrameHeight) / 2);
+        _listClip.Position = _origin + ListClip.Position;
+        _listClip.Size = ListClip.Size;
+        _listLayer.Position = -ListClip.Position;
+        _listLayer.Size = new Vector2(FrameWidth, FrameHeight);
+        _canvas = this;
         DrawSetTransform(_origin);
         if (Barter is { } barter)
             DrawBarter(barter);
@@ -179,10 +214,54 @@ public partial class PartyTabView : Control
             DrawTraining(training);
         else
             DrawTab();
-        // The tab's own image again, over its widgets, fades them into the parchment.
+    }
+
+    /// <summary>
+    /// The Party tab's list, or as the stick changes it, the list it left sliding out and the new one sliding in after it,
+    /// both the same way, a list's width over <see cref="PartyMenu.ListFrames"/> frames (<c>PartyMenu.ListsSlide</c>,
+    /// <c>0x80031620</c>): to the right, the new list from x 20 and the old to 300; to the left, from 300 and to 20.
+    /// </summary>
+    private void DrawLists()
+    {
+        if (Menu.Shown is null || !OwnTab)
+            return;
+        _canvas = _listLayer;
+        if (Menu.Slide is not { } slide)
+        {
+            List(ClassicList, _ui.Slim);
+            return;
+        }
+        var left = ClassicList.Left;
+        var by = slide.Direction * PartyMenu.ListDistance;
+        List(Shifted(ClassicList, MenuTween.Value(left, left + by, Menu.ListChange) - left), _ui.Slim, which: slide.From);
+        List(Shifted(ClassicList, MenuTween.Value(left - by, left, Menu.ListChange) - left), _ui.Slim);
+
+        static ScreenRect Shifted(ScreenRect b, int by) => new(b.Left + by, b.Top, b.Right + by, b.Bottom);
+    }
+
+    /// <summary>
+    /// Over the list: the Party tab's popup and details, then the tab's own image again, over its widgets, which fades
+    /// them into the parchment, and the messages and popups at the screen's centre.
+    /// </summary>
+    private void DrawOverlay()
+    {
+        if (Menu.Shown is null)
+            return;
+        _canvas = _overlay;
+        _overlay.DrawSetTransform(_origin);
+        if (OwnTab)
+        {
+            if (Menu.Crafting is { } crafting)
+                Crafting(crafting);
+            if (DetailsOpen && Menu.Details() is { } details)
+            {
+                _ui.Parchment(_canvas, ClassicParchment.X, ClassicParchment.Y);
+                Details(details, ClassicDetails, _ui.Slim);
+            }
+        }
         if (Veil > 0)
-            _ui.Image(this, MenuImages.PartyTab, 0, 0, color: new Rgba(255, 255, 255, (byte)(Veil * 255)));
-        DrawSetTransform(Vector2.Zero);
+            _ui.Image(_canvas, MenuImages.PartyTab, 0, 0, color: new Rgba(255, 255, 255, (byte)(Veil * 255)));
+        _overlay.DrawSetTransform(Vector2.Zero);
         if (Barter is { } popups)
             BarterPopups(popups);
         else if (Training is { } trainingPopups)
@@ -193,19 +272,11 @@ public partial class PartyTabView : Control
 
     private void DrawTab()
     {
-        _ui.Image(this, MenuImages.PartyTab, 0, 0);
+        _ui.Image(_canvas, MenuImages.PartyTab, 0, 0);
         Portraits(PortraitPiece.Position);
         Health(HealthPiece.Position, _ui.Main);
         Silhouette(SilhouettePiece.Position);
-        List(ClassicList, _ui.Slim);
-        _ui.Image(this, InCombat ? MenuImages.SliderLeft : MenuImages.SliderBoth, SliderAt.X, SliderAt.Y, color: PartyMenu.TextColor);
-        if (Menu.Crafting is { } crafting)
-            Crafting(crafting);
-        if (DetailsOpen && Menu.Details() is { } details)
-        {
-            _ui.Parchment(this, ClassicParchment.X, ClassicParchment.Y);
-            Details(details, ClassicDetails, _ui.Slim);
-        }
+        _ui.Image(_canvas, InCombat ? MenuImages.SliderLeft : MenuImages.SliderBoth, SliderAt.X, SliderAt.Y, color: PartyMenu.TextColor);
     }
 
     /// <summary>
@@ -217,10 +288,10 @@ public partial class PartyTabView : Control
     {
         var at = Vector2I.Zero;
         var font = _ui.Slim;
-        _ui.Parchment(this, ClassicParchment.X, ClassicParchment.Y);
+        _ui.Parchment(_canvas, ClassicParchment.X, ClassicParchment.Y);
         // The original measures the title as it builds the popup, in the main font, and draws it in the slim one.
         var titleWidth = _ui.Main.Width(crafting.Title);
-        _ui.Text(this, font, crafting.Title, at.X + CraftingTitleCentre - titleWidth / 2, at.Y + CraftingTitleTop, PartyMenu.TextColor);
+        _ui.Text(_canvas, font, crafting.Title, at.X + CraftingTitleCentre - titleWidth / 2, at.Y + CraftingTitleTop, PartyMenu.TextColor);
         var top = at.Y + CraftingTitleTop + font.LineHeight;
         var height = crafting.Task == CraftingTask.Alchemy ? 0x7A : 0x75;
         var bounds = new ScreenRect(at.X + CraftingLeft, top, at.X + CraftingRight, top + height);
@@ -234,13 +305,13 @@ public partial class PartyTabView : Control
             {
                 // WidgetMenuHealer::ShowHealedMember: the portrait, the name 2 after it, and the health under the name.
                 if (Menu.Portrait(member.Entity) is { } portrait)
-                    _ui.Image(this, portrait, x, y, new Vector2I(MemberPortrait, MemberPortrait));
-                _ui.Text(this, font, row.Text, x + MemberPortrait + 2, y, bounds, color);
-                _ui.Text(this, font, row.Health ?? "", x + MemberPortrait, y + font.LineHeight + 5, bounds, color);
+                    _ui.Image(_canvas, portrait, x, y, new Vector2I(MemberPortrait, MemberPortrait));
+                _ui.Text(_canvas, font, row.Text, x + MemberPortrait + 2, y, bounds, color);
+                _ui.Text(_canvas, font, row.Health ?? "", x + MemberPortrait, y + font.LineHeight + 5, bounds, color);
             }
             else
             {
-                _ui.Text(this, font, row.Text, x, y, bounds, color);
+                _ui.Text(_canvas, font, row.Text, x, y, bounds, color);
             }
         });
     }
@@ -251,53 +322,124 @@ public partial class PartyTabView : Control
     /// more across and 5 more down (<c>WidgetCrafting::TextPopup</c>).
     /// </summary>
     private void Message(MenuMessage message) =>
-        _ui.Message(this, (Vector2I)Size, message.Text, MenuMessage.MaxWidth, MenuMessage.Color, message.FromCrafting ? 16 : 0, message.FromCrafting ? 5 : 0);
+        _ui.Message(_canvas, (Vector2I)Size, message.Text, MenuMessage.MaxWidth, MenuMessage.Color, message.FromCrafting ? 16 : 0, message.FromCrafting ? 5 : 0);
 
-    /// <summary>The portraits from the member shown round, their name, and their aspect's and school's icons.</summary>
+    /// <summary>
+    /// The portraits from the member shown round, their name, and their aspect's and school's icons. As the member
+    /// changes (<c>PartyMenu.PortraitsChange</c>, <c>0x8003b3cc</c>), each portrait moves and resizes from its old place
+    /// to its new one, through the frames painted into the tab, which stay, drawn in the party's order as the
+    /// original's widgets are. The name crossfades, and the icons where they change.
+    /// </summary>
     private void Portraits(Vector2I at)
     {
         var shown = Menu.Shown!;
-        var order = Menu.PortraitOrder;
-        for (var i = order.Count - 1; i >= 0; i--)
+        var order = Menu.PortraitOrder.ToList();
+        var previous = Menu.Previous is null ? null : Menu.PreviousOrder.ToList();
+        var change = Menu.MemberChange;
+        foreach (var slot in order.Order())
         {
-            var member = Menu.Party.Slots[order[i]]!;
-            if (Menu.Portrait(member.Entity) is not { } portrait)
+            if (Menu.Portrait(Menu.Party.Slots[slot]!.Entity) is not { } portrait)
                 continue;
-            var (offset, size) = i == 0 ? (ShownPortrait, ShownSize) : (OtherPortraits[Math.Min(i - 1, OtherPortraits.Length - 1)], OtherSize);
-            _ui.Image(this, portrait, at.X + offset.X, at.Y + offset.Y, new Vector2I(size, size));
+            var (to, toSize) = PortraitPlace(order.IndexOf(slot));
+            var was = previous?.IndexOf(slot) ?? -1;
+            var (from, fromSize) = was >= 0 ? PortraitPlace(was) : (to, toSize);
+            var size = MenuTween.Value(fromSize, toSize, change);
+            _ui.Image(_canvas, portrait, at.X + MenuTween.Value(from.X, to.X, change), at.Y + MenuTween.Value(from.Y, to.Y, change),
+                new Vector2I(size, size));
         }
-        _ui.Text(this, _ui.Slim, shown.Name, at.X + NameAt.X, at.Y + NameAt.Y, PartyMenu.TextColor);
-        var icon = at + IconsAt;
-        if (MenuImages.AspectIcon(shown.Aspect) is { } aspect)
-        {
-            _ui.Image(this, aspect, icon.X, icon.Y);
-            icon.X += _ui.Size(aspect).X + 2;
-        }
-        if (MenuImages.SchoolIcon(shown.School) is { } school)
-            _ui.Image(this, school, icon.X, icon.Y);
+        if (Menu.Previous is { } before)
+            _ui.Text(_canvas, _ui.Slim, before.Name, at.X + NameAt.X, at.Y + NameAt.Y, FadingOut(PartyMenu.TextColor, change));
+        _ui.Text(_canvas, _ui.Slim, shown.Name, at.X + NameAt.X, at.Y + NameAt.Y, FadingIn(PartyMenu.TextColor, change));
+        var icons = Icons(shown);
+        var old = Menu.Previous is { } member ? Icons(member) : icons;
+        foreach (var (icon, x) in old.Except(icons))
+            _ui.Image(_canvas, icon, at.X + x, at.Y + IconsAt.Y, color: FadingOut(White, change));
+        foreach (var (icon, x) in icons)
+            _ui.Image(_canvas, icon, at.X + x, at.Y + IconsAt.Y, color: old.Contains((icon, x)) ? null : FadingIn(White, change));
     }
 
-    /// <summary>The hit points bar, cut to the share left, and the hit points, level and gold.</summary>
+    /// <summary>Where the portrait so far round the party from the member shown goes, from the frames' corner, and how big it is.</summary>
+    private static (Vector2I At, int Size) PortraitPlace(int i) =>
+        i == 0 ? (ShownPortrait, ShownSize) : (OtherPortraits[Math.Min(i - 1, OtherPortraits.Length - 1)], OtherSize);
+
+    /// <summary>A member's aspect's and school's icons under the large portrait, 2 apart, and where they go across.</summary>
+    private List<(RecordId Icon, int X)> Icons(Core.Characters.Character member)
+    {
+        var icons = new List<(RecordId, int)>();
+        var x = IconsAt.X;
+        if (MenuImages.AspectIcon(member.Aspect) is { } aspect)
+        {
+            icons.Add((aspect, x));
+            x += _ui.Size(aspect).X + 2;
+        }
+        if (MenuImages.SchoolIcon(member.School) is { } school)
+            icons.Add((school, x));
+        return icons;
+    }
+
+    private static readonly Rgba White = new(255, 255, 255, 255);
+
+    /// <summary>A colour as it fades in, its alpha tweened from 0 (<c>Tween.CreateByte</c>).</summary>
+    private static Rgba FadingIn(Rgba color, float ease) => color with { A = (byte)MenuTween.Value(0, color.A, ease) };
+
+    /// <summary>A colour as it fades out, its alpha tweened to 0.</summary>
+    private static Rgba FadingOut(Rgba color, float ease) => color with { A = (byte)MenuTween.Value(color.A, 0, ease) };
+
+    /// <summary>
+    /// The hit points bar, cut to the share left, and the hit points, level and gold. As the member changes
+    /// (<c>PartyMenu.HealthGoldChange</c>, <c>0x8003be5c</c>), the bar's width tweens to the new member's, and the hit
+    /// points and level crossfade, even where they're the same; the gold stays.
+    /// </summary>
     private void Health(Vector2I at, UiFont font)
     {
         var shown = Menu.Shown!;
         var bar = at + HealthBarAt;
-        _ui.ImageTo(this, MenuImages.HealthBar, bar.X, bar.Y, HealthBarSize, bar.X + Menu.HealthBar(HealthBarSize.X));
-        Number(font, shown.Hp, at + HpAt);
-        Number(font, shown.MaxHp, at + MaxHpAt);
-        Number(font, shown.Level, at + LevelAt);
+        var change = Menu.MemberChange;
+        var width = Menu.HealthBar(HealthBarSize.X);
+        if (Menu.Previous is { } before)
+        {
+            width = MenuTween.Value(PartyMenu.HealthBar(before, HealthBarSize.X), width, change);
+            var fading = FadingOut(PartyMenu.TextColor, change);
+            Number(font, before.Hp, at + HpAt, fading);
+            Number(font, before.MaxHp, at + MaxHpAt, fading);
+            Number(font, before.Level, at + LevelAt, fading);
+        }
+        _ui.ImageTo(_canvas, MenuImages.HealthBar, bar.X, bar.Y, HealthBarSize, bar.X + width);
+        var color = FadingIn(PartyMenu.TextColor, change);
+        Number(font, shown.Hp, at + HpAt, color);
+        Number(font, shown.MaxHp, at + MaxHpAt, color);
+        Number(font, shown.Level, at + LevelAt, color);
         Number(font, Menu.Party.Gold, at + GoldAt);
     }
 
-    /// <summary>The silhouette's slots: what's worn, or each empty slot's image.</summary>
+    /// <summary>
+    /// The silhouette's slots: what's worn, or each empty slot's image. As the member changes, a slot crossfades where
+    /// one member wears something in it and the other doesn't. From one worn item to another it changes at once, as the
+    /// user asked; the original crossfades every slot whose item differs (<c>PartyMenu.EquipmentChange</c>,
+    /// <c>0x8003e374</c>).
+    /// </summary>
     private void Silhouette(Vector2I at)
     {
+        var change = Menu.MemberChange;
         foreach (var slot in Enum.GetValues<EquipmentSlot>())
-            _ui.Image(this, Menu.SlotImage(slot), at.X + Slots[(int)slot].X, at.Y + Slots[(int)slot].Y, new Vector2I(SlotSize, SlotSize));
+        {
+            var x = at.X + Slots[(int)slot].X;
+            var y = at.Y + Slots[(int)slot].Y;
+            var size = new Vector2I(SlotSize, SlotSize);
+            if (Menu.Previous is { } before && (PartyMenu.Worn(slot, before) is null) != (Menu.Worn(slot) is null))
+            {
+                _ui.Image(_canvas, PartyMenu.SlotImage(slot, before), x, y, size, FadingOut(White, change));
+                _ui.Image(_canvas, Menu.SlotImage(slot), x, y, size, FadingIn(White, change));
+            }
+            else
+            {
+                _ui.Image(_canvas, Menu.SlotImage(slot), x, y, size);
+            }
+        }
     }
 
-    private void Number(UiFont font, long value, Vector2I at) =>
-        _ui.Text(this, font, value.ToString(System.Globalization.CultureInfo.InvariantCulture), at.X, at.Y, PartyMenu.TextColor);
+    private void Number(UiFont font, long value, Vector2I at, Rgba? color = null) =>
+        _ui.Text(_canvas, font, value.ToString(System.Globalization.CultureInfo.InvariantCulture), at.X, at.Y, color ?? PartyMenu.TextColor);
 
     /// <summary>
     /// Where a list's columns go, from its left edge, and how far its names reach: the original's (<c>SMIItem</c>,
@@ -310,26 +452,28 @@ public partial class PartyTabView : Control
     }
 
     /// <summary>
-    /// The list showing, under its title, with its arrows and its rows in <paramref name="font"/>, the
-    /// cursor's in <paramref name="cursor"/>, or pulsing if none is given.
+    /// A list, by default the one showing, under its title, with its arrows and its rows in <paramref name="font"/>,
+    /// the cursor's in <paramref name="cursor"/>, or pulsing if none is given.
     /// </summary>
-    private void List(ScreenRect b, UiFont font, Rgba? cursor = null)
+    private void List(ScreenRect b, UiFont font, Rgba? cursor = null, PartyList? which = null)
     {
-        _listBounds = b;
-        var title = Menu.List switch
+        var shown = which ?? Menu.List;
+        if (shown == Menu.List)
+            _listBounds = b;
+        var title = shown switch
         {
             PartyList.Inventory => Barter?.PartyTitle ?? MenuImages.InventoryTitle,
             PartyList.Stats => MenuImages.StatsTitle,
             PartyList.Skills => MenuImages.SkillsTitle,
             _ => MenuImages.SpellsTitle,
         };
-        _ui.Image(this, title, b.Left + 70 - _ui.Size(title).X / 2, b.Top - 20);
+        _ui.Image(_canvas, title, b.Left + 70 - _ui.Size(title).X / 2, b.Top - 20);
         var x = b.Left;
         var y = b.Top;
         var highlight = cursor ?? Menu.HighlightNow;
         var color = PartyMenu.TextColor;
         var names = new ScreenRect(b.Left, b.Top, x + Columns.NameRight, b.Bottom);
-        switch (Menu.List)
+        switch (shown)
         {
             case PartyList.Inventory:
                 Items(Menu.Inventory, b, font, highlight);
@@ -338,10 +482,10 @@ public partial class PartyTabView : Control
                 Menu.Stats.Visible = (b.Bottom - b.Top) / 11;
                 _ui.List(Menu.Stats, y, 11, color, highlight, (row, top, c) =>
                 {
-                    _ui.Text(this, font, row.Name, x, top, names, c);
-                    _ui.Text(this, font, Num(row.Value), x + Columns.Value, top, b, color);
+                    _ui.Text(_canvas, font, row.Name, x, top, names, c);
+                    _ui.Text(_canvas, font, Num(row.Value), x + Columns.Value, top, b, color);
                     if (row.Change != 0)
-                        _ui.Text(this, font, Change(row.Change), x + Columns.Change, top, b, row.Change < 0 ? MenuDetailsBuilder.Loss : MenuDetailsBuilder.Gain);
+                        _ui.Text(_canvas, font, Change(row.Change), x + Columns.Change, top, b, row.Change < 0 ? MenuDetailsBuilder.Loss : MenuDetailsBuilder.Gain);
                 });
                 if (Menu.Experience is { } exp)
                 {
@@ -350,8 +494,8 @@ public partial class PartyTabView : Control
                     var valueX = x + font.Width(exp.RemainingLabel) + 4;
                     foreach (var (label, value) in new[] { (exp.RemainingLabel, exp.Remaining), (exp.TotalLabel, exp.Total), (exp.NextLevelLabel, exp.NextLevel) })
                     {
-                        _ui.Text(this, font, label, x, lineY, b, color);
-                        _ui.Text(this, font, value, valueX, lineY, b, color);
+                        _ui.Text(_canvas, font, label, x, lineY, b, color);
+                        _ui.Text(_canvas, font, value, valueX, lineY, b, color);
                         lineY += font.LineHeight;
                     }
                 }
@@ -378,13 +522,13 @@ public partial class PartyTabView : Control
         _ui.List(list, b.Top, 13, color, highlight, (row, top, c) =>
         {
             if (row.Icon is { } icon)
-                _ui.Image(this, icon, x, top);
-            _ui.Text(this, font, row.Name, x + 12, top, names with { Left = x + 12 }, c);
-            _ui.Text(this, font, Num(row.Value), x + Columns.Value, top, b, color);
+                _ui.Image(_canvas, icon, x, top);
+            _ui.Text(_canvas, font, row.Name, x + 12, top, names with { Left = x + 12 }, c);
+            _ui.Text(_canvas, font, Num(row.Value), x + Columns.Value, top, b, color);
             if (row.Change != 0)
-                _ui.Text(this, font, Change(row.Change), x + Columns.SkillChange, top, b, row.Change < 0 ? MenuDetailsBuilder.Loss : MenuDetailsBuilder.Gain);
+                _ui.Text(_canvas, font, Change(row.Change), x + Columns.SkillChange, top, b, row.Change < 0 ? MenuDetailsBuilder.Loss : MenuDetailsBuilder.Gain);
         });
-        _ui.Arrows(this, list, new Vector2I(b.Left + 15, b.Top - 13), new Vector2I(b.Right - 15, b.Top - 13));
+        _ui.Arrows(_canvas, list, new Vector2I(b.Left + 15, b.Top - 13), new Vector2I(b.Right - 15, b.Top - 13));
     }
 
     /// <summary>
@@ -402,12 +546,12 @@ public partial class PartyTabView : Control
             foreach (var (icon, dx) in new[] { (row.Aspect, 0), (row.School, 12), (row.Symbol, 24) })
             {
                 if (icon is { } i)
-                    _ui.Image(this, i, x + dx, top);
+                    _ui.Image(_canvas, i, x + dx, top);
             }
-            _ui.Text(this, font, Num(row.Rank), x + Columns.Rank, top, b, color);
-            _ui.Text(this, font, row.Name, x + Columns.SpellName, top, names with { Left = x + Columns.SpellName }, c);
+            _ui.Text(_canvas, font, Num(row.Rank), x + Columns.Rank, top, b, color);
+            _ui.Text(_canvas, font, row.Name, x + Columns.SpellName, top, names with { Left = x + Columns.SpellName }, c);
         });
-        _ui.Arrows(this, list, new Vector2I(b.Left + 15, b.Top - 13), new Vector2I(b.Right - 15, b.Top - 13));
+        _ui.Arrows(_canvas, list, new Vector2I(b.Left + 15, b.Top - 13), new Vector2I(b.Right - 15, b.Top - 13));
     }
 
     /// <summary>
@@ -421,13 +565,13 @@ public partial class PartyTabView : Control
         _ui.List(list, b.Top, 13, PartyMenu.TextColor, cursor, (row, top, c) =>
         {
             if (row.Wearer is { } wearer && Menu.Party.Slots[wearer] is { } who && Menu.Portrait(who.Entity) is { } portrait)
-                _ui.Image(this, portrait, x, top, new Vector2I(12, 12));
-            _ui.Image(this, row.Item.Icon, x + 13, top, new Vector2I(12, 12));
+                _ui.Image(_canvas, portrait, x, top, new Vector2I(12, 12));
+            _ui.Image(_canvas, row.Item.Icon, x + 13, top, new Vector2I(12, 12));
             if (row.Quantity != 0)
-                _ui.Text(this, font, Num(row.Quantity), x + Columns.Quantity, top, b, PartyMenu.TextColor);
-            _ui.Text(this, font, row.Item.Name, x + (row.Quantity != 0 ? Columns.Name : Columns.NameNoQuantity), top, b, c);
+                _ui.Text(_canvas, font, Num(row.Quantity), x + Columns.Quantity, top, b, PartyMenu.TextColor);
+            _ui.Text(_canvas, font, row.Item.Name, x + (row.Quantity != 0 ? Columns.Name : Columns.NameNoQuantity), top, b, c);
         });
-        _ui.Arrows(this, list, new Vector2I(b.Left + 15, b.Top - 13), new Vector2I(b.Right - 15, b.Top - 13));
+        _ui.Arrows(_canvas, list, new Vector2I(b.Left + 15, b.Top - 13), new Vector2I(b.Right - 15, b.Top - 13));
     }
 
     /// <summary>
@@ -441,10 +585,10 @@ public partial class PartyTabView : Control
         {
             // The icon, and the name level with its foot.
             var size = _ui.Size(icon);
-            _ui.Image(this, icon, area.Left, y);
+            _ui.Image(_canvas, icon, area.Left, y);
             y += size.Y + 2;
             if (details.Title is { } title)
-                _ui.Text(this, font, title, area.Left + size.X + 2, y - font.LineHeight, PartyMenu.TextColor);
+                _ui.Text(_canvas, font, title, area.Left + size.X + 2, y - font.LineHeight, PartyMenu.TextColor);
             y += 4;
         }
         foreach (var line in details.Lines)
@@ -464,15 +608,15 @@ public partial class PartyTabView : Control
                 switch (piece)
                 {
                     case DetailText text when line.Wrap:
-                        height = _ui.Text(this, font, text.Text, x, top, new ScreenRect(area.Left, 0, area.Right, (int)Size.Y), text.Color);
+                        height = _ui.Text(_canvas, font, text.Text, x, top, new ScreenRect(area.Left, 0, area.Right, (int)Size.Y), text.Color);
                         break;
                     case DetailText text:
-                        _ui.Text(this, font, text.Text, x, top, text.Color);
+                        _ui.Text(_canvas, font, text.Text, x, top, text.Color);
                         x += font.Width(text.Text);
                         break;
                     case DetailImage image:
                         var size = image.Size is { } s ? new Vector2I(s, s) : _ui.Size(image.Image);
-                        _ui.Image(this, image.Image, x, top, size);
+                        _ui.Image(_canvas, image.Image, x, top, size);
                         x += size.X + 2;
                         break;
                 }
@@ -484,13 +628,13 @@ public partial class PartyTabView : Control
                 {
                     case DetailText text:
                         right -= font.Width(text.Text);
-                        _ui.Text(this, font, text.Text, right, top, text.Color);
+                        _ui.Text(_canvas, font, text.Text, right, top, text.Color);
                         break;
                     case DetailImage image:
                         // An aspect's icon sits 2 higher, and its line is as tall as it is, plus 1.
                         var size = _ui.Size(image.Image);
                         right -= size.X;
-                        _ui.Image(this, image.Image, right, top - 2);
+                        _ui.Image(_canvas, image.Image, right, top - 2);
                         height = size.Y + 1;
                         break;
                 }

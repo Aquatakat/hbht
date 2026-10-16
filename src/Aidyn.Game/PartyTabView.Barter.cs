@@ -67,22 +67,22 @@ public partial class PartyTabView
     private void DrawBarter(BarterMenu barter)
     {
         var (party, pile) = Cursors(barter);
-        _ui.Image(this, MenuImages.PartyTab, 0, 0);
+        _ui.Image(_canvas, MenuImages.PartyTab, 0, 0);
         Portraits(PortraitPiece.Position);
         Health(HealthPiece.Position, _ui.Main);
         List(ClassicList, _ui.Slim, party);
 
-        _ui.Parchment(this, ClassicParchment.X, ClassicParchment.Y);
+        _ui.Parchment(_canvas, ClassicParchment.X, ClassicParchment.Y);
         var title = _ui.Size(barter.Title);
-        _ui.Image(this, barter.Title, PileTitleCentre - title.X / 2, PileTitleFoot - title.Y);
+        _ui.Image(_canvas, barter.Title, PileTitleCentre - title.X / 2, PileTitleFoot - title.Y);
         _pileBounds = BarterMenu.ClassicPile;
         Items(barter.Pile, _pileBounds, _ui.Slim, pile);
-        _ui.Text(this, _ui.Slim, barter.PileLine, ClassicGoldLine.X, ClassicGoldLine.Y, PartyMenu.TextColor);
+        _ui.Text(_canvas, _ui.Slim, barter.PileLine, ClassicGoldLine.X, ClassicGoldLine.Y, PartyMenu.TextColor);
 
         // C-down's details cover the pile while it's held, as WidgetItemDetail covers WidgetBarter.
         if (DetailsOpen && barter.Details() is { } details)
         {
-            _ui.Parchment(this, ClassicParchment.X, ClassicParchment.Y);
+            _ui.Parchment(_canvas, ClassicParchment.X, ClassicParchment.Y);
             Details(details, ClassicDetails, _ui.Slim);
         }
         if (barter.Help is { } help)
@@ -95,8 +95,8 @@ public partial class PartyTabView
     /// </summary>
     private void Help(string text)
     {
-        _ui.Parchment(this, ClassicParchment.X, ClassicParchment.Y);
-        _ui.Text(this, _ui.Main, text, HelpText.X, HelpText.Y, new ScreenRect(HelpText.X, HelpText.Y, HelpRight, (int)Size.Y), PartyMenu.TextColor);
+        _ui.Parchment(_canvas, ClassicParchment.X, ClassicParchment.Y);
+        _ui.Text(_canvas, _ui.Main, text, HelpText.X, HelpText.Y, new ScreenRect(HelpText.X, HelpText.Y, HelpRight, (int)Size.Y), PartyMenu.TextColor);
     }
 
     /// <summary>The popups over the barter state, centred on the screen.</summary>
@@ -106,9 +106,9 @@ public partial class PartyTabView
         if (barter.Confirm is { } confirm)
             Confirm(confirm, barter.PopupHighlight);
         if (barter.Choice is { } choice)
-            _ui.Choice(this, screen, choice.Text, choice.Width, choice.Gap, choice.Color, choice.ChoiceColor, choice.Choices, barter.PopupHighlight);
+            _ui.Choice(_canvas, screen, choice.Text, choice.Width, choice.Gap, choice.Color, choice.ChoiceColor, choice.Choices, barter.PopupHighlight);
         if (barter.Message is { Box: { } box } boxed)
-            _ui.MessageBox(this, screen, boxed.Text, box.Width, box.Height, MenuMessage.White);
+            _ui.MessageBox(_canvas, screen, boxed.Text, box.Width, box.Height, MenuMessage.White);
         else if (barter.Message is { } message)
             Message(message);
     }
@@ -127,12 +127,12 @@ public partial class PartyTabView
         var rows = confirm.Options.Rows;
         var height = textHeight + rows.Count * font.LineHeight + BarterConfirm.Gap;
         var top = (screen.Y - height) / 2;
-        _ui.Images.DrawPanel(this, _ui.Images.Around(new ScreenRect(left, top - 4, right, top + height + 4)));
-        _ui.Text(this, font, confirm.Text, left, top, new ScreenRect(left, top, right, top + textHeight), BarterConfirm.TextColor);
+        _ui.Images.DrawPanel(_canvas, _ui.Images.Around(new ScreenRect(left, top - 4, right, top + height + 4)));
+        _ui.Text(_canvas, font, confirm.Text, left, top, new ScreenRect(left, top, right, top + textHeight), BarterConfirm.TextColor);
         var optionsTop = top + textHeight + BarterConfirm.Gap;
         for (var i = 0; i < rows.Count; i++)
         {
-            _ui.Text(this, font, rows[i].Text, left, optionsTop + i * font.LineHeight, new ScreenRect(left, optionsTop, right, top + height),
+            _ui.Text(_canvas, font, rows[i].Text, left, optionsTop + i * font.LineHeight, new ScreenRect(left, optionsTop, right, top + height),
                 i == confirm.Options.Cursor ? cursor : BarterConfirm.OptionColor);
         }
     }

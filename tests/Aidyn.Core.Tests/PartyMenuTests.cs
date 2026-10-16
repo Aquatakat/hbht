@@ -267,3 +267,88 @@ public class PartyMenuPulseTests
         Assert.Equal(new Rgba(72, 46, 41, 255), menu.HighlightNow);
     }
 }
+
+public class PartyMenuMotionTests
+{
+    private static PartyMenu Menu(int members = 3)
+    {
+        var party = new CharacterParty();
+        for (var n = 0; n < members; n++)
+            Assert.True(party.Add(PotionData.Member($"Member {n}", n)));
+        return new PartyMenu(party, new MenuText([]), _ => null, _ => null);
+    }
+
+    private static void Frames(PartyMenu menu, int frames)
+    {
+        for (var tick = 0; tick < frames * Cadence.MenuFrameTicks; tick++)
+            menu.Step();
+    }
+
+    /// <summary>The menu's curve eases in and out: none of the way at first, half at the middle, all of it at the end.</summary>
+    [Fact]
+    public void TheTweensCurveStartsAndEndsSlowly()
+    {
+        Assert.Equal(0, MenuTween.Ease(0, 20), 5);
+        Assert.Equal(0.5f, MenuTween.Ease(10, 20), 5);
+        Assert.Equal(1, MenuTween.Ease(20, 20), 5);
+        Assert.True(MenuTween.Ease(1, 20) < 0.01f);
+        // Truncated each step, as the original's shorts and bytes are.
+        Assert.Equal(228, MenuTween.Value(160, 300, MenuTween.Ease(10, 20) - 0.01f));
+    }
+
+    /// <summary>A member change moves the header over 15 frames, and holds off another until the tween has finished, a frame later.</summary>
+    [Fact]
+    public void AMemberChangeTakesFifteenFramesAndHoldsOffAnother()
+    {
+        var menu = Menu();
+        var first = menu.Shown;
+
+        menu.ChangeMember(1);
+        Assert.Same(first, menu.Previous);
+        Assert.Equal([0, 1, 2], menu.PreviousOrder);
+        Assert.Equal([1, 2, 0], menu.PortraitOrder);
+        Assert.Equal(0, menu.MemberChange);
+
+        Frames(menu, PartyMenu.MemberFrames);
+        Assert.Equal(1, menu.MemberChange, 5);
+        menu.ChangeMember(1);
+        Assert.Equal(1, menu.Member);
+
+        Frames(menu, 1);
+        Assert.Null(menu.Previous);
+        menu.ChangeMember(1);
+        Assert.Equal(2, menu.Member);
+    }
+
+    /// <summary>The next list slides the lists right and the one before slides them left, and no other change starts while they slide.</summary>
+    [Fact]
+    public void TheNextListSlidesRightAndHoldsOffChanges()
+    {
+        var menu = Menu();
+
+        menu.ChangeList(1);
+        Assert.Equal(PartyList.Spells, menu.List);
+        Assert.Equal(new ListSlide(PartyList.Inventory, 1), menu.Slide);
+        menu.ChangeList(1);
+        menu.ChangeMember(1);
+        Assert.Equal((PartyList.Spells, 0), (menu.List, menu.Member));
+
+        Frames(menu, PartyMenu.ListFrames + 1);
+        Assert.Null(menu.Slide);
+        menu.ChangeList(-1);
+        Assert.Equal(new ListSlide(PartyList.Spells, -1), menu.Slide);
+        Assert.Equal(PartyList.Inventory, menu.List);
+    }
+
+    /// <summary>The list can change while the header does, as the original's guard on lists looks only at the lists.</summary>
+    [Fact]
+    public void TheListCanChangeWhileTheMemberDoes()
+    {
+        var menu = Menu();
+
+        menu.ChangeMember(1);
+        menu.ChangeList(1);
+
+        Assert.Equal(PartyList.Spells, menu.List);
+    }
+}

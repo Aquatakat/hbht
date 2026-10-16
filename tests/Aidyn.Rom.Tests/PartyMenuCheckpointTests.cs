@@ -418,18 +418,28 @@ public sealed class PartyMenuCheckpointTests(MapObjectFixture fixture)
         Assert.Equal(new Rgba(0, 128, 0, 255), MenuDetailsBuilder.Gain);
     }
 
-    /// <summary>Changing member shows the next slot, or the one before, wrapping, and keeps the inventory cursor's row.</summary>
+    /// <summary>
+    /// Changing member shows the next slot, or the one before, wrapping, and keeps the inventory cursor's row. Each
+    /// change finishes before the next can start.
+    /// </summary>
     [Fact]
     public void ChangingMemberStepsRoundTheSlotsAndKeepsTheInventoryCursor()
     {
         var menu = Menu();
         menu.Point(5);
 
-        menu.ChangeMember(1);
+        Change(1);
         Assert.Equal((1, 5), (menu.Member, menu.Inventory.Cursor));
-        menu.ChangeMember(-1);
-        menu.ChangeMember(-1);
+        Change(-1);
+        Change(-1);
         Assert.Equal((3, 5), (menu.Member, menu.Inventory.Cursor));
         Assert.Equal([3, 0, 1, 2], menu.PortraitOrder);
+
+        void Change(int by)
+        {
+            menu.ChangeMember(by);
+            while (menu.Changing)
+                menu.Step();
+        }
     }
 }

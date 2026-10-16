@@ -55,27 +55,27 @@ public partial class PartyTabView
 
     private void DrawTraining(TrainingMenu training)
     {
-        _ui.Image(this, MenuImages.PartyTab, 0, 0);
+        _ui.Image(_canvas, MenuImages.PartyTab, 0, 0);
         Portraits(PortraitPiece.Position);
         Health(HealthPiece.Position, _ui.Main);
         List(ClassicList, _ui.Slim, MemberCursor(training));
 
-        _ui.Parchment(this, ClassicParchment.X, ClassicParchment.Y);
+        _ui.Parchment(_canvas, ClassicParchment.X, ClassicParchment.Y);
         var title = _ui.Size(training.Title);
-        _ui.Image(this, training.Title, PileTitleCentre - title.X / 2, TrainTitleFoot - title.Y);
+        _ui.Image(_canvas, training.Title, PileTitleCentre - title.X / 2, TrainTitleFoot - title.Y);
         _trainerBounds = TrainingMenu.ClassicList;
         TrainerRows(training, _trainerBounds, _ui.Slim);
         var y = ClassicGoldLine.Y;
         foreach (var line in training.PriceLines)
         {
-            _ui.Text(this, _ui.Slim, line, ClassicGoldLine.X, y, PartyMenu.TextColor);
+            _ui.Text(_canvas, _ui.Slim, line, ClassicGoldLine.X, y, PartyMenu.TextColor);
             // The lines were measured in the main font as they were built, and drawn in the slim one.
             y += _ui.Main.LineHeight;
         }
 
         if (DetailsOpen && training.Details() is { } details)
         {
-            _ui.Parchment(this, ClassicParchment.X, ClassicParchment.Y);
+            _ui.Parchment(_canvas, ClassicParchment.X, ClassicParchment.Y);
             Details(details, ClassicDetails, _ui.Slim);
         }
         if (training.Help is { } help)
@@ -96,7 +96,7 @@ public partial class PartyTabView
     {
         var screen = (Vector2I)Size;
         if (training.Choice is { } choice)
-            _ui.Choice(this, screen, choice.Text, choice.Width, choice.Gap, choice.Color, choice.ChoiceColor, choice.Choices, training.PopupHighlight);
+            _ui.Choice(_canvas, screen, choice.Text, choice.Width, choice.Gap, choice.Color, choice.ChoiceColor, choice.Choices, training.PopupHighlight);
         if (training.Message is { } message)
             Message(message);
     }

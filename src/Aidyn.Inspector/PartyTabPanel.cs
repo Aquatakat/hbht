@@ -39,10 +39,10 @@ public partial class PartyTabPanel : VBoxContainer
         });
         var bar = new HFlowContainer();
         bar.AddThemeConstantOverride("h_separation", 6);
-        bar.AddChild(Button("◀ Member", "The member before (C-left).", () => _view.Menu.ChangeMember(-1)));
-        bar.AddChild(Button("Member ▶", "The next member (C-right).", () => _view.Menu.ChangeMember(1)));
-        bar.AddChild(Button("◀ List", "The list before (the stick left).", () => _view.Menu.ChangeList(-1)));
-        bar.AddChild(Button("List ▶", "The next list (the stick right).", () => _view.Menu.ChangeList(1)));
+        bar.AddChild(Button("◀ Member", "C-left: the next member.", () => _view.Menu.ChangeMember(1)));
+        bar.AddChild(Button("Member ▶", "C-right: the member before.", () => _view.Menu.ChangeMember(-1)));
+        bar.AddChild(Button("◀ List", "The stick left: the next list.", () => _view.Menu.ChangeList(1)));
+        bar.AddChild(Button("List ▶", "The stick right: the list before.", () => _view.Menu.ChangeList(-1)));
         bar.AddChild(Button("A", "Use the cursor's row, choose in a popup, or close a message.", () => _view.Menu.Accept()));
         bar.AddChild(Button("B", "Close the popup or the message.", () => _view.Menu.Back()));
         _details.Toggled += on => _view.DetailsOpen = on;

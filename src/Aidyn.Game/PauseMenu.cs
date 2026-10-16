@@ -534,7 +534,7 @@ public partial class PauseMenu : CanvasLayer
             Sound(m => m.Back, Menu);
         else if (e.IsActionPressed("menu_details") || e.IsActionReleased("menu_details"))
             Sound(e.IsPressed() ? m => m.TabBack : m => m.TabForward, Menu);
-        else if ((e.IsActionPressed("menu_member_previous") || e.IsActionPressed("menu_member_next")) && Tab == PauseTab.Party
+        else if ((e.IsActionPressed("menu_member_left") || e.IsActionPressed("menu_member_right")) && Tab == PauseTab.Party
             && _view!.Barter is null && _game.Party.Members.Count() > 1)
             Sound(m => m.Member, Menu);
         else if (Pressed(e, "move_forward") || Pressed(e, "move_back") || e.IsActionPressed("menu_up", allowEcho: true)
@@ -606,14 +606,16 @@ public partial class PauseMenu : CanvasLayer
             _view.DetailsOpen = e.IsPressed();
         else if (e.IsActionPressed("menu_accept"))
             menu.Accept();
-        else if (e.IsActionPressed("menu_member_previous"))
-            menu.ChangeMember(-1);
-        else if (e.IsActionPressed("menu_member_next"))
+        // C-left shows the next member and C-right the one before; the stick's left the next list and its right the
+        // one before, as the original's do.
+        else if (e.IsActionPressed("menu_member_left"))
             menu.ChangeMember(1);
+        else if (e.IsActionPressed("menu_member_right"))
+            menu.ChangeMember(-1);
         else if (Pressed(e, "move_left") || e.IsActionPressed("menu_left"))
-            menu.ChangeList(-1);
-        else if (Pressed(e, "move_right") || e.IsActionPressed("menu_right"))
             menu.ChangeList(1);
+        else if (Pressed(e, "move_right") || e.IsActionPressed("menu_right"))
+            menu.ChangeList(-1);
         else if (Pressed(e, "move_forward") || e.IsActionPressed("menu_up", allowEcho: true))
             menu.MoveCursor(-1);
         else if (Pressed(e, "move_back") || e.IsActionPressed("menu_down", allowEcho: true))
@@ -774,7 +776,7 @@ public partial class PauseMenu : CanvasLayer
         else
         {
             // C-left and C-right don't change the member here.
-            return e is InputEventJoypadMotion || e.IsActionPressed("menu_member_previous") || e.IsActionPressed("menu_member_next");
+            return e is InputEventJoypadMotion || e.IsActionPressed("menu_member_left") || e.IsActionPressed("menu_member_right");
         }
         _view!.QueueRedraw();
         return true;
@@ -790,10 +792,10 @@ public partial class PauseMenu : CanvasLayer
             _view!.DetailsOpen = e.IsPressed();
         else if (e.IsActionPressed("menu_accept"))
             training.Accept();
-        else if (e.IsActionPressed("menu_member_previous"))
-            training.ChangeMember(-1);
-        else if (e.IsActionPressed("menu_member_next"))
+        else if (e.IsActionPressed("menu_member_left"))
             training.ChangeMember(1);
+        else if (e.IsActionPressed("menu_member_right"))
+            training.ChangeMember(-1);
         else if (Pressed(e, "move_left") || e.IsActionPressed("menu_left") || Pressed(e, "move_right") || e.IsActionPressed("menu_right"))
             training.Switch();
         else if (Pressed(e, "move_forward") || e.IsActionPressed("menu_up", allowEcho: true))

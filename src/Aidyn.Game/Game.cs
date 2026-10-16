@@ -44,7 +44,7 @@ namespace Aidyn.Game;
 /// <c>--sky original</c> places the sky's sprites as the original does rather than projected.
 /// <c>--menu 1</c> opens the pause menu on the tab it last showed, <c>--menu system</c>, <c>party</c> or <c>world</c>
 /// on that tab, and <c>--menu loot</c> an empty loot window; <c>--ui-lines &lt;n&gt;</c> sets the UI screen's height, and
-/// <c>--press &lt;action&gt;,…</c> presses each action in turn, such as <c>pause,menu_member_next</c>.
+/// <c>--press &lt;action&gt;,…</c> presses each action in turn, such as <c>pause,menu_member_left</c>.
 /// <c>--cutscene &lt;id&gt;</c> plays a cut-scene at once, as what starts it would.
 /// F toggles the free camera, F3 the debug overlay, F5 the pace, F6 the sky's placement and F7 the
 /// UI screen's height, and F8 saves to <c>quick.json</c> in the saves folder.
@@ -1087,8 +1087,8 @@ public partial class Game : Node3D, ITrekHost
         Add("pause", Key.Enter, Key.Escape, button: JoyButton.Start);
         Add("menu_back", Key.Backspace, button: JoyButton.B);
         Add("menu_accept", Key.Space, button: JoyButton.A);
-        Add("menu_member_previous", Key.Q, button: JoyButton.LeftShoulder);
-        Add("menu_member_next", Key.E, button: JoyButton.RightShoulder);
+        Add("menu_member_left", Key.Q, button: JoyButton.LeftShoulder);
+        Add("menu_member_right", Key.E, button: JoyButton.RightShoulder);
         Add("menu_details", Key.Tab, button: JoyButton.Y);
         Add("menu_appraise", Key.R, button: JoyButton.X);
         // Z or L, and R, change the tab.
