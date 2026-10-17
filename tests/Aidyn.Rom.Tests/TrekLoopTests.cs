@@ -277,6 +277,49 @@ public sealed class TrekLoopTests(MapObjectFixture fixture)
     }
 
     [Fact]
+    public void TheRainFallsOnThroughACutSceneAndTreksWorldBuiltAgain()
+    {
+        var particles = new ParticleHead(new Lcg());
+        var (trek, _) = Start("M07", 40, 55, particles: particles);
+        var weather = trek.Game.Weather!;
+        weather.Force(WeatherKind.Precipitation, Precipitation.Rain, 0.9f);
+        weather.FallIntensity = 0.05f;
+        for (var i = 0; i < 60; i++)
+        {
+            trek.Tick(Still);
+            particles.Step();
+        }
+        Assert.True(trek.WeatherSounds.RainPlaying && weather.SkyOverridden && weather.Emitting);
+        var loops = weather.RainLoopStarts;
+        var (id, _, dialogue) = Data.Of<DialogueObject>()
+            .First(d => Data.Set.TryGet<DialogueRecord>(d.Object.Script) is { Mode: DialogueMode.Cutscene } && d.Object.Stage is not null);
+        trek.Cue(Data.Set.Get<DialogueRecord>(dialogue.Script), new ScriptStart(dialogue.RefPointBase, id), dialogue.Stage!);
+        while (trek.Tick(Still) == TrekStep.Ran)
+            particles.Step();
+        var before = weather.FallIntensity;
+
+        // Trek's world goes for the stage: the pair with it, but what falls, the rain sky and the loop carry on.
+        trek.BeginCutScene();
+        Assert.Equal(0, particles.EmittersInUse);
+        Assert.False(weather.Emitting);
+        Assert.True(weather.WantsRainSky && weather.SkyOverridden && trek.WeatherSounds.RainPlaying);
+        Assert.Equal(before, weather.FallIntensity);
+        // The stage's ticks, under an outdoor sky.
+        for (var i = 0; i < 30; i++)
+            trek.StepWeather(true, null);
+        Assert.Equal(before + 30f / 300, weather.FallIntensity, 1e-5f);
+
+        // And back in trek, a new pair about the player, the loop never restarted.
+        trek.Resume();
+        Assert.True(weather.WantsRainSky && trek.WeatherSounds.RainPlaying);
+        trek.Tick(Still);
+        Assert.True(weather.Emitting);
+        Assert.NotNull(trek.Precipitation!.Drops);
+        Assert.Equal(loops, weather.RainLoopStarts);
+        Assert.True(weather.FallIntensity > before + 30f / 300);
+    }
+
+    [Fact]
     public void TheMinimapShowsThePlayersPieceLargeWithThePortraitsUpAndSmallWhenHeMoves()
     {
         // Gwernia castle's M05, a corridor (image 0x97, 41 × 12, at (10, 49) in its plan), where the user's captures stood.

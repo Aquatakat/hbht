@@ -85,6 +85,20 @@ public partial class CutSceneActorView : Node3D
     }
 
     /// <summary>
+    /// Lights it by the point lights that reach it this tick, as a body is (<c>RenderPlayers</c>, <c>0x800140f0</c>, through
+    /// <c>Bodies.SetLights</c>, <c>0x80013798</c>): after the sun, the dynamic lights. No cut-scene actor is one of the
+    /// party's (<c>+0x70a</c>, which only trek's player and combat's party have), Alaron among them, so the stage's light
+    /// map objects don't reach it.
+    /// </summary>
+    public void Light(Core.Lights.WorldLights lights, Core.Chunks.ChunkStreamer stage)
+    {
+        if (_model is null)
+            return;
+        var centre = Actor.Body.Sphere.Position;
+        N64Material.SetLights(_model.Meshes, lights.ForBody(centre, stage.MapAt(centre), party: false));
+    }
+
+    /// <summary>
     /// Fades it by its distance from the camera's aim (<c>PlayerShadowAlpha</c>), hides it while the camera
     /// looks out of its eyes, and places its shadow: Alaron's as the player's, others' within
     /// <see cref="BodyShadow.OthersDistance"/> of the aim.
