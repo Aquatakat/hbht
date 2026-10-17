@@ -43,43 +43,59 @@ public class BackdropPageTests
     }
 
     [Fact]
-    public void TheRolledScrollWrapsAt240()
+    public void TheRolledScrollNarrowsOnlyItsTextAndOnlyAsPicture4()
     {
         var layout = Page(4).Show(Node("a", "b"));
 
         Assert.Equal(240, layout.Text.Bounds.Right);
-        Assert.Equal(240, layout.Choices[0].Bounds.Right);
-        Assert.Equal(240, BackdropStyle.For(9).Right);
+        Assert.Equal(256, layout.Choices[0].Bounds.Right);
+        Assert.Equal(256, BackdropStyle.For(9).TextRight);
     }
 
     [Fact]
-    public void UpTo8ChoicesShowAndTheWindowFollowsTheCursor()
+    public void TheListSlidesToKeepTheCursorsChoiceInsideTheMenu()
     {
+        // A choice of three lines is 33 tall, 37 with the gap. The one-line text pushes the list down 10, to 55.
         var page = Page();
-        page.Show(Node("a", [.. Enumerable.Range(0, 10).Select(i => $"c{i}")]));
-        Assert.Equal(8, page.Layout!.Choices.Count);
+        page.Show(Node("a", [.. Enumerable.Range(0, 8).Select(_ => Lines(3))]));
+        Assert.Equal(55, page.Layout!.Choices[0].Y);
 
-        page.MoveCursor(8);
-        Assert.Equal((8, 1, "c1"), (page.Highlight, page.Layout.First, page.Layout.Choices[0].Text));
+        // The fifth's top is at 55 + 4 × 37 = 203, its foot 31 past 205: the list slides up 31, cutting the first.
+        page.MoveCursor(4);
+        Assert.Equal((24, 172), (page.Layout.Choices[0].Y, page.Layout.Choices[4].Y));
+        Assert.Equal(new ScreenRect(75, 55, 256, 205), page.Layout.Choices[0].Bounds);
+
+        page.MoveCursor(-4);
         Assert.Equal(55, page.Layout.Choices[0].Y);
-
-        page.MoveCursor(5);
-        Assert.Equal((9, 2), (page.Highlight, page.Layout.First));
-        page.MoveCursor(-9);
-        Assert.Equal((0, 0), (page.Highlight, page.Layout.First));
     }
 
     [Fact]
-    public void ANewNodePutsTheCursorOnItsFirstChoice()
+    public void TheCursorWrapsAndANewNodePutsItOnTheFirstChoice()
     {
         var page = Page();
-        page.Show(Node("a", "b", "c"));
+        page.Show(Node("a", "b", "c", "d"));
+        page.MoveCursor(-1);
+        Assert.Equal(2, page.Highlight);
+        page.MoveCursor(1);
+        Assert.Equal(0, page.Highlight);
         page.MoveCursor(1);
 
-        page.Show(Node("d", "e", "f"));
+        page.Show(Node("e", "f", "g"));
 
         Assert.Equal(0, page.Highlight);
-        Assert.Equal("d", page.Layout!.Text.Text);
+        Assert.Equal("e", page.Layout!.Text.Text);
+    }
+
+    [Fact]
+    public void TheSlideIsKeptFromNodeToNode()
+    {
+        // As the original never resets it: after a one-line text's 10, five lines' choices are 14 below, not 4.
+        var page = Page();
+        page.Show(Node("a", "b"));
+
+        var layout = page.Show(Node(Lines(5), "c"));
+
+        Assert.Equal(99, layout.Choices[0].Y);
     }
 
     [Fact]
@@ -113,5 +129,7 @@ public class BackdropPageTests
         int[] images = [0x3606, 0x3603, 0x3605, 0x3608, 0x3608, 0x3602, 0x3607, 0x3604];
         Assert.Equal(images.Select(i => RecordId.Hex(RecordTypes.Image, i)), pictures.Select(p => BackdropStyle.For(p).Picture));
         Assert.Equal([10, 11, 12], pictures.Where(p => BackdropStyle.For(p).Shadow is not null));
+        Assert.Equal([new Rgba(0, 0, 0, 255)], new[] { 1, 2, 12 }.Select(p => BackdropStyle.For(p).PulseFrom).Distinct());
+        Assert.Equal(MenuPulse.ScrollFrom, BackdropStyle.For(3).PulseFrom);
     }
 }

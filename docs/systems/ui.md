@@ -289,23 +289,25 @@ A backdrop script (78 of them: books, scrolls, plaques and stones in the world, 
 
 - **Starting.** The script table (`Dialogue.ModeTable`, `0x8005102c`) has five functions a phase, by `start_func`; backdrops and help share theirs (`Backdrop.Start` `0x80051904`, `Backdrop.End` `0x80051950`). Help from the System tab (`pauseMenuSelectCallBack`, `0x800403ac`) sets the menu's exit code 3 (`PauseMenu.Exit`, `0x80048e64`), so the menu rolls up and the world brightens as when it closes, and a frame or two later trek starts the script.
 - **No fades.** The original's page appears and goes at once, and the world is still drawn behind it, but its picture is opaque and covers the 320 × 240 frame.
-- **The page** (`Backdrop.Widgets` `0x80046db8`, `Backdrop.Page` `0x80047930`, `Backdrop.Node` `0x80047e14`): the picture at (0, 0); one text in the main font at (64, 30), wrapping and cut between x 64 and 256 (240 for picture 4) and y 30 and 205, each node's text replacing the last with no paging; and under it, 4 below the text and never above y 55, the choices in a scroll menu (`WidgetScrollMenu`) from x 75 to 256 and y 55 to 205, 4 between rows, up to 8 showing. Up and down move the cursor; A takes the choice, or with none moves on. In the help menu, B takes the last choice, Exit Help.
-- **The pictures,** by the script's picture number (`libraryType`), all opaque 320 × 240:
+- **The page** (`Backdrop.Widgets` `0x80046db8`, `Backdrop.Page` `0x80047930`, `Backdrop.Node` `0x80047e14`, settled Oct 16, 2026): the picture at (0, 0), full white; one text in the main font at scale 1 at (64, 30), wrapping and cut between x 64 and 256 and y 30 and 205, each node's text replacing the last with no paging; and the choices, at most 8, in a scroll menu (`WidgetScrollMenu`) from x 75 to 256 and y 55 to 205, the first 4 below the text, each wrapped between 75 and 256 and stacked 4 apart. Nothing else is drawn: no arrows, bar or cursor image.
+  - **The list slides** to keep the cursor's choice inside the menu, at once, by as much as its foot is below 205 or its top above 55 (`WidgetScrollMenu.Step`, `0x800b01c0`). That's what keeps the choices from rising above 55 under a short text, and what lifts them over a text too tall for them. Choices past the menu's edges are cut. The slide is never reset from node to node (`WidgetScrollMenu.Clear`, `0x800b24e4`, clears only the choices and the cursor), so after a one-line text has pushed the list down 10, a taller text's choices are 14 below it, not 4. The port keeps this; no capture checks it yet ([to-check](../to-check.md)).
+  - **The cursor** starts on the first choice of each node, and up and down wrap from the last to the first and back (`WidgetScrollMenu.Up` `0x800b0480`, `Down` `0x800b0548`). Left and right do nothing. A takes the choice, or with none moves on (`Dialogue.OnA`, `0x800482f0`). In the help menu, B takes the last choice, Exit Help or Back (`Dialogue.OnBHelp`, `0x80048354`); in a book it does nothing. **No sounds**, neither the cursor's nor A's.
+- **The pictures,** by the script's picture number (`libraryType`), all opaque 320 × 240. The choices off the cursor are in the text's colour and with its shadow; the cursor's choice pulses between two colours with no shadow, a step a frame from the first toward the second, 0 to 19 of 20 steps and back, so it never quite reaches the second (`WidgetScrollMenu.SetPulse`, `0x800b22e4`):
 
-  | Picture | Image | Scripts | Text | Choices pulse to | Shadow |
+  | Picture | Image | Scripts | Text | Cursor's choice pulses | Shadow |
   | --- | --- | --- | --- | --- | --- |
-  | 0 and any other, the help menu's 14 too | `0x0182`, the journal's book | 22, and help | (103, 70, 60) | the scroll menu's own | |
-  | 1 | `0x3606`, the leaf book | 5 | (54, 64, 0) | (189, 99, 205) | |
-  | 2 | `0x3603`, the white book | 13 | (0, 41, 68) | (173, 162, 51) | |
-  | 3 | `0x3605`, the torn parchment | 7 | | | |
-  | 4 and 9 | `0x3608`, the rolled scroll | 3 | | | |
+  | 0, 5–8 and 13 up, the help menu's 14 too | `0x0182`, the journal's book | 22, and help | (103, 70, 60) | (100, 100, 100, 100) to white, the scroll menu's own | |
+  | 1 | `0x3606`, the leaf book | 5 | (54, 64, 0) | black to (189, 99, 205) | |
+  | 2 | `0x3603`, the white book | 13 | (0, 41, 68) | black to (173, 162, 51) | |
+  | 3 | `0x3605`, the torn parchment | 7 | (103, 70, 60) | the scroll menu's own | |
+  | 4 and 9 | `0x3608`, the rolled scroll | 3 | (103, 70, 60), wrapping at 240 for 4 only | the scroll menu's own | |
   | 10 | `0x3602`, the engraved stone | 8 | (30, 26, 0) | (14, 0, 61) to (254, 254, 222) | (217, 209, 204, 177) at (1, −1) |
   | 11 | `0x3607`, the blue stone | 16 | (0, 0, 0) | (133, 13, 13) to (226, 144, 63) | (230, 225, 221, 177) at (1, 1) |
-  | 12 | `0x3604`, the gold plaque | 4 | (65, 27, 0) | (220, 128, 30) | (255, 242, 166, 204) at (1, 1) |
+  | 12 | `0x3604`, the gold plaque | 4 | (65, 27, 0) | black to (220, 128, 30) | (255, 242, 166, 204) at (1, 1) |
 
-  10, 11 and 12 draw their text with a shadow (`WidgetShadowText`). The scroll menu's own pulse, from (100, 100, 100, 100) to white over 20 frames, is from the code and not yet checked against a capture.
+  10, 11 and 12 draw their text and choices as shadow text (`WidgetShadowText`), the shadow first. Picture 4 narrows only the text (`0x80046ea0`), not the choices; 9 doesn't narrow. The scroll menu's own pulse is from the code and not yet checked against a capture.
 - **In the port** the page is drawn as the journal is, its 320 × 240 frame centred on the screen, since the pictures were made for that frame, over the world as the frame before it opened drew it, without the HUD, darkened to the pause menu's half as the page fades in. The game is paused under it as under the pause menu, the map's sounds going on. The page fades in and out at the journal's 60 an alpha a frame, which the original's doesn't. The user chose all this (Oct 15, 2026). Help rolls the menu up first, as the original does. When the script ends, the page fades out, trek is rebuilt as after a cut-scene ([runtime](runtime.md)), and the game goes on.
-- **In the runtime** A takes the cursor's choice or moves on, up and down (or the stick) move the cursor, and in the help menu B (Backspace) takes the last choice. A new node puts the cursor on its first choice. With more than 8 choices, the window follows the cursor, which stops at the ends; no script has more than 8.
+- **In the runtime** A takes the cursor's choice or moves on, up and down (or the stick) move the cursor, and in the help menu B (Backspace) takes the last choice. The cursor's pulse steps at the 30 fps cadence, as the other menus' pulses do.
 
 ## The trek HUD
 

@@ -43,8 +43,15 @@ public partial class BackdropView : Control
         var style = layout.Style;
         _ui.Image(this, style.Picture, 0, 0, color: new Rgba(255, 255, 255, (byte)page.Alpha));
         Print(layout.Text, style.Text, style.Shadow, alpha);
+        // The choices off the cursor are in the text's colour and shadow; the cursor's pulses, with no shadow
+        // (WidgetScrollMenu.Step, 0x800b0248).
         for (var i = 0; i < layout.Choices.Count; i++)
-            Print(layout.Choices[i], layout.First + i == layout.Highlight ? page.HighlightNow : style.Choice, style.Shadow, alpha);
+        {
+            if (i == layout.Highlight)
+                Print(layout.Choices[i], page.HighlightNow, null, alpha);
+            else
+                Print(layout.Choices[i], style.Text, style.Shadow, alpha);
+        }
     }
 
     /// <summary>Text at the page's alpha, over its shadow if the picture has one (<c>WidgetShadowText</c>).</summary>
