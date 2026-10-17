@@ -545,10 +545,18 @@ public partial class PauseMenu : CanvasLayer
             Sound(m => m.PageCursor, Short);
     }
 
-    /// <summary>Up or down: the menu's cursor sound, and the World tab's own besides.</summary>
+    /// <summary>
+    /// Up or down: the menu's cursor sound, and the World tab's own besides. The Party tab's lists play the cursor's
+    /// themselves too, so with no popup up it plays twice at once, louder, as the user confirmed. The journal takes the
+    /// presses itself, and scrolls silently.
+    /// </summary>
     private void CursorSound()
     {
+        if (Tab == PauseTab.World && _world?.Menu.Journal is not null)
+            return;
         Sound(m => m.Cursor, Core.Audio.OneShot.ShortTicks);
+        if (Tab == PauseTab.Party && _view is { Barter: null, Training: null, Menu.HasPopup: false })
+            Sound(m => m.Cursor, Core.Audio.OneShot.ShortTicks);
         if (Tab == PauseTab.World)
             Sound(m => m.PageCursor, Core.Audio.OneShot.ShortTicks);
     }
