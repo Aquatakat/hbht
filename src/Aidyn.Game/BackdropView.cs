@@ -65,41 +65,13 @@ public partial class BackdropView : Control
     }
 
     /// <summary>
-    /// The picture at (0, 0), at its own size, its alpha ramping from 0 at each edge to the page's at <see cref="Feather"/>
-    /// in, so the feather multiplies with the page's fade. It's nine cells of two triangles each, the vertices at the
-    /// frame's edges transparent. Each corner's cell is split along the diagonal from the frame's corner to the inner one,
-    /// so its alpha is the lesser of its two edges' ramps and the four corners match; a quad left to Godot to split, as
-    /// <see cref="UiPainter.Feathered"/> leaves it, would cut some across the other way.
+    /// The picture at (0, 0), at its own size, faded out over <see cref="Feather"/> at its edges, with round corners, as
+    /// the original's feathered message box is (<see cref="EdgeFeather"/>), and at the page's alpha.
     /// </summary>
     private void Picture(RecordId image, float alpha)
     {
-        if (_ui.Images.Get(image) is not { } texture)
-            return;
-        var size = texture.GetSize();
-        var inside = new Color(1, 1, 1, alpha);
-        var edge = new Color(1, 1, 1, 0);
-        float[] xs = [0, Feather.Left, size.X - Feather.Right, size.X];
-        float[] ys = [0, Feather.Top, size.Y - Feather.Bottom, size.Y];
-        for (var j = 0; j < 3; j++)
-        {
-            for (var i = 0; i < 3; i++)
-            {
-                // The cell's corners from its top left clockwise, and its two triangles, split through the frame's
-                // corner in the four corner cells. The others ramp along one axis or not at all, so either split
-                // draws them the same.
-                (int I, int J)[] corners = [(i, j), (i + 1, j), (i + 1, j + 1), (i, j + 1)];
-                int[][] triangles = (i == 0) == (j == 0) ? [[0, 1, 2], [0, 2, 3]] : [[0, 1, 3], [1, 2, 3]];
-                foreach (var triangle in triangles)
-                {
-                    var points = triangle.Select(k => corners[k]).ToArray();
-                    DrawPolygon(
-                        [.. points.Select(c => new Vector2(xs[c.I], ys[c.J]))],
-                        [.. points.Select(c => c.I is 1 or 2 && c.J is 1 or 2 ? inside : edge)],
-                        [.. points.Select(c => new Vector2(xs[c.I], ys[c.J]) / size)],
-                        texture);
-                }
-            }
-        }
+        if (_ui.Images.Feathered(image, Feather.Left, Feather.Top, Feather.Right, Feather.Bottom) is { } texture)
+            DrawTexture(texture, Vector2.Zero, new Color(1, 1, 1, alpha));
     }
 
     /// <summary>Text at the page's alpha, over its shadow if the picture has one (<c>WidgetShadowText</c>).</summary>

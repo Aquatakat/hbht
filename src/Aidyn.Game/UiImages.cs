@@ -56,6 +56,40 @@ public sealed class UiImages(PluginSet plugins)
         return _plain[image] = plain;
     }
 
+    private readonly Dictionary<RecordId, Texture2D?> _feathered = [];
+
+    /// <summary>
+    /// An image faded out at its edges with round corners, by the feathered boxes' own ramp (<see cref="EdgeFeather"/>),
+    /// made the first time it's asked for, or null if no plugin has the image.
+    /// </summary>
+    public Texture2D? Feathered(RecordId image, int left, int top, int right, int bottom)
+    {
+        if (_feathered.TryGetValue(image, out var feathered))
+            return feathered;
+        if (Get(image)?.GetImage() is { } data)
+        {
+            data.Convert(Image.Format.Rgba8);
+            var (width, height) = (data.GetWidth(), data.GetHeight());
+            var bytes = data.GetData();
+            EdgeFeather.Apply(bytes, width, height, left, top, right, bottom, EdgeRamp());
+            feathered = ImageTexture.CreateFromImage(Image.CreateFromData(width, height, false, Image.Format.Rgba8, bytes));
+        }
+        return _feathered[image] = feathered;
+    }
+
+    /// <summary>
+    /// The feathered boxes' ramp from the edge in, a value a pixel from 0 to 1: the left gradient's top row, over the
+    /// band's alpha, 136, which its last pixels reach.
+    /// </summary>
+    private float[] EdgeRamp()
+    {
+        if (Get(Edges[2])?.GetImage() is not { } data)
+            return [1];
+        data.Convert(Image.Format.Rgba8);
+        var full = data.GetPixel(data.GetWidth() - 1, 0).A;
+        return [.. Enumerable.Range(0, data.GetWidth()).Select(x => Math.Min(1, data.GetPixel(x, 0).A / full))];
+    }
+
     /// <summary>
     /// A band feathered by each piece at its own size, as a message's box is (<c>IntroMenu_ShadowBG</c>):
     /// the gradients' thickness is their images' height above and below and width beside.
