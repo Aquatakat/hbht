@@ -461,6 +461,7 @@ Particles.FreeTextures = 0x800a7d94; // coined; docs/formats/particles.md
 Particles.FreeHead = 0x800a7f40; // coined; docs/formats/particles.md: FreeZoneEngine's
 ParticleHead.ApplyVector = 0x800a7fa0; // ParticleHead.cs: a particle's vector added to its target or its whole list
 ParticleHead.StepParticle = 0x800a82fc; // ParticleHead.cs: moves by the velocity, bounces, applies the vector
+ProcessAndRenderParticleHead = 0x800a842c; // the debug build's string 0x800e3a54 (debug 0x800b216c): the pool's frame, ParticleHead.Frame in the port
 ParticleHead.Link = 0x800a8864; // ParticleHead.cs: after the emitter's head; never the sentinel
 ParticleHead.Unlink = 0x800a88f0; // ParticleHead.cs
 ParticleHead.AllocSlot = 0x800a895c; // ParticleHead.cs: the sentinel when the pool is full

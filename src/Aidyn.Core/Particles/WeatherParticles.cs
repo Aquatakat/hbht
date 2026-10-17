@@ -11,8 +11,8 @@ namespace Aidyn.Core.Particles;
 /// Rain and snow, as the original draws them: two emitters of the particle pool, one of drops that fall from a disc
 /// above and ahead of the camera's aim and one of the splashes they become as they land, which <c>ProcessWeather</c>
 /// (<c>0x8001e7c0</c> in 1.0) makes and steers by what's falling and how hard (<see cref="Weather.FallIntensity"/>).
-/// Each drop sweeps its fall against the collision of the chunk the player is in as it's made, and lands where that
-/// says, laid flat on the ground as a ripple that shrinks and fades; rain also splashes about the drops of itself. See
+/// Each drop sweeps its fall against the loaded collision as it's made (the original's, the player's chunk's alone), and
+/// lands where that says, laid flat on the ground as a ripple that shrinks and fades; rain also splashes about the drops of itself. See
 /// docs/systems/weather.md.
 /// </summary>
 /// <remarks>
@@ -23,7 +23,9 @@ namespace Aidyn.Core.Particles;
 /// drops' draws come from the cosmetic stream, where the original takes them from its one stream (ADR 0006).
 /// </para>
 /// <para>
-/// <see cref="Density"/> is the port's: more drops and splashes from each spawn, and room for them in the pool.
+/// <see cref="Density"/> is the port's: more drops from each spawn, and room for them in the pool, with the splashes held
+/// to <see cref="SplashCap"/> times the original's. The pair spawns by frames of the console's 20 fps
+/// (<see cref="Cadence.PrecipitationFrameTicks"/>), where the pool's others spawn by its 30.
 /// </para>
 /// </remarks>
 public sealed class WeatherParticles : IPrecipitationEmitters
@@ -82,6 +84,13 @@ public sealed class WeatherParticles : IPrecipitationEmitters
     /// <summary>Rain's own splashes land within half the drops' spread (<c>0x800ce098</c>), found from this far above their centre to this far below (<c>0x800ce09c</c>).</summary>
     public const float AmbientShare = 0.5f, AmbientReach = 50;
 
+    /// <summary>
+    /// The most splashes, of the drops and of their own together, that any <see cref="Density"/> makes, as a multiple of
+    /// the original's: the port's. Past it, rain's own splashes stop growing with the density and only a share of the
+    /// drops that land splash, so that the drops keep their density without the ground carpeted in ripples.
+    /// </summary>
+    public const float SplashCap = 1.5f;
+
     /// <summary>The original's particles, which <see cref="Density"/> multiplies for the pool.</summary>
     public const int OriginalPool = ParticleHead.DefaultMaxParticles;
 
@@ -108,8 +117,8 @@ public sealed class WeatherParticles : IPrecipitationEmitters
     /// <param name="look">The camera's look in X and Z, a unit vector (<c>FollowCamera.LookXZ</c>, <c>0x800d82cc</c>), read as the pair is steered.</param>
     /// <param name="world">The loaded collision.</param>
     /// <param name="part">
-    /// The key of the chunk the player is in, whose collision alone the drops test, as the original's
-    /// (<c>Zones.PlayerMap</c>, <c>0x800d8288</c>); null tests every loaded chunk's.
+    /// The key of one chunk whose collision alone the drops test, as the original tests the player's
+    /// (<c>Zones.PlayerMap</c>, <c>0x800d8288</c>); null, trek's, tests every loaded chunk's, the user's choice.
     /// </param>
     public WeatherParticles(ParticleHead head, WeatherRecord rules, IRandom random, Func<Vector3> aim, Func<Vector2> look,
         Func<CollisionWorld?> world, Func<object?>? part = null)
@@ -124,9 +133,11 @@ public sealed class WeatherParticles : IPrecipitationEmitters
     }
 
     /// <summary>
-    /// How many drops and splashes each spawn makes, a multiple of the original's 1: the port's setting. The pool
-    /// grows to the original's 384 times it, as far as its capacity, so the rain isn't capped where the original's would be
-    /// half as dense. A fraction carries over to the next spawn.
+    /// How many drops each spawn makes, a multiple of the original's 1: the port's setting. Rain's own splashes are
+    /// as many times the original's up to <see cref="SplashCap"/>, and past it each drop that lands splashes by a share
+    /// of <see cref="SplashCap"/> over this, so the splashes stay at that many times the original's. The pool grows to
+    /// the original's 384 times it, as far as its capacity, so the rain isn't capped where the original's would be half
+    /// as dense. A fraction carries over to the next spawn, and to the next drop that lands.
     /// </summary>
     public float Density
     {
@@ -137,6 +148,18 @@ public sealed class WeatherParticles : IPrecipitationEmitters
             _head.MaxParticles = (int)(OriginalPool * Math.Max(_density, 1));
         }
     }
+
+    /// <summary>How many drops the pairs have made.</summary>
+    public long DropsMade { get; private set; }
+
+    /// <summary>How many of the drops have landed as splashes.</summary>
+    public long DropSplashes { get; private set; }
+
+    /// <summary>How many splashes rain has made of its own.</summary>
+    public long OwnSplashes { get; private set; }
+
+    /// <summary>The share of the drops that land that splash: 1, or past <see cref="SplashCap"/> that over the density.</summary>
+    public float SplashShare => _density > SplashCap ? SplashCap / _density : 1;
 
     /// <summary>The drops' emitter now steered (<c>Weather.Data</c> + 0x14), or null.</summary>
     public Emitter? Drops => Current?.Drops;
@@ -247,6 +270,7 @@ public sealed class WeatherParticles : IPrecipitationEmitters
         var pair = new Pair(this, look);
         if (_head.AllocEmitter(StartLife, look.Splash, 0, spawn: look.Splashes ? pair.SpawnSplashes : null) is not { } splashes)
             return null;
+        splashes.SpawnTicks = Cadence.PrecipitationFrameTicks;
         ref var a = ref _head[splashes.Head];
         a.Vector = new Vector4(SplashShrink, SplashShrink, SplashShrink, 0);
         a.Flags |= ParticleFlags.AddScale;
@@ -255,6 +279,7 @@ public sealed class WeatherParticles : IPrecipitationEmitters
             _head.Free(splashes);
             return null;
         }
+        drops.SpawnTicks = Cadence.PrecipitationFrameTicks;
         _head[drops.Head].Flags |= ParticleFlags.AddPosition;
         (pair.Drops, pair.Splashes) = (drops, splashes);
         _pairs.Add(pair);
@@ -265,15 +290,15 @@ public sealed class WeatherParticles : IPrecipitationEmitters
     private sealed class Pair
     {
         private readonly WeatherParticles _owner;
-        private float _dropCarry, _splashCarry;
+        private float _dropCarry, _splashCarry, _landCarry;
 
         public Pair(WeatherParticles owner, PrecipitationLook look)
         {
             _owner = owner;
             Look = look;
             Color = new Vector4(look.Color.R, look.Color.G, look.Color.B, look.Color.A);
-            SpawnDrops = (_, _) => Spawn(ref _dropCarry, SpawnDrop);
-            SpawnSplashes = (_, _) => Spawn(ref _splashCarry, SpawnSplash);
+            SpawnDrops = (_, _) => Spawn(ref _dropCarry, _owner._density, SpawnDrop);
+            SpawnSplashes = (_, _) => Spawn(ref _splashCarry, Math.Min(_owner._density, SplashCap), SpawnSplash);
             Land = DropStep;
         }
 
@@ -306,9 +331,9 @@ public sealed class WeatherParticles : IPrecipitationEmitters
 
         private ParticleHead Head => _owner._head;
 
-        private void Spawn(ref float carry, Action one)
+        private static void Spawn(ref float carry, float density, Action one)
         {
-            carry += _owner._density;
+            carry += density;
             for (; carry >= 1; carry--)
                 one();
         }
@@ -337,12 +362,13 @@ public sealed class WeatherParticles : IPrecipitationEmitters
             p.Color = Color;
             p.Flags |= ParticleFlags.AddColor;
             p.Vector = p.Color * (float)(-Fade / Life);
+            _owner.DropsMade++;
         }
 
         /// <summary>
         /// A drop's step (<c>WeatherParticles.DropStep</c>, <c>0x8001e138</c>): while it nears where it will land it notes how near;
         /// once it's past, each frame it looks for the ground from 5 above it to 5 below, and on finding it becomes a
-        /// splash there, in the splashes' list.
+        /// splash there, in the splashes' list. Past <see cref="SplashCap"/>, a drop the share leaves out ends there instead.
         /// </summary>
         private void DropStep(ParticleHead head, Emitter e, ref Particle p)
         {
@@ -355,9 +381,20 @@ public sealed class WeatherParticles : IPrecipitationEmitters
             }
             var from = p.Position with { Y = p.Position.Y + LandingReach };
             var to = p.Position with { Y = p.Position.Y - LandingReach };
-            if (_owner._world() is { } world && SpherePhysics.Sweep(world, from, to, RayRadius, skipSeeThrough: true, out var point, out var normal, _owner._part())
-                && Splashes is { } splashes && head.MoveParticle(p.Id, splashes))
-                MakeSplash(ref p, point, normal);
+            if (_owner._world() is not { } world || !SpherePhysics.Sweep(world, from, to, RayRadius, skipSeeThrough: true, out var point, out var normal, _owner._part())
+                || Splashes is not { } splashes)
+                return;
+            _landCarry += _owner.SplashShare;
+            if (_landCarry < 1)
+            {
+                head.FreeParticle(p.Id);
+                return;
+            }
+            _landCarry--;
+            if (!head.MoveParticle(p.Id, splashes))
+                return;
+            MakeSplash(ref p, point, normal);
+            _owner.DropSplashes++;
         }
 
         /// <summary>
@@ -384,6 +421,7 @@ public sealed class WeatherParticles : IPrecipitationEmitters
             p.Flags |= ParticleFlags.AddColor;
             p.Vector = p.Color * (float)(-Fade / Life);
             MakeSplash(ref p, point, normal);
+            _owner.OwnSplashes++;
         }
 
         /// <summary>

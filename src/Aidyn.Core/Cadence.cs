@@ -27,6 +27,17 @@ public static class Cadence
     public const int TextureFrameTicks = 3;
 
     /// <summary>
+    /// The ticks in the frame that rain and snow spawn by: 20 fps, the console's average, as for textures.
+    /// </summary>
+    /// <remarks>
+    /// The particle pool spawns once a frame per emitter, whatever the frame's ticks (<c>ProcessAndRenderParticleHead</c>,
+    /// <c>0x800a842c</c>), so the weather's drops and splashes come as often as the console draws frames. At 30 fps the
+    /// rain's own splashes came 1.5 to 2 times as often as on the console on the beach, where it runs at about 15 fps;
+    /// the user saw about twice. The rest of the pool keeps <see cref="FrameTicks"/>.
+    /// </remarks>
+    public const int PrecipitationFrameTicks = 3;
+
+    /// <summary>
     /// The ticks in a frame of the pause menu: 60 fps. The menu steps its slides, fades and scroll once a frame, and
     /// its frames are light: a slide of 32 frames at 2 ticks felt slow beside the emulator's to the user (Oct 12,
     /// 2026), and 1 is the only shorter whole number.

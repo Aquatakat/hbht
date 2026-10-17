@@ -102,9 +102,11 @@ public sealed class TrekLoop : IMapObjectHost
         _host = host;
         Chunks = chunks;
         Particles = particles;
+        // The drops land on every loaded chunk's collision, where the original's find only the player's chunk's
+        // (Zones.PlayerMap): the user's choice, so that near a chunk's edge they don't fall through the next one.
         if (particles is not null && game.Weather is { } weather)
             Precipitation = new WeatherParticles(particles, weather.Rules, game.Random.Cosmetic, () => Camera.Aim, () => Camera.LookXZ,
-                () => Chunks.World, () => Chunks.Centre);
+                () => Chunks.World);
         Wanderers = new Wanderers(game.Plugins);
         Use = new MapObjectUse(game, MenuText.From(game.Plugins), this) { World = chunks.World };
         Hud = new TrekHud(game, host.ImageSize);

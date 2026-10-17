@@ -150,6 +150,16 @@ public sealed class Emitter(int slot)
     /// <summary>The ticks to the next spawn.</summary>
     public int Counter;
 
+    /// <summary>
+    /// The ticks of the frames it spawns by, if not the pool's: the port's, for the weather, whose spawns follow the
+    /// console's frame rate rather than the pool's 30 fps (<see cref="Cadence.PrecipitationFrameTicks"/>). 0 spawns by
+    /// the pool's frames.
+    /// </summary>
+    public int SpawnTicks;
+
+    /// <summary>With <see cref="SpawnTicks"/>, the ticks to its next frame of spawning; at 0 or below, it spawns this frame.</summary>
+    internal int SpawnClock;
+
     /// <summary>What its particles are drawn with.</summary>
     public RecordId? Texture;
 
