@@ -378,7 +378,7 @@ public sealed record CheckpointPlace(int MapSet, int Row, int Column, Vector3 Po
 /// <param name="Row">The object's chunk's row (<c>MapShortA</c>), already moved from the centre chunk to the object's own.</param>
 /// <param name="Column">Its column (<c>MapShortB</c>).</param>
 /// <param name="Type">
-/// What it is: the object's type for a container opened (1) or a monster party beaten (5), 9 for a
+/// What it is: the object's type for a path light put out (0, a scene object), a container opened (1) or a monster party beaten (5), 9 for a
 /// conversation's random line, and 0x49 + the skill for a conversation's skill check. A conversation's
 /// are written as type 9 whether a dialogue object or a monster party that talks started it.
 /// </param>

@@ -3,6 +3,7 @@ using Aidyn.Core.Cameras;
 using Aidyn.Core.Flags;
 using Aidyn.Core.Items;
 using Aidyn.Core.Rng;
+using Aidyn.Core.Scenes;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 
@@ -150,6 +151,8 @@ public sealed class LoadedMap
     /// only while it is.</item>
     /// <item>A teleporter's lock and trap are gone while their flags are set, and a secret door that
     /// needs a skill is there only once found, or if the party's search reaches its level.</item>
+    /// <item>A scene object remembered as put out (<see cref="PutOut"/>) isn't there (<c>0x80017af8</c> in 1.0
+    /// looks every scene object up in the chart).</item>
     /// </list>
     /// </summary>
     public static LoadedMap Activate(MapRecord record, object key, FlagNetwork flags, MapObjectMemory memory, Characters.Party party,
@@ -167,6 +170,7 @@ public sealed class LoadedMap
             {
                 ContainerObject container => map.ActivateContainer(container, IsSet, memory),
                 TeleporterObject teleporter => map.ActivateTeleporter(teleporter, IsSet, party, random),
+                SceneObject scene => MapObjectPresence.There(o, IsSet) && !map.Remembered(memory, scene),
                 _ => MapObjectPresence.There(o, IsSet),
             };
             map.SetActive(o.Index, active);
@@ -183,9 +187,10 @@ public sealed class LoadedMap
 
     /// <summary>
     /// Gates the scene objects no container links to again by the flags, as the runtime does when the
-    /// pause menu closes, so what changed there shows. Returns whether any came or went.
+    /// pause menu closes, so what changed there shows, and keeps those remembered as put out out, as
+    /// the original's reload does. Returns whether any came or went.
     /// </summary>
-    public bool Regate(FlagNetwork flags)
+    public bool Regate(FlagNetwork flags, MapObjectMemory memory)
     {
         bool IsSet(RecordId flag) => flags.TryHandle(flag, out var handle) && flags.Get(handle);
         var models = Record.Objects.OfType<ContainerObject>().Select(c => Linked<SceneObject>(c)?.Index).OfType<int>().ToHashSet();
@@ -194,13 +199,56 @@ public sealed class LoadedMap
         {
             if (scene.Pak == PakVariant.Without || models.Contains(scene.Index))
                 continue;
-            var there = MapObjectPresence.There(scene, IsSet);
+            var there = MapObjectPresence.There(scene, IsSet) && !Remembered(memory, scene);
             if (there == IsActive(scene.Index))
                 continue;
             SetActive(scene.Index, there);
             changed = true;
         }
         return changed;
+    }
+
+    /// <summary>Whether a scene object is remembered as put out.</summary>
+    public bool Remembered(MapObjectMemory memory, SceneObject scene) =>
+        memory.Find(new Memory(MapRecord.VoxelId(Record.Id, scene.Index), MemoryKind.PutOut)) is not null;
+
+    /// <summary>
+    /// Puts out the active objects that go out once reached (<see cref="SceneObject.GoesOut"/>, Oriana's path
+    /// lights) whose first level of detail the original draws from <paramref name="view"/> and whose second it
+    /// doesn't: within 2 short of the first level's distance, 3 for the lights, and in view
+    /// (<c>RenderVoxelScenes</c>, <c>0x8000cda0</c> in 1.0). Each stops being active, so it's gone from the next
+    /// frame, without fading, and is remembered for <see cref="MapObjectMemory.PutOutLoads"/> map loads, which
+    /// keeps it out whenever its chunk loads till then. Walking away doesn't bring it back.
+    /// </summary>
+    /// <remarks>
+    /// It goes by the original's distances whatever the draw distance is set to, since it's the game's
+    /// behaviour, not how far it draws. The original keys the memory under the chunk the player is in, with
+    /// the object's index in its own map, wherever the object is (the call passes the zone engine's current
+    /// map set, row and column with no offset, <c>0x11</c>). So a light in a neighbour, reached from across
+    /// the chunk's edge, goes out until its chunk loads again, and the memory names the object at that index
+    /// in the player's chunk, which stays out the next time that chunk loads if it's a scene object. Ported
+    /// as it is. Of the 23 lights only one is within 3 of its chunk's edge, across the ground: object 48 of J08,
+    /// 2.99 from J09, so it can hardly happen.
+    /// </remarks>
+    /// <param name="view">Where the original draws the scene objects from this frame.</param>
+    /// <param name="centre">The map of the chunk the player is in.</param>
+    /// <returns>The objects put out.</returns>
+    public IReadOnlyList<SceneObject> PutOut(in SceneView view, MapObjectMemory memory, RecordId centre)
+    {
+        List<SceneObject>? putOut = null;
+        Span<byte> alphas = stackalloc byte[2];
+        foreach (var o in Record.Objects)
+        {
+            if (o is not SceneObject { GoesOut: true } scene || !IsActive(scene.Index))
+                continue;
+            SceneObjectFade.Alphas(scene, Origin, view, alphas, DrawDistance.Original);
+            if (alphas[0] == 0 || alphas[1] != 0)
+                continue;
+            SetActive(scene.Index, false);
+            memory.Remember(new Memory(MapRecord.VoxelId(centre, scene.Index), MemoryKind.PutOut), 0, MapObjectMemory.PutOutLoads);
+            (putOut ??= []).Add(scene);
+        }
+        return putOut ?? [];
     }
 
     /// <summary>Whether a container is remembered as emptied, which it is when it has no opened flag.</summary>

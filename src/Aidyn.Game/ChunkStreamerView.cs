@@ -126,8 +126,22 @@ public partial class ChunkStreamerView : Node3D
     }
 
     /// <summary>
+    /// Puts out what goes out once reached, Oriana's path lights, as the core decides from this view
+    /// (<see cref="ChunkStreamer.PutOut"/>), and takes them out of the scenery.
+    /// </summary>
+    public void PutOut(in SceneView view)
+    {
+        foreach (var (map, o) in Chunks.PutOut(view))
+        {
+            if (_loaded.TryGetValue(map, out var scenery))
+                scenery.Remove(o.Index);
+        }
+    }
+
+    /// <summary>
     /// The scenes with scrolling textures the original would draw this frame: the centre chunk's,
-    /// a neighbour's when it's in the camera's view (<see cref="ChunkView"/>), and the levels of
+    /// a neighbour's when it's in the camera's view or the centre's map has it drawn whatever the view
+    /// (<see cref="ChunkView"/>), and the levels of
     /// detail of those chunks' scene objects that <see cref="Fade"/> last showed.
     /// </summary>
     /// <remarks>
@@ -145,10 +159,11 @@ public partial class ChunkStreamerView : Node3D
         var flat = new System.Numerics.Vector2(look.X, look.Z);
         flat = flat == default ? System.Numerics.Vector2.UnitX : System.Numerics.Vector2.Normalize(flat);
         var cell = new System.Numerics.Vector2(set.CellSize);
+        var forced = _loaded.Keys.FirstOrDefault(m => m.Key is ValueTuple<int, int> k && k == centre)?.Record.DrawnNeighbours ?? Neighbours.None;
         foreach (var (map, scenery) in _loaded)
         {
             var (row, column) = ((int, int))map.Key;
-            if (!ChunkView.Drawn(eye, flat, row - centre.Row, column - centre.Column, cell))
+            if (!ChunkView.Drawn(eye, flat, row - centre.Row, column - centre.Column, cell, forced))
                 continue;
             foreach (var scene in scenery.Scrolling())
                 yield return scene;

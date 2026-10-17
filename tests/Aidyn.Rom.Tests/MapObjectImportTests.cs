@@ -531,4 +531,54 @@ public sealed class MapObjectImportTests(MapObjectFixture fixture)
             (4, Flag(5221), Flag(976), 4, Flag(975), Flag(975)),
             (door.LockLevel, door.LockFlag!.Value, door.PickedFlag!.Value, door.TrapLevel, door.TrapFlag!.Value, door.DisarmFlag!.Value));
     }
+
+    [Fact]
+    public void OrianasPathLightsAreTheSceneObjectsThatGoOut()
+    {
+        // RenderVoxelScenes puts out an object whose second model is BORG5_OrianaLight (0x374A).
+        var lights = Data.Of<SceneObject>().Where(o => o.Object.GoesOut).ToList();
+        var chunkOf = Data.MapSets.Single(s => s.Label == "Overworld").Chunks.DistinctBy(c => c.Map).ToDictionary(c => c.Map, c => c.Name);
+        Assert.Equal(new Dictionary<string, int> { ["I08"] = 15, ["J08"] = 7, ["K08"] = 1 },
+            lights.CountBy(l => chunkOf[l.Map.Id]).ToDictionary());
+        Assert.All(lights, l =>
+        {
+            Assert.Equal([RecordId.Hex(RecordTypes.Scene, 0x1910), RecordId.Hex(RecordTypes.Scene, 0x374A)], l.Object.Models.Select(m => m.Model));
+            Assert.Equal((2, 5f, 24f), (l.Object.Lods, l.Object.Models[0].DrawDistance, l.Object.Models[1].DrawDistance));
+        });
+        Assert.Equal(lights.Count, Data.Of<SceneObject>().Count(o => o.Object.Models.Any(m => m.Model == RecordId.Hex(RecordTypes.Scene, 0x374A))));
+    }
+
+    [Fact]
+    public void APathLightInI08GoesOutAsThePlayerReachesItAndStaysOut()
+    {
+        var game = Core.GameState.NewGame(Data.Set);
+        game.Flags.Set(Flag(50), true);
+        var record = Data.Map("aidyn:map/0x0FDB");
+        Core.MapObjects.LoadedMap Load() => Core.MapObjects.LoadedMap.Activate(record, "I08", game.Flags, game.Memory, game.Party, new Core.Rng.Lcg());
+        var map = Load();
+        var light = Assert.IsType<SceneObject>(map[104]);
+        Assert.True(map.IsActive(104));
+
+        // The player 2 south of it, the camera behind him, looking north.
+        var at = light.Position + new System.Numerics.Vector3(0, 0.5f, 2);
+        var view = new Core.Scenes.SceneView(at, new(at.X, at.Z + 5), new(0, -1), 5, Core.Scenes.ViewCone.Original);
+        Assert.Equal([104], map.PutOut(view, game.Memory, record.Id).Select(o => o.Index));
+        Assert.False(Load().IsActive(104));
+        Assert.True(Load().IsActive(103));
+    }
+
+    [Fact]
+    public void TwentyOneOverworldMapsDrawNeighboursWhateverTheView()
+    {
+        var chunks = Data.MapSets.SelectMany(s => s.Chunks.Select(c => (Set: s.Label, Chunk: c))).ToList();
+        var forcing = chunks.Where(c => Data.Map(c.Chunk.Map.ToString()).DrawnNeighbours is not null).ToList();
+        Assert.Equal(21, forcing.Count);
+        Assert.All(forcing, c => Assert.Equal("Overworld", c.Set));
+        Assert.Equal("A15 B08 B15 G14 G19 H14 H19 I14 I17 I18 I19 J15 J16 J17 J19 K19 K20 L20 M20 M21 M22",
+            string.Join(' ', forcing.Select(c => c.Chunk.Name).Order()));
+        // I18 draws its four corners; I19 its north-east, south-east, south, west and east: 0xEA.
+        Assert.Equal(Neighbours.NorthWest | Neighbours.NorthEast | Neighbours.SouthWest | Neighbours.SouthEast,
+            Data.Map("aidyn:map/0x0FFE").DrawnNeighbours);
+        Assert.Equal((Neighbours)0xEA, Data.Map("aidyn:map/0x1004").DrawnNeighbours);
+    }
 }

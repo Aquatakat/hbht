@@ -1,4 +1,5 @@
 using Aidyn.Plugins;
+using Aidyn.Plugins.Records;
 
 namespace Aidyn.Core.MapObjects;
 
@@ -16,6 +17,11 @@ public enum MemoryKind
     Opened,
     /// <summary>A monster party beaten, which stays away while it's remembered.</summary>
     Beaten,
+    /// <summary>
+    /// A scene object put out as the player reached it, one of Oriana's path lights (<see cref="SceneObject.GoesOut"/>),
+    /// which stays out while it's remembered. The original's type 0, a scene object's.
+    /// </summary>
+    PutOut,
 }
 
 /// <summary>A memory's key: the map object, what it remembers, and for a skill check, which skill.</summary>
@@ -35,7 +41,8 @@ public sealed class MemoryEntry(Memory key, int value, int lifetime)
 
 /// <summary>
 /// What map objects remember for a while (the original's <c>VoxelChart</c>): a conversation's random
-/// line and skill checks, a container emptied that has no opened flag, a monster party beaten.
+/// line and skill checks, a container emptied that has no opened flag, a monster party beaten, a path
+/// light put out.
 /// It holds 19 memories. Each lasts a number of map loads, a teleport or a conversation's end, and
 /// is saved with the game.
 /// </summary>
@@ -62,6 +69,9 @@ public sealed class MapObjectMemory
 
     /// <summary>How many map loads a beaten monster party is remembered.</summary>
     public const int Short = 3;
+
+    /// <summary>How many map loads a path light put out is remembered (<c>RenderVoxelScenes</c>, <c>0x8000cdec</c> in 1.0).</summary>
+    public const int PutOutLoads = 16;
 
     private readonly List<MemoryEntry> _entries = [];
 

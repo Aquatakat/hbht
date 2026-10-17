@@ -127,7 +127,7 @@ public static class BaseImporter
         var actors = archive.Listings.Where(l => l.Type == BorgType.Actor).Select(l => l.Index).ToHashSet();
         // A file per map set, since each map is in one, such as records/maps/Overworld.json.
         var mapRecords = BuildMaps(archive, chunks, maps.ToDictionary(m => m.Key, m => m.Value.Objects), [.. db.Loot.Select(l => l.Id)],
-            maps.ToDictionary(m => m.Key, m => Grid(m.Value)));
+            maps.ToDictionary(m => m.Key, m => Grid(m.Value)), maps.ToDictionary(m => m.Key, m => m.Value.DrawnNeighbours));
         var setOf = chunks.ToLookup(c => RecordId.Hex(RecordTypes.Map, c.Collision), c => c.Set);
         foreach (var set in mapRecords.GroupBy(m => setOf[m.Id].Distinct().Single()))
             WriteJson(Path.Combine(staging, "records", "maps", set.Key + ".json"), set.ToList());
@@ -267,17 +267,26 @@ public static class BaseImporter
     /// </summary>
     /// <param name="lootTables">ChestDB's IDs, in order.</param>
     /// <param name="grids">Each map's grid of the objects its cells list, if it's known.</param>
+    /// <param name="neighbours">Each map's neighbours drawn whatever the view (<see cref="Borg9Map.DrawnNeighbours"/>), if known.</param>
     internal static List<MapRecord> BuildMaps(BorgArchive archive, IReadOnlyList<MapChunk> chunks,
         IReadOnlyDictionary<int, IReadOnlyList<VoxelObject>> maps, IReadOnlyList<ItemId> lootTables,
-        IReadOnlyDictionary<int, ObjectGrid>? grids = null)
+        IReadOnlyDictionary<int, ObjectGrid>? grids = null, IReadOnlyDictionary<int, byte>? neighbours = null)
     {
         var types = archive.Listings.ToDictionary(l => l.Index, l => l.Type);
         var chunkMaps = chunks.ToDictionary(c => (c.Set, c.Row, c.Column), c => c.Collision);
         return [.. maps.OrderBy(m => m.Key).Select(m => BuildMap(m.Key, m.Value, types, chunkMaps, maps, lootTables) with
         {
             Grid = grids?.GetValueOrDefault(m.Key),
+            DrawnNeighbours = neighbours?.GetValueOrDefault(m.Key) is > 0 and var bits ? (Neighbours)bits : null,
         })];
     }
+
+    /// <summary>
+    /// <c>BORG5_OrianaLight</c>, the billboard of Oriana's path lights. <c>RenderVoxelScenes</c> (<c>0x8000c67c</c> in 1.0)
+    /// puts out a scene object whose second model is this scene once only its first is drawn, comparing the index
+    /// as a literal (<c>0x8000cda4</c>), which the importer carries as <see cref="SceneObject.GoesOut"/>.
+    /// </summary>
+    internal const int OrianaLight = 0x374A;
 
     /// <summary>A Borg9's grid as its cells list objects, without the code objects, which the records leave out.</summary>
     private static ObjectGrid Grid(Borg9Map map)
@@ -343,7 +352,10 @@ public static class BaseImporter
                             m.DrawDistance)),
                     ],
                     scene.Lods, scene.Rotation, scene.Scale, new Plugins.Records.Rgba(scene.Tint.R, scene.Tint.G, scene.Tint.B, scene.Tint.A),
-                    (PluginSceneObjectFlags)((int)scene.SceneFlags & ~(int)RomSceneObjectFlags.Actor)),
+                    (PluginSceneObjectFlags)((int)scene.SceneFlags & ~(int)RomSceneObjectFlags.Actor))
+                {
+                    GoesOut = scene.Models.Count > 1 && scene.Models[1].Borg == OrianaLight,
+                },
                 // Herb, spice, gem and custom containers are gated as triggers are.
                 ContainerData c => c.Kind > (int)ContainerKind.Custom
                     ? throw new InvalidDataException($"Borg9 {index}: container {o.Index} is kind {c.Kind}.")

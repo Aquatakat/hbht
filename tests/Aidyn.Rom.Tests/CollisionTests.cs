@@ -42,6 +42,16 @@ public class CollisionTests
     }
 
     [Fact]
+    public void TwentyTwoBorg9sDrawNeighboursWhateverTheView()
+    {
+        // Header byte 0x1B, which RenderZones and RenderTransZones read for the player's chunk.
+        var forcing = AllMaps.Value.Where(m => m.Map.DrawnNeighbours != 0).ToDictionary(m => m.Index, m => m.Map.DrawnNeighbours);
+        Assert.Equal(22, forcing.Count);
+        Assert.Equal(0x0F, forcing[0x0FFE]);
+        Assert.Equal(0xEA, forcing[0x1004]);
+    }
+
+    [Fact]
     public void FlagsAreTheOnesThePhysicsReads()
     {
         var flags = AllTriangles.Aggregate(TriangleFlags.None, (all, t) => all | t.Flags);

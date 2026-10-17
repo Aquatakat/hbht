@@ -61,6 +61,13 @@ public sealed record ChunkEntry(
 /// <param name="Grid">The objects each cell of the chunk's grid lists, or none for a map without one.</param>
 public sealed record MapRecord(RecordId Id, IReadOnlyList<MapObject> Objects, ObjectGrid? Grid = null)
 {
+    /// <summary>
+    /// The neighbours drawn while the player is in this chunk even when the camera's view doesn't cross them
+    /// (Borg9 header byte 0x1B, which <c>RenderZones</c> and <c>RenderTransZones</c> read). Only 21 chunks of the
+    /// Overworld have any. Null for none.
+    /// </summary>
+    public Neighbours? DrawnNeighbours { get; init; }
+
     /// <summary>The ID of the object at <paramref name="index"/> in the map <paramref name="map"/>, such as <c>aidyn:voxel/0x1A20/12</c>.</summary>
     public static RecordId VoxelId(RecordId map, int index) =>
         RecordId.Parse(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{map.Namespace}:{RecordTypes.Voxel}/{map.Key}/{index}"));
@@ -68,6 +75,32 @@ public sealed record MapRecord(RecordId Id, IReadOnlyList<MapObject> Objects, Ob
     /// <summary>The map a voxel ID names an object of.</summary>
     public static RecordId MapOf(RecordId voxel) =>
         RecordId.Parse($"{voxel.Namespace}:{RecordTypes.Map}/{voxel.Key[..voxel.Key.IndexOf('/', StringComparison.Ordinal)]}");
+}
+
+/// <summary>
+/// The eight chunks around one, a bit each, in the order the original's zone engine walks them (its table at
+/// <c>0x800CD700</c> in 1.0): the corners, then the sides. Rows run along X, east, and columns along Z, south.
+/// </summary>
+[Flags]
+public enum Neighbours
+{
+    None = 0,
+    /// <summary>Row − 1, column − 1.</summary>
+    NorthWest = 0x01,
+    /// <summary>Row + 1, column − 1.</summary>
+    NorthEast = 0x02,
+    /// <summary>Row − 1, column + 1.</summary>
+    SouthWest = 0x04,
+    /// <summary>Row + 1, column + 1.</summary>
+    SouthEast = 0x08,
+    /// <summary>Column − 1.</summary>
+    North = 0x10,
+    /// <summary>Column + 1.</summary>
+    South = 0x20,
+    /// <summary>Row − 1.</summary>
+    West = 0x40,
+    /// <summary>Row + 1.</summary>
+    East = 0x80,
 }
 
 /// <summary>
@@ -236,6 +269,15 @@ public sealed record SceneObject(
     Rgba Tint,
     SceneObjectFlags Flags) : MapObject(Index, Position, Radius, Pak, Visible)
 {
+    /// <summary>
+    /// It goes out once the player reaches it: when its first level of detail is drawn and its second isn't, it
+    /// stops being active, and what map objects remember keeps it out for 16 map loads. The original does this
+    /// for the objects whose second model is <c>BORG5_OrianaLight</c> (0x374A), Oriana's path lights, testing that
+    /// index in <c>RenderVoxelScenes</c>; the importer marks them.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool GoesOut { get; init; }
+
     /// <summary><see cref="Rotation"/> as a quaternion.</summary>
     public Quaternion Orientation() => Quaternion.Normalize(Quaternion.CreateFromRotationMatrix(
         Matrix4x4.CreateRotationX(Rotation.X) * Matrix4x4.CreateRotationY(Rotation.Y) * Matrix4x4.CreateRotationZ(Rotation.Z)));
