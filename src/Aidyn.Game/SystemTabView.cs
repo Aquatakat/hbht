@@ -19,6 +19,9 @@ public partial class SystemTabView : Control
 
     private static readonly Vector2I ListArrow = new(170, 204);
 
+    /// <summary>The Theatre's page (<c>Theatre.Build</c>): the title's top, and its rows', 16 apart, centred on the list's centre.</summary>
+    private const int TheatreTitleTop = 50, TheatreTop = 90;
+
     /// <summary>The options' title's top, the rows' left (under the bar, which is centred) and the first row's top.</summary>
     private const int OptionsTitleTop = 40, OptionsLeft = 84, OptionsTop = 74, OptionsSpacing = 4;
 
@@ -101,6 +104,9 @@ public partial class SystemTabView : Control
                         return i;
                 }
                 return null;
+            case SystemPage.Theatre when Menu.Theatre is { } theatre:
+                var seat = (int)Math.Floor((at.Y - TheatreTop + 2) / ListPitch);
+                return at.X >= ListCentre - 70 && at.X < ListCentre + 70 && seat >= 0 && seat < theatre.Items.Rows.Count ? seat : null;
             case SystemPage.Saves when Menu.Saves is { Choice: null } saves:
                 var action = (int)Math.Floor((at.Y - SaveActions.Y) / 11);
                 return at.X >= SaveActions.X && action >= 0 && action < saves.Actions.Rows.Count ? action : null;
@@ -129,6 +135,9 @@ public partial class SystemTabView : Control
             case SystemPage.Rename:
                 Rename(Menu.Rename!);
                 break;
+            case SystemPage.Theatre:
+                Theatre(Menu.Theatre!);
+                break;
         }
         if (Veil > 0)
             _ui.Image(this, MenuImages.SystemTab, 0, 0, color: new Rgba(255, 255, 255, (byte)(Veil * 255)));
@@ -154,6 +163,23 @@ public partial class SystemTabView : Control
             CentredText(Menu.Label(item), ListCentre, y + i * ListPitch, color);
         }
         _ui.Image(this, MenuImages.SliderRight, ListArrow.X, ListArrow.Y, color: SystemMenu.TextColor);
+    }
+
+    /// <summary>
+    /// The Theatre's page: "Theater" and a row a cinematic, its title or the dashes. A title is centred with the space the
+    /// DB ends it with, as the original's is.
+    /// </summary>
+    private void Theatre(TheatreMenu theatre)
+    {
+        CentredImage(MenuImages.TheatreTitle, ListCentre, TheatreTitleTop);
+        var cursor = theatre.Pulse.Now(TheatreMenu.PulseFrom, TheatreMenu.PulseTo);
+        for (var i = 0; i < theatre.Items.Rows.Count; i++)
+        {
+            var row = theatre.Items.Rows[i];
+            var width = _ui.Main.Width(row.Seen ? row.Label + " " : row.Label);
+            _ui.Text(this, _ui.Main, row.Label, ListCentre - width / 2, TheatreTop + i * ListPitch,
+                i == theatre.Items.Cursor ? cursor : TheatreMenu.RowColor);
+        }
     }
 
     /// <summary>Where each options row is: its label's top, and the bottom of what it draws (a volume's bar too).</summary>

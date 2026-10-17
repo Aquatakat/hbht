@@ -22,7 +22,9 @@ This is the one list of what's open. A task's status is in its phase's table bel
 
 ### Next
 
-1. **Any other odds and ends,** including shop selling prices.
+The following brings the pause menu to complete feature parity with the original:
+
+1. **Credits.** The Theater and its cinematics landed Oct 17, 2026 ([cinematics](systems/cinematics.md)).
 
 Once every system built so far is at least at parity with the original, we'll move onto M3 Fight:
 
@@ -31,7 +33,7 @@ Once every system built so far is at least at parity with the original, we'll mo
 
 ### Left over from finished work
 
-- **M2:** the endings' cinematics, the System tab's Theater and Credits, and the editor showing cut-scenes on its map, and the HUD.
+- **M2:** what starts the cinematics in the story (a new game's opening, the Shadow's, the ends of the Rooughah and last scenes) and what follows them (script 866, Alaron's True Name, the credits), as 2.10's triggers ([cinematics](systems/cinematics.md#what-starts-them)); the System tab's Credits; the editor showing cut-scenes on its map; and the HUD.
 - **Waiting for 2.5:**
   - Combat's weather penalties, its point lights on the party, and particles on the scenes it attaches.
   - Training after a battle.
@@ -41,7 +43,7 @@ Once every system built so far is at least at parity with the original, we'll mo
   - Spells' and potions' modifiers on characters.
   - The Antidote and Restore potions, which need combat's poison and spells.
 - **1H:** the content tables marked To do in [hardcoded-content](hardcoded-content.md), which the importer will need.
-- **Rendering:** the weather, point lights, particles and Oriana's path lights landed Oct 17, 2026. Rain and snow and point lights in cut-scenes followed the same day, with the weather carried through trek's rebuilds. Left: the low-priority items in [rendering](systems/rendering.md#whats-left) (the lens flare's test, the sky overhead, texture filtering).
+- **Rendering:** The low-priority items in [rendering](systems/rendering.md#whats-left) (the lens flare's test, the sky overhead, texture filtering).
 - **Rig:** measure the frame `delta` distribution in trek and combat ([ADR 0006](adr/0006-tick-model-and-rng.md)'s follow-up).
 
 ### Maybe

@@ -324,6 +324,10 @@ public partial class Game : Node3D, ITrekHost
         AddChild(_menu);
         _backdrop = new BackdropLayer(plugins);
         AddChild(_backdrop);
+        _cinematic = new CinematicLayer(plugins, models, _audio);
+        AddChild(_cinematic);
+        // The Theatre: the menu has rolled up, and the cinematic plays.
+        _menu.TheatreChosen += cinematic => PlayCinematic(cinematic, fromTheatre: true);
         ApplySettings();
         if (args.ContainsKey("pace"))
             _player.Motion.Pace = Float(args, "pace", 1);
@@ -380,6 +384,8 @@ public partial class Game : Node3D, ITrekHost
         }
         if (args.TryGetValue("cutscene", out var cutscene))
             CueFromCommandLine(RecordId.Parse(cutscene));
+        if (args.TryGetValue("cinematic", out var cinematicArg))
+            CinematicFromCommandLine(cinematicArg);
         if (args.TryGetValue("screenshot", out var png))
             _ = Screenshot(png, hold, args.TryGetValue("frames", out var frames) ? int.Parse(frames, CultureInfo.InvariantCulture) : 0);
     }
@@ -405,7 +411,8 @@ public partial class Game : Node3D, ITrekHost
         _stageFall?.Density = Math.Clamp(s.PrecipitationDensity, 0, WeatherParticles.MaxDensity);
         _sky?.Placement = s.SkyPlacement;
         _player?.Motion.Pace = s.BriskPace ? BriskPace : 1;
-        foreach (var screen in new[] { _menu?.Screen, _backdrop?.Screen, _trekScreen })
+        _cinematic?.Viewport.Msaa3D = GetViewport().Msaa3D;
+        foreach (var screen in new[] { _menu?.Screen, _backdrop?.Screen, _cinematic?.Screen, _trekScreen })
         {
             if (screen is null)
                 continue;
@@ -452,6 +459,12 @@ public partial class Game : Node3D, ITrekHost
         // as the world is, so that it lays itself out again as the window or the menu size changes.
         _hud!.Visible = _scene is null;
         _hud.QueueRedraw();
+        // A cinematic holds everything else still, and plays over it.
+        if (InCinematic)
+        {
+            StepCinematic();
+            return;
+        }
         // The menu's frame keeps the map's sounds going, with everything held still (PauseMenu.Frame), and a
         // backdrop's page holds the world still the same way.
         if (Paused)
@@ -466,6 +479,7 @@ public partial class Game : Node3D, ITrekHost
             _particles!.Step();
             return;
         }
+        ReopenTheatre();
         _popupView!.Step();
         var before = _player.Motion.Sphere.Position;
         var step = trek.Tick(ReadInput, frozen: _camera.Flying);
@@ -708,7 +722,7 @@ public partial class Game : Node3D, ITrekHost
     }
 
     /// <summary>Whether the pause menu or a backdrop's page holds the world still.</summary>
-    private bool Paused => _menu is { IsOpen: true } || _backdrop is { Showing: true };
+    private bool Paused => _menu is { IsOpen: true } || _backdrop is { Showing: true } || InCinematic;
 
     public override void _Process(double delta)
     {
@@ -807,6 +821,11 @@ public partial class Game : Node3D, ITrekHost
     public override void _UnhandledInput(InputEvent e)
     {
         _stick.Track(e);
+        if (InCinematic)
+        {
+            CinematicInput(e);
+            return;
+        }
         if (_menu is { IsOpen: true } menu)
         {
             if (menu.Handle(e))

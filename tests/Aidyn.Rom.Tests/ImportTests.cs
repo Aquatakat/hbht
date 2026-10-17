@@ -185,6 +185,18 @@ public sealed class ImportTests : IDisposable
         Assert.Equal([13, 4, 3, 6], cinematics.Select(c => c.Shots.Count));
         Assert.Equal((0.1f, 35f), (cinematics[0].Shots[0].Near, cinematics[0].Shots[0].Far));
         Assert.All(cinematics.SelectMany(c => c.Shots), s => Assert.NotNull(set.TryGet<SequenceRecord>(s.Music)));
+        Assert.Equal(["Gabrion's Search", "Shadow Self Merge", "Rooughah Naming", "Coronation of Alaron"], cinematics.Select(c => c.Title));
+        Assert.All(cinematics.SelectMany(c => c.Shots), s => Assert.NotNull(set.FindAsset(s.Scene, "glb")));
+        // The table's times are halved: the opening's first shot's fade to white ends on its animation's last tick.
+        var opening = cinematics[0].Shots[0];
+        Assert.Equal((1541, RecordId.Hex(RecordTypes.Scene, 0x2218)), (opening.Length, opening.Scene));
+        Assert.Equal(new CinematicFade(CinematicFadeColor.White, 1460, 80, 0), opening.Fades.Single());
+        Assert.Equal(new CinematicCaption(200, 380, "Yes, your majesty. Right away your majesty!"), opening.Captions[0]);
+        Assert.Equal(15, cinematics.SelectMany(c => c.Shots).Count(s => s.Captions.Count > 0));
+        // Every caption starts while its shot shows (times 2 to length − 2, the caption clock 1 behind), but the
+        // ending's two in its fourth shot, which the original never shows.
+        var late = cinematics.SelectMany(c => c.Shots.SelectMany(s => s.Captions.Where(t => t.Start > s.Length - 3))).ToList();
+        Assert.Equal(["Friends, here is your King.", "Long live Gwernia!"], late.Select(t => t.Text));
 
         // The editor's catalog: every record and asset with a summary, and what names what.
         var catalog = PluginCatalog.Build(set);

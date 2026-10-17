@@ -17,7 +17,6 @@ What plays which sound when, and how the port plays them. [The audio format](../
 What makes a sound that the port doesn't do yet, each waiting for what plays it:
 
 - **The title screen's** music (0x0632 at volume 0xA5) and its menu's sounds (`IntroMenu`: the cursor, A, B and Start), and **the credits'** music (0x05D9). There's no title screen yet.
-- **The cinematics'** music, a sequence a shot. The cinematics aren't ported. Before one, the original stops the music and asks for it again after, so it starts over.
 - **Combat:** the battle music (on the battle arenas' map set record), weapons' sounds (`WeaponRecord.Sounds`), spells' casts (`SpellRecord.Cast`), and the level-up page's 0x05E8. A fight stops the music, so it starts over after.
 - **Cheat codes:** 0x0718 accepted, 0x0721 rejected. The cheat menu isn't ported.
 - **Backdrops and the help menu**, which trek only names so far.
@@ -45,7 +44,7 @@ What makes a sound that the port doesn't do yet, each waiting for what plays it:
 - **The Overworld's** lists don't apply on the title screen (`Zones.Mode` 2, `0x800D90A6`), whose scenery is Overworld chunks.
 - **Cut-scenes:** cueing one keeps the music playing (`FreeZoneEngine(1)`), and its stage asks for its own, which plays on if it's the same. Trek asks again as it comes back. Leaving trek any other way (loading, a fight, game over) stops it (`Bgm.Stop(1)`), so it starts over.
 - **The title** plays 0x0632 (0x05D9 without the Pak) at volume 0xA5, looped (`Title.StartMusic`, `0x8001B0B0`). The credits play 0x05D9 at the music volume.
-- **The cinematics** play a sequence per shot, looped, at the louder of the two volumes (`Cinematic.StartShot`, `0x80053E4C`): the opening 0x0601, 0x0608, 0x060B, 0x060C, 0x060E, 0x0610, 0x0612, 0x0613, 0x0615, 0x0616, 0x0617, 0x0619 and 0x061A; the Shadow's 0x061D, 0x061E, 0x0621 and 0x0622; Roog's 0x05DA, 0x05DB and 0x05DC; the ending's 0x05ED to 0x05F2. The importer already reads them with the cinematics.
+- **The cinematics** play a sequence per shot, looped, at the louder of the two volumes (`Cinematic.StartShot`, `0x80053E4C`): the opening 0x0601, 0x0608, 0x060B, 0x060C, 0x060E, 0x0610, 0x0612, 0x0613, 0x0615, 0x0616, 0x0617, 0x0619 and 0x061A; the Shadow's 0x061D, 0x061E, 0x0621 and 0x0622; Roog's 0x05DA, 0x05DB and 0x05DC; the ending's 0x05ED to 0x05F2. Before one, the original clears every sound and stops the music, asking for it again after, so it starts over; each shot stops its own sequence as it ends. The port plays them so ([cinematics](cinematics.md#playing)).
 
 ## Sound map objects
 

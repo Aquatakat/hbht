@@ -223,13 +223,22 @@ internal static class N64Material
     /// Lights every mesh under <paramref name="root"/> by an ambient and two lights, each a colour and the way to it in
     /// world space, in on-screen values, for <see cref="Lighting.Own"/>.
     /// </summary>
-    public static void SetOwnLights(Node root, Color ambient, (Color Color, Vector3 Toward) first, (Color Color, Vector3 Toward) second)
+    public static void SetOwnLights(Node root, Color ambient, (Color Color, Vector3 Toward) first, (Color Color, Vector3 Toward) second) =>
+        SetOwnLights(root, ambient, [first, second]);
+
+    /// <summary>
+    /// Lights every mesh under <paramref name="root"/> by an ambient and up to <see cref="MaxLights"/> lights, each a
+    /// colour and the way to it in world space, in on-screen values, for <see cref="Lighting.Own"/>; the rest are black.
+    /// </summary>
+    public static void SetOwnLights(Node root, Color ambient, IReadOnlyList<(Color Color, Vector3 Toward)> lights)
     {
         SetOnMeshes(root, "own_ambient", new Vector3(ambient.R, ambient.G, ambient.B));
-        SetOnMeshes(root, "light0_color", new Vector3(first.Color.R, first.Color.G, first.Color.B));
-        SetOnMeshes(root, "light0_direction", first.Toward.Normalized());
-        SetOnMeshes(root, "light1_color", new Vector3(second.Color.R, second.Color.G, second.Color.B));
-        SetOnMeshes(root, "light1_direction", second.Toward.Normalized());
+        for (var i = 0; i < MaxLights; i++)
+        {
+            var (color, toward) = i < lights.Count ? lights[i] : (Colors.Black, Vector3.Up);
+            SetOnMeshes(root, LightColor[i], new Vector3(color.R, color.G, color.B));
+            SetOnMeshes(root, LightDirection[i], toward.Normalized());
+        }
     }
 
     /// <summary>The most directional lights a mesh takes besides the sun.</summary>
@@ -264,7 +273,7 @@ internal static class N64Material
     public static void SetObjectTint(Node root, Color onScreen) =>
         SetOnMeshes(root, ObjectTintParameter, new Vector4(onScreen.R, onScreen.G, onScreen.B, 1));
 
-    private static void SetOnMeshes(Node root, string parameter, Variant value)
+    private static void SetOnMeshes(Node root, StringName parameter, Variant value)
     {
         var stack = new Stack<Node>([root]);
         while (stack.Count > 0)

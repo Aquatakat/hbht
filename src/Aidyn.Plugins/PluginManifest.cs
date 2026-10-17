@@ -55,8 +55,9 @@ public static class BasePlugin
     /// 29 gives maps the neighbours they always draw, and scene objects that go out once reached (Oriana's path lights).
     /// 30 adds the scenes' particle emitters and the cinematics. 31 gives the weather record the rain sky, and how rain and snow are drawn.
     /// 32 marks the scene objects' levels of detail that are empty scenes.
+    /// 33 gives the cinematics their titles and each shot its scene, length, captions and fades.
     /// </summary>
-    public const int ImporterVersion = 32;
+    public const int ImporterVersion = 33;
 }
 
 /// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>

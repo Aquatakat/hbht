@@ -171,6 +171,16 @@ public partial class PauseMenu : CanvasLayer
     /// <summary>Help was chosen on the System tab; the menu has closed, and the help menu's script should start.</summary>
     public event Action? HelpChosen;
 
+    /// <summary>The Theatre chose a cinematic; the menu has closed, and it should play.</summary>
+    public event Action<Plugins.Records.CinematicRecord>? TheatreChosen;
+
+    /// <summary>Opens the menu on the Theatre's page, as it reopens after a cinematic the Theatre played (<c>Theatre.Reopen</c>).</summary>
+    public void OpenTheatre()
+    {
+        Open(PauseTab.System);
+        _system!.Menu.ShowTheatre();
+    }
+
     /// <summary>What plays the menu's sounds.</summary>
     public Core.Audio.GameAudio? Audio { get; set; }
 
@@ -216,7 +226,7 @@ public partial class PauseMenu : CanvasLayer
         }
         _view.Barter = null;
         _view.Training = null;
-        var system = new SystemMenu(_plugins, _settings, _game.Party, DataPaths.Saves);
+        var system = new SystemMenu(_plugins, _settings, _game.Party, DataPaths.Saves, isSet: _game.Flags.Get);
         if (_system is null)
         {
             _system = new SystemTabView(_plugins, system);
@@ -672,6 +682,12 @@ public partial class PauseMenu : CanvasLayer
             if (system.HelpChosen)
             {
                 Close(() => HelpChosen?.Invoke());
+                return true;
+            }
+            // A seen cinematic rolls the menu up as closing does, and plays after (PauseMenu.Exit's code 2).
+            if (system.TheatreChosen is { } cinematic)
+            {
+                Close(() => TheatreChosen?.Invoke(cinematic));
                 return true;
             }
         }

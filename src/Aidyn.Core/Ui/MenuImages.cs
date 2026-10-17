@@ -29,11 +29,11 @@ public static class MenuImages
         Book = Image(0x0182), BookUp = Image(0x00D6), BookDown = Image(0x00D5);
 
     /// <summary>
-    /// The System tab's titles: its list's "Menu" (<c>BORG8_TitleMenui</c>), Options, Load Game, Save Game, and the
-    /// name entry's (<c>BORG8_TitleEnterName</c>).
+    /// The System tab's titles: its list's "Menu" (<c>BORG8_TitleMenui</c>), Options, Load Game, Save Game, the
+    /// name entry's (<c>BORG8_TitleEnterName</c>) and the Theatre's "Theater" (<c>Theatre.Build</c>).
     /// </summary>
     public static readonly RecordId MenuTitle = Image(0x00F2), OptionsTitle = Image(0x00FD), LoadTitle = Image(0x00F1),
-        SaveTitle = Image(0x00FF), EnterNameTitle = Image(0x00F9);
+        SaveTitle = Image(0x00FF), EnterNameTitle = Image(0x00F9), TheatreTitle = Image(0x0100);
 
     /// <summary>The options' volume bar, a braided rope 152 × 18, and the name entry's key cursor, 15 square.</summary>
     public static readonly RecordId VolumeBar = Image(0x00D7), KeyCursor = Image(0x00F8);

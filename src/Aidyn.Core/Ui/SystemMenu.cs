@@ -22,6 +22,7 @@ public enum SystemPage
     Options,
     Saves,
     Rename,
+    Theatre,
 }
 
 /// <summary>
@@ -32,10 +33,11 @@ public enum SystemPage
 /// <remarks>
 /// <para>
 /// In trek every row shows; in combat the original lists only Options, and Flee when the party can flee, which
-/// waits for combat (2.5). Theater and Credits aren't ported yet: the cinematics and the credits' roll wait for their
-/// own systems, so they're drawn greyed and A does nothing on them. Help closes the menu and starts the help menu's
-/// script (<c>pauseMenuSelectCallBack</c>, <c>0x800403ac</c> in 1.0), which the runtime does once
-/// <see cref="HelpChosen"/> is set.
+/// waits for combat (2.5). Credits isn't ported yet: the credits' roll waits for its own system, so it's drawn greyed
+/// and A does nothing on it. Theater opens the Theatre's page (<c>OptionsMenu.ShowTheatre</c>, <c>0x8003fe34</c>), where
+/// A on a seen cinematic closes the menu and plays it, which the runtime does once <see cref="TheatreChosen"/> is set.
+/// Help closes the menu and starts the help menu's script (<c>pauseMenuSelectCallBack</c>, <c>0x800403ac</c> in 1.0),
+/// which the runtime does once <see cref="HelpChosen"/> is set.
 /// </para>
 /// <para>
 /// The cursor starts on the first row each time the tab is built, as the original rebuilds it at each opening.
@@ -53,12 +55,16 @@ public sealed class SystemMenu
     private readonly MenuText _text;
     private readonly string _savesFolder;
     private readonly Func<string, IReadOnlyList<SaveSlot>>? _listSaves;
+    private readonly Func<RecordId, bool> _isSet;
 
     /// <param name="party">The party, whose Alaron the options menu renames.</param>
     /// <param name="savesFolder">Where the save and load screens find saves.</param>
     /// <param name="listSaves">Lists the saves in a folder; <see cref="SaveSlot.List"/> by default.</param>
-    public SystemMenu(PluginSet plugins, Settings settings, Party party, string savesFolder, Func<string, IReadOnlyList<SaveSlot>>? listSaves = null)
+    /// <param name="isSet">Whether a flag is set, for the Theatre's cinematics; none are, by default.</param>
+    public SystemMenu(PluginSet plugins, Settings settings, Party party, string savesFolder, Func<string, IReadOnlyList<SaveSlot>>? listSaves = null,
+        Func<RecordId, bool>? isSet = null)
     {
+        _isSet = isSet ?? (_ => false);
         _plugins = plugins;
         _text = MenuText.From(plugins);
         Settings = settings;
@@ -84,6 +90,11 @@ public sealed class SystemMenu
 
     public NameEntry? Rename { get; private set; }
 
+    public TheatreMenu? Theatre { get; private set; }
+
+    /// <summary>The cinematic the Theatre chose to play, so the menu rolls up and it plays (the menu's exit code 2).</summary>
+    public CinematicRecord? TheatreChosen => Theatre?.Chosen;
+
     /// <summary>Whether the cursor is on a volume, which the stick steps every tick it's held (<see cref="OptionsMenu.OnVolume"/>).</summary>
     public bool OnVolume => Page == SystemPage.Options && Options!.OnVolume;
 
@@ -94,7 +105,7 @@ public sealed class SystemMenu
     public string Label(SystemItem item) => Lines[(int)item] is var line and >= 0 ? _text[line] : "Credits";
 
     /// <summary>Whether a row does anything yet.</summary>
-    public static bool Ported(SystemItem item) => item is SystemItem.LoadGame or SystemItem.SaveGame or SystemItem.Options or SystemItem.Help;
+    public static bool Ported(SystemItem item) => item is SystemItem.LoadGame or SystemItem.SaveGame or SystemItem.Options or SystemItem.Theater or SystemItem.Help;
 
     /// <summary>The help menu's script, which Help starts (<c>0x054B</c>).</summary>
     public static readonly RecordId HelpScript = RecordId.Hex(RecordTypes.Dialogue, 0x054B);
@@ -108,6 +119,7 @@ public sealed class SystemMenu
         Options?.Step();
         Saves?.Step();
         Rename?.Step();
+        Theatre?.Step();
     }
 
     public void MoveCursor(int by)
@@ -125,6 +137,9 @@ public sealed class SystemMenu
                 break;
             case SystemPage.Rename:
                 Rename!.Move(0, by);
+                break;
+            case SystemPage.Theatre:
+                Theatre!.MoveCursor(by);
                 break;
         }
     }
@@ -169,6 +184,9 @@ public sealed class SystemMenu
                 Rename!.Accept();
                 CloseRename();
                 break;
+            case SystemPage.Theatre:
+                Theatre!.Accept();
+                break;
         }
     }
 
@@ -198,6 +216,9 @@ public sealed class SystemMenu
                 if (Saves.Closed)
                     ToList();
                 return true;
+            case SystemPage.Theatre:
+                ToList();
+                return true;
             default:
                 Rename!.Back();
                 CloseRename();
@@ -214,6 +235,8 @@ public sealed class SystemMenu
             Options!.Point(row);
         else if (Page == SystemPage.Saves)
             Saves!.Point(row);
+        else if (Page == SystemPage.Theatre)
+            Theatre!.Point(row);
     }
 
     /// <summary>
@@ -241,10 +264,23 @@ public sealed class SystemMenu
                 Options = new OptionsMenu(Settings, inGame: true);
                 Page = SystemPage.Options;
                 break;
+            case SystemItem.Theater:
+                ShowTheatre();
+                break;
             case SystemItem.Help:
                 HelpChosen = true;
                 break;
         }
+    }
+
+    /// <summary>
+    /// Opens the Theatre's page afresh, its titles as the flags stand, as Theater does and as the menu reopens after a
+    /// cinematic the Theatre played (<c>Theatre.Reopen</c>, <c>0x800d955c</c>).
+    /// </summary>
+    public void ShowTheatre()
+    {
+        Theatre = new TheatreMenu(_plugins, _isSet);
+        Page = SystemPage.Theatre;
     }
 
     private void CloseRename()
@@ -261,6 +297,7 @@ public sealed class SystemMenu
     {
         Page = SystemPage.List;
         Saves = null;
+        Theatre = null;
         Pulse.Reset();
     }
 }

@@ -124,10 +124,7 @@ public static class BaseImporter
         WriteJson(Path.Combine(staging, "records", "sky.json"), BuildSky(rom, archive));
 
         progress?.Report("Cinematics");
-        WriteJson(Path.Combine(staging, "records", "cinematics.json"), Cinematics.Read(rom).Select((c, i) => new CinematicRecord(
-            RecordId.Decimal(RecordTypes.Cinematic, i),
-            [.. c.Scenes.Select(s => new CinematicShot(RecordId.Hex(RecordTypes.Animation, s.Animation), RecordId.Hex(RecordTypes.Sequence, s.Audio), s.Near, s.Far))],
-            Flag(c.DoneFlag))).ToList());
+        WriteJson(Path.Combine(staging, "records", "cinematics.json"), BuildCinematics(rom, archive, db));
 
         progress?.Report("Maps and collision");
         var maps = chunks.Select(c => c.Collision).Distinct().Order().ToDictionary(i => i, i => Borg9Map.Parse(archive.Read(i)));
@@ -266,6 +263,33 @@ public static class BaseImporter
             Xyz(e.Acceleration), e.Acceleration.W, Xyz(e.AccelerationChange), e.AccelerationChange.W,
             Xyz(e.Acceleration2), e.Acceleration2.W, Xyz(e.Acceleration2Change), e.Acceleration2Change.W,
             e.Direction, e.Speed, e.MinScale, e.MaxScale, e.EndScale, Rgba(e.MinColor), Rgba(e.MaxColor), Rgba(e.FadeColor), e.Unknown40);
+    }
+
+    /// <summary>
+    /// The four cinematics: each shot's animation and its scene, music, planes, captions and fades, the table's times
+    /// doubled into ticks as the game doubles them, and the Theatre menu's title, which is listed by the done flag.
+    /// </summary>
+    private static List<CinematicRecord> BuildCinematics(RomImage rom, BorgArchive archive, GameDb db)
+    {
+        var titles = db.CinematicTitles.ToDictionary(t => t.Flag, t => t.Text.Trim());
+        return [.. Cinematics.Read(rom).Select((c, i) => new CinematicRecord(
+            RecordId.Decimal(RecordTypes.Cinematic, i),
+            titles.GetValueOrDefault(c.DoneFlag),
+            [.. c.Scenes.Select((s, shot) =>
+            {
+                var animation = Borg6Animation.Parse(archive.Read(s.Animation));
+                return new CinematicShot(
+                    RecordId.Hex(RecordTypes.Scene, animation.Scene),
+                    RecordId.Hex(RecordTypes.Animation, s.Animation),
+                    animation.Length,
+                    RecordId.Hex(RecordTypes.Sequence, s.Audio),
+                    s.Near,
+                    s.Far,
+                    s.Captions is { } list ? [.. db.Captions[list].Select(t => new CinematicCaption(t.Start * 2, t.End * 2, t.Text))] : [],
+                    [.. c.Fades.Where(f => f.Scene == shot).Select(f => new Aidyn.Plugins.Records.CinematicFade(
+                        (Aidyn.Plugins.Records.CinematicFadeColor)f.Color, f.Start * 2, f.Length * 2, f.Hold * 2))]);
+            })],
+            Flag(c.DoneFlag)))];
     }
 
     private static SkyRecord BuildSky(RomImage rom, BorgArchive archive)
