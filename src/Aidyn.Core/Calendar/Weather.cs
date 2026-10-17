@@ -37,6 +37,13 @@ public enum Precipitation : byte
 /// (<c>World::SetTerrain</c>), so that rolls too. The wind drifts by itself, whatever the weather. The original draws
 /// all of it from its one stream; the port rolls on the world's stream, and draws the wind's drift and the lightning
 /// from the cosmetic one (ADR 0006).
+/// <para>
+/// What's drawn carries on as trek's world is built again, after a cut-scene, a backdrop or the help menu, and for a
+/// cut-scene's stage, which is the user's choice: the original clears it there (<c>FreeZoneEngine</c> stops the rain loop
+/// through <c>Weather.Free</c>, <c>0x8001e030</c>, and <c>InitZoneEngine</c> clears the rest through <c>Weather.Init</c>,
+/// <c>0x8001e010</c>), so the sky drops to the terrain's and the rain sets in again from nothing. In the port only the
+/// emitters go, with the particle pool (<see cref="Forget"/>), and the next tick makes a pair about the new view.
+/// </para>
 /// </remarks>
 public sealed class Weather
 {
@@ -116,7 +123,7 @@ public sealed class Weather
     /// <summary>
     /// Whether the rain sky is up for the weather (<c>Weather.SkyOverridden</c>, <c>0x800daee0</c>): set as the
     /// emitters are made, and cleared, bringing back the terrain's sky, once the world wants nothing to fall. Building
-    /// trek's world again doesn't clear it.
+    /// trek's world again doesn't clear it, in the original or the port.
     /// </summary>
     public bool SkyOverridden { get; private set; }
 
@@ -274,29 +281,13 @@ public sealed class Weather
     }
 
     /// <summary>
-    /// What's drawn starts again (<c>InitZoneEngine</c> clears <c>gGlobals</c>' weather), as trek's world is built again
-    /// after a cut-scene or a backdrop: nothing falling, which then sets in, and no fog, which comes at once.
+    /// What's drawn carries on from a save (the port's choice): what the world wants falling is what it wanted as the
+    /// game was saved, so the first chunk chooses the rain sky at once where it rains or snows, and what's falling, how
+    /// hard and the fog go on as the save has them. The original's load starts what's drawn from nothing
+    /// (<c>InitZoneEngine</c>, through <c>Weather.Init</c>, <c>0x8001e010</c>), with the fog and the intensity written
+    /// back after (<c>Weather.Resume</c>, <c>0x8001a4f0</c>), so the rain sky greys in again over ten seconds.
     /// </summary>
-    public void StartDrawing()
-    {
-        Wanted = Precipitation.None;
-        Falling = Precipitation.None;
-        FallIntensity = 0;
-        FogTime = 0;
-        Emitting = false;
-        RainLoop = false;
-        _skyDrawn = null;
-    }
-
-    /// <summary>
-    /// Trek's world goes (<c>FreeZoneEngine</c>, through <c>Weather.Free</c>, <c>0x8001e030</c>): the rain loop stops,
-    /// and the emitters go with the particles.
-    /// </summary>
-    public void Free()
-    {
-        Emitting = false;
-        RainLoop = false;
-    }
+    public void ResumeDrawing() => Wanted = Precipitation;
 
     /// <summary>
     /// A tick of what's drawn (<c>ProcessWeather</c>): what falls dies away before another starts and rises to the

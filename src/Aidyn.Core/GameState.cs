@@ -206,6 +206,8 @@ public sealed class GameState : IScriptWorld
         weather.Falling = Parse<Precipitation>(saved.Falling, "precipitation");
         (weather.Intensity, weather.Fog, weather.Storm, weather.Wind) = (saved.Intensity, saved.Fog, saved.Storm, saved.Wind);
         (weather.FallIntensity, weather.FogTime) = (saved.FallIntensity, saved.FogTime);
+        // The port's: what's drawn carries on from the save, the rain sky up at once where it rains.
+        weather.ResumeDrawing();
 
         T Parse<T>(string text, string what) where T : struct, Enum
         {

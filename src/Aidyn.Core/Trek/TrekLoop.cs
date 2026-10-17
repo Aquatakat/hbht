@@ -1,5 +1,6 @@
 using System.Numerics;
 using Aidyn.Core.Audio;
+using Aidyn.Core.Calendar;
 using Aidyn.Core.Cameras;
 using Aidyn.Core.Chunks;
 using Aidyn.Core.Items;
@@ -241,8 +242,10 @@ public sealed class TrekLoop : IMapObjectHost
     /// rain loop.
     /// </summary>
     /// <param name="skyDrawn">Whether the sky is drawn (the original's sky type 3).</param>
-    /// <param name="precipitation">Whether rain and snow fall too: trek's alone, as cut-scenes don't draw them yet.</param>
-    public void StepWeather(bool skyDrawn, bool precipitation = false)
+    /// <param name="emitters">
+    /// The rain's and snow's particles about the view: trek's own (<see cref="Precipitation"/>), or a cut-scene's stage's.
+    /// </param>
+    public void StepWeather(bool skyDrawn, IPrecipitationEmitters? emitters)
     {
         if (Game.Weather is not { } weather)
             return;
@@ -253,8 +256,8 @@ public sealed class TrekLoop : IMapObjectHost
             if (weather.Thunder is { } thunder)
                 WeatherSounds.Thunder(thunder);
         }
-        // The rain's particles go with the weather's one decision about them; cut-scenes draw none.
-        weather.Draw(skyDrawn, emitters: precipitation ? Precipitation : null);
+        // The rain's particles go with the weather's one decision about them.
+        weather.Draw(skyDrawn, emitters: emitters);
         WeatherSounds.Step(weather);
     }
 
@@ -293,7 +296,7 @@ public sealed class TrekLoop : IMapObjectHost
             Use.Tell(NewJournalEntry);
         }
         // HandleZoneEngineFrame's weather (RenderSky's lightning and ProcessWeather), whatever stops the clock; then TickGameTime.
-        StepWeather(precipitation: true, skyDrawn: _chunk is null || (Game.Terrain(_chunk.Terrain)?.SkyDrawn ?? true));
+        StepWeather(_chunk is null || (Game.Terrain(_chunk.Terrain)?.SkyDrawn ?? true), Precipitation);
         if (Use.Popup is null && !talking)
             Game.PassTime(1);
         if (frozen)
@@ -449,16 +452,23 @@ public sealed class TrekLoop : IMapObjectHost
     {
         var cued = Cued ?? throw new InvalidOperationException("No cut-scene is cued.");
         Cued = null;
+        // The stage is built as trek's world is (InitZoneEngine), and the weather drawn carries on into it.
         Free();
-        // The stage is built as trek's world is (InitZoneEngine), and what's drawn of the weather starts again.
-        Game.Weather?.StartDrawing();
         return cued;
     }
 
     /// <summary>
     /// Trek's world goes (<c>clear_HUD_elements</c>): its chunks, their collision and wanderers, and the
-    /// cameras holding the view.
+    /// cameras holding the view. The zone engine's end frees the particle pool, and with it the rain's emitters, which
+    /// the weather forgets.
     /// </summary>
+    /// <remarks>
+    /// The weather drawn carries on, the user's choice: what's falling, how hard, the fog, the rain sky and the rain loop
+    /// go on through the stage or the world built again (<see cref="Weather"/>), where the original's
+    /// <c>FreeZoneEngine</c> stops the loop (<c>Weather.Free</c>, <c>0x8001e030</c>) and its <c>InitZoneEngine</c>
+    /// clears the rest (<c>Weather.Init</c>, <c>0x8001e010</c>). Combat's arena, with M3, frees and builds trek's world
+    /// through here and <see cref="Rebuild"/>, and so carries the weather the same way.
+    /// </remarks>
     public void Free()
     {
         Chunks.Clear();
@@ -467,22 +477,19 @@ public sealed class TrekLoop : IMapObjectHost
         Sounds.Clear();
         Nearest = default;
         Use.ClearCameras();
-        // FreeZoneEngine: Weather.Free stops the rain loop.
-        Game.Weather?.Free();
-        WeatherSounds.StopRain();
-        // The zone engine's end frees the pool, and with it the rain.
+        Game.Weather?.Forget(Precipitation);
         Precipitation?.Clear();
     }
 
     /// <summary>
     /// Loads the map set's chunks and their wanderers again where the player stands, as trek starts again
     /// after a cut-scene, a backdrop or the help menu (<c>initGameTrek</c>): every map object is gated by
-    /// the flags as they are now, and the wanderers start at their home nodes.
+    /// the flags as they are now, and the wanderers start at their home nodes. The weather drawn carries on
+    /// (<see cref="Free"/>).
     /// </summary>
     public void Rebuild()
     {
         Free();
-        Game.Weather?.StartDrawing();
         Chunks.Update(Player.Sphere.Position);
     }
 

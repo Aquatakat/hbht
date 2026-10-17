@@ -266,6 +266,33 @@ public class WeatherParticleTests
     }
 
     [Fact]
+    public void TreksWorldBuiltAgainCarriesTheRainOnWithANewPairAboutTheView()
+    {
+        var scene = new Scene(intensity: 0.4f);
+        scene.Weather.Force(WeatherKind.Precipitation, Precipitation.Rain, 0.8f);
+        scene.Weather.FallIntensity = 0.4f;
+        scene.Run(30);
+        var (falling, intensity, fog, loops) = (scene.Weather.Falling, scene.Weather.FallIntensity, scene.Weather.FogTime, scene.Weather.RainLoopStarts);
+        Assert.True(scene.Weather.SkyOverridden && scene.Weather.RainLoop);
+        // Trek's world goes, for a cut-scene's stage, a backdrop or the help menu (TrekLoop.Free): the weather forgets
+        // the pair, and the zone engine's end frees the pool.
+        scene.Weather.Forget(scene.Fall);
+        scene.Fall.Clear();
+        scene.Head.Clear();
+        Assert.False(scene.Weather.Emitting);
+        // The rain sky is still wanted, so the stage chooses it at once.
+        Assert.True(scene.Weather.WantsRainSky && scene.Weather.SkyOverridden);
+        scene.Aim = new Vector3(500, 1, 500);
+        scene.Run(1);
+        // What falls goes on rising from where it was, the fog stays, the loop plays on unbroken, and a pair is made
+        // about the new view, whose ask for the rain sky changes nothing, as it's up.
+        Assert.Equal((falling, intensity + 1f / 300, fog), (scene.Weather.Falling, scene.Weather.FallIntensity, scene.Weather.FogTime));
+        Assert.Equal((true, loops), (scene.Weather.RainLoop, scene.Weather.RainLoopStarts));
+        Assert.True(scene.Weather.Emitting && scene.Weather.SkyOverridden);
+        Assert.NotNull(scene.Fall.Drops);
+    }
+
+    [Fact]
     public void DensityMultipliesTheDropsAndThePool()
     {
         var original = new Scene(intensity: 0.5f);

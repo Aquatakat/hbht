@@ -398,6 +398,7 @@ public partial class Game : Node3D, ITrekHost
         ApplyWorldLines();
         _drawDistance = new DrawDistance(s.DrawDistance, s.NearestDetail);
         _trek?.Precipitation?.Density = Math.Clamp(s.PrecipitationDensity, 0, WeatherParticles.MaxDensity);
+        _stageFall?.Density = Math.Clamp(s.PrecipitationDensity, 0, WeatherParticles.MaxDensity);
         _sky?.Placement = s.SkyPlacement;
         _player?.Motion.Pace = s.BriskPace ? BriskPace : 1;
         foreach (var screen in new[] { _menu?.Screen, _backdrop?.Screen, _trekScreen })
@@ -755,7 +756,8 @@ public partial class Game : Node3D, ITrekHost
     /// <summary>For the overlay: how many raindrops or snowflakes and splashes the last frame drew, and how many of them are on screen.</summary>
     private string Precipitation()
     {
-        if (_trek?.Precipitation is not { Drops: { } drops, Splashes: { } splashes } || GetViewport().GetCamera3D() is not { } camera)
+        if ((_scene is not null ? _stageFall : _trek?.Precipitation) is not { Drops: { } drops, Splashes: { } splashes } ||
+            GetViewport().GetCamera3D() is not { } camera)
             return "";
         int fall = 0, fallSeen = 0, splash = 0, splashSeen = 0;
         foreach (var s in _particles!.Head.Sprites)

@@ -173,12 +173,27 @@ public class WeatherTests
         // Coming out under the sky, the fog is there at once.
         weather.Draw(skyDrawn: true);
         Assert.Equal(0.5f, weather.FogTime);
+    }
 
-        // Starting to draw again: nothing falling, which sets in, and the fog at once.
-        weather.Force(WeatherKind.Precipitation, Precipitation.Rain, 0.5f, 0.3f);
-        weather.StartDrawing();
-        weather.Draw(skyDrawn: true);
-        Assert.Equal((Precipitation.Rain, 1f / 300, 0.3f), (weather.Falling, weather.FallIntensity, weather.FogTime));
+    [Fact]
+    public void ALoadedGameDrawsTheRainAsTheSaveHasItWithTheRainSkyAtOnce()
+    {
+        var saved = new Weather(Rules);
+        saved.Force(WeatherKind.Precipitation, Precipitation.Rain, 0.5f, 0.3f);
+        saved.Draw(skyDrawn: true);
+        // What a save holds (GameState.Save), into a fresh weather.
+        var loaded = new Weather(Rules)
+        {
+            Kind = saved.Kind, Precipitation = saved.Precipitation, Intensity = saved.Intensity, Fog = saved.Fog, Storm = saved.Storm,
+            Falling = saved.Falling, FallIntensity = saved.FallIntensity, FogTime = saved.FogTime,
+        };
+        Assert.False(loaded.WantsRainSky);
+        loaded.ResumeDrawing();
+        // The first chunk chooses the rain sky at once, and the rain goes on as hard as it was, its loop at its level.
+        Assert.True(loaded.WantsRainSky && loaded.HoldsSky);
+        loaded.Draw(skyDrawn: true);
+        Assert.Equal((Precipitation.Rain, 0.5f, 0.3f), (loaded.Falling, loaded.FallIntensity, loaded.FogTime));
+        Assert.Equal((true, 191), (loaded.RainLoop, (int)loaded.RainLoopLevel));
     }
 
     [Fact]
