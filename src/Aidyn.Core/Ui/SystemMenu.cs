@@ -33,8 +33,8 @@ public enum SystemPage
 /// <remarks>
 /// <para>
 /// In trek every row shows; in combat the original lists only Options, and Flee when the party can flee, which
-/// waits for combat (2.5). Credits isn't ported yet: the credits' roll waits for its own system, so it's drawn greyed
-/// and A does nothing on it. Theater opens the Theatre's page (<c>OptionsMenu.ShowTheatre</c>, <c>0x8003fe34</c>), where
+/// waits for combat (2.5). Credits closes the menu and plays the credits (<c>pauseMenuSelectCallBack</c>'s row 9999,
+/// exit code 5), which the runtime does once <see cref="CreditsChosen"/> is set. Theater opens the Theatre's page (<c>OptionsMenu.ShowTheatre</c>, <c>0x8003fe34</c>), where
 /// A on a seen cinematic closes the menu and plays it, which the runtime does once <see cref="TheatreChosen"/> is set.
 /// Help closes the menu and starts the help menu's script (<c>pauseMenuSelectCallBack</c>, <c>0x800403ac</c> in 1.0),
 /// which the runtime does once <see cref="HelpChosen"/> is set.
@@ -45,8 +45,8 @@ public enum SystemPage
 /// </remarks>
 public sealed class SystemMenu
 {
-    /// <summary>The list's colour (<c>COLOR_RED1</c>), and the greyed rows' (the resolution row's colour without the Expansion Pak).</summary>
-    public static readonly Rgba TextColor = PartyMenu.TextColor, Greyed = new(96, 96, 96, 255);
+    /// <summary>The list's colour (<c>COLOR_RED1</c>).</summary>
+    public static readonly Rgba TextColor = PartyMenu.TextColor;
 
     /// <summary>The rows' strings, by <see cref="SystemItem"/>: common lines, but Credits, which the code spells out.</summary>
     private static readonly int[] Lines = [160, 377, 161, 162, -1, 173];
@@ -104,14 +104,14 @@ public sealed class SystemMenu
     /// <summary>A row's text.</summary>
     public string Label(SystemItem item) => Lines[(int)item] is var line and >= 0 ? _text[line] : "Credits";
 
-    /// <summary>Whether a row does anything yet.</summary>
-    public static bool Ported(SystemItem item) => item is SystemItem.LoadGame or SystemItem.SaveGame or SystemItem.Options or SystemItem.Theater or SystemItem.Help;
-
     /// <summary>The help menu's script, which Help starts (<c>0x054B</c>).</summary>
     public static readonly RecordId HelpScript = RecordId.Hex(RecordTypes.Dialogue, 0x054B);
 
     /// <summary>Whether Help was chosen, so the menu closes and the help menu starts (the menu's exit code 3).</summary>
     public bool HelpChosen { get; private set; }
+
+    /// <summary>Whether Credits was chosen, so the menu closes and the credits play (the menu's exit code 5).</summary>
+    public bool CreditsChosen { get; private set; }
 
     public void Step()
     {
@@ -266,6 +266,9 @@ public sealed class SystemMenu
                 break;
             case SystemItem.Theater:
                 ShowTheatre();
+                break;
+            case SystemItem.Credits:
+                CreditsChosen = true;
                 break;
             case SystemItem.Help:
                 HelpChosen = true;

@@ -18,7 +18,7 @@ The string tables, the fonts and the portraits beside what characters say. Dialo
 | 7 | Controller | 21 | Controller Pak messages |
 | 8 | Combat | 64 | The combat log |
 | 9 | Cheats | 17 | The cheat codes |
-| 10 | Credits | 133 | The credits |
+| 10 | Credits | 133 | The credits, which a table in the code cuts into cards, as the credits record (`aidyn:credits/0`, [ui](../systems/ui.md#the-credits)) |
 | 11 | PotionNames | 17 | Potions' names, which the item records already carry |
 
 1.1 has 560 lines of Common and 25 of Controller, the Controller Pak errors it added. The debug ROM's credits have 130 lines. The descriptions are on the item, spell, stat and skill records too, which know which line is whose.

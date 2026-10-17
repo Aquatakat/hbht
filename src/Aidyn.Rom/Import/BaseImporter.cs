@@ -125,6 +125,7 @@ public static class BaseImporter
 
         progress?.Report("Cinematics");
         WriteJson(Path.Combine(staging, "records", "cinematics.json"), BuildCinematics(rom, archive, db));
+        WriteJson(Path.Combine(staging, "records", "credits.json"), new[] { BuildCredits(CreditsTable.Read(rom), db) });
 
         progress?.Report("Maps and collision");
         var maps = chunks.Select(c => c.Collision).Distinct().Order().ToDictionary(i => i, i => Borg9Map.Parse(archive.Read(i)));
@@ -725,6 +726,21 @@ public static class BaseImporter
             .. records.Select(r => (Id: DbRecordIds.For(r.Id), r.Name, Portrait: portraits?.TryGetValue(r.Id, out var p) == true ? p : (RecordId?)null)).Where(r => r.Id is not null)
                 .Select(r => new DbRecord(r.Id!.Value, r.Name, r.Portrait)).DistinctBy(r => r.Id).OrderBy(r => r.Id.Key, StringComparer.Ordinal),
         ];
+    }
+
+    /// <summary>
+    /// The credits: the credits' string table cut into cards by the code's table, each its first line over the rest,
+    /// the last running to the line before the table's last, "The End".
+    /// </summary>
+    internal static CreditsRecord BuildCredits(CreditsTable table, GameDb db)
+    {
+        var lines = db.Strings[RomStringTable.Credits].Select(DialogueText.Unescape).ToList();
+        var starts = table.Starts.Append(lines.Count - 1).ToList();
+        return new CreditsRecord(
+            RecordId.Decimal(RecordTypes.Credits, 0),
+            [.. starts.Zip(starts.Skip(1), (from, to) => new CreditsCard(lines[from], lines[(from + 1)..to]))],
+            table.Shown,
+            lines[^1]);
     }
 
     /// <summary>Every string table, numbered in ROM order, with its escapes decoded as the game loads them.</summary>

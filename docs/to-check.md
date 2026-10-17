@@ -18,4 +18,6 @@ Things only the user can settle, in the emulator or by reading the ROM. Each lin
 
 - **Texel centres:** the N64 material now moves texture coordinates half a texel, as the RDP centres its texels, which took the dark line off the edge of Shadow Self Merge's blood. Whether cut-out edges elsewhere (trees, Oriana's path lights, foliage cards) now look as the original's, and nothing has shifted visibly. See [rendering](systems/rendering.md#the-n64-material).
 
+- **The credits' scroll speed:** the scroll moves half a pixel a frame, not a tick, so its speed rests on the original's frame rate in the credits, which the code doesn't settle. The port runs it at 60 frames a second, about 70 s from Designers coming up to the screen going black (2 minutes for the whole); at 30 it would take 140 s. Timing that stretch in the original settles it; the twelve cards before it take about 50 s either way. See [ui](systems/ui.md#the-credits).
+
 - **Where the map area north of Ugarit unlocks:** It currently doesn't unlock while travelling through it in the port.

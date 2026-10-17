@@ -171,6 +171,9 @@ public partial class PauseMenu : CanvasLayer
     /// <summary>Help was chosen on the System tab; the menu has closed, and the help menu's script should start.</summary>
     public event Action? HelpChosen;
 
+    /// <summary>Credits was chosen on the System tab; the menu has closed, and the credits should play.</summary>
+    public event Action? CreditsChosen;
+
     /// <summary>The Theatre chose a cinematic; the menu has closed, and it should play.</summary>
     public event Action<Plugins.Records.CinematicRecord>? TheatreChosen;
 
@@ -682,6 +685,12 @@ public partial class PauseMenu : CanvasLayer
             if (system.HelpChosen)
             {
                 Close(() => HelpChosen?.Invoke());
+                return true;
+            }
+            // Credits rolls the menu up as closing does, and the credits play after (PauseMenu.Exit's code 5).
+            if (system.CreditsChosen)
+            {
+                Close(() => CreditsChosen?.Invoke());
                 return true;
             }
             // A seen cinematic rolls the menu up as closing does, and plays after (PauseMenu.Exit's code 2).

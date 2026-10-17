@@ -282,6 +282,11 @@ public enum CodeTable
     /// picked at random, and padding, ending with 0xFFFF (<c>AudioKeys.WeaponSound</c>).
     /// </summary>
     WeaponSounds,
+    /// <summary>
+    /// The first line of each card of the credits' string table, 33 bytes (<c>Credits.CardStarts</c>): card k is its lines
+    /// from entry k to entry k + 1, and the last runs to the line before "The End" (<c>Credits.Start</c>).
+    /// </summary>
+    CreditsCards,
 }
 
 /// <summary>
@@ -402,6 +407,7 @@ public static class RomVersions
                 [CodeTable.FootstepEntries] = new(0x00E0A60, 0x188),
                 [CodeTable.StepSets] = new(0x00E0BE8, 0x140),
                 [CodeTable.StepSounds] = new(0x00E0D28, 0x180),
+                [CodeTable.CreditsCards] = new(0x00CFC60, 0x21),
                 [CodeTable.VoiceSounds] = new(0x00E0EA8, 0x1F8),
                 [CodeTable.SpellSounds] = new(0x00E10A0, 0xEC),
                 [CodeTable.WeaponSounds] = new(0x00D50D0, 0x218),
@@ -525,6 +531,7 @@ public static class RomVersions
                 [CodeTable.FootstepEntries] = new(0x00E0AA0, 0x188),
                 [CodeTable.StepSets] = new(0x00E0C28, 0x140),
                 [CodeTable.StepSounds] = new(0x00E0D68, 0x180),
+                [CodeTable.CreditsCards] = new(0x00CFC50, 0x21),
                 [CodeTable.VoiceSounds] = new(0x00E0EE8, 0x1F8),
                 [CodeTable.SpellSounds] = new(0x00E10E0, 0xEC),
                 [CodeTable.WeaponSounds] = new(0x00D50C0, 0x218),
@@ -646,6 +653,7 @@ public static class RomVersions
                 [CodeTable.FootstepEntries] = new(0x00EF5D0, 0x188),
                 [CodeTable.StepSets] = new(0x00EF758, 0x140),
                 [CodeTable.StepSounds] = new(0x00EF898, 0x180),
+                [CodeTable.CreditsCards] = new(0x00DC0D0, 0x21),
                 [CodeTable.VoiceSounds] = new(0x00EFA18, 0x1F8),
                 [CodeTable.SpellSounds] = new(0x00EFC10, 0xEC),
                 [CodeTable.WeaponSounds] = new(0x00E26C0, 0x218),

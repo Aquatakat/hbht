@@ -22,9 +22,7 @@ This is the one list of what's open. A task's status is in its phase's table bel
 
 ### Next
 
-The following brings the pause menu to complete feature parity with the original:
-
-1. **Credits.** The Theater and its cinematics landed Oct 17, 2026 ([cinematics](systems/cinematics.md)).
+The pause menu is at feature parity with the original: the credits landed Oct 17, 2026 ([ui](systems/ui.md#the-credits)), after the Theater and its cinematics ([cinematics](systems/cinematics.md)).
 
 Once every system built so far is at least at parity with the original, we'll move onto M3 Fight:
 
@@ -33,7 +31,7 @@ Once every system built so far is at least at parity with the original, we'll mo
 
 ### Left over from finished work
 
-- **M2:** what starts the cinematics in the story (a new game's opening, the Shadow's, the ends of the Rooughah and last scenes) and what follows them (script 866, Alaron's True Name, the credits), as 2.10's triggers ([cinematics](systems/cinematics.md#what-starts-them)); the System tab's Credits; the editor showing cut-scenes on its map; and the HUD.
+- **M2:** what starts the cinematics in the story (a new game's opening, the Shadow's, the ends of the Rooughah and last scenes) and what follows them (script 866, Alaron's True Name, the ending's credits), as 2.10's triggers ([cinematics](systems/cinematics.md#what-starts-them)); the editor showing cut-scenes on its map; and the HUD.
 - **Waiting for 2.5:**
   - Combat's weather penalties, its point lights on the party, and particles on the scenes it attaches.
   - Training after a battle.

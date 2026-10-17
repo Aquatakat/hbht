@@ -328,6 +328,10 @@ public partial class Game : Node3D, ITrekHost
         AddChild(_cinematic);
         // The Theatre: the menu has rolled up, and the cinematic plays.
         _menu.TheatreChosen += cinematic => PlayCinematic(cinematic, fromTheatre: true);
+        _credits = new CreditsLayer(plugins);
+        AddChild(_credits);
+        // Credits: the menu has rolled up, and the credits play.
+        _menu.CreditsChosen += PlayCredits;
         ApplySettings();
         if (args.ContainsKey("pace"))
             _player.Motion.Pace = Float(args, "pace", 1);
@@ -412,7 +416,7 @@ public partial class Game : Node3D, ITrekHost
         _sky?.Placement = s.SkyPlacement;
         _player?.Motion.Pace = s.BriskPace ? BriskPace : 1;
         _cinematic?.Viewport.Msaa3D = GetViewport().Msaa3D;
-        foreach (var screen in new[] { _menu?.Screen, _backdrop?.Screen, _cinematic?.Screen, _trekScreen })
+        foreach (var screen in new[] { _menu?.Screen, _backdrop?.Screen, _cinematic?.Screen, _credits?.Screen, _trekScreen })
         {
             if (screen is null)
                 continue;
@@ -465,6 +469,12 @@ public partial class Game : Node3D, ITrekHost
             StepCinematic();
             return;
         }
+        // The credits hold the world still too, its sounds going on silently.
+        if (InCredits)
+        {
+            StepCredits();
+            return;
+        }
         // The menu's frame keeps the map's sounds going, with everything held still (PauseMenu.Frame), and a
         // backdrop's page holds the world still the same way.
         if (Paused)
@@ -480,6 +490,7 @@ public partial class Game : Node3D, ITrekHost
             return;
         }
         ReopenTheatre();
+        ReopenAfterCredits();
         _popupView!.Step();
         var before = _player.Motion.Sphere.Position;
         var step = trek.Tick(ReadInput, frozen: _camera.Flying);
@@ -722,7 +733,7 @@ public partial class Game : Node3D, ITrekHost
     }
 
     /// <summary>Whether the pause menu or a backdrop's page holds the world still.</summary>
-    private bool Paused => _menu is { IsOpen: true } || _backdrop is { Showing: true } || InCinematic;
+    private bool Paused => _menu is { IsOpen: true } || _backdrop is { Showing: true } || InCinematic || InCredits;
 
     public override void _Process(double delta)
     {
@@ -824,6 +835,11 @@ public partial class Game : Node3D, ITrekHost
         if (InCinematic)
         {
             CinematicInput(e);
+            return;
+        }
+        if (InCredits)
+        {
+            CreditsInput(e);
             return;
         }
         if (_menu is { IsOpen: true } menu)

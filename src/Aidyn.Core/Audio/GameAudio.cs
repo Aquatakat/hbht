@@ -37,11 +37,17 @@ public sealed class GameAudio
 
     public Settings Settings { get; }
 
-    /// <summary>The sound effects' volume, 0 to 1 (<c>VolSFX</c>).</summary>
-    public float SoundVolume => (float)Settings.SoundVolume / Settings.MaxVolume;
+    /// <summary>The sound effects' volume, 0 to 1 (<c>VolSFX</c>), or 0 while <see cref="Muted"/>.</summary>
+    public float SoundVolume => Muted ? 0 : (float)Settings.SoundVolume / Settings.MaxVolume;
 
-    /// <summary>The music's volume, 0 to 1 (<c>VolBGM</c>).</summary>
-    public float MusicVolume => (float)Settings.MusicVolume / Settings.MaxVolume;
+    /// <summary>The music's volume, 0 to 1 (<c>VolBGM</c>), or 0 while <see cref="Muted"/>.</summary>
+    public float MusicVolume => Muted ? 0 : (float)Settings.MusicVolume / Settings.MaxVolume;
+
+    /// <summary>
+    /// Whether the game's music and sounds are silent, though they go on, as through the credits, which zero both
+    /// volumes and set them back after (<c>Credits.Start</c>, <c>Credits.Destroy</c>).
+    /// </summary>
+    public bool Muted { get; set; }
 
     /// <summary>
     /// The background music asked for, or none. <see cref="Step"/> starts it from its beginning when it changes, and

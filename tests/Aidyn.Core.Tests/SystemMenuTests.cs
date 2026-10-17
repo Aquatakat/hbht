@@ -215,7 +215,7 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     }
 
     [Fact]
-    public void TheaterAndCreditsDoNothingYetAndHelpClosesTheMenuForTheHelpMenu()
+    public void CreditsAndHelpCloseTheMenuForWhatTheyStart()
     {
         var party = TradeData.PartyOf(TradeData.Catalog(), ItemData.Flags(), Characters.Create(Characters.Alaron()));
         var system = new SystemMenu(fixture.Plugins, new Settings(), party, _saves);
@@ -226,8 +226,9 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         Assert.Equal("Credits", system.Label(SystemItem.Credits));
         system.Items.Point((int)SystemItem.Credits);
         system.Accept();
-        Assert.True(system.OnList);
+        Assert.True(system.CreditsChosen);
         Assert.False(system.HelpChosen);
+        system = new SystemMenu(fixture.Plugins, new Settings(), party, _saves);
         system.Items.Point((int)SystemItem.Help);
         system.Accept();
         Assert.True(system.HelpChosen);

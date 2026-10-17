@@ -159,7 +159,7 @@ public partial class SystemTabView : Control
         for (var i = 0; i < Menu.Items.Rows.Count; i++)
         {
             var item = Menu.Items.Rows[i];
-            var color = i == Menu.Items.Cursor ? cursor : SystemMenu.Ported(item) ? SystemMenu.TextColor : SystemMenu.Greyed;
+            var color = i == Menu.Items.Cursor ? cursor : SystemMenu.TextColor;
             CentredText(Menu.Label(item), ListCentre, y + i * ListPitch, color);
         }
         _ui.Image(this, MenuImages.SliderRight, ListArrow.X, ListArrow.Y, color: SystemMenu.TextColor);

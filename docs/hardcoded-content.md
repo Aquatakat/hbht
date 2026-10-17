@@ -198,6 +198,7 @@ Code uses 1,990 of the 2,076 names in the decomp's `Borgindecies.h`. The map chu
 | The order the inventory list shows item kinds in | `D_800ed560` | `0xDF600` | Read (`MenuTables`); a UI fact in `Aidyn.Core.Ui.InventoryOrder`, checked against the ROM |
 | Three messages that are C strings in code rather than string table lines: a potion that would do nothing now, a flask or potion with no effect outside combat, and the Lighthouse scroll, which has no spell | `Entity::CanUsePotion`, `Party::UseScroll` | `0xD3D50`, `0xD3D78`, `0xD435C` | Read (`MenuTables`), as the inventory record's `Messages` |
 | Each equipment slot's empty image (15, by slot) | `gItemSlotBorg8Indecies` | `0xDF670` | Read (`MenuTables`); a UI fact in `Aidyn.Core.Ui.MenuImages`, checked against the ROM |
+| The credits' cards: the first line of each in the credits' string table, the first of each a heading, and how many show one at a time before the rest scroll (the card ending at line `0x1D`, a literal) | `Credits.CardStarts`, `Credits.StepCards` | `0xCFC60` | Read (`CreditsTable`), as the credits record (`aidyn:credits/0`); the 12 shown is a fact |
 | Spell and potion effects: Borg7 and Borg5 per spell or potion, with a memory size | `spellvisuals.cpp` | Switches | To do |
 | Models whose actors fly: bat, wyvern, harpy, dryads, Pandara, gryphon, manticore and scorpion | `Actor::IsFlyingModel` | `0xCE650` | To do |
 | The 39 Borg12 sounds that Borg13 PlaySound operands index | `dialoug_SFX`, `Dialogue.SoundTable` | `0xE0960` | Read (`AudioTables`), as the sounds record's `Script` |

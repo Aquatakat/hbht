@@ -101,11 +101,14 @@ public static class RecordTypes
     /// <summary>One of the four cinematics, keyed by its decimal place in the cinematic table: 0 is the opening.</summary>
     public const string Cinematic = "cinematic";
 
+    /// <summary>The credits' cards. There's one, <c>aidyn:credits/0</c>.</summary>
+    public const string Credits = "credits";
+
     private static readonly HashSet<string> All =
     [
         Entity, Weapon, Armor, Spell, Item, DialogEntity, Loot, Flag, Texture, Geometry, Camera, Light, Scene, Animation, Actor, Image, Map,
         Sample, Sequence, Dialogue, Voxel, MapSet, Terrain, Sky, Journal, StateFlags, WorldMap, Minimap, Camping, Font, Strings, Stat, Skill, WeaponSkill,
-        Progression, Shop, Recipe, Inventory, Sounds, Weather, Emitters, Cinematic,
+        Progression, Shop, Recipe, Inventory, Sounds, Weather, Emitters, Cinematic, Credits,
     ];
 
     public static bool IsKnown(string type) => All.Contains(type);
