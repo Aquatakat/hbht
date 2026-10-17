@@ -877,24 +877,22 @@ public partial class Game : Node3D, ITrekHost
 
     /// <summary>
     /// The buttons on a backdrop's or the help menu's page: A takes the cursor's choice, or with none moves on, and
-    /// up and down move the cursor. In the help menu, B takes the last choice, Exit Help or back.
+    /// up and down move the cursor. In the help menu, B takes the last choice, Exit Help or back, or with none moves on
+    /// as A does: only a help script's page gets a B (<c>Dialogue.ShowNode</c>, 0x80047714, by its start mode, 4) and
+    /// it returns the last row, else the text, which carries the node's link (<c>Dialogue.OnBHelp</c>, 0x80048354).
     /// </summary>
     private void Browse(InputEvent e)
     {
         if (!_backdrop!.Taking || _trek!.Conversation?.Runner is not { Status: Core.Scripts.ScriptStatus.Showing, Page: { } page } runner)
             return;
         var choosing = page.Choices.Count > 0 && runner.Wait != Core.Scripts.ScriptWait.Player;
-        if (e.IsActionPressed("menu_accept"))
+        var back = e.IsActionPressed("menu_back") && runner.Script.Mode == DialogueMode.Help;
+        if (e.IsActionPressed("menu_accept") || back)
         {
             if (choosing)
-                runner.Choose(_backdrop.Page!.Highlight);
+                runner.Choose(back ? page.Choices.Count - 1 : _backdrop.Page!.Highlight);
             else
                 runner.Continue();
-            _trek.Refresh();
-        }
-        else if (e.IsActionPressed("menu_back") && choosing && runner.Script.Mode == DialogueMode.Help)
-        {
-            runner.Choose(page.Choices.Count - 1);
             _trek.Refresh();
         }
         else if (_stick.Pressed(e, "move_forward") || e.IsActionPressed("menu_up", allowEcho: true))
