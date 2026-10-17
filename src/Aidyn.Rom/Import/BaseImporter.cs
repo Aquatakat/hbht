@@ -70,11 +70,9 @@ public static class BaseImporter
         progress?.Report("Terrains");
         var gradients = Skies.ReadGradients(rom);
         var campFactors = CampFactors(rom);
-        WriteJson(Path.Combine(staging, "records", "terrains.json"), Enumerable.Range(0, Skies.TerrainCount).Select(t =>
-        {
-            var (sky, drawn) = Skies.ForTerrain(t);
-            return new TerrainRecord(RecordId.Decimal(RecordTypes.Terrain, t), RecordId.Hex(RecordTypes.Image, gradients[sky]), drawn, campFactors[t]);
-        }).ToList());
+        var weather = WeatherTables.Read(rom);
+        WriteJson(Path.Combine(staging, "records", "terrains.json"), BuildTerrains(gradients, campFactors, weather));
+        WriteJson(Path.Combine(staging, "records", "weather.json"), new[] { BuildWeather(weather) });
 
         progress?.Report("Flags");
         var db = GameDb.Read(rom);
@@ -433,6 +431,48 @@ public static class BaseImporter
         Flags(EngineFlags.DayOfWeek), Flags(EngineFlags.Week), Flags(EngineFlags.Rain), Flags(EngineFlags.Terrain),
         Flag(EngineFlags.NewJournalEntry),
         Flag(EngineFlags.RandomSkillChecks));
+
+    /// <summary>
+    /// The terrain types: each one's sky and whether it's drawn (a fact, <see cref="Skies.ForTerrain"/>), its camp
+    /// ambush factor, and its weather from the code's tables, with snow on type 5 alone, a literal in
+    /// <c>Weather.Roll</c> (<c>0x8007bdb0</c> in 1.0).
+    /// </summary>
+    internal static List<TerrainRecord> BuildTerrains(IReadOnlyList<int> gradients, float[] campFactors, WeatherTables weather) =>
+        [.. Enumerable.Range(0, Skies.TerrainCount).Select(t =>
+        {
+            var (sky, drawn) = Skies.ForTerrain(t);
+            return new TerrainRecord(RecordId.Decimal(RecordTypes.Terrain, t), RecordId.Hex(RecordTypes.Image, gradients[sky]), drawn, campFactors[t],
+                weather.Terrains[t], weather.Scales[t], Snow: t == SnowTerrain);
+        })];
+
+    /// <summary>The terrain type it snows on rather than rains (<c>Weather.Roll</c>).</summary>
+    public const int SnowTerrain = 5;
+
+    /// <summary>
+    /// The weather's rules: the seasons' chances from the code's table, and the rest literals in <c>Weather.Roll</c>
+    /// (<c>0x8007bdb0</c> in 1.0), <c>Weather.DriftWind</c> (<c>0x8007baa0</c>, given 0.05 by <c>World.Update</c>),
+    /// <c>ProcessWeather</c> (<c>0x8001e7c0</c>) and <c>RenderSky</c> (<c>0x8001d840</c>), carried as facts.
+    /// </summary>
+    internal static WeatherRecord BuildWeather(WeatherTables tables) => new(
+        RecordId.Decimal(RecordTypes.Weather, 0),
+        tables.Seasons,
+        KeepAtMost: 75,
+        FallBelow: 70,
+        IntensitySpread: 0.15f,
+        FallFog: new WeatherRange(0.1f, 0.35f),
+        Fog: new WeatherRange(0.1f, 0.75f),
+        WindChance: 0.05f,
+        WindTurn: 0.1f,
+        // −0.004 to 0.001: 0xBB83126F and 0x3A83126F.
+        WindRise: new WeatherRange(BitConverter.Int32BitsToSingle(unchecked((int)0xBB83126F)), BitConverter.Int32BitsToSingle(0x3A83126F)),
+        WindGust: BitConverter.Int32BitsToSingle(0x3B17B426),
+        WindMaxSpeed: BitConverter.Int32BitsToSingle(0x3E6D097B),
+        // 1/300 and 1/900 a tick, doubles in the code.
+        FallRate: (float)(1.0 / 300),
+        FogRate: (float)(1.0 / 900),
+        // RenderSky (0x8001d840): every 20th frame, a share under the storm × 0.25 (a double).
+        LightningEvery: 20,
+        LightningShare: 0.25f);
 
     /// <summary>The camp ambush's factor for each terrain type (<c>camp_float_array</c>).</summary>
     internal static float[] CampFactors(RomImage rom)

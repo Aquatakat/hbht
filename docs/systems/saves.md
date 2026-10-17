@@ -72,7 +72,8 @@ A save made from the "Before final encounter" checkpoint, cut short:
 - **Alaron's name**, when the player renamed him in the options menu ([ui](ui.md#renaming-alaron)): `name` on his sheet, left out while it's the record's. The original saves his name with his spells (`SaveParty::SaveAlaron`, 20 bytes); the checkpoints' converter doesn't read it yet.
 - **The screenshot** isn't in the save: the System tab writes it beside the save, a PNG of the same name, 208 × 156 ([ui](ui.md#saving-and-loading)). The original keeps a 64 × 32 one in the save. A save without one shows none.
 - **The minimaps' seen pieces** (`minimaps`), each minimap's by their place in its record, where they're not as it starts ([ui](ui.md#the-minimap)). The original saves one bit a piece for all eight. Without them, the pieces start as a new game's.
-- **Not kept yet:** spell effects (2.5) and the weather. The original's volumes and resolution, which it saves too, are the player's settings in the port ([ADR 0013](../adr/0013-settings-in-the-options-menu.md)). The original also keeps three timers of how long the party has run, walked and sneaked (`Party::TickMoveCounters`), which nothing reads.
+- **The weather** (`weather`): what the roll left (its kind, what falls, its intensity, fog and storm, and the wind) and what's drawn as it sets in (what's falling, how hard, and the fog's thickness), as [weather](weather.md) has them. Without it, the weather starts as a new game's, and the rain flags stay as saved until it next changes.
+- **Not kept yet:** spell effects (2.5). The original's volumes and resolution, which it saves too, are the player's settings in the port ([ADR 0013](../adr/0013-settings-in-the-options-menu.md)). The original also keeps three timers of how long the party has run, walked and sneaked (`Party::TickMoveCounters`), which nothing reads.
 
 ## Loading, as the original does
 
@@ -104,7 +105,7 @@ A save made from the "Before final encounter" checkpoint, cut short:
 
 ## Checkpoints as saves
 
-`CheckpointSave.Convert` reads a checkpoint (`AresCheckpoint`) into a save: its time played, clock, place, plain flags (2 to 5000; the first 5,001 flags are plain), the party's sheets, gold and inventory, and the chart. The random streams start as a new game's, since the original's saves don't keep its seed. Where the RAM holds them, in both builds:
+`CheckpointSave.Convert` reads a checkpoint (`AresCheckpoint`) into a save: its time played, clock, place, plain flags (2 to 5000; the first 5,001 flags are plain), the party's sheets, gold and inventory, the chart and the weather. The random streams start as a new game's, since the original's saves don't keep its seed. Where the RAM holds them, in both builds:
 
 | What | Where |
 | --- | --- |
@@ -113,6 +114,8 @@ A save made from the "Before final encounter" checkpoint, cut short:
 | The position and facing (`gameVars.MapFloatDatEntry`, noted every two seconds for a save) | `gGlobals` + 0xFE4, + 0xFF0 |
 | The clock and time played (`TerrainStruct.InGameTime`, `PlayTime`) | `*TerrainPointer` + 0x20, + 0x34 |
 | The chart (`voxelChart`, 19 × 12 bytes) | 0x800E0A74 in 1.0, 0x800EF5E4 in the debug build |
+| The weather as rolled: kind, what falls, intensity, fog, storm and wind | `*TerrainPointer` + 0x4, + 0x6, + 0x8, + 0xC, + 0x10, + 0x14 |
+| The weather as drawn: what's falling, how hard, the fog (`fogTime`) | `gGlobals` + 0x394 + 0x2, + 0x4, + 0xC |
 
 `gGlobals` is at 0x800D8088 in 1.0 and 0x800E68A8 in the debug build, and `TerrainPointer` at 0x800E303C and 0x800F1BBC.
 

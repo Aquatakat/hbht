@@ -126,9 +126,9 @@ Terrain types are the 0–29 index that map chunks carry and the camp encounters
 | What | Code | NA 1.0 | Status |
 | --- | --- | --- | --- |
 | Camp ambush factor per terrain type; 0 means no camping | `camp_float_array` | `0xE3B38` | ROM, the terrain record's `camp` |
-| Precipitation chance per season (8) and per terrain type (28), and precipitation scale per terrain type | `sSeasonPrecipChance`, `sTerrainPrecipChance`, `sTerrainPrecipScale` | `0xE3C40`, `0xE3C48`, `0xE3C64` | To do |
-| Snow falls instead of rain on terrain type 5 only | `World::SetWeather` | Literal | To do |
-| The weather rolls again at each change in the time of day, with a 25% chance of clearing and then trying for precipitation | `World::SetWeather` | Literals | To do |
+| Precipitation chance per season (6, and 2 bytes of padding) and per terrain type (28), and precipitation scale per terrain type | `sSeasonPrecipChance`, `sTerrainPrecipChance`, `sTerrainPrecipScale` | `0xE3C40`, `0xE3C48`, `0xE3C64` | ROM (`WeatherTables`): the seasons' on the weather record (`aidyn:weather/0`), the terrains' as the terrain records' `precipitation` and `precipitationScale` |
+| Snow falls instead of rain on terrain type 5 only | `Weather.Roll` (`0x8007bdb0`) | Literal | Fact, the terrain record's `snow` |
+| The weather may change at each change in the part of the day and on entering another terrain: a d100 over 75 clears it and tries for precipitation, rain or snow under 70 and fog otherwise, with the intensity, fog and storm drawn from literals; the wind wanders by 5% chances a frame | `Weather.Roll`, `World.Update`, `Weather.DriftWind`, `ProcessWeather` | Literals | Fact, the weather record (see [weather](systems/weather.md)) |
 
 ## Characters
 

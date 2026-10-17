@@ -16,7 +16,8 @@ namespace Aidyn.Game;
 /// The chunk the player is in chooses the sky by its terrain. With no fog in the weather, as at a
 /// new game, the original fogs from 996 to 1000 on the depth buffer's scale (<c>SetSceneColors</c>),
 /// which with trek's planes of 1 and 180 (<c>ZoneEngine</c>'s draw) is from about 105 units out to
-/// the far plane.
+/// the far plane. The weather's fog moves the start in, to 996 − trunc(<c>fogTime</c> × 40)
+/// (<c>Zones.SetSceneColors</c>, <c>0x8000c298</c> in 1.0), and its wind blows the clouds.
 /// </remarks>
 public partial class SkyView : Node
 {
@@ -64,8 +65,11 @@ public partial class SkyView : Node
         }
     }
 
-    /// <summary>How thick the weather's fog is, 0 to 1 (<c>weather.fogTime</c>). There's no weather yet.</summary>
-    public float FogTime { get; set; }
+    /// <summary>The game's weather, which sets the fog and blows the clouds; none leaves them as a new game has them.</summary>
+    public Weather? Weather { get; set; }
+
+    /// <summary>How thick the weather's fog is, 0 to 1 (<c>fogTime</c>), as the weather has it.</summary>
+    public float FogTime => Weather?.FogTime ?? 0;
 
     /// <summary>
     /// Whether the sky shows at a point on the original's 320 × 240 screen, with nothing drawn over
@@ -99,6 +103,8 @@ public partial class SkyView : Node
     public void Step()
     {
         State.Step();
+        if (Clouds is not null && Weather is not null)
+            Clouds.Wind = Weather.Wind;
         Clouds?.Step();
         if (Flare is not null && Objects is not null)
         {

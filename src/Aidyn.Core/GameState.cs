@@ -38,6 +38,8 @@ public sealed class GameState : IScriptWorld
         StateFlags = new StateFlags(Flags, StateFlagsRecord);
         Party = new Party(Items, Flags);
         Minimaps = new MinimapSeen(plugins);
+        if (plugins.All<WeatherRecord>(RecordTypes.Weather).SingleOrDefault() is { } weather)
+            Weather = new Weather(weather);
     }
 
     public PluginSet Plugins { get; }
@@ -64,6 +66,9 @@ public sealed class GameState : IScriptWorld
     public StateFlags StateFlags { get; }
 
     public GameClock Clock { get; } = GameClock.NewGame();
+
+    /// <summary>The weather, or null if no plugin has its rules (<c>aidyn:weather/0</c>), when it stays clear.</summary>
+    public Weather? Weather { get; }
 
     /// <summary>Time played, in 60 Hz ticks (<c>TerrainStruct.PlayTime</c>).</summary>
     public uint PlayTime { get; set; }
@@ -93,7 +98,8 @@ public sealed class GameState : IScriptWorld
     public static GameState NewGame(PluginSet plugins)
     {
         var game = new GameState(plugins) { Label = "New game" };
-        game.StateFlags.SetTime(game.Clock);
+        game.Weather?.NewGame(game.Clock, game.Terrain(0), game.Random.World, game.Random.Cosmetic);
+        game.WriteStateFlags();
         if (game.Recruit(Alaron) is { } alaron)
             game.Party.Add(alaron);
         game.Party.Gold = NewGameGold;
@@ -146,6 +152,18 @@ public sealed class GameState : IScriptWorld
 
         game.Minimaps.Load(save.Minimaps, game._problems);
 
+        // The weather sees the loaded time's part of the day, so the first frame doesn't roll, and the first terrain
+        // without a roll. A save without the weather keeps its rain flags until the weather next changes.
+        if (game.Weather is { } now)
+        {
+            now.PartOfDay = game.Clock.Date.PartOfDay;
+            if (save.Weather is { } weather)
+            {
+                game.LoadWeather(now, weather);
+                game.WriteStateFlags();
+            }
+        }
+
         if (save.Random is { } random)
         {
             game.Random.Combat.Seed = random.Combat;
@@ -175,7 +193,28 @@ public sealed class GameState : IScriptWorld
         })],
         Random = new SaveRandom(Random.Combat.Seed, Random.Loot.Seed, Random.World.Seed, Random.Wander.Seed, Random.Cosmetic.Seed),
         Minimaps = Minimaps.Save(),
+        Weather = Weather is { } w
+            ? new SaveWeather(w.Kind.ToString(), w.Precipitation.ToString(), w.Intensity, w.Fog, w.Storm, w.Wind, w.Falling.ToString(),
+                w.FallIntensity, w.FogTime)
+            : null,
     };
+
+    private void LoadWeather(Weather weather, SaveWeather saved)
+    {
+        weather.Kind = Parse<WeatherKind>(saved.Kind, "kind of weather");
+        weather.Precipitation = Parse<Precipitation>(saved.Precipitation, "precipitation");
+        weather.Falling = Parse<Precipitation>(saved.Falling, "precipitation");
+        (weather.Intensity, weather.Fog, weather.Storm, weather.Wind) = (saved.Intensity, saved.Fog, saved.Storm, saved.Wind);
+        (weather.FallIntensity, weather.FogTime) = (saved.FallIntensity, saved.FogTime);
+
+        T Parse<T>(string text, string what) where T : struct, Enum
+        {
+            if (Enum.TryParse<T>(text, out var value))
+                return value;
+            _problems.Add($"The weather's {text} isn't a {what}.");
+            return default;
+        }
+    }
 
     /// <summary>The party as a save holds it: its members' sheets, those kept for members who left, its gold and its inventory.</summary>
     public SaveParty SaveParty() => new()
@@ -237,26 +276,55 @@ public sealed class GameState : IScriptWorld
     }
 
     /// <summary>
-    /// Time passing in trek, <paramref name="ticks"/> of play: the clock runs, the calendar's flags are
-    /// written, as they are every frame, and the members' potions run down (<c>TickGameTime</c>,
-    /// <c>SetFlagArray_on_Time</c>).
+    /// Time passing in trek, <paramref name="ticks"/> of play: the clock runs, the weather may change, the calendar's
+    /// and the rain's flags are written, as they are every frame, and the members' potions run down
+    /// (<c>TickGameTime</c>, <c>World.Update</c>, <c>SetFlagArray_on_Time</c>).
     /// </summary>
     public void PassTime(int ticks)
     {
         Clock.Step(ticks);
         foreach (var member in Party.Members)
             member.StepPotionEffects(ticks);
-        StateFlags.SetTime(Clock);
+        for (var i = 0; i < ticks; i++)
+            Weather?.Tick(Clock.Date.PartOfDay, Clock.Date.Season, Terrain(Weather.Terrain), Random.World, Random.Cosmetic);
+        WriteStateFlags();
     }
 
     /// <summary>
-    /// Hours passing at once, as after camping (<c>World::Lapse8Hours</c>): the clock moves on, within the year, and the
-    /// calendar's flags are written. Time played doesn't, and effects don't run down: camping's heal runs those.
+    /// The player enters a chunk of <paramref name="terrain"/> (<c>World::SetTerrain</c>): its terrain's flags are
+    /// written, and for another terrain, the weather may change.
+    /// </summary>
+    public void EnterTerrain(int terrain)
+    {
+        if (Weather is { } weather)
+        {
+            weather.SetTerrain(terrain);
+            weather.Frame(Clock.Date.PartOfDay, Clock.Date.Season, Terrain(terrain), Random.World, Random.Cosmetic);
+        }
+        WriteStateFlags();
+        StateFlags.SetTerrain(terrain);
+    }
+
+    /// <summary>The terrain's record, if a plugin has it.</summary>
+    public TerrainRecord? Terrain(int? terrain) =>
+        terrain is { } t ? Plugins.TryGet<TerrainRecord>(RecordId.Decimal(RecordTypes.Terrain, t)) : null;
+
+    // World.Update: the calendar's flags and the rain's.
+    private void WriteStateFlags()
+    {
+        StateFlags.SetTime(Clock);
+        StateFlags.SetRain((int)(Weather?.Precipitation ?? Precipitation.None));
+    }
+
+    /// <summary>
+    /// Hours passing at once, as after camping (<c>World::Lapse8Hours</c>): the clock moves on, within the year, the
+    /// weather may change, and the calendar's and the rain's flags are written. Time played doesn't, and effects don't run down: camping's heal runs those.
     /// </summary>
     public void Lapse(int hours)
     {
         Clock.Time = (uint)((Clock.Time + (ulong)hours * GameClock.Hour) % GameClock.Year);
-        StateFlags.SetTime(Clock);
+        Weather?.Frame(Clock.Date.PartOfDay, Clock.Date.Season, Terrain(Weather.Terrain), Random.World, Random.Cosmetic);
+        WriteStateFlags();
     }
 
     /// <summary>

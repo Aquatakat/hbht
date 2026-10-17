@@ -9,7 +9,7 @@ public enum PartOfDay
     Midday,
     /// <summary>From 12:00.</summary>
     Afternoon,
-    /// <summary>From 17:00.</summary>
+    /// <summary>From 18:00.</summary>
     Evening,
     /// <summary>From 21:00 to 6:00.</summary>
     Night,
@@ -21,14 +21,17 @@ public enum PartOfDay
 /// <param name="DayOfWeek">0–6.</param>
 public readonly record struct CalendarDate(int Season, int Week, int DayOfWeek, int Hour)
 {
-    /// <summary>The part of the day by the hour (<c>World::UpdateTimeOfDay</c>).</summary>
+    /// <summary>
+    /// The part of the day by the hour (<c>World::UpdateTimeOfDay</c>, <c>0x8007bd3c</c> in 1.0, which tests the hour
+    /// against 6, 9, 12, 18 and 21 in both builds).
+    /// </summary>
     /// <remarks>Spells that turn day to night freeze it in the original. Those aren't ported yet.</remarks>
     public PartOfDay PartOfDay => Hour switch
     {
         < 6 => PartOfDay.Night,
         < 9 => PartOfDay.Morning,
         < 12 => PartOfDay.Midday,
-        < 17 => PartOfDay.Afternoon,
+        < 18 => PartOfDay.Afternoon,
         < 21 => PartOfDay.Evening,
         _ => PartOfDay.Night,
     };

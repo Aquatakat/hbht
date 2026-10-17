@@ -15,6 +15,8 @@ Things only the user can settle, in the emulator or by reading the ROM. Each lin
 - **The sound volume at half:** the menu's sounds take the sound volume twice and the containers' three times, by the machine code. Whether half sound volume makes them quarter loud is a check against the port, which now plays them so. See [audio](systems/audio.md#volumes).
 - **Which way sounds pan:** a sound to the camera's right should come from the right speaker; the formula says right is positive, and the port plays it so, but nobody has listened. Any map sound with falloff, such as a fountain, turned side on. See [audio](systems/audio.md#sound-map-objects).
 
+- **Rain after loading:** loading a save made in the rain outdoors (the "Before Rooughah" one is in an interior, so step outside first and save there): whether the rain is there at once, or dies away and sets in again over about ten seconds, as the machine code suggests. The port keeps it falling. See [weather](systems/weather.md#differences-from-the-original).
+
 - **Where the map area north of Ugarit unlocks:** It currently doesn't unlock while travelling through it in the port.
 
 - **The trap's menu** (`WidgetChoiceDia::Update`): the question above Disarm and Exit, and the cursor's option pulsing grey to white, the scroll menu's defaults. The user thinks it looks right. See [map-objects](systems/map-objects.md#popups).

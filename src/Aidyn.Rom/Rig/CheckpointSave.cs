@@ -52,7 +52,17 @@ public static class CheckpointSave
                 })],
             },
             Memories = [.. checkpoint.Memories.Select(m => Memory(m, plugins, problems)).OfType<SaveMemory>()],
+            Weather = Weather(checkpoint.Weather),
         };
+    }
+
+    /// <summary>The weather, in the port's names, which are the original's numbers.</summary>
+    private static SaveWeather Weather(CheckpointWeather w)
+    {
+        string[] kinds = ["Clear", "Fog", "Precipitation"], falls = ["None", "Rain", "Snow"];
+        static string Name(string[] names, int value) => value < names.Length ? names[value] : value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return new SaveWeather(Name(kinds, w.Kind), Name(falls, w.Precipitation), w.Intensity, w.Fog, w.Storm, w.Wind, Name(falls, w.Falling),
+            w.FallIntensity, w.FogTime);
     }
 
     /// <summary>The flags that are plain bits, 0 to 5000.</summary>

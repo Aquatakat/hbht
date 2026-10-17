@@ -85,15 +85,17 @@ Camping advances time by eight hours.
 
 ### Weather
 
-**(decomp)** The calendar does feed the weather, through the season. Each weather roll works like this:
+**(machine code)** The calendar does feed the weather, through the season. The weather may change whenever the part of the day changes (at 6:00, 9:00, 12:00, 18:00 and 21:00), after camping, and whenever the party enters a chunk of another terrain. Each time:
 
-1. 25% of the time, the weather is clear.
-2. Otherwise, precipitation happens if a d100 roll is at or under the terrain type's chance plus the season's chance.
-3. Precipitation is rain with storm winds 70% of the time (snow on snowy terrain) and fog the other 30%.
+1. Three times in four, nothing changes: the weather persists.
+2. Otherwise it clears, and precipitation comes if a d100 roll is at or under the season's chance plus the terrain type's.
+3. Precipitation is rain 69% of the time (snow on the one snowy terrain, with no lightning), and fog the other 31%. Rain sets in over a few seconds, can be stormy, with lightning and thunder, and brings a little fog.
+
+The wind drifts on its own, whatever the weather. Interiors and caves don't show the weather, but it carries on outside. See [weather](systems/weather.md).
 
 **(decomp)** Time of day, calendar, moon phase, weather, and terrain are all mirrored into event flags, so dialogue and map objects can react to them.
 
-**(decomp)** Weather affects combat: throwing potions takes accuracy penalties at night, in fog, and in storms, with an extra penalty per unit of distance beyond 5 in bad weather.
+**(machine code)** Weather affects combat: throwing potions takes accuracy penalties at night, in fog, and in storms, with an extra penalty per unit of distance beyond 5 in bad weather, and ranged attacks lose more the harder it rains. Fog also shortens how far monsters see.
 
 ### Time-dependent content
 
@@ -297,7 +299,7 @@ All spell targeting uses a radius centred on or controlled by the caster.
 
 **Single target.** A radius appears around the caster; the player selects one ally, enemy, or themselves within it. Self-cast and enemy-cast use identical targeting. Wind is unusual in being castable on either self or an enemy.
 
-**(decomp)** Cast on an enemy, Wind does damage. Cast on an ally or self, it applies a timed Wind enchantment instead. When that enchantment ends, the weather is set to fog, which suggests Wind clears fog and storms (and their penalties) while it lasts. That part is inferred and unconfirmed.
+**(decomp)** Cast on an enemy, Wind does damage. Cast on an ally or self, it applies a timed Wind enchantment instead. **(machine code)** When an enchantment of that kind ends, combat's class of bad weather is set to fog, which only combat's penalties read; the weather itself doesn't change. Which spell that enchantment is, is unconfirmed.
 
 **Caster-centred area.** The game picks the targets within the radius; the player can't choose. The targeting is smart: it won't put damage spells on allies, and recasting will cover the members missed the first time.
 

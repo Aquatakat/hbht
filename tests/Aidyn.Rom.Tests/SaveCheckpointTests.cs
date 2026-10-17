@@ -264,6 +264,18 @@ public sealed class SaveCheckpointTests(MapObjectFixture fixture)
 
     [Theory]
     [MemberData(nameof(Checkpoints))]
+    public void ALoadedCheckpointHasTheConsolesWeather(string name)
+    {
+        var checkpoint = Load(name);
+        var console = checkpoint.Weather;
+        var weather = Game(name, checkpoint).Weather!;
+        Assert.Equal((console.Kind, console.Precipitation, console.Falling), ((int)weather.Kind, (int)weather.Precipitation, (int)weather.Falling));
+        Assert.Equal((console.Intensity, console.Fog, console.Storm, console.Wind), (weather.Intensity, weather.Fog, weather.Storm, weather.Wind));
+        Assert.Equal((console.FallIntensity, console.FogTime), (weather.FallIntensity, weather.FogTime));
+    }
+
+    [Theory]
+    [MemberData(nameof(Checkpoints))]
     public void ALoadedCheckpointSavesAgainAsItWasLoaded(string name)
     {
         var checkpoint = Load(name);

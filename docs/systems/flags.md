@@ -30,12 +30,12 @@ The importer writes three record types:
 | Flags | What | Written |
 | --- | --- | --- |
 | 2299–2300 | Moon phase: 0 new, 1 crescent, 2 quarter, 3 full | Whenever time passes, which in trek is every frame |
-| 2301–2303 | Part of the day: 0 morning (from 6:00), 1 midday (9:00), 2 afternoon (12:00), 3 evening (17:00), 4 night (21:00) | The same |
+| 2301–2303 | Part of the day: 0 morning (from 6:00), 1 midday (9:00), 2 afternoon (12:00), 3 evening (18:00), 4 night (21:00) | The same |
 | 2304–2309 | Day of the season: week × 7 + day of the week | The same |
 | 2310–2312 | Season, 0–5 | The same |
 | 2313–2315 | Day of the week, 0–6 | The same |
 | 2316–2318 | Week of the season, 0–7 | The same |
-| 2319–2320 | Rain: 0 clear, 1 rain, 2 snow | The same, and when the weather is set |
+| 2319–2320 | Rain: 0 clear, 1 rain, 2 snow: what the weather has falling, or setting in, not what's drawn as it dies away ([weather](weather.md)). Fog is 0. | The same (`World.Update`, `0x8007bf5c`, through `StateFlags.SetRain`, `0x8001fe9c`) |
 | 2321–2324 | The terrain type of the player's chunk | On entering a chunk of another terrain |
 
 - **The terrain has four flags for 28 types**, so types from 16 wrap round.

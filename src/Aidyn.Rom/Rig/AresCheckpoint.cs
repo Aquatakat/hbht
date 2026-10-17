@@ -128,6 +128,24 @@ public sealed class AresCheckpoint
     public uint PlayTime => ReadWord(ReadWord(WhichBuild().TerrainPointer) + 0x34);
 
     /// <summary>
+    /// The weather: as the roll left it, on the world behind <c>TerrainPointer</c> (the kind at + 0x4, what falls at +
+    /// 0x6, its intensity at + 0x8, the fog at + 0xC, the storm at + 0x10 and the wind at + 0x14, and the part of the
+    /// day the weather last saw at + 0x2), and as it's drawn, on <c>gGlobals</c>' weather at + 0x394 (what's falling
+    /// at + 0x2, how hard at + 0x4 and the fog at + 0xC), in both builds.
+    /// </summary>
+    public CheckpointWeather Weather
+    {
+        get
+        {
+            var world = ReadWord(WhichBuild().TerrainPointer);
+            var drawn = WhichBuild().Globals + 0x394;
+            return new CheckpointWeather(ReadByte(world + 4), ReadByte(world + 6), Float(world + 8), Float(world + 0xC),
+                Float(world + 0x10), new Vector3(Float(world + 0x14), Float(world + 0x18), Float(world + 0x1C)), ReadByte(world + 2),
+                ReadByte(drawn + 3), Float(drawn + 4), Float(drawn + 0xC));
+        }
+    }
+
+    /// <summary>
     /// What map objects remember (<c>voxelChart</c>, 19 entries of 12 bytes), the slots in use in slot
     /// order. 1.0 has the chart at 0x800E0A74, the debug build at 0x800EF5E4.
     /// </summary>
@@ -344,6 +362,13 @@ public sealed record CheckpointCharacter(
 /// <param name="Column">The chunk's column (<c>mapShort2</c>).</param>
 /// <param name="Position">The centre of the player's sphere, in the chunk's coordinates.</param>
 /// <param name="Facing">The original's <c>facing</c>, in X and Z: the opposite of the way the player faces.</param>
+/// <summary>The weather as a checkpoint holds it (<see cref="AresCheckpoint.Weather"/>).</summary>
+/// <param name="Kind">0 clear, 1 fog, 2 precipitation.</param>
+/// <param name="Precipitation">0 none, 1 rain, 2 snow.</param>
+/// <param name="Falling">What's falling as it's drawn, the same.</param>
+public sealed record CheckpointWeather(int Kind, int Precipitation, float Intensity, float Fog, float Storm, Vector3 Wind,
+    int PartOfDay, int Falling, float FallIntensity, float FogTime);
+
 public sealed record CheckpointPlace(int MapSet, int Row, int Column, Vector3 Position, Vector2 Facing);
 
 /// <summary>A memory a map object holds (<c>VoxelChartEntry</c>).</summary>

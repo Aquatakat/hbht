@@ -26,12 +26,6 @@ public sealed class Clouds
     /// <summary>How far from the camera clouds go.</summary>
     public const float Reach = 750;
 
-    /// <summary>
-    /// A new game's wind (<c>World::init</c>): (1, −0.1, 1) normalised, at 15/648 a tick. It changes
-    /// with the weather (<c>World::ChangeWind</c>), which isn't ported, so it's constant for now.
-    /// </summary>
-    public static readonly Vector3 NewGameWind = Vector3.Normalize(new Vector3(1, -0.1f, 1)) * (15f / 648);
-
     /// <summary>How far the wind blows clouds in a frame, in its units: they move 4 × the wind each frame.</summary>
     private const float WindScale = 4;
 
@@ -44,7 +38,8 @@ public sealed class Clouds
         _at = [.. sky.Clouds.Select(c => new Vector2(c.X, c.Z))];
     }
 
-    public Vector3 Wind { get; set; } = NewGameWind;
+    /// <summary>The weather's wind (<see cref="Calendar.Weather.Wind"/>), which the sky gives the clouds each tick.</summary>
+    public Vector3 Wind { get; set; } = Calendar.Weather.NewGameWind;
 
     /// <summary>How the clouds are placed across the screen: the original's way, or projected.</summary>
     public SkyPlacement Placement { get; set; }

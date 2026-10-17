@@ -87,6 +87,8 @@ public sealed class TrekLoop : IMapObjectHost
     /// <summary>The chunk the player was last in, to age what map objects remember as he crosses into another.</summary>
     private (int Row, int Column)? _centre;
     private ChunkEntry? _chunk;
+    /// <summary>The tick within a frame of the sky, which flashes lightning once a frame.</summary>
+    private int _skyTick;
     /// <summary>The last script a dialogue object asked to start that trek can't run yet, such as a backdrop.</summary>
     private RecordId? _lastScript;
 
@@ -194,7 +196,7 @@ public sealed class TrekLoop : IMapObjectHost
     public void RequestMusic(ChunkEntry? chunk) => Audio.Music = MapMusic.For(Chunks.MapSet, chunk, Game.Random.Cosmetic);
 
     /// <summary>
-    /// The player is in a chunk: its terrain is written into the flags. Crossing into another chunk is a
+    /// The player is in a chunk: its terrain is written into the flags, and another terrain may change the weather. Crossing into another chunk is a
     /// teleport in the original (<c>ConfirmPlayerWithinZone</c>), which ages what map objects remember.
     /// </summary>
     public void Enter(ChunkEntry? chunk)
@@ -210,8 +212,8 @@ public sealed class TrekLoop : IMapObjectHost
             return;
         _chunk = chunk;
         RequestMusic(chunk);
-        Game.StateFlags.SetTerrain(chunk.Terrain);
-        Hud.Arrive(Game.Plugins.TryGet<TerrainRecord>(RecordId.Decimal(RecordTypes.Terrain, chunk.Terrain))?.SkyDrawn ?? true);
+        Game.EnterTerrain(chunk.Terrain);
+        Hud.Arrive(Game.Terrain(chunk.Terrain)?.SkyDrawn ?? true);
     }
 
     /// <summary>What's said when a journal entry is added: a literal in the code (<c>0x800ce28c</c> in 1.0).</summary>
@@ -244,6 +246,16 @@ public sealed class TrekLoop : IMapObjectHost
         {
             Game.Flags.Set(newEntry, false);
             Use.Tell(NewJournalEntry);
+        }
+        // HandleZoneEngineFrame: RenderSky's lightning, once a frame, and ProcessWeather, every frame trek draws,
+        // whatever stops the clock; then TickGameTime.
+        if (Game.Weather is { } weather)
+        {
+            var skyDrawn = _chunk is null || (Game.Terrain(_chunk.Terrain)?.SkyDrawn ?? true);
+            _skyTick = (_skyTick + 1) % Cadence.FrameTicks;
+            if (_skyTick == 0)
+                weather.SkyFrame(skyDrawn, Game.Random.Cosmetic);
+            weather.Draw(skyDrawn);
         }
         if (Use.Popup is null && !talking)
             Game.PassTime(1);
@@ -279,7 +291,8 @@ public sealed class TrekLoop : IMapObjectHost
         // WanderTick, which a popup, a conversation, the menu and a fade stop.
         if (playing && Use.Popup is null && !talking)
         {
-            foreach (var w in Wanderers.Tick(world, motion.Sphere.Position, motion.Request, Game.Party, Game.Random.Wander))
+            foreach (var w in Wanderers.Tick(world, motion.Sphere.Position, motion.Request, Game.Party, Game.Random.Wander,
+                Game.Weather?.FogTime ?? 0))
                 _host.Log($"{MapRecord.VoxelId(w.Map.Record.Id, w.Party.Index)} ambushes the party; battles come with combat (2.5).");
         }
         // ProcessPlayers: the player is the first body, then the rest move and push.
@@ -419,6 +432,7 @@ public sealed class TrekLoop : IMapObjectHost
     public void Rebuild()
     {
         Free();
+        Game.Weather?.StartDrawing();
         Chunks.Update(Player.Sphere.Position);
     }
 

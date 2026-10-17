@@ -11,7 +11,7 @@ namespace Aidyn.Plugins.Saves;
 /// as the original's do: see <c>Aidyn.Core.GameState</c>.
 /// </summary>
 /// <remarks>
-/// Not kept yet: spell effects (2.5), the weather, the screenshot, and the
+/// Not kept yet: spell effects (2.5), the screenshot, and the
 /// party's three movement timers, which nothing reads.
 /// </remarks>
 public sealed record SaveGame
@@ -55,6 +55,9 @@ public sealed record SaveGame
 
     /// <summary>The random streams' states (ADR 0006). None seeds them as a new game does.</summary>
     public SaveRandom? Random { get; init; }
+
+    /// <summary>The weather. None starts it as a new game does: clear, with a new game's wind.</summary>
+    public SaveWeather? Weather { get; init; }
 
     /// <summary>
     /// The minimaps' pieces the party has seen (<c>MiniMap_Save</c>), for each minimap where they're not as it starts.
@@ -188,6 +191,21 @@ public sealed record SaveMemory(RecordId MapObject, string Kind, int Value, int 
 
 /// <summary>The states of the random streams (ADR 0006).</summary>
 public sealed record SaveRandom(uint Combat, uint Loot, uint World, uint Wander, uint Cosmetic);
+
+/// <summary>
+/// The weather, as the roll left it and as it's drawn (<c>Aidyn.Core.Calendar.Weather</c>).
+/// </summary>
+/// <param name="Kind">Clear, Fog or Precipitation.</param>
+/// <param name="Precipitation">None, Rain or Snow: what falls, which the rain flags hold.</param>
+/// <param name="Intensity">How hard it falls, 0 to 1.</param>
+/// <param name="Fog">How thick the fog is, 0 to 1.</param>
+/// <param name="Storm">How stormy the rain is, up to its intensity.</param>
+/// <param name="Wind">The wind, a tick's distance.</param>
+/// <param name="Falling">What's falling now, as it sets in or dies away.</param>
+/// <param name="FallIntensity">How hard it's falling now.</param>
+/// <param name="FogTime">How thick the fog is now.</param>
+public sealed record SaveWeather(string Kind, string Precipitation, float Intensity, float Fog, float Storm, Vector3 Wind,
+    string Falling, float FallIntensity, float FogTime);
 
 /// <summary>Reads and writes saves.</summary>
 public static class SaveFile

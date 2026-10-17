@@ -36,7 +36,8 @@ namespace Aidyn.Game;
 /// and <c>--distance</c> for the camera, <c>--pace</c> for the player's speed (1 is the
 /// original's), <c>--fly &lt;x&gt;,&lt;y&gt;,&lt;z&gt;</c> to start with the free camera there in
 /// world coordinates, looking along <c>--yaw</c> and <c>--pitch</c>, <c>--time &lt;hours&gt;</c>
-/// for the time of day (a new game starts at 12), <c>--camera outdoor|interior</c> for the camera's
+/// for the time of day (a new game starts at 12), <c>--weather rain|snow|fog|clear[,intensity[,fog]]</c> for the
+/// weather at once, <c>--camera outdoor|interior</c> for the camera's
 /// mode (by default, what going through a door into the chunk gives), and
 /// <c>--hold &lt;action&gt;,&lt;seconds&gt;</c>, which holds an input such as <c>move_forward</c>
 /// (join several with <c>+</c>, as in <c>move_forward+walk</c>),
@@ -181,7 +182,7 @@ public partial class Game : Node3D, ITrekHost
         N64Material.RspLighting = true;
         N64Material.OnScreenFramebuffer = true;
 
-        _sky = new SkyView(plugins, game.Clock);
+        _sky = new SkyView(plugins, game.Clock) { Weather = game.Weather };
         AddChild(_sky);
         AddChild(SkyBackdropView.Create(_sky));
         AddChild(LensFlareView.Create(_sky));
@@ -223,6 +224,9 @@ public partial class Game : Node3D, ITrekHost
         var spawn = _chunks.Origin(chunk) + (place is not null ? place.Position.ToGodot() : new Vector3(at[0], 10, at[1]));
         // The terrain's flags are written before the chunks' objects are gated by them.
         trek.Enter(chunk);
+        // After the first terrain and the time, which can change the weather.
+        if (args.TryGetValue("weather", out var weather))
+            ForceWeather(game, weather);
         streamer.Update(spawn.ToNumerics());
         _sky.Apply();
         var centre = spawn.ToNumerics();
@@ -1196,6 +1200,41 @@ public partial class Game : Node3D, ITrekHost
 
     private static float Float(Dictionary<string, string> args, string name, float fallback) =>
         args.TryGetValue(name, out var v) ? float.Parse(v, CultureInfo.InvariantCulture) : fallback;
+
+    /// <summary>
+    /// <c>--weather rain|snow|fog|clear[,intensity[,fog]]</c>: the weather at once, already set in, for screenshots. Rain
+    /// and snow default to 0.5 with fog 0.2, and fog to 0.5.
+    /// </summary>
+    private static void ForceWeather(GameState game, string text)
+    {
+        if (game.Weather is not { } weather)
+        {
+            GD.PushWarning("No weather record: --weather does nothing.");
+            return;
+        }
+        // The part of the day as it is, so the next frame doesn't roll.
+        weather.PartOfDay = game.Clock.Date.PartOfDay;
+        var parts = text.Split(',');
+        float Part(int i, float fallback) => parts.Length > i ? float.Parse(parts[i], CultureInfo.InvariantCulture) : fallback;
+        switch (parts[0])
+        {
+            case "rain":
+                weather.Force(Core.Calendar.WeatherKind.Precipitation, Core.Calendar.Precipitation.Rain, Part(1, 0.5f), Part(2, 0.2f));
+                break;
+            case "snow":
+                weather.Force(Core.Calendar.WeatherKind.Precipitation, Core.Calendar.Precipitation.Snow, Part(1, 0.5f), Part(2, 0.2f));
+                break;
+            case "fog":
+                weather.Force(Core.Calendar.WeatherKind.Fog, fog: Part(1, 0.5f));
+                break;
+            case "clear":
+                weather.Force(Core.Calendar.WeatherKind.Clear);
+                break;
+            default:
+                GD.PushWarning($"--weather {text}: give rain, snow, fog or clear.");
+                break;
+        }
+    }
 
     private static float[] Floats(string text) =>
         [.. text.Split(',').Select(s => float.Parse(s, CultureInfo.InvariantCulture))];

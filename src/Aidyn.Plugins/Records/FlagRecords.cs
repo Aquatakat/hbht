@@ -96,7 +96,7 @@ public sealed record JournalRecord(RecordId Id, RecordId Flag, string Text);
 /// they're never written. They aren't here: the flag records' labels say so.
 /// </remarks>
 /// <param name="MoonPhase">0 new, 1 crescent, 2 quarter, 3 full.</param>
-/// <param name="TimeOfDay">0 morning (from 6:00), 1 midday (9:00), 2 afternoon (12:00), 3 evening (17:00), 4 night (21:00).</param>
+/// <param name="TimeOfDay">0 morning (from 6:00), 1 midday (9:00), 2 afternoon (12:00), 3 evening (18:00), 4 night (21:00).</param>
 /// <param name="DayOfSeason">The week of the season × 7 + the day of the week, 0–55.</param>
 /// <param name="Season">0–5.</param>
 /// <param name="DayOfWeek">0–6.</param>
