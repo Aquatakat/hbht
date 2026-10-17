@@ -93,6 +93,11 @@ public partial class ParticlesView : Node3D
                 // Bodies' layer, which the shadow's decal leaves out.
                 Layers = 1u << (BodyLayer - 1),
                 CustomAabb = new Aabb(new Vector3(-1e5f, -1e5f, -1e5f), new Vector3(2e5f, 2e5f, 2e5f)),
+                // The view moves the sprites on itself, every frame drawn. With Godot's physics interpolation, a
+                // multimesh blends each instance from where the last physics tick left that index, and an index is a
+                // different particle as soon as one is born or dies, so between ticks splashes showed for a frame
+                // where others had been and vanished where they were.
+                PhysicsInterpolationMode = PhysicsInterpolationModeEnum.Off,
             };
             AddChild(_slots[i]);
         }

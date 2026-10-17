@@ -43,7 +43,8 @@ namespace Aidyn.Game;
 /// mode (by default, what going through a door into the chunk gives), and
 /// <c>--hold &lt;action&gt;,&lt;seconds&gt;</c>, which holds an input such as <c>move_forward</c>
 /// (join several with <c>+</c>, as in <c>move_forward+walk</c>),
-/// and <c>--screenshot &lt;png&gt;</c>, which saves the window after that and quits.
+/// and <c>--screenshot &lt;png&gt;</c>, which saves the window after that and quits; with <c>--frames &lt;n&gt;</c>, the next
+/// n frames as rendered, in real time, as <c>&lt;png&gt;-000.png</c> on.
 /// <c>--sky original</c> places the sky's sprites as the original does rather than projected.
 /// <c>--menu 1</c> opens the pause menu on the tab it last showed, <c>--menu system</c>, <c>party</c> or <c>world</c>
 /// on that tab, and <c>--menu loot</c> an empty loot window; <c>--ui-lines &lt;n&gt;</c> sets the UI screen's height, and
@@ -377,7 +378,7 @@ public partial class Game : Node3D, ITrekHost
         if (args.TryGetValue("cutscene", out var cutscene))
             CueFromCommandLine(RecordId.Parse(cutscene));
         if (args.TryGetValue("screenshot", out var png))
-            _ = Screenshot(png, hold);
+            _ = Screenshot(png, hold, args.TryGetValue("frames", out var frames) ? int.Parse(frames, CultureInfo.InvariantCulture) : 0);
     }
 
     /// <summary>Carries out the settings: the window, the 3D view, the draw distance, the sky, the pace and the UI screens.</summary>
@@ -1181,7 +1182,7 @@ public partial class Game : Node3D, ITrekHost
         };
     }
 
-    private async Task Screenshot(string path, double after)
+    private async Task Screenshot(string path, double after, int frames = 0)
     {
         var watchdog = GetTree().CreateTimer(60 + after);
         watchdog.Timeout += () =>
@@ -1193,6 +1194,22 @@ public partial class Game : Node3D, ITrekHost
         await ToSignal(GetTree().CreateTimer(1.5 + after), SceneTreeTimer.SignalName.Timeout);
         for (var i = 0; i < 3; i++)
             await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+        if (frames > 0)
+        {
+            // Every frame as rendered, at the rate it renders, kept until the last, for flicker between ticks.
+            var images = new List<Image>(frames);
+            for (var i = 0; i < frames; i++)
+            {
+                images.Add(GetViewport().GetTexture().GetImage());
+                await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+            }
+            var stem = Path.ChangeExtension(path, null);
+            for (var i = 0; i < images.Count; i++)
+                images[i].SavePng($"{stem}-{i:000}.png");
+            GD.Print($"Saved {images.Count} frames to {stem}-000.png on");
+            GetTree().Quit(0);
+            return;
+        }
         var error = GetViewport().GetTexture().GetImage().SavePng(path);
         GD.Print(error == Error.Ok ? $"Saved {path}" : $"Couldn't save {path}: {error}");
         GetTree().Quit(error == Error.Ok ? 0 : 1);
