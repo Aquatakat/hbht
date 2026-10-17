@@ -118,9 +118,19 @@ public class WeatherParticleTests
     }
 
     [Fact]
-    public void DropsOnlyTestThePlayersChunkAndPassSeeThroughTriangles()
+    public void DropsLandOnEveryLoadedChunkOrOneAsTheOriginalsDoAndPassSeeThroughTriangles()
     {
-        // Ground of another chunk: the drops fall through it without landing, and rain's own splashes find none.
+        // Ground of another loaded chunk: trek's drops, which test every chunk, land on it, and rain splashes on it.
+        var trek = new Scene(intensity: 0.5f) { Part = null };
+        trek.World.Remove("ground");
+        trek.World.Add("next", Worlds.Floor(0, -100, 100, -100, 100), Vector3.Zero);
+        trek.Run(600);
+        Assert.NotEmpty(trek.Drawn(trek.Fall.Splashes));
+        Assert.True(trek.Fall.DropSplashes > 0 && trek.Fall.OwnSplashes > 0);
+        Assert.All(trek.Drawn(trek.Fall.Drops), d => Assert.True(d.Position.Y > -1));
+
+        // Testing one chunk's collision alone, as the original tests the player's: the drops fall through the other's
+        // ground without landing, and rain's own splashes find none.
         var scene = new Scene(intensity: 0.5f) { Part = "elsewhere" };
         scene.Run(600);
         Assert.Empty(scene.Drawn(scene.Fall.Splashes));
@@ -163,8 +173,9 @@ public class WeatherParticleTests
         var flakes = scene.Drawn(drops).ToList();
         // White, fading toward a quarter.
         Assert.All(flakes, f => Assert.True(f.Color.R == f.Color.G && f.Color.G == f.Color.B && f.Color.B == f.Color.A && f.Color.R >= 63));
-        // A flake every frame, of which the ones still falling: from 9.25 above the ground at 0.045 a tick, 205 ticks.
-        Assert.InRange(flakes.Count, 100, 105);
+        // A flake every frame of the console's 20 fps, of which the ones still falling: from 9.25 above the ground at 0.045
+        // a tick, 205 ticks.
+        Assert.InRange(flakes.Count, 66, 70);
         Assert.NotEmpty(scene.Drawn(splashes));
     }
 
@@ -282,6 +293,46 @@ public class WeatherParticleTests
         half.Fall.Density = 1.5f;
         half.Run(200);
         Assert.InRange(half.Drawn(half.Fall.Drops).Count(), 1.5 * original.Drawn(original.Fall.Drops).Count() - 1, 1.5 * original.Drawn(original.Fall.Drops).Count() + 1);
+    }
+
+    [Theory]
+    // (short)(6 − 4 I) ticks between drops and 2 fewer between rain's own splashes, counted down by frames of 3 ticks:
+    // a spawn, then frames while the counter is above 0. At 0.5, 4 and 2: a drop every 3 frames, a splash every 2.
+    [InlineData(0.5f, 600 / 9, 600 / 6)]
+    // At 0.95, 2 and 0: a drop every 2 frames, a splash every frame.
+    [InlineData(0.95f, 600 / 6, 600 / 3)]
+    // At 0.2, 5 and 3: a drop every 3 frames, a splash every 2.
+    [InlineData(0.2f, 600 / 9, 600 / 6)]
+    public void RainSpawnsOnceAFrameOfTheConsoles20Fps(float intensity, int drops, int own)
+    {
+        var scene = new Scene(intensity: intensity);
+        scene.Run(600);
+        Assert.InRange(scene.Fall.DropsMade, drops, drops + 1);
+        Assert.InRange(scene.Fall.OwnSplashes, own, own + 1);
+        // Every drop over the ground lands as a splash, but those still falling.
+        Assert.InRange(scene.Fall.DropSplashes, drops - 25, drops);
+    }
+
+    [Theory]
+    [InlineData(1.5f)]
+    [InlineData(2)]
+    [InlineData(4)]
+    [InlineData(8)]
+    public void DensityKeepsItsDropsButHoldsTheSplashesToOneAndAHalfTimesTheOriginals(float density)
+    {
+        var original = new Scene(intensity: 0.5f);
+        original.Run(1200);
+        var denser = new Scene(intensity: 0.5f);
+        denser.Fall.Density = density;
+        denser.Run(1200);
+        Assert.InRange(denser.Fall.DropsMade, density * original.Fall.DropsMade - 1, density * original.Fall.DropsMade + 1);
+        var cap = WeatherParticles.SplashCap;
+        Assert.InRange(denser.Fall.OwnSplashes, cap * original.Fall.OwnSplashes - 1, cap * original.Fall.OwnSplashes + 1);
+        Assert.InRange(denser.Fall.DropSplashes, cap * original.Fall.DropSplashes - 4, cap * original.Fall.DropSplashes + 4);
+        // So the ground holds about 1.5 times the original's splashes.
+        var splashes = denser.Drawn(denser.Fall.Splashes).Count();
+        var originals = original.Drawn(original.Fall.Splashes).Count();
+        Assert.InRange(splashes, cap * originals - 6, cap * originals + 6);
     }
 
     [Fact]

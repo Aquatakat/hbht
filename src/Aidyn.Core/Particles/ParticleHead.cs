@@ -154,7 +154,7 @@ public sealed class ParticleHead
         var e = _emitters[_freeEmitters[_usedEmitters++]];
         e.Flags = EmitterFlags.Default;
         e.Life = life;
-        e.Delay = e.Counter = 0;
+        e.Delay = e.Counter = e.SpawnTicks = e.SpawnClock = 0;
         e.Interval = interval;
         e.Texture = texture;
         e.Floor = 0;
@@ -360,16 +360,16 @@ public sealed class ParticleHead
                 e.Life -= delta;
                 if (e.Spawn is { } spawn && e.Life > 0)
                 {
-                    if (e.Counter > 0)
+                    if (e.SpawnTicks <= 0)
                     {
-                        e.Counter -= delta;
+                        Spawn(e, spawn, delta);
                     }
                     else
                     {
-                        // Once, or with an interval under 0 that many times, so an interval of 0 spawns once every frame.
-                        e.Counter = e.Interval;
-                        for (var i = 0; i < (e.Interval >= 0 ? 1 : -e.Interval); i++)
-                            spawn(this, e);
+                        // By frames of its own, the first at once, then as many as this frame's ticks reach.
+                        for (; e.SpawnClock <= 0; e.SpawnClock += e.SpawnTicks)
+                            Spawn(e, spawn, e.SpawnTicks);
+                        e.SpawnClock -= delta;
                     }
                 }
                 StepList(e, delta, dt);
@@ -382,6 +382,22 @@ public sealed class ParticleHead
             if (e.Flags.HasFlag(EmitterFlags.FreeAtEnd))
                 Free(e, wait: true);
         }
+    }
+
+    /// <summary>
+    /// A frame's spawning: the counter loses the frame's ticks while it's above 0; at 0 or below it's set to the interval
+    /// and the emitter spawns once, or with an interval under 0 that many times, so an interval of 0 spawns once every frame.
+    /// </summary>
+    private void Spawn(Emitter e, EmitterCallback spawn, int delta)
+    {
+        if (e.Counter > 0)
+        {
+            e.Counter -= delta;
+            return;
+        }
+        e.Counter = e.Interval;
+        for (var i = 0; i < (e.Interval >= 0 ? 1 : -e.Interval); i++)
+            spawn(this, e);
     }
 
     /// <summary>The list: the head, the newest particle to the oldest, then the modifiers made at the start.</summary>
