@@ -154,6 +154,22 @@ public class WeatherParticleTests
     }
 
     [Fact]
+    public void WaterAndCanopiesTakeTheRainInWithoutASplash()
+    {
+        // A surface that absorbs the rain, water or a canopy, 3 above the ground over half of it: the drops end there
+        // without a splash, rain's own splashes find nothing there, and the ground under it stays dry.
+        var scene = new Scene(intensity: 0.5f);
+        scene.World.Add("ground", [.. Worlds.Floor(0, -100, 100, -100, 100).Drawn(), .. Worlds.Floor(3, -100, 0, -100, 100).Drawn(absorbs: true)], Vector3.Zero);
+        scene.Run(600);
+        var splashes = scene.Drawn(scene.Fall.Splashes).ToList();
+        Assert.NotEmpty(splashes);
+        Assert.All(splashes, s => Assert.True(s.Position.X > 0));
+        Assert.All(splashes, s => Assert.Equal(WeatherParticles.SplashLift, s.Position.Y, 4));
+        Assert.All(scene.Drawn(scene.Fall.Drops), d => Assert.True(d.Position.X > 0 ? d.Position.Y > -1 : d.Position.Y > 2));
+        Assert.Contains(scene.Drawn(scene.Fall.Drops), d => d.Position.X < 0);
+    }
+
+    [Fact]
     public void ADropEndsAgainstAWallWithoutASplash()
     {
         // Rain slanting four along to one down toward ground beyond a wall: without the wall, the drops that reach the

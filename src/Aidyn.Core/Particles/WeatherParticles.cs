@@ -13,7 +13,8 @@ namespace Aidyn.Core.Particles;
 /// (<c>0x8001e7c0</c> in 1.0) makes and steers by what's falling and how hard (<see cref="Weather.FallIntensity"/>).
 /// Each drop casts its fall against the solid surfaces the loaded chunks draw as it's made (<see cref="VisibleWorld"/>, the
 /// user's choice: the original's sweeps the player's chunk's collision), and lands where that says, laid flat on the ground as
-/// a ripple that shrinks and fades, or ends without one against a wall; rain also splashes about the drops of itself. See
+/// a ripple that shrinks and fades, or ends without one against a wall or in what absorbs it, such as water or a canopy;
+/// rain also splashes about the drops of itself. See
 /// docs/systems/weather.md.
 /// </summary>
 /// <remarks>
@@ -381,7 +382,7 @@ public sealed class WeatherParticles : IPrecipitationEmitters
             p.Position = new Vector3(aim.X + Offset.X + d.X, aim.Y + Offset.Y, aim.Z + Offset.Z + d.Y);
             var fall = head[Drops.Head].Vector;
             var end = new Vector3(fall.X, fall.Y, fall.Z) * Life + p.Position;
-            p.Data = _owner._world() is { } world && world.Raycast(p.Position, end, out var hit, out _, _owner._part())
+            p.Data = _owner._world() is { } world && world.Raycast(p.Position, end, out var hit, out _, out _, _owner._part())
                 ? new Vector4(hit, FarSquared)
                 : new Vector4(0, NowhereY, 0, FarSquared);
             p.Color = Color;
@@ -398,7 +399,8 @@ public sealed class WeatherParticles : IPrecipitationEmitters
         /// <remarks>
         /// The port looks along the drop's own fall, from 5 back to 5 on, where the original looks straight down: so
         /// with the surfaces drawn, which have roofs and eaves, a drop that passed beside one never splashes on it. On
-        /// a surface steeper than <see cref="SplashSlope"/> it ends without a splash.
+        /// a surface steeper than <see cref="SplashSlope"/>, or one that absorbs it (<see cref="DrawnTriangle.Absorbs"/>), it ends
+        /// without a splash.
         /// </remarks>
         private void DropStep(ParticleHead head, Emitter e, ref Particle p)
         {
@@ -413,10 +415,10 @@ public sealed class WeatherParticles : IPrecipitationEmitters
             var way = new Vector3(fall.X, fall.Y, fall.Z);
             way = way == Vector3.Zero ? -Vector3.UnitY : Vector3.Normalize(way);
             if (_owner._world() is not { } world
-                || !world.Raycast(p.Position - way * LandingReach, p.Position + way * LandingReach, out var point, out var normal, _owner._part())
+                || !world.Raycast(p.Position - way * LandingReach, p.Position + way * LandingReach, out var point, out var normal, out var absorbs, _owner._part())
                 || Splashes is not { } splashes)
                 return;
-            if (normal.Y < SplashSlope)
+            if (absorbs || normal.Y < SplashSlope)
             {
                 head.FreeParticle(p.Id);
                 return;
@@ -438,7 +440,7 @@ public sealed class WeatherParticles : IPrecipitationEmitters
         /// Rain's own splashes (<c>WeatherParticles.SpawnSplash</c>, <c>0x8001e274</c>): somewhere within half the drops' spread of
         /// their centre, the ground found from 50 above it to 50 below, and a splash there. The original's finds the first
         /// collision triangle, see-through ones and all; the port's the highest drawn surface, and none where that's steeper
-        /// than <see cref="SplashSlope"/>.
+        /// than <see cref="SplashSlope"/> or absorbs it.
         /// </summary>
         private void SpawnSplash()
         {
@@ -450,8 +452,8 @@ public sealed class WeatherParticles : IPrecipitationEmitters
             var y = aim.Y + Offset.Y;
             var z = aim.Z + Offset.Z + d.Y;
             if (_owner._world() is not { } world
-                || !world.Raycast(new Vector3(x, y + AmbientReach, z), new Vector3(x, y - AmbientReach, z), out var point, out var normal, _owner._part())
-                || normal.Y < SplashSlope)
+                || !world.Raycast(new Vector3(x, y + AmbientReach, z), new Vector3(x, y - AmbientReach, z), out var point, out var normal, out var absorbs, _owner._part())
+                || absorbs || normal.Y < SplashSlope)
                 return;
             var id = head.AllocParticle(Splashes!, SplashLife);
             ref var p = ref head[id];

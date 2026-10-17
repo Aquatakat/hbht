@@ -116,7 +116,8 @@ public sealed class TrekLoopTests(MapObjectFixture fixture)
         // Each splash lies 0.05 over a surface the chunks draw, laid flat on it, which faces within 60° of up.
         foreach (var s in splashes)
         {
-            Assert.True(trek.Chunks.Visible!.Raycast(s.Position + 0.3f * Vector3.UnitY, s.Position - 0.3f * Vector3.UnitY, out var ground, out var normal));
+            Assert.True(trek.Chunks.Visible!.Raycast(s.Position + 0.3f * Vector3.UnitY, s.Position - 0.3f * Vector3.UnitY, out var ground, out var normal, out var absorbs));
+            Assert.False(absorbs);
             Assert.Equal(WeatherParticles.SplashLift, Vector3.Dot(s.Position - ground, normal), 3);
             var up = -Vector3.Transform(Vector3.UnitZ, s.Orientation!.Value);
             Assert.True(Vector3.Dot(up, normal) > 0.99f);

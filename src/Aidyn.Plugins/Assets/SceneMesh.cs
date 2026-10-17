@@ -19,7 +19,8 @@ public enum SurfaceBlend
 }
 
 /// <summary>A triangle a scene draws, in the scene's coordinates.</summary>
-public readonly record struct SceneTriangle(Vector3 A, Vector3 B, Vector3 C, SurfaceBlend Blend);
+/// <param name="Scrolls">Its texture scrolls (Borg1 flag 0x8, the scene's <c>scrollingTextures</c>): water, lava, fire.</param>
+public readonly record struct SceneTriangle(Vector3 A, Vector3 B, Vector3 C, SurfaceBlend Blend, bool Scrolls = false);
 
 /// <summary>
 /// Reads the triangles a scene's glTF draws, each with its nodes' transforms applied, as the scene stands
@@ -80,30 +81,43 @@ public static class SceneMesh
                 var positions = Floats(primitive.GetProperty("attributes").GetProperty("POSITION").GetInt32(), 3);
                 var indices = primitive.TryGetProperty("indices", out var ix) ? Indices(ix.GetInt32()) : null;
                 var count = indices?.Length ?? positions.Length / 3;
-                var blend = Blend(primitive);
+                var (blend, scrolls) = Look(primitive);
                 for (var i = 0; i + 2 < count; i += 3)
                 {
                     into.Add(new SceneTriangle(
                         Position(positions, indices?[i] ?? i, world),
                         Position(positions, indices?[i + 1] ?? i + 1, world),
                         Position(positions, indices?[i + 2] ?? i + 2, world),
-                        blend));
+                        blend, scrolls));
                 }
             }
         }
 
-        private SurfaceBlend Blend(JsonElement primitive)
+        private (SurfaceBlend Blend, bool Scrolls) Look(JsonElement primitive)
         {
             if (!primitive.TryGetProperty("material", out var m))
-                return SurfaceBlend.Opaque;
+                return (SurfaceBlend.Opaque, false);
             var material = root.GetProperty("materials")[m.GetInt32()];
-            return material.TryGetProperty("alphaMode", out var mode) ? mode.GetString() switch
+            var blend = material.TryGetProperty("alphaMode", out var mode) ? mode.GetString() switch
             {
                 "MASK" => SurfaceBlend.CutOut,
                 "BLEND" => SurfaceBlend.Translucent,
                 _ => SurfaceBlend.Opaque,
             } : SurfaceBlend.Opaque;
+            var scrolls = material.TryGetProperty("extras", out var extras) && extras.ValueKind == JsonValueKind.Object
+                && extras.TryGetProperty("borg1", out var borg1) && borg1.ValueKind == JsonValueKind.Number
+                && Scrolling.Contains(borg1.GetInt32());
+            return (blend, scrolls);
         }
+
+        // The Borg1s the scene lists as scrolling, in its glTF scene's extras.
+        private HashSet<int> Scrolling => _scrolling ??= [.. root.GetProperty("scenes")[root.TryGetProperty("scene", out var s) ? s.GetInt32() : 0]
+            .TryGetProperty("extras", out var extras) && extras.ValueKind == JsonValueKind.Object
+            && extras.TryGetProperty("scrollingTextures", out var list) && list.ValueKind == JsonValueKind.Array
+            ? list.EnumerateArray().Where(t => t.TryGetProperty("borg1", out var b) && b.ValueKind == JsonValueKind.Number).Select(t => t.GetProperty("borg1").GetInt32())
+            : []];
+
+        private HashSet<int>? _scrolling;
 
         private static Vector3 Position(float[] p, int v, Matrix4x4 world) =>
             Vector3.Transform(new Vector3(p[3 * v], p[3 * v + 1], p[3 * v + 2]), world);
