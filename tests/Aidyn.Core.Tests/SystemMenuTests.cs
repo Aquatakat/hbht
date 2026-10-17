@@ -215,7 +215,7 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     }
 
     [Fact]
-    public void OnlyLoadSaveAndOptionsDoAnythingYet()
+    public void TheaterAndCreditsDoNothingYetAndHelpClosesTheMenuForTheHelpMenu()
     {
         var party = TradeData.PartyOf(TradeData.Catalog(), ItemData.Flags(), Characters.Create(Characters.Alaron()));
         var system = new SystemMenu(fixture.Plugins, new Settings(), party, _saves);
@@ -224,9 +224,13 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         Assert.Equal("L160", system.Label(SystemItem.LoadGame));
         Assert.Equal("L377", system.Label(SystemItem.SaveGame));
         Assert.Equal("Credits", system.Label(SystemItem.Credits));
-        system.Items.Point((int)SystemItem.Help);
+        system.Items.Point((int)SystemItem.Credits);
         system.Accept();
         Assert.True(system.OnList);
+        Assert.False(system.HelpChosen);
+        system.Items.Point((int)SystemItem.Help);
+        system.Accept();
+        Assert.True(system.HelpChosen);
     }
 
     // The save and load screens.

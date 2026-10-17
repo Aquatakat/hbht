@@ -547,11 +547,29 @@ public sealed class TrekLoop : IMapObjectHost
             Cue(cutscene, new ScriptStart(dialogue.RefPointBase, source), stage);
             return;
         }
-        // Backdrops and the help menu come later. A tangible dialogue asks every tick, so say it once.
+        if (Game.Plugins.TryGet<DialogueRecord>(dialogue.Script) is { Mode: DialogueMode.Backdrop or DialogueMode.Help } backdrop)
+        {
+            ShowBackdrop(backdrop, new ScriptStart(dialogue.RefPointBase, source));
+            return;
+        }
+        // A tangible dialogue asks every tick, so say it once.
         if (_lastScript == dialogue.Script)
             return;
         _lastScript = dialogue.Script;
         _host.Say($"{dialogue.Name} would start {dialogue.Script}.");
+    }
+
+    /// <summary>
+    /// Shows a backdrop or the help menu (<c>Backdrop.Start</c>, <c>0x80051904</c> in 1.0): its page over the world,
+    /// which stops under it as under the pause menu, and trek is rebuilt once it ends (<see cref="Conversation.RebuildsTrek"/>).
+    /// One script at a time.
+    /// </summary>
+    public void ShowBackdrop(DialogueRecord script, ScriptStart? start = null)
+    {
+        if (Conversation is not null)
+            return;
+        Conversation = Conversation.Show(Game, script, start ?? new ScriptStart(), _host, Player);
+        Refresh();
     }
 
     void IMapObjectHost.Talk(LoadedMap map, MonsterPartyObject party)

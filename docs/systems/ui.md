@@ -30,7 +30,7 @@ The canvas blends in on-screen values, as Godot's 2D does without HDR, so a glyp
 
 ## The conversation box
 
-`DialogueBox` (`Aidyn.Core.Ui`) places what a conversation shows, as `DiaMenuSub::InitDefault` and `DialougeClass::Setup` do, and `ConversationBoxView` draws it in the main font. It's for conversations and the other modes without a backdrop; backdrops and the help menu draw on a full-screen image (`BigBGDialoug`), which isn't ported yet.
+`DialogueBox` (`Aidyn.Core.Ui`) places what a conversation shows, as `DiaMenuSub::InitDefault` and `DialougeClass::Setup` do, and `ConversationBoxView` draws it in the main font. It's for conversations and the other modes without a backdrop; backdrops and the help menu draw on a full-screen image (`BigBGDialoug`), which `BackdropPage` lays out ([below](#books-and-the-help-menu)).
 
 The box is laid out in the original's 320 × 240 screen, placed at the bottom centre of the UI screen, so on a 4:3 screen of 240 lines it's where the original's is, and elsewhere it keeps its size. The positions below are in that frame.
 
@@ -41,7 +41,7 @@ The box is laid out in the original's 320 × 240 screen, placed at the bottom ce
 - **Choices** are in tan (200, 180, 100), from x 88, 4 pixels apart, and end at 228. The cursor's choice pulses toward (50, 45, 25, 63) and back over 24 frames each way, whole steps per channel (`WidgetScrollMenu::Tick`).
 - **A line before its own speaker's choices shows alone.** When a menu's first choice has the line's speaker, the line shows first, and A brings up the choices alone under Alaron's portrait. The box shrinks to the choices, but the portrait and its border stay where the line put them, since `Setup` doesn't move them on that path.
 
-Not ported yet: the widgets' fade in and out (`fadeFloatMirror`), scrolling a menu taller than its bounds, and the full-screen backdrops' text with its shadow (`WidgetShadowText`).
+Not ported yet: the widgets' fade in and out (`fadeFloatMirror`) and scrolling a menu taller than its bounds.
 
 ## The pause menu
 
@@ -180,7 +180,8 @@ The pause menu's first tab (`WidgetOptionsMenu`, `MakeScrollList` at `0x8003f8c4
 
 - **The tab** is `0x00D8`, plain parchment with nothing painted in. The wooden roller in the captures is the 3D scroll's ([opening and closing](#opening-and-closing)). The port draws the tab at the screen's centre.
 - **The list:** the title `0x00F2` ("Menu", 60 × 24), centred, then 16 below it six rows 16 apart (11 plus a vspace of 5), centred on x 160, in (130, 80, 80), the cursor's pulsing as the Party tab's does. The title and list are centred down the frame together, which puts the title at y 54 and the first row at 94. The rows are Load Game, Save Game, Options, Theater, Credits and Help (common lines 160, 377, 161, 162, a literal "Credits" in the code, and 173). In combat the original lists only Options, and Flee when the party can flee; that waits for 2.5. The cursor starts on the first row at each opening. Under the list, the arrow `0x3757` (right only) at (170, 204).
-- **Not ported yet:** Theater (the cinematics, flags 3, 569, 590 and 601 showing their titles or 16 dashes), Credits (the roll of the credits table) and Help (script `0x054B` on the book backdrop, which the user confirmed returns to trek when closed, not to the menu: [books and the help menu](#books-and-the-help-menu)). They're drawn in (96, 96, 96), the colour the original greys its resolution row with, and A does nothing on them. The original never greys these rows.
+- **Help** rolls the menu up as closing does, and then the help menu starts, script `0x054B` on the book's page, which returns to trek when it ends, not to the menu, as the user confirmed in the original ([books and the help menu](#books-and-the-help-menu)). `SystemMenu.HelpChosen` asks for it, and `PauseMenu.HelpChosen` tells the game once the menu has closed.
+- **Not ported yet:** Theater (the cinematics, flags 3, 569, 590 and 601 showing their titles or 16 dashes) and Credits (the roll of the credits table). They're drawn in (96, 96, 96), the colour the original greys its resolution row with, and A does nothing on them. The original never greys these rows.
 - **B or Start** on the list closes the menu. In a screen, B goes back to the list, or from the graphics page to the options.
 
 #### Changing tab
@@ -276,7 +277,7 @@ The pause menu's last tab (`WidgetCalendar`, built by `PauseWidget::BuildCalenda
 
 `WorldMenu` (`Aidyn.Core.Ui`) is the tab's state and `JournalMenu` the journal's, drawn by `WorldTabView`. The map's pieces, the towns and the ring are the world map record (`aidyn:worldmap/0`, [hardcoded content](../hardcoded-content.md)), and trek's notice is `TrekLoop`'s.
 
-- **The journal is drawn over the whole menu** (`JournalView`), centred on the screen, and the tabs and the scroll fade out under it as it fades in, at its 60 a frame, and back as it fades out, leaving the darkened world beside it. The original's book covers its 320 × 240 frame, but on a wider or taller screen the scroll's rollers, which are drawn over the tabs, showed over the book's edges. The user asked for this (Oct 15, 2026), and it's how the help menu and the books in the world should show too ([below](#books-and-the-help-menu)).
+- **The journal is drawn over the whole menu** (`JournalView`), centred on the screen, and the tabs and the scroll fade out under it as it fades in, at its 60 a frame, and back as it fades out, leaving the darkened world beside it. The original's book covers its 320 × 240 frame, but on a wider or taller screen the scroll's rollers, which are drawn over the tabs, showed over the book's edges. The user asked for this (Oct 15, 2026), and the help menu and the books in the world show the same way ([below](#books-and-the-help-menu)).
 - **The ring** shows only in the Overworld, where the original's formula was made for: the original shows it in any outdoor map set without a minimap, at that set's row and column. "Outdoors" is the chunk's terrain drawing the sky.
 - **Beside the tab in use**, on a screen wider than the frame, the tab is veiled as the others are, but more of it goes. The party's ring isn't drawn and Camp and Journal don't pulse, though the cursor is kept. The calendar's days and moons are painted into `0x00DA`, so its own veil can't fade them; the port lays plain parchment from the band above them, where the season's name is drawn by code, over them at the veil's alpha, the copies meeting edge to edge and feathered only at the outer edges. The map's pieces fade out at the rate they fade in once the tab has been left and the slide has finished, so they don't vanish as it's slid to again and fade in from nothing; the original, which shows one tab, starts them from 0 each time it's slid to. The user asked for these (Oct 4, 2026).
 - **In the runtime**, the stick, the D-pad or the movement keys move between Camp and Journal and scroll the journal, held or not; A chooses, or closes the journal or the message; B or Start closes the journal or the message, or the menu. Camp closes the menu and camps ([camping](camping.md)).
@@ -284,7 +285,7 @@ The pause menu's last tab (`WidgetCalendar`, built by `PauseWidget::BuildCalenda
 
 ## Books and the help menu
 
-Not ported yet. A backdrop script (78 of them: books, scrolls, plaques and stones in the world) and the help menu (script `0x054B`) show their text over a full-screen picture rather than in the conversation box. The script runner already runs them, offering taken choices again and setting their done flag ([scripts](scripts.md)); what's missing is the page and trek starting them. From 1.0's machine code (Oct 15, 2026):
+A backdrop script (78 of them: books, scrolls, plaques and stones in the world, all started by A from a dialogue object, none by walking into one) and the help menu (script `0x054B`) show their text over a full-screen picture rather than in the conversation box. The script runner runs them, offering taken choices again and setting their done flag ([scripts](scripts.md)); they use only flags and skill checks, never a camera, an actor or a timer. `BackdropPage` (`Aidyn.Core.Ui`) lays the page out and `BackdropStyle` dresses it by picture; `TrekLoop.ShowBackdrop` starts one, and the runtime's `BackdropLayer` and `BackdropView` draw it. From 1.0's machine code (Oct 15, 2026):
 
 - **Starting.** The script table (`Dialogue.ModeTable`, `0x8005102c`) has five functions a phase, by `start_func`; backdrops and help share theirs (`Backdrop.Start` `0x80051904`, `Backdrop.End` `0x80051950`). Help from the System tab (`pauseMenuSelectCallBack`, `0x800403ac`) sets the menu's exit code 3 (`PauseMenu.Exit`, `0x80048e64`), so the menu rolls up and the world brightens as when it closes, and a frame or two later trek starts the script.
 - **No fades.** The original's page appears and goes at once, and the world is still drawn behind it, but its picture is opaque and covers the 320 × 240 frame.
@@ -303,7 +304,8 @@ Not ported yet. A backdrop script (78 of them: books, scrolls, plaques and stone
   | 12 | `0x3604`, the gold plaque | 4 | (65, 27, 0) | (220, 128, 30) | (255, 242, 166, 204) at (1, 1) |
 
   10, 11 and 12 draw their text with a shadow (`WidgetShadowText`). The scroll menu's own pulse, from (100, 100, 100, 100) to white over 20 frames, is from the code and not yet checked against a capture.
-- **In the port, the plan:** a page drawn as the journal is now, centred on the screen over the world darkened as the pause menu darkens it, with the game paused, since the pictures were made for the 320 × 240 frame. Help rolls the menu up first, as the original does, and the page could fade in as the journal does, though the original's doesn't. The user suggested this (Oct 15, 2026). The core needs a page's layout beside `DialogueBox`, and trek needs to start backdrops from dialogue objects, where it now says it can't.
+- **In the port** the page is drawn as the journal is, its 320 × 240 frame centred on the screen, since the pictures were made for that frame, over the world as the frame before it opened drew it, without the HUD, darkened to the pause menu's half as the page fades in. The game is paused under it as under the pause menu, the map's sounds going on. The page fades in and out at the journal's 60 an alpha a frame, which the original's doesn't. The user chose all this (Oct 15, 2026). Help rolls the menu up first, as the original does. When the script ends, the page fades out, trek is rebuilt as after a cut-scene ([runtime](runtime.md)), and the game goes on.
+- **In the runtime** A takes the cursor's choice or moves on, up and down (or the stick) move the cursor, and in the help menu B (Backspace) takes the last choice. A new node puts the cursor on its first choice. With more than 8 choices, the window follows the cursor, which stops at the ends; no script has more than 8.
 
 ## The trek HUD
 

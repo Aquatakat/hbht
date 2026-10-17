@@ -160,6 +160,9 @@ public partial class PauseMenu : CanvasLayer
     /// <summary>Camp was chosen on the World tab where the party can camp; the menu has closed.</summary>
     public event Action? CampChosen;
 
+    /// <summary>Help was chosen on the System tab; the menu has closed, and the help menu's script should start.</summary>
+    public event Action? HelpChosen;
+
     /// <summary>What plays the menu's sounds.</summary>
     public Core.Audio.GameAudio? Audio { get; set; }
 
@@ -658,7 +661,15 @@ public partial class PauseMenu : CanvasLayer
     private bool HandleSystem(InputEvent e, SystemMenu system)
     {
         if (e.IsActionPressed("menu_accept"))
+        {
             system.Accept();
+            // Help rolls the menu up as closing does, and the help menu starts after (PauseMenu.Exit's code 3).
+            if (system.HelpChosen)
+            {
+                Close(() => HelpChosen?.Invoke());
+                return true;
+            }
+        }
         else if (system.OnVolume && (e.IsAction("move_left") || e.IsAction("move_right") || e.IsAction("menu_left") || e.IsAction("menu_right")))
             return true; // Stepped every tick it's held, in _PhysicsProcess.
         else if (Pressed(e, "move_left") || e.IsActionPressed("menu_left", allowEcho: true))

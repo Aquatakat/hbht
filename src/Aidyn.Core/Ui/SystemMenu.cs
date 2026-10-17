@@ -32,8 +32,10 @@ public enum SystemPage
 /// <remarks>
 /// <para>
 /// In trek every row shows; in combat the original lists only Options, and Flee when the party can flee, which
-/// waits for combat (2.5). Theater, Credits and Help aren't ported yet: the cinematics, the credits' roll and the
-/// help menu's backdrop wait for their own systems, so they're drawn greyed and A does nothing on them.
+/// waits for combat (2.5). Theater and Credits aren't ported yet: the cinematics and the credits' roll wait for their
+/// own systems, so they're drawn greyed and A does nothing on them. Help closes the menu and starts the help menu's
+/// script (<c>pauseMenuSelectCallBack</c>, <c>0x800403ac</c> in 1.0), which the runtime does once
+/// <see cref="HelpChosen"/> is set.
 /// </para>
 /// <para>
 /// The cursor starts on the first row each time the tab is built, as the original rebuilds it at each opening.
@@ -92,7 +94,13 @@ public sealed class SystemMenu
     public string Label(SystemItem item) => Lines[(int)item] is var line and >= 0 ? _text[line] : "Credits";
 
     /// <summary>Whether a row does anything yet.</summary>
-    public static bool Ported(SystemItem item) => item is SystemItem.LoadGame or SystemItem.SaveGame or SystemItem.Options;
+    public static bool Ported(SystemItem item) => item is SystemItem.LoadGame or SystemItem.SaveGame or SystemItem.Options or SystemItem.Help;
+
+    /// <summary>The help menu's script, which Help starts (<c>0x054B</c>).</summary>
+    public static readonly RecordId HelpScript = RecordId.Hex(RecordTypes.Dialogue, 0x054B);
+
+    /// <summary>Whether Help was chosen, so the menu closes and the help menu starts (the menu's exit code 3).</summary>
+    public bool HelpChosen { get; private set; }
 
     public void Step()
     {
@@ -232,6 +240,9 @@ public sealed class SystemMenu
             case SystemItem.Options:
                 Options = new OptionsMenu(Settings, inGame: true);
                 Page = SystemPage.Options;
+                break;
+            case SystemItem.Help:
+                HelpChosen = true;
                 break;
         }
     }

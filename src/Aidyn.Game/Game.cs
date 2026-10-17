@@ -97,6 +97,8 @@ public partial class Game : Node3D, ITrekHost
     /// <summary>Chunks whose scenery changed this tick, built again before the frame is drawn.</summary>
     private readonly HashSet<LoadedMap> _changed = [];
     private ConversationBoxView? _box;
+    /// <summary>A backdrop's or the help menu's page, over the world darkened, with the game paused.</summary>
+    private BackdropLayer? _backdrop;
     /// <summary>The player's settings, which the options menu changes and <see cref="ApplySettings"/> carries out.</summary>
     private readonly Settings _settings = Settings.Load(DataPaths.Settings);
 
@@ -289,11 +291,15 @@ public partial class Game : Node3D, ITrekHost
 
         _menu = new PauseMenu(plugins, game, _settings, _stick) { SaveGame = SaveTo, LoadGame = LoadFrom, Where = Where, Audio = _audio };
         _menu.CampChosen += Camp;
+        // Help: the menu has rolled up, and the help menu's script starts.
+        _menu.HelpChosen += () => _trek!.ShowBackdrop(plugins.Get<DialogueRecord>(SystemMenu.HelpScript));
         // The original reloads the map as the menu closes, so what changed shows.
         _menu.Closed += () => _chunks!.Regate();
         if (args.TryGetValue("ui-lines", out var lines))
             _settings.UiLines = int.Parse(lines, CultureInfo.InvariantCulture);
         AddChild(_menu);
+        _backdrop = new BackdropLayer(plugins);
+        AddChild(_backdrop);
         ApplySettings();
         if (args.ContainsKey("pace"))
             _player.Motion.Pace = Float(args, "pace", 1);
@@ -373,7 +379,7 @@ public partial class Game : Node3D, ITrekHost
         _drawDistance = new DrawDistance(s.DrawDistance, s.NearestDetail);
         _sky?.Placement = s.SkyPlacement;
         _player?.Motion.Pace = s.BriskPace ? BriskPace : 1;
-        foreach (var screen in new[] { _menu?.Screen, _trekScreen })
+        foreach (var screen in new[] { _menu?.Screen, _backdrop?.Screen, _trekScreen })
         {
             if (screen is null)
                 continue;
@@ -417,9 +423,10 @@ public partial class Game : Node3D, ITrekHost
         _game.PlayTime++;
         _audio!.Step();
         // The HUD is trek's alone: not under the pause menu or in a cut-scene.
-        _hud!.Visible = !_menu!.IsOpen && _scene is null;
-        // The menu's frame keeps the map's sounds going, with everything held still (PauseMenu.Frame).
-        if (_menu.IsOpen)
+        _hud!.Visible = !_menu!.IsOpen && _scene is null && !_backdrop!.Showing;
+        // The menu's frame keeps the map's sounds going, with everything held still (PauseMenu.Frame), and a
+        // backdrop's page holds the world still the same way.
+        if (_menu.IsOpen || _backdrop!.Showing)
         {
             if (_scene is null)
                 trek.StepSounds();
@@ -689,7 +696,7 @@ public partial class Game : Node3D, ITrekHost
     {
         if (_menu is { IsOpen: true })
             return;
-        if (_trek?.Use is { Popup: not null } || _trek?.Conversation is not null || _scene is not null)
+        if (_trek?.Use is { Popup: not null } || _trek?.Conversation is not null || _scene is not null || _backdrop is { Showing: true })
             _stick.Step(delta, direction => _UnhandledInput(new InputEventAction { Action = MenuStick.Dpad(direction), Pressed = true }));
         else
             _stick.Clear();
@@ -717,6 +724,11 @@ public partial class Game : Node3D, ITrekHost
         {
             if (menu.Handle(e))
                 return;
+        }
+        else if (_backdrop is { Showing: true })
+        {
+            Browse(e);
+            return;
         }
         else if (_trek?.Use is { Popup: not null } use)
         {
@@ -863,9 +875,56 @@ public partial class Game : Node3D, ITrekHost
         }
     }
 
-    /// <summary>Shows the conversation's page in the box, or hides the box once there's none.</summary>
+    /// <summary>
+    /// The buttons on a backdrop's or the help menu's page: A takes the cursor's choice, or with none moves on, and
+    /// up and down move the cursor. In the help menu, B takes the last choice, Exit Help or back.
+    /// </summary>
+    private void Browse(InputEvent e)
+    {
+        if (!_backdrop!.Taking || _trek!.Conversation?.Runner is not { Status: Core.Scripts.ScriptStatus.Showing, Page: { } page } runner)
+            return;
+        var choosing = page.Choices.Count > 0 && runner.Wait != Core.Scripts.ScriptWait.Player;
+        if (e.IsActionPressed("menu_accept"))
+        {
+            if (choosing)
+                runner.Choose(_backdrop.Page!.Highlight);
+            else
+                runner.Continue();
+            _trek.Refresh();
+        }
+        else if (e.IsActionPressed("menu_back") && choosing && runner.Script.Mode == DialogueMode.Help)
+        {
+            runner.Choose(page.Choices.Count - 1);
+            _trek.Refresh();
+        }
+        else if (_stick.Pressed(e, "move_forward") || e.IsActionPressed("menu_up", allowEcho: true))
+        {
+            _backdrop.MoveCursor(-1);
+        }
+        else if (_stick.Pressed(e, "move_back") || e.IsActionPressed("menu_down", allowEcho: true))
+        {
+            _backdrop.MoveCursor(1);
+        }
+    }
+
+    /// <summary>
+    /// Shows the conversation's page in the box, or a backdrop's on its picture, or hides the box once there's none
+    /// and lets a backdrop's page fade out.
+    /// </summary>
     void ITrekHost.ConversationChanged()
     {
+        if (_trek!.Conversation is { ShowsBackdrop: true } backdrop)
+        {
+            if (!_backdrop!.Showing)
+            {
+                _backdrop.PlayerName = _box!.PlayerName;
+                _backdrop.Open(BackdropStyle.For(backdrop.Runner.Script.Backdrop));
+            }
+            if (backdrop.Runner is { Status: Core.Scripts.ScriptStatus.Showing, Page: { } shown })
+                _backdrop.Show(shown);
+            return;
+        }
+        _backdrop!.Close();
         if (_trek!.Conversation?.Runner is { Status: Core.Scripts.ScriptStatus.Showing, Page: { } page })
             _box!.Show(page);
         else

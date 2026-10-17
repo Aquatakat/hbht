@@ -34,7 +34,7 @@ Once every system built so far is at least at parity with the original, we'll mo
 
 ### Left over from finished work
 
-- **M2:** backdrops and the help menu, the endings' cinematics, the System tab's Theater, Credits and Help, and the editor showing cut-scenes on its map, and the HUD.
+- **M2:** the endings' cinematics, the System tab's Theater and Credits, and the editor showing cut-scenes on its map, and the HUD.
 - **Waiting for 2.5:**
   - Training after a battle.
   - The sundial's Detect Moon and Sun Phase spells.

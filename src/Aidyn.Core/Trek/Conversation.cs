@@ -12,7 +12,8 @@ namespace Aidyn.Core.Trek;
 /// A script running in trek, in the conversation box over the world: talking to a wanderer
 /// (<c>monsterpary_func</c>, and the dialogue mode's functions for a conversation), or a sign. The
 /// world runs on under it, but the clock and <see cref="Wanderers.Tick"/> stop, and the player gets
-/// no input. Checked in 1.0's code.
+/// no input. Checked in 1.0's code. A backdrop or the help menu runs here too, on its own page, with
+/// the world stopped under it (<see cref="ShowsBackdrop"/>).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -56,6 +57,12 @@ public sealed class Conversation
 
     /// <summary>Whether the script has ended, so the runtime should <see cref="End"/> it.</summary>
     public bool Ended => Runner.Status == ScriptStatus.Ended;
+
+    /// <summary>
+    /// Whether the script shows its page over a picture, a backdrop or the help menu, rather than in the
+    /// conversation box. The world stops under it, as under the pause menu.
+    /// </summary>
+    public bool ShowsBackdrop => Runner.Script.Mode is DialogueMode.Backdrop or DialogueMode.Help;
 
     /// <summary>
     /// Whether trek's world is rebuilt when the script ends, as it is for a cut-scene, a backdrop or the
