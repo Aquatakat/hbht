@@ -821,6 +821,48 @@ public class MenuPulseTests
     }
 
     [Fact]
+    public void APulseThatTurnsAt20ShowsItsTwentiethStepAndTakes40Frames()
+    {
+        // The options screen's and the World tab's: 7 a step, up to 100 + 140.
+        var pulse = new MenuPulse(top: MenuPulse.Frames);
+        for (var i = 0; i < 20; i++)
+            pulse.Step();
+        Assert.Equal(new Rgba(240, 240, 240, 240), pulse.Now(From, To));
+        for (var i = 0; i < 20; i++)
+            pulse.Step();
+        Assert.Equal(From, pulse.Now(From, To));
+    }
+
+    [Fact]
+    public void TheSaveScreensActionsPulseOverFifteenSteps()
+    {
+        // 155 / 15 is 10 a step, turning at 14: 28 frames a cycle.
+        var pulse = new MenuPulse(frames: 15);
+        for (var i = 0; i < 14; i++)
+            pulse.Step();
+        Assert.Equal(new Rgba(240, 240, 240, 240), pulse.Now(From, To));
+        for (var i = 0; i < 14; i++)
+            pulse.Step();
+        Assert.Equal(From, pulse.Now(From, To));
+    }
+
+    [Fact]
+    public void TheNameEntrysGreyStartsAt150AndGoes5AStepBetween95And230()
+    {
+        var entry = new NameEntry("Alaron");
+        var greys = new List<byte>();
+        for (var i = 0; i < 54; i++)
+        {
+            greys.Add(entry.Pulse.Now(NameEntry.PulseFrom, NameEntry.PulseTo).R);
+            entry.Step();
+        }
+        Assert.Equal(150, greys[0]);
+        Assert.Equal((95, 230), (greys.Min(), greys.Max()));
+        Assert.Equal(150, entry.Pulse.Now(NameEntry.PulseFrom, NameEntry.PulseTo).R);
+        Assert.All(greys.Zip(greys.Skip(1)), p => Assert.Equal(5, Math.Abs(p.First - p.Second)));
+    }
+
+    [Fact]
     public void ThePulseStartsAtItsFirstColour()
     {
         Assert.Equal(From, new MenuPulse().Now(From, To));

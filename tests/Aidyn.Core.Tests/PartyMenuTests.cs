@@ -223,48 +223,40 @@ public class PartyMenuPulseTests
 
     private static void Frames(PartyMenu menu, int frames)
     {
-        for (var tick = 0; tick < frames * Cadence.FrameTicks; tick++)
+        for (var tick = 0; tick < frames * Cadence.MenuFrameTicks; tick++)
             menu.Step();
     }
 
-    /// <summary>The cursor's colour starts at its low colour and moves only when a whole frame has passed.</summary>
+    /// <summary>The cursor's colour starts at its low colour and moves two steps a frame, as the original's lists step it twice.</summary>
     [Fact]
-    public void ThePulseStartsAtItsLowColourAndMovesOnlyOnAFrame()
+    public void ThePulseStartsAtItsLowColourAndMovesTwoStepsAFrame()
     {
         var menu = Menu();
         Assert.Equal(PartyMenu.HighlightFrom, menu.HighlightNow);
 
-        for (var tick = 0; tick < Cadence.FrameTicks - 1; tick++)
-            menu.Step();
-        Assert.Equal(PartyMenu.HighlightFrom, menu.HighlightNow);
-        menu.Step();
-        Assert.Equal(new Rgba(72, 46, 41, 255), menu.HighlightNow);
+        Frames(menu, 1);
+
+        // R 68 + 4 * 2, G 42 + 4 * 2, B 34 + 7 * 2: (83, 99 and 157) / 20 rounded toward zero, two steps.
+        Assert.Equal(new Rgba(76, 50, 48, 255), menu.HighlightNow);
     }
 
-    /// <summary>After 19 frames each channel has gone 19 whole steps of a 20th of the way, rounded toward zero.</summary>
+    /// <summary>
+    /// The pulse shows only even steps: it peaks at 18, as the frame's second step takes 19 back down, and comes back to
+    /// its low colour 19 frames after it left.
+    /// </summary>
     [Fact]
-    public void After19FramesEachChannelHasMovedNineteenWholeSteps()
+    public void ThePulsePeaksAtStep18AndTakes19FramesACycle()
     {
         var menu = Menu();
 
-        Frames(menu, 19);
-
-        // R 68 + 4 * 19, G 42 + 4 * 19, B 34 + 7 * 19: (83, 99 and 157) / 20 rounded toward zero.
-        Assert.Equal(new Rgba(144, 118, 167, 255), menu.HighlightNow);
-    }
-
-    /// <summary>The pulse turns at the top and goes back down to its low colour, then up again.</summary>
-    [Fact]
-    public void ThePulseGoesBackDownAfterReachingItsTop()
-    {
-        var menu = Menu();
-
-        Frames(menu, 20);
+        Frames(menu, 9);
         Assert.Equal(new Rgba(140, 114, 160, 255), menu.HighlightNow);
-        Frames(menu, 18);
+        Frames(menu, 1);
+        Assert.Equal(new Rgba(140, 114, 160, 255), menu.HighlightNow);
+        Frames(menu, 9);
         Assert.Equal(PartyMenu.HighlightFrom, menu.HighlightNow);
         Frames(menu, 1);
-        Assert.Equal(new Rgba(72, 46, 41, 255), menu.HighlightNow);
+        Assert.Equal(new Rgba(76, 50, 48, 255), menu.HighlightNow);
     }
 }
 

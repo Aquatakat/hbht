@@ -93,7 +93,8 @@ public sealed class OptionsMenu
 
     public MenuList<OptionRow> Rows { get; }
 
-    public MenuPulse Pulse { get; } = new();
+    /// <summary>The cursor's pulse, which turns at 20 rather than 19, 40 frames a cycle (<c>OptionsPage.Draw</c>, <c>0x800419c8</c>).</summary>
+    public MenuPulse Pulse { get; } = new(top: MenuPulse.Frames);
 
     /// <summary>A setting changed since the menu opened, so the runtime keeps them.</summary>
     public bool Changed { get; private set; }

@@ -41,7 +41,7 @@ public sealed partial class PartyMenu
     private readonly MenuText _text;
     private readonly Func<RecordId, SpellRecord?> _spells;
     private readonly Func<RecordId, RecordId?> _portraits;
-    private readonly MenuPulse _pulse = new(Cadence.FrameTicks);
+    private readonly MenuPulse _pulse = new();
     private int _ticks;
 
     /// <param name="portraits">Each entity's portrait.</param>
@@ -269,9 +269,15 @@ public sealed partial class PartyMenu
         }
     }
 
-    /// <summary>Steps the cursor's pulse, and the member's and list's changes, by a tick.</summary>
+    /// <summary>
+    /// Steps the cursor's pulse, and the member's and list's changes, by a tick. The pulse steps twice a frame, as each
+    /// of the original's lists steps its scroll menu twice (<c>PartyMenu.ListBaseStep</c>, <c>0x80030888</c>, ends by
+    /// stepping the list's children, and the list's own step steps them again, as at <c>0x80035770</c>): 19 frames a
+    /// cycle, 3.2 a second, which the user timed at about 3.4 (Oct 16, 2026), twice the other menus'.
+    /// </summary>
     public void Step()
     {
+        _pulse.Step();
         _pulse.Step();
         if (++_ticks % Cadence.MenuFrameTicks == 0)
             StepMotion();

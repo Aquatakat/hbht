@@ -98,7 +98,8 @@ public sealed class WorldMenu
 
     public WorldChoice Cursor { get; private set; }
 
-    public MenuPulse Pulse { get; } = new();
+    /// <summary>Camp's and Journal's pulse, which turns at 20 rather than 19, 40 frames a cycle (<c>WorldMenu.TabStep</c>, <c>0x80040dc4</c>).</summary>
+    public MenuPulse Pulse { get; } = new(top: MenuPulse.Frames);
 
     /// <summary>What's said, such as that the party can't camp here; A, B or Start closes it.</summary>
     public MenuMessage? Message { get; private set; }

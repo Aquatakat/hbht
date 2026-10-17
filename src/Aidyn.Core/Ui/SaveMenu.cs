@@ -99,7 +99,8 @@ public sealed class SaveMenu
     /// <summary>A question over the screen, which takes every press until it's answered.</summary>
     public MenuChoice? Choice { get; private set; }
 
-    public MenuPulse Pulse { get; } = new();
+    /// <summary>The actions' pulse, over 15 steps rather than 20, 28 frames a cycle (<c>SaveMenu.Actions</c>, <c>0x8007e658</c>).</summary>
+    public MenuPulse Pulse { get; } = new(frames: 15);
 
     public MenuPulse ChoicePulse { get; } = new();
 

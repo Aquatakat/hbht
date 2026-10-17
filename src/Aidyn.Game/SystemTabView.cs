@@ -40,7 +40,7 @@ public partial class SystemTabView : Control
     private static readonly Vector2I Grid = new(60, 110);
 
     /// <summary>The key cursor and the letter being chosen pulse between greys (<c>InputMenu::Tick</c>), and the key under the cursor is black.</summary>
-    private static readonly Rgba ChosenFrom = new(100, 100, 100, 255), ChosenTo = new(225, 225, 225, 255), KeyUnderCursor = new(0, 0, 0, 255);
+    private static readonly Rgba KeyUnderCursor = new(0, 0, 0, 255);
 
     private readonly UiPainter _ui;
     private readonly Dictionary<string, Texture2D?> _screenshots = [];
@@ -271,7 +271,7 @@ public partial class SystemTabView : Control
         CentredImage(MenuImages.EnterNameTitle, FrameWidth / 2, NameTitleTop);
         var name = entry.Name;
         var x = FrameWidth / 2 - _ui.Main.Width(name) / 2;
-        var chosen = entry.Pulse.Now(ChosenFrom, ChosenTo);
+        var chosen = entry.Pulse.Now(NameEntry.PulseFrom, NameEntry.PulseTo);
         for (var i = 0; i < name.Length; i++)
         {
             var c = name[i].ToString();

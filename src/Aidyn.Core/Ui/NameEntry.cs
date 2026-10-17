@@ -1,4 +1,5 @@
 using System.Text;
+using Aidyn.Plugins.Records;
 
 namespace Aidyn.Core.Ui;
 
@@ -58,7 +59,14 @@ public sealed class NameEntry
 
     public bool Closed => Cancelled || Chosen is not null;
 
-    public MenuPulse Pulse { get; } = new();
+    /// <summary>
+    /// The letter being chosen's pulse (<c>InputMenu.Step</c>, <c>0x8002d7e4</c>): grey from 150, 5 a step between 95 and
+    /// 230, 54 frames a cycle, as 27 steps of a 27th from <see cref="PulseFrom"/> to <see cref="PulseTo"/>.
+    /// </summary>
+    public MenuPulse Pulse { get; } = new(frames: 27, top: 27, start: 11);
+
+    /// <summary>The ends of the letter's pulse.</summary>
+    public static readonly Rgba PulseFrom = new(95, 95, 95, 255), PulseTo = new(230, 230, 230, 255);
 
     public void Step() => Pulse.Step();
 
