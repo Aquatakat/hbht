@@ -428,8 +428,11 @@ internal static class N64Material
         var texel = textured
             ? """
                 vec2 half_texel = 0.5 / vec2(textureSize(albedo_texture, 0));
+                	// The RDP centres texel k on coordinate k, where the GPU centres it on k + 0.5, so the coordinates move
+                	// half a texel: at a shape's edge the filter blends the texel beside it, not the far side's wrapped round.
+                	vec2 at = UV + half_texel;
                 	// A scrolling texture's image wraps round within the texture, after the tile's own wrapping.
-                	vec2 uv = vec2(wrap_axis(UV.x, wrap.x, half_texel.x) - scroll, wrap_axis(UV.y, wrap.y, half_texel.y));
+                	vec2 uv = vec2(wrap_axis(at.x, wrap.x, half_texel.x) - scroll, wrap_axis(at.y, wrap.y, half_texel.y));
                 	// The unwrapped coordinates' gradients, so the mip level doesn't jump at a seam.
                 	vec4 texel = textureGrad(albedo_texture, uv, dFdx(UV), dFdy(UV));
                 """
