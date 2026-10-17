@@ -14,6 +14,10 @@ internal static class Worlds
     public static CollisionTriangle Triangle(Vector3 a, Vector3 b, Vector3 c, int surface = Grass, CollisionFlags flags = CollisionFlags.None) =>
         new(a, b, c, surface, CollisionRole.Normal, flags);
 
+    /// <summary>Triangles as a scene draws them, for a <see cref="VisibleWorld"/>.</summary>
+    public static IEnumerable<(Vector3 A, Vector3 B, Vector3 C)> Drawn(this IEnumerable<CollisionTriangle> triangles) =>
+        triangles.Select(t => (t.A, t.B, t.C));
+
     /// <summary>A level rectangle facing up.</summary>
     public static IEnumerable<CollisionTriangle> Floor(float y, float minX, float maxX, float minZ, float maxZ, int surface = Grass)
     {

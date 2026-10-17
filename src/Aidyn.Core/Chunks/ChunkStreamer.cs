@@ -12,7 +12,8 @@ namespace Aidyn.Core.Chunks;
 /// each chunk's collision, which goes into the <see cref="CollisionWorld"/> keyed by its row and
 /// column, and its map objects as they stand while it's loaded (<see cref="LoadedMap"/>). Trek gives
 /// a chunk's monster parties their bodies as it loads (<see cref="Loaded"/>); the runtime builds its
-/// scenery.
+/// scenery. Given a <see cref="VisibleWorld"/>, it keeps the solid surfaces the chunks draw there too,
+/// under the same keys, which rain and snow land on (<see cref="ChunkSurfaces"/>).
 /// </summary>
 /// <remarks>Rows run along X and columns along Z, and a chunk's coordinates start at its corner.</remarks>
 public sealed class ChunkStreamer
@@ -21,12 +22,16 @@ public sealed class ChunkStreamer
     private readonly GameState _game;
     private readonly Dictionary<(int Row, int Column), ChunkEntry> _chunks = [];
     private readonly Dictionary<(int Row, int Column), LoadedMap> _maps = [];
+    private readonly ChunkSurfaces? _surfaces;
 
-    public ChunkStreamer(PluginSet plugins, GameState game, CollisionWorld world, MapSetRecord set)
+    public ChunkStreamer(PluginSet plugins, GameState game, CollisionWorld world, MapSetRecord set, VisibleWorld? visible = null)
     {
         _plugins = plugins;
         _game = game;
         World = world;
+        Visible = visible;
+        if (visible is not null)
+            _surfaces = new ChunkSurfaces(plugins);
         MapSet = set;
         Change(set);
     }
@@ -35,6 +40,9 @@ public sealed class ChunkStreamer
 
     /// <summary>The loaded chunks' collision.</summary>
     public CollisionWorld World { get; }
+
+    /// <summary>The solid surfaces the loaded chunks draw, if it keeps them.</summary>
+    public VisibleWorld? Visible { get; }
 
     /// <summary>A chunk has loaded: its collision is in the world and its objects are activated.</summary>
     public event Action<ChunkEntry, LoadedMap>? Loaded;
@@ -118,7 +126,23 @@ public sealed class ChunkStreamer
     /// Collision and the rest of the objects stay as they are.
     /// </summary>
     /// <returns>The maps whose scene objects came or went.</returns>
-    public IReadOnlyList<LoadedMap> Regate() => [.. _maps.Values.Where(m => m.Regate(_game.Flags, _game.Memory))];
+    public IReadOnlyList<LoadedMap> Regate()
+    {
+        IReadOnlyList<LoadedMap> changed = [.. _maps.Values.Where(m => m.Regate(_game.Flags, _game.Memory))];
+        foreach (var map in changed)
+            Refresh(map);
+        return changed;
+    }
+
+    /// <summary>
+    /// Takes a loaded chunk's drawn surfaces again (<see cref="Visible"/>), after a scene object came or went or a
+    /// container's model changed.
+    /// </summary>
+    public void Refresh(LoadedMap map)
+    {
+        if (Visible is not null && map.Key is ValueTuple<int, int> cell && _maps.GetValueOrDefault(cell) == map)
+            Visible.Add(cell, _surfaces!.For(_chunks[cell], map), Origin(_chunks[cell]));
+    }
 
     /// <summary>
     /// Puts out what goes out once reached in the loaded chunks, Oriana's path lights (<see cref="LoadedMap.PutOut"/>),
@@ -132,8 +156,11 @@ public sealed class ChunkStreamer
         List<(LoadedMap, SceneObject)>? putOut = null;
         foreach (var map in _maps.Values)
         {
+            var before = putOut?.Count ?? 0;
             foreach (var o in map.PutOut(view, _game.Memory, centre.Map))
                 (putOut ??= []).Add((map, o));
+            if ((putOut?.Count ?? 0) > before)
+                Refresh(map);
         }
         return putOut ?? [];
     }
@@ -148,6 +175,7 @@ public sealed class ChunkStreamer
             World.Add(cell, collision, origin);
         var map = _maps[cell] = LoadedMap.Activate(_plugins.Get<MapRecord>(chunk.Map), cell, _game.Flags, _game.Memory, _game.Party,
             _game.Random.World, origin);
+        Visible?.Add(cell, _surfaces!.For(chunk, map), origin);
         Loaded?.Invoke(chunk, map);
     }
 
@@ -156,5 +184,6 @@ public sealed class ChunkStreamer
         Unloading?.Invoke(_chunks[cell], _maps[cell]);
         _maps.Remove(cell);
         World.Remove(cell);
+        Visible?.Remove(cell);
     }
 }

@@ -11,8 +11,9 @@ namespace Aidyn.Core.Particles;
 /// Rain and snow, as the original draws them: two emitters of the particle pool, one of drops that fall from a disc
 /// above and ahead of the camera's aim and one of the splashes they become as they land, which <c>ProcessWeather</c>
 /// (<c>0x8001e7c0</c> in 1.0) makes and steers by what's falling and how hard (<see cref="Weather.FallIntensity"/>).
-/// Each drop sweeps its fall against the loaded collision as it's made (the original's, the player's chunk's alone), and
-/// lands where that says, laid flat on the ground as a ripple that shrinks and fades; rain also splashes about the drops of itself. See
+/// Each drop casts its fall against the solid surfaces the loaded chunks draw as it's made (<see cref="VisibleWorld"/>, the
+/// user's choice: the original's sweeps the player's chunk's collision), and lands where that says, laid flat on the ground as
+/// a ripple that shrinks and fades, or ends without one against a wall; rain also splashes about the drops of itself. See
 /// docs/systems/weather.md.
 /// </summary>
 /// <remarks>
@@ -52,8 +53,12 @@ public sealed class WeatherParticles : IPrecipitationEmitters
     /// <summary>The nearest to their centre that drops fall (<c>0x3C23D70A</c>).</summary>
     public const float NearestSpawn = 0.01f;
 
-    /// <summary>The radius of the sweeps that find where a drop lands (<c>0x3DCCCCCD</c>).</summary>
-    public const float RayRadius = 0.1f;
+    /// <summary>
+    /// The least a surface's normal rises, as the cosine of its angle from straight up, for a drop to splash on it, the
+    /// port's: within 60° of up. A drop that lands on anything steeper, a wall or a trunk, ends there without one. The
+    /// original splashes on whatever its sweep finds.
+    /// </summary>
+    public const float SplashSlope = 0.5f;
 
     /// <summary>A drop fades by this share of its colour over its life, alpha too (−0.75 at <c>0x800ce0c0</c>), to a quarter of it.</summary>
     public const double Fade = 0.75;
@@ -105,7 +110,7 @@ public sealed class WeatherParticles : IPrecipitationEmitters
     private readonly WeatherRecord _rules;
     private readonly Func<Vector3> _aim;
     private readonly Func<Vector2> _look;
-    private readonly Func<CollisionWorld?> _world;
+    private readonly Func<VisibleWorld?> _world;
     private readonly Func<object?> _part;
     private readonly List<Pair> _pairs = [];
     private float _density = 1;
@@ -115,13 +120,13 @@ public sealed class WeatherParticles : IPrecipitationEmitters
     /// <param name="random">The drops' stream: the cosmetic one.</param>
     /// <param name="aim">The camera's aim, which the drops fall about (<c>Camera.Listener</c> + 0xC, <c>0x800d82a8</c>), read as each spawns.</param>
     /// <param name="look">The camera's look in X and Z, a unit vector (<c>FollowCamera.LookXZ</c>, <c>0x800d82cc</c>), read as the pair is steered.</param>
-    /// <param name="world">The loaded collision.</param>
+    /// <param name="world">The solid surfaces the loaded chunks draw.</param>
     /// <param name="part">
-    /// The key of one chunk whose collision alone the drops test, as the original tests the player's
+    /// The key of one chunk whose surfaces alone the drops land on, as the original tests the player's chunk's collision
     /// (<c>Zones.PlayerMap</c>, <c>0x800d8288</c>); null, trek's, tests every loaded chunk's, the user's choice.
     /// </param>
     public WeatherParticles(ParticleHead head, WeatherRecord rules, IRandom random, Func<Vector3> aim, Func<Vector2> look,
-        Func<CollisionWorld?> world, Func<object?>? part = null)
+        Func<VisibleWorld?> world, Func<object?>? part = null)
     {
         _head = head;
         _rules = rules;
@@ -361,8 +366,8 @@ public sealed class WeatherParticles : IPrecipitationEmitters
 
         /// <summary>
         /// A drop (<c>WeatherParticles.SpawnDrop</c>, <c>0x8001e444</c>): somewhere from 0.01 to the spread from the centre, in a
-        /// random level direction, at scale 0.25 in the colour, fading to a quarter of it over its life. It sweeps its
-        /// fall for its life, past see-through triangles, and keeps where that hits, or a point under the world.
+        /// random level direction, at scale 0.25 in the colour, fading to a quarter of it over its life. It casts its
+        /// fall for its life against the drawn surfaces, and keeps the nearest it hits, or a point under the world.
         /// </summary>
         private void SpawnDrop()
         {
@@ -376,8 +381,7 @@ public sealed class WeatherParticles : IPrecipitationEmitters
             p.Position = new Vector3(aim.X + Offset.X + d.X, aim.Y + Offset.Y, aim.Z + Offset.Z + d.Y);
             var fall = head[Drops.Head].Vector;
             var end = new Vector3(fall.X, fall.Y, fall.Z) * Life + p.Position;
-            p.Data = _owner._world() is { } world
-                && SpherePhysics.Sweep(world, p.Position, end, RayRadius, skipSeeThrough: true, out var hit, out _, _owner._part())
+            p.Data = _owner._world() is { } world && world.Raycast(p.Position, end, out var hit, out _, _owner._part())
                 ? new Vector4(hit, FarSquared)
                 : new Vector4(0, NowhereY, 0, FarSquared);
             p.Color = Color;
@@ -391,6 +395,11 @@ public sealed class WeatherParticles : IPrecipitationEmitters
         /// once it's past, each frame it looks for the ground from 5 above it to 5 below, and on finding it becomes a
         /// splash there, in the splashes' list. Past <see cref="SplashCap"/>, a drop the share leaves out ends there instead.
         /// </summary>
+        /// <remarks>
+        /// The port looks along the drop's own fall, from 5 back to 5 on, where the original looks straight down: so
+        /// with the surfaces drawn, which have roofs and eaves, a drop that passed beside one never splashes on it. On
+        /// a surface steeper than <see cref="SplashSlope"/> it ends without a splash.
+        /// </remarks>
         private void DropStep(ParticleHead head, Emitter e, ref Particle p)
         {
             var d = p.Position - new Vector3(p.Data.X, p.Data.Y, p.Data.Z);
@@ -400,11 +409,18 @@ public sealed class WeatherParticles : IPrecipitationEmitters
                 p.Data.W = squared;
                 return;
             }
-            var from = p.Position with { Y = p.Position.Y + LandingReach };
-            var to = p.Position with { Y = p.Position.Y - LandingReach };
-            if (_owner._world() is not { } world || !SpherePhysics.Sweep(world, from, to, RayRadius, skipSeeThrough: true, out var point, out var normal, _owner._part())
+            var fall = head[e.Head].Vector;
+            var way = new Vector3(fall.X, fall.Y, fall.Z);
+            way = way == Vector3.Zero ? -Vector3.UnitY : Vector3.Normalize(way);
+            if (_owner._world() is not { } world
+                || !world.Raycast(p.Position - way * LandingReach, p.Position + way * LandingReach, out var point, out var normal, _owner._part())
                 || Splashes is not { } splashes)
                 return;
+            if (normal.Y < SplashSlope)
+            {
+                head.FreeParticle(p.Id);
+                return;
+            }
             _landCarry += _owner.SplashShare;
             if (_landCarry < 1)
             {
@@ -420,7 +436,9 @@ public sealed class WeatherParticles : IPrecipitationEmitters
 
         /// <summary>
         /// Rain's own splashes (<c>WeatherParticles.SpawnSplash</c>, <c>0x8001e274</c>): somewhere within half the drops' spread of
-        /// their centre, the ground found from 50 above it to 50 below, see-through triangles and all, and a splash there.
+        /// their centre, the ground found from 50 above it to 50 below, and a splash there. The original's finds the first
+        /// collision triangle, see-through ones and all; the port's the highest drawn surface, and none where that's steeper
+        /// than <see cref="SplashSlope"/>.
         /// </summary>
         private void SpawnSplash()
         {
@@ -432,8 +450,8 @@ public sealed class WeatherParticles : IPrecipitationEmitters
             var y = aim.Y + Offset.Y;
             var z = aim.Z + Offset.Z + d.Y;
             if (_owner._world() is not { } world
-                || !SpherePhysics.Sweep(world, new Vector3(x, y + AmbientReach, z), new Vector3(x, y - AmbientReach, z), RayRadius, skipSeeThrough: false,
-                    out var point, out var normal, _owner._part()))
+                || !world.Raycast(new Vector3(x, y + AmbientReach, z), new Vector3(x, y - AmbientReach, z), out var point, out var normal, _owner._part())
+                || normal.Y < SplashSlope)
                 return;
             var id = head.AllocParticle(Splashes!, SplashLife);
             ref var p = ref head[id];

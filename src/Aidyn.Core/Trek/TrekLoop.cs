@@ -102,11 +102,12 @@ public sealed class TrekLoop : IMapObjectHost
         _host = host;
         Chunks = chunks;
         Particles = particles;
-        // The drops land on every loaded chunk's collision, where the original's find only the player's chunk's
-        // (Zones.PlayerMap): the user's choice, so that near a chunk's edge they don't fall through the next one.
+        // The drops land on the solid surfaces every loaded chunk draws, where the original's find only the player's
+        // chunk's collision (Zones.PlayerMap): the user's choices, so that near a chunk's edge they don't fall through
+        // the next one, and they splash on roofs and not on invisible walls.
         if (particles is not null && game.Weather is { } weather)
             Precipitation = new WeatherParticles(particles, weather.Rules, game.Random.Cosmetic, () => Camera.Aim, () => Camera.LookXZ,
-                () => Chunks.World);
+                () => Chunks.Visible);
         Wanderers = new Wanderers(game.Plugins);
         Use = new MapObjectUse(game, MenuText.From(game.Plugins), this) { World = chunks.World };
         Hud = new TrekHud(game, host.ImageSize);
@@ -402,6 +403,7 @@ public sealed class TrekLoop : IMapObjectHost
         {
             Chunks.Change(arrival.Set);
             Chunks.World.Clear();
+            Chunks.Visible?.Clear();
             Wanderers.Clear();
             // The zone engine starts again, and its dynamic lights with it (FreeZoneEngine, DynamicLights.FreeAll).
             Lights.Dynamic.Clear();
@@ -475,6 +477,7 @@ public sealed class TrekLoop : IMapObjectHost
     {
         Chunks.Clear();
         Chunks.World.Clear();
+        Chunks.Visible?.Clear();
         Wanderers.Clear();
         Sounds.Clear();
         Nearest = default;
@@ -675,7 +678,11 @@ public sealed class TrekLoop : IMapObjectHost
 
     void IMapObjectHost.Animate(LoadedMap map, SceneObject actor, int request) => _host.Animate(map, actor, request);
 
-    void IMapObjectHost.Changed(LoadedMap map, SceneObject scene) => _host.Changed(map, scene);
+    void IMapObjectHost.Changed(LoadedMap map, SceneObject scene)
+    {
+        Chunks.Refresh(map);
+        _host.Changed(map, scene);
+    }
 
     void IMapObjectHost.Sound(OneShot sound) => Audio.Play(sound);
 

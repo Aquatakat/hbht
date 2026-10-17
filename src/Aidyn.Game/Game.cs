@@ -72,6 +72,9 @@ public partial class Game : Node3D, ITrekHost
     private readonly Label _overlay = new() { Position = new Vector2(8, 8) };
     private readonly Label _message = new() { Position = new Vector2(8, 64) };
     private readonly CollisionWorld _world = new();
+
+    // The solid surfaces the loaded chunks draw, which rain and snow land on, trek's and a cut-scene's stage's.
+    private readonly VisibleWorld _visible = new();
     private GameState? _game;
     private PauseMenu? _menu;
     /// <summary>The stick in menus, shared by the pause menu and trek's popups, conversations and cut-scenes.</summary>
@@ -224,7 +227,7 @@ public partial class Game : Node3D, ITrekHost
             image.LoadPngFromBuffer(File.ReadAllBytes(shadowPng));
             _shadowTexture = ImageTexture.CreateFromImage(image);
         }
-        var streamer = new ChunkStreamer(plugins, game, _world, set);
+        var streamer = new ChunkStreamer(plugins, game, _world, set, _visible);
         var trek = _trek = new TrekLoop(game, this, streamer, _audio, _particles.Head);
         _chunks = new ChunkStreamerView(plugins, models, streamer, trek.Wanderers, _shadowTexture);
         AddChild(_chunks);

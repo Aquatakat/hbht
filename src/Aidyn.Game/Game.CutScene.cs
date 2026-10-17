@@ -98,7 +98,7 @@ public partial class Game
             EndTrekPause();
             return;
         }
-        _stage = new Core.Chunks.ChunkStreamer(_plugins!, _game!, _world, stage.Set);
+        _stage = new Core.Chunks.ChunkStreamer(_plugins!, _game!, _world, stage.Set, _visible);
         // The stage's chunks play their sounds, and its map set and chunk ask for their music (InitZoneEngine).
         var sounds = _trek.Sounds;
         _stage.Loaded += (_, map) => sounds.Load(map);
@@ -116,7 +116,7 @@ public partial class Game
             var streamer = _stage;
             _stageFall = new Core.Particles.WeatherParticles(_particles.Head, weather.Rules, _game.Random.Cosmetic,
                 () => _scene?.Camera.Aim ?? middle, () => _scene?.Camera.LookXZ ?? System.Numerics.Vector2.UnitX,
-                () => _world, () => streamer.Centre)
+                () => _visible, () => streamer.Centre)
             {
                 Density = Math.Clamp(_settings.PrecipitationDensity, 0, Core.Particles.WeatherParticles.MaxDensity),
             };
@@ -277,6 +277,7 @@ public partial class Game
         _stageView!.QueueFree();
         _stageView = null;
         _world.Clear();
+        _visible.Clear();
         _box!.Visible = false;
         foreach (var problem in scene.Problems)
             GD.PushWarning(problem);

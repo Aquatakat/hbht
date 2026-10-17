@@ -83,7 +83,8 @@ public sealed class TrekLoopTests(MapObjectFixture fixture)
     {
         var game = GameState.NewGame(Data.Set);
         var host = new Host(Data.Set);
-        var streamer = new ChunkStreamer(Data.Set, game, new CollisionWorld(), Data.Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, mapSet)));
+        var streamer = new ChunkStreamer(Data.Set, game, new CollisionWorld(), Data.Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, mapSet)),
+            new VisibleWorld());
         var trek = new TrekLoop(game, host, streamer, particles: particles);
         var chunk = streamer.Find(chunkName)!;
         var point = streamer.Origin(chunk) + new Vector3(x, 10, z);
@@ -98,7 +99,7 @@ public sealed class TrekLoopTests(MapObjectFixture fixture)
     private static PlayerInput Still() => new(Vector2.Zero);
 
     [Fact]
-    public void RainOverGwerniaLandsOnTheGroundOfThePlayersChunk()
+    public void RainOverGwerniaLandsOnTheSurfacesTheChunksDraw()
     {
         var particles = new ParticleHead(new Lcg());
         var (trek, _) = Start("M07", 40, 55, particles: particles);
@@ -112,13 +113,14 @@ public sealed class TrekLoopTests(MapObjectFixture fixture)
         var splashes = particles.Sprites.Where(s => s.Emitter == trek.Precipitation.Splashes!.Slot).ToList();
         Assert.InRange(particles.Sprites.Count(s => s.Emitter == drops.Slot), 10, 40);
         Assert.InRange(splashes.Count, 20, 80);
-        // Each splash lies 0.05 over the collision of M07, where the player is, laid flat on it, however steep.
-        var centre = trek.Chunks.Centre;
+        // Each splash lies 0.05 over a surface the chunks draw, laid flat on it, which faces within 60° of up.
         foreach (var s in splashes)
         {
-            Assert.True(SpherePhysics.Sweep(trek.Chunks.World, s.Position + Vector3.UnitY, s.Position - Vector3.UnitY, 0.1f, false, out var ground, out var normal, centre));
+            Assert.True(trek.Chunks.Visible!.Raycast(s.Position + 0.3f * Vector3.UnitY, s.Position - 0.3f * Vector3.UnitY, out var ground, out var normal));
+            Assert.Equal(WeatherParticles.SplashLift, Vector3.Dot(s.Position - ground, normal), 3);
             var up = -Vector3.Transform(Vector3.UnitZ, s.Orientation!.Value);
             Assert.True(Vector3.Dot(up, normal) > 0.99f);
+            Assert.True(normal.Y >= WeatherParticles.SplashSlope);
         }
 
         // Through a door into an interior, whose sky isn't drawn: the pair is forgotten and killed, none is made there,

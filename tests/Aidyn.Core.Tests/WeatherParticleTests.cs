@@ -26,7 +26,7 @@ public class WeatherParticleTests
     {
         public readonly ParticleHead Head = new(new Lcg(), capacity: WeatherParticles.PoolCapacity);
         public readonly Weather Weather = new(Rules) { Wind = Vector3.Zero };
-        public readonly CollisionWorld World = new();
+        public readonly VisibleWorld World = new();
         public readonly WeatherParticles Fall;
         public Vector3 Aim = new(0, 1, 0);
         public Vector2 Look = Vector2.UnitY;
@@ -35,7 +35,7 @@ public class WeatherParticleTests
 
         public Scene(Precipitation precipitation = Precipitation.Rain, float intensity = 0.5f, bool fillsAir = false)
         {
-            World.Add("ground", Worlds.Floor(0, -100, 100, -100, 100), Vector3.Zero);
+            World.Add("ground", Worlds.Floor(0, -100, 100, -100, 100).Drawn(), Vector3.Zero);
             Fall = new WeatherParticles(Head, Rules, new Lcg(7), () => Aim, () => Look, () => World, () => Part) { FillsAir = fillsAir };
             Weather.Force(WeatherKind.Precipitation, precipitation, intensity);
             Weather.SkyChange += rain => RainSkyAsked += rain ? 1 : 0;
@@ -118,43 +118,65 @@ public class WeatherParticleTests
     }
 
     [Fact]
-    public void DropsLandOnEveryLoadedChunkOrOneAsTheOriginalsDoAndPassSeeThroughTriangles()
+    public void DropsLandOnEveryLoadedChunkOrOneAsTheOriginalsDo()
     {
         // Ground of another loaded chunk: trek's drops, which test every chunk, land on it, and rain splashes on it.
         var trek = new Scene(intensity: 0.5f) { Part = null };
         trek.World.Remove("ground");
-        trek.World.Add("next", Worlds.Floor(0, -100, 100, -100, 100), Vector3.Zero);
+        trek.World.Add("next", Worlds.Floor(0, -100, 100, -100, 100).Drawn(), Vector3.Zero);
         trek.Run(600);
         Assert.NotEmpty(trek.Drawn(trek.Fall.Splashes));
         Assert.True(trek.Fall.DropSplashes > 0 && trek.Fall.OwnSplashes > 0);
         Assert.All(trek.Drawn(trek.Fall.Drops), d => Assert.True(d.Position.Y > -1));
 
-        // Testing one chunk's collision alone, as the original tests the player's: the drops fall through the other's
-        // ground without landing, and rain's own splashes find none.
+        // Testing one chunk's surfaces alone, as the original tests the player's chunk's collision: the drops fall
+        // through the other's ground without landing, and rain's own splashes find none.
         var scene = new Scene(intensity: 0.5f) { Part = "elsewhere" };
         scene.Run(600);
         Assert.Empty(scene.Drawn(scene.Fall.Splashes));
         Assert.Contains(scene.Drawn(scene.Fall.Drops), d => d.Position.Y < -1);
-
-        // A see-through floor: drops pass it, but rain's own splashes land on it.
-        var glass = new Scene(intensity: 0.5f);
-        glass.World.Add("ground", Worlds.Floor(0, -100, 100, -100, 100).Select(t => t with { Flags = CollisionFlags.SeeThrough }), Vector3.Zero);
-        glass.Run(600);
-        Assert.Contains(glass.Drawn(glass.Fall.Drops), d => d.Position.Y < -1);
-        Assert.NotEmpty(glass.Drawn(glass.Fall.Splashes));
-        Assert.All(glass.Drawn(glass.Fall.Splashes), s => Assert.Equal(WeatherParticles.SplashLift, s.Position.Y, 4));
     }
 
     [Fact]
-    public void ASplashLandsOnTheFirstTriangleTheSweepFindsNotTheNearest()
+    public void RainLandsOnTheHighestSurfaceARoofOverTheGround()
     {
-        // The collision's grid order, not the height: with the ground listed before a floor 3 above it, rain's own
-        // splashes land on the ground under it, as the drops do.
+        // A roof 3 above the ground over half of it, listed after the ground: the drops and rain's own splashes land on
+        // the roof where it is and on the ground beside it, never on the ground under it.
         var scene = new Scene(intensity: 0.5f);
-        scene.World.Add("ground", [.. Worlds.Floor(0, -100, 100, -100, 100), .. Worlds.Floor(3, -100, 100, -100, 100)], Vector3.Zero);
+        scene.World.Add("ground", [.. Worlds.Floor(0, -100, 100, -100, 100).Drawn(), .. Worlds.Floor(3, -100, 0, -100, 100).Drawn()], Vector3.Zero);
         scene.Run(600);
-        Assert.NotEmpty(scene.Drawn(scene.Fall.Splashes));
-        Assert.All(scene.Drawn(scene.Fall.Splashes), s => Assert.Equal(WeatherParticles.SplashLift, s.Position.Y, 4));
+        var splashes = scene.Drawn(scene.Fall.Splashes).ToList();
+        Assert.Contains(splashes, s => s.Position.X < 0);
+        Assert.Contains(splashes, s => s.Position.X > 0);
+        Assert.All(splashes, s => Assert.Equal(s.Position.X < 0 ? 3 + WeatherParticles.SplashLift : WeatherParticles.SplashLift, s.Position.Y, 4));
+        Assert.All(scene.Drawn(scene.Fall.Drops), d => Assert.True(d.Position.X > 0 ? d.Position.Y > -1 : d.Position.Y > 2));
+        Assert.True(scene.Fall.DropSplashes > 0 && scene.Fall.OwnSplashes > 0);
+    }
+
+    [Fact]
+    public void ADropEndsAgainstAWallWithoutASplash()
+    {
+        // Rain slanting four along to one down toward ground beyond a wall: without the wall, the drops that reach the
+        // ground splash on it; with it, every one ends at the wall, and none is drawn past it.
+        Scene Slanting(bool wall)
+        {
+            var scene = new Scene(intensity: 0.5f) { Aim = new Vector3(-40, 1, 0), Part = null };
+            scene.Weather.Wind = new Vector3(0.3f, 0, 0);
+            scene.World.Add("ground", Worlds.Floor(0, 0, 100, -100, 100).Drawn(), Vector3.Zero);
+            if (wall)
+                scene.World.Add("wall", Worlds.Wall(0, 100, -100, 100).Drawn(), new Vector3(0, -50, 0));
+            scene.Run(600);
+            return scene;
+        }
+        var open = Slanting(wall: false);
+        Assert.True(open.Fall.DropSplashes > 0);
+        Assert.Contains(open.Drawn(open.Fall.Drops), d => d.Position.X > 0);
+
+        var walled = Slanting(wall: true);
+        Assert.True(walled.Fall.DropsMade > 0);
+        Assert.Equal(0, walled.Fall.DropSplashes);
+        Assert.Empty(walled.Drawn(walled.Fall.Splashes));
+        Assert.All(walled.Drawn(walled.Fall.Drops), d => Assert.True(d.Position.X < 0.5f));
     }
 
     [Fact]

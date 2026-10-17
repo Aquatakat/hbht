@@ -114,7 +114,10 @@ public sealed class ChunkScenery
     /// <summary>The placed scene object at an index in the chunk's map, if it's placed.</summary>
     public PlacedObject? Find(int index) => Objects.FirstOrDefault(p => p.Object.Index == index);
 
-    /// <summary>A scene object's levels of detail, each hidden, the nearest showing model <paramref name="first"/>.</summary>
+    /// <summary>
+    /// A scene object's levels of detail, each hidden, the nearest showing model <paramref name="first"/>. The core's
+    /// <see cref="Core.Chunks.ChunkSurfaces"/>, which rain lands on, places the nearest level the same way.
+    /// </summary>
     private PlacedObject Place(PluginSet plugins, Models models, SceneObject o, int first)
     {
         var q = o.Orientation();
