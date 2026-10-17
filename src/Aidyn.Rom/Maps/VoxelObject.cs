@@ -40,6 +40,8 @@ public enum VoxelType : ushort
 public enum VoxelFlags : ushort
 {
     None = 0,
+    /// <summary>A light that shines from the camera's eye rather than from where it is (<c>WorldLights.AddNear</c>, 0x8004d384).</summary>
+    FacesCamera = 0x1,
     /// <summary>Only present without the Expansion Pak.</summary>
     NoExpansionPak = 0x20,
     /// <summary>Only present with the Expansion Pak.</summary>

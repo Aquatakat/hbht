@@ -104,16 +104,19 @@ public sealed class TrekLoop : IMapObjectHost
         Sounds = new MapSounds(Audio, game.Random.Cosmetic,
             o => Flags.MapObjectPresence.There(o, f => game.Flags.TryHandle(f, out var h) && game.Flags.Get(h)));
         Keys = new AudioKeys(Audio, game.Sounds, game.Random.Cosmetic);
+        Lights = new Lights.WorldLights(game.Random.Cosmetic) { World = chunks.World };
         _playerSounds = game.Plugins.TryGet<EntityRecord>(GameState.Alaron)?.Sounds;
         chunks.Loaded += (_, map) =>
         {
             Wanderers.Load(map, Chunks.MapSet.CellSize, Chunks.World, Game.Memory);
             Sounds.Load(map);
+            Lights.Load(map);
         };
         chunks.Unloading += (_, map) =>
         {
             Wanderers.Unload(map);
             Sounds.Unload(map);
+            Lights.Unload(map);
         };
     }
 
@@ -124,6 +127,9 @@ public sealed class TrekLoop : IMapObjectHost
 
     /// <summary>The loaded chunks' sound map objects.</summary>
     public MapSounds Sounds { get; }
+
+    /// <summary>The loaded chunks' light map objects and the dynamic lights, which light the player and the maps' actors.</summary>
+    public Lights.WorldLights Lights { get; }
 
     /// <summary>Bodies' footsteps and voices.</summary>
     public AudioKeys Keys { get; }
@@ -361,6 +367,8 @@ public sealed class TrekLoop : IMapObjectHost
             Chunks.Change(arrival.Set);
             Chunks.World.Clear();
             Wanderers.Clear();
+            // The zone engine starts again, and its dynamic lights with it (FreeZoneEngine, DynamicLights.FreeAll).
+            Lights.Dynamic.Clear();
         }
         var origin = Chunks.Origin(arrival.Chunk);
         var point = origin + arrival.Position;
@@ -619,4 +627,6 @@ public sealed class TrekLoop : IMapObjectHost
     void IMapObjectHost.Changed(LoadedMap map, SceneObject scene) => _host.Changed(map, scene);
 
     void IMapObjectHost.Sound(OneShot sound) => Audio.Play(sound);
+
+    void IMapObjectHost.Explode(Vector3 at) => Lights.Dynamic.Explosion(at);
 }

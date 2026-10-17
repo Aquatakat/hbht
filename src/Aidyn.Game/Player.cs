@@ -25,11 +25,15 @@ public partial class Player : Node3D
 
     public ActorAnimator? Animator { get; set; }
 
+    /// <summary>The model's meshes, which the point lights near him light.</summary>
+    public GeometryInstance3D[] Meshes { get; private set; } = [];
+
     /// <summary>The model, drawn at the player's feet.</summary>
     public void SetModel(Node3D model)
     {
         _model?.QueueFree();
         _model = model;
+        Meshes = [.. Nodes.FindAll<GeometryInstance3D>(model)];
         AddChild(model);
         Sync();
     }

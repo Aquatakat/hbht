@@ -88,6 +88,7 @@ public class MapTests
     {
         var archive = BorgArchive.Open(TestRoms.Get(RomVersionId.Na10));
         var shapes = new List<string>();
+        var facesCamera = 0;
         foreach (var listing in archive.Listings.Where(l => l.Type == BorgType.MapChunk))
         {
             var objects = Borg9Voxels.Read(archive.Read(listing.Index));
@@ -112,6 +113,8 @@ public class MapTests
                         break;
                     case LightData l:
                         Assert.InRange(l.Kind, LightKind.Static, LightKind.Random);
+                        if (o.Flags.HasFlag(VoxelFlags.FacesCamera))
+                            facesCamera++;
                         break;
                 }
                 if (o.Type is VoxelType.Code or VoxelType.SavePoint)
@@ -124,5 +127,7 @@ public class MapTests
         {
             ["1/1 Scene"] = 6629, ["2/2 Scene"] = 1284, ["1/3 Scene"] = 371, ["1/1 Actor"] = 163,
         }, shapes.CountBy(s => s).ToDictionary());
+        // Lights that shine from the camera's eye (Lights.AddNear, 0x8004d384): 24 in EhudUnder's Borg9s, 1 in JundarInteriors A01.
+        Assert.Equal(25, facesCamera);
     }
 }

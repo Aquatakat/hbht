@@ -41,6 +41,9 @@ public interface IMapObjectHost
 
     /// <summary>A one-shot sound plays.</summary>
     void Sound(Audio.OneShot sound);
+
+    /// <summary>A trapped container goes off where it stands, in the world, with its lights (<see cref="Lights.DynamicLights.Explosion"/>).</summary>
+    void Explode(Vector3 at) { }
 }
 
 /// <summary>
@@ -447,6 +450,8 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
                     host.Changed(map, scene);
                 }
                 map.SetActive(o.Index, false);
+                // Containers.Explode (0x8000ffe4): its fires' and burst's lights, then the sound.
+                host.Explode(map.Origin + container.Position);
                 // open_explosive_chest: one of four at random.
                 if (game.Sounds is { Explosions.Count: > 0 } sounds)
                     host.Sound(new Audio.OneShot(sounds.Explosions[(int)Rng.RandomExtensions.Below(game.Random.Cosmetic, (uint)sounds.Explosions.Count)],

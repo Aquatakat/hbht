@@ -16,6 +16,8 @@ Things only the user can settle, in the emulator or by reading the ROM. Each lin
 - **Which way sounds pan:** a sound to the camera's right should come from the right speaker; the formula says right is positive, and the port plays it so, but nobody has listened. Any map sound with falloff, such as a fountain, turned side on. See [audio](systems/audio.md#sound-map-objects).
 
 - **Rain after loading:** loading a save made in the rain outdoors (the "Before Rooughah" one is in an interior, so step outside first and save there): whether the rain is there at once, or dies away and sets in again over about ten seconds, as the machine code suggests. The port keeps it falling. See [weather](systems/weather.md#differences-from-the-original).
+- **Point lights on Alaron:** standing near a fire indoors, such as the one in the Gwernia interiors' A01 (the port's `--set 5 --chunk A01 --at 11,10.5`), he should be lit warm on the side facing it and flicker with it, more the nearer he is, out to 5, while the townsman standing beside him isn't. Then the 24 lights in EhudUnder (C11–C19, E13, E15, G11, G17) that shine from the camera's eye: bodies there should be lit purple, and gold or red, on the side facing the camera, whichever way it looks. See [rendering](systems/rendering.md#point-lights).
+- **A trapped container exploding** at night or indoors: Alaron should flash orange and then glow red to yellow for about ten seconds if he's within 5 of it. See [rendering](systems/rendering.md#point-lights).
 
 - **Where the map area north of Ugarit unlocks:** It currently doesn't unlock while travelling through it in the port.
 

@@ -64,6 +64,15 @@ public partial class WandererView : Node3D
             _turn.Rotation = new Vector3(0, Mathf.Atan2(body.Heading.X, body.Heading.Y), 0);
     }
 
+    /// <summary>Lights the body by the point lights that reach its centre this frame (<see cref="Core.Lights.WorldLights.ForBody"/>).</summary>
+    public void Light(Core.Lights.WorldLights lights, Core.Chunks.ChunkStreamer chunks)
+    {
+        if (_model is null)
+            return;
+        var centre = Wanderer.Body.Sphere.Position;
+        N64Material.SetLights(_model.Meshes, lights.ForBody(centre, chunks.MapAt(centre), party: false));
+    }
+
     /// <summary>
     /// Fades the body by its distance from the camera's aim (<c>PlayerShadowAlpha</c>), and places its
     /// shadow, which shows only within <see cref="BodyShadow.OthersDistance"/> of the aim.
