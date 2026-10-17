@@ -47,14 +47,66 @@ public static class SkyBackdrop
         }
         drawn = Math.Min(drawn, (short)(Span - 1));
         var top = Span - drawn;
+        Lines(from, to, change, timeOfDay, fog, lines[..drawn], top, fogTime, lensFlare, brightness, dim);
+        lines[drawn..ScreenLines].Fill(lines[drawn - 1]);
+    }
 
+    /// <summary>
+    /// The lines the gradient is drawn in, from its top to its foot: line <c>i</c> is <c>i + 1</c> two-hundredths of the
+    /// way down, as the original draws them when the camera looks level or up, and its foot is the colour below.
+    /// </summary>
+    public const int DomeLines = Span - 1;
+
+    /// <summary>
+    /// The way the follow camera usually looks down, in radians, at which the projected gradient is where the
+    /// original draws it: its default pitch of 15° raises the camera by sin 15° of its distance, not tan, so it looks
+    /// down by atan(sin 15°), 14.5° (<see cref="Cameras.FollowCamera.DefaultPitch"/>).
+    /// </summary>
+    public static readonly float DomePitch = MathF.Atan(MathF.Sin(15 * MathF.PI / 180));
+
+    /// <summary>How many lines the original moves the gradient up at <see cref="DomePitch"/>: 59.</summary>
+    public static readonly int DomeDown = (int)(MathF.Sin(MathF.Sin(DomePitch)) * ScreenLines);
+
+    /// <summary>
+    /// The projected sky's gradient, a dome (<see cref="SkyPlacement.Projected"/>): how far down the gradient an
+    /// <paramref name="elevation"/> in radians is, from 0 at its top to 1 at its foot, clamped to the lines the
+    /// original draws. Each elevation keeps the place the original gives it when the follow camera looks down as it
+    /// usually does (<see cref="DomePitch"/>), down the middle of the screen, where a line's elevation is its angle
+    /// off the look less the pitch. So the gradient stays pinned against the scenery's horizon at any pitch, as the
+    /// sky's objects do: 0.52 of the way down at the horizon, its foot 18.5° under it, out of sight
+    /// behind the ground, and its top 17.1° up, above which the sky is its top colour.
+    /// </summary>
+    public static float DomeFraction(float elevation)
+    {
+        var angle = elevation + DomePitch;
+        var line = angle >= MathF.PI / 2 - 1e-3f ? float.NegativeInfinity
+            : SkyScreen.Middle.Y - SkyScreen.Focal * MathF.Tan(angle) + DomeDown;
+        return Math.Clamp(line / Span, 1f / Span, DomeLines / (float)Span);
+    }
+
+    /// <summary>
+    /// Fills <paramref name="lines"/> with the <see cref="DomeLines"/> lines of the gradient, from its top to its foot,
+    /// as <see cref="Draw"/> colours them, for the projected sky to lay over the dome (<see cref="DomeFraction"/>).
+    /// </summary>
+    public static void Dome(SkyGradient from, SkyGradient? to, float change, float timeOfDay, Vector3 fog,
+        Span<Vector3> lines, float fogTime = 0, float lensFlare = 0)
+    {
+        if (lines.Length < DomeLines)
+            throw new ArgumentException($"The dome has {DomeLines} lines.", nameof(lines));
+        Lines(from, to, change, timeOfDay, fog, lines[..DomeLines], 1, fogTime, lensFlare, 1, 1);
+    }
+
+    /// <summary>The gradient's lines from <paramref name="top"/> two-hundredths of the way down, one a two-hundredth.</summary>
+    private static void Lines(SkyGradient from, SkyGradient? to, float change, float timeOfDay, Vector3 fog, Span<Vector3> lines,
+        int top, float fogTime, float lensFlare, float brightness, float dim)
+    {
         var x = timeOfDay * SkyGradient.Columns;
         var column = (short)(int)x % SkyGradient.Columns;
         var next = (column + 1) % SkyGradient.Columns;
         var across = x - column;
         var fogged = MathF.Min(fogTime * 2, 1);
 
-        for (var i = 0; i < drawn; i++)
+        for (var i = 0; i < lines.Length; i++)
         {
             var y = (i + top) / (float)Span * (SkyGradient.SkyRows - 1);
             var row = (short)(int)y;
@@ -73,7 +125,6 @@ public static class SkyBackdrop
                 c *= dim;
             lines[i] = SkyColors.ToBytes(c);
         }
-        lines[drawn..ScreenLines].Fill(lines[drawn - 1]);
     }
 
     /// <summary>Between two rows and two columns, as the game interpolates the image.</summary>

@@ -105,6 +105,7 @@ public sealed class TrekLoop : IMapObjectHost
             o => Flags.MapObjectPresence.There(o, f => game.Flags.TryHandle(f, out var h) && game.Flags.Get(h)));
         Keys = new AudioKeys(Audio, game.Sounds, game.Random.Cosmetic);
         Lights = new Lights.WorldLights(game.Random.Cosmetic) { World = chunks.World };
+        WeatherSounds = new WeatherSounds(Audio, game.Sounds);
         _playerSounds = game.Plugins.TryGet<EntityRecord>(GameState.Alaron)?.Sounds;
         chunks.Loaded += (_, map) =>
         {
@@ -222,6 +223,30 @@ public sealed class TrekLoop : IMapObjectHost
         Hud.Arrive(Game.Terrain(chunk.Terrain)?.SkyDrawn ?? true);
     }
 
+    /// <summary>
+    /// A tick of the weather as the zone engine draws it (<c>HandleZoneEngineFrame</c>), in trek and in cut-scenes:
+    /// <c>RenderSky</c>'s lightning once a frame, with its thunder, then <c>ProcessWeather</c> every tick, with the
+    /// rain loop.
+    /// </summary>
+    /// <param name="skyDrawn">Whether the sky is drawn (the original's sky type 3).</param>
+    public void StepWeather(bool skyDrawn)
+    {
+        if (Game.Weather is not { } weather)
+            return;
+        _skyTick = (_skyTick + 1) % Cadence.FrameTicks;
+        if (_skyTick == 0)
+        {
+            weather.SkyFrame(skyDrawn, Game.Random.Cosmetic);
+            if (weather.Thunder is { } thunder)
+                WeatherSounds.Thunder(thunder);
+        }
+        weather.Draw(skyDrawn);
+        WeatherSounds.Step(weather);
+    }
+
+    /// <summary>The rain loop and the thunder.</summary>
+    public WeatherSounds WeatherSounds { get; }
+
     /// <summary>What's said when a journal entry is added: a literal in the code (<c>0x800ce28c</c> in 1.0).</summary>
     public const string NewJournalEntry = "A new journal entry has been added.";
 
@@ -253,16 +278,8 @@ public sealed class TrekLoop : IMapObjectHost
             Game.Flags.Set(newEntry, false);
             Use.Tell(NewJournalEntry);
         }
-        // HandleZoneEngineFrame: RenderSky's lightning, once a frame, and ProcessWeather, every frame trek draws,
-        // whatever stops the clock; then TickGameTime.
-        if (Game.Weather is { } weather)
-        {
-            var skyDrawn = _chunk is null || (Game.Terrain(_chunk.Terrain)?.SkyDrawn ?? true);
-            _skyTick = (_skyTick + 1) % Cadence.FrameTicks;
-            if (_skyTick == 0)
-                weather.SkyFrame(skyDrawn, Game.Random.Cosmetic);
-            weather.Draw(skyDrawn);
-        }
+        // HandleZoneEngineFrame's weather, whatever stops the clock; then TickGameTime.
+        StepWeather(_chunk is null || (Game.Terrain(_chunk.Terrain)?.SkyDrawn ?? true));
         if (Use.Popup is null && !talking)
             Game.PassTime(1);
         if (frozen)
@@ -415,6 +432,8 @@ public sealed class TrekLoop : IMapObjectHost
         var cued = Cued ?? throw new InvalidOperationException("No cut-scene is cued.");
         Cued = null;
         Free();
+        // The stage is built as trek's world is (InitZoneEngine), and what's drawn of the weather starts again.
+        Game.Weather?.StartDrawing();
         return cued;
     }
 
@@ -430,6 +449,9 @@ public sealed class TrekLoop : IMapObjectHost
         Sounds.Clear();
         Nearest = default;
         Use.ClearCameras();
+        // FreeZoneEngine: Weather.Free stops the rain loop.
+        Game.Weather?.Free();
+        WeatherSounds.StopRain();
     }
 
     /// <summary>

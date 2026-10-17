@@ -97,7 +97,10 @@ public partial class Game
         AddChild(_stageView);
         var middle = stage.Origin + new System.Numerics.Vector3(stage.Set.CellSize / 2, 0, stage.Set.CellSize / 2);
         _stage.Update(middle);
-        _sky!.Enter(stage.Chunk);
+        // FreeZoneEngine leaves no sky, so the stage's comes at once, and the scenery's fog ignores the weather.
+        _sky!.ClearSky();
+        _sky.Enter(stage.Chunk);
+        _sky.CutScene = true;
         _sky.Apply();
 
         var scene = _scene = new CutScene(_game!, script, start, stage, this);
@@ -121,7 +124,9 @@ public partial class Game
             : IActorMotion.Still);
         // ProcessAudioBubbles hears the stage from where the camera looks.
         _trek.Sounds.Step(scene.Camera.Aim, scene.Camera.Position, scene.Camera.Aim);
-        _sky!.Step();
+        // The zone engine draws the stage, and its weather, as it draws trek.
+        _trek.StepWeather(_sky!.State.Drawn);
+        _sky.Step();
         ScrollTextures();
         SyncCutScene();
         if (scene.Over)
@@ -235,6 +240,9 @@ public partial class Game
     /// <summary>Trek's world, the player's body and the follow camera come back, and the screen fades in (<see cref="TrekLoop.Resume"/>).</summary>
     private void EndTrekPause()
     {
+        // Trek's world is built again, and its sky chosen at once.
+        _sky!.ClearSky();
+        _sky.CutScene = false;
         _trek!.Resume();
         _player!.Visible = true;
         PlaceShadow();

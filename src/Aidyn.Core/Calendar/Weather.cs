@@ -89,6 +89,12 @@ public sealed class Weather
 
     // What's drawn: ProcessWeather's.
 
+    /// <summary>
+    /// What the world wants falling, as the last frame drawn saw it (<c>Weather.Data</c> + 0x0): the world's
+    /// <see cref="Precipitation"/>, copied at the start of each <see cref="Draw"/>.
+    /// </summary>
+    public Precipitation Wanted { get; private set; }
+
     /// <summary>What's falling now: it changes to <see cref="Precipitation"/> once the last has died away.</summary>
     public Precipitation Falling { get; set; }
 
@@ -100,6 +106,53 @@ public sealed class Weather
     /// doesn't draw the sky. The scenery's fog, the sky, its objects and the wanderers' sight read it.
     /// </summary>
     public float FogTime { get; set; }
+
+    /// <summary>
+    /// Whether the precipitation's emitters are up (<c>Weather.Data</c> + 0x14): made with the rain sky once what
+    /// falls is what the world wants, forgotten when the world wants another, and freed where the sky isn't drawn.
+    /// </summary>
+    public bool Emitting { get; private set; }
+
+    /// <summary>
+    /// Whether the rain sky is up for the weather (<c>Weather.SkyOverridden</c>, <c>0x800daee0</c>): set as the
+    /// emitters are made, and cleared, bringing back the terrain's sky, once the world wants nothing to fall. Building
+    /// trek's world again doesn't clear it.
+    /// </summary>
+    public bool SkyOverridden { get; private set; }
+
+    /// <summary>
+    /// Whether the rain loop plays (<c>Weather.Data</c> + 0x18): it starts where the sky is drawn while rain falls,
+    /// and stops once the rain has died away, or at once where the sky isn't drawn.
+    /// </summary>
+    public bool RainLoop { get; private set; }
+
+    /// <summary>How many times the rain loop has started, so its player can tell a new start from one going on.</summary>
+    public int RainLoopStarts { get; private set; }
+
+    /// <summary>
+    /// How loud the rain loop is before the sound volume, a byte (<c>ProcessWeather</c>):
+    /// <c>min(255, trunc(FallIntensity × 1.5 × 255))</c>, in doubles, so it's full from 2/3.
+    /// </summary>
+    public byte RainLoopLevel => (byte)Math.Min((int)(FallIntensity * 1.5 * 255.0), 255);
+
+    /// <summary>
+    /// The weather changes the sky (<c>SetBackgroundType</c> with 600 ticks, from <c>ProcessWeather</c>): true to
+    /// the rain sky as rain or snow sets in, false back to the terrain's once the world wants nothing to fall.
+    /// </summary>
+    public event Action<bool>? SkyChange;
+
+    /// <summary>
+    /// Whether the weather keeps the sky as the player enters a chunk under an outdoor sky from another
+    /// (<c>LoadGameBorgScenes</c>, the debug build's "Different Precip types, Don't set sky"): while the world wants
+    /// something to fall or something is falling, as of the last frame drawn. Fog alone doesn't.
+    /// </summary>
+    public bool HoldsSky => Wanted != Precipitation.None || Falling != Precipitation.None;
+
+    /// <summary>
+    /// Whether a sky chosen at once, as trek's world is built or the sky starts or stops being drawn, is the rain sky
+    /// (<c>LoadGameBorgScenes</c>): rain or snow wanted, as of the last frame drawn.
+    /// </summary>
+    public bool WantsRainSky => Wanted != Precipitation.None;
 
     /// <summary>Whether lightning flashes this frame: the screen and the sky go white.</summary>
     public bool Flash { get; private set; }
@@ -226,17 +279,32 @@ public sealed class Weather
     /// </summary>
     public void StartDrawing()
     {
+        Wanted = Precipitation.None;
         Falling = Precipitation.None;
         FallIntensity = 0;
         FogTime = 0;
+        Emitting = false;
+        RainLoop = false;
         _skyDrawn = null;
+    }
+
+    /// <summary>
+    /// Trek's world goes (<c>FreeZoneEngine</c>, through <c>Weather.Free</c>, <c>0x8001e030</c>): the rain loop stops,
+    /// and the emitters go with the particles.
+    /// </summary>
+    public void Free()
+    {
+        Emitting = false;
+        RainLoop = false;
     }
 
     /// <summary>
     /// A tick of what's drawn (<c>ProcessWeather</c>): what falls dies away before another starts and rises to the
     /// weather's intensity, and the fog moves toward the weather's. Where the terrain doesn't draw the sky, there's no
     /// fog. Coming into a chunk that draws the sky from one that doesn't, or the first time, the fog is the weather's
-    /// at once (<c>LoadGameBorgScenes</c>).
+    /// at once (<c>LoadGameBorgScenes</c>). Rain and snow bring the rain sky as they set in, where the sky is drawn,
+    /// and the terrain's comes back as soon as the world wants nothing to fall (<see cref="SkyChange"/>). Rain plays
+    /// its loop (<see cref="RainLoop"/>).
     /// </summary>
     /// <param name="skyDrawn">Whether the terrain draws the sky (not the original's sky type 4).</param>
     public void Draw(bool skyDrawn, int ticks = 1)
@@ -244,8 +312,26 @@ public sealed class Weather
         if (_skyDrawn != skyDrawn)
             FogTime = Fog;
         _skyDrawn = skyDrawn;
+        Wanted = Precipitation;
+        // The world wants another: the emitters are forgotten, and run out their lives.
+        if (Falling != Wanted)
+            Emitting = false;
         if (FallIntensity <= 0)
+        {
             Falling = Precipitation;
+            RainLoop = false;
+        }
+        if (Wanted == Precipitation.None && SkyOverridden)
+        {
+            SkyOverridden = false;
+            SkyChange?.Invoke(false);
+        }
+        if (Falling == Wanted && Falling != Precipitation.None && !Emitting && skyDrawn)
+        {
+            SkyOverridden = true;
+            SkyChange?.Invoke(true);
+            Emitting = true;
+        }
         if (Falling == Precipitation)
         {
             if (Falling != Precipitation.None)
@@ -261,10 +347,19 @@ public sealed class Weather
             if (FallIntensity < 0)
                 FallIntensity = 0;
         }
+        if (skyDrawn && !RainLoop && Falling == Precipitation.Rain)
+        {
+            RainLoop = true;
+            RainLoopStarts++;
+        }
         FogTime = MathF.Abs(FogTime - Fog) < 0.01f ? Fog
             : FogTime < Fog ? FogTime + ticks * _rules.FogRate : FogTime - ticks * _rules.FogRate;
         if (!skyDrawn)
+        {
+            Emitting = false;
+            RainLoop = false;
             FogTime = 0;
+        }
     }
 
     /// <summary>
@@ -298,6 +393,7 @@ public sealed class Weather
         Intensity = kind == WeatherKind.Precipitation ? intensity : 0;
         Fog = kind == WeatherKind.Clear ? 0 : fog;
         Storm = Precipitation == Precipitation.Rain ? Intensity : 0;
+        Wanted = Precipitation;
         Falling = Precipitation;
         FallIntensity = Intensity;
         FogTime = Fog;

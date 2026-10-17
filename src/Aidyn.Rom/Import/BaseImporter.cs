@@ -73,7 +73,7 @@ public static class BaseImporter
         var campFactors = CampFactors(rom);
         var weather = WeatherTables.Read(rom);
         WriteJson(Path.Combine(staging, "records", "terrains.json"), BuildTerrains(gradients, campFactors, weather));
-        WriteJson(Path.Combine(staging, "records", "weather.json"), new[] { BuildWeather(weather) });
+        WriteJson(Path.Combine(staging, "records", "weather.json"), new[] { BuildWeather(weather, gradients) });
 
         progress?.Report("Flags");
         var db = GameDb.Read(rom);
@@ -496,9 +496,10 @@ public static class BaseImporter
     /// <summary>
     /// The weather's rules: the seasons' chances from the code's table, and the rest literals in <c>Weather.Roll</c>
     /// (<c>0x8007bdb0</c> in 1.0), <c>Weather.DriftWind</c> (<c>0x8007baa0</c>, given 0.05 by <c>World.Update</c>),
-    /// <c>ProcessWeather</c> (<c>0x8001e7c0</c>) and <c>RenderSky</c> (<c>0x8001d840</c>), carried as facts.
+    /// <c>ProcessWeather</c> (<c>0x8001e7c0</c>) and <c>RenderSky</c> (<c>0x8001d840</c>), carried as facts, and the
+    /// rain sky, sky 2 of <paramref name="gradients"/>, which <c>ProcessWeather</c> names.
     /// </summary>
-    internal static WeatherRecord BuildWeather(WeatherTables tables) => new(
+    internal static WeatherRecord BuildWeather(WeatherTables tables, IReadOnlyList<int> gradients) => new(
         RecordId.Decimal(RecordTypes.Weather, 0),
         tables.Seasons,
         KeepAtMost: 75,
@@ -517,7 +518,11 @@ public static class BaseImporter
         FogRate: (float)(1.0 / 900),
         // RenderSky (0x8001d840): every 20th frame, a share under the storm × 0.25 (a double).
         LightningEvery: 20,
-        LightningShare: 0.25f);
+        LightningShare: 0.25f,
+        RainSky: RecordId.Hex(RecordTypes.Image, gradients[RainSky]));
+
+    /// <summary>The sky rain and snow bring (<c>ProcessWeather</c>, <c>SetBackgroundType</c> with 2).</summary>
+    public const int RainSky = 2;
 
     /// <summary>The camp ambush's factor for each terrain type (<c>camp_float_array</c>).</summary>
     internal static float[] CampFactors(RomImage rom)

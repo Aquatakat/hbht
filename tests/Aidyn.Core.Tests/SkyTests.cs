@@ -91,6 +91,33 @@ public class SkyTests
     }
 
     [Fact]
+    public void TheProjectedGradientIsWhereTheOriginalDrawsItAtTheFollowCamerasPitchAndPinnedToElevationsOtherwise()
+    {
+        // The follow camera's 15° raises it by sin 15° of its distance: it looks down 14.5°, and the original moves
+        // the gradient up 59 lines.
+        Assert.Equal(14.51f, SkyBackdrop.DomePitch * 180 / MathF.PI, 2);
+        Assert.Equal(59, SkyBackdrop.DomeDown);
+        var look = new Vector3(0, -MathF.Sin(SkyBackdrop.DomePitch), -MathF.Cos(SkyBackdrop.DomePitch));
+        Assert.Equal(SkyBackdrop.DomeDown, (int)(MathF.Sin(-look.Y) * SkyBackdrop.ScreenLines));
+        // Down the middle of the screen, each line's elevation takes the gradient where the original draws it.
+        for (var line = 0; line < SkyBackdrop.Span - SkyBackdrop.DomeDown; line++)
+        {
+            var elevation = MathF.Atan((SkyScreen.Middle.Y - line) / SkyScreen.Focal) - SkyBackdrop.DomePitch;
+            Assert.Equal((line + SkyBackdrop.DomeDown) / (float)SkyBackdrop.Span, SkyBackdrop.DomeFraction(elevation), 4);
+        }
+        // The horizon is 0.52 of the way down; above 17° is the top line, and from 18.5° under it the foot.
+        Assert.Equal(0.52f, SkyBackdrop.DomeFraction(0), 2);
+        Assert.Equal(1f / SkyBackdrop.Span, SkyBackdrop.DomeFraction(18 * MathF.PI / 180));
+        Assert.Equal(1f / SkyBackdrop.Span, SkyBackdrop.DomeFraction(MathF.PI / 2));
+        Assert.Equal(SkyBackdrop.DomeLines / (float)SkyBackdrop.Span, SkyBackdrop.DomeFraction(-19 * MathF.PI / 180));
+
+        // Its lines are the original's when it looks level, from the top to the foot.
+        var dome = new Vector3[SkyBackdrop.DomeLines];
+        SkyBackdrop.Dome(Ramp(), null, 0, 0.5f, default, dome);
+        Assert.Equal(Backdrop(Ramp(), -Vector3.UnitZ)[..SkyBackdrop.DomeLines], dome);
+    }
+
+    [Fact]
     public void LookingNearlyStraightDownLeavesTheBackgroundBlack()
     {
         var lines = Backdrop(Ramp(), Vector3.Normalize(new Vector3(0, -1, -0.05f)));
@@ -173,6 +200,52 @@ public class SkyTests
         // A sky that stops being drawn changes at once.
         state.Choose(day, drawn: false);
         Assert.Same(day, state.Current);
+    }
+
+    [Fact]
+    public void RainHoldsTheSkyAgainstEnteringChunksAndASkyChosenAtOnceIsTheRainSky()
+    {
+        var day = Noon();
+        var dark = Gradient((_, _) => (0, 0, 0));
+        var rain = Gradient((_, _) => (100, 100, 100));
+        var weather = new Weather(WeatherTests.Rules);
+        var state = new SkyState();
+        state.Enter(day, drawn: true, rain, weather, atOnce: true);
+        Assert.Same(day, state.Current);
+
+        weather.Force(WeatherKind.Precipitation, Precipitation.Rain);
+        // Another terrain's chunk under the sky: the weather keeps what's up.
+        state.Enter(dark, drawn: true, rain, weather);
+        Assert.False(state.Changing);
+        Assert.Same(day, state.Current);
+        // Building trek's world again, or coming out from under no sky, chooses at once, and the rain sky.
+        state.Enter(dark, drawn: false, rain, weather);
+        Assert.Same(dark, state.Current);
+        state.Enter(day, drawn: true, rain, weather);
+        Assert.Same(rain, state.Current);
+        state.Enter(day, drawn: true, rain, weather, atOnce: true);
+        Assert.Same(rain, state.Current);
+
+        // Fog doesn't hold it.
+        weather.Force(WeatherKind.Fog, fog: 0.5f);
+        state.Enter(day, drawn: true, rain, weather);
+        Assert.Same(day, state.Next);
+        // Under no sky, every chunk chooses at once.
+        state.Enter(day, drawn: false, rain, weather);
+        state.Enter(dark, drawn: false, rain, weather);
+        Assert.Same(dark, state.Current);
+    }
+
+    [Fact]
+    public void LightningsFlashWhitensTheTintAndTheSkyColourAndTheFogStartsInByTheWeather()
+    {
+        var colors = SkyColors.At(Noon(), null, 0, 0.5f);
+        var flashed = colors.Flashed();
+        Assert.Equal((Vector3.One, Vector3.One, colors.Fog, colors.Cloud, colors.Sun), (flashed.Tint, flashed.Sky, flashed.Fog, flashed.Cloud, flashed.Sun));
+        Assert.Equal(new Vector3(127f / 255), SkyLight.BodyAmbient(flashed));
+        Assert.Equal(996, SkyColors.FogStart(0));
+        Assert.Equal(992, SkyColors.FogStart(0.1f));
+        Assert.Equal(966, SkyColors.FogStart(0.75f));
     }
 
     [Fact]

@@ -53,9 +53,9 @@ public static class BasePlugin
     /// 23 adds the world map and camping. 24 adds the minimaps. 25 adds sequences and samples.
     /// 26 adds the engine's sounds and the map sets' music. 27 adds the weather, on the terrains and its own record. 28 marks the lights that face the camera.
     /// 29 gives maps the neighbours they always draw, and scene objects that go out once reached (Oriana's path lights).
-    /// 30 adds the scenes' particle emitters and the cinematics.
+    /// 30 adds the scenes' particle emitters and the cinematics. 31 gives the weather record the rain sky.
     /// </summary>
-    public const int ImporterVersion = 30;
+    public const int ImporterVersion = 31;
 }
 
 /// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>
