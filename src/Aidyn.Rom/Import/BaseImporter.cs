@@ -307,7 +307,20 @@ public static class BaseImporter
     {
         var types = archive.Listings.ToDictionary(l => l.Index, l => l.Type);
         var chunkMaps = chunks.ToDictionary(c => (c.Set, c.Row, c.Column), c => c.Collision);
-        return [.. maps.OrderBy(m => m.Key).Select(m => BuildMap(m.Key, m.Value, types, chunkMaps, maps, lootTables) with
+        var empty = new Dictionary<int, bool>();
+        bool Empty(int borg)
+        {
+            if (types.GetValueOrDefault(borg) != BorgType.Scene)
+                return false;
+            if (!empty.TryGetValue(borg, out var none))
+            {
+                var scene = Borg5Scene.Parse(archive.Read(borg));
+                var models = scene.Models.Select(m => Borg2Geometry.Parse(archive.Read(m))).ToList();
+                empty[borg] = none = !scene.Draws.Any(d => SceneGltf.IsDrawn(models[d.Model], d.DisplayList));
+            }
+            return none;
+        }
+        return [.. maps.OrderBy(m => m.Key).Select(m => BuildMap(m.Key, m.Value, types, chunkMaps, maps, lootTables, Empty) with
         {
             Grid = grids?.GetValueOrDefault(m.Key),
             DrawnNeighbours = neighbours?.GetValueOrDefault(m.Key) is > 0 and var bits ? (Neighbours)bits : null,
@@ -331,7 +344,7 @@ public static class BaseImporter
 
     private static MapRecord BuildMap(int index, IReadOnlyList<VoxelObject> objects, IReadOnlyDictionary<int, BorgType> types,
         IReadOnlyDictionary<(MapSet, int, int), int> chunkMaps, IReadOnlyDictionary<int, IReadOnlyList<VoxelObject>> maps,
-        IReadOnlyList<ItemId> lootTables)
+        IReadOnlyList<ItemId> lootTables, Func<int, bool> empty)
     {
         var id = RecordId.Hex(RecordTypes.Map, index);
         RecordId Voxel(int map, int i) => MapRecord.VoxelId(RecordId.Hex(RecordTypes.Map, map), i);
@@ -382,7 +395,7 @@ public static class BaseImporter
                         .. scene.Models.Select(m => new PluginSceneModel(
                             scene.SceneFlags.HasFlag(RomSceneObjectFlags.Actor) && types.GetValueOrDefault(m.Borg) == BorgType.Actor
                                 ? RecordId.Hex(RecordTypes.Actor, m.Borg) : RecordId.Hex(RecordTypes.Scene, m.Borg),
-                            m.DrawDistance)),
+                            m.DrawDistance) { Empty = empty(m.Borg) }),
                     ],
                     scene.Lods, scene.Rotation, scene.Scale, new Plugins.Records.Rgba(scene.Tint.R, scene.Tint.G, scene.Tint.B, scene.Tint.A),
                     (PluginSceneObjectFlags)((int)scene.SceneFlags & ~(int)RomSceneObjectFlags.Actor))

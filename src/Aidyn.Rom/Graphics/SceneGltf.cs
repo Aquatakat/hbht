@@ -485,7 +485,7 @@ public static class SceneGltf
     }
 
     /// <summary>What the game skips: hidden models, missing or empty display lists, and fully transparent ones.</summary>
-    private static bool IsDrawn(Borg2Geometry model, int displayList) =>
+    internal static bool IsDrawn(Borg2Geometry model, int displayList) =>
         (model.Unknown28 & 1) == 0 && model.Alpha < 1 && displayList < model.Meshes.Count &&
         model.Meshes[displayList].Indices.Length > 0 && model.Meshes[displayList].Tint.W < 1;
 

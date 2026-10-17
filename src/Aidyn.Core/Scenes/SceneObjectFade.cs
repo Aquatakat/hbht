@@ -42,9 +42,8 @@ public readonly record struct ViewCone(float FadeFrom, float Gone)
 /// </summary>
 /// <param name="Scale">Multiplies each object's radius and each level's distance.</param>
 /// <param name="NearestDetail">
-/// Draws the nearest level of detail out to where the farthest ends, and no other, but for objects that go out
-/// once reached (<see cref="SceneObject.GoesOut"/>, Oriana's path lights): their first level is an empty scene
-/// that only marks the reach, and the light is all in the second, so they keep the original's levels.
+/// Draws the nearest level of detail that draws anything out to where the farthest ends, and no other. A level that's
+/// an empty scene (<see cref="SceneModel.Empty"/>), as the first of Oriana's path lights is, is passed over.
 /// </param>
 public sealed record DrawDistance(float Scale = 1, bool NearestDetail = false)
 {
@@ -90,9 +89,12 @@ public static class SceneObjectFade
             return;
 
         var levels = Math.Min(Math.Min(o.Lods, o.Models.Count), alphas.Length);
-        if (range.NearestDetail && levels > 0 && !o.GoesOut)
+        if (range.NearestDetail && levels > 0)
         {
-            alphas[0] = Math.Min(shown, LevelAlpha(distance, 0, o.Models[levels - 1].DrawDistance * range.Scale));
+            var nearest = 0;
+            while (nearest < levels - 1 && o.Models[nearest].Empty)
+                nearest++;
+            alphas[nearest] = Math.Min(shown, LevelAlpha(distance, 0, o.Models[levels - 1].DrawDistance * range.Scale));
             return;
         }
         for (var i = 0; i < levels; i++)

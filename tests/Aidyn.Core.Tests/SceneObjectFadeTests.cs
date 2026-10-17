@@ -124,12 +124,14 @@ public class SceneObjectFadeTests
     }
 
     [Fact]
-    public void ThePathLightsKeepTheirLevelsUnderTheNearestDetail()
+    public void TheNearestDetailPassesOverAnEmptyLevel()
     {
-        var light = Tree(Vector3.Zero, SceneObjectFlags.Solid) with { GoesOut = true };
+        var tree = Tree(Vector3.Zero, SceneObjectFlags.Solid);
+        var light = tree with { Models = [tree.Models[0] with { Empty = true }, tree.Models[1]] };
         var nearest = new DrawDistance(NearestDetail: true);
-        Assert.Equal(At(light, 20), At(light, 20, nearest));
+        Assert.Equal([0, 255], At(light, 2, nearest));
         Assert.Equal([0, 255], At(light, 20, nearest));
+        Assert.Equal([0, 127], At(light, 39.5f, nearest));
     }
 
     private static readonly FlagGate Always = new(RecordId.Decimal(RecordTypes.Flag, 0), true);

@@ -549,6 +549,15 @@ public sealed class MapObjectImportTests(MapObjectFixture fixture)
     }
 
     [Fact]
+    public void OnlyThePathLightsFirstLevelDrawsNothing()
+    {
+        // 0x1910 is a grey quad whose Borg2 (0x190F) is hidden, so the game skips its only draw.
+        var empty = Data.Of<SceneObject>().SelectMany(o => o.Object.Models).Where(m => m.Empty).Select(m => m.Model).Distinct();
+        Assert.Equal([RecordId.Hex(RecordTypes.Scene, 0x1910)], empty);
+        Assert.All(Data.Of<SceneObject>().Where(o => o.Object.GoesOut), l => Assert.Equal([true, false], l.Object.Models.Select(m => m.Empty)));
+    }
+
+    [Fact]
     public void APathLightInI08GoesOutAsThePlayerReachesItAndStaysOut()
     {
         var game = Core.GameState.NewGame(Data.Set);

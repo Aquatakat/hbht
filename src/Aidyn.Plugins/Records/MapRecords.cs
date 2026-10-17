@@ -243,7 +243,16 @@ public enum SceneObjectFlags
 /// <summary>A model, or one level of detail of one.</summary>
 /// <param name="Model">A scene, or an actor.</param>
 /// <param name="DrawDistance">Drawn out to this far from the camera, and from 2 short of the previous level's distance.</param>
-public sealed record SceneModel(RecordId Model, float DrawDistance);
+public sealed record SceneModel(RecordId Model, float DrawDistance)
+{
+    /// <summary>
+    /// The scene draws nothing: every draw is one the game skips, as a hidden model's. The first level of Oriana's
+    /// path lights (<c>0x1910</c>) is one, a grey quad whose model is hidden, which only marks where the light goes
+    /// out. The nearest detail passes over it.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Empty { get; init; }
+}
 
 /// <summary>
 /// A model placed in the chunk: scaled, then rotated, then moved to <see cref="MapObject.Position"/>.
