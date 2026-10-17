@@ -432,7 +432,7 @@ public partial class PauseMenu : CanvasLayer
             return;
         if (Tab == PauseTab.System && !_system!.Menu.OnList)
             return;
-        if (Tab == PauseTab.Party && (_view!.Menu.Message is not null || _view.Menu.Crafting is not null))
+        if (Tab == PauseTab.Party && _view!.Menu.HasPopup)
             return;
         if (Tab == PauseTab.World && (_world!.Menu.Message is not null || _world.Menu.Journal is not null))
             return;

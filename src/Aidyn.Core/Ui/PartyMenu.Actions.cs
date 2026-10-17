@@ -23,6 +23,11 @@ namespace Aidyn.Core.Ui;
 /// message closes with A, B or C-down; one a crafting popup shows closes that popup too, so each opening
 /// does one task.
 /// </para>
+/// <para>
+/// A crafting popup and C-down's details fade in as they open and out as they close (<see cref="PopupFade"/>), and
+/// while either fades, no press reaches it or the tab under it, as the original's handler gives them to the top widget
+/// only once it's open. The details take the presses while they show, and do nothing with them.
+/// </para>
 /// </remarks>
 public sealed partial class PartyMenu
 {
@@ -35,42 +40,78 @@ public sealed partial class PartyMenu
     /// <summary>A message over everything, which A, B or C-down closes.</summary>
     public MenuMessage? Message { get; private set; }
 
-    /// <summary>A skill's popup, under any message.</summary>
+    /// <summary>A skill's popup, under any message, kept while it fades out.</summary>
     public CraftingMenu? Crafting { get; private set; }
 
-    /// <summary>Whether a popup is taking the presses.</summary>
-    public bool HasPopup => Message is not null || Crafting is not null;
+    /// <summary>C-down's details, over the tab or the crafting popup.</summary>
+    public DetailsPane DetailsPane { get; } = new();
+
+    /// <summary>Whether a popup or the details are taking the presses, fading or not.</summary>
+    public bool HasPopup => Message is not null || Crafting is not null || DetailsPane.Showing;
+
+    /// <summary>The crafting popup, if it's open and nothing over it takes the presses.</summary>
+    private CraftingMenu? OpenCraftingPopup => Crafting is { Fade.IsOpen: true } crafting && !DetailsPane.Showing ? crafting : null;
+
+    /// <summary>
+    /// C-down pressed: shows the details of the cursor's row, or of the crafting popup's recipe, unless a popup is
+    /// fading or the details already show. A message closes first (<see cref="CloseMessage"/>).
+    /// </summary>
+    public void PressDetails() =>
+        DetailsPane.Press(Message is null && (Crafting is null || OpenCraftingPopup is not null) && Details() is not null);
+
+    /// <summary>C-down let go: the details fade out once they're open.</summary>
+    public void ReleaseDetails() => DetailsPane.Release();
+
+    /// <summary>Steps the crafting popup's and the details' fades by a tick, dropping the popup once it's gone.</summary>
+    private void StepPopups()
+    {
+        if (Crafting is { } crafting)
+        {
+            crafting.Fade.Advance();
+            if (crafting.Fade.IsGone)
+                Crafting = null;
+        }
+        DetailsPane.Advance();
+    }
 
     /// <summary>A: closes a message, chooses in a popup, or uses the cursor's row.</summary>
     public void Accept()
     {
         if (Message is not null)
             CloseMessage();
-        else if (Crafting is { } crafting)
-            Choose(crafting);
+        else if (DetailsPane.Showing)
+            return;
+        else if (Crafting is not null)
+        {
+            if (OpenCraftingPopup is { } crafting)
+                Choose(crafting);
+        }
         else if (List == PartyList.Inventory && Inventory.Current is { } item)
             Use(item);
         else if (List == PartyList.Skills && Skills.Current is { } skill)
             OpenCrafting(skill.Skill);
     }
 
-    /// <summary>B: closes the message or the popup. False if there's none, so B closes the menu.</summary>
+    /// <summary>
+    /// B: closes the message, or fades the popup out (<c>MenuPopup.OnB</c>, <c>0x80055e10</c>). False if there's none and
+    /// the details don't show, so B closes the menu.
+    /// </summary>
     public bool Back()
     {
         if (Message is not null)
             CloseMessage();
-        else if (Crafting is not null)
-            Crafting = null;
-        else
+        else if (OpenCraftingPopup is { } crafting)
+            crafting.Fade.Close();
+        else if (Crafting is null && !DetailsPane.Showing)
             return false;
         return true;
     }
 
-    /// <summary>Closes the message, and the crafting popup under it if it showed its result (A, B or C-down).</summary>
+    /// <summary>Closes the message, and fades out the crafting popup under it if it showed its result (A, B or C-down).</summary>
     public void CloseMessage()
     {
         if (Message is { FromCrafting: true })
-            Crafting = null;
+            Crafting?.Fade.Close();
         Message = null;
     }
 

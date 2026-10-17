@@ -79,12 +79,7 @@ public partial class PartyTabView
         Items(barter.Pile, _pileBounds, _ui.Slim, pile);
         _ui.Text(_canvas, _ui.Slim, barter.PileLine, ClassicGoldLine.X, ClassicGoldLine.Y, PartyMenu.TextColor);
 
-        // C-down's details cover the pile while it's held, as WidgetItemDetail covers WidgetBarter.
-        if (DetailsOpen && barter.Details() is { } details)
-        {
-            _ui.Parchment(_canvas, ClassicParchment.X, ClassicParchment.Y);
-            Details(details, ClassicDetails, _ui.Slim);
-        }
+        // C-down's details cover the pile, as WidgetItemDetail covers WidgetBarter, on their own layer (DrawDetails).
         if (barter.Help is { } help)
             Help(help);
     }

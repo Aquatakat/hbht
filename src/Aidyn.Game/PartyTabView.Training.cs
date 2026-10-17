@@ -73,11 +73,7 @@ public partial class PartyTabView
             y += _ui.Main.LineHeight;
         }
 
-        if (DetailsOpen && training.Details() is { } details)
-        {
-            _ui.Parchment(_canvas, ClassicParchment.X, ClassicParchment.Y);
-            Details(details, ClassicDetails, _ui.Slim);
-        }
+        // C-down's details cover the trainer's list on their own layer (DrawDetails).
         if (training.Help is { } help)
             Help(help);
     }

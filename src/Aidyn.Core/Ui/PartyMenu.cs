@@ -24,8 +24,8 @@ public enum PartyList
 /// <remarks>
 /// C-left and C-right change the member (<c>CHorizontal</c>), and the stick changes the list
 /// (<c>DollMenuLists::LRToggle</c>). Changing either keeps each list's cursor, as the original
-/// rebuilds the lists in place. Both are animated (<c>PartyMenu.Motion.cs</c>); the details' parchment fading in
-/// isn't ported yet.
+/// rebuilds the lists in place. Both are animated (<c>PartyMenu.Motion.cs</c>), and the details and the skills'
+/// popups fade (<see cref="PopupFade"/>).
 /// </remarks>
 public sealed partial class PartyMenu
 {
@@ -194,11 +194,12 @@ public sealed partial class PartyMenu
     /// <summary>Moves the cursor of the popup, or of the list showing.</summary>
     public void MoveCursor(int by)
     {
-        if (Message is not null)
+        if (Message is not null || DetailsPane.Showing)
             return;
         if (Crafting is { } crafting)
         {
-            crafting.Rows.Move(by);
+            if (crafting.Fade.IsOpen)
+                crafting.Rows.Move(by);
             return;
         }
         switch (List)
@@ -213,11 +214,12 @@ public sealed partial class PartyMenu
     /// <summary>Puts the cursor of the popup, or of the list showing, on a row.</summary>
     public void Point(int row)
     {
-        if (Message is not null)
+        if (Message is not null || DetailsPane.Showing)
             return;
         if (Crafting is { } crafting)
         {
-            crafting.Rows.Point(row);
+            if (crafting.Fade.IsOpen)
+                crafting.Rows.Point(row);
             return;
         }
         switch (List)
@@ -270,7 +272,8 @@ public sealed partial class PartyMenu
     }
 
     /// <summary>
-    /// Steps the cursor's pulse, and the member's and list's changes, by a tick. The pulse steps twice a frame, as each
+    /// Steps the cursor's pulse, the member's and list's changes, and the popup's and details' fades, by a tick. The
+    /// fades step once a menu update, a tick (<see cref="PopupFade"/>). The pulse steps twice a frame, as each
     /// of the original's lists steps its scroll menu twice (<c>PartyMenu.ListBaseStep</c>, <c>0x80030888</c>, ends by
     /// stepping the list's children, and the list's own step steps them again, as at <c>0x80035770</c>): 19 frames a
     /// cycle, 3.2 a second, which the user timed at about 3.4 (Oct 16, 2026), twice the other menus'.
@@ -279,6 +282,7 @@ public sealed partial class PartyMenu
     {
         _pulse.Step();
         _pulse.Step();
+        StepPopups();
         if (++_ticks % Cadence.MenuFrameTicks == 0)
             StepMotion();
     }

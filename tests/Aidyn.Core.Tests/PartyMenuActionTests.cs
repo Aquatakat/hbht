@@ -345,6 +345,14 @@ public class PartyMenuActionTests
         menu.ShowList(PartyList.Skills);
         menu.Point(menu.Skills.Rows.Select((r, i) => (r, i)).First(e => e.r.Skill == skill).i);
         menu.Accept();
+        Fade(menu);
+    }
+
+    /// <summary>Steps the menu the five ticks a popup takes to fade fully in, or out from open (<see cref="PopupFade"/>).</summary>
+    private static void Fade(PartyMenu menu)
+    {
+        for (var i = 0; i < 5; i++)
+            menu.Step();
     }
 
     /// <summary>
@@ -371,6 +379,8 @@ public class PartyMenuActionTests
         Assert.Contains(menu.Inventory.Rows, r => r.Item.Id == Potions.Id(Potion.Strength));
 
         menu.Accept();
+        Assert.True(menu.HasPopup);
+        Fade(menu);
         Assert.False(menu.HasPopup);
     }
 
@@ -436,6 +446,7 @@ public class PartyMenuActionTests
             menu.Crafting!.Rows.Rows.Select(r => int.Parse(r.Text.Split('|')[0], System.Globalization.CultureInfo.InvariantCulture)));
 
         menu.Accept();
+        Fade(menu);
         var targets = menu.Crafting!;
         Assert.Equal(CraftingTask.LayOnHands, targets.Task);
         Assert.Equal(["Brenna"], targets.Rows.Rows.Select(r => r.Text));
@@ -448,6 +459,7 @@ public class PartyMenuActionTests
         Assert.Equal(healer.Stats.Base(Stat.Stamina) - 3, healer.Stats.Modified(Stat.Stamina));
 
         menu.Accept();
+        Fade(menu);
         Assert.False(menu.HasPopup);
     }
 
@@ -462,10 +474,12 @@ public class PartyMenuActionTests
         OpenSkill(menu, Skill.Healer);
         menu.Point(2);
         menu.Accept();
+        Fade(menu);
         Assert.Equal(CraftingTask.Restore, menu.Crafting!.Task);
         Assert.Equal(["Alaron"], menu.Crafting.Rows.Rows.Select(r => r.Text));
 
         menu.Accept();
+        Fade(menu);
         Assert.Equal(CraftingTask.RestoreStat, menu.Crafting!.Task);
         Assert.Equal(PartyMenu.RestoreOrder.Select(s => s.ToString()), menu.Crafting.Rows.Rows.Select(r => r.Text));
 
@@ -474,7 +488,7 @@ public class PartyMenuActionTests
         Assert.True(party.Inventory.Has(TradeData.Herb.Id));
     }
 
-    /// <summary>B closes a popup at any depth, and the stick moves its cursor rather than the list's.</summary>
+    /// <summary>B fades a popup out at any depth, and the stick moves its cursor rather than the list's.</summary>
     [Fact]
     public void BClosesAPopupAndTheStickMovesItsCursor()
     {
@@ -489,6 +503,8 @@ public class PartyMenuActionTests
         Assert.Equal(PartyList.Skills, menu.List);
 
         Assert.True(menu.Back());
+        Assert.NotNull(menu.Crafting);
+        Fade(menu);
         Assert.Null(menu.Crafting);
     }
 
@@ -505,5 +521,121 @@ public class PartyMenuActionTests
 
         Assert.False(menu.HasPopup);
         Assert.Equal(hp, member.Hp);
+    }
+
+    /// <summary>
+    /// While a popup fades in, no press reaches it or the tab: the stick, A and B do nothing, and B doesn't close the
+    /// menu. Once it's open it takes them; B fades it out, and while it does, nothing reaches it or the tab either.
+    /// </summary>
+    [Fact]
+    public void APopupTakesNoPressesWhileItFades()
+    {
+        var (party, _) = Setup(new SkillLevels(Healer: 2));
+        var menu = Menu(party);
+        menu.ShowList(PartyList.Skills);
+        menu.Point(menu.Skills.Rows.Select((r, i) => (r, i)).First(e => e.r.Skill == Skill.Healer).i);
+        menu.Accept();
+        var popup = menu.Crafting!;
+        var listCursor = menu.Skills.Cursor;
+
+        for (var i = 0; i < 4; i++)
+        {
+            menu.Step();
+            menu.MoveCursor(1);
+            menu.Accept();
+            Assert.True(menu.Back());
+            menu.ChangeList(1);
+            Assert.Equal((0, listCursor, PartyList.Skills, PopupFadeState.Opening), (popup.Rows.Cursor, menu.Skills.Cursor, menu.List, popup.Fade.State));
+            Assert.Same(popup, menu.Crafting);
+        }
+        menu.Step();
+        Assert.True(popup.Fade.IsOpen);
+        menu.MoveCursor(1);
+        Assert.Equal(1, popup.Rows.Cursor);
+
+        Assert.True(menu.Back());
+        menu.Step();
+        menu.MoveCursor(1);
+        menu.Accept();
+        Assert.True(menu.Back());
+        Assert.Equal((1, PopupFadeState.Closing, 195), (popup.Rows.Cursor, popup.Fade.State, popup.Fade.Alpha));
+        for (var i = 0; i < 4; i++)
+            menu.Step();
+        Assert.Null(menu.Crafting);
+        Assert.False(menu.HasPopup);
+    }
+
+    /// <summary>
+    /// C-down tapped and let go at once still fades the details fully in, and then straight out; while they show, the
+    /// tab takes no presses, and B doesn't close the menu.
+    /// </summary>
+    [Fact]
+    public void AQuickTapOfCDownFadesTheDetailsInThenOut()
+    {
+        var (party, _) = Setup();
+        var menu = Menu(party);
+        menu.ShowList(PartyList.Stats);
+        var cursor = menu.Stats.Cursor;
+
+        menu.PressDetails();
+        menu.ReleaseDetails();
+        var alphas = new List<int>();
+        while (menu.DetailsPane.Showing)
+        {
+            menu.Step();
+            alphas.Add(menu.DetailsPane.Alpha);
+            if (!menu.DetailsPane.Showing)
+                break;
+            menu.MoveCursor(1);
+            Assert.True(menu.Back());
+        }
+
+        Assert.Equal([60, 120, 180, 240, 255, 195, 135, 75, 15, 0], alphas);
+        Assert.Equal(cursor, menu.Stats.Cursor);
+        Assert.False(menu.Back());
+    }
+
+    /// <summary>Held, the details stay open; let go, they fade out. Pressing again while they fade doesn't reopen them.</summary>
+    [Fact]
+    public void TheDetailsStayWhileCDownIsHeld()
+    {
+        var (party, _) = Setup();
+        var menu = Menu(party);
+        menu.ShowList(PartyList.Stats);
+
+        menu.PressDetails();
+        for (var i = 0; i < 20; i++)
+            menu.Step();
+        Assert.Equal((PopupFadeState.Open, 255), (menu.DetailsPane.Fade!.State, menu.DetailsPane.Alpha));
+
+        // Let go, they start out on the next update, and fade from the one after.
+        menu.ReleaseDetails();
+        menu.Step();
+        Assert.Equal((PopupFadeState.Closing, 255), (menu.DetailsPane.Fade!.State, menu.DetailsPane.Alpha));
+        menu.Step();
+        Assert.Equal(195, menu.DetailsPane.Alpha);
+        menu.PressDetails();
+        for (var i = 0; i < 4; i++)
+            menu.Step();
+        Assert.False(menu.DetailsPane.Showing);
+    }
+
+    /// <summary>C-down shows nothing over a popup that's still fading in.</summary>
+    [Fact]
+    public void TheDetailsWaitForThePopupToOpen()
+    {
+        var (party, _) = Setup(new SkillLevels(Alchemist: 2));
+        party.Inventory!.Add(TradeData.Herb.Id);
+        var menu = Menu(party, Strength);
+        menu.ShowList(PartyList.Skills);
+        menu.Point(menu.Skills.Rows.Select((r, i) => (r, i)).First(e => e.r.Skill == Skill.Alchemist).i);
+        menu.Accept();
+
+        menu.PressDetails();
+        Assert.False(menu.DetailsPane.Showing);
+        menu.ReleaseDetails();
+        Fade(menu);
+        menu.PressDetails();
+        Assert.True(menu.DetailsPane.Showing);
     }
 }

@@ -66,7 +66,7 @@ public sealed record CraftingRow(string Text, RecipeRecord? Recipe = null, Craft
 
 /// <summary>
 /// A skill's popup on the parchment the details use (<c>WidgetCrafting</c>): a title over a list with a
-/// cursor. A does the row's task, C-down shows a recipe's product, and B closes it.
+/// cursor. A does the row's task, C-down shows a recipe's product, and B fades it out.
 /// </summary>
 /// <param name="user">The party slot of the member using the skill.</param>
 /// <param name="target">For <see cref="CraftingTask.RestoreStat"/>, the member being restored.</param>
@@ -82,6 +82,9 @@ public sealed class CraftingMenu(CraftingTask task, string title, IReadOnlyList<
     public int User { get; } = user;
 
     public int? Target { get; } = target;
+
+    /// <summary>How far it's faded in or out: it opens from nothing, and takes presses only once it's open.</summary>
+    public PopupFade Fade { get; } = new();
 
     /// <summary>Whether the rows are members, with their portraits.</summary>
     public bool ListsMembers => Task is CraftingTask.LayOnHands or CraftingTask.HealWithHerbs or CraftingTask.Restore;

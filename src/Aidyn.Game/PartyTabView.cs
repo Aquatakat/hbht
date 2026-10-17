@@ -96,7 +96,13 @@ public partial class PartyTabView : Control
     /// <summary>The Party tab's list, cut to <see cref="ListClip"/>, over the tab's image and header.</summary>
     private readonly Control _listClip = new() { Name = "List", ClipContents = true, MouseFilter = MouseFilterEnum.Ignore };
     private readonly Control _listLayer = new() { MouseFilter = MouseFilterEnum.Ignore };
-    /// <summary>What's drawn over the list: the popups, the details, the veil and the messages.</summary>
+    /// <summary>
+    /// The Party tab's skill popup and, over it, C-down's details, each over the list on a layer of its own, whose
+    /// modulate is its fade's alpha (<see cref="PopupFade"/>), so the alpha multiplies every colour drawn on it.
+    /// </summary>
+    private readonly Control _craftingLayer = new() { Name = "Crafting", MouseFilter = MouseFilterEnum.Ignore };
+    private readonly Control _detailsLayer = new() { Name = "Details", MouseFilter = MouseFilterEnum.Ignore };
+    /// <summary>What's drawn over those: the veil and the messages.</summary>
     private readonly Control _overlay = new() { Name = "Overlay", MouseFilter = MouseFilterEnum.Ignore };
 
     public PartyTabView(PluginSet plugins, PartyMenu menu)
@@ -110,8 +116,13 @@ public partial class PartyTabView : Control
         _listClip.AddChild(_listLayer);
         AddChild(_listClip);
         _listLayer.Draw += DrawLists;
-        _overlay.SetAnchorsPreset(LayoutPreset.FullRect);
-        AddChild(_overlay);
+        foreach (var layer in new[] { _craftingLayer, _detailsLayer, _overlay })
+        {
+            layer.SetAnchorsPreset(LayoutPreset.FullRect);
+            AddChild(layer);
+        }
+        _craftingLayer.Draw += DrawCrafting;
+        _detailsLayer.Draw += DrawDetails;
         _overlay.Draw += DrawOverlay;
         // The veil's image is made now, as the menu first opens, rather than as a tab is first slid from.
         _ui.Images.Plain(MenuImages.PartyTab, PlainPatches);
@@ -120,8 +131,29 @@ public partial class PartyTabView : Control
     /// <summary>The tab's state, which the runtime's menu starts afresh each time it opens.</summary>
     public PartyMenu Menu { get; set; }
 
-    /// <summary>Whether C-down's details are showing, as they do while it's held.</summary>
-    public bool DetailsOpen { get; set; }
+    /// <summary>
+    /// Whether C-down is held, set as it's pressed and let go: pressing it opens the details of the barter state, the
+    /// training state or the tab, which fade out once they're open and it's let go (<see cref="DetailsPane"/>).
+    /// </summary>
+    public bool DetailsOpen
+    {
+        get => Pane.Held;
+        set
+        {
+            if (value && Barter is { } barter)
+                barter.PressDetails();
+            else if (value && Training is { } training)
+                training.PressDetails();
+            else if (value)
+                Menu.PressDetails();
+            else
+                Pane.Release();
+            QueueRedraw();
+        }
+    }
+
+    /// <summary>The details of the state showing: barter's, training's, or the tab's.</summary>
+    private DetailsPane Pane => Barter?.DetailsPane ?? Training?.DetailsPane ?? Menu.DetailsPane;
 
     /// <summary>Whether combat opened the menu, which turns the arrow under the knotwork to point left only.</summary>
     public bool InCombat { get; set; }
@@ -218,6 +250,10 @@ public partial class PartyTabView : Control
     public override void _Draw()
     {
         _listLayer.QueueRedraw();
+        _craftingLayer.Modulate = Faded(OwnTab ? Menu.Crafting?.Fade.Alpha ?? 0 : 0);
+        _detailsLayer.Modulate = Faded(Pane.Alpha);
+        _craftingLayer.QueueRedraw();
+        _detailsLayer.QueueRedraw();
         _overlay.QueueRedraw();
         if (Menu.Shown is null)
             return;
@@ -259,9 +295,38 @@ public partial class PartyTabView : Control
         static ScreenRect Shifted(ScreenRect b, int by) => new(b.Left + by, b.Top, b.Right + by, b.Bottom);
     }
 
+    /// <summary>A layer's modulate for a fade's alpha.</summary>
+    private static Color Faded(int alpha) => new(1, 1, 1, alpha / 255f);
+
+    /// <summary>The Party tab's skill popup, as it fades.</summary>
+    private void DrawCrafting()
+    {
+        if (Menu.Shown is null || !OwnTab || Menu.Crafting is not { } crafting)
+            return;
+        _canvas = _craftingLayer;
+        _craftingLayer.DrawSetTransform(_origin);
+        Crafting(crafting);
+    }
+
     /// <summary>
-    /// Over the list: the Party tab's popup and details, then the veil, and the messages and popups at the screen's centre.
-    /// The veil is the tab's own image with its painted layout covered by plain parchment (<see cref="PlainPatches"/>),
+    /// C-down's details on the parchment over the silhouette, as they fade: over the barter state's pile, the trainer's
+    /// list, or the tab and its skill popup (<c>WidgetItemDetail</c>).
+    /// </summary>
+    private void DrawDetails()
+    {
+        if (Menu.Shown is null || !Pane.Showing)
+            return;
+        var details = Barter is { } barter ? barter.Details() : Training is { } training ? training.Details() : Menu.Details();
+        if (details is null)
+            return;
+        _canvas = _detailsLayer;
+        _detailsLayer.DrawSetTransform(_origin);
+        _ui.Parchment(_canvas, ClassicParchment.X, ClassicParchment.Y);
+        Details(details, ClassicDetails, _ui.Slim);
+    }
+
+    /// <summary>
+    /// Over the popup and the details: the veil, and the messages and popups at the screen's centre. The veil is the tab's own image with its painted layout covered by plain parchment (<see cref="PlainPatches"/>),
     /// over everything on the tab, so the widgets and the layout fade into the parchment alike. Drawing the image itself
     /// left what's painted into it as strong as ever.
     /// </summary>
@@ -271,16 +336,6 @@ public partial class PartyTabView : Control
             return;
         _canvas = _overlay;
         _overlay.DrawSetTransform(_origin);
-        if (OwnTab)
-        {
-            if (Menu.Crafting is { } crafting)
-                Crafting(crafting);
-            if (DetailsOpen && Menu.Details() is { } details)
-            {
-                _ui.Parchment(_canvas, ClassicParchment.X, ClassicParchment.Y);
-                Details(details, ClassicDetails, _ui.Slim);
-            }
-        }
         if (Veil > 0)
             _ui.Plain(_canvas, MenuImages.PartyTab, PlainPatches, 0, 0, new Rgba(255, 255, 255, (byte)(Veil * 255)));
         _overlay.DrawSetTransform(Vector2.Zero);

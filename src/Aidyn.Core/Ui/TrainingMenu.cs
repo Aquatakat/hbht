@@ -93,7 +93,17 @@ public sealed class TrainingMenu
     /// <summary>The help on the first spell learnt, on the parchment, which A or B closes (<c>WidgetMenuPrompt</c>).</summary>
     public string? Help { get; private set; }
 
-    public bool HasPopup => Message is not null || Choice is not null || Help is not null;
+    /// <summary>Whether a popup or the details are taking the presses.</summary>
+    public bool HasPopup => Message is not null || Choice is not null || Help is not null || DetailsPane.Showing;
+
+    /// <summary>C-down's details of the active row, which fade as the Party tab's do (<see cref="PopupFade"/>).</summary>
+    public DetailsPane DetailsPane { get; } = new();
+
+    /// <summary>C-down pressed: shows the details, unless a popup is up or they show already.</summary>
+    public void PressDetails() => DetailsPane.Press(!HasPopup && Details() is not null);
+
+    /// <summary>C-down let go: the details fade out once they're open.</summary>
+    public void ReleaseDetails() => DetailsPane.Release();
 
     /// <summary>The colour the popups' cursors pulse to now.</summary>
     public Rgba PopupHighlight => _popupPulse.Now(MenuPulse.ScrollFrom, MenuPulse.ScrollTo);
@@ -185,11 +195,12 @@ public sealed class TrainingMenu
         return null;
     }
 
-    /// <summary>Steps the cursors' pulses by a tick.</summary>
+    /// <summary>Steps the cursors' pulses and the details' fade by a tick.</summary>
     public void Step()
     {
         Party.Step();
         _popupPulse.Step();
+        DetailsPane.Advance();
     }
 
     /// <summary>A: closes a message or the help, chooses Yes or No, or asks to train the trainer's row.</summary>
@@ -201,7 +212,7 @@ public sealed class TrainingMenu
             Help = null;
         else if (Choice is { } choice)
             Choose(choice);
-        else
+        else if (!DetailsPane.Showing)
             Ask();
     }
 
@@ -212,7 +223,7 @@ public sealed class TrainingMenu
             Message = null;
         else if (Help is not null)
             Help = null;
-        else if (Choice is null)
+        else if (Choice is null && !DetailsPane.Showing)
             return false;
         return true;
     }

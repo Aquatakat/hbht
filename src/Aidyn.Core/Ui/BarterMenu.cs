@@ -144,7 +144,17 @@ public sealed class BarterMenu
     /// <summary>Whether to leave the items that are left.</summary>
     public MenuChoice? Choice { get; private set; }
 
-    public bool HasPopup => Message is not null || Help is not null || Confirm is not null || Choice is not null;
+    /// <summary>Whether a popup or the details are taking the presses.</summary>
+    public bool HasPopup => Message is not null || Help is not null || Confirm is not null || Choice is not null || DetailsPane.Showing;
+
+    /// <summary>C-down's details of the active row, which fade as the Party tab's do (<see cref="PopupFade"/>).</summary>
+    public DetailsPane DetailsPane { get; } = new();
+
+    /// <summary>C-down pressed: shows the details, unless a popup is up or they show already.</summary>
+    public void PressDetails() => DetailsPane.Press(!HasPopup && Details() is not null);
+
+    /// <summary>C-down let go: the details fade out once they're open.</summary>
+    public void ReleaseDetails() => DetailsPane.Release();
 
     /// <summary>Whether the window closed itself: the party chose to leave the loot's items.</summary>
     public bool Closed { get; private set; }
@@ -189,11 +199,12 @@ public sealed class BarterMenu
     /// <summary>What C-down shows for the active list's row.</summary>
     public MenuDetails? Details() => (OnPile ? Pile : Party.Inventory).Current is { } row ? Party.ItemDetails(row.Instance) : null;
 
-    /// <summary>Steps the cursors' pulses by a tick.</summary>
+    /// <summary>Steps the cursors' pulses and the details' fade by a tick.</summary>
     public void Step()
     {
         Party.Step();
         _popupPulse.Step();
+        DetailsPane.Advance();
     }
 
     /// <summary>A: closes a message or the help, chooses in a popup, or takes, buys, drops or sells the active row.</summary>
@@ -207,6 +218,8 @@ public sealed class BarterMenu
             Trade(confirm);
         else if (Choice is { } choice)
             Leave(choice);
+        else if (DetailsPane.Showing)
+            return;
         else if (OnPile)
             Take();
         else
@@ -224,7 +237,7 @@ public sealed class BarterMenu
             Message = null;
         else if (Help is not null)
             Help = null;
-        else if (Confirm is not null || Choice is not null)
+        else if (Confirm is not null || Choice is not null || DetailsPane.Showing)
             return true;
         else if (Loot is null || Loot.Loot.Stacks.Count == 0)
             return false;

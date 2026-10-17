@@ -74,6 +74,33 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     private static int WornRow(BarterMenu menu, RecordId item) =>
         menu.Party.Inventory.Rows.Select((r, i) => (r, i)).First(e => e.r.Wearer is not null && e.r.Item.Id == item).i;
 
+    /// <summary>
+    /// The loot window's details fade as the Party tab's do, and while they show, A takes nothing and B neither asks
+    /// nor closes the window.
+    /// </summary>
+    [Fact]
+    public void TheDetailsFadeAndTakeThePressesWhileTheyShow()
+    {
+        var (menu, _, loot, _) = Open(fill: p => p.Add(TradeData.Leather.Id, 2));
+
+        menu.PressDetails();
+        menu.ReleaseDetails();
+        var alphas = new List<int>();
+        while (menu.DetailsPane.Showing)
+        {
+            menu.Step();
+            alphas.Add(menu.DetailsPane.Alpha);
+            if (!menu.DetailsPane.Showing)
+                break;
+            menu.Accept();
+            Assert.True(menu.Back());
+            Assert.Null(menu.Choice);
+        }
+
+        Assert.Equal([60, 120, 180, 240, 255, 195, 135, 75, 15, 0], alphas);
+        Assert.Equal(2, loot.Stacks.Sum(s => s.Quantity));
+    }
+
     [Fact]
     public void ThePilesRowsAreSortedAsTheInventoryIsWithNoWearer()
     {
