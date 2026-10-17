@@ -22,10 +22,8 @@ This is the one list of what's open. A task's status is in its phase's table bel
 
 ### Next
 
-1. **1D Audio:** the runtime plays the music by chunk, the map's sound objects, the menus', scripts' and containers' one-shots, and bodies' footsteps and voices. Next, the user listens against the emulator, with [to-check](to-check.md)'s audio entries. What's left plays with what isn't ported yet: the title, the cinematics, combat, the weather and the cheats ([audio](systems/audio.md#not-played-yet)).
-2. **UI fit and finish:** Menu animations, console-accurate corrections to certain menus, sounds. The pause menu's opening and closing (the world darkening, the 3D scroll unrolling and rolling up) and its tabs' slide are done (Oct 12, 2026); the Party tab's list and portraits' slides and the details' and popups' fades are left.
-3. **Rendering leftovers,** including weather.
-4. **Any other odds and ends,** including shop selling prices.
+1. **Rendering leftovers,** including weather.
+2. **Any other odds and ends,** including shop selling prices.
 
 Once every system built so far is at least at parity with the original, we'll move onto M3 Fight:
 
@@ -46,15 +44,6 @@ Once every system built so far is at least at parity with the original, we'll mo
 - **1H:** the content tables marked To do in [hardcoded-content](hardcoded-content.md), which the importer will need.
 - **Rendering:** the renderer's leftovers, the weather among them ([rendering](systems/rendering.md#whats-left)).
 - **Rig:** measure the frame `delta` distribution in trek and combat ([ADR 0006](adr/0006-tick-model-and-rng.md)'s follow-up).
-
-### UI fit and finish
-
-These are the user's notes ([playtests](playtests.md)), for a later session.
-
-- The Party tab's shield icon on the silhouette sits 2 pixels too high.
-- The menu's animations (the list sliding in, the portraits moving, the details fading) draw the eye to where the controller has moved. Keep the top face button for details and the shoulders for the member.
-- The Healer's popup needs a gap between its members' portraits, which overlap by 2 pixels (`roms/menu-party-skills-healer-layonhands.png`).
-- Some map areas may not unlock by travelling into them, specifically the stone area north of the desert via the eastern beach. This may be how the original behaves.
 
 ### Maybe
 
