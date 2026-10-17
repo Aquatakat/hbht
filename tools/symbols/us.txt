@@ -197,6 +197,7 @@ Minimap.Select = 0x8004b96c; // Minimap.cs
 Minimap.SelectBarrows = 0x8004bfac; // coined; MinimapImporter.cs
 Plane.SetDrawState = 0x8004c350; // coined; docs/systems/movement.md
 Plane.Draw = 0x8004c4a4; // coined; docs/systems/movement.md
+Rgba.Scale = 0x8004d220; // coined; docs/systems/rendering.md: an RGBA's four bytes times a float, which SetSceneColors gives the screen fade's brightness
 Audio.PlaceSound = 0x8004dd50; // coined; docs/systems/audio.md
 Audio.ShiftSounds = 0x8004dda8; // coined; docs/systems/audio.md
 Audio.LoadSound = 0x8004de58; // coined; docs/systems/audio.md

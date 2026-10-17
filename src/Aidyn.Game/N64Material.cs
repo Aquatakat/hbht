@@ -232,9 +232,14 @@ internal static class N64Material
         SetOnMeshes(root, "own_light2_direction", second.Toward.Normalized());
     }
 
-    /// <summary>Gives every mesh under <paramref name="root"/> a scene object's tint, which the original averages with the scenery's.</summary>
+    /// <summary>
+    /// Gives every mesh under <paramref name="root"/> a scene object's tint, which the original averages with the
+    /// scenery's. It's set as a <see cref="Vector4"/>: Godot turns a <see cref="Color"/> given to an instance
+    /// uniform linear, which made Oriana's path lights' pale cyan (153, 236, 255) come out as (81, 214, 255), so
+    /// their red was a fifth short and they looked bluer than the N64's.
+    /// </summary>
     public static void SetObjectTint(Node root, Color onScreen) =>
-        SetOnMeshes(root, ObjectTintParameter, new Color(onScreen, 1));
+        SetOnMeshes(root, ObjectTintParameter, new Vector4(onScreen.R, onScreen.G, onScreen.B, 1));
 
     private static void SetOnMeshes(Node root, string parameter, Variant value)
     {
