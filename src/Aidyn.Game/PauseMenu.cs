@@ -24,9 +24,15 @@ public enum PauseTab
 /// </summary>
 /// <remarks>
 /// <para>
-/// Opening, the world as it was drawn freezes and darkens to half over 13 frames, and then the 3D scroll
+/// Opening, the world freezes and darkens to half over 13 frames, and then the 3D scroll
 /// (<see cref="PauseScrollView"/>) unrolls with the tabs between its rollers; closing, it rolls up and the world
 /// brightens again (<see cref="PauseScroll"/>). The menu takes input only while it's open.
+/// </para>
+/// <para>
+/// The world behind it isn't a picture: the game stops trek and its scenery's animations, and goes on drawing the
+/// world and the HUD as they stand, under a black layer as dark as the tint, which darkens them as multiplying by
+/// the tint would. So the window's size and the menu size setting redraw them as they change, as they would in
+/// trek.
 /// </para>
 /// <para>
 /// Z or L, and R, change the tab, which slides over 32 frames, as the original's moves 10 pixels a frame across its
@@ -82,12 +88,14 @@ public partial class PauseMenu : CanvasLayer
     private readonly UiScreen _screen = new() { ForwardsMouse = true };
     private readonly MenuStick _stick;
     private readonly TextLayout _mainFont;
-    /// <summary>The world as it was when the menu opened, darkened behind it (<c>GetSnapShot</c>, <c>PauseMenu.DrawBackdrop</c>).</summary>
-    private readonly TextureRect _backdrop = new()
+    /// <summary>
+    /// What darkens the world behind the menu, still as the game stops it (<c>GetSnapShot</c>,
+    /// <c>PauseMenu.DrawBackdrop</c>): black at one less the tint, over everything under the menu.
+    /// </summary>
+    private readonly ColorRect _darkness = new()
     {
-        Name = "Backdrop",
-        ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
-        StretchMode = TextureRect.StretchModeEnum.Scale,
+        Name = "Darkness",
+        Color = Colors.Transparent,
         MouseFilter = Control.MouseFilterEnum.Ignore,
     };
     /// <summary>The tabs, cut to what the scroll has unrolled.</summary>
@@ -104,7 +112,7 @@ public partial class PauseMenu : CanvasLayer
     private WorldTabView? _world;
     /// <summary>Where the tabs are: the tab shown, or between two as they slide.</summary>
     private float _position;
-    /// <summary>The world as it was drawn when the menu opened, which a save's screenshot is cut from.</summary>
+    /// <summary>The frame on screen when the menu opened, which a save's screenshot is cut from.</summary>
     private Image? _snapshot;
     private bool _tabsLocked;
 
@@ -119,8 +127,8 @@ public partial class PauseMenu : CanvasLayer
         Layer = MenuLayer;
         Visible = false;
         _models = new Models(plugins);
-        _backdrop.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        AddChild(_backdrop);
+        _darkness.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        AddChild(_darkness);
         _screen.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         AddChild(_screen);
         _screen.Canvas.AddChild(_tabs);
@@ -188,9 +196,8 @@ public partial class PauseMenu : CanvasLayer
     /// <param name="brightens">Whether the world brightens again as it closes; the loot window and shops snap back.</param>
     private void Open(PauseTab tab, bool tabsLocked, bool brightens = true)
     {
-        // The world as it was before the menu covered it, which it darkens behind it; a save's screenshot is cut from it.
+        // The frame before the menu covers it, which a save's screenshot is cut from.
         _snapshot = GetViewport().GetTexture().GetImage();
-        _backdrop.Texture = ImageTexture.CreateFromImage(_snapshot);
         _scroll = new PauseScroll((int)tab, brightens, holds: tabsLocked);
         _scrollView?.Restart();
         _scrollView?.Rendering = true;
@@ -311,7 +318,6 @@ public partial class PauseMenu : CanvasLayer
         if (!_tabsLocked)
             _lastTab = Tab;
         _snapshot = null;
-        _backdrop.Texture = null;
         _journal.Journal = null;
         _view?.ProcessMode = ProcessModeEnum.Disabled;
         _system?.ProcessMode = ProcessModeEnum.Disabled;
@@ -354,8 +360,7 @@ public partial class PauseMenu : CanvasLayer
     /// </summary>
     private void ShowScroll()
     {
-        var tint = _scroll.Tint / 255f;
-        _backdrop.SelfModulate = new Color(tint, tint, tint);
+        _darkness.Color = new Color(0, 0, 0, 1 - _scroll.Tint / 255f);
         var alpha = _scroll.Alpha * (1 - _journal.Shown);
         _tabs.Visible = _scroll.ShowsMenu && alpha > 0;
         _tabs.Modulate = new Color(1, 1, 1, alpha);

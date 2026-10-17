@@ -115,18 +115,19 @@ public partial class BackdropView : Control
 }
 
 /// <summary>
-/// A backdrop's or the help menu's page over the world: the world as it was when the page opened, darkened to half as
-/// it fades in, as the pause menu darkens it (<see cref="PauseScroll.Dark"/>), and the page on a UI screen of its own
-/// over it. The game is paused while it shows. The original draws the world on behind its opaque page, which covers
-/// its whole 320 × 240 frame; the port centres the frame on the screen, so the world shows either side on a wider one.
+/// A backdrop's or the help menu's page over the world: the world and the HUD, still as the game stops them, darkened
+/// to half as it fades in, as the pause menu darkens them (<see cref="PauseScroll.Dark"/>), and the page on a UI screen
+/// of its own over them. The game is paused while it shows, and the world goes on being drawn under a black layer,
+/// so the window's size redraws it. The original draws the world on behind its opaque page, which covers its whole
+/// 320 × 240 frame; the port centres the frame on the screen, so the world shows either side on a wider one.
 /// </summary>
 public partial class BackdropLayer : CanvasLayer
 {
-    private readonly TextureRect _world = new()
+    /// <summary>What darkens the world: black at one less the tint.</summary>
+    private readonly ColorRect _darkness = new()
     {
-        Name = "World",
-        ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
-        StretchMode = TextureRect.StretchModeEnum.Scale,
+        Name = "Darkness",
+        Color = Colors.Transparent,
         MouseFilter = Control.MouseFilterEnum.Ignore,
     };
     private readonly UiScreen _screen = new();
@@ -139,8 +140,8 @@ public partial class BackdropLayer : CanvasLayer
         Layer = PauseMenu.MenuLayer;
         Visible = false;
         _font = new TextLayout(plugins.Get<FontRecord>(RecordId.Decimal(RecordTypes.Font, 0)));
-        _world.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        AddChild(_world);
+        _darkness.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        AddChild(_darkness);
         _screen.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _screen.MouseFilter = Control.MouseFilterEnum.Ignore;
         AddChild(_screen);
@@ -167,24 +168,11 @@ public partial class BackdropLayer : CanvasLayer
     /// <summary>The page has faded out, and the game goes on.</summary>
     public event Action? Closed;
 
-    /// <summary>
-    /// Opens a page in a picture's style over the world as the next frame draws it, once the game has hidden what a
-    /// page hides, such as the HUD, which the original draws only in trek.
-    /// </summary>
+    /// <summary>Opens a page in a picture's style over the world.</summary>
     public void Open(BackdropStyle style)
     {
         Page = new BackdropPage(_font, style);
         _view.Page = Page;
-        _world.Texture = null;
-        RenderingServer.FramePostDraw += Snap;
-    }
-
-    private void Snap()
-    {
-        RenderingServer.FramePostDraw -= Snap;
-        if (Page is null)
-            return;
-        _world.Texture = ImageTexture.CreateFromImage(GetViewport().GetTexture().GetImage());
         Visible = true;
         Tint();
     }
@@ -208,14 +196,13 @@ public partial class BackdropLayer : CanvasLayer
 
     public override void _PhysicsProcess(double delta)
     {
-        if (Page is not { } page || _world.Texture is null)
+        if (Page is not { } page)
             return;
         page.Step();
         if (page.Closed)
         {
             Page = null;
             _view.Page = null;
-            _world.Texture = null;
             Visible = false;
             Closed?.Invoke();
             return;
@@ -228,7 +215,7 @@ public partial class BackdropLayer : CanvasLayer
     {
         var alpha = Page!.Alpha / 255f;
         var tint = Mathf.Lerp(1f, PauseScroll.Dark / 255f, alpha);
-        _world.SelfModulate = new Color(tint, tint, tint);
+        _darkness.Color = new Color(0, 0, 0, 1 - tint);
         _view.QueueRedraw();
     }
 

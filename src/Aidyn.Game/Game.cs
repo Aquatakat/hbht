@@ -422,11 +422,13 @@ public partial class Game : Node3D, ITrekHost
             return;
         _game.PlayTime++;
         _audio!.Step();
-        // The HUD is trek's alone: not under the pause menu or in a cut-scene.
-        _hud!.Visible = !_menu!.IsOpen && _scene is null && !_backdrop!.Showing;
+        // The HUD is trek's: not in a cut-scene. Under the pause menu and a backdrop's page it's drawn as it stands,
+        // as the world is, so that it lays itself out again as the window or the menu size changes.
+        _hud!.Visible = _scene is null;
+        _hud.QueueRedraw();
         // The menu's frame keeps the map's sounds going, with everything held still (PauseMenu.Frame), and a
         // backdrop's page holds the world still the same way.
-        if (_menu.IsOpen || _backdrop!.Showing)
+        if (Paused)
         {
             if (_scene is null)
                 trek.StepSounds();
@@ -449,7 +451,6 @@ public partial class Game : Node3D, ITrekHost
         _sky!.Step();
         ScrollTextures();
         _hud.Outdoors = Where().Outdoors;
-        _hud.QueueRedraw();
         if (step == TrekStep.Frozen)
             return;
         ShowPopup();
@@ -652,11 +653,20 @@ public partial class Game : Node3D, ITrekHost
             Engine.PhysicsTicksPerSecond = rate;
     }
 
+    /// <summary>Whether the pause menu or a backdrop's page holds the world still.</summary>
+    private bool Paused => _menu is { IsOpen: true } || _backdrop is { Showing: true };
+
     public override void _Process(double delta)
     {
         SetTickRate();
         if (Streamer is not { } chunks || _player is null || _camera is null)
             return;
+        // The world goes on being drawn behind the pause menu and a backdrop's page, still: its scenery's actors,
+        // which animate with the frame, stop, and so does the free camera. The parent processes first, so this
+        // holds from the frame the menu opens.
+        var still = Paused ? ProcessModeEnum.Disabled : ProcessModeEnum.Inherit;
+        _chunks!.ProcessMode = still;
+        _camera.ProcessMode = still;
         foreach (var map in _changed)
             chunks.Rebuild(map);
         _changed.Clear();

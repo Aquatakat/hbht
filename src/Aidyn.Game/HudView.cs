@@ -7,7 +7,8 @@ namespace Aidyn.Game;
 
 /// <summary>
 /// Draws trek's HUD (<see cref="TrekHud"/>) on a <see cref="UiScreen"/>'s canvas, under trek's popups: the sundial, the
-/// party's portraits, and the compass or the minimap, each kept to its corner of the screen.
+/// party's portraits, and the compass or the minimap, each kept to its corner of the screen. It's drawn as it stands
+/// under the pause menu, as the original's is in the frame its menu darkens, and under a backdrop's page.
 /// </summary>
 public partial class HudView : Control
 {
@@ -36,7 +37,7 @@ public partial class HudView : Control
 
     public override void _Draw()
     {
-        if (Trek is not { HudShown: true } trek)
+        if (Trek is not { } trek || !(trek.HudShown || trek.Conversation is { ShowsBackdrop: true }))
             return;
         var look = trek.Camera.Look;
         var flat = new System.Numerics.Vector2(look.X, look.Z);
