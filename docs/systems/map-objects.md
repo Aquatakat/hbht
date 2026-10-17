@@ -95,4 +95,4 @@ The core's chunk streamer keeps each loaded chunk's `LoadedMap` beside its colli
 - Alaron's animations for opening a container (request 11) and a door (19), which the original asks for only when it chose among several objects.
 - Sounds (containers' by kind, the coin jingle, the explosion), the explosion's particles, and the popups' fades. Its lights are ported ([rendering](rendering.md#point-lights)).
 - The editor's map object pages don't use objects yet, but a container's opens in the loot window ([inspector](inspector.md)).
-- The trap menu's layout follows the decomp's reading of `WidgetChoiceDia::Update`, the question above the choices, with the cursor's choice pulsing grey to white, the scroll menu's defaults. The user finds it looks right, and will confirm it in the ROM ([to-check](../to-check.md)).
+- The trap menu's layout follows the decomp's reading of `WidgetChoiceDia::Update`, the question above the choices, with the cursor's choice pulsing grey to white, the scroll menu's defaults. The user confirmed it in the emulator (Oct 17, 2026); the pulse there is a little off the port's, which is likely the original's frame rate, as the pulse steps a frame.

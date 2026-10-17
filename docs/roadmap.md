@@ -40,7 +40,6 @@ Once every system built so far is at least at parity with the original, we'll mo
   - Boss flags, which battles set.
   - Spells' and potions' modifiers on characters.
   - The Antidote and Restore potions, which need combat's poison and spells.
-- **Waiting for the user:** shop selling prices ([to-check](to-check.md)).
 - **1H:** the content tables marked To do in [hardcoded-content](hardcoded-content.md), which the importer will need.
 - **Rendering:** the weather, point lights, particles and Oriana's path lights landed Oct 17, 2026. Rain and snow and point lights in cut-scenes followed the same day, with the weather carried through trek's rebuilds. Left: the low-priority items in [rendering](systems/rendering.md#whats-left) (the lens flare's test, the sky overhead, texture filtering).
 - **Rig:** measure the frame `delta` distribution in trek and combat ([ADR 0006](adr/0006-tick-model-and-rng.md)'s follow-up).

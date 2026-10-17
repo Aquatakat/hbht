@@ -138,10 +138,10 @@ public class FlagNetworkTests
         flags.NewGame();
         Assert.Empty(flags.JournalOrder);
 
-        // Loading: entry 1 isn't in the saved order, so it comes first, and the newest is the saved order's last.
+        // Loading: entry 1 isn't in the saved order, so it comes first, and no entry is the newest.
         flags.Restore(h => h is 1 or 2 or 3 or 4, [Entry(2), Entry(0)]);
         Assert.Equal([Entry(1), Entry(2), Entry(0)], flags.JournalOrder);
-        Assert.Equal(Entry(0), flags.NewestJournalEntry);
+        Assert.Null(flags.NewestJournalEntry);
     }
 
     [Fact]

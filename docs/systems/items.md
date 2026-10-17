@@ -90,7 +90,7 @@ Both are worked in single precision and truncated to 16 bits (`WidgetInvShop::Ge
 
 Buying or taking the first potion sets flag 3612, whose help is a trigger (2.10).
 
-**Confirmed in the emulator** (Oct 3, 2026): at STAI01's shop (`aidyn:shop/30`) with the "Before final encounter" party, where Rheda's Merchant 1 against STAI01's 3 gives a factor of 0.1, the shop shows 55 for a Healing Potion (50), 330 for a Spear (300) and 11 for a Herb (10), as the port works them. The shop's window is in [ui](ui.md#the-shop).
+**Confirmed in the emulator** (Oct 3, 2026): at STAI01's shop (`aidyn:shop/30`) with the "Before final encounter" party, where Rheda's Merchant 1 against STAI01's 3 gives a factor of 0.1, the shop shows 55 for a Healing Potion (50), 330 for a Spear (300) and 11 for a Herb (10), as the port works them. Selling was confirmed too (Oct 17, 2026), the Sabre there selling for the port's 135. The shop's window is in [ui](ui.md#the-shop).
 
 ## Containers
 

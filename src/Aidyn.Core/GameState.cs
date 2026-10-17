@@ -128,8 +128,8 @@ public sealed class GameState : IScriptWorld
                 game._problems.Add($"{flag} isn't a plain flag any plugin has.");
         }
         // The derived flags are evaluated from a new game's values, so every journal entry the save has turns on
-        // again, and the last of them becomes the newest. That sets the new journal entry flag too, but the user
-        // found the original never says "A new journal entry has been added." after loading, so it's cleared.
+        // again. That sets the new journal entry flag too, but the user found the original never says "A new journal
+        // entry has been added." after loading, so it's cleared, and its journal highlights nothing (Restore).
         // The port keeps the journal's order, and entries the save doesn't list come first.
         var newJournalEntry = game.Flags.Handle(game.StateFlagsRecord.NewJournalEntry);
         foreach (var entry in save.Journal.Where(e => !game.Flags.HasJournalEntry(e)))

@@ -175,12 +175,12 @@ public sealed class FlagNetwork
 
     /// <summary>
     /// Sets every plain flag and brings the derived flags up to date, as loading a save does
-    /// (<c>LoadGameState</c>). Derived flags that turn on add their journal entries.
+    /// (<c>LoadGameState</c>). Derived flags that turn on add their journal entries, but none is left the newest:
+    /// the user found the original's journal highlights nothing just after loading (Oct 17, 2026).
     /// </summary>
     /// <param name="journal">
     /// The journal's order as saved. Entries that turn on and aren't in it, as from a save made before the port kept
-    /// the order or from a checkpoint, come first, in their flags' order, the table's. When any turns on, the newest
-    /// is the last of the order that's on.
+    /// the order or from a checkpoint, come first, in their flags' order, the table's.
     /// </param>
     public void Restore(Func<int, bool> plain, IReadOnlyList<RecordId>? journal = null)
     {
@@ -189,8 +189,6 @@ public sealed class FlagNetwork
             if (!IsDerived(h))
                 _values[h] = (byte)(plain(h) ? 1 : 0);
         }
-        var newest = NewestJournalEntry;
-        NewestJournalEntry = null;
         Dirty = true;
         Process();
         var on = Enumerable.Range(0, _ids.Length).Where(h => _values[h] != 0 && _journal[h] is not null)
@@ -199,10 +197,7 @@ public sealed class FlagNetwork
         _journalOrder.Clear();
         _journalOrder.AddRange(on.Where(e => !saved.Contains(e)));
         _journalOrder.AddRange(saved);
-        if (NewestJournalEntry is null)
-            NewestJournalEntry = newest;
-        else if (saved.Count > 0)
-            NewestJournalEntry = _journalOrder.Last(on.Contains);
+        NewestJournalEntry = null;
     }
 
     /// <summary>
