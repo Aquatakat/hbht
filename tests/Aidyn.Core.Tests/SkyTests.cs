@@ -91,6 +91,33 @@ public class SkyTests
     }
 
     [Fact]
+    public void TheProjectedGradientIsWhereTheOriginalDrawsItAtTheFollowCamerasPitchAndPinnedToElevationsOtherwise()
+    {
+        // The follow camera's 15° raises it by sin 15° of its distance: it looks down 14.5°, and the original moves
+        // the gradient up 59 lines.
+        Assert.Equal(14.51f, SkyBackdrop.DomePitch * 180 / MathF.PI, 2);
+        Assert.Equal(59, SkyBackdrop.DomeDown);
+        var look = new Vector3(0, -MathF.Sin(SkyBackdrop.DomePitch), -MathF.Cos(SkyBackdrop.DomePitch));
+        Assert.Equal(SkyBackdrop.DomeDown, (int)(MathF.Sin(-look.Y) * SkyBackdrop.ScreenLines));
+        // Down the middle of the screen, each line's elevation takes the gradient where the original draws it.
+        for (var line = 0; line < SkyBackdrop.Span - SkyBackdrop.DomeDown; line++)
+        {
+            var elevation = MathF.Atan((SkyScreen.Middle.Y - line) / SkyScreen.Focal) - SkyBackdrop.DomePitch;
+            Assert.Equal((line + SkyBackdrop.DomeDown) / (float)SkyBackdrop.Span, SkyBackdrop.DomeFraction(elevation), 4);
+        }
+        // The horizon is 0.52 of the way down; above 17° is the top line, and from 18.5° under it the foot.
+        Assert.Equal(0.52f, SkyBackdrop.DomeFraction(0), 2);
+        Assert.Equal(1f / SkyBackdrop.Span, SkyBackdrop.DomeFraction(18 * MathF.PI / 180));
+        Assert.Equal(1f / SkyBackdrop.Span, SkyBackdrop.DomeFraction(MathF.PI / 2));
+        Assert.Equal(SkyBackdrop.DomeLines / (float)SkyBackdrop.Span, SkyBackdrop.DomeFraction(-19 * MathF.PI / 180));
+
+        // Its lines are the original's when it looks level, from the top to the foot.
+        var dome = new Vector3[SkyBackdrop.DomeLines];
+        SkyBackdrop.Dome(Ramp(), null, 0, 0.5f, default, dome);
+        Assert.Equal(Backdrop(Ramp(), -Vector3.UnitZ)[..SkyBackdrop.DomeLines], dome);
+    }
+
+    [Fact]
     public void LookingNearlyStraightDownLeavesTheBackgroundBlack()
     {
         var lines = Backdrop(Ramp(), Vector3.Normalize(new Vector3(0, -1, -0.05f)));

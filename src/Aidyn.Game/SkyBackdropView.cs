@@ -34,7 +34,48 @@ public partial class SkyBackdropView : Control
         MouseFilter = MouseFilterEnum.Ignore;
         TextureFilter = TextureFilterEnum.Linear;
         SetAnchorsPreset(LayoutPreset.FullRect);
+        _domeTexture = ImageTexture.CreateFromImage(_domeImage);
+        _domeMaterial.SetShaderParameter("lines", _domeTexture);
+        _domeMaterial.SetShaderParameter("dome_pitch", SkyBackdrop.DomePitch);
+        _domeMaterial.SetShaderParameter("dome_down", (float)SkyBackdrop.DomeDown);
+        _domeMaterial.SetShaderParameter("focal", SkyScreen.Focal);
+        _dome = new ColorRect { Name = "Dome", Material = _domeMaterial, MouseFilter = MouseFilterEnum.Ignore, ShowBehindParent = true, Visible = false };
+        _dome.SetAnchorsPreset(LayoutPreset.FullRect);
+        AddChild(_dome);
     }
+
+    /// <summary>
+    /// The projected gradient (<see cref="SkyBackdrop.DomeFraction"/>): each pixel takes the gradient's line for the
+    /// elevation of the way through it, so the rows stay fixed against the scenery. It's drawn behind the sky's
+    /// objects, which its parent draws.
+    /// </summary>
+    private const string DomeShader = """
+        shader_type canvas_item;
+        uniform sampler2D lines : filter_linear, repeat_disable;
+        uniform vec3 right;
+        uniform vec3 up;
+        uniform vec3 back;
+        uniform float tan_half;
+        uniform float aspect;
+        uniform float dome_pitch;
+        uniform float dome_down;
+        uniform float focal;
+        void fragment() {
+            vec2 ndc = vec2(UV.x * 2.0 - 1.0, 1.0 - UV.y * 2.0) * tan_half;
+            vec3 way = normalize(right * ndc.x * aspect + up * ndc.y - back);
+            float angle = asin(clamp(way.y, -1.0, 1.0)) + dome_pitch;
+            float line = angle >= 1.5698 ? -1.0e9 : 120.0 - focal * tan(angle) + dome_down;
+            float f = clamp(line, 1.0, 199.0);
+            COLOR = vec4(texture(lines, vec2(0.5, (f - 0.5) / 199.0)).rgb, 1.0);
+        }
+        """;
+
+    private static readonly Shader Dome = new() { Code = DomeShader };
+    private readonly ShaderMaterial _domeMaterial = new() { Shader = Dome };
+    private readonly System.Numerics.Vector3[] _domeLines = new System.Numerics.Vector3[SkyBackdrop.DomeLines];
+    private readonly Image _domeImage = Image.CreateEmpty(1, SkyBackdrop.DomeLines, false, Image.Format.Rgb8);
+    private readonly ImageTexture _domeTexture;
+    private readonly ColorRect _dome;
 
     /// <summary>A canvas layer holding a backdrop, for <paramref name="sky"/>.</summary>
     public static CanvasLayer Create(SkyView sky)
@@ -46,7 +87,31 @@ public partial class SkyBackdropView : Control
         return layer;
     }
 
-    public override void _Process(double delta) => QueueRedraw();
+    public override void _Process(double delta)
+    {
+        var state = _sky.State;
+        var camera = GetViewport().GetCamera3D();
+        _dome.Visible = state is { Current: not null, Drawn: true } && camera is not null && !_sky.Flash &&
+            _sky.Placement == SkyPlacement.Projected;
+        if (_dome.Visible)
+        {
+            SkyBackdrop.Dome(state.Current!, state.Next, state.Change, _sky.Clock.TimeOfDay, _sky.Colors.Fog, _domeLines,
+                _sky.FogTime, _sky.LensFlareValue);
+            for (var y = 0; y < _domeLines.Length; y++)
+            {
+                var c = _domeLines[y];
+                _domeImage.SetPixel(0, y, new Color(c.X, c.Y, c.Z));
+            }
+            _domeTexture.Update(_domeImage);
+            var basis = camera!.GetGlobalTransformInterpolated().Basis;
+            _domeMaterial.SetShaderParameter("right", basis.X.Normalized());
+            _domeMaterial.SetShaderParameter("up", basis.Y.Normalized());
+            _domeMaterial.SetShaderParameter("back", basis.Z.Normalized());
+            _domeMaterial.SetShaderParameter("tan_half", MathF.Tan(Mathf.DegToRad(camera.Fov) / 2));
+            _domeMaterial.SetShaderParameter("aspect", Size.X / MathF.Max(Size.Y, 1));
+        }
+        QueueRedraw();
+    }
 
     public override void _Draw()
     {
@@ -65,7 +130,8 @@ public partial class SkyBackdropView : Control
             // RenderSky's lightning: the whole screen white in place of the gradient, with the sky's objects over it.
             DrawRect(GetRect(), Colors.White);
         }
-        else
+        // Projected, the dome, a child drawn behind this, is the gradient.
+        else if (!_dome.Visible)
         {
             SkyBackdrop.Draw(state.Current, state.Next, state.Change, _sky.Clock.TimeOfDay, look, colors.Fog, _lines,
                 _sky.FogTime, _sky.LensFlareValue);

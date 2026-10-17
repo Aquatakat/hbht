@@ -110,7 +110,9 @@ public enum SkyPlacement
     /// <summary>
     /// Each sprite is laid on the sky from a direction and projected as the scenery is
     /// (<see cref="SkyPatch"/>), so the sky stays pinned against the scenery as the camera turns, at
-    /// any pitch. Where the camera looks straight at a sprite, it's drawn as the original draws it.
+    /// any pitch. Where the camera looks straight at a sprite, it's drawn as the original draws it. The
+    /// gradient behind them is a dome, each elevation keeping the line the original gives it at the
+    /// follow camera's usual pitch (<see cref="SkyBackdrop.DomeFraction"/>).
     /// </summary>
     Projected,
 }
