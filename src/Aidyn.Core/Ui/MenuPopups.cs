@@ -70,7 +70,12 @@ public sealed record CraftingRow(string Text, RecipeRecord? Recipe = null, Craft
 /// </summary>
 /// <param name="user">The party slot of the member using the skill.</param>
 /// <param name="target">For <see cref="CraftingTask.RestoreStat"/>, the member being restored.</param>
-public sealed class CraftingMenu(CraftingTask task, string title, IReadOnlyList<CraftingRow> rows, int user, int? target = null)
+/// <param name="fade">
+/// The popup's fade, kept when the Healer's lists change in it, as the original rebuilds its title and list in the same
+/// popup (<c>Healer.ClearList</c>, <c>0x80004304</c>); else a new one, fading in from nothing.
+/// </param>
+public sealed class CraftingMenu(CraftingTask task, string title, IReadOnlyList<CraftingRow> rows, int user, int? target = null,
+    PopupFade? fade = null)
 {
     public CraftingTask Task { get; } = task;
 
@@ -84,7 +89,7 @@ public sealed class CraftingMenu(CraftingTask task, string title, IReadOnlyList<
     public int? Target { get; } = target;
 
     /// <summary>How far it's faded in or out: it opens from nothing, and takes presses only once it's open.</summary>
-    public PopupFade Fade { get; } = new();
+    public PopupFade Fade { get; } = fade ?? new();
 
     /// <summary>Whether the rows are members, with their portraits.</summary>
     public bool ListsMembers => Task is CraftingTask.LayOnHands or CraftingTask.HealWithHerbs or CraftingTask.Restore;

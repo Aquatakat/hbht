@@ -463,7 +463,10 @@ public class PartyMenuActionTests
         Assert.False(menu.HasPopup);
     }
 
-    /// <summary>Restoring lists the six attributes for the member chosen; one that isn't hurt is at its maximum.</summary>
+    /// <summary>
+    /// Restoring lists the six attributes for the member chosen; one that isn't hurt is at its maximum. Each list is
+    /// built in the same popup, which stays open and whole, so the next takes presses at once (<c>Healer.ClearList</c>).
+    /// </summary>
     [Fact]
     public void RestoringAnAttributeThatIsntHurtSaysItsAtMax()
     {
@@ -472,15 +475,17 @@ public class PartyMenuActionTests
         var menu = Menu(party);
 
         OpenSkill(menu, Skill.Healer);
+        var fade = menu.Crafting!.Fade;
         menu.Point(2);
         menu.Accept();
-        Fade(menu);
         Assert.Equal(CraftingTask.Restore, menu.Crafting!.Task);
         Assert.Equal(["Alaron"], menu.Crafting.Rows.Rows.Select(r => r.Text));
+        Assert.Same(fade, menu.Crafting.Fade);
+        Assert.Equal((PopupFadeState.Open, 255), (fade.State, fade.Alpha));
 
         menu.Accept();
-        Fade(menu);
         Assert.Equal(CraftingTask.RestoreStat, menu.Crafting!.Task);
+        Assert.Same(fade, menu.Crafting.Fade);
         Assert.Equal(PartyMenu.RestoreOrder.Select(s => s.ToString()), menu.Crafting.Rows.Rows.Select(r => r.Text));
 
         menu.Accept();

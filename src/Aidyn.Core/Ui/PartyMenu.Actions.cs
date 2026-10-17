@@ -269,7 +269,7 @@ public sealed partial class PartyMenu
                 Result(_text[made ? MenuText.ArmorMade : MenuText.ArmorFailed]);
                 break;
             case CraftingTask.HealerTasks:
-                Crafting = Targets(crafting.User, row.Task!.Value);
+                Crafting = Targets(crafting.User, row.Task!.Value, crafting.Fade);
                 break;
             case CraftingTask.LayOnHands:
                 Healed(user, row.Member!.Value, Items.Crafting.LayOnHands(user, Party.Slots[row.Member.Value]!));
@@ -281,7 +281,7 @@ public sealed partial class PartyMenu
                 Crafting = new CraftingMenu(CraftingTask.RestoreStat, _text[MenuText.Restore],
                 [
                     .. RestoreOrder.Select(s => new CraftingRow(user.Rules[s].Name, Stat: s)),
-                ], crafting.User, row.Member);
+                ], crafting.User, row.Member, crafting.Fade);
                 break;
             case CraftingTask.RestoreStat when Party.Slots.ElementAtOrDefault(crafting.Target ?? -1) is { } target:
                 var stat = row.Stat!.Value;
@@ -313,8 +313,10 @@ public sealed partial class PartyMenu
         }]);
     }
 
-    // WidgetMenuHealer::LayOnHands and HealWithHerbs: the living members, but not the Healer for laying on hands.
-    private CraftingMenu Targets(int user, CraftingTask task)
+    // WidgetMenuHealer::LayOnHands and HealWithHerbs: the living members, but not the Healer for laying on hands, in
+    // the same popup as the tasks, its title and list rebuilt in it (Healer.ShowLayOnHandsList, 0x800038e4, and
+    // ShowHerbList and ShowRestoreMembers), so it neither fades nor stops taking presses.
+    private CraftingMenu Targets(int user, CraftingTask task, PopupFade fade)
     {
         var rows = new List<CraftingRow>();
         foreach (var (member, slot) in Party.Slots.Select((m, i) => (m, i)))
@@ -329,7 +331,7 @@ public sealed partial class PartyMenu
             CraftingTask.HealWithHerbs => MenuText.HealWithHerbs,
             _ => MenuText.Restore,
         };
-        return new CraftingMenu(task, _text[title], rows, user);
+        return new CraftingMenu(task, _text[title], rows, user, fade: fade);
     }
 
     // Party::PrintHeal and HerbHeal's messages.
