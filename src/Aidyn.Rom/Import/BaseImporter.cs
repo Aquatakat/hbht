@@ -289,7 +289,8 @@ public static class BaseImporter
                     [.. c.Fades.Where(f => f.Scene == shot).Select(f => new Aidyn.Plugins.Records.CinematicFade(
                         (Aidyn.Plugins.Records.CinematicFadeColor)f.Color, f.Start * 2, f.Length * 2, f.Hold * 2))]);
             })],
-            Flag(c.DoneFlag)))];
+            Flag(c.DoneFlag),
+            CinematicRecord.ConsoleAspect))];
     }
 
     private static SkyRecord BuildSky(RomImage rom, BorgArchive archive)

@@ -197,6 +197,8 @@ public static class SceneGltf
         // An animation with no targets only holds the scene still for its length. glTF can't have
         // an empty animation, so those are listed in the extras.
         var still = new JsonArray();
+        // Whether a model transform's scale mirrors it, at rest or as an animation poses it.
+        var mirrors = scene.Transforms.Skip(scene.FirstNode).Any(t => Mirrors(t.Scale));
         foreach (var (borg6, animation) in animations ?? [])
         {
             if (animation.Scene != index)
@@ -204,10 +206,13 @@ public static class SceneGltf
             if (animation.Targets.Count == 0)
                 still.Add(new JsonObject { ["borg6"] = borg6, ["length"] = animation.Length });
             else
-                gltf.AddAnimation(Animation(gltf, scene, borg6, animation, nodes, billboardNodes, cards));
+                gltf.AddAnimation(Animation(gltf, scene, borg6, animation, nodes, billboardNodes, cards, ref mirrors));
         }
         if (still.Count > 0)
             extras["stillAnimations"] = still;
+        // The N64 culls a mirrored model's front, which the runtime has to undo Godot's correction of.
+        if (mirrors)
+            extras["mirrors"] = true;
 
         return gltf.ToGlb(roots, extras);
 
@@ -335,7 +340,7 @@ public static class SceneGltf
     /// again, so the clip lasts one loop. Linear interpolation then matches the game at every tick.
     /// </summary>
     private static JsonObject Animation(GltfBuilder gltf, Borg5Scene scene, int index, Borg6Animation animation,
-        Dictionary<int, int> nodes, Dictionary<int, int> billboardNodes, Dictionary<int, int> cards)
+        Dictionary<int, int> nodes, Dictionary<int, int> billboardNodes, Dictionary<int, int> cards, ref bool mirrors)
     {
         var count = animation.Length + 1;
         var driven = animation.Targets.Select(t => t.Transform).ToHashSet();
@@ -375,6 +380,7 @@ public static class SceneGltf
                         Samples(translations, nodes[t])[sample] = trs.Translation;
                         SetRotation(nodes[t], sample, trs.Rotation);
                         Samples(scales, nodes[t])[sample] = trs.Scale;
+                        mirrors |= Mirrors(trs.Scale);
                     }
                     if (billboardNodes.TryGetValue(t, out var billboard))
                     {
@@ -597,6 +603,9 @@ public static class SceneGltf
 
     private static int Wrap(Borg2MaterialFlags flags, Borg2MaterialFlags wrap, Borg2MaterialFlags mirror) =>
         flags.HasFlag(mirror) ? MirroredRepeat : flags.HasFlag(wrap) ? Repeat : ClampToEdge;
+
+    /// <summary>Whether a scale turns a model inside out: an odd number of its axes negative.</summary>
+    private static bool Mirrors(Vector3 scale) => scale.X * scale.Y * scale.Z < 0;
 
     /// <summary>A rotation whose +Z is <paramref name="direction"/>, so a glTF light (which shines down −Z) shines away from it.</summary>
     private static Matrix4x4 Facing(Vector3 direction)

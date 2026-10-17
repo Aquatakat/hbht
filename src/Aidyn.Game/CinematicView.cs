@@ -17,6 +17,7 @@ public partial class CinematicView : SubViewportContainer
     private Node3D? _scene;
     private Camera3D? _camera;
     private ScrollingScene? _scrolling;
+    private MirroredMeshes? _mirroring;
     private List<Node3D> _facings = [];
     private AnimationPlayer? _player;
     private string? _animation;
@@ -49,6 +50,7 @@ public partial class CinematicView : SubViewportContainer
         N64Material.SetLighting(scene, N64Material.Lighting.Own);
         ReadLights(scene, _models.Glb(shot.Scene)!);
         _scrolling = _models.Scrolls.Attach(shot.Scene, scene);
+        _mirroring = MirroredMeshes.For(scene, _models.Glb(shot.Scene)!);
         _facings = Billboards.Facings(scene);
         _camera = Nodes.FindAll<Camera3D>(scene).FirstOrDefault();
         if (_camera is not null)
@@ -84,6 +86,7 @@ public partial class CinematicView : SubViewportContainer
             _player.Seek((time - 1) / 60.0, update: true);
             TransformTracks.Apply(_player);
         }
+        _mirroring?.Update();
         _scrolling?.Draw();
         if (_camera is not null)
         {
@@ -100,6 +103,7 @@ public partial class CinematicView : SubViewportContainer
         _scene = null;
         _camera = null;
         _scrolling = null;
+        _mirroring = null;
         _facings = [];
         _player = null;
         _lights.Clear();

@@ -23,6 +23,7 @@
     <Compile Include="..\Aidyn.Game\FrameCallback.cs" Link="Shared\FrameCallback.cs" />
     <Compile Include="..\Aidyn.Game\GlbFile.cs" Link="Shared\GlbFile.cs" />
     <Compile Include="..\Aidyn.Game\Models.cs" Link="Shared\Models.cs" />
+    <Compile Include="..\Aidyn.Game\MirroredMeshes.cs" Link="Shared\MirroredMeshes.cs" />
     <Compile Include="..\Aidyn.Game\N64Material.cs" Link="Shared\N64Material.cs" />
     <Compile Include="..\Aidyn.Game\Nodes.cs" Link="Shared\Nodes.cs" />
     <Compile Include="..\Aidyn.Game\ParticlesView.cs" Link="Shared\ParticlesView.cs" />

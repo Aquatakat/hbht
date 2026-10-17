@@ -7,7 +7,16 @@ namespace Aidyn.Plugins.Records;
 /// </summary>
 /// <param name="Title">What the Theatre menu lists it as once <paramref name="DoneFlag"/> is set, or null if it isn't listed.</param>
 /// <param name="DoneFlag">Set when it ends or is skipped, including when the Theatre menu plays it again.</param>
-public sealed record CinematicRecord(RecordId Id, string? Title, IReadOnlyList<CinematicShot> Shots, RecordId DoneFlag);
+/// <param name="Aspect">
+/// The shape its shots are framed for, width over height: the original's are all 4:3, the console's screen, and their
+/// sets end beyond it, with actors waiting there for the camera. The runtime pillarboxes or letterboxes it to fit.
+/// </param>
+public sealed record CinematicRecord(RecordId Id, string? Title, IReadOnlyList<CinematicShot> Shots, RecordId DoneFlag,
+    float Aspect = CinematicRecord.ConsoleAspect)
+{
+    /// <summary>The console's screen, 4:3, which the original's cinematics are framed for.</summary>
+    public const float ConsoleAspect = 4f / 3;
+}
 
 /// <summary>A cinematic's shot. Its times are in ticks from the shot's start.</summary>
 /// <param name="Scene">The scene the animation drives, whose camera the shot is seen through.</param>

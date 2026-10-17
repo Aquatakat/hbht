@@ -111,6 +111,10 @@ internal static class N64Material
     private static readonly ConditionalWeakTable<Material, Shader> FadedShaders = [];
     /// <summary>Cut-out materials' blended copies, made as they're first faded.</summary>
     private static readonly ConditionalWeakTable<Material, ShaderMaterial> FadedCopies = [];
+    /// <summary>One-sided materials' shaders that cull the other side, for drawing them mirrored.</summary>
+    private static readonly ConditionalWeakTable<Material, Shader> MirroredShaders = [];
+    /// <summary>One-sided materials' copies that cull the other side, made as they're first mirrored.</summary>
+    private static readonly ConditionalWeakTable<Material, ShaderMaterial> MirroredCopies = [];
     private static bool _declared;
 
     /// <summary>
@@ -204,20 +208,41 @@ internal static class N64Material
         return copy;
     }
 
-    /// <summary>Moves a scrolling texture's image, in its material and the material's faded copy.</summary>
+    /// <summary>
+    /// The material to draw a surface with while its world matrix mirrors it, or null if it's the same one: a
+    /// one-sided material's copy that culls its front instead of its back (see <see cref="MirroredMeshes"/>).
+    /// </summary>
+    public static ShaderMaterial? Mirrored(Material material)
+    {
+        if (!MirroredShaders.TryGetValue(material, out var shader))
+            return null;
+        if (!MirroredCopies.TryGetValue(material, out var copy))
+        {
+            copy = (ShaderMaterial)material.Duplicate();
+            copy.Shader = shader;
+            MirroredCopies.Add(material, copy);
+        }
+        return copy;
+    }
+
+    /// <summary>Moves a scrolling texture's image, in its material and the material's faded and mirrored copies.</summary>
     public static void SetScroll(ShaderMaterial material, float scroll)
     {
         material.SetShaderParameter(ScrollParameter, scroll);
         if (FadedCopies.TryGetValue(material, out var copy))
             copy.SetShaderParameter(ScrollParameter, scroll);
+        if (MirroredCopies.TryGetValue(material, out var mirrored))
+            mirrored.SetShaderParameter(ScrollParameter, scroll);
     }
 
-    /// <summary>A copy of a material for a copy of a scene, which fades as the original does.</summary>
+    /// <summary>A copy of a material for a copy of a scene, which fades and mirrors as the original does.</summary>
     public static ShaderMaterial Copy(ShaderMaterial material)
     {
         var copy = (ShaderMaterial)material.Duplicate();
         if (FadedShaders.TryGetValue(material, out var shader))
             FadedShaders.Add(copy, shader);
+        if (MirroredShaders.TryGetValue(material, out var mirrored))
+            MirroredShaders.Add(copy, mirrored);
         return copy;
     }
 
@@ -352,6 +377,8 @@ internal static class N64Material
             material.SetMeta(Borg1Meta, borg1.GetInt32());
         if (blend == Blend.Mask)
             FadedShaders.Add(material, ShaderFor(unlit, cull, nearest, Blend.Blend, albedo is not null, texgen));
+        if (cull)
+            MirroredShaders.Add(material, ShaderFor(unlit, cull, nearest, blend, albedo is not null, texgen, mirrored: true));
         return material;
 
         static Wrap ToWrap(JsonElement sampler, string name) =>
@@ -384,15 +411,16 @@ internal static class N64Material
         """;
 
     /// <summary>A shader for a material's fixed state. Each combination is compiled once.</summary>
-    private static Shader ShaderFor(bool unlit, bool cull, bool nearest, Blend blend, bool textured, bool texgen)
+    private static Shader ShaderFor(bool unlit, bool cull, bool nearest, Blend blend, bool textured, bool texgen, bool mirrored = false)
     {
         var rsp = RspLighting && !unlit;
         var onScreen = OnScreenFramebuffer && (unlit || rsp);
-        var key = $"{unlit} {rsp} {onScreen} {cull} {nearest} {blend} {textured} {texgen}";
+        var key = $"{unlit} {rsp} {onScreen} {cull} {nearest} {blend} {textured} {texgen} {mirrored}";
         if (Shaders.TryGetValue(key, out var shader))
             return shader;
 
-        var modes = new List<string> { cull ? "cull_back" : "cull_disabled" };
+        // Godot turns the culling round for a mirrored instance; a mirrored copy turns it back (see MirroredMeshes).
+        var modes = new List<string> { !cull ? "cull_disabled" : mirrored ? "cull_front" : "cull_back" };
         modes.AddRange(unlit || rsp ? ["unshaded"] : ["diffuse_lambert", "specular_disabled"]);
         if (blend == Blend.Blend)
             modes.Add("depth_draw_opaque");

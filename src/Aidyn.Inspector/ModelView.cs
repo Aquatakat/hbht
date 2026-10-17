@@ -34,6 +34,7 @@ public partial class ModelView : VBoxContainer
     // The scene camera's own planes, from its Borg3, which a cinematic's shot replaces.
     private float _ownNear, _ownFar;
     private AnimationPlayer? _player;
+    private MirroredMeshes? _mirroring;
     private bool _playing = true;
     private readonly Orbit _orbit = new();
 
@@ -184,6 +185,7 @@ public partial class ModelView : VBoxContainer
         // Sized for the view, so they show on effects with little or no geometry.
         MarkEmitters(glb, scene, _orbit.Distance / 90);
 
+        _mirroring = MirroredMeshes.For(scene, glb);
         _player = Nodes.FindAll<AnimationPlayer>(scene).FirstOrDefault();
         if (_player is not null)
         {
@@ -283,6 +285,7 @@ public partial class ModelView : VBoxContainer
         TransformTracks.Apply(_player);
         if (_root is not null && _animator is null && _actorPanel.InPlace)
             ActorAnimator.HoldRoot(_root, _pivot);
+        _mirroring?.Update();
         var tick = (int)Math.Round(_player.CurrentAnimationPosition * 60);
         _time.SetValueNoSignal(tick);
         if (_animator is { Machine: var machine })

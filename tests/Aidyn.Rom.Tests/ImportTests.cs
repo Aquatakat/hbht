@@ -196,6 +196,17 @@ public sealed class ImportTests : IDisposable
             Assert.NotEmpty(mapped);
             Assert.All(mapped, m => Assert.True(m.GetProperty("pbrMetallicRoughness").TryGetProperty("baseColorTexture", out _)));
         }
+        // They're framed for the console's 4:3. The Shadow's merge marks its mirrored Shadow (transform 10, scaled by
+        // −1 across), which the runtime culls as the N64 does; the opening's first shot mirrors nothing.
+        Assert.All(cinematics, c => Assert.Equal(CinematicRecord.ConsoleAspect, c.Aspect));
+        Assert.True(Mirrors(RecordId.Hex(RecordTypes.Scene, 0x24C9)));
+        Assert.False(Mirrors(RecordId.Hex(RecordTypes.Scene, 0x2218)));
+        bool Mirrors(RecordId scene)
+        {
+            var bytes = File.ReadAllBytes(set.FindAsset(scene, "glb")!);
+            using var doc = System.Text.Json.JsonDocument.Parse(bytes.AsMemory(20, BitConverter.ToInt32(bytes, 12)));
+            return doc.RootElement.GetProperty("scenes")[0].GetProperty("extras").TryGetProperty("mirrors", out var m) && m.GetBoolean();
+        }
         // The table's times are halved: the opening's first shot's fade to white ends on its animation's last tick.
         var opening = cinematics[0].Shots[0];
         Assert.Equal((1541, RecordId.Hex(RecordTypes.Scene, 0x2218)), (opening.Length, opening.Scene));

@@ -23,16 +23,18 @@ public sealed class ActorAnimator : IActorMotion
     private readonly AnimationPlayer _player;
     private readonly Node3D? _root;
     private readonly Vector3 _pivot;
+    private readonly MirroredMeshes? _mirroring;
     private double _fraction;
     private Vector3 _rootPosition, _lastRoot;
     private ActorParticles? _particles;
     private bool _made;
 
-    private ActorAnimator(ActorRecord actor, AnimationPlayer player, Node3D? root, Vector3 pivot)
+    private ActorAnimator(ActorRecord actor, AnimationPlayer player, Node3D? root, Vector3 pivot, MirroredMeshes? mirroring)
     {
         _player = player;
         _root = root;
         _pivot = pivot;
+        _mirroring = mirroring;
         Machine = new ActorStateMachine(actor, Length);
         Enter(actor.InitialState);
     }
@@ -75,7 +77,7 @@ public sealed class ActorAnimator : IActorMotion
             return null;
         var rootName = $"transform {actor.RootTransform}";
         var root = FindNode(instance, n => n is Node3D && n.Name == rootName) as Node3D;
-        return new ActorAnimator(actor, player, root, Pivot(glb, actor.RootTransform));
+        return new ActorAnimator(actor, player, root, Pivot(glb, actor.RootTransform), MirroredMeshes.For(instance, glb));
     }
 
     /// <summary>Ticks at 60 Hz with the frame, unless <see cref="Driven"/>.</summary>
@@ -157,6 +159,7 @@ public sealed class ActorAnimator : IActorMotion
         TransformTracks.Apply(_player);
         if (_root is not null)
             _rootPosition = HoldRoot(_root, _pivot);
+        _mirroring?.Update();
     }
 
     /// <summary>

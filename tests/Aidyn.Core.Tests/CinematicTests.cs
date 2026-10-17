@@ -157,6 +157,15 @@ public class CinematicTests
         Assert.Equal(new Rgba(255, 0, 0, (byte)(int)((1 - 2f / 6) * 255)), player.Fade);
     }
 
+    [Fact]
+    public void ARecordWithoutAnAspectIsFramedForTheConsole()
+    {
+        var record = JsonSerializer.Deserialize<CinematicRecord>(
+            """{ "id": "aidyn:cinematic/0", "title": null, "shots": [], "doneFlag": "aidyn:flag/3" }""", PluginJson.Options)!;
+
+        Assert.Equal(4f / 3, record.Aspect);
+    }
+
     // The caption box.
 
     private static TextLayout Font() => new(TextLayoutTests.Font());

@@ -57,8 +57,9 @@ public static class BasePlugin
     /// 32 marks the scene objects' levels of detail that are empty scenes.
     /// 33 gives the cinematics their titles and each shot its scene, length, captions and fades.
     /// 34 keeps the textures of environment-mapped display lists.
+    /// 35 marks the scenes whose transforms mirror a model, and gives the cinematics their aspect ratio.
     /// </summary>
-    public const int ImporterVersion = 34;
+    public const int ImporterVersion = 35;
 }
 
 /// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>

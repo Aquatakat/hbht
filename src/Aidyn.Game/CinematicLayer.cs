@@ -11,7 +11,8 @@ namespace Aidyn.Game;
 /// A cinematic over everything (game mode 0xE): the shot (<see cref="CinematicView"/>), the caption box on a UI screen
 /// of its own, and the fade over both, as the original draws them (<c>Cinematic.DrawShot</c>, <c>0x80053d94</c>, then
 /// <c>Cinematic.StepFades</c>). Each shot's music plays through it. The game steps it a tick at a time and carries out
-/// its end.
+/// its end. All three are framed to the cinematic's aspect ratio, 4:3 for the original's, with black beside or above
+/// and below, since the sets end beyond the console's screen.
 /// </summary>
 public partial class CinematicLayer : CanvasLayer
 {
@@ -19,6 +20,12 @@ public partial class CinematicLayer : CanvasLayer
     private readonly UiScreen _screen = new();
     private readonly CaptionView _captions;
     private readonly ColorRect _fade = new() { Name = "Fade", Color = Colors.Transparent, MouseFilter = Control.MouseFilterEnum.Ignore };
+    private readonly AspectRatioContainer _frame = new()
+    {
+        Name = "Frame",
+        StretchMode = AspectRatioContainer.StretchModeEnum.Fit,
+        MouseFilter = Control.MouseFilterEnum.Ignore,
+    };
     private readonly GameAudio? _audio;
     private SoundHandle _music;
 
@@ -28,17 +35,25 @@ public partial class CinematicLayer : CanvasLayer
         Layer = PauseMenu.MenuLayer + 1;
         Visible = false;
         _audio = audio;
+        var backdrop = new ColorRect { Name = "Backdrop", Color = Colors.Black, MouseFilter = Control.MouseFilterEnum.Ignore };
+        backdrop.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        AddChild(backdrop);
+        _frame.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        AddChild(_frame);
+        // The container sizes only its own children, so the shot, captions and fade fill one that it sizes.
+        var picture = new Control { Name = "Picture", MouseFilter = Control.MouseFilterEnum.Ignore };
+        _frame.AddChild(picture);
         _view = new CinematicView(models);
         _view.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        AddChild(_view);
+        picture.AddChild(_view);
         _screen.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _screen.MouseFilter = Control.MouseFilterEnum.Ignore;
-        AddChild(_screen);
+        picture.AddChild(_screen);
         _captions = new CaptionView(plugins);
         _captions.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _screen.Canvas.AddChild(_captions);
         _fade.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        AddChild(_fade);
+        picture.AddChild(_fade);
     }
 
     /// <summary>The UI screen the captions are on, whose lines and filter the game sets.</summary>
@@ -60,6 +75,7 @@ public partial class CinematicLayer : CanvasLayer
     public void Play(CinematicRecord cinematic, string leader)
     {
         Player = new CinematicPlayer(cinematic, leader);
+        _frame.Ratio = cinematic.Aspect;
         _captions.Caption = null;
         _fade.Color = Colors.Transparent;
         Visible = true;
