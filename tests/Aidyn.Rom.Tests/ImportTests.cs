@@ -171,6 +171,21 @@ public sealed class ImportTests : IDisposable
         Assert.Contains(set.All<WeaponRecord>(RecordTypes.Weapon), w => w.Sounds is [_, _]);
         Assert.Equal(59, set.All<SpellRecord>(RecordTypes.Spell).Count(s => s.Cast is not null));
 
+        // The scenes' particle emitters, each drawn with a texture of the engine's particle list, and Oriana's orb
+        // (scene 11211) started by request 5 and drawn with slot 13.
+        var emitterRecords = set.All<EmittersRecord>(RecordTypes.Emitters).ToList();
+        Assert.Equal((75, 218), (emitterRecords.Count, emitterRecords.Sum(r => r.Emitters.Count)));
+        Assert.All(emitterRecords.SelectMany(r => r.Emitters), e => Assert.NotNull(set.FindAsset(e.Texture!.Value, "png")));
+        var orb = set.Get<EmittersRecord>(RecordId.Hex(RecordTypes.Emitters, 11211)).Emitters.Single();
+        Assert.Equal((5, 13, 6, 3), (orb.Request, orb.TextureSlot, orb.Burst, orb.Interval));
+        Assert.Equal(new Rgba(226, 230, 255, 131), orb.FadeColor);
+
+        // The cinematics, with each shot's planes, which replace its scene camera's.
+        var cinematics = set.All<CinematicRecord>(RecordTypes.Cinematic).ToList();
+        Assert.Equal([13, 4, 3, 6], cinematics.Select(c => c.Shots.Count));
+        Assert.Equal((0.1f, 35f), (cinematics[0].Shots[0].Near, cinematics[0].Shots[0].Far));
+        Assert.All(cinematics.SelectMany(c => c.Shots), s => Assert.NotNull(set.TryGet<SequenceRecord>(s.Music)));
+
         // The editor's catalog: every record and asset with a summary, and what names what.
         var catalog = PluginCatalog.Build(set);
         Assert.DoesNotContain(catalog.Entries, e => e.Summary.StartsWith('‹'));

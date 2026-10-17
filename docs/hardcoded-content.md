@@ -228,7 +228,7 @@ Code uses 1,990 of the 2,076 names in the decomp's `Borgindecies.h`. The map chu
   - A new game's party: Alaron alone, with 1 gold (`init_DBs`). Game settings (layer 1). Carried as facts (`GameState.NewGame`).
 - Combat visuals: the arrow and thrown-potion models, target and spell markers, and the stat indicator digits (`combatEntity.cpp`, `CombatMarkers.cpp`, `SpellMarker.cpp`, `StatIndicator.cpp`).
 - Bodies' shadows: the texture, Borg1 `0x0003` (`BORG1_PlayerShadow`, which `InitPlayerHandler` is given), and how far from the camera's aim they're drawn: 20 in trek, 128 in combat and none on the title screen (`InitZoneEngine`). A game setting (layer 1). Carried as a fact: the runtime draws `aidyn:texture/0x0003`, and the core holds the distances (`BodyShadow`).
-- The particle textures: 17 slots of Borg1s 0–12, some empty (`partTextInds`, `ZoneEngine.cpp`, `0xCE460`). Read (`ParticleTextures`).
+- The particle textures: 17 slots of Borg1s 0–12, some empty (`partTextInds`, `ZoneEngine.cpp`, `0xCE460`). Read (`ParticleTextures`), and resolved into each emitter's texture on its `aidyn:emitters` record.
 - Oriana's path lights: a scene object whose second model is `BORG5_OrianaLight` (`0x374A`) goes out once only its first is drawn, and is remembered so for 16 map loads. `RenderVoxelScenes` compares the index as a literal (`0x8000cda4` in 1.0). A scene object field (layer 1). Carried as a fact: the importer marks the 23 objects (`SceneObject.GoesOut`; I08, J08 and K08), and a mod's object can set it. See [map-objects](systems/map-objects.md#orianas-path-lights).
 - Coin, chime and level-up sounds in dialogue, shops and training (see the table above).
 

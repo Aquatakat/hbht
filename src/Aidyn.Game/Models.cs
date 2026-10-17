@@ -14,6 +14,9 @@ public sealed class Models(PluginSet plugins) : IDisposable
     private readonly Dictionary<RecordId, Node3D?> _templates = [];
     private readonly Dictionary<RecordId, byte[]?> _files = [];
 
+    /// <summary>The particles actors' emitters start in, if any are drawn.</summary>
+    public ParticlesView? Particles { get; set; }
+
     /// <summary>The scenes' scrolling textures, which each copy of a scene has its own of.</summary>
     public TextureScrolls Scrolls { get; } = new();
 
@@ -46,7 +49,10 @@ public sealed class Models(PluginSet plugins) : IDisposable
         N64Material.SetLighting(node, lighting);
         var animator = ActorAnimator.Create(node, actor, Glb(actor.Scene)!);
         if (animator is not null)
+        {
             node.AddChild(new FrameCallback(animator.Update) { Name = "ActorAnimator" });
+            animator.Particles = Particles?.For(actor, node);
+        }
         return (node, animator);
     }
 
