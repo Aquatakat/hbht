@@ -1,6 +1,6 @@
 # Aidyn Chronicles Reimplementation: Roadmap
 
-Sep 26, 2026 · Updated Oct 4, 2026
+Sep 26, 2026 · Updated Oct 17, 2026
 
 ## Summary
 
@@ -22,8 +22,7 @@ This is the one list of what's open. A task's status is in its phase's table bel
 
 ### Next
 
-1. **Rendering leftovers,** including weather.
-2. **Any other odds and ends,** including shop selling prices.
+1. **Any other odds and ends,** including shop selling prices.
 
 Once every system built so far is at least at parity with the original, we'll move onto M3 Fight:
 
@@ -34,6 +33,7 @@ Once every system built so far is at least at parity with the original, we'll mo
 
 - **M2:** the endings' cinematics, the System tab's Theater and Credits, and the editor showing cut-scenes on its map, and the HUD.
 - **Waiting for 2.5:**
+  - Combat's weather penalties, its point lights on the party, and particles on the scenes it attaches.
   - Training after a battle.
   - The sundial's Detect Moon and Sun Phase spells.
   - Camping's ambush battle.
@@ -42,7 +42,7 @@ Once every system built so far is at least at parity with the original, we'll mo
   - The Antidote and Restore potions, which need combat's poison and spells.
 - **Waiting for the user:** shop selling prices ([to-check](to-check.md)).
 - **1H:** the content tables marked To do in [hardcoded-content](hardcoded-content.md), which the importer will need.
-- **Rendering:** the renderer's leftovers, the weather among them ([rendering](systems/rendering.md#whats-left)).
+- **Rendering:** the weather, point lights, particles and Oriana's path lights landed Oct 17, 2026. Left: rain and snow and point lights in cut-scenes, and the low-priority items in [rendering](systems/rendering.md#whats-left) (the lens flare's test, the sky overhead, texture filtering).
 - **Rig:** measure the frame `delta` distribution in trek and combat ([ADR 0006](adr/0006-tick-model-and-rng.md)'s follow-up).
 
 ### Maybe
