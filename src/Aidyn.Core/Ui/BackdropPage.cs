@@ -107,7 +107,11 @@ public sealed class BackdropPage(TextLayout font, BackdropStyle style)
     /// <summary>The choice the cursor is on.</summary>
     public int Highlight { get; private set; }
 
-    public MenuPulse Pulse { get; } = new();
+    /// <summary>
+    /// The cursor's pulse, a step a tick, as the menus' widgets step at 60 frames a second: 38 steps a cycle, 1.6 a
+    /// second, which the user timed in the original's help menu at about 48 in 30 seconds (Oct 16, 2026).
+    /// </summary>
+    public MenuPulse Pulse { get; } = new(Cadence.MenuFrameTicks);
 
     /// <summary>The page's alpha, which fades in as it opens and out once it closes.</summary>
     public int Alpha { get; private set; }

@@ -14,7 +14,6 @@ Things only the user can settle, in the emulator or by reading the ROM. Each lin
 - **Wrapped pitches in music:** 0x05DD and 0x05DE (and SFX such as 0x0759 and 0x075F) have notes whose pitch, above 65,535 Hz, the original keeps in 16 bits, so they'd play far too low. The port does the same. Listen for a low growl or rumble in those against `aidyn audio`'s render. See [audio](formats/audio.md#the-event-stream).
 - **The sound volume at half:** the menu's sounds take the sound volume twice and the containers' three times, by the machine code. Whether half sound volume makes them quarter loud is a check against the port, which now plays them so. See [audio](systems/audio.md#volumes).
 - **Which way sounds pan:** a sound to the camera's right should come from the right speaker; the formula says right is positive, and the port plays it so, but nobody has listened. Any map sound with falloff, such as a fountain, turned side on. See [audio](systems/audio.md#sound-map-objects).
-- **The help menu's choices after a topic:** the machine code keeps the scroll menu's slide from node to node, so after "Select a help topic:" pushes its choices down to y 55, a node with a taller text should show its choices 14 below it rather than 4, and a book's or help topic's cursor choice should pulse from (100, 100, 100, 100) toward white. Open Help from the System tab, go into a topic with several lines of text above its choices, and compare the gap with the port's. See [ui](systems/ui.md#books-and-the-help-menu).
 
 ## In the ROM
 

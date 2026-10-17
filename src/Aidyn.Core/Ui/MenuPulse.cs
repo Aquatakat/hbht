@@ -7,7 +7,8 @@ namespace Aidyn.Core.Ui;
 /// to <see cref="Frames"/> − 1 and back, and the colour that far from one colour toward another, by whole
 /// steps of a 20th of the way, rounded toward zero.
 /// </summary>
-public sealed class MenuPulse
+/// <param name="ticksPerStep">The ticks a step takes: a 30 fps frame by default, or a tick at the menus' 60.</param>
+public sealed class MenuPulse(int ticksPerStep = Cadence.FrameTicks)
 {
     public const int Frames = 20;
 
@@ -22,7 +23,7 @@ public sealed class MenuPulse
     /// <summary>Steps by a 60 Hz tick: a step each frame.</summary>
     public void Step()
     {
-        if (++_ticks < Cadence.FrameTicks)
+        if (++_ticks < ticksPerStep)
             return;
         _ticks = 0;
         _step += _sign;

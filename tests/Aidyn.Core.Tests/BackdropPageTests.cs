@@ -120,6 +120,22 @@ public class BackdropPageTests
     }
 
     [Fact]
+    public void TheCursorsChoicePulsesAStepATick()
+    {
+        // The book's pulse, from (100, 100, 100, 100) toward white, 7 a step: 19 steps up and 19 back, 38 ticks.
+        var page = Page();
+        page.Show(Node("a", "b"));
+        page.Step();
+        Assert.Equal(new Rgba(107, 107, 107, 107), page.HighlightNow);
+        for (var i = 1; i < 19; i++)
+            page.Step();
+        Assert.Equal(new Rgba(233, 233, 233, 233), page.HighlightNow);
+        for (var i = 0; i < 19; i++)
+            page.Step();
+        Assert.Equal(MenuPulse.ScrollFrom, page.HighlightNow);
+    }
+
+    [Fact]
     public void EachPictureHasItsImageAndTheRestShowTheBook()
     {
         Assert.Equal(MenuImages.Book, BackdropStyle.For(0).Picture);
