@@ -59,6 +59,11 @@ internal static class N64Material
     public const string ObjectTintParameter = "object_tint";
     /// <summary>Per instance: how its lit display lists are lit, a <see cref="Lighting"/>.</summary>
     public const string LightingParameter = "lighting";
+    /// <summary>
+    /// Per instance: the scene's eye, which environment-mapped lists look from (see <see cref="SetEye"/>); the world's
+    /// origin unless set.
+    /// </summary>
+    public const string EyeParameter = "eye";
     /// <summary>Global: the way to the sun, <c>gGlobals.SunPos</c>, in world space.</summary>
     public const string SunDirectionParameter = "n64_sun_direction";
     /// <summary>Global: the sun's light, <c>gSunColor</c>, in on-screen values; black where there's no sun.</summary>
@@ -220,6 +225,13 @@ internal static class N64Material
     public static void SetLighting(Node root, Lighting lighting) => SetOnMeshes(root, LightingParameter, (int)lighting);
 
     /// <summary>
+    /// Sets the eye that every environment-mapped list under <paramref name="root"/> looks from, in world space
+    /// (scene <c>+0xF8</c>): a cinematic's scene has its own camera's position, and a scene given none keeps the
+    /// world's origin.
+    /// </summary>
+    public static void SetEye(Node root, Vector3 eye) => SetOnMeshes(root, EyeParameter, eye);
+
+    /// <summary>
     /// Lights every mesh under <paramref name="root"/> by an ambient and two lights, each a colour and the way to it in
     /// world space, in on-screen values, for <see cref="Lighting.Own"/>.
     /// </summary>
@@ -358,14 +370,14 @@ internal static class N64Material
     /// <c>G_TEXTURE_GEN</c>'s texture coordinates (<c>BorgAnimDrawSceneRaw</c>, <c>0x80097a90</c>, and F3DEX2's texgen):
     /// before each such list the game looks from the scene's eye at the node's world position, world up being up
     /// (<c>guLookAtReflect</c>), and each vertex's normal after the model matrix takes (1 + n · right) / 2 across the
-    /// texture and (1 + n · up) / 2 down it, so a normal facing up samples the bottom. Only trek's centre chunk's
-    /// scene is given an eye; every other scene's, a cinematic's included, is the world's origin.
+    /// texture and (1 + n · up) / 2 down it, so a normal facing up samples the bottom. A cinematic's scene's eye is
+    /// its camera; trek's centre chunk's is trek's camera, and the rest's is the world's origin (<see cref="SetEye"/>).
     /// </summary>
     private const string TexGen = """
 
-        	// G_TEXTURE_GEN: the texture is looked up by the way the normal faces, seen from the world's origin.
+        	// G_TEXTURE_GEN: the texture is looked up by the way the normal faces, seen from the scene's eye.
         	vec3 world_normal = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
-        	vec3 look = normalize(-MODEL_MATRIX[3].xyz);
+        	vec3 look = normalize(eye - MODEL_MATRIX[3].xyz);
         	vec3 look_right = normalize(cross(vec3(0.0, 1.0, 0.0), look));
         	vec3 look_up = cross(look, look_right);
         	UV = (1.0 + vec2(dot(world_normal, look_right), dot(world_normal, look_up))) * 0.5;
@@ -439,6 +451,8 @@ internal static class N64Material
                 // 0 scenery, 1 a body, 2 a scene object's actor, 3 its own lights.
                 instance uniform int lighting = 0;
                 instance uniform vec3 own_ambient = vec3(1.0);
+                // The scene's eye, which environment-mapped lists look from.
+                instance uniform vec3 eye = vec3(0.0);
                 // Up to four directional lights besides the sun: a body's or actor's point lights, or a scene's own.
                 instance uniform vec3 light0_color = vec3(0.0);
                 instance uniform vec3 light0_direction = vec3(0.0, 1.0, 0.0);

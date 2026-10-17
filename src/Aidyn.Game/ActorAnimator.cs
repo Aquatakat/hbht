@@ -154,6 +154,7 @@ public sealed class ActorAnimator : IActorMotion
         if (!_player.HasAnimation(AnimationName(Machine.State)))
             return;
         _player.Seek(seconds, update: true);
+        TransformTracks.Apply(_player);
         if (_root is not null)
             _rootPosition = HoldRoot(_root, _pivot);
     }

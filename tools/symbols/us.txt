@@ -468,6 +468,15 @@ ParticleHead.Direction = 0x8009358c; // ParticleHead.cs: a random direction of a
 Scene.LoadTextureOp = 0x800938b0; // coined; docs/formats/textures.md
 LoadTextureImage = 0x80093cac; // string debug 0x800e2e64 (debug 0x8009d7d8)
 Scene.SetTextureTiles = 0x80094104; // coined; docs/systems/rendering.md
+Borg5Transform.CameraMatrix = 0x80094d7c; // coined; Borg5Scene.cs Borg5Transform.LookAt: (eye, at, up) to a camera-to-world matrix, X = up x look, Y = look x X, Z = eye - at, the row 3 the eye; keeps the last X if up x look is under 1e-6 (unlike guLookAtReflectF); the w column 0
+Borg5Transform.Direction = 0x80094f80; // Borg5Scene.cs Borg5Transform.Direction: mtxOp 3, only the Z row set (a light's direction)
+Borg5Transform.LookAt = 0x8009505c; // Borg5Scene.cs Borg5Transform.LookAt: mtxOp 4, a camera from Position and the angles (two guRotateRPYF), through Borg5Transform.CameraMatrix
+Borg5Transform.Build = 0x800951cc; // coined; Borg5Scene.cs Borg5Transform.LocalMatrix: switch on mtxOp (byte +2) to the five builders, (transform, out matrix)
+Borg5Scene.StoreWorld = 0x80095254; // coined; a node's world matrix to its record's +0xc0 or +0x80: rows 0-2 times the w column (elements 3, 7, 11), the w column cleared, row 3 kept
+Mtx.CopyWOne = 0x80095300; // coined; copies a 4x4 float matrix and sets its w column (elements 3, 7, 11) to 1.0
+Borg5Scene.WorldMatrices = 0x80095350; // coined; Borg5Scene.cs Borg5Scene.WorldMatrix: a node's local matrix (Borg5Transform.Build) times its parent's (Mtx.ConcatNode), stored to its record, then each child; clears transform flag 0x2 and sets 0x10
+Borg5Scene.Evaluate = 0x800953ec; // coined; docs/formats/scenes.md: the whole transform tree, from the scene matrix (+0x88 if scene flag 0x4, else identity), then sets scene +0x2ac so Scene.Draw does it once a frame
+Borg5Scene.EvaluateNodes = 0x80095518; // coined; the camera (transform 0, unless scene flag 0x40; its world matrix is copied to scene +0xc8, whose row 3 at +0xf8 is the eye), the lights, then each root node (transform flag 0x100) through Borg5Scene.WorldMatrices
 Actor.Create = 0x800960e0; // coined; docs/formats/particles.md: makes an actor and starts its emitters for its request
 ActorStateMachine.Finished = 0x80096504; // ActorStateMachine.cs: the scene's frame has reached its animation's length
 ActorStateMachine.SetRequest = 0x80096530; // ActorStateMachine.cs: takes a request only if the state has a branch for it
@@ -475,7 +484,13 @@ ActorStateMachine.Tick = 0x80096570; // ActorStateMachine.cs: one tick of the st
 ActorStateMachine.Advance = 0x800967a4; // coined; docs/systems/ui.md: steps an actor n ticks, taking branches and keeping its root's motion; resets the request after each
 ActorParticles.Entered = 0x80096a38; // ActorParticles.cs: starts the scene's emitters for the actor's request
 Scene.DrawActor = 0x80096ae4; // coined; docs/systems/rendering.md
+Borg6Player.Restart = 0x80096bb4; // Borg6Player.cs: a track back to its first key, keeping the state the key leaves out
+Borg6Target.Apply = 0x80096c04; // coined; Borg6Player.cs: by target type, a transform target (type 1) to Borg6Target.ApplyTransform, the rest to Borg6Target.ApplyFields; (target, weight)
+Borg6Target.ApplyFields = 0x80096c50; // coined; docs/formats/animation.md: target types 0, 2 and 3, each driven float += value x weight; no animation uses them
+Borg6Target.ApplyTransform = 0x80096ca0; // coined; docs/formats/animation.md: a type 1 target, bit k of the channel mask adds track value x weight to the k-th float from transform +0x10 (Rotation XYZ, Position XYZ, Scale XYZ); the differences go to run-time vectors nothing reads
+Borg6Target.Clear = 0x80096de0; // coined; docs/formats/animation.md: zeroes a type 1 target's 12 run-time floats (record +0x140) and each driven float, before Borg6Target.Apply
 ActorStateMachine.Restart = 0x80096ea8; // coined; docs/systems/audio.md: sets the scene's frame to 1 and rewinds its tracks
+Borg6Player.Tick = 0x80096f14; // Borg6Player.cs: one tick of one target's tracks
 Scene.Advance = 0x80097098; // coined; docs/systems/audio.md: adds the scene's step to its frame
 Scene.Draw = 0x80097244; // coined; docs/systems/rendering.md
 Scene.InitDrawState = 0x80097300; // coined; docs/systems/rendering.md
@@ -502,6 +517,7 @@ Scene.LightBrightness = 0x8009e800; // coined; docs/systems/rendering.md: r*r + 
 SceneLights.Add = 0x8009e838; // SceneLights.Add
 Scene.SetAmbient = 0x8009eaa4; // coined; docs/systems/rendering.md
 Vec2.Normalize = 0x800a11ec; // coined; normalises an (x, z) pair, its length at least 1e-6
+Mtx.ConcatNode = 0x800a2378; // coined; a child's world matrix: out = local x parent for the 3x3 and row 3, with the local row 3 scaled per axis by the parent's w column and added to the parent's row 3; out's w column the product of the two
 Collision.SweepBlocked = 0x800a42e8; // coined; SpherePhysics.Sweep stands in: a sphere swept against a chunk's triangles, see-through ones skipped if asked
 Camera.SetEye = 0x800a6470; // coined; the eye at +0 and +0x18
 Camera.SetTarget = 0x800a64b4; // coined; the aim at +0xC and +0x24

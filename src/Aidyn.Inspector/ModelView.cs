@@ -280,6 +280,7 @@ public partial class ModelView : VBoxContainer
     {
         if (_player is null)
             return;
+        TransformTracks.Apply(_player);
         if (_root is not null && _animator is null && _actorPanel.InPlace)
             ActorAnimator.HoldRoot(_root, _pivot);
         var tick = (int)Math.Round(_player.CurrentAnimationPosition * 60);

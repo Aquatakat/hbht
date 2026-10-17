@@ -79,10 +79,18 @@ public partial class CinematicView : SubViewportContainer
     {
         if (_scene is null)
             return;
-        _player?.Seek((time - 1) / 60.0, update: true);
+        if (_player is not null)
+        {
+            _player.Seek((time - 1) / 60.0, update: true);
+            TransformTracks.Apply(_player);
+        }
         _scrolling?.Draw();
         if (_camera is not null)
+        {
             Billboards.Face(_facings, _camera.GlobalPosition);
+            // The scene's eye is its camera's position (Cinematic.StartShot leaves the camera its own).
+            N64Material.SetEye(_scene, _camera.GlobalPosition);
+        }
         N64Material.SetOwnLights(_scene, _ambient, [.. _lights.Select(l => (l.Color, l.Node.GlobalBasis.Z))]);
     }
 
