@@ -52,8 +52,9 @@ public static class BasePlugin
     /// 22 gives weapons, shields and six items their models.
     /// 23 adds the world map and camping. 24 adds the minimaps. 25 adds sequences and samples.
     /// 26 adds the engine's sounds and the map sets' music.
+    /// 27 gives maps the neighbours they always draw, and scene objects that go out once reached (Oriana's path lights).
     /// </summary>
-    public const int ImporterVersion = 26;
+    public const int ImporterVersion = 27;
 }
 
 /// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>

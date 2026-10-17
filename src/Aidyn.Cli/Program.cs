@@ -530,6 +530,7 @@ static int SaveShow(string path)
             Aidyn.Core.MapObjects.MemoryKind.SkillCheck =>
                 $"a {game.Plugins.TryGet<Aidyn.Plugins.Records.SkillRecord>(RecordId.Decimal(RecordTypes.Skill, skill))?.Name ?? $"skill {skill}"} check's step of {memory.Value}",
             Aidyn.Core.MapObjects.MemoryKind.Opened => "being emptied",
+            Aidyn.Core.MapObjects.MemoryKind.PutOut => "being put out",
             _ => "being beaten",
         };
         Console.WriteLine($"Remembers   {memory.Key.MapObject}: {what}, for {memory.Lifetime} more map loads");

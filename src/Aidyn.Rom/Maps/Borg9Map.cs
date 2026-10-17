@@ -133,6 +133,14 @@ public sealed record Borg9Map(
     private const int HeaderSize = 0x50;
     private const int CellRecordSize = 0x14;
 
+    /// <summary>
+    /// The neighbours drawn while the player is in this chunk whatever the camera's view (header byte 0x1B, the
+    /// decomp's <c>byte0x1b</c>), a bit each in the order of the zone engine's table at <c>0x800CD700</c>: row and
+    /// column −1 −1, +1 −1, −1 +1, +1 +1, then 0 −1, 0 +1, −1 0 and +1 0 (<c>RenderZones</c>, <c>0x8000d574</c>,
+    /// and <c>RenderTransZones</c>, <c>0x8000dd44</c>, in 1.0). 22 Borg9s set it, 21 of them Overworld chunks.
+    /// </summary>
+    public byte DrawnNeighbours { get; init; }
+
     public CollisionCell Cell(int x, int z) => Cells[z * Columns + x];
 
     /// <summary>
@@ -191,7 +199,10 @@ public sealed record Borg9Map(
                 Indices(s, objectIndices, (int)U32(c, 8), U16(c, 0x10), objectIndexCount, U16(s, 0x28), i));
         }
 
-        return new Borg9Map(origin, cellSize, columns, rows, vertexList, triangleList, Borg9Voxels.Read(data), cellList);
+        return new Borg9Map(origin, cellSize, columns, rows, vertexList, triangleList, Borg9Voxels.Read(data), cellList)
+        {
+            DrawnNeighbours = s[0x1B],
+        };
     }
 
     /// <summary>A triangle's vertex is a byte offset into the vertex list, which the game turns into a pointer.</summary>

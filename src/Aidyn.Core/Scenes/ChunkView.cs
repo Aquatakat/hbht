@@ -1,4 +1,5 @@
 using System.Numerics;
+using Aidyn.Plugins.Records;
 
 namespace Aidyn.Core.Scenes;
 
@@ -15,8 +16,11 @@ namespace Aidyn.Core.Scenes;
 /// could be, is out of view.
 /// </para>
 /// <para>
-/// A map can also list neighbours to draw out of view as well (<c>Borg9Data.byte0x1b</c>, a bit per
-/// neighbour). None of Gwernia's maps do, and it isn't ported.
+/// The player's chunk's map can also have neighbours drawn out of view as well
+/// (<see cref="MapRecord.DrawnNeighbours"/>, Borg9 header byte 0x1B): 21 chunks of the Overworld do, none
+/// of Gwernia's. <c>RenderZones</c> (<c>0x8000d574</c>) and <c>RenderTransZones</c> (<c>0x8000dd44</c>) walk
+/// the neighbours in their table's order (<c>0x800CD700</c>, <see cref="Neighbours"/>) and draw one if the
+/// view crosses it or its bit is set.
 /// </para>
 /// </remarks>
 public static class ChunkView
@@ -36,9 +40,10 @@ public static class ChunkView
     /// <param name="row">The chunk's row, from the centre chunk's: −1, 0 or 1, along X.</param>
     /// <param name="column">Its column, from the centre chunk's, along Z.</param>
     /// <param name="cellSize">The map set's chunk size in X and Z.</param>
-    public static bool Drawn(Vector2 camera, Vector2 look, int row, int column, Vector2 cellSize)
+    /// <param name="forced">The neighbours the centre chunk's map has drawn whatever the view.</param>
+    public static bool Drawn(Vector2 camera, Vector2 look, int row, int column, Vector2 cellSize, Neighbours forced = Neighbours.None)
     {
-        if (row == 0 && column == 0)
+        if (row == 0 && column == 0 || (forced & Neighbour(row, column)) != 0)
             return true;
 
         var min = new Vector2(row * cellSize.X, column * cellSize.Y) - new Vector2(Margin);
@@ -57,6 +62,20 @@ public static class ChunkView
         }
         return false;
     }
+
+    /// <summary>The bit of the neighbour at a row and column from the centre chunk's, or none for the centre.</summary>
+    public static Neighbours Neighbour(int row, int column) => (row, column) switch
+    {
+        (-1, -1) => Neighbours.NorthWest,
+        (1, -1) => Neighbours.NorthEast,
+        (-1, 1) => Neighbours.SouthWest,
+        (1, 1) => Neighbours.SouthEast,
+        (0, -1) => Neighbours.North,
+        (0, 1) => Neighbours.South,
+        (-1, 0) => Neighbours.West,
+        (1, 0) => Neighbours.East,
+        _ => Neighbours.None,
+    };
 
     /// <summary>
     /// Whether a line crosses <c>y = <paramref name="edge"/></c> between <paramref name="low"/> and

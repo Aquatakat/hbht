@@ -674,7 +674,11 @@ public partial class Game : Node3D, ITrekHost
         // A cut-scene's 3×3 stays as it loaded.
         if (_scene is null)
             chunks.Chunks.Update(focus.ToNumerics());
-        chunks.Fade(View(), _drawDistance);
+        var view = View();
+        chunks.Fade(view, _drawDistance);
+        // Oriana's path lights go out as they're reached; not for the free camera, which the original hasn't.
+        if (!_camera.Flying)
+            chunks.PutOut(view);
         RepeatStick(delta);
         // From where the scenery is drawn this frame: between ticks, the camera interpolated.
         Billboards.Face(chunks.BillboardFacings, _camera.Current.GetGlobalTransformInterpolated().Origin);

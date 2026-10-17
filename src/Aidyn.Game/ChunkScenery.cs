@@ -101,6 +101,16 @@ public sealed class ChunkScenery
         }
     }
 
+    /// <summary>Takes a placed scene object out of the scenery, as one that's no longer active, such as a path light put out.</summary>
+    public void Remove(int index)
+    {
+        if (Find(index) is not { } placed)
+            return;
+        Objects.Remove(placed);
+        Billboards.RemoveAll(placed.Node.IsAncestorOf);
+        placed.Node.QueueFree();
+    }
+
     /// <summary>The placed scene object at an index in the chunk's map, if it's placed.</summary>
     public PlacedObject? Find(int index) => Objects.FirstOrDefault(p => p.Object.Index == index);
 

@@ -118,7 +118,25 @@ public sealed class ChunkStreamer
     /// Collision and the rest of the objects stay as they are.
     /// </summary>
     /// <returns>The maps whose scene objects came or went.</returns>
-    public IReadOnlyList<LoadedMap> Regate() => [.. _maps.Values.Where(m => m.Regate(_game.Flags))];
+    public IReadOnlyList<LoadedMap> Regate() => [.. _maps.Values.Where(m => m.Regate(_game.Flags, _game.Memory))];
+
+    /// <summary>
+    /// Puts out what goes out once reached in the loaded chunks, Oriana's path lights (<see cref="LoadedMap.PutOut"/>),
+    /// remembering each under the chunk the 3×3 is loaded around, as the original does under the player's.
+    /// </summary>
+    /// <returns>The objects put out, with their maps.</returns>
+    public IReadOnlyList<(LoadedMap Map, SceneObject Object)> PutOut(in Scenes.SceneView view)
+    {
+        if (!_chunks.TryGetValue(Centre, out var centre))
+            return [];
+        List<(LoadedMap, SceneObject)>? putOut = null;
+        foreach (var map in _maps.Values)
+        {
+            foreach (var o in map.PutOut(view, _game.Memory, centre.Map))
+                (putOut ??= []).Add((map, o));
+        }
+        return putOut ?? [];
+    }
 
     // The chunk's collision, and its objects activated by the flags as the original does as it loads
     // (VoxelObjects_Activate).

@@ -121,6 +121,8 @@ public static class CheckpointSave
                 return new SaveMemory(mapObject, "Opened", (int)memory.Value, memory.Lifetime);
             case 5:
                 return new SaveMemory(mapObject, "Beaten", (int)memory.Value, memory.Lifetime);
+            case 0:
+                return new SaveMemory(mapObject, "PutOut", (int)memory.Value, memory.Lifetime);
             default:
                 problems.Add($"{where} remembers type {memory.Type}, which the port doesn't know.");
                 return null;

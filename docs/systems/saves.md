@@ -95,9 +95,11 @@ A save made from the "Before final encounter" checkpoint, cut short:
 | `SkillCheck` | 0x49 + the skill | A conversation's skill check: the party's step | 10 |
 | `Opened` | 1 | A container emptied that has no opened flag | 10 |
 | `Beaten` | 5 | A monster party beaten | 3 |
+| `PutOut` | 0 | One of Oriana's path lights put out ([map-objects](map-objects.md#orianas-path-lights)) | 16 |
 
 - It holds 19. When all are taken, it forgets the beaten parties, then the random lines, then everything, until there's room (`WriteTo_VoxelChart`).
 - **A map load**, a teleport or a conversation's end (`memset_voxelChart_entries`), takes one from each memory's lifetime, and forgets those at 0. Recalling a conversation's memory sets it back to 10 (`dialougSkillCheck`, the random line). A new game and loading a save clear it.
+- **The type is the object's**, but for a conversation's. Loading a chunk looks every scene object up as type 0 (`LoadedMap.Activate`, `0x80017af8`), and keeps one it finds out, which only a path light put out writes. The chunk a memory names is the zone engine's current one moved by the chunk's place in the 3×3 (`MapObjectMemory.OffsetChunk`, `0x80056710`: rows by the code's high nibble − 1, columns by its low bits − 1, `0x11` for none), so a lookup names the object's own chunk; every writer passes `0x11`.
 - **Conversations' memories are type 9 whoever talks.** The two in the checkpoints belong to monster parties with a script: object 2 of Overworld L08 (`aidyn:voxel/0x1063/2`) remembers a roll of 99 and a Diplomat step of 2, and object 32 of Terminor G01 a roll of 100.
 - **The key.** The original keys a memory by the object's index in its map, the map set and the chunk. The port keys it by the object's record ID, which names its map, so a map placed in two chunks would share its objects' memories. In the base game only the battle arenas and an empty overworld map are placed twice, and they hold nothing that remembers.
 - **The slots.** The original keeps a free list, so a new memory can land in any free slot. Only a lookup's order could tell, and no two memories share a key, so the port keeps them in the order they were made.
