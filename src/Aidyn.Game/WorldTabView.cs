@@ -22,13 +22,29 @@ public partial class WorldTabView : Control
     private const int TodaySize = 17;
 
     /// <summary>
-    /// The calendar's days and moons, painted into <c>0x00DA</c>, covered by plain parchment from the band above them,
-    /// where the season's name is drawn by code, which the veil is drawn from so it fades them with the widgets, as
-    /// <see cref="PartyTabView"/>'s does.
+    /// What's painted into <c>0x00DA</c>, covered by plain parchment, which the veil is drawn from so it fades the painted
+    /// layout with the widgets, as <see cref="PartyTabView"/>'s does: the calendar's days and moons, from the band above
+    /// them, where the season's name is drawn by code; then the map, its grey wash with the coasts and the sea from x 32
+    /// to 153 and from the torn edge to the torn edge, in three columns from the outside in, each a piece at the top and
+    /// the bottom in two to follow the torn edge, leaving its darkened rim, and two in the middle; the compass rose's
+    /// left, outside the wash; and the arrow under the map. The map's pieces come mostly from beside the calendar, the
+    /// only plain parchment as large, so several sources serve more than once; each was picked for the least stain and
+    /// overlaps its neighbours' little if at all, and nothing painted or torn is in it or a pixel round it.
     /// </summary>
     private static readonly PlainImage.Patch[] PlainPatches =
     [
         new(new(155, 58, 265, 94), 155, 28), new(new(155, 94, 265, 130), 155, 28), new(new(155, 130, 265, 144), 155, 28),
+        new(new(133, 30, 154, 64), 270, 150), new(new(112, 29, 133, 64), 4, 52),
+        new(new(112, 64, 154, 110), 266, 98), new(new(112, 110, 154, 156), 266, 148),
+        new(new(133, 156, 154, 206), 268, 84), new(new(112, 156, 133, 212), 268, 34),
+        new(new(154, 195, 181, 205), 262, 164),
+        new(new(30, 24, 50, 64), 282, 92), new(new(50, 21, 71, 64), 270, 144),
+        new(new(30, 64, 71, 110), 158, 142), new(new(30, 110, 71, 156), 266, 134),
+        new(new(30, 156, 50, 211), 276, 56), new(new(50, 156, 71, 211), 212, 150),
+        new(new(14, 156, 30, 213), 4, 28),
+        new(new(91, 20, 112, 64), 272, 144), new(new(71, 23, 91, 64), 270, 96),
+        new(new(71, 64, 112, 110), 266, 34), new(new(71, 110, 112, 156), 226, 156),
+        new(new(91, 156, 112, 209), 272, 94), new(new(71, 156, 91, 210), 268, 34),
     ];
 
     private readonly UiPainter _ui;
