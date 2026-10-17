@@ -101,8 +101,9 @@ public sealed class TrekLoop : IMapObjectHost
         _host = host;
         Chunks = chunks;
         Particles = particles;
-        if (particles is not null)
-            Precipitation = new WeatherParticles(particles, game.Random.Cosmetic, () => Camera.Aim, () => Chunks.World, () => Chunks.Centre);
+        if (particles is not null && game.Weather is { } weather)
+            Precipitation = new WeatherParticles(particles, weather.Rules, game.Random.Cosmetic, () => Camera.Aim, () => Camera.LookXZ,
+                () => Chunks.World, () => Chunks.Centre);
         Wanderers = new Wanderers(game.Plugins);
         Use = new MapObjectUse(game, MenuText.From(game.Plugins), this) { World = chunks.World };
         Hud = new TrekHud(game, host.ImageSize);
@@ -252,9 +253,8 @@ public sealed class TrekLoop : IMapObjectHost
             if (weather.Thunder is { } thunder)
                 WeatherSounds.Thunder(thunder);
         }
-        if (precipitation)
-            Precipitation?.Frame(weather, skyDrawn, Camera.LookXZ);
-        weather.Draw(skyDrawn);
+        // The rain's particles go with the weather's one decision about them; cut-scenes draw none.
+        weather.Draw(skyDrawn, emitters: precipitation ? Precipitation : null);
         WeatherSounds.Step(weather);
     }
 
@@ -406,8 +406,8 @@ public sealed class TrekLoop : IMapObjectHost
         Chunks.Update(point);
         Use.ClearCameras();
         // The weather's emitters are forgotten, then every emitter still spawning is killed, theirs among them, so the
-        // rain starts again about the player from the next frame.
-        Precipitation?.Forget();
+        // rain starts again about the player from the next frame, asking for the rain sky again; its loop plays on.
+        Game.Weather?.Forget(Precipitation);
         Particles?.KillActive();
         var motion = Player;
         var from = motion.Sphere.Position;

@@ -120,6 +120,23 @@ public sealed class TrekLoopTests(MapObjectFixture fixture)
             var up = -Vector3.Transform(Vector3.UnitZ, s.Orientation!.Value);
             Assert.True(Vector3.Dot(up, Vector3.UnitY) > 0.5f);
         }
+
+        // Through a door into an interior, whose sky isn't drawn: the pair is forgotten and killed, none is made there,
+        // and the weather's one decision says so; the rain loop stops there.
+        var weather = trek.Game.Weather;
+        var map = trek.Chunks.MapAt(trek.Player.Sphere.Position)!;
+        var door = map.Objects.OfType<TeleporterObject>().First(t => t.LockLevel == 0 && t.TrapLevel == 0 && t.SecretFlag is null
+            && TeleportArrival.For(Data.Set, t) is { } a && a.Set.Id != Overworld
+            && Data.Set.Get<TerrainRecord>(RecordId.Decimal(RecordTypes.Terrain, a.Chunk.Terrain)) is { SkyDrawn: false });
+        ((IMapObjectHost)trek).Teleport(map, door);
+        for (var i = 0; i < 120; i++)
+        {
+            trek.Tick(Still);
+            particles.Step();
+            Assert.Equal(weather.Emitting, trek.Precipitation.Drops is not null);
+        }
+        Assert.False(weather.Emitting || weather.RainLoop);
+        Assert.Equal(0, particles.EmittersInUse);
     }
 
     /// <summary>How many chunks the map set has in the 3×3 around one: fewer at its edges.</summary>

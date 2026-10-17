@@ -17,16 +17,16 @@ namespace Aidyn.Core.Particles;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The original runs it every frame trek draws, after the particles; its rates are per frame or per tick times the
-/// frame's ticks, and a frame of it changes nothing that a second in the same frame would, so the port runs it every
-/// tick, before the weather's own (<see cref="Weather.Draw"/>), as <c>ProcessWeather</c> orders them. The drops'
-/// draws come from the cosmetic stream, where the original takes them from its one stream (ADR 0006).
+/// The original keeps one pointer to the pair (<c>Weather.Data</c> + 0x14), which decides the rain sky as well as the
+/// particles. <see cref="Weather.Draw"/> holds that decision (<see cref="Weather.Emitting"/>) and makes, steers, keeps,
+/// forgets and frees the pair through this, in <c>ProcessWeather</c>'s order, every tick, as its rates are per tick. The
+/// drops' draws come from the cosmetic stream, where the original takes them from its one stream (ADR 0006).
 /// </para>
 /// <para>
 /// <see cref="Density"/> is the port's: more drops and splashes from each spawn, and room for them in the pool.
 /// </para>
 /// </remarks>
-public sealed class WeatherParticles
+public sealed class WeatherParticles : IPrecipitationEmitters
 {
     // ProcessWeather's literals (0x800ce0c8–0x800ce0f0).
 
@@ -93,25 +93,32 @@ public sealed class WeatherParticles
 
     private readonly ParticleHead _head;
     private readonly IRandom _random;
+    private readonly WeatherRecord _rules;
     private readonly Func<Vector3> _aim;
+    private readonly Func<Vector2> _look;
     private readonly Func<CollisionWorld?> _world;
     private readonly Func<object?> _part;
     private readonly List<Pair> _pairs = [];
     private float _density = 1;
 
     /// <param name="head">The particle pool.</param>
+    /// <param name="rules">The weather's rules, with how rain and snow look.</param>
     /// <param name="random">The drops' stream: the cosmetic one.</param>
     /// <param name="aim">The camera's aim, which the drops fall about (<c>Camera.Listener</c> + 0xC, <c>0x800d82a8</c>), read as each spawns.</param>
+    /// <param name="look">The camera's look in X and Z, a unit vector (<c>FollowCamera.LookXZ</c>, <c>0x800d82cc</c>), read as the pair is steered.</param>
     /// <param name="world">The loaded collision.</param>
     /// <param name="part">
     /// The key of the chunk the player is in, whose collision alone the drops test, as the original's
     /// (<c>Zones.PlayerMap</c>, <c>0x800d8288</c>); null tests every loaded chunk's.
     /// </param>
-    public WeatherParticles(ParticleHead head, IRandom random, Func<Vector3> aim, Func<CollisionWorld?> world, Func<object?>? part = null)
+    public WeatherParticles(ParticleHead head, WeatherRecord rules, IRandom random, Func<Vector3> aim, Func<Vector2> look,
+        Func<CollisionWorld?> world, Func<object?>? part = null)
     {
         _head = head;
+        _rules = rules;
         _random = random;
         _aim = aim;
+        _look = look;
         _world = world;
         _part = part ?? (() => null);
     }
@@ -137,59 +144,76 @@ public sealed class WeatherParticles
     /// <summary>The splashes' emitter now steered (the drops' emitter's <c>+0x1C8</c>), or null.</summary>
     public Emitter? Splashes => Current?.Splashes;
 
+    /// <summary>The pair now steered, which <see cref="Weather.Emitting"/> says is up, or null for none or one with nothing to draw.</summary>
     private Pair? Current { get; set; }
 
     /// <summary>
-    /// A tick of <c>ProcessWeather</c>'s emitters, before the weather's own: when what's falling isn't what the weather
-    /// wants, the emitters are forgotten, left to run out; while they agree and something falls, and the sky is drawn, a
-    /// pair is made if there's none; then the pair's centre is moved to <see cref="Ahead"/> in front of the camera's aim
-    /// along its <paramref name="look"/>, their fall set to the wind and the precipitation's, and their intervals and
-    /// lives by how hard it falls. Where the sky isn't drawn, the pair is freed at once.
+    /// Makes a pair for what falls (<see cref="Make(PrecipitationLook)"/>), when <see cref="Weather.Draw"/> finds none
+    /// up. Without room it's tried again the next tick. What a plugin gives no look draws nothing, and counts as made.
     /// </summary>
-    /// <param name="look">The camera's look in X and Z, a unit vector (<c>0x800d82cc</c>).</param>
-    public void Frame(Weather weather, bool skyDrawn, Vector2 look)
+    public bool Make(Precipitation falling)
     {
-        var wanted = weather.Precipitation;
-        if (weather.Falling != wanted)
-            Current = null;
-        // ProcessWeather starts what's wanted once what was falling has died away, before it makes the emitters.
-        var falling = weather.FallIntensity <= 0 ? wanted : weather.Falling;
-        var intensity = weather.FallIntensity;
-        if (Current is { } stale && !stale.Ours())
-            Current = null;
-        if (falling == wanted && falling != Precipitation.None && Current is null && skyDrawn)
-            Current = Make(Look(weather.Rules, falling));
-        if (Current is { } pair)
+        if (Look(_rules, falling) is not { } look)
         {
-            pair.Spread = Spread;
-            pair.Offset = new Vector3(look.X * Ahead, Above - (intensity - AboveLess), look.Y * Ahead);
-            var look2 = pair.Look;
-            ref var head = ref _head[pair.Drops.Head];
-            var wind = weather.Wind;
-            var y = (float)(wind.Y - ((double)intensity * look2.FallPerIntensity + look2.Fall));
-            head.Vector = new Vector4(wind.X, y, wind.Z, head.Vector.W);
-            var interval = (short)(int)(look2.Interval + intensity * look2.IntervalPerIntensity);
-            pair.Drops.Interval = interval;
-            pair.Life = (short)(int)(look2.Life + intensity * look2.LifePerIntensity);
-            if (look2.Splashes && pair.Splashes is { } splashes)
-                splashes.Interval = (short)(interval - look2.SplashesSooner);
-            if (falling == wanted && falling != Precipitation.None)
-            {
-                pair.Drops.Life = KeptLife;
-                pair.Splashes?.Life = KeptLife;
-            }
-        }
-        if (!skyDrawn && Current is { } freed)
-        {
-            if (freed.Splashes is { } a && freed.OwnsSplashes())
-                _head.Free(a);
-            _head.Free(freed.Drops);
             Current = null;
+            return true;
         }
+        Current = Make(look);
+        return Current is not null;
     }
 
-    /// <summary>The emitters are forgotten, left to run out, as a teleport through a door forgets them before it kills every emitter still spawning (<c>TeleportPlayer</c>, <c>0x8000bb54</c>).</summary>
+    /// <summary>
+    /// Steers the pair, every tick it's up (<c>ProcessWeather</c>): its centre <see cref="Ahead"/> in front of the
+    /// camera's aim along its look and 9 − I above it, the fall the wind and the precipitation's, and the intervals
+    /// and the drops' lives by how hard it falls, I, before this tick's change.
+    /// </summary>
+    public void Steer(Precipitation falling, float intensity, Vector3 wind)
+    {
+        // Something else has freed it: nothing to steer (the original would write into a freed emitter).
+        if (Current is not { } pair || !pair.Ours())
+            return;
+        var look = _look();
+        pair.Spread = Spread;
+        pair.Offset = new Vector3(look.X * Ahead, Above - (intensity - AboveLess), look.Y * Ahead);
+        var rules = pair.Look;
+        ref var head = ref _head[pair.Drops.Head];
+        var y = (float)(wind.Y - ((double)intensity * rules.FallPerIntensity + rules.Fall));
+        head.Vector = new Vector4(wind.X, y, wind.Z, head.Vector.W);
+        var interval = (short)(int)(rules.Interval + intensity * rules.IntervalPerIntensity);
+        pair.Drops.Interval = interval;
+        pair.Life = (short)(int)(rules.Life + intensity * rules.LifePerIntensity);
+        if (rules.Splashes && pair.Splashes is { } splashes)
+            splashes.Interval = (short)(interval - rules.SplashesSooner);
+    }
+
+    /// <summary>Keeps both emitters' lives at <see cref="KeptLife"/> while what falls is what the weather wants.</summary>
+    public void Keep()
+    {
+        if (Current is not { } pair || !pair.Ours())
+            return;
+        pair.Drops.Life = KeptLife;
+        pair.Splashes?.Life = KeptLife;
+    }
+
+    /// <summary>
+    /// The emitters are forgotten, left to run out (<see cref="Weather.Forget"/>): as the weather wants another to fall,
+    /// and as a door's teleport forgets them before it kills every emitter still spawning (<c>TeleportPlayer</c>,
+    /// <c>0x8000bb54</c>).
+    /// </summary>
     public void Forget() => Current = null;
+
+    /// <summary>Frees the pair at once, the splashes' first, where the sky isn't drawn (<c>Particles.KillEmitter</c>).</summary>
+    public void Free()
+    {
+        if (Current is { } pair)
+        {
+            if (pair.OwnsSplashes())
+                _head.Free(pair.Splashes!);
+            if (pair.Ours())
+                _head.Free(pair.Drops);
+        }
+        Current = null;
+    }
 
     /// <summary>Frees every emitter this has made, and forgets them, as the zone engine's end frees the pool.</summary>
     public void Clear()
@@ -217,10 +241,8 @@ public sealed class WeatherParticles
     /// particle in it by <see cref="SplashShrink"/> a tick, spawning rain's own splashes; then the drops', its head moving
     /// every drop by the fall, spawning and landing drops. Without room for the second, the first is freed.
     /// </summary>
-    private Pair? Make(PrecipitationLook? look)
+    private Pair? Make(PrecipitationLook look)
     {
-        if (look is null)
-            return null;
         _pairs.RemoveAll(p => !p.Ours());
         var pair = new Pair(this, look);
         if (_head.AllocEmitter(StartLife, look.Splash, 0, spawn: look.Splashes ? pair.SpawnSplashes : null) is not { } splashes)
