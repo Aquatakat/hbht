@@ -56,8 +56,9 @@ public static class BasePlugin
     /// 30 adds the scenes' particle emitters and the cinematics. 31 gives the weather record the rain sky, and how rain and snow are drawn.
     /// 32 marks the scene objects' levels of detail that are empty scenes.
     /// 33 gives the cinematics their titles and each shot its scene, length, captions and fades.
+    /// 34 keeps the textures of environment-mapped display lists.
     /// </summary>
-    public const int ImporterVersion = 33;
+    public const int ImporterVersion = 34;
 }
 
 /// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>

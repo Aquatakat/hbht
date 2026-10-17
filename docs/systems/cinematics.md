@@ -38,6 +38,7 @@ The table's fades (`Cinematic.StepFades`, `0x800541f0`) run on a clock from each
 - **The picture** is the whole 320 × 240 screen, cleared to black, through the scene's own Borg3 camera (all 45° at 4:3) with the table's planes. The port draws it in a world of its own across the window, at its height's field of view; on a wider screen the shots show more at the sides, and nothing in the sets is missing there.
 - **The scene's own lights** light it, as `BorgAnimDrawSceneRaw` does for a scene without the engine-lit bit (see [rendering](rendering.md#a-scenes-own-lights)): their colours, and the directions their animation turns them to, with the last as the ambient. Nothing of the world applies: no sky, weather, tint or fog.
 - **Billboards** face the camera, and **scrolling textures** move a step each picture, as each draw of a scene moves them.
+- **Environment-mapped lists**, such as the opening's door hinges, look from the scene's origin toward each node, since a cinematic's scene is given no eye ([rendering](rendering.md#environment-maps)).
 - **Particle emitters** don't run: the pool is stepped only from the zone engine's frame.
 
 ### The caption box

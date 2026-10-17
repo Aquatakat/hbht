@@ -187,6 +187,15 @@ public sealed class ImportTests : IDisposable
         Assert.All(cinematics.SelectMany(c => c.Shots), s => Assert.NotNull(set.TryGet<SequenceRecord>(s.Music)));
         Assert.Equal(["Gabrion's Search", "Shadow Self Merge", "Rooughah Naming", "Coronation of Alaron"], cinematics.Select(c => c.Title));
         Assert.All(cinematics.SelectMany(c => c.Shots), s => Assert.NotNull(set.FindAsset(s.Scene, "glb")));
+        // The opening's door hinges are environment-mapped (Borg2 flag 0x1), and keep their texture for it.
+        var glb = File.ReadAllBytes(set.FindAsset(RecordId.Hex(RecordTypes.Scene, 0x2218), "glb")!);
+        using (var json = System.Text.Json.JsonDocument.Parse(glb.AsMemory(20, BitConverter.ToInt32(glb, 12))))
+        {
+            var mapped = json.RootElement.GetProperty("materials").EnumerateArray()
+                .Where(m => (m.GetProperty("extras").GetProperty("borg2Flags").GetUInt32() & 1) != 0).ToList();
+            Assert.NotEmpty(mapped);
+            Assert.All(mapped, m => Assert.True(m.GetProperty("pbrMetallicRoughness").TryGetProperty("baseColorTexture", out _)));
+        }
         // The table's times are halved: the opening's first shot's fade to white ends on its animation's last tick.
         var opening = cinematics[0].Shots[0];
         Assert.Equal((1541, RecordId.Hex(RecordTypes.Scene, 0x2218)), (opening.Length, opening.Scene));

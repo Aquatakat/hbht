@@ -318,7 +318,10 @@ internal static class N64Material
             }
         }
 
-        var material = new ShaderMaterial { Shader = ShaderFor(unlit, cull, nearest, blend, albedo is not null) };
+        // A lit display list with G_TEXTURE_GEN (Borg2 flag 0x1) takes its texture coordinates from its normals.
+        var texgen = albedo is not null && !unlit && m.TryGetProperty("extras", out var flagExtras) &&
+            flagExtras.TryGetProperty("borg2Flags", out var borg2Flags) && (borg2Flags.GetUInt32() & EnvironmentMapFlag) != 0;
+        var material = new ShaderMaterial { Shader = ShaderFor(unlit, cull, nearest, blend, albedo is not null, texgen) };
         // Back to on-screen values; alpha was never gamma-encoded.
         var onScreen = factor.LinearToSrgb();
         // A Vector4, not a Color: Duplicate() resets a Color set on a vec4 uniform to the default,
@@ -336,7 +339,7 @@ internal static class N64Material
         if (m.TryGetProperty("extras", out var extras) && extras.TryGetProperty("borg1", out var borg1))
             material.SetMeta(Borg1Meta, borg1.GetInt32());
         if (blend == Blend.Mask)
-            FadedShaders.Add(material, ShaderFor(unlit, cull, nearest, Blend.Blend, albedo is not null));
+            FadedShaders.Add(material, ShaderFor(unlit, cull, nearest, Blend.Blend, albedo is not null, texgen));
         return material;
 
         static Wrap ToWrap(JsonElement sampler, string name) =>
@@ -348,12 +351,32 @@ internal static class N64Material
             };
     }
 
+    /// <summary>Borg2's <c>EnvironmentMap</c> flag: the display list's texture coordinates come from its normals.</summary>
+    private const uint EnvironmentMapFlag = 0x1;
+
+    /// <summary>
+    /// <c>G_TEXTURE_GEN</c>'s texture coordinates (<c>BorgAnimDrawSceneRaw</c>, <c>0x80097a90</c>, and F3DEX2's texgen):
+    /// before each such list the game looks from the scene's eye at the node's world position, world up being up
+    /// (<c>guLookAtReflect</c>), and each vertex's normal after the model matrix takes (1 + n · right) / 2 across the
+    /// texture and (1 + n · up) / 2 down it, so a normal facing up samples the bottom. Only trek's centre chunk's
+    /// scene is given an eye; every other scene's, a cinematic's included, is the world's origin.
+    /// </summary>
+    private const string TexGen = """
+
+        	// G_TEXTURE_GEN: the texture is looked up by the way the normal faces, seen from the world's origin.
+        	vec3 world_normal = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
+        	vec3 look = normalize(-MODEL_MATRIX[3].xyz);
+        	vec3 look_right = normalize(cross(vec3(0.0, 1.0, 0.0), look));
+        	vec3 look_up = cross(look, look_right);
+        	UV = (1.0 + vec2(dot(world_normal, look_right), dot(world_normal, look_up))) * 0.5;
+        """;
+
     /// <summary>A shader for a material's fixed state. Each combination is compiled once.</summary>
-    private static Shader ShaderFor(bool unlit, bool cull, bool nearest, Blend blend, bool textured)
+    private static Shader ShaderFor(bool unlit, bool cull, bool nearest, Blend blend, bool textured, bool texgen)
     {
         var rsp = RspLighting && !unlit;
         var onScreen = OnScreenFramebuffer && (unlit || rsp);
-        var key = $"{unlit} {rsp} {onScreen} {cull} {nearest} {blend} {textured}";
+        var key = $"{unlit} {rsp} {onScreen} {cull} {nearest} {blend} {textured} {texgen}";
         if (Shaders.TryGetValue(key, out var shader))
             return shader;
 
@@ -464,7 +487,7 @@ internal static class N64Material
                 	float far = n64_fog.w;
                 	float depth = max(-(MODELVIEW_MATRIX * vec4(VERTEX, 1.0)).z, 0.0001);
                 	float z = (far + near) / (far - near) - 2.0 * far * near / ((far - near) * depth);
-                	fog = far > near && lighting != 3 ? clamp((z * 500.0 + 500.0 - n64_fog.x) / (n64_fog.y - n64_fog.x), 0.0, 1.0) : 0.0;{{light}}
+                	fog = far > near && lighting != 3 ? clamp((z * 500.0 + 500.0 - n64_fog.x) / (n64_fog.y - n64_fog.x), 0.0, 1.0) : 0.0;{{light}}{{(texgen ? TexGen : "")}}
                 }
 
                 void fragment() {

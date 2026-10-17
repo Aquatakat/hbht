@@ -34,7 +34,7 @@ public static class SceneGltf
             if (!IsDrawn(model, draw.DisplayList))
                 continue;
             var mesh = model.Meshes[draw.DisplayList];
-            var texture = draw.Texture is { } t && !mesh.Flags.HasFlag(Borg2MaterialFlags.EnvironmentMap) ? t : (int?)null;
+            var texture = draw.Texture;
             var primitive = Primitive(gltf, model, mesh, texture is { } ti ? textures[ti].Value : null);
             primitive["material"] = Material(texture, mesh, model.Alpha);
             primitive["extras"] = new JsonObject
@@ -504,8 +504,10 @@ public static class SceneGltf
             attributes["COLOR_0"] = gltf.AddVectors(mesh.Vertices.Select(v => new Vector4(ToLinear(new Vector3(v.R, v.G, v.B) / 255), v.A / 255f)).ToList());
         if (texture is not null)
         {
-            // 64 units of S or T per texel; T = 0 is the texture's first row, which is glTF's top.
-            var size = new Vector2(texture.Width * 64, texture.Height * 64);
+            // 64 units of S or T per texel; T = 0 is the texture's first row, which is glTF's top. An environment-mapped
+            // list's texture is scaled by its size (G_TEXTURE with W << 6 and H << 6, where others have 0x8000), so
+            // 32768 units span it; a lit one's coordinates are made from its normals instead.
+            var size = mesh.Flags.HasFlag(Borg2MaterialFlags.EnvironmentMap) ? new Vector2(32768) : new Vector2(texture.Width * 64, texture.Height * 64);
             attributes["TEXCOORD_0"] = gltf.AddVectors(mesh.Vertices.Select(v => new Vector2(v.S, v.T) / size).ToList());
         }
 

@@ -140,6 +140,15 @@ The engine's particles ([particles](../formats/particles.md)) are drawn last in 
 
 - **Unlit meshes have no normals that face up.** They're exported without `NORMAL`, as the N64 doesn't light them, and Godot generates its own. A decal's angle fade (`normal_fade`), which compares the decal with the surface's normal, hid the player's shadow even on level unlit ground, so those generated normals don't face up. Anything that reads unlit geometry's normals will need them exported, or the winding checked.
 
+## Environment maps
+
+A Borg2 display list with flag 0x1 has `G_TEXTURE_GEN` on: its texture coordinates come from its normals, for shiny metal such as the opening's door hinges. 31 lists in 30 models have it; 20 are lit and 11 unlit. Settled from 1.0's machine code and the RSP microcode it carries (F3DEX2 fifo 2.08) by a research run (Oct 17, 2026).
+
+- **The look-at** is made afresh before each such list (`BorgAnimDrawSceneRaw`, `0x80097a90`, `guLookAtReflect` at `0x800987f4`): from the scene's eye (`+0xF8`) at the node's world position, with world up, into the RSP's look-at X and Y, in world space as the lights are. Only trek's centre chunk's scene is given an eye, the camera's (`SceneSetCameraLookAt`, `0x8009e1b4`, from `HandleZoneEngineFrame`); every other scene's stays at the origin, the checkpoints' neighbour chunks' included. So most lists look from the world's origin toward each node, a direction that turns only as the node does, not as the camera moves.
+- **The coordinates:** the normal after the model matrix, normalised, gives u = (1 + n · right) / 2 and v = (1 + n · up) / 2 across the whole texture (`G_TEXTURE` scales these lists by the texture's width and height, `W << 6` and `H << 6`, where others have `0x8000`). A normal facing up samples the texture's bottom row. The tile wraps or clamps as any list's does; the 20 lit ones all wrap.
+- **Without lighting there's no texgen:** the microcode generates coordinates only in its lighting path, so the 11 unlit lists use their own S and T, at that scale, 32,768 units across the texture. The one list with flag 0x2 (`G_TEXTURE_GEN_LINEAR`) is unlit, so the linear mode is never seen.
+- **In the port** the export keeps these lists' textures (it had dropped them, which drew the hinges black), and the N64 material makes the coordinates from the world's origin (`N64Material.TexGen`). That's exact for the cinematics, whose shots are drawn at the origin.
+
 ## What's left
 
 - **The lens flare's test** for what hides the sun uses the collision, not the depth buffer, so foliage doesn't hide it.
@@ -155,7 +164,7 @@ The engine's particles ([particles](../formats/particles.md)) are drawn last in 
   - *It draws a neighbour chunk only when the camera's view crosses it* or the player's chunk's map has it drawn, objects and all. The runtime draws all nine, and leaves what's out of view to Godot. Only the scroll counts the original's way.
 - **Billboards in the editor's model view** face the way they were modelled. Its map set view turns them, as the runtime does.
 - **Opened and destroyed containers in the editor.** Once a chest, sack, crate or barrel is opened or destroyed, the original swaps its linked scene object's model for the object's second or third (`replace_container_voxel`). The runtime does ([map-objects](map-objects.md#a-chunks-objects-at-run-time)); the editor's **Flags** switch only leaves the container itself out.
-- **Some odd rendering** the user noticed in the cinematics. It isn't pinned down yet.
+- **Environment maps in trek.** 16 scenes have lit environment-mapped lists: two cinematic shots, five chunk scenes, four scene objects' and three actors'. The port looks at them all from its world's origin, a map set's corner, where the original's is probably the centre chunk's, and the centre chunk's own scene looks from the camera ([environment maps](#environment-maps)). Settling the original's world frame for drawing would make them exact.
 - **Particles on attached scenes.** 34 emitters sit on a scene combat attaches at run time, a spell's caster and target or an attack's victim (locator bits 7–8); the runtime's anchor gives them no locator yet, which ends them. M3 attaches them.
 - **The particles' first pass** (emitter flag 0x1000: after the centre chunk's scene, without the depth buffer, comparing the primitive's depth) isn't drawn apart; nothing the port runs has it.
 - **A scene's own lights in the other scenes that have them.** The pause menu's scroll and the cinematics' shots use their Borg4 lights in the port ([a scene's own lights](#a-scenes-own-lights)). The rest that have lights are actors' scenes, which ignore them, or ones the runtime doesn't draw yet, probably spells' and combat's; when they're drawn outside a body or a map's actor, they want their own lights too.
