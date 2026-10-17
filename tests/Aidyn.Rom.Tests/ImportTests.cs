@@ -201,6 +201,13 @@ public sealed class ImportTests : IDisposable
         Assert.All(cinematics, c => Assert.Equal(CinematicRecord.ConsoleAspect, c.Aspect));
         Assert.True(Mirrors(RecordId.Hex(RecordTypes.Scene, 0x24C9)));
         Assert.False(Mirrors(RecordId.Hex(RecordTypes.Scene, 0x2218)));
+        // A light's transform's scale tints it, channel by channel: Roog's naming is lit warm and dim.
+        var naming = File.ReadAllBytes(set.FindAsset(RecordId.Hex(RecordTypes.Scene, 0x2568), "glb")!);
+        using (var json = System.Text.Json.JsonDocument.Parse(naming.AsMemory(20, BitConverter.ToInt32(naming, 12))))
+        {
+            var light = json.RootElement.GetProperty("nodes").EnumerateArray().Single(n => n.GetProperty("name").GetString() == "light 0");
+            Assert.Equal([0.909f, 0.355f, 0.142f], light.GetProperty("scale").EnumerateArray().Select(v => v.GetSingle()));
+        }
         bool Mirrors(RecordId scene)
         {
             var bytes = File.ReadAllBytes(set.FindAsset(scene, "glb")!);

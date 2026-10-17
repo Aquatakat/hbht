@@ -22,6 +22,8 @@ public partial class CinematicView : SubViewportContainer
     private AnimationPlayer? _player;
     private string? _animation;
     private Color _ambient;
+    /// <summary>The node whose scale tints the ambient: the transform after the last light's, the first model node.</summary>
+    private Node3D? _ambientTint;
     private readonly List<(Light3D Node, Color Color)> _lights = [];
 
     public CinematicView(Models models)
@@ -94,7 +96,21 @@ public partial class CinematicView : SubViewportContainer
             // The scene's eye is its camera's position (Cinematic.StartShot leaves the camera its own).
             N64Material.SetEye(_scene, _camera.GlobalPosition);
         }
-        N64Material.SetOwnLights(_scene, _ambient, [.. _lights.Select(l => (l.Color, l.Node.GlobalBasis.Z))]);
+        N64Material.SetOwnLights(_scene, Tinted(_ambient, _ambientTint),
+            [.. _lights.Select(l => (Tinted(l.Color, l.Node), l.Node.GlobalBasis.Z))]);
+    }
+
+    /// <summary>
+    /// A light's colour tinted by its transform's scale, each channel clamped to 0–1 and the product to 1, as the
+    /// original reads <c>+0x28</c>–<c>+0x30</c> into it (<c>BorgAnimDrawSceneRaw</c>, <c>0x80097d54</c>).
+    /// </summary>
+    private static Color Tinted(Color color, Node3D? transform)
+    {
+        if (transform is null)
+            return color;
+        var scale = transform.Scale;
+        return new Color(Math.Min(1, color.R * Math.Clamp(scale.X, 0, 1)), Math.Min(1, color.G * Math.Clamp(scale.Y, 0, 1)),
+            Math.Min(1, color.B * Math.Clamp(scale.Z, 0, 1)));
     }
 
     public void Clear()
@@ -107,6 +123,7 @@ public partial class CinematicView : SubViewportContainer
         _facings = [];
         _player = null;
         _lights.Clear();
+        _ambientTint = null;
     }
 
     /// <summary>
@@ -120,8 +137,14 @@ public partial class CinematicView : SubViewportContainer
         var colors = new List<Color>();
         if (root.TryGetProperty("extensions", out var extensions) && extensions.TryGetProperty("KHR_lights_punctual", out var punctual))
             colors.AddRange(punctual.GetProperty("lights").EnumerateArray().Select(l => Rgb(l.GetProperty("color"))));
-        _ambient = root.TryGetProperty("scenes", out var scenes) && scenes[0].TryGetProperty("extras", out var extras) &&
-            extras.TryGetProperty("ambientLight", out var ambient) ? Rgb(ambient) : Colors.White;
+        JsonElement ambient = default;
+        var lit = root.TryGetProperty("scenes", out var scenes) && scenes[0].TryGetProperty("extras", out var extras) &&
+            extras.TryGetProperty("ambientLight", out ambient);
+        _ambient = lit ? Rgb(ambient) : Colors.White;
+        // The ambient is tinted by transform 1 + its index, as each light is, which is the first model node; a scene
+        // without lights gets the plain white ambient.
+        var first = $"transform {1 + colors.Count}";
+        _ambientTint = !lit ? null : Nodes.FindAll<Node3D>(scene).FirstOrDefault(n => n.Name == first || n.Name == first + " billboard");
         foreach (var light in Nodes.FindAll<Light3D>(scene))
         {
             light.Visible = false;

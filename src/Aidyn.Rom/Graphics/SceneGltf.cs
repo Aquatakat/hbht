@@ -146,6 +146,9 @@ public static class SceneGltf
                 },
                 ["extras"] = new JsonObject { ["borg4"] = scene.Lights[i] },
             }));
+            // The transform's scale tints its light, channel by channel (BorgAnimDrawSceneRaw, 0x80097d54).
+            if (scene.Transforms[1 + i].Scale != Vector3.One)
+                gltf.Node(nodes[1 + i])["scale"] = new JsonArray(scene.Transforms[1 + i].Scale.X, scene.Transforms[1 + i].Scale.Y, scene.Transforms[1 + i].Scale.Z);
         }
 
         // Emitters on one of the scene's own locators become child nodes of the locator's transform,
@@ -372,6 +375,8 @@ public static class SceneGltf
                 else if (t < scene.FirstNode)
                 {
                     SetRotation(nodes[t], sample, Quaternion.CreateFromRotationMatrix(Facing(transform.Direction)));
+                    // A light's scale tints it.
+                    Samples(scales, nodes[t])[sample] = transform.Scale;
                 }
                 else
                 {
