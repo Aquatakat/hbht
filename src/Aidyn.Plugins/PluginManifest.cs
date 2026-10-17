@@ -52,8 +52,9 @@ public static class BasePlugin
     /// 22 gives weapons, shields and six items their models.
     /// 23 adds the world map and camping. 24 adds the minimaps. 25 adds sequences and samples.
     /// 26 adds the engine's sounds and the map sets' music.
+    /// 27 adds the scenes' particle emitters and the cinematics.
     /// </summary>
-    public const int ImporterVersion = 26;
+    public const int ImporterVersion = 27;
 }
 
 /// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>

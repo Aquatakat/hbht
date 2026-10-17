@@ -129,6 +129,7 @@ public partial class RecordBrowser : Control
             return;
         _catalog = catalog;
         _models = new Models(catalog.Plugins);
+        _model.Plugins = catalog.Plugins;
         _quests = quests;
         _game = game;
         _rules = rules;

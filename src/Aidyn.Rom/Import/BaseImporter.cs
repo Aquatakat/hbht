@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Assets;
@@ -124,6 +125,12 @@ public static class BaseImporter
         progress?.Report("Sky");
         WriteJson(Path.Combine(staging, "records", "sky.json"), BuildSky(rom, archive));
 
+        progress?.Report("Cinematics");
+        WriteJson(Path.Combine(staging, "records", "cinematics.json"), Cinematics.Read(rom).Select((c, i) => new CinematicRecord(
+            RecordId.Decimal(RecordTypes.Cinematic, i),
+            [.. c.Scenes.Select(s => new CinematicShot(RecordId.Hex(RecordTypes.Animation, s.Animation), RecordId.Hex(RecordTypes.Sequence, s.Audio), s.Near, s.Far))],
+            Flag(c.DoneFlag))).ToList());
+
         progress?.Report("Maps and collision");
         var maps = chunks.Select(c => c.Collision).Distinct().Order().ToDictionary(i => i, i => Borg9Map.Parse(archive.Read(i)));
         var actors = archive.Listings.Where(l => l.Type == BorgType.Actor).Select(l => l.Index).ToHashSet();
@@ -159,14 +166,20 @@ public static class BaseImporter
             .ToLookup(a => a.Animation.Scene);
         var scenes = archive.Listings.Where(l => l.Type == BorgType.Scene).Select(l => l.Index).ToList();
         var done = 0;
+        var particleTextures = ParticleTextures.Read(rom);
+        var emitters = new ConcurrentBag<EmittersRecord>();
         Parallel.ForEach(scenes, index =>
         {
             var scene = Borg5Scene.Parse(archive.Read(index));
             WriteAsset(staging, RecordId.Hex(RecordTypes.Scene, index), "glb",
                 SceneGltf.Export(scene, archive.Read, index, animations[index].ToList()));
+            if (scene.ParticleEmitters.Count > 0)
+                emitters.Add(new EmittersRecord(RecordId.Hex(RecordTypes.Emitters, index), [.. scene.ParticleEmitters.Select(e => Emitter(e, particleTextures))]));
             if (Interlocked.Increment(ref done) % 200 == 0)
                 progress?.Report($"Scenes {done}/{scenes.Count}");
         });
+
+        WriteJson(Path.Combine(staging, "records", "emitters.json"), emitters.OrderBy(e => e.Id.Key, StringComparer.Ordinal).ToList());
 
         // Scenes carry their own textures. These are for what the engine draws with a texture
         // alone, such as bodies' shadows and particles. Only the full-size level is kept.
@@ -237,6 +250,26 @@ public static class BaseImporter
     /// The sun, moon, stars, clouds and lens flare, with the Borg8 images engine code draws them with
     /// (<see cref="Skies"/> carries those as facts). Every image must be a UI image in the archive.
     /// </summary>
+    /// <summary>
+    /// An emitter as the plugin holds it, with its texture slot looked up in the engine's particle list
+    /// (<c>partTextInds</c>). An empty slot leaves it without a texture, which the original would refuse to draw.
+    /// </summary>
+    internal static ParticleEmitter Emitter(Borg5ParticleEmitter e, IReadOnlyList<int?> textures)
+    {
+        static Aidyn.Plugins.Records.Rgba Rgba(System.Numerics.Vector4 c) =>
+            new((byte)MathF.Round(c.X * 255), (byte)MathF.Round(c.Y * 255), (byte)MathF.Round(c.Z * 255), (byte)MathF.Round(c.W * 255));
+        static System.Numerics.Vector3 Xyz(System.Numerics.Vector4 v) => new(v.X, v.Y, v.Z);
+        var texture = e.Texture >= 0 && e.Texture < textures.Count && textures[e.Texture] is { } borg1 ? RecordId.Hex(RecordTypes.Texture, borg1) : (RecordId?)null;
+        return new ParticleEmitter(
+            new ParticleLocator(e.Locator.Index, e.Locator.Scene), new ParticleLocator(e.Target.Index, e.Target.Scene),
+            e.Flags.HasFlag(Borg5EmitterFlags.ActorRequest) ? e.Request : null, (ParticleEmitterFlags)e.Flags,
+            e.Lifetime, e.ParticleLifetime, e.Delay, e.Interval, e.Burst, texture, e.Texture, e.EmitterSpeed,
+            e.Position, e.SpawnJitter, e.TargetPosition, e.TargetJitter, e.VelocityJitter,
+            Xyz(e.Acceleration), e.Acceleration.W, Xyz(e.AccelerationChange), e.AccelerationChange.W,
+            Xyz(e.Acceleration2), e.Acceleration2.W, Xyz(e.Acceleration2Change), e.Acceleration2Change.W,
+            e.Direction, e.Speed, e.MinScale, e.MaxScale, e.EndScale, Rgba(e.MinColor), Rgba(e.MaxColor), Rgba(e.FadeColor), e.Unknown40);
+    }
+
     private static SkyRecord BuildSky(RomImage rom, BorgArchive archive)
     {
         var uiImages = archive.Listings.Where(l => l.Type == BorgType.UiImage).Select(l => l.Index).ToHashSet();

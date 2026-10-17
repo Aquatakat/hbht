@@ -92,11 +92,17 @@ public static class RecordTypes
     /// <summary>The sounds engine code plays: the menus', the scripts', the containers' and so on. There's one, <c>aidyn:sounds/0</c>.</summary>
     public const string Sounds = "sounds";
 
+    /// <summary>A scene's particle emitters, keyed by the scene's archive index, as <c>aidyn:emitters/0x2BCB</c> for Oriana's.</summary>
+    public const string Emitters = "emitters";
+
+    /// <summary>One of the four cinematics, keyed by its decimal place in the cinematic table: 0 is the opening.</summary>
+    public const string Cinematic = "cinematic";
+
     private static readonly HashSet<string> All =
     [
         Entity, Weapon, Armor, Spell, Item, DialogEntity, Loot, Flag, Texture, Geometry, Camera, Light, Scene, Animation, Actor, Image, Map,
         Sample, Sequence, Dialogue, Voxel, MapSet, Terrain, Sky, Journal, StateFlags, WorldMap, Minimap, Camping, Font, Strings, Stat, Skill, WeaponSkill,
-        Progression, Shop, Recipe, Inventory, Sounds,
+        Progression, Shop, Recipe, Inventory, Sounds, Emitters, Cinematic,
     ];
 
     public static bool IsKnown(string type) => All.Contains(type);

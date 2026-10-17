@@ -31,6 +31,8 @@ public partial class ModelView : VBoxContainer
     private readonly List<(MeshInstance3D Marker, Node3D Node)> _markers = [];
     private Node3D? _content;
     private Camera3D? _ownCamera;
+    // The scene camera's own planes, from its Borg3, which a cinematic's shot replaces.
+    private float _ownNear, _ownFar;
     private AnimationPlayer? _player;
     private bool _playing = true;
     private readonly Orbit _orbit = new();
@@ -114,6 +116,9 @@ public partial class ModelView : VBoxContainer
             _actorPanel.Drive(request);
     }
 
+    /// <summary>The installed plugins, for what a scene's asset doesn't hold: its emitters, and the cinematics' planes.</summary>
+    public Aidyn.Plugins.PluginSet? Plugins { get; set; }
+
     public void SetWireframe(bool on) => _wireframe.ButtonPressed = on;
 
     public void SetSceneCamera(bool on) => _sceneCamera.ButtonPressed = on;
@@ -159,6 +164,8 @@ public partial class ModelView : VBoxContainer
         _headlight.Visible = Nodes.FindAll<Light3D>(scene).Count == 0;
         var radius = Frame(scene);
         _ownCamera = Nodes.FindAll<Camera3D>(scene).FirstOrDefault();
+        if (_ownCamera is not null)
+            (_ownNear, _ownFar) = (_ownCamera.Near, _ownCamera.Far);
         _sceneCamera.Visible = _ownCamera is not null;
         UseCamera();
         // Sized for the view, so they show on effects with little or no geometry.
@@ -208,6 +215,7 @@ public partial class ModelView : VBoxContainer
         _player.Play(name);
         _player.Seek(0, update: true);
         _time.MaxValue = Ticks(name);
+        UseShotPlanes(name);
         SetPlaying(true);
         ShowFrame();
     }
@@ -362,6 +370,20 @@ public partial class ModelView : VBoxContainer
         else
             _camera.MakeCurrent();
         Layout();
+    }
+
+    /// <summary>
+    /// Gives the scene camera a cinematic shot's near and far planes while its animation plays, as the cinematic table
+    /// sets them in place of the scene's Borg3's, and the Borg3's otherwise.
+    /// </summary>
+    private void UseShotPlanes(string animation)
+    {
+        if (_ownCamera is null)
+            return;
+        var shot = Plugins is null || !animation.StartsWith("borg6 ", StringComparison.Ordinal) ? null
+            : Plugins.All<CinematicRecord>(Aidyn.Plugins.RecordTypes.Cinematic).SelectMany(c => c.Shots)
+                .FirstOrDefault(s => Convert.ToInt32(s.Animation.Key, 16).ToString(CultureInfo.InvariantCulture) == animation["borg6 ".Length..]);
+        (_ownCamera.Near, _ownCamera.Far) = shot is null ? (_ownNear, _ownFar) : (shot.Near, shot.Far);
     }
 
     private void Layout()
