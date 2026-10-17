@@ -11,8 +11,9 @@ namespace Aidyn.Core.Chunks;
 /// The surfaces a loaded chunk draws, which rain and snow land on (<see cref="VisibleWorld"/>), the user's choice in
 /// place of the original's collision: every draw of its scene and of each scene object it places, and of its
 /// see-through scene. They splash on solid draws whose texture doesn't scroll; everything else absorbs them without
-/// a splash (<see cref="DrawnTriangle.Absorbs"/>): cut-outs such as the trees' canopies, translucent draws, scrolling
-/// textures such as water, lava and fire, and the whole see-through scene, the sea. Scene objects are taken at their
+/// a splash (<see cref="DrawnTriangle.Absorbs"/>): cut-outs such as the trees' canopies, translucent draws, and
+/// scrolling textures such as water, lava and fire. The see-through scenes are nearly all scrolling water; B22's also
+/// holds a strip of beach, which the rain splashes on. Scene objects are taken at their
 /// nearest level of detail, as their runtime node places it, whatever level is drawn, and as their scene stands before
 /// anything animates it. Billboards and bodies aren't in it, so rain passes through them. A scene's triangles are read once.
 /// </summary>
@@ -31,7 +32,7 @@ public sealed class ChunkSurfaces(PluginSet plugins)
         if (chunk.AltScene is { } water)
         {
             foreach (var t in Scene(water))
-                yield return t with { Absorbs = true };
+                yield return t;
         }
         foreach (var o in map.Record.Objects.OfType<SceneObject>())
         {
