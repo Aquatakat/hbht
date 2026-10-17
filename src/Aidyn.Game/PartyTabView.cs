@@ -67,6 +67,24 @@ public partial class PartyTabView : Control
     private const int CraftingTitleCentre = 93, CraftingTitleTop = 70, CraftingLeft = 23, CraftingRight = 163;
     private const int MemberRow = 28, MemberPortrait = 25;
 
+    /// <summary>
+    /// What's painted into <c>0x00D9</c>, covered by plain parchment from the list's side, which the veil is drawn from so
+    /// it fades the painted layout with the widgets: the portraits' frames, the silhouette and its slots in nine pieces,
+    /// the bar's frame, the labels, the two rules over the list, the knotwork in three, and "Details". Each piece's
+    /// source was picked for grain like the parchment round it, and nothing painted or torn is in it or a pixel round it.
+    /// </summary>
+    private static readonly PlainImage.Patch[] PlainPatches =
+    [
+        new(new(64, 35, 153, 67), 214, 140), new(new(18, 22, 66, 70), 181, 148),
+        new(new(23, 70, 59, 118), 282, 143), new(new(59, 70, 94, 118), 277, 128), new(new(94, 70, 129, 118), 171, 164),
+        new(new(23, 118, 59, 166), 282, 134), new(new(59, 118, 94, 166), 248, 132), new(new(94, 118, 129, 166), 167, 160),
+        new(new(23, 166, 59, 213), 169, 164), new(new(59, 166, 94, 213), 184, 122), new(new(94, 166, 129, 213), 273, 155),
+        new(new(218, 23, 300, 54), 236, 155), new(new(159, 29, 219, 80), 258, 135),
+        new(new(153, 83, 237, 90), 189, 139), new(new(237, 83, 320, 90), 172, 155), new(new(168, 93, 311, 101), 169, 157),
+        new(new(139, 97, 161, 135), 274, 153), new(new(139, 135, 161, 174), 167, 168), new(new(139, 174, 161, 212), 275, 154),
+        new(new(239, 207, 295, 221), 246, 186),
+    ];
+
     private readonly UiPainter _ui;
     private ScreenRect _listBounds = ClassicList;
     private ScreenRect _craftingBounds;
@@ -95,6 +113,8 @@ public partial class PartyTabView : Control
         _overlay.SetAnchorsPreset(LayoutPreset.FullRect);
         AddChild(_overlay);
         _overlay.Draw += DrawOverlay;
+        // The veil's image is made now, as the menu first opens, rather than as a tab is first slid from.
+        _ui.Images.Plain(MenuImages.PartyTab, PlainPatches);
     }
 
     /// <summary>The tab's state, which the runtime's menu starts afresh each time it opens.</summary>
@@ -240,8 +260,10 @@ public partial class PartyTabView : Control
     }
 
     /// <summary>
-    /// Over the list: the Party tab's popup and details, then the tab's own image again, over its widgets, which fades
-    /// them into the parchment, and the messages and popups at the screen's centre.
+    /// Over the list: the Party tab's popup and details, then the veil, and the messages and popups at the screen's centre.
+    /// The veil is the tab's own image with its painted layout covered by plain parchment (<see cref="PlainPatches"/>),
+    /// over everything on the tab, so the widgets and the layout fade into the parchment alike. Drawing the image itself
+    /// left what's painted into it as strong as ever.
     /// </summary>
     private void DrawOverlay()
     {
@@ -260,7 +282,7 @@ public partial class PartyTabView : Control
             }
         }
         if (Veil > 0)
-            _ui.Image(_canvas, MenuImages.PartyTab, 0, 0, color: new Rgba(255, 255, 255, (byte)(Veil * 255)));
+            _ui.Plain(_canvas, MenuImages.PartyTab, PlainPatches, 0, 0, new Rgba(255, 255, 255, (byte)(Veil * 255)));
         _overlay.DrawSetTransform(Vector2.Zero);
         if (Barter is { } popups)
             BarterPopups(popups);

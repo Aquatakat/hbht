@@ -35,6 +35,27 @@ public sealed class UiImages(PluginSet plugins)
         return _textures[image] = texture;
     }
 
+    private readonly Dictionary<RecordId, Texture2D?> _plain = [];
+
+    /// <summary>
+    /// An image with what's painted into it covered by plain parchment from elsewhere in it (<see cref="PlainImage"/>),
+    /// made the first time it's asked for, or null if no plugin has the image.
+    /// </summary>
+    public Texture2D? Plain(RecordId image, IReadOnlyList<PlainImage.Patch> patches)
+    {
+        if (_plain.TryGetValue(image, out var plain))
+            return plain;
+        if (Get(image)?.GetImage() is { } data)
+        {
+            data.Convert(Image.Format.Rgba8);
+            var (width, height) = (data.GetWidth(), data.GetHeight());
+            var bytes = data.GetData();
+            PlainImage.Apply(bytes, width, height, patches);
+            plain = ImageTexture.CreateFromImage(Image.CreateFromData(width, height, false, Image.Format.Rgba8, bytes));
+        }
+        return _plain[image] = plain;
+    }
+
     /// <summary>
     /// A band feathered by each piece at its own size, as a message's box is (<c>IntroMenu_ShadowBG</c>):
     /// the gradients' thickness is their images' height above and below and width beside.

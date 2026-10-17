@@ -22,14 +22,14 @@ public partial class WorldTabView : Control
     private const int TodaySize = 17;
 
     /// <summary>
-    /// Plain parchment from above the calendar, where the season's name is drawn by code, laid over the calendar's
-    /// days and moons as the tab is veiled, since they're painted into the tab's image and its veil can't fade them.
+    /// The calendar's days and moons, painted into <c>0x00DA</c>, covered by plain parchment from the band above them,
+    /// where the season's name is drawn by code, which the veil is drawn from so it fades them with the widgets, as
+    /// <see cref="PartyTabView"/>'s does.
     /// </summary>
-    /// <remarks>
-    /// The copies meet edge to edge, so the cover is even, and only the stack's outer edges fade.
-    /// </remarks>
-    private static readonly Rect2I PlainBand = new(155, 28, 110, 36);
-    private const int CoverTop = 58, CoverBottom = 144, CoverFeather = 5;
+    private static readonly PlainImage.Patch[] PlainPatches =
+    [
+        new(new(155, 58, 265, 94), 155, 28), new(new(155, 94, 265, 130), 155, 28), new(new(155, 130, 265, 144), 155, 28),
+    ];
 
     private readonly UiPainter _ui;
 
@@ -40,6 +40,7 @@ public partial class WorldTabView : Control
         Name = "World tab";
         MouseFilter = MouseFilterEnum.Ignore;
         SetAnchorsPreset(LayoutPreset.FullRect);
+        _ui.Images.Plain(MenuImages.WorldTab, PlainPatches);
     }
 
     public WorldMenu Menu { get; set; }
@@ -76,16 +77,7 @@ public partial class WorldTabView : Control
         _ui.Image(this, MenuImages.CampTitle, Camp.X, Camp.Y, color: Menu.Cursor == WorldChoice.Camp ? cursor : WorldMenu.TextColor);
         _ui.Image(this, MenuImages.JournalTitle, Journal.X, Journal.Y, color: Menu.Cursor == WorldChoice.Journal ? cursor : WorldMenu.TextColor);
         if (Veil > 0)
-        {
-            var veil = new Rgba(255, 255, 255, (byte)(Veil * 255));
-            _ui.Image(this, MenuImages.WorldTab, 0, 0, color: veil);
-            for (var top = CoverTop; top < CoverBottom; top += PlainBand.Size.Y)
-            {
-                var band = PlainBand with { Size = new Vector2I(PlainBand.Size.X, Math.Min(PlainBand.Size.Y, CoverBottom - top)) };
-                var feather = (CoverFeather, top == CoverTop ? CoverFeather : 0, CoverFeather, top + band.Size.Y >= CoverBottom ? CoverFeather : 0);
-                _ui.Feathered(this, MenuImages.WorldTab, band, band.Position.X, top, feather, color: veil);
-            }
-        }
+            _ui.Plain(this, MenuImages.WorldTab, PlainPatches, 0, 0, new Rgba(255, 255, 255, (byte)(Veil * 255)));
         DrawSetTransform(Vector2.Zero);
         if (Menu.Message is { } message)
             _ui.Message(this, size, message.Text, MenuMessage.MaxWidth, MenuMessage.Color);

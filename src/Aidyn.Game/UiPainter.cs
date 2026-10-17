@@ -136,6 +136,16 @@ public sealed class UiPainter
     }
 
     /// <summary>
+    /// Draws an image at (x, y) at its own size, with what's painted into it covered by <paramref name="patches"/> of
+    /// plain parchment (<see cref="UiImages.Plain"/>), times a colour. A tab beside the one showing is faded by it.
+    /// </summary>
+    public void Plain(CanvasItem canvas, RecordId image, IReadOnlyList<PlainImage.Patch> patches, int x, int y, Rgba color)
+    {
+        if (Images.Plain(image, patches) is { } texture)
+            canvas.DrawTextureRect(texture, new Rect2(x, y, texture.GetSize()), false, Color8(color));
+    }
+
+    /// <summary>
     /// Draws one of the HUD's images: at its place in quarter pixels, scaled or stretched, times its colour, and cut to
     /// its clip, inclusive, which crops the image rather than squeezing it (<c>WidgetBorg8::Render</c>).
     /// </summary>
@@ -180,37 +190,6 @@ public sealed class UiPainter
         var drawn = size ?? source.Size;
         canvas.DrawTextureRectRegion(texture, new Rect2(x, y, mirror ? -drawn.X : drawn.X, drawn.Y), Sampled(source, drawn),
             color is { } c ? Color8(c) : Colors.White);
-    }
-
-    /// <summary>
-    /// Draws part of an image at its own size with its edges faded out over <paramref name="feather"/>
-    /// pixels on each side (left, top, right, bottom), so a piece of parchment blends into what it's placed
-    /// on. It's nine quads, the outer corners of the outer ones transparent.
-    /// </summary>
-    /// <param name="mirror">Flips it left to right; the feathering is by the sides as drawn.</param>
-    public void Feathered(CanvasItem canvas, RecordId image, Rect2I source, int x, int y, (int Left, int Top, int Right, int Bottom) feather,
-        bool mirror = false, Rgba? color = null)
-    {
-        if (Images.Get(image) is not { } texture)
-            return;
-        var texel = Vector2.One / texture.GetSize();
-        var inside = color is { } c ? Color8(c) : Colors.White;
-        int[] xs = [0, feather.Left, source.Size.X - feather.Right, source.Size.X];
-        int[] ys = [0, feather.Top, source.Size.Y - feather.Bottom, source.Size.Y];
-        for (var j = 0; j < 3; j++)
-        {
-            for (var i = 0; i < 3; i++)
-            {
-                if (xs[i + 1] <= xs[i] || ys[j + 1] <= ys[j])
-                    continue;
-                (int I, int J)[] corners = [(i, j), (i + 1, j), (i + 1, j + 1), (i, j + 1)];
-                canvas.DrawPolygon(
-                    [.. corners.Select(c => new Vector2(x + xs[c.I], y + ys[c.J]))],
-                    [.. corners.Select(c => c.I is 1 or 2 && c.J is 1 or 2 ? inside : inside with { A = 0 })],
-                    [.. corners.Select(c => (source.Position + new Vector2(mirror ? source.Size.X - xs[c.I] : xs[c.I], ys[c.J])) * texel)],
-                    texture);
-            }
-        }
     }
 
     /// <summary>
