@@ -36,17 +36,20 @@ public class WeatherParticleTests
         public Scene(Precipitation precipitation = Precipitation.Rain, float intensity = 0.5f)
         {
             World.Add("ground", Worlds.Floor(0, -100, 100, -100, 100), Vector3.Zero);
-            Fall = new WeatherParticles(Head, new Lcg(7), () => Aim, () => World, () => Part);
+            Fall = new WeatherParticles(Head, Rules, new Lcg(7), () => Aim, () => Look, () => World, () => Part);
             Weather.Force(WeatherKind.Precipitation, precipitation, intensity);
+            Weather.SkyChange += rain => RainSkyAsked += rain ? 1 : 0;
         }
 
-        /// <summary>Ticks of trek: the emitters, then the weather, then the particles.</summary>
+        /// <summary>How many times the weather has asked for the rain sky.</summary>
+        public int RainSkyAsked;
+
+        /// <summary>Ticks of trek: the weather with its emitters, then the particles.</summary>
         public void Run(int ticks)
         {
             for (var i = 0; i < ticks; i++)
             {
-                Fall.Frame(Weather, SkyDrawn, Look);
-                Weather.Draw(SkyDrawn);
+                Weather.Draw(SkyDrawn, emitters: Fall);
                 Head.Step();
             }
         }
@@ -172,13 +175,54 @@ public class WeatherParticleTests
         scene.Run(100);
         Assert.Null(scene.Fall.Drops);
         Assert.Equal(0, scene.Head.EmittersInUse);
+        Assert.Equal(0, scene.RainSkyAsked);
+        Assert.False(scene.Weather.Emitting || scene.Weather.RainLoop);
 
+        // Out under the sky: one decision makes the pair and asks for the rain sky, once.
         scene.SkyDrawn = true;
         scene.Run(100);
         Assert.Equal(2, scene.Head.EmittersInUse);
+        Assert.True(scene.Weather.Emitting && scene.Weather.RainLoop);
+        Assert.Equal(1, scene.RainSkyAsked);
+
+        // Back in: freed at once, with the loop.
         scene.SkyDrawn = false;
         scene.Run(1);
         Assert.Equal((0, 0), (scene.Head.EmittersInUse, scene.Head.ParticlesInUse));
+        Assert.False(scene.Weather.Emitting || scene.Weather.RainLoop);
+        Assert.Null(scene.Fall.Drops);
+    }
+
+    [Fact]
+    public void WithoutRoomForThePairTheRainSkyIsAskedForEveryTickUntilThereIs()
+    {
+        var scene = new Scene();
+        // Every emitter taken.
+        var taken = Enumerable.Range(0, ParticleHead.MaxEmitters).Select(_ => scene.Head.AllocEmitter(1000, null, 0)!).ToList();
+        scene.Run(3);
+        Assert.False(scene.Weather.Emitting);
+        Assert.Null(scene.Fall.Drops);
+        Assert.Equal(3, scene.RainSkyAsked);
+        scene.Head.Free(taken[0]);
+        scene.Head.Free(taken[1]);
+        scene.Run(3);
+        Assert.True(scene.Weather.Emitting);
+        Assert.NotNull(scene.Fall.Drops);
+        Assert.Equal(4, scene.RainSkyAsked);
+    }
+
+    [Fact]
+    public void ACutSceneWithoutParticlesKeepsTheSameDecision()
+    {
+        // No emitters to draw: the weather still decides the pair is made, once, as the sky and the loop follow it.
+        var weather = new Weather(Rules);
+        weather.Force(WeatherKind.Precipitation, Precipitation.Rain, 0.5f);
+        var asked = 0;
+        weather.SkyChange += rain => asked += rain ? 1 : 0;
+        for (var i = 0; i < 100; i++)
+            weather.Draw(true);
+        Assert.True(weather.Emitting && weather.RainLoop);
+        Assert.Equal(1, asked);
     }
 
     [Fact]
@@ -204,13 +248,21 @@ public class WeatherParticleTests
     {
         var scene = new Scene();
         scene.Run(100);
-        scene.Fall.Forget();
+        var loops = scene.Weather.RainLoopStarts;
+        Assert.Equal(1, scene.RainSkyAsked);
+        scene.Weather.Forget(scene.Fall);
         scene.Head.KillActive();
+        Assert.False(scene.Weather.Emitting);
+        Assert.Null(scene.Fall.Drops);
         Assert.Equal((0, 0), (scene.Head.EmittersInUse, scene.Head.ParticlesInUse));
-        // The next frame makes a new pair about the player.
+        // The next frame makes a new pair about the player, and asks for the rain sky again; the loop plays on.
         scene.Run(1);
+        Assert.True(scene.Weather.Emitting);
         Assert.NotNull(scene.Fall.Drops);
         Assert.Equal(2, scene.Head.EmittersInUse);
+        Assert.Equal(2, scene.RainSkyAsked);
+        Assert.True(scene.Weather.RainLoop);
+        Assert.Equal(loops, scene.Weather.RainLoopStarts);
     }
 
     [Fact]

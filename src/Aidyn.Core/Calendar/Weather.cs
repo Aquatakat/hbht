@@ -307,7 +307,11 @@ public sealed class Weather
     /// its loop (<see cref="RainLoop"/>).
     /// </summary>
     /// <param name="skyDrawn">Whether the terrain draws the sky (not the original's sky type 4).</param>
-    public void Draw(bool skyDrawn, int ticks = 1)
+    /// <param name="emitters">
+    /// The rain's or snow's particles, which this makes, steers and frees as <see cref="Emitting"/> says; none where
+    /// nothing draws them, as in the port's cut-scenes, when <see cref="Emitting"/> still follows the original's.
+    /// </param>
+    public void Draw(bool skyDrawn, int ticks = 1, IPrecipitationEmitters? emitters = null)
     {
         if (_skyDrawn != skyDrawn)
             FogTime = Fog;
@@ -315,7 +319,7 @@ public sealed class Weather
         Wanted = Precipitation;
         // The world wants another: the emitters are forgotten, and run out their lives.
         if (Falling != Wanted)
-            Emitting = false;
+            Forget(emitters);
         if (FallIntensity <= 0)
         {
             Falling = Precipitation;
@@ -326,16 +330,23 @@ public sealed class Weather
             SkyOverridden = false;
             SkyChange?.Invoke(false);
         }
+        // The rain sky is asked for before the emitters are made, so where the pool has no room for them, it's asked
+        // for again every frame until there is.
         if (Falling == Wanted && Falling != Precipitation.None && !Emitting && skyDrawn)
         {
             SkyOverridden = true;
             SkyChange?.Invoke(true);
-            Emitting = true;
+            Emitting = emitters?.Make(Falling) ?? true;
         }
+        // Steered by how hard it falls before this tick's change, on the frame they're made too.
+        if (Emitting)
+            emitters?.Steer(Falling, FallIntensity, Wind);
         if (Falling == Precipitation)
         {
             if (Falling != Precipitation.None)
             {
+                if (Emitting)
+                    emitters?.Keep();
                 FallIntensity = FallIntensity < Intensity ? FallIntensity + ticks * _rules.FallRate : Intensity;
                 if (FallIntensity > 1)
                     FallIntensity = 1;
@@ -356,10 +367,25 @@ public sealed class Weather
             : FogTime < Fog ? FogTime + ticks * _rules.FogRate : FogTime - ticks * _rules.FogRate;
         if (!skyDrawn)
         {
+            if (Emitting)
+                emitters?.Free();
             Emitting = false;
             RainLoop = false;
             FogTime = 0;
         }
+    }
+
+    /// <summary>
+    /// The emitters are forgotten (<c>Weather.Data</c> + 0x14 cleared), left to run out their lives: as the world wants
+    /// another to fall, and as a door's teleport does before it kills every emitter still spawning (<c>TeleportPlayer</c>,
+    /// <c>0x8000bb54</c>). The next frame that something falls makes a pair again, and asks for the rain sky again.
+    /// The rain loop plays on.
+    /// </summary>
+    public void Forget(IPrecipitationEmitters? emitters = null)
+    {
+        if (Emitting)
+            emitters?.Forget();
+        Emitting = false;
     }
 
     /// <summary>
