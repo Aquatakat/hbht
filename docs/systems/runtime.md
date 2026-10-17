@@ -30,6 +30,7 @@
   - The screenshot path must be absolute, or Godot saves it relative to the project.
   - To see something frame by frame, such as the pause menu opening, Godot's movie writer saves every frame at a fixed 60 a second, a physics tick each: `tools/godot.ps1 --path src/Aidyn.Game --write-movie <absolute dir>/f.png --quit-after <frames> -- --menu party`. It records at the project's window size, 1280 × 960; `--resolution` doesn't change it, and `--ui-lines 960` puts a pixel of the window to each of the UI screen's, which shows the most beside the frame.
   - `--fly x,y,z` starts with the free camera, which scene objects' distances are then measured from. `--time <hours>` sets the time of day, and `--flags 5,50` sets plain flags before anything loads. The run gives up after a minute.
+  - `--lights off` leaves bodies and actors lit by the sky alone, without point lights, as a baseline (see [rendering](rendering.md#point-lights)).
   - `--draw-distance <scale>` draws scene objects that many times as far, and `--detail nearest` only their nearest level of detail (see [rendering](rendering.md#draw-distance)).
   - Gwernia's open ground is around (30–80, 30–80) in M07, for example `--chunk M07 --at 40,55`. Elsewhere in M07 there's no ground, so he falls and is put back again and again.
 - **The spawn point** is tight. A rock stands in a hole in the terrain in front of it, with collision walls and no top, and a birch's collision box is beside it. The original drops the player from a height of 10; the runtime puts him on the highest ground below the spawn instead.

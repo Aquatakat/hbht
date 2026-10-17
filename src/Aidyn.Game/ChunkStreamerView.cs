@@ -1,5 +1,6 @@
 using Aidyn.Core;
 using Aidyn.Core.Chunks;
+using Aidyn.Core.Lights;
 using Aidyn.Core.MapObjects;
 using Aidyn.Core.Scenes;
 using Aidyn.Core.Trek;
@@ -84,6 +85,34 @@ public partial class ChunkStreamerView : Node3D
             var view = _views[wanderer] = new WandererView(wanderer, _plugins!, _models!, _shadow);
             AddChild(view);
         }
+    }
+
+    /// <summary>
+    /// Lights the loaded chunks' actors that are drawn and aren't fullbright by the point lights that reach them this
+    /// frame (<see cref="WorldLights.ForActor"/>), each from where its map places it.
+    /// </summary>
+    public void LightActors(WorldLights lights)
+    {
+        foreach (var (map, scenery) in _loaded)
+        {
+            foreach (var placed in scenery.Objects)
+            {
+                if (placed.Object.Flags.HasFlag(SceneObjectFlags.Fullbright))
+                    continue;
+                foreach (var level in placed.Levels)
+                {
+                    if (level is { Animator: not null, Node.Visible: true })
+                        N64Material.SetLights(level.Meshes, lights.ForActor(map.Origin + placed.Object.Position, map));
+                }
+            }
+        }
+    }
+
+    /// <summary>Lights the wanderers' bodies by the dynamic lights that reach them: they aren't the party's, so map lights don't.</summary>
+    public void LightWanderers(WorldLights lights, ChunkStreamer chunks)
+    {
+        foreach (var view in _views.Values)
+            view.Light(lights, chunks);
     }
 
     /// <summary>The loaded chunks' billboards.</summary>

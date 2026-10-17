@@ -51,9 +51,9 @@ public static class BasePlugin
     /// 21 gives recruitable members their joined, left and died flags, and whether their sheet is kept.
     /// 22 gives weapons, shields and six items their models.
     /// 23 adds the world map and camping. 24 adds the minimaps. 25 adds sequences and samples.
-    /// 26 adds the engine's sounds and the map sets' music.
+    /// 26 adds the engine's sounds and the map sets' music. 27 marks the lights that face the camera.
     /// </summary>
-    public const int ImporterVersion = 26;
+    public const int ImporterVersion = 27;
 }
 
 /// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>

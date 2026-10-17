@@ -306,9 +306,14 @@ public enum LightKind
     Random,
 }
 
-/// <summary>A light that colours the bodies near it.</summary>
+/// <summary>
+/// A light that colours the player and the actors the map places within its radius, more the nearer they are (see
+/// <c>Aidyn.Core.Lights.WorldLights</c>).
+/// </summary>
 /// <param name="From">The colour it starts at. <see cref="LightKind.Static"/> lights stay there.</param>
+/// <param name="Speed">Seconds a way, a cycle or the whole way, by <see cref="Kind"/>.</param>
 /// <param name="Occludable">Collision between it and a body blocks it.</param>
+/// <param name="FacesCamera">It shines on a body from the camera's eye, not from where it is, which only its distance is measured from.</param>
 public sealed record LightObject(
     int Index,
     Vector3 Position,
@@ -319,7 +324,8 @@ public sealed record LightObject(
     Rgba To,
     LightKind Kind,
     float Speed,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool Occludable) : MapObject(Index, Position, Radius, Pak, Visible);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool Occludable,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool FacesCamera = false) : MapObject(Index, Position, Radius, Pak, Visible);
 
 /// <summary>How a sound plays (the original's <c>VoxAudioFlags</c>).</summary>
 [Flags]

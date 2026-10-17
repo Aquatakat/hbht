@@ -188,6 +188,8 @@ public partial class Game : Node3D, ITrekHost
         _sky.SkyShows = SkyShows;
         if (args.TryGetValue("sky", out var sky))
             _settings.SkyPlacement = sky == "original" ? Core.Sky.SkyPlacement.Original : Core.Sky.SkyPlacement.Projected;
+        // --lights off leaves bodies and actors lit by the sky alone, as a baseline for the point lights.
+        _pointLights = args.GetValueOrDefault("lights") != "off";
         if (args.TryGetValue("time", out var time))
             game.Clock.SetTimeOfDay(float.Parse(time, CultureInfo.InvariantCulture));
 
@@ -463,6 +465,8 @@ public partial class Game : Node3D, ITrekHost
             _camera.ResetPhysicsInterpolation();
         PlaceShadow();
         DrawWanderers();
+        if (_pointLights)
+            LightBodies();
         var motion = _player.Motion;
         _track.Enqueue(motion.Sphere.Position);
         if (_track.Count > Aidyn.Core.Calendar.GameClock.TicksPerSecond)
@@ -584,6 +588,26 @@ public partial class Game : Node3D, ITrekHost
             _shadow.Shadow.Place(_world, sphere.Position, sphere.Radius, a);
         _shadow.Sync();
         _shadow.Visible &= alpha is not null;
+    }
+
+    /// <summary>
+    /// Lights the maps' actors, the player and the wanderers by the point lights that reach them this tick, in the order
+    /// the original draws them (<see cref="Core.Lights.WorldLights"/>): the actors with their chunks, then the bodies.
+    /// </summary>
+    private bool _pointLights = true;
+
+    private void LightBodies()
+    {
+        var trek = _trek!;
+        var lights = trek.Lights;
+        lights.Fade = trek.Brightness;
+        lights.Eye = trek.Camera.Position;
+        lights.Sun = _sky!.State.Drawn;
+        lights.BeginFrame(1);
+        _chunks!.LightActors(lights);
+        var centre = _player!.Motion.Sphere.Position;
+        N64Material.SetLights(_player.Meshes, lights.ForBody(centre, _chunks.Chunks.MapAt(centre), party: true));
+        _chunks.LightWanderers(lights, _chunks.Chunks);
     }
 
     /// <summary>Moves the wanderers' bodies to where they are, and fades them and their shadows by the camera's aim.</summary>

@@ -357,7 +357,7 @@ public static class BaseImporter
                         Used = used,
                     },
                 LightData l => new LightObject(o.Index, o.Position, o.Radius, pak, visible, Colour(l.From), Colour(l.To),
-                    (LightKind)l.Kind, l.Speed, o.Flags.HasFlag(VoxelFlags.Occludable)),
+                    (LightKind)l.Kind, l.Speed, o.Flags.HasFlag(VoxelFlags.Occludable), o.Flags.HasFlag(VoxelFlags.FacesCamera)),
                 AudioData a => new SoundObject(o.Index, o.Position, o.Radius, pak, visible, Borg(BorgType.Sequence, a.Sequence, RecordTypes.Sequence),
                     a.Volume, a.MinWait, a.MaxWait, (SoundFlags)a.AudioFlags),
                 WanderNodeData w => new WanderNodeObject(o.Index, o.Position, o.Radius, pak, visible, w.Radius, w.Scatter, w.Chance, w.Wait,

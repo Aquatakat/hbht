@@ -75,9 +75,9 @@ internal static class N64Material
     {
         /// <summary>Tinted, and lit by a white ambient alone (<c>Scene::SetLightData</c>'s): scenery and fullbright scene objects.</summary>
         Scenery,
-        /// <summary>Untinted, lit by half the sky colour and the sun (<c>some_player_render_sub</c>): the player and other bodies.</summary>
+        /// <summary>Untinted, lit by half the sky colour, the sun and their point lights (<c>some_player_render_sub</c>, <see cref="SetLights"/>): the player and other bodies.</summary>
         Body,
-        /// <summary>Untinted, lit by the tint and the sun (<c>set_sun_light</c>): scene objects' actors, unless fullbright.</summary>
+        /// <summary>Untinted, lit by the tint, the sun and their point lights (<c>set_sun_light</c>, <see cref="SetLights"/>): scene objects' actors, unless fullbright.</summary>
         SceneObject,
         /// <summary>
         /// Untinted and unfogged, lit by an ambient and two lights of its own (<see cref="SetOwnLights"/>), apart from the
@@ -226,11 +226,34 @@ internal static class N64Material
     public static void SetOwnLights(Node root, Color ambient, (Color Color, Vector3 Toward) first, (Color Color, Vector3 Toward) second)
     {
         SetOnMeshes(root, "own_ambient", new Vector3(ambient.R, ambient.G, ambient.B));
-        SetOnMeshes(root, "own_light_color", new Vector3(first.Color.R, first.Color.G, first.Color.B));
-        SetOnMeshes(root, "own_light_direction", first.Toward.Normalized());
-        SetOnMeshes(root, "own_light2_color", new Vector3(second.Color.R, second.Color.G, second.Color.B));
-        SetOnMeshes(root, "own_light2_direction", second.Toward.Normalized());
+        SetOnMeshes(root, "light0_color", new Vector3(first.Color.R, first.Color.G, first.Color.B));
+        SetOnMeshes(root, "light0_direction", first.Toward.Normalized());
+        SetOnMeshes(root, "light1_color", new Vector3(second.Color.R, second.Color.G, second.Color.B));
+        SetOnMeshes(root, "light1_direction", second.Toward.Normalized());
     }
+
+    /// <summary>The most directional lights a mesh takes besides the sun.</summary>
+    public const int MaxLights = 4;
+
+    /// <summary>
+    /// Lights the given meshes by up to <see cref="MaxLights"/> directional lights besides the sun and ambient: a body's or
+    /// actor's point lights this tick (<c>Aidyn.Core.Lights.WorldLights</c>), in on-screen values, the rest black.
+    /// </summary>
+    public static void SetLights(IEnumerable<GeometryInstance3D> meshes, IReadOnlyList<Core.Lights.DirectionalLight> lights)
+    {
+        foreach (var mesh in meshes)
+        {
+            for (var i = 0; i < MaxLights; i++)
+            {
+                var (colour, toward) = i < lights.Count ? (lights[i].Colour.ToGodot(), lights[i].Toward.ToGodot()) : (Vector3.Zero, Vector3.Up);
+                mesh.SetInstanceShaderParameter(LightColor[i], colour);
+                mesh.SetInstanceShaderParameter(LightDirection[i], toward);
+            }
+        }
+    }
+
+    private static readonly StringName[] LightColor = [.. Enumerable.Range(0, MaxLights).Select(i => new StringName($"light{i}_color"))];
+    private static readonly StringName[] LightDirection = [.. Enumerable.Range(0, MaxLights).Select(i => new StringName($"light{i}_direction"))];
 
     /// <summary>Gives every mesh under <paramref name="root"/> a scene object's tint, which the original averages with the scenery's.</summary>
     public static void SetObjectTint(Node root, Color onScreen) =>
@@ -341,10 +364,11 @@ internal static class N64Material
                 	// The RSP's lighting, per vertex, in on-screen values.
                 	vec3 normal = normalize(MODEL_NORMAL_MATRIX * NORMAL);
                 	vec3 ambient = lighting == 1 ? n64_body_ambient : lighting == 2 ? n64_tint : lighting == 3 ? own_ambient : vec3(1.0);
-                	vec3 sun = lighting == 0 ? vec3(0.0)
-                		: lighting == 3 ? own_light_color * max(dot(normal, own_light_direction), 0.0) + own_light2_color * max(dot(normal, own_light2_direction), 0.0)
-                		: n64_sun_color * max(dot(normal, n64_sun_direction), 0.0);
-                	lit_shade = min(ambient + sun, vec3(1.0));
+                	vec3 lights = lighting == 0 ? vec3(0.0)
+                		: (lighting == 3 ? vec3(0.0) : n64_sun_color * max(dot(normal, n64_sun_direction), 0.0))
+                		+ light0_color * max(dot(normal, light0_direction), 0.0) + light1_color * max(dot(normal, light1_direction), 0.0)
+                		+ light2_color * max(dot(normal, light2_direction), 0.0) + light3_color * max(dot(normal, light3_direction), 0.0);
+                	lit_shade = min(ambient + lights, vec3(1.0));
                 """
             : "";
         var fog = onScreen
@@ -378,10 +402,15 @@ internal static class N64Material
                 // 0 scenery, 1 a body, 2 a scene object's actor, 3 its own lights.
                 instance uniform int lighting = 0;
                 instance uniform vec3 own_ambient = vec3(1.0);
-                instance uniform vec3 own_light_color = vec3(0.0);
-                instance uniform vec3 own_light_direction = vec3(0.0, 1.0, 0.0);
-                instance uniform vec3 own_light2_color = vec3(0.0);
-                instance uniform vec3 own_light2_direction = vec3(0.0, 1.0, 0.0);
+                // Up to four directional lights besides the sun: a body's or actor's point lights, or a scene's own.
+                instance uniform vec3 light0_color = vec3(0.0);
+                instance uniform vec3 light0_direction = vec3(0.0, 1.0, 0.0);
+                instance uniform vec3 light1_color = vec3(0.0);
+                instance uniform vec3 light1_direction = vec3(0.0, 1.0, 0.0);
+                instance uniform vec3 light2_color = vec3(0.0);
+                instance uniform vec3 light2_direction = vec3(0.0, 1.0, 0.0);
+                instance uniform vec3 light3_color = vec3(0.0);
+                instance uniform vec3 light3_direction = vec3(0.0, 1.0, 0.0);
 
                 // On-screen colour and alpha: the mesh's tint when untextured, and its alpha.
                 uniform vec4 prim = vec4(1.0);
