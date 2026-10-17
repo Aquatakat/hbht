@@ -8,12 +8,22 @@ namespace Aidyn.Game;
 
 /// <summary>
 /// Draws a backdrop's or the help menu's page (<see cref="BackdropPage"/>) on a <see cref="UiScreen"/>'s canvas: the
-/// picture in the original's 320 × 240 frame at the screen's centre, the node's text and the choices, all at the
-/// page's alpha, as the journal is drawn (<see cref="JournalView"/>).
+/// picture in the original's 320 × 240 frame at the screen's centre, its edges feathered, the node's text and the
+/// choices, all at the page's alpha, as the journal is drawn (<see cref="JournalView"/>).
 /// </summary>
 public partial class BackdropView : Control
 {
     private const int FrameWidth = 320, FrameHeight = 240;
+
+    /// <summary>
+    /// How far in from each edge the picture fades out, left, top, right and bottom: the original's overscan bars, 16
+    /// pixels at the sides and 12 at the top and bottom (<c>Graphics::EndList</c>), which hide the picture's raw edges on
+    /// the console. The port draws no bars and shows the frame over the darkened world, so the picture fades to nothing
+    /// over what they'd cover, and all of it the original shows stays whole. The port's own choice; the text and choices,
+    /// from 30 down and 64 across at their nearest, are well inside it and aren't feathered.
+    /// </summary>
+    private static readonly (int Left, int Top, int Right, int Bottom) Feather =
+        (DialogueBox.OverscanSide, DialogueBox.OverscanBottom, DialogueBox.OverscanSide, DialogueBox.OverscanBottom);
 
     private readonly UiPainter _ui;
 
@@ -41,7 +51,7 @@ public partial class BackdropView : Control
         DrawSetTransform(new Vector2I((size.X - FrameWidth) / 2, (size.Y - FrameHeight) / 2));
         var alpha = page.Alpha / 255f;
         var style = layout.Style;
-        _ui.Image(this, style.Picture, 0, 0, color: new Rgba(255, 255, 255, (byte)page.Alpha));
+        Picture(style.Picture, alpha);
         Print(layout.Text, style.Text, style.Shadow, alpha);
         // The choices off the cursor are in the text's colour and shadow; the cursor's pulses, with no shadow
         // (WidgetScrollMenu.Step, 0x800b0248).
@@ -51,6 +61,44 @@ public partial class BackdropView : Control
                 Print(layout.Choices[i], page.HighlightNow, null, alpha);
             else
                 Print(layout.Choices[i], style.Text, style.Shadow, alpha);
+        }
+    }
+
+    /// <summary>
+    /// The picture at (0, 0), at its own size, its alpha ramping from 0 at each edge to the page's at <see cref="Feather"/>
+    /// in, so the feather multiplies with the page's fade. It's nine cells of two triangles each, the vertices at the
+    /// frame's edges transparent. Each corner's cell is split along the diagonal from the frame's corner to the inner one,
+    /// so its alpha is the lesser of its two edges' ramps and the four corners match; a quad left to Godot to split, as
+    /// <see cref="UiPainter.Feathered"/> leaves it, would cut some across the other way.
+    /// </summary>
+    private void Picture(RecordId image, float alpha)
+    {
+        if (_ui.Images.Get(image) is not { } texture)
+            return;
+        var size = texture.GetSize();
+        var inside = new Color(1, 1, 1, alpha);
+        var edge = new Color(1, 1, 1, 0);
+        float[] xs = [0, Feather.Left, size.X - Feather.Right, size.X];
+        float[] ys = [0, Feather.Top, size.Y - Feather.Bottom, size.Y];
+        for (var j = 0; j < 3; j++)
+        {
+            for (var i = 0; i < 3; i++)
+            {
+                // The cell's corners from its top left clockwise, and its two triangles, split through the frame's
+                // corner in the four corner cells. The others ramp along one axis or not at all, so either split
+                // draws them the same.
+                (int I, int J)[] corners = [(i, j), (i + 1, j), (i + 1, j + 1), (i, j + 1)];
+                int[][] triangles = (i == 0) == (j == 0) ? [[0, 1, 2], [0, 2, 3]] : [[0, 1, 3], [1, 2, 3]];
+                foreach (var triangle in triangles)
+                {
+                    var points = triangle.Select(k => corners[k]).ToArray();
+                    DrawPolygon(
+                        [.. points.Select(c => new Vector2(xs[c.I], ys[c.J]))],
+                        [.. points.Select(c => c.I is 1 or 2 && c.J is 1 or 2 ? inside : edge)],
+                        [.. points.Select(c => new Vector2(xs[c.I], ys[c.J]) / size)],
+                        texture);
+                }
+            }
         }
     }
 
