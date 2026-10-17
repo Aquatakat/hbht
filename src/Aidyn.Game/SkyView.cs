@@ -28,6 +28,10 @@ public partial class SkyView : Node
     private readonly Dictionary<RecordId, SkyGradient?> _gradients = [];
     private readonly Dictionary<RecordId, Texture2D?> _images = [];
     private (int Row, int Column)? _chunk;
+    private ChunkEntry? _entered;
+    private Weather? _weather;
+    /// <summary>The sky of the terrain last entered (<c>Weather.Data</c> + 0x10), and the rain sky.</summary>
+    private SkyGradient? _terrain, _rain;
 
     /// <param name="clock">The game's clock, which the game runs; the sky reads the time of day from it.</param>
     public SkyView(PluginSet plugins, GameClock clock)
@@ -65,11 +69,33 @@ public partial class SkyView : Node
         }
     }
 
-    /// <summary>The game's weather, which sets the fog and blows the clouds; none leaves them as a new game has them.</summary>
-    public Weather? Weather { get; set; }
+    /// <summary>
+    /// The game's weather, which sets the fog, blows the clouds, brings the rain sky and flashes lightning; none leaves
+    /// them as a new game has them.
+    /// </summary>
+    public Weather? Weather
+    {
+        get => _weather;
+        set
+        {
+            _weather?.SkyChange -= ChangeSky;
+            _weather = value;
+            _weather?.SkyChange += ChangeSky;
+            _rain = value?.Rules.RainSky is { } rain ? Gradient(rain) : null;
+        }
+    }
 
     /// <summary>How thick the weather's fog is, 0 to 1 (<c>fogTime</c>), as the weather has it.</summary>
     public float FogTime => Weather?.FogTime ?? 0;
+
+    /// <summary>
+    /// Whether a cut-scene plays, when the scenery's fog ignores the weather's (<c>Zones.SetSceneColors</c> reads
+    /// <c>0x800dfe14</c>, which the cut-scene's mode sets, <c>0x8005039c</c>). The sky's fog doesn't.
+    /// </summary>
+    public bool CutScene { get; set; }
+
+    /// <summary>Whether lightning flashes this frame (<see cref="Weather.Flash"/>): the backdrop is white.</summary>
+    public bool Flash => Weather?.Flash == true && State.Drawn;
 
     /// <summary>
     /// Whether the sky shows at a point on the original's 320 × 240 screen, with nothing drawn over
@@ -78,8 +104,9 @@ public partial class SkyView : Node
     public Func<System.Numerics.Vector2, bool>? SkyShows { get; set; }
 
     /// <summary>
-    /// Chooses the sky of the chunk the player is in, when that changes. Every new chunk chooses
-    /// again, which restarts a change of sky in progress, as in the original.
+    /// Chooses the sky of the chunk the player is in, when that changes (<see cref="SkyState.Enter"/>). Every new
+    /// chunk chooses again, which restarts a change of sky in progress, as in the original, unless the weather holds
+    /// the sky. The first chunk after <see cref="ClearSky"/> chooses at once.
     /// </summary>
     public void Enter(ChunkEntry? chunk)
     {
@@ -87,13 +114,36 @@ public partial class SkyView : Node
             return;
         var first = _chunk is null;
         _chunk = (chunk.Row, chunk.Column);
+        _entered = chunk;
         if (_plugins.TryGet<TerrainRecord>(RecordId.Decimal(RecordTypes.Terrain, chunk.Terrain)) is not { } terrain ||
             Gradient(terrain.Sky) is not { } gradient)
         {
             GD.PushWarning($"No sky for terrain {chunk.Terrain}.");
             return;
         }
-        State.Choose(gradient, terrain.SkyDrawn, gradual: !first);
+        // GetMapTerrain keeps the terrain's sky for the weather to come back to, whatever's chosen.
+        _terrain = gradient;
+        State.Enter(gradient, terrain.SkyDrawn, _rain, Weather, atOnce: first);
+    }
+
+    /// <summary>
+    /// Trek's world goes (<c>FreeZoneEngine</c>, which leaves no sky up, <c>SetBackgroundType(2, 0, 0)</c>): the
+    /// next chunk entered chooses its sky at once, as trek's world or a cut-scene's stage is built.
+    /// </summary>
+    public void ClearSky() => _chunk = null;
+
+    /// <summary>Chooses the sky of the chunk the player is in again at once, as the weather has it now (<c>--weather</c>).</summary>
+    public void ChooseAgain()
+    {
+        ClearSky();
+        Enter(_entered);
+    }
+
+    /// <summary>The weather changes the sky over 600 ticks: to the rain sky, or back to the terrain's.</summary>
+    private void ChangeSky(bool rain)
+    {
+        if ((rain ? _rain : _terrain) is { } gradient)
+            State.Choose(gradient, State.Drawn);
     }
 
     /// <summary>
@@ -120,9 +170,12 @@ public partial class SkyView : Node
         if (State.Current is null)
             return;
         Colors = SkyColors.At(State.Current, State.Next, State.Change, Clock.TimeOfDay, LensFlareValue);
+        // RenderSky's flash: the tint and the sky colour, half of which is bodies' ambient, white for the frame.
+        if (Flash)
+            Colors = Colors.Flashed();
         RenderingServer.GlobalShaderParameterSet(N64Material.TintParameter, Colors.Tint.ToGodot());
         RenderingServer.GlobalShaderParameterSet(N64Material.FogColorParameter, Colors.Fog.ToGodot());
-        RenderingServer.GlobalShaderParameterSet(N64Material.FogParameter, new Vector4(996 - (int)(FogTime * 40), 1000, Near, Far));
+        RenderingServer.GlobalShaderParameterSet(N64Material.FogParameter, new Vector4(SkyColors.FogStart(CutScene ? 0 : FogTime), 1000, Near, Far));
         RenderingServer.GlobalShaderParameterSet(N64Material.BodyAmbientParameter, SkyLight.BodyAmbient(Colors).ToGodot());
         RenderingServer.GlobalShaderParameterSet(N64Material.SunColorParameter, SkyLight.SunColor(Colors, State.Drawn).ToGodot());
         RenderingServer.GlobalShaderParameterSet(N64Material.SunDirectionParameter, SkyLight.SunDirection(Clock.TimeOfDay).ToGodot());

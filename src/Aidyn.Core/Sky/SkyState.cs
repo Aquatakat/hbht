@@ -1,3 +1,5 @@
+using Aidyn.Core.Calendar;
+
 namespace Aidyn.Core.Sky;
 
 /// <summary>
@@ -40,6 +42,25 @@ public sealed class SkyState
         }
         _next = gradient;
         Changing = true;
+    }
+
+    /// <summary>
+    /// The player enters a chunk whose terrain's sky is <paramref name="terrain"/> (<c>LoadGameBorgScenes</c>,
+    /// <c>0x8000b05c</c> in 1.0, after <c>GetMapTerrain</c>). From an outdoor sky to another, it changes over
+    /// <see cref="ChangeTicks"/>, unless the weather holds the sky (<see cref="Weather.HoldsSky"/>), when nothing is
+    /// chosen. Otherwise, as trek's world is built or the sky starts or stops being drawn, or under a sky that isn't
+    /// drawn, it changes at once, to the rain sky if the weather wants rain or snow and the sky is drawn.
+    /// </summary>
+    /// <param name="atOnce">Whether trek's world is being built, when nothing was up (<c>FreeZoneEngine</c> leaves sky type 2).</param>
+    public void Enter(SkyGradient terrain, bool drawn, SkyGradient? rain, Weather? weather, bool atOnce = false)
+    {
+        if (!atOnce && Current is not null && Drawn && drawn)
+        {
+            if (weather?.HoldsSky != true)
+                Choose(terrain, drawn);
+            return;
+        }
+        Choose(drawn && rain is not null && weather?.WantsRainSky == true ? rain : terrain, drawn, gradual: false);
     }
 
     /// <summary>Advances the change by <paramref name="ticks"/> (<c>Sky::RenderSky</c>).</summary>

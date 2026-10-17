@@ -226,7 +226,11 @@ public partial class Game : Node3D, ITrekHost
         trek.Enter(chunk);
         // After the first terrain and the time, which can change the weather.
         if (args.TryGetValue("weather", out var weather))
+        {
             ForceWeather(game, weather);
+            // Its sky too, at once.
+            _sky.ChooseAgain();
+        }
         streamer.Update(spawn.ToNumerics());
         _sky.Apply();
         var centre = spawn.ToNumerics();

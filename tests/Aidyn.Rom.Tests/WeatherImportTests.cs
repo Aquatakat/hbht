@@ -1,3 +1,4 @@
+using Aidyn.Plugins;
 using Aidyn.Rom.Engine;
 using Aidyn.Rom.Import;
 using Aidyn.Rom.Rig;
@@ -30,8 +31,11 @@ public class WeatherImportTests
         Assert.Equal([5], Enumerable.Range(0, terrains.Count).Where(t => terrains[t].Snow));
         Assert.Equal((30, 0.6f), (terrains[5].Precipitation, terrains[5].PrecipitationScale));
         Assert.Equal((100, 0.8f), (terrains[18].Precipitation, terrains[18].PrecipitationScale));
-        var weather = BaseImporter.BuildWeather(WeatherTables.Read(rom));
+        var weather = BaseImporter.BuildWeather(WeatherTables.Read(rom), Skies.ReadGradients(rom));
         Assert.Equal(150f / 648, weather.WindMaxSpeed, 6);
+        // Sky 2, Borg8 0x19E, the Battlefields' sky.
+        Assert.Equal(RecordId.Hex(RecordTypes.Image, 0x19E), weather.RainSky);
+        Assert.Equal(terrains[18].Sky, weather.RainSky);
         Assert.Equal(1.5f / 648, weather.WindGust, 6);
     }
 

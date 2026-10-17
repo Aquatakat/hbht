@@ -77,6 +77,32 @@ public class GameAudioTests
     }
 
     [Fact]
+    public void TheRainLoopFollowsTheWeatherAtItsLevelTimesTheSoundVolumeAndThunderIsAOneShot()
+    {
+        var audio = Audio(new Settings { SoundVolume = 50 });
+        var sounds = new SoundsRecord(RecordId.Decimal(RecordTypes.Sounds, 0), new MenuSounds(Other, Other, Other, Other, Other, Other, Other, Other, Other, Other),
+            [], Other, Other, Other, [], [], Tune, [Other, Other, Other, Other], Other, Other, []);
+        var rain = new WeatherSounds(audio, sounds);
+        var weather = new Core.Calendar.Weather(WeatherTests.Rules);
+        weather.Force(Core.Calendar.WeatherKind.Precipitation, Core.Calendar.Precipitation.Rain, 0.5f);
+        weather.Draw(skyDrawn: true);
+        rain.Step(weather);
+        Assert.True(rain.RainPlaying);
+        // 191 at half volume: 95.
+        Assert.Equal(95, WeatherSounds.RainVolume(weather.RainLoopLevel, audio.SoundVolume));
+
+        weather.Draw(skyDrawn: false);
+        rain.Step(weather);
+        Assert.False(rain.RainPlaying);
+
+        rain.Thunder(2);
+        Assert.Equal(1, audio.SoundsPlaying);
+        for (var i = 0; i < WeatherSounds.ThunderTicks[2]; i++)
+            audio.Step();
+        Assert.Equal(0, audio.SoundsPlaying);
+    }
+
+    [Fact]
     public void OnlySixteenOneShotsPlayAtOnce()
     {
         var audio = Audio();

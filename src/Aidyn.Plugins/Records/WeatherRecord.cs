@@ -31,6 +31,10 @@ namespace Aidyn.Plugins.Records;
 /// <param name="FogRate">How fast the fog thickens and thins toward the weather's, a share a tick.</param>
 /// <param name="LightningEvery">Lightning can strike once in this many frames of the sky.</param>
 /// <param name="LightningShare">Then it strikes on a share from 0 to 1 under this times the storm.</param>
+/// <param name="RainSky">
+/// The sky gradient rain and snow bring in place of the terrain's (sky 2, a literal in <c>ProcessWeather</c>,
+/// <c>0x8001e7c0</c> in 1.0), or none to keep the terrain's.
+/// </param>
 public sealed record WeatherRecord(
     RecordId Id,
     IReadOnlyList<int> Seasons,
@@ -47,7 +51,8 @@ public sealed record WeatherRecord(
     float FallRate,
     float FogRate,
     int LightningEvery,
-    float LightningShare);
+    float LightningShare,
+    RecordId? RainSky = null);
 
 /// <summary>A value the weather draws evenly from <paramref name="Min"/> to <paramref name="Max"/>.</summary>
 public sealed record WeatherRange(float Min, float Max);

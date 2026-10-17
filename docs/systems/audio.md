@@ -19,7 +19,6 @@ What makes a sound that the port doesn't do yet, each waiting for what plays it:
 - **The title screen's** music (0x0632 at volume 0xA5) and its menu's sounds (`IntroMenu`: the cursor, A, B and Start), and **the credits'** music (0x05D9). There's no title screen yet.
 - **The cinematics'** music, a sequence a shot. The cinematics aren't ported. Before one, the original stops the music and asks for it again after, so it starts over.
 - **Combat:** the battle music (on the battle arenas' map set record), weapons' sounds (`WeaponRecord.Sounds`), spells' casts (`SpellRecord.Cast`), and the level-up page's 0x05E8. A fight stops the music, so it starts over after.
-- **The weather:** rain's loop (0x071B) and thunder (one of 0x071C–0x071F as the lightning flashes). The weather isn't ported.
 - **Cheat codes:** 0x0718 accepted, 0x0721 rejected. The cheat menu isn't ported.
 - **Backdrops and the help menu**, which trek only names so far.
 - **Dialogue entities' bodies:** a wanderer that's a dialogue entity has no audio keys in the port. The original looks its profile up by its position in its own list, into the entities' profiles, which isn't settled.
@@ -86,7 +85,7 @@ One-shots go through `Audio.PlaySound` (`0x8004E150`): a sequence, a pan, a gain
 
 - **The gain:** the menus pass 1. `AddGold` (`0x800105EC`), the loot window's coins, thunder, the containers (`0x8000FF30`, `0x8000FFE4`) and the scripts' sounds (`0x8004F7B8`) pass the sound volume, so they start quieter and swell to full over 90 ticks; at full sound volume it makes no difference.
 - **The menus' presses** go through one object, `BigAssMenu` (`0x8002E538`), whose callbacks play the sounds above after passing the press to the page: A, B and Start only with no popup at its level, and up and down not on the Party tab under a popup. Left and right at its level are silent, and so are the volume bars. The Party tab's lists play 0x073B on up and down themselves (`PartyMenu.ListUp`, `0x8007D358`), so it plays twice there at once, louder, which the user confirmed (Oct 16, 2026), and the port does too, with no popup up. The journal takes up and down itself and scrolls silently, which the user confirmed too. No sound plays for a conversation's choices, a sign, or the loot window's yes and no.
-- **Rain** plays 0x071B looped while it rains (not snows), at `min(255, intensity × 1.5 × 255) × sound volume`, centred.
+- **Rain** plays 0x071B looped while it rains (not snows) under the sky, at `min(255, trunc(intensity × 1.5 × 255)) × sound volume`, centred. It isn't a one-shot: `ProcessWeather` plays it on the sequencer at volume 0 and sets its volume every frame from the rain's drawn intensity, and stops it once the rain has died away, at once under no sky, and as trek's world goes ([weather](weather.md#the-rain-loop)). The port's is `WeatherSounds`, as is the thunder.
 - The docs once had a tab's sound as 0x07D4, which is a texture.
 
 ## Bodies' sounds

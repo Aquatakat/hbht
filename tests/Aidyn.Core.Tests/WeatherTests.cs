@@ -182,6 +182,95 @@ public class WeatherTests
     }
 
     [Fact]
+    public void RainBringsTheRainSkyAsItSetsInAndTheTerrainsComesBackAsSoonAsItsWantedNoMore()
+    {
+        var weather = new Weather(Rules);
+        var changes = new List<bool>();
+        weather.SkyChange += changes.Add;
+        weather.Draw(skyDrawn: true);
+        (weather.Kind, weather.Precipitation, weather.Intensity) = (WeatherKind.Precipitation, Precipitation.Rain, 0.5f);
+        // Under no sky, it falls, but brings no sky and no emitters.
+        weather.Draw(skyDrawn: false);
+        Assert.Equal((Precipitation.Rain, false, false), (weather.Falling, weather.Emitting, weather.SkyOverridden));
+        Assert.Empty(changes);
+        weather.Draw(skyDrawn: true);
+        weather.Draw(skyDrawn: true);
+        Assert.Equal([true], changes);
+        Assert.True(weather.SkyOverridden && weather.Emitting && weather.HoldsSky);
+
+        // Cleared: the terrain's sky at once, while the rain still dies away and holds the sky against entering chunks.
+        weather.Precipitation = Precipitation.None;
+        weather.Draw(skyDrawn: true);
+        Assert.Equal([true, false], changes);
+        Assert.False(weather.SkyOverridden || weather.Emitting);
+        Assert.Equal(Precipitation.Rain, weather.Falling);
+        Assert.True(weather.HoldsSky);
+        for (var i = 0; i < 160; i++)
+            weather.Draw(skyDrawn: true);
+        Assert.False(weather.HoldsSky);
+
+        // Fog alone changes nor holds the sky.
+        weather.Fog = 0.75f;
+        weather.Draw(skyDrawn: true);
+        Assert.Equal([true, false], changes);
+        Assert.False(weather.HoldsSky || weather.WantsRainSky);
+    }
+
+    [Fact]
+    public void RainTurningToSnowKeepsTheRainSkyAndChoosesItAgainAsTheSnowSetsIn()
+    {
+        var weather = new Weather(Rules);
+        var changes = new List<bool>();
+        weather.SkyChange += changes.Add;
+        weather.Force(WeatherKind.Precipitation, Precipitation.Rain, 0.1f);
+        weather.Draw(skyDrawn: true);
+        weather.Precipitation = Precipitation.Snow;
+        weather.Draw(skyDrawn: true);
+        Assert.False(weather.Emitting);
+        Assert.True(weather.SkyOverridden);
+        for (var i = 0; i < 40 && weather.Falling != Precipitation.Snow; i++)
+            weather.Draw(skyDrawn: true);
+        Assert.Equal(Precipitation.Snow, weather.Falling);
+        Assert.Equal([true, true], changes);
+        Assert.True(weather.Emitting);
+    }
+
+    [Fact]
+    public void TheRainLoopPlaysWhileRainFallsUnderTheSkyAtItsIntensityTimesOneAndAHalf()
+    {
+        var weather = new Weather(Rules);
+        weather.Force(WeatherKind.Precipitation, Precipitation.Rain, 0.5f);
+        weather.Draw(skyDrawn: true);
+        Assert.True(weather.RainLoop);
+        Assert.Equal(1, weather.RainLoopStarts);
+        // trunc(0.5 × 1.5 × 255) = 191, and full from two thirds.
+        Assert.Equal(191, weather.RainLoopLevel);
+        weather.FallIntensity = 0.7f;
+        Assert.Equal(255, weather.RainLoopLevel);
+        weather.FallIntensity = 0.5f;
+
+        // Where the sky isn't drawn it stops at once, and starts again coming out.
+        weather.Draw(skyDrawn: false);
+        Assert.False(weather.RainLoop);
+        weather.Draw(skyDrawn: true);
+        Assert.Equal((true, 2), (weather.RainLoop, weather.RainLoopStarts));
+
+        // Dying away, it plays on, quieter, until the rain is gone.
+        weather.Precipitation = Precipitation.None;
+        weather.Draw(skyDrawn: true);
+        Assert.True(weather.RainLoop);
+        Assert.Equal((int)((0.5f - 1f / 300) * 1.5 * 255), weather.RainLoopLevel);
+        for (var i = 0; i < 160; i++)
+            weather.Draw(skyDrawn: true);
+        Assert.False(weather.RainLoop);
+
+        // Snow is silent.
+        weather.Force(WeatherKind.Precipitation, Precipitation.Snow, 0.5f);
+        weather.Draw(skyDrawn: true);
+        Assert.False(weather.RainLoop);
+    }
+
+    [Fact]
     public void ANewGameMayChangeTheWeatherAsItsClockIsSetToNoon()
     {
         var weather = new Weather(Rules);

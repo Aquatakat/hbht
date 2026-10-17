@@ -51,6 +51,19 @@ public readonly record struct SkyColors(Vector3 Tint, Vector3 Sky, Vector3 Fog, 
             ToBytes(Row(SkyGradient.SunRow) * scale));
     }
 
+    /// <summary>
+    /// The colours on the frame lightning flashes (<c>RenderSky</c>, <c>0x8001d840</c> in 1.0): the tint and the sky
+    /// colour white, so the scenery is drawn untinted and bodies' ambient is half white. The fog, cloud and sun colours
+    /// don't change.
+    /// </summary>
+    public SkyColors Flashed() => this with { Tint = Vector3.One, Sky = Vector3.One };
+
+    /// <summary>
+    /// Where the scenery's fog starts on the 0–1000 depth scale it ends at 1000 on (<c>Zones.SetSceneColors</c>,
+    /// <c>0x8000c298</c>): 996, less the weather's drawn fog × 40, truncated, so from 966 at its thickest.
+    /// </summary>
+    public static int FogStart(float fogTime) => 996 - (short)(int)(fogTime * 40);
+
     /// <summary>As the game stores them, truncated to 8 bits (<c>V3ToRGB</c>).</summary>
     internal static Vector3 ToBytes(Vector3 c) =>
         new(MathF.Floor(Math.Clamp(c.X, 0, 1) * 255) / 255, MathF.Floor(Math.Clamp(c.Y, 0, 1) * 255) / 255, MathF.Floor(Math.Clamp(c.Z, 0, 1) * 255) / 255);

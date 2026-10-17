@@ -16,6 +16,7 @@ Things only the user can settle, in the emulator or by reading the ROM. Each lin
 - **Which way sounds pan:** a sound to the camera's right should come from the right speaker; the formula says right is positive, and the port plays it so, but nobody has listened. Any map sound with falloff, such as a fountain, turned side on. See [audio](systems/audio.md#sound-map-objects).
 
 - **Rain after loading:** loading a save made in the rain outdoors (the "Before Rooughah" one is in an interior, so step outside first and save there): whether the rain is there at once, or dies away and sets in again over about ten seconds, as the machine code suggests. The port keeps it falling. See [weather](systems/weather.md#differences-from-the-original).
+- **The rain sky after a cut-scene:** in the rain outdoors, when a cut-scene ends (or a battle, or a load), whether the sky and the scenery brighten to the clear sky's at once and grey again over about ten seconds, as the machine code has it and the port does. And whether the rain loop starts over then. See [weather](systems/weather.md#the-rain-sky).
 
 - **Where the map area north of Ugarit unlocks:** It currently doesn't unlock while travelling through it in the port.
 

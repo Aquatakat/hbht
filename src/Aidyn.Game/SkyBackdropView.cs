@@ -60,15 +60,23 @@ public partial class SkyBackdropView : Control
         // interpolated, and the sky has to match it or it runs up to a tick ahead as the camera turns.
         var look = (-camera.GetGlobalTransformInterpolated().Basis.Z).Normalized().ToNumerics();
         var colors = _sky.Colors;
-        SkyBackdrop.Draw(state.Current, state.Next, state.Change, _sky.Clock.TimeOfDay, look, colors.Fog, _lines,
-            _sky.FogTime, _sky.LensFlareValue);
-        for (var y = 0; y < _lines.Length; y++)
+        if (_sky.Flash)
         {
-            var c = _lines[y];
-            _image.SetPixel(0, y, new Color(c.X, c.Y, c.Z));
+            // RenderSky's lightning: the whole screen white in place of the gradient, with the sky's objects over it.
+            DrawRect(GetRect(), Colors.White);
         }
-        _gradient.Update(_image);
-        DrawTextureRect(_gradient, GetRect(), false);
+        else
+        {
+            SkyBackdrop.Draw(state.Current, state.Next, state.Change, _sky.Clock.TimeOfDay, look, colors.Fog, _lines,
+                _sky.FogTime, _sky.LensFlareValue);
+            for (var y = 0; y < _lines.Length; y++)
+            {
+                var c = _lines[y];
+                _image.SetPixel(0, y, new Color(c.X, c.Y, c.Z));
+            }
+            _gradient.Update(_image);
+            DrawTextureRect(_gradient, GetRect(), false);
+        }
 
         _sprites.Clear();
         _sky.Objects?.Draw(_sprites, _sky.Clock.Time, look, colors.Sun, _sky.ImageSize, _twinkle, _sky.FogTime);

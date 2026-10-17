@@ -176,6 +176,52 @@ public class SkyTests
     }
 
     [Fact]
+    public void RainHoldsTheSkyAgainstEnteringChunksAndASkyChosenAtOnceIsTheRainSky()
+    {
+        var day = Noon();
+        var dark = Gradient((_, _) => (0, 0, 0));
+        var rain = Gradient((_, _) => (100, 100, 100));
+        var weather = new Weather(WeatherTests.Rules);
+        var state = new SkyState();
+        state.Enter(day, drawn: true, rain, weather, atOnce: true);
+        Assert.Same(day, state.Current);
+
+        weather.Force(WeatherKind.Precipitation, Precipitation.Rain);
+        // Another terrain's chunk under the sky: the weather keeps what's up.
+        state.Enter(dark, drawn: true, rain, weather);
+        Assert.False(state.Changing);
+        Assert.Same(day, state.Current);
+        // Building trek's world again, or coming out from under no sky, chooses at once, and the rain sky.
+        state.Enter(dark, drawn: false, rain, weather);
+        Assert.Same(dark, state.Current);
+        state.Enter(day, drawn: true, rain, weather);
+        Assert.Same(rain, state.Current);
+        state.Enter(day, drawn: true, rain, weather, atOnce: true);
+        Assert.Same(rain, state.Current);
+
+        // Fog doesn't hold it.
+        weather.Force(WeatherKind.Fog, fog: 0.5f);
+        state.Enter(day, drawn: true, rain, weather);
+        Assert.Same(day, state.Next);
+        // Under no sky, every chunk chooses at once.
+        state.Enter(day, drawn: false, rain, weather);
+        state.Enter(dark, drawn: false, rain, weather);
+        Assert.Same(dark, state.Current);
+    }
+
+    [Fact]
+    public void LightningsFlashWhitensTheTintAndTheSkyColourAndTheFogStartsInByTheWeather()
+    {
+        var colors = SkyColors.At(Noon(), null, 0, 0.5f);
+        var flashed = colors.Flashed();
+        Assert.Equal((Vector3.One, Vector3.One, colors.Fog, colors.Cloud, colors.Sun), (flashed.Tint, flashed.Sky, flashed.Fog, flashed.Cloud, flashed.Sun));
+        Assert.Equal(new Vector3(127f / 255), SkyLight.BodyAmbient(flashed));
+        Assert.Equal(996, SkyColors.FogStart(0));
+        Assert.Equal(992, SkyColors.FogStart(0.1f));
+        Assert.Equal(966, SkyColors.FogStart(0.75f));
+    }
+
+    [Fact]
     public void ChoosingTheSkyThatsUpAbandonsTheChange()
     {
         var day = Noon();
