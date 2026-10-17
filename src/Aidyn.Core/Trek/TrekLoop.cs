@@ -5,6 +5,7 @@ using Aidyn.Core.Chunks;
 using Aidyn.Core.Items;
 using Aidyn.Core.MapObjects;
 using Aidyn.Core.Movement;
+using Aidyn.Core.Particles;
 using Aidyn.Core.Scripts;
 using Aidyn.Core.Ui;
 using Aidyn.Plugins;
@@ -92,12 +93,16 @@ public sealed class TrekLoop : IMapObjectHost
     /// <summary>The last script a dialogue object asked to start that trek can't run yet, such as a backdrop.</summary>
     private RecordId? _lastScript;
 
-    public TrekLoop(GameState game, ITrekHost host, ChunkStreamer chunks, GameAudio? audio = null)
+    /// <param name="particles">The particle pool, which the weather's rain and snow fall in; none draws none.</param>
+    public TrekLoop(GameState game, ITrekHost host, ChunkStreamer chunks, GameAudio? audio = null, ParticleHead? particles = null)
     {
         Game = game;
         Audio = audio ?? GameAudio.Silent(game.Plugins);
         _host = host;
         Chunks = chunks;
+        Particles = particles;
+        if (particles is not null)
+            Precipitation = new WeatherParticles(particles, game.Random.Cosmetic, () => Camera.Aim, () => Chunks.World, () => Chunks.Centre);
         Wanderers = new Wanderers(game.Plugins);
         Use = new MapObjectUse(game, MenuText.From(game.Plugins), this) { World = chunks.World };
         Hud = new TrekHud(game, host.ImageSize);
@@ -144,6 +149,12 @@ public sealed class TrekLoop : IMapObjectHost
 
     /// <summary>The chunks around the player, which a teleport to another map set changes.</summary>
     public ChunkStreamer Chunks { get; private set; }
+
+    /// <summary>The particle pool (<c>Particles.Head</c>), which its owner steps, or null.</summary>
+    public ParticleHead? Particles { get; }
+
+    /// <summary>The weather's rain and snow, in <see cref="Particles"/>, or null without them.</summary>
+    public WeatherParticles? Precipitation { get; }
 
     /// <summary>The loaded chunks' monster parties' bodies.</summary>
     public Wanderers Wanderers { get; }
@@ -229,7 +240,8 @@ public sealed class TrekLoop : IMapObjectHost
     /// rain loop.
     /// </summary>
     /// <param name="skyDrawn">Whether the sky is drawn (the original's sky type 3).</param>
-    public void StepWeather(bool skyDrawn)
+    /// <param name="precipitation">Whether rain and snow fall too: trek's alone, as cut-scenes don't draw them yet.</param>
+    public void StepWeather(bool skyDrawn, bool precipitation = false)
     {
         if (Game.Weather is not { } weather)
             return;
@@ -240,6 +252,8 @@ public sealed class TrekLoop : IMapObjectHost
             if (weather.Thunder is { } thunder)
                 WeatherSounds.Thunder(thunder);
         }
+        if (precipitation)
+            Precipitation?.Frame(weather, skyDrawn, Camera.LookXZ);
         weather.Draw(skyDrawn);
         WeatherSounds.Step(weather);
     }
@@ -278,8 +292,8 @@ public sealed class TrekLoop : IMapObjectHost
             Game.Flags.Set(newEntry, false);
             Use.Tell(NewJournalEntry);
         }
-        // HandleZoneEngineFrame's weather, whatever stops the clock; then TickGameTime.
-        StepWeather(_chunk is null || (Game.Terrain(_chunk.Terrain)?.SkyDrawn ?? true));
+        // HandleZoneEngineFrame's weather (RenderSky's lightning and ProcessWeather), whatever stops the clock; then TickGameTime.
+        StepWeather(precipitation: true, skyDrawn: _chunk is null || (Game.Terrain(_chunk.Terrain)?.SkyDrawn ?? true));
         if (Use.Popup is null && !talking)
             Game.PassTime(1);
         if (frozen)
@@ -391,6 +405,10 @@ public sealed class TrekLoop : IMapObjectHost
         var point = origin + arrival.Position;
         Chunks.Update(point);
         Use.ClearCameras();
+        // The weather's emitters are forgotten, then every emitter still spawning is killed, theirs among them, so the
+        // rain starts again about the player from the next frame.
+        Precipitation?.Forget();
+        Particles?.KillActive();
         var motion = Player;
         var from = motion.Sphere.Position;
         motion.Sphere.Position = TeleportArrival.Settle(Chunks.World, point, motion.Sphere.Radius) ?? point;
@@ -452,6 +470,8 @@ public sealed class TrekLoop : IMapObjectHost
         // FreeZoneEngine: Weather.Free stops the rain loop.
         Game.Weather?.Free();
         WeatherSounds.StopRain();
+        // The zone engine's end frees the pool, and with it the rain.
+        Precipitation?.Clear();
     }
 
     /// <summary>

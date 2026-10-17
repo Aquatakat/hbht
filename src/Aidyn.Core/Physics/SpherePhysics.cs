@@ -63,12 +63,14 @@ public static class SpherePhysics
     /// <summary>
     /// Whether a sphere moving from <paramref name="from"/> to <paramref name="to"/> hits a
     /// triangle facing it, and where its front touches (<c>CheckCollision</c>). The camera uses
-    /// this, skipping see-through triangles.
+    /// this, skipping see-through triangles. The original sweeps one chunk's collision; the port
+    /// sweeps every loaded chunk's, or with <paramref name="part"/> the one added under that key.
     /// </summary>
-    public static bool Sweep(CollisionWorld world, Vector3 from, Vector3 to, float radius, bool skipSeeThrough, out Vector3 point, out Vector3 normal)
+    public static bool Sweep(CollisionWorld world, Vector3 from, Vector3 to, float radius, bool skipSeeThrough, out Vector3 point, out Vector3 normal,
+        object? part = null)
     {
         var delta = to - from;
-        foreach (var t in Near(world, from, delta, radius))
+        foreach (var t in Near(world, from, delta, radius, part))
         {
             if (skipSeeThrough && t.Has(CollisionFlags.SeeThrough))
                 continue;
@@ -121,11 +123,11 @@ public static class SpherePhysics
         return false;
     }
 
-    private static List<Triangle> Near(CollisionWorld world, Vector3 from, Vector3 delta, float radius)
+    private static List<Triangle> Near(CollisionWorld world, Vector3 from, Vector3 delta, float radius, object? part = null)
     {
         var reach = new Vector2(delta.X, delta.Z).Length() + radius + 1;
         var near = _near ??= [];
-        world.Near(from.X - reach, from.Z - reach, from.X + reach, from.Z + reach, near);
+        world.Near(from.X - reach, from.Z - reach, from.X + reach, from.Z + reach, near, part);
         return near;
     }
 

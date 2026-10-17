@@ -100,13 +100,15 @@ public sealed class CollisionWorld
 
     /// <summary>
     /// The triangles that may touch the box from <paramref name="min"/> to <paramref name="max"/> in
-    /// X and Z, each once, in a fixed order.
+    /// X and Z, each once, in a fixed order: of every part, or of the one added under <paramref name="only"/>.
     /// </summary>
-    internal void Near(float minX, float minZ, float maxX, float maxZ, List<Triangle> into)
+    internal void Near(float minX, float minZ, float maxX, float maxZ, List<Triangle> into, object? only = null)
     {
         into.Clear();
-        foreach (var part in _parts.Values)
+        foreach (var (key, part) in _parts)
         {
+            if (only is not null && !only.Equals(key))
+                continue;
             if (maxX < part.MinX || minX > part.MaxX || maxZ < part.MinZ || minZ > part.MaxZ)
                 continue;
             _seen.Clear();

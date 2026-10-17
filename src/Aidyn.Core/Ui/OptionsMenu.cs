@@ -196,6 +196,8 @@ public sealed class OptionsMenu
             Choice("Draw distance", ["Original", "Farther", "Farthest"], () => NearestIndex(DrawDistances, s.DrawDistance),
                 v => s.DrawDistance = DrawDistances[v]),
             Choice("Model detail", ["Original", "Highest"], () => s.NearestDetail ? 1 : 0, v => s.NearestDetail = v == 1),
+            Choice("Rain and snow", ["Original", "2x", "4x", "8x"], () => NearestIndex(PrecipitationDensities, s.PrecipitationDensity),
+                v => s.PrecipitationDensity = PrecipitationDensities[v]),
             Choice("Sky", ["Projected", "Original"], () => s.SkyPlacement == SkyPlacement.Original ? 1 : 0,
                 v => s.SkyPlacement = v == 1 ? SkyPlacement.Original : SkyPlacement.Projected),
             Choice("Menu size", ["Original", "Smaller", "Smallest"], () => Array.IndexOf(UiLines, s.UiLines) is var i and >= 0 ? i : 0,
@@ -212,6 +214,9 @@ public sealed class OptionsMenu
     // The values the graphics page's rows step through.
     private static readonly int[] WorldLines = [0, 480, 240], Samples = [0, 2, 4, 8], UiLines = [240, 360, 480];
     private static readonly float[] DrawDistances = [1, 1.2f, 1.4f];
+
+    /// <summary>The rain and snow's densities, up to <see cref="Particles.WeatherParticles.MaxDensity"/>.</summary>
+    private static readonly float[] PrecipitationDensities = [1, 2, 4, 8];
     private static readonly UiFilter[] Filters = [UiFilter.VideoOut, UiFilter.Pixels, UiFilter.Smooth];
 
     private static int NearestIndex(float[] values, float value)

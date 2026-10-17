@@ -73,7 +73,7 @@ public static class BaseImporter
         var campFactors = CampFactors(rom);
         var weather = WeatherTables.Read(rom);
         WriteJson(Path.Combine(staging, "records", "terrains.json"), BuildTerrains(gradients, campFactors, weather));
-        WriteJson(Path.Combine(staging, "records", "weather.json"), new[] { BuildWeather(weather, gradients) });
+        WriteJson(Path.Combine(staging, "records", "weather.json"), new[] { BuildWeather(weather, gradients, ParticleTextures.Read(rom)) });
 
         progress?.Report("Flags");
         var db = GameDb.Read(rom);
@@ -492,6 +492,29 @@ public static class BaseImporter
 
     /// <summary>The terrain type it snows on rather than rains (<c>Weather.Roll</c>).</summary>
     public const int SnowTerrain = 5;
+
+    /// <summary>
+    /// The weather's rules, and how rain and snow are drawn (<c>ProcessWeather</c>, <c>0x8001e7c0</c>): their textures are
+    /// particle texture slots, literals in the code (rain's drops slot 4 and splashes 16, snow's 0 for both), looked up in
+    /// the engine's particle list (<paramref name="particleTextures"/>); their colours are floats at <c>0x800ce0d0</c> and
+    /// <c>0x800ce0e0</c>, and the rest literals, which are checked in 1.0's machine code.
+    /// </summary>
+    internal static WeatherRecord BuildWeather(WeatherTables tables, IReadOnlyList<int> gradients, IReadOnlyList<int?> particleTextures)
+    {
+        RecordId? Texture(int slot) =>
+            slot < particleTextures.Count && particleTextures[slot] is { } borg1 ? RecordId.Hex(RecordTypes.Texture, borg1) : null;
+        return BuildWeather(tables, gradients) with
+        {
+            Rain = Texture(4) is { } drop && Texture(16) is { } ripple
+                ? new PrecipitationLook(drop, ripple, new WeatherColor(0.546875f, 0.7421875f, 0.8203125f, 0.8f), Splashes: true,
+                    Fall: 0.075, FallPerIntensity: 0, Interval: 6, IntervalPerIntensity: -4, Life: 240, LifePerIntensity: 0, SplashesSooner: 2)
+                : null,
+            Snow = Texture(0) is { } flake
+                ? new PrecipitationLook(flake, flake, new WeatherColor(1, 1, 1, 1), Splashes: false,
+                    Fall: 0.03, FallPerIntensity: 0.02, Interval: 6, IntervalPerIntensity: -7, Life: 360, LifePerIntensity: -60, SplashesSooner: 0)
+                : null,
+        };
+    }
 
     /// <summary>
     /// The weather's rules: the seasons' chances from the code's table, and the rest literals in <c>Weather.Roll</c>

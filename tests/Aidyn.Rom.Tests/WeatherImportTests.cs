@@ -1,4 +1,5 @@
 using Aidyn.Plugins;
+using Aidyn.Plugins.Records;
 using Aidyn.Rom.Engine;
 using Aidyn.Rom.Import;
 using Aidyn.Rom.Rig;
@@ -37,6 +38,19 @@ public class WeatherImportTests
         Assert.Equal(RecordId.Hex(RecordTypes.Image, 0x19E), weather.RainSky);
         Assert.Equal(terrains[18].Sky, weather.RainSky);
         Assert.Equal(1.5f / 648, weather.WindGust, 6);
+    }
+
+    [Fact]
+    public void RainAndSnowDrawWithTheParticleTexturesTheirSlotsName()
+    {
+        var rom = TestRoms.Get(RomVersionId.Na10);
+        var weather = BaseImporter.BuildWeather(WeatherTables.Read(rom), Skies.ReadGradients(rom), ParticleTextures.Read(rom));
+        // Rain's slots 4 and 16, a streak and a ripple; snow's 0 for both, a soft disc.
+        Assert.Equal((RecordId.Hex(RecordTypes.Texture, 2), RecordId.Hex(RecordTypes.Texture, 12)), (weather.Rain!.Drop, weather.Rain.Splash));
+        Assert.Equal((RecordId.Hex(RecordTypes.Texture, 3), RecordId.Hex(RecordTypes.Texture, 3)), (weather.Snow!.Drop, weather.Snow.Splash));
+        Assert.Equal(new WeatherColor(0.546875f, 0.7421875f, 0.8203125f, 0.8f), weather.Rain.Color);
+        Assert.True(weather.Rain.Splashes);
+        Assert.False(weather.Snow.Splashes);
     }
 
     [Theory]

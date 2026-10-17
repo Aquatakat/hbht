@@ -1,10 +1,12 @@
 using System.Numerics;
 using Aidyn.Core;
+using Aidyn.Core.Calendar;
 using Aidyn.Core.Cameras;
 using Aidyn.Core.Chunks;
 using Aidyn.Core.Items;
 using Aidyn.Core.MapObjects;
 using Aidyn.Core.Movement;
+using Aidyn.Core.Particles;
 using Aidyn.Core.Physics;
 using Aidyn.Core.Rng;
 using Aidyn.Core.Scripts;
@@ -77,12 +79,12 @@ public sealed class TrekLoopTests(MapObjectFixture fixture)
     }
 
     /// <summary>Trek as a new game starts it, with the player on the ground at a chunk's point.</summary>
-    private (TrekLoop Trek, Host Host) Start(string chunkName = "I08", float x = 16, float z = 62, int mapSet = 0)
+    private (TrekLoop Trek, Host Host) Start(string chunkName = "I08", float x = 16, float z = 62, int mapSet = 0, ParticleHead? particles = null)
     {
         var game = GameState.NewGame(Data.Set);
         var host = new Host(Data.Set);
         var streamer = new ChunkStreamer(Data.Set, game, new CollisionWorld(), Data.Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, mapSet)));
-        var trek = new TrekLoop(game, host, streamer);
+        var trek = new TrekLoop(game, host, streamer, particles: particles);
         var chunk = streamer.Find(chunkName)!;
         var point = streamer.Origin(chunk) + new Vector3(x, 10, z);
         trek.Enter(chunk);
@@ -94,6 +96,31 @@ public sealed class TrekLoopTests(MapObjectFixture fixture)
     }
 
     private static PlayerInput Still() => new(Vector2.Zero);
+
+    [Fact]
+    public void RainOverGwerniaLandsOnTheGroundOfThePlayersChunk()
+    {
+        var particles = new ParticleHead(new Lcg());
+        var (trek, _) = Start("M07", 40, 55, particles: particles);
+        trek.Game.Weather!.Force(WeatherKind.Precipitation, Precipitation.Rain, 0.5f);
+        for (var i = 0; i < 600; i++)
+        {
+            trek.Tick(Still);
+            particles.Step();
+        }
+        var drops = trek.Precipitation!.Drops!;
+        var splashes = particles.Sprites.Where(s => s.Emitter == trek.Precipitation.Splashes!.Slot).ToList();
+        Assert.InRange(particles.Sprites.Count(s => s.Emitter == drops.Slot), 10, 40);
+        Assert.InRange(splashes.Count, 20, 80);
+        // Each splash lies 0.05 over the collision of M07, where the player is, facing up its slope.
+        var centre = trek.Chunks.Centre;
+        foreach (var s in splashes)
+        {
+            Assert.True(SpherePhysics.Sweep(trek.Chunks.World, s.Position + Vector3.UnitY, s.Position - Vector3.UnitY, 0.1f, false, out var ground, out var normal, centre));
+            var up = -Vector3.Transform(Vector3.UnitZ, s.Orientation!.Value);
+            Assert.True(Vector3.Dot(up, Vector3.UnitY) > 0.5f);
+        }
+    }
 
     /// <summary>How many chunks the map set has in the 3×3 around one: fewer at its edges.</summary>
     private static int Around(ChunkStreamer chunks, ChunkEntry chunk) =>
