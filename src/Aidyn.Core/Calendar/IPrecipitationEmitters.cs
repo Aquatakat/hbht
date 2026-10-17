@@ -16,6 +16,12 @@ public interface IPrecipitationEmitters
     /// <summary>Steers the pair by what falls, how hard (before this tick's change) and the wind.</summary>
     void Steer(Precipitation falling, float intensity, Vector3 wind);
 
+    /// <summary>
+    /// Fills the air with what falls at once, on the frame the pair is made while it's already falling, as after trek
+    /// rebuilds (the user's choice; the original's new pair starts empty, so its drops take a couple of seconds to come).
+    /// </summary>
+    void FillAir() { }
+
     /// <summary>Keeps the pair alive while what falls is what the weather wants: both lives at 300.</summary>
     void Keep();
 

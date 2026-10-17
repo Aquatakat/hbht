@@ -323,15 +323,22 @@ public sealed class Weather
         }
         // The rain sky is asked for before the emitters are made, so where the pool has no room for them, it's asked
         // for again every frame until there is.
+        var made = false;
         if (Falling == Wanted && Falling != Precipitation.None && !Emitting && skyDrawn)
         {
             SkyOverridden = true;
             SkyChange?.Invoke(true);
-            Emitting = emitters?.Make(Falling) ?? true;
+            Emitting = made = emitters?.Make(Falling) ?? true;
         }
-        // Steered by how hard it falls before this tick's change, on the frame they're made too.
+        // Steered by how hard it falls before this tick's change, on the frame they're made too. Made while it's
+        // already falling, after trek rebuilds, through a door or out of a building, the air fills at once: the
+        // user's choice, where the original's starts empty. Rain setting in from nothing still starts empty.
         if (Emitting)
+        {
             emitters?.Steer(Falling, FallIntensity, Wind);
+            if (made && FallIntensity > 0)
+                emitters?.FillAir();
+        }
         if (Falling == Precipitation)
         {
             if (Falling != Precipitation.None)

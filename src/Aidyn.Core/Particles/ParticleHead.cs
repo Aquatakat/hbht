@@ -335,13 +335,14 @@ public sealed class ParticleHead
     /// A frame of <paramref name="delta"/> ticks (<c>ProcessAndRenderParticleHead</c>): each emitter in slot order waits
     /// out its delay, then runs its update, ages, spawns, and steps and draws its list.
     /// </summary>
-    public void Frame(int delta)
+    /// <param name="only">Runs only the emitters this picks, leaving the rest as they are.</param>
+    public void Frame(int delta, Func<Emitter, bool>? only = null)
     {
         _sprites.Clear();
         var dt = (float)delta;
         foreach (var e in _emitters)
         {
-            if (!e.InUse)
+            if (!e.InUse || only is not null && !only(e))
                 continue;
             // A freed actor stops its emitters as it goes.
             if (e.Anchor is { Alive: false })

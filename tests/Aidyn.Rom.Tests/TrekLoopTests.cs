@@ -112,13 +112,13 @@ public sealed class TrekLoopTests(MapObjectFixture fixture)
         var splashes = particles.Sprites.Where(s => s.Emitter == trek.Precipitation.Splashes!.Slot).ToList();
         Assert.InRange(particles.Sprites.Count(s => s.Emitter == drops.Slot), 10, 40);
         Assert.InRange(splashes.Count, 20, 80);
-        // Each splash lies 0.05 over the collision of M07, where the player is, facing up its slope.
+        // Each splash lies 0.05 over the collision of M07, where the player is, laid flat on it, however steep.
         var centre = trek.Chunks.Centre;
         foreach (var s in splashes)
         {
             Assert.True(SpherePhysics.Sweep(trek.Chunks.World, s.Position + Vector3.UnitY, s.Position - Vector3.UnitY, 0.1f, false, out var ground, out var normal, centre));
             var up = -Vector3.Transform(Vector3.UnitZ, s.Orientation!.Value);
-            Assert.True(Vector3.Dot(up, Vector3.UnitY) > 0.5f);
+            Assert.True(Vector3.Dot(up, normal) > 0.99f);
         }
 
         // Through a door into an interior, whose sky isn't drawn: the pair is forgotten and killed, none is made there,

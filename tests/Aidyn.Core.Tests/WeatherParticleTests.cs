@@ -33,10 +33,10 @@ public class WeatherParticleTests
         public bool SkyDrawn = true;
         public object? Part = "ground";
 
-        public Scene(Precipitation precipitation = Precipitation.Rain, float intensity = 0.5f)
+        public Scene(Precipitation precipitation = Precipitation.Rain, float intensity = 0.5f, bool fillsAir = false)
         {
             World.Add("ground", Worlds.Floor(0, -100, 100, -100, 100), Vector3.Zero);
-            Fall = new WeatherParticles(Head, Rules, new Lcg(7), () => Aim, () => Look, () => World, () => Part);
+            Fall = new WeatherParticles(Head, Rules, new Lcg(7), () => Aim, () => Look, () => World, () => Part) { FillsAir = fillsAir };
             Weather.Force(WeatherKind.Precipitation, precipitation, intensity);
             Weather.SkyChange += rain => RainSkyAsked += rain ? 1 : 0;
         }
@@ -252,6 +252,31 @@ public class WeatherParticleTests
         Assert.Equal(4, scene.Head.EmittersInUse);
         scene.Run(600);
         Assert.Equal(2, scene.Head.EmittersInUse);
+    }
+
+    [Fact]
+    public void APairMadeWhileItsFallingFillsTheAirAtOnce()
+    {
+        // Rain already falling, as after trek rebuilds: the first frame draws drops at every height and splashes on the ground.
+        var scene = new Scene(intensity: 0.5f, fillsAir: true);
+        scene.Run(2);
+        var drops = scene.Drawn(scene.Fall.Drops).ToList();
+        Assert.InRange(drops.Count, 10, 60);
+        Assert.InRange(drops.Max(d => d.Position.Y) - drops.Min(d => d.Position.Y), 5, 10);
+        Assert.NotEmpty(scene.Drawn(scene.Fall.Splashes));
+        // Kept up through the fill, so it doesn't run out.
+        Assert.InRange(scene.Fall.Drops!.Life, WeatherParticles.KeptLife - 4, WeatherParticles.KeptLife);
+    }
+
+    [Fact]
+    public void RainSettingInFromNothingStartsEmptyAndFillingTheAirMovesNoOtherEmitter()
+    {
+        var scene = new Scene(intensity: 0.5f, fillsAir: true);
+        var other = scene.Head.AllocEmitter(1000, null, 100)!;
+        scene.Weather.FallIntensity = 0;
+        scene.Run(2);
+        Assert.Empty(scene.Drawn(scene.Fall.Drops));
+        Assert.Equal(1000 - 2, other.Life);
     }
 
     [Fact]

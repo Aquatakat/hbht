@@ -209,6 +209,27 @@ public sealed class WeatherParticles : IPrecipitationEmitters
             splashes.Interval = (short)(interval - rules.SplashesSooner);
     }
 
+    /// <summary>Whether a pair made while it's already falling fills the air at once (<see cref="FillAir"/>); off, as the original.</summary>
+    public bool FillsAir { get; set; } = true;
+
+    /// <summary>
+    /// Fills the air at once (<see cref="IPrecipitationEmitters.FillAir"/>): the new pair alone is run on for as long
+    /// as a drop lives, frame by frame, kept up as it falls, so drops are at every height and splashes on the ground
+    /// before it's first drawn. The other emitters don't move.
+    /// </summary>
+    public void FillAir()
+    {
+        if (!FillsAir || Current is not { } pair || !pair.Ours())
+            return;
+        var splashes = pair.OwnsSplashes() ? pair.Splashes : null;
+        for (var ticks = 0; ticks < pair.Life; ticks += Cadence.FrameTicks)
+        {
+            Keep();
+            _head.Frame(Cadence.FrameTicks, e => e == pair.Drops || e == splashes);
+        }
+        Keep();
+    }
+
     /// <summary>Keeps both emitters' lives at <see cref="KeptLife"/> while what falls is what the weather wants.</summary>
     public void Keep()
     {
