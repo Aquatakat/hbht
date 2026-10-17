@@ -48,6 +48,9 @@ public sealed class Settings
     /// <summary>Whether scene objects always draw their nearest, most detailed level.</summary>
     public bool NearestDetail { get; set; }
 
+    /// <summary>How many raindrops and snowflakes fall, as a multiple of the original's (<see cref="Particles.WeatherParticles.Density"/>).</summary>
+    public float PrecipitationDensity { get; set; } = 1;
+
     public SkyPlacement SkyPlacement { get; set; } = SkyPlacement.Projected;
 
     /// <summary>Whether trek runs at a faster pace than the original's, which feels slow on a PC.</summary>

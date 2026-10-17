@@ -217,6 +217,7 @@ The user laid this out (Oct 3, 2026), and it isn't the original's. The original'
   | Anti-aliasing | Off, 2x, 4x, 8x (MSAA) |
   | Draw distance | Original, Farther (1.2×), Farthest (1.4×): see [rendering](rendering.md#draw-distance) |
   | Model detail | Original, Highest (always the nearest level) |
+  | Rain and snow | Original, 2x, 4x, 8x: how many raindrops and snowflakes fall, with a particle pool to match ([weather](weather.md#more-rain-than-the-original)) |
   | Sky | Projected, Original ([rendering](rendering.md#the-skys-objects)) |
   | Menu size | Original (240 lines), Smaller (360), Smallest (480): the UI screen's height, for the menu and trek's popups and box |
   | Menu filter | Video out, Sharp, Smooth (`UiFilter`) |

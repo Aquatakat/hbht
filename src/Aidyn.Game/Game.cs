@@ -7,6 +7,7 @@ using Aidyn.Core.Flags;
 using Aidyn.Core.Items;
 using Aidyn.Core.MapObjects;
 using Aidyn.Core.Movement;
+using Aidyn.Core.Particles;
 using Aidyn.Core.Physics;
 using Aidyn.Core.Scenes;
 using Aidyn.Core.Trek;
@@ -37,7 +38,8 @@ namespace Aidyn.Game;
 /// original's), <c>--fly &lt;x&gt;,&lt;y&gt;,&lt;z&gt;</c> to start with the free camera there in
 /// world coordinates, looking along <c>--yaw</c> and <c>--pitch</c>, <c>--time &lt;hours&gt;</c>
 /// for the time of day (a new game starts at 12), <c>--weather rain|snow|fog|clear[,intensity[,fog]]</c> for the
-/// weather at once, <c>--camera outdoor|interior</c> for the camera's
+/// weather at once, <c>--precipitation &lt;scale&gt;</c> for that many times the original's raindrops and snowflakes,
+/// <c>--camera outdoor|interior</c> for the camera's
 /// mode (by default, what going through a door into the chunk gives), and
 /// <c>--hold &lt;action&gt;,&lt;seconds&gt;</c>, which holds an input such as <c>move_forward</c>
 /// (join several with <c>+</c>, as in <c>move_forward+walk</c>),
@@ -206,9 +208,12 @@ public partial class Game : Node3D, ITrekHost
             _settings.DrawDistance = Float(args, "draw-distance", 1);
         if (args.TryGetValue("detail", out var detail))
             _settings.NearestDetail = detail == "nearest";
+        if (args.ContainsKey("precipitation"))
+            _settings.PrecipitationDensity = Float(args, "precipitation", 1);
         var models = _models = new Models(plugins);
-        // The particles actors' emitters start in, drawn after everything else.
-        _particles = new ParticlesView(plugins);
+        // The particles actors' emitters and the weather's rain and snow start in, drawn after everything else. The pool
+        // hands out the original's 384 unless the rain is denser, and has room for the densest.
+        _particles = new ParticlesView(plugins, new ParticleHead(capacity: WeatherParticles.PoolCapacity));
         models.Particles = _particles;
         AddChild(_particles);
         // The texture engine code gives bodies' shadows (BORG1_PlayerShadow).
@@ -219,7 +224,7 @@ public partial class Game : Node3D, ITrekHost
             _shadowTexture = ImageTexture.CreateFromImage(image);
         }
         var streamer = new ChunkStreamer(plugins, game, _world, set);
-        var trek = _trek = new TrekLoop(game, this, streamer, _audio);
+        var trek = _trek = new TrekLoop(game, this, streamer, _audio, _particles.Head);
         _chunks = new ChunkStreamerView(plugins, models, streamer, trek.Wanderers, _shadowTexture);
         AddChild(_chunks);
 
@@ -388,6 +393,7 @@ public partial class Game : Node3D, ITrekHost
         };
         ApplyWorldLines();
         _drawDistance = new DrawDistance(s.DrawDistance, s.NearestDetail);
+        _trek?.Precipitation?.Density = Math.Clamp(s.PrecipitationDensity, 0, WeatherParticles.MaxDensity);
         _sky?.Placement = s.SkyPlacement;
         _player?.Motion.Pace = s.BriskPace ? BriskPace : 1;
         foreach (var screen in new[] { _menu?.Screen, _backdrop?.Screen, _trekScreen })
@@ -519,8 +525,7 @@ public partial class Game : Node3D, ITrekHost
     void ITrekHost.Arrived()
     {
         var motion = _player!.Motion;
-        // Teleporting kills the emitters still spawning (ParticleHead.KillActive).
-        _particles!.Head.KillActive();
+        // Trek has killed the emitters still spawning (ParticleHead.KillActive).
         _sky!.Apply();
         _camera!.Yaw = MathF.Atan2(-motion.Heading.X, -motion.Heading.Y);
         _player.Sync();
@@ -738,8 +743,26 @@ public partial class Game : Node3D, ITrekHost
                 $"  camera {_follow!.Mode.ToString().ToLowerInvariant()}{(_trek!.Use.CurrentCamera is { } held ? $" (object {held.Index})" : "")}" +
                 $"  {Clock(_sky!.Clock.TimeOfDay)}  sky {_sky.Placement.ToString().ToLowerInvariant()} (F6)" +
                 $"  UI {_menu!.Screen.Lines} lines (F7)  wanderers {_trek.Wanderers.All.Count}\n" +
-                $"music {_audio!.MusicPlaying?.Key ?? "none"}  sounds {_trek.Sounds.Playing} of the map's, {_audio.SoundsPlaying} one-shots";
+                $"music {_audio!.MusicPlaying?.Key ?? "none"}  sounds {_trek.Sounds.Playing} of the map's, {_audio.SoundsPlaying} one-shots" +
+                $"  particles {_particles!.Head.ParticlesInUse} of {_particles.Head.MaxParticles}{Precipitation()}";
         }
+    }
+
+    /// <summary>For the overlay: how many raindrops or snowflakes and splashes the last frame drew, and how many of them are on screen.</summary>
+    private string Precipitation()
+    {
+        if (_trek?.Precipitation is not { Drops: { } drops, Splashes: { } splashes } || GetViewport().GetCamera3D() is not { } camera)
+            return "";
+        int fall = 0, fallSeen = 0, splash = 0, splashSeen = 0;
+        foreach (var s in _particles!.Head.Sprites)
+        {
+            var seen = camera.IsPositionInFrustum(s.Position.ToGodot()) ? 1 : 0;
+            if (s.Emitter == drops.Slot)
+                (fall, fallSeen) = (fall + 1, fallSeen + seen);
+            else if (s.Emitter == splashes.Slot)
+                (splash, splashSeen) = (splash + 1, splashSeen + seen);
+        }
+        return $"  drops {fall} ({fallSeen} on screen), splashes {splash} ({splashSeen})";
     }
 
     /// <summary>

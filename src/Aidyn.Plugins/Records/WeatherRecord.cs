@@ -31,6 +31,8 @@ namespace Aidyn.Plugins.Records;
 /// <param name="FogRate">How fast the fog thickens and thins toward the weather's, a share a tick.</param>
 /// <param name="LightningEvery">Lightning can strike once in this many frames of the sky.</param>
 /// <param name="LightningShare">Then it strikes on a share from 0 to 1 under this times the storm.</param>
+/// <param name="Rain">How rain is drawn: literals in <c>ProcessWeather</c> (<c>0x8001e7c0</c>). None draws none.</param>
+/// <param name="Snow">How snow is drawn.</param>
 public sealed record WeatherRecord(
     RecordId Id,
     IReadOnlyList<int> Seasons,
@@ -47,7 +49,38 @@ public sealed record WeatherRecord(
     float FallRate,
     float FogRate,
     int LightningEvery,
-    float LightningShare);
+    float LightningShare,
+    PrecipitationLook? Rain = null,
+    PrecipitationLook? Snow = null);
 
 /// <summary>A value the weather draws evenly from <paramref name="Min"/> to <paramref name="Max"/>.</summary>
 public sealed record WeatherRange(float Min, float Max);
+
+/// <summary>
+/// How rain or snow is drawn: the particles of two emitters, one of drops that fall and one of the splashes they make
+/// as they land, which <c>ProcessWeather</c> (<c>0x8001e7c0</c> in 1.0) makes and steers by how hard it falls, I, from
+/// 0 to 1. Each value that changes with I is its value at 0 plus I times its <c>PerIntensity</c>.
+/// </summary>
+/// <param name="Drop">The drops' texture.</param>
+/// <param name="Splash">The splashes' texture.</param>
+/// <param name="Color">The drops' colour, from 0 to 1, alpha last, which they fade to a quarter of over their life.</param>
+/// <param name="Splashes">Whether splashes also land of themselves, about the drops: rain's do.</param>
+/// <param name="Fall">How far down the drops fall a tick, on top of the wind (doubles in the code).</param>
+/// <param name="Interval">A drop every this many ticks, truncated to a whole number; at 0, once a frame, and under, more.</param>
+/// <param name="Life">How many ticks a drop lives, truncated.</param>
+/// <param name="SplashesSooner">With <paramref name="Splashes"/>, how many ticks sooner than a drop a splash lands.</param>
+public sealed record PrecipitationLook(
+    RecordId Drop,
+    RecordId Splash,
+    WeatherColor Color,
+    bool Splashes,
+    double Fall,
+    double FallPerIntensity,
+    float Interval,
+    float IntervalPerIntensity,
+    float Life,
+    float LifePerIntensity,
+    int SplashesSooner);
+
+/// <summary>A colour from 0 to 1 a channel, as the original keeps it in floats.</summary>
+public sealed record WeatherColor(float R, float G, float B, float A);

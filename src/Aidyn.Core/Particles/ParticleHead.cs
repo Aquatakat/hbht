@@ -55,13 +55,18 @@ public sealed class ParticleHead
     private readonly List<ParticleSprite> _sprites = [];
     private int _usedParticles, _usedEmitters, _ticks;
 
-    public ParticleHead(IRandom? random = null, int maxParticles = DefaultMaxParticles)
+    /// <param name="maxParticles">How many particles it hands out: the original's 384 unless more are asked for.</param>
+    /// <param name="capacity">How many it has room for, which <see cref="MaxParticles"/> can be raised to later: at least <paramref name="maxParticles"/>.</param>
+    public ParticleHead(IRandom? random = null, int maxParticles = DefaultMaxParticles, int capacity = 0)
     {
         Random = random ?? new Lcg();
-        MaxParticles = maxParticles;
-        _particles = new Particle[maxParticles + 1];
-        _freeParticles = new short[maxParticles + 1];
-        for (var i = 0; i <= maxParticles; i++)
+        Capacity = Math.Max(capacity, maxParticles);
+        if (Capacity >= short.MaxValue)
+            throw new ArgumentOutOfRangeException(nameof(capacity), "A particle's id is a short.");
+        _maxParticles = maxParticles;
+        _particles = new Particle[Capacity + 1];
+        _freeParticles = new short[Capacity + 1];
+        for (var i = 0; i <= Capacity; i++)
         {
             _freeParticles[i] = (short)i;
             _particles[i] = new Particle((short)i);
@@ -76,11 +81,25 @@ public sealed class ParticleHead
     /// <summary>The particles' random stream.</summary>
     public IRandom Random { get; }
 
-    /// <summary>How many particles the pool holds. A full pool hands out its last slot, the <see cref="Sentinel"/>, which is never linked or drawn.</summary>
-    public int MaxParticles { get; }
+    /// <summary>
+    /// How many particles the pool hands out, at most <see cref="Capacity"/>: the original's 384 (<see cref="DefaultMaxParticles"/>),
+    /// or more for denser rain and snow (<see cref="WeatherParticles.Density"/>). A full pool hands out the
+    /// <see cref="Sentinel"/>, which is never linked or drawn. Lowered below what's in use, it hands out nothing new until
+    /// enough have died.
+    /// </summary>
+    public int MaxParticles
+    {
+        get => _maxParticles;
+        set => _maxParticles = Math.Clamp(value, 0, Capacity);
+    }
+
+    private int _maxParticles;
+
+    /// <summary>How many particles the pool has room for, which <see cref="MaxParticles"/> can be raised to.</summary>
+    public int Capacity { get; }
 
     /// <summary>What a full pool hands out: a particle that's written to and dropped.</summary>
-    public short Sentinel => (short)MaxParticles;
+    public short Sentinel => (short)Capacity;
 
     /// <summary>
     /// What the screen's fade leaves of the picture, from 0 to 1, which darkens every particle's colour and alpha below 1
@@ -167,13 +186,23 @@ public sealed class ParticleHead
         return id;
     }
 
-    /// <summary>Moves a particle into another emitter's list, after its head, as the weather's drops become splashes.</summary>
-    public void MoveParticle(short id, Emitter to)
+    /// <summary>
+    /// Moves a particle into another emitter's list, after its head, as the weather's drops become splashes
+    /// (<c>ParticleHead.MoveParticle</c>, <c>0x800a8b14</c>). If that emitter has been freed, the particle is freed
+    /// instead (<c>ParticleHead.Link</c> finds no head), and it returns false.
+    /// </summary>
+    public bool MoveParticle(short id, Emitter to)
     {
         if (id == Sentinel)
-            return;
+            return true;
         Unlink(id);
+        if (!to.InUse)
+        {
+            _freeParticles[--_usedParticles] = _particles[id].Id;
+            return false;
+        }
         Link(to, id);
+        return true;
     }
 
     /// <summary>Unlinks a particle and returns it to the pool (<c>ParticleHead.FreeParticle</c>, <c>0x800a8ab0</c>).</summary>
@@ -337,8 +366,9 @@ public sealed class ParticleHead
                     }
                     else
                     {
+                        // Once, or with an interval under 0 that many times, so an interval of 0 spawns once every frame.
                         e.Counter = e.Interval;
-                        for (var i = 0; i < (e.Interval > 0 ? 1 : -e.Interval); i++)
+                        for (var i = 0; i < (e.Interval >= 0 ? 1 : -e.Interval); i++)
                             spawn(this, e);
                     }
                 }
@@ -400,7 +430,7 @@ public sealed class ParticleHead
     /// <summary>A particle from the pool (<c>ParticleHead.AllocSlot</c>, <c>0x800a895c</c>), or the sentinel when it's full.</summary>
     private short AllocSlot(int life)
     {
-        var id = _usedParticles == MaxParticles ? Sentinel : _freeParticles[_usedParticles++];
+        var id = _usedParticles >= MaxParticles ? Sentinel : _freeParticles[_usedParticles++];
         ref var p = ref _particles[id];
         p.Reset();
         p.Flags = ParticleFlags.FreeAtDeath | ParticleFlags.Visible | ParticleFlags.New;
@@ -560,12 +590,30 @@ public sealed class ParticleHead
     }
 
     /// <summary>A number between two, in either order, or the first with no draw if they're equal (<c>ParticleHead.FloatRange</c>, <c>0x80093470</c>).</summary>
-    public float FloatRange(float a, float b)
+    public float FloatRange(float a, float b) => FloatRange(Random, a, b);
+
+    /// <inheritdoc cref="FloatRange(float, float)"/>
+    public static float FloatRange(IRandom random, float a, float b)
     {
         if (a == b)
             return a;
         var (low, high) = a <= b ? (a, b) : (b, a);
-        return Random.Float(1) * (high - low) + low;
+        return random.Float(1) * (high - low) + low;
+    }
+
+    /// <summary>
+    /// A level vector <paramref name="length"/> long in a random direction, as X and Z (<c>ParticleHead.Direction2</c>,
+    /// <c>0x800934dc</c>): two draws from −1 to 1, normalised, so a point in a square rather than a circle, which favours
+    /// the diagonals.
+    /// </summary>
+    public static Vector2 Direction2(IRandom random, float length)
+    {
+        var x = FloatRange(random, -1, 1);
+        var z = FloatRange(random, -1, 1);
+        if (x == 0)
+            x = 1e-6f;
+        var v = new Vector2(x, z);
+        return v / Math.Max(v.Length(), 1e-6f) * length;
     }
 
     /// <summary>

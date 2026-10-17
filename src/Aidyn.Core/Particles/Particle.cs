@@ -72,6 +72,12 @@ public struct Particle(short id)
     /// <summary>With <see cref="ParticleFlags.OwnOrientation"/>: how its square is turned, from facing +Z with +Y up.</summary>
     public Quaternion Orientation;
 
+    /// <summary>
+    /// A vector code's callbacks keep for themselves (the particle's <c>+0x4C</c>): a weather drop keeps where it will land,
+    /// and in W the nearest it has come to it, squared.
+    /// </summary>
+    public Vector4 Data;
+
     // The port's, for interpolating: where it was last drawn.
     internal Vector3 LastDrawn;
     internal bool WasDrawn;
@@ -84,7 +90,7 @@ public struct Particle(short id)
         Flags = 0;
         Position = Velocity = Vector3.Zero;
         Scale = Vector2.One;
-        Color = Vector = Vector4.Zero;
+        Color = Vector = Data = Vector4.Zero;
         Orientation = Quaternion.Identity;
         WasDrawn = false;
     }
