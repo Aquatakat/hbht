@@ -8,7 +8,7 @@ namespace Aidyn.Rom.Graphics;
 public enum Borg5EmitterFlags : ushort
 {
     None = 0,
-    /// <summary>Particles bounce off height 0, keeping 60% of their speed.</summary>
+    /// <summary>Particles bounce off height 0, keeping 60% of their speed, turned up.</summary>
     BounceAtZero = 0x1,
     /// <summary>The target jitter is exactly <see cref="Borg5ParticleEmitter.TargetJitter"/> long, rather than up to it.</summary>
     ExactTargetJitter = 0x4,
@@ -18,7 +18,7 @@ public enum Borg5EmitterFlags : ushort
     LocatorNormal = 0x10,
     /// <summary>An actor starts the emitter when it enters a state for <see cref="Borg5ParticleEmitter.Request"/>.</summary>
     ActorRequest = 0x20,
-    /// <summary>Set on some emitters; nothing is known to read it.</summary>
+    /// <summary>Set on two emitters; nothing reads it.</summary>
     Unknown40 = 0x40,
     /// <summary>The emitter itself moves from its locator away from the target, colliding with the map.</summary>
     Moves = 0x200,
@@ -28,7 +28,7 @@ public enum Borg5EmitterFlags : ushort
     Acceleration2 = 0x800,
     /// <summary><see cref="Borg5ParticleEmitter.AccelerationChange"/> changes the acceleration each tick.</summary>
     AccelerationChanges = 0x1000,
-    /// <summary>Particles also head for the target locator, reaching it as they die.</summary>
+    /// <summary>Particles are aimed at the target locator as they spawn, to reach it as they die: a velocity added once.</summary>
     Target = 0x2000,
     /// <summary>Particles fade to <see cref="Borg5ParticleEmitter.FadeColor"/> as they die.</summary>
     Fade = 0x4000,
@@ -51,17 +51,18 @@ public readonly record struct Borg5Locator(int Index, int Scene)
 /// </summary>
 /// <remarks>
 /// <para>
-/// When the emitter starts, it waits <see cref="Delay"/> ticks, then spawns <see cref="Burst"/>
-/// particles at once. For <see cref="Lifetime"/> ticks after that, it spawns one particle every
-/// <see cref="Interval"/> ticks, or −<see cref="Interval"/> particles every tick if negative, or none
+/// When the emitter starts it spawns <see cref="Burst"/> particles, held undrawn while it waits
+/// <see cref="Delay"/> ticks. For <see cref="Lifetime"/> ticks after that, it spawns one particle every
+/// <see cref="Interval"/> ticks, or −<see cref="Interval"/> particles every frame if negative, or none
 /// if 0. Each particle lives <see cref="ParticleLifetime"/> ticks, as a textured square.
 /// </para>
 /// <para>
-/// Each tick the emitter moves to its locator. A particle spawns there, moved by a random vector up
-/// to <see cref="SpawnJitter"/> long. It starts with a random velocity up to
-/// <see cref="VelocityJitter"/> long, plus the direction times <see cref="Speed"/>, with a random
-/// scale and colour from the two ranges. The acceleration's XYZ times its W is added to every
-/// particle's velocity each tick.
+/// Each frame the emitter moves to its locator. A particle spawns there, moved by a random vector up
+/// to <see cref="SpawnJitter"/> long. It starts with a velocity in a random direction exactly
+/// <see cref="VelocityJitter"/> long, plus the direction times <see cref="Speed"/>, all × 0.006, with a
+/// random scale and a colour drawn a channel at a time from the two ranges. The acceleration's XYZ
+/// × 0.006 × its W is added to every particle's velocity each tick. <c>Aidyn.Core.Particles</c> runs it;
+/// see <c>docs/formats/particles.md</c>.
 /// </para>
 /// <para>
 /// Particles are drawn with texture <see cref="Texture"/> of the engine's particle list (see
@@ -75,7 +76,7 @@ public readonly record struct Borg5Locator(int Index, int Scene)
 /// <param name="TargetPosition">Overwritten by the target locator's position each tick.</param>
 /// <param name="Direction">Overwritten by the locator's normal each tick with <see cref="Borg5EmitterFlags.LocatorNormal"/>.</param>
 /// <param name="EmitterSpeed">For <see cref="Borg5EmitterFlags.Moves"/>.</param>
-/// <param name="Unknown40">Between 0 and 0.8 on 20 emitters, and 0 on the rest. Nothing is known to read it.</param>
+/// <param name="Unknown40">Between 0 and 0.8 on 20 emitters, and 0 on the rest. Nothing reads it.</param>
 public sealed record Borg5ParticleEmitter(
     Borg5Locator Locator,
     Borg5Locator Target,

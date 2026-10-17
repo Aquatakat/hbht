@@ -76,6 +76,8 @@ public partial class Game
     {
         var (script, start, stageRef) = _trek!.BeginCutScene();
         _changed.Clear();
+        // The zone engine starts again for the cut-scene, with a new particle head.
+        _particles!.Head.Clear();
         _player!.Visible = false;
         if (_shadow is not null)
             _shadow.Visible = false;
@@ -212,6 +214,7 @@ public partial class Game
     {
         var scene = _scene!;
         _scene = null;
+        _particles!.Head.Clear();
         foreach (var view in _actorViews.Values)
             view.QueueFree();
         _actorViews.Clear();

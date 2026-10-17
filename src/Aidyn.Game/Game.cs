@@ -73,6 +73,7 @@ public partial class Game : Node3D, ITrekHost
     /// <summary>The stick in menus, shared by the pause menu and trek's popups, conversations and cut-scenes.</summary>
     private readonly MenuStick _stick = new();
     private Models? _models;
+    private ParticlesView? _particles;
     /// <summary>Trek: the core's loop, which steps the player, the camera, the chunks and what's in them.</summary>
     private TrekLoop? _trek;
     /// <summary>Trek's chunks as they're drawn.</summary>
@@ -203,6 +204,10 @@ public partial class Game : Node3D, ITrekHost
         if (args.TryGetValue("detail", out var detail))
             _settings.NearestDetail = detail == "nearest";
         var models = _models = new Models(plugins);
+        // The particles actors' emitters start in, drawn after everything else.
+        _particles = new ParticlesView(plugins);
+        models.Particles = _particles;
+        AddChild(_particles);
         // The texture engine code gives bodies' shadows (BORG1_PlayerShadow).
         if (plugins.FindAsset(RecordId.Hex(RecordTypes.Texture, 0x0003), "png") is { } shadowPng)
         {
@@ -437,11 +442,13 @@ public partial class Game : Node3D, ITrekHost
         if (_scene is not null)
         {
             StepCutScene();
+            _particles!.Step();
             return;
         }
         _popupView!.Step();
         var before = _player.Motion.Sphere.Position;
         var step = trek.Tick(ReadInput, frozen: _camera.Flying);
+        _particles!.Step();
         ShowFade(trek.Brightness);
         if (step == TrekStep.CutScene)
         {
@@ -489,6 +496,9 @@ public partial class Game : Node3D, ITrekHost
     /// <summary>Darkens the screen to a brightness, from 0 for black to 1.</summary>
     private void ShowFade(float brightness)
     {
+        // The particles darken with the fade (the particle head's +0x334, which ScreenFade.Step writes).
+        if (_particles is not null)
+            _particles.Head.Brightness = brightness;
         _fade.Visible = brightness < 1;
         _fade.Color = new Color(0, 0, 0, 1 - brightness);
     }
@@ -501,6 +511,8 @@ public partial class Game : Node3D, ITrekHost
     void ITrekHost.Arrived()
     {
         var motion = _player!.Motion;
+        // Teleporting kills the emitters still spawning (ParticleHead.KillActive).
+        _particles!.Head.KillActive();
         _sky!.Apply();
         _camera!.Yaw = MathF.Atan2(-motion.Heading.X, -motion.Heading.Y);
         _player.Sync();

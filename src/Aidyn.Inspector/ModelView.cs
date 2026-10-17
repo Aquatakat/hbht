@@ -44,6 +44,9 @@ public partial class ModelView : VBoxContainer
     private Vector3 _pivot, _motion;
     private ActorAnimator? _animator;
     private double _fraction;
+    private Aidyn.Plugins.PluginSet? _plugins;
+    // Driving an actor runs its emitters, as the runtime does.
+    private ParticlesView? _particles;
     private MeshInstance3D? _ground;
 
     public ModelView()
@@ -117,7 +120,16 @@ public partial class ModelView : VBoxContainer
     }
 
     /// <summary>The installed plugins, for what a scene's asset doesn't hold: its emitters, and the cinematics' planes.</summary>
-    public Aidyn.Plugins.PluginSet? Plugins { get; set; }
+    public Aidyn.Plugins.PluginSet? Plugins
+    {
+        get => _plugins;
+        set
+        {
+            _plugins = value;
+            _particles?.QueueFree();
+            _particles = null;
+        }
+    }
 
     public void SetWireframe(bool on) => _wireframe.ButtonPressed = on;
 
@@ -131,6 +143,7 @@ public partial class ModelView : VBoxContainer
         _player = null;
         _actor = null;
         _animator = null;
+        _particles?.Head.Clear();
         _root = null;
         _glb = null;
         _markers.Clear();
@@ -247,6 +260,8 @@ public partial class ModelView : VBoxContainer
             {
                 var moved = _animator.TickMotion(_actorPanel.Request);
                 _motion += new Vector3(moved.X, 0, moved.Z);
+                _content!.Position = _motion;
+                _particles?.Step();
             }
             _content!.Position = _motion;
             // The camera follows the actor over the ground's grid.
@@ -318,6 +333,16 @@ public partial class ModelView : VBoxContainer
         Home();
         _animator = on ? ActorAnimator.Create(_content, _actor, _glb) : null;
         _fraction = 0;
+        _particles?.Head.Clear();
+        if (_animator is not null && _plugins is not null)
+        {
+            if (_particles is null)
+            {
+                _particles = new ParticlesView(_plugins) { TickFraction = () => _fraction };
+                _viewport.AddChild(_particles);
+            }
+            _animator.Particles = _particles.For(_actor, _content);
+        }
         _time.Editable = !on;
         if (_animator is not null)
         {

@@ -15,6 +15,8 @@ Things only the user can settle, in the emulator or by reading the ROM. Each lin
 - **The sound volume at half:** the menu's sounds take the sound volume twice and the containers' three times, by the machine code. Whether half sound volume makes them quarter loud is a check against the port, which now plays them so. See [audio](systems/audio.md#volumes).
 - **Which way sounds pan:** a sound to the camera's right should come from the right speaker; the formula says right is positive, and the port plays it so, but nobody has listened. Any map sound with falloff, such as a fountain, turned side on. See [audio](systems/audio.md#sound-map-objects).
 
+- **Particles beside the original's:** a creature that emits while it stands or walks, such as a Fire Elemental, Air Elemental or Lava Hound wandering in trek, or Mago (dialogue entity 0x1413) in a scene: the particles' size, colour, how fast they spawn and drift, and that they fade as the port's do. The editor shows Oriana's orb with `--record aidyn:actor/0x2BD7 --drive 5`. See [particles](formats/particles.md#the-simulation).
+
 - **Where the map area north of Ugarit unlocks:** It currently doesn't unlock while travelling through it in the port.
 
 - **The trap's menu** (`WidgetChoiceDia::Update`): the question above Disarm and Exit, and the cursor's option pulsing grey to white, the scroll menu's defaults. The user thinks it looks right. See [map-objects](systems/map-objects.md#popups).

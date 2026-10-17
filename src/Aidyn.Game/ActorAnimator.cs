@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Aidyn.Core.Actors;
 using Aidyn.Core.Movement;
+using Aidyn.Core.Particles;
 using Aidyn.Core.Scripts;
 using Aidyn.Plugins.Records;
 using Godot;
@@ -24,6 +25,8 @@ public sealed class ActorAnimator : IActorMotion
     private readonly Vector3 _pivot;
     private double _fraction;
     private Vector3 _rootPosition, _lastRoot;
+    private ActorParticles? _particles;
+    private bool _made;
 
     private ActorAnimator(ActorRecord actor, AnimationPlayer player, Node3D? root, Vector3 pivot)
     {
@@ -46,6 +49,17 @@ public sealed class ActorAnimator : IActorMotion
     {
         get => Machine.Request;
         set => Machine.Request = value;
+    }
+
+    /// <summary>
+    /// Its scene's emitters, which it starts for its request on every state it enters, as <c>ActorStateMachine.Tick</c>
+    /// does (<c>ActorParticles.Entered</c>), and once as it's made (<c>0x800960e0</c>), which the port does on its first
+    /// tick, once it's in the world. Null when its scene has none.
+    /// </summary>
+    public ActorParticles? Particles
+    {
+        get => _particles;
+        set => (_particles, _made) = (value, value is not null);
     }
 
     /// <summary>Set when the owner ticks it with <see cref="Tick(int)"/> rather than it ticking with the frame.</summary>
@@ -109,8 +123,16 @@ public sealed class ActorAnimator : IActorMotion
 
     private void Step()
     {
+        if (_made)
+        {
+            _made = false;
+            _particles?.Entered(Machine.Request);
+        }
         if (Machine.Tick())
+        {
+            Particles?.Entered(Machine.Request);
             Play();
+        }
     }
 
     private void Play()
