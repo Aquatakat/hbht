@@ -5,10 +5,12 @@ namespace Aidyn.Core.Ui;
 /// <summary>
 /// A cursor's pulse (<c>WidgetFastScrollMenu::Tick</c>, <c>WidgetScrollMenu</c>): a step a frame from 0 up
 /// to <see cref="Frames"/> − 1 and back, and the colour that far from one colour toward another, by whole
-/// steps of a 20th of the way, rounded toward zero.
+/// steps of a 20th of the way, rounded toward zero. The menus' widgets step at 60 frames a second, so by
+/// default a step is a tick: 38 ticks a cycle, 1.6 cycles a second, as the user timed the original's
+/// (Oct 16, 2026).
 /// </summary>
-/// <param name="ticksPerStep">The ticks a step takes: a 30 fps frame by default, or a tick at the menus' 60.</param>
-public sealed class MenuPulse(int ticksPerStep = Cadence.FrameTicks)
+/// <param name="ticksPerStep">The ticks a step takes: a tick by default, at the menus' 60, or a 30 fps frame in trek.</param>
+public sealed class MenuPulse(int ticksPerStep = Cadence.MenuFrameTicks)
 {
     public const int Frames = 20;
 

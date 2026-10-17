@@ -794,9 +794,10 @@ public class MenuPulseTests
 {
     private static readonly Rgba From = new(100, 100, 100, 100), To = new(255, 255, 255, 255);
 
+    /// <summary>A pulse a step a 30 fps frame, as trek's popups step it.</summary>
     private static MenuPulse Stepped(int frames, int ticksOver = 0)
     {
-        var pulse = new MenuPulse();
+        var pulse = new MenuPulse(Cadence.FrameTicks);
         for (var i = 0; i < frames * Cadence.FrameTicks + ticksOver; i++)
             pulse.Step();
         return pulse;
@@ -807,6 +808,17 @@ public class MenuPulseTests
         (byte)(from.B + (to.B - from.B) / MenuPulse.Frames * step), (byte)(from.A + (to.A - from.A) / MenuPulse.Frames * step));
 
     private static int StepAfter(int frames) => frames % (2 * (MenuPulse.Frames - 1)) is var m && m <= MenuPulse.Frames - 1 ? m : 2 * (MenuPulse.Frames - 1) - m;
+
+    [Fact]
+    public void AMenusPulseStepsEveryTick()
+    {
+        var pulse = new MenuPulse();
+        pulse.Step();
+        Assert.Equal(new Rgba(107, 107, 107, 107), pulse.Now(From, To));
+        for (var i = 1; i < 2 * (MenuPulse.Frames - 1); i++)
+            pulse.Step();
+        Assert.Equal(From, pulse.Now(From, To));
+    }
 
     [Fact]
     public void ThePulseStartsAtItsFirstColour()

@@ -41,7 +41,7 @@ public sealed partial class PartyMenu
     private readonly MenuText _text;
     private readonly Func<RecordId, SpellRecord?> _spells;
     private readonly Func<RecordId, RecordId?> _portraits;
-    private readonly MenuPulse _pulse = new();
+    private readonly MenuPulse _pulse = new(Cadence.FrameTicks);
     private int _ticks;
 
     /// <param name="portraits">Each entity's portrait.</param>

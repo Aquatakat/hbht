@@ -14,8 +14,8 @@ namespace Aidyn.Game;
 public partial class TrekPopupView : Control
 {
     private readonly UiPainter _ui;
-    /// <summary>The cursor's option pulses between a scroll menu's own colours.</summary>
-    private readonly MenuPulse _pulse = new();
+    /// <summary>The cursor's option pulses between a scroll menu's own colours, a step a trek frame.</summary>
+    private readonly MenuPulse _pulse = new(Cadence.FrameTicks);
 
     /// <summary>The popup to draw, or none.</summary>
     public TrekPopup? Popup
