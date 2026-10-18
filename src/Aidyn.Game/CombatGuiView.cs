@@ -29,8 +29,11 @@ public partial class CombatGuiView : Control
     /// <summary>The battle whose screen this draws.</summary>
     public Battle? Battle { get; set; }
 
-    /// <summary>Where the radar sits: in the log box, as the original has it, or in the screen's bottom right corner.</summary>
-    public RadarAnchor Radar { get; set; }
+    /// <summary>
+    /// Where the radar sits: in the screen's bottom right corner, the user's choice, which on a wide screen keeps it clear of
+    /// the log box; or in the log box, as the original has it. On a 4:3 screen they're the same.
+    /// </summary>
+    public RadarAnchor Radar { get; set; } = RadarAnchor.Corner;
 
     public override void _Draw()
     {

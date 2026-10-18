@@ -426,7 +426,7 @@ The user chose where the screen sits on a screen of another shape (`CombatGui.Dr
 
 - **The enemies' column** keeps its place from the screen's top left corner, and **the party's** from the top right.
 - **The log box** floats at the bottom centre.
-- **The radar** sits in the log box at the original's place, or in the screen's bottom right corner (`RadarAnchor`), its place in the frame kept from that corner, as the compass's is. On a 4:3 screen the two are the same. The runtime starts in the box; F9 swaps them and `--radar corner` starts in the corner.
+- **The radar** sits in the screen's bottom right corner, the user's choice, its place in the frame kept from that corner as the compass's is, so on a wide screen it's clear of the log box; or, as the original has it, in the log box at its place in the frame (`RadarAnchor`). On a 4:3 screen the two are the same. F9 swaps them, and `--radar box` starts in the box.
 
 ### In the port
 

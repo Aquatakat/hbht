@@ -62,8 +62,8 @@ public partial class Game
             CinematicFromCommandLine(cinematic);
         if (options.Battle is { } battle)
             BattleFromCommandLine(battle);
-        if (options.Radar == "corner")
-            _battleScreen!.Radar = Core.Ui.RadarAnchor.Corner;
+        if (options.Radar == "box")
+            _battleScreen!.Radar = Core.Ui.RadarAnchor.LogBox;
         _tintsOnStart = options.Tints;
         if (options.Screenshot is { } png)
             _ = Screenshot(png, hold, options.Frames, options.UiScreenshot);
