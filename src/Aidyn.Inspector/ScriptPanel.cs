@@ -653,7 +653,9 @@ public partial class ScriptPanel : VBoxContainer
                     _ => "Ended",
                 } + (ending.RestHours > 0 ? $"; {ending.RestHours} hours pass" : "")
                     + (ending.PartnerJoined ? ", and the one talking leaves to join" : "") + (ending.Fault is { } fault ? $". {fault}" : ".");
-                // Where it leads, as the runtime carries it out (Transition.AfterScript), without the hours passing here.
+                // Where it leads, as the runtime decides it (Transition.AfterScript), without the hours passing here. The keeper is
+                // the speaker at the end; in the game, one who wanders keeps the shop or training instead, which a script alone
+                // doesn't know, so only a shop the speaker keeps is shown.
                 foreach (var next in Transition.AfterScript(_game!.Game, ending, ending.Speaker))
                 {
                     switch (next)
@@ -661,15 +663,9 @@ public partial class ScriptPanel : VBoxContainer
                         case Transition.OpenShop shop:
                             _page.AddChild(Link(shop.Shop.Record.Id, $"{NameOf(shop.Shop.Record.Shopkeeper)}'s shop: "));
                             break;
-                        case Transition.OpenTraining training:
-                            _page.AddChild(Dimmed($"Training with {NameOf(training.Trainer.Entity)}."));
-                            break;
                         case Transition.StartBattle { Setup: var battle }:
                             _page.AddChild(Dimmed($"Battle in arena {battle.Arena} against {string.Join(", ", battle.Enemies.Select(e => NameOf(e.Entity)))}" +
                                 $"{(battle.CanFlee ? "" : ", no fleeing")}."));
-                            break;
-                        case Transition.Say say:
-                            _page.AddChild(Dimmed(say.Text));
                             break;
                     }
                 }
