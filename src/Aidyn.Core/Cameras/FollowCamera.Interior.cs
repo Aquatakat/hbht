@@ -25,10 +25,9 @@ namespace Aidyn.Core.Cameras;
 /// </remarks>
 public sealed partial class FollowCamera
 {
-    // Camera::ProcessGameCamera's arguments for Mode1, read from the ROM.
-    private const float InteriorNear = 2, InteriorFar = 4, InteriorRise = 1.5f, InteriorBehind = 3;
-    private const float InteriorAimRate = 16, InteriorRate = 32, InteriorAimMost = 0.25f, InteriorMost = 0.1f;
-    private const float InteriorOrbitLow = 0.5f, InteriorOrbitHigh = 2.5f;
+    /// <summary>Camera::ProcessGameCamera's arguments for Mode1, read from the ROM.</summary>
+    public static readonly LeashNumbers Interior = new(Near: 2, Far: 4, OrbitLow: 0.5f, OrbitHigh: 2.5f, Rise: 1.5f, Behind: 3,
+        AimRate: 16, Rate: 32, AimMost: 0.25f, Most: 0.1f);
 
     /// <summary>How long it waits before jumping behind the player again, in ticks.</summary>
     private const int InteriorRescueTicks = 300;
@@ -36,36 +35,45 @@ public sealed partial class FollowCamera
     /// <summary>Ticks until it may jump behind the player again (<c>unk84</c>).</summary>
     private int _rescueWait;
 
-    private void StepInterior(CollisionWorld world, Vector3 target, Vector2 heading)
+    private void StepInterior(CollisionWorld world, Vector3 target, Vector2 heading) => StepLeashed(world, target, heading, Interior);
+
+    /// <summary>
+    /// One tick of <c>Camera::Mode1</c> (<c>0x800A69D8</c>) with the numbers given: the interiors' (<see cref="Interior"/>)
+    /// or combat's (<see cref="Combat.CombatCamera"/>).
+    /// </summary>
+    /// <param name="rise">Whether its goal is held <see cref="LeashNumbers.Rise"/> above the aim's (the original's last flag).</param>
+    public void StepLeashed(CollisionWorld world, Vector3 target, Vector2 heading, LeashNumbers numbers, bool rise = true)
     {
+        var (near, far, orbitLow, orbitHigh, riseBy, behindBy, aimRate, rate, aimMost, most) = numbers;
         var back = -heading;
         var before = Position;
         AimGoal = target + new Vector3(0, Height, 0);
-        Approach(ref Aim, AimGoal, InteriorAimRate, InteriorAimMost);
+        Approach(ref Aim, AimGoal, aimRate, aimMost);
         if (_hold != HoldState.None)
         {
-            Orbiting(world, back, InteriorBehind, InteriorOrbitLow, InteriorOrbitHigh);
+            Orbiting(world, back, behindBy, orbitLow, orbitHigh);
             return;
         }
 
-        PositionGoal.Y = AimGoal.Y + InteriorRise;
-        Approach(ref Position, PositionGoal, InteriorRate, InteriorMost);
+        if (rise)
+            PositionGoal.Y = AimGoal.Y + riseBy;
+        Approach(ref Position, PositionGoal, rate, most);
 
-        // The leash: its goal stays 2 to 4 from the aim's in X and Z.
+        // The leash: its goal stays near to far (2 to 4 in interiors) from the aim's in X and Z.
         var leash = new Vector2(PositionGoal.X - AimGoal.X, PositionGoal.Z - AimGoal.Z);
         var length = leash.Length();
         if (length > 1e-6f)
             leash /= length;
-        if (length < InteriorNear)
-            PositionGoal = new Vector3(AimGoal.X + InteriorNear * leash.X, PositionGoal.Y, AimGoal.Z + InteriorNear * leash.Y);
-        if (InteriorFar < length)
-            PositionGoal = new Vector3(AimGoal.X + InteriorFar * leash.X, PositionGoal.Y, AimGoal.Z + InteriorFar * leash.Y);
+        if (length < near)
+            PositionGoal = new Vector3(AimGoal.X + near * leash.X, PositionGoal.Y, AimGoal.Z + near * leash.Y);
+        if (far < length)
+            PositionGoal = new Vector3(AimGoal.X + far * leash.X, PositionGoal.Y, AimGoal.Z + far * leash.Y);
 
         var flat = new Vector3(Position.X - Aim.X, 0, Position.Z - Aim.Z);
-        if (SpherePhysics.Normalize(ref flat) < InteriorNear)
+        if (SpherePhysics.Normalize(ref flat) < near)
         {
-            Position.X = Aim.X + flat.X * InteriorNear;
-            Position.Z = Aim.Z + flat.Z * InteriorNear;
+            Position.X = Aim.X + flat.X * near;
+            Position.Z = Aim.Z + flat.Z * near;
         }
 
         // It can't go through a wall: it stops a sphere's radius off it.
@@ -91,9 +99,16 @@ public sealed partial class FollowCamera
         {
             _rescueWait = InteriorRescueTicks;
             var way = back.LengthSquared() > 1e-12f ? Vector2.Normalize(back) : Vector2.Zero;
-            var behind = new Vector3(AimGoal.X + InteriorBehind * way.X, PositionGoal.Y, AimGoal.Z + InteriorBehind * way.Y);
+            var behind = new Vector3(AimGoal.X + behindBy * way.X, PositionGoal.Y, AimGoal.Z + behindBy * way.Y);
             PositionGoal = SpherePhysics.Sweep(world, Aim, behind, 0.25f, skipSeeThrough: true, out var stop, out _) ? stop : behind;
         }
         Orient();
     }
 }
+
+/// <summary>
+/// <c>Camera::Mode1</c>'s ten numbers: how near and far its goal is leashed to the aim in X and Z, the orbit's low and high,
+/// how far its goal rises above the aim and the jump behind goes, and the aim's and the eye's easing rates and most a tick.
+/// </summary>
+public readonly record struct LeashNumbers(float Near, float Far, float OrbitLow, float OrbitHigh, float Rise, float Behind,
+    float AimRate, float Rate, float AimMost, float Most);

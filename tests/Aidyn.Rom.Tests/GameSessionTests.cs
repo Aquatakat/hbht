@@ -8,6 +8,7 @@ using Aidyn.Core.Items;
 using Aidyn.Core.MapObjects;
 using Aidyn.Core.Movement;
 using Aidyn.Core.Physics;
+using Aidyn.Core.Rng;
 using Aidyn.Core.Scripts;
 using Aidyn.Core.Trek;
 using Aidyn.Core.Ui;
@@ -180,10 +181,13 @@ public sealed class GameSessionTests(Na10Import fixture)
         var loaded = session.Trek.Chunks.All.Single(c => c.Map.Record.Id == map.Id).Map;
         Assert.Contains(session.Trek.Wanderers.All, w => w.Party == party);
         ((IMapObjectHost)session.Trek).Talk(loaded, party);
-        var fight = Assert.IsType<Transition.StartBattle>(Assert.Single(host.Transitions)).Setup;
+        // Trek cues it, fading out, rather than handing it on.
+        Assert.Empty(host.Transitions);
+        var fight = session.Trek.CuedBattle!;
+        Assert.True(session.Trek.CutSceneFade.Fading);
         var here = new ChunkRef(place.Set.Id, place.Chunk.Row, place.Chunk.Column);
         Assert.Equal(new BattleSetup(BattleSource.MonsterParty, here, place.Chunk.Terrain, id, party.Enemies, null, false, true, party.Used?.Flag)
-            with { Enemies = fight.Enemies }, fight);
+            with { Enemies = fight.Enemies, Size = (party.MinSize, party.MaxSize) }, fight);
         Assert.Equal(party.Enemies, fight.Enemies);
 
         // A wanderer catching the party is the same, as an ambush.
@@ -195,9 +199,11 @@ public sealed class GameSessionTests(Na10Import fixture)
         var (camping, campHost) = Start("G14", 40, 40);
         foreach (var joined in new[] { 89, 90 })
             camping.Game.Flags.TrySet(RecordId.Decimal(RecordTypes.Flag, joined), true);
-        for (var i = 0; i < 200 && campHost.Transitions.Count == 0; i++)
-            camping.Trek.Camp();
-        var camp = Assert.IsType<Transition.StartBattle>(Assert.Single(campHost.Transitions)).Setup;
+        // A seed whose d100 is 1 ambushes whatever the chance.
+        var seed = Enumerable.Range(0, 10000).Select(s => (uint)s * 2654435761u).First(s => new Lcg(s).RollD(1, 100) == 1);
+        camping.Game.Random.World.Seed = seed;
+        Assert.Equal(CampOutcome.Ambushed, camping.Trek.Camp());
+        var camp = camping.Trek.CuedBattle!;
         var g14 = new ChunkRef(RecordId.Decimal(RecordTypes.MapSet, 0), 7, 14);
         Assert.Equal((BattleSource.Camp, g14, 0, null, true, false), (camp.Source, camp.Place, camp.Terrain, camp.Party, camp.Ambush, camp.CanFlee));
         Assert.Empty(camp.Enemies);
@@ -210,6 +216,83 @@ public sealed class GameSessionTests(Na10Import fixture)
         Assert.Equal(scripted with { Place = here, Terrain = 4 }, battle);
         var talking = Assert.IsType<Transition.StartBattle>(Assert.Single(Transition.AfterScript(game, ending, null, (here, 4), (id, party)))).Setup;
         Assert.Equal((BattleSource.Script, id, party.Enemies, party.BattleFlag, 3), (talking.Source, talking.Party, talking.Enemies, talking.EncounterFlag, talking.Arena));
+    }
+
+    [Fact]
+    public void ABattleBeginsInItsArenaPausesAndFleesToTheFarthestBreadcrumb()
+    {
+        var (session, host) = Start();
+        var trek = session.Trek;
+        var start = trek.Player.Sphere.Position;
+        // He stands 30 away for a while, so a breadcrumb is kept there, then comes back.
+        var away = Body.SetDown(trek.Chunks.World, start + new Vector3(0, 0, -30), 0.5f, null).Position;
+        trek.Player.Sphere.Position = away;
+        for (var i = 0; i < Breadcrumbs.Ticks + 1; i++)
+            Tick(session);
+        trek.Player.Sphere.Position = start;
+        Assert.Contains(trek.Breadcrumbs.All, c => Vector3.Distance(c.Local, away - trek.Chunks.Origin(trek.Chunks.ChunkAt(away)!)) < 1);
+
+        // Two rats in arena 1, as a monster party used.
+        var rat = RecordId.Hex(RecordTypes.Entity, 0x026E);
+        var (id, _, rats) = Data.Of<MonsterPartyObject>().First(p => p.Object is { Dialogue: null, MinSize: 2, MaxSize: 2 }
+            && p.Object.Enemies.All(e => e.Entity == rat));
+        var (place, terrain) = trek.Here();
+        session.CueBattle(BattleSetup.WithParty(BattleSource.MonsterParty, id, rats, place, terrain, ambush: false) with { Arena = 1 });
+        var step = SessionStep.Trek;
+        for (var i = 0; i < 200 && step != SessionStep.BattleCued; i++)
+            step = Tick(session);
+        Assert.Equal(SessionStep.BattleCued, step);
+        session.BeginBattle();
+        var began = Assert.IsType<Transition.StartedBattle>(Assert.Single(host.Transitions));
+        var battle = session.Battle!;
+        Assert.Same(battle, began.Battle);
+        Assert.Equal(GameMode.Combat, session.Mode);
+        Assert.False(session.TrekRuns);
+        Assert.Equal((1, "A03"), (battle.Arena.Number, battle.Arena.Chunk.Name));
+        // Alaron on the party's first spawn of set 4, the rats on the enemies', the grid taken under each.
+        Assert.Equal([rat, rat], battle.Enemies);
+        Assert.Equal((1, 2, true), (battle.PartySize, battle.EnemiesOnField, battle.CanFlee));
+        var alaron = battle.Slots[0]!;
+        Assert.Equal(GameState.Alaron, alaron.Entity);
+        var spawn = battle.Arena.Point("good4a")!.Position;
+        Assert.Equal(new Vector2((int)spawn.X, (int)spawn.Z), alaron.Cell);
+        Assert.InRange(alaron.Direction, 1, 3);
+        Assert.All(battle.Combatants.Where(c => c.Hostile), c => Assert.InRange(c.Direction, 5, 7));
+        Assert.Equal(battle.Arena.Point("bad4b")!.Position.X, battle.Slots[2]!.Cell.X, 0.99f);
+        Assert.Equal(battle.Leader, battle.Slots[1]);
+        Assert.All(battle.Combatants, c => Assert.Equal(ArenaGrid.Taken, battle.Grid[(int)c.Cell.X, (int)c.Cell.Y] & ArenaGrid.Taken));
+        Assert.Equal((76, 77), (battle.Grid.Width, battle.Grid.Depth));
+        Assert.Equal(battle.Camera, session.Arena!.Camera);
+
+        // It fades in over a second, then the turn is Alaron's, or the rats' pass on to him.
+        for (var i = 0; i < 60; i++)
+            Assert.Equal((SessionStep.Combat, CombatState.Intro), (Tick(session), battle.State));
+        for (var i = 0; i < 10 && battle.State != CombatState.Turn; i++)
+            Tick(session);
+        Assert.Equal((CombatState.Turn, alaron), (battle.State, battle.Current));
+
+        // Start: the menu, from a turn, with the Party tab and Flee, two frames on.
+        host.Transitions.Clear();
+        Assert.True(battle.Pause());
+        for (var i = 0; i < 5; i++)
+            Tick(session);
+        Assert.Equal(new Transition.PauseBattle(PartyTab: true, CanFlee: true), Assert.Single(host.Transitions));
+        session.MenuOpened();
+        Assert.Equal(GameMode.Menu, session.Mode);
+        session.MenuClosed(PauseExit.Flee);
+        Assert.Equal((CombatState.LeaveFled, true), (battle.State, battle.Fled));
+        Assert.Equal(SessionStep.CombatOver, Tick(session));
+
+        // The arena goes, and trek comes back at the breadcrumb farthest from where the battle began.
+        host.Transitions.Clear();
+        session.EndBattle();
+        Assert.Null(session.Battle);
+        Assert.Null(session.Arena);
+        Assert.Equal(GameMode.Trek, session.Mode);
+        Assert.Equal([typeof(Transition.EndBattle), typeof(Transition.ResumeTrek)], host.Transitions.Select(t => t.GetType()));
+        Assert.Equal(away, trek.Player.Sphere.Position);
+        Assert.All(trek.Breadcrumbs.All, c => Assert.Equal(trek.Breadcrumbs.All[0], c));
+        Assert.NotEmpty(trek.Wanderers.All);
     }
 
     [Fact]

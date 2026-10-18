@@ -526,7 +526,7 @@ The player can flee from the pause menu. It always succeeds with no penalty, but
 
 **(decomp)** Fleeing isn't available in boss battles: Kitarak, Marquis, Pochanargat, Ehud, Sheridan, Behrooz, Nasim, Golnar, Mehrdad, Shatrevar, Ksathra, and Assim. It is available against the Shadow.
 
-**(decomp)** The checkpoints are breadcrumbs. While the player walks in trek mode, the game records their position at a regular interval, skipping any spot within 10 units of an existing breadcrumb, and keeps the last 15. On fleeing, the party is placed at the breadcrumb in the same map set that's **farthest** from where the battle happened. Breadcrumbs aren't related to saves.
+**(machine code)** The checkpoints are breadcrumbs. While the player walks in trek mode, the game records their position every two seconds (120 ticks), skipping any spot within 10 units of an existing breadcrumb, and keeps the last 15. On fleeing, the party is placed at the breadcrumb in the same map set that's **farthest** from where the battle began. Every time trek is rebuilt (after a battle, a cut-scene, a load and so on), all 15 are reset to where the player stands, so breadcrumbs aren't related to saves. After a win, the party stands exactly where the battle began. See [combat](systems/combat.md#in-and-out).
 
 ### Rewards
 

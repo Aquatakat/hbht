@@ -12,7 +12,7 @@ namespace Aidyn.Core.Chunks;
 
 /// <summary>
 /// The zone engine (<c>InitZoneEngine</c>, <c>HandleZoneEngineFrame</c>, <c>FreeZoneEngine</c>): the world a game mode plays
-/// in, which trek and a cut-scene's stage start, and combat's arena will (<c>InitZoneEngine(GameMode_Combat)</c>). It keeps
+/// in, which trek, a cut-scene's stage and a battle's arena start (<c>InitZoneEngine</c>). It keeps
 /// the 3×3 chunks loaded around a point (<see cref="Chunks"/>), with their collision and the surfaces they draw, and as each
 /// chunk loads and goes, its sounds (<see cref="Sounds"/>) and its light map objects (<see cref="Lights"/>). It asks for the
 /// map set's music, steers the rain and snow about its <see cref="Camera"/> (<see cref="Precipitation"/>), steps the weather
@@ -24,7 +24,7 @@ namespace Aidyn.Core.Chunks;
 /// the original starts it for a cut-scene: its own chunks, lights and rain, over the same audio, chunk sounds, audio keys,
 /// rain loop and thunder, which carry on, among them the music held from one chunk to the next (<c>Audio.PersistMusic</c>).
 /// The zone engine it was made from keeps the rest, its dynamic lights among them, for its world to be loaded again
-/// (<see cref="Trek.TrekLoop.Resume"/>). Combat's arena, with M3, is a stage the same way.
+/// (<see cref="Trek.TrekLoop.Resume"/>). A battle's arena is a stage the same way (<see cref="GameSession.BeginBattle"/>).
 /// </remarks>
 public sealed class ZoneEngine
 {
@@ -196,7 +196,7 @@ public sealed class ZoneEngine
 
     /// <summary>
     /// The zone engine started on another map set, for a cut-scene's stage (<c>CutScene.LoadStage</c>, <c>0x80051984</c>)
-    /// or, with M3, a battle's arena, once this one's world is freed. Its chunks fill the same collision and drawn
+    /// or a battle's arena (<c>Combat.Init</c>), once this one's world is freed. Its chunks fill the same collision and drawn
     /// surfaces, and it has lights of its own; its rain falls about its own camera and lands on what its centre chunk draws
     /// (<c>Zones.PlayerMap</c>). Its audio, chunk sounds, audio keys and weather's sounds are this one's.
     /// </summary>

@@ -13,6 +13,9 @@ public enum SystemItem
     Theater,
     Credits,
     Help,
+
+    /// <summary>Combat's alone, while the party can flee.</summary>
+    Flee,
 }
 
 /// <summary>What the System tab shows: its list, or a screen it opened.</summary>
@@ -56,8 +59,8 @@ public interface ISystemPage
 /// </summary>
 /// <remarks>
 /// <para>
-/// In trek every row shows; in combat the original lists only Options, and Flee when the party can flee, which
-/// waits for combat (2.5). Credits closes the menu and plays the credits (<c>pauseMenuSelectCallBack</c>'s row 9999,
+/// In trek every row shows but Flee; in combat (<c>OptionsMenu.OptionsMenu</c>'s branch for game mode 3) it lists only
+/// Options, and Flee while the party can flee from a turn's pause, which returns <see cref="PauseExit.Flee"/>. Credits closes the menu and plays the credits (<c>pauseMenuSelectCallBack</c>'s row 9999,
 /// exit code 5), which <see cref="Accept"/> returns as <see cref="PauseExit.Credits"/>. Theater opens the Theatre's page
 /// (<c>OptionsMenu.ShowTheatre</c>, <c>0x8003fe34</c>), where A on a seen cinematic closes the menu and plays it
 /// (<see cref="PauseExit.Theatre"/>, exit code 2). Help closes the menu and starts the help menu's script
@@ -79,7 +82,7 @@ public sealed class SystemMenu
     public static readonly Rgba TextColor = PartyMenu.TextColor;
 
     /// <summary>The rows' strings, by <see cref="SystemItem"/>: common lines, but Credits, which the code spells out.</summary>
-    private static readonly int[] Lines = [160, 377, 161, 162, -1, 173];
+    private static readonly int[] Lines = [160, 377, 161, 162, -1, 173, 378];
 
     private readonly PluginSet _plugins;
     private readonly MenuText _text;
@@ -92,8 +95,12 @@ public sealed class SystemMenu
     /// <param name="savesFolder">Where the save and load screens find saves.</param>
     /// <param name="listSaves">Lists the saves in a folder; <see cref="SaveSlot.List"/> by default.</param>
     /// <param name="isSet">Whether a flag is set, for the Theatre's cinematics; none are, by default.</param>
+    /// <param name="combat">
+    /// In combat, whether the party can flee: the list is Options alone, and Flee with it (<see cref="Combat.Battle.CanFlee"/>).
+    /// Null in trek.
+    /// </param>
     public SystemMenu(PluginSet plugins, Settings settings, Party party, string savesFolder, Func<string, IReadOnlyList<SaveSlot>>? listSaves = null,
-        Func<RecordId, bool>? isSet = null)
+        Func<RecordId, bool>? isSet = null, bool? combat = null)
     {
         _isSet = isSet ?? (_ => false);
         _plugins = plugins;
@@ -102,7 +109,12 @@ public sealed class SystemMenu
         Party = party;
         _savesFolder = savesFolder;
         _listSaves = listSaves;
-        Items = new MenuList<SystemItem>(Enum.GetValues<SystemItem>());
+        Items = new MenuList<SystemItem>(combat switch
+        {
+            null => [.. Enum.GetValues<SystemItem>().Where(i => i != SystemItem.Flee)],
+            true => [SystemItem.Options, SystemItem.Flee],
+            false => [SystemItem.Options],
+        });
         _page = new ListPage(this);
     }
 
@@ -276,6 +288,8 @@ public sealed class SystemMenu
                     return PauseExit.Credits;
                 case SystemItem.Help:
                     return PauseExit.Help;
+                case SystemItem.Flee:
+                    return PauseExit.Flee;
                 default:
                     return null;
             }

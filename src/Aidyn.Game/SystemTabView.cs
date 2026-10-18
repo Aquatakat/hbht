@@ -15,7 +15,7 @@ public partial class SystemTabView : Control
     private const int FrameWidth = 320, FrameHeight = 240;
 
     /// <summary>The list (<c>WidgetOptionsMenu::MakeScrollList</c>): six rows 16 apart, centred, and the arrow under it.</summary>
-    private const int ListRows = 6, ListPitch = 16, ListCentre = 160;
+    private const int ListPitch = 16, ListCentre = 160;
 
     private static readonly Vector2I ListArrow = new(170, 204);
 
@@ -164,7 +164,7 @@ public partial class SystemTabView : Control
     }
 
     /// <summary>The title and the list are centred together down the frame.</summary>
-    private static int ListTop() => (FrameHeight - (24 + ListRows * 11 + (ListRows - 1) * 5 + 16)) / 2;
+    private int ListTop() => (FrameHeight - (24 + Menu.Items.Rows.Count * 11 + (Menu.Items.Rows.Count - 1) * 5 + 16)) / 2;
 
     private void List()
     {

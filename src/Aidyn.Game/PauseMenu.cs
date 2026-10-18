@@ -69,7 +69,16 @@ public partial class PauseMenu : CanvasLayer
     /// <summary>How far the widgets of a tab beside the one showing are faded into its parchment.</summary>
     private const float NeighbourVeil = 0.6f;
 
-    private const PauseTab LastTab = PauseTab.World;
+    /// <summary>The rightmost tab: the World tab in trek, in combat the Party tab from a turn's pause and else the System tab.</summary>
+    private PauseTab LastTab => _combat switch
+    {
+        null => PauseTab.World,
+        { PartyTab: true } => PauseTab.Party,
+        _ => PauseTab.System,
+    };
+
+    /// <summary>In combat, whether it has the Party tab and Flee (<see cref="OpenCombat"/>); null in trek.</summary>
+    private (bool PartyTab, bool CanFlee)? _combat;
 
     /// <summary>The tab the menu last showed, which a default opening goes back to (<c>gGlobals.pauseMenuSection</c>).</summary>
     private static PauseTab _lastTab = PauseTab.System;
@@ -187,7 +196,22 @@ public partial class PauseMenu : CanvasLayer
     private bool Sliding => !Mathf.IsEqualApprox(_position, (float)Tab);
 
     /// <summary>Opens the menu afresh on the party as it is now, on the tab given or else the one it last showed.</summary>
-    public void Open(PauseTab? tab = null) => Open(tab ?? _lastTab, tabsLocked: false);
+    public void Open(PauseTab? tab = null)
+    {
+        _combat = null;
+        Open(tab ?? _lastTab, tabsLocked: false);
+    }
+
+    /// <summary>
+    /// Opens combat's pause menu (game mode 3, <c>BigAssMenu</c>): from a turn (combat's state 14), the System and Party
+    /// tabs, opening on the Party tab, the System tab listing Options, and Flee while the party can flee
+    /// (<see cref="Core.Combat.Battle.CanFlee"/>); from any other state (27), the System tab alone, with Options.
+    /// </summary>
+    public void OpenCombat(bool partyTab, bool canFlee)
+    {
+        _combat = (partyTab, canFlee);
+        Open(partyTab ? PauseTab.Party : PauseTab.System, tabsLocked: false);
+    }
 
     /// <param name="brightens">Whether the world brightens again as it closes; the loot window and shops snap back.</param>
     private void Open(PauseTab tab, bool tabsLocked, bool brightens = true)
@@ -202,7 +226,8 @@ public partial class PauseMenu : CanvasLayer
         _frame.Reset();
         // Skill checks and potions in trek draw from the world's stream.
         _view = Show(_view, PartyMenu.From(_plugins, _game.Party, random: _game.Random.World), (p, m) => new PartyTabView(p, m));
-        _system = Show(_system, new SystemMenu(_plugins, _settings, _game.Party, DataPaths.Saves, isSet: _game.Flags.Get), (p, m) => new SystemTabView(p, m));
+        _system = Show(_system, new SystemMenu(_plugins, _settings, _game.Party, DataPaths.Saves, isSet: _game.Flags.Get, combat: _combat?.CanFlee),
+            (p, m) => new SystemTabView(p, m));
         var (place, outdoors) = Where?.Invoke() ?? (null, false);
         _world = Show(_world, new WorldMenu(_plugins, _game, _mainFont, place, outdoors), (p, m) => new WorldTabView(p, m));
         Tab = tab;
@@ -296,7 +321,7 @@ public partial class PauseMenu : CanvasLayer
             SlideSound(opening: false);
         Visible = false;
         _scrollView?.Rendering = false;
-        if (!_tabsLocked)
+        if (!_tabsLocked && _combat is null)
             _lastTab = Tab;
         _snapshot = null;
         _journal.Journal = null;
@@ -389,7 +414,7 @@ public partial class PauseMenu : CanvasLayer
             var offset = ((int)tab - _position) * UiScreen.Width;
             control.Position = new Vector2(Mathf.Round(offset) - left, 0);
             control.Size = screen;
-            control.Visible = Math.Abs(offset) < (screen.X + UiScreen.Width) / 2 && (!_tabsLocked || tab == PauseTab.Party);
+            control.Visible = Math.Abs(offset) < (screen.X + UiScreen.Width) / 2 && (!_tabsLocked || tab == PauseTab.Party) && tab <= LastTab;
             ((IPauseTab)control).Veil = Math.Min(1, Math.Abs((int)tab - _position)) * NeighbourVeil;
         }
     }

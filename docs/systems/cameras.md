@@ -36,6 +36,10 @@ Ported as `FollowCamera.Interior.cs`, with the arguments `ProcessGameCamera` pas
 - Every part loops over a frame's ticks or acts on a goal that only it moves, so stepping it each tick matches the original at any frame rate.
 - It sticks just off the walls and never wanders past one on its own. Running round a corner, it snaps back behind Alaron. R's orbit can push it through a wall, and letting go, it turns until it's back inside, with the same snap.
 
+## The combat camera (`ProcessCombatCamera`)
+
+Ported as `Aidyn.Core.Combat.CombatCamera`, from `ProcessCombatCamera` (`0x8008D8BC`, camera mode 4), checked against the combat checkpoints 02–04. It's the interiors' camera with other numbers, which `FollowCamera.StepLeashed` takes (`LeashNumbers`; the interiors' are `FollowCamera.Interior`): the goal leashed 4 to 10 from the aim in X and Z (8 to 16 while aiming a flask or placing an area), 2 above it, the aim 1.05 above the body that owns the camera and chasing it at 1/16 a tick, at most 1, the eye at 1/32, at most 0.5. It's put 8 behind a party member away from the nearest enemy, 1.5 up, at once on the battle's first frame and as a goal when a member's turn takes the camera; through an enemy's turn the eye holds where its goal was, at least 4 from the aim; and it's kept a unit above the arena's floor. [Combat](combat.md#the-rest-by-entry-point) has the addresses.
+
 ## Camera objects (`processVoxelCamera`)
 
 Ported as `CameraMove`. A camera object takes the camera while the player is in its reach ([map-objects](map-objects.md#camera-objects) has how he reaches it). While it moves the camera or its aim, the follow camera does nothing the next tick (`camera_mode` 2, then `RevertMode`), and when it lets go, the follow camera carries on from where the camera is, in its own mode.

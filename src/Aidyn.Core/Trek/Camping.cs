@@ -10,7 +10,7 @@ public enum CampOutcome
 {
     /// <summary>The terrain allows no camping.</summary>
     Refused,
-    /// <summary>The party was ambushed: no heal and no time passing. The battle comes with combat (2.5).</summary>
+    /// <summary>The party was ambushed: no heal and no time passing. Trek fades out into the battle (<see cref="TrekLoop.CueBattle"/>).</summary>
     Ambushed,
     /// <summary>The party healed and a camp scene started; eight hours pass when it ends.</summary>
     Camped,

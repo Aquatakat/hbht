@@ -108,7 +108,11 @@ A feature on the entity, with the Horn of Kynon as its item. The fields:
 
 | What | Code | NA 1.0 | Status |
 | --- | --- | --- | --- |
-| Fleeing: monster party battles allow it, camp ambushes don't, and script battles allow it unless the script is a cutscene. Then a boss among the enemies forbids it (Kitarak, the Marquis, Pochanargat, Shamsuk, Sheridan, Ksathra, Shatrevar, Mehrdad, Golnar, Nasim, Behrooz and Assim), the Shadow allows it, and last, three encounter flags override: 978 forbids it, 5250 (Lugash) and 3749 (the Marquis) allow it. | `look_for_boss_shadow`, `encounter_id_check` | `0xD3288`, `0xD32A0` | To do |
+| Fleeing: monster party battles allow it, camp ambushes don't, and script battles allow it unless the script is a cutscene. Then a boss among the enemies on the field forbids it (Kitarak, the Marquis, Pochanargat, Shamsuk, Sheridan, Ksathra, Shatrevar, Mehrdad, Golnar, Nasim, Behrooz and Assim), the Shadow allows it, the last on the field having the say, and last, three encounter flags override: 978 forbids it, 5250 (Lugash) and 3749 (the Marquis) allow it. | `Combat.ForbidFleeForBosses`, `Combat.ApplyFleeRuleByFlag` | `0xD3288`, `0xD32A0` | Fact: the combat record (`aidyn:combat/0`), its entities by their places in the ROM's entity list |
+| Sholeh, among an enemy list's first four, fights on the party's side | `Combat.FindSholeh` (`0x8005C6C0`) | entity list place 0xA4 | Fact: the combat record's `ally` |
+| Bystanders: the townsfolk, shopkeepers, trainers and the like are dropped from an enemy list | `Combat.IsExcludedEnemy` (`0x8005C0C0`) | entity list places 0–0x56, 0x82–0x90, 0x92–0x96 | Fact: the combat record's `bystanders` |
+| A monster party whose roll comes to none fights one Skeleton | `BattleSetup.FillEnemies` | entity list place 0xBB | Fact: the combat record's `fallback` |
+| The arena a battle takes by the terrain of the chunk it starts in | `BattleSetup.ChooseArena`, a switch | jump table `0x800CD400` | Fact: each terrain record's `arenas` |
 | Enemies with spells that use the AI's boss attack style: 13 entities, including Lugash and the Wight | `CombatAI::IsBoss` | Switch | To do |
 
 ## Party and camping rules

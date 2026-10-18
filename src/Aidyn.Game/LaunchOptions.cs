@@ -29,8 +29,10 @@ namespace Aidyn.Game;
 /// the original does rather than projected. <c>--menu 1</c> opens the pause menu on the tab it last showed, <c>--menu
 /// system</c>, <c>party</c> or <c>world</c> on that tab, and <c>--menu loot</c> an empty loot window; <c>--ui-lines
 /// &lt;n&gt;</c> sets the UI screen's height, and <c>--press &lt;action&gt;,…</c> presses each action in turn, such as
-/// <c>pause,menu_member_left</c>. <c>--cutscene &lt;id&gt;</c> plays a cut-scene at once, as what starts it would, and
-/// <c>--cinematic &lt;n&gt;</c> a cinematic.
+/// <c>pause,menu_member_left</c>. <c>--cutscene &lt;id&gt;</c> plays a cut-scene at once, as what starts it would,
+/// <c>--cinematic &lt;n&gt;</c> a cinematic, and <c>--battle &lt;id&gt;</c> a battle with a monster party
+/// (<c>aidyn:voxel/…</c>) where the player stands, or <c>--battle arena,&lt;n&gt;[,ambush]</c> one with that monster
+/// party in arena n.
 /// </remarks>
 public sealed class LaunchOptions(Dictionary<string, string> values)
 {
@@ -137,6 +139,9 @@ public sealed class LaunchOptions(Dictionary<string, string> values)
 
     /// <summary>A cut-scene to play at once.</summary>
     public RecordId? CutScene => Text("cutscene") is { } id ? RecordId.Parse(id) : null;
+
+    /// <summary>A battle to start, as a monster party's ID, then optionally <c>,&lt;arena&gt;</c> and <c>,ambush</c>.</summary>
+    public string? Battle => Text("battle");
 
     /// <summary>A cinematic to play, as <c>n[,shot[,time[,hold]]]</c>.</summary>
     public string? Cinematic => Text("cinematic");

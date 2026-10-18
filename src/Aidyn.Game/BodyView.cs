@@ -75,25 +75,27 @@ public abstract partial class BodyView : Node3D
     }
 
     /// <summary>
-    /// Lights the body by the point lights that reach its centre this frame (<see cref="WorldLights.ForBody"/>), as a
-    /// body that isn't one of the party's (<c>+0x70a</c>), so no light map object reaches it.
+    /// Lights the body by the point lights that reach its centre this frame (<see cref="WorldLights.ForBody"/>): by default
+    /// as a body that isn't one of the party's (<c>+0x70a</c>), so no light map object reaches it; combat's party members
+    /// are the party's.
     /// </summary>
-    public void Light(WorldLights lights, ChunkStreamer chunks)
+    public void Light(WorldLights lights, ChunkStreamer chunks, bool party = false)
     {
         if (_model is null)
             return;
         var centre = Body.Sphere.Position;
-        N64Material.SetLights(_model.Meshes, lights.ForBody(centre, chunks.MapAt(centre), party: false));
+        N64Material.SetLights(_model.Meshes, lights.ForBody(centre, chunks.MapAt(centre), party));
     }
 
     /// <summary>
-    /// Fades the body by its distance from the camera's aim (<c>PlayerShadowAlpha</c>), hiding it when
-    /// <paramref name="hidden"/>. Returns its alpha before that, and its distance from the aim.
+    /// Fades the body by its distance from the camera's aim (<c>PlayerShadowAlpha</c>), over trek's distance or
+    /// <paramref name="distance"/>, hiding it when <paramref name="hidden"/>. Returns its alpha before that, and its
+    /// distance from the aim.
     /// </summary>
-    protected (byte Alpha, float FromAim) Fade(System.Numerics.Vector3 aim, bool hidden = false)
+    protected (byte Alpha, float FromAim) Fade(System.Numerics.Vector3 aim, bool hidden = false, float distance = BodyShadow.TrekDistance)
     {
         var fromAim = System.Numerics.Vector3.Distance(aim, Body.Sphere.Position);
-        var alpha = BodyShadow.BodyAlpha(BodyShadow.TrekDistance, fromAim) ?? 0;
+        var alpha = BodyShadow.BodyAlpha(distance, fromAim) ?? 0;
         _model?.Show(hidden ? (byte)0 : alpha);
         return (alpha, fromAim);
     }

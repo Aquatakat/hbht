@@ -354,6 +354,22 @@ public sealed class Character
         }
     }
 
+    /// <summary>
+    /// Every potion working on it ends but <paramref name="keep"/>, undoing what it did, as a battle ends
+    /// (<c>Entity.ClearEffects</c>, <c>0x80071830</c>, which keeps Stealth's).
+    /// </summary>
+    public void EndPotionEffects(Potion keep)
+    {
+        for (var i = 0; i < _potions.Count; i++)
+        {
+            var effect = _potions[i];
+            if (effect.Potion == keep)
+                continue;
+            _potions.RemoveAt(i--);
+            PotionChange(effect.Potion, -1);
+        }
+    }
+
     // Entity::ApplyPotionEffect and ReversePotionEffect.
     private void PotionChange(Potion potion, int sign)
     {

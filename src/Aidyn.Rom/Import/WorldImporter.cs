@@ -45,15 +45,15 @@ internal static class WorldImporter
 
     /// <summary>
     /// The terrain types: each one's sky and whether it's drawn (a fact, <see cref="Skies.ForTerrain"/>), its camp
-    /// ambush factor, and its weather from the code's tables, with snow on type 5 alone, a literal in
-    /// <c>Weather.Roll</c> (<c>0x8007bdb0</c> in 1.0).
+    /// ambush factor, its weather from the code's tables, with snow on type 5 alone, a literal in
+    /// <c>Weather.Roll</c> (<c>0x8007bdb0</c> in 1.0), and the Battle arenas its battles take (a fact, <see cref="Arenas"/>).
     /// </summary>
     internal static List<TerrainRecord> BuildTerrains(IReadOnlyList<int> gradients, float[] campFactors, WeatherTables weather) =>
         [.. Enumerable.Range(0, Skies.TerrainCount).Select(t =>
         {
             var (sky, drawn) = Skies.ForTerrain(t);
             return new TerrainRecord(RecordId.Decimal(RecordTypes.Terrain, t), RecordId.Hex(RecordTypes.Image, gradients[sky]), drawn, campFactors[t],
-                weather.Terrains[t], weather.Scales[t], Snow: t == SnowTerrain);
+                weather.Terrains[t], weather.Scales[t], Snow: t == SnowTerrain, Arenas: Arenas.ForTerrain(t));
         })];
 
     /// <summary>The terrain type it snows on rather than rains (<c>Weather.Roll</c>).</summary>

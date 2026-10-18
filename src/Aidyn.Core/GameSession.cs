@@ -1,6 +1,7 @@
 using System.Numerics;
 using Aidyn.Core.Actors;
 using Aidyn.Core.Chunks;
+using Aidyn.Core.Combat;
 using Aidyn.Core.Scripts;
 using Aidyn.Core.Trek;
 using Aidyn.Core.Ui;
@@ -18,6 +19,9 @@ public enum GameMode
 {
     /// <summary>Free exploration (<see cref="TrekLoop"/>).</summary>
     Trek,
+
+    /// <summary>A battle on its arena, in place of trek's world (game mode 2).</summary>
+    Combat,
 
     /// <summary>A cut-scene on its stage, in place of trek's world.</summary>
     CutScene,
@@ -67,6 +71,15 @@ public enum SessionStep
 
     /// <summary>Trek has faded out into a cut-scene, which begins once drawn (<see cref="GameSession.BeginCutScene"/>).</summary>
     CutSceneCued,
+
+    /// <summary>Trek has faded out into a battle, which begins once drawn (<see cref="GameSession.BeginBattle"/>).</summary>
+    BattleCued,
+
+    /// <summary>A battle ticked.</summary>
+    Combat,
+
+    /// <summary>A battle ticked, its screen has faded out, and it ends once drawn (<see cref="GameSession.EndBattle"/>).</summary>
+    CombatOver,
 }
 
 /// <summary>
@@ -80,7 +93,7 @@ public enum SessionStep
 /// <remarks>
 /// The pause menu's, a backdrop's, the credits' and a cinematic's drawing and stepping are presentation, which the runtime
 /// does: it says when the menu and a backdrop open and close, and when the credits and a cinematic end, and this carries
-/// out what follows. Combat (M3) is a mode here too, on a stage of trek's zone engine as a cut-scene is.
+/// out what follows. Combat is a mode here too, on a stage of trek's zone engine as a cut-scene is (<see cref="BeginBattle"/>).
 /// </remarks>
 public sealed class GameSession
 {
@@ -112,6 +125,12 @@ public sealed class GameSession
     /// <summary>The cut-scene's stage: its own zone engine (<see cref="ZoneEngine.Stage"/>).</summary>
     public ZoneEngine? Stage { get; private set; }
 
+    /// <summary>The battle playing, in place of trek's world (<see cref="BeginBattle"/>).</summary>
+    public Battle? Battle { get; private set; }
+
+    /// <summary>The battle's arena: a zone engine of its own on the Battle arenas (<see cref="ZoneEngine.Stage"/>).</summary>
+    public ZoneEngine? Arena { get; private set; }
+
     /// <summary>Whether the pause menu is open.</summary>
     public bool MenuOpen { get; private set; }
 
@@ -126,7 +145,7 @@ public sealed class GameSession
 
     /// <summary>
     /// What runs, the highest that's up: a cinematic, the credits, the pause menu, a backdrop's page, a popup, a
-    /// conversation, a cut-scene, else trek.
+    /// conversation, a cut-scene, a battle, else trek.
     /// </summary>
     public GameMode Mode =>
         _cinematic is not null ? GameMode.Cinematic
@@ -136,13 +155,14 @@ public sealed class GameSession
         : Trek.Use is { Popup: not null } ? GameMode.Popup
         : Trek.Conversation is not null ? GameMode.Conversation
         : Scene is not null ? GameMode.CutScene
+        : Battle is not null ? GameMode.Combat
         : GameMode.Trek;
 
     /// <summary>Whether the world is held still: under the pause menu, a backdrop's page, the credits or a cinematic.</summary>
     public bool Held => Mode is GameMode.Menu or GameMode.Backdrop or GameMode.Credits or GameMode.Cinematic;
 
-    /// <summary>Whether trek steps this tick: nothing holds the world and no cut-scene plays in its place.</summary>
-    public bool TrekRuns => !Held && Scene is null;
+    /// <summary>Whether trek steps this tick: nothing holds the world and no cut-scene or battle plays in its place.</summary>
+    public bool TrekRuns => !Held && Scene is null && Battle is null;
 
     /// <summary>How dense rain and snow fall, trek's and a stage's: the settings' multiple of the original's.</summary>
     public float PrecipitationDensity
@@ -153,6 +173,7 @@ public sealed class GameSession
             _precipitationDensity = value;
             Zone.Precipitation?.Density = value;
             Stage?.Precipitation?.Density = value;
+            Arena?.Precipitation?.Density = value;
         }
     }
 
@@ -166,7 +187,9 @@ public sealed class GameSession
     /// <param name="frozen">Whether only time passes in trek, as while the free camera flies.</param>
     /// <param name="skyDrawn">Whether the stage's sky is drawn, for a cut-scene's weather.</param>
     /// <param name="actors">A cut-scene's actors' animations, or null for one that has none yet.</param>
-    public SessionStep Tick(Func<PlayerInput> readInput, bool frozen, bool skyDrawn, Func<CutSceneActor, IActorMotion?> actors)
+    /// <param name="combatants">A battle's combatants' animations, or null for one that has none.</param>
+    public SessionStep Tick(Func<PlayerInput> readInput, bool frozen, bool skyDrawn, Func<CutSceneActor, IActorMotion?> actors,
+        Func<Combatant, IActorMotion?>? combatants = null)
     {
         Game.CountTick();
         switch (Mode)
@@ -187,6 +210,17 @@ public sealed class GameSession
             scene.Tick(Stage!, skyDrawn, actors);
             return scene.Over ? SessionStep.CutSceneOver : SessionStep.CutScene;
         }
+        if (Battle is { } battle)
+        {
+            battle.Tick(Arena!, skyDrawn, combatants ?? (_ => null));
+            if (battle.Paused && !MenuOpen && !_menuAsked)
+            {
+                // Combat's states 14 and 27: the pause menu, mode 3.
+                _menuAsked = true;
+                _host.Transition(new Transition.PauseBattle(battle.PausedFromTurn, battle.PausedFromTurn && battle.CanFlee));
+            }
+            return battle.Over ? SessionStep.CombatOver : SessionStep.Combat;
+        }
         if (_reopenOnTheatre is { } theatre && !Trek.CutSceneFade.Fading)
         {
             _reopenOnTheatre = null;
@@ -195,15 +229,16 @@ public sealed class GameSession
         return Trek.Tick(readInput, frozen) switch
         {
             TrekStep.CutScene => SessionStep.CutSceneCued,
+            TrekStep.Battle => SessionStep.BattleCued,
             TrekStep.Frozen => SessionStep.Frozen,
             _ => SessionStep.Trek,
         };
     }
 
-    /// <summary>The map's sounds, while the world is held still: trek's, not a stage's.</summary>
+    /// <summary>The map's sounds, while the world is held still: trek's, not a stage's or an arena's.</summary>
     private void StepSounds()
     {
-        if (Scene is null)
+        if (Scene is null && Battle is null)
             Trek.StepSounds();
     }
 
@@ -251,7 +286,7 @@ public sealed class GameSession
         if (scene.Runner.Ending is { } ending)
         {
             var chunk = scene.Stage.Chunk;
-            Transition.CarryOut(Game, _host,
+            Trek.CarryOut(
                 Transition.AfterScript(Game, ending, ending.Speaker, (new ChunkRef(scene.Stage.Set.Id, chunk.Row, chunk.Column), chunk.Terrain)));
         }
     }
@@ -264,14 +299,85 @@ public sealed class GameSession
         _host.Transition(new Transition.ResumeTrek());
     }
 
-    /// <summary>Asks trek for a cut-scene, unless one is playing (<see cref="TrekLoop.Cue"/>).</summary>
+    /// <summary>Asks trek for a cut-scene, unless one or a battle is playing (<see cref="TrekLoop.Cue"/>).</summary>
     public void Cue(DialogueRecord script, ScriptStart start, ChunkRef stage)
     {
-        if (Scene is null)
+        if (Scene is null && Battle is null)
             Trek.Cue(script, start, stage);
     }
 
-    /// <summary>The pause menu has opened, on a tab or in its barter or training state.</summary>
+    /// <summary>Asks trek for a battle, unless one or a cut-scene is playing (<see cref="TrekLoop.CueBattle"/>).</summary>
+    public void CueBattle(BattleSetup setup)
+    {
+        if (Scene is null && Battle is null)
+            Trek.CueBattle(setup);
+    }
+
+    /// <summary>The last battle's arena, which a terrain choosing none keeps (<see cref="BattleSetup.ChooseArena"/>).</summary>
+    private int _lastArena;
+
+    /// <summary>Whether combat's pause has asked for the menu, which it does once.</summary>
+    private bool _menuAsked;
+
+    /// <summary>
+    /// The cued battle begins (<c>Combat.Init</c>, <c>0x80022D1C</c>): trek's world goes, the zone engine starts again with
+    /// its particles emptied, on the Battle arenas about the battle's arena, without wanderers, asking for the map set's
+    /// music; and the battle is set up on it (<see cref="Combat.Battle.Begin"/>), fading in.
+    /// </summary>
+    public void BeginBattle()
+    {
+        var setup = Trek.BeginBattle();
+        Zone.Particles?.Clear();
+        if (setup.Party is null && setup.Enemies.Count == 0)
+        {
+            // A camp ambush's enemies come from the camp encounters, which aren't imported yet.
+            _host.Transition(new Transition.Say("The party is ambushed, but there's no one to fight yet: camp encounters come with combat."));
+            Trek.Resume();
+            _host.Transition(new Transition.ResumeTrek());
+            return;
+        }
+        var number = setup.Arena ?? setup.ChooseArena(Game.Plugins, Game.Random.Combat) ?? _lastArena;
+        if (Combat.Arena.For(Game.Plugins, number) is not { } arena)
+        {
+            _host.Transition(new Transition.Say($"Arena {number} is in no plugin."));
+            Trek.Resume();
+            _host.Transition(new Transition.ResumeTrek());
+            return;
+        }
+        _lastArena = number;
+        var zone = Arena = Zone.Stage(arena.Set);
+        zone.Precipitation?.Density = _precipitationDensity;
+        zone.RequestMusic(arena.Chunk);
+        zone.Chunks.Update(arena.Origin + Combat.Battle.ZonePoint);
+        var battle = Battle = Combat.Battle.Begin(Game, setup, arena, zone.World);
+        zone.Camera = battle.Camera;
+        _menuAsked = false;
+        foreach (var line in battle.Problems)
+            _host.Warn(line);
+        _host.Transition(new Transition.StartedBattle(battle, zone));
+    }
+
+    /// <summary>
+    /// The battle is over (<c>Combat.Exit</c>, <c>0x80023060</c>): its arena goes, what it put on the party comes off
+    /// (<see cref="Combat.Battle.Leave"/>), and trek starts again (<see cref="TrekLoop.Resume"/>), fading in where the
+    /// battle began, or having fled, at the farthest breadcrumb.
+    /// </summary>
+    public void EndBattle()
+    {
+        var battle = Battle ?? throw new InvalidOperationException("No battle is playing.");
+        Battle = null;
+        Arena!.End();
+        Arena = null;
+        _host.Transition(new Transition.EndBattle(battle));
+        battle.Leave();
+        Trek.Resume(fled: battle.Fled);
+        _host.Transition(new Transition.ResumeTrek());
+    }
+
+    /// <summary>
+    /// The pause menu has opened, on a tab or in its barter or training state; in combat, as its pause asked
+    /// (<see cref="Transition.PauseBattle"/>).
+    /// </summary>
     public void MenuOpened() => MenuOpen = true;
 
     /// <summary>
@@ -281,6 +387,13 @@ public sealed class GameSession
     public void MenuClosed(PauseExit exit)
     {
         MenuOpen = false;
+        if (Battle is { } battle)
+        {
+            // Combat's pause menu returns to the state it paused, or flees (state 16).
+            _menuAsked = false;
+            battle.Unpause(exit.Code == PauseExitCode.Flee);
+            return;
+        }
         switch (exit.Code)
         {
             case PauseExitCode.Camp:

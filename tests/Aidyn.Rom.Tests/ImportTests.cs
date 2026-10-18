@@ -83,6 +83,10 @@ public sealed class ImportTests(Na10Import fixture)
         Assert.Equal(28, terrains.Count);
         Assert.All(terrains, t => Assert.NotNull(set.FindAsset(t.Sky, "png")));
         Assert.Equal(RecordId.Hex(RecordTypes.Image, 0x19F), set.Get<TerrainRecord>(RecordId.Decimal(RecordTypes.Terrain, i08.Terrain)).Sky);
+        // Every terrain's battles take an arena (BattleSetup.ChooseArena): terrain 20 takes 6-7 or 8-11, terrain 6 arena 18 alone.
+        Assert.All(terrains, t => Assert.NotEmpty(t.Arenas!));
+        Assert.Equal([new ArenaRange(6, 7), new ArenaRange(8, 11)], set.Get<TerrainRecord>(RecordId.Parse("aidyn:terrain/20")).Arenas!);
+        Assert.Equal([new ArenaRange(18, 18)], set.Get<TerrainRecord>(RecordId.Parse("aidyn:terrain/6")).Arenas!);
 
         // The one sky record, with every image it names there as PNG.
         var sky = set.Get<SkyRecord>(RecordId.Parse("aidyn:sky/0"));

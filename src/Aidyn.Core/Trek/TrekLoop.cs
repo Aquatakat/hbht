@@ -62,6 +62,8 @@ public enum TrekStep
     Frozen,
     /// <summary>A cut-scene is cued and the screen is black: it takes over (<see cref="TrekLoop.Cued"/>).</summary>
     CutScene,
+    /// <summary>A battle is cued and the screen is black: combat takes over (<see cref="TrekLoop.CuedBattle"/>).</summary>
+    Battle,
 }
 
 /// <summary>
@@ -166,6 +168,17 @@ public sealed class TrekLoop : IMapObjectHost
     /// <summary>A cut-scene waiting for trek to fade out, or for its host to start it.</summary>
     public (DialogueRecord Script, ScriptStart Start, ChunkRef Stage)? Cued { get; private set; }
 
+    /// <summary>The last places the player stood, which fleeing a battle goes back to.</summary>
+    public Breadcrumbs Breadcrumbs { get; } = new();
+
+    /// <summary>Where the player stands, as a breadcrumb keeps it, or null out of the chunks.</summary>
+    public Breadcrumb? Standing => Chunks.ChunkAt(Player.Sphere.Position) is { } chunk
+        ? new Breadcrumb(Chunks.MapSet.Id, chunk.Row, chunk.Column, Player.Sphere.Position - Chunks.Origin(chunk), Player.Heading)
+        : null;
+
+    /// <summary>The battle trek is fading out into, which starts once the screen is black.</summary>
+    public BattleSetup? CuedBattle { get; private set; }
+
     /// <summary>Puts the player and the follow camera in trek, before the first tick.</summary>
     public void Begin(PlayerMotion player, FollowCamera camera)
     {
@@ -176,6 +189,14 @@ public sealed class TrekLoop : IMapObjectHost
         Use.PlayerRadius = player.Sphere.Radius;
         Hud.Start();
         Zone.RequestMusic(Chunks.ChunkAt(player.Sphere.Position));
+        ResetBreadcrumbs();
+    }
+
+    /// <summary>All the breadcrumbs where the player stands, as trek is built (<c>Zones.ResetBreadcrumbs</c>).</summary>
+    private void ResetBreadcrumbs()
+    {
+        if (Standing is { } here)
+            Breadcrumbs.Reset(here);
     }
 
     /// <summary>
@@ -217,6 +238,8 @@ public sealed class TrekLoop : IMapObjectHost
         StepFades();
         if (Cued is not null && !CutSceneFade.Fading)
             return TrekStep.CutScene;
+        if (CuedBattle is not null && !CutSceneFade.Fading)
+            return TrekStep.Battle;
         var fading = TeleportFade.Fading || CutSceneFade.Fading;
         // Bgm.Update waits for a fade to end, so the music changes once the screen is up.
         Zone.Audio.HoldMusic = fading;
@@ -232,6 +255,9 @@ public sealed class TrekLoop : IMapObjectHost
         }
         // HandleZoneEngineFrame's weather (RenderSky's lightning and ProcessWeather), whatever stops the clock; then TickGameTime.
         Zone.StepWeather(_chunk is null || (Game.Terrain(_chunk.Terrain)?.SkyDrawn ?? true), Zone.Precipitation);
+        // HandleZoneEngineFrame keeps where he stands, in trek's zone engine alone.
+        if (Standing is { } standing)
+            Breadcrumbs.Tick(standing);
         if (Use.Popup is null && !talking)
             Game.PassTime(1);
         if (frozen)
@@ -268,7 +294,7 @@ public sealed class TrekLoop : IMapObjectHost
         {
             foreach (var w in Wanderers.Tick(world, motion.Sphere.Position, motion.Request, Game.Party, Game.Random.Wander,
                 Game.Weather?.FogTime ?? 0))
-                _host.Transition(new Transition.StartBattle(Battle(BattleSource.Wanderer, w.Map, w.Party, ambush: true)));
+                CueBattle(Battle(BattleSource.Wanderer, w.Map, w.Party, ambush: true) with { AniByte = AniByte(motion.Request) });
         }
         // ProcessPlayers: the player is the first body, then the rest move and push.
         Nearest = Wanderers.Step(world, motion.Sphere, before, Chunks.MapAt(motion.Sphere.Position)?.Key, Camera.Aim,
@@ -423,7 +449,7 @@ public sealed class TrekLoop : IMapObjectHost
     /// The weather drawn carries on, the user's choice: what's falling, how hard, the fog, the rain sky and the rain loop
     /// go on through the stage or the world built again (<see cref="Weather"/>), where the original's
     /// <c>FreeZoneEngine</c> stops the loop (<c>Weather.Free</c>, <c>0x8001e030</c>) and its <c>InitZoneEngine</c>
-    /// clears the rest (<c>Weather.Init</c>, <c>0x8001e010</c>). Combat's arena, with M3, is a stage of trek's zone
+    /// clears the rest (<c>Weather.Init</c>, <c>0x8001e010</c>). A battle's arena is a stage of trek's zone
     /// engine as a cut-scene's is, with trek's world freed here and built again through <see cref="Rebuild"/>, and so
     /// carries the weather the same way.
     /// </remarks>
@@ -445,14 +471,23 @@ public sealed class TrekLoop : IMapObjectHost
     {
         Free();
         Chunks.Update(Player.Sphere.Position);
+        ResetBreadcrumbs();
     }
 
     /// <summary>
-    /// Trek comes back after a cut-scene: its world where the player stood, the follow camera aimed at
-    /// him and swinging round quickly, and the screen fading in.
+    /// Trek comes back after a cut-scene or a battle: its world where the player stood, the follow camera aimed at
+    /// him and swinging round quickly, and the screen fading in. Having <paramref name="fled"/> a battle, he stands at the
+    /// breadcrumb in the map set farthest from where it began, facing as he did there (<c>InitZoneEngine</c>'s restoring,
+    /// with <c>Zones.Fled</c> set), not set down, as the original puts him exactly where it kept him.
     /// </summary>
-    public void Resume()
+    public void Resume(bool fled = false)
     {
+        if (fled && Standing is { } start && Breadcrumbs.Find(start, farthest: true) is { } crumb
+            && Chunks.MapSet.Chunks.FirstOrDefault(c => c.Row == crumb.Row && c.Column == crumb.Column) is { } chunk)
+        {
+            Player.Sphere.Position = Chunks.Origin(chunk) + crumb.Local;
+            Player.Heading = crumb.Heading;
+        }
         Rebuild();
         var at = Player.Sphere.Position;
         Enter(Chunks.ChunkAt(at));
@@ -482,7 +517,7 @@ public sealed class TrekLoop : IMapObjectHost
         if (Camping.Ambushed(rules, factor, Game.Party, Game.Flags.IsSet, Game.Random.World))
         {
             var (place, terrainIndex) = Here();
-            _host.Transition(new Transition.StartBattle(BattleSetup.CampAmbush(place, terrainIndex)));
+            CueBattle(BattleSetup.CampAmbush(place, terrainIndex));
             return CampOutcome.Ambushed;
         }
         Game.Party.CampHeal(rules.Heal, rules.EffectTicks);
@@ -508,14 +543,57 @@ public sealed class TrekLoop : IMapObjectHost
 
     /// <summary>
     /// Asks for a cut-scene (<c>dialoug_func</c>, then <c>funcs0[1]</c>): trek fades out, and it starts once
-    /// the screen is black. One at a time.
+    /// the screen is black. One at a time, and none once a battle is cued.
     /// </summary>
     public void Cue(DialogueRecord script, ScriptStart start, ChunkRef stage)
     {
-        if (Cued is not null)
+        if (Cued is not null || CuedBattle is not null)
             return;
         Cued = (script, start, stage);
         CutSceneFade.Out(CutSceneFadePerTick);
+    }
+
+    /// <summary>
+    /// Asks for a battle (<c>TrekLoop.QueueState(2)</c>, <c>0x8001FF04</c>): trek fades out as into a cut-scene, and
+    /// combat starts once the screen is black (<see cref="TrekStep.Battle"/>). One at a time, and none once a cut-scene is
+    /// cued.
+    /// </summary>
+    public void CueBattle(BattleSetup setup)
+    {
+        if (Cued is not null || CuedBattle is not null)
+            return;
+        CuedBattle = setup;
+        CutSceneFade.Out(CutSceneFadePerTick);
+    }
+
+    /// <summary>
+    /// The cued battle starts, once <see cref="Tick"/> says so: trek's world goes, and the battle is its host's to play on
+    /// its arena (<see cref="ZoneEngine.Stage"/>).
+    /// </summary>
+    public BattleSetup BeginBattle()
+    {
+        var setup = CuedBattle ?? throw new InvalidOperationException("No battle is cued.");
+        CuedBattle = null;
+        Free();
+        return setup;
+    }
+
+    /// <summary>
+    /// Carries out what a script's end leads to (<see cref="Transition.CarryOut"/>), but a battle, which trek cues
+    /// (<see cref="CueBattle"/>) rather than hands on.
+    /// </summary>
+    public void CarryOut(IEnumerable<Transition> next) => Transition.CarryOut(Game, new Carrier(this), next);
+
+    /// <summary>Hands the host every transition but a battle, which trek cues.</summary>
+    private sealed class Carrier(TrekLoop trek) : ITransitionHost
+    {
+        public void Transition(Transition next)
+        {
+            if (next is Transition.StartBattle battle)
+                trek.CueBattle(battle.Setup);
+            else
+                trek._host.Transition(next);
+        }
     }
 
     /// <summary>
@@ -543,7 +621,7 @@ public sealed class TrekLoop : IMapObjectHost
             if (ending.Fault is { } fault)
                 _host.Warn($"{conversation.Runner.Script.Id}: {fault}");
             var talker = conversation.With is { } with ? (MapRecord.VoxelId(with.Map.Record.Id, with.Party.Index), with.Party) : default((RecordId, MonsterPartyObject)?);
-            Transition.CarryOut(Game, _host, Transition.AfterScript(Game, ending, conversation.Keeper, Here(), talker));
+            CarryOut(Transition.AfterScript(Game, ending, conversation.Keeper, Here(), talker));
             return;
         }
         _host.ConversationChanged();
@@ -552,6 +630,18 @@ public sealed class TrekLoop : IMapObjectHost
     /// <summary>The chunk the player is in, and its terrain, where a battle in trek starts.</summary>
     public (ChunkRef? Chunk, int? Terrain) Here() =>
         Chunks.ChunkAt(Player.Sphere.Position) is { } chunk ? (new ChunkRef(Chunks.MapSet.Id, chunk.Row, chunk.Column), chunk.Terrain) : (null, null);
+
+    /// <summary>
+    /// What the player was doing as a wanderer caught him, for the enemies' spawn set (<c>EncounterDat.aniByte</c>, which
+    /// <c>Wanderer.Tick</c> notes as it notices him): 3 running, 2 walking, 1 sneaking, else 0.
+    /// </summary>
+    public static int AniByte(int request) => request switch
+    {
+        Body.Run => 3,
+        Body.Walk => 2,
+        Body.Sneak => 1,
+        _ => 0,
+    };
 
     /// <summary>A battle with a monster party in a loaded map, where the player stands.</summary>
     private BattleSetup Battle(BattleSource source, LoadedMap map, MonsterPartyObject party, bool ambush)
@@ -619,7 +709,7 @@ public sealed class TrekLoop : IMapObjectHost
             return;
         if (party.Dialogue is null)
         {
-            _host.Transition(new Transition.StartBattle(Battle(BattleSource.MonsterParty, map, party, ambush: false)));
+            CueBattle(Battle(BattleSource.MonsterParty, map, party, ambush: false));
             return;
         }
         // A talker whose script is a cut-scene stages it in the chunk the player is in, from reference

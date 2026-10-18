@@ -23,10 +23,18 @@ namespace Aidyn.Plugins.Records;
 /// </param>
 /// <param name="PrecipitationScale">How hard rain or snow falls here: its intensity is this give or take the weather record's spread.</param>
 /// <param name="Snow">Precipitation here is snow rather than rain.</param>
+/// <param name="Arenas">
+/// Which of the Battle arenas (<c>aidyn:mapset/16</c>, by chunk) a battle here takes: a roll over a range, or with two,
+/// one of them half the time, the first if the roll says so (<c>BattleSetup.ChooseArena</c>). Empty, or none in plugins
+/// imported before it, keeps the last battle's arena.
+/// </param>
 public sealed record TerrainRecord(RecordId Id, RecordId Sky, bool SkyDrawn, float Camp = 0, int Precipitation = 0,
-    float PrecipitationScale = 0, bool Snow = false)
+    float PrecipitationScale = 0, bool Snow = false, IReadOnlyList<ArenaRange>? Arenas = null)
 {
     /// <summary>The terrain a chunk carries (<see cref="ChunkEntry.Terrain"/>), if a plugin has its record.</summary>
     public static TerrainRecord? Find(PluginSet plugins, int terrain) =>
         plugins.TryGet<TerrainRecord>(RecordId.Decimal(RecordTypes.Terrain, terrain));
 }
+
+/// <summary>The Battle arenas from <paramref name="Min"/> to <paramref name="Max"/>, inclusive, one of which a battle rolls.</summary>
+public sealed record ArenaRange(int Min, int Max);

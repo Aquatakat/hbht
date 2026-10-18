@@ -365,8 +365,10 @@ public partial class Game : Node3D, ITrekHost
     {
         if (_menu?.Step() is not { } exit)
             return;
-        _chunks!.Regate();
-        _session!.MenuClosed(exit);
+        // Trek's world is freed while a battle plays.
+        if (_session!.Battle is null)
+            _chunks!.Regate();
+        _session.MenuClosed(exit);
     }
 
     /// <summary>Carries out the settings: the window, the 3D view, the draw distance, the sky, the pace and the UI screens.</summary>
@@ -441,13 +443,14 @@ public partial class Game : Node3D, ITrekHost
         _audio!.Step();
         // The HUD is trek's: not in a cut-scene. Under the pause menu and a backdrop's page it's drawn as it stands,
         // as the world is, so that it lays itself out again as the window or the menu size changes.
-        _hud!.Visible = Scene is null;
+        _hud!.Visible = Scene is null && Battle is null;
         _hud.QueueRedraw();
         if (session.TrekRuns)
             _popupView!.Step();
         var before = _player.Motion.Sphere.Position;
         var step = session.Tick(ReadInput, _camera.Flying, _sky!.State.Drawn,
-            actor => _actorViews.TryGetValue(actor, out var view) ? view.Motion : null);
+            actor => _actorViews.TryGetValue(actor, out var view) ? view.Motion : null,
+            combatant => _combatantViews.TryGetValue(combatant, out var view) ? view.Motion : null);
         switch (step)
         {
             case SessionStep.Cinematic:
@@ -462,12 +465,21 @@ public partial class Game : Node3D, ITrekHost
                 StepCutScene(over: step == SessionStep.CutSceneOver);
                 _particles!.Step();
                 return;
+            case SessionStep.Combat or SessionStep.CombatOver:
+                StepBattle(over: step == SessionStep.CombatOver);
+                _particles!.Step();
+                return;
         }
         _particles!.Step();
         ShowFade(session.Trek.Brightness);
         if (step == SessionStep.CutSceneCued)
         {
             BeginCutScene();
+            return;
+        }
+        if (step == SessionStep.BattleCued)
+        {
+            BeginBattle();
             return;
         }
         _sky!.Step();
@@ -706,9 +718,12 @@ public partial class Game : Node3D, ITrekHost
         foreach (var map in _changed)
             chunks.Rebuild(map);
         _changed.Clear();
-        var focus = _camera.Flying ? _camera.Current.GlobalPosition : Scene is not null ? Scene.Camera.Aim.ToGodot() : _player.GlobalPosition;
-        // A cut-scene's 3×3 stays as it loaded.
-        if (Scene is null)
+        var focus = _camera.Flying ? _camera.Current.GlobalPosition
+            : Scene is not null ? Scene.Camera.Aim.ToGodot()
+            : Battle is not null ? Battle.Camera.Aim.ToGodot()
+            : _player.GlobalPosition;
+        // A cut-scene's and an arena's 3×3 stay as they loaded.
+        if (Scene is null && Battle is null)
             chunks.Chunks.Update(focus.ToNumerics());
         var view = View();
         chunks.Fade(view, _drawDistance);
@@ -783,6 +798,11 @@ public partial class Game : Node3D, ITrekHost
                 if (!e.IsActionPressed("toggle_fly") && !e.IsActionPressed("toggle_overlay"))
                     return;
                 break;
+            case GameMode.Combat:
+                CombatInput(action);
+                if (!e.IsActionPressed("toggle_fly") && !e.IsActionPressed("toggle_overlay"))
+                    return;
+                break;
             default:
                 if (Trek is { Cued: not null } or { CutSceneFade.Fading: true })
                 {
@@ -813,7 +833,7 @@ public partial class Game : Node3D, ITrekHost
             _settings.UiLines = _settings.UiLines switch { < 360 => 360, < 480 => 480, _ => 240 };
             _settings.Notify();
         }
-        else if (e.IsActionPressed("quick_save") && _game is not null && Scene is null)
+        else if (e.IsActionPressed("quick_save") && _game is not null && Scene is null && Battle is null)
         {
             QuickSave();
         }
@@ -924,8 +944,8 @@ public partial class Game : Node3D, ITrekHost
 
     /// <summary>
     /// Shows where the game goes as a mode, the menu or a script ends (<see cref="Transition"/>): the shop or training in the
-    /// pause menu, the cut-scene's stage and trek again, the credits, a cinematic or the menu reopened; and, until combat, a
-    /// word for a battle.
+    /// pause menu, the cut-scene's stage, a battle's arena and its pause menu, trek again, the credits, a cinematic or the menu
+    /// reopened.
     /// </summary>
     void ITransitionHost.Transition(Transition next)
     {
@@ -939,6 +959,15 @@ public partial class Game : Node3D, ITrekHost
                 break;
             case Transition.StartBattle battle:
                 SayBattle(battle.Setup);
+                break;
+            case Transition.StartedBattle started:
+                ShowArena(started.Battle, started.Arena);
+                break;
+            case Transition.PauseBattle pause:
+                _menu!.OpenCombat(pause.PartyTab, pause.CanFlee);
+                break;
+            case Transition.EndBattle:
+                FreeArena();
                 break;
             case Transition.Camp camp:
                 GD.Print($"Camping: {camp.Outcome}.");
@@ -973,26 +1002,8 @@ public partial class Game : Node3D, ITrekHost
         }
     }
 
-    /// <summary>What a battle would be, until combat (2.5): a wanderer's ambush goes to the log, the rest are said.</summary>
-    private void SayBattle(BattleSetup setup)
-    {
-        var party = setup.Party?.ToString();
-        switch (setup.Source)
-        {
-            case BattleSource.Wanderer:
-                GD.Print($"{party} ambushes the party; battles come with combat (2.5).");
-                break;
-            case BattleSource.MonsterParty:
-                Say($"{party} would fight; battles come with combat (2.5).");
-                break;
-            case BattleSource.Camp:
-                Say("The party is ambushed; battles come with combat (2.5).");
-                break;
-            default:
-                Say("A battle would start; battles come with combat (2.5).");
-                break;
-        }
-    }
+    /// <summary>A battle no trek cued (<see cref="Transition.StartBattle"/>), which nothing in the runtime sends: it's said.</summary>
+    private void SayBattle(BattleSetup setup) => Say($"A battle with {setup.Party?.ToString() ?? "a script's enemies"} would start.");
     /// <summary>A script's sounds. The cut-scene carries out the rest of its cues.</summary>
     void Core.Scripts.IScriptHost.Cue(Core.Scripts.ScriptCue cue)
     {

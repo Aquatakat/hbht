@@ -34,6 +34,12 @@ public enum PauseExitCode
 
     /// <summary>Credits (row 9999, <c>0x80040524</c>): the credits play over trek held still (trek state 0x19).</summary>
     Credits = 5,
+
+    /// <summary>
+    /// Flee, on combat's System tab: the party leaves the battle for trek (combat's state 16). Combat's menu has an exit of
+    /// its own, where this is 1; the port keeps one list of the menu's endings.
+    /// </summary>
+    Flee = 6,
 }
 
 /// <summary>
@@ -52,6 +58,8 @@ public sealed record PauseExit(PauseExitCode Code, CinematicRecord? Cinematic = 
     public static readonly PauseExit Load = new(PauseExitCode.Load);
 
     public static readonly PauseExit Credits = new(PauseExitCode.Credits);
+
+    public static readonly PauseExit Flee = new(PauseExitCode.Flee);
 
     /// <summary>The Theatre chose <paramref name="cinematic"/>.</summary>
     public static PauseExit Theatre(CinematicRecord cinematic) => new(PauseExitCode.Theatre, cinematic);

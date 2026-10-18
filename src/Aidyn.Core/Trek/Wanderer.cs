@@ -242,7 +242,7 @@ public sealed class Wanderer
         if (MathF.Abs(from.Y - to.Y) >= Crowd.Height
             || SpherePhysics.Sweep(tick.World, from, to, AmbushSweepRadius, skipSeeThrough: false, out _, out _))
             return false;
-        // The battle starts here, as an ambush (collisionByte 2). Until combat (2.5), the party
+        // The battle starts here, as an ambush (collisionByte 2), and trek fades out into it; the party
         // stops where it is and no longer hunts.
         Hunts = false;
         Body.Stop();

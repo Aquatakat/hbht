@@ -34,8 +34,23 @@ public abstract record Transition
     /// <summary>Training opens at a trainer: the pause menu in its training state (<c>init_skill_trainer</c>).</summary>
     public sealed record OpenTraining(Trainer Trainer) : Transition;
 
-    /// <summary>A battle starts. Until combat (M3) there's only the setup to show.</summary>
+    /// <summary>
+    /// A battle is to start, as a script's end or a map object decides it. Trek cues it (<see cref="TrekLoop.CueBattle"/>),
+    /// so a host sees it only where nothing plays it, as on the editor's script page.
+    /// </summary>
     public sealed record StartBattle(BattleSetup Setup) : Transition;
+
+    /// <summary>A battle has begun on its arena, fading in (<c>Combat.Init</c>, <see cref="GameSession.BeginBattle"/>).</summary>
+    public sealed record StartedBattle(Battle Battle, ZoneEngine Arena) : Transition;
+
+    /// <summary>
+    /// The battle's pause asks for its pause menu (combat's mode 3): from a turn (state 14) with the Party tab, and Flee if
+    /// <paramref name="CanFlee"/>; from any other state (27), the System tab alone.
+    /// </summary>
+    public sealed record PauseBattle(bool PartyTab, bool CanFlee) : Transition;
+
+    /// <summary>A battle is over and its arena gone (<c>Combat.Exit</c>): trek is about to be built again (<see cref="ResumeTrek"/> follows).</summary>
+    public sealed record EndBattle(Battle Battle) : Transition;
 
     /// <summary>The party camped, as the World tab's Camp asked (<see cref="TrekLoop.Camp"/>).</summary>
     public sealed record Camp(CampOutcome Outcome) : Transition;

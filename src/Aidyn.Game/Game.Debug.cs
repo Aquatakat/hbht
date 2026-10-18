@@ -60,6 +60,8 @@ public partial class Game
             CueFromCommandLine(cutscene);
         if (options.Cinematic is { } cinematic)
             CinematicFromCommandLine(cinematic);
+        if (options.Battle is { } battle)
+            BattleFromCommandLine(battle);
         if (options.Screenshot is { } png)
             _ = Screenshot(png, hold, options.Frames);
     }
@@ -100,6 +102,27 @@ public partial class Game
             };
         }
         return 0.5 + 0.2 * pressed.Length;
+    }
+
+    /// <summary>
+    /// Starts a battle from the command line (<c>--battle aidyn:voxel/0x0E8A/3[,arena][,ambush]</c>): with the monster
+    /// party given, where the player stands, as using it would, in the arena given or else the one the terrain chooses,
+    /// and as an ambush if asked.
+    /// </summary>
+    private void BattleFromCommandLine(string battle)
+    {
+        var parts = battle.Split(',');
+        var id = RecordId.Parse(parts[0]);
+        if (id.Type != RecordTypes.Voxel || MapRecord.Find(_plugins!, id) is not MonsterPartyObject party)
+        {
+            Say($"{parts[0]} isn't a monster party.");
+            return;
+        }
+        var ambush = parts.Contains("ambush");
+        int? arena = parts.Length > 1 && int.TryParse(parts[1], out var n) ? n : null;
+        var (place, terrain) = Trek!.Here();
+        var setup = Core.Combat.BattleSetup.WithParty(Core.Combat.BattleSource.MonsterParty, id, party, place, terrain, ambush) with { Arena = arena };
+        _session!.CueBattle(setup);
     }
 
     /// <summary>
@@ -200,7 +223,9 @@ public partial class Game
         var local = chunk is null ? focus : focus - chunks.Origin(chunk);
         var motion = _player!.Motion;
         var sphere = motion.Sphere;
-        _overlay.Text = (Scene is { } scene ? $"cut-scene {scene.Runner.Script.Id}, waiting for {scene.Runner.Wait?.ToString() ?? "nothing"}, {scene.Actors.Count} actors, {scene.Cameras.Count} camera moves\n" : "") +
+        _overlay.Text = (Battle is { } battle ? $"battle in arena {battle.Arena.Number} ({battle.Arena.Chunk.Name}), {battle.State}, {battle.Current?.Sheet.Name ?? "no one"}'s turn: " +
+                $"{string.Join(", ", battle.Combatants.Select(c => $"{c.Slot} {c.Sheet.Name} ({c.Cell.X}, {c.Cell.Y}) at {Local(c.Body.Sphere.Position)}"))}, eye {Local(battle.Camera.Position)} aim {Local(battle.Camera.Aim)}{(battle.CanFlee ? "; can flee" : "")}\n" : "") +
+            (Scene is { } scene ?$"cut-scene {scene.Runner.Script.Id}, waiting for {scene.Runner.Wait?.ToString() ?? "nothing"}, {scene.Actors.Count} actors, {scene.Cameras.Count} camera moves\n" : "") +
             $"{chunks.Chunks.MapSet.Label} {chunk?.Name ?? "(no chunk)"}  " +
             $"({local.X:F1}, {local.Y:F1}, {local.Z:F1})  {Engine.GetFramesPerSecond()} fps" +
             (_camera!.Flying ? "  [free camera]" : "") + "\n" +
@@ -211,6 +236,13 @@ public partial class Game
             $"  UI {_menu!.Screen.Lines} lines (F7)  wanderers {Trek.Wanderers.All.Count}\n" +
             $"music {_audio!.MusicPlaying?.Key ?? "none"}  sounds {Trek.Zone.Sounds.Playing} of the map's, {_audio.SoundsPlaying} one-shots" +
             $"  particles {_particles!.Head.ParticlesInUse} of {_particles.Head.MaxParticles}{Precipitation()}";
+    }
+
+    /// <summary>For the overlay: a point in the battle's arena chunk's coordinates.</summary>
+    private string Local(System.Numerics.Vector3 at)
+    {
+        var local = at - Battle!.Arena.Origin;
+        return $"({local.X:F1}, {local.Y:F1}, {local.Z:F1})";
     }
 
     /// <summary>For the overlay: how many raindrops or snowflakes and splashes the last frame drew, and how many of them are on screen.</summary>

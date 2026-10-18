@@ -255,7 +255,7 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         var party = TradeData.PartyOf(TradeData.Catalog(), ItemData.Flags(), Characters.Create(Characters.Alaron()));
         var system = new SystemMenu(fixture.Plugins, new Settings(), party, _saves);
 
-        Assert.Equal(Enum.GetValues<SystemItem>(), system.Items.Rows);
+        Assert.Equal(Enum.GetValues<SystemItem>().Where(i => i != SystemItem.Flee), system.Items.Rows);
         Assert.Equal("L160", system.Label(SystemItem.LoadGame));
         Assert.Equal("L377", system.Label(SystemItem.SaveGame));
         Assert.Equal("Credits", system.Label(SystemItem.Credits));
@@ -275,6 +275,19 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
             Assert.Null(system.Accept());
             Assert.False(system.OnList);
         }
+    }
+
+    [Fact]
+    public void CombatsListIsOptionsAndFleeWhenThePartyCanFlee()
+    {
+        var party = TradeData.PartyOf(TradeData.Catalog(), ItemData.Flags(), Characters.Create(Characters.Alaron()));
+        // OptionsMenu's combat branch: Options (161) and, while the party can flee from a turn's pause, Flee (378).
+        var system = new SystemMenu(fixture.Plugins, new Settings(), party, _saves, combat: true);
+        Assert.Equal([SystemItem.Options, SystemItem.Flee], system.Items.Rows);
+        Assert.Equal("L378", system.Label(SystemItem.Flee));
+        system.Items.Point(1);
+        Assert.Equal(PauseExit.Flee, system.Accept());
+        Assert.Equal([SystemItem.Options], new SystemMenu(fixture.Plugins, new Settings(), party, _saves, combat: false).Items.Rows);
     }
 
     // The save and load screens.
