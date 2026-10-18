@@ -20,21 +20,20 @@ public sealed record CombatLogBoxLayout(FeatheredPanel Panel, TextBlock Text, in
 /// off the radar. Its own lines are <see cref="Combat.CombatLog"/>'s.
 /// </para>
 /// <para>
-/// The port floats it as the caption box (<see cref="CaptionBox"/>) and the conversation box do, the user's choice: laid
-/// out in the original's frame at the bottom centre of the UI screen, its band from inside where the side bars would be
-/// (16 to 304) down to the screen's foot, feathered beside it and above.
+/// The port floats it as the conversation box (<see cref="DialogueBox"/>), the user's choice, so the two read as one
+/// panel: laid out in the original's frame at the bottom centre of the UI screen, its band from 16 to 304 and from 180 to
+/// 228, inside where the overscan bars would be, feathered on every side with the conversation box's gradients, and the
+/// border and portrait level with the box's top as the conversation box has them, at (20, 180) and (26, 186). The line
+/// stays the original's, lowered to 190, as the box rarely holds more than one.
 /// </para>
 /// </remarks>
 public static class CombatLogBox
 {
-    /// <summary>The band's top, and the text's place and bounds.</summary>
+    /// <summary>The band's top, and the text's place and bounds (the original's).</summary>
     public const int Top = 180, TextLeft = 76, TextTop = 190, TextRight = 241, TextBottom = 230;
 
-    /// <summary>The border's and the portrait's places.</summary>
-    public const int BorderX = 20, BorderY = 174, PortraitX = 26, PortraitY = 180;
-
-    /// <summary>How tall the gradient over the band is.</summary>
-    public const int GradientHeight = 11;
+    /// <summary>The border's and the portrait's places, the conversation box's: the original's are 6 higher, (20, 174) and (26, 180).</summary>
+    public const int BorderX = 20, BorderY = 180, PortraitX = 26, PortraitY = 186;
 
     /// <summary>The line's colour.</summary>
     public static readonly Rgba TextColor = new(225, 225, 225, 200);
@@ -46,9 +45,10 @@ public static class CombatLogBox
     public static CombatLogBoxLayout Layout(string text, RecordId? portrait, int screenWidth, int screenHeight)
     {
         var (x, y) = ((screenWidth - DialogueBox.FrameWidth) / 2, screenHeight - DialogueBox.FrameHeight);
-        var band = new ScreenRect(x + DialogueBox.OverscanSide, y + Top, x + DialogueBox.FrameWidth - DialogueBox.OverscanSide, screenHeight);
+        var band = new ScreenRect(x + DialogueBox.OverscanSide, y + Top, x + DialogueBox.FrameWidth - DialogueBox.OverscanSide,
+            y + DialogueBox.FrameHeight - DialogueBox.OverscanBottom);
         return new CombatLogBoxLayout(
-            new FeatheredPanel(band, GradientHeight, 0, DialogueBox.OverscanSide, DialogueBox.OverscanSide),
+            new FeatheredPanel(band, DialogueBox.GradientHeight, DialogueBox.OverscanBottom, DialogueBox.OverscanSide, DialogueBox.OverscanSide),
             new TextBlock(text, x + TextLeft, y + TextTop, new ScreenRect(x + TextLeft, y + TextTop, x + TextRight, y + TextBottom)),
             x + BorderX, y + BorderY, x + PortraitX, y + PortraitY, portrait);
     }

@@ -241,14 +241,15 @@ public sealed class CombatGuiTests
     }
 
     [Fact]
-    public void TheLogBoxIsTheCapturesAndTheBattleWritesItsLinesThere()
+    public void TheLogBoxsLineIsTheCapturesAndTheBoxFloatsAsTheConversationBoxDoes()
     {
         var box = CombatLogBox.Layout("Brenna begins action", null, 320, 240);
         // The capture's text runs from x 76, its glyphs' rows from 190.
         Assert.Equal((76, 190, new ScreenRect(76, 190, 241, 230)), (box.Text.X, box.Text.Y, box.Text.Bounds));
-        Assert.Equal((20, 174, 26, 180), (box.BorderX, box.BorderY, box.PortraitX, box.PortraitY));
-        Assert.Equal(new ScreenRect(16, 180, 304, 240), box.Panel.Band);
-        Assert.Equal((11, 0, 16, 16), (box.Panel.Top, box.Panel.Bottom, box.Panel.Left, box.Panel.Right));
+        // Floating as the conversation box does, its border and portrait level with the box's top as that box has them.
+        Assert.Equal((20, 180, 26, 186), (box.BorderX, box.BorderY, box.PortraitX, box.PortraitY));
+        Assert.Equal(new ScreenRect(16, 180, 304, 228), box.Panel.Band);
+        Assert.Equal((10, 12, 16, 16), (box.Panel.Top, box.Panel.Bottom, box.Panel.Left, box.Panel.Right));
 
         var battle = Fight();
         battle.Write("Brenna begins action");
@@ -265,7 +266,7 @@ public sealed class CombatGuiTests
         Assert.Equal((21f, 18f), (inBox.Frames.First(f => f.X < 320).X, inBox.Frames.First(f => f.X < 320).Y));
         Assert.Equal((270 + 320f, 18f), (inBox.Frames[0].X, inBox.Frames[0].Y));
         Assert.Equal((76 + 160, 190 + 120), (inBox.Log.Text.X, inBox.Log.Text.Y));
-        Assert.Equal(new ScreenRect(176, 300, 464, 360), inBox.Log.Panel.Band);
+        Assert.Equal(new ScreenRect(176, 300, 464, 348), inBox.Log.Panel.Band);
         Assert.Equal((245 + 160f, 170 + 120f), (inBox.RadarRing.X, inBox.RadarRing.Y));
 
         var corner = gui.Draw(battle, Portrait, RadarAnchor.Corner, 640, 360);

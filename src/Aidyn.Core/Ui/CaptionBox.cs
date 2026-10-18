@@ -25,8 +25,8 @@ public sealed record CaptionBoxLayout(FeatheredPanel Panel, TextBlock Text);
 /// The port lays it out in the original's frame at the bottom centre of the UI screen, as the conversation box is, so the
 /// text wraps as authored at any size. Like that box it floats rather than running under bars it doesn't draw: the band
 /// is inside where the side bars would be, feathered beside it and above it with the popups' pieces, but it runs down
-/// to the screen's bottom, which it's anchored to, with no feathering there. The user chose this shape (Oct 17, 2026),
-/// and the battle's log box, the same widget at another size, takes it too.
+/// to the screen's bottom, which it's anchored to, with no feathering there. The user chose this shape (Oct 17, 2026).
+/// The battle's log box is the same widget, floated as the conversation box instead.
 /// </para>
 /// </remarks>
 public static class CaptionBox
