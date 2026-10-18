@@ -14,8 +14,6 @@ namespace Aidyn.Game;
 public partial class TrekPopupView : Control
 {
     private readonly UiPainter _ui;
-    /// <summary>The cursor's option pulses between a scroll menu's own colours, a step a trek frame.</summary>
-    private readonly MenuPulse _pulse = new(Cadence.FrameTicks);
 
     /// <summary>The popup to draw, or none.</summary>
     public TrekPopup? Popup
@@ -23,8 +21,6 @@ public partial class TrekPopupView : Control
         get;
         set
         {
-            if (field != value)
-                _pulse.Reset();
             field = value;
             QueueRedraw();
         }
@@ -47,9 +43,9 @@ public partial class TrekPopupView : Control
     /// <summary>Steps the cursor's pulse by a 60 Hz tick.</summary>
     public void Step()
     {
-        if (Popup is not { Kind: TrekPopupKind.Choice })
+        if (Popup is not { Kind: TrekPopupKind.Choice } popup)
             return;
-        _pulse.Step();
+        popup.Step();
         QueueRedraw();
     }
 
@@ -61,7 +57,7 @@ public partial class TrekPopupView : Control
         switch (popup.Kind)
         {
             case TrekPopupKind.Message:
-                _ui.Message(this, screen, popup.Text, popup.Wrap, popup.Color);
+                _ui.Message(this, screen, popup.Body!);
                 break;
             case TrekPopupKind.Damage:
                 Damage(screen, popup);
@@ -83,7 +79,5 @@ public partial class TrekPopupView : Control
     }
 
     // WidgetChoiceDia::Update.
-    private void Choice(Vector2I screen, TrekPopup popup) =>
-        _ui.Choice(this, screen, popup.Text, popup.Wrap, popup.Gap, popup.Color, popup.Color, popup.Choices,
-            _pulse.Now(MenuPulse.ScrollFrom, MenuPulse.ScrollTo));
+    private void Choice(Vector2I screen, TrekPopup popup) => _ui.Choice(this, screen, popup.Question!, popup.Highlight);
 }

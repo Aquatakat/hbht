@@ -134,9 +134,8 @@ public partial class SystemTabView : Control
         if (Veil > 0)
             _ui.Image(this, MenuImages.SystemTab, 0, 0, color: new Rgba(255, 255, 255, (byte)(Veil * 255)));
         DrawSetTransform(Vector2.Zero);
-        if (Menu.Saves?.Choice is { } choice)
-            _ui.Choice(this, size, choice.Text, choice.Width, choice.Gap, choice.Color, choice.ChoiceColor, choice.Choices,
-                Menu.Saves.ChoicePulse.Now(MenuPulse.ScrollFrom, MenuPulse.ScrollTo));
+        if (Menu.Saves is { } saves)
+            _ui.Overlay(this, size, saves.Overlay);
     }
 
     /// <summary>A page of the tab at an alpha, everything on it faded alike.</summary>

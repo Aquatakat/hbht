@@ -91,9 +91,6 @@ public partial class PartyTabView
     private void TrainingPopups(TrainingMenu training)
     {
         var screen = (Vector2I)Size;
-        if (training.Choice is { } choice)
-            _ui.Choice(_canvas, screen, choice.Text, choice.Width, choice.Gap, choice.Color, choice.ChoiceColor, choice.Choices, training.PopupHighlight);
-        if (training.Message is { } message)
-            Message(message);
+        _ui.Overlay(_canvas, screen, training.Overlay);
     }
 }

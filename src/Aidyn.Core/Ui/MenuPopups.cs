@@ -15,7 +15,8 @@ namespace Aidyn.Core.Ui;
 /// <param name="Box">
 /// A box of a size of its own, rather than fitted to the text, with the text in white (<c>TextPopup_New</c>).
 /// </param>
-public sealed record MenuMessage(string Text, bool FromCrafting = false, (int Width, int Height)? Box = null)
+/// <param name="Wrap">The widest the text wraps at, which the box is fitted to.</param>
+public sealed record MenuMessage(string Text, bool FromCrafting = false, (int Width, int Height)? Box = null, int Wrap = MenuMessage.MaxWidth)
 {
     /// <summary>The widest a message wraps at.</summary>
     public const int MaxWidth = 150;
@@ -37,6 +38,13 @@ public sealed record MenuChoice(string Text, int Width, int Gap, Rgba Color, Rgb
 {
     /// <summary>The leave-items choice's question, in white, and its choices, in tan (<c>WidgetBarter::BFunc</c>).</summary>
     public static readonly Rgba Tan = new(200, 180, 100, 255);
+
+    /// <summary>
+    /// The shop's and the training window's question, 150 wide with no gap, in white over its answers in tan
+    /// (<c>WidgetBarter::BFunc</c>): the leave-items question, or whether to train.
+    /// </summary>
+    public static MenuChoice Question(string text, IReadOnlyList<string> answers) =>
+        new(text, MenuMessage.MaxWidth, 0, MenuMessage.White, Tan, new MenuList<string>(answers));
 }
 
 /// <summary>What a crafting popup is offering.</summary>

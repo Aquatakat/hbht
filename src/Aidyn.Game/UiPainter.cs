@@ -87,6 +87,31 @@ public sealed class UiPainter
     }
 
     /// <summary>
+    /// A menu's message: fitted to its text and off-white, or in a box of its own size and white (<see cref="MenuMessage.Box"/>);
+    /// a crafting popup's result has 16 more across and 5 more down (<c>WidgetCrafting::TextPopup</c>).
+    /// </summary>
+    public void Message(CanvasItem canvas, Vector2I screen, MenuMessage message)
+    {
+        if (message.Box is { } box)
+            MessageBox(canvas, screen, message.Text, box.Width, box.Height, MenuMessage.White);
+        else
+            Message(canvas, screen, message.Text, message.Wrap, MenuMessage.Color, message.FromCrafting ? 16 : 0, message.FromCrafting ? 5 : 0);
+    }
+
+    /// <summary>A menu's question over choices, with the cursor's option in <paramref name="cursor"/>.</summary>
+    public void Choice(CanvasItem canvas, Vector2I screen, MenuChoice choice, Rgba cursor) =>
+        Choice(canvas, screen, choice.Text, choice.Width, choice.Gap, choice.Color, choice.ChoiceColor, choice.Choices, cursor);
+
+    /// <summary>The popups a menu has open that are drawn over the screen: its question, then its message over that.</summary>
+    public void Overlay(CanvasItem canvas, Vector2I screen, MenuOverlay overlay)
+    {
+        if (overlay.Choice is { } choice)
+            Choice(canvas, screen, choice, overlay.Highlight);
+        if (overlay.Message is { } message)
+            Message(canvas, screen, message);
+    }
+
+    /// <summary>
     /// A question over choices (<c>WidgetChoiceDia::Update</c>): the question wrapped to
     /// <paramref name="width"/> and its options under it, <paramref name="gap"/> apart, all centred on the
     /// screen on a feathered panel as wide as the popup, with the cursor's option in <paramref name="cursor"/>.

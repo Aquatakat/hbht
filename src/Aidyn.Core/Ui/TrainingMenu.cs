@@ -37,7 +37,6 @@ public sealed class TrainingMenu
     public const int YesLine = 31, NoLine = 32;
 
     private readonly FlagNetwork? _flags;
-    private readonly MenuPulse _popupPulse = new();
 
     private TrainingMenu(PartyMenu party, Trainer trainer, FlagNetwork? flags)
     {
@@ -84,29 +83,32 @@ public sealed class TrainingMenu
     /// </summary>
     public bool Followed { get; private set; }
 
+    /// <summary>The popups over the window: the refusal, the question and the help, and C-down's details.</summary>
+    public MenuOverlay Overlay { get; } = new();
+
     /// <summary>A refusal, over everything, which A, B or C-down closes.</summary>
-    public MenuMessage? Message { get; private set; }
+    public MenuMessage? Message => Overlay.Message;
 
     /// <summary>The question that trains the row, Yes or No.</summary>
-    public MenuChoice? Choice { get; private set; }
+    public MenuChoice? Choice => Overlay.Choice;
 
     /// <summary>The help on the first spell learnt, on the parchment, which A or B closes (<c>WidgetMenuPrompt</c>).</summary>
-    public string? Help { get; private set; }
+    public string? Help => Overlay.Help;
 
     /// <summary>Whether a popup or the details are taking the presses.</summary>
-    public bool HasPopup => Message is not null || Choice is not null || Help is not null || DetailsPane.Showing;
+    public bool HasPopup => Overlay.HasPopup;
 
     /// <summary>C-down's details of the active row, which fade as the Party tab's do (<see cref="PopupFade"/>).</summary>
-    public DetailsPane DetailsPane { get; } = new();
+    public DetailsPane DetailsPane => Overlay.Details;
 
     /// <summary>C-down pressed: shows the details, unless a popup is up or they show already.</summary>
-    public void PressDetails() => DetailsPane.Press(!HasPopup && Details() is not null);
+    public void PressDetails() => Overlay.PressDetails(!HasPopup && Details() is not null);
 
     /// <summary>C-down let go: the details fade out once they're open.</summary>
-    public void ReleaseDetails() => DetailsPane.Release();
+    public void ReleaseDetails() => Overlay.ReleaseDetails();
 
     /// <summary>The colour the popups' cursors pulse to now.</summary>
-    public Rgba PopupHighlight => _popupPulse.Now(MenuPulse.ScrollFrom, MenuPulse.ScrollTo);
+    public Rgba PopupHighlight => Overlay.Highlight;
 
     /// <summary>
     /// The three lines under the trainer's list (<c>GetPrices</c>, <c>0x80032088</c>): what the member's own
@@ -153,12 +155,7 @@ public sealed class TrainingMenu
     /// <summary>Moves the cursor of the choice, or of the trainer's list, which the member's follows.</summary>
     public void MoveCursor(int by)
     {
-        if (Choice is { } choice)
-        {
-            choice.Choices.Move(by);
-            return;
-        }
-        if (HasPopup)
+        if (Overlay.MoveCursor(by) || HasPopup)
             return;
         if (OnSpells)
             Spells.Move(by);
@@ -199,18 +196,15 @@ public sealed class TrainingMenu
     public void Step()
     {
         Party.Step();
-        _popupPulse.Step();
-        DetailsPane.Advance();
+        Overlay.Step();
     }
 
     /// <summary>A: closes a message or the help, chooses Yes or No, or asks to train the trainer's row.</summary>
     public void Accept()
     {
-        if (Message is not null)
-            Message = null;
-        else if (Help is not null)
-            Help = null;
-        else if (Choice is { } choice)
+        if (Overlay.Dismiss())
+            return;
+        if (Choice is { } choice)
             Choose(choice);
         else if (!DetailsPane.Showing)
             Ask();
@@ -219,23 +213,13 @@ public sealed class TrainingMenu
     /// <summary>B, or Start: closes a message or the help. False if nothing holds the window open, so it closes; the question has no B.</summary>
     public bool Back()
     {
-        if (Message is not null)
-            Message = null;
-        else if (Help is not null)
-            Help = null;
-        else if (Choice is null && !DetailsPane.Showing)
-            return false;
-        return true;
+        if (Overlay.Dismiss())
+            return true;
+        return Choice is not null || DetailsPane.Showing;
     }
 
     /// <summary>C-down: closes a message. True if it did, so C-down doesn't show the details too.</summary>
-    public bool CloseMessage()
-    {
-        if (Message is null)
-            return false;
-        Message = null;
-        return true;
-    }
+    public bool CloseMessage() => Overlay.CloseMessage();
 
     // WidgetMenuSpells::AFunc: the member's list's Confirm, for the trainer's row.
     private void Ask()
@@ -256,9 +240,7 @@ public sealed class TrainingMenu
         if (quote.Allowed)
         {
             line = OnSpells ? charges ? MenuText.TrainSpellFor : MenuText.TrainSpellForXp : charges ? MenuText.TrainSkillFor : MenuText.TrainSkillForXp;
-            Choice = new MenuChoice(text.Format(line, quote.Exp, quote.Gold), MenuMessage.MaxWidth, 0, MenuMessage.White, MenuChoice.Tan,
-                new MenuList<string>([text[YesLine], text[NoLine]]));
-            _popupPulse.Reset();
+            Overlay.Ask(MenuChoice.Question(text.Format(line, quote.Exp, quote.Gold), [text[YesLine], text[NoLine]]));
             return;
         }
         line = (quote.Refusal, OnSpells) switch
@@ -275,7 +257,7 @@ public sealed class TrainingMenu
             (TrainingRefusal.CantAfford, true) => charges ? MenuText.SpellNeeds : MenuText.SpellNeedsXp,
             _ => MenuText.SkillCantLearn,
         };
-        Message = new MenuMessage(text.Format(line, quote.Exp, quote.Gold));
+        Overlay.Say(text.Format(line, quote.Exp, quote.Gold));
     }
 
     // The member's list's GetExpPrice and GetGoldPrice for the trainer's row: null with no row, and no
@@ -303,7 +285,7 @@ public sealed class TrainingMenu
     // WST_AButtonFunc and Purchase: Yes trains the row; either closes the question.
     private void Choose(MenuChoice choice)
     {
-        Choice = null;
+        Overlay.CloseChoice();
         if (choice.Choices.Cursor != 0 || Party.Shown is not { } student)
             return;
         var gold = Party.Party.Gold;
@@ -318,7 +300,7 @@ public sealed class TrainingMenu
             if (learnt && flag is { } f && _flags is not null && !_flags.IsSet(f))
             {
                 _flags.TrySet(f, true);
-                Help = Party.Text[MenuText.FirstSpell];
+                Overlay.ShowHelp(Party.Text[MenuText.FirstSpell]);
             }
         }
         Party.Party.Gold = gold;

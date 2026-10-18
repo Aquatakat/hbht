@@ -92,8 +92,7 @@ public partial class WorldTabView : Control
         if (Veil > 0)
             _ui.Plain(this, MenuImages.WorldTab, PlainPatches, 0, 0, new Rgba(255, 255, 255, (byte)(Veil * 255)));
         DrawSetTransform(Vector2.Zero);
-        if (Menu.Message is { } message)
-            _ui.Message(this, size, message.Text, MenuMessage.MaxWidth, MenuMessage.Color);
+        _ui.Overlay(this, size, Menu.Overlay);
     }
 
     /// <summary>The pieces found, tinted as the tab's text and fading in; the towns' names; and the party's ring.</summary>

@@ -111,13 +111,14 @@ public sealed class SaveMenu
     /// <summary>What to do with the slot: Save or Load, Delete and Exit.</summary>
     public MenuList<string> Actions { get; }
 
+    /// <summary>The question over the screen, which takes every press until it's answered.</summary>
+    public MenuOverlay Overlay { get; } = new();
+
     /// <summary>A question over the screen, which takes every press until it's answered.</summary>
-    public MenuChoice? Choice { get; private set; }
+    public MenuChoice? Choice => Overlay.Choice;
 
     /// <summary>The actions' pulse, over 15 steps rather than 20, 28 frames a cycle (<c>SaveMenu.Actions</c>, <c>0x8007e658</c>).</summary>
     public MenuPulse Pulse { get; } = new(frames: 15);
-
-    public MenuPulse ChoicePulse { get; } = new();
 
     /// <summary>What the runtime is asked to do, and with which file.</summary>
     public SaveRequest Request { get; private set; }
@@ -165,7 +166,7 @@ public sealed class SaveMenu
     public void Step()
     {
         Pulse.Step();
-        ChoicePulse.Step();
+        Overlay.Step();
         if (Slide?.Step() == false)
             Slide = null;
     }
@@ -191,9 +192,7 @@ public sealed class SaveMenu
     {
         if (Sliding)
             return;
-        if (Choice is { } choice)
-            choice.Choices.Move(by);
-        else
+        if (!Overlay.MoveCursor(by))
             Actions.Move(by);
     }
 
@@ -273,7 +272,7 @@ public sealed class SaveMenu
 
     private void Answer(int choice)
     {
-        Choice = null;
+        Overlay.CloseChoice();
         switch (_asking)
         {
             case OverwriteQuestion when choice == 0:
@@ -294,8 +293,7 @@ public sealed class SaveMenu
     // WidgetChoiceDia, 150 wide in the menu, in off-white.
     private void Ask(string question, IReadOnlyList<string> answers)
     {
-        Choice = new MenuChoice(question, MenuMessage.MaxWidth, 0, MenuMessage.Color, MenuMessage.Color, new MenuList<string>(answers));
-        ChoicePulse.Reset();
+        Overlay.Ask(new MenuChoice(question, MenuMessage.MaxWidth, 0, MenuMessage.Color, MenuMessage.Color, new MenuList<string>(answers)));
     }
 
     /// <summary>Lists the saves again and shows the slot.</summary>

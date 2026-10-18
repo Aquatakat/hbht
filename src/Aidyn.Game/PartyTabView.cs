@@ -398,8 +398,7 @@ public partial class PartyTabView : Control
     /// as wide as its text up to 150, and as tall as it wraps, plus 5; a crafting popup's result has 16
     /// more across and 5 more down (<c>WidgetCrafting::TextPopup</c>).
     /// </summary>
-    private void Message(MenuMessage message) =>
-        _ui.Message(_canvas, (Vector2I)Size, message.Text, MenuMessage.MaxWidth, MenuMessage.Color, message.FromCrafting ? 16 : 0, message.FromCrafting ? 5 : 0);
+    private void Message(MenuMessage message) => _ui.Message(_canvas, (Vector2I)Size, message);
 
     /// <summary>
     /// The portraits from the member shown round, their name, and their aspect's and school's icons. As the member

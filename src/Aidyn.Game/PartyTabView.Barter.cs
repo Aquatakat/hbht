@@ -100,12 +100,7 @@ public partial class PartyTabView
         var screen = (Vector2I)Size;
         if (barter.Confirm is { } confirm)
             Confirm(confirm, barter.PopupHighlight);
-        if (barter.Choice is { } choice)
-            _ui.Choice(_canvas, screen, choice.Text, choice.Width, choice.Gap, choice.Color, choice.ChoiceColor, choice.Choices, barter.PopupHighlight);
-        if (barter.Message is { Box: { } box } boxed)
-            _ui.MessageBox(_canvas, screen, boxed.Text, box.Width, box.Height, MenuMessage.White);
-        else if (barter.Message is { } message)
-            Message(message);
+        _ui.Overlay(_canvas, screen, barter.Overlay);
     }
 
     /// <summary>

@@ -37,17 +37,20 @@ public sealed partial class PartyMenu
     /// <summary>The recipes the Alchemist and Mechanic offer, in order.</summary>
     public IReadOnlyList<RecipeRecord> Recipes { get; init; } = [];
 
+    /// <summary>The message and C-down's details, which take the presses ahead of the tab and the crafting popup.</summary>
+    public MenuOverlay Overlay { get; } = new();
+
     /// <summary>A message over everything, which A, B or C-down closes.</summary>
-    public MenuMessage? Message { get; private set; }
+    public MenuMessage? Message => Overlay.Message;
 
     /// <summary>A skill's popup, under any message, kept while it fades out.</summary>
     public CraftingMenu? Crafting { get; private set; }
 
     /// <summary>C-down's details, over the tab or the crafting popup.</summary>
-    public DetailsPane DetailsPane { get; } = new();
+    public DetailsPane DetailsPane => Overlay.Details;
 
     /// <summary>Whether a popup or the details are taking the presses, fading or not.</summary>
-    public bool HasPopup => Message is not null || Crafting is not null || DetailsPane.Showing;
+    public bool HasPopup => Overlay.HasPopup || Crafting is not null;
 
     /// <summary>The crafting popup, if it's open and nothing over it takes the presses.</summary>
     private CraftingMenu? OpenCraftingPopup => Crafting is { Fade.IsOpen: true } crafting && !DetailsPane.Showing ? crafting : null;
@@ -57,10 +60,10 @@ public sealed partial class PartyMenu
     /// fading or the details already show. A message closes first (<see cref="CloseMessage"/>).
     /// </summary>
     public void PressDetails() =>
-        DetailsPane.Press(Message is null && (Crafting is null || OpenCraftingPopup is not null) && Details() is not null);
+        Overlay.PressDetails(Message is null && (Crafting is null || OpenCraftingPopup is not null) && Details() is not null);
 
     /// <summary>C-down let go: the details fade out once they're open.</summary>
-    public void ReleaseDetails() => DetailsPane.Release();
+    public void ReleaseDetails() => Overlay.ReleaseDetails();
 
     /// <summary>Steps the crafting popup's and the details' fades by a tick, dropping the popup once it's gone.</summary>
     private void StepPopups()
@@ -71,7 +74,7 @@ public sealed partial class PartyMenu
             if (crafting.Fade.IsGone)
                 Crafting = null;
         }
-        DetailsPane.Advance();
+        Overlay.Step();
     }
 
     /// <summary>A: closes a message, chooses in a popup, or uses the cursor's row.</summary>
@@ -112,14 +115,14 @@ public sealed partial class PartyMenu
     {
         if (Message is { FromCrafting: true })
             Crafting?.Fade.Close();
-        Message = null;
+        Overlay.CloseMessage();
     }
 
     // A plugin older than the messages in code has none, and says nothing.
     private void Say(string? text, bool fromCrafting = false)
     {
         if (text is not null)
-            Message = new MenuMessage(text, fromCrafting);
+            Overlay.Say(new MenuMessage(text, fromCrafting));
     }
 
     private string Format(int line, params object[] args) => _text.Format(line, args);

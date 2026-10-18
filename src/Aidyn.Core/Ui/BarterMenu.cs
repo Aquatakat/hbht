@@ -66,7 +66,6 @@ public sealed class BarterMenu
     public static readonly ScreenRect ClassicPile = new(20, 88, 157, 166);
 
     private readonly FlagNetwork? _flags;
-    private readonly MenuPulse _popupPulse = new();
 
     private BarterMenu(PartyMenu party, LootWindow? loot, Shop? shop, FlagNetwork? flags)
     {
@@ -132,35 +131,38 @@ public sealed class BarterMenu
         }
     }
 
+    /// <summary>The popups over the window: the message, the help and the leave-items choice, and C-down's details.</summary>
+    public MenuOverlay Overlay { get; } = new();
+
     /// <summary>A message over everything, which A, B, C-down or C-up closes.</summary>
-    public MenuMessage? Message { get; private set; }
+    public MenuMessage? Message => Overlay.Message;
 
     /// <summary>The help on the first potion, on the parchment, which A or B closes (<c>WidgetMenuPrompt</c>).</summary>
-    public string? Help { get; private set; }
+    public string? Help => Overlay.Help;
 
     /// <summary>The question that drops or sells some of what the party carries.</summary>
     public BarterConfirm? Confirm { get; private set; }
 
     /// <summary>Whether to leave the items that are left.</summary>
-    public MenuChoice? Choice { get; private set; }
+    public MenuChoice? Choice => Overlay.Choice;
 
     /// <summary>Whether a popup or the details are taking the presses.</summary>
-    public bool HasPopup => Message is not null || Help is not null || Confirm is not null || Choice is not null || DetailsPane.Showing;
+    public bool HasPopup => Overlay.HasPopup || Confirm is not null;
 
     /// <summary>C-down's details of the active row, which fade as the Party tab's do (<see cref="PopupFade"/>).</summary>
-    public DetailsPane DetailsPane { get; } = new();
+    public DetailsPane DetailsPane => Overlay.Details;
 
     /// <summary>C-down pressed: shows the details, unless a popup is up or they show already.</summary>
-    public void PressDetails() => DetailsPane.Press(!HasPopup && Details() is not null);
+    public void PressDetails() => Overlay.PressDetails(!HasPopup && Details() is not null);
 
     /// <summary>C-down let go: the details fade out once they're open.</summary>
-    public void ReleaseDetails() => DetailsPane.Release();
+    public void ReleaseDetails() => Overlay.ReleaseDetails();
 
     /// <summary>Whether the window closed itself: the party chose to leave the loot's items.</summary>
     public bool Closed { get; private set; }
 
     /// <summary>The colour the popups' cursors pulse to now.</summary>
-    public Rgba PopupHighlight => _popupPulse.Now(MenuPulse.ScrollFrom, MenuPulse.ScrollTo);
+    public Rgba PopupHighlight => Overlay.Highlight;
 
     /// <summary>Makes the pile's list the active one (<c>WidgetBarter::LeftFunc</c>), unless it's empty.</summary>
     public void ShowPile()
@@ -181,9 +183,7 @@ public sealed class BarterMenu
     {
         if (Confirm is { } confirm)
             confirm.Options.Move(by);
-        else if (Choice is { } choice)
-            choice.Choices.Move(by);
-        else if (!HasPopup)
+        else if (!Overlay.MoveCursor(by) && !HasPopup)
             (OnPile ? Pile : Party.Inventory).Move(by);
     }
 
@@ -203,18 +203,15 @@ public sealed class BarterMenu
     public void Step()
     {
         Party.Step();
-        _popupPulse.Step();
-        DetailsPane.Advance();
+        Overlay.Step();
     }
 
     /// <summary>A: closes a message or the help, chooses in a popup, or takes, buys, drops or sells the active row.</summary>
     public void Accept()
     {
-        if (Message is not null)
-            Message = null;
-        else if (Help is not null)
-            Help = null;
-        else if (Confirm is { } confirm)
+        if (Overlay.Dismiss())
+            return;
+        if (Confirm is { } confirm)
             Trade(confirm);
         else if (Choice is { } choice)
             Leave(choice);
@@ -233,30 +230,21 @@ public sealed class BarterMenu
     /// </summary>
     public bool Back()
     {
-        if (Message is not null)
-            Message = null;
-        else if (Help is not null)
-            Help = null;
-        else if (Confirm is not null || Choice is not null || DetailsPane.Showing)
+        if (Overlay.Dismiss())
+            return true;
+        if (Confirm is not null || Choice is not null || DetailsPane.Showing)
             return true;
         else if (Loot is null || Loot.Loot.Stacks.Count == 0)
             return false;
         else if (Loot.CanLeave)
-            Choose(new MenuChoice(Party.Text[MenuText.LeaveItems], MenuMessage.MaxWidth, 0, MenuMessage.White, MenuChoice.Tan,
-                new MenuList<string>([Party.Text[MenuText.LeaveItemsYes], Party.Text[MenuText.LeaveItemsNo]])));
+            Overlay.Ask(MenuChoice.Question(Party.Text[MenuText.LeaveItems], [Party.Text[MenuText.LeaveItemsYes], Party.Text[MenuText.LeaveItemsNo]]));
         else
-            Message = new MenuMessage(Party.Text[MenuText.MustTake], Box: (155, 40));
+            Overlay.Say(new MenuMessage(Party.Text[MenuText.MustTake], Box: (155, 40)));
         return true;
     }
 
     /// <summary>C-down or C-up: closes a message. True if it did, so C-down doesn't show the details too.</summary>
-    public bool CloseMessage()
-    {
-        if (Message is null)
-            return false;
-        Message = null;
-        return true;
-    }
+    public bool CloseMessage() => Overlay.CloseMessage();
 
     /// <summary>
     /// C-up (<c>0x8003de10</c>): closes a message, or in a shop, on the stock's row, says how the party
@@ -267,16 +255,10 @@ public sealed class BarterMenu
     {
         if (CloseMessage() || HasPopup || Shop is not { } shop || !OnPile || Pile.Current is not { } row)
             return;
-        Message = new MenuMessage(Party.Text[MenuText.Appraisal + shop.Appraise(row.Instance)]);
+        Overlay.Say(Party.Text[MenuText.Appraisal + shop.Appraise(row.Instance)]);
     }
 
-    private void Say(int line) => Message = new MenuMessage(Party.Text[line]);
-
-    private void Choose(MenuChoice choice)
-    {
-        Choice = choice;
-        _popupPulse.Reset();
-    }
+    private void Say(int line) => Overlay.Say(Party.Text[line]);
 
     // WidgetBarter::AFunc on the pile: loot gives the stack, a shop sells one.
     private void Take()
@@ -306,7 +288,7 @@ public sealed class BarterMenu
             Party.Inventory.Point(taken.i);
         Pile.Replace(PileRows(), resetPastEnd: false);
         if (firstPotion)
-            Help = Party.Text[MenuText.FirstPotion];
+            Overlay.ShowHelp(Party.Text[MenuText.FirstPotion]);
         if (Pile.Rows.Count == 0)
             OnPile = false;
     }
@@ -347,7 +329,7 @@ public sealed class BarterMenu
         }
         var question = selling ? text.Format(MenuText.SellConfirm, price, row.Item.Name) : text.Format(MenuText.DropConfirm, row.Item.Name);
         Confirm = new BarterConfirm(question, new MenuList<BarterOption>(options), row.Item.Id, price);
-        _popupPulse.Reset();
+        Overlay.ResetPulse();
     }
 
     // DollBarterConfirm::AFunc: the cursor stays on the row, which what's left or the next moves up into.
@@ -371,7 +353,7 @@ public sealed class BarterMenu
     // The leave-items choice: "Yes, leave them." closes the window (setGlobalsPointer); "No" only the choice.
     private void Leave(MenuChoice choice)
     {
-        Choice = null;
+        Overlay.CloseChoice();
         if (choice.Choices.Cursor == 0)
             Closed = true;
     }

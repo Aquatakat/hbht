@@ -97,8 +97,11 @@ public sealed class WorldMenu
     /// <summary>Camp's and Journal's pulse, which turns at 20 rather than 19, 40 frames a cycle (<c>WorldMenu.TabStep</c>, <c>0x80040dc4</c>).</summary>
     public MenuPulse Pulse { get; } = new(top: MenuPulse.Frames);
 
+    /// <summary>The popups over the tab: what's said, such as that the party can't camp here.</summary>
+    public MenuOverlay Overlay { get; } = new();
+
     /// <summary>What's said, such as that the party can't camp here; A, B or Start closes it.</summary>
-    public MenuMessage? Message { get; private set; }
+    public MenuMessage? Message => Overlay.Message;
 
     public JournalMenu? Journal { get; private set; }
 
@@ -122,11 +125,8 @@ public sealed class WorldMenu
     /// </summary>
     public void Accept()
     {
-        if (Message is not null)
-        {
-            Message = null;
+        if (Overlay.CloseMessage())
             return;
-        }
         if (Journal is not null)
         {
             Journal.Close();
@@ -137,7 +137,7 @@ public sealed class WorldMenu
             if (_campFactor > 0)
                 CampChosen = true;
             else
-                Message = new MenuMessage(_cannotCamp);
+                Overlay.Say(_cannotCamp);
             return;
         }
         Journal = OpenJournal();
@@ -146,11 +146,8 @@ public sealed class WorldMenu
     /// <summary>B or Start: closes the message or the journal, and otherwise says the menu should close.</summary>
     public bool Back()
     {
-        if (Message is not null)
-        {
-            Message = null;
+        if (Overlay.CloseMessage())
             return true;
-        }
         if (Journal is not null)
         {
             Journal.Close();
@@ -178,6 +175,7 @@ public sealed class WorldMenu
     public void Step(bool showing, bool sliding, bool upHeld = false, bool downHeld = false)
     {
         Pulse.Step();
+        Overlay.Step();
         if (Journal is { } journal)
         {
             journal.Step(upHeld, downHeld);
