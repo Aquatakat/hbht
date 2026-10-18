@@ -55,14 +55,10 @@ public sealed class GameState : IScriptWorld
     public StateFlagsRecord StateFlagsRecord { get; }
 
     /// <summary>How camping goes (<c>aidyn:camping/0</c>).</summary>
-    public CampingRecord Camping => _camping ??= Plugins.Singleton<CampingRecord>(RecordTypes.Camping);
-
-    private CampingRecord? _camping;
+    public CampingRecord Camping => Plugins.Singleton<CampingRecord>(RecordTypes.Camping);
 
     /// <summary>The sounds engine code plays (<c>aidyn:sounds/0</c>), or null if no plugin has them, when nothing plays.</summary>
-    public SoundsRecord? Sounds => _sounds ??= Plugins.TrySingleton<SoundsRecord>(RecordTypes.Sounds);
-
-    private SoundsRecord? _sounds;
+    public SoundsRecord? Sounds => Plugins.TrySingleton<SoundsRecord>(RecordTypes.Sounds);
 
     /// <summary>Writes the clock, rain and terrain into the flags.</summary>
     public StateFlags StateFlags { get; }
