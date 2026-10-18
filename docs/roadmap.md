@@ -1,6 +1,6 @@
 # Aidyn Chronicles Reimplementation: Roadmap
 
-Sep 26, 2026 · Updated Oct 17, 2026
+Sep 26, 2026 · Updated Oct 18, 2026
 
 ## Summary
 
@@ -16,22 +16,24 @@ This is the one list of what's open. A task's status is in its phase's table bel
 
 ### Next
 
-Every system built so far is at least at parity with the original, the pause menu included. Next is M3 Fight:
+Every system built so far is at least at parity with the original, the pause menu included. Next is **M3 Fight**, 2.5 and 2.6 with the runtime, in vertical slices as M2 was: each session ports the rules it needs into the core and ends playable or previewable, with its docs. [Combat](systems/combat.md) maps the original's code, states and RAM, which each session reads in detail as it ports. A session's research goes to one batched run, and its headless rules to well-scoped subagents with the contract written first, while the main session builds and reviews.
 
-1. **0.13: combat captures,** by the user, whenever it suits. Every other task in reading the code without the decomp is done.
-2. **M3 Fight:** 2.5 (combat rules) in the headless core, then 2.6 (enemy AI) and the battle UI, planned into sessions as M2 was. 2.5's first session maps combat's code and RAM with 0.7–0.13.
+1. ~~**The map.**~~ Done Oct 18, 2026: [combat](systems/combat.md) from 1.0's code and the user's 14 checkpoints of one battle, with 528 names in the symbol map; the arenas, their spawns and how a battle picks one.
+2. **Into the arena and out.** The battle from a `BattleSetup`: the arena by terrain (its table imported), the enemies rolled, a combatant for each member and enemy on the spawns by side, set and slot, the grid from the collision, the zone engine as a stage on the Battle arenas with the battle music, and `GameSession`'s combat mode. The combat camera (`ProcessCombatCamera`), and the pause menu's System and Party tabs with flee, back to trek. Playable: a wanderer's catch puts the party in the arena, and fleeing brings it back.
+3. **Turns and moving.** Turn order, a turn's start and end, the field's radius (engaged, performing), moving the player's combatant in it with trek's movement, Z to skip, the ring's teardrops (`aidyn:scene/0x0794`), and the clock's 600 a turn. Enemies skip. Playable: everyone takes turns walking.
+4. **The battle screen.** The portraits with their HP bars and tints, the reserves' small ones, the log box (`TextBand`) with the turn's portrait and lines, and the radar, matched to the user's capture (`roms/combat.png`) in the editor first. Can run beside 3, over 2's battle.
+5. **Attacking.** Target set A and its cursor, melee and ranged chance, criticals, damage, resistances and modifiers, the weather's penalties, line of sight, skill experience, the animations, arrows in flight and the numbers over heads; death, the fallen taken off, reserves coming in, and the end of a battle by win or loss. The first differential tests (2.9) replay the checkpoints' random stream. Playable: a fight won against enemies who skip.
+6. **The AI: walking, fighting and fleeing** (2.6). `EnemyAI.Step`, paths over the grid and the stuck timer, the melee and ranged styles, morale, the leader, fleeing to the flee points, and reserves fleeing as they arrive. Playable: a whole fight against rats or goblins.
+7. **Winning and losing.** The rewards and the post-battle windows (training, pause state 5, and loot, 6, over the menus M2 built), the encounter, kill and boss flags, the beaten party remembered, the dead taken out with their died flags (Sholeh's 622), the game over script and the non-lethal battles, and the camp's ambush. Playable: a battle from trek and back with its spoils.
+8. **Spells and effects,** headless: the 15 timed effects and their ageing, each spell kind's application, reagents, Stamina, casting and resisting, targets by kind, Haste and Slow on the radius, the spells' and potions' modifiers on characters, Cheat Death, and saves keeping the effects. Can start beside 3–7, from 2's combatants.
+9. **Spells, potions and skills in battle.** C-down's and C-up's held menus, target set B, placed areas, drinking and throwing (the flasks' blast), item spells, the Troubadour, the Healer's two, the Antidote and Restore, the sundial's Detect Moon and Sun Phase, and the pause menu's potion and weapon change ending the turn.
+10. **What spells look like.** The spell visuals, particles on the scenes combat attaches (locator bits 7–8), the cast's camera, status icons over heads, and the party lit by the map's lights in combat.
+11. **The AI's casters and bosses** (2.6): the other nine styles, scoring spells, buffing ahead, and the boss style.
+12. **The special battles:** the Shadow (its aura, slowing, vanishing and merging), the Goblin Ambush, Lugash, Pochanargat, and rain and snow in the arena.
 
 ### Left over from finished work
 
 - **M2:** what starts the cinematics in the story (a new game's opening, the Shadow's, the ends of the Rooughah and last scenes) and what follows them (script 866, Alaron's True Name, the ending's credits), as 2.10's triggers ([cinematics](systems/cinematics.md#what-starts-them)); the editor showing cut-scenes on its map; and the HUD in the editor.
-- **Waiting for 2.5:**
-  - Combat's weather penalties, its point lights on the party, and particles on the scenes it attaches.
-  - Training after a battle.
-  - The sundial's Detect Moon and Sun Phase spells.
-  - Camping's ambush battle.
-  - Boss flags, which battles set.
-  - Spells' and potions' modifiers on characters.
-  - The Antidote and Restore potions, which need combat's poison and spells.
 - **1H:** the content tables marked To do in [hardcoded-content](hardcoded-content.md), which the importer will need.
 - **Rendering:** the low-priority items in [rendering](systems/rendering.md#whats-left) (the lens flare's test, the sky overhead, texture filtering).
 - **Rig:** measure the frame `delta` in combat, which can help choose its frame for per-frame behaviour ([ADR 0017](adr/0017-the-core-steps-every-tick.md)).
@@ -67,7 +69,7 @@ Sizes are relative: S, M, L, XL. **Bold** tasks block other work. Phase 0 settle
 | **0.10 RAM maps.** `bst.py --diff` between two checkpoints. Structures' fields go in their system's doc. | S | Where a value lives | Done Oct 4, 2026 |
 | **0.11 gdb on a checkpoint.** | S–M | Watchpoints from a checkpoint | Done Oct 4, 2026: `tools/gdb.ps1`, 1.0's checkpoints only ([rig](reference-rig.md#gdb-on-a-checkpoint-toolsgdbps1-roadmap-011)) |
 | **0.12 Traces.** Which functions run during an action, against standing still. | M | The code an action runs | Done Oct 4, 2026: `tools/trace.ps1` |
-| **0.13 Combat captures** (the user). Checkpoints in and around battles, from an unmodified 1.0 game: on the field just before one, its first turn, before and after a melee attack, before and after a spell, an enemy's turn, fleeing, and victory with its loot and experience screens. | S | Combat's RAM, before and after each thing it does | Open |
+| **0.13 Combat captures** (the user). Checkpoints in and around battles, from an unmodified 1.0 game: on the field just before one, its first turn, before and after a melee attack, before and after a spell, an enemy's turn, fleeing, and victory with its loot and experience screens. | S | Combat's RAM, before and after each thing it does | Done Oct 18, 2026: 14 checkpoints of one battle, from the field before it to the loot |
 | **0.14 A decompiler of our own.** Ghidra headless over 1.0, with the symbol map applied. | S | Readable pseudocode | Done Oct 4, 2026 |
 
 ### Phase 1: Format decoding
@@ -95,8 +97,8 @@ Where a task names the original's code, the file names are the debug build's.
 | **2.2 Characters.** Attributes, skills, levels, hit points, experience, training costs, modifiers, resistances. | M | `gameclasses/` | Done Sep 30, 2026 |
 | **2.3 Items & inventory.** Equip rules, shops, chests, crafting. | M | `data/itemdb.cpp`, `chestdb.cpp`, `shopdb.cpp` | Done Oct 1, 2026 |
 | **2.4 Borg13 VM.** Camera and actor cues go out through a host interface, so the core stays headless. | M | `dialogue.cpp` | Done |
-| **2.5 Combat rules.** Turn order, field-of-influence radius, hit, damage and crit, spells (targeting, radius, reagents, battery), status effects, reserve spawns, leader and flee logic, rewards. | **XL** | `combatengine/combat.cpp`, `combatEntity.cpp`, `turn.cpp`, `src/gamecombat.cpp` | Next, after 0.13 |
-| **2.6 Enemy AI.** | L | `combatengine/aiInfo.cpp`, `aiscores.cpp` | After 2.5 |
+| **2.5 Combat rules.** Turn order, field-of-influence radius, hit, damage and crit, spells (targeting, radius, reagents, battery), status effects, reserve spawns, leader and flee logic, rewards. | **XL** | `combatengine/combat.cpp`, `combatEntity.cpp`, `turn.cpp`, `src/gamecombat.cpp` | Now, with M3; mapped Oct 18, 2026 ([combat](systems/combat.md)) |
+| **2.6 Enemy AI.** | L | `combatengine/aiInfo.cpp`, `aiscores.cpp` | With M3 |
 | **2.7 Time & camping.** See [camping](systems/camping.md). | S | `sundial.cpp`, `menus/campmenucontroller.cpp` | Done Oct 4, 2026; the ambush's battle waits for 2.5 |
 | **2.8 Save/load** in the engine's own format. See [saves](systems/saves.md). | S | `questdata.cpp`, `saveParty.cpp` | Done Oct 1, 2026 |
 | **2.9 Differential tests.** Capture the random values the emulator consumed (ADR 0006), replay them into the core, and compare damage and turn logs. | L, ongoing | | Open |
@@ -110,7 +112,7 @@ A series of vertical slices, each one playable ([runtime](systems/runtime.md)).
 | --- | --- | --- | --- |
 | **M1: Walk Gwernia** | The chunk streamer, terrain, the N64 material, collision, the player, the follow camera, the sky, draw distance | 1A, 1C | Done Sep 29, 2026 |
 | **M2: Talk and trade** | Map objects, wanderers, conversations, shops, the pause menu, the journal, cut-scenes, training, camping, the HUD | 1E, 1F, 2.1–2.4 | Done Oct 4, 2026; leftovers [above](#left-over-from-finished-work) |
-| **M3: Fight** | Arena loading, spawns, the turn UI, radius targeting, spell visuals and particles, the combat log, status icons, post-battle XP and loot screens | 1B, 2.5, 2.6 | Next |
+| **M3: Fight** | Arena loading, spawns, the turn UI, radius targeting, spell visuals and particles, the combat log, status icons, post-battle XP and loot screens | 1B, 2.5, 2.6 | Now: twelve sessions [above](#next), the first done Oct 18, 2026 |
 | **M4: The prologue** | From the opening through leaving Gwernia, end to end | Everything above | |
 | **M5: Full playthrough parity** | Every region, every quest and the ending, checked against the quest atlas | Phase 4 | |
 

@@ -405,23 +405,29 @@ Each arena has fixed spawn points:
 - Alternative spawns used when the player sneaks up on a creature. These are meant to be advantageous, but in practice make little difference.
 - Reserve spawn points for enemies 5–12 (see below).
 
+**(machine code)** Every arena has five sets of four spawns a side, and which set the enemies start in depends on how the battle came about: the wandering party's state, whether the player was in front of it, or the script. In an ambush the sides swap, and the Ranger skill can move the party's set. See [combat](systems/combat.md#the-arenas).
+
 ### Party sizes
 
 The player party has 1–4 characters. An enemy party has 1–12, but only four can be on the battlefield at once. When an enemy is defeated or flees, the next reserve enemy spawns at whichever fixed spawn point is farthest from the player party. That includes the original enemy spawn, if the party has moved away from it.
+
+**(machine code)** There's no farthest-point rule. At the end of a round, a reserve takes its slot's own reserve spawn, or if something's standing on it, the first free spawn of all of them. The reserve spawns are usually far from where the party starts, which is why it looks that way.
 
 ### Turn order
 
 One combatant acts at a time, from either side. Nothing prevents the same character from taking consecutive turns.
 
-**(decomp)** Turn frequency comes from **base** Dexterity alone, so buffs like Haste don't add turns. Each round, every combatant gets a number of turns from their Dexterity band, and the order within the round is shuffled randomly. Some bands alternate between rounds:
+**(machine code)** Turn frequency comes from **base** Dexterity alone, so buffs like Haste don't add turns. Each round, every combatant gets a number of turns from their Dexterity band. Some bands alternate between rounds:
 
 | Base Dexterity | Turns per round |
 | --- | --- |
-| 1–18 | 1 |
-| 19–24 | Alternates 1 and 2 |
-| 25–30 | 2 |
-| 31–34 | Alternates 2 and 3 |
+| 1–17 | 1 |
+| 18–24 | Alternates 1 and 2 |
+| 25–29 | 2 |
+| 30–34 | Alternates 2 and 3 |
 | 35+ | 3 |
+
+The round isn't one shuffle: everyone's third turns come first, then their second turns, then their first, each group in random order. So a fast character's extra turns come early in the round.
 
 ### A turn
 
@@ -437,7 +443,7 @@ After that:
 
 - Haste adds its spell level to the radius, and Stellar Gravity subtracts its level.
 - The result is clamped between 1 and 13.
-- Starting a turn next to an enemy ends a troubadour performance.
+- **(machine code)** Starting a turn next to an enemy limits the radius to 1, and ends a troubadour performance.
 - Starting a turn near the Shadow limits the radius to 1.
 - Pochanargat can't move at all.
 
@@ -475,9 +481,11 @@ Starting a performance locks the character into performing until it wears off. I
 
 Enemies have a small pool of about four special attacks, plus a melee or ranged attack to fall back on. They appear to pick from this pool at random. They may focus on one target and stick with it.
 
-Enemies decide to flee based on their own health and whether the enemy party's **leader** has died.
+They tend to cast buffs early. They walk freely within the arena to reach the party and melee. They can get stuck on geometry or on other combatants and end their turn early, and sometimes they end it early for no visible reason, which feels like a reprieve. **(machine code)** A walk that gets nowhere runs out a stuck timer, which ends the turn.
 
-**(decomp)** The leader is whichever enemy on the initial battlefield has the highest base Intelligence; ties go to the later one. It isn't a hand-set property, which explains why it's usually intuitive but not always.
+Enemies decide to flee based on their own health and whether the enemy party's **leader** has died. A fleeing enemy walks to the edge of the arena.
+
+**(machine code)** The leader is whichever enemy on the initial battlefield has the highest base Intelligence; ties go to the earlier one. It isn't a hand-set property, which explains why it's usually intuitive but not always.
 
 **(decomp)** Fleeing is a morale check. It only happens if all of these are true:
 
@@ -529,13 +537,17 @@ Winning opens a modified pause menu across two screens:
 
 ### Battle feedback
 
-The dialogue box stays on screen and narrates the battle: "Alaron begins action", "Alaron attacks Cave Bear", "Cave Bear takes 23 damage".
+The dialogue box stays on screen and narrates the battle: "Alaron begins action", "Alaron attacks Cave Bear", "Cave Bear takes 23 damage". Unlike elsewhere in the game, its feathered black box never goes away and always shows a line, with the portrait of whoever's turn it is. The radar sits at its right, turned with the camera.
+
+The enemies' portraits run down the top left and the party's down the top right, in a fixed order. The four enemies on the field have large portraits, and the reserves small ones below. Characters that can be targeted have a dim green border on their portrait, and the one targeted a bright green one. Sometimes there's a dim red border, for reasons not yet known.
+
+Actions are confirmed: choosing a potion highlights the member who'll drink it, A drinks it and B cancels. With more than one enemy in reach, A shows one of them as the target, the stick picks another, A attacks and B cancels. A spell with one target works the same within its radius, and a placed area spell moves its whole area.
 
 Damage and healing numbers pop up briefly above the affected character. Status effects also display above heads, cycling through each active effect. With only one or two effects, an icon shows briefly followed by a long blank gap, possibly unintentionally. One guess is that the cycle has fixed slots regardless of how many effects are active.
 
 ### Camera
 
-The battle camera is the same floating third-person camera as trek mode (see UI).
+The battle camera is the same floating third-person camera as trek mode (see UI). **(machine code)** It's combat's own code, though, following whoever's turn it is, with its own offsets for each part of a turn.
 
 ## UI, controls, and saving
 

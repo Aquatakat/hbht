@@ -1,6 +1,6 @@
 # hbht
 
-A PC reimplementation of Aidyn Chronicles: The First Mage (N64). It runs on content imported from a user-supplied ROM and has a plugin-based mod system. M1 and M2 are playable. The work now is reading the code without the decomp (roadmap 0.7–0.14), then M3 Fight. The roadmap's [Where things stand](docs/roadmap.md#where-things-stand) has the rest.
+A PC reimplementation of Aidyn Chronicles: The First Mage (N64). It runs on content imported from a user-supplied ROM and has a plugin-based mod system. M1 and M2 are playable. The work now is M3 Fight, in the sessions the roadmap lists. The roadmap's [Where things stand](docs/roadmap.md#where-things-stand) has the rest.
 
 ## Where to look
 
@@ -13,7 +13,7 @@ Read what your task needs, not all of it.
 | How the original plays, from the player's side, written from memory | [docs/engine-behaviour.md](docs/engine-behaviour.md) |
 | How a ROM format is laid out, and what decoding it found | [docs/formats/](docs/formats/): `rom`, `db`, `textures`, `geometry`, `scenes`, `animation`, `actors`, `particles`, `dialogue`, `maps`, `quests`, `text`, `audio` |
 | Content the engine hardcodes, and which ADR 0008 layer it goes in | [docs/hardcoded-content.md](docs/hardcoded-content.md) |
-| How our code ports or runs a system | [docs/systems/](docs/systems/): `importer`, `runtime`, `movement`, `cameras`, `rendering`, `flags`, `scripts`, `characters`, `items`, `map-objects`, `wanderers`, `camping`, `saves`, `inspector`, `ui`, `audio`, `weather`, `cinematics` |
+| How our code ports or runs a system | [docs/systems/](docs/systems/): `importer`, `runtime`, `movement`, `cameras`, `rendering`, `flags`, `scripts`, `characters`, `items`, `map-objects`, `wanderers`, `camping`, `combat`, `saves`, `inspector`, `ui`, `audio`, `weather`, `cinematics` |
 | The user's notes from playing the runtime and timing the original | [docs/playtests.md](docs/playtests.md) |
 | What only the user can settle, in the emulator or the ROM | [docs/user-checks.md](docs/user-checks.md) |
 | The emulator, gdb, the pinned Godot, Ghidra, the ROMs, checkpoint save states, `tools/`, the code index and the symbol map, and finding the original's code in its machine code | [docs/reference-rig.md](docs/reference-rig.md) |
