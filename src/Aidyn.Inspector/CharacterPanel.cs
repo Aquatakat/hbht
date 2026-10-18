@@ -2,6 +2,7 @@ using System.Globalization;
 using Aidyn.Core;
 using Aidyn.Core.Characters;
 using Aidyn.Core.Items;
+using Aidyn.Game;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 using Godot;
@@ -291,8 +292,7 @@ public partial class CharacterPanel : PagePanel
         row.AddThemeConstantOverride("separation", 12);
         if (_entity.Portrait is { } portrait && Catalog.Find(portrait)?.Asset("png") is { } png)
         {
-            var image = new Image();
-            if (image.LoadPngFromBuffer(File.ReadAllBytes(png.Path)) == Error.Ok)
+            if (Png.Load(png.Path) is { } image)
             {
                 row.AddChild(new TextureRect
                 {

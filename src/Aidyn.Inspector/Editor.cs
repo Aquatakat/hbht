@@ -1,4 +1,5 @@
 using System.Globalization;
+using Aidyn.Game;
 using Aidyn.Plugins;
 using Godot;
 
@@ -35,7 +36,7 @@ public partial class Editor : Control
         CultureInfo.DefaultThreadCurrentCulture = CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
         _records.SetAnchorsPreset(LayoutPreset.FullRect);
         AddChild(_records);
-        _ = Report(StartAsync(Options(OS.GetCmdlineUserArgs())));
+        _ = BackgroundTask.Report(StartAsync(CommandLine.Parse(OS.GetCmdlineUserArgs())));
     }
 
     private async Task StartAsync(Dictionary<string, string> args)
@@ -43,7 +44,7 @@ public partial class Editor : Control
         var png = args.GetValueOrDefault("screenshot");
         _uiShot = args.GetValueOrDefault("ui-screenshot");
         if (png is not null)
-            _ = Watchdog();
+            CommandLine.Watchdog(GetTree(), 60);
 
         if (args.TryGetValue("tab", out var tab))
             _records.SelectTab(tab);
@@ -101,52 +102,15 @@ public partial class Editor : Control
             await Screenshot(png);
     }
 
-    /// <summary>Prints what a fire-and-forget task threw, which would otherwise vanish.</summary>
-    private static async Task Report(Task task)
-    {
-        try
-        {
-            await task;
-        }
-        catch (Exception e)
-        {
-            GD.PrintErr(e.ToString());
-        }
-    }
-
-    /// <summary>In screenshot mode, quits with an error if the screenshot hasn't been taken within a minute.</summary>
-    private async Task Watchdog()
-    {
-        await ToSignal(GetTree().CreateTimer(60), SceneTreeTimer.SignalName.Timeout);
-        GD.PrintErr("Timed out before the screenshot.");
-        GetTree().Quit(2);
-    }
-
     private async Task Screenshot(string path)
     {
         // A few frames for the layout to settle and the preview to draw.
-        for (var i = 0; i < 5; i++)
-            await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
-        var error = GetViewport().GetTexture().GetImage().SavePng(path);
-        GD.Print(error == Error.Ok ? $"Saved {path}" : $"Couldn't save {path}: {error}");
-        if (_uiShot is { } ui && Descendants(this).OfType<Aidyn.Game.UiScreen>().FirstOrDefault(s => s.IsVisibleInTree()) is { } screen)
-        {
-            var saved = screen.Capture().SavePng(ui);
-            GD.Print(saved == Error.Ok ? $"Saved {ui}" : $"Couldn't save {ui}: {saved}");
-        }
+        await CommandLine.Frames(this, 5);
+        var error = CommandLine.Save(GetViewport().GetTexture().GetImage(), path);
+        if (_uiShot is { } ui && Descendants(this).OfType<UiScreen>().FirstOrDefault(s => s.IsVisibleInTree()) is { } screen)
+            CommandLine.Save(screen.Capture(), ui);
         GetTree().Quit(error == Error.Ok ? 0 : 1);
     }
 
     private static IEnumerable<Node> Descendants(Node node) => node.GetChildren().SelectMany(c => Descendants(c).Prepend(c));
-
-    private static Dictionary<string, string> Options(string[] args)
-    {
-        var options = new Dictionary<string, string>();
-        for (var i = 0; i + 1 < args.Length; i += 2)
-        {
-            if (args[i].StartsWith("--", StringComparison.Ordinal))
-                options[args[i][2..]] = args[i + 1];
-        }
-        return options;
-    }
 }

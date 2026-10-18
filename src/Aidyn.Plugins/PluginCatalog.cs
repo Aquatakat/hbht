@@ -208,7 +208,8 @@ public sealed class PluginCatalog
         return string.Join(", ", parts);
     }
 
-    private static string Truncate(string text, int length) => text.Length <= length ? text : text[..(length - 1)] + "…";
+    /// <summary>The text cut to <paramref name="length"/> characters, with an ellipsis where it was.</summary>
+    public static string Truncate(string text, int length) => text.Length <= length ? text : text[..(length - 1)] + "…";
 
     private static string Key(JsonNode? id) => (string?)id is { } s && RecordId.TryParse(s, out var r) ? r.Key : "?";
 

@@ -1,4 +1,5 @@
 using System.Globalization;
+using Aidyn.Game;
 using Aidyn.Plugins;
 using Godot;
 
@@ -107,10 +108,7 @@ public partial class PagePanel : ScrollContainer
     {
         if (_icons.TryGetValue(id, out var texture))
             return texture;
-        var image = new Image();
-        texture = Catalog.Find(id)?.Asset("png") is { } png && image.LoadPngFromBuffer(File.ReadAllBytes(png.Path)) == Error.Ok
-            ? ImageTexture.CreateFromImage(image)
-            : null;
+        texture = Catalog.Find(id)?.Asset("png") is { } png ? Png.Texture(png.Path) : null;
         return _icons[id] = texture;
     }
 

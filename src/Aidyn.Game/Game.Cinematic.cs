@@ -35,25 +35,6 @@ public partial class Game
         _cinematic.Play(cinematic, _game!.Party.Members.FirstOrDefault()?.Name ?? "Alaron");
     }
 
-    /// <summary>
-    /// Plays a cinematic from the command line (<c>--cinematic 0</c>, or <c>--cinematic 0,5,300</c> to start at shot 5's
-    /// time 300, and <c>--cinematic 0,5,300,hold</c> to stand still there), as from the Theatre but without the menu after.
-    /// </summary>
-    private void CinematicFromCommandLine(string arg)
-    {
-        var parts = arg.Split(',');
-        if (_plugins!.TryGet<CinematicRecord>(RecordId.Decimal(RecordTypes.Cinematic, int.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture))) is not { } cinematic)
-        {
-            Say($"There's no cinematic {parts[0]}.");
-            return;
-        }
-        PlayCinematic(cinematic, fromTheatre: false);
-        if (parts.Length > 1)
-            _cinematic!.SkipTo(int.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture),
-                parts.Length > 2 ? int.Parse(parts[2], System.Globalization.CultureInfo.InvariantCulture) : 0);
-        _cinematic!.Held = parts.Length > 3 && parts[3] == "hold";
-    }
-
     /// <summary>A tick of the cinematic, and its end (<c>Cinematic.EndCase</c>, <c>0x80053c20</c>).</summary>
     private void StepCinematic()
     {

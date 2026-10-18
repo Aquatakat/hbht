@@ -303,7 +303,7 @@ public sealed class UiPainter
     public float Opacity { get; set; } = 1;
 
     /// <summary>A colour as it's drawn, its alpha times <see cref="Opacity"/>.</summary>
-    public Color Tint(Rgba c) => Color.Color8(c.R, c.G, c.B, c.A) with { A = c.A / 255f * Opacity };
+    public Color Tint(Rgba c) => Color8(c) with { A = c.A / 255f * Opacity };
 
     private Color White => new(1, 1, 1, Opacity);
 }

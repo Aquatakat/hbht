@@ -33,7 +33,7 @@ The runtime keeps its loops thin (ADR 0012): the core steps the game and the run
 
 ## The command line
 
-After `--`: `tools/godot.ps1 --path src/Aidyn.Game -- --chunk I08 --at 16,62 --yaw 0 --pitch -15 --distance 5 --hold move_forward,4 --screenshot <absolute path>.png` starts somewhere, holds an input, saves the window and quits. The run gives up after a minute.
+After `--`: `tools/godot.ps1 --path src/Aidyn.Game -- --chunk I08 --at 16,62 --yaw 0 --pitch -15 --distance 5 --hold move_forward,4 --screenshot <absolute path>.png` starts somewhere, holds an input, saves the window and quits. The run gives up after a minute. `LaunchOptions` reads the options (on top of `CommandLine`, the parser and screenshot run the editor shares), `Game.Start` builds the game in named steps from them, and `Game.Debug.cs` carries out the ones that drive it (`RunLaunchActions`: `--menu`, `--fly`, `--hold`, `--press`, `--cutscene`, `--cinematic`, `--screenshot`) and draws the F3 overlay.
 
 - **Where:** `--chunk`, `--at x,z`, `--yaw`, `--pitch`, `--distance`; `--fly x,y,z` starts with the free camera, which scene objects' distances are then measured from; `--camera outdoor|interior` starts in either mode (by default the start chooses as a door into its chunk would). Gwernia's open ground is around (30–80, 30–80) in M07, for example `--chunk M07 --at 40,55`; elsewhere in M07 there's no ground, and he falls and is put back again and again.
 - **The game:** `--save <path>` starts from a save, where it stands unless `--chunk` or `--at` say otherwise. `--flags 5,50` sets plain flags before anything loads. A new game starts in the opening cut-scene, so add `--flags 5,11` to see trek. `--time <hours>` sets the time of day.

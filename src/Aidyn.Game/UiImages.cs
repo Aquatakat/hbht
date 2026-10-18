@@ -23,11 +23,7 @@ public sealed class UiImages(PluginSet plugins)
         if (_textures.TryGetValue(image, out var texture))
             return texture;
         if (plugins.FindAsset(image, "png") is { } png)
-        {
-            var data = new Image();
-            if (data.LoadPngFromBuffer(File.ReadAllBytes(png)) == Error.Ok)
-                texture = ImageTexture.CreateFromImage(data);
-        }
+            texture = Png.Texture(png);
         else
         {
             GD.PushWarning($"No asset for {image}.");

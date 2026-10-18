@@ -198,7 +198,7 @@ public partial class MapSetView : VBoxContainer
         _all.Pressed += () =>
         {
             if (_set is { } set && _catalog is { } catalog && _models is { } models)
-                _ = Report(ShowAsync(catalog, models, _game, new Focus(set, set.Chunks)));
+                _ = BackgroundTask.Report(ShowAsync(catalog, models, _game, new Focus(set, set.Chunks)));
         };
         _fields.Opened += id => Opened?.Invoke(id);
         _orbit.PointUnder = point => Cast(point)?.Point;
@@ -353,16 +353,8 @@ public partial class MapSetView : VBoxContainer
     {
         if (!_container.HasFocus())
             return;
-        var basis = _camera.GlobalBasis;
-        var move = Vector3.Zero;
-        foreach (var (key, direction) in new[]
-        {
-            (Key.W, -basis.Z), (Key.S, basis.Z), (Key.A, -basis.X), (Key.D, basis.X), (Key.E, Vector3.Up), (Key.Q, Vector3.Down),
-        })
-        {
-            if (Input.IsKeyPressed(key))
-                move += direction;
-        }
+        float Held(Key key) => Input.IsKeyPressed(key) ? 1 : 0;
+        var move = FreeFly.Direction(_camera.GlobalBasis, Held(Key.D) - Held(Key.A), Held(Key.E) - Held(Key.Q), Held(Key.S) - Held(Key.W));
         if (move == Vector3.Zero)
             return;
         var speed = Mathf.Clamp(_orbit.Distance, 5, 2000) * (Input.IsKeyPressed(Key.Shift) ? 3 : 1);
@@ -757,16 +749,4 @@ public partial class MapSetView : VBoxContainer
         JsonValue v when v.TryGetValue(out string? text) && RecordId.TryParse(text, out var id) => [id],
         _ => [],
     };
-
-    private static async Task Report(Task task)
-    {
-        try
-        {
-            await task;
-        }
-        catch (Exception e)
-        {
-            GD.PrintErr(e.ToString());
-        }
-    }
 }

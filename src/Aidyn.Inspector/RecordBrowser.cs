@@ -342,18 +342,7 @@ public partial class RecordBrowser : Control
         }
     }
 
-    private async Task Report(Task task)
-    {
-        try
-        {
-            await task;
-        }
-        catch (Exception e)
-        {
-            GD.PrintErr(e.ToString());
-            _status.Text = e.Message;
-        }
-    }
+    private Task Report(Task task) => BackgroundTask.Report(task, e => _status.Text = e.Message);
 
     public override void _Input(InputEvent e)
     {
@@ -649,11 +638,7 @@ public partial class RecordBrowser : Control
 
     private static Label Message(string text) => new() { Text = text, AutowrapMode = TextServer.AutowrapMode.WordSmart };
 
-    private static Task<Image?> LoadPngAsync(string path) => Task.Run(() =>
-    {
-        var image = new Image();
-        return image.LoadPngFromBuffer(File.ReadAllBytes(path)) == Error.Ok ? image : null;
-    });
+    private static Task<Image?> LoadPngAsync(string path) => Task.Run(() => Png.Load(path));
 
     /// <summary>The images and textures a record names, such as a terrain's sky gradient, once each, in the order first named.</summary>
     private async Task<List<ImageGallery.Item>> ImagesNamedAsync(PluginCatalog catalog, JsonObject json)

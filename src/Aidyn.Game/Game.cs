@@ -28,28 +28,7 @@ namespace Aidyn.Game;
 /// The player and camera are the core's port of the original, stepped once per 60 Hz tick in the
 /// physics process; Godot interpolates between ticks for display. Start opens the pause menu, and A
 /// uses the map object the player reaches (<see cref="MapObjectUse"/>).
-/// Command-line options, after <c>--</c>: <c>--save &lt;path&gt;</c> starts from a save (see
-/// docs/systems/saves.md), where it stands unless <c>--chunk</c> or <c>--at</c> say otherwise;
-/// <c>--set &lt;n&gt;</c> (default 0, the overworld),
-/// <c>--chunk &lt;name&gt;</c> and <c>--at &lt;x&gt;,&lt;z&gt;</c> in the chunk's coordinates
-/// (default I08 at 16, 62, where a new game starts), <c>--yaw</c> in degrees for the way the
-/// player and camera face (0 looks along −Z), <c>--pitch</c> (negative looks down, default −15)
-/// and <c>--distance</c> for the camera, <c>--pace</c> for the player's speed (1 is the
-/// original's), <c>--fly &lt;x&gt;,&lt;y&gt;,&lt;z&gt;</c> to start with the free camera there in
-/// world coordinates, looking along <c>--yaw</c> and <c>--pitch</c>, <c>--time &lt;hours&gt;</c>
-/// for the time of day (a new game starts at 12), <c>--weather rain|snow|fog|clear[,intensity[,fog]]</c> for the
-/// weather at once, <c>--precipitation &lt;scale&gt;</c> for that many times the original's raindrops and snowflakes,
-/// <c>--camera outdoor|interior</c> for the camera's
-/// mode (by default, what going through a door into the chunk gives), and
-/// <c>--hold &lt;action&gt;,&lt;seconds&gt;</c>, which holds an input such as <c>move_forward</c>
-/// (join several with <c>+</c>, as in <c>move_forward+walk</c>),
-/// and <c>--screenshot &lt;png&gt;</c>, which saves the window after that and quits; with <c>--frames &lt;n&gt;</c>, the next
-/// n frames as rendered, in real time, as <c>&lt;png&gt;-000.png</c> on.
-/// <c>--sky original</c> places the sky's sprites as the original does rather than projected.
-/// <c>--menu 1</c> opens the pause menu on the tab it last showed, <c>--menu system</c>, <c>party</c> or <c>world</c>
-/// on that tab, and <c>--menu loot</c> an empty loot window; <c>--ui-lines &lt;n&gt;</c> sets the UI screen's height, and
-/// <c>--press &lt;action&gt;,…</c> presses each action in turn, such as <c>pause,menu_member_left</c>.
-/// <c>--cutscene &lt;id&gt;</c> plays a cut-scene at once, as what starts it would.
+/// The command line's options are <see cref="LaunchOptions"/>, and what they and the debug keys drive is in Game.Debug.cs.
 /// F toggles the free camera, F3 the debug overlay, F5 the pace, F6 the sky's placement and F7 the
 /// UI screen's height, and F8 saves to <c>quick.json</c> in the saves folder.
 /// </remarks>
@@ -61,7 +40,6 @@ public partial class Game : Node3D, ITrekHost
     /// <summary>Mouse drag in pixels to stick units: about 0.3° of orbit, and 0.02 of height, a pixel.</summary>
     private static readonly Vector2 DragToStick = new(0.2f, 0.4f);
 
-    private readonly Label _overlay = new() { Position = new Vector2(8, 8) };
     private readonly Label _message = new() { Position = new Vector2(8, 64) };
     private readonly CollisionWorld _world = new();
 
@@ -84,8 +62,6 @@ public partial class Game : Node3D, ITrekHost
     private Texture2D? _shadowTexture;
     private SkyView? _sky;
     private FollowCamera? _follow;
-    /// <summary>The player's last second of positions, for the overlay's speed.</summary>
-    private readonly Queue<System.Numerics.Vector3> _track = new();
     private long _ticks;
     private DrawDistance _drawDistance = DrawDistance.Original;
     private PluginSet? _plugins;
@@ -119,33 +95,88 @@ public partial class Game : Node3D, ITrekHost
         CultureInfo.DefaultThreadCurrentCulture = CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
         AddInputs();
         var hud = new CanvasLayer();
-        _overlay.AddThemeColorOverride("font_outline_color", Colors.Black);
-        _overlay.AddThemeConstantOverride("outline_size", 4);
+        StyleOverlay();
         hud.AddChild(_overlay);
         hud.AddChild(_message);
         AddChild(hud);
 
-        var args = Options(OS.GetCmdlineUserArgs());
+        var options = LaunchOptions.Parse(OS.GetCmdlineUserArgs());
         // A save loaded from the menu starts where it stands, and the command line's presses aren't made again.
         if (_pendingSave is not null)
-            args = args.Where(a => a.Key == "screenshot").ToDictionary();
+            options = options.OnlyScreenshot();
         try
         {
-            Start(args);
+            Start(options);
         }
         catch (Exception e) when (e is IOException or InvalidDataException or KeyNotFoundException or System.Text.Json.JsonException
             or ArgumentException)
         {
             GD.PrintErr(e.ToString());
             _message.Text = e.Message;
-            if (args.ContainsKey("screenshot"))
+            if (options.Screenshot is not null)
                 GetTree().Quit(1);
         }
     }
 
-    private void Start(Dictionary<string, string> args)
+    /// <summary>
+    /// Builds the game from the command line's options, in the order its parts need each other: the plugins and audio,
+    /// the game, the sky, the world trek plays in, the player and camera, the UI over them, and the menus.
+    /// </summary>
+    private void Start(LaunchOptions options)
     {
         var plugins = _plugins = _loadedPlugins ??= LoadPlugins();
+        StartAudio(plugins);
+        var game = _game = StartingGame(plugins, options);
+        var (set, place) = StartingPlace(plugins, game, options);
+
+        BuildSky(plugins, game);
+        _pointLights = options.PointLights;
+        options.SetTimeOfDay(game);
+        // The time's written into the flags, and any plain flags --flags sets, such as --flags 5,11
+        // for after the Kendall and ambush cut-scenes.
+        game.StateFlags.SetTime(game.Clock);
+        options.SetFlags(game);
+        // The command line's settings are for this run, and aren't kept unless the options menu changes something.
+        options.ApplyTo(_settings);
+
+        var streamer = BuildWorld(plugins, game, set);
+        var trek = _trek!;
+        var chunkName = options.Chunk ?? place?.Chunk ?? "I08";
+        var chunk = streamer.Find(chunkName) ?? throw new KeyNotFoundException($"{set.Label} has no chunk {chunkName}.");
+        var at = options.At;
+        // The original drops the player in from a height of 10 at a new game's spawn. This puts him
+        // on the highest ground below 1000, so --at works anywhere. A save puts him where he stood.
+        var spawn = _chunks!.Origin(chunk) + (place is not null ? place.Position.ToGodot() : new Vector3(at[0], 10, at[1]));
+        // The terrain's flags are written before the chunks' objects are gated by them.
+        trek.Enter(chunk);
+        // After the first terrain and the time, which can change the weather.
+        if (options.Weather is { } weather)
+        {
+            LaunchOptions.ForceWeather(game, weather);
+            // Its sky too, at once.
+            _sky!.ChooseAgain();
+        }
+        streamer.Update(spawn.ToNumerics());
+        _sky!.Apply();
+
+        var (centre, look, yaw) = Stand(spawn, place, options);
+        var motion = new PlayerMotion(centre, look);
+        BuildPlayer(plugins, motion);
+        BuildFollowCamera(plugins, chunk, centre, look, yaw, motion, options);
+        BuildTrekUi(plugins, trek);
+        BuildMenus(plugins, game);
+        ApplySettings();
+        if (options.Pace is { } pace)
+            _player!.Motion.Pace = pace;
+        _settings.Changed += ApplySettings;
+        _settings.Changed += () => _settings.Save(DataPaths.Settings);
+        GetViewport().SizeChanged += ApplyWorldLines;
+        RunLaunchActions(options);
+    }
+
+    /// <summary>The sound bank, kept with the plugins, and the audio mixed from it and played.</summary>
+    private void StartAudio(PluginSet plugins)
+    {
         if (_bank is null)
         {
             _bank = new SoundBank(plugins);
@@ -153,21 +184,35 @@ public partial class Game : Node3D, ITrekHost
         }
         _audio = new GameAudio(_bank, _settings, AudioOutput.MixRate);
         AddChild(new AudioOutput(_audio));
-        var game = _game = _pendingSave is { } pending ? GameState.Load(plugins, pending)
-            : args.TryGetValue("save", out var savePath) ? GameState.Load(plugins, SaveFile.Read(savePath))
+    }
+
+    /// <summary>The game the System tab's Load asked for, else the save or the new game the options ask for.</summary>
+    private GameState StartingGame(PluginSet plugins, LaunchOptions options)
+    {
+        var game = _pendingSave is { } pending ? GameState.Load(plugins, pending)
+            : options.Save is { } savePath ? GameState.Load(plugins, SaveFile.Read(savePath))
             : GameState.NewGame(plugins);
         _pendingSave = null;
         foreach (var problem in game.Problems)
             GD.PushWarning(problem);
-        // Where the save stands, unless the command line says otherwise.
-        var place = args.ContainsKey("chunk") || args.ContainsKey("at") ? null : game.Place;
-        var setId = args.TryGetValue("set", out var setArg)
-            ? RecordId.Decimal(RecordTypes.MapSet, int.Parse(setArg, CultureInfo.InvariantCulture))
+        return game;
+    }
+
+    /// <summary>The map set to start in, and where the save stands in it, unless the options say otherwise.</summary>
+    private static (MapSetRecord Set, SavePlace? Place) StartingPlace(PluginSet plugins, GameState game, LaunchOptions options)
+    {
+        var place = options.PlacesPlayer ? null : game.Place;
+        var setId = options.Set is { } number
+            ? RecordId.Decimal(RecordTypes.MapSet, number)
             : place?.MapSet ?? RecordId.Decimal(RecordTypes.MapSet, 0);
         if (place?.MapSet != setId)
             place = null;
-        var set = plugins.Get<MapSetRecord>(setId);
+        return (plugins.Get<MapSetRecord>(setId), place);
+    }
 
+    /// <summary>The environment the scene is drawn in, and the sky behind it with its lens flare.</summary>
+    private void BuildSky(PluginSet plugins, GameState game)
+    {
         var environment = new Godot.Environment
         {
             // The sky's backdrop, a canvas layer behind the scene.
@@ -186,26 +231,11 @@ public partial class Game : Node3D, ITrekHost
         AddChild(SkyBackdropView.Create(_sky));
         AddChild(LensFlareView.Create(_sky));
         _sky.SkyShows = SkyShows;
-        if (args.TryGetValue("sky", out var sky))
-            _settings.SkyPlacement = sky == "original" ? Core.Sky.SkyPlacement.Original : Core.Sky.SkyPlacement.Projected;
-        // --lights off leaves bodies and actors lit by the sky alone, as a baseline for the point lights.
-        _pointLights = args.GetValueOrDefault("lights") != "off";
-        if (args.TryGetValue("time", out var time))
-            game.Clock.SetTimeOfDay(float.Parse(time, CultureInfo.InvariantCulture));
+    }
 
-        // The time's written into the flags, and any plain flags --flags sets, such as --flags 5,11
-        // for after the Kendall and ambush cut-scenes.
-        game.StateFlags.SetTime(game.Clock);
-        foreach (var flag in args.GetValueOrDefault("flags", "").Split(',', StringSplitOptions.RemoveEmptyEntries))
-            game.Flags.Set(int.Parse(flag, CultureInfo.InvariantCulture), true);
-
-        // The command line's settings are for this run, and aren't kept unless the options menu changes something.
-        if (args.ContainsKey("draw-distance"))
-            _settings.DrawDistance = Float(args, "draw-distance", 1);
-        if (args.TryGetValue("detail", out var detail))
-            _settings.NearestDetail = detail == "nearest";
-        if (args.ContainsKey("precipitation"))
-            _settings.PrecipitationDensity = Float(args, "precipitation", 1);
+    /// <summary>The models, the particles, and trek with its chunks as they're drawn. Returns the chunk streamer.</summary>
+    private ChunkStreamer BuildWorld(PluginSet plugins, GameState game, MapSetRecord set)
+    {
         var models = _models = new Models(plugins);
         // The particles actors' emitters and the weather's rain and snow start in, drawn after everything else. The pool
         // hands out the original's 384 unless the rain is denser, and has room for the densest.
@@ -214,56 +244,46 @@ public partial class Game : Node3D, ITrekHost
         AddChild(_particles);
         // The texture engine code gives bodies' shadows (BORG1_PlayerShadow).
         if (plugins.FindAsset(RecordId.Hex(RecordTypes.Texture, 0x0003), "png") is { } shadowPng)
-        {
-            var image = new Image();
-            image.LoadPngFromBuffer(File.ReadAllBytes(shadowPng));
-            _shadowTexture = ImageTexture.CreateFromImage(image);
-        }
+            _shadowTexture = Png.Texture(shadowPng);
         var streamer = new ChunkStreamer(plugins, game, _world, set, _visible);
-        var trek = _trek = new TrekLoop(game, this, new ZoneEngine(game, streamer, _audio, _particles.Head));
+        var trek = _trek = new TrekLoop(game, this, new ZoneEngine(game, streamer, _audio!, _particles.Head));
         _chunks = new ChunkStreamerView(plugins, models, streamer, trek.Wanderers, _shadowTexture);
         AddChild(_chunks);
+        return streamer;
+    }
 
-        var chunkName = args.GetValueOrDefault("chunk", place?.Chunk ?? "I08");
-        var chunk = streamer.Find(chunkName) ?? throw new KeyNotFoundException($"{set.Label} has no chunk {chunkName}.");
-        var at = Floats(args.GetValueOrDefault("at", "16,62"));
-        // The original drops the player in from a height of 10 at a new game's spawn. This puts him
-        // on the highest ground below 1000, so --at works anywhere. A save puts him where he stood.
-        var spawn = _chunks.Origin(chunk) + (place is not null ? place.Position.ToGodot() : new Vector3(at[0], 10, at[1]));
-        // The terrain's flags are written before the chunks' objects are gated by them.
-        trek.Enter(chunk);
-        // After the first terrain and the time, which can change the weather.
-        if (args.TryGetValue("weather", out var weather))
-        {
-            ForceWeather(game, weather);
-            // Its sky too, at once.
-            _sky.ChooseAgain();
-        }
-        streamer.Update(spawn.ToNumerics());
-        _sky.Apply();
+    /// <summary>
+    /// Where the player stands and which way he faces: on the highest ground below the spawn unless a save puts him
+    /// where he stood, facing <c>--yaw</c>, or the save's heading, or along −Z. The look is (−sin yaw, −cos yaw).
+    /// </summary>
+    private (System.Numerics.Vector3 Centre, System.Numerics.Vector2 Look, float Yaw) Stand(Vector3 spawn, SavePlace? place, LaunchOptions options)
+    {
         var centre = spawn.ToNumerics();
         var above = centre with { Y = 1000 };
         if (place is null && SpherePhysics.Sweep(_world, above, above - new System.Numerics.Vector3(0, 2000, 0), 0.5f, false, out var ground, out var normal))
             centre = ground + normal * 0.5f;
 
-        // The way he faces: --yaw, or the save's, or along -Z. The look is (-sin yaw, -cos yaw).
-        var yaw = Mathf.DegToRad(Float(args, "yaw", 0));
-        if (!args.ContainsKey("yaw") && place is { Heading: var heading } && heading != default)
+        var yaw = Mathf.DegToRad(options.Yaw ?? 0);
+        if (options.Yaw is null && place is { Heading: var heading } && heading != default)
             yaw = MathF.Atan2(-heading.X, -heading.Y);
-        var look = new System.Numerics.Vector2(-MathF.Sin(yaw), -MathF.Cos(yaw));
-        var motion = new PlayerMotion(centre, look);
+        return (centre, new System.Numerics.Vector2(-MathF.Sin(yaw), -MathF.Cos(yaw)), yaw);
+    }
+
+    /// <summary>The player's body and its shadow.</summary>
+    private void BuildPlayer(PluginSet plugins, PlayerMotion motion)
+    {
         _player = new Player(motion);
         AddChild(_player);
         // Alaron, as a new game sets the player's form (BORG7_Alaron).
         var alaron = plugins.Get<ActorRecord>(RecordId.Hex(RecordTypes.Actor, 0x25F9));
-        if (models.InstantiateActor(alaron) is var (model, animator))
+        if (_models!.InstantiateActor(alaron) is var (model, animator))
         {
             _player.SetModel(model);
             ShadowDecal.MarkBody(model);
             if (animator is not null)
             {
                 animator.Driven = true;
-                trek.PlayerAnimation = animator;
+                _trek!.PlayerAnimation = animator;
             }
         }
 
@@ -272,24 +292,30 @@ public partial class Game : Node3D, ITrekHost
             _shadow = new ShadowDecal(_shadowTexture);
             AddChild(_shadow);
         }
+    }
 
-        _follow = new FollowCamera(centre, look);
-        var pitch = -Float(args, "pitch", -15);
-        _follow.Pitch = _follow.DefaultPitch = pitch;
-        if (args.TryGetValue("distance", out var distance))
-            _follow.Distance = _follow.DefaultDistance = float.Parse(distance, CultureInfo.InvariantCulture);
+    /// <summary>The core's follow camera, which trek begins with, and the rig that shows it.</summary>
+    private void BuildFollowCamera(PluginSet plugins, ChunkEntry chunk, System.Numerics.Vector3 centre, System.Numerics.Vector2 look, float yaw,
+        PlayerMotion motion, LaunchOptions options)
+    {
+        var follow = _follow = new FollowCamera(centre, look);
+        var pitch = -options.Pitch;
+        follow.Pitch = follow.DefaultPitch = pitch;
+        if (options.Distance is { } distance)
+            follow.Distance = follow.DefaultDistance = distance;
         // A save loaded from the game's menu arrives as through a teleporter, which chooses the mode.
-        var mode = args.TryGetValue("camera", out var modeArg)
-            ? Enum.Parse<CameraMode>(modeArg, ignoreCase: true)
-            : FollowCamera.ModeFor(plugins, chunk);
+        var mode = options.Camera ?? FollowCamera.ModeFor(plugins, chunk);
         if (mode == CameraMode.Interior)
-            _follow.Arrive(centre, centre, look, mode, null);
-        trek.Begin(motion, _follow);
-        _camera = new CameraRig { Follow = _follow, Yaw = yaw, Pitch = Mathf.DegToRad(-pitch) };
+            follow.Arrive(centre, centre, look, mode, null);
+        _trek!.Begin(motion, follow);
+        _camera = new CameraRig { Follow = follow, Yaw = yaw, Pitch = Mathf.DegToRad(-pitch) };
         AddChild(_camera);
         _camera.Sync();
+    }
 
-        // Trek's popups, over the world and under the pause menu, and the fade over them.
+    /// <summary>Trek's popups, over the world and under the pause menu, and the fade over them.</summary>
+    private void BuildTrekUi(PluginSet plugins, TrekLoop trek)
+    {
         var trekUi = new CanvasLayer { Name = "Trek UI", Layer = PauseMenu.MenuLayer - 1 };
         _trekScreen.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _trekScreen.MouseFilter = Control.MouseFilterEnum.Ignore;
@@ -304,19 +330,21 @@ public partial class Game : Node3D, ITrekHost
         _fade.Visible = false;
         trekUi.AddChild(_fade);
         AddChild(trekUi);
+    }
 
+    /// <summary>The pause menu, the backdrop's page, the cinematic and the credits layers, and what the menu starts.</summary>
+    private void BuildMenus(PluginSet plugins, GameState game)
+    {
         _menu = new PauseMenu(plugins, game, _settings, _stick) { SaveGame = SaveTo, LoadGame = LoadFrom, Where = Where, Audio = _audio };
         _menu.CampChosen += Camp;
         // Help: the menu has rolled up, and the help menu's script starts.
         _menu.HelpChosen += () => _trek!.ShowBackdrop(plugins.Get<DialogueRecord>(SystemMenu.HelpScript));
         // The original reloads the map as the menu closes, so what changed shows.
         _menu.Closed += () => _chunks!.Regate();
-        if (args.TryGetValue("ui-lines", out var lines))
-            _settings.UiLines = int.Parse(lines, CultureInfo.InvariantCulture);
         AddChild(_menu);
         _backdrop = new BackdropLayer(plugins);
         AddChild(_backdrop);
-        _cinematic = new CinematicLayer(plugins, models, _audio);
+        _cinematic = new CinematicLayer(plugins, _models!, _audio!);
         AddChild(_cinematic);
         // The Theatre: the menu has rolled up, and the cinematic plays.
         _menu.TheatreChosen += cinematic => PlayCinematic(cinematic, fromTheatre: true);
@@ -324,66 +352,6 @@ public partial class Game : Node3D, ITrekHost
         AddChild(_credits);
         // Credits: the menu has rolled up, and the credits play.
         _menu.CreditsChosen += PlayCredits;
-        ApplySettings();
-        if (args.ContainsKey("pace"))
-            _player.Motion.Pace = Float(args, "pace", 1);
-        _settings.Changed += ApplySettings;
-        _settings.Changed += () => _settings.Save(DataPaths.Settings);
-        GetViewport().SizeChanged += ApplyWorldLines;
-        switch (args.GetValueOrDefault("menu"))
-        {
-            case "1":
-                _menu.Open();
-                break;
-            case "loot":
-                _menu.OpenLoot(new ItemPile(game.Party.Inventory.Catalog), 0);
-                break;
-            case { } tab when Enum.TryParse<PauseTab>(tab, ignoreCase: true, out var opening):
-                _menu.Open(opening);
-                break;
-        }
-
-        if (args.TryGetValue("fly", out var fly))
-        {
-            _camera.ToggleFly();
-            var p = Floats(fly);
-            _camera.Current.GlobalPosition = new Vector3(p[0], p[1], p[2]);
-            _camera.Current.Rotation = new Vector3(_camera.Pitch, _camera.Yaw, 0);
-        }
-        var hold = 0.0;
-        if (args.TryGetValue("hold", out var held) && held.Split(',') is [var action, var seconds])
-        {
-            hold = double.Parse(seconds, CultureInfo.InvariantCulture);
-            var actions = action.Split('+');
-            foreach (var a in actions)
-                Input.ActionPress(a);
-            GetTree().CreateTimer(hold).Timeout += () =>
-            {
-                foreach (var a in actions)
-                    Input.ActionRelease(a);
-            };
-        }
-        // Each action pressed and let go in turn, a fifth of a second apart, as input events.
-        if (args.TryGetValue("press", out var presses))
-        {
-            var pressed = presses.Split(',');
-            for (var i = 0; i < pressed.Length; i++)
-            {
-                var name = pressed[i];
-                GetTree().CreateTimer(0.5 + 0.2 * i).Timeout += () =>
-                {
-                    Input.ParseInputEvent(new InputEventAction { Action = name, Pressed = true });
-                    Input.ParseInputEvent(new InputEventAction { Action = name, Pressed = false });
-                };
-            }
-            hold = Math.Max(hold, 0.5 + 0.2 * pressed.Length);
-        }
-        if (args.TryGetValue("cutscene", out var cutscene))
-            CueFromCommandLine(RecordId.Parse(cutscene));
-        if (args.TryGetValue("cinematic", out var cinematicArg))
-            CinematicFromCommandLine(cinematicArg);
-        if (args.TryGetValue("screenshot", out var png))
-            _ = Screenshot(png, hold, args.TryGetValue("frames", out var frames) ? int.Parse(frames, CultureInfo.InvariantCulture) : 0);
     }
 
     /// <summary>Carries out the settings: the window, the 3D view, the draw distance, the sky, the pace and the UI screens.</summary>
@@ -511,9 +479,7 @@ public partial class Game : Node3D, ITrekHost
         if (_pointLights)
             LightBodies();
         var motion = _player.Motion;
-        _track.Enqueue(motion.Sphere.Position);
-        if (_track.Count > Aidyn.Core.Calendar.GameClock.TicksPerSecond)
-            _track.Dequeue();
+        TrackPlayer(motion.Sphere.Position);
         // A fall that sends him back to safe ground is a jump, not a move.
         if (System.Numerics.Vector3.Distance(before, motion.Sphere.Position) > 2)
             ResetInterpolation();
@@ -752,41 +718,7 @@ public partial class Game : Node3D, ITrekHost
         Billboards.Face(chunks.BillboardFacings, _camera.Current.GetGlobalTransformInterpolated().Origin);
 
         if (_overlay.Visible)
-        {
-            var chunk = chunks.Chunks.ChunkAt(focus.ToNumerics());
-            var local = chunk is null ? focus : focus - chunks.Origin(chunk);
-            var motion = _player.Motion;
-            var sphere = motion.Sphere;
-            _overlay.Text = (_scene is { } scene ? $"cut-scene {scene.Runner.Script.Id}, waiting for {scene.Runner.Wait?.ToString() ?? "nothing"}, {scene.Actors.Count} actors, {scene.Cameras.Count} camera moves\n" : "") +
-                $"{chunks.Chunks.MapSet.Label} {chunk?.Name ?? "(no chunk)"}  " +
-                $"({local.X:F1}, {local.Y:F1}, {local.Z:F1})  {Engine.GetFramesPerSecond()} fps" +
-                (_camera.Flying ? "  [free camera]" : "") + "\n" +
-                (sphere.Touching ? $"on {SurfaceNames.Of(sphere.Surface)}" : "in the air") +
-                $"  speed {Speed():F2}/s  request {motion.Request}  pace {motion.Pace:0.##} (F5)" +
-                $"  camera {_follow!.Mode.ToString().ToLowerInvariant()}{(_trek!.Use.CurrentCamera is { } held ? $" (object {held.Index})" : "")}" +
-                $"  {Clock(_sky!.Clock.TimeOfDay)}  sky {_sky.Placement.ToString().ToLowerInvariant()} (F6)" +
-                $"  UI {_menu!.Screen.Lines} lines (F7)  wanderers {_trek.Wanderers.All.Count}\n" +
-                $"music {_audio!.MusicPlaying?.Key ?? "none"}  sounds {_trek.Zone.Sounds.Playing} of the map's, {_audio.SoundsPlaying} one-shots" +
-                $"  particles {_particles!.Head.ParticlesInUse} of {_particles.Head.MaxParticles}{Precipitation()}";
-        }
-    }
-
-    /// <summary>For the overlay: how many raindrops or snowflakes and splashes the last frame drew, and how many of them are on screen.</summary>
-    private string Precipitation()
-    {
-        if ((_scene is not null ? _stage?.Precipitation : _trek?.Zone.Precipitation) is not { Drops: { } drops, Splashes: { } splashes } ||
-            GetViewport().GetCamera3D() is not { } camera)
-            return "";
-        int fall = 0, fallSeen = 0, splash = 0, splashSeen = 0;
-        foreach (var s in _particles!.Head.Sprites)
-        {
-            var seen = camera.IsPositionInFrustum(s.Position.ToGodot()) ? 1 : 0;
-            if (s.Emitter == drops.Slot)
-                (fall, fallSeen) = (fall + 1, fallSeen + seen);
-            else if (s.Emitter == splashes.Slot)
-                (splash, splashSeen) = (splash + 1, splashSeen + seen);
-        }
-        return $"  drops {fall} ({fallSeen} on screen), splashes {splash} ({splashSeen})";
+            UpdateOverlay(chunks, focus);
     }
 
     /// <summary>
@@ -801,21 +733,6 @@ public partial class Game : Node3D, ITrekHost
             _stick.Step(delta, direction => _UnhandledInput(new InputEventAction { Action = MenuStick.Dpad(direction), Pressed = true }));
         else
             _stick.Clear();
-    }
-
-    private static string Clock(float timeOfDay)
-    {
-        var minutes = (int)(timeOfDay * 24 * 60);
-        return $"{minutes / 60:D2}:{minutes % 60:D2}";
-    }
-
-    /// <summary>How far the player went in X and Z over the last second, per second.</summary>
-    private float Speed()
-    {
-        if (_track.Count < 2)
-            return 0;
-        var span = _track.Last() - _track.Peek();
-        return new System.Numerics.Vector2(span.X, span.Z).Length() * Aidyn.Core.Calendar.GameClock.TicksPerSecond / (_track.Count - 1);
     }
 
     public override void _UnhandledInput(InputEvent e)
@@ -1210,39 +1127,6 @@ public partial class Game : Node3D, ITrekHost
         };
     }
 
-    private async Task Screenshot(string path, double after, int frames = 0)
-    {
-        var watchdog = GetTree().CreateTimer(60 + after);
-        watchdog.Timeout += () =>
-        {
-            GD.PrintErr("Timed out before the screenshot.");
-            GetTree().Quit(2);
-        };
-        // Time for the frame to settle.
-        await ToSignal(GetTree().CreateTimer(1.5 + after), SceneTreeTimer.SignalName.Timeout);
-        for (var i = 0; i < 3; i++)
-            await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
-        if (frames > 0)
-        {
-            // Every frame as rendered, at the rate it renders, kept until the last, for flicker between ticks.
-            var images = new List<Image>(frames);
-            for (var i = 0; i < frames; i++)
-            {
-                images.Add(GetViewport().GetTexture().GetImage());
-                await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
-            }
-            var stem = Path.ChangeExtension(path, null);
-            for (var i = 0; i < images.Count; i++)
-                images[i].SavePng($"{stem}-{i:000}.png");
-            GD.Print($"Saved {images.Count} frames to {stem}-000.png on");
-            GetTree().Quit(0);
-            return;
-        }
-        var error = GetViewport().GetTexture().GetImage().SavePng(path);
-        GD.Print(error == Error.Ok ? $"Saved {path}" : $"Couldn't save {path}: {error}");
-        GetTree().Quit(error == Error.Ok ? 0 : 1);
-    }
-
     private static void AddInputs()
     {
         Add("move_forward", Key.W, Key.Up, JoyAxis.LeftY, -1);
@@ -1295,56 +1179,4 @@ public partial class Game : Node3D, ITrekHost
                 InputMap.ActionAddEvent(action, new InputEventJoypadButton { ButtonIndex = b });
         }
     }
-
-    private static Dictionary<string, string> Options(string[] args)
-    {
-        var options = new Dictionary<string, string>();
-        for (var i = 0; i + 1 < args.Length; i += 2)
-        {
-            if (args[i].StartsWith("--", StringComparison.Ordinal))
-                options[args[i][2..]] = args[i + 1];
-        }
-        return options;
-    }
-
-    private static float Float(Dictionary<string, string> args, string name, float fallback) =>
-        args.TryGetValue(name, out var v) ? float.Parse(v, CultureInfo.InvariantCulture) : fallback;
-
-    /// <summary>
-    /// <c>--weather rain|snow|fog|clear[,intensity[,fog]]</c>: the weather at once, already set in, for screenshots. Rain
-    /// and snow default to 0.5 with fog 0.2, and fog to 0.5.
-    /// </summary>
-    private static void ForceWeather(GameState game, string text)
-    {
-        if (game.Weather is not { } weather)
-        {
-            GD.PushWarning("No weather record: --weather does nothing.");
-            return;
-        }
-        // The part of the day as it is, so the next frame doesn't roll.
-        weather.PartOfDay = game.Clock.Date.PartOfDay;
-        var parts = text.Split(',');
-        float Part(int i, float fallback) => parts.Length > i ? float.Parse(parts[i], CultureInfo.InvariantCulture) : fallback;
-        switch (parts[0])
-        {
-            case "rain":
-                weather.Force(Core.Calendar.WeatherKind.Precipitation, Core.Calendar.Precipitation.Rain, Part(1, 0.5f), Part(2, 0.2f));
-                break;
-            case "snow":
-                weather.Force(Core.Calendar.WeatherKind.Precipitation, Core.Calendar.Precipitation.Snow, Part(1, 0.5f), Part(2, 0.2f));
-                break;
-            case "fog":
-                weather.Force(Core.Calendar.WeatherKind.Fog, fog: Part(1, 0.5f));
-                break;
-            case "clear":
-                weather.Force(Core.Calendar.WeatherKind.Clear);
-                break;
-            default:
-                GD.PushWarning($"--weather {text}: give rain, snow, fog or clear.");
-                break;
-        }
-    }
-
-    private static float[] Floats(string text) =>
-        [.. text.Split(',').Select(s => float.Parse(s, CultureInfo.InvariantCulture))];
 }

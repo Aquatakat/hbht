@@ -106,8 +106,7 @@ public partial class CameraRig : Node3D
             return;
         var input = Input.GetVector("move_left", "move_right", "move_forward", "move_back");
         var up = (Input.IsActionPressed("fly_up") ? 1 : 0) - (Input.IsActionPressed("fly_down") ? 1 : 0);
-        var basis = _fly.GlobalTransform.Basis;
         var speed = Input.IsActionPressed("walk") ? FlySpeed * 4 : FlySpeed;
-        _fly.GlobalPosition += (basis.X * input.X + basis.Z * input.Y + Vector3.Up * up) * speed * (float)delta;
+        _fly.GlobalPosition += FreeFly.Direction(_fly.GlobalTransform.Basis, input.X, up, input.Y) * speed * (float)delta;
     }
 }

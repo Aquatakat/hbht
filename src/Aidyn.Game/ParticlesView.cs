@@ -172,11 +172,7 @@ public partial class ParticlesView : Node3D
         if (_textures.TryGetValue(id, out var texture))
             return texture;
         if (_plugins.FindAsset(id, "png") is { } png)
-        {
-            var image = new Image();
-            image.LoadPngFromBuffer(File.ReadAllBytes(png));
-            texture = ImageTexture.CreateFromImage(image);
-        }
+            texture = Png.Texture(png);
         else
         {
             GD.PushWarning($"No texture {id} for particles.");

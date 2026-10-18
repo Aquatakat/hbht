@@ -139,13 +139,11 @@ public partial class ScriptPanel : VBoxContainer
         var summary = _catalog.Find(id)?.Summary;
         return id.Type switch
         {
-            RecordTypes.Flag => summary is { Length: > 0 } s ? $"flag {id.Key} ({Truncate(s, 40)})" : $"flag {id.Key}",
+            RecordTypes.Flag => summary is { Length: > 0 } s ? $"flag {id.Key} ({PluginCatalog.Truncate(s, 40)})" : $"flag {id.Key}",
             RecordTypes.Dialogue => $"script {id.Key}",
             _ => summary is { Length: > 0 } name ? name : id.Key,
         };
     }
-
-    private static string Truncate(string text, int length) => text.Length <= length ? text : text[..(length - 1)] + "…";
 
     // ---- The graph ------------------------------------------------------------------------------
 
@@ -234,7 +232,7 @@ public partial class ScriptPanel : VBoxContainer
         if (numbered)
             body.AddChild(Dimmed(node.Index.ToString(CultureInfo.InvariantCulture)));
         if (node.Text.Length > 0)
-            body.AddChild(new Label { Text = Truncate(Display(node.Text), 240), AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(NodeWidth, 0) });
+            body.AddChild(new Label { Text = PluginCatalog.Truncate(Display(node.Text), 240), AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(NodeWidth, 0) });
         foreach (var op in node.Ops ?? [])
             body.AddChild(OpRow(op));
         if (LinkText(node, withLinks) is { } links)

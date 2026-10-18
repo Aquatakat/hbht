@@ -321,11 +321,7 @@ public partial class SystemTabView : Control
         if (_screenshots.TryGetValue(key, out var texture))
             return texture;
         if (slot.Screenshot is { } png)
-        {
-            var image = new Image();
-            if (image.Load(png) == Error.Ok)
-                texture = ImageTexture.CreateFromImage(image);
-        }
+            texture = Png.Texture(png);
         return _screenshots[key] = texture;
     }
 

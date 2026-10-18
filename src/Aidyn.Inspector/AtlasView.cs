@@ -264,7 +264,7 @@ public partial class AtlasView : VBoxContainer
         node.AddThemeStyleboxOverride("titlebar_selected", style);
         var open = new Button
         {
-            Text = Truncate(Summary(key), 90),
+            Text = PluginCatalog.Truncate(Summary(key), 90),
             TooltipText = $"Open {key}",
             Flat = true,
             Alignment = HorizontalAlignment.Left,
@@ -293,8 +293,6 @@ public partial class AtlasView : VBoxContainer
         var summary = _catalog!.Find(key)?.Summary;
         return !string.IsNullOrEmpty(summary) ? summary : key.Type == RecordTypes.Flag ? "Plain flag" : key.ToString();
     }
-
-    private static string Truncate(string text, int length) => text.Length <= length ? text : text[..(length - 1)] + "…";
 
     /// <summary>Scrolls to the record shown.</summary>
     private void Center()

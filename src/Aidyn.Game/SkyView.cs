@@ -27,7 +27,7 @@ public partial class SkyView : Node
 
     private readonly PluginSet _plugins;
     private readonly Dictionary<RecordId, SkyGradient?> _gradients = [];
-    private readonly Dictionary<RecordId, Texture2D?> _images = [];
+    private readonly UiImages _images;
     private (int Row, int Column)? _chunk;
     private ChunkEntry? _entered;
     private Weather? _weather;
@@ -38,6 +38,7 @@ public partial class SkyView : Node
     public SkyView(PluginSet plugins, GameClock clock)
     {
         _plugins = plugins;
+        _images = new UiImages(plugins);
         Clock = clock;
         Name = "Sky";
         if (plugins.TrySingleton<SkyRecord>(RecordTypes.Sky) is { } sky)
@@ -191,22 +192,7 @@ public partial class SkyView : Node
     public float LensFlareValue => Flare?.Value ?? 0;
 
     /// <summary>A UI image, as a texture, or null if no plugin has it.</summary>
-    public Texture2D? Image(RecordId image)
-    {
-        if (_images.TryGetValue(image, out var texture))
-            return texture;
-        if (_plugins.FindAsset(image, "png") is { } png)
-        {
-            var data = new Image();
-            if (data.LoadPngFromBuffer(File.ReadAllBytes(png)) == Error.Ok)
-                texture = ImageTexture.CreateFromImage(data);
-        }
-        else
-        {
-            GD.PushWarning($"No asset for {image}.");
-        }
-        return _images[image] = texture;
-    }
+    public Texture2D? Image(RecordId image) => _images.Get(image);
 
     /// <summary>A UI image's size in pixels, or nothing if it's missing.</summary>
     public System.Numerics.Vector2 ImageSize(RecordId image) =>
@@ -216,10 +202,8 @@ public partial class SkyView : Node
     {
         if (_gradients.TryGetValue(image, out var gradient))
             return gradient;
-        if (_plugins.FindAsset(image, "png") is { } png)
+        if (_plugins.FindAsset(image, "png") is { } png && Png.Load(png) is { } data)
         {
-            var data = new Image();
-            data.LoadPngFromBuffer(File.ReadAllBytes(png));
             data.Convert(Godot.Image.Format.Rgba8);
             if (data.GetWidth() == SkyGradient.Columns && data.GetHeight() == SkyGradient.Rows)
                 gradient = new SkyGradient(data.GetData());

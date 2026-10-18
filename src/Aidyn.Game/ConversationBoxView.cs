@@ -102,13 +102,11 @@ public partial class ConversationBoxView : Control
         foreach (var glyph in _text.Print(block.Text, block.X, block.Y, block.Bounds, color).Glyphs)
         {
             DrawTextureRectRegion(_sheet, new Rect2(glyph.X, glyph.Y, glyph.Width, glyph.Height),
-                new Rect2(glyph.SourceX, glyph.SourceY, glyph.Width, glyph.Height), Color8(glyph.Color));
+                new Rect2(glyph.SourceX, glyph.SourceY, glyph.Width, glyph.Height), UiPainter.Color8(glyph.Color));
         }
     }
 
     /// <summary>A speaker's portrait, or the code's fallback for one without.</summary>
     private RecordId PortraitOf(RecordId? speaker) =>
         speaker is { } id && _plugins.TryGet<DbRecord>(id)?.Portrait is { } portrait ? portrait : FallbackPortrait;
-
-    private static Color Color8(Rgba c) => Color.Color8(c.R, c.G, c.B, c.A);
 }

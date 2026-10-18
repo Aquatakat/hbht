@@ -19,8 +19,10 @@
     <Compile Include="..\Aidyn.Game\ActorAnimator.cs" Link="Shared\ActorAnimator.cs" />
     <Compile Include="..\Aidyn.Game\Billboards.cs" Link="Shared\Billboards.cs" />
     <Compile Include="..\Aidyn.Game\ChunkScenery.cs" Link="Shared\ChunkScenery.cs" />
+    <Compile Include="..\Aidyn.Game\CommandLine.cs" Link="Shared\CommandLine.cs" />
     <Compile Include="..\Aidyn.Game\ConversationBoxView.cs" Link="Shared\ConversationBoxView.cs" />
     <Compile Include="..\Aidyn.Game\FrameCallback.cs" Link="Shared\FrameCallback.cs" />
+    <Compile Include="..\Aidyn.Game\FreeFly.cs" Link="Shared\FreeFly.cs" />
     <Compile Include="..\Aidyn.Game\GlbFile.cs" Link="Shared\GlbFile.cs" />
     <Compile Include="..\Aidyn.Game\Models.cs" Link="Shared\Models.cs" />
     <Compile Include="..\Aidyn.Game\MirroredMeshes.cs" Link="Shared\MirroredMeshes.cs" />
@@ -30,6 +32,7 @@
     <Compile Include="..\Aidyn.Game\PartyTabView.cs" Link="Shared\PartyTabView.cs" />
     <Compile Include="..\Aidyn.Game\PartyTabView.Barter.cs" Link="Shared\PartyTabView.Barter.cs" />
     <Compile Include="..\Aidyn.Game\PartyTabView.Training.cs" Link="Shared\PartyTabView.Training.cs" />
+    <Compile Include="..\Aidyn.Game\Png.cs" Link="Shared\Png.cs" />
     <Compile Include="..\Aidyn.Game\TextureScrolls.cs" Link="Shared\TextureScrolls.cs" />
     <Compile Include="..\Aidyn.Game\TransformTracks.cs" Link="Shared\TransformTracks.cs" />
     <Compile Include="..\Aidyn.Game\UiImages.cs" Link="Shared\UiImages.cs" />

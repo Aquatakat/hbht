@@ -34,40 +34,6 @@ public partial class Game
     }
 
     /// <summary>
-    /// Plays a cut-scene from the command line (<c>--cutscene aidyn:dialogue/0x0365</c>), as the first dialogue object
-    /// that starts it would, or else the first talker, in its own chunk.
-    /// </summary>
-    private void CueFromCommandLine(RecordId script)
-    {
-        if (_plugins!.TryGet<DialogueRecord>(script) is not { Mode: DialogueMode.Cutscene } record)
-        {
-            Say($"{script} isn't a cut-scene.");
-            return;
-        }
-        var chunks = _plugins.All<MapSetRecord>(RecordTypes.MapSet)
-            .SelectMany(s => s.Chunks.Select(c => (c.Map, Ref: new ChunkRef(s.Id, c.Row, c.Column))))
-            .GroupBy(c => c.Map).ToDictionary(g => g.Key, g => g.First().Ref);
-        var maps = _plugins.All<MapRecord>(RecordTypes.Map).ToList();
-        foreach (var map in maps)
-        {
-            if (map.Objects.OfType<DialogueObject>().FirstOrDefault(d => d.Script == script && d.Stage is not null) is { } dialogue)
-            {
-                CueCutScene(record, new ScriptStart(dialogue.RefPointBase, MapRecord.VoxelId(map.Id, dialogue.Index)), dialogue.Stage!);
-                return;
-            }
-        }
-        foreach (var map in maps)
-        {
-            if (map.Objects.OfType<MonsterPartyObject>().FirstOrDefault(p => p.Dialogue == script) is { } party && chunks.TryGetValue(map.Id, out var own))
-            {
-                CueCutScene(record, new ScriptStart(0, MapRecord.VoxelId(map.Id, party.Index)), own);
-                return;
-            }
-        }
-        Say($"Nothing starts {script}.");
-    }
-
-    /// <summary>
     /// Trek's world goes (<c>clear_HUD_elements</c>): its chunks, wanderers and the player's body. Then the
     /// stage's 3×3 loads, without wanderers, and the script starts (<c>DialogueModeInitPrescripted</c>).
     /// </summary>
