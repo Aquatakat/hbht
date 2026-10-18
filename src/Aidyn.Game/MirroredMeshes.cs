@@ -23,11 +23,16 @@ public sealed class MirroredMeshes
     /// <summary>One for an instance of a scene, or null if its scene never mirrors a model.</summary>
     public static MirroredMeshes? For(Node root, SceneExtras extras) => extras.Mirrored ? new MirroredMeshes(root) : null;
 
-    /// <summary>Gives each mesh the materials for whether its world matrix mirrors it now.</summary>
+    /// <summary>
+    /// Gives each mesh the materials for whether its world matrix mirrors it now. A mesh not yet in the tree has no
+    /// world matrix, as when an actor is first posed before its view is added, so it waits for the next pose.
+    /// </summary>
     public void Update()
     {
         foreach (var mesh in _meshes)
         {
+            if (!mesh.IsInsideTree())
+                continue;
             var mirrored = mesh.GlobalBasis.Determinant() < 0;
             if (mirrored == _mirrored.ContainsKey(mesh))
                 continue;
