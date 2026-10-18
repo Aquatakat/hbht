@@ -26,15 +26,24 @@ public static class TestRoms
     public static TheoryData<RomVersionId> Versions() => [.. RomVersions.All.Select(v => v.Id)];
 
     /// <summary>
-    /// The names of the ares save states next to the ROMs (<c>… - label.bs1</c> to <c>.bs4</c>), for a theory over each.
-    /// A theory with no checkpoints gets one empty name, which <see cref="Checkpoint"/> skips.
+    /// The names of the story checkpoints next to the ROMs (<c>… - label.bs1</c> to <c>.bs4</c>), for a theory over each:
+    /// every checkpoint but the combat captures (<see cref="CombatCheckpoints"/>), which are one battle's and hold none of
+    /// the story's facts the theories check. A theory with no checkpoints gets one empty name, which <see cref="Checkpoint"/> skips.
     /// </summary>
-    public static TheoryData<string> Checkpoints()
+    public static TheoryData<string> Checkpoints() => Named(n => !IsCombat(n));
+
+    /// <summary>The combat captures (<c>… - Combat NN, label.bs1</c>), one battle from the field before it to the loot.</summary>
+    public static TheoryData<string> CombatCheckpoints() => Named(IsCombat);
+
+    private static bool IsCombat(string name) => name.Contains(" - Combat ", StringComparison.Ordinal);
+
+    private static TheoryData<string> Named(Func<string, bool> which)
     {
         var data = new TheoryData<string>();
         var names = Directory.Exists(Folder)
             ? Directory.EnumerateFiles(Folder).Select(Path.GetFileName).OfType<string>()
                 .Where(n => n.Contains(" - ") && n.Length > 4 && n[^4..^1] == ".bs" && n[^1] is >= '1' and <= '4')
+                .Where(which)
                 .Order(StringComparer.Ordinal)
             : Enumerable.Empty<string>();
         foreach (var name in names)
