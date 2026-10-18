@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -41,6 +42,11 @@ public sealed class PluginSet
     private readonly Dictionary<RecordId, JsonObject> _records = [];
     private readonly Dictionary<(RecordId, string), List<string>> _setters = [];
     private readonly Dictionary<RecordId, string> _definedBy = [];
+
+    // Records read as types, once each and after the merge: nothing changes the merged JSON once the set has loaded.
+    // The runtime's audio thread and the editor's loading tasks read records as well as the main thread.
+    private readonly ConcurrentDictionary<(RecordId, Type), object> _typed = new();
+    private readonly ConcurrentDictionary<(string Type, Type), object> _typedAll = new();
 
     private PluginSet(IReadOnlyList<Plugin> plugins) => Plugins = plugins;
 
@@ -122,20 +128,36 @@ public sealed class PluginSet
         return found.Values;
     }
 
-    /// <summary>The merged record as JSON.</summary>
+    /// <summary>The merged record as JSON. It's the set's own: read it, don't change it.</summary>
     public JsonObject? GetJson(RecordId id) => _records.GetValueOrDefault(id);
 
     /// <summary>The merged record, read as <typeparamref name="T"/>.</summary>
     public T Get<T>(RecordId id) where T : class =>
         TryGet<T>(id) ?? throw new KeyNotFoundException($"No record {id}.");
 
+    /// <summary>
+    /// The merged record, read as <typeparamref name="T"/>, or null if no plugin has it. It's read once: every call for
+    /// the same record and type returns the same object, which <see cref="All{T}"/> holds too.
+    /// </summary>
     public T? TryGet<T>(RecordId id) where T : class =>
-        _records.TryGetValue(id, out var json) ? json.Deserialize<T>(PluginJson.Options) : null;
+        _records.TryGetValue(id, out var json)
+            ? (T)_typed.GetOrAdd((id, typeof(T)), static (_, json) => json.Deserialize<T>(PluginJson.Options)!, json)
+            : null;
 
-    /// <summary>Every merged record of a type.</summary>
-    public IEnumerable<T> All<T>(string type) where T : class =>
-        _records.Where(r => r.Key.Type == type).OrderBy(r => r.Key.ToString(), StringComparer.Ordinal)
-            .Select(r => r.Value.Deserialize<T>(PluginJson.Options)!);
+    /// <summary>Every merged record of a type, in the order of their IDs' spelling, each the object <see cref="TryGet{T}"/> returns.</summary>
+    public IReadOnlyList<T> All<T>(string type) where T : class =>
+        (IReadOnlyList<T>)_typedAll.GetOrAdd((type, typeof(T)), static (key, set) => set._records.Keys
+            .Where(id => id.Type == key.Type).OrderBy(id => id.ToString(), StringComparer.Ordinal)
+            .Select(id => set.TryGet<T>(id)!).ToList().AsReadOnly(), this);
+
+    /// <summary>
+    /// The record of a type there's only one of, <c>aidyn:&lt;type&gt;/0</c>, such as <c>aidyn:camping/0</c>. Plugins
+    /// patch it rather than add another.
+    /// </summary>
+    public T Singleton<T>(string type) where T : class => Get<T>(RecordId.Decimal(type, 0));
+
+    /// <summary>As <see cref="Singleton{T}"/>, or null if no plugin has it.</summary>
+    public T? TrySingleton<T>(string type) where T : class => TryGet<T>(RecordId.Decimal(type, 0));
 
     /// <summary>
     /// The file that provides <paramref name="id"/>'s asset, from the last plugin that has one:

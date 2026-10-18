@@ -72,7 +72,7 @@ public sealed class FlagNetwork
     /// <summary>The flags of the loaded plugins, as a new game starts.</summary>
     public static FlagNetwork Load(PluginSet plugins)
     {
-        var state = plugins.All<StateFlagsRecord>(RecordTypes.StateFlags).Single();
+        var state = plugins.Singleton<StateFlagsRecord>(RecordTypes.StateFlags);
         var order = plugins.Plugins.Select((p, i) => (p.Manifest.Id, i)).ToDictionary(p => p.Id, p => p.i);
         return new FlagNetwork(plugins.All<FlagRecord>(RecordTypes.Flag), state.NewJournalEntry,
             id => plugins.DefinedBy(id) is { } plugin ? order[plugin] : int.MaxValue);

@@ -112,7 +112,7 @@ public sealed class CharacterRules
     public static CharacterRules From(PluginSet plugins) => new(
         [.. Enumerable.Range(0, StatCount).Select(s => plugins.Get<StatRecord>(RecordId.Decimal(RecordTypes.Stat, s)))],
         [.. SkillId.All.Select(s => plugins.Get<SkillRecord>(s.Record))],
-        plugins.Get<ProgressionRecord>(RecordId.Decimal(RecordTypes.Progression, 0)));
+        plugins.Singleton<ProgressionRecord>(RecordTypes.Progression));
 
     /// <summary>
     /// The level <paramref name="exp"/> reaches: the last whose threshold it's reached

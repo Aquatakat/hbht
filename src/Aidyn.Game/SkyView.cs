@@ -39,7 +39,7 @@ public partial class SkyView : Node
         _plugins = plugins;
         Clock = clock;
         Name = "Sky";
-        if (plugins.TryGet<SkyRecord>(RecordId.Decimal(RecordTypes.Sky, 0)) is { } sky)
+        if (plugins.TrySingleton<SkyRecord>(RecordTypes.Sky) is { } sky)
         {
             Objects = new SkyObjects(sky);
             Clouds = new Clouds(sky);

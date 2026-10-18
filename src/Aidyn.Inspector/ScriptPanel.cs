@@ -608,7 +608,7 @@ public partial class ScriptPanel : VBoxContainer
         if (_game is null || _world is null)
             return;
         _log.Clear();
-        var randomSkillChecks = _catalog.Plugins.All<StateFlagsRecord>(RecordTypes.StateFlags).SingleOrDefault()?.RandomSkillChecks;
+        var randomSkillChecks = _catalog.Plugins.TrySingleton<StateFlagsRecord>(RecordTypes.StateFlags)?.RandomSkillChecks;
         _runner = new ScriptRunner(_script, _game.Network, _world, new Host(cue => Log(Describe(cue))), new Lcg(), id => _catalog.Plugins.TryGet<DialogueRecord>(id),
             randomSkillChecks: randomSkillChecks);
         Act(_runner.Start);

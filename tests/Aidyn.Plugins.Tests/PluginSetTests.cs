@@ -194,6 +194,64 @@ public sealed class PluginSetTests : IDisposable
         Assert.Equal("objects[0].visible.flag", Assert.Single(catalog.ReferencesTo(RecordId.Parse("aidyn:flag/5"))).Path);
     }
 
+    /// <summary>A partial read of a weapon, as <see cref="DbRecord"/> is one, to read one record as two types.</summary>
+    private sealed record Damage(RecordId Id, int Value);
+
+    [Fact]
+    public void TypedRecordsAreReadOnceAndHoldTheMerge()
+    {
+        var set = PluginSet.Load([
+            Base(),
+            Plugin("mymod", ["aidyn"], ("club.json", """{ "patch": "aidyn:weapon/0x0712", "name": "Big club", "value": 9 }""")),
+        ]);
+        var club = RecordId.Parse("aidyn:weapon/0x0712");
+
+        var read = set.Get<DbRecord>(club);
+        Assert.Equal("Big club", read.Name);
+        Assert.Same(read, set.Get<DbRecord>(club));
+        Assert.Same(read, set.TryGet<DbRecord>(club));
+        Assert.Same(read, set.All<DbRecord>(RecordTypes.Weapon)[0]);
+
+        // The same record read as another type is that type's own object.
+        var damage = set.Get<Damage>(club);
+        Assert.Equal(9, damage.Value);
+        Assert.Same(damage, set.Get<Damage>(club));
+        Assert.Null(set.TryGet<DbRecord>(RecordId.Parse("aidyn:weapon/0x0799")));
+    }
+
+    [Fact]
+    public void AllOfATypeIsInIdOrder()
+    {
+        var set = PluginSet.Load([
+            Plugin("aidyn", null,
+                ("b.json", """[{ "id": "aidyn:weapon/0x0713", "name": "Mace" }, { "id": "aidyn:flag/1" }]"""),
+                ("a.json", """{ "id": "aidyn:weapon/0x0712", "name": "Club" }""")),
+            Plugin("mymod", ["aidyn"], ("sword.json", """{ "id": "mymod:weapon/sword", "name": "Sword" }""")),
+        ]);
+
+        var weapons = set.All<DbRecord>(RecordTypes.Weapon);
+        Assert.Equal(["aidyn:weapon/0x0712", "aidyn:weapon/0x0713", "mymod:weapon/sword"], weapons.Select(w => w.Id.ToString()));
+        Assert.Same(weapons, set.All<DbRecord>(RecordTypes.Weapon));
+        Assert.Same(weapons[2], set.Get<DbRecord>(RecordId.Parse("mymod:weapon/sword")));
+        Assert.Empty(set.All<DbRecord>(RecordTypes.Armor));
+    }
+
+    [Fact]
+    public void ASingletonIsTheBaseGamesRecordZero()
+    {
+        var set = PluginSet.Load([
+            Plugin("aidyn", null, ("camping.json", """{ "id": "aidyn:camping/0", "name": "Camping" }""")),
+            Plugin("mymod", ["aidyn"],
+                ("camping.json", """[{ "patch": "aidyn:camping/0", "name": "Better camping" }, { "id": "mymod:camping/0", "name": "Another" }]""")),
+        ]);
+
+        var camping = set.Singleton<DbRecord>(RecordTypes.Camping);
+        Assert.Equal("Better camping", camping.Name);
+        Assert.Same(camping, set.TrySingleton<DbRecord>(RecordTypes.Camping));
+        Assert.Null(set.TrySingleton<DbRecord>(RecordTypes.Sky));
+        Assert.Throws<KeyNotFoundException>(() => set.Singleton<DbRecord>(RecordTypes.Sky));
+    }
+
     [Fact]
     public void TypedRecordsRoundTrip()
     {

@@ -34,11 +34,11 @@ public sealed class GameState : IScriptWorld
         Rules = CharacterRules.From(plugins);
         Items = ItemCatalog.From(plugins);
         Flags = FlagNetwork.Load(plugins);
-        StateFlagsRecord = plugins.All<StateFlagsRecord>(RecordTypes.StateFlags).Single();
+        StateFlagsRecord = plugins.Singleton<StateFlagsRecord>(RecordTypes.StateFlags);
         StateFlags = new StateFlags(Flags, StateFlagsRecord);
         Party = new Party(Items, Flags);
         Minimaps = new MinimapSeen(plugins);
-        if (plugins.All<WeatherRecord>(RecordTypes.Weather).SingleOrDefault() is { } weather)
+        if (plugins.TrySingleton<WeatherRecord>(RecordTypes.Weather) is { } weather)
             Weather = new Weather(weather);
     }
 
@@ -53,12 +53,12 @@ public sealed class GameState : IScriptWorld
     public StateFlagsRecord StateFlagsRecord { get; }
 
     /// <summary>How camping goes (<c>aidyn:camping/0</c>).</summary>
-    public CampingRecord Camping => _camping ??= Plugins.All<CampingRecord>(RecordTypes.Camping).Single();
+    public CampingRecord Camping => _camping ??= Plugins.Singleton<CampingRecord>(RecordTypes.Camping);
 
     private CampingRecord? _camping;
 
     /// <summary>The sounds engine code plays (<c>aidyn:sounds/0</c>), or null if no plugin has them, when nothing plays.</summary>
-    public SoundsRecord? Sounds => _sounds ??= Plugins.All<SoundsRecord>(RecordTypes.Sounds).SingleOrDefault();
+    public SoundsRecord? Sounds => _sounds ??= Plugins.TrySingleton<SoundsRecord>(RecordTypes.Sounds);
 
     private SoundsRecord? _sounds;
 
