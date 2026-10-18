@@ -25,14 +25,16 @@ namespace Aidyn.Game;
 /// (by default, what going through a door into the chunk gives), and <c>--hold &lt;action&gt;,&lt;seconds&gt;</c>, which
 /// holds an input such as <c>move_forward</c> (join several with <c>+</c>, as in <c>move_forward+walk</c>), and
 /// <c>--screenshot &lt;png&gt;</c>, which saves the window after that and quits; with <c>--frames &lt;n&gt;</c>, the next n
-/// frames as rendered, in real time, as <c>&lt;png&gt;-000.png</c> on. <c>--sky original</c> places the sky's sprites as
+/// frames as rendered, in real time, as <c>&lt;png&gt;-000.png</c> on, and <c>--ui-screenshot &lt;png&gt;</c> trek's UI screen
+/// with it, in its own pixels. <c>--sky original</c> places the sky's sprites as
 /// the original does rather than projected. <c>--menu 1</c> opens the pause menu on the tab it last showed, <c>--menu
 /// system</c>, <c>party</c> or <c>world</c> on that tab, and <c>--menu loot</c> an empty loot window; <c>--ui-lines
 /// &lt;n&gt;</c> sets the UI screen's height, and <c>--press &lt;action&gt;,…</c> presses each action in turn, such as
 /// <c>pause,menu_member_left</c>. <c>--cutscene &lt;id&gt;</c> plays a cut-scene at once, as what starts it would,
 /// <c>--cinematic &lt;n&gt;</c> a cinematic, and <c>--battle &lt;id&gt;</c> a battle with a monster party
 /// (<c>aidyn:voxel/…</c>) where the player stands, or <c>--battle arena,&lt;n&gt;[,ambush]</c> one with that monster
-/// party in arena n.
+/// party in arena n, with <c>--radar box</c> to put the battle screen's radar in the log box and <c>--tints
+/// &lt;1|2&gt;</c> to show the target sets' tints as the F4 key does.
 /// </remarks>
 public sealed class LaunchOptions(Dictionary<string, string> values)
 {
@@ -40,7 +42,7 @@ public sealed class LaunchOptions(Dictionary<string, string> values)
     public static LaunchOptions Parse(string[] args) => new(CommandLine.Parse(args));
 
     /// <summary>These options without any but the screenshot: a save loaded from the menu starts where it stands, and the presses aren't made again.</summary>
-    public LaunchOptions OnlyScreenshot() => new(values.Where(a => a.Key == "screenshot").ToDictionary());
+    public LaunchOptions OnlyScreenshot() => new(values.Where(a => a.Key is "screenshot" or "ui-screenshot").ToDictionary());
 
     private string? Text(string name) => values.GetValueOrDefault(name);
 
@@ -143,11 +145,20 @@ public sealed class LaunchOptions(Dictionary<string, string> values)
     /// <summary>A battle to start, as a monster party's ID, then optionally <c>,&lt;arena&gt;</c> and <c>,ambush</c>.</summary>
     public string? Battle => Text("battle");
 
+    /// <summary>Where the battle screen's radar sits: <c>--radar box</c> for the log box, as the original has it, rather than the screen's corner.</summary>
+    public string? Radar => Text("radar");
+
+    /// <summary>The target sets' tints the battle screen shows once a battle starts, as F4 steps them: 1 an attack, 2 a spell.</summary>
+    public int? Tints => Integer("tints");
+
     /// <summary>A cinematic to play, as <c>n[,shot[,time[,hold]]]</c>.</summary>
     public string? Cinematic => Text("cinematic");
 
     /// <summary>Where to save the window once the rest is done.</summary>
     public string? Screenshot => Text("screenshot");
+
+    /// <summary>Where to save trek's UI screen too, in its own pixels, with the screenshot.</summary>
+    public string? UiScreenshot => Text("ui-screenshot");
 
     /// <summary>How many frames to save, as rendered, from the screenshot on, or none for just the one.</summary>
     public int Frames => Integer("frames") ?? 0;

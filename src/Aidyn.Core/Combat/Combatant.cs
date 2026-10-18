@@ -143,5 +143,11 @@ public sealed partial class Combatant
     /// <summary>The last combatant it targeted, or −1 (<c>+0x10</c>).</summary>
     public int LastTarget { get; internal set; } = -1;
 
+    /// <summary>
+    /// Whether the AI has it fleeing (<c>EnemyAI.IsFleeing</c>, <c>0x8005B9AC</c>: the hostile side and its AI record's
+    /// flag 0), which turns its portrait's frame orange. Session 6's AI sets it.
+    /// </summary>
+    public bool Fleeing { get; internal set; }
+
     public override string ToString() => $"{Slot}: {Sheet.Name}";
 }

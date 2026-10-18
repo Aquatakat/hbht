@@ -70,6 +70,7 @@ public sealed partial class Battle
         var battle = new Battle(null!, setup, arena!, new CollisionWorld(), []) { PartySize = partySize, EnemiesOnField = enemiesOnField };
         for (var i = 0; i < slots.Count; i++)
             battle._slots[i] = slots[i];
+        battle.Gui = Ui.CombatGui.For(battle);
         return battle;
     }
 
@@ -147,6 +148,8 @@ public sealed partial class Battle
         }
         var at = Current?.Body.Sphere.Position ?? Arena.Origin + ZonePoint;
         CombatCamera = new CombatCamera(at, Current?.Body.Heading ?? Vector2.UnitX);
+        // CombatGui.Create, then each combatant's portrait into its frame as its body is made (Combat.CreateBody).
+        Gui = Ui.CombatGui.For(this);
         StartFirstTurn();
         Fade.In(FadePerTick);
     }

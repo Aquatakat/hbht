@@ -14,6 +14,10 @@ Things only the user can settle, by playing the original in the emulator, by lis
 
 - **The Party tab's cursor after equipping the last item** of the inventory, when no item moves up into its row: where does it go? It needs a save with one equippable item at the bottom and nothing after. [ui](systems/ui.md#the-party-tabs-actions)
 
+## Combat
+
+- **A reserve joining** (the rats' battle, as a rat dies and a reserve comes in at the round's end): does its small portrait slide over about a second into the dead rat's large frame, and the dead rat's, under its skull, into the small place? And while Rheda aims a spell (C-down, then a target), do the radar's dots of her targets throb and the rest dim? The port reads both from the code. [ui](systems/ui.md#the-battle-screen)
+
 ## Sound
 
 - **Wrapped pitches:** music 0x05DD and 0x05DE, and sounds such as 0x0759 and 0x075F, have notes above 65,535 Hz that the original keeps in 16 bits, so they'd play far too low. The port does the same. Listen for a low growl or rumble against `aidyn audio`'s render. [audio](formats/audio.md#the-event-stream)
