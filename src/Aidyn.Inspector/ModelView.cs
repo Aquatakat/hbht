@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text.Json;
 using Aidyn.Core.Rng;
 using Aidyn.Game;
 using Aidyn.Plugins.Assets;
@@ -42,7 +41,7 @@ public partial class ModelView : VBoxContainer
 
     // An actor's: its record, the root transform and its pivot, and the animator while driving.
     private ActorRecord? _actor;
-    private byte[]? _glb;
+    private GlbScene? _glb;
     private Node3D? _root;
     private Vector3 _pivot, _motion;
     private ActorAnimator? _animator;
@@ -148,6 +147,7 @@ public partial class ModelView : VBoxContainer
         _animator = null;
         _particles?.Head.Clear();
         _root = null;
+        _glb?.Dispose();
         _glb = null;
         _markers.Clear();
         _ground?.QueueFree();
@@ -167,13 +167,24 @@ public partial class ModelView : VBoxContainer
         Clear();
         _note.Text = note ?? "";
 
-        if (GlbFile.Load(glb, out var error) is not { } scene)
+        GlbScene file;
+        try
         {
+            file = GlbScene.Parse(glb);
+        }
+        catch (Exception e) when (e is InvalidDataException or System.Text.Json.JsonException)
+        {
+            _note.Text = $"Not a glTF binary ({e.Message}).";
+            return;
+        }
+        if (GlbFile.Load(file, out var error) is not { } scene)
+        {
+            file.Dispose();
             _note.Text = $"Godot couldn't load the glTF ({error}).";
             return;
         }
         _content = scene;
-        _glb = glb;
+        _glb = file;
         _viewport.AddChild(scene);
 
         // The scene's own lights replace the headlight; unlit materials ignore both.
@@ -185,9 +196,9 @@ public partial class ModelView : VBoxContainer
         _sceneCamera.Visible = _ownCamera is not null;
         UseCamera();
         // Sized for the view, so they show on effects with little or no geometry.
-        MarkEmitters(glb, scene, _orbit.Distance / 90);
+        MarkEmitters(file.Extras, scene, _orbit.Distance / 90);
 
-        _mirroring = MirroredMeshes.For(scene, glb);
+        _mirroring = MirroredMeshes.For(scene, file.Extras);
         _player = Nodes.FindAll<AnimationPlayer>(scene).FirstOrDefault();
         if (_player is not null)
         {
@@ -212,9 +223,9 @@ public partial class ModelView : VBoxContainer
         if (actor is not null && _player is not null)
         {
             _actor = actor;
-            var rootName = $"transform {actor.RootTransform}";
+            var rootName = SceneNames.Transform(actor.RootTransform);
             _root = Nodes.FindAll<Node3D>(scene).FirstOrDefault(n => n.Name == rootName);
-            _pivot = ActorClips.Read(glb, actor.RootTransform).Pivot.ToGodot();
+            _pivot = file.Clips(actor.RootTransform).Pivot.ToGodot();
             _motion = Vector3.Zero;
             _actorPanel.Show(actor, n => Ticks(ActorAnimator.AnimationName(actor.States[n])));
             _actorPanel.Visible = true;
@@ -411,9 +422,9 @@ public partial class ModelView : VBoxContainer
     {
         if (_ownCamera is null)
             return;
-        var shot = Plugins is null || !animation.StartsWith("borg6 ", StringComparison.Ordinal) ? null
+        var shot = Plugins is null || !SceneNames.TryAnimation(animation, out var borg6) ? null
             : Plugins.All<CinematicRecord>(Aidyn.Plugins.RecordTypes.Cinematic).SelectMany(c => c.Shots)
-                .FirstOrDefault(s => Convert.ToInt32(s.Animation.Key, 16).ToString(CultureInfo.InvariantCulture) == animation["borg6 ".Length..]);
+                .FirstOrDefault(s => Convert.ToInt32(s.Animation.Key, 16) == borg6);
         (_ownCamera.Near, _ownCamera.Far) = shot is null ? (_ownNear, _ownFar) : (shot.Near, shot.Far);
     }
 
@@ -429,26 +440,24 @@ public partial class ModelView : VBoxContainer
 
     /// <summary>
     /// Puts a marker on each particle emitter on the scene's own locators (nodes the importer
-    /// names <c>emitter i</c>), drawn through the model in its particles' brightest colour.
+    /// names <see cref="SceneNames.Emitter"/>), drawn through the model in its particles' brightest colour.
     /// </summary>
-    private void MarkEmitters(byte[] glb, Node3D scene, float radius)
+    private void MarkEmitters(SceneExtras extras, Node3D scene, float radius)
     {
-        using var json = GlbFile.Json(glb);
-        if (!json.RootElement.TryGetProperty("scenes", out var scenes) || !scenes[0].TryGetProperty("extras", out var extras) ||
-            !extras.TryGetProperty("particleEmitters", out var emitters))
+        var emitters = extras.EmitterColors;
+        if (emitters.Count == 0)
             return;
-        var nodes = Nodes.FindAll<Node3D>(scene).Where(n => n.Name.ToString().StartsWith("emitter ", StringComparison.Ordinal)).ToList();
-        foreach (var node in nodes)
+        foreach (var node in Nodes.FindAll<Node3D>(scene).ToList())
         {
-            if (!int.TryParse(node.Name.ToString()["emitter ".Length..], CultureInfo.InvariantCulture, out var i) || i >= emitters.GetArrayLength())
+            if (!SceneNames.TryEmitter(node.Name.ToString(), out var i) || i >= emitters.Count)
                 continue;
-            var c = emitters[i].GetProperty("color")[1];
+            var c = emitters[i];
             var marker = new MeshInstance3D
             {
                 Mesh = new SphereMesh { Radius = radius, Height = radius * 2, RadialSegments = 12, Rings = 6 },
                 MaterialOverride = new StandardMaterial3D
                 {
-                    AlbedoColor = new Color(c[0].GetSingle(), c[1].GetSingle(), c[2].GetSingle(), 0.8f),
+                    AlbedoColor = new Color(c.X, c.Y, c.Z, 0.8f),
                     ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
                     Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
                     NoDepthTest = true,
@@ -460,7 +469,7 @@ public partial class ModelView : VBoxContainer
             _markers.Add((marker, node));
         }
         _emitters.Visible = true;
-        _emitters.Text = $"Emitters ({emitters.GetArrayLength()}, {_markers.Count} here)";
+        _emitters.Text = $"Emitters ({emitters.Count}, {_markers.Count} here)";
     }
 
     /// <summary>A grid of lines a scene unit apart on the ground under an actor, to show it moving.</summary>

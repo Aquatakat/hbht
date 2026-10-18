@@ -1,3 +1,4 @@
+using Aidyn.Plugins.Assets;
 using Godot;
 
 namespace Aidyn.Game;
@@ -8,7 +9,7 @@ namespace Aidyn.Game;
 /// instance, so it would show the outside. While a mesh's world matrix mirrors it, its one-sided surfaces are drawn
 /// with copies that cull the other side (<see cref="N64Material.Mirrored"/>). Shadow Self Merge's Shadow is Alaron
 /// scaled by −1 across (Borg5 0x24C9's transform 10), and seen from inside it faces the camera as the original's does.
-/// Only scenes the importer marks as mirroring get one (their glTF's <c>mirrors</c>); it's updated each time the scene
+/// Only scenes the importer marks as mirroring get one (<see cref="SceneExtras.Mirrored"/>); it's updated each time the scene
 /// is posed.
 /// </summary>
 public sealed class MirroredMeshes
@@ -20,12 +21,7 @@ public sealed class MirroredMeshes
     private MirroredMeshes(Node root) => _meshes = Nodes.FindAll<MeshInstance3D>(root);
 
     /// <summary>One for an instance of a scene, or null if its scene never mirrors a model.</summary>
-    public static MirroredMeshes? For(Node root, byte[] glb)
-    {
-        using var json = GlbFile.Json(glb);
-        return json.RootElement.TryGetProperty("scenes", out var scenes) && scenes[0].TryGetProperty("extras", out var extras) &&
-            extras.TryGetProperty("mirrors", out var mirrors) && mirrors.GetBoolean() ? new MirroredMeshes(root) : null;
-    }
+    public static MirroredMeshes? For(Node root, SceneExtras extras) => extras.Mirrored ? new MirroredMeshes(root) : null;
 
     /// <summary>Gives each mesh the materials for whether its world matrix mirrors it now.</summary>
     public void Update()

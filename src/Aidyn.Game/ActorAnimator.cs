@@ -68,14 +68,14 @@ public sealed class ActorAnimator : IActorMotion
     /// An animator for an instance of the actor's scene, starting in its initial state, whose branches roll on
     /// <paramref name="rolls"/>. Returns null if the scene has no animations.
     /// </summary>
-    public static ActorAnimator? Create(Node3D instance, ActorRecord actor, byte[] glb, IRandom rolls)
+    public static ActorAnimator? Create(Node3D instance, ActorRecord actor, GlbScene glb, IRandom rolls)
     {
         if (Find<AnimationPlayer>(instance) is not { } player)
             return null;
-        var rootName = $"transform {actor.RootTransform}";
+        var rootName = SceneNames.Transform(actor.RootTransform);
         var root = FindNode(instance, n => n is Node3D && n.Name == rootName) as Node3D;
-        var motion = new ActorMotion(actor, ActorClips.Read(glb, actor.RootTransform), rolls);
-        return new ActorAnimator(motion, player, root, MirroredMeshes.For(instance, glb));
+        var motion = new ActorMotion(actor, glb.Clips(actor.RootTransform), rolls);
+        return new ActorAnimator(motion, player, root, MirroredMeshes.For(instance, glb.Extras));
     }
 
     /// <summary>Ticks at 60 Hz with the frame, unless <see cref="Driven"/>, and poses the scene between ticks.</summary>
@@ -159,7 +159,7 @@ public sealed class ActorAnimator : IActorMotion
     }
 
     /// <summary>The name the importer gives a state's animation in the scene's glTF.</summary>
-    public static string AnimationName(ActorState state) => $"borg6 {Convert.ToInt32(state.Animation.Key, 16)}";
+    public static string AnimationName(ActorState state) => SceneNames.Animation(Convert.ToInt32(state.Animation.Key, 16));
 
     private static T? Find<T>(Node root) where T : Node => FindNode(root, n => n is T) as T;
 

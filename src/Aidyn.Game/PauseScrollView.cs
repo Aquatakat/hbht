@@ -1,4 +1,5 @@
 using Aidyn.Core.Ui;
+using Aidyn.Plugins.Assets;
 using Aidyn.Plugins.Records;
 using Godot;
 
@@ -74,7 +75,7 @@ public partial class PauseScrollView : Control
             GD.PushWarning($"No {Actor} for the pause menu's scroll.");
             return null;
         }
-        Light(node, models.Glb(actor.Scene)!);
+        Light(node, models.Glb(actor.Scene)!.Extras);
         return new PauseScrollView(node, animator, actor.InitialState);
     }
 
@@ -249,24 +250,12 @@ public partial class PauseScrollView : Control
     /// Lights the scroll by its scene's two lights, as the glTF gives them: directional, each shining along its node's
     /// −Z. Godot's own lights are dropped, as the material lights it.
     /// </summary>
-    private static void Light(Node3D scroll, byte[] glb)
+    private static void Light(Node3D scroll, SceneExtras extras)
     {
-        var colors = new List<Color>();
-        using (var json = GlbFile.Json(glb))
-        {
-            if (json.RootElement.TryGetProperty("extensions", out var extensions) &&
-                extensions.TryGetProperty("KHR_lights_punctual", out var punctual))
-            {
-                foreach (var light in punctual.GetProperty("lights").EnumerateArray())
-                {
-                    var c = light.GetProperty("color");
-                    colors.Add(new Color(c[0].GetSingle(), c[1].GetSingle(), c[2].GetSingle()));
-                }
-            }
-        }
+        var colors = extras.LightColors.Select(c => new Color(c.X, c.Y, c.Z)).ToList();
         var lights = Nodes.FindAll<Light3D>(scroll);
         Vector3 Toward(string name) => lights.Where(l => l.Name == name).Select(l => l.Transform.Basis.Z).FirstOrDefault();
-        var (first, second) = (Toward("light 0"), Toward("light 1"));
+        var (first, second) = (Toward(SceneNames.Light(0)), Toward(SceneNames.Light(1)));
         foreach (var light in lights)
             light.Free();
         if (colors.Count < 2 || first == Vector3.Zero || second == Vector3.Zero)

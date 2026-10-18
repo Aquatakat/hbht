@@ -1,3 +1,4 @@
+using Aidyn.Plugins.Assets;
 using Aidyn.Core.Scenes;
 using Godot;
 
@@ -17,7 +18,7 @@ public static class Billboards
 {
     /// <summary>The facing nodes under <paramref name="root"/>.</summary>
     public static List<Node3D> Facings(Node root) =>
-        [.. Nodes.FindAll<Node3D>(root).Where(n => n.Name.ToString().EndsWith(" facing", StringComparison.Ordinal))];
+        [.. Nodes.FindAll<Node3D>(root).Where(n => SceneNames.IsFacing(n.Name.ToString()))];
 
     /// <summary>Turns each billboard to face <paramref name="camera"/>.</summary>
     public static void Face(IEnumerable<Node3D> facings, Vector3 camera)

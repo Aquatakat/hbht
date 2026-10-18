@@ -1,6 +1,6 @@
-using System.Text.Json;
 using Aidyn.Core.Scenes;
 using Aidyn.Plugins;
+using Aidyn.Plugins.Assets;
 using Godot;
 
 namespace Aidyn.Game;
@@ -17,17 +17,13 @@ namespace Aidyn.Game;
 /// </remarks>
 public sealed class TextureScrolls
 {
-    private readonly Dictionary<RecordId, Spec[]> _scenes = [];
+    private readonly Dictionary<RecordId, ScrollingTexture[]> _scenes = [];
 
     /// <summary>Takes a scene's scrolling textures from its glTF.</summary>
-    public void Add(RecordId scene, JsonElement gltf)
+    public void Add(RecordId scene, SceneExtras extras)
     {
-        if (gltf.GetProperty("scenes")[0].TryGetProperty("extras", out var extras) &&
-            extras.TryGetProperty("scrollingTextures", out var list))
-        {
-            _scenes[scene] = [.. list.EnumerateArray().Select(e => new Spec(e.GetProperty("borg1").GetInt32(),
-                e.GetProperty("width").GetInt32(), e.GetProperty("move").GetByte(), e.GetProperty("loads").GetInt32()))];
-        }
+        if (extras.Scrolling.Count > 0)
+            _scenes[scene] = [.. extras.Scrolling];
     }
 
     /// <summary>
@@ -61,7 +57,6 @@ public sealed class TextureScrolls
         return new ScrollingScene(textures);
     }
 
-    private readonly record struct Spec(int Borg1, int Width, byte Move, int Loads);
 
     internal sealed class Texture(TextureScroll scroll, int loads)
     {

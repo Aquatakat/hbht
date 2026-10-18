@@ -1,5 +1,4 @@
-using System.Globalization;
-using System.Text.Json;
+using Aidyn.Plugins.Assets;
 using Aidyn.Plugins.Records;
 using Godot;
 
@@ -50,9 +49,9 @@ public partial class CinematicView : SubViewportContainer
         _scene = scene;
         _viewport.AddChild(scene);
         N64Material.SetLighting(scene, N64Material.Lighting.Own);
-        ReadLights(scene, _models.Glb(shot.Scene)!);
+        ReadLights(scene, _models.Glb(shot.Scene)!.Extras);
         _scrolling = _models.Scrolls.Attach(shot.Scene, scene);
-        _mirroring = MirroredMeshes.For(scene, _models.Glb(shot.Scene)!);
+        _mirroring = MirroredMeshes.For(scene, _models.Glb(shot.Scene)!.Extras);
         _facings = Billboards.Facings(scene);
         _camera = Nodes.FindAll<Camera3D>(scene).FirstOrDefault();
         if (_camera is not null)
@@ -61,7 +60,7 @@ public partial class CinematicView : SubViewportContainer
             _camera.MakeCurrent();
         }
         _player = Nodes.FindAll<AnimationPlayer>(scene).FirstOrDefault();
-        _animation = $"borg6 {Convert.ToInt32(shot.Animation.Key, 16).ToString(CultureInfo.InvariantCulture)}";
+        _animation = SceneNames.Animation(Convert.ToInt32(shot.Animation.Key, 16));
         if (_player is not null && _player.HasAnimation(_animation))
         {
             // Posed here by the shot's time, not Godot's clock.
@@ -130,31 +129,24 @@ public partial class CinematicView : SubViewportContainer
     /// The scene's lights, as the importer writes them: each light but the last a directional light node, which its
     /// animation can turn, and the last the ambient, in the scene's extras. Their nodes are kept, unlit, for their way.
     /// </summary>
-    private void ReadLights(Node3D scene, byte[] glb)
+    private void ReadLights(Node3D scene, SceneExtras extras)
     {
-        using var json = GlbFile.Json(glb);
-        var root = json.RootElement;
-        var colors = new List<Color>();
-        if (root.TryGetProperty("extensions", out var extensions) && extensions.TryGetProperty("KHR_lights_punctual", out var punctual))
-            colors.AddRange(punctual.GetProperty("lights").EnumerateArray().Select(l => Rgb(l.GetProperty("color"))));
-        JsonElement ambient = default;
-        var lit = root.TryGetProperty("scenes", out var scenes) && scenes[0].TryGetProperty("extras", out var extras) &&
-            extras.TryGetProperty("ambientLight", out ambient);
-        _ambient = lit ? Rgb(ambient) : Colors.White;
+        var colors = extras.LightColors;
+        _ambient = extras.Ambient is { } ambient ? Rgb(ambient) : Colors.White;
         // The ambient is tinted by transform 1 + its index, as each light is, which is the first model node; a scene
         // without lights gets the plain white ambient.
-        var first = $"transform {1 + colors.Count}";
-        _ambientTint = !lit ? null : Nodes.FindAll<Node3D>(scene).FirstOrDefault(n => n.Name == first || n.Name == first + " billboard");
+        var (first, billboard) = (SceneNames.Transform(1 + colors.Count), SceneNames.Billboard(1 + colors.Count));
+        _ambientTint = extras.Ambient is null ? null : Nodes.FindAll<Node3D>(scene).FirstOrDefault(n => n.Name == first || n.Name == billboard);
         foreach (var light in Nodes.FindAll<Light3D>(scene))
         {
             light.Visible = false;
-            if (int.TryParse(light.Name.ToString().Replace("light ", "", StringComparison.Ordinal), CultureInfo.InvariantCulture, out var i) && i < colors.Count)
-                _lights.Add((light, colors[i]));
+            if (SceneNames.TryLight(light.Name.ToString(), out var i) && i < colors.Count)
+                _lights.Add((light, Rgb(colors[i])));
         }
         _lights.Sort((a, b) => string.CompareOrdinal(a.Node.Name, b.Node.Name));
         if (_lights.Count > N64Material.MaxLights)
             _lights.RemoveRange(N64Material.MaxLights, _lights.Count - N64Material.MaxLights);
     }
 
-    private static Color Rgb(JsonElement c) => new(c[0].GetSingle(), c[1].GetSingle(), c[2].GetSingle());
+    private static Color Rgb(System.Numerics.Vector3 c) => new(c.X, c.Y, c.Z);
 }

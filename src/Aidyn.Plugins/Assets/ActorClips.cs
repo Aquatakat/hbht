@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 using System.Numerics;
 using System.Text.Json;
 
@@ -45,28 +44,27 @@ public sealed class ActorClips
 
     public static ActorClips Read(byte[] glb, int rootTransform)
     {
-        if (glb.Length < 20 || BinaryPrimitives.ReadUInt32LittleEndian(glb) != 0x46546C67)
-            throw new InvalidDataException("Not a binary glTF file.");
-        var jsonLength = BinaryPrimitives.ReadInt32LittleEndian(glb.AsSpan(12));
-        using var json = JsonDocument.Parse(glb.AsMemory(20, jsonLength));
-        var root = json.RootElement;
-        var bin = 20 + jsonLength + 8;
+        using var file = GlbReader.Parse(glb);
+        return Read(file, SceneExtras.Read(file), rootTransform);
+    }
 
-        var rootName = $"transform {rootTransform}";
+    /// <summary>The clips of an already open file, whose <paramref name="extras"/> are read.</summary>
+    public static ActorClips Read(GlbReader file, SceneExtras extras, int rootTransform)
+    {
+        var root = file.Root;
+
+        var rootName = SceneNames.Transform(rootTransform);
         var rootNode = -1;
-        var pivot = Vector3.Zero;
+        var pivot = extras.Pivots.GetValueOrDefault(rootTransform);
         if (root.TryGetProperty("nodes", out var nodes))
         {
             for (var i = 0; i < nodes.GetArrayLength(); i++)
             {
-                var node = nodes[i];
-                if (rootNode < 0 && node.TryGetProperty("name", out var name) && name.GetString() == rootName)
+                if (nodes[i].TryGetProperty("name", out var name) && name.GetString() == rootName)
+                {
                     rootNode = i;
-                if (node.TryGetProperty("extras", out var extras) && extras.ValueKind == JsonValueKind.Object
-                    && extras.TryGetProperty("transform", out var t) && t.GetInt32() == rootTransform
-                    && extras.TryGetProperty("pivot", out var p)
-                    && !(extras.TryGetProperty("billboard", out var b) && b.GetBoolean()) && pivot == Vector3.Zero)
-                    pivot = new Vector3(p[0].GetSingle(), p[1].GetSingle(), p[2].GetSingle());
+                    break;
+                }
             }
         }
 
@@ -77,17 +75,13 @@ public sealed class ActorClips
             foreach (var animation in animations.EnumerateArray())
             {
                 animated = true;
-                var extras = animation.GetProperty("extras");
-                var length = extras.GetProperty("length").GetInt32();
-                clips[extras.GetProperty("borg6").GetInt32()] = new ActorClip(length, RootTrack(animation));
+                var animationExtras = animation.GetProperty("extras");
+                var length = animationExtras.GetProperty(ExtrasKeys.Length).GetInt32();
+                clips[animationExtras.GetProperty(ExtrasKeys.Borg6).GetInt32()] = new ActorClip(length, RootTrack(animation));
             }
         }
-        if (root.TryGetProperty("scenes", out var scenes) && scenes[root.TryGetProperty("scene", out var s) ? s.GetInt32() : 0] is var scene
-            && scene.TryGetProperty("extras", out var sceneExtras) && sceneExtras.TryGetProperty("stillAnimations", out var still))
-        {
-            foreach (var animation in still.EnumerateArray())
-                clips[animation.GetProperty("borg6").GetInt32()] = new ActorClip(animation.GetProperty("length").GetInt32(), null);
-        }
+        foreach (var still in extras.StillAnimations)
+            clips[still.Borg6] = new ActorClip(still.Length, null);
         return new ActorClips(clips, pivot, animated);
 
         Vector3[]? RootTrack(JsonElement animation)
@@ -104,9 +98,9 @@ public sealed class ActorClips
                 var output = samplers[channel.GetProperty("sampler").GetInt32()].GetProperty("output").GetInt32();
                 switch (target.GetProperty("path").GetString())
                 {
-                    case "translation": translation = Floats(output, 3); break;
-                    case "rotation": rotation = Floats(output, 4); break;
-                    case "scale": scale = Floats(output, 3); break;
+                    case "translation": translation = file.Floats(output); break;
+                    case "rotation": rotation = file.Floats(output); break;
+                    case "scale": scale = file.Floats(output); break;
                 }
             }
             if (translation is null)
@@ -125,25 +119,6 @@ public sealed class ActorClips
                 positions[i] = at;
             }
             return positions;
-        }
-
-        float[] Floats(int accessorIndex, int width)
-        {
-            var accessor = root.GetProperty("accessors")[accessorIndex];
-            if (accessor.GetProperty("componentType").GetInt32() != 5126)
-                throw new InvalidDataException("Animation values are floats.");
-            var view = root.GetProperty("bufferViews")[accessor.GetProperty("bufferView").GetInt32()];
-            var offset = bin + (view.TryGetProperty("byteOffset", out var o) ? o.GetInt32() : 0) +
-                (accessor.TryGetProperty("byteOffset", out var ao) ? ao.GetInt32() : 0);
-            var stride = view.TryGetProperty("byteStride", out var bs) ? bs.GetInt32() : 4 * width;
-            var count = accessor.GetProperty("count").GetInt32();
-            var values = new float[count * width];
-            for (var i = 0; i < count; i++)
-            {
-                for (var c = 0; c < width; c++)
-                    values[i * width + c] = BinaryPrimitives.ReadSingleLittleEndian(glb.AsSpan(offset + i * stride + 4 * c));
-            }
-            return values;
         }
     }
 

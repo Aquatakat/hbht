@@ -1,18 +1,18 @@
-using System.Text.Json;
 using Aidyn.Plugins;
+using Aidyn.Plugins.Assets;
 using Aidyn.Plugins.Records;
 using Godot;
 
 namespace Aidyn.Game;
 
 /// <summary>
-/// Scene assets as Godot nodes. Each glTF is parsed once, and every use gets a copy, so a forest
-/// of one tree costs one parse.
+/// Scene assets as Godot nodes. Each glTF is parsed once (<see cref="GlbScene"/>, for its extras and actor clips, and by
+/// Godot, for its nodes), and every use gets a copy, so a forest of one tree costs one parse.
 /// </summary>
 public sealed class Models(PluginSet plugins) : IDisposable
 {
     private readonly Dictionary<RecordId, Node3D?> _templates = [];
-    private readonly Dictionary<RecordId, byte[]?> _files = [];
+    private readonly Dictionary<RecordId, GlbScene?> _files = [];
 
     /// <summary>The particles actors' emitters start in, if any are drawn.</summary>
     public ParticlesView? Particles { get; set; }
@@ -48,7 +48,7 @@ public sealed class Models(PluginSet plugins) : IDisposable
         {
             // The original aligns the head with the locator but keeps it upright, and turns it
             // toward things the player could use. Parenting it follows the neck, which is close.
-            var locatorName = $"locator {head.Locator}";
+            var locatorName = SceneNames.Locator(head.Locator);
             if (Nodes.FindAll<Node3D>(node).FirstOrDefault(n => n.Name == locatorName) is { } locator)
                 locator.AddChild(headNode);
             else
@@ -65,11 +65,11 @@ public sealed class Models(PluginSet plugins) : IDisposable
     }
 
     /// <summary>The asset's glTF, for what Godot's importer doesn't keep, such as node extras.</summary>
-    public byte[]? Glb(RecordId scene)
+    public GlbScene? Glb(RecordId scene)
     {
-        if (!_files.TryGetValue(scene, out var bytes))
-            _files[scene] = bytes = plugins.FindAsset(scene, "glb") is { } path ? File.ReadAllBytes(path) : null;
-        return bytes;
+        if (!_files.TryGetValue(scene, out var file))
+            _files[scene] = file = plugins.FindAsset(scene, "glb") is { } path ? GlbScene.Parse(File.ReadAllBytes(path)) : null;
+        return file;
     }
 
     /// <summary>Frees the parsed templates, which are never in the tree.</summary>
@@ -78,6 +78,9 @@ public sealed class Models(PluginSet plugins) : IDisposable
         foreach (var template in _templates.Values)
             template?.Free();
         _templates.Clear();
+        foreach (var file in _files.Values)
+            file?.Dispose();
+        _files.Clear();
     }
 
     private Node3D? Load(RecordId scene)
@@ -88,7 +91,7 @@ public sealed class Models(PluginSet plugins) : IDisposable
             return null;
         }
         // A scene with no geometry has no binary chunk, which Godot's reader warns about.
-        if (GlbFile.HasNoBinaryChunk(glb))
+        if (!glb.HasBinaryChunk)
             return new Node3D { Name = scene.ToString().Replace(':', '_').Replace('/', '_') };
         if (GlbFile.Load(glb, out _) is not { } node)
         {
@@ -96,8 +99,7 @@ public sealed class Models(PluginSet plugins) : IDisposable
             return null;
         }
         node.Name = scene.ToString().Replace(':', '_').Replace('/', '_');
-        using (var json = GlbFile.Json(glb))
-            Scrolls.Add(scene, json.RootElement);
+        Scrolls.Add(scene, glb.Extras);
         // Billboards are turned to the camera in world space, whatever their parents do.
         foreach (var facing in Billboards.Facings(node))
             facing.TopLevel = true;

@@ -1,6 +1,7 @@
 using Aidyn.Core;
 using Aidyn.Core.Particles;
 using Aidyn.Plugins;
+using Aidyn.Plugins.Assets;
 using Aidyn.Plugins.Records;
 using Godot;
 
@@ -181,7 +182,7 @@ public partial class ParticlesView : Node3D
     }
 
     /// <summary>
-    /// An actor's instance, whose locator nodes (<c>locator i</c>, which the importer puts on each locator's transform)
+    /// An actor's instance, whose locator nodes (<see cref="SceneNames.Locator"/>, which the importer puts on each locator's transform)
     /// place its emitters as it's drawn. Scenes attached at run time, a spell's caster and target, aren't yet.
     /// </summary>
     private sealed class NodeAnchor(Node3D root) : IParticleAnchor
@@ -209,8 +210,7 @@ public partial class ParticlesView : Node3D
             var locators = new Node3D?[8];
             foreach (var node in Nodes.FindAll<Node3D>(root))
             {
-                var name = node.Name.ToString();
-                if (name.StartsWith("locator ", StringComparison.Ordinal) && int.TryParse(name.AsSpan(8), out var i) && i is >= 0 and < 8)
+                if (SceneNames.TryLocator(node.Name.ToString(), out var i) && i is >= 0 and < 8)
                     locators[i] ??= node;
             }
             return locators;

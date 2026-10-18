@@ -5,6 +5,7 @@ using Aidyn.Core.Flags;
 using Aidyn.Core.Items;
 using Aidyn.Game;
 using Aidyn.Plugins;
+using Aidyn.Plugins.Assets;
 using Aidyn.Plugins.Records;
 using Aidyn.Rom;
 using Aidyn.Rom.Import;
@@ -613,7 +614,7 @@ public partial class RecordBrowser : Control
                 return Message("The actor's scene has no asset.");
             var initial = (int?)json["initialState"] ?? 0;
             var animation = (string?)json["states"]?[initial]?["animation"] is { } a && RecordId.TryParse(a, out var animationId)
-                ? $"borg6 {Convert.ToInt32(animationId.Key, 16)}"
+                ? SceneNames.Animation(Convert.ToInt32(animationId.Key, 16))
                 : "";
             var note = $"Scene {scene.Key}, in its initial state ({initial})." + (json["head"] is not null ? " Its head isn't drawn here yet." : "");
             return (await File.ReadAllBytesAsync(path), animation, note);

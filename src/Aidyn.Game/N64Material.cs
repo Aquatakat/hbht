@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using Aidyn.Plugins.Assets;
 using Godot;
 
 namespace Aidyn.Game;
@@ -135,12 +136,10 @@ internal static class N64Material
         RenderingServer.GlobalShaderParameterAdd(BodyAmbientParameter, RenderingServer.GlobalShaderParameterType.Vec3, new Vector3(1, 1, 1));
     }
 
-    /// <summary>Replaces the imported materials of <paramref name="scene"/>, loaded from <paramref name="glb"/>.</summary>
-    public static void Apply(byte[] glb, GltfState state, Node scene)
+    /// <summary>Replaces the imported materials of <paramref name="scene"/>, loaded from the glTF whose JSON is <paramref name="root"/>.</summary>
+    public static void Apply(JsonElement root, GltfState state, Node scene)
     {
         DeclareGlobals();
-        using var json = GlbFile.Json(glb);
-        var root = json.RootElement;
         if (!root.TryGetProperty("materials", out var materials))
             return;
 
@@ -357,7 +356,7 @@ internal static class N64Material
 
         // A lit display list with G_TEXTURE_GEN (Borg2 flag 0x1) takes its texture coordinates from its normals.
         var texgen = albedo is not null && !unlit && m.TryGetProperty("extras", out var flagExtras) &&
-            flagExtras.TryGetProperty("borg2Flags", out var borg2Flags) && (borg2Flags.GetUInt32() & EnvironmentMapFlag) != 0;
+            flagExtras.TryGetProperty(ExtrasKeys.Borg2Flags, out var borg2Flags) && (borg2Flags.GetUInt32() & EnvironmentMapFlag) != 0;
         var material = new ShaderMaterial { Shader = ShaderFor(unlit, cull, nearest, blend, albedo is not null, texgen) };
         // Back to on-screen values; alpha was never gamma-encoded.
         var onScreen = factor.LinearToSrgb();
@@ -373,7 +372,7 @@ internal static class N64Material
         }
         if (m.TryGetProperty("alphaCutoff", out var cutoff))
             material.SetShaderParameter("alpha_scissor", cutoff.GetSingle());
-        if (m.TryGetProperty("extras", out var extras) && extras.TryGetProperty("borg1", out var borg1))
+        if (m.TryGetProperty("extras", out var extras) && extras.TryGetProperty(ExtrasKeys.Borg1, out var borg1))
             material.SetMeta(Borg1Meta, borg1.GetInt32());
         if (blend == Blend.Mask)
             FadedShaders.Add(material, ShaderFor(unlit, cull, nearest, Blend.Blend, albedo is not null, texgen));

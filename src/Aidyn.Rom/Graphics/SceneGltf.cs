@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Text.Json.Nodes;
+using Aidyn.Plugins.Assets;
 using Aidyn.Plugins.Records;
 
 namespace Aidyn.Rom.Graphics;
@@ -60,7 +61,7 @@ public static class SceneGltf
         for (var t = first; t < scene.Transforms.Count; t++)
         {
             var transform = scene.Transforms[t];
-            var node = new JsonObject { ["name"] = $"transform {t}" };
+            var node = new JsonObject { ["name"] = SceneNames.Transform(t) };
             if (transform.Trs() is { } trs)
                 SetTrs(node, trs.Scale, trs.Rotation, trs.Translation);
             if (transform.Children.Length > 0)
@@ -74,9 +75,9 @@ public static class SceneGltf
                 else
                     node["mesh"] = gltf.AddMesh(new JsonObject { ["primitives"] = list });
             }
-            node["extras"] = new JsonObject { ["transform"] = t, ["op"] = transform.Op.ToString(), ["billboard"] = billboard };
+            node["extras"] = new JsonObject { [ExtrasKeys.Transform] = t, ["op"] = transform.Op.ToString(), [ExtrasKeys.Billboard] = billboard };
             if (transform.Pivot != Vector3.Zero)
-                node["extras"]!["pivot"] = new JsonArray(transform.Pivot.X, transform.Pivot.Y, transform.Pivot.Z);
+                node["extras"]![ExtrasKeys.Pivot] = new JsonArray(transform.Pivot.X, transform.Pivot.Y, transform.Pivot.Z);
             var n = nodes[t] = gltf.AddNode(node);
             if (scene.Parent(t) is null)
                 roots.Add(n);
@@ -84,27 +85,27 @@ public static class SceneGltf
         var cards = new Dictionary<int, int>();
         foreach (var t in billboards)
         {
-            var card = new JsonObject { ["name"] = $"transform {t} card" };
+            var card = new JsonObject { ["name"] = SceneNames.Card(t) };
             SetTrs(card, Vector3.One, Roll(scene.Transforms[t]), Vector3.Zero);
             card["mesh"] = gltf.AddMesh(new JsonObject { ["primitives"] = primitives[t] });
-            card["extras"] = new JsonObject { ["transform"] = t, ["card"] = true };
+            card["extras"] = new JsonObject { [ExtrasKeys.Transform] = t, ["card"] = true };
             cards[t] = gltf.AddNode(card);
             var facing = gltf.AddNode(new JsonObject
             {
-                ["name"] = $"transform {t} facing",
+                ["name"] = SceneNames.Facing(t),
                 ["children"] = new JsonArray(cards[t]),
-                ["extras"] = new JsonObject { ["transform"] = t, ["facing"] = true },
+                ["extras"] = new JsonObject { [ExtrasKeys.Transform] = t, [ExtrasKeys.Facing] = true },
             });
-            var node = new JsonObject { ["name"] = $"transform {t} billboard", ["children"] = new JsonArray(facing) };
+            var node = new JsonObject { ["name"] = SceneNames.Billboard(t), ["children"] = new JsonArray(facing) };
             SetTrs(node, scene.Transforms[t].Scale, Quaternion.Identity, scene.WorldMatrix(t).Translation);
-            node["extras"] = new JsonObject { ["transform"] = t, ["billboard"] = true };
+            node["extras"] = new JsonObject { [ExtrasKeys.Transform] = t, [ExtrasKeys.Billboard] = true };
             roots.Add(billboardNodes[t] = gltf.AddNode(node));
         }
 
         var camera = Borg3Camera.Parse(read(scene.Camera));
         roots.Add(gltf.AddNode(new JsonObject
         {
-            ["name"] = "camera",
+            ["name"] = SceneNames.Camera,
             ["camera"] = gltf.AddCamera(new JsonObject
             {
                 ["type"] = "perspective",
@@ -123,20 +124,20 @@ public static class SceneGltf
 
         var extras = new JsonObject { ["borg5"] = index, ["borg3"] = scene.Camera };
         if (ScrollingTextures(scene, textures) is { Count: > 0 } scrolling)
-            extras["scrollingTextures"] = scrolling;
+            extras[ExtrasKeys.ScrollingTextures] = scrolling;
         for (var i = 0; i < scene.Lights.Count; i++)
         {
             var light = Borg4Light.Parse(read(scene.Lights[i]));
             var color = new JsonArray(light.Red, light.Green, light.Blue);
             if (i == scene.Lights.Count - 1)
             {
-                extras["ambientLight"] = color;
+                extras[ExtrasKeys.AmbientLight] = color;
                 extras["ambientBorg4"] = scene.Lights[i];
                 break;
             }
             roots.Add(nodes[1 + i] = gltf.AddNode(new JsonObject
             {
-                ["name"] = $"light {i}",
+                ["name"] = SceneNames.Light(i),
                 ["rotation"] = QuaternionJson(Facing(scene.Transforms[1 + i].Direction)),
                 ["extensions"] = new JsonObject
                 {
@@ -165,7 +166,7 @@ public static class SceneGltf
                 {
                     var node = gltf.AddNode(new JsonObject
                     {
-                        ["name"] = $"emitter {i}",
+                        ["name"] = SceneNames.Emitter(i),
                         ["translation"] = new JsonArray(position.X, position.Y, position.Z),
                         ["extras"] = new JsonObject { ["emitter"] = i },
                     });
@@ -177,7 +178,7 @@ public static class SceneGltf
                 }
                 list.Add(json);
             }
-            extras["particleEmitters"] = list;
+            extras[ExtrasKeys.ParticleEmitters] = list;
         }
 
         // Every locator becomes a node on its transform, for what the game attaches there at run
@@ -188,7 +189,7 @@ public static class SceneGltf
                 continue;
             var node = gltf.AddNode(new JsonObject
             {
-                ["name"] = $"locator {i}",
+                ["name"] = SceneNames.Locator(i),
                 ["translation"] = new JsonArray(position.X, position.Y, position.Z),
                 ["extras"] = new JsonObject { ["locator"] = i },
             });
@@ -208,15 +209,15 @@ public static class SceneGltf
             if (animation.Scene != index)
                 throw new ArgumentException($"Borg6 {borg6} animates scene {animation.Scene}, not {index}.", nameof(animations));
             if (animation.Targets.Count == 0)
-                still.Add(new JsonObject { ["borg6"] = borg6, ["length"] = animation.Length });
+                still.Add(new JsonObject { [ExtrasKeys.Borg6] = borg6, [ExtrasKeys.Length] = animation.Length });
             else
                 gltf.AddAnimation(Animation(gltf, scene, borg6, animation, nodes, billboardNodes, cards, ref mirrors));
         }
         if (still.Count > 0)
-            extras["stillAnimations"] = still;
+            extras[ExtrasKeys.StillAnimations] = still;
         // The N64 culls a mirrored model's front, which the runtime has to undo Godot's correction of.
         if (mirrors)
-            extras["mirrors"] = true;
+            extras[ExtrasKeys.Mirrors] = true;
 
         return gltf.ToGlb(roots, extras);
 
@@ -263,10 +264,10 @@ public static class SceneGltf
                 ["pbrMetallicRoughness"] = pbr,
                 ["alphaMode"] = alphaMode,
                 ["doubleSided"] = !mesh.Flags.HasFlag(Borg2MaterialFlags.CullBack),
-                ["extras"] = new JsonObject { ["borg2Flags"] = (uint)mesh.Flags },
+                ["extras"] = new JsonObject { [ExtrasKeys.Borg2Flags] = (uint)mesh.Flags },
             };
             if (texture is { } bound)
-                material["extras"]!["borg1"] = scene.Textures[bound];
+                material["extras"]![ExtrasKeys.Borg1] = scene.Textures[bound];
             if (alphaMode == "MASK")
                 material["alphaCutoff"] = 0.5f;
             if (mesh.Flags.HasFlag(Borg2MaterialFlags.Unlit))
@@ -280,7 +281,7 @@ public static class SceneGltf
         int GltfTexture(int texture, Borg2MaterialFlags flags)
         {
             if (!images.TryGetValue(texture, out var image))
-                images[texture] = image = gltf.AddPng(Png.Encode(textures[texture].Value.Decode()), $"borg1 {scene.Textures[texture]}");
+                images[texture] = image = gltf.AddPng(Png.Encode(textures[texture].Value.Decode()), SceneNames.Image(scene.Textures[texture]));
 
             var filter = flags.HasFlag(Borg2MaterialFlags.PointFilter) ? Nearest : Linear;
             var samplerKey = (filter, filter, Wrap(flags, Borg2MaterialFlags.WrapS, Borg2MaterialFlags.MirrorS),
@@ -375,10 +376,10 @@ public static class SceneGltf
 
         return new JsonObject
         {
-            ["name"] = $"borg6 {index}",
+            ["name"] = SceneNames.Animation(index),
             ["channels"] = channels,
             ["samplers"] = samplers,
-            ["extras"] = new JsonObject { ["borg6"] = index, ["length"] = animation.Length },
+            ["extras"] = new JsonObject { [ExtrasKeys.Borg6] = index, [ExtrasKeys.Length] = animation.Length },
         };
 
         T[] Samples<T>(SortedDictionary<int, T[]> paths, int node) =>
@@ -446,7 +447,7 @@ public static class SceneGltf
             } : null,
             ["scale"] = new JsonArray(e.MinScale, e.MaxScale),
             ["endScale"] = e.EndScale,
-            ["color"] = new JsonArray(V4(e.MinColor), V4(e.MaxColor)),
+            [ExtrasKeys.Color] = new JsonArray(V4(e.MinColor), V4(e.MaxColor)),
             ["fadeColor"] = V4(e.FadeColor),
         };
     }
@@ -540,10 +541,10 @@ public static class SceneGltf
         }
         return new JsonArray(loads.Select(l => (JsonNode)new JsonObject
         {
-            ["borg1"] = scene.Textures[l.Texture],
-            ["width"] = textures[l.Texture].Value.Width,
-            ["move"] = textures[l.Texture].Value.Move,
-            ["loads"] = l.Count,
+            [ExtrasKeys.Borg1] = scene.Textures[l.Texture],
+            [ExtrasKeys.Width] = textures[l.Texture].Value.Width,
+            [ExtrasKeys.Move] = textures[l.Texture].Value.Move,
+            [ExtrasKeys.Loads] = l.Count,
         }).ToArray());
     }
 

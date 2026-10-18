@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 using System.Numerics;
 using System.Text.Json;
 
@@ -36,35 +35,31 @@ public static class SceneMesh
 
     public static IReadOnlyList<SceneTriangle> Read(byte[] glb)
     {
-        if (glb.Length < 20 || BinaryPrimitives.ReadUInt32LittleEndian(glb) != 0x46546C67)
-            throw new InvalidDataException("Not a binary glTF file.");
-        var jsonLength = BinaryPrimitives.ReadInt32LittleEndian(glb.AsSpan(12));
-        using var json = JsonDocument.Parse(glb.AsMemory(20, jsonLength));
-        var file = new Gltf(json.RootElement, glb, 20 + jsonLength + 8);
+        using var file = GlbReader.Parse(glb);
+        var reader = new Gltf(file, SceneExtras.Read(file));
         var triangles = new List<SceneTriangle>();
-        var root = json.RootElement;
-        if (!root.TryGetProperty("nodes", out var nodes) || !root.TryGetProperty("scenes", out var scenes))
-            return triangles;
-        var scene = scenes[root.TryGetProperty("scene", out var s) ? s.GetInt32() : 0];
-        if (!scene.TryGetProperty("nodes", out var roots))
+        if (!file.Root.TryGetProperty("nodes", out var nodes) || file.Scene is not { } scene || !scene.TryGetProperty("nodes", out var roots))
             return triangles;
         foreach (var n in roots.EnumerateArray())
-            file.Walk(nodes, n.GetInt32(), Matrix4x4.Identity, triangles);
+            reader.Walk(nodes, n.GetInt32(), Matrix4x4.Identity, triangles);
         return triangles;
     }
 
-    private sealed class Gltf(JsonElement root, byte[] glb, int bin)
+    private sealed class Gltf(GlbReader file, SceneExtras extras)
     {
+        // The Borg1s the scene lists as scrolling.
+        private readonly HashSet<int> _scrolling = [.. extras.Scrolling.Select(s => s.Borg1)];
+
         public void Walk(JsonElement nodes, int index, Matrix4x4 parent, List<SceneTriangle> into)
         {
             var node = nodes[index];
             // A billboard's facing node turns its card to the camera, so where the card is depends on the view.
-            if (node.TryGetProperty("extras", out var extras) && extras.ValueKind == JsonValueKind.Object
-                && extras.TryGetProperty("facing", out var facing) && facing.ValueKind == JsonValueKind.True)
+            if (node.TryGetProperty("extras", out var nodeExtras) && nodeExtras.ValueKind == JsonValueKind.Object
+                && nodeExtras.TryGetProperty(ExtrasKeys.Facing, out var facing) && facing.ValueKind == JsonValueKind.True)
                 return;
             var world = Local(node) * parent;
             if (node.TryGetProperty("mesh", out var mesh))
-                AddMesh(root.GetProperty("meshes")[mesh.GetInt32()], world, into);
+                AddMesh(file.Root.GetProperty("meshes")[mesh.GetInt32()], world, into);
             if (node.TryGetProperty("children", out var children))
             {
                 foreach (var child in children.EnumerateArray())
@@ -78,8 +73,8 @@ public static class SceneMesh
             {
                 if (primitive.TryGetProperty("mode", out var mode) && mode.GetInt32() != Triangles)
                     continue;
-                var positions = Floats(primitive.GetProperty("attributes").GetProperty("POSITION").GetInt32(), 3);
-                var indices = primitive.TryGetProperty("indices", out var ix) ? Indices(ix.GetInt32()) : null;
+                var positions = file.Floats(primitive.GetProperty("attributes").GetProperty("POSITION").GetInt32());
+                var indices = primitive.TryGetProperty("indices", out var ix) ? file.Indices(ix.GetInt32()) : null;
                 var count = indices?.Length ?? positions.Length / 3;
                 var (blend, scrolls) = Look(primitive);
                 for (var i = 0; i + 2 < count; i += 3)
@@ -97,27 +92,18 @@ public static class SceneMesh
         {
             if (!primitive.TryGetProperty("material", out var m))
                 return (SurfaceBlend.Opaque, false);
-            var material = root.GetProperty("materials")[m.GetInt32()];
+            var material = file.Root.GetProperty("materials")[m.GetInt32()];
             var blend = material.TryGetProperty("alphaMode", out var mode) ? mode.GetString() switch
             {
                 "MASK" => SurfaceBlend.CutOut,
                 "BLEND" => SurfaceBlend.Translucent,
                 _ => SurfaceBlend.Opaque,
             } : SurfaceBlend.Opaque;
-            var scrolls = material.TryGetProperty("extras", out var extras) && extras.ValueKind == JsonValueKind.Object
-                && extras.TryGetProperty("borg1", out var borg1) && borg1.ValueKind == JsonValueKind.Number
-                && Scrolling.Contains(borg1.GetInt32());
+            var scrolls = material.TryGetProperty("extras", out var materialExtras) && materialExtras.ValueKind == JsonValueKind.Object
+                && materialExtras.TryGetProperty(ExtrasKeys.Borg1, out var borg1) && borg1.ValueKind == JsonValueKind.Number
+                && _scrolling.Contains(borg1.GetInt32());
             return (blend, scrolls);
         }
-
-        // The Borg1s the scene lists as scrolling, in its glTF scene's extras.
-        private HashSet<int> Scrolling => _scrolling ??= [.. root.GetProperty("scenes")[root.TryGetProperty("scene", out var s) ? s.GetInt32() : 0]
-            .TryGetProperty("extras", out var extras) && extras.ValueKind == JsonValueKind.Object
-            && extras.TryGetProperty("scrollingTextures", out var list) && list.ValueKind == JsonValueKind.Array
-            ? list.EnumerateArray().Where(t => t.TryGetProperty("borg1", out var b) && b.ValueKind == JsonValueKind.Number).Select(t => t.GetProperty("borg1").GetInt32())
-            : []];
-
-        private HashSet<int>? _scrolling;
 
         private static Vector3 Position(float[] p, int v, Matrix4x4 world) =>
             Vector3.Transform(new Vector3(p[3 * v], p[3 * v + 1], p[3 * v + 2]), world);
@@ -136,45 +122,6 @@ public static class SceneMesh
                 : Quaternion.Identity;
             var translation = node.TryGetProperty("translation", out var t) ? new Vector3(t[0].GetSingle(), t[1].GetSingle(), t[2].GetSingle()) : Vector3.Zero;
             return Matrix4x4.CreateScale(scale) * Matrix4x4.CreateFromQuaternion(rotation) * Matrix4x4.CreateTranslation(translation);
-        }
-
-        private float[] Floats(int accessorIndex, int width)
-        {
-            var (accessor, offset, stride) = Accessor(accessorIndex, 4 * width);
-            if (accessor.GetProperty("componentType").GetInt32() != 5126)
-                throw new InvalidDataException("Positions are floats.");
-            var count = accessor.GetProperty("count").GetInt32();
-            var values = new float[count * width];
-            for (var i = 0; i < count; i++)
-            {
-                for (var c = 0; c < width; c++)
-                    values[i * width + c] = BinaryPrimitives.ReadSingleLittleEndian(glb.AsSpan(offset + i * stride + 4 * c));
-            }
-            return values;
-        }
-
-        private int[] Indices(int accessorIndex)
-        {
-            var type = root.GetProperty("accessors")[accessorIndex].GetProperty("componentType").GetInt32();
-            var size = type switch { 5121 => 1, 5123 => 2, 5125 => 4, _ => throw new InvalidDataException($"Unexpected index type {type}.") };
-            var (accessor, offset, stride) = Accessor(accessorIndex, size);
-            var values = new int[accessor.GetProperty("count").GetInt32()];
-            for (var i = 0; i < values.Length; i++)
-            {
-                var at = glb.AsSpan(offset + i * stride);
-                values[i] = size switch { 1 => at[0], 2 => BinaryPrimitives.ReadUInt16LittleEndian(at), _ => (int)BinaryPrimitives.ReadUInt32LittleEndian(at) };
-            }
-            return values;
-        }
-
-        private (JsonElement Accessor, int Offset, int Stride) Accessor(int index, int packed)
-        {
-            var accessor = root.GetProperty("accessors")[index];
-            var view = root.GetProperty("bufferViews")[accessor.GetProperty("bufferView").GetInt32()];
-            var offset = bin + (view.TryGetProperty("byteOffset", out var o) ? o.GetInt32() : 0) +
-                (accessor.TryGetProperty("byteOffset", out var ao) ? ao.GetInt32() : 0);
-            var stride = view.TryGetProperty("byteStride", out var bs) ? bs.GetInt32() : packed;
-            return (accessor, offset, stride);
         }
     }
 }

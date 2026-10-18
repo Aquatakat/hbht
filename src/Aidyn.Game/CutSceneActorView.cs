@@ -2,6 +2,7 @@ using Aidyn.Core;
 using Aidyn.Core.Movement;
 using Aidyn.Core.Scripts;
 using Aidyn.Plugins;
+using Aidyn.Plugins.Assets;
 using Godot;
 
 namespace Aidyn.Game;
@@ -29,7 +30,7 @@ public partial class CutSceneActorView : BodyView
         Actor = actor;
         _models = models;
         // What it holds goes on its scene's locator 0 (AttachItemToPlayer's slot 0).
-        _hand = Model is { } model ? Nodes.FindAll<Node3D>(model).FirstOrDefault(n => n.Name == "locator 0") : null;
+        _hand = Model is { } model ? Nodes.FindAll<Node3D>(model).FirstOrDefault(n => n.Name == SceneNames.Locator(0)) : null;
         Sync();
     }
 

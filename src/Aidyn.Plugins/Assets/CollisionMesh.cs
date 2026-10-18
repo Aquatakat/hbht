@@ -1,6 +1,4 @@
-using System.Buffers.Binary;
 using System.Numerics;
-using System.Text.Json;
 
 namespace Aidyn.Plugins.Assets;
 
@@ -50,22 +48,27 @@ public readonly record struct CollisionTriangle(Vector3 A, Vector3 B, Vector3 C,
 
 /// <summary>
 /// Reads a map's collision asset: a glTF mesh whose triangles don't share vertices, each vertex
-/// carrying its triangle's <c>_SURFACE</c>, <c>_ROLE</c>, <c>_FLAGS</c> and <c>_TARGET</c> as floats.
+/// carrying its triangle's surface, role, flags and target as floats (<see cref="SurfaceAttribute"/> and the others).
 /// </summary>
 public static class CollisionMesh
 {
+    /// <summary>The vertex attributes the exporter (<c>CollisionGltf</c>) writes, per vertex of a triangle and the same on its three: <see cref="CollisionTriangle.Surface"/>.</summary>
+    public const string SurfaceAttribute = "_SURFACE";
+    /// <summary><see cref="CollisionTriangle.Role"/>, as a <see cref="CollisionRole"/>'s number.</summary>
+    public const string RoleAttribute = "_ROLE";
+    /// <summary><see cref="CollisionTriangle.Flags"/>.</summary>
+    public const string FlagsAttribute = "_FLAGS";
+    /// <summary><see cref="CollisionTriangle.Target"/>; a file without it has none.</summary>
+    public const string TargetAttribute = "_TARGET";
+
     /// <summary>A map's collision, from the plugin that provides its asset, or none if no plugin has one.</summary>
     public static IReadOnlyList<CollisionTriangle> For(PluginSet plugins, RecordId map) =>
         plugins.FindAsset(map, "glb") is { } path ? Read(File.ReadAllBytes(path)) : [];
 
     public static IReadOnlyList<CollisionTriangle> Read(byte[] glb)
     {
-        if (glb.Length < 20 || BinaryPrimitives.ReadUInt32LittleEndian(glb) != 0x46546C67)
-            throw new InvalidDataException("Not a binary glTF file.");
-        var jsonLength = BinaryPrimitives.ReadInt32LittleEndian(glb.AsSpan(12));
-        using var json = JsonDocument.Parse(glb.AsMemory(20, jsonLength));
-        var bin = 20 + jsonLength + 8;
-        var root = json.RootElement;
+        using var file = GlbReader.Parse(glb);
+        var root = file.Root;
 
         var triangles = new List<CollisionTriangle>();
         if (!root.TryGetProperty("meshes", out var meshes))
@@ -75,11 +78,11 @@ public static class CollisionMesh
             foreach (var primitive in mesh.GetProperty("primitives").EnumerateArray())
             {
                 var attributes = primitive.GetProperty("attributes");
-                var positions = Floats(root, glb, bin, attributes.GetProperty("POSITION").GetInt32());
-                var surfaces = Floats(root, glb, bin, attributes.GetProperty("_SURFACE").GetInt32());
-                var roles = Floats(root, glb, bin, attributes.GetProperty("_ROLE").GetInt32());
-                var flags = Floats(root, glb, bin, attributes.GetProperty("_FLAGS").GetInt32());
-                var targets = attributes.TryGetProperty("_TARGET", out var target) ? Floats(root, glb, bin, target.GetInt32()) : null;
+                var positions = file.Floats(attributes.GetProperty("POSITION").GetInt32());
+                var surfaces = file.Floats(attributes.GetProperty(SurfaceAttribute).GetInt32());
+                var roles = file.Floats(attributes.GetProperty(RoleAttribute).GetInt32());
+                var flags = file.Floats(attributes.GetProperty(FlagsAttribute).GetInt32());
+                var targets = attributes.TryGetProperty(TargetAttribute, out var target) ? file.Floats(target.GetInt32()) : null;
                 for (var v = 0; v + 2 < surfaces.Length; v += 3)
                 {
                     triangles.Add(new CollisionTriangle(
@@ -92,20 +95,4 @@ public static class CollisionMesh
     }
 
     private static Vector3 Position(float[] p, int v) => new(p[3 * v], p[3 * v + 1], p[3 * v + 2]);
-
-    /// <summary>A float accessor's values, tightly packed as the exporter writes them.</summary>
-    private static float[] Floats(JsonElement root, byte[] glb, int bin, int accessorIndex)
-    {
-        var accessor = root.GetProperty("accessors")[accessorIndex];
-        if (accessor.GetProperty("componentType").GetInt32() != 5126)
-            throw new InvalidDataException("Collision attributes are floats.");
-        var width = accessor.GetProperty("type").GetString() switch { "SCALAR" => 1, "VEC3" => 3, var t => throw new InvalidDataException($"Unexpected accessor type {t}.") };
-        var view = root.GetProperty("bufferViews")[accessor.GetProperty("bufferView").GetInt32()];
-        var offset = bin + (view.TryGetProperty("byteOffset", out var o) ? o.GetInt32() : 0) +
-            (accessor.TryGetProperty("byteOffset", out var ao) ? ao.GetInt32() : 0);
-        var values = new float[accessor.GetProperty("count").GetInt32() * width];
-        for (var i = 0; i < values.Length; i++)
-            values[i] = BinaryPrimitives.ReadSingleLittleEndian(glb.AsSpan(offset + 4 * i));
-        return values;
-    }
 }

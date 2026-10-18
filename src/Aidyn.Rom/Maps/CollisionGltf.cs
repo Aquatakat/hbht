@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Text.Json.Nodes;
+using Aidyn.Plugins.Assets;
 using Aidyn.Rom.Graphics;
 
 namespace Aidyn.Rom.Maps;
@@ -8,8 +9,8 @@ namespace Aidyn.Rom.Maps;
 /// Exports a map set's collision as glTF: a node per chunk at
 /// its <see cref="MapSets.ChunkOrigin"/>, with one mesh of its triangles. The triangles don't share
 /// vertices, so each vertex carries its triangle's <c>_SURFACE</c> (<see cref="CollisionSurface"/>),
-/// <c>_ROLE</c> (0 normal, 1 toggle, 2 trigger, 3 Expansion Pak only) and <c>_FLAGS</c>
-/// (<see cref="TriangleFlags"/>). With no normals, viewers shade them flat.
+/// <c>_ROLE</c> (<see cref="CollisionRole"/>), <c>_FLAGS</c> (<see cref="TriangleFlags"/>) and <c>_TARGET</c>, under the
+/// names <see cref="CollisionMesh"/> reads them by. With no normals, viewers shade them flat.
 /// </summary>
 /// <remarks>The importer exports each chunk alone, in its own coordinates, with <c>placeInSet</c> off.</remarks>
 public static class CollisionGltf
@@ -45,12 +46,15 @@ public static class CollisionGltf
                     positions.AddRange([map.Vertices[t.A], map.Vertices[t.B], map.Vertices[t.C]]);
                     var role = t.Role switch
                     {
-                        TriangleRole.Toggle => 1, TriangleRole.Trigger => 2, TriangleRole.ExpansionPak => 3, _ => 0,
+                        TriangleRole.Toggle => CollisionRole.Toggle,
+                        TriangleRole.Trigger => CollisionRole.Trigger,
+                        TriangleRole.ExpansionPak => CollisionRole.ExpansionPak,
+                        _ => CollisionRole.Normal,
                     };
                     for (var i = 0; i < 3; i++)
                     {
                         surfaces.Add((float)t.Surface);
-                        roles.Add(role);
+                        roles.Add((float)role);
                         flags.Add((float)t.Flags);
                         targets.Add(t.ToggleId ?? t.TriggerObject ?? 0);
                     }
@@ -63,10 +67,10 @@ public static class CollisionGltf
                         ["attributes"] = new JsonObject
                         {
                             ["POSITION"] = gltf.AddPositions(positions),
-                            ["_SURFACE"] = gltf.AddScalars(surfaces),
-                            ["_ROLE"] = gltf.AddScalars(roles),
-                            ["_FLAGS"] = gltf.AddScalars(flags),
-                            ["_TARGET"] = gltf.AddScalars(targets),
+                            [CollisionMesh.SurfaceAttribute] = gltf.AddScalars(surfaces),
+                            [CollisionMesh.RoleAttribute] = gltf.AddScalars(roles),
+                            [CollisionMesh.FlagsAttribute] = gltf.AddScalars(flags),
+                            [CollisionMesh.TargetAttribute] = gltf.AddScalars(targets),
                         },
                         ["material"] = material,
                     }),
