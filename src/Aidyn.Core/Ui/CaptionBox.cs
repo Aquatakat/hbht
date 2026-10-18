@@ -7,7 +7,8 @@ public sealed record CaptionBoxLayout(FeatheredPanel Panel, TextBlock Text);
 
 /// <summary>
 /// The box a cinematic's captions show in, across the foot of the screen (<c>TextBand.Create</c>, <c>0x80055800</c>, as
-/// <c>Cinematic.CaptionsCreate</c>, <c>0x800545d0</c>, makes it): the conversation box's widget with its grow flag set.
+/// <c>Cinematic.CaptionsCreate</c>, <c>0x800545d0</c>, makes it): a <c>TextBand</c> with its grow flag set, the widget the
+/// battle's log box is too (<see cref="CombatLogBox"/>).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -25,7 +26,7 @@ public sealed record CaptionBoxLayout(FeatheredPanel Panel, TextBlock Text);
 /// text wraps as authored at any size. Like that box it floats rather than running under bars it doesn't draw: the band
 /// is inside where the side bars would be, feathered beside it and above it with the popups' pieces, but it runs down
 /// to the screen's bottom, which it's anchored to, with no feathering there. The user chose this shape (Oct 17, 2026),
-/// and combat's text box, which is the same widget at another size, will take it too.
+/// and the battle's log box, the same widget at another size, takes it too.
 /// </para>
 /// </remarks>
 public static class CaptionBox

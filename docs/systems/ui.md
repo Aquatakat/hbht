@@ -1,4 +1,4 @@
-# UI: text, the conversation box, the pause menu and the HUD (roadmap 1F, M2)
+# UI: text, the conversation box, the pause menu, the HUD and the battle screen (roadmap 1F, M2, M3)
 
 How the port lays out and draws the original's UI. The fonts and string tables are in [text](../formats/text.md), the menus' sounds in [audio](audio.md#sound-effects), and the runtime's controls in [runtime](runtime.md). Positions are in the original's 320 × 240 frame, and addresses are 1.0's.
 
@@ -383,6 +383,59 @@ The minimap (`MiniMap`, `minimap.cpp`) is pieces of a drawn plan, one per chunk 
 - **The fade:** the runtime's fade is a black overlay on trek's whole UI screen, so the HUD is drawn at full brightness under it, where the original dims each colour and alpha.
 - **Not ported yet:** the Detect Moon Phase and Detect Sun Phase spells, and the editor showing the HUD.
 
+## The battle screen
+
+What a battle draws over its arena (`combatgui.cpp`, `0x80085A80`–`0x80087C60`, and the radar, `0x8008DD30`–`0x8008E3C0`), matched to the user's capture `roms/combat.png` (Brenna's turn against four rats with six in reserve) and checkpoint 02's RAM. `CombatGui` (`Aidyn.Core.Ui`) is the model, which the battle holds (`Battle.Gui`) and steps each tick; `CombatRadar` and `CombatLogBox` are its radar and log box; `CombatGuiView` (`Aidyn.Game`) draws it on trek's UI screen. Every part is drawn in every state of a battle, the original's in this order (`CombatGui.Draw`, `0x80085F64`; `DrawAll`, `0x800863E4`): the log box, the radar, the frames, the portraits, the HP bars.
+
+### The portraits
+
+`CombatGui.Create` (`0x80085B80`) makes an entry for each party member, two placeholders and each of the enemy list, reserves too, and a frame (a "bar", `CombatGui.Bars`) for each member, two spares under them and each of the list (`CreateBars`, `0x800864F4`). Their order is fixed.
+
+- **The frames** are opaque images drawn under the portraits and tinted, so only their rims show: large `0x01C6` (28 × 26) with a 23-square portrait, small `0x01C7` (14 × 13) with an 11 × 10 one, the portraits scaled from 40. The party's run down x 270 and the enemies' x 21, from y 18, 28 apart; the party's portrait is 4 in (its HP bar's strip on the left), the enemies' 2 (the strip on the right). The first four of the list are large; the rest are small, 12 apart from y 130 (overlapping a pixel), four at x 21 and then at 35. The two spares under the party (y 18 + 28 × size) are hidden, for whoever's in neither list (the Shadow, a summons). Empty frames draw nothing.
+- **Who goes where** (`AssignPortrait`, `0x80085FC8`, as `Combat.CreateBody` makes each body): the first waiting entry of the combatant's entity takes its slot and the first free frame of its side, so the party in slot order top to bottom and the enemies on the field in the large frames. The first tick gives the reserves the small frames in the list's order (`0x80086C84`). A reserve that joins (session 5, `Combat.SpawnReserves`) swaps frames with the first dead or fled enemy, which goes out of the fight into the small frame. Anyone in neither list takes a placeholder and the first spare.
+- **They slide** (`PlaceInBar`, `0x800869F4`): every portrait starts at (160, 120), 40 square, and goes to its frame over 60 ticks of the frame's delta (`0x800D43E4`), so a second whatever the frame rate: x in a straight line, y easing out (`MenuTween.EaseOut`), the width and height easing in and out (`MenuTween.Ease`). At the start that's under the fade in.
+- **The dead and fled** (`MarkDead` `0x80086208` as the body is freed, `MarkFled` `0x80086230` as a flight ends, `MarkReserveFled` `0x80086338`): the skull `0x016D` fades in over the portrait, 0 to 255 over 60 ticks, sized to it, and the portrait stays in its frame. A fled one's frame is orange (200, 164, 0, 255). They lose their HP bar and tints.
+- **The HP bars** (`DrawHpBars`, `0x80087168`), over everything, at the frame at once and from the live hit points: 3 wide and the portrait's height, 4 left of the party's portrait (x 270) and 24 right of an enemy's (47), black, then the fill from the bottom, (int)(height × hp ÷ max) and never under a pixel. Its colour has no steps (`HpColour`, `0x80085A80`): u = min(255, hp × 255 ÷ max), (255 − u, u, 0).
+- **The tints** are the frames' colours (`CombatGui.TintAll`, `0x8008713C`), worked out every frame, each rule over the one before: black at alpha 200; orange for a fled one; then for each in play, orange while the AI has it fleeing (`EnemyAI.IsFleeing`), dim green (0, 200, 0, 150) as set A's candidate (what the current combatant can attack), **dim red (200, 0, 0, 150) as set B's candidate**, bright green (0, 255, 0, 255) as set A's selected while an attack or a flask is aimed (states 9 and 18), and bright red (255, 0, 0, 255) as set B's selected while a spell or its area is (10 and 11) (`TintByState`, `0x80086EB4`). They don't pulse, and side doesn't matter.
+- **Why red shows when nothing's being cast:** set B holds what the current combatant's *selected* spell could be cast at, and a caster keeps a selected spell (its entity's `+0x3D` and `+0x3E`) from turn to turn. So on Alaron's, Rheda's or Sholeh's turn, the dim red is on everyone their spell reaches, the party too for a healing spell, from the turn's first frame and in every state. Brenna and the rats have no spell, so their turns, the capture's among them, show none. All 11 checkpoints' frames match this.
+- **C-left does nothing.** It toggles a flag (`CombatGui.Shown`, `0x800E3140`, in `Combat.ControlsByState` at `0x80085114`) that nothing reads, in 1.0 or the debug build, so nothing hides the screen. The port has no flag.
+
+### The log box
+
+A `TextBand` (`CombatGui.LogBoxCreate`, `0x80087A78`), the cinematics' caption box's widget ([cinematics](cinematics.md#the-caption-box)), not the conversation box's, that never drops away. `CombatLogBox` lays it out.
+
+- **The original's** rectangle is (0, 180) to (246, 240), with no growing: the band from 180 down and the gradient 11 tall above it, both right across the frame; the line in the main font in (225, 225, 225, 200) at (76, 190), wrapping at 241 and cut at 230, which keeps it off the radar; the conversation box's border `0x00DF` at (20, 174) and the current combatant's portrait at (26, 180), level with the band's top. An enemy's turn shows the enemy's portrait. Before the first turn's line it shows only the band.
+- **The port floats it**, the user's choice, as the caption and conversation boxes do: laid out in the original's frame at the bottom centre of the UI screen, the band from 16 to 304 down to the screen's foot, feathered beside it and above.
+- **The lines** are the battle's (`CombatLog`, `Battle.Lines`, the struct's `+0x4FC4`–`+0x52C4`): shown, queued and a third. `Show` replaces the line at once (`Combat.ShowLog`, `0x8005E604`); `Queue` only keeps the next (`QueueLog`, `0x8005E658`), and `Flush` shows it at a state's change (`FlushQueuedLog`, `0x8005E6F4`: an attack's result as its animation ends, a cast's end, a potion), or the third in its place if Banish queued one (`QueueLog2`). So "Brenna attacks Giant Rat" shows at once, and "Giant Rat killed" queued behind it comes up as the blow lands. **There's no timer**: a line holds until the next.
+- **The hold** (`+0x543C`, `Combat.HoldForMessage`, `0x80022AEC`): only a reserve fleeing as it arrives sets it. For 60 ticks the box shows "Enemy reinforcements flee" and the battle's states and input wait; then the shown line comes back. `CombatLog.HoldOn` and `StepHold` have the rule; session 5's reserves set it.
+- **Locked** as the party falls (`TurnOrder.Defeat`, `0x8006A780`): its line, and in a non-lethal battle Alaron's portrait, and nothing changes the box after (`CombatLog.Lock`).
+
+### The radar
+
+`CombatRadar.Draw` (`0x8008DF04`):
+
+- **The ring** is the sundial's, `0x001B`, at (245, 170), white at alpha 164 (the HUD's are 80), under the dots.
+- **The dots** are 2 × 2, alpha 164, one for each body in use, by slot: the camera's owner yellow (150, 150, 0) at (274, 199), the party green (0, 150, 0) and the rest red (150, 0, 0), under the frames.
+- **It's centred on the camera's owner** (`0x800D8448`): the current combatant, or while an attack is aimed the target cursor's body (session 5). **It turns with the camera**: with (a, b) the camera's look in X and Z (`rotationXZ`), a body (dx, dz) from the owner goes (dx × −b + dz × a) × 0.5 right and (dx × a + dz × b) × 0.5 up, truncated, so the way the camera looks is up. Half a pixel a unit. A body more than 20 pixels out is held at 20, its colour halved.
+- **While a spell, its area or a flask is aimed** (states 10, 11 and 18), the dots of set B's selected throb, each channel that isn't 0 plus the pulse, and the rest are halved. The pulse (`CombatRadar.Step`, `0x8008DE44`) goes from 0 to −150 and back, 4 a frame, 76 frames a cycle. A flask aims with set A, which the radar doesn't read, so in state 18 every dot is halved.
+- **Checked** against checkpoint 02 (Rheda's turn, the camera's look read from RAM): every dot where the original's arithmetic puts it (`BattleCheckpointTests`).
+
+### On other screens
+
+The user chose where the screen sits on a screen of another shape (`CombatGui.Draw`), and it follows the Menu size setting, as the HUD does:
+
+- **The enemies' column** keeps its place from the screen's top left corner, and **the party's** from the top right.
+- **The log box** floats at the bottom centre.
+- **The radar** sits in the log box at the original's place, or in the screen's bottom right corner (`RadarAnchor`), its place in the frame kept from that corner, as the compass's is. On a 4:3 screen the two are the same. The runtime starts in the box; F9 swaps them and `--radar corner` starts in the corner.
+
+### In the port
+
+- **Ticks:** the portraits' tweens step a tick at a time (the original's delta), and the radar's pulse once a frame at 30 fps.
+- **The fade** darkens the whole UI screen, as for the HUD; the original fades each widget's colour but not the HP bars' black.
+- **The target sets** aren't ported (session 5): `Battle.Marks` holds each slot's `TargetMarks` and `Combatant.Fleeing` the AI's flag, which the tints and the radar read. F4 shows the tints in turn, an attack aimed and a spell aimed, and `--tints 1` or `2` starts with one.
+- **Measured** against the capture in the UI screen's own pixels (`--ui-screenshot`): the portraits, the reserves' icons and the HP bars differ by about 4 a channel on average, within the console's dither; the text starts at (76, 190), and the ring's rim falls on the capture's rows and columns.
+- **Not ported yet:** the numbers over the targets in states 10, 11 and 18 (`Combat.DrawTargetCounts`, `0x80021448`), with session 5.
+
 ## A faithful mode, later
 
 The floating panel and the resizable screen are enhancements, which the user chose over the original's look, leaving a faithful mode for a setting later (ADR 0018, [roadmap](../roadmap.md) Phase 6). What it would take:
@@ -390,6 +443,7 @@ The floating panel and the resizable screen are enhancements, which the user cho
 - **The screen.** `UiScreen` fixed at 320 × 240 whatever the window's shape, shown pillarboxed at 4:3, with the VideoOut filter. The 3D view would need the same 4:3 frame.
 - **The overscan bars** over the whole frame, 3D and UI, drawn last, as `Graphics::EndList` does ([the screen](#the-screen)).
 - **The conversation box.** A style for `DialogueBox`: a band right across the frame, from 0 to 320 and down to 232, with only the gradient above it: a `FeatheredPanel` whose bottom and side feathering are 0, which `UiImages.DrawPanel` already skips.
+- **The battle screen's log box** as the original's band right across the frame from 180, with the radar in it ([the battle screen](#the-battle-screen)).
 - **Other UI** is already at its original place on a 320 × 240 screen.
 - **High-resolution mode**, if a setting offers the Expansion Pak's option: a 512 × 240 screen, where the original lays UI out in 320 × 240 and `borg8DlistInit` stretches every image 1.6 times across, bilinear. `UiScreen` would draw its 320-wide canvas into a 512-wide one with linear filtering before the VideoOut filter. Its overscan bars are 20 pixels at the sides.
 - **The VI and the TV**: the VI's anti-aliasing and divot filters and a composite or CRT look would be further `UiFilter`s.

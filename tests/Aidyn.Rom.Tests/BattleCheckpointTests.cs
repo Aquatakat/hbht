@@ -254,4 +254,78 @@ public sealed class BattleCheckpointTests(Na10Import fixture, ITestOutputHelper 
         }
         Assert.True(wrong.Count == 0, string.Join("; ", wrong));
     }
+
+    // The battle screen's globals (combatgui.cpp): the portraits' entries and the frames', 0x18 bytes each, and their count.
+    private const uint GuiCount = 0x800E3144, GuiPortraits = 0x800E3148, GuiBars = 0x800E314C;
+
+    /// <summary>The camera's look in X and Z (<c>rotationXZ</c>), which turns the radar.</summary>
+    private const uint LookXZ = 0x800D82CC;
+
+    [Fact]
+    public void TheBattleScreensFramesAndPortraitsAreTheCheckpointsOnceTheyHaveSlidIn()
+    {
+        var built = Build();
+        var battle = built.Battle;
+        var gui = battle.Gui;
+        var after = built.After;
+        for (var i = 0; i <= Aidyn.Core.Ui.CombatGui.TweenTicks; i++)
+            gui.Tick(battle);
+
+        // Four members and two spares, then ten rats: 16 of each.
+        var count = after.ReadByte(GuiCount);
+        Assert.Equal(count, gui.Portraits.Count);
+        Assert.Equal(count, gui.Bars.Count);
+        var bars = after.ReadWord(GuiBars);
+        var portraits = after.ReadWord(GuiPortraits);
+        var wrong = new List<string>();
+        for (var i = 0; i < count; i++)
+        {
+            var b = bars + (uint)i * 0x18;
+            var bar = gui.Bars[i];
+            var frame = after.ReadWord(b);
+            Check($"bar {i} portrait place", ((short)Half(after, b + 4), (short)Half(after, b + 6), Half(after, b + 8), Half(after, b + 10)),
+                ((short)bar.X, (short)bar.Y, (ushort)bar.Width, (ushort)bar.Height));
+            Check($"bar {i} frame place", ((short)Half(after, frame + 0x60), (short)Half(after, frame + 0x62)), ((short)bar.FrameX, (short)bar.FrameY));
+            Check($"bar {i} free", after.ReadWord(b + 0x0C) != 0, bar.Free);
+            Check($"bar {i} party's", after.ReadWord(b + 0x10) == 0, bar.Party);
+            Check($"bar {i} blocked", after.ReadWord(b + 0x14) != 0, bar.Blocked);
+
+            var p = portraits + (uint)i * 0x18;
+            var entry = gui.Portraits[i];
+            var widget = after.ReadWord(p);
+            Check($"portrait {i} entity", Half(after, p + 8), entry.Entity is { } e ? Convert.ToUInt16(e.Key, 16) : (ushort)0);
+            Check($"portrait {i} slot", after.ReadByte(p + 0x0A), (byte)(entry.Slot ?? 0xFF));
+            Check($"portrait {i} state", after.ReadByte(p + 0x0B), (byte)entry.State);
+            Check($"portrait {i} bar", after.ReadByte(p + 0x10), (byte)(entry.Bar is { } eb ? gui.Bars.ToList().IndexOf(eb) : 0xFF));
+            if (entry.Bar is not null)
+            {
+                Check($"portrait {i} place", ((short)Half(after, widget + 0x60), (short)Half(after, widget + 0x62), Half(after, widget + 0x74), Half(after, widget + 0x72)),
+                    ((short)entry.X, (short)entry.Y, (ushort)entry.Width, (ushort)entry.Height));
+            }
+        }
+        Assert.True(wrong.Count == 0, string.Join("; ", wrong));
+
+        void Check<T>(string what, T original, T port)
+        {
+            if (!EqualityComparer<T>.Default.Equals(original, port))
+                wrong.Add($"{what}: original {original}, port {port}");
+        }
+    }
+
+    // The research's vectors for checkpoint 02, Rheda's turn: the camera's owner is Rheda (slot 1), yellow at the middle.
+    [Fact]
+    public void TheRadarsDotsAreWhereCheckpoint02sCameraPutsThem()
+    {
+        var built = Build();
+        var battle = built.Battle;
+        battle.Camera.LookXZ = new Vector2(Float(built.After, LookXZ), Float(built.After, LookXZ + 4));
+        Assert.Equal(1, battle.Current!.Slot);
+
+        var dots = battle.Gui.Radar.Draw(battle, 0, 0);
+
+        Assert.Equal([(274, 198), (274, 199), (267, 199), (264, 202), (274, 191), (275, 192), (273, 192), (274, 193)], dots.Select(d => (d.X, d.Y)));
+        Assert.Equal(Aidyn.Core.Ui.CombatRadar.Owner, dots[1].Color);
+        Assert.All(dots.Take(4).Where((_, i) => i != 1), d => Assert.Equal(Aidyn.Core.Ui.CombatRadar.Party, d.Color));
+        Assert.All(dots.Skip(4), d => Assert.Equal(Aidyn.Core.Ui.CombatRadar.Others, d.Color));
+    }
 }

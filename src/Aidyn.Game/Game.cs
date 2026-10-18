@@ -31,7 +31,8 @@ namespace Aidyn.Game;
 /// uses the map object the player reaches (<see cref="MapObjectUse"/>).
 /// The command line's options are <see cref="LaunchOptions"/>, and what they and the debug keys drive is in Game.Debug.cs.
 /// F toggles the free camera, F3 the debug overlay, F5 the pace, F6 the sky's placement and F7 the
-/// UI screen's height, and F8 saves to <c>quick.json</c> in the saves folder.
+/// UI screen's height, and F8 saves to <c>quick.json</c> in the saves folder. In a battle, F4 shows the target sets' tints
+/// in turn and F9 moves the radar between the log box and the screen's corner.
 /// </remarks>
 public partial class Game : Node3D, ITrekHost
 {
@@ -331,6 +332,8 @@ public partial class Game : Node3D, ITrekHost
         trekUi.AddChild(_trekScreen);
         _hud = new HudView(plugins) { Trek = trek };
         _trekScreen.Canvas.AddChild(_hud);
+        _battleScreen = new CombatGuiView(plugins) { Visible = false };
+        _trekScreen.Canvas.AddChild(_battleScreen);
         _popupView = new TrekPopupView(plugins);
         _trekScreen.Canvas.AddChild(_popupView);
         _box = new ConversationBoxView(plugins) { Visible = false };
@@ -800,6 +803,8 @@ public partial class Game : Node3D, ITrekHost
                 break;
             case GameMode.Combat:
                 CombatInput(action);
+                if (CombatDebugKey(e))
+                    return;
                 if (!e.IsActionPressed("toggle_fly") && !e.IsActionPressed("toggle_overlay"))
                     return;
                 break;
@@ -1120,6 +1125,8 @@ public partial class Game : Node3D, ITrekHost
         Add("toggle_sky_placement", Key.F6);
         Add("cycle_ui_lines", Key.F7);
         Add("quick_save", Key.F8);
+        Add("cycle_target_tints", Key.F4);
+        Add("toggle_radar_anchor", Key.F9);
         // The pause menu (PauseMenu).
         Add("pause", Key.Enter, Key.Escape, button: JoyButton.Start);
         Add("menu_back", Key.Backspace, button: JoyButton.B);

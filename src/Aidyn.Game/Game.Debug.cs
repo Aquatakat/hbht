@@ -62,8 +62,11 @@ public partial class Game
             CinematicFromCommandLine(cinematic);
         if (options.Battle is { } battle)
             BattleFromCommandLine(battle);
+        if (options.Radar == "corner")
+            _battleScreen!.Radar = Core.Ui.RadarAnchor.Corner;
+        _tintsOnStart = options.Tints;
         if (options.Screenshot is { } png)
-            _ = Screenshot(png, hold, options.Frames);
+            _ = Screenshot(png, hold, options.Frames, options.UiScreenshot);
     }
 
     /// <summary>Holds actions (<c>--hold move_forward+walk,4</c>) for so many seconds. Returns how long, or 0 if it's badly written.</summary>
@@ -178,9 +181,10 @@ public partial class Game
 
     /// <summary>
     /// Saves the window <paramref name="after"/> seconds on, once the frame has settled, and quits; or with
-    /// <paramref name="frames"/>, the next frames as rendered. Quits with an error if it takes more than a minute.
+    /// <paramref name="frames"/>, the next frames as rendered; with <paramref name="ui"/>, trek's UI screen too, in its own
+    /// pixels. Quits with an error if it takes more than a minute.
     /// </summary>
-    private async Task Screenshot(string path, double after, int frames = 0)
+    private async Task Screenshot(string path, double after, int frames = 0, string? ui = null)
     {
         CommandLine.Watchdog(GetTree(), 60 + after);
         // Time for the frame to settle.
@@ -203,6 +207,8 @@ public partial class Game
             return;
         }
         var error = CommandLine.Save(GetViewport().GetTexture().GetImage(), path);
+        if (ui is not null)
+            CommandLine.Save(_trekScreen.Capture(), ui);
         GetTree().Quit(error == Error.Ok ? 0 : 1);
     }
 

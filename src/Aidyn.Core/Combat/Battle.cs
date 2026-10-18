@@ -123,8 +123,17 @@ public sealed partial class Battle
     /// <summary>The screen's fade: in as the battle starts, out as it leaves.</summary>
     public ScreenFade Fade { get; } = new();
 
-    /// <summary>The log's lines, oldest first, as the battle wrote them (the log box shows them with session 4).</summary>
+    /// <summary>The log's lines, oldest first, as the battle wrote them.</summary>
     public IReadOnlyList<string> Log => _log;
+
+    /// <summary>The log box's lines: the one shown, the one queued and the third (<see cref="CombatLog"/>).</summary>
+    public CombatLog Lines { get; } = new();
+
+    /// <summary>The target sets' marks on each slot (<see cref="TargetMarks"/>), which tint the portraits.</summary>
+    public TargetMarks[] Marks { get; } = new TargetMarks[SlotCount];
+
+    /// <summary>The battle screen: the portraits, the log box and the radar (<c>combatgui.cpp</c>).</summary>
+    public Ui.CombatGui Gui { get; private set; } = null!;
 
     /// <summary>What the original would crash on or can't do, which the port goes on past.</summary>
     public IReadOnlyList<string> Problems => _problems;
@@ -153,8 +162,12 @@ public sealed partial class Battle
     /// <summary>Ticks in a pause, counting to its menu.</summary>
     private int _idle;
 
-    /// <summary>Notes a line in the log.</summary>
-    internal void Write(string line) => _log.Add(line);
+    /// <summary>Notes a line in the log, and shows it in the log box at once (<c>Combat.ShowLog</c>).</summary>
+    internal void Write(string line)
+    {
+        _log.Add(line);
+        Lines.Show(line);
+    }
 
     /// <summary>
     /// Start (<c>Combat.HandleCancelAndPause</c>, <c>0x80083D34</c>): from a turn, the pause menu with the Party tab and
@@ -214,6 +227,7 @@ public sealed partial class Battle
         arena.StepWeather(skyDrawn, arena.Precipitation);
         Step();
         Fade.Step();
+        Gui.Tick(this);
     }
 
     /// <summary>The state's step.</summary>

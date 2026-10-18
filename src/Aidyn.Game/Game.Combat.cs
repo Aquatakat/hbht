@@ -14,6 +14,7 @@ namespace Aidyn.Game;
 public partial class Game
 {
     private ChunkStreamerView? _arenaView;
+    private CombatGuiView? _battleScreen;
     private readonly Dictionary<Combatant, CombatantView> _combatantViews = [];
 
     /// <summary>The battle playing, in place of trek's world.</summary>
@@ -51,6 +52,10 @@ public partial class Game
             AddChild(view);
             view.ResetPhysicsInterpolation();
         }
+        _battleScreen!.Battle = battle;
+        _battleScreen.Visible = true;
+        if (_tintsOnStart is { } tints)
+            ShowTints(battle, _tintDemo = tints);
         SyncBattle();
         _camera.ResetPhysicsInterpolation();
     }
@@ -81,6 +86,7 @@ public partial class Game
         }
         _camera!.Sync();
         ShowFade(battle.Fade.Brightness);
+        _battleScreen!.QueueRedraw();
     }
 
     /// <summary>
@@ -104,6 +110,52 @@ public partial class Game
     }
 
     /// <summary>
+    /// The battle's debug keys, while nothing chooses targets (session 5): F4 shows the target sets' tints in turn (an
+    /// attack aimed at the first enemy, a spell's candidates among the party with two chosen, then none), and F9 moves the
+    /// radar between the log box and the screen's bottom right corner. Whether the event was one.
+    /// </summary>
+    private bool CombatDebugKey(InputEvent e)
+    {
+        if (e.IsActionPressed("toggle_radar_anchor"))
+        {
+            _battleScreen!.Radar = _battleScreen.Radar == RadarAnchor.LogBox ? RadarAnchor.Corner : RadarAnchor.LogBox;
+            _battleScreen.QueueRedraw();
+            return true;
+        }
+        if (!e.IsActionPressed("cycle_target_tints") || Battle is not { } battle)
+            return false;
+        _tintDemo = (_tintDemo + 1) % 3;
+        ShowTints(battle, _tintDemo);
+        return true;
+    }
+
+    private int _tintDemo;
+
+    /// <summary>The tints to show as a battle starts (<c>--tints</c>).</summary>
+    private int? _tintsOnStart;
+
+    /// <summary>
+    /// Marks the target sets for the debug key: 1, every enemy an attack's candidate and the first selected, as an attack is
+    /// aimed (state 9); 2, the party a spell's candidates and the first two selected, as a spell is (state 10); 0, none.
+    /// </summary>
+    private void ShowTints(Battle battle, int demo)
+    {
+        Array.Clear(battle.Marks);
+        battle.Gui.TintState = demo switch { 1 => CombatState.TargetAttack, 2 => CombatState.TargetSpell, _ => null };
+        var chosen = 0;
+        foreach (var c in battle.Combatants)
+        {
+            if (demo == 1 && c.Hostile)
+                battle.Marks[c.Slot] = TargetMarks.AttackCandidate | (chosen++ == 0 ? TargetMarks.AttackSelected : 0);
+            else if (demo == 2 && !c.Hostile)
+                battle.Marks[c.Slot] = TargetMarks.SpellCandidate | (chosen++ < 2 ? TargetMarks.SpellSelected : 0);
+        }
+        battle.Gui.Tint(battle);
+        _battleScreen!.QueueRedraw();
+        Say(demo switch { 1 => "Tints: an attack aimed", 2 => "Tints: a spell aimed", _ => "Tints: none" });
+    }
+
+    /// <summary>
     /// The battle's arena has gone: its bodies and chunks are no longer drawn, and the sky is cleared, so trek's chunk
     /// chooses its own at once as trek's world is built again.
     /// </summary>
@@ -114,6 +166,8 @@ public partial class Game
         _combatantViews.Clear();
         _arenaView?.QueueFree();
         _arenaView = null;
+        _battleScreen!.Visible = false;
+        _battleScreen.Battle = null;
         _sky!.ClearSky();
     }
 }
