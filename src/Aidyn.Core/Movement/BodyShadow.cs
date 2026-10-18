@@ -107,8 +107,7 @@ public sealed class BodyShadow
     {
         if (fromAim >= drawDistance)
             return null;
-        var alpha = drawDistance - 2 < fromAim ? ColorBytes.Single((drawDistance - fromAim) * 0.5f * 255f) : BaseAlpha;
-        alpha = Math.Min(alpha, bodyAlpha);
+        var alpha = Math.Min(Fade(drawDistance, fromAim, BaseAlpha), bodyAlpha);
         if (player)
             return alpha;
         var own = ownAim ?? fromAim;
@@ -123,8 +122,29 @@ public sealed class BodyShadow
     /// aim, fading out over its last 2 units.
     /// </summary>
     public static byte? BodyAlpha(float drawDistance, float fromAim, byte bodyAlpha = 0xFF) =>
-        fromAim >= drawDistance ? null
-            : Math.Min(drawDistance - 2 < fromAim ? ColorBytes.Single((drawDistance - fromAim) * 0.5f * 255f) : (byte)0xFF, bodyAlpha);
+        fromAim >= drawDistance ? null : Math.Min(Fade(drawDistance, fromAim, 0xFF), bodyAlpha);
+
+    /// <summary>
+    /// The alpha at <paramref name="fromAim"/> within <paramref name="drawDistance"/>: <paramref name="full"/>
+    /// until the last 2 units, then falling to 0 over them, from 255 whatever <paramref name="full"/> is
+    /// (<c>PlayerShadowAlpha</c>).
+    /// </summary>
+    private static byte Fade(float drawDistance, float fromAim, byte full) =>
+        drawDistance - 2 < fromAim ? ColorBytes.Single((drawDistance - fromAim) * 0.5f * 255f) : full;
+
+    /// <summary>
+    /// The camera's aim as <see cref="DrawAlpha"/>'s <c>ownAim</c> takes it: in the coordinates of the chunk the
+    /// player stands in, whose origin is <paramref name="playerChunkOrigin"/>, or as it is where he stands in none.
+    /// </summary>
+    public static Vector3 ChunkAim(Vector3 aim, Vector3? playerChunkOrigin) => playerChunkOrigin is { } origin ? aim - origin : aim;
+
+    /// <summary>
+    /// A body's distance from <paramref name="ownAim"/> (<see cref="ChunkAim"/>) as the original measures it for
+    /// <see cref="DrawAlpha"/>'s second test: from its position in its own chunk's coordinates, the chunk whose
+    /// origin is <paramref name="chunkOrigin"/>.
+    /// </summary>
+    public static float OwnDistance(Vector3 position, Vector3 chunkOrigin, Vector3 ownAim) =>
+        Vector3.Distance(position - chunkOrigin, ownAim);
 
     /// <summary>
     /// The directions the texture's S and T run across the ground: the plane's X and Y axes after

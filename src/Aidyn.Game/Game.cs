@@ -526,7 +526,7 @@ public partial class Game : Node3D, ITrekHost
         ResetInterpolation();
     }
 
-    IRootMotion ITrekHost.Motion(Wanderer wanderer) => _chunks!.View(wanderer)?.Animation ?? Core.Scripts.IActorMotion.Still;
+    IRootMotion ITrekHost.Motion(Wanderer wanderer) => _chunks!.View(wanderer)?.Motion ?? Core.Scripts.IActorMotion.Still;
 
     void ITrekHost.Say(string text) => Say(text);
 
@@ -596,11 +596,7 @@ public partial class Game : Node3D, ITrekHost
         if (_shadow is null)
             return;
         var sphere = _player!.Motion.Sphere;
-        var alpha = BodyShadow.DrawAlpha(BodyShadow.TrekDistance, System.Numerics.Vector3.Distance(_follow!.Aim, sphere.Position), player: true);
-        if (alpha is { } a)
-            _shadow.Shadow.Place(_world, sphere.Position, sphere.Radius, a);
-        _shadow.Sync();
-        _shadow.Visible &= alpha is not null;
+        _shadow.Place(_world, sphere, BodyShadow.DrawAlpha(BodyShadow.TrekDistance, System.Numerics.Vector3.Distance(_follow!.Aim, sphere.Position), player: true));
     }
 
     /// <summary>
@@ -625,7 +621,7 @@ public partial class Game : Node3D, ITrekHost
     {
         var aim = _follow!.Aim;
         var centre = _chunks!.Chunks.MapAt(_player!.Motion.Sphere.Position);
-        var ownAim = centre is null ? aim : aim - centre.Origin;
+        var ownAim = BodyShadow.ChunkAim(aim, centre?.Origin);
         _chunks.SyncWanderers();
         foreach (var view in _chunks.Wanderers)
         {

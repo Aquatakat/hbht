@@ -139,4 +139,55 @@ public class BodyShadowTests
     [Fact]
     public void ADyingBodysShadowFadesWithIt() =>
         Assert.Equal((byte?)0x30, BodyShadow.DrawAlpha(BodyShadow.TrekDistance, 1, true, 0x30));
+
+    /// <remarks>Bodies fade by the same 2 units as their shadows, from full instead of 128.</remarks>
+    [Theory]
+    [InlineData(1, 0xFF)]
+    [InlineData(17.9f, 0xFF)]
+    [InlineData(18.5f, 191)]
+    [InlineData(19, 127)]
+    [InlineData(19.99f, 1)]
+    [InlineData(20, null)]
+    [InlineData(25, null)]
+    public void BodiesFadeOverTheLastTwoUnits(float fromAim, int? expected) =>
+        Assert.Equal((byte?)expected, BodyShadow.BodyAlpha(BodyShadow.TrekDistance, fromAim));
+
+    [Fact]
+    public void ABodyAndItsShadowFadeTogetherInTheLastTwoUnits()
+    {
+        for (var d = 18.01f; d < 20; d += 0.07f)
+            Assert.Equal(BodyShadow.BodyAlpha(BodyShadow.TrekDistance, d), BodyShadow.DrawAlpha(BodyShadow.TrekDistance, d, player: true));
+    }
+
+    [Fact]
+    public void ADyingBodyFadesAtMostToItsOwnAlpha() =>
+        Assert.Equal((byte?)0x30, BodyShadow.BodyAlpha(BodyShadow.TrekDistance, 1, 0x30));
+
+    [Fact]
+    public void TheAimIsMeasuredInThePlayersChunkWhenHeStandsInOne()
+    {
+        var aim = new Vector3(110, 5, 230);
+        Assert.Equal(new Vector3(10, 5, 30), BodyShadow.ChunkAim(aim, new Vector3(100, 0, 200)));
+        Assert.Equal(aim, BodyShadow.ChunkAim(aim, null));
+    }
+
+    /// <remarks>
+    /// In the player's chunk the measure is the true distance, and in the next chunk along, 100 units off, it
+    /// is off by that much, so the body's shadow (within 10 of the aim) doesn't show.
+    /// </remarks>
+    [Fact]
+    public void ABodyInAnotherChunkIsMeasuredFromItsOwnChunksCoordinates()
+    {
+        var playerChunk = new Vector3(0, 0, 0);
+        var neighbour = new Vector3(100, 0, 0);
+        var aim = new Vector3(95, 0, 50);
+        var own = BodyShadow.ChunkAim(aim, playerChunk);
+        var position = new Vector3(103, 0, 50);
+
+        Assert.Equal(8, Vector3.Distance(position, aim));
+        Assert.Equal(8, BodyShadow.OwnDistance(position, playerChunk, own), 0.0001f);
+        Assert.Equal(92, BodyShadow.OwnDistance(position, neighbour, own), 0.0001f);
+        Assert.NotNull(BodyShadow.DrawAlpha(BodyShadow.TrekDistance, 8, player: false, ownAim: BodyShadow.OwnDistance(position, playerChunk, own)));
+        Assert.Null(BodyShadow.DrawAlpha(BodyShadow.TrekDistance, 8, player: false, ownAim: BodyShadow.OwnDistance(position, neighbour, own)));
+    }
 }

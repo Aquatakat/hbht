@@ -19,7 +19,7 @@ Ported from `Actor::Move`, the player loop in `PlayerData.cpp`, `collide*.cpp` a
 
 ## Shadows
 
-`BodyShadow` (`Aidyn.Core.Movement`), from `Actor::CalculateShadow`, `renderPlayerShadows` and `PlaneObj_Render`. The runtime draws it.
+`BodyShadow` (`Aidyn.Core.Movement`), from `Actor::CalculateShadow`, `renderPlayerShadows` and `PlaneObj_Render`. The runtime draws it: `ShadowDecal` for the player, and `BodyView` for the bodies that aren't his (wanderers and cut-scene actors), which also fades the body itself by the same distance (`BodyShadow.BodyAlpha`).
 
 - Each tick, after he and the camera move, it sweeps a sphere of radius 0.5 from his centre down 3, skipping see-through triangles. It lies where that hits, directly below him, turned to the triangle's normal.
 - **Unlike the original, it skips walls.** The original takes the first triangle its collision grid lists that the sweep touches. Against a leaning wall that's often the wall, and the shadow stands up on it. It's rare, and the port's grid order differs from the original's, so the spots differ. The port takes the nearest triangle no steeper than 60° and treats walls as no ground. Where nothing under 60° is in reach, it keeps its last placement.

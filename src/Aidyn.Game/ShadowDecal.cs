@@ -68,6 +68,18 @@ public partial class ShadowDecal : Decal
         Modulate = new Color(0, 0, 0, Shadow.Alpha / 255f);
     }
 
+    /// <summary>
+    /// Places the shadow under a body's <paramref name="sphere"/> with the alpha <see cref="BodyShadow.DrawAlpha"/> gave
+    /// and moves the decal to it, hiding it when there is none (the shadow isn't drawn). Call after the body moves.
+    /// </summary>
+    public void Place(Core.Physics.CollisionWorld world, Core.Physics.CollisionSphere sphere, byte? alpha)
+    {
+        if (alpha is { } a)
+            Shadow.Place(world, sphere.Position, sphere.Radius, a);
+        Sync();
+        Visible &= alpha is not null;
+    }
+
     /// <summary>Puts a body's meshes on <see cref="BodyLayer"/>, so shadows leave them out.</summary>
     public static void MarkBody(Node node)
     {
