@@ -60,9 +60,9 @@ public partial class Game
     }
 
     /// <summary>A, B or Start ends them; they take every press.</summary>
-    private void CreditsInput(InputEvent e)
+    private void CreditsInput(MenuAction action)
     {
-        if (e.IsActionPressed("menu_accept") || e.IsActionPressed("menu_back") || e.IsActionPressed("pause"))
+        if (action is MenuAction.Accept or MenuAction.Back or MenuAction.Start)
             _credits!.Roll?.Skip();
     }
 }

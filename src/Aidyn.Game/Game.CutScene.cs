@@ -2,6 +2,7 @@ using Aidyn.Core;
 using Aidyn.Core.Chunks;
 using Aidyn.Core.Scripts;
 using Aidyn.Core.Trek;
+using Aidyn.Core.Ui;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 using Godot;
@@ -151,33 +152,20 @@ public partial class Game
     /// A button in a cut-scene, as in a conversation, but dropped while the screen fades, the script
     /// waits or the camera moves (<c>cutScene_control_func</c>). Nothing skips it: 1.0 has no skip.
     /// </summary>
-    private void CutSceneInput(InputEvent e)
+    private void CutSceneInput(MenuAction action)
     {
         var scene = _scene!;
-        if (!scene.Accepts || scene.Page is not { } page)
+        if (!scene.Accepts || scene.Page is null)
             return;
-        var runner = scene.Runner;
         var box = _box!.Box;
-        if (e.IsActionPressed("menu_accept"))
+        if (action == MenuAction.Accept)
         {
-            if (box.ShowsLineBeforeChoices)
-            {
-                scene.Press(_box.ShowChoices);
-                return;
-            }
-            if (page.Choices.Count > 0 && runner.Wait != ScriptWait.Player)
-                scene.Press(() => runner.Choose(box.Highlight));
-            else
-                scene.Press(runner.Continue);
-            ShowCutScenePage(force: true);
+            if (_box.Accept(scene.Runner, advance => scene.Press(advance)) != DialogueAccept.ShowedChoices)
+                ShowCutScenePage(force: true);
         }
-        else if (_stick.Pressed(e, "move_forward") || e.IsActionPressed("menu_up", allowEcho: true))
+        else if (action is MenuAction.Up or MenuAction.Down)
         {
-            _box.Point(box.Highlight - 1);
-        }
-        else if (_stick.Pressed(e, "move_back") || e.IsActionPressed("menu_down", allowEcho: true))
-        {
-            _box.Point(box.Highlight + 1);
+            _box.Point(box.Highlight + MenuStick.Vertical(action));
         }
     }
 

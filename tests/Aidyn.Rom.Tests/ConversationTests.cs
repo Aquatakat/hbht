@@ -243,6 +243,21 @@ public sealed class ConversationTests(Na10Import fixture)
     }
 
     [Fact]
+    public void ARunnerFromTheGameRunsTheScriptAgainstThatGame()
+    {
+        var game = GameState.NewGame(Plugins);
+        var cues = new CueLog();
+        var runner = game.RunScript(Plugins.Get<DialogueRecord>(ConversationPlugins.Joins), cues);
+        runner.Start();
+
+        Assert.Equal("Join me.", runner.Page!.Line.Text);
+        Assert.False(game.Party.Contains(ConversationPlugins.Trahern));
+        runner.Continue();
+        Assert.True(game.Party.Contains(ConversationPlugins.Trahern));
+        Assert.Equal("Welcome.", runner.Page!.Line.Text);
+    }
+
+    [Fact]
     public void ThereIsNoConversationWithAHunterASilentPartyOrAScriptThatIsntThere()
     {
         var hunter = Make(null);

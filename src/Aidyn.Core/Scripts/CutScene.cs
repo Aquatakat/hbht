@@ -114,8 +114,7 @@ public sealed class CutScene
         _host = host;
         Stage = stage;
         _actorSounds = game.Plugins.TryGet<EntityRecord>(GameState.Alaron)?.Sounds;
-        Runner = new ScriptRunner(script, game.Flags, game, new Cues(this), game.Random.World, id => game.Plugins.TryGet<DialogueRecord>(id),
-            start, game.StateFlagsRecord.RandomSkillChecks);
+        Runner = game.RunScript(script, new Cues(this), start);
         // DialogueModeInitPrescripted puts the camera at the stage's corner, looking along X, until the
         // script's first cut.
         Camera = new FollowCamera(stage.Origin, Vector2.UnitX);

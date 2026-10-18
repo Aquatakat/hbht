@@ -47,8 +47,7 @@ public sealed class FullPartyScriptTests(Na10Import fixture)
     /// </summary>
     private ScriptRunner Play(GameState game, Func<int, int?> choose, out List<int> menus)
     {
-        var runner = new ScriptRunner(Set.Get<DialogueRecord>(KeelinsScript), game.Flags, game, new CueLog(), game.Random.World,
-            id => Set.TryGet<DialogueRecord>(id));
+        var runner = game.RunScript(Set.Get<DialogueRecord>(KeelinsScript), new CueLog());
         var seen = new List<int>();
         runner.Start();
         for (var steps = 0; runner.Ending is null; steps++)

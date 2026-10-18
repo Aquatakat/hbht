@@ -531,9 +531,10 @@ public partial class PauseMenu : CanvasLayer
             return e is InputEventKey or InputEventJoypadButton or InputEventJoypadMotion or InputEventAction;
         // Nor do the presses a save's slide drops make a sound.
         var sliding = Sliding || _system?.Menu.Saves is { Sliding: true };
-        var taken = HandleInput(e);
+        var action = _stick.Translate(e);
+        var taken = HandleInput(e, action);
         if (taken && !sliding && _view is not null)
-            PressSound(e);
+            PressSound(e, action);
         return taken;
     }
 
@@ -542,26 +543,24 @@ public partial class PauseMenu : CanvasLayer
     /// cursor for up and down, A, B and Start, the member for C-left and C-right, and the page's cursor for the Party
     /// tab's lists and the World tab. The details slide in and out with C-down. Tabs, opening and closing play their own.
     /// </summary>
-    private void PressSound(InputEvent e)
+    private void PressSound(InputEvent e, MenuAction action)
     {
         const int Short = Core.Audio.OneShot.ShortTicks, Menu = Core.Audio.OneShot.MenuTicks;
         var party = Tab == PauseTab.Party && _view!.OwnTab;
         if (Tab == PauseTab.System && _system!.Menu.Rename is not null && e is InputEventKey)
             return;
-        if (e.IsActionPressed("menu_accept"))
+        if (action == MenuAction.Accept)
             Sound(m => m.Accept, Menu);
-        else if (e.IsActionPressed("menu_back") || e.IsActionPressed("pause"))
+        else if (action is MenuAction.Back or MenuAction.Start)
             Sound(m => m.Back, Menu);
-        else if (e.IsActionPressed("menu_details") || e.IsActionReleased("menu_details"))
+        else if (action is MenuAction.Details or MenuAction.DetailsRelease)
             Sound(e.IsPressed() ? m => m.TabBack : m => m.TabForward, Menu);
-        else if ((e.IsActionPressed("menu_member_left") || e.IsActionPressed("menu_member_right")) && Tab == PauseTab.Party
+        else if (action is MenuAction.MemberLeft or MenuAction.MemberRight && Tab == PauseTab.Party
             && _view!.Window.ChangesMember && _game.Party.Members.Count() > 1)
             Sound(m => m.Member, Menu);
-        else if (Pressed(e, "move_forward") || Pressed(e, "move_back") || e.IsActionPressed("menu_up", allowEcho: true)
-            || e.IsActionPressed("menu_down", allowEcho: true))
+        else if (action is MenuAction.Up or MenuAction.Down)
             CursorSound();
-        else if ((party || (Tab == PauseTab.System && !_system!.Menu.OnVolume))
-            && (Pressed(e, "move_left") || Pressed(e, "move_right") || e.IsActionPressed("menu_left") || e.IsActionPressed("menu_right")))
+        else if ((party || (Tab == PauseTab.System && !_system!.Menu.OnVolume)) && action is MenuAction.Left or MenuAction.Right)
             Sound(m => m.PageCursor, Short);
     }
 
@@ -581,7 +580,7 @@ public partial class PauseMenu : CanvasLayer
             Sound(m => m.PageCursor, Core.Audio.OneShot.ShortTicks);
     }
 
-    private bool HandleInput(InputEvent e)
+    private bool HandleInput(InputEvent e, MenuAction action)
     {
         if (_view is null || _system is null)
             return false;
@@ -591,9 +590,9 @@ public partial class PauseMenu : CanvasLayer
             _system.QueueRedraw();
             return true;
         }
-        var start = e.IsActionPressed("pause");
-        if (start || e.IsActionPressed("menu_back"))
+        if (action is MenuAction.Start or MenuAction.Back)
         {
+            var start = action == MenuAction.Start;
             if (Sliding)
                 return true;
             var held = Tab switch
@@ -607,42 +606,37 @@ public partial class PauseMenu : CanvasLayer
             Redraw();
             return true;
         }
-        if (Pressed(e, "menu_tab_previous"))
+        if (action is MenuAction.TabPrevious or MenuAction.TabNext)
         {
-            ChangeTab(-1);
-            return true;
-        }
-        if (Pressed(e, "menu_tab_next"))
-        {
-            ChangeTab(1);
+            ChangeTab(action == MenuAction.TabPrevious ? -1 : 1);
             return true;
         }
         if (Sliding)
             return e is InputEventKey or InputEventJoypadButton or InputEventJoypadMotion;
         if (Tab == PauseTab.System)
-            return HandleSystem(e, _system.Menu);
+            return HandleSystem(e, action, _system.Menu);
         if (Tab == PauseTab.World)
-            return HandleWorld(e, _world!.Menu);
-        return HandleParty(e, _view.Window);
+            return HandleWorld(e, action, _world!.Menu);
+        return HandleParty(e, action, _view.Window);
     }
 
     /// <summary>
     /// The Party tab's presses, whichever window it shows: C-down's details, A, C-left and C-right, the stick's left and right,
     /// and its up and down, each as the window takes it (<see cref="IPartyWindow"/>), and C-up, which the shop's window has a use for.
     /// </summary>
-    private bool HandleParty(InputEvent e, IPartyWindow window)
+    private bool HandleParty(InputEvent e, MenuAction action, IPartyWindow window)
     {
-        if (e.IsActionPressed("menu_details") && window.CloseMessage())
+        if (action == MenuAction.Details && window.CloseMessage())
         {
         }
-        else if (e.IsActionPressed("menu_appraise") && window.Appraise())
+        else if (action == MenuAction.Appraise && window.Appraise())
         {
         }
-        else if (e.IsActionPressed("menu_details") || e.IsActionReleased("menu_details"))
+        else if (action is MenuAction.Details or MenuAction.DetailsRelease)
         {
             _view!.DetailsOpen = e.IsPressed();
         }
-        else if (e.IsActionPressed("menu_accept"))
+        else if (action == MenuAction.Accept)
         {
             window.Accept();
             if (window.Closed)
@@ -653,29 +647,21 @@ public partial class PauseMenu : CanvasLayer
         }
         // C-left shows the next member and C-right the one before; the stick's left the next list and its right the
         // one before, as the original's do.
-        else if (e.IsActionPressed("menu_member_left"))
+        else if (action == MenuAction.MemberLeft)
         {
             window.ChangeMember(1);
         }
-        else if (e.IsActionPressed("menu_member_right"))
+        else if (action == MenuAction.MemberRight)
         {
             window.ChangeMember(-1);
         }
-        else if (Pressed(e, "move_left") || e.IsActionPressed("menu_left"))
+        else if (action is MenuAction.Left or MenuAction.Right)
         {
-            window.Sideways(-1);
+            window.Sideways(MenuStick.Horizontal(action));
         }
-        else if (Pressed(e, "move_right") || e.IsActionPressed("menu_right"))
+        else if (action is MenuAction.Up or MenuAction.Down)
         {
-            window.Sideways(1);
-        }
-        else if (Pressed(e, "move_forward") || e.IsActionPressed("menu_up", allowEcho: true))
-        {
-            window.MoveCursor(-1);
-        }
-        else if (Pressed(e, "move_back") || e.IsActionPressed("menu_down", allowEcho: true))
-        {
-            window.MoveCursor(1);
+            window.MoveCursor(MenuStick.Vertical(action));
         }
         else
         {
@@ -702,9 +688,9 @@ public partial class PauseMenu : CanvasLayer
     private static bool Held(string move) => MenuStick.Held(move) || MenuStick.Held(MenuStick.Dpad(move));
 
     // The System tab's presses: the stick moves the cursor, steps an option or a save, or moves over the name entry's keys.
-    private bool HandleSystem(InputEvent e, SystemMenu system)
+    private bool HandleSystem(InputEvent e, MenuAction action, SystemMenu system)
     {
-        if (e.IsActionPressed("menu_accept"))
+        if (action == MenuAction.Accept)
         {
             system.Accept();
             // Help rolls the menu up as closing does, and the help menu starts after (PauseMenu.Exit's code 3).
@@ -728,14 +714,10 @@ public partial class PauseMenu : CanvasLayer
         }
         else if (system.OnVolume && (e.IsAction("move_left") || e.IsAction("move_right") || e.IsAction("menu_left") || e.IsAction("menu_right")))
             return true; // Stepped every tick it's held, in _PhysicsProcess.
-        else if (Pressed(e, "move_left") || e.IsActionPressed("menu_left", allowEcho: true))
-            system.Sideways(-1);
-        else if (Pressed(e, "move_right") || e.IsActionPressed("menu_right", allowEcho: true))
-            system.Sideways(1);
-        else if (Pressed(e, "move_forward") || e.IsActionPressed("menu_up", allowEcho: true))
-            system.MoveCursor(-1);
-        else if (Pressed(e, "move_back") || e.IsActionPressed("menu_down", allowEcho: true))
-            system.MoveCursor(1);
+        else if (action is MenuAction.Left or MenuAction.Right)
+            system.Sideways(MenuStick.Horizontal(action));
+        else if (action is MenuAction.Up or MenuAction.Down)
+            system.MoveCursor(MenuStick.Vertical(action));
         else
             return e is InputEventJoypadMotion;
         _system!.QueueRedraw();
@@ -744,9 +726,9 @@ public partial class PauseMenu : CanvasLayer
 
     // The World tab's presses: up and down move between Camp and Journal, or scroll the journal; A chooses, or closes
     // the journal or the message.
-    private bool HandleWorld(InputEvent e, WorldMenu world)
+    private bool HandleWorld(InputEvent e, MenuAction action, WorldMenu world)
     {
-        if (e.IsActionPressed("menu_accept"))
+        if (action == MenuAction.Accept)
         {
             world.Accept();
             if (world.CampChosen)
@@ -755,13 +737,9 @@ public partial class PauseMenu : CanvasLayer
                 return true;
             }
         }
-        else if (Pressed(e, "move_forward") || e.IsActionPressed("menu_up", allowEcho: true))
+        else if (action is MenuAction.Up or MenuAction.Down)
         {
-            Vertical(world, -1);
-        }
-        else if (Pressed(e, "move_back") || e.IsActionPressed("menu_down", allowEcho: true))
-        {
-            Vertical(world, 1);
+            Vertical(world, MenuStick.Vertical(action));
         }
         else
         {
@@ -808,8 +786,6 @@ public partial class PauseMenu : CanvasLayer
         }
         return key.Unicode is > 31 and < 127 && entry.Type((char)key.Unicode);
     }
-
-    private bool Pressed(InputEvent e, string action) => _stick.Pressed(e, action);
 
     public override void _Process(double delta)
     {

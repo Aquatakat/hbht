@@ -343,6 +343,18 @@ public sealed class GameState : IScriptWorld
 
     // What scripts read and change.
 
+    /// <summary>
+    /// A runner for a script against this game: its flags, its world stream of random numbers, the installed scripts for
+    /// random lines, and the flag that rolls skill checks 0–21 (<see cref="StateFlagsRecord.RandomSkillChecks"/>). The
+    /// runtime's conversations and cut-scenes and the editor's script page all start theirs here.
+    /// </summary>
+    /// <param name="script">The script to run.</param>
+    /// <param name="host">Where the script's cues go.</param>
+    /// <param name="start">Where it starts and which map object it remembers by, or a new game's start.</param>
+    /// <param name="world">What the script reads and changes, or this game. The editor passes its own, which fixes skill checks by hand and logs.</param>
+    public ScriptRunner RunScript(DialogueRecord script, IScriptHost host, ScriptStart? start = null, IScriptWorld? world = null) =>
+        new(script, Flags, world ?? this, host, Random.World, id => Plugins.TryGet<DialogueRecord>(id), start, StateFlagsRecord.RandomSkillChecks);
+
     bool IScriptWorld.InParty(RecordId entity) => Party.Contains(entity);
 
     bool IScriptWorld.HasItem(RecordId item) => Party.HasItem(item);

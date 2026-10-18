@@ -37,8 +37,7 @@ public sealed class Conversation
         _player = player;
         _host = new Watch(host);
         With = with;
-        Runner = new ScriptRunner(script, game.Flags, game, _host, game.Random.World, id => game.Plugins.TryGet<DialogueRecord>(id), start,
-            game.StateFlagsRecord.RandomSkillChecks);
+        Runner = game.RunScript(script, _host, start);
     }
 
     public ScriptRunner Runner { get; }

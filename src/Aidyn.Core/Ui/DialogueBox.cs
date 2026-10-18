@@ -32,6 +32,17 @@ public sealed record DialogueBoxLayout(
     public int Bottom => Panel.Band.Bottom;
 }
 
+/// <summary>What A did on a page of a script (<see cref="DialogueBox.Accept"/>).</summary>
+public enum DialogueAccept
+{
+    /// <summary>It brought up the choices behind a line that showed alone first. The script hasn't moved.</summary>
+    ShowedChoices,
+    /// <summary>The script took a choice, so there's a new page, or none.</summary>
+    Chose,
+    /// <summary>The script moved on from a line.</summary>
+    Continued,
+}
+
 /// <summary>
 /// The box a conversation shows its pages in, at the bottom of the screen with the speaker's portrait
 /// on the left (<c>DiaMenuSub::InitDefault</c>, <c>DialougeClass::Setup</c>). It's for conversations
@@ -130,6 +141,46 @@ public sealed class DialogueBox(TextLayout font, int borderWidth, int borderHeig
         _choicesAlone = true;
         return Lay();
     }
+
+    /// <summary>
+    /// Whether A takes one of the page's choices rather than moving the script on: the page has choices and the script
+    /// isn't waiting for A, which a random line or an animation with no actor does with only its line up.
+    /// </summary>
+    public static bool PicksChoice(ScriptRunner runner) => runner.Page is { Choices.Count: > 0 } && runner.Wait != ScriptWait.Player;
+
+    /// <summary>
+    /// A on the page the script shows: brings up the choices behind a line that showed alone first, else takes the
+    /// cursor's choice (<see cref="PicksChoice"/>) or moves the script on.
+    /// </summary>
+    /// <param name="runner">The script, showing a page.</param>
+    /// <param name="press">What moves the script on, as a mode takes the press: a conversation's or a cut-scene's, which ask the speaker to talk. None runs it as it is.</param>
+    public DialogueAccept Accept(ScriptRunner runner, Action<Action>? press = null)
+    {
+        if (!ShowsLineBeforeChoices)
+            return Advance(runner, Highlight, press);
+        (press ?? Run)(() => ShowChoices());
+        return DialogueAccept.ShowedChoices;
+    }
+
+    /// <summary>
+    /// A on a page that has no line to show alone first, as a backdrop's or the help menu's: takes the choice
+    /// <paramref name="choice"/> if the page has choices to take (<see cref="PicksChoice"/>), else moves the script on.
+    /// </summary>
+    /// <param name="choice">Which choice to take: where the cursor is, or for the help menu's B, the last.</param>
+    /// <param name="press">As in <see cref="Accept"/>.</param>
+    public static DialogueAccept Advance(ScriptRunner runner, int choice, Action<Action>? press = null)
+    {
+        press ??= Run;
+        if (!PicksChoice(runner))
+        {
+            press(runner.Continue);
+            return DialogueAccept.Continued;
+        }
+        press(() => runner.Choose(choice));
+        return DialogueAccept.Chose;
+    }
+
+    private static void Run(Action advance) => advance();
 
     /// <summary>Moves the cursor, which stops at the first and last choice.</summary>
     public void MoveCursor(int by)

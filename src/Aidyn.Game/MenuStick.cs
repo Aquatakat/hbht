@@ -2,6 +2,41 @@ using Godot;
 
 namespace Aidyn.Game;
 
+/// <summary>What a press means to a menu, a popup or a conversation (<see cref="MenuStick.Translate"/>).</summary>
+public enum MenuAction
+{
+    /// <summary>The event is none of the menu's buttons, or a stick that hasn't crossed its threshold anew.</summary>
+    None,
+    /// <summary>The stick, a key or the D-pad's up, which repeats as it's held.</summary>
+    Up,
+    /// <summary>Down, as up.</summary>
+    Down,
+    /// <summary>Left, as up.</summary>
+    Left,
+    /// <summary>Right, as up.</summary>
+    Right,
+    /// <summary>A. A key held doesn't repeat it.</summary>
+    Accept,
+    /// <summary>B.</summary>
+    Back,
+    /// <summary>Start (<c>pause</c>).</summary>
+    Start,
+    /// <summary>C-down going down. Its letting go is <see cref="DetailsRelease"/>.</summary>
+    Details,
+    /// <summary>C-down going up.</summary>
+    DetailsRelease,
+    /// <summary>C-up.</summary>
+    Appraise,
+    /// <summary>C-left, which shows the next member.</summary>
+    MemberLeft,
+    /// <summary>C-right, which shows the member before.</summary>
+    MemberRight,
+    /// <summary>The left trigger (or Z): the tab before. Repeats as a key does.</summary>
+    TabPrevious,
+    /// <summary>The right trigger (or X): the next tab.</summary>
+    TabNext,
+}
+
 /// <summary>
 /// The stick, the D-pad and the triggers in menus, the pause menu's and trek's popups and conversations alike, as the
 /// original's widgets read them (<c>Controller::ReadInput</c>, <c>BaseWidget::Control</c>). The stick and the triggers
@@ -77,6 +112,57 @@ public sealed class MenuStick
     /// <summary>Whether an event presses an action: for the axes, as <see cref="Track"/> found it.</summary>
     public bool Pressed(InputEvent e, string action) =>
         e is InputEventJoypadMotion ? _pressed.Contains(action) : e.IsActionPressed(action, allowEcho: true);
+
+    /// <summary>
+    /// What an event means to a menu: the button or direction it presses, or <see cref="MenuAction.None"/>. The stick and the
+    /// triggers count as <see cref="Pressed"/> finds them, and up, down, left and right take the movement keys and the
+    /// D-pad alike, a key repeating as the system repeats it. Every event goes through <see cref="Track"/> first, and one
+    /// translates the same however often it's asked.
+    /// </summary>
+    public MenuAction Translate(InputEvent e)
+    {
+        if (e.IsActionPressed("menu_accept"))
+            return MenuAction.Accept;
+        if (e.IsActionPressed("menu_back"))
+            return MenuAction.Back;
+        if (e.IsActionPressed("pause"))
+            return MenuAction.Start;
+        if (e.IsActionPressed("menu_details"))
+            return MenuAction.Details;
+        if (e.IsActionReleased("menu_details"))
+            return MenuAction.DetailsRelease;
+        if (e.IsActionPressed("menu_appraise"))
+            return MenuAction.Appraise;
+        if (e.IsActionPressed("menu_member_left"))
+            return MenuAction.MemberLeft;
+        if (e.IsActionPressed("menu_member_right"))
+            return MenuAction.MemberRight;
+        if (Pressed(e, "menu_tab_previous"))
+            return MenuAction.TabPrevious;
+        if (Pressed(e, "menu_tab_next"))
+            return MenuAction.TabNext;
+        foreach (var direction in Directions)
+        {
+            if (Pressed(e, direction) || e.IsActionPressed(Dpad(direction), allowEcho: true))
+                return Direction(direction);
+        }
+        return MenuAction.None;
+    }
+
+    /// <summary>The menu action for a stick direction, as <see cref="Directions"/> names it.</summary>
+    public static MenuAction Direction(string direction) => direction switch
+    {
+        "move_forward" => MenuAction.Up,
+        "move_back" => MenuAction.Down,
+        "move_left" => MenuAction.Left,
+        _ => MenuAction.Right,
+    };
+
+    /// <summary>Which way a menu action moves a cursor along a list: -1 for up, 1 for down, else 0.</summary>
+    public static int Vertical(MenuAction action) => action switch { MenuAction.Up => -1, MenuAction.Down => 1, _ => 0 };
+
+    /// <summary>Which way a menu action moves sideways: -1 for left, 1 for right, else 0.</summary>
+    public static int Horizontal(MenuAction action) => action switch { MenuAction.Left => -1, MenuAction.Right => 1, _ => 0 };
 
     /// <summary>Whether a direction is held past the threshold by the stick, or by a key or the D-pad.</summary>
     public static bool Held(string action) => Input.GetActionRawStrength(action) >= Press;

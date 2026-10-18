@@ -48,11 +48,13 @@ public partial class ConversationBoxView : Control
         QueueRedraw();
     }
 
-    /// <summary>Brings up the choices behind a line that showed alone first.</summary>
-    public void ShowChoices()
+    /// <summary>A on the page: <see cref="DialogueBox.Accept"/>, redrawing once it has brought up the choices behind a line that showed alone first.</summary>
+    public DialogueAccept Accept(ScriptRunner runner, Action<Action>? press = null)
     {
-        Box.ShowChoices();
-        QueueRedraw();
+        var accepted = Box.Accept(runner, press);
+        if (accepted == DialogueAccept.ShowedChoices)
+            QueueRedraw();
+        return accepted;
     }
 
     /// <summary>Puts the cursor on a choice.</summary>

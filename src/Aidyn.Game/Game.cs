@@ -734,14 +734,15 @@ public partial class Game : Node3D, ITrekHost
     public override void _UnhandledInput(InputEvent e)
     {
         _stick.Track(e);
+        var action = _stick.Translate(e);
         if (InCinematic)
         {
-            CinematicInput(e);
+            CinematicInput(action);
             return;
         }
         if (InCredits)
         {
-            CreditsInput(e);
+            CreditsInput(action);
             return;
         }
         if (_menu is { IsOpen: true } menu)
@@ -751,19 +752,17 @@ public partial class Game : Node3D, ITrekHost
         }
         else if (_backdrop is { Showing: true })
         {
-            Browse(e);
+            Browse(action);
             return;
         }
         else if (_trek?.Use is { Popup: not null } use)
         {
-            if (e.IsActionPressed("menu_accept"))
+            if (action == MenuAction.Accept)
                 use.Accept();
-            else if (e.IsActionPressed("menu_back"))
+            else if (action == MenuAction.Back)
                 use.Back();
-            else if (_stick.Pressed(e, "move_forward") || e.IsActionPressed("menu_up", allowEcho: true))
-                use.MoveCursor(-1);
-            else if (_stick.Pressed(e, "move_back") || e.IsActionPressed("menu_down", allowEcho: true))
-                use.MoveCursor(1);
+            else if (action is MenuAction.Up or MenuAction.Down)
+                use.MoveCursor(MenuStick.Vertical(action));
             else
                 return;
             ShowPopup();
@@ -772,31 +771,31 @@ public partial class Game : Node3D, ITrekHost
         }
         else if (_trek?.Conversation is not null)
         {
-            Converse(e);
+            Converse(action);
             return;
         }
         else if (_scene is not null)
         {
-            CutSceneInput(e);
+            CutSceneInput(action);
             if (!e.IsActionPressed("toggle_fly") && !e.IsActionPressed("toggle_overlay"))
                 return;
         }
         else if (_trek is { Cued: not null } or { CutSceneFade.Fading: true })
         {
             // Trek's input is dead while it fades into or out of a cut-scene.
-            if (e.IsActionPressed("pause") || e.IsActionPressed("menu_accept"))
+            if (action is MenuAction.Start or MenuAction.Accept)
                 return;
         }
-        else if (e.IsActionPressed("pause") && _menu is not null && _trek is { Teleporting: false })
+        else if (action == MenuAction.Start && _menu is not null && _trek is { Teleporting: false })
         {
             _menu.Open();
             return;
         }
-        else if (e.IsActionPressed("menu_accept") && _camera is { Flying: false } && _trek is { TeleportFade.Fading: false } && UseNearest())
+        else if (action == MenuAction.Accept && _camera is { Flying: false } && _trek is { TeleportFade.Fading: false } && UseNearest())
         {
             return;
         }
-        else if (e.IsActionPressed("menu_back") && _camera is { Flying: false } && _trek is { } trek)
+        else if (action == MenuAction.Back && _camera is { Flying: false } && _trek is { } trek)
         {
             // B raises or lowers the party's portraits, and the minimap with them.
             trek.PressB();
@@ -869,33 +868,21 @@ public partial class Game : Node3D, ITrekHost
     /// The buttons in a conversation: A moves it on, bringing up the choices behind a line that showed
     /// alone or taking the cursor's choice, and up and down move the cursor. Start does nothing.
     /// </summary>
-    private void Converse(InputEvent e)
+    private void Converse(MenuAction action)
     {
         var conversation = _trek!.Conversation!;
         var runner = conversation.Runner;
-        if (runner.Status != Core.Scripts.ScriptStatus.Showing || runner.Page is not { } page)
+        if (runner.Status != Core.Scripts.ScriptStatus.Showing || runner.Page is null)
             return;
         var box = _box!.Box;
-        if (e.IsActionPressed("menu_accept"))
+        if (action == MenuAction.Accept)
         {
-            if (box.ShowsLineBeforeChoices)
-            {
-                conversation.Press(_box.ShowChoices);
-                return;
-            }
-            if (page.Choices.Count > 0 && runner.Wait != Core.Scripts.ScriptWait.Player)
-                conversation.Press(() => runner.Choose(box.Highlight));
-            else
-                conversation.Press(runner.Continue);
-            _trek.Refresh();
+            if (_box.Accept(runner, conversation.Press) != DialogueAccept.ShowedChoices)
+                _trek.Refresh();
         }
-        else if (_stick.Pressed(e, "move_forward") || e.IsActionPressed("menu_up", allowEcho: true))
+        else if (action is MenuAction.Up or MenuAction.Down)
         {
-            _box.Point(box.Highlight - 1);
-        }
-        else if (_stick.Pressed(e, "move_back") || e.IsActionPressed("menu_down", allowEcho: true))
-        {
-            _box.Point(box.Highlight + 1);
+            _box.Point(box.Highlight + MenuStick.Vertical(action));
         }
     }
 
@@ -905,27 +892,19 @@ public partial class Game : Node3D, ITrekHost
     /// as A does: only a help script's page gets a B (<c>Dialogue.ShowNode</c>, 0x80047714, by its start mode, 4) and
     /// it returns the last row, else the text, which carries the node's link (<c>Dialogue.OnBHelp</c>, 0x80048354).
     /// </summary>
-    private void Browse(InputEvent e)
+    private void Browse(MenuAction action)
     {
         if (!_backdrop!.Taking || _trek!.Conversation?.Runner is not { Status: Core.Scripts.ScriptStatus.Showing, Page: { } page } runner)
             return;
-        var choosing = page.Choices.Count > 0 && runner.Wait != Core.Scripts.ScriptWait.Player;
-        var back = e.IsActionPressed("menu_back") && runner.Script.Mode == DialogueMode.Help;
-        if (e.IsActionPressed("menu_accept") || back)
+        var back = action == MenuAction.Back && runner.Script.Mode == DialogueMode.Help;
+        if (action == MenuAction.Accept || back)
         {
-            if (choosing)
-                runner.Choose(back ? page.Choices.Count - 1 : _backdrop.Page!.Highlight);
-            else
-                runner.Continue();
+            DialogueBox.Advance(runner, back ? page.Choices.Count - 1 : _backdrop.Page!.Highlight);
             _trek.Refresh();
         }
-        else if (_stick.Pressed(e, "move_forward") || e.IsActionPressed("menu_up", allowEcho: true))
+        else if (action is MenuAction.Up or MenuAction.Down)
         {
-            _backdrop.MoveCursor(-1);
-        }
-        else if (_stick.Pressed(e, "move_back") || e.IsActionPressed("menu_down", allowEcho: true))
-        {
-            _backdrop.MoveCursor(1);
+            _backdrop.MoveCursor(MenuStick.Vertical(action));
         }
     }
 

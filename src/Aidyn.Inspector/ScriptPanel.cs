@@ -96,7 +96,7 @@ public partial class ScriptPanel : VBoxContainer
         {
             if (runner.Status == ScriptStatus.Waiting)
                 Act(runner.Wait == ScriptWait.Timer ? () => runner.Step(int.MaxValue) : runner.Resume);
-            else if (runner.Page is { Choices.Count: > 0 } && runner.Wait != ScriptWait.Player)
+            else if (DialogueBox.PicksChoice(runner))
                 Act(() => runner.Choose(0));
             else
                 Act(runner.Continue);
@@ -601,9 +601,7 @@ public partial class ScriptPanel : VBoxContainer
         if (_game is null || _world is null)
             return;
         _log.Clear();
-        var randomSkillChecks = _catalog.Plugins.TrySingleton<StateFlagsRecord>(RecordTypes.StateFlags)?.RandomSkillChecks;
-        _runner = new ScriptRunner(_script, _game.Network, _world, new Host(cue => Log(Describe(cue))), new Lcg(), id => _catalog.Plugins.TryGet<DialogueRecord>(id),
-            randomSkillChecks: randomSkillChecks);
+        _runner = _game.Game.RunScript(_script, new Host(cue => Log(Describe(cue))), world: _world);
         Act(_runner.Start);
     }
 
@@ -681,7 +679,7 @@ public partial class ScriptPanel : VBoxContainer
         _status.Text = runner.Wait == ScriptWait.Player ? "Waiting for A." : $"At node {page.Line.Node}.";
         _page.AddChild(Dimmed(page.Line.Speaker is { } speaker ? NameOf(speaker) : "No speaker"));
         _page.AddChild(new Label { Text = page.Line.Text, AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(360, 0) });
-        if (page.Choices.Count > 0 && runner.Wait != ScriptWait.Player && !lineFirst)
+        if (DialogueBox.PicksChoice(runner) && !lineFirst)
         {
             for (var i = 0; i < page.Choices.Count; i++)
             {
@@ -702,13 +700,13 @@ public partial class ScriptPanel : VBoxContainer
         else
         {
             var next = new Button { Text = "Continue (A)" };
-            next.Pressed += lineFirst
-                ? () =>
-                {
-                    _conversation!.ShowChoices();
-                    ShowPage();
-                }
-                : () => Act(runner.Continue);
+            next.Pressed += () => Act(() =>
+            {
+                if (_conversation is { } box)
+                    box.Accept(runner);
+                else
+                    runner.Continue();
+            });
             _page.AddChild(next);
         }
     }

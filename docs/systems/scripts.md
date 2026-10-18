@@ -2,7 +2,7 @@
 
 `Aidyn.Core.Scripts`. The format and what the importer writes are in [dialogue](../formats/dialogue.md).
 
-`ScriptRunner` runs one script (`aidyn:dialogue/0x…`) against the flag network and the game state. It ports the walk over the nodes (`DialogNode.cpp`) and the callbacks that carry out the ops (`dialogue.cpp`, `dialogmode.cpp`), from the debug build's machine code.
+`ScriptRunner` runs one script (`aidyn:dialogue/0x…`) against the flag network and the game state. It ports the walk over the nodes (`DialogNode.cpp`) and the callbacks that carry out the ops (`dialogue.cpp`, `dialogmode.cpp`), from the debug build's machine code. `GameState.RunScript` makes a runner against the game: its flags, its world stream of random numbers and the flag that rolls skill checks 0–21. Conversations, cut-scenes and the editor's script page all start theirs there, the editor passing a world of its own that fixes skill checks by hand.
 
 ## Its boundary
 
@@ -26,7 +26,7 @@ A node is **reached** when the walk arrives at it, and its setup ops run: the sp
 - **Visited** is set when a node is left, not when it's reached. So a choice that ends the script is never marked, and it stays on offer.
 - **Effects that end the script** (end, shop, battle, train, camp heal) end it at once. A cut-scene, backdrop or the help menu sets its done flag however it ends, including by `Skip` or a fault.
 
-A page is the line and the choices under it, as the original's `diags` list holds them, with room for 9. The line loses its leading spaces, as `look_for_dialouge_v_Num` trims them, but choices keep theirs. When the first choice has the same speaker as the line, a conversation shows the line alone first and then the choices under Alaron's portrait (`DialougeClass::Setup`); that's for the runtime's UI.
+A page is the line and the choices under it, as the original's `diags` list holds them, with room for 9. The line loses its leading spaces, as `look_for_dialouge_v_Num` trims them, but choices keep theirs. When the first choice has the same speaker as the line, a conversation shows the line alone first and then the choices under Alaron's portrait (`DialougeClass::Setup`); that's for the runtime's UI. What A does on a page is `DialogueBox.Accept` in the core: it brings up the choices behind a line that showed alone, else takes the cursor's choice (`PicksChoice`: the page has choices and the script isn't waiting for A) or moves the script on, and says which it did (`DialogueAccept`). Each mode passes how its press moves the script, so conversations and cut-scenes ask the speaker to talk; backdrops and the help menu, which have no line to show alone, take `DialogueBox.Advance` with the choice they name.
 
 ## Ops that need more than a flag
 

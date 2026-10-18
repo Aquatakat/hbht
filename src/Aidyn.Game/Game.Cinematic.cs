@@ -58,9 +58,9 @@ public partial class Game
     }
 
     /// <summary>B or Start skips the rest; the cinematic takes every press.</summary>
-    private void CinematicInput(InputEvent e)
+    private void CinematicInput(MenuAction action)
     {
-        if (e.IsActionPressed("menu_back") || e.IsActionPressed("pause"))
+        if (action is MenuAction.Back or MenuAction.Start)
             _cinematic!.Skip();
     }
 }
