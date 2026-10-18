@@ -1,3 +1,4 @@
+using Aidyn.Core.Physics;
 using Aidyn.Game;
 using Aidyn.Plugins.Assets;
 using Aidyn.Plugins.Records;
@@ -12,15 +13,6 @@ namespace Aidyn.Inspector;
 public sealed class CollisionLayer
 {
     public enum Colouring { Off, Surface, Role }
-
-    /// <summary>The surfaces' names, as <c>String/Common</c> gives them.</summary>
-    public static readonly string[] SurfaceNames =
-    [
-        "Default", "Player and camera", "Player", "Snow", "Grass", "Sand", "Mucky", "Sizzle", "Cave", "Wood",
-        "Wood echo", "Stone", "Stone echo", "Stone huge echo", "Water", "Trans snow", "Trans grass", "Trans sand",
-        "Trans mucky", "Trans sizzle", "Trans cave", "Trans wood", "Trans wood echo", "Trans stone", "Trans stone echo",
-        "Trans stone huge echo",
-    ];
 
     private static readonly Color[] SurfaceColours =
     [
@@ -143,10 +135,8 @@ public sealed class CollisionLayer
         if (colouring == Colouring.Off)
             return [];
         var used = _chunks.Values.SelectMany(c => c.Triangles).Select(t => colouring == Colouring.Role ? (int)t.Role : t.Surface).Distinct().Order();
-        return used.Select(v => colouring == Colouring.Role ? (RoleName(v), RoleColours[v]) : (SurfaceName(v), SurfaceColour(v)));
+        return used.Select(v => colouring == Colouring.Role ? (RoleName(v), RoleColours[v]) : (SurfaceNames.Of(v), SurfaceColour(v)));
     }
-
-    public static string SurfaceName(int surface) => surface >= 0 && surface < SurfaceNames.Length ? SurfaceNames[surface] : $"Surface {surface}";
 
     public static string RoleName(int role) => role >= 0 && role < RoleNames.Length ? RoleNames[role] : $"Role {role}";
 

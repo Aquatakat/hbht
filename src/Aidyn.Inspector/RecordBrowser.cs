@@ -570,7 +570,7 @@ public partial class RecordBrowser : Control
         var map = MapRecord.MapOf(id);
         if (json is null)
             return $"{id}\nNo plugin has this map object.";
-        return $"{id}\n{MapObjects.Describe(catalog, id)}\nObject {MapObjects.Index(id)} of {map}, defined by {catalog.Plugins.DefinedBy(map)}";
+        return $"{id}\n{catalog.Describe(id)}\nObject {MapRecord.IndexOf(id)} of {map}, defined by {catalog.Plugins.DefinedBy(map)}";
     }
 
     private void ShowUsedBy(PluginCatalog catalog, IReadOnlyList<RecordReference> references)
@@ -718,7 +718,7 @@ public partial class RecordBrowser : Control
         if (id.Type is not (RecordTypes.Map or RecordTypes.Voxel))
             return null;
         var map = id.Type == RecordTypes.Map ? id : MapRecord.MapOf(id);
-        if (MapObjects.Places(plugins).GetValueOrDefault(map) is not { } place)
+        if (MapPlacements.For(plugins).First(map) is not { } place)
             return null;
         var around = place.Set.Chunks.Where(c => Math.Abs(c.Row - place.Chunk.Row) <= 1 && Math.Abs(c.Column - place.Chunk.Column) <= 1).ToList();
         return new MapSetView.Focus(place.Set, around, place.Chunk, id.Type == RecordTypes.Voxel ? id : null);

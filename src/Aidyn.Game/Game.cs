@@ -61,14 +61,6 @@ public partial class Game : Node3D, ITrekHost
     /// <summary>Mouse drag in pixels to stick units: about 0.3° of orbit, and 0.02 of height, a pixel.</summary>
     private static readonly Vector2 DragToStick = new(0.2f, 0.4f);
 
-    private static readonly string[] Surfaces =
-    [
-        "Default", "Player and camera", "Player", "Snow", "Grass", "Sand", "Mucky", "Sizzle", "Cave", "Wood",
-        "Wood (echo)", "Stone", "Stone (echo)", "Stone (huge echo)", "Water", "Trans snow", "Trans grass",
-        "Trans sand", "Trans mucky", "Trans sizzle", "Trans cave", "Trans wood", "Trans wood (echo)",
-        "Trans stone", "Trans stone (echo)", "Trans stone (huge echo)",
-    ];
-
     private readonly Label _overlay = new() { Position = new Vector2(8, 8) };
     private readonly Label _message = new() { Position = new Vector2(8, 64) };
     private readonly CollisionWorld _world = new();
@@ -772,7 +764,7 @@ public partial class Game : Node3D, ITrekHost
                 $"{chunks.Chunks.MapSet.Label} {chunk?.Name ?? "(no chunk)"}  " +
                 $"({local.X:F1}, {local.Y:F1}, {local.Z:F1})  {Engine.GetFramesPerSecond()} fps" +
                 (_camera.Flying ? "  [free camera]" : "") + "\n" +
-                (sphere.Touching ? $"on {Surfaces.ElementAtOrDefault(sphere.Surface) ?? sphere.Surface.ToString()}" : "in the air") +
+                (sphere.Touching ? $"on {SurfaceNames.Of(sphere.Surface)}" : "in the air") +
                 $"  speed {Speed():F2}/s  request {motion.Request}  pace {motion.Pace:0.##} (F5)" +
                 $"  camera {_follow!.Mode.ToString().ToLowerInvariant()}{(_trek!.Use.CurrentCamera is { } held ? $" (object {held.Index})" : "")}" +
                 $"  {Clock(_sky!.Clock.TimeOfDay)}  sky {_sky.Placement.ToString().ToLowerInvariant()} (F6)" +

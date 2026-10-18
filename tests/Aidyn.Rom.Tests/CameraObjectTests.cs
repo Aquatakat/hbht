@@ -65,7 +65,7 @@ public sealed class CameraObjectTests(Na10Import fixture)
     private MapRecord Chunk(RecordId set, int row, int column) =>
         Data.Set.Get<MapRecord>(Data.Chunk(new ChunkRef(set, row, column))!.Map);
 
-    private ReferencePointObject RefPoint(MapRecord map, CameraObject camera) => (ReferencePointObject)map.Objects.Single(o => o.Index == LoadedMap.Index(camera.RefPoint!.Value));
+    private ReferencePointObject RefPoint(MapRecord map, CameraObject camera) => (ReferencePointObject)map.Objects.Single(o => o.Index == MapRecord.IndexOf(camera.RefPoint!.Value));
 
     private sealed class Play
     {
@@ -122,7 +122,7 @@ public sealed class CameraObjectTests(Na10Import fixture)
             Assert.True((camera.Flags & Moves) != 0, $"{id} has no move type: {camera.Flags}");
             Assert.NotNull(camera.RefPoint);
             Assert.Equal(map.Id, MapRecord.MapOf(camera.RefPoint!.Value));
-            Assert.IsType<ReferencePointObject>(map.Objects.Single(o => o.Index == LoadedMap.Index(camera.RefPoint.Value)));
+            Assert.IsType<ReferencePointObject>(map.Objects.Single(o => o.Index == MapRecord.IndexOf(camera.RefPoint.Value)));
         }
 
         // The rest only set how the outdoor camera follows.

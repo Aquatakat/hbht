@@ -75,6 +75,17 @@ public sealed record MapRecord(RecordId Id, IReadOnlyList<MapObject> Objects, Ob
     /// <summary>The map a voxel ID names an object of.</summary>
     public static RecordId MapOf(RecordId voxel) =>
         RecordId.Parse($"{voxel.Namespace}:{RecordTypes.Map}/{voxel.Key[..voxel.Key.IndexOf('/', StringComparison.Ordinal)]}");
+
+    /// <summary>The index within its map of the object a voxel ID names, <see cref="MapObject.Index"/>.</summary>
+    public static int IndexOf(RecordId voxel) =>
+        int.Parse(voxel.Key.AsSpan(voxel.Key.LastIndexOf('/') + 1), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>The object a voxel ID names, or null if no plugin has its map or the map has none at that index.</summary>
+    public static MapObject? Find(PluginSet plugins, RecordId voxel)
+    {
+        var index = IndexOf(voxel);
+        return plugins.TryGet<MapRecord>(MapOf(voxel))?.Objects.FirstOrDefault(o => o.Index == index);
+    }
 }
 
 /// <summary>

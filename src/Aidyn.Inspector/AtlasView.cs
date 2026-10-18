@@ -289,7 +289,7 @@ public partial class AtlasView : VBoxContainer
     private string Summary(RecordId key)
     {
         if (key.Type == RecordTypes.Voxel)
-            return MapObjects.Describe(_catalog!, key);
+            return _catalog!.Describe(key);
         var summary = _catalog!.Find(key)?.Summary;
         return !string.IsNullOrEmpty(summary) ? summary : key.Type == RecordTypes.Flag ? "Plain flag" : key.ToString();
     }

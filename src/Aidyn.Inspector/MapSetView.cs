@@ -4,6 +4,7 @@ using Aidyn.Core;
 using Aidyn.Core.Flags;
 using Aidyn.Core.Items;
 using Aidyn.Core.MapObjects;
+using Aidyn.Core.Physics;
 using Aidyn.Core.Rng;
 using Aidyn.Game;
 using Aidyn.Plugins;
@@ -593,7 +594,7 @@ public partial class MapSetView : VBoxContainer
     {
         if (MarkerAt(point) is { } marked)
         {
-            SetStatus(hover: $"{MapObjects.Describe(_catalog!, marked.Object)} · object {marked.Object.Index} in {marked.Chunk.Name} · {marked.Id}");
+            SetStatus(hover: $"{_catalog!.Describe(marked.Object)} · object {marked.Object.Index} in {marked.Chunk.Name} · {marked.Id}");
             return;
         }
         if (Cast(point) is not { } hit)
@@ -605,7 +606,7 @@ public partial class MapSetView : VBoxContainer
         var local = hit.Point - _set!.Origin(hit.Chunk.Row, hit.Chunk.Column).ToGodot();
         var flags = t.Flags & (CollisionFlags.Passable | CollisionFlags.SeeThrough);
         SetStatus(hover:
-            $"{hit.Chunk.Name} · {CollisionLayer.SurfaceName(t.Surface)} · {CollisionLayer.RoleName((int)t.Role)}" +
+            $"{hit.Chunk.Name} · {SurfaceNames.Of(t.Surface)} · {CollisionLayer.RoleName((int)t.Role)}" +
             (flags != 0 ? $" · {flags}" : "") +
             $" · ({hit.Point.X:F1}, {hit.Point.Y:F1}, {hit.Point.Z:F1}), in the chunk ({local.X:F1}, {local.Y:F1}, {local.Z:F1})");
     }
@@ -671,7 +672,7 @@ public partial class MapSetView : VBoxContainer
         _lookThrough.Visible = o is CameraObject { RefPoint: not null } camera && (camera.Flags & CameraFlags.Position) != 0;
         _opened.Text = "";
         var there = Shown(o) ? "" : " It isn't there with these switches.";
-        _title.Text = $"{MapObjects.Describe(catalog, o)}\nObject {o.Index} of {marked.Chunk.Map}, in {_set!.Label} {marked.Chunk.Name}.{there}";
+        _title.Text = $"{catalog.Describe(o)}\nObject {o.Index} of {marked.Chunk.Map}, in {_set!.Label} {marked.Chunk.Name}.{there}";
         _fields.Show(json, field => catalog.Plugins.Setters(marked.Chunk.Map, "objects"), id => catalog.Find(id) is not null || id.Type == RecordTypes.Voxel);
 
         var outOfView = _camera.IsPositionBehind(marked.Position) ||
@@ -736,11 +737,11 @@ public partial class MapSetView : VBoxContainer
         _opened.Text = "";
         if (_lootWindow is { } old && IsInstanceValid(old))
             old.QueueFree();
-        var window = _lootWindow = new Window { Title = $"Loot: {MapObjects.Describe(catalog, record)}", Size = new Vector2I(720, 720), Transient = true };
+        var window = _lootWindow = new Window { Title = $"Loot: {catalog.Describe(record)}", Size = new Vector2I(720, 720), Transient = true };
         window.CloseRequested += window.QueueFree;
         var scroll = new ScrollContainer();
         scroll.SetAnchorsPreset(LayoutPreset.FullRect);
-        var panel = BarterWindowPanel.ForLoot(catalog.Plugins, game, pile, gold, MapObjects.Describe(catalog, record));
+        var panel = BarterWindowPanel.ForLoot(catalog.Plugins, game, pile, gold, catalog.Describe(record));
         panel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
         scroll.AddChild(panel);
         window.AddChild(scroll);

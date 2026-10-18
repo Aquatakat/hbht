@@ -35,7 +35,7 @@ public sealed record TeleportArrival(MapSetRecord Set, ChunkEntry Chunk, Vector3
 
     private static ReferencePointObject? Point(PluginSet plugins, RecordId voxel) =>
         plugins.TryGet<MapRecord>(MapRecord.MapOf(voxel)) is { } map
-            ? map.Objects.OfType<ReferencePointObject>().FirstOrDefault(o => o.Index == LoadedMap.Index(voxel))
+            ? map.Objects.OfType<ReferencePointObject>().FirstOrDefault(o => o.Index == MapRecord.IndexOf(voxel))
             : null;
 
     /// <summary>

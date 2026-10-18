@@ -48,7 +48,7 @@ public sealed class Wanderers(PluginSet plugins)
         {
             if (!map.IsActive(party.Index) || memory.Find(new Memory(MapRecord.VoxelId(map.Record.Id, party.Index), MemoryKind.Beaten)) is not null)
                 continue;
-            if (party.Home is not { } homeId || map[LoadedMap.Index(homeId)] is not WanderNodeObject home || (home.Flags & WanderFlags.Move) == 0)
+            if (party.Home is not { } homeId || map[MapRecord.IndexOf(homeId)] is not WanderNodeObject home || (home.Flags & WanderFlags.Move) == 0)
                 continue;
             var look = plugins.TryGet<DbRecord>(party.Entity)?.Body;
             if (look is null)

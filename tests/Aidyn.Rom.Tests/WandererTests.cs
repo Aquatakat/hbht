@@ -30,7 +30,7 @@ public sealed class WandererTests(Na10Import fixture)
     private MapRecord Chunk(int row, int column) => Data.Set.Get<MapRecord>(Data.Chunk(new ChunkRef(Overworld, row, column))!.Map);
 
     private static WanderNodeObject? HomeOf(MapRecord map, MonsterPartyObject party) =>
-        party.Home is { } home && MapRecord.MapOf(home) == map.Id ? map.Objects.FirstOrDefault(o => o.Index == LoadedMap.Index(home)) as WanderNodeObject : null;
+        party.Home is { } home && MapRecord.MapOf(home) == map.Id ? map.Objects.FirstOrDefault(o => o.Index == MapRecord.IndexOf(home)) as WanderNodeObject : null;
 
     private static bool HasMovingHome(MapRecord map, MonsterPartyObject party) => HomeOf(map, party) is { } home && (home.Flags & WanderFlags.Move) != 0;
 

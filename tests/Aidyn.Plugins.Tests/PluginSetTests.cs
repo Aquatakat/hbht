@@ -158,7 +158,7 @@ public sealed class PluginSetTests : IDisposable
         var map = catalog.Find(RecordId.Parse("aidyn:map/0x0E87"))!;
         Assert.True(map.HasRecord);
         Assert.Equal(0x0E87, map.Borg);
-        Assert.Equal("Overworld I08, 2 scene objects", map.Summary);
+        Assert.Equal("Overworld I08, 2 scenes", map.Summary);
         Assert.Equal("aidyn", map.Asset("glb")!.Plugin);
         Assert.Equal("Overworld, 1 chunk", catalog.Find(RecordId.Parse("aidyn:mapset/0"))!.Summary);
         Assert.Null(catalog.Find(RecordId.Parse("aidyn:mapset/0"))!.Borg);

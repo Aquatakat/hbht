@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Aidyn.Plugins.Records;
 
 namespace Aidyn.Plugins;
 
@@ -72,7 +73,7 @@ public sealed class PluginCatalog
 
         var assets = plugins.Assets().ToLookup(a => a.Id);
         var ids = plugins.Ids.Concat(assets.Select(g => g.Key)).ToHashSet();
-        var placements = Placements(plugins);
+        var placements = MapPlacements.For(plugins);
         var entries = new Dictionary<RecordId, CatalogEntry>();
         foreach (var id in ids)
         {
@@ -112,24 +113,32 @@ public sealed class PluginCatalog
         }
     }
 
-    /// <summary>Where each map set places each map, as <c>Overworld I08</c>.</summary>
-    private static ILookup<string, string> Placements(PluginSet plugins) =>
-        plugins.Ids.Where(id => id.Type == RecordTypes.MapSet).Order(Comparer<RecordId>.Create((a, b) => string.CompareOrdinal(a.ToString(), b.ToString())))
-            .SelectMany(id =>
-            {
-                var set = plugins.GetJson(id)!;
-                var label = (string?)set["label"] ?? id.ToString();
-                return (set["chunks"] as JsonArray ?? []).OfType<JsonObject>()
-                    .Select(c => ((string?)c["map"], $"{label} {ChunkName((int?)c["row"] ?? 0, (int?)c["column"] ?? 0)}"));
-            })
-            .Where(p => p.Item1 is not null)
-            .ToLookup(p => p.Item1!, p => p.Item2);
+    /// <summary>
+    /// What a map object is, such as "Monster party: Male Commoner" or "Teleporter patioL2": its kind's name
+    /// (<see cref="MapObjectKinds"/>), and the one detail that tells it from others of its kind.
+    /// </summary>
+    public string Describe(MapObject? o) => o switch
+    {
+        DialogueObject d => $"Dialogue object {d.Name}",
+        MonsterPartyObject m => $"Monster party: {Find(m.Entity)?.Summary ?? m.Entity.ToString()}",
+        TeleporterObject t => $"Teleporter {t.Name}",
+        ContainerObject c => c.Kind.ToString(),
+        TriggerObject t => $"{t.Kind} trigger",
+        ReferencePointObject r => $"Reference point {r.Name}",
+        SceneObject s => s.Models.Count > 0 ? $"Scene object: {s.Models[0].Model}" : "Scene object",
+        { } other => MapObjectKinds.Name(other),
+        null => "Object",
+    };
 
-    /// <summary>As the debug overlay names it, such as <c>I08</c>. Matches <c>ChunkEntry.Name</c>.</summary>
-    private static string ChunkName(int row, int column) =>
-        row is >= 1 and <= 26 ? string.Create(CultureInfo.InvariantCulture, $"{(char)('A' + row - 1)}{column:D2}") : $"{row},{column}";
+    /// <summary>What a voxel ID names and where, such as "Teleporter patioL2, in JundarInteriors K07". Where is the first chunk to place its map.</summary>
+    public string Describe(RecordId voxel)
+    {
+        var map = MapRecord.MapOf(voxel);
+        var where = MapPlacements.For(Plugins).First(map)?.ToString() ?? $"map {map.Key}";
+        return $"{Describe(MapRecord.Find(Plugins, voxel))}, in {where}";
+    }
 
-    private static string Summary(RecordId id, JsonObject? json, List<AssetFile> files, ILookup<string, string> placements, int usedBy)
+    private static string Summary(RecordId id, JsonObject? json, List<AssetFile> files, MapPlacements placements, int usedBy)
     {
         var parts = new List<string>();
         switch (id.Type)
@@ -138,11 +147,11 @@ public sealed class PluginCatalog
                 parts.Add($"{(string?)json["label"]}, {Count(json["chunks"], "chunk")}");
                 break;
             case RecordTypes.Map:
-                parts.AddRange(placements[id.ToString()]);
+                parts.AddRange(placements.All(id).Select(p => p.ToString()));
                 if (json?["objects"] is JsonArray objects)
                 {
                     parts.Add(objects.Count == 0 ? "no objects" : string.Join(", ", objects.OfType<JsonObject>()
-                        .GroupBy(o => (string?)o["type"] ?? "?").Select(g => Plural(g.Count(), ObjectName(g.Key)))));
+                        .GroupBy(o => (string?)o["type"] ?? "?").Select(g => Plural(g.Count(), MapObjectKinds.Name(g.Key).ToLowerInvariant()))));
                 }
                 break;
             case RecordTypes.Actor when json is not null:
@@ -194,18 +203,6 @@ public sealed class PluginCatalog
             parts.Add(usedBy == 0 ? "used by nothing" : $"used by {Plural(usedBy, "record")}");
         return string.Join(", ", parts);
     }
-
-    /// <summary>A map object's type as the summary counts it, from its JSON discriminator.</summary>
-    private static string ObjectName(string type) => type switch
-    {
-        "scene" => "scene object",
-        "wanderNode" => "wander node",
-        "monsterParty" => "monster party",
-        "refPoint" => "reference point",
-        "dialogue" => "dialogue object",
-        "savePoint" => "save point",
-        _ => type,
-    };
 
     private static string Truncate(string text, int length) => text.Length <= length ? text : text[..(length - 1)] + "…";
 

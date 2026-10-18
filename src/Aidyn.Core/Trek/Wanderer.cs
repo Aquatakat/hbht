@@ -137,7 +137,7 @@ public sealed class Wanderer
             1 => node.Next[0],
             _ => node.Next[roll < node.Chance ? 1 : 0],
         };
-        var next = link is { } id ? Map[LoadedMap.Index(id)] as WanderNodeObject ?? node : node;
+        var next = link is { } id ? Map[MapRecord.IndexOf(id)] as WanderNodeObject ?? node : node;
         Take(next);
         if ((next.Flags & WanderFlags.Move) == 0)
             return;

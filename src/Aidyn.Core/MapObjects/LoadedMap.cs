@@ -103,7 +103,7 @@ public sealed class LoadedMap
     {
         if (!_cameraMoves.TryGetValue(camera.Index, out var move))
         {
-            var point = camera.RefPoint is { } id && MapRecord.MapOf(id) == Record.Id && this[Index(id)] is ReferencePointObject reference
+            var point = camera.RefPoint is { } id && MapRecord.MapOf(id) == Record.Id && this[MapRecord.IndexOf(id)] is ReferencePointObject reference
                 ? Origin + reference.Position
                 : (Vector3?)null;
             _cameraMoves[camera.Index] = move = new CameraMove(camera.Flags, point, camera.Values);
@@ -127,7 +127,7 @@ public sealed class LoadedMap
         var o = from;
         for (var i = 0; i < MaxLinks && o.Link is { } link; i++)
         {
-            if (this[Index(link)] is not { } next)
+            if (this[MapRecord.IndexOf(link)] is not { } next)
                 return null;
             o = next;
             if (o is T found)
@@ -135,9 +135,6 @@ public sealed class LoadedMap
         }
         return o as T;
     }
-
-    /// <summary>The index in its map of the object a voxel ID names.</summary>
-    public static int Index(RecordId voxel) => int.Parse(voxel.Key[(voxel.Key.LastIndexOf('/') + 1)..], System.Globalization.CultureInfo.InvariantCulture);
 
     /// <summary>
     /// A chunk's objects as it loads (<c>VoxelObjects_Activate</c>, the original's <c>gVoxelFuncs2</c>):
