@@ -9,7 +9,6 @@ using Aidyn.Rom.Db;
 using Aidyn.Rom.Dialogue;
 using Aidyn.Rom.Graphics;
 using Aidyn.Rom.Import;
-using Aidyn.Rom.Maps;
 using Aidyn.Rom.Rig;
 using Aidyn.Rom.Text;
 
@@ -25,11 +24,6 @@ const string Usage = """
       aidyn scenes <rom> [<index>...] [--out <dir>]
                                            Borg5 scenes as glTF, with the Borg6s that animate them
                                            (all, or the given archive indices); default dir: out/<version>/scenes
-      aidyn actors <rom> [--out <dir>]       Borg7 actors' states and branches as JSON;
-                                           default dir: out/<version>/actors
-      aidyn maps <rom> [<set>...] [--out <dir>]
-                                           map sets' chunks and objects as JSON and their collision as
-                                           glTF (all, or the given sets); default dir: out/<version>/maps
       aidyn dialogue <rom> [<index>...] [--out <dir>]
                                            Borg13 scripts as text (all, or the given archive indices);
                                            default dir: out/<version>/dialogue
@@ -37,8 +31,6 @@ const string Usage = """
                                            Borg11 samples as WAV, and Borg12 sequences rendered to WAV
                                            (all, or the given archive indices), each played n times
                                            (default 1); default dir: out/<version>/audio
-      aidyn atlas [--out <dir>]              the quest atlas of the installed plugins as JSON;
-                                           default dir: out/atlas
       aidyn flag <flag>...                   what sets, clears and reads each flag, in the installed plugins
       aidyn strings <rom> <table>            one string table, numbered by line
       aidyn strings <rom> [--out <dir>]      every string table as text, a file each;
@@ -55,26 +47,16 @@ try
     return args switch
     {
         ["identify", var rom] => Identify(rom),
-        ["import", var rom] => Import(rom, null),
-        ["import", var rom, "--out", var dir] => Import(rom, dir),
+        ["import", var rom, .. var rest] when OutOnly(rest, out var dir) => Import(rom, dir),
         ["borg", "summary", var rom] => BorgSummary(rom),
-        ["borg", "dump", var rom] => BorgDump(rom, null),
-        ["borg", "dump", var rom, "--out", var dir] => BorgDump(rom, dir),
-        ["db", "dump", var rom] => DbDump(rom, null),
-        ["db", "dump", var rom, "--out", var dir] => DbDump(rom, dir),
-        ["textures", var rom] => Textures(rom, null),
-        ["textures", var rom, "--out", var dir] => Textures(rom, dir),
+        ["borg", "dump", var rom, .. var rest] when OutOnly(rest, out var dir) => BorgDump(rom, dir),
+        ["db", "dump", var rom, .. var rest] when OutOnly(rest, out var dir) => DbDump(rom, dir),
+        ["textures", var rom, .. var rest] when OutOnly(rest, out var dir) => Textures(rom, dir),
         ["scenes", var rom, .. var rest] => Scenes(rom, rest),
-        ["actors", var rom] => Actors(rom, null),
-        ["actors", var rom, "--out", var dir] => Actors(rom, dir),
-        ["maps", var rom, .. var rest] => Maps(rom, rest),
         ["dialogue", var rom, .. var rest] => Dialogue(rom, rest),
         ["audio", var rom, .. var rest] => Audio(rom, rest),
-        ["atlas"] => Atlas(null),
-        ["atlas", "--out", var dir] => Atlas(dir),
         ["flag", .. var flags] when flags.Length > 0 => Flags(flags),
-        ["strings", var rom] => AllStrings(rom, null),
-        ["strings", var rom, "--out", var dir] => AllStrings(rom, dir),
+        ["strings", var rom, .. var rest] when OutOnly(rest, out var dir) => AllStrings(rom, dir),
         ["strings", var rom, var table] => Strings(rom, table),
         ["save", "new"] => SaveNew(null),
         ["save", "new", var save] => SaveNew(save),
@@ -133,7 +115,7 @@ static int BorgDump(string path, string? outDir)
 {
     var rom = RomImage.Load(path);
     var archive = BorgArchive.Open(rom);
-    outDir ??= Path.Combine("out", rom.Version.Id.ToString().ToLowerInvariant(), "borg");
+    outDir ??= OutDir(rom, "borg");
 
     var index = new StringBuilder("index,type,compression,stored_size,size,offset\n");
     foreach (var listing in archive.Listings)
@@ -161,7 +143,7 @@ static int DbDump(string path, string? outDir)
 {
     var rom = RomImage.Load(path);
     var db = GameDb.Read(rom);
-    outDir ??= Path.Combine("out", rom.Version.Id.ToString().ToLowerInvariant(), "db");
+    outDir ??= OutDir(rom, "db");
     Directory.CreateDirectory(outDir);
 
     var tables = new (string Name, object Value)[]
@@ -182,7 +164,7 @@ static int Textures(string path, string? outDir)
 {
     var rom = RomImage.Load(path);
     var archive = BorgArchive.Open(rom);
-    outDir ??= Path.Combine("out", rom.Version.Id.ToString().ToLowerInvariant(), "textures");
+    outDir ??= OutDir(rom, "textures");
 
     var index = new StringBuilder("index,type,format,width,height,lods,flags,move\n");
     foreach (var listing in archive.Listings)
@@ -218,19 +200,12 @@ static int Textures(string path, string? outDir)
 
 static int Audio(string path, string[] args)
 {
-    var plays = 1;
-    if (Array.IndexOf(args, "--plays") is var at and >= 0)
-    {
-        if (at + 1 >= args.Length || !int.TryParse(args[at + 1], CultureInfo.InvariantCulture, out plays) || plays < 1)
-            return Fail(Usage);
-        args = [.. args[..at], .. args[(at + 2)..]];
-    }
-    if (!IndicesAndOut(args, out var indices, out var outDir))
+    if (!IndicesAndOut(args, out var indices, out var outDir, out var plays, allowPlays: true))
         return Fail(Usage);
 
     var rom = RomImage.Load(path);
     var archive = BorgArchive.Open(rom);
-    outDir ??= Path.Combine("out", rom.Version.Id.ToString().ToLowerInvariant(), "audio");
+    outDir ??= OutDir(rom, "audio");
     var all = indices.Count == 0;
 
     var samples = new Dictionary<int, short[]>();
@@ -273,12 +248,12 @@ static int Audio(string path, string[] args)
 
 static int Scenes(string path, string[] args)
 {
-    if (!IndicesAndOut(args, out var only, out var outDir))
+    if (!IndicesAndOut(args, out var only, out var outDir, out _, allowPlays: false))
         return Fail(Usage);
 
     var rom = RomImage.Load(path);
     var archive = BorgArchive.Open(rom);
-    outDir ??= Path.Combine("out", rom.Version.Id.ToString().ToLowerInvariant(), "scenes");
+    outDir ??= OutDir(rom, "scenes");
     Directory.CreateDirectory(outDir);
 
     var scenes = only.Count > 0 ? only : archive.Listings.Where(l => l.Type == BorgType.Scene).Select(l => l.Index).ToList();
@@ -298,63 +273,15 @@ static int Scenes(string path, string[] args)
     return 0;
 }
 
-static int Actors(string path, string? outDir)
-{
-    var rom = RomImage.Load(path);
-    outDir ??= Path.Combine("out", rom.Version.Id.ToString().ToLowerInvariant(), "actors");
-    Directory.CreateDirectory(outDir);
-    File.WriteAllBytes(Path.Combine(outDir, "actors.json"), ActorsJson.Serialize(rom, BorgArchive.Open(rom)));
-    Console.WriteLine($"Wrote the actors to {Path.GetFullPath(outDir)}");
-    return 0;
-}
-
-static int Maps(string path, string[] args)
-{
-    string? outDir = null;
-    var sets = new List<MapSet>();
-    for (var i = 0; i < args.Length; i++)
-    {
-        if (args[i] == "--out" && i + 1 < args.Length)
-            outDir = args[++i];
-        else if (Enum.TryParse<MapSet>(args[i], ignoreCase: true, out var set) && Enum.IsDefined(set))
-            sets.Add(set);
-        else
-            return Fail($"Unknown map set \"{args[i]}\". Sets: {string.Join(", ", Enum.GetNames<MapSet>())}.");
-    }
-    if (sets.Count == 0)
-        sets = [.. Enum.GetValues<MapSet>()];
-
-    var rom = RomImage.Load(path);
-    var archive = BorgArchive.Open(rom);
-    var db = GameDb.Read(rom);
-    outDir ??= Path.Combine("out", rom.Version.Id.ToString().ToLowerInvariant(), "maps");
-    Directory.CreateDirectory(outDir);
-
-    var actorScenes = archive.Listings.Where(l => l.Type == BorgType.Actor).ToDictionary(l => l.Index,
-        l => Borg6Animation.Parse(archive.Read(Borg7Actor.Parse(archive.Read(l.Index)).States[0].Animation)).Scene);
-    var names = db.Entities.Select(e => (e.Id, e.Name)).Concat(db.DialogEntities.Select(e => (e.Id, e.Name)))
-        .ToDictionary(e => e.Id, e => e.Name);
-    var chunks = MapChunks.Read(rom);
-    foreach (var set in sets)
-    {
-        var maps = chunks.Where(c => c.Set == set).Select(c => (c, Borg9Map.Parse(archive.Read(c.Collision)))).ToList();
-        File.WriteAllBytes(Path.Combine(outDir, $"{set}.json"), MapJson.Serialize(rom.Version.Name, set, maps, actorScenes, names));
-        File.WriteAllBytes(Path.Combine(outDir, $"{set}.glb"), CollisionGltf.Export(maps));
-    }
-
-    Console.WriteLine($"Wrote {sets.Count} map sets to {Path.GetFullPath(outDir)}");
-    return 0;
-}
-
 static int Dialogue(string path, string[] args)
 {
-    if (!IndicesAndOut(args, out var only, out var outDir))
+    if (!IndicesAndOut(args, out var only, out var outDir, out _, allowPlays: false))
         return Fail(Usage);
 
     var rom = RomImage.Load(path);
     var archive = BorgArchive.Open(rom);
     var db = GameDb.Read(rom);
-    outDir ??= Path.Combine("out", rom.Version.Id.ToString().ToLowerInvariant(), "dialogue");
+    outDir ??= OutDir(rom, "dialogue");
     Directory.CreateDirectory(outDir);
 
     var names = db.Entities.Select(e => (e.Id, e.Name)).Concat(db.DialogEntities.Select(e => (e.Id, e.Name)))
@@ -372,18 +299,6 @@ static int Dialogue(string path, string[] args)
     return 0;
 }
 
-static int Atlas(string? outDir)
-{
-    var plugins = InstalledPlugins();
-    var report = new FlagReport(plugins, QuestIndex.Build(plugins));
-    outDir ??= Path.Combine("out", "atlas");
-    Directory.CreateDirectory(outDir);
-    File.WriteAllBytes(Path.Combine(outDir, "atlas.json"), AtlasJson.Serialize(report, plugins));
-    Console.WriteLine($"Wrote the atlas to {Path.GetFullPath(outDir)}: {report.Flags.Count} flags, " +
-        $"{report.Journal.Count} journal entries, {plugins.All<Aidyn.Plugins.Records.DialogueRecord>(RecordTypes.Dialogue).Count()} scripts");
-    return 0;
-}
-
 static int Flags(string[] flags)
 {
     var plugins = InstalledPlugins();
@@ -397,10 +312,41 @@ static int Flags(string[] flags)
     return 0;
 }
 
-static bool IndicesAndOut(string[] args, out List<int> indices, out string? outDir)
+/// <summary>The default output folder of a dump: out/&lt;version&gt;/&lt;name&gt;.</summary>
+static string OutDir(RomImage rom, string name) => Path.Combine("out", rom.Version.Id.ToString().ToLowerInvariant(), name);
+
+/// <summary>Whether the arguments after the ROM are none, or <c>--out &lt;dir&gt;</c>.</summary>
+static bool OutOnly(string[] rest, out string? outDir)
+{
+    outDir = null;
+    switch (rest)
+    {
+        case []:
+            return true;
+        case ["--out", var dir]:
+            outDir = dir;
+            return true;
+        default:
+            return false;
+    }
+}
+
+/// <summary>
+/// Reads the arguments after the ROM of the commands that take archive indices: the indices (decimal or
+/// 0x hex), <c>--out &lt;dir&gt;</c>, and <c>--plays &lt;n&gt;</c> (a positive count, the first one given, split
+/// off before the rest are read, and only if <paramref name="allowPlays"/>; <paramref name="plays"/> is 1 without it).
+/// </summary>
+static bool IndicesAndOut(string[] args, out List<int> indices, out string? outDir, out int plays, bool allowPlays)
 {
     indices = [];
     outDir = null;
+    plays = 1;
+    if (allowPlays && Array.IndexOf(args, "--plays") is var at and >= 0)
+    {
+        if (at + 1 >= args.Length || !int.TryParse(args[at + 1], CultureInfo.InvariantCulture, out plays) || plays < 1)
+            return false;
+        args = [.. args[..at], .. args[(at + 2)..]];
+    }
     for (var i = 0; i < args.Length; i++)
     {
         if (args[i] == "--out" && i + 1 < args.Length)
@@ -432,7 +378,7 @@ static int Strings(string path, string tableName)
 static int AllStrings(string path, string? outDir)
 {
     var rom = RomImage.Load(path);
-    outDir ??= Path.Combine("out", rom.Version.Id.ToString().ToLowerInvariant(), "strings");
+    outDir ??= OutDir(rom, "strings");
     Directory.CreateDirectory(outDir);
     var lines = 0;
     foreach (var table in Enum.GetValues<RomStringTable>())

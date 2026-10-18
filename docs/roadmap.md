@@ -80,7 +80,7 @@ Each track ends with an exporter to an open format and a viewer in the inspector
 | **1B Animation** | Borg6 tracks, Borg7 actors, Borg5 particles | L | The opening cinematic plays in the inspector | Done Sep 27, 2026 |
 | **1C Maps** | Chunk tables per map set, Borg9 collision and map objects, Expansion Pak variants | L | A map viewer shows a whole map set with its objects | Done Sep 27, 2026 |
 | **1D Audio** | Borg11 PCM, Borg12 sequences and their playback, the audiokey table | M | BGM plays correctly | Done Oct 10, 2026; what isn't played yet is in [audio](systems/audio.md) |
-| **1E Quest atlas** | Borg13 decoding with its branching, the flag network, flag cross-references, journal linkage | L | What sets and reads every flag, and which journal entry it maps to (`aidyn atlas`, `aidyn flag <n>`) | Done |
+| **1E Quest atlas** | Borg13 decoding with its branching, the flag network, flag cross-references, journal linkage | L | What sets and reads every flag, and which journal entry it maps to (`aidyn flag <n>`, and the editor's Atlas tab) | Done |
 | **1F Text & UI assets** | String tables, the fonts, portraits, menu images | S | The dialogue box renders in the right font | Done |
 | **1G Saves** (optional) | Importing the original's Controller Pak saves | M | An original save imports | Open. The checkpoints already convert into saves (2.8). |
 | **1H Hardcoded content** | Every piece of content in code rather than data, each assigned an [ADR 0008](adr/0008-content-logic-layers.md) layer | M | [hardcoded-content](hardcoded-content.md) | Done, with tables left To do |
