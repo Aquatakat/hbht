@@ -1,3 +1,4 @@
+using Aidyn.Core.Rng;
 using Aidyn.Plugins.Records;
 
 namespace Aidyn.Core.Actors;
@@ -9,8 +10,13 @@ namespace Aidyn.Core.Actors;
 /// </summary>
 /// <remarks>
 /// Requests include 0 idle, 2 walk, 3 run and 25 sneak (<see cref="ActorBranch.Request"/> 255 is
-/// any). The rolls use their own random stream, as the original's actor animations do; nothing in
-/// the rules depends on them.
+/// any). The rolls are <c>Range(0, 99)</c> on a stream of the game's generator that's the actor
+/// animations' own; nothing in the rules depends on them. The original has two, shared by every
+/// actor, which start at 0 and are never seeded or saved: one for bodies (<c>0x800e69c0</c>, which
+/// <see cref="Tick"/> rolls on, the port's <see cref="RandomStreams.Animation"/>), and one for map
+/// actors and the pause menu's scroll (<c>0x800e69c4</c>, <c>ActorStateMachine.Advance</c>'s). The
+/// runtime steps those by the rendered frame, so each has a stream of its own, from 0, that the
+/// order frames take them in can't change.
 /// </remarks>
 public sealed class ActorStateMachine
 {
@@ -19,16 +25,16 @@ public sealed class ActorStateMachine
 
     private readonly ActorRecord _actor;
     private readonly Func<int, int> _length;
-    private readonly Random _random;
+    private readonly IRandom _rolls;
     private int _lastRequest, _settle;
 
     /// <param name="length">A state's animation length in ticks: one loop of it.</param>
-    /// <param name="seed">The random stream's seed. Each actor has its own stream.</param>
-    public ActorStateMachine(ActorRecord actor, Func<int, int> length, int seed = 0x3DBB6CD)
+    /// <param name="rolls">The stream its branches roll on.</param>
+    public ActorStateMachine(ActorRecord actor, Func<int, int> length, IRandom rolls)
     {
         _actor = actor;
         _length = length;
-        _random = new Random(seed);
+        _rolls = rolls;
         Enter(actor.InitialState);
     }
 
@@ -108,10 +114,10 @@ public sealed class ActorStateMachine
         return false;
     }
 
-    /// <summary>Rolls 0–99 and walks the branches in order, subtracting each match's chance.</summary>
+    /// <summary>Rolls 0–99 (<c>Range(0, 99)</c>) and walks the branches in order, subtracting each match's chance.</summary>
     private ActorBranch? Roll(Func<ActorBranch, bool> matches)
     {
-        var roll = _random.Next(100);
+        var roll = _rolls.Range(0, 99);
         foreach (var branch in _actor.States[State].Branches)
         {
             if (matches(branch) && (roll -= branch.Chance) < 1)

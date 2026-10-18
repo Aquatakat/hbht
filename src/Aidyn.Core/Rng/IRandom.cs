@@ -83,4 +83,11 @@ public sealed class RandomStreams
     public Lcg Wander { get; } = new();
 
     public Lcg Cosmetic { get; } = new();
+
+    /// <summary>
+    /// The stream bodies' animations roll their branches on (<c>ActorStateMachine.Tick</c>'s, <c>0x800e69c0</c>): one
+    /// for every body, as the original's. The original starts it at 0, never seeds it and doesn't save it, so neither
+    /// does the port: it starts at 0 with every new or loaded game.
+    /// </summary>
+    public Lcg Animation { get; } = new(0);
 }

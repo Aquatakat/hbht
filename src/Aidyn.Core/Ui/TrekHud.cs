@@ -16,10 +16,10 @@ public sealed class TrekHud
     private readonly Dictionary<RecordId, MinimapRecord> _minimaps;
     private readonly FrameGate _frame = new(Cadence.FrameTicks);
 
-    /// <param name="size">An image's width and height, which centring a minimap's piece needs.</param>
-    public TrekHud(GameState game, Func<RecordId, (int Width, int Height)> size)
+    public TrekHud(GameState game)
     {
-        Minimap = new Minimap(game.Minimaps, size);
+        // A minimap's pieces are centred by their images' sizes.
+        Minimap = new Minimap(game.Minimaps, game.Plugins.ImageSize);
         _minimaps = game.Plugins.All<MinimapRecord>(RecordTypes.Minimap).ToDictionary(m => m.MapSet);
     }
 

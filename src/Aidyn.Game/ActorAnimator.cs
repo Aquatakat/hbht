@@ -1,22 +1,22 @@
-using System.Text.Json;
 using Aidyn.Core.Actors;
-using Aidyn.Core.Movement;
 using Aidyn.Core.Particles;
-using Aidyn.Core.Scripts;
+using Aidyn.Core.Rng;
+using Aidyn.Plugins.Assets;
 using Aidyn.Plugins.Records;
 using Godot;
 
 namespace Aidyn.Game;
 
 /// <summary>
-/// Plays an actor's animations on an instance of its scene, stepped by the core's
-/// <see cref="ActorStateMachine"/>. The root transform is drawn with its position zeroed, since the
-/// original moves the actor by that motion instead.
+/// Poses an instance of an actor's scene as the core's <see cref="ActorMotion"/> plays it: the state's animation at
+/// the motion's clock. The root transform is drawn with its position zeroed, since the original moves the actor by that
+/// motion instead, which the core works out from the scene's asset.
 /// </summary>
 /// <remarks>
-/// An actor that moves by its animations, such as the player, is <see cref="Driven"/>: its owner
-/// ticks it and gets the root's motion back. Otherwise something calls <see cref="Update"/> each
-/// frame. The editor shares this file, so it holds no nodes of its own.
+/// An actor that moves by its animations, such as the player, is <see cref="Driven"/>: its owner ticks it through
+/// <see cref="Tick(int)"/>, which ticks the core's motion, poses the scene at once and returns the root's motion.
+/// Otherwise it ticks itself with the frame (<see cref="Update"/>), 60 times a second, and is posed between ticks. The
+/// editor shares this file, so it holds no nodes of its own.
 /// </remarks>
 public sealed class ActorAnimator : IActorMotion
 {
@@ -25,69 +25,71 @@ public sealed class ActorAnimator : IActorMotion
     private readonly Vector3 _pivot;
     private readonly MirroredMeshes? _mirroring;
     private double _fraction;
-    private Vector3 _rootPosition, _lastRoot;
-    private ActorParticles? _particles;
-    private bool _made;
+    private int _warned = -1;
 
-    private ActorAnimator(ActorRecord actor, AnimationPlayer player, Node3D? root, Vector3 pivot, MirroredMeshes? mirroring)
+    private ActorAnimator(ActorMotion motion, AnimationPlayer player, Node3D? root, MirroredMeshes? mirroring)
     {
+        Motion = motion;
         _player = player;
         _root = root;
-        _pivot = pivot;
+        _pivot = motion.Clips.Pivot.ToGodot();
         _mirroring = mirroring;
-        Machine = new ActorStateMachine(actor, Length);
-        Enter(actor.InitialState);
+        Show(0);
     }
 
-    public ActorStateMachine Machine { get; }
+    /// <summary>The core's actor, which this draws.</summary>
+    public ActorMotion Motion { get; }
 
-    /// <summary>The length in ticks of the state playing, which a cut-scene's animation waits for.</summary>
-    public int StateLength => Machine.Length(Machine.State);
+    public ActorStateMachine Machine => Motion.Machine;
 
-    public int Frame => Machine.Clock;
+    /// <inheritdoc cref="ActorMotion.StateLength"/>
+    public int StateLength => Motion.StateLength;
+
+    public int Frame => Motion.Frame;
 
     /// <summary>The animation the actor is asked for.</summary>
     public int Request
     {
-        get => Machine.Request;
-        set => Machine.Request = value;
+        get => Motion.Request;
+        set => Motion.Request = value;
     }
 
-    /// <summary>
-    /// Its scene's emitters, which it starts for its request on every state it enters, as <c>ActorStateMachine.Tick</c>
-    /// does (<c>ActorParticles.Entered</c>), and once as it's made (<c>0x800960e0</c>), which the port does on its first
-    /// tick, once it's in the world. Null when its scene has none.
-    /// </summary>
+    /// <inheritdoc cref="ActorMotion.Particles"/>
     public ActorParticles? Particles
     {
-        get => _particles;
-        set => (_particles, _made) = (value, value is not null);
+        get => Motion.Particles;
+        set => Motion.Particles = value;
     }
 
     /// <summary>Set when the owner ticks it with <see cref="Tick(int)"/> rather than it ticking with the frame.</summary>
     public bool Driven { get; set; }
 
     /// <summary>
-    /// An animator for an instance of the actor's scene, starting in its initial state. Returns null
-    /// if the scene has no animations.
+    /// An animator for an instance of the actor's scene, starting in its initial state, whose branches roll on
+    /// <paramref name="rolls"/>. Returns null if the scene has no animations.
     /// </summary>
-    public static ActorAnimator? Create(Node3D instance, ActorRecord actor, byte[] glb)
+    public static ActorAnimator? Create(Node3D instance, ActorRecord actor, byte[] glb, IRandom rolls)
     {
         if (Find<AnimationPlayer>(instance) is not { } player)
             return null;
         var rootName = $"transform {actor.RootTransform}";
         var root = FindNode(instance, n => n is Node3D && n.Name == rootName) as Node3D;
-        return new ActorAnimator(actor, player, root, Pivot(glb, actor.RootTransform), MirroredMeshes.For(instance, glb));
+        var motion = new ActorMotion(actor, ActorClips.Read(glb, actor.RootTransform), rolls);
+        return new ActorAnimator(motion, player, root, MirroredMeshes.For(instance, glb));
     }
 
-    /// <summary>Ticks at 60 Hz with the frame, unless <see cref="Driven"/>.</summary>
+    /// <summary>Ticks at 60 Hz with the frame, unless <see cref="Driven"/>, and poses the scene between ticks.</summary>
     public void Update(double delta)
     {
         if (Driven)
             return;
         _fraction += delta * 60;
         for (; _fraction >= 1; _fraction--)
-            Step();
+        {
+            // Entering a state starts its time over, so the frame's time left is lost, as it always has been here.
+            if (Motion.Step())
+                _fraction = 0;
+        }
         Show(Math.Min(Machine.Clock - 1 + _fraction, Machine.Length(Machine.State) - 1) / 60);
     }
 
@@ -98,67 +100,49 @@ public sealed class ActorAnimator : IActorMotion
     public float Tick(int request) => TickMotion(request).Z;
 
     /// <summary>One tick toward <paramref name="request"/>, returning how far the root moved in the model's space.</summary>
-    public Vector3 TickMotion(int request)
+    public System.Numerics.Vector3 TickMotion(int request)
     {
-        Request = request;
-        Step();
+        var moved = Motion.TickMotion(request);
         Show((Machine.Clock - 1) / 60.0);
-        var moved = Machine.RootMoves ? _rootPosition - _lastRoot : Vector3.Zero;
-        _lastRoot = _rootPosition;
         return moved;
     }
 
     /// <summary>Plays a state from its first tick, as a branch does.</summary>
     public void Enter(int state)
     {
-        Machine.Enter(state);
-        Play();
+        Motion.Enter(state);
+        _fraction = 0;
+        Show(0);
     }
 
     /// <summary>Enters the state a request leads to partway through, at <paramref name="clock"/> (<see cref="ActorStateMachine.Join"/>).</summary>
     public void Join(int request, int clock)
     {
-        Machine.Join(request, clock);
-        Play();
+        Motion.Join(request, clock);
+        _fraction = 0;
         Show((Machine.Clock - 1) / 60.0);
     }
 
-    private void Step()
-    {
-        if (_made)
-        {
-            _made = false;
-            _particles?.Entered(Machine.Request);
-        }
-        if (Machine.Tick())
-        {
-            Particles?.Entered(Machine.Request);
-            Play();
-        }
-    }
-
-    private void Play()
-    {
-        _fraction = 0;
-        var name = AnimationName(Machine.State);
-        if (!_player.HasAnimation(name))
-        {
-            GD.PushWarning($"{Machine.Actor.Id} has no animation {name}.");
-            return;
-        }
-        _player.Play(name);
-        _player.Pause();
-        Show(0);
-    }
-
+    /// <summary>Poses the scene <paramref name="seconds"/> into the state's animation.</summary>
     private void Show(double seconds)
     {
-        if (!_player.HasAnimation(AnimationName(Machine.State)))
+        var name = AnimationName(Machine.Actor.States[Machine.State]);
+        if (!_player.HasAnimation(name))
+        {
+            if (_warned != Machine.State)
+                GD.PushWarning($"{Machine.Actor.Id} has no animation {name}.");
+            _warned = Machine.State;
             return;
+        }
+        if (_player.AssignedAnimation != name)
+        {
+            _player.Play(name);
+            _player.Pause();
+        }
         _player.Seek(seconds, update: true);
         TransformTracks.Apply(_player);
         if (_root is not null)
-            _rootPosition = HoldRoot(_root, _pivot);
+            HoldRoot(_root, _pivot);
         _mirroring?.Update();
     }
 
@@ -176,28 +160,6 @@ public sealed class ActorAnimator : IActorMotion
 
     /// <summary>The name the importer gives a state's animation in the scene's glTF.</summary>
     public static string AnimationName(ActorState state) => $"borg6 {Convert.ToInt32(state.Animation.Key, 16)}";
-
-    private string AnimationName(int state) => AnimationName(Machine.Actor.States[state]);
-
-    /// <summary>In ticks. A clip lasts one loop of its animation.</summary>
-    private int Length(int state) =>
-        _player.HasAnimation(AnimationName(state)) ? (int)Math.Round(_player.GetAnimation(AnimationName(state)).Length * 60) : 1;
-
-    /// <summary>The transform's pivot, which the exporter keeps in the node's extras.</summary>
-    public static Vector3 Pivot(byte[] glb, int transform)
-    {
-        using var json = GlbFile.Json(glb);
-        foreach (var node in json.RootElement.GetProperty("nodes").EnumerateArray())
-        {
-            if (node.TryGetProperty("extras", out var extras) && extras.TryGetProperty("transform", out var t) &&
-                t.GetInt32() == transform && extras.TryGetProperty("pivot", out var p) &&
-                !(extras.TryGetProperty("billboard", out var b) && b.GetBoolean()))
-            {
-                return new Vector3(p[0].GetSingle(), p[1].GetSingle(), p[2].GetSingle());
-            }
-        }
-        return Vector3.Zero;
-    }
 
     private static T? Find<T>(Node root) where T : Node => FindNode(root, n => n is T) as T;
 

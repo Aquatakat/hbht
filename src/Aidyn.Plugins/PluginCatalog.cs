@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -201,7 +200,7 @@ public sealed class PluginCatalog
                 parts.Add($"{Count(json["stars"], "star")}, {Count(json["clouds"], "cloud")}, {Count(json["lensFlare"], "flare piece")}");
                 break;
         }
-        if (files.FirstOrDefault(f => f.Extension == "png") is { } png && PngSize(png.Path) is var (w, h))
+        if (files.FirstOrDefault(f => f.Extension == "png") is { } png && Assets.PngHeader.Size(png.Path) is var (w, h))
             parts.Add($"{w}×{h}");
         if (json is null && parts.Count == 0)
             parts.Add(usedBy == 0 ? "used by nothing" : $"used by {Plural(usedBy, "record")}");
@@ -217,14 +216,4 @@ public sealed class PluginCatalog
 
     private static string Plural(int n, string one) => string.Create(CultureInfo.InvariantCulture,
         $"{n:N0} {(n == 1 ? one : one.EndsWith('y') ? one[..^1] + "ies" : one + "s")}");
-
-    /// <summary>A PNG's size, from its header.</summary>
-    private static (int Width, int Height)? PngSize(string path)
-    {
-        Span<byte> header = stackalloc byte[24];
-        using var file = File.OpenRead(path);
-        if (file.ReadAtLeast(header, header.Length, throwOnEndOfStream: false) < header.Length || header[12..16].SequenceCompareTo("IHDR"u8) != 0)
-            return null;
-        return (BinaryPrimitives.ReadInt32BigEndian(header[16..]), BinaryPrimitives.ReadInt32BigEndian(header[20..]));
-    }
 }

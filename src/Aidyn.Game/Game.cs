@@ -236,7 +236,7 @@ public partial class Game : Node3D, ITrekHost
     /// <summary>The models, the particles, and trek with its chunks as they're drawn. Returns the chunk streamer.</summary>
     private ChunkStreamer BuildWorld(PluginSet plugins, GameState game, MapSetRecord set)
     {
-        var models = _models = new Models(plugins);
+        var models = _models = new Models(plugins) { BodyRolls = game.Random.Animation };
         // The particles actors' emitters and the weather's rain and snow start in, drawn after everything else. The pool
         // hands out the original's 384 unless the rain is denser, and has room for the densest.
         _particles = new ParticlesView(plugins, new ParticleHead(capacity: WeatherParticles.PoolCapacity));
@@ -276,7 +276,7 @@ public partial class Game : Node3D, ITrekHost
         AddChild(_player);
         // Alaron, as a new game sets the player's form (BORG7_Alaron).
         var alaron = plugins.Get<ActorRecord>(RecordId.Hex(RecordTypes.Actor, 0x25F9));
-        if (_models!.InstantiateActor(alaron) is var (model, animator))
+        if (_models!.InstantiateActor(alaron, rolls: _models.BodyRolls) is var (model, animator))
         {
             _player.SetModel(model);
             ShadowDecal.MarkBody(model);
@@ -526,13 +526,11 @@ public partial class Game : Node3D, ITrekHost
         ResetInterpolation();
     }
 
-    IRootMotion ITrekHost.Motion(Wanderer wanderer) => _chunks!.View(wanderer)?.Motion ?? Core.Scripts.IActorMotion.Still;
+    IRootMotion ITrekHost.Motion(Wanderer wanderer) => _chunks!.View(wanderer)?.Motion ?? Core.Actors.IActorMotion.Still;
 
     void ITrekHost.Say(string text) => Say(text);
 
     void ITrekHost.Log(string text) => GD.Print(text);
-
-    (int Width, int Height) ITrekHost.ImageSize(RecordId image) => _hud?.ImageSize(image) ?? (0, 0);
 
     /// <summary>
     /// Once a frame at the console's average 20 fps, the scenes the original would draw load their

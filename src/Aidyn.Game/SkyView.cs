@@ -194,9 +194,12 @@ public partial class SkyView : Node
     /// <summary>A UI image, as a texture, or null if no plugin has it.</summary>
     public Texture2D? Image(RecordId image) => _images.Get(image);
 
-    /// <summary>A UI image's size in pixels, or nothing if it's missing.</summary>
-    public System.Numerics.Vector2 ImageSize(RecordId image) =>
-        Image(image) is { } texture ? texture.GetSize().ToNumerics() : default;
+    /// <summary>A UI image's size in pixels, from its PNG's header (<see cref="PluginSet.ImageSize"/>), or nothing if it's missing.</summary>
+    public System.Numerics.Vector2 ImageSize(RecordId image)
+    {
+        var (width, height) = _plugins.ImageSize(image);
+        return new(width, height);
+    }
 
     private SkyGradient? Gradient(RecordId image)
     {

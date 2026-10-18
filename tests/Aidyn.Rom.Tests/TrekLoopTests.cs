@@ -1,5 +1,6 @@
 using System.Numerics;
 using Aidyn.Core;
+using Aidyn.Core.Actors;
 using Aidyn.Core.Calendar;
 using Aidyn.Core.Cameras;
 using Aidyn.Core.Chunks;
@@ -27,7 +28,7 @@ public sealed class TrekLoopTests(Na10Import fixture)
 
     private Na10Import.Loaded Data => fixture.Data;
 
-    private sealed class Host(PluginSet plugins) : ITrekHost
+    private sealed class Host : ITrekHost
     {
         public List<ChunkEntry?> Entered { get; } = [];
         public int Arrivals { get; set; }
@@ -67,22 +68,13 @@ public sealed class TrekLoopTests(Na10Import fixture)
         void IScriptHost.Cue(ScriptCue cue)
         {
         }
-
-        // A PNG's width and height are the first fields of its header.
-        (int Width, int Height) ITrekHost.ImageSize(RecordId image)
-        {
-            if (plugins.FindAsset(image, "png") is not { } png)
-                return (0, 0);
-            var header = File.ReadAllBytes(png).AsSpan(16, 8);
-            return (System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(header), System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(header[4..]));
-        }
     }
 
     /// <summary>Trek as a new game starts it, with the player on the ground at a chunk's point.</summary>
     private (TrekLoop Trek, Host Host) Start(string chunkName = "I08", float x = 16, float z = 62, int mapSet = 0, ParticleHead? particles = null)
     {
         var game = GameState.NewGame(Data.Set);
-        var host = new Host(Data.Set);
+        var host = new Host();
         var streamer = new ChunkStreamer(Data.Set, game, new CollisionWorld(), Data.Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, mapSet)),
             new VisibleWorld());
         var trek = new TrekLoop(game, host, new ZoneEngine(game, streamer, particles: particles));

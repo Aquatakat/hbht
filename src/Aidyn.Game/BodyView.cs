@@ -1,8 +1,8 @@
+using Aidyn.Core.Actors;
 using Aidyn.Core.Chunks;
 using Aidyn.Core.Lights;
 using Aidyn.Core.Movement;
 using Aidyn.Core.Physics;
-using Aidyn.Core.Scripts;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 using Godot;
@@ -30,7 +30,7 @@ public abstract partial class BodyView : Node3D
     {
         Body = body;
         Name = name;
-        if (plugins.TryGet<ActorRecord>(look.Actor) is { } actor && models.InstantiateActor(actor) is var (node, animator))
+        if (plugins.TryGet<ActorRecord>(look.Actor) is { } actor && models.InstantiateActor(actor, rolls: models.BodyRolls) is var (node, animator))
         {
             _turn = new Node3D { Scale = Vector3.One * body.Scale };
             _turn.AddChild(node);

@@ -1,5 +1,6 @@
 using System.Numerics;
 using Aidyn.Core;
+using Aidyn.Core.Actors;
 using Aidyn.Core.Movement;
 using Aidyn.Core.Physics;
 using Aidyn.Core.Scripts;

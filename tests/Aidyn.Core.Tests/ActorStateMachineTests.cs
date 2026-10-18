@@ -1,4 +1,5 @@
 using Aidyn.Core.Actors;
+using Aidyn.Core.Rng;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 
@@ -18,13 +19,13 @@ public class ActorStateMachineTests
         new(RecordId.Parse("aidyn:animation/0x29D3"), [new(2, 100, false, 2), new(ActorStateMachine.AnyRequest, 100, false, 0)]),
         new(RecordId.Parse("aidyn:animation/0x29D4"), [new(2, 100, false, 2), new(ActorStateMachine.AnyRequest, 100, false, 0)]),
         new(RecordId.Parse("aidyn:animation/0x29D5"), [new(ActorStateMachine.AnyRequest, 100, false, 0)]),
-    ]), _ => 4);
+    ]), _ => 4, new Lcg(0));
 
     [Fact]
     public void StartsInTheInitialStateAndRestartsItWithNoBranchTaken()
     {
         var actor = new ActorStateMachine(new ActorRecord(RecordId.Parse("aidyn:actor/0x0001"), Scene, 2, 1,
-            [new(RecordId.Parse("aidyn:animation/0x0002"), []), new(RecordId.Parse("aidyn:animation/0x0003"), [])]), _ => 3);
+            [new(RecordId.Parse("aidyn:animation/0x0002"), []), new(RecordId.Parse("aidyn:animation/0x0003"), [])]), _ => 3, new Lcg(0));
         Assert.Equal((1, 1), (actor.State, actor.Clock));
         Assert.False(actor.Tick());
         Assert.False(actor.Tick());
@@ -97,6 +98,28 @@ public class ActorStateMachineTests
         Assert.Equal([false, false, false, true, false, false], moves);
     }
 
+    /// <summary>
+    /// A roll is <c>Range(0, 99)</c> on the stream given: from a stream at 0, the original's start, the first is
+    /// (100 × 0x3C6EF35F) >> 32 = 23, which a first branch of chance 23 takes and one of 22 doesn't.
+    /// </summary>
+    [Theory]
+    [InlineData(23, 1)]
+    [InlineData(22, 2)]
+    public void RollsAreRangesOfTheStream(int chance, int taken)
+    {
+        var record = new ActorRecord(RecordId.Parse("aidyn:actor/0x0001"), Scene, 2, 0,
+        [
+            new(RecordId.Parse("aidyn:animation/0x0002"), [new(ActorStateMachine.AnyRequest, chance, false, 1), new(ActorStateMachine.AnyRequest, 100, false, 2)]),
+            new(RecordId.Parse("aidyn:animation/0x0003"), []),
+            new(RecordId.Parse("aidyn:animation/0x0004"), []),
+        ]);
+        var rolls = new Lcg(0);
+        var actor = new ActorStateMachine(record, _ => 1, rolls);
+        Assert.True(actor.Tick());
+        Assert.Equal(taken, actor.State);
+        Assert.Equal(0x3C6EF35Fu, rolls.Seed);
+    }
+
     [Fact]
     public void ChancesAreSubtractedInOrder()
     {
@@ -107,7 +130,7 @@ public class ActorStateMachineTests
             new(RecordId.Parse("aidyn:animation/0x0003"), [new(ActorStateMachine.AnyRequest, 100, false, 0)]),
             new(RecordId.Parse("aidyn:animation/0x0004"), [new(ActorStateMachine.AnyRequest, 100, false, 0)]),
         ]);
-        var actor = new ActorStateMachine(record, _ => 1);
+        var actor = new ActorStateMachine(record, _ => 1, new Lcg(0));
         var counts = new int[3];
         for (var i = 0; i < 2000; i++)
         {

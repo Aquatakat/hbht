@@ -175,6 +175,15 @@ public sealed class PluginSet
         return null;
     }
 
+    private readonly ConcurrentDictionary<RecordId, (int Width, int Height)> _imageSizes = new();
+
+    /// <summary>
+    /// An image asset's width and height in pixels, from its PNG's header, read once; 0 × 0 if no plugin has it. The
+    /// core places sprites and centres the minimap's pieces by it.
+    /// </summary>
+    public (int Width, int Height) ImageSize(RecordId image) =>
+        _imageSizes.GetOrAdd(image, id => FindAsset(id, "png") is { } png && Aidyn.Plugins.Assets.PngHeader.Size(png) is { } size ? size : (0, 0));
+
     private void AddRecords(Plugin plugin)
     {
         var records = Path.Combine(plugin.Directory, "records");

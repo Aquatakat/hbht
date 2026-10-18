@@ -17,6 +17,12 @@ public sealed class Models(PluginSet plugins) : IDisposable
     /// <summary>The particles actors' emitters start in, if any are drawn.</summary>
     public ParticlesView? Particles { get; set; }
 
+    /// <summary>
+    /// The stream bodies' animations roll their branches on, one for every body as the original's is
+    /// (<see cref="Core.Rng.RandomStreams.Animation"/>). Other actors each roll on a stream of their own.
+    /// </summary>
+    public Core.Rng.IRandom BodyRolls { get; init; } = new Core.Rng.Lcg(0);
+
     /// <summary>The scenes' scrolling textures, which each copy of a scene has its own of.</summary>
     public TextureScrolls Scrolls { get; } = new();
 
@@ -32,7 +38,9 @@ public sealed class Models(PluginSet plugins) : IDisposable
     /// An actor's scene with its head, if it has one, and an animator running its state machine.
     /// </summary>
     /// <param name="lighting">How it's lit: as a body, unless it's a scene object's.</param>
-    internal (Node3D Node, ActorAnimator? Animator)? InstantiateActor(ActorRecord actor, N64Material.Lighting lighting = N64Material.Lighting.Body)
+    /// <param name="rolls">The stream its branches roll on: a body's are <see cref="BodyRolls"/>; by default its own, from 0.</param>
+    internal (Node3D Node, ActorAnimator? Animator)? InstantiateActor(ActorRecord actor, N64Material.Lighting lighting = N64Material.Lighting.Body,
+        Core.Rng.IRandom? rolls = null)
     {
         if (Instantiate(actor.Scene) is not { } node)
             return null;
@@ -47,7 +55,7 @@ public sealed class Models(PluginSet plugins) : IDisposable
                 GD.PushWarning($"{actor.Scene} has no {locatorName} for its head.");
         }
         N64Material.SetLighting(node, lighting);
-        var animator = ActorAnimator.Create(node, actor, Glb(actor.Scene)!);
+        var animator = ActorAnimator.Create(node, actor, Glb(actor.Scene)!, rolls ?? new Core.Rng.Lcg(0));
         if (animator is not null)
         {
             node.AddChild(new FrameCallback(animator.Update) { Name = "ActorAnimator" });

@@ -28,13 +28,6 @@ public partial class HudView : Control
     /// <summary>Whether the player's chunk is under an outdoor sky, where the compass shows.</summary>
     public bool Outdoors { get; set; }
 
-    /// <summary>An image's width and height, or 0 × 0 if no plugin has it.</summary>
-    public (int Width, int Height) ImageSize(Plugins.RecordId image)
-    {
-        var size = _ui.Size(image);
-        return (size.X, size.Y);
-    }
-
     public override void _Draw()
     {
         if (Trek is not { } trek || !(trek.HudShown || trek.Conversation is { ShowsBackdrop: true }))

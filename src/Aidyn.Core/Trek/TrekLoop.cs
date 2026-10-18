@@ -1,4 +1,5 @@
 using System.Numerics;
+using Aidyn.Core.Actors;
 using Aidyn.Core.Audio;
 using Aidyn.Core.Calendar;
 using Aidyn.Core.Cameras;
@@ -49,9 +50,6 @@ public interface ITrekHost : IScriptHost
 
     /// <summary>Notes something for whoever's watching the log.</summary>
     void Log(string text);
-
-    /// <summary>A UI image's width and height, which the HUD's minimap centres its pieces by.</summary>
-    (int Width, int Height) ImageSize(RecordId image);
 }
 
 /// <summary>What a tick of trek came to.</summary>
@@ -104,7 +102,7 @@ public sealed class TrekLoop : IMapObjectHost
         Zone = zone;
         Wanderers = new Wanderers(game.Plugins);
         Use = new MapObjectUse(game, MenuText.From(game.Plugins), this) { World = zone.World };
-        Hud = new TrekHud(game, host.ImageSize);
+        Hud = new TrekHud(game);
         _playerSounds = game.Plugins.TryGet<EntityRecord>(GameState.Alaron)?.Sounds;
         // Each chunk's wanderers load before its sounds and lights.
         zone.Loaded += (_, map) => Wanderers.Load(map, Chunks.MapSet.CellSize, Chunks.World, Game.Memory, Game.Random.Wander);

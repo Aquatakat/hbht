@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Text.Json;
+using Aidyn.Core.Rng;
 using Aidyn.Game;
+using Aidyn.Plugins.Assets;
 using Aidyn.Plugins.Records;
 using Godot;
 
@@ -212,7 +214,7 @@ public partial class ModelView : VBoxContainer
             _actor = actor;
             var rootName = $"transform {actor.RootTransform}";
             _root = Nodes.FindAll<Node3D>(scene).FirstOrDefault(n => n.Name == rootName);
-            _pivot = ActorAnimator.Pivot(glb, actor.RootTransform);
+            _pivot = ActorClips.Read(glb, actor.RootTransform).Pivot.ToGodot();
             _motion = Vector3.Zero;
             _actorPanel.Show(actor, n => Ticks(ActorAnimator.AnimationName(actor.States[n])));
             _actorPanel.Visible = true;
@@ -335,7 +337,7 @@ public partial class ModelView : VBoxContainer
         if (_actor is null || _content is null || _glb is null)
             return;
         Home();
-        _animator = on ? ActorAnimator.Create(_content, _actor, _glb) : null;
+        _animator = on ? ActorAnimator.Create(_content, _actor, _glb, new Lcg(0)) : null;
         _fraction = 0;
         _particles?.Head.Clear();
         if (_animator is not null && _plugins is not null)
