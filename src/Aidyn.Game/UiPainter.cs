@@ -47,15 +47,16 @@ public sealed class UiPainter
     /// Prints text from (x, y), wrapping at <paramref name="bounds"/>' right edge and drawing only
     /// what's inside them, and returns how tall it is (<c>WidgetClipText</c>).
     /// </summary>
-    public int Text(CanvasItem canvas, UiFont font, string text, int x, int y, ScreenRect bounds, Rgba color)
+    /// <param name="clip">A box the glyphs are cut to besides, which doesn't move the wrap, as a widget group's is.</param>
+    public int Text(CanvasItem canvas, UiFont font, string text, int x, int y, ScreenRect bounds, Rgba color, Rect2I? clip = null)
     {
         var run = font.Layout.Print(text, x, y, bounds, color);
         if (font.Sheet is { } sheet)
         {
             foreach (var glyph in run.Glyphs)
             {
-                canvas.DrawTextureRectRegion(sheet, new Rect2(glyph.X, glyph.Y, glyph.Width, glyph.Height),
-                    new Rect2(glyph.SourceX, glyph.SourceY, glyph.Width, glyph.Height), Color8(glyph.Color));
+                DrawCut(canvas, sheet, new Rect2(glyph.X, glyph.Y, glyph.Width, glyph.Height),
+                    new Rect2(glyph.SourceX, glyph.SourceY, glyph.Width, glyph.Height), clip, Color8(glyph.Color), sampled: false);
             }
         }
         return run.Height;
@@ -112,9 +113,9 @@ public sealed class UiPainter
         }
     }
 
-    /// <summary>Prints one line unbounded but by the screen.</summary>
-    public int Text(CanvasItem canvas, UiFont font, string text, int x, int y, Rgba color) =>
-        Text(canvas, font, text, x, y, new ScreenRect(-4096, -4096, 4096, 4096), color);
+    /// <summary>Prints one line unbounded but by the screen, and cut to <paramref name="clip"/> if there's one.</summary>
+    public int Text(CanvasItem canvas, UiFont font, string text, int x, int y, Rgba color, Rect2I? clip = null) =>
+        Text(canvas, font, text, x, y, new ScreenRect(-4096, -4096, 4096, 4096), color, clip);
 
     /// <summary>An image's size, or 0 × 0 if no plugin has it.</summary>
     public Vector2I Size(RecordId image) => Images.Get(image) is { } texture ? (Vector2I)texture.GetSize() : Vector2I.Zero;
@@ -124,15 +125,45 @@ public sealed class UiPainter
     /// rectangle times a colour (<c>WidgetBorg8</c>). Scaled images are filtered, as the console's are.
     /// </summary>
     /// <param name="mirror">Draws it flipped left to right.</param>
-    public void Image(CanvasItem canvas, RecordId image, int x, int y, Vector2I? size = null, Rgba? color = null, bool mirror = false)
+    /// <param name="clip">A box it's cut to, cropped rather than squeezed; not with <paramref name="mirror"/>.</param>
+    public void Image(CanvasItem canvas, RecordId image, int x, int y, Vector2I? size = null, Rgba? color = null, bool mirror = false,
+        Rect2I? clip = null)
     {
         if (Images.Get(image) is not { } texture)
             return;
         var drawn = size ?? (Vector2I)texture.GetSize();
+        var tint = color is { } c ? Color8(c) : Colors.White;
+        if (clip is not null && !mirror)
+        {
+            DrawCut(canvas, texture, new Rect2(x, y, drawn), new Rect2(Vector2.Zero, texture.GetSize()), clip, tint);
+            return;
+        }
         // A rectangle of negative width draws its texture flipped, in the same place.
         var rect = new Rect2(x, y, mirror ? -drawn.X : drawn.X, drawn.Y);
-        canvas.DrawTextureRectRegion(texture, rect, Sampled(new Rect2(Vector2.Zero, texture.GetSize()), drawn),
-            color is { } c ? Color8(c) : Colors.White);
+        canvas.DrawTextureRectRegion(texture, rect, Sampled(new Rect2(Vector2.Zero, texture.GetSize()), drawn), tint);
+    }
+
+    /// <summary>A whole texture stretched over a rectangle, filtered as the console's are, and cut to a clip if there's one.</summary>
+    public static void Texture(CanvasItem canvas, Texture2D texture, Rect2 rect, Rect2I? clip = null) =>
+        DrawCut(canvas, texture, rect, new Rect2(Vector2.Zero, texture.GetSize()), clip, Colors.White);
+
+    /// <summary>
+    /// Draws a texture's source rectangle over a rectangle, cut to a clip: what's outside it is cropped off, the
+    /// texels left where they were.
+    /// </summary>
+    /// <param name="sampled">Whether to sample a scaled image as the RDP does (<see cref="Sampled"/>); glyphs are drawn 1:1.</param>
+    private static void DrawCut(CanvasItem canvas, Texture2D texture, Rect2 rect, Rect2 source, Rect2I? clip, Color color, bool sampled = true)
+    {
+        if (clip is { } box)
+        {
+            var cut = rect.Intersection(new Rect2(box.Position, box.Size));
+            if (cut.Size.X <= 0 || cut.Size.Y <= 0)
+                return;
+            var texels = source.Size / rect.Size;
+            source = new Rect2(source.Position + (cut.Position - rect.Position) * texels, cut.Size * texels);
+            rect = cut;
+        }
+        canvas.DrawTextureRectRegion(texture, rect, sampled ? Sampled(source, rect.Size) : source, color);
     }
 
     /// <summary>

@@ -50,7 +50,6 @@ public partial class SystemTabView : Control
 
     private readonly UiPainter _ui;
     private readonly Dictionary<string, Texture2D?> _screenshots = [];
-    private readonly SlidingSlots _sliding;
     private Vector2I _origin;
 
     public SystemTabView(PluginSet plugins, SystemMenu menu)
@@ -60,8 +59,6 @@ public partial class SystemTabView : Control
         Name = "System tab";
         MouseFilter = MouseFilterEnum.Pass;
         SetAnchorsPreset(LayoutPreset.FullRect);
-        _sliding = new SlidingSlots(this);
-        AddChild(_sliding);
     }
 
     public SystemMenu Menu { get; set; }
@@ -79,12 +76,6 @@ public partial class SystemTabView : Control
     {
         Menu.Step();
         QueueRedraw();
-        _sliding.Visible = Menu.Page == SystemPage.Saves && Menu.Saves is { Sliding: true };
-        if (_sliding.Visible)
-        {
-            _sliding.Position = Origin() + SlotPanel.Position;
-            _sliding.QueueRedraw();
-        }
     }
 
     /// <summary>Where the frame's corner is on the screen: the frame is centred.</summary>
@@ -250,14 +241,15 @@ public partial class SystemTabView : Control
 
     /// <summary>
     /// The save and load screens: one saved game, its screenshot stretched to 104 × 78, its party's portraits, an
-    /// arrow saying which ways there are more, Alaron's name and the time played, and the actions in the corner. While
-    /// the stick changes the save, its page and the one before slide in a box of their own (<see cref="SlidingSlots"/>).
+    /// arrow saying which ways there are more, Alaron's name and the time played, and the actions in the corner.
     /// </summary>
     private void Saves(SaveMenu saves)
     {
         _ui.Image(this, saves.Saving ? MenuImages.SaveTitle : MenuImages.LoadTitle, SavesTitle.X, SavesTitle.Y);
-        if (!saves.Sliding)
-            SlotPage(this, saves, saves.Slot, 0, 0);
+        if (saves.Slide is { } slide)
+            SlidingPages(saves, slide);
+        else
+            SlotPage(saves, saves.Slot, 0, null);
         var cursor = saves.Pulse.Now(PartyMenu.HighlightFrom, PartyMenu.HighlightColor);
         for (var i = 0; i < saves.Actions.Rows.Count; i++)
         {
@@ -266,8 +258,22 @@ public partial class SystemTabView : Control
         }
     }
 
-    /// <summary>A save's page, its arrow, screenshot, portraits, name and hours, or its blank, moved by (dx, dy).</summary>
-    private void SlotPage(CanvasItem canvas, SaveMenu saves, int index, int dx, int dy)
+    /// <summary>
+    /// The save sliding out and the one sliding in (<c>WidgetGroup.Next</c>, <c>WidgetGroup.Previous</c>), cut to the
+    /// pages' box: the one shown moves a box's width away from the stick, and the new one in from that side to where
+    /// the old one was, both on the ease-out curve and truncated to whole pixels. They're drawn with the rest of the
+    /// tab, so the frame that starts a slide draws it.
+    /// </summary>
+    private void SlidingPages(SaveMenu saves, SlotSlide slide)
+    {
+        var (left, width) = (SlotPanel.Position.X, SlotPanel.Size.X);
+        var change = saves.SlideChange;
+        SlotPage(saves, slide.From, MenuTween.Value(left, left - slide.Direction * width, change) - left, SlotPanel);
+        SlotPage(saves, saves.Slot, MenuTween.Value(left + slide.Direction * width, left, change) - left, SlotPanel);
+    }
+
+    /// <summary>A save's page, its arrow, screenshot, portraits, name and hours, or its blank, moved dx across and cut to a clip.</summary>
+    private void SlotPage(SaveMenu saves, int index, int dx, Rect2I? clip)
     {
         var arrow = (index > 0, index < saves.Slots.Count - 1) switch
         {
@@ -277,53 +283,24 @@ public partial class SystemTabView : Control
             _ => (Plugins.RecordId?)null,
         };
         if (arrow is { } a)
-            _ui.Image(canvas, a, SlotArrow.X + dx, SlotArrow.Y + dy, color: SaveMenu.TextColor);
+            _ui.Image(this, a, SlotArrow.X + dx, SlotArrow.Y, color: SaveMenu.TextColor, clip: clip);
         if (saves.Slots.ElementAtOrDefault(index) is { } slot)
         {
             if (ScreenshotOf(slot) is { } shot)
-                canvas.DrawTextureRect(shot, new Rect2(Screenshot + new Vector2I(dx, dy), ScreenshotSize), false);
+                UiPainter.Texture(this, shot, new Rect2(Screenshot + new Vector2I(dx, 0), ScreenshotSize), clip);
             var portraits = saves.Portraits(slot);
             for (var i = 0; i < Math.Min(portraits.Count, PortraitColumns.Length); i++)
-                _ui.Image(canvas, portraits[i], PortraitColumns[i] + dx, PortraitTop + dy, new Vector2I(PortraitSize, PortraitSize));
+                _ui.Image(this, portraits[i], PortraitColumns[i] + dx, PortraitTop, new Vector2I(PortraitSize, PortraitSize), clip: clip);
             // A checkpoint's label can be longer than a name: in the slim font if the main one runs off the parchment.
             var name = saves.Name(slot);
-            _ui.Text(canvas, _ui.Main.Width(name) <= FrameWidth - 8 - SlotName.X ? _ui.Main : _ui.Slim, name, SlotName.X + dx, SlotName.Y + dy, SaveMenu.TextColor);
-            _ui.Text(canvas, _ui.Main, saves.Hours(slot), SlotHours.X + dx, SlotHours.Y + dy, SaveMenu.TextColor);
+            _ui.Text(this, _ui.Main.Width(name) <= FrameWidth - 8 - SlotName.X ? _ui.Main : _ui.Slim, name, SlotName.X + dx, SlotName.Y,
+                SaveMenu.TextColor, clip);
+            _ui.Text(this, _ui.Main, saves.Hours(slot), SlotHours.X + dx, SlotHours.Y, SaveMenu.TextColor, clip);
         }
         else
         {
-            _ui.Text(canvas, _ui.Main, saves.BlankOf(index) ?? "", SlotName.X + dx, SlotName.Y + dy,
-                new ScreenRect(SlotName.X + dx, 0, FrameWidth - 12 + dx, FrameHeight), SaveMenu.BlankColor);
-        }
-    }
-
-    /// <summary>
-    /// The save sliding out and the one sliding in (<c>WidgetGroup.Next</c>, <c>WidgetGroup.Previous</c>), cut to the
-    /// page's box: the one shown moves a box's width away from the stick, and the new one in from that side to where
-    /// the old one was, both on the ease-out curve and truncated to whole pixels.
-    /// </summary>
-    private sealed partial class SlidingSlots(SystemTabView tab) : Control
-    {
-        public override void _Ready()
-        {
-            Name = "Sliding saves";
-            ClipContents = true;
-            MouseFilter = MouseFilterEnum.Ignore;
-            Size = SlotPanel.Size;
-            Visible = false;
-        }
-
-        public override void _Draw()
-        {
-            if (tab.Menu.Saves is not { Slide: { } slide } saves)
-                return;
-            // The pages' x in the frame, as the tweens move them, then in the box's own pixels.
-            var (left, width) = (SlotPanel.Position.X, SlotPanel.Size.X);
-            var change = saves.SlideChange;
-            var outgoing = MenuTween.Value(left, left - slide.Direction * width, change);
-            var incoming = MenuTween.Value(left + slide.Direction * width, left, change);
-            tab.SlotPage(this, saves, slide.From, outgoing - 2 * left, -SlotPanel.Position.Y);
-            tab.SlotPage(this, saves, saves.Slot, incoming - 2 * left, -SlotPanel.Position.Y);
+            _ui.Text(this, _ui.Main, saves.BlankOf(index) ?? "", SlotName.X + dx, SlotName.Y,
+                new ScreenRect(SlotName.X + dx, 0, FrameWidth - 12 + dx, FrameHeight), SaveMenu.BlankColor, clip);
         }
     }
 
