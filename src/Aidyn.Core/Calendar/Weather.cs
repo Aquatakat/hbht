@@ -54,7 +54,7 @@ public sealed class Weather
     public static readonly Vector3 NewGameWind = Vector3.Normalize(new Vector3(1, -0.1f, 1)) * (15f / 648);
 
     private readonly WeatherRecord _rules;
-    private int _frameTick;
+    private readonly FrameGate _frame = new(Cadence.FrameTicks);
     private int _skyFrame;
     private bool? _skyDrawn;
 
@@ -238,8 +238,7 @@ public sealed class Weather
     /// <summary>A tick of the world's clock: <see cref="Frame"/>, with the wind wandering once a frame.</summary>
     public void Tick(PartOfDay partOfDay, int season, TerrainRecord? terrain, IRandom world, IRandom cosmetic)
     {
-        _frameTick = (_frameTick + 1) % Cadence.FrameTicks;
-        Frame(partOfDay, season, terrain, world, cosmetic, _frameTick == 0);
+        Frame(partOfDay, season, terrain, world, cosmetic, _frame.Tick());
     }
 
     /// <summary>

@@ -22,12 +22,13 @@ public sealed class MenuPulse(int ticksPerStep = Cadence.MenuFrameTicks, int fra
 
     private readonly int _top = top ?? frames - 1;
     private readonly int _start = start;
-    private int _ticks, _step = start, _sign = 1;
+    private readonly FrameGate _gate = new(ticksPerStep);
+    private int _step = start, _sign = 1;
 
     /// <summary>Starts again from the first colour, as a new popup's does.</summary>
     public void Reset()
     {
-        _ticks = 0;
+        _gate.Reset();
         Restart();
     }
 
@@ -37,9 +38,8 @@ public sealed class MenuPulse(int ticksPerStep = Cadence.MenuFrameTicks, int fra
     /// <summary>Steps by a 60 Hz tick: a step each frame.</summary>
     public void Step()
     {
-        if (++_ticks < ticksPerStep)
+        if (!_gate.Tick())
             return;
-        _ticks = 0;
         _step += _sign;
         if (_step == 0 || _step >= _top)
             _sign = -_sign;

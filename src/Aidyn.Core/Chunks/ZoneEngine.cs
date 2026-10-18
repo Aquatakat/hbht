@@ -130,8 +130,7 @@ public sealed class ZoneEngine
     {
         if (Game.Weather is not { } weather)
             return;
-        _shared.SkyTick = (_shared.SkyTick + 1) % Cadence.FrameTicks;
-        if (_shared.SkyTick == 0)
+        if (_shared.SkyFrame.Tick())
         {
             weather.SkyFrame(skyDrawn, Game.Random.Cosmetic);
             if (weather.Thunder is { } thunder)
@@ -219,6 +218,6 @@ public sealed class ZoneEngine
         public WeatherSounds WeatherSounds { get; } = new(audio, game.Sounds);
 
         /// <summary>The tick within a frame of the sky, which flashes lightning once a frame.</summary>
-        public int SkyTick { get; set; }
+        public FrameGate SkyFrame { get; } = new(Cadence.FrameTicks);
     }
 }

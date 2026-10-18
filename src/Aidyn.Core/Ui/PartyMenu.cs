@@ -48,7 +48,7 @@ public sealed partial class PartyMenu : IPartyWindow
     private readonly Func<RecordId, SpellRecord?> _spells;
     private readonly Func<RecordId, RecordId?> _portraits;
     private readonly MenuPulse _pulse = new();
-    private int _ticks;
+    private readonly FrameGate _frame = new(Cadence.MenuFrameTicks);
 
     /// <param name="portraits">Each entity's portrait.</param>
     public PartyMenu(Party party, MenuText text, Func<RecordId, SpellRecord?> spells, Func<RecordId, RecordId?> portraits, int member = 0)
@@ -297,7 +297,7 @@ public sealed partial class PartyMenu : IPartyWindow
         _pulse.Step();
         _pulse.Step();
         StepPopups();
-        if (++_ticks % Cadence.MenuFrameTicks == 0)
+        if (_frame.Tick())
             StepMotion();
     }
 

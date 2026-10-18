@@ -106,7 +106,7 @@ public partial class PauseMenu : CanvasLayer
     private readonly JournalView _journal;
     private PauseScroll _scroll = new(0);
     private Action? _afterClosing;
-    private int _ticks;
+    private readonly FrameGate _frame = new(Cadence.MenuFrameTicks);
     private PartyTabView? _view;
     private SystemTabView? _system;
     private WorldTabView? _world;
@@ -215,7 +215,7 @@ public partial class PauseMenu : CanvasLayer
         _scrollView?.Restart();
         _scrollView?.Rendering = true;
         _afterClosing = null;
-        _ticks = 0;
+        _frame.Reset();
         // Skill checks and potions in trek draw from the world's stream.
         var menu = PartyMenu.From(_plugins, _game.Party, random: _game.Random.World);
         if (_view is null)
@@ -459,7 +459,7 @@ public partial class PauseMenu : CanvasLayer
         if (!IsOpen || _system is null)
             return;
         // The menu's frames.
-        if (++_ticks % Cadence.MenuFrameTicks != 0)
+        if (!_frame.Tick())
             return;
         StepScroll();
         if (!IsOpen)

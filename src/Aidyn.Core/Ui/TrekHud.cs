@@ -14,7 +14,7 @@ namespace Aidyn.Core.Ui;
 public sealed class TrekHud
 {
     private readonly Dictionary<RecordId, MinimapRecord> _minimaps;
-    private int _ticks;
+    private readonly FrameGate _frame = new(Cadence.FrameTicks);
 
     /// <param name="size">An image's width and height, which centring a minimap's piece needs.</param>
     public TrekHud(GameState game, Func<RecordId, (int Width, int Height)> size)
@@ -78,7 +78,7 @@ public sealed class TrekHud
     /// </summary>
     public void Tick(ChunkEntry? chunk, Vector3 at, FlagNetwork flags)
     {
-        if (++_ticks % Cadence.FrameTicks != 0)
+        if (!_frame.Tick())
             return;
         if (chunk is not null)
             Minimap.Choose(chunk.Row, chunk.Column, at, flags);

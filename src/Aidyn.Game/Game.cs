@@ -62,7 +62,7 @@ public partial class Game : Node3D, ITrekHost
     private Texture2D? _shadowTexture;
     private SkyView? _sky;
     private FollowCamera? _follow;
-    private long _ticks;
+    private readonly FrameGate _textureFrame = new(Core.Cadence.TextureFrameTicks);
     private DrawDistance _drawDistance = DrawDistance.Original;
     private PluginSet? _plugins;
     private readonly UiScreen _trekScreen = new();
@@ -540,7 +540,7 @@ public partial class Game : Node3D, ITrekHost
     /// </summary>
     private void ScrollTextures()
     {
-        if (++_ticks % Core.Cadence.TextureFrameTicks != 0)
+        if (!_textureFrame.Tick())
             return;
         var camera = _camera!.Current.GlobalTransform;
         foreach (var scene in Streamer!.DrawnScenes(camera.Origin, -camera.Basis.Z))

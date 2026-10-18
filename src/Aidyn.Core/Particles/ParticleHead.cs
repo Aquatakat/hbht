@@ -53,7 +53,8 @@ public sealed class ParticleHead
     private readonly Emitter[] _emitters = new Emitter[MaxEmitters];
     private readonly short[] _freeEmitters = new short[MaxEmitters];
     private readonly List<ParticleSprite> _sprites = [];
-    private int _usedParticles, _usedEmitters, _ticks;
+    private int _usedParticles, _usedEmitters;
+    private readonly FrameGate _gate = new(Cadence.FrameTicks);
 
     /// <param name="maxParticles">How many particles it hands out: the original's 384 unless more are asked for.</param>
     /// <param name="capacity">How many it has room for, which <see cref="MaxParticles"/> can be raised to later: at least <paramref name="maxParticles"/>.</param>
@@ -119,7 +120,7 @@ public sealed class ParticleHead
     /// The ticks since the last frame, from 0 to <see cref="Cadence.FrameTicks"/> − 1, for moving the sprites on from
     /// where the frame before drew them, at 0, to where the last one did, by the next frame.
     /// </summary>
-    public int TicksSinceFrame => _ticks;
+    public int TicksSinceFrame => _gate.Ticks;
 
     /// <summary>What the last frame drew, in the order it drew them: by emitter, newest first.</summary>
     public IReadOnlyList<ParticleSprite> Sprites => _sprites;
@@ -130,9 +131,8 @@ public sealed class ParticleHead
     /// <summary>A tick. Every <see cref="Cadence.FrameTicks"/> ticks, it runs a frame of that many.</summary>
     public void Step()
     {
-        if (++_ticks < Cadence.FrameTicks)
+        if (!_gate.Tick())
             return;
-        _ticks = 0;
         Frame(Cadence.FrameTicks);
     }
 
