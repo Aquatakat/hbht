@@ -336,22 +336,40 @@ public partial class Game : Node3D, ITrekHost
     private void BuildMenus(PluginSet plugins, GameState game)
     {
         _menu = new PauseMenu(plugins, game, _settings, _stick) { SaveGame = SaveTo, LoadGame = LoadFrom, Where = Where, Audio = _audio };
-        _menu.CampChosen += Camp;
-        // Help: the menu has rolled up, and the help menu's script starts.
-        _menu.HelpChosen += () => _trek!.ShowBackdrop(plugins.Get<DialogueRecord>(SystemMenu.HelpScript));
-        // The original reloads the map as the menu closes, so what changed shows.
-        _menu.Closed += () => _chunks!.Regate();
         AddChild(_menu);
         _backdrop = new BackdropLayer(plugins);
         AddChild(_backdrop);
         _cinematic = new CinematicLayer(plugins, _models!, _audio!);
         AddChild(_cinematic);
-        // The Theatre: the menu has rolled up, and the cinematic plays.
-        _menu.TheatreChosen += cinematic => PlayCinematic(cinematic, fromTheatre: true);
         _credits = new CreditsLayer(plugins);
         AddChild(_credits);
-        // Credits: the menu has rolled up, and the credits play.
-        _menu.CreditsChosen += PlayCredits;
+    }
+
+    /// <summary>
+    /// A tick of the pause menu, after the game's, and what it ends in once it has rolled up (<see cref="PauseExit"/>): the
+    /// map reloaded, as the original's is as the menu closes, so what changed shows; then the party camps, the help menu's
+    /// script starts, the credits play or the Theatre's cinematic does.
+    /// </summary>
+    private void StepMenu()
+    {
+        if (_menu?.Step() is not { } exit)
+            return;
+        _chunks!.Regate();
+        switch (exit.Code)
+        {
+            case PauseExitCode.Camp:
+                Camp();
+                break;
+            case PauseExitCode.Help:
+                _trek!.ShowBackdrop(_plugins!.Get<DialogueRecord>(SystemMenu.HelpScript));
+                break;
+            case PauseExitCode.Credits:
+                PlayCredits();
+                break;
+            case PauseExitCode.Theatre when exit.Cinematic is { } cinematic:
+                PlayCinematic(cinematic, fromTheatre: true);
+                break;
+        }
     }
 
     /// <summary>Carries out the settings: the window, the 3D view, the draw distance, the sky, the pace and the UI screens.</summary>
@@ -409,11 +427,18 @@ public partial class Game : Node3D, ITrekHost
 
     public override void _ExitTree() => _models?.Dispose();
 
+    /// <summary>One 60 Hz tick: the game's, then the pause menu's.</summary>
+    public override void _PhysicsProcess(double delta)
+    {
+        Tick();
+        StepMenu();
+    }
+
     /// <summary>
-    /// One 60 Hz tick: the time played, which counts in every mode, then trek (<see cref="TrekLoop.Tick"/>)
+    /// One 60 Hz tick of the game: the time played, which counts in every mode, then trek (<see cref="TrekLoop.Tick"/>)
     /// or a cut-scene, and what draws them. The pause menu stops both.
     /// </summary>
-    public override void _PhysicsProcess(double delta)
+    private void Tick()
     {
         if (_player is null || _camera is null || _follow is null || _game is null || _trek is not { } trek)
             return;

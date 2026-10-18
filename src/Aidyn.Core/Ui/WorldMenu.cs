@@ -105,9 +105,6 @@ public sealed class WorldMenu
 
     public JournalMenu? Journal { get; private set; }
 
-    /// <summary>Whether Camp was chosen where the party can camp: the menu closes and the party camps.</summary>
-    public bool CampChosen { get; private set; }
-
     /// <summary>Up or down: Camp or Journal. Left and right do nothing.</summary>
     public void MoveCursor(int by)
     {
@@ -121,26 +118,27 @@ public sealed class WorldMenu
 
     /// <summary>
     /// A (<c>campMenuController</c>): Camp camps where the terrain allows it, and otherwise says it can't; Journal opens
-    /// the journal, showing the newest entry once.
+    /// the journal, showing the newest entry once. Returns <see cref="PauseExit.Camp"/> where the party can camp, as the menu
+    /// closes and it camps, and otherwise null.
     /// </summary>
-    public void Accept()
+    public PauseExit? Accept()
     {
         if (Overlay.CloseMessage())
-            return;
+            return null;
         if (Journal is not null)
         {
             Journal.Close();
-            return;
+            return null;
         }
         if (Cursor == WorldChoice.Camp)
         {
             if (_campFactor > 0)
-                CampChosen = true;
-            else
-                Overlay.Say(_cannotCamp);
-            return;
+                return PauseExit.Camp;
+            Overlay.Say(_cannotCamp);
+            return null;
         }
         Journal = OpenJournal();
+        return null;
     }
 
     /// <summary>B or Start: closes the message or the journal, and otherwise says the menu should close.</summary>

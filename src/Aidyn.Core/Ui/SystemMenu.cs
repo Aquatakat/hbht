@@ -28,19 +28,40 @@ public enum SystemPage
 /// <summary>A page of the System tab as it was when the tab left it, which fades out over the next.</summary>
 public sealed record SystemScreen(SystemPage Page, OptionsMenu? Options, SaveMenu? Saves, NameEntry? Rename, TheatreMenu? Theatre);
 
+/// <summary>A page of the System tab, and what the stick, A, B and the mouse do on it.</summary>
+public interface ISystemPage
+{
+    SystemPage Kind { get; }
+
+    /// <summary>The stick's up and down.</summary>
+    void MoveCursor(int by);
+
+    /// <summary>The stick's left and right: steps an option, the save shown, or the name entry's key.</summary>
+    void Sideways(int by);
+
+    /// <summary>A, and how the menu ends if it closes for it, or null if it stays open.</summary>
+    PauseExit? Accept();
+
+    /// <summary>B: back a step, or false on the list, so the caller closes the menu.</summary>
+    bool Back();
+
+    /// <summary>Puts the cursor on a row, as hovering does.</summary>
+    void Point(int row);
+}
+
 /// <summary>
 /// The pause menu's System tab (<c>WidgetOptionsMenu</c>): a list of Load Game, Save Game, Options, Theater, Credits
-/// and Help under the title "Menu", and the screens they open. B on the list closes the menu; in a screen, it goes
-/// back to the list.
+/// and Help under the title "Menu", and the screens they open (<see cref="ISystemPage"/>). B on the list closes the menu;
+/// in a screen, it goes back to the list.
 /// </summary>
 /// <remarks>
 /// <para>
 /// In trek every row shows; in combat the original lists only Options, and Flee when the party can flee, which
 /// waits for combat (2.5). Credits closes the menu and plays the credits (<c>pauseMenuSelectCallBack</c>'s row 9999,
-/// exit code 5), which the runtime does once <see cref="CreditsChosen"/> is set. Theater opens the Theatre's page (<c>OptionsMenu.ShowTheatre</c>, <c>0x8003fe34</c>), where
-/// A on a seen cinematic closes the menu and plays it, which the runtime does once <see cref="TheatreChosen"/> is set.
-/// Help closes the menu and starts the help menu's script (<c>pauseMenuSelectCallBack</c>, <c>0x800403ac</c> in 1.0),
-/// which the runtime does once <see cref="HelpChosen"/> is set.
+/// exit code 5), which <see cref="Accept"/> returns as <see cref="PauseExit.Credits"/>. Theater opens the Theatre's page
+/// (<c>OptionsMenu.ShowTheatre</c>, <c>0x8003fe34</c>), where A on a seen cinematic closes the menu and plays it
+/// (<see cref="PauseExit.Theatre"/>, exit code 2). Help closes the menu and starts the help menu's script
+/// (<c>pauseMenuSelectCallBack</c>, <c>0x800403ac</c> in 1.0; <see cref="PauseExit.Help"/>, exit code 3).
 /// </para>
 /// <para>
 /// The cursor starts on the first row each time the tab is built, as the original rebuilds it at each opening.
@@ -65,6 +86,7 @@ public sealed class SystemMenu
     private readonly string _savesFolder;
     private readonly Func<string, IReadOnlyList<SaveSlot>>? _listSaves;
     private readonly Func<RecordId, bool> _isSet;
+    private ISystemPage _page;
 
     /// <param name="party">The party, whose Alaron the options menu renames.</param>
     /// <param name="savesFolder">Where the save and load screens find saves.</param>
@@ -81,6 +103,7 @@ public sealed class SystemMenu
         _savesFolder = savesFolder;
         _listSaves = listSaves;
         Items = new MenuList<SystemItem>(Enum.GetValues<SystemItem>());
+        _page = new ListPage(this);
     }
 
     public Settings Settings { get; }
@@ -91,7 +114,7 @@ public sealed class SystemMenu
 
     public MenuPulse Pulse { get; } = new();
 
-    public SystemPage Page { get; private set; }
+    public SystemPage Page => _page.Kind;
 
     public OptionsMenu? Options { get; private set; }
 
@@ -109,9 +132,6 @@ public sealed class SystemMenu
 
     public byte OutgoingAlpha { get; private set; }
 
-    /// <summary>The cinematic the Theatre chose to play, so the menu rolls up and it plays (the menu's exit code 2).</summary>
-    public CinematicRecord? TheatreChosen => Theatre?.Chosen;
-
     /// <summary>Whether the cursor is on a volume, which the stick steps every tick it's held (<see cref="OptionsMenu.OnVolume"/>).</summary>
     public bool OnVolume => Page == SystemPage.Options && Options!.OnVolume;
 
@@ -123,12 +143,6 @@ public sealed class SystemMenu
 
     /// <summary>The help menu's script, which Help starts (<c>0x054B</c>).</summary>
     public static readonly RecordId HelpScript = RecordId.Hex(RecordTypes.Dialogue, 0x054B);
-
-    /// <summary>Whether Help was chosen, so the menu closes and the help menu starts (the menu's exit code 3).</summary>
-    public bool HelpChosen { get; private set; }
-
-    /// <summary>Whether Credits was chosen, so the menu closes and the credits play (the menu's exit code 5).</summary>
-    public bool CreditsChosen { get; private set; }
 
     public void Step()
     {
@@ -146,77 +160,14 @@ public sealed class SystemMenu
         Theatre?.Step();
     }
 
-    public void MoveCursor(int by)
-    {
-        switch (Page)
-        {
-            case SystemPage.List:
-                Items.Move(by);
-                break;
-            case SystemPage.Options:
-                Options!.MoveCursor(by);
-                break;
-            case SystemPage.Saves:
-                Saves!.MoveCursor(by);
-                break;
-            case SystemPage.Rename:
-                Rename!.Move(0, by);
-                break;
-            case SystemPage.Theatre:
-                Theatre!.MoveCursor(by);
-                break;
-        }
-    }
+    /// <inheritdoc cref="ISystemPage.MoveCursor"/>
+    public void MoveCursor(int by) => _page.MoveCursor(by);
 
-    /// <summary>The stick's left and right: steps an option, the save shown, or the name entry's key.</summary>
-    public void Sideways(int by)
-    {
-        switch (Page)
-        {
-            case SystemPage.Options:
-                Options!.Change(by);
-                break;
-            case SystemPage.Saves:
-                Saves!.Shift(by);
-                break;
-            case SystemPage.Rename:
-                Rename!.Move(by, 0);
-                break;
-        }
-    }
+    /// <inheritdoc cref="ISystemPage.Sideways"/>
+    public void Sideways(int by) => _page.Sideways(by);
 
-    public void Accept()
-    {
-        switch (Page)
-        {
-            case SystemPage.List:
-                Open(Items.Current);
-                break;
-            case SystemPage.Options:
-                var before = Options!.Copy();
-                if (Options.Accept() == OptionLink.RenameCharacter && Alaron is { } alaron)
-                {
-                    FadeFrom(before);
-                    Rename = new NameEntry(alaron.Name);
-                    Page = SystemPage.Rename;
-                }
-                else if (Options.Page != before.Page)
-                    FadeFrom(before);
-                break;
-            case SystemPage.Saves:
-                Saves!.Accept();
-                if (Saves.Closed)
-                    ToList();
-                break;
-            case SystemPage.Rename:
-                Rename!.Accept();
-                CloseRename();
-                break;
-            case SystemPage.Theatre:
-                Theatre!.Accept();
-                break;
-        }
-    }
+    /// <summary>A: what the page does with it, and how the menu ends if Credits, Help or a seen cinematic close it.</summary>
+    public PauseExit? Accept() => _page.Accept();
 
     /// <summary>Start: in the name entry, goes to OK or confirms; elsewhere it's B.</summary>
     public bool Start()
@@ -228,47 +179,11 @@ public sealed class SystemMenu
         return true;
     }
 
-    /// <summary>B: back a step, or false on the list, so the caller closes the menu.</summary>
-    public bool Back()
-    {
-        switch (Page)
-        {
-            case SystemPage.List:
-                return false;
-            case SystemPage.Options:
-                var before = Options!.Copy();
-                if (!Options.Back())
-                    ToList();
-                else
-                    FadeFrom(before);
-                return true;
-            case SystemPage.Saves:
-                Saves!.Back();
-                if (Saves.Closed)
-                    ToList();
-                return true;
-            case SystemPage.Theatre:
-                ToList();
-                return true;
-            default:
-                Rename!.Back();
-                CloseRename();
-                return true;
-        }
-    }
+    /// <inheritdoc cref="ISystemPage.Back"/>
+    public bool Back() => _page.Back();
 
-    /// <summary>Puts the cursor on a row, as hovering does.</summary>
-    public void Point(int row)
-    {
-        if (Page == SystemPage.List)
-            Items.Point(row);
-        else if (Page == SystemPage.Options)
-            Options!.Point(row);
-        else if (Page == SystemPage.Saves)
-            Saves!.Point(row);
-        else if (Page == SystemPage.Theatre)
-            Theatre!.Point(row);
-    }
+    /// <inheritdoc cref="ISystemPage.Point"/>
+    public void Point(int row) => _page.Point(row);
 
     /// <summary>
     /// Follows a screen that finished outside the tab's own presses: the name entry confirmed or cancelled from the
@@ -283,32 +198,6 @@ public sealed class SystemMenu
 
     private Character? Alaron => Party.Slots.FirstOrDefault(m => m?.Entity == GameState.Alaron);
 
-    private void Open(SystemItem item)
-    {
-        switch (item)
-        {
-            case SystemItem.LoadGame or SystemItem.SaveGame:
-                FadeFrom();
-                Saves = SaveMenu.From(_plugins, item == SystemItem.SaveGame, _savesFolder, _listSaves);
-                Page = SystemPage.Saves;
-                break;
-            case SystemItem.Options:
-                FadeFrom();
-                Options = new OptionsMenu(Settings, inGame: true);
-                Page = SystemPage.Options;
-                break;
-            case SystemItem.Theater:
-                ShowTheatre();
-                break;
-            case SystemItem.Credits:
-                CreditsChosen = true;
-                break;
-            case SystemItem.Help:
-                HelpChosen = true;
-                break;
-        }
-    }
-
     /// <summary>
     /// Opens the Theatre's page afresh, its titles as the flags stand, as Theater does, fading in, and as the menu
     /// reopens after a cinematic the Theatre played (<c>Theatre.Reopen</c>, <c>0x800d955c</c>), at once.
@@ -320,7 +209,7 @@ public sealed class SystemMenu
         else
             (Outgoing, PageAlpha, OutgoingAlpha) = (null, 255, 0);
         Theatre = new TheatreMenu(_plugins, _isSet);
-        Page = SystemPage.Theatre;
+        _page = new TheatrePage(this);
     }
 
     private void CloseRename()
@@ -331,7 +220,7 @@ public sealed class SystemMenu
         if (rename.Chosen is { } name && Alaron is { } alaron)
             alaron.Name = name;
         Rename = null;
-        Page = SystemPage.Options;
+        _page = new OptionsPage(this);
     }
 
     /// <summary>
@@ -348,9 +237,177 @@ public sealed class SystemMenu
     private void ToList()
     {
         FadeFrom();
-        Page = SystemPage.List;
+        _page = new ListPage(this);
         Saves = null;
         Theatre = null;
         Pulse.Reset();
+    }
+
+    /// <summary>The list: A opens a row's screen, or ends the menu for Credits or Help.</summary>
+    private sealed class ListPage(SystemMenu menu) : ISystemPage
+    {
+        public SystemPage Kind => SystemPage.List;
+
+        public void MoveCursor(int by) => menu.Items.Move(by);
+
+        public void Sideways(int by)
+        {
+        }
+
+        public PauseExit? Accept()
+        {
+            var item = menu.Items.Current;
+            switch (item)
+            {
+                case SystemItem.LoadGame or SystemItem.SaveGame:
+                    menu.FadeFrom();
+                    menu.Saves = SaveMenu.From(menu._plugins, item == SystemItem.SaveGame, menu._savesFolder, menu._listSaves);
+                    menu._page = new SavesPage(menu);
+                    return null;
+                case SystemItem.Options:
+                    menu.FadeFrom();
+                    menu.Options = new OptionsMenu(menu.Settings, inGame: true);
+                    menu._page = new OptionsPage(menu);
+                    return null;
+                case SystemItem.Theater:
+                    menu.ShowTheatre();
+                    return null;
+                case SystemItem.Credits:
+                    return PauseExit.Credits;
+                case SystemItem.Help:
+                    return PauseExit.Help;
+                default:
+                    return null;
+            }
+        }
+
+        public bool Back() => false;
+
+        public void Point(int row) => menu.Items.Point(row);
+    }
+
+    /// <summary>The options, and their graphics page: A follows a link, and Rename Character opens the name entry.</summary>
+    private sealed class OptionsPage(SystemMenu menu) : ISystemPage
+    {
+        public SystemPage Kind => SystemPage.Options;
+
+        public void MoveCursor(int by) => menu.Options!.MoveCursor(by);
+
+        public void Sideways(int by) => menu.Options!.Change(by);
+
+        public PauseExit? Accept()
+        {
+            var options = menu.Options!;
+            var before = options.Copy();
+            if (options.Accept() == OptionLink.RenameCharacter && menu.Alaron is { } alaron)
+            {
+                menu.FadeFrom(before);
+                menu.Rename = new NameEntry(alaron.Name);
+                menu._page = new RenamePage(menu);
+            }
+            else if (options.Page != before.Page)
+            {
+                menu.FadeFrom(before);
+            }
+            return null;
+        }
+
+        public bool Back()
+        {
+            var options = menu.Options!;
+            var before = options.Copy();
+            if (!options.Back())
+                menu.ToList();
+            else
+                menu.FadeFrom(before);
+            return true;
+        }
+
+        public void Point(int row) => menu.Options!.Point(row);
+    }
+
+    /// <summary>The save and load screens, which go back to the list once they're done.</summary>
+    private sealed class SavesPage(SystemMenu menu) : ISystemPage
+    {
+        public SystemPage Kind => SystemPage.Saves;
+
+        public void MoveCursor(int by) => menu.Saves!.MoveCursor(by);
+
+        public void Sideways(int by) => menu.Saves!.Shift(by);
+
+        public PauseExit? Accept()
+        {
+            var saves = menu.Saves!;
+            saves.Accept();
+            if (saves.Closed)
+                menu.ToList();
+            return null;
+        }
+
+        public bool Back()
+        {
+            var saves = menu.Saves!;
+            saves.Back();
+            if (saves.Closed)
+                menu.ToList();
+            return true;
+        }
+
+        public void Point(int row) => menu.Saves!.Point(row);
+    }
+
+    /// <summary>The name entry over the options, which renames Alaron as it closes.</summary>
+    private sealed class RenamePage(SystemMenu menu) : ISystemPage
+    {
+        public SystemPage Kind => SystemPage.Rename;
+
+        public void MoveCursor(int by) => menu.Rename!.Move(0, by);
+
+        public void Sideways(int by) => menu.Rename!.Move(by, 0);
+
+        public PauseExit? Accept()
+        {
+            menu.Rename!.Accept();
+            menu.CloseRename();
+            return null;
+        }
+
+        public bool Back()
+        {
+            menu.Rename!.Back();
+            menu.CloseRename();
+            return true;
+        }
+
+        public void Point(int row)
+        {
+        }
+    }
+
+    /// <summary>The Theatre's page: A on a seen cinematic ends the menu to play it.</summary>
+    private sealed class TheatrePage(SystemMenu menu) : ISystemPage
+    {
+        public SystemPage Kind => SystemPage.Theatre;
+
+        public void MoveCursor(int by) => menu.Theatre!.MoveCursor(by);
+
+        public void Sideways(int by)
+        {
+        }
+
+        public PauseExit? Accept()
+        {
+            var theatre = menu.Theatre!;
+            theatre.Accept();
+            return theatre.Chosen is { } cinematic ? PauseExit.Theatre(cinematic) : null;
+        }
+
+        public bool Back()
+        {
+            menu.ToList();
+            return true;
+        }
+
+        public void Point(int row) => menu.Theatre!.Point(row);
     }
 }

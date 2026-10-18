@@ -96,9 +96,9 @@ public sealed class WorldTabRomTests(Na10Import fixture)
         var game = GameState.NewGame(Set);
         // MiscInteriors' chunks, but I05, allow no camping.
         var menu = new WorldMenu(Set, game, MainFont, new ChunkRef(RecordId.Decimal(RecordTypes.MapSet, 6), 3, 5), outdoors: false);
-        menu.Accept();
-        Assert.Equal(("The party cannot camp here.", false), (menu.Message?.Text, menu.CampChosen));
-        menu.Accept();
+        Assert.Null(menu.Accept());
+        Assert.Equal("The party cannot camp here.", menu.Message?.Text);
+        Assert.Null(menu.Accept());
         Assert.Null(menu.Message);
 
         // Nor does Gwernia's country, terrain 19, where the checkpoint stands; G14, terrain 0, does.
@@ -106,8 +106,9 @@ public sealed class WorldTabRomTests(Na10Import fixture)
         gwernia.Accept();
         Assert.NotNull(gwernia.Message);
         var outside = new WorldMenu(Set, game, MainFont, new ChunkRef(RecordId.Decimal(RecordTypes.MapSet, 0), 7, 14), outdoors: true);
-        outside.Accept();
-        Assert.True(outside.CampChosen);
+        // Camp ends the menu, and the party camps once it has rolled up.
+        Assert.Equal(PauseExit.Camp, outside.Accept());
+        Assert.Equal(1, (int)PauseExitCode.Camp);
     }
 
     [Fact]

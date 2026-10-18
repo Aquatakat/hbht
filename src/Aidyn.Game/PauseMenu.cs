@@ -6,14 +6,6 @@ using Godot;
 
 namespace Aidyn.Game;
 
-/// <summary>The pause menu's tabs, left to right (<c>PauseMenuSection</c>).</summary>
-public enum PauseTab
-{
-    System,
-    Party,
-    World,
-}
-
 /// <summary>
 /// The pause menu, which Start opens over the game (<c>BigAssMenu</c>): the System tab (<see cref="SystemTabView"/>),
 /// the Party tab (<see cref="PartyTabView"/>) and the World tab (<see cref="WorldTabView"/>) side by side on a
@@ -105,7 +97,10 @@ public partial class PauseMenu : CanvasLayer
     /// <summary>The World tab's journal, over the tabs and the scroll, which fade out under it.</summary>
     private readonly JournalView _journal;
     private PauseScroll _scroll = new(0);
-    private Action? _afterClosing;
+    /// <summary>How the menu ends once the scroll has rolled up (<c>PauseMenu.Exit</c>).</summary>
+    private PauseExit _exit = PauseExit.Close;
+    /// <summary>How the menu ended, once it has closed, for <see cref="Step"/> to return.</summary>
+    private PauseExit? _ended;
     private readonly FrameGate _frame = new(Cadence.MenuFrameTicks);
     private PartyTabView? _view;
     private SystemTabView? _system;
@@ -150,8 +145,8 @@ public partial class PauseMenu : CanvasLayer
     /// <summary>The tab showing, or being slid to.</summary>
     public PauseTab Tab { get; private set; }
 
-    /// <summary>The menu closed.</summary>
-    public event Action? Closed;
+    /// <summary>The menu opened, on a tab or in its barter or training state.</summary>
+    public event Action? Opened;
 
     /// <summary>
     /// Writes the game to a save file, with its screenshot from the world as the menu opened it; returns why it
@@ -164,18 +159,6 @@ public partial class PauseMenu : CanvasLayer
 
     /// <summary>The chunk the player is in, and whether it's outdoors, which the World tab's map and Camp read.</summary>
     public Func<(Plugins.Records.ChunkRef? Place, bool Outdoors)>? Where { get; set; }
-
-    /// <summary>Camp was chosen on the World tab where the party can camp; the menu has closed.</summary>
-    public event Action? CampChosen;
-
-    /// <summary>Help was chosen on the System tab; the menu has closed, and the help menu's script should start.</summary>
-    public event Action? HelpChosen;
-
-    /// <summary>Credits was chosen on the System tab; the menu has closed, and the credits should play.</summary>
-    public event Action? CreditsChosen;
-
-    /// <summary>The Theatre chose a cinematic; the menu has closed, and it should play.</summary>
-    public event Action<Plugins.Records.CinematicRecord>? TheatreChosen;
 
     /// <summary>Opens the menu on the Theatre's page, as it reopens after a cinematic the Theatre played (<c>Theatre.Reopen</c>).</summary>
     public void OpenTheatre()
@@ -214,40 +197,14 @@ public partial class PauseMenu : CanvasLayer
         _scroll = new PauseScroll((int)tab, brightens, holds: tabsLocked);
         _scrollView?.Restart();
         _scrollView?.Rendering = true;
-        _afterClosing = null;
+        _exit = PauseExit.Close;
+        _ended = null;
         _frame.Reset();
         // Skill checks and potions in trek draw from the world's stream.
-        var menu = PartyMenu.From(_plugins, _game.Party, random: _game.Random.World);
-        if (_view is null)
-        {
-            _view = new PartyTabView(_plugins, menu);
-            AddTab(_view);
-        }
-        else
-        {
-            _view.Window = menu;
-        }
-        var system = new SystemMenu(_plugins, _settings, _game.Party, DataPaths.Saves, isSet: _game.Flags.Get);
-        if (_system is null)
-        {
-            _system = new SystemTabView(_plugins, system);
-            AddTab(_system);
-        }
-        else
-        {
-            _system.Menu = system;
-        }
+        _view = Show(_view, PartyMenu.From(_plugins, _game.Party, random: _game.Random.World), (p, m) => new PartyTabView(p, m));
+        _system = Show(_system, new SystemMenu(_plugins, _settings, _game.Party, DataPaths.Saves, isSet: _game.Flags.Get), (p, m) => new SystemTabView(p, m));
         var (place, outdoors) = Where?.Invoke() ?? (null, false);
-        var world = new WorldMenu(_plugins, _game, _mainFont, place, outdoors);
-        if (_world is null)
-        {
-            _world = new WorldTabView(_plugins, world);
-            AddTab(_world);
-        }
-        else
-        {
-            _world.Menu = world;
-        }
+        _world = Show(_world, new WorldMenu(_plugins, _game, _mainFont, place, outdoors), (p, m) => new WorldTabView(p, m));
         Tab = tab;
         _position = (float)tab;
         _tabsLocked = tabsLocked;
@@ -257,14 +214,28 @@ public partial class PauseMenu : CanvasLayer
         Visible = true;
         Activate();
         ShowScroll();
+        Opened?.Invoke();
     }
 
-    /// <summary>A tab, laid out by <see cref="Place"/> at the screen's size rather than its parent's.</summary>
-    private void AddTab(Control tab)
+    /// <summary>
+    /// A tab's view on the model this opening built: made the first time, laid out by <see cref="Place"/> at the screen's
+    /// size rather than its parent's, and after that given the new model.
+    /// </summary>
+    private T Show<T, TModel>(T? view, TModel model, Func<PluginSet, TModel, T> make) where T : Control, IPauseTab<TModel>
     {
-        _tabs.AddChild(tab);
-        tab.SetAnchorsPreset(Control.LayoutPreset.TopLeft);
+        if (view is not null)
+        {
+            ((IPauseTab<TModel>)view).Model = model;
+            return view;
+        }
+        view = make(_plugins, model);
+        _tabs.AddChild(view);
+        view.SetAnchorsPreset(Control.LayoutPreset.TopLeft);
+        return view;
     }
+
+    /// <summary>The tabs' views, left to right, by <see cref="PauseTab"/>.</summary>
+    private (Control View, PauseTab Tab)[] Tabs => [(_system!, PauseTab.System), (_view!, PauseTab.Party), (_world!, PauseTab.World)];
 
     /// <summary>
     /// Opens the menu in its barter state on loot (<c>build_loot_menu</c>), whose gold the party already has.
@@ -296,28 +267,27 @@ public partial class PauseMenu : CanvasLayer
         _view!.Window = TrainingMenu.For(_plugins, _game.Party, trainer, _game.Flags, _game.Random.World);
     }
 
-    /// <summary>Rolls the scroll up and closes the menu, and then does <paramref name="then"/>.</summary>
-    public void Close(Action? then = null)
+    /// <summary>Rolls the scroll up and closes the menu, which then ends as <paramref name="exit"/> says (<c>PauseMenu.Exit</c>).</summary>
+    private void Close(PauseExit exit)
     {
         if (_scroll.Phase is PauseScrollPhase.Rolling or PauseScrollPhase.Brightening)
             return;
+        _exit = exit;
         if (_scroll.Phase != PauseScrollPhase.Open)
         {
             CloseNow();
-            then?.Invoke();
             return;
         }
         SlideSound(opening: false);
         _scroll.Close((int)Tab);
         // The scroll takes its closing state at once (SlideOut).
         _scrollView?.Play(_scroll.TakeCue());
-        _afterClosing = then;
         _view!.DetailsOpen = false;
         _stick.Clear();
         ShowScroll();
     }
 
-    /// <summary>Closes the menu at once, as loading a save does.</summary>
+    /// <summary>Closes the menu at once, as loading a save does, ending as it was asked to (<see cref="PauseExit.Close"/> unless otherwise).</summary>
     public void CloseNow()
     {
         if (!IsOpen)
@@ -332,10 +302,7 @@ public partial class PauseMenu : CanvasLayer
         _journal.Journal = null;
         _view?.ProcessMode = ProcessModeEnum.Disabled;
         _system?.ProcessMode = ProcessModeEnum.Disabled;
-        Closed?.Invoke();
-        var then = _afterClosing;
-        _afterClosing = null;
-        then?.Invoke();
+        _ended = _exit;
     }
 
     /// <summary>Whether the menu takes input: once the scroll has unrolled, and until it rolls up.</summary>
@@ -386,10 +353,8 @@ public partial class PauseMenu : CanvasLayer
     /// <summary>Only the tab showing steps, and takes the mouse.</summary>
     private void Activate()
     {
-        _view!.ProcessMode = Tab == PauseTab.Party ? ProcessModeEnum.Inherit : ProcessModeEnum.Disabled;
-        _system!.ProcessMode = Tab == PauseTab.System ? ProcessModeEnum.Inherit : ProcessModeEnum.Disabled;
-        _view.MouseFilter = Tab == PauseTab.Party ? Control.MouseFilterEnum.Pass : Control.MouseFilterEnum.Ignore;
-        _system.MouseFilter = Tab == PauseTab.System ? Control.MouseFilterEnum.Pass : Control.MouseFilterEnum.Ignore;
+        foreach (var (view, tab) in Tabs)
+            ((IPauseTab)view).Activate(Tab == tab);
     }
 
     /// <summary>
@@ -419,19 +384,13 @@ public partial class PauseMenu : CanvasLayer
         right = Math.Clamp(right, 0, screen.X);
         _tabs.Position = new Vector2(left, 0);
         _tabs.Size = new Vector2(Math.Max(right - left, 0), screen.Y);
-        foreach (var (control, tab) in new (Control, PauseTab)[] { (_system!, PauseTab.System), (_view!, PauseTab.Party), (_world!, PauseTab.World) })
+        foreach (var (control, tab) in Tabs)
         {
             var offset = ((int)tab - _position) * UiScreen.Width;
             control.Position = new Vector2(Mathf.Round(offset) - left, 0);
             control.Size = screen;
             control.Visible = Math.Abs(offset) < (screen.X + UiScreen.Width) / 2 && (!_tabsLocked || tab == PauseTab.Party);
-            var veil = Math.Min(1, Math.Abs((int)tab - _position)) * NeighbourVeil;
-            if (control is PartyTabView party)
-                party.Veil = veil;
-            else if (control is SystemTabView system)
-                system.Veil = veil;
-            else if (control is WorldTabView world)
-                world.Veil = veil;
+            ((IPauseTab)control).Veil = Math.Min(1, Math.Abs((int)tab - _position)) * NeighbourVeil;
         }
     }
 
@@ -441,11 +400,7 @@ public partial class PauseMenu : CanvasLayer
         var to = (PauseTab)((int)Tab + by);
         if (_tabsLocked || Sliding || !Taking || to < PauseTab.System || to > LastTab)
             return;
-        if (Tab == PauseTab.System && !_system!.Menu.OnList)
-            return;
-        if (Tab == PauseTab.Party && _view!.Window.HasPopup)
-            return;
-        if (Tab == PauseTab.World && (_world!.Menu.Message is not null || _world.Menu.Journal is not null))
+        if (!((IPauseTab)Tabs[(int)Tab].View).CanLeave)
             return;
         Tab = to;
         Sound(by < 0 ? m => m.TabBack : m => m.TabForward, 2 * Core.Audio.OneShot.MenuTicks);
@@ -454,7 +409,20 @@ public partial class PauseMenu : CanvasLayer
         Redraw();
     }
 
-    public override void _PhysicsProcess(double delta)
+    /// <summary>
+    /// A tick of the menu, which whoever runs the game calls every tick: while it's open, a frame of the scroll, the
+    /// tabs' slide, a volume held, what the save screen asks and the World tab. Returns how the menu ended if it closed
+    /// this tick (the original's exit code, <c>PauseMenu.Exit</c>, <c>0x80048e64</c>; ADR 0019), and otherwise null.
+    /// </summary>
+    public PauseExit? Step()
+    {
+        StepFrame();
+        var ended = _ended;
+        _ended = null;
+        return ended;
+    }
+
+    private void StepFrame()
     {
         if (!IsOpen || _system is null)
             return;
@@ -505,6 +473,7 @@ public partial class PauseMenu : CanvasLayer
         {
             if (LoadGame is { } load)
             {
+                _exit = PauseExit.Load;
                 CloseNow();
                 load(target);
             }
@@ -602,7 +571,7 @@ public partial class PauseMenu : CanvasLayer
                 _ => Back(),
             };
             if (!held)
-                Close();
+                Close(PauseExit.Close);
             Redraw();
             return true;
         }
@@ -641,7 +610,7 @@ public partial class PauseMenu : CanvasLayer
             window.Accept();
             if (window.Closed)
             {
-                Close();
+                Close(PauseExit.Close);
                 return true;
             }
         }
@@ -692,23 +661,11 @@ public partial class PauseMenu : CanvasLayer
     {
         if (action == MenuAction.Accept)
         {
-            system.Accept();
-            // Help rolls the menu up as closing does, and the help menu starts after (PauseMenu.Exit's code 3).
-            if (system.HelpChosen)
+            // Help, Credits and a seen cinematic roll the menu up as closing does, and start once it has (PauseMenu.Exit's
+            // codes 3, 5 and 2).
+            if (system.Accept() is { } exit)
             {
-                Close(() => HelpChosen?.Invoke());
-                return true;
-            }
-            // Credits rolls the menu up as closing does, and the credits play after (PauseMenu.Exit's code 5).
-            if (system.CreditsChosen)
-            {
-                Close(() => CreditsChosen?.Invoke());
-                return true;
-            }
-            // A seen cinematic rolls the menu up as closing does, and plays after (PauseMenu.Exit's code 2).
-            if (system.TheatreChosen is { } cinematic)
-            {
-                Close(() => TheatreChosen?.Invoke(cinematic));
+                Close(exit);
                 return true;
             }
         }
@@ -730,10 +687,10 @@ public partial class PauseMenu : CanvasLayer
     {
         if (action == MenuAction.Accept)
         {
-            world.Accept();
-            if (world.CampChosen)
+            // Camp rolls the menu up, and the party camps once it has.
+            if (world.Accept() is { } exit)
             {
-                Close(() => CampChosen?.Invoke());
+                Close(exit);
                 return true;
             }
         }

@@ -231,11 +231,12 @@ public class CinematicTests
         system.Accept();
 
         Assert.Equal(SystemPage.Theatre, system.Page);
-        system.Accept();
-        Assert.Equal("Gabrion's Search", system.TheatreChosen?.Title);
+        // A on a seen cinematic ends the menu to play it, the original's exit code 2.
+        var exit = system.Accept();
+        Assert.Equal((PauseExitCode.Theatre, "Gabrion's Search"), (exit?.Code, exit?.Cinematic?.Title));
         Assert.True(system.Back());
         Assert.Equal((SystemPage.List, SystemItem.Theater), (system.Page, system.Items.Current));
-        Assert.Null(system.TheatreChosen);
+        Assert.Null(system.Theatre);
     }
 
     /// <summary>The four cinematics' records, with their titles and done flags.</summary>

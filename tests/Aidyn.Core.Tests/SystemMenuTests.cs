@@ -259,14 +259,22 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         Assert.Equal("L160", system.Label(SystemItem.LoadGame));
         Assert.Equal("L377", system.Label(SystemItem.SaveGame));
         Assert.Equal("Credits", system.Label(SystemItem.Credits));
+        // Each ends the menu with its exit code: 5 for the credits and 3 for help (PauseMenu.Exit).
         system.Items.Point((int)SystemItem.Credits);
-        system.Accept();
-        Assert.True(system.CreditsChosen);
-        Assert.False(system.HelpChosen);
+        Assert.Equal(PauseExit.Credits, system.Accept());
+        Assert.Equal(5, (int)PauseExitCode.Credits);
         system = new SystemMenu(fixture.Plugins, new Settings(), party, _saves);
         system.Items.Point((int)SystemItem.Help);
-        system.Accept();
-        Assert.True(system.HelpChosen);
+        Assert.Equal(PauseExit.Help, system.Accept());
+        Assert.Equal(3, (int)PauseExitCode.Help);
+        // The other rows open their screens, and the menu stays open.
+        foreach (var item in new[] { SystemItem.LoadGame, SystemItem.SaveGame, SystemItem.Options, SystemItem.Theater })
+        {
+            system = new SystemMenu(fixture.Plugins, new Settings(), party, _saves);
+            system.Items.Point((int)item);
+            Assert.Null(system.Accept());
+            Assert.False(system.OnList);
+        }
     }
 
     // The save and load screens.
