@@ -36,26 +36,27 @@ A **magnitude** is `flat + perLevel × level`, truncated. The level is the cast'
 | `protection` | magnitude, and what it leaves when it ends | Air, Spirit and Starlight Shield (2 a level); the Defence potion (15); the Acid flask (negative) |
 | `ward` | school, magnitude to the resist roll | the four vs. spells (6 a level) |
 | `damage` | dice base (flat or the level), elements | Dragon Flames, Earth Smite, Fireball, Lightning, Crushing Death, Whitefire, Wind against an opponent |
-| `damage_per_round` | dice | Immolation, Acid Bolt (1d6), Web of Starlight (2d6) |
+| `damagePerRound` | dice | Immolation, Acid Bolt (1d6), Web of Starlight (2d6) |
 | `poison` | magnitude of Endurance a round | Poison (half a level) |
-| `heal_per_round` | magnitude, by day only | Photosynthesis, the Ring of Healing |
+| `healPerRound` | magnitude, by day only | Photosynthesis, the Ring of Healing |
 | `heal` | a share of maximum hit points, drawn | Healing and Curing potions |
 | `immobilise` | an escape roll (× Strength), optional | Wall of Bones, Frozen Doom, Web of Starlight |
 | `charm` | | Charming, Control Elem, Control Marquis, Control Zombies |
-| `field_radius` | magnitude (signed) | Haste (a level), Stellar Gravity (less a level); Haste Amulet, Boots of Speed |
+| `fieldRadius` | magnitude (signed) | Haste (a level), Stellar Gravity (less a level); Haste Amulet, Boots of Speed |
 | `morale` | magnitude (signed) | Aura of Death, Solar Wrath |
 | `stamina` | magnitude (signed), to whom, whether it raises the maximum | Tap Stamina's two halves, Wind on an ally, the Stamina potion |
 | `weather` | combat's weather class as it ends | Wind on an ally |
 | `cure` | the spells or types it removes, the margin it beats | Remove Poison, Antidote, Restore, the Stamina potion's Exhaustion |
 | `dispel` | school | the four dispels |
-| `part_of_day` | night or day | Darkness, Light |
-| `cheat_death` | | Cheat Death |
+| `partOfDay` | night or day | Darkness, Light |
+| `cheatDeath` | | Cheat Death |
 | `reflect` | magnitude | Mirror (3 a level) |
-| `drain_stat` | stats, dice; lasts the battle | Wraith Touch |
+| `drainStat` | stats, dice; lasts the battle | Wraith Touch |
 | `banish` | | Banishing |
 | `flee`, `teleport` | | Escape, Teleportation |
-| `sense_aura`, `reveal_phase` | moon or sun | Sense Aura, Detect Moon Phase and Detect Sun Phase |
-| `blast` | dice, falloff, hit points or Stamina | the four flasks |
+| `senseAura`, `revealPhase` | moon or sun | Sense Aura, Detect Moon Phase and Detect Sun Phase |
+| `blast` | dice, hit points or Stamina | the four flasks |
+| `corrode` | a radius drawn | the Acid flask: protection off those within it |
 | `lua` | reserved | none: Phase 5's |
 
 An effect may say whom it's for, `opponents` or `allies`, which is how Wind is damage on an enemy and Stamina on a friend. Detecting Traps and Opening have no effects: the original can't cast them anywhere.
@@ -63,7 +64,7 @@ An effect may say whom it's for, `opponents` or `allies`, which is how Wind is d
 ### The rest of a spell is the spell's
 
 - **Targets** are the spell record's: the count and type it has now, the range, the target's requirement (True Name, small enough, an aspect), and a filter of the entities it may take. The filter is what limits a charm or Banishing to elementals or the Marquis.
-- **Duration** is the record's, one for all its effects, as the original keeps one timer a spell: `perLevel` 1800 game-clock ticks for a cast, 648,000 for a potion. It can also be `battle`, lasting until the battle ends, as Wraith Touch does. A worn enchantment is always permanent. An effect with no duration happens once and leaves nothing: damage, heal, cure, dispel, flee, teleport, banish, sense_aura, reveal_phase, blast, and the instant `stamina`.
+- **Duration** is the record's, one for all its effects, as the original keeps one timer a spell: `perLevel` 1800 game-clock ticks for a cast, 648,000 for a potion. It can also be `battle`, lasting until the battle ends, as Wraith Touch does. A worn enchantment is always permanent. An effect with no duration happens once and leaves nothing: damage, heal, cure, dispel, flee, teleport, banish, senseAura, revealPhase, blast and corrode.
 - **Element and aspect** are the spell's: its school always meets the target's resistance of that school and Magic. A Solar or Lunar spell meets those resistances, and the resist roll's aspect factor. A damage effect adds its own elements: Fire, Earth, Water or Air.
 
 ### On a character
@@ -72,7 +73,7 @@ An effect may say whom it's for, `opponents` or `allies`, which is how Wind is d
 - **Stacking:** a spell or potion already on can't go on again, and doesn't refresh. Two different spells of one type both count, as Air Shield and Spirit Shield do.
 - **Ageing:** a round takes off 600, and trek takes off the clock's ticks. One at 0 ends on the next ageing, undoing what it did.
 - **Dispelling** removes every active effect of the dispel's school, if the cast's margin times their number reaches the sum of their margins. Unschooled effects can't be dispelled.
-- **The harmful flag** comes from the type: a negative `stat`, a charm, an immobiliser, damage, poison, a negative `morale` or `stamina`, and `drain_stat`. The AI's morale and dispel scoring read it.
+- **The harmful flag** comes from the type: a negative `stat`, a charm, an immobiliser, damage, poison, a negative `morale` or `stamina`, and `drainStat`. The AI's morale and dispel scoring read it.
 - **A battle's end** clears every spell effect and every potion but Stealth, then puts the worn enchantments back on. Death clears them too.
 
 ### What casting is, as a feature
@@ -92,7 +93,7 @@ The chance, the resist roll, the cost and the reagent are combat's rules, not th
 - The type supplies the condition that makes a spell worth casting now:
   - a `cure` needs a target with something to cure;
   - a `charm` or `banish` needs a target its filter allows;
-  - `part_of_day` needs the balance of aspects on the field to favour the change;
+  - `partOfDay` needs the balance of aspects on the field to favour the change;
   - a `dispel` needs more of the school's harm on its side than help.
 - A modded spell with no `aiValue` takes its first effect type's default, the highest of the base game's values for that type. So session 11's AI judges any spell built from these parts.
 

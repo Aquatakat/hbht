@@ -231,6 +231,16 @@ public sealed class MagicTests
         Assert.Equal(1, Casting.Cost(MagicData.Endurance, 10));
     }
 
+    [Fact]
+    public void ALuaEffectAndAnUnknownTypeAreReportedAndDoNothing()
+    {
+        var modded = MagicData.Spell(0x0340, "Modded", MagicSchool.Star, [new LuaEffect("mod.lua", "OnCast"), new Effect()], MagicData.Cast);
+        var rules = new MagicRules(MagicData.Record, [modded], []);
+        Assert.Equal(2, rules.Problems.Count());
+        // Neither lasts, so a cast leaves no record of them.
+        Assert.DoesNotContain(modded.Effects!, EffectRules.Lasting);
+    }
+
     // A combatant for rules that read only its sheet.
     private static Combat.Combatant BattleCombatant(Character sheet) =>
         new(0, sheet, new EntityBody(RecordId.Hex(RecordTypes.Actor, 1), 0.5f, 1, 1), new Movement.Body(System.Numerics.Vector3.Zero, 0.7f),

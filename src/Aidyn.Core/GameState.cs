@@ -40,6 +40,7 @@ public sealed class GameState : IScriptWorld
         Party = new Party(Items, Flags);
         _saves = new CharacterSaves(plugins, Rules, Items, Flags, _problems);
         Minimaps = new MinimapSeen(plugins);
+        _problems.AddRange(Rules.Magic?.Problems ?? []);
         if (plugins.TrySingleton<WeatherRecord>(RecordTypes.Weather) is { } weather)
             Weather = new Weather(weather);
     }

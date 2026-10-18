@@ -31,6 +31,17 @@ public sealed class MagicRules
 
     public ItemRecord? Potion(RecordId id) => _potions.GetValueOrDefault(id);
 
+    /// <summary>
+    /// The effects this build can't carry out, as problems to report (ADR 0020): a <see cref="LuaEffect"/>, which waits for
+    /// Phase 5's scripts, and a type no build knows, which loads as a plain <see cref="Effect"/>. Both do nothing.
+    /// </summary>
+    public IEnumerable<string> Problems =>
+        _spells.Values.Select(s => (s.Id, s.Effects)).Concat(_potions.Values.Select(p => (p.Id, p.Effects)))
+            .SelectMany(r => (r.Effects ?? []).Where(e => e is LuaEffect || e.GetType() == typeof(Effect))
+                .Select(e => e is LuaEffect lua
+                    ? $"{r.Id} has a Lua effect ({lua.Script}, {lua.Handler}), which does nothing until scripts come."
+                    : $"{r.Id} has an effect of a type this build doesn't know, which does nothing."));
+
     /// <summary>The item a reagent is, or null for none (<c>0x800E29CC</c>).</summary>
     public RecordId? ReagentItem(Reagent reagent) => reagent switch
     {
