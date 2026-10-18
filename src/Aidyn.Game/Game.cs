@@ -189,7 +189,7 @@ public partial class Game : Node3D, ITrekHost
         N64Material.RspLighting = true;
         N64Material.OnScreenFramebuffer = true;
 
-        _sky = new SkyView(plugins, game.Clock, game.Random.Cosmetic) { Weather = game.Weather };
+        _sky = new SkyView(plugins, game.Clock) { Weather = game.Weather };
         AddChild(_sky);
         AddChild(SkyBackdropView.Create(_sky));
         AddChild(LensFlareView.Create(_sky));

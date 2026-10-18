@@ -144,7 +144,7 @@ public partial class SkyBackdropView : Control
         }
 
         _sprites.Clear();
-        _sky.Objects?.Draw(_sprites, _sky.Clock.Time, look, colors.Sun, _sky.ImageSize, _sky.Cosmetic, _sky.FogTime);
+        _sky.Objects?.Draw(_sprites, _sky.Clock.Time, look, colors.Sun, _sky.ImageSize, _sky.Twinkle, _sky.FogTime);
         _sky.Clouds?.Draw(_sprites, look, colors.Cloud, _sky.ImageSize, _sky.FogTime);
         DrawSprites(this, _sky, _sprites);
     }

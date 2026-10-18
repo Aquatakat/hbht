@@ -35,12 +35,10 @@ public partial class SkyView : Node
     private SkyGradient? _terrain, _rain;
 
     /// <param name="clock">The game's clock, which the game runs; the sky reads the time of day from it.</param>
-    /// <param name="cosmetic">The game's cosmetic random stream (<c>Random.Cosmetic</c>), which picks the stars' twinkle.</param>
-    public SkyView(PluginSet plugins, GameClock clock, IRandom cosmetic)
+    public SkyView(PluginSet plugins, GameClock clock)
     {
         _plugins = plugins;
         Clock = clock;
-        Cosmetic = cosmetic;
         Name = "Sky";
         if (plugins.TrySingleton<SkyRecord>(RecordTypes.Sky) is { } sky)
         {
@@ -55,7 +53,11 @@ public partial class SkyView : Node
     }
 
     public GameClock Clock { get; }
-    public IRandom Cosmetic { get; }
+    /// <summary>
+    /// The stars' twinkle's random stream: its own, from the boot seed, and not the game's cosmetic stream (ADR 0006),
+    /// because the backdrop draws from it once per rendered frame, and the game's streams must not depend on the frame rate.
+    /// </summary>
+    public IRandom Twinkle { get; } = new Lcg();
     public SkyState State { get; } = new();
     public SkyColors Colors { get; private set; }
     public SkyObjects? Objects { get; }
