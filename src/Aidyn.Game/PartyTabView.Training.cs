@@ -20,36 +20,6 @@ public partial class PartyTabView
     /// <summary>The trainer's title's foot, a pixel below the pile's.</summary>
     private const int TrainTitleFoot = 86;
 
-    private ScreenRect _trainerBounds;
-
-    /// <summary>The training state, or null. Setting it shows its party's menu.</summary>
-    public TrainingMenu? Training
-    {
-        get;
-        set
-        {
-            field = value;
-            if (value is not null)
-                Menu = value.Party;
-            QueueRedraw();
-        }
-    }
-
-    /// <summary>The trainer's row under a point, if any and no popup is up.</summary>
-    private int? TrainerRowAt(Vector2 point)
-    {
-        var training = Training!;
-        if (training.HasPopup)
-            return null;
-        var at = point - (Vector2)_origin;
-        var b = _trainerBounds;
-        if (at.X < b.Left || at.X >= b.Right || at.Y < b.Top || at.Y >= b.Bottom)
-            return null;
-        var (first, count) = training.OnSpells ? (training.Spells.First, training.Spells.Rows.Count) : (training.Skills.First, training.Skills.Rows.Count);
-        var row = first + (int)(at.Y - b.Top) / 13;
-        return row < count ? row : null;
-    }
-
     /// <summary>The member's list's cursor: it pulses on the trainer's row, and is plain when the member hasn't it.</summary>
     private Rgba MemberCursor(TrainingMenu training) => training.Followed ? Menu.HighlightNow : PartyMenu.TextColor;
 
@@ -58,13 +28,12 @@ public partial class PartyTabView
         _ui.Image(_canvas, MenuImages.PartyTab, 0, 0);
         Portraits(PortraitPiece.Position);
         Health(HealthPiece.Position, _ui.Main);
-        List(ClassicList, _ui.Slim, MemberCursor(training));
+        List(0, _ui.Slim, MemberCursor(training));
 
         _ui.Parchment(_canvas, ClassicParchment.X, ClassicParchment.Y);
         var title = _ui.Size(training.Title);
         _ui.Image(_canvas, training.Title, PileTitleCentre - title.X / 2, TrainTitleFoot - title.Y);
-        _trainerBounds = TrainingMenu.ClassicList;
-        TrainerRows(training, _trainerBounds, _ui.Slim);
+        TrainerRows(training, TrainingMenu.Layout, _ui.Slim);
         var y = ClassicGoldLine.Y;
         foreach (var line in training.PriceLines)
         {
@@ -79,18 +48,11 @@ public partial class PartyTabView
     }
 
     /// <summary>The trainer's skills or spells, drawn as the member's are.</summary>
-    private void TrainerRows(TrainingMenu training, ScreenRect bounds, UiFont font)
+    private void TrainerRows(TrainingMenu training, ListLayout layout, UiFont font)
     {
         if (training.OnSpells)
-            SpellRows(training.Spells, bounds, font, Menu.HighlightNow);
+            SpellRows(training.Spells, layout, font, Menu.HighlightNow);
         else
-            SkillRows(training.Skills, bounds, font, Menu.HighlightNow);
-    }
-
-    /// <summary>The popups over the training state, centred on the screen.</summary>
-    private void TrainingPopups(TrainingMenu training)
-    {
-        var screen = (Vector2I)Size;
-        _ui.Overlay(_canvas, screen, training.Overlay);
+            SkillRows(training.Skills, layout, font, Menu.HighlightNow);
     }
 }

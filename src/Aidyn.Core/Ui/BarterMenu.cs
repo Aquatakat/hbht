@@ -60,10 +60,13 @@ public sealed record BarterConfirm(string Text, MenuList<BarterOption> Options, 
 /// leave-items choice only with A, on one of their options.
 /// </para>
 /// </remarks>
-public sealed class BarterMenu
+public sealed class BarterMenu : IPartyWindow
 {
     /// <summary>The pile's list's place and bounds in the 320 × 240 frame (<c>WidgetBarter</c>).</summary>
     public static readonly ScreenRect ClassicPile = new(20, 88, 157, 166);
+
+    /// <summary>The pile's list: <see cref="ClassicPile"/> with its rows 13 apart, so six show.</summary>
+    public static readonly ListLayout PileLayout = new(ClassicPile, 13);
 
     private readonly FlagNetwork? _flags;
 
@@ -73,7 +76,7 @@ public sealed class BarterMenu
         Loot = loot;
         Shop = shop;
         _flags = flags;
-        Pile = new MenuList<InventoryRow>(PileRows());
+        Pile = PileLayout.List(PileRows());
         OnPile = Pile.Rows.Count > 0;
     }
 
@@ -95,6 +98,31 @@ public sealed class BarterMenu
 
     /// <summary>The header and the party's inventory list.</summary>
     public PartyMenu Party { get; }
+
+    PartyMenu IPartyWindow.Menu => Party;
+
+    /// <summary>C-left and C-right don't change the member here.</summary>
+    bool IPartyWindow.ChangesMember => false;
+
+    void IPartyWindow.ChangeMember(int by)
+    {
+    }
+
+    /// <summary>The stick's left reaches the pile, and its right the party's list, as they're laid out.</summary>
+    void IPartyWindow.Sideways(int direction)
+    {
+        if (direction < 0)
+            ShowPile();
+        else
+            ShowParty();
+    }
+
+    /// <summary>C-up always takes the press here, if it does nothing on the party's list.</summary>
+    bool IPartyWindow.Appraise()
+    {
+        Appraise();
+        return true;
+    }
 
     /// <summary>The loot's rules, or null in a shop.</summary>
     public LootWindow? Loot { get; }

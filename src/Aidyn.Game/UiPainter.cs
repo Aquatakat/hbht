@@ -275,23 +275,23 @@ public sealed class UiPainter
     /// (<c>WidgetFastScrollMenu::Update</c>).
     /// </summary>
     /// <param name="draw">Draws a row at its top, in its colour.</param>
-    public void List<TRow>(MenuList<TRow> list, int y, int rowHeight, Rgba color, Rgba cursor, Action<TRow, int, Rgba> draw)
+    public void List<TRow>(MenuList<TRow> list, ListLayout layout, Rgba color, Rgba cursor, Action<TRow, int, Rgba> draw)
     {
         var last = Math.Min(list.Rows.Count, list.First + list.Visible);
         for (var i = list.First; i < last; i++)
-            draw(list.Rows[i], y + (i - list.First) * rowHeight, i == list.Cursor ? cursor : color);
+            draw(list.Rows[i], layout.Bounds.Top + (i - list.First) * layout.RowHeight, i == list.Cursor ? cursor : color);
     }
 
     /// <summary>
     /// The arrows that show a list has rows above or below: up at <paramref name="up"/> and down at
     /// <paramref name="down"/>, each drawn while rows are hidden its way (<c>WidgetScrollArrows</c>).
     /// </summary>
-    public void Arrows<TRow>(CanvasItem canvas, MenuList<TRow> list, Vector2I up, Vector2I down)
+    public void Arrows<TRow>(CanvasItem canvas, MenuList<TRow> list, ListLayout layout)
     {
         if (list.MoreAbove)
-            Image(canvas, MenuImages.ScrollUp, up.X, up.Y, color: ArrowColor);
+            Image(canvas, MenuImages.ScrollUp, layout.UpArrow.X, layout.UpArrow.Y, color: ArrowColor);
         if (list.MoreBelow)
-            Image(canvas, MenuImages.ScrollDown, down.X, down.Y, color: ArrowColor);
+            Image(canvas, MenuImages.ScrollDown, layout.DownArrow.X, layout.DownArrow.Y, color: ArrowColor);
     }
 
     public static Color Color8(Rgba c) => Color.Color8(c.R, c.G, c.B, c.A);

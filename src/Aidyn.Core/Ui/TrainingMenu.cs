@@ -28,10 +28,13 @@ namespace Aidyn.Core.Ui;
 /// description, or the trainer's spell.
 /// </para>
 /// </remarks>
-public sealed class TrainingMenu
+public sealed class TrainingMenu : IPartyWindow
 {
     /// <summary>The trainer's list's place and bounds in the 320 × 240 frame, as the loot's pile's.</summary>
     public static readonly ScreenRect ClassicList = BarterMenu.ClassicPile;
+
+    /// <summary>The trainer's list: <see cref="ClassicList"/> with its rows 13 apart, so six show.</summary>
+    public static readonly ListLayout Layout = new(ClassicList, 13);
 
     /// <summary>The choice's Yes and No (common lines 31 and 32).</summary>
     public const int YesLine = 31, NoLine = 32;
@@ -43,9 +46,9 @@ public sealed class TrainingMenu
         Party = party;
         Trainer = trainer;
         _flags = flags;
-        Skills = new MenuList<SkillRow>([.. trainer.SkillsOffered.Select(s => new SkillRow(s, party.Shown!.Rules[s].Name,
+        Skills = Layout.List<SkillRow>([.. trainer.SkillsOffered.Select(s => new SkillRow(s, party.Shown!.Rules[s].Name,
             s.IsSkill ? party.Shown.Rules[s].Icon : null, trainer.Skills.Base(s), trainer.Skills.Modified(s) - trainer.Skills.Base(s)))]);
-        Spells = new MenuList<SpellRow>([.. trainer.Spells.Select(s => new SpellRow(new LearnedSpell(s.Spell, s.Level),
+        Spells = Layout.List<SpellRow>([.. trainer.Spells.Select(s => new SpellRow(new LearnedSpell(s.Spell, s.Level),
             MenuImages.AspectIcon(PartyMenuRows.SpellAspect(s.Spell)), MenuImages.SchoolIcon(s.Spell.School), s.Spell.Icon))]);
         Party.ShowList(PartyList.Skills);
         Follow();
@@ -59,6 +62,13 @@ public sealed class TrainingMenu
 
     /// <summary>The header and the member's lists.</summary>
     public PartyMenu Party { get; }
+
+    PartyMenu IPartyWindow.Menu => Party;
+
+    bool IPartyWindow.ChangesMember => true;
+
+    /// <summary>The stick's left and right both change the lists between skills and spells (<see cref="Switch"/>).</summary>
+    void IPartyWindow.Sideways(int direction) => Switch();
 
     public Trainer Trainer { get; }
 

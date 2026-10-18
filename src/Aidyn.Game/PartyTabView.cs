@@ -7,9 +7,11 @@ namespace Aidyn.Game;
 
 /// <summary>
 /// Draws the pause menu's Party tab (<see cref="PartyMenu"/>) on a <see cref="UiScreen"/>'s canvas, as the
-/// original lays it out, in its 320 × 240 frame at the screen's centre, on the tab's image, <c>0x00D9</c>. With a
-/// <see cref="Barter"/>, it's the menu's barter state, the loot window or a shop (see <c>PartyTabView.Barter.cs</c>), and
-/// with a <see cref="Training"/>, its training state (<c>PartyTabView.Training.cs</c>).
+/// original lays it out, in its 320 × 240 frame at the screen's centre, on the tab's image, <c>0x00D9</c>. It draws its
+/// <see cref="Window"/>: the tab itself, the menu's barter state, the loot window or a shop (see <c>PartyTabView.Barter.cs</c>),
+/// or its training state (<c>PartyTabView.Training.cs</c>), each with the header and lists of the <see cref="PartyMenu"/>
+/// under it. A further window is drawn by a case in <see cref="_Draw"/> and <see cref="Hover"/>, and takes its presses
+/// through <see cref="IPartyWindow"/>.
 /// </summary>
 public partial class PartyTabView : Control
 {
@@ -45,10 +47,8 @@ public partial class PartyTabView : Control
 
     private const int SlotSize = 16;
 
-    // DollMenuLists and WidgetTrainShop: the list's bounds; its title's centre is 70 into them and its
-    // top 20 above, the arrows 15 in from each side and 13 above, and the arrow under the knotwork.
-    private static readonly ScreenRect ClassicList = new(160, 101, 300, 205);
-
+    // DollMenuLists and WidgetTrainShop: the list's bounds (PartyMenu.Layout); its title's centre is 70 into them and its
+    // top 20 above, and the arrow under the knotwork.
     /// <summary>
     /// What a list and its title are cut to as they slide: the list's bounds across, x 160 to 300, and from under the
     /// gold to the list's foot. The original cuts the rows to the bounds and the title to x 170 to 300.
@@ -61,11 +61,9 @@ public partial class PartyTabView : Control
     private static readonly ScreenRect ClassicDetails = new(23, 70, 149, 218);
     private const int DetailsIndent = 16;
 
-    // WidgetCrafting: the title centred at x 93 on the details' parchment, its list from x 23 to 163 under it,
-    // 122 tall for the Alchemist's recipes and 117 for the rest. A member's row is its portrait's 25 in the original, so
+    // WidgetCrafting (CraftingMenu): the title centred on the details' parchment, its list under it. A member's row is its portrait's 25 in the original, so
     // the portraits touch and the next name overlaps the health by 2; the port leaves 3 between them, as the user asked.
-    private const int CraftingTitleCentre = 93, CraftingTitleTop = 70, CraftingLeft = 23, CraftingRight = 163;
-    private const int MemberRow = 28, MemberPortrait = 25;
+    private const int MemberPortrait = 25;
 
     /// <summary>
     /// What's painted into <c>0x00D9</c>, covered by plain parchment from the list's side, which the veil is drawn from so
@@ -86,9 +84,8 @@ public partial class PartyTabView : Control
     ];
 
     private readonly UiPainter _ui;
-    private ScreenRect _listBounds = ClassicList;
-    private ScreenRect _craftingBounds;
-    private int _craftingRow = 11;
+    /// <summary>Where the tab's list was last drawn, which the mouse is tested against: a list sliding in is drawn off its place.</summary>
+    private ListLayout _listLayout = PartyMenu.Layout(PartyList.Inventory);
     private Vector2I _origin;
     /// <summary>What's being drawn on: the tab, or one of its layers.</summary>
     private CanvasItem _canvas;
@@ -105,11 +102,11 @@ public partial class PartyTabView : Control
     /// <summary>What's drawn over those: the veil and the messages.</summary>
     private readonly Control _overlay = new() { Name = "Overlay", MouseFilter = MouseFilterEnum.Ignore };
 
-    public PartyTabView(PluginSet plugins, PartyMenu menu)
+    public PartyTabView(PluginSet plugins, IPartyWindow window)
     {
         _ui = new UiPainter(plugins);
         _canvas = this;
-        Menu = menu;
+        Window = window;
         Name = "Party tab";
         MouseFilter = MouseFilterEnum.Pass;
         SetAnchorsPreset(LayoutPreset.FullRect);
@@ -128,32 +125,39 @@ public partial class PartyTabView : Control
         _ui.Images.Plain(MenuImages.PartyTab, PlainPatches);
     }
 
-    /// <summary>The tab's state, which the runtime's menu starts afresh each time it opens.</summary>
-    public PartyMenu Menu { get; set; }
-
-    /// <summary>
-    /// Whether C-down is held, set as it's pressed and let go: pressing it opens the details of the barter state, the
-    /// training state or the tab, which fade out once they're open and it's let go (<see cref="DetailsPane"/>).
-    /// </summary>
-    public bool DetailsOpen
+    /// <summary>What the tab shows and takes the presses: the tab, the barter state or the training state, which the runtime's menu starts afresh each time it opens.</summary>
+    public IPartyWindow Window
     {
-        get => Pane.Held;
+        get;
         set
         {
-            if (value && Barter is { } barter)
-                barter.PressDetails();
-            else if (value && Training is { } training)
-                training.PressDetails();
-            else if (value)
-                Menu.PressDetails();
-            else
-                Pane.Release();
+            field = value;
             QueueRedraw();
         }
     }
 
-    /// <summary>The details of the state showing: barter's, training's, or the tab's.</summary>
-    private DetailsPane Pane => Barter?.DetailsPane ?? Training?.DetailsPane ?? Menu.DetailsPane;
+    /// <summary>The header and the lists the window is built on: the tab's own state, or that of the barter or training state.</summary>
+    public PartyMenu Menu => Window.Menu;
+
+    /// <summary>Whether the window is the tab itself, whose list is drawn on its own layer, with its silhouette and skill popup.</summary>
+    public bool OwnTab => ReferenceEquals(Window, Menu);
+
+    /// <summary>
+    /// Whether C-down is held, set as it's pressed and let go: pressing it opens the details of the window, which fade out
+    /// once they're open and it's let go (<see cref="DetailsPane"/>).
+    /// </summary>
+    public bool DetailsOpen
+    {
+        get => Window.DetailsPane.Held;
+        set
+        {
+            if (value)
+                Window.PressDetails();
+            else
+                Window.ReleaseDetails();
+            QueueRedraw();
+        }
+    }
 
     /// <summary>Whether combat opened the menu, which turns the arrow under the knotwork to point left only.</summary>
     public bool InCombat { get; set; }
@@ -172,76 +176,70 @@ public partial class PartyTabView : Control
 
     public override void _PhysicsProcess(double delta)
     {
-        if (Barter is { } barter)
-            barter.Step();
-        else if (Training is { } training)
-            training.Step();
-        else
-            Menu.Step();
+        Window.Step();
         QueueRedraw();
     }
 
     public override void _GuiInput(InputEvent @event)
     {
         // Hovering a row puts the cursor on it, and the wheel moves it.
-        if (Barter is { } barter && @event is InputEventMouseMotion over && BarterRowAt(over.Position) is { } hit)
-            barter.Point(hit.Pile, hit.Row);
-        else if (Training is { } training && @event is InputEventMouseMotion hover && TrainerRowAt(hover.Position) is { } trainerRow)
-            training.Point(trainerRow);
-        else if (Barter is null && Training is null && @event is InputEventMouseMotion motion && RowAt(motion.Position) is { } row)
-            Menu.Point(row);
+        if (@event is InputEventMouseMotion motion && Hover(motion.Position))
+        {
+        }
         else if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.WheelUp or MouseButton.WheelDown } wheel)
-            MoveCursor(wheel.ButtonIndex == MouseButton.WheelUp ? -1 : 1);
+            Window.MoveCursor(wheel.ButtonIndex == MouseButton.WheelUp ? -1 : 1);
         else
             return;
         QueueRedraw();
         AcceptEvent();
     }
 
-    /// <summary>Moves the cursor of the barter state or of the tab.</summary>
-    private void MoveCursor(int by)
-    {
-        if (Barter is { } barter)
-            barter.MoveCursor(by);
-        else if (Training is { } training)
-            training.MoveCursor(by);
-        else
-            Menu.MoveCursor(by);
-    }
-
-    /// <summary>The list row under a point, if any: the crafting popup's while it's open.</summary>
-    private int? RowAt(Vector2 point)
+    /// <summary>
+    /// Puts the window's cursor on the row under a point, as hovering does: the pile's or the party's list in the barter
+    /// state, the trainer's in training, and the tab's list or its crafting popup's. True if there was a row, and no popup
+    /// took the presses.
+    /// </summary>
+    private bool Hover(Vector2 point)
     {
         var at = point - (Vector2)_origin;
-        if (Menu.Message is not null)
-            return null;
-        if (Menu.Crafting is { } crafting)
+        switch (Window)
         {
-            var c = _craftingBounds;
-            if (at.X < c.Left || at.X >= c.Right || at.Y < c.Top || at.Y >= c.Bottom)
-                return null;
-            var hit = crafting.Rows.First + (int)(at.Y - c.Top) / _craftingRow;
-            return hit < crafting.Rows.Rows.Count ? hit : null;
+            case BarterMenu { HasPopup: false } barter:
+                if (BarterMenu.PileLayout.RowAt(barter.Pile, at.X, at.Y) is { } pile)
+                    barter.Point(true, pile);
+                else if (PartyMenu.Layout(PartyList.Inventory).RowAt(Menu.Inventory, at.X, at.Y) is { } party)
+                    barter.Point(false, party);
+                else
+                    return false;
+                return true;
+            case TrainingMenu { HasPopup: false } training:
+                if ((training.OnSpells ? TrainingMenu.Layout.RowAt(training.Spells, at.X, at.Y) : TrainingMenu.Layout.RowAt(training.Skills, at.X, at.Y)) is not { } trainer)
+                    return false;
+                training.Point(trainer);
+                return true;
+            case PartyMenu { Message: null } menu:
+                if (TabRowAt(menu, at) is not { } row)
+                    return false;
+                menu.Point(row);
+                return true;
+            default:
+                return false;
         }
-        var b = _listBounds;
-        if (at.X < b.Left || at.X >= b.Right || at.Y < b.Top || at.Y >= b.Bottom)
-            return null;
-        var (first, count) = Menu.List switch
-        {
-            PartyList.Inventory => (Menu.Inventory.First, Menu.Inventory.Rows.Count),
-            PartyList.Stats => (Menu.Stats.First, Menu.Stats.Rows.Count),
-            PartyList.Skills => (Menu.Skills.First, Menu.Skills.Rows.Count),
-            _ => (Menu.Spells.First, Menu.Spells.Rows.Count),
-        };
-        var row = first + (int)(at.Y - b.Top) / RowHeight(Menu.List);
-        return row < count ? row : null;
     }
 
-    /// <summary>A list's row height: 11 for stats, 13 for the rest.</summary>
-    private static int RowHeight(PartyList list) => list == PartyList.Stats ? 11 : 13;
-
-    /// <summary>The tab's own state, not barter's or training's, whose list is drawn on its own layer.</summary>
-    private bool OwnTab => Barter is null && Training is null;
+    /// <summary>The tab's list row under a point in the frame, if any: the crafting popup's while it's open.</summary>
+    private int? TabRowAt(PartyMenu menu, Vector2 at)
+    {
+        if (menu.Crafting is { } crafting)
+            return crafting.Layout.RowAt(crafting.Rows, at.X, at.Y);
+        return menu.List switch
+        {
+            PartyList.Inventory => _listLayout.RowAt(menu.Inventory, at.X, at.Y),
+            PartyList.Stats => _listLayout.RowAt(menu.Stats, at.X, at.Y),
+            PartyList.Skills => _listLayout.RowAt(menu.Skills, at.X, at.Y),
+            _ => _listLayout.RowAt(menu.Spells, at.X, at.Y),
+        };
+    }
 
     /// <summary>
     /// The tab's image and what's on it, but for the Party tab's own list, which <see cref="DrawLists"/> draws over it,
@@ -251,7 +249,7 @@ public partial class PartyTabView : Control
     {
         _listLayer.QueueRedraw();
         _craftingLayer.Modulate = Faded(OwnTab ? Menu.Crafting?.Fade.Alpha ?? 0 : 0);
-        _detailsLayer.Modulate = Faded(Pane.Alpha);
+        _detailsLayer.Modulate = Faded(Window.DetailsPane.Alpha);
         _craftingLayer.QueueRedraw();
         _detailsLayer.QueueRedraw();
         _overlay.QueueRedraw();
@@ -264,12 +262,20 @@ public partial class PartyTabView : Control
         _listLayer.Size = new Vector2(FrameWidth, FrameHeight);
         _canvas = this;
         DrawSetTransform(_origin);
-        if (Barter is { } barter)
-            DrawBarter(barter);
-        else if (Training is { } training)
-            DrawTraining(training);
-        else
-            DrawTab();
+        switch (Window)
+        {
+            case BarterMenu barter:
+                DrawBarter(barter);
+                break;
+            case TrainingMenu training:
+                DrawTraining(training);
+                break;
+            case PartyMenu:
+                DrawTab();
+                break;
+            default:
+                throw new NotSupportedException($"The Party tab has no drawing for a {Window.GetType().Name}.");
+        }
     }
 
     /// <summary>
@@ -284,15 +290,13 @@ public partial class PartyTabView : Control
         _canvas = _listLayer;
         if (Menu.Slide is not { } slide)
         {
-            List(ClassicList, _ui.Slim);
+            List(0, _ui.Slim);
             return;
         }
-        var left = ClassicList.Left;
+        var left = PartyMenu.ClassicList.Left;
         var by = slide.Direction * PartyMenu.ListDistance;
-        List(Shifted(ClassicList, MenuTween.Value(left, left + by, Menu.ListChange) - left), _ui.Slim, which: slide.From);
-        List(Shifted(ClassicList, MenuTween.Value(left - by, left, Menu.ListChange) - left), _ui.Slim);
-
-        static ScreenRect Shifted(ScreenRect b, int by) => new(b.Left + by, b.Top, b.Right + by, b.Bottom);
+        List(MenuTween.Value(left, left + by, Menu.ListChange) - left, _ui.Slim, which: slide.From);
+        List(MenuTween.Value(left - by, left, Menu.ListChange) - left, _ui.Slim);
     }
 
     /// <summary>A layer's modulate for a fade's alpha.</summary>
@@ -314,9 +318,9 @@ public partial class PartyTabView : Control
     /// </summary>
     private void DrawDetails()
     {
-        if (Menu.Shown is null || !Pane.Showing)
+        if (Menu.Shown is null || !Window.DetailsPane.Showing)
             return;
-        var details = Barter is { } barter ? barter.Details() : Training is { } training ? training.Details() : Menu.Details();
+        var details = Window.Details();
         if (details is null)
             return;
         _canvas = _detailsLayer;
@@ -339,12 +343,7 @@ public partial class PartyTabView : Control
         if (Veil > 0)
             _ui.Plain(_canvas, MenuImages.PartyTab, PlainPatches, 0, 0, new Rgba(255, 255, 255, (byte)(Veil * 255)));
         _overlay.DrawSetTransform(Vector2.Zero);
-        if (Barter is { } popups)
-            BarterPopups(popups);
-        else if (Training is { } trainingPopups)
-            TrainingPopups(trainingPopups);
-        else if (Menu.Message is { } message)
-            Message(message);
+        Popups();
     }
 
     private void DrawTab()
@@ -363,20 +362,14 @@ public partial class PartyTabView : Control
     /// </summary>
     private void Crafting(CraftingMenu crafting)
     {
-        var at = Vector2I.Zero;
         var font = _ui.Slim;
         _ui.Parchment(_canvas, ClassicParchment.X, ClassicParchment.Y);
         // The original measures the title as it builds the popup, in the main font, and draws it in the slim one.
         var titleWidth = _ui.Main.Width(crafting.Title);
-        _ui.Text(_canvas, font, crafting.Title, at.X + CraftingTitleCentre - titleWidth / 2, at.Y + CraftingTitleTop, PartyMenu.TextColor);
-        var top = at.Y + CraftingTitleTop + font.LineHeight;
-        var height = crafting.Task == CraftingTask.Alchemy ? 0x7A : 0x75;
-        var bounds = new ScreenRect(at.X + CraftingLeft, top, at.X + CraftingRight, top + height);
-        _craftingBounds = bounds;
-        _craftingRow = crafting.ListsMembers ? MemberRow : font.LineHeight;
-        crafting.Rows.Visible = height / _craftingRow;
+        _ui.Text(_canvas, font, crafting.Title, CraftingMenu.TitleCentre - titleWidth / 2, CraftingMenu.TitleTop, PartyMenu.TextColor);
+        var bounds = crafting.Layout.Bounds;
         var x = bounds.Left;
-        _ui.List(crafting.Rows, top, _craftingRow, PartyMenu.TextColor, Menu.HighlightNow, (row, y, color) =>
+        _ui.List(crafting.Rows, crafting.Layout, PartyMenu.TextColor, Menu.HighlightNow, (row, y, color) =>
         {
             if (row.Member is { } slot && Menu.Party.Slots.ElementAtOrDefault(slot) is { } member)
             {
@@ -394,11 +387,18 @@ public partial class PartyTabView : Control
     }
 
     /// <summary>
-    /// A message in off-white over a feathered black box at the screen's centre (<c>TextBox_Centered</c>):
-    /// as wide as its text up to 150, and as tall as it wraps, plus 5; a crafting popup's result has 16
-    /// more across and 5 more down (<c>WidgetCrafting::TextPopup</c>).
+    /// The popups over the window, centred on the screen: the barter state's drop question, then the window's own question
+    /// and its message, which is off-white over a feathered black box (<c>TextBox_Centered</c>): as wide as its text up to
+    /// 150, and as tall as it wraps, plus 5; a crafting popup's result has 16 more across and 5 more down
+    /// (<c>WidgetCrafting::TextPopup</c>).
     /// </summary>
-    private void Message(MenuMessage message) => _ui.Message(_canvas, (Vector2I)Size, message);
+    private void Popups()
+    {
+        var screen = (Vector2I)Size;
+        if (Window is BarterMenu { Confirm: { } confirm } barter)
+            Confirm(confirm, barter.PopupHighlight);
+        _ui.Overlay(_canvas, screen, Window.Overlay);
+    }
 
     /// <summary>
     /// The portraits from the member shown round, their name, and their aspect's and school's icons. As the member
@@ -528,17 +528,20 @@ public partial class PartyTabView : Control
     }
 
     /// <summary>
-    /// A list, by default the one showing, under its title, with its arrows and its rows in <paramref name="font"/>,
-    /// the cursor's in <paramref name="cursor"/>, or pulsing if none is given.
+    /// A list, by default the one showing, <paramref name="shift"/> across from its place (<see cref="PartyMenu.Layout"/>), under its
+    /// title, with its arrows and its rows in <paramref name="font"/>, the cursor's in <paramref name="cursor"/>, or pulsing
+    /// if none is given.
     /// </summary>
-    private void List(ScreenRect b, UiFont font, Rgba? cursor = null, PartyList? which = null)
+    private void List(int shift, UiFont font, Rgba? cursor = null, PartyList? which = null)
     {
         var shown = which ?? Menu.List;
+        var layout = PartyMenu.Layout(shown).Shifted(shift);
+        var b = layout.Bounds;
         if (shown == Menu.List)
-            _listBounds = b;
+            _listLayout = layout;
         var title = shown switch
         {
-            PartyList.Inventory => Barter?.PartyTitle ?? MenuImages.InventoryTitle,
+            PartyList.Inventory => (Window as BarterMenu)?.PartyTitle ?? MenuImages.InventoryTitle,
             PartyList.Stats => MenuImages.StatsTitle,
             PartyList.Skills => MenuImages.SkillsTitle,
             _ => MenuImages.SpellsTitle,
@@ -552,11 +555,10 @@ public partial class PartyTabView : Control
         switch (shown)
         {
             case PartyList.Inventory:
-                Items(Menu.Inventory, b, font, highlight);
+                Items(Menu.Inventory, layout, font, highlight);
                 break;
             case PartyList.Stats:
-                Menu.Stats.Visible = (b.Bottom - b.Top) / 11;
-                _ui.List(Menu.Stats, y, 11, color, highlight, (row, top, c) =>
+                _ui.List(Menu.Stats, layout, color, highlight, (row, top, c) =>
                 {
                     _ui.Text(_canvas, font, row.Name, x, top, names, c);
                     _ui.Text(_canvas, font, Num(row.Value), x + Columns.Value, top, b, color);
@@ -566,7 +568,7 @@ public partial class PartyTabView : Control
                 if (Menu.Experience is { } exp)
                 {
                     // Below the rows, 4 apart, the values lined up after the first label.
-                    var lineY = y + Menu.Stats.Rows.Count * 11 + 4;
+                    var lineY = y + Menu.Stats.Rows.Count * layout.RowHeight + 4;
                     var valueX = x + font.Width(exp.RemainingLabel) + 4;
                     foreach (var (label, value) in new[] { (exp.RemainingLabel, exp.Remaining), (exp.TotalLabel, exp.Total), (exp.NextLevelLabel, exp.NextLevel) })
                     {
@@ -577,10 +579,10 @@ public partial class PartyTabView : Control
                 }
                 break;
             case PartyList.Skills:
-                SkillRows(Menu.Skills, b, font, highlight);
+                SkillRows(Menu.Skills, layout, font, highlight);
                 break;
             default:
-                SpellRows(Menu.Spells, b, font, highlight);
+                SpellRows(Menu.Spells, layout, font, highlight);
                 break;
         }
     }
@@ -589,13 +591,13 @@ public partial class PartyTabView : Control
     /// A skills list's rows (<c>WidgetSkillInfo</c>), 13 apart, with their arrows: the icon, the name 12 after
     /// it, the level, and the difference gear makes when it isn't 0.
     /// </summary>
-    private void SkillRows(MenuList<SkillRow> list, ScreenRect b, UiFont font, Rgba highlight)
+    private void SkillRows(MenuList<SkillRow> list, ListLayout layout, UiFont font, Rgba highlight)
     {
+        var b = layout.Bounds;
         var x = b.Left;
         var names = new ScreenRect(b.Left, b.Top, x + Columns.NameRight, b.Bottom);
         var color = PartyMenu.TextColor;
-        list.Visible = (b.Bottom - b.Top) / 13;
-        _ui.List(list, b.Top, 13, color, highlight, (row, top, c) =>
+        _ui.List(list, layout, color, highlight, (row, top, c) =>
         {
             if (row.Icon is { } icon)
                 _ui.Image(_canvas, icon, x, top);
@@ -604,20 +606,20 @@ public partial class PartyTabView : Control
             if (row.Change != 0)
                 _ui.Text(_canvas, font, Change(row.Change), x + Columns.SkillChange, top, b, row.Change < 0 ? MenuDetailsBuilder.Loss : MenuDetailsBuilder.Gain);
         });
-        _ui.Arrows(_canvas, list, new Vector2I(b.Left + 15, b.Top - 13), new Vector2I(b.Right - 15, b.Top - 13));
+        _ui.Arrows(_canvas, list, layout);
     }
 
     /// <summary>
     /// A spells list's rows (<c>WidgetSpellEntry</c>), 13 apart, with their arrows: the aspect's, school's and
     /// spell's icons, the rank and the name.
     /// </summary>
-    private void SpellRows(MenuList<SpellRow> list, ScreenRect b, UiFont font, Rgba highlight)
+    private void SpellRows(MenuList<SpellRow> list, ListLayout layout, UiFont font, Rgba highlight)
     {
+        var b = layout.Bounds;
         var x = b.Left;
         var names = new ScreenRect(b.Left, b.Top, x + Columns.NameRight, b.Bottom);
         var color = PartyMenu.TextColor;
-        list.Visible = (b.Bottom - b.Top) / 13;
-        _ui.List(list, b.Top, 13, color, highlight, (row, top, c) =>
+        _ui.List(list, layout, color, highlight, (row, top, c) =>
         {
             foreach (var (icon, dx) in new[] { (row.Aspect, 0), (row.School, 12), (row.Symbol, 24) })
             {
@@ -627,18 +629,18 @@ public partial class PartyTabView : Control
             _ui.Text(_canvas, font, Num(row.Rank), x + Columns.Rank, top, b, color);
             _ui.Text(_canvas, font, row.Name, x + Columns.SpellName, top, names with { Left = x + Columns.SpellName }, c);
         });
-        _ui.Arrows(_canvas, list, new Vector2I(b.Left + 15, b.Top - 13), new Vector2I(b.Right - 15, b.Top - 13));
+        _ui.Arrows(_canvas, list, layout);
     }
 
     /// <summary>
     /// An inventory's or a pile's rows (<c>SMIItem</c>), 13 apart, with the arrows 15 in from each side and 13
     /// above: the wearer's portrait and the item's icon at 12 square, then the count and the name.
     /// </summary>
-    private void Items(MenuList<InventoryRow> list, ScreenRect b, UiFont font, Rgba cursor)
+    private void Items(MenuList<InventoryRow> list, ListLayout layout, UiFont font, Rgba cursor)
     {
-        list.Visible = (b.Bottom - b.Top) / 13;
+        var b = layout.Bounds;
         var x = b.Left;
-        _ui.List(list, b.Top, 13, PartyMenu.TextColor, cursor, (row, top, c) =>
+        _ui.List(list, layout, PartyMenu.TextColor, cursor, (row, top, c) =>
         {
             if (row.Wearer is { } wearer && Menu.Party.Slots[wearer] is { } who && Menu.Portrait(who.Entity) is { } portrait)
                 _ui.Image(_canvas, portrait, x, top, new Vector2I(12, 12));
@@ -647,7 +649,7 @@ public partial class PartyTabView : Control
                 _ui.Text(_canvas, font, Num(row.Quantity), x + Columns.Quantity, top, b, PartyMenu.TextColor);
             _ui.Text(_canvas, font, row.Item.Name, x + (row.Quantity != 0 ? Columns.Name : Columns.NameNoQuantity), top, b, c);
         });
-        _ui.Arrows(_canvas, list, new Vector2I(b.Left + 15, b.Top - 13), new Vector2I(b.Right - 15, b.Top - 13));
+        _ui.Arrows(_canvas, list, layout);
     }
 
     /// <summary>

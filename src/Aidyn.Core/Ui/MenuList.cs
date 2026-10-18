@@ -5,16 +5,23 @@ namespace Aidyn.Core.Ui;
 /// wraps from the last row to the first and back, and the list scrolls only as far as it must.
 /// </summary>
 /// <remarks>
-/// How many rows show is the layout's: the original's lists are bounded at 104 pixels, eight rows
-/// of 13 or nine of 11, and a taller layout shows more. The cursor pulses between the rows' colour
+/// How many rows show is the layout's (<see cref="ListLayout.Visible"/>): the original's lists are bounded at 104 pixels,
+/// eight rows of 13 or nine of 11, and the menus size theirs where they build them, so a list scrolls with no view.
+/// A list made without a count shows every row. The cursor pulses between the rows' colour
 /// and <see cref="PartyMenu.HighlightColor"/>, as the conversation box's choices do.
 /// </remarks>
 public sealed class MenuList<TRow>
 {
     private IReadOnlyList<TRow> _rows = [];
-    private int _visible = int.MaxValue;
+    private int _visible;
 
-    public MenuList(IReadOnlyList<TRow> rows) => Rows = rows;
+    /// <param name="rows">The rows.</param>
+    /// <param name="visible">How many show at once, or all of them if not given.</param>
+    public MenuList(IReadOnlyList<TRow> rows, int visible = int.MaxValue)
+    {
+        _visible = Math.Max(1, visible);
+        Rows = rows;
+    }
 
     public IReadOnlyList<TRow> Rows
     {

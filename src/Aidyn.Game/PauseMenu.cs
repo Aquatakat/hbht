@@ -225,10 +225,8 @@ public partial class PauseMenu : CanvasLayer
         }
         else
         {
-            _view.Menu = menu;
+            _view.Window = menu;
         }
-        _view.Barter = null;
-        _view.Training = null;
         var system = new SystemMenu(_plugins, _settings, _game.Party, DataPaths.Saves, isSet: _game.Flags.Get);
         if (_system is null)
         {
@@ -275,7 +273,7 @@ public partial class PauseMenu : CanvasLayer
     public void OpenLoot(ItemPile loot, int gold)
     {
         Open(PauseTab.Party, tabsLocked: true, brightens: false);
-        _view!.Barter = BarterMenu.ForLoot(_plugins, _game.Party, loot, gold, _game.Flags, _game.Random.World);
+        _view!.Window = BarterMenu.ForLoot(_plugins, _game.Party, loot, gold, _game.Flags, _game.Random.World);
         // The coins, a second after the window opens, at the sound volume as their gain.
         if (gold > 0 && _game.Sounds is { } sounds)
             Audio?.Play(new Core.Audio.OneShot(sounds.GoldGained, Core.Audio.OneShot.LongTicks, Core.Audio.OneShot.MenuTicks, TimesSoundVolume: true));
@@ -288,14 +286,14 @@ public partial class PauseMenu : CanvasLayer
     public void OpenShop(Shop shop)
     {
         Open(PauseTab.Party, tabsLocked: true, brightens: false);
-        _view!.Barter = BarterMenu.ForShop(_plugins, shop, _game.Random.World);
+        _view!.Window = BarterMenu.ForShop(_plugins, shop, _game.Random.World);
     }
 
     /// <summary>Opens the menu in its training state at a trainer (<c>init_skill_trainer</c>). Training acts on the game.</summary>
     public void OpenTraining(Core.Characters.Trainer trainer)
     {
         Open(PauseTab.Party, tabsLocked: true);
-        _view!.Training = TrainingMenu.For(_plugins, _game.Party, trainer, _game.Flags, _game.Random.World);
+        _view!.Window = TrainingMenu.For(_plugins, _game.Party, trainer, _game.Flags, _game.Random.World);
     }
 
     /// <summary>Rolls the scroll up and closes the menu, and then does <paramref name="then"/>.</summary>
@@ -445,7 +443,7 @@ public partial class PauseMenu : CanvasLayer
             return;
         if (Tab == PauseTab.System && !_system!.Menu.OnList)
             return;
-        if (Tab == PauseTab.Party && _view!.Menu.HasPopup)
+        if (Tab == PauseTab.Party && _view!.Window.HasPopup)
             return;
         if (Tab == PauseTab.World && (_world!.Menu.Message is not null || _world.Menu.Journal is not null))
             return;
@@ -547,7 +545,7 @@ public partial class PauseMenu : CanvasLayer
     private void PressSound(InputEvent e)
     {
         const int Short = Core.Audio.OneShot.ShortTicks, Menu = Core.Audio.OneShot.MenuTicks;
-        var party = Tab == PauseTab.Party && _view!.Barter is null && _view.Training is null;
+        var party = Tab == PauseTab.Party && _view!.OwnTab;
         if (Tab == PauseTab.System && _system!.Menu.Rename is not null && e is InputEventKey)
             return;
         if (e.IsActionPressed("menu_accept"))
@@ -557,7 +555,7 @@ public partial class PauseMenu : CanvasLayer
         else if (e.IsActionPressed("menu_details") || e.IsActionReleased("menu_details"))
             Sound(e.IsPressed() ? m => m.TabBack : m => m.TabForward, Menu);
         else if ((e.IsActionPressed("menu_member_left") || e.IsActionPressed("menu_member_right")) && Tab == PauseTab.Party
-            && _view!.Barter is null && _game.Party.Members.Count() > 1)
+            && _view!.Window.ChangesMember && _game.Party.Members.Count() > 1)
             Sound(m => m.Member, Menu);
         else if (Pressed(e, "move_forward") || Pressed(e, "move_back") || e.IsActionPressed("menu_up", allowEcho: true)
             || e.IsActionPressed("menu_down", allowEcho: true))
@@ -577,7 +575,7 @@ public partial class PauseMenu : CanvasLayer
         if (Tab == PauseTab.World && _world?.Menu.Journal is not null)
             return;
         Sound(m => m.Cursor, Core.Audio.OneShot.ShortTicks);
-        if (Tab == PauseTab.Party && _view is { Barter: null, Training: null, Menu.HasPopup: false })
+        if (Tab == PauseTab.Party && _view is { OwnTab: true, Window.HasPopup: false })
             Sound(m => m.Cursor, Core.Audio.OneShot.ShortTicks);
         if (Tab == PauseTab.World)
             Sound(m => m.PageCursor, Core.Audio.OneShot.ShortTicks);
@@ -625,34 +623,65 @@ public partial class PauseMenu : CanvasLayer
             return HandleSystem(e, _system.Menu);
         if (Tab == PauseTab.World)
             return HandleWorld(e, _world!.Menu);
-        if (_view.Barter is { } barter)
-            return HandleBarter(e, barter);
-        if (_view.Training is { } training)
-            return HandleTraining(e, training);
-        var menu = _view.Menu;
-        if (e.IsActionPressed("menu_details") && menu.Message is not null)
-            menu.CloseMessage();
+        return HandleParty(e, _view.Window);
+    }
+
+    /// <summary>
+    /// The Party tab's presses, whichever window it shows: C-down's details, A, C-left and C-right, the stick's left and right,
+    /// and its up and down, each as the window takes it (<see cref="IPartyWindow"/>), and C-up, which the shop's window has a use for.
+    /// </summary>
+    private bool HandleParty(InputEvent e, IPartyWindow window)
+    {
+        if (e.IsActionPressed("menu_details") && window.CloseMessage())
+        {
+        }
+        else if (e.IsActionPressed("menu_appraise") && window.Appraise())
+        {
+        }
         else if (e.IsActionPressed("menu_details") || e.IsActionReleased("menu_details"))
-            _view.DetailsOpen = e.IsPressed();
+        {
+            _view!.DetailsOpen = e.IsPressed();
+        }
         else if (e.IsActionPressed("menu_accept"))
-            menu.Accept();
+        {
+            window.Accept();
+            if (window.Closed)
+            {
+                Close();
+                return true;
+            }
+        }
         // C-left shows the next member and C-right the one before; the stick's left the next list and its right the
         // one before, as the original's do.
         else if (e.IsActionPressed("menu_member_left"))
-            menu.ChangeMember(1);
+        {
+            window.ChangeMember(1);
+        }
         else if (e.IsActionPressed("menu_member_right"))
-            menu.ChangeMember(-1);
+        {
+            window.ChangeMember(-1);
+        }
         else if (Pressed(e, "move_left") || e.IsActionPressed("menu_left"))
-            menu.ChangeList(1);
+        {
+            window.Sideways(-1);
+        }
         else if (Pressed(e, "move_right") || e.IsActionPressed("menu_right"))
-            menu.ChangeList(-1);
+        {
+            window.Sideways(1);
+        }
         else if (Pressed(e, "move_forward") || e.IsActionPressed("menu_up", allowEcho: true))
-            menu.MoveCursor(-1);
+        {
+            window.MoveCursor(-1);
+        }
         else if (Pressed(e, "move_back") || e.IsActionPressed("menu_down", allowEcho: true))
-            menu.MoveCursor(1);
+        {
+            window.MoveCursor(1);
+        }
         else
+        {
             return e is InputEventJoypadMotion;
-        _view.QueueRedraw();
+        }
+        _view!.QueueRedraw();
         return true;
     }
 
@@ -660,11 +689,7 @@ public partial class PauseMenu : CanvasLayer
     /// B on the Party tab: closes a popup, and false if none was open, so the menu closes. The loot window asks
     /// before leaving items.
     /// </summary>
-    private bool Back()
-    {
-        var view = _view!;
-        return view.Barter is { } barter ? barter.Back() : view.Training is { } training ? training.Back() : view.Menu.Back();
-    }
+    private bool Back() => _view!.Window.Back();
 
     private void Redraw()
     {
@@ -784,89 +809,6 @@ public partial class PauseMenu : CanvasLayer
         return key.Unicode is > 31 and < 127 && entry.Type((char)key.Unicode);
     }
 
-    // The barter state's presses: the stick's left and right reach the list on that side.
-    private bool HandleBarter(InputEvent e, BarterMenu barter)
-    {
-        if (e.IsActionPressed("menu_details") && barter.CloseMessage())
-        {
-        }
-        else if (e.IsActionPressed("menu_appraise"))
-        {
-            barter.Appraise();
-        }
-        else if (e.IsActionPressed("menu_details") || e.IsActionReleased("menu_details"))
-        {
-            _view!.DetailsOpen = e.IsPressed();
-        }
-        else if (e.IsActionPressed("menu_accept"))
-        {
-            barter.Accept();
-            if (barter.Closed)
-            {
-                Close();
-                return true;
-            }
-        }
-        else if (Pressed(e, "move_left") || e.IsActionPressed("menu_left"))
-        {
-            Side(barter, right: false);
-        }
-        else if (Pressed(e, "move_right") || e.IsActionPressed("menu_right"))
-        {
-            Side(barter, right: true);
-        }
-        else if (Pressed(e, "move_forward") || e.IsActionPressed("menu_up", allowEcho: true))
-        {
-            barter.MoveCursor(-1);
-        }
-        else if (Pressed(e, "move_back") || e.IsActionPressed("menu_down", allowEcho: true))
-        {
-            barter.MoveCursor(1);
-        }
-        else
-        {
-            // C-left and C-right don't change the member here.
-            return e is InputEventJoypadMotion || e.IsActionPressed("menu_member_left") || e.IsActionPressed("menu_member_right");
-        }
-        _view!.QueueRedraw();
-        return true;
-    }
-
-    // The training state's presses.
-    private bool HandleTraining(InputEvent e, TrainingMenu training)
-    {
-        if (e.IsActionPressed("menu_details") && training.CloseMessage())
-        {
-        }
-        else if (e.IsActionPressed("menu_details") || e.IsActionReleased("menu_details"))
-            _view!.DetailsOpen = e.IsPressed();
-        else if (e.IsActionPressed("menu_accept"))
-            training.Accept();
-        else if (e.IsActionPressed("menu_member_left"))
-            training.ChangeMember(1);
-        else if (e.IsActionPressed("menu_member_right"))
-            training.ChangeMember(-1);
-        else if (Pressed(e, "move_left") || e.IsActionPressed("menu_left") || Pressed(e, "move_right") || e.IsActionPressed("menu_right"))
-            training.Switch();
-        else if (Pressed(e, "move_forward") || e.IsActionPressed("menu_up", allowEcho: true))
-            training.MoveCursor(-1);
-        else if (Pressed(e, "move_back") || e.IsActionPressed("menu_down", allowEcho: true))
-            training.MoveCursor(1);
-        else
-            return e is InputEventJoypadMotion;
-        _view!.QueueRedraw();
-        return true;
-    }
-
-    /// <summary>The stick's left reaches the pile, and its right the party's list, as they're laid out.</summary>
-    private static void Side(BarterMenu barter, bool right)
-    {
-        if (right)
-            barter.ShowParty();
-        else
-            barter.ShowPile();
-    }
-
     private bool Pressed(InputEvent e, string action) => _stick.Pressed(e, action);
 
     public override void _Process(double delta)
@@ -900,12 +842,7 @@ public partial class PauseMenu : CanvasLayer
             _world.QueueRedraw();
             return;
         }
-        if (_view!.Barter is { } barter)
-            barter.MoveCursor(by);
-        else if (_view.Training is { } training)
-            training.MoveCursor(by);
-        else
-            _view.Menu.MoveCursor(by);
+        _view!.Window.MoveCursor(by);
         _view.QueueRedraw();
     }
 }

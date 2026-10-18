@@ -110,12 +110,12 @@ public sealed partial class PartyMenu
         return true;
     }
 
-    /// <summary>Closes the message, and fades out the crafting popup under it if it showed its result (A, B or C-down).</summary>
-    public void CloseMessage()
+    /// <summary>Closes the message, and fades out the crafting popup under it if it showed its result (A, B or C-down). True if there was one.</summary>
+    public bool CloseMessage()
     {
         if (Message is { FromCrafting: true })
             Crafting?.Fade.Close();
-        Overlay.CloseMessage();
+        return Overlay.CloseMessage();
     }
 
     // A plugin older than the messages in code has none, and says nothing.

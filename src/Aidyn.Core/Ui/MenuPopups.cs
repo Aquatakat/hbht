@@ -76,6 +76,11 @@ public sealed record CraftingRow(string Text, RecipeRecord? Recipe = null, Craft
 /// A skill's popup on the parchment the details use (<c>WidgetCrafting</c>): a title over a list with a
 /// cursor. A does the row's task, C-down shows a recipe's product, and B fades it out.
 /// </summary>
+/// <remarks>
+/// The title is centred on x 93, 70 down, and the list is from x 23 to 163 under it, 122 tall for the Alchemist's recipes and
+/// 117 for the rest (<see cref="Layout"/>). Its rows are a line of the slim font apart, 11, or a member's portrait and two
+/// lines, 28.
+/// </remarks>
 /// <param name="user">The party slot of the member using the skill.</param>
 /// <param name="target">For <see cref="CraftingTask.RestoreStat"/>, the member being restored.</param>
 /// <param name="fade">
@@ -85,11 +90,23 @@ public sealed record CraftingRow(string Text, RecipeRecord? Recipe = null, Craft
 public sealed class CraftingMenu(CraftingTask task, string title, IReadOnlyList<CraftingRow> rows, int user, int? target = null,
     PopupFade? fade = null)
 {
+    /// <summary>Where the title is centred across, and its top.</summary>
+    public const int TitleCentre = 93, TitleTop = 70;
+
+    /// <summary>The list's sides.</summary>
+    public const int ListLeft = 23, ListRight = 163;
+
+    /// <summary>A text row's pitch, a line of the slim font (a 9-texel cell and 2), and a member's.</summary>
+    public const int TextRow = 11, MemberRow = 28;
+
     public CraftingTask Task { get; } = task;
 
     public string Title { get; } = title;
 
-    public MenuList<CraftingRow> Rows { get; } = new(rows);
+    /// <summary>The list's place and the rows' pitch, under the title.</summary>
+    public ListLayout Layout { get; } = LayoutOf(task);
+
+    public MenuList<CraftingRow> Rows { get; } = LayoutOf(task).List(rows);
 
     /// <summary>The party slot of the member using the skill.</summary>
     public int User { get; } = user;
@@ -100,5 +117,14 @@ public sealed class CraftingMenu(CraftingTask task, string title, IReadOnlyList<
     public PopupFade Fade { get; } = fade ?? new();
 
     /// <summary>Whether the rows are members, with their portraits.</summary>
-    public bool ListsMembers => Task is CraftingTask.LayOnHands or CraftingTask.HealWithHerbs or CraftingTask.Restore;
+    public bool ListsMembers => ListsMembersOf(Task);
+
+    private static bool ListsMembersOf(CraftingTask task) => task is CraftingTask.LayOnHands or CraftingTask.HealWithHerbs or CraftingTask.Restore;
+
+    private static ListLayout LayoutOf(CraftingTask task)
+    {
+        var top = TitleTop + TextRow;
+        return new ListLayout(new ScreenRect(ListLeft, top, ListRight, top + (task == CraftingTask.Alchemy ? 0x7A : 0x75)),
+            ListsMembersOf(task) ? MemberRow : TextRow);
+    }
 }

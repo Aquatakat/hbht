@@ -167,4 +167,19 @@ public sealed class BarterMenuRomTests(Na10Import fixture)
         Assert.False(menu.Back());
         Assert.False(menu.Closed);
     }
+
+    /// <summary>
+    /// The menus' lists are sized in the core from the original's fixed layouts: the crafting popup's rows are a line of the
+    /// slim font apart, and the lists show the rows their bounds hold.
+    /// </summary>
+    [Fact]
+    public void TheCoresListLayoutsMatchTheSlimFontsLineAndTheTabsLists()
+    {
+        var slim = new TextLayout(Set.Get<FontRecord>(RecordId.Decimal(RecordTypes.Font, 1)));
+
+        Assert.Equal(CraftingMenu.TextRow, slim.LineHeight());
+        Assert.Equal(8, PartyMenu.Layout(PartyList.Inventory).Visible);
+        Assert.Equal(9, PartyMenu.Layout(PartyList.Stats).Visible);
+        Assert.Equal(6, BarterMenu.PileLayout.Visible);
+    }
 }

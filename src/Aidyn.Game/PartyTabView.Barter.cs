@@ -28,38 +28,6 @@ public partial class PartyTabView
 
     private const int HelpRight = 149;
 
-    private ScreenRect _pileBounds;
-
-    /// <summary>The barter state, or null for the Party tab. Setting it shows its party's menu.</summary>
-    public BarterMenu? Barter
-    {
-        get;
-        set
-        {
-            field = value;
-            if (value is not null)
-                Menu = value.Party;
-            QueueRedraw();
-        }
-    }
-
-    /// <summary>The pile's or the party's list's row under a point, if any and no popup is up.</summary>
-    private (bool Pile, int Row)? BarterRowAt(Vector2 point)
-    {
-        var barter = Barter!;
-        if (barter.HasPopup)
-            return null;
-        var at = point - (Vector2)_origin;
-        foreach (var (bounds, list, pile) in new[] { (_pileBounds, barter.Pile, true), (_listBounds, Menu.Inventory, false) })
-        {
-            if (at.X < bounds.Left || at.X >= bounds.Right || at.Y < bounds.Top || at.Y >= bounds.Bottom)
-                continue;
-            var row = list.First + (int)(at.Y - bounds.Top) / 13;
-            return row < list.Rows.Count ? (pile, row) : null;
-        }
-        return null;
-    }
-
     /// <summary>The colours of the party's list's cursor and the pile's: the active one pulses, the other is plain.</summary>
     private (Rgba Party, Rgba Pile) Cursors(BarterMenu barter) =>
         barter.OnPile ? (PartyMenu.TextColor, Menu.HighlightNow) : (Menu.HighlightNow, PartyMenu.TextColor);
@@ -70,13 +38,12 @@ public partial class PartyTabView
         _ui.Image(_canvas, MenuImages.PartyTab, 0, 0);
         Portraits(PortraitPiece.Position);
         Health(HealthPiece.Position, _ui.Main);
-        List(ClassicList, _ui.Slim, party);
+        List(0, _ui.Slim, party);
 
         _ui.Parchment(_canvas, ClassicParchment.X, ClassicParchment.Y);
         var title = _ui.Size(barter.Title);
         _ui.Image(_canvas, barter.Title, PileTitleCentre - title.X / 2, PileTitleFoot - title.Y);
-        _pileBounds = BarterMenu.ClassicPile;
-        Items(barter.Pile, _pileBounds, _ui.Slim, pile);
+        Items(barter.Pile, BarterMenu.PileLayout, _ui.Slim, pile);
         _ui.Text(_canvas, _ui.Slim, barter.PileLine, ClassicGoldLine.X, ClassicGoldLine.Y, PartyMenu.TextColor);
 
         // C-down's details cover the pile, as WidgetItemDetail covers WidgetBarter, on their own layer (DrawDetails).
@@ -92,15 +59,6 @@ public partial class PartyTabView
     {
         _ui.Parchment(_canvas, ClassicParchment.X, ClassicParchment.Y);
         _ui.Text(_canvas, _ui.Main, text, HelpText.X, HelpText.Y, new ScreenRect(HelpText.X, HelpText.Y, HelpRight, (int)Size.Y), PartyMenu.TextColor);
-    }
-
-    /// <summary>The popups over the barter state, centred on the screen.</summary>
-    private void BarterPopups(BarterMenu barter)
-    {
-        var screen = (Vector2I)Size;
-        if (barter.Confirm is { } confirm)
-            Confirm(confirm, barter.PopupHighlight);
-        _ui.Overlay(_canvas, screen, barter.Overlay);
     }
 
     /// <summary>

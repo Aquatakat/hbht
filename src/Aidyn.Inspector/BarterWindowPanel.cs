@@ -1,8 +1,6 @@
 using Aidyn.Core.Items;
 using Aidyn.Core.Ui;
-using Aidyn.Game;
 using Aidyn.Plugins;
-using Godot;
 
 namespace Aidyn.Inspector;
 
@@ -12,57 +10,36 @@ namespace Aidyn.Inspector;
 /// the runtime. The loot table's page and a container's on the map show the loot window, and a shop's
 /// page its window.
 /// </summary>
-public partial class BarterWindowPanel : VBoxContainer
+public partial class BarterWindowPanel : MenuWindowPanel
 {
-    private readonly UiScreen _screen = new()
-    {
-        CustomMinimumSize = new Vector2(UiScreen.Width, UiScreen.Height), Backdrop = new Color(0.22f, 0.25f, 0.3f), ForwardsMouse = true,
-    };
-    private readonly UiScreenOptions _options;
-    private readonly PartyTabView _view;
-    private readonly Label _state = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart };
-    private readonly HFlowContainer _bar = new();
-    private readonly CheckBox _details = new() { Text = "Details (C-down)", TooltipText = "Show what C-down shows for the active row, as it does while held." };
+    private readonly BarterMenu _barter;
 
     /// <param name="intro">What's open, and against which game.</param>
-    public BarterWindowPanel(PluginSet plugins, BarterMenu barter, string intro)
+    public BarterWindowPanel(PluginSet plugins, BarterMenu barter, string intro) : base(plugins, barter)
     {
-        AddThemeConstantOverride("separation", 6);
-        _view = new PartyTabView(plugins, barter.Party) { Barter = barter };
-        _screen.Canvas.AddChild(_view);
-
+        _barter = barter;
         var shop = barter.Shop is not null;
-        AddChild(new Label
-        {
-            Text = intro + " The stick's left and right reach the list on that side: the pile is always left of the party's, "
-                + "as in the original. "
-                + (shop ? "A buys one or sells, C-up appraises the stock's price, B leaves." : "A takes or drops, B leaves."),
-            AutowrapMode = TextServer.AutowrapMode.WordSmart,
-        });
-        var bar = _bar;
-        bar.AddThemeConstantOverride("h_separation", 6);
-        bar.AddChild(Button("◀", "The stick left: the list on the left.", () => Side(right: false)));
-        bar.AddChild(Button("▶", "The stick right: the list on the right.", () => Side(right: true)));
-        bar.AddChild(Button("▲", "The stick up.", () => Barter.MoveCursor(-1)));
-        bar.AddChild(Button("▼", "The stick down.", () => Barter.MoveCursor(1)));
-        bar.AddChild(shop
-            ? Button("A", "Buy one of the stock's row, sell the party's, choose in a popup, or close a message.", Accept)
-            : Button("A", "Take the pile's row, drop the party's, choose in a popup, or close a message.", Accept));
-        bar.AddChild(shop
-            ? Button("B", "Close a message, or leave the shop.", Back)
-            : Button("B", "Close a message, or leave the window, which asks first if items are left.", Back));
+        Describe(intro + " The stick's left and right reach the list on that side: the pile is always left of the party's, "
+            + "as in the original. "
+            + (shop ? "A buys one or sells, C-up appraises the stock's price, B leaves." : "A takes or drops, B leaves."));
+        AddButton("◀", "The stick left: the list on the left.", () => Side(right: false));
+        AddButton("▶", "The stick right: the list on the right.", () => Side(right: true));
+        AddButton("▲", "The stick up.", () => _barter.MoveCursor(-1));
+        AddButton("▼", "The stick down.", () => _barter.MoveCursor(1));
         if (shop)
-            bar.AddChild(Button("C-up", "Appraise the stock's row: how the party judges its price.", () => Barter.Appraise()));
-        _details.Toggled += on =>
-        {
-            if (!on || !Barter.CloseMessage())
-                _view.DetailsOpen = on;
-        };
-        bar.AddChild(_details);
-        AddChild(bar);
-        AddChild(_options = new UiScreenOptions(_screen, "with room, the pile goes right of the party's list."));
-        AddChild(_screen);
-        AddChild(_state);
+            AddButton("A", "Buy one of the stock's row, sell the party's, choose in a popup, or close a message.", Accept);
+        else
+            AddButton("A", "Take the pile's row, drop the party's, choose in a popup, or close a message.", Accept);
+        if (shop)
+            AddButton("B", "Close a message, or leave the shop.", Back);
+        else
+            AddButton("B", "Close a message, or leave the window, which asks first if items are left.", Back);
+        if (shop)
+            AddButton("C-up", "Appraise the stock's row: how the party judges its price.", _barter.Appraise);
+        AddDetails("Show what C-down shows for the active row, as it does while held.", closesMessage: true);
+        Presses(("a", Accept), ("b", Back), ("cup", _barter.Appraise), ("up", () => _barter.MoveCursor(-1)), ("down", () => _barter.MoveCursor(1)),
+            ("left", () => Side(right: false)), ("right", () => Side(right: true)), ("details", ToggleDetails));
+        Finish("with room, the pile goes right of the party's list.", closes: true);
     }
 
     /// <summary>
@@ -86,74 +63,22 @@ public partial class BarterWindowPanel : VBoxContainer
 
     private static string Against(EditorGame game) => game.IsNewGame ? "a new game" : game.Name;
 
-    private BarterMenu Barter => _view.Barter!;
-
-    /// <summary>Sets how the screen is shown (<c>--zoom</c>, <c>--ui-filter</c>, <c>--aspect</c>, <c>--ui-lines</c>).</summary>
-    public void SetScreen(int? zoom, UiFilter? filter, bool? wide, int? lines) => _options.Set(zoom, filter, wide, lines);
-
-    /// <summary>
-    /// Presses A, B, C-up, the stick, or C-down, which stays held until pressed again, in turn
-    /// (<c>--press</c>), for screenshots.
-    /// </summary>
-    public void Press(IEnumerable<string> buttons)
-    {
-        foreach (var button in buttons)
-        {
-            switch (button.Trim().ToLowerInvariant())
-            {
-                case "a": Accept(); break;
-                case "b": Back(); break;
-                case "cup": Barter.Appraise(); break;
-                case "up": Barter.MoveCursor(-1); break;
-                case "down": Barter.MoveCursor(1); break;
-                case "left": Side(right: false); break;
-                case "right": Side(right: true); break;
-                case "details": _details.ButtonPressed = !_details.ButtonPressed; break;
-                default: GD.PrintErr($"--press: \"{button}\" isn't a, b, cup, up, down, left, right or details."); break;
-            }
-        }
-        _view.QueueRedraw();
-    }
-
     /// <summary>The stick's left reaches the pile, and its right the party's list, as they're laid out.</summary>
-    private void Side(bool right)
-    {
-        if (right)
-            Barter.ShowParty();
-        else
-            Barter.ShowPile();
-    }
+    private void Side(bool right) => ((IPartyWindow)_barter).Sideways(right ? 1 : -1);
 
     private void Accept()
     {
-        Barter.Accept();
-        if (Barter.Closed)
-            Leave("The party left the rest.");
+        _barter.Accept();
+        if (_barter.Closed)
+            Leave(Closed("The party left the rest."));
     }
 
     private void Back()
     {
-        if (!Barter.Back())
-            Leave("The window closed.");
+        if (!_barter.Back())
+            Leave(Closed("The window closed."));
     }
 
-    // The original's window is gone once it closes; here it stays, to look at, with nothing more to do.
-    private void Leave(string how)
-    {
-        _state.Text = $"{how} In the game, the menu closes and trek goes on. "
-            + (Barter.Shop is null ? "Roll again for another." : "Open the shop again for another.");
-        foreach (var button in _bar.GetChildren().OfType<BaseButton>())
-            button.Disabled = true;
-    }
-
-    private Button Button(string text, string tooltip, Action act)
-    {
-        var button = new Button { Text = text, TooltipText = tooltip };
-        button.Pressed += () =>
-        {
-            act();
-            _view.QueueRedraw();
-        };
-        return button;
-    }
+    private string Closed(string how) => $"{how} In the game, the menu closes and trek goes on. "
+        + (_barter.Shop is null ? "Roll again for another." : "Open the shop again for another.");
 }

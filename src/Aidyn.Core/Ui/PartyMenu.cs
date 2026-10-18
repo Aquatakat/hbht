@@ -27,8 +27,14 @@ public enum PartyList
 /// rebuilds the lists in place. Both are animated (<c>PartyMenu.Motion.cs</c>), and the details and the skills'
 /// popups fade (<see cref="PopupFade"/>).
 /// </remarks>
-public sealed partial class PartyMenu
+public sealed partial class PartyMenu : IPartyWindow
 {
+    /// <summary>The lists' bounds in the 320 × 240 frame (<c>DollMenuLists</c>): at (160, 101) and bounded to x 300 and y 205.</summary>
+    public static readonly ScreenRect ClassicList = new(160, 101, 300, 205);
+
+    /// <summary>A list's place and its rows' pitch: 11 for the stats, 13 for the rest, so the stats show 9 rows and the others 8.</summary>
+    public static ListLayout Layout(PartyList list) => new(ClassicList, list == PartyList.Stats ? 11 : 13);
+
     /// <summary>The colour of a row, and of the header's numbers (<c>COLOR_RED1</c>).</summary>
     public static readonly Rgba TextColor = MenuDetailsBuilder.TextColor;
 
@@ -55,10 +61,10 @@ public sealed partial class PartyMenu
         // The original steps back to a slot with a member (DollMenu::InitMenu).
         while (Member > 0 && party.Slots.ElementAtOrDefault(Member) is null)
             Member--;
-        Inventory = new MenuList<InventoryRow>([]);
-        Stats = new MenuList<StatRow>([]);
-        Skills = new MenuList<SkillRow>([]);
-        Spells = new MenuList<SpellRow>([]);
+        Inventory = Layout(PartyList.Inventory).List<InventoryRow>([]);
+        Stats = Layout(PartyList.Stats).List<StatRow>([]);
+        Skills = Layout(PartyList.Skills).List<SkillRow>([]);
+        Spells = Layout(PartyList.Spells).List<SpellRow>([]);
         Refresh();
     }
 
@@ -71,6 +77,14 @@ public sealed partial class PartyMenu
     };
 
     public Party Party { get; }
+
+    /// <summary>The tab is its own header and lists.</summary>
+    PartyMenu IPartyWindow.Menu => this;
+
+    bool IPartyWindow.ChangesMember => true;
+
+    /// <summary>The stick's left shows the next list and its right the one before (<see cref="ChangeList"/>).</summary>
+    void IPartyWindow.Sideways(int direction) => ChangeList(-direction);
 
     /// <summary>The party slot of the member shown (<c>gPartyPicker</c>).</summary>
     public int Member { get; private set; }
