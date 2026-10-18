@@ -15,7 +15,7 @@ public enum PopupFadeState
 /// <c>0x800336a0</c>), and each menu update, a tick, steps it before it's drawn: in, 60 more until it's 195 or more and
 /// then 255, where it's open (<c>MenuPopup.FadeIn</c>, <c>0x80032840</c>), so it's drawn at 60, 120, 180, 240 and 255;
 /// out, 60 less until it's under 61 and then gone, freed before it's drawn at 0 (<c>MenuPopup.FadeOut</c>,
-/// <c>0x800328ac</c>), so from open it's drawn at 195, 135, 75 and 15.
+/// <c>0x800328ac</c>), so from open it's drawn at 195, 135, 75 and 15. The steps are <see cref="WidgetFade"/>'s.
 /// </summary>
 /// <remarks>
 /// The alpha is the whole popup's: <c>Widget.SetAlpha</c> (<c>0x800b2928</c>) sets it on the parchment, its shadow, the
@@ -25,17 +25,6 @@ public enum PopupFadeState
 /// </remarks>
 public sealed class PopupFade
 {
-    /// <summary>How much the alpha changes a step.</summary>
-    public const int Step = 60;
-
-    /// <summary>From this alpha up, fading in goes to 255 rather than 60 more.</summary>
-    public const int LastStepIn = 195;
-
-    /// <summary>Under this alpha, fading out ends the popup rather than taking 60 more.</summary>
-    public const int LastStepOut = 61;
-
-    public const int Opaque = 255;
-
     /// <summary>The popup's alpha now, from 0 to 255.</summary>
     public int Alpha { get; private set; }
 
@@ -59,16 +48,14 @@ public sealed class PopupFade
         switch (State)
         {
             case PopupFadeState.Opening:
-                Alpha = Alpha < LastStepIn ? Alpha + Step : Opaque;
-                if (Alpha == Opaque)
+                Alpha = WidgetFade.In(Alpha);
+                if (Alpha == WidgetFade.Opaque)
                     State = PopupFadeState.Open;
                 break;
-            case PopupFadeState.Closing when Alpha < LastStepOut:
-                Alpha = 0;
-                State = PopupFadeState.Gone;
-                break;
             case PopupFadeState.Closing:
-                Alpha -= Step;
+                Alpha = WidgetFade.Out(Alpha);
+                if (Alpha == 0)
+                    State = PopupFadeState.Gone;
                 break;
         }
     }

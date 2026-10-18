@@ -275,7 +275,7 @@ public partial class SystemTabView : Control
     /// the old one was, both on the ease-out curve and truncated to whole pixels. They're drawn with the rest of the
     /// tab, so the frame that starts a slide draws it.
     /// </summary>
-    private void SlidingPages(SaveMenu saves, SlotSlide slide)
+    private void SlidingPages(SaveMenu saves, MenuSlide<int> slide)
     {
         var (left, width) = (SlotPanel.Position.X, SlotPanel.Size.X);
         var change = saves.SlideChange;

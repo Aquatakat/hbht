@@ -41,7 +41,7 @@ public sealed class WorldMenu
     private readonly TextLayout _font;
     private readonly float _campFactor;
     private readonly string _cannotCamp;
-    private int _markerStep, _markerSign = 1;
+    private readonly MenuPulse _marker = new(frames: MarkerSteps, top: MarkerSteps);
 
     /// <param name="font">The main font, which the journal wraps its entries in.</param>
     /// <param name="place">The chunk the player is in, or none, as in a cut-scene's stage.</param>
@@ -90,11 +90,7 @@ public sealed class WorldMenu
     public (int X, int Y)? Marker { get; }
 
     /// <summary>The ring's colour now, pulsing from black.</summary>
-    public Rgba MarkerNow => new(
-        (byte)(MarkerColor.R / MarkerSteps * _markerStep),
-        (byte)(MarkerColor.G / MarkerSteps * _markerStep),
-        (byte)(MarkerColor.B / MarkerSteps * _markerStep),
-        255);
+    public Rgba MarkerNow => _marker.Now(new Rgba(0, 0, 0, 255), MarkerColor);
 
     public WorldChoice Cursor { get; private set; }
 
@@ -196,9 +192,7 @@ public sealed class WorldMenu
             return;
         }
         PieceAlpha = PieceAlpha >= PieceFadeTop ? 255 : PieceAlpha + PieceFade;
-        _markerStep += _markerSign;
-        if (_markerStep is 0 or MarkerSteps)
-            _markerSign = -_markerSign;
+        _marker.Step();
     }
 
     private static TerrainRecord? TerrainOf(PluginSet plugins, ChunkRef at) =>

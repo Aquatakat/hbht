@@ -317,7 +317,7 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         var screen = Screen(saving: false);
 
         screen.Shift(1);
-        Assert.Equal((new SlotSlide(0, 1), 1), (screen.Slide, screen.Slot));
+        Assert.Equal((0, 1, 1), (screen.Slide!.From, screen.Slide.Direction, screen.Slot));
         Assert.Equal(0, screen.SlideChange);
         // Every press is dropped while it slides: the stick, the actions, A and B.
         screen.Shift(-1);
@@ -332,11 +332,27 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         Settle(screen);
         Assert.Equal(1, screen.SlideChange);
         screen.Shift(-1);
-        Assert.Equal(new SlotSlide(1, -1), screen.Slide);
+        Assert.Equal((1, -1), (screen.Slide!.From, screen.Slide.Direction));
         // A slot that isn't there doesn't slide.
         Settle(screen);
         screen.Shift(-1);
         Assert.Null(screen.Slide);
+    }
+
+    [Fact]
+    public void ASaveSlideStepsItsEaseOutShareEachFrameAndFinishesOneFrameLater()
+    {
+        Write("old", 0, minutesAgo: 10);
+        Write("recent", 0);
+        var screen = Screen(saving: false);
+        screen.Shift(1);
+        for (var frame = 0; frame <= SaveMenu.SlideFrames + 2; frame++)
+        {
+            var sliding = frame <= SaveMenu.SlideFrames;
+            Assert.Equal(sliding, screen.Slide is not null);
+            Assert.Equal(sliding ? MenuTween.EaseOut(frame, SaveMenu.SlideFrames) : 1, screen.SlideChange);
+            screen.Step();
+        }
     }
 
     [Fact]

@@ -90,9 +90,6 @@ public sealed class BackdropPage(TextLayout font, BackdropStyle style)
     public const int TextX = 64, TextY = 30, Right = 256, NarrowRight = 240, Bottom = 205;
     public const int ChoiceX = 75, ChoiceTop = 55, ChoiceGap = 4, RowGap = 4;
 
-    /// <summary>How much the page's alpha changes a frame as it fades in or out: the journal's.</summary>
-    public const int Fade = JournalMenu.Fade;
-
     private static readonly ScreenRect Menu = new(ChoiceX, ChoiceTop, Right, Bottom);
 
     private ScriptPage? _page;
@@ -113,7 +110,7 @@ public sealed class BackdropPage(TextLayout font, BackdropStyle style)
     /// </summary>
     public MenuPulse Pulse { get; } = new();
 
-    /// <summary>The page's alpha, which fades in as it opens and out once it closes.</summary>
+    /// <summary>The page's alpha, which fades in as it opens and out once it closes, as the journal's does (<see cref="WidgetFade"/>).</summary>
     public int Alpha { get; private set; }
 
     public bool Closing { get; private set; }
@@ -148,7 +145,7 @@ public sealed class BackdropPage(TextLayout font, BackdropStyle style)
     /// <summary>A 60 Hz tick: the fade, and the cursor's pulse.</summary>
     public void Step()
     {
-        Alpha = Closing ? (Alpha < Fade + 1 ? 0 : Alpha - Fade) : Alpha < 255 - Fade ? Alpha + Fade : 255;
+        Alpha = Closing ? WidgetFade.Out(Alpha) : WidgetFade.In(Alpha);
         Pulse.Step();
     }
 

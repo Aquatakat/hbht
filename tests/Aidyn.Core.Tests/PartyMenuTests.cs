@@ -320,7 +320,7 @@ public class PartyMenuMotionTests
 
         menu.ChangeList(1);
         Assert.Equal(PartyList.Spells, menu.List);
-        Assert.Equal(new ListSlide(PartyList.Inventory, 1), menu.Slide);
+        Assert.Equal((PartyList.Inventory, 1), (menu.Slide!.From, menu.Slide.Direction));
         menu.ChangeList(1);
         menu.ChangeMember(1);
         Assert.Equal((PartyList.Spells, 0), (menu.List, menu.Member));
@@ -328,7 +328,7 @@ public class PartyMenuMotionTests
         Frames(menu, PartyMenu.ListFrames + 1);
         Assert.Null(menu.Slide);
         menu.ChangeList(-1);
-        Assert.Equal(new ListSlide(PartyList.Spells, -1), menu.Slide);
+        Assert.Equal((PartyList.Spells, -1), (menu.Slide!.From, menu.Slide.Direction));
         Assert.Equal(PartyList.Inventory, menu.List);
     }
 
@@ -342,5 +342,27 @@ public class PartyMenuMotionTests
         menu.ChangeList(1);
 
         Assert.Equal(PartyList.Spells, menu.List);
+    }
+
+    /// <summary>
+    /// Both tweens take a step each frame, go the eased share of the way and finish a frame after they reach the end:
+    /// the member change's header and the list slide, frame by frame.
+    /// </summary>
+    [Fact]
+    public void TheTweensStepTheirEasedShareEachFrameAndFinishOneFrameLater()
+    {
+        var menu = Menu();
+        menu.ChangeMember(1);
+        menu.ChangeList(1);
+        for (var frame = 0; frame <= PartyMenu.ListFrames + 2; frame++)
+        {
+            var member = frame <= PartyMenu.MemberFrames;
+            var list = frame <= PartyMenu.ListFrames;
+            Assert.Equal((member, list), (menu.Previous is not null, menu.Slide is not null));
+            Assert.Equal(member ? MenuTween.Ease(frame, PartyMenu.MemberFrames) : 1, menu.MemberChange);
+            Assert.Equal(list ? MenuTween.Ease(frame, PartyMenu.ListFrames) : 1, menu.ListChange);
+            Assert.Equal(member || list, menu.Changing);
+            Frames(menu, 1);
+        }
     }
 }

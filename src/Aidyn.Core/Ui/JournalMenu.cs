@@ -26,8 +26,8 @@ public sealed class JournalMenu
     public const int Gap = 4;
     /// <summary>How far the list slides a tick toward where it's going (<c>scrollSpeed</c>).</summary>
     public const int ScrollSpeed = 5;
-    /// <summary>The book's fade a tick, and the arrows'.</summary>
-    public const int Fade = 60, ArrowFade = 30;
+    /// <summary>The arrows' fade a tick, half the book's (<see cref="WidgetFade.Step"/>).</summary>
+    public const int ArrowFade = 30;
 
     public static readonly Rgba TextColor = new(98, 70, 60, 255), NewestColor = new(130, 80, 140, 255);
 
@@ -73,7 +73,7 @@ public sealed class JournalMenu
     /// <summary>How far the list is moved down from its place: 0 at the top, negative scrolled toward the end (<c>yCurr</c>).</summary>
     public int Scroll { get; private set; }
 
-    /// <summary>The book's alpha, which fades in as it opens and out as it closes.</summary>
+    /// <summary>The book's alpha, which fades in as it opens and out as it closes (<see cref="WidgetFade"/>).</summary>
     public int Alpha { get; private set; }
 
     public bool Closing { get; private set; }
@@ -135,7 +135,7 @@ public sealed class JournalMenu
     /// </summary>
     public void Step(bool upHeld = false, bool downHeld = false)
     {
-        Alpha = Closing ? (Alpha < Fade + 1 ? 0 : Alpha - Fade) : Alpha < 195 ? Alpha + Fade : 255;
+        Alpha = Closing ? WidgetFade.Out(Alpha) : WidgetFade.In(Alpha);
         if (Moving)
             Scroll = Scroll < _target ? Math.Min(Scroll + ScrollSpeed, _target) : Math.Max(Scroll - ScrollSpeed, _target);
         else if (upHeld)
@@ -145,6 +145,6 @@ public sealed class JournalMenu
         UpArrow = Toward(UpArrow, ScreenTop(Items[0]) < Top);
         DownArrow = Toward(DownArrow, ScreenTop(Items[^1]) + Items[^1].Height > Bottom);
 
-        static int Toward(int alpha, bool on) => on ? Math.Min(alpha + ArrowFade, 255) : Math.Max(alpha - ArrowFade, 0);
+        static int Toward(int alpha, bool on) => on ? WidgetFade.In(alpha, ArrowFade) : WidgetFade.Out(alpha, ArrowFade);
     }
 }

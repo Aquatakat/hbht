@@ -90,7 +90,7 @@ public sealed class DialogueBox(TextLayout font, int borderWidth, int borderHeig
     private int _screenWidth = FrameWidth, _screenHeight = FrameHeight;
     private bool _choicesAlone;
     private int _borderY = BaseTop;
-    private int _pulse, _pulseSign = 1, _ticks;
+    private readonly MenuPulse _pulse = new(Cadence.FrameTicks, PulseFrames);
 
     /// <summary>What the box shows now, or none before the first page.</summary>
     public DialogueBoxLayout? Layout { get; private set; }
@@ -118,8 +118,7 @@ public sealed class DialogueBox(TextLayout font, int borderWidth, int borderHeig
         _page = page;
         _choicesAlone = false;
         Highlight = 0;
-        _pulse = 0;
-        _pulseSign = 1;
+        _pulse.Restart();
         return Lay();
     }
 
@@ -143,24 +142,13 @@ public sealed class DialogueBox(TextLayout font, int borderWidth, int borderHeig
     }
 
     /// <summary>Advances the cursor's pulse by one 60 Hz tick.</summary>
-    public void Step()
-    {
-        if (++_ticks < Cadence.FrameTicks)
-            return;
-        _ticks = 0;
-        _pulse += _pulseSign;
-        if (_pulse == 0 || _pulse >= PulseFrames - 1)
-            _pulseSign = -_pulseSign;
-    }
+    public void Step() => _pulse.Step();
 
     /// <summary>
     /// The cursor's choice's colour now. Each channel moves by a whole step a frame, the difference
     /// over <see cref="PulseFrames"/> rounded toward zero.
     /// </summary>
-    public Rgba HighlightNow => new(Blend(ChoiceColor.R, HighlightColor.R), Blend(ChoiceColor.G, HighlightColor.G),
-        Blend(ChoiceColor.B, HighlightColor.B), Blend(ChoiceColor.A, HighlightColor.A));
-
-    private byte Blend(byte from, byte to) => (byte)(from + (to - from) / PulseFrames * _pulse);
+    public Rgba HighlightNow => _pulse.Now(ChoiceColor, HighlightColor);
 
     private DialogueBoxLayout Lay()
     {

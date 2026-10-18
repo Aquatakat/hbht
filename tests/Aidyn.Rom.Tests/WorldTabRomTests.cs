@@ -56,6 +56,26 @@ public sealed class WorldTabRomTests(Na10Import fixture)
     }
 
     [Fact]
+    public void TheRingPulsesFromBlackAStepATickWhileTheTabShowsAndStandsStillWhileItSlides()
+    {
+        var menu = new WorldMenu(Set, GameState.NewGame(Set), MainFont, null, outdoors: false);
+        var color = WorldMenu.MarkerColor;
+        int step = 0, sign = 1;
+        for (var tick = 0; tick < 60; tick++)
+        {
+            // Sliding to the tab holds the ring, and so does another tab showing.
+            menu.Step(showing: true, sliding: true);
+            menu.Step(showing: false, sliding: false);
+            Assert.Equal(new Rgba((byte)(color.R / 10 * step), (byte)(color.G / 10 * step), (byte)(color.B / 10 * step), 255), menu.MarkerNow);
+            menu.Step(showing: true, sliding: false);
+            step += sign;
+            if (step is 0 or WorldMenu.MarkerSteps)
+                sign = -sign;
+            Assert.Equal(new Rgba((byte)(color.R / 10 * step), (byte)(color.G / 10 * step), (byte)(color.B / 10 * step), 255), menu.MarkerNow);
+        }
+    }
+
+    [Fact]
     public void TheJournalListsTheCheckpointsEntriesEndingWithTheDarkerSelfAndOpensAtTheFoot()
     {
         var game = Checkpoint();

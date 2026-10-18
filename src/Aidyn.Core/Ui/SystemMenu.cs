@@ -101,13 +101,10 @@ public sealed class SystemMenu
 
     public TheatreMenu? Theatre { get; private set; }
 
-    /// <summary>How fast a page fades in and the one before it out, a tick.</summary>
-    public const int FadeStep = 60;
-
     /// <summary>The page fading out, or null.</summary>
     public SystemScreen? Outgoing { get; private set; }
 
-    /// <summary>The page's alpha, rising to 255 as it fades in, and the page fading out's, falling to 0.</summary>
+    /// <summary>The page's alpha, rising to 255 as it fades in, and the page fading out's, falling to 0 (<see cref="WidgetFade"/>).</summary>
     public byte PageAlpha { get; private set; } = 255;
 
     public byte OutgoingAlpha { get; private set; }
@@ -135,11 +132,10 @@ public sealed class SystemMenu
 
     public void Step()
     {
-        if (PageAlpha != 255)
-            PageAlpha = PageAlpha > 255 - FadeStep ? (byte)255 : (byte)(PageAlpha + FadeStep);
+        PageAlpha = (byte)WidgetFade.In(PageAlpha);
         if (Outgoing is not null)
         {
-            OutgoingAlpha = OutgoingAlpha <= FadeStep ? (byte)0 : (byte)(OutgoingAlpha - FadeStep);
+            OutgoingAlpha = (byte)WidgetFade.Out(OutgoingAlpha);
             if (OutgoingAlpha == 0)
                 Outgoing = null;
         }
