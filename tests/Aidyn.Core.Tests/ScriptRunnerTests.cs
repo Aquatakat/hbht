@@ -38,6 +38,7 @@ public class ScriptRunnerTests
         public int WorstStat(int stat) => 0;
         public int MemberStat(RecordId? member, int stat) => 0;
         public int PartySize { get; set; } = 1;
+        public string? PlayerName { get; set; } = "Alaron";
         public uint Gold { get; set; }
         public void AddItem(RecordId item) => Items.Add(item);
         public bool TakeItem(RecordId item) => Items.Remove(item);
@@ -119,6 +120,30 @@ public class ScriptRunnerTests
         Assert.Equal(ScriptStatus.Ended, run.Runner.Status);
         Assert.Equal(ScriptEndKind.Ended, run.Runner.Ending!.Kind);
         Assert.Null(run.Runner.Ending.Fault);
+    }
+
+    [Fact]
+    public void ThePlayersNameIsTheFirstMembersAsItStandsWhenEachPageIsShown()
+    {
+        var world = new World { PlayerName = "Eric" };
+        var run = Start(Script(DialogueMode.Conversation,
+            Line(0, "Hail, {player}.", 1),
+            Menu(1, "What will {player} do?", [2]),
+            Choice(2, "{player} leaves.", null, null, End)), world);
+
+        Assert.Equal("Hail, Eric.", Text(run.Runner));
+        world.PlayerName = "Alaron the Bold";
+        run.Runner.Continue();
+        Assert.Equal("What will Alaron the Bold do?", Text(run.Runner));
+        Assert.Equal(["Alaron the Bold leaves."], Choices(run.Runner));
+    }
+
+    [Fact]
+    public void ThePlayersNameStaysAsTheRecordHoldsItWithNoOneInTheParty()
+    {
+        var run = Start(Script(DialogueMode.Conversation, Line(0, "Hail, {player}.", null, End)), new World { PlayerName = null });
+
+        Assert.Equal("Hail, {player}.", Text(run.Runner));
     }
 
     [Fact]

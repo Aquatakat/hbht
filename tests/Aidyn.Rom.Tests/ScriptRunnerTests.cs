@@ -35,6 +35,7 @@ public class ScriptRunnerTests
         public int WorstStat(int stat) => random.Next(0, 31);
         public int MemberStat(RecordId? member, int stat) => random.Next(0, 31);
         public int PartySize { get; } = random.Next(1, 5);
+        public string? PlayerName => "Alaron";
         public uint Gold { get; set; } = (uint)random.Next(0, 30000);
         public void AddItem(RecordId item) => _items[item] = true;
         public bool TakeItem(RecordId item) => _items.Remove(item);

@@ -503,6 +503,8 @@ public sealed class GameState : IScriptWorld
 
     int IScriptWorld.PartySize => Party.Count;
 
+    string? IScriptWorld.PlayerName => Party.Members.FirstOrDefault()?.Name;
+
     uint IScriptWorld.Gold
     {
         get => Party.Gold;

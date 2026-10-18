@@ -36,6 +36,12 @@ public interface IScriptWorld
 
     int PartySize { get; }
 
+    /// <summary>
+    /// The first party member's name as it stands, which a page shows where its text says
+    /// <see cref="ScriptRunner.PlayerToken"/>; null with no one in the party.
+    /// </summary>
+    string? PlayerName { get; }
+
     uint Gold { get; set; }
 
     void AddItem(RecordId item);

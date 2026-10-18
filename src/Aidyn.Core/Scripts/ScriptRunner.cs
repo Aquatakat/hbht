@@ -15,8 +15,9 @@ public sealed record ScriptStart(int RefPoint = 0, RecordId? MapObject = null);
 /// <param name="Node">The node it comes from, which choosing it leaves.</param>
 /// <param name="Speaker">Who says it, for the portrait.</param>
 /// <param name="Text">
-/// As the record holds it, so the runtime replaces <c>{player}</c>. A page's line has its leading
-/// spaces trimmed, as the original trims them; choices keep theirs.
+/// With <see cref="ScriptRunner.PlayerToken"/> replaced by the first party member's name as it stood
+/// when the page was made. A page's line has its leading spaces trimmed, as the original trims
+/// them; choices keep theirs.
 /// </param>
 public sealed record ScriptLine(int Node, RecordId? Speaker, string Text);
 
@@ -107,6 +108,8 @@ public sealed record ScriptEncounter(IReadOnlyList<RecordId> Enemies, int Battle
 /// </remarks>
 public sealed class ScriptRunner
 {
+    /// <summary>What a script's text says where the first party member's name goes (<c>Aidyn.Rom</c>'s <c>DialogueText.Player</c>).</summary>
+    public const string PlayerToken = "{player}";
     /// <summary>The party skill the original doesn't remember per map object (<c>SKILL_Troubador</c>).</summary>
     private const int Troubadour = 9;
     /// <summary>What the original marks an empty case value with, so a value of 65535 reads as none.</summary>
@@ -293,11 +296,18 @@ public sealed class ScriptRunner
 
     private bool Stopped => Ending is not null || _waitingNode is not null;
 
-    /// <summary>Adds a line with the current speaker (<c>FUN_800b6b54</c>). The original has room for nine.</summary>
+    /// <summary>
+    /// Adds a line with the current speaker (<c>FUN_800b6b54</c>), the player's name in place of
+    /// <see cref="PlayerToken"/>. The original has room for nine.
+    /// </summary>
     private void Push(int node, string text)
     {
         if (_lines.Count < MaxLines)
+        {
+            if (_world.PlayerName is { } name)
+                text = text.Replace(PlayerToken, name, StringComparison.Ordinal);
             _lines.Add(new ScriptLine(node, _speaker, text));
+        }
     }
 
     /// <summary>The start: node 0 is reached, and shown or walked through (<c>DialogNode_func</c>).</summary>

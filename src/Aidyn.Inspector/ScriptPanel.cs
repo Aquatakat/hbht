@@ -23,7 +23,6 @@ namespace Aidyn.Inspector;
 public partial class ScriptPanel : VBoxContainer
 {
     private const float NodeWidth = 300, ColumnGap = 70, RowGap = 28;
-    private const string PlayerName = "Alaron";
     private static readonly Color Dim = new(0.65f, 0.65f, 0.65f);
     private static readonly StyleBoxFlat Plain = new() { BgColor = Colors.Transparent, ContentMarginLeft = 4, ContentMarginRight = 4, ContentMarginTop = 2, ContentMarginBottom = 2 };
     private static readonly StyleBoxFlat Current = new()
@@ -78,7 +77,7 @@ public partial class ScriptPanel : VBoxContainer
         AddThemeConstantOverride("separation", 6);
         // Plugins from before the importer wrote fonts have none to draw with.
         if (catalog.Plugins.Contains(RecordId.Decimal(RecordTypes.Font, 0)))
-            _screen.Canvas.AddChild(_conversation = new ConversationBoxView(catalog.Plugins) { PlayerName = PlayerName, Visible = false });
+            _screen.Canvas.AddChild(_conversation = new ConversationBoxView(catalog.Plugins) { Visible = false });
 
         AddChild(Header());
         var split = new HSplitContainer { SizeFlagsVertical = SizeFlags.ExpandFill };
@@ -687,7 +686,7 @@ public partial class ScriptPanel : VBoxContainer
         Focus(page.Line.Node);
         _status.Text = runner.Wait == ScriptWait.Player ? "Waiting for A." : $"At node {page.Line.Node}.";
         _page.AddChild(Dimmed(page.Line.Speaker is { } speaker ? NameOf(speaker) : "No speaker"));
-        _page.AddChild(new Label { Text = Display(page.Line.Text), AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(360, 0) });
+        _page.AddChild(new Label { Text = page.Line.Text, AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(360, 0) });
         if (page.Choices.Count > 0 && runner.Wait != ScriptWait.Player && !lineFirst)
         {
             for (var i = 0; i < page.Choices.Count; i++)
@@ -695,7 +694,7 @@ public partial class ScriptPanel : VBoxContainer
                 var choice = i;
                 var button = new Button
                 {
-                    Text = Display(page.Choices[i].Text),
+                    Text = page.Choices[i].Text,
                     Alignment = HorizontalAlignment.Left,
                     AutowrapMode = TextServer.AutowrapMode.WordSmart,
                     TooltipText = $"Node {page.Choices[i].Node}",
@@ -720,7 +719,9 @@ public partial class ScriptPanel : VBoxContainer
         }
     }
 
-    private static string Display(string text) => text.Replace("{player}", PlayerName, StringComparison.Ordinal);
+    /// <summary>A node's text as the graph shows it: the game's first party member's name where it says <c>{player}</c>, else the record's for Alaron.</summary>
+    private string Display(string text) => text.Replace(ScriptRunner.PlayerToken,
+        _world?.PlayerName ?? _catalog.Plugins.TryGet<DbRecord>(GameState.Alaron)?.Name ?? "Alaron", StringComparison.Ordinal);
 
     private void Log(string line) => _log.AddItem(line);
 
@@ -758,6 +759,7 @@ public partial class ScriptPanel : VBoxContainer
         /// <summary>Skill checks fixed by hand, by skill; the rest roll.</summary>
         public Dictionary<int, int> FixedChecks { get; } = [];
         public int PartySize => World.PartySize;
+        public string? PlayerName => World.PlayerName;
 
         public uint Gold
         {

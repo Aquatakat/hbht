@@ -40,13 +40,10 @@ public partial class ConversationBoxView : Control
 
     public DialogueBox Box { get; }
 
-    /// <summary>The name the game writes where a line says <c>{player}</c>: the first party member's.</summary>
-    public string PlayerName { get; set; } = "Alaron";
-
-    /// <summary>Shows a page, with its name placeholders filled in.</summary>
+    /// <summary>Shows a page.</summary>
     public void Show(ScriptPage page)
     {
-        Box.Show(new ScriptPage(Named(page.Line), [.. page.Choices.Select(Named)]));
+        Box.Show(page);
         Visible = true;
         QueueRedraw();
     }
@@ -112,8 +109,6 @@ public partial class ConversationBoxView : Control
     /// <summary>A speaker's portrait, or the code's fallback for one without.</summary>
     private RecordId PortraitOf(RecordId? speaker) =>
         speaker is { } id && _plugins.TryGet<DbRecord>(id)?.Portrait is { } portrait ? portrait : FallbackPortrait;
-
-    private ScriptLine Named(ScriptLine line) => line with { Text = line.Text.Replace("{player}", PlayerName, StringComparison.Ordinal) };
 
     private static Color Color8(Rgba c) => Color.Color8(c.R, c.G, c.B, c.A);
 }

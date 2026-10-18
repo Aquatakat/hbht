@@ -134,9 +134,6 @@ public partial class BackdropLayer : CanvasLayer
     /// <summary>Whether the page takes presses: once open, and until it closes.</summary>
     public bool Taking => Page is { Closing: false };
 
-    /// <summary>The name the game writes where text says <c>{player}</c>: the first party member's.</summary>
-    public string PlayerName { get; set; } = "Alaron";
-
     /// <summary>The page has faded out, and the game goes on.</summary>
     public event Action? Closed;
 
@@ -149,10 +146,10 @@ public partial class BackdropLayer : CanvasLayer
         Tint();
     }
 
-    /// <summary>Shows a node's text and choices, with the name placeholders filled in.</summary>
+    /// <summary>Shows a node's text and choices.</summary>
     public void Show(ScriptPage page)
     {
-        Page?.Show(new ScriptPage(Named(page.Line), [.. page.Choices.Select(Named)]));
+        Page?.Show(page);
         _view.QueueRedraw();
     }
 
@@ -190,6 +187,4 @@ public partial class BackdropLayer : CanvasLayer
         _darkness.Color = new Color(0, 0, 0, 1 - tint);
         _view.QueueRedraw();
     }
-
-    private ScriptLine Named(ScriptLine line) => line with { Text = line.Text.Replace("{player}", PlayerName, StringComparison.Ordinal) };
 }

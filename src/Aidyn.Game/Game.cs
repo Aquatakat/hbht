@@ -1037,7 +1037,6 @@ public partial class Game : Node3D, ITrekHost
         {
             if (!_backdrop!.Showing)
             {
-                _backdrop.PlayerName = _box!.PlayerName;
                 _backdrop.Open(BackdropStyle.For(backdrop.Runner.Script.Backdrop));
             }
             if (backdrop.Runner is { Status: Core.Scripts.ScriptStatus.Showing, Page: { } shown })

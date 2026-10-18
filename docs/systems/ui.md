@@ -219,7 +219,7 @@ The user laid this out, and it isn't the original's ([ADR 0013](../adr/0013-sett
 
 #### Renaming Alaron
 
-Rename Character opens the name entry (`InputMenu`) over the options. It renames Alaron, and the save keeps his name (`SaveParty::SaveAlaron`, see [saves](saves.md)).
+Rename Character opens the name entry (`InputMenu`) over the options. It renames Alaron, and the save keeps his name (`SaveParty::SaveAlaron`, see [saves](saves.md)). Scripts' `{player}` and the cinematics' captions use it ([scripts](scripts.md#its-boundary)).
 
 - **The layout:** the title `0x00F9` centred at y 50, and the name centred at y 85 in (130, 80, 80). Below them the grid at (60, 110), 13 keys a row, 15 apart: A–Z, 0–9, then the symbol keys, which the font draws as its own symbols (a skull, a heart, a diamond for the underscore), then rub out, cancel and OK. The cursor is `0x00F8`, a white square 15 px across, pulsing grey 5 a step between 95 and 230 from 150, 54 frames a cycle (`InputMenu.Step`, `0x8002d7e4`), with its key in black on it. The letter being chosen pulses the same way (`InputMenu.Draw`, `0x8002d464`); where the square's own tint comes from isn't traced, and the port gives it the same. The port marks the next letter's place with a short line.
 - **The keys:** the stick moves over the grid, wrapping round its rows, and writes the key into the slot being chosen. A types it and moves on, but not past the tenth (`IMNameLength`). Start goes to OK, and a second Start confirms. B cancels. The first letter and any letter after a space are capitals, the rest small. The cursor starts on OK, so Start, Start keeps the name.
