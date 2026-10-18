@@ -84,13 +84,13 @@ public sealed class MapPlacementTests : IDisposable
     {
         string Voxel(int index) => _catalog.Describe(MapRecord.VoxelId(Patio, index));
 
-        Assert.Equal("Teleporter patioL2, in Overworld I08", Voxel(0));
-        Assert.Equal("Monster party: Alaron, in Overworld I08", Voxel(1));
-        Assert.Equal("Dialogue object stagenorth, in Overworld I08", Voxel(2));
-        Assert.Equal("Save point, in Overworld I08", Voxel(3));
-        Assert.Equal("Wander node, in Overworld I08", Voxel(4));
-        Assert.Equal("Scene object: aidyn:scene/0x0B48, in Overworld I08", Voxel(12));
-        Assert.Equal("Object, in Overworld I08", Voxel(13));
+        Assert.Equal("Teleporter patioL2, in Overworld I08 / Battlefields C03 / Battlefields 27,4", Voxel(0));
+        Assert.Equal("Monster party: Alaron, in Overworld I08 / Battlefields C03 / Battlefields 27,4", Voxel(1));
+        Assert.Equal("Dialogue object stagenorth, in Overworld I08 / Battlefields C03 / Battlefields 27,4", Voxel(2));
+        Assert.Equal("Save point, in Overworld I08 / Battlefields C03 / Battlefields 27,4", Voxel(3));
+        Assert.Equal("Wander node, in Overworld I08 / Battlefields C03 / Battlefields 27,4", Voxel(4));
+        Assert.Equal("Scene object: aidyn:scene/0x0B48, in Overworld I08 / Battlefields C03 / Battlefields 27,4", Voxel(12));
+        Assert.Equal("Object, in Overworld I08 / Battlefields C03 / Battlefields 27,4", Voxel(13));
         Assert.Equal("Object, in map 0x0E99", _catalog.Describe(MapRecord.VoxelId(Lonely, 0)));
 
         // The map list counts the same kinds by the same names.

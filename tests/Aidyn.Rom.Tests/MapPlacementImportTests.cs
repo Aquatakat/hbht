@@ -35,7 +35,7 @@ public sealed class MapPlacementImportTests(Na10Import fixture)
             Assert.Equal(o.Value.Index, MapRecord.IndexOf(o.Key));
             var text = catalog.Describe(o.Key);
             Assert.DoesNotContain(", in map ", text, StringComparison.Ordinal);
-            Assert.Equal($"{catalog.Describe(o.Value)}, in {MapPlacements.For(data.Set).First(MapRecord.MapOf(o.Key))}", text);
+            Assert.Equal($"{catalog.Describe(o.Value)}, in {string.Join(" / ", MapPlacements.For(data.Set).All(MapRecord.MapOf(o.Key)))}", text);
         });
     }
 }

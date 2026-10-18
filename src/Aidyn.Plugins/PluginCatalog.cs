@@ -130,11 +130,15 @@ public sealed class PluginCatalog
         null => "Object",
     };
 
-    /// <summary>What a voxel ID names and where, such as "Teleporter patioL2, in JundarInteriors K07". Where is the first chunk to place its map.</summary>
+    /// <summary>
+    /// What a voxel ID names and where, such as "Teleporter patioL2, in JundarInteriors K07". Where is every chunk that
+    /// places its map, joined by " / ": the battle arenas and a few overworld maps are placed by several.
+    /// </summary>
     public string Describe(RecordId voxel)
     {
         var map = MapRecord.MapOf(voxel);
-        var where = MapPlacements.For(Plugins).First(map)?.ToString() ?? $"map {map.Key}";
+        var places = MapPlacements.For(Plugins).All(map);
+        var where = places.Count > 0 ? string.Join(" / ", places) : $"map {map.Key}";
         return $"{Describe(MapRecord.Find(Plugins, voxel))}, in {where}";
     }
 
