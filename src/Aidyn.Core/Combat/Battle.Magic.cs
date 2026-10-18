@@ -123,7 +123,7 @@ public sealed partial class Battle : IMagicHost
 
     /// <summary>
     /// A round's end for every combatant's effects (<c>TurnOrder.EndRound</c>, <c>0x8006A62C</c>, through <c>Entity.Age</c>): each
-    /// combatant in play ages its effects a round. Session 3 calls it; session 5 deals with any who died of them.
+    /// combatant in play ages its effects a round. <see cref="EndRound"/> calls it; session 5 deals with any who died of them.
     /// </summary>
     public IReadOnlyList<(Combatant Combatant, EffectAgeing Ageing)> AgeEffects()
     {

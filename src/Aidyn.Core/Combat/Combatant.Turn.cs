@@ -3,12 +3,6 @@ using Aidyn.Core.Characters;
 
 namespace Aidyn.Core.Combat;
 
-/// <summary>A timed spell effect as the field's radius reads it: its kind and its spell's level (the entity's <c>+0x34</c>).</summary>
-/// <param name="Kind">
-/// Its kind, the original's: the spell ID's low byte's place in the code's spell list (<c>0x800E2B40</c>).
-/// </param>
-public readonly record struct TimedEffect(int Kind, int Level);
-
 public sealed partial class Combatant
 {
     /// <summary>
@@ -19,12 +13,6 @@ public sealed partial class Combatant
 
     /// <summary>The field's most (<c>UpdateRadius</c>'s cap).</summary>
     public const int MostRadius = 13;
-
-    /// <summary>The kind of Haste's effect, which adds its level to the radius.</summary>
-    public const int HasteKind = 0x1E;
-
-    /// <summary>The kind of Stellar Gravity's effect, which takes its level from the radius, leaving at least 1.</summary>
-    public const int StellarGravityKind = 0x38;
 
     /// <summary>How much farther than their bodies' radii two combatants reach each other (<c>0x800D2810</c>).</summary>
     public const float Reach = 0.75f;
@@ -51,13 +39,7 @@ public sealed partial class Combatant
     public void UpdateRadius(Battle battle)
     {
         var radius = RadiusFor(Sheet.Stats.Modified(Stat.Dexterity));
-        foreach (var effect in battle.TimedEffects(Sheet))
-        {
-            if (effect.Kind == StellarGravityKind)
-                radius = effect.Level < radius ? radius - effect.Level : 1;
-            else if (effect.Kind == HasteKind)
-                radius += effect.Level;
-        }
+        radius = RadiusWithEffects(radius);
         Flags &= ~CombatantFlags.Engaged;
         if (!battle.FreeOfOpponents(this))
         {
@@ -147,13 +129,13 @@ public sealed partial class Combatant
 
     /// <summary>
     /// Whether it can act (<c>Combatant.UpdateActive</c>, <c>0x8006615C</c>): not with no Intelligence, Willpower,
-    /// Dexterity or Strength left, nor held by an immobilising effect (<see cref="Battle.Immobilised"/>).
+    /// Dexterity or Strength left, nor held by an immobilising effect (<see cref="IsImmobilised"/>).
     /// </summary>
     public void UpdateActive(Battle battle)
     {
         var stats = Sheet.Stats;
         var able = stats.Modified(Stat.Intelligence) != 0 && stats.Modified(Stat.Willpower) != 0
-            && stats.Modified(Stat.Dexterity) != 0 && stats.Modified(Stat.Strength) != 0 && !battle.Immobilised(Sheet);
+            && stats.Modified(Stat.Dexterity) != 0 && stats.Modified(Stat.Strength) != 0 && !IsImmobilised;
         Flags = able ? Flags | CombatantFlags.Active : Flags & ~CombatantFlags.Active;
     }
 

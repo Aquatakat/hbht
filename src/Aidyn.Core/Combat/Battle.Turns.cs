@@ -40,18 +40,6 @@ public sealed partial class Battle
     /// </summary>
     public bool ActionActive { get; internal set; }
 
-    /// <summary>
-    /// A character's timed spell effects, in their slots' order, for the field's radius (Haste and Stellar Gravity). None
-    /// until session 8 supplies them.
-    /// </summary>
-    public Func<Character, IEnumerable<TimedEffect>> TimedEffects { get; set; } = _ => [];
-
-    /// <summary>
-    /// Whether an immobilising effect holds a character (<c>Combatant.IsImmobilised</c>, <c>0x80062250</c>), which keeps
-    /// it from acting. None until session 8 supplies them.
-    /// </summary>
-    public Func<Character, bool> Immobilised { get; set; } = _ => false;
-
     /// <summary>Where the arena chunk's coordinates start, which the combatants' cells are in.</summary>
     public Vector3 Origin => Arena?.Origin ?? Vector3.Zero;
 
@@ -280,12 +268,12 @@ public sealed partial class Battle
 
     /// <summary>
     /// The round's end (<c>TurnOrder.EndRound</c>, <c>0x8006A62C</c>): each performer pays a Stamina point, or stops with
-    /// none left; every combatant's moves are forgotten; the toggle flips and the next round is built. Returns whether the
+    /// none left; every combatant's moves are forgotten and its effects aged; the toggle flips and the next round is built. Returns whether the
     /// battle ended, which only the Shadow's aura does (session 12).
     /// </summary>
     /// <remarks>
-    /// What else it does is later sessions': the Shadow's aura first (12), every combatant's effects aged a round (8),
-    /// and the reserves brought in (5).
+    /// Every combatant's effects age a round (<see cref="AgeEffects"/>). What else it does is later sessions': the Shadow's
+    /// aura first (12), the reserves brought in (5), and the deaths the effects cause (5).
     /// </remarks>
     private bool EndRound()
     {
@@ -303,6 +291,7 @@ public sealed partial class Battle
             c.Moves = 0;
             c.Flags &= ~CombatantFlags.Moved;
         }
+        AgeEffects();
         Order.Toggle = !Order.Toggle;
         Order.Build(this, Game.Random.Combat);
         Current = Order.Current(this);

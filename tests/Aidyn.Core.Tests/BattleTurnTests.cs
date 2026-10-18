@@ -54,6 +54,10 @@ public sealed class BattleTurnTests
     }
 
     // UpdateRadius: the band, then each timed effect in order; Haste adds its level.
+    /// <summary>A spell's lasting effects put on a combatant's sheet at a level, as a cast that landed puts them.</summary>
+    private static void Cast(Combatant on, SpellRecord spell, int level) =>
+        on.Sheet.AddEffect(spell.Id, spell.Effects!, level, spell.School, 3, spell.Duration!.At(level), null, null, null);
+
     [Fact]
     public void AFighterWithNoEffectsHasItsDexteritysRadius()
     {
@@ -71,7 +75,7 @@ public sealed class BattleTurnTests
     {
         var fighter = Fighter(0, 20);
         var battle = Alone(fighter);
-        battle.TimedEffects = _ => [new TimedEffect(Combatant.HasteKind, 2)];
+        Cast(fighter, MagicData.Haste, 2);
 
         fighter.UpdateRadius(battle);
 
@@ -83,7 +87,7 @@ public sealed class BattleTurnTests
     {
         var fighter = Fighter(0, 20);
         var battle = Alone(fighter);
-        battle.TimedEffects = _ => [new TimedEffect(Combatant.StellarGravityKind, 3)];
+        Cast(fighter, MagicData.StellarGravity, 3);
 
         fighter.UpdateRadius(battle);
 
@@ -100,7 +104,7 @@ public sealed class BattleTurnTests
     {
         var fighter = Fighter(0, 20);
         var battle = Alone(fighter);
-        battle.TimedEffects = _ => [new TimedEffect(Combatant.StellarGravityKind, level)];
+        Cast(fighter, MagicData.StellarGravity, level);
 
         fighter.UpdateRadius(battle);
 
@@ -115,14 +119,18 @@ public sealed class BattleTurnTests
         var battle = Alone(fighter);
 
         // 7, gravity 10 is no less than 7 so 1, then Haste 3: 4.
-        battle.TimedEffects = _ => [new TimedEffect(Combatant.StellarGravityKind, 10), new TimedEffect(Combatant.HasteKind, 3)];
+        Cast(fighter, MagicData.StellarGravity, 10);
+        Cast(fighter, MagicData.Haste, 3);
         fighter.UpdateRadius(battle);
         Assert.Equal(4, fighter.Radius);
 
         // 7, Haste 3: 10, gravity 10 is no less than 10 so 1.
-        battle.TimedEffects = _ => [new TimedEffect(Combatant.HasteKind, 3), new TimedEffect(Combatant.StellarGravityKind, 10)];
-        fighter.UpdateRadius(battle);
-        Assert.Equal(1, fighter.Radius);
+        var other = Fighter(0, 20);
+        var otherBattle = Alone(other);
+        Cast(other, MagicData.Haste, 3);
+        Cast(other, MagicData.StellarGravity, 10);
+        other.UpdateRadius(otherBattle);
+        Assert.Equal(1, other.Radius);
     }
 
     [Fact]
@@ -130,7 +138,7 @@ public sealed class BattleTurnTests
     {
         var fighter = Fighter(0, 20);
         var battle = Alone(fighter);
-        battle.TimedEffects = _ => [new TimedEffect(0x10, 5)];
+        Cast(fighter, MagicData.AirShield, 5);
 
         fighter.UpdateRadius(battle);
 
@@ -142,7 +150,7 @@ public sealed class BattleTurnTests
     {
         var fighter = Fighter(0, 38);
         var battle = Alone(fighter);
-        battle.TimedEffects = _ => [new TimedEffect(Combatant.HasteKind, 5)];
+        Cast(fighter, MagicData.Haste, 5);
 
         fighter.UpdateRadius(battle);
 
@@ -629,7 +637,7 @@ public sealed class BattleTurnTests
     {
         var walker = Walker(20);
         var battle = Alone(walker);
-        battle.TimedEffects = _ => [new TimedEffect(Combatant.HasteKind, 2)];
+        Cast(walker, MagicData.Haste, 2);
 
         battle.Ring.Update(battle, walker);
 

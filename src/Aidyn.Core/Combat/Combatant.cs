@@ -173,7 +173,7 @@ public sealed partial class Combatant
     /// <summary>
     /// Its field's radius from its Dexterity's band, <paramref name="radius"/>, with its effects (<c>Combatant.UpdateRadius</c>,
     /// <c>0x8005F29C</c>), each in turn by slot: Haste adds its level, and Stellar Gravity takes its level off, leaving 1 if that's
-    /// as much or more. Session 3 caps it at 13 and holds it to 1 while engaged or performing.
+    /// as much or more. <see cref="UpdateRadius"/> then caps it at 13 and holds it to 1 while engaged or performing.
     /// </summary>
     public int RadiusWithEffects(int radius)
     {
