@@ -160,7 +160,7 @@ public sealed class Minimap(MinimapSeen seen, Func<RecordId, (int Width, int Hei
         {
             if (rule.Row != row || rule.Column != column)
                 continue;
-            if (rule.Flag is { } flag && !(flags.TryHandle(flag, out var handle) && flags.Get(handle)))
+            if (rule.Flag is { } flag && !flags.IsSet(flag))
                 continue;
             if (rule.Bounds is { } bounds && !bounds.All(b => Within(b, at)))
                 continue;

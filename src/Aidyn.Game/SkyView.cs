@@ -121,7 +121,7 @@ public partial class SkyView : Node
         var first = _chunk is null;
         _chunk = (chunk.Row, chunk.Column);
         _entered = chunk;
-        if (_plugins.TryGet<TerrainRecord>(RecordId.Decimal(RecordTypes.Terrain, chunk.Terrain)) is not { } terrain ||
+        if (TerrainRecord.Find(_plugins, chunk.Terrain) is not { } terrain ||
             Gradient(terrain.Sky) is not { } gradient)
         {
             GD.PushWarning($"No sky for terrain {chunk.Terrain}.");

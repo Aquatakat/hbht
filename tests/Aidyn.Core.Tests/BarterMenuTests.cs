@@ -1010,6 +1010,21 @@ public class ContainerContentsTests
     }
 
     [Fact]
+    public void AContainerWhoseFlagsAModRemovedIsUsableAndOpensWithoutThem()
+    {
+        // The chest's opened, exploded and used flags (4, 6 and 7) are gone; the network has only flags 0 to 3.
+        var flags = new FlagNetwork(Enumerable.Range(0, 4).Select(i => new FlagRecord(ItemData.Flag(i))), ItemData.Flag(3));
+        var chest = new Container(Chest(gold: 25, item: TradeData.Trinket.Id));
+
+        Assert.True(chest.Usable(flags));
+        Assert.Equal(ContainerStep.Open, chest.Next(flags));
+        var contents = chest.Open(flags, TradeData.Catalog(), _ => throw new InvalidOperationException(), new ScriptedRandom());
+
+        Assert.Equal(25, contents.Gold);
+        Assert.True(chest.Usable(flags));
+    }
+
+    [Fact]
     public void ReagentGivesWhatHarvestGivesAndSetsNoFlag()
     {
         var catalog = TradeData.Catalog();

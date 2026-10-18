@@ -84,12 +84,12 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
 
     private Party Party => game.Party;
 
-    private bool Holds(FlagGate? gate) => gate is null || Flags.Get(gate.Flag) != gate.Invert;
+    private bool Holds(FlagGate? gate) => gate is null || Flags.Holds(gate);
 
     private void Write(FlagWrite? used)
     {
         if (used is not null)
-            Flags.Set(used.Flag, !used.Clear);
+            Flags.TrySet(used.Flag, !used.Clear);
     }
 
     // A, B and the stick on a popup.
@@ -300,7 +300,7 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
         switch (trigger.Kind)
         {
             case TriggerKind.SetFlag when trigger.Flag is { } flag:
-                Flags.Set(flag, true);
+                Flags.TrySet(flag, true);
                 break;
             case TriggerKind.Animate when trigger.Request is { } request && map.Linked<SceneObject>(trigger) is { } actor:
                 host.Animate(map, actor, request);
@@ -318,18 +318,18 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
     private void UseTeleporter(LoadedMap map, TeleporterObject o)
     {
         var teleporter = map.Teleporter(o.Index)!;
-        if (o.SecretFlag is { } secret && !Flags.Get(secret))
+        if (o.SecretFlag is { } secret && !Flags.IsSet(secret))
         {
             // secret_door_func: closing the message tries the door again.
             teleporter.SecretLevel = 0;
-            Flags.Set(secret, true);
+            Flags.TrySet(secret, true);
             Show(TrekPopup.Message(text[MenuText.SecretDoor]), () => UseTeleporter(map, o));
         }
-        else if (teleporter.TrapLevel != 0 && !(o.TrapFlag is { } trap && Flags.Get(trap)))
+        else if (teleporter.TrapLevel != 0 && !(o.TrapFlag is { } trap && Flags.IsSet(trap)))
         {
             TrapMenu(map, o, teleporter.TrapLevel);
         }
-        else if (teleporter.LockLevel != 0 && !(o.LockFlag is { } locked && Flags.Get(locked)))
+        else if (teleporter.LockLevel != 0 && !(o.LockFlag is { } locked && Flags.IsSet(locked)))
         {
             PickLock(map, o, teleporter.LockLevel);
         }
@@ -345,7 +345,7 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
     private void Loot(LoadedMap map, ContainerObject o)
     {
         var container = map.Container(o.Index)!;
-        if (o.Opened is { } opened && Flags.Get(opened) || map.Remembered(game.Memory, o) || o.Exploded is { } exploded && Flags.Get(exploded))
+        if (o.Opened is { } opened && Flags.IsSet(opened) || map.Remembered(game.Memory, o) || o.Exploded is { } exploded && Flags.IsSet(exploded))
         {
             map.SetActive(o.Index, false);
             return;
@@ -373,7 +373,7 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
     {
         var loot = container.Harvest(map.HarvestShare, Flags, game.Items);
         var scene = map.Linked<SceneObject>(o);
-        var stays = MapObjectPresence.There(o, Flags.Get) && !map.Remembered(game.Memory, o);
+        var stays = MapObjectPresence.There(o, Flags.IsSet) && !map.Remembered(game.Memory, o);
         map.SetActive(o.Index, stays);
         if (scene is not null)
         {
@@ -402,7 +402,7 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
             host.Sound(new Audio.OneShot(opens, ContainerSoundTicks, TimesSoundVolume: true));
         map.SetActive(o.Index, false);
         // Without an opened flag, it's remembered as emptied for a while.
-        if (o.Opened is null && !(o.Exploded is { } exploded && Flags.Get(exploded)))
+        if (o.Opened is null && !(o.Exploded is { } exploded && Flags.IsSet(exploded)))
             game.Memory.Remember(new Memory(MapRecord.VoxelId(map.Record.Id, o.Index), MemoryKind.Opened), 0);
         Party.Gold += (uint)gold;
         if (loot.Stacks.Count == 0)
@@ -480,7 +480,7 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
     private void AfterTrap(LoadedMap map, MapObject o)
     {
         if (o is TeleporterObject { DisarmFlag: { } disarmed })
-            Flags.Set(disarmed, true);
+            Flags.TrySet(disarmed, true);
         Use(map, o);
     }
 
@@ -510,7 +510,7 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
         Show(TrekPopup.Message(message), () =>
         {
             if (o is TeleporterObject { PickedFlag: { } picked })
-                Flags.Set(picked, true);
+                Flags.TrySet(picked, true);
             Use(map, o);
         });
     }

@@ -112,7 +112,7 @@ public sealed class TrekLoop : IMapObjectHost
         Use = new MapObjectUse(game, MenuText.From(game.Plugins), this) { World = chunks.World };
         Hud = new TrekHud(game, host.ImageSize);
         Sounds = new MapSounds(Audio, game.Random.Cosmetic,
-            o => MapObjectPresence.There(o, f => game.Flags.TryHandle(f, out var h) && game.Flags.Get(h)));
+            o => MapObjectPresence.There(o, f => game.Flags.IsSet(f)));
         Keys = new AudioKeys(Audio, game.Sounds, game.Random.Cosmetic);
         Lights = new Lights.WorldLights(game.Random.Cosmetic) { World = chunks.World };
         WeatherSounds = new WeatherSounds(Audio, game.Sounds);
@@ -526,22 +526,22 @@ public sealed class TrekLoop : IMapObjectHost
     {
         var rules = Game.Camping;
         var at = Player.Sphere.Position;
-        var terrain = Chunks.ChunkAt(at) is { } chunk ? Game.Plugins.TryGet<TerrainRecord>(RecordId.Decimal(RecordTypes.Terrain, chunk.Terrain)) : null;
+        var terrain = Chunks.ChunkAt(at) is { } chunk ? TerrainRecord.Find(Game.Plugins, chunk.Terrain) : null;
         var factor = terrain?.Camp ?? 0;
         if (factor <= 0)
             return CampOutcome.Refused;
-        if (Camping.Ambushed(rules, factor, Game.Party, Game.Flags.Get, Game.Random.World))
+        if (Camping.Ambushed(rules, factor, Game.Party, Game.Flags.IsSet, Game.Random.World))
         {
             _host.Say("The party is ambushed; battles come with combat (2.5).");
             return CampOutcome.Ambushed;
         }
         Game.Party.CampHeal(rules.Heal, rules.EffectTicks);
 
-        Game.Flags.Set(rules.Checking, true);
+        Game.Flags.TrySet(rules.Checking, true);
         var map = Chunks.MapAt(at);
         var scene = map?.Record.Objects.OfType<DialogueObject>().FirstOrDefault(d =>
-            d.Enabled is { } gate && rules.Scenes.Contains(gate.Flag) && Game.Flags.Get(gate.Flag) != gate.Invert);
-        Game.Flags.Set(rules.Checking, false);
+            d.Enabled is { } gate && rules.Scenes.Contains(gate.Flag) && Game.Flags.Holds(gate));
+        Game.Flags.TrySet(rules.Checking, false);
         RecordId? source = scene is not null ? MapRecord.VoxelId(map!.Record.Id, scene.Index) : null;
         if (scene is null && Game.Plugins.TryGet<MapRecord>(rules.Campsite) is { } campsite
             && campsite.Objects.OfType<DialogueObject>().FirstOrDefault() is { } fire)
@@ -667,7 +667,7 @@ public sealed class TrekLoop : IMapObjectHost
             wanderer.Body.Held = true;
             Cue(cutscene, new ScriptStart(0, MapRecord.VoxelId(map.Record.Id, party.Index)), new ChunkRef(Chunks.MapSet.Id, chunk.Row, chunk.Column));
             if (party.Used is { } used)
-                Game.Flags.Set(used.Flag, true);
+                Game.Flags.TrySet(used.Flag, true);
             return;
         }
         Conversation = Conversation.TalkTo(Game, wanderer, _host, Player);

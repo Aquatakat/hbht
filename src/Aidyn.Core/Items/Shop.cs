@@ -277,7 +277,7 @@ internal static class Trade
     /// </summary>
     public static void NoteFirstPotion(Item item, ItemCatalog items, FlagNetwork? flags)
     {
-        if (item.Kind == ItemKind.Potion && flags is not null && !flags.Get(items.Rules.FirstPotionFlag))
-            flags.Set(items.Rules.FirstPotionFlag, true);
+        if (item.Kind == ItemKind.Potion && flags is not null && !flags.IsSet(items.Rules.FirstPotionFlag))
+            flags.TrySet(items.Rules.FirstPotionFlag, true);
     }
 }

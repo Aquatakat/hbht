@@ -94,7 +94,7 @@ public sealed class Conversation
         body.Face(-toBody);
         player.Face(toBody);
         if (party.Used is { } used)
-            game.Flags.Set(used.Flag, true);
+            game.Flags.TrySet(used.Flag, true);
         return conversation;
     }
 

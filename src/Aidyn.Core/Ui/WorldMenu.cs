@@ -64,7 +64,7 @@ public sealed class WorldMenu
         var (row, column) = (cell / 7, cell % 7);
         Today = (160 + 14 * column - (OneLeft.Contains(row * 7 + column) ? 1 : 2), 65 + 14 * row);
 
-        Pieces = [.. Map.Pieces.Where(p => game.Flags.Get(p.Flag))];
+        Pieces = [.. Map.Pieces.Where(p => game.Flags.IsSet(p.Flag))];
         if (outdoors && place is { } chunk && chunk.MapSet == Map.MapSet)
         {
             Marker = ((int)Map.Origin.X + (int)((chunk.Row - 1) * Map.Step.X),
@@ -169,7 +169,7 @@ public sealed class WorldMenu
         var newest = flags.NewestJournalEntry;
         flags.NewestJournalEntry = null;
         var entries = _game.Plugins.All<JournalRecord>(RecordTypes.Journal).ToDictionary(j => j.Id);
-        var shown = flags.JournalOrder.Where(entries.ContainsKey).Select(id => entries[id]).Where(e => flags.Get(e.Flag));
+        var shown = flags.JournalOrder.Where(entries.ContainsKey).Select(id => entries[id]).Where(e => flags.IsSet(e.Flag));
         return new JournalMenu(_font, [.. shown.Select(e => (e.Text, e.Id == newest))], _text[NoEntries]);
     }
 
@@ -203,6 +203,6 @@ public sealed class WorldMenu
 
     private static TerrainRecord? TerrainOf(PluginSet plugins, ChunkRef at) =>
         plugins.TryGet<MapSetRecord>(at.MapSet)?.Chunks.FirstOrDefault(c => c.Row == at.Row && c.Column == at.Column) is { } chunk
-            ? plugins.TryGet<TerrainRecord>(RecordId.Decimal(RecordTypes.Terrain, chunk.Terrain))
+            ? TerrainRecord.Find(plugins, chunk.Terrain)
             : null;
 }

@@ -207,7 +207,7 @@ public sealed class Container(ContainerObject record)
     /// holds gold, a loot table or an item.
     /// </summary>
     public bool Usable(FlagNetwork flags) => Record.Kind >= ContainerKind.Herb
-        || !(Record.Opened is { } opened && flags.Get(opened)) && (Gold != 0 || Loot is not null || Record.Item is not null);
+        || !(Record.Opened is { } opened && flags.IsSet(opened)) && (Gold != 0 || Loot is not null || Record.Item is not null);
 
     /// <summary>Found opened as its chunk loads: no lock, trap or gold (<c>exploding_container_check</c>).</summary>
     internal void Empty()
@@ -223,7 +223,7 @@ public sealed class Container(ContainerObject record)
     /// </summary>
     public ContainerStep Next(FlagNetwork flags)
     {
-        if (Record.Opened is { } opened && flags.Get(opened) || Record.Exploded is { } exploded && flags.Get(exploded))
+        if (Record.Opened is { } opened && flags.IsSet(opened) || Record.Exploded is { } exploded && flags.IsSet(exploded))
             return ContainerStep.Gone;
         if (Record.Kind is ContainerKind.Herb or ContainerKind.Spice or ContainerKind.Gem)
             return ContainerStep.Harvest;
@@ -254,7 +254,7 @@ public sealed class Container(ContainerObject record)
         Gold = 0;
         Loot = null;
         if (Record.Exploded is { } exploded)
-            flags.Set(exploded, true);
+            flags.TrySet(exploded, true);
         return Containers.TrapDamage(party, level, random);
     }
 
@@ -266,9 +266,9 @@ public sealed class Container(ContainerObject record)
     public (ItemPile Items, int Gold) Open(FlagNetwork flags, ItemCatalog items, Func<RecordId, LootRecord> loot, IRandom random)
     {
         if (Record.Opened is { } opened)
-            flags.Set(opened, true);
+            flags.TrySet(opened, true);
         if (Record.Used is { } used)
-            flags.Set(used.Flag, !used.Clear);
+            flags.TrySet(used.Flag, !used.Clear);
         return Contents(items, loot, random);
     }
 
@@ -297,7 +297,7 @@ public sealed class Container(ContainerObject record)
     public ItemPile Harvest(float share, FlagNetwork flags, ItemCatalog items)
     {
         if (Record.Used is { } used)
-            flags.Set(used.Flag, !used.Clear);
+            flags.TrySet(used.Flag, !used.Clear);
         return Reagent(share, items);
     }
 

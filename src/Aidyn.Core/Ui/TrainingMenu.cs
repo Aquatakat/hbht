@@ -315,9 +315,9 @@ public sealed class TrainingMenu
         {
             Training.TrainSpell(student, row.Spell.Spell, Trainer, ref gold, out var learnt);
             var flag = student.Rules.Training.FirstSpellFlag;
-            if (learnt && flag is { } f && _flags is not null && !_flags.Get(f))
+            if (learnt && flag is { } f && _flags is not null && !_flags.IsSet(f))
             {
-                _flags.Set(f, true);
+                _flags.TrySet(f, true);
                 Help = Party.Text[MenuText.FirstSpell];
             }
         }

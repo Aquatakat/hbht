@@ -287,7 +287,7 @@ public sealed class BarterMenu
             return;
         }
         var item = row.Item;
-        var firstPotion = item.Kind == ItemKind.Potion && _flags is not null && !_flags.Get(Party.Party.Inventory!.Catalog.Rules.FirstPotionFlag);
+        var firstPotion = item.Kind == ItemKind.Potion && _flags is not null && !_flags.IsSet(Party.Party.Inventory!.Catalog.Rules.FirstPotionFlag);
         switch (Shop is { } shop ? shop.Buy(item.Id) : Loot!.Take(item.Id))
         {
             case TradeResult.CantAfford:

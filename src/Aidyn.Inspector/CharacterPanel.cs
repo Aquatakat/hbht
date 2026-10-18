@@ -44,7 +44,7 @@ public static class EditorCharacters
     public static Character? Create(PluginSet plugins, CharacterRules rules, RecordId entity, EditorGame? game, ItemCatalog? items) =>
         plugins.TryGet<EntityRecord>(entity) is { } record
             ? Character.Create(record, rules, plugins.Get<SpellRecord>,
-                flag => game is not null && game.Network.TryHandle(flag, out var handle) && game.Network.Get(handle), items)
+                flag => game is not null && game.Network.IsSet(flag), items)
             : null;
 
     /// <summary>

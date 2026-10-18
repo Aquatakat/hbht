@@ -939,7 +939,7 @@ public partial class Game : Node3D, ITrekHost
     {
         if (_trek is not { } trek || trek.Chunks.ChunkAt(trek.Player.Sphere.Position) is not { } chunk)
             return (null, false);
-        var terrain = _plugins!.TryGet<TerrainRecord>(RecordId.Decimal(RecordTypes.Terrain, chunk.Terrain));
+        var terrain = TerrainRecord.Find(_plugins!, chunk.Terrain);
         return (new ChunkRef(trek.Chunks.MapSet.Id, chunk.Row, chunk.Column), terrain?.SkyDrawn ?? false);
     }
 

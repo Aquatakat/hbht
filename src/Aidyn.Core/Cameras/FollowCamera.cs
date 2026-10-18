@@ -225,7 +225,7 @@ public sealed partial class FollowCamera
     /// its terrain doesn't draw the sky, the original's sky type 4.
     /// </summary>
     public static CameraMode ModeFor(PluginSet plugins, ChunkEntry chunk) =>
-        plugins.TryGet<TerrainRecord>(RecordId.Decimal(RecordTypes.Terrain, chunk.Terrain)) is { SkyDrawn: false }
+        TerrainRecord.Find(plugins, chunk.Terrain) is { SkyDrawn: false }
             ? CameraMode.Interior
             : CameraMode.Outdoor;
 

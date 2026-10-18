@@ -126,7 +126,24 @@ public sealed class FlagNetwork
         return _values[handle] != 0;
     }
 
+    /// <summary>
+    /// A flag's value by record, throwing if no loaded plugin has it. For where an unknown flag is a mistake, as in
+    /// tests; the rules use <see cref="IsSet(RecordId)"/>.
+    /// </summary>
     public bool Get(RecordId id) => Get(Handle(id));
+
+    /// <summary>
+    /// Whether a flag is set, an unknown one reading as clear. A mod can remove a flag that another plugin's records
+    /// still name, which the base game's never do (all of the original's are here), and the rules read such a flag as
+    /// clear rather than fail.
+    /// </summary>
+    public bool IsSet(RecordId id) => TryHandle(id, out var handle) && Get(handle);
+
+    /// <summary>
+    /// Whether a gate holds: whether its flag differs from its <see cref="FlagGate.Invert"/>, an unknown flag reading
+    /// as clear (see <see cref="IsSet(RecordId)"/>).
+    /// </summary>
+    public bool Holds(FlagGate gate) => IsSet(gate.Flag) != gate.Invert;
 
     /// <summary>A flag as it's stored, without bringing the network up to date (<c>get_EventFlag</c>).</summary>
     public bool Peek(int handle) => _values[handle] != 0;
@@ -141,7 +158,21 @@ public sealed class FlagNetwork
             Write(handle, value);
     }
 
+    /// <summary>A flag set or cleared by record, throwing if no loaded plugin has it; see <see cref="TrySet"/>.</summary>
     public void Set(RecordId id, bool value) => Set(Handle(id), value);
+
+    /// <summary>
+    /// Sets or clears a plain flag, ignoring an unknown one, as a mod can remove a flag that another plugin's records
+    /// still write (see <see cref="IsSet(RecordId)"/>). Returns whether the flag was there; the game's refusal to write
+    /// derived flags is <see cref="Set(int, bool)"/>'s, as ever.
+    /// </summary>
+    public bool TrySet(RecordId id, bool value)
+    {
+        if (!TryHandle(id, out var handle))
+            return false;
+        Set(handle, value);
+        return true;
+    }
 
     /// <summary>
     /// Writes a number into a run of plain flags, lowest bit first (<c>set_flag_array</c>). Bits past

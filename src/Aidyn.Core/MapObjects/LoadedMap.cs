@@ -159,7 +159,6 @@ public sealed class LoadedMap
         IRandom random, Vector3 origin = default)
     {
         var map = new LoadedMap(record, key) { Origin = origin };
-        bool IsSet(RecordId flag) => flags.TryHandle(flag, out var handle) && flags.Get(handle);
         map.HarvestShare = Containers.HarvestShare(party, random);
 
         foreach (var o in record.Objects)
@@ -168,10 +167,10 @@ public sealed class LoadedMap
                 continue;
             var active = o switch
             {
-                ContainerObject container => map.ActivateContainer(container, IsSet, memory),
-                TeleporterObject teleporter => map.ActivateTeleporter(teleporter, IsSet, party, random),
-                SceneObject scene => MapObjectPresence.There(o, IsSet) && !map.Remembered(memory, scene),
-                _ => MapObjectPresence.There(o, IsSet),
+                ContainerObject container => map.ActivateContainer(container, flags.IsSet, memory),
+                TeleporterObject teleporter => map.ActivateTeleporter(teleporter, flags.IsSet, party, random),
+                SceneObject scene => MapObjectPresence.There(o, flags.IsSet) && !map.Remembered(memory, scene),
+                _ => MapObjectPresence.There(o, flags.IsSet),
             };
             map.SetActive(o.Index, active);
         }
@@ -192,14 +191,13 @@ public sealed class LoadedMap
     /// </summary>
     public bool Regate(FlagNetwork flags, MapObjectMemory memory)
     {
-        bool IsSet(RecordId flag) => flags.TryHandle(flag, out var handle) && flags.Get(handle);
         var models = Record.Objects.OfType<ContainerObject>().Select(c => Linked<SceneObject>(c)?.Index).OfType<int>().ToHashSet();
         var changed = false;
         foreach (var scene in Record.Objects.OfType<SceneObject>())
         {
             if (scene.Pak == PakVariant.Without || models.Contains(scene.Index))
                 continue;
-            var there = MapObjectPresence.There(scene, IsSet) && !Remembered(memory, scene);
+            var there = MapObjectPresence.There(scene, flags.IsSet) && !Remembered(memory, scene);
             if (there == IsActive(scene.Index))
                 continue;
             SetActive(scene.Index, there);

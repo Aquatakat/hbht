@@ -60,7 +60,7 @@ public partial class Game
         if (_cinematic!.Step() is not { } ended)
             return;
         // The done flag is set however it ended, from the Theatre too.
-        _game!.Flags.Set(ended.DoneFlag, true);
+        _game!.Flags.TrySet(ended.DoneFlag, true);
         // Trek comes back where the player stood, its music asked for again and the screen fading in from black.
         _trek!.Resume();
         _reopenTheatre = _fromTheatre;

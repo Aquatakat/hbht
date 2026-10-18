@@ -604,7 +604,7 @@ public sealed class ScriptRunner
         var value = op.Command switch
         {
             DialogueCommand.CheckMember => op.Target is { } member && _world.InParty(member) ? 1 : 0,
-            DialogueCommand.CheckFlag => op.Target is { } flag && _flags.Get(flag) ? 1 : 0,
+            DialogueCommand.CheckFlag => op.Target is { } flag && _flags.IsSet(flag) ? 1 : 0,
             DialogueCommand.CheckSkill => SkillCheck(op.Value ?? 0),
             DialogueCommand.CheckItem => op.Target is { } item && _world.HasItem(item) ? 1 : 0,
             DialogueCommand.CheckBestStat => _world.BestStat(op.Value ?? 0),
@@ -653,7 +653,7 @@ public sealed class ScriptRunner
         {
             case DialogueCommand.SetFlag or DialogueCommand.ClearFlag:
                 if (op.Target is { } flag)
-                    _flags.Set(flag, op.Command == DialogueCommand.SetFlag);
+                    _flags.TrySet(flag, op.Command == DialogueCommand.SetFlag);
                 break;
             case DialogueCommand.EndDialogue:
                 End(ScriptEndKind.Ended);
@@ -799,7 +799,7 @@ public sealed class ScriptRunner
         _waitingNode = null;
         _wait = null;
         if (_script.DoneFlag is { } done)
-            _flags.Set(done, true);
+            _flags.TrySet(done, true);
     }
 
     private void Fault(string why) => End(ScriptEndKind.Ended, why);

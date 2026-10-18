@@ -376,7 +376,7 @@ public partial class MapSetView : VBoxContainer
         if (o.Pak == (_pak.ButtonPressed ? PakVariant.Without : PakVariant.With))
             return false;
         return !_gate.ButtonPressed || _game is not { Network: var network }
-            || MapObjectPresence.There(o, id => network.TryHandle(id, out var handle) && network.Get(handle));
+            || MapObjectPresence.There(o, network.IsSet);
     }
 
     private void ApplyFilters()

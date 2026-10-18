@@ -183,6 +183,38 @@ public class FlagNetworkTests
     }
 
     [Fact]
+    public void AnUnknownFlagReadsClearAndItsSetIsIgnored()
+    {
+        var flags = Network();
+        var removed = RecordId.Parse("mymod:flag/removed");
+
+        Assert.False(flags.IsSet(removed));
+        Assert.False(flags.TrySet(removed, true));
+        Assert.False(flags.IsSet(removed));
+        Assert.Throws<KeyNotFoundException>(() => flags.Get(removed));
+        Assert.Throws<KeyNotFoundException>(() => flags.Set(removed, true));
+
+        Assert.True(flags.TrySet(Flag(2), true));
+        Assert.True(flags.IsSet(Flag(2)));
+        Assert.True(flags.IsSet(Flag(1)));
+    }
+
+    [Fact]
+    public void AGateHoldsWhileItsFlagDiffersFromItsInversionAndAnUnknownFlagIsClear()
+    {
+        var flags = Network();
+        var removed = RecordId.Parse("mymod:flag/removed");
+
+        Assert.False(flags.Holds(new FlagGate(Flag(2))));
+        Assert.True(flags.Holds(new FlagGate(Flag(2), Invert: true)));
+        flags.Set(2, true);
+        Assert.True(flags.Holds(new FlagGate(Flag(2))));
+        Assert.False(flags.Holds(new FlagGate(Flag(2), Invert: true)));
+        Assert.False(flags.Holds(new FlagGate(removed)));
+        Assert.True(flags.Holds(new FlagGate(removed, Invert: true)));
+    }
+
+    [Fact]
     public void TheCalendarIsWrittenIntoItsFlags()
     {
         var flags = new FlagNetwork(Enumerable.Range(0, 32).Select(i => new FlagRecord(Flag(i))), Flag(31));

@@ -309,7 +309,7 @@ public sealed class GameState : IScriptWorld
 
     /// <summary>The terrain's record, if a plugin has it.</summary>
     public TerrainRecord? Terrain(int? terrain) =>
-        terrain is { } t ? Plugins.TryGet<TerrainRecord>(RecordId.Decimal(RecordTypes.Terrain, t)) : null;
+        terrain is { } t ? TerrainRecord.Find(Plugins, t) : null;
 
     // World.Update: the calendar's flags and the rain's.
     private void WriteStateFlags()
@@ -334,12 +334,10 @@ public sealed class GameState : IScriptWorld
     /// (<c>Entity::Init</c>), or null if no plugin has the record.
     /// </summary>
     public Character? Recruit(RecordId entity) => Plugins.TryGet<EntityRecord>(entity) is { } record
-        ? Character.Create(record, Rules, Plugins.Get<SpellRecord>, IsSet, Items)
+        ? Character.Create(record, Rules, Plugins.Get<SpellRecord>, Flags.IsSet, Items)
         : null;
 
-    private bool IsSet(RecordId flag) => Flags.TryHandle(flag, out var handle) && Flags.Get(handle);
-
-    /// <summary>A character sheet as a save holds it (<c>SaveParty::SaveCharSheet</c>).</summary>
+        /// <summary>A character sheet as a save holds it (<c>SaveParty::SaveCharSheet</c>).</summary>
     public static SaveCharacter SaveCharacter(Character member)
     {
         var stats = Enumerable.Range(0, CharacterRules.StatCount).Select(s => (Stat)s).ToList();
@@ -411,7 +409,7 @@ public sealed class GameState : IScriptWorld
                 problems.Add($"{entity.Name} knows {known.Spell}, which no plugin has.");
         }
         var character = Character.Restore(entity, Rules, stats, skills, SpellOrder(spells, entity.School, alaron));
-        character.TrueName = entity.TrueName || (entity.TrueNameFlag is { } flag && IsSet(flag));
+        character.TrueName = entity.TrueName || (entity.TrueNameFlag is { } flag && Flags.IsSet(flag));
         if (saved.Name is { Length: > 0 } name)
             character.Name = name;
         character.TotalExp = saved.TotalExp;
@@ -578,15 +576,9 @@ public sealed class GameState : IScriptWorld
     {
         if (Plugins.TryGet<EntityRecord>(entity)?.Member is not { } flags)
             return;
-        SetFlag(flags.Joined, joined);
+        Flags.TrySet(flags.Joined, joined);
         if (flags.Left is { } left)
-            SetFlag(left, !joined);
-
-        void SetFlag(RecordId flag, bool value)
-        {
-            if (Flags.TryHandle(flag, out var handle))
-                Flags.Set(handle, value);
-        }
+            Flags.TrySet(left, !joined);
     }
 
     bool IScriptWorld.AddExp(RecordId member, int amount)

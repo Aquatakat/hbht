@@ -24,4 +24,9 @@ namespace Aidyn.Plugins.Records;
 /// <param name="PrecipitationScale">How hard rain or snow falls here: its intensity is this give or take the weather record's spread.</param>
 /// <param name="Snow">Precipitation here is snow rather than rain.</param>
 public sealed record TerrainRecord(RecordId Id, RecordId Sky, bool SkyDrawn, float Camp = 0, int Precipitation = 0,
-    float PrecipitationScale = 0, bool Snow = false);
+    float PrecipitationScale = 0, bool Snow = false)
+{
+    /// <summary>The terrain a chunk carries (<see cref="ChunkEntry.Terrain"/>), if a plugin has its record.</summary>
+    public static TerrainRecord? Find(PluginSet plugins, int terrain) =>
+        plugins.TryGet<TerrainRecord>(RecordId.Decimal(RecordTypes.Terrain, terrain));
+}
