@@ -16,12 +16,6 @@ public sealed class MapSounds(GameAudio audio, IRandom random, Func<MapObject, b
     /// <summary>The most at once (<c>Audio.Init</c>, 1.0 <c>0x8004DF08</c>): the original writes past them, the port drops the rest.</summary>
     public const int MaxSounds = 82;
 
-    /// <summary>Ticks a sound takes to fade in, without falloff, or out (<c>delta / 90</c> a frame).</summary>
-    public const int FadeTicks = 90;
-
-    /// <summary>Milliseconds a sound plays for when it starts, until it's next kept up (<c>Audio.UpdateSound</c>).</summary>
-    public const int FirstDurationMs = 2000;
-
     /// <summary>Ticks music from a chunk that unloaded waits for another chunk to load the same (<c>Audio.PersistMusic</c>).</summary>
     public const int PersistTicks = 2;
 
@@ -37,7 +31,7 @@ public sealed class MapSounds(GameAudio audio, IRandom random, Func<MapObject, b
         {
             if (o.Pak == PakVariant.Without || _bubbles.Count(b => !b.Orphaned) >= MaxSounds)
                 continue;
-            var bubble = new Bubble(map, o, map.Origin + o.Position);
+            var bubble = new Bubble(map, o, map.Origin + o.Position, () => there(o));
             // Audio.FindPersistentMusic: the same music playing on from a chunk that's gone is this one's.
             if ((o.Flags & SoundFlags.Music) != 0 && _bubbles.FirstOrDefault(b => b.Orphaned && b.Sound.Sound == o.Sound) is { } held)
             {
@@ -110,10 +104,10 @@ public sealed class MapSounds(GameAudio audio, IRandom random, Func<MapObject, b
         var o = b.Sound;
         if (Vector3.Distance(player, b.Position) <= o.Radius)
         {
-            var loudness = 1 - Vector3.Distance(aim, b.Position) / o.Radius;
-            b.Fade = (o.Flags & SoundFlags.NoFalloff) == 0 ? loudness : MathF.Min(1, b.Fade + 1f / FadeTicks);
+            var loudness = AudioLevels.Loudness(Vector3.Distance(aim, b.Position), o.Radius);
+            b.Fade = (o.Flags & SoundFlags.NoFalloff) == 0 ? loudness : MathF.Min(1, b.Fade + 1f / AudioLevels.FadeTicks);
             if ((o.Flags & SoundFlags.NoPan) == 0)
-                b.Pan = Pan(b.Position, eye, aim, loudness);
+                b.Pan = AudioLevels.Pan(b.Position, eye, aim, loudness);
             if (--b.Countdown <= 0)
             {
                 b.Countdown = 0;
@@ -129,7 +123,7 @@ public sealed class MapSounds(GameAudio audio, IRandom random, Func<MapObject, b
         }
         else if (b.Fade > 0)
         {
-            b.Fade = MathF.Max(0, b.Fade - 1f / FadeTicks);
+            b.Fade = MathF.Max(0, b.Fade - 1f / AudioLevels.FadeTicks);
             Update(b);
         }
         else if (audio.IsPlaying(b.Handle))
@@ -141,50 +135,19 @@ public sealed class MapSounds(GameAudio audio, IRandom random, Func<MapObject, b
 
     /// <summary>
     /// <c>Audio.UpdateSound</c> (1.0 <c>0x8004E900</c>): keeps a playing sound up at its volume and pan, or starts one
-    /// that needs starting if its flags let it. One that loops is started again whenever it has ended.
+    /// that needs starting if its flags let it (<see cref="KeptSound.Update"/>), at the music volume if it's music.
     /// </summary>
-    private void Update(Bubble b)
-    {
-        var o = b.Sound;
-        var level = (o.Flags & SoundFlags.Music) != 0 ? audio.MusicVolume : audio.SoundVolume;
-        var volume = unchecked((byte)(int)(Math.Clamp((int)(b.Fade * o.Volume * 255.0), 0, 255) * level));
-        var pan = (byte)Math.Clamp((int)((b.Pan + 1f) * 0.5f * 255.0), 0, 255);
-        if (audio.IsPlaying(b.Handle))
-        {
-            audio.SetDuration(b.Handle, -1);
-            audio.Set(b.Handle, volume, pan);
-            return;
-        }
-        if (!b.StartNeeded || !there(o))
-            return;
-        var loop = (o.Flags & SoundFlags.Loop) != 0;
-        b.Handle = audio.Start(o.Sound, volume, pan, loop, FirstDurationMs);
-        b.StartNeeded = loop;
-    }
+    private void Update(Bubble b) =>
+        b.Update(audio, (b.Sound.Flags & SoundFlags.Music) != 0 ? audio.MusicVolume : audio.SoundVolume, b.There);
 
-    /// <summary>
-    /// A sound's pan (<c>Audio.Pan</c>, 1.0 <c>0x8004EB1C</c>): the sine of the angle across the ground from the
-    /// camera's facing to it, positive to the right, the less the louder it is. Not clamped.
-    /// </summary>
-    public static float Pan(Vector3 position, Vector3 eye, Vector3 aim, float loudness)
-    {
-        var facing = new Vector2(aim.X - eye.X, aim.Z - eye.Z);
-        var to = new Vector2(position.X - eye.X, position.Z - eye.Z);
-        if (facing.LengthSquared() == 0 || to.LengthSquared() == 0)
-            return 0;
-        facing = Vector2.Normalize(facing);
-        to = Vector2.Normalize(to);
-        return (facing.X * to.Y - facing.Y * to.X) * (1 - loudness);
-    }
-
-    private sealed class Bubble(LoadedMap map, SoundObject sound, Vector3 position)
+    private sealed class Bubble(LoadedMap map, SoundObject sound, Vector3 position, Func<bool> there)
+        : KeptSound(sound.Sound, sound.Volume, (sound.Flags & SoundFlags.Loop) != 0)
     {
         public LoadedMap Map { get; } = map;
         public SoundObject Sound { get; } = sound;
         public Vector3 Position { get; } = position;
-        public SoundHandle Handle;
-        public float Fade, Pan;
-        public bool StartNeeded = true, Orphaned;
+        public Func<bool> There { get; } = there;
+        public bool Orphaned;
         public int Countdown;
     }
 }

@@ -117,7 +117,7 @@ public class MapSoundsTests
     public void ASoundToTheCamerasRightPansRight()
     {
         // Looking along −Z, +X is to the right.
-        Assert.True(MapSounds.Pan(new Vector3(5, 0, 0), new Vector3(0, 0, 10), Vector3.Zero, 0) > 0);
-        Assert.True(MapSounds.Pan(new Vector3(-5, 0, 0), new Vector3(0, 0, 10), Vector3.Zero, 0) < 0);
+        Assert.True(AudioLevels.Pan(new Vector3(5, 0, 0), new Vector3(0, 0, 10), Vector3.Zero, 0) > 0);
+        Assert.True(AudioLevels.Pan(new Vector3(-5, 0, 0), new Vector3(0, 0, 10), Vector3.Zero, 0) < 0);
     }
 }

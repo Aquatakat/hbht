@@ -130,10 +130,8 @@ public sealed class AudioKeys(GameAudio audio, SoundsRecord? sounds, IRandom ran
     /// </summary>
     public static (byte Volume, byte Pan) VolumeAndPan(Vector3 position, Vector3 eye, Vector3 aim)
     {
-        var loudness = 1f - Vector3.Distance(position, aim) / Hearing;
-        var volume = unchecked((byte)(int)(loudness * 255.0));
-        var pan = MapSounds.Pan(position, eye, aim, loudness);
-        return (volume, unchecked((byte)(int)((pan + 1f) * 0.5f * 255.0)));
+        var loudness = AudioLevels.Loudness(Vector3.Distance(position, aim), Hearing);
+        return (AudioLevels.LoudnessByte(loudness), AudioLevels.WrappedPanByte(AudioLevels.Pan(position, eye, aim, loudness)));
     }
 
     /// <summary>

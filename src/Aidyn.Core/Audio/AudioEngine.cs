@@ -109,6 +109,10 @@ public sealed class AudioEngine
 
     public bool IsPlaying(SoundHandle handle) => Find(handle) is not null;
 
+    /// <summary>The volume, pan and duration each playing sequence was last given, for tests.</summary>
+    internal List<(byte Volume, byte Pan, int Duration)> Playing() =>
+        [.. _players.Where(p => p.Playing).Select(p => (p.Volume, p.Pan, p.Duration))];
+
     /// <summary>Stops it and cuts its notes (<c>Dcm.Stop</c>, 1.0 <c>0x80090B18</c>).</summary>
     public void Stop(SoundHandle handle)
     {

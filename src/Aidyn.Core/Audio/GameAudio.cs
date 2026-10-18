@@ -84,8 +84,9 @@ public sealed class GameAudio
             var slot = Array.IndexOf(_sounds, null);
             if (slot < 0)
                 return;
-            _sounds[slot] = new Slot(sound, SoundVolume, sound.TimesSoundVolume ? SoundVolume : 1)
+            _sounds[slot] = new Slot(sound, SoundVolume)
             {
+                Fade = sound.TimesSoundVolume ? SoundVolume : 1,
                 Lifetime = sound.Lifetime + sound.Delay,
                 Delay = sound.Delay,
             };
@@ -97,7 +98,7 @@ public sealed class GameAudio
 
     /// <summary>
     /// Starts a sequence that something else keeps up, such as a map object's sound, at a volume and pan
-    /// (<see cref="Volume"/>, <see cref="Pan"/>).
+    /// (<see cref="AudioLevels"/>).
     /// </summary>
     public SoundHandle Start(RecordId sequence, byte volume, byte pan, bool loop, int durationMs = -1)
     {
@@ -135,9 +136,6 @@ public sealed class GameAudio
     /// <summary>The byte a sequence plays at for a loudness from 0 to 1, as the original truncates it.</summary>
     public static byte Volume(float loudness) => (byte)Math.Clamp((int)(loudness * 255), 0, 255);
 
-    /// <summary>The byte a sequence pans to for a pan from −1 left to 1 right: <c>(pan + 1) × 0.5 × 255</c>.</summary>
-    public static byte Pan(float pan) => (byte)Math.Clamp((int)((pan + 1) * 0.5f * 255), 0, 255);
-
     /// <summary>
     /// A tick: the background music follows <see cref="Music"/> at the music volume (<c>Bgm.Update</c>, 1.0
     /// <c>0x8000E570</c>), and the one-shots start once their delay is past, once, and stop at the end of their
@@ -152,14 +150,11 @@ public sealed class GameAudio
             {
                 if (_sounds[i] is not { } sound)
                     continue;
-                sound.Fade = MathF.Min(1, sound.Fade + 1f / MapSounds.FadeTicks);
+                sound.Fade = MathF.Min(1, sound.Fade + 1f / AudioLevels.FadeTicks);
                 if (--sound.Delay <= 0)
                 {
                     sound.Delay = 0;
-                    if (Engine.IsPlaying(sound.Handle))
-                        Engine.SetVolume(sound.Handle, OneShotVolume(sound));
-                    else if (!sound.Started)
-                        Start(sound);
+                    sound.Update(this, SoundVolume);
                 }
                 if (--sound.Lifetime <= 0)
                 {
@@ -203,30 +198,14 @@ public sealed class GameAudio
         Engine.SetVolume(_music, Volume(MusicVolume));
     }
 
-    /// <summary>A one-shot's start: centred, as <c>Audio.UpdateSound</c> pans a pan of 0, to 127.</summary>
-    private void Start(Slot slot)
-    {
-        slot.Started = true;
-        if (Bank.Get(slot.Sound.Sequence) is { } s)
-            slot.Handle = Engine.Play(s, OneShotVolume(slot), 127, durationMs: MapSounds.FirstDurationMs);
-        Engine.SetDuration(slot.Handle, -1);
-    }
-
     /// <summary>
-    /// A one-shot's volume (<c>Audio.UpdateSound</c>): its fade times the sound volume it was played at, as a byte,
-    /// times the sound volume now. So the sound volume counts twice, or three times for those whose gain it is.
+    /// A one-shot is a <see cref="KeptSound"/>: its volume is its fade times the sound volume it was played at, as a
+    /// byte, times the sound volume now. So the sound volume counts twice, or three times for those whose gain it is.
+    /// It is centred, a pan of 0.
     /// </summary>
-    private byte OneShotVolume(Slot slot) =>
-        unchecked((byte)(int)(Math.Clamp((int)(slot.Fade * slot.Volume * 255.0), 0, 255) * SoundVolume));
-
-    private sealed class Slot(OneShot sound, float volume, float gain)
+    private sealed class Slot(OneShot sound, float volume) : KeptSound(sound.Sequence, volume, false)
     {
-        public OneShot Sound { get; } = sound;
-        public float Volume { get; } = volume;
-        public float Fade = gain;
         public int Lifetime, Delay;
-        public bool Started;
-        public SoundHandle Handle;
     }
 }
 
