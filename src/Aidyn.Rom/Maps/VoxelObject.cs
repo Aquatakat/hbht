@@ -1,6 +1,8 @@
 using System.Buffers.Binary;
 using System.Numerics;
+using Aidyn.Plugins.Records;
 using Aidyn.Rom.Db;
+using Aidyn.Rom.Engine;
 using Aidyn.Rom.Text;
 
 namespace Aidyn.Rom.Maps;
@@ -110,7 +112,7 @@ public sealed record VoxelObject(
 /// <summary>A map object's type-specific fields.</summary>
 public abstract record VoxelData;
 
-/// <summary><c>Scene_obj_dat.sceneflags</c>.</summary>
+/// <summary><c>Scene_obj_dat.sceneflags</c>. The record's <see cref="Plugins.Records.SceneObjectFlags"/> lacks <see cref="Actor"/>: the importer folds it into the model's record type.</summary>
 [Flags]
 public enum SceneObjectFlags : ushort
 {
@@ -164,54 +166,13 @@ public sealed record SceneData(
         Matrix4x4.CreateRotationX(Rotation.X) * Matrix4x4.CreateRotationY(Rotation.Y) * Matrix4x4.CreateRotationZ(Rotation.Z)));
 }
 
-public readonly record struct Rgba(byte R, byte G, byte B, byte A);
-
-/// <summary>How a light's colour changes (<c>LightTypes</c>).</summary>
-public enum LightKind : ushort
-{
-    Static,
-    /// <summary>Fades back and forth between the colours, each way taking <see cref="LightData.Speed"/> × 30 ticks.</summary>
-    Alternate,
-    /// <summary>Swings between the colours along a sine, a cycle taking <see cref="LightData.Speed"/> × 60 ticks.</summary>
-    Sine,
-    /// <summary>Drifts toward random points between the colours, 1 / (<see cref="LightData.Speed"/> × 60) of the way a tick.</summary>
-    Random,
-}
-
 /// <summary>A light that colours the actors near it (<c>light_dat</c>).</summary>
 /// <param name="From">The colour it starts at. <see cref="LightKind.Static"/> lights stay there.</param>
 public sealed record LightData(Rgba From, Rgba To, LightKind Kind, float Speed) : VoxelData;
 
-/// <summary><c>audio_obj_dat.soundFlag</c> (<c>VoxAudioFlags</c>).</summary>
-[Flags]
-public enum AudioFlags : ushort
-{
-    None = 0,
-    Loop = 0x1,
-    /// <summary>Plays again after a random wait between <see cref="AudioData.MinWait"/> and <see cref="AudioData.MaxWait"/> seconds.</summary>
-    Repeat = 0x2,
-    /// <summary>Doesn't get quieter with distance.</summary>
-    NoFalloff = 0x4,
-    /// <summary>Doesn't pan with the camera.</summary>
-    NoPan = 0x8,
-    /// <summary>Music, at the music volume. Only played with the Expansion Pak.</summary>
-    Music = 0x10,
-}
-
 /// <summary>A sound or piece of music that plays near the object (<c>audio_obj_dat</c>).</summary>
 /// <param name="Sequence">The Borg12 it plays.</param>
-public sealed record AudioData(int Sequence, float Volume, float MinWait, float MaxWait, AudioFlags AudioFlags) : VoxelData;
-
-/// <summary><c>wandernode_dat.nodeflags</c>.</summary>
-[Flags]
-public enum WanderFlags : ushort
-{
-    None = 0,
-    /// <summary>Wanderers walk to the node.</summary>
-    Move = 0x1,
-    /// <summary>Wanderers turn to face away from the node instead.</summary>
-    Rotate = 0x2,
-}
+public sealed record AudioData(int Sequence, float Volume, float MinWait, float MaxWait, SoundFlags AudioFlags) : VoxelData;
 
 /// <summary>
 /// A point wandering NPCs move between (<c>wandernode_dat</c>). Their monster party names the
@@ -224,33 +185,6 @@ public enum WanderFlags : ushort
 /// <param name="Next">Indices of the nodes that follow, in the same Borg9.</param>
 public sealed record WanderNodeData(float Radius, float Scatter, float Chance, ushort Wait, WanderFlags WanderFlags,
     IReadOnlyList<ushort> Next) : VoxelData;
-
-/// <summary><c>voxelCamera.CameraFlags</c> (<c>CamObjFlags</c>).</summary>
-[Flags]
-public enum CameraFlags : ushort
-{
-    None = 0,
-    /// <summary>Jumps straight there.</summary>
-    Cut = 0x1,
-    /// <summary>Moves there at a steady speed over <see cref="CameraData.Duration"/> ticks.</summary>
-    Pan = 0x2,
-    /// <summary>Eases there over <see cref="CameraData.Duration"/> ticks.</summary>
-    Sine = 0x4,
-    /// <summary>Eases in there, slow then fast (1 − cos), over <see cref="CameraData.Duration"/> ticks.</summary>
-    EaseIn = 0x8,
-    /// <summary>Eases out there, fast then slow (sin), over <see cref="CameraData.Duration"/> ticks.</summary>
-    EaseOut = 0x10,
-    /// <summary>Has the outdoor camera follow <see cref="CameraData.Values"/>.Y behind, but no nearer than 3.</summary>
-    Distance = 0x100,
-    /// <summary>Has the outdoor camera follow <see cref="CameraData.Values"/>.X degrees up.</summary>
-    Pitch = 0x200,
-    /// <summary>Keeps the camera aimed at the player.</summary>
-    Track = 0x2000,
-    /// <summary>Moves the camera's aim to the reference point.</summary>
-    Aim = 0x4000,
-    /// <summary>Moves the camera to the reference point.</summary>
-    Position = 0x8000,
-}
 
 /// <summary>
 /// Takes over the camera while the player is within the object's radius, or walks on a trigger
@@ -323,20 +257,6 @@ public sealed record TeleporterData(
     public const ushort OwnPosition = 0x7FF8;
 }
 
-/// <summary><c>monsterparty_dat.flags</c>.</summary>
-[Flags]
-public enum PartyFlags : ushort
-{
-    None = 0,
-    /// <summary>
-    /// Walks back to its wander node rather than running (<c>FUN_80012d44</c>, which the decomp reads
-    /// as a wander node's flags; 1.0's code reads the party's). Set on most.
-    /// </summary>
-    Walks = 0x2,
-    /// <summary>Talking to it does nothing, though it has a dialogue (checked in 1.0's code).</summary>
-    Silent = 0x4,
-}
-
 /// <param name="Entity">The NPC, or the group's leader.</param>
 /// <param name="MinSize">A battle with fewer enemies than this, after the random extras, has none.</param>
 /// <param name="MaxSize">The most enemies a battle with the party has.</param>
@@ -362,20 +282,6 @@ public sealed record ReferencePointData(ushort Id, string Name, Vector3 Facing) 
 /// <param name="RefPoint">The reference point its ops count from.</param>
 public sealed record DialogueData(int Script, (MapSet Set, int Row, int Column) Map, ushort RefPoint, string Name)
     : VoxelData;
-
-/// <summary>What a trigger does (the decomp's <c>VObject_Triggers</c>).</summary>
-public enum TriggerKind : short
-{
-    Nothing0,
-    /// <summary>Sets <see cref="TriggerData.A"/>.</summary>
-    SetFlag,
-    /// <summary>Plays animation <see cref="TriggerData.A"/> on the linked model.</summary>
-    Animate,
-    Nothing3,
-    /// <summary>Changes the flags of the collision with ground type <see cref="TriggerData.A"/>.</summary>
-    ChangeCollision,
-    Nothing5,
-}
 
 public sealed record TriggerData(TriggerKind Kind, ushort A, ushort B, ushort C) : VoxelData;
 
@@ -416,8 +322,8 @@ public static class Borg9Voxels
         VoxelData? data = (VoxelType)type switch
         {
             VoxelType.Scene => Scene(p),
-            VoxelType.Light => new LightData(Colour(p, 4), Colour(p, 8), (LightKind)U16(p, 0xC), F32(p, 0x14)),
-            VoxelType.Audio => new AudioData((int)U32(p, 0), F32(p, 8), F32(p, 0xC), F32(p, 0x10), (AudioFlags)U16(p, 0x14)),
+            VoxelType.Light => new LightData(CodeSegment.Colour(p, 4), CodeSegment.Colour(p, 8), (LightKind)U16(p, 0xC), F32(p, 0x14)),
+            VoxelType.Audio => new AudioData((int)U32(p, 0), F32(p, 8), F32(p, 0xC), F32(p, 0x10), (SoundFlags)U16(p, 0x14)),
             VoxelType.WanderNode => new WanderNodeData(F32(p, 8), F32(p, 0xC), F32(p, 0x10), U16(p, 0x14),
                 (WanderFlags)U16(p, 0x16), [U16(p, 0x18), U16(p, 0x1A)]),
             VoxelType.Camera => new CameraData(U16(p, 0), (CameraFlags)U16(p, 2), new Vector3(F32(p, 8), F32(p, 0xC), F32(p, 0x10))),
@@ -454,10 +360,8 @@ public static class Borg9Voxels
         for (var i = 0; i < 3 && U32(p, i * 12 + 4) is var borg and not 0; i++)
             models.Add(new SceneModel((int)borg, F32(p, i * 12)));
         return new SceneData(models, U16(p, 0x40), new Vector3(F32(p, 0x24), F32(p, 0x28), F32(p, 0x2C)),
-            new Vector3(F32(p, 0x30), F32(p, 0x34), F32(p, 0x38)), Colour(p, 0x3C), (SceneObjectFlags)U16(p, 0x42));
+            new Vector3(F32(p, 0x30), F32(p, 0x34), F32(p, 0x38)), CodeSegment.Colour(p, 0x3C), (SceneObjectFlags)U16(p, 0x42));
     }
-
-    private static Rgba Colour(ReadOnlySpan<byte> p, int at) => new(p[at], p[at + 1], p[at + 2], p[at + 3]);
 
     private static List<(ItemId, byte, byte)> Enemies(ReadOnlySpan<byte> p)
     {

@@ -1,4 +1,4 @@
-using Aidyn.Rom.Maps;
+using Aidyn.Plugins.Records;
 
 namespace Aidyn.Rom.Engine;
 
@@ -36,7 +36,7 @@ public static class Skies
             if (!Enum.IsDefined(kind))
                 throw new InvalidDataException($"Sky object at 0x{at:X} has type {(int)kind}.");
             objects.Add(new SkyObjectEntry(kind, CodeSegment.F32(data, at + 4), CodeSegment.F32(data, at + 8), CodeSegment.F32(data, at + 12),
-                Colour(data, at + 16)));
+                CodeSegment.Colour(data, at + 16)));
         }
         throw new InvalidDataException("The sky objects don't end.");
     }
@@ -68,14 +68,12 @@ public static class Skies
         {
             if (data[at] >= FlareImages.Count)
                 throw new InvalidDataException($"Lens flare piece at 0x{at:X} has image {data[at]}.");
-            pieces.Add(new FlareEntry(data[at], CodeSegment.F32(data, at + 4), CodeSegment.F32(data, at + 8), Colour(data, at + 12)));
+            pieces.Add(new FlareEntry(data[at], CodeSegment.F32(data, at + 4), CodeSegment.F32(data, at + 8), CodeSegment.Colour(data, at + 12)));
         }
         return pieces;
     }
 
     private const int SkyObjectSize = 20, CloudSize = 28, FlareSize = 16;
-
-    private static Rgba Colour(ReadOnlySpan<byte> data, int at) => new(data[at], data[at + 1], data[at + 2], data[at + 3]);
 
     // Engine code holds the images the sky draws as Borg8 literals. They're carried here as facts,
     // with the decomp's names, and the importer checks each is a Borg8 (UI image).

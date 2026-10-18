@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Text.Json.Nodes;
+using Aidyn.Plugins.Records;
 
 namespace Aidyn.Rom.Graphics;
 
@@ -424,7 +425,7 @@ public static class SceneGltf
             ["locator"] = e.Locator.Index,
             ["locatorScene"] = e.Locator.Scene,
             ["flags"] = e.Flags.ToString(),
-            ["request"] = e.Flags.HasFlag(Borg5EmitterFlags.ActorRequest) ? e.Request : null,
+            ["request"] = e.Flags.HasFlag(ParticleEmitterFlags.ActorRequest) ? e.Request : null,
             ["texture"] = e.Texture,
             ["delay"] = e.Delay,
             ["lifetime"] = e.Lifetime,
@@ -437,7 +438,7 @@ public static class SceneGltf
             ["speed"] = e.Speed,
             ["acceleration"] = V4(e.Acceleration),
             ["accelerationChange"] = V4(e.AccelerationChange),
-            ["target"] = e.Flags.HasFlag(Borg5EmitterFlags.Target) ? new JsonObject
+            ["target"] = e.Flags.HasFlag(ParticleEmitterFlags.Target) ? new JsonObject
             {
                 ["locator"] = e.Target.Index,
                 ["locatorScene"] = e.Target.Scene,

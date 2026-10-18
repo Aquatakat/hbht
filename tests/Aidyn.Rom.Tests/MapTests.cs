@@ -1,3 +1,4 @@
+using Aidyn.Plugins.Records;
 using Aidyn.Rom.Borg;
 using Aidyn.Rom.Db;
 using Aidyn.Rom.Maps;
@@ -96,7 +97,7 @@ public class MapTests
                 switch (o.Data)
                 {
                     case SceneData s:
-                        var type = s.SceneFlags.HasFlag(SceneObjectFlags.Actor) ? BorgType.Actor : BorgType.Scene;
+                        var type = s.SceneFlags.HasFlag(Maps.SceneObjectFlags.Actor) ? BorgType.Actor : BorgType.Scene;
                         Assert.All(s.Models, m => Assert.Equal(type, archive.Listings[m.Borg].Type));
                         shapes.Add($"{s.Lods}/{s.Models.Count} {type}");
                         break;

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using Aidyn.Plugins.Records;
 using Aidyn.Rom.Db;
 
 namespace Aidyn.Rom.Dialogue;
@@ -13,7 +14,7 @@ public static class Borg13Text
         var s = new StringBuilder();
         s.Append(CultureInfo.InvariantCulture,
             $"Borg13 {borgIndex}: {script.StartMode}, id {script.Id}, done flag {script.DoneFlag}");
-        if (script.StartMode == Borg13StartMode.Backdrop)
+        if (script.StartMode == DialogueMode.Backdrop)
             s.Append(CultureInfo.InvariantCulture, $", backdrop {script.Backdrop}");
         s.AppendLine();
         if (script.Actors.Count > 0)
@@ -49,8 +50,8 @@ public static class Borg13Text
 
     private static string Links(Borg13Script script, Borg13Node node) => node.Kind switch
     {
-        Borg13NodeKind.If => $"{node.Links[0]} if 1, else {node.Links[1]}",
-        Borg13NodeKind.Case => string.Join(", ", node.Links.Select(l => $"{l} [{Range(script.Nodes[l])}]")),
+        DialogueNodeKind.If => $"{node.Links[0]} if 1, else {node.Links[1]}",
+        DialogueNodeKind.Case => string.Join(", ", node.Links.Select(l => $"{l} [{Range(script.Nodes[l])}]")),
         _ => string.Join(", ", node.Links),
     };
 

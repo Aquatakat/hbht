@@ -3,19 +3,12 @@ using Aidyn.Plugins.Records;
 using Aidyn.Rom.Db;
 using Aidyn.Rom.Engine;
 using Aidyn.Rom.Quests;
-using PluginAspect = Aidyn.Plugins.Records.Aspect;
-using PluginElement = Aidyn.Plugins.Records.Element;
+using Aidyn.Rom.Text;
 using PluginEntity = Aidyn.Plugins.Records.EntityRecord;
-using PluginReagent = Aidyn.Plugins.Records.Reagent;
 using PluginResistance = Aidyn.Plugins.Records.Resistance;
-using PluginSchool = Aidyn.Plugins.Records.MagicSchool;
 using PluginSpell = Aidyn.Plugins.Records.SpellRecord;
-using PluginTargetCount = Aidyn.Plugins.Records.SpellTargetCount;
-using PluginTargetType = Aidyn.Plugins.Records.SpellTargetType;
-using RomElement = Aidyn.Rom.Db.Element;
 using RomEntity = Aidyn.Rom.Db.EntityRecord;
 using RomSpell = Aidyn.Rom.Db.SpellRecord;
-using WeaponClass = Aidyn.Rom.Db.WeaponClass;
 
 namespace Aidyn.Rom.Import;
 
@@ -170,7 +163,7 @@ internal static class CharacterImporter
         var w = e.WeaponSkills;
         var a = e.Stats;
         return new PluginEntity(
-            DbRecordIds.For(e.Id)!.Value, e.Name, portrait, category, (PluginAspect)(int)e.Aspect, (PluginSchool)(int)e.School,
+            DbRecordIds.For(e.Id)!.Value, e.Name, portrait, category, e.Aspect, e.School,
             e.HasTrueName != 0, e.IsHeavy != 0, e.Level,
             new Attributes(a[0], a[1], a[2], a[3], a[4], a[5]),
             new SkillLevels(Skill(s[0]), Skill(s[1]), Skill(s[2]), Skill(s[3]), Skill(s[4]), Skill(s[5]), Skill(s[6]), Skill(s[7]), Skill(s[8]),
@@ -182,7 +175,7 @@ internal static class CharacterImporter
             e.Armor.IsNone ? null : Record(e.Armor, DbType.Armor, e.Id),
             e.Shield.IsNone ? null : Record(e.Shield, DbType.Shield, e.Id),
             e.BaseProtection, e.Unk4E, e.Morale,
-            [.. e.Resistances.Where(r => r.Element != RomElement.None).Select(r => new PluginResistance((PluginElement)(int)r.Element, r.Amount * ResistanceStep))],
+            [.. e.Resistances.Where(r => r.Element != Element.None).Select(r => new PluginResistance(r.Element, r.Amount * ResistanceStep))],
             e.ExpReward * ExpPerRewardPoint, e.LootCategory, e.Unk55, e.Unk56,
             alaron ? RecordId.Decimal(RecordTypes.Flag, AlaronTrueNameFlag) : null);
     }
@@ -208,8 +201,8 @@ internal static class CharacterImporter
         if (!Enum.IsDefined(special))
             throw new InvalidDataException($"Spell {s.Id} has special {s.Special}.");
         return new PluginSpell(
-            DbRecordIds.For(s.Id)!.Value, s.Name, (PluginSchool)(int)s.School, s.Damage, s.StaminaCost, (PluginTargetCount)(int)s.TargetCount,
-            (PluginTargetType)(int)s.TargetType, s.WizardRequired, special, s.Range, (PluginReagent)(int)s.Reagent,
+            DbRecordIds.For(s.Id)!.Value, s.Name, s.School, s.Damage, s.StaminaCost, s.TargetCount,
+            s.TargetType, s.WizardRequired, special, s.Range, s.Reagent,
             s.ExpModifier * SpellCostPerPoint, s.Unk1E,
             items is not null && menu is not null && menu.SpellSymbols.TryGetValue(s.Id, out var symbol)
                 ? RecordId.Hex(RecordTypes.Image, items.SpellSymbolIcons[symbol]) : null,

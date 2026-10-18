@@ -1,3 +1,5 @@
+using Aidyn.Plugins.Records;
+
 namespace Aidyn.Rom.Db;
 
 /// <summary>An element resistance: the element and a step, as in <see cref="EquipmentBonuses.ResistAmount"/>.</summary>

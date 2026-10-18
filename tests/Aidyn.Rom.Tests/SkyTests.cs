@@ -1,3 +1,4 @@
+using Aidyn.Plugins.Records;
 using Aidyn.Rom.Borg;
 using Aidyn.Rom.Engine;
 using Aidyn.Rom.Graphics;
@@ -33,7 +34,7 @@ public class SkyTests
         // The table's range is exactly its entries, 91 stars, the sun and the moon, and the end entry.
         Assert.Equal(93, objects.Count);
         Assert.Equal(91, objects.Count(o => o.Kind == SkyObjectKind.Star));
-        Assert.Equal(new SkyObjectEntry(SkyObjectKind.Sun, 1f, 0f, 90f, new Maps.Rgba(250, 250, 250, 250)), objects.Single(o => o.Kind == SkyObjectKind.Sun));
+        Assert.Equal(new SkyObjectEntry(SkyObjectKind.Sun, 1f, 0f, 90f, new Rgba(250, 250, 250, 250)), objects.Single(o => o.Kind == SkyObjectKind.Sun));
         var moon = objects.Single(o => o.Kind == SkyObjectKind.Moon);
         Assert.Equal((1f, 0f, 0f), (moon.Scale, moon.Height, moon.Azimuth));
         Assert.All(objects.Where(o => o.Kind == SkyObjectKind.Star), o => Assert.Equal(0.2f, o.Scale));
@@ -59,7 +60,7 @@ public class SkyTests
         Assert.Equal(Skies.ReadLensFlare(TestRoms.Get(RomVersionId.Na10)), pieces);
 
         Assert.Equal(8, pieces.Count);
-        Assert.Equal(new FlareEntry(0, 1f, 5.02f, new Maps.Rgba(250, 250, 250, 50)), pieces[0]);
+        Assert.Equal(new FlareEntry(0, 1f, 5.02f, new Rgba(250, 250, 250, 50)), pieces[0]);
         Assert.All(pieces, p => Assert.InRange(p.Image, 0, 2));
     }
 

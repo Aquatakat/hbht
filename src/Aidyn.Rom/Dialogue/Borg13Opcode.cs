@@ -45,7 +45,7 @@ public enum Borg13Opcode : byte
     /// <summary>Spawns the speaker's actor at a reference point.</summary>
     CreateActor = 18,
     /// <summary>
-    /// The first op of every <see cref="Borg13StartMode.Backdrop"/> script, equal to its
+    /// The first op of every <see cref="DialogueMode.Backdrop"/> script, equal to its
     /// <see cref="Borg13Script.Backdrop"/>. The game reads the header's copy, not this.
     /// </summary>
     Backdrop = 19,
@@ -129,6 +129,7 @@ public enum Borg13Opcode : byte
 
 public static class Borg13Opcodes
 {
+    // The same ranges as DialogueCommands', except that a raw script can hold Unknown59, which the importer drops.
     public static bool IsCondition(this Borg13Opcode op) => op is >= Borg13Opcode.CheckMember and <= Borg13Opcode.CheckGold;
 
     public static bool IsEffect(this Borg13Opcode op) => op is >= Borg13Opcode.SetFlag and <= Borg13Opcode.Unknown59;

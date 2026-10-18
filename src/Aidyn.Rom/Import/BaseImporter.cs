@@ -11,15 +11,11 @@ using Aidyn.Rom.Engine;
 using Aidyn.Rom.Graphics;
 using Aidyn.Rom.Maps;
 using Aidyn.Rom.Quests;
-using CameraFlags = Aidyn.Plugins.Records.CameraFlags;
+using Aidyn.Rom.Text;
 using FlagGate = Aidyn.Plugins.Records.FlagGate;
-using LightKind = Aidyn.Plugins.Records.LightKind;
-using PartyFlags = Aidyn.Plugins.Records.PartyFlags;
 using PluginSceneModel = Aidyn.Plugins.Records.SceneModel;
 using PluginSceneObjectFlags = Aidyn.Plugins.Records.SceneObjectFlags;
 using RomSceneObjectFlags = Aidyn.Rom.Maps.SceneObjectFlags;
-using TriggerKind = Aidyn.Plugins.Records.TriggerKind;
-using WanderFlags = Aidyn.Plugins.Records.WanderFlags;
 
 namespace Aidyn.Rom.Import;
 
@@ -258,7 +254,7 @@ public static class BaseImporter
         var texture = e.Texture >= 0 && e.Texture < textures.Count && textures[e.Texture] is { } borg1 ? RecordId.Hex(RecordTypes.Texture, borg1) : (RecordId?)null;
         return new ParticleEmitter(
             new ParticleLocator(e.Locator.Index, e.Locator.Scene), new ParticleLocator(e.Target.Index, e.Target.Scene),
-            e.Flags.HasFlag(Borg5EmitterFlags.ActorRequest) ? e.Request : null, (ParticleEmitterFlags)e.Flags,
+            e.Flags.HasFlag(ParticleEmitterFlags.ActorRequest) ? e.Request : null, e.Flags,
             e.Lifetime, e.ParticleLifetime, e.Delay, e.Interval, e.Burst, texture, e.Texture, e.EmitterSpeed,
             e.Position, e.SpawnJitter, e.TargetPosition, e.TargetJitter, e.VelocityJitter,
             Xyz(e.Acceleration), e.Acceleration.W, Xyz(e.AccelerationChange), e.AccelerationChange.W,
@@ -288,7 +284,7 @@ public static class BaseImporter
                     s.Far,
                     s.Captions is { } list ? [.. db.Captions[list].Select(t => new CinematicCaption(t.Start * 2, t.End * 2, t.Text))] : [],
                     [.. c.Fades.Where(f => f.Scene == shot).Select(f => new Aidyn.Plugins.Records.CinematicFade(
-                        (Aidyn.Plugins.Records.CinematicFadeColor)f.Color, f.Start * 2, f.Length * 2, f.Hold * 2))]);
+                        f.Color, f.Start * 2, f.Length * 2, f.Hold * 2))]);
             })],
             Flag(c.DoneFlag),
             CinematicRecord.ConsoleAspect))];
@@ -303,7 +299,7 @@ public static class BaseImporter
 
         var objects = Skies.ReadSkyObjects(rom);
         SkyBody Body(SkyObjectEntry o, int image, float? scale = null) =>
-            new(Image(image), scale ?? o.Scale, o.Height, o.Azimuth, Colour(o.Color));
+            new(Image(image), scale ?? o.Scale, o.Height, o.Azimuth, o.Color);
         var moon = Skies.MoonImages;
         return new SkyRecord(
             RecordId.Decimal(RecordTypes.Sky, 0),
@@ -315,7 +311,7 @@ public static class BaseImporter
             [.. Skies.CloudImages.Select(Image)],
             [.. Skies.ReadClouds(rom).Select(c => new Cloud(c.Image, c.X, c.Z, c.Alpha, c.Cover))],
             [.. Skies.FlareImages.Select(Image)],
-            [.. Skies.ReadLensFlare(rom).Select(f => new FlarePiece(f.Image, f.Distance, f.Scale, Colour(f.Color)))]);
+            [.. Skies.ReadLensFlare(rom).Select(f => new FlarePiece(f.Image, f.Distance, f.Scale, f.Color))]);
     }
 
     /// <summary>
@@ -423,7 +419,7 @@ public static class BaseImporter
                                 ? RecordId.Hex(RecordTypes.Actor, m.Borg) : RecordId.Hex(RecordTypes.Scene, m.Borg),
                             m.DrawDistance) { Empty = empty(m.Borg) }),
                     ],
-                    scene.Lods, scene.Rotation, scene.Scale, new Plugins.Records.Rgba(scene.Tint.R, scene.Tint.G, scene.Tint.B, scene.Tint.A),
+                    scene.Lods, scene.Rotation, scene.Scale, scene.Tint,
                     (PluginSceneObjectFlags)((int)scene.SceneFlags & ~(int)RomSceneObjectFlags.Actor))
                 {
                     GoesOut = scene.Models.Count > 1 && scene.Models[1].Borg == OrianaLight,
@@ -438,15 +434,15 @@ public static class BaseImporter
                         Enabled = c.Kind >= (int)ContainerKind.Herb ? enabled : null,
                         Used = used,
                     },
-                LightData l => new LightObject(o.Index, o.Position, o.Radius, pak, visible, Colour(l.From), Colour(l.To),
-                    (LightKind)l.Kind, l.Speed, o.Flags.HasFlag(VoxelFlags.Occludable), o.Flags.HasFlag(VoxelFlags.FacesCamera)),
+                LightData l => new LightObject(o.Index, o.Position, o.Radius, pak, visible, l.From, l.To,
+                    l.Kind, l.Speed, o.Flags.HasFlag(VoxelFlags.Occludable), o.Flags.HasFlag(VoxelFlags.FacesCamera)),
                 AudioData a => new SoundObject(o.Index, o.Position, o.Radius, pak, visible, Borg(BorgType.Sequence, a.Sequence, RecordTypes.Sequence),
-                    a.Volume, a.MinWait, a.MaxWait, (SoundFlags)a.AudioFlags),
+                    a.Volume, a.MinWait, a.MaxWait, a.AudioFlags),
                 WanderNodeData w => new WanderNodeObject(o.Index, o.Position, o.Radius, pak, visible, w.Radius, w.Scatter, w.Chance, w.Wait,
-                    (WanderFlags)w.WanderFlags, [.. w.Next.Select(n => Own(n, VoxelType.WanderNode, "wander node"))]),
+                    w.WanderFlags, [.. w.Next.Select(n => Own(n, VoxelType.WanderNode, "wander node"))]),
                 MonsterPartyData m => new MonsterPartyObject(o.Index, o.Position, o.Radius, pak, null,
                     [.. m.Enemies.Select(e => new PartyEnemy(Db(e.Enemy), e.Min, e.Max))], Db(m.Entity), OptionalDb(m.Loot),
-                    m.MinSize, m.MaxSize, Own(m.WanderNode, VoxelType.WanderNode, "home node"), (PartyFlags)m.PartyFlags,
+                    m.MinSize, m.MaxSize, Own(m.WanderNode, VoxelType.WanderNode, "home node"), m.PartyFlags,
                     m.Dialogue == 0 ? null : Borg(BorgType.Dialogue, m.Dialogue, RecordTypes.Dialogue),
                     m.Dialogue == 0 ? null : OptionalFlag(o.FlagC))
                 {
@@ -466,7 +462,7 @@ public static class BaseImporter
                     Tangible = o.Flags.HasFlag(VoxelFlags.Tangible),
                 },
                 CameraData c => new CameraObject(o.Index, o.Position, o.Radius, pak, visible,
-                    c.RefPoint == 0 ? null : RefPoint(index, c.RefPoint), (CameraFlags)c.CameraFlags, c.Values),
+                    c.RefPoint == 0 ? null : RefPoint(index, c.RefPoint), c.CameraFlags, c.Values),
                 DialogueData d => new DialogueObject(o.Index, o.Position, o.Radius, pak, null,
                     Borg(BorgType.Dialogue, d.Script, RecordTypes.Dialogue), d.Map.Row == 0 ? null : Chunk(d.Map), d.RefPoint, d.Name)
                 {
@@ -475,11 +471,11 @@ public static class BaseImporter
                 },
                 TriggerData t => t.Kind switch
                 {
-                    Maps.TriggerKind.SetFlag => new TriggerObject(o.Index, o.Position, o.Radius, pak, visible, TriggerKind.SetFlag, Flag: Flag(t.A)),
-                    Maps.TriggerKind.Animate => new TriggerObject(o.Index, o.Position, o.Radius, pak, visible, TriggerKind.Animate, Request: t.A),
-                    Maps.TriggerKind.ChangeCollision => new TriggerObject(o.Index, o.Position, o.Radius, pak, visible, TriggerKind.ChangeCollision,
+                    TriggerKind.SetFlag => new TriggerObject(o.Index, o.Position, o.Radius, pak, visible, TriggerKind.SetFlag, Flag: Flag(t.A)),
+                    TriggerKind.Animate => new TriggerObject(o.Index, o.Position, o.Radius, pak, visible, TriggerKind.Animate, Request: t.A),
+                    TriggerKind.ChangeCollision => new TriggerObject(o.Index, o.Position, o.Radius, pak, visible, TriggerKind.ChangeCollision,
                         Toggle: t.A, KeepFlags: t.B, AddFlags: t.C),
-                    _ => new TriggerObject(o.Index, o.Position, o.Radius, pak, visible, (TriggerKind)t.Kind),
+                    _ => new TriggerObject(o.Index, o.Position, o.Radius, pak, visible, t.Kind),
                 } with
                 {
                     Enabled = enabled,
@@ -501,8 +497,6 @@ public static class BaseImporter
         }
         return new MapRecord(id, records);
     }
-
-    private static Plugins.Records.Rgba Colour(Maps.Rgba c) => new(c.R, c.G, c.B, c.A);
 
     private static FlagGate Gate(Maps.FlagGate gate) => new(Flag(gate.Flag), gate.Inverted);
 
@@ -793,13 +787,13 @@ public static class BaseImporter
         {
             var index = listing.Index;
             var script = Borg13Script.Parse(archive.Read(index));
-            var mode = (DialogueMode)script.StartMode;
+            var mode = script.StartMode;
             var hasDoneFlag = mode is DialogueMode.Cutscene or DialogueMode.Backdrop or DialogueMode.Help;
 
-            var cased = script.Nodes.Where(n => n.Kind == Borg13NodeKind.Case).SelectMany(n => n.Links).ToHashSet();
+            var cased = script.Nodes.Where(n => n.Kind == DialogueNodeKind.Case).SelectMany(n => n.Links).ToHashSet();
             var nodes = script.Nodes.Select(node => new DialogueNode(
                 node.Index,
-                Enum.Parse<DialogueNodeKind>(node.Kind.ToString()),
+                node.Kind,
                 DialogueText.Clean(node.Text),
                 NullIfEmpty(node.Ops.Where(op => !UnusedOps.Contains(op.Opcode)).Select(BuildOp).ToList()),
                 NullIfEmpty(node.Links),

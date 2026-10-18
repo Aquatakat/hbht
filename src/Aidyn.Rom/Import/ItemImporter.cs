@@ -5,15 +5,11 @@ using Aidyn.Rom.Engine;
 using Aidyn.Rom.Quests;
 using Aidyn.Rom.Text;
 using PluginArmor = Aidyn.Plugins.Records.ArmorRecord;
-using PluginAspect = Aidyn.Plugins.Records.Aspect;
-using PluginElement = Aidyn.Plugins.Records.Element;
 using PluginEntity = Aidyn.Plugins.Records.EntityRecord;
 using PluginLoot = Aidyn.Plugins.Records.LootRecord;
 using PluginLootDrop = Aidyn.Plugins.Records.LootDrop;
 using PluginShop = Aidyn.Plugins.Records.ShopRecord;
 using PluginWeapon = Aidyn.Plugins.Records.WeaponRecord;
-using PluginWeaponClass = Aidyn.Plugins.Records.WeaponClass;
-using RomElement = Aidyn.Rom.Db.Element;
 using ShopStock = Aidyn.Plugins.Records.ShopStock;
 using Resistance = Aidyn.Plugins.Records.Resistance;
 using KeyItemFlags = Aidyn.Plugins.Records.KeyItemFlags;
@@ -91,8 +87,8 @@ internal static class ItemImporter
             models.TryGetValue(position, out var scene) ? Scene(scene) : null;
 
         var weapons = db.Weapons.Select((w, i) => new PluginWeapon(
-            Record(w.Id), w.Name, Icon(w.Id), w.Price, (PluginWeaponClass)w.Class, w.RequiredStrength, w.Hit, w.Damage,
-            Math.Min(w.Range * RangeTimesThree / 3, 255), w.Animation, w.ExpModifier, (PluginElement)w.DamageType,
+            Record(w.Id), w.Name, Icon(w.Id), w.Price, w.Class, w.RequiredStrength, w.Hit, w.Damage,
+            Math.Min(w.Range * RangeTimesThree / 3, 255), w.Animation, w.ExpModifier, w.DamageType,
             Bonuses(w.Bonuses, w.SpellLevel), Traits(w.Id), Fixed: w.Id == staff,
             Model: Model(tables.WeaponModels, i)));
 
@@ -189,14 +185,14 @@ internal static class ItemImporter
 
     /// <param name="spellLevel">A weapon's is its own field; armor's and gear's is in the bonuses.</param>
     private static GearBonuses Bonuses(EquipmentBonuses b, int spellLevel) => new(
-        (PluginAspect)b.Aspect,
+        b.Aspect,
         b.Stat == 0xFF ? null
             : b.Stat < 6 ? new StatBonus(RecordId.Decimal(RecordTypes.Stat, b.Stat), b.StatBonus)
             : throw new InvalidDataException($"Gear raises stat {b.Stat}."),
         b.Skill == 0xFF ? null : new SkillBonus(Skill(b.Skill), b.SkillBonus),
         b.Spell.IsNone ? null : new ItemSpell(Record(b.Spell), spellLevel, b.SpellCharges),
         b.Magic.IsNone ? null : new ItemEnchantment(Record(b.Magic), b.MagicLevel),
-        b.Resist == RomElement.None ? null : new Resistance((PluginElement)b.Resist, b.ResistAmount * ResistanceStep));
+        b.Resist == Element.None ? null : new Resistance(b.Resist, b.ResistAmount * ResistanceStep));
 
     /// <summary>
     /// The code indexes a character's 24 bytes of skills with a gear's skill byte: the 12 skills, the

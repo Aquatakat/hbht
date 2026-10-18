@@ -216,6 +216,7 @@ public static class DialogueCommands
 {
     public static bool IsCondition(this DialogueCommand command) => command is >= DialogueCommand.CheckMember and <= DialogueCommand.CheckGold;
 
+    /// <summary>Whether it is an effect op. <see cref="DialogueCommand.ResetVisited"/> is a setup op, not one.</summary>
     public static bool IsEffect(this DialogueCommand command) => command is >= DialogueCommand.SetFlag and <= DialogueCommand.WaitForCamera;
 
     /// <summary>Whether the value is a reference point, counted from the script's own.</summary>

@@ -1,13 +1,6 @@
-namespace Aidyn.Rom.Engine;
+using Aidyn.Plugins.Records;
 
-/// <summary>A fade's colour. <see cref="None"/> fades from the current colour back to the picture.</summary>
-public enum CinematicFadeColor : byte
-{
-    None,
-    Black,
-    White,
-    Red,
-}
+namespace Aidyn.Rom.Engine;
 
 /// <summary>One shot of a cinematic.</summary>
 /// <param name="Animation">The Borg6 that animates the shot. It names its own Borg5 scene.</param>

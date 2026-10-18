@@ -1,6 +1,9 @@
 namespace Aidyn.Rom.Db;
 
-/// <summary>How a flag's value is produced (the decomp's <c>event_flag_typeA</c>).</summary>
+/// <summary>
+/// How a flag's value is produced (the decomp's <c>event_flag_typeA</c>). The record's <see cref="Plugins.Records.FlagFormulaKind"/>
+/// has only the three formulas: a <see cref="Bit"/> is a plain flag, and <see cref="Invalid"/> is on disk only.
+/// </summary>
 public enum FlagKind : byte
 {
     /// <summary>A logic gate over its inputs.</summary>
@@ -14,7 +17,10 @@ public enum FlagKind : byte
     Invalid,
 }
 
-/// <summary>A derived flag's operation (the decomp's <c>Event_flag_typeB</c>).</summary>
+/// <summary>
+/// A derived flag's operation (the decomp's <c>Event_flag_typeB</c>). The record's <see cref="Plugins.Records.FlagOperation"/>
+/// is the same without <see cref="Invalid"/>, which is on disk only.
+/// </summary>
 public enum FlagOp : byte
 {
     And,

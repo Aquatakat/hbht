@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using Aidyn.Plugins.Records;
 
 namespace Aidyn.Rom.Engine;
 
@@ -33,4 +34,7 @@ internal static class CodeSegment
     public static uint U32(ReadOnlySpan<byte> data, int at) => BinaryPrimitives.ReadUInt32BigEndian(data[at..]);
 
     public static float F32(ReadOnlySpan<byte> data, int at) => BinaryPrimitives.ReadSingleBigEndian(data[at..]);
+
+    /// <summary>Four bytes, red to alpha.</summary>
+    public static Rgba Colour(ReadOnlySpan<byte> data, int at) => new(data[at], data[at + 1], data[at + 2], data[at + 3]);
 }

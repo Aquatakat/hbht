@@ -13,7 +13,7 @@ public sealed record EmittersRecord(RecordId Id, IReadOnlyList<ParticleEmitter> 
 public enum ParticleEmitterFlags
 {
     None = 0,
-    /// <summary>Particles bounce off height 0.</summary>
+    /// <summary>Particles bounce off height 0, keeping 60% of their speed, turned up.</summary>
     BounceAtZero = 0x1,
     /// <summary>The target jitter is exactly <see cref="ParticleEmitter.TargetJitter"/> long, rather than up to it.</summary>
     ExactTargetJitter = 0x4,
@@ -23,21 +23,21 @@ public enum ParticleEmitterFlags
     LocatorNormal = 0x10,
     /// <summary>An actor starts the emitter when it enters a state for <see cref="ParticleEmitter.Request"/>.</summary>
     ActorRequest = 0x20,
-    /// <summary>Set on two emitters.</summary>
+    /// <summary>Set on two emitters; nothing reads it.</summary>
     Unknown40 = 0x40,
-    /// <summary>The emitter itself moves away from its target.</summary>
+    /// <summary>The emitter itself moves from its locator away from the target, colliding with the map.</summary>
     Moves = 0x200,
-    /// <summary><see cref="ParticleEmitter.Acceleration2Change"/> changes the second acceleration.</summary>
+    /// <summary><see cref="ParticleEmitter.Acceleration2Change"/> changes the second acceleration each tick.</summary>
     Acceleration2Changes = 0x400,
     /// <summary>A second acceleration, <see cref="ParticleEmitter.Acceleration2"/>, applies.</summary>
     Acceleration2 = 0x800,
-    /// <summary><see cref="ParticleEmitter.AccelerationChange"/> changes the acceleration.</summary>
+    /// <summary><see cref="ParticleEmitter.AccelerationChange"/> changes the acceleration each tick.</summary>
     AccelerationChanges = 0x1000,
-    /// <summary>Particles head for the target locator.</summary>
+    /// <summary>Particles are aimed at the target locator as they spawn, to reach it as they die: a velocity added once.</summary>
     Target = 0x2000,
-    /// <summary>Particles fade to <see cref="ParticleEmitter.FadeColor"/>.</summary>
+    /// <summary>Particles fade to <see cref="ParticleEmitter.FadeColor"/> as they die.</summary>
     Fade = 0x4000,
-    /// <summary>Particles scale to <see cref="ParticleEmitter.EndScale"/>.</summary>
+    /// <summary>Particles scale to <see cref="ParticleEmitter.EndScale"/> as they die.</summary>
     Scales = 0x8000,
 }
 

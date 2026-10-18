@@ -1,39 +1,8 @@
 using System.Text;
+using Aidyn.Plugins.Records;
 using Aidyn.Rom.Db;
 
 namespace Aidyn.Rom.Dialogue;
-
-/// <summary>How a dialogue is presented (the decomp's <c>start_func</c>).</summary>
-public enum Borg13StartMode : byte
-{
-    /// <summary>Talking to someone on the map.</summary>
-    Conversation = 0,
-    /// <summary>A scripted scene on its own map, with actors and cameras.</summary>
-    Cutscene = 1,
-    /// <summary>Text over a full-screen picture, such as a book. Nodes can be revisited.</summary>
-    Backdrop = 2,
-    /// <summary>A signpost.</summary>
-    Sign = 3,
-    /// <summary>The help menu. Like <see cref="Backdrop"/>, nodes can be revisited.</summary>
-    Help = 4,
-}
-
-/// <summary>What a node does once reached (from the low bits of its flags byte).</summary>
-public enum Borg13NodeKind
-{
-    /// <summary>Shows its text, then goes to its one link. With no link, it goes back to the last menu or case, if any.</summary>
-    Line,
-    /// <summary>Evaluates its condition: exactly 1 goes to the first link, anything else to the second.</summary>
-    If,
-    /// <summary>
-    /// Shows its text and evaluates its condition, then considers the links whose
-    /// <see cref="Borg13Node.Min"/>–<see cref="Borg13Node.Max"/> range holds the value. One match is
-    /// followed; several are offered as a menu.
-    /// </summary>
-    Case,
-    /// <summary>Shows its text and offers its links as choices. Choices already taken are hidden, except in Backdrop and Help scripts.</summary>
-    Menu,
-}
 
 /// <summary>One op: a command and its operand.</summary>
 public readonly record struct Borg13Op(Borg13Opcode Opcode, ushort Value)
@@ -67,10 +36,10 @@ public sealed record Borg13Node(
     public const int Size = 0x38;
     public const ushort NoUpperBound = 65000;
 
-    public Borg13NodeKind Kind => (Flags & 1) != 0 ? Borg13NodeKind.Line
-        : (Flags & 2) != 0 ? Borg13NodeKind.If
-        : (Flags & 4) != 0 ? Borg13NodeKind.Case
-        : Borg13NodeKind.Menu;
+    public DialogueNodeKind Kind => (Flags & 1) != 0 ? DialogueNodeKind.Line
+        : (Flags & 2) != 0 ? DialogueNodeKind.If
+        : (Flags & 4) != 0 ? DialogueNodeKind.Case
+        : DialogueNodeKind.Menu;
 
     /// <summary>The op an If or Case evaluates: the first condition op.</summary>
     public Borg13Op? Condition => Ops.Cast<Borg13Op?>().FirstOrDefault(op => op!.Value.Opcode.IsCondition());
@@ -99,7 +68,7 @@ public sealed record Borg13Node(
 public sealed record Borg13Script(
     ushort Id,
     ushort DoneFlag,
-    Borg13StartMode StartMode,
+    DialogueMode StartMode,
     byte Backdrop,
     IReadOnlyList<ItemId> Actors,
     IReadOnlyList<Borg13Node> Nodes,
@@ -133,7 +102,7 @@ public sealed record Borg13Script(
                 $"{nodeCount} nodes and {actorCount} actors in 0x{data.Length:X} bytes.");
         if (nodeCount == 0)
             throw new InvalidDataException("Borg13 has no nodes.");
-        if (startMode > (byte)Borg13StartMode.Help)
+        if (startMode > (byte)DialogueMode.Help)
             throw new InvalidDataException($"Unknown Borg13 start mode {startMode}.");
 
         var text = data.AsSpan((int)textOffset, textSize);
@@ -159,7 +128,7 @@ public sealed record Borg13Script(
                 throw new InvalidDataException($"Borg13 actor {i} padding isn't zero.");
         }
 
-        return new Borg13Script(id, doneFlag, (Borg13StartMode)startMode, backdrop, actors, nodes, nodeCount - nodes.Count);
+        return new Borg13Script(id, doneFlag, (DialogueMode)startMode, backdrop, actors, nodes, nodeCount - nodes.Count);
     }
 
     /// <summary>Reads a node, or returns null for a blank one: no ops, text or links, and no index.</summary>

@@ -47,7 +47,7 @@ public enum CollisionSurface : byte
 public enum TriangleFlags : ushort
 {
     None = 0,
-    /// <summary>Things pass through, and only its callbacks run. A <see cref="TriggerKind.ChangeCollision"/> trigger sets it.</summary>
+    /// <summary>Things pass through, and only its callbacks run. A <see cref="Plugins.Records.TriggerKind.ChangeCollision"/> trigger sets it.</summary>
     Passable = 0x1,
     /// <summary>Whatever touches it takes on its surface's speed property (gravity and drag). Never set.</summary>
     TakesSpeed = 0x2,
@@ -74,7 +74,7 @@ public enum TriangleFlags : ushort
 public enum TriangleRole : ushort
 {
     Normal = 0,
-    /// <summary>A <see cref="TriggerKind.ChangeCollision"/> trigger can change its flags.</summary>
+    /// <summary>A <see cref="Plugins.Records.TriggerKind.ChangeCollision"/> trigger can change its flags.</summary>
     Toggle = 0x1000,
     /// <summary>Walking on it runs a camera, teleporter or dialogue object.</summary>
     Trigger = 0x2000,
@@ -92,7 +92,7 @@ public sealed record CollisionTriangle(int A, int B, int C, Vector3 Normal, Coll
 
     public TriangleRole Role => (TriangleRole)(Ground & 0xF000);
 
-    /// <summary>For a <see cref="TriangleRole.Toggle"/>, the id its <see cref="TriggerKind.ChangeCollision"/> triggers name, else null.</summary>
+    /// <summary>For a <see cref="TriangleRole.Toggle"/>, the id its <see cref="Plugins.Records.TriggerKind.ChangeCollision"/> triggers name, else null.</summary>
     public int? ToggleId => Role == TriangleRole.Toggle ? (Ground + 1) & 0x7F : null;
 
     /// <summary>For a <see cref="TriangleRole.Trigger"/>, the index of the object it runs, else null.</summary>

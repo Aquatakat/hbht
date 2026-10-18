@@ -1,3 +1,5 @@
+using Aidyn.Plugins.Records;
+
 namespace Aidyn.Rom.Db;
 
 /// <summary>A <c>SpellDB</c> record (0x24 bytes).</summary>

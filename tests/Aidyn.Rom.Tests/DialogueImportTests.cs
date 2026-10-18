@@ -8,6 +8,7 @@ using Aidyn.Rom.Dialogue;
 using Aidyn.Rom.Engine;
 using Aidyn.Rom.Import;
 using Aidyn.Rom.Quests;
+using Aidyn.Rom.Text;
 
 namespace Aidyn.Rom.Tests;
 

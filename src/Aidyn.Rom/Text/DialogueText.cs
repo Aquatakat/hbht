@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace Aidyn.Rom.Import;
+namespace Aidyn.Rom.Text;
 
 /// <summary>
 /// Cleans a Borg13 node's text. The game does this at run time, and the importer does it once.

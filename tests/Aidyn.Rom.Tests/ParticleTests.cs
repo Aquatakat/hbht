@@ -1,3 +1,4 @@
+using Aidyn.Plugins.Records;
 using Aidyn.Rom.Borg;
 using Aidyn.Rom.Engine;
 using Aidyn.Rom.Graphics;
@@ -44,7 +45,7 @@ public class ParticleTests
         var rom = TestRoms.Get(RomVersionId.Na10);
         var archive = BorgArchive.Open(rom);
         var slots = ParticleTextures.Read(rom);
-        var flags = Borg5EmitterFlags.None;
+        var flags = ParticleEmitterFlags.None;
         var requests = new SortedSet<int>();
         int unknown40 = 0, started = 0;
         var missing = new List<int>();
@@ -62,7 +63,7 @@ public class ParticleTests
                 flags |= e.Flags;
                 Assert.NotNull(slots[e.Texture]);
                 unknown40 += e.Unknown40 != 0 ? 1 : 0;
-                if (e.Flags.HasFlag(Borg5EmitterFlags.ActorRequest))
+                if (e.Flags.HasFlag(ParticleEmitterFlags.ActorRequest))
                 {
                     started++;
                     requests.Add(e.Request);
@@ -78,10 +79,10 @@ public class ParticleTests
 
         Assert.Equal(218, emitters);
         // The data never moves an emitter or gives it a second acceleration.
-        Assert.Equal(Borg5EmitterFlags.BounceAtZero | Borg5EmitterFlags.ExactTargetJitter | Borg5EmitterFlags.ExactSpawnJitter |
-            Borg5EmitterFlags.LocatorNormal | Borg5EmitterFlags.ActorRequest | Borg5EmitterFlags.Unknown40 |
-            Borg5EmitterFlags.AccelerationChanges | Borg5EmitterFlags.Target | Borg5EmitterFlags.Fade |
-            Borg5EmitterFlags.Scales, flags);
+        Assert.Equal(ParticleEmitterFlags.BounceAtZero | ParticleEmitterFlags.ExactTargetJitter | ParticleEmitterFlags.ExactSpawnJitter |
+            ParticleEmitterFlags.LocatorNormal | ParticleEmitterFlags.ActorRequest | ParticleEmitterFlags.Unknown40 |
+            ParticleEmitterFlags.AccelerationChanges | ParticleEmitterFlags.Target | ParticleEmitterFlags.Fade |
+            ParticleEmitterFlags.Scales, flags);
         Assert.Equal(20, unknown40);
         // Two emitters lack the flag that lets an actor start them, and nothing else does.
         Assert.Equal(216, started);
