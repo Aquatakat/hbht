@@ -113,7 +113,7 @@ A series of vertical slices, each one playable ([runtime](systems/runtime.md)).
 | --- | --- | --- | --- |
 | **M1: Walk Gwernia** | The chunk streamer, terrain, the N64 material, collision, the player, the follow camera, the sky, draw distance | 1A, 1C | Done Sep 29, 2026 |
 | **M2: Talk and trade** | Map objects, wanderers, conversations, shops, the pause menu, the journal, cut-scenes, training, camping, the HUD | 1E, 1F, 2.1–2.4 | Done Oct 4, 2026; leftovers [above](#left-over-from-finished-work) |
-| **M3: Fight** | Arena loading, spawns, the turn UI, radius targeting, spell visuals and particles, the combat log, status icons, post-battle XP and loot screens | 1B, 2.5, 2.6 | Now: twelve sessions [above](#next), the first done Oct 18, 2026 |
+| **M3: Fight** | Arena loading, spawns, the turn UI, radius targeting, spell visuals and particles, the combat log, status icons, post-battle XP and loot screens | 1B, 2.5, 2.6 | Now: twelve sessions [above](#next), 1–4 and 8 done Oct 18, 2026 |
 | **M4: The prologue** | From the opening through leaving Gwernia, end to end | Everything above | |
 | **M5: Full playthrough parity** | Every region, every quest and the ending, checked against the quest atlas | Phase 4 | |
 
