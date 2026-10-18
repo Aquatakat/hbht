@@ -153,6 +153,7 @@ How characters level and train is tables and literals in code (roadmap 2.2; see 
 | An award of experience is multiplied by 1.5; an entity's reward byte by 50 | `Entity::AddExp`, `EntityDB::Load` | Literals | Fact, on the progression and entity records |
 | Trainers charge 200 gold from level 0, and (n + 1) × 40 for level *n*, and 80% of the experience | `GetSkillTrainGoldPrice`, `WidgetSkillTrain::Confirm` | Literals | Fact, on the progression record |
 | Spells stop at level 10, and cost their byte × 50 per level squared | `TempSpell::IsMaxRank`, `TempSpell::Init` | Literals | Fact, on the progression and spell records |
+| What each spell and potion does: the switches by spell kind, the dispel, charm and immobilise lists, the entities charms and Banishing may take, Restore's and Wraith Touch's lists, the damage spells' elements, the AI's value of each, and casting's numbers | `Entity.AddEffect`, `Combatant.ApplySpellEffect`, `Combatant.DrinkPotion`, `EnemyAI.SpellValue`, `0x800D29BC`–`0x800D34B4` | Switches, lists, floats | Fact and read: effects on the spell and potion records ([ADR 0020](adr/0020-one-effect-vocabulary.md)), and `aidyn:magic/0` ([magic](systems/magic.md)) |
 | Oriana trains for no gold: entity list position 144 | `shopkeepNotOriana` | Literal | Fact, the progression record's free trainers |
 | Alaron's True Name from flag 590: entity DB position 153 | `CharExp::Init` | Literals | Fact, on Alaron's entity record (`trueNameFlag`) |
 

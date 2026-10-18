@@ -23,5 +23,6 @@ These are the Phase 0 decisions from the [roadmap](../roadmap.md) (task 0.5). Ea
 | [0017](0017-the-core-steps-every-tick.md) | The core steps every tick, and per-frame behaviour is matched to a frame each system names in `Cadence` | Accepted |
 | [0018](0018-the-port-fixes-bugs-and-sets-enhancements.md) | The port fixes the original's bugs outright and puts enhancements behind settings; there's no fidelity toggle | Accepted |
 | [0019](0019-how-the-core-tells-the-views.md) | How the core tells the views what changed: host calls and cues, events for lifecycle, polling for continuous state, returned endings | Accepted |
+| [0020](0020-one-effect-vocabulary.md) | One effect vocabulary for spells, potions and enchantments: records list effects of types the core implements, with Lua a reserved type | Accepted |
 
 Statuses: **Proposed** means drafted and waiting for review. **Accepted** means agreed. **Superseded** means replaced by a later record, which it links to.

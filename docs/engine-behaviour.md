@@ -274,7 +274,7 @@ Alaron can cast from every school, presumably for plot reasons. Other characters
 
 Spells can only be cast in battle. The pause menu's spell list is informational.
 
-**(decomp)** Photosynthesis can't be cast at night.
+**(decomp)** Photosynthesis can't be cast at night. **(machine code)** It's left out of C-down's list while the battle's part of the day is night, and heals nothing in a round the clock says is night. No spell can be cast outside combat at all: Detecting Traps, Opening and Stealth are for the field, and nothing casts them ([magic](systems/magic.md)).
 
 ### Learning and levelling
 
@@ -299,7 +299,7 @@ All spell targeting uses a radius centred on or controlled by the caster.
 
 **Single target.** A radius appears around the caster; the player selects one ally, enemy, or themselves within it. Self-cast and enemy-cast use identical targeting. Wind is unusual in being castable on either self or an enemy.
 
-**(decomp)** Cast on an enemy, Wind does damage. Cast on an ally or self, it applies a timed Wind enchantment instead. **(machine code)** When an enchantment of that kind ends, combat's class of bad weather is set to fog, which only combat's penalties read; the weather itself doesn't change. Which spell that enchantment is, is unconfirmed.
+**(decomp)** Cast on an enemy, Wind does damage. Cast on an ally or self, it applies a timed Wind enchantment instead. **(machine code)** When an enchantment of that kind ends, combat's class of bad weather is set to fog, which only combat's penalties read; the weather itself doesn't change. **(machine code)** That enchantment is Wind's own: cast on an ally, it raises Stamina and its maximum by 2 a level, which nothing takes back, and its record ends as any spell's does ([magic](systems/magic.md)).
 
 **Caster-centred area.** The game picks the targets within the radius; the player can't choose. The targeting is smart: it won't put damage spells on allies, and recasting will cover the members missed the first time.
 
@@ -309,7 +309,7 @@ All spell targeting uses a radius centred on or controlled by the caster.
 
 ### Durations
 
-Buffs and debuffs have durations, but they're long enough that they don't usually expire within a typical fight.
+Buffs and debuffs have durations, but they're long enough that they don't usually expire within a typical fight. **(machine code)** A cast lasts three rounds a level of its effective level, and a battle's end takes every spell's effect off, and every potion's but Stealth's. Some spell descriptions don't match the code: the shields add 2 Protection a level, not 1, and Haste adds a level to the field's radius, not 2.
 
 ### Item spells
 
@@ -318,7 +318,7 @@ Some items carry spells: wands, some swords, and other equipment. They're cast t
 - The effective spell level is fixed by the item and not shown to the player.
 - Each spell on each item has its own hidden spell battery.
 
-In practice, an item spell can be cast once or twice before it needs time to recharge.
+In practice, an item spell can be cast once or twice before it needs time to recharge. **(machine code)** Only wands and scrolls worn as gear spend charges, and nothing recharges them; the spells on weapons, armor, shields and other gear never run out ([magic](systems/magic.md#gear)).
 
 ## Items and equipment
 

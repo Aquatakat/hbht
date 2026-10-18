@@ -61,8 +61,9 @@ public static class BasePlugin
     /// 36 gives each light node its transform's scale, which tints the light. 37 adds the credits' cards.
     /// 38 adds the new game record. 39 gives each terrain the Battle arenas its battles take, and adds the combat record.
     /// 40 adds to it who never moves in battle.
+    /// 41 gives spells and potions their effects (ADR 0020), and adds the magic record.
     /// </summary>
-    public const int ImporterVersion = 40;
+    public const int ImporterVersion = 41;
 }
 
 /// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>

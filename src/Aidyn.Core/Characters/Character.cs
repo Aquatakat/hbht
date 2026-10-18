@@ -38,18 +38,13 @@ public enum SpellLearnability
 /// </para>
 /// <para>
 /// What it has equipped is its <see cref="Equipment"/>, which changes the sheet as items go on and off.
-/// Potions' effects last a while (<see cref="PotionEffects"/>). Spells' come with combat (2.5); the sheet
-/// has the hooks they change: <see cref="CharacterStats.ChangeModified"/>, <see cref="CharacterStats.ChangeBase"/>
-/// and <see cref="CharacterSkills.Modify"/>.
+/// Spells', potions' and worn enchantments' effects last a while (<see cref="Effects"/>, <see cref="PotionEffects"/>,
+/// ADR 0020).
 /// </para>
 /// </remarks>
-public sealed class Character
+public sealed partial class Character
 {
-    /// <summary>How many potions' effects a character holds at once (<c>POTION_FXMAX</c>).</summary>
-    public const int PotionSlots = 7;
-
     private readonly List<LearnedSpell> _spells;
-    private readonly List<PotionEffect> _potions = [];
 
     private Character(EntityRecord record, Func<RecordId, bool>? flags, CharacterRules rules, CharacterStats stats,
         CharacterSkills skills, List<LearnedSpell> spells)
@@ -187,28 +182,6 @@ public sealed class Character
     public bool IsDead => Hp == 0;
 
     /// <summary>
-    /// Takes damage: the Level's points first, then as <see cref="DrainStamina"/> (<c>Entity::DamageToLevel</c>).
-    /// </summary>
-    /// <remarks>
-    /// Combat's parts come with it (2.5): a hit ends a Troubadour's performance, and one that kills
-    /// is undone by Cheat Death, or else clears the character's spell and potion effects.
-    /// </remarks>
-    public void TakeDamage(int amount)
-    {
-        amount = (short)amount;
-        var level = Stats.Modified(Stat.Level);
-        if (level < amount)
-        {
-            Stats.ChangeCurrent(Stat.Level, -level);
-            DrainStamina((short)(amount - level));
-        }
-        else
-        {
-            Stats.ChangeCurrent(Stat.Level, -amount);
-        }
-    }
-
-    /// <summary>
     /// Takes Stamina's points, then Endurance's for what's left (<c>Entity::DecreaseHP</c>). What
     /// skills cost, and the rest of damage once the Level's points are gone.
     /// </summary>
@@ -270,7 +243,7 @@ public sealed class Character
     /// <summary>
     /// Camping heals <paramref name="fraction"/> of the maximum hit points, truncated, up to what's
     /// missing, and refills the worn items' batteries by the same fraction (<c>Entity::CampHeal</c>).
-    /// The time passing for effects comes with them (2.5).
+    /// The party ages its effects beside it.
     /// </summary>
     public void CampHeal(float fraction)
     {
@@ -312,83 +285,6 @@ public sealed class Character
     }
 
     internal void LearnSpell(SpellRecord spell) => _spells.Add(new LearnedSpell(spell, 1));
-
-    /// <summary>The potions working on it, in the order drunk.</summary>
-    public IReadOnlyList<PotionEffect> PotionEffects => _potions;
-
-    public bool HasPotionEffect(Potion potion) => _potions.Any(p => p.Potion == potion);
-
-    /// <summary>
-    /// A potion starts working, if a slot is free (<c>Entity::ApplyPotionEffect</c>): Strength and
-    /// Dexterity raise the stat's base by 10, unless the character is dead; Clarity, Charisma and
-    /// Stealth raise Loremaster, Diplomat and Stealth by 3. Loading a save applies its effects so.
-    /// </summary>
-    public void ApplyPotionEffect(Potion potion, int power, uint timer)
-    {
-        if (_potions.Count >= PotionSlots)
-            return;
-        _potions.Add(new PotionEffect(potion, power, timer));
-        PotionChange(potion, 1);
-    }
-
-    /// <summary>
-    /// Time passing for its potions, <paramref name="ticks"/> of play in trek (<c>Entity::IncPotionEffect</c>):
-    /// each runs down by the game clock's ticks, and one already run down ends, undoing what it did. A
-    /// dead character's don't run.
-    /// </summary>
-    public void StepPotionEffects(int ticks)
-    {
-        if (IsDead)
-            return;
-        for (var i = 0; i < _potions.Count; i++)
-        {
-            var effect = _potions[i];
-            if (effect.Timer == 0)
-            {
-                _potions.RemoveAt(i--);
-                PotionChange(effect.Potion, -1);
-                continue;
-            }
-            var step = (ulong)ticks * GameClock.DaySpeed;
-            effect.Timer = step < effect.Timer ? effect.Timer - (uint)step : 0;
-        }
-    }
-
-    /// <summary>
-    /// Every potion working on it ends but <paramref name="keep"/>, undoing what it did, as a battle ends
-    /// (<c>Entity.ClearEffects</c>, <c>0x80071830</c>, which keeps Stealth's).
-    /// </summary>
-    public void EndPotionEffects(Potion keep)
-    {
-        for (var i = 0; i < _potions.Count; i++)
-        {
-            var effect = _potions[i];
-            if (effect.Potion == keep)
-                continue;
-            _potions.RemoveAt(i--);
-            PotionChange(effect.Potion, -1);
-        }
-    }
-
-    // Entity::ApplyPotionEffect and ReversePotionEffect.
-    private void PotionChange(Potion potion, int sign)
-    {
-        switch (potion)
-        {
-            case Potion.Strength or Potion.Dexterity when !IsDead:
-                Stats.ChangeBase(potion == Potion.Strength ? Stat.Strength : Stat.Dexterity, 10 * sign);
-                break;
-            case Potion.Clarity:
-                Skills.Modify(Skill.Loremaster, 3 * sign);
-                break;
-            case Potion.Charisma:
-                Skills.Modify(Skill.Diplomat, 3 * sign);
-                break;
-            case Potion.Stealth:
-                Skills.Modify(Skill.Stealth, 3 * sign);
-                break;
-        }
-    }
 
     public LearnedSpell? FindSpell(RecordId spell) => _spells.FirstOrDefault(s => s.Spell.Id == spell);
 }

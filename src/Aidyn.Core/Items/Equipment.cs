@@ -47,8 +47,8 @@ public enum EquipRefusal
 /// and Stealth apply whatever the levels.
 /// </para>
 /// <para>
-/// Enchantments are on while armor or gear is worn; a weapon's isn't (it's cast as it strikes). Applying
-/// them is combat's (2.5), which reads <see cref="Enchantments"/>.
+/// Enchantments are on while armor or gear is worn, as effects that never run down (<see cref="Character.Effects"/>); a
+/// weapon's isn't (it's cast as it strikes).
 /// </para>
 /// </remarks>
 public sealed class Equipment
@@ -161,6 +161,7 @@ public sealed class Equipment
     {
         Armor = armor;
         ApplyArmor(armor, 1);
+        _owner.PutOnEnchantment(armor);
     }
 
     /// <summary>Carries a shield if <see cref="CanCarryShield"/> (<c>Entity::EquipSheild</c>). The old must be taken off first.</summary>
@@ -170,6 +171,7 @@ public sealed class Equipment
             return EquipRefusal.CantUse;
         Shield = shield;
         ApplyArmor(shield, 1);
+        _owner.PutOnEnchantment(shield);
         return EquipRefusal.None;
     }
 
@@ -187,6 +189,7 @@ public sealed class Equipment
         Bonus(gear, 1);
         _owner.Protection = (byte)(_owner.Protection + gear.Item.Protection);
         _owner.Damage = (byte)(_owner.Damage + gear.Item.Damage);
+        _owner.PutOnEnchantment(gear);
         return EquipRefusal.None;
     }
 
@@ -205,6 +208,7 @@ public sealed class Equipment
     {
         if (Armor is not { } armor)
             return null;
+        _owner.TakeOffEnchantment(armor);
         ApplyArmor(armor, -1);
         Armor = null;
         return armor;
@@ -215,6 +219,7 @@ public sealed class Equipment
     {
         if (Shield is not { } shield)
             return null;
+        _owner.TakeOffEnchantment(shield);
         ApplyArmor(shield, -1);
         Shield = null;
         return shield;
@@ -241,6 +246,7 @@ public sealed class Equipment
     {
         if (_gear[slot] is not { } gear)
             return null;
+        _owner.TakeOffEnchantment(gear);
         Bonus(gear, -1);
         _owner.Protection = (byte)(_owner.Protection - gear.Item.Protection);
         _owner.Damage = (byte)(_owner.Damage - gear.Item.Damage);
@@ -251,10 +257,13 @@ public sealed class Equipment
 
     /// <summary>
     /// Puts an item in a slot without applying it, for a sheet whose values already count it, such as a
-    /// save's or a checkpoint's. Gear goes in <paramref name="gearSlot"/>.
+    /// save's or a checkpoint's. Gear goes in <paramref name="gearSlot"/>. An enchantment is put on without
+    /// changing the sheet.
     /// </summary>
     public void Restore(ItemInstance item, int gearSlot = -1)
     {
+        if (item.Item.Kind != ItemKind.Weapon)
+            _owner.PutOnEnchantment(item, start: false);
         switch (item.Item.Kind)
         {
             case ItemKind.Weapon:

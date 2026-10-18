@@ -40,6 +40,7 @@ public sealed class GameState : IScriptWorld
         Party = new Party(Items, Flags);
         _saves = new CharacterSaves(plugins, Rules, Items, Flags, _problems);
         Minimaps = new MinimapSeen(plugins);
+        _problems.AddRange(Rules.Magic?.Problems ?? []);
         if (plugins.TrySingleton<WeatherRecord>(RecordTypes.Weather) is { } weather)
             Weather = new Weather(weather);
     }
@@ -262,14 +263,22 @@ public sealed class GameState : IScriptWorld
 
     /// <summary>
     /// Time passing in trek, <paramref name="ticks"/> of play: the clock runs, the weather may change, the calendar's
-    /// and the rain's flags are written, as they are every frame, and the members' potions run down
-    /// (<c>TickGameTime</c>, <c>World.Update</c>, <c>SetFlagArray_on_Time</c>).
+    /// and the rain's flags are written, as they are every frame, and the members' effects run down
+    /// (<c>TickGameTime</c>, <c>World.Update</c>, <c>SetFlagArray_on_Time</c>). What the effects do each round they do once a
+    /// 30 fps frame (<see cref="Cadence.FrameTicks"/>), as the original's <c>TrekLoop.TickClock</c> does once a drawn frame:
+    /// a worn Ring of Healing heals.
     /// </summary>
+    private int _effectTicks;
+
     public void PassTime(int ticks)
     {
         Clock.Step(ticks);
+        _effectTicks += ticks;
+        var frame = _effectTicks >= Cadence.FrameTicks;
+        if (frame)
+            _effectTicks = 0;
         foreach (var member in Party.Members)
-            member.StepPotionEffects(ticks);
+            member.AgeEffects(ticks, frame, Clock.Date.PartOfDay, Random.Combat);
         for (var i = 0; i < ticks; i++)
             Weather?.Tick(Clock.Date.PartOfDay, Clock.Date.Season, Terrain(Weather.Terrain), Random.World, Random.Cosmetic);
         WriteStateFlags();
