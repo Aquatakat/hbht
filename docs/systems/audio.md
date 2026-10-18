@@ -65,7 +65,7 @@ One-shots go through `Audio.PlaySound` (`0x8004E150`): a sequence, a pan, a gain
 | Sequence | Lifetime | What |
 | --- | --- | --- |
 | 0x073B | 30 | Up or down in the pause menu (`PauseMenu.OnUp`, `0x8002FBFC`; `OnDown`), whether or not the cursor moves; the title menu's |
-| 0x073D | 30 | A page's own cursor: left and right changing the Party tab's lists (`PartyMenu.ListLeft`, `0x8007D428`), up and down on the World tab besides 0x073B, the Options resolution row |
+| 0x073D | 30 | A page's own cursor: left and right changing the Party tab's lists (`PartyMenu.ListsSlide`, `0x80031620`) and the save and load screens' saves (`SaveMenu.Left`, `0x8007D428`), up and down on the World tab besides 0x073B, the Options resolution row |
 | 0x0740 | 60 | A, whatever the page does with it (`PauseMenu.OnA`, `0x8002FEF0`) |
 | 0x0741 | 60 | B or Start (`PauseMenu.OnB`, `0x8002FE5C`; `OnStart`) |
 | 0x074D | 120 | The tabs sliding back, L or Z (`PauseMenu.OnTabBack`, `0x8002F7C4`), if the tab changes |

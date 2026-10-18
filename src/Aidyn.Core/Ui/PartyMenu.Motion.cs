@@ -22,6 +22,12 @@ public static class MenuTween
         return 0.5f * MathF.Sin(MathF.PI * t - MathF.PI / 2) + 0.5f;
     }
 
+    /// <summary>
+    /// The share of the way a tween on the ease-out curve has gone (<c>MenuTween.EaseOut</c>, <c>0x800e65c0</c>):
+    /// sin(π t / 2), which starts quickly and ends slowly.
+    /// </summary>
+    public static float EaseOut(int frame, int frames) => MathF.Sin(MathF.PI / 2 * Math.Clamp((float)frame / frames, 0, 1));
+
     /// <summary>A value that far from <paramref name="from"/> to <paramref name="to"/>, truncated as the original's are.</summary>
     public static int Value(int from, int to, float ease) => (int)(from + (to - from) * ease);
 }

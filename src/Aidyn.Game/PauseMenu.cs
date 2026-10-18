@@ -531,7 +531,8 @@ public partial class PauseMenu : CanvasLayer
         // Nothing reaches the menu while it opens or closes.
         if (!Taking)
             return e is InputEventKey or InputEventJoypadButton or InputEventJoypadMotion or InputEventAction;
-        var sliding = Sliding;
+        // Nor do the presses a save's slide drops make a sound.
+        var sliding = Sliding || _system?.Menu.Saves is { Sliding: true };
         var taken = HandleInput(e);
         if (taken && !sliding && _view is not null)
             PressSound(e);

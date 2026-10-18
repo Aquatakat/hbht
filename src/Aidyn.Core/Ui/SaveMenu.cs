@@ -15,6 +15,9 @@ public enum SaveRequest
     Load,
 }
 
+/// <summary>A save sliding out as another slides in: the slot it was, and which way the stick moved, −1 left or 1 right.</summary>
+public sealed record SlotSlide(int From, int Direction);
+
 /// <summary>
 /// The System tab's Save Game and Load Game screens (<c>WidgetContPakData</c>, <c>ControllerPakSliders</c>): one
 /// saved game at a time, with its screenshot, the party's portraits, Alaron's name and the time played, which the
@@ -35,6 +38,15 @@ public enum SaveRequest
 /// </remarks>
 public sealed class SaveMenu
 {
+    /// <summary>
+    /// The ticks a save takes to slide in as the stick changes it: the original's 60 frames
+    /// (<c>WidgetGroup.Next</c>, <c>0x8002bc68</c>) halved, as the user chose (Oct 17, 2026).
+    /// </summary>
+    public const int SlideFrames = 30;
+
+    // A tween steps its frames and then finishes on the next, so a slide is busy one frame longer than it moves.
+    private int _slideFrame = SlideFrames + 1;
+
     /// <summary>The list's colour, and its cursor's pulse, which is the System tab's (<c>COLOR_RED1</c> to <c>COLOR_PURPLE1</c>).</summary>
     public static readonly Rgba TextColor = PartyMenu.TextColor;
 
@@ -93,6 +105,15 @@ public sealed class SaveMenu
 
     public bool MoreRight => Slot < Slots.Count - 1;
 
+    /// <summary>The slot sliding out as the one shown slides in, and which way the stick moved, or null.</summary>
+    public SlotSlide? Slide { get; private set; }
+
+    /// <summary>Whether a slot is sliding, which drops every press, as the original's does (<c>0x8007d508</c>).</summary>
+    public bool Sliding => Slide is not null;
+
+    /// <summary>How far the slots have slid, on the ease-out curve, from 0 to 1.</summary>
+    public float SlideChange => Slide is null ? 1 : MenuTween.EaseOut(_slideFrame, SlideFrames);
+
     /// <summary>What to do with the slot: Save or Load, Delete and Exit.</summary>
     public MenuList<string> Actions { get; }
 
@@ -116,7 +137,10 @@ public sealed class SaveMenu
     public string Text(int line) => _text[line];
 
     /// <summary>What the slot shows in place of a save: "Create New Save", or that there are none.</summary>
-    public string? Blank => Current is not null ? null : Saving ? Text(CreateNewSaveLine) : NoSaves;
+    public string? Blank => BlankOf(Slot);
+
+    /// <summary>What a slot shows in place of a save, as <see cref="Blank"/>.</summary>
+    public string? BlankOf(int slot) => Slots.ElementAtOrDefault(slot) is not null ? null : Saving ? Text(CreateNewSaveLine) : NoSaves;
 
     /// <summary>
     /// The name a slot shows: the save's label, such as the checkpoint it was made from, or else Alaron's name,
@@ -148,16 +172,23 @@ public sealed class SaveMenu
     {
         Pulse.Step();
         ChoicePulse.Step();
+        if (Slide is not null && ++_slideFrame > SlideFrames)
+            Slide = null;
     }
 
-    /// <summary>The stick's left and right: the slot that way, if there is one.</summary>
+    /// <summary>
+    /// The stick's left and right: the slot that way, if there is one, slides in from that side as the one shown slides
+    /// out the other, the actions changing at once (<c>WidgetGroup.Next</c>, <c>WidgetGroup.Previous</c>).
+    /// </summary>
     public void Shift(int by)
     {
-        if (Choice is not null)
+        if (Choice is not null || Sliding)
             return;
         var slot = Math.Clamp(Slot + by, 0, Math.Max(0, Slots.Count - 1));
         if (slot == Slot)
             return;
+        Slide = new SlotSlide(Slot, Math.Sign(by));
+        _slideFrame = 0;
         Slot = slot;
         Build();
     }
@@ -165,6 +196,8 @@ public sealed class SaveMenu
     /// <summary>The stick's up and down: the action, or the question's answer.</summary>
     public void MoveCursor(int by)
     {
+        if (Sliding)
+            return;
         if (Choice is { } choice)
             choice.Choices.Move(by);
         else
@@ -173,13 +206,15 @@ public sealed class SaveMenu
 
     public void Point(int row)
     {
-        if (Choice is null)
+        if (Choice is null && !Sliding)
             Actions.Point(row);
     }
 
     /// <summary>A: the action, or the question's answer.</summary>
     public void Accept()
     {
+        if (Sliding)
+            return;
         if (Choice is { } choice)
         {
             Answer(choice.Choices.Cursor);
@@ -212,7 +247,7 @@ public sealed class SaveMenu
     /// <summary>B: back to the System tab's list, but a question has no B.</summary>
     public void Back()
     {
-        if (Choice is null)
+        if (Choice is null && !Sliding)
             Closed = true;
     }
 

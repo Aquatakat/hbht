@@ -266,6 +266,44 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         static SaveStats Stats() => new(10, 10, 10, 10, 10, 10, 1);
     }
 
+    /// <summary>Lets a slide between saves finish.</summary>
+    private static void Settle(SaveMenu screen)
+    {
+        for (var i = 0; i <= SaveMenu.SlideFrames; i++)
+            screen.Step();
+        Assert.False(screen.Sliding);
+    }
+
+    [Fact]
+    public void TheSavesSlideOnTheEaseOutCurveAndDropPressesMeanwhile()
+    {
+        Write("old", 0, minutesAgo: 10);
+        Write("recent", 0);
+        var screen = Screen(saving: false);
+
+        screen.Shift(1);
+        Assert.Equal((new SlotSlide(0, 1), 1), (screen.Slide, screen.Slot));
+        Assert.Equal(0, screen.SlideChange);
+        // Every press is dropped while it slides: the stick, the actions, A and B.
+        screen.Shift(-1);
+        screen.MoveCursor(1);
+        screen.Back();
+        screen.Accept();
+        Assert.Equal((1, 0, false, SaveRequest.None), (screen.Slot, screen.Actions.Cursor, screen.Closed, screen.Request));
+        // sin(π t / 2): quick at first, slow at the end, and done in half the original's 60 frames.
+        for (var i = 0; i < SaveMenu.SlideFrames / 2; i++)
+            screen.Step();
+        Assert.Equal(MathF.Sin(MathF.PI / 4), screen.SlideChange, 5);
+        Settle(screen);
+        Assert.Equal(1, screen.SlideChange);
+        screen.Shift(-1);
+        Assert.Equal(new SlotSlide(1, -1), screen.Slide);
+        // A slot that isn't there doesn't slide.
+        Settle(screen);
+        screen.Shift(-1);
+        Assert.Null(screen.Slide);
+    }
+
     [Fact]
     public void LoadingListsTheSavesNewestFirstWithTheirArrows()
     {
@@ -277,8 +315,10 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         Assert.Equal((false, true), (screen.MoreLeft, screen.MoreRight));
         Assert.Equal(["L423", "L425", "L426"], screen.Actions.Rows);
         screen.Shift(1);
+        Settle(screen);
         Assert.Equal((true, false), (screen.MoreLeft, screen.MoreRight));
         screen.Shift(1);
+        Settle(screen);
         Assert.Equal(1, screen.Slot);
         // 3,905,657 ticks is 18 hours, 4 minutes and 54 seconds, which the original prints unpadded and the port pads.
         Assert.Equal("Hours: 18:04:54", screen.Hours(screen.Current!));
@@ -349,6 +389,7 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         var path = Write("one", 0);
         var screen = Screen(saving: true);
         screen.Shift(1);
+        Settle(screen);
         screen.Accept();
 
         Assert.Equal("L410", screen.Choice!.Text);
@@ -373,7 +414,9 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         File.WriteAllBytes(SaveSlot.ScreenshotPath(b), [1, 2, 3]);
         var screen = Screen(saving: false);
         screen.Shift(1);
+        Settle(screen);
         screen.Shift(-1);
+        Settle(screen);
         screen.Point(1);
         screen.Accept();
 
