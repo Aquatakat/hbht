@@ -10,7 +10,7 @@ Ports `gameclasses/` (`item.cpp`, `generic.cpp`, `armor.cpp`, `weapon.cpp`, the 
   - A weapon's spell level is its own field (the ROM's byte at `0x1D`); armor's and gear's is in the bonuses. The bonuses' first spell byte is the charges for all three (`malloc_equip_spell`).
   - Range is the ROM's byte × 5 / 3, up to 255 (`WeaponDB::Load`).
   - Armor's Dexterity and Stealth are signed: penalties, or Stealth bonuses on leathers. Gear's stat byte is tested against `0xFF`, not for nonzero (`ItemInstance::InitGear`). The spell bytes are in [db](../formats/db.md).
-  - Potions aren't in the item DB. Potion *n* (`aidyn:item/0x10nn`) is named by line *n* of its own string table and priced by a table in code (`potion_prices`); all share one icon. Drinking one in trek is [below](#potions); in combat it comes with 2.5.
+  - Potions aren't in the item DB. Potion *n* (`aidyn:item/0x10nn`) is named by line *n* of its own string table and priced by a table in code (`potion_prices`); all share one icon. Drinking one is [below](#potions); what each does is its effects ([magic](magic.md#potions-and-flasks)).
   - The Archmage Staff is `fixed`: once equipped it can't be taken off. Niesen's entity has it as its `soleWeapon`, the only weapon he can equip.
 - **Traits.** `ownSlot`: the item has an inventory slot of its own rather than one of the 128 general ones (reagents, hides, scrolls, potions, the key items and 13 unique pieces of gear). `mustTake`: loot can't be left behind while it holds the item (21 quest items and keys). Key items carry the flags they set (`keyItem`): `held` while the party has one, and a world map `region` they reveal.
 - **Loot tables** (`aidyn:loot/0x08…`): gold, the chances an enemy drops its armor, shield and weapons, a reagent roll, and six item rolls. Only the first two rolls give a count between bounds. An empty roll still rolls its chance.
@@ -28,7 +28,7 @@ A character (`Character.Equipment`) wields a weapon and wears body armor, a shie
 - **Stats.** A bonus changes the modified value; Endurance's changes the base value too, so it raises maximum hit points. A bonus that would take Endurance to 0 or below leaves it at 1, as one to the Level does while Endurance is at 0. Taking a bonus off is bounded the same way, so the base can drift: taking off +5 Endurance with 3 left subtracts 2. A Stamina bonus isn't applied: it's the item's **battery**, which a spell's cost draws on before the caster's Stamina (weapon, armor, shield, then gear) and camping refills by the fraction it heals (`Entity::EquipStamina`, `ItemCampStamina`).
 - **Skills.** A bonus applies only while the base level isn't 0. When training takes a skill from 0 to 1, what's worn adds its bonus then, each worn item's amount (`WidgetSkillTrain::Purchase`); weapon skills and the shield don't get this.
 - **Armor** adds its Dexterity and Stealth whatever the levels. Its protection and the shield's are counted apart (`Entity::GetArmorProtect`); gear adds its protection and damage to the sheet's.
-- **Enchantments** are on while armor and gear are worn; a weapon's isn't. Applying them, like resistances and spell charges, is combat's (2.5).
+- **Enchantments** are on while armor and gear are worn, as effects that never run down; a weapon's is cast as it strikes. Charges go only from wands and scrolls worn as gear ([magic](magic.md#gear)).
 
 What can be equipped (`Party::GetEquipError` and the item kinds' functions):
 
@@ -51,17 +51,17 @@ A replaced item goes back to the inventory; if it can't, the new one does instea
 
 ## Potions
 
-Potion *n* is `Potion` *n* (`PotionEnum`): the Fire, Inferno, Sleep Gas and Acid flasks, then Healing, Stamina, Curing, Antidote, Restore, Strength, Dexterity, the left-out Aspect and Jumping, Clarity, Charisma, Defence and Stealth. Drinking one from the pause menu (`Entity::UsePotion`) uses one up if it does something now (`Entity::CanUsePotion`), and otherwise says why and uses nothing:
+Potion *n* is `Potion` *n* (`PotionEnum`): the Fire, Inferno, Sleep Gas and Acid flasks, then Healing, Stamina, Curing, Antidote, Restore, Strength, Dexterity, the left-out Aspect and Jumping, Clarity, Charisma, Defence and Stealth. Drinking one from the pause menu (`Potions.Drink`, `Entity::UsePotion`) does its effects and uses one up if it does something now (`Potions.CanDrink`, `Entity::CanUsePotion`), and otherwise says why and uses nothing:
 
 | Potion | Drinkable | Does |
 | --- | --- | --- |
 | Healing, Curing | Below full health | Heals 15–25% or 40–60% of the maximum, drawn whole, worked in single precision and truncated (`HealByPotion`) |
-| Stamina | Stamina below its base (`slt`), or exhausted (2.5) | Restores Stamina to its base, and ends exhaustion |
-| Antidote, Restore | Poisoned, or under a weakening spell (2.5) | Ends the poison, or the weakening spells |
+| Stamina | Stamina below its base (`slt`), or exhausted | Ends Exhaustion, and restores Stamina to its base |
+| Antidote, Restore | Poisoned, or under a weakening spell: Wraith Touch, Debilitation, Weakness, Exhaustion, Stupidity or Clumsiness | Ends the poison, or the weakening spells |
 | Strength, Dexterity, Clarity, Charisma, Defence, Stealth | Not already working | Works for 3 hours of game time ([characters](characters.md#a-character-sheet)) |
 | The flasks, Aspect, Jumping | Never outside combat | |
 
-The two refusals, "cannot be used right now" and "cannot be used in Trek mode", are C strings in code, not string table lines; the importer reads them onto the inventory record. Until 2.5 brings poison and spells' effects, the Antidote and Restore are never drinkable.
+The two refusals, "cannot be used right now" and "cannot be used in Trek mode", are C strings in code, not string table lines; the importer reads them onto the inventory record.
 
 **Starting gear** (`Entity::Init`, `EquipFunc0`): an entity wears its armor, carries its shield if it has the skill, and wields the first of its three weapons it can. The others go to the party's inventory as it joins, if it wields one; one it can't wield while it wields none is lost. Enemies choose their weapons another way, which comes with combat.
 

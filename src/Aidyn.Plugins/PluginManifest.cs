@@ -60,8 +60,9 @@ public static class BasePlugin
     /// 35 marks the scenes whose transforms mirror a model, and gives the cinematics their aspect ratio.
     /// 36 gives each light node its transform's scale, which tints the light. 37 adds the credits' cards.
     /// 38 adds the new game record. 39 gives each terrain the Battle arenas its battles take, and adds the combat record.
+    /// 40 gives spells and potions their effects (ADR 0020), and adds the magic record.
     /// </summary>
-    public const int ImporterVersion = 39;
+    public const int ImporterVersion = 40;
 }
 
 /// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>

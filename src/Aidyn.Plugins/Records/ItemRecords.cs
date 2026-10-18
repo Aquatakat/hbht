@@ -73,7 +73,7 @@ public sealed record ArmorRecord(
 /// Any other item (<c>aidyn:item/…</c>): worn gear, wands, scrolls, keys and other key items, potions,
 /// reagents and the rest. All but potions are from the item DB (<c>ItemDB::LoadItem</c>,
 /// <c>make_GearInstance_2</c>); a potion is named by its own string table and priced by a table in code
-/// (<c>ItemInstance::InitPotion</c>). What potions do comes with combat (2.5).
+/// (<c>ItemInstance::InitPotion</c>).
 /// </summary>
 /// <param name="Kind">What it is, which decides where it's worn. The original takes it from the ID's high byte.</param>
 /// <param name="ExpMultiplier">Read into RAM; what reads it isn't known.</param>
@@ -82,6 +82,11 @@ public sealed record ArmorRecord(
 /// <param name="RequiredStrength">Wearing it needs at least this base Strength (<c>Entity::GearMinStatCheck</c>).</param>
 /// <param name="RequiredIntelligence">Wearing it needs at least this base Intelligence.</param>
 /// <param name="KeyItem">The flags a key item sets while the party has it.</param>
+/// <param name="Effects">
+/// A potion's: what drinking it does, or for a flask, throwing it (ADR 0020). One with none can't be drunk in trek: the Aspect and
+/// Jumping potions.
+/// </param>
+/// <param name="Duration">How long a potion's lasting effects last: 3 hours of game time.</param>
 /// <param name="Description">
 /// What C-down's details say of it: an item's line in <c>aidyn:strings/0</c>, or a potion's in
 /// <c>aidyn:strings/4</c>. Weapons and armor show their numbers instead.
@@ -105,7 +110,9 @@ public sealed record ItemRecord(
     ItemTraits? Traits = null,
     KeyItemFlags? KeyItem = null,
     string? Description = null,
-    RecordId? Model = null);
+    RecordId? Model = null,
+    IReadOnlyList<Effect>? Effects = null,
+    EffectDuration? Duration = null);
 
 /// <summary>
 /// What an item is (the original's <c>DBTypeEnum</c>, the high byte of its ID). Weapons and armor have

@@ -1,5 +1,7 @@
 using Aidyn.Core.Calendar;
 using Aidyn.Core.Characters;
+using Aidyn.Core.Combat;
+using Aidyn.Core.Magic;
 using Aidyn.Core.Rng;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
@@ -40,21 +42,6 @@ public enum DrinkResult
     NotInTrek,
 }
 
-/// <summary>
-/// A potion's effect on a character while it lasts (<c>PotionEffect</c>): Strength or Dexterity +10, or
-/// Clarity, Charisma or Stealth +3 to Loremaster, Diplomat or Stealth. Defence's is combat's to read.
-/// </summary>
-/// <param name="Timer">What's left, in the game clock's ticks, which run <see cref="GameClock.DaySpeed"/> to a tick of play.</param>
-public sealed class PotionEffect(Potion potion, int power, uint timer)
-{
-    public Potion Potion { get; } = potion;
-
-    /// <summary>A byte the save keeps. Drinking sets 0, and nothing reads it.</summary>
-    public int Power { get; } = (byte)power;
-
-    public uint Timer { get; internal set; } = timer;
-}
-
 /// <summary>Drinking potions from the pause menu (<c>Entity::UsePotion</c>, <c>Entity::CanUsePotion</c>).</summary>
 public static class Potions
 {
@@ -74,48 +61,64 @@ public static class Potions
     public static bool IsFlask(Potion potion) => potion < Potion.Healing;
 
     /// <summary>
-    /// Whether drinking a potion would do anything now (<c>Entity::CanUsePotion</c>): a healing one below
-    /// full health, Stamina below its base, a stat or skill one not already working. The Antidote needs
-    /// poison and Restore a weakening spell, which come with combat (2.5), so neither can be drunk yet.
+    /// Whether drinking a potion would do anything now (<c>Entity::CanUsePotion</c>, <c>0x8006FBE8</c>), by its effects (ADR 0020):
+    /// one that lasts, if it isn't working already; otherwise a heal below full health, a cure with something to cure, or
+    /// Stamina below its base. A flask, or a potion with no effects, can't be drunk in trek.
     /// </summary>
-    /// <remarks>The decomp reads the Stamina potion as drinkable at full Stamina; the machine code tests that it's below.</remarks>
-    public static DrinkResult CanDrink(Character member, Potion potion) => potion switch
+    public static DrinkResult CanDrink(Character member, Item potion)
     {
-        Potion.Healing or Potion.Curing => member.Hp != member.MaxHp ? DrinkResult.Drunk : DrinkResult.NotNow,
-        Potion.Stamina => member.Stats.Modified(Stat.Stamina) < member.Stats.Base(Stat.Stamina) ? DrinkResult.Drunk : DrinkResult.NotNow,
-        Potion.Antidote or Potion.Restore => DrinkResult.NotNow,
-        Potion.Strength or Potion.Dexterity or Potion.Clarity or Potion.Charisma or Potion.Defence or Potion.Stealth =>
-            member.HasPotionEffect(potion) ? DrinkResult.NotNow : DrinkResult.Drunk,
-        _ => DrinkResult.NotInTrek,
+        if (potion.Gear is not { Effects: [_, ..] effects } record || effects.Any(e => e is BlastEffect or CorrodeEffect))
+            return DrinkResult.NotInTrek;
+        if (record.Duration is not null && effects.Any(EffectRules.Lasting))
+            return member.HasEffect(record.Id) ? DrinkResult.NotNow : DrinkResult.Drunk;
+        return effects.Any(e => WouldDo(member, e)) ? DrinkResult.Drunk : DrinkResult.NotNow;
+    }
+
+    /// <inheritdoc cref="CanDrink(Character, Item)"/>
+    public static DrinkResult CanDrink(Character member, Potion potion, ItemCatalog items) => CanDrink(member, items[Id(potion)]);
+
+    // What drinking finds to do now: the Stamina potion is drinkable with Stamina below its base (slt), or exhausted.
+    private static bool WouldDo(Character member, Effect effect) => effect switch
+    {
+        HealEffect => member.Hp != member.MaxHp,
+        CureEffect cure => member.Effects.Any(e => cure.Spells.Contains(e.Source)),
+        StaminaEffect => member.Stats.Modified(Stat.Stamina) < member.Stats.Base(Stat.Stamina),
+        _ => false,
     };
 
     /// <summary>
-    /// A member drinks a potion from the party's inventory (<c>Entity::UsePotion</c>): Healing heals 15–25% of
-    /// their maximum hit points and Curing 40–60%, Stamina restores Stamina to its base, and the stat and skill
-    /// potions work for <see cref="Duration"/>. Then one is used up.
+    /// A member drinks a potion from the party's inventory (<c>Entity::UsePotion</c>, and in combat <c>Combatant.DrinkPotion</c>,
+    /// <c>0x80064C84</c>): its effects in order, then one is used up. Healing heals 15–25% of the maximum hit points and Curing
+    /// 40–60%; the Stamina potion ends Exhaustion and restores Stamina to its base; the Antidote ends poison and Restore the
+    /// weakening spells; the rest work for <see cref="Duration"/>.
     /// </summary>
-    public static DrinkResult Drink(Party party, Character member, Item item, IRandom random)
+    /// <param name="on">The member's combatant, drinking in a battle.</param>
+    public static DrinkResult Drink(Party party, Character member, Item item, IRandom random, Combatant? on = null, IMagicHost? host = null)
     {
-        if (Of(item) is not { } potion || !party.Inventory.Has(item.Id))
+        if (item.Kind != ItemKind.Potion || !party.Inventory.Has(item.Id))
             return DrinkResult.NotInTrek;
-        var can = CanDrink(member, potion);
+        var can = CanDrink(member, item);
         if (can != DrinkResult.Drunk)
             return can;
-        switch (potion)
+        var record = item.Gear!;
+        foreach (var effect in record.Effects!)
         {
-            case Potion.Healing:
-                HealByPotion(member, 15, 25, random);
-                break;
-            case Potion.Curing:
-                HealByPotion(member, 40, 60, random);
-                break;
-            case Potion.Stamina:
-                member.RestoreStamina();
-                break;
-            default:
-                member.ApplyPotionEffect(potion, 0, Duration);
-                break;
+            switch (effect)
+            {
+                case HealEffect heal:
+                    HealByPotion(member, heal.Low, heal.High, random);
+                    break;
+                case CureEffect cure:
+                    foreach (var cured in member.Effects.Where(e => cure.Spells.Contains(e.Source)).ToList())
+                        member.RemoveEffect(cured, on, host);
+                    break;
+                case StaminaEffect { ToBase: true }:
+                    member.RestoreStamina();
+                    break;
+            }
         }
+        if (record.Duration is { } duration)
+            member.ApplyPotionEffect(record.Id, 0, duration.At(0));
         party.Inventory.Take(item.Id);
         return DrinkResult.Drunk;
     }

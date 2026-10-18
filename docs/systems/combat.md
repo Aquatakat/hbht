@@ -125,7 +125,7 @@ The Battle arenas are `aidyn:mapset/16` ("Battlefields", 150 to a cell): 28 chun
 | `+0x0C` | u32, 1 once the leader's gone |
 | `+0x10` | the leader: the first enemy with the highest base Intelligence, a later one needing strictly more |
 | `+0x11` | the leader's morale (`EnemyAI.Morale`, each round) |
-| `+0x12` | from setup, `Combat.PartyPotionTier` and twice a spell's level (not settled) |
+| `+0x12` | the AI's area danger: the party's flask tier (`Combat.PartyPotionTier`), or twice its best effective Fireball level, a radius the enemies spread out by (`EnemyAI.AreaDanger`, `0x80058A48`) |
 | `+0x13` | the Troubadour's bonus in play, 0 with none |
 | `+0x14` | the last target |
 | `+0x18`, `+0x1C` | f32, the camera's focus: the combatant's, or its target's |
@@ -163,8 +163,8 @@ Beside it: the combatants' bodies, `Combat.Bodies` (`0x800D9488`, 14 by slot, 0x
 | `+0x23` | footprint in cells: the party 1, rats 2 | checked |
 | `+0x24` | the action before a spell or flask | |
 | `+0x25` | the action: 0 none, 1 melee, 2 ranged, 3 a flask or a potion drunk, 4 melee or thrown | checked 1 |
-| `+0x26`, `+0x27` | a spell's level, and the flask's or spell's kind | |
-| `+0x28` | the AI's counter | |
+| `+0x26`, `+0x27` | a level, and the potion's or flask's kind (a spell goes by the entity's `+0x3C`–`+0x3E`: the margin, the source and its index) | |
+| `+0x28` | Mirror's counter (`Combatant.Mirror`) | |
 | `+0x29`, `+0x2A` | the damage, and the healing, to show | |
 | `+0x2C` | u16 flags: 0 acted, 1 active, 2 performing, 3 moved, 4 the hostile side, 5 from the enemy list, 6 gone (dead or fled), 7 engaged, 8 Lay On Hands, 9 Heal With Herbs, 10 a newcomer | checked: the party 0x02, rats 0x32, engaged Brenna 0x82 and rat 0xB2, newcomers 0x432 |
 | `+0x30`–`+0x3F` | two resistances, element and multiplier (Alaron's element 3 × 0.75) | checked |
@@ -236,9 +236,7 @@ Beside it: the combatants' bodies, `Combat.Bodies` (`0x800D9488`, 14 by slot, 0x
 
 - **Targeting** (`TargetSet`, `0x80068FE0`–`0x8006A0B0`): `Rebuild` (`0x80069264`) asks `Combatant.CanAttack` (`0x80060590`) or `CanCast` (`0x80060C38`) of each combatant and orders the candidates by angle and distance from the facing (`0x8006975C`); the controls move the cursor and the selection. A spell's count is one, all, or half its level (`0x80060818`), with its kinds' rules (`0x8006088C`, `0x80060988`), range and sight.
 - **Melee and ranged**: `Combatant.MeleeChance` (`0x800622C4`); `AdjustRoll` (`0x80062594`): the d100 stands unless it's at or under the skill, capped at a fifth of the chance, when a second d100 comes off it; `ResolveMelee` (`0x800628A4`): a hit is the adjusted roll under the chance, and "scores a critical hit" when the roll was adjusted; `MeleeDamage` (`0x80062AE4`): the margin through the degree table (`0x800DA348`), the weapon's dice and the Strength tier's d6 (`0x800E0C30`), less protection (`0x8005F570`, `0x8005F71C`); `ApplyResistance` (`0x80062704`); the aspect's, Troubadour's and height's modifiers; `Combat.RangedChance` (`0x80062F50`, with `Combat.WeatherPenalty`, [weather](weather.md)); `ResolveRanged` (`0x80063324`); then skill experience (`0x80062650`).
-- **Spells**: `Combatant.CheckSpellAvailable` (`0x800635B8`: "Spell Unavailable", "Missing spell component", "Not enough ST"), the reagent, `CastChance` (`0x80063CA0`), the cast's roll, `ResistRoll` (`0x80064298`), `ApplySpellEffect` (`0x800646E0`: banish `0x800644DC`, dispel `0x80064550`, heal `0x80064624`, or an effect on the entity for level × 1800 ticks), `CastSpell` (`0x800648CC`), the damage, the visuals (`CombatSpellFx.Start`, `0x8008C43C`) and the sound. Spells are by kind, with lists that special-case some (`Combat.DispelKinds`, `LimitedKinds`, `ImmobilisingKinds`).
-- **Effects** are the entity's (`entity.cpp`): 15 timed spell effects (`+0x34`, 0x18 each: added `0x80072158`, removed `0x800724B8`, aged `0x80071444` each round and by `World.AdvanceTurn`) and 7 potion effects ([characters](characters.md)). An immobilising one stops a combatant (`Combatant.IsImmobilised`). Cheat Death (kind 0x17) is in `0x8006EB8C`.
-- **Potions and flasks**, in C-up (`CombatMenu.OpenItems`, `0x80087F2C`): a drinkable potion or a flask is action 3, through `ThrowFlask`; `FlaskDamage` (`0x80065270`: 8d6, 4d6, 15 or 2d6 by kind) and the blast round the cell it lands on (`0x800652F8`).
+- **Spells, effects, potions and flasks** are [magic](magic.md)'s: casting (`Combatant.CastSpell`, `0x800648CC`, through `CheckSpellAvailable`, `PrepareCast`, `CastChance`, `ResistRoll` and `ApplySpellEffect`), the 15 timed effects and 7 potion records on the entity and their ageing by round and by trek's clock, Cheat Death, the kind lists (`Combat.DispelKinds`, `LimitedKinds`, the charms that count toward the disable limit, `ImmobilisingKinds`), potions drunk, and the flasks' damage and blast. The port's is `Battle.Cast`, `Battle.Strike`, `Battle.AgeEffects` and `Potions.Drink`. A spell's kind is its place in the spell table, not the combatant's `+0x27`, which holds a potion's.
 - **The AI** (`EnemyAI.Step`, `0x8005B314`, each frame of state 8): flee, plan a path (`PlanPath`, `0x8005A974`), walk it (`WalkPath`, `0x8005A0D8`), or act on its target (`ChooseWeapon`, `Execute` `0x8005B594`). The target and the action come from one of 11 styles (`EnemyAI.StyleTable`; the rats' is 0), which score cells and action slots (`AiScores`, `aiscores.cpp`; `0x80057908`, `0x800581C8`, `0x80058C7C`, `EnemyAI.SpellValue` `0x80057498` with a case per spell kind) and take the best (`0x800590B0`). 13 entities get the boss style (`EnemyAI.HasBossStyle`, `0x8005BA40`). The walking states' stuck timer (`+0x4FBC`) ends a turn whose walk gets nowhere.
 - **The GUI** (`combatgui.cpp`, `CombatGui.Create` `0x80085B80`): the enemies' portraits in a column at x 21 and the party's at x 270, from y 18, 28 apart, then the rest as small icons 12 apart, each with an HP bar 3 wide; a reserve's portrait slides into a free slot, and the dead and fled are crossed out (`MarkDead`, `MarkFled`). Portraits are tinted by targeting (`TintByState`, `0x80086EB4`), and C-left toggles them. The log box (`0x80087A78`) is a `TextBand`, the conversation box's own, from (0, 180) to (246, 240), with the current combatant's portrait at (26, 180).
 - **The radar** (`CombatRadar.Draw`, `0x8008DF04`) at (274, 199), in the frame image 0x1B: a dot for every body, the party green, enemies red, the current one white.
@@ -275,13 +273,12 @@ Beside it: the combatants' bodies, `Combat.Bodies` (`0x800D9488`, 14 by slot, 0x
 - A bystander in the first four leaves the original a null slot that it counts as an enemy on the field; the port leaves it out and says so. No monster party that fights has one.
 - `Talk`'s collision byte isn't ported: a monster party used is collision 0, so its enemies face 5–7 even used from behind (1 would face them 1–3).
 - Combat's frame counter's limit on pausing (`+0x5448 < 4`) isn't ported.
-- The weapon in hand and its side (`+0x84`), the entities whose shadows are half (`0x8006C798`), the spells' potion tier (`+0x12`) and the morale (`+0x11`) wait for their sessions.
+- The weapon in hand and its side (`+0x84`), the entities whose shadows are half (`0x8006C798`), the AI's area danger (`+0x12`) and the morale (`+0x11`) wait for their sessions.
 
 ## Not settled
 
 - The AI's 11 styles, its scores, and the record's `+0x12` and `+0x13`.
-- The effects' records and each spell kind's application (`ApplySpellEffect`'s switch, `entity.cpp` `0x8006F4AC`–`0x80072660`, `spell.cpp`).
-- `+0x12`, the popup at `+0x4FB8`, and what the three menu units draw beyond their roles.
+- The popup at `+0x4FB8`, and what the three menu units draw beyond their roles.
 - Exactly which cone `Talk`'s collision byte tests (`0x80010AE8`–`0x80010B74`).
 - Whether the doubled gold and the loot in the experience pool show in play.
 - Which targeting state tints a portrait dim red.

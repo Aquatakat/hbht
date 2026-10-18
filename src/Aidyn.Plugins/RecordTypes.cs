@@ -62,6 +62,9 @@ public static class RecordTypes
     /// <summary>What combat keeps of content: who fights with the party, who never fights, and the flee rules. There's one, <c>aidyn:combat/0</c>.</summary>
     public const string Combat = "combat";
 
+    /// <summary>Casting's numbers: the chance, the resist roll, a round's ageing and the rest (ADR 0020). There's one, <c>aidyn:magic/0</c>.</summary>
+    public const string Magic = "magic";
+
     /// <summary>What the outdoor sky draws: its sun, moon, stars, clouds and lens flare. There's one, <c>aidyn:sky/0</c>.</summary>
     public const string Sky = "sky";
 
@@ -114,7 +117,7 @@ public static class RecordTypes
     [
         Entity, Weapon, Armor, Spell, Item, DialogEntity, Loot, Flag, Texture, Geometry, Camera, Light, Scene, Animation, Actor, Image, Map,
         Sample, Sequence, Dialogue, Voxel, MapSet, Terrain, Sky, Journal, StateFlags, WorldMap, Minimap, Camping, Font, Strings, Stat, Skill, WeaponSkill,
-        Progression, Shop, Recipe, Inventory, Sounds, Weather, Emitters, Cinematic, Credits, NewGame, Combat,
+        Progression, Shop, Recipe, Inventory, Sounds, Weather, Emitters, Cinematic, Credits, NewGame, Combat, Magic,
     ];
 
     public static bool IsKnown(string type) => All.Contains(type);

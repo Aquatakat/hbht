@@ -113,6 +113,9 @@ public sealed class CharacterRules
 
     public ProgressionRecord Progression { get; }
 
+    /// <summary>What spells, potions and enchantments are made of, or null without the magic record, when they do nothing.</summary>
+    public Magic.MagicRules? Magic { get; init; }
+
     public StatRecord this[Stat stat] => Stats[(int)stat];
 
     public SkillRecord this[SkillId skill] => Skills[skill.Slot];
@@ -123,7 +126,10 @@ public sealed class CharacterRules
     public static CharacterRules From(PluginSet plugins) => new(
         [.. Enumerable.Range(0, StatCount).Select(s => plugins.Get<StatRecord>(StatId.Record((Stat)s)))],
         [.. SkillId.All.Select(s => plugins.Get<SkillRecord>(s.Record))],
-        plugins.Singleton<ProgressionRecord>(RecordTypes.Progression));
+        plugins.Singleton<ProgressionRecord>(RecordTypes.Progression))
+    {
+        Magic = Aidyn.Core.Magic.MagicRules.From(plugins),
+    };
 
     /// <summary>
     /// The level <paramref name="exp"/> reaches: the last whose threshold it's reached

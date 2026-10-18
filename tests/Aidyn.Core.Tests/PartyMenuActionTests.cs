@@ -12,7 +12,14 @@ namespace Aidyn.Core.Tests;
 internal static class PotionData
 {
     public static ItemRecord Of(Potion potion) =>
-        ItemData.NewItem(0, ItemKind.Potion) with { Id = Potions.Id(potion), Name = potion.ToString(), Description = $"{potion} potion." };
+        ItemData.NewItem(0, ItemKind.Potion) with
+        {
+            Id = Potions.Id(potion),
+            Name = potion.ToString(),
+            Description = $"{potion} potion.",
+            Effects = MagicData.Potion(potion).Effects,
+            Duration = MagicData.Potion(potion).Duration,
+        };
 
     public static readonly InventoryMessages Messages = new("Not now.", "Not in trek.", "Only the lighthouse.");
 
@@ -128,12 +135,12 @@ public class PotionTests
 
         var ticks = (int)(Potions.Duration / GameClock.DaySpeed);
         Assert.Equal(9000, ticks);
-        member.StepPotionEffects(ticks - 1);
+        member.AgeEffects(ticks - 1);
         Assert.Equal(GameClock.DaySpeed, (int)member.PotionEffects.Single().Timer);
-        member.StepPotionEffects(1);
+        member.AgeEffects(1);
         Assert.Equal(0u, member.PotionEffects.Single().Timer);
         Assert.Equal(strength + 10, member.Stats.Base(Stat.Strength));
-        member.StepPotionEffects(1);
+        member.AgeEffects(1);
         Assert.Empty(member.PotionEffects);
         Assert.Equal(strength, member.Stats.Base(Stat.Strength));
     }
@@ -149,8 +156,8 @@ public class PotionTests
             Assert.Equal(DrinkResult.Drunk, Potions.Drink(party, member, Item(party, potion), new ScriptedRandom()));
         Assert.Equal(before.Select(b => b + 3), new[] { Skill.Loremaster, Skill.Diplomat, Skill.Stealth }.Select(s => member.Skills.RawModified(s)));
 
-        member.StepPotionEffects((int)(Potions.Duration / GameClock.DaySpeed));
-        member.StepPotionEffects(1);
+        member.AgeEffects((int)(Potions.Duration / GameClock.DaySpeed));
+        member.AgeEffects(1);
         Assert.Equal(before, new[] { Skill.Loremaster, Skill.Diplomat, Skill.Stealth }.Select(s => member.Skills.RawModified(s)));
     }
 
@@ -164,7 +171,7 @@ public class PotionTests
         Assert.Equal(Character.PotionSlots, member.PotionEffects.Count);
 
         member.TakeDamage(1000);
-        member.StepPotionEffects(1000);
+        member.AgeEffects(1000);
         Assert.All(member.PotionEffects, p => Assert.Equal(100u, p.Timer));
     }
 }

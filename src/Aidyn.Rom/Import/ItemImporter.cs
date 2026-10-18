@@ -130,8 +130,10 @@ internal static class ItemImporter
         var potions = Enumerable.Range(0, ItemTables.PotionCount).Select(i =>
         {
             var id = ItemId.Of(DbType.Potion, (byte)i);
+            var (effects, duration) = MagicImporter.Potion(i);
             return new ItemRecord(DbRecordIds.Required(id), names[i], Image(ItemTables.PotionIcon), tables.PotionPrices[i], ItemKind.Potion,
-                Traits: Traits(id), Description: menu is null ? null : Description(db, RomStringTable.PotionDetails, menu.PotionDescriptions, id));
+                Traits: Traits(id), Description: menu is null ? null : Description(db, RomStringTable.PotionDetails, menu.PotionDescriptions, id),
+                Effects: effects, Duration: duration);
         });
 
         return (Sorted(weapons, w => w.Id), Sorted(armor, a => a.Id), Sorted(gear.Concat(potions), i => i.Id));

@@ -273,7 +273,7 @@ public sealed record TrainingPrices(int FirstLevelGold, int GoldPerLevel, float 
 
 /// <summary>A spell (<c>aidyn:spell/0x…</c>), from the spell DB (<c>SpellDB</c>, <c>TempSpell::Init</c>).</summary>
 /// <param name="School">A character can learn it if its school is the same, the spell is unschooled or the character is Chaos.</param>
-/// <param name="Damage">Combat reads it by spell (2.5).</param>
+/// <param name="Damage">The ROM's damage byte, which the effects carry now (<see cref="DamageEffect"/>).</param>
 /// <param name="Stamina">What casting it costs (<c>Entity::SpellStaminaSubtract</c>).</param>
 /// <param name="Wizard">The Wizard level it takes to learn it.</param>
 /// <param name="Special">What its target must have or when it can be cast.</param>
@@ -283,7 +283,10 @@ public sealed record TrainingPrices(int FirstLevelGold, int GoldPerLevel, float 
 /// Raising it from level <c>n</c> to <c>n + 1</c> costs (n + 1)² × this in experience, and learning
 /// it costs this (<c>TempSpell::GetExpPrice</c>). It's the record's byte × 50.
 /// </param>
-/// <param name="Unk1E">Copied to RAM as <c>aspect_flag</c>; bit 1 makes Solar resistance apply to it.</param>
+/// <param name="Unk1E">
+/// Copied to RAM as a set of bits: 1 Lunar and 2 Solar (<see cref="Aspect"/>), 0x10 a placed area (<see cref="Placed"/>); 0x20, 0x40
+/// and 0x80 nothing in combat reads.
+/// </param>
 /// <param name="Icon">The spell's symbol (<c>GetSpellIcon</c>), which lists show beside its school's icon.</param>
 /// <param name="Description">
 /// What C-down's details say of it (<c>aidyn:strings/2</c>). Four spells have none, and the original
@@ -293,8 +296,16 @@ public sealed record TrainingPrices(int FirstLevelGold, int GoldPerLevel, float 
 /// <param name="Position">
 /// Its place in the spell table (<c>SpellDB</c>), which groups spells by school. Loading a save puts a
 /// spellbook in this order, school by school, as the original does (<c>SaveParty::LoadSpell</c>). A
-/// spell without one goes after those with one.
+/// spell without one goes after those with one. It's the original's kind of the spell, which its code keys by.
 /// </param>
+/// <param name="Effects">What a cast does to each target (ADR 0020).</param>
+/// <param name="Duration">How long its effects last on a target; none, and they happen once.</param>
+/// <param name="Aspect">Solar or Lunar: it meets those resistances, and the resist roll's aspect factor.</param>
+/// <param name="Placed">The caster places its area, and its range is about that point (state 11).</param>
+/// <param name="Resisted">Who resists it.</param>
+/// <param name="NotResistedBy">Entities that never resist it: the Marquis, Wall of Bones.</param>
+/// <param name="Filter">Who it may be cast at, beyond its side and its special.</param>
+/// <param name="AiValue">What the enemies' AI makes of it (<c>EnemyAI.SpellValue</c>); with none, its first effect's type's.</param>
 public sealed record SpellRecord(
     RecordId Id,
     string Name,
@@ -312,7 +323,15 @@ public sealed record SpellRecord(
     RecordId? Icon = null,
     string? Description = null,
     int? Position = null,
-    RecordId? Cast = null);
+    RecordId? Cast = null,
+    IReadOnlyList<Effect>? Effects = null,
+    EffectDuration? Duration = null,
+    Aspect Aspect = Aspect.None,
+    bool Placed = false,
+    Resisted Resisted = Resisted.Never,
+    IReadOnlyList<RecordId>? NotResistedBy = null,
+    TargetFilter? Filter = null,
+    int? AiValue = null);
 
 /// <summary>How many targets a spell takes.</summary>
 public enum SpellTargetCount

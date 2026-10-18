@@ -257,12 +257,13 @@ public sealed partial class Battle
     }
 
     /// <summary>
-    /// The battle's end (<c>Combat.Exit</c>, <c>0x80023060</c>): every combatant's effects come off, the potions' but
-    /// Stealth's, and the timed spells' with session 8; hit points stay as they are. Its bodies and arena go with it.
+    /// The battle's end (<c>Combat.Exit</c>, <c>0x80023060</c>): every combatant's effects come off, the spells' and the potions'
+    /// but Stealth's, and the worn enchantments go back on (<see cref="Characters.Character.EndBattleEffects"/>); hit points stay as
+    /// they are. Its bodies and arena go with it.
     /// </summary>
     public void Leave()
     {
         foreach (var combatant in Combatants)
-            combatant.Sheet.EndPotionEffects(keep: Items.Potion.Stealth);
+            combatant.Sheet.EndBattleEffects(this);
     }
 }

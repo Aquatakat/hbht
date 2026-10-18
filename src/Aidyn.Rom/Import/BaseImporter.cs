@@ -39,6 +39,7 @@ public static class BaseImporter
 
         WorldImporter.Import(context);
         CombatImporter.Import(context);
+        MagicImporter.Import(context);
         FlagImporter.Import(context);
         CharacterImporter.Import(context);
         ItemImporter.Import(context);

@@ -122,5 +122,47 @@ public sealed class Combatant
     /// <summary>The last combatant it targeted, or −1 (<c>+0x10</c>).</summary>
     public int LastTarget { get; internal set; } = -1;
 
+    /// <summary>
+    /// Mirror's counter (<c>+0x28</c>): a resist roll spends it to turn a spell away (<c>Combatant.ResistRoll</c>). Mirror's ending
+    /// doesn't take it back.
+    /// </summary>
+    public int Mirror { get; internal set; }
+
+    /// <summary>
+    /// Its morale (the AI record's <c>+6</c>), which Aura of Death and Solar Wrath lower; null without an AI record. Session 6's AI
+    /// sets it from the entity's.
+    /// </summary>
+    public int? Morale { get; set; }
+
+    /// <summary>A morale check is due (the AI record's flag 1, <c>+9</c>'s 2): a spell shook it.</summary>
+    public bool MoraleCheckDue { get; set; }
+
+    /// <summary>
+    /// Whether an effect holds it (<c>Combatant.IsImmobilised</c>, <c>0x80062250</c>): Wall of Bones, Frozen Doom, Web of Starlight.
+    /// A held target's Dexterity and shield don't count against an attack.
+    /// </summary>
+    public bool IsImmobilised => Sheet.Effects.Any(e => e.Effects.Any(x => x is Plugins.Records.ImmobiliseEffect));
+
+    /// <summary>
+    /// Its field's radius from its Dexterity's band, <paramref name="radius"/>, with its effects (<c>Combatant.UpdateRadius</c>,
+    /// <c>0x8005F29C</c>), each in turn by slot: Haste adds its level, and Stellar Gravity takes its level off, leaving 1 if that's
+    /// as much or more. Session 3 caps it at 13 and holds it to 1 while engaged or performing.
+    /// </summary>
+    public int RadiusWithEffects(int radius)
+    {
+        foreach (var effect in Sheet.Effects)
+        {
+            foreach (var change in effect.Effects.OfType<Plugins.Records.FieldRadiusEffect>())
+            {
+                var amount = change.Amount.At(effect.Power);
+                radius = (byte)(amount >= 0 ? radius + amount : -amount < radius ? radius + amount : 1);
+            }
+        }
+        return radius;
+    }
+
+    /// <summary>The battle its effects reach beyond it, for those that end as it dies: Darkness and Light.</summary>
+    internal Magic.IMagicHost? MagicHost { get; set; }
+
     public override string ToString() => $"{Slot}: {Sheet.Name}";
 }
