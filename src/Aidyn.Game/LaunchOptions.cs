@@ -13,8 +13,8 @@ namespace Aidyn.Game;
 /// </summary>
 /// <remarks>
 /// <c>--save &lt;path&gt;</c> starts from a save (see docs/systems/saves.md), where it stands unless <c>--chunk</c> or
-/// <c>--at</c> say otherwise; <c>--set &lt;n&gt;</c> (default 0, the overworld), <c>--chunk &lt;name&gt;</c> and
-/// <c>--at &lt;x&gt;,&lt;z&gt;</c> in the chunk's coordinates (default I08 at 16, 62, where a new game starts), <c>--yaw</c>
+/// <c>--at</c> say otherwise; <c>--set &lt;n&gt;</c> (default the new game record's, the overworld), <c>--chunk &lt;name&gt;</c> and
+/// <c>--at &lt;x&gt;,&lt;z&gt;</c> in the chunk's coordinates (default where a new game starts, I08 at 16, 62), <c>--yaw</c>
 /// in degrees for the way the player and camera face (0 looks along −Z), <c>--pitch</c> (negative looks down, default −15)
 /// and <c>--distance</c> for the camera, <c>--pace</c> for the player's speed (1 is the original's), <c>--fly
 /// &lt;x&gt;,&lt;y&gt;,&lt;z&gt;</c> to start with the free camera there in world coordinates, looking along <c>--yaw</c>
@@ -34,9 +34,6 @@ namespace Aidyn.Game;
 /// </remarks>
 public sealed class LaunchOptions(Dictionary<string, string> values)
 {
-    /// <summary>Where a new game starts in its chunk, in the chunk's coordinates.</summary>
-    private const string NewGameAt = "16,62";
-
     /// <summary>The options in the arguments after <c>--</c>.</summary>
     public static LaunchOptions Parse(string[] args) => new(CommandLine.Parse(args));
 
@@ -63,8 +60,8 @@ public sealed class LaunchOptions(Dictionary<string, string> values)
     /// <summary>The chunk to start in, or null for the save's or the new game's.</summary>
     public string? Chunk => Text("chunk");
 
-    /// <summary>Where to start in the chunk: x, then z, in its coordinates.</summary>
-    public float[] At => CommandLine.Floats(Text("at") ?? NewGameAt);
+    /// <summary>Where to start in the chunk: x, then z, in its coordinates, or null for where a new game starts.</summary>
+    public float[]? At => Text("at") is { } at ? CommandLine.Floats(at) : null;
 
     /// <summary>The way the player and camera face, in degrees, or null for the save's or along −Z.</summary>
     public float? Yaw => Number("yaw");

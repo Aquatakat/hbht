@@ -343,6 +343,30 @@ public sealed class GameSession
         _reopenOnTheatre = false;
     }
 
+    /// <summary>
+    /// How a new game starts (<see cref="NewGameRecord"/>): where the player arrives, and the party <see cref="GameState.NewGame"/>
+    /// builds. Plugins imported before the record was added have none, and the game can't start from them: this says to
+    /// import again, as an out-of-date import does.
+    /// </summary>
+    public static NewGameRecord NewGame(PluginSet plugins) => plugins.TrySingleton<NewGameRecord>(RecordTypes.NewGame)
+        ?? throw new InvalidDataException("The plugins have no new game record (aidyn:newgame/0): they were imported by an older importer. Run: aidyn import <rom>");
+
+    /// <summary>
+    /// Where a new game puts the player's body before it's set down: the record's chunk, by name, in its map set, and the
+    /// point in it at the record's height.
+    /// </summary>
+    public static (MapSetRecord Set, string Chunk, Vector3 At) Arrival(PluginSet plugins, NewGameRecord start)
+    {
+        var set = plugins.Get<MapSetRecord>(start.Chunk.MapSet);
+        var chunk = set.Chunks.FirstOrDefault(c => c.Row == start.Chunk.Row && c.Column == start.Chunk.Column)
+            ?? throw new InvalidDataException($"{set.Label} has no chunk at row {start.Chunk.Row}, column {start.Chunk.Column}.");
+        return (set, chunk.Name, new Vector3(start.Position.X, start.Height, start.Position.Y));
+    }
+
+    /// <summary>The player's body's actor: the party leader's (<see cref="EntityBody.Actor"/>), Alaron's in the base game.</summary>
+    public RecordId? PlayerActor =>
+        Game.Party.Members.FirstOrDefault() is { } leader ? Game.Plugins.TryGet<EntityRecord>(leader.Entity)?.Body?.Actor : null;
+
     /// <summary>The chunk the player is in, and whether its terrain has the outdoor sky, for the World tab's map and Camp.</summary>
     public (ChunkRef? Place, bool Outdoors) Where()
     {

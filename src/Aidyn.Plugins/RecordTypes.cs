@@ -104,11 +104,14 @@ public static class RecordTypes
     /// <summary>The credits' cards. There's one, <c>aidyn:credits/0</c>.</summary>
     public const string Credits = "credits";
 
+    /// <summary>How a new game starts: where the player arrives and who leads. There's one, <c>aidyn:newgame/0</c>.</summary>
+    public const string NewGame = "newgame";
+
     private static readonly HashSet<string> All =
     [
         Entity, Weapon, Armor, Spell, Item, DialogEntity, Loot, Flag, Texture, Geometry, Camera, Light, Scene, Animation, Actor, Image, Map,
         Sample, Sequence, Dialogue, Voxel, MapSet, Terrain, Sky, Journal, StateFlags, WorldMap, Minimap, Camping, Font, Strings, Stat, Skill, WeaponSkill,
-        Progression, Shop, Recipe, Inventory, Sounds, Weather, Emitters, Cinematic, Credits,
+        Progression, Shop, Recipe, Inventory, Sounds, Weather, Emitters, Cinematic, Credits, NewGame,
     ];
 
     public static bool IsKnown(string type) => All.Contains(type);

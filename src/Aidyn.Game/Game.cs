@@ -130,8 +130,10 @@ public partial class Game : Node3D, ITrekHost
     {
         var plugins = _plugins = _loadedPlugins ??= LoadPlugins();
         StartAudio(plugins);
+        // Where a new game starts, which plugins from an older import don't have: then this says to import again.
+        var newGame = GameSession.NewGame(plugins);
         var game = _game = StartingGame(plugins, options);
-        var (set, place) = StartingPlace(plugins, game, options);
+        var (set, place) = StartingPlace(plugins, game, newGame, options);
 
         BuildSky(plugins, game);
         _pointLights = options.PointLights;
@@ -145,12 +147,13 @@ public partial class Game : Node3D, ITrekHost
 
         var streamer = BuildWorld(plugins, game, set);
         var trek = Trek!;
-        var chunkName = options.Chunk ?? place?.Chunk ?? "I08";
+        var arrival = GameSession.Arrival(plugins, newGame);
+        var chunkName = options.Chunk ?? place?.Chunk ?? arrival.Chunk;
         var chunk = streamer.Find(chunkName) ?? throw new KeyNotFoundException($"{set.Label} has no chunk {chunkName}.");
-        var at = options.At;
-        // The original drops the player in from a height of 10 at a new game's spawn. This puts him
+        var at = options.At is { } a ? new Vector3(a[0], arrival.At.Y, a[1]) : arrival.At.ToGodot();
+        // The original makes the player's body at a new game's height, 10, and sets it down from on high. This puts him
         // on the highest ground below 1000, so --at works anywhere. A save puts him where he stood.
-        var spawn = _chunks!.Origin(chunk) + (place is not null ? place.Position.ToGodot() : new Vector3(at[0], 10, at[1]));
+        var spawn = _chunks!.Origin(chunk) + (place is not null ? place.Position.ToGodot() : at);
         // The terrain's flags are written before the chunks' objects are gated by them.
         trek.Enter(chunk);
         // After the first terrain and the time, which can change the weather.
@@ -202,13 +205,13 @@ public partial class Game : Node3D, ITrekHost
         return game;
     }
 
-    /// <summary>The map set to start in, and where the save stands in it, unless the options say otherwise.</summary>
-    private static (MapSetRecord Set, SavePlace? Place) StartingPlace(PluginSet plugins, GameState game, LaunchOptions options)
+    /// <summary>The map set to start in, and where the save stands in it, unless the options say otherwise: a new game's by default.</summary>
+    private static (MapSetRecord Set, SavePlace? Place) StartingPlace(PluginSet plugins, GameState game, NewGameRecord newGame, LaunchOptions options)
     {
         var place = options.PlacesPlayer ? null : game.Place;
         var setId = options.Set is { } number
             ? RecordId.Decimal(RecordTypes.MapSet, number)
-            : place?.MapSet ?? RecordId.Decimal(RecordTypes.MapSet, 0);
+            : place?.MapSet ?? newGame.Chunk.MapSet;
         if (place?.MapSet != setId)
             place = null;
         return (plugins.Get<MapSetRecord>(setId), place);
@@ -278,9 +281,11 @@ public partial class Game : Node3D, ITrekHost
     {
         _player = new Player(motion);
         AddChild(_player);
-        // Alaron, as a new game sets the player's form (BORG7_Alaron).
-        var alaron = plugins.Get<ActorRecord>(RecordId.Hex(RecordTypes.Actor, 0x25F9));
-        if (_models!.InstantiateActor(alaron, rolls: _models.BodyRolls) is var (model, animator))
+        // The party leader's actor, Alaron's (BORG7_Alaron), as the title screen sets the player's form.
+        var actor = _session!.PlayerActor is { } id ? plugins.TryGet<ActorRecord>(id) : null;
+        if (actor is null)
+            GD.PushWarning("The party's leader has no actor, so the player has no body.");
+        else if (_models!.InstantiateActor(actor, rolls: _models.BodyRolls) is var (model, animator))
         {
             _player.SetModel(model);
             ShadowDecal.MarkBody(model);

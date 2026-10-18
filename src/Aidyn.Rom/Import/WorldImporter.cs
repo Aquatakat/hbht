@@ -22,6 +22,7 @@ internal static class WorldImporter
         ctx.WriteRecords("weather.json", new[] { BuildWeather(ctx.Weather, ctx.Gradients, ctx.ParticleSlots) });
         ctx.WriteRecords("worldmap.json", new[] { BuildWorldMap(ctx.Engine, WorldMapTowns.Read(ctx.Rom)) });
         ctx.WriteRecords("camping.json", new[] { BuildCamping(ctx.Engine) });
+        ctx.WriteRecords("newgame.json", new[] { BuildNewGame(ctx.Db) });
 
         ctx.Report("Sky");
         ctx.WriteRecords("sky.json", BuildSky(ctx.Rom, ctx.Archive));
@@ -144,6 +145,22 @@ internal static class WorldImporter
         DbRecordIds.Flag(EngineFlags.CampCheck),
         [.. tables.CampDialogueFlags.Select(f => DbRecordIds.Flag(f))],
         RecordId.Hex(RecordTypes.Map, 0x185C));
+
+    /// <summary>
+    /// How a new game starts, carried as facts: literals in 1.0's code. The title screen hands the game the Overworld's portal 0
+    /// (<c>Title.Leave</c>, <c>0x80055718</c>), which <c>Zones.SetMapSet</c> (<c>0x80026264</c>) turns into chunk I08, row 9 and
+    /// column 8 (<c>0x80026374</c>, <c>0x80026378</c>), at (16, 62) (the floats at <c>0x800ce7d8</c> and <c>0x800ce7dc</c>);
+    /// <c>InitGameTrek</c> makes the player's body 10 up (<c>0x80021018</c>) and sets it down from on high. The party is Alaron,
+    /// the entity at DB position 153, with 1 gold (<c>init_DBs</c>).
+    /// </summary>
+    internal static NewGameRecord BuildNewGame(Db.GameDb db) => new(
+        RecordId.Decimal(RecordTypes.NewGame, 0),
+        new ChunkRef(RecordId.Decimal(RecordTypes.MapSet, (int)MapSet.Overworld), 9, 8),
+        new System.Numerics.Vector2(16, 62),
+        Height: 10,
+        DbRecordIds.For(db.Entities[CharacterImporter.AlaronDbPosition].Id)
+            ?? throw new InvalidDataException("The entity DB has no Alaron at position 153."),
+        Gold: 1);
 
     /// <summary>
     /// The sun, moon, stars, clouds and lens flare, with the Borg8 images engine code draws them with

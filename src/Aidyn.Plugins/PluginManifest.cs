@@ -59,8 +59,9 @@ public static class BasePlugin
     /// 34 keeps the textures of environment-mapped display lists.
     /// 35 marks the scenes whose transforms mirror a model, and gives the cinematics their aspect ratio.
     /// 36 gives each light node its transform's scale, which tints the light. 37 adds the credits' cards.
+    /// 38 adds the new game record.
     /// </summary>
-    public const int ImporterVersion = 37;
+    public const int ImporterVersion = 38;
 }
 
 /// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>

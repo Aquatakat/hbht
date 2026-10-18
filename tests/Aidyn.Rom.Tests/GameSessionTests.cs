@@ -284,6 +284,23 @@ public sealed class GameSessionTests(Na10Import fixture)
     }
 
     [Fact]
+    public void ANewGameStartsAsItsRecordSays()
+    {
+        // The importer's facts from 1.0's code: the Overworld's portal 0, the body made 10 up, Alaron alone with 1 gold.
+        var start = GameSession.NewGame(Data.Set);
+        Assert.Equal((new ChunkRef(RecordId.Decimal(RecordTypes.MapSet, 0), 9, 8), new Vector2(16, 62), 10f, GameState.Alaron, 1u),
+            (start.Chunk, start.Position, start.Height, start.Leader, start.Gold));
+        var (set, chunk, at) = GameSession.Arrival(Data.Set, start);
+        Assert.Equal(("Overworld", "I08", new Vector3(16, 10, 62)), (set.Label, chunk, at));
+
+        // The party it builds, and the player's body, the leader's actor: BORG7_Alaron, as the title screen sets it.
+        var (session, _) = Start();
+        Assert.Equal(GameState.Alaron, Assert.Single(session.Game.Party.Members).Entity);
+        Assert.Equal(1u, session.Game.Party.Gold);
+        Assert.Equal(RecordId.Hex(RecordTypes.Actor, 0x25F9), session.PlayerActor);
+    }
+
+    [Fact]
     public void WhereThePlayerStandsIsNotedInHisChunk()
     {
         var (session, _) = Start();

@@ -108,17 +108,19 @@ public sealed class GameState : IScriptWorld
     public IReadOnlyList<string> Problems => _problems;
 
     /// <summary>
-    /// A new game (<c>init_DBs</c>): the flags' initial values, noon on day 2 of week 6, and Alaron
-    /// alone with 1 gold, wearing what his record gives him.
+    /// A new game (<c>init_DBs</c>): the flags' initial values, noon on day 2 of week 6, and the new game record's leader,
+    /// Alaron, alone with its gold, 1, wearing what his record gives him. Without the record (plugins from an older
+    /// import), Alaron and 1 gold.
     /// </summary>
     public static GameState NewGame(PluginSet plugins)
     {
         var game = new GameState(plugins) { Label = "New game" };
         game.Weather?.NewGame(game.Clock, game.Terrain(0), game.Random.World, game.Random.Cosmetic);
         game.WriteStateFlags();
-        if (game.Recruit(Alaron) is { } alaron)
-            game.Party.Add(alaron);
-        game.Party.Gold = NewGameGold;
+        var start = plugins.TrySingleton<NewGameRecord>(RecordTypes.NewGame);
+        if (game.Recruit(start?.Leader ?? Alaron) is { } leader)
+            game.Party.Add(leader);
+        game.Party.Gold = start?.Gold ?? NewGameGold;
         return game;
     }
 
