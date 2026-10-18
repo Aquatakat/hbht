@@ -21,6 +21,5 @@ Things only the user can settle, by playing the original in the emulator, by lis
 
 ## Rendering
 
-- **Lights that face the camera:** in the school's entrance hall at Talewok (JundarInteriors A01, through `entryL1` from Overworld H13; `--set 11 --chunk A01 --at 16,15.5` in the port), a sage-green light (0x558D6F, `aidyn:voxel/0x1890/62`) of radius 15 hangs 8 above the middle of the floor and shines from the camera's eye. Is Alaron tinted green on the side facing the camera, whichever way it looks, most in the middle of the hall and fading out about 13 from it? The other 24 such lights are all in EhudUnder. [rendering](systems/rendering.md#point-lights)
 - **Particles:** a creature that emits while it stands or walks, such as a Fire Elemental, Air Elemental or Lava Hound wandering in trek, or Mago (dialogue entity 0x1413) in a scene. Compare the particles' size, colour, how fast they spawn and drift, and that they fade. The editor shows Oriana's orb with `--record aidyn:actor/0x2BD7 --drive 5`. [particles](formats/particles.md#the-simulation)
 - **Texel centres:** the N64 material moves texture coordinates half a texel, as the RDP centres its texels. Do cut-out edges (trees, Oriana's path lights, foliage cards) look as the original's, with nothing shifted? [rendering](systems/rendering.md#the-n64-material)
