@@ -12,7 +12,6 @@ Things only the user can settle, by playing the original in the emulator, by lis
 
 ## Menus
 
-- **Combat's System tab:** pause in a battle (Start on a party member's turn) and go to the System tab. Where do Options and Flee sit down the parchment, and where's the "Menu" title? The port centres the two rows with the title as it does trek's six. [ui](systems/ui.md#the-system-tab)
 - **The Party tab's cursor after equipping the last item** of the inventory, when no item moves up into its row: where does it go? It needs a save with one equippable item at the bottom and nothing after. [ui](systems/ui.md#the-party-tabs-actions)
 
 ## Sound
