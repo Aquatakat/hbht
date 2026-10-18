@@ -1,6 +1,6 @@
 # 0007. ROM version support
 
-Status: Accepted · Sep 27, 2026
+Status: Accepted · Sep 27, 2026 · 1.1's fixes as fidelity toggles are superseded by [0018](0018-the-port-fixes-bugs-and-sets-enhancements.md)
 
 ## Context
 

@@ -55,7 +55,7 @@ namespace Aidyn.Game;
 /// </remarks>
 public partial class Game : Node3D, ITrekHost
 {
-    /// <summary>A faster pace than the original's, which feels slow on a PC (ADR 0006's fidelity settings).</summary>
+    /// <summary>A faster pace than the original's, which feels slow on a PC (a setting, ADR 0018).</summary>
     private const float BriskPace = 1.3f;
 
     /// <summary>Mouse drag in pixels to stick units: about 0.3° of orbit, and 0.02 of height, a pixel.</summary>

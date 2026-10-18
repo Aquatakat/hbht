@@ -378,13 +378,13 @@ The minimap (`MiniMap`, `minimap.cpp`) is pieces of a drawn plan, one per chunk 
 
 ## A faithful mode, later
 
-The floating panel and the resizable screen are enhancements, which the user chose over the original's look, leaving a faithful mode for the fidelity profile ([roadmap](../roadmap.md), Phase 6). What it would take:
+The floating panel and the resizable screen are enhancements, which the user chose over the original's look, leaving a faithful mode for a setting later (ADR 0018, [roadmap](../roadmap.md) Phase 6). What it would take:
 
 - **The screen.** `UiScreen` fixed at 320 × 240 whatever the window's shape, shown pillarboxed at 4:3, with the VideoOut filter. The 3D view would need the same 4:3 frame.
 - **The overscan bars** over the whole frame, 3D and UI, drawn last, as `Graphics::EndList` does ([the screen](#the-screen)).
 - **The conversation box.** A style for `DialogueBox`: a band right across the frame, from 0 to 320 and down to 232, with only the gradient above it: a `FeatheredPanel` whose bottom and side feathering are 0, which `UiImages.DrawPanel` already skips.
 - **Other UI** is already at its original place on a 320 × 240 screen.
-- **High-resolution mode**, if the fidelity profile offers the Expansion Pak's option: a 512 × 240 screen, where the original lays UI out in 320 × 240 and `borg8DlistInit` stretches every image 1.6 times across, bilinear. `UiScreen` would draw its 320-wide canvas into a 512-wide one with linear filtering before the VideoOut filter. Its overscan bars are 20 pixels at the sides.
+- **High-resolution mode**, if a setting offers the Expansion Pak's option: a 512 × 240 screen, where the original lays UI out in 320 × 240 and `borg8DlistInit` stretches every image 1.6 times across, bilinear. `UiScreen` would draw its 320-wide canvas into a 512-wide one with linear filtering before the VideoOut filter. Its overscan bars are 20 pixels at the sides.
 - **The VI and the TV**: the VI's anti-aliasing and divot filters and a composite or CRT look would be further `UiFilter`s.
 
 ## In the editor

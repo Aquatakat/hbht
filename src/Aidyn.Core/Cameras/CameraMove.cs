@@ -20,7 +20,7 @@ namespace Aidyn.Core.Cameras;
 /// <para>
 /// The original also aims straight at the player as every tracking move starts. Running, the aim
 /// trails him by about 1.4, so a pan or an ease taking over jolted the view; the user saw it in the
-/// original too, and chose to fix it outside the fidelity profile. The port snaps the aim only when
+/// original too, and chose to fix it (ADR 0018). The port snaps the aim only when
 /// the move cuts, where the view jumps anyway, and otherwise carries on chasing from where it was.
 /// </para>
 /// <para>

@@ -1,6 +1,6 @@
 # 0003. Game rules live in a headless C# library
 
-Status: Accepted · Sep 27, 2026 · Porting close to the decomp's structure is superseded by [0015](0015-the-port-no-longer-reads-the-decomp.md)
+Status: Accepted · Sep 27, 2026 · Porting close to the decomp's structure is superseded by [0015](0015-the-port-no-longer-reads-the-decomp.md), and the fidelity toggle by [0018](0018-the-port-fixes-bugs-and-sets-enhancements.md)
 
 ## Context
 

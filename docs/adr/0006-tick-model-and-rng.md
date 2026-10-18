@@ -1,6 +1,6 @@
 # 0006. Tick model and RNG
 
-Status: Accepted · Sep 27, 2026
+Status: Accepted · Sep 27, 2026 · The Time section is superseded by [0017](0017-the-core-steps-every-tick.md)
 
 ## Context
 

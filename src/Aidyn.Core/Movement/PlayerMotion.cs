@@ -87,7 +87,7 @@ public sealed class PlayerMotion
 
     /// <summary>
     /// How many animation ticks he plays per tick, which scales his speed with his steps. 1 is the
-    /// original's; faster profiles play him quicker (ADR 0006's fidelity settings).
+    /// original's; the brisk pace setting plays him quicker (ADR 0018).
     /// </summary>
     public float Pace { get; set; } = 1;
 

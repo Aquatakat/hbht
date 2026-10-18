@@ -96,7 +96,7 @@ public static class SkyScreen
     }
 }
 
-/// <summary>How the sky places its sprites across the screen (a fidelity setting, ADR 0006).</summary>
+/// <summary>How the sky places its sprites across the screen (a setting, ADR 0018).</summary>
 public enum SkyPlacement
 {
     /// <summary>

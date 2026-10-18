@@ -1,7 +1,7 @@
 namespace Aidyn.Core;
 
 /// <summary>
-/// How the port turns the original's per-frame behaviour into per-tick steps (ADR 0006).
+/// How the port turns the original's per-frame behaviour into per-tick steps (ADR 0017).
 /// </summary>
 /// <remarks>
 /// The original runs its logic once per rendered frame, with the number of 60 Hz ticks since the

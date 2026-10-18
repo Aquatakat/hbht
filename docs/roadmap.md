@@ -34,7 +34,7 @@ Every system built so far is at least at parity with the original, the pause men
   - The Antidote and Restore potions, which need combat's poison and spells.
 - **1H:** the content tables marked To do in [hardcoded-content](hardcoded-content.md), which the importer will need.
 - **Rendering:** the low-priority items in [rendering](systems/rendering.md#whats-left) (the lens flare's test, the sky overhead, texture filtering).
-- **Rig:** measure the frame `delta` distribution in trek and combat ([ADR 0006](adr/0006-tick-model-and-rng.md)'s follow-up).
+- **Rig:** measure the frame `delta` in combat, which can help choose its frame for per-frame behaviour ([ADR 0017](adr/0017-the-core-steps-every-tick.md)).
 
 ### Maybe
 
@@ -121,7 +121,7 @@ Mostly testing rather than engineering (XL).
 - Walk every region against the emulator and log differences.
 - Use the quest atlas as a checklist: every flag reachable, every journal entry obtainable.
 - Rules parity: shops, trainers, loot tables and camp encounters for each area.
-- Decide which of the original's bugs to keep, with a fidelity toggle for some, such as the `CheckPartyGoldU16` truncation, the crash when `TakeItem` runs on an item the party doesn't have, and the status-icon cycle gap.
+- Decide which of the original's bugs to keep or fix, one at a time and with no toggle ([ADR 0018](adr/0018-the-port-fixes-bugs-and-sets-enhancements.md)), such as the `CheckPartyGoldU16` truncation, the crash when `TakeItem` runs on an item the party doesn't have, and the status-icon cycle gap.
 
 ### Phase 5: Mod system and tools
 
@@ -138,7 +138,7 @@ The base game is a plugin, so the mod format is exercised all the time; Phase 5 
 
 ### Phase 6: Enhancements (optional, post-parity)
 
-Widescreen, higher resolution, higher frame rate, longer draw distance, rebindable controls, quality-of-life options such as visible stealth feedback, and bug-fix toggles, each behind a fidelity profile. Some came early and are the default: the floating conversation box and a UI screen of any shape. Their faithful mode, with its overscan bars, is left for here ([ui](systems/ui.md#a-faithful-mode-later)).
+Widescreen, higher resolution, higher frame rate, longer draw distance, rebindable controls, and quality-of-life options such as visible stealth feedback, each a setting on the options menu ([ADR 0018](adr/0018-the-port-fixes-bugs-and-sets-enhancements.md)). Some came early and are the default: the floating conversation box and a UI screen of any shape. Their faithful mode, with its overscan bars, is left for here ([ui](systems/ui.md#a-faithful-mode-later)).
 
 ## Dependency graph
 
