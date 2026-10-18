@@ -1,5 +1,6 @@
 using System.Numerics;
 using Aidyn.Core.Cameras;
+using Aidyn.Core.Chunks;
 using Aidyn.Core.Movement;
 using Aidyn.Core.Physics;
 using Aidyn.Plugins;
@@ -101,13 +102,17 @@ public sealed class CutScene
     private readonly IScriptHost? _host;
     private readonly List<CutSceneActor> _actors = [];
     private readonly List<string> _problems = [];
-    private long _ticks;
     private int _still;
     /// <summary>The actor whose animation the script waits for, until its length is taken after the next step.</summary>
     private CutSceneActor? _animating;
     /// <summary>Ticks left of an animation's wait (<c>timer</c>, with <c>timerFlag</c>).</summary>
     private int? _animationTimer;
-    private bool _animated;
+    private readonly SpeakerTalk _talk = new();
+    /// <summary>
+    /// The actors' sounds: Alaron's, which every body has until it's given its own (<c>Player.Reset</c>), and a cut-scene's
+    /// actors keep.
+    /// </summary>
+    private readonly BodySounds? _actorSounds;
     /// <summary>The script's animation has no actor to play it, so its wait ends as soon as the script lets go.</summary>
     private bool _resumeNow;
     private bool _ending;
@@ -118,6 +123,7 @@ public sealed class CutScene
         _game = game;
         _host = host;
         Stage = stage;
+        _actorSounds = game.Plugins.TryGet<EntityRecord>(GameState.Alaron)?.Sounds;
         Runner = new ScriptRunner(script, game.Flags, game, new Cues(this), game.Random.World, id => game.Plugins.TryGet<DialogueRecord>(id),
             start, game.StateFlagsRecord.RandomSkillChecks);
         // DialogueModeInitPrescripted puts the camera at the stage's corner, looking along X, until the
@@ -166,7 +172,7 @@ public sealed class CutScene
 
     /// <summary>
     /// The player moves the box on (<c>funcs2[1]</c>, <c>0x80051ed4</c>), if it takes presses: then,
-    /// unless the script played an animation, the speaker talks (request 4) for a tick.
+    /// unless the script played an animation, the speaker talks for a tick (<see cref="SpeakerTalk"/>).
     /// </summary>
     /// <param name="advance">What the press does: <see cref="ScriptRunner.Continue"/>, <see cref="ScriptRunner.Choose"/> and so on.</param>
     /// <returns>Whether the press reached the box.</returns>
@@ -174,23 +180,38 @@ public sealed class CutScene
     {
         if (!Accepts)
             return false;
-        _animated = false;
-        advance();
-        if (!_animated && Runner.Status == ScriptStatus.Showing && Actor(Runner.Speaker) is { } speaker)
-            speaker.Body.Request = Trek.Conversation.TalkRequest;
+        if (_talk.Press(advance) && Runner.Status == ScriptStatus.Showing && Actor(Runner.Speaker) is { } speaker)
+            speaker.Body.Request = PlayerMotion.Talk;
         CheckEnd();
         return true;
     }
 
     /// <summary>
-    /// One tick (<c>Dialog_GameState</c>): the actors near the camera step, then the script's cameras;
-    /// then the script's waits count, unless it's fading out at its end; then the fade, and the actors
-    /// stand again unless the script asked them for something.
+    /// One tick on its stage as the zone engine draws it (<c>CutScene.PlayFrame</c>, <c>0x80050f50</c>): the actors are
+    /// heard from the camera as they step (<see cref="Tick(Func{CutSceneActor, IActorMotion})"/>), then the stage's sounds
+    /// from where the camera looks (<c>ProcessAudioBubbles</c>), then the weather (<c>HandleZoneEngineFrame</c>). The
+    /// stage's <see cref="ZoneEngine.Camera"/> is this one's <see cref="Camera"/>.
+    /// </summary>
+    /// <param name="stage">The zone engine the stage is loaded in (<see cref="ZoneEngine.Stage"/>).</param>
+    /// <param name="skyDrawn">Whether the stage's sky is drawn (the original's sky type 3).</param>
+    /// <param name="animation">Each actor's animations, or null for one that has none yet, which stands, unheard.</param>
+    public void Tick(ZoneEngine stage, bool skyDrawn, Func<CutSceneActor, IActorMotion?> animation)
+    {
+        stage.Listen();
+        var keys = stage.Keys;
+        Tick(actor => animation(actor) is { } motion ? keys.Sounding(motion, actor.Audio, _actorSounds, actor.Body.Sphere) : IActorMotion.Still);
+        stage.StepSounds(Camera.Aim);
+        stage.StepWeather(skyDrawn, stage.Precipitation);
+    }
+
+    /// <summary>
+    /// One tick (<c>Dialog_GameState</c>): the actors near the camera step, then the script's cameras, by
+    /// the game's <see cref="GameState.Ticker"/>; then the script's waits count, unless it's fading out at
+    /// its end; then the fade, and the actors stand again unless the script asked them for something.
     /// </summary>
     /// <param name="motion">Each actor's animations.</param>
     public void Tick(Func<CutSceneActor, IActorMotion> motion)
     {
-        _ticks++;
         var steered = false;
         foreach (var actor in _actors)
         {
@@ -201,7 +222,7 @@ public sealed class CutScene
             steered |= body.Steered;
             body.Step(Stage.World, motion(actor));
         }
-        Cameras.Step(Camera, _ticks);
+        Cameras.Step(Camera, _game.Ticker);
 
         if (!_ending)
         {
@@ -277,7 +298,7 @@ public sealed class CutScene
                     walker.Body.GoTo(new Vector2(to.X, to.Z), ArriveRadius, walk: !move.Run);
                 break;
             case AnimateCue { Actor: { } animated } animate:
-                _animated = true;
+                _talk.Animated();
                 if (Speaker(animated, "animate") is { } actor)
                 {
                     actor.Stimulate(animate.Request, StimulusTicks);

@@ -38,8 +38,11 @@ public interface IRootMotion
 /// </summary>
 public sealed class PlayerMotion
 {
-    /// <summary>Animation requests (<c>ani_type</c>).</summary>
-    public const int Idle = 0, Walk = 2, Run = 3, Sneak = 25;
+    /// <summary>
+    /// Animation requests (<c>ani_type</c>). <see cref="Talk"/> is what a script's speaker is asked for as a press moves its
+    /// box on (<see cref="Scripts.SpeakerTalk"/>).
+    /// </summary>
+    public const int Idle = 0, Walk = 2, Run = 3, Talk = 4, Sneak = 25;
 
     /// <summary>
     /// How far he turns toward the stick each frame: 20°. The decomp reads 2°; the ROM's

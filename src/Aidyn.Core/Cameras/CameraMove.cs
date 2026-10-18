@@ -62,7 +62,7 @@ public sealed class CameraMove(CameraFlags flags, Vector3? point, Vector3 values
 
     /// <summary>
     /// One tick in reach, with the player's sphere, or a cut-scene's actor, at <paramref name="focus"/>.
-    /// <paramref name="tick"/> counts every tick, whatever the game is doing (<c>gGlobals.ticker</c>).
+    /// <paramref name="tick"/> counts every tick, whatever the game is doing (<see cref="GameState.Ticker"/>).
     /// </summary>
     public void Step(FollowCamera camera, Vector3 focus, float focusRadius, long tick, bool conversation = false)
     {

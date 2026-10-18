@@ -1,4 +1,5 @@
 using Aidyn.Core;
+using Aidyn.Core.Chunks;
 using Aidyn.Core.Scripts;
 using Aidyn.Core.Trek;
 using Aidyn.Plugins;
@@ -15,25 +16,12 @@ namespace Aidyn.Game;
 public partial class Game
 {
     private CutScene? _scene;
-    /// <summary>The cut-scene's chunks, in place of trek's.</summary>
-    private Core.Chunks.ChunkStreamer? _stage;
+    /// <summary>The cut-scene's stage, in place of trek's world: its own zone engine (<see cref="ZoneEngine.Stage"/>).</summary>
+    private ZoneEngine? _stage;
     private ChunkStreamerView? _stageView;
     private readonly Dictionary<CutSceneActor, CutSceneActorView> _actorViews = [];
-    /// <summary>What each actor's sounds keep: they all have Alaron's (<see cref="TrekLoop.AlaronSounds"/>).</summary>
-    private readonly Dictionary<CutSceneActor, Core.Audio.BodyAudio> _actorAudio = [];
     /// <summary>The line the box last showed in the cut-scene, to show a new page once.</summary>
     private ScriptLine? _sceneLine;
-    /// <summary>
-    /// The rain and snow on the stage, about the cut-scene's camera and landing on the stage's collision, which the
-    /// weather's one decision makes and steers as trek's are (<c>HandleZoneEngineFrame</c> runs <c>ProcessWeather</c> in
-    /// the cut-scene's frames).
-    /// </summary>
-    private Core.Particles.WeatherParticles? _stageFall;
-    /// <summary>
-    /// The stage's point lights: its chunks' light map objects, which light the actors its maps place as trek's do, and
-    /// dynamic lights of its own zone engine's, which light the cut-scene's actors.
-    /// </summary>
-    private Core.Lights.WorldLights? _stageLights;
 
     /// <summary>The chunks the world shows now: the cut-scene's, or trek's.</summary>
     private ChunkStreamerView? Streamer => _scene is not null ? _stageView : _chunks;
@@ -98,29 +86,14 @@ public partial class Game
             EndTrekPause();
             return;
         }
-        _stage = new Core.Chunks.ChunkStreamer(_plugins!, _game!, _world, stage.Set, _visible);
-        // The stage's chunks play their sounds, and its map set and chunk ask for their music (InitZoneEngine).
-        var sounds = _trek.Sounds;
-        _stage.Loaded += (_, map) => sounds.Load(map);
-        _stage.Unloading += (_, map) => sounds.Unload(map);
-        var lights = _stageLights = new Core.Lights.WorldLights(_game!.Random.Cosmetic) { World = _world };
-        _stage.Loaded += (_, map) => lights.Load(map);
-        _stage.Unloading += (_, map) => lights.Unload(map);
-        _audio!.Music = Core.Audio.MapMusic.For(stage.Set, stage.Chunk, _game!.Random.Cosmetic);
-        _stageView = new ChunkStreamerView(_plugins!, _models!, _stage, null, _shadowTexture) { Name = "Stage" };
+        // The stage's chunks play their sounds and light its actors, and its map set and chunk ask for their music
+        // (InitZoneEngine); its rain falls about the cut-scene's camera.
+        var zone = _stage = _trek.Zone.Stage(stage.Set);
+        zone.Precipitation?.Density = Math.Clamp(_settings.PrecipitationDensity, 0, Core.Particles.WeatherParticles.MaxDensity);
+        zone.RequestMusic(stage.Chunk);
+        _stageView = new ChunkStreamerView(_plugins!, _models!, zone.Chunks, null, _shadowTexture) { Name = "Stage" };
         AddChild(_stageView);
-        var middle = stage.Origin + new System.Numerics.Vector3(stage.Set.CellSize / 2, 0, stage.Set.CellSize / 2);
-        _stage.Update(middle);
-        if (_game.Weather is { } weather)
-        {
-            var streamer = _stage;
-            _stageFall = new Core.Particles.WeatherParticles(_particles.Head, weather.Rules, _game.Random.Cosmetic,
-                () => _scene?.Camera.Aim ?? middle, () => _scene?.Camera.LookXZ ?? System.Numerics.Vector2.UnitX,
-                () => _visible, () => streamer.Centre)
-            {
-                Density = Math.Clamp(_settings.PrecipitationDensity, 0, Core.Particles.WeatherParticles.MaxDensity),
-            };
-        }
+        zone.Chunks.Update(stage.Origin + new System.Numerics.Vector3(stage.Set.CellSize / 2, 0, stage.Set.CellSize / 2));
         // FreeZoneEngine leaves no sky, so the stage's comes at once, and the scenery's fog ignores the weather.
         _sky!.ClearSky();
         _sky.Enter(stage.Chunk);
@@ -128,6 +101,7 @@ public partial class Game
         _sky.Apply();
 
         var scene = _scene = new CutScene(_game!, script, start, stage, this);
+        zone.Camera = scene.Camera;
         _camera!.Follow = scene.Camera;
         _camera.Far = CutScene.Far;
         _sceneLine = null;
@@ -140,16 +114,8 @@ public partial class Game
     private void StepCutScene()
     {
         var scene = _scene!;
-        var keys = _trek!.Keys;
-        keys.Eye = scene.Camera.Position;
-        keys.Aim = scene.Camera.Aim;
-        scene.Tick(actor => _actorViews.TryGetValue(actor, out var view)
-            ? keys.Sounding(view.Motion, _actorAudio.TryGetValue(actor, out var audio) ? audio : _actorAudio[actor] = new(), _trek.AlaronSounds, actor.Body.Sphere)
-            : IActorMotion.Still);
-        // ProcessAudioBubbles hears the stage from where the camera looks.
-        _trek.Sounds.Step(scene.Camera.Aim, scene.Camera.Position, scene.Camera.Aim);
-        // The zone engine draws the stage, and its weather and its rain, as it draws trek.
-        _trek.StepWeather(_sky!.State.Drawn, _stageFall);
+        // The zone engine draws the stage, its sounds, weather and rain, as it draws trek (CutScene.Tick).
+        scene.Tick(_stage!, _sky!.State.Drawn, actor => _actorViews.TryGetValue(actor, out var view) ? view.Motion : null);
         _sky.Step();
         ScrollTextures();
         SyncCutScene();
@@ -192,14 +158,11 @@ public partial class Game
     /// </summary>
     private void LightStage()
     {
-        var lights = _stageLights!;
-        lights.Fade = _scene!.Fade.Brightness;
-        lights.Eye = _scene.Camera.Position;
-        lights.Sun = _sky!.State.Drawn;
-        lights.BeginFrame(1);
-        _stageView!.LightActors(lights);
+        var stage = _stage!;
+        stage.BeginLightFrame(_scene!.Fade.Brightness, _sky!.State.Drawn);
+        _stageView!.LightActors(stage.Lights);
         foreach (var view in _actorViews.Values)
-            view.Light(lights, _stage!);
+            view.Light(stage.Lights, stage.Chunks);
     }
 
     /// <summary>Shows the cut-scene's page in the box, or hides it while there's none.</summary>
@@ -263,21 +226,13 @@ public partial class Game
         var scene = _scene!;
         _scene = null;
         // The stage's zone engine ends, and its pool with the rain; the weather drawn carries on into trek.
-        _game!.Weather?.Forget(_stageFall);
-        _stageFall?.Clear();
-        _stageFall = null;
-        _particles!.Head.Clear();
+        _stage!.End();
+        _stage = null;
         foreach (var view in _actorViews.Values)
             view.QueueFree();
         _actorViews.Clear();
-        _actorAudio.Clear();
-        _stage!.Clear();
-        _stage = null;
-        _stageLights = null;
         _stageView!.QueueFree();
         _stageView = null;
-        _world.Clear();
-        _visible.Clear();
         _box!.Visible = false;
         foreach (var problem in scene.Problems)
             GD.PushWarning(problem);

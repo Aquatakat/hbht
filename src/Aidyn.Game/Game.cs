@@ -220,7 +220,7 @@ public partial class Game : Node3D, ITrekHost
             _shadowTexture = ImageTexture.CreateFromImage(image);
         }
         var streamer = new ChunkStreamer(plugins, game, _world, set, _visible);
-        var trek = _trek = new TrekLoop(game, this, streamer, _audio, _particles.Head);
+        var trek = _trek = new TrekLoop(game, this, new ZoneEngine(game, streamer, _audio, _particles.Head));
         _chunks = new ChunkStreamerView(plugins, models, streamer, trek.Wanderers, _shadowTexture);
         AddChild(_chunks);
 
@@ -403,8 +403,8 @@ public partial class Game : Node3D, ITrekHost
         };
         ApplyWorldLines();
         _drawDistance = new DrawDistance(s.DrawDistance, s.NearestDetail);
-        _trek?.Precipitation?.Density = Math.Clamp(s.PrecipitationDensity, 0, WeatherParticles.MaxDensity);
-        _stageFall?.Density = Math.Clamp(s.PrecipitationDensity, 0, WeatherParticles.MaxDensity);
+        _trek?.Zone.Precipitation?.Density = Math.Clamp(s.PrecipitationDensity, 0, WeatherParticles.MaxDensity);
+        _stage?.Precipitation?.Density = Math.Clamp(s.PrecipitationDensity, 0, WeatherParticles.MaxDensity);
         _sky?.Placement = s.SkyPlacement;
         _player?.Motion.Pace = s.BriskPace ? BriskPace : 1;
         _cinematic?.Viewport.Msaa3D = GetViewport().Msaa3D;
@@ -449,7 +449,7 @@ public partial class Game : Node3D, ITrekHost
     {
         if (_player is null || _camera is null || _follow is null || _game is null || _trek is not { } trek)
             return;
-        _game.PlayTime++;
+        _game.CountTick();
         _audio!.Step();
         // The HUD is trek's: not in a cut-scene. Under the pause menu and a backdrop's page it's drawn as it stands,
         // as the world is, so that it lays itself out again as the window or the menu size changes.
@@ -646,11 +646,8 @@ public partial class Game : Node3D, ITrekHost
     private void LightBodies()
     {
         var trek = _trek!;
-        var lights = trek.Lights;
-        lights.Fade = trek.Brightness;
-        lights.Eye = trek.Camera.Position;
-        lights.Sun = _sky!.State.Drawn;
-        lights.BeginFrame(1);
+        var lights = trek.Zone.Lights;
+        trek.Zone.BeginLightFrame(trek.Brightness, _sky!.State.Drawn);
         _chunks!.LightActors(lights);
         var centre = _player!.Motion.Sphere.Position;
         N64Material.SetLights(_player.Meshes, lights.ForBody(centre, _chunks.Chunks.MapAt(centre), party: true));
@@ -769,7 +766,7 @@ public partial class Game : Node3D, ITrekHost
                 $"  camera {_follow!.Mode.ToString().ToLowerInvariant()}{(_trek!.Use.CurrentCamera is { } held ? $" (object {held.Index})" : "")}" +
                 $"  {Clock(_sky!.Clock.TimeOfDay)}  sky {_sky.Placement.ToString().ToLowerInvariant()} (F6)" +
                 $"  UI {_menu!.Screen.Lines} lines (F7)  wanderers {_trek.Wanderers.All.Count}\n" +
-                $"music {_audio!.MusicPlaying?.Key ?? "none"}  sounds {_trek.Sounds.Playing} of the map's, {_audio.SoundsPlaying} one-shots" +
+                $"music {_audio!.MusicPlaying?.Key ?? "none"}  sounds {_trek.Zone.Sounds.Playing} of the map's, {_audio.SoundsPlaying} one-shots" +
                 $"  particles {_particles!.Head.ParticlesInUse} of {_particles.Head.MaxParticles}{Precipitation()}";
         }
     }
@@ -777,7 +774,7 @@ public partial class Game : Node3D, ITrekHost
     /// <summary>For the overlay: how many raindrops or snowflakes and splashes the last frame drew, and how many of them are on screen.</summary>
     private string Precipitation()
     {
-        if ((_scene is not null ? _stageFall : _trek?.Precipitation) is not { Drops: { } drops, Splashes: { } splashes } ||
+        if ((_scene is not null ? _stage?.Precipitation : _trek?.Zone.Precipitation) is not { Drops: { } drops, Splashes: { } splashes } ||
             GetViewport().GetCamera3D() is not { } camera)
             return "";
         int fall = 0, fallSeen = 0, splash = 0, splashSeen = 0;

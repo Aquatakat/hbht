@@ -75,6 +75,24 @@ public sealed class GameState : IScriptWorld
     /// <summary>Time played, in 60 Hz ticks (<c>TerrainStruct.PlayTime</c>).</summary>
     public uint PlayTime { get; set; }
 
+    /// <summary>
+    /// The ticks counted since the game started running, whatever it was doing: the original's frame counter
+    /// (<c>GameFrame.Counter</c>, <c>gGlobals</c> + 8, <c>0x800d8090</c>), one more each frame in <c>AppProc</c>
+    /// (<c>0x8001ab0c</c>), which camera objects and the script's cameras keep their place by (<c>ProcessVoxelCamera</c>,
+    /// <c>0x800160d4</c>). Not <see cref="PlayTime"/>, which a save keeps; this isn't saved.
+    /// </summary>
+    public long Ticker { get; private set; }
+
+    /// <summary>
+    /// A 60 Hz tick has begun, in every mode, the menus included: the time played counts (<c>World::AddPlayTime</c>), and so
+    /// does the <see cref="Ticker"/>. Whatever runs the game calls it once a tick, before stepping anything.
+    /// </summary>
+    public void CountTick()
+    {
+        PlayTime++;
+        Ticker++;
+    }
+
     public Party Party { get; }
 
     public MapObjectMemory Memory { get; } = new();

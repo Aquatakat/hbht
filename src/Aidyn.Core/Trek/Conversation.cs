@@ -19,8 +19,8 @@ namespace Aidyn.Core.Trek;
 /// <para>
 /// Talking to a wanderer holds it: it's calmed, its body held, both are asked to stand, and each
 /// turns to face the other. The camera frames the two (<see cref="FollowCamera.Frame"/>). Each
-/// press moves the script on and asks the speaker for its talking (request 4) for a tick: Alaron for
-/// his lines, and the wanderer for anyone else's, unless the script played an animation itself.
+/// press moves the script on and asks the speaker for its talking for a tick (<see cref="SpeakerTalk"/>):
+/// Alaron for his lines, and the wanderer for anyone else's, unless the script played an animation itself.
 /// </para>
 /// <para>
 /// At the end the camera goes back to the player, and the wanderer sets off for its node again, or
@@ -29,9 +29,6 @@ namespace Aidyn.Core.Trek;
 /// </remarks>
 public sealed class Conversation
 {
-    /// <summary>The request a speaker talks with.</summary>
-    public const int TalkRequest = 4;
-
     private readonly PlayerMotion _player;
     private readonly Watch _host;
 
@@ -113,20 +110,18 @@ public sealed class Conversation
     /// <summary>
     /// A button moving the conversation on (<c>run_dialougemode_funcs2</c>): both stand, the script
     /// moves on by <paramref name="advance"/>, and then, unless the script played an animation, the
-    /// speaker of what's showing is asked to talk for a tick.
+    /// speaker of what's showing is asked to talk for a tick (<see cref="SpeakerTalk"/>).
     /// </summary>
     /// <param name="advance">What the button does: <see cref="ScriptRunner.Continue"/>, <see cref="ScriptRunner.Choose"/> and so on.</param>
     public void Press(Action advance)
     {
         Stand();
-        _host.Animated = false;
-        advance();
-        if (_host.Animated || Runner.Page?.Line.Speaker is not { Type: RecordTypes.Entity } speaker)
+        if (!_host.Talk.Press(advance) || Runner.Page?.Line.Speaker is not { Type: RecordTypes.Entity } speaker)
             return;
         if (speaker == GameState.Alaron)
-            _player.Asked = TalkRequest;
+            _player.Asked = PlayerMotion.Talk;
         else if (With is not null)
-            With.Body.Request = TalkRequest;
+            With.Body.Request = PlayerMotion.Talk;
     }
 
     /// <summary>
@@ -195,12 +190,12 @@ public sealed class Conversation
     /// <summary>Passes the script's cues on, noting whether it played an animation (<c>ApplyStimulus</c>, <c>unkac</c>).</summary>
     private sealed class Watch(IScriptHost host) : IScriptHost
     {
-        public bool Animated { get; set; }
+        public SpeakerTalk Talk { get; } = new();
 
         public void Cue(ScriptCue cue)
         {
             if (cue is AnimateCue)
-                Animated = true;
+                Talk.Animated();
             host.Cue(cue);
         }
     }

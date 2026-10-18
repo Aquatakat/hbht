@@ -36,6 +36,9 @@ public sealed class CutSceneActor
 
     public Body Body { get; }
 
+    /// <summary>What its footsteps and voice keep between ticks.</summary>
+    public Audio.BodyAudio Audio { get; } = new();
+
     /// <summary>
     /// Not drawn, as the camera looks out of its eyes (<c>ACTOR_2000</c>, which only
     /// <see cref="DialogueCommand.CameraCutToActor"/> sets). Its shadow and what it holds still are.

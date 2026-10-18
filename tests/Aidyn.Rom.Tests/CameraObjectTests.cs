@@ -248,7 +248,7 @@ public sealed class CameraObjectTests(Na10Import fixture)
         // One tick as the runtime does it: the player moves, the trigger triangle is trodden, the camera objects step, the camera.
         bool Tick(bool tread)
         {
-            play.Game.PlayTime++;
+            play.Game.CountTick();
             if (tread)
                 play.Use.Tread(play.Map, 0, inside);
             play.Use.StepCameras(origin + inside);
@@ -291,7 +291,7 @@ public sealed class CameraObjectTests(Na10Import fixture)
         var map = Chunk(GwerniaInteriors, 1, 7);
         var play = Start(map, new Vector3(300, 0, 100));
         var inside = new Vector3(8, 0.5f, 8);
-        play.Game.PlayTime++;
+        play.Game.CountTick();
         play.Use.Tread(play.Map, 0, inside);
         play.Use.StepCameras(play.Origin + inside);
         Assert.True(play.Camera.Held);
@@ -299,7 +299,7 @@ public sealed class CameraObjectTests(Na10Import fixture)
         play.Use.ClearCameras();
         play.Camera.Step(new CollisionWorld(), play.Origin + inside, Vector2.UnitX);
         Assert.False(play.Camera.Held);
-        play.Game.PlayTime++;
+        play.Game.CountTick();
         play.Use.StepCameras(play.Origin + inside);
         Assert.False(play.Camera.Held);
     }

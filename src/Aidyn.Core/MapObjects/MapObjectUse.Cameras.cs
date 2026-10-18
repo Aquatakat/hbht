@@ -29,7 +29,7 @@ public sealed partial class MapObjectUse
     private (CameraObject Camera, long Tick)? _stepped;
 
     /// <summary>The camera object that last had the camera, if one did this tick or the last.</summary>
-    public CameraObject? CurrentCamera => _stepped is var (camera, tick) && tick + 1 >= game.PlayTime ? camera : null;
+    public CameraObject? CurrentCamera => _stepped is var (camera, tick) && tick + 1 >= game.Ticker ? camera : null;
 
     /// <summary>
     /// A trigger triangle's camera after the player moves (<c>ProcessScriptCamera</c>): it takes the
@@ -87,7 +87,7 @@ public sealed partial class MapObjectUse
     {
         if (Camera is null || !map.IsActive(camera.Index) || Vector3.Distance(at, camera.Position) > camera.Radius)
             return;
-        map.CameraMove(camera).Step(Camera, map.Origin + at, PlayerRadius, game.PlayTime);
-        _stepped = (camera, game.PlayTime);
+        map.CameraMove(camera).Step(Camera, map.Origin + at, PlayerRadius, game.Ticker);
+        _stepped = (camera, game.Ticker);
     }
 }

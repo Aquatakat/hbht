@@ -6,7 +6,6 @@ using Aidyn.Core.Chunks;
 using Aidyn.Core.Items;
 using Aidyn.Core.MapObjects;
 using Aidyn.Core.Movement;
-using Aidyn.Core.Particles;
 using Aidyn.Core.Scripts;
 using Aidyn.Core.Ui;
 using Aidyn.Plugins;
@@ -67,10 +66,10 @@ public enum TrekStep
 
 /// <summary>
 /// Trek, the original's free exploration (<c>gametrek.cpp</c>, <c>Trek_GameState</c>), as a loop over the
-/// subsystems it shares with the rest of the game: the chunks around the player, the clock, map objects,
-/// the follow camera, the player's movement, the wanderers, conversations, and the fades into a teleport
-/// or a cut-scene. Each <see cref="Tick"/> steps them in the original's order. What draws trek reads the
-/// state here and is told what changed through <see cref="ITrekHost"/>.
+/// subsystems it shares with the rest of the game: the zone engine's world about the player (<see cref="Zone"/>),
+/// the clock, map objects, the follow camera, the player's movement, the wanderers, conversations, and the fades
+/// into a teleport or a cut-scene. Each <see cref="Tick"/> steps them in the original's order. What draws trek
+/// reads the state here and is told what changed through <see cref="ITrekHost"/>.
 /// </summary>
 public sealed class TrekLoop : IMapObjectHost
 {
@@ -89,77 +88,43 @@ public sealed class TrekLoop : IMapObjectHost
     /// <summary>The chunk the player was last in, to age what map objects remember as he crosses into another.</summary>
     private (int Row, int Column)? _centre;
     private ChunkEntry? _chunk;
-    /// <summary>The tick within a frame of the sky, which flashes lightning once a frame.</summary>
-    private int _skyTick;
     /// <summary>The last script a dialogue object asked to start that trek can't run yet, such as a backdrop.</summary>
     private RecordId? _lastScript;
 
-    /// <param name="particles">The particle pool, which the weather's rain and snow fall in; none draws none.</param>
-    public TrekLoop(GameState game, ITrekHost host, ChunkStreamer chunks, GameAudio? audio = null, ParticleHead? particles = null)
+    /// <param name="zone">
+    /// The zone engine trek's world is loaded in, about the player. Its rain lands on the solid surfaces every loaded chunk
+    /// draws, where the original's find only the player's chunk's collision (<c>Zones.PlayerMap</c>): the user's choices, so
+    /// that near a chunk's edge they don't fall through the next one, and they splash on roofs and not on invisible walls.
+    /// </param>
+    public TrekLoop(GameState game, ITrekHost host, ZoneEngine zone)
     {
         Game = game;
-        Audio = audio ?? GameAudio.Silent(game.Plugins);
         _host = host;
-        Chunks = chunks;
-        Particles = particles;
-        // The drops land on the solid surfaces every loaded chunk draws, where the original's find only the player's
-        // chunk's collision (Zones.PlayerMap): the user's choices, so that near a chunk's edge they don't fall through
-        // the next one, and they splash on roofs and not on invisible walls.
-        if (particles is not null && game.Weather is { } weather)
-            Precipitation = new WeatherParticles(particles, weather.Rules, game.Random.Cosmetic, () => Camera.Aim, () => Camera.LookXZ,
-                () => Chunks.Visible);
+        Zone = zone;
         Wanderers = new Wanderers(game.Plugins);
-        Use = new MapObjectUse(game, MenuText.From(game.Plugins), this) { World = chunks.World };
+        Use = new MapObjectUse(game, MenuText.From(game.Plugins), this) { World = zone.World };
         Hud = new TrekHud(game, host.ImageSize);
-        Sounds = new MapSounds(Audio, game.Random.Cosmetic,
-            o => MapObjectPresence.There(o, f => game.Flags.IsSet(f)));
-        Keys = new AudioKeys(Audio, game.Sounds, game.Random.Cosmetic);
-        Lights = new Lights.WorldLights(game.Random.Cosmetic) { World = chunks.World };
-        WeatherSounds = new WeatherSounds(Audio, game.Sounds);
         _playerSounds = game.Plugins.TryGet<EntityRecord>(GameState.Alaron)?.Sounds;
-        chunks.Loaded += (_, map) =>
-        {
-            Wanderers.Load(map, Chunks.MapSet.CellSize, Chunks.World, Game.Memory);
-            Sounds.Load(map);
-            Lights.Load(map);
-        };
-        chunks.Unloading += (_, map) =>
-        {
-            Wanderers.Unload(map);
-            Sounds.Unload(map);
-            Lights.Unload(map);
-        };
+        // Each chunk's wanderers load before its sounds and lights.
+        zone.Loaded += (_, map) => Wanderers.Load(map, Chunks.MapSet.CellSize, Chunks.World, Game.Memory);
+        zone.Unloading += (_, map) => Wanderers.Unload(map);
     }
 
     public GameState Game { get; }
 
-    /// <summary>What plays: the map set's music, and the sounds of what's here.</summary>
-    public GameAudio Audio { get; }
+    /// <summary>
+    /// The zone engine trek's world is loaded in: the chunks around the player, their sounds and lights, the music, the
+    /// weather's rain and its sounds, and bodies' footsteps and voices.
+    /// </summary>
+    public ZoneEngine Zone { get; }
 
-    /// <summary>The loaded chunks' sound map objects.</summary>
-    public MapSounds Sounds { get; }
-
-    /// <summary>The loaded chunks' light map objects and the dynamic lights, which light the player and the maps' actors.</summary>
-    public Lights.WorldLights Lights { get; }
-
-    /// <summary>Bodies' footsteps and voices.</summary>
-    public AudioKeys Keys { get; }
-
-    /// <summary>The player's sounds: Alaron's, which every body has until it's given its own (<c>Player.Reset</c>), as cut-scenes' actors keep.</summary>
-    public BodySounds? AlaronSounds => _playerSounds;
-
+    /// <summary>The player's sounds: Alaron's, which every body has until it's given its own (<c>Player.Reset</c>).</summary>
     private readonly BodySounds? _playerSounds;
 
     private readonly BodyAudio _playerAudio = new();
 
     /// <summary>The chunks around the player, which a teleport to another map set changes.</summary>
-    public ChunkStreamer Chunks { get; private set; }
-
-    /// <summary>The particle pool (<c>Particles.Head</c>), which its owner steps, or null.</summary>
-    public ParticleHead? Particles { get; }
-
-    /// <summary>The weather's rain and snow, in <see cref="Particles"/>, or null without them.</summary>
-    public WeatherParticles? Precipitation { get; }
+    public ChunkStreamer Chunks => Zone.Chunks;
 
     /// <summary>The loaded chunks' monster parties' bodies.</summary>
     public Wanderers Wanderers { get; }
@@ -206,17 +171,12 @@ public sealed class TrekLoop : IMapObjectHost
     {
         Player = player;
         Camera = camera;
+        Zone.Camera = camera;
         Use.Camera = camera;
         Use.PlayerRadius = player.Sphere.Radius;
         Hud.Start();
-        RequestMusic(Chunks.ChunkAt(player.Sphere.Position));
+        Zone.RequestMusic(Chunks.ChunkAt(player.Sphere.Position));
     }
-
-    /// <summary>
-    /// Asks for the music of the map set and the chunk the player is in (<c>Zones.SetMapSet</c>), as the original does on
-    /// every crossing into another chunk and every teleport. Out of the chunks with music, it stops.
-    /// </summary>
-    public void RequestMusic(ChunkEntry? chunk) => Audio.Music = MapMusic.For(Chunks.MapSet, chunk, Game.Random.Cosmetic);
 
     /// <summary>
     /// The player is in a chunk: its terrain is written into the flags, and another terrain may change the weather. Crossing into another chunk is a
@@ -234,38 +194,10 @@ public sealed class TrekLoop : IMapObjectHost
         if (chunk is null || chunk == _chunk)
             return;
         _chunk = chunk;
-        RequestMusic(chunk);
+        Zone.RequestMusic(chunk);
         Game.EnterTerrain(chunk.Terrain);
         Hud.Arrive(Game.Terrain(chunk.Terrain)?.SkyDrawn ?? true);
     }
-
-    /// <summary>
-    /// A tick of the weather as the zone engine draws it (<c>HandleZoneEngineFrame</c>), in trek and in cut-scenes:
-    /// <c>RenderSky</c>'s lightning once a frame, with its thunder, then <c>ProcessWeather</c> every tick, with the
-    /// rain loop.
-    /// </summary>
-    /// <param name="skyDrawn">Whether the sky is drawn (the original's sky type 3).</param>
-    /// <param name="emitters">
-    /// The rain's and snow's particles about the view: trek's own (<see cref="Precipitation"/>), or a cut-scene's stage's.
-    /// </param>
-    public void StepWeather(bool skyDrawn, IPrecipitationEmitters? emitters)
-    {
-        if (Game.Weather is not { } weather)
-            return;
-        _skyTick = (_skyTick + 1) % Cadence.FrameTicks;
-        if (_skyTick == 0)
-        {
-            weather.SkyFrame(skyDrawn, Game.Random.Cosmetic);
-            if (weather.Thunder is { } thunder)
-                WeatherSounds.Thunder(thunder);
-        }
-        // The rain's particles go with the weather's one decision about them.
-        weather.Draw(skyDrawn, emitters: emitters);
-        WeatherSounds.Step(weather);
-    }
-
-    /// <summary>The rain loop and the thunder.</summary>
-    public WeatherSounds WeatherSounds { get; }
 
     /// <summary>What's said when a journal entry is added: a literal in the code (<c>0x800ce28c</c> in 1.0).</summary>
     public const string NewJournalEntry = "A new journal entry has been added.";
@@ -287,7 +219,7 @@ public sealed class TrekLoop : IMapObjectHost
             return TrekStep.CutScene;
         var fading = TeleportFade.Fading || CutSceneFade.Fading;
         // Bgm.Update waits for a fade to end, so the music changes once the screen is up.
-        Audio.HoldMusic = fading;
+        Zone.Audio.HoldMusic = fading;
         Enter(Chunks.ChunkAt(Player.Sphere.Position));
         // The clock stops under a popup or a conversation.
         var talking = Conversation is not null;
@@ -299,7 +231,7 @@ public sealed class TrekLoop : IMapObjectHost
             Use.Tell(NewJournalEntry);
         }
         // HandleZoneEngineFrame's weather (RenderSky's lightning and ProcessWeather), whatever stops the clock; then TickGameTime.
-        StepWeather(_chunk is null || (Game.Terrain(_chunk.Terrain)?.SkyDrawn ?? true), Precipitation);
+        Zone.StepWeather(_chunk is null || (Game.Terrain(_chunk.Terrain)?.SkyDrawn ?? true), Zone.Precipitation);
         if (Use.Popup is null && !talking)
             Game.PassTime(1);
         if (frozen)
@@ -328,9 +260,9 @@ public sealed class TrekLoop : IMapObjectHost
             framing.Frame(Camera, world);
         else
             Camera.Step(world, motion.Sphere.Position, motion.Heading);
-        Keys.Eye = Camera.Position;
-        Keys.Aim = Camera.Aim;
-        motion.Step(world, input, Camera, Keys.Sounding(PlayerAnimation, _playerAudio, _playerSounds, motion.Sphere));
+        Zone.Listen();
+        var keys = Zone.Keys;
+        motion.Step(world, input, Camera, keys.Sounding(PlayerAnimation, _playerAudio, _playerSounds, motion.Sphere));
         // WanderTick, which a popup, a conversation, the menu and a fade stop.
         if (playing && Use.Popup is null && !talking)
         {
@@ -340,7 +272,7 @@ public sealed class TrekLoop : IMapObjectHost
         }
         // ProcessPlayers: the player is the first body, then the rest move and push.
         Nearest = Wanderers.Step(world, motion.Sphere, before, Chunks.MapAt(motion.Sphere.Position)?.Key, Camera.Aim,
-            w => Keys.Sounding(_host.Motion(w), w.Audio, w.Sounds, w.Body.Sphere));
+            w => keys.Sounding(_host.Motion(w), w.Audio, w.Sounds, w.Body.Sphere));
         if (Conversation is { } conversation && conversation.Tick())
             Refresh();
         foreach (var (part, target) in motion.Sphere.Trod)
@@ -367,7 +299,7 @@ public sealed class TrekLoop : IMapObjectHost
     /// The map's sounds follow the player and the camera, as in trek, and in the pause menu, which steps them too with
     /// everything held still.
     /// </summary>
-    public void StepSounds() => Sounds.Step(Player.Sphere.Position, Camera.Position, Camera.Aim);
+    public void StepSounds() => Zone.StepSounds(Player.Sphere.Position);
 
     /// <summary>
     /// Steps a teleport's fade: out, black for a few frames, then the player goes through and it fades
@@ -406,7 +338,7 @@ public sealed class TrekLoop : IMapObjectHost
             Chunks.Visible?.Clear();
             Wanderers.Clear();
             // The zone engine starts again, and its dynamic lights with it (FreeZoneEngine, DynamicLights.FreeAll).
-            Lights.Dynamic.Clear();
+            Zone.Lights.Dynamic.Clear();
         }
         var origin = Chunks.Origin(arrival.Chunk);
         var point = origin + arrival.Position;
@@ -414,8 +346,8 @@ public sealed class TrekLoop : IMapObjectHost
         Use.ClearCameras();
         // The weather's emitters are forgotten, then every emitter still spawning is killed, theirs among them, so the
         // rain starts again about the player from the next frame, asking for the rain sky again; its loop plays on.
-        Game.Weather?.Forget(Precipitation);
-        Particles?.KillActive();
+        Game.Weather?.Forget(Zone.Precipitation);
+        Zone.Particles?.KillActive();
         var motion = Player;
         var from = motion.Sphere.Position;
         motion.Sphere.Position = TeleportArrival.Settle(Chunks.World, point, motion.Sphere.Radius) ?? point;
@@ -450,7 +382,7 @@ public sealed class TrekLoop : IMapObjectHost
 
     /// <summary>
     /// The cued cut-scene starts, once <see cref="Tick"/> says so: trek's world goes, and the cut-scene is
-    /// its host's to play on its own stage.
+    /// its host's to play on its own stage (<see cref="ZoneEngine.Stage"/>).
     /// </summary>
     public (DialogueRecord Script, ScriptStart Start, ChunkRef Stage) BeginCutScene()
     {
@@ -462,28 +394,24 @@ public sealed class TrekLoop : IMapObjectHost
     }
 
     /// <summary>
-    /// Trek's world goes (<c>clear_HUD_elements</c>): its chunks, their collision and wanderers, and the
-    /// cameras holding the view. The zone engine's end frees the particle pool, and with it the rain's emitters, which
-    /// the weather forgets.
+    /// Trek's world goes (<c>clear_HUD_elements</c>): the zone engine's (<see cref="ZoneEngine.Free"/>), its chunks with
+    /// their collision, sounds and lights, and the rain's emitters, which the weather forgets; then the wanderers and the
+    /// cameras holding the view.
     /// </summary>
     /// <remarks>
     /// The weather drawn carries on, the user's choice: what's falling, how hard, the fog, the rain sky and the rain loop
     /// go on through the stage or the world built again (<see cref="Weather"/>), where the original's
     /// <c>FreeZoneEngine</c> stops the loop (<c>Weather.Free</c>, <c>0x8001e030</c>) and its <c>InitZoneEngine</c>
-    /// clears the rest (<c>Weather.Init</c>, <c>0x8001e010</c>). Combat's arena, with M3, frees and builds trek's world
-    /// through here and <see cref="Rebuild"/>, and so carries the weather the same way.
+    /// clears the rest (<c>Weather.Init</c>, <c>0x8001e010</c>). Combat's arena, with M3, is a stage of trek's zone
+    /// engine as a cut-scene's is, with trek's world freed here and built again through <see cref="Rebuild"/>, and so
+    /// carries the weather the same way.
     /// </remarks>
     public void Free()
     {
-        Chunks.Clear();
-        Chunks.World.Clear();
-        Chunks.Visible?.Clear();
+        Zone.Free();
         Wanderers.Clear();
-        Sounds.Clear();
         Nearest = default;
         Use.ClearCameras();
-        Game.Weather?.Forget(Precipitation);
-        Precipitation?.Clear();
     }
 
     /// <summary>
@@ -508,7 +436,7 @@ public sealed class TrekLoop : IMapObjectHost
         var at = Player.Sphere.Position;
         Enter(Chunks.ChunkAt(at));
         // InitZoneEngine asks for the music again, which the cut-scene's stage may have changed.
-        RequestMusic(Chunks.ChunkAt(at));
+        Zone.RequestMusic(Chunks.ChunkAt(at));
         Camera.AimAt(at);
         Camera.Snap = 1;
         Hud.Start();
@@ -684,7 +612,7 @@ public sealed class TrekLoop : IMapObjectHost
         _host.Changed(map, scene);
     }
 
-    void IMapObjectHost.Sound(OneShot sound) => Audio.Play(sound);
+    void IMapObjectHost.Sound(OneShot sound) => Zone.Audio.Play(sound);
 
-    void IMapObjectHost.Explode(Vector3 at) => Lights.Dynamic.Explosion(at);
+    void IMapObjectHost.Explode(Vector3 at) => Zone.Lights.Dynamic.Explosion(at);
 }

@@ -85,7 +85,7 @@ public sealed class TrekLoopTests(Na10Import fixture)
         var host = new Host(Data.Set);
         var streamer = new ChunkStreamer(Data.Set, game, new CollisionWorld(), Data.Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, mapSet)),
             new VisibleWorld());
-        var trek = new TrekLoop(game, host, streamer, particles: particles);
+        var trek = new TrekLoop(game, host, new ZoneEngine(game, streamer, particles: particles));
         var chunk = streamer.Find(chunkName)!;
         var point = streamer.Origin(chunk) + new Vector3(x, 10, z);
         trek.Enter(chunk);
@@ -109,8 +109,8 @@ public sealed class TrekLoopTests(Na10Import fixture)
             trek.Tick(Still);
             particles.Step();
         }
-        var drops = trek.Precipitation!.Drops!;
-        var splashes = particles.Sprites.Where(s => s.Emitter == trek.Precipitation.Splashes!.Slot).ToList();
+        var drops = trek.Zone.Precipitation!.Drops!;
+        var splashes = particles.Sprites.Where(s => s.Emitter == trek.Zone.Precipitation.Splashes!.Slot).ToList();
         Assert.InRange(particles.Sprites.Count(s => s.Emitter == drops.Slot), 10, 40);
         Assert.InRange(splashes.Count, 20, 80);
         // Each splash lies 0.05 over a surface the chunks draw, laid flat on it, which faces within 60° of up.
@@ -136,7 +136,7 @@ public sealed class TrekLoopTests(Na10Import fixture)
         {
             trek.Tick(Still);
             particles.Step();
-            Assert.Equal(weather.Emitting, trek.Precipitation.Drops is not null);
+            Assert.Equal(weather.Emitting, trek.Zone.Precipitation.Drops is not null);
         }
         Assert.False(weather.Emitting || weather.RainLoop);
         Assert.Equal(0, particles.EmittersInUse);
@@ -292,7 +292,7 @@ public sealed class TrekLoopTests(Na10Import fixture)
             trek.Tick(Still);
             particles.Step();
         }
-        Assert.True(trek.WeatherSounds.RainPlaying && weather.SkyOverridden && weather.Emitting);
+        Assert.True(trek.Zone.WeatherSounds.RainPlaying && weather.SkyOverridden && weather.Emitting);
         var loops = weather.RainLoopStarts;
         var (id, _, dialogue) = Data.Of<DialogueObject>()
             .First(d => Data.Set.TryGet<DialogueRecord>(d.Object.Script) is { Mode: DialogueMode.Cutscene } && d.Object.Stage is not null);
@@ -305,19 +305,19 @@ public sealed class TrekLoopTests(Na10Import fixture)
         trek.BeginCutScene();
         Assert.Equal(0, particles.EmittersInUse);
         Assert.False(weather.Emitting);
-        Assert.True(weather.WantsRainSky && weather.SkyOverridden && trek.WeatherSounds.RainPlaying);
+        Assert.True(weather.WantsRainSky && weather.SkyOverridden && trek.Zone.WeatherSounds.RainPlaying);
         Assert.Equal(before, weather.FallIntensity);
         // The stage's ticks, under an outdoor sky.
         for (var i = 0; i < 30; i++)
-            trek.StepWeather(true, null);
+            trek.Zone.StepWeather(true, null);
         Assert.Equal(before + 30f / 300, weather.FallIntensity, 1e-5f);
 
         // And back in trek, a new pair about the player, the loop never restarted.
         trek.Resume();
-        Assert.True(weather.WantsRainSky && trek.WeatherSounds.RainPlaying);
+        Assert.True(weather.WantsRainSky && trek.Zone.WeatherSounds.RainPlaying);
         trek.Tick(Still);
         Assert.True(weather.Emitting);
-        Assert.NotNull(trek.Precipitation!.Drops);
+        Assert.NotNull(trek.Zone.Precipitation!.Drops);
         Assert.Equal(loops, weather.RainLoopStarts);
         Assert.True(weather.FallIntensity > before + 30f / 300);
     }

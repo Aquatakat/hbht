@@ -109,7 +109,7 @@ public sealed class CutSceneTests(Na10Import fixture)
         Assert.False(alaron.SnapNextFace);
         Assert.True(alaron.Turning);
         Assert.Equal("Turn.", scene.Page!.Line.Text);
-        Assert.Equal(Aidyn.Core.Trek.Conversation.TalkRequest, alaron.Request);
+        Assert.Equal(PlayerMotion.Talk, alaron.Request);
     }
 
     [Fact]

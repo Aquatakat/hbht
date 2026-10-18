@@ -73,10 +73,11 @@ In the runtime, `WandererView` draws each body's actor at its feet, facing its h
 
 `Conversation` (`Aidyn.Core.Trek`) is a script running in trek: talking to a wanderer (`Conversation.TalkTo`) or a sign (`Conversation.Show`). It runs the script with the game as its world and the World random stream, and the runtime and tests drive it:
 
+- **Loading.** Trek loads a chunk's wanderers as its zone engine loads the chunk (`ZoneEngine.Loaded`), before the chunk's sounds and lights, and frees them as it goes.
 - **A.** `TrekLoop` keeps the push loop's nearest body each tick; if `Wanderers.Reaches` it, A weighs its party with the chunk's objects (`MapObjectUse.Reach`), and using it calls `IMapObjectHost.Talk`. Trek starts the conversation with a talker and says a hunter's battle would start.
 - **Starting** holds the wanderer, sets the party's flag B, and turns both: the player turns as a body does (`PlayerMotion.Face`, 10° a frame).
 - **Each tick** the clock, `WanderTick` and the player's input stop, and so do walking into objects and onto triangles, except their cameras; the camera frames the two (`Conversation.Frame`, a sign leaves it be) unless a camera object holds it; after the bodies move, `Conversation.Tick` holds the wanderer again, asks both to stand, and counts a script's timer down.
-- **A press** (`Conversation.Press`): A moves the box on, bringing up the choices behind a line that showed alone, or taking the cursor's choice; up and down move the cursor. The speaker talks for a tick: `PlayerMotion.Asked` for Alaron, the body's `Request` for the wanderer. Turning, or a steered body's step, overrides it, as `Actor::Move` does in the original.
+- **A press** (`Conversation.Press`): A moves the box on, bringing up the choices behind a line that showed alone, or taking the cursor's choice; up and down move the cursor. The speaker talks for a tick (`PlayerMotion.Talk`, through `SpeakerTalk`, as a cut-scene's does): `PlayerMotion.Asked` for Alaron, the body's `Request` for the wanderer. Turning, or a steered body's step, overrides it, as `Actor::Move` does in the original.
 - **The end** (`Conversation.End`): the camera's released, and the wanderer sets off or is freed (`Wanderers.Free`). A shop or training opens (see [ui](ui.md#the-shop) and [training](ui.md#training)); a camp passes its hours, and a battle is said in a message until 2.5. A conversation's scripts don't move the camera or walk anyone; what one would wait for is taken as done.
 
 ### Joining
