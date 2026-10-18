@@ -2,14 +2,14 @@
 
 `Aidyn.Core.Characters`. The entity DB's layout is in [db](../formats/db.md).
 
-Ported from `gameclasses/`: `CharStats` (`stats.cpp`), `CharSkills` (`skills.cpp`), the character sheet's hit points and experience (`entity.cpp`, `entityInfo.cpp`), the party's checks (`party.cpp`), and the training screens (`StatTrain.cpp`, `SkillTrain.cpp`, `WidgetSpellTrain.cpp`). Every function was checked against the debug build's machine code, and the price functions and tables are the same in 1.0. The decomp is wrong in the places listed [below](#checked-against-the-machine-code).
+Ports `CharStats` (`stats.cpp`), `CharSkills` (`skills.cpp`), the character sheet's hit points and experience (`entity.cpp`, `entityInfo.cpp`), the party's checks (`party.cpp`), and the training screens (`StatTrain.cpp`, `SkillTrain.cpp`, `WidgetSpellTrain.cpp`). The price functions and tables are the same in 1.0 and the debug build.
 
 ## The records
 
 - **Entities** (`aidyn:entity/0x…`) carry the character sheet each starts with: category, aspect, school, True Name and heavy, level, attributes, skills, weapon skills and shield skill, spells at their levels, three weapon slots, armor and shield, protection, damage, morale, resistances, the experience it's worth, its loot category and its trek perception. A skill it can never learn is left out (null); the ROM's byte for it is 255. Resistances are damage multipliers (the ROM's byte in quarters), and those with no element are dropped, as combat ignores them. Alaron's has `trueNameFlag` 590 (below).
 - **Spells** (`aidyn:spell/0x…`) carry the spell DB's fields. Their training cost is the ROM's byte × 50 (`TempSpell::Init`).
 - **Stats** (`aidyn:stat/0`–`6`): Intelligence, Willpower, Dexterity, Endurance, Strength, Stamina and Level, with their names and descriptions from the string tables, their base caps (`base_stat_cap`), caps (`modded_stat_cap`) and training costs (`stat_multiplier`). The Level has no description or cost: only experience raises it.
-- **Skills** (`aidyn:skill/0`–`11`) and **weapon skills** (`aidyn:weaponskill/0`–`10` by weapon class, and `11` the shield), with names, descriptions, training costs and the caps 10 and 15 (`SKILLMAXBASE`, `SKILLMAXMOD`). The six monster weapon classes cost nothing and have no description; the shield's name and cost (500) are literals in code.
+- **Skills** (`aidyn:skill/0`–`11`) and **weapon skills** (`aidyn:weaponskill/0`–`10` by weapon class, and `11` the shield), with names, descriptions, training costs and the caps 10 and 15 (`SKILLMAXBASE`, `SKILLMAXMOD`). Merchant costs 750 and Ranger 1000. The six monster weapon classes cost nothing and have no description; the shield's name and cost (500) are literals in code.
 - **Progression** (`aidyn:progression/0`): the experience each level starts at (`EXP_TNL`, levels 0–40), the award multiplier (1.5), the training prices and the flag the first spell learnt at a trainer sets (3611).
 
 The tables are read from the code segment for each ROM version; the literals are facts from the code (see the [hardcoded-content audit](../hardcoded-content.md#characters)).
@@ -18,7 +18,7 @@ The tables are read from the code segment for each ROM version; the literals are
 
 `Character` is a `CharSheet`: stats, skills, experience, aspect, school, True Name, heavy, protection, damage and a spellbook. `Character.Create` builds one from an entity record (`Entity::Init`), with its experience at its level's threshold, as a joining party member's is. Equipment is in [items](items.md); potions' effects are below, and spells' come with 2.5, with the hooks they use on the sheet.
 
-**Potions' effects** (`PotionEffect`, `Entity::ApplyPotionEffect`): a character holds up to seven, each a potion, a power byte nothing reads, and a timer in the game clock's ticks. Strength and Dexterity raise the stat's base by 10, unless the character is dead; Clarity, Charisma and Stealth raise Loremaster, Diplomat and Stealth by 3, which does nothing to a skill the character can't learn; Defence's is combat's to read. Drinking one sets 3 hours of game time. In trek each tick of play runs every timer down by the clock's 72 (`Entity::IncPotionEffect`, `TickGameTime`), not while the pause menu is open nor for a dead character, and a timer already at 0 ends its effect on the next tick, undoing it. So a potion lasts 9,000 ticks of play, two and a half minutes. In combat a round runs them down by 10 seconds of game time, which comes with 2.5.
+**Potions' effects** (`PotionEffect`, `Entity::ApplyPotionEffect`): a character holds up to seven, each a potion, a power byte nothing reads, and a timer in the game clock's ticks. Strength and Dexterity raise the stat's base by 10, unless the character is dead; Clarity, Charisma and Stealth raise Loremaster, Diplomat and Stealth by 3, which does nothing to a skill the character can't learn; Defence's is combat's to read. Drinking one sets 3 hours of game time. In trek each tick of play runs every timer down by the clock's 72 (`Entity::IncPotionEffect`, `TickGameTime`), not while the pause menu is open nor for a dead character, and a timer already at 0 ends its effect on the next tick, undoing it: 9,000 ticks of play. In combat a round runs them down by 10 seconds of game time (2.5).
 
 **Stats** (`CharacterStats`) are held four ways, as bytes that wrap as the original's do:
 
@@ -31,7 +31,7 @@ The tables are read from the code segment for each ROM version; the literals are
 
 Base values read capped at the base cap, and modified ones at the cap and at least 0. Some enemies start above the base caps, such as 120 Stamina; they read as 90, but the excess counts in the modified value. Raising a stat tests the cap unsigned, so an amount that would take it below 0 raises it to the cap instead (`CharStats::AddBase`).
 
-**Hit points** are Endurance, Stamina and Level together. The maximum is their base values summed, and the current their modified ones, up to the maximum; both are bytes. Damage (`TakeDamage`) takes the Level's points first, then Stamina's, then Endurance's. What skills and spells cost (`DrainStamina`) takes Stamina, then Endurance, but never the Level. Healing restores Endurance, then Stamina, then the Level. So a character can be at full Endurance with no Level points left, as Brenna is in the Terminor checkpoint. Camping heals a fraction of the maximum, truncated, up to what's missing.
+**Hit points** are Endurance, Stamina and Level together. The maximum is their base values summed, and the current their modified ones, up to the maximum; both are bytes. Damage (`TakeDamage`) takes the Level's points first, then Stamina's, then Endurance's. What skills and spells cost (`DrainStamina`) takes Stamina, then Endurance, but never the Level. Healing restores Endurance, then Stamina, then the Level. So a character can be at full Endurance with no Level points left. Camping heals a fraction of the maximum, truncated, up to what's missing.
 
 **Skills** (`CharacterSkills`) are held as a base and a modified level, as signed bytes. A base of −1 can never be learnt, and gear doesn't change it. Base levels read capped at 10, and modified ones at 15 and at least 0; armor can take Stealth below 0. Training a skill adds to the modified level what its capped base gained, so a base already over 10 gains nothing.
 
@@ -53,7 +53,7 @@ Base values read capped at the base cap, and modified ones at the cap and at lea
 
 - **Best, worst and a member's stat** read modified values. The average level reads modified Levels, so damage lowers it.
 - **The member best at a skill** is the one with the highest modified level, the later on a tie, dead or not; a member at 0, or who can't learn it, still counts. Only an empty party has none.
-- **Skill checks** (`Party::SkillCheck`) give 0 to 21. Most roll d100, take away the best member's bonus and turn what's left into a step: 1 below 26, then 2 from 26, 3 from 46, 4 from 62, 5 from 81, 6 from 96, 7 from 111, and one more every 11 up to 21 from 266 (`gSkillCheck`). A high bonus there gives a low step. Loremaster, Diplomat and Troubadour work the other way: the bonus less the roll, and 0 if the roll reaches it.
+- **Skill checks** (`Party::SkillCheck`) give 0 to 21. The Wizard check reads the most skilled member. Most roll d100, take away the best member's bonus and turn what's left into a step: 1 below 26, then 2 from 26, 3 from 46, 4 from 62, 5 from 81, 6 from 96, 7 from 111, and one more every 11 up to 21 from 266 (`gSkillCheck`). A high bonus there gives a low step. Loremaster, Diplomat and Troubadour work the other way: the bonus less the roll, and 0 if the roll reaches it.
 
 | Skill | Bonus |
 | --- | --- |
@@ -72,7 +72,7 @@ Base values read capped at the base cap, and modified ones at the cap and at lea
 
 ## Joining and leaving
 
-Scripts add and take away members (Borg13 ops 47 and 48), and `GameState.AddMember` and `RemoveMember` do it as the original does. Nothing else does: the original has no menu to dismiss a member, and a battle's dead are taken out with 2.5 (`Party::BringOutYourDead`). From 1.0's code (Oct 2, 2026):
+Scripts add and take away members (Borg13 ops 47 and 48), and `GameState.AddMember` and `RemoveMember` do it as the original does. Nothing else does: the original has no menu to dismiss a member, and a battle's dead are taken out with 2.5 (`Party::BringOutYourDead`). From 1.0's code:
 
 - **Each recruitable member's record has their flags** (`MemberFlags`, from `Party::CheckFlags`'s tables at `0x800D36C4` and `0x800D3718`): joined, left and died. Alaron and Trahern have none.
 
@@ -96,7 +96,7 @@ Scripts add and take away members (Borg13 ops 47 and 48), and `GameState.AddMemb
   1. The member goes in the first free slot (slot 0 if it's empty), as their record starts them (`Entity::Init` mode 0). The weapons they bring but don't wield go into the inventory.
   2. Their joined flag is set and their left flag cleared.
   3. If a sheet was kept when they left, it replaces the new one (`SaveEntity::CopyMember`, `Copy`): experience, all four stat arrays, skills, the spellbook and what it wears. The record's gear is discarded, but the spare weapons are already in the inventory, so they come again each time.
-- **Someone already in the party.** The original doesn't check for this, and adds a second sheet. The port doesn't add them again, but still says they joined, so the one talking leaves the map as in the original. Only Sholeh's first meeting in Ugarit (`aidyn:dialogue/0x04AD`) can re-add someone, since nothing hides her after she joins ([wanderers](wanderers.md#joining)).
+- **Someone already in the party.** The original doesn't check for this, and adds a second sheet. The port deliberately doesn't add them again, but still says they joined, so the one talking leaves the map as in the original. Only Sholeh's first meeting in Ugarit (`aidyn:dialogue/0x04AD`) can re-add someone, since nothing hides her after she joins ([wanderers](wanderers.md#joining)).
 - **Leaving** (`Party::RemoveAliveMember`, `0x80074DCC`):
   1. Everything they wear goes into the inventory (`StripMember`): the gear, the weapon, the armor and the shield. The Archmage Staff stays, and so does what the inventory has no room for.
   2. Their sheet is kept, if they're one of the five.
@@ -120,30 +120,10 @@ Scripts add and take away members (Borg13 ops 47 and 48), and `GameState.AddMemb
 
   The VM runs all of it, so nothing in the engine is needed.
 
-## Checked against the machine code
-
-The debug build's code differs from the decomp's pseudocode in these places:
-
-- **Skill training costs.** Merchant is 750 and Ranger 1000, not 7500 and 750. The decomp's list has them shifted.
-- **The Wizard check** reads the most skilled member. The pseudocode reads an unset pointer.
-- **The Mechanic check** is (Mechanic × 5 + Intelligence + Dexterity) × 2 against the roll; the pseudocode's expression is garbled.
-- **Cheat Death.** `Entity::DamageToLevel` looks through all 15 effects for it; the pseudocode's loop never runs. That's for combat (2.5).
-- **Entity categories.** Charming fails on category 5, the Chaos troops and bosses. The decomp's enum puts Chaos at 4, which the entity DB leaves empty.
-
-## Confirmed in the emulator
-
-The checkpoints confirm the sheets: levels, hit points, the skills that can't be learnt and the True Name. The user confirmed the training prices by playing, on Sep 30, 2026:
-
-- **Warrior from 3 to 4** costs 16,000 experience after a battle, and 12,800 experience and 160 gold at a trainer.
-- **Merchant from 1 to 2** costs 3,000 experience after a battle, and 2,400 experience and 80 gold at a trainer: 750 × (n + 1)², not the decomp's ten times that.
-- **Oriana** charges no gold for what she teaches.
-
-The user confirmed joining and leaving on Oct 2, 2026: the five kept members come back as they were and everyone else as new, which anyone who plays with their party runs into. Recruiting Godric in a late-game save takes him off the map at once, which the port now does too ([wanderers](wanderers.md#joining)).
-
 ## What's left
 
 Saving and loading a sheet, with the spellbook reordered as the original's loading leaves it, is in [saves](saves.md).
 
-- **Effects (2.5):** spells' stat changes and their timers, potions' in combat, Cheat Death, and what dying clears.
+- **Effects (2.5):** spells' stat changes and their timers, potions' in combat, Cheat Death (`Entity::DamageToLevel` looks through all 15 effects for it), and what dying clears. Charming fails on entity category 5, the Chaos troops and bosses; the entity DB leaves 4 empty.
 - **Deaths (2.5):** the died flags (`Party::CheckDeaths`, which also clears them for the living) and taking the dead out after a battle, which erases their kept sheets and leaves their joined flag set.
 - **Flags for the party's best stats and skills.** The original tries to raise them whenever a stat or skill changes (`Event_flag_stat`, `event_flag_skill_`), but its lookup never finds them, so the port doesn't either (see the [audit](../hardcoded-content.md)).

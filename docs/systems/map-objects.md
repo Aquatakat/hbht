@@ -27,7 +27,7 @@ Ported from `objectJumpTables.cpp`, `voxObjects.cpp`, `voxObjects2.cpp` (`obj_re
 | Save point | Within its radius, and using it does nothing |
 | Monster party | Only the player's nearest body, if it's a wanderer's and its party isn't silent: within the two bodies' scaled radii plus 0.5 across the ground, and less than 2 apart in height. It's weighed by that distance and its body's position. See [wanderers](wanderers.md#talking) |
 
-One alone is used. Of several, the one with the best (farthest − its distance) / farthest + (1 + the cosine of its bearing off the player's heading) / 2 is used, the later on a tie. The original walks its grid cell's object list rather than the chunk's; real-data checks show every container, teleporter, trigger and save point is listed in every cell it reaches, so the two agree, except for 11 dialogues whose radius reaches cells that don't list them.
+One alone is used. Of several, the one with the best (farthest − its distance) / farthest + (1 + the cosine of its bearing off the player's heading) / 2 is used, the later on a tie. The original walks its grid cell's object list rather than the chunk's; every container, teleporter, trigger and save point is listed in every cell it reaches, so the two agree, except for 11 dialogues whose radius reaches cells that don't list them.
 
 ## Walking into objects and onto triangles
 
@@ -52,11 +52,11 @@ One alone is used. Of several, the one with the best (farthest − its distance)
 Using a door (`teleporter_func`):
 
 1. **A secret door** whose secret flag is clear is found: "You've just discovered a secret door!", and the flag is set. Closing the message uses the door again. The eleven are in EhudUnder.
-2. **Its trap**, while it has one and its trap flag is clear, opens the trap's menu, as a container's does (below). A failed disarm hurts the party and then goes on through the door; either way, closing the message sets its disarm flag and uses the door again.
+2. **Its trap**, while it has one and its trap flag is clear, opens the trap's menu, as a container's does (below). A failed disarm hurts the party and goes on through the door; either way, closing the message sets its disarm flag and uses the door again.
 3. **Its lock**, while it has one and its lock flag is clear, is picked as a container's is. Picked, closing the message sets its picked flag and uses the door again.
-4. **Then the player goes through** (`TeleportArrival`): to the destination chunk, at its arrival point, facing the way the point faces, or at the teleporter's own position if it has none. He's set down by a sphere swept from 1 above to 1 below where his feet would be, then from 100 to −100 (`Actor::CheckCollision`), resting 0.01 above what it hits. Of the 894 teleporters, 888 settle so; four of the six that don't have a floor the sweep's front misses, and two arrive over nothing.
+4. **Then the player goes through** (`TeleportArrival`): to the destination chunk, at its arrival point, facing the way the point faces, or at the teleporter's own position if it has none. He's set down by a sphere swept from 1 above to 1 below where his feet would be, then from 100 to −100 (`Actor::CheckCollision`), resting 0.01 above what it hits.
 
-30 doors are locked and 4 trapped.
+The screen fades out at 2/3 of full brightness a tick, stays black for 3 frames, and fades in at 1/15 a tick (`TrekLoop`), loading another map set if the door leads to one; the camera goes with him, in the interiors' mode or the outdoor one by where he arrives ([cameras](cameras.md#which-mode)). 30 doors are locked and 4 trapped.
 
 ## Containers
 
@@ -70,7 +70,7 @@ Using a container (`loot_func`), once it's neither opened, destroyed nor remembe
 
 ## Popups
 
-A popup takes the player's input until it's closed (`TrekPopup`), and stops the clock, with the potions working, but not the world (`isPaused`): bodies move, animations and clouds go on, and tangible triggers still go off, while doors and dialogues wait for it to close (`vobject_pause_check`). The user confirmed it in the original on Oct 1, 2026: the sun stops while a popup is up (the sundial is hidden), and Alaron's animations, the clouds and enemies' movements go on, so a chasing enemy can keep running into the player through a conversation. Wanderers don't choose new goals under a popup either (`WanderTick` is skipped), which the user couldn't see as easily but takes as true, and the port does too ([wanderers](wanderers.md#wandering-noticing-and-chasing)).
+A popup takes the player's input until it's closed (`TrekPopup`), and stops the clock, with the potions working, but not the world (`isPaused`): bodies move, animations and clouds go on, and tangible triggers still go off, while doors and dialogues wait for it to close (`vobject_pause_check`). The sun stops while a popup is up (the sundial is hidden), and Alaron's animations, the clouds and enemies' movements go on, so a chasing enemy can keep running into the player through a conversation. Wanderers don't choose new goals under a popup either (`WanderTick` is skipped; [wanderers](wanderers.md#wandering-noticing-and-chasing)).
 
 - **A message** (`TrekTextPopup`, `TextBox_Centered`): off-white text in a feathered black box at the screen's centre, as wide as the text up to 150, wrapping there, A or B closing it.
 - **The trap's damage** (`TrapMenu::TakeDamage`): white, in a box 16 wider than its widest line and as tall as its lines at the first line's height plus 2.
@@ -78,21 +78,22 @@ A popup takes the player's input until it's closed (`TrekPopup`), and stops the 
 
 ## Oriana's path lights
 
-The 23 lights along the path from Oriana's hut (15 in I08, 7 in J08, 1 in K08) go out as the player reaches them, and stay out. Each is a scene object of two levels of detail: scene `0x1910`, an empty scene, to 5, then `0x374A`, the glowing billboard, to 24, so the billboard is drawn from 3 to 24 away and nothing nearer ([draw distance](rendering.md#draw-distance)). They're there once flag 50 is set, by Oriana's conversation (derived flag 5514). From 1.0's machine code (`RenderVoxelScenes`, `0x8000cda0`–`0x8000ce08`):
+The 23 lights along the path from Oriana's hut (15 in I08, 7 in J08, 1 in K08) go out as the player reaches them, and stay out. Each is a scene object of two levels of detail: scene `0x1910`, an empty scene, to 5, then `0x374A`, the glowing billboard, to 24, so the billboard is drawn from 3 to 24 away and nothing nearer ([draw distance](rendering.md#draw-distance)). They're there once flag 50 is set, by Oriana's conversation (derived flag 5514). The rule is in `RenderVoxelScenes` (`0x8000cda0`–`0x8000ce08`):
 
 - **The test** is the object's second model's index against the literal `0x374A`, as it draws the first level (`0x8000cda4`): when the first is drawn this frame and the second wasn't, the object's active bit (`0x8000` of its flags) is cleared. Drawing the first level needs the object within its radius and in the camera's view, so the light goes out within 3 of the player (2 short of the first level's 5) and in view. The near model is empty, so it vanishes from one frame to the next, with no fade.
 - **The memory**: it's written to the chart as type 0, a scene object's, for 16 map loads (`MapObjectMemory.Write`, `0x80056950`). Loading a chunk keeps any scene object the chart names out (`LoadedMap.Activate`, `0x80017af8`), so the light stays out when its chunk loads again, as after the pause menu, until 16 map loads have passed ([saves](saves.md#map-objects-memory)); then it's back. Walking away doesn't bring it back while its chunk stays loaded.
-- **The key** is the chunk the player is in, with the light's index in its own map, wherever the light is: the call passes the zone engine's current map set, row and column, with no offset (`0x11`). A light in a neighbour, reached from across the edge, goes out until its own chunk loads again, and the memory names whatever object has its index in the player's chunk, which stays out the next time that chunk loads if it's a scene object. The port does the same (`LoadedMap.PutOut`). It can hardly happen: of the 23, only object 48 of J08 is within 3 of its chunk's edge across the ground, 2.99 from J09.
+- **The key** is the chunk the player is in, with the light's index in its own map, wherever the light is: the call passes the zone engine's current map set, row and column, with no offset (`0x11`). A light in a neighbour, reached from across the edge, goes out until its own chunk loads again, and the memory names whatever object has its index in the player's chunk, which stays out the next time that chunk loads if it's a scene object. The port does the same (`LoadedMap.PutOut`). It can hardly happen: only object 48 of J08 is within 3 of its chunk's edge.
 
-`SceneObject.GoesOut` carries the test as a fact the importer sets ([hardcoded content](../hardcoded-content.md)). The core decides by the original's distances, whatever the draw distance is set to (`ChunkStreamer.PutOut`), and the runtime takes the light out of the scenery; not for the free camera. Checked in the runtime: walking past light 104 of I08, it's gone behind the player where, starting beyond it, it shows 6.7 away.
+`SceneObject.GoesOut` carries the test as a fact the importer sets ([hardcoded content](../hardcoded-content.md)). The core decides by the original's distances, whatever the draw distance is set to (`ChunkStreamer.PutOut`), and the runtime takes the light out of the scenery, but not for the free camera. 
 
 ## In the runtime
 
-The core's chunk streamer keeps each loaded chunk's `LoadedMap` beside its collision, and the runtime builds a chunk's scenery again when a container's model changes. `TrekLoop` is the `IMapObjectHost`, handling doors, dialogues and talkers itself and passing the rest to the runtime, and `TrekPopupView` draws the popups on a UI screen of their own, under the pause menu. On a new game, the chest at the start is 2.6 from the player, just out of reach: a step toward it, and A, facing any way, opens the loot window on 1 to 4 Healing Potions (its loot table, `aidyn:loot/0x0839`; 4 with a new game's seed) and shows it opened; the user confirmed the original takes that step too (Oct 1, 2026). The door to Gwernia's house A (Overworld M07) leads into the Gwernia interiors' A03.
+The core's chunk streamer keeps each loaded chunk's `LoadedMap` beside its collision, and the runtime builds a chunk's scenery again when a container's model changes. `TrekLoop` is the `IMapObjectHost`, handling doors, dialogues and talkers itself and passing the rest to the runtime, and `TrekPopupView` draws the popups on a UI screen of their own, under the pause menu. On a new game, the chest at the start is 2.6 from the player, just out of reach: a step toward it, and A, facing any way, opens the loot window on 1 to 4 Healing Potions (its loot table, `aidyn:loot/0x0839`; 4 with a new game's seed) and shows it opened; the original takes that step too. The door to Gwernia's house A (Overworld M07) leads into the Gwernia interiors' A03.
 
 ## Not ported yet
 
 - Alaron's animations for opening a container (request 11) and a door (19), which the original asks for only when it chose among several objects.
-- Sounds (containers' by kind, the coin jingle, the explosion), the explosion's particles, and the popups' fades. Its lights are ported ([rendering](rendering.md#point-lights)).
-- The editor's map object pages don't use objects yet, but a container's opens in the loot window ([inspector](inspector.md)).
-- The trap menu's layout follows the decomp's reading of `WidgetChoiceDia::Update`, the question above the choices, with the cursor's choice pulsing grey to white, the scroll menu's defaults. The user confirmed it in the emulator (Oct 17, 2026); the pulse there is a little off the port's, which is likely the original's frame rate, as the pulse steps a frame.
+- The explosion's particles, and the popups' fades. Its lights ([rendering](rendering.md#point-lights)) and the containers', gold's and explosion's sounds are ported.
+- The editor's map object pages don't use doors, triggers or teleporters; a container's opens in the loot window ([inspector](inspector.md)).
+
+The trap menu's layout is `WidgetChoiceDia::Update`'s: the question above the choices, with the cursor's choice pulsing grey to white, the scroll menu's defaults. The original's pulse is a little off the port's, probably from its frame rate, as the pulse steps a frame.

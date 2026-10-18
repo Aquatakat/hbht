@@ -15,10 +15,10 @@ Read what your task needs, not all of it.
 | Content the engine hardcodes, and which ADR 0008 layer it goes in | [docs/hardcoded-content.md](docs/hardcoded-content.md) |
 | How our code ports or runs a system | [docs/systems/](docs/systems/): `importer`, `runtime`, `movement`, `cameras`, `rendering`, `flags`, `scripts`, `characters`, `items`, `map-objects`, `wanderers`, `camping`, `saves`, `inspector`, `ui`, `audio`, `weather`, `cinematics` |
 | The user's notes from playing the runtime and timing the original | [docs/playtests.md](docs/playtests.md) |
-| What only the user can settle, in the emulator or the ROM | [docs/to-check.md](docs/to-check.md) |
+| What only the user can settle, in the emulator or the ROM | [docs/user-checks.md](docs/user-checks.md) |
 | The emulator, gdb, the pinned Godot, Ghidra, the ROMs, checkpoint save states, `tools/`, the code index and the symbol map, and finding the original's code in its machine code | [docs/reference-rig.md](docs/reference-rig.md) |
 
-When you learn something, write it in the doc for that format or system. Add a file only for a new format or subsystem, and add it to this table. The reference rig is only for the rig.
+When you learn something, write it in the doc for that format or system. Add a file only for a new format or subsystem, and add it to this table. The reference rig is only for the rig. A doc is for whoever changes that system next: what the original does, with the addresses that show it, which classes port it, where the port differs and that the user chose it, and what's left. How a session got there, the port's fixed bugs, and the measurements behind a settled choice aren't, unless they leave a trap.
 
 ## Glossary
 

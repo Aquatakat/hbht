@@ -2,7 +2,7 @@
 
 `Aidyn.Core.Flags`. The flag table's format and what reads and sets each flag are in [quests](../formats/quests.md).
 
-Ported from `ProcessGameStates` and the getters and setters in `gamestatelib.cpp` and `gameStateFunnel.cpp`. Every function was checked against 1.0's machine code, and matches the decomp's reading of it.
+Ported from `ProcessGameStates` and the getters and setters in `gamestatelib.cpp` and `gameStateFunnel.cpp`, from 1.0's machine code.
 
 ## The records
 
@@ -40,11 +40,11 @@ The importer writes three record types:
 
 - **The terrain has four flags for 28 types**, so types from 16 wrap round.
 - **The party's best stats and skills are never written.** Flags 2325–2369 are laid out for the party's best Intelligence, Willpower, Endurance, Dexterity, Strength, Mechanic, Diplomat, Loremaster and Wizard, and derived flags 5287–5346 compare them with thresholds. But `Event_flag_stat` and `event_flag_skill_` look the stat up in their table with a count of 0, so the lookup always fails and they return. None of these flags is set in any checkpoint. So in the original, the secret teleporter in EhudUnder M05 (needing Mechanic above 5) and three dialogue objects in EhudUnder G03 (needing Loremaster above 4 or 5) never work. The port keeps that.
-- **Spells that turn day to night** freeze the part of the day in the original (`DayNightMagic`). They aren't ported yet.
+- **Spells that turn day to night** freeze the part of the day in the original (`DayNightMagic`). They aren't ported yet (`PartOfDay` goes by the hour alone).
 
 ## Checked against the checkpoints
 
-`AresCheckpoint` (`Aidyn.Rom.Rig`) reads the flags out of an ares state (see the [reference rig](../reference-rig.md)). The tests check all eight checkpoints, from 1.0 and the debug ROM:
+`AresCheckpoint` (`Aidyn.Rom.Rig`) reads the flags out of an ares state (see the [reference rig](../reference-rig.md)). Tests check all eight checkpoints, from 1.0 and the debug ROM:
 
 - Restoring a checkpoint's plain flags reproduces every one of its 626 derived flags.
 - The calendar, rain and terrain flags equal what `StateFlags` writes from the state's clock, rain and terrain, and the state's own part of the day and moon phase agree with them.

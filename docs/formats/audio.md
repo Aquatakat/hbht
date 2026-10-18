@@ -1,14 +1,14 @@
 # Audio: Borg11 samples and Borg12 sequences (roadmap 1D)
 
-The original has its own music and sound-effect format, not the N64 SDK's. It uses libultra's synthesizer to mix voices, but not its sequence player or sound banks (`alSeqp*` and `alBnk*` aren't linked), and none of the samples are ADPCM. Every sound in the game, from the menu's cursor tick to the battle music, is a **Borg12**: rows of events over up to 16 tracks, close to a tracker module, which play **Borg11** samples of raw PCM. The debug build names the sequencer `./src/dcm.cpp` and the Borg12 loader `./src/n64BorgDCMModule.cpp`, so the original calls a Borg12 a DCM module. Settled from 1.0's machine code, with every reading below checked against all 149 Borg11s and 476 Borg12s.
+The original has its own music and sound-effect format, not the N64 SDK's. It uses libultra's synthesizer to mix voices, but not its sequence player or sound banks (`alSeqp*` and `alBnk*` aren't linked), and none of the samples are ADPCM. Every sound in the game, from the menu's cursor tick to the battle music, is a **Borg12**: rows of events over up to 16 tracks, close to a tracker module, which play **Borg11** samples of raw PCM. The debug build names the sequencer `./src/dcm.cpp` and the Borg12 loader `./src/n64BorgDCMModule.cpp`, so the original calls a Borg12 a DCM module. The sequencer, voice manager and mixer, and how the port plays all this, are in [audio](../systems/audio.md#the-driver).
 
-`aidyn audio <rom>` writes every sample as WAV and renders every sequence to WAV with the port's player, with a `sequences.csv` of tracks, instruments, lengths and samples. `--plays <n>` loops a sequence `n` times to hear where it joins.
+`aidyn audio <rom>` writes every sample as WAV and renders every sequence to WAV with the port's player, with a `sequences.csv`; `--plays <n>` loops a sequence `n` times.
 
 ## Loops
 
 Music loops back to its start, never to a point within it. A Borg12 has a loop position, but it's 0 in all 476, and there's no jump or pattern-order event. Whether a sequence loops is up to whatever plays it: the music players ask for a loop, and sound effects don't. When a looping sequence ends, every voice is cut and it starts again a row later.
 
-What does loop mid-sample is an **instrument**: 487 of the 1,051 instruments loop a stretch of their sample for as long as the note plays, the way a sustained note is usually built. The other 564 play once.
+What does loop mid-sample is an **instrument**: about half of them loop a stretch of their sample for as long as the note plays, and the rest play once.
 
 ## Borg11: a sample
 
@@ -21,9 +21,9 @@ A 0x10-byte header of four big-endian u32s, then the PCM, mono.
 | 0x08 | Its length in samples. A voice that plays once ends when it reaches this. |
 | 0x0C | The PCM's offset, always 0x10. The fixup (`Borg11Sample.Parse`, `0x8009D580`) makes it a pointer. |
 
-- **Both widths are signed.** 16-bit samples are big-endian. `dmaProc` (`0x8009001C`) widens 8-bit ones to 16 bits with `b << 8`, through a modified copy of libultra's 16-bit loader (`alRaw8Pull`, `0x800C4A34`), so the port keeps every sample as 16-bit. Read as unsigned, the 8-bit samples would jump from one extreme to the other hundreds of times as often as they do signed, where only noise jumps.
+- **Both widths are signed.** 16-bit samples are big-endian. `dmaProc` (`0x8009001C`) widens 8-bit ones to 16 bits with `b << 8`, through a modified copy of libultra's 16-bit loader (`alRaw8Pull`, `0x800C4A34`), so the port keeps every sample as 16-bit.
 - **There's no rate, base note, tuning or loop.** A sequence's events give the rate to play a sample at, in Hz, and its instruments give the loops. A few samples sit well off zero, kick drums among them.
-- 440 to 75,947 samples long. 145 of the 149 are played by some Borg12. No Borg12 plays 0x05BC, 0x0624, 0x0656 or 0x38E0.
+- 440 to 75,947 samples long. No Borg12 plays 0x05BC, 0x0624, 0x0656 or 0x38E0.
 
 ## Borg12: a sequence
 
@@ -59,20 +59,11 @@ An event is a flag byte and the operands its bits ask for, in this order:
 | 0x01 | u8 `e`, then maybe one more | Effects: 0x80 cuts the track's note, 0x40 takes a tempo byte, 0x20 skips a byte. Only tempo occurs, 204 times. |
 | 0x02 | none | Starts a note, after the rest: cuts the track's note and plays its instrument with its pitch, volume and pan. |
 
-An event of 0 does nothing, and is 1.72 million of the 2.67 million events. A track's first event always sets its pitch, volume, pan and instrument (0x78, often with 0x02 or 0x01 too), which matters because the original never clears a track's state between the sequences a player slot plays.
+An event of 0 does nothing, and most events are. A track's first event always sets its pitch, volume, pan and instrument (0x78, often with 0x02 or 0x01 too), which matters because the original never clears a track's state between the sequences a player slot plays.
 
-**Pitch** is the rate in Hz to play the sample at. The u16's top two bits choose a base and a shift: `(base[w >> 14] + ((w & 0x3FFF) << (w >> 14))) & 0xFFFF`, with bases 0, 0x4000, 0xC000 and 0x1C000 (`0x800D5284`), a float-like encoding that's finer at low pitches. The track keeps only 16 bits, so 8,331 events (in 35 sequences) that would be above 65,535 Hz wrap round to low pitches; [to-check](../to-check.md) asks whether that's audible. The voice plays at `pitch / 44,095` samples per output sample, at most 1.99996.
+**Pitch** is the rate in Hz to play the sample at. The u16's top two bits choose a base and a shift: `(base[w >> 14] + ((w & 0x3FFF) << (w >> 14))) & 0xFFFF`, with bases 0, 0x4000, 0xC000 and 0x1C000 (`0x800D5284`), a float-like encoding that's finer at low pitches. The track keeps only 16 bits, so the pitches that would be above 65,535 Hz (8,331 events in 35 sequences) wrap round to low ones; [user-checks](../user-checks.md) asks whether that's audible. The voice plays at `pitch / 44,095` samples per output sample, at most 1.99996.
 
-**Tempo** sets how many sequencer milliseconds pass between rows. A sequence starts with a row every 20 (tracker tempo 125). A tempo byte `x` makes it every `2500 / x`, in integers (`125000 / (x × 25 × 2) − 1` calls between rows). The data's tempos run 89 to 196, mostly 118 to 134. Sequences last from a fifth of a second to 4 minutes 6 seconds (0x0632, the Expansion Pak's title music), with a median of 2.5 seconds; 344 are under 5 seconds.
-
-## How the driver plays them
-
-Two players run on libultra's synthesizer, each called every 1000 µs of audio (`_timeToSamplesNoRound`: 44 samples at 44,095 Hz), so a sequencer millisecond is 0.998 ms. The game asks for 44,100 Hz (`Audio.Start`, `0x8008F680`), which NTSC's clock makes 44,095. The synthesizer has 32 voices, makes 16-bit stereo, and has an effects bus whose mix is always 0, so there's no reverb.
-
-- **The sequencer** (`AudioEngine.StepPlayers`, `0x80090C94`) steps up to 32 sequences at once (`AudioEngine.Play`, `0x800907A4`, fails beyond that). Each counts calls up to its row period, then reads a row. It stops a sequence that has played past its duration (−1 for none), and at the stream's end either stops it or goes back to the loop position.
-- **The voice manager** (`AudioEngine.UpdateVoices`, `0x800900E4`) carries the sequencer's changes to the synthesizer on its next call, and frees a voice that plays once when it reaches its sample's end. A new note takes a free voice. With none free, a sequence started with a non-zero priority takes the oldest; otherwise the note is dropped.
-- **Volume:** a note's volume byte is `trackVolume × sequenceVolume >> 4`, where the sequence's is the byte it was started with (and `AudioEngine.SetVolume` changes). The synthesizer gets `min(byte << 6, 0x7FFF)`, and its envelope mixer squares that (`v × v >> 15`). So full volume, 15 × 255 >> 4 = 239, is 0.218 of full scale on each voice. Changes glide over 1000 µs. There's no envelope: notes start with a 1000 µs glide up and stop with a hard cut.
-- **Pan:** a sequence also has a pan, 0x80 the middle. A track's pan is scaled into a window around it, `255 − 2|P − 0x80|` wide, so at the middle the track's own pan holds and towards either end every track narrows to the sequence's. The synthesizer takes `pan >> 1`, at most 127, and pans by equal power (`eqpower`, `0x800E5010`, `32767 × cos(k × π / 254)`).
+**Tempo** sets how many sequencer milliseconds pass between rows. A sequence starts with a row every 20 (tracker tempo 125). A tempo byte `x` makes it every `2500 / x`, in integers (`125000 / (x × 25 × 2) − 1` calls between rows). The data's tempos run 89 to 196, mostly 118 to 134. The longest sequence is 0x0632, the Expansion Pak's title music, at 4 minutes 6 seconds.
 
 ## In the base plugin
 

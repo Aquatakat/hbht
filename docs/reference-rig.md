@@ -22,9 +22,9 @@ Installed with winget (`ares-emulator.ares`). Launch through the script, which e
 tools/ares.ps1 debug      # or v10, v11; -SaveState 1..9 to load a slot
 ```
 
-- The GDB server listens on port 9123. Note that it binds `0.0.0.0`, so it is reachable from the LAN while running.
+- The GDB server listens on port 9123. It binds `0.0.0.0`, so it is reachable from the LAN while running.
 - `Input/Defocus` is overridden to `Allow`. The user setting is `Pause`, which freezes emulation as soon as gdb takes focus. If the PC is stuck in IPL3 (`0xA40014xx`), this setting is the cause.
-- The Expansion Pak is on (the ares default). This matches the set of map objects the reimplementation targets.
+- The Expansion Pak is on (the ares default), which is the set of map objects the port targets.
 - **Pin ares at v148.** Save states are tied to the emulator version.
 
 ## Debugger: gdb-multiarch 18.1 (MSYS2 UCRT64)
@@ -35,7 +35,7 @@ Located at `C:\msys64\ucrt64\bin\gdb-multiarch.exe`.
 gdb-multiarch -ex "set architecture mips:4300" -ex "set endian big" -ex "target remote 127.0.0.1:9123"
 ```
 
-Resolve addresses against the project's symbol map, `tools/symbols/` (roadmap 0.8). A first attach to the debug ROM sampled `InitProc+0x1fc` and libultra thread code, which confirms the game is running.
+Resolve addresses against the project's symbol map, `tools/symbols/` (roadmap 0.8).
 
 ## Engine: Godot 4.7.2 (.NET)
 
@@ -62,38 +62,35 @@ tools/ghidra.ps1 run us Decompile.java 0x80078d14   # a script from tools/ghidra
 ```
 
 - **The import.** The code segment is extracted to `out/ghidra/<rom>.bin` and loaded raw at `0x80000400` as `MIPS:BE:64:64-32addr` with the o32 compiler spec. Its length comes from the boot code at `0x80000408`, whose BSS clear starts where the loaded segment ends: 1.0 loads `0x80000400`–`0x800E6620` (ROM `0x1000`–`0xE7220`) with BSS to `0x800F0EA0`, and the debug build loads to `0x800F51A0` with BSS to `0x800FFA50`. `SetupN64.java` maps the BSS, low memory, the rest of RDRAM and the hardware registers so references to them resolve.
-- **Finding functions.** Analysis follows calls from the entry point. `FindPointedFunctions.java` then makes a function wherever data or a `lui` pair points into undisassembled text (the vtables and callbacks, 105 in 1.0), and then from each remaining run that disassembles cleanly and returns, bookmarked as unreferenced (175 in 1.0: dead code the linker kept, or code only the debug build calls). 1.0 has 3,741 functions in a text that ends at `0x800CCEC0`, with data after it. The debug build has 3,889, with text ending at `0x800D6F80`.
-- **What stays undisassembled** in 1.0's text is about 5,500 words: chiefly the RSP microcode at `0x80000470`–`0x80002700`, whose `jal`s go to the RSP's IMEM at `0x84001xxx`.
+- **Finding functions.** Analysis follows calls from the entry point. `FindPointedFunctions.java` then makes a function wherever data or a `lui` pair points into undisassembled text (the vtables and callbacks), and then from each remaining run that disassembles cleanly and returns, bookmarked as unreferenced (dead code the linker kept, or code only the debug build calls). 1.0's text ends at `0x800CCEC0`, with data after it; the debug build's ends at `0x800D6F80`. What stays undisassembled in 1.0 is chiefly the RSP microcode at `0x80000470`–`0x80002700`, whose `jal`s go to the RSP's IMEM at `0x84001xxx`.
 - **The export** writes `<rom>.index.json`, the code index, and `<rom>.c`, every function's pseudocode, after `ApplySymbols.java` names functions and globals from the symbol map. It takes about half a minute a ROM.
-- **The pseudocode** is readable, and cheaper to research from than the disassembly. Since the CPU is modelled as 64-bit, ints often show as `longlong`, and an address above `0x80000000` that's built by arithmetic can show as negative (`-0x7ff1d0c8` is `0x800E2F38`). The index's references and `n64dis.py` have the real address. Check a constant or a branch that matters against the disassembly.
+- **The pseudocode** is cheaper to research from than the disassembly. Since the CPU is modelled as 64-bit, ints often show as `longlong`, and an address above `0x80000000` that's built by arithmetic can show as negative (`-0x7ff1d0c8` is `0x800E2F38`). The index's references and `n64dis.py` have the real address. Check a constant or a branch that matters against the disassembly.
 - **Ghidra misses many `lui` pairs,** a jump table's own address among them, so `ExportIndex.java` follows each `lui` through its function to the `addiu`, `ori`, load or store that completes it.
 
 ## Existing saves
 
-Mupen64Plus saves are in `%APPDATA%\Mupen64Plus\save`. Only `AIDYN_CHRONICLES (unknown rom).mpk` (Oct 2025) holds Aidyn data. The other Aidyn `.mpk` files are empty paks.
+Mupen64Plus saves are in `%APPDATA%\Mupen64Plus\save`. Only `AIDYN_CHRONICLES (unknown rom).mpk` holds Aidyn data; the other Aidyn `.mpk` files are empty paks.
 
-Mupen `.mpk` files are four 32 KB paks back to back. The saves are in pak 1, in four 28-page notes (`NAYE`/`78`, "CHRONICLES" A–D). Their save headers decode as the table below ([saves](systems/saves.md)). Play time is `PlayTime` in 60 Hz ticks (`TICKSPERSECOND`, `world.h`), advanced by the frame delta. The frame delta counts 60 Hz polls and is capped at 1–6. The map position is the chunk the debug overlay shows as `mapShort1 + 'A'-1` followed by `mapShort2`.
+Mupen `.mpk` files are four 32 KB paks back to back. The saves are in pak 1, in four 28-page notes (`NAYE`/`78`, "CHRONICLES" A–D), with the header layout in [saves](systems/saves.md). Play time is `PlayTime` in 60 Hz ticks (`TICKSPERSECOND`, `world.h`), advanced by the frame delta, which counts 60 Hz polls and is capped at 1–6. The map position is the chunk the debug overlay shows as `mapShort1 + 'A'-1` followed by `mapShort2`.
 
-| Slot | Play time | Flags set | Chunk | Party IDs | Story position (user) |
-| --- | --- | --- | --- | --- | --- |
-| B | 7:45:26 | 315 | P17 | 23f 24c 243 24a | Before Shamsuk's Tower |
-| C | 17:17:43 | 547 | B01 | 23f 24c 243 24d | Before Rooughah |
-| A | 18:04:28 | 562 | M06 | 23f 24c 243 24d | Before the final encounter |
-| D | 18:44:19 | 580 | G01 | 23f 24c 243 24d | Before Rooughah, in Terminor. This is the latest save; the user walked back across the map to stand by a horse. |
+| Slot | Play time | Chunk | Story position |
+| --- | --- | --- | --- |
+| B | 7:45:26 | P17 | Before Shamsuk's Tower |
+| C | 17:17:43 | B01 | Before Rooughah |
+| A | 18:04:28 | M06 | Before the final encounter |
+| D | 18:44:19 | G01 | Before Rooughah, in Terminor (the latest) |
 
 All slots are named "Alaron". The playthrough used a hacked ROM with low-level enemies, so party stats, equipment and spells are below par for the story position. These saves are good for flag, map and quest state, but not for combat parity. All four load on the debug ROM too.
 
 ### Converting Mupen `.mpk` to ares `.pak`
 
-ares stores one 32 KB Controller Pak next to the ROM as `<rom basename>.pak`. It uses the same raw big-endian layout as Mupen, so converting means taking the first 32 KB:
+ares stores one 32 KB Controller Pak next to the ROM as `<rom basename>.pak`, in the same raw big-endian layout as Mupen, so converting means taking the first 32 KB:
 
 ```bash
 head -c 32768 "AIDYN_CHRONICLES (unknown rom).mpk" > "roms/Aidyn Chronicles - The First Mage (U) (V1.0) [!].pak"
 ```
 
-This was checked against an ares-written `AidynDebug.pak`. Note table, inode table and save data layout are identical. The only difference is the page-0 ID block: Mupen writes a fixed template with serial `051a5f13`, and ares writes its own. Both pass libultra's ID checksums in all four copies (`0x20/0x60/0x80/0xC0`) and the inode-table checksums. The game's own save checksum sits inside the note data, so it is unaffected.
-
-The debug and retail saves use the same note (`NAYE`/`78`, "CHRONICLES"), the same 28-page size, and the same header layout. Whether the debug ROM can load a retail save, which would put the flag viewer on a late-game state, is untested.
+Only the page-0 ID block differs (serial `051a5f13` from Mupen, ares's own otherwise), and both pass libultra's checksums. The game's own save checksum sits inside the note data, so it is unaffected. The debug and retail saves use the same note and header layout. Whether the debug ROM can load a retail save, which would put the flag viewer on a late-game state, is untested.
 
 ## Debug ROM controls
 
@@ -126,14 +123,14 @@ Entries 1 and 4–13 are null in the function table.
 
 ## Checkpoint library
 
-Save states are captured by the user playing, not scripted. They live in `roms/` and are named `<rom basename> - <label>.bsN`. They were made with ares v148, whose state header reads `BST1` with serializer tag `v152`. Each state's `PlayTime` was read back with `tools/bst.py`, and all eight match their pak slot plus the time spent before saving the state.
+Save states are captured by the user playing, not scripted. They live in `roms/` and are named `<rom basename> - <label>.bsN`, made with ares v148. Each of the four labels exists for 1.0 and for the debug build; the pak slot is the [existing save](#existing-saves) at the same story position.
 
-| Label | Pak slot | 1.0 state `PlayTime` | Debug state `PlayTime` |
-| --- | --- | --- | --- |
-| Before Shamsuk's Tower | B | 7:45:33 | 7:45:42 |
-| Before Rooughah | C | 17:18:24 | 17:18:00 |
-| Before final encounter | A | 18:04:54 | 18:06:44 |
-| Before Rooughah, in Terminor | D | 18:45:11 | 18:44:32 |
+| Label | Pak slot |
+| --- | --- |
+| Before Shamsuk's Tower | B |
+| Before Rooughah | C |
+| Before final encounter | A |
+| Before Rooughah, in Terminor | D |
 
 Load a checkpoint by label:
 
@@ -169,6 +166,8 @@ python tools/n64dis.py --c 0x80078d14                # Ghidra's pseudocode
 
 Calls through a pointer (a vtable, a callback) aren't in `--callers`. Find those by the data word that points at the function, then by `--refs` on that word's table.
 
+Check a float's bits, not just its look: `0x3E32B7FE` is 10° in radians and `0x3EB2B7FE` is 20°.
+
 ### The two builds and the source files: `tools/builds.py` (roadmap 0.9)
 
 `tools/ghidra.ps1 export` runs `builds.py` between the index and the pseudocode. It writes `out/ghidra/builds.json`, which `n64dis.py` reads:
@@ -178,28 +177,25 @@ python tools/n64dis.py --other 0x800788cc            # the same function in the 
 python tools/n64dis.py --file turn.cpp               # the functions placed in a source file, how, and the lines they cite
 ```
 
-- **The match.** Both builds come from one source, linked in one order. The debug build adds asserts and debug code. A function's shape is its opcodes without registers or immediates. Shapes unique to both builds anchor the match, and between anchors an alignment pairs the rest by similarity. Then matched callers vote on how their callees pair, which settles neighbours that look alike. It matches 3,715 of 1.0's 3,740 functions, and 9,206 of the 9,217 calls between matched functions land on the matched callee. The 25 left unmatched are mostly two-word stubs.
+- **The match.** Both builds come from one source, linked in one order, and 1.0's functions sit in the same order as the debug build's. The debug build adds asserts and debug code. A function's shape is its opcodes without registers or immediates. Shapes unique to both builds anchor the match, between anchors an alignment pairs the rest by similarity, and matched callers vote on how their callees pair. The unmatched few are mostly two-word stubs.
 - **Names carry across.** A name in either build's map shows in both, in `n64dis.py` and in the pseudocode (`out/ghidra/<rom>.symbols.txt` is the merged map Ghidra applies). Where both maps name a matched pair differently, each build keeps its own, and `builds.py` reports the conflict.
-- **Source files.** The debug build passes a file name and line to its allocator, its free and its asserts. 342 functions cite a file that way, or in a message such as `scene.cpp, SceneGetLocatorMtx()` or `GetIdIndex (ids.cpp)`, and 173 of them give their line. The ROM names 117 files, counting two of one name (below).
-- **Where each file's code starts.** Every file's code starts on a 16-byte boundary, and the functions inside a file abut. So a file whose code ends off a boundary leaves one to three nops of padding, and those mark a file's start for certain: none falls inside a file that cites itself on both sides. `builds.py` finds them in the words, not only between the code index's functions, since a file can start with a function no call reaches, which the index misses (aiscores.cpp at debug `0x80064F60`). Taking both builds' padding together, the debug build splits into 341 **units**: 109 hold the 117 named files, 132 are the library's (libultra and the rest, which name no files), and 100 are game files the ROM never names, holding 1,182 functions. `builds.json` lists them.
-- **Hidden ends.** A file whose code ends exactly on a boundary in both builds leaves no padding, and its unit holds the next file too. That hid 8 of the 75 seams between two named files. Where a unit holds several named files, the next one starts at a function on a 16-byte boundary in both builds, and where only one such function lies between the two files' citing functions, it's settled. Rodata narrows the rest (below).
-- **Rodata.** Each file's rodata (strings, floats, jump tables and vtables, up to `0x800E5C90` in the debug build) is linked in the same order as its code. A rodata address only one function uses lies among the rodata of that function's file, which agrees with 34 of the 35 unit placements it can check. The one exception is a two-instruction stub that other files' vtables share. The data after `0x800E5C90` keeps file order less well, since a global is often used outside its file, and only its vtables are a guide.
+- **Source files.** The debug build passes a file name and line to its allocator, its free and its asserts, and some messages name a file, such as `scene.cpp, SceneGetLocatorMtx()` or `GetIdIndex (ids.cpp)`. Those functions anchor the placement of the rest.
+- **Where each file's code starts.** Every file's code starts on a 16-byte boundary, and the functions inside a file abut. So a file whose code ends off a boundary leaves one to three nops of padding, and those mark a file's start for certain. `builds.py` finds them in the words, not only between the code index's functions, since a file can start with a function no call reaches (aiscores.cpp at debug `0x80064F60`). Taking both builds' padding together, the debug build splits into **units**: some hold the named files, many are the library's (libultra and the rest, which name no files), and some are game files the ROM never names. `builds.json` lists them.
+- **Hidden ends.** A file whose code ends exactly on a boundary in both builds leaves no padding, and its unit holds the next file too. Where a unit holds several named files, the next one starts at a function on a 16-byte boundary in both builds, and where only one such function lies between the two files' citing functions, it's settled. Rodata narrows the rest.
+- **Rodata.** Each file's rodata (strings, floats, jump tables and vtables, up to `0x800E5C90` in the debug build) is linked in the same order as its code, so a rodata address only one function uses lies among the rodata of that function's file. The data after `0x800E5C90` keeps file order less well, since a global is often used outside its file, and only its vtables are a guide.
 - **How sure a placement is.** `n64dis.py --file` gives how each function was placed:
 
-  | `how` | Means | Debug functions |
-  | --- | --- | --- |
-  | `cites` | It names the file. | 342 |
-  | `between` | It lies between two functions citing one file. | 573 |
-  | `unit` | It's in the unit of one named file, with no 16-byte boundary in both builds between it and that file's citing functions, where another file could start. | 501 |
-  | `probable` | The same, but such a boundary lies between, so an unnamed file could hide there. With 8 of 75 seams hidden, about one in ten of these runs may hold one. | 910 |
-  | `boundary`, `rodata` | Where a unit holds several files: placed by the only start possible, or by its rodata. | 6 |
+  | `how` | Means |
+  | --- | --- |
+  | `cites` | It names the file. |
+  | `between` | It lies between two functions citing one file. |
+  | `unit` | It's in the unit of one named file, with no 16-byte boundary in both builds between it and that file's citing functions, where another file could start. |
+  | `probable` | The same, but such a boundary lies between, so an unnamed file could hide there. |
+  | `boundary`, `rodata` | Where a unit holds several files: placed by the only start possible, or by its rodata. |
 
 - **Two files are named `./src/audio.cpp`,** each with its own copy of the path in its own rodata: the game's sound, beside the dialogue code, and the audio driver (`AudioProcInit`, `dmaProc`), beside `dcm.cpp`. The second is `./src/audio.cpp (2)`. The game's own string functions (1.0 `0x8008EF30`) are `probable` in the second, and are likely a hidden file of their own.
 - **`scenes.cpp` and `scene.cpp` are probably one file.** Both are named only in messages. No function between them starts on a 16-byte boundary in both builds, and their rodata runs on without a break. `builds.py` reports this, and leaves the four functions between them unplaced.
-- 1.0 cites 32 files itself, and every one agrees with the file its matched function was placed in.
 - **The disassembly's header** gives the function's source file, and its lines where it cites them. A function in a file the ROM doesn't name shows that file's extent, as `an unnamed file (80084ce0-80085c1c in debug)`.
-
-1.0's functions sit in the same order as the debug build's, so find one in the other by its neighbours, or with `--other`. Check a float's bits, not just its look: `0x3E32B7FE` is 10° in radians and `0x3EB2B7FE` is 20°.
 
 ### Reading state RAM offline: `tools/bst.py`
 
@@ -215,7 +211,7 @@ python tools/bst.py "<state>" --diff "<other state>" --width 2 --was 25 --now 18
 
 `--diff` (roadmap 0.10) compares two states of one ROM. Without a filter it lists the runs of changed words, the first 200 (`--max`). With `--was`, `--now` or both, it lists the values of `--width` bytes that changed that way. That's how to find where a value lives: note it in the game, change it (take a hit, spend gold), and diff the two states. Static addresses are labelled by the nearest symbol in the map. Write a structure's fields, once settled, into its system's doc, as [saves](systems/saves.md) does.
 
-This is the preferred way to inspect checkpoints: it's deterministic, repeatable, and doesn't need a live emulator. Symbols useful so far:
+This is the preferred way to inspect checkpoints: it's deterministic, repeatable, and doesn't need a live emulator.
 
 | Symbol | Debug | 1.0 |
 | --- | --- | --- |
@@ -236,13 +232,13 @@ tools/gdb.ps1 -Checkpoint "Before Rooughah" -Commands 'set $t = *(unsigned int*)
 
 That one watches 1.0's in-game clock (`TerrainStruct.InGameTime`) and stops at `0x8007C000`, in the function at `0x8007BFF0` that clamps the clock at `0x67D21FFF` and that the lapse functions call. gdb stops just after the write, so the writing store is the instruction before the stop or, after a branch, its delay slot.
 
-- **1.0's checkpoints attach, and so does a cold boot of either build. The debug build's checkpoints don't** (checked Oct 4, 2026, with "Before Rooughah" and "Before final encounter"). After loading one of them, ares runs the game and keeps its GDB port open, but its stub never answers gdb's first packet, not even with an ack. Waiting longer doesn't help. The cause isn't known. Research targets 1.0, so this rarely matters. For the debug build, use `bst.py`, or boot it cold.
+- **1.0's checkpoints attach, and so does a cold boot of either build. The debug build's checkpoints don't.** After loading one of them, ares runs the game and keeps its GDB port open, but its stub never answers gdb's first packet, not even with an ack, however long it waits. The cause isn't known. Research targets 1.0, so this rarely matters. For the debug build, use `bst.py`, or boot it cold.
 - ares reports its architecture as `mips:4000`, which the script sets.
-- The launcher now resolves the ROM's path literally, since `[!]` in 1.0's filename is a wildcard to PowerShell. `tools/ares.ps1 v10` didn't start before this was fixed.
+- The launcher resolves the ROM's path literally, since `[!]` in 1.0's filename is a wildcard to PowerShell.
 
 ### Traces: `tools/trace.ps1` (roadmap 0.12)
 
-What code does an action run? `tools/trace.ps1` starts ares at a checkpoint, and gdb puts a temporary breakpoint on every function entry in the code index. Each one is removed by its first hit, so a function that runs every frame costs one stop and then nothing. A baseline window runs first (one beep), where you stand still or do whatever the action is compared against. Then the action window runs (two beeps), where you do the thing in ares, until three beeps. The report lists the functions first run in the action window, which the baseline never ran, in order, with their names and source files. The log, one line per first hit, is in `out/`.
+What code does an action run? `tools/trace.ps1` starts ares at a checkpoint, and gdb puts a temporary breakpoint on every function entry in the code index. Each one is removed by its first hit, so a function that runs every frame costs one stop and then nothing. A baseline window runs first (one beep), where you stand still or do whatever the action is compared against. Then the action window runs (two beeps), where you do the thing in ares, until three beeps. The report lists the functions first run in the action window, which the baseline never ran, in order, with their names and source files. The log, one line per first hit, is in `out/`. A trace is a quick way to find, and then name, the code behind a feature.
 
 ```powershell
 tools/trace.ps1 -Checkpoint "Before Rooughah" -Baseline 20 -Action 30            # every function
@@ -250,8 +246,7 @@ tools/trace.ps1 -Checkpoint "<a battle>" -Files combat -Action 60               
 python tools/gdb/trace.py --report out/trace-<time>.log                           # the report again
 ```
 
-- **Cost:** setting the 3,740 breakpoints takes about 21 s. The game then runs at about half speed until the hot functions have used up their breakpoints, which standing still in trek does within 17 s (410 functions). `-Files` or `-Range` sets fewer breakpoints and keeps the game near full speed.
-- **Checked Oct 4, 2026,** from "Before Rooughah". Standing still in both windows, the action window finds nothing new. Pressing Start in the action window finds 283 functions, in the order the menu opens: trek frees its memory (`FreeZoneEngineMemory`, `FreePlayerActor`), the last frame is kept (`GetSnapShot`), `BigAssMenu` loads the menu's Borgs from the ROM, and then the tabs (`OptionsMenu`, `DollMenu::InitMenu`, the inventory, `WorldMenu.Build`) and `MenuStick.Step` run. A trace is a quick way to find, and then name, the code behind a feature.
+- **Cost:** setting the 3,740 breakpoints takes about 21 s. The game then runs at about half speed until the hot functions have used up their breakpoints, which standing still in trek does within 17 s. `-Files` or `-Range` sets fewer breakpoints and keeps the game near full speed.
 - **Input is the user's.** Scripting key presses into ares isn't worth it: taking the foreground needs a key first, and an Alt tap opens ares's menu bar. Do the action by hand at the two beeps.
 - **How it's built:** `tools/gdb/trace.py` runs inside gdb, with gdb's own Python, and is driven through `tools/gdb.ps1 -Source`. A timer interrupts the target to close each window. gdb is given an empty stdin, because without a console (as in `trace.ps1`'s background job) it blocks before starting.
 

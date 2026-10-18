@@ -9,11 +9,11 @@ This is the audit of content that lives in the game's code rather than its data.
 
 **Status** says where the reimplementation gets the fact:
 
-- **ROM:** read from the code segment at a per-version offset (`CodeTable` in `RomVersion.cs`). Tables that sit in the code verbatim are read rather than copied, so they stay right for every version. The flag tables are in `EngineTables`; the rest are in `Aidyn.Rom.Engine`.
-- **Fact:** carried in `EngineFlags`, because the code expresses it as a switch or a literal. Each is checked against 1.0's code.
+- **ROM:** read from the code segment at a per-version offset (`CodeTable` in `RomVersion.cs`). The code's tables are identical in all three ROMs and only their offsets differ. The flag tables are in `EngineTables`; the rest are in `Aidyn.Rom.Engine`.
+- **Fact:** carried in the importer (`EngineFlags` for flags), because the code expresses it as a switch or a literal. Each is checked against 1.0's code.
 - **To do:** found, but not carried yet.
 
-Every flag below that engine code names carries its label on the flag record, which the editor shows. Search for a name such as "Brenna" or "Kitarak" to see its flags.
+Every flag below that engine code names carries its label on the flag record, which the editor shows.
 
 ## Flags the engine writes
 
@@ -56,7 +56,7 @@ Every flag below that engine code names carries its label on the flag record, wh
 | --- | --- | --- | --- |
 | The four cinematics: each shot's Borg6 animation, Borg12 audio, caption list and clip planes, the fades, and the done flag | `Cinematics.cpp`, `CinematicFade.cpp` | 1: cinematic record | ROM |
 | What starts each cinematic: a new game, the Shadow merging with Alaron, and the ends of the Rooughah and last scenes | `Cinematic::Load`'s callers | 2: triggers | Fact (text only) |
-| What follows each cinematic: the opening starts script 866 from its object in Overworld I08, the Roog cinematic gives Alaron his True Name, and the ending goes to the credits | `Cinematic::EndCase` | 2: triggers on `cinematic.ended` | To do |
+| What follows each cinematic: the opening starts script 866 from its object in Overworld I08, the Roog cinematic gives Alaron his True Name, and the ending goes to the credits | `Cinematic::EndCase` | 2: triggers on `cinematic.ended` | To do (see [cinematics](systems/cinematics.md)) |
 | Scripts whose end leads somewhere: the three death scenes end the game, 1268 plays the Roog cinematic, and 1278 plays the ending | `borg_short_list`, `dialogmode.cpp` | 2: triggers on script end | ROM |
 | Scripts after which eight hours pass: the eight camp scenes and the Campsite's own script | `isCampfireScene` | 1: script field | ROM |
 | Game over: script 1298 starts from its object in the Dreamscape Borg9 (3423) | `Gameover_func` | 1: game setting | ROM (script only) |
@@ -65,7 +65,7 @@ Every flag below that engine code names carries its label on the flag record, wh
 
 ## Bespoke behaviours
 
-ADR 0008 names six behaviours as bespoke. Read closely, only two need layer 3 features: the Goblin Ambush and the Shadow. The other four are records and triggers. None needs a script.
+ADR 0008 names six behaviours as bespoke. Only two need layer 3 features: the Goblin Ambush and the Shadow. The other four are records and triggers. None needs a script.
 
 ### The Goblin Ambush (encounter flag 978)
 
@@ -80,7 +80,7 @@ ADR 0008 names six behaviours as bespoke. Read closely, only two need layer 3 fe
 | `suppressVictoryText` | true. Winning still sets boss flags and gives loot. | `CombatTurn::EnemiesDead` |
 | `onEnd` | Win or lose: restore Alaron's Strength, heal him to full, set flag 47, and move the party to Oriana's hut (MiscInteriors E03) at (5.9, 0.5, 3.0), facing +x | `clear_combat_func` |
 
-These are ADR 0008's example fields, except that the move to the hut happens on any ending, not only after a win.
+The move to the hut happens on any ending, not only after a win.
 
 ### The Shadow (entity 0x0226)
 
@@ -98,10 +98,10 @@ A feature on the entity, with the Horn of Kynon as its item. The fields:
 
 ### The other four
 
-- **Brenna's Ranger check in Gwernia** is the camp ambush roll. The code only names Brenna in the flag `FLAG_Gwernia2MembersNoBrenna` (5004), which `Party::CampCheck` reads before rolling against the party's best Ranger. See "Party and camping rules".
+- **Brenna's Ranger check in Gwernia** is the camp ambush roll. The code only names Brenna in the flag `FLAG_Gwernia2MembersNoBrenna` (5004), which `Party::CampCheck` reads before rolling against the party's best Ranger. See [Party and camping rules](#party-and-camping-rules).
 - **The Lugash fight** has no code of its own. It's script battle 1233, whose encounter flag (5250) is derived, so a win never sets it. The encounter table lets the party flee, Lugash uses the AI's boss attack style, and beating him sets boss flag 533. All of these are records.
-- **Sholeh** is two entity fields (layer 1). If an encounter lists her in its first four enemy slots, she fights on the party's side instead (`find_sholeh`). Her died flag, 622, is set whenever she dies in battle (`CombatEntity::Death`). The decomp's `find_sholeh` looks garbled, returning a slot the caller treats as one-based.
-- **Alaron's True Name** is a character flag. The entity DB has it (`HasTrueName`), and spells marked True Name need it. Alaron gains it when the Roog cinematic ends, and again whenever his character sheet is built while 590, that cinematic's done flag, is set (`entityInfo.cpp`). As a record: Alaron's True Name comes from flag 590.
+- **Sholeh** is two entity fields (layer 1). If an encounter lists her in its first four enemy slots, she fights on the party's side instead (`find_sholeh`). Her died flag, 622, is set whenever she dies in battle (`CombatEntity::Death`). Her left flag is 694.
+- **Alaron's True Name** is a character flag. The entity DB has it (`HasTrueName`), and spells marked True Name need it. Alaron gains it when the Roog cinematic ends, and again whenever his character sheet is built while 590, that cinematic's done flag, is set (`entityInfo.cpp`).
 
 ### Fleeing and bosses
 
@@ -112,16 +112,16 @@ A feature on the entity, with the Horn of Kynon as its item. The fields:
 
 ## Party and camping rules
 
-- **Brenna never leaves because no script removes her.** Her row in the party table has no left flag (0), and nothing else in the code names her. It's data, not a rule.
-- **Rheda has no rule in code.** Apart from the party tables, no code names her. Scripts add and remove her like the other recruits; the full-party template won't let her leave before flag 458, Beat Shamsuk ([characters](systems/characters.md#joining-and-leaving)).
+- **Brenna never leaves because no script removes her.** Her row in the party table has no left flag (0), and nothing else in the code names her.
+- **Rheda has no rule in code** beyond the party tables. Scripts add and remove her like the other recruits; the full-party template won't let her leave before flag 458, Beat Shamsuk ([characters](systems/characters.md#joining-and-leaving)).
 - **Which members' sheets are kept when they leave** (`SaveEntity::GetSlot`, a jump table at 1.0 `0x800CDD88`): Abrecan, Arturo, Becan, Godric and Keelin, by their entity list positions. Layer 1, the member record (`MemberFlags.Kept`). Status: Fact, in the importer (`CharacterImporter.KeptMemberPositions`), as it's a switch.
 - **The Archmage Staff stays with a member who leaves** (`Party::StripMember`, through `RemoveWeaponsFrom`'s check), as it does when taking it off. It's the weapon record's `Fixed`.
-- **Camp ambushes** (`Party::CampCheck`): while 5004 holds, camping is ambushed if a d100 roll is at most (15 − the party's best Ranger, capped at 10) × 1/15 × the terrain's factor (the decomp's 0.666 is 0.0666667 in the machine code). Otherwise the party heals by half. The 15, 10, 1/15 and the half are camping settings (layer 1); the factor is a terrain field. See [camping](systems/camping.md).
+- **Camp ambushes** (`Party::CampCheck`): while 5004 holds, camping is ambushed if a d100 roll is at most (15 − the party's best Ranger, capped at 10) × 1/15 × the terrain's factor, 0.0666667. Otherwise the party heals by half. The 15, 10, 1/15 and the half are camping settings (layer 1); the factor is a terrain field. See [camping](systems/camping.md).
 - **Camping is refused** on terrain whose factor is 0 ("The party cannot camp here").
 
 ## Terrain and weather
 
-Terrain types are the 0–29 index that map chunks carry and the camp encounters are keyed by. These tables are terrain and season records (layer 1), identical in all three ROMs.
+Terrain types are the 0–29 index that map chunks carry and the camp encounters are keyed by. These tables are terrain and season records (layer 1).
 
 | What | Code | NA 1.0 | Status |
 | --- | --- | --- | --- |
@@ -133,7 +133,7 @@ Terrain types are the 0–29 index that map chunks carry and the camp encounters
 
 ## Characters
 
-How characters level and train is tables and literals in code (roadmap 2.2; see [characters](systems/characters.md)). Identical in all three ROMs.
+How characters level and train is tables and literals in code (roadmap 2.2; see [characters](systems/characters.md)).
 
 | What | Code | NA 1.0 | Status |
 | --- | --- | --- | --- |
@@ -152,9 +152,7 @@ How characters level and train is tables and literals in code (roadmap 2.2; see 
 
 ## Trainers
 
-The Train effect teaches from the record of the entity being talked to: its skills, shield skill and spells (`init_skill_trainer`). No trainer is special-cased in code, apart from Oriana charging no gold (above). Most trainers are entities with code names, such as STER0904 in Erromon and STTA05 in Talewok; Becan, Oriana, a female dryad and a Jundar man train from their own records.
-
-Becan is also a recruit, so one record sets both what he teaches and what his party character can learn. That's why AidynEditor treats him as a special case: it writes a blank skill as 255 for him, which a party character reads as "can't learn", and as 0 for other trainers. It's data (layer 1), read from the entity DB.
+The Train effect teaches from the record of the entity being talked to: its skills, shield skill and spells (`init_skill_trainer`). No trainer is special-cased in code, apart from Oriana charging no gold (above). Becan is also a recruit, so one record sets both what he teaches and what his party character can learn: a blank skill is 255 for him, which a party character reads as "can't learn", and 0 for other trainers. It's data (layer 1), read from the entity DB.
 
 ## Cheats
 
@@ -167,9 +165,9 @@ Cheats are typed as Alaron's name, in the title menu's name entry or the options
 | `!slashing` | Sets 3673, which shows the Hockey Stick and its container in Gwernia Castle E03 | 2: trigger, set flag |
 | `!darkside` | Sets 3675, which shows the Lightreaver and its container in Oriana's hut (MiscInteriors E03) | 2: trigger, set flag |
 | `!crawdaddy`, `!fatboy`, `!tweety` | Change the player's model to the chaos trooper, ogre or gryphon, or back to Alaron if it already is | 3: player model |
-| `!cheater` | Once (flag 3693): 500,000 XP to each party member. The decomp's comment says 750,000; the code and ROM say 500,000. | 2: trigger, add XP |
+| `!cheater` | Once (flag 3693): 500,000 XP to each party member. | 2: trigger, add XP |
 | `!bingo` | Once (flag 3694): 100,000 gold | 2: trigger, add gold |
-| `Keepbusy`, `Imadoofus` | Each tells you to enter the other. The decomp's function names for these two are swapped. | 2: trigger, show a message |
+| `Keepbusy`, `Imadoofus` | Each tells you to enter the other. | 2: trigger, show a message |
 | `!version` | Shows the version, compile time and code size, and turns on the coordinate display | 3: debug option |
 | `!gene`, `!gotmilk` | Strings with no effect | None |
 
@@ -177,9 +175,9 @@ The debug ROM also has a game state cheats menu. Only its "appear" option is rea
 
 ## Assets engine code names
 
-Code uses 1,990 of the 2,076 names in the decomp's `Borgindecies.h`. The map chunk lists account for 1,127 of them, and those are read from the ROM already (`MapChunks`). The rest fall into four groups.
+The map chunk lists are read from the ROM (`MapChunks`). The rest of the Borgs engine code names fall into four groups.
 
-**Content tables** pair records with their assets. Mods adding a monster, weapon or item need to set these, so each becomes a record field (layer 1). They're data in the code segment, identical in all three ROMs. The 1.0 offsets below are where each starts. The ones marked Read are in `RomLayout`; the rest aren't read yet.
+**Content tables** pair records with their assets. Mods adding a monster, weapon or item need to set these, so each becomes a record field (layer 1). The 1.0 offsets below are where each starts. The ones marked Read are in `RomLayout`; the rest aren't read yet.
 
 | What | Code | NA 1.0 | Status |
 | --- | --- | --- | --- |
@@ -210,12 +208,12 @@ Code uses 1,990 of the 2,076 names in the decomp's `Borgindecies.h`. The map chu
 
 **Settings and features** are engine behaviour that names specific assets. Each becomes a game setting (layer 1) or a field of the feature that uses it (layer 3).
 
-- The six title-screen fly-throughs: a Borg6 and eight unknown u16s each (`gFlycamSequences`, `0xE15DC`).
+- The six title-screen fly-throughs: a Borg6 and eight unknown u16s each (`gFlycamSequences`, `0xE15DC`). To do.
 - Each map set's music, set as it's entered (`Zones.SetMapSet`): literals for Gwernia castle, Erromon, the Jundar interiors, Ehud's underground, Ugarit and Chaos Isle, which picks between two by the chunk's column; two Overworld lists of chunks by their scenes (`0xCF31C`, `0xCF338`), each with a piece with the Expansion Pak and one without; the Jundar interiors' list (`0xCF368`); and the battle music, one of five at random with the Pak or four without (`0xCF378`, `0xCF384`). Map set and chunk fields (layer 1): the lists are read (`AudioTables`) and the literals are facts (`AudioFacts`), on the map set records' `Music` and their chunks'. See [audio](systems/audio.md#music).
 - The title's and the credits' music, `0x0632` (`0x05D9` without the Pak) and `0x05D9`, and rain's `0x071B` and thunder's `0x071C`–`0x071F`. Facts (`AudioFacts`), on the sounds record (`aidyn:sounds/0`).
 - The player's model is Alaron's; three cheats swap it (see [cheats](#cheats)).
-- Alaron's head is its own scene, `0x25AA` (`some_borg5`). `Actor::ChangeAppearance` loads it only for his actor, whose body has a hidden one-triangle placeholder at the neck, and the player renderer draws it at locator 3 of his body's scene, turned toward the object the player is near, up to 80°. An actor record field (layer 1). Carried as a fact: the importer writes it on actor `0x25F9` (`ActorHead`).
-- Each map set's spawn points: literals in `BorgMaps::LoadMap` giving a chunk and a position in it per portal number. A new game uses the Overworld's portal 0: I08 at (16, 62), dropped from a height of 10. A map set field (layer 1). To do: the runtime starts there by default.
+- Alaron's head is its own scene, `0x25AA` (`some_borg5`). `Actor::ChangeAppearance` loads it only for his actor, and the player renderer draws it at locator 3 of his body's scene, turned toward the object the player is near, up to 80°. An actor record field (layer 1), carried as a fact: the importer writes it on actor `0x25F9` (`ActorHead`).
+- Each map set's spawn points: literals in `BorgMaps::LoadMap` giving a chunk and a position in it per portal number. A new game uses the Overworld's portal 0: I08 at (16, 62), dropped from a height of 10. A map set field (layer 1). To do: not read; the runtime hardcodes I08 at (16, 62) as its default start (`Game.cs`, `--chunk` and `--at`).
 - The camp, game over and new-game Borg9s (see above).
 - Each map set's chunk spacing: literals in `BorgMaps::LoadMap`, a map set field (layer 1). Carried as a fact (`MapSets.CellSize`).
 - Sky gradients, sun, moon and stars, clouds, lens flare, rain ambience and four thunder sounds (`sky.cpp`, `skyObjects.cpp`, `Clouds.cpp`, `Lensflare.cpp`, `weather.cpp`).
@@ -231,40 +229,33 @@ Code uses 1,990 of the 2,076 names in the decomp's `Borgindecies.h`. The map chu
 - Combat visuals: the arrow and thrown-potion models, target and spell markers, and the stat indicator digits (`combatEntity.cpp`, `CombatMarkers.cpp`, `SpellMarker.cpp`, `StatIndicator.cpp`).
 - Bodies' shadows: the texture, Borg1 `0x0003` (`BORG1_PlayerShadow`, which `InitPlayerHandler` is given), and how far from the camera's aim they're drawn: 20 in trek, 128 in combat and none on the title screen (`InitZoneEngine`). A game setting (layer 1). Carried as a fact: the runtime draws `aidyn:texture/0x0003`, and the core holds the distances (`BodyShadow`).
 - The particle textures: 17 slots of Borg1s 0–12, some empty (`partTextInds`, `ZoneEngine.cpp`, `0xCE460`). Read (`ParticleTextures`), and resolved into each emitter's texture on its `aidyn:emitters` record.
-- Oriana's path lights: a scene object whose second model is `BORG5_OrianaLight` (`0x374A`) goes out once only its first is drawn, and is remembered so for 16 map loads. `RenderVoxelScenes` compares the index as a literal (`0x8000cda4` in 1.0). A scene object field (layer 1). Carried as a fact: the importer marks the 23 objects (`SceneObject.GoesOut`; I08, J08 and K08), and a mod's object can set it. See [map-objects](systems/map-objects.md#orianas-path-lights).
+- Oriana's path lights: a scene object whose second model is `BORG5_OrianaLight` (`0x374A`, compared as a literal in `RenderVoxelScenes`, `0x8000cda4` in 1.0) goes out. A scene object field (layer 1), carried as a fact: the importer marks the 23 objects (`SceneObject.GoesOut`). See [map-objects](systems/map-objects.md#orianas-path-lights).
 - Coin, chime and level-up sounds in dialogue, shops and training (see the table above).
 
 **Fonts** are records (layer 1), since each has a layout: its sheet, grid and glyph widths, the character map and the buttons' colours (`font_face`, `struct_unk_.textIndexies`, `extraFontColors`). Read (`Fonts`), as `aidyn:font/0` and `/1`; see [text](formats/text.md).
 
 **Portraits:** the fallback for a speaker with none, `BORG8_PortraitNPCMale1` (`0x0125`), and Alaron's entity, whose portrait shows over a conversation's choices when the line before them was the other speaker's alone (`DialougeClass::Setup`). Carried as facts by the runtime's conversation box.
 
-**UI chrome** is the rest: the conversation box's portrait border (`BORG8_PortraitHighlight`), the translucent band and feathering of popups and the conversation box (`BORG8_Pixel`, a texel of alpha 136; the gradients `0x1C0`–`0x1C3` and the corners `0x1BC`–`0x1BF`; the decomp's names for three of the gradients don't match the machine code, where the image above a box is `0x1C3`, below `0x1C2`, left `0x1C0` and right `0x1C1`), the overscan bars' sizes (`Graphics::EndList`), the compass, menu backgrounds and titles, the calendar and sundial, logos and Controller Pak screens. These need no records. Mods override them as assets under their Borg IDs ([ADR 0004](adr/0004-record-ids.md), [ADR 0005](adr/0005-plugin-format.md)).
+**UI chrome** is the rest: the conversation box's portrait border (`BORG8_PortraitHighlight`), the translucent band and feathering of popups and the conversation box (`BORG8_Pixel`, a texel of alpha 136; the gradients `0x1C0`–`0x1C3` and the corners `0x1BC`–`0x1BF`; the image above a box is `0x1C3`, below `0x1C2`, left `0x1C0` and right `0x1C1`), the overscan bars' sizes (`Graphics::EndList`), the compass, menu backgrounds and titles, the calendar and sundial, logos and Controller Pak screens. These need no records. Mods override them as assets under their Borg IDs ([ADR 0004](adr/0004-record-ids.md), [ADR 0005](adr/0005-plugin-format.md)).
 
 **Debug only:** the boulder that replaces scene models, and the debug menu's models.
 
 ## Findings
 
-- **The code's tables are identical in all three ROMs.** Only their offsets differ.
-- **The decomp has one wrong value.** Sholeh's left flag is 694 in the ROM, not 700.
 - **Code tables refer to entities by list position, not ID.** A 221-byte `entityList` in the code maps each position to an entity. The party tables use these positions, and so does the boss switch, which is a jump table over positions 168–186.
-- **Map 13's region flag is on Cradawgh's Body.** Gaining Map 13 reveals nothing. The decomp notes this as a bug.
+- **Map 13's region flag is on Cradawgh's Body.** Gaining Map 13 reveals nothing.
 - **Two world map entries can't apply.** They name overworld chunks G18 and R29, which don't exist.
-- **Most map items are never given.** Only Map 2 (in a container) and Map 7 (sold by shop 17, STTA05 in Talewok) have sources, so the world map fills in as the party explores. No script, container, monster party, loot table or shop gives Map 5. Its region flag (791) is set on entering Talewok's chunks, which shows the same piece of the world map, so that may be what's remembered as getting it. The checkpoints can't settle it: they hold no maps at all. The Skull Key and the Map to the Goblin Lair have no source either; they're possibly cut content. The Blood Key is the only key item given as a monster party's direct loot.
+- **Most map items are never given.** Only Map 2 (in a container) and Map 7 (sold by shop 17, STTA05 in Talewok) have sources. No script, container, monster party, loot table or shop gives Map 5; its region flag (791) is set on entering Talewok's chunks, which shows the same piece of the world map. The Skull Key and the Map to the Goblin Lair have no source either; they're possibly cut content. The Blood Key is the only key item given as a monster party's direct loot.
 - **Talking monster parties fight under flag C.** When a talking party's dialogue starts a battle, the battle's encounter flag is the party's flag C, and winning sets it. Most such parties have C equal to B. One names derived flag 5264, so the write does nothing.
 - **Script battles don't set their flag on a win.** Only monster-party battles set the encounter flag on a win. The Goblin Ambush's flag, 978, is set when the party *loses*, and every special rule of that fight keys on it.
-- **The ending cinematic has six shots.** The decomp lists five Borg6 animations and five Borg12s for it, but the ROM has six of each, which matches its six clip planes and flag entries.
-- **Each cinematic shot names its own caption list.** The flag list the decomp calls `SeqenceFlags` holds a caption list per shot (or none), then the done flag. Each of the 15 caption lists shows over exactly one shot.
+- **The ending cinematic has six shots,** each with its own Borg6 animation and Borg12, matching its six clip planes and flag entries.
+- **Each cinematic shot names its own caption list.** The flag list (`SeqenceFlags`) holds a caption list per shot (or none), then the done flag. Each of the 15 caption lists shows over exactly one shot.
 - **Only the first death scene plays.** All three have dialogue objects in the Dreamscape, but the game over code only looks for 1298.
 - **Containers with their own model are gated like herb sources.** The code gates container kinds 4–7 by flags A and C: herbs, spices, gems and loot with its own model. 46 of the 49 kind-7 containers set a flag C, including the cheats' Hockey Stick and Lightreaver, Kendall's Hat and an Amaranth.
 - **Bosses count only in the first four slots.** A monster party fills slots with each entry's minimum count, in order, then random extras, so a boss listed after four guaranteed enemies wouldn't set its flag. In the data, only three monster parties include a boss (Kitarak, and Lugash twice), each listed first. Scripts add the other bosses.
-
-### Checked against the checkpoints
-
-49 flags are set in the checkpoints that the data has no setter for. Engine code sets all but eight. The eight, **955–958 and 960–963**, which turn on between Shamsuk's Tower and Rooughah, are **secret doors** in Ehud's underground: EhudUnder C11 has five (954–958) and E11 four (960–963). A teleporter's secret level is 0 in all the data, so its flag, not the level, says whether it is secret. The code (checked in 1.0) treats a teleporter as secret whenever its secret flag isn't 0: using it while the flag is clear shows "secret door" and sets the flag, and only then does it work. The 493 teleporters with flag 1, which is always set, aren't secret.
+- **Secret doors.** Flags 955–958 and 960–963, which no data sets, are the secret doors in Ehud's underground (EhudUnder C11 and E11). A teleporter is secret whenever its secret flag isn't 0 (its secret level is 0 in all the data); the code sets the flag on first use. See [map-objects](systems/map-objects.md#teleporters).
 
 ## Still open
 
-Everything the first pass found is audited. What's left:
-
-- Which Barrows minimap piece each of its flags changes (`MiniMap::BarrowsFlags`), and Oriana's path lights.
+- Which Barrows minimap piece each of its flags changes (`MiniMap::BarrowsFlags`).
 - The content tables and switches marked To do are located but not read. The importer will need them.

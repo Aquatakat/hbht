@@ -4,7 +4,7 @@ The string tables, the fonts and the portraits beside what characters say. Dialo
 
 ## String tables
 
-`aidyn strings <rom>` writes every table to `out/<version>/strings/`, and `aidyn strings <rom> <table>` prints one. The base plugin has each as a record, `aidyn:strings/0` to `/11`, numbered in the order they sit in the ROM, with the escapes decoded as the game does when it loads a table (`some_string_func`): `\n` is a newline and `\xHH` that character. Nothing else is escaped: across every table there are 35 `\n`s and three button glyphs, `\x83` (C-down) twice in Common and `\x84` (C-up) once. `%s` and `%d` are for the engine to fill in.
+`aidyn strings <rom>` writes every table to `out/<version>/strings/`, and `aidyn strings <rom> <table>` prints one. The base plugin has each as a record, `aidyn:strings/0` to `/11`, numbered in the order they sit in the ROM, with the escapes decoded as the game does when it loads a table (`some_string_func`): `\n` is a newline and `\xHH` that character. Nothing else is escaped; the only button glyphs are `\x83` (C-down) and `\x84` (C-up), in Common. `%s` and `%d` are for the engine to fill in.
 
 | # | Table | Lines (1.0) | What reads it |
 | --- | --- | --- | --- |
@@ -31,9 +31,9 @@ Engine code holds the fonts in three tables in the code segment, identical in al
 - **`struct_unk_.textIndexies`** (`0xE56C0`): the glyph each character from `0x20` to `0x8B` draws, the same for every font. 43 means the character is skipped: it isn't drawn and takes no room. That's `#`, `[` and `]`, which is why the game can write `\n` as a newline and a `#` it ignores. Some characters draw symbols: `<` a skull, `>` a heart, `|` infinity, `^` a triangle, `_` a diamond, `\` "ok", `` ` `` a cross and `~` a double arrow. `0x7F`–`0x89` are the controller buttons: A, B, the four C buttons, Start, the D-pad, Z, L and R.
 - **`extraFontColors`** (`0xE572C`): the colour each button draws in, in place of the text's: A blue, B green, the C buttons yellow, Start red and the rest grey. The text's alpha still applies. `0x8A` and `0x8B` read past the table's end in the original; nothing uses them.
 
-**Glyph widths are measured from the sheet** as the game loads it (`Font::SetupBorg8`). Each cell's top row marks the glyph's width: the glyph ends after the last texel that differs from a reference texel. For 8-bit sheets the reference is the cell's own rightmost texel; for 16- and 32-bit sheets it's the next texel in memory, and a cell whose rightmost texel already differs is full width. Checked against the debug ROM's machine code, since the decomp's 8-bit case compares a texel with itself. In the fonts, the glyph area of each cell is intensity 15, with its alpha as the glyph, and the rest of the cell is zero, so a glyph is as wide as its intensity-15 texels on the top row. A 4-bit sheet would be measured wrongly, by the high nibble of whole bytes, but none is.
+**Glyph widths are measured from the sheet** as the game loads it (`Font::SetupBorg8`). Each cell's top row marks the glyph's width: the glyph ends after the last texel that differs from a reference texel. For 8-bit sheets the reference is the cell's own rightmost texel; for 16- and 32-bit sheets it's the next texel in memory, and a cell whose rightmost texel already differs is full width. In the fonts, the glyph area of each cell is intensity 15, with its alpha as the glyph, and the rest of the cell is zero, so a glyph is as wide as its intensity-15 texels on the top row. A 4-bit sheet would be measured wrongly, by the high nibble of whole bytes, but none is.
 
-- **L and R never show.** Their cells mark no width, so they measure 0 wide. The decomp's `font.h` noted the two are invisible and guessed `SetupBorg8` was at fault; the sheet is.
+- **L and R never show.** Their cells mark no width, so they measure 0 wide. The sheet is at fault, not `SetupBorg8`.
 - **The slim font has no buttons.** Its button cells are blank, apart from a 2-texel mark.
 - A glyph is drawn a whole cell tall, from its cell's left edge, and the next character starts where it ends. There's no other kerning.
 
