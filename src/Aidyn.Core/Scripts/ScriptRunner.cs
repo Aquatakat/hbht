@@ -1,3 +1,4 @@
+using Aidyn.Core.Combat;
 using Aidyn.Core.Flags;
 using Aidyn.Core.MapObjects;
 using Aidyn.Core.Rng;
@@ -79,16 +80,9 @@ public enum ScriptEndKind
 /// Why the script stopped where the original crashes or reads past its nodes. The runner ends it
 /// instead, as <see cref="DialogueCommand.EndDialogue"/> would.
 /// </param>
-public sealed record ScriptEnding(ScriptEndKind Kind, RecordId? Speaker, ScriptEncounter? Battle, int RestHours, bool PartnerJoined,
+/// <param name="Battle">The battle it starts (<c>encounterDat_func</c>), as the script has it, before where it starts is known.</param>
+public sealed record ScriptEnding(ScriptEndKind Kind, RecordId? Speaker, BattleSetup? Battle, int RestHours, bool PartnerJoined,
     string? Fault = null);
-
-/// <summary>The battle a script starts (<c>encounterDat_func</c>).</summary>
-/// <param name="Enemies">From <see cref="DialogueCommand.AddEnemy"/>, in order.</param>
-/// <param name="Battlefield">The arena: 0 when a script sets one above 27.</param>
-/// <param name="CanFlee">False in a cut-scene.</param>
-/// <param name="WinFlag">Set by winning it: <see cref="DialogueRecord.BattleFlag"/>.</param>
-public sealed record ScriptEncounter(IReadOnlyList<RecordId> Enemies, int Battlefield, int CollisionByte, int AniByte, bool CanFlee,
-    RecordId? WinFlag);
 
 /// <summary>
 /// Runs a script (Borg13) against the flags and the game state: the original's walk over its nodes
@@ -788,10 +782,10 @@ public sealed class ScriptRunner
     {
         if (Ending is not null)
             return;
-        ScriptEncounter? battle = null;
+        BattleSetup? battle = null;
         if (kind == ScriptEndKind.Battle)
         {
-            battle = new ScriptEncounter([.. _enemies], _battlefield > MaxBattlefield ? 0 : _battlefield, _collisionByte, _aniByte,
+            battle = BattleSetup.Scripted(_enemies, _battlefield > MaxBattlefield ? 0 : _battlefield, _collisionByte, _aniByte,
                 _script.Mode != DialogueMode.Cutscene, _script.BattleFlag);
         }
         var rest = (kind == ScriptEndKind.Camp ? 8 : 0) + (_script.Rest ? 8 : 0);

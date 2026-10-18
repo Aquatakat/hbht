@@ -1,60 +1,35 @@
-using Aidyn.Plugins;
+using Aidyn.Core.Ui;
 using Aidyn.Plugins.Records;
-using Godot;
 
 namespace Aidyn.Game;
 
 /// <summary>
 /// Cinematics in the runtime (<see cref="CinematicLayer"/>): trek's music and sounds stop and the cinematic plays over
-/// everything with the game held still; when it's over its done flag is set and trek comes back where the player stood.
-/// See docs/systems/cinematics.md.
+/// everything with the game held still; when it's over the session sets its done flag and brings trek back where the
+/// player stood (<see cref="Core.GameSession.CinematicEnded"/>). See docs/systems/cinematics.md.
 /// </summary>
 public partial class Game
 {
     private CinematicLayer? _cinematic;
 
-    /// <summary>Whether the cinematic playing came from the Theatre, so the pause menu reopens on its page after.</summary>
-    private bool _fromTheatre;
-
-    /// <summary>Trek has come back from the Theatre's cinematic, and the menu reopens once it has faded in.</summary>
-    private bool _reopenTheatre;
-
-    private bool InCinematic => _cinematic is { Playing: true };
-
     /// <summary>
-    /// Plays a cinematic (<c>Cinematic.Load</c>, <c>Cinematic.Begin</c>): every sound stops, and trek's music with them,
-    /// so it starts again from its beginning after.
+    /// Plays the cinematic the session asked for (<c>Cinematic.Load</c>, <c>Cinematic.Begin</c>): every sound stops, and
+    /// trek's music with them, so it starts again from its beginning after.
     /// </summary>
-    private void PlayCinematic(CinematicRecord cinematic, bool fromTheatre)
+    private void PlayCinematic(CinematicRecord cinematic)
     {
-        if (_cinematic is null || InCinematic)
-            return;
-        _fromTheatre = fromTheatre;
         _audio!.Music = null;
         _audio.StopAll();
-        _cinematic.Play(cinematic, _game!.Party.Members.FirstOrDefault()?.Name ?? "Alaron");
+        _cinematic!.Play(cinematic, _game!.Party.Members.FirstOrDefault()?.Name ?? "Alaron");
     }
 
-    /// <summary>A tick of the cinematic, and its end (<c>Cinematic.EndCase</c>, <c>0x80053c20</c>).</summary>
+    /// <summary>A tick of the cinematic, and its end (<c>Cinematic.EndCase</c>, <c>0x80053c20</c>), which the session carries out.</summary>
     private void StepCinematic()
     {
-        if (_cinematic!.Step() is not { } ended)
+        if (_cinematic!.Step() is null)
             return;
-        // The done flag is set however it ended, from the Theatre too.
-        _game!.Flags.TrySet(ended.DoneFlag, true);
-        // Trek comes back where the player stood, its music asked for again and the screen fading in from black.
-        _trek!.Resume();
-        _reopenTheatre = _fromTheatre;
+        _session!.CinematicEnded();
         ResetInterpolation();
-    }
-
-    /// <summary>Once trek has faded in after the Theatre's cinematic, the menu reopens on the Theatre's page (trek's state 8).</summary>
-    private void ReopenTheatre()
-    {
-        if (!_reopenTheatre || _trek!.CutSceneFade.Fading)
-            return;
-        _reopenTheatre = false;
-        _menu!.OpenTheatre();
     }
 
     /// <summary>B or Start skips the rest; the cinematic takes every press.</summary>

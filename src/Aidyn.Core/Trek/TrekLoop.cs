@@ -4,6 +4,7 @@ using Aidyn.Core.Audio;
 using Aidyn.Core.Calendar;
 using Aidyn.Core.Cameras;
 using Aidyn.Core.Chunks;
+using Aidyn.Core.Combat;
 using Aidyn.Core.Items;
 using Aidyn.Core.MapObjects;
 using Aidyn.Core.Movement;
@@ -15,8 +16,11 @@ using Aidyn.Plugins.Records;
 
 namespace Aidyn.Core.Trek;
 
-/// <summary>What trek asks of whatever presents it: the runtime, or a test.</summary>
-public interface ITrekHost : IScriptHost
+/// <summary>
+/// What trek asks of whatever presents it: the runtime, or a test. Where trek's conversations and map objects lead, a battle
+/// or a script's shop or training, comes as a <see cref="Core.Transition"/>.
+/// </summary>
+public interface ITrekHost : IScriptHost, ITransitionHost
 {
     /// <summary>The player is in a chunk, every tick: the sky follows it.</summary>
     void Entered(ChunkEntry? chunk);
@@ -26,12 +30,6 @@ public interface ITrekHost : IScriptHost
 
     /// <summary>A conversation or sign showing has a new page, or has ended.</summary>
     void ConversationChanged();
-
-    /// <summary>
-    /// A conversation has ended: what it ends in (a shop, training, a battle, a camp), and any fault.
-    /// </summary>
-    /// <param name="keeper">Who keeps a shop or training it opens (<see cref="Conversation.Keeper"/>).</param>
-    void ScriptEnded(RecordId script, ScriptEnding ending, RecordId? keeper);
 
     /// <summary>A wanderer's animation, which moves its body by its root motion.</summary>
     IRootMotion Motion(Wanderer wanderer);
@@ -45,11 +43,14 @@ public interface ITrekHost : IScriptHost
     /// <inheritdoc cref="IMapObjectHost.Changed"/>
     void Changed(LoadedMap map, SceneObject scene);
 
-    /// <summary>Tells the player something the port can't do yet, such as a battle or a backdrop.</summary>
+    /// <summary>Tells the player something the port can't do yet, such as a dialogue object's script it can't start.</summary>
     void Say(string text);
 
     /// <summary>Notes something for whoever's watching the log.</summary>
     void Log(string text);
+
+    /// <summary>Notes a problem for whoever's watching the log, such as where a script stopped that the original would crash.</summary>
+    void Warn(string text);
 }
 
 /// <summary>What a tick of trek came to.</summary>
@@ -267,7 +268,7 @@ public sealed class TrekLoop : IMapObjectHost
         {
             foreach (var w in Wanderers.Tick(world, motion.Sphere.Position, motion.Request, Game.Party, Game.Random.Wander,
                 Game.Weather?.FogTime ?? 0))
-                _host.Log($"{MapRecord.VoxelId(w.Map.Record.Id, w.Party.Index)} ambushes the party; battles come with combat (2.5).");
+                _host.Transition(new Transition.StartBattle(Battle(BattleSource.Wanderer, w.Map, w.Party, ambush: true)));
         }
         // ProcessPlayers: the player is the first body, then the rest move and push.
         Nearest = Wanderers.Step(world, motion.Sphere, before, Chunks.MapAt(motion.Sphere.Position)?.Key, Camera.Aim,
@@ -480,7 +481,8 @@ public sealed class TrekLoop : IMapObjectHost
             return CampOutcome.Refused;
         if (Camping.Ambushed(rules, factor, Game.Party, Game.Flags.IsSet, Game.Random.World))
         {
-            _host.Say("The party is ambushed; battles come with combat (2.5).");
+            var (place, terrainIndex) = Here();
+            _host.Transition(new Transition.StartBattle(BattleSetup.CampAmbush(place, terrainIndex)));
             return CampOutcome.Ambushed;
         }
         Game.Party.CampHeal(rules.Heal, rules.EffectTicks);
@@ -537,10 +539,25 @@ public sealed class TrekLoop : IMapObjectHost
             if (conversation.RebuildsTrek)
                 Rebuild();
             _host.ConversationChanged();
-            _host.ScriptEnded(conversation.Runner.Script.Id, conversation.Runner.Ending!, conversation.Keeper);
+            var ending = conversation.Runner.Ending!;
+            if (ending.Fault is { } fault)
+                _host.Warn($"{conversation.Runner.Script.Id}: {fault}");
+            var talker = conversation.With is { } with ? (MapRecord.VoxelId(with.Map.Record.Id, with.Party.Index), with.Party) : default((RecordId, MonsterPartyObject)?);
+            Transition.CarryOut(Game, _host, Transition.AfterScript(Game, ending, conversation.Keeper, Here(), talker));
             return;
         }
         _host.ConversationChanged();
+    }
+
+    /// <summary>The chunk the player is in, and its terrain, where a battle in trek starts.</summary>
+    public (ChunkRef? Chunk, int? Terrain) Here() =>
+        Chunks.ChunkAt(Player.Sphere.Position) is { } chunk ? (new ChunkRef(Chunks.MapSet.Id, chunk.Row, chunk.Column), chunk.Terrain) : (null, null);
+
+    /// <summary>A battle with a monster party in a loaded map, where the player stands.</summary>
+    private BattleSetup Battle(BattleSource source, LoadedMap map, MonsterPartyObject party, bool ambush)
+    {
+        var (place, terrain) = Here();
+        return BattleSetup.WithParty(source, MapRecord.VoxelId(map.Record.Id, party.Index), party, place, terrain, ambush);
     }
 
     // What using map objects asks of trek.
@@ -602,7 +619,7 @@ public sealed class TrekLoop : IMapObjectHost
             return;
         if (party.Dialogue is null)
         {
-            _host.Say($"{MapRecord.VoxelId(map.Record.Id, party.Index)} would fight; battles come with combat (2.5).");
+            _host.Transition(new Transition.StartBattle(Battle(BattleSource.MonsterParty, map, party, ambush: false)));
             return;
         }
         // A talker whose script is a cut-scene stages it in the chunk the player is in, from reference

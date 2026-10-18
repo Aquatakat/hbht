@@ -41,7 +41,11 @@ public sealed class TrekLoopTests(Na10Import fixture)
 
         void ITrekHost.ConversationChanged() => ConversationChanges++;
 
-        void ITrekHost.ScriptEnded(RecordId script, ScriptEnding ending, RecordId? keeper)
+        public List<Transition> Transitions { get; } = [];
+
+        void ITransitionHost.Transition(Transition next) => Transitions.Add(next);
+
+        void ITrekHost.Warn(string text)
         {
         }
 

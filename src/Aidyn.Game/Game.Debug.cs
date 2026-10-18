@@ -118,7 +118,7 @@ public partial class Game
         {
             if (map.Objects.OfType<DialogueObject>().FirstOrDefault(d => d.Script == script && d.Stage is not null) is { } dialogue)
             {
-                CueCutScene(record, new ScriptStart(dialogue.RefPointBase, MapRecord.VoxelId(map.Id, dialogue.Index)), dialogue.Stage!);
+                _session!.Cue(record, new ScriptStart(dialogue.RefPointBase, MapRecord.VoxelId(map.Id, dialogue.Index)), dialogue.Stage!);
                 return;
             }
         }
@@ -127,7 +127,7 @@ public partial class Game
         {
             if (map.Objects.OfType<MonsterPartyObject>().FirstOrDefault(p => p.Dialogue == script) is { } party && placements.First(map.Id) is { } place)
             {
-                CueCutScene(record, new ScriptStart(0, MapRecord.VoxelId(map.Id, party.Index)), new ChunkRef(place.Set.Id, place.Chunk.Row, place.Chunk.Column));
+                _session!.Cue(record, new ScriptStart(0, MapRecord.VoxelId(map.Id, party.Index)), new ChunkRef(place.Set.Id, place.Chunk.Row, place.Chunk.Column));
                 return;
             }
         }
@@ -146,7 +146,7 @@ public partial class Game
             Say($"There's no cinematic {parts[0]}.");
             return;
         }
-        PlayCinematic(cinematic, fromTheatre: false);
+        _session!.PlayCinematic(cinematic, fromTheatre: false);
         if (parts.Length > 1)
             _cinematic!.SkipTo(int.Parse(parts[1], CultureInfo.InvariantCulture),
                 parts.Length > 2 ? int.Parse(parts[2], CultureInfo.InvariantCulture) : 0);
@@ -200,23 +200,23 @@ public partial class Game
         var local = chunk is null ? focus : focus - chunks.Origin(chunk);
         var motion = _player!.Motion;
         var sphere = motion.Sphere;
-        _overlay.Text = (_scene is { } scene ? $"cut-scene {scene.Runner.Script.Id}, waiting for {scene.Runner.Wait?.ToString() ?? "nothing"}, {scene.Actors.Count} actors, {scene.Cameras.Count} camera moves\n" : "") +
+        _overlay.Text = (Scene is { } scene ? $"cut-scene {scene.Runner.Script.Id}, waiting for {scene.Runner.Wait?.ToString() ?? "nothing"}, {scene.Actors.Count} actors, {scene.Cameras.Count} camera moves\n" : "") +
             $"{chunks.Chunks.MapSet.Label} {chunk?.Name ?? "(no chunk)"}  " +
             $"({local.X:F1}, {local.Y:F1}, {local.Z:F1})  {Engine.GetFramesPerSecond()} fps" +
             (_camera!.Flying ? "  [free camera]" : "") + "\n" +
             (sphere.Touching ? $"on {SurfaceNames.Of(sphere.Surface)}" : "in the air") +
             $"  speed {Speed():F2}/s  request {motion.Request}  pace {motion.Pace:0.##} (F5)" +
-            $"  camera {_follow!.Mode.ToString().ToLowerInvariant()}{(_trek!.Use.CurrentCamera is { } held ? $" (object {held.Index})" : "")}" +
+            $"  camera {_follow!.Mode.ToString().ToLowerInvariant()}{(Trek!.Use.CurrentCamera is { } held ? $" (object {held.Index})" : "")}" +
             $"  {Clock(_sky!.Clock.TimeOfDay)}  sky {_sky.Placement.ToString().ToLowerInvariant()} (F6)" +
-            $"  UI {_menu!.Screen.Lines} lines (F7)  wanderers {_trek.Wanderers.All.Count}\n" +
-            $"music {_audio!.MusicPlaying?.Key ?? "none"}  sounds {_trek.Zone.Sounds.Playing} of the map's, {_audio.SoundsPlaying} one-shots" +
+            $"  UI {_menu!.Screen.Lines} lines (F7)  wanderers {Trek.Wanderers.All.Count}\n" +
+            $"music {_audio!.MusicPlaying?.Key ?? "none"}  sounds {Trek.Zone.Sounds.Playing} of the map's, {_audio.SoundsPlaying} one-shots" +
             $"  particles {_particles!.Head.ParticlesInUse} of {_particles.Head.MaxParticles}{Precipitation()}";
     }
 
     /// <summary>For the overlay: how many raindrops or snowflakes and splashes the last frame drew, and how many of them are on screen.</summary>
     private string Precipitation()
     {
-        if ((_scene is not null ? _stage?.Precipitation : _trek?.Zone.Precipitation) is not { Drops: { } drops, Splashes: { } splashes } ||
+        if ((Scene is not null ? Stage?.Precipitation : Trek?.Zone.Precipitation) is not { Drops: { } drops, Splashes: { } splashes } ||
             GetViewport().GetCamera3D() is not { } camera)
             return "";
         int fall = 0, fallSeen = 0, splash = 0, splashSeen = 0;

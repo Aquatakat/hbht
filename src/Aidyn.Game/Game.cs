@@ -3,6 +3,7 @@ using Aidyn.Core;
 using Aidyn.Core.Audio;
 using Aidyn.Core.Cameras;
 using Aidyn.Core.Chunks;
+using Aidyn.Core.Combat;
 using Aidyn.Core.Flags;
 using Aidyn.Core.Items;
 using Aidyn.Core.MapObjects;
@@ -51,8 +52,11 @@ public partial class Game : Node3D, ITrekHost
     private readonly MenuStick _stick = new();
     private Models? _models;
     private ParticlesView? _particles;
+    /// <summary>The game being played: what runs, trek or a cut-scene and what's over them, and where each leads (<see cref="GameSession"/>).</summary>
+    private GameSession? _session;
+
     /// <summary>Trek: the core's loop, which steps the player, the camera, the chunks and what's in them.</summary>
-    private TrekLoop? _trek;
+    private TrekLoop? Trek => _session?.Trek;
     /// <summary>Trek's chunks as they're drawn.</summary>
     private ChunkStreamerView? _chunks;
     private Player? _player;
@@ -140,7 +144,7 @@ public partial class Game : Node3D, ITrekHost
         options.ApplyTo(_settings);
 
         var streamer = BuildWorld(plugins, game, set);
-        var trek = _trek!;
+        var trek = Trek!;
         var chunkName = options.Chunk ?? place?.Chunk ?? "I08";
         var chunk = streamer.Find(chunkName) ?? throw new KeyNotFoundException($"{set.Label} has no chunk {chunkName}.");
         var at = options.At;
@@ -246,7 +250,7 @@ public partial class Game : Node3D, ITrekHost
         if (plugins.FindAsset(RecordId.Hex(RecordTypes.Texture, 0x0003), "png") is { } shadowPng)
             _shadowTexture = Png.Texture(shadowPng);
         var streamer = new ChunkStreamer(plugins, game, _world, set, _visible);
-        var trek = _trek = new TrekLoop(game, this, new ZoneEngine(game, streamer, _audio!, _particles.Head));
+        var trek = (_session = new GameSession(game, this, new ZoneEngine(game, streamer, _audio!, _particles.Head))).Trek;
         _chunks = new ChunkStreamerView(plugins, models, streamer, trek.Wanderers, _shadowTexture);
         AddChild(_chunks);
         return streamer;
@@ -283,7 +287,7 @@ public partial class Game : Node3D, ITrekHost
             if (animator is not null)
             {
                 animator.Driven = true;
-                _trek!.PlayerAnimation = animator;
+                Trek!.PlayerAnimation = animator;
             }
         }
 
@@ -307,7 +311,7 @@ public partial class Game : Node3D, ITrekHost
         var mode = options.Camera ?? FollowCamera.ModeFor(plugins, chunk);
         if (mode == CameraMode.Interior)
             follow.Arrive(centre, centre, look, mode, null);
-        _trek!.Begin(motion, follow);
+        Trek!.Begin(motion, follow);
         _camera = new CameraRig { Follow = follow, Yaw = yaw, Pitch = Mathf.DegToRad(-pitch) };
         AddChild(_camera);
         _camera.Sync();
@@ -335,9 +339,12 @@ public partial class Game : Node3D, ITrekHost
     /// <summary>The pause menu, the backdrop's page, the cinematic and the credits layers, and what the menu starts.</summary>
     private void BuildMenus(PluginSet plugins, GameState game)
     {
-        _menu = new PauseMenu(plugins, game, _settings, _stick) { SaveGame = SaveTo, LoadGame = LoadFrom, Where = Where, Audio = _audio };
+        var session = _session!;
+        _menu = new PauseMenu(plugins, game, _settings, _stick) { SaveGame = SaveTo, LoadGame = LoadFrom, Where = session.Where, Audio = _audio };
+        _menu.Opened += session.MenuOpened;
         AddChild(_menu);
         _backdrop = new BackdropLayer(plugins);
+        _backdrop.Closed += session.BackdropClosed;
         AddChild(_backdrop);
         _cinematic = new CinematicLayer(plugins, _models!, _audio!);
         AddChild(_cinematic);
@@ -346,30 +353,15 @@ public partial class Game : Node3D, ITrekHost
     }
 
     /// <summary>
-    /// A tick of the pause menu, after the game's, and what it ends in once it has rolled up (<see cref="PauseExit"/>): the
-    /// map reloaded, as the original's is as the menu closes, so what changed shows; then the party camps, the help menu's
-    /// script starts, the credits play or the Theatre's cinematic does.
+    /// A tick of the pause menu, after the game's, and once it has rolled up, the map reloaded, as the original's is as the
+    /// menu closes, so what changed shows; then the session carries out how it ended (<see cref="GameSession.MenuClosed"/>).
     /// </summary>
     private void StepMenu()
     {
         if (_menu?.Step() is not { } exit)
             return;
         _chunks!.Regate();
-        switch (exit.Code)
-        {
-            case PauseExitCode.Camp:
-                Camp();
-                break;
-            case PauseExitCode.Help:
-                _trek!.ShowBackdrop(_plugins!.Get<DialogueRecord>(SystemMenu.HelpScript));
-                break;
-            case PauseExitCode.Credits:
-                PlayCredits();
-                break;
-            case PauseExitCode.Theatre when exit.Cinematic is { } cinematic:
-                PlayCinematic(cinematic, fromTheatre: true);
-                break;
-        }
+        _session!.MenuClosed(exit);
     }
 
     /// <summary>Carries out the settings: the window, the 3D view, the draw distance, the sky, the pace and the UI screens.</summary>
@@ -389,8 +381,7 @@ public partial class Game : Node3D, ITrekHost
         };
         ApplyWorldLines();
         _drawDistance = new DrawDistance(s.DrawDistance, s.NearestDetail);
-        _trek?.Zone.Precipitation?.Density = Math.Clamp(s.PrecipitationDensity, 0, WeatherParticles.MaxDensity);
-        _stage?.Precipitation?.Density = Math.Clamp(s.PrecipitationDensity, 0, WeatherParticles.MaxDensity);
+        _session?.PrecipitationDensity = Math.Clamp(s.PrecipitationDensity, 0, WeatherParticles.MaxDensity);
         _sky?.Placement = s.SkyPlacement;
         _player?.Motion.Pace = s.BriskPace ? BriskPace : 1;
         _cinematic?.Viewport.Msaa3D = GetViewport().Msaa3D;
@@ -435,61 +426,49 @@ public partial class Game : Node3D, ITrekHost
     }
 
     /// <summary>
-    /// One 60 Hz tick of the game: the time played, which counts in every mode, then trek (<see cref="TrekLoop.Tick"/>)
-    /// or a cut-scene, and what draws them. The pause menu stops both.
+    /// One 60 Hz tick of the game (<see cref="GameSession.Tick"/>), and what draws the mode that ran: the cinematic or the
+    /// credits, which step themselves; a cut-scene; or trek, with its popup's pulse stepped before it.
     /// </summary>
     private void Tick()
     {
-        if (_player is null || _camera is null || _follow is null || _game is null || _trek is not { } trek)
+        if (_player is null || _camera is null || _follow is null || _session is not { } session)
             return;
-        _game.CountTick();
         _audio!.Step();
         // The HUD is trek's: not in a cut-scene. Under the pause menu and a backdrop's page it's drawn as it stands,
         // as the world is, so that it lays itself out again as the window or the menu size changes.
-        _hud!.Visible = _scene is null;
+        _hud!.Visible = Scene is null;
         _hud.QueueRedraw();
-        // A cinematic holds everything else still, and plays over it.
-        if (InCinematic)
-        {
-            StepCinematic();
-            return;
-        }
-        // The credits hold the world still too, its sounds going on silently.
-        if (InCredits)
-        {
-            StepCredits();
-            return;
-        }
-        // The menu's frame keeps the map's sounds going, with everything held still (PauseMenu.Frame), and a
-        // backdrop's page holds the world still the same way.
-        if (Paused)
-        {
-            if (_scene is null)
-                trek.StepSounds();
-            return;
-        }
-        if (_scene is not null)
-        {
-            StepCutScene();
-            _particles!.Step();
-            return;
-        }
-        ReopenTheatre();
-        ReopenAfterCredits();
-        _popupView!.Step();
+        if (session.TrekRuns)
+            _popupView!.Step();
         var before = _player.Motion.Sphere.Position;
-        var step = trek.Tick(ReadInput, frozen: _camera.Flying);
+        var step = session.Tick(ReadInput, _camera.Flying, _sky!.State.Drawn,
+            actor => _actorViews.TryGetValue(actor, out var view) ? view.Motion : null);
+        switch (step)
+        {
+            case SessionStep.Cinematic:
+                StepCinematic();
+                return;
+            case SessionStep.Credits:
+                StepCredits();
+                return;
+            case SessionStep.Held:
+                return;
+            case SessionStep.CutScene or SessionStep.CutSceneOver:
+                StepCutScene(over: step == SessionStep.CutSceneOver);
+                _particles!.Step();
+                return;
+        }
         _particles!.Step();
-        ShowFade(trek.Brightness);
-        if (step == TrekStep.CutScene)
+        ShowFade(session.Trek.Brightness);
+        if (step == SessionStep.CutSceneCued)
         {
             BeginCutScene();
             return;
         }
         _sky!.Step();
         ScrollTextures();
-        _hud.Outdoors = Where().Outdoors;
-        if (step == TrekStep.Frozen)
+        _hud.Outdoors = session.Where().Outdoors;
+        if (step == SessionStep.Frozen)
             return;
         ShowPopup();
         _player.Sync();
@@ -520,8 +499,8 @@ public partial class Game : Node3D, ITrekHost
     /// <summary>Shows the popup using map objects has up, if it changed.</summary>
     private void ShowPopup()
     {
-        if (_popupView!.Popup != _trek!.Use.Popup)
-            _popupView.Popup = _trek.Use.Popup;
+        if (_popupView!.Popup != Trek!.Use.Popup)
+            _popupView.Popup = Trek.Use.Popup;
     }
 
     /// <summary>Darkens the screen to a brightness, from 0 for black to 1.</summary>
@@ -557,6 +536,8 @@ public partial class Game : Node3D, ITrekHost
 
     void ITrekHost.Log(string text) => GD.Print(text);
 
+    void ITrekHost.Warn(string text) => GD.PushWarning(text);
+
     /// <summary>
     /// Once a frame at the console's average 20 fps, the scenes the original would draw load their
     /// own copies of their scrolling textures, which moves them on.
@@ -587,11 +568,11 @@ public partial class Game : Node3D, ITrekHost
             return new SceneView(transform.Origin.ToNumerics(), new(transform.Origin.X, transform.Origin.Z), flat, 0, cone);
         }
         // In a cut-scene there's no player: levels of detail go by the camera's aim.
-        var follow = _scene?.Camera ?? _follow!;
+        var follow = Scene?.Camera ?? _follow!;
         var camera = new System.Numerics.Vector2(follow.Position.X, follow.Position.Z);
         var toAim = new System.Numerics.Vector2(follow.Aim.X, follow.Aim.Z) - camera;
         var distance = toAim.Length();
-        var from = _scene is not null ? follow.Aim : _player!.Motion.Sphere.Position;
+        var from = Scene is not null ? follow.Aim : _player!.Motion.Sphere.Position;
         return new SceneView(from, camera, distance > 0 ? toAim / distance : default, distance, cone);
     }
 
@@ -630,7 +611,7 @@ public partial class Game : Node3D, ITrekHost
 
     private void LightBodies()
     {
-        var trek = _trek!;
+        var trek = Trek!;
         var lights = trek.Zone.Lights;
         trek.Zone.BeginLightFrame(trek.Brightness, _sky!.State.Drawn);
         _chunks!.LightActors(lights);
@@ -706,9 +687,6 @@ public partial class Game : Node3D, ITrekHost
             Engine.PhysicsTicksPerSecond = rate;
     }
 
-    /// <summary>Whether the pause menu or a backdrop's page holds the world still.</summary>
-    private bool Paused => _menu is { IsOpen: true } || _backdrop is { Showing: true } || InCinematic || InCredits;
-
     public override void _Process(double delta)
     {
         SetTickRate();
@@ -717,15 +695,15 @@ public partial class Game : Node3D, ITrekHost
         // The world goes on being drawn behind the pause menu and a backdrop's page, still: its scenery's actors,
         // which animate with the frame, stop, and so does the free camera. The parent processes first, so this
         // holds from the frame the menu opens.
-        var still = Paused ? ProcessModeEnum.Disabled : ProcessModeEnum.Inherit;
+        var still = _session is { Held: true } ? ProcessModeEnum.Disabled : ProcessModeEnum.Inherit;
         _chunks!.ProcessMode = still;
         _camera.ProcessMode = still;
         foreach (var map in _changed)
             chunks.Rebuild(map);
         _changed.Clear();
-        var focus = _camera.Flying ? _camera.Current.GlobalPosition : _scene is not null ? _scene.Camera.Aim.ToGodot() : _player.GlobalPosition;
+        var focus = _camera.Flying ? _camera.Current.GlobalPosition : Scene is not null ? Scene.Camera.Aim.ToGodot() : _player.GlobalPosition;
         // A cut-scene's 3×3 stays as it loaded.
-        if (_scene is null)
+        if (Scene is null)
             chunks.Chunks.Update(focus.ToNumerics());
         var view = View();
         chunks.Fade(view, _drawDistance);
@@ -746,83 +724,83 @@ public partial class Game : Node3D, ITrekHost
     /// </summary>
     private void RepeatStick(double delta)
     {
-        if (_menu is { IsOpen: true })
-            return;
-        if (_trek?.Use is { Popup: not null } || _trek?.Conversation is not null || _scene is not null || _backdrop is { Showing: true })
-            _stick.Step(delta, direction => _UnhandledInput(new InputEventAction { Action = MenuStick.Dpad(direction), Pressed = true }));
-        else
-            _stick.Clear();
+        switch (_session?.Mode)
+        {
+            case GameMode.Menu:
+                return;
+            case GameMode.Popup or GameMode.Conversation or GameMode.CutScene or GameMode.Backdrop:
+                _stick.Step(delta, direction => _UnhandledInput(new InputEventAction { Action = MenuStick.Dpad(direction), Pressed = true }));
+                break;
+            default:
+                _stick.Clear();
+                break;
+        }
     }
 
     public override void _UnhandledInput(InputEvent e)
     {
         _stick.Track(e);
         var action = _stick.Translate(e);
-        if (InCinematic)
+        // The press goes to what runs (GameSession.Mode).
+        switch (_session?.Mode)
         {
-            CinematicInput(action);
-            return;
-        }
-        if (InCredits)
-        {
-            CreditsInput(action);
-            return;
-        }
-        if (_menu is { IsOpen: true } menu)
-        {
-            if (menu.Handle(e))
+            case GameMode.Cinematic:
+                CinematicInput(action);
                 return;
-        }
-        else if (_backdrop is { Showing: true })
-        {
-            Browse(action);
-            return;
-        }
-        else if (_trek?.Use is { Popup: not null } use)
-        {
-            if (action == MenuAction.Accept)
-                use.Accept();
-            else if (action == MenuAction.Back)
-                use.Back();
-            else if (action is MenuAction.Up or MenuAction.Down)
-                use.MoveCursor(MenuStick.Vertical(action));
-            else
+            case GameMode.Credits:
+                CreditsInput(action);
                 return;
-            ShowPopup();
-            _popupView!.QueueRedraw();
-            return;
-        }
-        else if (_trek?.Conversation is not null)
-        {
-            Converse(action);
-            return;
-        }
-        else if (_scene is not null)
-        {
-            CutSceneInput(action);
-            if (!e.IsActionPressed("toggle_fly") && !e.IsActionPressed("toggle_overlay"))
+            case GameMode.Menu:
+                if (_menu!.Handle(e))
+                    return;
+                break;
+            case GameMode.Backdrop:
+                Browse(action);
                 return;
-        }
-        else if (_trek is { Cued: not null } or { CutSceneFade.Fading: true })
-        {
-            // Trek's input is dead while it fades into or out of a cut-scene.
-            if (action is MenuAction.Start or MenuAction.Accept)
+            case GameMode.Popup:
+                var use = Trek!.Use;
+                if (action == MenuAction.Accept)
+                    use.Accept();
+                else if (action == MenuAction.Back)
+                    use.Back();
+                else if (action is MenuAction.Up or MenuAction.Down)
+                    use.MoveCursor(MenuStick.Vertical(action));
+                else
+                    return;
+                ShowPopup();
+                _popupView!.QueueRedraw();
                 return;
-        }
-        else if (action == MenuAction.Start && _menu is not null && _trek is { Teleporting: false })
-        {
-            _menu.Open();
-            return;
-        }
-        else if (action == MenuAction.Accept && _camera is { Flying: false } && _trek is { TeleportFade.Fading: false } && UseNearest())
-        {
-            return;
-        }
-        else if (action == MenuAction.Back && _camera is { Flying: false } && _trek is { } trek)
-        {
-            // B raises or lowers the party's portraits, and the minimap with them.
-            trek.PressB();
-            return;
+            case GameMode.Conversation:
+                Converse(action);
+                return;
+            case GameMode.CutScene:
+                CutSceneInput(action);
+                if (!e.IsActionPressed("toggle_fly") && !e.IsActionPressed("toggle_overlay"))
+                    return;
+                break;
+            default:
+                if (Trek is { Cued: not null } or { CutSceneFade.Fading: true })
+                {
+                    // Trek's input is dead while it fades into or out of a cut-scene.
+                    if (action is MenuAction.Start or MenuAction.Accept)
+                        return;
+                }
+                else if (action == MenuAction.Start && _menu is not null && Trek is { Teleporting: false })
+                {
+                    _menu.Open();
+                    return;
+                }
+                else if (action == MenuAction.Accept && _camera is { Flying: false } && Trek is { TeleportFade.Fading: false } && UseNearest())
+                {
+                    return;
+                }
+                else if (action == MenuAction.Back && _camera is { Flying: false } && Trek is { } trek)
+                {
+                    // B raises or lowers the party's portraits, and the minimap with them.
+                    trek.PressB();
+                    return;
+                }
+                break;
         }
 
         if (e.IsActionPressed("cycle_ui_lines") && _menu is not null)
@@ -830,7 +808,7 @@ public partial class Game : Node3D, ITrekHost
             _settings.UiLines = _settings.UiLines switch { < 360 => 360, < 480 => 480, _ => 240 };
             _settings.Notify();
         }
-        else if (e.IsActionPressed("quick_save") && _game is not null && _scene is null)
+        else if (e.IsActionPressed("quick_save") && _game is not null && Scene is null)
         {
             QuickSave();
         }
@@ -858,26 +836,10 @@ public partial class Game : Node3D, ITrekHost
         }
     }
 
-    /// <summary>The chunk the player is in, and whether its terrain has the outdoor sky, for the World tab.</summary>
-    private (ChunkRef? Place, bool Outdoors) Where()
-    {
-        if (_trek is not { } trek || trek.Chunks.ChunkAt(trek.Player.Sphere.Position) is not { } chunk)
-            return (null, false);
-        var terrain = TerrainRecord.Find(_plugins!, chunk.Terrain);
-        return (new ChunkRef(trek.Chunks.MapSet.Id, chunk.Row, chunk.Column), terrain?.SkyDrawn ?? false);
-    }
-
-    /// <summary>The World tab's Camp: the party camps where the player stands (<see cref="TrekLoop.Camp"/>).</summary>
-    private void Camp()
-    {
-        var outcome = _trek!.Camp();
-        GD.Print($"Camping: {outcome}.");
-    }
-
     /// <summary>A in trek: uses the map object the player reaches, and shows any popup it brings up.</summary>
     private bool UseNearest()
     {
-        var used = _trek!.UseNearest();
+        var used = Trek!.UseNearest();
         ShowPopup();
         return used;
     }
@@ -893,7 +855,7 @@ public partial class Game : Node3D, ITrekHost
     /// </summary>
     private void Converse(MenuAction action)
     {
-        var conversation = _trek!.Conversation!;
+        var conversation = Trek!.Conversation!;
         var runner = conversation.Runner;
         if (runner.Status != Core.Scripts.ScriptStatus.Showing || runner.Page is null)
             return;
@@ -901,7 +863,7 @@ public partial class Game : Node3D, ITrekHost
         if (action == MenuAction.Accept)
         {
             if (_box.Accept(runner, conversation.Press) != DialogueAccept.ShowedChoices)
-                _trek.Refresh();
+                Trek.Refresh();
         }
         else if (action is MenuAction.Up or MenuAction.Down)
         {
@@ -917,13 +879,13 @@ public partial class Game : Node3D, ITrekHost
     /// </summary>
     private void Browse(MenuAction action)
     {
-        if (!_backdrop!.Taking || _trek!.Conversation?.Runner is not { Status: Core.Scripts.ScriptStatus.Showing, Page: { } page } runner)
+        if (!_backdrop!.Taking || Trek!.Conversation?.Runner is not { Status: Core.Scripts.ScriptStatus.Showing, Page: { } page } runner)
             return;
         var back = action == MenuAction.Back && runner.Script.Mode == DialogueMode.Help;
         if (action == MenuAction.Accept || back)
         {
             DialogueBox.Advance(runner, back ? page.Choices.Count - 1 : _backdrop.Page!.Highlight);
-            _trek.Refresh();
+            Trek.Refresh();
         }
         else if (action is MenuAction.Up or MenuAction.Down)
         {
@@ -937,91 +899,95 @@ public partial class Game : Node3D, ITrekHost
     /// </summary>
     void ITrekHost.ConversationChanged()
     {
-        if (_trek!.Conversation is { ShowsBackdrop: true } backdrop)
+        if (Trek!.Conversation is { ShowsBackdrop: true } backdrop)
         {
             if (!_backdrop!.Showing)
             {
                 _backdrop.Open(BackdropStyle.For(backdrop.Runner.Script.Backdrop));
+                _session!.BackdropOpened();
             }
             if (backdrop.Runner is { Status: Core.Scripts.ScriptStatus.Showing, Page: { } shown })
                 _backdrop.Show(shown);
             return;
         }
         _backdrop!.Close();
-        if (_trek!.Conversation?.Runner is { Status: Core.Scripts.ScriptStatus.Showing, Page: { } page })
+        if (Trek!.Conversation?.Runner is { Status: Core.Scripts.ScriptStatus.Showing, Page: { } page })
             _box!.Show(page);
         else
             _box!.Visible = false;
     }
 
-    /// <summary>A conversation has ended: any fault, and the shop, training, battle or camp it ends in.</summary>
-    void ITrekHost.ScriptEnded(RecordId script, Core.Scripts.ScriptEnding ending, RecordId? keeper)
-    {
-        if (ending.Fault is { } fault)
-            GD.PushWarning($"{script}: {fault}");
-        CarryOut(ending, keeper);
-    }
-
     /// <summary>
-    /// Passes the hours a camp heal or a camp scene takes, and opens the shop or training a script ends in, kept by
-    /// <paramref name="keeper"/>, or says what the stand-in for a battle would do.
+    /// Shows where the game goes as a mode, the menu or a script ends (<see cref="Transition"/>): the shop or training in the
+    /// pause menu, the cut-scene's stage and trek again, the credits, a cinematic or the menu reopened; and, until combat, a
+    /// word for a battle.
     /// </summary>
-    private void CarryOut(Core.Scripts.ScriptEnding ending, RecordId? keeper)
+    void ITransitionHost.Transition(Transition next)
     {
-        if (ending.RestHours > 0)
+        switch (next)
         {
-            _game!.Lapse(ending.RestHours);
-            GD.Print($"{ending.RestHours} hours pass.");
+            case Transition.OpenShop shop:
+                _menu!.OpenShop(shop.Shop);
+                break;
+            case Transition.OpenTraining training:
+                _menu!.OpenTraining(training.Trainer);
+                break;
+            case Transition.StartBattle battle:
+                SayBattle(battle.Setup);
+                break;
+            case Transition.Camp camp:
+                GD.Print($"Camping: {camp.Outcome}.");
+                break;
+            case Transition.Rest rest:
+                GD.Print($"{rest.Hours} hours pass.");
+                break;
+            case Transition.Say say:
+                Say(say.Text);
+                break;
+            case Transition.StartCutScene cutScene:
+                ShowStage(cutScene.Scene, cutScene.Stage);
+                break;
+            case Transition.EndCutScene ended:
+                FreeStage(ended.Scene);
+                break;
+            case Transition.ResumeTrek:
+                ShowTrek();
+                break;
+            case Transition.PlayCredits:
+                PlayCredits();
+                break;
+            case Transition.PlayCinematic cinematic:
+                PlayCinematic(cinematic.Cinematic);
+                break;
+            case Transition.ReopenMenu { Theatre: true }:
+                _menu!.OpenTheatre();
+                break;
+            case Transition.ReopenMenu:
+                _menu!.Open();
+                break;
         }
-        if (ending.Kind == Core.Scripts.ScriptEndKind.Shop)
-        {
-            OpenShop(keeper);
-            return;
-        }
-        if (ending.Kind == Core.Scripts.ScriptEndKind.Train)
-        {
-            OpenTraining(keeper);
-            return;
-        }
-        var what = ending.Kind switch
-        {
-            Core.Scripts.ScriptEndKind.Battle => "A battle would start; battles come with combat (2.5).",
-            _ => null,
-        };
-        if (what is not null)
-            Say(what);
     }
 
-    /// <summary>
-    /// Opens the keeper's first shop (<c>InitShop</c>). The original crashes when the keeper runs no shop,
-    /// which no script in the game does; the port says so and stays in trek.
-    /// </summary>
-    private void OpenShop(RecordId? keeper)
+    /// <summary>What a battle would be, until combat (2.5): a wanderer's ambush goes to the log, the rest are said.</summary>
+    private void SayBattle(BattleSetup setup)
     {
-        var entity = keeper is { } id ? _plugins!.TryGet<EntityRecord>(id) : null;
-        if (entity is null || Core.Items.Shop.For(_plugins!.All<ShopRecord>(RecordTypes.Shop), entity.Id) is not { } record)
+        var party = setup.Party?.ToString();
+        switch (setup.Source)
         {
-            Say($"{entity?.Name ?? keeper?.ToString() ?? "No one"} keeps no shop.");
-            return;
+            case BattleSource.Wanderer:
+                GD.Print($"{party} ambushes the party; battles come with combat (2.5).");
+                break;
+            case BattleSource.MonsterParty:
+                Say($"{party} would fight; battles come with combat (2.5).");
+                break;
+            case BattleSource.Camp:
+                Say("The party is ambushed; battles come with combat (2.5).");
+                break;
+            default:
+                Say("A battle would start; battles come with combat (2.5).");
+                break;
         }
-        var party = _game!.Party;
-        _menu!.OpenShop(Core.Items.Shop.Open(record, entity, party, party.Inventory.Catalog, _game.Flags));
     }
-
-    /// <summary>
-    /// Opens training with the keeper as the trainer (<c>init_skill_trainer</c>). The original opens it with
-    /// empty lists when there's no keeper; the port says so and stays in trek.
-    /// </summary>
-    private void OpenTraining(RecordId? keeper)
-    {
-        if (keeper is not { } id || _plugins!.TryGet<EntityRecord>(id) is not { } entity)
-        {
-            Say($"{keeper?.ToString() ?? "No one"} teaches nothing.");
-            return;
-        }
-        _menu!.OpenTraining(Core.Characters.Trainer.From(entity, _game!.Rules, _plugins.Get<SpellRecord>));
-    }
-
     /// <summary>A script's sounds. The cut-scene carries out the rest of its cues.</summary>
     void Core.Scripts.IScriptHost.Cue(Core.Scripts.ScriptCue cue)
     {
@@ -1048,7 +1014,7 @@ public partial class Game : Node3D, ITrekHost
             return "There's no game to save.";
         try
         {
-            if (!NotePlace())
+            if (!_session!.NotePlace())
                 return "The player isn't in a chunk.";
             _game.Label = null;
             SaveFile.Write(path, _game.Save());
@@ -1091,20 +1057,10 @@ public partial class Game : Node3D, ITrekHost
         GetTree().ReloadCurrentScene();
     }
 
-    /// <summary>Notes where the player stands, for a save. False if he isn't in a chunk.</summary>
-    private bool NotePlace()
-    {
-        var position = _player!.Motion.Sphere.Position.ToGodot();
-        if (_chunks!.Chunks.ChunkAt(position.ToNumerics()) is not { } chunk)
-            return false;
-        _game!.Place = new SavePlace(_chunks.Chunks.MapSet.Id, chunk.Name, (position - _chunks.Origin(chunk)).ToNumerics(), _player.Motion.Heading);
-        return true;
-    }
-
     /// <summary>Saves the game to <c>quick.json</c> in the saves folder, with where the player stands.</summary>
     private void QuickSave()
     {
-        if (!NotePlace())
+        if (!_session!.NotePlace())
         {
             Say("Can't save: the player isn't in a chunk.");
             return;

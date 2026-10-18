@@ -1,3 +1,4 @@
+using Aidyn.Core.Combat;
 using Aidyn.Core.Flags;
 using Aidyn.Core.MapObjects;
 using Aidyn.Core.Rng;
@@ -463,11 +464,13 @@ public class ScriptRunnerTests
 
         var ending = run.Runner.Ending!;
         Assert.Equal(ScriptEndKind.Battle, ending.Kind);
-        Assert.Equal([Goblin, Goblin], ending.Battle!.Enemies);
-        Assert.Equal(0, ending.Battle.Battlefield);
+        Assert.Equal(BattleSource.Script, ending.Battle!.Source);
+        Assert.Equal([new PartyEnemy(Goblin, 1, 1), new PartyEnemy(Goblin, 1, 1)], ending.Battle.Enemies);
+        Assert.Equal(0, ending.Battle.Arena);
         Assert.Equal(2, ending.Battle.CollisionByte);
         Assert.Equal(canFlee, ending.Battle.CanFlee);
-        Assert.Equal(Flag(6), ending.Battle.WinFlag);
+        Assert.Equal(Flag(6), ending.Battle.EncounterFlag);
+        Assert.False(ending.Battle.Ambush);
     }
 
     [Fact]
