@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using Aidyn.Core;
 using Aidyn.Core.Flags;
 using Aidyn.Core.Items;
+using Aidyn.Core.MapObjects;
 using Aidyn.Core.Rng;
 using Aidyn.Game;
 using Aidyn.Plugins;

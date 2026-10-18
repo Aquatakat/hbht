@@ -61,9 +61,6 @@ public partial class WorldTabView : Control
 
     public WorldMenu Menu { get; set; }
 
-    /// <summary>The main font, which the journal lays its entries out in.</summary>
-    public TextLayout MainFont => _ui.Main.Layout;
-
     /// <summary>How far the widgets are faded into the parchment, from 0 to 1, as on <see cref="PartyTabView.Veil"/>.</summary>
     public float Veil { get; set; }
 

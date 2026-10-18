@@ -294,51 +294,6 @@ public static class SceneGltf
     }
 
     /// <summary>
-    /// Converts one Borg2 on its own, for previewing: a node with a primitive per drawn display list,
-    /// shaded by its vertex colours or normals and its tint. Scenes bind the textures, so it has none.
-    /// Unlike a scene, it includes the display lists of models the game hides.
-    /// </summary>
-    /// <param name="index">The model's archive index, recorded in the file.</param>
-    public static byte[] ExportModel(Borg2Geometry model, int index)
-    {
-        var gltf = new GltfBuilder();
-        var primitives = new JsonArray();
-        for (var i = 0; i < model.Meshes.Count; i++)
-        {
-            var mesh = model.Meshes[i];
-            if (mesh.Indices.Length == 0)
-                continue;
-            var alpha = (1 - mesh.Tint.W) * (1 - model.Alpha);
-            var material = new JsonObject
-            {
-                ["pbrMetallicRoughness"] = new JsonObject
-                {
-                    ["baseColorFactor"] = LinearColor(mesh.Tint, alpha),
-                    ["metallicFactor"] = 0f,
-                    ["roughnessFactor"] = 1f,
-                },
-                ["alphaMode"] = alpha < 1 ? "BLEND" : "OPAQUE",
-                ["doubleSided"] = !mesh.Flags.HasFlag(Borg2MaterialFlags.CullBack),
-                ["extras"] = new JsonObject { ["borg2Flags"] = (uint)mesh.Flags },
-            };
-            if (mesh.Flags.HasFlag(Borg2MaterialFlags.Unlit))
-            {
-                gltf.UseExtension("KHR_materials_unlit");
-                material["extensions"] = new JsonObject { ["KHR_materials_unlit"] = new JsonObject() };
-            }
-            var primitive = Primitive(gltf, model, mesh, null);
-            primitive["material"] = gltf.AddMaterial(material);
-            primitive["extras"] = new JsonObject { ["displayList"] = i };
-            primitives.Add(primitive);
-        }
-
-        var node = new JsonObject { ["name"] = $"borg2 {index}" };
-        if (primitives.Count > 0)
-            node["mesh"] = gltf.AddMesh(new JsonObject { ["primitives"] = primitives });
-        return gltf.ToGlb([gltf.AddNode(node)], new JsonObject { ["borg2"] = index });
-    }
-
-    /// <summary>
     /// Bakes a Borg6 into one sample per tick, from time 1 to time <c>Length + 1</c>, which is time 1
     /// again, so the clip lasts one loop. Linear interpolation then matches the game at every tick.
     /// </summary>

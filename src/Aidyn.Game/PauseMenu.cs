@@ -40,9 +40,9 @@ public enum PauseTab
 /// original's can. On a PC, Z and X or the triggers change the tab.
 /// </para>
 /// <para>
-/// The tabs are one scroll, as their images are drawn. In the classic layout they're 320 apart, so a screen wider
-/// than the frame shows the edges of the tabs either side, their widgets faded into the parchment, which clears as a
-/// tab slides into the middle. In the wide layout each tab fills the screen, and they're a screen's width apart.
+/// The tabs are one scroll, as their images are drawn, 320 apart, so a screen wider than the frame shows the
+/// edges of the tabs either side, their widgets faded into the parchment, which clears as a tab slides into the
+/// middle (ADR 0014).
 /// </para>
 /// <para>
 /// The menu remembers which tab was open, as the original does, and nothing else: a new game's first opening is on
@@ -58,8 +58,8 @@ public enum PauseTab
 /// player's presses to reach something are the same every time.
 /// </para>
 /// <para>
-/// In the loot window, the stick's left and right go to the list that way: the pile is left of the party's list in
-/// the classic layout, as the original's is, and right of it in the wide one. C-left and C-right do nothing there,
+/// In the loot window, the stick's left and right go to the list that way: the pile is always left of the party's
+/// list, as the original's is. C-left and C-right do nothing there,
 /// as in the original. B or Start closes it, unless items are left (<see cref="BarterMenu.Back"/>), and so does
 /// choosing to leave them. A shop's is the same, but B or Start closes it at once, and C-up, R or the left face
 /// button, appraises the stock's row. In training, the stick's up and down move the trainer's cursor, its left and

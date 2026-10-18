@@ -1,4 +1,5 @@
 using Aidyn.Core.Calendar;
+using Aidyn.Core.Rng;
 using Aidyn.Core.Sky;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
@@ -34,10 +35,12 @@ public partial class SkyView : Node
     private SkyGradient? _terrain, _rain;
 
     /// <param name="clock">The game's clock, which the game runs; the sky reads the time of day from it.</param>
-    public SkyView(PluginSet plugins, GameClock clock)
+    /// <param name="cosmetic">The game's cosmetic random stream (<c>Random.Cosmetic</c>), which picks the stars' twinkle.</param>
+    public SkyView(PluginSet plugins, GameClock clock, IRandom cosmetic)
     {
         _plugins = plugins;
         Clock = clock;
+        Cosmetic = cosmetic;
         Name = "Sky";
         if (plugins.TrySingleton<SkyRecord>(RecordTypes.Sky) is { } sky)
         {
@@ -52,6 +55,7 @@ public partial class SkyView : Node
     }
 
     public GameClock Clock { get; }
+    public IRandom Cosmetic { get; }
     public SkyState State { get; } = new();
     public SkyColors Colors { get; private set; }
     public SkyObjects? Objects { get; }

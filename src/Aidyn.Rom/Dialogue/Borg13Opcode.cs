@@ -132,9 +132,4 @@ public static class Borg13Opcodes
     public static bool IsCondition(this Borg13Opcode op) => op is >= Borg13Opcode.CheckMember and <= Borg13Opcode.CheckGold;
 
     public static bool IsEffect(this Borg13Opcode op) => op is >= Borg13Opcode.SetFlag and <= Borg13Opcode.Unknown59;
-
-    /// <summary>Whether the operand is a reference point, relative to the dialogue's own.</summary>
-    public static bool TakesRefPoint(this Borg13Opcode op) => op is Borg13Opcode.CameraCutTo or Borg13Opcode.CameraOn
-        or Borg13Opcode.CameraAngleTo or Borg13Opcode.CameraPanTo or Borg13Opcode.CameraSineTo
-        or Borg13Opcode.FaceRefPoint or Borg13Opcode.CreateActor or Borg13Opcode.WalkTo or Borg13Opcode.RunTo;
 }

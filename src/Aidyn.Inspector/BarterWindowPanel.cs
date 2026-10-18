@@ -34,8 +34,8 @@ public partial class BarterWindowPanel : VBoxContainer
         var shop = barter.Shop is not null;
         AddChild(new Label
         {
-            Text = intro + " The stick's left and right reach the list on that side: the pile is left of the party's in the classic layout "
-                + "and right of it in the wide one. "
+            Text = intro + " The stick's left and right reach the list on that side: the pile is always left of the party's, "
+                + "as in the original. "
                 + (shop ? "A buys one or sells, C-up appraises the stock's price, B leaves." : "A takes or drops, B leaves."),
             AutowrapMode = TextServer.AutowrapMode.WordSmart,
         });

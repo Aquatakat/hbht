@@ -1,5 +1,6 @@
 using System.Numerics;
 using Aidyn.Core.Calendar;
+using Aidyn.Core.Rng;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 
@@ -33,9 +34,10 @@ public sealed class SkyObjects(SkyRecord sky)
     /// <summary>Adds this frame's sprites to <paramref name="sprites"/>, in the order they're drawn.</summary>
     /// <param name="look">The way the camera looks, normalised.</param>
     /// <param name="sunColor">The sky's sun colour (<see cref="SkyColors.Sun"/>), which the sun is drawn in.</param>
-    /// <param name="twinkle">Picks the stars' greys each frame, 160 to 255.</param>
+    /// <param name="twinkle">Picks the stars' greys each frame, 160 to 255: the cosmetic stream (ADR 0006), so a
+    /// save keeps its place and the sky can't shift a gameplay stream.</param>
     /// <param name="fogTime">How thick the weather's fog is, which fades the sun, and the moon and stars faster.</param>
-    public void Draw(List<SkySprite> sprites, uint time, Vector3 look, Vector3 sunColor, ImageSize size, Random twinkle,
+    public void Draw(List<SkySprite> sprites, uint time, Vector3 look, Vector3 sunColor, ImageSize size, IRandom twinkle,
         float fogTime = 0, float brightness = 1)
     {
         var timeOfDay = (float)(time % GameClock.Day) / GameClock.Day;
@@ -46,7 +48,7 @@ public sealed class SkyObjects(SkyRecord sky)
             var night = MathF.Sin(-sunHeight * Deg);
             foreach (var star in sky.Stars)
             {
-                var grey = (byte)twinkle.Next(160, 256);
+                var grey = (byte)twinkle.Range(160, 255);
                 Add(star, star.Image, star.Height, new Rgba(grey, grey, grey, star.Color.A), 2, night);
             }
         }

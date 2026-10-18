@@ -23,8 +23,6 @@ public partial class Player : Node3D
 
     public PlayerMotion Motion { get; }
 
-    public ActorAnimator? Animator { get; set; }
-
     /// <summary>The model's meshes, which the point lights near him light.</summary>
     public GeometryInstance3D[] Meshes { get; private set; } = [];
 

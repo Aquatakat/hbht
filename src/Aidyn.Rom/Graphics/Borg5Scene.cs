@@ -144,7 +144,7 @@ public readonly record struct Borg5Draw(int? Texture, int Transform, int Model, 
 /// <para>
 /// <b>Units.</b> Positions are in scene units. The game draws at 16 times that, and scales a model's
 /// vertices by its <see cref="Borg2Geometry.Scale"/>, so a vertex is at
-/// <c>v × Scale / 16 × World</c> in scene units: <see cref="ModelMatrix"/>.
+/// <c>v × Scale / 16 × World</c> in scene units.
 /// </para>
 /// </remarks>
 public sealed class Borg5Scene
@@ -222,10 +222,6 @@ public sealed class Borg5Scene
             m *= Transforms[parent].LocalMatrix();
         return m;
     }
-
-    /// <summary>Where a model drawn with this transform puts its vertices, in scene units.</summary>
-    public Matrix4x4 ModelMatrix(int transform, Borg2Geometry model) =>
-        Matrix4x4.CreateScale(model.Scale / 16) * WorldMatrix(transform);
 
     public static Borg5Scene Parse(byte[] data)
     {

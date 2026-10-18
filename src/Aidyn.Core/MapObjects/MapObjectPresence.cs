@@ -1,7 +1,7 @@
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 
-namespace Aidyn.Core.Flags;
+namespace Aidyn.Core.MapObjects;
 
 /// <summary>
 /// Whether a map object is there as its chunk loads, by the flags (the original's

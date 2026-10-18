@@ -24,7 +24,6 @@ public partial class SkyBackdropView : Control
     private readonly Image _image = Image.CreateEmpty(1, SkyBackdrop.ScreenLines, false, Image.Format.Rgb8);
     private readonly ImageTexture _gradient;
     private readonly List<SkySprite> _sprites = [];
-    private readonly Random _twinkle = new();
 
     public SkyBackdropView(SkyView sky)
     {
@@ -145,7 +144,7 @@ public partial class SkyBackdropView : Control
         }
 
         _sprites.Clear();
-        _sky.Objects?.Draw(_sprites, _sky.Clock.Time, look, colors.Sun, _sky.ImageSize, _twinkle, _sky.FogTime);
+        _sky.Objects?.Draw(_sprites, _sky.Clock.Time, look, colors.Sun, _sky.ImageSize, _sky.Cosmetic, _sky.FogTime);
         _sky.Clouds?.Draw(_sprites, look, colors.Cloud, _sky.ImageSize, _sky.FogTime);
         DrawSprites(this, _sky, _sprites);
     }

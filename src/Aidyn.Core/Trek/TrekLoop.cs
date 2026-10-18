@@ -112,7 +112,7 @@ public sealed class TrekLoop : IMapObjectHost
         Use = new MapObjectUse(game, MenuText.From(game.Plugins), this) { World = chunks.World };
         Hud = new TrekHud(game, host.ImageSize);
         Sounds = new MapSounds(Audio, game.Random.Cosmetic,
-            o => Flags.MapObjectPresence.There(o, f => game.Flags.TryHandle(f, out var h) && game.Flags.Get(h)));
+            o => MapObjectPresence.There(o, f => game.Flags.TryHandle(f, out var h) && game.Flags.Get(h)));
         Keys = new AudioKeys(Audio, game.Sounds, game.Random.Cosmetic);
         Lights = new Lights.WorldLights(game.Random.Cosmetic) { World = chunks.World };
         WeatherSounds = new WeatherSounds(Audio, game.Sounds);

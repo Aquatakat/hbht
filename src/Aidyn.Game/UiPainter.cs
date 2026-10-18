@@ -212,7 +212,7 @@ public sealed class UiPainter
 
     /// <summary>
     /// Draws part of an image: <paramref name="source"/>, in the image's pixels, at (x, y) at its own
-    /// size or scaled to <paramref name="size"/>. The wide layouts compose their parchment from cut-outs.
+    /// size or scaled to <paramref name="size"/>. The journal cuts its parchment's faded edges from the book's image with it.
     /// </summary>
     public void Cut(CanvasItem canvas, RecordId image, Rect2I source, int x, int y, Vector2I? size = null, Rgba? color = null, bool mirror = false)
     {

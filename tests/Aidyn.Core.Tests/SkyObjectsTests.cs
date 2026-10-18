@@ -1,5 +1,6 @@
 using System.Numerics;
 using Aidyn.Core.Calendar;
+using Aidyn.Core.Rng;
 using Aidyn.Core.Sky;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
@@ -61,11 +62,11 @@ public class SkyObjectsTests
     {
         var objects = new SkyObjects(Sky());
         var sprites = new List<SkySprite>();
-        objects.Draw(sprites, At(12), Vector3.UnitX, Vector3.One, Size, new Random(1));
+        objects.Draw(sprites, At(12), Vector3.UnitX, Vector3.One, Size, new Lcg(1));
         Assert.DoesNotContain(sprites, s => s.Image == Image(0x1A1));
 
         sprites.Clear();
-        objects.Draw(sprites, At(3), Vector3.UnitX, Vector3.One, Size, new Random(1));
+        objects.Draw(sprites, At(3), Vector3.UnitX, Vector3.One, Size, new Lcg(1));
         var star = Assert.Single(sprites, s => s.Image == Image(0x1A1));
         // Twinkling in greys, brighter the lower the sun: at 03:00 it's 45° down, so alpha × sin 45°.
         Assert.Equal(star.Color.X, star.Color.Y);
@@ -79,7 +80,7 @@ public class SkyObjectsTests
         var objects = new SkyObjects(Sky());
         var sprites = new List<SkySprite>();
         var color = new Vector3(0.9f, 0.6f, 0.3f);
-        objects.Draw(sprites, At(6), Vector3.UnitX, color, Size, new Random(1));
+        objects.Draw(sprites, At(6), Vector3.UnitX, color, Size, new Lcg(1));
 
         var sun = Assert.Single(sprites, s => s.Image == Image(0x1A2));
         Assert.Equal(color, sun.Color, new Tolerance());
@@ -87,7 +88,7 @@ public class SkyObjectsTests
         Near(new Vector2(192, 152), objects.SunMiddle);
 
         // Turning away leaves the flare's point where it was.
-        objects.Draw(sprites, At(6), -Vector3.UnitX, color, Size, new Random(1));
+        objects.Draw(sprites, At(6), -Vector3.UnitX, color, Size, new Lcg(1));
         Near(new Vector2(192, 152), objects.SunMiddle);
     }
 

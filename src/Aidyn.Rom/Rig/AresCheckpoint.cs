@@ -38,9 +38,6 @@ public sealed class AresCheckpoint
         _funnel = funnel;
     }
 
-    /// <summary>Where the flag table is (<c>GameStateFunnel</c>), a KSEG0 address.</summary>
-    public uint FlagTableAddress => _funnel;
-
     /// <summary>Every flag's value, by number.</summary>
     public IReadOnlyList<bool> Flags => _flags ??= [.. Enumerable.Range(0, FlagCount)
         .Select(i => ReadByte(_funnel + HeaderSize + (uint)(i * EntrySize + ValueOffset)) != 0)];

@@ -1,5 +1,5 @@
 using System.Numerics;
-using Aidyn.Core.Flags;
+using Aidyn.Core.MapObjects;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 
