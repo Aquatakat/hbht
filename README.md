@@ -8,19 +8,33 @@ The goal of the project is a largely console-accurate version of the game, with
 a set of optional enhancements, and a comprehensive mod editor, similar to
 something like OpenMW-CS.
 
-This project is made possible by the advances in frontier AI and is primarily
-written by the Claude 5.5 models. This readme is human written.
+This project is primarily written by the Claude 5.5 models. This readme is human
+written.
 
 ## Accuracy
 
 The primary goal is a reasonable representation of the game, down to some of its
-weirder quirks. As we progress through the codebase, some bugs are just bugs
-though, and those we can correct.
+weirder quirks, but this is a game limited by its hardware and rushed out the
+door, so some bugs and limitations are corrected at the expense of perfect N64
+accuracy.
 
-As an example: Negative stats causing enemies to become immobile is probably not
-intended but it's a core part of how battles function, so we'll keep it. The
-time of day being visible when you load a save indoors but not when you enter
-via a door is just a bug, so we'll change it.
+Timing is a big one. A lot of effects in the game (weather, animated textures,
+some RNG) are directly tied to framerate, so the speed could vary. On a modern
+computer, this isn't as much of an issue, but in order to get the feel roughly
+the same, some reasonable defaults were chosen: weather and animated textures
+go as fast as if the original were running at 20 FPS, camera movement is a
+little faster at 30 FPS.
+
+Some fixed bugs:
+- Precipitation splashes on visible geometry, rather than on collision boxes.
+- Weather continues from trek mode into cutscenes rather than reverting to clear
+  and restarting.
+- Some interiors hide the time of day and compass when entering through a door.
+  The original shows them when you load a save inside, HBHT hides them.
+
+The type of things not fixed:
+- Rain and splash density stays pretty low by default.
+- Debuffing an enemy's stats makes them immobile.
 
 ## Credits
 
