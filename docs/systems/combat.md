@@ -1,10 +1,6 @@
 # Combat: battle mode (2.5, 2.6, M3)
 
-<<<<<<< HEAD
-This is the map of the original's combat that M3 is planned from ([roadmap](../roadmap.md#next)): its code, its states and what it keeps in RAM. Each part gets its detail as the session that ports it reads it. What the player sees is in [engine-behaviour](../engine-behaviour.md#battle-mode). [The port](#the-port) says what's ported so far and by which classes: a battle into its arena and out, with the combat camera and the pause menu's Flee, and its turns, walking in the field and skipping.
-=======
-This is the map of the original's combat that M3 is planned from ([roadmap](../roadmap.md#next)): its code, its states and what it keeps in RAM. Each part gets its detail as the session that ports it reads it. What the player sees is in [engine-behaviour](../engine-behaviour.md#battle-mode). [The port](#the-port) says what's ported so far and by which classes: a battle into its arena and out, with the combat camera and the pause menu's Flee, and the battle screen.
->>>>>>> refs/heads/claude/m3-battle-screen-ba9569
+This is the map of the original's combat that M3 is planned from ([roadmap](../roadmap.md#next)): its code, its states and what it keeps in RAM. Each part gets its detail as the session that ports it reads it. What the player sees is in [engine-behaviour](../engine-behaviour.md#battle-mode). [The port](#the-port) says what's ported so far and by which classes: a battle into its arena and out, with the combat camera and the pause menu's Flee, its turns, walking in the field and skipping, and the battle screen.
 
 Addresses are 1.0's. Names are in the symbol map, prefixed `Combat.`, `Combatant.`, `TurnOrder.`, `ArenaGrid.`, `TargetSet.`, `EnemyAI.`, `AiScores.`, `CombatGui.`, `CombatMenu.`, `CombatMarkers.`, `CombatSpellFx.`, `CombatCamera.`, `CombatRadar.` and so on, all coined but `ProcessCombatCamera`. Fields marked **checked** were read in the combat checkpoints ([rig](../reference-rig.md#checkpoint-library)), one battle against ten rats; the rest are read from the code.
 
@@ -270,12 +266,8 @@ Beside it: the combatants' bodies, `Combat.Bodies` (`0x800D9488`, 14 by slot, 0x
 - **`TurnOrder`** builds the round (`Build`, `TurnsPerRound`) and says whose turn it is; **`ArenaGrid`** is the grid (`Init`, `Fill`, `Occupy`); **`CombatCamera`** is `ProcessCombatCamera`, on `FollowCamera.StepLeashed` (the interiors' camera with its numbers passed, `LeashNumbers`); **`Arena`** is an arena's chunk and map, with its points by name.
 - **`BattleSetup`** is the setup block: `EnemyList` (`FillEnemies` for a monster party, a script's as given), `ChooseArena`, and the ambush and animation bytes. Trek cues a battle rather than handing it to the host (`TrekLoop.CueBattle`, `TrekLoop.QueueState(2)`'s fade at 1/30 a tick), and `GameSession` begins and ends it (`BeginBattle`, `EndBattle`) with the arena as a stage of trek's zone engine (`ZoneEngine.Stage`), its music held until the fade ends; its mode is `GameMode.Combat`, under the menu. The host hears `Transition.StartedBattle`, `PauseBattle` (with the Party tab and Flee from a turn's pause, the System tab alone from state 27's), `EndBattle` and `ResumeTrek`. `TrekLoop.Resume(fled)` puts the player at the farthest breadcrumb (`Breadcrumbs`).
 - **Content** is records: the arena by terrain (`TerrainRecord.Arenas`), and `aidyn:combat/0` (`CombatRecord`): Sholeh, the bystanders an enemy list drops (`Combat.IsExcludedEnemy`, `0x8005C0C0`: the townsfolk, shopkeepers and the like, entity list places 0–0x56, 0x82–0x90 and 0x92–0x96), the Skeleton, the bosses who forbid fleeing and the Shadow who allows it, and the three encounter flags with the last word.
-<<<<<<< HEAD
 - **The states so far**: 31 fades in over a second, then 1 for a combatant the player controls or 8 for one the AI plays; 8 ends the turn at once, a stand-in until the AI; 1 is a turn the player walks in or skips (below); Start from 1 is 14, the pause with the Party tab and Flee, and from any other state 27, the System tab alone, each waiting two frames for the menu; the menu's close goes back to the turn (or 27's kept state), or with Flee to 20, which leaves. 12 and 13 leave for trek once faded out, a stand-in until sessions 5 and 7. The rest are sessions 5 on.
-=======
-- **The states so far**: 31 fades in over a second, then 1 for a combatant the player controls or 8 for one the AI plays; 8 ends the turn at once, a stand-in until the AI, passing to the next in the round and building another when it runs out; 1 does nothing but Start; Start from 1 is 14, the pause with the Party tab and Flee, and from any other state 27, the System tab alone, each waiting two frames for the menu; the menu's close goes back to the turn (or 27's kept state), or with Flee to 20, which leaves. The rest are sessions 3 on.
 - **The battle screen** (session 4) is `CombatGui` (`Battle.Gui`), with the log's lines in `Battle.Lines` (`CombatLog`), the target sets' marks the tints read in `Battle.Marks` (`TargetMarks`, until session 5's sets) and the AI's fleeing flag in `Combatant.Fleeing`: [ui](ui.md#the-battle-screen).
->>>>>>> refs/heads/claude/m3-battle-screen-ba9569
 - **The runtime** draws the arena's chunks and sky, each combatant as a body with its actor idling (`CombatantView`, faded over combat's 128 and the party lit as the party), the camera and the fade, and opens the combat pause menu (`PauseMenu.OpenCombat`). `--battle <monster party>[,<arena>][,ambush]` starts one from the command line, and F3's overlay shows the battle's state and combatants.
 - **Checked against the checkpoints** (`BattleCheckpointTests`): from checkpoint 01's random state, the port's setup of 02's battle (the ten rats, arena 3, an ambush, animation 2) draws the Ranger's roll (Sholeh's Ranger 6: a 12 against 69, step 3, a Stamina point), the eight directions and the turn order `[1,3,0,2, 3,2,1,5,4,7,0,6]` as the original did, and every combatant's slot, cell, direction, footprint, flags and body position, the leader, the flee bytes and the whole grid match 02's.
 
@@ -302,10 +294,6 @@ Beside it: the combatants' bodies, `Combat.Bodies` (`0x800D9488`, 14 by slot, 0x
 - `+0x12`, the popup at `+0x4FB8`, and what the three menu units draw beyond their roles.
 - Exactly which cone `Talk`'s collision byte tests (`0x80010AE8`–`0x80010B74`).
 - Whether the doubled gold and the loot in the experience pool show in play.
-<<<<<<< HEAD
-- Which targeting state tints a portrait dim red.
 - `Combatant.EndTurn`'s item branch (`0x8006F5C4`): what it spends.
 - Body flags `0x200` (set on enemies' bodies by `Combat.CreateBody`), `0x400` (skipped by the bodies' push) and `0x800` (`ProcessPlayers` calls `0x80015FEC`), which `TurnOrder.ClearActions` clears.
 - How many of the stream's draws between checkpoints are a turn's own: something draws about 0.6 a tick whatever happens.
-=======
->>>>>>> refs/heads/claude/m3-battle-screen-ba9569
