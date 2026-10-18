@@ -133,12 +133,15 @@ public sealed class PointLight
         byte Channel(byte a, byte b) => (byte)(a + (int)((b - (float)a) * share));
     }
 
-    /// <summary>Each channel times <paramref name="scale"/>, truncated (<c>PointLight.Scale</c>, 0x8004d220).</summary>
+    /// <summary>
+    /// Each channel times <paramref name="scale"/>, truncated and wrapped to a byte (<c>PointLight.Scale</c>, 0x8004d220).
+    /// The scale is 0–1 wherever it's called, so nothing wraps.
+    /// </summary>
     public static Rgba Scale(Rgba colour, float scale)
     {
         return new(Times(colour.R), Times(colour.G), Times(colour.B), Times(colour.A));
 
-        byte Times(byte c) => (byte)(uint)(c * scale);
+        byte Times(byte c) => ColorBytes.Single(c * scale);
     }
 
     /// <summary>Brings a phase that's run past either end back by one period (<c>PointLight.Wrap</c>, 0x8004d150).</summary>

@@ -84,7 +84,7 @@ public sealed class BodyShadow
         Normal = normal;
         var share = MathF.Min(1, (Reach - (Vector3.Distance(centre, Position) - radius)) / Reach);
         Size = radius * 2 * share;
-        Alpha = (byte)(int)(share * FullAlpha * (float)(alpha / 255.0));
+        Alpha = ColorBytes.Single(share * FullAlpha * (float)(alpha / 255.0));
         return true;
     }
 
@@ -107,14 +107,14 @@ public sealed class BodyShadow
     {
         if (fromAim >= drawDistance)
             return null;
-        var alpha = drawDistance - 2 < fromAim ? (byte)(int)((drawDistance - fromAim) * 0.5f * 255) : BaseAlpha;
+        var alpha = drawDistance - 2 < fromAim ? ColorBytes.Single((drawDistance - fromAim) * 0.5f * 255f) : BaseAlpha;
         alpha = Math.Min(alpha, bodyAlpha);
         if (player)
             return alpha;
         var own = ownAim ?? fromAim;
         if (own >= OthersDistance)
             return null;
-        return (byte)(int)(alpha * (1 - own / OthersDistance));
+        return ColorBytes.Single(alpha * (1 - own / OthersDistance));
     }
 
     /// <summary>
@@ -124,7 +124,7 @@ public sealed class BodyShadow
     /// </summary>
     public static byte? BodyAlpha(float drawDistance, float fromAim, byte bodyAlpha = 0xFF) =>
         fromAim >= drawDistance ? null
-            : Math.Min(drawDistance - 2 < fromAim ? (byte)(int)((drawDistance - fromAim) * 0.5f * 255) : (byte)0xFF, bodyAlpha);
+            : Math.Min(drawDistance - 2 < fromAim ? ColorBytes.Single((drawDistance - fromAim) * 0.5f * 255f) : (byte)0xFF, bodyAlpha);
 
     /// <summary>
     /// The directions the texture's S and T run across the ground: the plane's X and Y axes after

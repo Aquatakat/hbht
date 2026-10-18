@@ -652,12 +652,16 @@ public sealed class ParticleHead
 
     private static Vector4 Scaled(Vector3 xyz, float w) => new(xyz * Units, w);
 
-    /// <summary>The colour as the original sends it: darkened by the screen's fade, times 255, truncated to a byte.</summary>
-    private Rgba Bytes(Vector4 c)
+    /// <summary>
+    /// The colour as the original sends it: darkened by the screen's fade, times <c>255.0f</c>, truncated and wrapped to a
+    /// byte (<c>ParticleHead.Draw</c>, <c>0x800a9480</c>). A channel that has run negative wraps, as there; one can only
+    /// by a fade's overshoot, and only just.
+    /// </summary>
+    internal Rgba Bytes(Vector4 c)
     {
         if (Brightness < 1)
             c *= Brightness;
-        static byte B(float x) => (byte)(uint)(x * 255);
+        static byte B(float x) => ColorBytes.Single(x * 255f);
         return new Rgba(B(c.X), B(c.Y), B(c.Z), B(c.W));
     }
 }

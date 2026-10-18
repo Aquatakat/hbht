@@ -65,8 +65,8 @@ public sealed record DrawDistance(float Scale = 1, bool NearestDetail = false)
 /// </remarks>
 public static class SceneObjectFade
 {
-    /// <summary>How far past the player, as a share of the way to the camera, an object between them fades.</summary>
-    public const float BetweenWidth = 0.35f;
+    /// <summary>How far past the player, as a share of the way to the camera, an object between them fades. A double, as the original's literal is.</summary>
+    public const double BetweenWidth = 0.35;
 
     /// <summary>The alpha an object between the camera and the player fades to, straight between them.</summary>
     public const byte BetweenAlpha = 0x60;
@@ -131,7 +131,8 @@ public static class SceneObjectFade
             {
                 if (cos <= gone)
                     return 0;
-                alpha = Byte((cos - gone) / (fadeFrom - gone) * 255);
+                // The share is single, then × 255.0 in double (RenderVoxelScenes, 0x8000c8cc).
+                alpha = ColorBytes.Double((double)((cos - gone) / (fadeFrom - gone)) * 255.0);
             }
         }
         if (!flags.HasFlag(SceneObjectFlags.Solid) && Between(position, view) is { } between)
@@ -153,9 +154,9 @@ public static class SceneObjectFade
             return 0;
         byte alpha = 0xFF;
         if (far - 1 < distance)
-            alpha = Byte((far - distance) * 255);
+            alpha = ColorBytes.Single((far - distance) * 255f);
         if (distance < near - 1)
-            alpha = Byte((1 - (near - 1 - distance)) * 255);
+            alpha = ColorBytes.Single((1 - (near - 1 - distance)) * 255f);
         return alpha;
     }
 
@@ -171,12 +172,11 @@ public static class SceneObjectFade
             return null;
         var point = view.Camera + view.Look * along;
         var across = Vector2.Distance(point, position);
-        var width = (view.AimDistance - along) * BetweenWidth;
+        // The width is made in double and cast to float, and the alpha is truncated before 0x60 is added
+        // (RenderVoxelScenes, 0x8000c984).
+        var width = (float)((view.AimDistance - along) * BetweenWidth);
         if (!(across < width))
             return null;
-        return Byte(across / width * 159 + BetweenAlpha);
+        return unchecked((byte)((int)(across / width * 159f) + BetweenAlpha));
     }
-
-    /// <summary>A float truncated to a byte, as the original's conversions do.</summary>
-    private static byte Byte(float value) => (byte)(int)value;
 }

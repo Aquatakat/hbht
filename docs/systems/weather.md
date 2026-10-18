@@ -168,7 +168,7 @@ Rain and snow bring sky 2 (Borg8 0x19E, the Battlefields' own, `WeatherRecord.Ra
 
 ### The rain loop
 
-0x071B (the sounds record's `rain`), looped, centred: it starts while rain is falling (not snow) and the sky is drawn, at volume 0, and each frame takes `min(255, trunc(I × 1.5 × 255)) × the sound volume`, as a byte. So it swells with the rain, full from I = 2/3, and stops once I is 0 (`Weather.StopRain`, `0x8001e770`), or at once where the sky isn't drawn. Snow and fog are silent. See [audio](audio.md).
+0x071B (the sounds record's `rain`), looped, centred: it starts while rain is falling (not snow) and the sky is drawn, at volume 0, and each frame takes `min(255, trunc(I × 1.5 × 255)) × the sound volume`, as a byte (the product is in doubles, `trunc.w.d`, as `ColorBytes.Double` makes a byte, and capped as an unsigned compare; `ProcessWeather`, `0x8001ec90`). So it swells with the rain, full from I = 2/3, and stops once I is 0 (`Weather.StopRain`, `0x8001e770`), or at once where the sky isn't drawn. Snow and fog are silent. See [audio](audio.md).
 
 - **On the sequencer itself**, not as a one-shot: `AudioEngine.Play` (`0x800907a4`) with volume 0, pan 0x80, looped, the handle at `Weather.Data` + 0x18–0x20, and `AudioEngine.SetVolume` (`0x80090898`) every frame. The volume is worked in doubles, then × the sound volume as a float, truncated.
 - **It stops** on a frame that starts with the drawn intensity at 0 or less, and starts again in the same frame if what's wanted is rain. Coming out from under no sky in the rain starts it over from its beginning.

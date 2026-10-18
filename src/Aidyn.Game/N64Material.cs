@@ -364,7 +364,7 @@ internal static class N64Material
         // A Vector4, not a Color: Duplicate() resets a Color set on a vec4 uniform to the default,
         // which turned scrolling textures' copies opaque.
         // The game truncates the alpha to a byte (Scene.SetRenderMode, 0x80097618): 0.1 is 25.
-        var alpha = MathF.Floor(factor.A * 255) / 255;
+        var alpha = Aidyn.Core.ColorBytes.Single(factor.A * 255f) / 255f;
         material.SetShaderParameter("prim", new Vector4(onScreen.R, onScreen.G, onScreen.B, alpha));
         if (albedo is not null)
         {

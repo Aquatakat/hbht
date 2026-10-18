@@ -104,7 +104,7 @@ public sealed class Clouds
             float a = _sky.Clouds[i].Alpha;
             var fog = a * fogTime * 1.5f;
             var faded = fog <= a ? MathF.Max(fog, 0) : a;
-            var alpha = (byte)((a - faded) * MathF.Sqrt(near));
+            var alpha = ColorBytes.Single((a - faded) * MathF.Sqrt(near));
             sprites.Add(sprite with { Alpha = alpha / 255f });
         }
     }

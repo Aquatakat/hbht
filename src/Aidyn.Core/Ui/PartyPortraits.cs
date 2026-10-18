@@ -50,7 +50,7 @@ public sealed class PartyPortraits
         foreach (var x in FrameX)
             yield return new HudSprite(Frame, x, Top, FrameScale, glow);
         // The original never sets the portraits' blue, which keeps the frames' blend and is dimmed again.
-        var portrait = glow with { B = HudSprite.Byte(glow.B * brightness) };
+        var portrait = glow with { B = ColorBytes.Single(glow.B * brightness) };
         for (var i = 0; i < Math.Min(portraits.Count, FrameX.Length); i++)
         {
             if (portraits[i] is { } image)

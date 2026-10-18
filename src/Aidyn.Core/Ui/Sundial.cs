@@ -31,8 +31,8 @@ public static class Sundial
     /// <param name="time">The clock's time, for the moon's phase.</param>
     public static IEnumerable<HudSprite> Draw(uint time, float brightness, bool sky)
     {
-        var white = HudSprite.Byte(brightness * 255);
-        var dim = HudSprite.Byte(brightness * 80);
+        var white = ColorBytes.Single(brightness * 255);
+        var dim = ColorBytes.Single(brightness * 80);
         yield return new HudSprite(Ring, 19, 169, 1, new Rgba(white, white, white, dim));
         if (sky)
             yield return new HudSprite(Moon(time), 39, 189, 1, HudSprite.Times(new Rgba(160, 160, 220, 160), brightness));
@@ -71,7 +71,7 @@ public static class Sundial
     /// </summary>
     public static (Rgba Color, byte Glow, byte Dot) Light(float hour, float brightness)
     {
-        byte B(float v) => HudSprite.Byte(v);
+        byte B(float v) => ColorBytes.Single(v);
         if (hour > 7 && hour < 21)
             return (HudSprite.Times(new Rgba(255, 190, 150, 0), brightness), B(160 * brightness), 0);
         if (hour > 23 || hour < 5)

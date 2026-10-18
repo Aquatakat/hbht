@@ -133,7 +133,7 @@ public partial class CinematicLayer : CanvasLayer
     }
 
     /// <summary>
-    /// The shot's music, looped and centred at the louder of the two volumes as they are now (<c>Cinematic.StartShot</c>).
+    /// The shot's music, looped and centred (the pan 0x80, <c>0x80053ed4</c>) at the louder of the two volumes as they are now (<c>Cinematic.StartShot</c>).
     /// </summary>
     private void StartMusic(CinematicShot shot)
     {
@@ -141,7 +141,7 @@ public partial class CinematicLayer : CanvasLayer
         if (_audio is null)
             return;
         var volume = Math.Max(GameAudio.Volume(_audio.SoundVolume), GameAudio.Volume(_audio.MusicVolume));
-        _music = _audio.Start(shot.Music, volume, GameAudio.Pan(0), loop: true);
+        _music = _audio.Start(shot.Music, volume, 0x80, loop: true);
     }
 
     private void StopMusic()

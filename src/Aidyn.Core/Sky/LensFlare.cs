@@ -57,7 +57,7 @@ public sealed class LensFlare(SkyRecord sky)
             return;
         var offset = sunMiddle - SkyScreen.Middle;
         var along = MathF.Min(offset.Length() / Reach, 1);
-        var alpha = (byte)(Fade * tintRed) / 255f;
+        var alpha = ColorBytes.Single(Fade * tintRed) / 255f;
         foreach (var piece in sky.LensFlare)
         {
             var scale = piece.Scale * along;

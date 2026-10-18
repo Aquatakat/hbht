@@ -41,6 +41,19 @@ public class SkyTests
         Assert.Equal(new Vector3(79, 109, 153) / 255, colors.Fog);
     }
 
+    [Theory]
+    [InlineData(55, 74)]
+    [InlineData(175, 152)]
+    [InlineData(215, 178)]
+    [InlineData(255, 204)]
+    public void TheTintsGreyIsWorkedOutInDoublesAsTheConsoleDoesIt(int row, int tint)
+    {
+        // 0.65 and 0.15 are doubles in RenderSky (0x8001cfe4): in single precision these come out one lower.
+        var colors = SkyColors.At(Gradient((_, r) => r == SkyGradient.TintRow ? ((byte)row, (byte)row, (byte)row) : ((byte)0, (byte)0, (byte)0)), null, 0, 0.5f);
+
+        Assert.Equal(new Vector3(tint) / 255, colors.Tint);
+    }
+
     [Fact]
     public void ColumnsAreTwoHoursApartAndWrapAtMidnight()
     {

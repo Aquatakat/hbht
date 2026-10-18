@@ -24,8 +24,8 @@ public static class Compass
     /// </summary>
     public static IEnumerable<HudSprite> Draw(Vector2 look, float brightness)
     {
-        var white = HudSprite.Byte(brightness * 255);
-        yield return new HudSprite(Sundial.Ring, 241, 169, 1, new Rgba(white, white, white, HudSprite.Byte(brightness * 80)));
+        var white = ColorBytes.Single(brightness * 255);
+        yield return new HudSprite(Sundial.Ring, 241, 169, 1, new Rgba(white, white, white, ColorBytes.Single(brightness * 80)));
         var (a, b) = (look.X, look.Y);
         yield return Letter(North, -a, b, 160 - 95 * b);
         yield return Letter(South, a, -b, 160 + 95 * b);
@@ -34,7 +34,7 @@ public static class Compass
 
         HudSprite Letter(RecordId image, float x, float y, float alpha)
         {
-            var color = HudSprite.Times(new Rgba(160, 160, 220, 0), brightness) with { A = HudSprite.Byte(alpha * brightness) };
+            var color = HudSprite.Times(new Rgba(160, 160, 220, 0), brightness) with { A = ColorBytes.Single(alpha * brightness) };
             return new HudSprite(image, HudSprite.Quarter(CentreX + Radius * x - 8), HudSprite.Quarter(CentreY + Radius * y - 8), 1, color);
         }
     }

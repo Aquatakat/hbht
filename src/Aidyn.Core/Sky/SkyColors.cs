@@ -36,19 +36,22 @@ public readonly record struct SkyColors(Vector3 Tint, Vector3 Sky, Vector3 Fog, 
             return change > 0 && to is not null ? c - (c - to.Sample(row, timeOfDay)) * change : c;
         }
 
+        // As RenderSky does (SkyColors.At, 0x8001cee0): the grey and the fifth are worked out in doubles (the literals
+        // 0.65, 0.15 and 0.2 are doubles) and cast to float, and brightness and then dim scale each in turn.
         var tintRow = Row(SkyGradient.TintRow);
-        var scale = brightness * dim;
-        var sky = Row(SkyGradient.SkyRow) * scale;
+        Vector3 Scaled(Vector3 c) => c * brightness * dim;
+        var sky = Scaled(Row(SkyGradient.SkyRow));
         var lift = -lensFlare * 0.5f;
-        var tintGrey = (tintRow.X * 0.65f + 0.15f + lift) * scale;
-        var skyGrey = (tintRow.Y * 0.65f + 0.15f + lift) * scale;
-        var fifth = brightness * 0.2f * dim;
+        float Grey(float row) => (float)(row * 0.65 + 0.15 + lift) * brightness * dim;
+        var tintGrey = Grey(tintRow.X);
+        var skyGrey = Grey(tintRow.Y);
+        var fifth = (float)(brightness * 0.2 * dim);
         return new SkyColors(
             ToBytes(Vector3.Clamp(sky * fifth + new Vector3(tintGrey), Vector3.Zero, Vector3.One)),
             ToBytes(Vector3.Clamp(sky * fifth + new Vector3(skyGrey), Vector3.Zero, Vector3.One)),
-            ToBytes(Row(SkyGradient.FogRow) * scale),
-            ToBytes(Row(SkyGradient.CloudRow) * scale),
-            ToBytes(Row(SkyGradient.SunRow) * scale));
+            ToBytes(Scaled(Row(SkyGradient.FogRow))),
+            ToBytes(Scaled(Row(SkyGradient.CloudRow))),
+            ToBytes(Scaled(Row(SkyGradient.SunRow))));
     }
 
     /// <summary>
@@ -64,7 +67,13 @@ public readonly record struct SkyColors(Vector3 Tint, Vector3 Sky, Vector3 Fog, 
     /// </summary>
     public static int FogStart(float fogTime) => 996 - (short)(int)(fogTime * 40);
 
-    /// <summary>As the game stores them, truncated to 8 bits (<c>V3ToRGB</c>).</summary>
+    /// <summary>
+    /// As the game stores them, 8 bits each (<c>V3ToRGB</c>), made by <see cref="ColorBytes.Single"/>: × <c>255.0f</c> and
+    /// truncated (<c>0x8001d1b4</c> and on). The original clamps the tint and sky to 0–1 first and the rest not at all; every
+    /// colour here is within 0–1 already, so the clamp is only the tint's and sky's.
+    /// </summary>
     internal static Vector3 ToBytes(Vector3 c) =>
-        new(MathF.Floor(Math.Clamp(c.X, 0, 1) * 255) / 255, MathF.Floor(Math.Clamp(c.Y, 0, 1) * 255) / 255, MathF.Floor(Math.Clamp(c.Z, 0, 1) * 255) / 255);
+        new(Byte(c.X), Byte(c.Y), Byte(c.Z));
+
+    private static float Byte(float channel) => ColorBytes.Single(Math.Clamp(channel, 0, 1) * 255f) / 255f;
 }

@@ -17,10 +17,7 @@ public readonly record struct HudSprite(RecordId Image, float X, float Y, float 
 
     /// <summary>A colour times the screen's brightness, each channel truncated, as the HUD's are.</summary>
     public static Rgba Times(Rgba color, float brightness) =>
-        new(Byte(color.R * brightness), Byte(color.G * brightness), Byte(color.B * brightness), Byte(color.A * brightness));
-
-    /// <summary>A float colour channel as the original's <c>(u8)(int)</c>: truncated, and wrapped as a byte.</summary>
-    public static byte Byte(float value) => (byte)(int)value;
+        new(ColorBytes.Single(color.R * brightness), ColorBytes.Single(color.G * brightness), ColorBytes.Single(color.B * brightness), ColorBytes.Single(color.A * brightness));
 
     internal static RecordId Id(int index) => RecordId.Hex(RecordTypes.Image, index);
 }

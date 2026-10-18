@@ -236,6 +236,6 @@ public sealed class CinematicPlayer
         }
         _fadeLeft = Math.Max(0, _fadeLeft - ticks);
         _fadeProgress = Math.Clamp(_fadeProgress + _fadeRate * ticks, 0, 1);
-        Fade = new Rgba(_r, _g, _b, (byte)(int)(_fadeProgress * 255));
+        Fade = new Rgba(_r, _g, _b, ColorBytes.Single(_fadeProgress * 255f));
     }
 }

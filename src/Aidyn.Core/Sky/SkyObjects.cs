@@ -78,7 +78,7 @@ public sealed class SkyObjects(SkyRecord sky)
             var rgb = new Vector3(color.R, color.G, color.B);
             if (brightness < 1)
             {
-                rgb = new Vector3(MathF.Floor(rgb.X * brightness), MathF.Floor(rgb.Y * brightness), MathF.Floor(rgb.Z * brightness));
+                rgb = new Vector3(ColorBytes.Single(rgb.X * brightness), ColorBytes.Single(rgb.Y * brightness), ColorBytes.Single(rgb.Z * brightness));
                 alpha = (ushort)(alpha * brightness);
             }
             var sprite = new SkySprite(image, at, body.Scale, rgb / 255, (byte)alpha / 255f, patch);

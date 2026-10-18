@@ -16,7 +16,7 @@ The original runs a cinematic as game mode 0xE, stepped by the frame's ticks, un
 - **A shot** (`Cinematic.StartShot`) loads its scene with the clock at 1 and the table's planes on its camera, and plays its music. The scene steps before it draws, so the first picture is time 2, and it draws while the time it would step to is under the length − 1 (`0x80053a28`): the last picture is length − 2. The tick that fails draws nothing and frees the shot and its music (`Cinematic.FreeShot`, `0x80053ad8`); the next starts the next shot and draws it. So there's one tick between shots with nothing drawn, which the port shows as the last picture held, and nothing else between them: no fade but the table's.
 - **The end:** after the last shot, two more undrawn ticks pass before `EndCase`.
 - **B or Start**, newly pressed, skip the rest of it, from its first tick (`Cinematic.ReadInput`, `0x80053d18`); nothing else is taken. The press frees the shot at once, and the end comes the tick after.
-- **The music** is the shot's sequence, looped and centred, at the louder of the sound and music volumes as they are when it starts. Each shot stops its own, so nothing plays across shots or after the end.
+- **The music** is the shot's sequence, looped and centred, at the louder of the sound and music volumes as they are when it starts, each × `255.0f` and truncated (`0x80053f48`), with the pan the literal 0x80 (`0x80053ed4`), the engine's centre. Each shot stops its own, so nothing plays across shots or after the end.
 
 ### Captions
 
@@ -31,7 +31,7 @@ The table's fades (`Cinematic.StepFades`, `0x800541f0`) run on a clock from each
 
 - **A fade starts** on the tick its start falls between the clock before and after. That tick takes the ticks since it was due as well as its own: a fade due at 0 starts two ticks in.
 - **Its ramp** is its length less 4 ticks, and the overlay stays 64 ticks after its ramp and hold, then stops being drawn at all. A fade of under 10 ticks (the Shadow's lightning, 8) ramps for its whole length and stops at once.
-- **Colours:** black (0, 0, 0), white and red (255, 0, 0) rise from nothing; a clear one keeps the colour showing and falls from full. The colour starts black, so a clear fade on a cinematic's first shot comes in from black; the opening's first shot has none, so it cuts in. The alpha is the progress × 255, truncated, over the whole screen, captions too.
+- **Colours:** black (0, 0, 0), white and red (255, 0, 0) rise from nothing; a clear one keeps the colour showing and falls from full. The colour starts black, so a clear fade on a cinematic's first shot comes in from black; the opening's first shot has none, so it cuts in. The alpha is the progress × `255.0f`, truncated (`ColorBytes.Single`, `0x800543fc`), over the whole screen, captions too.
 
 ## Drawing
 
