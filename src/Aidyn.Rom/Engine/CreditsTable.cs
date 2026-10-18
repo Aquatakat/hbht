@@ -15,7 +15,7 @@ public sealed record CreditsTable(IReadOnlyList<int> Starts)
     /// </summary>
     public const int ScrollEndLine = 0x1D;
 
-    public static CreditsTable Read(RomImage rom) => new([.. CodeSegment.Table(rom, CodeTable.CreditsCards).ToArray().Select(b => (int)b)]);
+    public static CreditsTable Read(RomImage rom) => new([.. rom.Table(CodeTable.CreditsCards).ToArray().Select(b => (int)b)]);
 
     /// <summary>How many cards show one at a time before the rest scroll: those before the one ending at <see cref="ScrollEndLine"/>.</summary>
     public int Shown => Starts.ToList().IndexOf(ScrollEndLine) - 1;

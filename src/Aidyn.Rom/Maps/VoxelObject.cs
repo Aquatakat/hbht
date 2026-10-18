@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 using System.Numerics;
 using Aidyn.Plugins.Records;
 using Aidyn.Rom.Db;
@@ -295,9 +294,9 @@ public static class Borg9Voxels
     {
         if (data.Length < HeaderSize)
             throw new InvalidDataException($"A Borg9 is at least 0x{HeaderSize:X} bytes, not 0x{data.Length:X}.");
-        var count = U16(data, 0x28);
-        var start = U32(data, 0x44);
-        var next = U32(data, 0x48);
+        var count = Be.U16(data, 0x28);
+        var start = Be.U32(data, 0x44);
+        var next = Be.U32(data, 0x48);
         // The collision sections follow the objects, 8-byte aligned.
         if (start + count * VoxelObject.Size > next || next - (start + count * VoxelObject.Size) >= 8 || next > data.Length)
             throw new InvalidDataException(
@@ -311,45 +310,45 @@ public static class Borg9Voxels
 
     private static VoxelObject ReadObject(ReadOnlySpan<byte> v, int index)
     {
-        var type = U16(v, 0x16);
+        var type = Be.U16(v, 0x16);
         if (type > (int)VoxelType.Code)
             throw new InvalidDataException($"Map object {index} has unknown type {type}.");
         // A time stamp, padding and a pointer, all set at run time.
-        if (U32(v, 0x10) != 0 || U16(v, 0x22) != 0 || U32(v, 0x24) != 0)
+        if (Be.U32(v, 0x10) != 0 || Be.U16(v, 0x22) != 0 || Be.U32(v, 0x24) != 0)
             throw new InvalidDataException($"Map object {index} has run-time fields set.");
 
         var p = v[PayloadOffset..];
         VoxelData? data = (VoxelType)type switch
         {
             VoxelType.Scene => Scene(p),
-            VoxelType.Light => new LightData(CodeSegment.Colour(p, 4), CodeSegment.Colour(p, 8), (LightKind)U16(p, 0xC), F32(p, 0x14)),
-            VoxelType.Audio => new AudioData((int)U32(p, 0), F32(p, 8), F32(p, 0xC), F32(p, 0x10), (SoundFlags)U16(p, 0x14)),
-            VoxelType.WanderNode => new WanderNodeData(F32(p, 8), F32(p, 0xC), F32(p, 0x10), U16(p, 0x14),
-                (WanderFlags)U16(p, 0x16), [U16(p, 0x18), U16(p, 0x1A)]),
-            VoxelType.Camera => new CameraData(U16(p, 0), (CameraFlags)U16(p, 2), new Vector3(F32(p, 8), F32(p, 0xC), F32(p, 0x10))),
-            VoxelType.Container => new ContainerData(U16(p, 0x8), U16(p, 0xA), U16(p, 0xE), new ItemId(U16(p, 0x10)), U16(p, 0x12),
-                U16(p, 0x14), U16(p, 0x16), new ItemId(U16(p, 0x18)), F32(p, 0x4)),
-            VoxelType.Teleporter => new TeleporterData(((MapSet)U16(p, 0), U16(p, 2), U16(p, 4)), U16(p, 6), U16(p, 0xA), U16(p, 0xC),
-                U16(p, 0xE), U16(p, 0x10), U16(p, 0x12), U16(p, 0x14), U16(p, 0x16), U16(p, 0x18), U16(p, 0x1A),
+            VoxelType.Light => new LightData(CodeSegment.Colour(p, 4), CodeSegment.Colour(p, 8), (LightKind)Be.U16(p, 0xC), Be.F32(p, 0x14)),
+            VoxelType.Audio => new AudioData((int)Be.U32(p, 0), Be.F32(p, 8), Be.F32(p, 0xC), Be.F32(p, 0x10), (SoundFlags)Be.U16(p, 0x14)),
+            VoxelType.WanderNode => new WanderNodeData(Be.F32(p, 8), Be.F32(p, 0xC), Be.F32(p, 0x10), Be.U16(p, 0x14),
+                (WanderFlags)Be.U16(p, 0x16), [Be.U16(p, 0x18), Be.U16(p, 0x1A)]),
+            VoxelType.Camera => new CameraData(Be.U16(p, 0), (CameraFlags)Be.U16(p, 2), new Vector3(Be.F32(p, 8), Be.F32(p, 0xC), Be.F32(p, 0x10))),
+            VoxelType.Container => new ContainerData(Be.U16(p, 0x8), Be.U16(p, 0xA), Be.U16(p, 0xE), new ItemId(Be.U16(p, 0x10)), Be.U16(p, 0x12),
+                Be.U16(p, 0x14), Be.U16(p, 0x16), new ItemId(Be.U16(p, 0x18)), Be.F32(p, 0x4)),
+            VoxelType.Teleporter => new TeleporterData(((MapSet)Be.U16(p, 0), Be.U16(p, 2), Be.U16(p, 4)), Be.U16(p, 6), Be.U16(p, 0xA), Be.U16(p, 0xC),
+                Be.U16(p, 0xE), Be.U16(p, 0x10), Be.U16(p, 0x12), Be.U16(p, 0x14), Be.U16(p, 0x16), Be.U16(p, 0x18), Be.U16(p, 0x1A),
                 GameText.Field(p.Slice(0x1C, 16))),
-            VoxelType.MonsterParty => new MonsterPartyData(Enemies(p), new ItemId(U16(p, 0x20)), new ItemId(U16(p, 0x22)),
-                U16(p, 0x28), U16(p, 0x2A), U16(p, 0x2E), (PartyFlags)U16(p, 0x30), (int)U32(p, 0x34)),
-            VoxelType.ReferencePoint => new ReferencePointData(U16(p, 0), GameText.Field(p.Slice(4, 16)),
-                new Vector3(F32(p, 0x14), F32(p, 0x18), F32(p, 0x1C))),
-            VoxelType.Dialogue => new DialogueData(U16(p, 0), ((MapSet)U16(p, 2), U16(p, 4), U16(p, 6)), U16(p, 8),
+            VoxelType.MonsterParty => new MonsterPartyData(Enemies(p), new ItemId(Be.U16(p, 0x20)), new ItemId(Be.U16(p, 0x22)),
+                Be.U16(p, 0x28), Be.U16(p, 0x2A), Be.U16(p, 0x2E), (PartyFlags)Be.U16(p, 0x30), (int)Be.U32(p, 0x34)),
+            VoxelType.ReferencePoint => new ReferencePointData(Be.U16(p, 0), GameText.Field(p.Slice(4, 16)),
+                new Vector3(Be.F32(p, 0x14), Be.F32(p, 0x18), Be.F32(p, 0x1C))),
+            VoxelType.Dialogue => new DialogueData(Be.U16(p, 0), ((MapSet)Be.U16(p, 2), Be.U16(p, 4), Be.U16(p, 6)), Be.U16(p, 8),
                 GameText.Field(p.Slice(0xC, 56))),
-            VoxelType.Trigger => new TriggerData((TriggerKind)(short)U16(p, 0), U16(p, 4), U16(p, 6), U16(p, 8)),
+            VoxelType.Trigger => new TriggerData((TriggerKind)(short)Be.U16(p, 0), Be.U16(p, 4), Be.U16(p, 6), Be.U16(p, 8)),
             _ => null,
         };
 
         return new VoxelObject(
             index,
-            new Vector3(F32(v, 0), F32(v, 4), F32(v, 8)),
-            F32(v, 0xC),
+            new Vector3(Be.F32(v, 0), Be.F32(v, 4), Be.F32(v, 8)),
+            Be.F32(v, 0xC),
             (VoxelType)type,
-            (VoxelFlags)U16(v, 0x14),
-            [(short)U16(v, 0x18), (short)U16(v, 0x1A)],
-            U16(v, 0x1C), U16(v, 0x1E), U16(v, 0x20),
+            (VoxelFlags)Be.U16(v, 0x14),
+            [(short)Be.U16(v, 0x18), (short)Be.U16(v, 0x1A)],
+            Be.U16(v, 0x1C), Be.U16(v, 0x1E), Be.U16(v, 0x20),
             data);
     }
 
@@ -357,10 +356,10 @@ public static class Borg9Voxels
     {
         // Three model slots, each a draw distance, an index and a run-time pointer.
         var models = new List<SceneModel>();
-        for (var i = 0; i < 3 && U32(p, i * 12 + 4) is var borg and not 0; i++)
-            models.Add(new SceneModel((int)borg, F32(p, i * 12)));
-        return new SceneData(models, U16(p, 0x40), new Vector3(F32(p, 0x24), F32(p, 0x28), F32(p, 0x2C)),
-            new Vector3(F32(p, 0x30), F32(p, 0x34), F32(p, 0x38)), CodeSegment.Colour(p, 0x3C), (SceneObjectFlags)U16(p, 0x42));
+        for (var i = 0; i < 3 && Be.U32(p, i * 12 + 4) is var borg and not 0; i++)
+            models.Add(new SceneModel((int)borg, Be.F32(p, i * 12)));
+        return new SceneData(models, Be.U16(p, 0x40), new Vector3(Be.F32(p, 0x24), Be.F32(p, 0x28), Be.F32(p, 0x2C)),
+            new Vector3(Be.F32(p, 0x30), Be.F32(p, 0x34), Be.F32(p, 0x38)), CodeSegment.Colour(p, 0x3C), (SceneObjectFlags)Be.U16(p, 0x42));
     }
 
     private static List<(ItemId, byte, byte)> Enemies(ReadOnlySpan<byte> p)
@@ -368,14 +367,11 @@ public static class Borg9Voxels
         var enemies = new List<(ItemId, byte, byte)>();
         for (var i = 0; i < 8; i++)
         {
-            var id = U16(p, i * 4);
+            var id = Be.U16(p, i * 4);
             if (id != 0)
                 enemies.Add((new ItemId(id), p[i * 4 + 2], p[i * 4 + 3]));
         }
         return enemies;
     }
 
-    private static ushort U16(ReadOnlySpan<byte> s, int at) => BinaryPrimitives.ReadUInt16BigEndian(s[at..]);
-    private static uint U32(ReadOnlySpan<byte> s, int at) => BinaryPrimitives.ReadUInt32BigEndian(s[at..]);
-    private static float F32(ReadOnlySpan<byte> s, int at) => BinaryPrimitives.ReadSingleBigEndian(s[at..]);
 }

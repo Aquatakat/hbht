@@ -1,6 +1,7 @@
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 using Aidyn.Plugins.Saves;
+using Aidyn.Rom.Import;
 
 namespace Aidyn.Rom.Rig;
 
@@ -38,14 +39,14 @@ public static class CheckpointSave
             Place = new SavePlace(mapSet, chunk?.Name ?? new ChunkEntry(place.Row, place.Column, null, null, default, 0).Name,
                 place.Position, -place.Facing),
             // The first 5001 flags are plain bits, of which 0 and 1 are constants.
-            Flags = [.. Enumerable.Range(2, BitFlags - 2).Where(n => flags[n]).Select(n => RecordId.Decimal(RecordTypes.Flag, n))],
+            Flags = [.. Enumerable.Range(2, BitFlags - 2).Where(n => flags[n]).Select(n => DbRecordIds.Flag(n))],
             Party = new SaveParty
             {
                 Gold = checkpoint.Gold,
                 Members = [.. checkpoint.Party.Select(Member)],
                 // The game keeps a copy for kept members in the party too; the port keeps only those who left.
                 Kept = [.. checkpoint.Kept.Where(k => checkpoint.Party.All(m => m.Id != k.Id)).Select(Member)],
-                Inventory = [.. checkpoint.Inventory.Select(s => new SaveStack(ItemId(s.Item.Id), s.Quantity)
+                Inventory = [.. checkpoint.Inventory.Select(s => new SaveStack(DbRecordIds.Item(s.Item.Id), s.Quantity)
                 {
                     Battery = Battery(s.Item),
                     Charges = s.Item.Charges,
@@ -90,20 +91,12 @@ public static class CheckpointSave
             Spells = [.. sheet.Spells.Select(s => new KnownSpell(RecordId.Hex(RecordTypes.Spell, s.Spell), s.Level))],
         };
 
-        static SaveItem? Worn(CheckpointItem? item) => item is null ? null : new SaveItem(ItemId(item.Id))
+        static SaveItem? Worn(CheckpointItem? item) => item is null ? null : new SaveItem(DbRecordIds.Item(item.Id))
         {
             Battery = Battery(item),
             Charges = item.Charges,
         };
     }
-
-    /// <summary>An item's record ID from the console's: weapons are 0x07…, armor and shields 0x05… and 0x06…, the rest items.</summary>
-    private static RecordId ItemId(ushort id) => (id >> 8) switch
-    {
-        7 => RecordId.Hex(RecordTypes.Weapon, id),
-        5 or 6 => RecordId.Hex(RecordTypes.Armor, id),
-        _ => RecordId.Hex(RecordTypes.Item, id),
-    };
 
     /// <summary>What's left in a battery: the Stamina (stat 5) its <c>StatMod</c> holds.</summary>
     private static int? Battery(CheckpointItem item) => item.StatMod is { Stat: 5, Amount: var left } ? left : null;

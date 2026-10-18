@@ -1,5 +1,3 @@
-using System.Buffers.Binary;
-
 namespace Aidyn.Rom.Engine;
 
 /// <summary>
@@ -69,12 +67,9 @@ public sealed record CharacterTables(
 
     private static List<int> Words(RomImage rom, CodeTable table, int? count = null)
     {
-        var data = CodeSegment.Table(rom, table);
+        var data = rom.Table(table);
         if (count is { } n && data.Length != n * 4)
             throw new InvalidDataException($"The {table} table is {data.Length} bytes, not {n * 4}.");
-        var words = new List<int>(data.Length / 4);
-        for (var at = 0; at + 4 <= data.Length; at += 4)
-            words.Add(BinaryPrimitives.ReadInt32BigEndian(data[at..]));
-        return words;
+        return [.. Be.S32s(data)];
     }
 }

@@ -25,37 +25,37 @@ public static class Cinematics
 {
     public static IReadOnlyList<Cinematic> Read(RomImage rom)
     {
-        var pointers = CodeSegment.Table(rom, CodeTable.Cinematics);
-        var fadePointers = CodeSegment.Table(rom, CodeTable.CinematicFades);
+        var pointers = rom.Table(CodeTable.Cinematics);
+        var fadePointers = rom.Table(CodeTable.CinematicFades);
         var cinematics = new List<Cinematic>();
         for (var i = 0; i < pointers.Length / 16; i++)
         {
-            var animations = CodeSegment.At(rom, CodeSegment.U32(pointers, i * 16));
-            var flags = CodeSegment.At(rom, CodeSegment.U32(pointers, i * 16 + 4));
-            var audio = CodeSegment.At(rom, CodeSegment.U32(pointers, i * 16 + 8));
-            var planes = CodeSegment.At(rom, CodeSegment.U32(pointers, i * 16 + 12));
+            var animations = CodeSegment.At(rom, Be.U32(pointers, i * 16));
+            var flags = CodeSegment.At(rom, Be.U32(pointers, i * 16 + 4));
+            var audio = CodeSegment.At(rom, Be.U32(pointers, i * 16 + 8));
+            var planes = CodeSegment.At(rom, Be.U32(pointers, i * 16 + 12));
 
             // The animation list ends with 0. Each shot has an entry in the flag list, which
             // holds its captions, and the entry after the last shot is the done flag.
             var scenes = new List<CinematicScene>();
-            for (var s = 0; CodeSegment.U32(animations, s * 4) is var animation and not 0; s++)
+            for (var s = 0; Be.U32(animations, s * 4) is var animation and not 0; s++)
             {
-                var captions = CodeSegment.U16(flags, s * 2);
-                scenes.Add(new CinematicScene((int)animation, (int)CodeSegment.U32(audio, s * 4),
+                var captions = Be.U16(flags, s * 2);
+                scenes.Add(new CinematicScene((int)animation, (int)Be.U32(audio, s * 4),
                     captions == 0xFFFF ? null : captions,
-                    CodeSegment.F32(planes, s * 8), CodeSegment.F32(planes, s * 8 + 4)));
+                    Be.F32(planes, s * 8), Be.F32(planes, s * 8 + 4)));
             }
 
             // Fades end with an entry for shot 0, which the game never reaches.
-            var fadeData = CodeSegment.At(rom, CodeSegment.U32(fadePointers, i * 4));
+            var fadeData = CodeSegment.At(rom, Be.U32(fadePointers, i * 4));
             var fades = new List<CinematicFade>();
             for (var at = 0; fadeData[at] != 0; at += 8)
             {
                 fades.Add(new CinematicFade(fadeData[at] - 1, (CinematicFadeColor)fadeData[at + 1],
-                    CodeSegment.U16(fadeData, at + 2), CodeSegment.U16(fadeData, at + 4), CodeSegment.S16(fadeData, at + 6)));
+                    Be.U16(fadeData, at + 2), Be.U16(fadeData, at + 4), Be.S16(fadeData, at + 6)));
             }
 
-            cinematics.Add(new Cinematic(scenes, fades, CodeSegment.U16(flags, scenes.Count * 2)));
+            cinematics.Add(new Cinematic(scenes, fades, Be.U16(flags, scenes.Count * 2)));
         }
         return cinematics;
     }

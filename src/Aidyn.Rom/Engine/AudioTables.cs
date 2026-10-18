@@ -24,42 +24,18 @@ public sealed record AudioTables(
 {
     public static AudioTables Read(RomImage rom)
     {
-        var script = CodeSegment.Table(rom, CodeTable.ScriptSounds);
-        var containers = U32s(CodeSegment.Table(rom, CodeTable.ContainerSounds), 12);
-        var scenes = CodeSegment.Table(rom, CodeTable.OverworldMusicScenes);
-        var first = U16List(scenes, 0);
-        var second = U16List(scenes, (first.Count + 1) * 2);
+        var script = rom.Table(CodeTable.ScriptSounds);
+        var containers = Be.S32s(rom.Table(CodeTable.ContainerSounds)[..(12 * 4)]);
+        var scenes = rom.Table(CodeTable.OverworldMusicScenes);
+        var first = Be.U16sUntilZero(scenes);
+        var second = Be.U16sUntilZero(scenes, (first.Count + 1) * 2);
         return new AudioTables(
-            U32List(script, 0),
+            Be.U32sUntilZero(script),
             containers[..8],
             containers[8..],
             [first, second],
-            U16List(CodeSegment.Table(rom, CodeTable.JundarMusicScenes), 0),
-            U16List(CodeSegment.Table(rom, CodeTable.BattleMusic), 0));
-    }
-
-    private static List<int> U16List(ReadOnlySpan<byte> data, int at)
-    {
-        var list = new List<int>();
-        for (; at + 2 <= data.Length && CodeSegment.U16(data, at) is var v and not 0; at += 2)
-            list.Add(v);
-        return list;
-    }
-
-    private static int[] U32s(ReadOnlySpan<byte> data, int count)
-    {
-        var values = new int[count];
-        for (var i = 0; i < count; i++)
-            values[i] = (int)CodeSegment.U32(data, i * 4);
-        return values;
-    }
-
-    private static List<int> U32List(ReadOnlySpan<byte> data, int at)
-    {
-        var list = new List<int>();
-        for (; at + 4 <= data.Length && CodeSegment.U32(data, at) is var v and not 0; at += 4)
-            list.Add((int)v);
-        return list;
+            Be.U16sUntilZero(rom.Table(CodeTable.JundarMusicScenes)),
+            Be.U16sUntilZero(rom.Table(CodeTable.BattleMusic)));
     }
 }
 

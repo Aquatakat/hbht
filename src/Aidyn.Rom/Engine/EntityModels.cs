@@ -26,22 +26,22 @@ public sealed record EntityModels(IReadOnlyList<EntityModel> Entities, IReadOnly
     // with a key of 0. The lists are in the same order as the DB tables.
     public static EntityModels Read(RomImage rom)
     {
-        var entityList = CodeSegment.Table(rom, CodeTable.EntityList);
-        var dialogEntityList = CodeSegment.Table(rom, CodeTable.DialogEntityList);
+        var entityList = rom.Table(CodeTable.EntityList);
+        var dialogEntityList = rom.Table(CodeTable.DialogEntityList);
 
         var entities = new List<EntityModel>();
-        var data = CodeSegment.Table(rom, CodeTable.EntityModels);
-        for (var at = 0; CodeSegment.U16(data, at) is var key and not 0; at += EntitySize)
-            entities.Add(new EntityModel(ItemId.Of(DbType.Entity, entityList[key - 1]), (int)CodeSegment.U32(data, at + 4),
-                (int)CodeSegment.U32(data, at + 8), CodeSegment.F32(data, at + 12), CodeSegment.F32(data, at + 16),
-                CodeSegment.F32(data, at + 20), CodeSegment.F32(data, at + 24)));
+        var data = rom.Table(CodeTable.EntityModels);
+        for (var at = 0; Be.U16(data, at) is var key and not 0; at += EntitySize)
+            entities.Add(new EntityModel(ItemId.Of(DbType.Entity, entityList[key - 1]), (int)Be.U32(data, at + 4),
+                (int)Be.U32(data, at + 8), Be.F32(data, at + 12), Be.F32(data, at + 16),
+                Be.F32(data, at + 20), Be.F32(data, at + 24)));
 
         var dialogEntities = new List<DialogEntityModel>();
-        data = CodeSegment.Table(rom, CodeTable.DialogEntityModels);
-        for (var at = 0; CodeSegment.U16(data, at) is var key and not 0; at += DialogEntitySize)
+        data = rom.Table(CodeTable.DialogEntityModels);
+        for (var at = 0; Be.U16(data, at) is var key and not 0; at += DialogEntitySize)
             dialogEntities.Add(new DialogEntityModel(ItemId.Of(DbType.DialogEntity, dialogEntityList[key - 1]),
-                (int)CodeSegment.U32(data, at + 4), (int)CodeSegment.U32(data, at + 8), CodeSegment.F32(data, at + 12),
-                CodeSegment.F32(data, at + 16)));
+                (int)Be.U32(data, at + 4), (int)Be.U32(data, at + 8), Be.F32(data, at + 12),
+                Be.F32(data, at + 16)));
 
         return new EntityModels(entities, dialogEntities);
     }

@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 using System.Numerics;
 using Aidyn.Plugins.Records;
 
@@ -87,9 +86,9 @@ public sealed record Borg5ParticleEmitter(
             throw new InvalidDataException($"A particle emitter is 0x{Size:X} bytes, not 0x{data.Length:X}.");
         var e = data[..Size].ToArray();
 
-        ushort U16(int at) => BinaryPrimitives.ReadUInt16BigEndian(e.AsSpan(at));
-        short S16(int at) => BinaryPrimitives.ReadInt16BigEndian(e.AsSpan(at));
-        float F32(int at) => BinaryPrimitives.ReadSingleBigEndian(e.AsSpan(at));
+        ushort U16(int at) => Be.U16(e, at);
+        short S16(int at) => Be.S16(e, at);
+        float F32(int at) => Be.F32(e, at);
         Vector3 Vec3(int at) => new(F32(at), F32(at + 4), F32(at + 8));
         Vector4 Vec4(int at) => new(F32(at), F32(at + 4), F32(at + 8), F32(at + 12));
         Vector4 Color(int at) => new Vector4(e[at], e[at + 1], e[at + 2], e[at + 3]) / 255;

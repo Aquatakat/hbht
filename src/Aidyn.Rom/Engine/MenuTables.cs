@@ -28,9 +28,9 @@ public sealed record MenuTables(
     public static MenuTables Read(RomImage rom)
     {
         // SpellSymbols: (position in SpellList, symbol) byte pairs, ending with 0xFF.
-        var list = CodeSegment.Table(rom, CodeTable.SpellList).ToArray();
+        var list = rom.Table(CodeTable.SpellList).ToArray();
         var symbols = list.Select(_ => 0).ToArray();
-        var pairs = CodeSegment.Table(rom, CodeTable.SpellSymbols).ToArray();
+        var pairs = rom.Table(CodeTable.SpellSymbols).ToArray();
         var end = false;
         for (var at = 0; at + 1 < pairs.Length && !end; at += 2)
         {
@@ -48,14 +48,10 @@ public sealed record MenuTables(
             .ToDictionary(i => ItemId.Of(DbType.Spell, list[i]), i => symbols[i]);
 
         // InventoryOrder: u16 types ending with 0.
-        var order = CodeSegment.Table(rom, CodeTable.InventoryOrder).ToArray();
-        var kinds = new List<int>();
-        for (var at = 0; at + 1 < order.Length && CodeSegment.U16(order, at) != 0; at += 2)
-            kinds.Add(CodeSegment.U16(order, at));
+        var kinds = Be.U16sUntilZero(rom.Table(CodeTable.InventoryOrder));
 
         // EquipmentSlotImages: u32 Borg8 indices.
-        var slots = CodeSegment.Table(rom, CodeTable.EquipmentSlotImages).ToArray();
-        var slotImages = Enumerable.Range(0, slots.Length / 4).Select(i => checked((ushort)CodeSegment.U32(slots, i * 4))).ToList();
+        var slotImages = Be.S32s(rom.Table(CodeTable.EquipmentSlotImages)).Select(image => checked((ushort)image)).ToList();
 
         return new MenuTables(spellSymbols, Descriptions(rom, CodeTable.PotionDescriptions), Descriptions(rom, CodeTable.ItemDescriptions),
             Descriptions(rom, CodeTable.SpellDescriptions), kinds, slotImages,
@@ -65,7 +61,7 @@ public sealed record MenuTables(
     /// <summary>A C string: ASCII up to its terminator, which the table's range includes.</summary>
     private static string Text(RomImage rom, CodeTable table)
     {
-        var data = CodeSegment.Table(rom, table);
+        var data = rom.Table(table);
         var end = data.IndexOf((byte)0);
         return end < 0
             ? throw new InvalidDataException($"The {table} string has no terminator.")
@@ -75,10 +71,10 @@ public sealed record MenuTables(
     /// <summary>(ID, line) u16 pairs, ending with a 0 ID.</summary>
     private static Dictionary<ItemId, int> Descriptions(RomImage rom, CodeTable table)
     {
-        var data = CodeSegment.Table(rom, table).ToArray();
+        var data = rom.Table(table).ToArray();
         var lines = new Dictionary<ItemId, int>();
-        for (var at = 0; at + 3 < data.Length && CodeSegment.U16(data, at) != 0; at += 4)
-            lines.Add(new ItemId(CodeSegment.U16(data, at)), CodeSegment.U16(data, at + 2));
+        for (var at = 0; at + 3 < data.Length && Be.U16(data, at) != 0; at += 4)
+            lines.Add(new ItemId(Be.U16(data, at)), Be.U16(data, at + 2));
         return lines;
     }
 }

@@ -63,6 +63,21 @@ internal static class ItemImporter
     /// <summary>The Alchemist's and Mechanic's skill numbers.</summary>
     private const int Alchemist = 0, Mechanic = 4;
 
+    /// <summary>Writes the weapons (with their sounds), armor, items, loot tables, shops, recipes and the inventory's rules.</summary>
+    public static void Import(ImportContext ctx)
+    {
+        var db = ctx.Db;
+        ctx.Report("Items");
+        var (weapons, armor, items) = BuildItems(db, ctx.Items, ctx.Engine, ctx.Menus);
+        ctx.WriteRecords("weapons.json", BodySoundImporter.WithSounds(db, ctx.BodySounds, weapons));
+        ctx.WriteRecords("armor.json", armor);
+        ctx.WriteRecords("items.json", items);
+        ctx.WriteRecords("loot.json", BuildLoot(db));
+        ctx.WriteRecords("shops.json", BuildShops(db));
+        ctx.WriteRecords("recipes.json", BuildRecipes(db, ctx.Items));
+        ctx.WriteRecords("inventory.json", new[] { BuildInventory(db, ctx.Menus) });
+    }
+
     /// <summary>
     /// The text of the line a description table gives <paramref name="id"/>, as the strings record holds it,
     /// or null when the table has none for it.
@@ -87,23 +102,23 @@ internal static class ItemImporter
             models.TryGetValue(position, out var scene) ? Scene(scene) : null;
 
         var weapons = db.Weapons.Select((w, i) => new PluginWeapon(
-            Record(w.Id), w.Name, Icon(w.Id), w.Price, w.Class, w.RequiredStrength, w.Hit, w.Damage,
+            DbRecordIds.Required(w.Id), w.Name, Icon(w.Id), w.Price, w.Class, w.RequiredStrength, w.Hit, w.Damage,
             Math.Min(w.Range * RangeTimesThree / 3, 255), w.Animation, w.ExpModifier, w.DamageType,
             Bonuses(w.Bonuses, w.SpellLevel), Traits(w.Id), Fixed: w.Id == staff,
             Model: Model(tables.WeaponModels, i)));
 
         var armor = db.Armor.Select((a, i) => new PluginArmor(
-            Record(a.Id), a.Name, Icon(a.Id), a.Price, a.Slot == 0 ? ArmorSlot.Body : ArmorSlot.Shield, a.Defense, a.Protection,
+            DbRecordIds.Required(a.Id), a.Name, Icon(a.Id), a.Price, a.Slot == 0 ? ArmorSlot.Body : ArmorSlot.Shield, a.Defense, a.Protection,
             a.Dexterity, a.Stealth, a.Unk1D, a.ExpBonus, Bonuses(a.Bonuses, a.Bonuses.SpellLevel), Traits(a.Id),
             Model(ItemTables.ShieldModels, i)));
 
         var gear = db.Gear.Select((g, i) =>
         {
             var bonuses = Bonuses(g.Bonuses, g.Bonuses.SpellLevel);
-            return new ItemRecord(Record(g.Id), g.Name, Icon(g.Id), g.Price, (ItemKind)g.Id.Type, g.ExpMultiplier, g.Damage, g.Protection,
+            return new ItemRecord(DbRecordIds.Required(g.Id), g.Name, Icon(g.Id), g.Price, (ItemKind)g.Id.Type, g.ExpMultiplier, g.Damage, g.Protection,
                 g.RequiredStrength, g.RequiredIntelligence, bonuses == new GearBonuses() ? null : bonuses, Traits(g.Id),
                 keyItems.TryGetValue(g.Id, out var key)
-                    ? new KeyItemFlags(Flag(key.Held), key.Region == 0 ? null : Flag(key.Region))
+                    ? new KeyItemFlags(DbRecordIds.Flag(key.Held), key.Region == 0 ? null : DbRecordIds.Flag(key.Region))
                     : null,
                 menu is null ? null : Description(db, RomStringTable.Items, menu.ItemDescriptions, g.Id),
                 Model(tables.ItemModels, i));
@@ -115,7 +130,7 @@ internal static class ItemImporter
         var potions = Enumerable.Range(0, ItemTables.PotionCount).Select(i =>
         {
             var id = ItemId.Of(DbType.Potion, (byte)i);
-            return new ItemRecord(Record(id), names[i], Image(ItemTables.PotionIcon), tables.PotionPrices[i], ItemKind.Potion,
+            return new ItemRecord(DbRecordIds.Required(id), names[i], Image(ItemTables.PotionIcon), tables.PotionPrices[i], ItemKind.Potion,
                 Traits: Traits(id), Description: menu is null ? null : Description(db, RomStringTable.PotionDetails, menu.PotionDescriptions, id));
         });
 
@@ -125,8 +140,8 @@ internal static class ItemImporter
     /// <summary>Niesen can equip only the Archmage Staff (<c>Entity::canEquipWeapon</c>).</summary>
     public static List<PluginEntity> WithSoleWeapons(GameDb db, List<PluginEntity> entities)
     {
-        var niesen = Record(db.Entities[NiesenDbPosition].Id);
-        var staff = Record(db.Weapons[ArchmageStaffPosition].Id);
+        var niesen = DbRecordIds.Required(db.Entities[NiesenDbPosition].Id);
+        var staff = DbRecordIds.Required(db.Weapons[ArchmageStaffPosition].Id);
         return [.. entities.Select(e => e.Id == niesen ? e with { SoleWeapon = staff } : e)];
     }
 
@@ -135,19 +150,19 @@ internal static class ItemImporter
         [.. skills.Select(s => int.Parse(s.Id.Key) is var n && n < tables.SkillIcons.Count ? s with { Icon = Image(tables.SkillIcons[n]) } : s)];
 
     public static List<PluginLoot> BuildLoot(GameDb db) => Sorted(db.Loot.Select(l => new PluginLoot(
-        Record(l.Id), l.Name, l.GoldMin, l.GoldMax, l.ArmorChance, l.ShieldChance, [.. l.WeaponChances.Select(c => (int)c)],
+        DbRecordIds.Required(l.Id), l.Name, l.GoldMin, l.GoldMax, l.ArmorChance, l.ShieldChance, [.. l.WeaponChances.Select(c => (int)c)],
         l.ReagentChance, l.ReagentMin, l.ReagentMax,
-        [.. l.Drops.Select(d => new PluginLootDrop(d.Item.IsNone ? null : Record(d.Item), d.Chance, d.Min, d.Max))])), l => l.Id);
+        [.. l.Drops.Select(d => new PluginLootDrop(d.Item.IsNone ? null : DbRecordIds.Required(d.Item), d.Chance, d.Min, d.Max))])), l => l.Id);
 
     /// <summary>
     /// Each shop's stock (<c>InitShop</c>): a priced slot is stocked only when its third byte is
     /// nonzero, and the three extra slots are stocked at the base price.
     /// </summary>
     public static List<PluginShop> BuildShops(GameDb db) => [.. db.Shops.Select((s, i) => new PluginShop(
-        RecordId.Decimal(RecordTypes.Shop, i), Record(s.Shopkeeper),
+        RecordId.Decimal(RecordTypes.Shop, i), DbRecordIds.Required(s.Shopkeeper),
         [
-            .. s.Stock.Where(x => !x.Item.IsNone && x.Unk2 != 0).Select(x => new ShopStock(Record(x.Item), PriceMultipliers[x.PriceMultiplier])),
-            .. s.ExtraStock.Where(x => !x.IsNone).Select(x => new ShopStock(Record(x))),
+            .. s.Stock.Where(x => !x.Item.IsNone && x.Unk2 != 0).Select(x => new ShopStock(DbRecordIds.Required(x.Item), PriceMultipliers[x.PriceMultiplier])),
+            .. s.ExtraStock.Where(x => !x.IsNone).Select(x => new ShopStock(DbRecordIds.Required(x))),
         ]))];
 
     /// <summary>The Alchemist's potions, then the Mechanic's armor, each in the original's order.</summary>
@@ -156,14 +171,14 @@ internal static class ItemImporter
         var (spice, herb, gemstone) = Reagents(db);
         var recipes = tables.PotionRecipes.Select(p => (
             Skill: Alchemist,
-            Product: Record(ItemId.Of(DbType.Potion, (byte)p.Potion)),
+            Product: DbRecordIds.Required(ItemId.Of(DbType.Potion, (byte)p.Potion)),
             Ingredients: new[] { new Ingredient(spice, p.Spice), new Ingredient(herb, p.Herb), new Ingredient(gemstone, p.Gemstone) }
                 .Where(x => x.Count > 0).ToList(),
             Level: p.Alchemist, p.Step, Unk5: (int?)p.Unk5))
             .Concat(tables.ArmorRecipes.Select(a => (
                 Skill: Mechanic,
-                Product: Record(db.Armor[a.Armor].Id),
-                Ingredients: new List<Ingredient> { new(Record(db.Gear[a.Hide].Id), 1) },
+                Product: DbRecordIds.Required(db.Armor[a.Armor].Id),
+                Ingredients: new List<Ingredient> { new(DbRecordIds.Required(db.Gear[a.Hide].Id), 1) },
                 Level: a.Mechanic, a.Step, Unk5: (int?)null)));
         return [.. recipes.Select((r, i) => new RecipeRecord(RecordId.Decimal(RecordTypes.Recipe, i),
             RecordId.Decimal(RecordTypes.Skill, r.Skill), r.Product, r.Ingredients, r.Level, r.Step, r.Unk5))];
@@ -175,13 +190,13 @@ internal static class ItemImporter
         var (spice, herb, gemstone) = Reagents(db);
         return new InventoryRecord(RecordId.Decimal(RecordTypes.Inventory, 0), StackLimit, GeneralSlots, spice, herb, gemstone,
             Image(ItemTables.DefaultIcon), MerchantStep, SellShare,
-            [Record(db.Weapons[CyclopsClubPosition].Id)],
-            [new ItemReplacement(Record(AspectPotion), Record(HealingPotion))],
-            RecordId.Decimal(RecordTypes.Flag, FirstPotionFlag), new InventoryMessages(m.PotionNotNow, m.PotionNotInTrek, m.ScrollNoSpell));
+            [DbRecordIds.Required(db.Weapons[CyclopsClubPosition].Id)],
+            [new ItemReplacement(DbRecordIds.Required(AspectPotion), DbRecordIds.Required(HealingPotion))],
+            DbRecordIds.Flag(FirstPotionFlag), new InventoryMessages(m.PotionNotNow, m.PotionNotInTrek, m.ScrollNoSpell));
     }
 
     private static (RecordId Spice, RecordId Herb, RecordId Gemstone) Reagents(GameDb db) =>
-        (Record(db.Gear[SpicePosition].Id), Record(db.Gear[HerbPosition].Id), Record(db.Gear[GemstonePosition].Id));
+        (DbRecordIds.Required(db.Gear[SpicePosition].Id), DbRecordIds.Required(db.Gear[HerbPosition].Id), DbRecordIds.Required(db.Gear[GemstonePosition].Id));
 
     /// <param name="spellLevel">A weapon's is its own field; armor's and gear's is in the bonuses.</param>
     private static GearBonuses Bonuses(EquipmentBonuses b, int spellLevel) => new(
@@ -190,8 +205,8 @@ internal static class ItemImporter
             : b.Stat < 6 ? new StatBonus(RecordId.Decimal(RecordTypes.Stat, b.Stat), b.StatBonus)
             : throw new InvalidDataException($"Gear raises stat {b.Stat}."),
         b.Skill == 0xFF ? null : new SkillBonus(Skill(b.Skill), b.SkillBonus),
-        b.Spell.IsNone ? null : new ItemSpell(Record(b.Spell), spellLevel, b.SpellCharges),
-        b.Magic.IsNone ? null : new ItemEnchantment(Record(b.Magic), b.MagicLevel),
+        b.Spell.IsNone ? null : new ItemSpell(DbRecordIds.Required(b.Spell), spellLevel, b.SpellCharges),
+        b.Magic.IsNone ? null : new ItemEnchantment(DbRecordIds.Required(b.Magic), b.MagicLevel),
         b.Resist == Element.None ? null : new Resistance(b.Resist, b.ResistAmount * ResistanceStep));
 
     /// <summary>
@@ -205,13 +220,9 @@ internal static class ItemImporter
         _ => throw new InvalidDataException($"Gear raises skill {n}."),
     };
 
-    private static RecordId Record(ItemId id) => DbRecordIds.For(id) ?? throw new InvalidDataException($"DB ID {id} has no record.");
-
     private static RecordId Scene(int borg5) => RecordId.Hex(RecordTypes.Scene, borg5);
 
     private static RecordId Image(int borg8) => RecordId.Hex(RecordTypes.Image, borg8);
-
-    private static RecordId Flag(int flag) => RecordId.Decimal(RecordTypes.Flag, flag);
 
     private static List<T> Sorted<T>(IEnumerable<T> records, Func<T, RecordId> id) => [.. records.OrderBy(r => id(r).Key, StringComparer.Ordinal)];
 }

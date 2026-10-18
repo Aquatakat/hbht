@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 
 namespace Aidyn.Rom.Audio;
 
@@ -53,7 +52,7 @@ public sealed class Borg12Sequence
         if (data.Length < HeaderSize)
             throw new InvalidDataException($"A Borg12 is at least 0x{HeaderSize:X} bytes, not {data.Length}.");
 
-        int U32(int at) => checked((int)BinaryPrimitives.ReadUInt32BigEndian(data.AsSpan(at)));
+        int U32(int at) => checked((int)Be.U32(data, at));
         var listOffset = U32(0);
         var tracks = U32(8);
         var count = U32(0xC);

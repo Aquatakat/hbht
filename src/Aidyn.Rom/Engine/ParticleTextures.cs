@@ -8,10 +8,6 @@ public static class ParticleTextures
 {
     public static IReadOnlyList<int?> Read(RomImage rom)
     {
-        var data = CodeSegment.Table(rom, CodeTable.ParticleTextures);
-        var slots = new int?[data.Length / 4];
-        for (var i = 0; i < slots.Length; i++)
-            slots[i] = (int)CodeSegment.U32(data, i * 4) is var index and >= 0 ? index : null;
-        return slots;
+        return [.. Be.S32s(rom.Table(CodeTable.ParticleTextures)).Select(index => index >= 0 ? index : (int?)null)];
     }
 }

@@ -30,14 +30,14 @@ public sealed record Fonts(IReadOnlyList<FontFace> Faces, IReadOnlyList<int> Gly
 
     public static Fonts Read(RomImage rom)
     {
-        var data = CodeSegment.Table(rom, CodeTable.FontFaces);
+        var data = rom.Table(CodeTable.FontFaces);
         var faces = new List<FontFace>();
-        for (var at = 0; at + 8 <= data.Length && CodeSegment.U32(data, at) is var image and not 0; at += 8)
+        for (var at = 0; at + 8 <= data.Length && Be.U32(data, at) is var image and not 0; at += 8)
             faces.Add(new FontFace((int)image, data[at + 4], data[at + 5]));
 
-        var glyphs = CodeSegment.Table(rom, CodeTable.FontGlyphs).ToArray().Select(b => (int)b).ToList();
+        var glyphs = rom.Table(CodeTable.FontGlyphs).ToArray().Select(b => (int)b).ToList();
 
-        data = CodeSegment.Table(rom, CodeTable.FontColors);
+        data = rom.Table(CodeTable.FontColors);
         var colors = new List<(byte, byte, byte)>();
         for (var at = 0; at + 3 <= data.Length && data.Slice(at, 3).IndexOfAnyExcept((byte)0) >= 0; at += 3)
             colors.Add((data[at], data[at + 1], data[at + 2]));

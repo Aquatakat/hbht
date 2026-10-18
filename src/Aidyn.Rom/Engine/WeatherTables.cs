@@ -15,12 +15,11 @@ public sealed record WeatherTables(IReadOnlyList<int> Seasons, IReadOnlyList<int
 
     public static WeatherTables Read(RomImage rom)
     {
-        var seasons = CodeSegment.Table(rom, CodeTable.SeasonPrecipitation).ToArray();
-        var terrains = CodeSegment.Table(rom, CodeTable.TerrainPrecipitation).ToArray();
-        var scales = CodeSegment.Table(rom, CodeTable.TerrainPrecipitationScale).ToArray();
+        var seasons = rom.Table(CodeTable.SeasonPrecipitation).ToArray();
+        var terrains = rom.Table(CodeTable.TerrainPrecipitation).ToArray();
         return new WeatherTables(
             [.. seasons.Take(SeasonCount).Select(b => (int)b)],
             [.. terrains.Select(b => (int)(sbyte)b)],
-            [.. Enumerable.Range(0, scales.Length / 4).Select(i => CodeSegment.F32(scales, i * 4))]);
+            Be.F32s(rom.Table(CodeTable.TerrainPrecipitationScale)));
     }
 }

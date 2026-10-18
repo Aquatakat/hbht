@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 using System.Globalization;
 using System.Numerics;
 
@@ -98,12 +97,11 @@ public static class MapChunks
                 offset += EntrySize;
                 if (!entry.ContainsAnyExcept((byte)0))
                     break;
-                chunks.Add(new MapChunk(set, U16(entry, 0), U16(entry, 2), U16(entry, 4), U16(entry, 6),
-                    U16(entry, 8), U16(entry, 10)));
+                chunks.Add(new MapChunk(set, Be.U16(entry, 0), Be.U16(entry, 2), Be.U16(entry, 4), Be.U16(entry, 6),
+                    Be.U16(entry, 8), Be.U16(entry, 10)));
             }
         }
         return chunks;
     }
 
-    private static int U16(ReadOnlySpan<byte> entry, int at) => BinaryPrimitives.ReadUInt16BigEndian(entry[at..]);
 }

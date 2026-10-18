@@ -4,7 +4,7 @@ How the weather changes, what it holds, and how the original draws and plays it.
 
 ## The records
 
-- **The weather record** (`aidyn:weather/0`, `WeatherRecord`, `BaseImporter.BuildWeather`): each season's chance of precipitation, from the code's table (`0x800e3040`, ROM `0xE3C40`: 43, 48, 33, 25, 36, 40 for the six seasons), the literals of the roll, the wind and the drawing, and the rain's and snow's look (`Rain`, `Snow`: `PrecipitationLook`).
+- **The weather record** (`aidyn:weather/0`, `WeatherRecord`, `WorldImporter.BuildWeather`): each season's chance of precipitation, from the code's table (`0x800e3040`, ROM `0xE3C40`: 43, 48, 33, 25, 36, 40 for the six seasons), the literals of the roll, the wind and the drawing, and the rain's and snow's look (`Rain`, `Snow`: `PrecipitationLook`).
 - **The terrain records** (`aidyn:terrain/n`): what each terrain adds to the season's chance (`precipitation`, s8s at `0x800e3048`), how hard it falls there (`precipitationScale`, floats at `0x800e3064`) and whether it's snow (`snow`, terrain 5 alone, a literal in the roll). The tables are identical in 1.0, 1.1 and the debug ROM (`WeatherTables`).
 
 | Terrain | 0–2 | 3 | 4 | 5 | 6 | 7 | 8–17 | 18 | 19–22 | 23 | 24 | 25 | 26–27 |

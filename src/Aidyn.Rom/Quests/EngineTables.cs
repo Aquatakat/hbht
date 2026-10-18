@@ -69,78 +69,66 @@ public sealed record EngineTables(
 
     public static EngineTables Read(RomImage rom)
     {
-        var entityList = Table(rom, CodeTable.EntityList).ToArray()
+        var entityList = rom.Table(CodeTable.EntityList).ToArray()
             .Select(b => ItemId.Of(DbType.Entity, b)).ToList();
 
-        var joins = Rows(U16s(Table(rom, CodeTable.PartyFlags)), 3, CodeTable.PartyFlags);
-        var deaths = Rows(U16s(Table(rom, CodeTable.PartyDeathFlags)), 2, CodeTable.PartyDeathFlags)
+        var joins = Rows(Be.U16s(rom.Table(CodeTable.PartyFlags)), 3, CodeTable.PartyFlags);
+        var deaths = Rows(Be.U16s(rom.Table(CodeTable.PartyDeathFlags)), 2, CodeTable.PartyDeathFlags)
             .ToDictionary(r => r[0], r => r[1]);
         if (joins.Count != deaths.Count || joins.Any(r => !deaths.ContainsKey(r[0])))
             throw new InvalidDataException("The party and death flag tables name different members.");
         var party = joins.Select(r => new PartyMemberFlags(entityList[r[0]], r[1], r[2], deaths[r[0]])).ToList();
 
-        var held = U16s(Table(rom, CodeTable.KeyItemFlags));
-        var items = U16s(Table(rom, CodeTable.KeyItems));
-        var regions = U16s(Table(rom, CodeTable.KeyItemRegionFlags));
+        var held = Be.U16s(rom.Table(CodeTable.KeyItemFlags));
+        var items = Be.U16s(rom.Table(CodeTable.KeyItems));
+        var regions = Be.U16s(rom.Table(CodeTable.KeyItemRegionFlags));
         if (held.Length != items.Length || regions.Length != items.Length)
             throw new InvalidDataException("The key item tables differ in length.");
         var keyItems = items.Select((item, i) => new KeyItemFlags(new ItemId(item), held[i], regions[i])).ToList();
 
         // Entered chunks are matched until an entry with a zero field.
-        var regionData = Table(rom, CodeTable.RegionFlags);
+        var regionData = rom.Table(CodeTable.RegionFlags);
         var chunks = new List<RegionChunk>();
         for (var at = 0; ; at += 12)
         {
-            var row = U32(regionData, at);
-            var column = U32(regionData, at + 4);
-            var flag = U32(regionData, at + 8);
+            var row = Be.U32(regionData, at);
+            var column = Be.U32(regionData, at + 4);
+            var flag = Be.U32(regionData, at + 8);
             if (row == 0 || column == 0 || flag == 0)
                 break;
             chunks.Add(new RegionChunk((int)row, (int)column, (ushort)flag));
         }
 
-        var camp = U16s(Table(rom, CodeTable.CampDialogueFlags)).TakeWhile(f => f != End).ToList();
-        var battles = Rows(U16s(Table(rom, CodeTable.ScriptBattleFlags)), 2, CodeTable.ScriptBattleFlags)
+        var camp = Be.U16s(rom.Table(CodeTable.CampDialogueFlags)).TakeWhile(f => f != End).ToList();
+        var battles = Rows(Be.U16s(rom.Table(CodeTable.ScriptBattleFlags)), 2, CodeTable.ScriptBattleFlags)
             .ToDictionary(r => (int)r[0], r => r[1]);
 
         var campfire = new List<int>();
-        var campfireData = Table(rom, CodeTable.CampfireScenes);
-        for (var at = 0; (int)U32(campfireData, at) is var script and not -1; at += 4)
+        var campfireData = rom.Table(CodeTable.CampfireScenes);
+        for (var at = 0; (int)Be.U32(campfireData, at) is var script and not -1; at += 4)
             campfire.Add(script);
 
         // Script, padding and ending, up to a script of -1.
         var endings = new Dictionary<int, ScriptEnding>();
-        var endingData = Table(rom, CodeTable.ScriptEndings);
-        for (var at = 0; (int)U32(endingData, at) is var script and not -1; at += 8)
+        var endingData = rom.Table(CodeTable.ScriptEndings);
+        for (var at = 0; (int)Be.U32(endingData, at) is var script and not -1; at += 8)
         {
-            var ending = CodeSegment.U16(endingData, at + 6);
+            var ending = Be.U16(endingData, at + 6);
             endings.Add(script, Enum.IsDefined((ScriptEnding)ending)
                 ? (ScriptEnding)ending
                 : throw new InvalidDataException($"Script {script} has an unknown ending, {ending}."));
         }
 
         // Pieces up to an all-zero entry.
-        var pieces = U16s(Table(rom, CodeTable.WorldMapPieces)).Chunk(4)
+        var pieces = Be.U16s(rom.Table(CodeTable.WorldMapPieces)).Chunk(4)
             .TakeWhile(r => r.Any(v => v != 0))
             .Select(r => new WorldMapPiece(r[0], r[1], r[2], r[3]))
             .ToList();
 
-        var gameOver = (int)U32(Table(rom, CodeTable.GameOverScenes), 0);
+        var gameOver = (int)Be.U32(rom.Table(CodeTable.GameOverScenes), 0);
 
         return new EngineTables(entityList, party, keyItems, chunks, camp, battles, campfire, endings, gameOver, pieces);
     }
-
-    private static ReadOnlySpan<byte> Table(RomImage rom, CodeTable table) => CodeSegment.Table(rom, table);
-
-    private static ushort[] U16s(ReadOnlySpan<byte> data)
-    {
-        var values = new ushort[data.Length / 2];
-        for (var i = 0; i < values.Length; i++)
-            values[i] = CodeSegment.U16(data, i * 2);
-        return values;
-    }
-
-    private static uint U32(ReadOnlySpan<byte> data, int at) => CodeSegment.U32(data, at);
 
     /// <summary>Fixed-width rows up to the one that starts with 0xFFFF, which must be the table's last.</summary>
     private static List<ushort[]> Rows(ushort[] values, int width, CodeTable table)

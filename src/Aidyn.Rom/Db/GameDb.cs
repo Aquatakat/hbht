@@ -34,24 +34,19 @@ public sealed record GameDb(
         Flat(rom, DbTable.Chests, LootRecord.Size, LootRecord.Read),
         Flat(rom, DbTable.Shops, ShopRecord.Size, ShopRecord.Read),
         Flat(rom, DbTable.DialogEntities, DialogEntityRecord.Size, DialogEntityRecord.Read),
-        GameStateFunnelTable.Read(Table(rom, DbTable.GameStateFunnel)),
-        FlaggedText.ReadList(Table(rom, DbTable.Journal), wideLengths: true),
-        FlaggedText.ReadList(Table(rom, DbTable.TheatreMenu), wideLengths: false),
-        CinematicText.Read(Table(rom, DbTable.CinematicTextIndex), Table(rom, DbTable.CinematicText)),
-        CampEncounter.ReadAll(Table(rom, DbTable.CampEncounters)),
+        GameStateFunnelTable.Read(rom.Table(DbTable.GameStateFunnel)),
+        FlaggedText.ReadList(rom.Table(DbTable.Journal), wideLengths: true),
+        FlaggedText.ReadList(rom.Table(DbTable.TheatreMenu), wideLengths: false),
+        CinematicText.Read(rom.Table(DbTable.CinematicTextIndex), rom.Table(DbTable.CinematicText)),
+        CampEncounter.ReadAll(rom.Table(DbTable.CampEncounters)),
         rom.Layout.StringTables.Keys.Order().ToDictionary(t => t, t => RomStringBlock.Read(rom, t)));
 
     private delegate T RecordParser<out T>(ref RecordReader reader);
 
-    private static ReadOnlySpan<byte> Table(RomImage rom, DbTable table) =>
-        rom.Layout.DbTables.TryGetValue(table, out var range)
-            ? rom.Slice(range)
-            : throw new NotSupportedException($"{rom.Version.Name} has no verified location for the {table} table.");
-
     /// <summary>A table whose header count is followed directly by its records.</summary>
     private static IReadOnlyList<T> Flat<T>(RomImage rom, DbTable table, int size, RecordParser<T> parse)
     {
-        var r = new RecordReader(Table(rom, table));
+        var r = new RecordReader(rom.Table(table));
         var records = new T[r.Count()];
         for (var i = 0; i < records.Length; i++)
             records[i] = ReadRecord(ref r, size, parse);
@@ -61,7 +56,7 @@ public sealed record GameDb(
     /// <summary>A table with a total count, then a count before each group's records.</summary>
     private static IReadOnlyList<T> Grouped<T>(RomImage rom, DbTable table, int groupCount, int size, RecordParser<T> parse)
     {
-        var r = new RecordReader(Table(rom, table));
+        var r = new RecordReader(rom.Table(table));
         var total = r.Count();
         var records = new List<T>(total);
         for (var g = 0; g < groupCount; g++)

@@ -55,22 +55,22 @@ public sealed record ItemTables(
 
     public static ItemTables Read(RomImage rom)
     {
-        var prices = CodeSegment.Table(rom, CodeTable.PotionPrices).ToArray();
-        var potionPrices = Enumerable.Range(0, PotionCount).Select(i => (int)CodeSegment.U16(prices, i * 2)).ToList();
+        var prices = rom.Table(CodeTable.PotionPrices).ToArray();
+        var potionPrices = Enumerable.Range(0, PotionCount).Select(i => (int)Be.U16(prices, i * 2)).ToList();
 
-        var potions = CodeSegment.Table(rom, CodeTable.PotionRecipes);
+        var potions = rom.Table(CodeTable.PotionRecipes);
         var potionRecipes = new List<PotionRecipe>();
         for (var at = 0; at + PotionRecipe.Size <= potions.Length; at += PotionRecipe.Size)
             potionRecipes.Add(new PotionRecipe(potions[at], potions[at + 1], potions[at + 2], potions[at + 3], potions[at + 4],
                 potions[at + 5], potions[at + 6]));
 
-        var armor = CodeSegment.Table(rom, CodeTable.ArmorRecipes);
+        var armor = rom.Table(CodeTable.ArmorRecipes);
         var armorRecipes = new List<ArmorRecipe>();
         for (var at = 0; at + ArmorRecipe.Size <= armor.Length; at += ArmorRecipe.Size)
-            armorRecipes.Add(new ArmorRecipe(CodeSegment.U16(armor, at), armor[at + 2], armor[at + 3], armor[at + 4]));
+            armorRecipes.Add(new ArmorRecipe(Be.U16(armor, at), armor[at + 2], armor[at + 3], armor[at + 4]));
 
         // menuimages.cpp: five lists of (key, Borg8) u16 pairs, each followed by its count as a u32.
-        var icons = CodeSegment.Table(rom, CodeTable.MenuIcons).ToArray();
+        var icons = rom.Table(CodeTable.MenuIcons).ToArray();
         var at2 = 0;
         List<(ushort Key, ushort Image)> List()
         {
@@ -79,10 +79,10 @@ public sealed record ItemTables(
             // aspects' starts with a (0, 0) entry, which would read as an empty list's count.
             for (var n = 1; at2 + n * 4 + 4 <= icons.Length; n++)
             {
-                if (CodeSegment.U32(icons, at2 + n * 4) != n)
+                if (Be.U32(icons, at2 + n * 4) != n)
                     continue;
                 for (var i = 0; i < n; i++)
-                    entries.Add((CodeSegment.U16(icons, at2 + i * 4), CodeSegment.U16(icons, at2 + i * 4 + 2)));
+                    entries.Add((Be.U16(icons, at2 + i * 4), Be.U16(icons, at2 + i * 4 + 2)));
                 at2 += n * 4 + 4;
                 return entries;
             }
@@ -112,23 +112,22 @@ public sealed record ItemTables(
     /// </summary>
     private static Dictionary<int, ushort> Models(RomImage rom, CodeTable positionsTable, CodeTable modelsTable, int width, int end)
     {
-        var positions = CodeSegment.Table(rom, positionsTable).ToArray();
-        var models = CodeSegment.Table(rom, modelsTable).ToArray();
+        var positions = rom.Table(positionsTable).ToArray();
+        var models = rom.Table(modelsTable).ToArray();
         var result = new Dictionary<int, ushort>();
         for (var i = 0; (i + 1) * width <= positions.Length; i++)
         {
-            var position = width == 1 ? positions[i] : CodeSegment.U16(positions, i * 2);
+            var position = width == 1 ? positions[i] : Be.U16(positions, i * 2);
             if (position == end)
                 return result;
-            result.Add(position, CodeSegment.U16(models, i * 2));
+            result.Add(position, Be.U16(models, i * 2));
         }
         throw new InvalidDataException($"The {positionsTable} list has no terminator.");
     }
 
     private static List<ItemId> Ids(RomImage rom, CodeTable table)
     {
-        var data = CodeSegment.Table(rom, table).ToArray();
-        return Enumerable.Range(0, data.Length / 2).Select(i => new ItemId(CodeSegment.U16(data, i * 2))).ToList();
+        return [.. Be.U16s(rom.Table(table)).Select(id => new ItemId(id))];
     }
 }
 

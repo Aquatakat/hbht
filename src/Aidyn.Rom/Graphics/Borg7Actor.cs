@@ -73,7 +73,7 @@ public sealed class Borg7Actor
 
     public static Borg7Actor Parse(byte[] data)
     {
-        int Word(int offset) => BinaryPrimitives.ReadInt32BigEndian(Slice(data, offset, 4));
+        int Word(int offset) => Be.S32(Be.Slice(data, offset, 4, "Borg7"), 0);
 
         int root = Word(0), count = Word(4), initial = Word(8);
         if (count < 1 || initial < 0 || initial >= count)
@@ -83,7 +83,7 @@ public sealed class Borg7Actor
         var states = new Borg7State[count];
         for (var i = 0; i < count; i++)
         {
-            var s = Slice(data, HeaderSize + i * StateSize, StateSize);
+            var s = Be.Slice(data, HeaderSize + i * StateSize, StateSize, "Borg7");
             var animation = BinaryPrimitives.ReadInt32BigEndian(s);
             var flags = BinaryPrimitives.ReadUInt16BigEndian(s[4..]);
             var branchCount = BinaryPrimitives.ReadUInt16BigEndian(s[6..]);
@@ -92,7 +92,7 @@ public sealed class Borg7Actor
                 throw new InvalidDataException($"State {i} has unknown flags 0x{flags:X}.");
 
             var list = new Borg7Branch[branchCount];
-            var b = Slice(data, branches, branchCount * BranchSize);
+            var b = Be.Slice(data, branches, branchCount * BranchSize, "Borg7");
             for (var j = 0; j < branchCount; j++)
             {
                 byte request = b[j * 4], chance = b[j * 4 + 1], branchFlags = b[j * 4 + 2], target = b[j * 4 + 3];
@@ -112,9 +112,4 @@ public sealed class Borg7Actor
             throw new InvalidDataException($"The actor's data ends at 0x{end:X}, but the Borg7 is 0x{data.Length:X} bytes.");
         return new Borg7Actor(root, initial, states);
     }
-
-    private static ReadOnlySpan<byte> Slice(byte[] data, int offset, int length) =>
-        offset >= 0 && length >= 0 && offset <= data.Length - length
-            ? data.AsSpan(offset, length)
-            : throw new InvalidDataException($"0x{length:X} bytes at 0x{offset:X} run past the end of the Borg7 (0x{data.Length:X}).");
 }

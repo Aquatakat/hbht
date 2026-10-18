@@ -228,7 +228,7 @@ public sealed class Borg5Scene
         if (data.Length < HeaderSize)
             throw new InvalidDataException($"A Borg5 is at least 0x{HeaderSize:X} bytes, not {data.Length}.");
 
-        int Word(int offset) => BinaryPrimitives.ReadInt32BigEndian(data.AsSpan(offset));
+        int Word(int offset) => Be.S32(data, offset);
         int transformCount = Word(0), lightCount = Word(4), modelCount = Word(8), textureCount = Word(0xC);
         int animatedCount = Word(0x10), instructionCount = Word(0x14);
         int transforms = Word(0x18), camera = Word(0x24), lights = Word(0x28), models = Word(0x2C);
@@ -266,7 +266,7 @@ public sealed class Borg5Scene
         var instructionList = new (Borg5Opcode, byte)[instructionCount];
         for (var i = 0; i < instructionCount; i++)
         {
-            var word = BinaryPrimitives.ReadUInt16BigEndian(Slice(data, instructions + i * 2, 2));
+            var word = BinaryPrimitives.ReadUInt16BigEndian(Be.Slice(data, instructions + i * 2, 2, "Borg5"));
             instructionList[i] = ((Borg5Opcode)(word >> 8), (byte)word);
         }
         var draws = Interpret(instructionList, textureCount, modelCount, firstNode, transformCount);
@@ -276,7 +276,7 @@ public sealed class Borg5Scene
             throw new InvalidDataException($"The particle emitters at 0x{particles:X} don't end the Borg5 at 0x{data.Length:X}.");
         var emitters = new Borg5ParticleEmitter[particleCount];
         for (var i = 0; i < particleCount; i++)
-            emitters[i] = Borg5ParticleEmitter.Parse(Slice(data, particles + i * Borg5ParticleEmitter.Size, Borg5ParticleEmitter.Size));
+            emitters[i] = Borg5ParticleEmitter.Parse(Be.Slice(data, particles + i * Borg5ParticleEmitter.Size, Borg5ParticleEmitter.Size, "Borg5"));
 
         return new Borg5Scene(camera, lightList, modelList, textureList, transformList, instructionList, draws,
             emitters, parents);
@@ -284,7 +284,7 @@ public sealed class Borg5Scene
 
     private static Borg5Transform ReadTransform(byte[] data, int offset, int transformCount)
     {
-        var t = Slice(data, offset, Borg5Transform.Size);
+        var t = Be.Slice(data, offset, Borg5Transform.Size, "Borg5");
         var flags = (Borg5TransformFlags)BinaryPrimitives.ReadUInt16BigEndian(t);
         var op = (Borg5TransformOp)t[2];
         var childCount = t[3];
@@ -367,15 +367,10 @@ public sealed class Borg5Scene
 
     private static int[] Indices(byte[] data, int offset, int count)
     {
-        var span = Slice(data, offset, count * 4);
+        var span = Be.Slice(data, offset, count * 4, "Borg5");
         var indices = new int[count];
         for (var i = 0; i < count; i++)
             indices[i] = BinaryPrimitives.ReadInt32BigEndian(span[(i * 4)..]);
         return indices;
     }
-
-    private static ReadOnlySpan<byte> Slice(byte[] data, int offset, int length) =>
-        offset >= 0 && length >= 0 && offset <= data.Length - length
-            ? data.AsSpan(offset, length)
-            : throw new InvalidDataException($"0x{length:X} bytes at 0x{offset:X} run past the end of the Borg5 (0x{data.Length:X}).");
 }

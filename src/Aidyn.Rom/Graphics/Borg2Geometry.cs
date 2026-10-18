@@ -135,11 +135,11 @@ public sealed class Borg2Geometry
             throw new InvalidDataException($"A Borg2 is at least 0x{HeaderSize:X} bytes, not {data.Length}.");
 
         var h = data.AsSpan();
-        var alpha = ReadSingle(h, 0);
+        var alpha = Be.F32(h, 0);
         var count = BinaryPrimitives.ReadInt32BigEndian(h[4..]);
-        var scale = ReadSingle(h, 8);
-        var position = new Vector3(ReadSingle(h, 0xC), ReadSingle(h, 0x10), ReadSingle(h, 0x14));
-        var rotation = new Vector3(ReadSingle(h, 0x18), ReadSingle(h, 0x1C), ReadSingle(h, 0x20));
+        var scale = Be.F32(h, 8);
+        var position = new Vector3(Be.F32(h, 0xC), Be.F32(h, 0x10), Be.F32(h, 0x14));
+        var rotation = new Vector3(Be.F32(h, 0x18), Be.F32(h, 0x1C), Be.F32(h, 0x20));
         var unknown24 = BinaryPrimitives.ReadUInt32BigEndian(h[0x24..]);
         var unknown28 = BinaryPrimitives.ReadUInt32BigEndian(h[0x28..]);
         var table = (int)BinaryPrimitives.ReadUInt32BigEndian(h[0x2C..]);
@@ -153,12 +153,12 @@ public sealed class Borg2Geometry
         for (var at = 0x3C; at < HeaderSize; at += 4)
             if (at != 0x40 && BinaryPrimitives.ReadUInt32BigEndian(h[at..]) != 0)
                 throw new InvalidDataException($"The header word at 0x{at:X} isn't 0; nothing is known to use it.");
-        Expect("bounding boxes", boxes, HeaderSize);
-        Expect("vertices", vertexOffset, boxes + count * BoundingBoxVertices * N64Vertex.Size);
+        Be.Expect("Borg2", "bounding boxes", boxes, HeaderSize);
+        Be.Expect("Borg2", "vertices", vertexOffset, boxes + count * BoundingBoxVertices * N64Vertex.Size);
         var listsStart = vertexOffset + vertexCount * N64Vertex.Size;
         if (table < listsStart)
             throw new InvalidDataException($"The display-list table at 0x{table:X} overlaps the vertices.");
-        Expect("materials", materials, table + count * 4);
+        Be.Expect("Borg2", "materials", materials, table + count * 4);
         if (data.Length != materials + count * MaterialSize)
             throw new InvalidDataException($"The Borg2 ends at 0x{materials + count * MaterialSize:X}, not 0x{data.Length:X}.");
 
@@ -179,19 +179,13 @@ public sealed class Borg2Geometry
 
             var m = h[(materials + i * MaterialSize)..];
             var flags = (Borg2MaterialFlags)BinaryPrimitives.ReadUInt32BigEndian(m);
-            var tint = new Vector4(ReadSingle(m, 4), ReadSingle(m, 8), ReadSingle(m, 0xC), ReadSingle(m, 0x10));
+            var tint = new Vector4(Be.F32(m, 4), Be.F32(m, 8), Be.F32(m, 0xC), Be.F32(m, 0x10));
             var box = ReadVertices(h[(boxes + i * BoundingBoxVertices * N64Vertex.Size)..], BoundingBoxVertices);
             var (meshVertices, indices) = Index(F3dex2.Run(h[..table], list, segments, TextureScale));
             meshes[i] = new Borg2Mesh(flags, tint, box, meshVertices, indices);
         }
 
         return new Borg2Geometry(alpha, scale, position, rotation, unknown24, unknown28, vertices, meshes);
-
-        static void Expect(string part, int actual, int expected)
-        {
-            if (actual != expected)
-                throw new InvalidDataException($"The {part} are at 0x{actual:X}, not 0x{expected:X}.");
-        }
     }
 
     private static (N64Vertex[] Vertices, int[] Indices) Index(List<N64Triangle> triangles)
@@ -227,7 +221,4 @@ public sealed class Borg2Geometry
             vertices[i] = N64Vertex.Read(data[(i * N64Vertex.Size)..]);
         return vertices;
     }
-
-    private static float ReadSingle(ReadOnlySpan<byte> data, int offset) =>
-        BinaryPrimitives.ReadSingleBigEndian(data[offset..]);
 }

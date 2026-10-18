@@ -24,7 +24,7 @@ public class DialogueImportTests
             var rom = TestRoms.Get(id);
             var archive = BorgArchive.Open(rom);
             var tables = EngineTables.Read(rom);
-            return (archive, tables, BaseImporter.BuildDialogues(archive, tables));
+            return (archive, tables, DialogueImporter.BuildDialogues(archive, tables));
         })).Value;
 
     private static DialogueRecord Script(int archiveIndex) =>
@@ -267,7 +267,7 @@ public class DialogueImportTests
         var db = GameDb.Read(rom);
         var models = EntityModels.Read(rom);
         // Entities, spells and items have records of their own, which name them too.
-        var names = BaseImporter.BuildNames(db, models).SelectMany(f => f.Records).ToDictionary(r => r.Id, r => r.Name);
+        var names = CharacterImporter.BuildNames(db, models).SelectMany(f => f.Records).ToDictionary(r => r.Id, r => r.Name);
         foreach (var entity in CharacterImporter.BuildEntities(db, models))
             names.Add(entity.Id, entity.Name);
         foreach (var spell in CharacterImporter.BuildSpells(db))

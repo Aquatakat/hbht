@@ -13,11 +13,7 @@ public static class Skies
     /// <summary>The gradients' Borg8 archive indices by sky number, read from the code segment. Number 0 is unused.</summary>
     public static IReadOnlyList<int> ReadGradients(RomImage rom)
     {
-        var data = CodeSegment.Table(rom, CodeTable.SkyGradients);
-        var gradients = new int[data.Length / 4];
-        for (var i = 0; i < gradients.Length; i++)
-            gradients[i] = (int)CodeSegment.U32(data, i * 4);
-        return gradients;
+        return Be.S32s(rom.Table(CodeTable.SkyGradients));
     }
 
     /// <summary>
@@ -26,7 +22,7 @@ public static class Skies
     /// </summary>
     public static IReadOnlyList<SkyObjectEntry> ReadSkyObjects(RomImage rom)
     {
-        var data = CodeSegment.Table(rom, CodeTable.SkyObjects);
+        var data = rom.Table(CodeTable.SkyObjects);
         var objects = new List<SkyObjectEntry>();
         for (var at = 0; at + SkyObjectSize <= data.Length; at += SkyObjectSize)
         {
@@ -35,7 +31,7 @@ public static class Skies
                 return objects;
             if (!Enum.IsDefined(kind))
                 throw new InvalidDataException($"Sky object at 0x{at:X} has type {(int)kind}.");
-            objects.Add(new SkyObjectEntry(kind, CodeSegment.F32(data, at + 4), CodeSegment.F32(data, at + 8), CodeSegment.F32(data, at + 12),
+            objects.Add(new SkyObjectEntry(kind, Be.F32(data, at + 4), Be.F32(data, at + 8), Be.F32(data, at + 12),
                 CodeSegment.Colour(data, at + 16)));
         }
         throw new InvalidDataException("The sky objects don't end.");
@@ -44,7 +40,7 @@ public static class Skies
     /// <summary>The clouds (<c>gCloudData</c>), up to the entry with image 3 that ends the list.</summary>
     public static IReadOnlyList<CloudEntry> ReadClouds(RomImage rom)
     {
-        var data = CodeSegment.Table(rom, CodeTable.Clouds);
+        var data = rom.Table(CodeTable.Clouds);
         var clouds = new List<CloudEntry>();
         for (var at = 0; at + CloudSize <= data.Length; at += CloudSize)
         {
@@ -54,7 +50,7 @@ public static class Skies
             if (image > CloudImages.Count)
                 throw new InvalidDataException($"Cloud at 0x{at:X} has image {image}.");
             // Bytes 8–11 are y, always 10 and unused, and 16–19 are unused; only the colour's alpha is read.
-            clouds.Add(new CloudEntry(image, CodeSegment.F32(data, at + 4), CodeSegment.F32(data, at + 12), data[at + 23], CodeSegment.F32(data, at + 24)));
+            clouds.Add(new CloudEntry(image, Be.F32(data, at + 4), Be.F32(data, at + 12), data[at + 23], Be.F32(data, at + 24)));
         }
         throw new InvalidDataException("The clouds don't end.");
     }
@@ -62,13 +58,13 @@ public static class Skies
     /// <summary>The lens flare's pieces (<c>gLensFlareData</c>): the whole table, eight of them.</summary>
     public static IReadOnlyList<FlareEntry> ReadLensFlare(RomImage rom)
     {
-        var data = CodeSegment.Table(rom, CodeTable.LensFlare);
+        var data = rom.Table(CodeTable.LensFlare);
         var pieces = new List<FlareEntry>();
         for (var at = 0; at + FlareSize <= data.Length; at += FlareSize)
         {
             if (data[at] >= FlareImages.Count)
                 throw new InvalidDataException($"Lens flare piece at 0x{at:X} has image {data[at]}.");
-            pieces.Add(new FlareEntry(data[at], CodeSegment.F32(data, at + 4), CodeSegment.F32(data, at + 8), CodeSegment.Colour(data, at + 12)));
+            pieces.Add(new FlareEntry(data[at], Be.F32(data, at + 4), Be.F32(data, at + 8), CodeSegment.Colour(data, at + 12)));
         }
         return pieces;
     }

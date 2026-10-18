@@ -2,6 +2,7 @@ using Aidyn.Core.Calendar;
 using Aidyn.Core.Flags;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
+using Aidyn.Rom.Db;
 using Aidyn.Rom.Import;
 using Aidyn.Rom.Quests;
 using Aidyn.Rom.Rig;
@@ -16,7 +17,12 @@ public class CheckpointTests
 {
     // The flags are the same in 1.0 and the debug ROM, so both are checked against 1.0's records.
     private static readonly Lazy<List<FlagRecord>> Records =
-        new(() => BaseImporter.BuildFlags(TestRoms.Get(RomVersionId.Na10)));
+        new(() =>
+        {
+            var rom = TestRoms.Get(RomVersionId.Na10);
+            var db = GameDb.Read(rom);
+            return FlagImporter.BuildFlags(db, FlagLabels.Read(rom, db));
+        });
 
     private static FlagNetwork Network() => new(Records.Value, RecordId.Decimal(RecordTypes.Flag, EngineFlags.NewJournalEntry));
 
@@ -52,7 +58,7 @@ public class CheckpointTests
         var terrainType = checkpoint.ReadByte(terrain + 0x24);
 
         var network = Network();
-        var state = new StateFlags(network, BaseImporter.BuildStateFlags());
+        var state = new StateFlags(network, FlagImporter.BuildStateFlags());
         state.SetTime(new GameClock { Time = time });
         state.SetRain(rain);
         state.SetTerrain(terrainType);

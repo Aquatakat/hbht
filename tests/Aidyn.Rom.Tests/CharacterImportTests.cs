@@ -320,7 +320,7 @@ public sealed class CharacterImportTests(Na10Import fixture)
         Assert.Equal(RecordId.Hex(RecordTypes.Entity, 0x0236), oriana);
         Assert.Equal("Oriana", Get<Plugins.Records.EntityRecord>(oriana.ToString()).Name);
         // shopkeepNotOriana adds 0x200 to entityList[144].
-        Assert.Equal(new ItemId((ushort)(0x200 + CodeSegment.Table(rom, CodeTable.EntityList)[CharacterImporter.OrianaDbPosition])), db.Entities[CharacterImporter.OrianaDbPosition].Id);
+        Assert.Equal(new ItemId((ushort)(0x200 + rom.Table(CodeTable.EntityList)[CharacterImporter.OrianaDbPosition])), db.Entities[CharacterImporter.OrianaDbPosition].Id);
     }
 
     [Fact]

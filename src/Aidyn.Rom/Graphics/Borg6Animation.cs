@@ -86,8 +86,8 @@ public sealed class Borg6Animation
 
     public static Borg6Animation Parse(byte[] data)
     {
-        int Word(int offset) => BinaryPrimitives.ReadInt32BigEndian(Slice(data, offset, 4));
-        ushort Half(int offset) => BinaryPrimitives.ReadUInt16BigEndian(Slice(data, offset, 2));
+        int Word(int offset) => Be.S32(Be.Slice(data, offset, 4, "Borg6"), 0);
+        ushort Half(int offset) => Be.U16(Be.Slice(data, offset, 2, "Borg6"), 0);
 
         int scene = Word(0), targetCount = Word(4), targets = Word(8), length = Word(0xC);
         if (targets != HeaderSize)
@@ -139,7 +139,7 @@ public sealed class Borg6Animation
         for (var k = 0; ; k++)
         {
             var at = offset + k * KeySize;
-            var key = Slice(data, at, KeySize);
+            var key = Be.Slice(data, at, KeySize, "Borg6");
             int tick = BinaryPrimitives.ReadUInt16BigEndian(key), mask = BinaryPrimitives.ReadUInt16BigEndian(key[2..]);
             var floats = BinaryPrimitives.ReadInt32BigEndian(key[4..]);
             end = Math.Max(end, at + KeySize);
@@ -151,7 +151,7 @@ public sealed class Borg6Animation
                 throw new InvalidDataException($"The first key at 0x{at:X} doesn't set a value at tick 1.");
 
             var values = new float[BitOperations.PopCount((uint)mask)];
-            var span = Slice(data, floats, values.Length * 4);
+            var span = Be.Slice(data, floats, values.Length * 4, "Borg6");
             for (var v = 0; v < values.Length; v++)
                 values[v] = BinaryPrimitives.ReadSingleBigEndian(span[(v * 4)..]);
             if (values.Length > 0)
@@ -162,9 +162,4 @@ public sealed class Borg6Animation
             keys.Add(new Borg6Key(tick, (byte)mask, values));
         }
     }
-
-    private static ReadOnlySpan<byte> Slice(byte[] data, int offset, int length) =>
-        offset >= 0 && length >= 0 && offset <= data.Length - length
-            ? data.AsSpan(offset, length)
-            : throw new InvalidDataException($"0x{length:X} bytes at 0x{offset:X} run past the end of the Borg6 (0x{data.Length:X}).");
 }

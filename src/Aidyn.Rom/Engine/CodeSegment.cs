@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 using Aidyn.Plugins.Records;
 
 namespace Aidyn.Rom.Engine;
@@ -12,12 +11,6 @@ internal static class CodeSegment
     private const uint Vram = 0x80000400;
     private const int Rom = 0x1000;
 
-    /// <summary>The <see cref="CodeTable"/>'s bytes, or an error if this version doesn't locate it.</summary>
-    public static ReadOnlySpan<byte> Table(RomImage rom, CodeTable table) =>
-        rom.Layout.CodeTables.TryGetValue(table, out var range)
-            ? rom.Slice(range)
-            : throw new NotSupportedException($"{rom.Version.Name} has no verified location for the {table} table.");
-
     /// <summary>The ROM offset of a code segment address.</summary>
     public static int RomOffset(uint address) =>
         address >= Vram && address - Vram < 0x100000
@@ -26,14 +19,6 @@ internal static class CodeSegment
 
     /// <summary>The ROM from the address a table entry points to, onwards.</summary>
     public static ReadOnlySpan<byte> At(RomImage rom, uint address) => rom.Data[RomOffset(address)..];
-
-    public static ushort U16(ReadOnlySpan<byte> data, int at) => BinaryPrimitives.ReadUInt16BigEndian(data[at..]);
-
-    public static short S16(ReadOnlySpan<byte> data, int at) => BinaryPrimitives.ReadInt16BigEndian(data[at..]);
-
-    public static uint U32(ReadOnlySpan<byte> data, int at) => BinaryPrimitives.ReadUInt32BigEndian(data[at..]);
-
-    public static float F32(ReadOnlySpan<byte> data, int at) => BinaryPrimitives.ReadSingleBigEndian(data[at..]);
 
     /// <summary>Four bytes, red to alpha.</summary>
     public static Rgba Colour(ReadOnlySpan<byte> data, int at) => new(data[at], data[at + 1], data[at + 2], data[at + 3]);

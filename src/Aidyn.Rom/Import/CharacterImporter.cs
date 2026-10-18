@@ -120,15 +120,56 @@ internal static class CharacterImporter
     /// </summary>
     internal static readonly int[] KeptMemberPositions = [0x98, 0x9A, 0x9C, 0xA0, 0xA1];
 
+    /// <summary>Writes the entities (with their members' flags and sounds), the spells, the stats, skills and progression, and the dialogue entities' names.</summary>
+    public static void Import(ImportContext ctx)
+    {
+        var db = ctx.Db;
+        ctx.Report("Names");
+        foreach (var (file, records) in BuildNames(db, ctx.Models))
+            ctx.WriteRecords(file, records);
+
+        ctx.Report("Characters");
+        ctx.WriteRecords("entities.json", BodySoundImporter.WithSounds(db, ctx.BodySounds,
+            WithMembers(ItemImporter.WithSoleWeapons(db, BuildEntities(db, ctx.Models)), ctx.Engine)));
+        ctx.WriteRecords("spells.json", BodySoundImporter.WithSounds(db, ctx.BodySounds, BuildSpells(db, ctx.Items, ctx.Menus)));
+        ctx.WriteRecords("stats.json", BuildStats(db, ctx.Characters));
+        ctx.WriteRecords("skills.json", ItemImporter.WithIcons(ctx.Items, BuildSkills(db, ctx.Characters)));
+        ctx.WriteRecords("weaponskills.json", BuildWeaponSkills(db, ctx.Characters));
+        ctx.WriteRecords("progression.json", new[] { BuildProgression(db, ctx.Characters) });
+    }
+
+    /// <summary>
+    /// The names of the DB records that have no fields of their own yet, by file: dialogue entities, with
+    /// their portraits and bodies. The five without a portrait get the code's fallback at run time, as
+    /// speakers that aren't entities do, and a bat for a body. Entities and spells have records of their own (<see cref="CharacterImporter"/>),
+    /// and so do weapons, armor, items and loot tables (<see cref="ItemImporter"/>).
+    /// </summary>
+    internal static List<(string File, List<DbRecord> Records)> BuildNames(GameDb db, EntityModels models)
+    {
+        var portraits = models.DialogEntities.ToDictionary(m => m.Entity, m => RecordId.Hex(RecordTypes.Image, m.Portrait));
+        var bodies = models.DialogEntities.Where(m => DbRecordIds.For(m.Entity) is not null).ToDictionary(m => DbRecordIds.For(m.Entity)!.Value,
+            m => new EntityBody(RecordId.Hex(RecordTypes.Actor, m.Actor), CharacterImporter.DialogEntityRadius, m.Scale, m.Height));
+        var fallback = CharacterImporter.Fallback(CharacterImporter.DialogEntityRadius);
+        return
+        [
+            ("dialogentities.json", [.. Names(db.DialogEntities.Select(e => (e.Id, e.Name)), portraits)
+                .Select(r => r with { Body = bodies.GetValueOrDefault(r.Id, fallback) })]),
+        ];
+
+        static List<DbRecord> Names(IEnumerable<(ItemId Id, string Name)> records, IReadOnlyDictionary<ItemId, RecordId>? portraits = null) =>
+        [
+            .. records.Select(r => (Id: DbRecordIds.For(r.Id), r.Name, Portrait: portraits?.TryGetValue(r.Id, out var p) == true ? p : (RecordId?)null)).Where(r => r.Id is not null)
+                .Select(r => new DbRecord(r.Id!.Value, r.Name, r.Portrait)).DistinctBy(r => r.Id).OrderBy(r => r.Id.Key, StringComparer.Ordinal),
+        ];
+    }
+
     /// <summary>Gives each recruitable member the flags the engine keeps for them (<c>Party::CheckFlags</c>).</summary>
     public static List<PluginEntity> WithMembers(List<PluginEntity> entities, EngineTables tables)
     {
         var kept = KeptMemberPositions.Select(p => tables.EntityList[p]).ToHashSet();
         var members = tables.Party.ToDictionary(p => DbRecordIds.For(p.Member)!.Value, p => new MemberFlags(
-            Flag(p.Joined), p.Left == 0 ? null : Flag(p.Left), Flag(p.Died), kept.Contains(p.Member)));
+            DbRecordIds.Flag(p.Joined), p.Left == 0 ? null : DbRecordIds.Flag(p.Left), DbRecordIds.Flag(p.Died), kept.Contains(p.Member)));
         return [.. entities.Select(e => members.TryGetValue(e.Id, out var member) ? e with { Member = member } : e)];
-
-        static RecordId Flag(ushort flag) => RecordId.Decimal(RecordTypes.Flag, flag);
     }
 
     /// <summary>
@@ -177,7 +218,7 @@ internal static class CharacterImporter
             e.BaseProtection, e.Unk4E, e.Morale,
             [.. e.Resistances.Where(r => r.Element != Element.None).Select(r => new PluginResistance(r.Element, r.Amount * ResistanceStep))],
             e.ExpReward * ExpPerRewardPoint, e.LootCategory, e.Unk55, e.Unk56,
-            alaron ? RecordId.Decimal(RecordTypes.Flag, AlaronTrueNameFlag) : null);
+            alaron ? DbRecordIds.Flag(AlaronTrueNameFlag) : null);
     }
 
     private static int? Skill(byte level) => level == CantLearn ? null : level;
@@ -259,5 +300,5 @@ internal static class CharacterImporter
     public static ProgressionRecord BuildProgression(GameDb db, CharacterTables tables) => new(
         RecordId.Decimal(RecordTypes.Progression, 0), tables.LevelExperience, ExpAward,
         new TrainingPrices(FirstLevelGold, GoldPerLevel, TrainerExp, [DbRecordIds.For(db.Entities[OrianaDbPosition].Id)!.Value], SpellMaxLevel,
-            RecordId.Decimal(RecordTypes.Flag, FirstSpellFlag)));
+            DbRecordIds.Flag(FirstSpellFlag)));
 }

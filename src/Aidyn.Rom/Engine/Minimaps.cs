@@ -39,28 +39,28 @@ public sealed record Minimaps(
 
     public static Minimaps Read(RomImage rom)
     {
-        var pointers = CodeSegment.Table(rom, CodeTable.MinimapSections);
+        var pointers = rom.Table(CodeTable.MinimapSections);
         var sections = new List<IReadOnlyList<MinimapSection>>();
-        for (var i = 0; CodeSegment.U32(pointers, i * 4) is var pointer and not 0; i++)
+        for (var i = 0; Be.U32(pointers, i * 4) is var pointer and not 0; i++)
         {
             // Each list ends with a group of 0.
             var data = CodeSegment.At(rom, pointer);
             var list = new List<MinimapSection>();
-            for (var at = 0; CodeSegment.U16(data, at + 4) != 0; at += SectionSize)
+            for (var at = 0; Be.U16(data, at + 4) != 0; at += SectionSize)
             {
-                list.Add(new MinimapSection(CodeSegment.U16(data, at), CodeSegment.U16(data, at + 2),
-                    CodeSegment.U16(data, at + 4), CodeSegment.U16(data, at + 6) != 0, CodeSegment.U16(data, at + 8),
-                    CodeSegment.U16(data, at + 10), CodeSegment.U16(data, at + 12)));
+                list.Add(new MinimapSection(Be.U16(data, at), Be.U16(data, at + 2),
+                    Be.U16(data, at + 4), Be.U16(data, at + 6) != 0, Be.U16(data, at + 8),
+                    Be.U16(data, at + 10), Be.U16(data, at + 12)));
             }
             sections.Add(list);
         }
 
-        var images = CodeSegment.Table(rom, CodeTable.MinimapFlagImages);
+        var images = rom.Table(CodeTable.MinimapFlagImages);
         var lists = new List<List<MinimapFlagImage>> { new() };
         for (var at = 0; lists.Count <= 3; at += 8)
         {
-            var flag = CodeSegment.U32(images, at);
-            var image = CodeSegment.U32(images, at + 4);
+            var flag = Be.U32(images, at);
+            var image = Be.U32(images, at + 4);
             if (image == 0)
                 lists.Add([]);
             else

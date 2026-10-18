@@ -5,6 +5,7 @@ using Aidyn.Core.Scripts;
 using Aidyn.Plugins.Records;
 using Aidyn.Plugins;
 using Aidyn.Rom.Borg;
+using Aidyn.Rom.Db;
 using Aidyn.Rom.Import;
 using Aidyn.Rom.Quests;
 using ScriptEnding = Aidyn.Core.Scripts.ScriptEnding;
@@ -17,7 +18,8 @@ public class ScriptRunnerTests
     private static readonly Lazy<(List<DialogueRecord> Scripts, List<FlagRecord> Flags)> Data = new(() =>
     {
         var rom = TestRoms.Get(RomVersionId.Na10);
-        return (BaseImporter.BuildDialogues(BorgArchive.Open(rom), EngineTables.Read(rom)), BaseImporter.BuildFlags(rom));
+        var db = GameDb.Read(rom);
+        return (DialogueImporter.BuildDialogues(BorgArchive.Open(rom), EngineTables.Read(rom)), FlagImporter.BuildFlags(db, FlagLabels.Read(rom, db)));
     });
 
     private static Dictionary<RecordId, DialogueRecord> ById => Data.Value.Scripts.ToDictionary(s => s.Id);

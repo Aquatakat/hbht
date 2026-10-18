@@ -62,4 +62,18 @@ public sealed class RomImage
             throw new InvalidDataException($"Range 0x{offset:X}+0x{length:X} is outside the {_data.Length:X}-byte ROM.");
         return _data.AsSpan(offset, length);
     }
+
+    /// <summary>The bytes of a table in the code segment, or an error if this version doesn't locate it.</summary>
+    public ReadOnlySpan<byte> Table(CodeTable table) => Slice(Locate(Layout.CodeTables, table, "table"));
+
+    /// <summary>The bytes of a table in the DB block, or an error if this version doesn't locate it.</summary>
+    public ReadOnlySpan<byte> Table(DbTable table) => Slice(Locate(Layout.DbTables, table, "table"));
+
+    /// <summary>The bytes of a string table's block, or an error if this version doesn't locate it.</summary>
+    public ReadOnlySpan<byte> Table(RomStringTable table) => Slice(Locate(Layout.StringTables, table, "string table"));
+
+    private RomRange Locate<T>(IReadOnlyDictionary<T, RomRange> tables, T table, string kind) where T : notnull =>
+        tables.TryGetValue(table, out var range)
+            ? range
+            : throw new NotSupportedException($"{Version.Name} has no verified location for the {table} {kind}.");
 }

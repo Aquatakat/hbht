@@ -22,7 +22,7 @@ public class TextImportTests
     [MemberData(nameof(LineCounts))]
     public void StringTablesAreNumberedInRomOrder(RomVersionId id, int common, int controller, int credits)
     {
-        var records = BaseImporter.BuildStrings(GameDb.Read(TestRoms.Get(id)));
+        var records = TextImporter.BuildStrings(GameDb.Read(TestRoms.Get(id)));
 
         Assert.Equal(12, records.Count);
         Assert.Equal(Enumerable.Range(0, 12).Select(i => RecordId.Decimal(RecordTypes.Strings, i)), records.Select(r => r.Id));
@@ -42,7 +42,7 @@ public class TextImportTests
     public void StringEscapesAreDecoded(RomVersionId id)
     {
         var db = GameDb.Read(TestRoms.Get(id));
-        var records = BaseImporter.BuildStrings(db);
+        var records = TextImporter.BuildStrings(db);
 
         foreach (var record in records)
         {
@@ -75,7 +75,7 @@ public class TextImportTests
     public void FontsHaveTheirSheetsMeasuresAndMaps(RomVersionId id)
     {
         var rom = TestRoms.Get(id);
-        var records = BaseImporter.BuildFonts(Fonts.Read(rom), BorgArchive.Open(rom));
+        var records = TextImporter.BuildFonts(Fonts.Read(rom), BorgArchive.Open(rom));
 
         Assert.Equal([RecordId.Decimal(RecordTypes.Font, 0), RecordId.Decimal(RecordTypes.Font, 1)], records.Select(r => r.Id));
         Assert.Equal([RecordId.Hex(RecordTypes.Image, 0x1C), RecordId.Hex(RecordTypes.Image, 0x1D)], records.Select(r => r.Image));
@@ -107,7 +107,7 @@ public class TextImportTests
         var rom = TestRoms.Get(RomVersionId.Na10);
         var db = GameDb.Read(rom);
         var models = EntityModels.Read(rom);
-        var names = BaseImporter.BuildNames(db, models).ToDictionary(f => f.File, f => f.Records);
+        var names = CharacterImporter.BuildNames(db, models).ToDictionary(f => f.File, f => f.Records);
         var entities = CharacterImporter.BuildEntities(db, models);
 
         Assert.Equal(221, entities.Count);

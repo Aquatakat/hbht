@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 using System.Numerics;
 
 namespace Aidyn.Rom.Maps;
@@ -153,21 +152,21 @@ public sealed record Borg9Map(
         if (data.Length < HeaderSize)
             throw new InvalidDataException($"A Borg9 is at least 0x{HeaderSize:X} bytes, not 0x{data.Length:X}.");
         var s = data.AsSpan();
-        var origin = new Vector3(F32(s, 0), F32(s, 4), F32(s, 8));
-        var cellSize = new Vector2(F32(s, 0xC), F32(s, 0x10));
-        int triangleIndexCount = U16(s, 0x14), objectIndexCount = U16(s, 0x18);
-        int columns = U16(s, 0x1C), rows = U16(s, 0x1E);
-        var vertexCount = (int)U32(s, 0x20);
-        int triangleCount = U16(s, 0x24), cellCount = U16(s, 0x2A);
-        int triangleIndices = (int)U32(s, 0x2C), objectIndices = (int)U32(s, 0x34), vertices = (int)U32(s, 0x38),
-            triangles = (int)U32(s, 0x3C), cells = (int)U32(s, 0x48);
+        var origin = new Vector3(Be.F32(s, 0), Be.F32(s, 4), Be.F32(s, 8));
+        var cellSize = new Vector2(Be.F32(s, 0xC), Be.F32(s, 0x10));
+        int triangleIndexCount = Be.U16(s, 0x14), objectIndexCount = Be.U16(s, 0x18);
+        int columns = Be.U16(s, 0x1C), rows = Be.U16(s, 0x1E);
+        var vertexCount = (int)Be.U32(s, 0x20);
+        int triangleCount = Be.U16(s, 0x24), cellCount = Be.U16(s, 0x2A);
+        int triangleIndices = (int)Be.U32(s, 0x2C), objectIndices = (int)Be.U32(s, 0x34), vertices = (int)Be.U32(s, 0x38),
+            triangles = (int)Be.U32(s, 0x3C), cells = (int)Be.U32(s, 0x48);
 
         // 0x30 and 0x40 are offsets the game fixes up and never uses, and hold leftovers.
-        Expect(triangleIndices == HeaderSize, "its triangle indices", triangleIndices);
-        Expect(objectIndices == Align(triangleIndices + triangleIndexCount * 2), "its object indices", objectIndices);
-        Expect(vertices == Align(objectIndices + objectIndexCount * 2), "its vertices", vertices);
-        Expect(triangles == Align(vertices + vertexCount * 12), "its triangles", triangles);
-        Expect((int)U32(s, 0x44) == triangles + triangleCount * CollisionTriangle.Size, "its objects", (int)U32(s, 0x44));
+        Be.Expect("Borg9", "triangle indices", triangleIndices, HeaderSize);
+        Be.Expect("Borg9", "object indices", objectIndices, Align(triangleIndices + triangleIndexCount * 2));
+        Be.Expect("Borg9", "vertices", vertices, Align(objectIndices + objectIndexCount * 2));
+        Be.Expect("Borg9", "triangles", triangles, Align(vertices + vertexCount * 12));
+        Be.Expect("Borg9", "objects", (int)Be.U32(s, 0x44), triangles + triangleCount * CollisionTriangle.Size);
         if (cellCount != columns * rows)
             throw new InvalidDataException($"The Borg9 has {cellCount} cells for a {columns}×{rows} grid.");
         if (cells + cellCount * CellRecordSize > data.Length)
@@ -175,19 +174,19 @@ public sealed record Borg9Map(
 
         var vertexList = new Vector3[vertexCount];
         for (var i = 0; i < vertexCount; i++)
-            vertexList[i] = new Vector3(F32(s, vertices + i * 12), F32(s, vertices + i * 12 + 4), F32(s, vertices + i * 12 + 8));
+            vertexList[i] = new Vector3(Be.F32(s, vertices + i * 12), Be.F32(s, vertices + i * 12 + 4), Be.F32(s, vertices + i * 12 + 8));
 
         var triangleList = new CollisionTriangle[triangleCount];
         for (var i = 0; i < triangleCount; i++)
         {
             var t = s.Slice(triangles + i * CollisionTriangle.Size, CollisionTriangle.Size);
-            var surface = U32(t, 0x18);
+            var surface = Be.U32(t, 0x18);
             if (surface > (uint)CollisionSurface.TransStoneHugeEcho)
                 throw new InvalidDataException($"Triangle {i} has unknown surface {surface}.");
             triangleList[i] = new CollisionTriangle(
-                Vertex(U32(t, 0), vertexCount, i), Vertex(U32(t, 4), vertexCount, i), Vertex(U32(t, 8), vertexCount, i),
-                new Vector3(F32(t, 0xC), F32(t, 0x10), F32(t, 0x14)), (CollisionSurface)surface,
-                (TriangleFlags)U16(t, 0x1C), U16(t, 0x1E));
+                Vertex(Be.U32(t, 0), vertexCount, i), Vertex(Be.U32(t, 4), vertexCount, i), Vertex(Be.U32(t, 8), vertexCount, i),
+                new Vector3(Be.F32(t, 0xC), Be.F32(t, 0x10), Be.F32(t, 0x14)), (CollisionSurface)surface,
+                (TriangleFlags)Be.U16(t, 0x1C), Be.U16(t, 0x1E));
         }
 
         var cellList = new CollisionCell[cellCount];
@@ -195,8 +194,8 @@ public sealed record Borg9Map(
         {
             var c = s.Slice(cells + i * CellRecordSize, CellRecordSize);
             cellList[i] = new CollisionCell(
-                Indices(s, triangleIndices, (int)U32(c, 0), U16(c, 0xC), triangleIndexCount, triangleCount, i),
-                Indices(s, objectIndices, (int)U32(c, 8), U16(c, 0x10), objectIndexCount, U16(s, 0x28), i));
+                Indices(s, triangleIndices, (int)Be.U32(c, 0), Be.U16(c, 0xC), triangleIndexCount, triangleCount, i),
+                Indices(s, objectIndices, (int)Be.U32(c, 8), Be.U16(c, 0x10), objectIndexCount, Be.U16(s, 0x28), i));
         }
 
         return new Borg9Map(origin, cellSize, columns, rows, vertexList, triangleList, Borg9Voxels.Read(data), cellList)
@@ -222,21 +221,12 @@ public sealed record Borg9Map(
         var indices = new int[count];
         for (var i = 0; i < count; i++)
         {
-            indices[i] = U16(s, list + offset + i * 2);
+            indices[i] = Be.U16(s, list + offset + i * 2);
             if (indices[i] >= limit)
                 throw new InvalidDataException($"Cell {cell} names {indices[i]}, but there are {limit}.");
         }
         return indices;
     }
 
-    private static void Expect(bool ok, string what, int actual)
-    {
-        if (!ok)
-            throw new InvalidDataException($"The Borg9 header doesn't give {what} where the layout puts them (0x{actual:X}).");
-    }
-
     private static int Align(int offset) => (offset + 7) & ~7;
-    private static ushort U16(ReadOnlySpan<byte> s, int at) => BinaryPrimitives.ReadUInt16BigEndian(s[at..]);
-    private static uint U32(ReadOnlySpan<byte> s, int at) => BinaryPrimitives.ReadUInt32BigEndian(s[at..]);
-    private static float F32(ReadOnlySpan<byte> s, int at) => BinaryPrimitives.ReadSingleBigEndian(s[at..]);
 }

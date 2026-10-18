@@ -16,12 +16,7 @@ public static class RomStringBlock
     /// <summary>Reads and decrypts every string in the table, in order.</summary>
     public static IReadOnlyList<string> Read(RomImage rom, RomStringTable table) => Split(Decompress(rom, table));
 
-    public static byte[] Decompress(RomImage rom, RomStringTable table)
-    {
-        if (!rom.Layout.StringTables.TryGetValue(table, out var range))
-            throw new NotSupportedException($"{rom.Version.Name} has no verified location for the {table} string table.");
-        return Decompress(rom.Slice(range));
-    }
+    public static byte[] Decompress(RomImage rom, RomStringTable table) => Decompress(rom.Table(table));
 
     /// <summary>Decompresses a block. Trailing bytes after the stream's end marker are padding.</summary>
     public static byte[] Decompress(ReadOnlySpan<byte> block)

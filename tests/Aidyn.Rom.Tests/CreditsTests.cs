@@ -16,7 +16,7 @@ public class CreditsTests
     {
         var rom = TestRoms.Get(id);
         var table = CreditsTable.Read(rom);
-        var credits = BaseImporter.BuildCredits(table, GameDb.Read(rom));
+        var credits = CinematicImporter.BuildCredits(table, GameDb.Read(rom));
 
         Assert.Equal([0, 1, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 29, 36, 38, 44, 52, 58, 60, 68, 76, 77, 79, 82, 84, 86, 89, 92, 96, 111, 112, 116],
             table.Starts);

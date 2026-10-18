@@ -1,5 +1,3 @@
-using System.Buffers.Binary;
-
 namespace Aidyn.Rom.Engine;
 
 /// <summary>An audio key as the ROM holds it: <c>Ids</c> index the sound list its user names.</summary>
@@ -40,9 +38,9 @@ public sealed record BodySoundTables(
 
     public static BodySoundTables Read(RomImage rom)
     {
-        var table = rom.Slice(rom.Layout.DbTables[DbTable.AudioKeys]).ToArray();
-        int U16(ReadOnlySpan<byte> d, int at) => BinaryPrimitives.ReadUInt16BigEndian(d[at..]);
-        int U32(ReadOnlySpan<byte> d, int at) => (int)BinaryPrimitives.ReadUInt32BigEndian(d[at..]);
+        var table = rom.Table(DbTable.AudioKeys).ToArray();
+        int U16(ReadOnlySpan<byte> d, int at) => Be.U16(d, at);
+        int U32(ReadOnlySpan<byte> d, int at) => (int)Be.U32(d, at);
 
         // Three u32 offsets, then three u16 counts.
         int profiles = U32(table, 0), keys = U32(table, 4), indices = U32(table, 8);
@@ -61,37 +59,29 @@ public sealed record BodySoundTables(
             profileList.Add(new RomBodySounds(U16(table, at), profileKeys));
         }
 
-        var footstepData = CodeSegment.Table(rom, CodeTable.FootstepEntries);
+        var footstepData = rom.Table(CodeTable.FootstepEntries);
         var footsteps = new List<RomSoundKey?> { null };
         for (var at = 8; at + 8 <= footstepData.Length; at += 8)
             footsteps.Add(Key(footstepData, at));
 
-        var setData = CodeSegment.Table(rom, CodeTable.StepSets).ToArray();
+        var setData = rom.Table(CodeTable.StepSets).ToArray();
         var sets = new List<IReadOnlyList<(int, int, int)>>();
         for (var at = 0; at + 0x50 <= setData.Length; at += 0x50)
             sets.Add([.. Enumerable.Range(0, Surfaces).Select(s => ((int)setData[at + s * 3], (int)setData[at + s * 3 + 1], (int)setData[at + s * 3 + 2]))]);
 
         // A weapon's row is its place in the list of weapons with models (bytes, ending with 0xFF).
-        var withModels = CodeSegment.Table(rom, CodeTable.WeaponsWithModels);
-        var weaponData = CodeSegment.Table(rom, CodeTable.WeaponSounds);
+        var withModels = rom.Table(CodeTable.WeaponsWithModels);
+        var weaponData = rom.Table(CodeTable.WeaponSounds);
         var weapons = new Dictionary<int, (int, int)>();
         for (var row = 0; row < withModels.Length && withModels[row] != 0xFF && (row + 1) * 8 <= weaponData.Length; row++)
             weapons[withModels[row]] = (U16(weaponData, row * 8), U16(weaponData, row * 8 + 2));
 
         return new BodySoundTables(profileList, footsteps, sets,
-            U32s(CodeSegment.Table(rom, CodeTable.StepSounds)), U32s(CodeSegment.Table(rom, CodeTable.VoiceSounds)),
-            U32s(CodeSegment.Table(rom, CodeTable.SpellSounds)), weapons);
+            Be.S32s(rom.Table(CodeTable.StepSounds)), Be.S32s(rom.Table(CodeTable.VoiceSounds)),
+            Be.S32s(rom.Table(CodeTable.SpellSounds)), weapons);
     }
 
     /// <summary>A key: a u16 frac, the request, a count of ids and four ids.</summary>
     private static RomSoundKey Key(ReadOnlySpan<byte> data, int at) =>
-        new(BinaryPrimitives.ReadUInt16BigEndian(data[at..]), data[at + 2], [.. data.Slice(at + 4, Math.Min((int)data[at + 3], 4)).ToArray()]);
-
-    private static int[] U32s(ReadOnlySpan<byte> data)
-    {
-        var values = new int[data.Length / 4];
-        for (var i = 0; i < values.Length; i++)
-            values[i] = (int)CodeSegment.U32(data, i * 4);
-        return values;
-    }
+        new(Be.U16(data, at), data[at + 2], [.. data.Slice(at + 4, Math.Min((int)data[at + 3], 4)).ToArray()]);
 }

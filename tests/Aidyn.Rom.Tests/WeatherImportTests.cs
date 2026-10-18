@@ -25,12 +25,12 @@ public class WeatherImportTests
     public void TheTerrainsCarryTheWeatherAndOnlyTypeFiveSnows()
     {
         var rom = TestRoms.Get(RomVersionId.Na10);
-        var terrains = BaseImporter.BuildTerrains(Skies.ReadGradients(rom), BaseImporter.CampFactors(rom), WeatherTables.Read(rom));
+        var terrains = WorldImporter.BuildTerrains(Skies.ReadGradients(rom), CampFactors.Read(rom), WeatherTables.Read(rom));
         Assert.Equal(Skies.TerrainCount, terrains.Count);
         Assert.Equal([5], Enumerable.Range(0, terrains.Count).Where(t => terrains[t].Snow));
         Assert.Equal((30, 0.6f), (terrains[5].Precipitation, terrains[5].PrecipitationScale));
         Assert.Equal((100, 0.8f), (terrains[18].Precipitation, terrains[18].PrecipitationScale));
-        var weather = BaseImporter.BuildWeather(WeatherTables.Read(rom), Skies.ReadGradients(rom));
+        var weather = WorldImporter.BuildWeather(WeatherTables.Read(rom), Skies.ReadGradients(rom));
         Assert.Equal(150f / 648, weather.WindMaxSpeed, 6);
         // Sky 2, Borg8 0x19E, the Battlefields' sky.
         Assert.Equal(RecordId.Hex(RecordTypes.Image, 0x19E), weather.RainSky);
@@ -42,7 +42,7 @@ public class WeatherImportTests
     public void RainAndSnowDrawWithTheParticleTexturesTheirSlotsName()
     {
         var rom = TestRoms.Get(RomVersionId.Na10);
-        var weather = BaseImporter.BuildWeather(WeatherTables.Read(rom), Skies.ReadGradients(rom), ParticleTextures.Read(rom));
+        var weather = WorldImporter.BuildWeather(WeatherTables.Read(rom), Skies.ReadGradients(rom), ParticleTextures.Read(rom));
         // Rain's slots 4 and 16, a streak and a ripple; snow's 0 for both, a soft disc.
         Assert.Equal((RecordId.Hex(RecordTypes.Texture, 2), RecordId.Hex(RecordTypes.Texture, 12)), (weather.Rain!.Drop, weather.Rain.Splash));
         Assert.Equal((RecordId.Hex(RecordTypes.Texture, 3), RecordId.Hex(RecordTypes.Texture, 3)), (weather.Snow!.Drop, weather.Snow.Splash));

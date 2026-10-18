@@ -37,7 +37,7 @@ internal static class MinimapImporter
         {
             var (row, column) = (chunk[0] - 'A' + 1, int.Parse(chunk[1..]));
             int? section = image is { } i ? Index(sections, i) : null;
-            rules.Add(new MinimapRule(row, column, section, flag is { } f ? RecordId.Decimal(RecordTypes.Flag, f) : null,
+            rules.Add(new MinimapRule(row, column, section, flag is { } f ? DbRecordIds.Flag(f) : null,
                 bounds.Length == 0 ? null : bounds));
         }
         static MinimapBound Below(MinimapAxis axis, float value) => new(axis, Below: value);
