@@ -1,6 +1,7 @@
 using System.Numerics;
 using Aidyn.Core.Movement;
 using Aidyn.Core.Physics;
+using Aidyn.Plugins.Assets;
 
 namespace Aidyn.Core.Tests;
 
@@ -31,8 +32,8 @@ public class BodyTests
     }
 
     [Theory]
-    [InlineData(true, PlayerMotion.Walk)]
-    [InlineData(false, PlayerMotion.Run)]
+    [InlineData(true, Body.Walk)]
+    [InlineData(false, Body.Run)]
     public void ItWalksOrRunsToItsGoalAndLetsGoWithinItsRadius(bool walk, int request)
     {
         var body = Settled(Standing);
@@ -47,7 +48,7 @@ public class BodyTests
         for (; body.Steered && ticks < 1000; ticks++)
             body.Step(Worlds.Flat(), motion);
         Assert.True(ticks < 1000);
-        Assert.Equal(PlayerMotion.Idle, body.Request);
+        Assert.Equal(Body.Idle, body.Request);
         Assert.False(body.Moving);
         var left = Vector2.Distance(new Vector2(body.Sphere.Position.X, body.Sphere.Position.Z), new Vector2(0, 10));
         Assert.True(left < 1, $"{left}");
@@ -88,13 +89,13 @@ public class BodyTests
         body.GoTo(new Vector2(30, 0), 1, walk: false);
         for (var i = 0; i < 30; i++)
             body.Step(Worlds.Flat(), new SteadyMotion(0.05f));
-        Assert.Equal(PlayerMotion.Run, body.Request);
+        Assert.Equal(Body.Run, body.Request);
 
         // As a hunter giving up does (ResetMoveQueue): the next step asks for standing, so the run's root
         // motion doesn't carry it on.
         body.Stop();
         body.Step(Worlds.Flat(), new SteadyMotion(0.05f));
-        Assert.Equal(PlayerMotion.Idle, body.Request);
+        Assert.Equal(Body.Idle, body.Request);
         Assert.False(body.Steered);
         var at = body.Sphere.Position;
         for (var i = 0; i < 30; i++)
@@ -116,7 +117,7 @@ public class BodyTests
         // 90° at 5° a tick, which lands within rounding of it, and a tick to let go.
         Assert.Equal(19, ticks);
         Assert.Equal(-Vector2.UnitY, body.Heading);
-        Assert.Equal(PlayerMotion.Idle, body.Request);
+        Assert.Equal(Body.Idle, body.Request);
         Assert.Equal(at.X, body.Sphere.Position.X, 1e-4f);
         Assert.Equal(at.Z, body.Sphere.Position.Z, 1e-4f);
     }
@@ -144,6 +145,70 @@ public class BodyTests
         for (var i = 0; i < 120; i++)
             body.Step(Worlds.Flat(), new SteadyMotion(0.05f));
         Assert.Equal(9.95f, body.Sphere.Position.X, 1e-5f);
+    }
+
+    /// <summary>Two floors, the lower listed first, as the original's grid might list them.</summary>
+    private static CollisionWorld TwoFloors(CollisionFlags upper = CollisionFlags.None)
+    {
+        var world = new CollisionWorld();
+        world.Add("floors", [.. Worlds.Floor(0, -5, 5, -5, 5),
+            Worlds.Triangle(new(-5, 3, -5), new(-5, 3, 5), new(5, 3, -5), flags: upper),
+            Worlds.Triangle(new(5, 3, -5), new(-5, 3, 5), new(5, 3, 5), flags: upper)], Vector3.Zero);
+        return world;
+    }
+
+    [Fact]
+    public void SettingDownFromOnHighTakesTheFirstFloorTheGridListsNotTheNearest()
+    {
+        var (at, grounded) = Body.SetDown(TwoFloors(), new Vector3(1, 6, 1), 0.5f, null);
+        Assert.True(grounded);
+        Assert.Equal(0.51f, at.Y, 1e-5f);
+    }
+
+    [Fact]
+    public void SettingDownNearAHeightLooksWithinOneOfItFirst()
+    {
+        var (at, grounded) = Body.SetDown(TwoFloors(), new Vector3(1, 6, 1), 0.5f, null, near: 3.2f);
+        Assert.True(grounded);
+        Assert.Equal(3.51f, at.Y, 1e-5f);
+    }
+
+    [Fact]
+    public void SettingDownSkipsSeeThroughTriangles()
+    {
+        var (at, _) = Body.SetDown(TwoFloors(CollisionFlags.SeeThrough), new Vector3(1, 6, 1), 0.5f, null, near: 3.2f);
+        Assert.Equal(0.51f, at.Y, 1e-5f);
+    }
+
+    [Fact]
+    public void SettingDownFromOnHighSweepsFromAHundredToMinusAHundredWhateverTheBodysHeight()
+    {
+        var (at, grounded) = Body.SetDown(Worlds.Flat(), new Vector3(0, 150, 0), 0.5f, null);
+        Assert.True(grounded);
+        Assert.Equal(0.51f, at.Y, 1e-5f);
+
+        var high = new CollisionWorld();
+        high.Add("high", Worlds.Floor(120, -5, 5, -5, 5), Vector3.Zero);
+        Assert.False(Body.SetDown(high, new Vector3(0, 125, 0), 0.5f, null).Grounded);
+    }
+
+    /// <summary>
+    /// Missing, it tries four times more a little to the side, or three after a miss near a height, two draws each;
+    /// the moves add up, and it stays where they took it.
+    /// </summary>
+    [Theory]
+    [InlineData(null, 4)]
+    [InlineData(2f, 3)]
+    public void SettingDownOverNothingTriesToTheSideAndStaysWhereTheTriesTookIt(float? near, int tries)
+    {
+        // Each draw half its range: a half turn and 0.125 out, which moves it 0.0625 along X.
+        var random = new ScriptedRandom([.. Enumerable.Repeat(0x8000_0000u, 2 * tries)]);
+        var (at, grounded) = Body.SetDown(new CollisionWorld(), new Vector3(0, 7, 0), 0.5f, random, near);
+        Assert.False(grounded);
+        Assert.Equal(0, random.Remaining);
+        Assert.Equal(0.0625f * tries, at.X, 1e-5f);
+        Assert.Equal(7, at.Y);
+        Assert.Equal(0, at.Z, 1e-5f);
     }
 
     private static CrowdMember Member(Vector3 at, float radius = 0.5f, float scale = 1, object? chunk = null) =>

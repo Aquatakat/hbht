@@ -28,14 +28,7 @@ public sealed record CutSceneStage(MapSetRecord Set, ChunkEntry Chunk, MapRecord
     public Vector3? PointAt(int id) => Point(id) is { } point ? Origin + point.Position : null;
 
     /// <summary>Where actors are kept: the staging chunk, 0.05 inside its edges.</summary>
-    public (Vector2 Min, Vector2 Max) Bounds
-    {
-        get
-        {
-            var min = new Vector2(Origin.X, Origin.Z) + new Vector2(Body.EdgeMargin);
-            return (min, min + new Vector2(Set.CellSize - 2 * Body.EdgeMargin));
-        }
-    }
+    public (Vector2 Min, Vector2 Max) Bounds => Body.ChunkBounds(Origin, Set.CellSize);
 
     /// <summary>A chunk of a map set as a stage, or null if no plugin has it.</summary>
     public static CutSceneStage? For(PluginSet plugins, ChunkRef chunk, CollisionWorld world)
@@ -88,9 +81,6 @@ public sealed class CutScene
 
     /// <summary>How far a walk or run stops from its reference point (<c>SetAiDest</c>'s radius).</summary>
     public const float ArriveRadius = 1;
-
-    /// <summary>Actors farther from the camera's aim than this don't move or animate (<c>float_0x68</c>).</summary>
-    public const float StepDistance = 30;
 
     /// <summary>The camera's near and far planes in a cut-scene (<c>RenderZones</c>, <c>0x8000d66c</c>): 0.1 and 125, against trek's 1 and 180.</summary>
     public const float Near = 0.1f, Far = 125;
@@ -181,7 +171,7 @@ public sealed class CutScene
         if (!Accepts)
             return false;
         if (_talk.Press(advance) && Runner.Status == ScriptStatus.Showing && Actor(Runner.Speaker) is { } speaker)
-            speaker.Body.Request = PlayerMotion.Talk;
+            speaker.Body.Request = Body.Talk;
         CheckEnd();
         return true;
     }
@@ -216,7 +206,7 @@ public sealed class CutScene
         foreach (var actor in _actors)
         {
             var body = actor.Body;
-            if (Vector3.Distance(body.Sphere.Position, Camera.Aim) > StepDistance)
+            if (!body.Near(Camera.Aim))
                 continue;
             body.Faded = Fade.Fading;
             steered |= body.Steered;
@@ -343,7 +333,7 @@ public sealed class CutScene
             GiveUpTicks = GiveUpTicks,
             Bounds = Stage.Bounds,
         };
-        body.Sphere.Position = Body.SetDown(Stage.World, at, look.Radius, _game.Random.World);
+        body.Sphere.Position = Body.SetDown(Stage.World, at, look.Radius, _game.Random.World).Position;
         _actors.Add(new CutSceneActor(entity, look, body));
     }
 

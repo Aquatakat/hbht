@@ -5,14 +5,13 @@ using Aidyn.Core.Rng;
 namespace Aidyn.Core.Movement;
 
 /// <summary>
-/// A body other than the player's, moving through the world: a wanderer, or a cut-scene's actor (the
-/// original's <c>playerData</c>, stepped by <c>ProcessPlayers</c>). It's a sphere
-/// that its actor's animations move, as the player's is (<see cref="PlayerMotion"/>), steered toward a
-/// goal or turned to a heading instead of by a stick (<c>Actor::SetAiDest</c>, <c>SetFacing</c>,
-/// <c>MoveTo</c>).
+/// A body moving through the world (the original's <c>playerData</c>, stepped by <c>ProcessPlayers</c>): a
+/// sphere that its actor's animations move. The player's is one, which <see cref="PlayerMotion"/> drives with
+/// the stick; a wanderer or a cut-scene's actor is steered toward a goal or turned to a heading instead
+/// (<c>Actor::SetAiDest</c>, <c>SetFacing</c>, <c>MoveTo</c>), through <see cref="Step"/>.
 /// </summary>
 /// <remarks>
-/// The original steers it with a controller of its own: <c>MoveTo</c> puts the stick toward the goal
+/// The original steers a body with a controller of its own: <c>MoveTo</c> puts the stick toward the goal
 /// through the camera's turn, and <c>Actor::Move</c> reads it back through the same turn, so the
 /// camera cancels out. A body walks at half tilt and runs at 0.95, and turns 20° a frame on the
 /// move as the player does, and 10° where it stands. Positions are in the world's coordinates; the original keeps each body's in its own
@@ -20,6 +19,36 @@ namespace Aidyn.Core.Movement;
 /// </remarks>
 public sealed class Body
 {
+    /// <summary>
+    /// Animation requests (<c>ani_type</c>). <see cref="Talk"/> is what a script's speaker is asked for as a press moves its
+    /// box on (<see cref="Scripts.SpeakerTalk"/>).
+    /// </summary>
+    public const int Idle = 0, Walk = 2, Run = 3, Talk = 4, Sneak = 25;
+
+    /// <summary>A body's gravity, a tick² (about 10.8 m/s²).</summary>
+    public const float Gravity = 0.003f;
+
+    /// <summary>The push down a frame onto plain collision, which keeps velocity (surfaces 1 and 2).</summary>
+    private const float PressDown = 0.03f;
+
+    /// <summary>
+    /// How far a body turns toward the stick each frame (<c>Actor::Move</c>): 20°. The decomp reads 2°; the ROM's
+    /// constant is 0x3EB2B7FE, 20° in radians. Allies in combat turn 10°.
+    /// </summary>
+    public const float TurnPerFrame = 20 * MathF.PI / 180;
+
+    /// <summary>The stick's tilt at or below which <c>Actor::Move</c> doesn't read it.</summary>
+    public const float Deadzone = 0.05f;
+
+    /// <summary>The stick's tilt from which a body runs rather than walks.</summary>
+    public const float RunTilt = 0.8f;
+
+    /// <summary>
+    /// How far from the camera's aim bodies move and animate, in trek and in cut-scenes (<c>PlayerHandler.float_0x68</c>);
+    /// combat's is 128. Those farther off stand still.
+    /// </summary>
+    public const float StepDistance = 30;
+
     /// <summary>How far a body must come nearer its goal in a tick for the stick to follow it again.</summary>
     private const float Nearer = 0.01f;
 
@@ -42,7 +71,7 @@ public sealed class Body
     /// <param name="radius">Its sphere's radius, which <paramref name="scale"/> doesn't change for the world's collision.</param>
     public Body(Vector3 position, float radius, float scale = 1)
     {
-        Sphere = new CollisionSphere { Radius = radius, Gravity = new Vector3(0, -0.003f, 0), Position = position };
+        Sphere = new CollisionSphere { Radius = radius, Gravity = new Vector3(0, -Gravity, 0), Position = position };
         Scale = scale;
     }
 
@@ -69,7 +98,10 @@ public sealed class Body
     /// </summary>
     public (Vector2 Min, Vector2 Max)? Bounds { get; set; }
 
-    /// <summary>How many animation ticks it plays per tick, as <see cref="PlayerMotion.Pace"/>.</summary>
+    /// <summary>
+    /// How many animation ticks it plays per tick, which scales its speed with its steps. 1 is the
+    /// original's; the brisk pace setting plays the player quicker (ADR 0018).
+    /// </summary>
     public float Pace { get; set; } = 1;
 
     /// <summary>Whether something steers it (<c>ACTOR_2</c>): only then does it read its stick.</summary>
@@ -164,9 +196,25 @@ public sealed class Body
     }
 
     /// <summary>
-    /// One 60 Hz tick (<c>ProcessPlayers</c>, for a body other than Alaron): its steering, its stick,
-    /// the world's collision, a push down on plain collision, and its animation's step. Bodies push
-    /// each other after (<see cref="Crowd"/>).
+    /// The area of a chunk a body is kept in: the chunk whose coordinates start at <paramref name="origin"/>, less
+    /// <see cref="EdgeMargin"/> each side.
+    /// </summary>
+    public static (Vector2 Min, Vector2 Max) ChunkBounds(Vector3 origin, float cellSize)
+    {
+        var start = new Vector2(origin.X, origin.Z);
+        return (start + new Vector2(EdgeMargin), start + new Vector2(cellSize - EdgeMargin));
+    }
+
+    /// <summary>
+    /// Whether it moves and animates this tick (<c>ProcessPlayers</c>): only within <paramref name="distance"/> of the
+    /// camera's aim, <see cref="StepDistance"/> in trek and cut-scenes.
+    /// </summary>
+    public bool Near(Vector3 aim, float distance = StepDistance) => Vector3.Distance(Sphere.Position, aim) <= distance;
+
+    /// <summary>
+    /// One 60 Hz tick of a body the stick doesn't drive (<c>ProcessPlayers</c>, for a body other than Alaron): its
+    /// steering, its stick, the world's collision, a push down on plain collision, and its animation's step. Bodies
+    /// push each other after (<see cref="Crowd"/>).
     /// </summary>
     public void Step(CollisionWorld world, IRootMotion animation)
     {
@@ -174,28 +222,76 @@ public sealed class Body
         {
             Steer(world);
             if (Faded)
-                Request = PlayerMotion.Idle;
+                Request = Idle;
             else
                 Control();
         }
 
         SpherePhysics.Step(world, Sphere);
+        Press();
+        Advance(Animate(animation));
+    }
+
+    /// <summary>
+    /// After the world's collision (<c>ProcessPlayers</c>): off the ground it has no surface, and on plain collision,
+    /// which keeps velocity, it's pushed down onto it, as the original does once a frame.
+    /// </summary>
+    internal void Press()
+    {
         if (!Sphere.Touching)
             Sphere.Surface = 0;
         if (Sphere.Surface is 1 or 2)
-            Sphere.Velocity.Y -= Cadence.PerTick(0.03f);
+            Sphere.Velocity.Y -= Cadence.PerTick(PressDown);
+    }
 
+    /// <summary>
+    /// Plays its animation <see cref="Pace"/> ticks toward <see cref="Request"/>, carrying the fraction to the next
+    /// tick, and returns how far their root moved it forward.
+    /// </summary>
+    internal float Animate(IRootMotion animation)
+    {
         _pace += Pace;
         var forward = 0f;
         for (; _pace >= 1; _pace--)
             forward += animation.Tick(Request);
-        Sphere.Position += new Vector3(Heading.X, 0, Heading.Y) * (forward * Scale);
+        return forward;
+    }
 
+    /// <summary>Moves it <paramref name="forward"/> along its heading, at its scale, and keeps it in its <see cref="Bounds"/>.</summary>
+    internal void Advance(float forward)
+    {
+        Sphere.Position += new Vector3(Heading.X, 0, Heading.Y) * (forward * Scale);
         if (Bounds is var (min, max))
         {
             Sphere.Position.X = Math.Clamp(Sphere.Position.X, min.X, max.X);
             Sphere.Position.Z = Math.Clamp(Sphere.Position.Z, min.Y, max.Y);
         }
+    }
+
+    /// <summary>
+    /// Turns it toward <paramref name="to"/> where it stands, <see cref="FaceTurnPerFrame"/> a frame
+    /// (<c>Actor::SetFacing</c>'s turn), and lands on it once there. Returns whether it has.
+    /// </summary>
+    internal bool TurnToward(Vector2 to)
+    {
+        Heading = Facing.Turn(Heading, to, Cadence.PerTick(FaceTurnPerFrame));
+        if (!Facing.Arrived(Heading, to))
+            return false;
+        Heading = to;
+        return true;
+    }
+
+    /// <summary>
+    /// The stick read past its <see cref="Deadzone"/> (<c>Actor::Move</c>): it sneaks if asked, and otherwise walks
+    /// under <see cref="RunTilt"/> and runs from it, turning toward <paramref name="way"/> <see cref="TurnPerFrame"/>
+    /// a frame.
+    /// </summary>
+    /// <param name="tilt">How far the stick is tilted, 0 to 1.</param>
+    /// <param name="way">The way the stick points, in the world's X and Z.</param>
+    internal void Go(float tilt, Vector2 way, bool sneak = false)
+    {
+        Request = sneak ? Sneak : tilt >= RunTilt ? Run : Walk;
+        Heading = Facing.Turn(Heading, way, Cadence.PerTick(TurnPerFrame));
     }
 
     /// <summary>
@@ -232,12 +328,8 @@ public sealed class Body
         if (Turning)
         {
             busy = true;
-            Heading = PlayerMotion.Turn(Heading, TurnTo, Cadence.PerTick(FaceTurnPerFrame));
-            if (PlayerMotion.Faces(Heading, TurnTo))
-            {
-                Heading = TurnTo;
+            if (TurnToward(TurnTo))
                 Turning = false;
-            }
         }
         // MoveTo drops ACTOR_2 with nothing left to do, after this step's Actor::Move.
         if (!busy)
@@ -246,48 +338,72 @@ public sealed class Body
 
     /// <summary>
     /// Puts it at its goal, set down there, facing the way it was turning to if it was, and stops it
-    /// (<c>FUN_80019b08</c>).
+    /// (<c>0x80015c28</c>, the decomp's <c>FUN_80019b08</c>). The original's set-down tries again to the side on a
+    /// miss; the port's doesn't here, having no random stream to draw from.
     /// </summary>
     private void GiveUp(CollisionWorld world)
     {
-        Sphere.Position = SetDown(world, new Vector3(Goal.X, Sphere.Position.Y, Goal.Y), Sphere.Radius, null);
+        Sphere.Position = SetDown(world, new Vector3(Goal.X, Sphere.Position.Y, Goal.Y), Sphere.Radius, null).Position;
         Sphere.Velocity = Vector3.Zero;
         if (Turning)
             Heading = TurnTo;
         Stop();
     }
 
+    /// <summary>The most sweeps from on high a set-down makes: the first, and four tries to the side.</summary>
+    private const int SetDownTries = 5;
+
     /// <summary>
-    /// Where a sphere is set down at a point (<c>Actor::CheckCollision(p, 0, 0, 0)</c>): swept from 100
-    /// above to 100 below, it rests on what it hits, 0.01 higher; the point's own height doesn't count.
-    /// On a miss, it tries again up to four times a little to the side, by up to 0.25 each way, with two
-    /// draws each from <paramref name="random"/>; with none, or nothing found, it stays where it was.
+    /// Where a sphere at <paramref name="at"/> is set down on the ground (<c>Actor::CheckCollision</c>,
+    /// <c>0x80011a64</c>, checked in 1.0's code). With <paramref name="near"/>, it first sweeps from 1 above that
+    /// height to 1 below; otherwise, or missing, from a height of 100 to −100, whatever its own. It skips see-through
+    /// triangles and rests on the first that faces it in the grid's order, 0.01 above it. Each sweep from on high
+    /// that misses moves it a little to the side, by up to 0.25 each way with two draws from
+    /// <paramref name="random"/>, and it tries again: four times, or three after a miss near the height. With no
+    /// <paramref name="random"/> it doesn't. The original's callers pass one of two shapes: near a height
+    /// (<c>(body, y, 1, 0)</c>, a teleport's arrival and a wanderer's spawn), or not (<c>(body, 0, 0, 0)</c>, a
+    /// cut-scene's spawn, a body giving up its goal, combat's placing).
     /// </summary>
-    public static Vector3 SetDown(CollisionWorld world, Vector3 at, float radius, IRandom? random)
+    /// <param name="near">The height to sweep about first (the original's mode 1), or null for none.</param>
+    /// <returns>
+    /// Where it rests and whether it found ground. Finding none, it's where its tries to the side left it, at its own
+    /// height, as the original leaves the body.
+    /// </returns>
+    public static (Vector3 Position, bool Grounded) SetDown(CollisionWorld world, Vector3 at, float radius, IRandom? random, float? near = null)
     {
-        var point = at;
-        for (var tries = 0; tries < 5; tries++)
+        var tries = 0;
+        if (near is { } y)
         {
-            if (SpherePhysics.Sweep(world, point with { Y = at.Y + 100 }, point with { Y = at.Y - 100 }, radius, false, out var hit, out var normal))
-                return new Vector3(hit.X + normal.X * radius, hit.Y + 0.01f + normal.Y * radius, hit.Z + normal.Z * radius);
-            if (random is null)
-                break;
+            if (Sweep(at with { Y = y + 1 }, at with { Y = y - 1 }) is { } close)
+                return (close, true);
+            tries = 1;
+        }
+        for (; ; tries++)
+        {
+            if (Sweep(at with { Y = 100 }, at with { Y = -100 }) is { } ground)
+                return (ground, true);
+            if (tries >= SetDownTries - 1 || random is null)
+                return (at, false);
             var angle = random.Float(2 * MathF.PI);
             var reach = random.Float(0.25f);
-            point = at + new Vector3((MathF.Sin(angle) + 1) * 0.5f * reach, 0, (MathF.Cos(angle) + 1) * 0.5f * reach);
+            at.X += (MathF.Sin(angle) + 1) * 0.5f * reach;
+            at.Z += (MathF.Cos(angle) + 1) * 0.5f * reach;
         }
-        return at;
+
+        Vector3? Sweep(Vector3 from, Vector3 to) =>
+            SpherePhysics.Sweep(world, from, to, radius, skipSeeThrough: true, out var hit, out var normal)
+                ? new Vector3(hit.X + normal.X * radius, hit.Y + 0.01f + normal.Y * radius, hit.Z + normal.Z * radius)
+                : null;
     }
 
     /// <summary>Reads the stick (<c>Actor::Move</c>, the trek parts): it walks under 80% tilt and runs above.</summary>
     private void Control()
     {
-        Request = PlayerMotion.Idle;
+        Request = Idle;
         var tilt = Stick.Length();
-        if (tilt <= 0.05f)
+        if (tilt <= Deadzone)
             return;
-        Request = tilt >= 0.8f ? PlayerMotion.Run : PlayerMotion.Walk;
-        Heading = PlayerMotion.Turn(Heading, Stick, Cadence.PerTick(PlayerMotion.TurnPerFrame));
+        Go(tilt, Stick);
     }
 
     private static Vector2 Normalize(Vector2 v) => v.LengthSquared() > SpherePhysics.Epsilon * SpherePhysics.Epsilon ? Vector2.Normalize(v) : Vector2.UnitY;

@@ -68,6 +68,7 @@ Bodies.ClearFlag = 0x80014a3c; // coined; a body's flags (+0x1e) &= ~x
 CutScene.Unhide = 0x80014dfc; // docs/systems/cameras.md
 Body.Stop = 0x800156e8; // Body.cs
 Body.Face = 0x80015910; // docs/systems/scripts.md
+Body.GiveUp = 0x80015c28; // Body.cs: a body that comes no nearer its goal is put there (MoveTo, from 0x800159c8), set down by Body.SetDown(0, 0, 0)
 AllocScriptCamera = 0x800168f8; // string 0x800d9618 (debug 0x8001a838), matched by tools/builds.py
 ScriptCameras.Free = 0x800169c0; // ScriptCameras.cs
 ProcessScriptCameras = 0x80016a50; // string 0x800d9644 (debug 0x8001a99c), matched by tools/builds.py

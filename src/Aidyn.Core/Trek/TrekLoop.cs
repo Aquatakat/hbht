@@ -6,6 +6,7 @@ using Aidyn.Core.Chunks;
 using Aidyn.Core.Items;
 using Aidyn.Core.MapObjects;
 using Aidyn.Core.Movement;
+using Aidyn.Core.Physics;
 using Aidyn.Core.Scripts;
 using Aidyn.Core.Ui;
 using Aidyn.Plugins;
@@ -106,7 +107,7 @@ public sealed class TrekLoop : IMapObjectHost
         Hud = new TrekHud(game, host.ImageSize);
         _playerSounds = game.Plugins.TryGet<EntityRecord>(GameState.Alaron)?.Sounds;
         // Each chunk's wanderers load before its sounds and lights.
-        zone.Loaded += (_, map) => Wanderers.Load(map, Chunks.MapSet.CellSize, Chunks.World, Game.Memory);
+        zone.Loaded += (_, map) => Wanderers.Load(map, Chunks.MapSet.CellSize, Chunks.World, Game.Memory, Game.Random.Wander);
         zone.Unloading += (_, map) => Wanderers.Unload(map);
     }
 
@@ -253,7 +254,7 @@ public sealed class TrekLoop : IMapObjectHost
         }
         var input = fading || Use.Popup is not null || talking ? new PlayerInput(Vector2.Zero) : readInput();
         // Actor::Move: the stick pushed lowers the portraits, but not while it orbits the camera.
-        if (!input.Locked && input.Stick.Length() > 0.05f)
+        if (!input.Locked && input.Pushed)
             Hud.Raise(false);
         var before = motion.Sphere.Position;
         if (Conversation is { With: not null } framing)
@@ -262,7 +263,7 @@ public sealed class TrekLoop : IMapObjectHost
             Camera.Step(world, motion.Sphere.Position, motion.Heading);
         Zone.Listen();
         var keys = Zone.Keys;
-        motion.Step(world, input, Camera, keys.Sounding(PlayerAnimation, _playerAudio, _playerSounds, motion.Sphere));
+        StepPlayer(world, motion, input, Camera, keys.Sounding(PlayerAnimation, _playerAudio, _playerSounds, motion.Sphere));
         // WanderTick, which a popup, a conversation, the menu and a fade stop.
         if (playing && Use.Popup is null && !talking)
         {
@@ -293,6 +294,22 @@ public sealed class TrekLoop : IMapObjectHost
             Hud.Tick(chunk, chunk is null ? motion.Sphere.Position : motion.Sphere.Position - Chunks.Origin(chunk), Game.Flags);
         }
         return TrekStep.Ran;
+    }
+
+    /// <summary>
+    /// The player's step in trek (<c>Actor::Move</c>): first what the controls ask of the trek camera, R held
+    /// orbiting it about him and otherwise following, and his standing still anchoring it; then he moves, up on the
+    /// stick being the way the camera looks.
+    /// </summary>
+    public static void StepPlayer(CollisionWorld world, PlayerMotion player, PlayerInput input, FollowCamera camera, IRootMotion animation)
+    {
+        if (input.Orbit)
+            camera.Orbit(player.Sphere.Position, input.OrbitStick, moving: input.Free && input.Pushed);
+        else
+            camera.Follow();
+        if (!input.Locked && !input.Pushed)
+            camera.Anchor(player.Sphere.Position);
+        player.Step(world, input.Move, camera.LookXZ, animation);
     }
 
     /// <summary>
@@ -350,7 +367,12 @@ public sealed class TrekLoop : IMapObjectHost
         Zone.Particles?.KillActive();
         var motion = Player;
         var from = motion.Sphere.Position;
-        motion.Sphere.Position = TeleportArrival.Settle(Chunks.World, point, motion.Sphere.Radius) ?? point;
+        // Set down near the arrival's height, its sphere's bottom there, or failing that from on high, twice.
+        var radius = motion.Sphere.Radius;
+        var (ground, grounded) = Body.SetDown(Chunks.World, point, radius, Game.Random.World, near: point.Y - radius);
+        if (!grounded)
+            ground = Body.SetDown(Chunks.World, ground, radius, Game.Random.World).Position;
+        motion.Sphere.Position = ground;
         motion.Sphere.Velocity = Vector3.Zero;
         if (arrival.Heading is { } heading)
             motion.Heading = heading;

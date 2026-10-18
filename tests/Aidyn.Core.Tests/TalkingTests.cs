@@ -21,7 +21,7 @@ public class PlayerFacingTests
     }
 
     private static void Step(PlayerMotion player, FollowCamera camera, Vector2 stick = default) =>
-        player.Step(Worlds.Flat(), new PlayerInput(stick), camera, new SteadyMotion(0));
+        player.Step(Worlds.Flat(), new MoveInput(stick), camera.LookXZ, new SteadyMotion(0));
 
     [Fact]
     public void HeTurnsTenDegreesAFrameWhichIsFiveATickAndAsksToStand()
@@ -35,7 +35,7 @@ public class PlayerFacingTests
         for (var tick = 1; tick <= 6; tick++)
         {
             Step(player, camera);
-            Assert.Equal(PlayerMotion.Idle, player.Request);
+            Assert.Equal(Body.Idle, player.Request);
             Assert.Equal(5 * tick, Degrees(player.Heading, Vector2.UnitY), 0.01f);
         }
         Assert.NotNull(player.TurnTo);
@@ -58,7 +58,7 @@ public class PlayerFacingTests
         // Once he faces it he stays, and stands.
         Step(player, camera);
         Assert.Equal(1, player.Heading.X, 1e-5f);
-        Assert.Equal(PlayerMotion.Idle, player.Request);
+        Assert.Equal(Body.Idle, player.Request);
     }
 
     [Theory]
@@ -122,7 +122,7 @@ public class PlayerFacingTests
 
         Step(player, camera, new Vector2(0, 1));
         Assert.Null(player.TurnTo);
-        Assert.Equal(PlayerMotion.Run, player.Request);
+        Assert.Equal(Body.Run, player.Request);
 
         // And letting go of the stick doesn't bring it back.
         Step(player, camera);
@@ -139,7 +139,7 @@ public class PlayerFacingTests
         Assert.Null(player.Asked);
 
         Step(player, camera);
-        Assert.Equal(PlayerMotion.Idle, player.Request);
+        Assert.Equal(Body.Idle, player.Request);
     }
 
     [Fact]
@@ -149,12 +149,12 @@ public class PlayerFacingTests
         player.Face(Vector2.UnitX);
         player.Asked = 4;
         Step(player, camera);
-        Assert.Equal(PlayerMotion.Idle, player.Request);
+        Assert.Equal(Body.Idle, player.Request);
         Assert.Null(player.Asked);
 
         player.Asked = 4;
         Step(player, camera, new Vector2(0, 0.5f));
-        Assert.Equal(PlayerMotion.Walk, player.Request);
+        Assert.Equal(Body.Walk, player.Request);
     }
 
     [Fact]

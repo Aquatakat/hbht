@@ -64,10 +64,10 @@ public class WanderRandomTests
     }
 
     [Theory]
-    [InlineData(PlayerMotion.Run, 12)]
-    [InlineData(PlayerMotion.Walk, 8)]
-    [InlineData(PlayerMotion.Sneak, 2.4f)]
-    [InlineData(PlayerMotion.Idle, 2.2f)]
+    [InlineData(Body.Run, 12)]
+    [InlineData(Body.Walk, 8)]
+    [InlineData(Body.Sneak, 2.4f)]
+    [InlineData(Body.Idle, 2.2f)]
     [InlineData(1, 2.2f)]
     [InlineData(4, 2.2f)]
     public void TheRangeForWhatThePlayerDoesIsPickedByHisRequest(int request, float range)
@@ -141,7 +141,7 @@ public class WanderTickTests
     private static Setup Talker() =>
         Make(PartyAt(Vector3.Zero, 20, dialogue: RecordId.Hex(RecordTypes.Dialogue, 1)), [Node(0, new Vector3(0, 0, 5))], new Vector3(0, 0.5f, 0));
 
-    private static bool Tick(Setup s, Vector3 player, int request = PlayerMotion.Walk, float sneak = 0.5f, float fog = 0, IRandom? random = null) =>
+    private static bool Tick(Setup s, Vector3 player, int request = Body.Walk, float sneak = 0.5f, float fog = 0, IRandom? random = null) =>
         s.Wanderer.Tick(new WanderTick(s.World, player, request, sneak, fog, random ?? new ScriptedRandom()));
 
     private static Vector3 Player(float x, float y = 0.5f, float z = 0) => new(x, y, z);
@@ -189,10 +189,10 @@ public class WanderTickTests
     }
 
     [Theory]
-    [InlineData(PlayerMotion.Walk, 12, true)]
-    [InlineData(PlayerMotion.Walk, 14, false)]
-    [InlineData(PlayerMotion.Run, 17, true)]
-    [InlineData(PlayerMotion.Run, 19, false)]
+    [InlineData(Body.Walk, 12, true)]
+    [InlineData(Body.Walk, 14, false)]
+    [InlineData(Body.Run, 17, true)]
+    [InlineData(Body.Run, 19, false)]
     public void ItNoticesAPlayerWithinTheRangeForWhatHeIsDoing(int request, float x, bool noticed)
     {
         // Measured from 3 ahead: the walking range is 10 and the running range 15.
@@ -235,7 +235,7 @@ public class WanderTickTests
     [Fact]
     public void WithNoPartyAStandingOrSneakingPlayerIsOnlyNoticedRightAtTheSpotItLooksAt()
     {
-        foreach (var request in new[] { PlayerMotion.Idle, PlayerMotion.Sneak })
+        foreach (var request in new[] { Body.Idle, Body.Sneak })
         {
             var s = Hunter();
             Tick(s, Player(9), request, sneak: 0);
@@ -252,11 +252,11 @@ public class WanderTickTests
     {
         // The walking range, 10, × 0.6 × 0.2.
         var s = Hunter();
-        Tick(s, Player(3, z: 2), PlayerMotion.Sneak, sneak: 0.2f);
+        Tick(s, Player(3, z: 2), Body.Sneak, sneak: 0.2f);
         Assert.False(s.Wanderer.Chasing);
 
         var near = Hunter();
-        Tick(near, Player(3, z: 1), PlayerMotion.Sneak, sneak: 0.2f);
+        Tick(near, Player(3, z: 1), Body.Sneak, sneak: 0.2f);
         Assert.True(near.Wanderer.Chasing);
     }
 
@@ -405,9 +405,9 @@ public class WanderTickTests
     public void ATalkerWithinThreeOfThePlayerStandsAndTurnsToFaceHim()
     {
         var s = Talker();
-        s.Body.Request = PlayerMotion.Walk;
+        s.Body.Request = Body.Walk;
         Tick(s, Player(2, z: 2));
-        Assert.Equal(PlayerMotion.Idle, s.Body.Request);
+        Assert.Equal(Body.Idle, s.Body.Request);
         Assert.True(s.Body.Turning);
         AssertNear(Vector2.Normalize(new Vector2(2, 2)), s.Body.TurnTo);
         Assert.False(s.Wanderer.Chasing);
@@ -612,17 +612,17 @@ public class WanderersTickTests(WanderersFixture fixture) : IClassFixture<Wander
         var at = wanderer.Body.Sphere.Position;
 
         // Far off: nothing noticed.
-        Assert.Empty(wanderers.Tick(world, at + new Vector3(500, 0, 0), PlayerMotion.Walk, null, new ScriptedRandom()));
+        Assert.Empty(wanderers.Tick(world, at + new Vector3(500, 0, 0), Body.Walk, null, new ScriptedRandom()));
         Assert.False(wanderer.Chasing);
 
         // 7.5 away, the way it faces, which it notices from where it looks but is too far to ambush.
         var facing = new Vector3(-1, 0, -1) / MathF.Sqrt(2);
-        Assert.Empty(wanderers.Tick(world, at + facing * 7.5f, PlayerMotion.Walk, null, new ScriptedRandom()));
+        Assert.Empty(wanderers.Tick(world, at + facing * 7.5f, Body.Walk, null, new ScriptedRandom()));
         Assert.True(wanderer.Chasing);
         Assert.True(wanderer.Body.Moving);
 
         // Within 7: the ambush.
-        var ambushes = wanderers.Tick(world, at + facing * 4, PlayerMotion.Walk, null, new ScriptedRandom());
+        var ambushes = wanderers.Tick(world, at + facing * 4, Body.Walk, null, new ScriptedRandom());
         Assert.Equal([wanderer], ambushes);
         Assert.False(wanderer.Hunts);
     }

@@ -1,6 +1,7 @@
 using System.Numerics;
 using Aidyn.Core.Cameras;
 using Aidyn.Core.Movement;
+using Aidyn.Core.Trek;
 
 namespace Aidyn.Core.Tests;
 
@@ -26,7 +27,7 @@ public class FollowCameraTests
         for (var tick = 0; tick < 300 * TicksPerSecond && settled is null; tick++)
         {
             camera.Step(world, player.Sphere.Position, player.Heading);
-            player.Step(world, new PlayerInput(Vector2.Zero), camera, motion);
+            TrekLoop.StepPlayer(world, player, new PlayerInput(Vector2.Zero), camera, motion);
             var off = OffBehind(camera);
             if (quarter is null && off <= 90)
                 quarter = tick / (double)TicksPerSecond;
@@ -56,14 +57,14 @@ public class FollowCameraTests
         for (var i = 0; i < 3 * TicksPerSecond; i++)
         {
             camera.Step(world, player.Sphere.Position, player.Heading);
-            player.Step(world, new PlayerInput(new Vector2(1, 0)), camera, motion);
+            TrekLoop.StepPlayer(world, player, new PlayerInput(new Vector2(1, 0)), camera, motion);
         }
         var aim = player.Sphere.Position + new Vector3(0, camera.Height, 0);
         var ticks = 0;
         for (; Vector3.Distance(camera.Aim, aim) > 0.01f; ticks++)
         {
             camera.Step(world, player.Sphere.Position, player.Heading);
-            player.Step(world, new PlayerInput(Vector2.Zero), camera, motion);
+            TrekLoop.StepPlayer(world, player, new PlayerInput(Vector2.Zero), camera, motion);
         }
         // The user saw 500–1000 ms.
         Assert.InRange(ticks, 30, 60);
@@ -81,7 +82,7 @@ public class FollowCameraTests
             for (var i = 0; i < ticks; i++)
             {
                 camera.Step(world, player.Sphere.Position, player.Heading);
-                player.Step(world, new PlayerInput(Vector2.Zero, Orbit: true, OrbitStick: stick), camera, motion);
+                TrekLoop.StepPlayer(world, player, new PlayerInput(Vector2.Zero, Orbit: true, OrbitStick: stick), camera, motion);
             }
         }
 
@@ -116,7 +117,7 @@ public class FollowCameraTests
         for (var i = 0; i < 5 * TicksPerSecond; i++)
         {
             camera.Step(world, player.Sphere.Position, player.Heading);
-            player.Step(world, new PlayerInput(Vector2.Zero, Orbit: true), camera, new SteadyMotion(0));
+            TrekLoop.StepPlayer(world, player, new PlayerInput(Vector2.Zero, Orbit: true), camera, new SteadyMotion(0));
         }
         var reach = new Vector2(camera.Position.X - camera.Aim.X, camera.Position.Z - camera.Aim.Z).Length();
         Assert.Equal(3.1f, reach, 0.1f);
@@ -140,7 +141,7 @@ public class FollowCameraTests
         for (var i = 0; i < 5 * TicksPerSecond; i++)
         {
             camera.Step(world, player.Sphere.Position, player.Heading);
-            player.Step(world, new PlayerInput(new Vector2(1, 0), Orbit: true, Free: free), camera, motion);
+            TrekLoop.StepPlayer(world, player, new PlayerInput(new Vector2(1, 0), Orbit: true, Free: free), camera, motion);
         }
         if (!free)
         {

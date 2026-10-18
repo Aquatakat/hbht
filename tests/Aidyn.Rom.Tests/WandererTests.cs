@@ -258,7 +258,7 @@ public sealed class WandererTests(Na10Import fixture)
             for (var tick = 0; tick < 600 * count; tick++)
             {
                 var aim = wanderers.All[tick / 600].Body.Sphere.Position;
-                Assert.Empty(wanderers.Tick(world, player.Position, PlayerMotion.Walk, null, random));
+                Assert.Empty(wanderers.Tick(world, player.Position, Body.Walk, null, random));
                 wanderers.Step(world, player, player.Position, "far", aim, _ => motion);
                 foreach (var w in wanderers.All)
                 {
@@ -303,10 +303,10 @@ public sealed class WandererTests(Na10Import fixture)
         Assert.Equal(10, hunter.Perception);
 
         // Standing with nobody to hide him (the party's Stealth is 0 with no party), he isn't noticed.
-        wanderers.Tick(world, player, PlayerMotion.Idle, null, new Lcg());
+        wanderers.Tick(world, player, Body.Idle, null, new Lcg());
         Assert.False(hunter.Chasing);
 
-        var ambushes = wanderers.Tick(world, player, PlayerMotion.Walk, game.Party, new Lcg());
+        var ambushes = wanderers.Tick(world, player, Body.Walk, game.Party, new Lcg());
         Assert.DoesNotContain(hunter, ambushes);
         Assert.True(hunter.Chasing);
         Assert.True(hunter.Body.Moving);
@@ -325,7 +325,7 @@ public sealed class WandererTests(Na10Import fixture)
         var ambushed = false;
         for (var tick = 0; tick < 1500 && !ambushed; tick++)
         {
-            ambushed = wanderers.Tick(world, sphere.Position, PlayerMotion.Walk, game.Party, new Lcg()).Contains(hunter);
+            ambushed = wanderers.Tick(world, sphere.Position, Body.Walk, game.Party, new Lcg()).Contains(hunter);
             wanderers.Step(world, sphere, sphere.Position, "far", sphere.Position, _ => motion);
         }
         Assert.True(ambushed);

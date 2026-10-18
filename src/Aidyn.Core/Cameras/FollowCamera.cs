@@ -386,9 +386,8 @@ public sealed partial class FollowCamera
     private Vector3 Swing(Vector2 back)
     {
         var (sin, cos) = MathF.SinCos(OrbitAngle * MathF.PI / 180);
-        var x = cos * back.X + sin * back.Y;
-        var z = cos * back.Y - sin * back.X;
-        return new Vector3(Aim.X + x * Distance, Aim.Y + MathF.Sin(Pitch * MathF.PI / 180) * Distance, Aim.Z + z * Distance);
+        var turned = Facing.Rotate(back, sin, cos);
+        return new Vector3(Aim.X + turned.X * Distance, Aim.Y + MathF.Sin(Pitch * MathF.PI / 180) * Distance, Aim.Z + turned.Y * Distance);
     }
 
     /// <summary>
@@ -415,7 +414,7 @@ public sealed partial class FollowCamera
         var way = new Vector2(PositionGoal.X - Aim.X, PositionGoal.Z - Aim.Z);
         way /= MathF.Max(way.Length(), 1e-6f);
         var (sin, cos) = MathF.SinCos(OrbitAngle * MathF.PI / 180);
-        way = new Vector2(cos * way.X + sin * way.Y, cos * way.Y - sin * way.X) * reach;
+        way = Facing.Rotate(way, sin, cos) * reach;
         Position = new Vector3(Aim.X + way.X, PositionGoal.Y, Aim.Z + way.Y);
         if (SpherePhysics.Sweep(world, Aim, Position, 0.25f, skipSeeThrough: true, out var hit, out var normal))
         {

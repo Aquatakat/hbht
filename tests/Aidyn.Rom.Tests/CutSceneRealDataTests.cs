@@ -23,7 +23,7 @@ public sealed class CutSceneRealDataTests(Na10Import fixture, ITestOutputHelper 
 
         public int StateLength => 60;
 
-        public float Tick(int request) => request switch { PlayerMotion.Walk => 0.03f, PlayerMotion.Run => 0.06f, _ => 0 };
+        public float Tick(int request) => request switch { Body.Walk => 0.03f, Body.Run => 0.06f, _ => 0 };
     }
 
     private sealed record Start(RecordId Script, ScriptStart From, ChunkRef Stage);

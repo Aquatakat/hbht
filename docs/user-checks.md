@@ -10,6 +10,10 @@ Things only the user can settle, by playing the original in the emulator, by lis
 - **Too many wanderers:** does the original crash or leave some parties out in the 3×3 around Overworld H13, with a new game's flags? It has room for 39 at once, and 44 parties there would get one. [wanderers](systems/wanderers.md)
 - **Where the World tab's map north of Ugarit is revealed** in the original. The port doesn't reveal it when travelling through.
 
+## Movement
+
+- **Arriving on a lower floor:** going through the teleporters `gates\` (`aidyn:voxel/0x1193/3`), `doorfromP` (`aidyn:voxel/0x16BA/2`) and `libraryEnt3` (`aidyn:voxel/0x18DC/0`), does Alaron arrive on the floor just under the arrival point, or on one 2 to 7 lower, maybe beneath the room? The original's set-down takes the first triangle its grid lists, which by the ROM's grid is the lower one, and the port now does the same. [movement](systems/movement.md#setting-a-body-down)
+
 ## Menus
 
 - **The Party tab's cursor after equipping the last item** of the inventory, when no item moves up into its row: where does it go? It needs a save with one equippable item at the bottom and nothing after. [ui](systems/ui.md#the-party-tabs-actions)

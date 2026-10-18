@@ -90,7 +90,7 @@ public sealed class TrekLoopTests(Na10Import fixture)
         var point = streamer.Origin(chunk) + new Vector3(x, 10, z);
         trek.Enter(chunk);
         streamer.Update(point);
-        var ground = TeleportArrival.Settle(streamer.World, point, 0.5f) ?? point;
+        var ground = Body.SetDown(streamer.World, point, 0.5f, null, near: point.Y - 0.5f).Position;
         var look = new Vector2(0, -1);
         trek.Begin(new PlayerMotion(ground, look), new FollowCamera(ground, look));
         return (trek, host);

@@ -66,5 +66,5 @@ public static class Worlds
 /// <summary>An animation whose root moves a fixed amount a tick while he's asked to move.</summary>
 public sealed class SteadyMotion(float perTick) : IRootMotion
 {
-    public float Tick(int request) => request == PlayerMotion.Idle ? 0 : perTick;
+    public float Tick(int request) => request == Body.Idle ? 0 : perTick;
 }

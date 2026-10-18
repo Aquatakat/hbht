@@ -1,23 +1,15 @@
 using System.Numerics;
-using Aidyn.Core.Cameras;
 using Aidyn.Core.Physics;
 
 namespace Aidyn.Core.Movement;
 
-/// <summary>The player's controls for one tick, as the original reads its controller.</summary>
+/// <summary>The controls that move the player for one tick.</summary>
 /// <param name="Stick">The movement stick, each axis −1 to 1, up and right positive.</param>
 /// <param name="Sneak">Z held: sneak instead of walking or running.</param>
-/// <param name="Orbit">R held: the stick turns the camera instead of moving.</param>
-/// <param name="OrbitStick">What turns the camera while <paramref name="Orbit"/> is held, in stick units a frame.</param>
-/// <param name="Free">
-/// A second stick turns the camera, so the first still moves him while it does. The original has one stick, and
-/// orbiting stops him; this is a port addition.
+/// <param name="Held">
+/// Something else has the stick, as the trek camera's orbit does with R held: he stands, and neither turns nor reads it.
 /// </param>
-public readonly record struct PlayerInput(Vector2 Stick, bool Sneak = false, bool Orbit = false, Vector2 OrbitStick = default, bool Free = false)
-{
-    /// <summary>Orbiting holds him still, as in the original.</summary>
-    public bool Locked => Orbit && !Free;
-}
+public readonly record struct MoveInput(Vector2 Stick, bool Sneak = false, bool Held = false);
 
 /// <summary>Plays an actor's animations and reports how far their root moves.</summary>
 public interface IRootMotion
@@ -32,44 +24,42 @@ public interface IRootMotion
 
 /// <summary>
 /// The player walking about (<c>Actor::Move</c>, which combat also uses, and the player loop in
-/// <c>PlayerData.cpp</c>). Alaron is a sphere of radius 0.5 that the stick turns and that his
-/// animations move: walking and running speeds are his animations' root motion, about 1.26 and
-/// 3.6 units a second.
+/// <c>PlayerData.cpp</c>): the stick drives his <see cref="Body"/>, a sphere of radius 0.5 that his
+/// animations move. Walking and running speeds are his animations' root motion, about 1.26 and
+/// 3.6 units a second. What only the player does is here: the stick read along where the camera
+/// looks, sneaking, the turn a conversation asks of him, keeping to the ground on plain collision,
+/// and going back to where he last stood after a long fall.
 /// </summary>
 public sealed class PlayerMotion
 {
-    /// <summary>
-    /// Animation requests (<c>ani_type</c>). <see cref="Talk"/> is what a script's speaker is asked for as a press moves its
-    /// box on (<see cref="Scripts.SpeakerTalk"/>).
-    /// </summary>
-    public const int Idle = 0, Walk = 2, Run = 3, Talk = 4, Sneak = 25;
-
-    /// <summary>
-    /// How far he turns toward the stick each frame: 20°. The decomp reads 2°; the ROM's
-    /// constant is 0x3EB2B7FE, 20° in radians. Allies in combat turn 10°.
-    /// </summary>
-    public const float TurnPerFrame = 20 * MathF.PI / 180;
+    /// <summary>Alaron's sphere's radius.</summary>
+    public const float Radius = 0.5f;
 
     private Vector3 _safe, _safer;
-    private float _pace;
 
     public PlayerMotion(Vector3 position, Vector2 heading)
     {
-        Sphere = new CollisionSphere { Radius = 0.5f, Gravity = new Vector3(0, -0.003f, 0), Position = position };
-        Heading = Vector2.Normalize(heading);
+        Body = new Body(position, Radius) { Heading = Vector2.Normalize(heading) };
         _safe = _safer = position;
     }
 
-    public CollisionSphere Sphere { get; }
+    /// <summary>His body, the first that <c>ProcessPlayers</c> steps.</summary>
+    public Body Body { get; }
+
+    public CollisionSphere Sphere => Body.Sphere;
 
     /// <summary>
     /// The way he faces, in X and Z. The original keeps the opposite, <c>facing</c>, which is why
     /// the camera's goal is along it.
     /// </summary>
-    public Vector2 Heading { get; set; }
+    public Vector2 Heading
+    {
+        get => Body.Heading;
+        set => Body.Heading = value;
+    }
 
     /// <summary>The animation he's asked for.</summary>
-    public int Request { get; private set; }
+    public int Request => Body.Request;
 
     /// <summary>
     /// The heading he's turning to where he stands (<c>Actor::SetFacing</c>, as a conversation
@@ -88,19 +78,21 @@ public sealed class PlayerMotion
     public void Face(Vector2 heading) =>
         TurnTo = heading.LengthSquared() > SpherePhysics.Epsilon * SpherePhysics.Epsilon ? Vector2.Normalize(heading) : null;
 
-    /// <summary>
-    /// How many animation ticks he plays per tick, which scales his speed with his steps. 1 is the
-    /// original's; the brisk pace setting plays him quicker (ADR 0018).
-    /// </summary>
-    public float Pace { get; set; } = 1;
+    /// <summary>How many animation ticks he plays per tick (<see cref="Body.Pace"/>).</summary>
+    public float Pace
+    {
+        get => Body.Pace;
+        set => Body.Pace = value;
+    }
 
     /// <summary>Where his feet are: the sphere's bottom.</summary>
     public Vector3 Feet => Sphere.Position - new Vector3(0, Sphere.Radius, 0);
 
     /// <summary>One 60 Hz tick.</summary>
-    public void Step(CollisionWorld world, PlayerInput input, FollowCamera camera, IRootMotion animation)
+    /// <param name="look">The way the camera looks across the ground, which up on the stick moves him.</param>
+    public void Step(CollisionWorld world, MoveInput input, Vector2 look, IRootMotion animation)
     {
-        Control(input, camera);
+        Control(input, look);
 
         var height = Sphere.Position.Y;
         SpherePhysics.Step(world, Sphere);
@@ -110,18 +102,12 @@ public sealed class PlayerMotion
             _safe = Sphere.Position;
         }
         // On plain collision, which keeps velocity, don't slide down when there's ground just below.
-        if (Sphere.Surface is 1 or 2 && SpherePhysics.Ground(world, Sphere.Position, 0.5f, 0.05f) && Sphere.Position.Y < height)
+        if (Sphere.Surface is 1 or 2 && SpherePhysics.Ground(world, Sphere.Position, Radius, 0.05f) && Sphere.Position.Y < height)
             Sphere.Position.Y = height;
-        if (!Sphere.Touching)
-            Sphere.Surface = 0;
-        // And press down onto it: a push the original gives once a frame.
-        if (Sphere.Surface is 1 or 2)
-            Sphere.Velocity.Y -= Cadence.PerTick(0.03f);
+        // And press down onto it.
+        Body.Press();
 
-        _pace += Pace;
-        var forward = 0f;
-        for (; _pace >= 1; _pace--)
-            forward += animation.Tick(Request);
+        var forward = Body.Animate(animation);
         if (Sphere.Velocity.Y <= -0.048f)
         {
             // Falling: no steering, and a long fall goes back to where he last stood.
@@ -134,71 +120,32 @@ public sealed class PlayerMotion
         }
         else
         {
-            Sphere.Position += new Vector3(Heading.X, 0, Heading.Y) * forward;
+            Body.Advance(forward);
         }
     }
 
     /// <summary>Reads the controls (<c>Actor::Move</c>, the trek parts).</summary>
-    private void Control(PlayerInput input, FollowCamera camera)
+    private void Control(MoveInput input, Vector2 look)
     {
-        Request = Asked ?? Idle;
+        Body.Request = Asked ?? Body.Idle;
         Asked = null;
-        if (input.Orbit)
-        {
-            camera.Orbit(Sphere.Position, input.OrbitStick, moving: input.Free && input.Stick.Length() > 0.05f);
-            if (!input.Free)
-                return;
-        }
-        else
-        {
-            camera.Follow();
-        }
+        if (input.Held)
+            return;
 
         var tilt = input.Stick.Length();
-        if (tilt <= 0.05f)
+        if (tilt <= Body.Deadzone)
         {
-            camera.Anchor(Sphere.Position);
             if (TurnTo is { } to)
             {
-                Request = Idle;
-                Heading = Turn(Heading, to, Cadence.PerTick(Body.FaceTurnPerFrame));
-                if (Faces(Heading, to))
-                {
-                    Heading = to;
+                Body.Request = Body.Idle;
+                if (Body.TurnToward(to))
                     TurnTo = null;
-                }
             }
             return;
         }
         TurnTo = null;
-        Request = input.Sneak ? Sneak : tilt >= 0.8f ? Run : Walk;
         // Up on the stick is the way the camera looks, and right is to its right.
-        var look = camera.LookXZ;
-        var x = -input.Stick.X;
-        var y = input.Stick.Y;
-        var wanted = Vector2.Normalize(new Vector2(look.Y * x + look.X * y, look.Y * y - look.X * x));
-        Heading = Turn(Heading, wanted, Cadence.PerTick(TurnPerFrame));
-    }
-
-    /// <summary>
-    /// Whether a turn has arrived: <see cref="Turn"/> normalizes what it arrives at again, which can
-    /// differ from a unit vector in its last bit.
-    /// </summary>
-    public static bool Faces(Vector2 heading, Vector2 to) => Vector2.DistanceSquared(heading, to) < 1e-10f;
-
-    /// <summary>
-    /// Turns <paramref name="from"/> toward <paramref name="to"/> by <paramref name="angle"/>,
-    /// or all the way once they're that close (<c>some_trig_func_2</c>).
-    /// </summary>
-    public static Vector2 Turn(Vector2 from, Vector2 to, float angle)
-    {
-        from = Vector2.Normalize(from);
-        to = Vector2.Normalize(to);
-        var (sin, cos) = MathF.SinCos(angle);
-        if (Vector2.Distance(from, to) <= sin)
-            return to;
-        var left = new Vector2(cos * from.X + sin * from.Y, cos * from.Y - sin * from.X);
-        var right = new Vector2(cos * from.X - sin * from.Y, cos * from.Y + sin * from.X);
-        return Vector2.Distance(right, to) <= Vector2.Distance(left, to) ? right : left;
+        var wanted = Vector2.Normalize(Facing.Rotate(new Vector2(-input.Stick.X, input.Stick.Y), look.X, look.Y));
+        Body.Go(tilt, wanted, input.Sneak);
     }
 }

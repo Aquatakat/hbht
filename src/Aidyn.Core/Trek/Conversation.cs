@@ -103,7 +103,7 @@ public sealed class Conversation
     {
         var conversation = new Conversation(game, script, start, host, player, null);
         conversation.Runner.Start();
-        player.Asked = PlayerMotion.Idle;
+        player.Asked = Body.Idle;
         return conversation;
     }
 
@@ -119,9 +119,9 @@ public sealed class Conversation
         if (!_host.Talk.Press(advance) || Runner.Page?.Line.Speaker is not { Type: RecordTypes.Entity } speaker)
             return;
         if (speaker == GameState.Alaron)
-            _player.Asked = PlayerMotion.Talk;
+            _player.Asked = Body.Talk;
         else if (With is not null)
-            With.Body.Request = PlayerMotion.Talk;
+            With.Body.Request = Body.Talk;
     }
 
     /// <summary>
@@ -182,9 +182,9 @@ public sealed class Conversation
 
     private void Stand()
     {
-        _player.Asked = PlayerMotion.Idle;
+        _player.Asked = Body.Idle;
         if (With is not null)
-            With.Body.Request = PlayerMotion.Idle;
+            With.Body.Request = Body.Idle;
     }
 
     /// <summary>Passes the script's cues on, noting whether it played an animation (<c>ApplyStimulus</c>, <c>unkac</c>).</summary>

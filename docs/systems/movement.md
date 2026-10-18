@@ -14,8 +14,28 @@ Ported from `Actor::Move`, the player loop in `PlayerData.cpp`, `collide*.cpp` a
   - The edge test places its closest point with the sweep's parameter instead of the edge's.
   - A bounce off an edge or corner only turns velocity already heading away from it.
   - A point exactly on a triangle's edge counts as inside for only half the triangles. A sphere balanced exactly on some shared edges can drop through.
-- Other bodies, wanderers for now, move by the same rules, steered by a goal instead of a stick, and push each other and the player apart: see [wanderers](wanderers.md).
+- Other bodies, wanderers and cut-scenes' actors for now, move by the same rules, steered by a goal instead of a stick, and push each other and the player apart: see [wanderers](wanderers.md).
 - Left out: the original only collides with the chunk the player is in, and keeps him 0.05 from its edges. The port collides with every loaded chunk.
+
+## Bodies and the player
+
+The original has one body struct (`playerData`) and one loop over them (`ProcessPlayers`); the player is the first. The port has one `Body`, and `PlayerMotion` drives the player's.
+
+- `Body` is what every body shares: its sphere (gravity 0.003), heading, request, pace and scale, and the step's parts in the original's order: the world's collision, the push down on plain collision (`Press`), the animation's root motion (`Animate`) and the move along the heading, kept in its chunk (`Advance`). It holds `Actor::Move`'s stick read (`Go`: 0.05 deadzone, running from 0.8, 20° a frame) and `SetFacing`'s turn where it stands (`TurnToward`, 10° a frame), the request numbers and the step distance. `Body.Step` is a body steered toward a goal or a heading (`MoveTo`); combat's enemies will step that way too.
+- `PlayerMotion` drives the player's `Body` from a `MoveInput` (the stick, sneaking, and whether something else has the stick) and the way the camera looks. What only he does is its own: the stick read along the camera's look, sneaking, a conversation's turn and request, keeping to the ground on plain collision, and the fall back to where he last stood. It knows nothing of the trek camera, so combat's `Actor::Move` can drive it.
+- Trek decides what the controls do to its camera (`TrekLoop.StepPlayer`): R orbits it (`PlayerInput.Orbit`), otherwise it follows, and the player standing anchors it, before he moves.
+- Turning across the ground is `Facing` at the core's root: `Turn` (`some_trig_func_2`), `Arrived` and `Rotate`, which the follow camera shares.
+- Unlike the original, a fall faster than 0.3 a tick puts him back where he last stood. The original's `ConfirmPlayerWithinZone` (`0x8000c078`) instead stops him, lifts him to 50 and sets him down at his X and Z (mode 0), when he falls below −50 or faster than 0.3 a tick. Not ported yet.
+
+## Setting a body down
+
+`Body.SetDown`, the original's `0x80011a64` (`Actor::CheckCollision`, `player.cpp`): `(body, y, mode, tries)`.
+
+- With mode 1, it sweeps the body's sphere at its X and Z from `y` + 1 to `y` − 1. Missing, or with mode 0, it sweeps from a height of 100 to −100, whatever the body's own. It skips see-through triangles (0x200) and takes the first that faces the sweep in its chunk's grid order (`Collision.SweepBlocked`, `0x800a42e8`), resting at the hit plus the normal times the radius, 0.01 higher.
+- A sweep from on high that misses moves the body by up to 0.25 each way, (sin a + 1) / 2 · r in X and (cos a + 1) / 2 · r in Z, with a up to 2π and r up to 0.25 drawn from the game's generator, and tries again, until the fifth sweep from on high (counting from 1 after a mode-1 miss). The moves add up, and if every try misses the body stays where they took it, at its own height.
+- Its callers: `TeleportPlayer` with mode 1 at the arrival's height less the radius, and again with mode 0 if that misses ([map objects](map-objects.md)); `AllocWanderer` with mode 1 at the party's height ([wanderers](wanderers.md)); and with mode 0 a cut-scene's `CreateActor` ([scripts](scripts.md)), a body giving up its goal (`Body.GiveUp`, `0x80015c28`), `InitGameTrek` and combat's placing (`0x8005c474`, `0x8005fe04`).
+- The port's grid order isn't the original's in general, but here they agree: emulating the original's own grid from each Borg9's cells, its first hit matches the port's first in all but two of the 31 arrivals and spawns where first and nearest differ, and those two by a few hundredths. Where they differ the first can be well below the nearest: three arrivals (`gates\`, `doorfromP`, `libraryEnt3`) rest on a lower floor than the one just under the point, and two wanderers' spawns (in 0x10E1 and 0x1129) 15 and 21 lower, as the original's own order has it.
+- The port's sweep covers every loaded chunk; the original's covers the body's chunk alone. A body giving up its goal draws no tries to the side, having no stream to draw from. The teleport and the cut-scene draw from the world stream, a wanderer's spawn from the wandering one.
 
 ## Shadows
 

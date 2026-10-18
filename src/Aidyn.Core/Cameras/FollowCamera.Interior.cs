@@ -1,5 +1,4 @@
 using System.Numerics;
-using Aidyn.Core.Movement;
 using Aidyn.Core.Physics;
 
 namespace Aidyn.Core.Cameras;
@@ -79,7 +78,7 @@ public sealed partial class FollowCamera
         var reach = from.Length();
         if (reach > 1e-6f && to.LengthSquared() > 1e-12f)
         {
-            var turned = PlayerMotion.Turn(from, to, MathF.PI / 180) * reach;
+            var turned = Facing.Turn(from, to, MathF.PI / 180) * reach;
             Position.X = Aim.X + turned.X;
             Position.Z = Aim.Z + turned.Y;
         }

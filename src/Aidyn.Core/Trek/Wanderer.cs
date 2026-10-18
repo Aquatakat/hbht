@@ -212,7 +212,7 @@ public sealed class Wanderer
 
         if (!Hunts && playerProx < FaceDistance)
         {
-            Body.Request = PlayerMotion.Idle;
+            Body.Request = Body.Idle;
             Body.Face(new Vector2(tick.Player.X - at.X, tick.Player.Z - at.Z));
         }
 
@@ -273,9 +273,9 @@ public readonly record struct NoticeRanges(float Walking, float Sneak)
     /// <summary>The range for what the player asks for.</summary>
     public float For(int request) => request switch
     {
-        PlayerMotion.Run => Running,
-        PlayerMotion.Walk => Walking,
-        PlayerMotion.Sneak => Sneaking,
+        Body.Run => Running,
+        Body.Walk => Walking,
+        Body.Sneak => Sneaking,
         _ => Other,
     };
 

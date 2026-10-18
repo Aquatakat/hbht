@@ -1,5 +1,4 @@
 using System.Numerics;
-using Aidyn.Core.Physics;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 
@@ -37,25 +36,4 @@ public sealed record TeleportArrival(MapSetRecord Set, ChunkEntry Chunk, Vector3
         plugins.TryGet<MapRecord>(MapRecord.MapOf(voxel)) is { } map
             ? map.Objects.OfType<ReferencePointObject>().FirstOrDefault(o => o.Index == MapRecord.IndexOf(voxel))
             : null;
-
-    /// <summary>
-    /// Sets a body down where it arrives (<c>Actor::CheckCollision</c>): a sphere swept from 1 above to 1
-    /// below where its bottom would be with its centre at <paramref name="point"/>, then, missing, from a
-    /// height of 100 to −100. It rests on what it hits, 0.01 above. Null if it hits nothing either way.
-    /// The original takes the first triangle its grid lists that the sweep hits; the port takes the
-    /// nearest, which its own grid's order can't change.
-    /// </summary>
-    /// <param name="point">In the world's coordinates.</param>
-    public static Vector3? Settle(CollisionWorld world, Vector3 point, float radius)
-    {
-        var bottom = point.Y - radius;
-        if (Sweep(new Vector3(point.X, bottom + 1, point.Z), new Vector3(point.X, bottom - 1, point.Z)) is { } near)
-            return near;
-        return Sweep(new Vector3(point.X, 100, point.Z), new Vector3(point.X, -100, point.Z));
-
-        Vector3? Sweep(Vector3 from, Vector3 to) =>
-            SpherePhysics.SweepNearest(world, from, to, radius, false, -1, out var hit, out var normal)
-                ? hit + normal * radius + new Vector3(0, 0.01f, 0)
-                : null;
-    }
 }

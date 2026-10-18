@@ -192,7 +192,7 @@ public sealed class ZoneEngineTests(Na10Import fixture)
 
         public int StateLength => 60;
 
-        public float Tick(int request) => request switch { PlayerMotion.Walk => 0.03f, PlayerMotion.Run => 0.06f, _ => 0 };
+        public float Tick(int request) => request switch { Body.Walk => 0.03f, Body.Run => 0.06f, _ => 0 };
     }
 
     [Fact]

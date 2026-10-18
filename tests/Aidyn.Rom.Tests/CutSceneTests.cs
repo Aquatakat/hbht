@@ -43,7 +43,7 @@ public sealed class CutSceneTests(Na10Import fixture)
 
         public int StateLength => 20;
 
-        public float Tick(int request) => request is PlayerMotion.Walk or PlayerMotion.Run ? 0.05f : 0;
+        public float Tick(int request) => request is Body.Walk or Body.Run ? 0.05f : 0;
     }
 
     private (CutScene Scene, CueLog Cues) Play(RecordId script)
@@ -109,7 +109,7 @@ public sealed class CutSceneTests(Na10Import fixture)
         Assert.False(alaron.SnapNextFace);
         Assert.True(alaron.Turning);
         Assert.Equal("Turn.", scene.Page!.Line.Text);
-        Assert.Equal(PlayerMotion.Talk, alaron.Request);
+        Assert.Equal(Body.Talk, alaron.Request);
     }
 
     [Fact]
@@ -230,7 +230,7 @@ public sealed class CutSceneTests(Na10Import fixture)
         Assert.Equal(ScriptWait.Animation, scene.Runner.Wait);
         Ticks(scene, 1);
         Assert.NotEqual(ScriptWait.Animation, scene.Runner.Wait);
-        Assert.Equal(PlayerMotion.Idle, alaron.Request);
+        Assert.Equal(Body.Idle, alaron.Request);
 
         // The fade-in's over by now (60 ticks), so the script's fade dips: down for 60 ticks and up for 60.
         Ticks(scene, 40);

@@ -22,9 +22,6 @@ public sealed class Wanderers(PluginSet plugins)
     /// </summary>
     public const int OriginalLimit = 39;
 
-    /// <summary>How far from the camera's aim bodies move and animate, in trek (<c>PlayerHandler.float_0x68</c>).</summary>
-    public const float StepDistance = 30;
-
     /// <summary>A dialogue entity's perception (<c>EntityDB::GetPerception</c>).</summary>
     public const int DialoguePerception = 10;
 
@@ -36,12 +33,13 @@ public sealed class Wanderers(PluginSet plugins)
     /// <summary>
     /// Gives the chunk's monster parties their bodies (<c>look_for_monsterparties</c>, <c>AllocWanderer</c>):
     /// each that's active and not remembered as beaten, however many there are already. Its body stands at the
-    /// party's position, set down on the ground from the party's height, and makes for its home node.
+    /// party's position, set down on the ground near the party's height, and makes for its home node.
     /// The chunk's collision must be in <paramref name="world"/>.
     /// </summary>
     /// <returns>Those added.</returns>
     /// <param name="cellSize">The map set's chunks' size, which keeps the bodies inside their chunk.</param>
-    public IReadOnlyList<Wanderer> Load(LoadedMap map, float cellSize, CollisionWorld world, MapObjectMemory memory)
+    /// <param name="random">What a set-down that finds no ground draws its tries to the side from.</param>
+    public IReadOnlyList<Wanderer> Load(LoadedMap map, float cellSize, CollisionWorld world, MapObjectMemory memory, IRandom? random = null)
     {
         var added = new List<Wanderer>();
         foreach (var party in map.Objects.OfType<MonsterPartyObject>())
@@ -54,14 +52,9 @@ public sealed class Wanderers(PluginSet plugins)
             if (look is null)
                 continue;
             var at = map.Origin + party.Position;
-            var body = new Body(at, look.Radius, look.Scale)
-            {
-                Bounds = (new Vector2(map.Origin.X, map.Origin.Z) + new Vector2(Body.EdgeMargin),
-                    new Vector2(map.Origin.X, map.Origin.Z) + new Vector2(cellSize - Body.EdgeMargin)),
-            };
-            // Actor::CheckCollision: from 1 above the party to 1 below, or failing that from on high.
-            if (TeleportArrival.Settle(world, at with { Y = at.Y + look.Radius }, look.Radius) is { } ground)
-                body.Sphere.Position = ground;
+            var body = new Body(at, look.Radius, look.Scale) { Bounds = Body.ChunkBounds(map.Origin, cellSize) };
+            // AllocWanderer sweeps from 1 above the party to 1 below, its sphere's centre there, or failing that from on high.
+            body.Sphere.Position = Body.SetDown(world, at, look.Radius, random, near: at.Y).Position;
             var entity = plugins.TryGet<EntityRecord>(party.Entity);
             var perception = entity?.Perception ?? DialoguePerception;
             var wanderer = new Wanderer(map, party, look, body, perception) { Sounds = entity?.Sounds };
@@ -138,8 +131,8 @@ public sealed class Wanderers(PluginSet plugins)
 
     /// <summary>
     /// Steps the bodies after the player's own step, as <c>ProcessPlayers</c> does each tick: the
-    /// player is pushed out of the bodies in his chunk, then each body within <see cref="StepDistance"/>
-    /// of the camera's aim moves and is pushed out of the rest. Those further off stand still.
+    /// player is pushed out of the bodies in his chunk, then each body <see cref="Body.Near"/> the
+    /// camera's aim moves and is pushed out of the rest. Those further off stand still.
     /// </summary>
     /// <param name="player">The player's sphere.</param>
     /// <param name="playerStart">Where the player began the tick.</param>
@@ -159,7 +152,7 @@ public sealed class Wanderers(PluginSet plugins)
         for (var i = 0; i < _all.Count; i++)
         {
             var body = _all[i].Body;
-            if (Vector3.Distance(body.Sphere.Position, aim) > StepDistance)
+            if (!body.Near(aim))
                 continue;
             var start = body.Sphere.Position;
             body.Step(world, animation(_all[i]));

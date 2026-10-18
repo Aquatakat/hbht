@@ -79,7 +79,7 @@ public sealed class CutSceneActor
         if (_stimulus > 0)
             _stimulus--;
         else
-            Body.Request = PlayerMotion.Idle;
+            Body.Request = Body.Idle;
     }
 }
 

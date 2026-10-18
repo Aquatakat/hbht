@@ -355,11 +355,11 @@ public sealed class ConversationTests(Na10Import fixture)
 
         // Both asked to stand, then the line of Alaron's showing: he talks.
         Assert.NotNull(during);
-        Assert.Equal(PlayerMotion.Idle, during!.Value.Asked);
-        Assert.Equal(PlayerMotion.Idle, during.Value.Request);
+        Assert.Equal(Body.Idle, during!.Value.Asked);
+        Assert.Equal(Body.Idle, during.Value.Request);
         Assert.Equal("Hmm.", conversation.Runner.Page!.Line.Text);
-        Assert.Equal(PlayerMotion.Talk, s.Player.Asked);
-        Assert.Equal(PlayerMotion.Idle, s.Body.Request);
+        Assert.Equal(Body.Talk, s.Player.Asked);
+        Assert.Equal(Body.Idle, s.Body.Request);
     }
 
     [Fact]
@@ -368,19 +368,19 @@ public sealed class ConversationTests(Na10Import fixture)
         var s = Make(ConversationPlugins.Talk);
         var conversation = s.Talk();
         conversation.Press(conversation.Runner.Continue);
-        Assert.Equal(PlayerMotion.Idle, s.Body.Request);
+        Assert.Equal(Body.Idle, s.Body.Request);
 
         // "Woof.", a dialogue entity's.
         conversation.Press(conversation.Runner.Continue);
         Assert.Equal("Woof.", conversation.Runner.Page!.Line.Text);
-        Assert.Equal(PlayerMotion.Idle, s.Body.Request);
-        Assert.Equal(PlayerMotion.Idle, s.Player.Asked);
+        Assert.Equal(Body.Idle, s.Body.Request);
+        Assert.Equal(Body.Idle, s.Player.Asked);
 
         // "Bye.", Trahern's: the wanderer talks, and the player stands.
         conversation.Press(conversation.Runner.Continue);
         Assert.Equal("Bye.", conversation.Runner.Page!.Line.Text);
-        Assert.Equal(PlayerMotion.Talk, s.Body.Request);
-        Assert.Equal(PlayerMotion.Idle, s.Player.Asked);
+        Assert.Equal(Body.Talk, s.Body.Request);
+        Assert.Equal(Body.Idle, s.Player.Asked);
     }
 
     [Fact]
@@ -391,8 +391,8 @@ public sealed class ConversationTests(Na10Import fixture)
         var conversation = s.Talk();
         conversation.Press(() => { });
         Assert.Equal("Hello.", conversation.Runner.Page!.Line.Text);
-        Assert.Equal(PlayerMotion.Talk, s.Body.Request);
-        Assert.Equal(PlayerMotion.Idle, s.Player.Asked);
+        Assert.Equal(Body.Talk, s.Body.Request);
+        Assert.Equal(Body.Idle, s.Player.Asked);
     }
 
     [Fact]
@@ -405,13 +405,13 @@ public sealed class ConversationTests(Na10Import fixture)
         Assert.Contains(new AnimateCue(null, 5), s.Cues.Seen);
         Assert.Equal("Watch.", conversation.Runner.Page!.Line.Text);
         Assert.Equal(ConversationPlugins.Trahern, conversation.Runner.Page.Line.Speaker);
-        Assert.Equal(PlayerMotion.Idle, s.Body.Request);
-        Assert.Equal(PlayerMotion.Idle, s.Player.Asked);
+        Assert.Equal(Body.Idle, s.Body.Request);
+        Assert.Equal(Body.Idle, s.Player.Asked);
 
         // The next press has none, so Trahern talks.
         conversation.Press(conversation.Runner.Continue);
         Assert.Equal("Ta-da.", conversation.Runner.Page!.Line.Text);
-        Assert.Equal(PlayerMotion.Talk, s.Body.Request);
+        Assert.Equal(Body.Talk, s.Body.Request);
     }
 
     [Fact]
@@ -424,8 +424,8 @@ public sealed class ConversationTests(Na10Import fixture)
         conversation.Press(() => conversation.Runner.Choose(0));
 
         Assert.Equal("Reply.", conversation.Runner.Page!.Line.Text);
-        Assert.Equal(PlayerMotion.Talk, s.Body.Request);
-        Assert.Equal(PlayerMotion.Idle, s.Player.Asked);
+        Assert.Equal(Body.Talk, s.Body.Request);
+        Assert.Equal(Body.Idle, s.Player.Asked);
     }
 
     [Fact]
@@ -435,8 +435,8 @@ public sealed class ConversationTests(Na10Import fixture)
         var conversation = s.Talk();
         conversation.Press(() => conversation.Runner.Choose(1));
         Assert.True(conversation.Ended);
-        Assert.Equal(PlayerMotion.Idle, s.Body.Request);
-        Assert.Equal(PlayerMotion.Idle, s.Player.Asked);
+        Assert.Equal(Body.Idle, s.Body.Request);
+        Assert.Equal(Body.Idle, s.Player.Asked);
     }
 
     // Ticking.
@@ -447,15 +447,15 @@ public sealed class ConversationTests(Na10Import fixture)
         var s = Make(ConversationPlugins.Talk);
         var conversation = s.Talk();
         conversation.Press(conversation.Runner.Continue);
-        Assert.Equal(PlayerMotion.Talk, s.Player.Asked);
+        Assert.Equal(Body.Talk, s.Player.Asked);
         s.Body.Held = false;
         s.Wanderer.Calmed = false;
-        s.Body.Request = PlayerMotion.Talk;
+        s.Body.Request = Body.Talk;
 
         Assert.False(conversation.Tick());
 
-        Assert.Equal(PlayerMotion.Idle, s.Player.Asked);
-        Assert.Equal(PlayerMotion.Idle, s.Body.Request);
+        Assert.Equal(Body.Idle, s.Player.Asked);
+        Assert.Equal(Body.Idle, s.Body.Request);
         Assert.True(s.Body.Held);
         Assert.True(s.Wanderer.Calmed);
     }
@@ -598,15 +598,15 @@ public sealed class ConversationTests(Na10Import fixture)
 
         Assert.Null(sign.With);
         Assert.Equal(ScriptStatus.Showing, sign.Runner.Status);
-        Assert.Equal(PlayerMotion.Idle, s.Player.Asked);
+        Assert.Equal(Body.Idle, s.Player.Asked);
         Assert.False(s.Body.Held);
 
         // Trahern's line, then Alaron's: only he talks, as no one stands for the others.
         sign.Press(sign.Runner.Continue);
         Assert.Equal("Hmm.", sign.Runner.Page!.Line.Text);
-        Assert.Equal(PlayerMotion.Talk, s.Player.Asked);
+        Assert.Equal(Body.Talk, s.Player.Asked);
         sign.Press(sign.Runner.Continue);
-        Assert.Equal(PlayerMotion.Idle, s.Player.Asked);
+        Assert.Equal(Body.Idle, s.Player.Asked);
 
         s.Camera.Pitch = 40;
         s.Camera.Snap = 0;

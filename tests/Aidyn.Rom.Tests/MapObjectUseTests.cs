@@ -6,6 +6,7 @@ using Aidyn.Core.Characters;
 using Aidyn.Core.Items;
 using Aidyn.Core.MapObjects;
 using Aidyn.Core.Physics;
+using Aidyn.Core.Movement;
 using Aidyn.Core.Rng;
 using Aidyn.Core.Ui;
 using Aidyn.Plugins;
@@ -853,11 +854,11 @@ public sealed class MapObjectUseTests(Na10Import fixture)
             var world = Around(arrival.Set, arrival.Chunk);
             var point = arrival.Set.Origin(arrival.Chunk.Row, arrival.Chunk.Column) + arrival.Position;
             total++;
-            var settled = TeleportArrival.Settle(world, point, 0.5f);
-            if (settled is null)
+            var (settled, grounded) = Body.SetDown(world, point, 0.5f, null, near: point.Y - 0.5f);
+            if (!grounded)
                 floating.Add($"{id} {t.Name}");
             else
-                Assert.True(new Vector2(settled.Value.X - point.X, settled.Value.Z - point.Z).Length() <= 0.5f + 1e-3f);
+                Assert.True(new Vector2(settled.X - point.X, settled.Z - point.Z).Length() <= 0.5f + 1e-3f);
         }
         Assert.Equal(894, total);
         // Four have a thin floor triangle under them that the sphere's front point misses, since the
