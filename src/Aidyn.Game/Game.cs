@@ -566,6 +566,7 @@ public partial class Game : Node3D, ITrekHost
         var camera = _camera!.Current.GlobalTransform;
         foreach (var scene in Streamer!.DrawnScenes(camera.Origin, -camera.Basis.Z))
             scene.Draw();
+        _ringView?.Draw();
     }
 
     /// <summary>
@@ -732,7 +733,9 @@ public partial class Game : Node3D, ITrekHost
             chunks.PutOut(view);
         RepeatStick(delta);
         // From where the scenery is drawn this frame: between ticks, the camera interpolated.
-        Billboards.Face(chunks.BillboardFacings, _camera.Current.GetGlobalTransformInterpolated().Origin);
+        var eye = _camera.Current.GetGlobalTransformInterpolated().Origin;
+        Billboards.Face(chunks.BillboardFacings, eye);
+        _ringView?.Face(eye);
 
         if (_overlay.Visible)
             UpdateOverlay(chunks, focus);

@@ -31,7 +31,7 @@ The cloud cover isn't weather: it's set to 1 once (`0x80027390`) and nothing cha
 - **On entering a chunk of another terrain** (`World::SetTerrain`, `0x8007b828`): it moves the part of the day it remembers on by one, so `World.Update` sees a change and rolls. A chunk of the same terrain rolls nothing. That covers walking, doors, cut-scenes staged elsewhere and combat's arenas.
 - **After camping** (`GameState.Lapse`, `0x8007c098`, eight hours), once, if the part of the day is another.
 - **At a new game** (`World.Init`, `0x8007b7a0`, then `World.SetDate`, `0x8007b914`, at noon): the world starts at part 0 and terrain 0, so setting noon is a change, and the weather may change by season 0's and terrain 0's chances before the first chunk's terrain rolls again.
-- **Each combatant's turn** moves the clock on by 600 (`World.AdvanceTurn`, `0x8007c01c`), which can roll. Not ported: combat.
+- **Each combatant's turn** moves the clock on by 600 (`World.AdvanceTurn`, `0x8007c01c`), which can roll as `World.Update` follows; the first turn doesn't. Ported as `GameState.AdvanceTurn` ([combat](combat.md#a-turn)).
 - **Nothing else.** No script command, map object or flag sets the weather. The end of a Wind enchantment (effect 0xB in `0x800707ec`) sets only the world's +0x4 to fog. Not ported: spells.
 
 While the lock (+0x5) is up, the part of the day doesn't change and the weather doesn't roll. Not ported: the spells.

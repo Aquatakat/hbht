@@ -2,7 +2,9 @@ using System.Numerics;
 using Aidyn.Core.Actors;
 using Aidyn.Core.Cameras;
 using Aidyn.Core.Chunks;
+using Aidyn.Core.Movement;
 using Aidyn.Core.Physics;
+using Aidyn.Core.Trek;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 
@@ -16,8 +18,8 @@ namespace Aidyn.Core.Combat;
 /// docs/systems/combat.md maps the original's.
 /// </summary>
 /// <remarks>
-/// The states are filled in session by session (the roadmap's M3): so far the intro, a turn that does nothing but pause,
-/// the pause and leaving.
+/// The states are filled in session by session (the roadmap's M3): so far the intro, a turn the player walks in its field
+/// or skips, the AI's turn that ends at once, the pause and leaving.
 /// </remarks>
 public sealed partial class Battle
 {
@@ -91,7 +93,7 @@ public sealed partial class Battle
     public TurnOrder Order { get; } = new();
 
     /// <summary>The camera's focus in the arena's cells (<c>+0x18</c>, <c>+0x1C</c>): the current combatant's, or its target's.</summary>
-    public Vector2 Focus { get; private set; }
+    public Vector2 Focus { get; internal set; }
 
     /// <summary>The arena's grid (<c>+0x3C</c>).</summary>
     public ArenaGrid Grid { get; }
@@ -193,21 +195,30 @@ public sealed partial class Battle
     }
 
     /// <summary>
-    /// One tick (<c>Combat.Frame</c>): the camera, the bodies, then the state's step, and the fade.
+    /// One tick (<c>Combat.Frame</c>): the controls, the bodies (each held in its field and pushed out of the others,
+    /// <c>ProcessPlayers</c>), the camera, then the state's step, and the fade.
     /// </summary>
     /// <param name="arena">The zone engine the arena is loaded in.</param>
     /// <param name="skyDrawn">Whether the arena's sky is drawn, for its weather.</param>
     /// <param name="motion">Each combatant's animations, or null for one with none.</param>
-    public void Tick(ZoneEngine arena, bool skyDrawn, Func<Combatant, IActorMotion?> motion)
+    /// <param name="readInput">The player's controls, read only in a turn the player plays, once the screen has faded in.</param>
+    public void Tick(ZoneEngine arena, bool skyDrawn, Func<Combatant, IActorMotion?> motion, Func<PlayerInput>? readInput = null)
     {
+        // Combat.Controls: the controls come first, once the screen has faded in.
+        if (State == CombatState.Turn && !Fade.Fading)
+            InputTurn(readInput?.Invoke() ?? default);
         // Bgm.Update waits for the fade, so the battle's music starts once it's in.
         arena.Audio.HoldMusic = Fade.Fading;
         arena.Listen();
         var keys = arena.Keys;
-        foreach (var combatant in Combatants)
+        var crowd = Crowd();
+        for (var i = 0; i < crowd.Count; i++)
         {
+            var combatant = _crowd[i];
+            var start = combatant.Body.Sphere.Position;
             var animation = motion(combatant) is { } m ? keys.Sounding(m, combatant.Audio, combatant.Sounds, combatant.Body.Sphere) : IActorMotion.Still;
             combatant.Body.Step(World, animation);
+            Movement.Crowd.Push(crowd, i, start);
         }
         CombatCamera.Step(this);
         arena.StepSounds(Camera.Aim);
@@ -216,44 +227,38 @@ public sealed partial class Battle
         Fade.Step();
     }
 
+    private readonly List<Combatant> _crowd = [];
+
+    /// <summary>The combatants' bodies as they push each other, in slot order.</summary>
+    private List<CrowdMember?> Crowd()
+    {
+        _crowd.Clear();
+        _crowd.AddRange(Combatants);
+        return [.. _crowd.Select(c => (CrowdMember?)new CrowdMember(c.Body.Sphere, c.Body.Scale, null))];
+    }
+
     /// <summary>The state's step.</summary>
     private void Step()
     {
         switch (State)
         {
             case CombatState.Intro when !Fade.Fading:
-                // Combat.StateIntro: a turn for a combatant the player controls, the AI's for one it plays (Sholeh too).
+                // Combat.StateIntro: a turn for a combatant the player controls, the AI's for one it plays. It sets the
+                // state alone, not the state to go on to.
                 State = Current is { Controlled: true } ? CombatState.AI : CombatState.Turn;
                 break;
-            case CombatState.AI:
+            case CombatState.AI when Current is { } current:
                 // Until the AI (session 6), an enemy's turn ends at once.
-                NextTurn();
+                EndTurn(current);
+                break;
+            case CombatState.Victory or CombatState.Defeat when !Fade.Fading:
+                // What follows a win or a loss is sessions 5 and 7's; until then, the battle leaves.
+                State = CombatState.Leave;
                 break;
             case CombatState.Pause or CombatState.PauseRequested:
                 _idle++;
                 break;
         }
-    }
-
-    /// <summary>
-    /// The turn passes to the next in the round, a new round built when it runs out. A stand-in for
-    /// <c>Combatant.EndTurn</c> and <c>TurnOrder.Advance</c>, whose rules are session 3's: here only enemies' turns end.
-    /// </summary>
-    private void NextTurn()
-    {
-        Order.Now++;
-        if (Order.Now >= Order.Turns.Count)
-        {
-            Order.Toggle = !Order.Toggle;
-            Order.Build(this, Game.Random.Combat);
-        }
-        Current = Order.Current(this);
-        if (Current is { } next)
-        {
-            Focus = next.Cell;
-            Write(CombatText(BeginsAction).Replace("%s", next.Sheet.Name, StringComparison.Ordinal));
-        }
-        State = Current is { Controlled: true } ? CombatState.AI : CombatState.Turn;
     }
 
     /// <summary>

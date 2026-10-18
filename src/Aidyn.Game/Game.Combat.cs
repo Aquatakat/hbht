@@ -14,6 +14,7 @@ namespace Aidyn.Game;
 public partial class Game
 {
     private ChunkStreamerView? _arenaView;
+    private CombatRingView? _ringView;
     private readonly Dictionary<Combatant, CombatantView> _combatantViews = [];
 
     /// <summary>The battle playing, in place of trek's world.</summary>
@@ -51,6 +52,8 @@ public partial class Game
             AddChild(view);
             view.ResetPhysicsInterpolation();
         }
+        _ringView = new CombatRingView(_models!);
+        AddChild(_ringView);
         SyncBattle();
         _camera.ResetPhysicsInterpolation();
     }
@@ -79,6 +82,7 @@ public partial class Game
             view.Sync();
             view.Draw(_world, battle.Camera.Aim);
         }
+        _ringView?.Sync(battle);
         _camera!.Sync();
         ShowFade(battle.Fade.Brightness);
     }
@@ -96,11 +100,16 @@ public partial class Game
             view.Light(arena.Lights, arena.Chunks, party: !view.Combatant.Hostile);
     }
 
-    /// <summary>A press in combat: Start asks for the pause menu (combat's state 27, then 14).</summary>
+    /// <summary>
+    /// A press in combat: Start asks for the pause menu (combat's state 27, then 14), and Z (the left trigger) skips a
+    /// turn the player plays (<c>Combat.SkipTurn</c>).
+    /// </summary>
     private void CombatInput(MenuAction action)
     {
         if (action == MenuAction.Start)
             Battle!.Pause();
+        else if (action == MenuAction.TabPrevious)
+            Battle!.Skip();
     }
 
     /// <summary>
@@ -112,6 +121,8 @@ public partial class Game
         foreach (var view in _combatantViews.Values)
             view.QueueFree();
         _combatantViews.Clear();
+        _ringView?.QueueFree();
+        _ringView = null;
         _arenaView?.QueueFree();
         _arenaView = null;
         _sky!.ClearSky();

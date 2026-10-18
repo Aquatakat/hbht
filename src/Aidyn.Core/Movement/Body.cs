@@ -99,6 +99,13 @@ public sealed class Body
     public (Vector2 Min, Vector2 Max)? Bounds { get; set; }
 
     /// <summary>
+    /// The field it's held in, or null for none (<c>Body.SetGoal</c>, <c>0x80015BD4</c>: the centre at <c>+0x274</c>, the
+    /// radius at <c>+0x280</c>, and flag 4): a combatant's field of influence, a sphere about where it stood as its turn
+    /// began (<see cref="KeepInField"/>).
+    /// </summary>
+    public (Vector3 Centre, float Radius)? Field { get; set; }
+
+    /// <summary>
     /// How many animation ticks it plays per tick, which scales its speed with its steps. 1 is the
     /// original's; the brisk pace setting plays the player quicker (ADR 0018).
     /// </summary>
@@ -230,6 +237,46 @@ public sealed class Body
         SpherePhysics.Step(world, Sphere);
         Press();
         Advance(Animate(animation));
+        KeepInField();
+    }
+
+    /// <summary>
+    /// The stick of a body the player drives that isn't trek's player, a party member's in its turn in combat
+    /// (<c>Body.ApplyInput</c>, <c>0x80014FEC</c>, trek's own stick handler): within the deadzone it stands; past it, up
+    /// on the stick is the way the camera looks, and it walks, runs from 0.8, or sneaks with Z held, turning 10° a tick.
+    /// <see cref="Step"/> moves it after.
+    /// </summary>
+    /// <param name="look">The way the camera looks across the ground.</param>
+    public void Drive(MoveInput input, Vector2 look)
+    {
+        Request = Idle;
+        if (input.Held)
+            return;
+        var tilt = input.Stick.Length();
+        if (tilt <= Deadzone)
+            return;
+        Go(tilt, Vector2.Normalize(Facing.Rotate(new Vector2(-input.Stick.X, input.Stick.Y), look.X, look.Y)), input.Sneak);
+    }
+
+    /// <summary>
+    /// Holds it in its <see cref="Field"/> once it has moved (<c>Body.ClampToGoal</c>, <c>0x80014518</c>, from
+    /// <c>ProcessPlayers</c> after the world's collision and its animation's step, before bodies push each other): the
+    /// distance from the centre is in 3D, and at the radius or past it, its X and Z are put back on the sphere along the
+    /// way it's off, its height, velocity and heading left as they are. So on a slope it reaches a little less far
+    /// across the ground, and at the edge it slides round as its stick pushes. A radius of 0 pins it to the centre.
+    /// </summary>
+    internal void KeepInField()
+    {
+        if (Field is not var (centre, radius))
+            return;
+        var off = Sphere.Position - centre;
+        var length = off.Length();
+        if (radius > length)
+            return;
+        if (length > 0)
+            off /= length;
+        Sphere.Position.X = centre.X + off.X * radius;
+        Sphere.Position.Z = centre.Z + off.Z * radius;
     }
 
     /// <summary>

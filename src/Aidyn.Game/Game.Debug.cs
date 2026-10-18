@@ -223,8 +223,9 @@ public partial class Game
         var local = chunk is null ? focus : focus - chunks.Origin(chunk);
         var motion = _player!.Motion;
         var sphere = motion.Sphere;
-        _overlay.Text = (Battle is { } battle ? $"battle in arena {battle.Arena.Number} ({battle.Arena.Chunk.Name}), {battle.State}, {battle.Current?.Sheet.Name ?? "no one"}'s turn: " +
-                $"{string.Join(", ", battle.Combatants.Select(c => $"{c.Slot} {c.Sheet.Name} ({c.Cell.X}, {c.Cell.Y}) at {Local(c.Body.Sphere.Position)}"))}, eye {Local(battle.Camera.Position)} aim {Local(battle.Camera.Aim)}{(battle.CanFlee ? "; can flee" : "")}\n" : "") +
+        _overlay.Text = (Battle is { } battle ? $"battle in arena {battle.Arena.Number} ({battle.Arena.Chunk.Name}), {battle.State}, {battle.Current?.Sheet.Name ?? "no one"}'s turn {battle.Order.Now + 1} of {battle.Order.Turns.Count}" +
+                $"{(battle.Current is { } now ? $", field {now.Radius} (ring {battle.Ring.RingRadius:F2}, {battle.Ring.Count} teardrops), moves {now.Moves}, {System.Numerics.Vector2.Distance(now.Cell, now.TurnStart):F2} from its start" : "")}\n" +
+                $"{string.Join(", ", battle.Combatants.Select(c => $"{c.Slot} {c.Sheet.Name} ({c.Cell.X:F2}, {c.Cell.Y:F2}) r {c.Radius}{(c.Engaged ? " engaged" : "")}"))}, eye {Local(battle.Camera.Position)} aim {Local(battle.Camera.Aim)}{(battle.CanFlee ? "; can flee" : "")}\n" : "") +
             (Scene is { } scene ?$"cut-scene {scene.Runner.Script.Id}, waiting for {scene.Runner.Wait?.ToString() ?? "nothing"}, {scene.Actors.Count} actors, {scene.Cameras.Count} camera moves\n" : "") +
             $"{chunks.Chunks.MapSet.Label} {chunk?.Name ?? "(no chunk)"}  " +
             $"({local.X:F1}, {local.Y:F1}, {local.Z:F1})  {Engine.GetFramesPerSecond()} fps" +

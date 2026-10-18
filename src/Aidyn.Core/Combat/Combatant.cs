@@ -51,7 +51,7 @@ public enum CombatantFlags : ushort
 /// a party member or an enemy on the field, with its character sheet, where it stands in the arena's cells, which way it
 /// faces, its field's radius and its flags, and its body in the arena (<c>Combat.Bodies</c>).
 /// </summary>
-public sealed class Combatant
+public sealed partial class Combatant
 {
     internal Combatant(int slot, Character sheet, EntityBody look, Body body, CombatantFlags flags)
     {
@@ -104,7 +104,10 @@ public sealed class Combatant
     /// <summary>Whether it can act (flag 1).</summary>
     public bool Active => Flags.HasFlag(CombatantFlags.Active);
 
-    /// <summary>Where it stands, in the arena's cells (<c>+0x00</c>, <c>+0x04</c>).</summary>
+    /// <summary>
+    /// Where it stands in the arena chunk's coordinates, a cell a unit (<c>+0x00</c>, <c>+0x04</c>): its body's X and Z as
+    /// they were last read (<see cref="SyncFromBody"/>). The cell it stands in is <see cref="ArenaGrid.CellOf"/> of each.
+    /// </summary>
     public Vector2 Cell { get; internal set; }
 
     /// <summary>Where it stood as its turn began (<c>+0x08</c>, <c>+0x0C</c>).</summary>
@@ -113,7 +116,25 @@ public sealed class Combatant
     /// <summary>Which way it faces, 0–7 from north round to north-west (<c>+0x14</c>).</summary>
     public int Direction { get; internal set; }
 
-    /// <summary>Its field's radius in cells (<c>+0x21</c>), which session 3 works out as its turn begins.</summary>
+    /// <summary>The way its body faces across the ground, as last read (<c>+0x18</c>, <c>+0x1C</c>).</summary>
+    public Vector2 Facing { get; internal set; }
+
+    /// <summary>
+    /// How many times it has moved this round, to 3 (<c>+0x22</c>); the next sets <see cref="CombatantFlags.Moved"/>
+    /// (<see cref="UpdateFromBody"/>). A round's end clears both.
+    /// </summary>
+    public int Moves { get; internal set; }
+
+    /// <summary>Whether it's gone, dead or fled (flag 6).</summary>
+    public bool Gone => Flags.HasFlag(CombatantFlags.Gone);
+
+    /// <summary>Whether it's performing, as the Troubadour (flag 2).</summary>
+    public bool Performing => Flags.HasFlag(CombatantFlags.Performing);
+
+    /// <summary>Whether an opponent was within reach as its radius was last worked out (flag 7).</summary>
+    public bool Engaged => Flags.HasFlag(CombatantFlags.Engaged);
+
+    /// <summary>Its field's radius in cells (<c>+0x21</c>), as <see cref="UpdateRadius"/> last worked it out.</summary>
     public int Radius { get; internal set; }
 
     /// <summary>How many cells across it stands on the grid (<c>+0x23</c>): the party 1, rats 2.</summary>

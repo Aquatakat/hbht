@@ -183,7 +183,7 @@ public sealed class GameSession
     /// holds everything. A cut-scene ticks on its stage; trek reopens the menu once it has faded in after the credits or the
     /// Theatre, then ticks.
     /// </summary>
-    /// <param name="readInput">The player's controls, read only when trek takes them.</param>
+    /// <param name="readInput">The player's controls, read only when trek or a battle's turn takes them.</param>
     /// <param name="frozen">Whether only time passes in trek, as while the free camera flies.</param>
     /// <param name="skyDrawn">Whether the stage's sky is drawn, for a cut-scene's weather.</param>
     /// <param name="actors">A cut-scene's actors' animations, or null for one that has none yet.</param>
@@ -212,7 +212,7 @@ public sealed class GameSession
         }
         if (Battle is { } battle)
         {
-            battle.Tick(Arena!, skyDrawn, combatants ?? (_ => null));
+            battle.Tick(Arena!, skyDrawn, combatants ?? (_ => null), readInput);
             if (battle.Paused && !MenuOpen && !_menuAsked)
             {
                 // Combat's states 14 and 27: the pause menu, mode 3.

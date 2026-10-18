@@ -433,7 +433,7 @@ The round isn't one shuffle: everyone's third turns come first, then their secon
 
 At the start of a turn, a circular **field of influence** appears around the active character. The character can move freely within it.
 
-**(decomp)** The field's radius comes only from **modified** Dexterity, via a lookup table:
+**(machine code)** The field's radius comes from **modified** Dexterity, via a lookup table:
 
 | Dexterity | 1–3 | 4–7 | 8–12 | 13–16 | 17–21 | 22–26 | 27–28 | 29–30 | 31–33 | 34–36 | 37+ |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -441,11 +441,11 @@ At the start of a turn, a circular **field of influence** appears around the act
 
 After that:
 
-- Haste adds its spell level to the radius, and Stellar Gravity subtracts its level.
-- The result is clamped between 1 and 13.
-- **(machine code)** Starting a turn next to an enemy limits the radius to 1, and ends a troubadour performance.
-- Starting a turn near the Shadow limits the radius to 1.
-- Pochanargat can't move at all.
+- Haste adds its spell level to the radius, and Stellar Gravity subtracts its level, leaving at least 1.
+- **(machine code)** Starting a turn next to an enemy limits the radius to 1, and ends a troubadour performance. Walking up to one during the turn doesn't.
+- Performing limits it to 1, and starting a turn near the Shadow too.
+- The result is at most 13. Pochanargat can't move at all.
+- **(machine code)** The field is a sphere about where the turn began: walking into its edge slides round it, and on a slope it reaches a little less far. The ring of teardrops stands just outside it, at the field's radius plus the body's, and stays where the turn began.
 
 Choosing any of these actions ends the turn:
 
@@ -467,7 +467,7 @@ Choosing any of these actions ends the turn:
 - **C-down** opens spells and skills: learned spells (only those whose reagent the party has), Troubadour, Healer by hand, and healing with herbs.
 - Both menus stay open only while their button is held.
 - Thrown flasks (Fire, Inferno, Sleep Gas, Acid) aren't in C-up. They're equipped to the weapon slot and used as an attack.
-- **Z** or **L** during movement skips the turn.
+- **Z** or **L** during movement skips the turn at once, with the stick centred; Z held with the stick sneaks, as in trek. **(machine code)**
 - **B**, **Z**, or **L** cancels an action that's been selected but not confirmed.
 - **Start** opens the pause menu. In battle it only offers the System and Party tabs.
 

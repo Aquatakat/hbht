@@ -312,6 +312,22 @@ public sealed class GameState : IScriptWorld
         WriteStateFlags();
     }
 
+    /// <summary>How far a combatant's turn moves the clock on (<c>World.AdvanceTurn</c>): 600, ten in-game seconds.</summary>
+    public const uint TurnTime = 600;
+
+    /// <summary>
+    /// A combatant's turn begins (<c>World.AdvanceTurn</c>, <c>0x8007C01C</c>, from <c>TurnOrder.Advance</c>): the clock
+    /// moves on <see cref="TurnTime"/> within the year (<c>World.WrapYear</c>), and <c>World.Update</c> follows, so the
+    /// weather rolls if the part of the day has changed and the calendar's and the rain's flags are written. Time played
+    /// doesn't move on, and no effects age.
+    /// </summary>
+    public void AdvanceTurn()
+    {
+        Clock.Time = (uint)((Clock.Time + (ulong)TurnTime) % GameClock.Year);
+        Weather?.Frame(Clock.Date.PartOfDay, Clock.Date.Season, Terrain(Weather.Terrain), Random.World, Random.Cosmetic);
+        WriteStateFlags();
+    }
+
     /// <summary>
     /// A character as their record starts them, wearing their gear, with their True Name by the flags
     /// (<c>Entity::Init</c>), or null if no plugin has the record.

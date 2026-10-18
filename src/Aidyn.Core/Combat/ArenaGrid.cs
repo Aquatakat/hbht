@@ -8,7 +8,7 @@ namespace Aidyn.Core.Combat;
 /// The arena's grid (<c>Combat.Current</c>'s <c>+0x3C</c>, <c>ArenaGrid</c>, <c>0x800674A0</c>–<c>0x80068F7C</c>): 100 × 100
 /// cells of a byte, a unit across in the arena chunk's own coordinates, holding the floor's height × 2 in the low seven bits
 /// and whether the cell is taken in bit 7. Cells the collision doesn't reach are taken. Combatants stand on it in whole
-/// cells (<see cref="Occupy"/>; freeing them as they move is session 3's), and paths and lines of sight run over it (sessions 3, 5 and 6).
+/// cells (<see cref="Occupy"/> and <see cref="Vacate"/>, as they move), and paths and lines of sight run over it (sessions 5 and 6).
 /// </summary>
 public sealed class ArenaGrid
 {
@@ -95,4 +95,28 @@ public sealed class ArenaGrid
             }
         }
     }
+
+    /// <summary>
+    /// Frees the cells <see cref="Occupy"/> takes (<c>ArenaGrid.Vacate</c>, <c>0x800682E0</c>), with the same test: none if
+    /// any of them is outside. A cell the collision doesn't reach is freed with the rest, as in the original.
+    /// </summary>
+    public void Vacate(int x, int z, int footprint)
+    {
+        if (!Inside(x, z) || !Inside(x + footprint - 1, z + footprint - 1))
+            return;
+        for (var i = x; i < x + footprint; i++)
+        {
+            for (var j = z; j < z + footprint; j++)
+            {
+                _cells[i * Side + j] &= unchecked((byte)~Taken);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The cell a coordinate stands in (<c>Combatant.CellX</c>, <c>CellZ</c>): rounded half away from zero, as a signed
+    /// byte, as the grid's functions take it.
+    /// </summary>
+    public static int CellOf(float coordinate) =>
+        (sbyte)(coordinate > 0 ? (byte)(int)(coordinate + 0.5f) : -(byte)(int)(0.5f - coordinate));
 }

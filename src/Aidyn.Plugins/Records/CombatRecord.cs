@@ -23,6 +23,10 @@ namespace Aidyn.Plugins.Records;
 /// Encounter flags that have the last word on fleeing (<c>Combat.ApplyFleeRuleByFlag</c>, <c>0x800D26A0</c>): the Goblin
 /// Ambush's forbids it, Lugash's and the Marquis's allow it.
 /// </param>
+/// <param name="Rooted">
+/// Entities whose field of influence is 0, who never move in battle (<c>Combatant.UpdateRadius</c>, by the entity list's
+/// place in <c>0x800E28EB</c>): Pochanargat. Null in a plugin from before it.
+/// </param>
 public sealed record CombatRecord(
     RecordId Id,
     RecordId Ally,
@@ -30,7 +34,8 @@ public sealed record CombatRecord(
     RecordId Fallback,
     IReadOnlyList<RecordId> NoFlee,
     IReadOnlyList<RecordId> Flee,
-    IReadOnlyList<EncounterFlee> FleeByEncounter);
+    IReadOnlyList<EncounterFlee> FleeByEncounter,
+    IReadOnlyList<RecordId>? Rooted = null);
 
 /// <summary>Whether the party can flee a battle under the encounter flag <paramref name="Flag"/>.</summary>
 public sealed record EncounterFlee(RecordId Flag, bool CanFlee);

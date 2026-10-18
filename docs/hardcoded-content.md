@@ -90,10 +90,10 @@ A feature on the entity, with the Horn of Kynon as its item. The fields:
 | Field | Value | Code |
 | --- | --- | --- |
 | `canFlee` | true while the Shadow is in the battle, before the encounter table has the last word | `look_for_boss_shadow` |
-| `aura` | Radius 10. At the start of each turn, each living combatant within it that isn't chaos-aligned takes 10 − distance damage, squared without the item. A hit that would kill ends the battle instead, as if the Shadow reached Alaron. | `shadow_combat_func` |
+| `aura` | Radius 10. At each round's end, first (`Combat.ShadowAura`, `0x80023AD0`, from `TurnOrder.EndRound`), each living combatant within it that isn't chaos-aligned takes 10 − distance damage, squared without the item. A hit that would kill ends the battle instead, as if the Shadow reached Alaron. | `shadow_combat_func` |
 | `slow` | Anyone within 10 has a move range of 1, with the "XShadow" message | `CombatEntity` turn setup, `movement_checking_shadow` |
 | `noPotionHealing` | Potions heal nothing while the Shadow is in the battle | `Entity::HealByPotion` |
-| `vanishAfterTurns` | 3, without the item. The "ShadowVanish" text shows and the battle ends. | `shadow_combat_func`, `merge_no_horn` |
+| `vanishAfterTurns` | 3 rounds, without the item. The "ShadowVanish" text shows and the battle ends. | `shadow_combat_func`, `merge_no_horn` |
 | `merge` | When the Shadow's and Alaron's collision radii + 0.5 overlap: with the item, the Shadow cinematic plays and Alaron merges; without it, the Shadow vanishes | `alaron_shadow_merge_attempt` |
 | `mergeBoost` | Alaron's base Strength +6, Intelligence, Willpower and Endurance +3, Stamina +10, protection +5. For each skill and weapon skill the Shadow has, Alaron gains the difference to the Shadow's, or 2 if that isn't positive. The shield skill is the same, but the code's test is inverted, so it applies when the Shadow has no shield skill. Each Shadow spell is learned, or raised by the difference or 2, up to 10. Then flag 566 is set. | `ShadowMergeBoost` |
 
@@ -112,6 +112,7 @@ A feature on the entity, with the Horn of Kynon as its item. The fields:
 | Sholeh, among an enemy list's first four, fights on the party's side | `Combat.FindSholeh` (`0x8005C6C0`) | entity list place 0xA4 | Fact: the combat record's `ally` |
 | Bystanders: the townsfolk, shopkeepers, trainers and the like are dropped from an enemy list | `Combat.IsExcludedEnemy` (`0x8005C0C0`) | entity list places 0–0x56, 0x82–0x90, 0x92–0x96 | Fact: the combat record's `bystanders` |
 | A monster party whose roll comes to none fights one Skeleton | `BattleSetup.FillEnemies` | entity list place 0xBB | Fact: the combat record's `fallback` |
+| Pochanargat never moves in battle: his field of influence is 0 | `Combatant.UpdateRadius` (`0x8005F29C`) | entity list place 0xAB (`0x800E28EB`) | Fact: the combat record's `rooted` |
 | The arena a battle takes by the terrain of the chunk it starts in | `BattleSetup.ChooseArena`, a switch | jump table `0x800CD400` | Fact: each terrain record's `arenas` |
 | Enemies with spells that use the AI's boss attack style: 13 entities, including Lugash and the Wight | `CombatAI::IsBoss` | Switch | To do |
 

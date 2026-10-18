@@ -138,10 +138,16 @@ public sealed partial class Battle
         if (Setup.EncounterFlag is { } flag && rules.FleeByEncounter.FirstOrDefault(e => e.Flag == flag) is { } rule)
             CanFlee = rule.CanFlee;
 
+        // Combat.CreateBody: each body as it's made works its radius out and is held in its field where it stands.
+        _rooted = rules.Rooted ?? [];
+        foreach (var combatant in Combatants)
+        {
+            combatant.UpdateRadius(this);
+            combatant.PlaceField(this);
+        }
         var at = Current?.Body.Sphere.Position ?? Arena.Origin + ZonePoint;
         CombatCamera = new CombatCamera(at, Current?.Body.Heading ?? Vector2.UnitX);
-        if (Current is { } first)
-            Write(CombatText(BeginsAction).Replace("%s", first.Sheet.Name, StringComparison.Ordinal));
+        StartFirstTurn();
         Fade.In(FadePerTick);
     }
 
@@ -246,6 +252,8 @@ public sealed partial class Battle
             Cell = cell,
             TurnStart = cell,
             Direction = direction,
+            Facing = Directions[direction],
+            ReadFrom = body.Sphere.Position,
             Footprint = footprint,
             Party = party,
             Sounds = sheet.Record.Sounds,

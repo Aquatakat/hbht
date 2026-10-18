@@ -16,7 +16,7 @@ internal static class CombatImporter
     /// <summary>
     /// The combat record. The code names entities by their place in the entity list (<see cref="EngineTables.EntityList"/>),
     /// read from the ROM; the places, and the encounter flags' table, are carried as facts, checked in 1.0's code: Sholeh
-    /// is 0xA4 (<c>Combat.FindSholeh</c>), the Skeleton 0xBB (<c>BattleSetup.FillEnemies</c>), the Shadow 0xAC; the bystanders
+    /// is 0xA4 (<c>Combat.FindSholeh</c>), the Skeleton 0xBB (<c>BattleSetup.FillEnemies</c>), the Shadow 0xAC, Pochanargat 0xAB, who never moves in battle (<c>Combatant.UpdateRadius</c>); the bystanders
     /// 0–0x56, 0x82–0x90 and 0x92–0x96 (<c>Combat.IsExcludedEnemy</c>); the bosses who forbid fleeing the twelve of
     /// <c>Combat.NoFleeEntities</c> (<c>0x800D2688</c>); and the encounters <c>0x800D26A0</c>'s three.
     /// </summary>
@@ -36,6 +36,7 @@ internal static class CombatImporter
                 new(DbRecordIds.Flag(978), false),
                 new(DbRecordIds.Flag(5250), true),
                 new(DbRecordIds.Flag(3749), true),
-            ]);
+            ],
+            Rooted: [At(0xAB)]);
     }
 }
