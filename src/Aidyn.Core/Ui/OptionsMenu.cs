@@ -104,6 +104,16 @@ public sealed class OptionsMenu
 
     public void MoveCursor(int by) => Rows.Move(by);
 
+    /// <summary>A copy on the same page with the cursor on the same row, which the page fading out draws as it was.</summary>
+    public OptionsMenu Copy()
+    {
+        var copy = new OptionsMenu(Settings, _inGame);
+        if (Page != OptionsPage.Main)
+            copy.Open(Page);
+        copy.Rows.Point(Rows.Cursor);
+        return copy;
+    }
+
     public void Point(int row) => Rows.Point(row);
 
     /// <summary>Whether the cursor is on a volume, which steps every tick the stick is held rather than once a press.</summary>

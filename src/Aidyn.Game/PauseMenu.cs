@@ -181,7 +181,7 @@ public partial class PauseMenu : CanvasLayer
     public void OpenTheatre()
     {
         Open(PauseTab.System);
-        _system!.Menu.ShowTheatre();
+        _system!.Menu.ShowTheatre(fade: false);
     }
 
     /// <summary>What plays the menu's sounds.</summary>

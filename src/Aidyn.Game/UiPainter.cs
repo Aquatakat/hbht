@@ -56,7 +56,7 @@ public sealed class UiPainter
             foreach (var glyph in run.Glyphs)
             {
                 DrawCut(canvas, sheet, new Rect2(glyph.X, glyph.Y, glyph.Width, glyph.Height),
-                    new Rect2(glyph.SourceX, glyph.SourceY, glyph.Width, glyph.Height), clip, Color8(glyph.Color), sampled: false);
+                    new Rect2(glyph.SourceX, glyph.SourceY, glyph.Width, glyph.Height), clip, Tint(glyph.Color), sampled: false);
             }
         }
         return run.Height;
@@ -132,7 +132,7 @@ public sealed class UiPainter
         if (Images.Get(image) is not { } texture)
             return;
         var drawn = size ?? (Vector2I)texture.GetSize();
-        var tint = color is { } c ? Color8(c) : Colors.White;
+        var tint = color is { } c ? Tint(c) : White;
         if (clip is not null && !mirror)
         {
             DrawCut(canvas, texture, new Rect2(x, y, drawn), new Rect2(Vector2.Zero, texture.GetSize()), clip, tint);
@@ -144,8 +144,8 @@ public sealed class UiPainter
     }
 
     /// <summary>A whole texture stretched over a rectangle, filtered as the console's are, and cut to a clip if there's one.</summary>
-    public static void Texture(CanvasItem canvas, Texture2D texture, Rect2 rect, Rect2I? clip = null) =>
-        DrawCut(canvas, texture, rect, new Rect2(Vector2.Zero, texture.GetSize()), clip, Colors.White);
+    public void Texture(CanvasItem canvas, Texture2D texture, Rect2 rect, Rect2I? clip = null) =>
+        DrawCut(canvas, texture, rect, new Rect2(Vector2.Zero, texture.GetSize()), clip, White);
 
     /// <summary>
     /// Draws a texture's source rectangle over a rectangle, cut to a clip: what's outside it is cropped off, the
@@ -173,7 +173,7 @@ public sealed class UiPainter
     public void Plain(CanvasItem canvas, RecordId image, IReadOnlyList<PlainImage.Patch> patches, int x, int y, Rgba color)
     {
         if (Images.Plain(image, patches) is { } texture)
-            canvas.DrawTextureRect(texture, new Rect2(x, y, texture.GetSize()), false, Color8(color));
+            canvas.DrawTextureRect(texture, new Rect2(x, y, texture.GetSize()), false, Tint(color));
     }
 
     /// <summary>
@@ -196,7 +196,7 @@ public sealed class UiPainter
             source = new Rect2((cut.Position - rect.Position) * texels, cut.Size * texels);
             rect = cut;
         }
-        canvas.DrawTextureRectRegion(texture, rect, Sampled(source, rect.Size), Color8(sprite.Color));
+        canvas.DrawTextureRectRegion(texture, rect, Sampled(source, rect.Size), Tint(sprite.Color));
     }
 
     /// <summary>
@@ -220,7 +220,7 @@ public sealed class UiPainter
             return;
         var drawn = size ?? source.Size;
         canvas.DrawTextureRectRegion(texture, new Rect2(x, y, mirror ? -drawn.X : drawn.X, drawn.Y), Sampled(source, drawn),
-            color is { } c ? Color8(c) : Colors.White);
+            color is { } c ? Tint(c) : White);
     }
 
     /// <summary>
@@ -234,7 +234,7 @@ public sealed class UiPainter
         var shown = Math.Min(right - x, size.X);
         var source = texture.GetSize();
         canvas.DrawTextureRectRegion(texture, new Rect2(x, y, shown, size.Y), new Rect2(0, 0, source.X * shown / size.X, source.Y),
-            color is { } c ? Color8(c) : Colors.White);
+            color is { } c ? Tint(c) : White);
     }
 
     /// <summary>The parchment popup at (x, y), with its shadow 5 to the right and 2 down (<c>WidgetMenuPopup</c>).</summary>
@@ -270,4 +270,15 @@ public sealed class UiPainter
     }
 
     public static Color Color8(Rgba c) => Color.Color8(c.R, c.G, c.B, c.A);
+
+    /// <summary>
+    /// How opaque what's drawn is, from 0 to 1, times each colour's own alpha: a page of the System tab fading in or
+    /// out (<c>Widget.SetAlpha</c> on the page). The message boxes and choices aren't faded by it.
+    /// </summary>
+    public float Opacity { get; set; } = 1;
+
+    /// <summary>A colour as it's drawn, its alpha times <see cref="Opacity"/>.</summary>
+    public Color Tint(Rgba c) => Color.Color8(c.R, c.G, c.B, c.A) with { A = c.A / 255f * Opacity };
+
+    private Color White => new(1, 1, 1, Opacity);
 }

@@ -25,6 +25,9 @@ public enum SystemPage
     Theatre,
 }
 
+/// <summary>A page of the System tab as it was when the tab left it, which fades out over the next.</summary>
+public sealed record SystemScreen(SystemPage Page, OptionsMenu? Options, SaveMenu? Saves, NameEntry? Rename, TheatreMenu? Theatre);
+
 /// <summary>
 /// The pause menu's System tab (<c>WidgetOptionsMenu</c>): a list of Load Game, Save Game, Options, Theater, Credits
 /// and Help under the title "Menu", and the screens they open. B on the list closes the menu; in a screen, it goes
@@ -41,6 +44,12 @@ public enum SystemPage
 /// </para>
 /// <para>
 /// The cursor starts on the first row each time the tab is built, as the original rebuilds it at each opening.
+/// </para>
+/// <para>
+/// Each page crossfades with the one before (<c>OptionsMenu.Step</c>, <c>0x8003f81c</c>): the new one comes in at alpha 0
+/// and the old stays at 255, then each tick the new rises by 60 and the old falls by 60, 5 ticks each way. The
+/// original fades the list, the options, the save and load screens and the Theatre's page so; the port fades the
+/// graphics page and the name entry the same, as the user asked (Oct 17, 2026).
 /// </para>
 /// </remarks>
 public sealed class SystemMenu
@@ -92,6 +101,17 @@ public sealed class SystemMenu
 
     public TheatreMenu? Theatre { get; private set; }
 
+    /// <summary>How fast a page fades in and the one before it out, a tick.</summary>
+    public const int FadeStep = 60;
+
+    /// <summary>The page fading out, or null.</summary>
+    public SystemScreen? Outgoing { get; private set; }
+
+    /// <summary>The page's alpha, rising to 255 as it fades in, and the page fading out's, falling to 0.</summary>
+    public byte PageAlpha { get; private set; } = 255;
+
+    public byte OutgoingAlpha { get; private set; }
+
     /// <summary>The cinematic the Theatre chose to play, so the menu rolls up and it plays (the menu's exit code 2).</summary>
     public CinematicRecord? TheatreChosen => Theatre?.Chosen;
 
@@ -115,6 +135,14 @@ public sealed class SystemMenu
 
     public void Step()
     {
+        if (PageAlpha != 255)
+            PageAlpha = PageAlpha > 255 - FadeStep ? (byte)255 : (byte)(PageAlpha + FadeStep);
+        if (Outgoing is not null)
+        {
+            OutgoingAlpha = OutgoingAlpha <= FadeStep ? (byte)0 : (byte)(OutgoingAlpha - FadeStep);
+            if (OutgoingAlpha == 0)
+                Outgoing = null;
+        }
         Pulse.Step();
         Options?.Step();
         Saves?.Step();
@@ -169,11 +197,15 @@ public sealed class SystemMenu
                 Open(Items.Current);
                 break;
             case SystemPage.Options:
-                if (Options!.Accept() == OptionLink.RenameCharacter && Alaron is { } alaron)
+                var before = Options!.Copy();
+                if (Options.Accept() == OptionLink.RenameCharacter && Alaron is { } alaron)
                 {
+                    FadeFrom(before);
                     Rename = new NameEntry(alaron.Name);
                     Page = SystemPage.Rename;
                 }
+                else if (Options.Page != before.Page)
+                    FadeFrom(before);
                 break;
             case SystemPage.Saves:
                 Saves!.Accept();
@@ -208,8 +240,11 @@ public sealed class SystemMenu
             case SystemPage.List:
                 return false;
             case SystemPage.Options:
-                if (!Options!.Back())
+                var before = Options!.Copy();
+                if (!Options.Back())
                     ToList();
+                else
+                    FadeFrom(before);
                 return true;
             case SystemPage.Saves:
                 Saves!.Back();
@@ -257,10 +292,12 @@ public sealed class SystemMenu
         switch (item)
         {
             case SystemItem.LoadGame or SystemItem.SaveGame:
+                FadeFrom();
                 Saves = SaveMenu.From(_plugins, item == SystemItem.SaveGame, _savesFolder, _listSaves);
                 Page = SystemPage.Saves;
                 break;
             case SystemItem.Options:
+                FadeFrom();
                 Options = new OptionsMenu(Settings, inGame: true);
                 Page = SystemPage.Options;
                 break;
@@ -277,11 +314,15 @@ public sealed class SystemMenu
     }
 
     /// <summary>
-    /// Opens the Theatre's page afresh, its titles as the flags stand, as Theater does and as the menu reopens after a
-    /// cinematic the Theatre played (<c>Theatre.Reopen</c>, <c>0x800d955c</c>).
+    /// Opens the Theatre's page afresh, its titles as the flags stand, as Theater does, fading in, and as the menu
+    /// reopens after a cinematic the Theatre played (<c>Theatre.Reopen</c>, <c>0x800d955c</c>), at once.
     /// </summary>
-    public void ShowTheatre()
+    public void ShowTheatre(bool fade = true)
     {
+        if (fade)
+            FadeFrom();
+        else
+            (Outgoing, PageAlpha, OutgoingAlpha) = (null, 255, 0);
         Theatre = new TheatreMenu(_plugins, _isSet);
         Page = SystemPage.Theatre;
     }
@@ -290,14 +331,27 @@ public sealed class SystemMenu
     {
         if (Rename is not { Closed: true } rename)
             return;
+        FadeFrom();
         if (rename.Chosen is { } name && Alaron is { } alaron)
             alaron.Name = name;
         Rename = null;
         Page = SystemPage.Options;
     }
 
+    /// <summary>
+    /// Starts the page shown fading out as the next fades in: as it stands, or as <paramref name="options"/>, a copy of
+    /// the options from before they changed page.
+    /// </summary>
+    private void FadeFrom(OptionsMenu? options = null)
+    {
+        Outgoing = new SystemScreen(Page, options ?? (Page == SystemPage.Options ? Options?.Copy() : Options), Saves, Rename, Theatre);
+        PageAlpha = 0;
+        OutgoingAlpha = 255;
+    }
+
     private void ToList()
     {
+        FadeFrom();
         Page = SystemPage.List;
         Saves = null;
         Theatre = null;

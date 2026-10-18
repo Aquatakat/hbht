@@ -215,6 +215,41 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     }
 
     [Fact]
+    public void EachPageCrossfadesWithTheOneBeforeIn5Ticks()
+    {
+        var party = TradeData.PartyOf(TradeData.Catalog(), ItemData.Flags(), Characters.Create(Characters.Alaron()));
+        var system = new SystemMenu(fixture.Plugins, new Settings(), party, _saves);
+        Assert.Equal((255, null), (system.PageAlpha, system.Outgoing));
+
+        // The new page comes in at 0 and the old stays at 255, then each tick 60 more and 60 less (0x8003f81c).
+        system.Items.Point((int)SystemItem.Options);
+        system.Accept();
+        Assert.Equal((SystemPage.Options, SystemPage.List), (system.Page, system.Outgoing!.Page));
+        List<(byte, byte)> alphas = [];
+        for (var i = 0; i < 5; i++)
+        {
+            system.Step();
+            alphas.Add((system.PageAlpha, system.OutgoingAlpha));
+        }
+        Assert.Equal([(60, 195), (120, 135), (180, 75), (240, 15), (255, 0)], alphas);
+        Assert.Null(system.Outgoing);
+
+        // The graphics page fades out as it was, though the options have gone back to their main page.
+        system.Options!.Point(2);
+        system.Accept();
+        Assert.Equal((OptionsPage.Graphics, OptionsPage.Main), (system.Options.Page, system.Outgoing!.Options!.Page));
+        system.Back();
+        Assert.Equal((OptionsPage.Main, OptionsPage.Graphics), (system.Options.Page, system.Outgoing!.Options!.Page));
+        Assert.Equal(2, system.Options.Rows.Cursor);
+        // Back to the list, which the options fade out over.
+        system.Back();
+        Assert.Equal((SystemPage.List, SystemPage.Options, (byte)0), (system.Page, system.Outgoing!.Page, system.PageAlpha));
+        // The Theatre's page as the menu reopens on it after a cinematic shows at once.
+        system.ShowTheatre(fade: false);
+        Assert.Equal((byte)255, system.PageAlpha);
+    }
+
+    [Fact]
     public void CreditsAndHelpCloseTheMenuForWhatTheyStart()
     {
         var party = TradeData.PartyOf(TradeData.Catalog(), ItemData.Flags(), Characters.Create(Characters.Alaron()));

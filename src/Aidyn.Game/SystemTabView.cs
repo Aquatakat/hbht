@@ -127,30 +127,41 @@ public partial class SystemTabView : Control
         _origin = Origin();
         DrawSetTransform(_origin);
         _ui.Image(this, MenuImages.SystemTab, 0, 0);
-        switch (Menu.Page)
-        {
-            case SystemPage.List:
-                List();
-                break;
-            case SystemPage.Options:
-                Options(Menu.Options!);
-                break;
-            case SystemPage.Saves:
-                Saves(Menu.Saves!);
-                break;
-            case SystemPage.Rename:
-                Rename(Menu.Rename!);
-                break;
-            case SystemPage.Theatre:
-                Theatre(Menu.Theatre!);
-                break;
-        }
+        // The page, and the one before fading out over it (OptionsMenu.Step, 0x8003f81c).
+        Page(new SystemScreen(Menu.Page, Menu.Options, Menu.Saves, Menu.Rename, Menu.Theatre), Menu.PageAlpha);
+        if (Menu.Outgoing is { } outgoing)
+            Page(outgoing, Menu.OutgoingAlpha);
         if (Veil > 0)
             _ui.Image(this, MenuImages.SystemTab, 0, 0, color: new Rgba(255, 255, 255, (byte)(Veil * 255)));
         DrawSetTransform(Vector2.Zero);
         if (Menu.Saves?.Choice is { } choice)
             _ui.Choice(this, size, choice.Text, choice.Width, choice.Gap, choice.Color, choice.ChoiceColor, choice.Choices,
                 Menu.Saves.ChoicePulse.Now(MenuPulse.ScrollFrom, MenuPulse.ScrollTo));
+    }
+
+    /// <summary>A page of the tab at an alpha, everything on it faded alike.</summary>
+    private void Page(SystemScreen screen, byte alpha)
+    {
+        _ui.Opacity = alpha / 255f;
+        switch (screen.Page)
+        {
+            case SystemPage.List:
+                List();
+                break;
+            case SystemPage.Options:
+                Options(screen.Options!);
+                break;
+            case SystemPage.Saves:
+                Saves(screen.Saves!);
+                break;
+            case SystemPage.Rename:
+                Rename(screen.Rename!);
+                break;
+            case SystemPage.Theatre:
+                Theatre(screen.Theatre!);
+                break;
+        }
+        _ui.Opacity = 1;
     }
 
     /// <summary>The title and the list are centred together down the frame.</summary>
@@ -287,7 +298,7 @@ public partial class SystemTabView : Control
         if (saves.Slots.ElementAtOrDefault(index) is { } slot)
         {
             if (ScreenshotOf(slot) is { } shot)
-                UiPainter.Texture(this, shot, new Rect2(Screenshot + new Vector2I(dx, 0), ScreenshotSize), clip);
+                _ui.Texture(this, shot, new Rect2(Screenshot + new Vector2I(dx, 0), ScreenshotSize), clip);
             var portraits = saves.Portraits(slot);
             for (var i = 0; i < Math.Min(portraits.Count, PortraitColumns.Length); i++)
                 _ui.Image(this, portraits[i], PortraitColumns[i] + dx, PortraitTop, new Vector2I(PortraitSize, PortraitSize), clip: clip);
@@ -337,7 +348,7 @@ public partial class SystemTabView : Control
         }
         // The next letter's place, which the font's underscore (a diamond) can't show.
         if (entry.Slot >= name.Length)
-            DrawRect(new Rect2(x + 1, NameTop + _ui.Main.LineHeight - 2, 6, 1), UiPainter.Color8(chosen));
+            DrawRect(new Rect2(x + 1, NameTop + _ui.Main.LineHeight - 2, 6, 1), _ui.Tint(chosen));
         for (var k = 0; k < NameEntry.Keys.Length; k++)
         {
             var cell = Grid + new Vector2I(k % NameEntry.Columns * KeySize, k / NameEntry.Columns * KeySize);
