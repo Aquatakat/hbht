@@ -36,7 +36,7 @@ public sealed class Trainer
         rules.Training.FreeTrainers.Contains(entity.Id));
 
     /// <summary>What they teach, in the skill screen's order: the skills, weapon skills and shield they're above level 0 in.</summary>
-    public IEnumerable<SkillId> SkillsOffered => SkillId.All.Where(s => Skills.Base(s) > 0);
+    public IEnumerable<SkillId> SkillsOffered => Skills.Learnt;
 }
 
 /// <summary>Why training was refused, with the message the original shows.</summary>
@@ -76,7 +76,7 @@ public static class Training
 {
     /// <summary>What the skill screen lists: the trainer's skills, or the character's own above level 0.</summary>
     public static IEnumerable<SkillId> SkillsOffered(Character student, Trainer? trainer) =>
-        trainer?.SkillsOffered ?? SkillId.All.Where(s => student.Skills.Base(s) > 0);
+        trainer?.SkillsOffered ?? student.Skills.Learnt;
 
     /// <summary>
     /// What raising a skill a level costs, or why it's refused (<c>WidgetSkillTrain::Confirm</c>).
@@ -174,16 +174,19 @@ public static class Training
             if (known.Level >= rules.Training.SpellMaxLevel)
                 return new(TrainingRefusal.AtMost, 0, 0);
             goldPrice = (uint)rules.GoldPrice(known.Level);
-            expPrice = Discount((known.Level + 1) * (known.Level + 1) * spell.TrainingCost, trainer, rules);
+            expPrice = Discount(CharacterRules.TrainingCost(known.Level, spell.TrainingCost), trainer, rules);
         }
         else
         {
             if (trainer is null)
                 return new(TrainingRefusal.CantLearn, 0, 0);
-            if (wizard < spell.Wizard)
-                return new(TrainingRefusal.WizardTooLow, 0, 0);
-            if (student.School != MagicSchool.Chaos && spell.School != MagicSchool.None && student.School != spell.School)
-                return new(TrainingRefusal.WrongSchool, 0, 0);
+            switch (student.CanLearn(spell))
+            {
+                case SpellLearnability.WizardTooLow:
+                    return new(TrainingRefusal.WizardTooLow, 0, 0);
+                case SpellLearnability.WrongSchool:
+                    return new(TrainingRefusal.WrongSchool, 0, 0);
+            }
             goldPrice = (uint)rules.Training.FirstLevelGold;
             expPrice = Discount(spell.TrainingCost, trainer, rules);
         }

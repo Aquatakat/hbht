@@ -351,7 +351,7 @@ public class ShopTests
         Assert.Equal(TradeResult.Done, shop.Buy(TradeData.Trinket.Id));
         Assert.Equal(TradeResult.Done, shop.Buy(TradeData.Trinket.Id));
 
-        Assert.Equal(2, party.Inventory!.Count(TradeData.Trinket.Id));
+        Assert.Equal(2, party.Inventory.Count(TradeData.Trinket.Id));
         Assert.Equal(1000u - 2 * 175, party.Gold);
         Assert.Equal(1, shop.Stock.Find(TradeData.Trinket.Id)?.Quantity);
     }
@@ -373,7 +373,7 @@ public class ShopTests
         Assert.Equal(TradeResult.CantAfford, shop.Buy(TradeData.Trinket.Id));
 
         Assert.Equal(174u, party.Gold);
-        Assert.False(party.Inventory!.Has(TradeData.Trinket.Id));
+        Assert.False(party.Inventory.Has(TradeData.Trinket.Id));
     }
 
     [Fact]
@@ -390,7 +390,7 @@ public class ShopTests
     public void BuyingWhenTheStackIsFullIsStackFullButAnUnaffordablePriceIsReportedFirst()
     {
         var (shop, party, _, _) = Standard();
-        party.Inventory!.Add(TradeData.Trinket.Id, 99);
+        party.Inventory.Add(TradeData.Trinket.Id, 99);
 
         Assert.Equal(TradeResult.StackFull, shop.Buy(TradeData.Trinket.Id));
         Assert.Equal(1000u, party.Gold);
@@ -404,7 +404,7 @@ public class ShopTests
     public void BuyingANewItemWithNoGeneralSlotFreeIsInventoryFullButOneAlreadyCarriedStillFits()
     {
         var (shop, party, _, _) = Standard(generalSlots: 1);
-        party.Inventory!.Add(TradeData.Cheap.Id);
+        party.Inventory.Add(TradeData.Cheap.Id);
 
         Assert.Equal(TradeResult.InventoryFull, shop.Buy(TradeData.Trinket.Id));
         Assert.Equal(1000u, party.Gold);
@@ -442,7 +442,7 @@ public class ShopTests
     {
         // The shop pays 12 for a thing priced 100, and doesn't stock the trinket here.
         var (shop, party, _, _) = Standard(stock: [Sells(TradeData.Cheap)]);
-        party.Inventory!.Add(TradeData.Trinket.Id, 3);
+        party.Inventory.Add(TradeData.Trinket.Id, 3);
         party.Gold = 0;
 
         Assert.Equal(TradeResult.Done, shop.Sell(TradeData.Trinket.Id, 2));
@@ -456,7 +456,7 @@ public class ShopTests
     public void SellingTheWholeStackEmptiesIt()
     {
         var (shop, party, _, _) = Standard(stock: [Sells(TradeData.Cheap)]);
-        party.Inventory!.Add(TradeData.Trinket.Id, 3);
+        party.Inventory.Add(TradeData.Trinket.Id, 3);
 
         Assert.Equal(TradeResult.Done, shop.Sell(TradeData.Trinket.Id, 3));
 
@@ -478,7 +478,7 @@ public class ShopTests
     {
         var (shop, party, _, _) = Standard();
         // 10 × 0.25 × 0.5 is 1.25, which reads 1.
-        party.Inventory!.Add(TradeData.Cheap.Id, 2);
+        party.Inventory.Add(TradeData.Cheap.Id, 2);
 
         Assert.Equal(TradeResult.Refused, shop.Sell(TradeData.Cheap.Id, 1));
 
@@ -581,7 +581,7 @@ public class LootWindowTests
 
         Assert.Equal(TradeResult.Done, window.Take(TradeData.Trinket.Id));
 
-        Assert.Equal(5, party.Inventory!.Count(TradeData.Trinket.Id));
+        Assert.Equal(5, party.Inventory.Count(TradeData.Trinket.Id));
         Assert.Null(loot.Find(TradeData.Trinket.Id));
     }
 
@@ -589,7 +589,7 @@ public class LootWindowTests
     public void TakingFillsThePartysStackToTheLimitAndLeavesTheRestInTheLoot()
     {
         var (window, loot, party, _) = Open(fill: p => p.Add(TradeData.Trinket.Id, 5));
-        party.Inventory!.Add(TradeData.Trinket.Id, 97);
+        party.Inventory.Add(TradeData.Trinket.Id, 97);
 
         Assert.Equal(TradeResult.Done, window.Take(TradeData.Trinket.Id));
 
@@ -601,7 +601,7 @@ public class LootWindowTests
     public void TakingWhenThePartysStackIsFullIsStackFullAndTakesNothing()
     {
         var (window, loot, party, _) = Open(fill: p => p.Add(TradeData.Trinket.Id, 5));
-        party.Inventory!.Add(TradeData.Trinket.Id, 99);
+        party.Inventory.Add(TradeData.Trinket.Id, 99);
 
         Assert.Equal(TradeResult.StackFull, window.Take(TradeData.Trinket.Id));
 
@@ -620,7 +620,7 @@ public class LootWindowTests
     public void TakingANewItemWithNoGeneralSlotFreeIsInventoryFullAndLeavesTheLoot()
     {
         var (window, loot, party, _) = Open(generalSlots: 1, fill: p => p.Add(TradeData.Trinket.Id, 5));
-        party.Inventory!.Add(TradeData.Cheap.Id);
+        party.Inventory.Add(TradeData.Cheap.Id);
 
         Assert.Equal(TradeResult.InventoryFull, window.Take(TradeData.Trinket.Id));
 
@@ -648,7 +648,7 @@ public class LootWindowTests
     public void DroppingDestroysTheItemsWithoutGivingThemToTheLoot()
     {
         var (window, loot, party, _) = Open();
-        party.Inventory!.Add(TradeData.Trinket.Id, 4);
+        party.Inventory.Add(TradeData.Trinket.Id, 4);
 
         Assert.Equal(TradeResult.Done, window.Drop(TradeData.Trinket.Id, 3));
 
@@ -672,7 +672,7 @@ public class LootWindowTests
         var catalog = TradeData.Catalog(more: [three, four]);
         var party = TradeData.PartyOf(catalog, null, TradeData.Member());
         var window = LootWindow.Open(new ItemPile(catalog), 0, party, catalog);
-        party.Inventory!.Add(three.Id);
+        party.Inventory.Add(three.Id);
         party.Inventory.Add(four.Id);
 
         // 3 × 0.5 is 1.5, which reads 1; 4 × 0.5 is 2.
@@ -1334,7 +1334,7 @@ public class CraftingTests
 
     private static void Stock(CharacterParty party, int herb, int spice)
     {
-        party.Inventory!.Add(TradeData.Herb.Id, herb);
+        party.Inventory.Add(TradeData.Herb.Id, herb);
         party.Inventory.Add(TradeData.Spice.Id, spice);
     }
 
@@ -1367,7 +1367,7 @@ public class CraftingTests
     public void OfferedGivesMechanicRecipesUpToTheBaseLevelWhoseIngredientsThePartyHas()
     {
         var (party, member) = Setup(new SkillLevels(Mechanic: 2));
-        party.Inventory!.Add(TradeData.Hide.Id);
+        party.Inventory.Add(TradeData.Hide.Id);
         var other = TradeData.Priced(51, 5);
         var recipes = new[]
         {
@@ -1385,7 +1385,7 @@ public class CraftingTests
     public void OfferedGoesByTheBaseMechanicLevelNotTheModifiedOne()
     {
         var (party, member) = Setup(new SkillLevels(Mechanic: 2));
-        party.Inventory!.Add(TradeData.Hide.Id);
+        party.Inventory.Add(TradeData.Hide.Id);
         member.Equipment.EquipGear(ItemData.Inst(ItemData.NewItem(50, ItemKind.Helmet, bonuses: ItemData.SkillGives(Skill.Mechanic, 3))));
         Assert.Equal(5, member.Skills.Modified(Skill.Mechanic));
 
@@ -1411,7 +1411,7 @@ public class CraftingTests
         var result = Crafting.Brew(party, member, Brewing(), new ScriptedRandom());
 
         Assert.Equal(CraftResult.MissingIngredients, result);
-        Assert.Equal(1, party.Inventory!.Count(TradeData.Herb.Id));
+        Assert.Equal(1, party.Inventory.Count(TradeData.Herb.Id));
         Assert.Equal(1, party.Inventory.Count(TradeData.Spice.Id));
     }
 
@@ -1420,7 +1420,7 @@ public class CraftingTests
     {
         var (party, member) = Setup(new SkillLevels(Alchemist: 2));
         Stock(party, herb: 2, spice: 1);
-        party.Inventory!.Add(TradeData.Potion.Id, 99);
+        party.Inventory.Add(TradeData.Potion.Id, 99);
 
         Assert.Equal(CraftResult.StackFull, Crafting.Brew(party, member, Brewing(), new ScriptedRandom()));
 
@@ -1432,7 +1432,7 @@ public class CraftingTests
     public void MissingIngredientsAreReportedBeforeAFullStack()
     {
         var (party, member) = Setup(new SkillLevels(Alchemist: 2));
-        party.Inventory!.Add(TradeData.Potion.Id, 99);
+        party.Inventory.Add(TradeData.Potion.Id, 99);
 
         Assert.Equal(CraftResult.MissingIngredients, Crafting.Brew(party, member, Brewing(), new ScriptedRandom()));
     }
@@ -1446,7 +1446,7 @@ public class CraftingTests
         var result = Crafting.Brew(party, member, Brewing(level: 2), new ScriptedRandom());
 
         Assert.Equal(CraftResult.TooLow, result);
-        Assert.False(party.Inventory!.Has(TradeData.Herb.Id));
+        Assert.False(party.Inventory.Has(TradeData.Herb.Id));
         Assert.False(party.Inventory.Has(TradeData.Spice.Id));
         Assert.False(party.Inventory.Has(TradeData.Potion.Id));
     }
@@ -1461,7 +1461,7 @@ public class CraftingTests
         var result = Crafting.Brew(party, member, Brewing(), new ScriptedRandom(RandomFor.D(100, 10)));
 
         Assert.Equal(CraftResult.Made, result);
-        Assert.Equal(1, party.Inventory!.Count(TradeData.Potion.Id));
+        Assert.Equal(1, party.Inventory.Count(TradeData.Potion.Id));
         Assert.Equal(1, party.Inventory.Count(TradeData.Herb.Id));
         Assert.False(party.Inventory.Has(TradeData.Spice.Id));
         Assert.Equal(30, member.Stats.Modified(Stat.Stamina));
@@ -1478,7 +1478,7 @@ public class CraftingTests
 
             Assert.Equal(CraftResult.Failed, Crafting.Brew(party, member, Brewing(), new ScriptedRandom(RandomFor.D(100, roll))));
 
-            Assert.False(party.Inventory!.Has(TradeData.Herb.Id));
+            Assert.False(party.Inventory.Has(TradeData.Herb.Id));
             Assert.False(party.Inventory.Has(TradeData.Potion.Id));
         }
     }
@@ -1493,7 +1493,7 @@ public class CraftingTests
         Assert.Equal(CraftResult.Made, Crafting.Brew(party, member, Brewing(step: 5), new ScriptedRandom(RandomFor.D(100, 20))));
         Assert.Equal(CraftResult.Failed, Crafting.Brew(party, member, Brewing(step: 5), new ScriptedRandom(RandomFor.D(100, 25))));
 
-        Assert.Equal(1, party.Inventory!.Count(TradeData.Potion.Id));
+        Assert.Equal(1, party.Inventory.Count(TradeData.Potion.Id));
     }
 
     [Fact]
@@ -1501,7 +1501,7 @@ public class CraftingTests
     {
         var (party, member) = Setup(new SkillLevels(Alchemist: 2, Mechanic: 2));
         Stock(party, herb: 2, spice: 1);
-        party.Inventory!.Add(TradeData.Hide.Id);
+        party.Inventory.Add(TradeData.Hide.Id);
 
         Assert.Equal(CraftResult.Made, Crafting.Make(party, member, Brewing(), new ScriptedRandom(RandomFor.D(100, 10))));
         Assert.Equal(CraftResult.Made, Crafting.Make(party, member, Smithing(), new ScriptedRandom(RandomFor.D(100, 10))));
@@ -1514,7 +1514,7 @@ public class CraftingTests
     public void MakingArmorUsesTheHideAndMakesItWhenTheStepReachesTheRecipesAndPaysStamina()
     {
         var (party, member) = Setup(new SkillLevels(Mechanic: 2));
-        party.Inventory!.Add(TradeData.Hide.Id);
+        party.Inventory.Add(TradeData.Hide.Id);
 
         // (2 × 5 + 18 + 15) × 2 is 86; 86 - 10 is 76, which is step 4. A Mechanic of 2 pays 3 Stamina.
         var result = Crafting.MakeArmor(party, member, Smithing(step: 4), new ScriptedRandom(RandomFor.D(100, 10)));
@@ -1529,7 +1529,7 @@ public class CraftingTests
     public void MakingArmorFailsWhenTheStepIsBelowTheRecipesAndTheHideIsStillUsed()
     {
         var (party, member) = Setup(new SkillLevels(Mechanic: 2));
-        party.Inventory!.Add(TradeData.Hide.Id);
+        party.Inventory.Add(TradeData.Hide.Id);
 
         var result = Crafting.MakeArmor(party, member, Smithing(step: 5), new ScriptedRandom(RandomFor.D(100, 10)));
 
@@ -1543,7 +1543,7 @@ public class CraftingTests
     public void MakingArmorWithARollAtOrOverTheTotalFailsAndPaysNoStamina()
     {
         var (party, member) = Setup(new SkillLevels(Mechanic: 2));
-        party.Inventory!.Add(TradeData.Hide.Id);
+        party.Inventory.Add(TradeData.Hide.Id);
 
         var result = Crafting.MakeArmor(party, member, Smithing(step: 1), new ScriptedRandom(RandomFor.D(100, 86)));
 
@@ -1556,7 +1556,7 @@ public class CraftingTests
     public void MakingArmorWithoutTheStaminaItCostsFailsButUsesTheHide()
     {
         var (party, member) = Setup(new SkillLevels(Mechanic: 2), stamina: 2);
-        party.Inventory!.Add(TradeData.Hide.Id);
+        party.Inventory.Add(TradeData.Hide.Id);
 
         var result = Crafting.MakeArmor(party, member, Smithing(step: 1), new ScriptedRandom(RandomFor.D(100, 10)));
 
@@ -1574,7 +1574,7 @@ public class CraftingTests
 
         Assert.Equal(CraftResult.MissingIngredients, result);
         Assert.Equal(27, member.Stats.Modified(Stat.Stamina));
-        Assert.False(party.Inventory!.Has(Armor.Id));
+        Assert.False(party.Inventory.Has(Armor.Id));
     }
 
     // A target who has taken 20 damage, which comes off Stamina after the Level's point.
@@ -1638,7 +1638,7 @@ public class CraftingTests
         var target = Hurt(1, damage);
         var party = TradeData.PartyOf(TradeData.Catalog(), null, healerMember, target);
         if (herb)
-            party.Inventory!.Add(TradeData.Herb.Id);
+            party.Inventory.Add(TradeData.Herb.Id);
         return (party, healerMember, target);
     }
 
@@ -1649,7 +1649,7 @@ public class CraftingTests
 
         Assert.Equal(new HealResult(HealOutcome.AlreadyWell), Crafting.HerbHeal(party, healer, target, new ScriptedRandom()));
 
-        Assert.True(party.Inventory!.Has(TradeData.Herb.Id));
+        Assert.True(party.Inventory.Has(TradeData.Herb.Id));
     }
 
     [Fact]
@@ -1670,7 +1670,7 @@ public class CraftingTests
 
         Assert.Equal(new HealResult(HealOutcome.Failed), Crafting.HerbHeal(party, healer, target, new ScriptedRandom()));
 
-        Assert.False(party.Inventory!.Has(TradeData.Herb.Id));
+        Assert.False(party.Inventory.Has(TradeData.Herb.Id));
         Assert.Equal(1, healer.Stats.Modified(Stat.Stamina));
     }
 
@@ -1686,7 +1686,7 @@ public class CraftingTests
         Assert.Equal(new HealResult(HealOutcome.Healed, 20), result);
         Assert.Equal(before + 20, target.Hp);
         Assert.Equal(28, healer.Stats.Modified(Stat.Stamina));
-        Assert.False(party.Inventory!.Has(TradeData.Herb.Id));
+        Assert.False(party.Inventory.Has(TradeData.Herb.Id));
     }
 
     [Fact]
@@ -1701,7 +1701,7 @@ public class CraftingTests
         Assert.Equal(new HealResult(HealOutcome.Failed), result);
         Assert.Equal(before, target.Hp);
         Assert.Equal(26, healer.Stats.Modified(Stat.Stamina));
-        Assert.False(party.Inventory!.Has(TradeData.Herb.Id));
+        Assert.False(party.Inventory.Has(TradeData.Herb.Id));
     }
 
     private static Character Weakened(int n, int by)
@@ -1717,7 +1717,7 @@ public class CraftingTests
         var healerMember = TradeData.Member(0, new SkillLevels(Healer: healer), stamina: stamina);
         var party = TradeData.PartyOf(TradeData.Catalog(), null, [healerMember, .. others]);
         if (herb)
-            party.Inventory!.Add(TradeData.Herb.Id);
+            party.Inventory.Add(TradeData.Herb.Id);
         return (party, healerMember);
     }
 
@@ -1729,7 +1729,7 @@ public class CraftingTests
 
         Assert.Equal(new HealResult(HealOutcome.AlreadyWell), Crafting.Restore(party, healer, target, Stat.Strength, new ScriptedRandom()));
 
-        Assert.True(party.Inventory!.Has(TradeData.Herb.Id));
+        Assert.True(party.Inventory.Has(TradeData.Herb.Id));
     }
 
     [Fact]
@@ -1752,7 +1752,7 @@ public class CraftingTests
 
         Assert.Equal(new HealResult(HealOutcome.Failed), Crafting.Restore(party, healer, target, Stat.Strength, new ScriptedRandom()));
 
-        Assert.False(party.Inventory!.Has(TradeData.Herb.Id));
+        Assert.False(party.Inventory.Has(TradeData.Herb.Id));
         Assert.Equal(10, healer.Stats.Modified(Stat.Stamina));
         Assert.Equal(10, target.Stats.Modified(Stat.Strength));
     }
@@ -1770,7 +1770,7 @@ public class CraftingTests
         Assert.Equal(15, target.Stats.Modified(Stat.Strength));
         Assert.False(target.Stats.IsHurt(Stat.Strength));
         Assert.Equal(30 - 11, healer.Stats.Modified(Stat.Stamina));
-        Assert.False(party.Inventory!.Has(TradeData.Herb.Id));
+        Assert.False(party.Inventory.Has(TradeData.Herb.Id));
     }
 
     [Fact]
@@ -1797,7 +1797,7 @@ public class CraftingTests
         Assert.Equal(new HealResult(HealOutcome.Failed), result);
         Assert.Equal(10, target.Stats.Modified(Stat.Strength));
         Assert.Equal(19, healer.Stats.Modified(Stat.Stamina));
-        Assert.False(party.Inventory!.Has(TradeData.Herb.Id));
+        Assert.False(party.Inventory.Has(TradeData.Herb.Id));
     }
 
     [Fact]

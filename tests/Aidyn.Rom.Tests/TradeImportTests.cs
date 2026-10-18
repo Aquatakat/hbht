@@ -86,7 +86,7 @@ public sealed class TradeImportTests(Na10Import fixture)
         var offered = Crafting.Offered(party, alaron, recipes).ToList();
         Assert.Equal(recipes.Where(r => r.Skill == Crafting.Alchemist && r.Level <= alaron.Skills.Modified(Skill.Alchemist)), offered);
         // Hides make the Mechanic's recipes offered, to a member whose base Mechanic reaches them.
-        party.Inventory!.Add(RecordId.Hex(RecordTypes.Item, 0x0123));
+        party.Inventory.Add(RecordId.Hex(RecordTypes.Item, 0x0123));
         Assert.Equal(alaron.Skills.Base(Skill.Mechanic) >= 1, Crafting.Offered(party, alaron, recipes).Any(r => r.Skill == Crafting.Mechanic));
     }
 

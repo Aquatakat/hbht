@@ -216,7 +216,7 @@ public class PartyMenuPulseTests
 {
     private static PartyMenu Menu()
     {
-        var party = new CharacterParty();
+        var party = ItemData.NewParty();
         Assert.True(party.Add(ItemData.Alaron()));
         return new PartyMenu(party, new MenuText([]), _ => null, _ => null);
     }
@@ -264,7 +264,7 @@ public class PartyMenuMotionTests
 {
     private static PartyMenu Menu(int members = 3)
     {
-        var party = new CharacterParty();
+        var party = ItemData.NewParty();
         for (var n = 0; n < members; n++)
             Assert.True(party.Add(PotionData.Member($"Member {n}", n)));
         return new PartyMenu(party, new MenuText([]), _ => null, _ => null);

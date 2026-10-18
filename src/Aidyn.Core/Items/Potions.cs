@@ -96,7 +96,7 @@ public static class Potions
     /// </summary>
     public static DrinkResult Drink(Party party, Character member, Item item, IRandom random)
     {
-        if (Of(item) is not { } potion || party.Inventory?.Has(item.Id) != true)
+        if (Of(item) is not { } potion || !party.Inventory.Has(item.Id))
             return DrinkResult.NotInTrek;
         var can = CanDrink(member, potion);
         if (can != DrinkResult.Drunk)

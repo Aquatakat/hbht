@@ -52,6 +52,9 @@ internal static class ItemData
 
     public static ItemCatalog Catalog(params object[] records) => CatalogWith(Rules(), records);
 
+    /// <summary>A party with an empty inventory, for tests that don't use it.</summary>
+    public static CharacterParty NewParty() => new(Catalog());
+
     public static FlagNetwork Flags() => new(Enumerable.Range(0, 20).Select(i => new FlagRecord(Flag(i))), Flag(9));
 
     public static ItemInstance Inst(WeaponRecord record) => new(Item.From(record));
@@ -728,7 +731,7 @@ public class CharacterItemTests
         Assert.True(party.Add(alaron));
 
         Assert.Empty(alaron.Spares);
-        Assert.Equal(1, party.Inventory!.Count(Axe.Id));
+        Assert.Equal(1, party.Inventory.Count(Axe.Id));
         Assert.Equal(1, party.Inventory.Count(Pole.Id));
         Assert.Equal(0, party.Inventory.Count(Sword.Id));
     }
@@ -1006,7 +1009,7 @@ public class PartyItemTests
     public void AnItemOfAnotherAspectCantBeEquippedButNeutralAndOwnAspectCan()
     {
         var (party, alaron) = Setup();
-        party.Inventory!.Add(LunarGem.Id);
+        party.Inventory.Add(LunarGem.Id);
         party.Inventory.Add(SolarGem.Id);
         party.Inventory.Add(Cap.Id);
 
@@ -1020,7 +1023,7 @@ public class PartyItemTests
     public void EquippingArmorTakesOneFromTheStackAndPutsTheOldArmorBack()
     {
         var (party, alaron) = Setup();
-        party.Inventory!.Add(Mail.Id);
+        party.Inventory.Add(Mail.Id);
 
         Assert.Equal(EquipRefusal.None, party.Equip(alaron, Mail.Id));
         Assert.Equal(Mail.Id, alaron.Equipment.Armor?.Id);
@@ -1041,7 +1044,7 @@ public class PartyItemTests
         var (party, alaron) = Setup();
         var unskilled = ItemData.Alaron(e => e with { ShieldSkill = 0 });
         party.Add(unskilled);
-        party.Inventory!.Add(Buckler.Id, 2);
+        party.Inventory.Add(Buckler.Id, 2);
         party.Inventory.Add(Tower.Id);
 
         Assert.Equal(EquipRefusal.CantUse, party.Equip(unskilled, Buckler.Id));
@@ -1057,7 +1060,7 @@ public class PartyItemTests
     public void EquippingAWeaponSwapsItWithTheOneWielded()
     {
         var (party, alaron) = Setup();
-        party.Inventory!.Add(Sword.Id);
+        party.Inventory.Add(Sword.Id);
         party.Inventory.Add(Blade.Id);
 
         Assert.Equal(EquipRefusal.None, party.Equip(alaron, Sword.Id));
@@ -1072,7 +1075,7 @@ public class PartyItemTests
     public void AWeaponTheCharacterCantWieldIsRefusedWithTheReason()
     {
         var (party, weak) = Setup(edit: e => e with { Attributes = new Attributes(18, 12, 15, 15, 5, 30) });
-        party.Inventory!.Add(Sword.Id);
+        party.Inventory.Add(Sword.Id);
 
         Assert.Equal(EquipRefusal.NeedsStrength, party.Equip(weak, Sword.Id));
         Assert.True(party.Inventory.Has(Sword.Id));
@@ -1084,7 +1087,7 @@ public class PartyItemTests
     {
         var (party, alaron) = Setup();
         alaron.Equipment.EquipWeapon(ItemData.Inst(Staff));
-        party.Inventory!.Add(Sword.Id);
+        party.Inventory.Add(Sword.Id);
 
         Assert.Equal(EquipRefusal.Fixed, party.Equip(alaron, Sword.Id));
 
@@ -1096,7 +1099,7 @@ public class PartyItemTests
     public void GearOfAKindAlreadyWornReplacesItAndTheOldGoesBackToTheInventory()
     {
         var (party, alaron) = Setup();
-        party.Inventory!.Add(Cap.Id);
+        party.Inventory.Add(Cap.Id);
         party.Inventory.Add(Helm.Id);
         party.Equip(alaron, Cap.Id);
         Assert.Equal(17, alaron.Stats.RawModified(Stat.Strength));
@@ -1114,7 +1117,7 @@ public class PartyItemTests
     public void GearOfADifferentKindIsWornAlongside()
     {
         var (party, alaron) = Setup(edit: e => e with { Attributes = new Attributes(18, 12, 15, 15, 25, 30) });
-        party.Inventory!.Add(Cap.Id);
+        party.Inventory.Add(Cap.Id);
         party.Inventory.Add(Heavy.Id);
 
         Assert.Equal(EquipRefusal.None, party.Equip(alaron, Cap.Id));
@@ -1127,7 +1130,7 @@ public class PartyItemTests
     public void GearTheCharacterIsTooWeakForIsRefusedAndStaysInTheInventory()
     {
         var (party, alaron) = Setup();
-        party.Inventory!.Add(Heavy.Id);
+        party.Inventory.Add(Heavy.Id);
 
         Assert.Equal(EquipRefusal.NeedsStrength, party.Equip(alaron, Heavy.Id));
 
@@ -1139,7 +1142,7 @@ public class PartyItemTests
     public void AMemberWearsTwoRingsAndTheThirdIsRefusedNotSwapped()
     {
         var (party, alaron) = Setup();
-        party.Inventory!.Add(Ring1.Id);
+        party.Inventory.Add(Ring1.Id);
         party.Inventory.Add(Ring2.Id);
         party.Inventory.Add(Ring3.Id);
 
@@ -1157,13 +1160,13 @@ public class PartyItemTests
     {
         var (party, alaron) = Setup();
         foreach (var scroll in Scrolls)
-            party.Inventory!.Add(scroll.Id);
+            party.Inventory.Add(scroll.Id);
 
         Assert.All(Scrolls.Take(3), s => Assert.Equal(EquipRefusal.None, party.Equip(alaron, s.Id)));
         Assert.Equal(EquipRefusal.NoRoom, party.Equip(alaron, Scrolls[3].Id));
 
         Assert.Equal(3, alaron.Equipment.GearCount);
-        Assert.True(party.Inventory!.Has(Scrolls[3].Id));
+        Assert.True(party.Inventory.Has(Scrolls[3].Id));
     }
 
     [Fact]
@@ -1171,13 +1174,13 @@ public class PartyItemTests
     {
         var (party, alaron) = Setup();
         foreach (var item in new[] { Blank, Potion, Hide })
-            party.Inventory!.Add(item.Id);
+            party.Inventory.Add(item.Id);
 
         Assert.Equal(EquipRefusal.CantUse, party.Equip(alaron, Blank.Id));
         Assert.Equal(EquipRefusal.CantUse, party.Equip(alaron, Potion.Id));
         Assert.Equal(EquipRefusal.CantUse, party.Equip(alaron, Hide.Id));
 
-        Assert.Equal(3, party.Inventory!.Stacks.Count);
+        Assert.Equal(3, party.Inventory.Stacks.Count);
         Assert.Equal(0, alaron.Equipment.GearCount);
     }
 
@@ -1185,7 +1188,7 @@ public class PartyItemTests
     public void WhenTheInventoryCantTakeTheOldItemBackTheNewOneGoesBackAndTheOldStaysWorn()
     {
         var (party, alaron) = Setup(generalSlots: 2);
-        party.Inventory!.Add(Cap.Id);
+        party.Inventory.Add(Cap.Id);
         party.Equip(alaron, Cap.Id);
         // Two general slots, both used, with the helm's stack staying after one is taken from it.
         party.Inventory.Add(Helm.Id, 2);
@@ -1202,7 +1205,7 @@ public class PartyItemTests
     public void TheEquippedItemTakesTheStacksBatteryAndChargesAsACopy()
     {
         var (party, alaron) = Setup();
-        party.Inventory!.Add(Charm.Id, 2);
+        party.Inventory.Add(Charm.Id, 2);
         var stack = party.Inventory.Find(Charm.Id)!;
         stack.Instance.Battery = 4;
         stack.Instance.Charges = 2;
@@ -1220,7 +1223,7 @@ public class PartyItemTests
     public void UnequippingPutsTheItemBackWithItsBatteryAndChargesIntoANewStack()
     {
         var (party, alaron) = Setup();
-        party.Inventory!.Add(Charm.Id);
+        party.Inventory.Add(Charm.Id);
         party.Equip(alaron, Charm.Id);
         var worn = Worn(alaron);
         worn.Battery = 1;
@@ -1239,7 +1242,7 @@ public class PartyItemTests
     public void UnequippingIntoAStackThatAlreadyExistsMakesTheStackTakeTheItemsBatteryAndCharges()
     {
         var (party, alaron) = Setup();
-        party.Inventory!.Add(Charm.Id, 2);
+        party.Inventory.Add(Charm.Id, 2);
         party.Equip(alaron, Charm.Id);
         var worn = Worn(alaron);
         worn.Battery = 1;
@@ -1259,7 +1262,7 @@ public class PartyItemTests
         var (party, alaron) = Setup();
         foreach (var id in new[] { Sword.Id, Mail.Id, Buckler.Id })
         {
-            party.Inventory!.Add(id);
+            party.Inventory.Add(id);
             Assert.Equal(EquipRefusal.None, party.Equip(alaron, id));
         }
         Assert.Equal(13, alaron.Stats.RawModified(Stat.Dexterity));
@@ -1269,7 +1272,7 @@ public class PartyItemTests
         Assert.True(party.Unequip(alaron, alaron.Equipment.Shield!));
 
         Assert.Empty(alaron.Equipment.All);
-        Assert.Equal(3, party.Inventory!.Stacks.Count);
+        Assert.Equal(3, party.Inventory.Stacks.Count);
         Assert.Equal(15, alaron.Stats.RawModified(Stat.Dexterity));
     }
 
@@ -1283,14 +1286,14 @@ public class PartyItemTests
         Assert.False(party.Unequip(alaron, staff));
 
         Assert.Same(staff, alaron.Equipment.Weapon);
-        Assert.False(party.Inventory!.Has(Staff.Id));
+        Assert.False(party.Inventory.Has(Staff.Id));
     }
 
     [Fact]
     public void ThePartyHasWhatItCarriesAndWhatAMemberWears()
     {
         var (party, alaron) = Setup();
-        party.Inventory!.Add(Hide.Id);
+        party.Inventory.Add(Hide.Id);
         alaron.Equipment.EquipGear(ItemData.Inst(Cap));
         alaron.Equipment.EquipArmor(ItemData.Inst(Mail));
 
@@ -1304,7 +1307,7 @@ public class PartyItemTests
     public void TakingAnItemTakesFromTheInventoryBeforeAnythingWorn()
     {
         var (party, alaron) = Setup();
-        party.Inventory!.Add(Cap.Id);
+        party.Inventory.Add(Cap.Id);
         alaron.Equipment.EquipGear(ItemData.Inst(Cap));
 
         Assert.True(party.TakeItem(Cap.Id));
@@ -1330,7 +1333,7 @@ public class PartyItemTests
         Assert.Equal(0, alaron.Protection);
         Assert.Equal(1, second.Equipment.GearCount);
         Assert.Equal(17, second.Stats.RawModified(Stat.Strength));
-        Assert.False(party.Inventory!.Has(Cap.Id));
+        Assert.False(party.Inventory.Has(Cap.Id));
     }
 
     [Fact]
@@ -1360,7 +1363,7 @@ public class PartyItemTests
     {
         var scroll = ItemData.NewItem(50, ItemKind.Scroll, bonuses: ItemData.CastsSpell(spell.Id));
         var party = new CharacterParty(ItemData.Catalog(scroll));
-        party.Inventory!.Add(scroll.Id, quantity);
+        party.Inventory.Add(scroll.Id, quantity);
         return (party, scroll.Id);
     }
 
@@ -1373,7 +1376,7 @@ public class PartyItemTests
         Assert.Equal(ScrollResult.Learned, party.ReadScroll(alaron, scroll, Lookup));
 
         Assert.Equal(1, alaron.FindSpell(Elemental1.Id)?.Level);
-        Assert.Equal(1, party.Inventory!.Count(scroll));
+        Assert.Equal(1, party.Inventory.Count(scroll));
     }
 
     [Fact]
@@ -1384,7 +1387,7 @@ public class PartyItemTests
 
         Assert.Equal(ScrollResult.NotAWizard, party.ReadScroll(layman, scroll, Lookup));
         Assert.Equal(ScrollResult.NotAWizard, party.ReadScroll(layman, ItemData.ThingId(99), Lookup));
-        Assert.Equal(1, party.Inventory!.Count(scroll));
+        Assert.Equal(1, party.Inventory.Count(scroll));
     }
 
     [Fact]
@@ -1392,7 +1395,7 @@ public class PartyItemTests
     {
         var blank = ItemData.NewItem(51, ItemKind.Scroll);
         var party = new CharacterParty(ItemData.Catalog(blank, ItemData.NewItem(50, ItemKind.Scroll, bonuses: ItemData.CastsSpell(Elemental1.Id))));
-        party.Inventory!.Add(blank.Id);
+        party.Inventory.Add(blank.Id);
         var alaron = ItemData.Alaron();
 
         Assert.Equal(ScrollResult.NoSpell, party.ReadScroll(alaron, blank.Id, Lookup));
@@ -1409,7 +1412,7 @@ public class PartyItemTests
         Assert.Equal(ScrollResult.AlreadyKnown, party.ReadScroll(alaron, scroll, Lookup));
 
         Assert.Equal(2, alaron.FindSpell(Characters.Fireball.Id)?.Level);
-        Assert.Equal(1, party.Inventory!.Count(scroll));
+        Assert.Equal(1, party.Inventory.Count(scroll));
     }
 
     [Fact]
@@ -1428,7 +1431,7 @@ public class PartyItemTests
         var naming = ItemData.Alaron(e => e with { School = MagicSchool.Naming });
         var (party, scroll) = WithScroll(Elemental1, quantity: 2);
         Assert.Equal(ScrollResult.WrongSchool, party.ReadScroll(naming, scroll, Lookup));
-        Assert.Equal(2, party.Inventory!.Count(scroll));
+        Assert.Equal(2, party.Inventory.Count(scroll));
 
         var chaos = ItemData.Alaron();
         Assert.Equal(ScrollResult.Learned, party.ReadScroll(chaos, scroll, Lookup));

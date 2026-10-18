@@ -42,7 +42,7 @@ public sealed class ShopCheckpointTests(Na10Import fixture)
         var record = Set.Get<ShopRecord>(RecordId.Decimal(RecordTypes.Shop, 30));
         Assert.Equal("STAI01", Set.Get<EntityRecord>(record.Shopkeeper).Name);
 
-        var shop = Shop.Open(record, Set.Get<EntityRecord>(record.Shopkeeper), game.Party, game.Party.Inventory!.Catalog);
+        var shop = Shop.Open(record, Set.Get<EntityRecord>(record.Shopkeeper), game.Party, game.Party.Inventory.Catalog);
         var menu = BarterMenu.ForShop(Set, shop);
         string ValueOf(string name)
         {

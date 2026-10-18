@@ -157,7 +157,7 @@ public class LightTests
         var unlisted = new LightObject(2, new Vector3(3, 1, 2), 5, PakVariant.Any, null, White, White, LightKind.Static, 0, false);
         var grid = new ObjectGrid(Vector2.Zero, new Vector2(10, 10), 1, 1, [[1]]);
         var record = new MapRecord(RecordId.Hex(RecordTypes.Map, 1), [near, unlisted], grid);
-        var map = LoadedMap.Activate(record, "chunk", ItemData.Flags(), new MapObjectMemory(), new CharacterParty(), new Lcg(), new Vector3(100, 0, 0));
+        var map = LoadedMap.Activate(record, "chunk", ItemData.Flags(), new MapObjectMemory(), ItemData.NewParty(), new Lcg(), new Vector3(100, 0, 0));
         var lights = new WorldLights(new Lcg()) { Sun = true };
         lights.Load(map);
         lights.BeginFrame(1);

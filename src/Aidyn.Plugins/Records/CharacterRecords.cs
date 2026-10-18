@@ -182,6 +182,35 @@ public sealed record WeaponSkillLevels(
     int? Thrown = null,
     int? Tusk = null);
 
+/// <summary>
+/// The 24 skill levels as a character holds them in a row (<c>CharSkills</c>): the 12 skills, the 11 weapon
+/// skills, then the shield. Null is one that can't be learnt.
+/// </summary>
+public static class SkillSlots
+{
+    public const int Count = 24;
+
+    /// <summary>The row of levels for a record's, save's or checkpoint's three parts.</summary>
+    public static int?[] ToArray(SkillLevels skills, WeaponSkillLevels weapons, int? shield) =>
+        [skills.Alchemist, skills.Diplomat, skills.Healer, skills.Loremaster, skills.Mechanic, skills.Merchant, skills.Ranger,
+            skills.Stealth, skills.Thief, skills.Troubadour, skills.Warrior, skills.Wizard,
+            weapons.Bite, weapons.Breath, weapons.Claw, weapons.Hafted, weapons.Missile, weapons.Pole, weapons.Spit, weapons.Sting,
+            weapons.Sword, weapons.Thrown, weapons.Tusk,
+            shield];
+
+    /// <summary>The three parts a row of <see cref="Count"/> levels is made of.</summary>
+    public static (SkillLevels Skills, WeaponSkillLevels WeaponSkills, int? ShieldSkill) Split(IReadOnlyList<int?> levels)
+    {
+        if (levels.Count != Count)
+            throw new ArgumentException($"There are {Count} skills, weapon skills and the shield.", nameof(levels));
+        return (new SkillLevels(levels[0], levels[1], levels[2], levels[3], levels[4], levels[5], levels[6], levels[7], levels[8],
+                levels[9], levels[10], levels[11]),
+            new WeaponSkillLevels(levels[12], levels[13], levels[14], levels[15], levels[16], levels[17], levels[18], levels[19],
+                levels[20], levels[21], levels[22]),
+            levels[23]);
+    }
+}
+
 /// <param name="Level">1–10. A trainer teaches up to this level.</param>
 public sealed record KnownSpell(RecordId Spell, int Level);
 

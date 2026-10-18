@@ -459,7 +459,7 @@ public class PartyTests
 {
     private static CharacterParty Party(params EntityRecord[] members)
     {
-        var party = new CharacterParty();
+        var party = ItemData.NewParty();
         foreach (var member in members)
             Assert.True(party.Add(Characters.Create(member)));
         return party;
@@ -511,7 +511,7 @@ public class PartyTests
         Assert.Equal(1, party.SkillCheck(Skill.Alchemist, Characters.D100(100)));
         // A member who can't learn it still counts, at 0; only an empty party rolls nothing.
         Assert.Equal(3, Party(Member(1, new())).SkillCheck(Skill.Alchemist, Characters.D100(100)));
-        Assert.Equal(0, new CharacterParty().SkillCheck(Skill.Alchemist, Characters.D100()));
+        Assert.Equal(0, ItemData.NewParty().SkillCheck(Skill.Alchemist, Characters.D100()));
     }
 
     [Fact]

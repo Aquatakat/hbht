@@ -139,7 +139,7 @@ public sealed class Shop
         var price = BuyPrice(stack.Instance);
         if (_party.Gold < price)
             return TradeResult.CantAfford;
-        if (_party.Inventory!.Count(item) >= _items.Rules.StackLimit)
+        if (_party.Inventory.Count(item) >= _items.Rules.StackLimit)
             return TradeResult.StackFull;
         if (!_party.Inventory.Add(item))
             return TradeResult.InventoryFull;
@@ -154,7 +154,7 @@ public sealed class Shop
     /// </summary>
     public TradeResult Sell(RecordId item, int quantity)
     {
-        if (_party.Inventory!.Find(item) is not { } stack)
+        if (_party.Inventory.Find(item) is not { } stack)
             return TradeResult.NoneLeft;
         var price = SellPrice(stack.Instance);
         if (price <= 1)
@@ -233,7 +233,7 @@ public sealed class LootWindow
     {
         if (Loot.Find(item) is not { } stack)
             return TradeResult.NoneLeft;
-        var held = _party.Inventory!.Count(item);
+        var held = _party.Inventory.Count(item);
         if (held >= _items.Rules.StackLimit)
             return TradeResult.StackFull;
         var quantity = Math.Min(stack.Quantity, _items.Rules.StackLimit - held);
@@ -250,7 +250,7 @@ public sealed class LootWindow
     /// </summary>
     public TradeResult Drop(RecordId item, int quantity)
     {
-        if (_party.Inventory!.Find(item) is not { } stack)
+        if (_party.Inventory.Find(item) is not { } stack)
             return TradeResult.NoneLeft;
         if (!Droppable(stack.Instance))
             return TradeResult.Refused;

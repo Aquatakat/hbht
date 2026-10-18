@@ -123,7 +123,7 @@ public class WanderTickTests
 
     private static Setup Make(MonsterPartyObject party, WanderNodeObject[] nodes, Vector3 at, Vector3 origin = default, CollisionWorld? world = null)
     {
-        var map = LoadedMap.Activate(new MapRecord(MapId, [.. nodes, party]), "chunk", ItemData.Flags(), new MapObjectMemory(), new CharacterParty(), new Lcg(), origin);
+        var map = LoadedMap.Activate(new MapRecord(MapId, [.. nodes, party]), "chunk", ItemData.Flags(), new MapObjectMemory(), ItemData.NewParty(), new Lcg(), origin);
         var body = new Body(at, 0.5f) { Heading = Vector2.UnitX };
         var look = new EntityBody(RecordId.Hex(RecordTypes.Actor, 1), 0.5f, 1, 2);
         var wanderer = new Wanderer(map, party, look, body, perception: 10);
@@ -603,7 +603,7 @@ public class WanderersTickTests(WanderersFixture fixture) : IClassFixture<Wander
         var node = new WanderNodeObject(0, new Vector3(5, 0, 5), 0, PakVariant.Any, null, 2, 0, 0, 1000, WanderFlags.Move, []);
         var party = new MonsterPartyObject(1, new Vector3(5, 0, 5), 20, PakVariant.Any, null, [], WanderersFixture.Entity, null, 0, 0,
             MapRecord.VoxelId(MapId, 0), PartyFlags.Walks, null, null);
-        var map = LoadedMap.Activate(new MapRecord(MapId, [node, party]), "chunk", ItemData.Flags(), new MapObjectMemory(), new CharacterParty(), new Lcg());
+        var map = LoadedMap.Activate(new MapRecord(MapId, [node, party]), "chunk", ItemData.Flags(), new MapObjectMemory(), ItemData.NewParty(), new Lcg());
         var world = Worlds.Flat();
         var wanderers = new Wanderers(fixture.Plugins);
         var added = wanderers.Load(map, 20, world, new MapObjectMemory());

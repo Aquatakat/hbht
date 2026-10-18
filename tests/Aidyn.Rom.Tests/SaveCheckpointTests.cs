@@ -199,7 +199,7 @@ public sealed class SaveCheckpointTests(Na10Import fixture)
         Assert.True(wrong.Count == 0, $"{wrong.Count} differ: {string.Join("; ", wrong)}");
 
         Assert.Equal(checkpoint.Inventory.Select(s => (TestRoms.ItemId(s.Item.Id), s.Quantity)),
-            game.Party.Inventory!.Stacks.Select(s => (s.Item.Id, s.Quantity)));
+            game.Party.Inventory.Stacks.Select(s => (s.Item.Id, s.Quantity)));
 
         void Compare(string what, int console, int port)
         {
@@ -282,7 +282,7 @@ public sealed class SaveCheckpointTests(Na10Import fixture)
         Assert.Equal(game.Party.Members.Select(m => (m.Entity, m.Hp, m.Stats.Modified(Stat.Strength))),
             copy.Members.Select(m => (m.Entity, m.Hp, m.Stats.Modified(Stat.Strength))));
         Assert.Equal(game.Party.Gold, copy.Gold);
-        Assert.Equal(game.Party.Inventory!.Stacks.Select(s => (s.Item.Id, s.Quantity)), copy.Inventory!.Stacks.Select(s => (s.Item.Id, s.Quantity)));
+        Assert.Equal(game.Party.Inventory.Stacks.Select(s => (s.Item.Id, s.Quantity)), copy.Inventory.Stacks.Select(s => (s.Item.Id, s.Quantity)));
 
         // Taking every key item from the copy clears no flag, and leaves the game's party as it was.
         foreach (var stack in copy.Inventory.Stacks.Where(s => s.Item.KeyItem is not null).ToList())

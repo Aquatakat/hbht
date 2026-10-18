@@ -41,8 +41,8 @@ public readonly record struct HealResult(HealOutcome Outcome, int Amount = 0);
 /// </summary>
 public static class Crafting
 {
-    public static readonly RecordId Alchemist = RecordId.Decimal(RecordTypes.Skill, (int)Skill.Alchemist);
-    public static readonly RecordId Mechanic = RecordId.Decimal(RecordTypes.Skill, (int)Skill.Mechanic);
+    public static readonly RecordId Alchemist = ((SkillId)Skill.Alchemist).Record;
+    public static readonly RecordId Mechanic = ((SkillId)Skill.Mechanic).Record;
 
     /// <summary>
     /// The recipes a member is offered: the Alchemist's whose level their modified Alchemist reaches, in
@@ -51,7 +51,7 @@ public static class Crafting
     /// </summary>
     public static IEnumerable<RecipeRecord> Offered(Party party, Character member, IEnumerable<RecipeRecord> recipes) => recipes.Where(r =>
         r.Skill == Alchemist ? r.Level <= member.Skills.Modified(Skill.Alchemist)
-        : r.Skill == Mechanic && r.Level <= member.Skills.Base(Skill.Mechanic) && r.Ingredients.All(i => party.Inventory?.Has(i.Item) == true));
+        : r.Skill == Mechanic && r.Level <= member.Skills.Base(Skill.Mechanic) && r.Ingredients.All(i => party.Inventory.Has(i.Item)));
 
     /// <summary>Makes something from a recipe by its skill.</summary>
     public static CraftResult Make(Party party, Character member, RecipeRecord recipe, IRandom random) =>
@@ -64,7 +64,7 @@ public static class Crafting
     /// </summary>
     public static CraftResult Brew(Party party, Character member, RecipeRecord recipe, IRandom random)
     {
-        var inventory = party.Inventory!;
+        var inventory = party.Inventory;
         if (recipe.Ingredients.Any(i => inventory.Count(i.Item) < i.Count))
             return CraftResult.MissingIngredients;
         if (inventory.Count(recipe.Product) >= inventory.Catalog.Rules.StackLimit)
@@ -74,7 +74,7 @@ public static class Crafting
         var alchemist = member.Skills.Modified(Skill.Alchemist);
         if (alchemist < recipe.Level)
             return CraftResult.TooLow;
-        var total = (ushort)(member.Stats.Modified(Stat.Intelligence) * 3 + alchemist * 6);
+        var total = (ushort)Party.AlchemistBonus(member);
         var roll = random.RollD(1, 100);
         if (roll >= total || Party.SkillCheckStep((short)(total - roll)) < recipe.Step)
             return CraftResult.Failed;
@@ -89,8 +89,10 @@ public static class Crafting
     /// </summary>
     public static CraftResult MakeArmor(Party party, Character member, RecipeRecord recipe, IRandom random)
     {
-        var inventory = party.Inventory!;
+        var inventory = party.Inventory;
         var mechanic = member.Skills.Modified(Skill.Mechanic);
+        // The sum is masked to 15 bits before it's doubled. Party.SkillCheck's Mechanic check casts the doubled sum to
+        // 16 bits instead; they agree for any sum a character can reach, and are ported apart, each from its own code.
         var bonus = ((mechanic * 5 + member.Stats.Modified(Stat.Intelligence) + member.Stats.Modified(Stat.Dexterity)) & 0x7FFF) * 2;
         var step = Containers.CheckAndPay(member, bonus, Math.Max(5 - mechanic, 1), random);
         var hide = recipe.Ingredients[0].Item;
@@ -174,5 +176,5 @@ public static class Crafting
         return restored > 0 ? new(HealOutcome.Healed, restored) : new(HealOutcome.Failed);
     }
 
-    private static bool TakeHerb(Party party) => party.Inventory?.Take(party.Inventory.Catalog.Rules.Herb) == true;
+    private static bool TakeHerb(Party party) => party.Inventory.Take(party.Inventory.Catalog.Rules.Herb);
 }

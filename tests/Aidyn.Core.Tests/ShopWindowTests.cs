@@ -53,7 +53,7 @@ public class ShopWindowTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     [Fact]
     public void TheLineUnderTheStockIsTheActiveRowsPriceToBuyOrSell()
     {
-        var (menu, party, _) = Open(stock: p => p.Inventory!.Add(TradeData.Trinket.Id));
+        var (menu, party, _) = Open(stock: p => p.Inventory.Add(TradeData.Trinket.Id));
         menu.Point(pile: true, StockRow(menu, TradeData.Trinket.Id));
 
         Assert.Equal("L531 175", menu.PileLine);
@@ -61,7 +61,7 @@ public class ShopWindowTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         menu.Point(pile: false, PartyRow(menu, TradeData.Trinket.Id));
         Assert.Equal("L531 12", menu.PileLine);
 
-        party.Inventory!.Take(TradeData.Trinket.Id, 1);
+        party.Inventory.Take(TradeData.Trinket.Id, 1);
         menu.Party.Refresh();
         Assert.Equal(" ", menu.PileLine);
     }
@@ -78,7 +78,7 @@ public class ShopWindowTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
 
         Assert.Null(menu.Message);
         Assert.Null(menu.Confirm);
-        Assert.Equal(2, party.Inventory!.Count(TradeData.Trinket.Id));
+        Assert.Equal(2, party.Inventory.Count(TradeData.Trinket.Id));
         Assert.Equal(1000u - 2 * 175, party.Gold);
         Assert.Equal(2, menu.Pile.Rows.Count);
         Assert.Equal(row, menu.Pile.Cursor);
@@ -94,12 +94,12 @@ public class ShopWindowTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         poor.Accept();
         Assert.Equal(Line(MenuText.CantAfford), poor.Message?.Text);
 
-        var (full, _, _) = Open(stock: p => p.Inventory!.Add(TradeData.Trinket.Id, 99), gold: 100_000);
+        var (full, _, _) = Open(stock: p => p.Inventory.Add(TradeData.Trinket.Id, 99), gold: 100_000);
         full.Point(pile: true, StockRow(full, TradeData.Trinket.Id));
         full.Accept();
         Assert.Equal(Line(MenuText.StackFull), full.Message?.Text);
 
-        var (packed, _, _) = Open(stock: p => p.Inventory!.Add(TradeData.Cheap.Id), generalSlots: 1);
+        var (packed, _, _) = Open(stock: p => p.Inventory.Add(TradeData.Cheap.Id), generalSlots: 1);
         packed.Point(pile: true, StockRow(packed, TradeData.Trinket.Id));
         packed.Accept();
         Assert.Equal(Line(MenuText.InventoryFull), packed.Message?.Text);
@@ -127,7 +127,7 @@ public class ShopWindowTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         var ring = TradeData.Priced(30, 100, ItemKind.Ring);
         var (menu, party, _) = Open(stock: p =>
         {
-            p.Inventory!.Add(TradeData.Cheap.Id);
+            p.Inventory.Add(TradeData.Cheap.Id);
             p.Inventory.Add(ring.Id);
             Assert.Equal(EquipRefusal.None, p.Equip(p.Slots[0]!, ring.Id));
         }, more: [ring]);
@@ -147,7 +147,7 @@ public class ShopWindowTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     [Fact]
     public void SellingAsksHowManyAtThePriceAndPaysForThem()
     {
-        var (menu, party, _) = Open(stock: p => p.Inventory!.Add(TradeData.Trinket.Id, 7));
+        var (menu, party, _) = Open(stock: p => p.Inventory.Add(TradeData.Trinket.Id, 7));
         var row = PartyRow(menu, TradeData.Trinket.Id);
         menu.Point(pile: false, row);
 
@@ -164,7 +164,7 @@ public class ShopWindowTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         menu.Accept();
 
         Assert.Null(menu.Confirm);
-        Assert.Equal(2, party.Inventory!.Count(TradeData.Trinket.Id));
+        Assert.Equal(2, party.Inventory.Count(TradeData.Trinket.Id));
         Assert.Equal(1000u + 5 * 12, party.Gold);
         Assert.Equal(row, menu.Party.Inventory.Cursor);
         Assert.Equal(2, menu.Pile.Rows.Count);
@@ -173,7 +173,7 @@ public class ShopWindowTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     [Fact]
     public void SellingTheLastOneOffersOnlyNoOrYes()
     {
-        var (menu, _, _) = Open(stock: p => p.Inventory!.Add(TradeData.Trinket.Id));
+        var (menu, _, _) = Open(stock: p => p.Inventory.Add(TradeData.Trinket.Id));
         menu.Point(pile: false, PartyRow(menu, TradeData.Trinket.Id));
 
         menu.Accept();
@@ -194,7 +194,7 @@ public class ShopWindowTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     [Fact]
     public void CUpAppraisesTheStocksRowAndClosesAMessage()
     {
-        var (menu, _, _) = Open(stock: p => p.Inventory!.Add(TradeData.Trinket.Id));
+        var (menu, _, _) = Open(stock: p => p.Inventory.Add(TradeData.Trinket.Id));
         var trinket = StockRow(menu, TradeData.Trinket.Id);
         menu.Point(pile: true, trinket);
 

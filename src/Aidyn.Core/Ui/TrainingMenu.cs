@@ -188,7 +188,7 @@ public sealed class TrainingMenu
         if (CurrentSkill is { } skill && Party.Shown is { } shown)
             return MenuDetailsBuilder.Skill(shown.Rules[skill]);
         if (CurrentSpell is { } spell)
-            return MenuDetailsBuilder.Spell(spell.Spell.Spell, Party.Text, Party.Party.Inventory?.Catalog);
+            return MenuDetailsBuilder.Spell(spell.Spell.Spell, Party.Text, Party.Party.Inventory.Catalog);
         return null;
     }
 

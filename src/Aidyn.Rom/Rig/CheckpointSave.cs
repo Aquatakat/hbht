@@ -72,18 +72,16 @@ public static class CheckpointSave
     private static SaveCharacter Member(CheckpointCharacter sheet)
     {
         // The console's slots: the 12 skills, the 11 weapon skills, then the shield. -1 can't be learnt.
-        int?[] levels = [.. sheet.SkillBase.Select(level => level == -1 ? (int?)null : level)];
+        var (skills, weaponSkills, shieldSkill) = SkillSlots.Split([.. sheet.SkillBase.Select(level => level == -1 ? (int?)null : level)]);
         return new SaveCharacter(RecordId.Hex(RecordTypes.Entity, sheet.Id))
         {
             TotalExp = sheet.TotalExp,
             SpendableExp = sheet.SpendableExp,
             Trained = SaveStats.From(sheet.Trained),
             Current = SaveStats.From(sheet.Current),
-            Skills = new SkillLevels(levels[0], levels[1], levels[2], levels[3], levels[4], levels[5], levels[6], levels[7], levels[8], levels[9],
-                levels[10], levels[11]),
-            WeaponSkills = new WeaponSkillLevels(levels[12], levels[13], levels[14], levels[15], levels[16], levels[17], levels[18], levels[19],
-                levels[20], levels[21], levels[22]),
-            ShieldSkill = levels[23],
+            Skills = skills,
+            WeaponSkills = weaponSkills,
+            ShieldSkill = shieldSkill,
             Weapon = Worn(sheet.Weapon),
             Armor = Worn(sheet.Armor),
             Shield = Worn(sheet.Shield),

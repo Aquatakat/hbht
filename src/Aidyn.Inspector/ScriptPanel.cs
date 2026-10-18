@@ -561,11 +561,9 @@ public partial class ScriptPanel : VBoxContainer
             .Select(o => o.Value ?? 0).Where(v => v is >= 0 and <= (int)Stat.Level).Distinct().Order();
         foreach (var stat in stats)
             text += $" {(Stat)stat}: best {party.BestStat((Stat)stat)}, worst {party.WorstStat((Stat)stat)}.";
-        if (party.Inventory is { } inventory)
-        {
-            text += $" It carries {inventory.Stacks.Count:N0} kind{(inventory.Stacks.Count == 1 ? "" : "s")} of item.";
-            _party.TooltipText = string.Join('\n', inventory.Stacks.Select(s => s.ToString()));
-        }
+        var inventory = party.Inventory;
+        text += $" It carries {inventory.Stacks.Count:N0} kind{(inventory.Stacks.Count == 1 ? "" : "s")} of item.";
+        _party.TooltipText = string.Join('\n', inventory.Stacks.Select(s => s.ToString()));
         _party.Text = text;
         foreach (var (member, box) in _members)
             box.SetPressedNoSignal(party.Contains(member));
@@ -585,9 +583,7 @@ public partial class ScriptPanel : VBoxContainer
         {
             if (_world?.Party is not { } party)
                 return;
-            if (party.Inventory is null)
-                Log("These plugins are older than the item records, so the party carries nothing. Import the ROM again.");
-            else if (on)
+            if (on)
                 party.Inventory.Add(item);
             else
             {
@@ -801,7 +797,7 @@ public partial class ScriptPanel : VBoxContainer
                 return;
             }
             // As the game's world adds one, to say whether it fit.
-            log(Party.Inventory!.Add(item) ? $"{name(item)} added" : $"{name(item)} isn't added: the inventory is full");
+            log(Party.Inventory.Add(item) ? $"{name(item)} added" : $"{name(item)} isn't added: the inventory is full");
         }
 
         public bool TakeItem(RecordId item)

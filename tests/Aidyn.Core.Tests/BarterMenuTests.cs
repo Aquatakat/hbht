@@ -129,7 +129,7 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
 
         menu.Accept();
 
-        Assert.Equal(3, party.Inventory!.Count(TradeData.Cheap.Id));
+        Assert.Equal(3, party.Inventory.Count(TradeData.Cheap.Id));
         Assert.Null(loot.Find(TradeData.Cheap.Id));
         Assert.Equal([TradeData.Spice.Id], menu.Pile.Rows.Select(r => r.Item.Id));
         Assert.Null(menu.Message);
@@ -164,7 +164,7 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
             fill: p => p.Add(TradeData.Cheap.Id, 3),
             stock: party =>
             {
-                party.Inventory!.Add(TradeData.Trinket.Id);
+                party.Inventory.Add(TradeData.Trinket.Id);
                 party.Inventory.Add(TradeData.Hide.Id);
             });
 
@@ -181,11 +181,11 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     {
         var (menu, party, loot, _) = Open(
             fill: p => p.Add(TradeData.Trinket.Id, 5),
-            stock: party => party.Inventory!.Add(TradeData.Trinket.Id, 97));
+            stock: party => party.Inventory.Add(TradeData.Trinket.Id, 97));
 
         menu.Accept();
 
-        Assert.Equal(99, party.Inventory!.Count(TradeData.Trinket.Id));
+        Assert.Equal(99, party.Inventory.Count(TradeData.Trinket.Id));
         Assert.Equal(3, loot.Find(TradeData.Trinket.Id)?.Quantity);
         Assert.Equal(3, Assert.Single(menu.Pile.Rows).Quantity);
         Assert.Null(menu.Message);
@@ -197,12 +197,12 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     {
         var (menu, party, loot, _) = Open(
             fill: p => p.Add(TradeData.Trinket.Id, 5),
-            stock: party => party.Inventory!.Add(TradeData.Trinket.Id, 99));
+            stock: party => party.Inventory.Add(TradeData.Trinket.Id, 99));
 
         menu.Accept();
 
         Assert.Equal(Line(MenuText.StackFull), menu.Message?.Text);
-        Assert.Equal(99, party.Inventory!.Count(TradeData.Trinket.Id));
+        Assert.Equal(99, party.Inventory.Count(TradeData.Trinket.Id));
         Assert.Equal(5, loot.Find(TradeData.Trinket.Id)?.Quantity);
         Assert.Equal(5, Assert.Single(menu.Pile.Rows).Quantity);
         Assert.True(menu.OnPile);
@@ -213,13 +213,13 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     {
         var (menu, party, loot, _) = Open(
             fill: p => p.Add(TradeData.Trinket.Id, 5),
-            stock: party => party.Inventory!.Add(TradeData.Cheap.Id),
+            stock: party => party.Inventory.Add(TradeData.Cheap.Id),
             generalSlots: 1);
 
         menu.Accept();
 
         Assert.Equal(Line(MenuText.InventoryFull), menu.Message?.Text);
-        Assert.False(party.Inventory!.Has(TradeData.Trinket.Id));
+        Assert.False(party.Inventory.Has(TradeData.Trinket.Id));
         Assert.Equal(5, loot.Find(TradeData.Trinket.Id)?.Quantity);
         Assert.Equal(5, Assert.Single(menu.Pile.Rows).Quantity);
         Assert.True(menu.OnPile);
@@ -299,7 +299,7 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     {
         var (menu, _, _, flags) = Open(
             fill: p => p.Add(TradeData.Potion.Id),
-            stock: party => party.Inventory!.Add(TradeData.Potion.Id, 99));
+            stock: party => party.Inventory.Add(TradeData.Potion.Id, 99));
 
         menu.Accept();
 
@@ -314,7 +314,7 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     public void ACarriedItemWorthThreeGoldOrLessCantBeDropped(int price)
     {
         var cheap = TradeData.Priced(30, price);
-        var (menu, _, _, _) = Open(stock: party => party.Inventory!.Add(cheap.Id), more: [cheap]);
+        var (menu, _, _, _) = Open(stock: party => party.Inventory.Add(cheap.Id), more: [cheap]);
         menu.Point(pile: false, PartyRow(menu, cheap.Id));
 
         menu.Accept();
@@ -327,7 +327,7 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     public void AnItemWorthFourGoldCanBeDropped()
     {
         var four = TradeData.Priced(30, 4);
-        var (menu, _, _, _) = Open(stock: party => party.Inventory!.Add(four.Id), more: [four]);
+        var (menu, _, _, _) = Open(stock: party => party.Inventory.Add(four.Id), more: [four]);
         menu.Point(pile: false, PartyRow(menu, four.Id));
 
         menu.Accept();
@@ -342,7 +342,7 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         var ring = TradeData.Priced(30, 3, ItemKind.Ring);
         var (menu, _, _, _) = Open(stock: party =>
         {
-            party.Inventory!.Add(ring.Id);
+            party.Inventory.Add(ring.Id);
             Assert.Equal(EquipRefusal.None, party.Equip(party.Slots[0]!, ring.Id));
         }, more: [ring]);
         menu.Point(pile: false, WornRow(menu, ring.Id));
@@ -359,7 +359,7 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         var ring = TradeData.Priced(30, 100, ItemKind.Ring);
         var (menu, party, _, _) = Open(stock: party =>
         {
-            party.Inventory!.Add(ring.Id);
+            party.Inventory.Add(ring.Id);
             Assert.Equal(EquipRefusal.None, party.Equip(party.Slots[0]!, ring.Id));
         }, more: [ring]);
         menu.Point(pile: false, WornRow(menu, ring.Id));
@@ -378,7 +378,7 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     [InlineData(20, new[] { 0, 1, 5, 10, 20 })]
     public void DroppingACarriedItemAsksHowManyFromNoneToAll(int held, int[] options)
     {
-        var (menu, _, _, _) = Open(stock: party => party.Inventory!.Add(TradeData.Trinket.Id, held));
+        var (menu, _, _, _) = Open(stock: party => party.Inventory.Add(TradeData.Trinket.Id, held));
         menu.Point(pile: false, PartyRow(menu, TradeData.Trinket.Id));
 
         menu.Accept();
@@ -394,7 +394,7 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     [Fact]
     public void TheDropQuestionNamesTheItemAndItsOptionsReadNoneOneSomeAndAll()
     {
-        var (menu, _, _, _) = Open(stock: party => party.Inventory!.Add(TradeData.Trinket.Id, 7));
+        var (menu, _, _, _) = Open(stock: party => party.Inventory.Add(TradeData.Trinket.Id, 7));
         menu.Point(pile: false, PartyRow(menu, TradeData.Trinket.Id));
 
         menu.Accept();
@@ -407,7 +407,7 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     [Fact]
     public void ASingleItemsOptionsReadNoneAndDropIt()
     {
-        var (menu, _, _, _) = Open(stock: party => party.Inventory!.Add(TradeData.Trinket.Id));
+        var (menu, _, _, _) = Open(stock: party => party.Inventory.Add(TradeData.Trinket.Id));
         menu.Point(pile: false, PartyRow(menu, TradeData.Trinket.Id));
 
         menu.Accept();
@@ -418,14 +418,14 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     [Fact]
     public void AnsweringNoneClosesTheQuestionAndDropsNothing()
     {
-        var (menu, party, _, _) = Open(stock: party => party.Inventory!.Add(TradeData.Trinket.Id, 7));
+        var (menu, party, _, _) = Open(stock: party => party.Inventory.Add(TradeData.Trinket.Id, 7));
         menu.Point(pile: false, PartyRow(menu, TradeData.Trinket.Id));
         menu.Accept();
 
         menu.Accept();
 
         Assert.Null(menu.Confirm);
-        Assert.Equal(7, party.Inventory!.Count(TradeData.Trinket.Id));
+        Assert.Equal(7, party.Inventory.Count(TradeData.Trinket.Id));
     }
 
     [Fact]
@@ -435,7 +435,7 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
             fill: p => p.Add(TradeData.Spice.Id),
             stock: party =>
             {
-                party.Inventory!.Add(TradeData.Trinket.Id, 7);
+                party.Inventory.Add(TradeData.Trinket.Id, 7);
                 party.Inventory.Add(TradeData.Hide.Id);
             });
         menu.ShowParty();
@@ -447,7 +447,7 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         menu.Accept();
 
         Assert.Null(menu.Confirm);
-        Assert.Equal(2, party.Inventory!.Count(TradeData.Trinket.Id));
+        Assert.Equal(2, party.Inventory.Count(TradeData.Trinket.Id));
         Assert.Null(loot.Find(TradeData.Trinket.Id));
         Assert.Equal([TradeData.Spice.Id], menu.Pile.Rows.Select(r => r.Item.Id));
         Assert.Equal(row, menu.Party.Inventory.Cursor);
@@ -460,7 +460,7 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     {
         var (menu, party, _, _) = Open(stock: party =>
         {
-            party.Inventory!.Add(TradeData.Trinket.Id, 7);
+            party.Inventory.Add(TradeData.Trinket.Id, 7);
             party.Inventory.Add(TradeData.Hide.Id);
         });
         var row = PartyRow(menu, TradeData.Trinket.Id);
@@ -470,7 +470,7 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
 
         menu.Accept();
 
-        Assert.False(party.Inventory!.Has(TradeData.Trinket.Id));
+        Assert.False(party.Inventory.Has(TradeData.Trinket.Id));
         Assert.Equal(row, menu.Party.Inventory.Cursor);
         Assert.Equal(TradeData.Hide.Id, menu.Party.Inventory.Current!.Item.Id);
     }
@@ -478,14 +478,14 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     [Fact]
     public void BackWhileTheDropQuestionIsOpenDoesNothingAndTrue()
     {
-        var (menu, party, _, _) = Open(stock: party => party.Inventory!.Add(TradeData.Trinket.Id, 7));
+        var (menu, party, _, _) = Open(stock: party => party.Inventory.Add(TradeData.Trinket.Id, 7));
         menu.Point(pile: false, PartyRow(menu, TradeData.Trinket.Id));
         menu.Accept();
 
         Assert.True(menu.Back());
 
         Assert.NotNull(menu.Confirm);
-        Assert.Equal(7, party.Inventory!.Count(TradeData.Trinket.Id));
+        Assert.Equal(7, party.Inventory.Count(TradeData.Trinket.Id));
         Assert.False(menu.Closed);
     }
 
@@ -500,7 +500,7 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
             },
             stock: party =>
             {
-                party.Inventory!.Add(TradeData.Trinket.Id, 7);
+                party.Inventory.Add(TradeData.Trinket.Id, 7);
                 party.Inventory.Add(TradeData.Hide.Id);
             });
         menu.Point(pile: false, PartyRow(menu, TradeData.Trinket.Id));
@@ -627,7 +627,7 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
             fill: p => p.Add(TradeData.Trinket.Id),
             stock: party =>
             {
-                party.Inventory!.Add(TradeData.Cheap.Id);
+                party.Inventory.Add(TradeData.Cheap.Id);
                 party.Inventory.Add(TradeData.Hide.Id);
             });
         menu.ShowParty();
@@ -671,7 +671,7 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
             fill: p => p.Add(TradeData.Trinket.Id),
             stock: party =>
             {
-                party.Inventory!.Add(TradeData.Cheap.Id);
+                party.Inventory.Add(TradeData.Cheap.Id);
                 party.Inventory.Add(TradeData.Hide.Id);
             });
         Assert.True(menu.OnPile);
@@ -695,7 +695,7 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
             },
             stock: party =>
             {
-                party.Inventory!.Add(TradeData.Spice.Id);
+                party.Inventory.Add(TradeData.Spice.Id);
                 party.Inventory.Add(TradeData.Hide.Id);
             });
         var partyCursor = menu.Party.Inventory.Cursor;
@@ -714,7 +714,7 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         var ring = TradeData.Priced(30, 100, ItemKind.Ring);
         var (menu, _, _, _) = Open(
             fill: p => p.Add(TradeData.Leather.Id),
-            stock: party => party.Inventory!.Add(ring.Id),
+            stock: party => party.Inventory.Add(ring.Id),
             more: [ring]);
 
         Assert.True(menu.OnPile);
@@ -773,7 +773,7 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         menu.Accept();
         menu.Accept();
 
-        Assert.Equal(5, party.Inventory!.Find(amulet.Id)!.Instance.Battery);
+        Assert.Equal(5, party.Inventory.Find(amulet.Id)!.Instance.Battery);
         Assert.Equal(2, party.Inventory.Find(wand.Id)!.Instance.Charges);
     }
 
@@ -790,7 +790,7 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
 
         Assert.Equal(TradeResult.Done, window.Take(amulet.Id));
 
-        Assert.Equal(3, party.Inventory!.Find(amulet.Id)!.Instance.Battery);
+        Assert.Equal(3, party.Inventory.Find(amulet.Id)!.Instance.Battery);
     }
 
     [Theory]

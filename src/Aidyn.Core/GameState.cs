@@ -27,6 +27,7 @@ public sealed class GameState : IScriptWorld
     public const uint NewGameGold = 1;
 
     private readonly List<string> _problems = [];
+    private readonly CharacterSaves _saves;
 
     private GameState(PluginSet plugins)
     {
@@ -37,6 +38,7 @@ public sealed class GameState : IScriptWorld
         StateFlagsRecord = plugins.Singleton<StateFlagsRecord>(RecordTypes.StateFlags);
         StateFlags = new StateFlags(Flags, StateFlagsRecord);
         Party = new Party(Items, Flags);
+        _saves = new CharacterSaves(plugins, Rules, Items, Flags, _problems);
         Minimaps = new MinimapSeen(plugins);
         if (plugins.TrySingleton<WeatherRecord>(RecordTypes.Weather) is { } weather)
             Weather = new Weather(weather);
@@ -140,7 +142,7 @@ public sealed class GameState : IScriptWorld
         game.Clock.Time = save.Time % GameClock.Year;
         game.StateFlags.SetTime(game.Clock);
 
-        game.Fill(game.Party, save.Party, game._problems);
+        game._saves.Load(game.Party, save.Party);
 
         foreach (var memory in save.Memories)
         {
@@ -219,14 +221,7 @@ public sealed class GameState : IScriptWorld
     }
 
     /// <summary>The party as a save holds it: its members' sheets, those kept for members who left, its gold and its inventory.</summary>
-    public SaveParty SaveParty() => new()
-    {
-        Gold = Party.Gold,
-        Members = [.. Party.Members.Select(SaveCharacter)],
-        Kept = [.. Party.Kept.Values],
-        Inventory = [.. (Party.Inventory?.Stacks ?? []).Select(s =>
-            new SaveStack(s.Item.Id, s.Quantity) { Battery = s.Instance.Battery, Charges = s.Instance.Charges })],
-    };
+    public SaveParty SaveParty() => CharacterSaves.Save(Party);
 
     /// <summary>
     /// Puts the party as a save holds it in place of the one there, as loading does. Key items' flags
@@ -235,7 +230,7 @@ public sealed class GameState : IScriptWorld
     public void LoadParty(SaveParty saved)
     {
         Party.Clear();
-        Fill(Party, saved, _problems);
+        _saves.Load(Party, saved);
     }
 
     /// <summary>
@@ -245,36 +240,8 @@ public sealed class GameState : IScriptWorld
     public Party CopyParty()
     {
         var party = new Party(Items);
-        Fill(party, SaveParty(), []);
+        new CharacterSaves(Plugins, Rules, Items, Flags, []).Load(party, SaveParty());
         return party;
-    }
-
-    // QuestData::Load's party: the members in slot order, the first being Alaron, the sheets kept for those
-    // who left, the gold and the inventory.
-    private void Fill(Party party, SaveParty saved, ICollection<string> problems)
-    {
-        party.Gold = saved.Gold;
-        for (var slot = 0; slot < saved.Members.Count; slot++)
-        {
-            if (LoadCharacter(saved.Members[slot], slot == 0, problems) is { } member && !party.Add(member))
-                problems.Add($"{member.Name} doesn't fit in the party.");
-        }
-        foreach (var kept in saved.Kept)
-        {
-            if (Plugins.TryGet<EntityRecord>(kept.Entity) is null)
-                problems.Add($"{kept.Entity} was kept for rejoining, but isn't a character any plugin has.");
-            else if (party.Contains(kept.Entity))
-                problems.Add($"{kept.Entity} was kept for rejoining, but is in the party.");
-            else
-                party.Keep(kept);
-        }
-        foreach (var stack in saved.Inventory)
-        {
-            if (Instance(stack.Item, stack.Battery, stack.Charges, problems) is not { } held)
-                continue;
-            if (!party.Inventory!.Add(held.Item, stack.Quantity, held))
-                problems.Add($"{held.Item.Name} doesn't fit in the inventory.");
-        }
     }
 
     /// <summary>
@@ -337,141 +304,12 @@ public sealed class GameState : IScriptWorld
         ? Character.Create(record, Rules, Plugins.Get<SpellRecord>, Flags.IsSet, Items)
         : null;
 
-        /// <summary>A character sheet as a save holds it (<c>SaveParty::SaveCharSheet</c>).</summary>
-    public static SaveCharacter SaveCharacter(Character member)
-    {
-        var stats = Enumerable.Range(0, CharacterRules.StatCount).Select(s => (Stat)s).ToList();
-        var skills = Enumerable.Range(0, SkillId.Count).Select(i => member.Skills.RawBase(new SkillId(i)) is var level and >= 0 ? level : (int?)null).ToList();
-        var worn = member.Equipment;
-        return new SaveCharacter(member.Entity)
-        {
-            Name = member.Name != member.RecordName ? member.Name : null,
-            TotalExp = member.TotalExp,
-            SpendableExp = member.SpendableExp,
-            Trained = SaveStats.From([.. stats.Select(member.Stats.Trained)]),
-            Current = SaveStats.From([.. stats.Select(member.Stats.Current)]),
-            Skills = new SkillLevels(skills[0], skills[1], skills[2], skills[3], skills[4], skills[5], skills[6], skills[7], skills[8],
-                skills[9], skills[10], skills[11]),
-            WeaponSkills = new WeaponSkillLevels(skills[12], skills[13], skills[14], skills[15], skills[16], skills[17], skills[18],
-                skills[19], skills[20], skills[21], skills[22]),
-            ShieldSkill = skills[23],
-            Weapon = Item(worn.Weapon),
-            Armor = Item(worn.Armor),
-            Shield = Item(worn.Shield),
-            Gear = [.. worn.Gear.OfType<ItemInstance>().Select(g => Item(g)!)],
-            Spells = [.. member.Spells.Select(s => new KnownSpell(s.Spell.Id, s.Level))],
-            Potions = [.. member.PotionEffects.Select(p => new SavePotion(Potions.Id(p.Potion), p.Timer) { Power = p.Power })],
-        };
+    /// <summary>A character sheet as a save holds it (<see cref="CharacterSaves.Save(Character)"/>).</summary>
+    public static SaveCharacter SaveCharacter(Character member) => CharacterSaves.Save(member);
 
-        static SaveItem? Item(ItemInstance? item) => item is null ? null : new SaveItem(item.Id) { Battery = item.Battery, Charges = item.Charges };
-    }
-
-    /// <summary>
-    /// A character sheet from a save (<c>SaveParty::LoadCharSheet</c>): the record's sheet with the
-    /// save's experience, stats and base skills, which leaves the modified values the trained and
-    /// current ones, then the armor, shield, weapon and gear put on as the rules allow, which applies
-    /// them. A skill the record can't learn stays so. The spellbook is put in the original's order
-    /// (<see cref="SpellOrder"/>). Null if no plugin has the record.
-    /// </summary>
-    /// <param name="alaron">
-    /// Whether it's the party's first member, whose save also holds the Elemental, Naming and
-    /// Necromancy spells (<c>SaveParty::SaveAlaron</c>).
-    /// </param>
-    public Character? LoadCharacter(SaveCharacter saved, bool alaron = false) => LoadCharacter(saved, alaron, _problems);
-
-    private Character? LoadCharacter(SaveCharacter saved, bool alaron, ICollection<string> problems)
-    {
-        if (Plugins.TryGet<EntityRecord>(saved.Entity) is not { } entity)
-        {
-            problems.Add($"{saved.Entity} isn't a character any plugin has.");
-            return null;
-        }
-        var trained = saved.Trained.ToArray();
-        var current = saved.Current.ToArray();
-        var stats = new CharacterStats(Rules, trained, current, trained, current);
-
-        var recorded = Character.SkillLevels(entity);
-        var s = saved.Skills;
-        var w = saved.WeaponSkills;
-        int?[] levels = [s.Alchemist, s.Diplomat, s.Healer, s.Loremaster, s.Mechanic, s.Merchant, s.Ranger, s.Stealth, s.Thief,
-            s.Troubadour, s.Warrior, s.Wizard, w.Bite, w.Breath, w.Claw, w.Hafted, w.Missile, w.Pole, w.Spit, w.Sting, w.Sword, w.Thrown,
-            w.Tusk, saved.ShieldSkill];
-        // CharSkills::LoadOne: a skill the record can't learn stays unlearnable. The modified level starts at the
-        // base, or at 0 for one that can't be learnt, as the checkpoints hold it.
-        var skills = new CharacterSkills(Rules, [.. levels.Select((level, i) => recorded[i] is null ? null : (int?)(sbyte)(level ?? 0))]);
-
-        var spells = new List<LearnedSpell>();
-        foreach (var known in saved.Spells)
-        {
-            if (Plugins.TryGet<SpellRecord>(known.Spell) is { } spell)
-                spells.Add(new LearnedSpell(spell, known.Level));
-            else
-                problems.Add($"{entity.Name} knows {known.Spell}, which no plugin has.");
-        }
-        var character = Character.Restore(entity, Rules, stats, skills, SpellOrder(spells, entity.School, alaron));
-        character.TrueName = entity.TrueName || (entity.TrueNameFlag is { } flag && Flags.IsSet(flag));
-        if (saved.Name is { Length: > 0 } name)
-            character.Name = name;
-        character.TotalExp = saved.TotalExp;
-        character.SpendableExp = saved.SpendableExp;
-
-        var equipment = character.Equipment;
-        if (Instance(saved.Armor, problems) is { } armor)
-            equipment.EquipArmor(armor);
-        Wear(saved.Shield, equipment.EquipShield);
-        Wear(saved.Weapon, equipment.EquipWeapon);
-        foreach (var gear in saved.Gear)
-            Wear(gear, equipment.EquipGear);
-        // SaveParty::LoadCharSheetEffects, after the sheet and what it wears.
-        foreach (var potion in saved.Potions)
-        {
-            if (Potions.Of(potion.Potion) is { } which)
-                character.ApplyPotionEffect(which, potion.Power, potion.Timer);
-            else
-                problems.Add($"{entity.Name} has {potion.Potion} working, which isn't a potion.");
-        }
-        return character;
-
-        void Wear(SaveItem? item, Func<ItemInstance, EquipRefusal> equip)
-        {
-            if (Instance(item, problems) is { } instance && equip(instance) is var refusal and not EquipRefusal.None)
-                problems.Add($"{entity.Name} can't wear the {instance.Item.Name} ({refusal}), so it's lost.");
-        }
-    }
-
-    /// <summary>
-    /// A spellbook in the order loading a save leaves it (<c>SaveParty::LoadSpellsFromSchool</c>,
-    /// <c>LoadAlaron</c>): unschooled spells, then the character's school's (Star for Chaos), then for
-    /// Alaron the Elemental, Naming and Necromancy spells, each school in the spell table's order. The
-    /// original drops a spell of any other school; the port keeps it, last.
-    /// </summary>
-    public static IReadOnlyList<LearnedSpell> SpellOrder(IEnumerable<LearnedSpell> spells, MagicSchool school, bool alaron)
-    {
-        List<MagicSchool> schools = [MagicSchool.None, school == MagicSchool.Chaos ? MagicSchool.Star : school];
-        if (alaron)
-            schools.AddRange([MagicSchool.Elemental, MagicSchool.Naming, MagicSchool.Necromancy]);
-        return [.. spells.OrderBy(s => schools.IndexOf(s.Spell.School) is var rank and >= 0 ? rank : schools.Count)
-            .ThenBy(s => s.Spell.Position ?? int.MaxValue)];
-    }
-
-    private ItemInstance? Instance(SaveItem? item, ICollection<string> problems) =>
-        item is null ? null : Instance(item.Item, item.Battery, item.Charges, problems);
-
-    // SaveParty::LoadItem: a new instance of the item, with the save's charges and battery. The price is the item's.
-    private ItemInstance? Instance(RecordId id, int? battery, int? charges, ICollection<string> problems)
-    {
-        if (Items.TryGet(id) is not { } item)
-        {
-            problems.Add($"{id} isn't an item any plugin has.");
-            return null;
-        }
-        var instance = new ItemInstance(item);
-        if (instance.Battery is not null && battery is { } left)
-            instance.Battery = (sbyte)left;
-        if (instance.Charges is not null && charges is { } count)
-            instance.Charges = (byte)count;
-        return instance;
-    }
+    /// <summary>A spellbook in the order loading a save leaves it (<see cref="CharacterSaves.SpellOrder"/>).</summary>
+    public static IReadOnlyList<LearnedSpell> SpellOrder(IEnumerable<LearnedSpell> spells, MagicSchool school, bool alaron) =>
+        CharacterSaves.SpellOrder(spells, school, alaron);
 
     private void CheckPlugins(IReadOnlyList<SavedPlugin> saved)
     {
@@ -513,7 +351,7 @@ public sealed class GameState : IScriptWorld
     void IScriptWorld.AddItem(RecordId item)
     {
         if (Items.TryGet(item) is { } known)
-            Party.Inventory!.Add(known);
+            Party.Inventory.Add(known);
     }
 
     bool IScriptWorld.TakeItem(RecordId item) => Party.TakeItem(item);
@@ -543,7 +381,7 @@ public sealed class GameState : IScriptWorld
             if (Recruit(entity) is not { } member)
                 return false;
             // SaveEntity::CopyMember, after Entity::Init has already put the spare weapons in the inventory.
-            if (Party.TakeKept(entity) is { } kept && LoadCharacter(kept) is { } restored)
+            if (Party.TakeKept(entity) is { } kept && _saves.Load(kept) is { } restored)
             {
                 restored.Spares.AddRange(member.Spares);
                 member = restored;

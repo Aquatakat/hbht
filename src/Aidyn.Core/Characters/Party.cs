@@ -40,7 +40,7 @@ public sealed partial class Party
             return false;
         _slots[slot] = member;
         foreach (var spare in member.Spares)
-            Inventory?.Add(spare);
+            Inventory.Add(spare);
         member.Spares.Clear();
         return true;
     }
@@ -76,7 +76,7 @@ public sealed partial class Party
         Array.Clear(_slots);
         _kept.Clear();
         Gold = 0;
-        Inventory?.Clear();
+        Inventory.Clear();
     }
 
     public Character? Get(RecordId entity) => Members.FirstOrDefault(m => m.Entity == entity);
@@ -128,7 +128,7 @@ public sealed partial class Party
             member.CampHeal(fraction);
             member.StepPotionEffects(effectTicks);
         }
-        foreach (var stack in Inventory?.Stacks ?? [])
+        foreach (var stack in Inventory.Stacks)
             Items.Equipment.Recharge(stack.Instance, fraction);
     }
 
@@ -139,7 +139,7 @@ public sealed partial class Party
     /// </summary>
     public int SkillCheck(Skill skill, IRandom random) => skill switch
     {
-        Skill.Alchemist => Against(Skill.Alchemist, random, m => m.Stats.Modified(Stat.Intelligence) * 3 + m.Skills.Modified(Skill.Alchemist) * 6),
+        Skill.Alchemist => Against(Skill.Alchemist, random, AlchemistBonus),
         // Rolled twice when the first passes, and the second is what counts.
         Skill.Diplomat => Pooled(Skill.Diplomat, 10, 50, random) is var first && first < 3 ? 2 : Pooled(Skill.Diplomat, 10, 50, random),
         Skill.Healer => Against(Skill.Healer, random, m => m.Stats.Modified(Stat.Intelligence) * 3 + m.Skills.Modified(Skill.Healer) * 10),
@@ -157,6 +157,13 @@ public sealed partial class Party
         Skill.Wizard => Against(Skill.Wizard, random, m => (m.Skills.Modified(Skill.Wizard) * 5 + m.Stats.Modified(Stat.Intelligence)) * 2),
         _ => 0,
     };
+
+    /// <summary>
+    /// What an Alchemist rolls against, Intelligence × 3 + Alchemist × 6, as the party's check and brewing
+    /// (<see cref="Items.Crafting.Brew"/>) both have it.
+    /// </summary>
+    public static int AlchemistBonus(Character member) =>
+        member.Stats.Modified(Stat.Intelligence) * 3 + member.Skills.Modified(Skill.Alchemist) * 6;
 
     /// <summary>
     /// The party's search for a secret door (<c>Party::SecretLock</c>): the best member's Intelligence × 3

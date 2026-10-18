@@ -312,7 +312,7 @@ public class WandererReachTests
     {
         var party = new MonsterPartyObject(0, Vector3.Zero, 20, PakVariant.Any, null, [], RecordId.Hex(RecordTypes.Entity, 0x300), null, 0, 0, null,
             flags, talks ? RecordId.Hex(RecordTypes.Dialogue, 1) : null, null);
-        var map = LoadedMap.Activate(new MapRecord(MapId, [party]), "chunk", ItemData.Flags(), new MapObjectMemory(), new CharacterParty(), new Lcg());
+        var map = LoadedMap.Activate(new MapRecord(MapId, [party]), "chunk", ItemData.Flags(), new MapObjectMemory(), ItemData.NewParty(), new Lcg());
         return new Wanderer(map, party, new EntityBody(RecordId.Hex(RecordTypes.Actor, 1), 0.5f, scale, 2), new Body(new Vector3(0, 0.5f, 0), 0.5f, scale), 10);
     }
 

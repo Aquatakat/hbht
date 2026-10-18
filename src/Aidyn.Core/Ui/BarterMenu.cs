@@ -83,7 +83,7 @@ public sealed class BarterMenu
     /// <param name="flags">The flags the first potion taken sets.</param>
     /// <param name="random">The stream skill checks draw from; a fresh one if none.</param>
     public static BarterMenu ForLoot(PluginSet plugins, Party party, ItemPile loot, int gold, FlagNetwork? flags, IRandom? random = null) =>
-        new(PartyMenu.From(plugins, party, random: random), LootWindow.Showing(loot, gold, party, party.Inventory!.Catalog, flags), null, flags);
+        new(PartyMenu.From(plugins, party, random: random), LootWindow.Showing(loot, gold, party, party.Inventory.Catalog, flags), null, flags);
 
     /// <summary>
     /// A shop's window (<c>InitShop</c>, <c>build_loot_menu</c> with a shopkeeper), on the shop as
@@ -269,7 +269,7 @@ public sealed class BarterMenu
             return;
         }
         var item = row.Item;
-        var firstPotion = item.Kind == ItemKind.Potion && _flags is not null && !_flags.IsSet(Party.Party.Inventory!.Catalog.Rules.FirstPotionFlag);
+        var firstPotion = item.Kind == ItemKind.Potion && _flags is not null && !_flags.IsSet(Party.Party.Inventory.Catalog.Rules.FirstPotionFlag);
         switch (Shop is { } shop ? shop.Buy(item.Id) : Loot!.Take(item.Id))
         {
             case TradeResult.CantAfford:
@@ -314,7 +314,7 @@ public sealed class BarterMenu
             Say(selling ? MenuText.UnequipToSell : MenuText.UnequipToDrop);
             return;
         }
-        var held = Party.Party.Inventory!.Count(row.Item.Id);
+        var held = Party.Party.Inventory.Count(row.Item.Id);
         var text = Party.Text;
         List<BarterOption> options = [new(text[selling ? MenuText.SellNo : MenuText.DropNo], 0)];
         if (held == 1)

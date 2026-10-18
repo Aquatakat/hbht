@@ -152,7 +152,7 @@ public sealed class Equipment
         if (refusal != EquipRefusal.None)
             return refusal;
         Weapon = weapon;
-        Apply(weapon);
+        Bonus(weapon, 1);
         return EquipRefusal.None;
     }
 
@@ -184,7 +184,7 @@ public sealed class Equipment
             return refusal;
         _gear[Array.IndexOf(_gear, null)] = gear;
         GearCount++;
-        Apply(gear);
+        Bonus(gear, 1);
         _owner.Protection = (byte)(_owner.Protection + gear.Item.Protection);
         _owner.Damage = (byte)(_owner.Damage + gear.Item.Damage);
         return EquipRefusal.None;
@@ -195,7 +195,7 @@ public sealed class Equipment
     {
         if (Weapon is not { } weapon)
             return null;
-        Remove(weapon);
+        Bonus(weapon, -1);
         Weapon = null;
         return weapon;
     }
@@ -205,7 +205,6 @@ public sealed class Equipment
     {
         if (Armor is not { } armor)
             return null;
-        Remove(armor);
         ApplyArmor(armor, -1);
         Armor = null;
         return armor;
@@ -216,10 +215,25 @@ public sealed class Equipment
     {
         if (Shield is not { } shield)
             return null;
-        Remove(shield);
         ApplyArmor(shield, -1);
         Shield = null;
         return shield;
+    }
+
+    /// <summary>
+    /// Takes off this worn item, wherever it is, whichever of the four removals undoes it, and returns it, or
+    /// null if it isn't worn.
+    /// </summary>
+    public ItemInstance? Remove(ItemInstance item)
+    {
+        if (Weapon == item)
+            return RemoveWeapon();
+        if (Armor == item)
+            return RemoveArmor();
+        if (Shield == item)
+            return RemoveShield();
+        var slot = Array.IndexOf(_gear, item);
+        return slot < 0 ? null : RemoveGear(slot);
     }
 
     /// <summary>Takes off the gear in a slot, and its protection and damage (<c>Entity::UnequipGear</c>).</summary>
@@ -227,7 +241,7 @@ public sealed class Equipment
     {
         if (_gear[slot] is not { } gear)
             return null;
-        Remove(gear);
+        Bonus(gear, -1);
         _owner.Protection = (byte)(_owner.Protection - gear.Item.Protection);
         _owner.Damage = (byte)(_owner.Damage - gear.Item.Damage);
         _gear[slot] = null;
@@ -342,16 +356,17 @@ public sealed class Equipment
         item.Battery = capacity < battery + gain ? (sbyte)capacity : (sbyte)(battery + gain);
     }
 
-    // Entity::ApplyEquipment: the skill bonus if the skill's base level isn't 0, then the stat bonus.
-    private void Apply(ItemInstance item)
+    // An item's bonuses going on (sign 1; Entity::ApplyEquipment) or coming off (sign -1; FUN_80078874): the skill
+    // bonus if the skill's base level isn't 0, then the stat bonus, which Bounded limits either way.
+    private void Bonus(ItemInstance item, int sign)
     {
         var bonuses = item.Item.Bonuses;
         if (bonuses.Skill is { } skill && _owner.Skills.Base(SkillId.FromRecord(skill.Skill)) != 0)
-            _owner.Skills.Modify(SkillId.FromRecord(skill.Skill), skill.Amount);
+            _owner.Skills.Modify(SkillId.FromRecord(skill.Skill), sign * skill.Amount);
         if (bonuses.Stat is { } stat && stat.Stat != Item.StaminaStat)
         {
-            var which = (Stat)int.Parse(stat.Stat.Key);
-            var amount = Bounded(which, (sbyte)stat.Amount, adding: true);
+            var which = StatId.FromRecord(stat.Stat);
+            var amount = sign * Bounded(which, (sbyte)stat.Amount, adding: sign > 0);
             if (which == Stat.Endurance)
                 _owner.Stats.ChangeBase(which, amount);
             else
@@ -359,28 +374,10 @@ public sealed class Equipment
         }
     }
 
-    // FUN_80078874: the same undone.
-    private void Remove(ItemInstance item)
-    {
-        var bonuses = item.Item.Bonuses;
-        if (bonuses.Skill is { } skill && _owner.Skills.Base(SkillId.FromRecord(skill.Skill)) != 0)
-            _owner.Skills.Modify(SkillId.FromRecord(skill.Skill), -skill.Amount);
-        if (bonuses.Stat is { } stat && stat.Stat != Item.StaminaStat)
-        {
-            var which = (Stat)int.Parse(stat.Stat.Key);
-            var amount = Bounded(which, (sbyte)stat.Amount, adding: false);
-            if (which == Stat.Endurance)
-                _owner.Stats.ChangeBase(which, -amount);
-            else
-                _owner.Stats.ChangeModified(which, -amount);
-        }
-    }
-
-    // Armor's Dexterity and Stealth (Entity::EquipArmorOrShield, RemoveArmorOrShield).
+    // Armor's bonuses and then its Dexterity and Stealth (Entity::EquipArmorOrShield, RemoveArmorOrShield).
     private void ApplyArmor(ItemInstance armor, int sign)
     {
-        if (sign > 0)
-            Apply(armor);
+        Bonus(armor, sign);
         var record = armor.Item.Armor!;
         _owner.Stats.ChangeModified(Stat.Dexterity, sign * record.Dexterity);
         _owner.Skills.Modify(Skill.Stealth, sign * record.Stealth);

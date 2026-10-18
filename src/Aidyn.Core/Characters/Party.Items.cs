@@ -22,21 +22,16 @@ public enum ScrollResult
 
 public sealed partial class Party
 {
-    public Party()
-    {
-    }
-
-    /// <summary>A party with an inventory, whose key items set <paramref name="flags"/>.</summary>
+    /// <summary>A party with an empty inventory, whose key items set <paramref name="flags"/>.</summary>
     public Party(ItemCatalog items, FlagNetwork? flags = null) => Inventory = new PartyInventory(items, flags);
 
-    /// <summary>The party's inventory, or null for a party built without the item records.</summary>
-    public PartyInventory? Inventory { get; }
+    public PartyInventory Inventory { get; }
 
     /// <summary>
     /// Whether the party has an item, carried or equipped (<c>Party::hasItem</c>). Gear is looked for
     /// only in each member's first <see cref="Equipment.GearCount"/> slots, as the original looks.
     /// </summary>
-    public bool HasItem(RecordId item) => Inventory?.Has(item) == true || Members.Any(m => m.Equipment.Find(item) is not null);
+    public bool HasItem(RecordId item) => Inventory.Has(item) || Members.Any(m => m.Equipment.Find(item) is not null);
 
     /// <summary>
     /// Takes one of an item for a script (<c>Party::TakeItem</c>): from the inventory, or else from the
@@ -44,22 +39,12 @@ public sealed partial class Party
     /// </summary>
     public bool TakeItem(RecordId item)
     {
-        if (Inventory?.Take(item) == true)
+        if (Inventory.Take(item))
             return true;
         foreach (var member in Members)
         {
-            var equipment = member.Equipment;
-            if (equipment.Weapon?.Id == item)
-                return equipment.RemoveWeapon() is not null;
-            if (equipment.Armor?.Id == item)
-                return equipment.RemoveArmor() is not null;
-            if (equipment.Shield?.Id == item)
-                return equipment.RemoveShield() is not null;
-            for (var slot = 0; slot < equipment.GearCount; slot++)
-            {
-                if (equipment.Gear[slot]?.Id == item)
-                    return equipment.RemoveGear(slot) is not null;
-            }
+            if (member.Equipment.Find(item) is { } worn)
+                return member.Equipment.Remove(worn) is not null;
         }
         return false;
     }
@@ -77,7 +62,7 @@ public sealed partial class Party
     /// </remarks>
     public EquipRefusal Equip(Character member, RecordId item)
     {
-        if (Inventory?.Find(item) is not { } stack)
+        if (Inventory.Find(item) is not { } stack)
             return EquipRefusal.CantUse;
         var thing = stack.Item;
         if (thing.Bonuses.Aspect != Aspect.None && thing.Bonuses.Aspect != member.Aspect)
@@ -120,17 +105,9 @@ public sealed partial class Party
     /// </summary>
     public bool Unequip(Character member, ItemInstance item)
     {
-        var equipment = member.Equipment;
-        if (item.Item.Weapon?.Fixed == true || Inventory is null || !Stow(item))
+        if (item.Item.Weapon?.Fixed == true || !Stow(item))
             return false;
-        if (equipment.Weapon == item)
-            equipment.RemoveWeapon();
-        else if (equipment.Armor == item)
-            equipment.RemoveArmor();
-        else if (equipment.Shield == item)
-            equipment.RemoveShield();
-        else
-            equipment.RemoveGear(equipment.Gear.ToList().IndexOf(item));
+        member.Equipment.Remove(item);
         return true;
     }
 
@@ -161,15 +138,18 @@ public sealed partial class Party
         var wizard = member.Skills.Base(Skill.Wizard);
         if (wizard < 0)
             return ScrollResult.NotAWizard;
-        if (Inventory?.Find(scroll)?.Item.Bonuses.Spell is not { } carried)
+        if (Inventory.Find(scroll)?.Item.Bonuses.Spell is not { } carried)
             return ScrollResult.NoSpell;
         if (member.FindSpell(carried.Spell) is not null)
             return ScrollResult.AlreadyKnown;
         var spell = spells(carried.Spell);
-        if (wizard < spell.Wizard)
-            return ScrollResult.NeedsWizard;
-        if (member.School != MagicSchool.Chaos && spell.School != MagicSchool.None && member.School != spell.School)
-            return ScrollResult.WrongSchool;
+        switch (member.CanLearn(spell))
+        {
+            case SpellLearnability.WizardTooLow:
+                return ScrollResult.NeedsWizard;
+            case SpellLearnability.WrongSchool:
+                return ScrollResult.WrongSchool;
+        }
         member.LearnSpell(spell);
         Inventory.Take(scroll);
         return ScrollResult.Learned;
@@ -180,7 +160,7 @@ public sealed partial class Party
     private EquipRefusal Swap(ItemStack stack, ItemInstance? old, Func<ItemInstance?> remove, Func<ItemInstance, EquipRefusal> equip)
     {
         var item = stack.Instance.Copy();
-        Inventory!.Take(item.Id);
+        Inventory.Take(item.Id);
         if (old is not null)
         {
             if (!Stow(old))
@@ -202,14 +182,14 @@ public sealed partial class Party
         if (equipment.Gear.Take(equipment.GearCount).Count(g => g?.Item.Kind == stack.Item.Kind) >= most)
             return EquipRefusal.NoRoom;
         var item = stack.Instance.Copy();
-        Inventory!.Take(item.Id);
+        Inventory.Take(item.Id);
         return equipment.EquipGear(item);
     }
 
     // Puts an item in the inventory, its stack taking the item's battery and charges (UpdateItemStatCharges).
     private bool Stow(ItemInstance item)
     {
-        if (!Inventory!.Add(item.Item, 1, item))
+        if (!Inventory.Add(item.Item, 1, item))
             return false;
         Inventory.Find(item.Id)?.Instance.TakeStateOf(item);
         return true;

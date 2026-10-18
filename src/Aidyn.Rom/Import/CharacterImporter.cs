@@ -200,18 +200,13 @@ internal static class CharacterImporter
         }
         if (e.Weapons.Count != 3)
             throw new InvalidDataException($"Entity {e.Id} has {e.Weapons.Count} weapon slots.");
-        var s = e.Skills;
-        var w = e.WeaponSkills;
+        var (skills, weaponSkills, shieldSkill) = SkillSlots.Split([.. e.Skills.Concat(e.WeaponSkills).Append(e.ShieldSkill).Select(Skill)]);
         var a = e.Stats;
         return new PluginEntity(
             DbRecordIds.For(e.Id)!.Value, e.Name, portrait, category, e.Aspect, e.School,
             e.HasTrueName != 0, e.IsHeavy != 0, e.Level,
             new Attributes(a[0], a[1], a[2], a[3], a[4], a[5]),
-            new SkillLevels(Skill(s[0]), Skill(s[1]), Skill(s[2]), Skill(s[3]), Skill(s[4]), Skill(s[5]), Skill(s[6]), Skill(s[7]), Skill(s[8]),
-                Skill(s[9]), Skill(s[10]), Skill(s[11])),
-            new WeaponSkillLevels(Skill(w[0]), Skill(w[1]), Skill(w[2]), Skill(w[3]), Skill(w[4]), Skill(w[5]), Skill(w[6]), Skill(w[7]),
-                Skill(w[8]), Skill(w[9]), Skill(w[10])),
-            Skill(e.ShieldSkill), spells,
+            skills, weaponSkills, shieldSkill, spells,
             [.. e.Weapons.Select(i => i.IsNone ? (RecordId?)null : Record(i, DbType.Weapon, e.Id))],
             e.Armor.IsNone ? null : Record(e.Armor, DbType.Armor, e.Id),
             e.Shield.IsNone ? null : Record(e.Shield, DbType.Shield, e.Id),

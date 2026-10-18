@@ -33,6 +33,17 @@ public enum Skill
     Wizard,
 }
 
+/// <summary>The stat records (<c>aidyn:stat/0</c>–<c>6</c>) by <see cref="Stat"/>.</summary>
+public static class StatId
+{
+    public static RecordId Record(Stat stat) => RecordId.Decimal(RecordTypes.Stat, (int)stat);
+
+    /// <summary>The stat a record names.</summary>
+    public static Stat FromRecord(RecordId record) => record.Type == RecordTypes.Stat
+        ? (Stat)int.Parse(record.Key)
+        : throw new ArgumentException($"{record} isn't a stat.", nameof(record));
+}
+
 /// <summary>
 /// A skill, a weapon skill or the shield skill, by where a character holds it (<c>CharSkills</c>):
 /// the twelve skills, then the eleven weapon classes, then the shield.
@@ -110,7 +121,7 @@ public sealed class CharacterRules
 
     /// <summary>The rules from the loaded plugins.</summary>
     public static CharacterRules From(PluginSet plugins) => new(
-        [.. Enumerable.Range(0, StatCount).Select(s => plugins.Get<StatRecord>(RecordId.Decimal(RecordTypes.Stat, s)))],
+        [.. Enumerable.Range(0, StatCount).Select(s => plugins.Get<StatRecord>(StatId.Record((Stat)s)))],
         [.. SkillId.All.Select(s => plugins.Get<SkillRecord>(s.Record))],
         plugins.Singleton<ProgressionRecord>(RecordTypes.Progression));
 
@@ -135,6 +146,12 @@ public sealed class CharacterRules
         var next = (ushort)(LevelFor(exp) + 1);
         return next < Progression.Levels.Count ? (uint)Progression.Levels[next] : null;
     }
+
+    /// <summary>
+    /// What raising a stat, skill or spell from <paramref name="level"/> costs in experience: (level + 1)² × its
+    /// <paramref name="cost"/> (<c>CharStats::GetTraningPrice</c>, <c>CharSkills::GetSkillXpMod</c>, <c>WidgetSpellTrain::Confirm</c>).
+    /// </summary>
+    public static int TrainingCost(int level, int cost) => (level + 1) * (level + 1) * cost;
 
     /// <summary>A trainer's gold price for raising a skill or spell from <paramref name="level"/> (<c>GetSkillTrainGoldPrice</c>).</summary>
     public int GoldPrice(int level) =>

@@ -154,7 +154,7 @@ public sealed class BarterMenuRomTests(Na10Import fixture)
 
         menu.Accept();
 
-        Assert.Equal(4, game.Party.Inventory!.Count(healing));
+        Assert.Equal(4, game.Party.Inventory.Count(healing));
         Assert.Empty(menu.Pile.Rows);
         Assert.False(menu.OnPile);
         Assert.Equal(MenuText.From(Set)[MenuText.FirstPotion], menu.Help);

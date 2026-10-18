@@ -1,3 +1,4 @@
+using Aidyn.Core.Characters;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 
@@ -68,7 +69,7 @@ public sealed class Item
     public bool IsGear => Kind is ItemKind.Helmet or ItemKind.Cloak or ItemKind.Gloves or ItemKind.Ring or ItemKind.Wand
         or ItemKind.Belt or ItemKind.Boots or ItemKind.Amulet or ItemKind.Scroll;
 
-    internal static readonly RecordId StaminaStat = RecordId.Decimal(RecordTypes.Stat, 5);
+    internal static readonly RecordId StaminaStat = StatId.Record(Stat.Stamina);
 
     public static Item From(WeaponRecord w) =>
         new(w.Id, w.Name, w.Icon, w.Price, ItemKind.Weapon, w.Bonuses, w.Traits) { Weapon = w };

@@ -50,7 +50,7 @@ public static class PartyMenuRows
             if (member is not null)
                 worn.AddRange(member.Equipment.All.Select(item => new InventoryRow(item, 1, slot)));
         }
-        var carried = party.Inventory?.Stacks.Select(s => new InventoryRow(s.Instance, s.Quantity, null)) ?? [];
+        var carried = party.Inventory.Stacks.Select(s => new InventoryRow(s.Instance, s.Quantity, null));
         return
         [
             .. worn.OrderBy(r => (r.Wearer!.Value - shown + Party.MaxSize) % Party.MaxSize).ThenBy(r => r.Item, ItemComparer.Instance),

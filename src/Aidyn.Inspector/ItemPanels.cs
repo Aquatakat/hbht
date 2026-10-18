@@ -205,7 +205,7 @@ public partial class ItemPanel : PagePanel
             var member = party.Members.ElementAt(i);
             var before = Sheet(member, rules);
             var wornBefore = member.Equipment.All.ToList();
-            party.Inventory!.Add(_item);
+            party.Inventory.Add(_item);
             string result;
             if (_item.Kind == ItemKind.Scroll)
             {
@@ -266,7 +266,7 @@ public partial class ShopPanel : PagePanel
     private readonly EntityRecord? _shopkeeper;
     private readonly IReadOnlyList<string>? _common;
     private readonly VBoxContainer _window = new();
-    private Party _party = new();
+    private Party _party;
     private Shop? _shop;
     private string _barter = "";
 
@@ -318,7 +318,7 @@ public partial class ShopPanel : PagePanel
         Line("Appraisal is the line the shop shows on C-up; the best appraiser counts, dead or not.", Dim);
 
         Heading("The party's inventory");
-        if (_party.Inventory!.Stacks.Count == 0)
+        if (_party.Inventory.Stacks.Count == 0)
         {
             Line("Nothing.", Dim);
         }
@@ -356,7 +356,7 @@ public partial class ShopPanel : PagePanel
         foreach (var child in _window.GetChildren())
             child.QueueFree();
         var party = _game.Game.Party;
-        var shop = Shop.Open(_record, _shopkeeper, party, party.Inventory!.Catalog, _game.Game.Flags);
+        var shop = Shop.Open(_record, _shopkeeper, party, party.Inventory.Catalog, _game.Game.Flags);
         _window.AddChild(BarterWindowPanel.ForShop(Plugins, _game, shop));
     }
 
@@ -548,7 +548,7 @@ public partial class RecipePanel : PagePanel
                 var member = party.Members.ElementAt(i);
                 name = EditorCharacters.Label(_game, member);
                 foreach (var ingredient in _recipe.Ingredients)
-                    party.Inventory!.Add(ingredient.Item, ingredient.Count);
+                    party.Inventory.Add(ingredient.Item, ingredient.Count);
                 if (!Crafting.Offered(party, member, [_recipe]).Any())
                     result = $"not offered; their {NameOf(_recipe.Skill)} is below {_recipe.Level}";
                 else if (Crafting.Make(party, member, _recipe, new Roll(roll)) == CraftResult.Made)

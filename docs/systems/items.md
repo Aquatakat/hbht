@@ -43,7 +43,7 @@ What can be equipped (`Party::GetEquipError` and the item kinds' functions):
 | Scroll | In trek, reading one learns its spell (below); in combat, one with a spell is worn as a ring is, three at most. |
 | Potion, key, other | Can't be equipped. |
 
-A replaced item goes back to the inventory; if it can't, the new one does instead. An equipped item takes its stack's battery and charges, and taking it off gives the stack its own, even if the stack was there already (`UpdateItemStatCharges`). Gear's free slot is checked before the old piece comes off, so with all 12 worn nothing can be swapped.
+A replaced item goes back to the inventory; if it can't, the new one does instead. An equipped item takes its stack's battery and charges, and taking it off gives the stack its own, even if the stack was there already (`UpdateItemStatCharges`). Taking a worn item off, by the item itself or by its ID for a script, is `Equipment.Remove`, which undoes its bonuses as putting it on applied them. Gear's free slot is checked before the old piece comes off, so with all 12 worn nothing can be swapped.
 
 **One deviation.** The Archmage Staff can't be taken off (`Party::RemoveWeaponsFrom`), but the original lets whoever wields it equip another weapon, and the staff vanishes with its bonuses still applied. The port refuses to replace it. Only Niesen wields it in the base game, and he can wield nothing else.
 

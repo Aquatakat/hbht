@@ -59,6 +59,9 @@ public sealed class CharacterSkills
 
     public bool CanLearn(SkillId skill) => _base[skill.Slot] != CantLearn;
 
+    /// <summary>The skills, weapon skills and shield it's above level 0 in, in the skill screen's order.</summary>
+    public IEnumerable<SkillId> Learnt => SkillId.All.Where(s => Base(s) > 0);
+
     /// <summary>Whether training can't raise it further (<c>CharSkills::isSkillCapped</c>).</summary>
     public bool IsCapped(SkillId skill) => _rules[skill].BaseCap <= _base[skill.Slot];
 
@@ -66,7 +69,7 @@ public sealed class CharacterSkills
     /// What training it one level costs in full experience: (base + 1)² × its cost
     /// (<c>CharSkills::GetSkillXpMod</c>, <c>GetWeaponXpMod</c>, <c>GetShieldXpPrice</c>).
     /// </summary>
-    public int TrainingCost(SkillId skill) => (_base[skill.Slot] + 1) * (_base[skill.Slot] + 1) * _rules[skill].TrainingCost;
+    public int TrainingCost(SkillId skill) => CharacterRules.TrainingCost(_base[skill.Slot], _rules[skill].TrainingCost);
 
     /// <summary>
     /// Raises the base level by <paramref name="amount"/>, up to the base cap, and the modified level

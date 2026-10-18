@@ -51,11 +51,11 @@ public static class EditorCharacters
     /// A copy of the editor's game's party to try things on, with its gold and inventory, or for plugins
     /// too old for a game, a new game's Alaron alone.
     /// </summary>
-    public static Party CopyParty(PluginSet plugins, CharacterRules rules, EditorGame? game, ItemCatalog? items)
+    public static Party CopyParty(PluginSet plugins, CharacterRules rules, EditorGame? game, ItemCatalog items)
     {
         if (game is not null)
             return game.CopyParty();
-        var party = items is null ? new Party() : new Party(items);
+        var party = new Party(items);
         if (Create(plugins, rules, GameState.Alaron, null, items) is { } alaron)
             party.Add(alaron);
         return party;
@@ -255,7 +255,7 @@ public partial class CharacterPanel : PagePanel
         if (equipment.Enchantments.Any())
             Line("On while worn: " + string.Join(", ", equipment.Enchantments.Select(e => $"{NameOf(e.Spell)} at level {e.Level}")) + ".");
 
-        var carried = party.Inventory!.Stacks;
+        var carried = party.Inventory.Stacks;
         if (carried.Count > 0)
             Line("Carried: " + string.Join(", ", carried.Select(s => s.Quantity > 1 ? $"{s.Item.Name} × {s.Quantity}" : s.Item.Name)) + ".", Dim);
 

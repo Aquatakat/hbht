@@ -58,7 +58,7 @@ public sealed class PartyMenuCheckpointTests(Na10Import fixture)
         foreach (var stack in checkpoint.Inventory)
         {
             var held = Instance(items, stack.Item);
-            party.Inventory!.Add(held.Item, stack.Quantity, held);
+            party.Inventory.Add(held.Item, stack.Quantity, held);
         }
         return party;
     }
@@ -117,7 +117,7 @@ public sealed class PartyMenuCheckpointTests(Na10Import fixture)
         menu.Accept();
         Assert.Null(menu.Message);
         Assert.Null(alaron.Equipment.Weapon);
-        Assert.True(menu.Party.Inventory!.Has(sword.Id));
+        Assert.True(menu.Party.Inventory.Has(sword.Id));
         Assert.Equal(0, menu.Inventory.Cursor);
 
         menu.Point(menu.Inventory.Rows.Select((r, i) => (r, i)).First(e => e.r.Wearer is null && e.r.Item.Id == sword.Id).i);
@@ -263,7 +263,7 @@ public sealed class PartyMenuCheckpointTests(Na10Import fixture)
         var menu = Menu();
         var rows = menu.Inventory.Rows;
         var worn = menu.Party.Members.Sum(m => m.Equipment.All.Count());
-        var stacks = menu.Party.Inventory!.Stacks;
+        var stacks = menu.Party.Inventory.Stacks;
 
         Assert.Equal(worn + stacks.Count, rows.Count);
         Assert.All(rows.Take(worn), r => Assert.NotNull(r.Wearer));

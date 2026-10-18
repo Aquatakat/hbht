@@ -336,7 +336,7 @@ public partial class Game : Node3D, ITrekHost
                 _menu.Open();
                 break;
             case "loot":
-                _menu.OpenLoot(new ItemPile(game.Party.Inventory!.Catalog), 0);
+                _menu.OpenLoot(new ItemPile(game.Party.Inventory.Catalog), 0);
                 break;
             case { } tab when Enum.TryParse<PauseTab>(tab, ignoreCase: true, out var opening):
                 _menu.Open(opening);
@@ -1093,7 +1093,7 @@ public partial class Game : Node3D, ITrekHost
             return;
         }
         var party = _game!.Party;
-        _menu!.OpenShop(Core.Items.Shop.Open(record, entity, party, party.Inventory!.Catalog, _game.Flags));
+        _menu!.OpenShop(Core.Items.Shop.Open(record, entity, party, party.Inventory.Catalog, _game.Flags));
     }
 
     /// <summary>

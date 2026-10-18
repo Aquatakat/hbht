@@ -464,7 +464,7 @@ static int SaveShow(string path)
         if (member.Spells.Count > 0)
             Console.WriteLine($"  {"",-10} knows {string.Join(", ", member.Spells.Select(s => $"{s.Spell.Name} {s.Level}"))}");
     }
-    var stacks = game.Party.Inventory?.Stacks ?? [];
+    var stacks = game.Party.Inventory.Stacks;
     Console.WriteLine($"Inventory   {stacks.Count} {(stacks.Count == 1 ? "stack" : "stacks")}: " +
         string.Join(", ", stacks.Select(s => s.Quantity == 1 ? s.Item.Name : $"{s.Item.Name} × {s.Quantity}")));
     foreach (var memory in game.Memory.Entries)

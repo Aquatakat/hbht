@@ -239,24 +239,24 @@ public sealed partial class PartyMenu
         if (Crafting is { } crafting)
         {
             // WidgetPotionCraft::CDownFunc and WidgetArmorCraft::CDownFunc; the Healer's popup has none.
-            return crafting.Rows.Current?.Recipe is { } recipe && Party.Inventory?.Catalog.TryGet(recipe.Product) is { } product
-                ? MenuDetailsBuilder.Item(new ItemInstance(product), shown, _text, _spells, Party.Inventory?.Catalog)
+            return crafting.Rows.Current?.Recipe is { } recipe && Party.Inventory.Catalog.TryGet(recipe.Product) is { } product
+                ? MenuDetailsBuilder.Item(new ItemInstance(product), shown, _text, _spells, Party.Inventory.Catalog)
                 : null;
         }
         return List switch
         {
             PartyList.Inventory when Inventory.Current is { } row =>
-                MenuDetailsBuilder.Item(row.Instance, shown, _text, _spells, Party.Inventory?.Catalog),
+                MenuDetailsBuilder.Item(row.Instance, shown, _text, _spells, Party.Inventory.Catalog),
             PartyList.Stats when Stats.Current is { } row => MenuDetailsBuilder.Stat(shown.Rules[row.Stat]),
             PartyList.Skills when Skills.Current is { } row => MenuDetailsBuilder.Skill(shown.Rules[row.Skill]),
-            PartyList.Spells when Spells.Current is { } row => MenuDetailsBuilder.Spell(row.Spell.Spell, _text, Party.Inventory?.Catalog),
+            PartyList.Spells when Spells.Current is { } row => MenuDetailsBuilder.Spell(row.Spell.Spell, _text, Party.Inventory.Catalog),
             _ => null,
         };
     }
 
     /// <summary>What C-down shows for an item, for the member shown.</summary>
     public MenuDetails? ItemDetails(ItemInstance item) =>
-        Shown is { } shown ? MenuDetailsBuilder.Item(item, shown, _text, _spells, Party.Inventory?.Catalog) : null;
+        Shown is { } shown ? MenuDetailsBuilder.Item(item, shown, _text, _spells, Party.Inventory.Catalog) : null;
 
     /// <summary>Rebuilds the rows from the party, as a member change or anything that changes the party does.</summary>
     public void Refresh()

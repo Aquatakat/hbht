@@ -39,11 +39,11 @@ public class PotionTests
         var member = PotionData.Member("Alaron", skills: new SkillLevels(Loremaster: 0, Diplomat: 0, Stealth: 0));
         var party = TradeData.PartyOf(PotionData.Catalog(), null, member);
         foreach (var potion in carried)
-            party.Inventory!.Add(Potions.Id(potion));
+            party.Inventory.Add(Potions.Id(potion));
         return (party, member);
     }
 
-    private static Item Item(CharacterParty party, Potion potion) => party.Inventory!.Catalog[Potions.Id(potion)];
+    private static Item Item(CharacterParty party, Potion potion) => party.Inventory.Catalog[Potions.Id(potion)];
 
     [Fact]
     public void PotionsAreItemsTenHexByTheirNumberAndTheFirstFourAreFlasks()
@@ -62,7 +62,7 @@ public class PotionTests
         var (party, member) = Setup(Potion.Healing);
 
         Assert.Equal(DrinkResult.NotNow, Potions.Drink(party, member, Item(party, Potion.Healing), new ScriptedRandom()));
-        Assert.Equal(1, party.Inventory!.Count(Potions.Id(Potion.Healing)));
+        Assert.Equal(1, party.Inventory.Count(Potions.Id(Potion.Healing)));
     }
 
     /// <summary>Healing heals a share of the maximum from 15% to 25%, truncated, and Curing 40% to 60%.</summary>
@@ -76,7 +76,7 @@ public class PotionTests
 
         Assert.Equal(DrinkResult.Drunk, Potions.Drink(party, member, Item(party, Potion.Healing), new ScriptedRandom(RandomFor.Range(15, 25, 20))));
         Assert.Equal((int)(0.2f * max), member.Hp);
-        Assert.False(party.Inventory!.Has(Potions.Id(Potion.Healing)));
+        Assert.False(party.Inventory.Has(Potions.Id(Potion.Healing)));
 
         var before = member.Hp;
         Potions.Drink(party, member, Item(party, Potion.Curing), new ScriptedRandom(RandomFor.Range(40, 60, 40)));
@@ -108,7 +108,7 @@ public class PotionTests
         var (party, member) = Setup(potion);
 
         Assert.Equal(expected, Potions.Drink(party, member, Item(party, potion), new ScriptedRandom()));
-        Assert.True(party.Inventory!.Has(Potions.Id(potion)));
+        Assert.True(party.Inventory.Has(Potions.Id(potion)));
     }
 
     /// <summary>
@@ -200,7 +200,7 @@ public class PartyMenuActionTests
     public void ACarriedWeaponIsEquippedAndAWornOneTakenOff()
     {
         var (party, member) = Setup();
-        party.Inventory!.Add(Sword.Id);
+        party.Inventory.Add(Sword.Id);
         var menu = Menu(party);
 
         PointAt(menu, r => r.Item.Id == Sword.Id);
@@ -220,7 +220,7 @@ public class PartyMenuActionTests
     public void EquippingFromAStackLeavesTheCursorOnTheStack()
     {
         var (party, _) = Setup();
-        party.Inventory!.Add(Sword.Id, 2);
+        party.Inventory.Add(Sword.Id, 2);
         party.Inventory.Add(Rock.Id);
         var menu = Menu(party);
 
@@ -234,7 +234,7 @@ public class PartyMenuActionTests
     public void AnItemTheMemberCantEquipSaysWhyAndStaysCarried()
     {
         var (party, member) = Setup();
-        party.Inventory!.Add(Heavy.Id);
+        party.Inventory.Add(Heavy.Id);
         party.Inventory.Add(Rock.Id);
         var menu = Menu(party);
 
@@ -254,7 +254,7 @@ public class PartyMenuActionTests
     public void TheStaffCantBeTakenOffAndSaysWhoCanControlIt()
     {
         var (party, member) = Setup();
-        party.Inventory!.Add(Staff.Id);
+        party.Inventory.Add(Staff.Id);
         Assert.Equal(EquipRefusal.None, party.Equip(member, Staff.Id));
         var menu = Menu(party);
 
@@ -274,7 +274,7 @@ public class PartyMenuActionTests
     {
         var other = PotionData.Member("Brenna", 1);
         var (party, _) = Setup(null, other);
-        party.Inventory!.Add(Potions.Id(Potion.Healing));
+        party.Inventory.Add(Potions.Id(Potion.Healing));
         party.Inventory.Add(Rock.Id);
         var menu = Menu(party);
 
@@ -297,7 +297,7 @@ public class PartyMenuActionTests
     public void ADrunkPotionIsUsedUpAndAFlaskSaysItsForCombat()
     {
         var (party, member) = Setup();
-        party.Inventory!.Add(Potions.Id(Potion.Strength));
+        party.Inventory.Add(Potions.Id(Potion.Strength));
         party.Inventory.Add(Potions.Id(Potion.FireFlask));
         var menu = Menu(party);
 
@@ -317,7 +317,7 @@ public class PartyMenuActionTests
     public void ReadingAScrollTeachesItsSpellAndSaysSo()
     {
         var (party, member) = Setup(new SkillLevels(Wizard: 3));
-        party.Inventory!.Add(Scroll.Id, 2);
+        party.Inventory.Add(Scroll.Id, 2);
         var menu = Menu(party);
 
         PointAt(menu, r => r.Item.Id == Scroll.Id);
@@ -363,7 +363,7 @@ public class PartyMenuActionTests
     public void TheAlchemistBrewsFromAPopupOfRecipes()
     {
         var (party, member) = Setup(new SkillLevels(Alchemist: 2));
-        party.Inventory!.Add(TradeData.Herb.Id);
+        party.Inventory.Add(TradeData.Herb.Id);
         var menu = Menu(party, Strength, Fire);
         menu.Random = new ScriptedRandom(RandomFor.D(100, 1));
 
@@ -416,7 +416,7 @@ public class PartyMenuActionTests
     public void TheMechanicMakesArmorFromAHide()
     {
         var (party, _) = Setup(new SkillLevels(Mechanic: 2));
-        party.Inventory!.Add(TradeData.Hide.Id);
+        party.Inventory.Add(TradeData.Hide.Id);
         var menu = Menu(party, Armor);
         menu.Random = new ScriptedRandom(RandomFor.D(100, 1));
 
@@ -471,7 +471,7 @@ public class PartyMenuActionTests
     public void RestoringAnAttributeThatIsntHurtSaysItsAtMax()
     {
         var (party, _) = Setup(new SkillLevels(Healer: 2));
-        party.Inventory!.Add(TradeData.Herb.Id);
+        party.Inventory.Add(TradeData.Herb.Id);
         var menu = Menu(party);
 
         OpenSkill(menu, Skill.Healer);
@@ -630,7 +630,7 @@ public class PartyMenuActionTests
     public void TheDetailsWaitForThePopupToOpen()
     {
         var (party, _) = Setup(new SkillLevels(Alchemist: 2));
-        party.Inventory!.Add(TradeData.Herb.Id);
+        party.Inventory.Add(TradeData.Herb.Id);
         var menu = Menu(party, Strength);
         menu.ShowList(PartyList.Skills);
         menu.Point(menu.Skills.Rows.Select((r, i) => (r, i)).First(e => e.r.Skill == Skill.Alchemist).i);

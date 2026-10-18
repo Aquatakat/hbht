@@ -48,7 +48,7 @@ public sealed class PartyMemberTests(Na10Import fixture)
     }
 
     private static List<(RecordId Item, int Quantity)> Stacks(GameState game) =>
-        [.. game.Party.Inventory!.Stacks.Select(s => (s.Item.Id, s.Quantity))];
+        [.. game.Party.Inventory.Stacks.Select(s => (s.Item.Id, s.Quantity))];
 
     private static Dictionary<RecordId, int> Count(IEnumerable<RecordId> items) =>
         items.GroupBy(i => i).ToDictionary(g => g.Key, g => g.Count());
@@ -63,7 +63,7 @@ public sealed class PartyMemberTests(Na10Import fixture)
     {
         foreach (var ring in game.Items.All.Where(i => i.Kind == ItemKind.Ring && i.KeyItem is null).OrderBy(i => i.Id.Key, StringComparer.Ordinal))
         {
-            game.Party.Inventory!.Add(ring.Id);
+            game.Party.Inventory.Add(ring.Id);
             if (game.Party.Equip(member, ring.Id) == EquipRefusal.None)
                 return ring.Id;
             game.Party.Inventory.Take(ring.Id);
@@ -101,11 +101,11 @@ public sealed class PartyMemberTests(Na10Import fixture)
         var game = NewGame();
         var spares = game.Recruit(id)!.Spares.Select(s => s.Id).ToList();
         Assert.Equal(hasSpares, spares.Count > 0);
-        var before = Count(game.Party.Inventory!.Stacks.Select(s => s.Item.Id));
+        var before = Count(game.Party.Inventory.Stacks.Select(s => s.Item.Id));
 
         Assert.True(game.AddMember(id));
 
-        var after = game.Party.Inventory!.Stacks.ToDictionary(s => s.Item.Id, s => s.Quantity);
+        var after = game.Party.Inventory.Stacks.ToDictionary(s => s.Item.Id, s => s.Quantity);
         foreach (var (item, n) in Count(spares))
             Assert.Equal(before.GetValueOrDefault(item) + n, after.GetValueOrDefault(item));
         // What they wield stays in their hands, and no spare is also worn.
@@ -216,7 +216,7 @@ public sealed class PartyMemberTests(Na10Import fixture)
         Assert.NotNull(abrecan.Equipment.Shield);
         var worn = Worn(abrecan);
         Assert.Equal(4, worn.Count);
-        var before = game.Party.Inventory!.Stacks.ToDictionary(s => s.Item.Id, s => s.Quantity);
+        var before = game.Party.Inventory.Stacks.ToDictionary(s => s.Item.Id, s => s.Quantity);
 
         game.RemoveMember(Abrecan);
 
@@ -274,7 +274,7 @@ public sealed class PartyMemberTests(Na10Import fixture)
         Assert.Empty(kept.Potions);
         AssertSameSheet(before with { Weapon = null, Armor = null, Shield = null, Gear = [], Potions = [] }, kept);
         // What they wore is in the inventory.
-        Assert.True(game.Party.Inventory!.Has(before.Weapon!.Item));
+        Assert.True(game.Party.Inventory.Has(before.Weapon!.Item));
         Assert.True(game.Party.Inventory.Has(before.Armor!.Item));
     }
 
@@ -320,11 +320,11 @@ public sealed class PartyMemberTests(Na10Import fixture)
         var slots = game.Items.Rules.GeneralSlots;
         foreach (var item in game.Items.All.Where(i => !i.Traits.OwnSlot && i.KeyItem is null && !worn.Contains(i.Id)))
         {
-            if (game.Party.Inventory!.GeneralSlotsUsed >= slots)
+            if (game.Party.Inventory.GeneralSlotsUsed >= slots)
                 break;
             game.Party.Inventory.Add(item.Id);
         }
-        Assert.Equal(slots, game.Party.Inventory!.GeneralSlotsUsed);
+        Assert.Equal(slots, game.Party.Inventory.GeneralSlotsUsed);
         Assert.All(worn, id => Assert.False(game.Party.Inventory.Has(id)));
 
         game.RemoveMember(Godric);
@@ -346,7 +346,7 @@ public sealed class PartyMemberTests(Na10Import fixture)
         var niesen = game.Party.Get(Niesen)!;
         Assert.Equal(staff, niesen.Equipment.Weapon?.Id);
         var armor = niesen.Equipment.Armor!.Id;
-        var armors = game.Party.Inventory!.Count(armor);
+        var armors = game.Party.Inventory.Count(armor);
 
         game.RemoveMember(Niesen);
 
@@ -379,7 +379,7 @@ public sealed class PartyMemberTests(Na10Import fixture)
         game.RemoveMember(id);
         var kept = game.Party.Kept[id];
         var spares = game.Recruit(id)!.Spares.Select(s => s.Id).ToList();
-        var inventory = game.Party.Inventory!.Stacks.ToDictionary(s => s.Item.Id, s => s.Quantity);
+        var inventory = game.Party.Inventory.Stacks.ToDictionary(s => s.Item.Id, s => s.Quantity);
 
         Assert.True(game.AddMember(id));
 

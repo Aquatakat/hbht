@@ -127,7 +127,7 @@ public sealed partial class PartyMenu
 
     private string Format(int line, params object[] args) => _text.Format(line, args);
 
-    private InventoryMessages? Messages => Party.Inventory?.Catalog.Rules.Messages;
+    private InventoryMessages? Messages => Party.Inventory.Catalog.Rules.Messages;
 
     // WidgetInvShop::AFunc.
     private void Use(InventoryRow row)
@@ -255,7 +255,7 @@ public sealed partial class PartyMenu
     private List<CraftingRow> RecipeRows(Character member, RecordId skill) =>
     [
         .. Items.Crafting.Offered(Party, member, Recipes.Where(r => r.Skill == skill))
-            .Select(r => new CraftingRow(Party.Inventory?.Catalog.TryGet(r.Product)?.Name ?? r.Product.ToString(), Recipe: r)),
+            .Select(r => new CraftingRow(Party.Inventory.Catalog.TryGet(r.Product)?.Name ?? r.Product.ToString(), Recipe: r)),
     ];
 
     private void Choose(CraftingMenu crafting)
@@ -306,7 +306,7 @@ public sealed partial class PartyMenu
     // WidgetPotionCraft::AFunc: not enough reagents, or a full stack, say so; flasks have their own lines.
     private void Brew(Character user, RecipeRecord recipe)
     {
-        var flask = Party.Inventory?.Catalog.TryGet(recipe.Product) is { } product && Potions.Of(product) is { } p && Potions.IsFlask(p);
+        var flask = Party.Inventory.Catalog.TryGet(recipe.Product) is { } product && Potions.Of(product) is { } p && Potions.IsFlask(p);
         var result = Items.Crafting.Brew(Party, user, recipe, Random);
         Result(_text[result switch
         {

@@ -82,7 +82,7 @@ public sealed class CharacterStats
     /// (<c>CharStats::GetTraningPrice</c>). Null for a stat that isn't trained, the level.
     /// </summary>
     public int? TrainingCost(Stat stat) =>
-        _rules[stat].TrainingCost is { } cost ? (_trained[(int)stat] + 1) * (_trained[(int)stat] + 1) * cost : null;
+        _rules[stat].TrainingCost is { } cost ? CharacterRules.TrainingCost(_trained[(int)stat], cost) : null;
 
     /// <summary>
     /// Raises the trained value, and the others with it, by <paramref name="amount"/>, up to the base
