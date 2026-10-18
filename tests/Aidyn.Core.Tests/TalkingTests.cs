@@ -23,8 +23,6 @@ public class PlayerFacingTests
     private static void Step(PlayerMotion player, FollowCamera camera, Vector2 stick = default) =>
         player.Step(Worlds.Flat(), new PlayerInput(stick), camera, new SteadyMotion(0));
 
-    private static float Degrees(Vector2 a, Vector2 b) => MathF.Acos(Math.Clamp(Vector2.Dot(Vector2.Normalize(a), Vector2.Normalize(b)), -1, 1)) * 180 / MathF.PI;
-
     [Fact]
     public void HeTurnsTenDegreesAFrameWhichIsFiveATickAndAsksToStand()
     {

@@ -13,32 +13,15 @@ namespace Aidyn.Rom.Tests;
 /// the "Before final encounter" checkpoint (NA 1.0), with the records imported from 1.0.
 /// </summary>
 [Collection(ImportedPluginCollection.Name)]
-public sealed class PartyMenuCheckpointTests(MapObjectFixture fixture)
+public sealed class PartyMenuCheckpointTests(Na10Import fixture)
 {
     private const string Checkpoint = "Aidyn Chronicles - The First Mage (U) (V1.0) [!] - Before final encounter.bs1";
 
     private PluginSet Set => fixture.Data.Set;
 
-    private static AresCheckpoint Load()
-    {
-        var path = Path.Combine(TestRoms.Folder, Checkpoint);
-        if (!File.Exists(path))
-            Assert.Skip($"No {Checkpoint} in {TestRoms.Folder}.");
-        return AresCheckpoint.Read(path);
-    }
-
-    private static RecordId Entity(int id) => RecordId.Hex(RecordTypes.Entity, id);
-
     private static RecordId Image(int id) => RecordId.Hex(RecordTypes.Image, id);
 
-    private static RecordId ItemId(ushort id) => (id >> 8) switch
-    {
-        7 => RecordId.Hex(RecordTypes.Weapon, id),
-        5 or 6 => RecordId.Hex(RecordTypes.Armor, id),
-        _ => RecordId.Hex(RecordTypes.Item, id),
-    };
-
-    private static ItemInstance Instance(ItemCatalog items, CheckpointItem held) => new(items[ItemId(held.Id)])
+    private static ItemInstance Instance(ItemCatalog items, CheckpointItem held) => new(items[TestRoms.ItemId(held.Id)])
     {
         Price = held.Price,
         Battery = held.StatMod is { Stat: 5, Amount: var left } ? left : null,
@@ -80,7 +63,7 @@ public sealed class PartyMenuCheckpointTests(MapObjectFixture fixture)
         return party;
     }
 
-    private PartyMenu Menu(int member = 0) => PartyMenu.From(Set, Party(Load()), member);
+    private PartyMenu Menu(int member = 0) => PartyMenu.From(Set, Party(TestRoms.Checkpoint(Checkpoint)), member);
 
     private static string Text(DetailLine line) => string.Concat(line.Left.OfType<DetailText>().Select(t => t.Text));
 
@@ -170,7 +153,7 @@ public sealed class PartyMenuCheckpointTests(MapObjectFixture fixture)
     [Fact]
     public void PortraitsGoFromTheMemberShownRoundTheParty()
     {
-        var party = Party(Load());
+        var party = Party(TestRoms.Checkpoint(Checkpoint));
 
         Assert.Equal([0, 1, 2, 3], PartyMenu.From(Set, party, 0).PortraitOrder);
         Assert.Equal([2, 3, 0, 1], PartyMenu.From(Set, party, 2).PortraitOrder);
@@ -181,7 +164,7 @@ public sealed class PartyMenuCheckpointTests(MapObjectFixture fixture)
     [Fact]
     public void TheHeaderShowsHitPointsLevelAndTheBarsShare()
     {
-        var party = Party(Load());
+        var party = Party(TestRoms.Checkpoint(Checkpoint));
         var alaron = PartyMenu.From(Set, party, 0);
         var brenna = PartyMenu.From(Set, party, 2);
         var sholeh = PartyMenu.From(Set, party, 3);

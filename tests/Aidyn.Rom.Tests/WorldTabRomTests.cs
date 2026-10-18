@@ -14,7 +14,7 @@ namespace Aidyn.Rom.Tests;
 /// region found). Skips without the checkpoint.
 /// </summary>
 [Collection(ImportedPluginCollection.Name)]
-public sealed class WorldTabRomTests(MapObjectFixture fixture)
+public sealed class WorldTabRomTests(Na10Import fixture)
 {
     private const string FinalEncounter = "Aidyn Chronicles - The First Mage (U) (V1.0) [!] - Before final encounter.bs1";
 
@@ -24,11 +24,8 @@ public sealed class WorldTabRomTests(MapObjectFixture fixture)
 
     private GameState Checkpoint()
     {
-        var path = Path.Combine(TestRoms.Folder, FinalEncounter);
-        if (!File.Exists(path))
-            Assert.Skip($"No {FinalEncounter} in {TestRoms.Folder}.");
         var problems = new List<string>();
-        var save = CheckpointSave.Convert(AresCheckpoint.Read(path), Set, CheckpointSave.Label(FinalEncounter), problems);
+        var save = CheckpointSave.Convert(TestRoms.Checkpoint(FinalEncounter), Set, CheckpointSave.Label(FinalEncounter), problems);
         Assert.Empty(problems);
         return GameState.Load(Set, save);
     }

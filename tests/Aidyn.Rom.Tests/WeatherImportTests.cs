@@ -8,10 +8,8 @@ namespace Aidyn.Rom.Tests;
 
 public class WeatherImportTests
 {
-    public static TheoryData<RomVersionId> Versions() => [.. RomVersions.All.Select(v => v.Id)];
-
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void TheWeathersTablesReadTheSameInEveryVersion(RomVersionId id)
     {
         var tables = WeatherTables.Read(TestRoms.Get(id));
@@ -54,7 +52,7 @@ public class WeatherImportTests
     }
 
     [Theory]
-    [MemberData(nameof(CheckpointTests.Checkpoints), MemberType = typeof(CheckpointTests))]
+    [MemberData(nameof(TestRoms.Checkpoints), MemberType = typeof(TestRoms))]
     public void ACheckpointsWeatherAgreesWithItsRainFlags(string name)
     {
         if (name.Length == 0)

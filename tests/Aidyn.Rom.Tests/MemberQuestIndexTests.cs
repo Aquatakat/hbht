@@ -8,17 +8,9 @@ namespace Aidyn.Rom.Tests;
 /// What the quest index says of party members' flags over NA 1.0's imported plugins.
 /// </summary>
 [Collection(ImportedPluginCollection.Name)]
-public sealed class MemberQuestIndexTests(MapObjectFixture fixture)
+public sealed class MemberQuestIndexTests(Na10Import fixture)
 {
-    private MapObjectFixture.Loaded Data => fixture.Data;
-
-    private static RecordId Flag(int n) => RecordId.Decimal(RecordTypes.Flag, n);
-
-    private static RecordId Script(int borg) => RecordId.Hex(RecordTypes.Dialogue, borg);
-
-    private static RecordId Entity(int n) => RecordId.Hex(RecordTypes.Entity, n);
-
-    private static int Number(RecordId flag) => int.Parse(flag.Key, CultureInfo.InvariantCulture);
+    private Na10Import.Loaded Data => fixture.Data;
 
     [Fact]
     public void GodricsJoinedFlagIsSetWhenAScriptAddsHimAndHisLeftFlagClearedThere()

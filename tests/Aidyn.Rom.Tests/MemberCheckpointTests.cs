@@ -13,20 +13,11 @@ namespace Aidyn.Rom.Tests;
 /// have left. The tests skip without the checkpoints.
 /// </summary>
 [Collection(ImportedPluginCollection.Name)]
-public sealed class MemberCheckpointTests(MapObjectFixture fixture)
+public sealed class MemberCheckpointTests(Na10Import fixture)
 {
     private static readonly ushort[] Left = [0x0240, 0x0242, 0x0248];
 
     private PluginSet Set => fixture.Data.Set;
-
-    public static TheoryData<string> Checkpoints() => CheckpointTests.Checkpoints();
-
-    private static AresCheckpoint Load(string name)
-    {
-        if (name.Length == 0)
-            Assert.Skip($"No checkpoints in {TestRoms.Folder}.");
-        return AresCheckpoint.Read(Path.Combine(TestRoms.Folder, name));
-    }
 
     private (SaveGame Save, List<string> Problems) Convert(string name, AresCheckpoint checkpoint)
     {
@@ -34,13 +25,11 @@ public sealed class MemberCheckpointTests(MapObjectFixture fixture)
         return (CheckpointSave.Convert(checkpoint, Set, CheckpointSave.Label(name), problems), problems);
     }
 
-    private static RecordId Entity(int n) => RecordId.Hex(RecordTypes.Entity, n);
-
     [Theory]
-    [MemberData(nameof(Checkpoints))]
+    [MemberData(nameof(TestRoms.Checkpoints), MemberType = typeof(TestRoms))]
     public void TheConsoleKeepsSheetsForArturoBecanAndGodricWithNothingWornAndTheStatsTheyLeftWith(string name)
     {
-        var checkpoint = Load(name);
+        var checkpoint = TestRoms.Checkpoint(name);
 
         // Alaron, Rheda and Brenna, and Sholeh or Niesen: Shamsuk's Tower comes before Sholeh joins.
         Assert.Equal([0x023F, 0x024C, 0x0243], checkpoint.Party.Take(3).Select(p => (int)p.Id));
@@ -62,10 +51,10 @@ public sealed class MemberCheckpointTests(MapObjectFixture fixture)
     }
 
     [Theory]
-    [MemberData(nameof(Checkpoints))]
+    [MemberData(nameof(TestRoms.Checkpoints), MemberType = typeof(TestRoms))]
     public void TheConvertedSaveKeepsThoseThreeAndNoneOfThePartyAndLoadsWithoutProblems(string name)
     {
-        var checkpoint = Load(name);
+        var checkpoint = TestRoms.Checkpoint(name);
         var (save, problems) = Convert(name, checkpoint);
         Assert.Empty(problems);
 
@@ -97,10 +86,10 @@ public sealed class MemberCheckpointTests(MapObjectFixture fixture)
     }
 
     [Theory]
-    [MemberData(nameof(Checkpoints))]
+    [MemberData(nameof(TestRoms.Checkpoints), MemberType = typeof(TestRoms))]
     public void TheKeptSheetsSaveAgainAndRoundTripThroughTheSaveFormat(string name)
     {
-        var checkpoint = Load(name);
+        var checkpoint = TestRoms.Checkpoint(name);
         var (save, _) = Convert(name, checkpoint);
         var game = GameState.Load(Set, save);
 
@@ -115,10 +104,10 @@ public sealed class MemberCheckpointTests(MapObjectFixture fixture)
 
     /// <summary>With Sholeh or Niesen leaving a full party, Godric comes back as he was on the console, with what the console kept.</summary>
     [Theory]
-    [MemberData(nameof(Checkpoints))]
+    [MemberData(nameof(TestRoms.Checkpoints), MemberType = typeof(TestRoms))]
     public void GodricRejoinsAFullPartyAfterSomeoneLeavesWithTheExperienceTheConsoleKept(string name)
     {
-        var checkpoint = Load(name);
+        var checkpoint = TestRoms.Checkpoint(name);
         var game = GameState.Load(Set, Convert(name, checkpoint).Save);
         var godric = Entity(0x0248);
         var sheet = checkpoint.Kept.Single(k => k.Id == 0x0248);

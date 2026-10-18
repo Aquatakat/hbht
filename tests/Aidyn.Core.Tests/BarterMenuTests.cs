@@ -16,13 +16,10 @@ namespace Aidyn.Core.Tests;
 /// </summary>
 public sealed class BarterPlugins : IDisposable
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), "aidyn-barter-" + Guid.NewGuid().ToString("N"));
+    private readonly TempPlugins _temp = new();
 
     public BarterPlugins()
     {
-        var dir = Path.Combine(_root, "aidyn");
-        Directory.CreateDirectory(Path.Combine(dir, "records"));
-        File.WriteAllText(Path.Combine(dir, "plugin.json"), """{ "id": "aidyn", "name": "aidyn", "version": "1.0.0" }""");
         var lines = Enumerable.Range(0, 560).Select(i => i switch
         {
             MenuText.XpCost or MenuText.XpRemainingLine or MenuText.GoldCost or MenuText.SkillNeedsXp or MenuText.TrainSkillForXp
@@ -37,17 +34,12 @@ public sealed class BarterPlugins : IDisposable
             _ => $"L{i}",
         });
         var strings = new { id = "aidyn:strings/5", name = "Common", lines };
-        File.WriteAllText(Path.Combine(dir, "records", "strings.json"), JsonSerializer.Serialize(new[] { strings }));
-        Plugins = PluginSet.Load([dir]);
+        Plugins = _temp.Aidyn(("strings.json", JsonSerializer.Serialize(new[] { strings })));
     }
 
     public PluginSet Plugins { get; }
 
-    public void Dispose()
-    {
-        if (Directory.Exists(_root))
-            Directory.Delete(_root, recursive: true);
-    }
+    public void Dispose() => _temp.Dispose();
 }
 
 public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugins>

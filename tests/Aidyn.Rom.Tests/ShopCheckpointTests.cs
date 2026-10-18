@@ -12,14 +12,11 @@ namespace Aidyn.Rom.Tests;
 /// user's captures of STAI01's shop show (Oct 3, 2026), from the "Before final encounter" checkpoint.
 /// </summary>
 [Collection(ImportedPluginCollection.Name)]
-public sealed class ShopCheckpointTests(MapObjectFixture fixture)
+public sealed class ShopCheckpointTests(Na10Import fixture)
 {
     private const string Checkpoint = "Aidyn Chronicles - The First Mage (U) (V1.0) [!] - Before final encounter.bs1";
 
     private PluginSet Set => fixture.Data.Set;
-
-    /// <summary>A line as the user reads it: without the button glyphs, and trimmed.</summary>
-    private static string Plain(string line) => new string([.. line.Where(c => c is < '\u0080' or > '\u009F')]).Trim();
 
     [Fact]
     public void TheShopsLinesOfTheCommonStringsReadAsTheWindowNeedsThem()
@@ -35,16 +32,13 @@ public sealed class ShopCheckpointTests(MapObjectFixture fixture)
             {
                 MenuText.SellConfirm, MenuText.SellNo, MenuText.SellYes, MenuText.SellSome, MenuText.SellAll, MenuText.CantAfford,
                 MenuText.MerchantRefuses, MenuText.UnequipToSell, MenuText.Value, MenuText.Appraisal,
-            }.Select(line => Plain(text[line])));
+            }.Select(line => TestRoms.Plain(text[line])));
     }
 
     [Fact]
     public void STAI01sShopShowsTheCapturedPricesToTheCheckpointsParty()
     {
-        var path = Path.Combine(TestRoms.Folder, Checkpoint);
-        if (!File.Exists(path))
-            Assert.Skip($"No {Checkpoint} in {TestRoms.Folder}.");
-        var game = GameState.Load(Set, CheckpointSave.Convert(AresCheckpoint.Read(path), Set, CheckpointSave.Label(path)));
+        var game = GameState.Load(Set, CheckpointSave.Convert(TestRoms.Checkpoint(Checkpoint), Set, CheckpointSave.Label(Checkpoint)));
         var record = Set.Get<ShopRecord>(RecordId.Decimal(RecordTypes.Shop, 30));
         Assert.Equal("STAI01", Set.Get<EntityRecord>(record.Shopkeeper).Name);
 

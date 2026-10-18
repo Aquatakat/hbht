@@ -17,8 +17,6 @@ public class ScriptRunnerTests
     private static readonly RecordId ScriptId = RecordId.Hex(RecordTypes.Dialogue, 0x0400);
     private static readonly RecordId Rumours = RecordId.Hex(RecordTypes.Dialogue, 0x0325);
 
-    private static RecordId Flag(int n) => RecordId.Decimal(RecordTypes.Flag, n);
-
     /// <summary>Plain flags 0–9, with 1 set; 9 is the new journal entry flag.</summary>
     private static FlagNetwork Flags() => new(Enumerable.Range(0, 10).Select(i => new FlagRecord(Flag(i), Initial: i == 1)), Flag(9));
 

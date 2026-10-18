@@ -8,13 +8,11 @@ namespace Aidyn.Rom.Tests;
 
 public class MenuTablesTests
 {
-    public static TheoryData<RomVersionId> Versions() => [.. RomVersions.All.Select(v => v.Id)];
-
     private static RecordId Image(int borg8) => RecordId.Hex(RecordTypes.Image, borg8);
 
     /// <summary>The tables are the same in every version. Only their offsets differ.</summary>
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void MenuTablesMatchAcrossVersions(RomVersionId id)
     {
         var a = MenuTables.Read(TestRoms.Get(RomVersionId.Na10));
@@ -51,7 +49,7 @@ public class MenuTablesTests
     /// symbol has an icon.
     /// </summary>
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void SpellSymbolsCoverEverySpellInTheDb(RomVersionId id)
     {
         var rom = TestRoms.Get(id);
@@ -76,7 +74,7 @@ public class MenuTablesTests
     /// aspects' and schools' icons, are what the ROM holds.
     /// </summary>
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void TheCoresMenuFactsAreTheRomsTables(RomVersionId id)
     {
         var rom = TestRoms.Get(id);
@@ -98,7 +96,7 @@ public class MenuTablesTests
     /// potion has one but 0x100B and 0x100C, and four spells have none.
     /// </summary>
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void DescriptionsNameExistingThingsAndLines(RomVersionId id)
     {
         var rom = TestRoms.Get(id);
@@ -127,7 +125,7 @@ public class MenuTablesTests
 }
 
 [Collection(ImportedPluginCollection.Name)]
-public sealed class MenuImportTests(MapObjectFixture fixture)
+public sealed class MenuImportTests(Na10Import fixture)
 {
     private PluginSet Set => fixture.Data.Set;
 

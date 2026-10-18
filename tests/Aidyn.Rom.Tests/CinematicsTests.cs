@@ -6,10 +6,8 @@ namespace Aidyn.Rom.Tests;
 
 public class CinematicsTests
 {
-    public static TheoryData<RomVersionId> Versions() => [.. RomVersions.All.Select(v => v.Id)];
-
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void CinematicsMatchAcrossVersions(RomVersionId id)
     {
         var a = Cinematics.Read(TestRoms.Get(RomVersionId.Na10));

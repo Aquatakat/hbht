@@ -21,10 +21,8 @@ public class GameDbTests
         }
     }
 
-    public static TheoryData<RomVersionId> Versions() => [.. RomVersions.All.Select(v => v.Id)];
-
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void TablesHaveExpectedCounts(RomVersionId id)
     {
         var db = Db(id);
@@ -47,7 +45,7 @@ public class GameDbTests
     }
 
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void IdsAreUniqueAndMatchTheirTable(RomVersionId id)
     {
         var db = Db(id);
@@ -69,7 +67,7 @@ public class GameDbTests
     /// value of a field, in ascending order, so the field can rebuild the groups.
     /// </summary>
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void GroupsFollowTheirField(RomVersionId id)
     {
         var db = Db(id);
@@ -82,7 +80,7 @@ public class GameDbTests
     }
 
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void ReferencesResolve(RomVersionId id)
     {
         var db = Db(id);
@@ -128,7 +126,7 @@ public class GameDbTests
     }
 
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void EnumFieldsAreDefined(RomVersionId id)
     {
         var db = Db(id);
@@ -149,7 +147,7 @@ public class GameDbTests
     }
 
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void FlagReferencesAreInRange(RomVersionId id)
     {
         var funnel = Db(id).GameStateFunnel;
@@ -163,7 +161,7 @@ public class GameDbTests
 
     /// <summary>The cipher's main check: one wrong key byte garbles every string after it.</summary>
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void AllTextIsPrintable(RomVersionId id)
     {
         var db = Db(id);

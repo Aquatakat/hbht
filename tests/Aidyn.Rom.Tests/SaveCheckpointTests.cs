@@ -14,18 +14,9 @@ namespace Aidyn.Rom.Tests;
 /// and a round trip through the save format. The tests skip without the checkpoints.
 /// </summary>
 [Collection(ImportedPluginCollection.Name)]
-public sealed class SaveCheckpointTests(MapObjectFixture fixture)
+public sealed class SaveCheckpointTests(Na10Import fixture)
 {
     private PluginSet Set => fixture.Data.Set;
-
-    public static TheoryData<string> Checkpoints() => CheckpointTests.Checkpoints();
-
-    private static AresCheckpoint Load(string name)
-    {
-        if (name.Length == 0)
-            Assert.Skip($"No checkpoints in {TestRoms.Folder}.");
-        return AresCheckpoint.Read(Path.Combine(TestRoms.Folder, name));
-    }
 
     private static bool IsDebug(string name) => name.StartsWith("AidynDebug", StringComparison.Ordinal);
 
@@ -63,10 +54,10 @@ public sealed class SaveCheckpointTests(MapObjectFixture fixture)
     };
 
     [Theory]
-    [MemberData(nameof(Checkpoints))]
+    [MemberData(nameof(TestRoms.Checkpoints), MemberType = typeof(TestRoms))]
     public void ThePlaceAndTheClocksAreWhereAndWhenTheyWerePlayed(string name)
     {
-        var checkpoint = Load(name);
+        var checkpoint = TestRoms.Checkpoint(name);
         var expected = Places[LabelOf(name)];
 
         var place = checkpoint.Place;
@@ -87,10 +78,10 @@ public sealed class SaveCheckpointTests(MapObjectFixture fixture)
     }
 
     [Theory]
-    [MemberData(nameof(Checkpoints))]
+    [MemberData(nameof(TestRoms.Checkpoints), MemberType = typeof(TestRoms))]
     public void TheChartHoldsTheMemoriesOfTheTalksAndOpeningsBeforeTheCheckpoint(string name)
     {
-        var checkpoint = Load(name);
+        var checkpoint = TestRoms.Checkpoint(name);
         IReadOnlyList<CheckpointMemory> expected = LabelOf(name) switch
         {
             "Before final encounter" =>
@@ -105,10 +96,10 @@ public sealed class SaveCheckpointTests(MapObjectFixture fixture)
     }
 
     [Theory]
-    [MemberData(nameof(Checkpoints))]
+    [MemberData(nameof(TestRoms.Checkpoints), MemberType = typeof(TestRoms))]
     public void ACheckpointConvertsWithoutProblemsAndItsMemoriesNameMonsterPartiesWithDialogues(string name)
     {
-        var checkpoint = Load(name);
+        var checkpoint = TestRoms.Checkpoint(name);
         var (save, problems) = Convert(name, checkpoint);
         Assert.Empty(problems);
 
@@ -161,10 +152,10 @@ public sealed class SaveCheckpointTests(MapObjectFixture fixture)
     }
 
     [Theory]
-    [MemberData(nameof(Checkpoints))]
+    [MemberData(nameof(TestRoms.Checkpoints), MemberType = typeof(TestRoms))]
     public void ALoadedCheckpointHasTheConsolesPartyGoldAndInventory(string name)
     {
-        var checkpoint = Load(name);
+        var checkpoint = TestRoms.Checkpoint(name);
         var game = Game(name, checkpoint);
         var members = game.Party.Members.ToList();
 
@@ -202,12 +193,12 @@ public sealed class SaveCheckpointTests(MapObjectFixture fixture)
             Assert.Equal(Worn(sheet.Weapon), member.Equipment.Weapon?.Id);
             Assert.Equal(Worn(sheet.Armor), member.Equipment.Armor?.Id);
             Assert.Equal(Worn(sheet.Shield), member.Equipment.Shield?.Id);
-            Assert.Equal(sheet.Gear.OfType<CheckpointItem>().Select(g => ItemId(g.Id)).Order(),
+            Assert.Equal(sheet.Gear.OfType<CheckpointItem>().Select(g => TestRoms.ItemId(g.Id)).Order(),
                 member.Equipment.Gear.OfType<Aidyn.Core.Items.ItemInstance>().Select(g => g.Id).Order());
         }
         Assert.True(wrong.Count == 0, $"{wrong.Count} differ: {string.Join("; ", wrong)}");
 
-        Assert.Equal(checkpoint.Inventory.Select(s => (ItemId(s.Item.Id), s.Quantity)),
+        Assert.Equal(checkpoint.Inventory.Select(s => (TestRoms.ItemId(s.Item.Id), s.Quantity)),
             game.Party.Inventory!.Stacks.Select(s => (s.Item.Id, s.Quantity)));
 
         void Compare(string what, int console, int port)
@@ -217,20 +208,13 @@ public sealed class SaveCheckpointTests(MapObjectFixture fixture)
         }
     }
 
-    private static RecordId? Worn(CheckpointItem? item) => item is null ? null : ItemId(item.Id);
-
-    private static RecordId ItemId(ushort id) => (id >> 8) switch
-    {
-        7 => RecordId.Hex(RecordTypes.Weapon, id),
-        5 or 6 => RecordId.Hex(RecordTypes.Armor, id),
-        _ => RecordId.Hex(RecordTypes.Item, id),
-    };
+    private static RecordId? Worn(CheckpointItem? item) => item is null ? null : TestRoms.ItemId(item.Id);
 
     [Theory]
-    [MemberData(nameof(Checkpoints))]
+    [MemberData(nameof(TestRoms.Checkpoints), MemberType = typeof(TestRoms))]
     public void ASpellbookLoadsInTheOrderTheConsoleHoldsIt(string name)
     {
-        var checkpoint = Load(name);
+        var checkpoint = TestRoms.Checkpoint(name);
         var game = Game(name, checkpoint);
 
         var members = game.Party.Members.ToList();
@@ -243,11 +227,11 @@ public sealed class SaveCheckpointTests(MapObjectFixture fixture)
     }
 
     [Theory]
-    [MemberData(nameof(Checkpoints))]
+    [MemberData(nameof(TestRoms.Checkpoints), MemberType = typeof(TestRoms))]
     public void ALoadedCheckpointHasTheConsolesFlagsButNoNoticeOrNewestJournalEntry(string name)
     {
         const int newJournalEntry = 3617;
-        var checkpoint = Load(name);
+        var checkpoint = TestRoms.Checkpoint(name);
         var network = Game(name, checkpoint).Flags;
 
         Assert.Equal(checkpoint.Flags.Count, network.Count);
@@ -263,10 +247,10 @@ public sealed class SaveCheckpointTests(MapObjectFixture fixture)
     }
 
     [Theory]
-    [MemberData(nameof(Checkpoints))]
+    [MemberData(nameof(TestRoms.Checkpoints), MemberType = typeof(TestRoms))]
     public void ALoadedCheckpointHasTheConsolesWeather(string name)
     {
-        var checkpoint = Load(name);
+        var checkpoint = TestRoms.Checkpoint(name);
         var console = checkpoint.Weather;
         var weather = Game(name, checkpoint).Weather!;
         Assert.Equal((console.Kind, console.Precipitation, console.Falling), ((int)weather.Kind, (int)weather.Precipitation, (int)weather.Falling));
@@ -275,10 +259,10 @@ public sealed class SaveCheckpointTests(MapObjectFixture fixture)
     }
 
     [Theory]
-    [MemberData(nameof(Checkpoints))]
+    [MemberData(nameof(TestRoms.Checkpoints), MemberType = typeof(TestRoms))]
     public void ALoadedCheckpointSavesAgainAsItWasLoaded(string name)
     {
-        var checkpoint = Load(name);
+        var checkpoint = TestRoms.Checkpoint(name);
         var game = Game(name, checkpoint);
 
         var first = SaveFile.Serialize(game.Save());
@@ -288,10 +272,10 @@ public sealed class SaveCheckpointTests(MapObjectFixture fixture)
     }
 
     [Theory]
-    [MemberData(nameof(Checkpoints))]
+    [MemberData(nameof(TestRoms.Checkpoints), MemberType = typeof(TestRoms))]
     public void ACopiedPartyIsTheGamesAndChangingItLeavesTheGameAlone(string name)
     {
-        var game = Game(name, Load(name));
+        var game = Game(name, TestRoms.Checkpoint(name));
         var saved = SaveFile.Serialize(game.Save());
 
         var copy = game.CopyParty();
@@ -308,10 +292,10 @@ public sealed class SaveCheckpointTests(MapObjectFixture fixture)
     }
 
     [Theory]
-    [MemberData(nameof(Checkpoints))]
+    [MemberData(nameof(TestRoms.Checkpoints), MemberType = typeof(TestRoms))]
     public void LoadingThePartyAgainPutsItBackAsSaved(string name)
     {
-        var game = Game(name, Load(name));
+        var game = Game(name, TestRoms.Checkpoint(name));
         var saved = game.SaveParty();
         var before = SaveFile.Serialize(game.Save());
 
@@ -326,10 +310,10 @@ public sealed class SaveCheckpointTests(MapObjectFixture fixture)
 
     /// <summary>The potions working on a member save with what's left of them, and loading applies them again.</summary>
     [Theory]
-    [MemberData(nameof(Checkpoints))]
+    [MemberData(nameof(TestRoms.Checkpoints), MemberType = typeof(TestRoms))]
     public void APotionWorkingOnAMemberSavesAndLoadsAgain(string name)
     {
-        var game = Game(name, Load(name));
+        var game = Game(name, TestRoms.Checkpoint(name));
         var member = game.Party.Members.First();
         var strength = member.Stats.RawBase(Stat.Strength);
         member.ApplyPotionEffect(Aidyn.Core.Items.Potion.Strength, 0, 5000);

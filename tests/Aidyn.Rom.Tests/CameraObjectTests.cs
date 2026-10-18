@@ -15,7 +15,7 @@ namespace Aidyn.Rom.Tests;
 
 /// <summary>Camera objects: what NA 1.0's data holds, which chunks use the interiors' camera, and what touching and treading them does.</summary>
 [Collection(ImportedPluginCollection.Name)]
-public sealed class CameraObjectTests(MapObjectFixture fixture)
+public sealed class CameraObjectTests(Na10Import fixture)
 {
     private static readonly ConcurrentDictionary<string, IReadOnlyList<CollisionTriangle>> Collisions = new();
 
@@ -24,7 +24,7 @@ public sealed class CameraObjectTests(MapObjectFixture fixture)
 
     private const CameraFlags Moves = CameraFlags.Cut | CameraFlags.Pan | CameraFlags.Sine | CameraFlags.EaseIn | CameraFlags.EaseOut;
 
-    private MapObjectFixture.Loaded Data => fixture.Data;
+    private Na10Import.Loaded Data => fixture.Data;
 
     /// <summary>Does nothing with what map objects ask of it: these tests only watch the camera.</summary>
     private sealed class IdleHost : IMapObjectHost

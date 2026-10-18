@@ -13,10 +13,8 @@ namespace Aidyn.Rom.Tests;
 /// in a new game over NA 1.0's real records: the flags, the inventory, the slots and the sheets kept for rejoining.
 /// </summary>
 [Collection(ImportedPluginCollection.Name)]
-public sealed class PartyMemberTests(MapObjectFixture fixture)
+public sealed class PartyMemberTests(Na10Import fixture)
 {
-    private static RecordId Entity(int n) => RecordId.Hex(RecordTypes.Entity, n);
-
     private static readonly RecordId Abrecan = Entity(0x023E), Brenna = Entity(0x0243), Godric = Entity(0x0248), Keelin = Entity(0x0249),
         Niesen = Entity(0x024A), Rheda = Entity(0x024C), Sholeh = Entity(0x024D), Trahern = Entity(0x0239);
 
@@ -33,8 +31,6 @@ public sealed class PartyMemberTests(MapObjectFixture fixture)
     private PluginSet Set => fixture.Data.Set;
 
     private static string Text(RecordId id) => id.ToString();
-
-    private static RecordId Flag(int n) => RecordId.Decimal(RecordTypes.Flag, n);
 
     private static bool IsSet(GameState game, int flag) => game.Flags.Get(Flag(flag));
 

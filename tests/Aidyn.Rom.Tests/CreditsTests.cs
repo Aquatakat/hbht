@@ -6,14 +6,12 @@ namespace Aidyn.Rom.Tests;
 
 public class CreditsTests
 {
-    public static TheoryData<RomVersionId> Versions() => [.. RomVersions.All.Select(v => v.Id)];
-
     /// <summary>
     /// Every version cuts its credits into the same 33 cards, the first 12 shown one at a time; the debug build's last
     /// card, Special Thanks, is three names short.
     /// </summary>
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void CreditsAreCutIntoCards(RomVersionId id)
     {
         var rom = TestRoms.Get(id);

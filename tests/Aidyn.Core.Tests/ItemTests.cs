@@ -12,7 +12,7 @@ internal static class ItemData
 {
     private static readonly RecordId Icon = RecordId.Decimal(RecordTypes.Image, 0);
 
-    public static RecordId Flag(int n) => RecordId.Decimal(RecordTypes.Flag, n);
+    public static RecordId Flag(int n) => Ids.Flag(n);
 
     public static RecordId WeaponId(int n) => RecordId.Hex(RecordTypes.Weapon, 0x0700 + n);
 

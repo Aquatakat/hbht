@@ -12,7 +12,7 @@ namespace Aidyn.Rom.Tests;
 /// second stays. Here Keelin's (<c>aidyn:dialogue/0x0382</c>), played through the runner over the 1.0 checkpoints' parties.
 /// </summary>
 [Collection(ImportedPluginCollection.Name)]
-public sealed class FullPartyScriptTests(MapObjectFixture fixture)
+public sealed class FullPartyScriptTests(Na10Import fixture)
 {
     private static readonly RecordId KeelinsScript = RecordId.Hex(RecordTypes.Dialogue, 0x0382);
 
@@ -22,10 +22,6 @@ public sealed class FullPartyScriptTests(MapObjectFixture fixture)
     private const int Remember = 27, Sholeh = 76, Rheda = 86;
 
     private PluginSet Set => fixture.Data.Set;
-
-    private static RecordId Entity(int n) => RecordId.Hex(RecordTypes.Entity, n);
-
-    private static RecordId Flag(int n) => RecordId.Decimal(RecordTypes.Flag, n);
 
     /// <summary>A 1.0 checkpoint as a game, found by its label.</summary>
     private GameState Game(string label)

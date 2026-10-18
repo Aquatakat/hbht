@@ -7,8 +7,6 @@ namespace Aidyn.Core.Tests;
 
 public class MapObjectPresenceTests
 {
-    private static RecordId Flag(int n) => RecordId.Decimal(RecordTypes.Flag, n);
-
     private static Func<RecordId, bool> Set(params int[] flags) => id => flags.Any(f => Flag(f) == id);
 
     private static readonly RecordId Entity = RecordId.Parse("aidyn:entity/0x0001");

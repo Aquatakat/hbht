@@ -14,21 +14,15 @@ namespace Aidyn.Rom.Tests;
 
 /// <summary>Monster parties and their wanderers: what NA 1.0's data holds, and the bodies a loaded chunk gives them.</summary>
 [Collection(ImportedPluginCollection.Name)]
-public sealed class WandererTests(MapObjectFixture fixture)
+public sealed class WandererTests(Na10Import fixture)
 {
     private static readonly ConcurrentDictionary<string, IReadOnlyList<CollisionTriangle>> Collisions = new();
 
     private static readonly RecordId Overworld = RecordId.Parse("aidyn:mapset/0");
 
-    private MapObjectFixture.Loaded Data => fixture.Data;
+    private Na10Import.Loaded Data => fixture.Data;
 
     private MapSetRecord Set => Data.MapSets.Single(s => s.Id == Overworld);
-
-    /// <summary>Walks at the same steady pace whatever it's asked for, but not at all when idle.</summary>
-    private sealed class SteadyMotion(float perTick) : IRootMotion
-    {
-        public float Tick(int request) => request == PlayerMotion.Idle ? 0 : perTick;
-    }
 
     private IReadOnlyList<CollisionTriangle> Collision(MapRecord map) =>
         Collisions.GetOrAdd(Data.Set.FindAsset(map.Id, "glb")!, path => CollisionMesh.Read(File.ReadAllBytes(path)));

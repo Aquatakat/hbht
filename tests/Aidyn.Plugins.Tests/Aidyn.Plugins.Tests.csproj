@@ -11,6 +11,9 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <Using Include="Aidyn.TestSupport" />
+    <Using Include="Aidyn.TestSupport.Ids" Static="true" />
+    <Using Include="Aidyn.TestSupport.Checks" Static="true" />
   </ItemGroup>
 
   <ItemGroup>
@@ -18,6 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Aidyn.TestSupport\Aidyn.TestSupport.csproj" />
     <ProjectReference Include="..\..\src\Aidyn.Plugins\Aidyn.Plugins.csproj" />
   </ItemGroup>
 

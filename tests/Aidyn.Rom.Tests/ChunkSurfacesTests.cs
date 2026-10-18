@@ -9,9 +9,9 @@ namespace Aidyn.Rom.Tests;
 
 /// <summary>The surfaces the loaded chunks draw, which rain and snow land on, from the base plugin.</summary>
 [Collection(ImportedPluginCollection.Name)]
-public sealed class ChunkSurfacesTests(MapObjectFixture fixture)
+public sealed class ChunkSurfacesTests(Na10Import fixture)
 {
-    private MapObjectFixture.Loaded Data => fixture.Data;
+    private Na10Import.Loaded Data => fixture.Data;
 
     private (ChunkStreamer Streamer, Vector3 Origin) Load(string name)
     {

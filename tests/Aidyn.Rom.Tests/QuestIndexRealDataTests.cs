@@ -11,13 +11,9 @@ namespace Aidyn.Rom.Tests;
 
 /// <summary>What the quest index makes of NA 1.0's imported plugins, and facts of the ROM's data that it rests on.</summary>
 [Collection(ImportedPluginCollection.Name)]
-public sealed class QuestIndexRealDataTests(MapObjectFixture fixture)
+public sealed class QuestIndexRealDataTests(Na10Import fixture)
 {
-    private MapObjectFixture.Loaded Data => fixture.Data;
-
-    private static int Number(RecordId flag) => int.Parse(flag.Key, CultureInfo.InvariantCulture);
-
-    private static RecordId Flag(int n) => RecordId.Decimal(RecordTypes.Flag, n);
+    private Na10Import.Loaded Data => fixture.Data;
 
     /// <summary>Each journal entry has a derived flag that turns on with the entry's own flag.</summary>
     [Fact]

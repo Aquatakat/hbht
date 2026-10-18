@@ -13,15 +13,13 @@ namespace Aidyn.Rom.Tests;
 /// opening the chest a new game starts beside, with 4 Healing Potions.
 /// </summary>
 [Collection(ImportedPluginCollection.Name)]
-public sealed class BarterMenuRomTests(MapObjectFixture fixture)
+public sealed class BarterMenuRomTests(Na10Import fixture)
 {
     private static readonly RecordId Overworld = RecordId.Parse("aidyn:mapset/0");
 
     private PluginSet Set => fixture.Data.Set;
 
     /// <summary>A line as the user reads it: without the button glyphs the font draws as C-down, and trimmed.</summary>
-    private static string Plain(string line) => new string([.. line.Where(c => c is < '\u0080' or > '\u009F')]).Trim();
-
     [Fact]
     public void TheBarterLinesOfTheCommonStringsReadAsTheWindowNeedsThem()
     {
@@ -29,13 +27,13 @@ public sealed class BarterMenuRomTests(MapObjectFixture fixture)
         var wrong = new List<string>();
         void Is(int line, string expected)
         {
-            if (Plain(text[line]) != expected)
-                wrong.Add($"{line}: [{Plain(text[line])}]");
+            if (TestRoms.Plain(text[line]) != expected)
+                wrong.Add($"{line}: [{TestRoms.Plain(text[line])}]");
         }
         void Starts(int line, string expected)
         {
-            if (!Plain(text[line]).StartsWith(expected, StringComparison.Ordinal))
-                wrong.Add($"{line}: [{Plain(text[line])}]");
+            if (!TestRoms.Plain(text[line]).StartsWith(expected, StringComparison.Ordinal))
+                wrong.Add($"{line}: [{TestRoms.Plain(text[line])}]");
         }
 
         Is(MenuText.DropConfirm, "Are you sure you wish to drop %s?");
@@ -63,21 +61,21 @@ public sealed class BarterMenuRomTests(MapObjectFixture fixture)
     {
         var text = MenuText.From(Set);
 
-        Assert.Equal("I'll give you %ld gold for that %s.", Plain(text[MenuText.SellConfirm]));
-        Assert.Equal("No, thanks.", Plain(text[MenuText.SellNo]));
-        Assert.Equal("Sure, here it is.", Plain(text[MenuText.SellYes]));
-        Assert.Equal("I will sell %d of them.", Plain(text[MenuText.SellSome]));
-        Assert.Equal("I will sell all of them.", Plain(text[MenuText.SellAll]));
-        Assert.Equal("You cannot afford this item.", Plain(text[MenuText.CantAfford]));
-        Assert.Equal("I do not want that item.", Plain(text[MenuText.MerchantRefuses]));
-        Assert.Equal("You must unequip that to sell it.", Plain(text[MenuText.UnequipToSell]));
-        Assert.Equal("Value: %lu", Plain(text[MenuText.Value]));
+        Assert.Equal("I'll give you %ld gold for that %s.", TestRoms.Plain(text[MenuText.SellConfirm]));
+        Assert.Equal("No, thanks.", TestRoms.Plain(text[MenuText.SellNo]));
+        Assert.Equal("Sure, here it is.", TestRoms.Plain(text[MenuText.SellYes]));
+        Assert.Equal("I will sell %d of them.", TestRoms.Plain(text[MenuText.SellSome]));
+        Assert.Equal("I will sell all of them.", TestRoms.Plain(text[MenuText.SellAll]));
+        Assert.Equal("You cannot afford this item.", TestRoms.Plain(text[MenuText.CantAfford]));
+        Assert.Equal("I do not want that item.", TestRoms.Plain(text[MenuText.MerchantRefuses]));
+        Assert.Equal("You must unequip that to sell it.", TestRoms.Plain(text[MenuText.UnequipToSell]));
+        Assert.Equal("Value: %lu", TestRoms.Plain(text[MenuText.Value]));
     }
 
     [Fact]
     public void TheLeaveItemsQuestionAsksWhetherToExit()
     {
-        Assert.Equal("There are still items that you have not picked up!  Are you sure you wish to exit?", Plain(MenuText.From(Set)[MenuText.LeaveItems]));
+        Assert.Equal("There are still items that you have not picked up!  Are you sure you wish to exit?", TestRoms.Plain(MenuText.From(Set)[MenuText.LeaveItems]));
     }
 
     [Fact]
@@ -160,7 +158,7 @@ public sealed class BarterMenuRomTests(MapObjectFixture fixture)
         Assert.Empty(menu.Pile.Rows);
         Assert.False(menu.OnPile);
         Assert.Equal(MenuText.From(Set)[MenuText.FirstPotion], menu.Help);
-        Assert.StartsWith("You've acquired a potion!", Plain(menu.Help!), StringComparison.Ordinal);
+        Assert.StartsWith("You've acquired a potion!", TestRoms.Plain(menu.Help!), StringComparison.Ordinal);
         Assert.True(game.Flags.Get(game.Items.Rules.FirstPotionFlag));
 
         // The help takes B first, then B closes the window as nothing is left.

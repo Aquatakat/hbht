@@ -2,17 +2,11 @@ namespace Aidyn.Plugins.Tests;
 
 public sealed class QuestIndexTests : IDisposable
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), "aidyn-quests-" + Guid.NewGuid().ToString("N"));
+    private readonly TempPlugins _temp = new();
 
-    public void Dispose()
-    {
-        if (Directory.Exists(_root))
-            Directory.Delete(_root, recursive: true);
-    }
+    public void Dispose() => _temp.Dispose();
 
     private static RecordId Id(string text) => RecordId.Parse(text);
-
-    private static RecordId Flag(int n) => RecordId.Decimal(RecordTypes.Flag, n);
 
     /// <summary>
     /// Script 0x0100 checks flag 10 twice and sets and clears flag 20; it ends by setting 30, and
@@ -23,10 +17,7 @@ public sealed class QuestIndexTests : IDisposable
     /// </summary>
     private QuestIndex Index()
     {
-        var dir = Path.Combine(_root, "aidyn");
-        Directory.CreateDirectory(Path.Combine(dir, "records"));
-        File.WriteAllText(Path.Combine(dir, "plugin.json"), """{ "id": "aidyn", "name": "aidyn", "version": "1.0.0" }""");
-        File.WriteAllText(Path.Combine(dir, "records", "quests.json"), """
+        var plugins = _temp.Aidyn(("quests.json", """
             [
               {
                 "id": "aidyn:dialogue/0x0100", "number": 1, "mode": "Cutscene",
@@ -67,8 +58,8 @@ public sealed class QuestIndexTests : IDisposable
                 "newJournalEntry": "aidyn:flag/73", "randomSkillChecks": "aidyn:flag/72",
               },
             ]
-            """);
-        return QuestIndex.Build(PluginSet.Load([dir]));
+            """));
+        return QuestIndex.Build(plugins);
     }
 
     private static readonly RecordId ScriptA = Id("aidyn:dialogue/0x0100");
@@ -232,12 +223,9 @@ public sealed class QuestIndexTests : IDisposable
     /// </summary>
     private QuestIndex ItemIndex()
     {
-        var dir = Path.Combine(_root, "aidyn");
-        Directory.CreateDirectory(Path.Combine(dir, "records"));
-        File.WriteAllText(Path.Combine(dir, "plugin.json"), """{ "id": "aidyn", "name": "aidyn", "version": "1.0.0" }""");
         const string Obj = "\"position\": [0, 0, 0], \"radius\": 1, \"pak\": \"Any\", \"kind\": \"Chest\", \"lockLevel\": 0, \"trapLevel\": 0, \"gold\": 0";
         const string Party = "\"position\": [0, 0, 0], \"radius\": 1, \"pak\": \"Any\", \"enemies\": [], \"entity\": \"aidyn:entity/0x0001\", \"minSize\": 1, \"maxSize\": 1";
-        File.WriteAllText(Path.Combine(dir, "records", "items.json"), $$"""
+        var plugins = _temp.Aidyn(("items.json", $$"""
             [
               { "id": "aidyn:item/0x1200", "name": "Key A", "icon": "aidyn:image/1", "price": 0, "kind": "Key", "keyItem": { "held": "aidyn:flag/100", "region": "aidyn:flag/101" } },
               { "id": "aidyn:item/0x1201", "name": "Key B", "icon": "aidyn:image/1", "price": 0, "kind": "Key", "keyItem": { "held": "aidyn:flag/102" } },
@@ -282,8 +270,8 @@ public sealed class QuestIndexTests : IDisposable
                 ],
               },
             ]
-            """);
-        return QuestIndex.Build(PluginSet.Load([dir]));
+            """));
+        return QuestIndex.Build(plugins);
     }
 
     private static FlagUse Given(int flag, string by, int? at = null) => new(Flag(flag), Id(by), FlagAccess.Set, FlagRole.ItemGiven, at);
@@ -383,10 +371,7 @@ public sealed class QuestIndexTests : IDisposable
     /// </summary>
     private QuestIndex MemberIndex()
     {
-        var dir = Path.Combine(_root, "aidyn");
-        Directory.CreateDirectory(Path.Combine(dir, "records"));
-        File.WriteAllText(Path.Combine(dir, "plugin.json"), """{ "id": "aidyn", "name": "aidyn", "version": "1.0.0" }""");
-        File.WriteAllText(Path.Combine(dir, "records", "members.json"), """
+        var plugins = _temp.Aidyn(("members.json", """
             [
               { "id": "aidyn:entity/0x0248", "name": "Godric", "member": { "joined": "aidyn:flag/90", "left": "aidyn:flag/686", "died": "aidyn:flag/616", "kept": true } },
               { "id": "aidyn:entity/0x0243", "name": "Brenna", "member": { "joined": "aidyn:flag/92", "died": "aidyn:flag/613" } },
@@ -403,8 +388,8 @@ public sealed class QuestIndexTests : IDisposable
                 ],
               },
             ]
-            """);
-        return QuestIndex.Build(PluginSet.Load([dir]));
+            """));
+        return QuestIndex.Build(plugins);
     }
 
     private static readonly RecordId Godric = Id("aidyn:entity/0x0248");

@@ -163,12 +163,6 @@ public class WanderTickTests
         return s;
     }
 
-    private static void AssertNear(Vector2 expected, Vector2 actual, float tolerance = 1e-4f)
-    {
-        Assert.Equal(expected.X, actual.X, tolerance);
-        Assert.Equal(expected.Y, actual.Y, tolerance);
-    }
-
     // Noticing the player.
 
     [Fact]
@@ -582,29 +576,21 @@ public class WanderTickTests
 /// <summary>Wanderers of a loaded chunk, from a plugin of one entity: <c>Wanderers.Tick</c> over them.</summary>
 public sealed class WanderersFixture : IDisposable
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), "aidyn-wanderers-" + Guid.NewGuid().ToString("N"));
+    private readonly TempPlugins _temp = new();
 
     public static readonly RecordId Entity = RecordId.Hex(RecordTypes.Entity, 0x300);
 
     public WanderersFixture()
     {
-        var dir = Path.Combine(_root, "aidyn");
-        Directory.CreateDirectory(Path.Combine(dir, "records"));
-        File.WriteAllText(Path.Combine(dir, "plugin.json"), """{ "id": "aidyn", "name": "aidyn", "version": "1.0.0" }""");
         // One entity, as both its sheet (for its perception) and its body.
         var entity = (JsonObject)JsonSerializer.SerializeToNode(Characters.Alaron() with { Id = Entity, Perception = 10 }, PluginJson.Options)!;
         entity["body"] = JsonSerializer.SerializeToNode(new EntityBody(RecordId.Hex(RecordTypes.Actor, 1), 0.5f, 1, 2), PluginJson.Options);
-        File.WriteAllText(Path.Combine(dir, "records", "entities.json"), new JsonArray(entity).ToJsonString());
-        Plugins = PluginSet.Load([dir]);
+        Plugins = _temp.Aidyn(("entities.json", new JsonArray(entity).ToJsonString()));
     }
 
     public PluginSet Plugins { get; }
 
-    public void Dispose()
-    {
-        if (Directory.Exists(_root))
-            Directory.Delete(_root, recursive: true);
-    }
+    public void Dispose() => _temp.Dispose();
 }
 
 public class WanderersTickTests(WanderersFixture fixture) : IClassFixture<WanderersFixture>

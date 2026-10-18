@@ -7,8 +7,6 @@ namespace Aidyn.Core.Tests;
 
 public class FlagNetworkTests
 {
-    private static RecordId Flag(int n) => RecordId.Decimal(RecordTypes.Flag, n);
-
     /// <summary>
     /// Plain flags 0–9 (1 set, as in the base game), then the derived flags given, numbered from 10.
     /// Flag 9 is the new journal entry flag.

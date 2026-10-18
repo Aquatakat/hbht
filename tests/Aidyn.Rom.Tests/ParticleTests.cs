@@ -6,10 +6,8 @@ namespace Aidyn.Rom.Tests;
 
 public class ParticleTests
 {
-    public static TheoryData<RomVersionId> Versions() => [.. RomVersions.All.Select(v => v.Id)];
-
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void ParticleTexturesAreTheFirstBorg1s(RomVersionId id)
     {
         var slots = ParticleTextures.Read(TestRoms.Get(id));

@@ -6,10 +6,8 @@ namespace Aidyn.Rom.Tests;
 
 public class EntityModelsTests
 {
-    public static TheoryData<RomVersionId> Versions() => [.. RomVersions.All.Select(v => v.Id)];
-
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void ModelsMatchAcrossVersions(RomVersionId id)
     {
         var a = EntityModels.Read(TestRoms.Get(RomVersionId.Na10));

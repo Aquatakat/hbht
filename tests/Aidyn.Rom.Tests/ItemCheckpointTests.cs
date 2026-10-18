@@ -11,27 +11,11 @@ namespace Aidyn.Rom.Tests;
 /// the debug ROM, with the records imported from 1.0.
 /// </summary>
 [Collection(ImportedPluginCollection.Name)]
-public sealed class ItemCheckpointTests(MapObjectFixture fixture)
+public sealed class ItemCheckpointTests(Na10Import fixture)
 {
     private PluginSet Set => fixture.Data.Set;
 
-    public static TheoryData<string> Checkpoints() => CheckpointTests.Checkpoints();
-
-    private static AresCheckpoint Load(string name)
-    {
-        if (name.Length == 0)
-            Assert.Skip($"No checkpoints in {TestRoms.Folder}.");
-        return AresCheckpoint.Read(Path.Combine(TestRoms.Folder, name));
-    }
-
-    private static RecordId Record(ushort id) => (id >> 8) switch
-    {
-        7 => RecordId.Hex(RecordTypes.Weapon, id),
-        5 or 6 => RecordId.Hex(RecordTypes.Armor, id),
-        _ => RecordId.Hex(RecordTypes.Item, id),
-    };
-
-    private static ItemInstance Instance(ItemCatalog items, CheckpointItem held) => new(items[Record(held.Id)])
+    private static ItemInstance Instance(ItemCatalog items, CheckpointItem held) => new(items[TestRoms.ItemId(held.Id)])
     {
         Price = held.Price,
         Battery = held.StatMod is { Stat: 5, Amount: var left } ? left : null,
@@ -57,22 +41,22 @@ public sealed class ItemCheckpointTests(MapObjectFixture fixture)
     }
 
     [Theory]
-    [MemberData(nameof(Checkpoints))]
+    [MemberData(nameof(TestRoms.Checkpoints), MemberType = typeof(TestRoms))]
     public void EverythingWornIsAnItemTheMemberCanWear(string name)
     {
-        var checkpoint = Load(name);
+        var checkpoint = TestRoms.Checkpoint(name);
         var items = ItemCatalog.From(Set);
 
         foreach (var sheet in checkpoint.Party)
         {
             Assert.Equal(Equipment.GearSlots, sheet.Gear.Count);
             Assert.Equal(sheet.Gear.Count(g => g is not null), sheet.GearCount);
-            Assert.Equal(ItemKind.Weapon, items[Record(sheet.Weapon!.Id)].Kind);
+            Assert.Equal(ItemKind.Weapon, items[TestRoms.ItemId(sheet.Weapon!.Id)].Kind);
             if (sheet.Armor is { } armor)
-                Assert.Equal(ItemKind.Armor, items[Record(armor.Id)].Kind);
+                Assert.Equal(ItemKind.Armor, items[TestRoms.ItemId(armor.Id)].Kind);
             if (sheet.Shield is { } shield)
-                Assert.Equal(ItemKind.Shield, items[Record(shield.Id)].Kind);
-            Assert.All(sheet.Gear.OfType<CheckpointItem>(), g => Assert.True(items[Record(g.Id)].IsGear));
+                Assert.Equal(ItemKind.Shield, items[TestRoms.ItemId(shield.Id)].Kind);
+            Assert.All(sheet.Gear.OfType<CheckpointItem>(), g => Assert.True(items[TestRoms.ItemId(g.Id)].IsGear));
         }
     }
 
@@ -82,10 +66,10 @@ public sealed class ItemCheckpointTests(MapObjectFixture fixture)
     /// protection and damage at the entity's. So equipping changes the sheet as the console's does.
     /// </summary>
     [Theory]
-    [MemberData(nameof(Checkpoints))]
+    [MemberData(nameof(TestRoms.Checkpoints), MemberType = typeof(TestRoms))]
     public void TakingOffWhatAMemberWearsUndoesWhatItDid(string name)
     {
-        var checkpoint = Load(name);
+        var checkpoint = TestRoms.Checkpoint(name);
         var rules = CharacterRules.From(Set);
         var items = ItemCatalog.From(Set);
 
@@ -112,17 +96,17 @@ public sealed class ItemCheckpointTests(MapObjectFixture fixture)
     }
 
     [Theory]
-    [MemberData(nameof(Checkpoints))]
+    [MemberData(nameof(TestRoms.Checkpoints), MemberType = typeof(TestRoms))]
     public void ABatteryHoldsNoMoreThanItsItemsStaminaBonus(string name)
     {
-        var checkpoint = Load(name);
+        var checkpoint = TestRoms.Checkpoint(name);
         var items = ItemCatalog.From(Set);
 
         var held = checkpoint.Party.SelectMany(s => new[] { s.Weapon, s.Armor, s.Shield }.Concat(s.Gear))
             .Concat(checkpoint.Inventory.Select(s => s.Item)).OfType<CheckpointItem>();
         foreach (var item in held)
         {
-            var record = items[Record(item.Id)];
+            var record = items[TestRoms.ItemId(item.Id)];
             // Only a battery's StatMod changes; any other is the item's bonus as it is.
             if (record.BatteryCapacity is { } capacity)
                 Assert.InRange(item.StatMod!.Value.Amount, 0, capacity);
@@ -135,16 +119,16 @@ public sealed class ItemCheckpointTests(MapObjectFixture fixture)
     }
 
     [Theory]
-    [MemberData(nameof(Checkpoints))]
+    [MemberData(nameof(TestRoms.Checkpoints), MemberType = typeof(TestRoms))]
     public void TheInventoryHoldsStacksAtTheirItemsPrices(string name)
     {
-        var checkpoint = Load(name);
+        var checkpoint = TestRoms.Checkpoint(name);
         var items = ItemCatalog.From(Set);
 
         Assert.NotEmpty(checkpoint.Inventory);
         foreach (var stack in checkpoint.Inventory)
         {
-            var item = items[Record(stack.Item.Id)];
+            var item = items[TestRoms.ItemId(stack.Item.Id)];
             Assert.InRange(stack.Quantity, 1, items.Rules.StackLimit);
             Assert.Equal(item.Price, stack.Item.Price);
             // The general slots come first; items with slots of their own are after them.
@@ -154,13 +138,13 @@ public sealed class ItemCheckpointTests(MapObjectFixture fixture)
     }
 
     [Theory]
-    [MemberData(nameof(Checkpoints))]
+    [MemberData(nameof(TestRoms.Checkpoints), MemberType = typeof(TestRoms))]
     public void AKeyItemIsHeldWhileItsFlagIsSet(string name)
     {
-        var checkpoint = Load(name);
+        var checkpoint = TestRoms.Checkpoint(name);
         var items = ItemCatalog.From(Set);
 
-        var held = checkpoint.Inventory.Select(s => Record(s.Item.Id)).ToHashSet();
+        var held = checkpoint.Inventory.Select(s => TestRoms.ItemId(s.Item.Id)).ToHashSet();
         foreach (var item in items.All.Where(i => i.KeyItem is not null))
             Assert.Equal(checkpoint.Flags[int.Parse(item.KeyItem!.Held.Key)], held.Contains(item.Id));
     }

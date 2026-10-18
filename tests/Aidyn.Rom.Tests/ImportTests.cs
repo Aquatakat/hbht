@@ -5,24 +5,14 @@ using Aidyn.Rom.Import;
 
 namespace Aidyn.Rom.Tests;
 
-public sealed class ImportTests : IDisposable
+[Collection(ImportedPluginCollection.Name)]
+public sealed class ImportTests(Na10Import fixture)
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), "aidyn-import-" + Guid.NewGuid().ToString("N"));
-
-    public void Dispose()
-    {
-        if (Directory.Exists(_root))
-            Directory.Delete(_root, recursive: true);
-    }
-
     [Fact]
     public void TheBasePluginLoadsAndItsReferencesResolve()
     {
         var rom = TestRoms.Get(RomVersionId.Na10);
-        var dir = Path.Combine(_root, BasePlugin.Folder);
-        BaseImporter.Import(rom, dir);
-
-        var set = PluginSet.Load([dir]);
+        var set = fixture.Data.Set;
         var import = set.Plugins[0].Manifest.Import!;
         Assert.Equal((BasePlugin.ImporterVersion, rom.Sha1), (import.Importer, import.Rom));
 
@@ -254,9 +244,10 @@ public sealed class ImportTests : IDisposable
     public void ImportsAreDeterministic()
     {
         var rom = TestRoms.Get(RomVersionId.Na10);
-        var first = Path.Combine(_root, "first");
-        var second = Path.Combine(_root, "second");
-        BaseImporter.Import(rom, first);
+        // The shared import against a fresh one.
+        using var temp = new TempPlugins();
+        var first = fixture.Data.Dir;
+        var second = Path.Combine(temp.Root, BasePlugin.Folder);
         BaseImporter.Import(rom, second);
 
         var files = Directory.EnumerateFiles(first, "*", SearchOption.AllDirectories).Select(f => Path.GetRelativePath(first, f)).Order().ToList();
@@ -269,6 +260,7 @@ public sealed class ImportTests : IDisposable
     public void ResearchRomsAreRefused()
     {
         var rom = TestRoms.Get(RomVersionId.Debug);
-        Assert.Throws<UnsupportedRomException>(() => BaseImporter.Import(rom, Path.Combine(_root, "debug")));
+        using var temp = new TempPlugins();
+        Assert.Throws<UnsupportedRomException>(() => BaseImporter.Import(rom, Path.Combine(temp.Root, "debug")));
     }
 }

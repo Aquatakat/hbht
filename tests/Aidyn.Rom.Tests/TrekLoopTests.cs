@@ -21,11 +21,11 @@ namespace Aidyn.Rom.Tests;
 /// wanderers, a door's fade, the clock under a conversation, chunk crossings and the fade into a cut-scene.
 /// </summary>
 [Collection(ImportedPluginCollection.Name)]
-public sealed class TrekLoopTests(MapObjectFixture fixture)
+public sealed class TrekLoopTests(Na10Import fixture)
 {
     private static readonly RecordId Overworld = RecordId.Parse("aidyn:mapset/0");
 
-    private MapObjectFixture.Loaded Data => fixture.Data;
+    private Na10Import.Loaded Data => fixture.Data;
 
     private sealed class Host(PluginSet plugins) : ITrekHost
     {

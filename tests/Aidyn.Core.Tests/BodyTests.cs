@@ -16,8 +16,6 @@ public class BodyTests
         return body;
     }
 
-    private static float Degrees(Vector2 a, Vector2 b) => MathF.Acos(Math.Clamp(Vector2.Dot(Vector2.Normalize(a), Vector2.Normalize(b)), -1, 1)) * 180 / MathF.PI;
-
     [Fact]
     public void ABodyNobodySteersKeepsItsRequestAndStandsStill()
     {

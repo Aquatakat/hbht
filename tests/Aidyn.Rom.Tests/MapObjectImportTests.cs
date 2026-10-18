@@ -6,93 +6,12 @@ using Aidyn.Rom.Import;
 
 namespace Aidyn.Rom.Tests;
 
-/// <summary>The tests that share one import of NA 1.0 (<see cref="MapObjectFixture"/>).</summary>
-[CollectionDefinition(Name)]
-public sealed class ImportedPluginCollection : ICollectionFixture<MapObjectFixture>
-{
-    public const string Name = "NA 1.0 imported";
-}
-
-/// <summary>Imports NA 1.0 once for the tests in <see cref="ImportedPluginCollection"/>, when the first test needs it.</summary>
-public sealed class MapObjectFixture : IDisposable
-{
-    private readonly string _root = Path.Combine(Path.GetTempPath(), "aidyn-mapobjects-" + Guid.NewGuid().ToString("N"));
-    private readonly Lazy<Loaded> _loaded;
-
-    public MapObjectFixture() => _loaded = new(Load);
-
-    public Loaded Data => _loaded.Value;
-
-    public void Dispose()
-    {
-        if (Directory.Exists(_root))
-            Directory.Delete(_root, recursive: true);
-    }
-
-    private Loaded Load()
-    {
-        var rom = TestRoms.Get(RomVersionId.Na10);
-        var dir = Path.Combine(_root, BasePlugin.Folder);
-        BaseImporter.Import(rom, dir);
-        var set = PluginSet.Load([dir]);
-        var maps = set.All<MapRecord>(RecordTypes.Map).ToList();
-        var chunks = Maps.MapChunks.Read(rom);
-        var archive = Borg.BorgArchive.Open(rom);
-        return new Loaded
-        {
-            Dir = dir,
-            Set = set,
-            Maps = maps,
-            MapSets = [.. set.All<MapSetRecord>(RecordTypes.MapSet)],
-            Objects = maps.SelectMany(m => m.Objects.Select(o => (Id: MapRecord.VoxelId(m.Id, o.Index), Object: o)))
-                .ToDictionary(o => o.Id, o => o.Object),
-            Index = QuestIndex.Build(set),
-            Chunks = chunks,
-            RomObjects = chunks.Select(c => c.Collision).Distinct().Order()
-                .ToDictionary(b => b, b => Maps.Borg9Voxels.Read(archive.Read(b))),
-        };
-    }
-
-    public sealed class Loaded
-    {
-        public required string Dir { get; init; }
-        public required PluginSet Set { get; init; }
-        public required IReadOnlyList<MapRecord> Maps { get; init; }
-        public required IReadOnlyList<MapSetRecord> MapSets { get; init; }
-
-        /// <summary>Every map object by its voxel ID.</summary>
-        public required IReadOnlyDictionary<RecordId, MapObject> Objects { get; init; }
-
-        public required QuestIndex Index { get; init; }
-        public required IReadOnlyList<Maps.MapChunk> Chunks { get; init; }
-
-        /// <summary>The ROM's map objects of each Borg9 the chunk list names.</summary>
-        public required IReadOnlyDictionary<int, IReadOnlyList<Maps.VoxelObject>> RomObjects { get; init; }
-
-        public MapRecord Map(string id) => Maps.Single(m => m.Id == RecordId.Parse(id));
-
-        /// <summary>Every object of a type, with its voxel ID and map.</summary>
-        public IEnumerable<(RecordId Id, MapRecord Map, T Object)> Of<T>() where T : MapObject =>
-            Maps.SelectMany(m => m.Objects.OfType<T>().Select(o => (MapRecord.VoxelId(m.Id, o.Index), m, o)));
-
-        /// <summary>The map set's chunk the reference names, or null.</summary>
-        public ChunkEntry? Chunk(ChunkRef chunk) => MapSets.Single(s => s.Id == chunk.MapSet).Chunks
-            .SingleOrDefault(c => c.Row == chunk.Row && c.Column == chunk.Column);
-    }
-}
-
 [Collection(ImportedPluginCollection.Name)]
-public sealed class MapObjectImportTests(MapObjectFixture fixture)
+public sealed class MapObjectImportTests(Na10Import fixture)
 {
-    private MapObjectFixture.Loaded Data => fixture.Data;
+    private Na10Import.Loaded Data => fixture.Data;
 
     private static int Borg(RecordId map) => Convert.ToInt32(map.Key[2..], 16);
-
-    private static int Number(RecordId flag) => int.Parse(flag.Key, CultureInfo.InvariantCulture);
-
-    private static RecordId Flag(int n) => RecordId.Decimal(RecordTypes.Flag, n);
-
-    private static RecordId Script(int borg) => RecordId.Hex(RecordTypes.Dialogue, borg);
 
     private static RecordId Voxel(int borg9, int index) => MapRecord.VoxelId(RecordId.Hex(RecordTypes.Map, borg9), index);
 

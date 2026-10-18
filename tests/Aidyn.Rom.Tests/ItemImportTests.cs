@@ -10,15 +10,13 @@ namespace Aidyn.Rom.Tests;
 
 public class ItemTablesTests
 {
-    public static TheoryData<RomVersionId> Versions() => [.. RomVersions.All.Select(v => v.Id)];
-
     private static IReadOnlyDictionary<ItemId, string> Names(GameDb db) =>
         db.Entities.Select(e => (e.Id, e.Name)).Concat(db.Gear.Select(g => (g.Id, g.Name)))
             .Concat(db.Weapons.Select(w => (w.Id, w.Name))).Concat(db.Armor.Select(a => (a.Id, a.Name)))
             .ToDictionary(e => e.Id, e => e.Name);
 
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void PotionsArePricedByTheTableInCode(RomVersionId id)
     {
         var tables = ItemTables.Read(TestRoms.Get(id));
@@ -28,7 +26,7 @@ public class ItemTablesTests
     }
 
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void TheAlchemistsRecipesAreInTheOrderTheCodeHasThem(RomVersionId id)
     {
         var tables = ItemTables.Read(TestRoms.Get(id));
@@ -47,7 +45,7 @@ public class ItemTablesTests
 
     /// <summary>The recipes name hides by position in the item DB and armor by position in the armor DB, not by ID.</summary>
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void TheMechanicsRecipesNameHidesAndArmorByTheirPositionsInTheDb(RomVersionId id)
     {
         var rom = TestRoms.Get(id);
@@ -66,7 +64,7 @@ public class ItemTablesTests
 
     /// <summary>The item icons cover 65 of the weapons, and no potion: they all share one icon.</summary>
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void ItemIconsCoverGearAndNotPotions(RomVersionId id)
     {
         var rom = TestRoms.Get(id);
@@ -82,7 +80,7 @@ public class ItemTablesTests
     }
 
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void SkillAspectSchoolAndSpellIconsAreByTheirNumbers(RomVersionId id)
     {
         var rom = TestRoms.Get(id);
@@ -99,7 +97,7 @@ public class ItemTablesTests
 
     /// <summary>The weapons' and items' models are lists of positions with the Borg5s at the same index; the shields' are a switch in code.</summary>
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void WeaponsShieldsAndSixItemsHaveModelsByTheirPositionsInTheDb(RomVersionId id)
     {
         var rom = TestRoms.Get(id);
@@ -126,7 +124,7 @@ public class ItemTablesTests
 
     /// <summary>The models have to be scenes the importer exports as assets.</summary>
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void EveryModelIsABorg5Scene(RomVersionId id)
     {
         var rom = TestRoms.Get(id);
@@ -139,7 +137,7 @@ public class ItemTablesTests
 
     /// <summary>The table lists 0x110E twice, so it names 79 different items in its 80 entries.</summary>
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void ReservedItemsStartWithTheReagentsAndHoldAllButOneUnusedPotion(RomVersionId id)
     {
         var rom = TestRoms.Get(id);
@@ -155,7 +153,7 @@ public class ItemTablesTests
     }
 
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void KeyEquipmentIsTheThirteenUniqueItems(RomVersionId id)
     {
         var tables = ItemTables.Read(TestRoms.Get(id));
@@ -165,7 +163,7 @@ public class ItemTablesTests
     }
 
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void MustTakeItemsAreTheQuestItemsTheDecompNames(RomVersionId id)
     {
         var rom = TestRoms.Get(id);
@@ -186,7 +184,7 @@ public class ItemTablesTests
 }
 
 [Collection(ImportedPluginCollection.Name)]
-public sealed class ItemImportTests(MapObjectFixture fixture)
+public sealed class ItemImportTests(Na10Import fixture)
 {
     private PluginSet Set => fixture.Data.Set;
 

@@ -3,10 +3,10 @@ using Aidyn.Core.Movement;
 using Aidyn.Core.Physics;
 using Aidyn.Plugins.Assets;
 
-namespace Aidyn.Core.Tests;
+namespace Aidyn.TestSupport;
 
 /// <summary>Small collision worlds built in code: floors, walls and ledges.</summary>
-internal static class Worlds
+public static class Worlds
 {
     /// <summary>Grass: a surface that keeps no velocity on contact, like most ground.</summary>
     public const int Grass = 4;
@@ -42,6 +42,14 @@ internal static class Worlds
         return world;
     }
 
+    /// <summary>Level ground from <paramref name="min"/> to <paramref name="max"/> on both axes, placed at <paramref name="origin"/>.</summary>
+    public static CollisionWorld Ground(float min, float max, Vector3 origin = default)
+    {
+        var world = new CollisionWorld();
+        world.Add("ground", Floor(0, min, max, min, max), origin);
+        return world;
+    }
+
     /// <summary>
     /// Flat ground. Its two triangles meet along X + Z = 10, away from where tests stand: the
     /// game counts a point on an edge as inside only half its triangles, so a sphere exactly on
@@ -56,7 +64,7 @@ internal static class Worlds
 }
 
 /// <summary>An animation whose root moves a fixed amount a tick while he's asked to move.</summary>
-internal sealed class SteadyMotion(float perTick) : IRootMotion
+public sealed class SteadyMotion(float perTick) : IRootMotion
 {
     public float Tick(int request) => request == PlayerMotion.Idle ? 0 : perTick;
 }

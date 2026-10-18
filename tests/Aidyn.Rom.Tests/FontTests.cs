@@ -7,8 +7,6 @@ namespace Aidyn.Rom.Tests;
 
 public class FontTests
 {
-    public static TheoryData<RomVersionId> Versions() => [.. RomVersions.All.Select(v => v.Id)];
-
     private static int GlyphOf(Fonts fonts, char c) => fonts.Glyphs[c - Fonts.FirstCharacter];
 
     [Fact]
@@ -37,7 +35,7 @@ public class FontTests
     }
 
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void TheTablesMatchAcrossVersions(RomVersionId id)
     {
         var a = Fonts.Read(TestRoms.Get(RomVersionId.Na10));

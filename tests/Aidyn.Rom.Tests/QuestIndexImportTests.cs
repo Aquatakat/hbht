@@ -5,29 +5,14 @@ using Aidyn.Rom.Import;
 
 namespace Aidyn.Rom.Tests;
 
-public sealed class QuestIndexImportTests : IDisposable
+[Collection(ImportedPluginCollection.Name)]
+public sealed class QuestIndexImportTests(Na10Import fixture)
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), "aidyn-quests-" + Guid.NewGuid().ToString("N"));
-
-    public void Dispose()
-    {
-        if (Directory.Exists(_root))
-            Directory.Delete(_root, recursive: true);
-    }
-
-    private static RecordId Flag(int n) => RecordId.Decimal(RecordTypes.Flag, n);
-
-    private static RecordId Script(int borg) => RecordId.Hex(RecordTypes.Dialogue, borg);
-
-    private static int Number(RecordId flag) => int.Parse(flag.Key, CultureInfo.InvariantCulture);
-
     [Fact]
     public void TheBasePluginsFlagsAreUsedByScriptsJournalAndMaps()
     {
-        var dir = Path.Combine(_root, BasePlugin.Folder);
-        BaseImporter.Import(TestRoms.Get(RomVersionId.Na10), dir);
-        var plugins = PluginSet.Load([dir]);
-        var index = QuestIndex.Build(plugins);
+        var plugins = fixture.Data.Set;
+        var index = fixture.Data.Index;
 
         // The Gwernia opening: the Kendall cut-scene (Borg13 866) sets done flag 5, which derived flag 5423 reads.
         var kendall = Script(866);

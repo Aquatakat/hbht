@@ -9,8 +9,6 @@ namespace Aidyn.Rom.Tests;
 
 public class TextImportTests
 {
-    public static TheoryData<RomVersionId> Versions() => [.. RomVersions.All.Select(v => v.Id)];
-
     /// <summary>The line counts of the tables that differ between versions: Common, Controller and Credits.</summary>
     public static TheoryData<RomVersionId, int, int, int> LineCounts() => new()
     {
@@ -40,7 +38,7 @@ public class TextImportTests
     }
 
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void StringEscapesAreDecoded(RomVersionId id)
     {
         var db = GameDb.Read(TestRoms.Get(id));
@@ -73,7 +71,7 @@ public class TextImportTests
         [.. lines.Select((l, i) => (l, i)).Where(p => test(p.l)).Select(p => p.i)];
 
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void FontsHaveTheirSheetsMeasuresAndMaps(RomVersionId id)
     {
         var rom = TestRoms.Get(id);

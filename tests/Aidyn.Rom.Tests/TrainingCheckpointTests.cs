@@ -12,14 +12,11 @@ namespace Aidyn.Rom.Tests;
 /// captures of STAI01's training show (Oct 3, 2026), from the "Before final encounter" checkpoint.
 /// </summary>
 [Collection(ImportedPluginCollection.Name)]
-public sealed class TrainingCheckpointTests(MapObjectFixture fixture)
+public sealed class TrainingCheckpointTests(Na10Import fixture)
 {
     private const string Checkpoint = "Aidyn Chronicles - The First Mage (U) (V1.0) [!] - Before final encounter.bs1";
 
     private PluginSet Set => fixture.Data.Set;
-
-    /// <summary>A line as the user reads it: without the button glyphs, and trimmed.</summary>
-    private static string Plain(string line) => new string([.. line.Where(c => c is < '\u0080' or > '\u009F')]).Trim();
 
     [Fact]
     public void TheTrainingLinesOfTheCommonStringsReadAsTheWindowNeedsThem()
@@ -38,18 +35,15 @@ public sealed class TrainingCheckpointTests(MapObjectFixture fixture)
                 MenuText.XpCostMax, MenuText.XpCost, MenuText.XpRemainingLine, MenuText.GoldCost, MenuText.SkillCantLearn, MenuText.SkillCantTeach,
                 MenuText.SkillAtMost, MenuText.SkillNeeds, MenuText.SkillNeedsXp, MenuText.OnlyWizardsTrain, MenuText.SpellAtMost,
                 TrainingMenu.YesLine, TrainingMenu.NoLine,
-            }.Select(line => Plain(text[line])));
-        Assert.StartsWith("Are you sure you wish to train this for %ld XP and %ld gold?", Plain(text[MenuText.TrainSkillFor]));
-        Assert.StartsWith("You've learned a new spell!", Plain(text[MenuText.FirstSpell]));
+            }.Select(line => TestRoms.Plain(text[line])));
+        Assert.StartsWith("Are you sure you wish to train this for %ld XP and %ld gold?", TestRoms.Plain(text[MenuText.TrainSkillFor]));
+        Assert.StartsWith("You've learned a new spell!", TestRoms.Plain(text[MenuText.FirstSpell]));
     }
 
     [Fact]
     public void STAI01TeachesAlaronWhatTheCapturesShow()
     {
-        var path = Path.Combine(TestRoms.Folder, Checkpoint);
-        if (!File.Exists(path))
-            Assert.Skip($"No {Checkpoint} in {TestRoms.Folder}.");
-        var game = GameState.Load(Set, CheckpointSave.Convert(AresCheckpoint.Read(path), Set, CheckpointSave.Label(path)));
+        var game = GameState.Load(Set, CheckpointSave.Convert(TestRoms.Checkpoint(Checkpoint), Set, CheckpointSave.Label(Checkpoint)));
         var keeper = Set.Get<EntityRecord>(RecordId.Hex(RecordTypes.Entity, 0x0280));
         var menu = TrainingMenu.For(Set, game.Party, Trainer.From(keeper, game.Rules, Set.Get<SpellRecord>), game.Flags);
 

@@ -14,7 +14,7 @@ namespace Aidyn.Rom.Tests;
 /// pressing A through every page and taking the first choice, until it's over.
 /// </summary>
 [Collection(ImportedPluginCollection.Name)]
-public sealed class CutSceneRealDataTests(MapObjectFixture fixture, ITestOutputHelper output)
+public sealed class CutSceneRealDataTests(Na10Import fixture, ITestOutputHelper output)
 {
     /// <summary>Walks and runs move a body along; every state lasts a second.</summary>
     private sealed class Walking : IActorMotion

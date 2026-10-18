@@ -5,28 +5,11 @@ namespace Aidyn.Plugins.Tests;
 
 public sealed class PluginSetTests : IDisposable
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), "aidyn-plugins-" + Guid.NewGuid().ToString("N"));
+    private readonly TempPlugins _temp = new();
 
-    public void Dispose()
-    {
-        if (Directory.Exists(_root))
-            Directory.Delete(_root, recursive: true);
-    }
+    public void Dispose() => _temp.Dispose();
 
-    private string Plugin(string id, string[]? dependencies, params (string File, string Json)[] files)
-    {
-        var dir = Path.Combine(_root, id);
-        Directory.CreateDirectory(dir);
-        var deps = dependencies is null ? "" : $", \"dependencies\": [{string.Join(", ", dependencies.Select(d => $"\"{d}\""))}]";
-        File.WriteAllText(Path.Combine(dir, "plugin.json"), $$"""{ "id": "{{id}}", "name": "{{id}}", "version": "1.0.0"{{deps}} }""");
-        foreach (var (file, json) in files)
-        {
-            var path = Path.Combine(dir, "records", file);
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            File.WriteAllText(path, json);
-        }
-        return dir;
-    }
+    private string Plugin(string id, string[]? dependencies, params (string File, string Json)[] files) => _temp.Add(id, dependencies, files);
 
     private string Base() => Plugin("aidyn", null, ("weapons.json", """
         [
@@ -79,7 +62,7 @@ public sealed class PluginSetTests : IDisposable
         ]));
         Assert.Contains("own namespace", error.Message, StringComparison.Ordinal);
 
-        Directory.Delete(_root, recursive: true);
+        Directory.Delete(_temp.Root, recursive: true);
         var set = PluginSet.Load([
             Base(),
             Plugin("mymod", ["aidyn"], ("new.json", """{ "id": "mymod:weapon/sword_of_tests", "damage": 1 }""")),

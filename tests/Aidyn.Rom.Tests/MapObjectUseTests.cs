@@ -19,7 +19,7 @@ namespace Aidyn.Rom.Tests;
 /// what using containers, doors, secret doors, sources and triggers does, against NA 1.0's data and a new game.
 /// </summary>
 [Collection(ImportedPluginCollection.Name)]
-public sealed class MapObjectUseTests(MapObjectFixture fixture)
+public sealed class MapObjectUseTests(Na10Import fixture)
 {
     private static readonly ConcurrentDictionary<string, IReadOnlyList<CollisionTriangle>> Collisions = new();
 
@@ -27,7 +27,7 @@ public sealed class MapObjectUseTests(MapObjectFixture fixture)
 
     private readonly Dictionary<(RecordId Set, int Row, int Column), CollisionWorld> _worlds = [];
 
-    private MapObjectFixture.Loaded Data => fixture.Data;
+    private Na10Import.Loaded Data => fixture.Data;
 
     /// <summary>A new game with everything using map objects needs, and a host that writes down what it was asked.</summary>
     private sealed class Play

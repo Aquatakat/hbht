@@ -125,18 +125,11 @@ internal static class ConversationPlugins
         {
             if (_set is not null)
                 return _set;
-            var root = Path.Combine(Path.GetTempPath(), "aidyn-convtest-" + Guid.NewGuid().ToString("N"));
-            var dir = Path.Combine(root, "convtest");
-            Directory.CreateDirectory(Path.Combine(dir, "records"));
-            File.WriteAllText(Path.Combine(dir, "plugin.json"), """{ "id": "convtest", "name": "convtest", "version": "1.0.0", "dependencies": ["aidyn"] }""");
+            var temp = new TempPlugins();
             var records = new JsonArray(Scripts().Select(s => JsonSerializer.SerializeToNode(s, PluginJson.Options)).ToArray());
-            File.WriteAllText(Path.Combine(dir, "records", "dialogue.json"), records.ToJsonString());
+            var dir = temp.Add("convtest", ["aidyn"], ("dialogue.json", records.ToJsonString()));
             _set = PluginSet.Load([baseDirectory, dir]);
-            AppDomain.CurrentDomain.ProcessExit += (_, _) =>
-            {
-                if (Directory.Exists(root))
-                    Directory.Delete(root, recursive: true);
-            };
+            AppDomain.CurrentDomain.ProcessExit += (_, _) => temp.Dispose();
             return _set;
         }
     }
@@ -175,7 +168,7 @@ internal sealed class TalkHost : IMapObjectHost
 /// how a conversation starts, what each press asks of the two talking, each tick, and its end.
 /// </summary>
 [Collection(ImportedPluginCollection.Name)]
-public sealed class ConversationTests(MapObjectFixture fixture)
+public sealed class ConversationTests(Na10Import fixture)
 {
     private static readonly RecordId MapId = RecordId.Hex(RecordTypes.Map, 0x7001);
 
@@ -195,15 +188,6 @@ public sealed class ConversationTests(MapObjectFixture fixture)
         public Body Body => Wanderer.Body;
 
         public Conversation Talk() => Conversation.TalkTo(Game, Wanderer, Cues, Player)!;
-    }
-
-    private static CollisionWorld Ground()
-    {
-        var world = new CollisionWorld();
-        var (a, b, c, d) = (new Vector3(-50, 0, -50), new Vector3(-50, 0, 80), new Vector3(80, 0, -50), new Vector3(80, 0, 80));
-        world.Add("ground", [new CollisionTriangle(a, b, c, 4, CollisionRole.Normal, CollisionFlags.None),
-            new CollisionTriangle(c, b, d, 4, CollisionRole.Normal, CollisionFlags.None)], Vector3.Zero);
-        return world;
     }
 
     /// <summary>A real talker's entity, which has a body.</summary>
@@ -232,7 +216,7 @@ public sealed class ConversationTests(MapObjectFixture fixture)
         var party = new MonsterPartyObject(1, new Vector3(10, 0, 10), 20, PakVariant.Any, null, [], Entity, null, 0, 0, MapRecord.VoxelId(MapId, 0), flags,
             dialogue, null) { Used = withUsed ? new FlagWrite(SpareFlag(game)) : null };
         var map = LoadedMap.Activate(new MapRecord(MapId, [node, party]), "chunk", game.Flags, game.Memory, game.Party, new Lcg());
-        var world = Ground();
+        var world = Worlds.Ground(-50, 80);
         var wanderers = new Wanderers(game.Plugins);
         var wanderer = Assert.Single(wanderers.Load(map, 100, world, game.Memory));
         var at = wanderer.Body.Sphere.Position;
@@ -242,12 +226,6 @@ public sealed class ConversationTests(MapObjectFixture fixture)
             Game = game, Wanderers = wanderers, Wanderer = wanderer, Map = map, World = world, Player = player, Cues = new CueLog(),
             Camera = new FollowCamera(player.Sphere.Position, new Vector2(0, 1)),
         };
-    }
-
-    private static void AssertNear(Vector2 expected, Vector2 actual, float tolerance = 1e-4f)
-    {
-        Assert.Equal(expected.X, actual.X, tolerance);
-        Assert.Equal(expected.Y, actual.Y, tolerance);
     }
 
     private static Vector2 Toward(Vector3 from, Vector3 to) => Vector2.Normalize(new Vector2(to.X - from.X, to.Z - from.Z));

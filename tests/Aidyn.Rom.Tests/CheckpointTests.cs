@@ -18,35 +18,13 @@ public class CheckpointTests
     private static readonly Lazy<List<FlagRecord>> Records =
         new(() => BaseImporter.BuildFlags(TestRoms.Get(RomVersionId.Na10)));
 
-    public static TheoryData<string> Checkpoints()
-    {
-        var data = new TheoryData<string>();
-        var names = Directory.Exists(TestRoms.Folder)
-            ? Directory.EnumerateFiles(TestRoms.Folder).Select(Path.GetFileName).OfType<string>()
-                .Where(n => n.Contains(" - ") && n.Length > 4 && n[^4..^1] == ".bs" && n[^1] is >= '1' and <= '4')
-                .Order(StringComparer.Ordinal)
-            : Enumerable.Empty<string>();
-        foreach (var name in names)
-            data.Add(name);
-        if (data.Count == 0)
-            data.Add("");
-        return data;
-    }
-
-    private static AresCheckpoint Load(string name)
-    {
-        if (name.Length == 0)
-            Assert.Skip($"No checkpoints in {TestRoms.Folder}.");
-        return AresCheckpoint.Read(Path.Combine(TestRoms.Folder, name));
-    }
-
     private static FlagNetwork Network() => new(Records.Value, RecordId.Decimal(RecordTypes.Flag, EngineFlags.NewJournalEntry));
 
     [Theory]
-    [MemberData(nameof(Checkpoints))]
+    [MemberData(nameof(TestRoms.Checkpoints), MemberType = typeof(TestRoms))]
     public void TheNetworkReproducesTheDerivedFlags(string name)
     {
-        var checkpoint = Load(name);
+        var checkpoint = TestRoms.Checkpoint(name);
         var network = Network();
         Assert.Equal(checkpoint.Flags.Count, network.Count);
 
@@ -60,10 +38,10 @@ public class CheckpointTests
     }
 
     [Theory]
-    [MemberData(nameof(Checkpoints))]
+    [MemberData(nameof(TestRoms.Checkpoints), MemberType = typeof(TestRoms))]
     public void TheCalendarFlagsMatchTheClock(string name)
     {
-        var checkpoint = Load(name);
+        var checkpoint = TestRoms.Checkpoint(name);
         // The TerrainPointer: see docs/reference-rig.md.
         var terrain = checkpoint.ReadWord(name.StartsWith("AidynDebug", StringComparison.Ordinal) ? 0x800F1BBC : 0x800E303C);
         var partOfDay = checkpoint.ReadByte(terrain + 2);

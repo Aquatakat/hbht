@@ -6,10 +6,8 @@ namespace Aidyn.Rom.Tests;
 
 public class SkyTests
 {
-    public static TheoryData<RomVersionId> Versions() => [.. RomVersions.All.Select(v => v.Id)];
-
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void TheSkyGradientsAreTwelveByThirtySevenImages(RomVersionId id)
     {
         var rom = TestRoms.Get(id);
@@ -26,7 +24,7 @@ public class SkyTests
     }
 
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void TheSunMoonAndStarsReadTheSameInEveryVersion(RomVersionId id)
     {
         var objects = Skies.ReadSkyObjects(TestRoms.Get(id));
@@ -42,7 +40,7 @@ public class SkyTests
     }
 
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void TheCloudsReadTheSameInEveryVersion(RomVersionId id)
     {
         var clouds = Skies.ReadClouds(TestRoms.Get(id));
@@ -54,7 +52,7 @@ public class SkyTests
     }
 
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void TheLensFlareReadsTheSameInEveryVersion(RomVersionId id)
     {
         var pieces = Skies.ReadLensFlare(TestRoms.Get(id));
@@ -66,7 +64,7 @@ public class SkyTests
     }
 
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void EveryImageTheSkyDrawsWithIsABorg8(RomVersionId id)
     {
         var archive = BorgArchive.Open(TestRoms.Get(id));

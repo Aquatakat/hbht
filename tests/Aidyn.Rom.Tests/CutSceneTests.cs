@@ -15,7 +15,7 @@ namespace Aidyn.Rom.Tests;
 /// the fades and the waits.
 /// </summary>
 [Collection(ImportedPluginCollection.Name)]
-public sealed class CutSceneTests(MapObjectFixture fixture)
+public sealed class CutSceneTests(Na10Import fixture)
 {
     /// <summary>The stage is chunk (1, 1) of a map set of 100-unit chunks, so its corner is at (100, 0, 100).</summary>
     private static readonly Vector3 Corner = new(100, 0, 100);
@@ -31,11 +31,7 @@ public sealed class CutSceneTests(MapObjectFixture fixture)
         var map = new MapRecord(mapId, [.. Enumerable.Range(1, 4).Select(i =>
             (MapObject)new ReferencePointObject(i, Points[i], 1, PakVariant.Any, null, i, $"point {i}", null))]);
         var set = new MapSetRecord(RecordId.Decimal(RecordTypes.MapSet, 99), "Test", 100, [new ChunkEntry(1, 1, null, null, mapId, 0)]);
-        var world = new CollisionWorld();
-        var (a, b, c, d) = (new Vector3(0, 0, 0), new Vector3(0, 0, 100), new Vector3(100, 0, 0), new Vector3(100, 0, 100));
-        world.Add("ground", [new CollisionTriangle(a, b, c, 4, CollisionRole.Normal, CollisionFlags.None),
-            new CollisionTriangle(c, b, d, 4, CollisionRole.Normal, CollisionFlags.None)], Corner);
-        return new CutSceneStage(set, set.Chunks[0], map, world);
+        return new CutSceneStage(set, set.Chunks[0], map, Worlds.Ground(0, 100, Corner));
     }
 
     private static Vector3 At(int point) => Corner + Points[point];

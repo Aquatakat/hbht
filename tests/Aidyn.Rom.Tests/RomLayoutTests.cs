@@ -2,11 +2,9 @@ namespace Aidyn.Rom.Tests;
 
 public class RomLayoutTests
 {
-    public static TheoryData<RomVersionId> Versions() => [.. RomVersions.All.Select(v => v.Id)];
-
     /// <summary>Every table is placed, and they tile the DB block in order without overlapping.</summary>
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void TablesTileTheDbBlock(RomVersionId id)
     {
         var layout = RomVersions.Get(id).Layout;

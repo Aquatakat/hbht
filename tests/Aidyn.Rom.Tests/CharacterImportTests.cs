@@ -8,10 +8,8 @@ namespace Aidyn.Rom.Tests;
 
 public class CharacterTablesTests
 {
-    public static TheoryData<RomVersionId> Versions() => [.. RomVersions.All.Select(v => v.Id)];
-
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void LevelsStartAtTheExperienceTheTableHolds(RomVersionId id)
     {
         var tables = CharacterTables.Read(TestRoms.Get(id));
@@ -25,7 +23,7 @@ public class CharacterTablesTests
     }
 
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void StatCapsAreByStatWithTheLevelLast(RomVersionId id)
     {
         var tables = CharacterTables.Read(TestRoms.Get(id));
@@ -36,7 +34,7 @@ public class CharacterTablesTests
 
     /// <summary>The decomp's source has Merchant 7500 and Ranger 750. The ROMs, and the debug build's machine code, have 750 and 1000.</summary>
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void TrainingCostsAreTheRomsNotTheDecompsSource(RomVersionId id)
     {
         var tables = CharacterTables.Read(TestRoms.Get(id));
@@ -50,7 +48,7 @@ public class CharacterTablesTests
 
     /// <summary>Common's line numbers for the names are the same in 1.0, 1.1 and the debug build, though 1.1's table is longer.</summary>
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void StatsSkillsAndWeaponSkillsAreNamedByTheSameCommonLinesInEveryVersion(RomVersionId id)
     {
         var rom = TestRoms.Get(id);
@@ -67,7 +65,7 @@ public class CharacterTablesTests
 }
 
 [Collection(ImportedPluginCollection.Name)]
-public sealed class CharacterImportTests(MapObjectFixture fixture)
+public sealed class CharacterImportTests(Na10Import fixture)
 {
     private static readonly RecordId Alaron = RecordId.Hex(RecordTypes.Entity, 0x023F);
 

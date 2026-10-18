@@ -225,7 +225,7 @@ public class CinematicTests
     public void TheaterOpensItsPageAndBGoesBackToTheListOnTheaterStill()
     {
         using var plugins = new CinematicPlugins();
-        var system = new SystemMenu(plugins.Plugins, new Settings(), TradeData.PartyOf(TradeData.Catalog(), ItemData.Flags(), Characters.Create(Characters.Alaron())), Path.GetTempPath(),
+        var system = new SystemMenu(plugins.Plugins, new Settings(), TradeData.PartyOf(TradeData.Catalog(), ItemData.Flags(), Characters.Create(Characters.Alaron())), plugins.Saves,
             isSet: id => id == RecordId.Decimal(RecordTypes.Flag, 3));
         system.MoveCursor((int)SystemItem.Theater);
         system.Accept();
@@ -241,22 +241,21 @@ public class CinematicTests
     /// <summary>The four cinematics' records, with their titles and done flags.</summary>
     private sealed class CinematicPlugins : IDisposable
     {
-        private readonly string _root = Path.Combine(Path.GetTempPath(), "aidyn-cinematics-" + Guid.NewGuid().ToString("N"));
+        private readonly TempPlugins _temp = new();
 
         public CinematicPlugins()
         {
-            var dir = Path.Combine(_root, "aidyn");
-            Directory.CreateDirectory(Path.Combine(dir, "records"));
-            File.WriteAllText(Path.Combine(dir, "plugin.json"), """{ "id": "aidyn", "name": "aidyn", "version": "1.0.0" }""");
             var titles = new[] { ("Gabrion's Search", 3), ("Shadow Self Merge", 569), ("Rooughah Naming", 590), ("Coronation of Alaron", 601) };
             var records = titles.Select((t, i) => new CinematicRecord(RecordId.Decimal(RecordTypes.Cinematic, i), t.Item1, [Shot(100)],
                 RecordId.Decimal(RecordTypes.Flag, t.Item2)));
-            File.WriteAllText(Path.Combine(dir, "records", "cinematics.json"), JsonSerializer.Serialize(records, PluginJson.Options));
-            Plugins = PluginSet.Load([dir]);
+            Plugins = _temp.Aidyn(("cinematics.json", JsonSerializer.Serialize(records, PluginJson.Options)));
         }
 
         public PluginSet Plugins { get; }
 
-        public void Dispose() => Directory.Delete(_root, recursive: true);
+        /// <summary>A folder with no saves in it.</summary>
+        public string Saves => _temp.Root;
+
+        public void Dispose() => _temp.Dispose();
     }
 }

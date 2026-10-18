@@ -10,30 +10,21 @@ namespace Aidyn.Rom.Tests;
 /// the debug ROM, with the records imported from 1.0.
 /// </summary>
 [Collection(ImportedPluginCollection.Name)]
-public sealed class CharacterCheckpointTests(MapObjectFixture fixture)
+public sealed class CharacterCheckpointTests(Na10Import fixture)
 {
     private const int AlaronsTrueNameFlag = 590;
 
     private PluginSet Set => fixture.Data.Set;
-
-    public static TheoryData<string> Checkpoints() => CheckpointTests.Checkpoints();
-
-    private static AresCheckpoint Load(string name)
-    {
-        if (name.Length == 0)
-            Assert.Skip($"No checkpoints in {TestRoms.Folder}.");
-        return AresCheckpoint.Read(Path.Combine(TestRoms.Folder, name));
-    }
 
     private static Character Restore(CheckpointCharacter sheet, EntityRecord entity, CharacterRules rules) => Character.Restore(entity,
         rules, new CharacterStats(rules, sheet.Trained, sheet.Current, sheet.Base, sheet.Modified),
         new CharacterSkills(rules, sheet.SkillBase, sheet.SkillModified), []);
 
     [Theory]
-    [MemberData(nameof(Checkpoints))]
+    [MemberData(nameof(TestRoms.Checkpoints), MemberType = typeof(TestRoms))]
     public void EveryMembersLevelIsTheOneTheirExperienceReaches(string name)
     {
-        var checkpoint = Load(name);
+        var checkpoint = TestRoms.Checkpoint(name);
         var rules = CharacterRules.From(Set);
 
         Assert.Equal(4, checkpoint.Party.Count);
@@ -46,10 +37,10 @@ public sealed class CharacterCheckpointTests(MapObjectFixture fixture)
     }
 
     [Theory]
-    [MemberData(nameof(Checkpoints))]
+    [MemberData(nameof(TestRoms.Checkpoints), MemberType = typeof(TestRoms))]
     public void TheSkillsAMemberCantLearnAreTheOnesTheirRecordLacks(string name)
     {
-        var checkpoint = Load(name);
+        var checkpoint = TestRoms.Checkpoint(name);
 
         foreach (var sheet in checkpoint.Party)
         {
@@ -61,10 +52,10 @@ public sealed class CharacterCheckpointTests(MapObjectFixture fixture)
     }
 
     [Theory]
-    [MemberData(nameof(Checkpoints))]
+    [MemberData(nameof(TestRoms.Checkpoints), MemberType = typeof(TestRoms))]
     public void AMembersTrueNameAspectAndSchoolComeFromTheirRecord(string name)
     {
-        var checkpoint = Load(name);
+        var checkpoint = TestRoms.Checkpoint(name);
         var rules = CharacterRules.From(Set);
 
         foreach (var sheet in checkpoint.Party)
@@ -82,10 +73,10 @@ public sealed class CharacterCheckpointTests(MapObjectFixture fixture)
     }
 
     [Theory]
-    [MemberData(nameof(Checkpoints))]
+    [MemberData(nameof(TestRoms.Checkpoints), MemberType = typeof(TestRoms))]
     public void HitPointsReadFromTheSheetsAsTheGameCountsThem(string name)
     {
-        var checkpoint = Load(name);
+        var checkpoint = TestRoms.Checkpoint(name);
         var rules = CharacterRules.From(Set);
 
         foreach (var sheet in checkpoint.Party)
@@ -97,10 +88,10 @@ public sealed class CharacterCheckpointTests(MapObjectFixture fixture)
     }
 
     [Theory]
-    [MemberData(nameof(Checkpoints))]
+    [MemberData(nameof(TestRoms.Checkpoints), MemberType = typeof(TestRoms))]
     public void SpellbooksKeepTheSpellsMembersStartedWith(string name)
     {
-        var checkpoint = Load(name);
+        var checkpoint = TestRoms.Checkpoint(name);
 
         foreach (var sheet in checkpoint.Party)
         {

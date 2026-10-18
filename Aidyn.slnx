@@ -13,5 +13,6 @@
     <Project Path="tests/Aidyn.Core.Tests/Aidyn.Core.Tests.csproj" />
     <Project Path="tests/Aidyn.Plugins.Tests/Aidyn.Plugins.Tests.csproj" />
     <Project Path="tests/Aidyn.Rom.Tests/Aidyn.Rom.Tests.csproj" />
+    <Project Path="tests/Aidyn.TestSupport/Aidyn.TestSupport.csproj" />
   </Folder>
 </Solution>

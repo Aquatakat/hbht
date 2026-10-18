@@ -6,8 +6,6 @@ namespace Aidyn.Rom.Tests;
 
 public class EngineTablesTests
 {
-    public static TheoryData<RomVersionId> Versions() => [.. RomVersions.All.Select(v => v.Id)];
-
     private static IReadOnlyDictionary<ItemId, string> Names(RomImage rom)
     {
         var db = GameDb.Read(rom);
@@ -17,7 +15,7 @@ public class EngineTablesTests
 
     /// <summary>The tables are the same in every version. Only their offsets differ.</summary>
     [Theory]
-    [MemberData(nameof(Versions))]
+    [MemberData(nameof(TestRoms.Versions), MemberType = typeof(TestRoms))]
     public void TablesMatchAcrossVersions(RomVersionId id)
     {
         var a = EngineTables.Read(TestRoms.Get(RomVersionId.Na10));
