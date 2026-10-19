@@ -1,6 +1,7 @@
 using System.Numerics;
 using Aidyn.Core.Actors;
 using Aidyn.Core.Characters;
+using Aidyn.Core.Items;
 using Aidyn.Core.Movement;
 using Aidyn.Core.Trek;
 using Aidyn.Plugins;
@@ -99,9 +100,19 @@ public sealed partial class Battle
         {
             if (State == CombatState.TroubadourPrompt)
                 return t == a;
-            // Combatant.CanTargetBySide (session 9 adds a flask's sides).
-            if (t.Gone || t.Sheet.IsDead || a.Hostile == t.Hostile || a.Action == CombatAction.None)
+            // Combatant.CanTargetBySide and ActionAllowsTarget (0x80060420): a flask at the other side, a potion at the drinker alone
+            // while it would do something.
+            if (t.Gone || t.Sheet.IsDead || a.Action == CombatAction.None)
                 return false;
+            if (a.Action == CombatAction.Flask && a.Potion is { } potion && !Potions.IsFlask(potion))
+            {
+                if (t != a || Potions.CanDrink(a.Sheet, Game.Party.Inventory.Catalog[Potions.Id(potion)]) != DrinkResult.Drunk)
+                    return false;
+            }
+            else if (a.Hostile == t.Hostile)
+            {
+                return false;
+            }
         }
         else
         {
@@ -213,6 +224,20 @@ public sealed partial class Battle
     /// </summary>
     public bool StepTarget(int by)
     {
+        if (State == CombatState.TargetSpell && Current is { } caster)
+        {
+            // Combat.InputSpellTarget (0x800844BC): the spell's cursor through set B, the camera to it, the caster turning to it.
+            if (!TargetsB.StepSpellOne(this, caster, by))
+                return false;
+            if (_slots[TargetsB.Cursor] is { } aimed)
+            {
+                CameraOwner = aimed;
+                var toward = aimed.Cell - caster.Cell;
+                if (TargetsB.Most < 2 && aimed != caster && toward.LengthSquared() > 0)
+                    _aimTurn = Vector2.Normalize(toward);
+            }
+            return true;
+        }
         if (State is not (CombatState.TargetAttack or CombatState.TargetThrown) || Current is not { } c || TargetsA.Candidates == 0)
             return false;
         TargetsA.MoveCursor(by);
@@ -238,6 +263,16 @@ public sealed partial class Battle
     /// </summary>
     public bool Confirm()
     {
+        if (Current is { Controlled: false } caster)
+        {
+            if (State is CombatState.TargetSpell or CombatState.PlaceArea)
+                return ConfirmSpell(caster);
+            if (State == CombatState.TroubadourPrompt)
+            {
+                StartTroubadour(caster);
+                return true;
+            }
+        }
         if (State is not (CombatState.TargetAttack or CombatState.TargetThrown) || Current is not { } c || TargetsA.Selected == 0)
             return false;
         Target = TargetsA.SelectedSlots.Last();
@@ -262,9 +297,14 @@ public sealed partial class Battle
     /// </summary>
     public bool Cancel()
     {
-        if (State is not (CombatState.TargetAttack or CombatState.TargetThrown) || Current is not { } c)
+        if (State is not (CombatState.TargetAttack or CombatState.TargetThrown or CombatState.TargetSpell or CombatState.PlaceArea
+            or CombatState.TroubadourPrompt) || Current is not { } c)
             return false;
+        // From an attack's or a potion's aim the action is put back too (Combatant.RevertAction).
+        var wasAiming = State == CombatState.TargetAttack;
         ReturnToTurn(c);
+        if (wasAiming)
+            c.RevertAction(Game?.Party.Inventory);
         return true;
     }
 
@@ -294,7 +334,8 @@ public sealed partial class Battle
             way = Vector2.Normalize(way);
         var focus = Focus + way * Cadence.PerTick(AimStep);
         focus = Vector2.Clamp(focus, Vector2.Zero, new Vector2(Grid.Width, Grid.Depth));
-        var reach = WeaponOf(c)?.Range ?? 0;
+        // Combatant.WeaponReach: a flask's is 400, the grid alone.
+        var reach = c.HoldsFlask ? FlaskReach : WeaponOf(c)?.Range ?? 0;
         var off = focus - c.Cell;
         if (off.Length() > reach && off.LengthSquared() > 0)
             focus = c.Cell + Vector2.Normalize(off) * reach;
@@ -347,9 +388,20 @@ public sealed partial class Battle
             return;
         }
         if (Target >= 0 && TargetsA.IsSelected(Target) && _slots[Target] is { } t)
+        {
             ExecuteAction(c, t);
+        }
+        else if (Target >= 0 && TargetsA.Selected == 0 && TargetsB.IsSelected(Target) && _slots[Target] is { } spellTarget
+            && (c.CastMargin >= 0 || c.Controlled))
+        {
+            // A spell's target: the cast carried out, while it has come to a margin; a cast that failed or was refused casts at no
+            // more targets, but the AI's goes on.
+            ExecuteAction(c, spellTarget, spell: true);
+        }
         else
+        {
             EndTurn(c);
+        }
     }
 
     /// <summary>
@@ -358,20 +410,26 @@ public sealed partial class Battle
     /// the blow lands; it has spent its moves; the damage waits on the target for the swing to end; the camera glides from the
     /// attacker to the target; and the action plays (state 2), the ring hidden.
     /// </summary>
-    internal void ExecuteAction(Combatant a, Combatant t)
+    internal void ExecuteAction(Combatant a, Combatant t, bool spell = false)
     {
         if (a.Performing)
-        {
-            a.StopPerforming();
-            TroubadourBonus = 0;
-        }
+            a.StopPerforming(this);
         a.LastTarget = t.Slot;
-        TargetsB.Clear();
-        // Healing (ResolveHealer) is session 9's; the Goblin Ambush's hold on Alaron (Combat.ShadowFightTrick) session 12's.
-        var damage = a.Healing ? 0 : ResolveAction(a, t);
+        int damage;
+        if (spell)
+        {
+            TargetsA.ClearSelection();
+            damage = CastCurrentSpell(a, t);
+        }
+        else
+        {
+            TargetsB.Clear();
+            damage = a.Healing ? ResolveHealer(a, t) : ResolveAction(a, t);
+        }
+        // The Goblin Ambush's hold on Alaron (Combat.ShadowFightTrick) is session 12's.
         CheckDeath(t, damage);
         a.Moves = 1;
-        if (a.Action != CombatAction.Flask)
+        if (spell || a.Action != CombatAction.Flask)
             t.Damage = (byte)damage;
         CombatCamera.StartGlide(a.Body, t.Body, a.Look.Height * a.Look.Scale - 0.2f - a.Body.ScaledRadius);
         State = NextState = CombatState.Action;
@@ -400,6 +458,9 @@ public sealed partial class Battle
                 outcome = CanAttack(a, t) ? ResolveMelee(a, t) : ResolveRanged(a, t);
                 a.Action = CombatAction.MeleeOrRanged;
                 break;
+            case CombatAction.Flask:
+                // Combatant.ThrowFlask (0x80065600): a potion drunk, or a flask thrown; no swing of the weapon's.
+                return ThrowFlask(a, t);
             default:
                 return 0;
         }
@@ -454,7 +515,7 @@ public sealed partial class Battle
             if (c.Party)
                 Game?.WriteDeathFlags();
             if (c.Performing)
-                c.StopPerforming();
+                c.StopPerforming(this);
         }
     }
 
@@ -512,16 +573,24 @@ public sealed partial class Battle
     /// </summary>
     private bool StartFlight(Combatant a, Combatant t)
     {
+        if (a.HoldsFlask)
+        {
+            // Combatant.LoadWeaponScene: the flask's scene, to the target's feet, its muzzle number and spin (0x800D2B40).
+            var feet = t.Body.Sphere.Position with { Y = t.Body.Sphere.Position.Y - t.Body.Sphere.Radius };
+            Flight = new MissileFlight(FlaskScene, Middle(a), feet, FlaskMuzzle, a.Look.Scale, 0, FlaskSpin);
+            return true;
+        }
         if (WeaponOf(a) is not { } weapon || _rules?.Missiles?.FirstOrDefault(m => m.Weapon == weapon.Id) is not { } missile)
             return false;
         if ((missile.Scene ?? weapon.Model) is not { } scene)
             return false;
         Flight = new MissileFlight(scene, Middle(a), Middle(t), missile.Speed, a.Look.Scale, missile.Turn);
         return true;
-
-        static Vector3 Middle(Combatant c) =>
-            c.Body.Sphere.Position with { Y = c.Body.Sphere.Position.Y + c.Look.Height * c.Look.Scale * 0.5f - c.Body.Sphere.Radius };
     }
+
+    /// <summary>The middle of a body: its feet and half its entity's height.</summary>
+    private static Vector3 Middle(Combatant c) =>
+        c.Body.Sphere.Position with { Y = c.Body.Sphere.Position.Y + c.Look.Height * c.Look.Scale * 0.5f - c.Body.Sphere.Radius };
 
     /// <summary>
     /// State 3 for an attack (<c>Combat.StateCast</c>, <c>0x80021B24</c>): the arrow flies to the target, and the blow lands
@@ -539,8 +608,12 @@ public sealed partial class Battle
             return;
         _actionTimer = 0;
         Flight = null;
-        if (Target >= 0 && _slots[Target] is { } t)
-            Land(t);
+        if (Target < 0 || _slots[Target] is not { } t)
+            return;
+        // Combat.EndCast (0x800219D8): a flask bursts first (Combatant.FlaskExplosion), then the target's own share lands as a blow.
+        if (Current is { Action: CombatAction.Flask } thrower)
+            FlaskExplosion(thrower, t, thrower.Damage);
+        Land(t);
     }
 
     /// <summary>
@@ -586,7 +659,8 @@ public sealed partial class Battle
     {
         _actionTimer++;
         RemoveFallen();
-        if (TargetsA.Selected + TargetsB.Selected == 0 && Current is { } c)
+        // Sense Aura's popup holds the turn until a press dismisses it (DismissAura).
+        if (TargetsA.Selected + TargetsB.Selected == 0 && Current is { } c && Aura is null && State == CombatState.Result)
             EndTurn(c);
     }
 
@@ -607,6 +681,9 @@ public sealed partial class Battle
         CameraOwner = Current;
         TargetsA.Deselect(Target);
         TargetsB.Deselect(Target);
+        // A spell of several targets goes on to the next (state 6).
+        if (TargetsA.Selected + TargetsB.Selected > 0 && Current is { } c)
+            NextTarget(c);
     }
 
     /// <summary>

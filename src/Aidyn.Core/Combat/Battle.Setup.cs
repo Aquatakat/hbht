@@ -319,6 +319,9 @@ public sealed partial class Battle
         };
         Grid.Occupy((int)cell.X, (int)cell.Y, footprint);
         combatant.SetDefaultAction(_rules);
+        // Combatant.Init: the first spell it knows is selected.
+        if (sheet.Spells.Count > 0)
+            combatant.Spell = new SpellChoice(SpellSourceKind.Known);
         _slots[slot] = combatant;
         return combatant;
     }

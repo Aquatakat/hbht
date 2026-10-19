@@ -46,7 +46,7 @@ public sealed partial class Combatant
             Flags |= CombatantFlags.Engaged;
             radius = Math.Min(radius, 1);
             if (Performing)
-                StopPerforming();
+                StopPerforming(battle);
         }
         else if (Performing)
         {
@@ -63,8 +63,16 @@ public sealed partial class Combatant
         Radius = radius;
     }
 
-    /// <summary>Ends a performance (<c>Combatant.StopPerforming</c>). What else it ends is the Troubadour's, session 9's.</summary>
-    internal void StopPerforming() => Flags &= ~CombatantFlags.Performing;
+    /// <summary>
+    /// Ends a performance (<c>Combatant.StopPerforming</c>, <c>0x80066100</c>): the flag cleared and the battle's Troubadour bonus gone
+    /// (<c>+0x13</c>). The lute on the body's attachment goes with it.
+    /// </summary>
+    internal void StopPerforming(Battle? battle)
+    {
+        Flags &= ~CombatantFlags.Performing;
+        if (battle is not null)
+            battle.TroubadourBonus = 0;
+    }
 
     /// <summary>
     /// Whether <paramref name="other"/> is within reach (<c>Combatant.IsWithinReach</c>, <c>0x8006011C</c>): both read

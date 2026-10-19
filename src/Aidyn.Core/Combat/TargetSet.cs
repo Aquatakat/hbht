@@ -146,19 +146,46 @@ public sealed class TargetSet
     }
 
     /// <summary>
+    /// What <paramref name="c"/>'s selected spell could be cast at (<c>TargetSet.FindSpellTargets</c>, <c>0x800693C4</c>): every
+    /// combatant in play that <see cref="Battle.CanCast"/> allows; as many may be chosen as the spell takes
+    /// (<see cref="Battle.SpellTargetCount"/>), an All spell every candidate.
+    /// </summary>
+    private void FindSpellTargets(Battle battle, Combatant c)
+    {
+        for (var i = 0; i < battle.InPlay; i++)
+        {
+            if (battle.Slots[i] is { } t && battle.CanCast(c, t))
+            {
+                _candidate[i] = true;
+                Candidates++;
+            }
+        }
+        Most = battle.SpellTargetCount(c);
+        if (Most == battle.InPlay)
+            Most = Candidates;
+    }
+
+    /// <summary>
     /// Builds it again for <paramref name="c"/> (<c>TargetSet.Rebuild</c>, <c>0x80069264</c>): emptied, and set A finds what it
-    /// could attack if it has an action (set B, its selected spell's targets, is session 9's); the first candidates selected; and
-    /// the cursor kept on its last target, or where it was, if each is still a candidate.
+    /// could attack if it has an action or is healing, set B what its selected spell could reach if it has one; the first
+    /// candidates selected, in slot order; and the cursor kept on its last target, or where it was, if each is still a candidate.
     /// </summary>
     public void Rebuild(Battle battle, Combatant c)
     {
         var old = Cursor;
         Clear();
         if (Spells)
-            return;
-        if (c.Action == CombatAction.None && !c.Healing)
-            return;
-        FindAttackTargets(battle, c);
+        {
+            if (c.Spell.IsNone)
+                return;
+            FindSpellTargets(battle, c);
+        }
+        else
+        {
+            if (c.Action == CombatAction.None && !c.Healing)
+                return;
+            FindAttackTargets(battle, c);
+        }
         SelectAll();
         // TargetSet.RestoreCursor (0x8006A05C).
         if (Most < 2 && !SetCursorIfCandidate(c.LastTarget))
@@ -211,6 +238,75 @@ public sealed class TargetSet
         OrderByAngle(battle, c);
         if (!SetCursorTo(c.LastTarget))
             SetCursorTo(old);
+        return true;
+    }
+
+    /// <summary>
+    /// A spell's targets as it's chosen (<c>TargetSet.BeginSpell</c>, <c>0x80069574</c>): emptied and the candidates found; then for a
+    /// spell of one target, put in the cursor's order (<see cref="OrderByAngle"/>) with the cursor on the last target if it's one; for
+    /// one of several, every candidate if there are no more than it takes, else the nearest it takes (<see cref="SelectNearest"/>),
+    /// which the player doesn't choose among. Whether there are any.
+    /// </summary>
+    public bool BeginSpell(Battle battle, Combatant c)
+    {
+        Clear();
+        FindSpellTargets(battle, c);
+        if (Candidates == 0)
+            return false;
+        if (battle.SpellTargetCount(c) < 2)
+        {
+            OrderByAngle(battle, c);
+            SetCursorTo(c.LastTarget);
+        }
+        else if (Candidates < Most)
+        {
+            SelectAll();
+        }
+        else
+        {
+            SelectNearest(battle, c);
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Selects the candidates nearest <paramref name="c"/>'s body, as many as may be (<c>TargetSet.SelectNearest</c>,
+    /// <c>0x80069D90</c>): by the distance across the ground between the bodies, the original's selection sort putting a later equal
+    /// first. The cursor stays where <see cref="Clear"/> left it.
+    /// </summary>
+    private void SelectNearest(Battle battle, Combatant c)
+    {
+        var from = new Vector2(c.Body.Sphere.Position.X, c.Body.Sphere.Position.Z);
+        var list = new List<(float Distance, int Slot)>();
+        for (var i = 0; i < Battle.SlotCount; i++)
+        {
+            if (_candidate[i] && battle.Slots[i] is { } t)
+                list.Add((Vector2.Distance(from, new Vector2(t.Body.Sphere.Position.X, t.Body.Sphere.Position.Z)), i));
+        }
+        for (var i = 0; i < list.Count; i++)
+        {
+            for (var j = i; j < list.Count; j++)
+            {
+                if (list[j].Distance <= list[i].Distance)
+                    (list[i], list[j]) = (list[j], list[i]);
+            }
+        }
+        foreach (var (_, slot) in list.Take(Most))
+        {
+            _selected[slot] = true;
+            Selected++;
+        }
+    }
+
+    /// <summary>
+    /// Steps a spell's cursor (<c>TargetSet.StepSpellOne</c>, <c>0x800696D4</c>): only for a spell of one target with more than one
+    /// candidate. Whether it stepped.
+    /// </summary>
+    public bool StepSpellOne(Battle battle, Combatant c, int by)
+    {
+        if (battle.SpellTargetCount(c) >= 2 || Candidates < 2)
+            return false;
+        MoveCursor(by);
         return true;
     }
 

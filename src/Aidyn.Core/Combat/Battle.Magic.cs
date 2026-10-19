@@ -56,10 +56,8 @@ public sealed partial class Battle : IMagicHost
     {
         if (!CanFlee)
             return false;
-        // Combatant.Leave (0x80061480), as far as magic needs it: gone, its effects off, the line. Session 7 frees its body.
-        combatant.Flags = (combatant.Flags | CombatantFlags.Gone) & ~CombatantFlags.Active;
-        combatant.Sheet.RemoveAllEffects(combatant, this);
-        Say(FleesLine, combatant.Sheet.Name);
+        // Combatant.Leave (0x80061480): it leaves as a fleeing enemy does, a party member too, its body fading and emptied at once.
+        Leave(combatant);
         return true;
     }
 
@@ -78,7 +76,11 @@ public sealed partial class Battle : IMagicHost
     public bool TeleportBarred => Game.Plugins.TryGet<CombatRecord>(Plugins.RecordId.Decimal(Plugins.RecordTypes.Combat, 0)) is { } combat
         && Combatants.Any(c => combat.Flee.Contains(c.Entity));
 
-    void IMagicHost.SenseAura(Combatant target, int level) => AuraShown = (target, level);
+    void IMagicHost.SenseAura(Combatant target, int level)
+    {
+        AuraShown = (target, level);
+        ShowAura(target, level);
+    }
 
     void IMagicHost.RevealPhase(bool sun) => PhasesShown = sun ? PhasesShown with { Sun = true } : PhasesShown with { Moon = true };
 
@@ -158,14 +160,19 @@ public sealed partial class Battle : IMagicHost
         // Combatant.CheckSpellAvailable (0x800635B8).
         if (spell.TargetType == SpellTargetType.Field)
         {
-            Say(UnavailableLine);
+            SayBoth(UnavailableLine);
             return new(target, CastResult.NotCast, CastRefusal.Unavailable);
         }
         var refusal = Casting.Requirement(spell, target.Sheet);
         if (refusal == CastRefusal.None && !Casting.TimeAllows(spell, PartOfDay))
             refusal = CastRefusal.WrongTime;
         if (refusal != CastRefusal.None)
+        {
+            // Combatant.LogMissingComponent (0x800638C8): "%s" with the requirement's line, for a player's cast.
+            if (!caster.Controlled)
+                SayBoth(SpellRequirementLine, CommonText(CastMessagesLine + RequirementMessage(refusal)));
             return new(target, CastResult.NotCast, refusal);
+        }
         if (!prepared)
         {
             refusal = source.IsItem ? PrepareItem(caster, source, ref castMargin) : PrepareKnown(caster, source, level, ref castMargin);
@@ -177,7 +184,7 @@ public sealed partial class Battle : IMagicHost
         // Combatant.ResistRoll (0x80064298): Teleportation fails while the Shadow is here.
         if (spell.Effects?.Any(e => e is TeleportEffect) == true && TeleportBarred)
         {
-            Say(FailsToCastLine, sheet.Name);
+            SayBoth(FailsToCastLine, sheet.Name);
             return new(target, CastResult.Resisted, CastRefusal.Barred);
         }
         var margin = castMargin & 0xFF;
@@ -186,7 +193,7 @@ public sealed partial class Battle : IMagicHost
             if (Casting.Resist(caster, spell, target, castMargin, margin, Magic.Record.Resist, Game.Random.Combat) is not { } left)
             {
                 Say(CastsLine, sheet.Name, spell.Name);
-                Say(ResistsLine, target.Sheet.Name);
+                SayQueued(ResistsLine, target.Sheet.Name);
                 return new(target, CastResult.Resisted, Margin: margin);
             }
             margin = left;
@@ -212,12 +219,12 @@ public sealed partial class Battle : IMagicHost
         var pays = !caster.Flags.HasFlag(CombatantFlags.FromEnemyList) && !caster.Controlled && reagent is not null;
         if (pays && !Game.Party.Inventory.Take(reagent!.Value))
         {
-            Say(MissingComponentLine);
+            SayBoth(MissingComponentLine);
             return CastRefusal.NoReagent;
         }
         if (!sheet.Equipment.PayStamina(Casting.Cost(spell, level)))
         {
-            Say(NotEnoughStaminaLine);
+            SayBoth(NotEnoughStaminaLine);
             return CastRefusal.NoStamina;
         }
         var chance = Casting.Chance(sheet, level, Magic.Record.Chance, PartOfDay, ((IMagicHost)this).MoonPhase, TroubadourBonus, caster.Hostile);
@@ -233,7 +240,7 @@ public sealed partial class Battle : IMagicHost
         {
             if (pays)
                 Game.Party.Inventory.Add(reagent!.Value);
-            Say(FailsToCastLine, sheet.Name);
+            SayBoth(FailsToCastLine, sheet.Name);
             improvement >>= 1;
             castMargin = -1;
         }
@@ -251,7 +258,7 @@ public sealed partial class Battle : IMagicHost
         {
             if (item.Charges is not > 0)
             {
-                Say(FailsToCastLine, caster.Sheet.Name);
+                SayBoth(FailsToCastLine, caster.Sheet.Name);
                 castMargin = -2;
                 return CastRefusal.NoCharges;
             }
@@ -276,7 +283,10 @@ public sealed partial class Battle : IMagicHost
         if (effects.OfType<BanishEffect>().Any())
         {
             SayCasts(caster, spell, target);
-            Say(BanishedLine, target.Sheet.Name);
+            // QueueLog2: the third line, which takes the queued one's place as it's shown.
+            var banished = Format(CombatText(BanishedLine), [target.Sheet.Name]);
+            _log.Add(banished);
+            Lines.QueueThird(banished);
             return target.Sheet.Hp;
         }
         if (effects.OfType<DispelEffect>().ToList() is [_, ..] dispels)
@@ -284,7 +294,7 @@ public sealed partial class Battle : IMagicHost
             if (dispels.All(d => !Dispel(target, d.School, margin)))
             {
                 Say(CastsLine, caster.Sheet.Name, spell.Name);
-                Say(DispelFailsLine, spell.Name);
+                SayQueued(DispelFailsLine, spell.Name);
             }
             else
             {
@@ -296,7 +306,7 @@ public sealed partial class Battle : IMagicHost
         {
             // The resists line, and 0 for the dice: the original's blocked charm or hold still rolls the margin's d6.
             Say(CastsLine, caster.Sheet.Name, spell.Name);
-            Say(ResistsLine, target.Sheet.Name);
+            SayQueued(ResistsLine, target.Sheet.Name);
             return 0;
         }
         var damage = effects.OfType<DamageEffect>().FirstOrDefault();
@@ -358,23 +368,23 @@ public sealed partial class Battle : IMagicHost
         return true;
     }
 
-    // 0x80063718: "%s casts %s", then "%s cast on %s".
+    // Combatant.LogCasts (0x80063718): "%s casts %s" shown, then "%s cast on %s" queued, which shows as the action's state ends.
     private void SayCasts(Combatant caster, SpellRecord spell, Combatant target)
     {
         Say(CastsLine, caster.Sheet.Name, spell.Name);
-        Say(CastOnLine, spell.Name, target.Sheet.Name);
+        SayQueued(CastOnLine, spell.Name, target.Sheet.Name);
     }
 
-    private void Say(int offset, params string[] values)
+    // The requirement refusals' place in Spell.CastMessages (Casting.Requirement's codes, 0x800712C0, and TimeAllows', 0x80071260).
+    private static int RequirementMessage(CastRefusal refusal) => refusal switch
     {
-        var line = CombatText(offset);
-        foreach (var value in values)
-        {
-            var at = line.IndexOf("%s", StringComparison.Ordinal);
-            if (at < 0)
-                break;
-            line = string.Concat(line.AsSpan(0, at), value, line.AsSpan(at + 2));
-        }
-        Write(line);
-    }
+        CastRefusal.NeedsTrueName => 7,
+        CastRefusal.TooLarge => 8,
+        CastRefusal.NeedsSolar => 9,
+        CastRefusal.NeedsLunar => 10,
+        CastRefusal.WrongTime => 3,
+        _ => 1,
+    };
+
+    private void Say(int offset, params string[] values) => Write(Format(CombatText(offset), values));
 }

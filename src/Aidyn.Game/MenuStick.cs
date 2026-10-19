@@ -25,8 +25,10 @@ public enum MenuAction
     Details,
     /// <summary>C-down going up.</summary>
     DetailsRelease,
-    /// <summary>C-up.</summary>
+    /// <summary>C-up going down. Its letting go is <see cref="AppraiseRelease"/>.</summary>
     Appraise,
+    /// <summary>C-up going up, which chooses from combat's held C-up menu.</summary>
+    AppraiseRelease,
     /// <summary>C-left, which shows the next member.</summary>
     MemberLeft,
     /// <summary>C-right, which shows the member before.</summary>
@@ -133,6 +135,8 @@ public sealed class MenuStick
             return MenuAction.DetailsRelease;
         if (e.IsActionPressed("menu_appraise"))
             return MenuAction.Appraise;
+        if (e.IsActionReleased("menu_appraise"))
+            return MenuAction.AppraiseRelease;
         if (e.IsActionPressed("menu_member_left"))
             return MenuAction.MemberLeft;
         if (e.IsActionPressed("menu_member_right"))

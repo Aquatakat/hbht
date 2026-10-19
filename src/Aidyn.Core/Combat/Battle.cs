@@ -178,13 +178,16 @@ public sealed partial class Battle
     {
         if (Fade.Fading || Over || State is CombatState.Pause or CombatState.PauseRequested)
             return false;
-        if (State is CombatState.Turn or CombatState.TargetAttack or CombatState.TargetThrown)
+        if (State is CombatState.Turn or CombatState.TargetAttack or CombatState.TargetThrown or CombatState.TargetSpell
+            or CombatState.PlaceArea or CombatState.TroubadourPrompt)
         {
             // Combat.HandleCancelAndPause: from aiming too, the camera back on the combatant, and the pause comes back to the turn.
             if (State != CombatState.Turn)
             {
                 CameraOwner = Current;
                 _aimTurn = null;
+                if (Current is { } aiming)
+                    Focus = aiming.Cell;
                 State = CombatState.Turn;
             }
             State = CombatState.Pause;
@@ -240,13 +243,16 @@ public sealed partial class Battle
                 case CombatState.TargetThrown:
                     MoveAimCursor(readInput?.Invoke() ?? default);
                     break;
+                case CombatState.PlaceArea:
+                    MoveArea(readInput?.Invoke() ?? default);
+                    break;
                 case CombatState.Facing when _turning && Current is { } facing:
                     // Combat.InputFacing: the body's turn is snapped to its goal.
                     facing.Body.Heading = facing.Facing;
                     break;
             }
         }
-        if (State == CombatState.TargetAttack && _aimTurn is { } aim && Current is { } aiming && aiming.Body.TurnToward(aim))
+        if (State is CombatState.TargetAttack or CombatState.TargetSpell && _aimTurn is { } aim && Current is { } aiming && aiming.Body.TurnToward(aim))
             _aimTurn = null;
         // Bgm.Update waits for the fade, so the battle's music starts once it's in.
         arena.Audio.HoldMusic = Fade.Fading;
@@ -303,8 +309,11 @@ public sealed partial class Battle
             case CombatState.Moving:
                 StepMoving();
                 break;
-            case CombatState.Rest:
+            case CombatState.Rest or CombatState.Perform:
                 StepRest();
+                break;
+            case CombatState.MenuSpells or CombatState.MenuItems:
+                StepMenu();
                 break;
             case CombatState.Facing:
                 StepFacing();

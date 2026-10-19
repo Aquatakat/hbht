@@ -137,19 +137,24 @@ public sealed partial class Battle
     /// (<see cref="Advance"/>).
     /// </summary>
     /// <remarks>
-    /// The AI's target and path are forgotten (<see cref="EnemyAI.ClearTarget"/>). What else it puts back is later sessions': a spell
-    /// chosen (8 and 9), a flask in hand (9), and an item spent (9).
+    /// The AI's target and path are forgotten (<see cref="EnemyAI.ClearTarget"/>), the cast chosen is put away (its margin −1), a
+    /// scroll or wand worn as gear whose charges ran out comes off with its spell no longer selected, the action is put back
+    /// (<see cref="Combatant.RevertAction"/>), and a flask in hand stows the weapon (<c>Party.StowHeldItem</c>, <c>0x800763B0</c>).
     /// </remarks>
     public void EndTurn(Combatant combatant)
     {
         // CombatCamera.Reset: a glide stops.
         CombatCamera.Reset();
-        combatant.Flags &= ~CombatantFlags.Acted;
+        Menu = null;
+        Aura = null;
         // EnemyAI.ClearTarget, and a walk the AI gave up forgotten.
         combatant.Ai?.ClearTarget();
         combatant.Body.ClearPath();
-        // Combatant.RevertAction: the healing modes go.
-        combatant.Flags &= ~(CombatantFlags.LayOnHands | CombatantFlags.HealWithHerbs);
+        combatant.CastMargin = -1;
+        combatant.Flags &= ~CombatantFlags.Acted;
+        SpendItem(combatant);
+        combatant.RevertAction(Game?.Party.Inventory);
+        StowHeldItem(combatant);
         State = CombatState.Turn;
         ActionActive = false;
         if (!combatant.Sheet.IsDead && !combatant.Gone && !combatant.Freed)
@@ -309,7 +314,7 @@ public sealed partial class Battle
             if (c.Performing)
             {
                 if (c.Sheet.Stats.Modified(Stat.Stamina) <= 0)
-                    c.StopPerforming();
+                    c.StopPerforming(this);
                 else
                     c.Sheet.DrainStamina(1);
             }
@@ -365,10 +370,42 @@ public sealed partial class Battle
         // EnemyAI.CheckFlee: every AI's turn but the leader's while it lives.
         if (combatant.Ai is { } ai && ai.Flags.HasFlag(AiFlags.Plays))
             CheckFlee(combatant, LeaderGone || combatant.Slot != LeaderSlot);
+        // A flask carried over is looked up: gone from the inventory, the hand is emptied.
+        if (combatant.HoldsFlask && Game?.Party.Inventory.Has(Items.Potions.Id(combatant.Potion!.Value)) != true)
+        {
+            combatant.Action = CombatAction.None;
+            combatant.Potion = null;
+            combatant.Drawn = false;
+        }
         State = NextState = combatant.Controlled ? CombatState.AI : CombatState.Turn;
         _stickCentred = true;
         if (!combatant.Fleeing)
             RebuildTargets(combatant);
+    }
+
+    /// <summary>
+    /// A spent scroll or wand (<c>Combatant.EndTurn</c>'s, <c>Entity.RemoveGearAt</c>, <c>0x8006F5C4</c>): a gear slot's whose spell was
+    /// selected and has no charges left is gone, used up, and no spell is selected.
+    /// </summary>
+    private static void SpendItem(Combatant c)
+    {
+        if (c.Spell.Source != SpellSourceKind.Gear || c.Spell.Index >= c.Sheet.Equipment.Gear.Count
+            || c.Sheet.Equipment.Gear[c.Spell.Index] is not { Charges: 0 } item || item.Item.Kind is not (Plugins.Records.ItemKind.Scroll or Plugins.Records.ItemKind.Wand))
+            return;
+        c.Sheet.Equipment.RemoveGear(c.Spell.Index);
+        c.Spell = SpellChoice.None;
+    }
+
+    /// <summary>
+    /// A flask in hand puts the weapon away (<c>Party.StowHeldItem</c>, <c>0x800763B0</c>): the weapon goes to the party's inventory,
+    /// and the member is left without it until it's equipped again.
+    /// </summary>
+    private void StowHeldItem(Combatant c)
+    {
+        if (!c.HoldsFlask || c.Sheet.Equipment.Weapon is null || Game is null)
+            return;
+        if (c.Sheet.Equipment.RemoveWeapon() is { } weapon)
+            Game.Party.Inventory.Add(weapon.Item, 1, weapon);
     }
 
     /// <summary>A line of the combat strings with a combatant's name.</summary>

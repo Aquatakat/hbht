@@ -16,8 +16,10 @@ public sealed class MissileFlight
     /// <param name="speed">The weapon's muzzle number (<see cref="Plugins.Records.Missile.Speed"/>).</param>
     /// <param name="scale">The attacker's scale, which it's drawn at.</param>
     /// <param name="turn">Degrees it's turned about the vertical.</param>
-    public MissileFlight(RecordId scene, Vector3 from, Vector3 to, float speed, float scale, float turn)
+    /// <param name="spin">Degrees it turns more a tick: a flask's 8 (<c>0x800D2B44</c>).</param>
+    public MissileFlight(RecordId scene, Vector3 from, Vector3 to, float speed, float scale, float turn, float spin = 0)
     {
+        Spin = spin;
         Scene = scene;
         From = from;
         Position = from;
@@ -53,7 +55,10 @@ public sealed class MissileFlight
 
     public float Scale { get; }
 
-    public float Turn { get; }
+    public float Turn { get; private set; }
+
+    /// <summary>Degrees it turns about the vertical a tick.</summary>
+    public float Spin { get; }
 
     /// <summary>How far it has gone.</summary>
     public float Travelled { get; private set; }
@@ -71,5 +76,6 @@ public sealed class MissileFlight
             return;
         Position += Way * PerTick;
         Travelled += PerTick;
+        Turn += Spin;
     }
 }
