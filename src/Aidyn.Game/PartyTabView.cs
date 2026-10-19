@@ -99,6 +99,12 @@ public partial class PartyTabView : Control
     /// </summary>
     private readonly Control _craftingLayer = new() { Name = "Crafting", MouseFilter = MouseFilterEnum.Ignore };
     private readonly Control _detailsLayer = new() { Name = "Details", MouseFilter = MouseFilterEnum.Ignore };
+    /// <summary>
+    /// A window's own parts over the header, the barter, training and post-battle states' lists, parchment and lines, on a layer
+    /// whose modulate is <see cref="WindowAlpha"/>, so the post-battle window fades out and the loot window in with the header
+    /// staying (<c>PauseMenu.CloseFade</c>, <c>OpenFade</c>).
+    /// </summary>
+    private readonly Control _windowLayer = new() { Name = "Window", MouseFilter = MouseFilterEnum.Ignore };
     /// <summary>What's drawn over those: the veil and the messages.</summary>
     private readonly Control _overlay = new() { Name = "Overlay", MouseFilter = MouseFilterEnum.Ignore };
 
@@ -110,6 +116,9 @@ public partial class PartyTabView : Control
         Name = "Party tab";
         MouseFilter = MouseFilterEnum.Pass;
         SetAnchorsPreset(LayoutPreset.FullRect);
+        _windowLayer.SetAnchorsPreset(LayoutPreset.FullRect);
+        AddChild(_windowLayer);
+        _windowLayer.Draw += DrawWindow;
         _listClip.AddChild(_listLayer);
         AddChild(_listClip);
         _listLayer.Draw += DrawLists;
@@ -158,6 +167,9 @@ public partial class PartyTabView : Control
             QueueRedraw();
         }
     }
+
+    /// <summary>How opaque the window's own parts and lists are, from 0 to 1, as the post-battle windows fade (<see cref="_windowLayer"/>).</summary>
+    public float WindowAlpha { get; set; } = 1;
 
     /// <summary>Whether combat opened the menu, which turns the arrow under the knotwork to point left only.</summary>
     public bool InCombat { get; set; }
@@ -222,6 +234,11 @@ public partial class PartyTabView : Control
                     return false;
                 menu.Point(row);
                 return true;
+            case PostBattleMenu { HasPopup: false } postBattle:
+                if (TabRowAt(postBattle.Party, at) is not { } listed)
+                    return false;
+                postBattle.Party.Point(listed);
+                return true;
             default:
                 return false;
         }
@@ -262,6 +279,27 @@ public partial class PartyTabView : Control
         _listLayer.Size = new Vector2(FrameWidth, FrameHeight);
         _canvas = this;
         DrawSetTransform(_origin);
+        _windowLayer.Modulate = new Color(1, 1, 1, WindowAlpha);
+        _listClip.Modulate = new Color(1, 1, 1, OwnTab ? 1 : WindowAlpha);
+        _windowLayer.QueueRedraw();
+        if (Window is PartyMenu)
+        {
+            DrawTab();
+            return;
+        }
+        // The barter, training and post-battle states: the header here, and the window's own parts on their layer (DrawWindow).
+        _ui.Image(_canvas, MenuImages.PartyTab, 0, 0);
+        Portraits(PortraitPiece.Position);
+        Health(HealthPiece.Position, _ui.Main);
+    }
+
+    /// <summary>The barter, training or post-battle state's own parts, over the header, as their fade has them.</summary>
+    private void DrawWindow()
+    {
+        if (Menu.Shown is null || OwnTab)
+            return;
+        _canvas = _windowLayer;
+        _windowLayer.DrawSetTransform(_origin);
         switch (Window)
         {
             case BarterMenu barter:
@@ -270,8 +308,8 @@ public partial class PartyTabView : Control
             case TrainingMenu training:
                 DrawTraining(training);
                 break;
-            case PartyMenu:
-                DrawTab();
+            case PostBattleMenu postBattle:
+                DrawPostBattle(postBattle);
                 break;
             default:
                 throw new NotSupportedException($"The Party tab has no drawing for a {Window.GetType().Name}.");
@@ -285,7 +323,7 @@ public partial class PartyTabView : Control
     /// </summary>
     private void DrawLists()
     {
-        if (Menu.Shown is null || !OwnTab)
+        if (Menu.Shown is null || !OwnTab && Window is not PostBattleMenu)
             return;
         _canvas = _listLayer;
         if (Menu.Slide is not { } slide)

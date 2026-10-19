@@ -462,6 +462,48 @@ public sealed class GameState : IScriptWorld
         Party.Remove(entity);
     }
 
+    /// <summary>
+    /// The members' died flags (<c>Party.SyncMemberFlags</c>, <c>0x80074A4C</c>, the docs' <c>Party::CheckDeaths</c>): set for each
+    /// member who's dead, and cleared for each who isn't. A member's death in battle and the battle's end write them.
+    /// </summary>
+    public void WriteDeathFlags()
+    {
+        foreach (var member in Party.Members)
+        {
+            if (Plugins.TryGet<EntityRecord>(member.Entity)?.Member is { } flags)
+                Flags.TrySet(flags.Died, member.IsDead);
+        }
+    }
+
+    /// <summary>
+    /// The dead leave the party after a battle (<c>Party.AfterBattle</c>, <c>0x80074EE8</c>), however it ended: the died flags are
+    /// written (<see cref="WriteDeathFlags"/>), then each dead member in order has any sheet kept of them erased and what they wear
+    /// put in the inventory, but what it has no room for, and is gone; the rest move up. Their joined flag stays set and their left
+    /// flag clear.
+    /// </summary>
+    public void BringOutYourDead()
+    {
+        WriteDeathFlags();
+        foreach (var member in Party.Members.Where(m => m.IsDead).ToList())
+        {
+            Party.TakeKept(member.Entity);
+            Party.Strip(member);
+            Party.Remove(member.Entity);
+        }
+    }
+
+    /// <summary>
+    /// The clock goes on to 6:00 the next day, whatever the hour (<c>World.SetDate</c>, <c>0x8007B914</c>, as a non-lethal battle
+    /// is lost): the weather may change, and the calendar's and the rain's flags are written. No effects age, and time played
+    /// doesn't move on.
+    /// </summary>
+    public void WakeNextMorning()
+    {
+        Clock.Time = (uint)((Clock.Time - Clock.Time % GameClock.Day + GameClock.Day + 6 * (ulong)GameClock.Hour) % GameClock.Year);
+        Weather?.Frame(Clock.Date.PartOfDay, Clock.Date.Season, Terrain(Weather.Terrain), Random.World, Random.Cosmetic);
+        WriteStateFlags();
+    }
+
     // Party::CheckFlags, for a member alive: the joined flag as they are, the left flag the other way.
     private void WriteMemberFlags(RecordId entity, bool joined)
     {

@@ -24,6 +24,9 @@ Things only the user can settle, by playing the original in the emulator, by lis
 - **A rat leaving the field** (the rats' battle, once two rats are dead and the rest start to flee): over its turns, does a fleeing rat run toward the arena's edge a leg a turn, saying "Giant Rat flees" each turn, and then fade out where it stands over about two seconds, its portrait marked fled? The code reads a fade (`Body.FadeOut`, 120 ticks); the port draws one. [combat](systems/combat.md#the-ai)
 - **A heal's number** (Rheda's Lay On Hands or any healing over a member's head, once session 9 has them; or a regeneration at a round's end): does the blue number sink, shrink and fade in, as the code reads, or rise as damage's does? [combat](systems/combat.md#an-attack)
 
+- **A camp ambush on terrain 27** (the Overworld's N25, O24–O26, P24 and P25, east of the desert, with two of Abrecan, Godric and Rheda joined so that 5004 holds): camp there until it's ambushed. The original reads no enemy for that terrain. Does a battle start and end at once as a win (with the post-battle window), does it never start, or does the game crash? The port, for now, says the party is ambushed and goes on with no battle. [camping](systems/camping.md#the-ambushs-enemies)
+- **The post-battle window's member:** after a battle in which you paused on someone other than Alaron's turn (Start on Brenna's turn, then back), which member does the post-battle window open on: Alaron, or the one whose turn you paused on? The code opens it on the last member a menu showed. The port opens it on the first. [ui](systems/ui.md#after-a-battle)
+
 ## Sound
 
 - **Wrapped pitches:** music 0x05DD and 0x05DE, and sounds such as 0x0759 and 0x075F, have notes above 65,535 Hz that the original keeps in 16 bits, so they'd play far too low. The port does the same. Listen for a low growl or rumble against `aidyn audio`'s render. [audio](formats/audio.md#the-event-stream)

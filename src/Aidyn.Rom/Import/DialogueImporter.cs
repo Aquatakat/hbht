@@ -55,7 +55,8 @@ internal static class DialogueImporter
                 mode is DialogueMode.Backdrop or DialogueMode.Help ? script.Backdrop : null,
                 tables.ScriptBattleFlags.TryGetValue(index, out var battle) ? DbRecordIds.Flag(battle) : null,
                 tables.CampfireScenes.Contains(index),
-                script.BlankNodes));
+                script.BlankNodes,
+                tables.ScriptEndings.TryGetValue(index, out var ending) ? (DialogueEnding)(int)ending : null));
         }
         return records;
     }

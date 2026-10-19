@@ -421,12 +421,29 @@ public sealed class AttackCheckpointTests(Na10Import fixture, ITestOutputHelper 
         Assert.Equal(0, battle.ActiveCounts.Enemies);
         Assert.True(battle.Fade.Fading);
 
-        // Until session 7's windows, the battle leaves once it has faded out.
+        // The rewards come at once: ten rats' experience, 1500 to each living member.
+        Assert.Equal(1000, battle.ExperiencePool);
+
+        // Once it has faded out, it leaves for the post-battle windows, won.
         for (var i = 0; i < 600 && !battle.Over; i++)
             battle.Tick(zone, false, _ => null);
         Assert.True(battle.Over);
+        Assert.Equal(BattleOutcome.Won, battle.Outcome);
+        Assert.Equal(1000, battle.Spoils!.Experience);
         Assert.False(battle.Fled);
         Assert.False(alaron.Sheet.IsDead);
+    }
+
+    [Fact]
+    public void SholehsDeathSetsHerDiedFlagAtOnce()
+    {
+        var built = At(5);
+        var sholeh = built.Battle.Combatants.Single(c => c.Entity == RecordId.Hex(RecordTypes.Entity, 0x024D));
+        var died = RecordId.Decimal(RecordTypes.Flag, 622);
+        built.Game.Flags.TrySet(died, false);
+        sholeh.Sheet.TakeDamage(1000, sholeh);
+        built.Battle.Death(sholeh);
+        Assert.True(built.Game.Flags.IsSet(died));
     }
 
     private static PortraitState PartyOrEnemy(Battle battle, int slot) => battle.Gui.Portraits.Single(p => p.Slot == slot).State;

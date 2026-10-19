@@ -187,15 +187,15 @@ public sealed class GameSessionTests(Na10Import fixture)
         Assert.True(session.Trek.CutSceneFade.Fading);
         var here = new ChunkRef(place.Set.Id, place.Chunk.Row, place.Chunk.Column);
         Assert.Equal(new BattleSetup(BattleSource.MonsterParty, here, place.Chunk.Terrain, id, party.Enemies, null, false, true, party.Used?.Flag)
-            with { Enemies = fight.Enemies, Size = (party.MinSize, party.MaxSize) }, fight);
+            with { Enemies = fight.Enemies, Size = (party.MinSize, party.MaxSize), BonusLoot = party.Loot, PartyGate = party.Visible }, fight);
         Assert.Equal(party.Enemies, fight.Enemies);
 
         // A wanderer catching the party is the same, as an ambush.
         var ambush = BattleSetup.WithParty(BattleSource.Wanderer, id, party, here, place.Chunk.Terrain, ambush: true);
         Assert.Equal(fight with { Source = BattleSource.Wanderer, Ambush = true }, ambush);
 
-        // A camp ambush where the player stands, in G14 (terrain 0): no enemies until the camp encounters are imported, and
-        // no fleeing. Two of the Gwernia recruits make ambushes possible; each camp that isn't one heals and cues the scene.
+        // A camp ambush where the player stands, in G14 (terrain 0): the terrain's two kinds at the party's level's tier, its least
+        // and most theirs summed, and no fleeing. Two of the Gwernia recruits make ambushes possible; each camp that isn't one heals and cues the scene.
         var (camping, campHost) = Start("G14", 40, 40);
         foreach (var joined in new[] { 89, 90 })
             camping.Game.Flags.TrySet(RecordId.Decimal(RecordTypes.Flag, joined), true);
@@ -206,7 +206,11 @@ public sealed class GameSessionTests(Na10Import fixture)
         var camp = camping.Trek.CuedBattle!;
         var g14 = new ChunkRef(RecordId.Decimal(RecordTypes.MapSet, 0), 7, 14);
         Assert.Equal((BattleSource.Camp, g14, 0, null, true, false), (camp.Source, camp.Place, camp.Terrain, camp.Party, camp.Ambush, camp.CanFlee));
-        Assert.Empty(camp.Enemies);
+        var tier = BattleSetup.AmbushTier(Data.Set, camping.Game.Party.AverageLevel);
+        var expected = Data.Set.Get<TerrainRecord>(RecordId.Decimal(RecordTypes.Terrain, 0)).Ambushes![tier].Enemies;
+        Assert.Equal(expected, camp.Enemies);
+        Assert.Equal((expected.Sum(e => e.Min), expected.Sum(e => e.Max)), camp.Size);
+        Assert.Null(camp.BonusLoot);
         var game = session.Game;
 
         // A script's, where it ends, and in a conversation with a party, against it under its flag C.
@@ -293,6 +297,155 @@ public sealed class GameSessionTests(Na10Import fixture)
         Assert.Equal(away, trek.Player.Sphere.Position);
         Assert.All(trek.Breadcrumbs.All, c => Assert.Equal(trek.Breadcrumbs.All[0], c));
         Assert.NotEmpty(trek.Wanderers.All);
+    }
+
+    /// <summary>A battle with two rats in arena 1, as a monster party used, begun and faded in to Alaron's turn.</summary>
+    private (Battle Battle, RecordId Party, MonsterPartyObject Rats) RatBattle(GameSession session, Host host, RecordId? flag = null)
+    {
+        var rat = RecordId.Hex(RecordTypes.Entity, 0x026E);
+        var (id, _, rats) = Data.Of<MonsterPartyObject>().First(p => p.Object is { Dialogue: null, MinSize: 2, MaxSize: 2 }
+            && p.Object.Enemies.All(e => e.Entity == rat));
+        var (place, terrain) = session.Trek.Here();
+        var setup = BattleSetup.WithParty(BattleSource.MonsterParty, id, rats, place, terrain, ambush: false) with { Arena = 1 };
+        if (flag is { } f)
+            setup = setup with { EncounterFlag = f };
+        session.CueBattle(setup);
+        var step = SessionStep.Trek;
+        for (var i = 0; i < 200 && step != SessionStep.BattleCued; i++)
+            step = Tick(session);
+        session.BeginBattle();
+        var battle = session.Battle!;
+        // The rats may act first: their AI walks and attacks before Alaron's turn.
+        for (var i = 0; i < 3000 && battle.State != CombatState.Turn; i++)
+            Tick(session);
+        Assert.Equal((CombatState.Turn, GameState.Alaron), (battle.State, battle.Current!.Entity));
+        host.Transitions.Clear();
+        return (battle, id, rats);
+    }
+
+    private static void Kill(Battle battle, Combatant c)
+    {
+        c.Sheet.TakeDamage(1000, c);
+        battle.Death(c);
+        battle.FreeBody(c);
+    }
+
+    private static SessionStep TickUntil(GameSession session, SessionStep until, int most = 2000)
+    {
+        var step = SessionStep.Trek;
+        for (var i = 0; i < most && step != until; i++)
+            step = Tick(session);
+        return step;
+    }
+
+    [Fact]
+    public void ABattleWonOpensThePostBattleWindowsAndTrekComesBackWhereItBegan()
+    {
+        var (session, host) = Start();
+        var trek = session.Trek;
+        var (battle, _, rats) = RatBattle(session, host);
+        var start = trek.Player.Sphere.Position;
+        var alaron = session.Game.Party.Slots[0]!;
+        var exp = alaron.TotalExp;
+        var gold = session.Game.Party.Gold;
+
+        // The rats fall, and the turn's end wins it: the rewards at once, the victory line and the fade.
+        foreach (var rat in battle.Combatants.Where(c => c.Hostile).ToList())
+            Kill(battle, rat);
+        Assert.True(battle.Skip());
+        Assert.Equal(CombatState.Victory, battle.State);
+        Assert.Equal(battle.CombatText(Battle.Victorious), battle.Lines.Shown);
+        Assert.Equal(200, battle.ExperiencePool);
+        Assert.Equal(exp + 300, alaron.TotalExp);
+
+        // Faded out, the party has the gold and the encounter flag is set; the battle leaves, won.
+        Assert.Equal(SessionStep.CombatOver, TickUntil(session, SessionStep.CombatOver));
+        Assert.Equal(BattleOutcome.Won, battle.Outcome);
+        var spoils = battle.Spoils!;
+        Assert.Equal(gold + (uint)spoils.Gold, session.Game.Party.Gold);
+        if (rats.Used?.Flag is { } flag)
+            Assert.True(session.Game.Flags.IsSet(flag));
+
+        // Its arena goes and the post-battle windows open over the held world; trek comes back where it began once they close.
+        session.EndBattle();
+        Assert.Equal([typeof(Transition.EndBattle), typeof(Transition.PostBattle)], host.Transitions.Select(t => t.GetType()));
+        Assert.Same(spoils, session.PostBattle);
+        Assert.Equal((GameMode.Menu, false), (session.Mode, session.TrekRuns));
+        Assert.Equal(SessionStep.Held, Tick(session));
+        host.Transitions.Clear();
+        session.MenuOpened();
+        session.MenuClosed(PauseExit.Close);
+        Assert.Equal([typeof(Transition.ResumeTrek)], host.Transitions.Select(t => t.GetType()));
+        Assert.Null(session.PostBattle);
+        Assert.Equal(GameMode.Trek, session.Mode);
+        Assert.Equal(start, trek.Player.Sphere.Position);
+    }
+
+    [Fact]
+    public void ABattleLostHealsAlaronAndPlaysTheGameOverWhoseEndIsTheGames()
+    {
+        var (session, host) = Start();
+        var (battle, _, _) = RatBattle(session, host);
+        var alaron = battle.Current!;
+
+        // Alaron's death loses it at the turn's change, and the screen fades out.
+        Kill(battle, alaron);
+        battle.EndTurn(alaron);
+        Assert.Equal((CombatState.Defeat, true), (battle.State, battle.Fade.Fading));
+        Assert.Equal(SessionStep.CombatOver, TickUntil(session, SessionStep.CombatOver));
+        Assert.Equal((BattleOutcome.Lost, CombatState.LeaveToScript), (battle.Outcome, battle.State));
+        var leader = session.Game.Party.Slots[0]!;
+        Assert.Equal(leader.MaxHp, leader.Hp);
+
+        // The game over's death scene plays from its dialogue object in the Dreamscape, and its end is the game's.
+        session.EndBattle();
+        Assert.Contains(host.Transitions, t => t is Transition.StartCutScene);
+        Assert.Equal(RecordId.Hex(RecordTypes.Dialogue, 0x0512), session.Scene!.Runner.Script.Id);
+        Assert.Contains(session.Game.Party.Members, m => m.Entity == GameState.Alaron);
+        Assert.Equal(SessionStep.CutScene, Tick(session));
+        host.Transitions.Clear();
+        session.EndCutScene();
+        Assert.Equal([typeof(Transition.EndCutScene), typeof(Transition.GameOver)], host.Transitions.Select(t => t.GetType()));
+    }
+
+    [Fact]
+    public void LosingTheGoblinAmbushWakesThePartyInOrianasHutTheNextMorning()
+    {
+        var (session, host) = Start();
+        var ambush = RecordId.Decimal(RecordTypes.Flag, 978);
+        var (battle, id, _) = RatBattle(session, host, ambush);
+        Assert.True(battle.NonLethal);
+        var game = session.Game;
+        var day = game.Clock.Time / Core.Calendar.GameClock.Day;
+
+        // Alaron's fall holds 120 frames before the fade.
+        Kill(battle, battle.Current!);
+        battle.EndTurn(battle.Current!);
+        Assert.Equal(CombatState.DefeatWait, battle.State);
+        for (var i = 0; i < Battle.SparedFrames * Cadence.FrameTicks - 1; i++)
+            Tick(session);
+        Assert.Equal(CombatState.DefeatWait, battle.State);
+        Tick(session);
+        Assert.Equal((CombatState.Defeat, true), (battle.State, battle.Fade.Fading));
+        Assert.Equal(SessionStep.CombatOver, TickUntil(session, SessionStep.CombatOver));
+
+        // Spared: the flag, the party fought remembered, and 6:00 the next day.
+        Assert.Equal(BattleOutcome.Spared, battle.Outcome);
+        Assert.True(game.Flags.IsSet(ambush));
+        Assert.NotNull(game.Memory.Find(new Memory(id, MemoryKind.Beaten)));
+        Assert.Equal((day + 1) * Core.Calendar.GameClock.Day + 6 * Core.Calendar.GameClock.Hour, game.Clock.Time);
+
+        // Its end: flag 47, Alaron healed, and trek in Oriana's hut, MiscInteriors E03, facing +x.
+        session.EndBattle();
+        Assert.True(game.Flags.IsSet(RecordId.Decimal(RecordTypes.Flag, 47)));
+        var alaron = game.Party.Slots[0]!;
+        Assert.Equal(alaron.MaxHp, alaron.Hp);
+        var trek = session.Trek;
+        Assert.Equal(RecordId.Decimal(RecordTypes.MapSet, 6), trek.Chunks.MapSet.Id);
+        var hut = trek.Chunks.MapSet.Chunks.Single(c => c.Row == 5 && c.Column == 3);
+        Assert.Equal(trek.Chunks.Origin(hut) + new Vector3(5.9f, 0.5f, 3f), trek.Player.Sphere.Position);
+        Assert.Equal(new Vector2(1, 0), trek.Player.Heading);
+        Assert.Equal(GameMode.Trek, session.Mode);
     }
 
     [Fact]

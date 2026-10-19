@@ -292,6 +292,66 @@ public partial class PauseMenu : CanvasLayer
         _view!.Window = TrainingMenu.For(_plugins, _game.Party, trainer, _game.Flags, _game.Random.World);
     }
 
+    /// <summary>The battle won whose post-battle windows are up (game mode 6), or null.</summary>
+    private Core.Combat.BattleSpoils? _spoils;
+
+    /// <summary>How far the windows' swap has gone: the post-battle window fading out, then the loot window in (0 for none).</summary>
+    private int _swap;
+
+    /// <summary>How opaque the window's lists and parts are as they swap, 0 to 255, by 60 a frame.</summary>
+    private int _windowAlpha = 255;
+
+    /// <summary>The fades' step a frame (<c>PauseMenu.CloseFade</c>, <c>OpenFade</c>).</summary>
+    private const int WindowFadeStep = 60;
+
+    /// <summary>
+    /// Opens the post-battle windows over the black the battle left (game mode 6): the Party scroll unrolls on the post-battle window
+    /// (pause state 5, <see cref="PostBattleMenu"/>), and the level-up sound plays as it's built if anyone gained a level. B or Start
+    /// fades its lists out and the loot window in on the same scroll (state 6, <see cref="BarterMenu.ForLoot"/>, the gold already
+    /// given), whose close rolls the scroll up and snaps the world bright again.
+    /// </summary>
+    public void OpenPostBattle(Core.Combat.BattleSpoils spoils)
+    {
+        _combat = null;
+        Open(PauseTab.Party, tabsLocked: true, brightens: false);
+        _spoils = spoils;
+        _swap = 0;
+        _windowAlpha = 255;
+        _view!.WindowAlpha = 1;
+        _view.Window = PostBattleMenu.For(_plugins, _game.Party, spoils, _game.Random.World);
+        if (spoils.Levelled.Count > 0 && _game.Sounds is { } sounds)
+            Audio?.Play(new Core.Audio.OneShot(sounds.Menu.LevelUp, Core.Audio.OneShot.LongTicks, Core.Audio.OneShot.MenuTicks, TimesSoundVolume: true));
+    }
+
+    /// <summary>
+    /// A frame of the windows' swap: the post-battle window's lists and parchment fade out 60 a frame to 60 or less
+    /// (<c>PauseMenu.CloseFade</c>, <c>0x8002F734</c>), the header staying; then the loot window is built at once and fades in 60 a
+    /// frame (<c>PauseMenu.OpenFade</c>, <c>0x8002F3DC</c>), its coins sounding if the battle gave gold.
+    /// </summary>
+    private void StepSwap()
+    {
+        if (_swap == 1)
+        {
+            _windowAlpha -= WindowFadeStep;
+            if (_windowAlpha <= WindowFadeStep)
+            {
+                _view!.Window = BarterMenu.ForLoot(_plugins, _game.Party, _spoils!.Loot, _spoils.Gold, _game.Flags, _game.Random.World);
+                if (_spoils.Gold > 0 && _game.Sounds is { } sounds)
+                    Audio?.Play(new Core.Audio.OneShot(sounds.GoldGained, Core.Audio.OneShot.LongTicks, Core.Audio.OneShot.MenuTicks, TimesSoundVolume: true));
+                _windowAlpha = WindowFadeStep;
+                _swap = 2;
+            }
+        }
+        else if (_swap == 2)
+        {
+            _windowAlpha = Math.Min(255, _windowAlpha + WindowFadeStep);
+            if (_windowAlpha == 255)
+                _swap = 0;
+        }
+        _view!.WindowAlpha = _windowAlpha / 255f;
+        _view.QueueRedraw();
+    }
+
     /// <summary>Rolls the scroll up and closes the menu, which then ends as <paramref name="exit"/> says (<c>PauseMenu.Exit</c>).</summary>
     private void Close(PauseExit exit)
     {
@@ -324,6 +384,10 @@ public partial class PauseMenu : CanvasLayer
         if (!_tabsLocked && _combat is null)
             _lastTab = Tab;
         _snapshot = null;
+        _spoils = null;
+        _swap = 0;
+        _windowAlpha = 255;
+        _view?.WindowAlpha = 1;
         _journal.Journal = null;
         _view?.ProcessMode = ProcessModeEnum.Disabled;
         _system?.ProcessMode = ProcessModeEnum.Disabled;
@@ -457,6 +521,8 @@ public partial class PauseMenu : CanvasLayer
         StepScroll();
         if (!IsOpen)
             return;
+        if (_swap != 0)
+            StepSwap();
         if (Sliding)
         {
             _position = Mathf.MoveToward(_position, (float)Tab, SlidePerTick);
@@ -520,8 +586,8 @@ public partial class PauseMenu : CanvasLayer
     /// </summary>
     public bool Handle(InputEvent e)
     {
-        // Nothing reaches the menu while it opens or closes.
-        if (!Taking)
+        // Nothing reaches the menu while it opens or closes, nor while the post-battle windows swap.
+        if (!Taking || _swap != 0)
             return e is InputEventKey or InputEventJoypadButton or InputEventJoypadMotion or InputEventAction;
         // Nor do the presses a save's slide drops make a sound.
         var sliding = Sliding || _system?.Menu.Saves is { Sliding: true };
@@ -595,7 +661,14 @@ public partial class PauseMenu : CanvasLayer
                 PauseTab.World => _world!.Menu.Back(),
                 _ => Back(),
             };
-            if (!held)
+            if (!held && Tab == PauseTab.Party && _view.Window is PostBattleMenu)
+            {
+                // The post-battle window closes into the loot (PauseMenu.ReadFrame's state 5), the scroll staying open.
+                SlideSound(opening: false);
+                _swap = 1;
+                _view.DetailsOpen = false;
+            }
+            else if (!held)
                 Close(PauseExit.Close);
             Redraw();
             return true;

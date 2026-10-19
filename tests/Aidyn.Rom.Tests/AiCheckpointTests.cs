@@ -634,7 +634,7 @@ public sealed class AiCheckpointTests(Na10Import fixture, ITestOutputHelper outp
             var spare = Battle.ArmFromList(sheet, game.Items);
             var c = new Combatant(4, sheet, entity.Body ?? new EntityBody(entity.Id, 1, 1, 1), new Body(Vector3.Zero, 1), CombatantFlags.Hostile);
             var ai = EnemyAI.Init(c, spare, w => w.Range == 0 || w.Class is WeaponClass.Breath or WeaponClass.Spit || rules.CloseRange!.Contains(w.Id),
-                rules.Bosses!.Contains(entity.Id));
+                rules.BossStyles!.Contains(entity.Id));
             counts[ai.Style] = counts.GetValueOrDefault(ai.Style) + 1;
             styles[entity.Id] = (ai.Style, sheet.Equipment.Weapon?.Id, spare?.Id);
         }

@@ -430,13 +430,15 @@ public sealed partial class Battle
     }
 
     /// <summary>
-    /// A combatant dies (<c>Combatant.Death</c>, <c>0x80062080</c>): what holds it comes off, it leaves the grid, the counts of those
-    /// able to act fall, a performer stops, and the first enemy's death is noted. It isn't marked gone: its hit points at 0 say
-    /// it's dead, and its body goes once it has fallen (<see cref="FreeBody"/>).
+    /// A combatant dies (<c>Combatant.Death</c>, <c>0x80062080</c>): the ally's died flag is set, whichever side it's on (Sholeh's
+    /// 622); what holds it comes off, it leaves the grid, the counts of those able to act fall, a party member's died flags are
+    /// written (<see cref="GameState.WriteDeathFlags"/>), a performer stops, and the first enemy's death is noted. It isn't marked
+    /// gone: its hit points at 0 say it's dead, and its body goes once it has fallen (<see cref="FreeBody"/>).
     /// </summary>
-    /// <remarks>Sholeh's died flag (622) is session 7's, with the dead taken out of the party.</remarks>
     internal void Death(Combatant c)
     {
+        if (_rules is { } rules && c.Entity == rules.Ally && Game?.Plugins.TryGet<EntityRecord>(c.Entity)?.Member is { } ally)
+            Game.Flags.TrySet(ally.Died, true);
         foreach (var held in c.Sheet.Effects.Where(e => e.Effects.Any(x => x is ImmobiliseEffect)).ToList())
             c.Sheet.RemoveEffect(held, c, this);
         Grid.Vacate(ArenaGrid.CellOf(c.Cell.X), ArenaGrid.CellOf(c.Cell.Y), c.Footprint);
@@ -449,6 +451,8 @@ public sealed partial class Battle
         else
         {
             ActiveCounts = (all - 1, party - 1, enemies);
+            if (c.Party)
+                Game?.WriteDeathFlags();
             if (c.Performing)
                 c.StopPerforming();
         }

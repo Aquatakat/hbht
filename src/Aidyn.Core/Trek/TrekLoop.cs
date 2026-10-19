@@ -475,6 +475,33 @@ public sealed class TrekLoop : IMapObjectHost
     }
 
     /// <summary>
+    /// Where trek starts again becomes <paramref name="position"/> in <paramref name="place"/>'s chunk, facing
+    /// <paramref name="heading"/>, in another map set if need be: the kept place rewritten, as the Goblin Ambush's end takes the
+    /// party to Oriana's hut (<c>Combat.Exit</c>'s <c>Zones.SavedPosition</c>). Trek's world must be freed, as it is under a
+    /// battle; <see cref="Resume"/> builds it there.
+    /// </summary>
+    public void Keep(ChunkRef place, Vector3 position, Vector2 heading)
+    {
+        if (Game.Plugins.TryGet<MapSetRecord>(place.MapSet) is not { } set
+            || set.Chunks.FirstOrDefault(c => c.Row == place.Row && c.Column == place.Column) is not { } chunk)
+        {
+            _host.Say($"{place.MapSet} has no chunk at row {place.Row}, column {place.Column}.");
+            return;
+        }
+        if (set.Id != Chunks.MapSet.Id)
+        {
+            Chunks.Change(set);
+            Chunks.World.Clear();
+            Chunks.Visible?.Clear();
+            Zone.Lights.Dynamic.Clear();
+        }
+        Player.Sphere.Position = Chunks.Origin(chunk) + position;
+        Player.Sphere.Velocity = Vector3.Zero;
+        Player.Heading = heading;
+        _centre = (chunk.Row, chunk.Column);
+    }
+
+    /// <summary>
     /// Trek comes back after a cut-scene or a battle: its world where the player stood, the follow camera aimed at
     /// him and swinging round quickly, and the screen fading in. Having <paramref name="fled"/> a battle, he stands at the
     /// breadcrumb in the map set farthest from where it began, facing as he did there (<c>InitZoneEngine</c>'s restoring,
@@ -517,7 +544,7 @@ public sealed class TrekLoop : IMapObjectHost
         if (Camping.Ambushed(rules, factor, Game.Party, Game.Flags.IsSet, Game.Random.World))
         {
             var (place, terrainIndex) = Here();
-            CueBattle(BattleSetup.CampAmbush(place, terrainIndex));
+            CueBattle(BattleSetup.CampAmbush(place, terrainIndex, Game.Plugins, Game.Party));
             return CampOutcome.Ambushed;
         }
         Game.Party.CampHeal(rules.Heal, rules.EffectTicks);

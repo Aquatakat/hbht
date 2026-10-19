@@ -25,9 +25,6 @@ public partial class PartyTabView
 
     private void DrawTraining(TrainingMenu training)
     {
-        _ui.Image(_canvas, MenuImages.PartyTab, 0, 0);
-        Portraits(PortraitPiece.Position);
-        Health(HealthPiece.Position, _ui.Main);
         List(0, _ui.Slim, MemberCursor(training));
 
         _ui.Parchment(_canvas, ClassicParchment.X, ClassicParchment.Y);

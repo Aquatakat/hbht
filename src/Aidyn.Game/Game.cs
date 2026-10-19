@@ -95,6 +95,9 @@ public partial class Game : Node3D, ITrekHost
     /// <summary>The save the System tab loaded, which the scene starts again from.</summary>
     private static SaveGame? _pendingSave;
 
+    /// <summary>The save the game last came from or went to, which the game over loads (<see cref="GameOver"/>).</summary>
+    private static string? _lastSave;
+
     public override void _Ready()
     {
         CultureInfo.DefaultThreadCurrentCulture = CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
@@ -197,9 +200,12 @@ public partial class Game : Node3D, ITrekHost
     /// <summary>The game the System tab's Load asked for, else the save or the new game the options ask for.</summary>
     private GameState StartingGame(PluginSet plugins, LaunchOptions options)
     {
+        if (_pendingSave is null && options.Save is { } started && _lastSave is null)
+            _lastSave = started;
         var game = _pendingSave is { } pending ? GameState.Load(plugins, pending)
-            : options.Save is { } savePath ? GameState.Load(plugins, SaveFile.Read(savePath))
+            : options.Save is { } savePath && !_newGame ? GameState.Load(plugins, SaveFile.Read(savePath))
             : GameState.NewGame(plugins);
+        _newGame = false;
         _pendingSave = null;
         foreach (var problem in game.Problems)
             GD.PushWarning(problem);
@@ -977,6 +983,12 @@ public partial class Game : Node3D, ITrekHost
             case Transition.EndBattle:
                 FreeArena();
                 break;
+            case Transition.PostBattle won:
+                _menu!.OpenPostBattle(won.Spoils);
+                break;
+            case Transition.GameOver:
+                GameOver();
+                break;
             case Transition.Camp camp:
                 GD.Print($"Camping: {camp.Outcome}.");
                 break;
@@ -1042,6 +1054,7 @@ public partial class Game : Node3D, ITrekHost
                 return "The player isn't in a chunk.";
             _game.Label = null;
             SaveFile.Write(path, _game.Save());
+            _lastSave = path;
             if (snapshot is not null)
                 Screenshot(snapshot).SavePng(SaveSlot.ScreenshotPath(path));
             return null;
@@ -1072,12 +1085,33 @@ public partial class Game : Node3D, ITrekHost
         try
         {
             _pendingSave = SaveFile.Read(path);
+            _lastSave = path;
         }
         catch (Exception e) when (e is IOException or System.Text.Json.JsonException or InvalidDataException)
         {
             Say(e.Message);
             return;
         }
+        GetTree().ReloadCurrentScene();
+    }
+
+    /// <summary>Whether the scene starts again on a new game, whatever the command line's save, as a game over with no save does.</summary>
+    private static bool _newGame;
+
+    /// <summary>
+    /// The game is over (<see cref="Transition.GameOver"/>): where the original goes back to the title, the runtime, which has none,
+    /// loads the save the game last came from or went to, the user's choice, or with none starts a new game.
+    /// </summary>
+    private void GameOver()
+    {
+        if (_lastSave is { } path && File.Exists(path))
+        {
+            GD.Print($"The game is over: loading {path}.");
+            LoadFrom(path);
+            return;
+        }
+        GD.Print("The game is over: a new game.");
+        _newGame = true;
         GetTree().ReloadCurrentScene();
     }
 
@@ -1091,6 +1125,7 @@ public partial class Game : Node3D, ITrekHost
         }
         var path = Path.Combine(DataPaths.Saves, "quick" + SaveFile.Extension);
         SaveFile.Write(path, _game!.Save());
+        _lastSave = path;
         Say($"Saved to {path}");
     }
 
@@ -1129,6 +1164,8 @@ public partial class Game : Node3D, ITrekHost
         Add("cycle_ui_lines", Key.F7);
         Add("quick_save", Key.F8);
         Add("toggle_radar_anchor", Key.F9);
+        Add("battle_rout", Key.F10);
+        Add("battle_collapse", Key.F11);
         // The pause menu (PauseMenu).
         Add("pause", Key.Enter, Key.Escape, button: JoyButton.Start);
         Add("menu_back", Key.Backspace, button: JoyButton.B);

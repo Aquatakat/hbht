@@ -24,7 +24,10 @@ internal static class CombatImporter
     /// is 0xA4 (<c>Combat.FindSholeh</c>), the Skeleton 0xBB (<c>BattleSetup.FillEnemies</c>), the Shadow 0xAC, Pochanargat 0xAB, who never moves in battle (<c>Combatant.UpdateRadius</c>); the bystanders
     /// 0–0x56, 0x82–0x90 and 0x92–0x96 (<c>Combat.IsExcludedEnemy</c>); the bosses who forbid fleeing the twelve of
     /// <c>Combat.NoFleeEntities</c> (<c>0x800D2688</c>); the thirteen the AI gives the bosses' styles (<c>EnemyAI.HasBossStyle</c>,
-    /// <c>0x8005BA40</c>, by its jump table at <c>0x800D24B0</c>); and the encounters <c>0x800D26A0</c>'s three. The weapons that fly are the
+    /// <c>0x8005BA40</c>, by its jump table at <c>0x800D24B0</c>); the encounters <c>0x800D26A0</c>'s three; the boss flags (<see cref="BossFlags"/>);
+    /// the weapon classes that drop (<c>0x800D26C8</c>); the Goblin Ambush's rules (<c>Combat.Init</c>, <c>TurnOrder.Defeat</c>,
+    /// <c>Combat.StateDefeat</c> and <c>Combat.Exit</c>); and the game over's map, with its script read from the ROM's list
+    /// (<see cref="EngineTables.GameOverScript"/>). The weapons that fly are the
     /// ROM's two lists of weapon DB positions (<c>Combat.BowKindWeapons</c> <c>0x800E0C08</c> and <c>Combat.ThrownKindWeapons</c>
     /// <c>0x800E0C14</c>, read per version), each with the numbers <see cref="Muzzles"/> carries; a listed weapon with no fact, a fact
     /// for none listed, or a name that differs is an error. Spikes, position 100, is the one ranged weapon allowed in melee.
@@ -50,8 +53,46 @@ internal static class CombatImporter
             Rooted: [At(0xAB)],
             Missiles: Missiles(db, items, Positions(bowList), Positions(thrownList)),
             CloseRange: [Weapon(db, SpikesPosition, "Spikes")],
-            Bosses: [.. new[] { 0x57, 0x58, 0x59, 0x5E, 0x5F, 0x7A, 0xA7, 0xA8, 0xA9, 0xAB, 0xAD, 0xBA, 0xBC }.Select(At)]);
+            Bosses: [.. BossFlags.Select(b => new BossFlag(At(b.Place), DbRecordIds.Flag(b.Flag)))],
+            BossStyles: [.. new[] { 0x57, 0x58, 0x59, 0x5E, 0x5F, 0x7A, 0xA7, 0xA8, 0xA9, 0xAB, 0xAD, 0xBA, 0xBC }.Select(At)],
+            DroppedClasses: [WeaponClass.Hafted, WeaponClass.Missile, WeaponClass.Pole, WeaponClass.Sword, WeaponClass.Thrown],
+            Encounters:
+            [
+                new(DbRecordIds.Flag(978), NonLethal: true, QuietVictory: true, Speaker: At(AlaronPlace),
+                    End: new EncounterEnd(DbRecordIds.Flag(47), new ChunkRef(RecordId.Decimal(RecordTypes.MapSet, 6), 5, 3),
+                        new System.Numerics.Vector3(5.9f, 0.5f, 3f), new System.Numerics.Vector2(1, 0), At(AlaronPlace), RestoresStrength: true)),
+            ],
+            GameOver: new GameOverScene(RecordId.Hex(RecordTypes.Map, GameOverMap), RecordId.Hex(RecordTypes.Dialogue, tables.GameOverScript)));
     }
+
+    /// <summary>Alaron's place in the entity list (<c>0x99</c>), whom the Goblin Ambush's end heals and whose line its loss shows.</summary>
+    private const int AlaronPlace = 153;
+
+    /// <summary>
+    /// The Dreamscape's map (Borg9 <c>0xD5F</c>), in which <c>Combat.StartGameOverScript</c> (<c>0x8001F860</c>) looks for the
+    /// dialogue object that starts the game over script (<c>CodeTable.GameOverScenes</c>' first; its other two are never read).
+    /// </summary>
+    private const int GameOverMap = 0x0D5F;
+
+    /// <summary>
+    /// <c>Combat.SetKillFlags</c>' jump table (<c>0x800D2B60</c>, 19 cases from entity list place <c>0xA8</c>), read case by case in
+    /// 1.0's code: the places that set a flag, and the flag. The rest (the Lizard Man Boss, the Marquis, the Shadow, Sheridan and
+    /// four more) set none.
+    /// </summary>
+    internal static readonly IReadOnlyList<(int Place, int Flag)> BossFlags =
+    [
+        (0xA8, 154),  // Kitarak
+        (0xAB, 3204), // Pochanargat
+        (0xAD, 458),  // Shamsuk
+        (0xAF, 3738), // Ksathra
+        (0xB0, 3737), // Shatrevar
+        (0xB1, 3736), // Mehrdad
+        (0xB2, 3735), // Golnar
+        (0xB3, 3734), // Nasim
+        (0xB4, 3733), // Behrooz
+        (0xB5, 3739), // Assim
+        (0xBA, 533),  // Lugash
+    ];
 
     /// <summary>The weapon DB position of Spikes, the one ranged weapon that may strike in melee too (<c>Weapon.AllowsMelee</c>, <c>0x8007B730</c>).</summary>
     private const int SpikesPosition = 100;

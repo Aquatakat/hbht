@@ -18,6 +18,10 @@ namespace Aidyn.Plugins.Records;
 /// the first found, wherever it is.
 /// </param>
 /// <param name="Campsite">With no camp scene, this map's first dialogue object starts.</param>
+/// <param name="AmbushLevels">
+/// The highest average party level of each of the ambush's tiers but the last (<see cref="TerrainRecord.Ambushes"/>): 5, 10,
+/// 15 and 20 (<c>CampEncounters.Load</c>). Null in plugins imported before them.
+/// </param>
 public sealed record CampingRecord(
     RecordId Id,
     string CannotCamp,
@@ -29,4 +33,5 @@ public sealed record CampingRecord(
     int EffectTicks,
     RecordId Checking,
     IReadOnlyList<RecordId> Scenes,
-    RecordId Campsite);
+    RecordId Campsite,
+    IReadOnlyList<int>? AmbushLevels = null);

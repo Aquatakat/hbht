@@ -134,6 +134,12 @@ public sealed class GameSession
     /// <summary>Whether the pause menu is open.</summary>
     public bool MenuOpen { get; private set; }
 
+    /// <summary>
+    /// What the battle just won gave, while its post-battle windows are up or about to be (game mode 6,
+    /// <see cref="Transition.PostBattle"/>): the world is held, and trek is built again as they close.
+    /// </summary>
+    public BattleSpoils? PostBattle { get; private set; }
+
     /// <summary>Whether a backdrop's or the help menu's page shows, or is still fading out.</summary>
     public bool BackdropShowing { get; private set; }
 
@@ -150,7 +156,7 @@ public sealed class GameSession
     public GameMode Mode =>
         _cinematic is not null ? GameMode.Cinematic
         : CreditsRolling ? GameMode.Credits
-        : MenuOpen ? GameMode.Menu
+        : MenuOpen || PostBattle is not null ? GameMode.Menu
         : BackdropShowing ? GameMode.Backdrop
         : Trek.Use is { Popup: not null } ? GameMode.Popup
         : Trek.Conversation is not null ? GameMode.Conversation
@@ -250,6 +256,12 @@ public sealed class GameSession
     public void BeginCutScene()
     {
         var (script, start, stageRef) = Trek.BeginCutScene();
+        StartCutScene(script, start, stageRef);
+    }
+
+    /// <summary>A cut-scene starts on its stage, trek's world having gone (<see cref="BeginCutScene"/>).</summary>
+    private void StartCutScene(DialogueRecord script, ScriptStart start, ChunkRef stageRef)
+    {
         Zone.Particles?.Clear();
         if (CutSceneStage.For(Game.Plugins, stageRef, Trek.Chunks.World) is not { } stage)
         {
@@ -282,6 +294,13 @@ public sealed class GameSession
         Stage = null;
         foreach (var problem in scene.Problems)
             _host.Warn(problem);
+        if (scene.Runner.Script.Ends == DialogueEnding.GameOver)
+        {
+            // CutScene.Free with ending kind 2: the game is over, and trek isn't built again.
+            _host.Transition(new Transition.EndCutScene(scene));
+            _host.Transition(new Transition.GameOver());
+            return;
+        }
         ResumeTrek(scene);
         if (scene.Runner.Ending is { } ending)
         {
@@ -330,8 +349,8 @@ public sealed class GameSession
         Zone.Particles?.Clear();
         if (setup.Party is null && setup.Enemies.Count == 0)
         {
-            // A camp ambush's enemies come from the camp encounters, which aren't imported yet.
-            _host.Transition(new Transition.Say("The party is ambushed, but there's no one to fight yet: camp encounters come with combat."));
+            // A camp ambush on a terrain with no camp encounters (27): the original reads past the table and finds no enemy.
+            _host.Transition(new Transition.Say("The party is ambushed, but no one comes."));
             Trek.Resume();
             _host.Transition(new Transition.ResumeTrek());
             return;
@@ -358,9 +377,11 @@ public sealed class GameSession
     }
 
     /// <summary>
-    /// The battle is over (<c>Combat.Exit</c>, <c>0x80023060</c>): its arena goes, what it put on the party comes off
-    /// (<see cref="Combat.Battle.Leave"/>), and trek starts again (<see cref="TrekLoop.Resume"/>), fading in where the
-    /// battle began, or having fled, at the farthest breadcrumb.
+    /// The battle is over (<c>Combat.Exit</c>, <c>0x80023060</c>): its arena goes, what it put on the party comes off and the dead
+    /// leave it (<see cref="Combat.Battle.Leave"/>), and a battle with an end of its own moves where trek starts again
+    /// (<see cref="EncounterEnd"/>). Then as it ended: won, the post-battle windows (<see cref="Transition.PostBattle"/>), trek
+    /// coming back once they close; lost, the game over (<see cref="PlayGameOver"/>); otherwise trek starts again
+    /// (<see cref="TrekLoop.Resume"/>), fading in where the battle began, or having fled, at the farthest breadcrumb.
     /// </summary>
     public void EndBattle()
     {
@@ -370,8 +391,38 @@ public sealed class GameSession
         Arena = null;
         _host.Transition(new Transition.EndBattle(battle));
         battle.Leave();
-        Trek.Resume(fled: battle.Fled);
+        if (battle.Rule?.End is { } end)
+            Trek.Keep(end.Place, end.Position, end.Heading);
+        switch (battle.Outcome)
+        {
+            case BattleOutcome.Won when battle.Spoils is { } spoils:
+                PostBattle = spoils;
+                _host.Transition(new Transition.PostBattle(spoils));
+                return;
+            case BattleOutcome.Lost:
+                PlayGameOver();
+                return;
+        }
+        Trek.Resume(fled: battle.Outcome == BattleOutcome.Fled);
         _host.Transition(new Transition.ResumeTrek());
+    }
+
+    /// <summary>
+    /// The game over (<c>Combat.StartGameOverScript</c>, <c>0x8001F860</c>, then mode <c>0xC</c>): its script plays as a cut-scene,
+    /// started from its dialogue object in the Dreamscape's map (<see cref="CombatRecord.GameOver"/>), and its end is the game's
+    /// (<see cref="EndCutScene"/>). The battle has already healed the party's leader.
+    /// </summary>
+    private void PlayGameOver()
+    {
+        if (Game.Plugins.TrySingleton<CombatRecord>(RecordTypes.Combat)?.GameOver is { } gameOver
+            && Game.Plugins.TryGet<MapRecord>(gameOver.Map) is { } map
+            && map.Objects.OfType<DialogueObject>().FirstOrDefault(d => d.Script == gameOver.Script) is { Stage: { } stage } dialogue
+            && Game.Plugins.TryGet<DialogueRecord>(gameOver.Script) is { } script)
+        {
+            StartCutScene(script, new ScriptStart(dialogue.RefPointBase, MapRecord.VoxelId(map.Id, dialogue.Index)), stage);
+            return;
+        }
+        _host.Transition(new Transition.GameOver());
     }
 
     /// <summary>
@@ -387,6 +438,14 @@ public sealed class GameSession
     public void MenuClosed(PauseExit exit)
     {
         MenuOpen = false;
+        if (PostBattle is not null)
+        {
+            // The loot window closes to trek (PauseMenu.CloseToTrek): built again where the battle began, fading in.
+            PostBattle = null;
+            Trek.Resume();
+            _host.Transition(new Transition.ResumeTrek());
+            return;
+        }
         if (Battle is { } battle)
         {
             // Combat's pause menu returns to the state it paused, or flees (state 16).

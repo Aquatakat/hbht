@@ -25,9 +25,6 @@ public sealed partial class Battle
     /// <summary>The combat strings' party-incapacitated line (offset 0xD4).</summary>
     public const int PartyIncapacitated = 0xD4;
 
-    /// <summary>The Goblin Ambush's encounter flag, whose win shows no victory line.</summary>
-    public const int GoblinAmbushFlag = 978;
-
     /// <summary>The fade as a battle is won or lost (<c>ScreenFade.State</c> 1), a sixtieth a tick as it fades in.</summary>
     public const float FadeOutPerTick = FadePerTick;
 
@@ -253,10 +250,7 @@ public sealed partial class Battle
     {
         if (counts.Party == 0)
         {
-            // TurnOrder.Defeat: the party's line (and the Shadow's in a non-lethal battle, session 7).
-            Lose();
-            if (Current is not null)
-                Write(CombatText(PartyIncapacitated));
+            Defeat();
             return true;
         }
         if (counts.Enemies == 0)
@@ -268,24 +262,31 @@ public sealed partial class Battle
     }
 
     /// <summary>
-    /// The battle is lost (<c>Combat.Defeat</c>, <c>0x80023F98</c>): state 13, and the screen fades out. What follows,
-    /// the game over script or a non-lethal battle's ending (state 28), is session 7's.
+    /// The party has fallen (<c>TurnOrder.Defeat</c>, <c>0x8006A780</c>): state 13, and the battle's lost (<see cref="Lose"/>); then
+    /// the party's line, and in a non-lethal battle the speaker's own over it, for good, under the speaker's portrait.
     /// </summary>
-    private void Lose()
+    private void Defeat()
     {
         State = CombatState.Defeat;
-        Fade.Out(FadeOutPerTick);
+        Lose();
+        if (Current is null)
+            return;
+        Write(CombatText(PartyIncapacitated));
+        if (NonLethal)
+            Lines.Lock(CombatText(SparedLine), Rule!.Speaker);
     }
 
     /// <summary>
-    /// The battle is won (<c>TurnOrder.Victory</c>, <c>0x8006A804</c>): state 12, the screen fading out, and the victory
-    /// line but in the Goblin Ambush. The kill flags and the rewards are sessions 5 and 7's.
+    /// The battle is won (<c>TurnOrder.Victory</c>, <c>0x8006A804</c>): the bosses' flags and the rewards (<see cref="TallyRewards"/>)
+    /// at once, state 12, the screen fading out, and the victory line but in a battle that keeps it quiet (the Goblin Ambush).
     /// </summary>
     private void Win()
     {
+        SetKillFlags();
+        TallyRewards();
         State = CombatState.Victory;
         Fade.Out(FadeOutPerTick);
-        if (Setup.EncounterFlag is not { } flag || flag != RecordId.Decimal(RecordTypes.Flag, GoblinAmbushFlag))
+        if (Current is not null && Rule is not { QuietVictory: true })
             Write(CombatText(Victorious));
     }
 

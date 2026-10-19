@@ -35,9 +35,6 @@ public partial class PartyTabView
     private void DrawBarter(BarterMenu barter)
     {
         var (party, pile) = Cursors(barter);
-        _ui.Image(_canvas, MenuImages.PartyTab, 0, 0);
-        Portraits(PortraitPiece.Position);
-        Health(HealthPiece.Position, _ui.Main);
         List(0, _ui.Slim, party);
 
         _ui.Parchment(_canvas, ClassicParchment.X, ClassicParchment.Y);

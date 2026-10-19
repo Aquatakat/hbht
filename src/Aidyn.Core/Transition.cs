@@ -52,6 +52,19 @@ public abstract record Transition
     /// <summary>A battle is over and its arena gone (<c>Combat.Exit</c>): trek is about to be built again (<see cref="ResumeTrek"/> follows).</summary>
     public sealed record EndBattle(Battle Battle) : Transition;
 
+    /// <summary>
+    /// A battle was won and its arena is gone (game mode 6): the pause menu opens over black on the post-battle window (pause
+    /// state 5), then the loot window (6), and trek is built again where the battle began once it closes
+    /// (<see cref="GameSession.MenuClosed"/>).
+    /// </summary>
+    public sealed record PostBattle(BattleSpoils Spoils) : Transition;
+
+    /// <summary>
+    /// The game is over (a script that ends it, the game over's death scene, <see cref="DialogueEnding.GameOver"/>): the original
+    /// goes back to the title, and the runtime loads the last save, the user's choice.
+    /// </summary>
+    public sealed record GameOver : Transition;
+
     /// <summary>The party camped, as the World tab's Camp asked (<see cref="TrekLoop.Camp"/>).</summary>
     public sealed record Camp(CampOutcome Outcome) : Transition;
 

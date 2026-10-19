@@ -139,10 +139,10 @@ public sealed partial class Battle
     public IReadOnlyList<string> Problems => _problems;
 
     /// <summary>
-    /// Whether it's over, for whoever runs it to end it (<c>Combat.Exit</c>): it has left, for trek or fled (states 16 and
-    /// 20), which it does at once, without a fade.
+    /// Whether it's over, for whoever runs it to end it (<c>Combat.Exit</c>): it has left, as <see cref="Outcome"/> says: for
+    /// trek, after a win, a non-lethal loss or fleeing (states 16 and 20), or for the game over script (21).
     /// </summary>
-    public bool Over => State is CombatState.Leave or CombatState.LeaveFled;
+    public bool Over => State is CombatState.Leave or CombatState.LeaveFled or CombatState.LeaveToScript;
 
     /// <summary>Whether the party fled (<c>Zones.Fled</c>, <c>0x800D9376</c>), which trek reads as it's built again.</summary>
     public bool Fled => State == CombatState.LeaveFled;
@@ -206,8 +206,13 @@ public sealed partial class Battle
     /// </summary>
     public void Unpause(bool flee)
     {
-        if (State == CombatState.Pause)
-            State = flee && CanFlee ? CombatState.LeaveFled : NextState;
+        if (State == CombatState.Pause && flee && CanFlee)
+        {
+            State = CombatState.LeaveFled;
+            Outcome = BattleOutcome.Fled;
+        }
+        else if (State == CombatState.Pause)
+            State = NextState;
         else if (State == CombatState.PauseRequested)
             State = _paused;
     }
@@ -313,9 +318,14 @@ public sealed partial class Battle
             case CombatState.Result:
                 StepResult();
                 break;
-            case CombatState.Victory or CombatState.Defeat when !Fade.Fading:
-                // What follows a win or a loss is sessions 5 and 7's; until then, the battle leaves.
-                State = CombatState.Leave;
+            case CombatState.Victory when !Fade.Fading:
+                StepVictory();
+                break;
+            case CombatState.Defeat when !Fade.Fading:
+                StepDefeat();
+                break;
+            case CombatState.DefeatWait:
+                StepDefeatWait();
                 break;
             case CombatState.Pause or CombatState.PauseRequested:
                 _idle++;
@@ -323,15 +333,4 @@ public sealed partial class Battle
         }
     }
 
-    /// <summary>
-    /// <summary>
-    /// The battle's end (<c>Combat.Exit</c>, <c>0x80023060</c>): every combatant's effects come off, the spells' and the potions'
-    /// but Stealth's, and the worn enchantments go back on (<see cref="Characters.Character.EndBattleEffects"/>); hit points stay as
-    /// they are. Its bodies and arena go with it.
-    /// </summary>
-    public void Leave()
-    {
-        foreach (var combatant in Combatants)
-            combatant.Sheet.EndBattleEffects(this);
-    }
 }
