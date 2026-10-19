@@ -214,5 +214,11 @@ public sealed partial class GameSessionTests
         Assert.Equal((hp, draws), (alaron.Sheet.Hp, game.Random.Combat.Seed));
 
         Assert.Equal(HealOutcome.Barred, Crafting.LayOnHands(alaron.Sheet, alaron.Sheet, barred: true).Outcome);
+
+        // The Healer's turn says why, rather than 1.0's "fails to perform healing" over it (the user's choice).
+        alaron.Flags |= CombatantFlags.LayOnHands;
+        Assert.Equal(0, battle.ResolveHealer(alaron, alaron));
+        Assert.Equal((hp, "The Shadow's presence prevents all healing."), (alaron.Sheet.Hp, battle.Lines.Shown));
+        Assert.Equal(battle.Lines.Shown, battle.Lines.Queued);
     }
 }

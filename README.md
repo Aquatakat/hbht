@@ -37,6 +37,9 @@ Some fixed bugs:
   target's. The original adds the target's height to the attacker's end too and
   aims at the target's middle, so a body just in front of a target could block
   a shot over it.
+- In the Shadow's battle, the Healer's skills say "The Shadow's presence
+  prevents all healing." The original showed it and overwrote it at once with
+  a plain failure, so the reason never showed.
 
 The type of things not fixed:
 - Rain and splash density stays pretty low by default.

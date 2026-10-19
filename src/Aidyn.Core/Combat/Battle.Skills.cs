@@ -325,9 +325,10 @@ public sealed partial class Battle
     /// <summary>
     /// Lay On Hands or Heal With Herbs at an ally (<c>Combatant.ResolveHealer</c>, <c>0x8006591C</c>, through the Party tab's own rules,
     /// <see cref="Crafting.LayOnHands"/> and <see cref="Crafting.HerbHeal"/>): healed, the healer's body plays and the lines say who
-    /// healed whom and what it gained, the number waiting on the target as healing; else that the healing failed. No damage.
+    /// healed whom and what it gained, the number waiting on the target as healing; barred in the Shadow's battle, that the Shadow
+    /// prevents it; else that the healing failed. No damage.
     /// </summary>
-    private int ResolveHealer(Combatant a, Combatant t)
+    internal int ResolveHealer(Combatant a, Combatant t)
     {
         var before = t.Sheet.Hp;
         var result = a.Flags.HasFlag(CombatantFlags.LayOnHands)
@@ -341,6 +342,13 @@ public sealed partial class Battle
             Lines.Queue(Gains(t, gained));
             t.Healed = (byte)gained;
         }
+        else if (result.Outcome == HealOutcome.Barred)
+        {
+            // Party.ShowHealResult shows the Common line, which 1.0's ResolveHealer overwrites at once with "fails to perform
+            // healing"; the port keeps it, shown and queued, the user's choice.
+            Write(CommonText(HealingBarredLine));
+            Lines.Queue(Lines.Shown);
+        }
         else
         {
             SayBoth(HealingFailsLine, a.Sheet.Name);
@@ -348,6 +356,9 @@ public sealed partial class Battle
         t.Damage = 0;
         return 0;
     }
+
+    /// <summary>The Common strings' "The Shadow's presence prevents all healing." (line 437, <c>DAT_800DA0D8</c> + 0x6D4).</summary>
+    public const int HealingBarredLine = 437;
 
     // ---- The pause menu's Party tab ----
 
