@@ -173,6 +173,54 @@ public sealed class SpellFxTests
         Assert.Equal([a, b, a, b, a], order.Take(5));
     }
 
+    // The options' Spell auras, Each character: every character's lasting scenes take their own turns, all characters at once.
+    [Fact]
+    public void EachCharactersLastingScenesTakeTheirOwnTurnsAtOnce()
+    {
+        var (fx, a, b) = Battle();
+        fx.Turns = AuraTurns.EachCharacter;
+        fx.Start(a, a, Shown(MagicData.Endurance), SpellVisualKind.Cast);
+        fx.Start(a, a, Shown(MagicData.Haste), SpellVisualKind.Cast);
+        fx.Start(a, b, Shown(MagicData.Endurance), SpellVisualKind.Cast);
+        var auras = fx.Visuals.Where(v => !v.IsActor).ToList();
+
+        var together = 0;
+        var aOrder = new List<SpellFxVisual>();
+        for (var i = 0; i < 1200; i++)
+        {
+            fx.Tick(null);
+            var showing = auras.Where(v => v.Showing && v.Alpha > 0).ToList();
+            Assert.True(showing.Count(v => v.Owner == a) <= 1);
+            if (showing.Select(v => v.Owner).Distinct().Count() == 2)
+                together++;
+            if (showing.FirstOrDefault(v => v.Owner == a) is { } shown && aOrder.LastOrDefault() != shown)
+                aOrder.Add(shown);
+        }
+
+        // Both characters' at once, and the first's two in turn over its head.
+        Assert.True(together > 300);
+        Assert.Equal([auras[0], auras[1], auras[0], auras[1]], aOrder.Take(4));
+    }
+
+    [Fact]
+    public void ChangingHowTheTurnsAreTakenStartsThemAgain()
+    {
+        var (fx, a, b) = Battle();
+        fx.Start(a, a, Shown(MagicData.Endurance), SpellVisualKind.Cast);
+        fx.Start(a, b, Shown(MagicData.Endurance), SpellVisualKind.Cast);
+        Tick(fx, SpellFx.CastWindowTicks + 40);
+        var auras = fx.Visuals.Where(v => !v.IsActor).ToList();
+        Assert.Single(auras, v => v.Showing);
+
+        fx.Turns = AuraTurns.EachCharacter;
+        Tick(fx, 1);
+        Assert.Equal(2, auras.Count(v => v.Showing));
+
+        fx.Turns = AuraTurns.Battle;
+        Tick(fx, 1);
+        Assert.Single(auras, v => v.Showing);
+    }
+
     [Fact]
     public void AnEffectsEndEndsItsLastingSceneOnceItsTurnIsOverAndLeavesTheActors()
     {

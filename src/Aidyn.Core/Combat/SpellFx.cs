@@ -187,7 +187,9 @@ public sealed class SpellFx
     private readonly SpellFxVisual?[] _visuals = new SpellFxVisual?[MaxVisuals];
     private readonly Player?[] _bodies = new Player?[MaxBodies];
     private readonly Pool _castPool = new(MaxCasts), _visualPool = new(MaxVisuals), _bodyPool = new(MaxBodies);
-    private int _auraTime, _auraCount, _castWindow, _fadeRamp, _loadDelay, _skyTimer;
+    private int _auraCount, _castWindow, _fadeRamp, _skyTimer;
+    private readonly Lane _lane = new();
+    private AuraTurns _turns;
     private bool _skyDimmed;
 
     /// <param name="clock">The game's clock, whose shown time Darkness and Light move; none in a test.</param>
@@ -212,6 +214,22 @@ public sealed class SpellFx
 
     /// <summary>Lasting scenes waiting their turn or in it, over the whole battle (<c>CombatSpellFx.AuraCount</c>).</summary>
     public int AurasPending => _auraCount;
+
+    /// <summary>
+    /// How the lasting scenes take their turns: one at a time across the battle, as the original's, or each character's in turn over
+    /// its own head, all at once (the options' Spell auras). Changing it starts the turns again.
+    /// </summary>
+    public AuraTurns Turns
+    {
+        get => _turns;
+        set
+        {
+            if (value == _turns)
+                return;
+            _turns = value;
+            RestartTurns();
+        }
+    }
 
     // ---- Starting ----
 
@@ -358,8 +376,10 @@ public sealed class SpellFx
         if (handle < 0 || body < 0)
             return;
         _auraCount++;
-        _bodies[body]!.Pending++;
-        if (_auraCount == 1)
+        var p = _bodies[body]!;
+        p.Pending++;
+        // The original's turns are the battle's; each character's are its own.
+        if ((_turns == AuraTurns.Battle ? _auraCount : p.Pending) == 1)
             StartAura(handle);
     }
 
@@ -369,7 +389,31 @@ public sealed class SpellFx
         if (handle < 0 || _visuals[handle] is not { Live: true } v)
             return;
         v.Waiting = true;
-        _auraTime = 0;
+        LaneOf(v).Time = 0;
+    }
+
+    /// <summary>Whose turns a lasting scene takes its turn in: the battle's (<c>AuraTime</c>, <c>LoadDelay</c>), or its character's.</summary>
+    private Lane LaneOf(SpellFxVisual v) => _turns == AuraTurns.EachCharacter && PlayerOf(v) is { } p ? p.Lane : _lane;
+
+    /// <summary>
+    /// The turns start again as how they're taken changes: every lasting scene out of its turn, then the battle's first, or each
+    /// character's first.
+    /// </summary>
+    private void RestartTurns()
+    {
+        foreach (var v in Visuals.Where(v => !v.IsActor))
+            (v.Waiting, v.Playing, v.Loaded, v.Alpha) = (false, false, false, 0);
+        _lane.Time = _lane.LoadDelay = 0;
+        foreach (var p in _bodies.OfType<Player>())
+            p.Lane.Time = p.Lane.LoadDelay = 0;
+        if (_turns == AuraTurns.Battle)
+        {
+            if (Visuals.FirstOrDefault(v => !v.IsActor) is { } first)
+                StartAura(first.Handle);
+            return;
+        }
+        foreach (var p in _bodies.OfType<Player>().Where(p => p is { Live: true, Pending: > 0 }))
+            StartAura(NextOf(p));
     }
 
     /// <summary>
@@ -389,8 +433,12 @@ public sealed class SpellFx
                 break;
             }
         }
-        if (_bodies[next] is not { } p)
-            return -1;
+        return _bodies[next] is { } p ? NextOf(p) : -1;
+    }
+
+    /// <summary>A body's next lasting scene after its cursor in pool B, round, which the cursor then holds.</summary>
+    private int NextOf(Player p)
+    {
         var cursor = p.Cursor;
         for (var step = 1; step <= MaxVisuals; step++)
         {
@@ -520,39 +568,44 @@ public sealed class SpellFx
         }
         if (v.Waiting)
         {
-            if (_loadDelay == 0)
+            var lane = LaneOf(v);
+            if (lane.LoadDelay == 0)
             {
                 // The scene loads (BorgAnimLoadScene): with no memory asked, it always does.
                 v.Loaded = true;
                 v.Waiting = false;
                 v.Playing = true;
-                _loadDelay = LoadDelayTicks;
+                lane.LoadDelay = LoadDelayTicks;
             }
             else
             {
-                _loadDelay--;
+                lane.LoadDelay--;
             }
         }
         var humpOver = false;
         if (v.Playing)
         {
+            var lane = LaneOf(v);
             if (_castWindow == 0)
-                _auraTime++;
-            if (_auraTime >= AuraTicks)
+                lane.Time++;
+            if (lane.Time >= AuraTicks)
             {
                 v.Playing = false;
                 humpOver = true;
             }
             else
             {
-                v.Alpha = (byte)(int)(Math.Sin(_auraTime / (double)AuraTicks * HumpPi) * 255 * AuraFade);
+                v.Alpha = (byte)(int)(Math.Sin(lane.Time / (double)AuraTicks * HumpPi) * 255 * AuraFade);
             }
         }
         if (humpOver)
         {
             v.Loaded = false;
             v.Alpha = 0;
-            StartAura(NextAura(BodyIndex(v.Owner)));
+            if (_turns == AuraTurns.Battle)
+                StartAura(NextAura(BodyIndex(v.Owner)));
+            else if (PlayerOf(v) is { } player)
+                StartAura(NextOf(player));
         }
         if (v.StopAsked && !v.Playing)
         {
@@ -676,6 +729,13 @@ public sealed class SpellFx
         public Combatant Combatant { get; } = combatant;
         public bool Live, Glowing, Cleared;
         public int Refs, Glow, Holds, Pending, Cursor;
+        public Lane Lane { get; } = new();
+    }
+
+    /// <summary>A run of turns: the playing hump's ticks and the frames until the next scene may load.</summary>
+    private sealed class Lane
+    {
+        public int Time, LoadDelay;
     }
 
     /// <summary>A pool's free indices, taken from the front and given back to it (<c>idx = free[count++]</c>, <c>free[--count] = idx</c>).</summary>
@@ -695,4 +755,13 @@ public sealed class SpellFx
 
         public void Give(int index) => _free[--_used] = index;
     }
+}
+
+/// <summary>How the lasting scenes over heads take their turns (<see cref="SpellFx.Turns"/>, the options' Spell auras).</summary>
+public enum AuraTurns
+{
+    /// <summary>One at a time across the whole battle, round every one, as the original's: a buff alone pulses every 2 seconds, four in 9.</summary>
+    Battle,
+    /// <summary>Each character's in turn over its own head, all characters at once: the port's.</summary>
+    EachCharacter,
 }

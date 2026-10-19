@@ -401,6 +401,7 @@ public partial class Game : Node3D, ITrekHost
         _session?.PrecipitationDensity = Math.Clamp(s.PrecipitationDensity, 0, WeatherParticles.MaxDensity);
         _sky?.Placement = s.SkyPlacement;
         _player?.Motion.Pace = s.BriskPace ? BriskPace : 1;
+        Battle?.Fx.Turns = s.SpellAuras;
         _cinematic?.Viewport.Msaa3D = GetViewport().Msaa3D;
         foreach (var screen in new[] { _menu?.Screen, _backdrop?.Screen, _cinematic?.Screen, _credits?.Screen, _trekScreen })
         {

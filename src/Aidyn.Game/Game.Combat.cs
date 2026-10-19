@@ -65,6 +65,7 @@ public partial class Game
             _spellFxView = new SpellFxView(_plugins!, _models!, _particles, c => _combatantViews.GetValueOrDefault(c));
             AddChild(_spellFxView);
         }
+        battle.Fx.Turns = _settings.SpellAuras;
         _battleScreen!.Battle = battle;
         _battleScreen.Visible = true;
         SyncBattle();

@@ -126,6 +126,8 @@ public sealed class LaunchOptions(Dictionary<string, string> values)
             settings.PrecipitationDensity = precipitation;
         if (Integer("ui-lines") is { } lines)
             settings.UiLines = lines;
+        if (Text("spell-auras") is { } auras)
+            settings.SpellAuras = auras == "each" ? Core.Combat.AuraTurns.EachCharacter : Core.Combat.AuraTurns.Battle;
     }
 
     // What drives the run.
