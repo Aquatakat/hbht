@@ -33,6 +33,7 @@
     <Compile Include="..\Aidyn.Game\PartyTabView.cs" Link="Shared\PartyTabView.cs" />
     <Compile Include="..\Aidyn.Game\PartyTabView.Barter.cs" Link="Shared\PartyTabView.Barter.cs" />
     <Compile Include="..\Aidyn.Game\PartyTabView.Training.cs" Link="Shared\PartyTabView.Training.cs" />
+    <Compile Include="..\Aidyn.Game\PartyTabView.PostBattle.cs" Link="Shared\PartyTabView.PostBattle.cs" />
     <Compile Include="..\Aidyn.Game\Png.cs" Link="Shared\Png.cs" />
     <Compile Include="..\Aidyn.Game\TextureScrolls.cs" Link="Shared\TextureScrolls.cs" />
     <Compile Include="..\Aidyn.Game\TransformTracks.cs" Link="Shared\TransformTracks.cs" />

@@ -43,9 +43,6 @@ public sealed class PostBattleMenu : IPartyWindow
     /// <summary>The cost lines' places: "XP Cost" and "XP Remaining", 11 apart (<c>PartyMenu.CostLines</c>, <c>0x800317E0</c>).</summary>
     public static readonly (int X, int Y, int Spacing) CostPlace = (20, 186, 11);
 
-    /// <summary>The sound as the window is built when someone gained a level (<c>0x05E8</c>).</summary>
-    public const int LevelUpSound = 0x05E8;
-
     /// <summary>The three lists, in the order the stick steps through them (spells, skills, stats, as they're made).</summary>
     public static readonly IReadOnlyList<PartyList> Lists = [PartyList.Spells, PartyList.Skills, PartyList.Stats];
 

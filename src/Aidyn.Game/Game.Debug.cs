@@ -30,12 +30,18 @@ public partial class Game
         _overlay.AddThemeConstantOverride("outline_size", 4);
     }
 
+    private static bool _launched;
+
     /// <summary>
     /// Carries out the options that drive the run, in the order they apply: the menu, the free camera, the input held
     /// and pressed, the cut-scene and cinematic to play, and the screenshot, which waits for what's before it.
     /// </summary>
     private void RunLaunchActions(LaunchOptions options)
     {
+        // Once a run: the scene started again by a load or a game over doesn't play them again.
+        if (_launched)
+            return;
+        _launched = true;
         switch (options.Menu)
         {
             case "1":

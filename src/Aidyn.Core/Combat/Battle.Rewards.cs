@@ -30,6 +30,9 @@ public sealed partial class Battle
 
     private readonly List<Character> _levelled = [];
 
+    /// <summary>The members whose level the award raised, in the party's order.</summary>
+    public IReadOnlyList<Character> Levelled => _levelled;
+
     /// <summary>
     /// The rewards (<c>Combat.TallyRewards</c>, <c>0x8005E2AC</c>, as the battle's won): for every entry of the enemy list, killed,
     /// fled or never come alike, its experience and its chest (<see cref="AddChestLoot"/>); then the bonus loot; then each living

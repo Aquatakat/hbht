@@ -349,8 +349,8 @@ public sealed class GameSession
         Zone.Particles?.Clear();
         if (setup.Party is null && setup.Enemies.Count == 0)
         {
-            // A camp ambush's enemies come from the camp encounters, which aren't imported yet.
-            _host.Transition(new Transition.Say("The party is ambushed, but there's no one to fight yet: camp encounters come with combat."));
+            // A camp ambush on a terrain with no camp encounters (27): the original reads past the table and finds no enemy.
+            _host.Transition(new Transition.Say("The party is ambushed, but no one comes."));
             Trek.Resume();
             _host.Transition(new Transition.ResumeTrek());
             return;

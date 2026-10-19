@@ -161,11 +161,22 @@ public partial class Game
     }
 
     /// <summary>
-    /// The battle's debug key: F9 moves the radar between the log box and the screen's bottom right corner. Whether the event
-    /// was it.
+    /// The battle's debug keys: F9 moves the radar between the log box and the screen's bottom right corner, F10 routs the enemies
+    /// and F11 fells the party (<see cref="Battle.Rout"/>, <see cref="Battle.Collapse"/>). Whether the event was one.
     /// </summary>
     private bool CombatDebugKey(InputEvent e)
     {
+        // F10 routs the enemies and F11 fells the party, so the next turn's change (Z) wins or loses the battle.
+        if (e.IsActionPressed("battle_rout"))
+        {
+            Battle!.Rout();
+            return true;
+        }
+        if (e.IsActionPressed("battle_collapse"))
+        {
+            Battle!.Collapse();
+            return true;
+        }
         if (!e.IsActionPressed("toggle_radar_anchor"))
             return false;
         _battleScreen!.Radar = _battleScreen.Radar == RadarAnchor.LogBox ? RadarAnchor.Corner : RadarAnchor.LogBox;

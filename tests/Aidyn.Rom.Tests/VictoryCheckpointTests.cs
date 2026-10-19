@@ -185,4 +185,20 @@ public sealed class VictoryCheckpointTests(Na10Import fixture)
         Assert.Equal(661076u - 5808, alaron.SpendableExp);
         Assert.False(window.Back());
     }
+    [Fact]
+    public void AMemberTheAwardTakesPastTheirNextLevelGainsItAndTheWindowSaysSo()
+    {
+        var game = Game(11);
+        var alaron = game.Party.Slots[0]!;
+        alaron.TotalExp = alaron.NextLevelExp!.Value - 1;
+        var level = alaron.Stats.Base(Core.Characters.Stat.Level);
+        var battle = Battle.Ending(game, new BattleSetup(BattleSource.Wanderer, null, null, null, [], 3, false, true, null), [Rat]);
+        battle.TallyRewards();
+        Assert.Equal(level + 1, alaron.Stats.Base(Core.Characters.Stat.Level));
+        Assert.Equal([alaron], battle.Levelled);
+        var spoils = new BattleSpoils(battle.GoldPool, battle.ExperiencePool, battle.Loot!, battle.Levelled);
+        var window = Core.Ui.PostBattleMenu.For(Set, game.Party, spoils);
+        Assert.Equal(["Alaron gained a level!"], window.Levelled);
+        Assert.Equal("Each member earned 150 XP.", window.Earned);
+    }
 }

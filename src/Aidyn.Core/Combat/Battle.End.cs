@@ -98,7 +98,7 @@ public sealed partial class Battle
         }
         SetKillFlags();
         Game.Party.Gold = (uint)(Game.Party.Gold + GoldPool);
-        Spoils = new BattleSpoils(GoldPool, ExperiencePool, Loot!, [.. _levelled]);
+        Spoils = new BattleSpoils(GoldPool, ExperiencePool, Loot!, [.. Levelled]);
         Outcome = BattleOutcome.Won;
         State = CombatState.Leave;
     }
@@ -162,5 +162,29 @@ public sealed partial class Battle
         foreach (var combatant in Combatants)
             combatant.Sheet.EndBattleEffects(this);
         Game.BringOutYourDead();
+    }
+    /// <summary>
+    /// The runtime's debug key: every enemy on the field falls at once and no reserve comes, so the next turn's change wins the
+    /// battle. Not the original's.
+    /// </summary>
+    public void Rout()
+    {
+        foreach (var enemy in Combatants.Where(c => c.Hostile && !c.Sheet.IsDead && !c.Freed).ToList())
+            Fell(enemy);
+        NextReserve = Enemies.Count;
+    }
+
+    /// <summary>The runtime's debug key: the whole party falls at once, so the next turn's change loses the battle. Not the original's.</summary>
+    public void Collapse()
+    {
+        foreach (var member in Combatants.Where(c => !c.Hostile && !c.Sheet.IsDead && !c.Freed).ToList())
+            Fell(member);
+    }
+
+    private void Fell(Combatant c)
+    {
+        c.Sheet.TakeDamage(c.Sheet.Hp, c);
+        Death(c);
+        FreeBody(c);
     }
 }
