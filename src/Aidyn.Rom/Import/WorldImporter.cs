@@ -18,7 +18,7 @@ internal static class WorldImporter
         ctx.WriteRecords("mapsets.json", BuildMapSets(ctx.Chunks, ctx.Audio));
 
         ctx.Report("Terrains");
-        ctx.WriteRecords("terrains.json", BuildTerrains(ctx.Gradients, CampFactors.Read(ctx.Rom), ctx.Weather));
+        ctx.WriteRecords("terrains.json", BuildTerrains(ctx.Gradients, CampFactors.Read(ctx.Rom), ctx.Weather, ctx.Db.CampEncounters));
         ctx.WriteRecords("weather.json", new[] { BuildWeather(ctx.Weather, ctx.Gradients, ctx.ParticleSlots) });
         ctx.WriteRecords("worldmap.json", new[] { BuildWorldMap(ctx.Engine, WorldMapTowns.Read(ctx.Rom)) });
         ctx.WriteRecords("camping.json", new[] { BuildCamping(ctx.Engine) });
@@ -46,15 +46,31 @@ internal static class WorldImporter
     /// <summary>
     /// The terrain types: each one's sky and whether it's drawn (a fact, <see cref="Skies.ForTerrain"/>), its camp
     /// ambush factor, its weather from the code's tables, with snow on type 5 alone, a literal in
-    /// <c>Weather.Roll</c> (<c>0x8007bdb0</c> in 1.0), and the Battle arenas its battles take (a fact, <see cref="Arenas"/>).
+    /// <c>Weather.Roll</c> (<c>0x8007bdb0</c> in 1.0), the Battle arenas its battles take (a fact, <see cref="Arenas"/>),
+    /// and who ambushes a camp there, from the camp encounters (<see cref="CampAmbushes"/>).
     /// </summary>
-    internal static List<TerrainRecord> BuildTerrains(IReadOnlyList<int> gradients, float[] campFactors, WeatherTables weather) =>
+    internal static List<TerrainRecord> BuildTerrains(IReadOnlyList<int> gradients, float[] campFactors, WeatherTables weather,
+        IReadOnlyList<Db.CampEncounter>? camp = null) =>
         [.. Enumerable.Range(0, Skies.TerrainCount).Select(t =>
         {
             var (sky, drawn) = Skies.ForTerrain(t);
             return new TerrainRecord(RecordId.Decimal(RecordTypes.Terrain, t), RecordId.Hex(RecordTypes.Image, gradients[sky]), drawn, campFactors[t],
-                weather.Terrains[t], weather.Scales[t], Snow: t == SnowTerrain, Arenas: Arenas.ForTerrain(t));
+                weather.Terrains[t], weather.Scales[t], Snow: t == SnowTerrain, Arenas: Arenas.ForTerrain(t),
+                Ambushes: camp is null ? null : CampAmbushes(camp, t));
         })];
+
+    /// <summary>
+    /// A terrain's camp ambushes, its five level tiers of the camp encounters (the code reads only the first five of a
+    /// terrain's ten slots), each group an enemy with its least and most. The table has rows for terrains 0–26 alone.
+    /// </summary>
+    internal static IReadOnlyList<CampAmbush>? CampAmbushes(IReadOnlyList<Db.CampEncounter> camp, int terrain)
+    {
+        var rows = camp.Where(e => e.Terrain == terrain && e.LevelTier < Db.CampEncounter.LevelTiers).OrderBy(e => e.LevelTier).ToList();
+        if (rows.Count == 0)
+            return null;
+        return [.. rows.Select(r => new CampAmbush([.. r.Groups.Where(g => g.Enemy.Value != 0 && g.Max > 0)
+            .Select(g => new PartyEnemy(DbRecordIds.Required(g.Enemy, $"terrain {terrain}'s camp ambush"), g.Min, g.Max))]))];
+    }
 
     /// <summary>The terrain type it snows on rather than rains (<c>Weather.Roll</c>).</summary>
     public const int SnowTerrain = 5;
@@ -144,7 +160,8 @@ internal static class WorldImporter
         EffectTicks: 8 * 60 * 60 * 60 / 72,
         DbRecordIds.Flag(EngineFlags.CampCheck),
         [.. tables.CampDialogueFlags.Select(f => DbRecordIds.Flag(f))],
-        RecordId.Hex(RecordTypes.Map, 0x185C));
+        RecordId.Hex(RecordTypes.Map, 0x185C),
+        AmbushLevels: [5, 10, 15, 20]);
 
     /// <summary>
     /// How a new game starts, carried as facts: literals in 1.0's code. The title screen hands the game the Overworld's portal 0

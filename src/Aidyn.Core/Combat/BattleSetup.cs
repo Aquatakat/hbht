@@ -36,8 +36,7 @@ public enum BattleSource
 /// </param>
 /// <param name="Enemies">
 /// Who fights: a monster party's kinds of enemy, each with how many always come and how many can, or a script's
-/// <see cref="DialogueCommand.AddEnemy"/>s in order, one each. Empty for a camp ambush until the camp encounters are
-/// imported.
+/// <see cref="DialogueCommand.AddEnemy"/>s in order, one each, or a camp ambush's two kinds.
 /// </param>
 /// <param name="Arena">A script's arena (<see cref="DialogueCommand.SetBattlefield"/>, 0 when it sets one above 27), or null.</param>
 /// <param name="Ambush">Whether the enemies came at the party: a wanderer catching it, or a camp ambush.</param>
@@ -82,11 +81,46 @@ public sealed record BattleSetup(
         new(source, place, terrain, id, party.Enemies, null, ambush, CanFlee: true, party.Dialogue is null ? party.Used?.Flag : party.BattleFlag)
         {
             Size = (party.MinSize, party.MaxSize),
+            BonusLoot = party.Loot,
+            PartyGate = party.Visible,
         };
 
-    /// <summary>A camp ambush where the party camped: no fleeing (<c>Party::CampAmbushCheck</c>).</summary>
-    public static BattleSetup CampAmbush(ChunkRef? place, int? terrain) =>
-        new(BattleSource.Camp, place, terrain, null, [], null, Ambush: true, CanFlee: false, null);
+    /// <summary>
+    /// A camp ambush where the party camped (<c>CampEncounters.Load</c>, <c>0x800096DC</c>): no fleeing, no loot of its own and no
+    /// flag; its enemies the terrain's (<see cref="TerrainRecord.Ambushes"/>) at the tier of the party's average level, dead
+    /// members counted, rolled as a monster party's with its least and most the two kinds' summed. A terrain with none, as 27,
+    /// has nobody to fight.
+    /// </summary>
+    public static BattleSetup CampAmbush(ChunkRef? place, int? terrain, PluginSet plugins, Characters.Party party)
+    {
+        var enemies = terrain is { } t && TerrainRecord.Find(plugins, t)?.Ambushes is { Count: > 0 } tiers
+            ? tiers[Math.Min(AmbushTier(plugins, party.AverageLevel), tiers.Count - 1)].Enemies
+            : [];
+        return new(BattleSource.Camp, place, terrain, null, enemies, null, Ambush: true, CanFlee: false, null)
+        {
+            Size = (enemies.Sum(e => e.Min), enemies.Sum(e => e.Max)),
+        };
+    }
+
+    /// <summary>
+    /// The camp ambush's tier for the party's average level: 0 up to the camping record's first level (5), then one more past
+    /// each of the others (10, 15 and 20).
+    /// </summary>
+    public static int AmbushTier(PluginSet plugins, int level) =>
+        plugins.TrySingleton<CampingRecord>(RecordTypes.Camping)?.AmbushLevels is { } levels ? levels.Count(l => level > l) : 0;
+
+    /// <summary>
+    /// What the monster party carries besides its enemies' chests (<c>0x800D9470</c>): a loot table rolled as a chest with no
+    /// enemy, or one item. A script's battle and a camp ambush have none; the original keeps the last monster party's for a
+    /// script's battle, which the port doesn't, the user's choice.
+    /// </summary>
+    public RecordId? BonusLoot { get; init; }
+
+    /// <summary>
+    /// The monster party's own gate, its flag A (<c>0x800D9482</c>, <c>0x800D9484</c>), which must still hold for a win to remember
+    /// it when its encounter flag can't be set.
+    /// </summary>
+    public FlagGate? PartyGate { get; init; }
 
     /// <summary>A script's battle (<c>encounterDat_func</c>): its enemies one each, its arena and bytes, and its battle flag.</summary>
     public static BattleSetup Scripted(IEnumerable<RecordId> enemies, int arena, int collisionByte, int aniByte, bool canFlee, RecordId? flag) =>
@@ -95,16 +129,20 @@ public sealed record BattleSetup(
 
     /// <summary>The script's battle in a conversation with someone who wanders: the original fights their party instead, under its flag C.</summary>
     public BattleSetup Against(RecordId id, MonsterPartyObject party) =>
-        this with { Party = id, Enemies = party.Enemies, EncounterFlag = party.BattleFlag, Size = (party.MinSize, party.MaxSize) };
+        this with
+        {
+            Party = id, Enemies = party.Enemies, EncounterFlag = party.BattleFlag, Size = (party.MinSize, party.MaxSize),
+            BonusLoot = party.Loot, PartyGate = party.Visible,
+        };
 
     /// <summary>
-    /// The enemy list, at most 12: a monster party's rolled (<see cref="FillEnemies"/>), or a script's as it gave them, or
-    /// a camp ambush's, none until the camp encounters are imported.
+    /// The enemy list, at most 12: a monster party's or a camp ambush's rolled (<see cref="FillEnemies"/>), or a script's as
+    /// it gave them.
     /// </summary>
     /// <param name="party">The party, whose level the roll trims by.</param>
     /// <param name="level">An entity's level, by its record.</param>
     public IReadOnlyList<RecordId> EnemyList(Characters.Party party, Func<RecordId, int> level, IRandom random) =>
-        Party is not null ? FillEnemies(party, level, random)
+        Party is not null || Source == BattleSource.Camp ? FillEnemies(party, level, random)
         : [.. Enemies.SelectMany(e => Enumerable.Repeat(e.Entity, e.Min)).Take(Battle.MaxEnemies)];
 
     /// <summary>

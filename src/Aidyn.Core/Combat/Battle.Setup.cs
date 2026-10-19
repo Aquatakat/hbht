@@ -74,6 +74,17 @@ public sealed partial class Battle
         return battle;
     }
 
+    /// <summary>
+    /// A battle on <paramref name="game"/> with only its enemy list and the combat record, for tests of what its end does to the
+    /// game: the rewards, the flags and the party. No arena, grid, combatants or turn.
+    /// </summary>
+    internal static Battle Ending(GameState game, BattleSetup setup, IReadOnlyList<RecordId> enemies)
+    {
+        var battle = new Battle(game, setup, null!, new CollisionWorld(), enemies) { NextReserve = enemies.Count };
+        battle._rules = game.Plugins.Singleton<CombatRecord>(RecordTypes.Combat);
+        return battle;
+    }
+
     /// <summary>The setup's collision byte: an ambush's, or a script's own.</summary>
     private int CollisionByte => Setup.Ambush ? AmbushByte : Setup.CollisionByte;
 

@@ -193,13 +193,16 @@ public sealed partial class PartyMenu : IPartyWindow
     /// right, and its right the one before, sliding them left (<c>PartyMenu.ListsOnLeft</c> at <c>0x800319f0</c>,
     /// <c>ListsOnRight</c> <c>0x80031a10</c>). Not while they're still sliding.
     /// </summary>
-    public void ChangeList(int by)
+    /// <param name="among">The lists the window has, in their order, where it hasn't all four: the post-battle window's three.</param>
+    public void ChangeList(int by, IReadOnlyList<PartyList>? among = null)
     {
         if (HasPopup || Slide is not null)
             return;
-        var count = Enum.GetValues<PartyList>().Length;
+        var lists = among ?? Enum.GetValues<PartyList>();
+        var count = lists.Count;
+        var at = Math.Max(0, lists.ToList().IndexOf(List));
         StartListSlide(by);
-        List = (PartyList)((((int)List + by) % count + count) % count);
+        List = lists[((at + by) % count + count) % count];
     }
 
     /// <summary>Shows a list.</summary>

@@ -28,13 +28,21 @@ namespace Aidyn.Plugins.Records;
 /// one of them half the time, the first if the roll says so (<c>BattleSetup.ChooseArena</c>). Empty, or none in plugins
 /// imported before it, keeps the last battle's arena.
 /// </param>
+/// <param name="Ambushes">
+/// Who ambushes the party as it camps here, by the party's level: five tiers, for an average level of up to
+/// <see cref="CampingRecord.AmbushLevels"/>' first, then each after, and the last for any above (the camp encounters,
+/// <c>CampEncounters.Load</c>). Null with none, or in plugins imported before them.
+/// </param>
 public sealed record TerrainRecord(RecordId Id, RecordId Sky, bool SkyDrawn, float Camp = 0, int Precipitation = 0,
-    float PrecipitationScale = 0, bool Snow = false, IReadOnlyList<ArenaRange>? Arenas = null)
+    float PrecipitationScale = 0, bool Snow = false, IReadOnlyList<ArenaRange>? Arenas = null, IReadOnlyList<CampAmbush>? Ambushes = null)
 {
     /// <summary>The terrain a chunk carries (<see cref="ChunkEntry.Terrain"/>), if a plugin has its record.</summary>
     public static TerrainRecord? Find(PluginSet plugins, int terrain) =>
         plugins.TryGet<TerrainRecord>(RecordId.Decimal(RecordTypes.Terrain, terrain));
 }
+
+/// <summary>A camp ambush's enemies at one level tier: each kind with how many always come and how many can.</summary>
+public sealed record CampAmbush(IReadOnlyList<PartyEnemy> Enemies);
 
 /// <summary>The Battle arenas from <paramref name="Min"/> to <paramref name="Max"/>, inclusive, one of which a battle rolls.</summary>
 public sealed record ArenaRange(int Min, int Max);

@@ -3,7 +3,10 @@ using Aidyn.Plugins.Records;
 
 namespace Aidyn.Rom.Tests;
 
-/// <summary>The combat record's weapons that fly (importer 42), checked against the ROM and 1.0's machine code.</summary>
+/// <summary>
+/// The combat record's weapons that fly (importer 42), and its boss flags, the Goblin Ambush's rules and the game over, the scripts'
+/// endings and the camp ambushes (importer 43), checked against the ROM and 1.0's machine code.
+/// </summary>
 [Collection(ImportedPluginCollection.Name)]
 public sealed class CombatImportTests(Na10Import fixture)
 {
@@ -83,5 +86,48 @@ public sealed class CombatImportTests(Na10Import fixture)
         var rom = TestRoms.Get(id);
         Assert.Equal([53, 55, 59, 54, 58, 56, 57, 60, 0xFF], rom.Table(CodeTable.BowKindWeapons).ToArray());
         Assert.Equal([99, 98, 97, 101, 102, 96, 94, 95, 0xFF], rom.Table(CodeTable.ThrownKindWeapons).ToArray());
+    }
+    private PluginSet Set => fixture.Data.Set;
+
+    [Fact]
+    public void TheBossFlagsAreSetKillFlagsCasesByEntity()
+    {
+        // The jump table's cases by entity list place, read as the entities the old fact table named by ID.
+        Assert.Equal(Quests.EngineFlags.BossFlags.OrderBy(b => b.Value).Select(b => (Import.DbRecordIds.For(b.Key), RecordId.Decimal(RecordTypes.Flag, b.Value))),
+            Combat.Bosses!.OrderBy(b => int.Parse(b.Flag.Key)).Select(b => ((RecordId?)b.Entity, b.Flag)));
+    }
+
+    [Fact]
+    public void TheGameOverStartsFromItsDialogueObjectInTheDreamscape()
+    {
+        var gameOver = Combat.GameOver!;
+        Assert.Equal(RecordId.Hex(RecordTypes.Dialogue, 0x0512), gameOver.Script);
+        var map = Set.Get<MapRecord>(gameOver.Map);
+        Assert.NotNull(map.Objects.OfType<DialogueObject>().Single(d => d.Script == gameOver.Script).Stage);
+        Assert.Equal(new[] { 0x0512, 0x0513, 0x0514 }.Select(n => RecordId.Hex(RecordTypes.Dialogue, n)), Set.All<DialogueRecord>(RecordTypes.Dialogue)
+            .Where(d => d.Ends == DialogueEnding.GameOver).Select(d => d.Id));
+    }
+
+    [Fact]
+    public void TheGoblinAmbushIsNonLethalAndEndsInOrianasHut()
+    {
+        var rule = Combat.Encounter(RecordId.Decimal(RecordTypes.Flag, 978))!;
+        Assert.True(rule is { NonLethal: true, QuietVictory: true });
+        Assert.Equal(new ChunkRef(RecordId.Decimal(RecordTypes.MapSet, 6), 5, 3), rule.End!.Place);
+        Assert.NotNull(Set.Get<MapSetRecord>(rule.End.Place.MapSet).Chunks.Single(c => c.Row == 5 && c.Column == 3));
+        Assert.Null(Combat.Encounter(RecordId.Decimal(RecordTypes.Flag, 5250)));
+    }
+
+    [Fact]
+    public void TerrainsHaveTheCampEncountersFiveTiersAndTerrain27None()
+    {
+        static RecordId Entity(int id) => RecordId.Hex(RecordTypes.Entity, id);
+        var plains = TerrainRecord.Find(Set, 0)!.Ambushes!;
+        Assert.Equal(5, plains.Count);
+        Assert.Equal([new PartyEnemy(Entity(0x026E), 1, 3), new PartyEnemy(Entity(0x0215), 1, 1)], plains[0].Enemies);
+        Assert.Equal([new PartyEnemy(Entity(0x0210), 2, 4), new PartyEnemy(Entity(0x0211), 2, 4)], plains[4].Enemies);
+        Assert.All(Enumerable.Range(0, 27), t => Assert.Equal(5, TerrainRecord.Find(Set, t)!.Ambushes!.Count));
+        Assert.Null(TerrainRecord.Find(Set, 27)!.Ambushes);
+        Assert.Equal([5, 10, 15, 20], Set.Singleton<CampingRecord>(RecordTypes.Camping).AmbushLevels!);
     }
 }

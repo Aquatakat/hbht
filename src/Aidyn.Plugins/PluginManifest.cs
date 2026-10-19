@@ -63,8 +63,10 @@ public static class BasePlugin
     /// 40 adds to it who never moves in battle.
     /// 41 gives spells and potions their effects (ADR 0020), and adds the magic record.
     /// 42 adds to the combat record the weapons that fly, and Spikes, which may strike in melee.
+    /// 43 adds to the combat record the boss flags, the weapon classes that drop, the Goblin Ambush's rules and the game over; gives
+    /// scripts what follows their end, and terrains their camp ambushes, with the ambush's level tiers on the camping record.
     /// </summary>
-    public const int ImporterVersion = 42;
+    public const int ImporterVersion = 43;
 }
 
 /// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>
