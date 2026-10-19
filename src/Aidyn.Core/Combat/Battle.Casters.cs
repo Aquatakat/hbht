@@ -180,4 +180,45 @@ public sealed partial class Battle
         }
         return danger;
     }
+
+    /// <summary>
+    /// Fireball's centre, before the target sets (<c>EnemyAI.AimAreaSpell</c>, <c>0x8005974C</c>, from <c>EnemyAI.PrepareAction</c>):
+    /// for the area spell selected, of the cells on the arena within its range times its casting level of the caster, the first, Z
+    /// outer and X inner, whose set B has the most candidates of the other side less those of its own, more than none; with none,
+    /// the cell of the centre <see cref="AreaCentre"/> left. Any other spell is left as it is.
+    /// </summary>
+    private void AimAreaSpell(EnemyAI ai)
+    {
+        var c = ai.Combatant;
+        if (c.CurrentSpell(this) is not { } source || !IsAreaSpell(source))
+            return;
+        var r = (source.Spell.Range * Casting.Level(c.Sheet, source)) & 0xFF;
+        var (cx, cz) = Cell8(c);
+        var best = 0;
+        var (bx, bz) = ((byte)(int)Focus.X, (byte)(int)Focus.Y);
+        foreach (var (x, z) in Square(cx, cz, r))
+        {
+            if (Grid.IsOutside(x, z) || ArenaGrid.Distance(cx, cz, x & 0xFF, z & 0xFF) > r)
+                continue;
+            Focus = new Vector2(x, z);
+            TargetsB.Rebuild(this, c);
+            if (TargetsB.Selected == 0)
+                continue;
+            var n = 0;
+            for (var k = 0; k < SlotCount; k++)
+            {
+                if (TargetsB.IsCandidate(k) && _slots[k] is { } p)
+                    n = (sbyte)(n + (p.Hostile != c.Hostile ? 1 : -1));
+            }
+            if (best < n)
+                (best, bx, bz) = (n, (byte)x, (byte)z);
+        }
+        Focus = new Vector2(bx, bz);
+    }
+
+    /// <summary>
+    /// Whether the selected spell is one cast at its own side (<c>Combatant.IsFriendlySpell</c>, <c>0x80061008</c>), whether or not it
+    /// casts this turn: then its target's having no Stamina gives its morale nothing.
+    /// </summary>
+    private bool IsFriendlySpell(Combatant c) => c.CurrentSpell(this)?.Spell.TargetType == Plugins.Records.SpellTargetType.Party;
 }

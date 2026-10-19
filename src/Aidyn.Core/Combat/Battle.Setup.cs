@@ -191,7 +191,36 @@ public sealed partial class Battle
         return first is { } spare && third is not null ? new Items.ItemInstance(items[spare]) : null;
     }
 
-    /// <summary>A combatant the AI plays, with its record (<see cref="EnemyAI.Init"/>).</summary>
+      /// <summary>
+    /// For tests: the combatant at <paramref name="slot"/> made again from another sheet where it stands (<c>Combatant.Init</c> on a
+    /// new entity), keeping its body, cell, turn's start, direction, footprint, flags and look; armed, with its first spell selected, its
+    /// action from its weapon and a new AI record, as an enemy is made. Its field radius is worked out again.
+    /// </summary>
+    internal Combatant Recast(int slot, Character sheet)
+    {
+        var old = _slots[slot]!;
+        var spare = ArmFromList(sheet, Game.Items);
+        var c = new Combatant(slot, sheet, old.Look, old.Body, old.Flags)
+        {
+            Cell = old.Cell,
+            TurnStart = old.TurnStart,
+            Direction = old.Direction,
+            Facing = old.Facing,
+            ReadFrom = old.ReadFrom,
+            Footprint = old.Footprint,
+            Party = old.Party,
+            Sounds = sheet.Record.Sounds,
+        };
+        c.SetDefaultAction(_rules);
+        if (sheet.Spells.Count > 0)
+            c.Spell = new SpellChoice(SpellSourceKind.Known);
+        _slots[slot] = c;
+        GiveAi(c, spare);
+        c.UpdateRadius(this);
+        return c;
+    }
+
+  /// <summary>A combatant the AI plays, with its record (<see cref="EnemyAI.Init"/>).</summary>
     private void GiveAi(Combatant c, Items.ItemInstance? spare)
     {
         c.Controlled = true;

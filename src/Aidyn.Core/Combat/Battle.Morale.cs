@@ -69,7 +69,7 @@ public sealed partial class Battle
             m--;
         if (ActiveCounts.Party < PartySize >> 1)
             m += 2;
-        if (ai.Target >= 0 && _slots[ai.Target] is { } target && target.Sheet.Stats.Modified(Stat.Stamina) == 0)
+        if (!IsFriendlySpell(c) && ai.Target >= 0 && _slots[ai.Target] is { } target && target.Sheet.Stats.Modified(Stat.Stamina) == 0)
             m += 3;
         if (ai.Flags.HasFlag(AiFlags.Steady))
             m += 2;

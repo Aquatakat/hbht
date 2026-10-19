@@ -387,12 +387,15 @@ public sealed partial class Battle
     /// <summary>
     /// The action (<c>EnemyAI.Execute</c>, <c>0x8005B594</c>): a weapon swapped first if its style wants the other kind
     /// (<see cref="ChooseWeapon"/>, which spends the turn); then with a target the sets offer (<see cref="PrepareTargetSets"/>) that it
-    /// can act on, it turns to it (state 6) and attacks; otherwise it rests (state 24). An area spell's aim is session 11's.
+    /// can act on, it turns to it (state 6) and attacks or casts; otherwise it rests (state 24). Fireball's centre is aimed first
+    /// (<see cref="AimAreaSpell"/>).
     /// </summary>
     private void Execute(EnemyAI ai)
     {
         if (ai.Wanted != ai.Kind && ChooseWeapon(ai))
             return;
+        // EnemyAI.PrepareAction (0x8005B1D8): Fireball's centre, then the sets.
+        AimAreaSpell(ai);
         if (!PrepareTargetSets(ai) || !CanActOnTarget(ai))
         {
             EnterRest();
@@ -403,7 +406,8 @@ public sealed partial class Battle
 
     /// <summary>
     /// The target sets from where the combatant stands (<c>EnemyAI.PrepareTargetSets</c>, <c>0x8005B8F8</c>): both built again, then
-    /// the weapon's target first, or for a caster the spell's (<see cref="SelectWeaponTarget"/>). Whether either gave one.
+    /// the weapon's target first (<see cref="SelectWeaponTarget"/>), or for one that fights as a caster the spell's
+    /// (<see cref="SelectSpellTarget"/>); so a caster that has once fought with its weapon is weapon-first. Whether either gave one.
     /// </summary>
     private bool PrepareTargetSets(EnemyAI ai)
     {
@@ -585,8 +589,8 @@ public sealed partial class Battle
     }
 
     /// <summary>
-    /// The weapon the AI's style wants (<c>EnemyAI.ChooseWeapon</c>, <c>0x8005A620</c>): what it fights as becomes what it wants, and
-    /// its action melee or ranged; if the held weapon is the wrong kind and the spare the right one, it swaps them
+    /// The weapon the AI's style wants (<c>EnemyAI.ChooseWeapon</c>, <c>0x8005A620</c>): what it fights as becomes what it wants, its
+    /// selected spell goes, and its action is melee or ranged; if the held weapon is the wrong kind and the spare the right one, it swaps them
     /// (<see cref="SwapWeapon"/>), which spends the turn. The target sets are built again. Whether it swapped.
     /// </summary>
     private bool ChooseWeapon(EnemyAI ai)

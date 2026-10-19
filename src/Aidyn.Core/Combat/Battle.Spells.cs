@@ -310,7 +310,7 @@ public sealed partial class Battle
     /// <summary>
     /// A spell chosen (<c>Combat.BeginSpellTargeting</c>, <c>0x80083ECC</c>): a placed area's centre is placed (state 11), from where
     /// the caster stands; any other spell aims at its targets (state 10, <see cref="TargetSet.BeginSpell"/>), the camera on the first of
-    /// the cursor's order. Not for one the AI plays, which casts without the menus (<see cref="AimSpell"/>).
+    /// the cursor's order. Not for one the AI plays, which casts without the menus (<see cref="Execute"/>).
     /// </summary>
     private void BeginSpellTargeting(Combatant c)
     {
@@ -431,35 +431,6 @@ public sealed partial class Battle
     }
 
     // ---- The cast ----
-
-    /// <summary>
-    /// The AI's cast, without the menus (session 11's): <paramref name="c"/>'s selected spell at <paramref name="target"/>, set B built
-    /// for it with the target selected first, and the caster turned to it (state 6), from which the action carries it out as the
-    /// player's does. A placed area's centre is <paramref name="placed"/>. Whether it may.
-    /// </summary>
-    public bool AimSpell(Combatant c, Combatant target, Vector2? placed = null)
-    {
-        if (placed is { } point)
-            Focus = point;
-        TargetsB.Rebuild(this, c);
-        if (!TargetsB.IsCandidate(target.Slot))
-            return false;
-        if (!TargetsB.IsSelected(target.Slot))
-        {
-            if (TargetsB.Selected >= TargetsB.Most && TargetsB.SelectedSlots.FirstOrDefault(s => s != target.Slot) is var other)
-                TargetsB.Deselect(other);
-            TargetsB.Select(target.Slot);
-        }
-        TargetsA.Clear();
-        TargetsB.ClearCandidates();
-        Target = target.Slot;
-        c.CastMargin = 0;
-        if (target != c)
-            FaceCombatant(c, target);
-        else
-            State = NextState = CombatState.Facing;
-        return true;
-    }
 
     /// <summary>
     /// The cast at one target (<c>Combatant.CastCurrentSpell</c>, <c>0x80065C08</c>): the selected spell through
