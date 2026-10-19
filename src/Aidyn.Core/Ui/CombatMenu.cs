@@ -150,29 +150,49 @@ public sealed class CombatMenu
     }
 
     /// <summary>
-    /// Where it draws in the original's 320 × 240 frame, its rows each <paramref name="rowHeight"/> tall
-    /// (<c>ChoicePopup.Layout</c>, <c>0x80046488</c>): the list centred on the screen, its scroll kept so the cursor's row shows.
+    /// Where it draws in the original's 320 × 240 frame, its rows as tall as <paramref name="heights"/> says, each its icon's or its
+    /// text's, stacked with no gap (<c>ChoicePopup.Layout</c>, <c>0x80046488</c>): the list centred on the screen, its scroll kept so the
+    /// cursor's row shows.
     /// </summary>
-    public CombatMenuLayout Layout(int rowHeight)
+    public CombatMenuLayout Layout(IReadOnlyList<int> heights)
     {
-        var content = Rows.Count * rowHeight;
+        var tops = new int[Rows.Count];
+        var content = 0;
+        for (var i = 0; i < Rows.Count; i++)
+        {
+            tops[i] = content;
+            content += i < heights.Count ? heights[i] : 0;
+        }
         var height = Math.Min(content, MostHeight);
         var top = CentreY - height / 2;
-        var cursorTop = Cursor * rowHeight;
-        if (cursorTop < _scrollGoal)
-            _scrollGoal = cursorTop;
-        else if (cursorTop + rowHeight > _scrollGoal + height)
-            _scrollGoal = cursorTop + rowHeight - height;
+        if (Rows.Count > 0)
+        {
+            var cursorTop = tops[Cursor];
+            var cursorBottom = cursorTop + heights[Cursor];
+            if (cursorTop < _scrollGoal)
+                _scrollGoal = cursorTop;
+            else if (cursorBottom > _scrollGoal + height)
+                _scrollGoal = cursorBottom - height;
+        }
         if (_jump)
         {
             Scroll = _scrollGoal;
             _jump = false;
         }
         var left = CentreX - Width / 2;
-        return new CombatMenuLayout(new ScreenRect(left, top, left + Width, top + height), rowHeight, Scroll,
+        return new CombatMenuLayout(new ScreenRect(left, top, left + Width, top + height), tops, Scroll,
             UpArrow: Scroll > 0, DownArrow: Scroll + height < content);
     }
+
+    /// <summary>
+    /// A row's height (<c>CombatMenu.MakeEntry</c>): its icon's, or its text's below the text's start, half the menu's icon width less
+    /// half the text's height.
+    /// </summary>
+    public int RowHeight(int iconHeight, int textHeight) => Math.Max(iconHeight, IconWidth / 2 - textHeight / 2 + textHeight);
+
+    /// <summary>Where a row's text starts below its top (<c>CombatMenu.MakeEntry</c>).</summary>
+    public int TextTop(int textHeight) => IconWidth / 2 - textHeight / 2;
 }
 
-/// <summary>Where a held menu draws: its list's clip, its rows' height and scroll, and which arrows show.</summary>
-public sealed record CombatMenuLayout(ScreenRect List, int RowHeight, int Scroll, bool UpArrow, bool DownArrow);
+/// <summary>Where a held menu draws: its list's clip, each row's top in the list, the scroll, and which arrows show.</summary>
+public sealed record CombatMenuLayout(ScreenRect List, IReadOnlyList<int> RowTops, int Scroll, bool UpArrow, bool DownArrow);

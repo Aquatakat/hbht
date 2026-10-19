@@ -32,7 +32,7 @@ public sealed partial class Battle
         TooWeakLine = 0xC4, FailsToPerformLine = 0xC8, PerformsLine = 0xCC;
 
     /// <summary>The cell a flask lands at (<c>+0x5444</c>, <c>+0x5445</c>), its blast's centre; a miss leaves the last.</summary>
-    public (int X, int Z) BlastCell { get; private set; }
+    public (int X, int Z) BlastCell { get; internal set; }
 
     /// <summary>Sense Aura's popup (<c>+0x4FB8</c>), its lines, while it's up; any press closes it and ends the turn.</summary>
     public string? Aura { get; private set; }
@@ -155,7 +155,7 @@ public sealed partial class Battle
     /// recoils, and the others' numbers show at once. Acid's corrosion draws a radius first, and those within it lose protection for
     /// the battle (radius ÷ d) instead of taking damage.
     /// </summary>
-    private void FlaskExplosion(Combatant a, Combatant t, int damage)
+    internal void FlaskExplosion(Combatant a, Combatant t, int damage)
     {
         if (a.Potion is not { } potion || Game.Rules.Magic?.Potion(Potions.Id(potion)) is not { } record)
             return;
@@ -333,6 +333,41 @@ public sealed partial class Battle
         }
         t.Damage = 0;
         return 0;
+    }
+
+    // ---- The pause menu's Party tab ----
+
+    /// <summary>
+    /// A flask taken in hand from the pause menu's Party tab (<c>Party.EquipFlaskInCombat</c>, <c>0x800753F0</c>): it's the action, and
+    /// the turn ends as the menu closes (state 19).
+    /// </summary>
+    internal void HoldFlaskFromMenu(Potion potion)
+    {
+        if (State != CombatState.Pause || Current is not { Controlled: false } c)
+            return;
+        c.HoldPotion(potion, this);
+        NextState = CombatState.EndTurn;
+    }
+
+    /// <summary>
+    /// The weapon changed from the pause menu's Party tab (<c>Combatant.AfterEquipChange</c>, <c>0x800610C0</c>): a performance stops,
+    /// healing is put away, the action is the weapon's, it has moved, and a spell of the weapon's is no longer selected; equipped, the
+    /// turn ends as the menu closes (state 19). Taken off, the member is left without one, and the turn goes on.
+    /// </summary>
+    internal void WeaponChangedFromMenu(bool endsTurn)
+    {
+        if (State != CombatState.Pause || Current is not { Controlled: false } c)
+            return;
+        if (c.Performing)
+            c.StopPerforming(this);
+        c.Flags &= ~(CombatantFlags.LayOnHands | CombatantFlags.HealWithHerbs);
+        c.SetDefaultAction(_rules);
+        c.Potion = null;
+        c.Moves = 1;
+        if (c.Spell.Source == SpellSourceKind.Weapon)
+            c.Spell = SpellChoice.None;
+        if (endsTurn)
+            NextState = CombatState.EndTurn;
     }
 
     // ---- Sense Aura ----

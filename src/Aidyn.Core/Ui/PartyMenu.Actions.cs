@@ -129,10 +129,19 @@ public sealed partial class PartyMenu
 
     private InventoryMessages? Messages => Party.Inventory.Catalog.Rules.Messages;
 
+    /// <summary>
+    /// In a battle's pause, its rules for the Party tab (<c>PartyMenu.InventoryA</c>, <c>0x80035FA0</c>): only the member whose turn it
+    /// is may change anything, a weapon changed or a flask taken in hand ends the turn, potions are drunk from C-up, and body armor and
+    /// shields stay as they are. Null in trek.
+    /// </summary>
+    public CombatPause? Combat { get; set; }
+
     // WidgetInvShop::AFunc.
     private void Use(InventoryRow row)
     {
         if (Shown is not { } member)
+            return;
+        if (Combat is { } combat && UseInCombat(combat, member, row))
             return;
         if (row.Wearer is { } slot)
         {
@@ -158,6 +167,60 @@ public sealed partial class PartyMenu
             default:
                 Equip(member, row);
                 break;
+        }
+    }
+
+    // The combat pause's A (PartyMenu.InventoryA): whether it dealt with the row.
+    private bool UseInCombat(CombatPause combat, Character member, InventoryRow row)
+    {
+        if (member != combat.Member)
+        {
+            Say(_text[row.Wearer is null ? MenuText.NotTheirTurnToEquip : MenuText.NotTheirTurnToRemove]);
+            return true;
+        }
+        if (row.Wearer is not null)
+        {
+            // Body armor and a shield can't come off in combat (Party.TakeOffArmor, 0x80076140); a weapon goes with no turn spent and
+            // leaves the member unarmed (Party.StowHeldItem).
+            if (row.Item.Kind is ItemKind.Armor or ItemKind.Shield)
+            {
+                Say(_text[MenuText.NotInCombat]);
+                return true;
+            }
+            if (row.Item.Kind == ItemKind.Weapon && row.Item.Weapon?.Fixed != true)
+            {
+                TakeOff(row, row.Wearer.Value);
+                combat.WeaponChanged(false);
+                return true;
+            }
+            return false;
+        }
+        switch (row.Item.Kind)
+        {
+            case ItemKind.Potion when Potions.Of(row.Item) is { } potion && Potions.IsFlask(potion):
+                // Party.EquipFlaskInCombat (0x800753F0): the flask in hand, the turn over as the menu closes.
+                combat.HoldFlask(potion);
+                Refresh();
+                return true;
+            case ItemKind.Potion:
+                Say(_text[MenuText.PotionFromCUp]);
+                return true;
+            case ItemKind.Armor or ItemKind.Shield:
+                Say(_text[MenuText.CantEquip]);
+                return true;
+            case ItemKind.Weapon:
+                // Party.EquipWeapon (0x800758CC), then Combatant.AfterEquipChange: the turn ends as the menu closes.
+                var before = member.Equipment.Weapon;
+                Equip(member, row);
+                if (member.Equipment.Weapon != before)
+                    combat.WeaponChanged(true);
+                return true;
+            case ItemKind.Scroll:
+                // Party.EquipScroll (0x80075A58): worn in a gear slot, its spell on C-up, no turn spent.
+                Equip(member, row);
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -355,4 +418,21 @@ public sealed partial class PartyMenu
         Say(text, fromCrafting: true);
         Refresh();
     }
+}
+
+/// <summary>
+/// What the Party tab may do in a battle's pause (<c>PauseMenu.CombatMember</c>, <c>0x800DE9F0</c>): whose turn it is, and what the
+/// battle does as a flask is taken in hand or the weapon changes.
+/// </summary>
+/// <param name="Member">The member whose turn it is, the only one who may change anything; null on an enemy's turn.</param>
+/// <param name="HoldFlask">A flask taken in hand (<c>Combatant.SetSpellAction</c>), which ends the turn as the menu closes.</param>
+/// <param name="WeaponChanged">
+/// The weapon changed (<c>Combatant.AfterEquipChange</c>, <c>0x800610C0</c>), equipped (which ends the turn as the menu closes) or
+/// taken off (which doesn't).
+/// </param>
+public sealed record CombatPause(Character? Member, Action<Potion> HoldFlask, Action<bool> WeaponChanged)
+{
+    /// <summary>The rules of <paramref name="battle"/>'s pause, for its current combatant.</summary>
+    public static CombatPause For(Combat.Battle battle) =>
+        new(battle.Current is { Controlled: false } c ? c.Sheet : null, battle.HoldFlaskFromMenu, battle.WeaponChangedFromMenu);
 }

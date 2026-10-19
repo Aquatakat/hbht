@@ -181,3 +181,52 @@ public sealed class SpellCheckpointTests(Na10Import fixture)
         Assert.NotSame(rheda, battle.Current);
     }
 }
+
+/// <summary>
+/// A flask's blast (<c>Combatant.FlaskExplosion</c>, <c>0x800652F8</c>) at checkpoint 05, against 1.0's own function run on 05's RAM: Alaron's
+/// Fire flask landing on rat 4's cell (66, 56).
+/// </summary>
+[Collection(ImportedPluginCollection.Name)]
+public sealed class FlaskCheckpointTests(Na10Import fixture)
+{
+    private PluginSet Set => fixture.Data.Set;
+
+    [Fact]
+    public void TheTargetTakesTheBlastAndThenTheBlowAsTheOriginalDoes()
+    {
+        var built = At(Set, 5);
+        var battle = built.Battle;
+        var (alaron, rat) = (built[0], built[4]);
+        alaron.HoldPotion(Potion.FireFlask, battle);
+        battle.BlastCell = (66, 56);
+        Assert.Equal(31, rat.Sheet.Hp);
+
+        // The original: 31 -> 21 in the blast, its 10 kept on the rat, then 21 -> 11 as EndCast's ApplyHit lands it again.
+        battle.FlaskExplosion(alaron, rat, 10);
+        Assert.Equal((21, 10), (rat.Sheet.Hp, rat.Damage));
+        Poke(battle, nameof(Battle.Target), rat.Slot);
+        battle.Land(rat);
+        Assert.Equal(11, rat.Sheet.Hp);
+    }
+
+    [Fact]
+    public void ABlastOfFortyKillsItsTargetAndReachesThePartyThroughTheBytesWrap()
+    {
+        var built = At(Set, 5);
+        var battle = built.Battle;
+        var (alaron, rat) = (built[0], built[4]);
+        alaron.HoldPotion(Potion.FireFlask, battle);
+        battle.BlastCell = (66, 56);
+        var before = battle.Combatants.ToDictionary(c => c, c => c.Sheet.Hp);
+        battle.FlaskExplosion(alaron, rat, 40);
+        Assert.True(rat.Sheet.IsDead);
+
+        // A rat 20 units squared away loses 2; party members whose squared distance wraps past 256 to 32 or less lose 1.
+        int Squared(Combatant c) => (ArenaGrid.CellOf(c.Cell.X) - 66) * (ArenaGrid.CellOf(c.Cell.X) - 66) + (ArenaGrid.CellOf(c.Cell.Y) - 56) * (ArenaGrid.CellOf(c.Cell.Y) - 56);
+        var near = battle.Combatants.Single(c => c != rat && Squared(c) == 20);
+        Assert.Equal(2, before[near] - near.Sheet.Hp);
+        var wrapped = battle.Combatants.Where(c => c.Party && Squared(c) > 255 && (byte)Squared(c) is > 0 and <= 40).ToList();
+        Assert.NotEmpty(wrapped);
+        Assert.All(wrapped, c => Assert.Equal(40 / Math.Max(1, (int)(byte)Squared(c)), before[c] - c.Sheet.Hp));
+    }
+}

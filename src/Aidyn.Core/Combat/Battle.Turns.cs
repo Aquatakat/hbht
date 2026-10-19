@@ -86,6 +86,9 @@ public sealed partial class Battle
         Write(Line(BeginsAction, first));
         Ring.Update(this, first);
         first.PlaceField(this);
+        // The target sets, as the first idle poll builds them (Combat.Controls): the red tints of a caster's selected spell.
+        if (!first.Controlled)
+            RebuildTargets(first);
     }
 
     /// <summary>
@@ -123,7 +126,8 @@ public sealed partial class Battle
     public bool Skip()
     {
         // While an attack is aimed, Z cancels it (Combat.ReturnToTurn).
-        if (State is CombatState.TargetAttack or CombatState.TargetThrown)
+        if (State is CombatState.TargetAttack or CombatState.TargetThrown or CombatState.TargetSpell or CombatState.PlaceArea
+            or CombatState.TroubadourPrompt)
             return Cancel();
         if (State != CombatState.Turn || Fade.Fading || Current is not { Controlled: false } current || !_stickCentred)
             return false;

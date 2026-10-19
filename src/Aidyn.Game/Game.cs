@@ -761,6 +761,7 @@ public partial class Game : Node3D, ITrekHost
             case GameMode.Menu:
                 return;
             case GameMode.Popup or GameMode.Conversation or GameMode.CutScene or GameMode.Backdrop:
+            case GameMode.Combat when Battle?.Menu is not null:
                 _stick.Step(delta, direction => _UnhandledInput(new InputEventAction { Action = MenuStick.Dpad(direction), Pressed = true }));
                 break;
             default:
@@ -978,7 +979,7 @@ public partial class Game : Node3D, ITrekHost
                 ShowArena(started.Battle, started.Arena);
                 break;
             case Transition.PauseBattle pause:
-                _menu!.OpenCombat(pause.PartyTab, pause.CanFlee);
+                _menu!.OpenCombat(pause.PartyTab, pause.CanFlee, Battle is { } fighting ? CombatPause.For(fighting) : null);
                 break;
             case Transition.EndBattle:
                 FreeArena();

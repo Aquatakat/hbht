@@ -18,6 +18,7 @@ public partial class Game
     private CombatGuiView? _battleScreen;
     private CombatNumbersView? _numbersView;
     private MissileView? _missileView;
+    private AimMarkerView? _aimView;
     private readonly Dictionary<Combatant, CombatantView> _combatantViews = [];
 
     /// <summary>The battle playing, in place of trek's world.</summary>
@@ -56,6 +57,8 @@ public partial class Game
         AddChild(_numbersView);
         _missileView = new MissileView(_models!);
         AddChild(_missileView);
+        _aimView = new AimMarkerView(_models!);
+        AddChild(_aimView);
         _battleScreen!.Battle = battle;
         _battleScreen.Visible = true;
         SyncBattle();
@@ -108,6 +111,9 @@ public partial class Game
         }
         _numbersView?.Sync(battle.Numbers, battle.Camera.Position);
         _missileView?.Sync(battle.Flight);
+        _aimView?.Sync(battle);
+        // The spells' visuals and sounds are session 10's: until then, what the battle asked for is let go.
+        battle.SpellVisuals.Clear();
         _ringView?.Sync(battle);
         _camera!.Sync();
         ShowFade(battle.Fade.Brightness);
@@ -136,8 +142,26 @@ public partial class Game
     private void CombatInput(MenuAction action)
     {
         var battle = Battle!;
+        // Combat.DismissPopup: any press closes Sense Aura's popup, and ends the turn.
+        if (action is not (MenuAction.None or MenuAction.DetailsRelease or MenuAction.AppraiseRelease) && battle.DismissAura())
+            return;
+        // A held menu (states 22 and 23): up and down move its cursor, and letting its button go chooses; nothing else does anything.
+        if (battle.Menu is { } menu)
+        {
+            if (action is MenuAction.Up or MenuAction.Down)
+                battle.MoveMenu(MenuStick.Vertical(action));
+            else if (action == (menu.Items ? MenuAction.AppraiseRelease : MenuAction.DetailsRelease))
+                battle.CloseMenu(menu.Items);
+            return;
+        }
         switch (action)
         {
+            case MenuAction.Appraise:
+                battle.OpenMenu(items: true);
+                break;
+            case MenuAction.Details:
+                battle.OpenMenu(items: false);
+                break;
             case MenuAction.Start:
                 battle.Pause();
                 break;
@@ -151,7 +175,7 @@ public partial class Game
             case MenuAction.Back:
                 battle.Cancel();
                 break;
-            case MenuAction.Left or MenuAction.Right when battle.State == CombatState.TargetAttack:
+            case MenuAction.Left or MenuAction.Right when battle.State is CombatState.TargetAttack or CombatState.TargetSpell:
                 battle.StepTarget(action == MenuAction.Left ? 1 : -1);
                 break;
             case MenuAction.MemberLeft or MenuAction.MemberRight when battle.State == CombatState.TargetThrown:
@@ -199,6 +223,8 @@ public partial class Game
         _numbersView = null;
         _missileView?.QueueFree();
         _missileView = null;
+        _aimView?.QueueFree();
+        _aimView = null;
         _arenaView?.QueueFree();
         _arenaView = null;
         _battleScreen!.Visible = false;

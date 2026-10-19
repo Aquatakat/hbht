@@ -207,11 +207,17 @@ public partial class PauseMenu : CanvasLayer
     /// tabs, opening on the Party tab, the System tab listing Options, and Flee while the party can flee
     /// (<see cref="Core.Combat.Battle.CanFlee"/>); from any other state (27), the System tab alone, with Options.
     /// </summary>
-    public void OpenCombat(bool partyTab, bool canFlee)
+    /// <param name="rules">The Party tab's rules in the battle's pause: whose turn it is, and what a flask or a weapon change does.</param>
+    public void OpenCombat(bool partyTab, bool canFlee, CombatPause? rules = null)
     {
         _combat = (partyTab, canFlee);
+        _combatRules = rules;
         Open(partyTab ? PauseTab.Party : PauseTab.System, tabsLocked: false);
+        _combatRules = null;
     }
+
+    /// <summary>The Party tab's rules for the combat pause being opened.</summary>
+    private CombatPause? _combatRules;
 
     /// <param name="brightens">Whether the world brightens again as it closes; the loot window and shops snap back.</param>
     private void Open(PauseTab tab, bool tabsLocked, bool brightens = true)
@@ -225,7 +231,11 @@ public partial class PauseMenu : CanvasLayer
         _ended = null;
         _frame.Reset();
         // Skill checks and potions in trek draw from the world's stream.
-        _view = Show(_view, PartyMenu.From(_plugins, _game.Party, random: _game.Random.World), (p, m) => new PartyTabView(p, m));
+        // In a battle's pause the tab opens on the member whose turn it is (PauseMenu.CombatMember, 0x800DE9F0).
+        var member = _combatRules?.Member is { } current ? Math.Max(0, _game.Party.Slots.ToList().IndexOf(current)) : 0;
+        var party = PartyMenu.From(_plugins, _game.Party, member, random: _game.Random.World);
+        party.Combat = _combatRules;
+        _view = Show(_view, party, (p, m) => new PartyTabView(p, m));
         _system = Show(_system, new SystemMenu(_plugins, _settings, _game.Party, DataPaths.Saves, isSet: _game.Flags.Get, combat: _combat?.CanFlee),
             (p, m) => new SystemTabView(p, m));
         var (place, outdoors) = Where?.Invoke() ?? (null, false);

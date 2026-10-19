@@ -149,6 +149,12 @@ public sealed class MenuText(IReadOnlyList<string> common)
     /// <summary>"The %s contains powerful magic that only %s can control." (<c>WidgetInvShop::AFunc</c>).</summary>
     public const int PowerfulMagic = 554;
 
+    /// <summary>
+    /// The combat pause's refusals (<c>PartyMenu.InventoryA</c>, <c>0x80035FA0</c>): a potion to drink from C-up instead, and an item
+    /// equipped or taken off by a member whose turn it isn't.
+    /// </summary>
+    public const int PotionFromCUp = 488, NotTheirTurnToEquip = 489, NotTheirTurnToRemove = 490;
+
     /// <summary>Finding a secret door (<c>secret_door_func</c>).</summary>
     public const int SecretDoor = 379;
 

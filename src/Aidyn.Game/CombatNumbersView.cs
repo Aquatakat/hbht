@@ -104,6 +104,52 @@ public partial class MissileView : Node3D
             _flight = flight;
         }
         if (_scene is not null && flight is not null)
+        {
             _scene.Position = flight.Drawn.ToGodot();
+            _scene.Rotation = new Vector3(0, Mathf.DegToRad(flight.Turn), 0);
+        }
+    }
+}
+
+/// <summary>
+/// The marker on the ground while a spell, its area or a flask is aimed (<c>Combat.DrawTargetCounts</c>, <c>0x80021448</c>): the
+/// translucent cylinder of scene <c>0x0797</c> at the battle's focus, set on the floor, as wide as the aim's radius and 2 tall, red for a
+/// spell and green for a flask, at the scene colours' alpha of 64.
+/// </summary>
+public partial class AimMarkerView : Node3D
+{
+    /// <summary>The cylinder (<c>CombatSpellFx.DrawNumber</c>, <c>0x8008ABD8</c>).</summary>
+    public static readonly Aidyn.Plugins.RecordId Scene = Aidyn.Plugins.RecordId.Hex(Aidyn.Plugins.RecordTypes.Scene, 0x0797);
+
+    private readonly Node3D? _cylinder;
+    private float _floor;
+
+    public AimMarkerView(Models models)
+    {
+        Name = "Aim";
+        _cylinder = models.Instantiate(Scene);
+        if (_cylinder is not null)
+            AddChild(_cylinder);
+        Visible = false;
+    }
+
+    public void Sync(Battle battle)
+    {
+        if (battle.Aim is not { } aim || _cylinder is null)
+        {
+            Visible = false;
+            return;
+        }
+        var at = battle.Origin + new System.Numerics.Vector3(aim.Centre.X, 0, aim.Centre.Y);
+        // Its floor: a sphere of 1 swept from 50 down to -10, or the height it last found.
+        if (Core.Physics.SpherePhysics.Sweep(battle.World, at with { Y = battle.Origin.Y + 50 }, at with { Y = battle.Origin.Y - 10 }, 1f,
+                skipSeeThrough: false, out var floor, out _))
+            _floor = floor.Y;
+        Position = (at with { Y = _floor }).ToGodot();
+        Scale = new Vector3(aim.Radius + 0.2f, 2.0f, aim.Radius + 0.2f);
+        N64Material.SetObjectTint(_cylinder, aim.Spell ? new Color(1, 0, 0) : new Color(0, 1, 0));
+        foreach (var mesh in _cylinder.FindChildren("*", nameof(GeometryInstance3D), true, false).OfType<GeometryInstance3D>())
+            mesh.Transparency = 1 - 64 / 255f;
+        Visible = true;
     }
 }

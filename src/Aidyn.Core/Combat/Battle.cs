@@ -176,7 +176,8 @@ public sealed partial class Battle
     /// </summary>
     public bool Pause()
     {
-        if (Fade.Fading || Over || State is CombatState.Pause or CombatState.PauseRequested)
+        // A held menu takes no Start (its handler's default), nor does Sense Aura's popup, which any press closes first.
+        if (Fade.Fading || Over || State is CombatState.Pause or CombatState.PauseRequested || Menu is not null || Aura is not null)
             return false;
         if (State is CombatState.Turn or CombatState.TargetAttack or CombatState.TargetThrown or CombatState.TargetSpell
             or CombatState.PlaceArea or CombatState.TroubadourPrompt)
@@ -338,6 +339,10 @@ public sealed partial class Battle
                 break;
             case CombatState.Pause or CombatState.PauseRequested:
                 _idle++;
+                break;
+            case CombatState.EndTurn when Current is { } ending:
+                // Combat.StateEndTurn (0x80022764): a weapon changed or a flask taken in hand in the pause menu.
+                EndTurn(ending);
                 break;
         }
     }

@@ -56,7 +56,63 @@ public partial class CombatGuiView : Control
         foreach (var image in drawn.Portraits)
             _ui.Sprite(this, image);
         Fill(drawn.HpBars);
+
+        if (battle.Menu is { } menu)
+            DrawMenu(menu, screen);
+        if (battle.Aura is { } aura)
+            DrawAura(aura, screen);
     }
+
+    /// <summary>
+    /// A held menu (<c>CombatMenu.Draw</c>, <c>0x80087E30</c>) at the original frame's centre: the feathered black panel round its list,
+    /// each row's icon and its text in the main font, the cursor's row pulsing toward its colour, the scroll arrows; or with nothing to
+    /// list, its message.
+    /// </summary>
+    private void DrawMenu(CombatMenu menu, Vector2I screen)
+    {
+        if (menu.Empty is { } empty)
+        {
+            _ui.Message(this, screen, new MenuMessage(empty));
+            return;
+        }
+        var (ox, oy) = ((screen.X - 320) / 2, (screen.Y - 240) / 2);
+        var textHeight = _ui.Main.Layout.LineHeight();
+        var heights = menu.Rows.Select(r => menu.RowHeight(IconSize(r.Icon).Y, textHeight)).ToList();
+        var layout = menu.Layout(heights);
+        var list = layout.List;
+        var band = new ScreenRect(list.Left + ox, list.Top + oy, list.Right + ox, list.Bottom + oy);
+        _ui.Images.DrawPanel(this, _ui.Images.Around(band));
+        var clip = new Rect2I(band.Left, band.Top, band.Right - band.Left, band.Bottom - band.Top);
+        for (var i = 0; i < menu.Rows.Count; i++)
+        {
+            var row = menu.Rows[i];
+            var top = band.Top + layout.RowTops[i] - layout.Scroll;
+            if (top + heights[i] <= band.Top || top >= band.Bottom)
+                continue;
+            var color = i == menu.Cursor ? menu.CursorColor(row.Color) : row.Color;
+            if (row.Icon is { } icon)
+                _ui.Image(this, icon, band.Left, top, clip: clip);
+            var x = band.Left + menu.IconWidth + 5;
+            _ui.Text(this, _ui.Main, row.Text, x, top + menu.TextTop(textHeight), new ScreenRect(x, band.Top, band.Right + 40, band.Bottom), color, clip);
+        }
+        if (layout.UpArrow)
+            _ui.Image(this, CombatMenu.UpArrow, band.Left - 9, band.Top - 2 - IconSize(CombatMenu.UpArrow).Y);
+        if (layout.DownArrow)
+            _ui.Image(this, CombatMenu.DownArrow, band.Left - 9, band.Bottom + 2);
+    }
+
+    /// <summary>
+    /// Sense Aura's popup (<c>Entity.SenseAura</c>'s message box, the Party tab's): its lines, white, centred, as wide as its longest up
+    /// to seven pixels a character.
+    /// </summary>
+    private void DrawAura(string aura, Vector2I screen)
+    {
+        var lines = aura.Split('\n');
+        var wrap = Math.Min(7 * lines.Max(l => l.Length), lines.Max(_ui.Main.Width));
+        _ui.Message(this, screen, aura, wrap, MenuMessage.Color);
+    }
+
+    private Vector2I IconSize(RecordId? image) => image is { } id && _ui.Images.Get(id) is { } texture ? (Vector2I)texture.GetSize() : Vector2I.Zero;
 
     private void Fill(IEnumerable<HudFill> fills)
     {

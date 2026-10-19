@@ -114,8 +114,9 @@ public partial class Game
             {
                 if (held is { } hold)
                 {
-                    Input.ActionPress(name);
-                    GetTree().CreateTimer(hold).Timeout += () => Input.ActionRelease(name);
+                    // As events, so what reads a press or a letting go (combat's held menus) hears both.
+                    Input.ParseInputEvent(new InputEventAction { Action = name, Pressed = true, Strength = 1 });
+                    GetTree().CreateTimer(hold).Timeout += () => Input.ParseInputEvent(new InputEventAction { Action = name, Pressed = false });
                     return;
                 }
                 Input.ParseInputEvent(new InputEventAction { Action = name, Pressed = true });

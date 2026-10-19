@@ -622,7 +622,7 @@ public sealed partial class Battle
     /// it killed falls (<c>Combat.PlayDeathAnimation</c>); and the result shows (state 4), the queued line with it
     /// (<see cref="CombatLog.Flush"/>).
     /// </summary>
-    private void Land(Combatant t)
+    internal void Land(Combatant t)
     {
         var body = t.Body;
         if (t.Damage == 0)
