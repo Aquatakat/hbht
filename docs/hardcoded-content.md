@@ -26,7 +26,7 @@ Every flag below that engine code names carries its label on the flag record, wh
 | Cinematic done flags (3, 569, 590, 601) | `Cinematic::EndCase` | 1: cinematic record | ROM |
 | The encounter flag of the Goblin Ambush and Lugash scripts' battles | `dialoug_func` | 1: script field | ROM |
 | Flag 47 after the Goblin Ambush however it ends, with the heal and the move to Oriana's hut | `Combat.Exit` (`clear_combat_func`) | 1: the combat record's encounter `end` | Fact |
-| Flag 566 when the Shadow merges with Alaron | `shadowMerge.cpp` | 3 or 4: shadow merge | Fact (flag only) |
+| Flag 566 when the Shadow merges with Alaron | `Combat.MergeShadow` (`0x800675C0`) | 3: the combat record's `shadow` boost | Fact |
 | Sholeh's died flag (622) whenever she dies in battle, including as an ally | `Combatant.Death` (`0x80062080`, `CombatEntity::Death`) | 1: member record, and the combat record's `ally` | Fact |
 | First spell learned (3611) and first potion bought (3612), which show help | `WidgetSpellTrain`, `WidgetBarterControl` | 2: triggers | Fact, on the progression and inventory records; the windows show the help for now |
 | New journal entry waiting (3617), and which derived flags add journal entries (5556 on) | `set_journalentry_flag` | 1: flag records and the state flags record | Fact, carried as records |
@@ -55,7 +55,7 @@ Every flag below that engine code names carries its label on the flag record, wh
 | What | Code | Layer | Status |
 | --- | --- | --- | --- |
 | The four cinematics: each shot's Borg6 animation, Borg12 audio, caption list and clip planes, the fades, and the done flag | `Cinematics.cpp`, `CinematicFade.cpp` | 1: cinematic record | ROM |
-| What starts each cinematic: a new game, the Shadow merging with Alaron, and the ends of the Rooughah and last scenes | `Cinematic::Load`'s callers | 2: triggers | Fact (text only) |
+| What starts each cinematic: a new game, the Shadow merging with Alaron, and the ends of the Rooughah and last scenes | `Cinematic::Load`'s callers | 2: triggers; the Shadow's is 3, the combat record's `shadow` | The Shadow's: Fact (session 12). The rest: Fact (text only) |
 | What follows each cinematic: the opening starts script 866 from its object in Overworld I08, the Roog cinematic gives Alaron his True Name, and the ending goes to the credits | `Cinematic::EndCase` | 2: triggers on `cinematic.ended` | To do (see [cinematics](systems/cinematics.md)) |
 | Scripts whose end leads somewhere: the three death scenes end the game, 1268 plays the Roog cinematic, and 1278 plays the ending | `borg_short_list`, `dialogmode.cpp` | 2: triggers on script end | ROM |
 | Scripts after which eight hours pass: the eight camp scenes and the Campsite's own script | `isCampfireScene` | 1: script field | ROM |
@@ -75,32 +75,32 @@ ADR 0008 names six behaviours as bespoke. Only two need layer 3 features: the Go
 | Field | Value | Code |
 | --- | --- | --- |
 | `canFlee` | false | `encounter_id_check` |
-| `onStart` | Heal Alaron to full | `init_combat_struct` |
-| `keelOverAfterHits` | 2. Each hit on Alaron that does damage deals and shows 1 instead. The second drops his Strength to 0, so he keels over and can't move. | `GoblinAmbushAttack`, `func_keel_over_after_ambush` |
+| `onStart` | Heal the party's first member's hit points in full | `Combat.Init` (`0x80022D1C`, `init_combat_struct`) |
+| `keelOverAfterHits` | 2. Each blow on Alaron (by entity) that does damage deals and shows 1 instead, queuing "loses 1 hit point". The second drops his Strength to 0 and plays his fall (on slot 0), so he can't act, and the next turn's change loses the battle with him alive. | `Combatant.ShadowFightTrick` (`0x80065DCC`), `Combat.ApplyHit` (`0x80021930`) |
 | `nonLethal` | When the party is down, there's no game over. The combat text shows the "PlotPoison" string, locked to Alaron. After 120 frames the screen fades, the encounter flag is set, the monster party is marked beaten if the battle came from one, and the clock moves to 6:00 the next day. | `TurnOrder.Defeat`, `Combat.StateDefeatWait`, `Combat.StateDefeat` (`CombatTurn::PartyDead`, `CombatStateFunc_13`) |
 | `suppressVictoryText` | true. Winning still sets boss flags and gives loot. | `TurnOrder.Victory` (`CombatTurn::EnemiesDead`) |
 | `onEnd` | Win, lose or flee: restore the leader's Strength, heal Alaron to full, set flag 47, and move the party to Oriana's hut (MiscInteriors E03) at (5.9, 0.5, 3.0), facing +x. The original adds the base Strength to the current, doubling it when the second hit hasn't taken it to 0; the port sets it to the base, the user's choice. | `Combat.Exit` (`clear_combat_func`) |
 
-The move to the hut happens on any ending, not only after a win. `nonLethal` (with Alaron as its line's speaker), `suppressVictoryText` and `onEnd` are the combat record's encounter rule for flag 978 (`EncounterRule`, importer 44); `canFlee` is its `fleeByEncounter`; `onStart` and `keelOverAfterHits` are session 12's.
+The move to the hut happens on any ending, not only after a win. All of them are the combat record's encounter rule for flag 978 (`EncounterRule`): `nonLethal` (with Alaron as its line's speaker), `suppressVictoryText` and `onEnd` from importer 44, `onStart` (`healsLeader`) and `keelOverAfterHits` (`keelOver`) from importer 48; `canFlee` is its `fleeByEncounter`. [combat](systems/combat.md#the-special-battles) has the code.
 
 ### The Shadow (entity 0x0226)
 
-A feature on the entity, with the Horn of Kynon as its item. The fields:
+A feature on the entity, with the Horn of Kynon as its item: the combat record's `shadow` (`ShadowRule`, importer 48), all of it ported ([combat](systems/combat.md#the-special-battles)). The fields:
 
 | Field | Value | Code |
 | --- | --- | --- |
 | `canFlee` | true while the Shadow is in the battle, before the encounter table has the last word | `look_for_boss_shadow` |
-| `aura` | Radius 10. At each round's end, first (`Combat.ShadowAura`, `0x80023AD0`, from `TurnOrder.EndRound`), each living combatant within it that isn't chaos-aligned takes 10 − distance damage, squared without the item. A hit that would kill ends the battle instead, as if the Shadow reached Alaron. | `shadow_combat_func` |
-| `slow` | Anyone within 10 has a move range of 1, with the "XShadow" message | `CombatEntity` turn setup, `movement_checking_shadow` |
-| `noPotionHealing` | Potions heal nothing while the Shadow is in the battle | `Entity::HealByPotion` |
-| `vanishAfterTurns` | 3 rounds, without the item. The "ShadowVanish" text shows and the battle ends. | `shadow_combat_func`, `merge_no_horn` |
-| `merge` | When the Shadow's and Alaron's collision radii + 0.5 overlap: with the item, the Shadow cinematic plays and Alaron merges; without it, the Shadow vanishes | `alaron_shadow_merge_attempt` |
-| `mergeBoost` | Alaron's base Strength +6, Intelligence, Willpower and Endurance +3, Stamina +10, protection +5. For each skill and weapon skill the Shadow has, Alaron gains the difference to the Shadow's, or 2 if that isn't positive. The shield skill is the same, but the code's test is inverted, so it applies when the Shadow has no shield skill. Each Shadow spell is learned, or raised by the difference or 2, up to 10. Then flag 566 is set. | `ShadowMergeBoost` |
+| `aura` | Radius 10. At each round's end, first (`Combat.ShadowAura`, `0x80023AD0`, from `TurnOrder.EndRound`), each living combatant under 10 from it that isn't of chaos takes 10 − distance damage, squared without the item. A hit that would kill ends the battle instead, as if the Shadow reached Alaron: a merge with the item, a vanish without. | `Combat.ShadowAura` (`shadow_combat_func`) |
+| `slow` | Anyone within 10 has a move range of 1, with the vortex line (the combat strings' `0x80`); the AI's paths are cut at 10 from it | `Combat.NearShadow` (`0x80023F34`), `Combat.MovePlayerBody`, `EnemyAI.ShadowSmoothPath` (`movement_checking_shadow`) |
+| `noPotionHealing` | Potions heal nothing while the Shadow is in the battle, and the Healer is refused (Common line 437); Teleportation fails | `Entity.HealPercent` (`0x800715DC`), `Party.LayOnHands`, `Party.HealWithHerbs`, `Combatant.ResistRoll` |
+| `vanishAfterTurns` | Without the item, the aura works at four round ends and the Shadow vanishes at the fifth: "The Shadow dissipates" shows, and the battle ends with nothing won, trek where it began. | `Combat.ShadowAura`, `Combat.ShadowDissipates`, states 29 and 30 (`merge_no_horn`) |
+| `merge` | When the Shadow's and Alaron's bodies are within their scaled radii + 0.5: with the item, Alaron merges (state 17) and the Shadow's cinematic plays after the battle; without it, the Shadow vanishes. With the item it's also made with base Dexterity 30 and walks at Alaron. | `Combat.CheckShadowMerge` (`alaron_shadow_merge_attempt`), `Combatant.Init`, `EnemyAI.RunStyle` |
+| `mergeBoost` | Alaron's base Strength +6, Intelligence, Willpower and Endurance +3, Stamina +10, protection +5. For each skill and weapon skill the Shadow has, Alaron gains the difference to the Shadow's, or 2 if that isn't positive. The shield skill is the same, but the code's test is inverted, so it applies when the Shadow has no shield skill. Each Shadow spell is learned at the Shadow's level, or raised by the difference or 2, up to 10. Then flag 566 is set. The stats go up as training does (trained, base, current and modified). | `Combat.MergeShadow` (`0x800675C0`, `ShadowMergeBoost`) |
 
 ### The other four
 
 - **Brenna's Ranger check in Gwernia** is the camp ambush roll. The code only names Brenna in the flag `FLAG_Gwernia2MembersNoBrenna` (5004), which `Party::CampCheck` reads before rolling against the party's best Ranger. See [Party and camping rules](#party-and-camping-rules).
-- **The Lugash fight** has no code of its own. It's script battle 1233, whose encounter flag (5250) is derived, so a win never sets it. The encounter table lets the party flee, Lugash uses the AI's boss attack style, and beating him sets boss flag 533. All of these are records.
+- **The Lugash fight** has no code of its own. It's script battle 1233, whose encounter flag (5250) is derived, so a win never sets it. The encounter table lets the party flee, Lugash uses the AI's boss attack style, and beating him sets boss flag 533. All of these are records, checked end to end in session 12; his second script battle (`0x04D6`) has no flag and can't be fled. **Pochanargat** is the same: rooted, no fleeing, boss flag 3204, and nothing else in the code names either.
 - **Sholeh** is two entity fields (layer 1). If an encounter lists her in its first four enemy slots, she fights on the party's side instead (`find_sholeh`). Her died flag, 622, is set whenever she dies in battle (`CombatEntity::Death`). Her left flag is 694.
 - **Alaron's True Name** is a character flag. The entity DB has it (`HasTrueName`), and spells marked True Name need it. Alaron gains it when the Roog cinematic ends, and again whenever his character sheet is built while 590, that cinematic's done flag, is set (`entityInfo.cpp`).
 

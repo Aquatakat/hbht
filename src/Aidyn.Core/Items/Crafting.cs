@@ -30,6 +30,11 @@ public enum HealOutcome
     Failed,
     /// <summary>There's no herb in the inventory.</summary>
     NoHerb,
+    /// <summary>
+    /// Healing is barred in a battle with the Shadow (Common line 437, "The Shadow's presence prevents all healing."): before Lay On
+    /// Hands' cost, and after Heal With Herbs has used its herb up.
+    /// </summary>
+    Barred,
 }
 
 public readonly record struct HealResult(HealOutcome Outcome, int Amount = 0);
@@ -109,11 +114,14 @@ public static class Crafting
     /// Lays on hands (<c>Party::PrintHeal</c>): for 3 Stamina, the Healer heals another member Healer × 2 + 5.
     /// No check is rolled.
     /// </summary>
-    public static HealResult LayOnHands(Character healer, Character target)
+    /// <param name="barred">Whether healing is barred (<c>Game.Mode</c> 2 with the Shadow in the battle).</param>
+    public static HealResult LayOnHands(Character healer, Character target, bool barred = false)
     {
         var before = target.Hp;
         if (before == target.MaxHp)
             return new(HealOutcome.AlreadyWell);
+        if (barred)
+            return new(HealOutcome.Barred);
         if (healer.Stats.Modified(Stat.Stamina) < 3)
             return new(HealOutcome.Failed);
         healer.DrainStamina(3);
@@ -126,7 +134,11 @@ public static class Crafting
     /// Heals with a herb (<c>Party::HerbHeal</c>): the herb is used up, then for 5 less their level in Stamina,
     /// at least 1, the Healer rolls d100 against Intelligence × 4 + Healer × 11 and heals four times the step.
     /// </summary>
-    public static HealResult HerbHeal(Party party, Character healer, Character target, IRandom random)
+    /// <param name="barred">
+    /// Whether healing is barred (<c>Game.Mode</c> 2 with the Shadow in the battle): tested after the herb is taken and the Stamina is
+    /// found, so the herb is lost and nothing is paid or rolled (<c>Party.HealWithHerbs</c>, <c>0x8007798C</c>).
+    /// </param>
+    public static HealResult HerbHeal(Party party, Character healer, Character target, IRandom random, bool barred = false)
     {
         var level = healer.Skills.Modified(Skill.Healer);
         var cost = (short)Math.Max(5 - level, 1);
@@ -137,6 +149,8 @@ public static class Crafting
             return new(HealOutcome.NoHerb);
         if (healer.Stats.Modified(Stat.Stamina) < cost)
             return new(HealOutcome.Failed);
+        if (barred)
+            return new(HealOutcome.Barred);
         healer.DrainStamina(cost);
         var total = (short)(healer.Stats.Modified(Stat.Intelligence) * 4 + level * 11);
         var roll = (short)random.RollD(1, 100);

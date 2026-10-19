@@ -279,6 +279,8 @@ public sealed partial class Battle
         arena.StepWeather(skyDrawn, arena.Precipitation);
         if (!held)
             Step();
+        // Combat.AfterFrame: the Shadow reaching its merger, at every frame's end.
+        CheckShadowMerge();
         StepMarks();
         // ProcessPlayers moves each body's tint on, after the marks, before the spells' visuals.
         foreach (var c in Combatants)
@@ -347,6 +349,15 @@ public sealed partial class Battle
                 break;
             case CombatState.Pause or CombatState.PauseRequested:
                 _idle++;
+                break;
+            case CombatState.ShadowMerge:
+                StepShadowMerge();
+                break;
+            case CombatState.ShadowVanish:
+                StepShadowVanish();
+                break;
+            case CombatState.ShadowVanishLeave when !Fade.Fading:
+                StepShadowVanishLeave();
                 break;
             case CombatState.EndTurn when Current is { } ending:
                 // Combat.StateEndTurn (0x80022764): a weapon changed or a flask taken in hand in the pause menu.

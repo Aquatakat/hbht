@@ -68,6 +68,7 @@ namespace Aidyn.Plugins.Records;
 /// The flasks the party may hold, and the radius each makes the AI spread out by, the first held counting
 /// (<c>Combat.PartyPotionTier</c>, <c>0x8005C750</c>). Null in a plugin from before it.
 /// </param>
+/// <param name="Shadow">The Shadow's rules in any battle it's in (<c>gamecombat.cpp</c>'s Shadow functions). Null in a plugin from before it.</param>
 public sealed record CombatRecord(
     RecordId Id,
     RecordId Ally,
@@ -86,11 +87,44 @@ public sealed record CombatRecord(
     GameOverScene? GameOver = null,
     CombatText? Text = null,
     IReadOnlyList<RecordId>? AreaSpells = null,
-    IReadOnlyList<FlaskDanger>? FlaskDanger = null)
+    IReadOnlyList<FlaskDanger>? FlaskDanger = null,
+    ShadowRule? Shadow = null)
 {
     /// <summary>The rules of the battle under encounter flag <paramref name="flag"/>, if it has any.</summary>
     public EncounterRule? Encounter(RecordId? flag) => flag is { } f ? Encounters?.FirstOrDefault(e => e.Flag == f) : null;
 }
+
+/// <summary>
+/// The Shadow's rules, in any battle it's in (<c>Combat.ShadowSlot</c>, <c>0x800D94CC</c>, set as its combatant is made): ADR 0008's
+/// layer 3, a feature on the entity with its item. docs/hardcoded-content.md's "The Shadow" has the original's.
+/// </summary>
+/// <param name="Entity">The Shadow.</param>
+/// <param name="Item">What the party carries for it to merge rather than vanish: the Horn of Kynon.</param>
+/// <param name="Merges">Whom it merges with: Alaron.</param>
+/// <param name="Radius">
+/// How far its aura reaches, and within which a combatant's field is held to 1 (<c>Combat.NearShadow</c>, <c>0x80023F34</c>) and the
+/// AI's paths are cut (<c>EnemyAI.ShadowSmoothPath</c>, <c>0x8005A734</c>): 10.
+/// </param>
+/// <param name="VanishRounds">
+/// Round ends its aura works without the item; at the next it vanishes (<c>Combat.ShadowAura</c>, <c>0x80023AD0</c>): 4.
+/// </param>
+/// <param name="MergeReach">What its body's and the merger's radii are lengthened by for them to touch, and merge.</param>
+/// <param name="Dexterity">Its base Dexterity as it's made while the party carries the item, which gives it the turns to reach him.</param>
+/// <param name="Cinematic">What a merge plays (<c>Combat.MergeShadow</c>, <c>0x800675C0</c>, then game mode <c>0xE</c>).</param>
+/// <param name="Boost">What the merger gains.</param>
+public sealed record ShadowRule(RecordId Entity, RecordId Item, RecordId Merges, float Radius, int VanishRounds, float MergeReach,
+    int Dexterity, RecordId Cinematic, ShadowBoost Boost);
+
+/// <summary>
+/// What merging with the Shadow gives (<c>Combat.ShadowMergeBoost</c>): <paramref name="Stats"/> added to the merger's base,
+/// <paramref name="Protection"/> to its protection; for each skill the Shadow has, the merger's raised by the difference, or by
+/// <paramref name="Least"/> if that isn't positive; each of the Shadow's spells learned, or raised the same way to at most
+/// <paramref name="SpellCap"/>; then <paramref name="Flag"/> set.
+/// </summary>
+public sealed record ShadowBoost(IReadOnlyList<StatGain> Stats, int Protection, int Least, int SpellCap, RecordId Flag);
+
+/// <summary>A stat (<c>aidyn:stat/n</c>) raised by so much.</summary>
+public sealed record StatGain(RecordId Stat, int Amount);
 
 /// <summary>A flask the party holds, and how far apart it makes the AI's combatants keep (<c>Combat+0x12</c>).</summary>
 public sealed record FlaskDanger(RecordId Item, int Radius);
@@ -113,8 +147,17 @@ public sealed record GameOverScene(RecordId Map, RecordId Script);
 /// <param name="QuietVictory">A win shows no victory line (<c>TurnOrder.Victory</c>).</param>
 /// <param name="Speaker">Whose portrait the non-lethal defeat line shows: Alaron.</param>
 /// <param name="End">What follows the battle however it ends, won, lost or fled.</param>
+/// <param name="HealsLeader">The party's first member is healed in full as the battle starts (<c>Combat.Init</c>, <c>0x80022D1C</c>).</param>
+/// <param name="KeelOver">A member who keels over after so many hits rather than dying (<c>Combatant.ShadowFightTrick</c>, <c>0x80065DCC</c>).</param>
 public sealed record EncounterRule(RecordId Flag, bool NonLethal = false, bool QuietVictory = false, RecordId? Speaker = null,
-    EncounterEnd? End = null);
+    EncounterEnd? End = null, bool HealsLeader = false, KeelOver? KeelOver = null);
+
+/// <summary>
+/// A member held up in a battle with its own rules (<c>Combatant.ShadowFightTrick</c>, <c>0x80065DCC</c>, the Goblin Ambush's hold on
+/// Alaron): each blow that would hurt <paramref name="Member"/> takes 1 hit point instead, and the <paramref name="Hits"/>th takes its
+/// Strength to 0, so it can't act.
+/// </summary>
+public sealed record KeelOver(RecordId Member, int Hits);
 
 /// <summary>
 /// What follows a battle with its own rules, however it ends (<c>Combat.Exit</c>): the party's leader's Strength back to its base,

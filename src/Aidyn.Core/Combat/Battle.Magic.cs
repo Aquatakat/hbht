@@ -69,12 +69,15 @@ public sealed partial class Battle : IMagicHost
         return true;
     }
 
+    /// <summary>Whether the Shadow is in the battle (<see cref="Shadow"/>), which bars Teleportation.</summary>
+    public bool TeleportBarred => Shadow is not null;
+
     /// <summary>
-    /// Whether the Shadow is in the battle (<c>0x800D94CC</c>), which bars Teleportation: the combat record's one the party may
-    /// flee, <see cref="CombatRecord.Flee"/>.
+    /// Whether healing is barred: the Shadow is in the battle, so potions drunk heal nothing (<c>Entity.HealPercent</c>,
+    /// <c>0x800715DC</c>) and the Healer's two are refused (<c>Party.LayOnHands</c>, <c>Party.HealWithHerbs</c>). The pause menu's Party
+    /// tab, game mode 3, isn't barred.
     /// </summary>
-    public bool TeleportBarred => Game.Plugins.TryGet<CombatRecord>(Plugins.RecordId.Decimal(Plugins.RecordTypes.Combat, 0)) is { } combat
-        && Combatants.Any(c => combat.Flee.Contains(c.Entity));
+    public bool HealingBarred => Shadow is not null;
 
     void IMagicHost.SenseAura(Combatant target, int level)
     {

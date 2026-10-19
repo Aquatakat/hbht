@@ -430,7 +430,7 @@ public sealed partial class Battle
             TargetsB.Clear();
             damage = a.Healing ? ResolveHealer(a, t) : ResolveAction(a, t);
         }
-        // The Goblin Ambush's hold on Alaron (Combat.ShadowFightTrick) is session 12's.
+        damage = KeelOver(t, damage);
         CheckDeath(t, damage);
         a.Moves = 1;
         if (spell || a.Action != CombatAction.Flask)
@@ -656,6 +656,9 @@ public sealed partial class Battle
             var damage = t.Damage;
             t.Sheet.TakeDamage(damage, t);
             body.Request = HitRequest;
+            // The Goblin Ambush's last hit on Alaron keels him over, alive.
+            if (KeelsOver(t))
+                body.Request = body.Playing = DeathRequest;
             Numbers.Add(t, damage, healing: false);
             t.Damage = t.Healed = 0;
         }

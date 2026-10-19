@@ -54,6 +54,7 @@ public sealed partial class Combatant
         }
         else if (battle.NearShadow(this))
         {
+            battle.CaughtInVortex(this);
             radius = 1;
         }
         if (radius > MostRadius)

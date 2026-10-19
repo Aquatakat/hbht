@@ -123,7 +123,7 @@ The user chose to keep these, which look like bugs, as the original has them:
 
 ## What's left
 
-- **Session 12:** potions healing nothing in the Shadow's battle, and Teleportation barred there (`TeleportBarred`).
+- Nothing of M3's. Session 12 ported potions healing nothing in the Shadow's battle (`HealingBarred`) and Teleportation barred there (`TeleportBarred`), both by the combat record's `shadow` ([combat](combat.md#the-special-battles)).
 
 ## Not settled
 

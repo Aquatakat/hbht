@@ -106,7 +106,9 @@ public static class Potions
             switch (effect)
             {
                 case HealEffect heal:
-                    HealByPotion(member, heal.Low, heal.High, random);
+                    // Entity.HealPercent (0x800715DC): nothing, and no draw, in a battle with the Shadow.
+                    if (host?.HealingBarred != true)
+                        HealByPotion(member, heal.Low, heal.High, random);
                     break;
                 case CureEffect cure:
                     foreach (var cured in member.Effects.Where(e => cure.Spells.Contains(e.Source)).ToList())

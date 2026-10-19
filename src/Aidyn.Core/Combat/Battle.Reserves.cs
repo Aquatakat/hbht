@@ -55,6 +55,7 @@ public sealed partial class Battle
                 continue;
             }
             var spare = ArmFromList(sheet, Game.Items);
+            QuickenShadow(sheet);
             var look = sheet.Record.Body ?? NoBody;
             var (cell, direction) = ChooseSpawn(Footprint(look), slot - PartySize, look);
             var newcomer = Make(slot, sheet, hostile: true, party: false, cell, direction);

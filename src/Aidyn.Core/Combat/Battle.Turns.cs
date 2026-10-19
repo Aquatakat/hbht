@@ -68,13 +68,6 @@ public sealed partial class Battle
     }
 
     /// <summary>
-    /// Whether <paramref name="combatant"/> is near the Shadow, which holds its field to 1 (<c>Combat.NearShadow</c>,
-    /// <c>0x80023F34</c>: within 10, and for the Shadow anyone within 10 of it). The Shadow's battle is session 12's, so
-    /// there's none yet.
-    /// </summary>
-    public bool NearShadow(Combatant combatant) => false;
-
-    /// <summary>
     /// The first turn (<c>Combat.StartFirstTurn</c>, <c>0x80022C9C</c>, the end of <c>Combat.Init</c>): its line, the
     /// ring, and the field. It doesn't move the clock on, and the intro (state 31) chooses its state.
     /// </summary>
@@ -116,7 +109,7 @@ public sealed partial class Battle
         current.UpdateFromBody(this);
         _stickCentred = input.Stick == Vector2.Zero;
         _orbiting = input.Orbit;
-        // Combat.MovePlayerBody: in the Shadow's battle, the field follows a combatant near it (session 12).
+        FollowNearShadow(current);
     }
 
     /// <summary>
@@ -309,15 +302,17 @@ public sealed partial class Battle
     /// <summary>
     /// The round's end (<c>TurnOrder.EndRound</c>, <c>0x8006A62C</c>): each performer pays a Stamina point, or stops with
     /// none left; every combatant's moves are forgotten and its effects aged; the toggle flips and the next round is built. Returns whether the
-    /// battle ended, which only the Shadow's aura does (session 12).
+    /// battle ended, which only the Shadow's aura does (<see cref="ShadowAura"/>, first).
     /// </summary>
     /// <remarks>
     /// Every combatant's effects age a round (<see cref="AgeEffects"/>): their damage and healing show over their heads, and one
     /// they kill dies and its body goes at once, without a fall or a line (<c>Entity.ShowAgeResult</c>, <c>0x8007138C</c>). Then the
-    /// reserves come in (<see cref="SpawnReserves"/>). The Shadow's aura, first, is session 12's.
+    /// reserves come in (<see cref="SpawnReserves"/>).
     /// </remarks>
     private bool EndRound()
     {
+        if (ShadowAura())
+            return true;
         for (var i = 0; i < InPlay; i++)
         {
             if (_slots[i] is not { } c)

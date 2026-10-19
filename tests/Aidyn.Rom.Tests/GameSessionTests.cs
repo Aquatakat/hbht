@@ -22,7 +22,7 @@ namespace Aidyn.Rom.Tests;
 /// transitions recorded as the runtime would carry them out.
 /// </summary>
 [Collection(ImportedPluginCollection.Name)]
-public sealed class GameSessionTests(Na10Import fixture)
+public sealed partial class GameSessionTests(Na10Import fixture)
 {
     private Na10Import.Loaded Data => fixture.Data;
 

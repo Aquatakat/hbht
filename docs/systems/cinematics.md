@@ -67,8 +67,8 @@ The System tab's Theater opens the Theatre's page (`OptionsMenu.ShowTheatre`, `0
 | Cinematic | Started by | After it |
 | --- | --- | --- |
 | Opening | The title screen's New Game | Script 866 starts from its dialogue object (id `0x362`) in Borg9 `0x0FDB`; trek |
-| Shadow | Combat's state 0x11, as the Shadow merges with Alaron | Nothing more; trek |
+| Shadow | Combat's state 0x11, as the Shadow merges with Alaron: `Combat.StartShadowCinematic` (`0x80023984`) loads it (`Cinematic.Load(1, 4, 1)`) and state 17 merges on its first frame and leaves combat, so it plays once the battle has gone | Nothing more; trek where the battle began (`Cinematic.EndShadow`) |
 | Roog | The end of the Rooughah scene (Borg13 1268) with flag 3442 set | Alaron gains his True Name; trek |
 | Ending | The end of the last scene (Borg13 1278) | [The credits](ui.md#the-credits), which can't be skipped and end with "The End", and then the title |
 
-**Not ported yet:** only the Theatre plays them. A new game starts in trek without the opening, the scripts' ends don't lead to theirs, and the Shadow's waits for combat. They're triggers on the [2.10 events](../roadmap.md), `cinematic.ended` among them. The runtime plays any of them from the command line ([runtime](runtime.md)): `--cinematic 0` plays the opening, `--cinematic 0,5,300` starts at shot 5's time 300, and `,hold` stands still there for a screenshot.
+**The Shadow's** plays from combat since M3's session 12: a battle that ends merged (`BattleOutcome.Merged`) has `GameSession.EndBattle` play the combat record's `shadow` cinematic once the battle has left, and its end sets its done flag and brings trek back where the battle began ([combat](combat.md#the-special-battles)). **Not ported yet:** a new game starts in trek without the opening, and the scripts' ends don't lead to theirs. They're triggers on the [2.10 events](../roadmap.md), `cinematic.ended` among them. The runtime plays any of them from the command line ([runtime](runtime.md)): `--cinematic 0` plays the opening, `--cinematic 0,5,300` starts at shot 5's time 300, and `,hold` stands still there for a screenshot.

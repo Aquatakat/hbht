@@ -23,7 +23,7 @@ public enum PortraitState : byte
     /// <summary>An enemy dead or fled, under its skull until a reserve takes its slot.</summary>
     Fallen,
 
-    /// <summary>A spare with no one in it yet, for whoever is in neither list (the Shadow, Sholeh fighting with the party).</summary>
+    /// <summary>A spare with no one in it yet, for whoever is in neither list (a summons, Sholeh fighting with the party).</summary>
     Placeholder,
 }
 

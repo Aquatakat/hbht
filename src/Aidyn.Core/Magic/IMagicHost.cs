@@ -46,6 +46,9 @@ public interface IMagicHost
     /// <summary>Whether Teleportation is barred: the Shadow is in the battle.</summary>
     bool TeleportBarred { get; }
 
+    /// <summary>Whether potions heal nothing: the Shadow is in the battle (<c>Entity.HealPercent</c>, <c>0x800715DC</c>).</summary>
+    bool HealingBarred => false;
+
     /// <summary>Shows the target's details at the cast's level (Sense Aura, <c>0x80070070</c>).</summary>
     void SenseAura(Combatant target, int level);
 

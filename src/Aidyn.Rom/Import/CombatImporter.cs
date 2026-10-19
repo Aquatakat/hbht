@@ -62,13 +62,37 @@ internal static class CombatImporter
             [
                 new(DbRecordIds.Flag(978), NonLethal: true, QuietVictory: true, Speaker: At(AlaronPlace),
                     End: new EncounterEnd(DbRecordIds.Flag(47), new ChunkRef(RecordId.Decimal(RecordTypes.MapSet, 6), 5, 3),
-                        new System.Numerics.Vector3(5.9f, 0.5f, 3f), new System.Numerics.Vector2(1, 0), At(AlaronPlace), RestoresStrength: true)),
+                        new System.Numerics.Vector3(5.9f, 0.5f, 3f), new System.Numerics.Vector2(1, 0), At(AlaronPlace), RestoresStrength: true),
+                    HealsLeader: true, KeelOver: new KeelOver(At(AlaronPlace), KeelOverHits)),
             ],
             GameOver: new GameOverScene(RecordId.Hex(RecordTypes.Map, GameOverMap), RecordId.Hex(RecordTypes.Dialogue, tables.GameOverScript)),
             Text: text,
             AreaSpells: [RecordId.Hex(RecordTypes.Spell, FireballSpell)],
-            FlaskDanger: [.. FlaskDangers.Select(f => new FlaskDanger(RecordId.Hex(RecordTypes.Item, f.Item), f.Radius))]);
+            FlaskDanger: [.. FlaskDangers.Select(f => new FlaskDanger(RecordId.Hex(RecordTypes.Item, f.Item), f.Radius))],
+            Shadow: Shadow(At));
     }
+
+    /// <summary>
+    /// The Shadow's rules (<c>gamecombat.cpp</c>'s Shadow functions, carried as facts read in 1.0's code; docs/hardcoded-content.md's
+    /// "The Shadow"): entity list place 0xAC, the Horn of Kynon (<c>Combat.PartyHasHorn</c>, <c>0x80023AA4</c>), Alaron (place 0x99,
+    /// <c>Combat.AlaronSlot</c>), the radius (the float at <c>0x800CE3CC</c>), the rounds without the Horn (<c>Combat.ShadowAura</c>,
+    /// <c>0x80023AD0</c>), the merge's reach, the Dexterity it's made with when the party has the Horn, the Shadow's cinematic, and the
+    /// merge's boost (<c>Combat.ShadowMergeBoost</c>).
+    /// </summary>
+    private static ShadowRule Shadow(Func<int, RecordId> at) => new(
+        at(ShadowPlace), RecordId.Hex(RecordTypes.Item, HornOfKynon), at(AlaronPlace), Radius: 10, VanishRounds: 4, MergeReach: 0.5f,
+        Dexterity: 30, Cinematic: RecordId.Decimal(RecordTypes.Cinematic, 1),
+        new ShadowBoost(
+            [Gain(4, 6), Gain(0, 3), Gain(1, 3), Gain(3, 3), Gain(5, 10)],
+            Protection: 5, Least: 2, SpellCap: 10, Flag: DbRecordIds.Flag(566)));
+
+    private static StatGain Gain(int stat, int amount) => new(RecordId.Decimal(RecordTypes.Stat, stat), amount);
+
+    /// <summary>The Shadow's place in the entity list (its ID's low byte at <c>0x800E28EC</c>).</summary>
+    private const int ShadowPlace = 0xAC;
+
+    /// <summary>The Horn of Kynon, whose carrying makes the Shadow merge rather than vanish.</summary>
+    private const int HornOfKynon = 0x0D03;
 
     /// <summary>
     /// Fireball (spell kind 8, the byte at <c>0x800E2B48</c> or'd with <c>0x300</c>), which the AI centres on its opponents and whose
@@ -106,6 +130,12 @@ internal static class CombatImporter
                 Line(CodeTable.AuraProtection), Line(CodeTable.AuraImmune), Line(CodeTable.AuraResistant), Line(CodeTable.AuraVulnerable),
                 Be.F32(below, 0), elements));
     }
+
+    /// <summary>
+    /// The Goblin Ambush's hits on Alaron before he keels over: <c>Combat.Init</c> sets <c>Combat.ShadowTurnsLeft</c> (<c>0x800D94CE</c>) to 2
+    /// for encounter flag 978, and <c>Combatant.ShadowFightTrick</c> (<c>0x80065DCC</c>) counts it down.
+    /// </summary>
+    private const int KeelOverHits = 2;
 
     /// <summary>Alaron's place in the entity list (<c>0x99</c>), whom the Goblin Ambush's end heals and whose line its loss shows.</summary>
     private const int AlaronPlace = 153;

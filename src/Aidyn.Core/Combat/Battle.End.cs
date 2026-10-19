@@ -21,6 +21,12 @@ public enum BattleOutcome
 
     /// <summary>Fled (state 20): trek at the farthest breadcrumb.</summary>
     Fled,
+
+    /// <summary>The Shadow vanished (states 29 and 30): trek where the battle began, with nothing won.</summary>
+    Vanished,
+
+    /// <summary>The Shadow merged with its merger (state 17): its cinematic, then trek where the battle began.</summary>
+    Merged,
 }
 
 /// <summary>

@@ -134,12 +134,25 @@ public partial class Game
     /// <summary>
     /// Starts a battle from the command line (<c>--battle aidyn:voxel/0x0E8A/3[,arena][,ambush]</c>): with the monster
     /// party given, where the player stands, as using it would, in the arena given or else the one the terrain chooses,
-    /// and as an ambush if asked.
+    /// and as an ambush if asked. A script (<c>--battle aidyn:dialogue/0x046E</c>) starts the battle its end would, with its
+    /// enemies, arena, bytes and encounter flag, as though its talk had come to it.
     /// </summary>
     private void BattleFromCommandLine(string battle)
     {
         var parts = battle.Split(',');
         var id = RecordId.Parse(parts[0]);
+        if (id.Type == RecordTypes.Dialogue && _plugins!.TryGet<DialogueRecord>(id) is { } script)
+        {
+            var ops = script.Nodes.SelectMany(n => n.Ops ?? []).ToList();
+            int Value(DialogueCommand command) => ops.LastOrDefault(o => o.Command == command)?.Value ?? 0;
+            var enemies = ops.Where(o => o.Command == DialogueCommand.AddEnemy && o.Target is not null).Select(o => o.Target!.Value).Take(12);
+            var (at, kind) = Trek!.Here();
+            var scripted = Core.Combat.BattleSetup.Scripted(enemies, Value(DialogueCommand.SetBattlefield) is var b && b > 27 ? 0 : b,
+                Value(DialogueCommand.SetCollideByte), Value(DialogueCommand.SetAniByte), script.Mode != DialogueMode.Cutscene, script.BattleFlag)
+                with { Place = at, Terrain = kind };
+            _session!.CueBattle(scripted);
+            return;
+        }
         if (id.Type != RecordTypes.Voxel || MapRecord.Find(_plugins!, id) is not MonsterPartyObject party)
         {
             Say($"{parts[0]} isn't a monster party.");

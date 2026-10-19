@@ -98,7 +98,7 @@ public enum SessionStep
 public sealed class GameSession
 {
     private readonly ITrekHost _host;
-    private (CinematicRecord Record, bool FromTheatre)? _cinematic;
+    private (CinematicRecord Record, bool FromTheatre, bool AfterBattle)? _cinematic;
     /// <summary>The pause menu reopens once trek has faded in, on the Theatre's page or as it was (trek's state 8).</summary>
     private bool? _reopenOnTheatre;
     private float _precipitationDensity = 1;
@@ -381,7 +381,8 @@ public sealed class GameSession
     /// The battle is over (<c>Combat.Exit</c>, <c>0x80023060</c>): its arena goes, what it put on the party comes off and the dead
     /// leave it (<see cref="Combat.Battle.Leave"/>), and a battle with an end of its own moves where trek starts again
     /// (<see cref="EncounterEnd"/>). Then as it ended: won, the post-battle windows (<see cref="Transition.PostBattle"/>), trek
-    /// coming back once they close; lost, the game over (<see cref="PlayGameOver"/>); otherwise trek starts again
+    /// coming back once they close; lost, the game over (<see cref="PlayGameOver"/>); merged with the Shadow, its cinematic, after which
+    /// trek comes back where the battle began (<see cref="CinematicEnded"/>); otherwise trek starts again
     /// (<see cref="TrekLoop.Resume"/>), fading in where the battle began, or having fled, at the farthest breadcrumb.
     /// </summary>
     public void EndBattle()
@@ -402,6 +403,11 @@ public sealed class GameSession
                 return;
             case BattleOutcome.Lost:
                 PlayGameOver();
+                return;
+            // Combat.StateShadowMerge returns game mode 0xE: the Shadow's cinematic, once the battle has gone, then trek where it began.
+            case BattleOutcome.Merged when Game.Plugins.TrySingleton<CombatRecord>(RecordTypes.Combat)?.Shadow is { } shadow
+                && Game.Plugins.TryGet<CinematicRecord>(shadow.Cinematic) is { } cinematic:
+                PlayCinematic(cinematic, fromTheatre: false, afterBattle: true);
                 return;
         }
         Trek.Resume(fled: battle.Outcome == BattleOutcome.Fled);
@@ -482,11 +488,12 @@ public sealed class GameSession
     /// Plays a cinematic (<c>Cinematic.Load</c>), unless one is playing: from the Theatre, the menu reopens on its page
     /// after it.
     /// </summary>
-    public void PlayCinematic(CinematicRecord cinematic, bool fromTheatre)
+    /// <param name="afterBattle">Whether a battle has just ended for it (the Shadow's merge), so trek's world comes back after it.</param>
+    public void PlayCinematic(CinematicRecord cinematic, bool fromTheatre, bool afterBattle = false)
     {
         if (_cinematic is not null)
             return;
-        _cinematic = (cinematic, fromTheatre);
+        _cinematic = (cinematic, fromTheatre, afterBattle);
         _host.Transition(new Transition.PlayCinematic(cinematic));
     }
 
@@ -497,10 +504,12 @@ public sealed class GameSession
     /// </summary>
     public void CinematicEnded()
     {
-        var (cinematic, fromTheatre) = _cinematic ?? throw new InvalidOperationException("No cinematic is playing.");
+        var (cinematic, fromTheatre, afterBattle) = _cinematic ?? throw new InvalidOperationException("No cinematic is playing.");
         _cinematic = null;
         Game.Flags.TrySet(cinematic.DoneFlag, true);
         Trek.Resume();
+        if (afterBattle)
+            _host.Transition(new Transition.ResumeTrek());
         if (fromTheatre)
             _reopenOnTheatre = true;
     }

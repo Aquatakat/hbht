@@ -284,7 +284,7 @@ public sealed partial class Character
         return SpellLearnability.Learnable;
     }
 
-    internal void LearnSpell(SpellRecord spell) => _spells.Add(new LearnedSpell(spell, 1));
+    internal void LearnSpell(SpellRecord spell, int level = 1) => _spells.Add(new LearnedSpell(spell, level));
 
     public LearnedSpell? FindSpell(RecordId spell) => _spells.FirstOrDefault(s => s.Spell.Id == spell);
 }

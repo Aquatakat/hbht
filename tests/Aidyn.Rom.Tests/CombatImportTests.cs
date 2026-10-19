@@ -201,6 +201,22 @@ public sealed class CombatImportTests(Na10Import fixture)
         Assert.Equal(new ChunkRef(RecordId.Decimal(RecordTypes.MapSet, 6), 5, 3), rule.End!.Place);
         Assert.NotNull(Set.Get<MapSetRecord>(rule.End.Place.MapSet).Chunks.Single(c => c.Row == 5 && c.Column == 3));
         Assert.Null(Combat.Encounter(RecordId.Decimal(RecordTypes.Flag, 5250)));
+        // Combat.Init heals the first member; Combatant.ShadowFightTrick holds Alaron to 1 a hit, and the second keels him over.
+        Assert.True(rule.HealsLeader);
+        Assert.Equal(new KeelOver(RecordId.Hex(RecordTypes.Entity, 0x023F), 2), rule.KeelOver);
+    }
+
+    [Fact]
+    public void TheShadowsRulesNameItTheHornAlaronAndItsCinematic()
+    {
+        var shadow = Combat.Shadow!;
+        Assert.Equal("Shadow", Set.Get<EntityRecord>(shadow.Entity).Name);
+        Assert.Equal("Horn of Kynon", Set.Get<ItemRecord>(shadow.Item).Name);
+        Assert.Equal(RecordId.Hex(RecordTypes.Entity, 0x023F), shadow.Merges);
+        Assert.Equal((10f, 4, 0.5f, 30), (shadow.Radius, shadow.VanishRounds, shadow.MergeReach, shadow.Dexterity));
+        Assert.Equal(RecordId.Decimal(RecordTypes.Flag, 569), Set.Get<CinematicRecord>(shadow.Cinematic).DoneFlag);
+        Assert.Equal((5, 2, 10, RecordId.Decimal(RecordTypes.Flag, 566)), (shadow.Boost.Protection, shadow.Boost.Least, shadow.Boost.SpellCap, shadow.Boost.Flag));
+        Assert.Equal([("4", 6), ("0", 3), ("1", 3), ("3", 3), ("5", 10)], shadow.Boost.Stats.Select(g => (g.Stat.Key, g.Amount)));
     }
 
     [Fact]

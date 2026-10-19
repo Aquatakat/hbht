@@ -131,8 +131,8 @@ public sealed partial class Battle
 
     /// <summary>
     /// A path from the combatant's cell to the goal over the grid (<c>EnemyAI.PlanPath</c>, <c>0x8005A974</c>,
-    /// <see cref="ArenaGrid.FindPath"/>), its place at its start. Whether there is one. The Shadow's battle bends it round the Shadow
-    /// (<c>EnemyAI.ShadowSmoothPath</c>), session 12's.
+    /// <see cref="ArenaGrid.FindPath"/>), its place at its start. Whether there is one. The Shadow's battle cuts it at the Shadow's
+    /// radius (<see cref="SmoothPathRoundShadow"/>).
     /// </summary>
     private bool PlanPath(EnemyAI ai, int x, int z)
     {
@@ -143,6 +143,7 @@ public sealed partial class Battle
         if (ai.PathLength >= Grid.Diagonal)
             return false;
         ai.PathPlace = 0;
+        SmoothPathRoundShadow(ai);
         return true;
     }
 

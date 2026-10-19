@@ -331,8 +331,8 @@ public sealed partial class Battle
     {
         var before = t.Sheet.Hp;
         var result = a.Flags.HasFlag(CombatantFlags.LayOnHands)
-            ? Crafting.LayOnHands(a.Sheet, t.Sheet)
-            : Crafting.HerbHeal(Game.Party, a.Sheet, t.Sheet, Game.Random.Combat);
+            ? Crafting.LayOnHands(a.Sheet, t.Sheet, HealingBarred)
+            : Crafting.HerbHeal(Game.Party, a.Sheet, t.Sheet, Game.Random.Combat, HealingBarred);
         var gained = t.Sheet.Hp - before;
         if (result.Outcome == HealOutcome.Healed && gained > 0)
         {

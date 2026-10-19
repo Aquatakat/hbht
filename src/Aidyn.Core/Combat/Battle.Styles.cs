@@ -9,8 +9,8 @@ public sealed partial class Battle
 {
     /// <summary>
     /// What the AI's style chooses (<c>EnemyAI.RunStyle</c>, <c>0x80059628</c>): its scores' first entry, whose combatant is the
-    /// target and whose cell the goal; a spell's entry selects its action slot's spell (<see cref="SlotChoice"/>). The Shadow walking
-    /// at Alaron with the Horn is session 12's.
+    /// target and whose cell the goal; a spell's entry selects its action slot's spell (<see cref="SlotChoice"/>). The Shadow walks at
+    /// its merger while the party carries its item (<see cref="ShadowGoal"/>).
     /// </summary>
     private (int X, int Z) RunStyle(EnemyAI ai)
     {
@@ -23,7 +23,7 @@ public sealed partial class Battle
             ai.Target = t.Slot;
         if (first.Slot != 0)
             ai.Combatant.Spell = SlotChoice(first.Slot - 1);
-        return (first.X, first.Z);
+        return ShadowGoal(ai, (first.X, first.Z));
     }
 
     /// <summary>

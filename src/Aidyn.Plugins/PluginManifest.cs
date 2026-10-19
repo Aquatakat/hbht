@@ -70,8 +70,10 @@ public static class BasePlugin
     /// 46 adds to the combat record the area spell the AI aims (Fireball) and the flasks that make it spread out.
     /// 47 gives spells and potions what they show in a battle (<c>visuals</c>), and the magic record the actors a refused and a resisted
     /// cast play.
+    /// 48 adds to the combat record the Shadow's rules (its aura, slowing, vanishing and merging, with the merge's boost), and to the
+    /// Goblin Ambush's encounter its heal as it starts and its hold on Alaron.
     /// </summary>
-    public const int ImporterVersion = 47;
+    public const int ImporterVersion = 48;
 }
 
 /// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>

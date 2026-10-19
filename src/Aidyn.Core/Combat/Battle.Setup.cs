@@ -132,6 +132,7 @@ public sealed partial class Battle
                 continue;
             }
             var spare = ArmFromList(sheet, Game.Items);
+            QuickenShadow(sheet);
             var enemy = Add(slot, sheet, hostile: true, party: false, letter: i, roll);
             GiveAi(enemy, spare);
             // Combat.ForbidFleeForBosses: the last on the field with a say has it.
@@ -170,6 +171,13 @@ public sealed partial class Battle
         Gui = Ui.CombatGui.For(this);
         StartFirstTurn();
         Fade.In(FadePerTick);
+        // Combat.Init: a battle with its own rules (the Goblin Ambush's) heals the party's first member, and counts the hits it holds.
+        if (Rule is { } own)
+        {
+            if (own.HealsLeader && Game.Party.Slots[0] is { } leader)
+                leader.Heal(leader.MaxHp - leader.Hp);
+            KeelOverHits = own.KeelOver?.Hits ?? 0;
+        }
     }
 
     /// <summary>
