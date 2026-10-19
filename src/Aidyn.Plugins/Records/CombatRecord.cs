@@ -56,6 +56,9 @@ namespace Aidyn.Plugins.Records;
 /// What a lost battle plays (<c>Combat.StartGameOverScript</c>, <c>0x8001F860</c>): the script, from the first dialogue
 /// object that starts it in the map. Null in a plugin from before it.
 /// </param>
+/// <param name="Text">
+/// The combat menus' and Sense Aura's words, which the code keeps rather than a string table. Null in a plugin from before it.
+/// </param>
 public sealed record CombatRecord(
     RecordId Id,
     RecordId Ally,
@@ -71,7 +74,8 @@ public sealed record CombatRecord(
     IReadOnlyList<RecordId>? BossStyles = null,
     IReadOnlyList<WeaponClass>? DroppedClasses = null,
     IReadOnlyList<EncounterRule>? Encounters = null,
-    GameOverScene? GameOver = null)
+    GameOverScene? GameOver = null,
+    CombatText? Text = null)
 {
     /// <summary>The rules of the battle under encounter flag <paramref name="flag"/>, if it has any.</summary>
     public EncounterRule? Encounter(RecordId? flag) => flag is { } f ? Encounters?.FirstOrDefault(e => e.Flag == f) : null;
@@ -118,3 +122,53 @@ public sealed record Missile(RecordId Weapon, RecordId? Scene, float Speed, floa
 
 /// <summary>Whether the party can flee a battle under the encounter flag <paramref name="Flag"/>.</summary>
 public sealed record EncounterFlee(RecordId Flag, bool CanFlee);
+
+/// <summary>
+/// The combat menus' words and Sense Aura's, which 1.0 keeps as C strings in its code segment, not in a string table. A Sense Aura
+/// line's <c>%d</c>, <c>%lu</c> and <c>%s</c> are printf's, as the ROM has them.
+/// </summary>
+/// <param name="LayOnHands">The skill list's row for laying on hands (<c>CombatMenu.PickLayOnHands</c>), <c>0x800D4880</c>: "Lay On Hands".</param>
+/// <param name="HealWithHerbs">Its row for healing with herbs (<c>CombatMenu.PickHealWithHerbs</c>), <c>0x800D4890</c>: "Heal With Herbs".</param>
+/// <param name="Perform">The Troubadour's row (<c>CombatMenu.PickTroubadour</c>), <c>0x800D48A0</c>: "Perform".</param>
+/// <param name="NoSpells">What C-down's list says when it has no spells or skills (<c>CombatMenu.OpenSpells</c>), <c>0x800D4858</c>.</param>
+/// <param name="NoItems">What C-up's list says when it has no potions or item spells (<c>CombatMenu.OpenItems</c>), <c>0x800D4834</c>.</param>
+/// <param name="Aura">Sense Aura's popup.</param>
+public sealed record CombatText(
+    string LayOnHands,
+    string HealWithHerbs,
+    string Perform,
+    string NoSpells,
+    string NoItems,
+    SenseAuraText Aura);
+
+/// <summary>
+/// The lines of Sense Aura's popup (<c>Entity.SenseAura</c>, <c>0x80070070</c>), a line more at each power over 0, 2, 4, 6 and 8
+/// (<c>Entity.AppendResistanceLine</c>, <c>0x8006FFB0</c>, builds a resistance's).
+/// </summary>
+/// <param name="Follower">The line for a party member who isn't the leader, <c>0x800D3250</c>.</param>
+/// <param name="Leader">The line for the party's leader, <c>0x800D325C</c>.</param>
+/// <param name="Hitpoints">The total hitpoints, printf's <c>%d</c>, <c>0x800D3264</c>.</param>
+/// <param name="Level">The level, printf's <c>%lu</c>, <c>0x800D3278</c>.</param>
+/// <param name="Protection">The armor's total protection, printf's <c>%d</c>, <c>0x800D3284</c>.</param>
+/// <param name="Immune">A resistance line, printf's <c>%s</c> the element, for a multiplier of 0 or less, <c>0x800D3214</c>.</param>
+/// <param name="Resistant">A resistance line for a multiplier above 0 and below <paramref name="ResistantBelow"/>, <c>0x800D3224</c>.</param>
+/// <param name="Vulnerable">A resistance line for a multiplier of <paramref name="ResistantBelow"/> or more, <c>0x800D3234</c>.</param>
+/// <param name="ResistantBelow">
+/// The float the resistance's multiplier (<c>Resistance.Damage</c>) is compared with (<c>0x800D3248</c>): 2.0. A line shows only for an
+/// element the entity has a resistance entry for.
+/// </param>
+/// <param name="Elements">
+/// The element names, by element: <c>String/Common</c>'s lines 241 to 257 (<c>0x800E0C00</c> points at the first, set by the loader
+/// <c>0x80083620</c>, and the element byte indexes it).
+/// </param>
+public sealed record SenseAuraText(
+    string Follower,
+    string Leader,
+    string Hitpoints,
+    string Level,
+    string Protection,
+    string Immune,
+    string Resistant,
+    string Vulnerable,
+    float ResistantBelow,
+    IReadOnlyDictionary<Element, string> Elements);

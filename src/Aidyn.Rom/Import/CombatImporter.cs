@@ -3,6 +3,7 @@ using Aidyn.Plugins.Records;
 using Aidyn.Rom.Db;
 using Aidyn.Rom.Engine;
 using Aidyn.Rom.Quests;
+using Aidyn.Rom.Text;
 
 namespace Aidyn.Rom.Import;
 
@@ -14,7 +15,8 @@ internal static class CombatImporter
         ctx.Report("Combat");
         ctx.WriteRecords("combat.json", new[]
         {
-            BuildCombat(ctx.Engine, ctx.Db, ctx.Items, ctx.Rom.Table(CodeTable.BowKindWeapons), ctx.Rom.Table(CodeTable.ThrownKindWeapons)),
+            BuildCombat(ctx.Engine, ctx.Db, ctx.Items, ctx.Rom.Table(CodeTable.BowKindWeapons), ctx.Rom.Table(CodeTable.ThrownKindWeapons),
+                ReadText(ctx.Rom, ctx.Db)),
         });
     }
 
@@ -33,7 +35,7 @@ internal static class CombatImporter
     /// for none listed, or a name that differs is an error. Spikes, position 100, is the one ranged weapon allowed in melee.
     /// </summary>
     internal static CombatRecord BuildCombat(
-        EngineTables tables, GameDb db, ItemTables items, ReadOnlySpan<byte> bowList, ReadOnlySpan<byte> thrownList)
+        EngineTables tables, GameDb db, ItemTables items, ReadOnlySpan<byte> bowList, ReadOnlySpan<byte> thrownList, CombatText text)
     {
         RecordId At(int place) => DbRecordIds.Required(tables.EntityList[place], $"entity list place {place}");
         static bool Bystander(int place) => place <= 0x56 || place is >= 0x82 and <= 0x90 or >= 0x92 and <= 0x96;
@@ -62,7 +64,36 @@ internal static class CombatImporter
                     End: new EncounterEnd(DbRecordIds.Flag(47), new ChunkRef(RecordId.Decimal(RecordTypes.MapSet, 6), 5, 3),
                         new System.Numerics.Vector3(5.9f, 0.5f, 3f), new System.Numerics.Vector2(1, 0), At(AlaronPlace), RestoresStrength: true)),
             ],
-            GameOver: new GameOverScene(RecordId.Hex(RecordTypes.Map, GameOverMap), RecordId.Hex(RecordTypes.Dialogue, tables.GameOverScript)));
+            GameOver: new GameOverScene(RecordId.Hex(RecordTypes.Map, GameOverMap), RecordId.Hex(RecordTypes.Dialogue, tables.GameOverScript)),
+            Text: text);
+    }
+
+    /// <summary>
+    /// Where the element names are in <c>String/Common</c>: lines 241 to 257, one per <see cref="Element"/> in its order, in all three
+    /// versions. The code reaches them by a pointer at <c>0x800E0C00</c> (<c>0x80083620</c> sets it to the table's line 241, and
+    /// <c>Entity.AppendResistanceLine</c>, <c>0x8006FFB0</c>, indexes it by a resistance's element byte).
+    /// </summary>
+    internal const int ElementNameLine = 241;
+
+    /// <summary>
+    /// The combat menus' and Sense Aura's words, C strings in the code segment (<see cref="CodeTable.CombatLayOnHands"/> on), with
+    /// the element names from the Common string table. Sense Aura's <c>Entity.AppendResistanceLine</c> picks the resistance
+    /// line by the multiplier <c>m</c> (<c>0x8006FFB0</c>): "Immune" for <c>m &lt;= 0</c>, "Resistant" for <c>0 &lt; m &lt; 2.0</c>
+    /// (the float at <c>0x800D3248</c>), "Vulnerable" for <c>m &gt;= 2.0</c>.
+    /// </summary>
+    internal static CombatText ReadText(RomImage rom, GameDb db)
+    {
+        string Line(CodeTable table) => MenuTables.Text(rom, table);
+        var common = db.Strings[RomStringTable.Common];
+        var elements = Enum.GetValues<Element>().ToDictionary(e => e, e => (int)e + ElementNameLine < common.Count
+            ? DialogueText.Unescape(common[ElementNameLine + (int)e])
+            : throw new InvalidDataException($"The Common strings have no line {ElementNameLine + (int)e} for the element {e}."));
+        var below = rom.Table(CodeTable.AuraResistantBelow);
+        return new CombatText(Line(CodeTable.CombatLayOnHands), Line(CodeTable.CombatHealWithHerbs), Line(CodeTable.CombatPerform),
+            Line(CodeTable.CombatNoSpells), Line(CodeTable.CombatNoItems),
+            new SenseAuraText(Line(CodeTable.AuraFollower), Line(CodeTable.AuraLeader), Line(CodeTable.AuraHitpoints), Line(CodeTable.AuraLevel),
+                Line(CodeTable.AuraProtection), Line(CodeTable.AuraImmune), Line(CodeTable.AuraResistant), Line(CodeTable.AuraVulnerable),
+                Be.F32(below, 0), elements));
     }
 
     /// <summary>Alaron's place in the entity list (<c>0x99</c>), whom the Goblin Ambush's end heals and whose line its loss shows.</summary>

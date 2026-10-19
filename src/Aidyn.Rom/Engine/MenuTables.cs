@@ -59,7 +59,7 @@ public sealed record MenuTables(
     }
 
     /// <summary>A C string: ASCII up to its terminator, which the table's range includes.</summary>
-    private static string Text(RomImage rom, CodeTable table)
+    internal static string Text(RomImage rom, CodeTable table)
     {
         var data = rom.Table(table);
         var end = data.IndexOf((byte)0);

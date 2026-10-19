@@ -297,6 +297,34 @@ public enum CodeTable
     BowKindWeapons,
     /// <summary>The weapon DB positions that are thrown, as bytes ending with 0xFF (<c>Combat.ThrownKindWeapons</c>, <c>0x800E0C14</c> in 1.0): they fly as themselves.</summary>
     ThrownKindWeapons,
+    /// <summary>"Lay On Hands", the combat menu's row for the skill (<c>0x800D4880</c> in 1.0, <c>CombatMenu.PickLayOnHands</c>), a C string.</summary>
+    CombatLayOnHands,
+    /// <summary>"Heal With Herbs", the row for the skill (<c>0x800D4890</c> in 1.0, <c>CombatMenu.PickHealWithHerbs</c>), a C string.</summary>
+    CombatHealWithHerbs,
+    /// <summary>"Perform", the Troubadour's row (<c>0x800D48A0</c> in 1.0, <c>CombatMenu.PickTroubadour</c>), a C string.</summary>
+    CombatPerform,
+    /// <summary>What the combat menu says when there are no spells or skills to choose (<c>0x800D4858</c> in 1.0, <c>CombatMenu.OpenSpells</c>), a C string.</summary>
+    CombatNoSpells,
+    /// <summary>What the combat menu says when there are no potions or item spells to choose (<c>0x800D4834</c> in 1.0, <c>CombatMenu.OpenItems</c>), a C string.</summary>
+    CombatNoItems,
+    /// <summary>Sense Aura's line for a party member who follows (<c>0x800D3250</c> in 1.0), a C string.</summary>
+    AuraFollower,
+    /// <summary>Sense Aura's line for the party's leader (<c>0x800D325C</c> in 1.0), a C string.</summary>
+    AuraLeader,
+    /// <summary>Sense Aura's hitpoints line, a printf format (<c>0x800D3264</c> in 1.0).</summary>
+    AuraHitpoints,
+    /// <summary>Sense Aura's level line, a printf format (<c>0x800D3278</c> in 1.0).</summary>
+    AuraLevel,
+    /// <summary>Sense Aura's armor line, a printf format (<c>0x800D3284</c> in 1.0).</summary>
+    AuraProtection,
+    /// <summary>Sense Aura's line for a resistance at 0 or less, a printf format (<c>0x800D3214</c> in 1.0).</summary>
+    AuraImmune,
+    /// <summary>Sense Aura's line for a resistance above 0 and below <see cref="AuraResistantBelow"/>, a printf format (<c>0x800D3224</c> in 1.0).</summary>
+    AuraResistant,
+    /// <summary>Sense Aura's line for a resistance at or above <see cref="AuraResistantBelow"/>, a printf format (<c>0x800D3234</c> in 1.0).</summary>
+    AuraVulnerable,
+    /// <summary>The float a resistance is compared with (<c>0x800D3248</c> in 1.0): 2.0.</summary>
+    AuraResistantBelow,
 }
 
 /// <summary>
@@ -421,6 +449,20 @@ public static class RomVersions
                 [CodeTable.CastingFactors] = new(0x00D35CC, 0x34),
                 [CodeTable.BowKindWeapons] = new(0x00E1808, 9),
                 [CodeTable.ThrownKindWeapons] = new(0x00E1814, 9),
+                [CodeTable.CombatLayOnHands] = new(0x00D5480, 13),
+                [CodeTable.CombatHealWithHerbs] = new(0x00D5490, 16),
+                [CodeTable.CombatPerform] = new(0x00D54A0, 8),
+                [CodeTable.CombatNoSpells] = new(0x00D5458, 30),
+                [CodeTable.CombatNoItems] = new(0x00D5434, 36),
+                [CodeTable.AuraFollower] = new(0x00D3E50, 9),
+                [CodeTable.AuraLeader] = new(0x00D3E5C, 7),
+                [CodeTable.AuraHitpoints] = new(0x00D3E64, 19),
+                [CodeTable.AuraLevel] = new(0x00D3E78, 10),
+                [CodeTable.AuraProtection] = new(0x00D3E84, 26),
+                [CodeTable.AuraImmune] = new(0x00D3E14, 13),
+                [CodeTable.AuraResistant] = new(0x00D3E24, 16),
+                [CodeTable.AuraVulnerable] = new(0x00D3E34, 17),
+                [CodeTable.AuraResistantBelow] = new(0x00D3E48, 4),
                 [CodeTable.VoiceSounds] = new(0x00E0EA8, 0x1F8),
                 [CodeTable.SpellSounds] = new(0x00E10A0, 0xEC),
                 [CodeTable.WeaponSounds] = new(0x00D50D0, 0x218),
@@ -548,6 +590,20 @@ public static class RomVersions
                 [CodeTable.CastingFactors] = new(0x00D35BC, 0x34),
                 [CodeTable.BowKindWeapons] = new(0x00E1848, 9),
                 [CodeTable.ThrownKindWeapons] = new(0x00E1854, 9),
+                [CodeTable.CombatLayOnHands] = new(0x00D5470, 13),
+                [CodeTable.CombatHealWithHerbs] = new(0x00D5480, 16),
+                [CodeTable.CombatPerform] = new(0x00D5490, 8),
+                [CodeTable.CombatNoSpells] = new(0x00D5448, 30),
+                [CodeTable.CombatNoItems] = new(0x00D5424, 36),
+                [CodeTable.AuraFollower] = new(0x00D3E40, 9),
+                [CodeTable.AuraLeader] = new(0x00D3E4C, 7),
+                [CodeTable.AuraHitpoints] = new(0x00D3E54, 19),
+                [CodeTable.AuraLevel] = new(0x00D3E68, 10),
+                [CodeTable.AuraProtection] = new(0x00D3E74, 26),
+                [CodeTable.AuraImmune] = new(0x00D3E04, 13),
+                [CodeTable.AuraResistant] = new(0x00D3E14, 16),
+                [CodeTable.AuraVulnerable] = new(0x00D3E24, 17),
+                [CodeTable.AuraResistantBelow] = new(0x00D3E38, 4),
                 [CodeTable.VoiceSounds] = new(0x00E0EE8, 0x1F8),
                 [CodeTable.SpellSounds] = new(0x00E10E0, 0xEC),
                 [CodeTable.WeaponSounds] = new(0x00D50C0, 0x218),
@@ -673,6 +729,20 @@ public static class RomVersions
                 [CodeTable.CastingFactors] = new(0x00E075C, 0x34),
                 [CodeTable.BowKindWeapons] = new(0x00F0378, 9),
                 [CodeTable.ThrownKindWeapons] = new(0x00F0384, 9),
+                [CodeTable.CombatLayOnHands] = new(0x00E2A70, 13),
+                [CodeTable.CombatHealWithHerbs] = new(0x00E2A80, 16),
+                [CodeTable.CombatPerform] = new(0x00E2A90, 8),
+                [CodeTable.CombatNoSpells] = new(0x00E2A48, 30),
+                [CodeTable.CombatNoItems] = new(0x00E2A24, 36),
+                [CodeTable.AuraFollower] = new(0x00E1068, 9),
+                [CodeTable.AuraLeader] = new(0x00E1074, 7),
+                [CodeTable.AuraHitpoints] = new(0x00E107C, 19),
+                [CodeTable.AuraLevel] = new(0x00E1090, 10),
+                [CodeTable.AuraProtection] = new(0x00E109C, 26),
+                [CodeTable.AuraImmune] = new(0x00E102C, 13),
+                [CodeTable.AuraResistant] = new(0x00E103C, 16),
+                [CodeTable.AuraVulnerable] = new(0x00E104C, 17),
+                [CodeTable.AuraResistantBelow] = new(0x00E1060, 4),
                 [CodeTable.VoiceSounds] = new(0x00EFA18, 0x1F8),
                 [CodeTable.SpellSounds] = new(0x00EFC10, 0xEC),
                 [CodeTable.WeaponSounds] = new(0x00E26C0, 0x218),
