@@ -137,15 +137,16 @@ public sealed partial class Battle
     }
 
     /// <summary>
-    /// The flask used up (<c>Combatant.ConsumeFlask</c>, <c>0x80064AB0</c>): one from the party's inventory, unless the AI plays it, and
-    /// the action put back: the next of the stack stays in hand, and the last empties it.
+    /// The flask used up (<c>Combatant.ConsumeFlask</c>, <c>0x80064AB0</c>): one from the party's inventory, unless the AI plays it. The
+    /// original puts the action back at once, which empties the hand as the last of a stack is thrown, so it never flies or bursts; the
+    /// port leaves it in hand until the turn's end puts it back (<see cref="EndTurn"/>), so the last one flies and bursts as the rest
+    /// do: the user's choice.
     /// </summary>
     private void ConsumeFlask(Combatant a, Potion potion)
     {
         if (a.Controlled)
             return;
         Game.Party.Inventory.Take(Potions.Id(potion));
-        a.RevertAction(Game.Party.Inventory);
     }
 
     /// <summary>

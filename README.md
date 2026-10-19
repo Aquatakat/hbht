@@ -31,6 +31,8 @@ Some fixed bugs:
   and restarting.
 - Some interiors hide the time of day and compass when entering through a door.
   The original shows them when you load a save inside, HBHT hides them.
+- In battle, the last flask of a stack flies and bursts like the others. The
+  original empties the hand as it's thrown, so it was used up for nothing.
 
 The type of things not fixed:
 - Rain and splash density stays pretty low by default.

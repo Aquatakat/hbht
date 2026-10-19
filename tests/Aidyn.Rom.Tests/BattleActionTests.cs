@@ -165,6 +165,31 @@ public sealed class BattleActionTests(Na10Import fixture)
     }
 
     [Fact]
+    public void TheLastFlaskOfAStackFliesAndTheHandIsEmptiedAtTheTurnsEnd()
+    {
+        // The port's fix, the user's choice: the original empties the hand as the last is thrown, so it never flies or bursts.
+        var run = Start();
+        var brenna = run.TurnOf("Brenna");
+        var inventory = run.Built.Game.Party.Inventory;
+        while (inventory.Has(Potions.Id(Potion.FireFlask)))
+            inventory.Take(Potions.Id(Potion.FireFlask));
+        inventory.Add(Potions.Id(Potion.FireFlask));
+        brenna.HoldPotion(Potion.FireFlask, run.Battle);
+        Assert.True(run.Battle.Attack());
+        Assert.True(run.Battle.Confirm());
+        var flew = false;
+        for (var i = 0; i < 2000 && run.Battle.Current == brenna; i++)
+        {
+            run.Tick();
+            flew |= run.Battle.Flight is { Scene: var scene } && scene == Battle.FlaskScene;
+        }
+        Assert.True(flew);
+        Assert.False(inventory.Has(Potions.Id(Potion.FireFlask)));
+        Assert.False(brenna.HoldsFlask);
+        Assert.Equal(CombatAction.None, brenna.Action);
+    }
+
+    [Fact]
     public void AHealerHealsHerselfWithAHerbFromCDown()
     {
         var run = Start();
