@@ -367,7 +367,9 @@ public sealed partial class Battle
     /// </summary>
     private void StepFacing()
     {
-        if (Current is not { } c || c.Freed)
+        // A caster that Escape took off the field still casts at the rest of its targets.
+        var casting = TargetsA.Selected == 0 && TargetsB.Selected > 0 && Current is { CastMargin: >= 0 };
+        if (Current is not { } c || c.Freed && !casting)
         {
             if (Current is { } gone)
                 EndTurn(gone);
@@ -542,7 +544,8 @@ public sealed partial class Battle
     private bool SwingEnded()
     {
         _actionTimer++;
-        if (Current is not { } c || c.Freed || c.Body.Playing != 0 || _actionTimer < SwingTicks)
+        // A caster that Escape took off the field has no swing to wait for (the port's fix; the original waits for its body for ever).
+        if (Current is not { } c || !c.Freed && c.Body.Playing != 0 || _actionTimer < SwingTicks)
             return false;
         _actionTimer = 0;
         return true;
@@ -554,8 +557,16 @@ public sealed partial class Battle
     /// </summary>
     private void StepAction()
     {
-        if (!SwingEnded() || Current is not { } a || Target < 0 || _slots[Target] is not { Freed: false } t)
+        if (!SwingEnded() || Current is not { } a || Target < 0 || _slots[Target] is not { } t)
             return;
+        if (t.Freed)
+        {
+            // Escape took the target off the field: the original's state 2 waits for its body for ever (a softlock); the port goes on
+            // to the result, and the cast to its next target, the user's choice.
+            State = CombatState.Result;
+            Lines.Flush();
+            return;
+        }
         if (a.Drawn && TargetsA.Selected != 0 && a.Action is CombatAction.Ranged or CombatAction.Flask or CombatAction.MeleeOrRanged
             && StartFlight(a, t))
         {

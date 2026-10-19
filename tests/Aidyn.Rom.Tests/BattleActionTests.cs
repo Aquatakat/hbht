@@ -190,6 +190,43 @@ public sealed class BattleActionTests(Na10Import fixture)
     }
 
     [Fact]
+    public void EscapeTakesItsTargetsOffTheFieldAndTheWholePartyGoneHasFled()
+    {
+        // The port's fix, the user's choice: the original's state 2 waits for an escaped member's body for ever.
+        var run = Start();
+        var rheda = run.TurnOf("Rheda");
+        var escape = run.Built.Game.Rules.Magic!.Spell(RecordId.Hex(RecordTypes.Spell, 0x033C))!;
+        rheda.Sheet.LearnSpell(escape);
+        var learned = rheda.Sheet.Spells[^1];
+        learned.Level = 10;
+        rheda.Sheet.Skills.Train(Aidyn.Core.Characters.Skill.Wizard, 10);
+        Choose(run.Battle, false, r => r.Text == "Escape");
+        Assert.Equal(CombatState.TargetSpell, run.Battle.State);
+        var targets = run.Battle.TargetsB.SelectedSlots.Select(s => run.Battle.Slots[s]!).ToList();
+        Assert.NotEmpty(targets);
+        Assert.All(targets, t => Assert.False(t.Hostile));
+        Assert.True(run.Battle.Confirm());
+        for (var i = 0; i < 3000 && run.Battle.Current == rheda && !run.Battle.Over; i++)
+            run.Tick();
+
+        if (run.Battle.Log.Any(l => l.Contains("fails to cast", StringComparison.Ordinal)))
+            return;
+        Assert.All(targets, t => Assert.True(t.Gone && !t.Sheet.IsDead));
+        var everyone = run.Battle.Combatants.Where(c => !c.Hostile).All(targets.Contains);
+        Assert.Equal(everyone, run.Battle.Fled);
+        if (everyone)
+            return;
+        // The battle goes on with whoever's left; once the last of the party is gone too, it has fled at the next turn's change.
+        Assert.NotSame(rheda, run.Battle.Current);
+        Assert.False(run.Battle.Current!.Gone);
+        foreach (var left in run.Battle.Combatants.Where(c => !c.Hostile && !c.Gone).ToList())
+            run.Battle.Leave(left);
+        run.Battle.EndTurn(run.Battle.Current);
+        Assert.True(run.Battle.Fled);
+        Assert.Equal(BattleOutcome.Fled, run.Battle.Outcome);
+    }
+
+    [Fact]
     public void AHealerHealsHerselfWithAHerbFromCDown()
     {
         var run = Start();

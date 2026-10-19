@@ -438,7 +438,7 @@ Read from 1.0's code, checked by running the original's own functions on checkpo
 
 **Sense Aura** (`Entity.SenseAura`, `0x80070070`) puts up the Party tab's message box with code strings by the cast's level: the target's name; from 1 "Leader" or "Follower"; from 3 "%d Total Hitpoints"; from 5 "Level %lu"; from 7 its resistances, "Immune to %s" at 0 or less, "Resistant to %s" under 2.0, else "Vulnerable to %s"; from 9 "Total Armor Protection %d" (importer 45). It holds state 4 from ending the turn; any press closes it and ends the turn at once (`Combat.DismissPopup`, `0x80083E30`). **Detect Moon Phase and Detect Sun Phase** only flag trek's sundial, which combat neither draws nor has: in 1.0 the write goes through a null pointer.
 
-**Escape** (`Combatant.Leave` on each target while the party can flee) takes a member off the field as a fleeing enemy goes; its body gone, state 2 waits for it forever ([Not settled](#not-settled)).
+**Escape** (`Combatant.Leave` on each target while the party can flee) takes a member off the field as a fleeing enemy goes; its body gone, state 2 waits for it for ever, a softlock (by the code and 1.0's own functions run; Escape is reached only by cheating: Ardra, who knows it, never fights, and its scroll isn't in the game). The port fixes it (below).
 
 **The pause menu's Party tab** in a battle (`PartyMenu.InventoryA`, `0x80035FA0`, by `PauseMenu.CombatMember`): only the member whose turn it is may change anything (Common lines 489, 490 say so); a weapon equipped (`Party.EquipWeapon`, `0x800758CC`, then `Combatant.AfterEquipChange`, `0x800610C0`: performing stopped, healing put away, the weapon's action, moved) or a flask taken in hand (`Party.EquipFlaskInCombat`, `0x800753F0`) ends the turn as the menu closes (state 19, `Combat.StateEndTurn`); a drinkable potion is refused for C-up (line 488); a scroll goes on into a gear slot, up to three, with no turn spent, which puts its spell on C-up; a weapon taken off leaves the member unarmed with no turn spent; body armor and a shield can't come off ("You cannot equip that item in combat!").
 
@@ -554,7 +554,8 @@ Read from 1.0's code, checked by running the original's own functions on checkpo
 
 - **The last flask of a stack flies and bursts** as the others do: the port leaves a thrown flask in hand until the turn's end puts the action back, where the original's `ConsumeFlask` empties the hand as it's thrown. The user's choice (Oct 18, 2026), in the README's fixes.
 - **Kept as the original's, the user's choice** (Oct 18, 2026): a flask's blast hits its target twice, and its distance is kept in a byte, so far combatants can be hit. The user compares 1.0's and 1.1's in the emulator.
-- Kept as the original's for now: Acid thrown and missed corrodes about the last flask's cell; Escape (the Escape scroll, `aidyn:item/0x110C`, or Ardra) cast on a party member leaves the battle waiting in state 2, its body gone.
+- **Escape doesn't softlock**: state 2 goes on to the result when its target has left the field, a caster that has left still casts at the rest of its targets, and with every member able to fight gone the party has fled (state 20) at the next turn's change. The user's choice (Oct 18, 2026); not in the README, as only cheating reaches the spell.
+- Kept as the original's for now: Acid thrown and missed corrodes about the last flask's cell.
 - Detect Moon Phase and Detect Sun Phase do nothing in a battle; the original writes through a null pointer.
 - The held menu's stick repeats as the runtime's menus do, not after the original's 30 polls and every 5.
 - A placed area confirmed with no one in it goes back to the turn, as state 10 does with none selected; the original's branch for it wasn't read.
@@ -568,7 +569,6 @@ Read from 1.0's code, checked by running the original's own functions on checkpo
 - Body flags `0x200` (set on enemies' bodies by `Combat.CreateBody`), `0x400` (skipped by the bodies' push) and `0x800` (`ProcessPlayers` calls `0x80015FEC`), which `TurnOrder.ClearActions` clears.
 - Exactly where in 05 to 06 the attack's draws fall, which a watchpoint on `0x800D8088` from 05 would show.
 - How the target mark's light colour reaches the body's drawing (`Bodies.SetLights`' use of `+0x770`), and how the healing numbers look in play (read as sinking, shrinking and fading in): [user-checks](../user-checks.md).
-- **Escape's freeze**: a party member cast off the field leaves state 2 waiting for its body, by the code and 1.0's own functions run; not seen in the emulator ([user-checks](../user-checks.md)).
 - **The held menus' pixels**: the rows' heights and the font's metrics, the arrows' places, the empty message's size; no capture of either menu exists ([user-checks](../user-checks.md)).
 - **Equipping body armor or a shield** from the combat pause's Party tab: the equip table has no row for them, so it looks refused with "You cannot equip that item!"; the port refuses it so.
 - **Acid on a miss** corroding about the last flask's cell, read and not run.
