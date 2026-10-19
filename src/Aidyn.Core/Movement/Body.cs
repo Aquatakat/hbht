@@ -182,7 +182,7 @@ public sealed class Body
     }
 
     /// <summary>
-    /// Adds a point to walk to (<c>SetPlayerMoveToQueue</c>, <c>0x800157C8</c>: a ring of 16, from which <c>Body.NextPathStep</c>,
+    /// Adds a point to walk to (<c>Body.QueueWalk</c>, <c>0x800157C8</c>: a ring of 16, from which <c>Body.NextPathStep</c>,
     /// <c>0x80015890</c>, starts the next as each is reached): at once if it isn't heading anywhere, running, and stopping within
     /// <paramref name="radius"/>. The AI's walks in combat queue the corners of a path this way.
     /// </summary>

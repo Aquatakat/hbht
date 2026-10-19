@@ -79,11 +79,11 @@ public partial class Game
 
     /// <summary>
     /// A view for each combatant whose body is on the field: a reserve that has come in gets one, and one whose body has gone, its
-    /// fall played, loses it (<c>Combat.FreeBody</c>).
+    /// fall played or its flight's fade, loses it (<c>Combat.FreeBody</c>).
     /// </summary>
     private void SyncCombatants(Battle battle)
     {
-        foreach (var (combatant, view) in _combatantViews.Where(p => p.Key.Freed || !battle.Slots.Contains(p.Key)).ToList())
+        foreach (var (combatant, view) in _combatantViews.Where(p => p.Key.Freed && p.Key.Fading == 0 || !battle.Slots.Contains(p.Key)).ToList())
         {
             view.QueueFree();
             _combatantViews.Remove(combatant);

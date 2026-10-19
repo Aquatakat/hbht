@@ -126,7 +126,7 @@ The user chose to keep these, which look like bugs, as the original has them:
 - **Session 3:** `Battle.AgeEffects` at a round's end, `Combatant.RadiusWithEffects`, and the turns an immobilised combatant loses.
 - **Session 9:** dealing a cast's damage through the action's states as an attack's is (`Combatant.Damage`, `Battle.ExecuteAction`'s path). Session 5 calls `Battle.Strike` after a hit, deals the effects' deaths at a round's end, and reads `Combatant.IsImmobilised` in the attack's chances.
 - **Session 10:** the visuals (`CombatSpellFx`, `ProcessSpellVisuals`) and the handle each record keeps.
-- **Session 11:** `SpellValues` in the AI's scoring, and `Combatant.Morale` from the entity's.
+- **Session 11:** `SpellValues` in the AI's scoring (session 6 set `Combatant.Morale` from the entity's, on its AI record).
 
 ## Not settled
 

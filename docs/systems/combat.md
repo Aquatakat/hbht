@@ -1,6 +1,6 @@
 # Combat: battle mode (2.5, 2.6, M3)
 
-This is the map of the original's combat that M3 is planned from ([roadmap](../roadmap.md#next)): its code, its states and what it keeps in RAM. Each part gets its detail as the session that ports it reads it. What the player sees is in [engine-behaviour](../engine-behaviour.md#battle-mode). [The port](#the-port) says what's ported so far and by which classes: a battle into its arena and out, with the combat camera and the pause menu's Flee, its turns, walking in the field and skipping, the battle screen, and attacking, death and reserves.
+This is the map of the original's combat that M3 is planned from ([roadmap](../roadmap.md#next)): its code, its states and what it keeps in RAM. Each part gets its detail as the session that ports it reads it. What the player sees is in [engine-behaviour](../engine-behaviour.md#battle-mode). [The port](#the-port) says what's ported so far and by which classes: a battle into its arena and out, with the combat camera and the pause menu's Flee, its turns, walking in the field and skipping, the battle screen, attacking, death and reserves, and the enemy AI: walking, fighting, morale and fleeing.
 
 Addresses are 1.0's. Names are in the symbol map, prefixed `Combat.`, `Combatant.`, `TurnOrder.`, `ArenaGrid.`, `TargetSet.`, `EnemyAI.`, `AiScores.`, `CombatGui.`, `CombatMenu.`, `CombatMarkers.`, `CombatSpellFx.`, `CombatCamera.`, `CombatRadar.` and so on, all coined but `ProcessCombatCamera`. Fields marked **checked** were read in the combat checkpoints ([rig](../reference-rig.md#checkpoint-library)), one battle against ten rats; the rest are read from the code.
 
@@ -124,7 +124,7 @@ The Battle arenas are `aidyn:mapset/16` ("Battlefields", 150 to a cell): 28 chun
 | `+0x08` | u32, 1 after the first enemy died |
 | `+0x0C` | u32, 1 once the leader's gone |
 | `+0x10` | the leader: the first enemy with the highest base Intelligence, a later one needing strictly more |
-| `+0x11` | the leader's morale (`EnemyAI.Morale`, each round) |
+| `+0x11` | the leader's morale: its record's at the start (`Combat.CreateEnemyCombatants`, `0x8005D048`), then as `EnemyAI.Morale` works it out in another enemy's check to flee ([The AI](#the-ai)) |
 | `+0x12` | the AI's area danger: the party's flask tier (`Combat.PartyPotionTier`), or twice its best effective Fireball level, a radius the enemies spread out by (`EnemyAI.AreaDanger`, `0x80058A48`) |
 | `+0x13` | the Troubadour's bonus in play, 0 with none |
 | `+0x14` | the last target |
@@ -138,12 +138,12 @@ The Battle arenas are `aidyn:mapset/16` ("Battlefields", 150 to a cell): 28 chun
 | `+0x4F0C` | target set B, for spells |
 | `+0x4FB4` | the loot, an inventory made at victory |
 | `+0x4FB8` | a message popup |
-| `+0x4FBC` | s32, the walking states' stuck timer |
+| `+0x4FBC` | s32, the stuck timer: 240 as a walk starts, counted down by ticks the body moves under 0.03 ([The AI](#the-ai)) |
 | `+0x4FC0` | the combat strings |
 | `+0x4FC4`, `+0x50C4`, `+0x51C4` | three log lines of 0x100: shown, queued, and a third ([ui](ui.md#the-log-box)) |
 | `+0x52C4` | the log's flags (only bit 2, the third waiting); `+0x52C8` the hold's timer and two Shadow states'; `+0x52CC` the action timer (`Combat.StepActionTimer`, `0x80021708`) |
 | `+0x52D0` | the 14 combatants |
-| `+0x5318` | f32 x, z, the AI's goal; `+0x5320` its path, up to 144 cells as byte pairs |
+| `+0x5318` | f32 x, z, where a fleeing enemy's turn began (`BeginFleeWalk`); `+0x5320` the AI's path, up to 144 cells as byte pairs, its corners and the goal last |
 | `+0x543C` | 1 while "Enemy reinforcements flee" holds the battle, 60 ticks ([ui](ui.md#the-log-box)); `+0x5440` the arena has flee points; `+0x5444`, `+0x5445` the last flask's cell; `+0x5448` the frame counter |
 
 Beside it: the combatants' bodies, `Combat.Bodies` (`0x800D9488`, 14 by slot, 0x780 each), `Combat.State` and `Combat.NextState` (`0x800D9454`, `0x800D9455`), the Shadow's and Alaron's slots (`0x800D94CC`, `0x800D94CD`) and the AI's scores (`0x800E0BE0`).
@@ -172,7 +172,7 @@ Beside it: the combatants' bodies, `Combat.Bodies` (`0x800D9488`, 14 by slot, 0x
 | `+0x44` | the AI record, enemies only | checked |
 | `+0x84`–`+0x8A` | what the hand holds, a weapon or a flask | |
 
-**The AI record** (0x1C, `EnemyAI.Init`, `0x8005BA7C`): `+0` a copy of the spells (0x2C, or none), `+4` and `+7` the style (0 melee, 1 ranged, 2 caster), `+5` the target (0xFF none), `+6` morale (5 for rats), `+8` the attack style 0–10 (`EnemyAI.StyleTable`, `0x800E0B80`), `+9` flags (0 fleeing, 1 a morale check due, 4 hit lately), `+0xA`–`+0x11` eight action slots, `+0x12` and `+0x13` the path's place and length, `+0x14` the combatant, `+0x18` a flight's steps left (4). Checked in 02, 09 and 11, where the fleeing rat's flags went from 8 to 9.
+**The AI record** (0x1C, `EnemyAI.Init`, `0x8005BA7C`) is [The AI](#the-ai)'s. Checked in 02, 08, 09, 10 and 11, where the fleeing rat's flags went from 8 to 9.
 
 **A target set** (0xA8, `TargetSet`): `+0x00` 14 candidate flags (u32 each), `+0x48` 14 selected, `+0x90` the candidates in the cursor's order, `+0xA2` the mode (0 attacks, 1 spells), `+0xA3` candidates, `+0xA4` selected, `+0xA5` the most that may be, `+0xA6` the cursor, `+0xA7` its place. Checked in 05: the cursor on combatant 7, one selected.
 
@@ -187,10 +187,10 @@ Beside it: the combatants' bodies, `Combat.Bodies` (`0x800D9488`, 14 by slot, 0x
 | 2 | `Combat.StateAction` `0x80021774` | an attack's or spell's animation; at its end the hit or miss and the numbers (`Combat.ShowDamage`), then 4, a spell through 3 |
 | 3 | `Combat.StateCast` `0x80021B24` | the camera glides to the spell |
 | 4 | `Combat.StateResult` `0x80021F30` | the numbers; 60 ticks on, `Combat.RemoveFallen` takes the dead and fled, and the turn ends |
-| 5 | `Combat.StateMoving` `0x80021FD0` | a body walks to a point (the AI's path, a reserve coming in), then `NextState` |
+| 5 | `Combat.StateMoving` `0x80021FD0` | the AI's body runs its leg, then 6 (or the turn ends for a combatant without an AI); the stuck timer gives it up |
 | 6 | `Combat.StateFacing` `0x800221B0` | turns to the target, then carries out the action |
-| 7 | `Combat.StateWaitIdle` `0x8002235C` | waits for the body to stop, then 5 |
-| 8 | `Combat.StateAI` `0x800223F8` | `EnemyAI.Step` each frame |
+| 7 | `Combat.StateWaitIdle` `0x8002235C` | waits for the body to stop, then 5; nothing enters it |
+| 8 | `Combat.StateAI` `0x800223F8` | `EnemyAI.Step` each frame, whose every branch leaves 8 on the first |
 | 9 | (draws) | an attack's target: the stick cycles, A confirms (`0x800842C4`) |
 | 10 | (draws) | a spell's target (`0x800844BC`) |
 | 11 | (draws) | placing an area: the stick moves its centre (`0x80084964`) |
@@ -230,7 +230,7 @@ Beside it: the combatants' bodies, `Combat.Bodies` (`0x800D9488`, 14 by slot, 0x
 
 **Rewards** (`Combat.TallyRewards`): for every entry of the enemy list, its experience (the entity's `+0x7C`) and its chest (`+0x7E`, `Combat.AddChestLoot` `0x8005E0F0`: gold, drops, a random item, six slots), and the bonus loot. Each living member gets the whole pool (`0x80071528`). Read but not checked: the gold pool is doubled at the end, and looted items add to the experience pool.
 
-**Morale and fleeing.** An enemy's morale (the AI's `+6`, from the entity's `+0x1B`) is changed by `EnemyAI.Morale` (`0x80056FA8`) as [engine-behaviour](../engine-behaviour.md#enemy-ai) has it. `EnemyAI.MayCheckMorale` (`0x8005722C`) holds the check back unless its Stamina's gone or half the enemies are; the roll is 2d6, and losing it is `EnemyAI.StartFleeing` (`0x8005B9E4`), which needs flee points and the enemy not engaged: four steps toward the nearest flee point (`0x8005AE3C`), then `Combatant.Leave` (`0x80061480`). A reserve can flee as it arrives (`EnemyAI.ReserveFleesOnArrival`, `0x80056E18`). Bosses can't (`Combat.NoFleeEntities`).
+**Morale and fleeing** are [The AI](#the-ai)'s: the check to flee comes at an AI's turn's start, before its state is set.
 
 **Reserves** (`Combat.SpawnReserves`, `0x8005D914`, at a round's end, checked in 09) are [An attack](#an-attack)'s.
 
@@ -301,12 +301,85 @@ Read from 1.0's code, checked by running the original's own functions on the che
 
 **The random stream between checkpoints**: besides the battle's own draws, `Weather.DriftWind` (`0x8007BAA0`, from `Combat.AfterFrame` through `World.SetTerrain` and `World.Update`) draws 2 every drawn frame, plus 3 with chance 0.05 and 1 more with 0.05. It accounts for every draw from 04 to 05 (1,907 in 873 frames). The attack's own draws between 05 and 06 can be counted but not placed from two states.
 
+## The AI
+
+Read from 1.0's code (`0x80056E10`–`0x8005C0C0`, `aiInfo.cpp` and `aiscores.cpp`), checked by running the original's own functions on the checkpoints' RAM in session 5's MIPS interpreter, and replayed by the port (`AiCheckpointTests`, `EnemyAiTests`).
+
+**The record** (0x1C, `EnemyAI.Init`, `0x8005BA7C`; `EnemyAI.Free`, `0x8005BD90`):
+
+| Offset | Holds |
+| --- | --- |
+| `+0x00` | the spare weapon: an item made from the entity's first weapon, only when its first and third are both set; what `EnemyAI.SwapWeapon` trades the held one for |
+| `+0x04` | the type it fights as: 0 melee, 1 ranged, 2 caster, from the weapon and spells; `ChooseWeapon` makes it `+0x07` |
+| `+0x05` | the target's slot, `0xFF` none |
+| `+0x06` | morale, the entity record's (`+0x1B` in RAM): 5 for rats, 12 and up never flee; spells of kinds `0x19` and `0x2F` lower it ([magic](magic.md)) |
+| `+0x07` | the type its style wants this turn; unlike `+0x04`, `Execute` swaps weapons first |
+| `+0x08` | the attack style, 0–10 (`EnemyAI.StyleTable`, `0x800E0B80`, a function every 8 bytes) |
+| `+0x09` | flags: 1 fleeing, 2 a morale check due, 4 two more morale (nothing sets it), 8 the AI plays its turns (set by `Init`, tested by `TurnOrder.BeginTurn`), `0x10` hit by a weakness (never cleared) |
+| `+0x0A`–`+0x11` | eight action slots, spell places or `0xFF`: the entity's five spells, its armor's, its shield's and its weapon's own spell (the one it's cast from, not the one it strikes with) |
+| `+0x12`, `+0x13` | the path's next corner and its length |
+| `+0x14` | the combatant |
+| `+0x18` | a flight's turns left: 4 as it starts |
+
+**The style** (`Init`): no weapon, 5; a melee weapon, 0, or 1 with a base Intelligence of 15 or more, or with any spell 6 (9 for the bosses, `EnemyAI.HasBossStyle`, `0x8005BA40`, a jump table at `0x800D24B0`: entity list places `0x57`–`0x59`, `0x5E`, `0x5F`, `0x7A`, `0xA7`–`0xA9`, `0xAB`, `0xAD`, `0xBA`, `0xBC`); a ranged one, 2, or 3 clever, 4 if it strikes in melee too (`Weapon.AllowsMelee`), or with a spell 7, 8 (10 for the bosses). Of the 114 entities that fight: style 0 32 (rats, wolves, trolls, skeletons, Goblin `0x0215`), 1 7, 2 7 (Goblin `0x022E`, Goblin Scout `0x024E`), 3 12 (Goblin Scout `0x0208`, Bandit Woodsmen, the Goblin Poisoners), 4 3, 5 6, 6 28, 7 2, 8 4, 9 7, 10 6.
+
+**An enemy's weapon** (the entity's build in its enemy mode, `0x8006E2E8` through `0x8006E434`): the third weapon slot's if it can wield it, else the first's; the second is never read. Every entity with a third weapon can, so the first is the fallback only for those without. The goblin archers hold a bow with a sword as the spare.
+
+**A turn** (`EnemyAI.Step`, `0x8005B314`, the first frame of state 8). An enemy decides once and walks once: one plan, at most one leg, then at most one action or a rest.
+
+1. It reads its body (`Combatant.SyncFromBody`) and keeps where it starts.
+2. Not fleeing, its style chooses (`EnemyAI.ChooseGoal`, `0x8005B144`; `EnemyAI.RunStyle`, `0x80059628`): the style fills `AiScores` and sorts it, and the first entry is the target (`+0x05`) and the goal cell. At the goal already, it acts (`Execute`). Fleeing, the goal is the nearest flee point (below).
+3. **The path** (`EnemyAI.PlanPath`, `0x8005A974`; `ArenaGrid.FindPath`, `0x80068CD4`): both footprints are freed; from the start it steps to the free, unmarked, gentle neighbour (a rise under 3 half units, `ArenaGrid.IsGentle`) nearest the goal by the distance squared, the first of equals in the directions' order N to NW, marking each, until the goal or the grid's diagonal. It never searches: at a dead end it counts back without stepping back, so any pocket, a ring of bodies or a wall's corner between it and the goal, fails it. The grid is filled again with every living body that's still there (`ArenaGrid.RefillWithBodies`), and a path is cut to its corners (`TrimPath`, `0x80068784`, takes the loops out; `StraightenPath`, `0x8006894C`, keeps a run's last cell). With no path: walk straight at the target if it's within its bodies' radii and 2.25 (`EnemyAI.ApproachTarget`, `0x8005AB14`), else act from where it stands.
+4. **The leg** (`EnemyAI.WalkPath`, `0x8005A0D8`): corner after corner, each queued for the body to run to (`Body.QueueWalk`, `0x800157C8`, a ring of 16) and the facing that way, until the path's end or a stop. A corner that's taken or too steep stops it at the first blocked cell of the straight line there (`EnemyAI.WalkIsClear`, `0x80059C94`, a Bresenham line), so a rat runs into its target's cell and the bodies' push holds it off. A corner past the field, measured from the turn's start, stops it where the line leaves the circle (`EnemyAI.ClipToCircle`, `0x80059A84`, whose quadratic has b where 2b belongs), rounded: an engaged enemy, of radius 1, moves a cell. The combatant stands on the leg's end at once, on the grid too, while its body runs; flag 3 is set for a leg of 3 or more. State 5, the stuck timer at 240. If no corner could be walked it only turns toward the first (`EnemyAI.FaceStep`) and approaches or acts.
+5. **The walk** (state 5): the body runs (stick 0.95, `Body.WalkStick`) to each point in turn, arriving within its scaled radius. A body that comes no nearer by 0.01 for 30 ticks, counted over the whole point, gives it up where it stands in combat (`Body.StepTowardGoal`, `0x800159C8`, which outside combat puts it at the goal); and every tick it moves under 0.03 counts the stuck timer down. With no point left, state 6 turns it the way it walked (`Combatant.FaceAndSettle`), and then, with `NextState` 8, `EnemyAI.FleeAdvance`: for an enemy not fleeing, `Execute`. The timer run out does the same from wherever it is.
+6. **The action** (`EnemyAI.Execute`, `0x8005B594`): a weapon swap first if its style wants the other kind (`ChooseWeapon`, `0x8005A620`; `SwapWeapon`, `0x8005A560`: "%s changes weapons", and the turn's spent resting); then both target sets from where it stands (`EnemyAI.PrepareTargetSets`, `0x8005B8F8`): its target selected alone if set A has it, else whoever set A selected (`SelectWeaponTarget`, `0x8005B7C8`), a caster trying set B first; and if it can attack (or cast at) that one (`EnemyAI.CanActOnTarget`, `0x8005B218`, which makes it the action's target, `+0x14`), it turns to it (`Combatant.FaceCombatant`, state 6) and attacks through `Combatant.ExecuteAction` as the player's attack does. Otherwise it rests: state 24, 120 ticks (`Combat.EnterRest`), and the turn ends.
+
+**The styles** score with these: `ListOpponents` (`0x8005783C`, one entry per opponent in slot order: alive, able and on the other side); `ScoreByDistance` (`0x80058B90`, the grid's distance from the AI's cell, `ArenaGrid.Distance`, a square root truncated); `AreaDanger` (`0x80058A48`, 5 for each ally within the party's area danger `+0x12`, while the leader lives); `CollectAttackCells` (`0x80057908`, each free cell in its field from which set A has someone, with the nearest of those) and `CollectAttackCellsByReach` (`0x80057C30`, one cell per opponent, preferring cells no opponent's field reaches, then nearer); `ScoreAttackCells` (`0x80058C7C`, round each opponent the free cells from which set A has it: 25 its own cell, 20 the flank or back, `Combatant.IsFlanking`, 50 above it, up to 15 the more it's hurt, 10 if it holds a ranged weapon); `FarthestCell` (`0x800587BC`, the free cell in its field with the greatest summed distance from the opponents). The cell collectors try each cell by moving the combatant's place there and building set A, but `Combatant.IsWithinReach` reads both bodies again, so for melee reach only where its body stands counts: a clever melee fighter (style 1) far off finds no cell, and takes an opponent's own cell, the one the sort puts first.
+
+| Style | Who | Chooses |
+| --- | --- | --- |
+| 0 | melee, Intelligence under 15 | the nearest opponent; its cell |
+| 1, 4 | melee, clever; a weapon for near and far | each opponent's best cell (`ScoreAttackCells`), the best first |
+| 2 | ranged, Intelligence under 15 | the nearest cell to attack from; with none, the nearest for the other kind of weapon, which it then wants; with none either, the nearest opponent |
+| 3 | ranged, clever | with an opponent in reach, its best cell in melee, wanting melee; holding a melee weapon with none near, the farthest cell, wanting its bow; else the nearest cell to shoot from that no opponent's field reaches, or if all are reached the farthest; with none, style 0's |
+| 5–10 | casters and bosses | their spells first (`EnemyAI.ChooseSpellOrAttack`, `0x800590B0`, scoring each action slot from each cell, `EnemyAI.SpellValue`); with none: 5 as 0, 6 its collected attack cells scored (or style 1), wanting melee, 7 as 3, 8 as 4, 9 as 6 over the opponents, 10 as 3 with the farthest cell as its fallback and the nearest order |
+
+**The sort** (`AiScores.Sort`, `0x8005BFC4`) is the game's own quicksort (`Quicksort.Sort`, `0x800B3978`, `quicksort.cpp`), not the C library's: three elements or two by comparisons, more by a pivot drawn at random and Hoare's partition. Its draws are on a stream of its own (`Quicksort.Seed`, `0x800E6B60`), 0 at boot, never seeded or saved, one draw for each partition of four or more, so a rat choosing among four draws once. Equal scores, common with distances truncated, fall in the order it draws. Nothing else in the AI's choice is random, and its turn draws nothing on the main stream but the action's own.
+
+**Stuck, and resting for no visible reason** (the user's notes in [engine-behaviour](../engine-behaviour.md#enemy-ai)), all the original's:
+
+- The planner sees the grid alone: a cell can be free and gentle there and still blocked for the body (a wall's edge, a narrow gap), or held by the push of another body. The body then comes no nearer, gives up after 30 ticks where it stands, and the enemy acts or rests from there.
+- The combatant stands on its leg's end at once, so enemies planning later route round a place its body may never reach; every combatant reads its body again as the next turn begins.
+- A rest, 120 ticks with no line: the greedy path fails (a ring of the party and its own allies round the target, anything concave), and the target isn't in reach where it stands; the first corner can't be walked; after the leg nothing is in reach (cut short by the field, the give-up or the timer, or an engaged enemy's single cell); a weapon swap; a flight's leg.
+
+**Morale** (`EnemyAI.CheckFlee`, `0x800572AC`, as an AI's turn begins, `TurnOrder.BeginTurn`): every AI combatant but the leader while it lives is asked; with morale under 12 and a check called for (`EnemyAI.MayCheckMorale`, `0x8005722C`: a check due, or no Stamina, or not already fleeing and no more than half the enemies that began able), the leader's morale is worked out first while it lives (`+0x11`), then its own (`EnemyAI.Morale`, `0x80056FA8`, which clears the check due), against 2d6 on the main stream: rolled over, it flees (`EnemyAI.StartFleeing`, `0x8005B9E4`: four turns, unless it's engaged or the arena has no flee points), otherwise it stops fleeing. Its morale, from 2 to 11:
+
+| Term | |
+| --- | --- |
+| its record's | `+0x06` |
+| aspect against the time (Lunar by day, Solar at night) | −1 |
+| a weakness has hit it (flag `0x10`, set with the check due by `ApplyResistance`) | −2 |
+| no Stamina | −1 |
+| strictly fewer than half the enemies that began able | −1 |
+| a harmful effect on it | −1 |
+| fewer than half the party able | +2 |
+| its target has no Stamina, unless it casts a friendly spell | +3 |
+| flag 4 (nothing sets it) | +2 |
+| its own check: the leader gone or unable | −4 |
+| its own check: the leader's morale 8–10, 11 | +1, +2 |
+
+**Fleeing** (`EnemyAI.BeginFleeWalk`, `0x8005B038`): each of its turns says "%s flees" and heads for the nearest flee point (`EnemyAI.NearestFleePoint`, `0x8005AE3C`, the last of equals), as any walk: one leg, bounded by its field. Within 1.5 of the point it leaves at once. After the leg (`EnemyAI.FleeAdvance`, `0x8005B434`) its turns count down, and it leaves on the last, within 1.5 of a flee point, or if it hasn't got a unit from where its turn began; then it rests. With no path, it walks straight to a flee point within 2.25 (`EnemyAI.FleeStep`, `0x8005AA3C`). With no flee point at all it stops fleeing and chooses as any other. **`Combatant.Leave`** (`0x80061480`): it leaves the grid, flag 6 (gone), the counts of those able fall, its effects and potions come off, its body fades out over 120 ticks (`Body.FadeOut`, `0x80014AD4`), `Combat.Bodies` is emptied at once, and its portrait is marked fled. It isn't dead: the kill flags aren't touched, and it still pays its experience and chest.
+
+**Reserves that flee as they arrive** (`EnemyAI.ReserveFleesOnArrival`, `0x80056E18`, inside `Combat.SpawnReserves` as a dead or gone combatant's slot is to be refilled): only where there are flee points, with morale under 12, and while **more** than half the enemies that began are still able; its record's morale, less 1 for its aspect (any but Solar counting as Lunar), 4 with the leader gone or unable, and the leader's morale's say, from 2 to 11, against 2d6. Fleeing, it's passed over (`+0x07` moves on), its small portrait marked (`CombatGui.MarkReserveFled`), its slot left as it was until the next round, and `+0x543C` set: the next turn's change shows "Enemy reinforcements flee" and the whole battle holds 60 ticks (`Combat.HoldForMessage`, `0x80022AEC`). `Combat.SkipFleeingReserves` has no caller.
+
+**Sholeh** with an AI record plays her turns the same way; on the party's side she never counts as fleeing.
+
 ## The rest, by entry point
 
 - **Targeting** (`TargetSet`, `0x80068FE0`–`0x8006A0B0`): set A, for attacks, is [An attack](#an-attack)'s. Set B asks `CanCast` (`0x80060C38`) of each combatant for the current one's selected spell; a spell's count is one, all, or half its level (`0x80060818`), with its kinds' rules (`0x8006088C`, `0x80060988`), range and sight (session 9).
 - **Melee and ranged**: [An attack](#an-attack).
 - **Spells, effects, potions and flasks** are [magic](magic.md)'s: casting (`Combatant.CastSpell`, `0x800648CC`, through `CheckSpellAvailable`, `PrepareCast`, `CastChance`, `ResistRoll` and `ApplySpellEffect`), the 15 timed effects and 7 potion records on the entity and their ageing by round and by trek's clock, Cheat Death, the kind lists (`Combat.DispelKinds`, `LimitedKinds`, the charms that count toward the disable limit, `ImmobilisingKinds`), potions drunk, and the flasks' damage and blast. The port's is `Battle.Cast`, `Battle.Strike`, `Battle.AgeEffects` and `Potions.Drink`. A spell's kind is its place in the spell table, not the combatant's `+0x27`, which holds a potion's.
-- **The AI** (`EnemyAI.Step`, `0x8005B314`, each frame of state 8): flee, plan a path (`PlanPath`, `0x8005A974`), walk it (`WalkPath`, `0x8005A0D8`), or act on its target (`ChooseWeapon`, `Execute` `0x8005B594`). The target and the action come from one of 11 styles (`EnemyAI.StyleTable`; the rats' is 0), which score cells and action slots (`AiScores`, `aiscores.cpp`; `0x80057908`, `0x800581C8`, `0x80058C7C`, `EnemyAI.SpellValue` `0x80057498` with a case per spell kind) and take the best (`0x800590B0`). 13 entities get the boss style (`EnemyAI.HasBossStyle`, `0x8005BA40`). The walking states' stuck timer (`+0x4FBC`) ends a turn whose walk gets nowhere.
+- **The AI**: [The AI](#the-ai). The casters' spell scoring (`EnemyAI.ScoreSpellCells`, `0x800581C8`; `ScoreSpellsInPlace`, `0x800585B0`; `AreaCentre`, `0x80058008`; `EnemyAI.SpellValue`, `0x80057498`, a case per spell kind) and an area spell's aim (`EnemyAI.AimAreaSpell`, `0x8005974C`) are read only, for session 11.
 - **The GUI** (`combatgui.cpp`, `CombatGui.Create` `0x80085B80`) and **the radar** (`CombatRadar.Draw`, `0x8008DF04`): the portraits in their frames down the top left and right with their HP bars, tinted by the target sets, the log box (a `TextBand`, the cinematics' captions' widget) and the radar, centred on the camera's owner and turned with the camera. [ui](ui.md#the-battle-screen) has them, ported with session 4. C-left toggles a flag nothing reads.
 - **Visuals**: the target marks, arrows in flight and the numbers over heads are [An attack](#an-attack)'s; the spells' are `CombatSpellFx.Frame` (`0x8008C754`) and `ProcessSpellVisuals` (`0x8008BCA0`), session 10's.
 - **The camera** isn't trek's follow camera: `ProcessCombatCamera` (`0x8008D8BC`, from `ProcessPlayers` in mode 2) puts the camera in mode 4 and runs the interiors' `Camera::Mode1` (`0x800A69D8`) with combat's numbers on the body that owns it: near and far 4 and 10 (8 and 16 about the focus in states 11 and 18), the goal 2 above the aim, the aim 1.05 above the body, easing 1/16 a tick at most 1, the eye 1/32 at most 0.5. On its first frame it's put 8 behind the current party member (or the first combatant's body on an enemy's turn), away from the nearest enemy, 1.5 up (`CombatCamera.PlaceBehind`, `0x8008D78C`); a party member's turn puts only its goal there. Through an enemy's turn the eye goes back to its goal and stays, at least 4 from the aim. `CombatCamera.KeepInArena` (`0x8008D29C`) keeps the eye a unit above the floor. In state 9 with the target over 5 away, the eye goes 4 behind the attacker and 1.5 up (`CombatCamera.PullBack`, `0x8008D22C`). A spell's cast glides (`CombatCamera.StartGlide`, `0x8008D1F0`; `CombatCamera.CastGlide`, `0x8008D3C8`, checked in 08). No combat code sets the field of view or the clip planes. **Checked** on 02–04. The body it aims at is the camera's owner, which `GiveCameraToPlayer` makes the current combatant's at a turn's start and the cursor's target in states 9 and 10; so in state 9 the far branch puts the goal at the attacker's body and `PullBack` (`0x8008D22C`) raises it 1.5 and pushes it 4 farther from the aim, with Mode1's last flag clear, which skips its rise, its leash and its rescue alike. States 1, 5, 8, 24 and 26 have no branch of their own: the hold on an enemy's turn is by whose turn it is. R orbits it in state 1 as in trek.
@@ -331,7 +404,7 @@ Read from 1.0's code, checked by running the original's own functions on the che
 - **`TurnOrder`** builds the round (`Build`, `TurnsPerRound`) and says whose turn it is; **`ArenaGrid`** is the grid (`Init`, `Fill`, `Occupy`); **`CombatCamera`** is `ProcessCombatCamera`, on `FollowCamera.StepLeashed` (the interiors' camera with its numbers passed, `LeashNumbers`); **`Arena`** is an arena's chunk and map, with its points by name.
 - **`BattleSetup`** is the setup block: `EnemyList` (`FillEnemies` for a monster party, a script's as given), `ChooseArena`, and the ambush and animation bytes. Trek cues a battle rather than handing it to the host (`TrekLoop.CueBattle`, `TrekLoop.QueueState(2)`'s fade at 1/30 a tick), and `GameSession` begins and ends it (`BeginBattle`, `EndBattle`) with the arena as a stage of trek's zone engine (`ZoneEngine.Stage`), its music held until the fade ends; its mode is `GameMode.Combat`, under the menu. The host hears `Transition.StartedBattle`, `PauseBattle` (with the Party tab and Flee from a turn's pause, the System tab alone from state 27's), `EndBattle` and `ResumeTrek`. `TrekLoop.Resume(fled)` puts the player at the farthest breadcrumb (`Breadcrumbs`).
 - **Content** is records: the arena by terrain (`TerrainRecord.Arenas`), and `aidyn:combat/0` (`CombatRecord`): Sholeh, the bystanders an enemy list drops (`Combat.IsExcludedEnemy`, `0x8005C0C0`: the townsfolk, shopkeepers and the like, entity list places 0–0x56, 0x82–0x90 and 0x92–0x96), the Skeleton, the bosses who forbid fleeing and the Shadow who allows it, and the three encounter flags with the last word.
-- **The states so far**: 31 fades in over a second, then 1 for a combatant the player controls or 8 for one the AI plays; 8 ends the turn at once, a stand-in until the AI; 1 is a turn the player walks in, skips or attacks in, and 9, 18, 6, 2, 3 and 4 the attack (below); Start from 1, 9 or 18 is 14, the pause with the Party tab and Flee, and from any other state 27, the System tab alone, each waiting two frames for the menu; the menu's close goes back to the turn (or 27's kept state), or with Flee to 20, which leaves. 12 and 13 leave for trek once faded out, a stand-in until session 7. The rest are sessions 6 on.
+- **The states so far**: 31 fades in over a second, then 1 for a combatant the player controls or 8 for one the AI plays; 8 is the AI's turn, with 5, 6 and 24 its walk, its turn and its rest; 1 is a turn the player walks in, skips or attacks in, and 9, 18, 6, 2, 3 and 4 the attack (below); Start from 1, 9 or 18 is 14, the pause with the Party tab and Flee, and from any other state 27, the System tab alone, each waiting two frames for the menu; the menu's close goes back to the turn (or 27's kept state), or with Flee to 20, which leaves. 12 and 13 leave for trek once faded out, a stand-in until session 7. The rest are sessions 7 on.
 - **The battle screen** (session 4) is `CombatGui` (`Battle.Gui`), with the log's lines in `Battle.Lines` (`CombatLog`), the target sets' marks the tints read in `Battle.Marks(slot)` (`TargetMarks`, from `TargetsA` and `TargetsB`) and the AI's fleeing flag in `Combatant.Fleeing`: [ui](ui.md#the-battle-screen).
 - **The runtime** draws the arena's chunks and sky, each combatant as a body with its actor idling (`CombatantView`, faded over combat's 128 and the party lit as the party), the camera and the fade, and opens the combat pause menu (`PauseMenu.OpenCombat`). `--battle <monster party>[,<arena>][,ambush]` starts one from the command line, and F3's overlay shows the battle's state and combatants.
 - **Checked against the checkpoints** (`BattleCheckpointTests`): from checkpoint 01's random state, the port's setup of 02's battle (the ten rats, arena 3, an ambush, animation 2) draws the Ranger's roll (Sholeh's Ranger 6: a 12 against 69, step 3, a Stamina point), the eight directions and the turn order `[1,3,0,2, 3,2,1,5,4,7,0,6]` as the original did, and every combatant's slot, cell, direction, footprint, flags and body position, the leader, the flee bytes and the whole grid match 02's.
@@ -352,13 +425,22 @@ Read from 1.0's code, checked by running the original's own functions on the che
 - **The runtime** takes A, B, the stick's or D-pad's left and right and C-left and C-right in a battle; draws a view for each body on the field (a reserve's as it comes, none once a body's gone), the numbers over heads (`CombatNumbersView`, the digit textures composed and billboarded), an arrow or thrown weapon in flight (`MissileView`), and the target mark as the body's lights scaled by its pulse. The debug key F4 and `--tints` went with the real sets. `--press` takes `wait:<seconds>` and `<action>:<seconds>` (held) to script a battle for the movie writer.
 - **Checked against the checkpoints** (`AttackCheckpointTests`, over an overlay of a later checkpoint's combatants, stats, bodies and grid on 01's battle, itself checked against RAM): every melee chance between the eight combatants at 05 and the rat's row at 10; `ResolveMelee`'s rolls, damage, critical, lines and the stream after for seven seeds of the original's, and `ResolveRanged`'s with a bow; Alaron's kill of rat 7 from 05 (the counts, the queued "killed", the grid freed at once, the request, then through `Tick` the hit, the number, the fall and the freed body); `SpawnReserves` on 08 giving 09's cells; the cursor's order and start; and the last enemy's death winning the battle at the turn's change, with the line and the fade, then leaving. The values compared came from the original's own functions run on the checkpoints' RAM.
 
+- **The AI** (session 6: `EnemyAI`, `AiScores`, `Quicksort`, `Battle.AI.cs`, `Battle.Styles.cs`, `Battle.Morale.cs`), [The AI](#the-ai)'s:
+  - **The record**: `Combatant.Ai` (`EnemyAI`: `Init`, `Spare`, `Kind`, `Wanted`, `Target`, `Morale`, `Style`, `Flags` (`AiFlags`), `Slots`, `PathPlace`, `PathLength`, `FlightLeft`, `IsFleeing`, `ClearTarget`), given to every enemy and to Sholeh from the enemy list as each is made (`Battle.GiveAi`), with its weapon chosen first (`Battle.ArmFromList`: the third, else the first). `Combatant.Morale`, `MoraleCheckDue` and `Fleeing` read it. The combat record's `Bosses` (importer 43) are `HasBossStyle`'s.
+  - **A turn**: `Battle.StepAI` (state 8), `ChooseGoal`, `RunStyle`, `Act`, `PlanPath` (`ArenaGrid.FindPath`, `TrimPath`, `StraightenPath`, `Refill`, `IsFree`, `IsGentle`, `Distance`, `DirectionTo`), `WalkPath`, `WalkIsClear`, `ClipToCircle`, `FaceStep`, `ApproachTarget`, `StartWalkTo`, `Execute`, `PrepareTargetSets`, `SelectWeaponTarget`, `SelectSpellTarget`, `CanActOnTarget`, `FaceCombatant` (which the player's `Confirm` shares), `ChooseWeapon`, `SwapWeapon`, `EnterRest`; state 5 (`StepMoving`, `Battle.Stuck`), state 6's `FleeAdvance` after a walk, and state 24 (`StepRest`). `Battle.PathOf(ai)` is the planned path. A body runs a queue of points (`Body.Queue`, `Queued`, `ClearPath`) and in combat gives one up where it stands (`GiveUpTicks` 30, `StaysWhenStalled`, `GaveUp`).
+  - **The styles**: 0–4 as the original's (`Nearest`, `BestAttackCells`, `NearestAttackCell`, `Archer`), with `Opponents`, `ScoreByDistance`, `AreaDanger`, `CollectAttackCells`, `CollectAttackCellsByReach`, `AnyScoredWithinRadius`, `ScoreAttackCells`, `IsFlanking`, `DirectionToward` and `FarthestCell`. `AiScores` sorts with `Quicksort` on its own stream (`RandomStreams.Sort`, from 0, not saved). The casters' and bosses' styles (5–10) take their weapon fallbacks as the original does when no spell scores: the seam for session 11's `ChooseSpellOrAttack`, which goes before them in `Battle.Style`.
+  - **Morale and fleeing**: `Battle.Morale`, `MayCheckMorale`, `CheckFlee` (from `BeginTurn`), `StartFleeing`, `NearestFleePoint`, `BeginFleeWalk`, `FleeStep`, `FleeAdvance`, `Leave` (`Combatant.Fading`, the body's fade, and the portrait's fled mark through `FreeBody(fled: true)`), `ReserveFleesOnArrival` in `SpawnReserves` with the hold (`CombatLog.HoldOn`, the battle's states and controls waiting while it's up); `LeaderSlot`, `LeaderMorale`, `FleeOrigin`. A weakness hit sets the check due and the hit (`ApplyResistance`).
+  - **Reads**: `Combatant.SyncFromBody` gives back the cell read from a body that hasn't moved, as the original's read does after the AI's tries at other cells; `IsWithinReach` is false for a body gone from the field.
+- **The runtime** fades a fled body out over its 120 ticks (`CombatantView`) and keeps its view until then.
+- **Checked against the checkpoints** (`AiCheckpointTests`, `EnemyAiTests`): checkpoints 09, 10 and 11's enemy turns wound back to their start and replayed (the target, the path, the leg's end, the facing, the flags, the body's queue, the stuck timer and both streams); 08's rats choosing as they would; the bite on Brenna from 10 through states 5, 6 and 2 with its lines and draws; a flight that gets nowhere leaving the field; `Morale`, `MayCheckMorale` and `CheckFlee` for every enemy at 08–11 and twelve seeds; reserves fleeing as they arrive at 08, 09 and 11; 60 paths and 80 straight walks over 08's grid; 24 sorts with their draws, 40 circle clips and 60 flanks; every fighter's style, weapon and spare; and checkpoint 01's whole battle played out to a win, the party standing its ground.
+
 **Where the port differs:**
 
 - The camera acts every tick rather than once a frame; only its goal and holds are once-a-frame things, so it's the same at 30 fps.
 - A bystander in the first four leaves the original a null slot that it counts as an enemy on the field; the port leaves it out and says so. No monster party that fights has one.
 - `Talk`'s collision byte isn't ported: a monster party used is collision 0, so its enemies face 5–7 even used from behind (1 would face them 1–3).
 - Combat's frame counter's limit on pausing (`+0x5448 < 4`) isn't ported.
-- The weapon in hand and its side (`+0x84`), the entities whose shadows are half (`0x8006C798`), the AI's area danger (`+0x12`) and the morale (`+0x11`) wait for their sessions.
+- The weapon in hand and its side (`+0x84`), the entities whose shadows are half (`0x8006C798`), and the AI's area danger (`+0x12`: the party's flasks and Fireball, 0 until worked out) wait for their sessions.
 - The ring starts each layout due +Z rather than a hair further round than the last (the original's statics drift by float error).
 - A body keeps its cell while it hasn't moved: the port's bodies are in the world's coordinates and the original's in the arena chunk's, and taking the chunk's origin off loses a little.
 - The action's timers are counted and tested every tick, not once a frame, and state 6's snap takes two ticks rather than two frames.
@@ -366,12 +448,17 @@ Read from 1.0's code, checked by running the original's own functions on the che
 - The glide aims by the attacker's entity height less 0.2 and its radius; the original's `EyeHeight` (`0x8006C748`) isn't read.
 - The target mark scales the body's lights by its pulse; how the original's light colour is drawn isn't traced ([Not settled](#not-settled)).
 - Held, the runtime's left and right repeat the cursor's step, as the menus' do; the original steps once a press.
-- An enemy wields the first of its entity's weapons it can (`Character.Create`); the original takes the third slot's, else the first's (`0x8006E434`), which matters only for enemies with more than one (session 6).
-- Sholeh's died flag at her death (622), the Goblin Ambush's hold on Alaron, a reserve fleeing as it arrives and the hold on its line are sessions 7, 12 and 6's.
+- Sholeh's died flag at her death (622) and the Goblin Ambush's hold on Alaron are sessions 7 and 12's.
+- The AI's walk counts a tick's move toward the stuck timer, times a 30 fps frame's ticks, where the original counts a frame's; its body's 30 ticks of no progress are counted every tick by 0.01 of a tick, where the original's are a frame's. The stuck test leaves out the original's actor-speed term (an actor standing moves under 0.03 anyway).
+- The original runs `Execute` after `FleeAdvance` even for a fleeing enemy that has just left, its body gone; the port stops there.
+- A walk the AI gives up is forgotten at the turn's end; the original's body would run on into the next turn.
+- The casters and bosses fight with their weapons until session 11 scores their spells, as the original does when none scores.
 
 ## Not settled
 
-- The AI's 11 styles, its scores, and the record's `+0x12` and `+0x13`.
+- The casters' spell scoring (`ScoreSpellCells`, `AreaCentre`, `AimAreaSpell`), read but not run; the Shadow's path bending (`EnemyAI.ShadowSmoothPath`, `0x8005A734`).
+- A fleeing enemy whose leg can't start goes on to `Execute` after `FleeAdvance` (`0x8005B3D0`–`0x8005B418`), so a cornered one may still attack; no case was run.
+- The actor field `+0x34` in state 5's stuck test (about 0.037 for a running rat), taken as its speed.
 - The popup at `+0x4FB8`, and what the three menu units draw beyond their roles.
 - Exactly which cone `Talk`'s collision byte tests (`0x80010AE8`–`0x80010B74`).
 - Whether the doubled gold and the loot in the experience pool show in play.

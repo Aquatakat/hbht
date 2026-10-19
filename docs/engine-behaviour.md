@@ -481,34 +481,43 @@ Starting a performance locks the character into performing until it wears off. I
 
 Enemies have a small pool of about four special attacks, plus a melee or ranged attack to fall back on. They appear to pick from this pool at random. They may focus on one target and stick with it.
 
-They tend to cast buffs early. They walk freely within the arena to reach the party and melee. They can get stuck on geometry or on other combatants and end their turn early, and sometimes they end it early for no visible reason, which feels like a reprieve. **(machine code)** A walk that gets nowhere runs out a stuck timer, which ends the turn.
+They tend to cast buffs early. They walk freely within the arena to reach the party and melee. They can get stuck on geometry or on other combatants and end their turn early, and sometimes they end it early for no visible reason, which feels like a reprieve.
+
+**(machine code)** An enemy decides once a turn, walks at most one leg, then attacks or rests. [Combat](systems/combat.md#the-ai) has the detail.
+
+- **Choosing.** How it chooses is its style, by its weapon, its Intelligence and whether it has spells. The dull fighters, rats, wolves and skeletons among them, go for the nearest opponent; ties fall at random. Clever fighters score the cells around each opponent: its flank, higher ground, a wounded or ranged target. Archers look for a cell to shoot from, and the clever ones keep out of the party's reach. An enemy with a bow and a sword swaps between them by what it needs, and the swap costs its turn.
+- **Walking.** The path finder is greedy: it steps toward the goal and never backs out, so a ring of bodies or a wall's corner between it and its target fails the whole plan. A leg stops at the edge of its field, and an engaged enemy moves a single cell.
+- **Getting stuck.** It plans over the arena's grid, not its real shape, and a body that comes no nearer for half a second gives up where it stands. A timer of four seconds of not moving ends the walk too. Either way it attacks from where it stopped, or rests.
+- **Resting for no visible reason.** A rest is two seconds with nothing done and no line in the log. It happens when the path fails and the target isn't in reach, when the leg ends short of it, or when it swaps weapons. None of it is random.
 
 Enemies decide to flee based on their own health and whether the enemy party's **leader** has died. A fleeing enemy walks to the edge of the arena.
 
-**(machine code)** The leader is whichever enemy on the initial battlefield has the highest base Intelligence; ties go to the earlier one. It isn't a hand-set property, which explains why it's usually intuitive but not always.
+**(machine code)** The leader is whichever enemy on the initial battlefield has the highest base Intelligence; ties go to the earlier one. It isn't a hand-set property, which explains why it's usually intuitive but not always. The leader never checks its own morale while it lives.
 
-**(decomp)** Fleeing is a morale check. It only happens if all of these are true:
+**(machine code)** Fleeing is a morale check at the start of an enemy's turn. It only happens if all of these are true:
 
 - The arena has flee points, which are reference points named "Flee N".
-- The enemy is out of stamina, or at most half of the enemy party is left.
+- The enemy isn't engaged with an opponent.
+- The enemy is out of stamina, or at most half of the enemies that began are still able, or a weakness or a fear spell has made a check due.
 - The enemy's morale is below 12. Enemies with a morale stat of 12 or more never flee.
 
-When those hold, the enemy flees if its modified morale is lower than a 2d6 roll. Morale starts from the entity's morale stat, and these modifiers apply:
+When those hold, the enemy flees if its modified morale is lower than a 2d6 roll. Morale starts from the entity's morale stat, and these modifiers apply, the result kept between 2 and 11:
 
 | Condition | Modifier |
 | --- | --- |
-| Opposed aspect | −1 |
-| Recently hit | −2 |
+| Opposed aspect (Lunar by day, Solar at night) | −1 |
+| Ever hit with a damage type it's weak to | −2 |
 | Out of stamina | −1 |
 | Fewer than half of its allies left | −1 |
-| Under any spell effect | −1 |
-| Leader dead | −4 |
+| Under a harmful spell effect | −1 |
+| Leader dead or gone | −4 |
 | Fewer than half of the player party left | +2 |
 | Its target is out of stamina | +3 |
+| The leader's own morale of 8 to 10, or 11 | +1, +2 |
 
-The leader's own morale also shifts the result.
+A fleeing enemy says so in the log each turn and runs a leg toward the nearest flee point. It leaves the field once it's within a step and a half of one, after four turns, or as soon as a turn gets it nowhere. A fled enemy fades out. It still counts toward the battle's experience and loot.
 
-Reserve enemies can flee the moment they arrive, which the combat log announces.
+Reserve enemies can flee the moment they arrive, which the combat log announces. **(machine code)** That only happens while more than half of the enemies that began are still standing. The battle holds for a second on the line.
 
 ### Win and loss
 

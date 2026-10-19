@@ -29,11 +29,13 @@ public partial class CombatantView : BodyView
 
     /// <summary>
     /// Fades it by its distance from the camera's aim (<c>PlayerShadowAlpha</c>) and places its shadow, as a body's, over
-    /// combat's distance, 128 (<c>InitZoneEngine</c> in combat's mode).
+    /// combat's distance, 128 (<c>InitZoneEngine</c> in combat's mode); a body that has fled fades out as it goes
+    /// (<see cref="Combatant.Fading"/>).
     /// </summary>
     public void Draw(Core.Physics.CollisionWorld world, System.Numerics.Vector3 aim)
     {
-        var (_, fromAim) = Fade(aim, distance: BodyShadow.CombatDistance);
+        var opacity = Combatant.Freed ? (float)Combatant.Fading / Battle.FadeTicks : 1;
+        var (_, fromAim) = Fade(aim, distance: BodyShadow.CombatDistance, opacity: opacity);
         PlaceShadow(world, BodyShadow.DrawAlpha(BodyShadow.CombatDistance, fromAim, player: Combatant.Entity == Core.GameState.Alaron));
     }
 }

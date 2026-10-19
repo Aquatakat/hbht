@@ -21,6 +21,7 @@ Things only the user can settle, by playing the original in the emulator, by lis
 - **A reserve joining** (the rats' battle, as a rat dies and a reserve comes in at the round's end): does its small portrait slide over about a second into the dead rat's large frame, and the dead rat's, under its skull, into the small place? And while Rheda aims a spell (C-down, then a target), do the radar's dots of her targets throb and the rest dim? The port reads both from the code. [ui](systems/ui.md#the-battle-screen)
 
 - **The target mark:** in the rats' battle, walk a member up to a rat until it's in reach, then press A to aim. How does the selected rat look: does its body pulse dark and light about once a second, or glow, or flash? The code sends a grey of \|sin\| to the body's light colour (`Body.SetTint`); the port scales its lights by it. [combat](systems/combat.md#an-attack)
+- **A rat leaving the field** (the rats' battle, once two rats are dead and the rest start to flee): over its turns, does a fleeing rat run toward the arena's edge a leg a turn, saying "Giant Rat flees" each turn, and then fade out where it stands over about two seconds, its portrait marked fled? The code reads a fade (`Body.FadeOut`, 120 ticks); the port draws one. [combat](systems/combat.md#the-ai)
 - **A heal's number** (Rheda's Lay On Hands or any healing over a member's head, once session 9 has them; or a regeneration at a round's end): does the blue number sink, shrink and fade in, as the code reads, or rise as damage's does? [combat](systems/combat.md#an-attack)
 
 ## Sound

@@ -219,6 +219,51 @@ public sealed class AiCheckpointTests(Na10Import fixture, ITestOutputHelper outp
         Assert.Equal(0x47502932u, built.Game.Random.Sort.Seed);
     }
 
+    [Fact]
+    public void AWholeBattleAgainstTheTenRatsPlaysOutToItsEnd()
+    {
+        // Checkpoint 01's battle, the party standing its ground: each member attacks what's in reach, or skips. The rats come to them.
+        var built = CombatCheckpoints.Plain(Set, 2);
+        var battle = built.Battle;
+        var zone = Zone(built);
+        // The bodies move by their animations' roots, as the runtime's do.
+        var motions = new Dictionary<Combatant, Aidyn.Core.Actors.IActorMotion?>();
+        Aidyn.Core.Actors.IActorMotion? Motion(Combatant c) => motions.TryGetValue(c, out var m) ? m
+            : motions[c] = Aidyn.Core.Actors.ActorMotion.For(Set, Set.Get<ActorRecord>(c.Look.Actor), built.Game.Random.Animation);
+        var (walks, bites, rests, flights, turns) = (0, 0, 0, 0, 0);
+        var last = battle.State;
+        Combatant? turn = null;
+        for (var i = 0; i < 400_000 && !battle.Over && battle.State is not (CombatState.Victory or CombatState.Defeat); i++)
+        {
+            if (battle.State == CombatState.Turn && !battle.Fade.Fading && battle.Current is { Controlled: false })
+            {
+                if (battle.Attack())
+                    battle.Confirm();
+                else
+                    battle.Skip();
+            }
+            battle.Tick(zone, false, Motion);
+            if (battle.Current != turn)
+                (turn, turns) = (battle.Current, turns + 1);
+            if (battle.State != last && battle.Current is { Controlled: true } c)
+            {
+                walks += battle.State == CombatState.Moving ? 1 : 0;
+                bites += battle.State == CombatState.Action ? 1 : 0;
+                rests += battle.State == CombatState.Rest ? 1 : 0;
+                flights += c.Fleeing && battle.State == CombatState.Moving ? 1 : 0;
+            }
+            last = battle.State;
+        }
+        output.WriteLine($"{turns} turns, the rats' walks {walks}, attacks {bites}, rests {rests}, flights' legs {flights}; {battle.State}, " +
+            $"next reserve {battle.NextReserve}, gone {battle.Combatants.Count(c => c.Gone)}, dead {battle.Combatants.Count(c => c.Hostile && c.Sheet.IsDead)}");
+        foreach (var line in battle.Log.TakeLast(12))
+            output.WriteLine(line);
+        Assert.Equal(CombatState.Victory, battle.State);
+        Assert.True(walks > 5);
+        Assert.True(bites > 0);
+        Assert.Equal(battle.Enemies.Count, battle.NextReserve);
+    }
+
     // ---------------------------------------------------------------------------------------------------------------------------
     // Morale and fleeing
 
