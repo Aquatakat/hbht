@@ -114,6 +114,101 @@ public sealed class ArenaGrid
     }
 
     /// <summary>
+    /// Whether any cell of the <paramref name="footprint"/> square from (x, z) on in +X and +Z is off the grid
+    /// (<c>ArenaGrid.IsOutside</c>, <c>0x80067CF4</c>), the coordinates as signed bytes.
+    /// </summary>
+    public bool IsOutside(int x, int z, int footprint = 1)
+    {
+        for (var j = (sbyte)z; j < (sbyte)z + footprint; j++)
+        {
+            for (var i = (sbyte)x; i < (sbyte)x + footprint; i++)
+            {
+                if (i < 0 || j < 0 || i >= Width || j >= Depth)
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Whether any cell of the footprint square from (x, z) is taken (<c>ArenaGrid.IsOccupied</c>, <c>0x80067BEC</c>); cells
+    /// off the grid don't count.
+    /// </summary>
+    public bool IsOccupied(int x, int z, int footprint = 1)
+    {
+        for (var j = (byte)z; j < (byte)z + footprint; j++)
+        {
+            for (var i = (byte)x; i < (byte)x + footprint; i++)
+            {
+                if (!IsOutside(i, j) && (_cells[i * Side + j] & Taken) != 0)
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// How much higher the floor of (x1, z1) is than (x0, z0)'s, in the grid's half units (<c>ArenaGrid.HeightDifference</c>,
+    /// <c>0x80067AD4</c>): a signed byte, or 0x7F if either is off the grid.
+    /// </summary>
+    public int HeightDifference(int x0, int z0, int x1, int z1)
+    {
+        if (IsOutside(x0, z0) || IsOutside(x1, z1))
+            return 0x7F;
+        return (sbyte)((_cells[(byte)x1 * Side + (byte)z1] & 0x7F) - (_cells[(byte)x0 * Side + (byte)z0] & 0x7F));
+    }
+
+    /// <summary>Whether one could step from (x0, z0) to (x1, z1): it rises less than 2 (<c>ArenaGrid.IsStep</c>, <c>0x80067BBC</c>).</summary>
+    public bool IsStep(int x0, int z0, int x1, int z1) => HeightDifference(x0, z0, x1, z1) < 2;
+
+    /// <summary>
+    /// Whether a line over the grid from (x0, z0) to (x1, z1) is clear (<c>ArenaGrid.WalkClear</c>, <c>0x80067E6C</c>): each cell
+    /// it crosses along its longer axis is on the grid, isn't taken unless the end is a step from it, and is a step from the last
+    /// unless the end isn't either.
+    /// </summary>
+    /// <remarks>
+    /// The original steps only toward +X (a line longer in X) or +Z (longer in Z): going the other way its loop never starts,
+    /// and the line is clear unchecked. The port keeps that, since it decides who can be attacked without the 3D line of sight
+    /// (<see cref="Battle.CanAttack"/>).
+    /// </remarks>
+    public bool WalkClear(int x0, int z0, int x1, int z1)
+    {
+        (x0, z0, x1, z1) = ((byte)x0, (byte)z0, (byte)x1, (byte)z1);
+        var dx = (int)(sbyte)(x0 - x1);
+        var dz = (int)(sbyte)(z0 - z1);
+        if (dx == 0 && dz == 0)
+            return true;
+        var xMajor = Math.Abs(dz) < Math.Abs(dx);
+        var (a0, b0, a1, b1, da, db) = xMajor ? (x0, z0, x1, z1, dx, dz) : (z0, x0, z1, x1, dz, dx);
+        var step = da < 0 ? 1 : -1;
+        var a = (int)(sbyte)(a0 + step);
+        if (a >= a1)
+            return true;
+        var slope = (float)db / da;
+        var (prevX, prevZ) = (x0, z0);
+        while (true)
+        {
+            var bf = slope * a + (b0 - slope * a0);
+            // The float's conversion to an unsigned int, as the original's.
+            if (bf >= 2147483648f)
+                bf -= 2147483648f;
+            var b = (int)bf;
+            var (x, z) = xMajor ? (a, b) : (b, a);
+            if (IsOutside((sbyte)x, (sbyte)z))
+                return false;
+            (x, z) = (x & 0xFF, z & 0xFF);
+            if (IsOccupied(x, z) && IsStep(x, z, x1, z1))
+                return false;
+            if (!IsStep(prevX, prevZ, x, z) && IsStep(prevX, prevZ, x1, z1))
+                return false;
+            (prevX, prevZ) = (x, z);
+            a = (sbyte)(a + step);
+            if (a1 <= a)
+                return true;
+        }
+    }
+
+    /// <summary>
     /// The cell a coordinate stands in (<c>Combatant.CellX</c>, <c>CellZ</c>): rounded half away from zero, as a signed
     /// byte, as the grid's functions take it.
     /// </summary>

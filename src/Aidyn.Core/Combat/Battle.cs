@@ -18,8 +18,9 @@ namespace Aidyn.Core.Combat;
 /// docs/systems/combat.md maps the original's.
 /// </summary>
 /// <remarks>
-/// The states are filled in session by session (the roadmap's M3): so far the intro, a turn the player walks in its field
-/// or skips, the AI's turn that ends at once, the pause and leaving.
+/// The states are filled in session by session (the roadmap's M3): so far the intro, a turn the player walks in its field,
+/// skips or attacks in (aiming, turning, the action, an arrow's flight and the result), the AI's turn that ends at once, the
+/// pause and leaving.
 /// </remarks>
 public sealed partial class Battle
 {
@@ -78,7 +79,7 @@ public sealed partial class Battle
     public int EnemiesOnField { get; private set; }
 
     /// <summary>The next reserve's place in <see cref="Enemies"/>, or the list's length with none left (<c>+0x07</c>).</summary>
-    public int NextReserve { get; private set; }
+    public int NextReserve { get; internal set; }
 
     /// <summary>The enemies' leader (<c>+0x10</c>): the first with the highest base Intelligence.</summary>
     public Combatant? Leader { get; private set; }
@@ -105,7 +106,7 @@ public sealed partial class Battle
     public CombatState NextState { get; private set; }
 
     /// <summary>Whose turn it is (<c>+0x2C</c>).</summary>
-    public Combatant? Current { get; private set; }
+    public Combatant? Current { get; internal set; }
 
     /// <summary>The combatants in play (<c>+0x01</c>), for the turn order's indexes.</summary>
     internal int InPlay => PartySize + EnemiesOnField;
@@ -130,9 +131,6 @@ public sealed partial class Battle
 
     /// <summary>The log box's lines: the one shown, the one queued and the third (<see cref="CombatLog"/>).</summary>
     public CombatLog Lines { get; } = new();
-
-    /// <summary>The target sets' marks on each slot (<see cref="TargetMarks"/>), which tint the portraits.</summary>
-    public TargetMarks[] Marks { get; } = new TargetMarks[SlotCount];
 
     /// <summary>The battle screen: the portraits, the log box and the radar (<c>combatgui.cpp</c>).</summary>
     public Ui.CombatGui Gui { get; private set; } = null!;
@@ -180,8 +178,15 @@ public sealed partial class Battle
     {
         if (Fade.Fading || Over || State is CombatState.Pause or CombatState.PauseRequested)
             return false;
-        if (State == CombatState.Turn)
+        if (State is CombatState.Turn or CombatState.TargetAttack or CombatState.TargetThrown)
         {
+            // Combat.HandleCancelAndPause: from aiming too, the camera back on the combatant, and the pause comes back to the turn.
+            if (State != CombatState.Turn)
+            {
+                CameraOwner = Current;
+                _aimTurn = null;
+                State = CombatState.Turn;
+            }
             State = CombatState.Pause;
             NextState = CombatState.Turn;
         }
@@ -218,8 +223,24 @@ public sealed partial class Battle
     public void Tick(ZoneEngine arena, bool skyDrawn, Func<Combatant, IActorMotion?> motion, Func<PlayerInput>? readInput = null)
     {
         // Combat.Controls: the controls come first, once the screen has faded in.
-        if (State == CombatState.Turn && !Fade.Fading)
-            InputTurn(readInput?.Invoke() ?? default);
+        if (!Fade.Fading)
+        {
+            switch (State)
+            {
+                case CombatState.Turn:
+                    InputTurn(readInput?.Invoke() ?? default);
+                    break;
+                case CombatState.TargetThrown:
+                    MoveAimCursor(readInput?.Invoke() ?? default);
+                    break;
+                case CombatState.Facing when _turning && Current is { } facing:
+                    // Combat.InputFacing: the body's turn is snapped to its goal.
+                    facing.Body.Heading = facing.Facing;
+                    break;
+            }
+        }
+        if (State == CombatState.TargetAttack && _aimTurn is { } aim && Current is { } aiming && aiming.Body.TurnToward(aim))
+            _aimTurn = null;
         // Bgm.Update waits for the fade, so the battle's music starts once it's in.
         arena.Audio.HoldMusic = Fade.Fading;
         arena.Listen();
@@ -230,13 +251,17 @@ public sealed partial class Battle
             var combatant = _crowd[i];
             var start = combatant.Body.Sphere.Position;
             var animation = motion(combatant) is { } m ? keys.Sounding(m, combatant.Audio, combatant.Sounds, combatant.Body.Sphere) : IActorMotion.Still;
-            combatant.Body.Step(World, animation);
+            // A body that has fallen holds its last frame.
+            combatant.Body.Step(World, combatant.Fallen ? IActorMotion.Still : animation);
             Movement.Crowd.Push(crowd, i, start);
+            AfterBodies(combatant, animation);
         }
         CombatCamera.Step(this);
         arena.StepSounds(Camera.Aim);
         arena.StepWeather(skyDrawn, arena.Precipitation);
         Step();
+        StepMarks();
+        Numbers.Tick();
         Fade.Step();
         Gui.Tick(this);
     }
@@ -247,7 +272,7 @@ public sealed partial class Battle
     private List<CrowdMember?> Crowd()
     {
         _crowd.Clear();
-        _crowd.AddRange(Combatants);
+        _crowd.AddRange(Combatants.Where(c => !c.Freed));
         return [.. _crowd.Select(c => (CrowdMember?)new CrowdMember(c.Body.Sphere, c.Body.Scale, null))];
     }
 
@@ -264,6 +289,18 @@ public sealed partial class Battle
             case CombatState.AI when Current is { } current:
                 // Until the AI (session 6), an enemy's turn ends at once.
                 EndTurn(current);
+                break;
+            case CombatState.Facing:
+                StepFacing();
+                break;
+            case CombatState.Action:
+                StepAction();
+                break;
+            case CombatState.Cast:
+                StepFlight();
+                break;
+            case CombatState.Result:
+                StepResult();
                 break;
             case CombatState.Victory or CombatState.Defeat when !Fade.Fading:
                 // What follows a win or a loss is sessions 5 and 7's; until then, the battle leaves.

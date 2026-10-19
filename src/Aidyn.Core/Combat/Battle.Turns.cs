@@ -43,8 +43,11 @@ public sealed partial class Battle
     /// <summary>Where the arena chunk's coordinates start, which the combatants' cells are in.</summary>
     public Vector3 Origin => Arena?.Origin ?? Vector3.Zero;
 
-    /// <summary>Whether the stick was centred as the turn last read it, which Z needs to skip.</summary>
+    /// <summary>Whether the stick was centred as the turn last read it, which Z needs to skip and A to attack.</summary>
     private bool _stickCentred = true;
+
+    /// <summary>Whether R was held as the turn last read it, which keeps A from attacking.</summary>
+    private bool _orbiting;
 
     /// <summary>Whether an entity never moves in its field, which is 0 (Pochanargat, <c>0x800E28EB</c>).</summary>
     public bool Rooted(RecordId entity) => _rooted.Contains(entity);
@@ -82,6 +85,7 @@ public sealed partial class Battle
     {
         if (Current is not { } first)
             return;
+        CameraOwner = first;
         Write(Line(BeginsAction, first));
         Ring.Update(this, first);
         first.PlaceField(this);
@@ -111,6 +115,7 @@ public sealed partial class Battle
         body.Drive(input.Move, Camera.LookXZ);
         current.UpdateFromBody(this);
         _stickCentred = input.Stick == Vector2.Zero;
+        _orbiting = input.Orbit;
         // Combat.MovePlayerBody: in the Shadow's battle, the field follows a combatant near it (session 12).
     }
 
@@ -120,6 +125,9 @@ public sealed partial class Battle
     /// </summary>
     public bool Skip()
     {
+        // While an attack is aimed, Z cancels it (Combat.ReturnToTurn).
+        if (State is CombatState.TargetAttack or CombatState.TargetThrown)
+            return Cancel();
         if (State != CombatState.Turn || Fade.Fading || Current is not { Controlled: false } current || !_stickCentred)
             return false;
         EndTurn(current);
@@ -132,15 +140,19 @@ public sealed partial class Battle
     /// (<see cref="Advance"/>).
     /// </summary>
     /// <remarks>
-    /// What else it puts back is later sessions': the AI's target (6), a spell chosen (8 and 9), the action and a flask
-    /// in hand (5 and 9), and an item spent (9).
+    /// What else it puts back is later sessions': the AI's target (6), a spell chosen (8 and 9), a flask in hand (9), and an
+    /// item spent (9).
     /// </remarks>
     public void EndTurn(Combatant combatant)
     {
+        // CombatCamera.Reset: a glide stops.
+        CombatCamera.Reset();
         combatant.Flags &= ~CombatantFlags.Acted;
+        // Combatant.RevertAction: the healing modes go.
+        combatant.Flags &= ~(CombatantFlags.LayOnHands | CombatantFlags.HealWithHerbs);
         State = CombatState.Turn;
         ActionActive = false;
-        if (!combatant.Sheet.IsDead && !combatant.Gone)
+        if (!combatant.Sheet.IsDead && !combatant.Gone && !combatant.Freed)
             combatant.Body.Request = Body.Idle;
         if (combatant.LastTarget >= 0 && _slots[combatant.LastTarget] is { Sheet.IsDead: true })
             combatant.LastTarget = -1;
@@ -164,7 +176,7 @@ public sealed partial class Battle
             Lose();
             return;
         }
-        if (Current is { } last && !last.Sheet.IsDead && !last.Gone)
+        if (Current is { } last && !last.Sheet.IsDead && !last.Gone && !last.Freed)
             last.Body.Field = null;
         Combatant next;
         while (true)
@@ -191,9 +203,12 @@ public sealed partial class Battle
             break;
         }
         Focus = next.Cell;
-        // TurnOrder.ClearActions: every combatant reads its body (and the numbers to show are cleared, with session 5).
-        foreach (var combatant in Combatants)
+        // TurnOrder.ClearActions: every combatant reads its body, and the damage and healing waiting to show are cleared.
+        foreach (var combatant in Combatants.Where(c => !c.Freed))
+        {
             combatant.SyncFromBody(this);
+            combatant.Damage = combatant.Healed = 0;
+        }
         BeginTurn(next);
         Game.AdvanceTurn();
         // A reserve fleeing as it came in says so now ("Enemy reinforcements flee", session 6).
@@ -272,8 +287,9 @@ public sealed partial class Battle
     /// battle ended, which only the Shadow's aura does (session 12).
     /// </summary>
     /// <remarks>
-    /// Every combatant's effects age a round (<see cref="AgeEffects"/>). What else it does is later sessions': the Shadow's
-    /// aura first (12), the reserves brought in (5), and the deaths the effects cause (5).
+    /// Every combatant's effects age a round (<see cref="AgeEffects"/>): their damage and healing show over their heads, and one
+    /// they kill dies and its body goes at once, without a fall or a line (<c>Entity.ShowAgeResult</c>, <c>0x8007138C</c>). Then the
+    /// reserves come in (<see cref="SpawnReserves"/>). The Shadow's aura, first, is session 12's.
     /// </remarks>
     private bool EndRound()
     {
@@ -291,7 +307,19 @@ public sealed partial class Battle
             c.Moves = 0;
             c.Flags &= ~CombatantFlags.Moved;
         }
-        AgeEffects();
+        foreach (var (combatant, ageing) in AgeEffects())
+        {
+            if (combatant.Freed)
+                continue;
+            Numbers.Add(combatant, ageing.Damage, healing: false);
+            Numbers.Add(combatant, ageing.Healed, healing: true);
+            if (ageing.Died)
+            {
+                Death(combatant);
+                FreeBody(combatant);
+            }
+        }
+        SpawnReserves();
         Order.Toggle = !Order.Toggle;
         Order.Build(this, Game.Random.Combat);
         Current = Order.Current(this);
@@ -302,13 +330,14 @@ public sealed partial class Battle
     /// A turn begins (<c>TurnOrder.BeginTurn</c>, <c>0x8006A9C8</c>): the camera's given to its body, which drops an
     /// orbit, and anchored there; its line, a newcomer's "joins the battle" or a performer's own; it reads its body and
     /// keeps where it starts; the ring round it (which works its radius out again); its field; and a turn's state, the
-    /// player's (1) or the AI's (8), as the state to go on to too.
+    /// player's (1) or the AI's (8), as the state to go on to too; and unless it's fleeing, its target sets.
     /// </summary>
     /// <remarks>
-    /// The AI's check to flee is session 6's, the target sets session 5's, and a flask or spell carried over session 9's.
+    /// The AI's check to flee is session 6's, and a flask or spell carried over session 9's.
     /// </remarks>
     private void BeginTurn(Combatant combatant)
     {
+        CameraOwner = combatant;
         Camera.Follow();
         Camera.Anchor(combatant.Body.Sphere.Position);
         if (combatant.Flags.HasFlag(CombatantFlags.Newcomer))
@@ -326,6 +355,8 @@ public sealed partial class Battle
         combatant.PlaceField(this);
         State = NextState = combatant.Controlled ? CombatState.AI : CombatState.Turn;
         _stickCentred = true;
+        if (!combatant.Fleeing)
+            RebuildTargets(combatant);
     }
 
     /// <summary>A line of the combat strings with a combatant's name.</summary>

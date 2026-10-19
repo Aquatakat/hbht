@@ -47,6 +47,8 @@ public sealed class ActorAnimator : IActorMotion
 
     public int Frame => Motion.Frame;
 
+    public bool Entered => Motion.Entered;
+
     /// <summary>The animation the actor is asked for.</summary>
     public int Request
     {

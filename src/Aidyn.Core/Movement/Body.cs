@@ -93,6 +93,12 @@ public sealed class Body
     public int Request { get; set; }
 
     /// <summary>
+    /// The request its actor last entered a state for (the body's <c>+0x18</c>), which combat waits on: back to 0 once a one-shot
+    /// animation, a swing, a hit or a fall, has played and the actor has gone back to idling.
+    /// </summary>
+    public int Playing { get; set; }
+
+    /// <summary>
     /// The area of the world it's kept in, in X and Z: its chunk, less <see cref="EdgeMargin"/>. Null
     /// for none.
     /// </summary>

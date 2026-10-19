@@ -16,6 +16,8 @@ public partial class Game
     private ChunkStreamerView? _arenaView;
     private CombatRingView? _ringView;
     private CombatGuiView? _battleScreen;
+    private CombatNumbersView? _numbersView;
+    private MissileView? _missileView;
     private readonly Dictionary<Combatant, CombatantView> _combatantViews = [];
 
     /// <summary>The battle playing, in place of trek's world.</summary>
@@ -47,18 +49,15 @@ public partial class Game
         _sky.Apply();
         _camera!.Follow = battle.Camera;
         _camera.Far = SkyView.Far;
-        foreach (var combatant in battle.Combatants)
-        {
-            var view = _combatantViews[combatant] = new CombatantView(combatant, _plugins!, _models!, _shadowTexture);
-            AddChild(view);
-            view.ResetPhysicsInterpolation();
-        }
+        SyncCombatants(battle);
         _ringView = new CombatRingView(_models!);
         AddChild(_ringView);
+        _numbersView = new CombatNumbersView(_plugins!);
+        AddChild(_numbersView);
+        _missileView = new MissileView(_models!);
+        AddChild(_missileView);
         _battleScreen!.Battle = battle;
         _battleScreen.Visible = true;
-        if (_tintsOnStart is { } tints)
-            ShowTints(battle, _tintDemo = tints);
         SyncBattle();
         _camera.ResetPhysicsInterpolation();
     }
@@ -78,15 +77,37 @@ public partial class Game
             _session!.EndBattle();
     }
 
-    /// <summary>Draws the combatants, the camera and the fade where the battle has them.</summary>
+    /// <summary>
+    /// A view for each combatant whose body is on the field: a reserve that has come in gets one, and one whose body has gone, its
+    /// fall played, loses it (<c>Combat.FreeBody</c>).
+    /// </summary>
+    private void SyncCombatants(Battle battle)
+    {
+        foreach (var (combatant, view) in _combatantViews.Where(p => p.Key.Freed || !battle.Slots.Contains(p.Key)).ToList())
+        {
+            view.QueueFree();
+            _combatantViews.Remove(combatant);
+        }
+        foreach (var combatant in battle.Combatants.Where(c => !c.Freed && !_combatantViews.ContainsKey(c)))
+        {
+            var view = _combatantViews[combatant] = new CombatantView(combatant, _plugins!, _models!, _shadowTexture);
+            AddChild(view);
+            view.ResetPhysicsInterpolation();
+        }
+    }
+
+    /// <summary>Draws the combatants, the numbers over their heads, an arrow in flight, the camera and the fade where the battle has them.</summary>
     private void SyncBattle()
     {
         var battle = Battle!;
+        SyncCombatants(battle);
         foreach (var view in _combatantViews.Values)
         {
             view.Sync();
             view.Draw(_world, battle.Camera.Aim);
         }
+        _numbersView?.Sync(battle.Numbers, battle.Camera.Position);
+        _missileView?.Sync(battle.Flight);
         _ringView?.Sync(battle);
         _camera!.Sync();
         ShowFade(battle.Fade.Brightness);
@@ -103,65 +124,53 @@ public partial class Game
         arena.BeginLightFrame(Battle!.Fade.Brightness, _sky!.State.Drawn);
         _arenaView!.LightActors(arena.Lights);
         foreach (var view in _combatantViews.Values)
-            view.Light(arena.Lights, arena.Chunks, party: !view.Combatant.Hostile);
+            view.Light(arena.Lights, arena.Chunks, party: !view.Combatant.Hostile, view.Combatant.Mark ?? 1);
     }
 
     /// <summary>
-    /// A press in combat: Start asks for the pause menu (combat's state 27, then 14), and Z (the left trigger) skips a
-    /// turn the player plays (<c>Combat.SkipTurn</c>).
+    /// A press in combat (<c>Combat.Controls</c>): Start asks for the pause menu (combat's state 27, then 14); Z (the left trigger)
+    /// skips a turn the player plays (<c>Combat.SkipTurn</c>) or puts an aimed attack away; A attacks in a turn and confirms an
+    /// aimed attack's target; B puts it away; left and right step its cursor (state 9), and C-left and C-right a bow's or thrown
+    /// weapon's (state 18).
     /// </summary>
     private void CombatInput(MenuAction action)
     {
-        if (action == MenuAction.Start)
-            Battle!.Pause();
-        else if (action == MenuAction.TabPrevious)
-            Battle!.Skip();
+        var battle = Battle!;
+        switch (action)
+        {
+            case MenuAction.Start:
+                battle.Pause();
+                break;
+            case MenuAction.TabPrevious:
+                battle.Skip();
+                break;
+            case MenuAction.Accept:
+                if (!battle.Attack())
+                    battle.Confirm();
+                break;
+            case MenuAction.Back:
+                battle.Cancel();
+                break;
+            case MenuAction.Left or MenuAction.Right when battle.State == CombatState.TargetAttack:
+                battle.StepTarget(action == MenuAction.Left ? 1 : -1);
+                break;
+            case MenuAction.MemberLeft or MenuAction.MemberRight when battle.State == CombatState.TargetThrown:
+                battle.StepTarget(action == MenuAction.MemberLeft ? 1 : -1);
+                break;
+        }
     }
 
     /// <summary>
-    /// The battle's debug keys, while nothing chooses targets (session 5): F4 shows the target sets' tints in turn (an
-    /// attack aimed at the first enemy, a spell's candidates among the party with two chosen, then none), and F9 moves the
-    /// radar between the log box and the screen's bottom right corner. Whether the event was one.
+    /// The battle's debug key: F9 moves the radar between the log box and the screen's bottom right corner. Whether the event
+    /// was it.
     /// </summary>
     private bool CombatDebugKey(InputEvent e)
     {
-        if (e.IsActionPressed("toggle_radar_anchor"))
-        {
-            _battleScreen!.Radar = _battleScreen.Radar == RadarAnchor.LogBox ? RadarAnchor.Corner : RadarAnchor.LogBox;
-            _battleScreen.QueueRedraw();
-            return true;
-        }
-        if (!e.IsActionPressed("cycle_target_tints") || Battle is not { } battle)
+        if (!e.IsActionPressed("toggle_radar_anchor"))
             return false;
-        _tintDemo = (_tintDemo + 1) % 3;
-        ShowTints(battle, _tintDemo);
+        _battleScreen!.Radar = _battleScreen.Radar == RadarAnchor.LogBox ? RadarAnchor.Corner : RadarAnchor.LogBox;
+        _battleScreen.QueueRedraw();
         return true;
-    }
-
-    private int _tintDemo;
-
-    /// <summary>The tints to show as a battle starts (<c>--tints</c>).</summary>
-    private int? _tintsOnStart;
-
-    /// <summary>
-    /// Marks the target sets for the debug key: 1, every enemy an attack's candidate and the first selected, as an attack is
-    /// aimed (state 9); 2, the party a spell's candidates and the first two selected, as a spell is (state 10); 0, none.
-    /// </summary>
-    private void ShowTints(Battle battle, int demo)
-    {
-        Array.Clear(battle.Marks);
-        battle.Gui.TintState = demo switch { 1 => CombatState.TargetAttack, 2 => CombatState.TargetSpell, _ => null };
-        var chosen = 0;
-        foreach (var c in battle.Combatants)
-        {
-            if (demo == 1 && c.Hostile)
-                battle.Marks[c.Slot] = TargetMarks.AttackCandidate | (chosen++ == 0 ? TargetMarks.AttackSelected : 0);
-            else if (demo == 2 && !c.Hostile)
-                battle.Marks[c.Slot] = TargetMarks.SpellCandidate | (chosen++ < 2 ? TargetMarks.SpellSelected : 0);
-        }
-        battle.Gui.Tint(battle);
-        _battleScreen!.QueueRedraw();
-        Say(demo switch { 1 => "Tints: an attack aimed", 2 => "Tints: a spell aimed", _ => "Tints: none" });
     }
 
     /// <summary>
@@ -175,6 +184,10 @@ public partial class Game
         _combatantViews.Clear();
         _ringView?.QueueFree();
         _ringView = null;
+        _numbersView?.QueueFree();
+        _numbersView = null;
+        _missileView?.QueueFree();
+        _missileView = null;
         _arenaView?.QueueFree();
         _arenaView = null;
         _battleScreen!.Visible = false;

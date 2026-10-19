@@ -41,7 +41,10 @@ public sealed partial class FollowCamera
     /// One tick of <c>Camera::Mode1</c> (<c>0x800A69D8</c>) with the numbers given: the interiors' (<see cref="Interior"/>)
     /// or combat's (<see cref="Combat.CombatCamera"/>).
     /// </summary>
-    /// <param name="rise">Whether its goal is held <see cref="LeashNumbers.Rise"/> above the aim's (the original's last flag).</param>
+    /// <param name="rise">
+    /// Whether its goal is held <see cref="LeashNumbers.Rise"/> above the aim's (the original's last flag), which also leashes the
+    /// goal and lets it jump behind when it can't see the aim: combat clears it while an attack is aimed at a far target.
+    /// </param>
     public void StepLeashed(CollisionWorld world, Vector3 target, Vector2 heading, LeashNumbers numbers, bool rise = true)
     {
         var (near, far, orbitLow, orbitHigh, riseBy, behindBy, aimRate, rate, aimMost, most) = numbers;
@@ -59,15 +62,18 @@ public sealed partial class FollowCamera
             PositionGoal.Y = AimGoal.Y + riseBy;
         Approach(ref Position, PositionGoal, rate, most);
 
-        // The leash: its goal stays near to far (2 to 4 in interiors) from the aim's in X and Z.
-        var leash = new Vector2(PositionGoal.X - AimGoal.X, PositionGoal.Z - AimGoal.Z);
-        var length = leash.Length();
-        if (length > 1e-6f)
-            leash /= length;
-        if (length < near)
-            PositionGoal = new Vector3(AimGoal.X + near * leash.X, PositionGoal.Y, AimGoal.Z + near * leash.Y);
-        if (far < length)
-            PositionGoal = new Vector3(AimGoal.X + far * leash.X, PositionGoal.Y, AimGoal.Z + far * leash.Y);
+        // The leash: its goal stays near to far (2 to 4 in interiors) from the aim's in X and Z. Without the rise, nor the leash.
+        if (rise)
+        {
+            var leash = new Vector2(PositionGoal.X - AimGoal.X, PositionGoal.Z - AimGoal.Z);
+            var length = leash.Length();
+            if (length > 1e-6f)
+                leash /= length;
+            if (length < near)
+                PositionGoal = new Vector3(AimGoal.X + near * leash.X, PositionGoal.Y, AimGoal.Z + near * leash.Y);
+            if (far < length)
+                PositionGoal = new Vector3(AimGoal.X + far * leash.X, PositionGoal.Y, AimGoal.Z + far * leash.Y);
+        }
 
         var flat = new Vector3(Position.X - Aim.X, 0, Position.Z - Aim.Z);
         if (SpherePhysics.Normalize(ref flat) < near)
@@ -94,7 +100,7 @@ public sealed partial class FollowCamera
         if (_rescueWait > 0)
             _rescueWait--;
         // Caught up, but the aim is out of sight from its goal: jump behind the player.
-        if (_rescueWait == 0 && Vector3.Distance(Position, PositionGoal) < 1
+        if (rise && _rescueWait == 0 && Vector3.Distance(Position, PositionGoal) < 1
             && SpherePhysics.Sweep(world, Aim, PositionGoal, 0.25f, skipSeeThrough: true, out _, out _))
         {
             _rescueWait = InteriorRescueTicks;

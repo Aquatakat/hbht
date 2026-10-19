@@ -421,7 +421,7 @@ public sealed class CombatGui
         {
             if (entry is not { State: PortraitState.Party or PortraitState.Enemy, Bar: { } bar, Slot: { } slot })
                 continue;
-            var marks = battle.Marks[slot];
+            var marks = battle.Marks(slot);
             if (battle.Slots[slot] is { Fleeing: true })
                 bar.Tint = FledColor;
             if (marks.HasFlag(TargetMarks.AttackCandidate))
@@ -563,27 +563,27 @@ public sealed class CombatRadar
     public HudSprite Ring(int x, int y) => new(RingImage, X - 30 + 1 + x, Y - 30 + 1 + y, 1, new Rgba(255, 255, 255, Alpha));
 
     /// <summary>
-    /// The dots (<c>CombatRadar.Draw</c>, <c>0x8008DF04</c>), by slot, around the camera's owner, the current combatant
-    /// (session 5's target cursor takes the camera while an attack is aimed). While a target is chosen (states 10, 11 and
+    /// The dots (<c>CombatRadar.Draw</c>, <c>0x8008DF04</c>), by slot, around the camera's owner (<see cref="Battle.CameraOwner"/>):
+    /// the current combatant, or the cursor's target while an attack is aimed. A body gone from the field has none. While a target is chosen (states 10, 11 and
     /// 18), the dots of set B's selected pulse and the rest are dimmed. The frame's place is moved by
     /// (<paramref name="x"/>, <paramref name="y"/>).
     /// </summary>
     public IReadOnlyList<HudFill> Draw(Battle battle, int x, int y, CombatState? state = null)
     {
         var dots = new List<HudFill>();
-        if (battle.Current is not { } owner)
+        if ((battle.CameraOwner is { Freed: false } o ? o : battle.Current) is not { } owner)
             return dots;
         var look = battle.CombatCamera is { } camera ? camera.Camera.LookXZ : Vector2.UnitX;
         var centre = owner.Body.Sphere.Position;
         var targeting = (state ?? battle.State) is CombatState.TargetSpell or CombatState.PlaceArea or CombatState.TargetThrown;
-        foreach (var c in battle.Combatants)
+        foreach (var c in battle.Combatants.Where(c => !c.Freed))
         {
             var (dx, dy, far) = Place(c.Body.Sphere.Position - centre, look);
             var color = c == owner ? Owner : c.Slot < battle.PartySize ? Party : Others;
             if (far)
                 color = Halve(color);
             if (targeting)
-                color = battle.Marks[c.Slot].HasFlag(TargetMarks.SpellSelected) ? Throb(color) : Halve(color);
+                color = battle.Marks(c.Slot).HasFlag(TargetMarks.SpellSelected) ? Throb(color) : Halve(color);
             dots.Add(new HudFill(X + dx + x, Y - dy + y, 2, 2, color));
         }
         return dots;

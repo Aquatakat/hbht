@@ -81,6 +81,7 @@ public sealed partial class Battle
     private void Build(CombatRecord rules, RecordId? ally)
     {
         var random = Game.Random.Combat;
+        _rules = rules;
         Grid.Init(Arena.Map);
         Grid.Fill(World, Arena.Origin, (Arena.Chunk.Row, Arena.Chunk.Column));
         var roll = CollisionByte == AmbushByte ? AmbushRoll(Game.Party, random) : 0;
@@ -240,11 +241,23 @@ public sealed partial class Battle
     /// </summary>
     private Combatant Add(int slot, Character sheet, bool hostile, bool party, int letter, int roll)
     {
-        var look = sheet.Record.Body ?? NoBody;
         var (name, point, direction) = Spawn(party, reserve: false, letter, roll, Game.Random.Combat);
         if (point is null)
             _problems.Add($"{Arena.Map.Id} has no spawn {name}, where the original stops (FindReferencePointName).");
-        var cell = point is null ? new Vector2(ZonePoint.X, ZonePoint.Z) : new Vector2((byte)(int)point.Position.X, (byte)(int)point.Position.Z);
+        return Make(slot, sheet, hostile, party, CellOf(point), direction);
+    }
+
+    /// <summary>A spawn's cell: its X and Z truncated, or the zone engine's point for one the arena lacks.</summary>
+    private static Vector2 CellOf(ReferencePointObject? point) =>
+        point is null ? new Vector2(ZonePoint.X, ZonePoint.Z) : new Vector2((byte)(int)point.Position.X, (byte)(int)point.Position.Z);
+
+    /// <summary>
+    /// A combatant at a cell, facing a direction (<c>Combatant.Init</c> and <c>Combat.CreateBody</c>): its footprint taken on the
+    /// grid, its body made a unit up and set down, and what A does with its weapon (<see cref="Combatant.SetDefaultAction"/>).
+    /// </summary>
+    private Combatant Make(int slot, Character sheet, bool hostile, bool party, Vector2 cell, int direction)
+    {
+        var look = sheet.Record.Body ?? NoBody;
         var footprint = Footprint(look);
         var at = Arena.Origin + new Vector3(cell.X, BodyHeight, cell.Y);
         var body = new Body(at, look.Radius, look.Scale) { Heading = Directions[direction] };
@@ -262,6 +275,7 @@ public sealed partial class Battle
             Sounds = sheet.Record.Sounds,
         };
         Grid.Occupy((int)cell.X, (int)cell.Y, footprint);
+        combatant.SetDefaultAction(_rules);
         _slots[slot] = combatant;
         return combatant;
     }

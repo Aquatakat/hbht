@@ -14,6 +14,12 @@ public interface IActorMotion : IRootMotion
     /// <summary>The frame of the state it's in, from 1 (<see cref="ActorStateMachine.Clock"/>).</summary>
     int Frame => 1;
 
+    /// <summary>
+    /// Whether its last tick entered a state, by a branch or by starting its state again (<c>ActorStateMachine.Tick</c>'s return).
+    /// One with no animations enters one every tick, so a request is played at once.
+    /// </summary>
+    bool Entered => true;
+
     /// <summary>For a body with no animations, or none yet: it stands, and its state lasts a tick.</summary>
     static readonly IActorMotion Still = new StillMotion();
 

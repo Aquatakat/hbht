@@ -124,13 +124,12 @@ The user chose to keep these, which look like bugs, as the original has them:
 
 - **Session 9:** C-down's and C-up's menus over `Battle.Cast` and `Potions.Drink`, target set B over `Casting.CanTarget` and `TargetCount`, the placed area (state 11), the flasks' throw and blast, the Troubadour's bonus (`Battle.TroubadourBonus`), the Healer's two, the refusals' messages, and Sense Aura's popup and the phases on the HUD (`Battle.AuraShown`, `PhasesShown`).
 - **Session 3:** `Battle.AgeEffects` at a round's end, `Combatant.RadiusWithEffects`, and the turns an immobilised combatant loses.
-- **Session 5:** dealing a cast's damage, `Battle.Strike` after a hit, death from an effect's damage, and `Combatant.IsImmobilised` in the attack's chance.
+- **Session 9:** dealing a cast's damage through the action's states as an attack's is (`Combatant.Damage`, `Battle.ExecuteAction`'s path). Session 5 calls `Battle.Strike` after a hit, deals the effects' deaths at a round's end, and reads `Combatant.IsImmobilised` in the attack's chances.
 - **Session 10:** the visuals (`CombatSpellFx`, `ProcessSpellVisuals`) and the handle each record keeps.
 - **Session 11:** `SpellValues` in the AI's scoring, and `Combatant.Morale` from the entity's.
 
 ## Not settled
 
-- Whether the acted flag is up when a weapon's spell is cast, which decides whether it rolls its own margin (the port rolls one).
 - Whether a worn Ring of Healing really heals every frame in trek ([user-checks](../user-checks.md)).
 - What Wind's weather class 1 does in combat: weather.md calls it fog, and Wind's description says it clears fog.
 - The `unk1E` bits 0x20, 0x40 and 0x80, which nothing in combat reads.

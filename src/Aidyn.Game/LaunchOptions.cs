@@ -33,8 +33,7 @@ namespace Aidyn.Game;
 /// <c>pause,menu_member_left</c>. <c>--cutscene &lt;id&gt;</c> plays a cut-scene at once, as what starts it would,
 /// <c>--cinematic &lt;n&gt;</c> a cinematic, and <c>--battle &lt;id&gt;</c> a battle with a monster party
 /// (<c>aidyn:voxel/…</c>) where the player stands, or <c>--battle arena,&lt;n&gt;[,ambush]</c> one with that monster
-/// party in arena n, with <c>--radar box</c> to put the battle screen's radar in the log box and <c>--tints
-/// &lt;1|2&gt;</c> to show the target sets' tints as the F4 key does.
+/// party in arena n, with <c>--radar box</c> to put the battle screen's radar in the log box.
 /// </remarks>
 public sealed class LaunchOptions(Dictionary<string, string> values)
 {
@@ -148,8 +147,6 @@ public sealed class LaunchOptions(Dictionary<string, string> values)
     /// <summary>Where the battle screen's radar sits: <c>--radar box</c> for the log box, as the original has it, rather than the screen's corner.</summary>
     public string? Radar => Text("radar");
 
-    /// <summary>The target sets' tints the battle screen shows once a battle starts, as F4 steps them: 1 an attack, 2 a spell.</summary>
-    public int? Tints => Integer("tints");
 
     /// <summary>A cinematic to play, as <c>n[,shot[,time[,hold]]]</c>.</summary>
     public string? Cinematic => Text("cinematic");

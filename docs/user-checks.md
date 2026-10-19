@@ -20,6 +20,9 @@ Things only the user can settle, by playing the original in the emulator, by lis
 
 - **A reserve joining** (the rats' battle, as a rat dies and a reserve comes in at the round's end): does its small portrait slide over about a second into the dead rat's large frame, and the dead rat's, under its skull, into the small place? And while Rheda aims a spell (C-down, then a target), do the radar's dots of her targets throb and the rest dim? The port reads both from the code. [ui](systems/ui.md#the-battle-screen)
 
+- **The target mark:** in the rats' battle, walk a member up to a rat until it's in reach, then press A to aim. How does the selected rat look: does its body pulse dark and light about once a second, or glow, or flash? The code sends a grey of \|sin\| to the body's light colour (`Body.SetTint`); the port scales its lights by it. [combat](systems/combat.md#an-attack)
+- **A heal's number** (Rheda's Lay On Hands or any healing over a member's head, once session 9 has them; or a regeneration at a round's end): does the blue number sink, shrink and fade in, as the code reads, or rise as damage's does? [combat](systems/combat.md#an-attack)
+
 ## Sound
 
 - **Wrapped pitches:** music 0x05DD and 0x05DE, and sounds such as 0x0759 and 0x075F, have notes above 65,535 Hz that the original keeps in 16 bits, so they'd play far too low. The port does the same. Listen for a low growl or rumble against `aidyn audio`'s render. [audio](formats/audio.md#the-event-stream)

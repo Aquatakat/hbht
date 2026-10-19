@@ -53,6 +53,8 @@ public sealed class ActorMotion : IActorMotion
 
     public int Frame => Machine.Clock;
 
+    public bool Entered { get; private set; }
+
     /// <summary>
     /// Its scene's emitters, which it starts for its request on every state it enters, as <c>ActorStateMachine.Tick</c>
     /// does (<c>ActorParticles.Entered</c>), and once as it's made (<c>0x800960e0</c>), which the port does on its first
@@ -103,7 +105,8 @@ public sealed class ActorMotion : IActorMotion
             _made = false;
             _particles?.Entered(Machine.Request);
         }
-        if (!Machine.Tick())
+        Entered = Machine.Tick();
+        if (!Entered)
             return false;
         _particles?.Entered(Machine.Request);
         return true;

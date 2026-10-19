@@ -151,10 +151,11 @@ public sealed class CombatGuiTests
         Rgba FrameOf(int slot) => gui.Portraits.Single(p => p.Slot == slot).Bar!.Tint;
 
         // An attack's candidates are dim green, a spell's dim red, whichever side they're on; the spell's over the attack's.
-        battle.Marks[2] = TargetMarks.AttackCandidate | TargetMarks.AttackSelected;
-        battle.Marks[3] = TargetMarks.AttackCandidate;
-        battle.Marks[0] = TargetMarks.SpellCandidate | TargetMarks.SpellSelected;
-        battle.Marks[4] = TargetMarks.AttackCandidate | TargetMarks.SpellCandidate;
+        battle.TargetsA.Mark(2, selected: true);
+        battle.TargetsA.Mark(3, selected: false);
+        battle.TargetsB.Mark(0, selected: true);
+        battle.TargetsA.Mark(4, selected: false);
+        battle.TargetsB.Mark(4, selected: false);
         gui.Tick(battle);
         Assert.Equal(CombatGui.AttackCandidateColor, FrameOf(2));
         Assert.Equal(CombatGui.AttackCandidateColor, FrameOf(3));

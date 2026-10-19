@@ -107,8 +107,8 @@ public sealed partial class Combatant
     /// <summary>
     /// After the stick has driven its body in its turn (<c>Combatant.UpdateFromBody</c>, <c>0x8005F784</c>): it reads the
     /// body (<see cref="SyncFromBody"/>), the battle's focus follows it, and its facing is the body's; if either has
-    /// changed, it counts a move, and its fourth sets <see cref="CombatantFlags.Moved"/>. (The target sets are built
-    /// again too, with session 5.)
+    /// changed, it counts a move, and its fourth sets <see cref="CombatantFlags.Moved"/>, and the target sets are built
+    /// again.
     /// </summary>
     public void UpdateFromBody(Battle battle)
     {
@@ -122,6 +122,7 @@ public sealed partial class Combatant
             Moves++;
         else
             Flags |= CombatantFlags.Moved;
+        battle.RebuildTargets(this);
     }
 
     /// <summary>Its place as its turn begins (<c>Combatant.SaveStartPosition</c>, <c>0x8005F770</c>).</summary>

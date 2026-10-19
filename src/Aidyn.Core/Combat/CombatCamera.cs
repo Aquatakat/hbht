@@ -78,10 +78,16 @@ public sealed class CombatCamera
             _placing = false;
             _lastOwner = null;
         }
-        if (battle.Current is not { } owner)
+        if (_glide is { } glide)
+        {
+            Glide(world, glide);
             return;
-        var body = owner.Body;
-        var enemyTurn = owner.Hostile;
+        }
+        if (battle.Current is not { } turn)
+            return;
+        var body = turn.Body;
+        var owner = battle.CameraOwner is { Freed: false } o ? o.Body : body;
+        var enemyTurn = turn.Hostile;
         if (!enemyTurn && _lastOwner != body)
         {
             _lastOwner = body;
@@ -89,8 +95,9 @@ public sealed class CombatCamera
                 PlaceBehind(body, opponent, now: false);
         }
         var numbers = Numbers;
-        var target = body.Sphere.Position;
+        var target = owner.Sphere.Position;
         var savedGoal = Camera.PositionGoal;
+        var rise = true;
         if (battle.State is CombatState.TargetThrown or CombatState.PlaceArea)
         {
             numbers = Aiming;
@@ -98,7 +105,14 @@ public sealed class CombatCamera
             target = new Vector3(focus.X, target.Y, focus.Z);
             enemyTurn = false;
         }
-        Camera.StepLeashed(world, target, body.Heading, numbers);
+        if (battle.State == CombatState.TargetAttack && Vector3.Distance(target, body.Sphere.Position) > Battle.PullBackDistance)
+        {
+            // The cursor's target is far: the eye's goal 4 behind the attacker, away from it, and 1.5 up (CombatCamera.PullBack).
+            rise = false;
+            enemyTurn = false;
+            Camera.PositionGoal = PullBack(body.Sphere.Position, target);
+        }
+        Camera.StepLeashed(world, target, owner.Heading, numbers, rise);
         KeepInArena(world);
         if (enemyTurn)
         {
@@ -117,6 +131,80 @@ public sealed class CombatCamera
         }
     }
 
+    /// <summary>How far behind and above its owner a glide or a far aim puts the eye (<c>CombatCamera.PullBack</c>, <c>0x8008D22C</c>).</summary>
+    public const float PullBackBehind = 4, PullBackRise = 1.5f;
+
+    /// <summary>How far to either side of the line a near glide puts the eye, how far above the aim, and past what it jumps there.</summary>
+    public const float GlideSide = 6, GlideRise = 2, GlideJump = 15;
+
+    /// <summary>A point 1.5 above <paramref name="from"/> and 4 farther from <paramref name="away"/> (<c>CombatCamera.PullBack</c>).</summary>
+    public static Vector3 PullBack(Vector3 from, Vector3 away)
+    {
+        var goal = from + new Vector3(0, PullBackRise, 0);
+        var way = goal - away;
+        return way.LengthSquared() > 0 ? goal + PullBackBehind * Vector3.Normalize(way) : goal;
+    }
+
+    /// <summary>The glide from an attacker or caster to its target, while one is on (<c>GlidePhase</c>, <c>0x800E3258</c>).</summary>
+    private GlideState? _glide;
+
+    private sealed class GlideState(Body from, Body to, float height)
+    {
+        public Body From { get; } = from;
+        public Body To { get; } = to;
+        public float Height { get; } = height;
+        public bool Started { get; set; }
+    }
+
+    /// <summary>
+    /// Starts the glide from the attacker's body to its target's (<c>CombatCamera.StartGlide</c>, <c>0x8008D1F0</c>, from
+    /// <c>Combatant.ExecuteAction</c>), which holds the camera until the turn ends (<see cref="Reset"/>).
+    /// </summary>
+    /// <param name="height">How high above the bodies' middle it aims: the attacker's eyes less 0.2 and its radius.</param>
+    public void StartGlide(Body from, Body to, float height) => _glide = new GlideState(from, to, height);
+
+    /// <summary>The glide stops (<c>CombatCamera.Reset</c>, <c>0x8008D210</c>, as a turn ends).</summary>
+    public void Reset() => _glide = null;
+
+    /// <summary>
+    /// A tick of the glide (<c>CombatCamera.CastGlide</c>, <c>0x8008D3C8</c>): on its first, its goals, by the two bodies (one a unit
+    /// aside if they're one): more than 5 apart, the eye behind the attacker (<see cref="PullBack"/>) aimed at the target; nearer,
+    /// aimed at their middle from the nearer of the two points 6 to either side of the line, 2 up, jumping there from over 15
+    /// away. Each frame, the eye goes an eighth of the way to its goal and the aim a quarter, kept above the floor.
+    /// </summary>
+    private void Glide(CollisionWorld world, GlideState glide)
+    {
+        if (!glide.Started)
+        {
+            glide.Started = true;
+            var a = glide.From.Sphere.Position;
+            var b = glide.To.Sphere.Position;
+            if (glide.From == glide.To)
+                a.X -= 1;
+            if (Vector3.Distance(a, b) > Battle.PullBackDistance)
+            {
+                Camera.PositionGoal = PullBack(a, b);
+                Camera.AimGoal = b;
+            }
+            else
+            {
+                var middle = b + (a - b) / 2 + new Vector3(0, glide.Height, 0);
+                Camera.AimGoal = middle;
+                var n = a - b;
+                n = n.LengthSquared() > 0 ? Vector3.Normalize(n) : Vector3.UnitX;
+                var left = new Vector3(middle.X + GlideSide * n.Z, middle.Y + GlideRise, middle.Z - GlideSide * n.X);
+                var right = new Vector3(middle.X - GlideSide * n.Z, middle.Y + GlideRise, middle.Z + GlideSide * n.X);
+                Camera.PositionGoal = Vector3.Distance(Camera.Position, left) <= Vector3.Distance(Camera.Position, right) ? left : right;
+            }
+            if (Vector3.Distance(Camera.Position, Camera.PositionGoal) > GlideJump)
+                Camera.PlaceAt(Camera.PositionGoal);
+        }
+        KeepInArena(world);
+        Camera.Position -= (Camera.Position - Camera.PositionGoal) * Cadence.CompoundPerTick(1f / 8);
+        Camera.Aim -= (Camera.Aim - Camera.AimGoal) * Cadence.CompoundPerTick(1f / 4);
+        Camera.Orient();
+    }
+
     /// <summary>
     /// The nearest enemy's body to <paramref name="body"/> in 3D, among the combatants that can act
     /// (<c>CombatCamera.NearestOpponent</c>, <c>0x8008D698</c>).
@@ -127,7 +215,7 @@ public sealed class CombatCamera
         var best = 10000f;
         foreach (var c in battle.Combatants)
         {
-            if (!c.Hostile || !c.Active)
+            if (!c.Hostile || !c.Active || c.Freed)
                 continue;
             var distance = Vector3.Distance(c.Body.Sphere.Position, body.Sphere.Position);
             if (distance < best)

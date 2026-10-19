@@ -61,7 +61,7 @@ public enum CombatState
     /// <summary>After the Shadow's cinematic (<c>Combat.StateShadowMerge</c>).</summary>
     ShadowMerge = 17,
 
-    /// <summary>Aiming a flask (<c>Combat.StateTargetThrown</c>).</summary>
+    /// <summary>Aiming a bow, a thrown weapon that flies or a flask, with a free cursor (<c>Combat.StateTargetThrown</c>).</summary>
     TargetThrown = 18,
 
     /// <summary>Ends the turn: a potion drunk in the pause menu (<c>Combat.StateEndTurn</c>).</summary>

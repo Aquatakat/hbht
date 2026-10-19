@@ -64,7 +64,6 @@ public partial class Game
             BattleFromCommandLine(battle);
         if (options.Radar == "box")
             _battleScreen!.Radar = Core.Ui.RadarAnchor.LogBox;
-        _tintsOnStart = options.Tints;
         if (options.Screenshot is { } png)
             _ = Screenshot(png, hold, options.Frames, options.UiScreenshot);
     }
@@ -87,24 +86,38 @@ public partial class Game
     }
 
     /// <summary>
-    /// Each action pressed and let go in turn, a fifth of a second apart, as input events. Returns how long that takes
-    /// after the half second before the first, or 0 with none.
+    /// Each action pressed and let go in turn, a fifth of a second apart, as input events (<c>--press pause,menu_accept</c>).
+    /// <c>wait:2</c> waits so many seconds more before the next, and <c>move_right:1.5</c> holds the action that long before
+    /// it's let go and the next comes. Returns how long that takes after the half second before the first, or 0 with none.
     /// </summary>
     private double Press(string? presses)
     {
         if (presses is null)
             return 0;
-        var pressed = presses.Split(',');
-        for (var i = 0; i < pressed.Length; i++)
+        var at = 0.5;
+        foreach (var token in presses.Split(','))
         {
-            var name = pressed[i];
-            GetTree().CreateTimer(0.5 + 0.2 * i).Timeout += () =>
+            var (name, seconds) = token.Split(':') is [var n, var s] ? (n, double.Parse(s, CultureInfo.InvariantCulture)) : (token, (double?)null);
+            if (name == "wait")
             {
+                at += seconds ?? 0;
+                continue;
+            }
+            var held = seconds;
+            GetTree().CreateTimer(at).Timeout += () =>
+            {
+                if (held is { } hold)
+                {
+                    Input.ActionPress(name);
+                    GetTree().CreateTimer(hold).Timeout += () => Input.ActionRelease(name);
+                    return;
+                }
                 Input.ParseInputEvent(new InputEventAction { Action = name, Pressed = true });
                 Input.ParseInputEvent(new InputEventAction { Action = name, Pressed = false });
             };
+            at += (held ?? 0) + 0.2;
         }
-        return 0.5 + 0.2 * pressed.Length;
+        return at;
     }
 
     /// <summary>
