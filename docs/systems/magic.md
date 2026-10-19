@@ -29,7 +29,7 @@ Sorted by what the code does with it (`Entity.AddEffect` `0x800702F0`, `Combatan
 | `immobilise` | Wall of Bones (34), Frozen Doom (53), Web of Starlight (57) | clears the combatant's active flag; the Shadow is immune; Web is escaped each round on a d100 under twice Strength |
 | `charm` | Control Elem (4), Charming (16), Control Marquis (17), Control Zombies (27) | toggles the hostile flag; as it ends, an enemy goes back to the enemies and a member to the party |
 | `fieldRadius` | Haste (30) +L; Stellar Gravity (56) −L | `Combatant.UpdateRadius` (`0x8005F29C`), record by record: Gravity takes L off, leaving 1 if that's as much or more |
-| `morale` | Aura of Death (25), Solar Wrath (47), −L | the AI record's morale, no more than it has, and a morale check due; given back as it ends |
+| `morale` | Aura of Death (25), Solar Wrath (47), −L | the AI record's morale, no more than it has, and a morale check due; given back exactly as it ends (`EffectRules.End`, `0x800707EC`), by its timer, a dispel, a lethal blow or leaving the field (`Combatant.Death` takes off only the holds); a party member, with no AI record, is untouched |
 | `stamina` | Tap Stamina (33): the target −2L, the caster +2L up to its base (a record on each); Wind on an ally +2L to Stamina and its maximum (`Entity.AddStaminaEffect`, `0x80072158`, never given back) | once |
 | `weather` | Wind on an ally | as it ends, combat's weather class to 1 (`World+4`) |
 | `cure` | Remove Poison (2): Poison records cast with a lower margin than this cast's | once (`Entity.CurePoison`, `0x80071A6C`) |
@@ -61,7 +61,7 @@ No spell both deals damage and leaves a record: the damage byte of Immolation, A
 
 **Targets** (`Casting.TargetCount`, `0x80060818`): one, every one the spell may take, or (L + 1) >> 1. `Casting.CanTarget` (`0x80060988`) wants the target alive and in play, on the side the spell's type wants, not under the spell already, and allowed by the filter. The reach is L × the range byte, or L from the placed point (`Casting.Reach`).
 
-**A weapon's spell** (`Combatant.WeaponSpellProc`, `0x800627D0`; `Battle.Strike`) is cast after every melee and ranged hit when it may take the target: an item's spell at the enchantment's level, its damage added to the hit's.
+**A weapon's spell** (`Combatant.WeaponSpellProc`, `0x800627D0`; `Battle.Strike`) is cast after every melee and ranged hit when it may take the target: an item's spell at the enchantment's level, its damage added to the hit's; its margin is the attacker's cast margin until the turn ends.
 
 ## Effects on a character
 
@@ -101,7 +101,9 @@ No spell both deals damage and leaves a record: the damage byte of Immolation, A
 
 ## The AI's values
 
-`SpellValues.Value` (`EnemyAI.SpellValue`, `0x80057498`): the record's `aiValue`, or with none the highest the loaded spells give its first effect's type; and 0 when its type finds nothing to do: a `cure` with no candidate under what it cures (`0x8005B734`), a `charm` or `banish` whose filter allows no candidate (`0x8005B60C`, `0x8005B6AC`), `partOfDay` unless it changes the part of the day and the balance favours it (+1 for each combatant the light now hinders on the caster's side, or doesn't on the other's, −1 for the rest; `0x800615B4`), a `dispel` unless the school's timed records harm its side or help the other's more than not. The values range from 0 (Escape, Teleportation, the moon and sun, the morale spells) to 85 (Darkness, Light).
+`SpellValues.Value` (`EnemyAI.SpellValue`, `0x80057498`): the record's `aiValue`, or with none the highest the loaded spells give its first effect's type; and 0 when its type finds nothing to do: a `cure` with no candidate under what it cures (`0x8005B734`), a `charm` or `banish` whose filter allows no candidate (`0x8005B60C`, `0x8005B6AC`), `partOfDay` unless it changes the part of the day and the balance favours it (+1 for each combatant the light now hinders on the caster's side, or doesn't on the other's, −1 for the rest; `0x800615B4`), a `dispel` unless the school's timed records harm its side or help the other's more than not. The values range from 0 (Escape, Teleportation, the moon and sun, the morale spells) to 85 (Darkness, Light): a spell for its own side 51–85, a debuff or hold 31–43, damage 11–22, which is why enemies buff ahead ([combat](combat.md#the-ai)). The conditional types read set B's candidates as it's built from the cell scored.
+
+**What the AI may cast** (`Combatant.AICanCast`, `0x80060A94`, inside `CanCast` for a combatant the AI plays), for every source, an item's too: the Stamina for the cost at the casting level, a charge on an item's, the target's requirement and the part of the day. It never asks for a reagent: `CheckReagent` skips an enemy or an AI-played caster.
 
 ## The original's quirks the port keeps
 
@@ -122,7 +124,6 @@ The user chose to keep these, which look like bugs, as the original has them:
 ## What's left
 
 - **Session 10:** the visuals (`CombatSpellFx`, `ProcessSpellVisuals`) and the handle each record keeps, from `Battle.SpellVisuals`, which says what each cast asked for.
-- **Session 11:** `SpellValues` in the AI's scoring (session 6 set `Combatant.Morale` from the entity's, on its AI record), and its casts through `Battle.AimSpell` once `Battle.AiCasts` is on.
 - **Session 12:** potions healing nothing in the Shadow's battle, and Teleportation barred there (`TeleportBarred`).
 
 ## Not settled

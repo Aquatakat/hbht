@@ -118,9 +118,13 @@ public sealed partial class Battle : IMagicHost
             || Magic.Spell(enchantment.Spell) is not { } spell || !Casting.CanTarget(attacker, spell, target))
             return null;
         ReachMagic();
-        var prepared = false;
-        var castMargin = -1;
-        return CastAt(attacker, new SpellSource(spell, Item: weapon, ItemLevel: enchantment.Level) { Proc = true }, target, ref prepared, ref castMargin);
+        // Combatant.WeaponSpellProc (0x800627D0) casts it as any spell: PrepareCast (0x8006406C) keeps its margin on the attacker
+        // (+0x3C, 0x80064184), unless the attacker has already acted this turn.
+        var prepared = attacker.Flags.HasFlag(CombatantFlags.Acted);
+        var castMargin = prepared ? attacker.CastMargin : -1;
+        var outcome = CastAt(attacker, new SpellSource(spell, Item: weapon, ItemLevel: enchantment.Level) { Proc = true }, target, ref prepared, ref castMargin);
+        attacker.CastMargin = castMargin;
+        return outcome;
     }
 
     /// <summary>

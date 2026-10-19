@@ -44,6 +44,9 @@ public sealed class CasterCheckpointTests(Na10Import fixture, ITestOutputHelper 
         if (k.Checkpoint == 2)
         {
             built = Plain(Set, 2);
+            // What 01's battle doesn't hold of 02's: Rheda has moved, which an attack's chance reads.
+            foreach (var p in built.Battle.Combatants)
+                p.Moves = built.Cp.ReadByte(built.Record(p.Slot) + 0x22);
             built.Game.Clock.Time = built.Cp.Time;
             if (built.Game.Weather is { } weather)
                 weather.PartOfDay = (PartOfDay)built.Cp.Weather.PartOfDay;
