@@ -159,11 +159,13 @@ public sealed class ZoneEngine
     /// Starts a frame of the lights as the zone engine draws them: dimmed by the screen's fade, with the sun while the sky is
     /// outdoor, and lights that face the camera shining from its eye (<see cref="WorldLights.BeginFrame"/>).
     /// </summary>
-    public void BeginLightFrame(float fade, bool sun)
+    /// <param name="moon">The way to the moon while it's up (<see cref="WorldLights.Moon"/>), whose light bodies get while the sky is outdoor.</param>
+    public void BeginLightFrame(float fade, bool sun, Vector3? moon = null)
     {
         Lights.Fade = fade;
         Lights.Eye = Camera!.Position;
         Lights.Sun = sun;
+        Lights.Moon = sun ? moon : null;
         Lights.BeginFrame(1);
     }
 

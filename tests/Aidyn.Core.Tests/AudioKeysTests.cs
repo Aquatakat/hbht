@@ -64,6 +64,38 @@ public class AudioKeysTests
         Assert.True(Heard(audio));
     }
 
+    // AudioKeys.PlaySpellCast (0x800534BC): the spell Player.SetCastSound named plays on the first tick the body's request is the
+    // cast's, then is forgotten.
+    [Fact]
+    public void ACastsSoundPlaysOnceAsTheCastersRequestIsTheCasts()
+    {
+        var (keys, audio) = Make();
+        var body = new BodyAudio { Cast = Ouch };
+
+        keys.Process(body, Profile, Walk, 3, 20, Vector3.Zero, 0, new Vector3(0, 0, 5), Vector3.Zero);
+        Assert.False(Heard(audio));
+        Assert.Equal(Ouch, body.Cast);
+        keys.Process(body, Profile, AudioKeys.CastRequest, 4, 20, Vector3.Zero, 0, new Vector3(0, 0, 5), Vector3.Zero);
+        Assert.True(Heard(audio));
+        Assert.Null(body.Cast);
+    }
+
+    // AudioKeys.PlayEntityKey: a key with no sounds of its own plays the weapon's (AudioKeys.WeaponSound), and with none, nothing,
+    // and no later key either.
+    [Fact]
+    public void AKeyWithNoSoundsPlaysTheWeaponsAndWithoutAWeaponNothing()
+    {
+        var swing = new BodySounds(1, [new SoundKey(0, 12, []), new SoundKey(0, 12, [Step])]);
+        var (keys, audio) = Make();
+        var body = new BodyAudio();
+        keys.Process(body, swing, 12, 1, 20, Vector3.Zero, 0, new Vector3(0, 0, 5), Vector3.Zero);
+        Assert.False(Heard(audio));
+
+        body.Weapon = [Ouch];
+        keys.Process(body, swing, 12, 1, 20, Vector3.Zero, 0, new Vector3(0, 0, 5), Vector3.Zero);
+        Assert.True(Heard(audio));
+    }
+
     [Fact]
     public void FootstepsGoByTheLastSurfaceWithStepsOfItsOwn()
     {

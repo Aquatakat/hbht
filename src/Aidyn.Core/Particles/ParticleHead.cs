@@ -299,6 +299,12 @@ public sealed class ParticleHead
     }
 
     /// <summary>
+    /// Whether an emitter attached to <paramref name="anchor"/> is still in use, its own life or its particles' left
+    /// (<c>Particles.SceneHasEmitters</c>).
+    /// </summary>
+    public bool HasEmitters(IParticleAnchor anchor) => _emitters.Any(e => e.InUse && e.Anchor == anchor);
+
+    /// <summary>
     /// Stops every emitter on an actor, with all its particles at once, as freeing an actor does
     /// (<c>ParticleHead.Stop</c>, <c>0x800aa17c</c>).
     /// </summary>

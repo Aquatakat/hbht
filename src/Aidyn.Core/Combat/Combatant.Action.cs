@@ -60,6 +60,18 @@ public sealed partial class Combatant
     /// <summary>Ticks it has been marked, for <see cref="Mark"/>'s pulse.</summary>
     internal int MarkTicks { get; set; }
 
+    /// <summary>Its body's tint (<c>+0x75C</c>), which the target mark pulses and a cast glows: its ambient light, and the moon's on it.</summary>
+    public BodyTint Tint { get; } = new();
+
+    /// <summary>A cast's glow has turned its body's fog off (its scene's flag <c>0x100</c> cleared, <c>CombatSpellFx.GlowBody</c>).</summary>
+    public bool Unfogged { get; internal set; }
+
+    /// <summary>
+    /// A web or hold keeps its body's idle pose (body <c>+0x70E</c>, <c>CombatSpellFx.HoldBody</c>): while it's asked for nothing, its
+    /// animation doesn't step (<c>Body.IsHeld</c>, <c>0x80012754</c>).
+    /// </summary>
+    public bool PoseHeld { get; internal set; }
+
     /// <summary>
     /// The ticks left of a fled body's fade (<c>Body.FadeOut</c>, <c>0x80014AD4</c>, its <c>+0x708</c>): it's gone from the battle,
     /// but its body is drawn fading where it stood until this reaches 0.

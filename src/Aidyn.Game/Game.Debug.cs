@@ -94,7 +94,7 @@ public partial class Game
     /// <summary>
     /// Each action pressed and let go in turn, a fifth of a second apart, as input events (<c>--press pause,menu_accept</c>).
     /// <c>wait:2</c> waits so many seconds more before the next, and <c>move_right:1.5</c> holds the action that long before
-    /// it's let go and the next comes. Returns how long that takes after the half second before the first, or 0 with none.
+    /// it's let go and the next comes, or with a + after it (<c>menu_details:2+</c>) while it's still held. Returns how long that takes after the half second before the first, or 0 with none.
     /// </summary>
     private double Press(string? presses)
     {
@@ -103,7 +103,11 @@ public partial class Game
         var at = 0.5;
         foreach (var token in presses.Split(','))
         {
-            var (name, seconds) = token.Split(':') is [var n, var s] ? (n, double.Parse(s, CultureInfo.InvariantCulture)) : (token, (double?)null);
+            // A held action ending in + lets the next come while it's held, as a held menu's cursor is moved.
+            var overlap = token.EndsWith('+');
+            var (name, seconds) = token.TrimEnd('+').Split(':') is [var n, var s]
+                ? (n, double.Parse(s, CultureInfo.InvariantCulture))
+                : (token.TrimEnd('+'), (double?)null);
             if (name == "wait")
             {
                 at += seconds ?? 0;
@@ -122,7 +126,7 @@ public partial class Game
                 Input.ParseInputEvent(new InputEventAction { Action = name, Pressed = true });
                 Input.ParseInputEvent(new InputEventAction { Action = name, Pressed = false });
             };
-            at += (held ?? 0) + 0.2;
+            at += (overlap ? 0 : held ?? 0) + 0.2;
         }
         return at;
     }

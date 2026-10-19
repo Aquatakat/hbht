@@ -71,7 +71,7 @@ internal static class ItemImporter
         var (weapons, armor, items) = BuildItems(db, ctx.Items, ctx.Engine, ctx.Menus);
         ctx.WriteRecords("weapons.json", BodySoundImporter.WithSounds(db, ctx.BodySounds, weapons));
         ctx.WriteRecords("armor.json", armor);
-        ctx.WriteRecords("items.json", items);
+        ctx.WriteRecords("items.json", MagicImporter.WithPotionVisuals(items, ctx.SpellVisuals, ctx.Archive));
         ctx.WriteRecords("loot.json", BuildLoot(db));
         ctx.WriteRecords("shops.json", BuildShops(db));
         ctx.WriteRecords("recipes.json", BuildRecipes(db, ctx.Items));

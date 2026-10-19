@@ -176,6 +176,7 @@ public sealed partial class Battle
             {
                 e.Sheet.AddEffect(record.Id, [new ProtectionEffect(new Magnitude(PerLevel: -1))], radius / d, MagicSchool.None, 0,
                     CorrosionTicks, e, this, null);
+                AttachPotionVisual(e, record);
                 continue;
             }
             if (d > damage)
@@ -188,14 +189,20 @@ public sealed partial class Battle
                 if (e != t && e.Sheet.Stats.Modified(Stat.Stamina) <= n)
                     n = (short)(e.Sheet.Stats.Modified(Stat.Stamina) - 1);
                 if (n >= 1)
+                {
                     e.Sheet.DrainStamina(n);
+                    AttachPotionVisual(e, record);
+                }
             }
             else
             {
                 if (e != t && e.Sheet.Hp <= n)
                     n = (short)(e.Sheet.Hp - 1);
                 if (n > 0)
+                {
                     e.Sheet.TakeDamage(n, e);
+                    AttachPotionVisual(e, record);
+                }
             }
             e.Damage = (byte)n;
             if (e == t)
@@ -213,8 +220,9 @@ public sealed partial class Battle
 
     /// <summary>
     /// A potion drunk in a battle (<c>Combatant.DrinkPotion</c>, <c>0x80064C84</c>), through <see cref="Potions.Drink"/>: a heal says what
-    /// it gained, shown at once, or that it failed; Stamina says it's full; the rest that the potion took. The body plays the cast's
-    /// request, and the action goes back to what it was. No number shows.
+    /// it gained, shown at once, or that it failed; Stamina says it's full; the rest that the potion took. Unless it failed, the
+    /// potion's visual plays on the body, which plays the cast's request (<see cref="AttachPotionVisual"/>), and the action goes back
+    /// to what it was. No number shows.
     /// </summary>
     private void DrinkPotion(Combatant a, Potion potion)
     {
@@ -228,7 +236,7 @@ public sealed partial class Battle
             SayBoth(PotionOnLine, a.Sheet.Name);
             return;
         }
-        a.Body.Request = CastRequest;
+        var record = Game.Rules.Magic?.Potion(Potions.Id(potion));
         if (effects.Any(e => e is HealEffect))
         {
             var gained = a.Sheet.Hp - before;
@@ -237,12 +245,17 @@ public sealed partial class Battle
                 SayBoth(PotionFailsLine, a.Sheet.Name);
                 return;
             }
+            // Combatant.HealByPotion: a heal that took shows the potion's visual (and the body's cast); one that failed shows nothing.
+            if (record is not null)
+                AttachPotionVisual(a, record);
             // LogHpGain, then FlushQueuedLog: shown and queued.
             var line = Gains(a, gained);
             Write(line);
             Lines.Queue(line);
             return;
         }
+        if (record is not null)
+            AttachPotionVisual(a, record);
         SayBoth(effects.Any(e => e is StaminaEffect { ToBase: true }) ? FullStaminaLine : PotionAppliedLine, a.Sheet.Name);
     }
 

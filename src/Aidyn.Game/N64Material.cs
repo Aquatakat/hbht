@@ -58,6 +58,12 @@ internal static class N64Material
     public const string FogParameter = "n64_fog";
     /// <summary>Per instance: a scene object's tint, in on-screen values, with alpha 1, or 0 for none.</summary>
     public const string ObjectTintParameter = "object_tint";
+    /// <summary>Per instance: the scene's own tint, in on-screen values, with alpha 1, or 0 for none (<see cref="SetSceneTint"/>).</summary>
+    public const string SceneTintParameter = "scene_tint";
+    /// <summary>Per instance: a body's own ambient, in on-screen values, with alpha 1, or 0 for half the sky's.</summary>
+    public const string BodyAmbientInstanceParameter = "body_ambient";
+    /// <summary>Per instance: 1 where the scene's fog is off.</summary>
+    public const string UnfoggedParameter = "unfogged";
     /// <summary>Per instance: how its lit display lists are lit, a <see cref="Lighting"/>.</summary>
     public const string LightingParameter = "lighting";
     /// <summary>
@@ -309,6 +315,29 @@ internal static class N64Material
     public static void SetObjectTint(Node root, Color onScreen) =>
         SetOnMeshes(root, ObjectTintParameter, new Vector4(onScreen.R, onScreen.G, onScreen.B, 1));
 
+    /// <summary>
+    /// Gives every mesh under <paramref name="root"/> its scene's own tint (<c>Scene.SetTint</c>, <c>SceneData.colorFloats</c>), in
+    /// on-screen values: the prim colour of every draw, in place of the scenery's tint and a lit draw's white. The aim's cylinder is
+    /// red or green so, and the spells' visuals are tinted by the screen's fade.
+    /// </summary>
+    public static void SetSceneTint(Node root, Color onScreen) =>
+        SetOnMeshes(root, SceneTintParameter, new Vector4(onScreen.R, onScreen.G, onScreen.B, 1));
+
+    /// <summary>A body's own ambient light, in on-screen values, in place of half the sky's, or null for the sky's.</summary>
+    public static void SetBodyAmbient(IEnumerable<GeometryInstance3D> meshes, Vector3? onScreen)
+    {
+        var value = onScreen is { } c ? new Vector4(c.X, c.Y, c.Z, 1) : Vector4.Zero;
+        foreach (var mesh in meshes)
+            mesh.SetInstanceShaderParameter(BodyAmbientInstanceParameter, value);
+    }
+
+    /// <summary>Turns a body's fog off or back on (its scene's flag <c>0x100</c>), as a cast's glow does.</summary>
+    public static void SetUnfogged(IEnumerable<GeometryInstance3D> meshes, bool unfogged)
+    {
+        foreach (var mesh in meshes)
+            mesh.SetInstanceShaderParameter(UnfoggedParameter, unfogged ? 1f : 0f);
+    }
+
     private static void SetOnMeshes(Node root, StringName parameter, Variant value)
     {
         var stack = new Stack<Node>([root]);
@@ -442,7 +471,8 @@ internal static class N64Material
 
                 	// The RSP's lighting, per vertex, in on-screen values.
                 	vec3 normal = normalize(MODEL_NORMAL_MATRIX * NORMAL);
-                	vec3 ambient = lighting == 1 ? n64_body_ambient : lighting == 2 ? n64_tint : lighting == 3 ? own_ambient : vec3(1.0);
+                	vec3 ambient = lighting == 1 ? (body_ambient.a > 0.0 ? body_ambient.rgb : n64_body_ambient) : lighting == 2 ? n64_tint
+                		: lighting == 3 ? own_ambient : vec3(1.0);
                 	vec3 lights = lighting == 0 ? vec3(0.0)
                 		: (lighting == 3 ? vec3(0.0) : n64_sun_color * max(dot(normal, n64_sun_direction), 0.0))
                 		+ light0_color * max(dot(normal, light0_direction), 0.0) + light1_color * max(dot(normal, light1_direction), 0.0)
@@ -478,6 +508,12 @@ internal static class N64Material
                 global uniform vec3 n64_sun_color;
                 global uniform vec3 n64_body_ambient;
                 instance uniform vec4 object_tint = vec4(0.0);
+                // A scene's own tint (Scene.SetTint), with alpha 1, which replaces the scenery's and a lit draw's white; or 0 for none.
+                instance uniform vec4 scene_tint = vec4(0.0);
+                // A body's own ambient, with alpha 1, in place of half the sky's (its tint, in combat); or 0 for none.
+                instance uniform vec4 body_ambient = vec4(0.0);
+                // 1 where the scene's fog is off (a body a cast glows).
+                instance uniform float unfogged = 0.0;
                 // 0 scenery, 1 a body, 2 a scene object's actor, 3 its own lights.
                 instance uniform int lighting = 0;
                 instance uniform vec3 own_ambient = vec3(1.0);
@@ -531,13 +567,14 @@ internal static class N64Material
                 	float far = n64_fog.w;
                 	float depth = max(-(MODELVIEW_MATRIX * vec4(VERTEX, 1.0)).z, 0.0001);
                 	float z = (far + near) / (far - near) - 2.0 * far * near / ((far - near) * depth);
-                	fog = far > near && lighting != 3 ? clamp((z * 500.0 + 500.0 - n64_fog.x) / (n64_fog.y - n64_fog.x), 0.0, 1.0) : 0.0;{{light}}{{(texgen ? TexGen : "")}}
+                	fog = far > near && lighting != 3 && unfogged == 0.0 ? clamp((z * 500.0 + 500.0 - n64_fog.x) / (n64_fog.y - n64_fog.x), 0.0, 1.0) : 0.0;{{light}}{{(texgen ? TexGen : "")}}
                 }
 
                 void fragment() {
                 	{{texel}}
                 	vec4 shade = {{shade}};
-                	vec3 tint = lighting != 0 ? vec3(1.0) : (object_tint.a > 0.0 ? (n64_tint + object_tint.rgb) * 0.5 : n64_tint);
+                	vec3 tint = scene_tint.a > 0.0 ? scene_tint.rgb
+                		: lighting != 0 ? vec3(1.0) : (object_tint.a > 0.0 ? (n64_tint + object_tint.rgb) * 0.5 : n64_tint);
                 	vec3 color = texel.rgb * shade.rgb * prim.rgb * tint;
                 	float alpha = {{(textured ? "texel.a" : "shade.a")}} * prim.a;
                 	{{fog}}

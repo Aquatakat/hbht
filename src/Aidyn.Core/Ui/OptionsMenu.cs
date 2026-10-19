@@ -215,6 +215,8 @@ public sealed class OptionsMenu
             Choice("Menu filter", ["Video out", "Sharp", "Smooth"], () => Array.IndexOf(Filters, s.UiFilter) is var i and >= 0 ? i : 0,
                 v => s.UiFilter = Filters[v]),
             Choice("Pace", ["Original", "Brisk"], () => s.BriskPace ? 1 : 0, v => s.BriskPace = v == 1),
+            Choice("Spell auras", ["Original", "Each character"], () => s.SpellAuras == Combat.AuraTurns.EachCharacter ? 1 : 0,
+                v => s.SpellAuras = v == 1 ? Combat.AuraTurns.EachCharacter : Combat.AuraTurns.Battle),
         ];
     }
 

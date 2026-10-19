@@ -39,6 +39,8 @@ internal sealed class ImportContext(RomImage rom, string staging, IProgress<stri
 
     public IReadOnlyList<int> Gradients => field ??= Skies.ReadGradients(Rom);
 
+    public SpellVisualTables SpellVisuals => field ??= SpellVisualTables.Read(Rom);
+
     public WeatherTables Weather => field ??= WeatherTables.Read(Rom);
 
     public CharacterTables Characters => field ??= CharacterTables.Read(Rom);

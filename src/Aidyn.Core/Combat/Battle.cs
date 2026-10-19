@@ -229,7 +229,9 @@ public sealed partial class Battle
     /// <param name="skyDrawn">Whether the arena's sky is drawn, for its weather.</param>
     /// <param name="motion">Each combatant's animations, or null for one with none.</param>
     /// <param name="readInput">The player's controls, read only in a turn the player plays, once the screen has faded in.</param>
-    public void Tick(ZoneEngine arena, bool skyDrawn, Func<Combatant, IActorMotion?> motion, Func<PlayerInput>? readInput = null)
+    /// <param name="fx">The spells' visuals' actors (<see cref="SpellFx"/>), or null for none: headless, an actor's visual ends at once.</param>
+    public void Tick(ZoneEngine arena, bool skyDrawn, Func<Combatant, IActorMotion?> motion, Func<PlayerInput>? readInput = null,
+        ISpellFxHost? fx = null)
     {
         // Combat.HoldForMessage: while "Enemy reinforcements flee" holds the battle, its controls and states wait.
         var held = Lines.StepHold();
@@ -264,9 +266,11 @@ public sealed partial class Battle
         {
             var combatant = _crowd[i];
             var start = combatant.Body.Sphere.Position;
+            combatant.Audio.Weapon = WeaponOf(combatant) is { Model: not null } weapon ? weapon.Sounds : null;
             var animation = motion(combatant) is { } m ? keys.Sounding(m, combatant.Audio, combatant.Sounds, combatant.Body.Sphere) : IActorMotion.Still;
-            // A body that has fallen holds its last frame.
-            combatant.Body.Step(World, combatant.Fallen ? IActorMotion.Still : animation);
+            // A body that has fallen holds its last frame; one a web or hold keeps doesn't step its idle (Body.IsHeld, 0x80012754).
+            var still = combatant.Fallen || combatant.PoseHeld && combatant.Body.Request == 0 && combatant.Audio.Request == 0;
+            combatant.Body.Step(World, still ? IActorMotion.Still : animation);
             Movement.Crowd.Push(crowd, i, start);
             AfterBodies(combatant, animation);
         }
@@ -276,6 +280,10 @@ public sealed partial class Battle
         if (!held)
             Step();
         StepMarks();
+        // ProcessPlayers moves each body's tint on, after the marks, before the spells' visuals.
+        foreach (var c in Combatants)
+            c.Tint.Step();
+        Fx.Tick(fx);
         Numbers.Tick();
         Fade.Step();
         Gui.Tick(this);

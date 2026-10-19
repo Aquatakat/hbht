@@ -89,6 +89,9 @@ public sealed partial class Character
         var target = new EffectTarget(this, on, host);
         for (var i = 0; i < record.Effects.Count; i++)
             EffectRules.End(record, i, target);
+        // EffectRecord.FreeVisual (0x8007AB9C) and PotionRecord.FreeVisual (0x80079DB8): what a battle shows of it ends.
+        record.Visual?.Ended();
+        record.Visual = null;
         slots[slot] = null;
     }
 

@@ -325,6 +325,25 @@ public enum CodeTable
     AuraVulnerable,
     /// <summary>The float a resistance is compared with (<c>0x800D3248</c> in 1.0): 2.0.</summary>
     AuraResistantBelow,
+    /// <summary>The caster-actor switch of the spell visuals (role 0, <c>0x8008CB40</c> in 1.0, <c>CombatSpellFx.CasterActor</c>): the function and its case blocks. The five functions run back to back.</summary>
+    SpellVisualCasterActor,
+    /// <summary>The function that says whether a spell's target actor stands at the head (<c>0x8008CCA8</c> in 1.0, <c>CombatSpellFx.TargetAtHead</c>).</summary>
+    SpellVisualTargetHead,
+    /// <summary>The target-actor switch (role 1, <c>0x8008CCE0</c> in 1.0, <c>CombatSpellFx.TargetActor</c>).</summary>
+    SpellVisualTargetActor,
+    /// <summary>The target's aura-scene switch (role 5, <c>0x8008CE78</c> in 1.0, <c>CombatSpellFx.AuraScene</c>).</summary>
+    SpellVisualAura,
+    /// <summary>The potion-actor switch (role 2, <c>0x8008D038</c> in 1.0, <c>CombatSpellFx.PotionActor</c>).</summary>
+    SpellVisualPotionActor,
+    /// <summary>The potion's aura-scene switch (role 6, <c>0x8008D0FC</c> in 1.0, <c>CombatSpellFx.PotionAura</c>), to the end of the spell visuals' code.</summary>
+    SpellVisualPotionAura,
+    /// <summary>The jump tables of the six spell-visual switches, back to back (<c>0x800D4C98</c> in 1.0).</summary>
+    SpellVisualJumpTables,
+    /// <summary>
+    /// The instructions that load the refused cast's actor (<c>addiu s3, zero, 0x1CAA</c>, <c>0x8008B8D8</c> in 1.0) and, 8 bytes on, the resisted
+    /// cast's (<c>0x37F1</c>), in <c>CombatSpellFx.AddVisual</c>.
+    /// </summary>
+    SpellVisualRefusedResisted,
 }
 
 /// <summary>
@@ -463,6 +482,14 @@ public static class RomVersions
                 [CodeTable.AuraResistant] = new(0x00D3E24, 16),
                 [CodeTable.AuraVulnerable] = new(0x00D3E34, 17),
                 [CodeTable.AuraResistantBelow] = new(0x00D3E48, 4),
+                [CodeTable.SpellVisualCasterActor] = new(0x008D740, 0x168),
+                [CodeTable.SpellVisualTargetHead] = new(0x008D8A8, 0x38),
+                [CodeTable.SpellVisualTargetActor] = new(0x008D8E0, 0x198),
+                [CodeTable.SpellVisualAura] = new(0x008DA78, 0x1C0),
+                [CodeTable.SpellVisualPotionActor] = new(0x008DC38, 0xC4),
+                [CodeTable.SpellVisualPotionAura] = new(0x008DCFC, 0xE0),
+                [CodeTable.SpellVisualJumpTables] = new(0x00D5898, 0x424),
+                [CodeTable.SpellVisualRefusedResisted] = new(0x008C4D8, 12),
                 [CodeTable.VoiceSounds] = new(0x00E0EA8, 0x1F8),
                 [CodeTable.SpellSounds] = new(0x00E10A0, 0xEC),
                 [CodeTable.WeaponSounds] = new(0x00D50D0, 0x218),
@@ -604,6 +631,14 @@ public static class RomVersions
                 [CodeTable.AuraResistant] = new(0x00D3E14, 16),
                 [CodeTable.AuraVulnerable] = new(0x00D3E24, 17),
                 [CodeTable.AuraResistantBelow] = new(0x00D3E38, 4),
+                [CodeTable.SpellVisualCasterActor] = new(0x008D68C, 0x168),
+                [CodeTable.SpellVisualTargetHead] = new(0x008D7F4, 0x38),
+                [CodeTable.SpellVisualTargetActor] = new(0x008D82C, 0x198),
+                [CodeTable.SpellVisualAura] = new(0x008D9C4, 0x1C0),
+                [CodeTable.SpellVisualPotionActor] = new(0x008DB84, 0xC4),
+                [CodeTable.SpellVisualPotionAura] = new(0x008DC48, 0xE0),
+                [CodeTable.SpellVisualJumpTables] = new(0x00D5888, 0x424),
+                [CodeTable.SpellVisualRefusedResisted] = new(0x008C414, 12),
                 [CodeTable.VoiceSounds] = new(0x00E0EE8, 0x1F8),
                 [CodeTable.SpellSounds] = new(0x00E10E0, 0xEC),
                 [CodeTable.WeaponSounds] = new(0x00D50C0, 0x218),
@@ -743,6 +778,14 @@ public static class RomVersions
                 [CodeTable.AuraResistant] = new(0x00E103C, 16),
                 [CodeTable.AuraVulnerable] = new(0x00E104C, 17),
                 [CodeTable.AuraResistantBelow] = new(0x00E1060, 4),
+                [CodeTable.SpellVisualCasterActor] = new(0x0096F08, 0x168),
+                [CodeTable.SpellVisualTargetHead] = new(0x0097070, 0x38),
+                [CodeTable.SpellVisualTargetActor] = new(0x00970A8, 0x198),
+                [CodeTable.SpellVisualAura] = new(0x0097240, 0x1C0),
+                [CodeTable.SpellVisualPotionActor] = new(0x0097400, 0xC4),
+                [CodeTable.SpellVisualPotionAura] = new(0x00974C4, 0xE0),
+                [CodeTable.SpellVisualJumpTables] = new(0x00E3008, 0x424),
+                [CodeTable.SpellVisualRefusedResisted] = new(0x0095C98, 12),
                 [CodeTable.VoiceSounds] = new(0x00EFA18, 0x1F8),
                 [CodeTable.SpellSounds] = new(0x00EFC10, 0xEC),
                 [CodeTable.WeaponSounds] = new(0x00E26C0, 0x218),

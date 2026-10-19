@@ -95,6 +95,7 @@ public sealed record ArmorRecord(
 /// The Borg5 scene (<c>aidyn:scene/0x…</c>) the original draws for it in a body's hand or on its arm
 /// (<c>get_item_borg5</c>), or null when it has none.
 /// </param>
+/// <param name="Visuals">What a potion shows in a battle as it's drunk, or a flask at each one its blast hurts; its caster's actor is never used.</param>
 public sealed record ItemRecord(
     RecordId Id,
     string Name,
@@ -112,7 +113,8 @@ public sealed record ItemRecord(
     string? Description = null,
     RecordId? Model = null,
     IReadOnlyList<Effect>? Effects = null,
-    EffectDuration? Duration = null);
+    EffectDuration? Duration = null,
+    MagicVisuals? Visuals = null);
 
 /// <summary>
 /// What an item is (the original's <c>DBTypeEnum</c>, the high byte of its ID). Weapons and armor have

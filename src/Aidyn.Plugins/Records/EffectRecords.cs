@@ -255,6 +255,11 @@ public enum Resisted
 /// <param name="KeptAfterBattle">Potions whose effects outlast a battle (<c>Entity.ClearEffects</c>): Stealth.</param>
 /// <param name="SpellEffects">A character's room for spells' effects (<c>entity+0x34</c>, 15).</param>
 /// <param name="PotionEffects">A character's room for potions' effects (<c>entity+0x38</c>, 7).</param>
+/// <param name="Refused">
+/// The actor a refused or failed cast plays at its caster, whatever the spell (<c>CombatSpellFx.AddVisual</c>'s role 3,
+/// <c>0x8008B8D8</c>).
+/// </param>
+/// <param name="Resisted">The actor a resisted cast plays at its target (role 4, <c>0x8008B8E0</c>).</param>
 public sealed record MagicRecord(
     RecordId Id,
     CastChance Chance,
@@ -265,7 +270,40 @@ public sealed record MagicRecord(
     int MaxLevel,
     IReadOnlyList<RecordId> KeptAfterBattle,
     int SpellEffects = 15,
-    int PotionEffects = 7);
+    int PotionEffects = 7,
+    RecordId? Refused = null,
+    RecordId? Resisted = null);
+
+/// <summary>
+/// What a spell or potion shows in a battle (<c>combatspellvisuals.cpp</c>, the role tables of <c>CombatSpellFx.AddVisual</c>):
+/// actors that play their cast (request 5) once at the caster's and the target's feet, and a scene that shows over the
+/// target's head in turn with the battle's others while the effect lasts. Any may be missing. See docs/systems/combat.md.
+/// </summary>
+/// <param name="Caster">A spell's actor at its caster (role 0, <c>CombatSpellFx.CasterActor</c>, <c>0x8008CB40</c>).</param>
+/// <param name="Target">
+/// A spell's actor at its target (role 1, <c>CombatSpellFx.TargetActor</c>, <c>0x8008CCE0</c>), or a potion's at the one who
+/// drinks it or a flask's at each one its blast hurts (role 2, <c>CombatSpellFx.PotionActor</c>, <c>0x8008D038</c>).
+/// </param>
+/// <param name="TargetAtHead">
+/// The target's actor stands at the height of the target's entity rather than at its feet (<c>CombatSpellFx.TargetAtHead</c>,
+/// <c>0x8008CCA8</c>): the charms, holds and drains.
+/// </param>
+/// <param name="Aura">
+/// The scene shown at the target's locator 3 while the effect lasts (roles 5 and 6, <c>CombatSpellFx.AuraScene</c>,
+/// <c>0x8008CE78</c>, and <c>PotionAura</c>, <c>0x8008D0FC</c>).
+/// </param>
+/// <param name="CasterMemory">
+/// The memory the caster's actor asks for, in bytes: the original skips an actor when the heap's largest free block is
+/// smaller. The port loads every actor.
+/// </param>
+/// <param name="TargetMemory">The memory the target's actor asks for.</param>
+public sealed record MagicVisuals(
+    RecordId? Caster = null,
+    RecordId? Target = null,
+    bool TargetAtHead = false,
+    RecordId? Aura = null,
+    int CasterMemory = 0,
+    int TargetMemory = 0);
 
 /// <summary>
 /// The chance to cast: (Intelligence × <c>Intelligence</c> + the cast's level × <c>Level</c> + the character's level ×

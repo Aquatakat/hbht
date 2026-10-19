@@ -35,8 +35,10 @@ public sealed partial class Battle
     // The rows the menus last ended on, by party slot (CombatMenu.SpellCursors, 0x800E3180, and ItemCursors, 0x800E3190); -1 for none.
     private readonly int[] _spellCursors = [-1, -1, -1, -1], _itemCursors = [-1, -1, -1, -1];
 
-    /// <summary>What the spells' visuals and sounds are asked for, oldest first, for session 10's to play; the runtime drains it.</summary>
-    public Queue<SpellVisual> SpellVisuals { get; } = new();
+    /// <summary>The spells' and potions' visuals (<c>combatspellvisuals.cpp</c>), which the runtime draws.</summary>
+    public SpellFx Fx => _fx ??= new SpellFx(Game?.Clock, Game?.Rules.Magic?.Record);
+
+    private SpellFx? _fx;
 
     // ---- Target set B's rules ----
 
@@ -435,7 +437,7 @@ public sealed partial class Battle
     /// <summary>
     /// The cast at one target (<c>Combatant.CastCurrentSpell</c>, <c>0x80065C08</c>): the selected spell through
     /// <see cref="Cast"/>, the first target preparing it and the rest sharing its roll; a damage result of 0 says the target resisted;
-    /// the caster's body plays the cast (request 5) and the visual is asked for (<see cref="SpellVisuals"/>), even for a refused cast.
+    /// the caster's body plays the cast (request 5) and the visual starts (<see cref="Fx"/>), even for a refused cast.
     /// The damage, for the action to store on the target.
     /// </summary>
     private int CastCurrentSpell(Combatant a, Combatant t)
@@ -462,13 +464,31 @@ public sealed partial class Battle
             SayQueued(ResistsLine, t.Sheet.Name);
         }
         a.Body.Request = CastRequest;
-        SpellVisuals.Enqueue(new SpellVisual(a, t, source.Spell, outcome.Result switch
+        // Player.SetCastSound: the spell's sound as the caster's request 5 plays, a refused cast's too.
+        a.Audio.Cast = source.Spell.Cast;
+        var cast = Fx.Start(a, t, source.Spell, outcome.Result switch
         {
             CastResult.NotCast => SpellVisualKind.Failed,
             CastResult.Resisted => SpellVisualKind.Resisted,
             _ => SpellVisualKind.Cast,
-        }));
+        });
+        // The handle goes on the target's first record of the spell that has none, so its end ends the lasting scene.
+        if (cast is not null && (damage != 0 || outcome.Result == CastResult.Effect)
+            && t.Sheet.Effects.FirstOrDefault(e => e.Source == source.Spell.Id && e.Visual is null) is { } record)
+            record.Visual = cast;
         return damage;
+    }
+
+    /// <summary>
+    /// A potion's visual on a body (<c>Combatant.AttachSpellVisual</c>, <c>0x80064B10</c>), as it's drunk or a flask's blast hurts it:
+    /// the body plays the cast's request, and the handle goes on its first record of the potion that has none.
+    /// </summary>
+    private void AttachPotionVisual(Combatant on, ItemRecord potion)
+    {
+        on.Body.Request = CastRequest;
+        if (Fx.StartPotion(on, potion) is { } cast
+            && on.Sheet.PotionEffects.FirstOrDefault(e => e.Source == potion.Id && e.Visual is null) is { } record)
+            record.Visual = cast;
     }
 
     /// <summary>
@@ -528,13 +548,10 @@ public sealed partial class Battle
 /// <summary>What marks an aim on the ground: the cylinder's centre in the arena's cells, its radius, and whether it's a spell's (red) or a flask's (green).</summary>
 public readonly record struct AimMarker(Vector2 Centre, float Radius, bool Spell);
 
-/// <summary>How a spell's visual plays (<c>CombatSpellFx.Start</c>'s result): cast, resisted at the target, or failed at the caster.</summary>
+/// <summary>How a spell's visuals play (<c>CombatSpellFx.Start</c>'s result): cast, resisted at the target, or refused or failed at the caster.</summary>
 public enum SpellVisualKind
 {
     Cast,
     Resisted,
     Failed,
 }
-
-/// <summary>A spell's visual and sound to play (<c>CombatSpellFx.Start</c>, <c>0x8008C43C</c>, and <c>Player.SetCastSound</c>), for session 10.</summary>
-public sealed record SpellVisual(Combatant Caster, Combatant Target, SpellRecord Spell, SpellVisualKind Kind);

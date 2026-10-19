@@ -53,6 +53,12 @@ public sealed class ActiveEffect
     /// <summary>It's a worn item's enchantment, which a battle's end puts back on.</summary>
     public bool Worn { get; }
 
+    /// <summary>
+    /// What a battle shows of it (the record's <c>+0x14</c>, a potion's <c>+0x08</c>: <c>CombatSpellFx</c>'s handle), which its end
+    /// tells (<c>EffectRecord.FreeVisual</c>, <c>0x8007AB9C</c>); null outside a battle, or for one no cast or drink showed.
+    /// </summary>
+    public IEffectVisual? Visual { get; internal set; }
+
     /// <summary>The potion it came from, if it's one of the base game's.</summary>
     public Potion? Potion => Potions.Of(Source);
 
@@ -92,4 +98,11 @@ public sealed class ActiveEffect
     }
 
     public override string ToString() => $"{Source} power {Power} margin {Margin} timer {Timer}";
+}
+
+/// <summary>What a battle shows of an effect while it lasts (<c>CombatSpellFx</c>'s spell visual), which hears when it ends.</summary>
+public interface IEffectVisual
+{
+    /// <summary>The effect has come off (<c>CombatSpellFx.EndEffect</c>, <c>0x8008C7A4</c>).</summary>
+    void Ended();
 }

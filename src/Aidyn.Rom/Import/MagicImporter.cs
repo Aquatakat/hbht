@@ -1,5 +1,6 @@
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
+using Aidyn.Rom.Borg;
 using Aidyn.Rom.Db;
 using Aidyn.Rom.Engine;
 using Aidyn.Rom.Quests;
@@ -20,7 +21,15 @@ internal static class MagicImporter
     public static void Import(ImportContext ctx)
     {
         ctx.Report("Magic");
-        ctx.WriteRecords("magic.json", new[] { BuildMagic(CastingFactors.Read(ctx.Rom)) });
+        var visuals = ctx.SpellVisuals;
+        ctx.WriteRecords("magic.json", new[]
+        {
+            BuildMagic(CastingFactors.Read(ctx.Rom)) with
+            {
+                Refused = Visual(ctx.Archive, visuals.Refused, BorgType.Actor, RecordTypes.Actor, "The refused cast's actor"),
+                Resisted = Visual(ctx.Archive, visuals.Resisted, BorgType.Actor, RecordTypes.Actor, "The resisted cast's actor"),
+            },
+        });
     }
 
     /// <summary>
@@ -42,6 +51,64 @@ internal static class MagicImporter
         [DbRecordIds.Required(ItemId.Of(DbType.Potion, (byte)StealthPotion))]);
 
     private const int StealthPotion = 16;
+
+    /// <summary>
+    /// The record of a Borg a visual names, which must be of <paramref name="type"/> in the archive: an actor for roles 0 to 4, a scene for
+    /// 5 and 6.
+    /// </summary>
+    private static RecordId Visual(BorgArchive archive, int borg, BorgType type, string recordType, string what) =>
+        borg >= 0 && borg < archive.Count && archive.Listings[borg].Type == type
+            ? RecordId.Hex(recordType, borg)
+            : throw new InvalidDataException($"{what}, Borg 0x{borg:X}, isn't a {type}.");
+
+    private static RecordId? Actor(BorgArchive archive, IReadOnlyDictionary<int, VisualBorg> table, int kind, string what) =>
+        table.TryGetValue(kind, out var v) ? Visual(archive, v.Borg, BorgType.Actor, RecordTypes.Actor, $"{what} {kind}'s actor") : null;
+
+    private static RecordId? Aura(BorgArchive archive, IReadOnlyDictionary<int, VisualBorg> table, int kind, string what) =>
+        table.TryGetValue(kind, out var v) ? Visual(archive, v.Borg, BorgType.Scene, RecordTypes.Scene, $"{what} {kind}'s aura") : null;
+
+    /// <summary>
+    /// Gives each spell what casting it shows (<see cref="SpellVisualTables"/>), by its place in <c>SpellList</c>, its kind. Every actor and
+    /// scene must be the Borg of its type; a spell with nothing keeps none.
+    /// </summary>
+    public static List<PluginSpell> WithVisuals(List<PluginSpell> spells, SpellVisualTables tables, BorgArchive archive) =>
+    [
+        .. spells.Select(s =>
+        {
+            var kind = s.Position ?? throw new InvalidDataException($"{s.Id} has no place in the spell list.");
+            var caster = Actor(archive, tables.Caster, kind, "Spell");
+            var target = Actor(archive, tables.Target, kind, "Spell");
+            var aura = Aura(archive, tables.Aura, kind, "Spell");
+            if (caster is null && target is null && aura is null)
+                return s;
+            return s with
+            {
+                Visuals = new MagicVisuals(
+                    caster, target, tables.TargetAtHead.Contains(kind), aura,
+                    caster is null ? 0 : tables.Caster[kind].Memory, target is null ? 0 : tables.Target[kind].Memory),
+            };
+        }),
+    ];
+
+    /// <summary>
+    /// Gives each potion what drinking it (or a flask's blast) shows: its actor, which asks for its memory, and its aura. The potions are
+    /// <paramref name="items"/>' of kind <see cref="ItemKind.Potion"/>, in the order of their index.
+    /// </summary>
+    public static List<ItemRecord> WithPotionVisuals(List<ItemRecord> items, SpellVisualTables tables, BorgArchive archive)
+    {
+        var kinds = Enumerable.Range(0, ItemTables.PotionCount)
+            .ToDictionary(i => DbRecordIds.Required(ItemId.Of(DbType.Potion, (byte)i)), i => i);
+        return [.. items.Select(item =>
+        {
+            if (!kinds.TryGetValue(item.Id, out var kind))
+                return item;
+            var actor = Actor(archive, tables.Potion, kind, "Potion");
+            var aura = Aura(archive, tables.PotionAura, kind, "Potion");
+            return actor is null && aura is null
+                ? item
+                : item with { Visuals = new MagicVisuals(null, actor, false, aura, 0, actor is null ? 0 : tables.Potion[kind].Memory) };
+        })];
+    }
 
     // Records the facts name.
     private const int Intelligence = 0, Willpower = 1, Dexterity = 2, Endurance = 3, Strength = 4, Stamina = 5;

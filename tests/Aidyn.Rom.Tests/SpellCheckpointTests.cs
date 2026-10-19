@@ -148,7 +148,7 @@ public sealed class SpellCheckpointTests(Na10Import fixture)
         // A (Combat.ConfirmSpellTarget): the highest selected first, the caster herself: state 6, then the cast.
         Assert.True(battle.Confirm());
         Assert.Equal((CombatState.Facing, 1, 0), (battle.State, battle.Target, rheda.CastMargin));
-        battle.Tick(zone, false, _ => null);
+        battle.Tick(zone, false, _ => null, fx: new Playing());
         // 08: state 2, +0x14 = 1, the margin 4, the acted flag, the lines, two draws.
         var c08 = Combat(8);
         Assert.Equal(c08.ReadByte(0x800D9454), (byte)battle.State);
@@ -164,6 +164,16 @@ public sealed class SpellCheckpointTests(Na10Import fixture)
         Assert.Single(rheda.Sheet.Effects);
         Assert.Empty(alaron.Sheet.Effects);
         Assert.Equal(spice - 1, built.Game.Party.Inventory.Count(RecordId.Hex(RecordTypes.Item, 0x0111)));
+        // CombatSpellFx.Start (session 10): 08's pool A[0] is Rheda's cast at herself, whose handle her record keeps (+0x14 = 0); B[0] the
+        // caster's actor 0x1C8E at her feet, B[1] the lasting scene 0x1C76, waiting its turn; her body glows and the sky dims.
+        var cast = Assert.Single(battle.Fx.Casts);
+        Assert.Equal(0, cast.Handle);
+        Assert.Same(cast, rheda.Sheet.Effects[0].Visual);
+        Assert.Equal([(SpellFxRole.Caster, RecordId.Hex(RecordTypes.Actor, 0x1C8E)), (SpellFxRole.Aura, RecordId.Hex(RecordTypes.Scene, 0x1C76))],
+            battle.Fx.Visuals.Select(v => (v.Role, v.Id)));
+        Assert.Equal(rheda.Body.Sphere.Position - new System.Numerics.Vector3(0, rheda.Body.Sphere.Radius, 0), battle.Fx.Visuals.First().Position);
+        Assert.Equal(1 / 30f, rheda.Tint.Rate, 5);
+        Assert.Equal(0.5f, battle.Fx.Sky.Goal);
 
         // Through states 2 and 4 to the next target, slot 0, cast with no draw, and then the turn's end.
         var states = new List<CombatState>();
@@ -177,8 +187,59 @@ public sealed class SpellCheckpointTests(Na10Import fixture)
         }
         Assert.Equal([CombatState.Action, CombatState.Result, CombatState.Facing, CombatState.Action, CombatState.Result], states.Take(5));
         Assert.Single(alaron.Sheet.Effects);
+        // 09's records: Alaron's keeps handle 1, Rheda's 0.
+        Assert.Equal(1, Assert.IsType<SpellFxCast>(alaron.Sheet.Effects[0].Visual).Handle);
+        Assert.Equal(0, Assert.IsType<SpellFxCast>(rheda.Sheet.Effects[0].Visual).Handle);
         Assert.Equal(-1, rheda.CastMargin);
         Assert.NotSame(rheda, battle.Current);
+    }
+
+    // 08's bodies all have tint level 0 and rate 0 (+0x75C, +0x760), 165 ticks after the cast: the glow on Rheda (SetTint over 30) is
+    // undone on the frame it starts, as the target marks let her and Alaron go (ClearTint over 0) after the state's step. Alaron's own
+    // glow comes with his cast, his mark long gone.
+    [Fact]
+    public void TheMarksLettingGoUndoTheCastersGlowAsCheckpoint08sTintsShow()
+    {
+        var built = At07();
+        var battle = built.Battle;
+        var (alaron, rheda) = (built[0], built[1]);
+        var zone = Zone(built);
+        rheda.Spell = Known(rheda, "Endurance");
+        Poke(battle, nameof(Battle.State), CombatState.TargetSpell);
+        battle.TargetsB.BeginSpell(battle, rheda);
+        battle.Tick(zone, false, _ => null);
+        Assert.NotNull(rheda.Mark);
+        Assert.Equal(1, rheda.Tint.Level);
+
+        Assert.True(battle.Confirm());
+        battle.Tick(zone, false, _ => null);
+
+        var c08 = Combat(8);
+        foreach (var c in new[] { alaron, rheda })
+        {
+            var body = c08.ReadWord(BodyPointers + 4 * (uint)c.Slot);
+            Assert.Equal(BitConverter.UInt32BitsToSingle(c08.ReadWord(body + 0x75C)), c.Tint.Level);
+            Assert.Equal(BitConverter.UInt32BitsToSingle(c08.ReadWord(body + 0x760)), c.Tint.Rate);
+        }
+        for (var i = 0; i < 1200 && alaron.Sheet.Effects.Count == 0; i++)
+            battle.Tick(zone, false, _ => null);
+        Assert.Equal(1 / 30f, alaron.Tint.Rate, 5);
+    }
+
+    /// <summary>The visuals' actors, each still playing its cast.</summary>
+    private sealed class Playing : ISpellFxHost
+    {
+        public Aidyn.Core.Actors.IActorMotion? Motion(SpellFxVisual visual) => new Still();
+
+        public bool Emitting(SpellFxVisual visual) => true;
+
+        private sealed class Still : Aidyn.Core.Actors.IActorMotion
+        {
+            public int StateLength => 300;
+            public int Frame => 1;
+            public bool Entered => false;
+            public float Tick(int request) => 0;
+        }
     }
 }
 

@@ -56,6 +56,12 @@ public sealed class Settings
     /// <summary>Whether trek runs at a faster pace than the original's, which feels slow on a PC.</summary>
     public bool BriskPace { get; set; }
 
+    /// <summary>
+    /// How the lasting spells' and potions' scenes over heads take their turns in a battle: one at a time across the battle, as the
+    /// original's, or each character's at once (<see cref="Combat.SpellFx.Turns"/>).
+    /// </summary>
+    public Combat.AuraTurns SpellAuras { get; set; } = Combat.AuraTurns.Battle;
+
     /// <summary>A setting changed.</summary>
     public event Action? Changed;
 

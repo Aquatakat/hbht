@@ -68,8 +68,10 @@ public static class BasePlugin
     /// scripts what follows their end, and terrains their camp ambushes, with the ambush's level tiers on the camping record.
     /// 45 adds to the combat record the combat menus' and Sense Aura's text, which the code keeps as C strings.
     /// 46 adds to the combat record the area spell the AI aims (Fireball) and the flasks that make it spread out.
+    /// 47 gives spells and potions what they show in a battle (<c>visuals</c>), and the magic record the actors a refused and a resisted
+    /// cast play.
     /// </summary>
-    public const int ImporterVersion = 46;
+    public const int ImporterVersion = 47;
 }
 
 /// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>

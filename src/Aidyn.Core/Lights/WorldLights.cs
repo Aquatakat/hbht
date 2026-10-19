@@ -14,7 +14,7 @@ namespace Aidyn.Core.Lights;
 /// <remarks>
 /// <para>
 /// From 1.0's machine code. A body (<c>Bodies.SetLights</c>, 0x80013798) gets the sun while the sky is outdoor, the
-/// moon (not ported, black in trek), the dynamic lights (<c>Lights.AddDynamic</c>, 0x8004d9e0), and then, only if
+/// moon while it's up (cyan by the body's tint, so black but for combat's, yet taking a light's room), the dynamic lights (<c>Lights.AddDynamic</c>, 0x8004d9e0), and then, only if
 /// it's one of the party's (the player in trek), the light map objects that the grid cell under its centre lists in
 /// its own chunk (<c>WorldLights.ForBody</c>, 0x8004d878). An actor a map places, unless it's fullbright, gets the sun
 /// while outdoor, the dynamic lights and every light map object of its own chunk (<c>MapObjects.SetActorLights</c>,
@@ -56,6 +56,22 @@ public sealed class WorldLights(IRandom random)
     /// <summary>Whether the sky is outdoor, which gives bodies and actors the sun, a light no other takes the place of.</summary>
     public bool Sun { get; set; }
 
+    /// <summary>
+    /// The way to the moon while it's up and the sky is outdoor (<c>Sky.MoonDirection</c>, <c>0x800D9538</c>, with y over 0), else
+    /// null: a body then gets the moon's light after the sun's, which nothing takes the place of either.
+    /// </summary>
+    public Vector3? Moon { get; set; }
+
+    /// <summary>
+    /// The moon's light on a body (<c>Bodies.SetLights</c>): cyan, (0, g, g) with g = 200 × the moon's height × the screen's fade
+    /// × the body's tint level, truncated to a byte (the 200.0s at <c>0x800CDBB0</c> and <c>0x800CDBB8</c>). Black but in combat.
+    /// </summary>
+    public static Rgba MoonLight(float height, float fade, float tint)
+    {
+        var g = (byte)(int)(height * 200f * fade * tint);
+        return new Rgba(0, g, g, 0);
+    }
+
     /// <summary>Keeps a chunk's light map objects while it's loaded, active or not, in its objects' order.</summary>
     public void Load(LoadedMap map) =>
         _maps[map] = [.. map.Record.Objects.OfType<LightObject>().Select(l => PointLight.For(l, map.Origin))];
@@ -89,9 +105,15 @@ public sealed class WorldLights(IRandom random)
     /// </summary>
     /// <param name="centre">Its sphere's centre, in the world.</param>
     /// <param name="map">The chunk it's in, or null outside any.</param>
-    public IReadOnlyList<DirectionalLight> ForBody(Vector3 centre, LoadedMap? map, bool party)
+    /// <param name="tint">The body's tint level (<c>+0x75C</c>), which the moon's light is scaled by: 0 but in combat.</param>
+    public IReadOnlyList<DirectionalLight> ForBody(Vector3 centre, LoadedMap? map, bool party, float tint = 0)
     {
         var scene = Begin(SceneLights.BodyMax);
+        if (Moon is { } moon)
+        {
+            scene.Add(MoonLight(moon.Y, Fade, tint), moon);
+            scene.Kept++;
+        }
         AddNear(scene, centre, Dynamic.Lit.Select(l => (l, true)));
         if (party && map is not null && map.Record.Grid is { } grid && _maps.ContainsKey(map))
         {
@@ -100,7 +122,8 @@ public sealed class WorldLights(IRandom random)
             var listed = grid.At(centre - map.Origin).Where(byIndex.ContainsKey).Select(i => lights[byIndex[i]]);
             AddNear(scene, centre, listed);
         }
-        return scene.After(scene.Kept);
+        // The moon's is handed on with the rest, black or not: it takes its room in the RSP's lights.
+        return scene.After(Sun ? 1 : 0);
     }
 
     /// <summary>An actor's lights this frame, after the sun: the dynamic lights, then every light map object of its chunk.</summary>

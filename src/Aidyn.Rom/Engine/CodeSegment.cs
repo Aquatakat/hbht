@@ -11,6 +11,11 @@ internal static class CodeSegment
     private const uint Vram = 0x80000400;
     private const int Rom = 0x1000;
 
+    /// <summary>The ROM offset and RAM address the code segment starts at.</summary>
+    public const int RomBase = Rom;
+
+    public const uint RamBase = Vram;
+
     /// <summary>The ROM offset of a code segment address.</summary>
     public static int RomOffset(uint address) =>
         address >= Vram && address - Vram < 0x100000
