@@ -293,6 +293,10 @@ public enum CodeTable
     /// factors, same then different (<c>Combatant.CastChance</c>, <c>ResolveCastRoll</c>, <c>ResistRoll</c>).
     /// </summary>
     CastingFactors,
+    /// <summary>The weapon DB positions that are bows, as bytes ending with 0xFF (<c>Combat.BowKindWeapons</c>, <c>0x800E0C08</c> in 1.0): they fly as an arrow.</summary>
+    BowKindWeapons,
+    /// <summary>The weapon DB positions that are thrown, as bytes ending with 0xFF (<c>Combat.ThrownKindWeapons</c>, <c>0x800E0C14</c> in 1.0): they fly as themselves.</summary>
+    ThrownKindWeapons,
 }
 
 /// <summary>
@@ -415,6 +419,8 @@ public static class RomVersions
                 [CodeTable.StepSounds] = new(0x00E0D28, 0x180),
                 [CodeTable.CreditsCards] = new(0x00CFC60, 0x21),
                 [CodeTable.CastingFactors] = new(0x00D35CC, 0x34),
+                [CodeTable.BowKindWeapons] = new(0x00E1808, 9),
+                [CodeTable.ThrownKindWeapons] = new(0x00E1814, 9),
                 [CodeTable.VoiceSounds] = new(0x00E0EA8, 0x1F8),
                 [CodeTable.SpellSounds] = new(0x00E10A0, 0xEC),
                 [CodeTable.WeaponSounds] = new(0x00D50D0, 0x218),
@@ -540,6 +546,8 @@ public static class RomVersions
                 [CodeTable.StepSounds] = new(0x00E0D68, 0x180),
                 [CodeTable.CreditsCards] = new(0x00CFC50, 0x21),
                 [CodeTable.CastingFactors] = new(0x00D35BC, 0x34),
+                [CodeTable.BowKindWeapons] = new(0x00E1848, 9),
+                [CodeTable.ThrownKindWeapons] = new(0x00E1854, 9),
                 [CodeTable.VoiceSounds] = new(0x00E0EE8, 0x1F8),
                 [CodeTable.SpellSounds] = new(0x00E10E0, 0xEC),
                 [CodeTable.WeaponSounds] = new(0x00D50C0, 0x218),
@@ -663,6 +671,8 @@ public static class RomVersions
                 [CodeTable.StepSounds] = new(0x00EF898, 0x180),
                 [CodeTable.CreditsCards] = new(0x00DC0D0, 0x21),
                 [CodeTable.CastingFactors] = new(0x00E075C, 0x34),
+                [CodeTable.BowKindWeapons] = new(0x00F0378, 9),
+                [CodeTable.ThrownKindWeapons] = new(0x00F0384, 9),
                 [CodeTable.VoiceSounds] = new(0x00EFA18, 0x1F8),
                 [CodeTable.SpellSounds] = new(0x00EFC10, 0xEC),
                 [CodeTable.WeaponSounds] = new(0x00E26C0, 0x218),

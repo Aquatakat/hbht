@@ -27,6 +27,15 @@ namespace Aidyn.Plugins.Records;
 /// Entities whose field of influence is 0, who never move in battle (<c>Combatant.UpdateRadius</c>, by the entity list's
 /// place in <c>0x800E28EB</c>): Pochanargat. Null in a plugin from before it.
 /// </param>
+/// <param name="Missiles">
+/// The weapons that fly to their target in battle (<c>Combatant.UpdateDrawnFlag</c>, <c>0x80066A2C</c>, through the bow list
+/// <c>Combat.BowKindWeapons</c> <c>0x800E0C08</c> and the thrown list <c>Combat.ThrownKindWeapons</c> <c>0x800E0C14</c>): aimed
+/// freely rather than at a target in reach, and drawn in flight. Null in a plugin from before it.
+/// </param>
+/// <param name="CloseRange">
+/// Ranged weapons that may strike in melee too (<c>Weapon.AllowsMelee</c>, <c>0x8007B730</c>, by the weapon's place): Spikes.
+/// Null in a plugin from before it.
+/// </param>
 public sealed record CombatRecord(
     RecordId Id,
     RecordId Ally,
@@ -35,7 +44,18 @@ public sealed record CombatRecord(
     IReadOnlyList<RecordId> NoFlee,
     IReadOnlyList<RecordId> Flee,
     IReadOnlyList<EncounterFlee> FleeByEncounter,
-    IReadOnlyList<RecordId>? Rooted = null);
+    IReadOnlyList<RecordId>? Rooted = null,
+    IReadOnlyList<Missile>? Missiles = null,
+    IReadOnlyList<RecordId>? CloseRange = null);
+
+/// <summary>
+/// A weapon that flies (<c>Combatant.LoadWeaponScene</c>, <c>0x80066CF8</c>, and <c>Combatant.WeaponMuzzle</c>, <c>0x80066DD0</c>).
+/// </summary>
+/// <param name="Weapon">The weapon.</param>
+/// <param name="Scene">What flies: a bow's arrow (<c>aidyn:scene/0x348F</c>), or null for the weapon's own model (<see cref="WeaponRecord.Model"/>), as a thrown one does.</param>
+/// <param name="Speed">Its muzzle number, the first of <c>WeaponMuzzle</c>'s: the higher, the faster and flatter it flies.</param>
+/// <param name="Turn">Degrees it's turned about the vertical as it flies, <c>WeaponMuzzle</c>'s fourth: 90 for the Javelin, else 0.</param>
+public sealed record Missile(RecordId Weapon, RecordId? Scene, float Speed, float Turn = 0);
 
 /// <summary>Whether the party can flee a battle under the encounter flag <paramref name="Flag"/>.</summary>
 public sealed record EncounterFlee(RecordId Flag, bool CanFlee);
