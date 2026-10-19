@@ -72,7 +72,7 @@ Base values read capped at the base cap, and modified ones at the cap and at lea
 
 ## Joining and leaving
 
-Scripts add and take away members (Borg13 ops 47 and 48), and `GameState.AddMember` and `RemoveMember` do it as the original does. Nothing else does: the original has no menu to dismiss a member, and a battle's dead are taken out with 2.5 (`Party::BringOutYourDead`). From 1.0's code:
+Scripts add and take away members (Borg13 ops 47 and 48), and `GameState.AddMember` and `RemoveMember` do it as the original does. Nothing else does but a battle's end: the original has no menu to dismiss a member, and a battle's dead are taken out after it (below). From 1.0's code:
 
 - **Each recruitable member's record has their flags** (`MemberFlags`, from `Party::CheckFlags`'s tables at `0x800D36C4` and `0x800D3718`): joined, left and died. Alaron and Trahern have none.
 
@@ -108,7 +108,7 @@ Scripts add and take away members (Borg13 ops 47 and 48), and `GameState.AddMemb
   - Slots 0 to 3 mirror the party.
   - Slots 4 to 8 are fixed: Abrecan, Arturo, Becan, Godric and Keelin (`SaveEntity::GetSlot`, a jump table at `0x800CDD88`). Everyone else comes back new each time.
   - It copies the party into them (`BenchParty`) on saving and on someone leaving. So a kept sheet is the member as they left, stripped, with no potions working.
-  - A member who dies in battle has theirs erased (`EraseEntityOfID`), for 2.5.
+  - A member who dies in battle has theirs erased (`Party.EraseKeptSheetsOf`, `0x80017F84`).
 
   The port keeps only those who left (`Party.Kept`), and takes a sheet out when its member rejoins; the mirror changes nothing anyone sees. The importer marks the five (`MemberFlags.Kept`).
 - **A full party is the scripts' business.** Retail ignores whether AddMember worked; the debug build crashes with "Couldn't add %d to the party". 20 of the 29 joining scripts check the party's size, which counts Alaron. The other nine, Gwernia's, are gated so they can't come up with the party full: their map objects need fewer than two of Abrecan, Godric and Rheda (5004). Brenna's need two.
@@ -120,9 +120,14 @@ Scripts add and take away members (Borg13 ops 47 and 48), and `GameState.AddMemb
 
   The VM runs all of it, so nothing in the engine is needed.
 
+## Deaths
+
+- **The died flags** (`Party.SyncMemberFlags`, `0x80074A4C`, the decomp's `Party::CheckDeaths`) are set for each dead member and cleared for each living one, at each party member's death in battle and as a battle ends (`GameState.WriteDeathFlags`). Sholeh's, 622, is also set at her death whatever her side, the combat record's ally ([combat](combat.md#deaths)).
+- **The dead leave the party** as every battle ends, won, lost or fled (`Party.AfterBattle`, `0x80074EE8`; `GameState.BringOutYourDead`): each, in order, has any kept sheet of theirs erased and what they wear put in the inventory, as a member leaving does, and the rest move up. Their joined flag stays set and their left flag clear, so the story still counts them as having joined. The port keeps only the sheets of those who left, so a member in the party has none to erase.
+- **The award** after a battle won is the whole experience pool to each living member (`Character.AddExp`, × 1.5): a dead member gains nothing ([combat](combat.md#a-turn)).
+
 ## What's left
 
 Saving and loading a sheet, with the spellbook reordered as the original's loading leaves it, is in [saves](saves.md).
 
-- **Deaths (2.5):** the died flags (`Party::CheckDeaths`, which also clears them for the living) and taking the dead out after a battle, which erases their kept sheets and leaves their joined flag set.
 - **Flags for the party's best stats and skills.** The original tries to raise them whenever a stat or skill changes (`Event_flag_stat`, `event_flag_skill_`), but its lookup never finds them, so the port doesn't either (see the [audit](../hardcoded-content.md)).

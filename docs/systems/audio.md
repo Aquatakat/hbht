@@ -25,7 +25,7 @@ Two players run on libultra's synthesizer, each called every 1000 µs of audio (
 What makes a sound that the port doesn't do yet, each waiting for what plays it:
 
 - **The title screen's** music (0x0632 at volume 0xA5) and its menu's sounds (`IntroMenu`: the cursor, A, B and Start). There's no title screen yet.
-- **Combat:** the battle music (on the battle arenas' map set record), weapons' sounds (`WeaponRecord.Sounds`), spells' casts (`SpellRecord.Cast`), and the level-up page's 0x05E8. A fight stops the music, so it starts over after.
+- **Combat:** the battle music (on the battle arenas' map set record), weapons' sounds (`WeaponRecord.Sounds`), spells' casts (`SpellRecord.Cast`), and the post-battle window's 0x05E8 when a member gained a level. A fight stops the music, so it starts over after.
 - **Cheat codes:** 0x0718 accepted, 0x0721 rejected. The cheat menu isn't ported.
 - **Backdrops and the help menu**, which trek only names so far.
 - **Dialogue entities' bodies:** a wanderer that's a dialogue entity has no audio keys in the port. The original looks its profile up by its position in its own list, into the entities' profiles, which isn't settled.
@@ -80,7 +80,7 @@ One-shots go through `Audio.PlaySound` (`0x8004E150`): a sequence, a pan, a gain
 | 0x074E | 120 | The tabs sliding forward, R (`PauseMenu.OnTabForward`, `0x8002F948`) |
 | 0x074D, 0x074E | 60 | The menu opening on the System or Party tab, or on the World tab, and closing the other way round (`PauseMenu.SlideOut`, `0x8002E9D0`). An item's details opening with C-down, and closing as it's let go (`PartyMenu.CloseDetails`, `0x80034C18`). A parchment popup opening (`MenuPopup.Open`, `0x800336A0`), and the crafting and healer lists closing with B |
 | 0x0739 | 60 | C-left or C-right changing the party member, with more than one (`PartyMenu.ChangeMember`, `0x8003054C`) |
-| 0x05E8 | 300, after 60 | The level-up page, when a member has gone up a level |
+| 0x05E8 | 300, after 60 | The post-battle window, as it's built, when a member has gone up a level |
 | 0x05E7 | 300 | A script's experience (`AddExp`), if the speaker is in the party |
 | 0x072D | 300 | Gold gained: a script's `AddGold`, gold-only loot, the loot window opening on gold (after 60) |
 | 0x072E | 300 | Gold paid (`TakeGold`) |

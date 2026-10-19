@@ -22,12 +22,12 @@ Every flag below that engine code names carries its label on the flag record, wh
 | Party members' joined, left and died flags | `Party::CheckFlags` | 1: member record | ROM |
 | Key items: each gets an inventory slot, a "has" flag, and sometimes a world map region flag | `PartyInventory.cpp` | 1: item record | ROM |
 | World map regions: entering an overworld chunk sets its region's flag | `set_map_event_flag` | 1: chunk field | ROM |
-| Boss flags: winning a battle with a boss in its first four enemy slots | `set_boss_flag` | 1: entity field | Fact |
+| Boss flags: winning a battle with a boss in its first four enemy slots | `Combat.SetKillFlags` (`set_boss_flag`) | 1: the combat record's `bosses` | Fact, by entity list place (jump table `0x800D2B60`) |
 | Cinematic done flags (3, 569, 590, 601) | `Cinematic::EndCase` | 1: cinematic record | ROM |
 | The encounter flag of the Goblin Ambush and Lugash scripts' battles | `dialoug_func` | 1: script field | ROM |
-| Flag 47 after losing the Goblin Ambush, with the heal and the move to Oriana's hut | `clear_combat_func` | 3: encounter `onDefeat` | Fact (flag only) |
+| Flag 47 after the Goblin Ambush however it ends, with the heal and the move to Oriana's hut | `Combat.Exit` (`clear_combat_func`) | 1: the combat record's encounter `end` | Fact |
 | Flag 566 when the Shadow merges with Alaron | `shadowMerge.cpp` | 3 or 4: shadow merge | Fact (flag only) |
-| Sholeh's died flag (622) whenever she dies in battle, including as an ally | `CombatEntity::Death` | 1: member record | Fact |
+| Sholeh's died flag (622) whenever she dies in battle, including as an ally | `Combatant.Death` (`0x80062080`, `CombatEntity::Death`) | 1: member record, and the combat record's `ally` | Fact |
 | First spell learned (3611) and first potion bought (3612), which show help | `WidgetSpellTrain`, `WidgetBarterControl` | 2: triggers | Fact, on the progression and inventory records; the windows show the help for now |
 | New journal entry waiting (3617), and which derived flags add journal entries (5556 on) | `set_journalentry_flag` | 1: flag records and the state flags record | Fact, carried as records |
 | Calendar, weather and terrain flags. The best party stat and skill flags are never written: their setters' lookup always fails. | `gameStateFunnel.cpp` | 3: state exposed as flags | Fact, carried as the state flags record |
@@ -77,11 +77,11 @@ ADR 0008 names six behaviours as bespoke. Only two need layer 3 features: the Go
 | `canFlee` | false | `encounter_id_check` |
 | `onStart` | Heal Alaron to full | `init_combat_struct` |
 | `keelOverAfterHits` | 2. Each hit on Alaron that does damage deals and shows 1 instead. The second drops his Strength to 0, so he keels over and can't move. | `GoblinAmbushAttack`, `func_keel_over_after_ambush` |
-| `nonLethal` | When the party is down, there's no game over. The combat text shows the "PlotPoison" string, locked to Alaron. Then the encounter flag is set, the monster party is marked beaten if the battle came from one, and the clock moves to 6:00 the next day. | `CombatTurn::PartyDead`, `CombatStateFunc_13` |
-| `suppressVictoryText` | true. Winning still sets boss flags and gives loot. | `CombatTurn::EnemiesDead` |
-| `onEnd` | Win or lose: restore Alaron's Strength, heal him to full, set flag 47, and move the party to Oriana's hut (MiscInteriors E03) at (5.9, 0.5, 3.0), facing +x | `clear_combat_func` |
+| `nonLethal` | When the party is down, there's no game over. The combat text shows the "PlotPoison" string, locked to Alaron. After 120 frames the screen fades, the encounter flag is set, the monster party is marked beaten if the battle came from one, and the clock moves to 6:00 the next day. | `TurnOrder.Defeat`, `Combat.StateDefeatWait`, `Combat.StateDefeat` (`CombatTurn::PartyDead`, `CombatStateFunc_13`) |
+| `suppressVictoryText` | true. Winning still sets boss flags and gives loot. | `TurnOrder.Victory` (`CombatTurn::EnemiesDead`) |
+| `onEnd` | Win, lose or flee: restore the leader's Strength, heal Alaron to full, set flag 47, and move the party to Oriana's hut (MiscInteriors E03) at (5.9, 0.5, 3.0), facing +x. The original adds the base Strength to the current, doubling it when the second hit hasn't taken it to 0; the port sets it to the base, the user's choice. | `Combat.Exit` (`clear_combat_func`) |
 
-The move to the hut happens on any ending, not only after a win.
+The move to the hut happens on any ending, not only after a win. `nonLethal` (with Alaron as its line's speaker), `suppressVictoryText` and `onEnd` are the combat record's encounter rule for flag 978 (`EncounterRule`, importer 43); `canFlee` is its `fleeByEncounter`; `onStart` and `keelOverAfterHits` are session 12's.
 
 ### The Shadow (entity 0x0226)
 
@@ -133,6 +133,7 @@ Terrain types are the 0–29 index that map chunks carry and the camp encounters
 | What | Code | NA 1.0 | Status |
 | --- | --- | --- | --- |
 | Camp ambush factor per terrain type; 0 means no camping | `camp_float_array` | `0xE3B38` | ROM, the terrain record's `camp` |
+| Who ambushes a camp, per terrain type and tier of the party's average level (5, 10, 15, 20 and over), two kinds with a least and most; terrain 27 has no row | `CampEncounters.Load` (`0x800096DC`) | ROM `0x1FEDE50` (the DB block); the tiers are literals | ROM, the terrain record's `ambushes`; the tiers the camping record's `ambushLevels` (Fact) |
 | Precipitation chance per season (6, and 2 bytes of padding) and per terrain type (28), and precipitation scale per terrain type | `sSeasonPrecipChance`, `sTerrainPrecipChance`, `sTerrainPrecipScale` | `0xE3C40`, `0xE3C48`, `0xE3C64` | ROM (`WeatherTables`): the seasons' on the weather record (`aidyn:weather/0`), the terrains' as the terrain records' `precipitation` and `precipitationScale` |
 | Snow falls instead of rain on terrain type 5 only | `Weather.Roll` (`0x8007bdb0`) | Literal | Fact, the terrain record's `snow` |
 | The weather may change at each change in the part of the day and on entering another terrain: a d100 over 75 clears it and tries for precipitation, rain or snow under 70 and fog otherwise, with the intensity, fog and storm drawn from literals; the wind wanders by 5% chances a frame | `Weather.Roll`, `World.Update`, `Weather.DriftWind`, `ProcessWeather` | Literals | Fact, the weather record (see [weather](systems/weather.md)) |
@@ -256,6 +257,7 @@ The map chunk lists are read from the ROM (`MapChunks`). The rest of the Borgs e
 - **Most map items are never given.** Only Map 2 (in a container) and Map 7 (sold by shop 17, STTA05 in Talewok) have sources. No script, container, monster party, loot table or shop gives Map 5; its region flag (791) is set on entering Talewok's chunks, which shows the same piece of the world map. The Skull Key and the Map to the Goblin Lair have no source either; they're possibly cut content. The Blood Key is the only key item given as a monster party's direct loot.
 - **Talking monster parties fight under flag C.** When a talking party's dialogue starts a battle, the battle's encounter flag is the party's flag C, and winning sets it. Most such parties have C equal to B. One names derived flag 5264, so the write does nothing.
 - **Script battles don't set their flag on a win.** Only monster-party battles set the encounter flag on a win. The Goblin Ambush's flag, 978, is set when the party *loses*, and every special rule of that fight keys on it.
+- **A script's battle can pay out the last monster party's bonus loot again.** The setup's bonus loot (`0x800D9470`) is written by a monster party's battle and a camp ambush (as none), never cleared, and not written by a script's battle, which then rolls it again on a win. Of the 38 scripts that start a battle, the 18 cut-scenes' fight their own enemies and so can; the 20 conversations' fight the talker's monster party, which writes its own. 21 monster parties carry bonus loot, among them the Minotaur Lord's Blood Key, Lugash's Spellbreaker Axe and the Marquis' Amulet. The port gives a script's battle none, the user's choice.
 - **The ending cinematic has six shots,** each with its own Borg6 animation and Borg12, matching its six clip planes and flag entries.
 - **Each cinematic shot names its own caption list.** The flag list (`SeqenceFlags`) holds a caption list per shot (or none), then the done flag. Each of the 15 caption lists shows over exactly one shot.
 - **Only the first death scene plays.** All three have dialogue objects in the Dreamscape, but the game over code only looks for 1298.
