@@ -112,6 +112,18 @@ public sealed class ActorMotion : IActorMotion
         return true;
     }
 
+    /// <summary>
+    /// Starts the emitters it starts as it's made, for the request it has now (<c>Actor.Create</c>, <c>0x800960e0</c>), rather than on
+    /// its first tick: for an actor asked for another request on that tick, as the spells' visuals are.
+    /// </summary>
+    public void Made()
+    {
+        if (!_made)
+            return;
+        _made = false;
+        _particles?.Entered(Machine.Request);
+    }
+
     /// <summary>Plays a state from its first tick, as a branch does.</summary>
     public void Enter(int state) => Machine.Enter(state);
 

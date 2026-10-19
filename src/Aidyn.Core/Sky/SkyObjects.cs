@@ -22,6 +22,9 @@ public sealed class SkyObjects(SkyRecord sky)
 {
     private const float Deg = MathF.PI / 180;
 
+    /// <summary>The moon's azimuth in the table, which its light comes from (<see cref="SkyLight.MoonDirection"/>).</summary>
+    public float MoonAzimuth => sky.Moon.Azimuth;
+
     /// <summary>
     /// Where the middle of the sun was last drawn, for the lens flare (<c>gLensFlarePos</c>). It
     /// starts off the screen, and keeps its place while the sun isn't drawn.
@@ -37,10 +40,14 @@ public sealed class SkyObjects(SkyRecord sky)
     /// <param name="twinkle">Picks the stars' greys each frame, 160 to 255: the cosmetic stream (ADR 0006), so a
     /// save keeps its place and the sky can't shift a gameplay stream.</param>
     /// <param name="fogTime">How thick the weather's fog is, which fades the sun, and the moon and stars faster.</param>
+    /// <param name="shown">
+    /// The time of day the sky shows, if not the clock's (<see cref="GameClock.ShownTimeOfDay"/>: Darkness and Light move it). The
+    /// moon's phase is the clock's date's.
+    /// </param>
     public void Draw(List<SkySprite> sprites, uint time, Vector3 look, Vector3 sunColor, ImageSize size, IRandom twinkle,
-        float fogTime = 0, float brightness = 1)
+        float fogTime = 0, float brightness = 1, float? shown = null)
     {
-        var timeOfDay = (float)(time % GameClock.Day) / GameClock.Day;
+        var timeOfDay = shown ?? (float)(time % GameClock.Day) / GameClock.Day;
         var sunHeight = SkyLight.SunHeight(timeOfDay);
         if (sunHeight <= 0 || sunHeight >= 180)
         {

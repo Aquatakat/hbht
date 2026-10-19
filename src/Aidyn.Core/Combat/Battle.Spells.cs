@@ -41,8 +41,10 @@ public sealed partial class Battle
     /// </summary>
     public bool AiCasts { get; set; }
 
-    /// <summary>What the spells' visuals and sounds are asked for, oldest first, for session 10's to play; the runtime drains it.</summary>
-    public Queue<SpellVisual> SpellVisuals { get; } = new();
+    /// <summary>The spells' and potions' visuals (<c>combatspellvisuals.cpp</c>), which the runtime draws.</summary>
+    public SpellFx Fx => _fx ??= new SpellFx(Game?.Clock, Game?.Rules.Magic?.Record);
+
+    private SpellFx? _fx;
 
     // ---- Target set B's rules ----
 
@@ -496,13 +498,31 @@ public sealed partial class Battle
             SayQueued(ResistsLine, t.Sheet.Name);
         }
         a.Body.Request = CastRequest;
-        SpellVisuals.Enqueue(new SpellVisual(a, t, source.Spell, outcome.Result switch
+        // Player.SetCastSound: the spell's sound as the caster's request 5 plays, a refused cast's too.
+        a.Audio.Cast = source.Spell.Cast;
+        var cast = Fx.Start(a, t, source.Spell, outcome.Result switch
         {
             CastResult.NotCast => SpellVisualKind.Failed,
             CastResult.Resisted => SpellVisualKind.Resisted,
             _ => SpellVisualKind.Cast,
-        }));
+        });
+        // The handle goes on the target's first record of the spell that has none, so its end ends the lasting scene.
+        if (cast is not null && (damage != 0 || outcome.Result == CastResult.Effect)
+            && t.Sheet.Effects.FirstOrDefault(e => e.Source == source.Spell.Id && e.Visual is null) is { } record)
+            record.Visual = cast;
         return damage;
+    }
+
+    /// <summary>
+    /// A potion's visual on a body (<c>Combatant.AttachSpellVisual</c>, <c>0x80064B10</c>), as it's drunk or a flask's blast hurts it:
+    /// the body plays the cast's request, and the handle goes on its first record of the potion that has none.
+    /// </summary>
+    private void AttachPotionVisual(Combatant on, ItemRecord potion)
+    {
+        on.Body.Request = CastRequest;
+        if (Fx.StartPotion(on, potion) is { } cast
+            && on.Sheet.PotionEffects.FirstOrDefault(e => e.Source == potion.Id && e.Visual is null) is { } record)
+            record.Visual = cast;
     }
 
     /// <summary>
@@ -562,13 +582,10 @@ public sealed partial class Battle
 /// <summary>What marks an aim on the ground: the cylinder's centre in the arena's cells, its radius, and whether it's a spell's (red) or a flask's (green).</summary>
 public readonly record struct AimMarker(Vector2 Centre, float Radius, bool Spell);
 
-/// <summary>How a spell's visual plays (<c>CombatSpellFx.Start</c>'s result): cast, resisted at the target, or failed at the caster.</summary>
+/// <summary>How a spell's visuals play (<c>CombatSpellFx.Start</c>'s result): cast, resisted at the target, or refused or failed at the caster.</summary>
 public enum SpellVisualKind
 {
     Cast,
     Resisted,
     Failed,
 }
-
-/// <summary>A spell's visual and sound to play (<c>CombatSpellFx.Start</c>, <c>0x8008C43C</c>, and <c>Player.SetCastSound</c>), for session 10.</summary>
-public sealed record SpellVisual(Combatant Caster, Combatant Target, SpellRecord Spell, SpellVisualKind Kind);

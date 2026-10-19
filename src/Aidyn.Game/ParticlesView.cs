@@ -162,11 +162,17 @@ public partial class ParticlesView : Node3D
         }
     }
 
-    /// <summary>An actor's emitters, if its scene has any, attached to its instance's locators.</summary>
-    public ActorParticles? For(ActorRecord actor, Node3D instance) =>
+    /// <summary>
+    /// An actor's emitters, if its scene has any, attached to its instance's locators, and to <paramref name="owner"/>'s and
+    /// <paramref name="other"/>'s for those that name an attached scene (locator bits 7 and 8: a spell's visual's).
+    /// </summary>
+    public ActorParticles? For(ActorRecord actor, Node3D instance, IParticleAnchor? owner = null, IParticleAnchor? other = null) =>
         _plugins.TryGet<EmittersRecord>(RecordId.Hex(RecordTypes.Emitters, Convert.ToInt32(actor.Scene.Key, 16))) is { } emitters
-            ? new ActorParticles(Head, emitters, new NodeAnchor(instance))
+            ? new ActorParticles(Head, emitters, new NodeAnchor(instance, owner, other))
             : null;
+
+    /// <summary>An actor instance's locators, which another actor's emitters can be attached to.</summary>
+    public static IParticleAnchor Anchor(Node3D instance) => new NodeAnchor(instance);
 
     private Texture2D? Texture(RecordId id)
     {
@@ -183,9 +189,11 @@ public partial class ParticlesView : Node3D
 
     /// <summary>
     /// An actor's instance, whose locator nodes (<see cref="SceneNames.Locator"/>, which the importer puts on each locator's transform)
-    /// place its emitters as it's drawn. Scenes attached at run time, a spell's caster and target, aren't yet.
+    /// place its emitters as it's drawn; and the scenes attached to it at run time, a spell's visual's owner (1, the scene's
+    /// <c>+0x2A4</c>) and the other body of its cast (2, <c>+0x2A8</c>), whose own locators of the same number place it
+    /// (<c>Particles.AttachedScene</c>, <c>0x800A9828</c>). A locator a scene doesn't have, or a body that has gone, ends the emitter.
     /// </summary>
-    private sealed class NodeAnchor(Node3D root) : IParticleAnchor
+    private sealed class NodeAnchor(Node3D root, IParticleAnchor? owner = null, IParticleAnchor? other = null) : IParticleAnchor
     {
         private readonly Node3D?[] _locators = Locators(root);
 
@@ -194,6 +202,11 @@ public partial class ParticlesView : Node3D
         public bool TryLocator(ParticleLocator locator, out System.Numerics.Matrix4x4 world)
         {
             world = default;
+            if (locator.Scene is 1 or 2)
+            {
+                var attached = locator.Scene == 1 ? owner : other;
+                return attached is { Alive: true } && attached.TryLocator(locator with { Scene = 0 }, out world);
+            }
             if (locator.Scene != 0 || locator.Index is < 0 or > 7 || _locators[locator.Index] is not { } node || !IsInstanceValid(node))
                 return false;
             var t = node.GlobalTransform;

@@ -159,6 +159,8 @@ public sealed partial class Battle
             if (end.Healed is { } healed && Game.Party.Get(healed) is { } member)
                 member.Heal(member.MaxHp - member.Hp);
         }
+        // Combat.Exit frees the spells' visuals (CombatSpellFx.Free) before the effects come off.
+        Fx.Free();
         foreach (var combatant in Combatants)
             combatant.Sheet.EndBattleEffects(this);
         Game.BringOutYourDead();

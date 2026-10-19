@@ -20,10 +20,7 @@ public partial class CinematicView : SubViewportContainer
     private List<Node3D> _facings = [];
     private AnimationPlayer? _player;
     private string? _animation;
-    private Color _ambient;
-    /// <summary>The node whose scale tints the ambient: the transform after the last light's, the first model node.</summary>
-    private Node3D? _ambientTint;
-    private readonly List<(Light3D Node, Color Color)> _lights = [];
+    private OwnLights? _lights;
 
     public CinematicView(Models models)
     {
@@ -48,8 +45,7 @@ public partial class CinematicView : SubViewportContainer
             return;
         _scene = scene;
         _viewport.AddChild(scene);
-        N64Material.SetLighting(scene, N64Material.Lighting.Own);
-        ReadLights(scene, _models.Glb(shot.Scene)!.Extras);
+        _lights = new OwnLights(scene, _models.Glb(shot.Scene)!.Extras);
         _scrolling = _models.Scrolls.Attach(shot.Scene, scene);
         _mirroring = MirroredMeshes.For(scene, _models.Glb(shot.Scene)!.Extras);
         _facings = Billboards.Facings(scene);
@@ -95,21 +91,7 @@ public partial class CinematicView : SubViewportContainer
             // The scene's eye is its camera's position (Cinematic.StartShot leaves the camera its own).
             N64Material.SetEye(_scene, _camera.GlobalPosition);
         }
-        N64Material.SetOwnLights(_scene, Tinted(_ambient, _ambientTint),
-            [.. _lights.Select(l => (Tinted(l.Color, l.Node), l.Node.GlobalBasis.Z))]);
-    }
-
-    /// <summary>
-    /// A light's colour tinted by its transform's scale, each channel clamped to 0–1 and the product to 1, as the
-    /// original reads <c>+0x28</c>–<c>+0x30</c> into it (<c>BorgAnimDrawSceneRaw</c>, <c>0x80097d54</c>).
-    /// </summary>
-    private static Color Tinted(Color color, Node3D? transform)
-    {
-        if (transform is null)
-            return color;
-        var scale = transform.Scale;
-        return new Color(Math.Min(1, color.R * Math.Clamp(scale.X, 0, 1)), Math.Min(1, color.G * Math.Clamp(scale.Y, 0, 1)),
-            Math.Min(1, color.B * Math.Clamp(scale.Z, 0, 1)));
+        _lights?.Apply();
     }
 
     public void Clear()
@@ -121,32 +103,6 @@ public partial class CinematicView : SubViewportContainer
         _mirroring = null;
         _facings = [];
         _player = null;
-        _lights.Clear();
-        _ambientTint = null;
+        _lights = null;
     }
-
-    /// <summary>
-    /// The scene's lights, as the importer writes them: each light but the last a directional light node, which its
-    /// animation can turn, and the last the ambient, in the scene's extras. Their nodes are kept, unlit, for their way.
-    /// </summary>
-    private void ReadLights(Node3D scene, SceneExtras extras)
-    {
-        var colors = extras.LightColors;
-        _ambient = extras.Ambient is { } ambient ? Rgb(ambient) : Colors.White;
-        // The ambient is tinted by transform 1 + its index, as each light is, which is the first model node; a scene
-        // without lights gets the plain white ambient.
-        var (first, billboard) = (SceneNames.Transform(1 + colors.Count), SceneNames.Billboard(1 + colors.Count));
-        _ambientTint = extras.Ambient is null ? null : Nodes.FindAll<Node3D>(scene).FirstOrDefault(n => n.Name == first || n.Name == billboard);
-        foreach (var light in Nodes.FindAll<Light3D>(scene))
-        {
-            light.Visible = false;
-            if (SceneNames.TryLight(light.Name.ToString(), out var i) && i < colors.Count)
-                _lights.Add((light, Rgb(colors[i])));
-        }
-        _lights.Sort((a, b) => string.CompareOrdinal(a.Node.Name, b.Node.Name));
-        if (_lights.Count > N64Material.MaxLights)
-            _lights.RemoveRange(N64Material.MaxLights, _lights.Count - N64Material.MaxLights);
-    }
-
-    private static Color Rgb(System.Numerics.Vector3 c) => new(c.X, c.Y, c.Z);
 }

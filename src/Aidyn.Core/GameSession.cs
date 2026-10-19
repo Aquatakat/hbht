@@ -194,8 +194,9 @@ public sealed class GameSession
     /// <param name="skyDrawn">Whether the stage's sky is drawn, for a cut-scene's weather.</param>
     /// <param name="actors">A cut-scene's actors' animations, or null for one that has none yet.</param>
     /// <param name="combatants">A battle's combatants' animations, or null for one that has none.</param>
+    /// <param name="spellFx">A battle's spells' visuals' actors, or null for none (<see cref="Battle.Tick"/>).</param>
     public SessionStep Tick(Func<PlayerInput> readInput, bool frozen, bool skyDrawn, Func<CutSceneActor, IActorMotion?> actors,
-        Func<Combatant, IActorMotion?>? combatants = null)
+        Func<Combatant, IActorMotion?>? combatants = null, ISpellFxHost? spellFx = null)
     {
         Game.CountTick();
         switch (Mode)
@@ -218,7 +219,7 @@ public sealed class GameSession
         }
         if (Battle is { } battle)
         {
-            battle.Tick(Arena!, skyDrawn, combatants ?? (_ => null), readInput);
+            battle.Tick(Arena!, skyDrawn, combatants ?? (_ => null), readInput, spellFx);
             if (battle.Paused && !MenuOpen && !_menuAsked)
             {
                 // Combat's states 14 and 27: the pause menu, mode 3.

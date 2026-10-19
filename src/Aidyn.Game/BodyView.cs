@@ -75,20 +75,20 @@ public abstract partial class BodyView : Node3D
     }
 
     /// <summary>
-    /// Lights the body by the point lights that reach its centre this frame (<see cref="WorldLights.ForBody"/>): by default
-    /// as a body that isn't one of the party's (<c>+0x70a</c>), so no light map object reaches it; combat's party members
-    /// are the party's. <paramref name="brightness"/> scales the lights' colours: combat's target mark pulses it.
+    /// Lights the body by the moon and the point lights that reach its centre this frame (<see cref="WorldLights.ForBody"/>): by
+    /// default as a body that isn't one of the party's (<c>+0x70a</c>), so no light map object reaches it; combat's party members
+    /// are the party's. <paramref name="tint"/> is its tint's level, which the moon's light is scaled by: 0 but in combat.
     /// </summary>
-    public void Light(WorldLights lights, ChunkStreamer chunks, bool party = false, float brightness = 1)
+    public void Light(WorldLights lights, ChunkStreamer chunks, bool party = false, float tint = 0)
     {
         if (_model is null)
             return;
         var centre = Body.Sphere.Position;
-        var reaching = lights.ForBody(centre, chunks.MapAt(centre), party);
-        if (brightness != 1)
-            reaching = [.. reaching.Select(l => l with { Colour = l.Colour * brightness })];
-        N64Material.SetLights(_model.Meshes, reaching);
+        N64Material.SetLights(_model.Meshes, lights.ForBody(centre, chunks.MapAt(centre), party, tint));
     }
+
+    /// <summary>The meshes of its actor's scene, none for a body without one.</summary>
+    protected IReadOnlyList<GeometryInstance3D> Meshes => _model?.Meshes ?? [];
 
     /// <summary>
     /// Fades the body by its distance from the camera's aim (<c>PlayerShadowAlpha</c>), over trek's distance or

@@ -1,6 +1,9 @@
 using Aidyn.Core.Combat;
 using Aidyn.Core.Movement;
+using Aidyn.Core.Particles;
+using Aidyn.Core.Sky;
 using Aidyn.Plugins;
+using Aidyn.Plugins.Records;
 using Godot;
 
 namespace Aidyn.Game;
@@ -26,6 +29,28 @@ public partial class CombatantView : BodyView
     }
 
     public Combatant Combatant { get; }
+
+    /// <summary>Its actor's locators, which a spell's visual's emitters attach to; null for a body with no actor.</summary>
+    public IParticleAnchor? Anchor => _anchor ??= Model is { } model ? ParticlesView.Anchor(model) : null;
+
+    private IParticleAnchor? _anchor;
+
+    /// <summary>Where its actor's locator <paramref name="index"/> is in the world as it was last drawn, or null if it has none.</summary>
+    public System.Numerics.Vector3? Locator(int index) =>
+        Anchor is { } anchor && anchor.TryLocator(new ParticleLocator(index, 0), out var world) ? world.Translation : null;
+
+    /// <summary>
+    /// Its body's ambient light by its tint (<c>ProcessPlayers</c>, <c>Bodies.SetLights</c>): half the sky's colour,
+    /// <paramref name="halfSky"/>, moved toward the tint's colour by its level and scaled by the screen's <paramref name="fade"/>,
+    /// truncated to bytes; the sky's alone while it has none. Its fog is off while a cast glows it.
+    /// </summary>
+    public void Tinted(System.Numerics.Vector3 halfSky, float fade)
+    {
+        var tint = Combatant.Tint;
+        System.Numerics.Vector3? ambient = tint is { Level: 0, Rate: 0 } ? null : SkyColors.ToBytes(tint.Ambient(halfSky, fade));
+        N64Material.SetBodyAmbient(Meshes, ambient?.ToGodot());
+        N64Material.SetUnfogged(Meshes, Combatant.Unfogged);
+    }
 
     /// <summary>
     /// Fades it by its distance from the camera's aim (<c>PlayerShadowAlpha</c>) and places its shadow, as a body's, over

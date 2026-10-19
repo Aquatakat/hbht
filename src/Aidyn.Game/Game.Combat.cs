@@ -19,6 +19,7 @@ public partial class Game
     private CombatNumbersView? _numbersView;
     private MissileView? _missileView;
     private AimMarkerView? _aimView;
+    private SpellFxView? _spellFxView;
     private readonly Dictionary<Combatant, CombatantView> _combatantViews = [];
 
     /// <summary>The battle playing, in place of trek's world.</summary>
@@ -59,6 +60,11 @@ public partial class Game
         AddChild(_missileView);
         _aimView = new AimMarkerView(_models!);
         AddChild(_aimView);
+        if (_spellFx)
+        {
+            _spellFxView = new SpellFxView(_plugins!, _models!, _particles, c => _combatantViews.GetValueOrDefault(c));
+            AddChild(_spellFxView);
+        }
         _battleScreen!.Battle = battle;
         _battleScreen.Visible = true;
         SyncBattle();
@@ -71,7 +77,9 @@ public partial class Game
     /// </summary>
     private void StepBattle(bool over)
     {
-        _sky!.Step();
+        // A cast dims the sky for a while (CombatSpellFx.DimSky).
+        _sky!.Dim = _spellFx ? Battle!.Fx.Sky.Value : 1;
+        _sky.Step();
         ScrollTextures();
         SyncBattle();
         if (_pointLights)
@@ -112,8 +120,7 @@ public partial class Game
         _numbersView?.Sync(battle.Numbers, battle.Camera.Position);
         _missileView?.Sync(battle.Flight);
         _aimView?.Sync(battle);
-        // The spells' visuals and sounds are session 10's: until then, what the battle asked for is let go.
-        battle.SpellVisuals.Clear();
+        _spellFxView?.Sync(battle.Fx, battle.Fade.Brightness, _camera!.Current.GlobalPosition);
         _ringView?.Sync(battle);
         _camera!.Sync();
         ShowFade(battle.Fade.Brightness);
@@ -122,15 +129,21 @@ public partial class Game
 
     /// <summary>
     /// Lights the arena as the zone engine draws it in combat's frame: the actors its maps place, then the combatants'
-    /// bodies, the party's as the party (<c>+0x70a</c>).
+    /// bodies, the party's as the party (<c>+0x70a</c>), each by its tint (the target mark's pulse and a cast's glow): its
+    /// ambient, and the moon's light on it.
     /// </summary>
     private void LightArena()
     {
         var arena = _session!.Arena!;
-        arena.BeginLightFrame(Battle!.Fade.Brightness, _sky!.State.Drawn);
+        var fade = Battle!.Fade.Brightness;
+        arena.BeginLightFrame(fade, _sky!.State.Drawn, _sky.Moon);
         _arenaView!.LightActors(arena.Lights);
         foreach (var view in _combatantViews.Values)
-            view.Light(arena.Lights, arena.Chunks, party: !view.Combatant.Hostile, view.Combatant.Mark ?? 1);
+        {
+            view.Light(arena.Lights, arena.Chunks, party: !view.Combatant.Hostile, view.Combatant.Tint.Level);
+            if (_spellFx)
+                view.Tinted(_sky.Colors.Sky * 0.5f, fade);
+        }
     }
 
     /// <summary>
@@ -225,6 +238,10 @@ public partial class Game
         _missileView = null;
         _aimView?.QueueFree();
         _aimView = null;
+        _spellFxView?.Clear();
+        _spellFxView?.QueueFree();
+        _spellFxView = null;
+        _sky!.Dim = 1;
         _arenaView?.QueueFree();
         _arenaView = null;
         _battleScreen!.Visible = false;

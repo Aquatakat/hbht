@@ -528,6 +528,7 @@ public sealed partial class Battle
     internal void FreeBody(Combatant c, bool fled = false)
     {
         c.Sheet.RemoveAllEffects(c, this);
+        Fx.ClearForBody(c);
         Numbers.Remove(c.Slot);
         Gui.MarkGone(c.Slot, fled);
         c.Freed = true;
@@ -733,9 +734,14 @@ public sealed partial class Battle
                     c.MarkTicks = 0;
                 c.MarkTicks++;
                 c.Mark = MathF.Abs(MathF.Sin(c.MarkTicks * 0.05236f));
+                // Body.SetTint(body, 1.0, f, f, f): the body's ambient goes to the pulse's grey at the next step.
+                c.Tint.Set(1.0f, new Vector3(c.Mark.Value));
             }
             else
             {
+                // Body.ClearTint(body, 0.0), as the mark's selection ends: back to the sky's ambient at the next step.
+                if (c.Mark is not null)
+                    c.Tint.Clear(0);
                 c.Mark = null;
             }
         }

@@ -108,7 +108,7 @@ public partial class Game
     private void LightStage()
     {
         var stage = Stage!;
-        stage.BeginLightFrame(Scene!.Fade.Brightness, _sky!.State.Drawn);
+        stage.BeginLightFrame(Scene!.Fade.Brightness, _sky!.State.Drawn, _sky.Moon);
         _stageView!.LightActors(stage.Lights);
         foreach (var view in _actorViews.Values)
             view.Light(stage.Lights, stage.Chunks);

@@ -94,11 +94,11 @@ public partial class SkyBackdropView : Control
             _sky.Placement == SkyPlacement.Projected;
         if (_dome.Visible)
         {
-            SkyBackdrop.Dome(state.Current!, state.Next, state.Change, _sky.Clock.TimeOfDay, _sky.Colors.Fog, _domeLines,
+            SkyBackdrop.Dome(state.Current!, state.Next, state.Change, _sky.TimeOfDay, _sky.Colors.Fog, _domeLines,
                 _sky.FogTime, _sky.LensFlareValue);
             for (var y = 0; y < _domeLines.Length; y++)
             {
-                var c = _domeLines[y];
+                var c = _domeLines[y] * _sky.Dim;
                 _domeImage.SetPixel(0, y, new Color(c.X, c.Y, c.Z));
             }
             _domeTexture.Update(_domeImage);
@@ -132,11 +132,11 @@ public partial class SkyBackdropView : Control
         // Projected, the dome, a child drawn behind this, is the gradient.
         else if (!_dome.Visible)
         {
-            SkyBackdrop.Draw(state.Current, state.Next, state.Change, _sky.Clock.TimeOfDay, look, colors.Fog, _lines,
+            SkyBackdrop.Draw(state.Current, state.Next, state.Change, _sky.TimeOfDay, look, colors.Fog, _lines,
                 _sky.FogTime, _sky.LensFlareValue);
             for (var y = 0; y < _lines.Length; y++)
             {
-                var c = _lines[y];
+                var c = _lines[y] * _sky.Dim;
                 _image.SetPixel(0, y, new Color(c.X, c.Y, c.Z));
             }
             _gradient.Update(_image);
@@ -144,7 +144,7 @@ public partial class SkyBackdropView : Control
         }
 
         _sprites.Clear();
-        _sky.Objects?.Draw(_sprites, _sky.Clock.Time, look, colors.Sun, _sky.ImageSize, _sky.Twinkle, _sky.FogTime);
+        _sky.Objects?.Draw(_sprites, _sky.Clock.Time, look, colors.Sun, _sky.ImageSize, _sky.Twinkle, _sky.FogTime, shown: _sky.TimeOfDay);
         _sky.Clouds?.Draw(_sprites, look, colors.Cloud, _sky.ImageSize, _sky.FogTime);
         DrawSprites(this, _sky, _sprites);
     }

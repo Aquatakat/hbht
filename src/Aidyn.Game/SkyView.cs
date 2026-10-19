@@ -54,6 +54,16 @@ public partial class SkyView : Node
     }
 
     public GameClock Clock { get; }
+
+    /// <summary>The time of day the sky shows: the clock's, moved by Darkness and Light (<see cref="GameClock.ShownTimeOfDay"/>).</summary>
+    public float TimeOfDay => Clock.ShownTimeOfDay;
+
+    /// <summary>The sky's slower fade, which multiplies its colours and its backdrop: a cast in a battle dims it (<see cref="SkyBrightness"/>).</summary>
+    public float Dim { get; set; } = 1;
+
+    /// <summary>The way to the moon while it's up, which lights bodies (<see cref="SkyLight.MoonDirection"/>), else null.</summary>
+    public System.Numerics.Vector3? Moon =>
+        SkyLight.MoonDirection(TimeOfDay, Objects?.MoonAzimuth ?? 0) is { Y: > 0 } moon ? moon : null;
     /// <summary>
     /// The stars' twinkle's random stream: its own, from the boot seed, and not the game's cosmetic stream (ADR 0006),
     /// because the backdrop draws from it once per rendered frame, and the game's streams must not depend on the frame rate.
@@ -176,7 +186,7 @@ public partial class SkyView : Node
     {
         if (State.Current is null)
             return;
-        Colors = SkyColors.At(State.Current, State.Next, State.Change, Clock.TimeOfDay, LensFlareValue);
+        Colors = SkyColors.At(State.Current, State.Next, State.Change, TimeOfDay, LensFlareValue, dim: Dim);
         // RenderSky's flash: the tint and the sky colour, half of which is bodies' ambient, white for the frame.
         if (Flash)
             Colors = Colors.Flashed();
@@ -185,7 +195,7 @@ public partial class SkyView : Node
         RenderingServer.GlobalShaderParameterSet(N64Material.FogParameter, new Vector4(SkyColors.FogStart(CutScene ? 0 : FogTime), 1000, Near, Far));
         RenderingServer.GlobalShaderParameterSet(N64Material.BodyAmbientParameter, SkyLight.BodyAmbient(Colors).ToGodot());
         RenderingServer.GlobalShaderParameterSet(N64Material.SunColorParameter, SkyLight.SunColor(Colors, State.Drawn).ToGodot());
-        RenderingServer.GlobalShaderParameterSet(N64Material.SunDirectionParameter, SkyLight.SunDirection(Clock.TimeOfDay).ToGodot());
+        RenderingServer.GlobalShaderParameterSet(N64Material.SunDirectionParameter, SkyLight.SunDirection(TimeOfDay).ToGodot());
     }
 
     /// <summary>How much the lens flare darkens the scenery and lifts the sky, from the last frame.</summary>

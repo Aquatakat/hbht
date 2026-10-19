@@ -17,6 +17,18 @@ public sealed class BodyAudio
     /// <summary>The collision surface last touched that has footsteps of its own, 3 or more (body <c>+0x102</c>).</summary>
     public int Surface { get; internal set; }
 
+    /// <summary>
+    /// The spell its next cast plays (body <c>+0x72A</c> and <c>+0x72C</c>, <c>Player.SetCastSound</c>, <c>0x80065BFC</c>): played on
+    /// the first tick its request is the cast's (5), then cleared. Only combat sets it.
+    /// </summary>
+    public RecordId? Cast { get; set; }
+
+    /// <summary>
+    /// What its wielded weapon plays for a key that names no sound of its own (<c>AudioKeys.WeaponSound</c>, <c>0x800876E8</c>): only
+    /// in combat, and none for a weapon without a model.
+    /// </summary>
+    public IReadOnlyList<RecordId>? Weapon { get; set; }
+
     internal readonly SoundHandle[] Slots = new SoundHandle[2];
     internal int Slot;
 }
@@ -91,13 +103,25 @@ public sealed class AudioKeys(GameAudio audio, SoundsRecord? sounds, IRandom ran
 
         foreach (var key in profile.Keys)
         {
-            // A key with no sounds of its own plays the weapon's, which is only in combat.
-            if (key.Sounds.Count == 0 || !Reached(key, body.Request, frame, length))
+            if (!Reached(key, body.Request, frame, length))
                 continue;
-            Play(body, key.Sounds, volume, pan);
+            // A key with no sounds of its own plays the weapon's, which only combat has (AudioKeys.WeaponSound); with none, nothing.
+            var choices = key.Sounds.Count > 0 ? key.Sounds : body.Weapon;
+            if (choices is { Count: > 0 })
+                Play(body, choices, volume, pan);
             break;
         }
+
+        // AudioKeys.PlaySpellCast (0x800534BC): the cast's sound on the first tick the body is asked for the cast.
+        if (body.Cast is { } cast && request == CastRequest)
+        {
+            Play(body, [cast], volume, pan);
+            body.Cast = null;
+        }
     }
+
+    /// <summary>The request a spell's cast plays as, which its sound waits for (<c>Player.SetCastSound</c>'s 5).</summary>
+    public const int CastRequest = 5;
 
     private sealed class SoundingMotion(AudioKeys keys, IActorMotion animation, BodyAudio body, BodySounds? profile, CollisionSphere sphere)
         : IActorMotion

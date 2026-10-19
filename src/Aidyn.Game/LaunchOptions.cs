@@ -21,7 +21,7 @@ namespace Aidyn.Game;
 /// and <c>--pitch</c>, <c>--time &lt;hours&gt;</c> for the time of day (a new game starts at 12), <c>--flags &lt;n&gt;,…</c>
 /// to set plain flags, <c>--weather rain|snow|fog|clear[,intensity[,fog]]</c> for the weather at once,
 /// <c>--precipitation &lt;scale&gt;</c> for that many times the original's raindrops and snowflakes, <c>--draw-distance
-/// &lt;scale&gt;</c>, <c>--detail nearest</c>, <c>--lights off</c>, <c>--camera outdoor|interior</c> for the camera's mode
+/// &lt;scale&gt;</c>, <c>--detail nearest</c>, <c>--lights off</c>, <c>--spell-fx off</c>, <c>--camera outdoor|interior</c> for the camera's mode
 /// (by default, what going through a door into the chunk gives), and <c>--hold &lt;action&gt;,&lt;seconds&gt;</c>, which
 /// holds an input such as <c>move_forward</c> (join several with <c>+</c>, as in <c>move_forward+walk</c>), and
 /// <c>--screenshot &lt;png&gt;</c>, which saves the window after that and quits; with <c>--frames &lt;n&gt;</c>, the next n
@@ -89,6 +89,12 @@ public sealed class LaunchOptions(Dictionary<string, string> values)
 
     /// <summary>Whether bodies and actors are lit by point lights; <c>--lights off</c> leaves them lit by the sky alone, as a baseline.</summary>
     public bool PointLights => Text("lights") != "off";
+
+    /// <summary>
+    /// Whether the spells' visuals are drawn: <c>--spell-fx off</c> leaves out their actors and scenes, the sky's dimming and the bodies'
+    /// tints, as a baseline to measure them against. The rules run either way.
+    /// </summary>
+    public bool SpellFx => Text("spell-fx") != "off";
 
     /// <summary>Sets the time of day <c>--time</c> names, before it's written into the flags.</summary>
     public void SetTimeOfDay(GameState game)

@@ -176,6 +176,32 @@ public class LightTests
         Assert.NotEmpty(lights.ForBody(body, map, party: false));
     }
 
+    // Bodies.SetLights: the moon, while it's up, comes after the sun, cyan by the body's tint level, and black at level 0 yet keeping
+    // its room, so the explosion's five lights leave two of the four for the rest.
+    [Fact]
+    public void TheMoonUpTakesARoomAfterTheSunCyanByTheBodysTint()
+    {
+        var lights = new WorldLights(new Lcg()) { Sun = true, Moon = Vector3.Normalize(new Vector3(0, 1, 1)) };
+        var body = new Vector3(0, 1, 0);
+        lights.Dynamic.Explosion(body);
+        lights.BeginFrame(1);
+
+        var black = lights.ForBody(body, null, party: false);
+        Assert.Equal(3, black.Count);
+        Assert.Equal(Vector3.Zero, black[0].Colour);
+
+        lights.BeginFrame(1);
+        var tinted = lights.ForBody(body, null, party: false, tint: 1);
+        // g = trunc(200 × the moon's height × the fade × the level).
+        var g = (int)(200 * MathF.Sqrt(0.5f)) / 255f;
+        Assert.Equal(new Vector3(0, g, g), tinted[0].Colour);
+        Assert.Equal(lights.Moon, tinted[0].Toward);
+
+        lights.Moon = null;
+        lights.BeginFrame(1);
+        Assert.Equal(3, lights.ForBody(body, null, party: false).Count);
+    }
+
     [Fact]
     public void DynamicLightsGoOutAtTheEndOfTheirLivesAndANewOneTakesTheSlotNumberedByTheCount()
     {

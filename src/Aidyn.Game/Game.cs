@@ -141,6 +141,7 @@ public partial class Game : Node3D, ITrekHost
 
         BuildSky(plugins, game);
         _pointLights = options.PointLights;
+        _spellFx = options.SpellFx;
         options.SetTimeOfDay(game);
         // The time's written into the flags, and any plain flags --flags sets, such as --flags 5,11
         // for after the Kendall and ambush cut-scenes.
@@ -459,7 +460,7 @@ public partial class Game : Node3D, ITrekHost
         var before = _player.Motion.Sphere.Position;
         var step = session.Tick(ReadInput, _camera.Flying, _sky!.State.Drawn,
             actor => _actorViews.TryGetValue(actor, out var view) ? view.Motion : null,
-            combatant => _combatantViews.TryGetValue(combatant, out var view) ? view.Motion : null);
+            combatant => _combatantViews.TryGetValue(combatant, out var view) ? view.Motion : null, _spellFxView);
         switch (step)
         {
             case SessionStep.Cinematic:
@@ -576,6 +577,8 @@ public partial class Game : Node3D, ITrekHost
         foreach (var scene in Streamer!.DrawnScenes(camera.Origin, -camera.Basis.Z))
             scene.Draw();
         _ringView?.Draw();
+        _spellFxView?.Draw();
+        _aimView?.Draw();
     }
 
     /// <summary>
@@ -635,12 +638,13 @@ public partial class Game : Node3D, ITrekHost
     /// the original draws them (<see cref="Core.Lights.WorldLights"/>): the actors with their chunks, then the bodies.
     /// </summary>
     private bool _pointLights = true;
+    private bool _spellFx = true;
 
     private void LightBodies()
     {
         var trek = Trek!;
         var lights = trek.Zone.Lights;
-        trek.Zone.BeginLightFrame(trek.Brightness, _sky!.State.Drawn);
+        trek.Zone.BeginLightFrame(trek.Brightness, _sky!.State.Drawn, _sky.Moon);
         _chunks!.LightActors(lights);
         var centre = _player!.Motion.Sphere.Position;
         N64Material.SetLights(_player.Meshes, lights.ForBody(centre, _chunks.Chunks.MapAt(centre), party: true));

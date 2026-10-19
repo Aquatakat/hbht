@@ -113,15 +113,22 @@ public partial class MissileView : Node3D
 
 /// <summary>
 /// The marker on the ground while a spell, its area or a flask is aimed (<c>Combat.DrawTargetCounts</c>, <c>0x80021448</c>): the
-/// translucent cylinder of scene <c>0x0797</c> at the battle's focus, set on the floor, as wide as the aim's radius and 2 tall, red for a
-/// spell and green for a flask, at the scene colours' alpha of 64.
+/// translucent cylinder of scene <c>0x0797</c> at the battle's focus, set on the floor, as wide as the aim's radius and 2 tall, unturned.
+/// Its scene's own tint (<c>Zones.SetSceneColors(scene, 0x40, 0, colour)</c>, then <c>Scene.SetTint</c>) is red for a spell and green
+/// for a flask, scaled by the screen's fade, and alpha 64: the prim colour of its draws in place of the scenery's tint, and prim alpha
+/// 64, so its texels' alpha × 64 / 255, blended, depth tested and not written (<c>G_RM_AA_ZB_XLU_SURF2</c>).
 /// </summary>
 public partial class AimMarkerView : Node3D
 {
     /// <summary>The cylinder (<c>CombatSpellFx.DrawNumber</c>, <c>0x8008ABD8</c>).</summary>
     public static readonly Aidyn.Plugins.RecordId Scene = Aidyn.Plugins.RecordId.Hex(Aidyn.Plugins.RecordTypes.Scene, 0x0797);
 
+    /// <summary>The scene's alpha (<c>Combat.DrawTargetCounts</c>'s 0x40).</summary>
+    public const byte Alpha = 0x40;
+
     private readonly Node3D? _cylinder;
+    private readonly Level? _level;
+    private readonly ScrollingScene? _scrolling;
     private float _floor;
 
     public AimMarkerView(Models models)
@@ -129,7 +136,11 @@ public partial class AimMarkerView : Node3D
         Name = "Aim";
         _cylinder = models.Instantiate(Scene);
         if (_cylinder is not null)
+        {
             AddChild(_cylinder);
+            _level = new Level(_cylinder, null);
+            _scrolling = models.Scrolls.Attach(Scene, _cylinder);
+        }
         Visible = false;
     }
 
@@ -147,9 +158,17 @@ public partial class AimMarkerView : Node3D
             _floor = floor.Y;
         Position = (at with { Y = _floor }).ToGodot();
         Scale = new Vector3(aim.Radius + 0.2f, 2.0f, aim.Radius + 0.2f);
-        N64Material.SetObjectTint(_cylinder, aim.Spell ? new Color(1, 0, 0) : new Color(0, 1, 0));
-        foreach (var mesh in _cylinder.FindChildren("*", nameof(GeometryInstance3D), true, false).OfType<GeometryInstance3D>())
-            mesh.Transparency = 1 - 64 / 255f;
+        // PointLight.Scale(colour, ScreenFade.Alpha): each channel × the fade, truncated to a byte.
+        var on = (int)(255 * battle.Fade.Brightness) / 255f;
+        N64Material.SetSceneTint(_cylinder, aim.Spell ? new Color(on, 0, 0) : new Color(0, on, 0));
+        _level!.Show(Alpha);
         Visible = true;
+    }
+
+    /// <summary>Moves its scrolling texture on, as each draw of it does (<c>Scene.Draw</c>), at the textures' frame.</summary>
+    public void Draw()
+    {
+        if (Visible)
+            _scrolling?.Draw();
     }
 }
