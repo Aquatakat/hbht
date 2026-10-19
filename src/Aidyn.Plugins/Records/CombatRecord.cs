@@ -36,6 +36,10 @@ namespace Aidyn.Plugins.Records;
 /// Ranged weapons that may strike in melee too (<c>Weapon.AllowsMelee</c>, <c>0x8007B730</c>, by the weapon's place): Spikes.
 /// Null in a plugin from before it.
 /// </param>
+/// <param name="Bosses">
+/// Those whose AI takes the bosses' styles when they have spells (<c>EnemyAI.HasBossStyle</c>, <c>0x8005BA40</c>), 9 and 10 rather
+/// than 6 and 8. Null in a plugin from before it.
+/// </param>
 public sealed record CombatRecord(
     RecordId Id,
     RecordId Ally,
@@ -46,7 +50,8 @@ public sealed record CombatRecord(
     IReadOnlyList<EncounterFlee> FleeByEncounter,
     IReadOnlyList<RecordId>? Rooted = null,
     IReadOnlyList<Missile>? Missiles = null,
-    IReadOnlyList<RecordId>? CloseRange = null);
+    IReadOnlyList<RecordId>? CloseRange = null,
+    IReadOnlyList<RecordId>? Bosses = null);
 
 /// <summary>
 /// A weapon that flies (<c>Combatant.LoadWeaponScene</c>, <c>0x80066CF8</c>, and <c>Combatant.WeaponMuzzle</c>, <c>0x80066DD0</c>).

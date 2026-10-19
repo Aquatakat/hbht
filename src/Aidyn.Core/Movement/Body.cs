@@ -181,6 +181,46 @@ public sealed class Body
         _stalled = 0;
     }
 
+    /// <summary>
+    /// Adds a point to walk to (<c>SetPlayerMoveToQueue</c>, <c>0x800157C8</c>: a ring of 16, from which <c>Body.NextPathStep</c>,
+    /// <c>0x80015890</c>, starts the next as each is reached): at once if it isn't heading anywhere, running, and stopping within
+    /// <paramref name="radius"/>. The AI's walks in combat queue the corners of a path this way.
+    /// </summary>
+    public void Queue(Vector2 goal, float radius)
+    {
+        _queue.Enqueue((goal, radius));
+        if (!Moving)
+            NextPathStep();
+    }
+
+    /// <summary>The points still to walk to after <see cref="Goal"/>.</summary>
+    public IReadOnlyCollection<(Vector2 Goal, float Radius)> Queued => _queue;
+
+    /// <summary>Forgets where it's heading and every point queued after (<c>Body.ClearPath</c>, <c>0x80015850</c>).</summary>
+    public void ClearPath()
+    {
+        _queue.Clear();
+        Moving = false;
+    }
+
+    private readonly Queue<(Vector2 Goal, float Radius)> _queue = new();
+
+    /// <summary>Starts the next queued point, if there's one (<c>Body.NextPathStep</c>).</summary>
+    private void NextPathStep()
+    {
+        if (_queue.TryDequeue(out var next))
+            GoTo(next.Goal, next.Radius, walk: false);
+    }
+
+    /// <summary>
+    /// Whether giving up (<see cref="GiveUpTicks"/>) leaves it where it is rather than putting it at its goal: in combat, where
+    /// <c>Body.StepTowardGoal</c> (<c>0x800159C8</c>) clears its path instead, and says so (<see cref="GaveUp"/>).
+    /// </summary>
+    public bool StaysWhenStalled { get; set; }
+
+    /// <summary>Whether it gave up its goal where it stood (<see cref="StaysWhenStalled"/>), for whoever sent it; they clear it.</summary>
+    public bool GaveUp { get; set; }
+
     /// <summary>Turns to face a way where it stands (<c>Actor::SetFacing</c>), forgetting any goal.</summary>
     /// <param name="heading">The way to face, which needn't be a unit vector.</param>
     public void Face(Vector2 heading)
@@ -376,7 +416,10 @@ public sealed class Body
                 return;
             }
             if (distance < GoalRadius)
+            {
                 Moving = false;
+                NextPathStep();
+            }
         }
         if (Turning)
         {
@@ -396,6 +439,13 @@ public sealed class Body
     /// </summary>
     private void GiveUp(CollisionWorld world)
     {
+        if (StaysWhenStalled)
+        {
+            ClearPath();
+            Stick = default;
+            GaveUp = true;
+            return;
+        }
         Sphere.Position = SetDown(world, new Vector3(Goal.X, Sphere.Position.Y, Goal.Y), Sphere.Radius, null).Position;
         Sphere.Velocity = Vector3.Zero;
         if (Turning)

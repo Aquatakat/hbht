@@ -98,7 +98,8 @@ public sealed partial class Battle
         // Combat.CreateSholeh: after the party, always at the spawns' d.
         if (ally is { } sholeh && Game.Recruit(sholeh) is { } allySheet)
         {
-            Add(slot, allySheet, hostile: false, party: true, letter: 3, roll).Controlled = true;
+            var spare = ArmFromList(allySheet, Game.Items);
+            GiveAi(Add(slot, allySheet, hostile: false, party: true, letter: 3, roll), spare);
             slot++;
         }
         PartySize = slot;
@@ -118,8 +119,9 @@ public sealed partial class Battle
                 _problems.Add($"{entity} is in no plugin.");
                 continue;
             }
+            var spare = ArmFromList(sheet, Game.Items);
             var enemy = Add(slot, sheet, hostile: true, party: false, letter: i, roll);
-            enemy.Controlled = true;
+            GiveAi(enemy, spare);
             // Combat.ForbidFleeForBosses: the last on the field with a say has it.
             if (rules.NoFlee.Contains(entity))
                 CanFlee = false;
@@ -128,6 +130,9 @@ public sealed partial class Battle
             // The leader: the first enemy, unless a later one is strictly cleverer by base Intelligence.
             if (Leader is null || sheet.Stats.Base(Stat.Intelligence) > Leader.Sheet.Stats.Base(Stat.Intelligence))
                 Leader = enemy;
+            // Combat.CreateEnemyCombatants: the leader's morale starts as its record's.
+            LeaderSlot = Leader.Slot;
+            LeaderMorale = Leader.Ai!.Morale;
             slot++;
         }
 
@@ -153,6 +158,32 @@ public sealed partial class Battle
         Gui = Ui.CombatGui.For(this);
         StartFirstTurn();
         Fade.In(FadePerTick);
+    }
+
+    /// <summary>
+    /// What a combatant from the enemy list wields (the entity's enemy build, <c>0x8006E2E8</c>, through <c>0x8006E434</c>): its
+    /// entity's third weapon if it can, else its first; the second is never read. Returns the spare its AI keeps, the first weapon
+    /// when it has a third too.
+    /// </summary>
+    internal static Items.ItemInstance? ArmFromList(Character sheet, Items.ItemCatalog items)
+    {
+        var weapons = sheet.Record.Weapons;
+        var first = weapons.Count > 0 ? weapons[0] : null;
+        var third = weapons.Count > 2 ? weapons[2] : null;
+        sheet.Equipment.RemoveWeapon();
+        sheet.Spares.Clear();
+        if (third is { } t)
+            sheet.Equipment.EquipWeapon(new Items.ItemInstance(items[t]));
+        if (first is { } f && sheet.Equipment.Weapon is null)
+            sheet.Equipment.EquipWeapon(new Items.ItemInstance(items[f]));
+        return first is { } spare && third is not null ? new Items.ItemInstance(items[spare]) : null;
+    }
+
+    /// <summary>A combatant the AI plays, with its record (<see cref="EnemyAI.Init"/>).</summary>
+    private void GiveAi(Combatant c, Items.ItemInstance? spare)
+    {
+        c.Controlled = true;
+        c.Ai = EnemyAI.Init(c, spare, AllowsMelee, _rules?.Bosses?.Contains(c.Entity) == true);
     }
 
     /// <summary>The flee points' most: <c>flee0</c>–<c>flee7</c>.</summary>
@@ -260,7 +291,8 @@ public sealed partial class Battle
         var look = sheet.Record.Body ?? NoBody;
         var footprint = Footprint(look);
         var at = Arena.Origin + new Vector3(cell.X, BodyHeight, cell.Y);
-        var body = new Body(at, look.Radius, look.Scale) { Heading = Directions[direction] };
+        // A body walking to a point in combat gives it up where it stands after 30 ticks of coming no nearer (Body.StepTowardGoal).
+        var body = new Body(at, look.Radius, look.Scale) { Heading = Directions[direction], GiveUpTicks = 30, StaysWhenStalled = true };
         body.Sphere.Position = Body.SetDown(World, at, look.Radius, Game.Random.Combat).Position;
         var flags = CombatantFlags.Active | (hostile ? CombatantFlags.Hostile | CombatantFlags.FromEnemyList : 0);
         var combatant = new Combatant(slot, sheet, look, body, flags)

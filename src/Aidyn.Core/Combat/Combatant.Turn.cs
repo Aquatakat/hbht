@@ -73,6 +73,9 @@ public sealed partial class Combatant
     /// </summary>
     public bool IsWithinReach(Battle battle, Combatant other)
     {
+        // A body gone from the field (Combat.Bodies emptied) is in no one's reach.
+        if (Freed || other.Freed)
+            return false;
         SyncFromBody(battle);
         other.SyncFromBody(battle);
         var reach = BodyReach(this) + BodyReach(other) + Reach;
@@ -81,8 +84,24 @@ public sealed partial class Combatant
         static float BodyReach(Combatant c) => Math.Max(c.Body.ScaledRadius, c.Body.Sphere.Radius);
     }
 
-    /// <summary>Where its body was as its <see cref="Cell"/> was last read from it, in the world's coordinates.</summary>
-    internal Vector3 ReadFrom { get; set; }
+    /// <summary>
+    /// Where its body was as its <see cref="Cell"/> was last read from it, in the world's coordinates; setting it takes the cell as
+    /// what was read there.
+    /// </summary>
+    internal Vector3 ReadFrom
+    {
+        get => _readFrom;
+        set
+        {
+            _readFrom = value;
+            _readCell = Cell;
+        }
+    }
+
+    private Vector3 _readFrom;
+
+    /// <summary>The cell read from the body at <see cref="ReadFrom"/>, which a read again gives back while the body hasn't moved.</summary>
+    private Vector2 _readCell;
 
     /// <summary>
     /// Reads where its body is (<c>Combatant.SyncFromBody</c>, <c>0x80067074</c>): its footprint leaves the grid, its
@@ -90,17 +109,19 @@ public sealed partial class Combatant
     /// </summary>
     /// <remarks>
     /// The original keeps a body in the arena chunk's own coordinates, and the port in the world's, so taking the chunk's
-    /// origin off loses a little; a body that hasn't moved keeps its cell as it was, its spawn's exactly.
+    /// origin off loses a little; a body that hasn't moved since it was last read gives the cell read then, its spawn's exactly.
     /// </remarks>
     public void SyncFromBody(Battle battle)
     {
         battle.Grid.Vacate(ArenaGrid.CellOf(Cell.X), ArenaGrid.CellOf(Cell.Y), Footprint);
-        if (Body.Sphere.Position != ReadFrom)
+        if (Body.Sphere.Position != _readFrom)
         {
-            ReadFrom = Body.Sphere.Position;
-            var at = ReadFrom - battle.Origin;
-            Cell = new Vector2(at.X, at.Z);
+            _readFrom = Body.Sphere.Position;
+            var at = _readFrom - battle.Origin;
+            _readCell = new Vector2(at.X, at.Z);
         }
+        // A cell set since (the AI's leg, or a place it tries) gives way to the body's.
+        Cell = _readCell;
         battle.Grid.Occupy(ArenaGrid.CellOf(Cell.X), ArenaGrid.CellOf(Cell.Y), Footprint);
     }
 

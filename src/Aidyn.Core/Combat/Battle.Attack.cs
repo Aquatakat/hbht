@@ -247,11 +247,7 @@ public sealed partial class Battle
         _aimTurn = null;
         if (_slots[Target] is { } t && t != c)
         {
-            State = NextState = CombatState.Facing;
-            var way = t.Cell - c.Cell;
-            if (way.LengthSquared() > 0)
-                c.Facing = Vector2.Normalize(way);
-            _turning = true;
+            FaceCombatant(c, t);
         }
         else
         {
@@ -325,7 +321,8 @@ public sealed partial class Battle
     /// <summary>
     /// State 6 (<c>Combat.StateFacing</c>, <c>0x800221B0</c>): once the attacker's body has turned (state 6's own input snaps it,
     /// <c>Combat.InputFacing</c>, so it takes a frame or two whatever the angle), its facing is the combatant's, and it carries out
-    /// its attack on the target (<see cref="ExecuteAction"/>). A spell's target is session 9's; for now its turn ends.
+    /// its attack on the target (<see cref="ExecuteAction"/>); after the AI's walk, what follows it (<see cref="FleeAdvance"/>). A
+    /// spell's target is session 9's; for now its turn ends.
     /// </summary>
     private void StepFacing()
     {
@@ -343,6 +340,12 @@ public sealed partial class Battle
         }
         c.Body.Heading = c.Facing;
         State = NextState;
+        // The AI's walk has ended: what follows it (EnemyAI.FleeAdvance).
+        if (NextState == CombatState.AI && c.Ai is { } ai)
+        {
+            FleeAdvance(ai);
+            return;
+        }
         if (Target >= 0 && TargetsA.IsSelected(Target) && _slots[Target] is { } t)
             ExecuteAction(c, t);
         else
@@ -453,13 +456,13 @@ public sealed partial class Battle
 
     /// <summary>
     /// A body goes from the field (<c>Combat.FreeBody</c>, <c>0x80021C6C</c>): its effects and potions come off, its numbers go, its
-    /// portrait gets the skull (<see cref="Ui.CombatGui.MarkGone"/>), and the body is no more.
+    /// portrait gets the skull, or the fled mark (<see cref="Ui.CombatGui.MarkGone"/>), and the body is no more.
     /// </summary>
-    internal void FreeBody(Combatant c)
+    internal void FreeBody(Combatant c, bool fled = false)
     {
         c.Sheet.RemoveAllEffects(c, this);
         Numbers.Remove(c.Slot);
-        Gui.MarkGone(c.Slot);
+        Gui.MarkGone(c.Slot, fled);
         c.Freed = true;
         c.Mark = null;
         c.Body.Field = null;

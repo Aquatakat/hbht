@@ -264,10 +264,10 @@ public sealed class GameSessionTests(Na10Import fixture)
         Assert.Equal((76, 77), (battle.Grid.Width, battle.Grid.Depth));
         Assert.Equal(battle.Camera, session.Arena!.Camera);
 
-        // It fades in over a second, then the turn is Alaron's, or the rats' pass on to him.
+        // It fades in over a second, then the turn is Alaron's, or the rats' come first: each walks at him, and bites or rests.
         for (var i = 0; i < 60; i++)
             Assert.Equal((SessionStep.Combat, CombatState.Intro), (Tick(session), battle.State));
-        for (var i = 0; i < 10 && battle.State != CombatState.Turn; i++)
+        for (var i = 0; i < 3000 && battle.State != CombatState.Turn; i++)
             Tick(session);
         Assert.Equal((CombatState.Turn, alaron), (battle.State, battle.Current));
 

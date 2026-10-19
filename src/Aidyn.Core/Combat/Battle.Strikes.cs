@@ -282,8 +282,9 @@ public sealed partial class Battle
         var d = (short)(int)(damage * multiplier);
         if (multiplier != 0 && d < 1)
             d = 1;
-        if (multiplier > 1 && t.Controlled)
-            t.MoraleCheckDue = true;
+        // A weakness makes a check due, and costs it morale from then on (the AI record's flags 0x12).
+        if (multiplier > 1 && t.Ai is { } ai)
+            ai.Flags |= AiFlags.CheckDue | AiFlags.HitLately;
         return d < 0 ? 0 : d;
 
         static bool Applies(Element resistance, Element element) => resistance == element || resistance switch

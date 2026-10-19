@@ -145,9 +145,12 @@ public sealed partial class Combatant
 
     /// <summary>
     /// Whether the AI has it fleeing (<c>EnemyAI.IsFleeing</c>, <c>0x8005B9AC</c>: the hostile side and its AI record's
-    /// flag 0), which turns its portrait's frame orange. Session 6's AI sets it.
+    /// flag 0), which turns its portrait's frame orange.
     /// </summary>
-    public bool Fleeing { get; internal set; }
+    public bool Fleeing => Ai?.IsFleeing == true;
+
+    /// <summary>Its AI record (<c>+0x44</c>): every enemy's, and Sholeh's from the enemy list. Null for one the player plays.</summary>
+    public EnemyAI? Ai { get; internal set; }
 
     /// <summary>
     /// Mirror's counter (<c>+0x28</c>): a resist roll spends it to turn a spell away (<c>Combatant.ResistRoll</c>). Mirror's ending
@@ -156,13 +159,28 @@ public sealed partial class Combatant
     public int Mirror { get; internal set; }
 
     /// <summary>
-    /// Its morale (the AI record's <c>+6</c>), which Aura of Death and Solar Wrath lower; null without an AI record. Session 6's AI
-    /// sets it from the entity's.
+    /// Its morale (the AI record's <c>+6</c>), which Aura of Death and Solar Wrath lower; null without an AI record.
     /// </summary>
-    public int? Morale { get; set; }
+    public int? Morale
+    {
+        get => Ai?.Morale;
+        set
+        {
+            if (Ai is { } ai && value is { } morale)
+                ai.Morale = (sbyte)morale;
+        }
+    }
 
-    /// <summary>A morale check is due (the AI record's flag 1, <c>+9</c>'s 2): a spell shook it.</summary>
-    public bool MoraleCheckDue { get; set; }
+    /// <summary>A morale check is due (the AI record's flag 1, <c>+9</c>'s 2): a weakness hit, or a spell that shook it.</summary>
+    public bool MoraleCheckDue
+    {
+        get => Ai?.Flags.HasFlag(AiFlags.CheckDue) == true;
+        set
+        {
+            if (Ai is { } ai)
+                ai.Flags = value ? ai.Flags | AiFlags.CheckDue : ai.Flags & ~AiFlags.CheckDue;
+        }
+    }
 
     /// <summary>
     /// Whether an effect holds it (<c>Combatant.IsImmobilised</c>, <c>0x80062250</c>): Wall of Bones, Frozen Doom, Web of Starlight.

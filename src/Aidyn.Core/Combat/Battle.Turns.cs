@@ -140,14 +140,17 @@ public sealed partial class Battle
     /// (<see cref="Advance"/>).
     /// </summary>
     /// <remarks>
-    /// What else it puts back is later sessions': the AI's target (6), a spell chosen (8 and 9), a flask in hand (9), and an
-    /// item spent (9).
+    /// The AI's target and path are forgotten (<see cref="EnemyAI.ClearTarget"/>). What else it puts back is later sessions': a spell
+    /// chosen (8 and 9), a flask in hand (9), and an item spent (9).
     /// </remarks>
     public void EndTurn(Combatant combatant)
     {
         // CombatCamera.Reset: a glide stops.
         CombatCamera.Reset();
         combatant.Flags &= ~CombatantFlags.Acted;
+        // EnemyAI.ClearTarget, and a walk the AI gave up forgotten.
+        combatant.Ai?.ClearTarget();
+        combatant.Body.ClearPath();
         // Combatant.RevertAction: the healing modes go.
         combatant.Flags &= ~(CombatantFlags.LayOnHands | CombatantFlags.HealWithHerbs);
         State = CombatState.Turn;
@@ -211,7 +214,12 @@ public sealed partial class Battle
         }
         BeginTurn(next);
         Game.AdvanceTurn();
-        // A reserve fleeing as it came in says so now ("Enemy reinforcements flee", session 6).
+        // A reserve that fled as it came in says so now, holding the battle (Combat.HoldForMessage).
+        if (_reinforcementsFled)
+        {
+            _reinforcementsFled = false;
+            Lines.HoldOn(CombatText(ReinforcementsFleeLine));
+        }
     }
 
     /// <summary>Whether a reserve is still to come (<c>+0x07</c> short of the list's end).</summary>
@@ -333,7 +341,7 @@ public sealed partial class Battle
     /// player's (1) or the AI's (8), as the state to go on to too; and unless it's fleeing, its target sets.
     /// </summary>
     /// <remarks>
-    /// The AI's check to flee is session 6's, and a flask or spell carried over session 9's.
+    /// The AI checks whether it flees first (<see cref="CheckFlee"/>); a flask or spell carried over is session 9's.
     /// </remarks>
     private void BeginTurn(Combatant combatant)
     {
@@ -353,6 +361,9 @@ public sealed partial class Battle
         combatant.SaveStartPosition();
         Ring.Update(this, combatant);
         combatant.PlaceField(this);
+        // EnemyAI.CheckFlee: every AI's turn but the leader's while it lives.
+        if (combatant.Ai is { } ai && ai.Flags.HasFlag(AiFlags.Plays))
+            CheckFlee(combatant, LeaderGone || combatant.Slot != LeaderSlot);
         State = NextState = combatant.Controlled ? CombatState.AI : CombatState.Turn;
         _stickCentred = true;
         if (!combatant.Fleeing)

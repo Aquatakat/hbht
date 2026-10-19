@@ -61,6 +61,12 @@ public sealed partial class Combatant
     internal int MarkTicks { get; set; }
 
     /// <summary>
+    /// The ticks left of a fled body's fade (<c>Body.FadeOut</c>, <c>0x80014AD4</c>, its <c>+0x708</c>): it's gone from the battle,
+    /// but its body is drawn fading where it stood until this reaches 0.
+    /// </summary>
+    public int Fading { get; internal set; }
+
+    /// <summary>
     /// Whether its body has played its fall to the end and holds its last frame (the body's <c>+0x77C</c>): its animation no
     /// longer steps.
     /// </summary>

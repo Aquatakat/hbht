@@ -57,6 +57,13 @@ public sealed class TargetSet
         Candidates = Selected = Most = Cursor = Place = 0;
     }
 
+    /// <summary>Deselects every slot (<c>TargetSet.ClearSelection</c>, <c>0x80069040</c>).</summary>
+    public void ClearSelection()
+    {
+        Array.Clear(_selected);
+        Selected = 0;
+    }
+
     /// <summary>Marks a slot as a candidate, and selected, by hand, for tests.</summary>
     internal void Mark(int slot, bool selected)
     {

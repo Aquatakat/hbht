@@ -19,8 +19,8 @@ namespace Aidyn.Core.Combat;
 /// </summary>
 /// <remarks>
 /// The states are filled in session by session (the roadmap's M3): so far the intro, a turn the player walks in its field,
-/// skips or attacks in (aiming, turning, the action, an arrow's flight and the result), the AI's turn that ends at once, the
-/// pause and leaving.
+/// skips or attacks in (aiming, turning, the action, an arrow's flight and the result), the AI's turn (its walk, its turn to the
+/// target, its attack and its rest), the pause and leaving.
 /// </remarks>
 public sealed partial class Battle
 {
@@ -222,8 +222,10 @@ public sealed partial class Battle
     /// <param name="readInput">The player's controls, read only in a turn the player plays, once the screen has faded in.</param>
     public void Tick(ZoneEngine arena, bool skyDrawn, Func<Combatant, IActorMotion?> motion, Func<PlayerInput>? readInput = null)
     {
+        // Combat.HoldForMessage: while "Enemy reinforcements flee" holds the battle, its controls and states wait.
+        var held = Lines.StepHold();
         // Combat.Controls: the controls come first, once the screen has faded in.
-        if (!Fade.Fading)
+        if (!Fade.Fading && !held)
         {
             switch (State)
             {
@@ -259,7 +261,8 @@ public sealed partial class Battle
         CombatCamera.Step(this);
         arena.StepSounds(Camera.Aim);
         arena.StepWeather(skyDrawn, arena.Precipitation);
-        Step();
+        if (!held)
+            Step();
         StepMarks();
         Numbers.Tick();
         Fade.Step();
@@ -273,6 +276,9 @@ public sealed partial class Battle
     {
         _crowd.Clear();
         _crowd.AddRange(Combatants.Where(c => !c.Freed));
+        // A fled body, gone from the battle at once, fades out where it stood.
+        foreach (var c in Combatants.Where(c => c.Fading > 0))
+            c.Fading--;
         return [.. _crowd.Select(c => (CrowdMember?)new CrowdMember(c.Body.Sphere, c.Body.Scale, null))];
     }
 
@@ -287,8 +293,13 @@ public sealed partial class Battle
                 State = Current is { Controlled: true } ? CombatState.AI : CombatState.Turn;
                 break;
             case CombatState.AI when Current is { } current:
-                // Until the AI (session 6), an enemy's turn ends at once.
-                EndTurn(current);
+                StepAI(current);
+                break;
+            case CombatState.Moving:
+                StepMoving();
+                break;
+            case CombatState.Rest:
+                StepRest();
                 break;
             case CombatState.Facing:
                 StepFacing();

@@ -23,7 +23,8 @@ internal static class CombatImporter
     /// read from the ROM; the places, and the encounter flags' table, are carried as facts, checked in 1.0's code: Sholeh
     /// is 0xA4 (<c>Combat.FindSholeh</c>), the Skeleton 0xBB (<c>BattleSetup.FillEnemies</c>), the Shadow 0xAC, Pochanargat 0xAB, who never moves in battle (<c>Combatant.UpdateRadius</c>); the bystanders
     /// 0–0x56, 0x82–0x90 and 0x92–0x96 (<c>Combat.IsExcludedEnemy</c>); the bosses who forbid fleeing the twelve of
-    /// <c>Combat.NoFleeEntities</c> (<c>0x800D2688</c>); and the encounters <c>0x800D26A0</c>'s three. The weapons that fly are the
+    /// <c>Combat.NoFleeEntities</c> (<c>0x800D2688</c>); the thirteen the AI gives the bosses' styles (<c>EnemyAI.HasBossStyle</c>,
+    /// <c>0x8005BA40</c>, by its jump table at <c>0x800D24B0</c>); and the encounters <c>0x800D26A0</c>'s three. The weapons that fly are the
     /// ROM's two lists of weapon DB positions (<c>Combat.BowKindWeapons</c> <c>0x800E0C08</c> and <c>Combat.ThrownKindWeapons</c>
     /// <c>0x800E0C14</c>, read per version), each with the numbers <see cref="Muzzles"/> carries; a listed weapon with no fact, a fact
     /// for none listed, or a name that differs is an error. Spikes, position 100, is the one ranged weapon allowed in melee.
@@ -48,7 +49,8 @@ internal static class CombatImporter
             ],
             Rooted: [At(0xAB)],
             Missiles: Missiles(db, items, Positions(bowList), Positions(thrownList)),
-            CloseRange: [Weapon(db, SpikesPosition, "Spikes")]);
+            CloseRange: [Weapon(db, SpikesPosition, "Spikes")],
+            Bosses: [.. new[] { 0x57, 0x58, 0x59, 0x5E, 0x5F, 0x7A, 0xA7, 0xA8, 0xA9, 0xAB, 0xAD, 0xBA, 0xBC }.Select(At)]);
     }
 
     /// <summary>The weapon DB position of Spikes, the one ranged weapon that may strike in melee too (<c>Weapon.AllowsMelee</c>, <c>0x8007B730</c>).</summary>

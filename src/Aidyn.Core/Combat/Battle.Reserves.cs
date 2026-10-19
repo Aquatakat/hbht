@@ -9,6 +9,9 @@ public sealed partial class Battle
     /// <summary>The spawn sets a reserve's place is looked for in when its own is taken (<c>Combat.ChooseSpawn</c>), 0–4.</summary>
     private const int SpawnSets = 5;
 
+    /// <summary>Whether a reserve fled as it arrived this round (<c>+0x543C</c>), which the turn's change holds the battle for.</summary>
+    private bool _reinforcementsFled;
+
     /// <summary>Whether the enemies' leader has gone (<c>+0x0C</c>), its slot taken by a reserve.</summary>
     public bool LeaderGone { get; private set; }
 
@@ -18,31 +21,44 @@ public sealed partial class Battle
     /// set down, its radius and field, its portrait, and the newcomer's flag, which its first turn's "joins the battle" clears. The
     /// leader's slot taken, the leader's gone. The counts aren't changed: the next turn's count finds the newcomers.
     /// </summary>
-    /// <remarks>A reserve that flees as it arrives (<c>EnemyAI.ReserveFleesOnArrival</c>, and the hold on its line) is session 6's.</remarks>
+    /// <remarks>
+    /// A reserve may flee as it arrives (<see cref="ReserveFleesOnArrival"/>): it's passed over, its slot left as it was until the next
+    /// round, its small portrait marked, and the next turn's change holds the battle on "Enemy reinforcements flee".
+    /// </remarks>
     internal void SpawnReserves()
     {
         if (InPlay <= PartySize || !ReserveWaits)
             return;
+        _reinforcementsFled = false;
         for (var slot = PartySize; slot < InPlay && ReserveWaits; slot++)
         {
+            var entity = Enemies[NextReserve];
             if (_slots[slot] is { } old)
             {
                 if (!old.Sheet.IsDead && !old.Gone)
                     continue;
-                if (!LeaderGone && old == Leader)
+                // EnemyAI.ReserveFleesOnArrival: it doesn't come, its slot is left as it is, and the battle will hold on its line.
+                if (Game.Plugins.TryGet<EntityRecord>(entity) is { } record && ReserveFleesOnArrival(record))
+                {
+                    NextReserve++;
+                    Gui.MarkReserveFled(entity);
+                    _reinforcementsFled = true;
+                    continue;
+                }
+                if (!LeaderGone && slot == LeaderSlot)
                     LeaderGone = true;
             }
-            var entity = Enemies[NextReserve];
             NextReserve++;
             if (Game.Recruit(entity) is not { } sheet)
             {
                 _problems.Add($"{entity} is in no plugin.");
                 continue;
             }
+            var spare = ArmFromList(sheet, Game.Items);
             var look = sheet.Record.Body ?? NoBody;
             var (cell, direction) = ChooseSpawn(Footprint(look), slot - PartySize, look);
             var newcomer = Make(slot, sheet, hostile: true, party: false, cell, direction);
-            newcomer.Controlled = true;
+            GiveAi(newcomer, spare);
             newcomer.Flags |= CombatantFlags.Newcomer;
             // Combat.CreateBody: its radius, its field and its portrait.
             newcomer.UpdateRadius(this);

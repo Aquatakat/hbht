@@ -90,4 +90,11 @@ public sealed class RandomStreams
     /// does the port: it starts at 0 with every new or loaded game.
     /// </summary>
     public Lcg Animation { get; } = new(0);
+
+    /// <summary>
+    /// The stream the original's quicksort draws its pivots on (<c>Quicksort.Seed</c>, <c>0x800E6B60</c>, <c>quicksort.cpp</c>):
+    /// the AI's sorts of its scores (<see cref="Combat.AiScores"/>), so it decides how equal scores fall. The original starts it at
+    /// 0, never seeds it and doesn't save it, so neither does the port.
+    /// </summary>
+    public Lcg Sort { get; } = new(0);
 }
