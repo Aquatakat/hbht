@@ -35,12 +35,6 @@ public sealed partial class Battle
     // The rows the menus last ended on, by party slot (CombatMenu.SpellCursors, 0x800E3180, and ItemCursors, 0x800E3190); -1 for none.
     private readonly int[] _spellCursors = [-1, -1, -1, -1], _itemCursors = [-1, -1, -1, -1];
 
-    /// <summary>
-    /// Whether the AI's combatants build set B and so cast (session 11's casters): until then they fight with their weapons, as the
-    /// original's do when no spell scores, the user's choice. Set B stays empty for them, so their portraits show no red.
-    /// </summary>
-    public bool AiCasts { get; set; }
-
     /// <summary>What the spells' visuals and sounds are asked for, oldest first, for session 10's to play; the runtime drains it.</summary>
     public Queue<SpellVisual> SpellVisuals { get; } = new();
 
@@ -124,13 +118,14 @@ public sealed partial class Battle
     }
 
     /// <summary>
-    /// The AI's own tests of a spell it might cast (<c>Combatant.AICanCast</c>): the Stamina for a known spell's cost, a charge left
-    /// on an item's, and the part of the day. Session 11's casters read it.
+    /// The AI's own tests of a spell it might cast (<c>Combatant.AICanCast</c>), for every source, an item's too: the Stamina for the
+    /// cost at the casting level, a charge left on an item's, and the part of the day. (The target's requirement
+    /// <see cref="CanCast"/> tests for everyone.)
     /// </summary>
     private bool AiCanCast(Combatant c, SpellSource source, Combatant t)
     {
-        if (source.IsItem)
-            return source.Item!.Charges is > 0;
+        if (source.IsItem && source.Item!.Charges is not > 0)
+            return false;
         if (Casting.Cost(source.Spell, Casting.Level(c.Sheet, source)) > c.Sheet.Stats.Modified(Stat.Stamina))
             return false;
         return Casting.TimeAllows(source.Spell, PartOfDay);

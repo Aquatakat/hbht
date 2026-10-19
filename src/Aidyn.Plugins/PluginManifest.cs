@@ -67,8 +67,9 @@ public static class BasePlugin
     /// 44 adds to the combat record the boss flags, the weapon classes that drop, the Goblin Ambush's rules and the game over; gives
     /// scripts what follows their end, and terrains their camp ambushes, with the ambush's level tiers on the camping record.
     /// 45 adds to the combat record the combat menus' and Sense Aura's text, which the code keeps as C strings.
+    /// 46 adds to the combat record the area spell the AI aims (Fireball) and the flasks that make it spread out.
     /// </summary>
-    public const int ImporterVersion = 45;
+    public const int ImporterVersion = 46;
 }
 
 /// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>

@@ -59,6 +59,15 @@ namespace Aidyn.Plugins.Records;
 /// <param name="Text">
 /// The combat menus' and Sense Aura's words, which the code keeps rather than a string table. Null in a plugin from before it.
 /// </param>
+/// <param name="AreaSpells">
+/// The spells whose area the AI centres on its opponents and scores by who it would catch (<c>EnemyAI.AreaCentre</c>,
+/// <c>0x80058008</c>, and <c>EnemyAI.AimAreaSpell</c>, <c>0x8005974C</c>, by spell kind 8), and for which the party's casters make
+/// the AI spread out (<c>Combat.CreatePartyCombatants</c>, <c>0x8005C7C8</c>): Fireball. Null in a plugin from before it.
+/// </param>
+/// <param name="FlaskDanger">
+/// The flasks the party may hold, and the radius each makes the AI spread out by, the first held counting
+/// (<c>Combat.PartyPotionTier</c>, <c>0x8005C750</c>). Null in a plugin from before it.
+/// </param>
 public sealed record CombatRecord(
     RecordId Id,
     RecordId Ally,
@@ -75,11 +84,16 @@ public sealed record CombatRecord(
     IReadOnlyList<WeaponClass>? DroppedClasses = null,
     IReadOnlyList<EncounterRule>? Encounters = null,
     GameOverScene? GameOver = null,
-    CombatText? Text = null)
+    CombatText? Text = null,
+    IReadOnlyList<RecordId>? AreaSpells = null,
+    IReadOnlyList<FlaskDanger>? FlaskDanger = null)
 {
     /// <summary>The rules of the battle under encounter flag <paramref name="flag"/>, if it has any.</summary>
     public EncounterRule? Encounter(RecordId? flag) => flag is { } f ? Encounters?.FirstOrDefault(e => e.Flag == f) : null;
 }
+
+/// <summary>A flask the party holds, and how far apart it makes the AI's combatants keep (<c>Combat+0x12</c>).</summary>
+public sealed record FlaskDanger(RecordId Item, int Radius);
 
 /// <summary>Winning a battle with <paramref name="Entity"/> among the enemy list's first four sets <paramref name="Flag"/>.</summary>
 public sealed record BossFlag(RecordId Entity, RecordId Flag);

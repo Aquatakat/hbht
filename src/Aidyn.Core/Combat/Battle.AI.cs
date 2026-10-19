@@ -40,8 +40,9 @@ public sealed partial class Battle
     public IReadOnlyList<(int X, int Z)> PathOf(EnemyAI ai) => ai.PathLength is > 0 and < 144 ? _path[..ai.PathLength] : [];
 
     /// <summary>
-    /// The party's danger to bunched enemies (<c>+0x12</c>): its best flask's tier, or twice its best Fireball's level, a radius the AI
-    /// spreads out by (<c>EnemyAI.AreaDanger</c>). The port doesn't work it out yet: 0, as for the checkpoints' party.
+    /// The party's danger to bunched enemies (<c>+0x12</c>): its flask's radius, or twice its best Fireball's casting level, a radius
+    /// the AI spreads out by (<c>EnemyAI.AreaDanger</c>), set as the battle begins (<see cref="PartyDanger"/>). 0 for the
+    /// checkpoints' party.
     /// </summary>
     public int Danger { get; internal set; }
 
@@ -438,8 +439,8 @@ public sealed partial class Battle
     }
 
     /// <summary>
-    /// The spell's target (<c>EnemyAI.SelectSpellTarget</c>, <c>0x8005B878</c>), as <see cref="SelectWeaponTarget"/> over set B, which
-    /// is empty until session 9's spells; set A is emptied.
+    /// The spell's target (<c>EnemyAI.SelectSpellTarget</c>, <c>0x8005B878</c>), as <see cref="SelectWeaponTarget"/> over set B; set
+    /// A is emptied.
     /// </summary>
     private bool SelectSpellTarget(EnemyAI ai)
     {
@@ -455,14 +456,16 @@ public sealed partial class Battle
 
     /// <summary>
     /// Whether the combatant can act on its target (<c>EnemyAI.CanActOnTarget</c>, <c>0x8005B218</c>), which becomes the action's
-    /// (<see cref="Target"/>): attack it (<see cref="CanAttack"/>), or cast at it, session 9's, a caster trying that first.
+    /// (<see cref="Target"/>): cast at it (<see cref="CanCast"/>) or attack it (<see cref="CanAttack"/>), a caster trying the spell
+    /// first.
     /// </summary>
     private bool CanActOnTarget(EnemyAI ai)
     {
         Target = ai.Target;
         if (ai.Target < 0 || _slots[ai.Target] is not { } t)
             return false;
-        return CanAttack(ai.Combatant, t);
+        var c = ai.Combatant;
+        return ai.Kind == AiKind.Caster ? CanCast(c, t) || CanAttack(c, t) : CanAttack(c, t) || CanCast(c, t);
     }
 
     /// <summary>
@@ -592,6 +595,8 @@ public sealed partial class Battle
         var held = WeaponOf(c);
         var spare = ai.Spare?.Item.Weapon;
         ai.Kind = ai.Wanted;
+        // The selected spell's source goes (ce+0x3D), so set B is empty this turn.
+        c.Spell = SpellChoice.None;
         var swapped = false;
         if (ai.Kind == AiKind.Melee)
         {

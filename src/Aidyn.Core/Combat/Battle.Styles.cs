@@ -9,8 +9,8 @@ public sealed partial class Battle
 {
     /// <summary>
     /// What the AI's style chooses (<c>EnemyAI.RunStyle</c>, <c>0x80059628</c>): its scores' first entry, whose combatant is the
-    /// target and whose cell the goal. The spell of a caster's entry, and the Shadow walking at Alaron with the Horn, are sessions 11
-    /// and 12's.
+    /// target and whose cell the goal; a spell's entry selects its action slot's spell (<see cref="SlotChoice"/>). The Shadow walking
+    /// at Alaron with the Horn is session 12's.
     /// </summary>
     private (int X, int Z) RunStyle(EnemyAI ai)
     {
@@ -21,20 +21,27 @@ public sealed partial class Battle
         var first = scores[0];
         if (first.Combatant is { } t)
             ai.Target = t.Slot;
+        if (first.Slot != 0)
+            ai.Combatant.Spell = SlotChoice(first.Slot - 1);
         return (first.X, first.Z);
     }
 
     /// <summary>
-    /// The style's scores (<c>EnemyAI.Style0</c>–<c>Style10</c>). The casters' (5–10) score their spells first
-    /// (<c>EnemyAI.ChooseSpellOrAttack</c>, session 11's), and until then fight with their weapons as the original does when no spell
-    /// scores.
+    /// The style's scores (<c>EnemyAI.Style0</c>–<c>Style10</c>). The casters' and the bosses' (5–10) score their spells first
+    /// (<see cref="ChooseSpellOrAttack"/>), and with none that scores fight with their weapons: 5 as 0, 6 and 9 their attack cells,
+    /// 7 as 3, 8 as 4, 10 as 3 with the farthest cell to fall back on. A spell's choice changes neither what it fights as nor what
+    /// it wants.
     /// </summary>
     private AiScores Style(EnemyAI ai) => ai.Style switch
     {
-        0 or 5 => Nearest(ai),
-        1 or 4 or 8 => BestAttackCells(ai),
+        0 => Nearest(ai),
+        1 or 4 => BestAttackCells(ai),
         2 => NearestAttackCell(ai),
-        3 or 7 => Archer(ai, boss: false),
+        3 => Archer(ai, boss: false),
+        >= 5 and <= 10 when ChooseSpellOrAttack(ai) is { } spells => spells,
+        5 => Nearest(ai),
+        8 => BestAttackCells(ai),
+        7 => Archer(ai, boss: false),
         6 => CollectedAttackCells(ai, orOpponents: false),
         9 => CollectedAttackCells(ai, orOpponents: true),
         10 => Archer(ai, boss: true),

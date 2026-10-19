@@ -114,6 +114,7 @@ public sealed partial class Battle
             slot++;
         }
         PartySize = slot;
+        Danger = PartyDanger(rules);
 
         // Combat.CreateEnemyCombatants: the first four of the list, each at the letter of its place in it; bystanders
         // are dropped, leaving their letter unused.

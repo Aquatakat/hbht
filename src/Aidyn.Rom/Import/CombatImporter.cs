@@ -65,8 +65,19 @@ internal static class CombatImporter
                         new System.Numerics.Vector3(5.9f, 0.5f, 3f), new System.Numerics.Vector2(1, 0), At(AlaronPlace), RestoresStrength: true)),
             ],
             GameOver: new GameOverScene(RecordId.Hex(RecordTypes.Map, GameOverMap), RecordId.Hex(RecordTypes.Dialogue, tables.GameOverScript)),
-            Text: text);
+            Text: text,
+            AreaSpells: [RecordId.Hex(RecordTypes.Spell, FireballSpell)],
+            FlaskDanger: [.. FlaskDangers.Select(f => new FlaskDanger(RecordId.Hex(RecordTypes.Item, f.Item), f.Radius))]);
     }
+
+    /// <summary>
+    /// Fireball (spell kind 8, the byte at <c>0x800E2B48</c> or'd with <c>0x300</c>), which the AI centres on its opponents and whose
+    /// casters in the party make it spread out by twice their casting level.
+    /// </summary>
+    private const int FireballSpell = 0x0305;
+
+    /// <summary><c>Combat.PartyPotionTier</c>'s tests (<c>0x8005C750</c>), in its order: the first flask the party holds gives the radius.</summary>
+    internal static readonly IReadOnlyList<(int Item, int Radius)> FlaskDangers = [(0x1001, 7), (0x1000, 5), (0x1002, 4), (0x1003, 4)];
 
     /// <summary>
     /// Where the element names are in <c>String/Common</c>: lines 241 to 257, one per <see cref="Element"/> in its order, in all three
