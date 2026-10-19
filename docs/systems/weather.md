@@ -1,6 +1,6 @@
 # Weather
 
-How the weather changes, what it holds, and how the original draws and plays it. The rules are `Aidyn.Core.Calendar.Weather`, and the rain and snow `Aidyn.Core.Particles.WeatherParticles`, in trek and in cut-scenes; combat's waits for M3 ([to port](#to-port)). Addresses are 1.0's unless marked.
+How the weather changes, what it holds, and how the original draws and plays it. The rules are `Aidyn.Core.Calendar.Weather`, and the rain and snow `Aidyn.Core.Particles.WeatherParticles`, in trek, in cut-scenes and in combat's arenas. Addresses are 1.0's unless marked.
 
 ## The records
 
@@ -76,7 +76,7 @@ The port draws the drift from the cosmetic stream every second tick (`Cadence.Fr
 - **The rain flags** (2319–2320) hold what the world has falling, written every frame of the clock and when the weather is restored: 1 rain, 2 snow, 0 for clear and for fog ([flags](flags.md)).
 - **Saving.** The original saves a snapshot taken as the pause menu opens (`Weather.Snapshot`, `0x8007bc4c`, from `Weather.Pause`, `0x8001a238`): what falls, its intensity, the fog and the storm, each × 1000 as a whole number (`SaveBlock.Write`, `0x80019810`). It doesn't save the class, the wind or what's drawn. Loading restores the four (`Weather.Restore`, `0x8007bbfc`, then again after trek's world is built, `Weather.Resume`, `0x8001a4f0`), and writes the drawn intensity and the fog straight in. The port's save keeps all of it ([below](#differences-from-the-original)).
 - **The wanderers** see less in fog: their perception × (1 − `fogTime` × 0.75) (`0x8000f6a4`).
-- **Combat** (not ported): a thrown potion's chance (`Combat.WeatherPenalty`, `0x80062d78`) loses 30 at night, 20 in a storm (class 2) and 10 in fog (class 1), and in bad weather another (distance − 5) beyond 6, on top of the distance penalty its caller already took; a ranged attack's chance (`Combat.RangedChance`, `0x80062f50`) is × (1 − the intensity × 0.3), and × 0.7 at night; a melee one × 0.9 at night.
+- **Combat**: a thrown potion's chance (`Combat.WeatherPenalty`, `0x80062d78`) loses 30 at night, 20 in a storm (class 2) and 10 in fog (class 1), and in bad weather another (distance − 5) beyond 6, on top of the distance penalty its caller already took; a ranged attack's chance (`Combat.RangedChance`, `0x80062f50`) is × (1 − the intensity × 0.3), and × 0.7 at night; a melee one × 0.9 at night. Ported with the attacks and flasks ([combat](combat.md#an-attack)).
 
 ## Differences from the original
 
@@ -180,8 +180,6 @@ Rain and snow bring sky 2 (Borg8 0x19E, the Battlefields' own, `WeatherRecord.Ra
 - **The flash.** For the frame `Weather.Flash` is set, `SkyBackdropView` fills the backdrop white, and `SkyView` sets the tint and the sky colour white (`SkyColors.Flashed`).
 - **The thunder and the rain loop** are the core's `WeatherSounds`, through `GameAudio`: the thunder a one-shot with its lifetime, the loop on the sequencer, which `Weather` starts, stops and sets the level of (`RainLoop`, `RainLoopStarts`, `RainLoopLevel`).
 - **Cut-scenes** run the weather as trek does (`ZoneEngine.StepWeather`, from `CutScene.Tick`), under the stage's sky, with the sky's frames counted on from trek's; the scenery's fog ignores the weather there (`SkyView.CutScene`).
+- **Combat** runs it the same way: `HandleZoneEngineFrame` runs in combat's frames too (`gamecombat.cpp`, `0x80021564`), and the arena is a stage of trek's zone engine (`ZoneEngine.Stage`) whose `WeatherParticles` fall about the combat camera and land on the arena's chunk, stepped by `Battle.Tick` (`ZoneEngine.StepWeather`). Trek's world goes and comes back through `TrekLoop.Free` and `Rebuild`, which carry the weather. (`0x80054f70`, the other caller, is the title screen's scenery, `InitZoneEngine` in mode 2.) Checked in the runtime with `--weather rain` and `snow` over the Combat 01 save's battle.
 - **Debugging:** the core's `Weather` exposes `Falling`, `FallIntensity`, `Emitting`, `FogTime`, `Wind`, `Storm`, `Flash` and `Thunder`; `--weather` and `--precipitation` set it for a run ([runtime](runtime.md)).
 
-## To port
-
-- **Combat's** rain and readers, with M3: `HandleZoneEngineFrame` runs in combat's frames too (`gamecombat.cpp`, `0x80021564`), so the arena would be a stage of trek's zone engine with a `WeatherParticles` of its own about combat's camera, as the cut-scene's is (`ZoneEngine.Stage`); trek's world goes and comes back through `TrekLoop.Free` and `Rebuild`, which carry the weather. (`0x80054f70`, the other caller, is the title screen's scenery, `InitZoneEngine` in mode 2.)

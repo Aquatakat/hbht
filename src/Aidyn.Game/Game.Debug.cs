@@ -279,7 +279,7 @@ public partial class Game
     /// <summary>For the overlay: how many raindrops or snowflakes and splashes the last frame drew, and how many of them are on screen.</summary>
     private string Precipitation()
     {
-        if ((Scene is not null ? Stage?.Precipitation : Trek?.Zone.Precipitation) is not { Drops: { } drops, Splashes: { } splashes } ||
+        if ((Scene is not null ? Stage?.Precipitation : Battle is not null ? _session?.Arena?.Precipitation : Trek?.Zone.Precipitation) is not { Drops: { } drops, Splashes: { } splashes } ||
             GetViewport().GetCamera3D() is not { } camera)
             return "";
         int fall = 0, fallSeen = 0, splash = 0, splashSeen = 0;
