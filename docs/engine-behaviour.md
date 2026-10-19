@@ -465,8 +465,8 @@ Choosing any of these actions ends the turn:
 
 - **C-up** opens potions and item spells. The potions are the drinkable ones, meaning healing and later potion types except Stealth. The item spells can come from the weapon, armour, shield, or any worn item that has charges left.
 - **C-down** opens spells and skills: learned spells (only those whose reagent the party has), Troubadour, Healer by hand, and healing with herbs.
-- Both menus stay open only while their button is held.
-- Thrown flasks (Fire, Inferno, Sleep Gas, Acid) aren't in C-up. They're equipped to the weapon slot and used as an attack.
+- Both menus stay open only while their button is held. **(machine code)** Letting go chooses the highlighted entry; the stick or D-pad moves the highlight, wrapping, and nothing else does anything while one is open. C-down lists Lay On Hands, Heal With Herbs and Perform first, then the spells in alphabetical order with capitals first (so the "vs." spells come last); an unusable entry is left out rather than greyed, but a spell with no one in reach or too little Stamina is listed and fails. C-up lists only the potions that would do something now, then the item spells, and remembers each member's last row ([combat](systems/combat.md#spells-potions-and-skills-in-a-turn)).
+- Thrown flasks (Fire, Inferno, Sleep Gas, Acid) aren't in C-up. They're equipped to the weapon slot and used as an attack. **(machine code)** Taking one in hand from the pause menu's Party tab ends the turn and puts the weapon away, leaving the member unarmed until it's equipped again; the flask stays in the inventory, the next of the stack stays in hand after a throw, and a flask's blast hits everyone near it, the party too. In battle only the member whose turn it is can change equipment there, and potions are drunk from C-up.
 - **Z** or **L** during movement skips the turn at once, with the stick centred; Z held with the stick sneaks, as in trek. **(machine code)**
 - **B**, **Z**, or **L** cancels an action that's been selected but not confirmed.
 - **Start** opens the pause menu. In battle it only offers the System and Party tabs.
@@ -475,7 +475,7 @@ Choosing any of these actions ends the turn:
 
 ### Troubadour
 
-Starting a performance locks the character into performing until it wears off. It gives a small boost to everything, comparable to Luck in Morrowind.
+Starting a performance locks the character into performing until it wears off. It gives a small boost to everything, comparable to Luck in Morrowind. **(machine code)** Only one performance can be going in a battle. Starting one rolls (Troubadour × 5 + Intelligence) × 2 against a d100 and costs 3 Stamina when it works; the boost is the roll's margin in steps, scaling every chance, both sides' the opposite ways. The performer pays a Stamina point each round, can act as usual, and stops as it acts, is engaged, changes weapon or runs out of Stamina ([combat](systems/combat.md#spells-potions-and-skills-in-a-turn)).
 
 ### Enemy AI
 
@@ -550,7 +550,7 @@ The dialogue box stays on screen and narrates the battle: "Alaron begins action"
 
 The enemies' portraits run down the top left and the party's down the top right, in a fixed order. The four enemies on the field have large portraits, and the reserves small ones below. Characters that can be targeted have a dim green border on their portrait, and the one targeted a bright green one. Sometimes there's a dim red border. **(machine code)** The red is the current combatant's selected spell's reach: a caster keeps a spell selected from turn to turn, so through Alaron's, Rheda's or Sholeh's turn everyone that spell could be cast at has a dim red border, party members too for a healing spell, and the spell's targets turn bright red while it's aimed. A fleeing or fled enemy's border is orange, and the dead and fled get a skull over their portrait. The radar is centred on whoever the camera follows and turned so the camera looks up it. C-left does nothing in battle. See [ui](systems/ui.md#the-battle-screen).
 
-Actions are confirmed: choosing a potion highlights the member who'll drink it, A drinks it and B cancels. With more than one enemy in reach, A shows one of them as the target, the stick picks another, A attacks and B cancels. A spell with one target works the same within its radius, and a placed area spell moves its whole area.
+Actions are confirmed: choosing a potion highlights the member who'll drink it, A drinks it and B cancels. With more than one enemy in reach, A shows one of them as the target, the stick picks another, A attacks and B cancels. A spell with one target works the same within its radius, and a placed area spell moves its whole area. **(machine code)** A spell's targets are bright red and those it could take dim red, not green; a spell of several targets takes the nearest it can, and the stick does nothing. A translucent cylinder on the ground marks the reach: red about the caster for a spell, about the placed point for an area, green and small at a flask's aim. Several targets are cast at one by one, the caster turning to each. Sense Aura's details stay up until any button is pressed, which ends the turn.
 
 Damage and healing numbers pop up briefly above the affected character. Status effects also display above heads, cycling through each active effect. With only one or two effects, an icon shows briefly followed by a long blank gap, possibly unintentionally. One guess is that the cycle has fixed slots regardless of how many effects are active.
 

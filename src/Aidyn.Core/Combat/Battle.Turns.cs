@@ -388,7 +388,7 @@ public sealed partial class Battle
     }
 
     /// <summary>
-    /// A spent scroll or wand (<c>Combatant.EndTurn</c>'s, <c>Entity.RemoveGearAt</c>, <c>0x8006F5C4</c>): a gear slot's whose spell was
+    /// A spent scroll or wand (<c>Combatant.EndTurn</c>'s, <c>Entity.UnequipGear</c>, <c>0x8006F5C4</c>): a gear slot's whose spell was
     /// selected and has no charges left is gone, used up, and no spell is selected.
     /// </summary>
     private static void SpendItem(Combatant c)

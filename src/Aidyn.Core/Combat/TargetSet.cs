@@ -176,7 +176,7 @@ public sealed class TargetSet
         Clear();
         if (Spells)
         {
-            if (c.Spell.IsNone)
+            if (c.Spell.IsNone || c.Controlled && !battle.AiCasts)
                 return;
             FindSpellTargets(battle, c);
         }

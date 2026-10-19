@@ -218,6 +218,43 @@ public sealed class BattleActionTests(Na10Import fixture)
     }
 
     [Fact]
+    public void APlacedAreasCentreMovesWithTheStickWithinItsReachAndTakesEveryoneInIt()
+    {
+        var run = Start();
+        var sholeh = run.Battle.Combatants.Single(c => c.Sheet.Name == "Sholeh");
+        // Sholeh plays herself here, so her Dispel Naming (a placed area, level × range from her body) can be aimed.
+        sholeh.Controlled = false;
+        sholeh.Ai = null;
+        Assert.Same(sholeh, run.TurnOf("Sholeh"));
+        Choose(run.Battle, false, r => r.Text == "Dispel Naming");
+        Assert.Equal(CombatState.PlaceArea, run.Battle.State);
+        Assert.Equal(sholeh.Cell, run.Battle.Focus);
+        var source = sholeh.CurrentSpell(run.Built.Game.Rules.Magic)!;
+        var reach = source.Spell.Range * Aidyn.Core.Magic.Casting.Level(sholeh.Sheet, source);
+
+        // A second of the stick pushed: the centre moves, but never past the reach from her body.
+        for (var i = 0; i < 120; i++)
+            run.Battle.Tick(run.Zone, false, _ => null, () => new Aidyn.Core.Trek.PlayerInput(new System.Numerics.Vector2(0, 1)));
+        var body = sholeh.Body.Sphere.Position - run.Battle.Origin;
+        var off = run.Battle.Focus - new System.Numerics.Vector2(body.X, body.Z);
+        Assert.True(off.Length() > 0.5f);
+        Assert.True(off.Length() <= reach + 0.001f);
+        Assert.Equal(new AimMarker(run.Battle.Focus, Aidyn.Core.Magic.Casting.Level(sholeh.Sheet, source), Spell: true), run.Battle.Aim);
+
+        // Everyone in it is taken, either side, an All spell's every candidate.
+        Assert.Equal(run.Battle.TargetsB.Candidates, run.Battle.TargetsB.Selected);
+        if (run.Battle.TargetsB.Selected == 0)
+        {
+            // Nobody in it: A puts the aim away.
+            Assert.True(run.Battle.Confirm());
+            Assert.Equal(CombatState.Turn, run.Battle.State);
+            return;
+        }
+        Assert.True(run.Battle.Confirm());
+        run.UntilTurnEnds(sholeh);
+    }
+
+    [Fact]
     public void AnEmptyMenuShowsItsMessageAndChoosesNothing()
     {
         var run = Start();

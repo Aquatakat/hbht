@@ -40,7 +40,7 @@ Sorted by what the code does with it (`Entity.AddEffect` `0x800702F0`, `Combatan
 | `drainStat` | Wraith Touch (26) | Intelligence, Willpower, Dexterity or Strength (`0x800D34B0`, by 1d4) less 2d6, base and modified, for the battle; the record's margin byte holds the stat |
 | `banish` | Banishing (15) | (margin + the target's hit points) d6 |
 | `flee`, `teleport` | Escape (1), Teleportation (12) | the targets flee if the battle allows; the caster moves to the placed point if it's free, not in the Shadow's battle |
-| `senseAura`, `revealPhase` | Sense Aura (21), Detect Moon Phase (49), Detect Sun Phase (50) | the details popup; the HUD's moon or sun |
+| `senseAura`, `revealPhase` | Sense Aura (21), Detect Moon Phase (49), Detect Sun Phase (50) | the details popup, by the level ([combat](combat.md#spells-potions-and-skills-in-a-turn)); trek's sundial's moon or sun, which a battle neither draws nor has (1.0 writes through a null pointer; the port does nothing) |
 | none | Detecting Traps (18), Opening (20), and Stealth (55, Stealth +6L) | target type Field: "Spell Unavailable"; nothing casts them anywhere |
 
 No spell both deals damage and leaves a record: the damage byte of Immolation, Acid Bolt, Wraith Touch, Frozen Doom and Web only routes the original's code (`Spell.AddsEffect`, `0x8007AAB4`). Whether a damage spell is Fire, Earth, Water or Air isn't a field: `Combatant.SpellResistanceApplies` (`0x80061C5C`) names the kinds, which the importer writes as the `damage` effect's elements.
@@ -49,7 +49,7 @@ No spell both deals damage and leaves a record: the damage byte of Immolation, A
 
 `Combatant.CastSpell` (`0x800648CC`), once per target of the selection (`Combatant.CastCurrentSpell`, `0x80065C08`). The port's is `Battle.Cast(caster, source, targets)`.
 
-1. **Available** (`0x800635B8`): a Field spell is "Spell Unavailable"; the target must meet the spell's special (`Casting.Requirement`): a True Name, the heavy flag set (which the party, the rats and ordinary humanoids have and the 32 big creatures haven't, so "heavy" means small enough), or an aspect. Day and Night specials test the battle's part of the day; no spell has one.
+1. **Available** (`0x800635B8`): a Field spell is "Spell Unavailable" (shown and queued, the cast's margin `0xFE`); the target must meet the spell's special (`Casting.Requirement`): a True Name, the heavy flag set (which the party, the rats and ordinary humanoids have and the 32 big creatures haven't, so "heavy" means small enough), or an aspect. Day and Night specials test the battle's part of the day; no spell has one. A player's refused cast shows "%s" with the requirement's line, the Common strings' 258–270 (`Spell.CastMessages`, `0x800E2C00`, a pointer the string loader sets; `Combatant.LogMissingComponent`, `0x800638C8`).
 2. **The level** (`Casting.Level`): a known spell's level, no higher than the caster's modified Wizard; an item's spell its own.
 3. **Prepared,** once (`PrepareCast`, `0x8006406C`, skipped while the acted flag is up):
    - a known spell (`AttemptCast`, `0x80063F7C`): the reagent out of the party's inventory, unless the caster is from the enemy list or the AI plays it (`0x80063BFC`, "Missing spell component"); the cost, max(1, the spell's Stamina − L), from the worn items' batteries and then Stamina (`Equipment.PayStamina`, "Not enough ST", the reagent kept); then the roll;
@@ -91,7 +91,7 @@ No spell both deals damage and leaves a record: the damage byte of Immolation, A
 | Sleep Gas | blast of 15 from Stamina: no sleep and no duration |
 | Acid | and corrosion: a 2d6 radius, each within it −(radius ÷ squared distance) protection until the battle ends |
 
-**The blast** (`FlaskExplosion`, `0x800652F8`): each living combatant within a squared distance of the damage takes the damage ÷ the squared distance (at least 1 distance), left at 1 at the least if it isn't the target; friendly fire happens. **The throw's chance** (`ThrowChance`, `0x80064EFC`) is in the research for session 9.
+**The blast** (`FlaskExplosion`, `0x800652F8`): each living combatant at a squared distance d from the landing cell, **kept in a byte** (so it wraps at 256) and at least 1, within the damage takes the damage ÷ d, left at 1 at the least if it isn't the target; friendly fire happens. The target then takes its share again as the blow lands (`Combat.EndCast`), so twice. Acid's corrosion goes on those within its radius instead of the damage, stacking. **The throw** (`ThrowChance`, `0x80064EFC`), the last flask of a stack that never bursts, and the rest of a flask's turn are [combat](combat.md#spells-potions-and-skills-in-a-turn)'s. In a battle a potion is drunk from C-up's menu, which lists only those `CanDrink` allows; drinking shows no number. The port rolls every flask's `blast` dice in turn and keeps its own, as the original's `FlaskDamage` rolls all three; corrosion is a `protection` of −1 a level at the radius ÷ d (`Battle.FlaskExplosion`).
 
 ## Gear
 
@@ -118,15 +118,12 @@ The user chose to keep these, which look like bugs, as the original has them:
 - One record can hold several effects; the original keys one per kind. The base game's records hold one each but Web of Starlight's (immobilise and 2d6) and Tap Stamina's.
 - Trek's ageing runs every tick, and what the effects do each round once a 30 fps frame (`Cadence.FrameTicks`), as the original does once a drawn frame.
 - The battle's held part of the day is the battle's (`Battle.PartOfDay`); the original's lock (`World+5`) also stops the weather rolling, which the port's battle doesn't yet do.
-- The "cannot cast" messages (`0x800E2C00`) aren't imported: `Battle.Cast` returns the refusal, and session 9 shows it.
 
 ## What's left
 
-- **Session 9:** C-down's and C-up's menus over `Battle.Cast` and `Potions.Drink`, target set B over `Casting.CanTarget` and `TargetCount`, the placed area (state 11), the flasks' throw and blast, the Troubadour's bonus (`Battle.TroubadourBonus`), the Healer's two, the refusals' messages, and Sense Aura's popup and the phases on the HUD (`Battle.AuraShown`, `PhasesShown`).
-- **Session 3:** `Battle.AgeEffects` at a round's end, `Combatant.RadiusWithEffects`, and the turns an immobilised combatant loses.
-- **Session 9:** dealing a cast's damage through the action's states as an attack's is (`Combatant.Damage`, `Battle.ExecuteAction`'s path). Session 5 calls `Battle.Strike` after a hit, deals the effects' deaths at a round's end, and reads `Combatant.IsImmobilised` in the attack's chances.
-- **Session 10:** the visuals (`CombatSpellFx`, `ProcessSpellVisuals`) and the handle each record keeps.
-- **Session 11:** `SpellValues` in the AI's scoring (session 6 set `Combatant.Morale` from the entity's, on its AI record).
+- **Session 10:** the visuals (`CombatSpellFx`, `ProcessSpellVisuals`) and the handle each record keeps, from `Battle.SpellVisuals`, which says what each cast asked for.
+- **Session 11:** `SpellValues` in the AI's scoring (session 6 set `Combatant.Morale` from the entity's, on its AI record), and its casts through `Battle.AimSpell` once `Battle.AiCasts` is on.
+- **Session 12:** potions healing nothing in the Shadow's battle, and Teleportation barred there (`TeleportBarred`).
 
 ## Not settled
 

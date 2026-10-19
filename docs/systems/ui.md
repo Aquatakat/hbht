@@ -133,7 +133,8 @@ What A does (`DollMenuLists::AFunc`), in `PartyMenu.Actions`, with the popups as
   - **The Healer's** lists Lay On Hands, Heal With Herbs and Restore. Each lists the living members, but the Healer for laying on hands: the portrait at 25 square, the name 2 after it, and "Health (n / max)" 16 below the name. The original's rows are 25 apart, so the next row's name overlaps the health line by 2; the port's are 28 apart, the user's choice. Restore then lists Intelligence, Willpower, Dexterity, Endurance, Strength and Stamina for the member chosen. The results say who healed whom by how much, who's at full health, whose attribute was restored by how much or is at its maximum, or that the Healer failed, which also covers having no herb or too little Stamina.
 - **A message** (`TextBox_Centered`) is off-white (225) on a feathered black box at the screen's centre, the gradients at their own sizes (`IntroMenu_ShadowBG`), in the main font: as wide as its text up to 150, wrapping there, and as tall as that plus 5, with the text 4 in. A crafting popup's result (`WidgetCrafting::TextPopup`) is 16 wider and 5 taller, and closing it closes the popup too, so each opening does one task. A, B or C-down closes a message.
 - **Dropping** is only in [the loot window](#the-loot-window).
-- **Not ported yet:** a message's fade (90 a frame), and the combat pause menu's Party tab rules: only the member whose turn it is may equip (`PauseMenu.CombatMember`, `0x800DE9F0`, the current combatant's slot), and potions are used from C-up.
+- **In a battle's pause** (`PartyMenu.InventoryA`, `0x80035FA0`; `PartyMenu.Combat`, a `CombatPause`): the tab opens on the member whose turn it is (`PauseMenu.CombatMember`, `0x800DE9F0`), and only that member may change anything: A on another's carried item says "That item cannot be equipped until that person's turn" (Common line 489) and on a worn one "…removed…" (490). A drinkable potion says to use C-up instead (488); a flask goes in hand and a weapon equipped ends the turn as the menu closes (combat's state 19); a scroll goes on into a gear slot with no turn spent, putting its spell on C-up; a weapon taken off leaves the member unarmed, with no turn spent; body armor and a shield can't come off ("You cannot equip that item in combat!", line 98) nor go on (line 96). [combat](combat.md#spells-potions-and-skills-in-a-turn) has the rest.
+- **Not ported yet:** a message's fade (90 a frame).
 
 ### The loot window
 
@@ -446,7 +447,19 @@ The user chose where the screen sits on a screen of another shape (`CombatGui.Dr
 - **The fade** darkens the whole UI screen, as for the HUD; the original fades each widget's colour but not the HP bars' black.
 - **The target sets** are the battle's (`Battle.TargetsA`, `TargetsB`, [combat](combat.md#an-attack)): `Battle.Marks(slot)` reads each slot's `TargetMarks` from them, and `Combatant.Fleeing` holds the AI's flag, which the tints and the radar read.
 - **Measured** against the capture in the UI screen's own pixels (`--ui-screenshot`): the portraits, the reserves' icons and the HP bars differ by about 4 a channel on average, within the console's dither; the text starts at (76, 190), and the ring's rim falls on the capture's rows and columns.
-- **Not ported yet:** the numbers over the targets in states 10, 11 and 18 (`Combat.DrawTargetCounts`, `0x80021448`), with session 9.
+- **The aim's marker** (`Combat.DrawTargetCounts`, `0x80021448`) isn't the GUI's and draws no numbers: it's a cylinder in the arena ([combat](combat.md#spells-potions-and-skills-in-a-turn)), the runtime's `AimMarkerView`.
+
+### The held menus
+
+C-down's spells and skills and C-up's potions and item spells (`CombatMenu`, states 22 and 23), open while their button is held and chosen from as it's let go; [combat](combat.md#spells-potions-and-skills-in-a-turn) has what they list and do. `Ui.CombatMenu` is the model the battle holds (`Battle.Menu`), and `CombatGuiView.DrawMenu` draws it over the battle screen at the original frame's centre.
+
+- **The panel** is the conversation box's feathered black one (`ChoicePopup.CreatePanel`, `0x80045F24`: `0x01C4` drawn black, edges `0x01C0`–`0x01C3`, corners `0x01BC`–`0x01BF`), fitted to the list (`ChoicePopup.Layout`, `0x80046488`): 120 wide, centred on x 160, as tall as its rows up to 95 (55 without the Expansion Pak; the port has the Pak's), centred on y 120. No title, no padding.
+- **A row** (`CombatMenu.MakeEntry`, `0x80088714`) is its icon at its left and its text in the main font after it, at the menu's icon width + 5 (10, the lute's, for C-down; 16, the flask's, for C-up, whatever the row's own icon is) and half that width less half the text's height down; rows are stacked with no gap, each as tall as its icon or text. The text is the row's colour: skills blue (0, 128, 225, 225), spells red (225, 80, 80, 225), potions green (0, 200, 0, 225), item spells yellow (200, 200, 0, 225).
+- **The cursor** has no box: its row's colour goes from (100, 100, 100, 100) toward its own and back, 20 ticks each way (`WidgetPulseMenu.Draw`, `0x8002809C`; `Color.Mix`, `0x80027F1C`, truncating each channel). It wraps; the stick's or D-pad's up and down move it.
+- **Scrolling**: the list follows the cursor 10 pixels a tick, with the arrows `0x38D0` and `0x38CF` (5 × 8) 8 left of the list, 2 above and below it, while it can scroll.
+- **Nothing to list** shows the Party tab's message instead: "No spells or skills available" or "No potions or item spells available".
+- **Sense Aura's popup** is that message box too, its lines white and centred, as wide as its longest up to seven pixels a character (`CombatGuiView.DrawAura`).
+- **In the port**: the held stick repeats as the menus' do; the rows' pixels aren't checked against a capture, which the user is asked for ([user-checks](../user-checks.md)).
 
 ## A faithful mode, later
 

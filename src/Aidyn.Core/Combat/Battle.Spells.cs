@@ -35,6 +35,12 @@ public sealed partial class Battle
     // The rows the menus last ended on, by party slot (CombatMenu.SpellCursors, 0x800E3180, and ItemCursors, 0x800E3190); -1 for none.
     private readonly int[] _spellCursors = [-1, -1, -1, -1], _itemCursors = [-1, -1, -1, -1];
 
+    /// <summary>
+    /// Whether the AI's combatants build set B and so cast (session 11's casters): until then they fight with their weapons, as the
+    /// original's do when no spell scores, the user's choice. Set B stays empty for them, so their portraits show no red.
+    /// </summary>
+    public bool AiCasts { get; set; }
+
     /// <summary>What the spells' visuals and sounds are asked for, oldest first, for session 10's to play; the runtime drains it.</summary>
     public Queue<SpellVisual> SpellVisuals { get; } = new();
 
