@@ -552,7 +552,7 @@ The enemies' portraits run down the top left and the party's down the top right,
 
 Actions are confirmed: choosing a potion highlights the member who'll drink it, A drinks it and B cancels. With more than one enemy in reach, A shows one of them as the target, the stick picks another, A attacks and B cancels. A spell with one target works the same within its radius, and a placed area spell moves its whole area. **(machine code)** A spell's targets are bright red and those it could take dim red, not green; a spell of several targets takes the nearest it can, and the stick does nothing. A translucent cylinder on the ground marks the reach: red about the caster for a spell, about the placed point for an area, green and small at a flask's aim. Several targets are cast at one by one, the caster turning to each. Sense Aura's details stay up until any button is pressed, which ends the turn.
 
-Damage and healing numbers pop up briefly above the affected character. Status effects also display above heads, cycling through each active effect. With only one or two effects, an icon shows briefly followed by a long blank gap, possibly unintentionally. One guess is that the cycle has fixed slots regardless of how many effects are active.
+Damage and healing numbers pop up briefly above the affected character. Status effects also display above heads, cycling through each active effect. With only one or two effects, an icon shows briefly followed by a long blank gap, possibly unintentionally. **(machine code)** They aren't icons: each lasting spell or potion effect from this battle has a translucent shell or ring over its target's head, and one at a time across the whole battle takes a turn of about two seconds, pulsing in and out, round all of them; nothing shows for five seconds after any cast. So one buff alone pulses every couple of seconds, and four buffed members each show for two seconds in nine ([combat](systems/combat.md#what-spells-look-like)).
 
 ### Camera
 
@@ -671,6 +671,6 @@ Answered items were resolved from the decomp. Details are in the relevant sectio
 - [x] How is the enemy party leader determined? **Highest base Intelligence.**
 - [x] Where are the flee checkpoints, and are they related to anything else? **The farthest of the last 15 recorded positions. Unrelated to saves.**
 - [x] What's the full list of battle actions? **See the battle control list in "A turn". Whether equipping a new weapon ends the turn is unconfirmed.**
-- [ ] Does the status effect cycle have fixed slots? *Not found in the decomp yet.*
+- [x] Does the status effect cycle have fixed slots? **No: one turn at a time across the whole battle, round every lasting effect, held back five seconds after each cast.**
 - [ ] Can scrolls be equipped and cast from, as the three scroll equipment slots suggest?
 - [ ] Do town exteriors also exist in the overworld map set, or only in their own sets?

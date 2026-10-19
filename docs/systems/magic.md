@@ -65,7 +65,7 @@ No spell both deals damage and leaves a record: the damage byte of Immolation, A
 
 ## Effects on a character
 
-**The record** (`EffectRecord`, 0x18 bytes, 15 at `entity+0x34`; `ActiveEffect`): `+0` kind, `+1` power (L), `+2` the spell's school, `+3` the margin after the resist, `+4` u32 harmful, `+8` u32 timer (`0xFFFFFFFF` never runs down), `+0x14` the visual's handle. Checked in 08: Rheda's Endurance is `13 04 02 04 | 00000000 | 00001C20`. **Potions'** (`PotionRecord`, 0xC bytes, 7 at `entity+0x38`): kind, power, u32 timer, the visual. The port holds both in slot arrays (`Character.Effects`, `PotionEffects`), as their order is the RNG's.
+**The record** (`EffectRecord`, 0x18 bytes, 15 at `entity+0x34`; `ActiveEffect`): `+0` kind, `+1` power (L), `+2` the spell's school, `+3` the margin after the resist, `+4` u32 harmful, `+8` u32 timer (`0xFFFFFFFF` never runs down), `+0x14` the visual's handle (`ActiveEffect.Visual`, whose end ends its lasting scene: [combat](combat.md#what-spells-look-like)). Checked in 08: Rheda's Endurance is `13 04 02 04 | 00000000 | 00001C20`. **Potions'** (`PotionRecord`, 0xC bytes, 7 at `entity+0x38`): kind, power, u32 timer, the visual. The port holds both in slot arrays (`Character.Effects`, `PotionEffects`), as their order is the RNG's.
 
 - **Adding** (`Character.AddEffect`): the first free slot. A spell already on, or one with no slot free, adds nothing and doesn't refresh, though the cast still costs; targeting rules it out first. A potion isn't checked: drinking checks.
 - **Ageing** (`Character.AgeEffects`, `0x80071444`): the potions, then the spells (`EffectRules.Round`). A combat round takes 600 off each timer (`TurnOrder.EndRound` for every combatant in play; `Battle.AgeEffects`); trek takes the clock's 72 a tick of play (`TrekLoop.TickClock`, `GameState.PassTime`). A timer at 0 ends on the next ageing, so a cast of L lasts 3L rounds and its per-round effects run 3L times. A dead character's don't age. Checked: Alaron's Endurance reads 7200, 6600, 6000, 4800, 3000 over checkpoints 08–12.
@@ -121,7 +121,6 @@ The user chose to keep these, which look like bugs, as the original has them:
 
 ## What's left
 
-- **Session 10:** the visuals (`CombatSpellFx`, `ProcessSpellVisuals`) and the handle each record keeps, from `Battle.SpellVisuals`, which says what each cast asked for.
 - **Session 11:** `SpellValues` in the AI's scoring (session 6 set `Combatant.Morale` from the entity's, on its AI record), and its casts through `Battle.AimSpell` once `Battle.AiCasts` is on.
 - **Session 12:** potions healing nothing in the Shadow's battle, and Teleportation barred there (`TeleportBarred`).
 
