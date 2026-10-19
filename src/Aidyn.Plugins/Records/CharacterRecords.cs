@@ -306,6 +306,7 @@ public sealed record TrainingPrices(int FirstLevelGold, int GoldPerLevel, float 
 /// <param name="NotResistedBy">Entities that never resist it: the Marquis, Wall of Bones.</param>
 /// <param name="Filter">Who it may be cast at, beyond its side and its special.</param>
 /// <param name="AiValue">What the enemies' AI makes of it (<c>EnemyAI.SpellValue</c>); with none, its first effect's type's.</param>
+/// <param name="Visuals">What casting it shows in a battle; with none, nothing.</param>
 public sealed record SpellRecord(
     RecordId Id,
     string Name,
@@ -331,7 +332,8 @@ public sealed record SpellRecord(
     Resisted Resisted = Resisted.Never,
     IReadOnlyList<RecordId>? NotResistedBy = null,
     TargetFilter? Filter = null,
-    int? AiValue = null);
+    int? AiValue = null,
+    MagicVisuals? Visuals = null);
 
 /// <summary>How many targets a spell takes.</summary>
 public enum SpellTargetCount

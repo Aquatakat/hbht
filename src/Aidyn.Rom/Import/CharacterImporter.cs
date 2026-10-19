@@ -132,7 +132,7 @@ internal static class CharacterImporter
         ctx.WriteRecords("entities.json", BodySoundImporter.WithSounds(db, ctx.BodySounds,
             WithMembers(ItemImporter.WithSoleWeapons(db, BuildEntities(db, ctx.Models)), ctx.Engine)));
         ctx.WriteRecords("spells.json", BodySoundImporter.WithSounds(db, ctx.BodySounds,
-            MagicImporter.WithEffects(BuildSpells(db, ctx.Items, ctx.Menus), ctx.Engine)));
+            MagicImporter.WithVisuals(MagicImporter.WithEffects(BuildSpells(db, ctx.Items, ctx.Menus), ctx.Engine), ctx.SpellVisuals, ctx.Archive)));
         ctx.WriteRecords("stats.json", BuildStats(db, ctx.Characters));
         ctx.WriteRecords("skills.json", ItemImporter.WithIcons(ctx.Items, BuildSkills(db, ctx.Characters)));
         ctx.WriteRecords("weaponskills.json", BuildWeaponSkills(db, ctx.Characters));
