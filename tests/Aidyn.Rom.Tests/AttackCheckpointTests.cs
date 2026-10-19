@@ -643,6 +643,48 @@ public sealed class AttackCheckpointTests(Na10Import fixture, ITestOutputHelper 
         Assert.DoesNotContain(battle.Combatants, c => c.Slot == 7 && !c.Freed);
     }
 
+    [Fact]
+    public void KillingTheLastEnemyWithNoReserveLeftWinsTheBattleAsTheTurnChanges()
+    {
+        var built = At(5);
+        var battle = built.Battle;
+        var alaron = built[0];
+        var zone = Zone(built);
+
+        // Rats 4-6 already dead and the list run out: rat 7 is the last enemy.
+        foreach (var slot in (int[])[4, 5, 6])
+        {
+            built[slot].Sheet.TakeDamage(1000, built[slot]);
+            battle.Death(built[slot]);
+            battle.FreeBody(built[slot]);
+        }
+        battle.NextReserve = battle.Enemies.Count;
+        Poke(battle, nameof(Battle.State), CombatState.Turn);
+        for (var i = 0; i < 120 && battle.Fade.Fading; i++)
+            battle.Fade.Step();
+        Assert.True(battle.Attack());
+        Assert.True(battle.Confirm());
+        built.Game.Random.Combat.Seed = 1;
+
+        // The kill doesn't end the battle: the turn's end does (TurnOrder.CheckEnd), with the victory line and the fade out.
+        for (var i = 0; i < 600 && battle.State != CombatState.Victory; i++)
+        {
+            Assert.False(battle.Over);
+            battle.Tick(zone, false, _ => null);
+        }
+        Assert.Equal(CombatState.Victory, battle.State);
+        Assert.Equal(battle.CombatText(Battle.Victorious), battle.Lines.Shown);
+        Assert.Equal(0, battle.ActiveCounts.Enemies);
+        Assert.True(battle.Fade.Fading);
+
+        // Until session 7's windows, the battle leaves once it has faded out.
+        for (var i = 0; i < 600 && !battle.Over; i++)
+            battle.Tick(zone, false, _ => null);
+        Assert.True(battle.Over);
+        Assert.False(battle.Fled);
+        Assert.False(alaron.Sheet.IsDead);
+    }
+
     private static PortraitState PartyOrEnemy(Battle battle, int slot) => battle.Gui.Portraits.Single(p => p.Slot == slot).State;
 
     // ---------------------------------------------------------------------------------------------------------------------------
