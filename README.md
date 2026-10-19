@@ -33,6 +33,10 @@ Some fixed bugs:
   The original shows them when you load a save inside, HBHT hides them.
 - In battle, the last flask of a stack flies and bursts like the others. The
   original empties the hand as it's thrown, so it was used up for nothing.
+- In battle, a weapon's line of sight runs from the attacker's head to the
+  target's. The original adds the target's height to the attacker's end too and
+  aims at the target's middle, so a body just in front of a target could block
+  a shot over it.
 
 The type of things not fixed:
 - Rain and splash density stays pretty low by default.

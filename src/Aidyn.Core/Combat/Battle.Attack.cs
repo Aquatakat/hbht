@@ -90,8 +90,7 @@ public sealed partial class Battle
     /// Whether <paramref name="a"/> can attack <paramref name="t"/> (<c>Combatant.CanAttack</c>, <c>0x80060590</c>): never the Shadow;
     /// one on the other side, alive and in play, while it has an action (or its healing's rules, session 9's); its weapon reaching
     /// (<see cref="Reaches"/>); and a clear walk over the grid between their cells, or failing that a line of sight in 3D
-    /// (<see cref="HasSight"/>), as the original draws it: from the attacker's body lifted by both heads' heights to the target's
-    /// body's centre.
+    /// (<see cref="HasSight"/>) from head to head.
     /// </summary>
     public bool CanAttack(Combatant a, Combatant t)
     {
@@ -129,11 +128,9 @@ public sealed partial class Battle
         var (ax, az) = (ArenaGrid.CellOf(a.Cell.X), ArenaGrid.CellOf(a.Cell.Y));
         if (Grid.WalkClear(ax, az, tx, tz))
             return true;
-        // 1.0 adds both heads' lifts to the attacker's point and leaves the target's at its body's centre (0x8006079C, 0x800607DC).
-        var (eye, aim) = (a.Body.Sphere.Position, t.Body.Sphere.Position);
-        var lifted = eye.Y + (-a.Body.ScaledRadius + a.Look.Height * a.Look.Scale);
-        lifted += -t.Body.ScaledRadius + t.Look.Height * t.Look.Scale;
-        return HasSight(eye with { Y = lifted }, aim, a.Slot, t.Slot);
+        // Head to head. 1.0 adds the target's lift to the attacker's point too (0x800607DC, a pasted block's stack offset left
+        // unchanged), so it looks from above the attacker to the target's middle: the port fixes it, the user's choice.
+        return HasSight(Head(a), Head(t), a.Slot, t.Slot);
     }
 
     /// <summary>The top of a body's head: its feet and its entity's height.</summary>

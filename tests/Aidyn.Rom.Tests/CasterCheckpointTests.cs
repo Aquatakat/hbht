@@ -26,10 +26,28 @@ public sealed class CasterCheckpointTests(Na10Import fixture, ITestOutputHelper 
     private PluginSet Set => fixture.Data.Set;
 
     /// <summary>
-    /// The cases, but the five that wear a weapon as armor or a shield to give those action slots a spell: no enemy has one, and the
-    /// port's equipment won't wear it.
+    /// The cases whose turn an attack's line of sight decides, which the port runs head to head where 1.0 lifts the attacker's end by
+    /// both heads and aims at the target's middle (the user's choice, <see cref="AnAttacksSightRunsHeadToHead"/>).
     /// </summary>
-    public static TheoryData<string> Cases => [.. CasterVectors.Cases.Where(c => !c.Mods.Contains("itemspell")).Select(c => c.Id)];
+    private static readonly string[] SightFixed = ["cp11-s6-21c-BanditBoss-nostamina", "cp08-s5-221-Marquis-nostamina"];
+
+    /// <summary>
+    /// The cases, but the five that wear a weapon as armor or a shield to give those action slots a spell (no enemy has one, and the
+    /// port's equipment won't wear it), and those the port's line of sight changes.
+    /// </summary>
+    public static TheoryData<string> Cases =>
+        [.. CasterVectors.Cases.Where(c => !c.Mods.Contains("itemspell") && !SightFixed.Contains(c.Id)).Select(c => c.Id)];
+
+    [Fact]
+    public void AnAttacksSightRunsHeadToHead()
+    {
+        // The Bandit Boss with its bow at checkpoint 11: Rheda stands behind Alaron. 1.0's line, from high above the Boss down to
+        // Rheda's middle, passes through Alaron's body, and its set A is Alaron, Brenna and Sholeh; head to head, it clears him.
+        var (built, boss) = Begin(Find("cp11-s6-21c-BanditBoss-nostamina"));
+        var battle = built.Battle;
+        Assert.Equal([0, 1, 2, 3], Enumerable.Range(0, Battle.SlotCount).Where(battle.TargetsA.IsCandidate));
+        Assert.True(battle.CanAttack(boss, built[1]));
+    }
 
     private static CasterVectors.Case Find(string id) => CasterVectors.Cases.Single(c => c.Id == id);
 
