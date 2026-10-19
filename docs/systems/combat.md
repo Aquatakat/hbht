@@ -452,7 +452,7 @@ Read from 1.0's code (`0x80056E10`–`0x8005C0C0`, `aiInfo.cpp` and `aiscores.cp
 - The AI's walk counts a tick's move toward the stuck timer, times a 30 fps frame's ticks, where the original counts a frame's; its body's 30 ticks of no progress are counted every tick by 0.01 of a tick, where the original's are a frame's. The stuck test leaves out the original's actor-speed term (an actor standing moves under 0.03 anyway).
 - The original runs `Execute` after `FleeAdvance` even for a fleeing enemy that has just left, its body gone; the port stops there.
 - A walk the AI gives up is forgotten at the turn's end; the original's body would run on into the next turn.
-- The casters and bosses fight with their weapons until session 11 scores their spells, as the original does when none scores.
+- The casters and bosses fight with their weapons until session 11 scores their spells, as the original does when none scores: the user's choice for the meantime.
 
 ## Not settled
 
