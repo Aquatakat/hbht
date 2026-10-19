@@ -1,6 +1,6 @@
 # hbht
 
-A PC reimplementation of Aidyn Chronicles: The First Mage (N64). It runs on content imported from a user-supplied ROM and has a plugin-based mod system. M1 and M2 are playable. The work now is M3 Fight, in the sessions the roadmap lists. The roadmap's [Where things stand](docs/roadmap.md#where-things-stand) has the rest.
+A PC reimplementation of Aidyn Chronicles: The First Mage (N64). It runs on content imported from a user-supplied ROM and has a plugin-based mod system. M1, M2 and M3 (Fight) are playable. Next is M4, the prologue, starting with 2.10's events and triggers. The roadmap's [Where things stand](docs/roadmap.md#where-things-stand) has the rest.
 
 ## Where to look
 

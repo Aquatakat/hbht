@@ -31,18 +31,6 @@ public sealed partial class GameSessionTests
         return session.Battle!;
     }
 
-    /// <summary>Every enemy falls, however many Cheat Deaths it has (Lugash has one).</summary>
-    private static void Rout(Battle battle)
-    {
-        foreach (var enemy in battle.Combatants.Where(c => c.Hostile && !c.Sheet.IsDead).ToList())
-        {
-            while (!enemy.Sheet.IsDead)
-                enemy.Sheet.TakeDamage(1000, enemy);
-            battle.Death(enemy);
-            battle.FreeBody(enemy);
-        }
-    }
-
     [Fact]
     public void LugashsCutScenesBattleMayBeFledAndBeatingHimSetsHisFlagButNotItsOwn()
     {
@@ -56,7 +44,7 @@ public sealed partial class GameSessionTests
         Assert.InRange(lugash.Ai!.Style, 9, 10);
 
         // Won, his boss flag is set, and the encounter flag, derived, isn't.
-        Rout(battle);
+        battle.Rout();
         battle.EndTurn(battle.Current!);
         Assert.Equal(CombatState.Victory, battle.State);
         Assert.Equal(SessionStep.CombatOver, TickUntil(session, SessionStep.CombatOver));
@@ -82,7 +70,7 @@ public sealed partial class GameSessionTests
         Assert.Equal(0, pochanargat.Radius);
         Assert.False(battle.CanFlee);
 
-        Rout(battle);
+        battle.Rout();
         battle.EndTurn(battle.Current!);
         Assert.Equal(SessionStep.CombatOver, TickUntil(session, SessionStep.CombatOver));
         Assert.True(session.Game.Flags.IsSet(RecordId.Decimal(RecordTypes.Flag, 3204)));

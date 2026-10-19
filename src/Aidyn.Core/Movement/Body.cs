@@ -339,16 +339,28 @@ public sealed class Body
 
     /// <summary>
     /// Plays its animation <see cref="Pace"/> ticks toward <see cref="Request"/>, carrying the fraction to the next
-    /// tick, and returns how far their root moved it forward.
+    /// tick, and returns how far their root moved it forward. The root moves the body only while it's asked for something, or
+    /// its state was entered under a request (<c>ProcessPlayers</c>, <c>0x80013318</c>–<c>0x80013328</c>, the body's <c>+0x14</c> and
+    /// <c>+0x1A</c>): a stop entered as it goes back to idle plays in place, however its root moves, as a run's stop that carries its
+    /// root back to rest does.
     /// </summary>
     internal float Animate(IRootMotion animation)
     {
         _pace += Pace;
         var forward = 0f;
         for (; _pace >= 1; _pace--)
-            forward += animation.Tick(Request);
+        {
+            var moved = animation.Tick(Request);
+            if (animation is Actors.IActorMotion { Entered: true })
+                _entryRequest = Request;
+            if (Request != Idle || _entryRequest != Idle)
+                forward += moved;
+        }
         return forward;
     }
+
+    /// <summary>The request its animation's state was entered under (<c>+0x1A</c>), 0 as it's made.</summary>
+    private int _entryRequest;
 
     /// <summary>Moves it <paramref name="forward"/> along its heading, at its scale, and keeps it in its <see cref="Bounds"/>.</summary>
     internal void Advance(float forward)

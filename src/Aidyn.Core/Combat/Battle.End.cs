@@ -191,7 +191,9 @@ public sealed partial class Battle
 
     private void Fell(Combatant c)
     {
-        c.Sheet.TakeDamage(c.Sheet.Hp, c);
+        // However many Cheat Deaths it has (Lugash has one).
+        while (!c.Sheet.IsDead)
+            c.Sheet.TakeDamage(c.Sheet.Hp, c);
         Death(c);
         FreeBody(c);
     }
