@@ -124,14 +124,30 @@ public class SceneObjectFadeTests
     }
 
     [Fact]
-    public void TheNearestDetailPassesOverAnEmptyLevel()
+    public void TheNearestDetailFadesIntoAnEmptyLevelAsTheOriginalDoes()
     {
+        // An empty first level to 15, as Oriana's path lights' to 5: the second fades in from 13 to 14 and out from 39 to 40.
         var tree = Tree(Vector3.Zero, SceneObjectFlags.Solid);
         var light = tree with { Models = [tree.Models[0] with { Empty = true }, tree.Models[1]] };
         var nearest = new DrawDistance(NearestDetail: true);
-        Assert.Equal([0, 255], At(light, 2, nearest));
+        Assert.Equal([0, 0], At(light, 12, nearest));
+        Assert.Equal([0, 127], At(light, 13.5f, nearest));
         Assert.Equal([0, 255], At(light, 20, nearest));
         Assert.Equal([0, 127], At(light, 39.5f, nearest));
+        Assert.Equal([0, 0], At(light, 40, nearest));
+    }
+
+    [Fact]
+    public void TheNearestDetailDrawsNothingBeyondAnEmptyLastLevel()
+    {
+        var tree = Tree(Vector3.Zero, SceneObjectFlags.Solid);
+        var gone = tree with { Models = [tree.Models[0], tree.Models[1] with { Empty = true }] };
+        var nearest = new DrawDistance(NearestDetail: true);
+        Assert.Equal([255, 0], At(gone, 13.5f, nearest));
+        Assert.Equal([127, 0], At(gone, 14.5f, nearest));
+        Assert.Equal([0, 0], At(gone, 20, nearest));
+        var nothing = tree with { Models = [tree.Models[0] with { Empty = true }, tree.Models[1] with { Empty = true }] };
+        Assert.Equal([0, 0], At(nothing, 20, nearest));
     }
 
     private static readonly FlagGate Always = new(RecordId.Decimal(RecordTypes.Flag, 0), true);

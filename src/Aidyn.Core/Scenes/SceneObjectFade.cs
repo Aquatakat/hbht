@@ -42,8 +42,11 @@ public readonly record struct ViewCone(float FadeFrom, float Gone)
 /// </summary>
 /// <param name="Scale">Multiplies each object's radius and each level's distance.</param>
 /// <param name="NearestDetail">
-/// Draws the nearest level of detail that draws anything out to where the farthest ends, and no other. A level that's
-/// an empty scene (<see cref="SceneModel.Empty"/>), as the first of Oriana's path lights is, is passed over.
+/// The Model detail setting's Highest, the port's own: wherever the original draws a level of detail that draws
+/// something, the nearest level that draws anything is drawn in its place, at its alpha, and no other. Where the
+/// original draws only an empty level (<see cref="SceneModel.Empty"/>), nothing is drawn, so the original's fade into
+/// one is kept: Oriana's path lights, whose first level is empty, fade out as the player reaches them, and a tree
+/// shows its first level out to where its last ends.
 /// </param>
 public sealed record DrawDistance(float Scale = 1, bool NearestDetail = false)
 {
@@ -89,20 +92,32 @@ public static class SceneObjectFade
             return;
 
         var levels = Math.Min(Math.Min(o.Lods, o.Models.Count), alphas.Length);
-        if (range.NearestDetail && levels > 0)
+        if (range.NearestDetail)
         {
-            var nearest = 0;
-            while (nearest < levels - 1 && o.Models[nearest].Empty)
-                nearest++;
-            alphas[nearest] = Math.Min(shown, LevelAlpha(distance, 0, o.Models[levels - 1].DrawDistance * range.Scale));
+            // The original's choice, with every level that draws something drawn as the nearest that does: where the
+            // original fades between two such levels the nearest stays whole, and where it fades to an empty level
+            // the nearest fades as the one it replaces does.
+            var nearest = -1;
+            byte drawn = 0;
+            for (var i = 0; i < levels; i++)
+            {
+                if (o.Models[i].Empty)
+                    continue;
+                if (nearest < 0)
+                    nearest = i;
+                drawn = Math.Max(drawn, Level(o, i, distance, range));
+            }
+            if (nearest >= 0)
+                alphas[nearest] = Math.Min(shown, drawn);
             return;
         }
         for (var i = 0; i < levels; i++)
-        {
-            var near = i == 0 ? 0 : o.Models[i - 1].DrawDistance * range.Scale;
-            alphas[i] = Math.Min(shown, LevelAlpha(distance, near, o.Models[i].DrawDistance * range.Scale));
-        }
+            alphas[i] = Math.Min(shown, Level(o, i, distance, range));
     }
+
+    /// <summary>Level <paramref name="i"/>'s alpha by its distance alone (<see cref="LevelAlpha"/>).</summary>
+    private static byte Level(SceneObject o, int i, float distance, DrawDistance range) =>
+        LevelAlpha(distance, i == 0 ? 0 : o.Models[i - 1].DrawDistance * range.Scale, o.Models[i].DrawDistance * range.Scale);
 
     /// <summary>
     /// How much of an object shows for where the camera looks, before its levels of detail.

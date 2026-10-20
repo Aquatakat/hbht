@@ -259,7 +259,7 @@ public sealed record SceneModel(RecordId Model, float DrawDistance)
     /// <summary>
     /// The scene draws nothing: every draw is one the game skips, as a hidden model's. The first level of Oriana's
     /// path lights (<c>0x1910</c>) is one, a grey quad whose model is hidden, which only marks where the light goes
-    /// out. The nearest detail passes over it.
+    /// out. The nearest detail draws nothing where the original draws only it (<c>DrawDistance.NearestDetail</c>).
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool Empty { get; init; }

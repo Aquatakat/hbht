@@ -228,7 +228,7 @@ The user laid this out, and it isn't the original's ([ADR 0013](../adr/0013-sett
   | 3D resolution | Full, 480 lines, 240 lines (bilinear, through Godot's 3D scaling) |
   | Anti-aliasing | Off, 2x, 4x, 8x (MSAA) |
   | Draw distance | Original, Farther (1.2×), Farthest (1.4×): see [rendering](rendering.md#draw-distance) |
-  | Model detail | Original, Highest (always the nearest level) |
+  | Model detail | Original, Highest (the nearest level with a model, where the original draws one: [rendering](rendering.md#draw-distance)) |
   | Rain and snow | Original, 2x, 4x, 8x ([weather](weather.md#more-rain-than-the-original)) |
   | Sky | Projected, Original ([rendering](rendering.md#the-skys-objects)) |
   | Menu size | Original (240 lines), Smaller (360), Smallest (480): the UI screen's height, for the menu and trek's popups and box |
