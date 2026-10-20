@@ -233,16 +233,23 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
     // Walking into objects and onto trigger triangles.
 
     /// <summary>
-    /// What walking within a tangible object's radius does, each tick (<c>ProcessVoxelObjects</c>): an
-    /// active tangible teleporter whose <see cref="MapObject.Enabled"/> holds takes the player through,
-    /// skipping its secret, trap and lock; a trigger goes off; a dialogue starts its script. A popup
-    /// doesn't stop the world: triggers still go off under one, but a teleporter waits for it to close
-    /// (<c>vobject_pause_check</c>), and so does a dialogue.
+    /// What walking within a tangible object's radius does, each tick (<c>ProcessVoxelObjects</c>, <c>0x80083838</c>): of the
+    /// objects the grid cell under the player lists (<c>0x800838a4</c>), as A's reach takes them, an active tangible
+    /// teleporter whose <see cref="MapObject.Enabled"/> holds takes the player through, skipping its secret, trap and lock; a
+    /// trigger goes off; a dialogue starts its script. A popup doesn't stop the world: triggers still go off under one, but a
+    /// teleporter waits for it to close (<c>MapObjects.CanStart</c>, <c>0x80010d08</c>), and so does a dialogue.
     /// </summary>
+    /// <remarks>
+    /// The 11 dialogues that trigger triangles name are listed in no cell, so walking near them never starts them, only
+    /// treading on their triangles (<see cref="Tread"/>): the camp south of Gwernia castle (M08's object 1, radius 200)
+    /// waits for the player to leave over one of its 11 triangles, after the journal's popup.
+    /// </remarks>
     public void Touch(LoadedMap map, Vector3 at)
     {
         TouchCameras(map, at);
-        foreach (var o in map.Objects)
+        // A map without a grid, which only a mod's could be, walks all its objects.
+        var listed = map.Record.Grid is { } grid ? grid.At(at).Select(i => map[i]).OfType<MapObject>() : map.Objects;
+        foreach (var o in listed)
         {
             if (!o.Tangible || !map.IsActive(o.Index) || Vector3.Distance(o.Position, at) > o.Radius || !Holds(o.Enabled))
                 continue;
@@ -264,10 +271,10 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
     }
 
     /// <summary>
-    /// What touching a trigger triangle does (<c>check_trigger</c>), if the object it names is active: a
+    /// What touching a trigger triangle does (<c>check_trigger</c>, <c>0x8000a3ec</c>), if the object it names is active: a
     /// camera takes the camera for the next second (<see cref="StepCameras"/>); a teleporter takes the
-    /// player through at once, whatever its gates; a dialogue starts its script if the player is within
-    /// its radius and its <see cref="MapObject.Enabled"/> holds.
+    /// player through at once, whatever its gates; a dialogue starts its script if its <see cref="MapObject.Enabled"/>
+    /// holds, however far it is: the gate's distance test is skipped (<c>0x8001141c</c> with 0, <c>0x8000a52c</c>).
     /// </summary>
     public void Tread(LoadedMap map, int index, Vector3 at)
     {
@@ -283,7 +290,7 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
             case TeleporterObject teleporter:
                 host.Teleport(map, teleporter);
                 break;
-            case DialogueObject dialogue when Vector3.Distance(o.Position, at) <= o.Radius && Holds(o.Enabled):
+            case DialogueObject dialogue when Holds(o.Enabled):
                 host.StartScript(map, dialogue);
                 break;
         }
