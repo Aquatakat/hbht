@@ -9,6 +9,7 @@ using Aidyn.Core.Items;
 using Aidyn.Core.MapObjects;
 using Aidyn.Core.Movement;
 using Aidyn.Core.Physics;
+using Aidyn.Core.Scenes;
 using Aidyn.Core.Scripts;
 using Aidyn.Core.Ui;
 using Aidyn.Plugins;
@@ -42,6 +43,13 @@ public interface ITrekHost : IScriptHost, ITransitionHost
 
     /// <inheritdoc cref="IMapObjectHost.Changed"/>
     void Changed(LoadedMap map, SceneObject scene);
+
+    /// <summary>
+    /// A scene object that goes out once reached, one of Oriana's path lights, went out this tick
+    /// (<see cref="ChunkStreamer.PutOut"/>): it's no longer active, and nothing else in its chunk changed. By default
+    /// it's told as any other change (<see cref="Changed"/>).
+    /// </summary>
+    void PutOut(LoadedMap map, SceneObject scene) => Changed(map, scene);
 
     /// <summary>Notes something for whoever's watching the log.</summary>
     void Log(string text);
@@ -91,6 +99,8 @@ public sealed class TrekLoop : IMapObjectHost
     private bool _resumed;
     /// <summary>The last script a dialogue object asked to start that trek can't run yet, such as a backdrop.</summary>
     private RecordId? _lastScript;
+    /// <summary>The frames scene objects are drawn in, which <see cref="PutOut"/> goes by.</summary>
+    private readonly FrameGate _drawFrame = new(Cadence.FrameTicks);
 
     /// <param name="zone">
     /// The zone engine trek's world is loaded in, about the player. Its rain lands on the solid surfaces every loaded chunk
@@ -234,7 +244,8 @@ public sealed class TrekLoop : IMapObjectHost
     /// <summary>
     /// One 60 Hz tick of trek, as the original orders it: the fades, the clock, the map objects the player
     /// touches, the camera, the player, the wanderers' decisions and then their bodies, a conversation's
-    /// tick, the trigger triangles he treads on and a trigger triangle's camera. A popup stops only the
+    /// tick, the trigger triangles he treads on and a trigger triangle's camera, and once a frame what goes out once
+    /// reached (<see cref="PutOut"/>). A popup stops only the
     /// clock (<c>TickGameTime</c>, skipped while <c>isPaused</c>), which the user saw in the original: the
     /// sun stops, while bodies, animations and clouds go on, and the player's input goes to the popup. A
     /// conversation stops the clock and the wanderers' decisions too, and a fade takes the player's input.
@@ -330,7 +341,24 @@ public sealed class TrekLoop : IMapObjectHost
             var chunk = Chunks.ChunkAt(motion.Sphere.Position);
             Hud.Tick(chunk, chunk is null ? motion.Sphere.Position : motion.Sphere.Position - Chunks.Origin(chunk), Game.Flags);
         }
+        // RenderVoxelScenes, as the frame is drawn.
+        if (_drawFrame.Tick())
+            PutOut();
         return TrekStep.Ran;
+    }
+
+    /// <summary>
+    /// Puts out what goes out once reached, Oriana's path lights, once a frame (<see cref="Cadence.FrameTicks"/>), as
+    /// the original does as it draws the scene objects (<c>RenderVoxelScenes</c>), from the player and the follow camera
+    /// (<see cref="ChunkStreamer.PutOut"/>), and tells the host of each. It's game state, which a save keeps, so it goes by
+    /// the original's cone of view (<see cref="ViewCone.Original"/>), of a 4:3 screen, whatever the window's shape, and not
+    /// by the view the runtime draws from: a wider window doesn't put a light out sooner.
+    /// </summary>
+    private void PutOut()
+    {
+        var view = SceneView.Aimed(Player.Sphere.Position, Camera.Position, Camera.Aim, ViewCone.Original);
+        foreach (var (map, scene) in Chunks.PutOut(view))
+            _host.PutOut(map, scene);
     }
 
     /// <summary>

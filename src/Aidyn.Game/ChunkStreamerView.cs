@@ -126,16 +126,13 @@ public partial class ChunkStreamerView : Node3D
     }
 
     /// <summary>
-    /// Puts out what goes out once reached, Oriana's path lights, as the core decides from this view
-    /// (<see cref="ChunkStreamer.PutOut"/>), and takes them out of the scenery.
+    /// Takes a scene object trek put out out of the scenery, one of Oriana's path lights (<see cref="ITrekHost.PutOut"/>),
+    /// leaving the rest of its chunk as it is.
     /// </summary>
-    public void PutOut(in SceneView view)
+    public void PutOut(LoadedMap map, SceneObject o)
     {
-        foreach (var (map, o) in Chunks.PutOut(view))
-        {
-            if (_loaded.TryGetValue(map, out var scenery))
-                scenery.Remove(o.Index);
-        }
+        if (_loaded.TryGetValue(map, out var scenery))
+            scenery.Remove(o.Index);
     }
 
     /// <summary>

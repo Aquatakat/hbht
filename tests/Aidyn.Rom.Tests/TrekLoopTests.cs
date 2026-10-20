@@ -62,6 +62,10 @@ public sealed class TrekLoopTests(Na10Import fixture)
         {
         }
 
+        /// <summary>What trek put out, in order.</summary>
+        public List<(LoadedMap Map, SceneObject Scene)> PutOut { get; } = [];
+
+        void ITrekHost.PutOut(LoadedMap map, SceneObject scene) => PutOut.Add((map, scene));
 
         void ITrekHost.Log(string text)
         {
@@ -73,9 +77,11 @@ public sealed class TrekLoopTests(Na10Import fixture)
     }
 
     /// <summary>Trek as a new game starts it, with the player on the ground at a chunk's point.</summary>
-    private (TrekLoop Trek, Host Host) Start(string chunkName = "I08", float x = 16, float z = 62, int mapSet = 0, ParticleHead? particles = null)
+    private (TrekLoop Trek, Host Host) Start(string chunkName = "I08", float x = 16, float z = 62, int mapSet = 0, ParticleHead? particles = null,
+        Action<GameState>? prepare = null)
     {
         var game = GameState.NewGame(Data.Set);
+        prepare?.Invoke(game);
         var host = new Host();
         var streamer = new ChunkStreamer(Data.Set, game, new CollisionWorld(), Data.Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, mapSet)),
             new VisibleWorld());
@@ -134,6 +140,83 @@ public sealed class TrekLoopTests(Na10Import fixture)
         }
         Assert.False(weather.Emitting || weather.RainLoop);
         Assert.Equal(0, particles.EmittersInUse);
+    }
+
+    /// <summary>
+    /// I08's path light 90, lit once Oriana's conversation sets flag 50. Walking north at 104 instead treads on a trigger
+    /// that cues a cut-scene.
+    /// </summary>
+    private SceneObject PathLight => Assert.IsType<SceneObject>(Data.Map("aidyn:map/0x0FDB").Objects.Single(o => o.Index == 90));
+
+    /// <summary>Trek in I08 with the path lights lit and the player <paramref name="south"/> south of light 90, facing it.</summary>
+    private (TrekLoop Trek, Host Host, LoadedMap Map) StartByPathLight(float south)
+    {
+        var light = PathLight;
+        var (trek, host) = Start("I08", light.Position.X, light.Position.Z + south, prepare: game => game.Flags.Set(Flag(50), true));
+        var map = trek.Chunks.MapAt(trek.Player.Sphere.Position)!;
+        Assert.Equal(RecordId.Hex(RecordTypes.Map, 0x0FDB), map.Record.Id);
+        Assert.True(map.IsActive(light.Index));
+        return (trek, host, map);
+    }
+
+    [Fact]
+    public void APathLightGoesOutInTreksTickAsThePlayerWalksUpToItOnTheSameTickEveryTime()
+    {
+        var light = PathLight;
+        (int Tick, Vector3 At) Walk()
+        {
+            var (trek, host, map) = StartByPathLight(8);
+            trek.PlayerAnimation = new SteadyMotion(0.1f);
+            var at = map.Origin + light.Position;
+            // The first tick tells of the new journal entry, which holds the player still till it's closed. A frame passes.
+            trek.Tick(Still);
+            trek.Use.Accept();
+            trek.Tick(Still);
+            Assert.Null(trek.Use.Popup);
+            for (var tick = 0; tick < 600; tick++)
+            {
+                Assert.Equal(TrekStep.Ran, trek.Tick(() => new PlayerInput(new Vector2(0, 1))));
+                if (host.PutOut.Count == 0)
+                    continue;
+                // Within 3 of it, on a tick that ends a frame, and remembered under the player's chunk for 16 map loads.
+                var (outMap, scene) = Assert.Single(host.PutOut);
+                Assert.Same(map, outMap);
+                Assert.Equal(light.Index, scene.Index);
+                Assert.False(map.IsActive(light.Index));
+                Assert.InRange(Vector3.Distance(trek.Player.Sphere.Position, at), 2, 3);
+                Assert.Equal(0, (tick + 1) % Cadence.FrameTicks);
+                var memory = Assert.Single(trek.Game.Memory.Entries, e => e.Key.Kind == MemoryKind.PutOut);
+                Assert.Equal((MapRecord.VoxelId(map.Record.Id, light.Index), MapObjectMemory.PutOutLoads), (memory.Key.MapObject, memory.Lifetime));
+
+                // Walking on past it doesn't bring it back.
+                var position = trek.Player.Sphere.Position;
+                for (var i = 0; i < 60; i++)
+                    trek.Tick(() => new PlayerInput(new Vector2(0, 1)));
+                Assert.False(map.IsActive(light.Index));
+                Assert.Single(host.PutOut);
+                return (tick, position);
+            }
+            Assert.Fail($"The light never went out: the player got to {trek.Player.Sphere.Position}, the light's at {at}.");
+            return default;
+        }
+
+        // Nothing the runtime draws at goes into it: the same steps put it out on the same tick, at the same place.
+        Assert.Equal(Walk(), Walk());
+    }
+
+    [Fact]
+    public void APathLightStaysLitWhileTheFreeCameraFlies()
+    {
+        var (trek, host, map) = StartByPathLight(2);
+        for (var i = 0; i < 10; i++)
+            Assert.Equal(TrekStep.Frozen, trek.Tick(Still, frozen: true));
+        Assert.Empty(host.PutOut);
+        Assert.True(map.IsActive(PathLight.Index));
+
+        // The frame it lands, within 3 of it and looking at it, it goes out.
+        for (var i = 0; i < Cadence.FrameTicks; i++)
+            trek.Tick(Still);
+        Assert.Equal(PathLight.Index, Assert.Single(host.PutOut).Scene.Index);
     }
 
     /// <summary>How many chunks the map set has in the 3×3 around one: fewer at its edges.</summary>
