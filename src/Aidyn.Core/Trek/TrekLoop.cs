@@ -625,6 +625,9 @@ public sealed class TrekLoop : IMapObjectHost
         var setup = CuedBattle ?? throw new InvalidOperationException("No battle is cued.");
         CuedBattle = null;
         Free();
+        // TrekLoop.Free (0x800211A4) frees the zone engine with FreeZoneEngine(0) for a battle, which cuts the music (Bgm.Stop(1)):
+        // the arena's starts once its fade in has ended, with silence till then.
+        Zone.Audio.StopMusic();
         return setup;
     }
 

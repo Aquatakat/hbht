@@ -165,6 +165,21 @@ public sealed class GameAudio
         }
     }
 
+    /// <summary>
+    /// Cuts the music at once and asks for none (<c>Bgm.Stop(1)</c>, 1.0 <c>0x8000E4C4</c>, from <c>FreeZoneEngine(0)</c> as trek or a
+    /// battle's arena goes): no fade, and the sounds play on. The next piece asked for starts from its beginning.
+    /// </summary>
+    public void StopMusic()
+    {
+        lock (_sync)
+        {
+            Engine.Stop(_music);
+            _music = default;
+            _musicPlaying = null;
+            Music = null;
+        }
+    }
+
     /// <summary>Stops everything: the music and every sound.</summary>
     public void StopAll()
     {

@@ -366,8 +366,12 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         if (rats.Used?.Flag is { } flag)
             Assert.True(session.Game.Flags.IsSet(flag));
 
-        // Its arena goes and the post-battle windows open over the held world; trek comes back where it began once they close.
+        // Its arena goes, cutting the battle's music (Combat.Exit's Bgm.Stop), and the post-battle windows open over the held world, silent
+        // but for their own sounds; trek comes back where it began once they close, asking for its music again.
+        var audio = session.Arena!.Audio;
+        Assert.NotNull(audio.Music);
         session.EndBattle();
+        Assert.Null(audio.Music);
         Assert.Equal([typeof(Transition.EndBattle), typeof(Transition.PostBattle)], host.Transitions.Select(t => t.GetType()));
         Assert.Same(spoils, session.PostBattle);
         Assert.Equal((GameMode.Menu, false), (session.Mode, session.TrekRuns));

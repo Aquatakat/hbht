@@ -414,7 +414,7 @@ public sealed class GameSession
     }
 
     /// <summary>
-    /// The battle is over (<c>Combat.Exit</c>, <c>0x80023060</c>): its arena goes, what it put on the party comes off and the dead
+    /// The battle is over (<c>Combat.Exit</c>, <c>0x80023060</c>): its music is cut, its arena goes, what it put on the party comes off and the dead
     /// leave it (<see cref="Combat.Battle.Leave"/>), and a battle with an end of its own moves where trek starts again
     /// (<see cref="EncounterEnd"/>). Then as it ended: won, the post-battle windows (<see cref="Transition.PostBattle"/>), trek
     /// coming back once they close; lost, the game over (<see cref="PlayGameOver"/>); merged with the Shadow, its cinematic, after which
@@ -425,7 +425,10 @@ public sealed class GameSession
     {
         var battle = Battle ?? throw new InvalidOperationException("No battle is playing.");
         Battle = null;
-        Arena!.End();
+        // Combat.Exit (0x80023060) frees the arena with FreeZoneEngine(0), which cuts the battle's music (Bgm.Stop(1)) whatever the
+        // outcome: the post-battle windows are silent but for their own sounds, and trek's music starts over as it fades in.
+        Arena!.Audio.StopMusic();
+        Arena.End();
         Arena = null;
         _host.Transition(new Transition.EndBattle(battle));
         battle.Leave();
