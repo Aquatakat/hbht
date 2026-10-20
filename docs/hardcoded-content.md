@@ -254,6 +254,17 @@ The map chunk lists are read from the ROM (`MapChunks`). The rest of the Borgs e
 
 **Debug only:** the boulder that replaces scene models, and the debug menu's models.
 
+## Still in code (audit, Oct 20, 2026)
+
+An audit of the core and runtime for content literals the sections above don't cover found these. Each names the ADR 0008 layer it belongs in; none is carried yet. The rest of what it found is engine vocabulary (the animation request numbers, 5 hit, 7 dodge, 8 death and so on, which every actor's state machine shares), text-line indices, and the menus' 320 × 240 layouts and colours, which are the UI's own (layer 3) and stay in code.
+
+- **The backdrop pictures' styles** (`BackdropPage.For`): a script's picture number 1–4 and 9–12 picks a Borg8 (`0x3602`–`0x3608`) and the page's text, pulse and shadow colours. Layer 1, a record per picture.
+- **The protagonist's entity as a code constant** (`GameState.Alaron`, `aidyn:entity/0x023F`), read in about ten places: the leader fallback, the rename and save-name menus, the shadow's player test in the combatant and cut-scene views, the conversation's speaker and trek's sounds. The new game record already carries the leader (`NewGameRecord.Leader`); each use should ask the party's leader or that record. Layer 1.
+- **A chest byte's loot table** (`Battle.Rewards.ChestOf`): loot record `0x7FF` + the entity's chest byte. The importer could write each entity's chest as the loot record's ID instead. Layer 1.
+- **The skill checks' numbers** (`Party.SkillCheck`, `Crafting`): Diplomat's pool of 10 and 50 with a second roll under 3 giving 2, Loremaster's 6, Mechanic's (skill × 5 + Int + Dex) × 2 and the lock's `max(5 − mechanic, 1)`, Healer's Int × 3 + skill × 10, Ranger's d100 against skill × 10 + 80. Rules (layer 3); the numbers could sit on the skill records.
+- **Every dialogue entity's perception is 10** (`Wanderers.DialoguePerception`, `EntityDB::GetPerception`). A user or rig check: if the original reads it per entity, it's a record field (layer 1).
+- **The combat menu's action icons** (`CombatMenu`: HUD sprites `0x0185` Healer, `0x018C` Perform, `0x35E5` the potion) and the pause menu's scroll actor in the runtime (`PauseScrollView`, `aidyn:actor/0x0E6B`). UI chrome, as the [assets](#assets-engine-code-names) section's last paragraph lists the rest; they belong in the same list.
+
 ## Findings
 
 - **Code tables refer to entities by list position, not ID.** A 221-byte `entityList` in the code maps each position to an entity. The party tables use these positions, and so does the boss switch, which is a jump table over positions 168–186.
@@ -273,4 +284,4 @@ The map chunk lists are read from the ROM (`MapChunks`). The rest of the Borgs e
 ## Still open
 
 - Which Barrows minimap piece each of its flags changes (`MiniMap::BarrowsFlags`).
-- Nothing is marked To do now: every content table and switch found is read or carried.
+- Nothing is marked To do: every content table and switch found is read or carried. What the audit found still in code is [its own section](#still-in-code-audit-oct-20-2026).

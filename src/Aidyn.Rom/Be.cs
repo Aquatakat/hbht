@@ -4,7 +4,8 @@ namespace Aidyn.Rom;
 
 /// <summary>
 /// Reads the ROM's big-endian fields: a word at an offset, a whole table of them, a list up to its
-/// terminator, and a bounds-checked view of a Borg's bytes. Every reader of the ROM's data uses these.
+/// terminator, and a bounds-checked view of a Borg's bytes. The DB's records read through <see cref="Db.RecordReader"/>, and
+/// the Borg decoders mostly call <see cref="System.Buffers.Binary.BinaryPrimitives"/> themselves; this is the shared shorthand.
 /// </summary>
 internal static class Be
 {

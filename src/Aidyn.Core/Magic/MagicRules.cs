@@ -54,9 +54,9 @@ public sealed class MagicRules
     /// <summary>The rules from the loaded plugins, or null if none has the magic record.</summary>
     public static MagicRules? From(PluginSet plugins)
     {
-        if (plugins.TryGet<MagicRecord>(RecordId.Decimal(RecordTypes.Magic, 0)) is not { } record)
+        if (plugins.TrySingleton<MagicRecord>(RecordTypes.Magic) is not { } record)
             return null;
         return new MagicRules(record, plugins.All<SpellRecord>(RecordTypes.Spell), plugins.All<ItemRecord>(RecordTypes.Item),
-            plugins.TryGet<InventoryRecord>(RecordId.Decimal(RecordTypes.Inventory, 0)));
+            plugins.TrySingleton<InventoryRecord>(RecordTypes.Inventory));
     }
 }
