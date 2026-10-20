@@ -171,9 +171,6 @@ public partial class PartyTabView : Control
     /// <summary>How opaque the window's own parts and lists are, from 0 to 1, as the post-battle windows fade (<see cref="_windowLayer"/>).</summary>
     public float WindowAlpha { get; set; } = 1;
 
-    /// <summary>Whether combat opened the menu, which turns the arrow under the knotwork to point left only.</summary>
-    public bool InCombat { get; set; }
-
     /// <summary>
     /// How far the widgets are faded into the parchment, from 0 to 1: the pause menu fades a tab
     /// beside the one showing, whose edge shows on a screen wider than the frame.
@@ -390,7 +387,8 @@ public partial class PartyTabView : Control
         Portraits(PortraitPiece.Position);
         Health(HealthPiece.Position, _ui.Main);
         Silhouette(SilhouettePiece.Position);
-        _ui.Image(_canvas, InCombat ? MenuImages.SliderLeft : MenuImages.SliderBoth, SliderAt.X, SliderAt.Y, color: PartyMenu.TextColor);
+        // Combat's pause turns the arrow under the knotwork to point left only.
+        _ui.Image(_canvas, Menu.Combat is not null ? MenuImages.SliderLeft : MenuImages.SliderBoth, SliderAt.X, SliderAt.Y, color: PartyMenu.TextColor);
     }
 
     /// <summary>

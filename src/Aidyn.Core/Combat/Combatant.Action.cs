@@ -156,6 +156,9 @@ public sealed partial class Combatant
     /// </summary>
     public int Fading { get; internal set; }
 
+    /// <summary>How opaque the body is drawn, 1 until it's freed, then fading out over <see cref="Battle.FadeTicks"/>.</summary>
+    public float Opacity => Freed ? (float)Fading / Battle.FadeTicks : 1;
+
     /// <summary>
     /// Whether its body has played its fall to the end and holds its last frame (the body's <c>+0x77C</c>): its animation no
     /// longer steps.

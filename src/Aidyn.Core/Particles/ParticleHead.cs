@@ -613,16 +613,7 @@ public sealed class ParticleHead
     }
 
     /// <summary>A number between two, in either order, or the first with no draw if they're equal (<c>ParticleHead.FloatRange</c>, <c>0x80093470</c>).</summary>
-    public float FloatRange(float a, float b) => FloatRange(Random, a, b);
-
-    /// <inheritdoc cref="FloatRange(float, float)"/>
-    public static float FloatRange(IRandom random, float a, float b)
-    {
-        if (a == b)
-            return a;
-        var (low, high) = a <= b ? (a, b) : (b, a);
-        return random.Float(1) * (high - low) + low;
-    }
+    public float FloatRange(float a, float b) => Random.Between(a, b);
 
     /// <summary>
     /// A level vector <paramref name="length"/> long in a random direction, as X and Z (<c>ParticleHead.Direction2</c>,
@@ -631,8 +622,8 @@ public sealed class ParticleHead
     /// </summary>
     public static Vector2 Direction2(IRandom random, float length)
     {
-        var x = FloatRange(random, -1, 1);
-        var z = FloatRange(random, -1, 1);
+        var x = random.Between(-1, 1);
+        var z = random.Between(-1, 1);
         if (x == 0)
             x = 1e-6f;
         var v = new Vector2(x, z);

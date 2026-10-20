@@ -522,7 +522,7 @@ public sealed class GameState : IScriptWorld
         return true;
     }
 
-    void IScriptWorld.CampHeal() => Party.CampHeal(1f, Camping.EffectTicks);
+    void IScriptWorld.CampHeal() => Party.CampHeal(1f, Camping.EffectTicks, Random.Combat);
 
     bool IScriptWorld.TryRecall(Memory memory, out int value) => Memory.TryRecall(memory, out value);
 

@@ -29,7 +29,6 @@ public sealed partial class GameSessionTests(Na10Import fixture)
     private sealed class Host : ITrekHost
     {
         public List<Transition> Transitions { get; } = [];
-        public List<string> Said { get; } = [];
         public List<string> Warnings { get; } = [];
 
         void ITransitionHost.Transition(Transition next) => Transitions.Add(next);
@@ -60,7 +59,6 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         {
         }
 
-        void ITrekHost.Say(string text) => Said.Add(text);
 
         void ITrekHost.Log(string text)
         {

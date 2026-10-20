@@ -204,7 +204,7 @@ public sealed class Weather
                 Kind = WeatherKind.Precipitation;
                 Precipitation = terrain?.Snow == true ? Precipitation.Snow : Precipitation.Rain;
                 var scale = terrain?.PrecipitationScale ?? 0;
-                Intensity = MathF.Max(FloatRange(random, scale - _rules.IntensitySpread, scale + _rules.IntensitySpread), 0);
+                Intensity = MathF.Max(random.Between(scale - _rules.IntensitySpread, scale + _rules.IntensitySpread), 0);
                 fog = _rules.FallFog;
             }
             else
@@ -212,7 +212,7 @@ public sealed class Weather
                 Kind = WeatherKind.Fog;
                 fog = _rules.Fog;
             }
-            Fog = FloatRange(random, fog.Min, fog.Max);
+            Fog = random.Between(fog.Min, fog.Max);
         }
         Storm = Precipitation == Precipitation.Rain ? random.Float(1) * Intensity : 0;
     }
@@ -266,14 +266,14 @@ public sealed class Weather
         if (random.Float(1) <= _rules.WindChance)
         {
             direction += new Vector3(
-                FloatRange(random, -_rules.WindTurn, _rules.WindTurn),
-                FloatRange(random, _rules.WindRise.Min, _rules.WindRise.Max),
-                FloatRange(random, -_rules.WindTurn, _rules.WindTurn));
+                random.Between(-_rules.WindTurn, _rules.WindTurn),
+                random.Between(_rules.WindRise.Min, _rules.WindRise.Max),
+                random.Between(-_rules.WindTurn, _rules.WindTurn));
             direction = Normalise(direction);
         }
         if (random.Float(1) <= _rules.WindChance)
         {
-            var gusted = speed + FloatRange(random, -_rules.WindGust, _rules.WindGust);
+            var gusted = speed + random.Between(-_rules.WindGust, _rules.WindGust);
             speed = gusted > _rules.WindMaxSpeed ? _rules.WindMaxSpeed : gusted < 0 ? 0 : gusted;
         }
         Wind = direction * speed;
@@ -420,15 +420,6 @@ public sealed class Weather
         Falling = Precipitation;
         FallIntensity = Intensity;
         FogTime = Fog;
-    }
-
-    /// <summary>A float from <paramref name="a"/> to <paramref name="b"/> (<c>0x80093470</c>): equal bounds draw nothing.</summary>
-    private static float FloatRange(IRandom random, float a, float b)
-    {
-        if (a == b)
-            return a;
-        var (low, high) = a <= b ? (a, b) : (b, a);
-        return random.Float(1) * (high - low) + low;
     }
 
     private static Vector3 Normalise(Vector3 v) => v.Length() is var length and > 0 ? v / length : v;

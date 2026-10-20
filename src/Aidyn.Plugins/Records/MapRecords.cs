@@ -28,6 +28,9 @@ public sealed record MapSetRecord(
 {
     /// <summary>Where a chunk's own coordinates start: rows run along X and columns along Z.</summary>
     public Vector3 Origin(int row, int column) => new Vector3(row, 0, column) * CellSize;
+
+    /// <summary>The chunk at a row and column, or null where the set has none.</summary>
+    public ChunkEntry? Chunk(int row, int column) => Chunks.FirstOrDefault(c => c.Row == row && c.Column == column);
 }
 
 /// <summary>

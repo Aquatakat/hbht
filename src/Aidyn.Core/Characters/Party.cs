@@ -121,12 +121,12 @@ public sealed partial class Party
     /// battery in the inventory refills by the same fraction (<c>multi_equip_StamMod</c>); the decomp's loop skips
     /// the last stack, but the machine code's doesn't. Camping heals by half, and a script's camp heal fully.
     /// </summary>
-    public void CampHeal(float fraction, int effectTicks)
+    public void CampHeal(float fraction, int effectTicks, IRandom random)
     {
         foreach (var member in Members.Where(m => !m.IsDead))
         {
             member.CampHeal(fraction);
-            member.AgeEffects(effectTicks);
+            member.AgeEffects(effectTicks, random: random);
         }
         foreach (var stack in Inventory.Stacks)
             Items.Equipment.Recharge(stack.Instance, fraction);

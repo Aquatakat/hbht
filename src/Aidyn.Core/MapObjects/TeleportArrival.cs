@@ -21,7 +21,7 @@ public sealed record TeleportArrival(MapSetRecord Set, ChunkEntry Chunk, Vector3
     {
         var destination = teleporter.Destination;
         if (plugins.TryGet<MapSetRecord>(destination.MapSet) is not { } set
-            || set.Chunks.FirstOrDefault(c => c.Row == destination.Row && c.Column == destination.Column) is not { } chunk)
+            || set.Chunk(destination.Row, destination.Column) is not { } chunk)
             return null;
         var arrival = teleporter.Arrival is { } id ? Point(plugins, id) : null;
         Vector2? heading = null;

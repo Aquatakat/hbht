@@ -151,7 +151,16 @@ public sealed class GameSession
     public bool CreditsRolling => _credits is not null;
 
     /// <summary>The installed plugins' triggers, which the session fires its events on (roadmap 2.10).</summary>
-    public Triggers Triggers => _triggers ??= new Triggers(Game.Plugins);
+    public Triggers Triggers => _triggers ??= LoadTriggers();
+
+    /// <summary>Loads the triggers, and notes what's wrong with them for whoever's watching the log, as the game's own problems are noted.</summary>
+    private Triggers LoadTriggers()
+    {
+        var triggers = new Triggers(Game.Plugins);
+        foreach (var problem in triggers.Problems)
+            _host.Warn(problem);
+        return triggers;
+    }
 
     /// <summary>The cinematic playing.</summary>
     public CinematicRecord? Cinematic => _cinematic?.Record;
@@ -646,7 +655,7 @@ public sealed class GameSession
     public static (MapSetRecord Set, string Chunk, Vector3 At) Arrival(PluginSet plugins, NewGameRecord start)
     {
         var set = plugins.Get<MapSetRecord>(start.Chunk.MapSet);
-        var chunk = set.Chunks.FirstOrDefault(c => c.Row == start.Chunk.Row && c.Column == start.Chunk.Column)
+        var chunk = set.Chunk(start.Chunk.Row, start.Chunk.Column)
             ?? throw new InvalidDataException($"{set.Label} has no chunk at row {start.Chunk.Row}, column {start.Chunk.Column}.");
         return (set, chunk.Name, new Vector3(start.Position.X, start.Height, start.Position.Y));
     }

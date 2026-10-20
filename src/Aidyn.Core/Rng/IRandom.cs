@@ -33,6 +33,18 @@ public static class RandomExtensions
     /// A number from <paramref name="a"/> to <paramref name="b"/> inclusive, in either order
     /// (<c>Random::Range</c>). Equal bounds draw nothing.
     /// </summary>
+    /// <summary>
+    /// A float between two, in either order, or the first with no draw if they're equal (<c>FloatRange</c>, <c>0x80093470</c>):
+    /// what the weather and the particles draw their spreads with.
+    /// </summary>
+    public static float Between(this IRandom random, float a, float b)
+    {
+        if (a == b)
+            return a;
+        var (low, high) = a <= b ? (a, b) : (b, a);
+        return random.Float(1) * (high - low) + low;
+    }
+
     public static int Range(this IRandom random, int a, int b)
     {
         if (a == b)

@@ -35,7 +35,7 @@ public sealed record CutSceneStage(MapSetRecord Set, ChunkEntry Chunk, MapRecord
     public static CutSceneStage? For(PluginSet plugins, ChunkRef chunk, CollisionWorld world)
     {
         if (plugins.TryGet<MapSetRecord>(chunk.MapSet) is not { } set
-            || set.Chunks.FirstOrDefault(c => c.Row == chunk.Row && c.Column == chunk.Column) is not { } entry
+            || set.Chunk(chunk.Row, chunk.Column) is not { } entry
             || plugins.TryGet<MapRecord>(entry.Map) is not { } map)
             return null;
         return new CutSceneStage(set, entry, map, world);

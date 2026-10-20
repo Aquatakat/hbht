@@ -376,7 +376,7 @@ public sealed partial class Battle
     /// <summary>The combat strings' "%s begins action" (offset 0).</summary>
     public const int BeginsAction = 0x00;
 
-    /// <summary>An entity with no body: the original's defaults for one, a radius of 0.55 and Alaron's actor.</summary>
+    /// <summary>An entity with no body: the original's defaults for one, a radius of 0.55 and the bat's actor (<c>EntityDB::GetBorg7</c>, as [actors](../../../docs/formats/actors.md) records).</summary>
     private static readonly EntityBody NoBody = new(RecordId.Hex(RecordTypes.Actor, 0x2D4A), 0.55f, 1, 1);
 
     /// <summary>A line of the combat strings (String/Combat), by its byte offset in the original's table, a line every 4.</summary>

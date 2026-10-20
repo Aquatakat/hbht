@@ -564,8 +564,6 @@ public partial class Game : Node3D, ITrekHost
 
     IRootMotion ITrekHost.Motion(Wanderer wanderer) => _chunks!.View(wanderer)?.Motion ?? Core.Actors.IActorMotion.Still;
 
-    void ITrekHost.Say(string text) => Say(text);
-
     void ITrekHost.Log(string text) => GD.Print(text);
 
     void ITrekHost.Warn(string text) => GD.PushWarning(text);
@@ -602,12 +600,12 @@ public partial class Game : Node3D, ITrekHost
             flat = flat.LengthSquared() < 1e-6f ? default : System.Numerics.Vector2.Normalize(flat);
             return new SceneView(transform.Origin.ToNumerics(), new(transform.Origin.X, transform.Origin.Z), flat, 0, cone);
         }
-        // In a cut-scene there's no player: levels of detail go by the camera's aim.
-        var follow = Scene?.Camera ?? _follow!;
+        // In a cut-scene or a battle there's no player: levels of detail go by the camera's aim.
+        var follow = Scene?.Camera ?? Battle?.Camera ?? _follow!;
         var camera = new System.Numerics.Vector2(follow.Position.X, follow.Position.Z);
         var toAim = new System.Numerics.Vector2(follow.Aim.X, follow.Aim.Z) - camera;
         var distance = toAim.Length();
-        var from = Scene is not null ? follow.Aim : _player!.Motion.Sphere.Position;
+        var from = Scene is not null || Battle is not null ? follow.Aim : _player!.Motion.Sphere.Position;
         return new SceneView(from, camera, distance > 0 ? toAim / distance : default, distance, cone);
     }
 

@@ -25,7 +25,7 @@ public static class CheckpointSave
         problems ??= [];
         var place = checkpoint.Place;
         var mapSet = RecordId.Decimal(RecordTypes.MapSet, place.MapSet);
-        var chunk = plugins.TryGet<MapSetRecord>(mapSet)?.Chunks.FirstOrDefault(c => c.Row == place.Row && c.Column == place.Column);
+        var chunk = plugins.TryGet<MapSetRecord>(mapSet)?.Chunk(place.Row, place.Column);
         if (chunk is null)
             problems.Add($"{mapSet} has no chunk {place.Row},{place.Column}, where the player is.");
 
@@ -105,7 +105,7 @@ public static class CheckpointSave
     {
         var mapSet = RecordId.Decimal(RecordTypes.MapSet, memory.MapSet);
         var where = $"{mapSet} chunk {memory.Row},{memory.Column} object {memory.Index}";
-        var chunk = plugins.TryGet<MapSetRecord>(mapSet)?.Chunks.FirstOrDefault(c => c.Row == memory.Row && c.Column == memory.Column);
+        var chunk = plugins.TryGet<MapSetRecord>(mapSet)?.Chunk(memory.Row, memory.Column);
         if (chunk is null)
         {
             problems.Add($"{where} remembers something, but the map set has no such chunk.");

@@ -43,9 +43,6 @@ public interface ITrekHost : IScriptHost, ITransitionHost
     /// <inheritdoc cref="IMapObjectHost.Changed"/>
     void Changed(LoadedMap map, SceneObject scene);
 
-    /// <summary>Tells the player something the port can't do yet, such as a dialogue object's script it can't start.</summary>
-    void Say(string text);
-
     /// <summary>Notes something for whoever's watching the log.</summary>
     void Log(string text);
 
@@ -389,7 +386,7 @@ public sealed class TrekLoop : IMapObjectHost
     {
         if (TeleportArrival.For(Game.Plugins, teleporter) is not { } arrival)
         {
-            _host.Say($"{teleporter.Name} leads to a chunk no plugin has.");
+            _host.Transition(new Transition.Say($"{teleporter.Name} leads to a chunk no plugin has."));
             return;
         }
         Game.Memory.Age();
@@ -504,9 +501,9 @@ public sealed class TrekLoop : IMapObjectHost
     public void Keep(ChunkRef place, Vector3 position, Vector2 heading)
     {
         if (Game.Plugins.TryGet<MapSetRecord>(place.MapSet) is not { } set
-            || set.Chunks.FirstOrDefault(c => c.Row == place.Row && c.Column == place.Column) is not { } chunk)
+            || set.Chunk(place.Row, place.Column) is not { } chunk)
         {
-            _host.Say($"{place.MapSet} has no chunk at row {place.Row}, column {place.Column}.");
+            _host.Transition(new Transition.Say($"{place.MapSet} has no chunk at row {place.Row}, column {place.Column}."));
             return;
         }
         if (set.Id != Chunks.MapSet.Id)
@@ -532,7 +529,7 @@ public sealed class TrekLoop : IMapObjectHost
     public void Resume(bool fled = false)
     {
         if (fled && Standing is { } start && Breadcrumbs.Find(start, farthest: true) is { } crumb
-            && Chunks.MapSet.Chunks.FirstOrDefault(c => c.Row == crumb.Row && c.Column == crumb.Column) is { } chunk)
+            && Chunks.MapSet.Chunk(crumb.Row, crumb.Column) is { } chunk)
         {
             Player.Sphere.Position = Chunks.Origin(chunk) + crumb.Local;
             Player.Heading = crumb.Heading;
@@ -570,7 +567,7 @@ public sealed class TrekLoop : IMapObjectHost
             CueBattle(BattleSetup.CampAmbush(place, terrainIndex, Game.Plugins, Game.Party));
             return CampOutcome.Ambushed;
         }
-        Game.Party.CampHeal(rules.Heal, rules.EffectTicks);
+        Game.Party.CampHeal(rules.Heal, rules.EffectTicks, Game.Random.Combat);
 
         Game.Flags.TrySet(rules.Checking, true);
         var map = Chunks.MapAt(at);
@@ -587,7 +584,7 @@ public sealed class TrekLoop : IMapObjectHost
         if (scene is not null && Game.Plugins.TryGet<DialogueRecord>(scene.Script) is { Mode: DialogueMode.Cutscene } script && scene.Stage is { } stage)
             Cue(script, new ScriptStart(scene.RefPointBase, source), stage);
         else
-            _host.Say("The party camps, but there's no camp scene to show; eight hours would pass.");
+            _host.Transition(new Transition.Say("The party camps, but there's no camp scene to show; eight hours would pass."));
         return CampOutcome.Camped;
     }
 
@@ -740,7 +737,7 @@ public sealed class TrekLoop : IMapObjectHost
         if (_lastScript == dialogue.Script)
             return;
         _lastScript = dialogue.Script;
-        _host.Say($"{dialogue.Name} would start {dialogue.Script}.");
+        _host.Transition(new Transition.Say($"{dialogue.Name} would start {dialogue.Script}."));
     }
 
     /// <summary>

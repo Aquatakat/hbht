@@ -192,7 +192,7 @@ public sealed class WorldMenu
     }
 
     private static TerrainRecord? TerrainOf(PluginSet plugins, ChunkRef at) =>
-        plugins.TryGet<MapSetRecord>(at.MapSet)?.Chunks.FirstOrDefault(c => c.Row == at.Row && c.Column == at.Column) is { } chunk
+        plugins.TryGet<MapSetRecord>(at.MapSet)?.Chunk(at.Row, at.Column) is { } chunk
             ? TerrainRecord.Find(plugins, chunk.Terrain)
             : null;
 }

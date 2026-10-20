@@ -26,14 +26,14 @@ public partial class TrainingWindowPanel : MenuWindowPanel
         AddButton("◀ ▶", "The stick left or right: skills or spells.", _training.Switch);
         AddButton("▲", "The stick up.", () => _training.MoveCursor(-1));
         AddButton("▼", "The stick down.", () => _training.MoveCursor(1));
-        AddButton("C-left", "The member before.", () => _training.ChangeMember(-1));
-        AddButton("C-right", "The next member.", () => _training.ChangeMember(1));
+        AddButton("C-left", "The next member.", () => _training.ChangeMember(1));
+        AddButton("C-right", "The member before.", () => _training.ChangeMember(-1));
         AddButton("A", "Ask to train the trainer's row, choose Yes or No, or close a message.", _training.Accept);
         AddButton("B", "Close a message, or leave.", Back);
         AddDetails("Show what C-down shows for the trainer's row, as it does while held.", closesMessage: true);
         Presses(("a", _training.Accept), ("b", Back), ("up", () => _training.MoveCursor(-1)), ("down", () => _training.MoveCursor(1)),
-            ("left", _training.Switch), ("right", _training.Switch), ("cleft", () => _training.ChangeMember(-1)),
-            ("cright", () => _training.ChangeMember(1)), ("details", ToggleDetails));
+            ("left", _training.Switch), ("right", _training.Switch), ("cleft", () => _training.ChangeMember(1)),
+            ("cright", () => _training.ChangeMember(-1)), ("details", ToggleDetails));
         Finish("with room, the trainer's list goes right of the member's.", closes: true);
     }
 

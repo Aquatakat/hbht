@@ -376,7 +376,7 @@ public sealed class WeatherParticles : IPrecipitationEmitters
             var id = head.AllocParticle(Drops, Life);
             ref var p = ref head[id];
             p.Scale = new Vector2(DropScale, DropScale);
-            var reach = ParticleHead.FloatRange(_owner._random, NearestSpawn, Spread);
+            var reach = _owner._random.Between(NearestSpawn, Spread);
             var d = ParticleHead.Direction2(_owner._random, reach);
             var aim = _owner._aim();
             p.Position = new Vector3(aim.X + Offset.X + d.X, aim.Y + Offset.Y, aim.Z + Offset.Z + d.Y);
@@ -445,7 +445,7 @@ public sealed class WeatherParticles : IPrecipitationEmitters
         private void SpawnSplash()
         {
             var head = Head;
-            var reach = ParticleHead.FloatRange(_owner._random, NearestSpawn, Spread * AmbientShare);
+            var reach = _owner._random.Between(NearestSpawn, Spread * AmbientShare);
             var d = ParticleHead.Direction2(_owner._random, reach);
             var aim = _owner._aim();
             var x = aim.X + Offset.X + d.X;

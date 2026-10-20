@@ -66,8 +66,7 @@ public partial class CombatantView : BodyView
     /// </summary>
     public void Draw(Core.Physics.CollisionWorld world, System.Numerics.Vector3 aim)
     {
-        var opacity = Combatant.Freed ? (float)Combatant.Fading / Battle.FadeTicks : 1;
-        var (_, fromAim) = Fade(aim, distance: BodyShadow.CombatDistance, opacity: opacity);
+        var (_, fromAim) = Fade(aim, distance: BodyShadow.CombatDistance, opacity: Combatant.Opacity);
         PlaceShadow(world, BodyShadow.DrawAlpha(BodyShadow.CombatDistance, fromAim, player: Combatant.Entity == Core.GameState.Alaron));
     }
 }

@@ -33,7 +33,6 @@ public sealed class TrekLoopTests(Na10Import fixture)
         public List<ChunkEntry?> Entered { get; } = [];
         public int Arrivals { get; set; }
         public int ConversationChanges { get; set; }
-        public List<string> Said { get; } = [];
 
         void ITrekHost.Entered(ChunkEntry? chunk) => Entered.Add(chunk);
 
@@ -63,7 +62,6 @@ public sealed class TrekLoopTests(Na10Import fixture)
         {
         }
 
-        void ITrekHost.Say(string text) => Said.Add(text);
 
         void ITrekHost.Log(string text)
         {
