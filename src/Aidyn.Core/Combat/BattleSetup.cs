@@ -67,9 +67,6 @@ public sealed record BattleSetup(
     /// <summary>A monster party's least and most enemies (<see cref="MonsterPartyObject.MinSize"/>, <see cref="MonsterPartyObject.MaxSize"/>).</summary>
     public (int Min, int Max) Size { get; init; } = (0, Battle.MaxEnemies);
 
-    /// <summary>The entity a monster party's battle fights when its roll comes to none: a Skeleton (<c>EntityList[0xBB]</c>).</summary>
-    public static readonly RecordId Fallback = RecordId.Hex(RecordTypes.Entity, 0x0263);
-
     /// <summary>The share of each kind the level trim drops, by the party's level over the enemies' in thirds (<c>0x800CD470</c>).</summary>
     private static readonly float[] LevelTrim = [0.3f, 0.2f, 0.1f, 0f];
 
@@ -141,8 +138,9 @@ public sealed record BattleSetup(
     /// </summary>
     /// <param name="party">The party, whose level the roll trims by.</param>
     /// <param name="level">An entity's level, by its record.</param>
-    public IReadOnlyList<RecordId> EnemyList(Characters.Party party, Func<RecordId, int> level, IRandom random) =>
-        Party is not null || Source == BattleSource.Camp ? FillEnemies(party, level, random)
+    /// <param name="fallback">The entity a roll come to none fights (<see cref="CombatRecord.Fallback"/>).</param>
+    public IReadOnlyList<RecordId> EnemyList(Characters.Party party, Func<RecordId, int> level, IRandom random, RecordId fallback) =>
+        Party is not null || Source == BattleSource.Camp ? FillEnemies(party, level, random, fallback)
         : [.. Enemies.SelectMany(e => Enumerable.Repeat(e.Entity, e.Min)).Take(Battle.MaxEnemies)];
 
     /// <summary>
@@ -151,9 +149,10 @@ public sealed record BattleSetup(
     /// whose most is above its least, a roll of 0 to the difference more, in order (<c>BattleSetup.ChooseKinds</c>,
     /// <c>0x800090A4</c>), stopping at the party's most or 12, and none at all if it comes to fewer than the party's least.
     /// Then, where the party's level is below the enemies' average, each kind loses a share by how far below
-    /// (<c>BattleSetup.TrimByLevel</c>, <c>0x800088E4</c>); and a list come to nothing is a Skeleton alone.
+    /// (<c>BattleSetup.TrimByLevel</c>, <c>0x800088E4</c>); and a list come to nothing is the <paramref name="fallback"/> alone, the
+    /// combat record's Skeleton (<c>EntityList[0xBB]</c>).
     /// </summary>
-    public IReadOnlyList<RecordId> FillEnemies(Characters.Party party, Func<RecordId, int> level, IRandom random)
+    public IReadOnlyList<RecordId> FillEnemies(Characters.Party party, Func<RecordId, int> level, IRandom random, RecordId fallback)
     {
         var (least, most) = Size;
         var list = new List<RecordId>();
@@ -187,7 +186,7 @@ public sealed record BattleSetup(
         }
     Trim:
         TrimByLevel(list, party, level);
-        return list.Count == 0 ? [Fallback] : list;
+        return list.Count == 0 ? [fallback] : list;
     }
 
     /// <summary>

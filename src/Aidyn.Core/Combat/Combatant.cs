@@ -207,7 +207,8 @@ public sealed partial class Combatant
     }
 
     /// <summary>The battle its effects reach beyond it, for those that end as it dies: Darkness and Light.</summary>
-    internal Magic.IMagicHost? MagicHost { get; set; }
+    /// <summary>The battle, for the effects that end as the combatant dies (<see cref="Characters.Character.TakeDamage"/>); set as it is made.</summary>
+    internal Magic.IMagicHost? MagicHost { get; init; }
 
     public override string ToString() => $"{Slot}: {Sheet.Name}";
 }

@@ -46,7 +46,7 @@ public sealed partial class Battle
         var plugins = game.Plugins;
         var rules = plugins.Singleton<CombatRecord>(RecordTypes.Combat);
         var random = game.Random.Combat;
-        var list = setup.EnemyList(game.Party, e => plugins.TryGet<EntityRecord>(e)?.Level ?? 0, random).ToList();
+        var list = setup.EnemyList(game.Party, e => plugins.TryGet<EntityRecord>(e)?.Level ?? 0, random, rules.Fallback).ToList();
 
         // Combat.FindSholeh: she's taken from the first four to fight with the party, and the list closes up.
         var onField = Math.Min(list.Count, OnField);
@@ -210,6 +210,7 @@ public sealed partial class Battle
         var spare = ArmFromList(sheet, Game.Items);
         var c = new Combatant(slot, sheet, sheet.Record.Body ?? old.Look, old.Body, old.Flags)
         {
+            MagicHost = this,
             Cell = old.Cell,
             TurnStart = old.TurnStart,
             Direction = old.Direction,
@@ -346,6 +347,7 @@ public sealed partial class Battle
         var flags = CombatantFlags.Active | (hostile ? CombatantFlags.Hostile | CombatantFlags.FromEnemyList : 0);
         var combatant = new Combatant(slot, sheet, look, body, flags)
         {
+            MagicHost = this,
             Cell = cell,
             TurnStart = cell,
             Direction = direction,

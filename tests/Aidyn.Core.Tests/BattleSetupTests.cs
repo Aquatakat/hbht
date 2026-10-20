@@ -37,8 +37,11 @@ public sealed class BattleSetupTests
     private static List<RecordId> Repeated(params (RecordId Entity, int Count)[] runs) =>
         [.. runs.SelectMany(r => Enumerable.Repeat(r.Entity, r.Count))];
 
+    /// <summary>The combat record's fallback, a Skeleton.</summary>
+    private static readonly RecordId Fallback = Entity(0x0263);
+
     private static IReadOnlyList<RecordId> Fill(BattleSetup setup, IRandom random, int partyLevel = 1, Func<RecordId, int>? level = null) =>
-        setup.FillEnemies(PartyOfLevel(partyLevel), level ?? (_ => 1), random);
+        setup.FillEnemies(PartyOfLevel(partyLevel), level ?? (_ => 1), random, Fallback);
 
     // Pass 1 (0x80008EC8): the sure ones, each kind's least, in the kinds' order. Nothing is drawn when no kind has a range.
     [Fact]
@@ -152,7 +155,7 @@ public sealed class BattleSetupTests
 
         var list = Fill(setup, random);
 
-        Assert.Equal([BattleSetup.Fallback], list);
+        Assert.Equal([Fallback], list);
         Assert.Equal(0, random.Remaining);
     }
 
@@ -161,7 +164,7 @@ public sealed class BattleSetupTests
     {
         var setup = Fight(3, 5, Kind(A, 1, 1));
 
-        Assert.Equal([BattleSetup.Fallback], Fill(setup, new ScriptedRandom()));
+        Assert.Equal([Fallback], Fill(setup, new ScriptedRandom()));
     }
 
     [Fact]
@@ -176,13 +179,13 @@ public sealed class BattleSetupTests
     [Fact]
     public void NoKindsAtAllGiveTheFallbackSkeleton()
     {
-        Assert.Equal([BattleSetup.Fallback], Fill(Fight(0, 12), new ScriptedRandom()));
+        Assert.Equal([Fallback], Fill(Fight(0, 12), new ScriptedRandom()));
     }
 
     [Fact]
     public void TheFallbackIsTheSkeletonEntity0x0263()
     {
-        Assert.Equal(Entity(0x0263), BattleSetup.Fallback);
+        Assert.Equal(Entity(0x0263), Fallback);
     }
 
     // Pass 3 (0x800088E4): the party's average level under the enemies' trims each kind by 0.3, 0.2 or 0.1 of its count.
@@ -275,7 +278,7 @@ public sealed class BattleSetupTests
         var setup = BattleSetup.Scripted([A, B, A, C], 3, 0, 0, canFlee: true, null);
         var random = new ScriptedRandom();
 
-        var list = setup.EnemyList(PartyOfLevel(), _ => 99, random);
+        var list = setup.EnemyList(PartyOfLevel(), _ => 99, random, Fallback);
 
         Assert.Equal([A, B, A, C], list);
     }
@@ -285,7 +288,7 @@ public sealed class BattleSetupTests
     {
         var setup = BattleSetup.Scripted([A, A, A, A, A, A, A, A, A, A], 0, 0, 0, canFlee: true, null);
 
-        Assert.Equal(10, setup.EnemyList(PartyOfLevel(), _ => 50, new ScriptedRandom()).Count);
+        Assert.Equal(10, setup.EnemyList(PartyOfLevel(), _ => 50, new ScriptedRandom(), Fallback).Count);
     }
 
     [Fact]
@@ -293,7 +296,7 @@ public sealed class BattleSetupTests
     {
         var setup = BattleSetup.Scripted([.. Enumerable.Repeat(A, 15)], 0, 0, 0, canFlee: true, null);
 
-        Assert.Equal(12, setup.EnemyList(PartyOfLevel(), _ => 1, new ScriptedRandom()).Count);
+        Assert.Equal(12, setup.EnemyList(PartyOfLevel(), _ => 1, new ScriptedRandom(), Fallback).Count);
     }
 
     [Fact]
@@ -302,7 +305,7 @@ public sealed class BattleSetupTests
         var setup = Fight(0, 12, Kind(A, 1, 2));
         var random = new ScriptedRandom(BattleDice.Range(0, 1, 1));
 
-        Assert.Equal(Repeated((A, 2)), setup.EnemyList(PartyOfLevel(), _ => 1, random));
+        Assert.Equal(Repeated((A, 2)), setup.EnemyList(PartyOfLevel(), _ => 1, random, Fallback));
         Assert.Equal(0, random.Remaining);
     }
 

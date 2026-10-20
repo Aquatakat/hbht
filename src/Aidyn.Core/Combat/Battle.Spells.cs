@@ -444,7 +444,6 @@ public sealed partial class Battle
     {
         if (a.CurrentSpell(this) is not { } source)
             return 0;
-        ReachMagic();
         var prepared = a.Flags.HasFlag(CombatantFlags.Acted);
         var castMargin = prepared ? a.CastMargin : -1;
         var outcome = CastAt(a, source, t, ref prepared, ref castMargin);

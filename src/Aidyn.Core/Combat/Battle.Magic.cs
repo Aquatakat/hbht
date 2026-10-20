@@ -101,7 +101,6 @@ public sealed partial class Battle : IMagicHost
     /// <param name="placed">The cell a placed area or Teleportation was put at (state 11).</param>
     public IReadOnlyList<CastOutcome> Cast(Combatant caster, SpellSource source, IReadOnlyList<Combatant> targets, Vector2? placed = null)
     {
-        ReachMagic();
         _placed = placed;
         var outcomes = new List<CastOutcome>();
         var prepared = false;
@@ -120,7 +119,6 @@ public sealed partial class Battle : IMagicHost
         if (attacker.Sheet.Equipment.Weapon is not { } weapon || weapon.Item.Bonuses.Enchantment is not { } enchantment
             || Magic.Spell(enchantment.Spell) is not { } spell || !Casting.CanTarget(attacker, spell, target))
             return null;
-        ReachMagic();
         // Combatant.WeaponSpellProc (0x800627D0) casts it as any spell: PrepareCast (0x8006406C) keeps its margin on the attacker
         // (+0x3C, 0x80064184), unless the attacker has already acted this turn.
         var prepared = attacker.Flags.HasFlag(CombatantFlags.Acted);
@@ -136,7 +134,6 @@ public sealed partial class Battle : IMagicHost
     /// </summary>
     public IReadOnlyList<(Combatant Combatant, EffectAgeing Ageing)> AgeEffects()
     {
-        ReachMagic();
         var aged = new List<(Combatant, EffectAgeing)>();
         foreach (var combatant in Combatants.Where(c => !c.Flags.HasFlag(CombatantFlags.Gone)))
         {
@@ -150,13 +147,6 @@ public sealed partial class Battle : IMagicHost
             aged.Add((combatant, ageing));
         }
         return aged;
-    }
-
-    // Every combatant reaches the battle for the effects that end as it dies.
-    private void ReachMagic()
-    {
-        foreach (var combatant in Combatants)
-            combatant.MagicHost = this;
     }
 
     private CastOutcome CastAt(Combatant caster, SpellSource source, Combatant target, ref bool prepared, ref int castMargin)
