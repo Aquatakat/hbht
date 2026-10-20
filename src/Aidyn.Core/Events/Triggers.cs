@@ -28,6 +28,7 @@ public static class GameEvents
 /// The installed plugins' triggers, by event, and their firing: each whose event and subject match and whose conditions
 /// hold does its effects in order, those on the game's state at once. An effect that takes over from trek (a cinematic, a
 /// script, the credits, the game over) ends the firing and is handed back for <see cref="GameSession"/> to carry out.
+/// Conditions and ops run as a script's do (<see cref="ScriptOps"/>), but with no map object to keep a skill check.
 /// </summary>
 public sealed class Triggers
 {
@@ -35,8 +36,14 @@ public sealed class Triggers
     private readonly List<string> _problems = [];
 
     public Triggers(PluginSet plugins)
+        : this(plugins.All<TriggerRecord>(RecordTypes.Trigger))
     {
-        var all = plugins.All<TriggerRecord>(RecordTypes.Trigger);
+    }
+
+    /// <param name="triggers">The triggers, in the plugins' order.</param>
+    public Triggers(IEnumerable<TriggerRecord> triggers)
+    {
+        var all = triggers.ToList();
         foreach (var trigger in all)
         {
             if (!GameEvents.All.Contains(trigger.On))
@@ -58,19 +65,22 @@ public sealed class Triggers
     /// does its effects in turn, until one takes over from trek, which is returned and ends the firing.
     /// </summary>
     /// <param name="warn">Where an effect that can't be carried out says so.</param>
-    public TriggerEffect? Fire(GameState game, string name, RecordId? subject, Action<string> warn)
+    /// <param name="host">Where the ops' sounds go, as a script's do: the gold's and the experience's. None plays nothing.</param>
+    public TriggerEffect? Fire(GameState game, string name, RecordId? subject, Action<string> warn, IScriptHost? host = null)
     {
+        // Skill checks roll from the world stream as a script's do, and honour the random flag, but none is kept.
+        var ops = new ScriptOps(game.Flags, game, game.Random.World, game.StateFlagsRecord.RandomSkillChecks, host);
         foreach (var trigger in _byEvent[name])
         {
             if (trigger.Subject is { } about && about != subject)
                 continue;
-            if (trigger.If is { } conditions && !conditions.All(c => Holds(game, c)))
+            if (trigger.If is { } conditions && !conditions.All(c => Holds(ops, c)))
                 continue;
             foreach (var effect in trigger.Do)
             {
                 if (TakesOver(effect))
                     return effect;
-                Apply(game, trigger, effect, warn);
+                Apply(game, ops, trigger, effect, warn);
             }
         }
         return null;
@@ -81,59 +91,26 @@ public sealed class Triggers
         effect is TriggerEffect.Cinematic or TriggerEffect.Script or TriggerEffect.Credits or TriggerEffect.GameOver;
 
     /// <summary>
-    /// Evaluates a condition as a script's If or Case does (<see cref="ScriptRunner"/>'s condition ops), against the game:
-    /// it holds when the value is in its range, or exactly 1.
+    /// Evaluates a condition as a script's If or Case does (<see cref="ScriptOps.Condition"/>), its target the speaker for
+    /// <see cref="DialogueCommand.CheckSpeakerStat"/>: it holds when the value is in its range, or exactly 1.
     /// </summary>
-    public static bool Holds(GameState game, TriggerCondition condition)
+    private static bool Holds(ScriptOps ops, TriggerCondition condition)
     {
-        IScriptWorld world = game;
-        var value = condition.Command switch
-        {
-            DialogueCommand.CheckMember => condition.Target is { } member && world.InParty(member) ? 1 : 0,
-            DialogueCommand.CheckFlag => condition.Target is { } flag && game.Flags.IsSet(flag) ? 1 : 0,
-            DialogueCommand.CheckSkill => world.SkillCheck(condition.Value ?? 0, game.Random.World) & 0xFF,
-            DialogueCommand.CheckItem => condition.Target is { } item && world.HasItem(item) ? 1 : 0,
-            DialogueCommand.CheckBestStat => world.BestStat(condition.Value ?? 0),
-            DialogueCommand.CheckWorstStat => world.WorstStat(condition.Value ?? 0),
-            DialogueCommand.CheckSpeakerStat => world.MemberStat(condition.Target, condition.Value ?? 0),
-            DialogueCommand.CheckPartySize => world.PartySize,
-            DialogueCommand.CheckGold => (int)world.Gold,
-            _ => 0,
-        } & 0xFFFF;
+        var value = ops.Condition(condition.Command, condition.Target, condition.Value ?? 0, speaker: condition.Target);
         return condition.Range is { } range ? range.Holds(value) : value == 1;
     }
 
-    /// <summary>Does an effect on the game's state: a Borg13 op, or a True Name.</summary>
-    private static void Apply(GameState game, TriggerRecord trigger, TriggerEffect effect, Action<string> warn)
+    /// <summary>
+    /// Does an effect on the game's state: a Borg13 op as a node runs it (<see cref="ScriptOps.Effect"/>), its target the
+    /// member for <see cref="DialogueCommand.AddExp"/>, or a True Name, which the member's sheet keeps and a save with it.
+    /// </summary>
+    private static void Apply(GameState game, ScriptOps ops, TriggerRecord trigger, TriggerEffect effect, Action<string> warn)
     {
-        IScriptWorld world = game;
         switch (effect)
         {
-            case TriggerEffect.Op { Command: DialogueCommand.SetFlag or DialogueCommand.ClearFlag, Target: { } flag } op:
-                game.Flags.TrySet(flag, op.Command == DialogueCommand.SetFlag);
-                break;
-            case TriggerEffect.Op { Command: DialogueCommand.AddGold } op:
-                world.Gold += (uint)((op.Value ?? 0) & 0xFFFF);
-                break;
-            case TriggerEffect.Op { Command: DialogueCommand.TakeGold } op when world.Gold >= (uint)((op.Value ?? 0) & 0xFFFF):
-                world.Gold -= (uint)((op.Value ?? 0) & 0xFFFF);
-                break;
-            case TriggerEffect.Op { Command: DialogueCommand.TakeGold }:
-                break;
-            case TriggerEffect.Op { Command: DialogueCommand.AddItem, Target: { } item }:
-                world.AddItem(item);
-                break;
-            case TriggerEffect.Op { Command: DialogueCommand.TakeItem, Target: { } item }:
-                world.TakeItem(item);
-                break;
-            case TriggerEffect.Op { Command: DialogueCommand.AddMember, Target: { } member }:
-                world.AddMember(member);
-                break;
-            case TriggerEffect.Op { Command: DialogueCommand.RemoveMember, Target: { } member }:
-                world.RemoveMember(member);
-                break;
-            case TriggerEffect.Op { Command: DialogueCommand.AddExp, Target: { } member } op:
-                world.AddExp(member, op.Value ?? 0);
+            case TriggerEffect.Op op when ScriptOps.ChangesState(op.Command)
+                && (op.Target is not null || op.Command is DialogueCommand.AddGold or DialogueCommand.TakeGold):
+                ops.Effect(op.Command, op.Target, op.Value ?? 0, member: op.Target);
                 break;
             case TriggerEffect.Op op:
                 warn($"{trigger.Id}: {op.Command} isn't an op a trigger can run.");

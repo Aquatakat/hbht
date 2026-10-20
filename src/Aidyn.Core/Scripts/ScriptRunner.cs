@@ -104,8 +104,6 @@ public sealed class ScriptRunner
 {
     /// <summary>What a script's text says where the first party member's name goes (<c>Aidyn.Rom</c>'s <c>DialogueText.Player</c>).</summary>
     public const string PlayerToken = "{player}";
-    /// <summary>The party skill the original doesn't remember per map object (<c>SKILL_Troubador</c>).</summary>
-    private const int Troubadour = 9;
     /// <summary>What the original marks an empty case value with, so a value of 65535 reads as none.</summary>
     private const int NoCase = 0xFFFF;
     private const int MaxLines = 9;
@@ -121,13 +119,13 @@ public sealed class ScriptRunner
     private readonly IRandom _random;
     private readonly Func<RecordId, DialogueRecord?> _scripts;
     private readonly ScriptStart _start;
-    private readonly int? _randomSkillChecks;
+    /// <summary>The condition ops and the effect ops that change the game's state, which triggers run too.</summary>
+    private readonly ScriptOps _ops;
 
     // The original's dialougeInstance.
     private readonly bool[] _visited;
     private readonly List<ScriptLine> _lines = new(MaxLines);
     private readonly List<RecordId> _enemies = [];
-    private readonly Dictionary<int, int> _skills = [];
     /// <summary>The script's actors spawned so far, which actor ops can move (<c>ActorAndID::pPlayer</c>).</summary>
     private readonly HashSet<RecordId> _spawned = [];
     private RecordId? _speaker;
@@ -159,7 +157,8 @@ public sealed class ScriptRunner
         _random = random;
         _scripts = scripts;
         _start = start ?? new ScriptStart();
-        _randomSkillChecks = randomSkillChecks is { } flag ? flags.Handle(flag) : null;
+        // The first check of each skill is kept for the rest of the script (dialougeInstance's skill levels).
+        _ops = new ScriptOps(flags, world, random, randomSkillChecks, host, new Dictionary<int, int>(), _start.MapObject);
         _visited = new bool[script.Nodes.Count];
         for (var i = 0; i < script.Nodes.Count; i++)
         {
@@ -593,49 +592,12 @@ public sealed class ScriptRunner
 
     private int RefPoint(DialogueOp op) => ((op.Value ?? 0) + _start.RefPoint) & 0xFFFF;
 
-    /// <summary>Evaluates a node's first condition op, or 0 if it has none (<c>DialogEvalCallback</c>).</summary>
-    private int Condition(int node)
-    {
-        if (Node(node).Ops?.FirstOrDefault(o => o.Command.IsCondition()) is not { } op)
-            return 0;
-        var value = op.Command switch
-        {
-            DialogueCommand.CheckMember => op.Target is { } member && _world.InParty(member) ? 1 : 0,
-            DialogueCommand.CheckFlag => op.Target is { } flag && _flags.IsSet(flag) ? 1 : 0,
-            DialogueCommand.CheckSkill => SkillCheck(op.Value ?? 0),
-            DialogueCommand.CheckItem => op.Target is { } item && _world.HasItem(item) ? 1 : 0,
-            DialogueCommand.CheckBestStat => _world.BestStat(op.Value ?? 0),
-            DialogueCommand.CheckWorstStat => _world.WorstStat(op.Value ?? 0),
-            DialogueCommand.CheckSpeakerStat => _world.MemberStat(_speaker, op.Value ?? 0),
-            DialogueCommand.CheckPartySize => _world.PartySize,
-            DialogueCommand.CheckGold => (int)_world.Gold,
-            _ => 0,
-        };
-        return value & 0xFFFF;
-    }
-
     /// <summary>
-    /// The party's check of a skill (<c>dialougSkillCheck</c>). The first check in a script is
-    /// kept for the rest of it, and the map object remembers it, except for Troubadour. While the
-    /// random flag is set, the result is a roll instead, which isn't kept.
+    /// Evaluates a node's first condition op, or 0 if it has none (<c>DialogEvalCallback</c>, <see cref="ScriptOps.Condition"/>):
+    /// a skill check's first result is kept for the rest of the script, and the map object that started it remembers it.
     /// </summary>
-    private int SkillCheck(int skill)
-    {
-        if (!_skills.TryGetValue(skill, out var level))
-        {
-            level = _world.SkillCheck(skill, _random) & 0xFF;
-            if (skill != Troubadour && _start.MapObject is { } source)
-            {
-                var memory = new Memory(source, MemoryKind.SkillCheck, skill);
-                if (_world.TryRecall(memory, out var recalled))
-                    level = recalled;
-                else
-                    _world.Remember(memory, level);
-            }
-            _skills[skill] = level;
-        }
-        return _randomSkillChecks is { } flag && _flags.Get(flag) ? _random.Range(0, 21) : level;
-    }
+    private int Condition(int node) =>
+        Node(node).Ops?.FirstOrDefault(o => o.Command.IsCondition()) is { } op ? _ops.Condition(op.Command, op.Target, op.Value ?? 0, _speaker) : 0;
 
     /// <summary>
     /// Runs a node's first effect op (<c>dialoug_func_c_check</c> and <c>DialogCallbackC</c>). Ops
@@ -646,36 +608,21 @@ public sealed class ScriptRunner
         if (Node(node).Ops?.FirstOrDefault(o => o.Command.IsEffect()) is not { } op)
             return;
         var value = op.Value ?? 0;
+        if (ScriptOps.ChangesState(op.Command))
+        {
+            // AddExp gives to the speaker. A member joining a conversation leaves the map with the party.
+            if (_ops.Effect(op.Command, op.Target, value, _speaker) && op.Command == DialogueCommand.AddMember
+                && _script.Mode == DialogueMode.Conversation)
+                _partnerJoined = true;
+            return;
+        }
         switch (op.Command)
         {
-            case DialogueCommand.SetFlag or DialogueCommand.ClearFlag:
-                if (op.Target is { } flag)
-                    _flags.TrySet(flag, op.Command == DialogueCommand.SetFlag);
-                break;
             case DialogueCommand.EndDialogue:
                 End(ScriptEndKind.Ended);
                 break;
             case DialogueCommand.FadeOut:
                 _host.Cue(new FadeOutCue());
-                break;
-            case DialogueCommand.AddGold:
-                _world.Gold += (uint)(value & 0xFFFF);
-                _host.Cue(new SoundCue(ScriptSound.GoldGained));
-                break;
-            case DialogueCommand.TakeGold:
-                if (_world.Gold >= (uint)(value & 0xFFFF))
-                {
-                    _world.Gold -= (uint)(value & 0xFFFF);
-                    _host.Cue(new SoundCue(ScriptSound.GoldPaid));
-                }
-                break;
-            case DialogueCommand.AddItem:
-                if (op.Target is { } added)
-                    _world.AddItem(added);
-                break;
-            case DialogueCommand.TakeItem:
-                if (op.Target is { } taken)
-                    _world.TakeItem(taken);
                 break;
             case DialogueCommand.WalkTo or DialogueCommand.RunTo:
                 WaitOn(node, ScriptWait.Move);
@@ -700,14 +647,6 @@ public sealed class ScriptRunner
             case DialogueCommand.Train:
                 End(ScriptEndKind.Train);
                 break;
-            case DialogueCommand.AddMember:
-                if (op.Target is { } joining && _world.AddMember(joining) && _script.Mode == DialogueMode.Conversation)
-                    _partnerJoined = true;
-                break;
-            case DialogueCommand.RemoveMember:
-                if (op.Target is { } leaving)
-                    _world.RemoveMember(leaving);
-                break;
             case DialogueCommand.Unimplemented:
                 Fault($"Node {node} runs command 49: the original crashes (\"This command has not been implemented yet!\").");
                 break;
@@ -724,10 +663,6 @@ public sealed class ScriptRunner
             case DialogueCommand.CampHeal:
                 _world.CampHeal();
                 End(ScriptEndKind.Camp);
-                break;
-            case DialogueCommand.AddExp:
-                if (_speaker is { } member && _world.AddExp(member, value))
-                    _host.Cue(new SoundCue(ScriptSound.Experience));
                 break;
             case DialogueCommand.Wait:
                 WaitOn(node, ScriptWait.Timer);

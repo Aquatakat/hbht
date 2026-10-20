@@ -97,7 +97,10 @@ public sealed partial class Character
     /// <summary>The school it learns spells from. Chaos learns any.</summary>
     public MagicSchool School => Record.School;
 
-    /// <summary>Whether its True Name is known: its record's, or its flag being set (Alaron's, 590) when the sheet was made.</summary>
+    /// <summary>
+    /// Whether its True Name is known: its record's, or its flag being set (Alaron's, 590) when the sheet was made, unless a
+    /// trigger has given it since or a save says otherwise.
+    /// </summary>
     public bool TrueName { get; set; }
 
     public bool Heavy => Record.Heavy;
