@@ -39,6 +39,15 @@ public sealed class TempPlugins : IDisposable
         return dir;
     }
 
+    /// <summary>Writes a plugin folder named <paramref name="folder"/> with this <c>plugin.json</c> as it is, and returns the folder.</summary>
+    public string AddRaw(string folder, string manifestJson)
+    {
+        var dir = Path.Combine(Root, folder);
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "plugin.json"), manifestJson);
+        return dir;
+    }
+
     /// <summary>Writes the base plugin, <c>aidyn</c>, with these record files and loads it alone.</summary>
     public PluginSet Aidyn(params (string File, string Json)[] files) => PluginSet.Load([Add("aidyn", null, files)]);
 

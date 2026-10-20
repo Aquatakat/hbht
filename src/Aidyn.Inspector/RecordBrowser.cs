@@ -89,7 +89,7 @@ public partial class RecordBrowser : Control
     /// <summary>Shows the Preview, Fields or Used by tab.</summary>
     public void SelectTab(string tab) => _tabs.CurrentTab = tab.ToLowerInvariant() switch { "fields" => 1, "used-by" => 2, "atlas" => 3, _ => 0 };
 
-    /// <summary>Loads the plugins in a folder, as the runtime does: <c>aidyn.base</c> first, then the rest by ID.</summary>
+    /// <summary>Loads the plugins in a folder, as the runtime does: <c>aidyn.base</c> first, then the rest in <see cref="PluginSet.LoadOrder"/>.</summary>
     public async Task LoadAsync(string pluginsDirectory)
     {
         _pluginsDirectory = pluginsDirectory;
@@ -107,6 +107,12 @@ public partial class RecordBrowser : Control
         if (!File.Exists(Path.Combine(pluginsDirectory, BasePlugin.Folder, PluginManifest.FileName)))
         {
             _status.Text = $"No {BasePlugin.Folder} in {pluginsDirectory}. Import a ROM to make one.";
+            return;
+        }
+        // Out of date: the game refuses it, so the editor shows the same words and waits for an import.
+        if (BasePlugin.Diagnose(pluginsDirectory) is { } problem)
+        {
+            _status.Text = $"{problem}\nOr press Import ROM… here.";
             return;
         }
 

@@ -81,6 +81,29 @@ public static class BasePlugin
     /// the title screen's fly-throughs (<c>aidyn:title/0</c>) and the places each map set puts the player by number (<c>spawns</c>).
     /// </summary>
     public const int ImporterVersion = 52;
+
+    /// <summary>
+    /// What's wrong with the imported base plugin under <paramref name="pluginsDirectory"/>, worded for the player, or null if
+    /// it's there and the current importer wrote it: it hasn't been imported, or it was imported by another importer, so
+    /// it's to be imported again. It reads only the base plugin's manifest. The runtime, the CLI and the editor all go by this.
+    /// </summary>
+    public static string? Diagnose(string pluginsDirectory)
+    {
+        var directory = Path.Combine(pluginsDirectory, Folder);
+        if (!File.Exists(Path.Combine(directory, PluginManifest.FileName)))
+            return $"The game hasn't been imported. Run: aidyn import <rom>\n(looked in {directory})";
+        var import = Plugin.Open(directory).Manifest.Import;
+        return import?.Importer == ImporterVersion
+            ? null
+            : $"The import is out of date (imported by importer {import?.Importer.ToString() ?? "unknown"}, now {ImporterVersion}). Run: aidyn import <rom>";
+    }
+
+    /// <summary>Throws an <see cref="IOException"/> with <see cref="Diagnose"/>'s words if the base plugin isn't there and current.</summary>
+    public static void Require(string pluginsDirectory)
+    {
+        if (Diagnose(pluginsDirectory) is { } problem)
+            throw new IOException(problem);
+    }
 }
 
 /// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>
