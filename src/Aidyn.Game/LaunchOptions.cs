@@ -31,7 +31,8 @@ namespace Aidyn.Game;
 /// system</c>, <c>party</c> or <c>world</c> on that tab, and <c>--menu loot</c> an empty loot window; <c>--ui-lines
 /// &lt;n&gt;</c> sets the UI screen's height, and <c>--press &lt;action&gt;,…</c> presses each action in turn, such as
 /// <c>pause,menu_member_left</c>. <c>--cutscene &lt;id&gt;</c> plays a cut-scene at once, as what starts it would,
-/// <c>--cinematic &lt;n&gt;</c> a cinematic, and <c>--battle &lt;id&gt;</c> a battle with a monster party
+/// <c>--cinematic &lt;n&gt;</c> a cinematic, <c>--opening on|off</c> whether a new game plays its opening (by default, when
+/// no option says where to start or drives the run), and <c>--battle &lt;id&gt;</c> a battle with a monster party
 /// (<c>aidyn:voxel/…</c>) where the player stands, or <c>--battle arena,&lt;n&gt;[,ambush]</c> one with that monster
 /// party in arena n, with <c>--radar box</c> to put the battle screen's radar in the log box.
 /// </remarks>
@@ -56,6 +57,18 @@ public sealed class LaunchOptions(Dictionary<string, string> values)
 
     /// <summary>The map set, by number.</summary>
     public int? Set => Integer("set");
+
+    /// <summary>
+    /// Whether a new game plays its opening (<c>--opening on|off</c>): by default only when nothing on the command line says
+    /// where to start or drives the run, as a plain launch is the title's New Game.
+    /// </summary>
+    public bool PlaysOpening => Text("opening") switch
+    {
+        "on" => true,
+        "off" => false,
+        _ => !values.Keys.Any(k => k is "save" or "set" or "chunk" or "at" or "fly" or "flags" or "hold" or "press" or "menu"
+            or "cutscene" or "cinematic" or "battle" or "screenshot" or "ui-screenshot" or "frames"),
+    };
 
     /// <summary>Whether the start says where the player stands, in place of a save's.</summary>
     public bool PlacesPlayer => values.ContainsKey("chunk") || values.ContainsKey("at");

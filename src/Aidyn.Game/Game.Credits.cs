@@ -18,9 +18,9 @@ public partial class Game
     /// Plays the credits (<c>Credits.Start</c>, <c>0x8002c0b0</c>): their music from its start at the music volume, and
     /// the game's own muted, not stopped, until they end.
     /// </summary>
-    private void PlayCredits()
+    private void PlayCredits(bool ending)
     {
-        if (!_credits!.Play(ending: false))
+        if (!_credits!.Play(ending))
             return;
         if (_game!.Sounds is { } sounds)
             _creditsMusic = _audio!.Start(sounds.Credits, GameAudio.Volume(_audio.MusicVolume), 0x80, loop: true);

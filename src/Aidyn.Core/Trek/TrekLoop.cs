@@ -90,6 +90,8 @@ public sealed class TrekLoop : IMapObjectHost
     /// <summary>The chunk the player was last in, to age what map objects remember as he crosses into another.</summary>
     private (int Row, int Column)? _centre;
     private ChunkEntry? _chunk;
+    /// <summary>Whether trek has just been built again and hasn't ticked, so its fade-in hasn't stepped (<see cref="Resume"/>).</summary>
+    private bool _resumed;
     /// <summary>The last script a dialogue object asked to start that trek can't run yet, such as a backdrop.</summary>
     private RecordId? _lastScript;
 
@@ -179,6 +181,15 @@ public sealed class TrekLoop : IMapObjectHost
     /// <summary>The battle trek is fading out into, which starts once the screen is black.</summary>
     public BattleSetup? CuedBattle { get; private set; }
 
+    /// <summary>
+    /// Whether trek starts again at a named place of its map set rather than simply where the player stood (the original's
+    /// saved <c>Zones.Chunk</c>, <c>Zones.SavedPlace</c> at <c>0x800d9092</c>, not −1): only the Goblin Ambush's end puts the
+    /// party there (<see cref="Keep"/>), and going through a teleporter leaves it (<c>TeleportPlayer</c>, <c>0x8000bb54</c>).
+    /// While it holds, a cut-scene's end chains into the tangible dialogue object at the player's place
+    /// (<see cref="GameSession.EndCutScene"/>).
+    /// </summary>
+    public bool AtPlace { get; private set; }
+
     /// <summary>Puts the player and the follow camera in trek, before the first tick.</summary>
     public void Begin(PlayerMotion player, FollowCamera camera)
     {
@@ -241,6 +252,10 @@ public sealed class TrekLoop : IMapObjectHost
         if (CuedBattle is not null && !CutSceneFade.Fading)
             return TrekStep.Battle;
         var fading = TeleportFade.Fading || CutSceneFade.Fading;
+        // Walking into map objects and onto trigger triangles has no fade term (MapObjects.CanStart, 0x80010d08): only a
+        // teleport's fade and trek's fading out into a cut-scene or a battle hold them, so trek's first tick after it's built
+        // again can start a cut-scene while the screen is still black, as the Goblin Ambush's end into Oriana's hut does.
+        var touching = !TeleportFade.Fading && CutSceneFade.Mode != FadeMode.Out;
         // Bgm.Update waits for a fade to end, so the music changes once the screen is up.
         Zone.Audio.HoldMusic = fading;
         Enter(Chunks.ChunkAt(Player.Sphere.Position));
@@ -272,7 +287,7 @@ public sealed class TrekLoop : IMapObjectHost
         if (Chunks.MapAt(motion.Sphere.Position) is { } centre)
         {
             var at = motion.Sphere.Position - centre.Origin;
-            if (playing && !talking)
+            if (touching && !talking)
                 Use.Touch(centre, at);
             else
                 Use.TouchCameras(centre, at);
@@ -305,7 +320,7 @@ public sealed class TrekLoop : IMapObjectHost
         {
             if (Chunks.Map(part) is not { } map)
                 continue;
-            if (playing && !talking)
+            if (touching && !talking)
                 Use.Tread(map, target, motion.Sphere.Position - map.Origin);
             else
                 Use.TreadCamera(map, target);
@@ -356,7 +371,12 @@ public sealed class TrekLoop : IMapObjectHost
             TeleportFade.In(TeleportFadeInPerTick, fromBlack: false);
             GoThrough(teleporter);
         }
-        CutSceneFade.Step();
+        // Trek's first frame after it's built again is drawn black: InitGameTrek starts the fade-in after the frame's
+        // ScreenFade.Step (0x8001f330), which raises it from the next.
+        if (_resumed)
+            _resumed = false;
+        else
+            CutSceneFade.Step();
     }
 
     /// <summary>
@@ -373,6 +393,7 @@ public sealed class TrekLoop : IMapObjectHost
             return;
         }
         Game.Memory.Age();
+        AtPlace = false;
         if (arrival.Set.Id != Chunks.MapSet.Id)
         {
             Chunks.Change(arrival.Set);
@@ -499,6 +520,7 @@ public sealed class TrekLoop : IMapObjectHost
         Player.Sphere.Velocity = Vector3.Zero;
         Player.Heading = heading;
         _centre = (chunk.Row, chunk.Column);
+        AtPlace = true;
     }
 
     /// <summary>
@@ -524,6 +546,7 @@ public sealed class TrekLoop : IMapObjectHost
         Camera.Snap = 1;
         Hud.Start();
         CutSceneFade.In(CutSceneFadePerTick);
+        _resumed = true;
     }
 
     /// <summary>

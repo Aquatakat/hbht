@@ -136,6 +136,8 @@ public partial class Game : Node3D, ITrekHost
         StartAudio(plugins);
         // Where a new game starts, which plugins from an older import don't have: then this says to import again.
         var newGame = GameSession.NewGame(plugins);
+        // A new game, not a save, plays what the title's New Game does (GameSession.StartNewGame): the opening, then its script.
+        var fresh = _pendingSave is null && (options.Save is null || _newGame) && options.PlaysOpening;
         var game = _game = StartingGame(plugins, options);
         var (set, place) = StartingPlace(plugins, game, newGame, options);
 
@@ -184,6 +186,8 @@ public partial class Game : Node3D, ITrekHost
         _settings.Changed += () => _settings.Save(DataPaths.Settings);
         GetViewport().SizeChanged += ApplyWorldLines;
         RunLaunchActions(options);
+        if (fresh)
+            _session!.StartNewGame();
     }
 
     /// <summary>The sound bank, kept with the plugins, and the audio mixed from it and played.</summary>
@@ -1013,8 +1017,8 @@ public partial class Game : Node3D, ITrekHost
             case Transition.ResumeTrek:
                 ShowTrek();
                 break;
-            case Transition.PlayCredits:
-                PlayCredits();
+            case Transition.PlayCredits credits:
+                PlayCredits(credits.Ending);
                 break;
             case Transition.PlayCinematic cinematic:
                 PlayCinematic(cinematic.Cinematic);

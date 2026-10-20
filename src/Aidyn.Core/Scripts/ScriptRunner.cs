@@ -197,6 +197,9 @@ public sealed class ScriptRunner
     /// <summary>The speaker the latest <see cref="DialogueCommand.SetSpeaker"/> named.</summary>
     public RecordId? Speaker => _speaker;
 
+    /// <summary>Where it starts from, and the map object that started it.</summary>
+    public ScriptStart Origin => _start;
+
     /// <summary>Whether a node has been taken, which hides it as a choice.</summary>
     public bool Visited(int node) => _visited[node];
 

@@ -60,8 +60,8 @@ public abstract record Transition
     public sealed record PostBattle(BattleSpoils Spoils) : Transition;
 
     /// <summary>
-    /// The game is over (a script that ends it, the game over's death scene, <see cref="DialogueEnding.GameOver"/>): the original
-    /// goes back to the title, and the runtime loads the last save, the user's choice.
+    /// The game is over (a trigger's <see cref="TriggerEffect.GameOver"/>, as the game over's death scene ends, or the ending's
+    /// credits): the original goes back to the title, and the runtime loads the last save, the user's choice.
     /// </summary>
     public sealed record GameOver : Transition;
 
@@ -86,8 +86,11 @@ public abstract record Transition
     /// <summary>Trek is back where the player stood, its world built again and fading in (<see cref="TrekLoop.Resume"/>).</summary>
     public sealed record ResumeTrek : Transition;
 
-    /// <summary>The credits play over trek held still (game mode 0x13).</summary>
-    public sealed record PlayCredits : Transition;
+    /// <summary>
+    /// The credits play over trek held still (game mode 0x13); the ending's (<paramref name="Ending"/>) can't be skipped, end
+    /// with "The End", and end the game (<see cref="GameOver"/> follows them).
+    /// </summary>
+    public sealed record PlayCredits(bool Ending = false) : Transition;
 
     /// <summary>A cinematic plays over everything (game mode 0xE).</summary>
     public sealed record PlayCinematic(CinematicRecord Cinematic) : Transition;

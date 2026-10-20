@@ -41,7 +41,7 @@ Every flag below that engine code names carries its label on the flag record, wh
 | Camp scenes: the first dialogue object in the player's chunk whose flag A is one of eight flags, and holds, starts when the party camps, however far it is | `Camp_CheckDialougFlags` | 1: the camping record's `scenes` | ROM |
 | Camp ambushes only happen while derived flag 5004 holds: two of Abrecan, Godric and Rheda have joined | `Party::CampCheck` | 1: the camping record's `ambushes` | Fact |
 | Alaron has his True Name while 590 is set | `entityInfo.cpp` | 1: character condition | Fact, on his entity record |
-| When the Rooughah scene (Borg13 1268) ends, the Roog cinematic plays if 3442 is set | `dialogmode.cpp` | 2: trigger on script end | Fact |
+| When the Rooughah scene (Borg13 1268) ends, the Roog cinematic plays if 3442 is set | `CutScene.Free` (`0x8005179c`) | 2: trigger on `script.ended` | Fact, as `aidyn:trigger/2` ([events](systems/events.md)) |
 | World map pieces: each shows while its region flag is set | `WorldMapPieces` | 1: the world map record (`aidyn:worldmap/0`), with the towns' names and the party's ring | ROM |
 | The lighthouse chunks swap to their lit scenes while 5017 holds | `ZoneEngine.cpp` | 1: chunk scene condition | Fact |
 | Party skill checks in dialogue roll 0–21 while 3717 is set | `DialogEvalCallback` | 3: debug option, in the state flags record | Fact |
@@ -55,9 +55,9 @@ Every flag below that engine code names carries its label on the flag record, wh
 | What | Code | Layer | Status |
 | --- | --- | --- | --- |
 | The four cinematics: each shot's Borg6 animation, Borg12 audio, caption list and clip planes, the fades, and the done flag | `Cinematics.cpp`, `CinematicFade.cpp` | 1: cinematic record | ROM |
-| What starts each cinematic: a new game, the Shadow merging with Alaron, and the ends of the Rooughah and last scenes | `Cinematic::Load`'s callers | 2: triggers; the Shadow's is 3, the combat record's `shadow` | The Shadow's: Fact (session 12). The rest: Fact (text only) |
-| What follows each cinematic: the opening starts script 866 from its object in Overworld I08, the Roog cinematic gives Alaron his True Name, and the ending goes to the credits | `Cinematic::EndCase` | 2: triggers on `cinematic.ended` | To do (see [cinematics](systems/cinematics.md)) |
-| Scripts whose end leads somewhere: the three death scenes end the game, 1268 plays the Roog cinematic, and 1278 plays the ending | `borg_short_list`, `dialogmode.cpp` | 2: triggers on script end | ROM |
+| What starts each cinematic: a new game, the Shadow merging with Alaron, and the ends of the Rooughah and last scenes | `Cinematic.Load`'s callers | 2: triggers on `game.started` and `script.ended`; the Shadow's is 3, the combat record's `shadow` | Done: the Shadow's a fact (session 12), the rest triggers ([events](systems/events.md)) |
+| What follows each cinematic: the opening starts script 866 from its object in Overworld I08, the Roog cinematic gives Alaron his True Name, and the ending goes to the credits | `Cinematic.EndCase` (`0x80053c20`) | 2: triggers on `cinematic.ended` | Fact, as triggers ([events](systems/events.md)) |
+| Scripts whose end leads somewhere: the three death scenes end the game, 1268 plays the Roog cinematic, and 1278 plays the ending | `borg_short_list`, `CutScene.Free` | 2: triggers on `script.ended` | ROM, as triggers ([events](systems/events.md)) |
 | Scripts after which eight hours pass: the eight camp scenes and the Campsite's own script | `isCampfireScene` | 1: script field | ROM |
 | Game over: script 1298 starts from its object in the Dreamscape Borg9 (3423) | `Gameover_func` | 1: game setting | ROM (script only) |
 | A new game: the player arrives in Overworld I08 at (16, 62), his body made 10 up and set down, and the party is Alaron alone with 1 gold; the player's body is Alaron's actor | `Title.Leave` (`0x80055718`), `Zones.SetMapSet` (`0x80026374`, `0x800ce7d8`), `InitGameTrek` (`0x80021018`), `init_DBs` | 1: the new game record (`aidyn:newgame/0`) | Fact |

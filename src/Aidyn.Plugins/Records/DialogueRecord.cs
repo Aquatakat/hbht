@@ -27,10 +27,6 @@ namespace Aidyn.Plugins.Records;
 /// matter only when another script shows a random line from this one
 /// (<see cref="DialogueCommand.RandomLine"/>), which counts them, and a blank node shows node 0's text.
 /// </param>
-/// <param name="Ends">
-/// What follows its end in place of trek, for the five scripts the original keeps in a table (<c>CodeTable.ScriptEndings</c>,
-/// <c>0x800DFE1C</c>, read by <c>CutScene.Free</c>): the game over's death scenes, Roog's cinematic and the ending's. Null for the rest.
-/// </param>
 public sealed record DialogueRecord(
     RecordId Id,
     int Number,
@@ -41,19 +37,7 @@ public sealed record DialogueRecord(
     int? Backdrop = null,
     RecordId? BattleFlag = null,
     bool Rest = false,
-    int BlankNodes = 0,
-    DialogueEnding? Ends = null);
-
-/// <summary>What follows a script's end in place of trek (the original's ending kinds).</summary>
-public enum DialogueEnding
-{
-    /// <summary>The ending's cinematic, then the credits (kind 1).</summary>
-    Ending = 1,
-    /// <summary>The game is over: the original goes back to the title (kind 2).</summary>
-    GameOver = 2,
-    /// <summary>Roog's cinematic, if flag 3442 is set (kind 3).</summary>
-    RoogCinematic = 3,
-}
+    int BlankNodes = 0);
 
 /// <summary>How a script is presented (the original's <c>start_func</c>).</summary>
 public enum DialogueMode

@@ -46,6 +46,12 @@ public partial class Game
     /// </summary>
     private void ShowStage(CutScene scene, ZoneEngine stage)
     {
+        // Trek's world has gone, the player's body with it, however the cut-scene began: cued in trek, or at once, as after
+        // a cinematic or another cut-scene.
+        _changed.Clear();
+        _player!.Visible = false;
+        if (_shadow is not null)
+            _shadow.Visible = false;
         _stageView = new ChunkStreamerView(_plugins!, _models!, stage.Chunks, null, _shadowTexture) { Name = "Stage" };
         AddChild(_stageView);
         _sky!.ClearSky();

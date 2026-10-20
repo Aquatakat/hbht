@@ -46,6 +46,7 @@ public static class BaseImporter
         TextImporter.Import(context);
         DialogueImporter.Import(context);
         CinematicImporter.Import(context);
+        TriggerImporter.Import(context);
         MapImporter.Import(context);
         GraphicsImporter.Import(context);
         AudioImporter.Import(context);

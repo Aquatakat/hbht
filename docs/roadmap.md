@@ -16,15 +16,15 @@ This is the one list of what's open. A task's status is in its phase's table bel
 
 ### Next
 
-Next, by the phases' order, is **M4: the prologue**, from the opening through leaving Gwernia, end to end. It needs first:
+Next, by the phases' order, is **M4: the prologue**, from the opening through leaving Gwernia, end to end. 2.10's events and triggers are done, with the opening, Roog's and the ending's cinematics on them ([events](systems/events.md)), and the user's first playthrough's story flow is fixed: the hand-overs into the cut-scenes after the opening and the Goblin Ambush, and the camp south of the castle. What's left:
 
-1. **2.10's events and triggers**, with what starts the cinematics and what follows them: a new game's opening cinematic and script 866 after it, the scripts' ends that play Roog's and the ending's, Alaron's True Name and the credits ([cinematics](systems/cinematics.md#what-starts-them)). The Shadow's is M3's and already plays.
-2. **A playthrough of the prologue** against the emulator, the user playing the original alongside: the opening, Gwernia, the Goblin Ambush and Oriana's hut, and the way out, logging what differs, as M3's battles were.
-3. Whatever that turns up in the leftovers below that the prologue reaches.
+1. **A playthrough of the prologue** against the emulator, the user playing the original alongside: the opening, Gwernia, the Goblin Ambush and Oriana's hut, and the way out, logging what differs, as M3's battles were.
+2. Whatever that turns up in the leftovers below that the prologue reaches.
 
 ### Left over from finished work
 
-- **M2:** what starts the cinematics in the story (a new game's opening, the Shadow's, the ends of the Rooughah and last scenes) and what follows them (script 866, Alaron's True Name, the ending's credits), as 2.10's triggers ([cinematics](systems/cinematics.md#what-starts-them)); the editor showing cut-scenes on its map; and the HUD in the editor.
+- **M2:** the editor showing cut-scenes on its map, and the HUD in the editor.
+- **2.10:** what else could move onto triggers, each with its event ([events](systems/events.md#what-else-could-move-onto-triggers)): the first spell and potion's help (`spell.learned`, `item.bought`), the new journal entry's notice (`journal.added`), the camp scenes (`camp.started`), the cheat codes, the Shadow's cinematic and the Goblin Ambush's end (`battle.ended` with its outcome), the world map's regions (`chunk.entered`), and a conversation's end as `script.ended`. The editor doesn't show the triggers yet, nor the quest atlas what they read and set.
 - **1H:** the content tables marked To do in [hardcoded-content](hardcoded-content.md), which the importer will need.
 - **Rendering:** the low-priority items in [rendering](systems/rendering.md#whats-left) (the lens flare's test, the sky overhead, texture filtering).
 - **Rig:** measure the frame `delta` in combat, which can help choose its frame for per-frame behaviour ([ADR 0017](adr/0017-the-core-steps-every-tick.md)).
@@ -96,7 +96,7 @@ Where a task names the original's code, the file names are the debug build's.
 | **2.7 Time & camping.** See [camping](systems/camping.md). | S | `sundial.cpp`, `menus/campmenucontroller.cpp` | Done Oct 4, 2026; the ambush's enemies with M3's session 7, Oct 18, 2026 |
 | **2.8 Save/load** in the engine's own format. See [saves](systems/saves.md). | S | `questdata.cpp`, `saveParty.cpp` | Done Oct 1, 2026 |
 | **2.9 Differential tests.** Capture the random values the emulator consumed (ADR 0006), replay them into the core, and compare damage and turn logs. | L, ongoing | | Started: the checkpoints of one battle replay its setup, turns, a cast and attacks (`BattleCheckpointTests`, `MagicCheckpointTests`, `AttackCheckpointTests`) |
-| **2.10 Events and triggers.** The core's named event list, and trigger records (*on event, if condition, do effects*) in Borg13's condition and effect vocabulary. Engine features that replace bespoke code (ADR 0008 layer 3) land with their system. | M | The 1H audit | Open |
+| **2.10 Events and triggers.** The core's named event list, and trigger records (*on event, if condition, do effects*) in Borg13's condition and effect vocabulary. Engine features that replace bespoke code (ADR 0008 layer 3) land with their system. | M | The 1H audit | Done Oct 19, 2026, with the cinematics' ([events](systems/events.md)); what else could move onto them is [above](#left-over-from-finished-work) |
 
 ### Phase 3: Godot runtime
 

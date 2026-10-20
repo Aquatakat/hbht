@@ -189,8 +189,8 @@ public sealed class CombatImportTests(Na10Import fixture)
         Assert.Equal(RecordId.Hex(RecordTypes.Dialogue, 0x0512), gameOver.Script);
         var map = Set.Get<MapRecord>(gameOver.Map);
         Assert.NotNull(map.Objects.OfType<DialogueObject>().Single(d => d.Script == gameOver.Script).Stage);
-        Assert.Equal(new[] { 0x0512, 0x0513, 0x0514 }.Select(n => RecordId.Hex(RecordTypes.Dialogue, n)), Set.All<DialogueRecord>(RecordTypes.Dialogue)
-            .Where(d => d.Ends == DialogueEnding.GameOver).Select(d => d.Id));
+        Assert.Equal(new[] { 0x0512, 0x0513, 0x0514 }.Select(n => RecordId.Hex(RecordTypes.Dialogue, n)), Set.All<TriggerRecord>(RecordTypes.Trigger)
+            .Where(t => t.Do is [TriggerEffect.GameOver]).Select(t => t.Subject!.Value));
     }
 
     [Fact]

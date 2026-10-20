@@ -72,8 +72,10 @@ public static class BasePlugin
     /// cast play.
     /// 48 adds to the combat record the Shadow's rules (its aura, slowing, vanishing and merging, with the merge's boost), and to the
     /// Goblin Ambush's encounter its heal as it starts and its hold on Alaron.
+    /// 49 adds the triggers (roadmap 2.10): a new game's opening and its script, the scripts' ends that lead to the game over and the
+    /// cinematics, which scripts no longer carry, and what follows Roog's cinematic and the ending's.
     /// </summary>
-    public const int ImporterVersion = 48;
+    public const int ImporterVersion = 49;
 }
 
 /// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>

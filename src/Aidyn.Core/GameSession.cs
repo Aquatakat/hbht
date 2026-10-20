@@ -2,6 +2,7 @@ using System.Numerics;
 using Aidyn.Core.Actors;
 using Aidyn.Core.Chunks;
 using Aidyn.Core.Combat;
+using Aidyn.Core.Events;
 using Aidyn.Core.Scripts;
 using Aidyn.Core.Trek;
 using Aidyn.Core.Ui;
@@ -98,7 +99,10 @@ public enum SessionStep
 public sealed class GameSession
 {
     private readonly ITrekHost _host;
-    private (CinematicRecord Record, bool FromTheatre, bool AfterBattle)? _cinematic;
+    private (CinematicRecord Record, bool FromTheatre, bool WorldFreed)? _cinematic;
+    /// <summary>The credits rolling: the ending's, from the menu's Credits, and whether trek's world has gone under them.</summary>
+    private (bool Ending, bool FromMenu, bool WorldFreed)? _credits;
+    private Triggers? _triggers;
     /// <summary>The pause menu reopens once trek has faded in, on the Theatre's page or as it was (trek's state 8).</summary>
     private bool? _reopenOnTheatre;
     private float _precipitationDensity = 1;
@@ -144,7 +148,10 @@ public sealed class GameSession
     public bool BackdropShowing { get; private set; }
 
     /// <summary>Whether the credits are rolling.</summary>
-    public bool CreditsRolling { get; private set; }
+    public bool CreditsRolling => _credits is not null;
+
+    /// <summary>The installed plugins' triggers, which the session fires its events on (roadmap 2.10).</summary>
+    public Triggers Triggers => _triggers ??= new Triggers(Game.Plugins);
 
     /// <summary>The cinematic playing.</summary>
     public CinematicRecord? Cinematic => _cinematic?.Record;
@@ -267,7 +274,8 @@ public sealed class GameSession
         if (CutSceneStage.For(Game.Plugins, stageRef, Trek.Chunks.World) is not { } stage)
         {
             _host.Transition(new Transition.Say($"{script.Id} plays in a chunk no plugin has."));
-            ResumeTrek(null);
+            _host.Transition(new Transition.EndCutScene(null));
+            ResumeTrek();
             return;
         }
         // The stage's chunks play their sounds and light its actors, and its map set and chunk ask for their music
@@ -295,14 +303,17 @@ public sealed class GameSession
         Stage = null;
         foreach (var problem in scene.Problems)
             _host.Warn(problem);
-        if (scene.Runner.Script.Ends == DialogueEnding.GameOver)
+        _host.Transition(new Transition.EndCutScene(scene));
+        // CutScene.Free's ending kinds, as the base plugin's triggers: the game over, Roog's cinematic and the ending's,
+        // in place of trek.
+        if (Fire(GameEvents.ScriptEnded, scene.Runner.Script.Id, worldFreed: true))
+            return;
+        if (scene.Runner.Ending is null or { Kind: ScriptEndKind.Ended } && Chained() is var (next, start, stage))
         {
-            // CutScene.Free with ending kind 2: the game is over, and trek isn't built again.
-            _host.Transition(new Transition.EndCutScene(scene));
-            _host.Transition(new Transition.GameOver());
+            StartCutScene(next, start, stage);
             return;
         }
-        ResumeTrek(scene);
+        ResumeTrek();
         if (scene.Runner.Ending is { } ending)
         {
             var chunk = scene.Stage.Chunk;
@@ -311,10 +322,35 @@ public sealed class GameSession
         }
     }
 
-    /// <summary>Trek comes back where the player stood, its world built again and the screen fading in (<see cref="TrekLoop.Resume"/>).</summary>
-    private void ResumeTrek(CutScene? scene)
+    /// <summary>
+    /// The cut-scene a cut-scene's end chains into, in place of trek (<c>CutScene.Free</c>'s last check, <c>0x80051810</c>):
+    /// while trek starts again at a named place (<see cref="TrekLoop.AtPlace"/>), the first dialogue object, in the map's
+    /// order, of the chunk the player stands in, that's tangible, holds his place within its radius and whose
+    /// <see cref="MapObject.Enabled"/> holds (<c>0x800113bc</c>), whether it was active or not. So Oriana's first cut-scene after
+    /// the Goblin Ambush leads straight into the next, and the screen goes from one to the other without trek between.
+    /// </summary>
+    private (DialogueRecord Script, ScriptStart Start, ChunkRef Stage)? Chained()
     {
-        _host.Transition(new Transition.EndCutScene(scene));
+        var at = Trek.Player.Sphere.Position;
+        if (!Trek.AtPlace || Trek.Chunks.ChunkAt(at) is not { } chunk || Game.Plugins.TryGet<MapRecord>(chunk.Map) is not { } map)
+            return null;
+        var local = at - Trek.Chunks.Origin(chunk);
+        foreach (var dialogue in map.Objects.OfType<DialogueObject>())
+        {
+            if (!dialogue.Tangible || Vector3.Distance(dialogue.Position, local) > dialogue.Radius
+                || dialogue.Enabled is { } gate && !Game.Flags.Holds(gate))
+                continue;
+            // The original starts any script there; every one the data reaches is a cut-scene with a stage.
+            if (dialogue.Stage is not { } stage || Game.Plugins.TryGet<DialogueRecord>(dialogue.Script) is not { Mode: DialogueMode.Cutscene } script)
+                return null;
+            return (script, new ScriptStart(dialogue.RefPointBase, MapRecord.VoxelId(map.Id, dialogue.Index)), stage);
+        }
+        return null;
+    }
+
+    /// <summary>Trek comes back where the player stood, its world built again and the screen fading in (<see cref="TrekLoop.Resume"/>).</summary>
+    private void ResumeTrek()
+    {
         Trek.Resume();
         _host.Transition(new Transition.ResumeTrek());
     }
@@ -407,7 +443,7 @@ public sealed class GameSession
             // Combat.StateShadowMerge returns game mode 0xE: the Shadow's cinematic, once the battle has gone, then trek where it began.
             case BattleOutcome.Merged when Game.Plugins.TrySingleton<CombatRecord>(RecordTypes.Combat)?.Shadow is { } shadow
                 && Game.Plugins.TryGet<CinematicRecord>(shadow.Cinematic) is { } cinematic:
-                PlayCinematic(cinematic, fromTheatre: false, afterBattle: true);
+                PlayCinematic(cinematic, fromTheatre: false, worldFreed: true);
                 return;
         }
         Trek.Resume(fled: battle.Outcome == BattleOutcome.Fled);
@@ -469,7 +505,7 @@ public sealed class GameSession
                 Trek.ShowBackdrop(Game.Plugins.Get<DialogueRecord>(SystemMenu.HelpScript));
                 break;
             case PauseExitCode.Credits when Game.Plugins.TrySingleton<CreditsRecord>(RecordTypes.Credits) is not null:
-                CreditsRolling = true;
+                _credits = (Ending: false, FromMenu: true, WorldFreed: false);
                 _host.Transition(new Transition.PlayCredits());
                 break;
             case PauseExitCode.Theatre when exit.Cinematic is { } cinematic:
@@ -488,41 +524,108 @@ public sealed class GameSession
     /// Plays a cinematic (<c>Cinematic.Load</c>), unless one is playing: from the Theatre, the menu reopens on its page
     /// after it.
     /// </summary>
-    /// <param name="afterBattle">Whether a battle has just ended for it (the Shadow's merge), so trek's world comes back after it.</param>
-    public void PlayCinematic(CinematicRecord cinematic, bool fromTheatre, bool afterBattle = false)
+    /// <param name="worldFreed">
+    /// Whether trek's world has gone for it, under a battle (the Shadow's merge) or a cut-scene, so it's built again after.
+    /// </param>
+    public void PlayCinematic(CinematicRecord cinematic, bool fromTheatre, bool worldFreed = false)
     {
         if (_cinematic is not null)
             return;
-        _cinematic = (cinematic, fromTheatre, afterBattle);
+        _cinematic = (cinematic, fromTheatre, worldFreed);
         _host.Transition(new Transition.PlayCinematic(cinematic));
     }
 
     /// <summary>
     /// The cinematic has ended (<c>Cinematic.EndCase</c>, <c>0x80053c20</c>): its done flag is set however it ended, from the
-    /// Theatre too, and trek comes back where the player stood, its music asked for again and the screen fading in from
-    /// black; from the Theatre, the menu reopens on its page once it has (trek's state 8).
+    /// Theatre too. In the story, what follows it is the triggers' on <see cref="GameEvents.CinematicEnded"/>: the opening's
+    /// script, Roog's True Name, the ending's credits. Unless one takes over, trek comes back where the player stood, its
+    /// music asked for again and the screen fading in from black; from the Theatre, the menu reopens on its page once it
+    /// has (trek's state 8).
     /// </summary>
     public void CinematicEnded()
     {
-        var (cinematic, fromTheatre, afterBattle) = _cinematic ?? throw new InvalidOperationException("No cinematic is playing.");
+        var (cinematic, fromTheatre, worldFreed) = _cinematic ?? throw new InvalidOperationException("No cinematic is playing.");
         _cinematic = null;
         Game.Flags.TrySet(cinematic.DoneFlag, true);
+        if (!fromTheatre && Fire(GameEvents.CinematicEnded, cinematic.Id, worldFreed))
+            return;
         Trek.Resume();
-        if (afterBattle)
+        if (worldFreed)
             _host.Transition(new Transition.ResumeTrek());
         if (fromTheatre)
             _reopenOnTheatre = true;
     }
 
     /// <summary>
-    /// The credits have ended (<c>Credits.Destroy</c>): trek fades in from black over half a second, and the menu reopens
-    /// once it has, on the System tab's list.
+    /// The credits have ended (<c>Credits.Destroy</c>): the ending's end the game (<see cref="Transition.GameOver"/>).
+    /// Otherwise trek fades in from black over half a second, built again if it had gone, and after the menu's Credits the
+    /// menu reopens once it has, on the System tab's list.
     /// </summary>
     public void CreditsEnded()
     {
-        CreditsRolling = false;
-        Trek.CutSceneFade.In(TrekLoop.CutSceneFadePerTick);
-        _reopenOnTheatre = false;
+        var (ending, fromMenu, worldFreed) = _credits ?? throw new InvalidOperationException("No credits are rolling.");
+        _credits = null;
+        if (ending)
+        {
+            _host.Transition(new Transition.GameOver());
+            return;
+        }
+        if (worldFreed)
+            ResumeTrek();
+        else
+            Trek.CutSceneFade.In(TrekLoop.CutSceneFadePerTick);
+        if (fromMenu)
+            _reopenOnTheatre = false;
+    }
+
+    /// <summary>
+    /// A new game begins (<c>Title.Leave</c>'s New Game), its world built where the player arrives: the triggers on
+    /// <see cref="GameEvents.GameStarted"/> go off, the base plugin's playing the opening cinematic. False if none takes
+    /// over, and trek simply starts.
+    /// </summary>
+    public bool StartNewGame() => Fire(GameEvents.GameStarted, null, worldFreed: false);
+
+    /// <summary>
+    /// Fires an event on the triggers (<see cref="Triggers.Fire"/>), and carries out an effect that takes over from trek.
+    /// True if one did, so what would come next at the event's place, trek coming back, doesn't.
+    /// </summary>
+    /// <param name="worldFreed">Whether trek's world has gone, as under a cut-scene, so it's built again after what takes over.</param>
+    private bool Fire(string name, RecordId? subject, bool worldFreed)
+    {
+        if (Triggers.Fire(Game, name, subject, _host.Warn) is not { } effect)
+            return false;
+        switch (effect)
+        {
+            case TriggerEffect.Cinematic { Play: var id } when Game.Plugins.TryGet<CinematicRecord>(id) is { } cinematic:
+                PlayCinematic(cinematic, fromTheatre: false, worldFreed);
+                return true;
+            case TriggerEffect.Script { From: var from } when StartFrom(from):
+                return true;
+            case TriggerEffect.Credits credits when Game.Plugins.TrySingleton<CreditsRecord>(RecordTypes.Credits) is not null:
+                _credits = (credits.Ending, FromMenu: false, worldFreed);
+                _host.Transition(new Transition.PlayCredits(credits.Ending));
+                return true;
+            case TriggerEffect.GameOver:
+                _host.Transition(new Transition.GameOver());
+                return true;
+        }
+        _host.Warn($"A trigger on {name} asks for {effect}, which no plugin has.");
+        return false;
+    }
+
+    /// <summary>
+    /// Starts the script a dialogue object starts, at once and in place of trek: a cut-scene on the object's stage from its
+    /// reference points, trek's world going first if it hasn't. False if the object or its script isn't a cut-scene a
+    /// plugin has.
+    /// </summary>
+    private bool StartFrom(RecordId voxel)
+    {
+        if (MapRecord.Find(Game.Plugins, voxel) is not DialogueObject { Stage: { } stage } dialogue
+            || Game.Plugins.TryGet<DialogueRecord>(dialogue.Script) is not { Mode: DialogueMode.Cutscene } script)
+            return false;
+        Trek.Free();
+        StartCutScene(script, new ScriptStart(dialogue.RefPointBase, voxel), stage);
+        return true;
     }
 
     /// <summary>
