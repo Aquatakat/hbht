@@ -1,3 +1,4 @@
+using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 
 namespace Aidyn.Core.Combat;
@@ -21,8 +22,85 @@ public enum CombatAction : byte
     MeleeOrRanged = 4,
 }
 
+/// <summary>
+/// A model a combatant's body holds (one of the body's three attachment records, <c>+0x730</c>, 12 bytes each, set by
+/// <c>AttachItemToPlayer</c>, <c>0x80014BA0</c>): a scene drawn on a locator of its actor, turned and scaled with it as the actor's
+/// animation moves the locator (<c>RenderPlayers</c>, <c>0x80013DCC</c>, through <c>SceneGetLocatorMtx</c>).
+/// </summary>
+/// <param name="Scene">The scene drawn.</param>
+/// <param name="Locator">The locator of the body's actor it's drawn at; none on the actor draws nothing.</param>
+/// <param name="Raise">How far it's raised in the world's Y after it's placed: the lute's 1.</param>
+public readonly record struct HeldModel(RecordId Scene, int Locator, float Raise = 0);
+
 public sealed partial class Combatant
 {
+    /// <summary>The weapon's, the arrow's or the flask's attachment slot; the shield's or the bow's; and the lute's.</summary>
+    public const int HandSlot = 0, ArmSlot = 1, LuteSlot = 2;
+
+    /// <summary>The locator each slot starts on (<c>Body.AttachmentDefaultLocators</c>, <c>0x800CDC0C</c>): the hand, the shield arm, and the head.</summary>
+    private static readonly int[] DefaultLocators = [0, 2, 3];
+
+    /// <summary>The Troubadour's lute (<c>Combatant.StartTroubadour</c>), and how far it's raised (<c>RenderPlayers</c>, slot 2 alone).</summary>
+    public static readonly RecordId LuteScene = RecordId.Hex(RecordTypes.Scene, 0x1ABB);
+
+    public const float LuteRaise = 1;
+
+    private readonly HeldModel?[] _held = new HeldModel?[3];
+
+    /// <summary>
+    /// What its body holds in each attachment slot (<see cref="HandSlot"/>, <see cref="ArmSlot"/>, <see cref="LuteSlot"/>), which
+    /// the runtime draws: in battle alone, as trek's bodies hold nothing but what a script shows.
+    /// </summary>
+    public IReadOnlyList<HeldModel?> Held => _held;
+
+    /// <summary>
+    /// Puts in its body's hands what its action holds (<c>Combatant.EquipVisuals</c>, <c>0x80066AEC</c>), the hand and the arm
+    /// emptied first and the lute left be. The arm holds the shield (its armor's model, at locator 2), unless its entity can never
+    /// learn the shield skill (<c>Combatant.CannotUseShield</c>, <c>0x80066C18</c>). With no action the hand holds nothing; a flask or
+    /// a potion in hand holds the flask; a bow holds its arrow in the hand and the bow itself in the arm in place of the shield, at
+    /// locators 0 and 1, or 1 and 0 for <see cref="CombatRecord.OtherHand"/>; any other weapon holds its own model, none for a bite
+    /// or a claw. The hand stays empty for <see cref="CombatRecord.UndrawnWeapons"/>, whose models have their weapons.
+    /// </summary>
+    internal void EquipVisuals(CombatRecord? rules)
+    {
+        _held[HandSlot] = _held[ArmSlot] = null;
+        var handLocator = DefaultLocators[HandSlot];
+        var armLocator = DefaultLocators[ArmSlot];
+        var arm = Sheet.Record.ShieldSkill is null ? null : Sheet.Equipment.Shield?.Item.Armor?.Model;
+        RecordId? hand = null;
+        if (Action == CombatAction.Flask)
+        {
+            hand = Battle.FlaskScene;
+        }
+        else if (Action != CombatAction.None && Sheet.Equipment.Weapon?.Item.Weapon is { } weapon)
+        {
+            // Combatant.WeaponIsBowKind (0x80066908): the weapons that fly as the arrow.
+            if (rules?.Missiles?.FirstOrDefault(m => m.Weapon == weapon.Id) is { Scene: { } arrow })
+            {
+                hand = arrow;
+                arm = weapon.Model;
+                var other = rules.OtherHand?.Contains(Entity) == true;
+                armLocator = other ? 0 : 1;
+                handLocator = other ? 1 : 0;
+            }
+            else
+            {
+                hand = weapon.Model;
+            }
+        }
+        if (arm is { } a)
+            _held[ArmSlot] = new HeldModel(a, armLocator);
+        if (hand is { } h && rules?.UndrawnWeapons?.Contains(Entity) != true)
+            _held[HandSlot] = new HeldModel(h, handLocator);
+    }
+
+    /// <summary>The arrow, flask or thrown weapon leaves the hand as it flies (<c>Combat.StartCastCamera</c>, <c>0x80023434</c>).</summary>
+    internal void EmptyHand() => _held[HandSlot] = null;
+
+    /// <summary>The lute on the body as it performs (<c>Combatant.StartTroubadour</c>), or taken off (<c>StopPerforming</c>).</summary>
+    internal void HoldLute(bool held) =>
+        _held[LuteSlot] = held ? new HeldModel(LuteScene, DefaultLocators[LuteSlot], LuteRaise) : null;
+
     /// <summary>What A does (<c>+0x25</c>), which its weapon sets (<see cref="SetDefaultAction"/>).</summary>
     public CombatAction Action { get; internal set; }
 
@@ -102,6 +180,7 @@ public sealed partial class Combatant
         if (item?.Item.Weapon is not { } weapon)
         {
             Action = CombatAction.None;
+            EquipVisuals(rules);
             return;
         }
         if (weapon.Range == 0)
@@ -111,5 +190,6 @@ public sealed partial class Combatant
         else
             Action = CombatAction.Ranged;
         Drawn = rules?.Missiles?.Any(m => m.Weapon == weapon.Id) == true;
+        EquipVisuals(rules);
     }
 }

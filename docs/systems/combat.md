@@ -170,7 +170,9 @@ Beside it: the combatants' bodies, `Combat.Bodies` (`0x800D9488`, 14 by slot, 0x
 | `+0x30`–`+0x3F` | two resistances, element and multiplier (Alaron's element 3 × 0.75) | checked |
 | `+0x40` | the entity, its character sheet | checked |
 | `+0x44` | the AI record, enemies only | checked |
-| `+0x84`–`+0x8A` | what the hand holds, a weapon or a flask | |
+| `+0x84` | u32, the bow's hand: 0 for `EntityBody.Hand`'s eleven (`0x8006C8BC`), else 1 ([What the bodies hold](#what-the-bodies-hold)) | checked 1 |
+| `+0x88`, `+0x89` | the locators of the hand's slot and the arm's: 0 and 2, or a bow's | checked 0, 2 |
+| `+0x8A` | the attack is aimed freely and flies (`Combatant.UpdateDrawnFlag`, `0x80066A2C`, the port's `Drawn`): a flask, a bow or a thrown weapon | |
 
 **The AI record** (0x1C, `EnemyAI.Init`, `0x8005BA7C`) is [The AI](#the-ai)'s. Checked in 02, 08, 09, 10 and 11, where the fleeing rat's flags went from 8 to 9.
 
@@ -469,6 +471,27 @@ Read from 1.0's code (`combatspellvisuals.cpp`, `0x8008AD60`–`0x8008D1DC`; the
 
 **The bodies' light in a battle** is trek's (`HandleZoneEngineFrame`, `Bodies.SetLights`, [rendering](rendering.md#bodies-light)): the ambient, the sun, the moon, then the map's lights for the party's members, of which the Battle arenas have none. Only combat changes a body's tint (`+0x75C` level, `+0x760` rate, `+0x764` colour), which moves its ambient from half the sky's colour toward the tint's colour and scales the moon's cyan light: the target marks set it to the pulse's grey at once every frame (`Body.SetTint(body, 1.0, f, f, f)`, f = |sin(3° × ticks marked)|) and clear it at once as they deselect (`ClearTint(body, 0.0)`), and a cast's glow as above.
 
+## What the bodies hold
+
+In a battle each body holds its weapon and shield; in trek no body holds anything but what a script shows ([scripts](scripts.md), `ShowItem`), and nothing else in 1.0 writes the bodies' attachments. Read from 1.0's code and checked against the Combat checkpoints' bodies.
+
+**A body's attachments** are three records of 12 bytes at body `+0x730`: a u32 Borg5 (0 for none), the scene once loaded (`+4`, 0 until the first draw loads it), and a u16 locator of the body's actor (`+8`). `AttachItemToPlayer` (`0x80014BA0`) frees the slot's old scene and sets the Borg5 and the slot's first locator (`Body.AttachmentDefaultLocators`, `0x800CDC0C`: slot 0 locator 0, the hand; slot 1 locator 2, the shield arm; slot 2 locator 3, the head); `ChangeAttachmentNode` (`0x80014C6C`) sets another; `FreeAttachmentFromPlayer` (`0x80014C2C`, `Body.FreeAttachment` `0x80014B04`) queues the scene to be freed (`Combat.FreeQueue`, `0x800D96B0`). Slot 0 is the weapon, the arrow or the flask; slot 1 the shield or a bow; slot 2 the Troubadour's lute. `FreePlayer` frees all three with the body (`Body.FreeAllAttachments`, `0x80014B48`).
+
+**What goes in them** is `Combatant.EquipVisuals` (`0x80066AEC`): slots 1 and 0 freed, the locators set to 0 and 2 (`+0x88`, `+0x89`), then:
+
+- **The arm** holds the shield (`Combatant.ShieldModel`, `0x80066844`: the entity's armor slot 1, its model by `ItemTables.ShieldModels`), unless the entity's record has the shield skill 0xFF (`Combatant.CannotUseShield`, `0x80066C18`: Brenna, Donovan, Godric, Keelin, Niesen and Sholeh), or the shield has no model.
+- **The hand**, by the action (`+0x25`): nothing for none (0); the flask's scene (`0x34C5`) for a flask or a potion in hand (3), whichever it is; else, with a weapon (the entity's `+0x24`, the one the sheet wields, not `+0x84`), its own model (`Combatant.WeaponModel`, `0x800668B4`, through `ItemTables.WeaponModels`, `0x8006CDD4`; none for a bite or a claw). A spell changes nothing: the caster keeps its weapon.
+- **A bow** (`Combatant.WeaponIsBowKind`, `0x80066908`, the list at `0x800E0C08`) puts the arrow (`0x348F`) in the hand and the bow in the arm, in place of the shield: the bow at locator 1 and the arrow at 0, or the other way round for the eleven whose `+0x84` is 0 (`EntityBody.Hand`, `0x8006C8BC`, a switch on the entity list's place: the bandit bosses and woodsmen, Becan and Keelin).
+- **The hand stays empty** for the eight whose models have their weapons (`Combatant.HasNoWeaponAttachment`, `0x80066C5C`, the entity list's places at `0x800D2A0C`: Shamsuk, the Gorgon, the Chaos Lieutenant, the Harpy, the Marquis, the Minotaur, the Minotaur Lord and Niesen, whose staff has a model all the same). It's tested after the arm is filled, so their shield or bow shows.
+
+`EquipVisuals` runs as a combatant is made (`Combat.CreateBody`'s `SetDefaultAction`, the reserves' too), as a flask or potion is taken in hand (`SetSpellAction`) and put back (`RevertAction`), as a turn starts with a flask the party has no more of (`TurnOrder.BeginTurn`), as the pause menu changes a weapon (`Party.StowHeldItem`, then `AfterEquipChange`), after `EnemyAI.SwapWeapon`, and as an arrow, flask or thrown weapon lands (`Combat.EndCast`, `0x80021AE8`): `Combat.StartCastCamera` (`0x80023434`) emptied the hand as it left. A shield can't be changed in battle (`Party.TakeOffShield` refuses in state 14). Nothing breaks: no weapon or shield wears out. Death, flight and the post-battle windows leave what's held on the body until it's freed.
+
+**The lute** goes on slot 2 as a performance starts (`Combatant.StartTroubadour`, `0x800662F4`: `AttachItemToPlayer(body, 2, 0x1ABB)`, locator 3) and comes off as it stops (`StopPerforming`, `0x80066100`).
+
+**Drawing** (`RenderPlayers`, `0x80013DCC`, after the body's own scene): each slot with a Borg5 loads its scene the first time, and is skipped if the body's actor has no such locator (`Scene.HasLocator`, `0x8009EAE8`). Its matrix is the locator's (`SceneGetLocatorMtx`, `0x8009EB10`): the locator model's rotation (`guRotateRPYF` of its Borg2 rotation, [scenes](../formats/scenes.md)), then its position, then its transform as the animation poses it, so the item turns, moves and scales with the hand, the body's scale with it, and isn't turned any more for a shield or a bow. Only the lute is then raised 1.0 in the world's Y (`Scene.Translate`, `0x8009D970`). A word at `0x800DA490` doubles every attachment's size, as its neighbour `0x800DA494` does the heads': nothing writes either by its address, so they're likely the `!bigw` and `!balloon` cheats' ([hardcoded-content](../hardcoded-content.md)), which the port doesn't have. It's lit as the body at the locator (`Bodies.SetLights`) and drawn with the body's tint and alpha, so it fades with a body that flees. Its look is its Borg5's alone: no glow or texture by the item.
+
+Across the entities that carry a weapon, only Zaratas has no locators, so draws nothing; Brenna, Donovan, Godric and Niesen have no locator 2 (none of them can use a shield), and Jundar, Yuli, Edur, Phelan, Pandara, Txomin and Yeraza carry shields their actors have no arm for. The goblins of the prologue hold their Sabres, Long and Short Bows, Poison Darts and Hatchets, with shields; the rats, wolves and bats nothing.
+
 ## The special battles
 
 Read from 1.0's code, not run: no checkpoint holds either fight. The combat record carries both as rules ([hardcoded-content](../hardcoded-content.md#bespoke-behaviours), ADR 0008's layer 3): the Goblin Ambush's on its encounter rule, the Shadow's as `ShadowRule`.
@@ -610,13 +633,21 @@ Read from 1.0's code, not run: no checkpoint holds either fight. The combat reco
   - **The music is cut** as the battle ends, whatever the outcome (`GameAudio.StopMusic` in `GameSession.EndBattle`), and as trek goes for one (`TrekLoop.BeginBattle`) ([audio](audio.md#music)).
   - **Checked** (`BattleTimingTests`, over checkpoint 01's battle with the actors' real animations): every attack's blow at `max(30, H + 2)` with the swing still playing (a rat's bite at 66, Alaron's club at 48, as the research's model of 1.0 gives at 2 ticks a frame), three walks skipped to their legs' ends, and the keys of 7, 8, 9 and 12 heard; `GameSessionTests` the music cut at a win.
 
+- **What the bodies hold** (Oct 19, 2026), [What the bodies hold](#what-the-bodies-hold)'s:
+  - **The core**: `Combatant.Held` (`HeldModel`: the scene, the locator and the lute's raise) by slot (`HandSlot`, `ArmSlot`, `LuteSlot`), filled by `Combatant.EquipVisuals(rules)` from `SetDefaultAction`, `HoldPotion`, `RevertAction`, `SwapWeapon`, `StowHeldItem`, a turn's start with no flask left, and the missile's landing; `EmptyHand` as it leaves; `HoldLute` from `StartTroubadour` and `StopPerforming`.
+  - **Content**: the combat record's `UndrawnWeapons` and `OtherHand` (importer 51), and each scene's locators' attachment nodes (`SceneNames.Attachment`), turned by the locator model's rotation.
+  - **The runtime**: `BodyView.Hold` puts each model on its locator's attachment node, the body's own rather than its head's, lit, tinted and faded with the body; `CombatantView` holds `Combatant.Held`, and `CutSceneActorView` a script's item the same way.
+  - **Checked**: `BattleCheckpointTests` against checkpoint 02's bodies (Alaron's sword at 0 and shield at 2, Rheda's staff, Brenna's dagger, Sholeh's sabre, the rats nothing); `HeldModelTests` the rules; `CombatImportTests` the lists against 1.0's RAM; `SceneTests` Alaron's shield arm's rotation. Seen in the runtime: the party over the rats and two goblin parties, and the Goblin Ambush's goblins.
+
 **Where the port differs:**
 
 - The camera acts every tick rather than once a frame; only its goal and holds are once-a-frame things, so it's the same at 30 fps.
 - A bystander in the first four leaves the original a null slot that it counts as an enemy on the field; the port leaves it out and says so. No monster party that fights has one.
 - `Talk`'s collision byte isn't ported: a monster party used is collision 0, so its enemies face 5–7 even used from behind (1 would face them 1–3).
 - Combat's frame counter's limit on pausing (`+0x5448 < 4`) isn't ported.
-- The weapon in hand and its side (`+0x84`) and the entities whose shadows are half (`0x8006C798`) wait for their sessions.
+- The entities whose shadows are half (`0x8006C798`) wait for their session.
+- An arrow, flask or thrown weapon leaves from the attacker's middle, not its hand's locator (`+0x88`), which the core doesn't know, and flies even from an actor without that locator, where `Combat.StartCastCamera` gives up.
+- What a body holds is lit by the lights at the body's centre, not at its locator.
 - The ring starts each layout due +Z rather than a hair further round than the last (the original's statics drift by float error).
 - A body keeps its cell while it hasn't moved: the port's bodies are in the world's coordinates and the original's in the arena chunk's, and taking the chunk's origin off loses a little.
 - The action's timers are counted and tested every tick, not once a frame, and state 6's snap takes two ticks rather than two frames.

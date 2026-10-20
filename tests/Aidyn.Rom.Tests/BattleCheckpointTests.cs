@@ -265,6 +265,36 @@ public sealed class BattleCheckpointTests(Na10Import fixture, ITestOutputHelper 
         Assert.True(wrong.Count == 0, string.Join("; ", wrong));
     }
 
+    /// <summary>A body's three attachment records (<c>AttachItemToPlayer</c>): a u32 Borg5 (0 for none) and a u16 locator at +8.</summary>
+    private const uint BodyAttachments = 0x730, AttachmentSize = 12;
+
+    [Fact]
+    public void EachBodyHoldsWhatTheCheckpointsDoes()
+    {
+        // Alaron Lodin's Sword at locator 0 and his shield at 2, Rheda her staff, Brenna her dagger, Sholeh her sabre (she can't use a
+        // shield), the rats nothing: their bites have no model (Combatant.EquipVisuals).
+        var built = Build();
+        var wrong = new List<string>();
+        var held = 0;
+        for (var slot = 0; slot < Battle.SlotCount; slot++)
+        {
+            var body = built.After.ReadWord(BodyPointers + (uint)slot * 4);
+            if (built.Battle.Slots[slot] is not { } combatant)
+                continue;
+            for (var i = 0; i < 3; i++)
+            {
+                var record = body + BodyAttachments + (uint)i * AttachmentSize;
+                var borg5 = built.After.ReadWord(record);
+                HeldModel? original = borg5 == 0 ? null : new HeldModel(RecordId.Hex(RecordTypes.Scene, (int)borg5), Half(built.After, record + 8));
+                if (original != combatant.Held[i])
+                    wrong.Add($"{combatant.Sheet.Name} slot {i}: original {original}, port {combatant.Held[i]}");
+                held += original is null ? 0 : 1;
+            }
+        }
+        Assert.Equal(5, held);
+        Assert.True(wrong.Count == 0, string.Join("; ", wrong));
+    }
+
     private static Vector3 Vector(AresCheckpoint c, uint address) => new(Float(c, address), Float(c, address + 4), Float(c, address + 8));
 
     /// <summary>A checkpoint's ring: the positions of the teardrops it draws, in the arena chunk's coordinates.</summary>

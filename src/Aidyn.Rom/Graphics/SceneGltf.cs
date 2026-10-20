@@ -187,11 +187,18 @@ public static class SceneGltf
         {
             if (Locator(i) is not var (t, position) || !nodes.TryGetValue(t, out var parent))
                 continue;
+            // What a body holds at the locator is turned by the locator model's rotation too (SceneGetLocatorMtx, 0x8009EB10:
+            // guRotateRPYF of the Borg2's rotation in degrees, then its position, then the transform), which its emitters
+            // (SceneGetLocatorPos) and a head don't take: so it hangs from a node of its own under the locator's.
+            var attachment = new JsonObject { ["name"] = SceneNames.Attachment(i) };
+            if (LocatorRotation(i) is { } rotation && rotation != Vector3.Zero)
+                attachment["rotation"] = QuaternionJson(RotateRpy(rotation));
             var node = gltf.AddNode(new JsonObject
             {
                 ["name"] = SceneNames.Locator(i),
                 ["translation"] = new JsonArray(position.X, position.Y, position.Z),
                 ["extras"] = new JsonObject { ["locator"] = i },
+                ["children"] = new JsonArray(gltf.AddNode(attachment)),
             });
             var p = gltf.Node(parent);
             if (p["children"] is not JsonArray children)
@@ -231,6 +238,17 @@ public static class SceneGltf
                 if (model.Locator != index)
                     continue;
                 return scene.ModelTransform(m) is { } t && t >= first ? (t, model.Position * model.Scale / 16) : null;
+            }
+            return null;
+        }
+
+        // The rotation of the model that's locator i, in radians, as Locator finds it.
+        Vector3? LocatorRotation(int index)
+        {
+            for (var m = 0; m < models.Length; m++)
+            {
+                if (models[m].Value.Locator == index)
+                    return models[m].Value.Rotation;
             }
             return null;
         }
@@ -554,6 +572,13 @@ public static class SceneGltf
     /// </summary>
     private static Quaternion Roll(Borg5Transform transform) =>
         Quaternion.CreateFromAxisAngle(Vector3.UnitZ, transform.Rotation.Z * (MathF.PI / 180));
+
+    /// <summary>
+    /// <c>guRotateRPYF</c> (<c>0x800C1660</c>) of a rotation in radians: roll about X, then pitch about Y, then heading about Z, as
+    /// row vectors, which <see cref="Matrix4x4"/>'s are too.
+    /// </summary>
+    internal static Matrix4x4 RotateRpy(Vector3 rotation) =>
+        Matrix4x4.CreateRotationX(rotation.X) * Matrix4x4.CreateRotationY(rotation.Y) * Matrix4x4.CreateRotationZ(rotation.Z);
 
     private static JsonArray QuaternionJson(Quaternion q)
     {

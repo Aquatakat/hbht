@@ -150,7 +150,7 @@ public sealed partial class Battle
         combatant.CastMargin = -1;
         combatant.Flags &= ~CombatantFlags.Acted;
         SpendItem(combatant);
-        combatant.RevertAction(Game?.Party.Inventory);
+        combatant.RevertAction(Game?.Party.Inventory, _rules);
         StowHeldItem(combatant);
         State = CombatState.Turn;
         ActionActive = false;
@@ -382,6 +382,7 @@ public sealed partial class Battle
             combatant.Action = CombatAction.None;
             combatant.Potion = null;
             combatant.Drawn = false;
+            combatant.EquipVisuals(_rules);
         }
         State = NextState = combatant.Controlled ? CombatState.AI : CombatState.Turn;
         _stickCentred = true;
@@ -412,6 +413,7 @@ public sealed partial class Battle
             return;
         if (c.Sheet.Equipment.RemoveWeapon() is { } weapon)
             Game.Party.Inventory.Add(weapon.Item, 1, weapon);
+        c.EquipVisuals(_rules);
     }
 
     /// <summary>A line of the combat strings with a combatant's name.</summary>

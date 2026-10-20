@@ -230,7 +230,7 @@ public sealed partial class Battle
         var effects = item.Gear?.Effects ?? [];
         var before = a.Sheet.Hp;
         var drunk = Potions.Drink(Game.Party, a.Sheet, item, Game.Random.Combat, a, this);
-        a.RevertAction(Game.Party.Inventory);
+        a.RevertAction(Game.Party.Inventory, _rules);
         if (drunk != DrinkResult.Drunk)
         {
             SayBoth(PotionOnLine, a.Sheet.Name);
@@ -303,6 +303,7 @@ public sealed partial class Battle
             var step = Party.SkillCheckStep((short)(chance - roll));
             c.Flags = (c.Flags | CombatantFlags.Performing) & ~(CombatantFlags.LayOnHands | CombatantFlags.HealWithHerbs);
             TroubadourBonus = step < 2 ? 1 : step;
+            c.HoldLute(true);
             sheet.DrainStamina(3);
             SayBoth(PerformsLine, sheet.Name);
             GainPerformance(c, points);

@@ -197,6 +197,36 @@ public class SceneTests
         Assert.False(Json(archive, 0x0B5E).GetProperty("scenes")[0].GetProperty("extras").TryGetProperty("scrollingTextures", out _));
     }
 
+    /// <summary>
+    /// What a body holds hangs from a node under each locator's, turned by the locator model's rotation (<c>SceneGetLocatorMtx</c>:
+    /// <c>guRotateRPYF</c> of the Borg2's rotation, X, Y and Z in that order, with no swap): Alaron's shield arm, locator 2, is turned
+    /// by (2.36, 0.36, −3.11) radians, which puts the shield's face outward on his forearm.
+    /// </summary>
+    [Fact]
+    public void ALocatorsAttachmentIsTurnedByItsModelsRotation()
+    {
+        var archive = BorgArchive.Open(TestRoms.Get(RomVersionId.Na10));
+        const int alaron = 0x25CB;
+        var scene = Borg5Scene.Parse(archive.Read(alaron));
+        var model = scene.Models.Select(m => Borg2Geometry.Parse(archive.Read(m))).First(m => m.Locator == 2);
+        Assert.Equal(2.36f, model.Rotation.X, 0.01f);
+        Assert.Equal(0.36f, model.Rotation.Y, 0.01f);
+        Assert.Equal(-3.11f, model.Rotation.Z, 0.01f);
+
+        var nodes = Json(archive, alaron).GetProperty("nodes").EnumerateArray().ToList();
+        var locator = nodes.Single(n => n.TryGetProperty("name", out var name) && name.GetString() == "locator 2");
+        var attachment = nodes[Assert.Single(locator.GetProperty("children").EnumerateArray()).GetInt32()];
+        Assert.Equal("locator 2 attachment", attachment.GetProperty("name").GetString());
+        var r = attachment.GetProperty("rotation");
+        var q = new Quaternion(r[0].GetSingle(), r[1].GetSingle(), r[2].GetSingle(), r[3].GetSingle());
+        var expected = SceneGltf.RotateRpy(model.Rotation);
+        foreach (var axis in new[] { Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ })
+            AssertNear(Vector3.TransformNormal(axis, expected), Vector3.Transform(axis, q));
+        // guRotateRPYF's first row: (cos p cos h, cos p sin h, −sin p).
+        var (p, h) = (model.Rotation.Y, model.Rotation.Z);
+        AssertNear(new Vector3(MathF.Cos(p) * MathF.Cos(h), MathF.Cos(p) * MathF.Sin(h), -MathF.Sin(p)), Vector3.TransformNormal(Vector3.UnitX, expected));
+    }
+
     private static System.Text.Json.JsonElement Json(BorgArchive archive, int index)
     {
         var glb = SceneGltf.Export(Borg5Scene.Parse(archive.Read(index)), archive.Read, index);

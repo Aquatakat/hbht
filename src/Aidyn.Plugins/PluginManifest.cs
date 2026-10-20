@@ -75,8 +75,10 @@ public static class BasePlugin
     /// 49 adds the triggers (roadmap 2.10): a new game's opening and its script, the scripts' ends that lead to the game over and the
     /// cinematics, which scripts no longer carry, and what follows Roog's cinematic and the ending's.
     /// 50 gives each entity's body the share of its attack's animation at which the blow lands (<c>strike</c>).
+    /// 51 gives each scene's locators a node turned by the locator model's rotation, which what a body holds hangs from, and the combat
+    /// record the entities whose weapon isn't drawn and those who hold a bow in the other hand.
     /// </summary>
-    public const int ImporterVersion = 50;
+    public const int ImporterVersion = 51;
 }
 
 /// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>

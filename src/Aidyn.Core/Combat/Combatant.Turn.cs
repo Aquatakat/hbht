@@ -71,6 +71,7 @@ public sealed partial class Combatant
     internal void StopPerforming(Battle? battle)
     {
         Flags &= ~CombatantFlags.Performing;
+        HoldLute(false);
         if (battle is not null)
             battle.TroubadourBonus = 0;
     }

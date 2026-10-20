@@ -655,6 +655,7 @@ public sealed partial class Battle
         EnterRest();
         if (spare.Item.Weapon is { } w && AllowsMelee(w) && w.Range != 0)
             c.Action = CombatAction.MeleeOrRanged;
+        c.EquipVisuals(_rules);
         return true;
     }
 }

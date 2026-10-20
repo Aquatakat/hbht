@@ -231,4 +231,23 @@ public sealed class CombatImportTests(Na10Import fixture)
         Assert.Null(TerrainRecord.Find(Set, 27)!.Ambushes);
         Assert.Equal([5, 10, 15, 20], Set.Singleton<CampingRecord>(RecordTypes.Camping).AmbushLevels!);
     }
+
+    /// <summary>
+    /// The entities whose weapon isn't drawn in the hand (<c>Combatant.HasNoWeaponAttachment</c>, the list at <c>0x800D2A0C</c>, read here
+    /// from a checkpoint's RAM), and those who hold a bow the other way round (<c>EntityBody.Hand</c>'s switch), as the importer
+    /// carries them (importer 51).
+    /// </summary>
+    [Fact]
+    public void TheWeaponsNotDrawnAndTheOtherHandsAreTheCodesEntities()
+    {
+        string Name(RecordId id) => Set.Get<EntityRecord>(id).Name;
+        Assert.Equal(["Shamsuk", "Gorgon", "Chaos Lieutenant", "Harpy", "Marquis", "Minotaur", "Minotaur Lord", "Niesen"],
+            Combat.UndrawnWeapons!.Select(Name));
+        Assert.Equal(["Bandit Boss", "Bandit Boss", "Bandit Boss", "Bandit Woodsman", "Bandit Woodsman", "Bandit Boss", "Bandit Boss",
+            "Bandit Woodsman", "Bandit Boss", "Becan", "Keelin"], Combat.OtherHand!.Select(Name));
+
+        var cp = CombatCheckpoints.Combat(1);
+        Assert.Equal([.. CombatImporter.UndrawnWeaponPlaces, 0xFF],
+            Enumerable.Range(0, CombatImporter.UndrawnWeaponPlaces.Count + 1).Select(i => (int)cp.ReadByte(0x800D2A0Cu + (uint)i)));
+    }
 }

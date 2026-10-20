@@ -306,7 +306,7 @@ public sealed partial class Battle
         var wasAiming = State == CombatState.TargetAttack;
         ReturnToTurn(c);
         if (wasAiming)
-            c.RevertAction(Game.Party.Inventory);
+            c.RevertAction(Game.Party.Inventory, _rules);
     }
 
     /// <summary>

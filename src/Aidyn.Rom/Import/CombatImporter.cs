@@ -69,8 +69,23 @@ internal static class CombatImporter
             Text: text,
             AreaSpells: [RecordId.Hex(RecordTypes.Spell, FireballSpell)],
             FlaskDanger: [.. FlaskDangers.Select(f => new FlaskDanger(RecordId.Hex(RecordTypes.Item, f.Item), f.Radius))],
-            Shadow: Shadow(At));
+            Shadow: Shadow(At),
+            UndrawnWeapons: [.. UndrawnWeaponPlaces.Select(At)],
+            OtherHand: [.. OtherHandPlaces.Select(At)]);
     }
+
+    /// <summary>
+    /// The entities whose weapon isn't drawn in the hand, by their places in the entity list (<c>Combatant.HasNoWeaponAttachment</c>,
+    /// <c>0x80066C5C</c>, the bytes at <c>0x800D2A0C</c> up to <c>0xFF</c>), carried as a fact: Shamsuk, the Gorgon, the Chaos Lieutenant,
+    /// the Harpy, the Marquis, the Minotaur, the Minotaur Lord and Niesen.
+    /// </summary>
+    internal static readonly IReadOnlyList<int> UndrawnWeaponPlaces = [0xAD, 0x75, 0xA6, 0x76, 0xAA, 0x80, 0xA5, 0xA2];
+
+    /// <summary>
+    /// The entities who hold a bow at locator 0 and its arrow at 1 (<c>EntityBody.Hand</c>, <c>0x8006C8BC</c>, whose switch gives these
+    /// places 0 and every other 1), carried as a fact: the bandit bosses and woodsmen, Becan and Keelin.
+    /// </summary>
+    internal static readonly IReadOnlyList<int> OtherHandPlaces = [0x57, 0x58, 0x59, 0x5C, 0x5D, 0x5E, 0x5F, 0x6C, 0x7A, 0x9C, 0xA1];
 
     /// <summary>
     /// The Shadow's rules (<c>gamecombat.cpp</c>'s Shadow functions, carried as facts read in 1.0's code; docs/hardcoded-content.md's

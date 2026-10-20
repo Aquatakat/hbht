@@ -1,4 +1,5 @@
 using Aidyn.Core;
+using Aidyn.Core.Combat;
 using Aidyn.Core.Movement;
 using Aidyn.Core.Scripts;
 using Aidyn.Plugins;
@@ -19,18 +20,10 @@ namespace Aidyn.Game;
 /// </remarks>
 public partial class CutSceneActorView : BodyView
 {
-    private readonly Models? _models;
-    private readonly Node3D? _hand;
-    private RecordId? _heldScene;
-    private Node3D? _held;
-
     public CutSceneActorView(CutSceneActor actor, PluginSet plugins, Models models, Texture2D? shadow)
         : base($"Actor {actor.Entity}", actor.Body, actor.Look, plugins, models, shadow)
     {
         Actor = actor;
-        _models = models;
-        // What it holds goes on its scene's locator 0 (AttachItemToPlayer's slot 0).
-        _hand = Model is { } model ? Nodes.FindAll<Node3D>(model).FirstOrDefault(n => n.Name == SceneNames.Locator(0)) : null;
         Sync();
     }
 
@@ -45,19 +38,8 @@ public partial class CutSceneActorView : BodyView
     public override void Sync()
     {
         base.Sync();
-        if (_heldScene != Actor.Held)
-        {
-            _held?.QueueFree();
-            _held = null;
-            _heldScene = Actor.Held;
-            if (Actor.Held is { } scene && _hand is not null && _models!.Instantiate(scene) is { } item)
-            {
-                N64Material.SetLighting(item, N64Material.Lighting.Body);
-                ShadowDecal.MarkBody(item);
-                _hand.AddChild(item);
-                _held = item;
-            }
-        }
+        // What it holds goes on its scene's locator 0 (AttachItemToPlayer's slot 0).
+        Hold(Actor.Held is { } scene ? [new HeldModel(scene, 0)] : []);
     }
 
     /// <summary>
@@ -67,9 +49,7 @@ public partial class CutSceneActorView : BodyView
     /// </summary>
     public void Draw(Core.Physics.CollisionWorld world, System.Numerics.Vector3 aim)
     {
-        var (alpha, fromAim) = Fade(aim, Actor.Hidden);
-        if (_held is not null)
-            _held.Visible = alpha != 0;
+        var (_, fromAim) = Fade(aim, Actor.Hidden);
         PlaceShadow(world, BodyShadow.DrawAlpha(BodyShadow.TrekDistance, fromAim, player: Actor.Entity == GameState.Alaron));
     }
 }

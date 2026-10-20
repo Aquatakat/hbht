@@ -69,6 +69,9 @@ public sealed partial class Battle
     /// <summary>The combat record, for who can't be attacked and the weapons that fly.</summary>
     private CombatRecord? _rules;
 
+    /// <summary>The combat record's rules the battle plays by, if the plugins have one.</summary>
+    internal CombatRecord? Rules => _rules;
+
     /// <summary>
     /// What the target sets say of one slot, which tints its portrait (<see cref="Ui.CombatGui.Tint"/>): A's candidate and
     /// selected, B's candidate and selected.
@@ -306,7 +309,7 @@ public sealed partial class Battle
         var wasAiming = State == CombatState.TargetAttack;
         ReturnToTurn(c);
         if (wasAiming)
-            c.RevertAction(Game?.Party.Inventory);
+            c.RevertAction(Game?.Party.Inventory, _rules);
         return true;
     }
 
@@ -593,6 +596,7 @@ public sealed partial class Battle
             // Combatant.LoadWeaponScene: the flask's scene, to the target's feet, its muzzle number and spin (0x800D2B40).
             var feet = t.Body.Sphere.Position with { Y = t.Body.Sphere.Position.Y - t.Body.Sphere.Radius };
             Flight = new MissileFlight(FlaskScene, Middle(a), feet, FlaskMuzzle, a.Look.Scale, 0, FlaskSpin);
+            a.EmptyHand();
             return true;
         }
         if (WeaponOf(a) is not { } weapon || _rules?.Missiles?.FirstOrDefault(m => m.Weapon == weapon.Id) is not { } missile)
@@ -600,6 +604,7 @@ public sealed partial class Battle
         if ((missile.Scene ?? weapon.Model) is not { } scene)
             return false;
         Flight = new MissileFlight(scene, Middle(a), Middle(t), missile.Speed, a.Look.Scale, missile.Turn);
+        a.EmptyHand();
         return true;
     }
 
@@ -624,9 +629,11 @@ public sealed partial class Battle
             return;
         _actionTimer = 0;
         Flight = null;
+        // Combat.EndCast (0x800219D8): the arrow, flask or thrown weapon is back in the hand.
+        Current?.EquipVisuals(_rules);
         if (Target < 0 || _slots[Target] is not { } t)
             return;
-        // Combat.EndCast (0x800219D8): a flask bursts first (Combatant.FlaskExplosion), then the target's own share lands as a blow.
+        // A flask bursts first (Combatant.FlaskExplosion), then the target's own share lands as a blow.
         if (Current is { Action: CombatAction.Flask } thrower)
             FlaskExplosion(thrower, t, thrower.Damage);
         Land(t);

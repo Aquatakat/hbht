@@ -1,9 +1,11 @@
 using Aidyn.Core.Actors;
 using Aidyn.Core.Chunks;
+using Aidyn.Core.Combat;
 using Aidyn.Core.Lights;
 using Aidyn.Core.Movement;
 using Aidyn.Core.Physics;
 using Aidyn.Plugins;
+using Aidyn.Plugins.Assets;
 using Aidyn.Plugins.Records;
 using Godot;
 
@@ -20,6 +22,13 @@ public abstract partial class BodyView : Node3D
     private readonly Level? _model;
     private readonly Node3D? _turn;
     private readonly ShadowDecal? _shadow;
+    private readonly Models? _models;
+
+    /// <summary>What it holds in each attachment slot, and the model drawn for it (body <c>+0x730</c>).</summary>
+    private readonly (HeldModel Held, Level Level)?[] _held = new (HeldModel, Level)?[3];
+
+    /// <summary>The meshes of its actor and of what it holds, made again as what it holds changes.</summary>
+    private GeometryInstance3D[]? _meshes;
 
     /// <summary>
     /// Makes the view of <paramref name="body"/>, which looks like <paramref name="look"/>. A derived view calls
@@ -30,6 +39,7 @@ public abstract partial class BodyView : Node3D
     {
         Body = body;
         Name = name;
+        _models = models;
         if (plugins.TryGet<ActorRecord>(look.Actor) is { } actor && models.InstantiateActor(actor, rolls: models.BodyRolls) is var (node, animator))
         {
             _turn = new Node3D { Scale = Vector3.One * body.Scale };
@@ -84,11 +94,71 @@ public abstract partial class BodyView : Node3D
         if (_model is null)
             return;
         var centre = Body.Sphere.Position;
-        N64Material.SetLights(_model.Meshes, lights.ForBody(centre, chunks.MapAt(centre), party, tint));
+        N64Material.SetLights(Meshes, lights.ForBody(centre, chunks.MapAt(centre), party, tint));
     }
 
-    /// <summary>The meshes of its actor's scene, none for a body without one.</summary>
-    protected IReadOnlyList<GeometryInstance3D> Meshes => _model?.Meshes ?? [];
+    /// <summary>The meshes of its actor's scene and of what it holds, none for a body without an actor.</summary>
+    protected IReadOnlyList<GeometryInstance3D> Meshes =>
+        _meshes ??= _model is null ? [] : [.. _model.Meshes, .. _held.Where(h => h is not null).SelectMany(h => h!.Value.Level.Meshes)];
+
+    /// <summary>
+    /// Puts in its actor's hands what it holds, slot by slot (<c>RenderPlayers</c>, <c>0x80013DCC</c>): each model on its locator's
+    /// attachment node, turned by the locator model's rotation and moved and scaled with the transform it's on as the animation
+    /// poses it, lit and faded as the body. A locator the actor doesn't have draws nothing, as the original's
+    /// <c>Scene.HasLocator</c> skips it. Call after each tick.
+    /// </summary>
+    protected void Hold(IReadOnlyList<HeldModel?> held)
+    {
+        for (var slot = 0; slot < _held.Length; slot++)
+        {
+            var want = slot < held.Count ? held[slot] : null;
+            if (_held[slot]?.Held != want)
+            {
+                if (_held[slot] is { } old)
+                    old.Level.Node.QueueFree();
+                _held[slot] = null;
+                _meshes = null;
+                if (want is { } h && Attachment(h.Locator) is { } parent && _models!.Instantiate(h.Scene) is { } item)
+                {
+                    N64Material.SetLighting(item, N64Material.Lighting.Body);
+                    ShadowDecal.MarkBody(item);
+                    parent.AddChild(item);
+                    var level = new Level(item, null);
+                    level.Show(_model!.Alpha);
+                    _held[slot] = (h, level);
+                }
+            }
+            // Only the lute is raised, in the world's Y, after it's placed on its locator.
+            if (_held[slot] is ({ Raise: not 0 } raised, var shown) && shown.Node.IsInsideTree() && shown.Node.GetParent() is Node3D on)
+                shown.Node.GlobalPosition = on.GlobalPosition + new Vector3(0, raised.Raise, 0);
+        }
+    }
+
+    /// <summary>
+    /// The node what's held at locator <paramref name="locator"/> hangs from: the body's actor's own, not its head's, whose scene hangs
+    /// from another locator. A plugin from before importer 51 has only the locator's node, which leaves out the locator model's rotation.
+    /// </summary>
+    private Node3D? Attachment(int locator)
+    {
+        if (Model is not { } model)
+            return null;
+        var nodes = Nodes.FindAll<Node3D>(model);
+        return Own(SceneNames.Attachment(locator)) ?? Own(SceneNames.Locator(locator));
+
+        Node3D? Own(string name) => nodes.FirstOrDefault(n => n.Name == name && LocatorsAbove(n, model) <= 1);
+    }
+
+    /// <summary>How many locators <paramref name="node"/> is or is under, up to <paramref name="root"/>: more than one is in a scene hung from another.</summary>
+    private static int LocatorsAbove(Node node, Node root)
+    {
+        var count = 0;
+        for (var n = node; n is not null && n != root; n = n.GetParent())
+        {
+            if (SceneNames.TryLocator(n.Name.ToString(), out _))
+                count++;
+        }
+        return count;
+    }
 
     /// <summary>
     /// Fades the body by its distance from the camera's aim (<c>PlayerShadowAlpha</c>), over trek's distance or
@@ -99,7 +169,10 @@ public abstract partial class BodyView : Node3D
     {
         var fromAim = System.Numerics.Vector3.Distance(aim, Body.Sphere.Position);
         var alpha = BodyShadow.BodyAlpha(distance, fromAim) ?? 0;
-        _model?.Show(hidden ? (byte)0 : (byte)(alpha * opacity));
+        var shown = hidden ? (byte)0 : (byte)(alpha * opacity);
+        _model?.Show(shown);
+        foreach (var held in _held)
+            held?.Level.Show(shown);
         return (alpha, fromAim);
     }
 

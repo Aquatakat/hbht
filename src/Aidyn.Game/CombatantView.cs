@@ -10,7 +10,7 @@ namespace Aidyn.Game;
 
 /// <summary>
 /// Draws a combatant's body in the arena (<c>renderPlayers</c> over <c>Combat.Bodies</c>): its entity's actor at its scale,
-/// standing at its feet and facing its heading, faded by its distance from the camera's aim, with its shadow. The core
+/// standing at its feet and facing its heading, faded by its distance from the camera's aim, with its shadow and what it holds. The core
 /// steps its animations as the body moves. Party members are lit as the party is (<c>+0x70a</c>), by the arena's light map
 /// objects too, which the arenas have none of.
 /// </summary>
@@ -29,6 +29,13 @@ public partial class CombatantView : BodyView
     }
 
     public Combatant Combatant { get; }
+
+    /// <summary>Moves the node to where the body is, and puts in its hands what it holds (<see cref="Combatant.Held"/>). Call after each tick.</summary>
+    public override void Sync()
+    {
+        base.Sync();
+        Hold(Combatant.Held);
+    }
 
     /// <summary>Its actor's locators, which a spell's visual's emitters attach to; null for a body with no actor.</summary>
     public IParticleAnchor? Anchor => _anchor ??= Model is { } model ? ParticlesView.Anchor(model) : null;

@@ -40,6 +40,12 @@ public static class SceneNames
     /// <summary>A locator's node (0–7), where the game attaches what it draws on a scene at run time.</summary>
     public static string Locator(int locator) => Name(LocatorPrefix, locator);
 
+    /// <summary>
+    /// The node under a locator's that what a body holds there hangs from (<c>SceneGetLocatorMtx</c>, <c>0x8009EB10</c>): the locator
+    /// turned by its model's rotation, which the locator's own node leaves out, as its emitters and heads don't take it.
+    /// </summary>
+    public static string Attachment(int locator) => Locator(locator) + " attachment";
+
     /// <summary>An animation (Borg6 <paramref name="borg6"/>, its archive index).</summary>
     public static string Animation(int borg6) => Name(AnimationPrefix, borg6);
 

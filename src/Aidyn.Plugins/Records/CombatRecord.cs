@@ -69,6 +69,16 @@ namespace Aidyn.Plugins.Records;
 /// (<c>Combat.PartyPotionTier</c>, <c>0x8005C750</c>). Null in a plugin from before it.
 /// </param>
 /// <param name="Shadow">The Shadow's rules in any battle it's in (<c>gamecombat.cpp</c>'s Shadow functions). Null in a plugin from before it.</param>
+/// <param name="UndrawnWeapons">
+/// Entities whose weapon, arrow or flask isn't drawn in the hand, their models having their weapons already
+/// (<c>Combatant.HasNoWeaponAttachment</c>, <c>0x80066C5C</c>, the entity list's places at <c>0x800D2A0C</c>): Shamsuk, the Gorgon,
+/// the Chaos Lieutenant, the Harpy, the Marquis, the Minotaur, the Minotaur Lord and Niesen. A shield or a bow is drawn all the same.
+/// Null in a plugin from before it.
+/// </param>
+/// <param name="OtherHand">
+/// Entities who hold a bow at their actor's locator 0 and its arrow at 1, the other way round from the rest (<c>EntityBody.Hand</c>,
+/// <c>0x8006C8BC</c>, a switch on the entity list's place): the bandit bosses and woodsmen, Becan and Keelin. Null in a plugin from before it.
+/// </param>
 public sealed record CombatRecord(
     RecordId Id,
     RecordId Ally,
@@ -88,7 +98,9 @@ public sealed record CombatRecord(
     CombatText? Text = null,
     IReadOnlyList<RecordId>? AreaSpells = null,
     IReadOnlyList<FlaskDanger>? FlaskDanger = null,
-    ShadowRule? Shadow = null)
+    ShadowRule? Shadow = null,
+    IReadOnlyList<RecordId>? UndrawnWeapons = null,
+    IReadOnlyList<RecordId>? OtherHand = null)
 {
     /// <summary>The rules of the battle under encounter flag <paramref name="flag"/>, if it has any.</summary>
     public EncounterRule? Encounter(RecordId? flag) => flag is { } f ? Encounters?.FirstOrDefault(e => e.Flag == f) : null;
