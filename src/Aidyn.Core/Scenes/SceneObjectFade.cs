@@ -12,7 +12,20 @@ namespace Aidyn.Core.Scenes;
 /// <param name="Look">The way it looks in X and Z, of length 1, or zero when it looks straight up or down.</param>
 /// <param name="AimDistance">How far along <paramref name="Look"/> its aim is, the player; 0 fades nothing for coming between them.</param>
 /// <param name="Cone">How wide the view is taken to be.</param>
-public readonly record struct SceneView(Vector3 Focus, Vector2 Camera, Vector2 Look, float AimDistance, ViewCone Cone);
+public readonly record struct SceneView(Vector3 Focus, Vector2 Camera, Vector2 Look, float AimDistance, ViewCone Cone)
+{
+    /// <summary>
+    /// The view from a camera at <paramref name="camera"/> aiming at <paramref name="aim"/>, measured from
+    /// <paramref name="focus"/>: it looks toward its aim on the ground, which is as far along as the aim is.
+    /// </summary>
+    public static SceneView Aimed(Vector3 focus, Vector3 camera, Vector3 aim, ViewCone cone)
+    {
+        var from = new Vector2(camera.X, camera.Z);
+        var toAim = new Vector2(aim.X, aim.Z) - from;
+        var distance = toAim.Length();
+        return new SceneView(focus, from, distance > 0 ? toAim / distance : default, distance, cone);
+    }
+}
 
 /// <summary>
 /// How far either side of the camera's look, on the ground, a scene object starts to fade and has

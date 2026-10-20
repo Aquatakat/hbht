@@ -586,7 +586,8 @@ public partial class Game : Node3D, ITrekHost
 
     /// <summary>
     /// Where scene objects are drawn from: the player, and the follow camera's place and aim, or
-    /// the free camera alone. The cone of view widens with the window (<see cref="ViewCone.For"/>).
+    /// the free camera alone. The cone of view widens with the window (<see cref="ViewCone.For"/>): this view only
+    /// shows and fades them, and what goes out once reached trek puts out by the original's cone (<see cref="ITrekHost.PutOut"/>).
     /// </summary>
     private SceneView View()
     {
@@ -602,11 +603,8 @@ public partial class Game : Node3D, ITrekHost
         }
         // In a cut-scene or a battle there's no player: levels of detail go by the camera's aim.
         var follow = Scene?.Camera ?? Battle?.Camera ?? _follow!;
-        var camera = new System.Numerics.Vector2(follow.Position.X, follow.Position.Z);
-        var toAim = new System.Numerics.Vector2(follow.Aim.X, follow.Aim.Z) - camera;
-        var distance = toAim.Length();
         var from = Scene is not null || Battle is not null ? follow.Aim : _player!.Motion.Sphere.Position;
-        return new SceneView(from, camera, distance > 0 ? toAim / distance : default, distance, cone);
+        return SceneView.Aimed(from, follow.Position, follow.Aim, cone);
     }
 
     /// <summary>
@@ -742,11 +740,7 @@ public partial class Game : Node3D, ITrekHost
         // A cut-scene's and an arena's 3×3 stay as they loaded.
         if (Scene is null && Battle is null)
             chunks.Chunks.Update(focus.ToNumerics());
-        var view = View();
-        chunks.Fade(view, _drawDistance);
-        // Oriana's path lights go out as they're reached; not for the free camera, which the original hasn't.
-        if (!_camera.Flying)
-            chunks.PutOut(view);
+        chunks.Fade(View(), _drawDistance);
         RepeatStick(delta);
         // From where the scenery is drawn this frame: between ticks, the camera interpolated.
         var eye = _camera.Current.GetGlobalTransformInterpolated().Origin;
@@ -1046,6 +1040,8 @@ public partial class Game : Node3D, ITrekHost
     }
 
     void ITrekHost.Changed(LoadedMap map, SceneObject scene) => _changed.Add(map);
+
+    void ITrekHost.PutOut(LoadedMap map, SceneObject scene) => _chunks!.PutOut(map, scene);
 
     /// <summary>
     /// The System tab's Save: writes the game to a save file with where the player stands, and beside it the world as
