@@ -15,7 +15,7 @@ The editor holds one game, the core's `GameState` ([saves](saves.md)), which fla
 
 ## Plugins
 
-It loads the plugins folder as the runtime does (`PluginSet.LoadInstalled`: `aidyn.base`, then the rest by ID), from the data folder (`AIDYN_DATA`, else `%LOCALAPPDATA%\Aidyn`) or wherever **Plugins folder…** points. **Import ROM…** runs the importer into that folder's `aidyn.base`, as the game's first-run screen will, and reloads.
+It loads the plugins folder as the runtime does (`PluginSet.LoadInstalled`: `aidyn.base`, then the rest ordered by their dependencies and load-after hints, by ID where those leave it open), and shows `BasePlugin.Diagnose`'s words instead of loading when the import is missing or by another importer, from the data folder (`AIDYN_DATA`, else `%LOCALAPPDATA%\Aidyn`) or wherever **Plugins folder…** points. **Import ROM…** runs the importer into that folder's `aidyn.base`, as the game's first-run screen will, and reloads.
 
 - **The list** is every record and every asset, by type: `PluginCatalog` in `Aidyn.Plugins`, which the tests check against a fresh import. Scenes, textures and UI images are assets with no record, so they're listed by their asset's ID. The Borg column is the archive index a base-game ID's hex key stands for. The search filters by ID, Borg index or summary (`I08` finds the chunk's map).
 - **Links.** Any field whose value parses as a record ID is a link, so new record types need no editor code. A link to a record no plugin has yet, such as a flag, opens a page showing what names it.

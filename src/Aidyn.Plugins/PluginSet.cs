@@ -60,9 +60,11 @@ public sealed class PluginSet
         _setters.Where(s => s.Value.Count > 1).Select(s => new FieldConflict(s.Key.Item1, s.Key.Item2, s.Value));
 
     /// <summary>Loads plugin folders in the order given.</summary>
-    public static PluginSet Load(IEnumerable<string> directories)
+    public static PluginSet Load(IEnumerable<string> directories) => Load([.. directories.Select(Plugin.Open)]);
+
+    private static PluginSet Load(IReadOnlyList<Plugin> plugins)
     {
-        var set = new PluginSet([.. directories.Select(Plugin.Open)]);
+        var set = new PluginSet(plugins);
         var loaded = new HashSet<string>(StringComparer.Ordinal);
         foreach (var plugin in set.Plugins)
         {
@@ -79,8 +81,9 @@ public sealed class PluginSet
     }
 
     /// <summary>
-    /// Loads the base plugin and every other plugin in <paramref name="pluginsDirectory"/>: the base
-    /// first, then the rest by ID. Load-order rules beyond that come with Phase 5.
+    /// Loads the base plugin and every other plugin in <paramref name="pluginsDirectory"/>: the base first, then the rest in
+    /// <see cref="LoadOrder"/>. A plugin's folder must be named for its ID, as the ID is also its namespace; only the base
+    /// plugin's, <see cref="BasePlugin.Folder"/>, differs (it holds <c>aidyn</c>).
     /// </summary>
     public static PluginSet LoadInstalled(string pluginsDirectory)
     {
@@ -88,8 +91,71 @@ public sealed class PluginSet
         var others = Directory.EnumerateDirectories(pluginsDirectory)
             .Where(d => !string.Equals(Path.GetFileName(d), BasePlugin.Folder, StringComparison.OrdinalIgnoreCase) &&
                 File.Exists(Path.Combine(d, PluginManifest.FileName)))
-            .Order(StringComparer.Ordinal);
-        return Load([baseDir, .. others]);
+            .Select(Plugin.Open)
+            .ToList();
+        foreach (var plugin in others)
+        {
+            var folder = Path.GetFileName(plugin.Directory.TrimEnd('/', '\\'));
+            if (!string.Equals(folder, plugin.Manifest.Id, StringComparison.Ordinal))
+                throw new InvalidDataException($"The plugin in folder \"{folder}\" says its ID is \"{plugin.Manifest.Id}\"; a plugin's folder must be named for its ID.");
+        }
+        var basePlugin = Plugin.Open(baseDir);
+        return Load([basePlugin, .. LoadOrder(others, basePlugin.Manifest.Id)]);
+    }
+
+    /// <summary>
+    /// <see cref="LoadInstalled"/> after <see cref="BasePlugin.Require"/>: it throws an <see cref="IOException"/> saying to
+    /// import if the base plugin isn't there, or was written by an importer other than the current one.
+    /// </summary>
+    public static PluginSet LoadInstalledChecked(string pluginsDirectory)
+    {
+        BasePlugin.Require(pluginsDirectory);
+        return LoadInstalled(pluginsDirectory);
+    }
+
+    /// <summary>
+    /// Puts plugins in the order they load: each after its <see cref="PluginManifest.Dependencies"/> and, when the plugin is
+    /// present, its <see cref="PluginManifest.LoadAfter"/>, and otherwise by ID, so the order doesn't depend on the folders'
+    /// names. A dependency that isn't among the plugins is left for <see cref="Load(IEnumerable{string})"/> to refuse, and a
+    /// <c>LoadAfter</c> that isn't is ignored. The base plugin loads before all of them, so it's named by
+    /// <paramref name="loadedFirst"/> rather than ordered. A cycle is an <see cref="InvalidDataException"/> naming the
+    /// plugins in it.
+    /// </summary>
+    public static IReadOnlyList<Plugin> LoadOrder(IEnumerable<Plugin> plugins, string? loadedFirst = null)
+    {
+        var byId = new SortedDictionary<string, Plugin>(StringComparer.Ordinal);
+        foreach (var plugin in plugins)
+        {
+            if (plugin.Manifest.Id == loadedFirst || !byId.TryAdd(plugin.Manifest.Id, plugin))
+                throw new InvalidDataException($"Plugin {plugin.Manifest.Id} is loaded twice.");
+        }
+
+        // after[x] holds the plugins x loads after.
+        var after = byId.ToDictionary(p => p.Key, p => new SortedSet<string>(
+            (p.Value.Manifest.Dependencies ?? []).Concat(p.Value.Manifest.LoadAfter ?? []).Where(byId.ContainsKey),
+            StringComparer.Ordinal), StringComparer.Ordinal);
+
+        var ordered = new List<Plugin>();
+        var placed = new HashSet<string>(StringComparer.Ordinal);
+        while (ordered.Count < byId.Count)
+        {
+            // byId is sorted by ID, so the first plugin that's ready is the least ID of those that are.
+            var next = byId.Keys.FirstOrDefault(id => !placed.Contains(id) && after[id].All(placed.Contains));
+            if (next is null)
+            {
+                var stuck = new SortedSet<string>(byId.Keys.Where(id => !placed.Contains(id)), StringComparer.Ordinal);
+                // What nothing stuck comes after is only after a cycle, not in one.
+                for (var changed = true; changed;)
+                {
+                    var wanted = stuck.SelectMany(o => after[o]).ToHashSet(StringComparer.Ordinal);
+                    changed = stuck.RemoveWhere(id => !wanted.Contains(id)) > 0;
+                }
+                throw new InvalidDataException($"These plugins depend on or load after each other in a cycle: {string.Join(", ", stuck)}.");
+            }
+            placed.Add(next);
+            ordered.Add(byId[next]);
+        }
+        return ordered;
     }
 
     public bool Contains(RecordId id) => _records.ContainsKey(id);

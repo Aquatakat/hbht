@@ -426,17 +426,7 @@ public partial class Game : Node3D, ITrekHost
     }
 
     /// <summary>The installed plugins, after checking the base plugin is there and up to date.</summary>
-    private static PluginSet LoadPlugins()
-    {
-        var manifest = Path.Combine(DataPaths.Base, PluginManifest.FileName);
-        if (!File.Exists(manifest))
-            throw new IOException($"The game hasn't been imported. Run: aidyn import <rom>\n(looked in {DataPaths.Base})");
-        var plugins = PluginSet.LoadInstalled(DataPaths.Plugins);
-        var import = plugins.Plugins[0].Manifest.Import;
-        if (import?.Importer != BasePlugin.ImporterVersion)
-            throw new IOException($"The import is out of date (importer {import?.Importer}, now {BasePlugin.ImporterVersion}). Run: aidyn import <rom>");
-        return plugins;
-    }
+    private static PluginSet LoadPlugins() => PluginSet.LoadInstalledChecked(DataPaths.Plugins);
 
     public override void _ExitTree() => _models?.Dispose();
 

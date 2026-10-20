@@ -408,12 +408,7 @@ static string Summary(BorgArchive archive)
         $"{ls.Min(l => l.UncompressedSize),9:N0} {ls.Max(l => l.UncompressedSize),9:N0}";
 }
 
-static PluginSet InstalledPlugins()
-{
-    if (!File.Exists(Path.Combine(DataPaths.Base, PluginManifest.FileName)))
-        throw new IOException($"The game hasn't been imported. Run: aidyn import <rom>\n(looked in {DataPaths.Base})");
-    return PluginSet.LoadInstalled(DataPaths.Plugins);
-}
+static PluginSet InstalledPlugins() => PluginSet.LoadInstalledChecked(DataPaths.Plugins);
 
 static string SavePath(string? path, string label) => path ?? Path.Combine(DataPaths.Saves, label + SaveFile.Extension);
 

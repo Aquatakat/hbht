@@ -1,6 +1,6 @@
 # The runtime (M1, M2, M3)
 
-`src/Aidyn.Game` is the Godot game. It references `Aidyn.Plugins` and `Aidyn.Core`, and not `Aidyn.Rom`, so the build enforces ADR 0001. Import first ([importer](importer.md)), build with `dotnet build`, then run it with `tools/godot.ps1 --path src/Aidyn.Game`. It reads the plugins from the data folder, so set `AIDYN_DATA` for both if the import went elsewhere.
+`src/Aidyn.Game` is the Godot game. It references `Aidyn.Plugins` and `Aidyn.Core`, and not `Aidyn.Rom`, so the build enforces ADR 0001. Import first ([importer](importer.md)), build with `dotnet build`, then run it with `tools/godot.ps1 --path src/Aidyn.Game`. It reads the plugins from the data folder, so set `AIDYN_DATA` for both if the import went elsewhere. It refuses a base plugin that isn't there or was imported by another importer (`PluginSet.LoadInstalledChecked`, `BasePlugin.Diagnose`), as the CLI and the editor do, with the same words saying to import again.
 
 The runtime keeps its loops thin (ADR 0012): the core steps the game and the runtime draws what it leaves and carries out what it asks. Each system's doc says how its part is drawn; this one says how they fit together, and holds the controls and the command line.
 
