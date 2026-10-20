@@ -504,6 +504,19 @@ public sealed partial class Battle
     }
 
     /// <summary>
+    /// A in state 5 (<c>Combat.InputMoving</c>, <c>0x80084F98</c>): the walk ends at once, its body put at the leg's end
+    /// (<see cref="Body.SkipToEnd"/>), where the combatant already stands, even if the body would have stuck on the way; the state's next
+    /// step then goes on as on arriving. It asks only that the body is walking a path, not whose side it's on, so Sholeh's walks skip
+    /// too. Whether it skipped.
+    /// </summary>
+    public bool SkipWalk()
+    {
+        if (State != CombatState.Moving || Fade.Fading || Lines.Hold is not null || Current is not { Freed: false } c)
+            return false;
+        return c.Body.SkipToEnd(World);
+    }
+
+    /// <summary>
     /// A tick of state 5 (<c>Combat.StateMoving</c>, <c>0x80021FD0</c>): a body that hasn't moved 0.03 in a frame counts down the stuck
     /// timer. Once it has no more points to run to, its leg is over: the AI turns it the way it walked (state 6, then
     /// <see cref="FleeAdvance"/>'s action). If the timer runs out first, the AI gives the walk up where it is, as though it had

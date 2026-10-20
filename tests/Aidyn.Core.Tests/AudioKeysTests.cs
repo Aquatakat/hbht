@@ -75,7 +75,10 @@ public class AudioKeysTests
         keys.Process(body, Profile, Walk, 3, 20, Vector3.Zero, 0, new Vector3(0, 0, 5), Vector3.Zero);
         Assert.False(Heard(audio));
         Assert.Equal(Ouch, body.Cast);
+        // AudioKeys.PlaySpellCast compares the latched request (+0x16), which takes the cast's on the cast's first frame.
         keys.Process(body, Profile, AudioKeys.CastRequest, 4, 20, Vector3.Zero, 0, new Vector3(0, 0, 5), Vector3.Zero);
+        Assert.False(Heard(audio));
+        keys.Process(body, Profile, AudioKeys.CastRequest, 1, 20, Vector3.Zero, 0, new Vector3(0, 0, 5), Vector3.Zero);
         Assert.True(Heard(audio));
         Assert.Null(body.Cast);
     }

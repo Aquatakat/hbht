@@ -92,20 +92,29 @@ public sealed class ActorStateMachine
         return entered;
     }
 
+    /// <summary>
+    /// The request the state takes this tick (<c>ActorStateMachine.SetRequest</c>, <c>0x80096530</c>): the one asked for if the
+    /// state has a branch for it exactly (any request's 255 doesn't count), otherwise none, idle (the actor's default,
+    /// <c>+0x10</c>, which <c>ActorStateMachine.Tick</c> puts back after every tick).
+    /// </summary>
+    public int Taken => _actor.States[State].Branches.Any(b => b.Request == Request) ? Request : 0;
+
     private bool Advance()
     {
-        var changed = Request != _lastRequest;
-        _lastRequest = Request;
+        var request = Taken;
+        var changed = request != _lastRequest;
+        _lastRequest = request;
         if (Clock >= Length(State))
         {
-            Enter(Roll(b => b.Request == Request || b.Request == AnyRequest)?.State ?? State);
+            Enter(Roll(b => b.Request == request || b.Request == AnyRequest)?.State ?? State);
             return true;
         }
         // A new request can cut the animation short through a branch that interrupts. Either way,
-        // the original doesn't advance the animation on the tick the request changes.
+        // the original doesn't advance the animation on the tick the request changes, so the tick after
+        // a state is entered for a request it has no branch for doesn't advance it either.
         if (changed)
         {
-            if (Roll(b => b.Request == Request && b.Interrupts) is not { } branch)
+            if (Roll(b => b.Request == request && b.Interrupts) is not { } branch)
                 return false;
             Enter(branch.State);
             return true;

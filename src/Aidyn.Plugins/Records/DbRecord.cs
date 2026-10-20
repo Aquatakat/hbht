@@ -21,4 +21,12 @@ public sealed record DbRecord(RecordId Id, string Name, RecordId? Portrait = nul
 /// <param name="Radius">Its collision sphere's radius, before <paramref name="Scale"/>. Every dialogue entity's is 0.55, which the code gives them.</param>
 /// <param name="Scale">How much bigger than its actor's model it's drawn, and how much bigger its sphere is when bodies push each other.</param>
 /// <param name="Height">About how tall its model is at a scale of 1, in scene units.</param>
-public sealed record EntityBody(RecordId Actor, float Radius, float Scale, float Height);
+/// <param name="Strike">
+/// The share of its attack's animation at which the blow lands and the target starts to react (<c>EntityBody.StrikePoint</c>,
+/// <c>0x8006C7FC</c>, which <c>ProcessPlayers</c> reads in combat); 0.4 for a dialogue entity or one the tables leave out.
+/// </param>
+public sealed record EntityBody(RecordId Actor, float Radius, float Scale, float Height, float Strike = EntityBody.DefaultStrike)
+{
+    /// <summary>The strike's share for a record the tables leave out (<c>0x800D2CF8</c>).</summary>
+    public const float DefaultStrike = 0.4f;
+}

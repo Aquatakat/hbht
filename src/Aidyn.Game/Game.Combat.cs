@@ -150,7 +150,7 @@ public partial class Game
     /// <summary>
     /// A press in combat (<c>Combat.Controls</c>): Start asks for the pause menu (combat's state 27, then 14); Z (the left trigger)
     /// skips a turn the player plays (<c>Combat.SkipTurn</c>) or puts an aimed attack away; A attacks in a turn and confirms an
-    /// aimed attack's target; B puts it away; left and right step its cursor (state 9), and C-left and C-right a bow's or thrown
+    /// aimed attack's target, and skips the AI's walk (state 5); B puts it away; left and right step its cursor (state 9), and C-left and C-right a bow's or thrown
     /// weapon's (state 18).
     /// </summary>
     private void CombatInput(MenuAction action)
@@ -183,8 +183,9 @@ public partial class Game
                 battle.Skip();
                 break;
             case MenuAction.Accept:
-                if (!battle.Attack())
-                    battle.Confirm();
+                // A attacks in a turn, confirms an aim, and skips the AI's walk (Combat.InputMoving).
+                if (!battle.Attack() && !battle.Confirm())
+                    battle.SkipWalk();
                 break;
             case MenuAction.Back:
                 battle.Cancel();

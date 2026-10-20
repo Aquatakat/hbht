@@ -5,10 +5,13 @@ namespace Aidyn.Rom.Engine;
 /// <summary>How an entity looks in the world (<c>gEntityExtras</c>).</summary>
 /// <param name="Actor">The Borg7's archive index.</param>
 /// <param name="Portrait">The Borg8's archive index.</param>
-/// <param name="Unknown">Between 0.3 and 1. The decomp guesses it's for animation.</param>
+/// <param name="Strike">
+/// The share of an attack's animation at which its blow lands, 0.2 to 0.67 (<c>EntityBody.StrikePoint</c>, <c>0x8006C7FC</c>, which
+/// <c>ProcessPlayers</c> reads): see docs/systems/combat.md.
+/// </param>
 /// <param name="Height">About how tall the model is at a scale of 1, in scene units.</param>
 /// <param name="Radius">The collision sphere's radius.</param>
-public sealed record EntityModel(ItemId Entity, int Actor, int Portrait, float Unknown, float Height, float Radius, float Scale);
+public sealed record EntityModel(ItemId Entity, int Actor, int Portrait, float Strike, float Height, float Radius, float Scale);
 
 /// <summary>How a dialogue entity looks in the world (<c>dailougEnt_info_array</c>).</summary>
 public sealed record DialogEntityModel(ItemId Entity, int Actor, int Portrait, float Height, float Scale);

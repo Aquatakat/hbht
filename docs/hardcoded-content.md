@@ -192,7 +192,7 @@ The map chunk lists are read from the ROM (`MapChunks`). The rest of the Borgs e
 
 | What | Code | NA 1.0 | Status |
 | --- | --- | --- | --- |
-| Each entity's model (Borg7), portrait (Borg8), height, collision radius, scale and one unknown float, keyed by entity list position + 1. Every entity has one; the code's fallback to the bat model and a generic portrait never runs. | `gEntityExtras` | `0xE1930` | Read (`EntityModels`) |
+| Each entity's model (Borg7), portrait (Borg8), height, collision radius, scale and the share of its attacks' animations at which the blow lands (`EntityBody.Strike`, read only by `ProcessPlayers` in [combat](systems/combat.md#an-attack); importer 50), keyed by entity list position + 1. Every entity has one; the code's fallback to the bat model and a generic portrait never runs. | `gEntityExtras` | `0xE1930` | Read (`EntityModels`) |
 | Each dialogue entity's model, portrait, height and scale, keyed by dialogue entity list position + 1. 32 of the 37 dialogue entities have one. | `dailougEnt_info_array` | `0xE3178` | Read (`EntityModels`) |
 | The position lists that code tables use for dialogue entities, spells, armor, weapons and items, like the entity list. The entity and dialogue entity lists are in the same order as their DB tables. | `DialougEntList`, `SpellList`, `ArmorList`, `weaponList`, `itemID_array` | `0xE1900`, `0xE3740`, `0xE1850`, `0xE3790`, `0xE3590` | Dialogue entities and spells read (`MenuTables`, spells as the key of the symbols and descriptions); the rest to do |
 | The 66 weapon models (Borg5), by weapon position | `weapons_with_borg5`, `weapon_borg5_ID` | `0xE3520`, `0xD3B14` | Read (`ItemTables`), as weapon records' `Model` |

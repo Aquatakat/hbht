@@ -35,6 +35,22 @@ public class ActorStateMachineTests
     }
 
     [Fact]
+    public void AStateTakesOnlyARequestItHasABranchFor()
+    {
+        // ActorStateMachine.SetRequest: request 7 still asked for in the state it entered (3, which has only "any") counts as none,
+        // a change, so the tick after the interrupt doesn't advance; the next, with 7 let go, does.
+        var actor = Walker();
+        actor.Request = 7;
+        Assert.True(actor.Tick());
+        Assert.Equal((3, 1, 0), (actor.State, actor.Clock, actor.Taken));
+        Assert.False(actor.Tick());
+        Assert.Equal((3, 1), (actor.State, actor.Clock));
+        actor.Request = 0;
+        Assert.False(actor.Tick());
+        Assert.Equal((3, 2), (actor.State, actor.Clock));
+    }
+
+    [Fact]
     public void BranchesAtTheEndOfTheAnimationByRequest()
     {
         var actor = Walker();

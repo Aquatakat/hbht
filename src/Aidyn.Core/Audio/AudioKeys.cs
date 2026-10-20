@@ -112,8 +112,8 @@ public sealed class AudioKeys(GameAudio audio, SoundsRecord? sounds, IRandom ran
             break;
         }
 
-        // AudioKeys.PlaySpellCast (0x800534BC): the cast's sound on the first tick the body is asked for the cast.
-        if (body.Cast is { } cast && request == CastRequest)
+        // AudioKeys.PlaySpellCast (0x800534BC): the cast's sound on the first tick the body's latched request is the cast's.
+        if (body.Cast is { } cast && body.Request == CastRequest)
         {
             Play(body, [cast], volume, pan);
             body.Cast = null;

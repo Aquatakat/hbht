@@ -19,8 +19,8 @@ public sealed partial class Battle
     public const int HitRequest = 7, DodgeRequest = 8, DeathRequest = 9, HelpedRequest = 10;
 
     /// <summary>
-    /// The ticks the action's timer must pass before the swing's end is taken (<c>Combat.StepActionTimer</c>, <c>0x80021708</c>:
-    /// above 29), and before the fallen are taken off (<c>Combat.RemoveFallen</c>: above 59).
+    /// The ticks the action's timer must pass before the blow lands (<c>Combat.StepActionTimer</c>, <c>0x80021708</c>: above 29), and
+    /// before the fallen are taken off (<c>Combat.RemoveFallen</c>: above 59).
     /// </summary>
     public const int SwingTicks = 30, ResultTicks = 60;
 
@@ -541,8 +541,9 @@ public sealed partial class Battle
     }
 
     /// <summary>
-    /// A tick of the action's timer (<c>Combat.StepActionTimer</c>, <c>0x80021708</c>): whether the attacker's swing has ended, its
-    /// body back to idling, and <see cref="SwingTicks"/> have passed, when the timer starts again.
+    /// A tick of the action's timer (<c>Combat.StepActionTimer</c>, <c>0x80021708</c>): whether the attacker's body no longer counts as
+    /// playing its action (at an attack's strike, <see cref="AtStrike"/>, or as a cast's or a drink's animation ends) and
+    /// <see cref="SwingTicks"/> have passed, when the timer starts again.
     /// </summary>
     private bool SwingEnded()
     {
@@ -555,8 +556,8 @@ public sealed partial class Battle
     }
 
     /// <summary>
-    /// State 2 (<c>Combat.StateAction</c>, <c>0x80021774</c>): once the swing has ended, an arrow or thrown weapon flies (state 3);
-    /// otherwise the blow lands (<see cref="Land"/>).
+    /// State 2 (<c>Combat.StateAction</c>, <c>0x80021774</c>): at the strike, while the swing plays on, an arrow or thrown weapon flies
+    /// (state 3); otherwise the blow lands (<see cref="Land"/>).
     /// </summary>
     private void StepAction()
     {
@@ -607,8 +608,9 @@ public sealed partial class Battle
         c.Body.Sphere.Position with { Y = c.Body.Sphere.Position.Y + c.Look.Height * c.Look.Scale * 0.5f - c.Body.Sphere.Radius };
 
     /// <summary>
-    /// State 3 for an attack (<c>Combat.StateCast</c>, <c>0x80021B24</c>): the arrow flies to the target, and the blow lands
-    /// <see cref="SwingTicks"/> after it has (<c>Combat.EndCast</c>, <c>0x800219D8</c>).
+    /// State 3 for an attack (<c>Combat.StateCast</c>, <c>0x80021B24</c>): the arrow flies to the target, and the blow lands once it
+    /// has arrived and <see cref="SwingTicks"/> have passed since it left, the timer counting through the flight
+    /// (<c>Combat.EndCast</c>, <c>0x800219D8</c>).
     /// </summary>
     private void StepFlight()
     {
@@ -704,10 +706,33 @@ public sealed partial class Battle
     }
 
     /// <summary>
-    /// After each tick's bodies have stepped (<c>Combat.AfterFrame</c>, and <c>ProcessPlayers</c>'s part): a body takes the request its
-    /// actor entered a state for, one-shot requests go, and a body that has fallen to its last frame holds it, idle.
+    /// The attacks' requests (12 to 18), whose blow lands partway through (<see cref="AtStrike"/>), and the two whose share is fixed
+    /// rather than the entity's (<c>EntityBody.StrikePointRanged</c>, <c>0x8006C884</c>): a bow's (14) and a thrown weapon's (<see cref="ThrowRequest"/>).
     /// </summary>
-    private void AfterBodies(Combatant c, IActorMotion animation)
+    public const int FirstAttackRequest = 12, LastAttackRequest = 18, ShotRequest = 14;
+
+    /// <summary>
+    /// Whether a body playing an attack is at the frame its blow lands, before its actor steps this tick (<c>ProcessPlayers</c>,
+    /// <c>0x80013108</c>–<c>0x80013210</c>): its frame is <c>(u16)(int)(length × share)</c>, the share the entity's
+    /// (<see cref="EntityBody.Strike"/>, <c>EntityBody.StrikePoint</c>, <c>0x8006C7FC</c>), or 0.4 for a bow's or a thrown weapon's
+    /// (<c>0x800D2CFC</c>). There the body stops counting as playing it (<see cref="AfterBodies"/>), so the action's timer lets the blow
+    /// land or the missile leave while the swing plays on.
+    /// </summary>
+    private static bool AtStrike(Combatant c, IActorMotion animation)
+    {
+        var playing = c.Body.Playing;
+        if (playing is < FirstAttackRequest or > LastAttackRequest)
+            return false;
+        var share = playing is ShotRequest or ThrowRequest ? EntityBody.DefaultStrike : c.Look.Strike;
+        return animation.Frame == (ushort)(int)(animation.StateLength * share);
+    }
+
+    /// <summary>
+    /// After each tick's bodies have stepped (<c>Combat.AfterFrame</c>, and <c>ProcessPlayers</c>'s part): a body takes the request its
+    /// actor entered a state for, or at an attack's strike (<paramref name="strikes"/>, <see cref="AtStrike"/>) the request it has
+    /// now; one-shot requests go once they've been asked for a frame, and a body that has fallen to its last frame holds it, idle.
+    /// </summary>
+    internal void AfterBodies(Combatant c, IActorMotion animation, bool strikes)
     {
         var body = c.Body;
         if (c.Fallen)
@@ -718,10 +743,25 @@ public sealed partial class Battle
             body.Playing = body.Request;
             return;
         }
-        if (animation.Entered)
+        // ProcessPlayers (0x800132B4): as the actor enters a state, or at an attack's strike, the body plays what it's asked for now.
+        if (animation.Entered || strikes)
             body.Playing = body.Request;
+        // Combat.AfterFrame lets a one-shot request go once a frame, so the body's actor and its keys are asked for it through every tick
+        // of the frame it's made in: the port's frame of Cadence.FrameTicks.
         if (Array.IndexOf(KeptRequests, body.Request) < 0)
-            body.Request = Body.Idle;
+        {
+            var held = c.OneShot.Request == body.Request ? c.OneShot.Ticks + 1 : 1;
+            if (held >= Cadence.FrameTicks)
+            {
+                body.Request = Body.Idle;
+                held = 0;
+            }
+            c.OneShot = (body.Request, held);
+        }
+        else
+        {
+            c.OneShot = default;
+        }
     }
 
     /// <summary>

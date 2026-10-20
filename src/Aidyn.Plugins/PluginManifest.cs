@@ -74,8 +74,9 @@ public static class BasePlugin
     /// Goblin Ambush's encounter its heal as it starts and its hold on Alaron.
     /// 49 adds the triggers (roadmap 2.10): a new game's opening and its script, the scripts' ends that lead to the game over and the
     /// cinematics, which scripts no longer carry, and what follows Roog's cinematic and the ending's.
+    /// 50 gives each entity's body the share of its attack's animation at which the blow lands (<c>strike</c>).
     /// </summary>
-    public const int ImporterVersion = 49;
+    public const int ImporterVersion = 50;
 }
 
 /// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>

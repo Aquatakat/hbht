@@ -213,6 +213,27 @@ public sealed class Body
     }
 
     /// <summary>
+    /// Ends a walk at once at its end (<c>Body.GiveUp</c>, <c>0x80015C28</c>, which combat's A calls while the AI walks): put at the
+    /// last point queued, or with none left at its goal, set down there, facing the way it was turning to if it was, and stopped, its
+    /// path forgotten. Nothing between is tested, so a body that would have stuck on the way is put at the end all the same. Whether
+    /// it was walking.
+    /// </summary>
+    public bool SkipToEnd(CollisionWorld world)
+    {
+        if (!Moving && _queue.Count == 0)
+            return false;
+        // The ring's last point written (+0x254 − 1) while it's still there, else the goal it's heading for (+0x260).
+        var end = _queue.Count > 0 ? _queue.Last().Goal : Goal;
+        _queue.Clear();
+        Sphere.Position = SetDown(world, new Vector3(end.X, Sphere.Position.Y, end.Y), Sphere.Radius, null).Position;
+        Sphere.Velocity = Vector3.Zero;
+        if (Turning)
+            Heading = TurnTo;
+        Stop();
+        return true;
+    }
+
+    /// <summary>
     /// Whether giving up (<see cref="GiveUpTicks"/>) leaves it where it is rather than putting it at its goal: in combat, where
     /// <c>Body.StepTowardGoal</c> (<c>0x800159C8</c>) clears its path instead, and says so (<see cref="GaveUp"/>).
     /// </summary>

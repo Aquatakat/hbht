@@ -85,6 +85,12 @@ public sealed partial class Combatant
     internal bool Fallen { get; set; }
 
     /// <summary>
+    /// The one-shot request its body has been asked for, and for how many ticks (<see cref="Battle.AfterBodies"/>): the original asks
+    /// for one through a whole frame's ticks and lets it go as the frame ends (<c>Combat.AfterFrame</c>).
+    /// </summary>
+    internal (int Request, int Ticks) OneShot { get; set; }
+
+    /// <summary>
     /// What A does with its weapon (<c>Combatant.SetDefaultAction</c>, <c>0x800672D4</c>): nothing without one; melee with no range;
     /// with a range, ranged, or melee or ranged for a weapon that may strike in melee too (<c>Weapon.AllowsMelee</c>,
     /// <c>0x8007B730</c>: a Breath or a Spit, or one of <see cref="CombatRecord.CloseRange"/>). Whether it aims freely too.

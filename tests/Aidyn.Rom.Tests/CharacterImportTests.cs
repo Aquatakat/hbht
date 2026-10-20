@@ -351,7 +351,7 @@ public sealed class CharacterImportTests(Na10Import fixture)
         Assert.All(entities, e =>
         {
             var model = models[e.Id];
-            Assert.Equal(new EntityBody(RecordId.Hex(RecordTypes.Actor, model.Actor), model.Radius, model.Scale, model.Height), e.Body);
+            Assert.Equal(new EntityBody(RecordId.Hex(RecordTypes.Actor, model.Actor), model.Radius, model.Scale, model.Height, model.Strike), e.Body);
             Assert.NotNull(Set.TryGet<ActorRecord>(e.Body!.Actor));
             Assert.Equal(e.Body, Set.Get<DbRecord>(e.Id).Body);
         });

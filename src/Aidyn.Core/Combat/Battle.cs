@@ -270,9 +270,11 @@ public sealed partial class Battle
             var animation = motion(combatant) is { } m ? keys.Sounding(m, combatant.Audio, combatant.Sounds, combatant.Body.Sphere) : IActorMotion.Still;
             // A body that has fallen holds its last frame; one a web or hold keeps doesn't step its idle (Body.IsHeld, 0x80012754).
             var still = combatant.Fallen || combatant.PoseHeld && combatant.Body.Request == 0 && combatant.Audio.Request == 0;
+            // ProcessPlayers reads the frame before the actor steps for an attack's strike.
+            var strikes = AtStrike(combatant, animation);
             combatant.Body.Step(World, still ? IActorMotion.Still : animation);
             Movement.Crowd.Push(crowd, i, start);
-            AfterBodies(combatant, animation);
+            AfterBodies(combatant, animation, strikes);
         }
         CombatCamera.Step(this);
         arena.StepSounds(Camera.Aim);
