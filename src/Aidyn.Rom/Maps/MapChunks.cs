@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Numerics;
+using Aidyn.Plugins.Records;
 
 namespace Aidyn.Rom.Maps;
 
@@ -66,6 +67,26 @@ public static class MapSets
         MapSet.EhudUnder => 1000,
         MapSet.Battlefields => 150,
         _ => 100,
+    };
+
+    /// <summary>
+    /// The places <c>Zones.SetMapSet</c> (<c>0x80026264</c> in 1.0) puts the player when it's asked for a set's portal: a chunk, as the
+    /// row and column immediates the code loads (<c>addiu s7</c> and <c>s6</c>), and x and z, the floats it loads from its literals
+    /// (<c>0x800CE7D4</c> on). Carried as facts, checked against 1.0's code (ADR 0008 layer 1). A set with none, like the Goblin camp,
+    /// leaves the player where he is; and a portal of -1 does too. A Battle arena's portal is its number, the chunk its place in the
+    /// set's list (<c>0x800DCA74</c>) at (20, 20), for which <paramref name="chunks"/> is wanted.
+    /// </summary>
+    public static IReadOnlyList<SpawnPoint>? Spawns(MapSet set, IReadOnlyList<MapChunk> chunks) => set switch
+    {
+        MapSet.Overworld => [new(0, 9, 8, new(16, 62))],
+        MapSet.MiscInteriors => [new(0, 5, 3, new(5.9f, 3)), new(1, 1, 1, new(5, 5))],
+        MapSet.Erromon => [new(0, 1, 15, new(13, 25))],
+        MapSet.Barrows => [new(0, 4, 1, new(10, 10))],
+        MapSet.JundarInteriors => [new(0, 1, 1, new(16, 15))],
+        MapSet.EhudUnder => [new(0, 17, 1, new(5, 5))],
+        MapSet.Ugarit => [new(0, 13, 5, new(10, 82))],
+        MapSet.Battlefields => [.. chunks.Where(c => c.Set == set).Select((c, i) => new SpawnPoint(i, c.Row, c.Column, new(20, 20)))],
+        _ => null,
     };
 
     /// <summary>

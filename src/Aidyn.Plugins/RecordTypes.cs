@@ -113,6 +113,9 @@ public static class RecordTypes
     /// <summary>How a new game starts: where the player arrives and who leads. There's one, <c>aidyn:newgame/0</c>.</summary>
     public const string NewGame = "newgame";
 
+    /// <summary>The title screen: the fly-throughs behind its menu. There's one, <c>aidyn:title/0</c>.</summary>
+    public const string Title = "title";
+
     /// <summary>A trigger: on an event, if its conditions hold, its effects (roadmap 2.10), keyed by a decimal number.</summary>
     public const string Trigger = "trigger";
 
@@ -120,7 +123,7 @@ public static class RecordTypes
     [
         Entity, Weapon, Armor, Spell, Item, DialogEntity, Loot, Flag, Texture, Geometry, Camera, Light, Scene, Animation, Actor, Image, Map,
         Sample, Sequence, Dialogue, Voxel, MapSet, Terrain, Sky, Journal, StateFlags, WorldMap, Minimap, Camping, Font, Strings, Stat, Skill, WeaponSkill,
-        Progression, Shop, Recipe, Inventory, Sounds, Weather, Emitters, Cinematic, Credits, NewGame, Combat, Magic, Trigger,
+        Progression, Shop, Recipe, Inventory, Sounds, Weather, Emitters, Cinematic, Credits, NewGame, Title, Combat, Magic, Trigger,
     ];
 
     public static bool IsKnown(string type) => All.Contains(type);

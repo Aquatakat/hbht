@@ -24,7 +24,8 @@ internal sealed class ImportContext(RomImage rom, string staging, IProgress<stri
 
     public BorgArchive Archive => field ??= BorgArchive.Open(Rom);
 
-    public GameDb Db => field ??= GameDb.Read(Rom);
+    /// <summary>The DB. Its records' places are the code's: every position list is checked to be the DB's own order (<see cref="PositionLists"/>).</summary>
+    public GameDb Db => field ??= ReadDb(Rom);
 
     public IReadOnlyList<MapChunk> Chunks => field ??= MapChunks.Read(Rom);
 
@@ -50,6 +51,13 @@ internal sealed class ImportContext(RomImage rom, string staging, IProgress<stri
     public MenuTables Menus => field ??= MenuTables.Read(Rom);
 
     public EntityModels Models => field ??= EntityModels.Read(Rom);
+
+    private static GameDb ReadDb(RomImage rom)
+    {
+        var db = GameDb.Read(rom);
+        PositionLists.Verify(rom, db);
+        return db;
+    }
 
     /// <summary>Tells the progress callback the importer has started on <paramref name="step"/>.</summary>
     public void Report(string step) => progress?.Report(step);

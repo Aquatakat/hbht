@@ -344,6 +344,25 @@ public enum CodeTable
     /// cast's (<c>0x37F1</c>), in <c>CombatSpellFx.AddVisual</c>.
     /// </summary>
     SpellVisualRefusedResisted,
+    /// <summary>
+    /// The armor DB's positions, as the low byte of each position's armor or shield ID, 68 bytes (<c>ArmorList</c>, <c>0xE1850</c> in 1.0).
+    /// It is the armor DB's own order: <see cref="Engine.PositionLists"/> checks that.
+    /// </summary>
+    ArmorList,
+    /// <summary>The weapon DB's positions, as the low byte of each weapon ID, 105 bytes (<c>weaponList</c>, <c>0xE3790</c> in 1.0).</summary>
+    WeaponList,
+    /// <summary>The item DB's positions, as each item's u16 ID, 197 of them (<c>itemID_array</c>, <c>0xE3590</c> in 1.0).</summary>
+    ItemList,
+    /// <summary>
+    /// The Borg7 actors that <c>ProcessPlayers</c> animates in combat even idle and far from the camera's aim, as u16s ending with a 0
+    /// (<c>Body.AlwaysAnimated</c>, <c>0x800CDA50</c> in 1.0, read by <c>Body.InAlwaysAnimated</c>).
+    /// </summary>
+    AlwaysAnimated,
+    /// <summary>
+    /// The title screen's six fly-throughs, 20 bytes each (<c>0x800E09DC</c> in 1.0, <c>Title.StartScenery</c>): a Borg6 as a u32, then four
+    /// u32s whose low halves the code stores.
+    /// </summary>
+    FlycamSequences,
 }
 
 /// <summary>
@@ -497,6 +516,11 @@ public static class RomVersions
                 [CodeTable.WeaponModels] = new(0x00D3B14, 0x86),
                 [CodeTable.ItemsWithModels] = new(0x00E3564, 0xE),
                 [CodeTable.ItemModels] = new(0x00D3B9C, 0xE),
+                [CodeTable.ArmorList] = new(0x00E1850, 68),
+                [CodeTable.WeaponList] = new(0x00E3790, 105),
+                [CodeTable.ItemList] = new(0x00E3590, 394),
+                [CodeTable.AlwaysAnimated] = new(0x00CE650, 20),
+                [CodeTable.FlycamSequences] = new(0x00E15DC, 120),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {
@@ -646,6 +670,11 @@ public static class RomVersions
                 [CodeTable.WeaponModels] = new(0x00D3B04, 0x86),
                 [CodeTable.ItemsWithModels] = new(0x00E35A4, 0xE),
                 [CodeTable.ItemModels] = new(0x00D3B8C, 0xE),
+                [CodeTable.ArmorList] = new(0x00E1890, 68),
+                [CodeTable.WeaponList] = new(0x00E37D0, 105),
+                [CodeTable.ItemList] = new(0x00E35D0, 394),
+                [CodeTable.AlwaysAnimated] = new(0x00CE640, 20),
+                [CodeTable.FlycamSequences] = new(0x00E161C, 120),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {
@@ -793,6 +822,11 @@ public static class RomVersions
                 [CodeTable.WeaponModels] = new(0x00E0D14, 0x86),
                 [CodeTable.ItemsWithModels] = new(0x00F20D4, 0xE),
                 [CodeTable.ItemModels] = new(0x00E0D9C, 0xE),
+                [CodeTable.ArmorList] = new(0x00F03C0, 68),
+                [CodeTable.WeaponList] = new(0x00F2300, 105),
+                [CodeTable.ItemList] = new(0x00F2100, 394),
+                [CodeTable.AlwaysAnimated] = new(0x00D9AC0, 20),
+                [CodeTable.FlycamSequences] = new(0x00F014C, 120),
             },
             DbTables = new Dictionary<DbTable, RomRange>
             {

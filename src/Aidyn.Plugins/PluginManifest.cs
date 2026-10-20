@@ -77,8 +77,10 @@ public static class BasePlugin
     /// 50 gives each entity's body the share of its attack's animation at which the blow lands (<c>strike</c>).
     /// 51 gives each scene's locators a node turned by the locator model's rotation, which what a body holds hangs from, and the combat
     /// record the entities whose weapon isn't drawn and those who hold a bow in the other hand.
+    /// 52 reads the last of the code's content tables (roadmap 1H): the actors combat always animates (<c>alwaysAnimated</c> on actors),
+    /// the title screen's fly-throughs (<c>aidyn:title/0</c>) and the places each map set puts the player by number (<c>spawns</c>).
     /// </summary>
-    public const int ImporterVersion = 51;
+    public const int ImporterVersion = 52;
 }
 
 /// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>

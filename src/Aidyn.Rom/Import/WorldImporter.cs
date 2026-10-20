@@ -22,13 +22,17 @@ internal static class WorldImporter
         ctx.WriteRecords("weather.json", new[] { BuildWeather(ctx.Weather, ctx.Gradients, ctx.ParticleSlots) });
         ctx.WriteRecords("worldmap.json", new[] { BuildWorldMap(ctx.Engine, WorldMapTowns.Read(ctx.Rom)) });
         ctx.WriteRecords("camping.json", new[] { BuildCamping(ctx.Engine) });
-        ctx.WriteRecords("newgame.json", new[] { BuildNewGame(ctx.Db) });
+        ctx.WriteRecords("newgame.json", new[] { BuildNewGame(ctx.Db, ctx.Chunks) });
+        ctx.WriteRecords("title.json", new[] { BuildTitle(ctx.Rom, ctx.Archive) });
 
         ctx.Report("Sky");
         ctx.WriteRecords("sky.json", BuildSky(ctx.Rom, ctx.Archive));
     }
 
-    /// <summary>The map sets, with the music each plays as it's entered (<see cref="AudioFacts.MapMusic"/>).</summary>
+    /// <summary>
+    /// The map sets, with the music each plays as it's entered (<see cref="AudioFacts.MapMusic"/>) and the places the code puts the
+    /// player by number (<see cref="MapSets.Spawns"/>).
+    /// </summary>
     private static List<MapSetRecord> BuildMapSets(IReadOnlyList<MapChunk> chunks, AudioTables audio) =>
     [
         .. Enum.GetValues<MapSet>().Select(set => new MapSetRecord(
@@ -40,7 +44,8 @@ internal static class WorldImporter
                     RecordId.Hex(RecordTypes.Map, c.Collision), c.Terrain,
                     AudioFacts.ChunkMusic(c, audio) is { } music ? RecordId.Hex(RecordTypes.Sequence, music) : null)),
             ],
-            AudioFacts.MapMusic(set, audio) is { Count: > 0 } setMusic ? [.. setMusic.Select(m => RecordId.Hex(RecordTypes.Sequence, m))] : null)),
+            AudioFacts.MapMusic(set, audio) is { Count: > 0 } setMusic ? [.. setMusic.Select(m => RecordId.Hex(RecordTypes.Sequence, m))] : null,
+            Maps.MapSets.Spawns(set, chunks))),
     ];
 
     /// <summary>
@@ -168,16 +173,35 @@ internal static class WorldImporter
     /// (<c>Title.Leave</c>, <c>0x80055718</c>), which <c>Zones.SetMapSet</c> (<c>0x80026264</c>) turns into chunk I08, row 9 and
     /// column 8 (<c>0x80026374</c>, <c>0x80026378</c>), at (16, 62) (the floats at <c>0x800ce7d8</c> and <c>0x800ce7dc</c>);
     /// <c>InitGameTrek</c> makes the player's body 10 up (<c>0x80021018</c>) and sets it down from on high. The party is Alaron,
-    /// the entity at DB position 153, with 1 gold (<c>init_DBs</c>).
+    /// the entity at DB position 153, with 1 gold (<c>init_DBs</c>). The arrival is the Overworld's portal 0 in
+    /// <see cref="MapSets.Spawns"/>, which the map set record carries too.
     /// </summary>
-    internal static NewGameRecord BuildNewGame(Db.GameDb db) => new(
-        RecordId.Decimal(RecordTypes.NewGame, 0),
-        new ChunkRef(RecordId.Decimal(RecordTypes.MapSet, (int)MapSet.Overworld), 9, 8),
-        new System.Numerics.Vector2(16, 62),
-        Height: 10,
-        DbRecordIds.For(db.Entities[CharacterImporter.AlaronDbPosition].Id)
-            ?? throw new InvalidDataException("The entity DB has no Alaron at position 153."),
-        Gold: 1);
+    internal static NewGameRecord BuildNewGame(Db.GameDb db, IReadOnlyList<MapChunk> chunks)
+    {
+        var portal = MapSets.Spawns(MapSet.Overworld, chunks)!.Single(p => p.Portal == 0);
+        return new(
+            RecordId.Decimal(RecordTypes.NewGame, 0),
+            new ChunkRef(RecordId.Decimal(RecordTypes.MapSet, (int)MapSet.Overworld), portal.Row, portal.Column),
+            portal.Position,
+            Height: 10,
+            DbRecordIds.For(db.Entities[CharacterImporter.AlaronDbPosition].Id)
+                ?? throw new InvalidDataException("The entity DB has no Alaron at position 153."),
+            Gold: 1);
+    }
+
+    /// <summary>
+    /// The title screen's fly-throughs, from the code's table (<see cref="TitleTables"/>): each its Borg6 and that animation's
+    /// scene, the Overworld chunk the scenery is loaded round, and the two u16s nothing reads. The one at place
+    /// <see cref="TitleTables.PakSequence"/> is passed over without the Expansion Pak (a fact, checked against 1.0's code).
+    /// </summary>
+    internal static TitleRecord BuildTitle(RomImage rom, BorgArchive archive) => new(
+        RecordId.Decimal(RecordTypes.Title, 0),
+        [.. TitleTables.ReadFlycams(rom).Select((f, i) =>
+        {
+            var animation = Graphics.Borg6Animation.Parse(archive.Read(f.Animation));
+            return new TitleFlycam(RecordId.Hex(RecordTypes.Scene, animation.Scene), RecordId.Hex(RecordTypes.Animation, f.Animation),
+                f.Row, f.Column, [f.Unread1, f.Unread2], NeedsExpansionPak: i == TitleTables.PakSequence);
+        })]);
 
     /// <summary>
     /// The sun, moon, stars, clouds and lens flare, with the Borg8 images engine code draws them with

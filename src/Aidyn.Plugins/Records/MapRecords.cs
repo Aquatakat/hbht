@@ -13,16 +13,31 @@ namespace Aidyn.Plugins.Records;
 /// The music that plays in the set, one at random as each chunk is come into, where the chunk has none of its own
 /// (<see cref="ChunkEntry.Music"/>). With neither, the music stops.
 /// </param>
+/// <param name="Spawns">
+/// The places the game puts the player when it enters the set by number, not through a teleporter (<c>Zones.SetMapSet</c>'s portals,
+/// <c>0x80026264</c>), or null for a set the code gives none. The Overworld's portal 0 is a new game's start
+/// (<see cref="NewGameRecord"/>).
+/// </param>
 public sealed record MapSetRecord(
     RecordId Id,
     string Label,
     float CellSize,
     IReadOnlyList<ChunkEntry> Chunks,
-    IReadOnlyList<RecordId>? Music = null)
+    IReadOnlyList<RecordId>? Music = null,
+    IReadOnlyList<SpawnPoint>? Spawns = null)
 {
     /// <summary>Where a chunk's own coordinates start: rows run along X and columns along Z.</summary>
     public Vector3 Origin(int row, int column) => new Vector3(row, 0, column) * CellSize;
 }
+
+/// <summary>
+/// A place a map set puts the player by number (<c>Zones.SetMapSet</c>): a chunk and where in it, the code's row and column
+/// immediates and x and z floats. The player's body is made 10 up and set down from there (<c>InitGameTrek</c>).
+/// </summary>
+/// <param name="Portal">The number the code is asked for: 0, or 1 in the Misc interiors. A Battle arena's is its number.</param>
+/// <param name="Row">As in <see cref="ChunkEntry.Row"/>.</param>
+/// <param name="Position">Where in the chunk, x and z.</param>
+public sealed record SpawnPoint(int Portal, int Row, int Column, Vector2 Position);
 
 /// <summary>
 /// One chunk of a <see cref="MapSetRecord"/>. The runtime keeps the 3×3 chunks around the player

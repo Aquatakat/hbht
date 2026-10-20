@@ -9,8 +9,13 @@ namespace Aidyn.Plugins.Records;
 /// The scene transform drawn with its position zeroed. Its motion moves the actor instead.
 /// </param>
 /// <param name="Head">A head drawn on the actor, which it turns to look at things nearby.</param>
+/// <param name="AlwaysAnimated">
+/// Whether its body's animation is stepped in combat even while it idles 13 or more from the camera's aim, where
+/// <c>ProcessPlayers</c> (<c>0x80012784</c>) skips any other's (<c>Body.AlwaysAnimated</c>, <c>0x800CDA50</c>): the bat, wyvern, harpy,
+/// dryads, Pandara, gryphon, manticore and scorpion, nine actors. The port steps every body's animation, so nothing reads it yet.
+/// </param>
 public sealed record ActorRecord(RecordId Id, RecordId Scene, int RootTransform, int InitialState, IReadOnlyList<ActorState> States,
-    ActorHead? Head = null);
+    ActorHead? Head = null, bool AlwaysAnimated = false);
 
 /// <summary>
 /// A head scene drawn at one of the actor's locators. Only Alaron's actor has one: his body's scene

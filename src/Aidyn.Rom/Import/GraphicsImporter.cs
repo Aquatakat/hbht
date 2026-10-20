@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 using Aidyn.Rom.Borg;
+using Aidyn.Rom.Engine;
 using Aidyn.Rom.Graphics;
 
 namespace Aidyn.Rom.Import;
@@ -25,6 +26,7 @@ internal static class GraphicsImporter
 
         ctx.Report("Actors");
         var actorRecords = new List<ActorRecord>();
+        var alwaysAnimated = ActorTables.ReadAlwaysAnimated(ctx.Rom).ToHashSet();
         foreach (var index in archive.Listings.Where(l => l.Type == BorgType.Actor).Select(l => l.Index).Order())
         {
             var actor = Borg7Actor.Parse(archive.Read(index));
@@ -33,8 +35,11 @@ internal static class GraphicsImporter
                 actor.RootTransform, actor.InitialState,
                 [.. actor.States.Select(s => new ActorState(RecordId.Hex(RecordTypes.Animation, s.Animation),
                     [.. s.Branches.Select(b => new ActorBranch(b.Request, b.Chance, b.Interrupts, b.State))]))],
-                index == AlaronActor ? new ActorHead(RecordId.Hex(RecordTypes.Scene, AlaronHead), 3) : null));
+                index == AlaronActor ? new ActorHead(RecordId.Hex(RecordTypes.Scene, AlaronHead), 3) : null,
+                alwaysAnimated.Contains(index)));
         }
+        if (alwaysAnimated.Count(i => actorRecords.Any(a => a.Id == RecordId.Hex(RecordTypes.Actor, i))) != alwaysAnimated.Count)
+            throw new InvalidDataException("The code's always-animated list names an actor that isn't a Borg7 in the archive.");
         ctx.WriteRecords("actors.json", actorRecords);
 
         ctx.Report("Scenes");
