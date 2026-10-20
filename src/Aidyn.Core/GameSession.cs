@@ -598,13 +598,13 @@ public sealed class GameSession
     public bool StartNewGame() => Fire(GameEvents.GameStarted, null, worldFreed: false);
 
     /// <summary>
-    /// Fires an event on the triggers (<see cref="Triggers.Fire"/>), and carries out an effect that takes over from trek.
+    /// Fires an event on the triggers (<see cref="Triggers.Fire"/>), their sounds to the host, and carries out an effect that takes over from trek.
     /// True if one did, so what would come next at the event's place, trek coming back, doesn't.
     /// </summary>
     /// <param name="worldFreed">Whether trek's world has gone, as under a cut-scene, so it's built again after what takes over.</param>
     private bool Fire(string name, RecordId? subject, bool worldFreed)
     {
-        if (Triggers.Fire(Game, name, subject, _host.Warn) is not { } effect)
+        if (Triggers.Fire(Game, name, subject, _host.Warn, _host) is not { } effect)
             return false;
         switch (effect)
         {

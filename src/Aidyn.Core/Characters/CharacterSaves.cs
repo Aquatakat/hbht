@@ -63,6 +63,7 @@ public sealed class CharacterSaves(PluginSet plugins, CharacterRules rules, Item
         return new SaveCharacter(member.Entity)
         {
             Name = member.Name != member.RecordName ? member.Name : null,
+            TrueName = member.TrueName,
             TotalExp = member.TotalExp,
             SpendableExp = member.SpendableExp,
             Trained = SaveStats.From([.. stats.Select(member.Stats.Trained)]),
@@ -83,7 +84,7 @@ public sealed class CharacterSaves(PluginSet plugins, CharacterRules rules, Item
 
     /// <summary>
     /// A character sheet from a save (<c>SaveParty::LoadCharSheet</c>): the record's sheet with the
-    /// save's experience, stats and base skills, which leaves the modified values the trained and
+    /// save's True Name, experience, stats and base skills, which leaves the modified values the trained and
     /// current ones, then the armor, shield, weapon and gear put on as the rules allow, which applies
     /// them. A skill the record can't learn stays so. The spellbook is put in the original's order
     /// (<see cref="SpellOrder"/>). Null if no plugin has the record.
@@ -120,6 +121,9 @@ public sealed class CharacterSaves(PluginSet plugins, CharacterRules rules, Item
         var character = Character.Restore(entity, rules, stats, skills, SpellOrder(spells, entity.School, alaron), flags.IsSet);
         if (saved.Name is { Length: > 0 } name)
             character.Name = name;
+        // A save from before True Names were saved leaves the record's and the flags'.
+        if (saved.TrueName is { } trueName)
+            character.TrueName = trueName;
         character.TotalExp = saved.TotalExp;
         character.SpendableExp = saved.SpendableExp;
 

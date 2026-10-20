@@ -100,7 +100,7 @@ public sealed record SaveParty
 /// A character sheet as the original saves one (<c>SaveParty::SaveCharSheet</c>): experience, the
 /// trained and current stats, base skill levels, what's worn and the spells. Loading starts from
 /// the entity's record and puts what's worn on, which gives the modified values. The aspect, school,
-/// True Name, protection and damage come from the record and the flags.
+/// protection and damage come from the record.
 /// </summary>
 public sealed record SaveCharacter(RecordId Entity)
 {
@@ -109,6 +109,13 @@ public sealed record SaveCharacter(RecordId Entity)
     /// saves his name (<c>SaveParty::SaveAlaron</c>). None keeps the record's.
     /// </summary>
     public string? Name { get; init; }
+
+    /// <summary>
+    /// Whether the character knows its True Name. The original's comes back from the record and Alaron's flag (590), but a
+    /// plugin's trigger can give anyone theirs, so the port saves it. None, as in a save from before it did, takes it from
+    /// the record and the flags.
+    /// </summary>
+    public bool? TrueName { get; init; }
 
     public uint TotalExp { get; init; }
 

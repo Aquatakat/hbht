@@ -75,6 +75,7 @@ public static class CheckpointSave
         var (skills, weaponSkills, shieldSkill) = SkillSlots.Split([.. sheet.SkillBase.Select(level => level == -1 ? (int?)null : level)]);
         return new SaveCharacter(RecordId.Hex(RecordTypes.Entity, sheet.Id))
         {
+            TrueName = (sheet.Flags & 1) != 0,
             TotalExp = sheet.TotalExp,
             SpendableExp = sheet.SpendableExp,
             Trained = SaveStats.From(sheet.Trained),
