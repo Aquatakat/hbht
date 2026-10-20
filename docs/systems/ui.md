@@ -34,7 +34,7 @@ The original draws its UI on a 320 × 240 screen; the Expansion Pak's high-resol
 - **The portrait's border** (`0xDF`, 52 × 52) is at x 20, level with the box's top, and the portrait (40 × 40) sits 6 pixels inside it. A speaker with no portrait gets `0x0125` (`BORG8_PortraitNPCMale1`).
 - **The line** is in (200, 200, 200), from x 78 to 294, and ends 2 pixels above what's under it: the band's bottom, or the choices. The box's top is 4 pixels above the line, but never below 180, so a short line sits at y 184, and the box grows upward from five lines.
 - **Choices** are in tan (200, 180, 100), from x 88, 4 pixels apart, and end at 228. The cursor's choice pulses toward (50, 45, 25, 63) and back over 24 frames each way, whole steps per channel (`WidgetScrollMenu::Tick`).
-- **A line before its own speaker's choices shows alone.** When a menu's first choice has the line's speaker, the line shows first, and A brings up the choices alone under Alaron's portrait. The box shrinks to the choices, but the portrait and its border stay where the line put them, since `Setup` doesn't move them on that path.
+- **A line before its own speaker's choices shows alone.** When a menu's first choice has the line's speaker, the line shows first, and A brings up the choices alone under Alaron's portrait. The box shrinks to the choices but never below 180, its four lines, as the user saw in 1.0 (Brenna's recruiting); the portrait and its border stay where the line put them, since `Setup` doesn't move them on that path.
 
 Not ported yet: the widgets' fade in and out (`fadeFloatMirror`) and scrolling a menu taller than its bounds.
 

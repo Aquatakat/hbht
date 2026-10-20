@@ -62,7 +62,7 @@ public enum DialogueAccept
 /// The box grows upward to fit, and a line sits just above its choices. When a page's first choice
 /// has the line's speaker, the line shows alone first, and A brings up the choices alone under
 /// Alaron's portrait. Then the portrait and its border stay where the line put them, since the
-/// original doesn't move them, but the box shrinks to the choices. The cursor's choice pulses from
+/// original doesn't move them, but the box shrinks to the choices, never below its base. The cursor's choice pulses from
 /// tan to a dim brown and back, a step a frame (<c>WidgetScrollMenu::Tick</c>).
 /// </para>
 /// </remarks>
@@ -237,6 +237,8 @@ public sealed class DialogueBox(TextLayout font, int borderWidth, int borderHeig
             top = lineTop;
             _borderY = lineTop;
         }
+        // The box never sits below its base, even with only a choice or two up.
+        top = Math.Min(top, BaseTop);
 
         // The band ends where the original's bars cut it, and the feathering fills where they were.
         var panel = new FeatheredPanel(new ScreenRect(OverscanSide, top, FrameWidth - OverscanSide, Math.Min(bottom, FrameHeight - OverscanBottom)),

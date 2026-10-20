@@ -122,7 +122,8 @@ public class DialogueBoxTests
         Assert.Null(choices.Line);
         Assert.Equal(Player, choices.Speaker);
         Assert.Equal([202, 217], choices.Choices.Select(c => c.Y));
-        Assert.Equal(202, choices.Top);
+        // The box keeps its base of four lines over the two choices (the user, in 1.0).
+        Assert.Equal(180, choices.Top);
         Assert.Equal(228, choices.Bottom);
         // The portrait and its border stay where the line put them.
         Assert.Equal((20, 160, 26, 166), (choices.BorderX, choices.BorderY, choices.PortraitX, choices.PortraitY));

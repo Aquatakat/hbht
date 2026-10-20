@@ -16,8 +16,6 @@ This is the one list of what's open. A task's status is in its phase's table bel
 
 ### Next
 
-Every system built so far is at least at parity with the original. **M3 Fight is done** (Oct 19, 2026): battles play whole as 1.0's, in twelve sessions ([combat](systems/combat.md#the-port) has each one's port). They cover the arenas and setup, turns and walking, the battle screen, attacking, the AI with its casters and bosses, morale and fleeing, winning and losing with the rewards, the post-battle windows, the game over and camp ambushes, spells, potions and skills, and what spells look like. The special battles come last: the Goblin Ambush's hold on Alaron; the Shadow's aura, slowing, vanishing and merging, with its cinematic; Lugash and Pochanargat; and rain and snow in the arena. Each was checked against the user's 14 checkpoints of one battle and 1.0's own code run on their RAM where a checkpoint holds it; the special battles against the code alone.
-
 Next, by the phases' order, is **M4: the prologue**, from the opening through leaving Gwernia, end to end. It needs first:
 
 1. **2.10's events and triggers**, with what starts the cinematics and what follows them: a new game's opening cinematic and script 866 after it, the scripts' ends that play Roog's and the ending's, Alaron's True Name and the credits ([cinematics](systems/cinematics.md#what-starts-them)). The Shadow's is M3's and already plays.
@@ -35,6 +33,8 @@ Next, by the phases' order, is **M4: the prologue**, from the opening through le
 ### Maybe
 
 - The editor showing wanderers on its map view.
+- **Closing the meshes' seams,** an option on import: the original's models have cracks where vertices don't quite meet (down Abrecan's face, the tree walls short of the ground), which the console shows too. Welding them, then a visual review of everything.
+- **Faster battles,** a setting, after combat's parity fixes: the next combatant starts moving while the last action plays, once nothing it touches is still in that action, as Ogre Battle 64 does. The rules and their random numbers stay as they are, since an attack's outcome is rolled when it's chosen; only what's drawn overlaps. The camera can pick shots that hold both, scoring angles by raycast.
 
 ## Phases
 
