@@ -117,7 +117,18 @@ public static class SceneObjectFade
 
     /// <summary>Level <paramref name="i"/>'s alpha by its distance alone (<see cref="LevelAlpha"/>).</summary>
     private static byte Level(SceneObject o, int i, float distance, DrawDistance range) =>
-        LevelAlpha(distance, i == 0 ? 0 : o.Models[i - 1].DrawDistance * range.Scale, o.Models[i].DrawDistance * range.Scale);
+        LevelAlpha(distance, i == 0 ? 0 : Boundary(o, i - 1, range), Boundary(o, i, range));
+
+    /// <summary>
+    /// Where level <paramref name="i"/> ends, stretched by <see cref="DrawDistance.Scale"/>, except where an empty level
+    /// gives way to one that draws something: there an object vanishes as the player nears it, Oriana's path lights
+    /// among them, and the data's own distance is kept whatever the draw distance (the user's choice).
+    /// </summary>
+    private static float Boundary(SceneObject o, int i, DrawDistance range)
+    {
+        var vanishes = o.Models[i].Empty && i + 1 < o.Models.Count && !o.Models[i + 1].Empty;
+        return o.Models[i].DrawDistance * (vanishes ? 1 : range.Scale);
+    }
 
     /// <summary>
     /// How much of an object shows for where the camera looks, before its levels of detail.
