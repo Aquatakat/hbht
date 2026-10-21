@@ -215,7 +215,7 @@ public sealed class ConversationTests(Na10Import fixture)
         var node = new WanderNodeObject(0, new Vector3(10, 0, 10), 0, PakVariant.Any, null, nodeRadius, 0, 0, 1000, WanderFlags.Move, []);
         var party = new MonsterPartyObject(1, new Vector3(10, 0, 10), 20, PakVariant.Any, null, [], Entity, null, 0, 0, MapRecord.VoxelId(MapId, 0), flags,
             dialogue, null) { Used = withUsed ? new FlagWrite(SpareFlag(game)) : null };
-        var map = LoadedMap.Activate(new MapRecord(MapId, [node, party]), "chunk", game.Flags, game.Memory, game.Party, new Lcg());
+        var map = LoadedMap.Activate(new MapRecord(MapId, [node, party]), Worlds.Chunk(), game.Flags, game.Memory, game.Party, new Lcg());
         var world = Worlds.Ground(-50, 80);
         var wanderers = new Wanderers(game.Plugins);
         var wanderer = Assert.Single(wanderers.Load(map, 100, world, game.Memory));
@@ -645,7 +645,7 @@ public sealed class ConversationTests(Na10Import fixture)
     {
         var game = GameState.NewGame(Plugins);
         var party = Party(partyAt);
-        var map = LoadedMap.Activate(new MapRecord(MapId, [party, .. objects]), "chunk", game.Flags, game.Memory, game.Party, new Lcg());
+        var map = LoadedMap.Activate(new MapRecord(MapId, [party, .. objects]), Worlds.Chunk(), game.Flags, game.Memory, game.Party, new Lcg());
         var host = new TalkHost();
         return (UseOver(game, host), map, party, host);
     }
@@ -732,7 +732,7 @@ public sealed class ConversationTests(Na10Import fixture)
         var godric = RecordId.Hex(RecordTypes.Entity, 0x0248);
         Assert.Equal(godric, party.Entity);
         var game = GameState.NewGame(Plugins);
-        var map = LoadedMap.Activate(record, "chunk", game.Flags, game.Memory, game.Party, new Lcg());
+        var map = LoadedMap.Activate(record, Worlds.Chunk(), game.Flags, game.Memory, game.Party, new Lcg());
         var wanderers = new Wanderers(game.Plugins);
         wanderers.Load(map, 1_000_000, new CollisionWorld(), game.Memory);
         var wanderer = Assert.IsType<Wanderer>(wanderers.Of(map, party));
@@ -759,7 +759,7 @@ public sealed class ConversationTests(Na10Import fixture)
 
         // As the runtime rebuilds trek: the wanderers go, and the chunk loads again with the flags as they are now.
         wanderers.Clear();
-        var again = LoadedMap.Activate(record, "chunk", game.Flags, game.Memory, game.Party, new Lcg());
+        var again = LoadedMap.Activate(record, Worlds.Chunk(), game.Flags, game.Memory, game.Party, new Lcg());
         wanderers.Load(again, 1_000_000, new CollisionWorld(), game.Memory);
         Assert.Null(wanderers.Of(again, party));
     }
@@ -789,7 +789,7 @@ public sealed class ConversationTests(Na10Import fixture)
             {
                 Objects = [.. group.First().Map.Objects.Select(o => o is MonsterPartyObject p && wanted.Contains(p.Index) ? p with { Visible = null, Enabled = null } : o)],
             };
-            var map = LoadedMap.Activate(record, "chunk", game.Flags, game.Memory, game.Party, new Lcg());
+            var map = LoadedMap.Activate(record, Worlds.Chunk(), game.Flags, game.Memory, game.Party, new Lcg());
             var wanderers = new Wanderers(game.Plugins);
             wanderers.Load(map, 1_000_000, new CollisionWorld(), game.Memory);
             foreach (var (id, _, party) in group)

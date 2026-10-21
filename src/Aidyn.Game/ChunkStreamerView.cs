@@ -156,11 +156,10 @@ public partial class ChunkStreamerView : Node3D
         var flat = new System.Numerics.Vector2(look.X, look.Z);
         flat = flat == default ? System.Numerics.Vector2.UnitX : System.Numerics.Vector2.Normalize(flat);
         var cell = new System.Numerics.Vector2(set.CellSize);
-        var forced = _loaded.Keys.FirstOrDefault(m => m.Key is ValueTuple<int, int> k && k == centre)?.Record.DrawnNeighbours ?? Neighbours.None;
+        var forced = _loaded.Keys.FirstOrDefault(m => m.Key == centre)?.Record.DrawnNeighbours ?? Neighbours.None;
         foreach (var (map, scenery) in _loaded)
         {
-            var (row, column) = ((int, int))map.Key;
-            if (!ChunkView.Drawn(eye, flat, row - centre.Row, column - centre.Column, cell, forced))
+            if (!ChunkView.Drawn(eye, flat, map.Key.Row - centre.Row, map.Key.Column - centre.Column, cell, forced))
                 continue;
             foreach (var scene in scenery.Scrolling())
                 yield return scene;

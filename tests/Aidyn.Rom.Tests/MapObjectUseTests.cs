@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Text.RegularExpressions;
 using Aidyn.Core;
 using Aidyn.Core.Characters;
+using Aidyn.Core.Chunks;
 using Aidyn.Core.Items;
 using Aidyn.Core.MapObjects;
 using Aidyn.Core.Physics;
@@ -75,7 +76,7 @@ public sealed class MapObjectUseTests(Na10Import fixture)
 
     /// <summary>The chunk as it loads, with a generator of its own so what's used afterwards rolls the same.</summary>
     private static LoadedMap Load(Play play, MapRecord map) =>
-        LoadedMap.Activate(map, map.Id, play.Game.Flags, play.Game.Memory, play.Game.Party, new Lcg());
+        LoadedMap.Activate(map, Worlds.Chunk(), play.Game.Flags, play.Game.Memory, play.Game.Party, new Lcg());
 
     private IReadOnlyList<CollisionTriangle> Collision(MapRecord map) =>
         Collisions.GetOrAdd(Data.Set.FindAsset(map.Id, "glb")!, path => CollisionMesh.Read(File.ReadAllBytes(path)));
@@ -788,7 +789,7 @@ public sealed class MapObjectUseTests(Na10Import fixture)
             return world;
         world = new CollisionWorld();
         foreach (var near in set.Chunks.Where(c => Math.Abs(c.Row - chunk.Row) <= 1 && Math.Abs(c.Column - chunk.Column) <= 1))
-            world.Add(near.Map, Collision(Data.Set.Get<MapRecord>(near.Map)), set.Origin(near.Row, near.Column));
+            world.Add(ChunkKey.Of(set, near), Collision(Data.Set.Get<MapRecord>(near.Map)), set.Origin(near.Row, near.Column));
         return _worlds[(set.Id, chunk.Row, chunk.Column)] = world;
     }
 

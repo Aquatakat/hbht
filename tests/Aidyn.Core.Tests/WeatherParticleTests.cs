@@ -1,5 +1,6 @@
 using System.Numerics;
 using Aidyn.Core.Calendar;
+using Aidyn.Core.Chunks;
 using Aidyn.Core.Particles;
 using Aidyn.Core.Physics;
 using Aidyn.Core.Rng;
@@ -31,11 +32,11 @@ public class WeatherParticleTests
         public Vector3 Aim = new(0, 1, 0);
         public Vector2 Look = Vector2.UnitY;
         public bool SkyDrawn = true;
-        public object? Part = "ground";
+        public ChunkKey? Part = Worlds.Chunk(0);
 
         public Scene(Precipitation precipitation = Precipitation.Rain, float intensity = 0.5f, bool fillsAir = false)
         {
-            World.Add("ground", Worlds.Floor(0, -100, 100, -100, 100).Drawn(), Vector3.Zero);
+            World.Add(Worlds.Chunk(0), Worlds.Floor(0, -100, 100, -100, 100).Drawn(), Vector3.Zero);
             Fall = new WeatherParticles(Head, Rules, new Lcg(7), () => Aim, () => Look, () => World, () => Part) { FillsAir = fillsAir };
             Weather.Force(WeatherKind.Precipitation, precipitation, intensity);
             Weather.SkyChange += rain => RainSkyAsked += rain ? 1 : 0;
@@ -122,8 +123,8 @@ public class WeatherParticleTests
     {
         // Ground of another loaded chunk: trek's drops, which test every chunk, land on it, and rain splashes on it.
         var trek = new Scene(intensity: 0.5f) { Part = null };
-        trek.World.Remove("ground");
-        trek.World.Add("next", Worlds.Floor(0, -100, 100, -100, 100).Drawn(), Vector3.Zero);
+        trek.World.Remove(Worlds.Chunk(0));
+        trek.World.Add(Worlds.Chunk(1), Worlds.Floor(0, -100, 100, -100, 100).Drawn(), Vector3.Zero);
         trek.Run(600);
         Assert.NotEmpty(trek.Drawn(trek.Fall.Splashes));
         Assert.True(trek.Fall.DropSplashes > 0 && trek.Fall.OwnSplashes > 0);
@@ -131,7 +132,7 @@ public class WeatherParticleTests
 
         // Testing one chunk's surfaces alone, as the original tests the player's chunk's collision: the drops fall
         // through the other's ground without landing, and rain's own splashes find none.
-        var scene = new Scene(intensity: 0.5f) { Part = "elsewhere" };
+        var scene = new Scene(intensity: 0.5f) { Part = Worlds.Chunk(2) };
         scene.Run(600);
         Assert.Empty(scene.Drawn(scene.Fall.Splashes));
         Assert.Contains(scene.Drawn(scene.Fall.Drops), d => d.Position.Y < -1);
@@ -143,7 +144,7 @@ public class WeatherParticleTests
         // A roof 3 above the ground over half of it, listed after the ground: the drops and rain's own splashes land on
         // the roof where it is and on the ground beside it, never on the ground under it.
         var scene = new Scene(intensity: 0.5f);
-        scene.World.Add("ground", [.. Worlds.Floor(0, -100, 100, -100, 100).Drawn(), .. Worlds.Floor(3, -100, 0, -100, 100).Drawn()], Vector3.Zero);
+        scene.World.Add(Worlds.Chunk(0), [.. Worlds.Floor(0, -100, 100, -100, 100).Drawn(), .. Worlds.Floor(3, -100, 0, -100, 100).Drawn()], Vector3.Zero);
         scene.Run(600);
         var splashes = scene.Drawn(scene.Fall.Splashes).ToList();
         Assert.Contains(splashes, s => s.Position.X < 0);
@@ -159,7 +160,7 @@ public class WeatherParticleTests
         // A surface that absorbs the rain, water or a canopy, 3 above the ground over half of it: the drops end there
         // without a splash, rain's own splashes find nothing there, and the ground under it stays dry.
         var scene = new Scene(intensity: 0.5f);
-        scene.World.Add("ground", [.. Worlds.Floor(0, -100, 100, -100, 100).Drawn(), .. Worlds.Floor(3, -100, 0, -100, 100).Drawn(absorbs: true)], Vector3.Zero);
+        scene.World.Add(Worlds.Chunk(0), [.. Worlds.Floor(0, -100, 100, -100, 100).Drawn(), .. Worlds.Floor(3, -100, 0, -100, 100).Drawn(absorbs: true)], Vector3.Zero);
         scene.Run(600);
         var splashes = scene.Drawn(scene.Fall.Splashes).ToList();
         Assert.NotEmpty(splashes);
@@ -178,9 +179,9 @@ public class WeatherParticleTests
         {
             var scene = new Scene(intensity: 0.5f) { Aim = new Vector3(-40, 1, 0), Part = null };
             scene.Weather.Wind = new Vector3(0.3f, 0, 0);
-            scene.World.Add("ground", Worlds.Floor(0, 0, 100, -100, 100).Drawn(), Vector3.Zero);
+            scene.World.Add(Worlds.Chunk(0), Worlds.Floor(0, 0, 100, -100, 100).Drawn(), Vector3.Zero);
             if (wall)
-                scene.World.Add("wall", Worlds.Wall(0, 100, -100, 100).Drawn(), new Vector3(0, -50, 0));
+                scene.World.Add(Worlds.Chunk(3), Worlds.Wall(0, 100, -100, 100).Drawn(), new Vector3(0, -50, 0));
             scene.Run(600);
             return scene;
         }

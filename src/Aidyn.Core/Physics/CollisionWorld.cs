@@ -1,4 +1,5 @@
 using System.Numerics;
+using Aidyn.Core.Chunks;
 using Aidyn.Plugins.Assets;
 
 namespace Aidyn.Core.Physics;
@@ -17,7 +18,7 @@ public sealed class CollisionWorld
     /// part it's in, which names the map a trigger triangle's <see cref="Target"/> is an object of.
     /// </summary>
     internal readonly record struct Triangle(Vector3 A, Vector3 B, Vector3 C, Vector3 Normal, int Surface, CollisionFlags Flags,
-        CollisionRole Role, int Target, object Part) : IGridTriangle
+        CollisionRole Role, int Target, ChunkKey Part) : IGridTriangle
     {
         public Vector3 this[int i] => i switch { 0 => A, 1 => B, _ => C };
         public bool Has(CollisionFlags flag) => (Flags & flag) != 0;
@@ -29,7 +30,7 @@ public sealed class CollisionWorld
     /// Adds a chunk's triangles, moved by <paramref name="offset"/>, under a key to remove them by.
     /// Triangles with no area are left out: they can't be hit, and their normals are meaningless.
     /// </summary>
-    public void Add(object key, IEnumerable<CollisionTriangle> triangles, Vector3 offset)
+    public void Add(ChunkKey key, IEnumerable<CollisionTriangle> triangles, Vector3 offset)
     {
         var list = new List<Triangle>();
         foreach (var t in triangles)
@@ -44,7 +45,7 @@ public sealed class CollisionWorld
         _grid.Add(key, list);
     }
 
-    public bool Remove(object key) => _grid.Remove(key);
+    public bool Remove(ChunkKey key) => _grid.Remove(key);
 
     /// <summary>Removes every part, as changing map set does.</summary>
     public void Clear() => _grid.Clear();
@@ -54,7 +55,7 @@ public sealed class CollisionWorld
     /// <paramref name="keep"/>, then ORs in <paramref name="add"/>, as a <c>ChangeCollision</c> trigger
     /// does (<c>trigger_vobject_func</c>). They stay so until the part is added again. Returns how many changed.
     /// </summary>
-    public int ChangeToggles(object key, int toggle, int keep, int add)
+    public int ChangeToggles(ChunkKey key, int toggle, int keep, int add)
     {
         if (_grid.Triangles(key) is not { } triangles)
             return 0;
@@ -77,6 +78,6 @@ public sealed class CollisionWorld
     /// The triangles that may touch the box from <paramref name="min"/> to <paramref name="max"/> in
     /// X and Z, each once, in a fixed order: of every part, or of the one added under <paramref name="only"/>.
     /// </summary>
-    internal void Near(float minX, float minZ, float maxX, float maxZ, List<Triangle> into, object? only = null) =>
+    internal void Near(float minX, float minZ, float maxX, float maxZ, List<Triangle> into, ChunkKey? only = null) =>
         _grid.Near(minX, minZ, maxX, maxZ, into, only);
 }

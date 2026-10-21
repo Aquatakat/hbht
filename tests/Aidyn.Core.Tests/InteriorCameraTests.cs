@@ -100,7 +100,7 @@ public class InteriorCameraTests
     public void ItStopsAQuarterOffAWallAndNeverPassesIt()
     {
         var world = Worlds.Flat();
-        world.Add("wall", Worlds.Wall(10, 5), Vector3.Zero);
+        world.Add(Worlds.Chunk(0), Worlds.Wall(10, 5), Vector3.Zero);
         var player = new Vector3(8, 0.5f, 0);
         var camera = new FollowCamera(player + AboveHim, Vector2.UnitX) { Mode = CameraMode.Interior };
         camera.Position = camera.PositionGoal = new Vector3(9, player.Y + 1.05f + 1.5f, 0);
@@ -147,7 +147,7 @@ public class InteriorCameraTests
     public void ItJumpsItsGoalBehindThePlayerWhenTheAimIsOutOfSightAndNotAgainForFiveSeconds()
     {
         var world = Worlds.Flat();
-        world.Add("wall", Worlds.Wall(3, 5), Vector3.Zero);
+        world.Add(Worlds.Chunk(0), Worlds.Wall(3, 5), Vector3.Zero);
         var camera = Resting();
         var heading = Vector2.UnitX;
 

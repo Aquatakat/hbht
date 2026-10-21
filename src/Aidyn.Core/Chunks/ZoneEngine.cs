@@ -42,7 +42,7 @@ public sealed class ZoneEngine
     /// The key of the one chunk whose surfaces alone the drops land on (<see cref="WeatherParticles"/>), or null for every
     /// loaded chunk's.
     /// </param>
-    private ZoneEngine(GameState game, ChunkStreamer chunks, ParticleHead? particles, Shared shared, Func<object?>? part)
+    private ZoneEngine(GameState game, ChunkStreamer chunks, ParticleHead? particles, Shared shared, Func<ChunkKey?>? part)
     {
         Game = game;
         Chunks = chunks;

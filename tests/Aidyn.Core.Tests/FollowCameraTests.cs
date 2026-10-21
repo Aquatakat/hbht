@@ -108,7 +108,7 @@ public class FollowCameraTests
     {
         var world = Worlds.Flat();
         // A wall at X = -2, facing the player.
-        world.Add("wall", [
+        world.Add(Worlds.Chunk(0), [
             Worlds.Triangle(new(-2, 0, 20), new(-2, 0, -20), new(-2, 5, 20)),
             Worlds.Triangle(new(-2, 5, 20), new(-2, 0, -20), new(-2, 5, -20)),
         ], Vector3.Zero);

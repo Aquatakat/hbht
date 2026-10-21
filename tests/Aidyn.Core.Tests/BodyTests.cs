@@ -1,4 +1,5 @@
 using System.Numerics;
+using Aidyn.Core.Chunks;
 using Aidyn.Core.Movement;
 using Aidyn.Core.Physics;
 using Aidyn.Plugins.Assets;
@@ -151,7 +152,7 @@ public class BodyTests
     private static CollisionWorld TwoFloors(CollisionFlags upper = CollisionFlags.None)
     {
         var world = new CollisionWorld();
-        world.Add("floors", [.. Worlds.Floor(0, -5, 5, -5, 5),
+        world.Add(Worlds.Chunk(2), [.. Worlds.Floor(0, -5, 5, -5, 5),
             Worlds.Triangle(new(-5, 3, -5), new(-5, 3, 5), new(5, 3, -5), flags: upper),
             Worlds.Triangle(new(5, 3, -5), new(-5, 3, 5), new(5, 3, 5), flags: upper)], Vector3.Zero);
         return world;
@@ -188,7 +189,7 @@ public class BodyTests
         Assert.Equal(0.51f, at.Y, 1e-5f);
 
         var high = new CollisionWorld();
-        high.Add("high", Worlds.Floor(120, -5, 5, -5, 5), Vector3.Zero);
+        high.Add(Worlds.Chunk(3), Worlds.Floor(120, -5, 5, -5, 5), Vector3.Zero);
         Assert.False(Body.SetDown(high, new Vector3(0, 125, 0), 0.5f, null).Grounded);
     }
 
@@ -211,8 +212,8 @@ public class BodyTests
         Assert.Equal(0, at.Z, 1e-5f);
     }
 
-    private static CrowdMember Member(Vector3 at, float radius = 0.5f, float scale = 1, object? chunk = null) =>
-        new(new CollisionSphere { Radius = radius, Position = at }, scale, chunk ?? "chunk");
+    private static CrowdMember Member(Vector3 at, float radius = 0.5f, float scale = 1, ChunkKey? chunk = null) =>
+        new(new CollisionSphere { Radius = radius, Position = at }, scale, chunk ?? Worlds.Chunk(0));
 
     [Fact]
     public void ABodyIsPushedStraightAwayAcrossTheGroundUntilItTouchesTheOther()
@@ -260,7 +261,7 @@ public class BodyTests
         var bodies = new CrowdMember?[]
         {
             Member(new(0, 0.5f, 0)),
-            Member(new(0.5f, 0.5f, 0), chunk: "beside"),
+            Member(new(0.5f, 0.5f, 0), chunk: Worlds.Chunk(1)),
             Member(new(0, 3.6f, 0.5f)),
         };
         var (nearest, _) = Crowd.Push(bodies, 0, Vector3.Zero);

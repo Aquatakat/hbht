@@ -46,7 +46,7 @@ public class BodyShadowTests
     public void LooksThroughSeeThroughTriangles()
     {
         var world = Worlds.Flat();
-        world.Add("glass", Worlds.Floor(1, 0, 10, 0, 10).Select(t => t with { Flags = CollisionFlags.SeeThrough }), Vector3.Zero);
+        world.Add(Worlds.Chunk(0), Worlds.Floor(1, 0, 10, 0, 10).Select(t => t with { Flags = CollisionFlags.SeeThrough }), Vector3.Zero);
         var shadow = new BodyShadow();
         Assert.True(shadow.Place(world, new Vector3(3, 1.5f, 4), 0.5f, 0x80));
         Assert.Equal(0, shadow.Position.Y);
@@ -59,11 +59,11 @@ public class BodyShadowTests
         // listed before the ground, so the first triangle the sweep touches is the bank.
         static Vector3 Bank(float y, float z) => new(0.55f + 0.4f * y, y, z);
         var world = new CollisionWorld();
-        world.Add("bank", [
+        world.Add(Worlds.Chunk(1), [
             Worlds.Triangle(Bank(-3, -10), Bank(-3, 10), Bank(3, -10)),
             Worlds.Triangle(Bank(3, -10), Bank(-3, 10), Bank(3, 10)),
         ], Vector3.Zero);
-        world.Add("ground", Worlds.Floor(0, -20, 0.55f, -20, 20), Vector3.Zero);
+        world.Add(Worlds.Chunk(2), Worlds.Floor(0, -20, 0.55f, -20, 20), Vector3.Zero);
 
         var centre = new Vector3(0, 0.5f, 0);
         var from = centre + new Vector3(0, 0.05f, 0);
@@ -82,7 +82,7 @@ public class BodyShadowTests
         // He's walked into a leaning wall, which touches his sphere just as the ground does.
         static Vector3 Bank(float y, float z) => new(0.5f / 0.928f + 0.4f * y, y, z);
         var world = Worlds.Flat();
-        world.Add("bank", [
+        world.Add(Worlds.Chunk(1), [
             Worlds.Triangle(Bank(-3, -10), Bank(-3, 10), Bank(3, -10)),
             Worlds.Triangle(Bank(3, -10), Bank(-3, 10), Bank(3, 10)),
         ], Vector3.Zero);
@@ -96,7 +96,7 @@ public class BodyShadowTests
     {
         // Ground rising along +X at 45°.
         var world = new CollisionWorld();
-        world.Add("slope", [
+        world.Add(Worlds.Chunk(3), [
             Worlds.Triangle(new(-10, -10, -10), new(-10, -10, 10), new(10, 10, -10)),
             Worlds.Triangle(new(10, 10, -10), new(-10, -10, 10), new(10, 10, 10)),
         ], Vector3.Zero);

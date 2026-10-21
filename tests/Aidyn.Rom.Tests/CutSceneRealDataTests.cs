@@ -1,6 +1,7 @@
 using System.Numerics;
 using Aidyn.Core;
 using Aidyn.Core.Actors;
+using Aidyn.Core.Chunks;
 using Aidyn.Core.Movement;
 using Aidyn.Core.Physics;
 using Aidyn.Core.Scripts;
@@ -57,7 +58,7 @@ public sealed class CutSceneRealDataTests(Na10Import fixture, ITestOutputHelper 
         foreach (var chunk in set.Chunks.Where(c => Math.Abs(c.Row - centre.Row) <= 1 && Math.Abs(c.Column - centre.Column) <= 1))
         {
             if (plugins.FindAsset(chunk.Map, "glb") is { } glb)
-                world.Add((chunk.Row, chunk.Column), CollisionMesh.Read(File.ReadAllBytes(glb)), set.Origin(chunk.Row, chunk.Column));
+                world.Add(ChunkKey.Of(set, chunk), CollisionMesh.Read(File.ReadAllBytes(glb)), set.Origin(chunk.Row, chunk.Column));
         }
         return world;
     }

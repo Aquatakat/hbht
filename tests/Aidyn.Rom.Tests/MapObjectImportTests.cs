@@ -482,7 +482,7 @@ public sealed class MapObjectImportTests(Na10Import fixture)
         var game = Core.GameState.NewGame(Data.Set);
         game.Flags.Set(Flag(50), true);
         var record = Data.Map("aidyn:map/0x0FDB");
-        Core.MapObjects.LoadedMap Load() => Core.MapObjects.LoadedMap.Activate(record, "I08", game.Flags, game.Memory, game.Party, new Core.Rng.Lcg());
+        Core.MapObjects.LoadedMap Load() => Core.MapObjects.LoadedMap.Activate(record, Worlds.Chunk(), game.Flags, game.Memory, game.Party, new Core.Rng.Lcg());
         var map = Load();
         var light = Assert.IsType<SceneObject>(map[104]);
         Assert.True(map.IsActive(104));

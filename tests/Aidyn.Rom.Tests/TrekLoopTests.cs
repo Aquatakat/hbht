@@ -286,7 +286,7 @@ public sealed class TrekLoopTests(Na10Import fixture)
         var (trek, host) = Start();
         var (_, record, sign) = Data.Of<DialogueObject>()
             .First(d => Data.Set.TryGet<DialogueRecord>(d.Object.Script) is { Mode: DialogueMode.Sign });
-        var map = LoadedMap.Activate(record, record.Id, trek.Game.Flags, trek.Game.Memory, trek.Game.Party, new Lcg());
+        var map = LoadedMap.Activate(record, Worlds.Chunk(), trek.Game.Flags, trek.Game.Memory, trek.Game.Party, new Lcg());
 
         ((IMapObjectHost)trek).StartScript(map, sign);
         Assert.NotNull(trek.Conversation);

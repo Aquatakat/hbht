@@ -24,7 +24,7 @@ public class PathLightTests
         };
 
     private static LoadedMap Load(MapObjectMemory memory, RecordId? id = null, params MapObject[] objects) =>
-        LoadedMap.Activate(new MapRecord(id ?? MapId, objects), "chunk", ItemData.Flags(), memory, ItemData.NewParty(), new Lcg());
+        LoadedMap.Activate(new MapRecord(id ?? MapId, objects), Worlds.Chunk(0), ItemData.Flags(), memory, ItemData.NewParty(), new Lcg());
 
     /// <summary>The player at <paramref name="focus"/>, the camera 5 behind him along +Z, looking along −Z.</summary>
     private static SceneView View(Vector3 focus) =>

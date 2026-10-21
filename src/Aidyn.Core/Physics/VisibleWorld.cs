@@ -1,4 +1,5 @@
 using System.Numerics;
+using Aidyn.Core.Chunks;
 
 namespace Aidyn.Core.Physics;
 
@@ -27,7 +28,7 @@ public sealed class VisibleWorld
     /// Adds a chunk's triangles, moved by <paramref name="offset"/>, under a key to remove them by, in place of any
     /// already under it. Triangles with no area are left out.
     /// </summary>
-    public void Add(object key, IEnumerable<DrawnTriangle> triangles, Vector3 offset)
+    public void Add(ChunkKey key, IEnumerable<DrawnTriangle> triangles, Vector3 offset)
     {
         var list = new List<Triangle>();
         foreach (var (a, b, c, absorbs) in triangles)
@@ -41,7 +42,7 @@ public sealed class VisibleWorld
         _grid.Add(key, list);
     }
 
-    public bool Remove(object key) => _grid.Remove(key);
+    public bool Remove(ChunkKey key) => _grid.Remove(key);
 
     /// <summary>Removes every part, as changing map set does.</summary>
     public void Clear() => _grid.Clear();
@@ -51,7 +52,7 @@ public sealed class VisibleWorld
     /// where, its unit normal turned to face back along the line, and whether it absorbs what hits it. Of every part,
     /// or of the one added under <paramref name="only"/>.
     /// </summary>
-    public bool Raycast(Vector3 from, Vector3 to, out Vector3 point, out Vector3 normal, out bool absorbs, object? only = null)
+    public bool Raycast(Vector3 from, Vector3 to, out Vector3 point, out Vector3 normal, out bool absorbs, ChunkKey? only = null)
     {
         var delta = to - from;
         var best = float.MaxValue;

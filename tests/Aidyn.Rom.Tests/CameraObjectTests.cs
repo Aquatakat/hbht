@@ -83,7 +83,7 @@ public sealed class CameraObjectTests(Na10Import fixture)
         var use = new MapObjectUse(game, MenuText.From(Data.Set), new IdleHost());
         var camera = new FollowCamera(origin + new Vector3(10, 1, 10), Vector2.UnitX);
         use.Camera = camera;
-        var loaded = LoadedMap.Activate(map, map.Id, game.Flags, game.Memory, game.Party, new Lcg(), origin);
+        var loaded = LoadedMap.Activate(map, Worlds.Chunk(), game.Flags, game.Memory, game.Party, new Lcg(), origin);
         return new Play { Game = game, Use = use, Camera = camera, Map = loaded, Origin = origin };
     }
 

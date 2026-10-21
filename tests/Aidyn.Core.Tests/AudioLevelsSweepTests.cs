@@ -86,7 +86,7 @@ public class AudioLevelsSweepTests
             var audio = Audio(new Settings { SoundVolume = sound, MusicVolume = music });
             var sounds = new MapSounds(audio, new Lcg(), _ => true);
             var at = new SoundObject(0, Vector3.Zero, 10, PakVariant.Any, null, Tune, volume, 1, 2, flags);
-            sounds.Load(LoadedMap.Activate(new MapRecord(RecordId.Hex(RecordTypes.Map, 1), [at]), "a", ItemData.Flags(), new MapObjectMemory(), ItemData.NewParty(), new Lcg()));
+            sounds.Load(LoadedMap.Activate(new MapRecord(RecordId.Hex(RecordTypes.Map, 1), [at]), Worlds.Chunk(0), ItemData.Flags(), new MapObjectMemory(), ItemData.NewParty(), new Lcg()));
             var near = new Vector3(distance * MathF.Cos(angle), 0, distance * MathF.Sin(angle));
             var far = new Vector3(40, 0, 0);
             for (var tick = 0; tick < 4; tick++)

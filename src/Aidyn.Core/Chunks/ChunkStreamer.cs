@@ -9,9 +9,9 @@ namespace Aidyn.Core.Chunks;
 
 /// <summary>
 /// Keeps the 3×3 chunks around a point loaded, as the original's zone engine does (<c>ZoneDatMtx</c>):
-/// each chunk's collision, which goes into the <see cref="CollisionWorld"/> keyed by its row and
-/// column, and its map objects as they stand while it's loaded (<see cref="LoadedMap"/>). Trek gives
-/// a chunk's monster parties their bodies as it loads (<see cref="Loaded"/>); the runtime builds its
+/// each chunk's collision, which goes into the <see cref="CollisionWorld"/> under its <see cref="ChunkKey"/>
+/// (its map set, row and column), and its map objects as they stand while it's loaded (<see cref="LoadedMap"/>).
+/// Trek gives a chunk's monster parties their bodies as it loads (<see cref="Loaded"/>); the runtime builds its
 /// scenery. Given a <see cref="VisibleWorld"/>, it keeps the solid surfaces the chunks draw there too,
 /// under the same keys, which rain and snow land on (<see cref="ChunkSurfaces"/>).
 /// </summary>
@@ -20,8 +20,8 @@ public sealed class ChunkStreamer
 {
     private readonly PluginSet _plugins;
     private readonly GameState _game;
-    private readonly Dictionary<(int Row, int Column), ChunkEntry> _chunks = [];
-    private readonly Dictionary<(int Row, int Column), LoadedMap> _maps = [];
+    private readonly Dictionary<ChunkKey, ChunkEntry> _chunks = [];
+    private readonly Dictionary<ChunkKey, LoadedMap> _maps = [];
     private readonly ChunkSurfaces? _surfaces;
 
     public ChunkStreamer(PluginSet plugins, GameState game, CollisionWorld world, MapSetRecord set, VisibleWorld? visible = null)
@@ -51,14 +51,14 @@ public sealed class ChunkStreamer
     public event Action<ChunkEntry, LoadedMap>? Unloading;
 
     /// <summary>The chunk the 3×3 was last loaded around.</summary>
-    public (int Row, int Column) Centre { get; private set; }
+    public ChunkKey Centre { get; private set; }
 
     /// <summary>The loaded chunks and their map objects.</summary>
     public IEnumerable<(ChunkEntry Chunk, LoadedMap Map)> All => _maps.Select(m => (_chunks[m.Key], m.Value));
 
     /// <summary>The chunk a point is in.</summary>
-    public (int Row, int Column) CellAt(Vector3 position) =>
-        ((int)MathF.Floor(position.X / MapSet.CellSize), (int)MathF.Floor(position.Z / MapSet.CellSize));
+    public ChunkKey CellAt(Vector3 position) =>
+        new(MapSet.Id, (int)MathF.Floor(position.X / MapSet.CellSize), (int)MathF.Floor(position.Z / MapSet.CellSize));
 
     public ChunkEntry? ChunkAt(Vector3 position) => _chunks.GetValueOrDefault(CellAt(position));
 
@@ -67,25 +67,26 @@ public sealed class ChunkStreamer
     public Vector3 Origin(ChunkEntry chunk) => MapSet.Origin(chunk.Row, chunk.Column);
 
     /// <summary>A loaded chunk's map objects, by the key its collision is under.</summary>
-    public LoadedMap? Map(object key) => key is ValueTuple<int, int> cell ? _maps.GetValueOrDefault(cell) : null;
+    public LoadedMap? Map(ChunkKey key) => _maps.GetValueOrDefault(key);
 
     /// <summary>The map objects of the loaded chunk a point is in.</summary>
     public LoadedMap? MapAt(Vector3 position) => _maps.GetValueOrDefault(CellAt(position));
 
     /// <summary>The chunk a loaded map is.</summary>
-    public ChunkEntry? ChunkOf(LoadedMap map) => map.Key is ValueTuple<int, int> cell ? _chunks.GetValueOrDefault(cell) : null;
+    public ChunkEntry? ChunkOf(LoadedMap map) => _chunks.GetValueOrDefault(map.Key);
 
     /// <summary>Loads the chunks around <paramref name="position"/> and frees the rest. Returns whether any changed.</summary>
     public bool Update(Vector3 position)
     {
-        var (row, column) = Centre = CellAt(position);
-        var wanted = new HashSet<(int, int)>();
-        for (var r = row - 1; r <= row + 1; r++)
+        var centre = Centre = CellAt(position);
+        var wanted = new HashSet<ChunkKey>();
+        for (var r = centre.Row - 1; r <= centre.Row + 1; r++)
         {
-            for (var c = column - 1; c <= column + 1; c++)
+            for (var c = centre.Column - 1; c <= centre.Column + 1; c++)
             {
-                if (_chunks.ContainsKey((r, c)))
-                    wanted.Add((r, c));
+                var cell = centre with { Row = r, Column = c };
+                if (_chunks.ContainsKey(cell))
+                    wanted.Add(cell);
             }
         }
 
@@ -110,7 +111,7 @@ public sealed class ChunkStreamer
         MapSet = set;
         _chunks.Clear();
         foreach (var chunk in set.Chunks)
-            _chunks[(chunk.Row, chunk.Column)] = chunk;
+            _chunks[ChunkKey.Of(set, chunk)] = chunk;
     }
 
     /// <summary>Frees every loaded chunk.</summary>
@@ -140,8 +141,8 @@ public sealed class ChunkStreamer
     /// </summary>
     public void Refresh(LoadedMap map)
     {
-        if (Visible is not null && map.Key is ValueTuple<int, int> cell && _maps.GetValueOrDefault(cell) == map)
-            Visible.Add(cell, _surfaces!.For(_chunks[cell], map), Origin(_chunks[cell]));
+        if (Visible is not null && _maps.GetValueOrDefault(map.Key) == map)
+            Visible.Add(map.Key, _surfaces!.For(_chunks[map.Key], map), Origin(_chunks[map.Key]));
     }
 
     /// <summary>
@@ -169,7 +170,7 @@ public sealed class ChunkStreamer
     // (VoxelObjects_Activate).
     private void Load(ChunkEntry chunk)
     {
-        var cell = (chunk.Row, chunk.Column);
+        var cell = ChunkKey.Of(MapSet, chunk);
         var origin = Origin(chunk);
         if (CollisionMesh.For(_plugins, chunk.Map) is { Count: > 0 } collision)
             World.Add(cell, collision, origin);
@@ -179,7 +180,7 @@ public sealed class ChunkStreamer
         Loaded?.Invoke(chunk, map);
     }
 
-    private void Unload((int Row, int Column) cell)
+    private void Unload(ChunkKey cell)
     {
         Unloading?.Invoke(_chunks[cell], _maps[cell]);
         _maps.Remove(cell);
