@@ -101,6 +101,8 @@ public sealed class TrekLoop : IMapObjectHost
     private RecordId? _lastScript;
     /// <summary>The frames scene objects are drawn in, which <see cref="PutOut"/> goes by.</summary>
     private readonly FrameGate _drawFrame = new(Cadence.FrameTicks);
+    /// <summary>The main font, which a backdrop's page is laid out in.</summary>
+    private TextLayout? _font;
 
     /// <param name="zone">
     /// The zone engine trek's world is loaded in, about the player. Its rain lands on the solid surfaces every loaded chunk
@@ -119,6 +121,7 @@ public sealed class TrekLoop : IMapObjectHost
         Wanderers = new Wanderers(game.Plugins);
         Use = new MapObjectUse(game, MenuText.From(game.Plugins), this) { World = zone.World, Camera = camera, PlayerRadius = player.Sphere.Radius };
         Hud = new TrekHud(game);
+        Box = DialogueBox.For(game.Plugins);
         _playerSounds = game.Plugins.TryGet<EntityRecord>(GameState.Alaron)?.Sounds;
         // Each chunk's wanderers load before its sounds and lights.
         zone.Loaded += (_, map) => Wanderers.Load(map, Chunks.MapSet.CellSize, Chunks.World, Game.Memory, Game.Random.Wander);
@@ -162,6 +165,18 @@ public sealed class TrekLoop : IMapObjectHost
 
     /// <summary>The conversation or sign showing, if any.</summary>
     public Conversation? Conversation { get; private set; }
+
+    /// <summary>
+    /// The box a conversation or a sign shows its pages in, and whose cursor its presses move (<see cref="Press"/>): laid out
+    /// here, and drawn by whoever presents trek, which sizes it to the UI screen (<see cref="DialogueBox.Resize"/>).
+    /// </summary>
+    public DialogueBox Box { get; }
+
+    /// <summary>
+    /// A backdrop's or the help menu's page over the world, from its opening until it has faded out (<c>Backdrop.Start</c>): the
+    /// world is held still under it, as under the pause menu, and its presses turn the page (<see cref="Press"/>).
+    /// </summary>
+    public BackdropPage? Backdrop { get; private set; }
 
     /// <summary>The player's nearest body and how far, from the last tick's push loop, which A can reach.</summary>
     public (Wanderer? Nearest, float Distance) Nearest { get; private set; }
@@ -457,11 +472,110 @@ public sealed class TrekLoop : IMapObjectHost
         _host.Arrived();
     }
 
-    /// <summary>B in trek: raises or lowers the portraits, but not through a fade, a popup or a conversation (<c>Actor::Move</c>).</summary>
-    public void PressB()
+    /// <summary>B in trek: raises or lowers the portraits, but not through a fade, a popup or a conversation (<c>Actor::Move</c>). Whether it did.</summary>
+    public bool PressB()
     {
-        if (!TeleportFade.Fading && !CutSceneFade.Fading && Cued is null && Use.Popup is null && Conversation is null)
-            Hud.PressB();
+        if (TeleportFade.Fading || CutSceneFade.Fading || Cued is not null || Use.Popup is not null || Conversation is not null)
+            return false;
+        Hud.PressB();
+        return true;
+    }
+
+    /// <summary>
+    /// A press in trek, to what's up, highest first: a backdrop's page, a map object's popup, a conversation, else trek itself,
+    /// where Start opens the pause menu, A uses the map object the player reaches (<c>obj_ref_func</c>) and B raises or lowers
+    /// the portraits. Trek's input is dead while it fades into or out of a cut-scene (<see cref="Cued"/>, <see cref="CutSceneFade"/>);
+    /// Start waits for a teleport to end, and A for its fade. The session opens the menu (<see cref="PressOutcome.MenuOpened"/>).
+    /// </summary>
+    /// <param name="frozen">Whether the player and the world stand still, as while the runtime's free camera flies: then A and B do nothing.</param>
+    public PressOutcome Press(MenuAction action, bool frozen = false)
+    {
+        if (Backdrop is { } page)
+            return Browse(page, action);
+        if (Use.Popup is not null)
+            return Use.Press(action) ? PressOutcome.Taken : PressOutcome.Ignored;
+        if (Conversation is { } conversation)
+            return Converse(conversation, action);
+        var dead = Cued is not null || CutSceneFade.Fading;
+        switch (action)
+        {
+            case MenuAction.Start:
+                return dead || Teleporting ? PressOutcome.Ignored : PressOutcome.MenuOpened;
+            case MenuAction.Accept:
+                if (dead || frozen || TeleportFade.Fading)
+                    return PressOutcome.Ignored;
+                return UseNearest() ? PressOutcome.Used : PressOutcome.Ignored;
+            case MenuAction.Back:
+                return !frozen && PressB() ? PressOutcome.Taken : PressOutcome.Ignored;
+            default:
+                return PressOutcome.Ignored;
+        }
+    }
+
+    /// <summary>
+    /// The buttons in a conversation (<c>run_dialougemode_funcs2</c>): A moves it on, bringing up the choices behind a line that
+    /// showed alone or taking the cursor's choice (<see cref="DialogueBox.Accept"/>), and up and down move the cursor. Start does
+    /// nothing. Nothing reaches it while the script runs or waits.
+    /// </summary>
+    private PressOutcome Converse(Conversation conversation, MenuAction action)
+    {
+        var runner = conversation.Runner;
+        if (runner.Status != ScriptStatus.Showing || runner.Page is null)
+            return PressOutcome.Ignored;
+        switch (action)
+        {
+            case MenuAction.Accept:
+                if (Box.Accept(runner, conversation.Press) != DialogueAccept.ShowedChoices)
+                    Refresh();
+                else
+                    _host.ConversationChanged();
+                return PressOutcome.Taken;
+            case MenuAction.Up or MenuAction.Down:
+                Box.MoveCursor(action.Vertical());
+                _host.ConversationChanged();
+                return PressOutcome.Taken;
+            default:
+                return PressOutcome.Ignored;
+        }
+    }
+
+    /// <summary>
+    /// The buttons on a backdrop's or the help menu's page: A takes the cursor's choice, or with none moves on, and up and down
+    /// move the cursor. In the help menu, B takes the last choice, Exit Help or back, or with none moves on as A does: only a
+    /// help script's page gets a B (<c>Dialogue.ShowNode</c>, 0x80047714, by its start mode, 4) and it returns the last row,
+    /// else the text, which carries the node's link (<c>Dialogue.OnBHelp</c>, 0x80048354). A page fading out takes nothing.
+    /// </summary>
+    private PressOutcome Browse(BackdropPage page, MenuAction action)
+    {
+        if (page.Closing || Conversation?.Runner is not { Status: ScriptStatus.Showing, Page: { } shown } runner)
+            return PressOutcome.Ignored;
+        var back = action == MenuAction.Back && runner.Script.Mode == DialogueMode.Help;
+        if (action == MenuAction.Accept || back)
+        {
+            DialogueBox.Advance(runner, back ? shown.Choices.Count - 1 : page.Highlight);
+            Refresh();
+            return PressOutcome.Taken;
+        }
+        if (action is MenuAction.Up or MenuAction.Down)
+        {
+            page.MoveCursor(action.Vertical());
+            _host.ConversationChanged();
+            return PressOutcome.Taken;
+        }
+        return PressOutcome.Ignored;
+    }
+
+    /// <summary>
+    /// A tick of the backdrop's page, whatever runs over it: its fade and its cursor's pulse; once it has faded out after its
+    /// script ended, it's gone and the game goes on.
+    /// </summary>
+    public void StepBackdrop()
+    {
+        if (Backdrop is not { } page)
+            return;
+        page.Step();
+        if (page.Closed)
+            Backdrop = null;
     }
 
     /// <summary>A in trek: uses the map object the player reaches in the chunk he's in (<c>obj_ref_func</c>).</summary>
@@ -679,7 +793,8 @@ public sealed class TrekLoop : IMapObjectHost
 
     /// <summary>
     /// Brings the conversation up to date after a tick or a press: what a script waits for that trek can't
-    /// do (a camera, an actor walking or animating) is taken as done, and an ended conversation ends.
+    /// do (a camera, an actor walking or animating) is taken as done, its page is shown, in the box or on a
+    /// backdrop's page (<see cref="Box"/>, <see cref="Backdrop"/>), and an ended conversation ends, a backdrop's page fading out.
     /// </summary>
     public void Refresh()
     {
@@ -695,6 +810,7 @@ public sealed class TrekLoop : IMapObjectHost
         {
             conversation.End(Wanderers, Camera);
             Conversation = null;
+            Backdrop?.Close();
             if (conversation.RebuildsTrek)
                 Rebuild();
             _host.ConversationChanged();
@@ -704,6 +820,19 @@ public sealed class TrekLoop : IMapObjectHost
             var talker = conversation.With is { } with ? (MapRecord.VoxelId(with.Map.Record.Id, with.Party.Index), with.Party) : default((RecordId, MonsterPartyObject)?);
             CarryOut(Transition.AfterScript(Game, ending, conversation.Keeper, Here(), talker));
             return;
+        }
+        if (conversation.ShowsBackdrop)
+        {
+            // Backdrop.Start: the page opens over the world, in its picture's style, as the script starts; a page still fading out is replaced.
+            if (Backdrop is null or { Closing: true })
+                Backdrop = new BackdropPage(_font ??= new TextLayout(Game.Plugins.Get<FontRecord>(RecordId.Decimal(RecordTypes.Font, 0))),
+                    BackdropStyle.For(runner.Script.Backdrop));
+            if (runner is { Status: ScriptStatus.Showing, Page: { } page })
+                Backdrop.Show(page);
+        }
+        else if (runner is { Status: ScriptStatus.Showing, Page: { } page })
+        {
+            Box.Show(page);
         }
         _host.ConversationChanged();
     }

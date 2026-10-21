@@ -41,9 +41,9 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         {
         }
 
-        void ITrekHost.ConversationChanged()
-        {
-        }
+        public int ConversationChanges { get; private set; }
+
+        void ITrekHost.ConversationChanged() => ConversationChanges++;
 
         IRootMotion ITrekHost.Motion(Wanderer wanderer) => IActorMotion.Still;
 
@@ -98,9 +98,9 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         Assert.True(session.TrekRuns);
         Assert.Equal(SessionStep.Trek, Tick(session));
 
-        // The menu over it holds the world, and so does a backdrop's page under the menu, until both have gone.
+        // The menu over it holds the world, and so does the help menu's page under the menu, until both have gone.
+        session.Trek.ShowBackdrop(Data.Set.Get<DialogueRecord>(SystemMenu.HelpScript));
         session.MenuOpened();
-        session.BackdropOpened();
         Assert.Equal((GameMode.Menu, true, false), (session.Mode, session.Held, session.TrekRuns));
         var played = session.Game.PlayTime;
         var time = session.Game.Clock.Time;
@@ -109,15 +109,21 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         Assert.Equal(time, session.Game.Clock.Time);
         session.MenuClosed(PauseExit.Close);
         Assert.Equal(GameMode.Backdrop, session.Mode);
-        session.BackdropClosed();
+        // B leaves the help menu, and its page fades out before the game goes on.
+        for (var i = 0; i < 5 && session.Trek.Conversation is not null; i++)
+            session.Press(MenuAction.Back);
+        Assert.Equal(GameMode.Backdrop, session.Mode);
+        for (var i = 0; i < 120 && session.Mode == GameMode.Backdrop; i++)
+            Tick(session);
         Assert.Equal(GameMode.Popup, session.Mode);
 
         // A cinematic is over everything, the menu too.
         var cinematic = Data.Set.Get<CinematicRecord>(RecordId.Decimal(RecordTypes.Cinematic, 0));
+        played = session.Game.PlayTime;
         session.MenuOpened();
         session.PlayCinematic(cinematic, fromTheatre: false);
         Assert.Equal((GameMode.Cinematic, SessionStep.Cinematic), (session.Mode, Tick(session)));
-        Assert.Equal(played + 2, session.Game.PlayTime);
+        Assert.Equal(played + 1, session.Game.PlayTime);
     }
 
     [Fact]
@@ -511,7 +517,8 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         Assert.IsType<Transition.Camp>(host.Transitions[^1]);
 
         session.MenuClosed(PauseExit.Help);
-        Assert.Equal((GameMode.Conversation, true), (session.Mode, session.Trek.Conversation!.ShowsBackdrop));
+        Assert.Equal((GameMode.Backdrop, true), (session.Mode, session.Trek.Conversation!.ShowsBackdrop));
+        Assert.NotNull(session.Trek.Backdrop);
         Assert.Equal(SystemMenu.HelpScript, session.Trek.Conversation.Runner.Script.Id);
     }
 

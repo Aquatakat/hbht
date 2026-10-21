@@ -188,8 +188,11 @@ public sealed class GameSession
     /// </summary>
     public BattleSpoils? PostBattle { get; private set; }
 
-    /// <summary>Whether a backdrop's or the help menu's page shows, or is still fading out.</summary>
-    public bool BackdropShowing { get; private set; }
+    /// <summary>Whether a backdrop's or the help menu's page shows, or is still fading out (<see cref="TrekLoop.Backdrop"/>).</summary>
+    public bool BackdropShowing => Trek.Backdrop is not null;
+
+    /// <summary>Whether the last tick froze trek, as while the runtime's free camera flies: then A and B in trek do nothing.</summary>
+    private bool _frozen;
 
     /// <summary>Whether the credits are rolling.</summary>
     public bool CreditsRolling => _credits is not null;
@@ -259,7 +262,12 @@ public sealed class GameSession
         Func<Combatant, IActorMotion?>? combatants = null, ISpellFxHost? spellFx = null)
     {
         Game.CountTick();
-        switch (Mode)
+        _frozen = frozen;
+        // A backdrop's page fades and pulses whatever runs over it, after the mode it holds has had its tick: the tick its page
+        // goes on is still held, as the runtime's layer stepped after the game.
+        var mode = Mode;
+        Trek.StepBackdrop();
+        switch (mode)
         {
             case GameMode.Cinematic:
                 return SessionStep.Cinematic;
@@ -570,11 +578,34 @@ public sealed class GameSession
         }
     }
 
-    /// <summary>A backdrop's or the help menu's page has opened over the world.</summary>
-    public void BackdropOpened() => BackdropShowing = true;
-
-    /// <summary>The page has faded out, and the game goes on.</summary>
-    public void BackdropClosed() => BackdropShowing = false;
+    /// <summary>
+    /// A press, to the mode that runs (<see cref="Mode"/>), as the original's modes each read the controller: a cinematic
+    /// and the credits take every press, B or Start skipping the one and A, B or Start the other; the pause menu takes its
+    /// own (<see cref="Ui.PauseMenu"/>); a battle's are <see cref="Combat.Battle.Press"/>; a cut-scene's its box's
+    /// (<see cref="CutScene.Press(MenuAction)"/>); and trek's go to what's up in it, a backdrop's page, a popup or a
+    /// conversation, else trek itself (<see cref="TrekLoop.Press"/>), where Start opens the pause menu. Returns what the
+    /// press came to, for whoever reads the controls to show.
+    /// </summary>
+    public PressOutcome Press(MenuAction action)
+    {
+        if (action == MenuAction.None)
+            return PressOutcome.Ignored;
+        switch (Mode)
+        {
+            case GameMode.Cinematic:
+                return action is MenuAction.Back or MenuAction.Start ? PressOutcome.Skip : PressOutcome.Taken;
+            case GameMode.Credits:
+                return action is MenuAction.Accept or MenuAction.Back or MenuAction.Start ? PressOutcome.Skip : PressOutcome.Taken;
+            case GameMode.Menu:
+                return PressOutcome.Ignored;
+            case GameMode.Combat:
+                return Battle!.Press(action) ? PressOutcome.Taken : PressOutcome.Ignored;
+            case GameMode.CutScene:
+                return Scene!.Press(action) ? PressOutcome.Taken : PressOutcome.Ignored;
+            default:
+                return Trek.Press(action, _frozen);
+        }
+    }
 
     /// <summary>
     /// Plays a cinematic (<c>Cinematic.Load</c>), unless one is playing: from the Theatre, the menu reopens on its page
