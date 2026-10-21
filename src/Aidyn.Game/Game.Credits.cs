@@ -5,9 +5,9 @@ namespace Aidyn.Game;
 
 /// <summary>
 /// The credits in the runtime (<see cref="CreditsLayer"/>): the System tab's Credits row rolls the menu up, the screen
-/// cuts to black and they play over the world held still, its music and sounds going on silently under theirs; when
-/// they end the session fades trek in and reopens the menu (<see cref="Core.GameSession.CreditsEnded"/>). See
-/// docs/systems/ui.md#the-credits.
+/// cuts to black and they play over the world held still, its music and sounds going on silently under theirs. The
+/// session steps them and ends them (<see cref="Core.GameSession.Credits"/>), fading trek in and reopening the menu; this
+/// draws them and plays their music. See docs/systems/ui.md#the-credits.
 /// </summary>
 public partial class Game
 {
@@ -15,37 +15,30 @@ public partial class Game
     private SoundHandle _creditsMusic;
 
     /// <summary>
-    /// Plays the credits (<c>Credits.Start</c>, <c>0x8002c0b0</c>): their music from its start at the music volume, and
-    /// the game's own muted, not stopped, until they end.
+    /// Shows the credits the session has started (<c>Credits.Start</c>, <c>0x8002c0b0</c>): their music from its start at
+    /// the music volume, and the game's own muted, not stopped, until they end.
     /// </summary>
-    private void PlayCredits(bool ending)
+    private void PlayCredits()
     {
-        if (!_credits!.Play(ending))
-            return;
-        if (_game!.Sounds is { } sounds)
+        _credits!.Play();
+        if (_session!.Game.Sounds is { } sounds)
             _creditsMusic = _audio!.Start(sounds.Credits, GameAudio.Volume(_audio.MusicVolume), 0x80, loop: true);
         _audio!.Muted = true;
     }
 
+    /// <summary>A tick of the credits, which the session stepped: their lines as they stand.</summary>
+    private void DrawCredits() => _credits!.Draw(_session!.Credits?.Roll);
+
     /// <summary>
-    /// A tick of the credits, and their end (<c>Credits.Destroy</c>): their music stops at once, the game's comes back where
-    /// it was, and the session fades trek in from black over half a second.
+    /// The credits have ended (<c>Credits.Destroy</c>): their music stops at once, the game's comes back where it was, and
+    /// the screen is as trek's fade leaves it, black as it fades in from the credits.
     /// </summary>
-    private void StepCredits()
+    private void EndCredits()
     {
-        if (!_credits!.Step())
-            return;
+        _credits!.End();
         _audio!.Stop(_creditsMusic);
         _creditsMusic = default;
         _audio.Muted = false;
-        _session!.CreditsEnded();
-        ShowFade(_session.Trek.Brightness);
-    }
-
-    /// <summary>A, B or Start ends them; they take every press.</summary>
-    private void CreditsInput(MenuAction action)
-    {
-        if (action is MenuAction.Accept or MenuAction.Back or MenuAction.Start)
-            _credits!.Roll?.Skip();
+        ShowFade(_session!.Trek.Brightness);
     }
 }

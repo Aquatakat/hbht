@@ -15,8 +15,6 @@ public partial class Game
 {
     private ChunkStreamerView? _stageView;
     private readonly Dictionary<CutSceneActor, CutSceneActorView> _actorViews = [];
-    /// <summary>The line the box last showed in the cut-scene, to show a new page once.</summary>
-    private ScriptLine? _sceneLine;
 
     /// <summary>The cut-scene playing, in place of trek's world.</summary>
     private CutScene? Scene => _session?.Scene;
@@ -60,7 +58,6 @@ public partial class Game
         _sky.Apply();
         _camera!.Follow = scene.Camera;
         _camera.Far = CutScene.Far;
-        _sceneLine = null;
         SyncCutScene();
         _camera.ResetPhysicsInterpolation();
     }
@@ -102,7 +99,9 @@ public partial class Game
         _camera!.Sync();
         if (cut)
             _camera.ResetPhysicsInterpolation();
-        ShowCutScenePage(force: false);
+        // The box as the cut-scene lays it out, while it has a page.
+        _box!.Box = scene.Box;
+        _box.Visible = scene.Page is not null;
         ShowFade(scene.Fade.Brightness);
     }
 
@@ -118,43 +117,6 @@ public partial class Game
         _stageView!.LightActors(stage.Lights);
         foreach (var view in _actorViews.Values)
             view.Light(stage.Lights, stage.Chunks);
-    }
-
-    /// <summary>Shows the cut-scene's page in the box, or hides it while there's none.</summary>
-    private void ShowCutScenePage(bool force)
-    {
-        var page = Scene!.Page;
-        if (page is null)
-        {
-            _box!.Visible = false;
-            _sceneLine = null;
-        }
-        else if (force || page.Line != _sceneLine || !_box!.Visible)
-        {
-            _box!.Show(page);
-            _sceneLine = page.Line;
-        }
-    }
-
-    /// <summary>
-    /// A button in a cut-scene, as in a conversation, but dropped while the screen fades, the script
-    /// waits or the camera moves (<c>cutScene_control_func</c>). Nothing skips it: 1.0 has no skip.
-    /// </summary>
-    private void CutSceneInput(MenuAction action)
-    {
-        var scene = Scene!;
-        if (!scene.Accepts || scene.Page is null)
-            return;
-        var box = _box!.Box;
-        if (action == MenuAction.Accept)
-        {
-            if (_box.Accept(scene.Runner, advance => scene.Press(advance)) != DialogueAccept.ShowedChoices)
-                ShowCutScenePage(force: true);
-        }
-        else if (action is MenuAction.Up or MenuAction.Down)
-        {
-            _box.Point(box.Highlight + MenuStick.Vertical(action));
-        }
     }
 
     /// <summary>
@@ -185,7 +147,7 @@ public partial class Game
         _player!.Visible = true;
         PlaceShadow();
         _sky!.Apply();
-        _camera!.Follow = _follow;
+        _camera!.Follow = Trek!.Camera;
         _camera.Far = SkyView.Far;
         _camera.Sync();
         _player.Sync();

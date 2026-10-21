@@ -50,10 +50,6 @@ public sealed class TrekLoopTests(Na10Import fixture)
 
         IRootMotion ITrekHost.Motion(Wanderer wanderer) => IActorMotion.Still;
 
-        void ITrekHost.OpenLoot(ItemPile loot, int gold)
-        {
-        }
-
         void ITrekHost.Animate(LoadedMap map, SceneObject actor, int request)
         {
         }
@@ -83,16 +79,10 @@ public sealed class TrekLoopTests(Na10Import fixture)
         var game = GameState.NewGame(Data.Set);
         prepare?.Invoke(game);
         var host = new Host();
-        var streamer = new ChunkStreamer(Data.Set, game, new CollisionWorld(), Data.Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, mapSet)),
-            new VisibleWorld());
-        var trek = new TrekLoop(game, host, new ZoneEngine(game, streamer, particles: particles));
-        var chunk = streamer.Find(chunkName)!;
-        var point = streamer.Origin(chunk) + new Vector3(x, 10, z);
-        trek.Enter(chunk);
-        streamer.Update(point);
-        var ground = Body.SetDown(streamer.World, point, 0.5f, null, near: point.Y - 0.5f).Position;
-        var look = new Vector2(0, -1);
-        trek.Begin(new PlayerMotion(ground, look), new FollowCamera(ground, look));
+        var set = Data.Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, mapSet));
+        var streamer = new ChunkStreamer(Data.Set, game, new CollisionWorld(), set, new VisibleWorld());
+        var start = GameStart.OfNewGame(Data.Set) with { Set = set, Chunk = chunkName, Local = new Vector3(x, 10, z) };
+        var trek = GameSession.Start(game, host, new ZoneEngine(game, streamer, particles: particles), start).Trek;
         return (trek, host);
     }
 

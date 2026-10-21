@@ -17,7 +17,7 @@ public enum PauseScrollPhase
     Closed,
 }
 
-/// <summary>What the menu gives the scroll's actor this frame (<see cref="PauseScroll.TakeCue"/>).</summary>
+/// <summary>What the menu gives the scroll's actor this frame, which <see cref="PauseScroll.Step"/> and <see cref="PauseScroll.Close"/> return.</summary>
 /// <param name="Request">The request to step it toward. The original's actors take one for a step and then go back to 0.</param>
 /// <param name="Join">
 /// Above 0, the frame of the request's state to enter it at instead of stepping, where the port runs one of the
@@ -30,7 +30,7 @@ public readonly record struct ScrollCue(int Request, int Join = 0);
 /// rolling up, and the clip that shows the tabs only between its rollers (1.0's <c>PauseMenu.DarkenStep</c>
 /// <c>0x8004847c</c>, <c>OpenStep</c> <c>0x8002f1d0</c>, <c>CloseStep</c> <c>0x8002f4d4</c> and <c>SlideOut</c>
 /// <c>0x8002e9d0</c>). The scroll is actor <c>0x0E6B</c>, which the view plays: it gives the actor
-/// <see cref="TakeCue"/> while <see cref="StepsScroll"/>, and tells this its frame.
+/// the cue <see cref="Step"/> returns while <see cref="StepsScroll"/>, and tells this its frame.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -125,7 +125,6 @@ public sealed class PauseScroll
     private const int ClipOverscan = Overscan + 1;
 
     private readonly bool _brightens, _holds;
-    private ScrollCue _cue;
     /// <summary>Whether the Party tab's scroll is running on into the other tabs' opening.</summary>
     private bool _runningOn;
     /// <summary>Closing from Party: the other tabs' closing, before the Party tab's own.</summary>
@@ -172,75 +171,70 @@ public sealed class PauseScroll
     /// </summary>
     public (int Left, int Right)? Clip { get; private set; } = (0, 0);
 
-    /// <summary>What to give the scroll's actor this frame: a new request once, then 0, as the original's actors reset theirs after each step.</summary>
-    public ScrollCue TakeCue()
-    {
-        var cue = _cue;
-        _cue = default;
-        return cue;
-    }
-
     /// <summary>
     /// One frame. <paramref name="frame"/> is the scroll's clock, from 1, before this frame's step, and
     /// <paramref name="length"/> the length of the state it's in. The scroll starts each opening afresh, in its
-    /// first state on its first frame, as the original builds it once the world has darkened.
+    /// first state on its first frame, as the original builds it once the world has darkened. Returns what to give
+    /// the scroll's actor this frame: a new request once, then 0, as the original's actors reset theirs after each step
+    /// (ADR 0019: an ending is returned).
     /// </summary>
-    public void Step(int frame, int length)
+    public ScrollCue Step(int frame, int length)
     {
+        ScrollCue cue = default;
         switch (Phase)
         {
             case PauseScrollPhase.Darkening:
                 if (Tint > Dark)
                 {
                     Tint = (byte)(Tint <= Dark + TintStep ? Dark : Tint - TintStep);
-                    return;
+                    return cue;
                 }
                 Phase = PauseScrollPhase.Unrolling;
-                _cue = new(Openings[Tab].Request);
+                cue = new(Openings[Tab].Request);
                 Clip = OpenClip(Openings[Tab], 1);
                 Alpha = Rise(1);
-                return;
+                return cue;
             case PauseScrollPhase.Unrolling:
                 Clip = OpenClip(Openings[Tab], frame);
                 Alpha = Rise(frame);
                 if (frame <= Openings[Tab].Start || frame < length)
-                    return;
+                    return cue;
                 Phase = PauseScrollPhase.Open;
                 if (Tab == Party)
                 {
-                    _cue = new(Openings[System].Request, PartyRunsOnAt);
+                    cue = new(Openings[System].Request, PartyRunsOnAt);
                     _runningOn = true;
                     _shown = PartyRunsOnAt;
                 }
-                return;
+                return cue;
             case PauseScrollPhase.Open:
                 Clip = null;
                 Alpha = 1;
                 if (!_runningOn)
-                    return;
+                    return cue;
                 if (_holds && frame >= HoldsAt)
                 {
                     (_runningOn, _held, _shown) = (false, true, frame);
-                    return;
+                    return cue;
                 }
                 _runningOn = frame < length;
                 _shown = frame + 1;
-                return;
+                return cue;
             case PauseScrollPhase.Rolling:
                 if (_rollingIn)
                 {
                     Clip = null;
                     if (frame < PartyClosingFrom)
-                        return;
+                        return cue;
                     _rollingIn = false;
-                    _cue = new(Closings[Party].Request, 1);
-                    return;
+                    cue = new(Closings[Party].Request, 1);
+                    return cue;
                 }
                 var closing = Closings[Tab];
                 Clip = CloseClip(closing, frame);
                 Alpha = frame <= closing.FadeFrom ? 1 : Math.Max(0, (float)(length - frame) / (length - closing.FadeFrom));
                 if (frame <= closing.Start || frame < length)
-                    return;
+                    return cue;
                 // Rolled up: it brightens from this frame on.
                 Phase = PauseScrollPhase.Brightening;
                 Alpha = 0;
@@ -251,21 +245,22 @@ public sealed class PauseScroll
                 if (Tint == 255)
                 {
                     Phase = PauseScrollPhase.Closed;
-                    return;
+                    return cue;
                 }
                 Tint = (byte)Math.Min(Tint + TintStep, 255);
-                return;
+                return cue;
         }
+        return cue;
     }
 
     /// <summary>
-    /// Starts rolling up from the tab showing (<c>PauseMenu.SlideOut</c>). The view steps the scroll once at once, with
-    /// <see cref="TakeCue"/>, as the original does, so its next frame is the closing state's first.
+    /// Starts rolling up from the tab showing (<c>PauseMenu.SlideOut</c>). Returns the cue the scroll's actor takes at once,
+    /// as the original steps it once, so its next frame is the closing state's first; nothing while it's already rolling up.
     /// </summary>
-    public void Close(int tab)
+    public ScrollCue Close(int tab)
     {
         if (Phase is PauseScrollPhase.Rolling or PauseScrollPhase.Brightening or PauseScrollPhase.Closed)
-            return;
+            return default;
         Tab = tab;
         Tint = Dark;
         Phase = PauseScrollPhase.Rolling;
@@ -275,13 +270,11 @@ public sealed class PauseScroll
         {
             // The other tabs' closing first, from where their opening has got to if it's still running on or held.
             _rollingIn = true;
-            _cue = _runningOn || _held ? new(Closings[System].Request, Reversed - _shown) : new(Closings[System].Request);
+            var cue = _runningOn || _held ? new ScrollCue(Closings[System].Request, Reversed - _shown) : new ScrollCue(Closings[System].Request);
             (_runningOn, _held) = (false, false);
+            return cue;
         }
-        else
-        {
-            _cue = new(Closings[tab].Request);
-        }
+        return new ScrollCue(Closings[tab].Request);
     }
 
     /// <summary>The Party tab's scroll fades in as it rises into the frame.</summary>

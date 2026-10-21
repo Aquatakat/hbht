@@ -94,6 +94,30 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
 
     // A, B and the stick on a popup.
 
+    /// <summary>
+    /// A press while a popup is up, which takes every button: A closes a message or chooses, B closes, and up and down
+    /// move a choice's cursor. Whether the press did anything.
+    /// </summary>
+    public bool Press(MenuAction action)
+    {
+        if (Popup is null)
+            return false;
+        switch (action)
+        {
+            case MenuAction.Accept:
+                Accept();
+                return true;
+            case MenuAction.Back:
+                Back();
+                return true;
+            case MenuAction.Up or MenuAction.Down:
+                MoveCursor(action.Vertical());
+                return true;
+            default:
+                return false;
+        }
+    }
+
     /// <summary>A: closes a message, or chooses the cursor's option.</summary>
     public void Accept()
     {

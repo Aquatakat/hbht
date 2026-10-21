@@ -26,10 +26,25 @@ public sealed partial class GameSessionTests(Na10Import fixture)
 {
     private Na10Import.Loaded Data => fixture.Data;
 
-    private sealed class Host : ITrekHost
+    private sealed class Host : ITrekHost, IPauseMenuHost
     {
         public List<Transition> Transitions { get; } = [];
         public List<string> Warnings { get; } = [];
+        /// <summary>The pause menu's cues, its sounds and the scroll's steps, in order.</summary>
+        public List<PauseMenuCue> Cues { get; } = [];
+        /// <summary>The paths the menu's Save asked to write.</summary>
+        public List<string> Saved { get; } = [];
+
+        void IPauseMenuHost.Cue(PauseMenuCue cue) => Cues.Add(cue);
+
+        string? IPauseMenuHost.Save(string path)
+        {
+            Saved.Add(path);
+            return null;
+        }
+
+        /// <summary>The menu sounds cued so far, by sequence, in order.</summary>
+        public List<RecordId> Sounds => Cues.OfType<MenuSoundCue>().Select(c => c.Sound.Sequence).ToList();
 
         void ITransitionHost.Transition(Transition next) => Transitions.Add(next);
 
@@ -41,15 +56,11 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         {
         }
 
-        void ITrekHost.ConversationChanged()
-        {
-        }
+        public int ConversationChanges { get; private set; }
+
+        void ITrekHost.ConversationChanged() => ConversationChanges++;
 
         IRootMotion ITrekHost.Motion(Wanderer wanderer) => IActorMotion.Still;
-
-        void ITrekHost.OpenLoot(ItemPile loot, int gold)
-        {
-        }
 
         void ITrekHost.Animate(LoadedMap map, SceneObject actor, int request)
         {
@@ -71,21 +82,15 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         }
     }
 
-    /// <summary>A new game's session, with the player on the ground at a chunk's point of the Overworld.</summary>
+    /// <summary>A new game's session, started as the runtime starts one (<see cref="GameSession.Start"/>), with the player set down at a chunk's point of the Overworld.</summary>
     private (GameSession Session, Host Host) Start(string chunkName = "I08", float x = 16, float z = 62)
     {
         var game = GameState.NewGame(Data.Set);
         var host = new Host();
-        var streamer = new ChunkStreamer(Data.Set, game, new CollisionWorld(), Data.Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, 0)),
-            new VisibleWorld());
-        var session = new GameSession(game, host, new ZoneEngine(game, streamer));
-        var chunk = streamer.Find(chunkName)!;
-        var point = streamer.Origin(chunk) + new Vector3(x, 10, z);
-        session.Trek.Enter(chunk);
-        streamer.Update(point);
-        var ground = Body.SetDown(streamer.World, point, 0.5f, null, near: point.Y - 0.5f).Position;
-        var look = new Vector2(0, -1);
-        session.Trek.Begin(new PlayerMotion(ground, look), new FollowCamera(ground, look));
+        var set = Data.Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, 0));
+        var streamer = new ChunkStreamer(Data.Set, game, new CollisionWorld(), set, new VisibleWorld());
+        var start = GameStart.OfNewGame(Data.Set) with { Set = set, Chunk = chunkName, Local = new Vector3(x, 10, z) };
+        var session = GameSession.Start(game, host, new ZoneEngine(game, streamer), start, menuHost: host);
         return (session, host);
     }
 
@@ -94,36 +99,104 @@ public sealed partial class GameSessionTests(Na10Import fixture)
     [Fact]
     public void TheModeIsTheHighestUpAndTheTickCountsInEveryMode()
     {
-        var (session, _) = Start();
+        // Away from the new game's arrival, where the opening's dialogue object cues its cut-scene on the first tick.
+        var (session, host) = Start("G14", 40, 40);
         Assert.Equal(GameMode.Trek, session.Mode);
         Assert.Equal(SessionStep.Trek, Tick(session));
 
-        // A popup over trek, which runs under it.
+        // A popup over trek, which runs under it; Start can't open the menu over it.
         session.Trek.Use.Tell("Something.");
         Assert.Equal(GameMode.Popup, session.Mode);
         Assert.True(session.TrekRuns);
         Assert.Equal(SessionStep.Trek, Tick(session));
+        session.OpenMenu();
+        Assert.Equal((GameMode.Popup, false), (session.Mode, session.MenuOpen));
+        Assert.Empty(host.Transitions);
+        session.Trek.Use.Back();
+        Assert.Equal(GameMode.Trek, session.Mode);
 
-        // The menu over it holds the world, and so does a backdrop's page under the menu, until both have gone.
-        session.MenuOpened();
-        session.BackdropOpened();
+        // Start opens the menu, which holds the world: the tick counts, the clock doesn't.
+        session.OpenMenu();
+        Assert.Equal(new Transition.OpenMenu(), Assert.Single(host.Transitions));
         Assert.Equal((GameMode.Menu, true, false), (session.Mode, session.Held, session.TrekRuns));
         var played = session.Game.PlayTime;
         var time = session.Game.Clock.Time;
         Assert.Equal(SessionStep.Held, Tick(session));
         Assert.Equal(played + 1, session.Game.PlayTime);
         Assert.Equal(time, session.Game.Clock.Time);
-        session.MenuClosed(PauseExit.Close);
-        Assert.Equal(GameMode.Backdrop, session.Mode);
-        session.BackdropClosed();
-        Assert.Equal(GameMode.Popup, session.Mode);
+
+        // Its Help: the help menu's page, which the session makes and steps, holds the world until it has faded out.
+        session.MenuClosed(PauseExit.Help);
+        Assert.False(session.MenuOpen);
+        Assert.Equal((GameMode.Backdrop, true, false), (session.Mode, session.Held, session.TrekRuns));
+        var page = session.Backdrop!;
+        var conversation = session.Trek.Conversation!;
+        Assert.Equal(SystemMenu.HelpScript, conversation.Runner.Script.Id);
+        Assert.NotNull(page.Layout);
+        // It fades in over a few ticks, held.
+        for (var i = 0; i < 10; i++)
+            Assert.Equal(SessionStep.Held, Tick(session));
+        Assert.Equal(255, page.Alpha);
+        // B takes the last choice, Exit Help, until the script ends: the page fades out over a few ticks, held still, then trek runs.
+        for (var i = 0; i < 10 && session.Trek.Conversation is not null; i++)
+        {
+            DialogueBox.Advance(conversation.Runner, conversation.Runner.Page!.Choices.Count - 1);
+            session.Trek.Refresh();
+        }
+        Assert.Null(session.Trek.Conversation);
+        Assert.True(page.Closing);
+        Assert.Equal((GameMode.Backdrop, true), (session.Mode, session.Held));
+        var ticks = 0;
+        for (; ticks < 30 && session.Mode == GameMode.Backdrop; ticks++)
+            Assert.Equal(SessionStep.Held, Tick(session));
+        Assert.InRange(ticks, 2, 10);
+        Assert.Equal((GameMode.Trek, null), (session.Mode, session.Backdrop));
 
         // A cinematic is over everything, the menu too.
+        host.Transitions.Clear();
+        session.OpenMenu();
         var cinematic = Data.Set.Get<CinematicRecord>(RecordId.Decimal(RecordTypes.Cinematic, 0));
-        session.MenuOpened();
         session.PlayCinematic(cinematic, fromTheatre: false);
+        played = session.Game.PlayTime;
         Assert.Equal((GameMode.Cinematic, SessionStep.Cinematic), (session.Mode, Tick(session)));
-        Assert.Equal(played + 2, session.Game.PlayTime);
+        Assert.Equal(played + 1, session.Game.PlayTime);
+    }
+
+    [Fact]
+    public void TheMenuOpensOnTheSessionsOwnTransitionsAndClosesOnItsWord()
+    {
+        var (session, host) = Start();
+        var game = session.Game;
+        var shop = Data.Set.All<ShopRecord>(RecordTypes.Shop).First();
+
+        // A script's shop, carried out by trek, opens the menu in its barter state; the session knows without being told.
+        session.Trek.CarryOut(Transition.AfterScript(game, new ScriptEnding(ScriptEndKind.Shop, shop.Shopkeeper, null, 0, false), shop.Shopkeeper));
+        Assert.IsType<Transition.OpenShop>(Assert.Single(host.Transitions));
+        Assert.Equal((GameMode.Menu, true), (session.Mode, session.MenuOpen));
+        session.MenuClosed(PauseExit.Close);
+        Assert.Equal((GameMode.Trek, false), (session.Mode, session.MenuOpen));
+
+        // So does a container's loot, as using one would open it.
+        host.Transitions.Clear();
+        session.OpenLoot(new ItemPile(game.Party.Inventory.Catalog), 3);
+        var loot = Assert.IsType<Transition.OpenLoot>(Assert.Single(host.Transitions));
+        Assert.Equal(3, loot.Gold);
+        Assert.True(session.MenuOpen);
+        session.MenuClosed(PauseExit.Close);
+        Assert.False(session.MenuOpen);
+
+        // Start opens it on a tab; through a cut-scene's fade the press is dead.
+        host.Transitions.Clear();
+        session.OpenMenu(PauseTab.World);
+        Assert.Equal(new Transition.OpenMenu(PauseTab.World), Assert.Single(host.Transitions));
+        session.MenuClosed(PauseExit.Close);
+        host.Transitions.Clear();
+        var ambush = Data.Set.Get<DialogueRecord>(RecordId.Parse("aidyn:dialogue/0x0365"));
+        var (_, map, dialogue) = Data.Of<DialogueObject>().First(d => d.Object.Script == ambush.Id && d.Object.Stage is not null);
+        session.Cue(ambush, new ScriptStart(dialogue.RefPointBase, MapRecord.VoxelId(map.Id, dialogue.Index)), dialogue.Stage!);
+        session.OpenMenu();
+        Assert.Empty(host.Transitions);
+        Assert.False(session.MenuOpen);
     }
 
     [Fact]
@@ -279,7 +352,6 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         for (var i = 0; i < 5; i++)
             Tick(session);
         Assert.Equal(new Transition.PauseBattle(PartyTab: true, CanFlee: true), Assert.Single(host.Transitions));
-        session.MenuOpened();
         Assert.Equal(GameMode.Menu, session.Mode);
         session.MenuClosed(PauseExit.Flee);
         Assert.Equal((CombatState.LeaveFled, true), (battle.State, battle.Fled));
@@ -328,6 +400,23 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         battle.FreeBody(c);
     }
 
+    /// <summary>
+    /// Plays the cinematic or the credits running out, skipping what can be skipped, until the session has ended it and
+    /// carried out what follows; the ending's credits, which can't be, roll to their end.
+    /// </summary>
+    private static void PlayOut(GameSession session)
+    {
+        var mode = session.Mode;
+        Assert.True(mode is GameMode.Cinematic or GameMode.Credits);
+        for (var i = 0; i < 60000 && session.Mode == mode; i++)
+        {
+            session.Cinematic?.Player.Skip();
+            session.Credits?.Roll.Skip();
+            Tick(session);
+        }
+        Assert.NotEqual(mode, session.Mode);
+    }
+
     private static SessionStep TickUntil(GameSession session, SessionStep until, int most = 2000)
     {
         var step = SessionStep.Trek;
@@ -374,8 +463,8 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         Assert.Same(spoils, session.PostBattle);
         Assert.Equal((GameMode.Menu, false), (session.Mode, session.TrekRuns));
         Assert.Equal(SessionStep.Held, Tick(session));
+        Assert.True(session.MenuOpen);
         host.Transitions.Clear();
-        session.MenuOpened();
         session.MenuClosed(PauseExit.Close);
         Assert.Equal([typeof(Transition.ResumeTrek)], host.Transitions.Select(t => t.GetType()));
         Assert.Null(session.PostBattle);
@@ -484,18 +573,20 @@ public sealed partial class GameSessionTests(Na10Import fixture)
     public void TheMenuReopensOnceTrekHasFadedInAfterTheCreditsAndTheTheatre()
     {
         var (session, host) = Start();
-        session.MenuOpened();
+        session.OpenMenu();
+        Assert.Equal((GameMode.Menu, true), (session.Mode, session.MenuOpen));
+        host.Transitions.Clear();
         session.MenuClosed(PauseExit.Credits);
         Assert.IsType<Transition.PlayCredits>(Assert.Single(host.Transitions));
         Assert.Equal((GameMode.Credits, SessionStep.Credits), (session.Mode, Tick(session)));
-        session.CreditsEnded();
+        PlayOut(session);
         Assert.Equal(new Transition.ReopenMenu(Theatre: false), TickUntilReopened(session, host));
 
         // The Theatre's cinematic: its done flag is set, and the menu reopens on the Theatre's page.
         var cinematic = Data.Set.Get<CinematicRecord>(RecordId.Decimal(RecordTypes.Cinematic, 2));
         session.MenuClosed(PauseExit.Theatre(cinematic));
         Assert.Equal(new Transition.PlayCinematic(cinematic), host.Transitions[^1]);
-        session.CinematicEnded();
+        PlayOut(session);
         Assert.True(session.Game.Flags.IsSet(cinematic.DoneFlag));
         Assert.Equal(new Transition.ReopenMenu(Theatre: true), TickUntilReopened(session, host));
     }
@@ -510,6 +601,75 @@ public sealed partial class GameSessionTests(Na10Import fixture)
     }
 
     [Fact]
+    public void TheSessionStepsACinematicAndTheCreditsToTheirEnds()
+    {
+        var (session, host) = Start("G14", 40, 40);
+        var opening = Data.Set.Get<CinematicRecord>(RecordId.Decimal(RecordTypes.Cinematic, 0));
+
+        // The Theatre's opening, played out tick by tick with no skip: each tick is the cinematic's, its player moving through
+        // its shots; its end goes to the host, trek comes back, not built again, and the menu reopens on the Theatre's page once
+        // trek has faded in.
+        session.OpenMenu();
+        session.MenuClosed(PauseExit.Theatre(opening));
+        var showing = session.Cinematic!;
+        Assert.Equal((opening, true), (showing.Record, showing.FromTheatre));
+        host.Transitions.Clear();
+        var ticks = 0;
+        var shots = new HashSet<int>();
+        for (; ticks < 100000 && session.Mode == GameMode.Cinematic; ticks++)
+        {
+            Assert.Equal(SessionStep.Cinematic, Tick(session));
+            if (showing.Player.Shot is not null)
+                shots.Add(showing.Player.ShotIndex);
+        }
+        Assert.True(showing.Player.Ended && !showing.Player.Skipped);
+        Assert.Equal(opening.Shots.Count, shots.Count);
+        var length = opening.Shots.Sum(s => s.Length);
+        Assert.InRange(ticks, length - 2 * opening.Shots.Count, length + 2 * opening.Shots.Count + 4);
+        Assert.Equal([typeof(Transition.EndCinematic)], host.Transitions.Select(t => t.GetType()));
+        Assert.True(session.Game.Flags.IsSet(opening.DoneFlag));
+        Assert.Equal((GameMode.Trek, null), (session.Mode, session.Cinematic));
+        Assert.Equal(new Transition.ReopenMenu(Theatre: true), TickUntilReopened(session, host));
+
+        // Held for a screenshot, it stands still; let go, it goes on, and skipped, it ends in a few ticks.
+        session.MenuClosed(PauseExit.Theatre(opening));
+        var player = session.Cinematic!.Player;
+        for (var i = 0; i < 10; i++)
+            Tick(session);
+        var (shot, time) = (player.ShotIndex, player.Time);
+        session.CinematicHeld = true;
+        for (var i = 0; i < 10; i++)
+            Assert.Equal(SessionStep.Cinematic, Tick(session));
+        Assert.Equal((shot, time), (player.ShotIndex, player.Time));
+        session.CinematicHeld = false;
+        Tick(session);
+        Assert.NotEqual((shot, time), (player.ShotIndex, player.Time));
+        player.Skip();
+        for (ticks = 0; ticks < 10 && session.Mode == GameMode.Cinematic; ticks++)
+            Tick(session);
+        Assert.Equal((GameMode.Trek, true), (session.Mode, player.Skipped));
+        Assert.Equal(new Transition.ReopenMenu(Theatre: true), TickUntilReopened(session, host));
+
+        // The menu's credits roll on a screen as tall as the session is told, and A ends them at once: their end goes to the
+        // host as trek fades in from black, and the menu reopens once it has.
+        session.CreditsScreenHeight = 480;
+        host.Transitions.Clear();
+        session.MenuClosed(PauseExit.Credits);
+        var credits = session.Credits!;
+        Assert.Equal((false, true), (credits.Ending, credits.FromMenu));
+        Assert.Equal(new Transition.PlayCredits(), Assert.Single(host.Transitions));
+        for (var i = 0; i < 100; i++)
+            Assert.Equal(SessionStep.Credits, Tick(session));
+        Assert.NotEmpty(credits.Roll.Lines);
+        credits.Roll.Skip();
+        Assert.Equal(SessionStep.Credits, Tick(session));
+        Assert.Equal((GameMode.Trek, null), (session.Mode, session.Credits));
+        Assert.Equal(new Transition.EndCredits(Ending: false), host.Transitions[^1]);
+        Assert.True(session.Trek.CutSceneFade.Fading);
+        Assert.Equal(new Transition.ReopenMenu(Theatre: false), TickUntilReopened(session, host));
+    }
+
+    [Fact]
     public void TheMenusExitsCampOrStartTheHelpMenu()
     {
         var (session, host) = Start("G14", 40, 40);
@@ -517,8 +677,9 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         Assert.IsType<Transition.Camp>(host.Transitions[^1]);
 
         session.MenuClosed(PauseExit.Help);
-        Assert.Equal((GameMode.Conversation, true), (session.Mode, session.Trek.Conversation!.ShowsBackdrop));
+        Assert.Equal((GameMode.Backdrop, true), (session.Mode, session.Trek.Conversation!.ShowsBackdrop));
         Assert.Equal(SystemMenu.HelpScript, session.Trek.Conversation.Runner.Script.Id);
+        Assert.NotNull(session.Backdrop);
     }
 
     [Fact]

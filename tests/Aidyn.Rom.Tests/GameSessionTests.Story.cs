@@ -47,9 +47,10 @@ public sealed partial class GameSessionTests
 
         // Its end sets its done flag, and script 866 starts from its object in Overworld I08 at once, on its stage.
         host.Transitions.Clear();
-        session.CinematicEnded();
+        PlayOut(session);
         Assert.True(session.Game.Flags.IsSet(opening.DoneFlag));
-        var started = Assert.IsType<Transition.StartCutScene>(Assert.Single(host.Transitions));
+        Assert.Equal([typeof(Transition.EndCinematic), typeof(Transition.StartCutScene)], host.Transitions.Select(t => t.GetType()));
+        var started = (Transition.StartCutScene)host.Transitions[1];
         Assert.Equal(RecordId.Hex(RecordTypes.Dialogue, 0x0362), started.Scene.Runner.Script.Id);
         Assert.Equal(RecordId.Parse("aidyn:voxel/0x0FDB/7"), started.Scene.Runner.Origin.MapObject);
         Assert.Equal((GameMode.CutScene, SessionStep.CutScene), (session.Mode, Tick(session)));
@@ -82,10 +83,10 @@ public sealed partial class GameSessionTests
 
         // Its end: its done flag, 590, Alaron's True Name, and trek built again where he stood.
         host.Transitions.Clear();
-        session.CinematicEnded();
+        PlayOut(session);
         Assert.True(game.Flags.IsSet(RecordId.Decimal(RecordTypes.Flag, 590)));
         Assert.True(alaron.TrueName);
-        Assert.Equal(new Transition.ResumeTrek(), Assert.Single(host.Transitions));
+        Assert.Equal([new Transition.EndCinematic(roog), new Transition.ResumeTrek()], host.Transitions);
         Assert.Equal(GameMode.Trek, session.Mode);
     }
 
@@ -101,15 +102,18 @@ public sealed partial class GameSessionTests
 
         // Its end: its done flag, and the ending's credits, which can't be skipped, over everything.
         host.Transitions.Clear();
-        session.CinematicEnded();
+        PlayOut(session);
         Assert.True(session.Game.Flags.IsSet(ending.DoneFlag));
-        Assert.Equal(new Transition.PlayCredits(Ending: true), Assert.Single(host.Transitions));
+        Assert.Equal([new Transition.EndCinematic(ending), new Transition.PlayCredits(Ending: true)], host.Transitions);
         Assert.Equal(GameMode.Credits, session.Mode);
+        Assert.True(session.Credits!.Ending);
 
-        // And their end is the game's: back to the title.
+        // They roll to their end, and it's the game's: back to the title.
         host.Transitions.Clear();
-        session.CreditsEnded();
-        Assert.Equal(new Transition.GameOver(), Assert.Single(host.Transitions));
+        session.Credits.Roll.Skip();
+        Assert.Equal(GameMode.Credits, session.Mode);
+        PlayOut(session);
+        Assert.Equal([new Transition.EndCredits(Ending: true), new Transition.GameOver()], host.Transitions);
     }
 
     [Fact]
@@ -164,8 +168,8 @@ public sealed partial class GameSessionTests
         var ending = Data.Set.Get<CinematicRecord>(Cinematic(3));
         session.MenuClosed(PauseExit.Theatre(ending));
         host.Transitions.Clear();
-        session.CinematicEnded();
-        Assert.Empty(host.Transitions);
+        PlayOut(session);
+        Assert.Equal([new Transition.EndCinematic(ending)], host.Transitions);
         Assert.Equal(GameMode.Trek, session.Mode);
     }
 }

@@ -56,15 +56,23 @@ public abstract partial class MenuWindowPanel : VBoxContainer
     /// The checkbox that holds C-down. With <paramref name="closesMessage"/>, checking it closes a message first, as C-down
     /// does, instead of showing the details.
     /// </summary>
-    protected void AddDetails(string tooltip, bool closesMessage)
+    /// <summary>A button on the window, as the game's pause menu sends it (<see cref="IPartyWindow.Press"/>), drawn again.</summary>
+    protected void Press(MenuAction action)
     {
-        DetailsBox = new CheckBox { Text = "Details (C-down)", TooltipText = tooltip };
-        DetailsBox.Toggled += on =>
+        View.Window.Press(action);
+        View.QueueRedraw();
+    }
+
+    protected void AddDetails(string tooltip)
+    {
+        var box = DetailsBox = new CheckBox { Text = "Details (C-down)", TooltipText = tooltip };
+        box.Toggled += on =>
         {
-            if (!on || !closesMessage || !View.Window.CloseMessage())
-                View.DetailsOpen = on;
+            // C-down closes a message first, as in the game: then the details aren't held, and the box shows it.
+            Press(on ? MenuAction.Details : MenuAction.DetailsRelease);
+            box.SetPressedNoSignal(View.DetailsOpen);
         };
-        _bar.AddChild(DetailsBox);
+        _bar.AddChild(box);
     }
 
     /// <summary>Presses C-down if it is up, or lets it go (<c>--press details</c>).</summary>

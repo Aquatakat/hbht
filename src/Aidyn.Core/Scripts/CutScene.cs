@@ -4,6 +4,7 @@ using Aidyn.Core.Cameras;
 using Aidyn.Core.Chunks;
 using Aidyn.Core.Movement;
 using Aidyn.Core.Physics;
+using Aidyn.Core.Ui;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 
@@ -116,6 +117,7 @@ public sealed class CutScene
         Stage = stage;
         _actorSounds = game.Plugins.TryGet<EntityRecord>(GameState.Alaron)?.Sounds;
         Runner = game.RunScript(script, new Cues(this), start);
+        Box = DialogueBox.For(game.Plugins);
         // DialogueModeInitPrescripted puts the camera at the stage's corner, looking along X, until the
         // script's first cut.
         Camera = new FollowCamera(stage.Origin, Vector2.UnitX);
@@ -146,6 +148,15 @@ public sealed class CutScene
     /// <summary>What the conversation box shows: nothing while the screen fades or the script waits.</summary>
     public ScriptPage? Page => Fade.Fading ? null : Runner.Page;
 
+    /// <summary>
+    /// The box the page shows in, whose cursor the presses move (<see cref="Press(MenuAction)"/>): laid out here, with the page as
+    /// it changes, and drawn by whoever presents the cut-scene while <see cref="Page"/> is up, sized to the UI screen.
+    /// </summary>
+    public DialogueBox Box { get; }
+
+    /// <summary>The line the box was last laid out with, so a page is shown once, and again when its line changes.</summary>
+    private ScriptLine? _shownLine;
+
     /// <summary>Whether a press reaches the box (<c>cutScene_control_func</c>): not while it fades, the script waits or the camera moves.</summary>
     public bool Accepts => !Fade.Fading && Runner.Status == ScriptStatus.Showing && !Cameras.Busy;
 
@@ -158,6 +169,49 @@ public sealed class CutScene
         Runner.Start();
         Fade.In(FadePerTick);
         CheckEnd();
+    }
+
+    /// <summary>
+    /// A button in a cut-scene, as in a conversation, but dropped while the screen fades, the script waits or the camera
+    /// moves (<c>cutScene_control_func</c>, <see cref="Accepts"/>): A moves the box on, bringing up the choices behind a line
+    /// that showed alone or taking the cursor's choice, and up and down move the cursor. Nothing skips it: 1.0 has no skip.
+    /// Whether the press reached the box.
+    /// </summary>
+    public bool Press(MenuAction action)
+    {
+        if (!Accepts || Page is null)
+            return false;
+        switch (action)
+        {
+            case MenuAction.Accept:
+                if (Box.Accept(Runner, advance => Press(advance)) != DialogueAccept.ShowedChoices)
+                    ShowPage(force: true);
+                return true;
+            case MenuAction.Up or MenuAction.Down:
+                Box.MoveCursor(action.Vertical());
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// Lays the page out in the box when it's new: its line has changed, or the box was hidden while the screen faded or the
+    /// script waited. After a press the page is laid out again whatever its line, as its choices may have changed.
+    /// </summary>
+    private void ShowPage(bool force)
+    {
+        var page = Page;
+        if (page is null)
+        {
+            _shownLine = null;
+            return;
+        }
+        if (force || page.Line != _shownLine)
+        {
+            Box.Show(page);
+            _shownLine = page.Line;
+        }
     }
 
     /// <summary>
@@ -240,6 +294,8 @@ public sealed class CutScene
         if (!_ending && Runner.Wait == ScriptWait.Camera && !Cameras.Busy)
             Runner.Resume();
         CheckEnd();
+        ShowPage(force: false);
+        Box.Step();
     }
 
     /// <summary>

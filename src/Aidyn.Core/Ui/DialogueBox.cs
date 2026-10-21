@@ -103,6 +103,16 @@ public sealed class DialogueBox(TextLayout font, int borderWidth, int borderHeig
     private int _borderY = BaseTop;
     private readonly MenuPulse _pulse = new(Cadence.FrameTicks, PulseFrames);
 
+    /// <summary>
+    /// The portrait border's size (<c>BORG8_PortraitHighlight</c>, image 0x00DF, 52 × 52), which the layout is built
+    /// around: the core lays the box out by it without reading the image.
+    /// </summary>
+    public const int BorderSize = 52;
+
+    /// <summary>The box the game's conversations and cut-scenes show their pages in: in the main font, laid out around the portrait border.</summary>
+    public static DialogueBox For(PluginSet plugins) =>
+        new(new TextLayout(plugins.Get<FontRecord>(RecordId.Decimal(RecordTypes.Font, 0))), BorderSize, BorderSize, GameState.Alaron);
+
     /// <summary>What the box shows now, or none before the first page.</summary>
     public DialogueBoxLayout? Layout { get; private set; }
 

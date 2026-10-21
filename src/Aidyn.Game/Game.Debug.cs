@@ -45,13 +45,13 @@ public partial class Game
         switch (options.Menu)
         {
             case "1":
-                _menu!.Open();
+                _session!.OpenMenu();
                 break;
             case "loot":
-                _menu!.OpenLoot(new ItemPile(_game!.Party.Inventory.Catalog), 0);
+                _session!.OpenLoot(new ItemPile(_session.Game.Party.Inventory.Catalog), 0);
                 break;
             case { } tab when Enum.TryParse<PauseTab>(tab, ignoreCase: true, out var opening):
-                _menu!.Open(opening);
+                _session!.OpenMenu(opening);
                 break;
         }
 
@@ -210,10 +210,10 @@ public partial class Game
             return;
         }
         _session!.PlayCinematic(cinematic, fromTheatre: false);
-        if (parts.Length > 1)
-            _cinematic!.SkipTo(int.Parse(parts[1], CultureInfo.InvariantCulture),
+        if (parts.Length > 1 && _session.Cinematic is { } showing)
+            _cinematic!.SkipTo(showing.Player, int.Parse(parts[1], CultureInfo.InvariantCulture),
                 parts.Length > 2 ? int.Parse(parts[2], CultureInfo.InvariantCulture) : 0);
-        _cinematic!.Held = parts.Length > 3 && parts[3] == "hold";
+        _session.CinematicHeld = parts.Length > 3 && parts[3] == "hold";
     }
 
     /// <summary>
@@ -275,7 +275,7 @@ public partial class Game
             (_camera!.Flying ? "  [free camera]" : "") + "\n" +
             (sphere.Touching ? $"on {SurfaceNames.Of(sphere.Surface)}" : "in the air") +
             $"  speed {Speed():F2}/s  request {motion.Request}  pace {motion.Pace:0.##} (F5)" +
-            $"  camera {_follow!.Mode.ToString().ToLowerInvariant()}{(Trek!.Use.CurrentCamera is { } held ? $" (object {held.Index})" : "")}" +
+            $"  camera {Trek!.Camera.Mode.ToString().ToLowerInvariant()}{(Trek!.Use.CurrentCamera is { } held ? $" (object {held.Index})" : "")}" +
             $"  {Clock(_sky!.Clock.TimeOfDay)}  sky {_sky.Placement.ToString().ToLowerInvariant()} (F6)" +
             $"  UI {_menu!.Screen.Lines} lines (F7)  wanderers {Trek.Wanderers.All.Count}\n" +
             $"music {_audio!.MusicPlaying?.Key ?? "none"}  sounds {Trek.Zone.Sounds.Playing} of the map's, {_audio.SoundsPlaying} one-shots" +

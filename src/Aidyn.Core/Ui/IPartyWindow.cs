@@ -69,4 +69,44 @@ public interface IPartyWindow
 
     /// <summary>C-up (the shop's appraisal): does what it does in this window. False if the window has no use for it.</summary>
     bool Appraise() => false;
+
+    /// <summary>
+    /// A press on the window, whichever it is, as the pause menu's Party tab sends them and the editor's panels press them:
+    /// C-down closes a message, else holds the details open, and its letting go lets them fade; C-up appraises; A takes the row;
+    /// C-left shows the next member and C-right the one before, and the stick's left the next list and its right the one before,
+    /// as the original's do; up and down move the cursor. True if the window has a use for the button.
+    /// </summary>
+    bool Press(MenuAction action)
+    {
+        switch (action)
+        {
+            case MenuAction.Details:
+                if (!CloseMessage())
+                    PressDetails();
+                return true;
+            case MenuAction.DetailsRelease:
+                ReleaseDetails();
+                return true;
+            case MenuAction.Appraise:
+                Appraise();
+                return true;
+            case MenuAction.Accept:
+                Accept();
+                return true;
+            case MenuAction.MemberLeft:
+                ChangeMember(1);
+                return true;
+            case MenuAction.MemberRight:
+                ChangeMember(-1);
+                return true;
+            case MenuAction.Left or MenuAction.Right:
+                Sideways(action.Horizontal());
+                return true;
+            case MenuAction.Up or MenuAction.Down:
+                MoveCursor(action.Vertical());
+                return true;
+            default:
+                return false;
+        }
+    }
 }

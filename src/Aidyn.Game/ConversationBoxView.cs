@@ -38,7 +38,27 @@ public partial class ConversationBoxView : Control
         Box = new DialogueBox(_text, (int)border.X, (int)border.Y, GameState.Alaron);
     }
 
-    public DialogueBox Box { get; }
+    /// <summary>
+    /// The box drawn: its own by default, as the editor's script page uses it, and in the game trek's or the cut-scene's
+    /// (<see cref="Core.Trek.TrekLoop.Box"/>, <see cref="Core.Scripts.CutScene.Box"/>), which the core lays out and whose
+    /// cursor the presses move; this sizes it to the UI screen and draws it.
+    /// </summary>
+    public DialogueBox Box
+    {
+        get;
+        set
+        {
+            if (ReferenceEquals(field, value))
+                return;
+            field = value;
+            if (Size.X > 0 && Size.Y > 0)
+                value.Resize((int)Size.X, (int)Size.Y);
+            QueueRedraw();
+        }
+    }
+
+    /// <summary>Whether this view steps the box's pulse each tick: its own box's; the game's boxes are stepped by trek and the cut-scene.</summary>
+    public bool StepsBox { get; set; } = true;
 
     /// <summary>Shows a page.</summary>
     public void Show(ScriptPage page)
@@ -76,7 +96,8 @@ public partial class ConversationBoxView : Control
 
     public override void _PhysicsProcess(double delta)
     {
-        Box.Step();
+        if (StepsBox)
+            Box.Step();
         if (Visible && Box.Layout is { Choices.Count: > 0 })
             QueueRedraw();
     }

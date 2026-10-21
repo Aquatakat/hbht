@@ -152,21 +152,10 @@ public partial class PartyTabView : Control
     public bool OwnTab => ReferenceEquals(Window, Menu);
 
     /// <summary>
-    /// Whether C-down is held, set as it's pressed and let go: pressing it opens the details of the window, which fade out
-    /// once they're open and it's let go (<see cref="DetailsPane"/>).
+    /// Whether C-down is held: pressing it opens the details of the window, which fade out once they're open and it's let
+    /// go (<see cref="DetailsPane"/>, <see cref="IPartyWindow.Press"/>).
     /// </summary>
-    public bool DetailsOpen
-    {
-        get => Window.DetailsPane.Held;
-        set
-        {
-            if (value)
-                Window.PressDetails();
-            else
-                Window.ReleaseDetails();
-            QueueRedraw();
-        }
-    }
+    public bool DetailsOpen => Window.DetailsPane.Held;
 
     /// <summary>How opaque the window's own parts and lists are, from 0 to 1, as the post-battle windows fade (<see cref="_windowLayer"/>).</summary>
     public float WindowAlpha { get; set; } = 1;
@@ -183,9 +172,16 @@ public partial class PartyTabView : Control
             QueueRedraw();
     }
 
+    /// <summary>
+    /// Whether this view steps its window each tick: the editor's panels', which have no menu to step it; in the game the
+    /// core's menu steps the window of the tab showing (<see cref="Core.Ui.PauseMenu.Step"/>).
+    /// </summary>
+    public bool StepsWindow { get; set; } = true;
+
     public override void _PhysicsProcess(double delta)
     {
-        Window.Step();
+        if (StepsWindow)
+            Window.Step();
         QueueRedraw();
     }
 

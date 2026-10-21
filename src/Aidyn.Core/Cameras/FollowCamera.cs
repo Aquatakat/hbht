@@ -104,7 +104,13 @@ public sealed partial class FollowCamera
     public bool Held { get; private set; }
 
     /// <summary>Places the camera behind a point, looking along <paramref name="look"/>, as a map load does.</summary>
-    public FollowCamera(Vector3 target, Vector2 look)
+    public FollowCamera(Vector3 target, Vector2 look) => Place(target, look);
+
+    /// <summary>
+    /// Places the camera behind <paramref name="target"/> again, looking along <paramref name="look"/>, as it was made: where the
+    /// player is set down on the ground as a game starts, after his body was made above it.
+    /// </summary>
+    public void Place(Vector3 target, Vector2 look)
     {
         LookXZ = Vector2.Normalize(look);
         Aim = AimGoal = target;

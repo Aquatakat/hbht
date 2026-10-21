@@ -47,7 +47,8 @@ public enum PauseExitCode
 /// scroll has rolled up, as the original's menu leaves its exit code for trek (<see cref="PauseExitCode"/>).
 /// </summary>
 /// <param name="Cinematic">The cinematic the Theatre chose, for <see cref="PauseExitCode.Theatre"/>.</param>
-public sealed record PauseExit(PauseExitCode Code, CinematicRecord? Cinematic = null)
+/// <param name="SavePath">The save the load screen chose, for <see cref="PauseExitCode.Load"/>.</param>
+public sealed record PauseExit(PauseExitCode Code, CinematicRecord? Cinematic = null, string? SavePath = null)
 {
     public static readonly PauseExit Close = new(PauseExitCode.Close);
 
@@ -63,4 +64,7 @@ public sealed record PauseExit(PauseExitCode Code, CinematicRecord? Cinematic = 
 
     /// <summary>The Theatre chose <paramref name="cinematic"/>.</summary>
     public static PauseExit Theatre(CinematicRecord cinematic) => new(PauseExitCode.Theatre, cinematic);
+
+    /// <summary>The load screen chose the save at <paramref name="path"/>.</summary>
+    public static PauseExit LoadFrom(string path) => new(PauseExitCode.Load, SavePath: path);
 }

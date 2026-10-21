@@ -28,14 +28,16 @@ public partial class PartyTabPanel : MenuWindowPanel
         Describe($"{(game is { IsNewGame: false } ? $"{game.Name}'s party" : "A new game's party")} in the pause menu's Party tab. "
             + "Hover a row or scroll to move the cursor, and A to use it: equip, take off, drink, read, or a skill's popup. "
             + "Load a checkpoint or a save on a flag page to show its party.");
-        AddButton("◀ Member", "C-left: the next member.", () => _menu.ChangeMember(1));
-        AddButton("Member ▶", "C-right: the member before.", () => _menu.ChangeMember(-1));
-        AddButton("◀ List", "The stick left: the next list.", () => _menu.ChangeList(1));
-        AddButton("List ▶", "The stick right: the list before.", () => _menu.ChangeList(-1));
-        AddButton("A", "Use the cursor's row, choose in a popup, or close a message.", _menu.Accept);
+        AddButton("◀ Member", "C-left: the next member.", () => Press(MenuAction.MemberLeft));
+        AddButton("Member ▶", "C-right: the member before.", () => Press(MenuAction.MemberRight));
+        AddButton("◀ List", "The stick left: the next list.", () => Press(MenuAction.Left));
+        AddButton("List ▶", "The stick right: the list before.", () => Press(MenuAction.Right));
+        AddButton("A", "Use the cursor's row, choose in a popup, or close a message.", () => Press(MenuAction.Accept));
         AddButton("B", "Close the popup or the message.", () => _menu.Back());
-        AddDetails("Show what C-down shows for the cursor's row, as it does while held.", closesMessage: false);
-        Presses(("a", _menu.Accept), ("b", () => _menu.Back()), ("up", () => _menu.MoveCursor(-1)), ("down", () => _menu.MoveCursor(1)));
+        AddDetails("Show what C-down shows for the cursor's row, as it does while held.");
+        Presses(("a", () => Press(MenuAction.Accept)), ("b", () => _menu.Back()), ("up", () => Press(MenuAction.Up)), ("down", () => Press(MenuAction.Down)),
+            ("left", () => Press(MenuAction.Left)), ("right", () => Press(MenuAction.Right)), ("cleft", () => Press(MenuAction.MemberLeft)),
+            ("cright", () => Press(MenuAction.MemberRight)), ("details", ToggleDetails));
         Finish("on a wider one the tab stays at the centre, or with room, opens out.", closes: false);
     }
 

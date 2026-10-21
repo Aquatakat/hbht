@@ -22,10 +22,10 @@ public partial class BarterWindowPanel : MenuWindowPanel
         Describe(intro + " The stick's left and right reach the list on that side: the pile is always left of the party's, "
             + "as in the original. "
             + (shop ? "A buys one or sells, C-up appraises the stock's price, B leaves." : "A takes or drops, B leaves."));
-        AddButton("◀", "The stick left: the list on the left.", () => Side(right: false));
-        AddButton("▶", "The stick right: the list on the right.", () => Side(right: true));
-        AddButton("▲", "The stick up.", () => _barter.MoveCursor(-1));
-        AddButton("▼", "The stick down.", () => _barter.MoveCursor(1));
+        AddButton("◀", "The stick left: the list on the left.", () => Press(MenuAction.Left));
+        AddButton("▶", "The stick right: the list on the right.", () => Press(MenuAction.Right));
+        AddButton("▲", "The stick up.", () => Press(MenuAction.Up));
+        AddButton("▼", "The stick down.", () => Press(MenuAction.Down));
         if (shop)
             AddButton("A", "Buy one of the stock's row, sell the party's, choose in a popup, or close a message.", Accept);
         else
@@ -35,10 +35,10 @@ public partial class BarterWindowPanel : MenuWindowPanel
         else
             AddButton("B", "Close a message, or leave the window, which asks first if items are left.", Back);
         if (shop)
-            AddButton("C-up", "Appraise the stock's row: how the party judges its price.", _barter.Appraise);
-        AddDetails("Show what C-down shows for the active row, as it does while held.", closesMessage: true);
-        Presses(("a", Accept), ("b", Back), ("cup", _barter.Appraise), ("up", () => _barter.MoveCursor(-1)), ("down", () => _barter.MoveCursor(1)),
-            ("left", () => Side(right: false)), ("right", () => Side(right: true)), ("details", ToggleDetails));
+            AddButton("C-up", "Appraise the stock's row: how the party judges its price.", () => Press(MenuAction.Appraise));
+        AddDetails("Show what C-down shows for the active row, as it does while held.");
+        Presses(("a", Accept), ("b", Back), ("cup", () => Press(MenuAction.Appraise)), ("up", () => Press(MenuAction.Up)), ("down", () => Press(MenuAction.Down)),
+            ("left", () => Press(MenuAction.Left)), ("right", () => Press(MenuAction.Right)), ("details", ToggleDetails));
         Finish("with room, the pile goes right of the party's list.", closes: true);
     }
 
@@ -63,12 +63,9 @@ public partial class BarterWindowPanel : MenuWindowPanel
 
     private static string Against(EditorGame game) => game.IsNewGame ? "a new game" : game.Name;
 
-    /// <summary>The stick's left reaches the pile, and its right the party's list, as they're laid out.</summary>
-    private void Side(bool right) => ((IPartyWindow)_barter).Sideways(right ? 1 : -1);
-
     private void Accept()
     {
-        _barter.Accept();
+        Press(MenuAction.Accept);
         if (_barter.Closed)
             Leave(Closed("The party left the rest."));
     }

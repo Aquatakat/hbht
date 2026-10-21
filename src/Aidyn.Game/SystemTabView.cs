@@ -72,11 +72,8 @@ public partial class SystemTabView : Control
             QueueRedraw();
     }
 
-    public override void _PhysicsProcess(double delta)
-    {
-        Menu.Step();
-        QueueRedraw();
-    }
+    /// <remarks>The core's menu steps the tab (<see cref="Core.Ui.PauseMenu.Step"/>); this only draws it again.</remarks>
+    public override void _PhysicsProcess(double delta) => QueueRedraw();
 
     /// <summary>Where the frame's corner is on the screen: the frame is centred.</summary>
     private Vector2I Origin() => new(((int)Size.X - FrameWidth) / 2, ((int)Size.Y - FrameHeight) / 2);
