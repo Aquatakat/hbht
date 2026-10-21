@@ -89,7 +89,8 @@ A feature on the entity, with the Horn of Kynon as its item: the combat record's
 
 | Field | Value | Code |
 | --- | --- | --- |
-| `canFlee` | true while the Shadow is in the battle, before the encounter table has the last word | `look_for_boss_shadow` |
+| `canFlee` | true while the Shadow is in the battle, before the encounter table has the last word: the combat record's `flee` | `look_for_boss_shadow` (`Combat.ForbidFleeForBosses`, `0x8005CCCC`) |
+| `untargetable` | No one attacks it or casts at it, and it casts nothing: the combat record's `untargetable`, apart from `flee` | `Combatant.CanAttack` (`0x80060590`), `Combatant.CanCast` (`0x80060C38`) through `Combat.ShadowSlot` |
 | `aura` | Radius 10. At each round's end, first (`Combat.ShadowAura`, `0x80023AD0`, from `TurnOrder.EndRound`), each living combatant under 10 from it that isn't of chaos takes 10 − distance damage, squared without the item. A hit that would kill ends the battle instead, as if the Shadow reached Alaron: a merge with the item, a vanish without. | `Combat.ShadowAura` (`shadow_combat_func`) |
 | `slow` | Anyone within 10 has a move range of 1, with the vortex line (the combat strings' `0x80`); the AI's paths are cut at 10 from it | `Combat.NearShadow` (`0x80023F34`), `Combat.MovePlayerBody`, `EnemyAI.ShadowSmoothPath` (`movement_checking_shadow`) |
 | `noPotionHealing` | Potions heal nothing while the Shadow is in the battle, and the Healer is refused (Common line 437); Teleportation fails | `Entity.HealPercent` (`0x800715DC`), `Party.LayOnHands`, `Party.HealWithHerbs`, `Combatant.ResistRoll` |

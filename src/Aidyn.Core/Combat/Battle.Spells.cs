@@ -46,9 +46,12 @@ public sealed partial class Battle
     /// How many targets <paramref name="c"/>'s selected spell takes (<c>Combatant.SpellTargetCount</c>, <c>0x80060818</c>): every
     /// combatant in play for an All spell, half the cast's level rounded up for a ByLevel one, else one; none without a spell.
     /// </summary>
-    public int SpellTargetCount(Combatant c)
+    public int SpellTargetCount(Combatant c) => SpellTargetCount(c, c.CurrentSpell(this));
+
+    /// <summary>How many targets <paramref name="source"/> takes cast by <paramref name="c"/> (<see cref="SpellTargetCount(Combatant)"/>).</summary>
+    public int SpellTargetCount(Combatant c, SpellSource? source)
     {
-        if (c.CurrentSpell(this) is not { } source)
+        if (source is null)
             return 0;
         return source.Spell.TargetCount switch
         {
@@ -59,18 +62,25 @@ public sealed partial class Battle
     }
 
     /// <summary>
-    /// Whether <paramref name="c"/>'s selected spell may be cast at <paramref name="t"/> (<c>Combatant.CanCast</c>, <c>0x80060C38</c>):
-    /// never by or at the Shadow; the spell may take it (<see cref="Casting.CanTarget"/>, with its requirement met); the AI's own tests
-    /// for an AI's; Teleportation and a spell for the caster alone only the caster; then within its reach (the level times its range,
-    /// from the caster's place, or for a placed area the level from the placed point, <see cref="Focus"/>), but Sense Aura at any
-    /// distance; and a clear walk over the grid, the same cell, or a line of sight from 2 above the floor under the cell it's cast from
-    /// to the target's head, which only the target's body doesn't block.
+    /// Whether <paramref name="c"/>'s selected spell may be cast at <paramref name="t"/> from where it stands, a placed area about the
+    /// centre of whoever aims it (<see cref="AimCentre"/>; <see cref="CanCast(Combatant, SpellSource, Combatant, Vector2, Vector2)"/>).
     /// </summary>
-    public bool CanCast(Combatant c, Combatant t)
+    public bool CanCast(Combatant c, Combatant t) =>
+        c.CurrentSpell(this) is { } source && CanCast(c, source, t, c.Cell, AimCentre(c));
+
+    /// <summary>
+    /// Whether <paramref name="c"/>, standing at <paramref name="from"/>, may cast <paramref name="source"/> at <paramref name="t"/>, a
+    /// placed area about <paramref name="centre"/> (<c>Combatant.CanCast</c>, <c>0x80060C38</c>): never by or at one of
+    /// <see cref="CombatRecord.Untargetable"/>; the spell may take it (<see cref="Casting.CanTarget"/>, with its requirement met); the
+    /// AI's own tests for an AI's; Teleportation and a spell for the caster alone only the caster; then within its reach (the level
+    /// times its range, from <paramref name="from"/>, or for a placed area the level from <paramref name="centre"/>), but Sense Aura at
+    /// any distance; and a clear walk over the grid, the same cell, or a line of sight from 2 above the floor under the cell it's cast
+    /// from to the target's head, which only the target's body doesn't block. It changes nothing. It's the target sets' test, the
+    /// player's and the AI's, and what the AI tries each cell, spell and centre with.
+    /// </summary>
+    public bool CanCast(Combatant c, SpellSource source, Combatant t, Vector2 from, Vector2 centre)
     {
-        if (_rules?.Flee is { } shadows && (shadows.Contains(t.Entity) || shadows.Contains(c.Entity)))
-            return false;
-        if (c.CurrentSpell(this) is not { } source)
+        if (_rules?.Untargetable is { } untargetable && (untargetable.Contains(t.Entity) || untargetable.Contains(c.Entity)))
             return false;
         var spell = source.Spell;
         if (!Casting.CanTarget(c, spell, t) || Casting.Requirement(spell, t.Sheet) != CastRefusal.None)
@@ -82,17 +92,21 @@ public sealed partial class Battle
             return t == c;
         var level = Casting.Level(c.Sheet, source);
         var reach = (float)(level * spell.Range);
-        var centre = c.Cell;
-        var (cellX, cellZ) = (ArenaGrid.CellOf(c.Cell.X), ArenaGrid.CellOf(c.Cell.Y));
+        var (cellX, cellZ) = (ArenaGrid.CellOf(from.X), ArenaGrid.CellOf(from.Y));
         if (spell.Placed)
         {
-            centre = Focus;
-            (cellX, cellZ) = (Round(Focus.X), Round(Focus.Y));
+            (cellX, cellZ) = (Round(centre.X), Round(centre.Y));
             reach = level;
+        }
+        else
+        {
+            centre = from;
         }
         if (!effects.Any(e => e is SenseAuraEffect) && !InSpellRange(t, reach, centre))
             return false;
-        var (tx, tz) = (ArenaGrid.CellOf(t.Cell.X), ArenaGrid.CellOf(t.Cell.Y));
+        // The caster at itself is where it's taken to stand, as the original's, which moves its place.
+        var at = t == c ? from : t.Cell;
+        var (tx, tz) = (ArenaGrid.CellOf(at.X), ArenaGrid.CellOf(at.Y));
         if (Grid.WalkClear(cellX, cellZ, tx, tz) || (cellX, cellZ) == (tx, tz))
             return true;
         if (t.Freed)
@@ -274,7 +288,7 @@ public sealed partial class Battle
                 c.HoldPotion(potion, this);
                 State = CombatState.TargetAttack;
                 TargetsA.BeginAttack(this, c);
-                Focus = _slots[TargetsA.Cursor]?.Cell ?? c.Cell;
+                ThrownAim = _slots[TargetsA.Cursor]?.Cell ?? c.Cell;
                 CameraOwner = _slots[TargetsA.Cursor] ?? c;
                 break;
             case CombatMenuChoice.LayOnHands or CombatMenuChoice.HealWithHerbs:
@@ -321,7 +335,7 @@ public sealed partial class Battle
         if (source.Spell.Placed)
         {
             State = CombatState.PlaceArea;
-            Focus = c.Cell;
+            FocusOn(c);
             TargetsB.Rebuild(this, c);
             return;
         }
@@ -350,7 +364,7 @@ public sealed partial class Battle
             return true;
         }
         Target = TargetsB.SelectedSlots.Last();
-        if (placed && c.CurrentSpell(this)?.Spell.Effects?.Any(e => e is TeleportEffect) == true && !SpotIsClear(c, Focus))
+        if (placed && c.CurrentSpell(this)?.Spell.Effects?.Any(e => e is TeleportEffect) == true && !SpotIsClear(c, AreaAim))
             return false;
         CameraOwner = c;
         _aimTurn = null;
@@ -392,9 +406,9 @@ public sealed partial class Battle
         var way = Facing.Rotate(new Vector2(-input.Stick.X, input.Stick.Y), look.X, look.Y);
         if (way.LengthSquared() > 0)
             way = Vector2.Normalize(way);
-        var centre = Focus + way * Cadence.PerTick(AreaStep);
+        var centre = AreaAim + way * Cadence.PerTick(AreaStep);
         centre = Vector2.Clamp(centre, Vector2.Zero, new Vector2(Grid.Width, Grid.Depth));
-        if (centre == Focus)
+        if (centre == AreaAim)
             return;
         var at = c.Body.Sphere.Position - Origin;
         var body = new Vector2(at.X, at.Z);
@@ -402,14 +416,14 @@ public sealed partial class Battle
         var most = source.Spell.Range * Casting.Level(c.Sheet, source);
         if (off.LengthSquared() > 0)
             centre = body + Vector2.Normalize(off) * MathF.Min(off.Length(), most);
-        Focus = centre;
+        AreaAim = centre;
         TargetsB.Rebuild(this, c);
     }
 
     /// <summary>
     /// What marks an aim on the ground (<c>Combat.DrawTargetCounts</c>, <c>0x80021448</c>, every frame): a translucent cylinder at the
-    /// focus, red with the spell's reach about the caster in state 10, red with the level about the placed point in 11 (1 for
-    /// Teleportation), green of a unit at a flask's aim in 18; none otherwise. The runtime draws scene <c>0x0797</c> there.
+    /// aim, red with the spell's reach about the caster in state 10 and red with the level about the placed point in 11 (1 for
+    /// Teleportation), both at <see cref="AreaAim"/>, and green of a unit at a flask's aim in 18, <see cref="ThrownAim"/>; none otherwise. The runtime draws scene <c>0x0797</c> there.
     /// </summary>
     public AimMarker? Aim
     {
@@ -420,12 +434,12 @@ public sealed partial class Battle
             switch (State)
             {
                 case CombatState.TargetThrown:
-                    return new AimMarker(Focus, 1, Spell: false);
+                    return new AimMarker(ThrownAim, 1, Spell: false);
                 case CombatState.TargetSpell or CombatState.PlaceArea when c.CurrentSpell(this) is { } source:
                     var level = Casting.Level(c.Sheet, source);
                     if (State == CombatState.TargetSpell)
-                        return new AimMarker(Focus, source.Spell.Range * level, Spell: true);
-                    return new AimMarker(Focus, source.Spell.Effects?.Any(e => e is TeleportEffect) == true ? 1 : level, Spell: true);
+                        return new AimMarker(AreaAim, source.Spell.Range * level, Spell: true);
+                    return new AimMarker(AreaAim, source.Spell.Effects?.Any(e => e is TeleportEffect) == true ? 1 : level, Spell: true);
                 default:
                     return null;
             }

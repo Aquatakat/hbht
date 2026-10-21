@@ -133,7 +133,7 @@ public sealed class CasterCheckpointTests(Na10Import fixture, ITestOutputHelper 
         Poke(battle, nameof(Battle.Target), (int)(sbyte)built.Cp.ReadByte(built.Struct + 0x14));
         battle.Current = c;
         c.SyncFromBody(battle);
-        battle.Focus = c.Cell;
+        battle.FocusAt(c.Cell);
         Poke(battle, nameof(Battle.State), CombatState.AI);
         Poke(battle, nameof(Battle.NextState), CombatState.AI);
         Poke(battle, nameof(Battle.Stuck), 0);
@@ -187,7 +187,7 @@ public sealed class CasterCheckpointTests(Na10Import fixture, ITestOutputHelper 
         var (built, c) = Begin(k);
         var (battle, ai) = (built.Battle, c.Ai!);
         Assert.Equal(k.Radius, c.Radius);
-        var (spell, focus) = (c.Spell, battle.Focus);
+        var (spell, focus) = (c.Spell, battle.AiAreaCentre);
 
         var raw = Hash(ScoreSpellCells.Invoke(battle, [ai])!);
         output.WriteLine($"raw {raw.Count}: {raw.Text[..Math.Min(raw.Text.Length, 2000)]}");
@@ -197,7 +197,7 @@ public sealed class CasterCheckpointTests(Na10Import fixture, ITestOutputHelper 
 
         foreach (var seed in k.Seeds)
         {
-            (c.Spell, battle.Focus, ai.Target) = (spell, focus, -1);
+            (c.Spell, battle.AiAreaCentre, ai.Target) = (spell, focus, -1);
             built.Game.Random.Sort.Seed = seed.SortSeed;
             var chosen = ChooseSpellOrAttack.Invoke(battle, [ai]);
             var list = chosen is null ? (0, 0xcbf29ce484222325ul, "") : Hash(chosen);
@@ -205,7 +205,7 @@ public sealed class CasterCheckpointTests(Na10Import fixture, ITestOutputHelper 
                 (chosen is not null, list.Item1, list.Item2, built.Game.Random.Sort.Seed));
             if (seed.Run is not { } run)
                 continue;
-            (c.Spell, battle.Focus, ai.Target) = (spell, focus, -1);
+            (c.Spell, battle.AiAreaCentre, ai.Target) = (spell, focus, -1);
             built.Game.Random.Sort.Seed = seed.SortSeed;
             var goal = ((int X, int Z))RunStyle.Invoke(battle, [ai])!;
             Assert.Equal(run, new CasterVectors.Run(goal.X, goal.Z, ai.Target, (int)c.Spell.Source, c.Spell.Index, (int)ai.Kind, (int)ai.Wanted,
@@ -263,8 +263,8 @@ public sealed class CasterCheckpointTests(Na10Import fixture, ITestOutputHelper 
             SortRng = built.Game.Random.Sort.Seed,
             X = c.Cell.X,
             Z = c.Cell.Y,
-            FocusX = battle.Focus.X,
-            FocusZ = battle.Focus.Y,
+            FocusX = battle.AiAreaCentre.X,
+            FocusZ = battle.AiAreaCentre.Y,
         };
         output.WriteLine($"{when}: {actual}");
         Assert.Equal(expected with { X = 0, Z = 0, FocusX = 0, FocusZ = 0 }, actual with { X = 0, Z = 0, FocusX = 0, FocusZ = 0 });

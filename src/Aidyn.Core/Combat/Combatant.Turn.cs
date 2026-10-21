@@ -137,7 +137,7 @@ public sealed partial class Combatant
 
     /// <summary>
     /// After the stick has driven its body in its turn (<c>Combatant.UpdateFromBody</c>, <c>0x8005F784</c>): it reads the
-    /// body (<see cref="SyncFromBody"/>), the battle's focus follows it, and its facing is the body's; if either has
+    /// body (<see cref="SyncFromBody"/>), the battle's aims follow it (<see cref="Battle.FocusOn"/>), and its facing is the body's; if either has
     /// changed, it counts a move, and its fourth sets <see cref="CombatantFlags.Moved"/>, and the target sets are built
     /// again.
     /// </summary>
@@ -145,7 +145,7 @@ public sealed partial class Combatant
     {
         var (cell, facing) = (Cell, Facing);
         SyncFromBody(battle);
-        battle.Focus = Cell;
+        battle.FocusOn(this);
         Facing = Body.Heading;
         if (Cell == cell && Facing == facing)
             return;

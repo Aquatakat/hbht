@@ -23,7 +23,9 @@ internal static class CombatImporter
     /// <summary>
     /// The combat record. The code names entities by their place in the entity list (<see cref="EngineTables.EntityList"/>),
     /// read from the ROM; the places, and the encounter flags' table, are carried as facts, checked in 1.0's code: Sholeh
-    /// is 0xA4 (<c>Combat.FindSholeh</c>), the Skeleton 0xBB (<c>BattleSetup.FillEnemies</c>), the Shadow 0xAC, Pochanargat 0xAB, who never moves in battle (<c>Combatant.UpdateRadius</c>); the bystanders
+    /// is 0xA4 (<c>Combat.FindSholeh</c>), the Skeleton 0xBB (<c>BattleSetup.FillEnemies</c>), the Shadow 0xAC, with whom the party can
+    /// flee (<c>Combat.ForbidFleeForBosses</c>) and whom no one can attack or cast at (<c>Combatant.CanAttack</c>, <c>Combatant.CanCast</c>
+    /// through <c>Combat.ShadowSlot</c>), Pochanargat 0xAB, who never moves in battle (<c>Combatant.UpdateRadius</c>); the bystanders
     /// 0–0x56, 0x82–0x90 and 0x92–0x96 (<c>Combat.IsExcludedEnemy</c>); the bosses who forbid fleeing the twelve of
     /// <c>Combat.NoFleeEntities</c> (<c>0x800D2688</c>); the thirteen the AI gives the bosses' styles (<c>EnemyAI.HasBossStyle</c>,
     /// <c>0x8005BA40</c>, by its jump table at <c>0x800D24B0</c>); the encounters <c>0x800D26A0</c>'s three; the boss flags (<see cref="BossFlags"/>);
@@ -45,7 +47,7 @@ internal static class CombatImporter
             Bystanders: [.. Enumerable.Range(0, tables.EntityList.Count).Where(Bystander).Select(At)],
             Fallback: At(0xBB),
             NoFlee: [.. new[] { 0xA8, 0xAA, 0xAB, 0xAD, 0xAE, 0xB4, 0xB3, 0xB2, 0xB1, 0xB0, 0xAF, 0xB5 }.Select(At)],
-            Flee: [At(0xAC)],
+            Flee: [At(ShadowPlace)],
             FleeByEncounter:
             [
                 new(DbRecordIds.Flag(978), false),
@@ -71,7 +73,8 @@ internal static class CombatImporter
             FlaskDanger: [.. FlaskDangers.Select(f => new FlaskDanger(RecordId.Hex(RecordTypes.Item, f.Item), f.Radius))],
             Shadow: Shadow(At),
             UndrawnWeapons: [.. UndrawnWeaponPlaces.Select(At)],
-            OtherHand: [.. OtherHandPlaces.Select(At)]);
+            OtherHand: [.. OtherHandPlaces.Select(At)],
+            Untargetable: [At(ShadowPlace)]);
     }
 
     /// <summary>

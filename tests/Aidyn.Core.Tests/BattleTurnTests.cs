@@ -810,7 +810,7 @@ public sealed class BattleTurnTests
     }
 
     [Fact]
-    public void ReadingTheBodyPutsTheFocusAndTheCellWhereItIs()
+    public void ReadingTheBodyPutsTheAimsAndTheCellWhereItIs()
     {
         var hero = Fighter(0, 20, x: 3, z: 4);
         var battle = Alone(hero);
@@ -818,6 +818,6 @@ public sealed class BattleTurnTests
         hero.UpdateFromBody(battle);
 
         Assert.Equal(new Vector2(3, 4), hero.Cell);
-        Assert.Equal(new Vector2(3, 4), battle.Focus);
+        Assert.Equal((new Vector2(3, 4), new Vector2(3, 4), new Vector2(3, 4)), (battle.ThrownAim, battle.AreaAim, battle.AiAreaCentre));
     }
 }

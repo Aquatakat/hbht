@@ -35,14 +35,17 @@ public sealed partial class Battle
 
     /// <summary>
     /// Each action slot's spell scored from each free cell of the combatant's field, as though it stood there
-    /// (<c>EnemyAI.ScoreSpellCells</c>, <c>0x800581C8</c>), slot by slot, Z outer and X inner: set B built for it there, and with a
-    /// target selected and a value (<see cref="SpellValues.Value"/>), an entry of the value, ten for each target more than one (or for
-    /// an area spell those of the other side less those of its own, <see cref="AreaCentre"/>) and the spell's known level, as a byte,
-    /// with B's cursor. Only its place across the ground moves; the selected spell and set B are put back and emptied. With a field
-    /// of 0 it scores only where it stands (<c>EnemyAI.ScoreSpellsInPlace</c>, <c>0x800585B0</c>).
+    /// (<c>EnemyAI.ScoreSpellCells</c>, <c>0x800581C8</c>), slot by slot, Z outer and X inner: the AI's set B
+    /// (<see cref="_triesB"/>) built for it there, and with a target selected and a value (<see cref="SpellValues.Value"/>), an entry
+    /// of the value, ten for each target more than one (or for an area spell those of the other side less those of its own,
+    /// <see cref="AreaCentre"/>) and the spell's known level, as a byte, with B's cursor. The combatant's place and selected spell
+    /// aren't moved, its footprint only lifted off the grid while it tries the cells. With a field of 0 it scores only where it
+    /// stands (<c>EnemyAI.ScoreSpellsInPlace</c>, <c>0x800585B0</c>).
     /// </summary>
     /// <remarks>
-    /// The original also notes whether the caster can afford any slot, which nothing reads: an unaffordable spell has no candidates
+    /// The original tries each in the battle's set B, so a try's cursor carries to the next (<see cref="TargetSet.RestoreCursor"/>),
+    /// the first from set B as the turn built it, and leaves set B empty after: the AI's set starts from B's cursor, and B is emptied.
+    /// It also notes whether the caster can afford any slot, which nothing reads: an unaffordable spell has no candidates
     /// (<see cref="AiCanCast"/>), so no entry.
     /// </remarks>
     private AiScores ScoreSpellCells(EnemyAI ai)
@@ -51,63 +54,57 @@ public sealed partial class Battle
         var r = c.Radius;
         var inPlace = r == 0;
         var scores = new AiScores(inPlace ? 8 : (r * r * 4 * 8) & 0xFFE0);
-        var (saved, savedSpell) = (c.Cell, c.Spell);
         var (cx, cz) = Cell8(c);
         var footprint = c.Footprint;
+        _triesB.TakeCursor(TargetsB);
         if (!inPlace)
             Grid.Vacate(cx, cz, footprint);
         for (var i = 0; i < EnemyAI.ActionSlots; i++)
         {
-            if (ai.Slots[i] is null)
-                continue;
-            c.Spell = SlotChoice(i);
-            if (c.CurrentSpell(this) is not { } source)
+            if (ai.Slots[i] is null || c.SpellOf(SlotChoice(i), Game?.Rules.Magic) is not { } source)
                 continue;
             if (inPlace)
             {
-                ScoreSpellAt(ai, source, i, cx, cz, scores);
+                ScoreSpellAt(ai, source, i, cx, cz, c.Cell, scores);
                 continue;
             }
             foreach (var (x, z) in Square(cx, cz, r))
             {
                 if (ArenaGrid.Distance(x & 0xFF, z & 0xFF, cx, cz) > r || !Grid.IsFree(x, z, footprint))
                     continue;
-                c.Cell = new Vector2(x, z);
-                ScoreSpellAt(ai, source, i, x, z, scores);
+                ScoreSpellAt(ai, source, i, x, z, new Vector2(x, z), scores);
             }
         }
-        c.Spell = savedSpell;
         if (!inPlace)
             Grid.Occupy(cx, cz, footprint);
-        c.Cell = saved;
         TargetsB.Clear();
         return scores;
     }
 
-    /// <summary>One slot's spell scored with the caster where it's taken to stand, at the cell (x, z).</summary>
-    private void ScoreSpellAt(EnemyAI ai, SpellSource source, int slot, int x, int z, AiScores scores)
+    /// <summary>One slot's spell scored with the caster taken to stand at <paramref name="from"/>, the cell (x, z).</summary>
+    private void ScoreSpellAt(EnemyAI ai, SpellSource source, int slot, int x, int z, Vector2 from, AiScores scores)
     {
         var c = ai.Combatant;
-        var count = IsAreaSpell(source) ? AreaCentre(ai) : TargetCountScore(c);
-        if (TargetsB.Selected == 0)
+        var count = IsAreaSpell(source) ? AreaCentre(ai, source, from) : TargetCountScore(c, source, from);
+        if (_triesB.Selected == 0)
             return;
         var value = SpellValues.Value(Game.Rules.Magic!, source.Spell, c, SpellCandidates(), InPlayCombatants(), PartOfDay);
         if (value == 0)
             return;
         var level = source.Known?.Level ?? source.ItemLevel;
-        scores.Add(x, z, slot + 1, (value + count * 10 + level) & 0xFF, _slots[TargetsB.Cursor]);
+        scores.Add(x, z, slot + 1, (value + count * 10 + level) & 0xFF, _slots[_triesB.Cursor]);
     }
 
     /// <summary>Whether a spell is the one the AI centres on the opponents and the party's area danger counts: Fireball (spell kind 8).</summary>
     private bool IsAreaSpell(SpellSource source) => _rules?.AreaSpells?.Contains(source.Spell.Id) == true;
 
-    /// <summary>Set B's candidates, by slot.</summary>
+    /// <summary>The AI's set B's candidates, by slot.</summary>
     private List<Combatant> SpellCandidates()
     {
         var list = new List<Combatant>();
         for (var k = 0; k < SlotCount; k++)
         {
-            if (TargetsB.IsCandidate(k) && _slots[k] is { } t)
+            if (_triesB.IsCandidate(k) && _slots[k] is { } t)
                 list.Add(t);
         }
         return list;
@@ -123,18 +120,22 @@ public sealed partial class Battle
         }
     }
 
-    /// <summary>Set B built for the selected spell; how many it selected, less one (<c>EnemyAI.TargetCountScore</c>, <c>0x8005818C</c>).</summary>
-    private int TargetCountScore(Combatant c)
+    /// <summary>
+    /// The AI's set B built for <paramref name="source"/> cast from <paramref name="from"/>, a placed area about the AI's centre; how
+    /// many it selected, less one (<c>EnemyAI.TargetCountScore</c>, <c>0x8005818C</c>).
+    /// </summary>
+    private int TargetCountScore(Combatant c, SpellSource source, Vector2 from)
     {
-        TargetsB.Rebuild(this, c);
-        return TargetsB.Selected - 1;
+        _triesB.RebuildSpell(this, c, source, from, AiAreaCentre);
+        return _triesB.Selected - 1;
     }
 
     /// <summary>
-    /// Fireball's count (<c>EnemyAI.AreaCentre</c>, <c>0x80058008</c>): the area's centre put at the opponents' mean place, set B built
-    /// about it, and with one selected, +1 for each candidate of the other side and −1 for each of the caster's own, itself among them.
+    /// Fireball's count (<c>EnemyAI.AreaCentre</c>, <c>0x80058008</c>): the AI's centre put at the opponents' mean place, its set B built
+    /// about it for <paramref name="source"/> cast from <paramref name="from"/>, and with one selected, +1 for each candidate of the other
+    /// side and −1 for each of the caster's own, itself among them.
     /// </summary>
-    private int AreaCentre(EnemyAI ai)
+    private int AreaCentre(EnemyAI ai, SpellSource source, Vector2 from)
     {
         var c = ai.Combatant;
         var (sum, n) = (Vector2.Zero, 0f);
@@ -146,14 +147,14 @@ public sealed partial class Battle
                 n += 1f;
             }
         }
-        Focus = new Vector2(sum.X / n, sum.Y / n);
-        TargetsB.Rebuild(this, c);
-        if (TargetsB.Selected == 0)
+        AiAreaCentre = new Vector2(sum.X / n, sum.Y / n);
+        _triesB.RebuildSpell(this, c, source, from, AiAreaCentre);
+        if (_triesB.Selected == 0)
             return 0;
         var count = 0;
         for (var k = 0; k < SlotCount; k++)
         {
-            if (TargetsB.IsCandidate(k) && _slots[k] is { } p)
+            if (_triesB.IsCandidate(k) && _slots[k] is { } p)
                 count += p.Hostile == c.Hostile ? -1 : 1;
         }
         return count;
@@ -184,9 +185,14 @@ public sealed partial class Battle
     /// <summary>
     /// Fireball's centre, before the target sets (<c>EnemyAI.AimAreaSpell</c>, <c>0x8005974C</c>, from <c>EnemyAI.PrepareAction</c>):
     /// for the area spell selected, of the cells on the arena within its range times its casting level of the caster, the first, Z
-    /// outer and X inner, whose set B has the most candidates of the other side less those of its own, more than none; with none,
-    /// the cell of the centre <see cref="AreaCentre"/> left. Any other spell is left as it is.
+    /// outer and X inner, about which the AI's set B has the most candidates of the other side less those of its own, more than none,
+    /// becomes the AI's centre (<see cref="AiAreaCentre"/>); with none, the cell of the centre <see cref="AreaCentre"/> left. Any other
+    /// spell is left as it is.
     /// </summary>
+    /// <remarks>
+    /// The original tries each centre in the battle's set B, so the last try's cursor is the one set B's rebuilding then keeps
+    /// (<see cref="PrepareTargetSets"/>): set B takes the AI's set's cursor after.
+    /// </remarks>
     private void AimAreaSpell(EnemyAI ai)
     {
         var c = ai.Combatant;
@@ -195,25 +201,26 @@ public sealed partial class Battle
         var r = (source.Spell.Range * Casting.Level(c.Sheet, source)) & 0xFF;
         var (cx, cz) = Cell8(c);
         var best = 0;
-        var (bx, bz) = ((byte)(int)Focus.X, (byte)(int)Focus.Y);
+        var (bx, bz) = ((byte)(int)AiAreaCentre.X, (byte)(int)AiAreaCentre.Y);
+        _triesB.TakeCursor(TargetsB);
         foreach (var (x, z) in Square(cx, cz, r))
         {
             if (Grid.IsOutside(x, z) || ArenaGrid.Distance(cx, cz, x & 0xFF, z & 0xFF) > r)
                 continue;
-            Focus = new Vector2(x, z);
-            TargetsB.Rebuild(this, c);
-            if (TargetsB.Selected == 0)
+            _triesB.RebuildSpell(this, c, source, c.Cell, new Vector2(x, z));
+            if (_triesB.Selected == 0)
                 continue;
             var n = 0;
             for (var k = 0; k < SlotCount; k++)
             {
-                if (TargetsB.IsCandidate(k) && _slots[k] is { } p)
+                if (_triesB.IsCandidate(k) && _slots[k] is { } p)
                     n = (sbyte)(n + (p.Hostile != c.Hostile ? 1 : -1));
             }
             if (best < n)
                 (best, bx, bz) = (n, (byte)x, (byte)z);
         }
-        Focus = new Vector2(bx, bz);
+        TargetsB.TakeCursor(_triesB);
+        AiAreaCentre = new Vector2(bx, bz);
     }
 
     /// <summary>

@@ -113,7 +113,7 @@ public partial class MissileView : Node3D
 
 /// <summary>
 /// The marker on the ground while a spell, its area or a flask is aimed (<c>Combat.DrawTargetCounts</c>, <c>0x80021448</c>): the
-/// translucent cylinder of scene <c>0x0797</c> at the battle's focus, set on the floor, as wide as the aim's radius and 2 tall, unturned.
+/// translucent cylinder of scene <c>0x0797</c> at the aim (<c>Battle.Aim</c>), set on the floor, as wide as the aim's radius and 2 tall, unturned.
 /// Its scene's own tint (<c>Zones.SetSceneColors(scene, 0x40, 0, colour)</c>, then <c>Scene.SetTint</c>) is red for a spell and green
 /// for a flask, scaled by the screen's fade, and alpha 64: the prim colour of its draws in place of the scenery's tint, and prim alpha
 /// 64, so its texels' alpha × 64 / 255, blended, depth tested and not written (<c>G_RM_AA_ZB_XLU_SURF2</c>).

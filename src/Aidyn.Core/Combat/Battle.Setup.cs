@@ -153,7 +153,7 @@ public sealed partial class Battle
         HasFleePoints = Enumerable.Range(0, MaxFleePoints).Any(i => Arena.Point(FleePoint(i)) is not null);
         Order.Build(this, random);
         Current = Order.Current(this);
-        Focus = Current?.Cell ?? default;
+        FocusAt(Current?.Cell ?? default);
         // Combat.ApplyFleeRuleByFlag has the last word.
         if (Setup.EncounterFlag is { } flag && rules.FleeByEncounter.FirstOrDefault(e => e.Flag == flag) is { } rule)
             CanFlee = rule.CanFlee;
