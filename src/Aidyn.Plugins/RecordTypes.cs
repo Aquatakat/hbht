@@ -128,6 +128,9 @@ public static class RecordTypes
 
     public static bool IsKnown(string type) => All.Contains(type);
 
+    /// <summary>Every record type, in the registry's order.</summary>
+    public static IEnumerable<string> Names => All;
+
     /// <summary>
     /// The class a type's records read as, which says which of their lists are keyed (<see cref="KeyedListAttribute"/>), or null
     /// for a type with no records of its own, such as an asset's or a map object's.

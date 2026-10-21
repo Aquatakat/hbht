@@ -118,9 +118,11 @@ public partial class RecordBrowser : Control
 
         _status.Text = $"Loading {pluginsDirectory}…";
         var generation = ++_generation;
-        var (catalog, quests, game, rules, items) = await Task.Run(() =>
+        var (catalog, quests, game, rules, items, report) = await Task.Run(() =>
         {
             var plugins = PluginSet.LoadInstalled(pluginsDirectory);
+            // The game refuses a set with a record it can't read; the editor shows the report and loads anyway, to fix it by.
+            var report = plugins.Validate();
             EditorGame? game = null;
             try
             {
@@ -130,7 +132,7 @@ public partial class RecordBrowser : Control
             {
                 GD.PrintErr($"No game: {e.Message}");
             }
-            return (PluginCatalog.Build(plugins), QuestIndex.Build(plugins), game, EditorCharacters.Rules(plugins), EditorCharacters.Items(plugins));
+            return (PluginCatalog.Build(plugins), QuestIndex.Build(plugins), game, EditorCharacters.Rules(plugins), EditorCharacters.Items(plugins), report);
         });
         if (generation != _generation)
             return;
@@ -149,7 +151,7 @@ public partial class RecordBrowser : Control
         for (var i = 0; i < _typeNames.Count; i++)
             _types.AddItem($"{_typeNames[i]} ({catalog.Entries.Count(e => e.Id.Type == _typeNames[i]):N0})", i + 1);
         Populate();
-        ShowNothing(Welcome(catalog));
+        ShowNothing(report.IsClean ? Welcome(catalog) : $"{report.Describe(limit: 12)}\nThe game refuses to load these; the editor shows them as they are.\n{Welcome(catalog)}");
     }
 
     /// <summary>Loads a checkpoint's game, for scripts (<c>--checkpoint</c>).</summary>

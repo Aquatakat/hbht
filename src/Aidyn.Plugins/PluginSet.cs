@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -30,6 +31,54 @@ public sealed record Plugin(string Directory, PluginManifest Manifest)
 public sealed record FieldConflict(RecordId Record, string Path, IReadOnlyList<string> Plugins)
 {
     public string Winner => Plugins[^1];
+}
+
+/// <summary>
+/// A record <see cref="PluginSet.Validate"/> couldn't read: what's wrong, where (a setter path, <see cref="FieldConflict.Path"/>,
+/// or the whole record), and the plugin that last set that, which is where to fix it.
+/// </summary>
+public sealed record RecordProblem(RecordId Record, string Path, string Plugin, string Message)
+{
+    public override string ToString() => $"{Record}{(Path.Length > 0 ? " " + Path : "")}: {Message}";
+}
+
+/// <summary>What <see cref="PluginSet.Validate"/> found: every record it couldn't read, by plugin, in record ID order.</summary>
+public sealed class ValidationReport
+{
+    public ValidationReport(IReadOnlyList<RecordProblem> problems) => Problems = problems;
+
+    public IReadOnlyList<RecordProblem> Problems { get; }
+
+    public bool IsClean => Problems.Count == 0;
+
+    /// <summary>
+    /// The report worded for the player, as <see cref="BasePlugin.Diagnose"/> words an import's: a line per problem under its
+    /// plugin, up to <paramref name="limit"/> of them, and how many more there are.
+    /// </summary>
+    public string Describe(int limit = int.MaxValue)
+    {
+        if (IsClean)
+            return "Every record reads.";
+        var lines = new List<string> { $"{Problems.Count} {(Problems.Count == 1 ? "record can't" : "records can't")} be read. Fix or remove the plugin:" };
+        var shown = 0;
+        foreach (var byPlugin in Problems.GroupBy(p => p.Plugin))
+        {
+            if (shown >= limit)
+                break;
+            lines.Add($"{byPlugin.Key}:");
+            foreach (var problem in byPlugin)
+            {
+                if (shown++ >= limit)
+                    break;
+                lines.Add("  " + problem);
+            }
+        }
+        if (Problems.Count > limit)
+            lines.Add($"  … and {Problems.Count - limit} more.");
+        return string.Join('\n', lines);
+    }
+
+    public override string ToString() => Describe();
 }
 
 /// <summary>A record's asset file: the one <see cref="PluginSet.FindAsset"/> picks.</summary>
@@ -126,13 +175,143 @@ public sealed class PluginSet
     }
 
     /// <summary>
-    /// <see cref="LoadInstalled"/> after <see cref="BasePlugin.Require"/>: it throws an <see cref="IOException"/> saying to
-    /// import if the base plugin isn't there, or was written by an importer other than the current one.
+    /// <see cref="LoadInstalled"/> after <see cref="BasePlugin.Require"/>, then <see cref="Validate"/>: it throws an
+    /// <see cref="IOException"/> saying to import if the base plugin isn't there, or was written by an importer other than
+    /// the current one, and an <see cref="InvalidDataException"/> with the <see cref="ValidationReport"/> if a record can't
+    /// be read. The runtime and the CLI load by it, so a mod's mistake stops the game with its name rather than being
+    /// played around.
     /// </summary>
     public static PluginSet LoadInstalledChecked(string pluginsDirectory)
     {
         BasePlugin.Require(pluginsDirectory);
-        return LoadInstalled(pluginsDirectory);
+        var set = LoadInstalled(pluginsDirectory);
+        var report = set.Validate();
+        return report.IsClean ? set : throw new InvalidDataException(report.Describe());
+    }
+
+    /// <summary>
+    /// Reads every record of a type with a class (<see cref="RecordTypes.ClassOf"/>) strictly (<see cref="PluginJson.Strict"/>),
+    /// once, and reports every one that can't be read, blaming the plugin that last set the field at fault: a field the type
+    /// lacks, a kind no discriminator names, a null or a missing field the type doesn't allow, a value of the wrong shape, and
+    /// a keyed list with two elements of one key. The records that read are kept, so later reads of them are what this read;
+    /// the base plugin's 8,900 records take under a second. A problem is a problem whichever plugin has it: an unknown field or
+    /// kind in a mod is never what its author meant, and is an error rather than a warning so that it's found and not played
+    /// around.
+    /// </summary>
+    public ValidationReport Validate()
+    {
+        var problems = new List<RecordProblem>();
+        foreach (var (id, json) in _records.OrderBy(r => r.Key.ToString(), StringComparer.Ordinal))
+        {
+            if (RecordTypes.ClassOf(id.Type) is not { } type)
+                continue;
+            try
+            {
+                _typed.GetOrAdd((id, type), static (_, arg) => arg.json.Deserialize(arg.type, PluginJson.Strict)!, (json, type));
+            }
+            catch (JsonException e)
+            {
+                var path = SetterPath(json, type, e.Path);
+                problems.Add(new RecordProblem(id, path, Blame(id, path), TrimMessage(e.Message)));
+            }
+            CheckShape(id, json, type, "", problems);
+        }
+        return new ValidationReport(problems);
+    }
+
+    /// <summary>The plugin that last set <paramref name="path"/> or what encloses it, else the record's definer.</summary>
+    private string Blame(RecordId id, string path) =>
+        Setters(id, path) is { Count: > 0 } setters ? setters[^1] : _definedBy.GetValueOrDefault(id) ?? "?";
+
+    /// <summary>
+    /// The setter path (<see cref="FieldConflict.Path"/>) that a serializer's path, such as <c>$.objects[3].reach</c>, falls
+    /// in: a keyed list's position becomes its element's key, so that the setters of that element are found; an unkeyed
+    /// list's position stays, and the setters of the list are.
+    /// </summary>
+    private static string SetterPath(JsonObject record, Type type, string? jsonPath)
+    {
+        var path = "";
+        JsonNode? node = record;
+        Type? current = type;
+        RecordSchema.Property? property = null;
+        var rest = jsonPath is { Length: > 1 } && jsonPath.StartsWith('$') ? jsonPath.AsSpan(1) : [];
+        while (rest.Length > 0)
+        {
+            if (rest[0] == '.')
+            {
+                var end = rest[1..].IndexOfAny(".[");
+                var field = end < 0 ? rest[1..].ToString() : rest[1..(end + 1)].ToString();
+                rest = end < 0 ? [] : rest[(end + 1)..];
+                path = path.Length == 0 ? field : path + "." + field;
+                property = RecordSchema.Find(current, field);
+                node = (node as JsonObject)?[field];
+                current = property is null ? null : node is JsonObject o ? RecordSchema.Concrete(property.Type, o) : property.Type;
+            }
+            else if (rest[0] == '[')
+            {
+                var close = rest.IndexOf(']');
+                if (close < 0 || !int.TryParse(rest[1..close], CultureInfo.InvariantCulture, out var position))
+                    break;
+                rest = rest[(close + 1)..];
+                var list = node as JsonArray;
+                node = list is not null && position < list.Count ? list[position] : null;
+                var elementType = current is null ? null : RecordSchema.ElementType(current);
+                path += $"[{(property?.Keyed?.KeyOf(node) ?? position.ToString(CultureInfo.InvariantCulture))}]";
+                current = elementType is null ? null : node is JsonObject element ? RecordSchema.Concrete(elementType, element) : elementType;
+                property = null;
+            }
+            else
+            {
+                break;
+            }
+        }
+        return path;
+    }
+
+    private static string TrimMessage(string message)
+    {
+        var cut = message.IndexOf(" Path: $", StringComparison.Ordinal);
+        if (cut >= 0)
+            message = message[..cut];
+        return message.Replace("Aidyn.Plugins.Records.", "", StringComparison.Ordinal)
+            .Replace(" Consider updating its nullability annotation.", "", StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// What strict reading lets through: an object of a polymorphic type without its discriminator, which reads as the base
+    /// kind, and a keyed list with two elements of one key. <paramref name="type"/> is the declared type, before the discriminator.
+    /// </summary>
+    private void CheckShape(RecordId id, JsonObject json, Type type, string prefix, List<RecordProblem> problems)
+    {
+        var kinds = RecordSchema.DerivedTypes(type);
+        if (kinds.Count > 0 && json["type"] is null)
+        {
+            var path = prefix.TrimEnd('.');
+            problems.Add(new RecordProblem(id, path, Blame(id, path), $"{(path.Length == 0 ? "The record" : path)} lacks its type: one of {string.Join(", ", kinds.Select(k => k.Discriminator))}."));
+        }
+        type = RecordSchema.Concrete(type, json);
+        foreach (var (field, value) in json)
+        {
+            if (RecordSchema.Find(type, field) is not { } property)
+                continue;
+            if (value is JsonArray elements && RecordSchema.ElementType(property.Type) is { } elementType)
+            {
+                var seen = new HashSet<string>(StringComparer.Ordinal);
+                for (var i = 0; i < elements.Count; i++)
+                {
+                    var key = property.Keyed?.KeyOf(elements[i]);
+                    var path = $"{prefix}{field}[{key ?? i.ToString(CultureInfo.InvariantCulture)}]";
+                    if (key is not null && !seen.Add(key))
+                        problems.Add(new RecordProblem(id, path, Blame(id, path), $"Two elements of {prefix}{field} are keyed {key}."));
+                    else if (elements[i] is JsonObject o)
+                        CheckShape(id, o, elementType, path + ".", problems);
+                }
+            }
+            else if (value is JsonObject nested)
+            {
+                CheckShape(id, nested, property.Type, $"{prefix}{field}.", problems);
+            }
+        }
     }
 
     /// <summary>
@@ -215,15 +394,29 @@ public sealed class PluginSet
 
     private List<string> InLoadOrder(IEnumerable<string> plugins) => [.. plugins.OrderBy(p => _loadIndex.GetValueOrDefault(p, int.MaxValue))];
 
-    /// <summary>A path and the paths that enclose it: <c>objects[12].position</c> is in <c>objects[12]</c>, which is in <c>objects</c>.</summary>
+    /// <summary>
+    /// A path and the paths that enclose it: <c>objects[12].position</c> is in <c>objects[12]</c>, which is in <c>objects</c>;
+    /// <c>grid.origin</c> is in <c>grid</c>, where only <c>grid</c> is ever set.
+    /// </summary>
     private static IEnumerable<string> Ancestors(string path)
     {
+        var depth = 0;
         for (var i = 0; i < path.Length; i++)
         {
-            if (path[i] == '[')
-                yield return path[..i];
-            else if (path[i] == ']' && i + 1 < path.Length)
-                yield return path[..(i + 1)];
+            switch (path[i])
+            {
+                case '[':
+                    if (depth++ == 0)
+                        yield return path[..i];
+                    break;
+                case ']':
+                    if (--depth == 0 && i + 1 < path.Length)
+                        yield return path[..(i + 1)];
+                    break;
+                case '.' when depth == 0 && i > 0 && path[i - 1] != ']':
+                    yield return path[..i];
+                    break;
+            }
         }
         yield return path;
     }
