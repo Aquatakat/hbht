@@ -38,7 +38,7 @@ public sealed class BodyAudio
 /// after a body's animation has stepped, the key that its request and frame reach plays, heard within 15 of the camera's
 /// eye (docs/systems/audio.md).
 /// </summary>
-public sealed class AudioKeys(GameAudio audio, SoundsRecord? sounds, IRandom random)
+public sealed class AudioKeys(GameAudio audio, SoundsRecord sounds, IRandom random)
 {
     /// <summary>How far from what the camera looks at a body is heard, before the loudness wraps (<c>Audio.VolumeAndPan</c>'s 15).</summary>
     public const float Hearing = 15;
@@ -85,7 +85,7 @@ public sealed class AudioKeys(GameAudio audio, SoundsRecord? sounds, IRandom ran
         if (Vector3.Distance(position, aim) > Reach)
             return;
         var (volume, pan) = VolumeAndPan(position, eye, aim);
-        if (volume == 0 || profile is not { Kind: not 0 } || sounds is null)
+        if (volume == 0 || profile is not { Kind: not 0 })
             return;
 
         if (sounds.Kinds.ElementAtOrDefault(profile.Kind) is { } kind && kind.Surfaces.ElementAtOrDefault(body.Surface) is { } steps)

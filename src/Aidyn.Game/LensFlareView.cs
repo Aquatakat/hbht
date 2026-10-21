@@ -34,10 +34,10 @@ public partial class LensFlareView : Control
     public override void _Draw()
     {
         // Only an outdoor sky has one.
-        if (_sky.Sky.Flare is not { } flare || _sky.Sky.Objects is not { } objects || !_sky.Sky.State.Drawn)
+        if (!_sky.Sky.State.Drawn)
             return;
         _sprites.Clear();
-        flare.Draw(_sprites, objects.SunMiddle, _sky.Sky.Colors.Tint.X, _sky.ImageSize);
+        _sky.Sky.Flare.Draw(_sprites, _sky.Sky.Objects.SunMiddle, _sky.Sky.Colors.Tint.X, _sky.ImageSize);
         SkyBackdropView.DrawSprites(this, _sky, _sprites);
     }
 }

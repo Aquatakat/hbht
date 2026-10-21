@@ -1,6 +1,7 @@
 using System.Numerics;
 using Aidyn.Core.Physics;
 using Aidyn.Core.Rng;
+using Aidyn.Plugins.Records;
 
 namespace Aidyn.Core.Movement;
 
@@ -532,6 +533,18 @@ public sealed class Body
                 : null;
     }
 
+    /// <summary>
+    /// A body of <paramref name="look"/> made at <paramref name="at"/> and set down on the ground (<see cref="SetDown"/>), as
+    /// the original's <c>CreateActor</c>, <c>AllocWanderer</c> and combat's <c>CreateBody</c> make one. Whoever spawns it sets
+    /// the rest.
+    /// </summary>
+    public static Body Spawn(CollisionWorld world, Vector3 at, EntityBody look, IRandom? random, float? near = null)
+    {
+        var body = new Body(at, look.Radius, look.Scale);
+        body.Sphere.Position = SetDown(world, at, look.Radius, random, near).Position;
+        return body;
+    }
+
     /// <summary>Reads the stick (<c>Actor::Move</c>, the trek parts): it walks under 80% tilt and runs above.</summary>
     private void Control()
     {
@@ -542,5 +555,5 @@ public sealed class Body
         Go(tilt, Stick);
     }
 
-    private static Vector2 Normalize(Vector2 v) => v.LengthSquared() > SpherePhysics.Epsilon * SpherePhysics.Epsilon ? Vector2.Normalize(v) : Vector2.UnitY;
+    private static Vector2 Normalize(Vector2 v) => SafeNormalize.Above(v, SpherePhysics.Epsilon * SpherePhysics.Epsilon, Vector2.UnitY);
 }

@@ -325,7 +325,7 @@ public sealed partial class FollowCamera
         var focus = (a + b) * 0.5f;
         var h = focus - a;
         var away = new Vector2(-MathF.Abs(h.Z), MathF.Abs(h.X));
-        away = away.LengthSquared() > 0 ? Vector2.Normalize(away) : -LookXZ;
+        away = SafeNormalize.Of(away, -LookXZ);
         Distance = MathF.Max((h.Length() + ConversationMargin) / MathF.Tan(ConversationHalfAngle), ConversationMinDistance);
         Snap = 1;
         Anchor(focus);
@@ -385,15 +385,15 @@ public sealed partial class FollowCamera
     private Vector3 Behind()
     {
         Pitch = Math.Clamp(Pitch, MinPitch, MaxPitch);
-        return new Vector3(Aim.X - LookXZ.X * Distance, Aim.Y + MathF.Sin(Pitch * MathF.PI / 180) * Distance, Aim.Z - LookXZ.Y * Distance);
+        return new Vector3(Aim.X - LookXZ.X * Distance, Aim.Y + MathF.Sin(Degrees.ToRadians(Pitch)) * Distance, Aim.Z - LookXZ.Y * Distance);
     }
 
     /// <summary>The goal: <see cref="Distance"/> along <paramref name="back"/> turned by the orbit (<c>FUN_800b05d0</c>).</summary>
     private Vector3 Swing(Vector2 back)
     {
-        var (sin, cos) = MathF.SinCos(OrbitAngle * MathF.PI / 180);
+        var (sin, cos) = MathF.SinCos(Degrees.ToRadians(OrbitAngle));
         var turned = Facing.Rotate(back, sin, cos);
-        return new Vector3(Aim.X + turned.X * Distance, Aim.Y + MathF.Sin(Pitch * MathF.PI / 180) * Distance, Aim.Z + turned.Y * Distance);
+        return new Vector3(Aim.X + turned.X * Distance, Aim.Y + MathF.Sin(Degrees.ToRadians(Pitch)) * Distance, Aim.Z + turned.Y * Distance);
     }
 
     /// <summary>
@@ -419,7 +419,7 @@ public sealed partial class FollowCamera
 
         var way = new Vector2(PositionGoal.X - Aim.X, PositionGoal.Z - Aim.Z);
         way /= MathF.Max(way.Length(), 1e-6f);
-        var (sin, cos) = MathF.SinCos(OrbitAngle * MathF.PI / 180);
+        var (sin, cos) = MathF.SinCos(Degrees.ToRadians(OrbitAngle));
         way = Facing.Rotate(way, sin, cos) * reach;
         Position = new Vector3(Aim.X + way.X, PositionGoal.Y, Aim.Z + way.Y);
         if (SpherePhysics.Sweep(world, Aim, Position, 0.25f, skipSeeThrough: true, out var hit, out var normal))

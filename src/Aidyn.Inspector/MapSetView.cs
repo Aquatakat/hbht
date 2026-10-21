@@ -120,6 +120,7 @@ public partial class MapSetView : VBoxContainer
     private MapSetRecord? _set;
     private Marked? _selected;
     private int _generation;
+    private readonly FrameGate _textureFrame = new(Cadence.TextureFrameTicks);
     private double _ticks;
     private Vector2? _pointer;
     private Vector2 _pressedAt;
@@ -327,9 +328,10 @@ public partial class MapSetView : VBoxContainer
         }
         // Every scene in view is drawn each frame at the console's average 20 fps, which scrolls its textures.
         _ticks += delta * 60;
-        if (_ticks >= Cadence.TextureFrameTicks)
+        var whole = (int)_ticks;
+        _ticks -= whole;
+        if (_textureFrame.Tick(whole) > 0)
         {
-            _ticks %= Cadence.TextureFrameTicks;
             if (_terrain.ButtonPressed || _scenery.ButtonPressed)
             {
                 foreach (var scene in _chunks.Values.SelectMany(c => c.Scrolling()))

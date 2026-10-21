@@ -52,7 +52,7 @@ public sealed class ScreenFade
                     Brightness = MathF.Max(0, Brightness - _speed);
                 }
                 // Counted in frames: the third frame at black ends it.
-                else if (++_black >= BlackFrames * Cadence.FrameTicks)
+                else if (++_black >= Cadence.Frames(BlackFrames))
                 {
                     Mode = FadeMode.None;
                 }

@@ -45,7 +45,7 @@ public static class Billboard
         if (!(length > 0))
             return Matrix4x4.Identity;
         var (x, y, z) = (direction.X / length, direction.Y / length, direction.Z / length);
-        var (s, c) = MathF.SinCos(degrees * (MathF.PI / 180));
+        var (s, c) = MathF.SinCos(Degrees.ToRadians(degrees));
         var h = MathF.Sqrt(x * x + z * z);
         if (h == 0)
             return Matrix4x4.Identity;

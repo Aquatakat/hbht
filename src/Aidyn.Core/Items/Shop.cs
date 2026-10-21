@@ -184,7 +184,7 @@ public sealed class Shop
         worth *= judge;
         worth *= 3f;
         worth /= BuyPrice(item);
-        var index = worth > 0 ? (byte)(int)(worth + 0.5) : (byte)-(int)(0.5 - worth);
+        var index = Rounding.HalfAwayToByte((double)worth);
         return Math.Min((int)index, 6);
     }
 

@@ -23,9 +23,6 @@ public sealed class GameState : IScriptWorld
     /// <summary>Alaron, who a new game starts with and who is always first in the party.</summary>
     public static readonly RecordId Alaron = RecordId.Hex(RecordTypes.Entity, 0x023F);
 
-    /// <summary>A new game's gold (<c>init_DBs</c>).</summary>
-    public const uint NewGameGold = 1;
-
     private readonly List<string> _problems = [];
     private readonly CharacterSaves _saves;
 
@@ -40,9 +37,8 @@ public sealed class GameState : IScriptWorld
         Party = new Party(Items, Flags);
         _saves = new CharacterSaves(plugins, Rules, Items, Flags, _problems);
         Minimaps = new MinimapSeen(plugins);
-        _problems.AddRange(Rules.Magic?.Problems ?? []);
-        if (plugins.TrySingleton<WeatherRecord>() is { } weather)
-            Weather = new Weather(weather);
+        _problems.AddRange(Rules.Magic.Problems);
+        Weather = new Weather(plugins.Singleton<WeatherRecord>());
     }
 
     public PluginSet Plugins { get; }
@@ -58,16 +54,16 @@ public sealed class GameState : IScriptWorld
     /// <summary>How camping goes (<c>aidyn:camping/0</c>).</summary>
     public CampingRecord Camping => Plugins.Singleton<CampingRecord>();
 
-    /// <summary>The sounds engine code plays (<c>aidyn:sounds/0</c>), or null if no plugin has them, when nothing plays.</summary>
-    public SoundsRecord? Sounds => Plugins.TrySingleton<SoundsRecord>();
+    /// <summary>The sounds engine code plays (<c>aidyn:sounds/0</c>).</summary>
+    public SoundsRecord Sounds => Plugins.Singleton<SoundsRecord>();
 
     /// <summary>Writes the clock, rain and terrain into the flags.</summary>
     public StateFlags StateFlags { get; }
 
     public GameClock Clock { get; } = GameClock.NewGame();
 
-    /// <summary>The weather, or null if no plugin has its rules (<c>aidyn:weather/0</c>), when it stays clear.</summary>
-    public Weather? Weather { get; }
+    /// <summary>The weather, by its rules (<c>aidyn:weather/0</c>).</summary>
+    public Weather Weather { get; }
 
     /// <summary>Time played, in 60 Hz ticks (<c>TerrainStruct.PlayTime</c>).</summary>
     public uint PlayTime { get; set; }
@@ -110,18 +106,17 @@ public sealed class GameState : IScriptWorld
 
     /// <summary>
     /// A new game (<c>init_DBs</c>): the flags' initial values, noon on day 2 of week 6, and the new game record's leader,
-    /// Alaron, alone with its gold, 1, wearing what his record gives him. Without the record (plugins from an older
-    /// import), Alaron and 1 gold.
+    /// Alaron, alone with its gold, 1, wearing what his record gives him.
     /// </summary>
     public static GameState NewGame(PluginSet plugins)
     {
         var game = new GameState(plugins) { Label = "New game" };
-        game.Weather?.NewGame(game.Clock, game.Terrain(0), game.Random.World, game.Random.Cosmetic);
+        game.Weather.NewGame(game.Clock, game.Terrain(0), game.Random.World, game.Random.Cosmetic);
         game.WriteStateFlags();
-        var start = plugins.TrySingleton<NewGameRecord>();
-        if (game.Recruit(start?.Leader ?? Alaron) is { } leader)
+        var start = plugins.Singleton<NewGameRecord>();
+        if (game.Recruit(start.Leader) is { } leader)
             game.Party.Add(leader);
-        game.Party.Gold = start?.Gold ?? NewGameGold;
+        game.Party.Gold = start.Gold;
         return game;
     }
 
@@ -173,14 +168,11 @@ public sealed class GameState : IScriptWorld
 
         // The weather sees the loaded time's part of the day, so the first frame doesn't roll, and the first terrain
         // without a roll. A save without the weather keeps its rain flags until the weather next changes.
-        if (game.Weather is { } now)
+        game.Weather.PartOfDay = game.Clock.Date.PartOfDay;
+        if (save.Weather is { } weather)
         {
-            now.PartOfDay = game.Clock.Date.PartOfDay;
-            if (save.Weather is { } weather)
-            {
-                game.LoadWeather(now, weather);
-                game.WriteStateFlags();
-            }
+            game.LoadWeather(game.Weather, weather);
+            game.WriteStateFlags();
         }
 
         if (save.Random is { } random)
@@ -217,10 +209,8 @@ public sealed class GameState : IScriptWorld
             Twinkle = Random.Twinkle.Seed,
         },
         Minimaps = Minimaps.Save(),
-        Weather = Weather is { } w
-            ? new SaveWeather(w.Kind.ToString(), w.Precipitation.ToString(), w.Intensity, w.Fog, w.Storm, w.Wind, w.Falling.ToString(),
-                w.FallIntensity, w.FogTime)
-            : null,
+        Weather = new SaveWeather(Weather.Kind.ToString(), Weather.Precipitation.ToString(), Weather.Intensity, Weather.Fog, Weather.Storm,
+            Weather.Wind, Weather.Falling.ToString(), Weather.FallIntensity, Weather.FogTime),
     };
 
     private void LoadWeather(Weather weather, SaveWeather saved)
@@ -273,19 +263,16 @@ public sealed class GameState : IScriptWorld
     /// 30 fps frame (<see cref="Cadence.FrameTicks"/>), as the original's <c>TrekLoop.TickClock</c> does once a drawn frame:
     /// a worn Ring of Healing heals.
     /// </summary>
-    private int _effectTicks;
+    private readonly FrameGate _effectFrame = new(Cadence.FrameTicks);
 
     public void PassTime(int ticks)
     {
         Clock.Step(ticks);
-        _effectTicks += ticks;
-        var frame = _effectTicks >= Cadence.FrameTicks;
-        if (frame)
-            _effectTicks = 0;
+        var frame = _effectFrame.Tick(ticks) > 0;
         foreach (var member in Party.Members)
             member.AgeEffects(ticks, frame, Clock.Date.PartOfDay, Random.Combat);
         for (var i = 0; i < ticks; i++)
-            Weather?.Tick(Clock.Date.PartOfDay, Clock.Date.Season, Terrain(Weather.Terrain), Random.World, Random.Cosmetic);
+            Weather.Tick(Clock.Date.PartOfDay, Clock.Date.Season, Terrain(Weather.Terrain), Random.World, Random.Cosmetic);
         WriteStateFlags();
     }
 
@@ -295,11 +282,8 @@ public sealed class GameState : IScriptWorld
     /// </summary>
     public void EnterTerrain(int terrain)
     {
-        if (Weather is { } weather)
-        {
-            weather.SetTerrain(terrain);
-            weather.Frame(Clock.Date.PartOfDay, Clock.Date.Season, Terrain(terrain), Random.World, Random.Cosmetic);
-        }
+        Weather.SetTerrain(terrain);
+        Weather.Frame(Clock.Date.PartOfDay, Clock.Date.Season, Terrain(terrain), Random.World, Random.Cosmetic);
         WriteStateFlags();
         StateFlags.SetTerrain(terrain);
     }
@@ -312,7 +296,7 @@ public sealed class GameState : IScriptWorld
     private void WriteStateFlags()
     {
         StateFlags.SetTime(Clock);
-        StateFlags.SetRain((int)(Weather?.Precipitation ?? Precipitation.None));
+        StateFlags.SetRain((int)Weather.Precipitation);
     }
 
     /// <summary>
@@ -322,7 +306,7 @@ public sealed class GameState : IScriptWorld
     public void Lapse(int hours)
     {
         Clock.Time = (uint)((Clock.Time + (ulong)hours * GameClock.Hour) % GameClock.Year);
-        Weather?.Frame(Clock.Date.PartOfDay, Clock.Date.Season, Terrain(Weather.Terrain), Random.World, Random.Cosmetic);
+        Weather.Frame(Clock.Date.PartOfDay, Clock.Date.Season, Terrain(Weather.Terrain), Random.World, Random.Cosmetic);
         WriteStateFlags();
     }
 
@@ -338,7 +322,7 @@ public sealed class GameState : IScriptWorld
     public void AdvanceTurn()
     {
         Clock.Time = (uint)((Clock.Time + (ulong)TurnTime) % GameClock.Year);
-        Weather?.Frame(Clock.Date.PartOfDay, Clock.Date.Season, Terrain(Weather.Terrain), Random.World, Random.Cosmetic);
+        Weather.Frame(Clock.Date.PartOfDay, Clock.Date.Season, Terrain(Weather.Terrain), Random.World, Random.Cosmetic);
         WriteStateFlags();
     }
 
@@ -505,7 +489,7 @@ public sealed class GameState : IScriptWorld
     public void WakeNextMorning()
     {
         Clock.Time = (uint)((Clock.Time - Clock.Time % GameClock.Day + GameClock.Day + 6 * (ulong)GameClock.Hour) % GameClock.Year);
-        Weather?.Frame(Clock.Date.PartOfDay, Clock.Date.Season, Terrain(Weather.Terrain), Random.World, Random.Cosmetic);
+        Weather.Frame(Clock.Date.PartOfDay, Clock.Date.Season, Terrain(Weather.Terrain), Random.World, Random.Cosmetic);
         WriteStateFlags();
     }
 

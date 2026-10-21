@@ -16,18 +16,12 @@ public readonly record struct EffectAgeing(int Damage, int Healed, bool Died);
 // records at entity+0x34 and 7 potion records at entity+0x38, with what adds, ages and removes them in entity.cpp.
 public sealed partial class Character
 {
-    /// <summary>How many potions' effects a character holds at once, without the magic record (<c>POTION_FXMAX</c>).</summary>
-    public const int PotionSlots = 7;
-
-    /// <summary>How many spells' effects a character holds at once, without the magic record.</summary>
-    public const int SpellSlots = 15;
-
     private ActiveEffect?[]? _spellEffects;
     private ActiveEffect?[]? _potionEffects;
 
-    private ActiveEffect?[] SpellEffectSlots => _spellEffects ??= new ActiveEffect?[Rules.Magic?.Record.SpellEffects ?? SpellSlots];
+    private ActiveEffect?[] SpellEffectSlots => _spellEffects ??= new ActiveEffect?[Rules.Magic.Record.SpellEffects];
 
-    private ActiveEffect?[] PotionEffectSlots => _potionEffects ??= new ActiveEffect?[Rules.Magic?.Record.PotionEffects ?? PotionSlots];
+    private ActiveEffect?[] PotionEffectSlots => _potionEffects ??= new ActiveEffect?[Rules.Magic.Record.PotionEffects];
 
     /// <summary>The spells' effects on it and its worn enchantments, by slot.</summary>
     public IReadOnlyList<ActiveEffect> Effects => [.. SpellEffectSlots.OfType<ActiveEffect>()];
@@ -100,7 +94,7 @@ public sealed partial class Character
     /// </summary>
     public ActiveEffect? ApplyPotionEffect(RecordId potion, int power, uint timer)
     {
-        var effects = Rules.Magic?.Potion(potion)?.Effects?.Where(EffectRules.Lasting).ToList() ?? [];
+        var effects = Rules.Magic.Potion(potion)?.Effects?.Where(EffectRules.Lasting).ToList() ?? [];
         return AddEffect(potion, effects, power, MagicSchool.None, 0, timer, null, null, null);
     }
 
@@ -127,7 +121,7 @@ public sealed partial class Character
     {
         if (IsDead)
             return default;
-        var round = Rules.Magic?.Record.RoundTicks ?? 600;
+        var round = Rules.Magic.Record.RoundTicks;
         var potions = PotionEffectSlots;
         foreach (var potion in potions.OfType<ActiveEffect>().ToList())
         {
@@ -167,7 +161,7 @@ public sealed partial class Character
     /// </summary>
     public void EndBattleEffects(IMagicHost? host = null)
     {
-        var kept = Rules.Magic?.Record.KeptAfterBattle ?? [];
+        var kept = Rules.Magic.Record.KeptAfterBattle;
         foreach (var potion in PotionEffects.Where(p => !kept.Contains(p.Source)))
             RemoveEffect(potion, null, host);
         foreach (var effect in Effects)
@@ -199,7 +193,7 @@ public sealed partial class Character
     /// <param name="start">Whether its effects change the sheet, or the sheet counts them already (a checkpoint's).</param>
     internal void PutOnEnchantment(ItemInstance? item, bool start = true)
     {
-        if (item?.Item.Bonuses.Enchantment is not { } enchantment || Rules.Magic?.Spell(enchantment.Spell) is not { } spell)
+        if (item?.Item.Bonuses.Enchantment is not { } enchantment || Rules.Magic.Spell(enchantment.Spell) is not { } spell)
             return;
         var effects = (spell.Effects ?? []).Where(e => EffectRules.Lasting(e) && e.For != EffectFor.Opponents).ToList();
         AddEffect(spell.Id, effects, enchantment.Level, spell.School, enchantment.Level, ActiveEffect.Never, null, null, null, worn: true, start);

@@ -113,8 +113,8 @@ public sealed class CharacterRules
 
     public ProgressionRecord Progression { get; }
 
-    /// <summary>What spells, potions and enchantments are made of, or null without the magic record, when they do nothing.</summary>
-    public Magic.MagicRules? Magic { get; init; }
+    /// <summary>What spells, potions and enchantments are made of.</summary>
+    public required Magic.MagicRules Magic { get; init; }
 
     public StatRecord this[Stat stat] => Stats[(int)stat];
 

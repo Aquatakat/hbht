@@ -154,7 +154,7 @@ public partial class ChunkStreamerView : Node3D
         var corner = set.Origin(centre.Row, centre.Column).ToGodot();
         var eye = new System.Numerics.Vector2(camera.X - corner.X, camera.Z - corner.Z);
         var flat = new System.Numerics.Vector2(look.X, look.Z);
-        flat = flat == default ? System.Numerics.Vector2.UnitX : System.Numerics.Vector2.Normalize(flat);
+        flat = SafeNormalize.Of(flat, System.Numerics.Vector2.UnitX);
         var cell = new System.Numerics.Vector2(set.CellSize);
         var forced = _loaded.Keys.FirstOrDefault(m => m.Key == centre)?.Record.DrawnNeighbours ?? Neighbours.None;
         foreach (var (map, scenery) in _loaded)

@@ -44,6 +44,9 @@ public static class Cadence
     /// </summary>
     public const int MenuFrameTicks = 1;
 
+    /// <summary>The ticks in <paramref name="frames"/> of the default frame, <see cref="FrameTicks"/> each.</summary>
+    public static int Frames(int frames) => frames * FrameTicks;
+
     /// <summary>An amount added once a frame, spread evenly over the frame's ticks.</summary>
     public static float PerTick(float perFrame) => perFrame / FrameTicks;
 

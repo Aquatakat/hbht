@@ -20,8 +20,6 @@ namespace Aidyn.Core.Sky;
 /// </remarks>
 public sealed class SkyObjects(SkyRecord sky)
 {
-    private const float Deg = MathF.PI / 180;
-
     /// <summary>Each star's grey, 160 to 255, as its last twinkle drew it (<see cref="Twinkle"/>).</summary>
     private readonly byte[] _greys = new byte[sky.Stars.Count];
 
@@ -74,7 +72,7 @@ public sealed class SkyObjects(SkyRecord sky)
         if (Night(timeOfDay))
         {
             // Brighter the lower the sun.
-            var night = MathF.Sin(-sunHeight * Deg);
+            var night = MathF.Sin(Degrees.ToRadians(-sunHeight));
             for (var i = 0; i < sky.Stars.Count; i++)
             {
                 var star = sky.Stars[i];
@@ -153,10 +151,10 @@ public sealed class SkyObjects(SkyRecord sky)
 
     private static (float SinA, float CosA, float SinE, float CosE) Angles(float height, float azimuth, bool moon)
     {
-        var sway = moon ? MathF.Sin(height * Deg) * 40 : 0;
+        var sway = moon ? MathF.Sin(Degrees.ToRadians(height)) * 40 : 0;
         var a = height <= 90 || height >= 270 ? azimuth + sway : azimuth + 180 - sway;
-        var (sa, ca) = MathF.SinCos(a * Deg);
-        var (se, ce) = MathF.SinCos(-(MathF.Sin(height * Deg) * 90) * Deg);
+        var (sa, ca) = MathF.SinCos(Degrees.ToRadians(a));
+        var (se, ce) = MathF.SinCos(Degrees.ToRadians(-(MathF.Sin(Degrees.ToRadians(height)) * 90)));
         return (sa, ca, se, ce);
     }
 

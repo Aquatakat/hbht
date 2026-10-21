@@ -24,6 +24,15 @@ public sealed class FrameGate(int frameTicks)
         return true;
     }
 
+    /// <summary>Several ticks at once, as <see cref="Tick()"/> counts them: how many frames they end, none to as many as they cover.</summary>
+    public int Tick(int ticks)
+    {
+        _ticks += ticks;
+        var frames = _ticks / frameTicks;
+        _ticks %= frameTicks;
+        return frames;
+    }
+
     /// <summary>Starts the frame again, as the first of its ticks next.</summary>
     public void Reset() => _ticks = 0;
 }

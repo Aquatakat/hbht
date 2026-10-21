@@ -179,9 +179,10 @@ public partial class Game
         var maps = _plugins.All<MapRecord>(RecordTypes.Map).ToList();
         foreach (var map in maps)
         {
-            if (map.Objects.OfType<DialogueObject>().FirstOrDefault(d => d.Script == script && d.Stage is not null) is { } dialogue)
+            if (map.Objects.OfType<DialogueObject>().FirstOrDefault(d => d.Script == script && d.Stage is not null) is { } dialogue
+                && CutSceneLaunch.Of(record, dialogue, MapRecord.VoxelId(map.Id, dialogue.Index)) is { } launch)
             {
-                _session!.Cue(record, new ScriptStart(dialogue.RefPointBase, MapRecord.VoxelId(map.Id, dialogue.Index)), dialogue.Stage!);
+                _session!.Cue(launch);
                 return;
             }
         }

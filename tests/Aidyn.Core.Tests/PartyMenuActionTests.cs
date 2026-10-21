@@ -189,7 +189,7 @@ public class PotionTests
         var member = PotionData.Member("Alaron");
         foreach (var potion in Enumerable.Repeat(BasePotion.Defence, 9))
             member.ApplyPotionEffect(PotionId(potion), 0, 100);
-        Assert.Equal(Character.PotionSlots, member.PotionEffects.Count);
+        Assert.Equal(MagicData.Record.PotionEffects, member.PotionEffects.Count);
 
         member.TakeDamage(1000);
         member.AgeEffects(1000);

@@ -92,7 +92,7 @@ public sealed partial class FollowCamera
         var reach = from.Length();
         if (reach > 1e-6f && to.LengthSquared() > 1e-12f)
         {
-            var turned = Facing.Turn(from, to, MathF.PI / 180) * reach;
+            var turned = Facing.Turn(from, to, Degrees.ToRadians(1)) * reach;
             Position.X = Aim.X + turned.X;
             Position.Z = Aim.Z + turned.Y;
         }
@@ -104,7 +104,7 @@ public sealed partial class FollowCamera
             && SpherePhysics.Sweep(world, Aim, PositionGoal, 0.25f, skipSeeThrough: true, out _, out _))
         {
             _rescueWait = InteriorRescueTicks;
-            var way = back.LengthSquared() > 1e-12f ? Vector2.Normalize(back) : Vector2.Zero;
+            var way = SafeNormalize.Above(back, 1e-12f);
             var behind = new Vector3(AimGoal.X + behindBy * way.X, PositionGoal.Y, AimGoal.Z + behindBy * way.Y);
             PositionGoal = SpherePhysics.Sweep(world, Aim, behind, 0.25f, skipSeeThrough: true, out var stop, out _) ? stop : behind;
         }

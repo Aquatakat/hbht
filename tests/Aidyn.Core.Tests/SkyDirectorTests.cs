@@ -75,7 +75,7 @@ public sealed class SkyDirectorTests : IDisposable
     }
 
     private SkyDirector Director(GameClock? clock = null, Weather? weather = null, IRandom? twinkle = null) =>
-        new(_plugins, clock ?? At(12), weather, twinkle ?? new Lcg());
+        new(_plugins, clock ?? At(12), weather ?? new Weather(WeatherTests.Rules), twinkle ?? new Lcg());
 
     private static Weather Weather() => new(WeatherTests.Rules with { RainSky = Image(Rain) });
 

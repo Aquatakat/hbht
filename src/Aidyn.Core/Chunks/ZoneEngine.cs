@@ -49,8 +49,8 @@ public sealed class ZoneEngine
         Chunks = chunks;
         Particles = particles;
         _shared = shared;
-        if (particles is not null && game.Weather is { } weather)
-            Precipitation = new WeatherParticles(particles, weather.Rules, game.Random.Cosmetic, () => Camera?.Aim ?? default,
+        if (particles is not null)
+            Precipitation = new WeatherParticles(particles, game.Weather.Rules, game.Random.Cosmetic, () => Camera?.Aim ?? default,
                 () => Camera?.LookXZ ?? Vector2.UnitX, () => Chunks.Visible, part);
         Lights = new WorldLights(game.Random.Cosmetic) { World = chunks.World };
         // What a mode keeps of its own hears of a chunk first, then the chunk's sounds and lights.
@@ -141,8 +141,7 @@ public sealed class ZoneEngine
     /// <param name="emitters">The rain's and snow's particles about the view: <see cref="Precipitation"/>, or none.</param>
     public void StepWeather(bool skyDrawn, IPrecipitationEmitters? emitters)
     {
-        if (Game.Weather is not { } weather)
-            return;
+        var weather = Game.Weather;
         if (_shared.SkyFrame.Tick())
         {
             weather.SkyFrame(skyDrawn, Game.Random.Cosmetic);
@@ -193,8 +192,20 @@ public sealed class ZoneEngine
         World.Clear();
         Visible?.Clear();
         Sounds.Clear();
-        Game.Weather?.Forget(Precipitation);
+        Game.Weather.Forget(Precipitation);
         Precipitation?.Clear();
+    }
+
+    /// <summary>
+    /// The zone engine starts again on another map set, as a teleport to one or a kept place in one does: the chunks change, with
+    /// the collision and drawn surfaces they filled, and the dynamic lights go (<c>FreeZoneEngine</c>, <c>DynamicLights.FreeAll</c>).
+    /// </summary>
+    public void ChangeMapSet(MapSetRecord set)
+    {
+        Chunks.Change(set);
+        World.Clear();
+        Visible?.Clear();
+        Lights.Dynamic.Clear();
     }
 
     /// <summary>
@@ -204,7 +215,7 @@ public sealed class ZoneEngine
     /// </summary>
     public void End()
     {
-        Game.Weather?.Forget(Precipitation);
+        Game.Weather.Forget(Precipitation);
         Precipitation?.Clear();
         Particles?.Clear();
         Free();

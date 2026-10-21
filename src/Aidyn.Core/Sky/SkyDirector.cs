@@ -30,36 +30,27 @@ public sealed class SkyDirector
     private ChunkEntry? _entered;
     /// <summary>The sky of the terrain last entered (<c>Weather.Data</c> + 0x10), and the rain sky.</summary>
     private SkyGradient? _terrain, _rain;
-    private bool _toldNoSky;
 
     /// <param name="clock">The game's clock: the sky shows its time of day, and the moon its date.</param>
-    /// <param name="weather">
-    /// The game's weather, which sets the fog, blows the clouds, brings the rain sky and flashes lightning; none leaves them as
-    /// a new game has them.
-    /// </param>
+    /// <param name="weather">The game's weather, which sets the fog, blows the clouds, brings the rain sky and flashes lightning.</param>
     /// <param name="twinkle">The stars' own stream (<see cref="RandomStreams.Twinkle"/>).</param>
-    public SkyDirector(PluginSet plugins, GameClock clock, Weather? weather, IRandom twinkle)
+    public SkyDirector(PluginSet plugins, GameClock clock, Weather weather, IRandom twinkle)
     {
         _plugins = plugins;
         _twinkle = twinkle;
         Clock = clock;
         Weather = weather;
-        if (plugins.TrySingleton<SkyRecord>() is { } sky)
-        {
-            Objects = new SkyObjects(sky);
-            Clouds = new Clouds(sky);
-            Flare = new LensFlare(sky);
-        }
-        if (weather is not null)
-        {
-            weather.SkyChange += ChangeSky;
-            _rain = weather.Rules.RainSky is { } rain ? Gradient(rain) : null;
-        }
+        var sky = plugins.Singleton<SkyRecord>();
+        Objects = new SkyObjects(sky);
+        Clouds = new Clouds(sky);
+        Flare = new LensFlare(sky);
+        weather.SkyChange += ChangeSky;
+        _rain = weather.Rules.RainSky is { } rain ? Gradient(rain) : null;
     }
 
     public GameClock Clock { get; }
 
-    public Weather? Weather { get; }
+    public Weather Weather { get; }
 
     /// <summary>Which sky is up, and the one it's changing to.</summary>
     public SkyState State { get; } = new();
@@ -67,14 +58,14 @@ public sealed class SkyDirector
     /// <summary>Whether the sky is drawn behind the scenery, an outdoor sky's: the original's sky type 3, not 4.</summary>
     public bool Drawn => State.Drawn;
 
-    /// <summary>The sun, moon and stars, or none without a sky record.</summary>
-    public SkyObjects? Objects { get; }
+    /// <summary>The sun, moon and stars.</summary>
+    public SkyObjects Objects { get; }
 
-    /// <summary>The clouds, or none without a sky record.</summary>
-    public Clouds? Clouds { get; }
+    /// <summary>The clouds.</summary>
+    public Clouds Clouds { get; }
 
-    /// <summary>The lens flare, or none without a sky record.</summary>
-    public LensFlare? Flare { get; }
+    /// <summary>The lens flare.</summary>
+    public LensFlare Flare { get; }
 
     /// <summary>Where a problem goes, such as a terrain with no sky: whoever's watching the log. The session sets it.</summary>
     public Action<string> Warn { get; set; } = _ => { };
@@ -99,25 +90,25 @@ public sealed class SkyDirector
     public bool CutScene { get; set; }
 
     /// <summary>How thick the weather's fog is, 0 to 1 (<c>fogTime</c>), as the weather has it.</summary>
-    public float FogTime => Weather?.FogTime ?? 0;
+    public float FogTime => Weather.FogTime;
 
     /// <summary>Whether lightning flashes this frame (<see cref="Weather.Flash"/>): the backdrop is white.</summary>
-    public bool Flash => Weather?.Flash == true && State.Drawn;
+    public bool Flash => Weather.Flash && State.Drawn;
 
     /// <summary>How much the lens flare darkens the scenery and lifts the sky, from the last frame.</summary>
-    public float LensFlareValue => Flare?.Value ?? 0;
+    public float LensFlareValue => Flare.Value;
 
     /// <summary>The way to the moon while it's up, which lights bodies (<see cref="SkyLight.MoonDirection"/>), else null.</summary>
-    public Vector3? Moon => SkyLight.MoonDirection(TimeOfDay, Objects?.MoonAzimuth ?? 0) is { Y: > 0 } moon ? moon : null;
+    public Vector3? Moon => SkyLight.MoonDirection(TimeOfDay, Objects.MoonAzimuth) is { Y: > 0 } moon ? moon : null;
 
     /// <summary>How the sky places the clouds, sun, moon and stars across the screen: the settings' (F6).</summary>
     public SkyPlacement Placement
     {
-        get => Objects?.Placement ?? SkyPlacement.Projected;
+        get => Objects.Placement;
         set
         {
-            Objects?.Placement = value;
-            Clouds?.Placement = value;
+            Objects.Placement = value;
+            Clouds.Placement = value;
         }
     }
 
@@ -153,11 +144,6 @@ public sealed class SkyDirector
         var first = _chunk is null;
         _chunk = (chunk.Row, chunk.Column);
         _entered = chunk;
-        if (Objects is null && !_toldNoSky)
-        {
-            _toldNoSky = true;
-            Warn("No sky record: no sun, moon, stars, clouds or lens flare.");
-        }
         if (TerrainRecord.Find(_plugins, chunk.Terrain) is not { } terrain ||
             Gradient(terrain.Sky) is not { } gradient)
         {
@@ -196,14 +182,10 @@ public sealed class SkyDirector
     public void Step()
     {
         State.Step();
-        if (Clouds is not null && Weather is not null)
-            Clouds.Wind = Weather.Wind;
-        Clouds?.Step();
-        if (Flare is not null && Objects is not null)
-        {
-            var sun = Objects.SunMiddle;
-            Flare.Step(sun, SkyShows?.Invoke(sun) ?? false, Colors.Tint.X, State.Drawn);
-        }
+        Clouds.Wind = Weather.Wind;
+        Clouds.Step();
+        var sun = Objects.SunMiddle;
+        Flare.Step(sun, SkyShows?.Invoke(sun) ?? false, Colors.Tint.X, State.Drawn);
         Apply();
     }
 
@@ -215,7 +197,7 @@ public sealed class SkyDirector
     {
         if (!_twinkleFrame.Tick())
             return;
-        if (Objects is not null && State is { Current: not null, Drawn: true })
+        if (State is { Current: not null, Drawn: true })
             Objects.Twinkle(_twinkle, TimeOfDay);
     }
 

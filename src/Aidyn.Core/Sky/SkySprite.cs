@@ -69,7 +69,7 @@ public static class SkyScreen
     /// the look: 120 / tan 22.5°, for the Borg3 cameras' 45° field of view. It's within 4% of
     /// <see cref="Spread"/>, so the two agree in the middle of the screen and part toward the edges.
     /// </summary>
-    public static readonly float Focal = Middle.Y / MathF.Tan(22.5f * MathF.PI / 180);
+    public static readonly float Focal = Middle.Y / MathF.Tan(Degrees.ToRadians(22.5f));
 
     /// <summary>
     /// Where perspective puts a direction on the screen, as it puts the scenery, for a camera that

@@ -23,6 +23,11 @@ internal static class MagicData
         new ResistRoll(3, 1, 1, 0.75f, 1.25f), RoundTicks: 600, MostDisabled: 2, Improvement: 0.1f, MaxLevel: 10,
         KeptAfterBattle: [PotionId(BasePotion.Stealth)]);
 
+    /// <summary>The inventory's record, with the reagents' items.</summary>
+    public static readonly InventoryRecord Inventory = new(RecordId.Decimal(RecordTypes.Inventory, 0), StackLimit: 99, GeneralSlots: 20,
+        Spice: RecordId.Hex(RecordTypes.Item, 0x1101), Herb: RecordId.Hex(RecordTypes.Item, 0x1102), Gemstone: RecordId.Hex(RecordTypes.Item, 0x1103),
+        DefaultIcon: RecordId.Hex(RecordTypes.Image, 0), MerchantStep: 0.1f, SellShare: 0.5f, Refused: [], Replaced: [], FirstPotionFlag: Flag(1));
+
     public static SpellRecord Spell(int id, string name, MagicSchool school, IReadOnlyList<Effect> effects, EffectDuration? duration = null,
         SpellTargetType type = SpellTargetType.Party, SpellTargetCount count = SpellTargetCount.ByLevel, Resisted resisted = Resisted.Never,
         int stamina = 6, Reagent reagent = Reagent.Spice, int? ai = null, int position = 0, SpellSpecial special = SpellSpecial.None) =>
@@ -121,5 +126,5 @@ internal static class MagicData
         _ => PotionUse.DrinkInTrek | PotionUse.DrinkInBattle,
     };
 
-    public static readonly MagicRules Rules = new(Record, Spells, Enum.GetValues<BasePotion>().Select(PotionData.Of));
+    public static readonly MagicRules Rules = new(Record, Spells, Enum.GetValues<BasePotion>().Select(PotionData.Of), Inventory);
 }

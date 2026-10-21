@@ -191,11 +191,7 @@ public sealed class LaunchOptions(Dictionary<string, string> values)
     /// </summary>
     public static void ForceWeather(GameState game, string text)
     {
-        if (game.Weather is not { } weather)
-        {
-            GD.PushWarning("No weather record: --weather does nothing.");
-            return;
-        }
+        var weather = game.Weather;
         // The part of the day as it is, so the next frame doesn't roll.
         weather.PartOfDay = game.Clock.Date.PartOfDay;
         var parts = text.Split(',');

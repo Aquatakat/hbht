@@ -269,7 +269,7 @@ public sealed class Weather
                 random.Between(-_rules.WindTurn, _rules.WindTurn),
                 random.Between(_rules.WindRise.Min, _rules.WindRise.Max),
                 random.Between(-_rules.WindTurn, _rules.WindTurn));
-            direction = Normalise(direction);
+            direction = SafeNormalize.Of(direction);
         }
         if (random.Float(1) <= _rules.WindChance)
         {
@@ -422,5 +422,4 @@ public sealed class Weather
         FogTime = Fog;
     }
 
-    private static Vector3 Normalise(Vector3 v) => v.Length() is var length and > 0 ? v / length : v;
 }

@@ -414,7 +414,7 @@ public sealed class WeatherParticles : IPrecipitationEmitters
             }
             var fall = head[e.Head].Vector;
             var way = new Vector3(fall.X, fall.Y, fall.Z);
-            way = way == Vector3.Zero ? -Vector3.UnitY : Vector3.Normalize(way);
+            way = SafeNormalize.Of(way, -Vector3.UnitY);
             if (_owner._world() is not { } world
                 || !world.Raycast(p.Position - way * LandingReach, p.Position + way * LandingReach, out var point, out var normal, out var absorbs, _owner._part())
                 || Splashes is not { } splashes)
