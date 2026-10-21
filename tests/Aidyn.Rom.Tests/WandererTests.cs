@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Numerics;
 using Aidyn.Core;
+using Aidyn.Core.Chunks;
 using Aidyn.Core.MapObjects;
 using Aidyn.Core.Movement;
 using Aidyn.Core.Physics;
@@ -19,6 +20,9 @@ public sealed class WandererTests(Na10Import fixture)
     private static readonly ConcurrentDictionary<string, IReadOnlyList<CollisionTriangle>> Collisions = new();
 
     private static readonly RecordId Overworld = RecordId.Parse("aidyn:mapset/0");
+
+    /// <summary>A chunk of another map set, for a player no wanderer shares a chunk with.</summary>
+    private static readonly ChunkKey Far = Worlds.Chunk(mapSet: 1);
 
     private Na10Import.Loaded Data => fixture.Data;
 
@@ -52,8 +56,9 @@ public sealed class WandererTests(Na10Import fixture)
         game ??= GameState.NewGame(Data.Set);
         world ??= new CollisionWorld();
         wanderers ??= new Wanderers(Data.Set);
-        world.Add(map.Id, Collision(map), origin);
-        var loaded = LoadedMap.Activate(map, map.Id, game.Flags, game.Memory, game.Party, new Lcg(), origin);
+        var key = new ChunkKey(Set.Id, row, column);
+        world.Add(key, Collision(map), origin);
+        var loaded = LoadedMap.Activate(map, key, game.Flags, game.Memory, game.Party, new Lcg(), origin);
         var added = wanderers.Load(loaded, Set.CellSize, world, game.Memory);
         return new Loaded { Map = map, Chunk = loaded, World = world, Wanderers = wanderers, Added = added, Game = game };
     }
@@ -203,7 +208,7 @@ public sealed class WandererTests(Na10Import fixture)
             var ticks = 0;
             while (w.Body.Steered && ticks < 2000)
             {
-                wanderers.Step(fresh.World, player, player.Position, "far", w.Body.Sphere.Position, _ => motion);
+                wanderers.Step(fresh.World, player, player.Position, Far, w.Body.Sphere.Position, _ => motion);
                 ticks++;
             }
             var distance = Vector2.Distance(new Vector2(w.Body.Sphere.Position.X, w.Body.Sphere.Position.Z), w.Goal);
@@ -259,7 +264,7 @@ public sealed class WandererTests(Na10Import fixture)
             {
                 var aim = wanderers.All[tick / 600].Body.Sphere.Position;
                 Assert.Empty(wanderers.Tick(world, player.Position, Body.Walk, null, random));
-                wanderers.Step(world, player, player.Position, "far", aim, _ => motion);
+                wanderers.Step(world, player, player.Position, Far, aim, _ => motion);
                 foreach (var w in wanderers.All)
                 {
                     Assert.False(w.Chasing, $"{w.Map.Record.Id} party {w.Party.Index} chases at tick {tick}");
@@ -326,7 +331,7 @@ public sealed class WandererTests(Na10Import fixture)
         for (var tick = 0; tick < 1500 && !ambushed; tick++)
         {
             ambushed = wanderers.Tick(world, sphere.Position, Body.Walk, game.Party, new Lcg()).Contains(hunter);
-            wanderers.Step(world, sphere, sphere.Position, "far", sphere.Position, _ => motion);
+            wanderers.Step(world, sphere, sphere.Position, Far, sphere.Position, _ => motion);
         }
         Assert.True(ambushed);
         Assert.False(hunter.Hunts);
@@ -350,7 +355,7 @@ public sealed class WandererTests(Na10Import fixture)
         foreach (var entry in Set.Chunks)
         {
             var map = Data.Set.Get<MapRecord>(entry.Map);
-            var loaded = LoadedMap.Activate(map, map.Id, game.Flags, game.Memory, game.Party, new Lcg(), Set.Origin(entry.Row, entry.Column));
+            var loaded = LoadedMap.Activate(map, ChunkKey.Of(Set, entry), game.Flags, game.Memory, game.Party, new Lcg(), Set.Origin(entry.Row, entry.Column));
             counts[(entry.Row, entry.Column)] = map.Objects.OfType<MonsterPartyObject>().Count(p => loaded.IsActive(p.Index) && HasMovingHome(map, p));
         }
 

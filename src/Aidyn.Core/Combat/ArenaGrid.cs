@@ -1,4 +1,5 @@
 using System.Numerics;
+using Aidyn.Core.Chunks;
 using Aidyn.Core.Physics;
 using Aidyn.Plugins.Records;
 
@@ -73,7 +74,7 @@ public sealed class ArenaGrid
     /// </summary>
     /// <param name="origin">Where the arena chunk's coordinates start.</param>
     /// <param name="part">The arena chunk's key in the collision, so that only its triangles count, as the original's.</param>
-    public void Fill(CollisionWorld world, Vector3 origin, object? part)
+    public void Fill(CollisionWorld world, Vector3 origin, ChunkKey? part)
     {
         for (var z = 0; z < Depth; z++)
         {

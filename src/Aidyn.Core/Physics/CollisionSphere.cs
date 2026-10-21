@@ -1,4 +1,5 @@
 using System.Numerics;
+using Aidyn.Core.Chunks;
 
 namespace Aidyn.Core.Physics;
 
@@ -40,5 +41,5 @@ public sealed class CollisionSphere
     /// The trigger triangles it touched on the last step, each once: the key of the part each is in,
     /// and the object it runs (<c>check_trigger</c>, which the original's default callback calls).
     /// </summary>
-    public HashSet<(object Part, int Target)> Trod { get; } = [];
+    public HashSet<(ChunkKey Part, int Target)> Trod { get; } = [];
 }

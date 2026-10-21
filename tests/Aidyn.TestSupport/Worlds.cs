@@ -1,6 +1,8 @@
 using System.Numerics;
+using Aidyn.Core.Chunks;
 using Aidyn.Core.Movement;
 using Aidyn.Core.Physics;
+using Aidyn.Plugins;
 using Aidyn.Plugins.Assets;
 
 namespace Aidyn.TestSupport;
@@ -10,6 +12,15 @@ public static class Worlds
 {
     /// <summary>Grass: a surface that keeps no velocity on contact, like most ground.</summary>
     public const int Grass = 4;
+
+    /// <summary>
+    /// A key to put a part of a test world under: chunk (0, <paramref name="column"/>) of map set <paramref name="mapSet"/>.
+    /// The worlds built here put theirs at columns from <see cref="OwnParts"/>, so a test can add its own beside them.
+    /// </summary>
+    public static ChunkKey Chunk(int column = 0, int mapSet = 0) => new(RecordId.Decimal(RecordTypes.MapSet, mapSet), 0, column);
+
+    /// <summary>The first column the worlds built here put their parts at.</summary>
+    public const int OwnParts = 100;
 
     public static CollisionTriangle Triangle(Vector3 a, Vector3 b, Vector3 c, int surface = Grass, CollisionFlags flags = CollisionFlags.None) =>
         new(a, b, c, surface, CollisionRole.Normal, flags);
@@ -36,9 +47,9 @@ public static class Worlds
     public static CollisionWorld Ledge(float x, float height)
     {
         var world = new CollisionWorld();
-        world.Add("ground", Floor(0, -20, x, -20, 20), Vector3.Zero);
-        world.Add("face", Wall(x, height), Vector3.Zero);
-        world.Add("top", Floor(height, x, x + 20, -20, 20), Vector3.Zero);
+        world.Add(Chunk(OwnParts), Floor(0, -20, x, -20, 20), Vector3.Zero);
+        world.Add(Chunk(OwnParts + 1), Wall(x, height), Vector3.Zero);
+        world.Add(Chunk(OwnParts + 2), Floor(height, x, x + 20, -20, 20), Vector3.Zero);
         return world;
     }
 
@@ -46,7 +57,7 @@ public static class Worlds
     public static CollisionWorld Ground(float min, float max, Vector3 origin = default)
     {
         var world = new CollisionWorld();
-        world.Add("ground", Floor(0, min, max, min, max), origin);
+        world.Add(Chunk(OwnParts), Floor(0, min, max, min, max), origin);
         return world;
     }
 
@@ -58,7 +69,7 @@ public static class Worlds
     public static CollisionWorld Flat()
     {
         var world = new CollisionWorld();
-        world.Add("ground", Floor(0, -50, 60, -50, 60), Vector3.Zero);
+        world.Add(Chunk(OwnParts), Floor(0, -50, 60, -50, 60), Vector3.Zero);
         return world;
     }
 }

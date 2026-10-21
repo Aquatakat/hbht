@@ -1,4 +1,5 @@
 using System.Numerics;
+using Aidyn.Core.Chunks;
 
 namespace Aidyn.Core.Physics;
 
@@ -11,8 +12,8 @@ internal interface IGridTriangle
 }
 
 /// <summary>
-/// The grid <see cref="CollisionWorld"/> and <see cref="VisibleWorld"/> find triangles with: parts added under a
-/// key, each binned into 4-unit cells in X and Z, and removed by that key. <see cref="Near"/> lists the triangles
+/// The grid <see cref="CollisionWorld"/> and <see cref="VisibleWorld"/> find triangles with: parts added under a chunk's
+/// key (<see cref="ChunkKey"/>), each binned into 4-unit cells in X and Z, and removed by that key. <see cref="Near"/> lists the triangles
 /// whose cells a box touches, each once, in a fixed order: parts in the order a dictionary lists them, and within
 /// a part the cells row by row (X, then Z), each cell's triangles in the order they were added. The original's
 /// sweeps take the first triangle facing them in its grid's order, so the order is behaviour.
@@ -21,7 +22,7 @@ internal sealed class TriangleGrid<T> where T : struct, IGridTriangle
 {
     private const float CellSize = 4;
 
-    private readonly Dictionary<object, Part> _parts = [];
+    private readonly Dictionary<ChunkKey, Part> _parts = [];
     private readonly HashSet<int> _seen = [];
 
     private sealed record Part(T[] Triangles, Dictionary<(int X, int Z), int[]> Cells, float MinX, float MinZ, float MaxX, float MaxZ);
@@ -29,7 +30,7 @@ internal sealed class TriangleGrid<T> where T : struct, IGridTriangle
     public int Count => _parts.Values.Sum(p => p.Triangles.Length);
 
     /// <summary>Bins <paramref name="triangles"/> under <paramref name="key"/>, in place of any already under it.</summary>
-    public void Add(object key, List<T> triangles)
+    public void Add(ChunkKey key, List<T> triangles)
     {
         var cells = new Dictionary<(int, int), List<int>>();
         float minX = float.MaxValue, minZ = float.MaxValue, maxX = float.MinValue, maxZ = float.MinValue;
@@ -54,24 +55,24 @@ internal sealed class TriangleGrid<T> where T : struct, IGridTriangle
         _parts[key] = new Part([.. triangles], cells.ToDictionary(c => c.Key, c => c.Value.ToArray()), minX, minZ, maxX, maxZ);
     }
 
-    public bool Remove(object key) => _parts.Remove(key);
+    public bool Remove(ChunkKey key) => _parts.Remove(key);
 
     public void Clear() => _parts.Clear();
 
     /// <summary>The triangles under <paramref name="key"/>, which the caller may change in place, or null.</summary>
-    public T[]? Triangles(object key) => _parts.TryGetValue(key, out var part) ? part.Triangles : null;
+    public T[]? Triangles(ChunkKey key) => _parts.TryGetValue(key, out var part) ? part.Triangles : null;
 
     /// <summary>
     /// The triangles that may touch the box from (<paramref name="minX"/>, <paramref name="minZ"/>) to
     /// (<paramref name="maxX"/>, <paramref name="maxZ"/>) in X and Z, each once, in the grid's order: of every
     /// part, or of the one added under <paramref name="only"/>. Replaces what <paramref name="into"/> held.
     /// </summary>
-    public void Near(float minX, float minZ, float maxX, float maxZ, List<T> into, object? only = null)
+    public void Near(float minX, float minZ, float maxX, float maxZ, List<T> into, ChunkKey? only = null)
     {
         into.Clear();
         foreach (var (key, part) in _parts)
         {
-            if (only is not null && !only.Equals(key))
+            if (only is { } one && one != key)
                 continue;
             if (maxX < part.MinX || minX > part.MaxX || maxZ < part.MinZ || minZ > part.MaxZ)
                 continue;

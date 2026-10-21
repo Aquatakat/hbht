@@ -37,7 +37,7 @@ public class SpherePhysicsTests
     public void WallsStopIt()
     {
         var world = Worlds.Flat();
-        world.Add("wall", Worlds.Wall(2, 3), Vector3.Zero);
+        world.Add(Worlds.Chunk(1), Worlds.Wall(2, 3), Vector3.Zero);
         var s = Sphere(new Vector3(0, 0.5f, 0));
         for (var i = 0; i < 100; i++)
         {
@@ -83,7 +83,7 @@ public class SpherePhysicsTests
     public void SweepsHitWallsFacingThem()
     {
         var world = Worlds.Flat();
-        world.Add("wall", Worlds.Wall(2, 3), Vector3.Zero);
+        world.Add(Worlds.Chunk(1), Worlds.Wall(2, 3), Vector3.Zero);
         Assert.True(SpherePhysics.Sweep(world, new Vector3(0, 1, 0), new Vector3(4, 1, 0), 0.25f, true, out var point, out var normal));
         Assert.Equal(2, point.X, 0.001f);
         Assert.Equal(-Vector3.UnitX, normal);
@@ -95,7 +95,7 @@ public class SpherePhysicsTests
     public void CameraSweepsSkipSeeThroughWalls()
     {
         var world = Worlds.Flat();
-        world.Add("wall", Worlds.Wall(2, 3, flags: CollisionFlags.SeeThrough), Vector3.Zero);
+        world.Add(Worlds.Chunk(1), Worlds.Wall(2, 3, flags: CollisionFlags.SeeThrough), Vector3.Zero);
         Assert.False(SpherePhysics.Sweep(world, new Vector3(0, 1, 0), new Vector3(4, 1, 0), 0.25f, true, out _, out _));
         Assert.True(SpherePhysics.Sweep(world, new Vector3(0, 1, 0), new Vector3(4, 1, 0), 0.25f, false, out _, out _));
     }
@@ -112,7 +112,7 @@ public class SpherePhysicsTests
     public void RemovedChunksStopColliding()
     {
         var world = Worlds.Flat();
-        Assert.True(world.Remove("ground"));
+        Assert.True(world.Remove(Worlds.Chunk(Worlds.OwnParts)));
         var s = Sphere(new Vector3(0, 0.5f, 0));
         for (var i = 0; i < 30; i++)
             SpherePhysics.Step(world, s);

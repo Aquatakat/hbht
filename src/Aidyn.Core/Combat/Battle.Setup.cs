@@ -94,7 +94,7 @@ public sealed partial class Battle
         var random = Game.Random.Combat;
         _rules = rules;
         Grid.Init(Arena.Map);
-        Grid.Fill(World, Arena.Origin, (Arena.Chunk.Row, Arena.Chunk.Column));
+        Grid.Fill(World, Arena.Origin, Chunks.ChunkKey.Of(Arena.Set, Arena.Chunk));
         var roll = CollisionByte == AmbushByte ? AmbushRoll(Game.Party, random) : 0;
 
         // Combat.CreatePartyCombatants: the living members in order, each its spawn's letter by the count so far.

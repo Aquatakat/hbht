@@ -1,4 +1,5 @@
 using System.Numerics;
+using Aidyn.Core.Chunks;
 using Aidyn.Core.Combat;
 using Aidyn.Core.Physics;
 using Aidyn.Plugins;
@@ -127,10 +128,10 @@ public sealed class ArenaGridTests
     }
 
     // Fill: a sphere of 0.5 swept from 100 down to -100 through (x + 0.5, z + 0.5); the cell holds trunc(2 * hit height).
-    private static CollisionWorld FloorWorld(float height, float maxX, float maxZ, Vector3 origin = default, string key = "arena")
+    private static CollisionWorld FloorWorld(float height, float maxX, float maxZ, Vector3 origin = default, ChunkKey? key = null)
     {
         var world = new CollisionWorld();
-        world.Add(key, Worlds.Floor(height, 0, maxX, 0, maxZ), origin);
+        world.Add(key ?? Worlds.Chunk(0), Worlds.Floor(height, 0, maxX, 0, maxZ), origin);
         return world;
     }
 
@@ -142,7 +143,7 @@ public sealed class ArenaGridTests
         var grid = Sized(3, 4);
         var world = FloorWorld(4, 1, 4);
 
-        grid.Fill(world, Vector3.Zero, "arena");
+        grid.Fill(world, Vector3.Zero, Worlds.Chunk(0));
 
         for (var z = 0; z < 4; z++)
         {
@@ -157,7 +158,7 @@ public sealed class ArenaGridTests
         var grid = Sized(2, 2);
         var world = FloorWorld(4.3f, 20, 23);
 
-        grid.Fill(world, Vector3.Zero, "arena");
+        grid.Fill(world, Vector3.Zero, Worlds.Chunk(0));
 
         // 2 x 4.3 = 8.6, truncated to 8.
         Assert.All(Cells(grid, 2, 2), b => Assert.Equal(8, b));
@@ -170,7 +171,7 @@ public sealed class ArenaGridTests
         var origin = new Vector3(450, 10, 300);
         var world = FloorWorld(3.2f, 20, 23, origin);
 
-        grid.Fill(world, origin, "arena");
+        grid.Fill(world, origin, Worlds.Chunk(0));
 
         // The floor is at 13.2 in the world, 3.2 above the chunk's origin: 2 x 3.2 = 6.4, truncated to 6.
         Assert.All(Cells(grid, 2, 2), b => Assert.Equal(6, b));
@@ -180,9 +181,9 @@ public sealed class ArenaGridTests
     public void OnlyTheArenaChunksTrianglesCount()
     {
         var grid = Sized(2, 2);
-        var world = FloorWorld(4, 20, 23, key: "elsewhere");
+        var world = FloorWorld(4, 20, 23, key: Worlds.Chunk(1));
 
-        grid.Fill(world, Vector3.Zero, "arena");
+        grid.Fill(world, Vector3.Zero, Worlds.Chunk(0));
 
         Assert.All(Cells(grid, 2, 2), b => Assert.Equal(ArenaGrid.Taken, b));
     }
@@ -191,7 +192,7 @@ public sealed class ArenaGridTests
     public void OccupyingAFilledCellKeepsItsHeight()
     {
         var grid = Sized(2, 2);
-        grid.Fill(FloorWorld(4, 20, 23), Vector3.Zero, "arena");
+        grid.Fill(FloorWorld(4, 20, 23), Vector3.Zero, Worlds.Chunk(0));
 
         grid.Occupy(0, 0, 1);
 
@@ -205,7 +206,7 @@ public sealed class ArenaGridTests
     {
         var grid = Sized(2, 2);
 
-        grid.Fill(FloorWorld(4, 20, 23), Vector3.Zero, "arena");
+        grid.Fill(FloorWorld(4, 20, 23), Vector3.Zero, Worlds.Chunk(0));
 
         Assert.Equal(0, grid[2, 0]);
         Assert.Equal(0, grid[0, 2]);

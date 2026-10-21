@@ -1,11 +1,12 @@
 using System.Numerics;
+using Aidyn.Core.Chunks;
 using Aidyn.Core.Physics;
 
 namespace Aidyn.Core.Movement;
 
 /// <summary>A body as the others push it: its sphere, its scale, and the chunk it's in.</summary>
 /// <param name="Chunk">Bodies push only others in the same chunk, as the original keeps each in its chunk's coordinates.</param>
-public readonly record struct CrowdMember(CollisionSphere Sphere, float Scale, object? Chunk);
+public readonly record struct CrowdMember(CollisionSphere Sphere, float Scale, ChunkKey? Chunk);
 
 /// <summary>
 /// Bodies pushing each other apart, the player among them, as each moves (the end of

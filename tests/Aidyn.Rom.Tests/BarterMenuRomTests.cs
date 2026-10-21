@@ -102,7 +102,7 @@ public sealed class BarterMenuRomTests(Na10Import fixture)
         var game = GameState.NewGame(Set);
         var host = new LootHost();
         var use = new Aidyn.Core.MapObjects.MapObjectUse(game, MenuText.From(Set), host);
-        var loaded = Aidyn.Core.MapObjects.LoadedMap.Activate(map, map.Id, game.Flags, game.Memory, game.Party, new Lcg());
+        var loaded = Aidyn.Core.MapObjects.LoadedMap.Activate(map, Worlds.Chunk(), game.Flags, game.Memory, game.Party, new Lcg());
 
         use.Use(loaded, chest);
 

@@ -1,5 +1,6 @@
 using System.Numerics;
 using Aidyn.Core.Cameras;
+using Aidyn.Core.Chunks;
 using Aidyn.Core.Flags;
 using Aidyn.Core.Items;
 using Aidyn.Core.Rng;
@@ -53,7 +54,7 @@ public sealed class LoadedMap
     private readonly Dictionary<int, ContainerLook> _looks = [];
     private readonly Dictionary<int, CameraMove> _cameraMoves = [];
 
-    private LoadedMap(MapRecord record, object key)
+    private LoadedMap(MapRecord record, ChunkKey key)
     {
         Record = record;
         Key = key;
@@ -62,8 +63,8 @@ public sealed class LoadedMap
 
     public MapRecord Record { get; }
 
-    /// <summary>What the runtime keys the chunk by, such as its collision's part in the world.</summary>
-    public object Key { get; }
+    /// <summary>The chunk it is, which its collision and drawn surfaces are under in the world.</summary>
+    public ChunkKey Key { get; }
 
     /// <summary>Where the chunk's origin is in the world, which its objects' positions are relative to.</summary>
     public Vector3 Origin { get; private init; }
@@ -152,7 +153,7 @@ public sealed class LoadedMap
     /// looks every scene object up in the chart).</item>
     /// </list>
     /// </summary>
-    public static LoadedMap Activate(MapRecord record, object key, FlagNetwork flags, MapObjectMemory memory, Characters.Party party,
+    public static LoadedMap Activate(MapRecord record, ChunkKey key, FlagNetwork flags, MapObjectMemory memory, Characters.Party party,
         IRandom random, Vector3 origin = default)
     {
         var map = new LoadedMap(record, key) { Origin = origin };

@@ -1,5 +1,6 @@
 using System.Numerics;
 using Aidyn.Core.Characters;
+using Aidyn.Core.Chunks;
 using Aidyn.Core.MapObjects;
 using Aidyn.Core.Movement;
 using Aidyn.Core.Physics;
@@ -141,7 +142,7 @@ public sealed class Wanderers(PluginSet plugins)
     /// <param name="aim">What the camera looks at.</param>
     /// <param name="animation">Each body's animations.</param>
     /// <returns>The body nearest the player across the ground that he was weighed against, and how far, if any.</returns>
-    public (Wanderer? Nearest, float Distance) Step(CollisionWorld world, CollisionSphere player, Vector3 playerStart, object? playerChunk,
+    public (Wanderer? Nearest, float Distance) Step(CollisionWorld world, CollisionSphere player, Vector3 playerStart, ChunkKey? playerChunk,
         Vector3 aim, Func<Wanderer, IRootMotion> animation)
     {
         _crowd.Clear();

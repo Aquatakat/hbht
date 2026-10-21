@@ -1,5 +1,7 @@
 using System.Numerics;
+using Aidyn.Core.Chunks;
 using Aidyn.Core.Physics;
+using Aidyn.Plugins;
 using Aidyn.Plugins.Assets;
 
 namespace Aidyn.Core.Tests;
@@ -54,7 +56,7 @@ public class TriangleGridTests
         for (var p = 0; p < Parts; p++)
         {
             var triangles = Scatter(p + 1, 150, 0);
-            world.Add($"part{p}", triangles, offsets[p]);
+            world.Add(Worlds.Chunk(p), triangles, offsets[p]);
             parts.Add([.. triangles.Select(t => (t.A + offsets[p], t.B + offsets[p], t.C + offsets[p]))]);
         }
 
@@ -69,23 +71,53 @@ public class TriangleGridTests
             var expected = parts.SelectMany(part => Expected(part, minX, minZ, maxX, maxZ)).ToList();
             Assert.Equal(expected, near.Select(t => t.A).ToList());
 
-            world.Near(minX, minZ, maxX, maxZ, near, "part1");
+            world.Near(minX, minZ, maxX, maxZ, near, Worlds.Chunk(1));
             Assert.Equal(Expected(parts[1], minX, minZ, maxX, maxZ), near.Select(t => t.A).ToList());
         }
+    }
+
+    /// <summary>
+    /// The same cell of two map sets, I08 of the Overworld and of an interior set, are two parts: adding one doesn't replace
+    /// the other, each is found alone by its key, and removing one leaves the other.
+    /// </summary>
+    [Fact]
+    public void TheSameCellOfTwoMapSetsIsTwoParts()
+    {
+        var overworld = new ChunkKey(RecordId.Decimal(RecordTypes.MapSet, 0), 9, 8);
+        var interior = new ChunkKey(RecordId.Decimal(RecordTypes.MapSet, 1), 9, 8);
+        Assert.NotEqual(overworld, interior);
+
+        var world = new CollisionWorld();
+        world.Add(overworld, Worlds.Floor(0, 0, 8, 0, 8), Vector3.Zero);
+        world.Add(interior, Worlds.Floor(3, 0, 8, 0, 8), Vector3.Zero);
+        Assert.Equal(4, world.Count);
+
+        var near = new List<CollisionWorld.Triangle>();
+        world.Near(-1, -1, 9, 9, near, overworld);
+        Assert.All(near, t => Assert.Equal((0f, overworld), (t.A.Y, t.Part)));
+        Assert.Equal(2, near.Count);
+        world.Near(-1, -1, 9, 9, near, interior);
+        Assert.All(near, t => Assert.Equal((3f, interior), (t.A.Y, t.Part)));
+        Assert.Equal(2, near.Count);
+
+        Assert.True(world.Remove(interior));
+        Assert.Equal(2, world.Count);
+        world.Near(-1, -1, 9, 9, near);
+        Assert.All(near, t => Assert.Equal(overworld, t.Part));
     }
 
     [Fact]
     public void RemovingAPartAndAddingItAgainReplacesIt()
     {
         var world = new CollisionWorld();
-        world.Add("a", Worlds.Floor(0, 0, 8, 0, 8), Vector3.Zero);
-        world.Add("b", Worlds.Floor(0, 0, 8, 0, 8), new Vector3(100, 0, 0));
+        world.Add(Worlds.Chunk(0), Worlds.Floor(0, 0, 8, 0, 8), Vector3.Zero);
+        world.Add(Worlds.Chunk(1), Worlds.Floor(0, 0, 8, 0, 8), new Vector3(100, 0, 0));
         Assert.Equal(4, world.Count);
 
-        world.Add("a", Worlds.Floor(2, 0, 4, 0, 4), Vector3.Zero);
+        world.Add(Worlds.Chunk(0), Worlds.Floor(2, 0, 4, 0, 4), Vector3.Zero);
         Assert.Equal(4, world.Count);
-        Assert.True(world.Remove("b"));
-        Assert.False(world.Remove("b"));
+        Assert.True(world.Remove(Worlds.Chunk(1)));
+        Assert.False(world.Remove(Worlds.Chunk(1)));
         Assert.Equal(2, world.Count);
 
         var near = new List<CollisionWorld.Triangle>();
@@ -104,7 +136,7 @@ public class TriangleGridTests
         for (var p = 0; p < Parts; p++)
         {
             var triangles = Scatter(p + 11, 150, 0);
-            world.Add($"part{p}", triangles.Drawn(), offsets[p]);
+            world.Add(Worlds.Chunk(p), triangles.Drawn(), offsets[p]);
             all.AddRange(triangles.Select(t => (t.A + offsets[p], t.B + offsets[p], t.C + offsets[p])));
         }
         Assert.Equal(all.Count, world.Count);

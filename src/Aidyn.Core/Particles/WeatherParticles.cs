@@ -1,5 +1,6 @@
 using System.Numerics;
 using Aidyn.Core.Calendar;
+using Aidyn.Core.Chunks;
 using Aidyn.Core.Physics;
 using Aidyn.Core.Rng;
 using Aidyn.Core.Scenes;
@@ -112,7 +113,7 @@ public sealed class WeatherParticles : IPrecipitationEmitters
     private readonly Func<Vector3> _aim;
     private readonly Func<Vector2> _look;
     private readonly Func<VisibleWorld?> _world;
-    private readonly Func<object?> _part;
+    private readonly Func<ChunkKey?> _part;
     private readonly List<Pair> _pairs = [];
     private float _density = 1;
 
@@ -127,7 +128,7 @@ public sealed class WeatherParticles : IPrecipitationEmitters
     /// (<c>Zones.PlayerMap</c>, <c>0x800d8288</c>); null, trek's, tests every loaded chunk's, the user's choice.
     /// </param>
     public WeatherParticles(ParticleHead head, WeatherRecord rules, IRandom random, Func<Vector3> aim, Func<Vector2> look,
-        Func<VisibleWorld?> world, Func<object?>? part = null)
+        Func<VisibleWorld?> world, Func<ChunkKey?>? part = null)
     {
         _head = head;
         _rules = rules;

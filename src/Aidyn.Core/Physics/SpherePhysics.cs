@@ -1,4 +1,5 @@
 using System.Numerics;
+using Aidyn.Core.Chunks;
 using Aidyn.Plugins.Assets;
 using Triangle = Aidyn.Core.Physics.CollisionWorld.Triangle;
 
@@ -67,7 +68,7 @@ public static class SpherePhysics
     /// sweeps every loaded chunk's, or with <paramref name="part"/> the one added under that key.
     /// </summary>
     public static bool Sweep(CollisionWorld world, Vector3 from, Vector3 to, float radius, bool skipSeeThrough, out Vector3 point, out Vector3 normal,
-        object? part = null)
+        ChunkKey? part = null)
     {
         var delta = to - from;
         foreach (var t in Near(world, from, delta, radius, part))
@@ -123,7 +124,7 @@ public static class SpherePhysics
         return false;
     }
 
-    private static List<Triangle> Near(CollisionWorld world, Vector3 from, Vector3 delta, float radius, object? part = null)
+    private static List<Triangle> Near(CollisionWorld world, Vector3 from, Vector3 delta, float radius, ChunkKey? part = null)
     {
         var reach = new Vector2(delta.X, delta.Z).Length() + radius + 1;
         var near = _near ??= [];

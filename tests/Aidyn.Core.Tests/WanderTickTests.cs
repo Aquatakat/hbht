@@ -123,7 +123,7 @@ public class WanderTickTests
 
     private static Setup Make(MonsterPartyObject party, WanderNodeObject[] nodes, Vector3 at, Vector3 origin = default, CollisionWorld? world = null)
     {
-        var map = LoadedMap.Activate(new MapRecord(MapId, [.. nodes, party]), "chunk", ItemData.Flags(), new MapObjectMemory(), ItemData.NewParty(), new Lcg(), origin);
+        var map = LoadedMap.Activate(new MapRecord(MapId, [.. nodes, party]), Worlds.Chunk(0), ItemData.Flags(), new MapObjectMemory(), ItemData.NewParty(), new Lcg(), origin);
         var body = new Body(at, 0.5f) { Heading = Vector2.UnitX };
         var look = new EntityBody(RecordId.Hex(RecordTypes.Actor, 1), 0.5f, 1, 2);
         var wanderer = new Wanderer(map, party, look, body, perception: 10);
@@ -149,8 +149,8 @@ public class WanderTickTests
     private static CollisionWorld WalledWorld(float x, float height)
     {
         var world = new CollisionWorld();
-        world.Add("ground", Worlds.Floor(0, -50, 60, -50, 60), Vector3.Zero);
-        world.Add("wall", Worlds.Wall(x, height), Vector3.Zero);
+        world.Add(Worlds.Chunk(1), Worlds.Floor(0, -50, 60, -50, 60), Vector3.Zero);
+        world.Add(Worlds.Chunk(2), Worlds.Wall(x, height), Vector3.Zero);
         return world;
     }
 
@@ -603,7 +603,7 @@ public class WanderersTickTests(WanderersFixture fixture) : IClassFixture<Wander
         var node = new WanderNodeObject(0, new Vector3(5, 0, 5), 0, PakVariant.Any, null, 2, 0, 0, 1000, WanderFlags.Move, []);
         var party = new MonsterPartyObject(1, new Vector3(5, 0, 5), 20, PakVariant.Any, null, [], WanderersFixture.Entity, null, 0, 0,
             MapRecord.VoxelId(MapId, 0), PartyFlags.Walks, null, null);
-        var map = LoadedMap.Activate(new MapRecord(MapId, [node, party]), "chunk", ItemData.Flags(), new MapObjectMemory(), ItemData.NewParty(), new Lcg());
+        var map = LoadedMap.Activate(new MapRecord(MapId, [node, party]), Worlds.Chunk(0), ItemData.Flags(), new MapObjectMemory(), ItemData.NewParty(), new Lcg());
         var world = Worlds.Flat();
         var wanderers = new Wanderers(fixture.Plugins);
         var added = wanderers.Load(map, 20, world, new MapObjectMemory());
