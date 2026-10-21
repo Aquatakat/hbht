@@ -35,7 +35,7 @@ public sealed partial class GameSessionTests
         Assert.Equal(SessionStep.MenuClosed, Tick(session));
 
         // With the free camera flying, the world is frozen: A and B do nothing, and Start still opens the menu.
-        session.Tick(() => new Core.Trek.PlayerInput(System.Numerics.Vector2.Zero), frozen: true, _ => null);
+        session.Tick(SessionSettings.Original, () => new Core.Trek.PlayerInput(System.Numerics.Vector2.Zero), frozen: true, _ => null);
         Assert.Equal(PressOutcome.Ignored, session.Press(MenuAction.Back));
         Assert.Equal(PressOutcome.Ignored, session.Press(MenuAction.Accept));
         Assert.Equal(PressOutcome.MenuOpened, session.Press(MenuAction.Start));

@@ -90,7 +90,47 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         return (session, host);
     }
 
-    private static SessionStep Tick(GameSession session) => session.Tick(() => new PlayerInput(Vector2.Zero), false, _ => null);
+    /// <summary>A tick with no input, playing by the original's settings unless others are given.</summary>
+    private static SessionStep Tick(GameSession session, SessionSettings? settings = null) =>
+        session.Tick(settings ?? SessionSettings.Original, () => new PlayerInput(Vector2.Zero), false, _ => null);
+
+    [Fact]
+    public void ASettingChangedBetweenTwoTicksTakesEffectOnTheNextTickAndNotBefore()
+    {
+        var game = GameState.NewGame(Data.Set);
+        var host = new Host();
+        var set = Data.Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, 0));
+        var streamer = new ChunkStreamer(Data.Set, game, new CollisionWorld(), set, new VisibleWorld());
+        var particles = new Core.Particles.ParticleHead(capacity: Core.Particles.WeatherParticles.PoolCapacity);
+        var zone = new ZoneEngine(game, streamer, particles: particles);
+        var start = GameStart.OfNewGame(Data.Set) with { Set = set, Chunk = "G14", Local = new Vector3(40, 10, 40) };
+        var settings = new Settings();
+        // What it starts with it plays by at once, before its first tick, as the runtime's sky and audio are built.
+        var session = GameSession.Start(game, host, zone, start, settings, host, playing: SessionSettings.Original with { MusicVolume = 40 });
+        (float Pace, Core.Sky.SkyPlacement Sky, int Music, float Rain) Playing() =>
+            (session.Trek.Player.Pace, session.Sky.Placement, zone.Audio.Settings.MusicVolume, zone.Precipitation!.Density);
+        Assert.Equal((1f, Core.Sky.SkyPlacement.Original, 40, 1f), Playing());
+        Tick(session);
+        Assert.Equal((1f, Core.Sky.SkyPlacement.Original, 65, 1f), Playing());
+
+        // The options menu changes the player's settings, which the core doesn't read: nothing changes until a tick is handed them.
+        settings.BriskPace = true;
+        settings.SkyPlacement = Core.Sky.SkyPlacement.Projected;
+        settings.MusicVolume = 30;
+        settings.PrecipitationDensity = 4;
+        settings.Notify();
+        var next = SessionSettings.From(settings);
+        Assert.Equal((1f, Core.Sky.SkyPlacement.Original, 65, 1f), Playing());
+        Assert.Equal(SessionSettings.Original, session.Settings);
+        Tick(session, next);
+        Assert.Equal((SessionSettings.BriskPace, Core.Sky.SkyPlacement.Projected, 30, 4f), Playing());
+        Assert.Equal(next, session.Settings);
+        Assert.Equal(4 * Core.Particles.WeatherParticles.OriginalPool, particles.MaxParticles);
+
+        // And back again on the tick after the original's.
+        Tick(session);
+        Assert.Equal((1f, Core.Sky.SkyPlacement.Original, 65, 1f), Playing());
+    }
 
     [Fact]
     public void TheModeIsTheHighestUpAndTheTickCountsInEveryMode()
@@ -309,14 +349,18 @@ public sealed partial class GameSessionTests(Na10Import fixture)
             && p.Object.Enemies.All(e => e.Entity == rat));
         var (place, terrain) = trek.Here();
         session.CueBattle(BattleSetup.WithParty(BattleSource.MonsterParty, id, rats, place, terrain, ambush: false) with { Arena = 1 });
+        // Trek plays by the options' Each character's spell auras up to the battle, which it has no use for.
+        var each = SessionSettings.Original with { SpellAuras = AuraTurns.EachCharacter };
         var step = SessionStep.Trek;
         for (var i = 0; i < 200 && step != SessionStep.BattleCued; i++)
-            step = Tick(session);
+            step = Tick(session, each);
         Assert.Equal(SessionStep.BattleCued, step);
         session.BeginBattle();
         var began = Assert.IsType<Transition.StartedBattle>(Assert.Single(host.Transitions));
         var battle = session.Battle!;
         Assert.Same(battle, began.Battle);
+        // It takes the spell auras the session plays by as it begins, and the next tick's from that tick on: the session is their one owner.
+        Assert.Equal(AuraTurns.EachCharacter, battle.Fx.Turns);
         Assert.Equal(GameMode.Combat, session.Mode);
         Assert.False(session.TrekRuns);
         Assert.Equal((1, "A03"), (battle.Arena.Number, battle.Arena.Chunk.Name));
@@ -338,6 +382,7 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         // It fades in over a second, then the turn is Alaron's, or the rats' come first: each walks at him, and bites or rests.
         for (var i = 0; i < 60; i++)
             Assert.Equal((SessionStep.Combat, CombatState.Intro), (Tick(session), battle.State));
+        Assert.Equal(AuraTurns.Battle, battle.Fx.Turns);
         for (var i = 0; i < 3000 && battle.State != CombatState.Turn; i++)
             Tick(session);
         Assert.Equal((CombatState.Turn, alaron), (battle.State, battle.Current));
@@ -648,7 +693,7 @@ public sealed partial class GameSessionTests(Na10Import fixture)
 
         // The menu's credits roll on a screen as tall as the session is told, and A ends them at once: their end goes to the
         // host as trek fades in from black, and the menu reopens once it has.
-        session.CreditsScreenHeight = 480;
+        Tick(session, SessionSettings.Original with { UiLines = 480 });
         host.Transitions.Clear();
         session.MenuClosed(PauseExit.Credits);
         var credits = session.Credits!;

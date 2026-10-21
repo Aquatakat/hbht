@@ -16,15 +16,16 @@ These are the Phase 0 decisions from the [roadmap](../roadmap.md) (task 0.5). Ea
 | [0010](0010-editor-reads-plugins.md) | The editor reads only imported data | Accepted, partly superseded by [0012](0012-editor-holds-the-importer.md) |
 | [0011](0011-one-follow-camera.md) | One follow camera, with the original's modes | Accepted |
 | [0012](0012-editor-holds-the-importer.md) | The editor holds the importer and is the first run; code flows from the core to the runtime to the editor | Accepted, partly superseded by [0022](0022-views-library.md) |
-| [0013](0013-settings-in-the-options-menu.md) | Graphics and fidelity settings live in the game's own options menu, kept per player rather than per save | Accepted |
+| [0013](0013-settings-in-the-options-menu.md) | Graphics and fidelity settings live in the game's own options menu, kept per player rather than per save | Accepted, partly superseded by [0023](0023-the-core-is-handed-its-settings-each-tick.md) |
 | [0014](0014-menus-keep-the-originals-layouts.md) | The menus keep the original's layouts at every screen size; new layouts are a modding feature after 1.0 | Accepted |
 | [0015](0015-the-port-no-longer-reads-the-decomp.md) | The port no longer reads the decomp; the rig grows its own index of the code | Accepted |
 | [0016](0016-sequences-keep-the-originals-events.md) | Sequences keep the original's event stream as an asset; samples are WAV | Accepted |
 | [0017](0017-the-core-steps-every-tick.md) | The core steps every tick, and per-frame behaviour is matched to a frame each system names in `Cadence` | Accepted |
-| [0018](0018-the-port-fixes-bugs-and-sets-enhancements.md) | The port fixes the original's bugs outright and puts enhancements behind settings; there's no fidelity toggle | Accepted |
+| [0018](0018-the-port-fixes-bugs-and-sets-enhancements.md) | The port fixes the original's bugs outright and puts enhancements behind settings; there's no fidelity toggle | Accepted, refined by [0023](0023-the-core-is-handed-its-settings-each-tick.md) |
 | [0019](0019-how-the-core-tells-the-views.md) | How the core tells the views what changed: host calls and cues, events for lifecycle, polling for continuous state, returned endings | Accepted |
 | [0020](0020-one-effect-vocabulary.md) | One effect vocabulary for spells, potions and enchantments: records list effects of types the core implements, with Lua a reserved type | Accepted, partly superseded by [0021](0021-instant-effects-land-in-one-place.md) |
 | [0021](0021-instant-effects-land-in-one-place.md) | Instant effects land in one place for any spell, potion or flask; a potion record says how it's used, and a spell record whether it's an area | Accepted |
 | [0022](0022-views-library.md) | The runtime and the editor share a views library, `Aidyn.Views`, in place of the editor linking the runtime's files; code flows from the core to the views to the runtime to the editor | Accepted |
+| [0023](0023-the-core-is-handed-its-settings-each-tick.md) | The core is handed what it needs of the settings each tick, an immutable record made from the player's with the command line's over them; nothing in the core reads `Settings` | Accepted |
 
 Statuses: **Proposed** means drafted and waiting for review. **Accepted** means agreed. **Superseded** means replaced by a later record, which it links to.

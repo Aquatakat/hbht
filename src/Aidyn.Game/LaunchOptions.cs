@@ -123,25 +123,29 @@ public sealed class LaunchOptions(Dictionary<string, string> values)
             game.Flags.Set(flag, true);
     }
 
-    /// <summary>
-    /// Carries out the options that are settings for this run, which aren't kept unless the options menu changes
-    /// something.
-    /// </summary>
-    public void ApplyTo(Settings settings)
-    {
-        if (Text("sky") is { } sky)
-            settings.SkyPlacement = sky == "original" ? Core.Sky.SkyPlacement.Original : Core.Sky.SkyPlacement.Projected;
-        if (Number("draw-distance") is { } drawDistance)
-            settings.DrawDistance = drawDistance;
-        if (Text("detail") is { } detail)
-            settings.NearestDetail = detail == "nearest";
-        if (Number("precipitation") is { } precipitation)
-            settings.PrecipitationDensity = precipitation;
-        if (Integer("ui-lines") is { } lines)
-            settings.UiLines = lines;
-        if (Text("spell-auras") is { } auras)
-            settings.SpellAuras = auras == "each" ? Core.Combat.AuraTurns.EachCharacter : Core.Combat.AuraTurns.Battle;
-    }
+    // The settings for this run, a layer over the player's (LaunchSettings).
+
+    /// <summary><c>--sky original|projected</c>: how the sky places its sprites.</summary>
+    public Core.Sky.SkyPlacement? SkyPlacement => Text("sky") is { } sky
+        ? sky == "original" ? Core.Sky.SkyPlacement.Original : Core.Sky.SkyPlacement.Projected
+        : null;
+
+    /// <summary><c>--draw-distance &lt;scale&gt;</c>.</summary>
+    public float? DrawDistance => Number("draw-distance");
+
+    /// <summary><c>--detail nearest</c>: model detail's Highest.</summary>
+    public bool? NearestDetail => Text("detail") is { } detail ? detail == "nearest" : null;
+
+    /// <summary><c>--precipitation &lt;scale&gt;</c>.</summary>
+    public float? PrecipitationDensity => Number("precipitation");
+
+    /// <summary><c>--ui-lines &lt;n&gt;</c>.</summary>
+    public int? UiLines => Integer("ui-lines");
+
+    /// <summary><c>--spell-auras each</c>: the options' Spell auras.</summary>
+    public Core.Combat.AuraTurns? SpellAuras => Text("spell-auras") is { } auras
+        ? auras == "each" ? Core.Combat.AuraTurns.EachCharacter : Core.Combat.AuraTurns.Battle
+        : null;
 
     // What drives the run.
 

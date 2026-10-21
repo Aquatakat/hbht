@@ -209,6 +209,14 @@ public sealed class LoadedMap
         memory.Find(new Memory(MapRecord.VoxelId(Record.Id, scene.Index), MemoryKind.PutOut)) is not null;
 
     /// <summary>
+    /// The distances what goes out once reached is put out by (<see cref="PutOut"/>): the original's, whatever the Draw distance
+    /// and Model detail settings, the user's choice. Putting a light out is the game's behaviour, which a save keeps, not how far
+    /// the scenery draws, so the settings don't scale it (docs/systems/rendering.md#draw-distance), and it isn't a setting the
+    /// session is handed (<see cref="SessionSettings"/>).
+    /// </summary>
+    public static readonly DrawDistance PutOutDistances = DrawDistance.Original;
+
+    /// <summary>
     /// Puts out the active objects that go out once reached (<see cref="SceneObject.GoesOut"/>, Oriana's path
     /// lights) whose first level of detail the original draws from <paramref name="view"/> and whose second it
     /// doesn't: within 2 short of the first level's distance, 3 for the lights, and in view
@@ -217,8 +225,8 @@ public sealed class LoadedMap
     /// keeps it out whenever its chunk loads till then. Walking away doesn't bring it back.
     /// </summary>
     /// <remarks>
-    /// It goes by the original's distances whatever the draw distance is set to, since it's the game's
-    /// behaviour, not how far it draws. The original keys the memory under the chunk the player is in, with
+    /// It goes by the original's distances whatever the draw distance is set to (<see cref="PutOutDistances"/>), since it's
+    /// the game's behaviour, not how far it draws. The original keys the memory under the chunk the player is in, with
     /// the object's index in its own map, wherever the object is (the call passes the zone engine's current
     /// map set, row and column with no offset, <c>0x11</c>). So a light in a neighbour, reached from across
     /// the chunk's edge, goes out until its chunk loads again, and the memory names the object at that index
@@ -237,7 +245,7 @@ public sealed class LoadedMap
         {
             if (o is not SceneObject { GoesOut: true } scene || !IsActive(scene.Index))
                 continue;
-            SceneObjectFade.Alphas(scene, Origin, view, alphas, DrawDistance.Original);
+            SceneObjectFade.Alphas(scene, Origin, view, alphas, PutOutDistances);
             if (alphas[0] == 0 || alphas[1] != 0)
                 continue;
             SetActive(scene.Index, false);

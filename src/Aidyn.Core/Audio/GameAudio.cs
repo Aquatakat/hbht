@@ -21,27 +21,30 @@ public sealed class GameAudio
     private RecordId? _musicPlaying;
     private SoundHandle _music;
 
-    public GameAudio(SoundBank bank, Settings settings, int rate = AudioEngine.OriginalRate)
+    public GameAudio(SoundBank bank, int rate = AudioEngine.OriginalRate)
     {
         Bank = bank;
-        Settings = settings;
         Engine = new AudioEngine(rate);
     }
 
     /// <summary>A game's audio that plays nothing: for tests and tools.</summary>
-    public static GameAudio Silent(PluginSet plugins) => new(new SoundBank(plugins), new Settings());
+    public static GameAudio Silent(PluginSet plugins) => new(new SoundBank(plugins));
 
     public AudioEngine Engine { get; }
 
     public SoundBank Bank { get; }
 
-    public Settings Settings { get; }
+    /// <summary>
+    /// The settings the volumes come from: the session hands it each tick's (<see cref="GameSession.Tick"/>), and it's the
+    /// original's until then.
+    /// </summary>
+    public SessionSettings Settings { get; set; } = SessionSettings.Original;
 
     /// <summary>The sound effects' volume, 0 to 1 (<c>VolSFX</c>), or 0 while <see cref="Muted"/>.</summary>
-    public float SoundVolume => Muted ? 0 : (float)Settings.SoundVolume / Settings.MaxVolume;
+    public float SoundVolume => Muted ? 0 : (float)Settings.SoundVolume / Core.Settings.MaxVolume;
 
     /// <summary>The music's volume, 0 to 1 (<c>VolBGM</c>), or 0 while <see cref="Muted"/>.</summary>
-    public float MusicVolume => Muted ? 0 : (float)Settings.MusicVolume / Settings.MaxVolume;
+    public float MusicVolume => Muted ? 0 : (float)Settings.MusicVolume / Core.Settings.MaxVolume;
 
     /// <summary>
     /// Whether the game's music and sounds are silent, though they go on, as through the credits, which zero both

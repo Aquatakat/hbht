@@ -12,6 +12,11 @@ namespace Aidyn.Core;
 /// <c>settings.json</c> in the data folder (<see cref="DataPaths.Settings"/>). The original writes its volumes and
 /// resolution into every save (<c>QuestData::Save</c>), so loading a game set them back.
 /// </summary>
+/// <remarks>
+/// Only the options menu (<see cref="Ui.OptionsMenu"/>) and the runtime read these. The core plays by what the runtime makes
+/// of them for each tick, with the command line's for the run over them (<see cref="SessionSettings"/>, ADR 0022), and the
+/// runtime draws by the rest.
+/// </remarks>
 public sealed class Settings
 {
     /// <summary>
@@ -67,6 +72,14 @@ public sealed class Settings
 
     /// <summary>Says a setting changed, for whoever carries them out.</summary>
     public void Notify() => Changed?.Invoke();
+
+    /// <summary>A copy of these settings, without whoever hears of this one's changes.</summary>
+    public Settings Copy()
+    {
+        var copy = (Settings)MemberwiseClone();
+        copy.Changed = null;
+        return copy;
+    }
 
     /// <summary>The settings in a file, or the defaults if there's none or it can't be read.</summary>
     public static Settings Load(string path)

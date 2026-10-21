@@ -12,12 +12,12 @@ public class GameAudioTests
     private static Sequence LongNote(int rows) =>
         new(1, [new Instrument([.. Enumerable.Repeat((short)8000, 1_000_000)], null)], [0x7A, 0x22, 0x76, 0xFF, 0x80, 0x00, .. new byte[rows]]);
 
-    private static GameAudio Audio(Settings? settings = null)
+    private static GameAudio Audio(SessionSettings? settings = null)
     {
         var bank = new SoundBank(PluginSet.Load([]));
         bank.Add(Tune, LongNote(1000));
         bank.Add(Other, LongNote(1000));
-        return new GameAudio(bank, settings ?? new Settings(), 44100);
+        return new GameAudio(bank, 44100) { Settings = settings ?? SessionSettings.Original };
     }
 
     private static float Loudness(GameAudio audio)
@@ -46,14 +46,13 @@ public class GameAudioTests
     [Fact]
     public void TheMusicFollowsTheMusicVolumeAtOnce()
     {
-        var settings = new Settings { MusicVolume = Settings.MaxVolume };
-        var audio = Audio(settings);
+        var audio = Audio(SessionSettings.Original with { MusicVolume = Settings.MaxVolume });
         audio.Music = Tune;
         audio.Step();
         Loudness(audio);
         var full = Loudness(audio);
 
-        settings.MusicVolume = 0;
+        audio.Settings = audio.Settings with { MusicVolume = 0 };
         audio.Step();
         Loudness(audio);
         Assert.True(full > 0);
@@ -79,7 +78,7 @@ public class GameAudioTests
     [Fact]
     public void TheRainLoopFollowsTheWeatherAtItsLevelTimesTheSoundVolumeAndThunderIsAOneShot()
     {
-        var audio = Audio(new Settings { SoundVolume = 50 });
+        var audio = Audio(SessionSettings.Original with { SoundVolume = 50 });
         var sounds = new SoundsRecord(RecordId.Decimal(RecordTypes.Sounds, 0), new MenuSounds(Other, Other, Other, Other, Other, Other, Other, Other, Other, Other),
             [], Other, Other, Other, [], [], Tune, [Other, Other, Other, Other], Other, Other, []);
         var rain = new WeatherSounds(audio, sounds);
