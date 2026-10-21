@@ -174,7 +174,7 @@ public sealed class SpellFx
     /// How long after loading a lasting scene the next may load (<c>CombatSpellFx.LoadDelay</c>, <c>0x800E3214</c>): 5 frames, here
     /// at 30 fps.
     /// </summary>
-    public const int LoadDelayTicks = 5 * Cadence.FrameTicks;
+    public static readonly int LoadDelayTicks = Cadence.Frames(5);
 
     public const int MaxCasts = 64, MaxVisuals = 128, MaxBodies = 16;
 

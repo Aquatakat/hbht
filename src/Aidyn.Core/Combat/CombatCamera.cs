@@ -44,7 +44,7 @@ public sealed class CombatCamera
     public const float FloorClearance = 1, FloorProbe = 0.5f;
 
     /// <summary>How long a floor found is kept for when the probe misses: 10 frames.</summary>
-    public const int FloorTicks = 10 * Cadence.FrameTicks;
+    public static readonly int FloorTicks = Cadence.Frames(10);
 
     /// <summary>Whether it's yet to be put behind a party member (<c>CombatCamera.Placing</c>, set by <c>Combat.Reset</c>).</summary>
     private bool _placing = true;
@@ -192,7 +192,7 @@ public sealed class CombatCamera
                 var middle = b + (a - b) / 2 + new Vector3(0, glide.Height, 0);
                 Camera.AimGoal = middle;
                 var n = a - b;
-                n = n.LengthSquared() > 0 ? Vector3.Normalize(n) : Vector3.UnitX;
+                n = SafeNormalize.Of(n, Vector3.UnitX);
                 var left = new Vector3(middle.X + GlideSide * n.Z, middle.Y + GlideRise, middle.Z - GlideSide * n.X);
                 var right = new Vector3(middle.X - GlideSide * n.Z, middle.Y + GlideRise, middle.Z + GlideSide * n.X);
                 Camera.PositionGoal = Vector3.Distance(Camera.Position, left) <= Vector3.Distance(Camera.Position, right) ? left : right;
@@ -236,7 +236,7 @@ public sealed class CombatCamera
     {
         var at = body.Sphere.Position;
         var away = new Vector2(at.X - opponent.Sphere.Position.X, at.Z - opponent.Sphere.Position.Z);
-        away = away.LengthSquared() > 0 ? Vector2.Normalize(away) : Vector2.Zero;
+        away = SafeNormalize.Of(away);
         var eye = new Vector3(at.X + Behind * away.X, at.Y + BehindRise, at.Z + Behind * away.Y);
         if (now)
         {

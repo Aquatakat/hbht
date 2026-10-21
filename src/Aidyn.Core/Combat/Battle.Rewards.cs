@@ -127,7 +127,7 @@ public sealed partial class Battle
         {
             var weapon = i < entity.Weapons.Count ? entity.Weapons[i] : null;
             var chance = i < chest.WeaponChances.Count ? chest.WeaponChances[i] : 0;
-            if (weapon is { } w && Game.Plugins.TryGet<WeaponRecord>(w) is { } record && _rules?.DroppedClasses?.Contains(record.Class) != true)
+            if (weapon is { } w && Game.Plugins.TryGet<WeaponRecord>(w) is { } record && _rules.DroppedClasses?.Contains(record.Class) != true)
                 continue;
             Roll(weapon, chance);
         }
@@ -167,7 +167,7 @@ public sealed partial class Battle
     /// </summary>
     internal void SetKillFlags()
     {
-        if (_rules?.Bosses is not { } bosses)
+        if (_rules.Bosses is not { } bosses)
             return;
         foreach (var id in Enemies.Take(OnField))
         {

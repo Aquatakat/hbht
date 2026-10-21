@@ -66,11 +66,11 @@ public sealed partial class Battle
     /// <summary>The way the attacker's body turns while an attack is aimed (<c>Combat.AimAtCursor</c>), or null.</summary>
     private Vector2? _aimTurn;
 
-    /// <summary>The combat record, for who can't be attacked or cast at and the weapons that fly.</summary>
-    private CombatRecord? _rules;
+    /// <summary>The combat record, for who can't be attacked or cast at and the weapons that fly. Set as the battle is made.</summary>
+    private CombatRecord _rules = null!;
 
-    /// <summary>The combat record's rules the battle plays by, if the plugins have one.</summary>
-    internal CombatRecord? Rules => _rules;
+    /// <summary>The combat record's rules the battle plays by.</summary>
+    internal CombatRecord Rules => _rules;
 
     /// <summary>
     /// What the target sets say of one slot, which tints its portrait (<see cref="Ui.CombatGui.Tint"/>): A's candidate and
@@ -110,7 +110,7 @@ public sealed partial class Battle
     /// </remarks>
     public bool CanAttack(Combatant a, Combatant t, CombatAction action)
     {
-        if (_rules?.Untargetable?.Contains(t.Entity) == true)
+        if (_rules.Untargetable?.Contains(t.Entity) == true)
             return false;
         if (!a.Healing)
         {
@@ -349,8 +349,7 @@ public sealed partial class Battle
             return;
         var look = Camera.LookXZ;
         var way = Facing.Rotate(new Vector2(-input.Stick.X, input.Stick.Y), look.X, look.Y);
-        if (way.LengthSquared() > 0)
-            way = Vector2.Normalize(way);
+        way = SafeNormalize.Of(way);
         var focus = ThrownAim + way * Cadence.PerTick(AimStep);
         focus = Vector2.Clamp(focus, Vector2.Zero, new Vector2(Grid.Width, Grid.Depth));
         // Combatant.WeaponReach: a flask's is 400, the grid alone.
@@ -519,7 +518,7 @@ public sealed partial class Battle
     internal void Death(Combatant c)
     {
         Cue(new CombatantDied(c));
-        if (_rules is { } rules && c.Entity == rules.Ally && Game?.Plugins.TryGet<EntityRecord>(c.Entity)?.Member is { } ally)
+        if (c.Entity == _rules.Ally && Game?.Plugins.TryGet<EntityRecord>(c.Entity)?.Member is { } ally)
             Game.Flags.TrySet(ally.Died, true);
         foreach (var held in c.Sheet.Effects.Where(e => e.Effects.Any(x => x is ImmobiliseEffect)).ToList())
             c.Sheet.RemoveEffect(held, c, this);
@@ -624,7 +623,7 @@ public sealed partial class Battle
             Cue(new MissileLaunched(Flight));
             return true;
         }
-        if (WeaponOf(a) is not { } weapon || _rules?.Missiles?.FirstOrDefault(m => m.Weapon == weapon.Id) is not { } missile)
+        if (WeaponOf(a) is not { } weapon || _rules.Missiles?.FirstOrDefault(m => m.Weapon == weapon.Id) is not { } missile)
             return false;
         if ((missile.Scene ?? weapon.Model) is not { } scene)
             return false;

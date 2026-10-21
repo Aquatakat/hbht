@@ -15,11 +15,14 @@ internal static class BattleFixtures
 {
     private static readonly BattleSetup NoSetup = new(BattleSource.Script, null, null, null, [], null, false, false, null);
 
+    /// <summary>A combat record that names no one and has no rules, as a hand-made battle plays by.</summary>
+    private static readonly CombatRecord NoRules = new(RecordId.Decimal(RecordTypes.Combat, 0), Entity(0), [], Entity(0), [], [], []);
+
     public static Battle Create(int partySize, int onField, params Combatant?[] combatants) =>
-        Battle.Of(NoSetup, null, partySize, onField, combatants);
+        Battle.Of(NoSetup, NoRules, null, partySize, onField, combatants);
 
     /// <summary>A battle of <paramref name="setup"/> in <paramref name="arena"/>, with no one in it yet.</summary>
-    public static Battle Create(BattleSetup setup, Arena arena) => Battle.Of(setup, arena, 0, 0, []);
+    public static Battle Create(BattleSetup setup, Arena arena) => Battle.Of(setup, NoRules, arena, 0, 0, []);
 
     /// <summary>A combatant of base Dexterity <paramref name="dexterity"/> in slot <paramref name="slot"/>.</summary>
     public static Combatant Fighter(int slot, int dexterity, bool dead = false, bool gone = false, bool active = true)

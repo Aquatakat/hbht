@@ -63,12 +63,12 @@ public sealed partial class Battle
     }
 
     /// <summary>
-    /// A battle of combatants already made, for tests of the rules that read only its sides, setup and arena: no game,
-    /// grid, camera or turn yet.
+    /// A battle of combatants already made, for tests of the rules that read only its sides, setup, arena and combat record
+    /// (<paramref name="rules"/>): no game, grid, camera or turn yet.
     /// </summary>
-    internal static Battle Of(BattleSetup setup, Arena? arena, int partySize, int enemiesOnField, IReadOnlyList<Combatant?> slots)
+    internal static Battle Of(BattleSetup setup, CombatRecord rules, Arena? arena, int partySize, int enemiesOnField, IReadOnlyList<Combatant?> slots)
     {
-        var battle = new Battle(null!, setup, arena!, new CollisionWorld(), []) { PartySize = partySize, EnemiesOnField = enemiesOnField };
+        var battle = new Battle(null!, setup, arena!, new CollisionWorld(), []) { PartySize = partySize, EnemiesOnField = enemiesOnField, _rules = rules };
         for (var i = 0; i < slots.Count; i++)
             battle._slots[i] = slots[i];
         battle.Gui = Ui.CombatGui.For(battle);
@@ -234,7 +234,7 @@ public sealed partial class Battle
     private void GiveAi(Combatant c, Items.ItemInstance? spare)
     {
         c.Controlled = true;
-        c.Ai = EnemyAI.Init(c, spare, AllowsMelee, _rules?.BossStyles?.Contains(c.Entity) == true);
+        c.Ai = EnemyAI.Init(c, spare, AllowsMelee, _rules.BossStyles?.Contains(c.Entity) == true);
     }
 
     /// <summary>The flee points' most: <c>flee0</c>–<c>flee7</c>.</summary>
@@ -343,8 +343,10 @@ public sealed partial class Battle
         var footprint = Footprint(look);
         var at = Arena.Origin + new Vector3(cell.X, BodyHeight, cell.Y);
         // A body walking to a point in combat gives it up where it stands after 30 ticks of coming no nearer (Body.StepTowardGoal).
-        var body = new Body(at, look.Radius, look.Scale) { Heading = Directions[direction], GiveUpTicks = 30, StaysWhenStalled = true };
-        body.Sphere.Position = Body.SetDown(World, at, look.Radius, Game.Random.Combat).Position;
+        var body = Body.Spawn(World, at, look, Game.Random.Combat);
+        body.Heading = Directions[direction];
+        body.GiveUpTicks = 30;
+        body.StaysWhenStalled = true;
         var flags = CombatantFlags.Active | (hostile ? CombatantFlags.Hostile | CombatantFlags.FromEnemyList : 0);
         var combatant = new Combatant(slot, sheet, look, body, flags)
         {
@@ -373,7 +375,7 @@ public sealed partial class Battle
     {
         var across = look.Radius * look.Scale;
         across += across;
-        var cells = (byte)(across > 0 ? (int)(across + 0.5f) : -(int)(0.5f - across));
+        var cells = Rounding.HalfAwayToByte(across);
         return cells == 0 ? 1 : cells;
     }
 

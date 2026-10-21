@@ -56,7 +56,7 @@ public sealed partial class Battle
     public BattleSpoils? Spoils { get; private set; }
 
     /// <summary>The battle's own rules, by its encounter flag (<see cref="CombatRecord.Encounters"/>): the Goblin Ambush's.</summary>
-    public EncounterRule? Rule => _rules?.Encounter(Setup.EncounterFlag);
+    public EncounterRule? Rule => _rules.Encounter(Setup.EncounterFlag);
 
     /// <summary>Whether losing isn't the game's end (<c>Combat.NonLethal</c>, <c>0x800DA0DC</c>).</summary>
     public bool NonLethal => Rule is { NonLethal: true };
@@ -92,7 +92,7 @@ public sealed partial class Battle
     /// </summary>
     private void StepDefeatWait()
     {
-        if (++_defeatWait >= SparedFrames * Cadence.FrameTicks)
+        if (++_defeatWait >= Cadence.Frames(SparedFrames))
             EnterDefeat();
     }
 

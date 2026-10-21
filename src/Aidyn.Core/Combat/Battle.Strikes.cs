@@ -182,7 +182,7 @@ public sealed partial class Battle
         c = (short)(int)(c * (HeightDifference(a, t) * 0.05f + 1.0f));
         if (sheet.Stats.Modified(Stat.Stamina) == 0)
             c = (short)(int)(c * 0.9f);
-        c = (short)(int)(c * (1.0f - (Game.Weather?.Intensity ?? 0) * 0.3f));
+        c = (short)(int)(c * (1.0f - Game.Weather.Intensity * 0.3f));
         if (PartOfDay == PartOfDay.Night)
             c = (short)(int)(c * 0.7f);
         if (t.Moves != 0)

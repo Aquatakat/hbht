@@ -88,7 +88,7 @@ public sealed partial class Battle
         var count = IsAreaSpell(source) ? AreaCentre(ai, source, from) : TargetCountScore(c, source, from);
         if (_triesB.Selected == 0)
             return;
-        var value = SpellValues.Value(Game.Rules.Magic!, source.Spell, c, SpellCandidates(), InPlayCombatants(), PartOfDay);
+        var value = SpellValues.Value(Game.Rules.Magic, source.Spell, c, SpellCandidates(), InPlayCombatants(), PartOfDay);
         if (value == 0)
             return;
         var level = source.Known?.Level ?? source.ItemLevel;
