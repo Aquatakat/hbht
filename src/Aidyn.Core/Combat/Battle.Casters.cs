@@ -98,8 +98,8 @@ public sealed partial class Battle
         scores.Add(x, z, slot + 1, (value + count * 10 + level) & 0xFF, _slots[TargetsB.Cursor]);
     }
 
-    /// <summary>Whether a spell is the one the AI centres on the opponents and the party's area danger counts: Fireball (spell kind 8).</summary>
-    private bool IsAreaSpell(SpellSource source) => _rules?.AreaSpells?.Contains(source.Spell.Id) == true;
+    /// <summary>Whether a spell is one the AI centres on the opponents and the party's area danger counts (its record's <c>area</c>): Fireball (spell kind 8).</summary>
+    private static bool IsAreaSpell(SpellSource source) => source.Spell.Area;
 
     /// <summary>Set B's candidates, by slot.</summary>
     private List<Combatant> SpellCandidates()
@@ -174,7 +174,7 @@ public sealed partial class Battle
                 continue;
             foreach (var known in member.Sheet.Spells)
             {
-                if (rules.AreaSpells?.Contains(known.Spell.Id) == true)
+                if (known.Spell.Area)
                     danger = Math.Max(danger, 2 * Casting.Level(member.Sheet, SpellSource.From(known)));
             }
         }

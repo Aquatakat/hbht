@@ -131,10 +131,11 @@ internal static class MagicImporter
     /// <summary>One spell's facts.</summary>
     private sealed record Fact(
         int Id, string Name, int Ai, IReadOnlyList<Effect> Effects, EffectDuration? Duration = null, Resisted Resisted = Resisted.Never,
-        TargetFilter? Filter = null, IReadOnlyList<RecordId>? NotResistedBy = null);
+        TargetFilter? Filter = null, IReadOnlyList<RecordId>? NotResistedBy = null, bool Area = false);
 
     private static Fact F(int id, string name, int ai, Effect[] effects, EffectDuration? duration = null, Resisted resisted = Resisted.Never,
-        TargetFilter? filter = null, RecordId[]? notResistedBy = null) => new(id, name, ai, effects, duration, resisted, filter, notResistedBy);
+        TargetFilter? filter = null, RecordId[]? notResistedBy = null, bool area = false) =>
+        new(id, name, ai, effects, duration, resisted, filter, notResistedBy, area);
 
     private static Effect Boost(int stat, float perLevel) => new StatEffect(Stat(stat), Magnitude.Per(perLevel));
 
@@ -143,7 +144,9 @@ internal static class MagicImporter
     /// <c>ApplySpellEffect</c> (<c>0x800646E0</c>) do for the spell's kind; the AI values are <c>EnemyAI.SpellValue</c>'s
     /// (<c>0x80057498</c>); the resist rule is <c>Combatant.IsResistable</c> (<c>0x800641B8</c>): a spell at enemies or with a
     /// placed area is resisted by all, Wind across sides, the dispels and Teleportation never, the rest never. The entities are by
-    /// their places in the entity list, as <c>SpellKindAllowsTarget</c> (<c>0x8006088C</c>) names them.
+    /// their places in the entity list, as <c>SpellKindAllowsTarget</c> (<c>0x8006088C</c>) names them. Fireball, kind 8, is the one
+    /// area the AI centres and the party's casters of make it spread out (<c>EnemyAI.AreaCentre</c>, <c>0x80058008</c>;
+    /// <c>EnemyAI.AimAreaSpell</c>, <c>0x8005974C</c>; <c>Combat.CreatePartyCombatants</c>, <c>0x8005C7C8</c>).
     /// </summary>
     private static IReadOnlyList<Fact> Facts(EngineTables tables)
     {
@@ -179,7 +182,7 @@ internal static class MagicImporter
             F(0x0302, "Debilitation", 31, [Boost(Strength, -2)], Lasting, Resisted.Always),
             F(0x0303, "Dragon Flames", 12, [Hit(2, Element.Fire)], resisted: Resisted.Always),
             F(0x0304, "Earth Smite", 13, [Hit(4, Element.Earth)], resisted: Resisted.Always),
-            F(0x0305, "Fireball", 14, [new DamageEffect(Magnitude.Per(1), [Element.Fire])], resisted: Resisted.Always),
+            F(0x0305, "Fireball", 14, [new DamageEffect(Magnitude.Per(1), [Element.Fire])], resisted: Resisted.Always, area: true),
             F(0x0306, "Lightning", 11, [Hit(2, Element.Water)], resisted: Resisted.Always),
             F(0x0308, "Strength", 51, [Boost(Strength, 2)], Lasting),
             F(0x0309, "Wind", 12,
@@ -256,17 +259,35 @@ internal static class MagicImporter
                 throw new InvalidDataException($"The ROM's {s.Id} ({s.Name}) has no fact.");
             if (fact.Name != s.Name)
                 throw new InvalidDataException($"The fact for {s.Id} is for {fact.Name}, but the ROM's spell is {s.Name}.");
+            if (fact.Area && s.Position != AreaKind)
+                throw new InvalidDataException($"{s.Id} ({s.Name}) is an area, but the code keys the area by kind {AreaKind}, not {s.Position}.");
             var aspect = (s.Unk1E & 3) switch { 0 => Aspect.None, 1 => Aspect.Lunar, 2 => Aspect.Solar, _ => throw new InvalidDataException($"{s.Id} is both Lunar and Solar.") };
             return s with
             {
                 Effects = fact.Effects, Duration = fact.Duration, Aspect = aspect, Placed = (s.Unk1E & PlacedBit) != 0, Resisted = fact.Resisted,
-                NotResistedBy = fact.NotResistedBy, Filter = fact.Filter, AiValue = fact.Ai,
+                NotResistedBy = fact.NotResistedBy, Filter = fact.Filter, AiValue = fact.Ai, Area = fact.Area,
             };
         })];
     }
 
+    /// <summary>The spell kind the AI's area code keys by (Fireball's, the byte at <c>0x800E2B48</c> or'd with <c>0x300</c>).</summary>
+    private const int AreaKind = 8;
+
     /// <summary><c>unk1E</c> bit 0x10: the caster places the area.</summary>
     private const int PlacedBit = 0x10;
+
+    /// <summary>
+    /// How a potion is used, by its index (ADR 0021): the four flasks are thrown (<c>Combatant.ThrowFlask</c>, <c>0x80065600</c>, and
+    /// <c>Entity::CanUsePotion</c>, <c>0x8006FBE8</c>, which refuses them in trek); the rest are drunk in trek and in a battle, but
+    /// Stealth, which C-up's menu leaves out (<c>CombatMenu.ListPotions</c>, <c>0x80088190</c>: kinds below 4, and kind 16, are skipped).
+    /// The Aspect and Jumping potions are offered as the rest are, and their want of effects keeps them from being drunk.
+    /// </summary>
+    public static PotionUse PotionUse(int potion) => potion switch
+    {
+        < 4 => Plugins.Records.PotionUse.Throw,
+        StealthPotion => Plugins.Records.PotionUse.DrinkInTrek,
+        _ => Plugins.Records.PotionUse.DrinkInTrek | Plugins.Records.PotionUse.DrinkInBattle,
+    };
 
     /// <summary>
     /// A potion's effects and duration, by its index (<c>DrinkPotion</c>, <c>0x80064C84</c>; <c>Entity.AddPotion</c>, <c>0x8006F84C</c>;

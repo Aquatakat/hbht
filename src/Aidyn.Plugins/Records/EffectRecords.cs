@@ -44,8 +44,9 @@ public sealed record EffectDuration(int PerLevel = 0, uint Flat = 0, bool Battle
 
 /// <summary>
 /// One effect of a spell, a potion or an enchantment (ADR 0020): a type the core implements, with its parameters. A record lists
-/// them in <c>effects</c>, each written with its <c>type</c>. A type no build knows loads as a plain <see cref="Effect"/>, which
-/// does nothing and is reported.
+/// them in <c>effects</c>, each written with its <c>type</c>. Any spell, potion or flask may carry any type, which lands the same
+/// way whatever carries it (ADR 0021). A type no build knows loads as a plain <see cref="Effect"/>, which does nothing and is
+/// reported.
 /// </summary>
 /// <param name="For">Whom it's for, when the spell can take either side.</param>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type", IgnoreUnrecognizedTypeDiscriminators = true)]
@@ -206,14 +207,15 @@ public sealed record SenseAuraEffect : Effect;
 public sealed record RevealPhaseEffect(bool Sun) : Effect;
 
 /// <summary>
-/// A thrown flask's blast, once (<c>Combatant.FlaskDamage</c>, <c>FlaskExplosion</c>): the dice, then each combatant takes them over
-/// its squared distance from where it lands, from hit points, or from Stamina with <see cref="Stamina"/>.
+/// A blast, once (<c>Combatant.FlaskDamage</c>, <c>FlaskExplosion</c>): the dice, then each combatant takes them over its squared
+/// distance from where it bursts, from hit points, or from Stamina with <see cref="Stamina"/>. A flask's bursts where it lands, with
+/// the dice its throw rolled; a spell's or a drunk potion's about its target, rolled as it lands. The four flasks.
 /// </summary>
 public sealed record BlastEffect(Dice Dice, bool Stamina = false) : Effect;
 
 /// <summary>
-/// The Acid flask's corrosion: a radius drawn, and each combatant within it takes a protection effect of the radius over its
-/// squared distance, until the battle ends.
+/// A corrosion, bursting with any blast: a radius drawn, and each combatant within it takes a protection effect of the radius over
+/// its squared distance, until the battle ends, instead of the blast's share. The Acid flask.
 /// </summary>
 public sealed record CorrodeEffect(Dice Radius) : Effect;
 

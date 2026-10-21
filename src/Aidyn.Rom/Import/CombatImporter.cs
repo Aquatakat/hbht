@@ -67,7 +67,6 @@ internal static class CombatImporter
             ],
             GameOver: new GameOverScene(RecordId.Hex(RecordTypes.Map, GameOverMap), RecordId.Hex(RecordTypes.Dialogue, tables.GameOverScript)),
             Text: text,
-            AreaSpells: [RecordId.Hex(RecordTypes.Spell, FireballSpell)],
             FlaskDanger: [.. FlaskDangers.Select(f => new FlaskDanger(RecordId.Hex(RecordTypes.Item, f.Item), f.Radius))],
             Shadow: Shadow(At),
             UndrawnWeapons: [.. UndrawnWeaponPlaces.Select(At)],
@@ -108,12 +107,6 @@ internal static class CombatImporter
 
     /// <summary>The Horn of Kynon, whose carrying makes the Shadow merge rather than vanish.</summary>
     private const int HornOfKynon = 0x0D03;
-
-    /// <summary>
-    /// Fireball (spell kind 8, the byte at <c>0x800E2B48</c> or'd with <c>0x300</c>), which the AI centres on its opponents and whose
-    /// casters in the party make it spread out by twice their casting level.
-    /// </summary>
-    private const int FireballSpell = 0x0305;
 
     /// <summary><c>Combat.PartyPotionTier</c>'s tests (<c>0x8005C750</c>), in its order: the first flask the party holds gives the radius.</summary>
     internal static readonly IReadOnlyList<(int Item, int Radius)> FlaskDangers = [(0x1001, 7), (0x1000, 5), (0x1002, 4), (0x1003, 4)];

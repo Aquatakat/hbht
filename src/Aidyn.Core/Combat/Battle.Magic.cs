@@ -265,7 +265,8 @@ public sealed partial class Battle : IMagicHost
         return CastRefusal.None;
     }
 
-    // Combatant.ApplySpellEffect (0x800646E0): -1 for an effect, or the dice over the margin for damage.
+    // Combatant.ApplySpellEffect (0x800646E0): -1 for an effect, or the dice over the margin for damage. The effects for the target's
+    // side land through EffectLanding, as a potion's and a flask's do; the lines are the spell's.
     private int Apply(Combatant caster, SpellRecord spell, int level, int margin, Combatant target)
     {
         var sameSide = caster.Hostile == target.Hostile;
@@ -275,29 +276,6 @@ public sealed partial class Battle : IMagicHost
             EffectFor.Opponents => !sameSide,
             _ => true,
         }).ToList();
-        var random = Game.Random.Combat;
-        if (effects.OfType<BanishEffect>().Any())
-        {
-            SayCasts(caster, spell, target);
-            // QueueLog2: the third line, which takes the queued one's place as it's shown.
-            var banished = Format(CombatText(BanishedLine), [target.Sheet.Name]);
-            _log.Add(banished);
-            Lines.QueueThird(banished);
-            return target.Sheet.Hp;
-        }
-        if (effects.OfType<DispelEffect>().ToList() is [_, ..] dispels)
-        {
-            if (dispels.All(d => !Dispel(target, d.School, margin)))
-            {
-                Say(CastsLine, caster.Sheet.Name, spell.Name);
-                SayQueued(DispelFailsLine, spell.Name);
-            }
-            else
-            {
-                SayCasts(caster, spell, target);
-            }
-            return -1;
-        }
         if (effects.Any(e => e is CharmEffect or ImmobiliseEffect) && TooManyDisabled(caster))
         {
             // The resists line, and 0 for the dice: the original's blocked charm or hold still rolls the margin's d6.
@@ -305,42 +283,30 @@ public sealed partial class Battle : IMagicHost
             SayQueued(ResistsLine, target.Sheet.Name);
             return 0;
         }
-        var damage = effects.OfType<DamageEffect>().FirstOrDefault();
-        var host = (IMagicHost)this;
-        foreach (var effect in effects)
+        var landing = new Landing(spell.Id, spell.School, level, margin, new EffectTarget(caster.Sheet, caster, this),
+            new EffectTarget(target.Sheet, target, this), Game.Random.Combat);
+        var result = EffectLanding.Land(effects, spell.Duration, landing);
+        if (result.Banished)
         {
-            switch (effect)
-            {
-                case CureEffect cure:
-                    foreach (var cured in target.Sheet.Effects.Where(e => cure.Spells.Contains(e.Source)
-                                 && (!cure.BeatsMargin || e.Margin < (byte)margin)).ToList())
-                        target.Sheet.RemoveEffect(cured, target, this);
-                    break;
-                case FleeEffect:
-                    host.Flee(target);
-                    break;
-                case TeleportEffect:
-                    host.Teleport(caster);
-                    break;
-                case SenseAuraEffect:
-                    host.SenseAura(target, level);
-                    break;
-                case RevealPhaseEffect phase:
-                    host.RevealPhase(phase.Sun);
-                    break;
-            }
+            SayCasts(caster, spell, target);
+            // QueueLog2: the third line, which takes the queued one's place as it's shown.
+            var banished = Format(CombatText(BanishedLine), [target.Sheet.Name]);
+            _log.Add(banished);
+            Lines.QueueThird(banished);
         }
-        var lasting = effects.Where(e => EffectRules.Lasting(e) && e is not StaminaEffect { ToCaster: true }).ToList();
-        if (spell.Duration is { } duration)
+        else if (result.Dispels > 0 && result.Dispelled == 0)
         {
-            var timer = duration.At(level);
-            if (lasting.Count > 0)
-                target.Sheet.AddEffect(spell.Id, lasting, level, spell.School, margin, timer, target, this, random);
-            if (effects.OfType<StaminaEffect>().Where(s => s.ToCaster).ToList() is [_, ..] toCaster)
-                caster.Sheet.AddEffect(spell.Id, toCaster, level, spell.School, 0, timer, caster, this, random);
+            Say(CastsLine, caster.Sheet.Name, spell.Name);
+            SayQueued(DispelFailsLine, spell.Name);
         }
-        SayCasts(caster, spell, target);
-        return damage is null ? -1 : damage.Dice.At(level);
+        else
+        {
+            SayCasts(caster, spell, target);
+        }
+        // A heal shows as the helped number as the blow lands (Land).
+        if (result.Healed > 0)
+            target.Healed = result.Healed;
+        return result.Dice ?? -1;
     }
 
     // Combatant.CheckDisableLimit (0x80063A00): the party's side may not charm or hold another while more than the most are, and
@@ -351,17 +317,6 @@ public sealed partial class Battle : IMagicHost
             return false;
         var disabled = Slots.Skip(PartySize).OfType<Combatant>().Count(c => !c.Sheet.IsDead && (!c.Hostile || c.IsImmobilised));
         return disabled > Magic.Record.MostDisabled;
-    }
-
-    // Entity.Dispel (0x80071CD8): every effect of the school comes off, if the margin times their number reaches their margins.
-    private bool Dispel(Combatant target, MagicSchool school, int margin)
-    {
-        var effects = target.Sheet.Effects.Where(e => e.School == school).ToList();
-        if (effects.Count == 0 || (uint)(byte)margin * (uint)effects.Count < (uint)effects.Sum(e => e.Margin))
-            return false;
-        foreach (var effect in effects)
-            target.Sheet.RemoveEffect(effect, target, this);
-        return true;
     }
 
     // Combatant.LogCasts (0x80063718): "%s casts %s" shown, then "%s cast on %s" queued, which shows as the action's state ends.

@@ -1,4 +1,3 @@
-using Aidyn.Core.Items;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 
@@ -58,9 +57,6 @@ public sealed class ActiveEffect
     /// tells (<c>EffectRecord.FreeVisual</c>, <c>0x8007AB9C</c>); null outside a battle, or for one no cast or drink showed.
     /// </summary>
     public IEffectVisual? Visual { get; internal set; }
-
-    /// <summary>The potion it came from, if it's one of the base game's.</summary>
-    public Potion? Potion => Potions.Of(Source);
 
     public bool IsPotion => Source.Type == RecordTypes.Item;
 

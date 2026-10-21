@@ -66,8 +66,8 @@ public sealed class BattlePressTests(Na10Import fixture)
             Assert.Equal(CombatState.Turn, battle.State);
             return false;
         });
-        run.Built.Game.Party.Inventory.Add(Potions.Id(Potion.FireFlask), 2);
-        brenna.HoldPotion(Potion.FireFlask, battle);
+        run.Built.Game.Party.Inventory.Add(PotionId(BasePotion.FireFlask), 2);
+        brenna.HoldPotion(battle.Game.Party.Inventory.Catalog[PotionId(BasePotion.FireFlask)], battle);
         Assert.True(battle.Press(MenuAction.Accept));
         Assert.Equal(CombatState.TargetThrown, battle.State);
         var cursor = battle.TargetsA.Cursor;

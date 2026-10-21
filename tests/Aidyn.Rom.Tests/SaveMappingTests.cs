@@ -40,8 +40,8 @@ public sealed class SaveMappingTests(Na10Import fixture)
     {
         var first = game.Party.Members.First();
         first.Name = "Bob";
-        first.ApplyPotionEffect(Potion.Strength, 0, 5000);
-        first.ApplyPotionEffect(Potion.Clarity, 1, 900);
+        first.ApplyPotionEffect(PotionId(BasePotion.Strength), 0, 5000);
+        first.ApplyPotionEffect(PotionId(BasePotion.Clarity), 1, 900);
         foreach (var other in game.Party.Members.Skip(1).Select(m => m.Entity).ToList())
             game.RemoveMember(other);
     }

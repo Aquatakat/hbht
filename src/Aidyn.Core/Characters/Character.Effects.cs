@@ -41,8 +41,6 @@ public sealed partial class Character
 
     public bool HasEffect(RecordId source) => FindEffect(source) is not null;
 
-    public bool HasPotionEffect(Potion potion) => HasEffect(Potions.Id(potion));
-
     /// <summary>Whether a Cheat Death is on it (<c>Character.HasCheatDeath</c>, <c>0x8006EB4C</c>).</summary>
     public bool HasCheatDeath => Effects.Any(e => e.Effects.Any(x => x is CheatDeathEffect));
 
@@ -96,13 +94,10 @@ public sealed partial class Character
     }
 
     /// <summary>
-    /// A potion starts working, as drinking one or loading a save does, with the potion record's lasting effects
-    /// (<c>Entity.AddPotion</c>): Strength and Dexterity raise the stat's base by 10, unless the character is dead; Clarity,
-    /// Charisma and Stealth raise Loremaster, Diplomat and Stealth by 3; Defence protection by 15.
+    /// A potion starts working, as loading a save does, with the potion record's lasting effects (<c>Entity.AddPotion</c>): the base
+    /// game's Strength and Dexterity raise the stat's base by 10, unless the character is dead; Clarity, Charisma and Stealth raise
+    /// Loremaster, Diplomat and Stealth by 3; Defence protection by 15. Drinking one lands its effects (<see cref="Potions.Drink"/>).
     /// </summary>
-    public void ApplyPotionEffect(Potion potion, int power, uint timer) => ApplyPotionEffect(Potions.Id(potion), power, timer);
-
-    /// <inheritdoc cref="ApplyPotionEffect(Potion, int, uint)"/>
     public ActiveEffect? ApplyPotionEffect(RecordId potion, int power, uint timer)
     {
         var effects = Rules.Magic?.Potion(potion)?.Effects?.Where(EffectRules.Lasting).ToList() ?? [];
@@ -172,7 +167,7 @@ public sealed partial class Character
     /// </summary>
     public void EndBattleEffects(IMagicHost? host = null)
     {
-        var kept = Rules.Magic?.Record.KeptAfterBattle ?? [Potions.Id(Potion.Stealth)];
+        var kept = Rules.Magic?.Record.KeptAfterBattle ?? [];
         foreach (var potion in PotionEffects.Where(p => !kept.Contains(p.Source)))
             RemoveEffect(potion, null, host);
         foreach (var effect in Effects)

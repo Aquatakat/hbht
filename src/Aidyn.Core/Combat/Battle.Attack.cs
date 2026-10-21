@@ -109,7 +109,7 @@ public sealed partial class Battle
                 return false;
             if (a.Action == CombatAction.Flask && a.Potion is { } potion && !Potions.IsFlask(potion))
             {
-                if (t != a || Potions.CanDrink(a.Sheet, Game.Party.Inventory.Catalog[Potions.Id(potion)]) != DrinkResult.Drunk)
+                if (t != a || Potions.CanDrink(a.Sheet, potion, inBattle: true) != DrinkResult.Drunk)
                     return false;
             }
             else if (a.Hostile == t.Hostile)

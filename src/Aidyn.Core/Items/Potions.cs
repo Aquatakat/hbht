@@ -3,34 +3,9 @@ using Aidyn.Core.Characters;
 using Aidyn.Core.Combat;
 using Aidyn.Core.Magic;
 using Aidyn.Core.Rng;
-using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 
 namespace Aidyn.Core.Items;
-
-/// <summary>The potions and flasks, by the low byte of their item ID (<c>PotionEnum</c>): potion <c>n</c> is <c>aidyn:item/0x10nn</c>.</summary>
-public enum Potion
-{
-    FireFlask,
-    InfernoFlask,
-    SleepGas,
-    AcidFlask,
-    Healing,
-    Stamina,
-    Curing,
-    Antidote,
-    Restore,
-    Strength,
-    Dexterity,
-    /// <summary>Left out of the game: gaining one gives a Healing potion.</summary>
-    Aspect,
-    /// <summary>Left out of the game.</summary>
-    Jumping,
-    Clarity,
-    Charisma,
-    Defence,
-    Stealth,
-}
 
 /// <summary>What drinking a potion did (<c>Entity::UsePotion</c>).</summary>
 public enum DrinkResult
@@ -38,97 +13,85 @@ public enum DrinkResult
     Drunk,
     /// <summary>It would do nothing now: a healing potion at full health, and so on. Nothing is used.</summary>
     NotNow,
-    /// <summary>A flask, or a potion with no effect, outside combat. Nothing is used.</summary>
+    /// <summary>It isn't drunk here: a flask, a potion with no effect, or one its record keeps from trek or from a battle. Nothing is used.</summary>
     NotInTrek,
 }
 
-/// <summary>Drinking potions from the pause menu (<c>Entity::UsePotion</c>, <c>Entity::CanUsePotion</c>).</summary>
+/// <summary>
+/// Potions and flasks, which are data (ADR 0021): an item of kind <see cref="ItemKind.Potion"/> whose record says how it's used
+/// (<see cref="ItemRecord.Use"/>) and what it does (its effects, which land through <see cref="EffectLanding"/> as a spell's do).
+/// Drinking from the pause menu is <c>Entity::UsePotion</c> and <c>Entity::CanUsePotion</c>, from C-up's menu
+/// <c>Combatant.DrinkPotion</c>.
+/// </summary>
 public static class Potions
 {
-    /// <summary>How long a stat or skill potion lasts: 3 hours of game time (<c>HOURS(3)</c>).</summary>
+    /// <summary>How long the base game's stat and skill potions last: 3 hours of game time (<c>HOURS(3)</c>).</summary>
     public const uint Duration = 3 * GameClock.Hour;
 
-    /// <summary>A potion's item record.</summary>
-    public static RecordId Id(Potion potion) => RecordId.Hex(RecordTypes.Item, 0x1000 + (int)potion);
+    /// <summary>
+    /// The margin a potion's or flask's effects land at, which a dispel and a cure that beats margins weigh: the highest, as the
+    /// original's Antidote adds its Remove Poison at 255. Its lasting record keeps 0, as the original's potion record has no margin.
+    /// </summary>
+    public const int Margin = 255;
 
-    /// <summary>The potion an item record is, or null if it isn't one of the base game's.</summary>
-    public static Potion? Of(RecordId item) => Enum.GetValues<Potion>().Cast<Potion?>().FirstOrDefault(p => Id(p!.Value) == item);
+    /// <summary>How a potion is used, by its record; nothing for an item that isn't a potion.</summary>
+    public static PotionUse Use(Item item) => item.Kind == ItemKind.Potion ? item.Gear?.Use ?? PotionUse.None : PotionUse.None;
 
-    /// <summary>The potion an item is, or null if it isn't one of the base game's.</summary>
-    public static Potion? Of(Item item) => item.Kind == ItemKind.Potion ? Of(item.Id) : null;
+    /// <summary>Whether the item is a flask, thrown in a battle rather than drunk, which the crafting messages call so.</summary>
+    public static bool IsFlask(Item item) => Use(item).HasFlag(PotionUse.Throw);
 
-    /// <summary>Whether the potion is a flask, thrown in combat, which the crafting messages call so.</summary>
-    public static bool IsFlask(Potion potion) => potion < Potion.Healing;
+    /// <inheritdoc cref="IsFlask(Item)"/>
+    public static bool IsFlask(ItemRecord potion) => potion.Kind == ItemKind.Potion && (potion.Use ?? PotionUse.None).HasFlag(PotionUse.Throw);
 
     /// <summary>
-    /// Whether drinking a potion would do anything now (<c>Entity::CanUsePotion</c>, <c>0x8006FBE8</c>), by its effects (ADR 0020):
-    /// one that lasts, if it isn't working already; otherwise a heal below full health, a cure with something to cure, or
-    /// Stamina below its base. A flask, or a potion with no effects, can't be drunk in trek.
+    /// Whether drinking a potion would do anything now (<c>Entity::CanUsePotion</c>, <c>0x8006FBE8</c>), by its record (ADR 0021):
+    /// one its record keeps from here, a flask, or one with no effects isn't drunk here; one that lasts, if it isn't working already;
+    /// otherwise an effect that would do something: a heal below full health, a cure or a dispel with something to take off, Stamina
+    /// below its base, or any other.
     /// </summary>
-    public static DrinkResult CanDrink(Character member, Item potion)
+    /// <param name="inBattle">Drunk from C-up's menu in a battle (<see cref="PotionUse.DrinkInBattle"/>), not the pause menu in trek.</param>
+    public static DrinkResult CanDrink(Character member, Item potion, bool inBattle = false)
     {
-        if (potion.Gear is not { Effects: [_, ..] effects } record || effects.Any(e => e is BlastEffect or CorrodeEffect))
+        var drunkHere = inBattle ? PotionUse.DrinkInBattle : PotionUse.DrinkInTrek;
+        if (potion.Gear is not { Effects: [_, ..] effects } record || IsFlask(potion) || !Use(potion).HasFlag(drunkHere))
             return DrinkResult.NotInTrek;
         if (record.Duration is not null && effects.Any(EffectRules.Lasting))
             return member.HasEffect(record.Id) ? DrinkResult.NotNow : DrinkResult.Drunk;
         return effects.Any(e => WouldDo(member, e)) ? DrinkResult.Drunk : DrinkResult.NotNow;
     }
 
-    /// <inheritdoc cref="CanDrink(Character, Item)"/>
-    public static DrinkResult CanDrink(Character member, Potion potion, ItemCatalog items) => CanDrink(member, items[Id(potion)]);
-
     // What drinking finds to do now: the Stamina potion is drinkable with Stamina below its base (slt), or exhausted.
     private static bool WouldDo(Character member, Effect effect) => effect switch
     {
         HealEffect => member.Hp != member.MaxHp,
         CureEffect cure => member.Effects.Any(e => cure.Spells.Contains(e.Source)),
+        DispelEffect dispel => member.Effects.Any(e => e.School == dispel.School),
         StaminaEffect => member.Stats.Modified(Stat.Stamina) < member.Stats.Base(Stat.Stamina),
-        _ => false,
+        _ => true,
     };
 
     /// <summary>
-    /// A member drinks a potion from the party's inventory (<c>Entity::UsePotion</c>, and in combat <c>Combatant.DrinkPotion</c>,
-    /// <c>0x80064C84</c>): its effects in order, then one is used up. Healing heals 15–25% of the maximum hit points and Curing
-    /// 40–60%; the Stamina potion ends Exhaustion and restores Stamina to its base; the Antidote ends poison and Restore the
-    /// weakening spells; the rest work for <see cref="Duration"/>.
+    /// A member drinks a potion from the party's inventory (<c>Entity::UsePotion</c>, and in a battle <c>Combatant.DrinkPotion</c>,
+    /// <c>0x80064C84</c>), if <see cref="CanDrink"/> allows: its effects land on the member, in order, at <see cref="Margin"/>
+    /// (<see cref="EffectLanding"/>), any damage among them rolled as that many d6; then one is used up. The base game's Healing heals
+    /// 15–25% of the maximum hit points and Curing 40–60%; the Stamina potion ends Exhaustion and restores Stamina to its base; the
+    /// Antidote ends poison and Restore the weakening spells; the rest work for <see cref="Duration"/>.
     /// </summary>
     /// <param name="on">The member's combatant, drinking in a battle.</param>
     public static DrinkResult Drink(Party party, Character member, Item item, IRandom random, Combatant? on = null, IMagicHost? host = null)
     {
         if (item.Kind != ItemKind.Potion || !party.Inventory.Has(item.Id))
             return DrinkResult.NotInTrek;
-        var can = CanDrink(member, item);
+        var can = CanDrink(member, item, inBattle: on is not null);
         if (can != DrinkResult.Drunk)
             return can;
         var record = item.Gear!;
-        foreach (var effect in record.Effects!)
-        {
-            switch (effect)
-            {
-                case HealEffect heal:
-                    // Entity.HealPercent (0x800715DC): nothing, and no draw, in a battle with the Shadow.
-                    if (host?.HealingBarred != true)
-                        HealByPotion(member, heal.Low, heal.High, random);
-                    break;
-                case CureEffect cure:
-                    foreach (var cured in member.Effects.Where(e => cure.Spells.Contains(e.Source)).ToList())
-                        member.RemoveEffect(cured, on, host);
-                    break;
-                case StaminaEffect { ToBase: true }:
-                    member.RestoreStamina();
-                    break;
-            }
-        }
-        if (record.Duration is { } duration)
-            member.ApplyPotionEffect(record.Id, 0, duration.At(0));
+        var drinker = new EffectTarget(member, on, host);
+        var landing = new Landing(record.Id, MagicSchool.None, 0, Margin, drinker, drinker, random) { RecordMargin = 0 };
+        var result = EffectLanding.Land(record.Effects!, record.Duration, landing);
+        if (result.Dice is { } dice)
+            member.TakeDamage(random.RollD(dice & 0xFF, 6), on);
         party.Inventory.Take(item.Id);
         return DrinkResult.Drunk;
-    }
-
-    // Entity::HealByPotion: a share of the maximum, worked in single precision and truncated.
-    private static void HealByPotion(Character member, int low, int high, IRandom random)
-    {
-        var share = random.Range(low, high) / 100f;
-        member.Heal((ushort)(share * member.MaxHp));
     }
 }

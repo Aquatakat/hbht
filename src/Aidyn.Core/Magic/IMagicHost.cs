@@ -1,5 +1,7 @@
 using Aidyn.Core.Calendar;
 using Aidyn.Core.Combat;
+using Aidyn.Plugins;
+using Aidyn.Plugins.Records;
 
 namespace Aidyn.Core.Magic;
 
@@ -54,6 +56,20 @@ public interface IMagicHost
 
     /// <summary>Shows the moon's or the sun's phase on the HUD (<c>0x800254C8</c>, <c>0x800254B4</c>).</summary>
     void RevealPhase(bool sun);
+
+    /// <summary>
+    /// A blast or a corrosion bursts about a cell (<c>Combatant.FlaskExplosion</c>, <c>0x800652F8</c>), as a flask, or any spell or potion
+    /// that carries one (ADR 0021), lands: each living combatant in play within it takes its share of <paramref name="damage"/>, or
+    /// with a corrosion's radius drawn, loses protection for the battle instead. Trek has nothing to burst.
+    /// </summary>
+    /// <param name="target">The one it landed on, whose own share lands again as the blow does.</param>
+    /// <param name="source">The spell or potion it's from, whose record the corrosion leaves and whose visual it shows.</param>
+    /// <param name="stamina">The share comes off Stamina rather than hit points: Sleep Gas.</param>
+    /// <param name="corrode">A corrosion's radius, to draw: the Acid flask's.</param>
+    /// <param name="centre">The cell it bursts about; null for the target's.</param>
+    void Burst(Combatant target, RecordId source, int damage, bool stamina, Dice? corrode, (int X, int Z)? centre)
+    {
+    }
 
     /// <summary>A line for the battle's log.</summary>
     void Log(string line);

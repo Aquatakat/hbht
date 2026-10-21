@@ -31,6 +31,9 @@ public sealed class MagicRules
 
     public ItemRecord? Potion(RecordId id) => _potions.GetValueOrDefault(id);
 
+    /// <summary>Every potion and flask, in the records' order.</summary>
+    public IEnumerable<ItemRecord> Potions => _potions.Values;
+
     /// <summary>
     /// The effects this build can't carry out, as problems to report (ADR 0020): a <see cref="LuaEffect"/>, which waits for
     /// Phase 5's scripts, and a type no build knows, which loads as a plain <see cref="Effect"/>. Both do nothing.

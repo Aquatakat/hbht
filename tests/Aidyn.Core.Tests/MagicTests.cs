@@ -83,7 +83,7 @@ public sealed class MagicTests
     {
         var alaron = Alaron();
         Cast(alaron, MagicData.Haste, 3);
-        alaron.ApplyPotionEffect(Potion.Clarity, 0, 1000);
+        alaron.ApplyPotionEffect(PotionId(BasePotion.Clarity), 0, 1000);
 
         Assert.False(alaron.TakeDamage(alaron.Hp));
         Assert.True(alaron.IsDead);
@@ -250,16 +250,16 @@ public sealed class MagicTests
 /// <summary>The Antidote and Restore in trek, which wait on poison and weakening (items.md), and the Stamina potion's Exhaustion.</summary>
 public sealed class CuringPotionTests
 {
-    private static (CharacterParty Party, Character Member) Setup(params Potion[] carried)
+    private static (CharacterParty Party, Character Member) Setup(params BasePotion[] carried)
     {
         var member = PotionData.Member("Brenna");
         var party = TradeData.PartyOf(PotionData.Catalog(), null, member);
         foreach (var potion in carried)
-            party.Inventory.Add(Potions.Id(potion));
+            party.Inventory.Add(PotionId(potion));
         return (party, member);
     }
 
-    private static Item Item(CharacterParty party, Potion potion) => party.Inventory.Catalog[Potions.Id(potion)];
+    private static Item Item(CharacterParty party, BasePotion potion) => party.Inventory.Catalog[PotionId(potion)];
 
     private static void Cast(Character on, SpellRecord spell, int level) =>
         on.AddEffect(spell.Id, spell.Effects!, level, spell.School, 3, spell.Duration!.At(level), null, null, null);
@@ -267,24 +267,24 @@ public sealed class CuringPotionTests
     [Fact]
     public void TheAntidoteWaitsForPoisonAndEndsIt()
     {
-        var (party, member) = Setup(Potion.Antidote);
-        Assert.Equal(DrinkResult.NotNow, Potions.Drink(party, member, Item(party, Potion.Antidote), new ScriptedRandom()));
+        var (party, member) = Setup(BasePotion.Antidote);
+        Assert.Equal(DrinkResult.NotNow, Potions.Drink(party, member, Item(party, BasePotion.Antidote), new ScriptedRandom()));
         Cast(member, MagicData.Poison, 4);
-        Assert.Equal(DrinkResult.Drunk, Potions.Drink(party, member, Item(party, Potion.Antidote), new ScriptedRandom()));
+        Assert.Equal(DrinkResult.Drunk, Potions.Drink(party, member, Item(party, BasePotion.Antidote), new ScriptedRandom()));
         Assert.Empty(member.Effects);
-        Assert.False(party.Inventory.Has(Potions.Id(Potion.Antidote)));
+        Assert.False(party.Inventory.Has(PotionId(BasePotion.Antidote)));
     }
 
     [Fact]
     public void RestoreEndsTheWeakeningSpellsAndUndoesThem()
     {
-        var (party, member) = Setup(Potion.Restore);
+        var (party, member) = Setup(BasePotion.Restore);
         var endurance = member.Stats.Base(Stat.Endurance);
         Cast(member, MagicData.Endurance, 2);
-        Assert.Equal(DrinkResult.NotNow, Potions.Drink(party, member, Item(party, Potion.Restore), new ScriptedRandom()));
+        Assert.Equal(DrinkResult.NotNow, Potions.Drink(party, member, Item(party, BasePotion.Restore), new ScriptedRandom()));
         Cast(member, MagicData.Weakness, 3);
         Assert.Equal(endurance + 4 - 6, member.Stats.Base(Stat.Endurance));
-        Assert.Equal(DrinkResult.Drunk, Potions.Drink(party, member, Item(party, Potion.Restore), new ScriptedRandom()));
+        Assert.Equal(DrinkResult.Drunk, Potions.Drink(party, member, Item(party, BasePotion.Restore), new ScriptedRandom()));
         Assert.Equal(MagicData.Endurance.Id, Assert.Single(member.Effects).Source);
         Assert.Equal(endurance + 4, member.Stats.Base(Stat.Endurance));
     }
@@ -292,9 +292,9 @@ public sealed class CuringPotionTests
     [Fact]
     public void TheStaminaPotionEndsExhaustionThenRestoresStamina()
     {
-        var (party, member) = Setup(Potion.Stamina);
+        var (party, member) = Setup(BasePotion.Stamina);
         Cast(member, MagicData.Exhaustion, 2);
-        Assert.Equal(DrinkResult.Drunk, Potions.Drink(party, member, Item(party, Potion.Stamina), new ScriptedRandom()));
+        Assert.Equal(DrinkResult.Drunk, Potions.Drink(party, member, Item(party, BasePotion.Stamina), new ScriptedRandom()));
         Assert.Empty(member.Effects);
         Assert.Equal(member.Stats.Base(Stat.Stamina), member.Stats.Modified(Stat.Stamina));
     }
@@ -302,8 +302,8 @@ public sealed class CuringPotionTests
     [Fact]
     public void FlasksAndPotionsWithoutEffectsCantBeDrunkInTrek()
     {
-        var (party, member) = Setup(Potion.FireFlask, Potion.Aspect);
-        Assert.Equal(DrinkResult.NotInTrek, Potions.Drink(party, member, Item(party, Potion.FireFlask), new ScriptedRandom()));
-        Assert.Equal(DrinkResult.NotInTrek, Potions.Drink(party, member, Item(party, Potion.Aspect), new ScriptedRandom()));
+        var (party, member) = Setup(BasePotion.FireFlask, BasePotion.Aspect);
+        Assert.Equal(DrinkResult.NotInTrek, Potions.Drink(party, member, Item(party, BasePotion.FireFlask), new ScriptedRandom()));
+        Assert.Equal(DrinkResult.NotInTrek, Potions.Drink(party, member, Item(party, BasePotion.Aspect), new ScriptedRandom()));
     }
 }

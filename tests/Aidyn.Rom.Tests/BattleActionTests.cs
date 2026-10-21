@@ -96,8 +96,8 @@ public sealed class BattleActionTests(Na10Import fixture)
         var alaron = run.TurnOf("Alaron");
         var action = alaron.Action;
         var strength = alaron.Sheet.Stats.Modified(Aidyn.Core.Characters.Stat.Strength);
-        var potions = run.Built.Game.Party.Inventory.Count(Potions.Id(Potion.Strength));
-        Choose(run.Battle, true, r => r.Potion == Potion.Strength);
+        var potions = run.Built.Game.Party.Inventory.Count(PotionId(BasePotion.Strength));
+        Choose(run.Battle, true, r => r.Potion?.Id == PotionId(BasePotion.Strength));
 
         // State 9 with the drinker alone in set A, selected; A drinks.
         Assert.Equal(CombatState.TargetAttack, run.Battle.State);
@@ -105,7 +105,7 @@ public sealed class BattleActionTests(Na10Import fixture)
         Assert.True(run.Battle.Confirm());
         run.UntilTurnEnds(alaron);
         Assert.Equal(strength + 10, alaron.Sheet.Stats.Modified(Aidyn.Core.Characters.Stat.Strength));
-        Assert.Equal(potions - 1, run.Built.Game.Party.Inventory.Count(Potions.Id(Potion.Strength)));
+        Assert.Equal(potions - 1, run.Built.Game.Party.Inventory.Count(PotionId(BasePotion.Strength)));
         Assert.Equal(action, alaron.Action);
         Assert.Contains(run.Battle.Log, l => l.Contains("Alaron", StringComparison.Ordinal) && l.Contains("otion", StringComparison.Ordinal));
     }
@@ -116,7 +116,7 @@ public sealed class BattleActionTests(Na10Import fixture)
         var run = Start();
         var alaron = run.TurnOf("Alaron");
         var action = alaron.Action;
-        Choose(run.Battle, true, r => r.Potion == Potion.Strength);
+        Choose(run.Battle, true, r => r.Potion?.Id == PotionId(BasePotion.Strength));
         Assert.Equal(CombatAction.Flask, alaron.Action);
         Assert.True(run.Battle.Cancel());
         Assert.Equal((CombatState.Turn, action), (run.Battle.State, alaron.Action));
@@ -142,8 +142,8 @@ public sealed class BattleActionTests(Na10Import fixture)
         var run = Start();
         var brenna = run.TurnOf("Brenna");
         var inventory = run.Built.Game.Party.Inventory;
-        inventory.Add(Potions.Id(Potion.FireFlask), 2);
-        brenna.HoldPotion(Potion.FireFlask, run.Battle);
+        inventory.Add(PotionId(BasePotion.FireFlask), 2);
+        brenna.HoldPotion(run.Battle.Game.Party.Inventory.Catalog[PotionId(BasePotion.FireFlask)], run.Battle);
 
         // A in the turn: a flask aims freely (state 18), at the other side alone, with no reach.
         Assert.True(run.Battle.Attack());
@@ -157,7 +157,7 @@ public sealed class BattleActionTests(Na10Import fixture)
             flew |= run.Battle.Flight is { Scene: var scene } && scene == Battle.FlaskScene;
         }
         Assert.NotSame(brenna, run.Battle.Current);
-        Assert.Equal(1, inventory.Count(Potions.Id(Potion.FireFlask)));
+        Assert.Equal(1, inventory.Count(PotionId(BasePotion.FireFlask)));
         // One more is left, so the next flask is still in hand, and the weapon was put away.
         Assert.True(brenna.HoldsFlask);
         Assert.Null(brenna.Sheet.Equipment.Weapon);
@@ -171,10 +171,10 @@ public sealed class BattleActionTests(Na10Import fixture)
         var run = Start();
         var brenna = run.TurnOf("Brenna");
         var inventory = run.Built.Game.Party.Inventory;
-        while (inventory.Has(Potions.Id(Potion.FireFlask)))
-            inventory.Take(Potions.Id(Potion.FireFlask));
-        inventory.Add(Potions.Id(Potion.FireFlask));
-        brenna.HoldPotion(Potion.FireFlask, run.Battle);
+        while (inventory.Has(PotionId(BasePotion.FireFlask)))
+            inventory.Take(PotionId(BasePotion.FireFlask));
+        inventory.Add(PotionId(BasePotion.FireFlask));
+        brenna.HoldPotion(run.Battle.Game.Party.Inventory.Catalog[PotionId(BasePotion.FireFlask)], run.Battle);
         Assert.True(run.Battle.Attack());
         Assert.True(run.Battle.Confirm());
         var flew = false;
@@ -184,7 +184,7 @@ public sealed class BattleActionTests(Na10Import fixture)
             flew |= run.Battle.Flight is { Scene: var scene } && scene == Battle.FlaskScene;
         }
         Assert.True(flew);
-        Assert.False(inventory.Has(Potions.Id(Potion.FireFlask)));
+        Assert.False(inventory.Has(PotionId(BasePotion.FireFlask)));
         Assert.False(brenna.HoldsFlask);
         Assert.Equal(CombatAction.None, brenna.Action);
     }

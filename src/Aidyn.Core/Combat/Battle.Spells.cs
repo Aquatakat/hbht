@@ -227,21 +227,21 @@ public sealed partial class Battle
     }
 
     /// <summary>
-    /// C-up's rows (<c>CombatMenu.BuildItemsMenu</c>, <c>0x800891B4</c>): a row for each kind of potion the party holds that would do
-    /// something now (<see cref="Potions.CanDrink"/>), in the kinds' order, never a flask or Stealth; then the spells of the weapon, the
-    /// shield, the body armor and the gear by slot that have charges left, each with its item's image.
+    /// C-up's rows (<c>CombatMenu.BuildItemsMenu</c>, <c>0x800891B4</c>, from <c>CombatMenu.ListPotions</c>, <c>0x80088190</c>): a row for
+    /// each potion the party holds that its record lets be drunk in a battle (<see cref="PotionUse.DrinkInBattle"/>: the original's
+    /// every kind but the flasks and Stealth) and that would do something now (<see cref="Potions.CanDrink"/>), in the records' order;
+    /// then the spells of the weapon, the shield, the body armor and the gear by slot that have charges left, each with its item's image.
     /// </summary>
     public IReadOnlyList<CombatMenuRow> ItemRows(Combatant c)
     {
         var rows = new List<CombatMenuRow>();
         var inventory = Game.Party.Inventory;
-        foreach (var potion in Enum.GetValues<Potion>())
+        foreach (var item in inventory.Catalog.All)
         {
-            if (Potions.IsFlask(potion) || potion == Potion.Stealth || !inventory.Has(Potions.Id(potion)))
+            if (!Potions.Use(item).HasFlag(PotionUse.DrinkInBattle) || !inventory.Has(item.Id))
                 continue;
-            var item = inventory.Catalog[Potions.Id(potion)];
-            if (Potions.CanDrink(c.Sheet, item) == DrinkResult.Drunk)
-                rows.Add(new(CombatMenuChoice.Potion, item.Name, CombatMenu.PotionIcon, CombatMenu.PotionColor, Potion: potion));
+            if (Potions.CanDrink(c.Sheet, item, inBattle: true) == DrinkResult.Drunk)
+                rows.Add(new(CombatMenuChoice.Potion, item.Name, CombatMenu.PotionIcon, CombatMenu.PotionColor, Potion: item));
         }
         var equipment = c.Sheet.Equipment;
         AddItemSpell(equipment.Weapon, new SpellChoice(SpellSourceKind.Weapon));

@@ -307,6 +307,11 @@ public sealed record TrainingPrices(int FirstLevelGold, int GoldPerLevel, float 
 /// <param name="Filter">Who it may be cast at, beyond its side and its special.</param>
 /// <param name="AiValue">What the enemies' AI makes of it (<c>EnemyAI.SpellValue</c>); with none, its first effect's type's.</param>
 /// <param name="Visuals">What casting it shows in a battle; with none, nothing.</param>
+/// <param name="Area">
+/// The AI centres its placed area on its opponents and scores it by whom it would catch, and a party member who knows it makes the
+/// enemies spread out by twice the casting level (<c>EnemyAI.AreaCentre</c>, <c>0x80058008</c>, <c>EnemyAI.AimAreaSpell</c>,
+/// <c>0x8005974C</c>, and <c>Combat.CreatePartyCombatants</c>, <c>0x8005C7C8</c>, all by spell kind 8): Fireball.
+/// </param>
 public sealed record SpellRecord(
     RecordId Id,
     string Name,
@@ -333,7 +338,8 @@ public sealed record SpellRecord(
     IReadOnlyList<RecordId>? NotResistedBy = null,
     TargetFilter? Filter = null,
     int? AiValue = null,
-    MagicVisuals? Visuals = null);
+    MagicVisuals? Visuals = null,
+    bool Area = false);
 
 /// <summary>How many targets a spell takes.</summary>
 public enum SpellTargetCount
