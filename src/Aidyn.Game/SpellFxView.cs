@@ -11,8 +11,9 @@ namespace Aidyn.Game;
 /// Draws the spells' and potions' visuals (<see cref="SpellFx"/>, <c>CombatSpellFx.Draw</c>, <c>0x8008C25C</c>): each actor where the core
 /// puts it, unturned and unscaled, playing its cast as the core ticks it, its emitters attached to the bodies of its cast; and each
 /// lasting scene in its turn at its owner's locator 3, at its alpha. Both are lit by their own scenes' lights and tinted by the
-/// screen's fade, with their billboards turned to the camera and their textures scrolling. It's also the core's host for the actors
-/// (<see cref="ISpellFxHost"/>): an actor's scene is made as the core first asks for its animation.
+/// screen's fade, with their billboards turned to the camera and their textures scrolling. Each is made as the battle cues its start
+/// (<see cref="SpellVisualStarted"/>) and freed as it cues its end (<see cref="SpellVisualEnded"/>). It's also the core's host for the
+/// actors (<see cref="ISpellFxHost"/>): an actor's animation, its scene made then if the cue hasn't made it yet.
 /// </summary>
 public partial class SpellFxView : Node3D, ISpellFxHost
 {
