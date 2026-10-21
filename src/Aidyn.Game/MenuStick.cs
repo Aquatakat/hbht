@@ -1,43 +1,7 @@
+using Aidyn.Core.Ui;
 using Godot;
 
 namespace Aidyn.Game;
-
-/// <summary>What a press means to a menu, a popup or a conversation (<see cref="MenuStick.Translate"/>).</summary>
-public enum MenuAction
-{
-    /// <summary>The event is none of the menu's buttons, or a stick that hasn't crossed its threshold anew.</summary>
-    None,
-    /// <summary>The stick, a key or the D-pad's up, which repeats as it's held.</summary>
-    Up,
-    /// <summary>Down, as up.</summary>
-    Down,
-    /// <summary>Left, as up.</summary>
-    Left,
-    /// <summary>Right, as up.</summary>
-    Right,
-    /// <summary>A. A key held doesn't repeat it.</summary>
-    Accept,
-    /// <summary>B.</summary>
-    Back,
-    /// <summary>Start (<c>pause</c>).</summary>
-    Start,
-    /// <summary>C-down going down. Its letting go is <see cref="DetailsRelease"/>.</summary>
-    Details,
-    /// <summary>C-down going up.</summary>
-    DetailsRelease,
-    /// <summary>C-up going down. Its letting go is <see cref="AppraiseRelease"/>.</summary>
-    Appraise,
-    /// <summary>C-up going up, which chooses from combat's held C-up menu.</summary>
-    AppraiseRelease,
-    /// <summary>C-left, which shows the next member.</summary>
-    MemberLeft,
-    /// <summary>C-right, which shows the member before.</summary>
-    MemberRight,
-    /// <summary>The left trigger (or Z): the tab before. Repeats as a key does.</summary>
-    TabPrevious,
-    /// <summary>The right trigger (or X): the next tab.</summary>
-    TabNext,
-}
 
 /// <summary>
 /// The stick, the D-pad and the triggers in menus, the pause menu's and trek's popups and conversations alike, as the
