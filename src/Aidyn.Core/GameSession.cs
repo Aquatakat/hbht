@@ -533,13 +533,13 @@ public sealed class GameSession
     /// </summary>
     public void BeginCutScene()
     {
-        var (script, start, stageRef) = Trek.BeginCutScene();
-        StartCutScene(script, start, stageRef);
+        StartCutScene(Trek.BeginCutScene());
     }
 
     /// <summary>A cut-scene starts on its stage, trek's world having gone (<see cref="BeginCutScene"/>).</summary>
-    private void StartCutScene(DialogueRecord script, ScriptStart start, ChunkRef stageRef)
+    private void StartCutScene(CutSceneLaunch launch)
     {
+        var (script, start, stageRef) = launch;
         Zone.Particles?.Clear();
         if (CutSceneStage.For(Game.Plugins, stageRef, Trek.Chunks.World) is not { } stage)
         {
@@ -578,9 +578,9 @@ public sealed class GameSession
         // in place of trek.
         if (Fire(GameEvents.ScriptEnded, scene.Runner.Script.Id))
             return;
-        if (scene.Runner.Ending is null or { Kind: ScriptEndKind.Ended } && Chained() is var (next, start, stage))
+        if (scene.Runner.Ending is null or { Kind: ScriptEndKind.Ended } && Chained() is { } next)
         {
-            StartCutScene(next, start, stage);
+            StartCutScene(next);
             return;
         }
         ResumeTrek();
@@ -599,7 +599,7 @@ public sealed class GameSession
     /// <see cref="MapObject.Enabled"/> holds (<c>0x800113bc</c>), whether it was active or not. So Oriana's first cut-scene after
     /// the Goblin Ambush leads straight into the next, and the screen goes from one to the other without trek between.
     /// </summary>
-    private (DialogueRecord Script, ScriptStart Start, ChunkRef Stage)? Chained()
+    private CutSceneLaunch? Chained()
     {
         var at = Trek.Player.Sphere.Position;
         if (!Trek.AtPlace || Trek.Chunks.ChunkAt(at) is not { } chunk || Game.Plugins.TryGet<MapRecord>(chunk.Map) is not { } map)
@@ -611,9 +611,7 @@ public sealed class GameSession
                 || dialogue.Enabled is { } gate && !Game.Flags.Holds(gate))
                 continue;
             // The original starts any script there; every one the data reaches is a cut-scene with a stage.
-            if (dialogue.Stage is not { } stage || Game.Plugins.TryGet<DialogueRecord>(dialogue.Script) is not { Mode: DialogueMode.Cutscene } script)
-                return null;
-            return (script, new ScriptStart(dialogue.RefPointBase, MapRecord.VoxelId(map.Id, dialogue.Index)), stage);
+            return CutSceneLaunch.Of(Game.Plugins, dialogue, MapRecord.VoxelId(map.Id, dialogue.Index));
         }
         return null;
     }
@@ -626,11 +624,14 @@ public sealed class GameSession
     }
 
     /// <summary>Asks trek for a cut-scene, unless one or a battle is playing (<see cref="TrekLoop.Cue"/>).</summary>
-    public void Cue(DialogueRecord script, ScriptStart start, ChunkRef stage)
+    public void Cue(CutSceneLaunch launch)
     {
         if (Scene is null && Battle is null)
-            Trek.Cue(script, start, stage);
+            Trek.Cue(launch);
     }
+
+    /// <inheritdoc cref="Cue(CutSceneLaunch)"/>
+    public void Cue(DialogueRecord script, ScriptStart start, ChunkRef stage) => Cue(new CutSceneLaunch(script, start, stage));
 
     /// <summary>Asks trek for a battle, unless one or a cut-scene is playing (<see cref="TrekLoop.CueBattle"/>).</summary>
     public void CueBattle(BattleSetup setup)
@@ -729,10 +730,11 @@ public sealed class GameSession
     {
         if (Game.Plugins.TrySingleton<CombatRecord>()?.GameOver is { } gameOver
             && Game.Plugins.TryGet<MapRecord>(gameOver.Map) is { } map
-            && map.Objects.OfType<DialogueObject>().FirstOrDefault(d => d.Script == gameOver.Script) is { Stage: { } stage } dialogue
-            && Game.Plugins.TryGet<DialogueRecord>(gameOver.Script) is { } script)
+            && map.Objects.OfType<DialogueObject>().FirstOrDefault(d => d.Script == gameOver.Script) is { } dialogue
+            && Game.Plugins.TryGet<DialogueRecord>(gameOver.Script) is { } script
+            && CutSceneLaunch.Of(script, dialogue, MapRecord.VoxelId(map.Id, dialogue.Index)) is { } launch)
         {
-            StartCutScene(script, new ScriptStart(dialogue.RefPointBase, MapRecord.VoxelId(map.Id, dialogue.Index)), stage);
+            StartCutScene(launch);
             return;
         }
         Send(new Transition.GameOver());
@@ -1006,11 +1008,11 @@ public sealed class GameSession
     /// </summary>
     private bool StartFrom(RecordId voxel)
     {
-        if (MapRecord.Find(Game.Plugins, voxel) is not DialogueObject { Stage: { } stage } dialogue
-            || Game.Plugins.TryGet<DialogueRecord>(dialogue.Script) is not { Mode: DialogueMode.Cutscene } script)
+        if (MapRecord.Find(Game.Plugins, voxel) is not DialogueObject dialogue
+            || CutSceneLaunch.Of(Game.Plugins, dialogue, voxel) is not { } launch)
             return false;
         Trek.Free();
-        StartCutScene(script, new ScriptStart(dialogue.RefPointBase, voxel), stage);
+        StartCutScene(launch);
         return true;
     }
 

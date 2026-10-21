@@ -201,7 +201,7 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
         {
             // The original keeps the way the player faces reversed, and the bearing from the object.
             var bearing = new Vector2(position.X, position.Z) - player;
-            bearing = bearing.LengthSquared() > 0 ? Vector2.Normalize(bearing) : bearing;
+            bearing = SafeNormalize.Of(bearing);
             var score = (farthest - distance) / farthest + (Vector2.Dot(bearing, heading) + 1) * 0.5f;
             if (bestScore <= score)
                 (best, bestScore) = (o, score);

@@ -383,13 +383,10 @@ public sealed class CutScene
         }
         if (Point(spawn.RefPoint) is not { } at)
             return;
-        var body = new Body(at, look.Radius, look.Scale)
-        {
-            SnapNextFace = true,
-            GiveUpTicks = GiveUpTicks,
-            Bounds = Stage.Bounds,
-        };
-        body.Sphere.Position = Body.SetDown(Stage.World, at, look.Radius, _game.Random.World).Position;
+        var body = Body.Spawn(Stage.World, at, look, _game.Random.World);
+        body.SnapNextFace = true;
+        body.GiveUpTicks = GiveUpTicks;
+        body.Bounds = Stage.Bounds;
         _actors.Add(new CutSceneActor(entity, look, body));
     }
 

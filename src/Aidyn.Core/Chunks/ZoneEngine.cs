@@ -198,6 +198,18 @@ public sealed class ZoneEngine
     }
 
     /// <summary>
+    /// The zone engine starts again on another map set, as a teleport to one or a kept place in one does: the chunks change, with
+    /// the collision and drawn surfaces they filled, and the dynamic lights go (<c>FreeZoneEngine</c>, <c>DynamicLights.FreeAll</c>).
+    /// </summary>
+    public void ChangeMapSet(MapSetRecord set)
+    {
+        Chunks.Change(set);
+        World.Clear();
+        Visible?.Clear();
+        Lights.Dynamic.Clear();
+    }
+
+    /// <summary>
     /// A stage ends (<c>FreeZoneEngine</c>, from <c>CutScene.Free</c>, <c>0x8005169c</c>): the rain's emitters are forgotten,
     /// the particle pool is emptied with every emitter in it (<c>Particles.FreeHead</c>), and then the world goes
     /// (<see cref="Free"/>). The weather drawn carries on into the world loaded next.

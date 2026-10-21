@@ -196,7 +196,7 @@ public sealed class TrekLoop : IMapObjectHost
     public bool Teleporting => _pending is not null;
 
     /// <summary>A cut-scene waiting for trek to fade out, or for its host to start it.</summary>
-    public (DialogueRecord Script, ScriptStart Start, ChunkRef Stage)? Cued { get; private set; }
+    public CutSceneLaunch? Cued { get; private set; }
 
     /// <summary>The last places the player stood, which fleeing a battle goes back to.</summary>
     public Breadcrumbs Breadcrumbs { get; } = new();
@@ -446,12 +446,8 @@ public sealed class TrekLoop : IMapObjectHost
         AtPlace = false;
         if (arrival.Set.Id != Chunks.MapSet.Id)
         {
-            Chunks.Change(arrival.Set);
-            Chunks.World.Clear();
-            Chunks.Visible?.Clear();
+            Zone.ChangeMapSet(arrival.Set);
             Wanderers.Clear();
-            // The zone engine starts again, and its dynamic lights with it (FreeZoneEngine, DynamicLights.FreeAll).
-            Zone.Lights.Dynamic.Clear();
         }
         var origin = Chunks.Origin(arrival.Chunk);
         var point = origin + arrival.Position;
@@ -603,7 +599,7 @@ public sealed class TrekLoop : IMapObjectHost
     /// The cued cut-scene starts, once <see cref="Tick"/> says so: trek's world goes, and the cut-scene is
     /// its host's to play on its own stage (<see cref="ZoneEngine.Stage"/>).
     /// </summary>
-    public (DialogueRecord Script, ScriptStart Start, ChunkRef Stage) BeginCutScene()
+    public CutSceneLaunch BeginCutScene()
     {
         var cued = Cued ?? throw new InvalidOperationException("No cut-scene is cued.");
         Cued = null;
@@ -673,10 +669,7 @@ public sealed class TrekLoop : IMapObjectHost
         }
         if (set.Id != Chunks.MapSet.Id)
         {
-            Chunks.Change(set);
-            Chunks.World.Clear();
-            Chunks.Visible?.Clear();
-            Zone.Lights.Dynamic.Clear();
+            Zone.ChangeMapSet(set);
         }
         Player.Sphere.Position = Chunks.Origin(chunk) + position;
         Player.Sphere.Velocity = Vector3.Zero;
@@ -746,8 +739,8 @@ public sealed class TrekLoop : IMapObjectHost
             scene = fire;
             source = MapRecord.VoxelId(campsite.Id, fire.Index);
         }
-        if (scene is not null && Game.Plugins.TryGet<DialogueRecord>(scene.Script) is { Mode: DialogueMode.Cutscene } script && scene.Stage is { } stage)
-            Cue(script, new ScriptStart(scene.RefPointBase, source), stage);
+        if (scene is not null && CutSceneLaunch.Of(Game.Plugins, scene, source) is { } launch)
+            Cue(launch);
         else
             _host.Transition(new Transition.Say("The party camps, but there's no camp scene to show; eight hours would pass."));
         return CampOutcome.Camped;
@@ -757,13 +750,16 @@ public sealed class TrekLoop : IMapObjectHost
     /// Asks for a cut-scene (<c>dialoug_func</c>, then <c>funcs0[1]</c>): trek fades out, and it starts once
     /// the screen is black. One at a time, and none once a battle is cued.
     /// </summary>
-    public void Cue(DialogueRecord script, ScriptStart start, ChunkRef stage)
+    public void Cue(CutSceneLaunch launch)
     {
         if (Cued is not null || CuedBattle is not null)
             return;
-        Cued = (script, start, stage);
+        Cued = launch;
         CutSceneFade.Out(CutSceneFadePerTick);
     }
+
+    /// <inheritdoc cref="Cue(CutSceneLaunch)"/>
+    public void Cue(DialogueRecord script, ScriptStart start, ChunkRef stage) => Cue(new CutSceneLaunch(script, start, stage));
 
     /// <summary>
     /// Asks for a battle (<c>TrekLoop.QueueState(2)</c>, <c>0x8001FF04</c>): trek fades out as into a cut-scene, and
@@ -903,9 +899,9 @@ public sealed class TrekLoop : IMapObjectHost
             Refresh();
             return;
         }
-        if (Game.Plugins.TryGet<DialogueRecord>(dialogue.Script) is { Mode: DialogueMode.Cutscene } cutscene && dialogue.Stage is { } stage)
+        if (CutSceneLaunch.Of(Game.Plugins, dialogue, source) is { } launch)
         {
-            Cue(cutscene, new ScriptStart(dialogue.RefPointBase, source), stage);
+            Cue(launch);
             return;
         }
         if (Game.Plugins.TryGet<DialogueRecord>(dialogue.Script) is { Mode: DialogueMode.Backdrop or DialogueMode.Help } backdrop)

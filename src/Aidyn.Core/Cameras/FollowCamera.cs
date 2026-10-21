@@ -325,7 +325,7 @@ public sealed partial class FollowCamera
         var focus = (a + b) * 0.5f;
         var h = focus - a;
         var away = new Vector2(-MathF.Abs(h.Z), MathF.Abs(h.X));
-        away = away.LengthSquared() > 0 ? Vector2.Normalize(away) : -LookXZ;
+        away = SafeNormalize.Of(away, -LookXZ);
         Distance = MathF.Max((h.Length() + ConversationMargin) / MathF.Tan(ConversationHalfAngle), ConversationMinDistance);
         Snap = 1;
         Anchor(focus);
