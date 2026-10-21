@@ -24,6 +24,9 @@ public sealed class CombatNumbers
 
     private readonly List<CombatNumber> _shown = [];
 
+    /// <summary>Where each number's start and end are cued (the battle's host).</summary>
+    internal Action<CombatCue>? Cue { get; set; }
+
     /// <summary>The numbers showing, oldest first.</summary>
     public IReadOnlyList<CombatNumber> Shown => _shown;
 
@@ -38,11 +41,16 @@ public sealed class CombatNumbers
         if (amount == 0)
             return;
         if (_shown.Count == Pool)
+        {
+            Cue?.Invoke(new NumberGone(_shown[0]));
             _shown.RemoveAt(0);
+        }
         var body = over.Body;
         var at = body.Sphere.Position;
         at.Y += -body.ScaledRadius + over.Look.Height * over.Look.Scale + (healing ? 0.5f : 0);
-        _shown.Add(new CombatNumber(over.Slot, at, amount, healing));
+        var number = new CombatNumber(over.Slot, at, amount, healing);
+        _shown.Add(number);
+        Cue?.Invoke(new NumberShown(number));
     }
 
     /// <summary>A tick: each ages, and goes at <see cref="LifeTicks"/>.</summary>
@@ -50,11 +58,26 @@ public sealed class CombatNumbers
     {
         foreach (var number in _shown)
             number.Ticks++;
-        _shown.RemoveAll(n => n.Ticks >= LifeTicks);
+        RemoveWhere(n => n.Ticks >= LifeTicks);
     }
 
     /// <summary>Takes a body's away as it goes (<c>0x8008AA68</c>, from <c>Combat.FreeBody</c>).</summary>
-    public void Remove(int slot) => _shown.RemoveAll(n => n.Slot == slot);
+    public void Remove(int slot) => RemoveWhere(n => n.Slot == slot);
+
+    private void RemoveWhere(Predicate<CombatNumber> gone)
+    {
+        for (var i = 0; i < _shown.Count;)
+        {
+            if (!gone(_shown[i]))
+            {
+                i++;
+                continue;
+            }
+            var number = _shown[i];
+            _shown.RemoveAt(i);
+            Cue?.Invoke(new NumberGone(number));
+        }
+    }
 }
 
 /// <summary>One number over a head: whose body it's over, where, how much, and whether it's healing.</summary>

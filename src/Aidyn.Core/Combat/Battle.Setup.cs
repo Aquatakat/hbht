@@ -41,7 +41,8 @@ public sealed partial class Battle
     /// the party can flee; then the camera, the first turn's line and the fade in. The draws are on the combat stream, in
     /// the original's order: the enemy list, the Ranger's roll, each combatant's direction, the turn order.
     /// </summary>
-    public static Battle Begin(GameState game, BattleSetup setup, Arena arena, CollisionWorld world)
+    /// <param name="host">What presents its one-offs (<see cref="Host"/>), from the first bodies made; none headless.</param>
+    public static Battle Begin(GameState game, BattleSetup setup, Arena arena, CollisionWorld world, ICombatHost? host = null)
     {
         var plugins = game.Plugins;
         var rules = plugins.Singleton<CombatRecord>();
@@ -56,7 +57,7 @@ public sealed partial class Battle
             list.RemoveAt(list.IndexOf(sholeh));
             onField--;
         }
-        var battle = new Battle(game, setup, arena, world, list) { EnemiesOnField = onField, NextReserve = onField };
+        var battle = new Battle(game, setup, arena, world, list) { EnemiesOnField = onField, NextReserve = onField, Host = host };
         battle.Build(rules, ally);
         return battle;
     }
@@ -363,6 +364,7 @@ public sealed partial class Battle
         if (sheet.Spells.Count > 0)
             combatant.Spell = new SpellChoice(SpellSourceKind.Known);
         _slots[slot] = combatant;
+        Cue(new CombatantJoined(combatant));
         return combatant;
     }
 

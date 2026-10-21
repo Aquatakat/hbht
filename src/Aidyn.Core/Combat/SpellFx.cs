@@ -200,6 +200,9 @@ public sealed class SpellFx
         _magic = magic;
     }
 
+    /// <summary>Where each visual's start and end are cued (the battle's host).</summary>
+    internal Action<CombatCue>? Cue { get; set; }
+
     /// <summary>The sky's brightness, which a cast dims for a while (<see cref="SkyColors.At"/>'s <c>dim</c>).</summary>
     public SkyBrightness Sky { get; } = new();
 
@@ -273,6 +276,7 @@ public sealed class SpellFx
                 break;
         }
         cast.Live = true;
+        Started(cast);
         return cast;
     }
 
@@ -292,7 +296,18 @@ public sealed class SpellFx
         Attach(cast.Second, cast.Caster);
         QueueAura(cast.Target, cast.Lasting);
         cast.Live = true;
+        Started(cast);
         return cast;
+    }
+
+    /// <summary>A cast's visuals, cued once each knows the bodies of its cast.</summary>
+    private void Started(SpellFxCast cast)
+    {
+        foreach (var handle in (ReadOnlySpan<int>)[cast.First, cast.Second, cast.Lasting])
+        {
+            if (handle >= 0 && _visuals[handle] is { } visual)
+                Cue?.Invoke(new SpellVisualStarted(visual));
+        }
     }
 
     // The original doesn't check its pools: a 65th cast's visuals read past pool A's free list. The port shows nothing for one.
@@ -693,6 +708,7 @@ public sealed class SpellFx
         v.Live = false;
         _visuals[handle] = null;
         _visualPool.Give(handle);
+        Cue?.Invoke(new SpellVisualEnded(v));
         return -1;
     }
 

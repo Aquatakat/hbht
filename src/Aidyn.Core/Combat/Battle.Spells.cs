@@ -36,7 +36,7 @@ public sealed partial class Battle
     private readonly int[] _spellCursors = [-1, -1, -1, -1], _itemCursors = [-1, -1, -1, -1];
 
     /// <summary>The spells' and potions' visuals (<c>combatspellvisuals.cpp</c>), which the runtime draws.</summary>
-    public SpellFx Fx => _fx ??= new SpellFx(Game?.Clock, Game?.Rules.Magic?.Record);
+    public SpellFx Fx => _fx ??= new SpellFx(Game?.Clock, Game?.Rules.Magic?.Record) { Cue = Cue };
 
     private SpellFx? _fx;
 
@@ -476,7 +476,7 @@ public sealed partial class Battle
             Say(CastsLine, a.Sheet.Name, source.Spell.Name);
             SayQueued(ResistsLine, t.Sheet.Name);
         }
-        a.Body.Request = CastRequest;
+        Animate(a, CastRequest);
         // Player.SetCastSound: the spell's sound as the caster's request 5 plays, a refused cast's too.
         a.Audio.Cast = source.Spell.Cast;
         var cast = Fx.Start(a, t, source.Spell, outcome.Result switch
@@ -498,7 +498,7 @@ public sealed partial class Battle
     /// </summary>
     private void AttachPotionVisual(Combatant on, ItemRecord potion)
     {
-        on.Body.Request = CastRequest;
+        Animate(on, CastRequest);
         if (Fx.StartPotion(on, potion) is { } cast
             && on.Sheet.PotionEffects.FirstOrDefault(e => e.Source == potion.Id && e.Visual is null) is { } record)
             record.Visual = cast;
@@ -533,11 +533,10 @@ public sealed partial class Battle
         Lines.Queue(Lines.Shown);
     }
 
-    // Queues a line behind the one shown (QueueLog), noting it in the log.
+    // Queues a line behind the one shown (QueueLog), which the log notes as a flush shows it.
     private void SayQueued(int offset, params string[] values)
     {
         var line = Format(CombatText(offset), values);
-        _log.Add(line);
         Lines.Queue(line);
     }
 

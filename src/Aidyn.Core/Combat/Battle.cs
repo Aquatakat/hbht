@@ -34,7 +34,6 @@ public sealed partial class Battle
     public const int MaxEnemies = 12;
 
     private readonly Combatant?[] _slots = new Combatant?[SlotCount];
-    private readonly List<string> _log = [];
     private readonly List<string> _problems = [];
     /// <summary>The state the pause menu returns to (<c>0x800D94D4</c>).</summary>
     private CombatState _paused;
@@ -48,7 +47,18 @@ public sealed partial class Battle
         Enemies = enemies;
         Grid = new ArenaGrid();
         CanFlee = setup.CanFlee;
+        Lines.Cue = Cue;
+        Numbers.Cue = Cue;
     }
+
+    /// <summary>
+    /// What presents the battle, whom its one-offs are cued to (ADR 0019): the runtime, or a test's or the editor's recorder; none
+    /// headless. The session gives it its own as the battle begins.
+    /// </summary>
+    public ICombatHost? Host { get; set; }
+
+    /// <summary>A one-off to whatever presents the battle.</summary>
+    internal void Cue(CombatCue cue) => Host?.Cue(cue);
 
     public GameState Game { get; }
 
@@ -156,8 +166,8 @@ public sealed partial class Battle
     /// <summary>The screen's fade: in as the battle starts, out as it leaves.</summary>
     public ScreenFade Fade { get; } = new();
 
-    /// <summary>The log's lines, oldest first, as the battle wrote them.</summary>
-    public IReadOnlyList<string> Log => _log;
+    /// <summary>Every line the log box has said, oldest first (<see cref="CombatLog.History"/>).</summary>
+    public IReadOnlyList<string> Log => Lines.History;
 
     /// <summary>The log box's lines: the one shown, the one queued and the third (<see cref="CombatLog"/>).</summary>
     public CombatLog Lines { get; } = new();
@@ -169,8 +179,8 @@ public sealed partial class Battle
     public IReadOnlyList<string> Problems => _problems;
 
     /// <summary>
-    /// Whether it's over, for whoever runs it to end it (<c>Combat.Exit</c>): it has left, as <see cref="Outcome"/> says: for
-    /// trek, after a win, a non-lethal loss or fleeing (states 16 and 20), or for the game over script (21).
+    /// Whether it has left, as <see cref="Outcome"/> says: for trek, after a win, a non-lethal loss or fleeing (states 16 and 20), or for
+    /// the game over script (21). Whoever runs it hears so from its step (<see cref="BattleStep.Ended"/>).
     /// </summary>
     public bool Over => State is CombatState.Leave or CombatState.LeaveFled or CombatState.LeaveToScript;
 
@@ -178,10 +188,10 @@ public sealed partial class Battle
     public bool Fled => State == CombatState.LeaveFled;
 
     /// <summary>
-    /// Whether the pause menu is up, from a turn (state 14, with the Party tab and Flee) or from any other state (27, the
+    /// Whether the pause menu is due, from a turn (state 14, with the Party tab and Flee) or from any other state (27, the
     /// System tab alone), once its two frames have passed (<c>Combat.IdleFrames</c>).
     /// </summary>
-    public bool Paused => State is CombatState.Pause or CombatState.PauseRequested && _idle >= PauseFrames * Cadence.FrameTicks;
+    private bool PauseDue => State is CombatState.Pause or CombatState.PauseRequested && _idle >= PauseFrames * Cadence.FrameTicks;
 
     /// <summary>Whether the pause menu has the Party tab and offers Flee: it came from a turn (state 14).</summary>
     public bool PausedFromTurn => State == CombatState.Pause;
@@ -192,12 +202,8 @@ public sealed partial class Battle
     /// <summary>Ticks in a pause, counting to its menu.</summary>
     private int _idle;
 
-    /// <summary>Notes a line in the log, and shows it in the log box at once (<c>Combat.ShowLog</c>).</summary>
-    internal void Write(string line)
-    {
-        _log.Add(line);
-        Lines.Show(line);
-    }
+    /// <summary>Shows a line in the log box at once (<c>Combat.ShowLog</c>), which notes and cues it (<see cref="CombatLog"/>).</summary>
+    internal void Write(string line) => Lines.Show(line);
 
     /// <summary>
     /// Start (<c>Combat.HandleCancelAndPause</c>, <c>0x80083D34</c>): from a turn, the pause menu with the Party tab and
@@ -241,10 +247,7 @@ public sealed partial class Battle
     public void Unpause(bool flee)
     {
         if (State == CombatState.Pause && flee && CanFlee)
-        {
-            State = CombatState.LeaveFled;
-            Outcome = BattleOutcome.Fled;
-        }
+            EndAs(BattleOutcome.Fled, CombatState.LeaveFled);
         else if (State == CombatState.Pause)
             State = NextState;
         else if (State == CombatState.PauseRequested)
@@ -260,7 +263,8 @@ public sealed partial class Battle
     /// <param name="motion">Each combatant's animations, or null for one with none.</param>
     /// <param name="readInput">The player's controls, read only in a turn the player plays, once the screen has faded in.</param>
     /// <param name="fx">The spells' visuals' actors (<see cref="SpellFx"/>), or null for none: headless, an actor's visual ends at once.</param>
-    public void Tick(ZoneEngine arena, bool skyDrawn, Func<Combatant, IActorMotion?> motion, Func<PlayerInput>? readInput = null,
+    /// <returns>Whether it goes on, its pause menu is due, or it has ended.</returns>
+    public BattleStep Tick(ZoneEngine arena, bool skyDrawn, Func<Combatant, IActorMotion?> motion, Func<PlayerInput>? readInput = null,
         ISpellFxHost? fx = null)
     {
         // Combat.HoldForMessage: while "Enemy reinforcements flee" holds the battle, its controls and states wait.
@@ -321,6 +325,9 @@ public sealed partial class Battle
         Numbers.Tick();
         Fade.Step();
         Gui.Tick(this);
+        return Over ? new BattleStep.Ended(Outcome)
+            : PauseDue ? new BattleStep.Paused(PausedFromTurn, PausedFromTurn && CanFlee)
+            : BattleStep.Ran;
     }
 
     private readonly List<Combatant> _crowd = [];
@@ -332,7 +339,10 @@ public sealed partial class Battle
         _crowd.AddRange(Combatants.Where(c => !c.Freed));
         // A fled body, gone from the battle at once, fades out where it stood.
         foreach (var c in Combatants.Where(c => c.Fading > 0))
-            c.Fading--;
+        {
+            if (--c.Fading == 0)
+                Cue(new CombatantGone(c, Fled: true));
+        }
         return [.. _crowd.Select(c => (CrowdMember?)new CrowdMember(c.Body.Sphere, c.Body.Scale, null))];
     }
 
@@ -380,7 +390,9 @@ public sealed partial class Battle
                 StepDefeatWait();
                 break;
             case CombatState.Pause or CombatState.PauseRequested:
-                _idle++;
+                // Combat.IdleFrames: the menu comes once its two frames have passed.
+                if (++_idle == PauseFrames * Cadence.FrameTicks)
+                    Cue(new BattlePaused(PausedFromTurn, PausedFromTurn && CanFlee));
                 break;
             case CombatState.ShadowMerge:
                 StepShadowMerge();

@@ -34,7 +34,7 @@ namespace Aidyn.Game;
 /// UI screen's height, and F8 saves to <c>quick.json</c> in the saves folder. In a battle, F9 moves the radar between
 /// the log box and the screen's corner.
 /// </remarks>
-public partial class Game : Node3D, ITrekHost, IPauseMenuHost
+public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
 {
     /// <summary>A faster pace than the original's, which feels slow on a PC (a setting, ADR 0018).</summary>
     private const float BriskPace = 1.3f;
@@ -272,7 +272,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost
         if (plugins.FindAsset(RecordId.Hex(RecordTypes.Texture, 0x0003), "png") is { } shadowPng)
             _shadowTexture = Png.Texture(shadowPng);
         var streamer = new ChunkStreamer(plugins, game, _world, start.Set, _visible);
-        var session = _session = GameSession.Start(game, this, new ZoneEngine(game, streamer, _audio!, _particles.Head), start, _settings, this);
+        var session = _session = GameSession.Start(game, this, new ZoneEngine(game, streamer, _audio!, _particles.Head), start, _settings, this, combatHost: this);
         _chunks = new ChunkStreamerView(plugins, models, streamer, session.Trek.Wanderers, _shadowTexture);
         AddChild(_chunks);
         return session;

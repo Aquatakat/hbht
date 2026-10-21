@@ -114,6 +114,9 @@ public enum SessionStep
 public sealed class GameSession
 {
     private readonly ITrekHost _host;
+    private readonly ICombatHost? _combatHost;
+    /// <summary>How the battle playing ended, as its last step said (<see cref="BattleStep.Ended"/>).</summary>
+    private BattleOutcome _battleEnd;
     private Triggers? _triggers;
     /// <summary>The pause menu reopening once trek has faded in, on the Theatre's page or as it was (trek's state 8), if it's to.</summary>
     private Transition.ReopenMenu? _reopen;
@@ -122,10 +125,11 @@ public sealed class GameSession
     private bool _frozen;
 
     private GameSession(GameState game, ITrekHost host, ZoneEngine zone, PlayerMotion player, FollowCamera camera, Settings? settings,
-        IPauseMenuHost? menuHost, string? savesFolder)
+        IPauseMenuHost? menuHost, string? savesFolder, ICombatHost? combatHost)
     {
         Game = game;
         _host = host;
+        _combatHost = combatHost;
         Trek = new TrekLoop(game, new Relay(this, host), zone, player, camera);
         zone.Sky.Warn = host.Warn;
         Menu = new PauseMenu(game, settings ?? new Settings(), savesFolder ?? DataPaths.Saves, Where, menuHost ?? NoMenuHost.Instance, Stick);
@@ -143,8 +147,9 @@ public sealed class GameSession
     /// <param name="settings">The player's settings, which the pause menu's Options page changes; a default set if none.</param>
     /// <param name="menuHost">What plays the pause menu's sounds, steps its scroll and writes saves; nothing does if none.</param>
     /// <param name="savesFolder">Where the save and load screens list saves: the data folder's by default.</param>
+    /// <param name="combatHost">What presents a battle's one-offs (<see cref="Combat.Battle.Host"/>); nothing does if none.</param>
     public static GameSession Start(GameState game, ITrekHost host, ZoneEngine zone, GameStart start, Settings? settings = null,
-        IPauseMenuHost? menuHost = null, string? savesFolder = null)
+        IPauseMenuHost? menuHost = null, string? savesFolder = null, ICombatHost? combatHost = null)
     {
         var chunks = zone.Chunks;
         if (chunks.MapSet.Id != start.Set.Id)
@@ -154,7 +159,7 @@ public sealed class GameSession
         var look = start.Heading == default ? GameStart.Facing(0) : Vector2.Normalize(start.Heading);
         var player = new PlayerMotion(spawn, look);
         var camera = new FollowCamera(spawn, look);
-        var session = new GameSession(game, host, zone, player, camera, settings, menuHost, savesFolder);
+        var session = new GameSession(game, host, zone, player, camera, settings, menuHost, savesFolder, combatHost);
         var trek = session.Trek;
         trek.Enter(chunk);
         chunks.Update(spawn);
@@ -450,16 +455,17 @@ public sealed class GameSession
         }
         if (Battle is { } battle)
         {
-            battle.Tick(Arena!, Sky.Drawn, combatants ?? (_ => null), readInput, spellFx);
-            if (battle.Paused && !MenuOpen)
-            {
-                // Combat's states 14 and 27: the pause menu, mode 3.
-                Send(new Transition.PauseBattle(battle.PausedFromTurn, battle.PausedFromTurn && battle.CanFlee));
-            }
+            var ran = battle.Tick(Arena!, Sky.Drawn, combatants ?? (_ => null), readInput, spellFx);
+            // Combat's states 14 and 27: the pause menu, mode 3.
+            if (ran is BattleStep.Paused pause && !MenuOpen)
+                Send(new Transition.PauseBattle(pause.PartyTab, pause.CanFlee));
             // A cast dims the sky for a while (CombatSpellFx.DimSky), where spells' visuals are drawn.
             Sky.Dim = spellFx is null ? 1 : battle.Fx.Sky.Value;
             Sky.Step();
-            return battle.Over ? SessionStep.CombatOver : SessionStep.Combat;
+            if (ran is not BattleStep.Ended ended)
+                return SessionStep.Combat;
+            _battleEnd = ended.Outcome;
+            return SessionStep.CombatOver;
         }
         if (_reopen is { } reopen && !Trek.CutSceneFade.Fading)
         {
@@ -651,7 +657,8 @@ public sealed class GameSession
         zone.Precipitation?.Density = _precipitationDensity;
         zone.RequestMusic(arena.Chunk);
         zone.Chunks.Update(arena.Origin + Combat.Battle.ZonePoint);
-        var battle = Battle = Combat.Battle.Begin(Game, setup, arena, zone.World);
+        _battleEnd = BattleOutcome.None;
+        var battle = Battle = Combat.Battle.Begin(Game, setup, arena, zone.World, _combatHost);
         zone.Camera = battle.Camera;
         foreach (var line in battle.Problems)
             _host.Warn(line);
@@ -679,7 +686,7 @@ public sealed class GameSession
         battle.Leave();
         if (battle.Rule?.End is { } end)
             Trek.Keep(end.Place, end.Position, end.Heading);
-        switch (battle.Outcome)
+        switch (_battleEnd)
         {
             case BattleOutcome.Won when battle.Spoils is { } spoils:
                 PostBattle = spoils;
@@ -694,7 +701,7 @@ public sealed class GameSession
                 PlayCinematic(cinematic, fromTheatre: false);
                 return;
         }
-        Trek.Resume(fled: battle.Outcome == BattleOutcome.Fled);
+        Trek.Resume(fled: _battleEnd == BattleOutcome.Fled);
         Send(new Transition.ResumeTrek());
     }
 

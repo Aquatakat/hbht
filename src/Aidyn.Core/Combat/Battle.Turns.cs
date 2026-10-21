@@ -191,8 +191,7 @@ public sealed partial class Battle
             // Escape took every member able to fight off the field: the party has fled (the port's fix of the original's softlock).
             if (counts.Party == 0 && Combatants.Any(c => !c.Hostile && c.Gone && !c.Sheet.IsDead))
             {
-                State = CombatState.LeaveFled;
-                Outcome = BattleOutcome.Fled;
+                EndAs(BattleOutcome.Fled, CombatState.LeaveFled);
                 return;
             }
             // A reserve still to come counts as an enemy for the battle's end.

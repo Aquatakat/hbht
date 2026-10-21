@@ -85,7 +85,7 @@ internal static class CombatCheckpoints
     }
 
     /// <summary>Checkpoint 01's battle, as <see cref="BattleCheckpointTests"/> builds it: the party and ten rats, and nothing of the checkpoint laid over it.</summary>
-    public static Built Plain(PluginSet Set, int checkpoint)
+    public static Built Plain(PluginSet Set, int checkpoint, ICombatHost? host = null)
     {
         var before = TestRoms.Checkpoint(Before);
         var cp = Combat(checkpoint);
@@ -101,7 +101,7 @@ internal static class CombatCheckpoints
         for (var i = 0; i < DrawsBeforeSetup; i++)
             random.Next();
         game.Random.Combat.Seed = random.Seed;
-        return new Built(Battle.Begin(game, setup, arena, streamer.World), game, streamer, cp);
+        return new Built(Battle.Begin(game, setup, arena, streamer.World, host), game, streamer, cp);
     }
 
     /// <summary>

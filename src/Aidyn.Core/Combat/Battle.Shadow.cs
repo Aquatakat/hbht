@@ -268,8 +268,7 @@ public sealed partial class Battle
     /// </summary>
     private void StepShadowVanishLeave()
     {
-        Outcome = BattleOutcome.Vanished;
-        State = CombatState.Leave;
+        EndAs(BattleOutcome.Vanished, CombatState.Leave);
     }
 
     /// <summary>
@@ -300,8 +299,7 @@ public sealed partial class Battle
     {
         if (Shadow is { } shadow && Game.Party.Slots[0] is { } leader)
             MergeShadow(leader, shadow.Sheet);
-        Outcome = BattleOutcome.Merged;
-        State = CombatState.Leave;
+        EndAs(BattleOutcome.Merged, CombatState.Leave);
     }
 
     /// <summary>

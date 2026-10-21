@@ -486,7 +486,7 @@ public sealed partial class Battle
         }
         LastAttack = outcome;
         if (WeaponOf(a) is { } weapon)
-            a.Body.Request = AttackRequest(weapon.Animation);
+            Animate(a, AttackRequest(weapon.Animation));
         return outcome.Damage;
     }
 
@@ -518,6 +518,7 @@ public sealed partial class Battle
     /// </summary>
     internal void Death(Combatant c)
     {
+        Cue(new CombatantDied(c));
         if (_rules is { } rules && c.Entity == rules.Ally && Game?.Plugins.TryGet<EntityRecord>(c.Entity)?.Member is { } ally)
             Game.Flags.TrySet(ally.Died, true);
         foreach (var held in c.Sheet.Effects.Where(e => e.Effects.Any(x => x is ImmobiliseEffect)).ToList())
@@ -554,6 +555,16 @@ public sealed partial class Battle
         c.Body.Field = null;
         if (CameraOwner == c)
             CameraOwner = Current;
+        // A fled body fades out first, and is gone once its fade is over (Crowd).
+        if (c.Fading == 0)
+            Cue(new CombatantGone(c, fled));
+    }
+
+    /// <summary>Asks a body for a one-off animation, <paramref name="request"/>, and says so (<see cref="CombatantAnimated"/>).</summary>
+    internal void Animate(Combatant c, int request)
+    {
+        c.Body.Request = request;
+        Cue(new CombatantAnimated(c, request));
     }
 
     /// <summary>
@@ -610,6 +621,7 @@ public sealed partial class Battle
             var feet = t.Body.Sphere.Position with { Y = t.Body.Sphere.Position.Y - t.Body.Sphere.Radius };
             Flight = new MissileFlight(FlaskScene, Middle(a), feet, FlaskMuzzle, a.Look.Scale, 0, FlaskSpin);
             a.EmptyHand();
+            Cue(new MissileLaunched(Flight));
             return true;
         }
         if (WeaponOf(a) is not { } weapon || _rules?.Missiles?.FirstOrDefault(m => m.Weapon == weapon.Id) is not { } missile)
@@ -618,6 +630,7 @@ public sealed partial class Battle
             return false;
         Flight = new MissileFlight(scene, Middle(a), Middle(t), missile.Speed, a.Look.Scale, missile.Turn);
         a.EmptyHand();
+        Cue(new MissileLaunched(Flight));
         return true;
     }
 
@@ -641,6 +654,8 @@ public sealed partial class Battle
         if (_actionTimer < SwingTicks)
             return;
         _actionTimer = 0;
+        if (Flight is { } landed)
+            Cue(new MissileLanded(landed));
         Flight = null;
         // Combat.EndCast (0x800219D8): the arrow, flask or thrown weapon is back in the hand.
         Current?.EquipVisuals(_rules);
@@ -665,27 +680,33 @@ public sealed partial class Battle
         {
             if (Current is { } a && a.Hostile == t.Hostile)
             {
-                body.Request = HelpedRequest;
+                Animate(t, HelpedRequest);
                 Numbers.Add(t, t.Healed, healing: true);
             }
             else
             {
-                body.Request = DodgeRequest;
+                Animate(t, DodgeRequest);
             }
         }
         else
         {
             var damage = t.Damage;
             t.Sheet.TakeDamage(damage, t);
-            body.Request = HitRequest;
+            Animate(t, HitRequest);
             // The Goblin Ambush's last hit on Alaron keels him over, alive.
             if (KeelsOver(t))
-                body.Request = body.Playing = DeathRequest;
+            {
+                Animate(t, DeathRequest);
+                body.Playing = DeathRequest;
+            }
             Numbers.Add(t, damage, healing: false);
             t.Damage = t.Healed = 0;
         }
         if (t.Sheet.IsDead)
-            body.Request = body.Playing = DeathRequest;
+        {
+            Animate(t, DeathRequest);
+            body.Playing = DeathRequest;
+        }
         State = CombatState.Result;
         Lines.Flush();
     }

@@ -44,6 +44,14 @@ public sealed partial class Battle
     /// <summary>How the battle ended, once it has left.</summary>
     public BattleOutcome Outcome { get; private set; }
 
+    /// <summary>The battle ends <paramref name="outcome"/>, leaving through <paramref name="state"/>, and says so (<see cref="BattleEnded"/>).</summary>
+    private void EndAs(BattleOutcome outcome, CombatState state)
+    {
+        Outcome = outcome;
+        State = state;
+        Cue(new BattleEnded(outcome));
+    }
+
     /// <summary>What a win gave, once the battle has left after it.</summary>
     public BattleSpoils? Spoils { get; private set; }
 
@@ -105,8 +113,7 @@ public sealed partial class Battle
         SetKillFlags();
         Game.Party.Gold = (uint)(Game.Party.Gold + GoldPool);
         Spoils = new BattleSpoils(GoldPool, ExperiencePool, Loot!, [.. Levelled]);
-        Outcome = BattleOutcome.Won;
-        State = CombatState.Leave;
+        EndAs(BattleOutcome.Won, CombatState.Leave);
     }
 
     /// <summary>
@@ -121,8 +128,7 @@ public sealed partial class Battle
         {
             if (Game.Party.Slots[0] is { } leader)
                 leader.Heal(leader.MaxHp - leader.Hp);
-            Outcome = BattleOutcome.Lost;
-            State = CombatState.LeaveToScript;
+            EndAs(BattleOutcome.Lost, CombatState.LeaveToScript);
             return;
         }
         if (Setup.EncounterFlag is { } flag)
@@ -130,8 +136,7 @@ public sealed partial class Battle
         if (Setup.Party is { } party)
             RememberBeaten(party);
         Game.WakeNextMorning();
-        Outcome = BattleOutcome.Spared;
-        State = CombatState.Leave;
+        EndAs(BattleOutcome.Spared, CombatState.Leave);
     }
 
     /// <summary>The monster party fought stays away a while (<c>MapObjectMemory.Remember</c>, kind 5, three map loads).</summary>

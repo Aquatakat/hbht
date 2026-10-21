@@ -9,8 +9,21 @@ namespace Aidyn.Core.Combat;
 /// state's change (an attack's result as its animation ends, a cast's end, a potion), so a line holds until the next.
 /// See docs/systems/ui.md's battle screen.
 /// </summary>
+/// <remarks>
+/// It's the one writer of what the box says: every change of <see cref="Text"/> goes through its methods, which note the line in
+/// <see cref="History"/> and cue it (<see cref="LogLine"/>) as it comes up.
+/// </remarks>
 public sealed class CombatLog
 {
+    private readonly List<string> _history = [];
+    private string _said = " ";
+
+    /// <summary>Where its lines are cued as the box shows them (the battle's host).</summary>
+    internal Action<CombatCue>? Cue { get; set; }
+
+    /// <summary>Every line the box has said, oldest first: what the player saw, one line each time the box changed.</summary>
+    public IReadOnlyList<string> History => _history;
+
     /// <summary>The line shown (<c>+0x4FC4</c>), a space before the first, as the box's text starts.</summary>
     public string Shown { get; private set; } = " ";
 
@@ -58,6 +71,7 @@ public sealed class CombatLog
     {
         if (!Locked)
             Shown = line;
+        Said();
     }
 
     /// <summary>Queues a line, shown at the next flush; a second overwrites it (<c>Combat.QueueLog</c>, <c>0x8005E658</c>).</summary>
@@ -89,6 +103,7 @@ public sealed class CombatLog
     {
         Hold = line;
         _held = 0;
+        Said();
     }
 
     /// <summary>
@@ -102,6 +117,7 @@ public sealed class CombatLog
         if (++_held < HoldTicks)
             return true;
         Hold = null;
+        Said();
         return false;
     }
 
@@ -116,5 +132,17 @@ public sealed class CombatLog
         Shown = line;
         _locked = line;
         LockedPortrait = portrait;
+        Said();
+    }
+
+    /// <summary>The box's text, noted and cued if it has changed.</summary>
+    private void Said()
+    {
+        var text = Text;
+        if (text == _said)
+            return;
+        _said = text;
+        _history.Add(text);
+        Cue?.Invoke(new LogLine(text));
     }
 }
