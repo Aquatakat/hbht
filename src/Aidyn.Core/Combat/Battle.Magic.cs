@@ -4,7 +4,6 @@ using Aidyn.Core.Characters;
 using Aidyn.Core.Items;
 using Aidyn.Core.Magic;
 using Aidyn.Core.Rng;
-using Aidyn.Core.Sky;
 using Aidyn.Plugins.Records;
 
 namespace Aidyn.Core.Combat;
@@ -41,7 +40,7 @@ public sealed partial class Battle : IMagicHost
     /// <summary>Whether Darkness or Light holds the part of the day (<c>World+5</c>), so it doesn't change and the weather doesn't roll.</summary>
     public bool PartOfDayHeld => _heldPartOfDay is not null;
 
-    int IMagicHost.MoonPhase => SkyObjects.MoonPhase(Game.Clock.Time).Phase;
+    int IMagicHost.MoonPhase => GameClock.MoonPhase(Game.Clock.Time).Phase;
 
     void IMagicHost.SetWeatherClass(int weatherClass) => WeatherClass = weatherClass;
 

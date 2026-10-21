@@ -6,13 +6,16 @@ namespace Aidyn.Game;
 /// <summary>
 /// Draws what the original draws behind the scenery each frame: the sky's gradient
 /// (<see cref="SkyBackdrop"/>), then the stars, sun and moon (<see cref="SkyObjects"/>), then the
-/// clouds (<see cref="Clouds"/>). Where the terrain's sky isn't drawn, it's black.
+/// clouds (<see cref="Clouds"/>), as the core's sky has them (<see cref="SkyDirector"/>). Where the terrain's sky isn't drawn,
+/// it's black.
 /// </summary>
 /// <remarks>
 /// It's a canvas layer below the 3D scene, which the environment shows as the background, so the
 /// scenery covers it and the far plane cuts the scenery off against it, as on the N64. The
 /// original's 2D drawing works on a 320 × 240 screen, which this scales to the window's height.
-/// Godot's 2D blends as the N64 does, in on-screen values.
+/// Godot's 2D blends as the N64 does, in on-screen values. The sky is drawn from the camera's interpolated transform each
+/// frame, and drawing the sun leaves where its middle landed in the core for the lens flare's next tick
+/// (<see cref="SkyObjects.SunMiddle"/>); the stars take the greys the core's last tick drew.
 /// </remarks>
 public partial class SkyBackdropView : Control
 {
@@ -88,17 +91,17 @@ public partial class SkyBackdropView : Control
 
     public override void _Process(double delta)
     {
-        var state = _sky.State;
+        var state = _sky.Sky.State;
         var camera = GetViewport().GetCamera3D();
-        _dome.Visible = state is { Current: not null, Drawn: true } && camera is not null && !_sky.Flash &&
-            _sky.Placement == SkyPlacement.Projected;
+        _dome.Visible = state is { Current: not null, Drawn: true } && camera is not null && !_sky.Sky.Flash &&
+            _sky.Sky.Placement == SkyPlacement.Projected;
         if (_dome.Visible)
         {
-            SkyBackdrop.Dome(state.Current!, state.Next, state.Change, _sky.TimeOfDay, _sky.Colors.Fog, _domeLines,
-                _sky.FogTime, _sky.LensFlareValue);
+            SkyBackdrop.Dome(state.Current!, state.Next, state.Change, _sky.Sky.TimeOfDay, _sky.Sky.Colors.Fog, _domeLines,
+                _sky.Sky.FogTime, _sky.Sky.LensFlareValue);
             for (var y = 0; y < _domeLines.Length; y++)
             {
-                var c = _domeLines[y] * _sky.Dim;
+                var c = _domeLines[y] * _sky.Sky.Dim;
                 _domeImage.SetPixel(0, y, new Color(c.X, c.Y, c.Z));
             }
             _domeTexture.Update(_domeImage);
@@ -114,7 +117,7 @@ public partial class SkyBackdropView : Control
 
     public override void _Draw()
     {
-        var state = _sky.State;
+        var state = _sky.Sky.State;
         if (state.Current is null || !state.Drawn || GetViewport().GetCamera3D() is not { } camera)
         {
             DrawRect(GetRect(), Colors.Black);
@@ -123,8 +126,8 @@ public partial class SkyBackdropView : Control
         // Where the scenery is drawn from this frame: between ticks, Godot draws the camera
         // interpolated, and the sky has to match it or it runs up to a tick ahead as the camera turns.
         var look = (-camera.GetGlobalTransformInterpolated().Basis.Z).Normalized().ToNumerics();
-        var colors = _sky.Colors;
-        if (_sky.Flash)
+        var colors = _sky.Sky.Colors;
+        if (_sky.Sky.Flash)
         {
             // RenderSky's lightning: the whole screen white in place of the gradient, with the sky's objects over it.
             DrawRect(GetRect(), Colors.White);
@@ -132,11 +135,11 @@ public partial class SkyBackdropView : Control
         // Projected, the dome, a child drawn behind this, is the gradient.
         else if (!_dome.Visible)
         {
-            SkyBackdrop.Draw(state.Current, state.Next, state.Change, _sky.TimeOfDay, look, colors.Fog, _lines,
-                _sky.FogTime, _sky.LensFlareValue);
+            SkyBackdrop.Draw(state.Current, state.Next, state.Change, _sky.Sky.TimeOfDay, look, colors.Fog, _lines,
+                _sky.Sky.FogTime, _sky.Sky.LensFlareValue);
             for (var y = 0; y < _lines.Length; y++)
             {
-                var c = _lines[y] * _sky.Dim;
+                var c = _lines[y] * _sky.Sky.Dim;
                 _image.SetPixel(0, y, new Color(c.X, c.Y, c.Z));
             }
             _gradient.Update(_image);
@@ -144,8 +147,8 @@ public partial class SkyBackdropView : Control
         }
 
         _sprites.Clear();
-        _sky.Objects?.Draw(_sprites, _sky.Clock.Time, look, colors.Sun, _sky.ImageSize, _sky.Twinkle, _sky.FogTime, shown: _sky.TimeOfDay);
-        _sky.Clouds?.Draw(_sprites, look, colors.Cloud, _sky.ImageSize, _sky.FogTime);
+        _sky.Sky.Objects?.Draw(_sprites, _sky.Sky.Clock.Time, look, colors.Sun, _sky.ImageSize, _sky.Sky.FogTime, shown: _sky.Sky.TimeOfDay);
+        _sky.Sky.Clouds?.Draw(_sprites, look, colors.Cloud, _sky.ImageSize, _sky.Sky.FogTime);
         DrawSprites(this, _sky, _sprites);
     }
 

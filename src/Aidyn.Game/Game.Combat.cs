@@ -39,16 +39,13 @@ public partial class Game
     }
 
     /// <summary>
-    /// The battle has begun on its arena: its chunks drawn, the arena chunk's sky chosen at once, a view for each
+    /// The battle has begun on its arena: its chunks drawn under the sky the session chose for it, a view for each
     /// combatant's body, and the view through the combat camera.
     /// </summary>
     private void ShowArena(Battle battle, ZoneEngine arena)
     {
         _arenaView = new ChunkStreamerView(_plugins!, _models!, arena.Chunks, null, _shadowTexture) { Name = "Arena" };
         AddChild(_arenaView);
-        _sky!.ClearSky();
-        _sky.Enter(battle.Arena.Chunk);
-        _sky.Apply();
         _camera!.Follow = battle.Camera;
         _camera.Far = SkyView.Far;
         SyncCombatants(battle);
@@ -73,14 +70,11 @@ public partial class Game
     }
 
     /// <summary>
-    /// What draws a tick of the battle the session stepped: the sky and the arena's scenery go on, and the bodies, the
+    /// What draws a tick of the battle the session stepped: the arena's scenery goes on, and the bodies, the
     /// camera, the lights and the fade follow it. Once its screen has faded out, the session ends it.
     /// </summary>
     private void StepBattle(bool over)
     {
-        // A cast dims the sky for a while (CombatSpellFx.DimSky).
-        _sky!.Dim = _spellFx ? Battle!.Fx.Sky.Value : 1;
-        _sky.Step();
         ScrollTextures();
         SyncBattle();
         if (_pointLights)
@@ -137,13 +131,13 @@ public partial class Game
     {
         var arena = _session!.Arena!;
         var fade = Battle!.Fade.Brightness;
-        arena.BeginLightFrame(fade, _sky!.State.Drawn, _sky.Moon);
+        arena.BeginLightFrame(fade);
         _arenaView!.LightActors(arena.Lights);
         foreach (var view in _combatantViews.Values)
         {
             view.Light(arena.Lights, arena.Chunks, party: !view.Combatant.Hostile, view.Combatant.Tint.Level);
             if (_spellFx)
-                view.Tinted(_sky.Colors.Sky * 0.5f, fade);
+                view.Tinted(arena.Sky.Colors.Sky * 0.5f, fade);
         }
     }
 
@@ -172,8 +166,7 @@ public partial class Game
     }
 
     /// <summary>
-    /// The battle's arena has gone: its bodies and chunks are no longer drawn, and the sky is cleared, so trek's chunk
-    /// chooses its own at once as trek's world is built again.
+    /// The battle's arena has gone: its bodies and chunks are no longer drawn.
     /// </summary>
     private void FreeArena()
     {
@@ -191,11 +184,9 @@ public partial class Game
         _spellFxView?.Clear();
         _spellFxView?.QueueFree();
         _spellFxView = null;
-        _sky!.Dim = 1;
         _arenaView?.QueueFree();
         _arenaView = null;
         _battleScreen!.Visible = false;
         _battleScreen.Battle = null;
-        _sky!.ClearSky();
     }
 }

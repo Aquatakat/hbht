@@ -22,6 +22,9 @@ public sealed class SkyObjects(SkyRecord sky)
 {
     private const float Deg = MathF.PI / 180;
 
+    /// <summary>Each star's grey, 160 to 255, as its last twinkle drew it (<see cref="Twinkle"/>).</summary>
+    private readonly byte[] _greys = new byte[sky.Stars.Count];
+
     /// <summary>The moon's azimuth in the table, which its light comes from (<see cref="SkyLight.MoonDirection"/>).</summary>
     public float MoonAzimuth => sky.Moon.Azimuth;
 
@@ -34,28 +37,48 @@ public sealed class SkyObjects(SkyRecord sky)
     /// <summary>How they're placed across the screen: the original's way, or projected.</summary>
     public SkyPlacement Placement { get; set; }
 
+    /// <summary>Each star's grey as it's drawn, 160 to 255, in the table's order, as the last twinkle left it.</summary>
+    public IReadOnlyList<byte> Greys => _greys;
+
+    /// <summary>Whether the stars show at a time of day: while the sun is down, from 18:00 to 06:00.</summary>
+    public static bool Night(float timeOfDay) => GameClock.SunHeight(timeOfDay) is <= 0 or >= 180;
+
+    /// <summary>
+    /// The stars twinkle (<c>Skyobjects::Render</c>): while they show, each draws a grey from 160 to 255, in the table's order,
+    /// whether it lands on the screen or not; by day nothing is drawn.
+    /// </summary>
+    /// <param name="random">The stars' own stream (<see cref="Rng.RandomStreams.Twinkle"/>).</param>
+    /// <param name="timeOfDay">The time of day the sky shows (<see cref="GameClock.ShownTimeOfDay"/>).</param>
+    public void Twinkle(IRandom random, float timeOfDay)
+    {
+        if (!Night(timeOfDay))
+            return;
+        for (var i = 0; i < _greys.Length; i++)
+            _greys[i] = (byte)random.Range(160, 255);
+    }
+
     /// <summary>Adds this frame's sprites to <paramref name="sprites"/>, in the order they're drawn.</summary>
     /// <param name="look">The way the camera looks, normalised.</param>
     /// <param name="sunColor">The sky's sun colour (<see cref="SkyColors.Sun"/>), which the sun is drawn in.</param>
-    /// <param name="twinkle">Picks the stars' greys each frame, 160 to 255: the cosmetic stream (ADR 0006), so a
-    /// save keeps its place and the sky can't shift a gameplay stream.</param>
     /// <param name="fogTime">How thick the weather's fog is, which fades the sun, and the moon and stars faster.</param>
     /// <param name="shown">
     /// The time of day the sky shows, if not the clock's (<see cref="GameClock.ShownTimeOfDay"/>: Darkness and Light move it). The
     /// moon's phase is the clock's date's.
     /// </param>
-    public void Draw(List<SkySprite> sprites, uint time, Vector3 look, Vector3 sunColor, ImageSize size, IRandom twinkle,
+    /// <remarks>The stars are drawn in the greys their last twinkle drew (<see cref="Twinkle"/>).</remarks>
+    public void Draw(List<SkySprite> sprites, uint time, Vector3 look, Vector3 sunColor, ImageSize size,
         float fogTime = 0, float brightness = 1, float? shown = null)
     {
         var timeOfDay = shown ?? (float)(time % GameClock.Day) / GameClock.Day;
-        var sunHeight = SkyLight.SunHeight(timeOfDay);
-        if (sunHeight <= 0 || sunHeight >= 180)
+        var sunHeight = GameClock.SunHeight(timeOfDay);
+        if (Night(timeOfDay))
         {
             // Brighter the lower the sun.
             var night = MathF.Sin(-sunHeight * Deg);
-            foreach (var star in sky.Stars)
+            for (var i = 0; i < sky.Stars.Count; i++)
             {
-                var grey = (byte)twinkle.Range(160, 255);
+                var star = sky.Stars[i];
+                var grey = _greys[i];
                 Add(star, star.Image, star.Height, new Rgba(grey, grey, grey, star.Color.A), 2, night);
             }
         }
@@ -64,7 +87,7 @@ public sealed class SkyObjects(SkyRecord sky)
             var image = size(sky.Sun.Image);
             SunMiddle = sun.Patch?.At(0.5f, 0.5f) ?? sun.At + new Vector2((int)image.X >> 1, (int)image.Y >> 1) * sky.Sun.Scale;
         }
-        Add(sky.Moon, MoonImage(sky.MoonPhases, time), MoonHeight(timeOfDay), sky.Moon.Color, 1.5f, null, moon: true);
+        Add(sky.Moon, MoonImage(sky.MoonPhases, time), GameClock.MoonHeight(timeOfDay), sky.Moon.Color, 1.5f, null, moon: true);
 
         SkySprite? Add(SkyBody body, RecordId image, float height, Rgba color, float fogFade, float? night, bool moon = false)
         {
@@ -137,43 +160,8 @@ public sealed class SkyObjects(SkyRecord sky)
         return (sa, ca, se, ce);
     }
 
-    /// <summary>The moon's first angle, in degrees (<c>Skyobjects::UpdateMoon</c>).</summary>
-    public static float MoonHeight(float timeOfDay)
-    {
-        var height = (timeOfDay * 360 + 90) * 2;
-        while (height > 360)
-            height -= 360;
-        return height;
-    }
-
-    /// <summary>
-    /// The moon's phase on a date (<c>World::set_moonPhase</c>): 0 new, 1 crescent, 2 quarter and 3
-    /// full, over a cycle of four weeks.
-    /// </summary>
-    /// <remarks>
-    /// Days 0–2 of the cycle are full, 3–7 a quarter, 9–13 a crescent, 14–16 new, 17–21 a crescent
-    /// and 23–27 a quarter. Day 8 turns from quarter to crescent at noon, and day 22 from crescent to
-    /// quarter. The images count the first two weeks as waxing, though the moon wanes then.
-    /// </remarks>
-    public static (int Phase, bool Waxing) MoonPhase(uint time)
-    {
-        var week = (int)(time % GameClock.Season / GameClock.Week);
-        var day = (int)(time % GameClock.Week / GameClock.Day);
-        var afternoon = time % GameClock.Day / GameClock.Hour >= 12;
-        var phase = (day + (week & 3) * 7) switch
-        {
-            < 3 => 3,
-            >= 14 and <= 16 => 0,
-            (>= 3 and <= 7) or >= 23 => 2,
-            8 => afternoon ? 1 : 2,
-            22 => afternoon ? 2 : 1,
-            _ => 1,
-        };
-        return (phase, (week & 3) >> 1 == 0);
-    }
-
-    /// <summary>The moon's image on a date.</summary>
-    public static RecordId MoonImage(MoonImages images, uint time) => MoonPhase(time) switch
+    /// <summary>The moon's image on a date, by its phase (<see cref="GameClock.MoonPhase"/>).</summary>
+    public static RecordId MoonImage(MoonImages images, uint time) => GameClock.MoonPhase(time) switch
     {
         (0, _) => images.New,
         (1, true) => images.WaxingCrescent,

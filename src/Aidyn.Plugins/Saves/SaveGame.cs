@@ -197,7 +197,11 @@ public sealed record SaveMemory(RecordId MapObject, string Kind, int Value, int 
 }
 
 /// <summary>The states of the random streams (ADR 0006).</summary>
-public sealed record SaveRandom(uint Combat, uint Loot, uint World, uint Wander, uint Cosmetic);
+public sealed record SaveRandom(uint Combat, uint Loot, uint World, uint Wander, uint Cosmetic)
+{
+    /// <summary>The stars' twinkle's stream, the port's own. None starts it as a new game does.</summary>
+    public uint? Twinkle { get; init; }
+}
 
 /// <summary>
 /// The weather, as the roll left it and as it's drawn (<c>Aidyn.Core.Calendar.Weather</c>).

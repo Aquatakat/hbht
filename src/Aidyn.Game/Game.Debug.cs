@@ -276,7 +276,7 @@ public partial class Game
             (sphere.Touching ? $"on {SurfaceNames.Of(sphere.Surface)}" : "in the air") +
             $"  speed {Speed():F2}/s  request {motion.Request}  pace {motion.Pace:0.##} (F5)" +
             $"  camera {Trek!.Camera.Mode.ToString().ToLowerInvariant()}{(Trek!.Use.CurrentCamera is { } held ? $" (object {held.Index})" : "")}" +
-            $"  {Clock(_sky!.Clock.TimeOfDay)}  sky {_sky.Placement.ToString().ToLowerInvariant()} (F6)" +
+            $"  {Clock(_sky!.Sky.Clock.TimeOfDay)}  sky {_sky.Sky.Placement.ToString().ToLowerInvariant()} (F6)" +
             $"  UI {_menu!.Screen.Lines} lines (F7)  wanderers {Trek.Wanderers.All.Count}\n" +
             $"music {_audio!.MusicPlaying?.Key ?? "none"}  sounds {Trek.Zone.Sounds.Playing} of the map's, {_audio.SoundsPlaying} one-shots" +
             $"  particles {_particles!.Head.ParticlesInUse} of {_particles.Head.MaxParticles}{Precipitation()}";

@@ -1,4 +1,5 @@
 using System.Numerics;
+using Aidyn.Core.Calendar;
 
 namespace Aidyn.Core.Sky;
 
@@ -27,7 +28,7 @@ public static class SkyLight
     /// <param name="azimuth">The sun's second angle in the sky objects' table, 90 in the ROM, in degrees.</param>
     public static Vector3 SunDirection(float timeOfDay, float azimuth = 90)
     {
-        var height = SunHeight(timeOfDay) * Deg;
+        var height = GameClock.SunHeight(timeOfDay) * Deg;
         var (sin, cos) = MathF.SinCos(azimuth * Deg);
         var across = MathF.Cos(height);
         return new Vector3(across * sin, MathF.Sin(height), across * cos);
@@ -35,22 +36,16 @@ public static class SkyLight
 
     /// <summary>
     /// The way to the moon (<c>Sky.MoonDirection</c>, <c>0x800D9538</c>, <c>SkyObjects.UpdateMoon</c>, <c>0x8002A090</c>): at its
-    /// height (<see cref="SkyObjects.MoonHeight"/>) and its azimuth in the sky objects' table, without the sway it's drawn with.
+    /// height (<see cref="GameClock.MoonHeight"/>) and its azimuth in the sky objects' table, without the sway it's drawn with.
     /// It's up while y is over 0, from 06:00 to noon and from 18:00 to midnight.
     /// </summary>
     public static Vector3 MoonDirection(float timeOfDay, float azimuth = 0)
     {
-        var height = SkyObjects.MoonHeight(timeOfDay) * Deg;
+        var height = GameClock.MoonHeight(timeOfDay) * Deg;
         var (sin, cos) = MathF.SinCos(azimuth * Deg);
         var across = MathF.Cos(height);
         return new Vector3(across * sin, MathF.Sin(height), across * cos);
     }
-
-    /// <summary>
-    /// The sun's first angle, in degrees (<c>gSunObjP-&gt;pos.x</c>): −90 at midnight, 0 at 06:00,
-    /// 90 at noon and 180 at 18:00.
-    /// </summary>
-    public static float SunHeight(float timeOfDay) => timeOfDay * 360 - 90;
 
     /// <summary>
     /// A body's ambient (<c>playerData.skyTint</c>): half the sky colour, truncated to bytes

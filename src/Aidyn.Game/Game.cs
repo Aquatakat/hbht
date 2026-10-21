@@ -139,7 +139,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost
         // Where it starts, which plugins from an older import can't say: then this says to import again.
         var start = StartingPlace(plugins, game, options);
 
-        BuildSky(plugins, game);
+        BuildEnvironment();
         _pointLights = options.PointLights;
         _spellFx = options.SpellFx;
         options.SetTimeOfDay(game);
@@ -156,9 +156,10 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost
         {
             LaunchOptions.ForceWeather(game, weather);
             // Its sky too, at once.
-            _sky!.ChooseAgain();
+            session.Sky.ChooseAgain();
         }
-        _sky!.Apply();
+        session.Sky.Apply();
+        BuildSky(plugins, session.Sky);
 
         BuildPlayer(plugins, session.Trek.Player);
         BuildFollowCamera(session.Trek, options);
@@ -224,8 +225,8 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost
         return start;
     }
 
-    /// <summary>The environment the scene is drawn in, and the sky behind it with its lens flare.</summary>
-    private void BuildSky(PluginSet plugins, GameState game)
+    /// <summary>The environment the scene is drawn in, with the sky's backdrop behind it.</summary>
+    private void BuildEnvironment()
     {
         var environment = new Godot.Environment
         {
@@ -239,12 +240,20 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost
         // Lit meshes are lit as the RSP lights them, by the sky and the sun, not by Godot's lights.
         N64Material.RspLighting = true;
         N64Material.OnScreenFramebuffer = true;
+    }
 
-        _sky = new SkyView(plugins, game.Clock) { Weather = game.Weather };
+    /// <summary>
+    /// The views of the core's sky (<see cref="Core.Sky.SkyDirector"/>): its colours on the scenery and bodies, the backdrop behind
+    /// the scene and the lens flare over it. The lens flare asks the scene whether the sky shows where the sun was drawn.
+    /// </summary>
+    private void BuildSky(PluginSet plugins, Core.Sky.SkyDirector sky)
+    {
+        _sky = new SkyView(plugins, sky);
         AddChild(_sky);
         AddChild(SkyBackdropView.Create(_sky));
         AddChild(LensFlareView.Create(_sky));
-        _sky.SkyShows = SkyShows;
+        sky.SkyShows = SkyShows;
+        _sky.Push();
     }
 
     /// <summary>
@@ -366,7 +375,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost
         ApplyWorldLines();
         _drawDistance = new DrawDistance(s.DrawDistance, s.NearestDetail);
         _session?.PrecipitationDensity = Math.Clamp(s.PrecipitationDensity, 0, WeatherParticles.MaxDensity);
-        _sky?.Placement = s.SkyPlacement;
+        _sky?.Sky.Placement = s.SkyPlacement;
         _player?.Motion.Pace = s.BriskPace ? BriskPace : 1;
         Battle?.Fx.Turns = s.SpellAuras;
         _cinematic?.Viewport.Msaa3D = GetViewport().Msaa3D;
@@ -419,7 +428,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost
         if (session.TrekRuns)
             _popupView!.Step();
         var before = _player.Motion.Sphere.Position;
-        var step = session.Tick(ReadInput, _camera.Flying, _sky!.State.Drawn,
+        var step = session.Tick(ReadInput, _camera.Flying,
             actor => _actorViews.TryGetValue(actor, out var view) ? view.Motion : null,
             combatant => _combatantViews.TryGetValue(combatant, out var view) ? view.Motion : null, _spellFxView);
         _backdrop!.Draw(session.Backdrop);
@@ -454,7 +463,6 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost
             BeginBattle();
             return;
         }
-        _sky!.Step();
         ScrollTextures();
         _hud.Outdoors = session.Where().Outdoors;
         if (step == SessionStep.Frozen)
@@ -504,14 +512,11 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost
 
     // What trek asks of the runtime.
 
-    void ITrekHost.Entered(ChunkEntry? chunk) => _sky!.Enter(chunk);
-
-    /// <summary>The player has come through a teleporter: the sky, the camera and his body are where he is now.</summary>
+    /// <summary>The player has come through a teleporter: the camera and his body are where he is now.</summary>
     void ITrekHost.Arrived()
     {
         var motion = _player!.Motion;
         // Trek has killed the emitters still spawning (ParticleHead.KillActive).
-        _sky!.Apply();
         _camera!.Yaw = MathF.Atan2(-motion.Heading.X, -motion.Heading.Y);
         _player.Sync();
         _camera.Sync();
@@ -602,7 +607,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost
     {
         var trek = Trek!;
         var lights = trek.Zone.Lights;
-        trek.Zone.BeginLightFrame(trek.Brightness, _sky!.State.Drawn, _sky.Moon);
+        trek.Zone.BeginLightFrame(trek.Brightness);
         _chunks!.LightActors(lights);
         var centre = _player!.Motion.Sphere.Position;
         N64Material.SetLights(_player.Meshes, lights.ForBody(centre, _chunks.Chunks.MapAt(centre), party: true));
@@ -779,9 +784,9 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost
             _settings.BriskPace = !_settings.BriskPace;
             _settings.Notify();
         }
-        else if (e.IsActionPressed("toggle_sky_placement") && _sky is not null)
+        else if (e.IsActionPressed("toggle_sky_placement") && _sky?.Sky is { } sky)
         {
-            _settings.SkyPlacement = _sky.Placement == Core.Sky.SkyPlacement.Original ? Core.Sky.SkyPlacement.Projected : Core.Sky.SkyPlacement.Original;
+            _settings.SkyPlacement = sky.Placement == Core.Sky.SkyPlacement.Original ? Core.Sky.SkyPlacement.Projected : Core.Sky.SkyPlacement.Original;
             _settings.Notify();
         }
     }
