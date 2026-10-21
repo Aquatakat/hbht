@@ -55,7 +55,8 @@ public sealed class Wanderers(PluginSet plugins)
             var body = new Body(at, look.Radius, look.Scale) { Bounds = Body.ChunkBounds(map.Origin, cellSize) };
             // AllocWanderer sweeps from 1 above the party to 1 below, its sphere's centre there, or failing that from on high.
             body.Sphere.Position = Body.SetDown(world, at, look.Radius, random, near: at.Y).Position;
-            var entity = plugins.TryGet<EntityRecord>(party.Entity);
+            // A talker may be a dialogue entity, which has no entity record.
+            var entity = party.Entity.Type == RecordTypes.Entity ? plugins.TryGet<EntityRecord>(party.Entity) : null;
             var perception = entity?.Perception ?? DialoguePerception;
             var wanderer = new Wanderer(map, party, look, body, perception) { Sounds = entity?.Sounds };
             wanderer.Take(home);

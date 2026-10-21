@@ -126,7 +126,7 @@ public sealed class CharacterRules
     public static CharacterRules From(PluginSet plugins) => new(
         [.. Enumerable.Range(0, StatCount).Select(s => plugins.Get<StatRecord>(StatId.Record((Stat)s)))],
         [.. SkillId.All.Select(s => plugins.Get<SkillRecord>(s.Record))],
-        plugins.Singleton<ProgressionRecord>(RecordTypes.Progression))
+        plugins.Singleton<ProgressionRecord>())
     {
         Magic = Aidyn.Core.Magic.MagicRules.From(plugins),
     };

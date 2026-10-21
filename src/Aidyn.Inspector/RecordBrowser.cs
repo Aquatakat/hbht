@@ -118,9 +118,11 @@ public partial class RecordBrowser : Control
 
         _status.Text = $"Loading {pluginsDirectory}…";
         var generation = ++_generation;
-        var (catalog, quests, game, rules, items) = await Task.Run(() =>
+        var (catalog, quests, game, rules, items, report) = await Task.Run(() =>
         {
             var plugins = PluginSet.LoadInstalled(pluginsDirectory);
+            // The game refuses a set with a record it can't read; the editor shows the report and loads anyway, to fix it by.
+            var report = plugins.Validate();
             EditorGame? game = null;
             try
             {
@@ -130,7 +132,7 @@ public partial class RecordBrowser : Control
             {
                 GD.PrintErr($"No game: {e.Message}");
             }
-            return (PluginCatalog.Build(plugins), QuestIndex.Build(plugins), game, EditorCharacters.Rules(plugins), EditorCharacters.Items(plugins));
+            return (PluginCatalog.Build(plugins), QuestIndex.Build(plugins), game, EditorCharacters.Rules(plugins), EditorCharacters.Items(plugins), report);
         });
         if (generation != _generation)
             return;
@@ -149,7 +151,7 @@ public partial class RecordBrowser : Control
         for (var i = 0; i < _typeNames.Count; i++)
             _types.AddItem($"{_typeNames[i]} ({catalog.Entries.Count(e => e.Id.Type == _typeNames[i]):N0})", i + 1);
         Populate();
-        ShowNothing(Welcome(catalog));
+        ShowNothing(report.IsClean ? Welcome(catalog) : $"{report.Describe(limit: 12)}\nThe game refuses to load these; the editor shows them as they are.\n{Welcome(catalog)}");
     }
 
     /// <summary>Loads a checkpoint's game, for scripts (<c>--checkpoint</c>).</summary>
@@ -497,7 +499,9 @@ public partial class RecordBrowser : Control
     {
         var plugins = string.Join(", ", catalog.Plugins.Plugins.Select(p =>
             p.Manifest.Import is { } import ? $"{p.Manifest.Id} ({p.Manifest.Name}, imported from {import.RomVersion} by importer {import.Importer})" : p.Manifest.Id));
-        return $"Loaded {plugins}. Pick a record, or type an ID such as aidyn:mapset/0 and press Enter.";
+        var conflicts = catalog.Plugins.Conflicts.Count();
+        var conflicted = conflicts == 0 ? "" : $" {conflicts:N0} {(conflicts == 1 ? "field is" : "fields are")} patched by more than one plugin (aidyn conflicts lists them).";
+        return $"Loaded {plugins}.{conflicted} Pick a record, or type an ID such as aidyn:mapset/0 and press Enter.";
     }
 
     private async Task ShowAsync(RecordId id)
@@ -513,7 +517,7 @@ public partial class RecordBrowser : Control
         var references = catalog.ReferencesTo(id);
 
         _header.Text = voxel ? ObjectHeader(catalog, id, json) : Header(catalog, id, entry, json, references.Count);
-        _fields.Show(json, field => voxel ? plugins.Setters(MapRecord.MapOf(id), "objects") : plugins.Setters(id, field),
+        _fields.Show(json, field => voxel ? plugins.Setters(MapRecord.MapOf(id), $"objects[{MapRecord.IndexOf(id)}].{field}") : plugins.Setters(id, field),
             other => catalog.Find(other) is not null || other.Type == RecordTypes.Voxel);
         ShowUsedBy(catalog, references);
         if (_quests is { } quests)
@@ -549,7 +553,7 @@ public partial class RecordBrowser : Control
         if (json is not null)
         {
             var definer = catalog.Plugins.DefinedBy(id);
-            var patchers = json.Select(f => catalog.Plugins.Setters(id, f.Key)).SelectMany(s => s).Distinct().Where(p => p != definer).ToList();
+            var patchers = catalog.Plugins.Patchers(id);
             lines.Add($"Defined by {definer}" + (patchers.Count > 0 ? $", patched by {string.Join(", ", patchers)}" : ""));
         }
         foreach (var asset in entry?.Assets ?? [])

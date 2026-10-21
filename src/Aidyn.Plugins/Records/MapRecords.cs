@@ -22,9 +22,9 @@ public sealed record MapSetRecord(
     RecordId Id,
     string Label,
     float CellSize,
-    IReadOnlyList<ChunkEntry> Chunks,
+    [property: KeyedList(nameof(ChunkEntry.Row), nameof(ChunkEntry.Column))] IReadOnlyList<ChunkEntry> Chunks,
     IReadOnlyList<RecordId>? Music = null,
-    IReadOnlyList<SpawnPoint>? Spawns = null)
+    [property: KeyedList(nameof(SpawnPoint.Portal))] IReadOnlyList<SpawnPoint>? Spawns = null)
 {
     /// <summary>Where a chunk's own coordinates start: rows run along X and columns along Z.</summary>
     public Vector3 Origin(int row, int column) => new Vector3(row, 0, column) * CellSize;
@@ -77,7 +77,7 @@ public sealed record ChunkEntry(
 /// objects, which the game does nothing with.
 /// </param>
 /// <param name="Grid">The objects each cell of the chunk's grid lists, or none for a map without one.</param>
-public sealed record MapRecord(RecordId Id, IReadOnlyList<MapObject> Objects, ObjectGrid? Grid = null)
+public sealed record MapRecord(RecordId Id, [property: KeyedList(nameof(MapObject.Index))] IReadOnlyList<MapObject> Objects, ObjectGrid? Grid = null)
 {
     /// <summary>
     /// The neighbours drawn while the player is in this chunk even when the camera's view doesn't cross them

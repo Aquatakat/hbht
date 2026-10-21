@@ -31,7 +31,7 @@ public sealed record DialogueRecord(
     RecordId Id,
     int Number,
     DialogueMode Mode,
-    IReadOnlyList<DialogueNode> Nodes,
+    [property: KeyedList(nameof(DialogueNode.Index))] IReadOnlyList<DialogueNode> Nodes,
     IReadOnlyList<RecordId>? Actors = null,
     RecordId? DoneFlag = null,
     int? Backdrop = null,

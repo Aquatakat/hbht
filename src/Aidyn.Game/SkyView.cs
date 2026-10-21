@@ -41,7 +41,7 @@ public partial class SkyView : Node
         _images = new UiImages(plugins);
         Clock = clock;
         Name = "Sky";
-        if (plugins.TrySingleton<SkyRecord>(RecordTypes.Sky) is { } sky)
+        if (plugins.TrySingleton<SkyRecord>() is { } sky)
         {
             Objects = new SkyObjects(sky);
             Clouds = new Clouds(sky);

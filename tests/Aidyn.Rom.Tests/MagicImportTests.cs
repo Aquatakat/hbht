@@ -254,7 +254,7 @@ public sealed class MagicImportTests(Na10Import fixture)
     [Fact]
     public void TheMagicRecordHoldsCastingsNumbers()
     {
-        var magic = fixture.Data.Set.Singleton<MagicRecord>(RecordTypes.Magic);
+        var magic = fixture.Data.Set.Singleton<MagicRecord>();
         Assert.Equal(RecordId.Decimal(RecordTypes.Magic, 0), magic.Id);
         Assert.Equal((4, 6, 1, 5), (magic.Chance.Intelligence, magic.Chance.Level, magic.Chance.CharacterLevel, magic.Chance.Minimum));
         Assert.Equal([0.75f, 1.25f, 1.25f, 0.75f, 0.75f], magic.Chance.ByPartOfDay);

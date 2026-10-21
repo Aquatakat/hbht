@@ -32,6 +32,9 @@ const string Usage = """
                                            (all, or the given archive indices), each played n times
                                            (default 1); default dir: out/<version>/audio
       aidyn flag <flag>...                   what sets, clears and reads each flag, in the installed plugins
+      aidyn conflicts                        the fields more than one installed plugin patches, and which wins (ADR 0005)
+      aidyn schema <dir>                     a JSON Schema per record type, for records (<type>.schema.json) and for
+                                           patches to them (<type>.patch.schema.json), which editors validate mods by
       aidyn strings <rom> <table>            one string table, numbered by line
       aidyn strings <rom> [--out <dir>]      every string table as text, a file each;
                                            default dir: out/<version>/strings
@@ -56,6 +59,8 @@ try
         ["dialogue", var rom, .. var rest] => Dialogue(rom, rest),
         ["audio", var rom, .. var rest] => Audio(rom, rest),
         ["flag", .. var flags] when flags.Length > 0 => Flags(flags),
+        ["conflicts"] => Conflicts(),
+        ["schema", var dir] => Schema(dir),
         ["strings", var rom, .. var rest] when OutOnly(rest, out var dir) => AllStrings(rom, dir),
         ["strings", var rom, var table] => Strings(rom, table),
         ["save", "new"] => SaveNew(null),
@@ -409,6 +414,36 @@ static string Summary(BorgArchive archive)
 }
 
 static PluginSet InstalledPlugins() => PluginSet.LoadInstalledChecked(DataPaths.Plugins);
+
+static int Schema(string dir)
+{
+    Directory.CreateDirectory(dir);
+    var written = 0;
+    foreach (var type in RecordTypes.Names)
+    {
+        if (RecordTypes.ClassOf(type) is not { } cls)
+            continue;
+        foreach (var patch in new[] { false, true })
+        {
+            var schema = RecordSchema.JsonSchema(cls, patch);
+            File.WriteAllText(Path.Combine(dir, $"{type}{(patch ? ".patch" : "")}.schema.json"), schema.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }) + "\n");
+            written++;
+        }
+    }
+    Console.WriteLine($"Wrote {written} schemas to {Path.GetFullPath(dir)}");
+    return 0;
+}
+
+static int Conflicts()
+{
+    var plugins = InstalledPlugins();
+    var conflicts = plugins.Conflicts.ToList();
+    foreach (var c in conflicts)
+        Console.WriteLine($"{c.Record} {c.Path}: {string.Join(", ", c.Plugins)}; {c.Winner} wins (defined by {plugins.DefinedBy(c.Record)})");
+    var loaded = string.Join(", ", plugins.Plugins.Select(p => p.Manifest.Id));
+    Console.WriteLine(conflicts.Count == 0 ? $"No field is patched by more than one plugin ({loaded})." : $"{conflicts.Count} fields are patched by more than one plugin ({loaded}).");
+    return 0;
+}
 
 static string SavePath(string? path, string label) => path ?? Path.Combine(DataPaths.Saves, label + SaveFile.Extension);
 

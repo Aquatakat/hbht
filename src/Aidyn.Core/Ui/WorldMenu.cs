@@ -51,8 +51,8 @@ public sealed class WorldMenu
         _game = game;
         _text = MenuText.From(plugins);
         _font = font;
-        Map = plugins.Singleton<WorldMapRecord>(RecordTypes.WorldMap);
-        var camping = plugins.Singleton<CampingRecord>(RecordTypes.Camping);
+        Map = plugins.Singleton<WorldMapRecord>();
+        var camping = plugins.Singleton<CampingRecord>();
         _cannotCamp = camping.CannotCamp;
         _campFactor = place is { } at && TerrainOf(plugins, at) is { } terrain ? terrain.Camp : 0;
 

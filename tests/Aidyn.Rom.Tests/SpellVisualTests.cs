@@ -147,7 +147,7 @@ public sealed class SpellVisualTests(Na10Import fixture)
     [Fact]
     public void TheMagicRecordNamesTheRefusedAndResistedActors()
     {
-        var magic = fixture.Data.Set.Singleton<MagicRecord>(RecordTypes.Magic);
+        var magic = fixture.Data.Set.Singleton<MagicRecord>();
         Assert.Equal(Actor(0x1CAA), magic.Refused);
         Assert.Equal(Actor(0x37F1), magic.Resisted);
     }

@@ -2,6 +2,7 @@ using System.Numerics;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using Aidyn.Plugins.Records;
 
 namespace Aidyn.Plugins;
@@ -30,6 +31,32 @@ public static class PluginJson
         CommentHandling = JsonCommentHandling.Skip,
         AllowTrailingCommas = true,
     };
+
+    /// <summary>
+    /// <see cref="Options"/> that refuse what those overlook: a field the record type lacks, a <c>type</c> discriminator none
+    /// of its kinds has, a null where the type allows none, and a missing field with no default (a constructor parameter
+    /// that's neither nullable nor defaulted nor left out of the writer's output). <see cref="PluginSet.Validate"/> reads every
+    /// record with them, and the JSON Schema is exported from them, so a schema says what validation says. Reads stay with
+    /// <see cref="Options"/>: a view such as <see cref="DbRecord"/> reads part of a record, and a save skips what it doesn't know.
+    /// </summary>
+    public static JsonSerializerOptions Strict { get; } = new(Options)
+    {
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+        RespectNullableAnnotations = true,
+        TypeInfoResolver = new DefaultJsonTypeInfoResolver { Modifiers = { Stricten } },
+    };
+
+    private static void Stricten(JsonTypeInfo info)
+    {
+        if (info.PolymorphismOptions is { } polymorphism)
+            polymorphism.IgnoreUnrecognizedTypeDiscriminators = false;
+        foreach (var property in info.Properties)
+        {
+            // ShouldSerialize is set by a JsonIgnore condition: such a field is left out when it's the default, so it isn't required.
+            if (property.AssociatedParameter is { HasDefaultValue: false, IsNullable: false } && property.ShouldSerialize is null)
+                property.IsRequired = true;
+        }
+    }
 
     private sealed class RecordIdConverter : JsonConverter<RecordId>
     {
