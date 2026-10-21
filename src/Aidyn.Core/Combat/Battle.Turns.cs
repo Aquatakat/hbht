@@ -166,7 +166,7 @@ public sealed partial class Battle
     /// loses it; the last combatant's body leaves its field; then on through the round, building the next at its end
     /// (<see cref="EndRound"/>), each candidate checking for the battle's end first (with a reserve still to come counted
     /// as an enemy), and taking its radius, its place and whether it can act, until one alive, able and in play. Then the
-    /// focus is on it, every combatant reads its body, its turn begins (<see cref="BeginTurn"/>) and the clock moves on
+    /// aims are on it (<see cref="FocusOn"/>), every combatant reads its body, its turn begins (<see cref="BeginTurn"/>) and the clock moves on
     /// (<see cref="GameState.AdvanceTurn"/>).
     /// </summary>
     private void Advance()
@@ -211,7 +211,7 @@ public sealed partial class Battle
             next = candidate;
             break;
         }
-        Focus = next.Cell;
+        FocusOn(next);
         // TurnOrder.ClearActions: every combatant reads its body, and the damage and healing waiting to show are cleared.
         foreach (var combatant in Combatants.Where(c => !c.Freed))
         {

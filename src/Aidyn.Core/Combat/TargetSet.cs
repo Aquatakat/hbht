@@ -1,4 +1,5 @@
 using System.Numerics;
+using Aidyn.Core.Magic;
 
 namespace Aidyn.Core.Combat;
 
@@ -129,14 +130,14 @@ public sealed class TargetSet
     }
 
     /// <summary>
-    /// What <paramref name="c"/> could attack (<c>TargetSet.FindAttackTargets</c>, <c>0x80069304</c>): every combatant in play that
-    /// <see cref="Battle.CanAttack"/> allows; one may be chosen.
+    /// What <paramref name="c"/> could attack doing <paramref name="action"/> (<c>TargetSet.FindAttackTargets</c>, <c>0x80069304</c>):
+    /// every combatant in play that <see cref="Battle.CanAttack(Combatant, Combatant, CombatAction)"/> allows; one may be chosen.
     /// </summary>
-    private void FindAttackTargets(Battle battle, Combatant c)
+    private void FindAttackTargets(Battle battle, Combatant c, CombatAction action)
     {
         for (var i = 0; i < battle.InPlay; i++)
         {
-            if (battle.Slots[i] is { } t && battle.CanAttack(c, t))
+            if (battle.Slots[i] is { } t && battle.CanAttack(c, t, action))
             {
                 _candidate[i] = true;
                 Candidates++;
@@ -146,48 +147,85 @@ public sealed class TargetSet
     }
 
     /// <summary>
-    /// What <paramref name="c"/>'s selected spell could be cast at (<c>TargetSet.FindSpellTargets</c>, <c>0x800693C4</c>): every
-    /// combatant in play that <see cref="Battle.CanCast"/> allows; as many may be chosen as the spell takes
-    /// (<see cref="Battle.SpellTargetCount"/>), an All spell every candidate.
+    /// What <paramref name="c"/> could cast <paramref name="source"/> at (<c>TargetSet.FindSpellTargets</c>, <c>0x800693C4</c>), standing
+    /// at <paramref name="from"/> with a placed area about <paramref name="centre"/>: every combatant in play that
+    /// <see cref="Battle.CanCast(Combatant, SpellSource, Combatant, Vector2, Vector2)"/> allows; as many may be chosen as the spell takes
+    /// (<see cref="Battle.SpellTargetCount(Combatant, SpellSource?)"/>), an All spell every candidate.
     /// </summary>
-    private void FindSpellTargets(Battle battle, Combatant c)
+    private void FindSpellTargets(Battle battle, Combatant c, SpellSource source, Vector2 from, Vector2 centre)
     {
         for (var i = 0; i < battle.InPlay; i++)
         {
-            if (battle.Slots[i] is { } t && battle.CanCast(c, t))
+            if (battle.Slots[i] is { } t && battle.CanCast(c, source, t, from, centre))
             {
                 _candidate[i] = true;
                 Candidates++;
             }
         }
-        Most = battle.SpellTargetCount(c);
+        Most = battle.SpellTargetCount(c, source);
         if (Most == battle.InPlay)
             Most = Candidates;
     }
 
     /// <summary>
-    /// Builds it again for <paramref name="c"/> (<c>TargetSet.Rebuild</c>, <c>0x80069264</c>): emptied, and set A finds what it
-    /// could attack if it has an action or is healing, set B what its selected spell could reach if it has one; the first
-    /// candidates selected, in slot order; and the cursor kept on its last target, or where it was, if each is still a candidate.
+    /// Builds it again for <paramref name="c"/> as it stands (<c>TargetSet.Rebuild</c>, <c>0x80069264</c>): set A for what it could
+    /// attack with its action where it is (<see cref="RebuildAttack"/>), set B for what its selected spell could reach, a placed area
+    /// about the centre of whoever aims it (<see cref="Battle.AimCentre"/>; <see cref="RebuildSpell"/>).
     /// </summary>
     public void Rebuild(Battle battle, Combatant c)
     {
-        var old = Cursor;
-        Clear();
         if (Spells)
         {
-            if (c.Spell.IsNone)
-                return;
-            FindSpellTargets(battle, c);
+            RebuildSpell(battle, c, c.Spell.IsNone ? null : c.CurrentSpell(battle), c.Cell, battle.AimCentre(c));
+            return;
         }
-        else
-        {
-            if (c.Action == CombatAction.None && !c.Healing)
-                return;
-            FindAttackTargets(battle, c);
-        }
+        RebuildAttack(battle, c, c.Action);
+    }
+
+    /// <summary>
+    /// Set A built again (<c>TargetSet.Rebuild</c>): emptied, and with an action or healing, what <paramref name="c"/> could attack
+    /// doing <paramref name="action"/> (<see cref="FindAttackTargets"/>); the first candidate selected; and
+    /// the cursor kept on its last target, or where it was, if each is still a candidate (<see cref="RestoreCursor"/>).
+    /// </summary>
+    internal void RebuildAttack(Battle battle, Combatant c, CombatAction action)
+    {
+        var old = Cursor;
+        Clear();
+        if (action == CombatAction.None && !c.Healing)
+            return;
+        FindAttackTargets(battle, c, action);
         SelectAll();
-        // TargetSet.RestoreCursor (0x8006A05C).
+        RestoreCursor(c, old);
+    }
+
+    /// <summary>
+    /// Set B built again (<c>TargetSet.Rebuild</c>): emptied, and with a spell, what <paramref name="c"/> could cast it at from
+    /// <paramref name="from"/>, a placed area about <paramref name="centre"/> (<see cref="FindSpellTargets"/>); the first candidates
+    /// selected, in slot order; and for a spell of one target, the cursor kept as <see cref="RebuildAttack"/> keeps it.
+    /// </summary>
+    internal void RebuildSpell(Battle battle, Combatant c, SpellSource? source, Vector2 from, Vector2 centre)
+    {
+        var old = Cursor;
+        Clear();
+        if (source is null)
+            return;
+        FindSpellTargets(battle, c, source, from, centre);
+        SelectAll();
+        RestoreCursor(c, old);
+    }
+
+    /// <summary>
+    /// Takes <paramref name="other"/>'s cursor, the one thing a rebuilding keeps (<see cref="RestoreCursor"/>): for the AI's tries,
+    /// which the original builds in the battle's own sets, so they start from and leave the cursor the battle's set would have.
+    /// </summary>
+    internal void TakeCursor(TargetSet other) => Cursor = other.Cursor;
+
+    /// <summary>
+    /// The cursor kept where it can be (<c>TargetSet.RestoreCursor</c>, <c>0x8006A05C</c>): with one to choose, on the last target if
+    /// it's a candidate, else on <paramref name="old"/> if that is.
+    /// </summary>
+    private void RestoreCursor(Combatant c, int old)
+    {
         if (Most < 2 && !SetCursorIfCandidate(c.LastTarget))
             SetCursorIfCandidate(old);
     }
@@ -232,7 +270,7 @@ public sealed class TargetSet
     {
         var old = Cursor;
         Clear();
-        FindAttackTargets(battle, c);
+        FindAttackTargets(battle, c, c.Action);
         if (Candidates == 0)
             return false;
         OrderByAngle(battle, c);
@@ -250,7 +288,9 @@ public sealed class TargetSet
     public bool BeginSpell(Battle battle, Combatant c)
     {
         Clear();
-        FindSpellTargets(battle, c);
+        if (c.CurrentSpell(battle) is not { } source)
+            return false;
+        FindSpellTargets(battle, c, source, c.Cell, battle.AimCentre(c));
         if (Candidates == 0)
             return false;
         if (battle.SpellTargetCount(c) < 2)

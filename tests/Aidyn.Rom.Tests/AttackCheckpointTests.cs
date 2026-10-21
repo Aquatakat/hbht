@@ -151,6 +151,27 @@ public sealed class AttackCheckpointTests(Na10Import fixture, ITestOutputHelper 
         Assert.True(wrong.Count == 0, string.Join("; ", wrong));
     }
 
+    /// <summary>
+    /// Fleeing and being untargetable are the combat record's two rules (<see cref="CombatRecord.Flee"/>,
+    /// <see cref="CombatRecord.Untargetable"/>): a mod's enemy the party may flee from can still be attacked, and only an untargetable
+    /// one can't be, though it still attacks.
+    /// </summary>
+    [Fact]
+    public void AnEnemyThePartyMayFleeFromCanBeAttackedAndOnlyAnUntargetableOneCant()
+    {
+        var built = At(5);
+        var (battle, alaron, rat) = (built.Battle, built[0], built[7]);
+        var rules = battle.Rules!;
+        var field = typeof(Battle).GetField("_rules", BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+        field.SetValue(battle, rules with { Flee = [.. rules.Flee, rat.Entity] });
+        Assert.True(battle.CanAttack(alaron, rat));
+
+        field.SetValue(battle, rules with { Untargetable = [rat.Entity] });
+        Assert.False(battle.CanAttack(alaron, rat));
+        Assert.True(battle.CanAttack(rat, alaron));
+    }
+
     // ---------------------------------------------------------------------------------------------------------------------------
     // Melee rolls
 

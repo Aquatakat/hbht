@@ -93,8 +93,38 @@ public sealed partial class Battle
     /// <summary>The turn order (<c>+0x30</c>).</summary>
     public TurnOrder Order { get; } = new();
 
-    /// <summary>The camera's focus in the arena's cells (<c>+0x18</c>, <c>+0x1C</c>): the current combatant's, or its target's.</summary>
-    public Vector2 Focus { get; internal set; }
+    /// <summary>
+    /// A thrown weapon's or a flask's free cursor in the arena's cells as the player aims it (state 18): the original's focus
+    /// (<c>+0x18</c>, <c>+0x1C</c>) as that aim uses it. The camera looks at it, the aim's marker stands on it and set A picks the
+    /// candidate nearest it (<see cref="MoveAimCursor"/>). It starts on the cursor's target, or with a potion its drinker.
+    /// </summary>
+    public Vector2 ThrownAim { get; private set; }
+
+    /// <summary>
+    /// A placed area's centre in the arena's cells as the player places it (state 11): the original's focus as that aim uses it. Set B
+    /// is built about it for a placed spell the player's combatant has selected, in state 11 and before it, when it rests where the
+    /// combatant stands; the camera looks at it in state 11 and the aim's marker stands on it in states 10 and 11.
+    /// </summary>
+    public Vector2 AreaAim { get; private set; }
+
+    /// <summary>
+    /// Every aim back on <paramref name="c"/> (<see cref="FocusAt"/>): as a turn begins, as the player's combatant reads its body, as
+    /// an aim is put away or paused, as a placed area is begun, and as an arrow leaves.
+    /// </summary>
+    internal void FocusOn(Combatant c) => FocusAt(c.Cell);
+
+    /// <summary>
+    /// Every aim at one point, the player's (<see cref="ThrownAim"/>, <see cref="AreaAim"/>) and the AI's (<see cref="AiAreaCentre"/>):
+    /// the original keeps them in one focus (<c>+0x18</c>, <c>+0x1C</c>), which each of these sets and only its own aim moves after, so
+    /// each reads what the original's would.
+    /// </summary>
+    internal void FocusAt(Vector2 at) => ThrownAim = AreaAim = AiAreaCentre = at;
+
+    /// <summary>
+    /// The centre a placed area of <paramref name="c"/>'s is cast about: the AI's (<see cref="AiAreaCentre"/>) for one it plays, the
+    /// player's (<see cref="AreaAim"/>) otherwise.
+    /// </summary>
+    internal Vector2 AimCentre(Combatant c) => c.Controlled ? AiAreaCentre : AreaAim;
 
     /// <summary>The arena's grid (<c>+0x3C</c>).</summary>
     public ArenaGrid Grid { get; }
@@ -188,7 +218,7 @@ public sealed partial class Battle
                 CameraOwner = Current;
                 _aimTurn = null;
                 if (Current is { } aiming)
-                    Focus = aiming.Cell;
+                    FocusOn(aiming);
                 State = CombatState.Turn;
             }
             State = CombatState.Pause;

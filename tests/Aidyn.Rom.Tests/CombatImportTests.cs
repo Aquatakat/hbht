@@ -250,4 +250,41 @@ public sealed class CombatImportTests(Na10Import fixture)
         Assert.Equal([.. CombatImporter.UndrawnWeaponPlaces, 0xFF],
             Enumerable.Range(0, CombatImporter.UndrawnWeaponPlaces.Count + 1).Select(i => (int)cp.ReadByte(0x800D2A0Cu + (uint)i)));
     }
+
+    /// <summary>
+    /// Who decides fleeing and who can't be targeted, read from 1.0's machine code: two rules that name one entity, the Shadow (the
+    /// entity list's place <c>0xAC</c>), each in its own code, which the record keeps as two lists. <c>Combat.ForbidFleeForBosses</c>
+    /// (<c>0x8005CCCC</c>) lets the party flee for the place it compares with at <c>0x8005CCE8</c> and forbids it for the places at
+    /// <c>0x800D2688</c>, up to <c>0xFF</c>; <c>Combatant.CanAttack</c> (<c>0x80060590</c>) refuses a target whose entity is the entity
+    /// list's byte at <c>0x800E28EC</c> plus <c>0x200</c> (<c>0x800605A8</c> and <c>0x800605C8</c>); and <c>Combat.CreateBody</c> sets
+    /// <c>Combat.ShadowSlot</c>, whose caster or target <c>Combatant.CanCast</c> refuses, for the place it compares with at
+    /// <c>0x8005C528</c>.
+    /// </summary>
+    [Fact]
+    public void FleeingAndTheUntargetableAreTheCodesTwoRules()
+    {
+        var rom = TestRoms.Get(RomVersionId.Na10);
+        uint Word(uint address) => Be.U32(rom.Data, (int)(address - 0x80000400u + 0x1000));
+        var list = rom.Table(CodeTable.EntityList).ToArray();
+        RecordId At(int place) => RecordId.Hex(RecordTypes.Entity, 0x200 + list[place]);
+
+        // addiu v0, zero, 0xAC; addiu v1, zero, 0xAC.
+        Assert.Equal(0x240200ACu, Word(0x8005CCE8));
+        Assert.Equal(0x240300ACu, Word(0x8005C528));
+        // lui v1, 0x800E; lbu v0, 0x28EC(v1): the entity list (CodeTable.EntityList, 0x800E2840) at 0xAC.
+        Assert.Equal(0x3C03800Eu, Word(0x800605A8));
+        Assert.Equal(0x906228ECu, Word(0x800605C8));
+        Assert.Equal(list[0xAC], rom.Data[(int)(0x800E28ECu - 0x80000400u + 0x1000)]);
+
+        var noFlee = new List<int>();
+        for (var a = 0x800D2688u; rom.Data[(int)(a - 0x80000400u + 0x1000)] is var b && b != 0xFF; a++)
+            noFlee.Add(b);
+        Assert.Equal(12, noFlee.Count);
+        Assert.Equal(noFlee.Select(At), Combat.NoFlee);
+
+        Assert.Equal([At(0xAC)], Combat.Flee);
+        Assert.Equal([At(0xAC)], Combat.Untargetable!);
+        Assert.Equal(Combat.Shadow!.Entity, At(0xAC));
+        Assert.Equal("Shadow", Set.Get<EntityRecord>(At(0xAC)).Name);
+    }
 }

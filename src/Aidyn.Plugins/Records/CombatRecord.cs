@@ -18,7 +18,10 @@ namespace Aidyn.Plugins.Records;
 /// Enemies on the field who keep the party from fleeing (<c>Combat.NoFleeEntities</c>, <c>0x800D2688</c>), and
 /// <paramref name="Flee"/> those who let it, the last on the field having the say (<c>Combat.ForbidFleeForBosses</c>).
 /// </param>
-/// <param name="Flee">The Shadow, with whom the party can flee.</param>
+/// <param name="Flee">
+/// The Shadow, with whom the party can flee (<c>Combat.ForbidFleeForBosses</c>, <c>0x8005CCCC</c>, which compares the entity's place
+/// with <c>0xAC</c>). Who can't be attacked is <paramref name="Untargetable"/>.
+/// </param>
 /// <param name="FleeByEncounter">
 /// Encounter flags that have the last word on fleeing (<c>Combat.ApplyFleeRuleByFlag</c>, <c>0x800D26A0</c>): the Goblin
 /// Ambush's forbids it, Lugash's and the Marquis's allow it.
@@ -74,6 +77,12 @@ namespace Aidyn.Plugins.Records;
 /// Entities who hold a bow at their actor's locator 0 and its arrow at 1, the other way round from the rest (<c>EntityBody.Hand</c>,
 /// <c>0x8006C8BC</c>, a switch on the entity list's place): the bandit bosses and woodsmen, Becan and Keelin. Null in a plugin from before it.
 /// </param>
+/// <param name="Untargetable">
+/// Entities no one can attack or cast at, and who cast nothing themselves: the Shadow. <c>Combatant.CanAttack</c> (<c>0x80060590</c>)
+/// refuses a target whose entity is the entity list's place <c>0xAC</c> (the byte at <c>0x800E28EC</c>), and <c>Combatant.CanCast</c>
+/// (<c>0x80060C38</c>) a caster or target in <c>Combat.ShadowSlot</c> (<c>0x800D94CC</c>), which <c>Combat.CreateBody</c> sets for that
+/// place; the original keeps no list. Null in a plugin from before it, which has the Shadow in <paramref name="Flee"/> alone.
+/// </param>
 public sealed record CombatRecord(
     RecordId Id,
     RecordId Ally,
@@ -94,7 +103,8 @@ public sealed record CombatRecord(
     [property: KeyedList(nameof(Records.FlaskDanger.Item))] IReadOnlyList<FlaskDanger>? FlaskDanger = null,
     ShadowRule? Shadow = null,
     IReadOnlyList<RecordId>? UndrawnWeapons = null,
-    IReadOnlyList<RecordId>? OtherHand = null)
+    IReadOnlyList<RecordId>? OtherHand = null,
+    IReadOnlyList<RecordId>? Untargetable = null)
 {
     /// <summary>The rules of the battle under encounter flag <paramref name="flag"/>, if it has any.</summary>
     public EncounterRule? Encounter(RecordId? flag) => flag is { } f ? Encounters?.FirstOrDefault(e => e.Flag == f) : null;

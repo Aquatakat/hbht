@@ -67,7 +67,7 @@ public sealed partial class Battle
     private AiScores BestAttackCells(EnemyAI ai)
     {
         var scores = Opponents(ai);
-        ScoreAttackCells(ai, scores);
+        ScoreAttackCells(ai, scores, ai.Combatant.Action);
         scores.Sort(ascending: false, Game.Random.Sort);
         return scores;
     }
@@ -80,13 +80,10 @@ public sealed partial class Battle
     private AiScores NearestAttackCell(EnemyAI ai)
     {
         var c = ai.Combatant;
-        var scores = CollectAttackCells(ai);
+        var scores = CollectAttackCells(ai, c.Action);
         if (scores.Count == 0)
         {
-            var saved = c.Action;
-            c.Action = saved == CombatAction.Melee ? CombatAction.Ranged : CombatAction.Melee;
-            scores = CollectAttackCells(ai);
-            c.Action = saved;
+            scores = CollectAttackCells(ai, c.Action == CombatAction.Melee ? CombatAction.Ranged : CombatAction.Melee);
             if (scores.Count == 0)
                 scores = Opponents(ai);
             else
@@ -109,12 +106,9 @@ public sealed partial class Battle
         AiScores scores;
         if (!FreeOfOpponents(c))
         {
-            var saved = c.Action;
-            c.Action = CombatAction.Melee;
-            scores = CollectAttackCells(ai);
-            ScoreAttackCells(ai, scores);
+            scores = CollectAttackCells(ai, CombatAction.Melee);
+            ScoreAttackCells(ai, scores, CombatAction.Melee);
             scores.Sort(ascending: false, Game.Random.Sort);
-            c.Action = saved;
             ai.Wanted = AiKind.Melee;
             return scores;
         }
@@ -149,7 +143,8 @@ public sealed partial class Battle
     /// </summary>
     private AiScores CollectedAttackCells(EnemyAI ai, bool orOpponents)
     {
-        var scores = CollectAttackCells(ai);
+        var action = ai.Combatant.Action;
+        var scores = CollectAttackCells(ai, action);
         if (scores.Count == 0)
         {
             if (!orOpponents)
@@ -159,7 +154,7 @@ public sealed partial class Battle
             }
             scores = Opponents(ai);
         }
-        ScoreAttackCells(ai, scores);
+        ScoreAttackCells(ai, scores, action);
         scores.Sort(ascending: false, Game.Random.Sort);
         ai.Wanted = AiKind.Melee;
         return scores;
@@ -233,11 +228,12 @@ public sealed partial class Battle
     }
 
     /// <summary>
-    /// The cells within the combatant's field, free for its footprint, from which it could attack someone, each with the nearest of
-    /// those (<c>EnemyAI.CollectAttackCells</c>, <c>0x80057908</c>). It tries each as though it stood there, building set A; but the
-    /// reach of a melee attack reads its body again, as the original's does, so for melee only where its body stands counts.
+    /// The cells within the combatant's field, free for its footprint, from which it could attack someone doing
+    /// <paramref name="action"/>, each with the nearest of those (<c>EnemyAI.CollectAttackCells</c>, <c>0x80057908</c>). It tries each
+    /// as though it stood there (<see cref="TryAttack"/>); but the reach of a melee attack reads its body again, as the original's
+    /// does, so for melee only where its body stands counts.
     /// </summary>
-    private AiScores CollectAttackCells(EnemyAI ai)
+    private AiScores CollectAttackCells(EnemyAI ai, CombatAction action)
     {
         var c = ai.Combatant;
         var r = c.Radius;
@@ -250,13 +246,12 @@ public sealed partial class Battle
             if (ArenaGrid.Distance(x & 0xFF, z & 0xFF, cx, cz) > r || !Grid.IsFree(x, z, c.Footprint))
                 continue;
             c.Cell = new Vector2(x, z);
-            TargetsA.Rebuild(this, c);
-            if (TargetsA.Selected == 0)
+            if (TryAttack(c, action).Selected == 0)
                 continue;
             var (best, nearest) = (0xFF, 0);
             for (var k = 0; k < InPlay; k++)
             {
-                if (!TargetsA.IsCandidate(k))
+                if (!_triesA.IsCandidate(k))
                     continue;
                 var (tx, tz) = Cell8(_slots[k]!);
                 var d = ArenaGrid.Distance(x & 0xFF, z & 0xFF, tx, tz) & 0xFF;
@@ -267,8 +262,21 @@ public sealed partial class Battle
         }
         c.Cell = saved;
         Grid.Occupy(cx, cz, c.Footprint);
+        // The original tries the cells in set A itself, which it leaves empty.
         TargetsA.Clear();
         return scores;
+    }
+
+    /// <summary>
+    /// The AI's set A (<see cref="_triesA"/>) built for <paramref name="c"/> doing <paramref name="action"/> where it's taken to stand,
+    /// as the battle's would be there. The tries move its place to the cell and put it back after, as the original's do, and the port's
+    /// must: the reach reads the bodies (<see cref="Combatant.IsWithinReach"/>), and an opponent's field worked out again reads its
+    /// reach and the Shadow's (<see cref="Combatant.UpdateRadius"/>), which go by the place and put it back where the body stands.
+    /// </summary>
+    private TargetSet TryAttack(Combatant c, CombatAction action)
+    {
+        _triesA.RebuildAttack(this, c, action);
+        return _triesA;
     }
 
     /// <summary>
@@ -289,12 +297,11 @@ public sealed partial class Battle
             if (ArenaGrid.Distance(x & 0xFF, z & 0xFF, cx, cz) > r || !Grid.IsFree(x, z, c.Footprint))
                 continue;
             c.Cell = new Vector2(x, z);
-            TargetsA.Rebuild(this, c);
-            if (TargetsA.Selected == 0)
+            if (TryAttack(c, c.Action).Selected == 0)
                 continue;
             for (var k = 0; k < InPlay; k++)
             {
-                if (!TargetsA.IsCandidate(k) || _slots[k] is not { } t)
+                if (!_triesA.IsCandidate(k) || _slots[k] is not { } t)
                     continue;
                 var found = scores.Entries.FirstOrDefault(e => e.Combatant == t);
                 var within = AnyScoredWithinRadius(ai, scores);
@@ -322,6 +329,7 @@ public sealed partial class Battle
         }
         Grid.Occupy(cx, cz, c.Footprint);
         c.Cell = saved;
+        // The original tries the cells in set A itself, which it leaves empty.
         TargetsA.Clear();
         return scores;
     }
@@ -348,9 +356,10 @@ public sealed partial class Battle
     /// Each entry's best cell to attack its opponent from (<c>EnemyAI.ScoreAttackCells</c>, <c>0x80058C7C</c>): of the free cells
     /// round the opponent from which set A has it, as though the combatant stood there facing it, 25 for its own cell, 20 from the
     /// opponent's flank or back (<see cref="IsFlanking"/>), 50 above it, up to 15 more the more it's hurt, 10 more if it holds a
-    /// ranged weapon, and less for allies near (<see cref="AreaDanger"/>); the first of the best, if any beats the entry's score.
+    /// ranged weapon, and less for allies near (<see cref="AreaDanger"/>); the first of the best, if any beats the entry's score. Each
+    /// try turns the combatant's direction toward the opponent, as the original's does, and it's left as the last turned it.
     /// </summary>
-    private void ScoreAttackCells(EnemyAI ai, AiScores scores)
+    private void ScoreAttackCells(EnemyAI ai, AiScores scores, CombatAction action)
     {
         var c = ai.Combatant;
         var danger = LeaderGone ? 0 : Danger;
@@ -373,8 +382,7 @@ public sealed partial class Battle
                         continue;
                     c.Cell = new Vector2(x, z);
                     DirectionToward(c, tx, tz);
-                    TargetsA.Rebuild(this, c);
-                    if (!TargetsA.IsCandidate(t.Slot))
+                    if (!TryAttack(c, action).IsCandidate(t.Slot))
                         continue;
                     var s = 0;
                     if ((x & 0xFF) == cx && (z & 0xFF) == cz)
@@ -398,6 +406,7 @@ public sealed partial class Battle
         }
         Grid.Occupy(cx, cz, footprint);
         c.Cell = saved;
+        // The original tries the cells in set A itself, which it leaves empty.
         TargetsA.Clear();
     }
 
@@ -433,6 +442,7 @@ public sealed partial class Battle
             (first.X, first.Z, first.Combatant) = (best.Item1, best.Item2, null);
         }
         Grid.Occupy(cx, cz, c.Footprint);
+        // The original's leaves set A empty too.
         TargetsA.Clear();
     }
 

@@ -67,22 +67,25 @@ public sealed partial class Combatant
     /// Its selected spell as a cast's source (<c>Entity.CurrentSpell</c>, <c>0x80070CB4</c>): the spellbook's entry, or the armor's,
     /// shield's, weapon's or gear slot's item with its spell at the item's level. Null with none, or one that's gone.
     /// </summary>
-    public SpellSource? CurrentSpell(MagicRules? magic)
+    public SpellSource? CurrentSpell(MagicRules? magic) => SpellOf(Spell, magic);
+
+    /// <summary>The source <paramref name="choice"/> would select, as <see cref="CurrentSpell(MagicRules?)"/> gives it, selecting nothing.</summary>
+    public SpellSource? SpellOf(SpellChoice choice, MagicRules? magic)
     {
-        switch (Spell.Source)
+        switch (choice.Source)
         {
             case SpellSourceKind.Known:
-                return Spell.Index >= 0 && Spell.Index < Sheet.Spells.Count ? SpellSource.From(Sheet.Spells[Spell.Index]) : null;
+                return choice.Index >= 0 && choice.Index < Sheet.Spells.Count ? SpellSource.From(Sheet.Spells[choice.Index]) : null;
             case SpellSourceKind.None:
                 return null;
         }
         var equipment = Sheet.Equipment;
-        var item = Spell.Source switch
+        var item = choice.Source switch
         {
             SpellSourceKind.Armor => equipment.Armor,
             SpellSourceKind.Shield => equipment.Shield,
             SpellSourceKind.Weapon => equipment.Weapon,
-            _ => Spell.Index >= 0 && Spell.Index < equipment.Gear.Count ? equipment.Gear[Spell.Index] : null,
+            _ => choice.Index >= 0 && choice.Index < equipment.Gear.Count ? equipment.Gear[choice.Index] : null,
         };
         if (item?.Item.Bonuses.Spell is not { } spell || magic?.Spell(spell.Spell) is not { } record)
             return null;

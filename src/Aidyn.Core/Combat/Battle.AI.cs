@@ -27,6 +27,21 @@ public sealed partial class Battle
     /// <summary>The path's cells (<c>+0x5320</c>): up to 144, the corners and the goal last.</summary>
     private readonly (int X, int Z)[] _path = new (int X, int Z)[144];
 
+    /// <summary>
+    /// The AI's own target sets, for what it tries before it acts: the cells it might attack from (<see cref="CollectAttackCells"/> and
+    /// the rest), the spells it might cast and from where (<see cref="ScoreSpellCells"/>), and Fireball's centres
+    /// (<see cref="AimAreaSpell"/>). The original builds its tries in the battle's sets A and B, which hold what the turn does and
+    /// what the player aims; the port keeps them apart, and each try leaves the battle's sets as the original's would.
+    /// </summary>
+    private readonly TargetSet _triesA = new(spells: false), _triesB = new(spells: true);
+
+    /// <summary>
+    /// The AI's area centre in the arena's cells: the original's focus (<c>+0x18</c>, <c>+0x1C</c>) as the AI uses it. Fireball's count
+    /// puts it at the opponents' mean (<see cref="AreaCentre"/>), its aim at the cell it chooses (<see cref="AimAreaSpell"/>), and an AI's
+    /// placed area is cast about it (<see cref="AimCentre"/>). It starts each turn on the combatant (<see cref="FocusOn"/>).
+    /// </summary>
+    internal Vector2 AiAreaCentre { get; set; }
+
     /// <summary>The stuck timer (<c>+0x4FBC</c>), in ticks.</summary>
     public int Stuck { get; private set; }
 

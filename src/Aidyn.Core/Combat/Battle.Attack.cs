@@ -66,7 +66,7 @@ public sealed partial class Battle
     /// <summary>The way the attacker's body turns while an attack is aimed (<c>Combat.AimAtCursor</c>), or null.</summary>
     private Vector2? _aimTurn;
 
-    /// <summary>The combat record, for who can't be attacked and the weapons that fly.</summary>
+    /// <summary>The combat record, for who can't be attacked or cast at and the weapons that fly.</summary>
     private CombatRecord? _rules;
 
     /// <summary>The combat record's rules the battle plays by, if the plugins have one.</summary>
@@ -90,14 +90,27 @@ public sealed partial class Battle
     }
 
     /// <summary>
-    /// Whether <paramref name="a"/> can attack <paramref name="t"/> (<c>Combatant.CanAttack</c>, <c>0x80060590</c>): never the Shadow;
-    /// one on the other side, alive and in play, while it has an action (or its healing's rules, session 9's); its weapon reaching
-    /// (<see cref="Reaches"/>); and a clear walk over the grid between their cells, or failing that a line of sight in 3D
-    /// (<see cref="HasSight"/>) from head to head.
+    /// Whether <paramref name="a"/> can attack <paramref name="t"/> where it stands, with its action
+    /// (<see cref="CanAttack(Combatant, Combatant, CombatAction)"/>).
     /// </summary>
-    public bool CanAttack(Combatant a, Combatant t)
+    public bool CanAttack(Combatant a, Combatant t) => CanAttack(a, t, a.Action);
+
+    /// <summary>
+    /// Whether <paramref name="a"/> can attack <paramref name="t"/> where it stands, doing <paramref name="action"/>
+    /// (<c>Combatant.CanAttack</c>, <c>0x80060590</c>): never one of <see cref="CombatRecord.Untargetable"/>; one on the other side, alive
+    /// and in play, while it has an action (or its healing's rules); its weapon reaching (<see cref="Reaches"/>); and a clear walk over
+    /// the grid between their cells, or failing that a line of sight in 3D (<see cref="HasSight"/>) from head to head. It's the target
+    /// sets' test, the player's and the AI's, the AI's tries of the cells it might stand on, and a weapon for near and far's choice of
+    /// melee (<see cref="ResolveAction"/>).
+    /// </summary>
+    /// <remarks>
+    /// It changes nothing but what reading the bodies changes, as the original's reach reads them (<see cref="Combatant.IsWithinReach"/>,
+    /// and <see cref="FreeOfOpponents"/> for a ranged weapon): their places, put back where the bodies stand, and their footprints on the
+    /// grid. So a place the AI tries counts until the first read, as the original's does.
+    /// </remarks>
+    public bool CanAttack(Combatant a, Combatant t, CombatAction action)
     {
-        if (_rules?.Flee.Contains(t.Entity) == true)
+        if (_rules?.Untargetable?.Contains(t.Entity) == true)
             return false;
         if (!a.Healing)
         {
@@ -105,9 +118,9 @@ public sealed partial class Battle
                 return t == a;
             // Combatant.CanTargetBySide and ActionAllowsTarget (0x80060420): a flask at the other side, a potion at the drinker alone
             // while it would do something.
-            if (t.Gone || t.Sheet.IsDead || a.Action == CombatAction.None)
+            if (t.Gone || t.Sheet.IsDead || action == CombatAction.None)
                 return false;
-            if (a.Action == CombatAction.Flask && a.Potion is { } potion && !Potions.IsFlask(potion))
+            if (action == CombatAction.Flask && a.Potion is { } potion && !Potions.IsFlask(potion))
             {
                 if (t != a || Potions.CanDrink(a.Sheet, potion, inBattle: true) != DrinkResult.Drunk)
                     return false;
@@ -126,7 +139,7 @@ public sealed partial class Battle
         }
         // The target's cell as it was last read; reaching reads both bodies again, and then the attacker's.
         var (tx, tz) = (ArenaGrid.CellOf(t.Cell.X), ArenaGrid.CellOf(t.Cell.Y));
-        if (t.Freed || !Reaches(a, t))
+        if (t.Freed || !Reaches(a, t, action))
             return false;
         var (ax, az) = (ArenaGrid.CellOf(a.Cell.X), ArenaGrid.CellOf(a.Cell.Y));
         if (Grid.WalkClear(ax, az, tx, tz))
@@ -141,28 +154,29 @@ public sealed partial class Battle
         c.Body.Sphere.Position with { Y = c.Body.Sphere.Position.Y - c.Body.ScaledRadius + c.Look.Height * c.Look.Scale };
 
     /// <summary>
-    /// Whether <paramref name="a"/>'s weapon reaches <paramref name="t"/> (<c>Combatant.CanReachWithWeapon</c>): a flask always; a
-    /// melee weapon or healing within reach (<see cref="Combatant.IsWithinReach"/>); a ranged one out to its range, from 3 cells
-    /// away with no opponent within reach, or one that strikes in melee too from anywhere in its range. Without a weapon, its action
-    /// goes.
+    /// Whether <paramref name="a"/>'s weapon reaches <paramref name="t"/> doing <paramref name="action"/>
+    /// (<c>Combatant.CanReachWithWeapon</c>): a flask always; a melee weapon or healing within reach (<see cref="Combatant.IsWithinReach"/>);
+    /// a ranged one out to its range, from 3 cells away with no opponent within reach, or one that strikes in melee too from anywhere in
+    /// its range. Without a weapon, no one.
     /// </summary>
-    private bool Reaches(Combatant a, Combatant t)
+    /// <remarks>
+    /// The original also takes a weaponless action away here (<c>+0x25</c> to 0), which the port doesn't: it reaches no one either way,
+    /// and the rest of the battle treats an action without a weapon as none.
+    /// </remarks>
+    private bool Reaches(Combatant a, Combatant t, CombatAction action)
     {
-        if (a.Action == CombatAction.Flask)
+        if (action == CombatAction.Flask)
             return true;
         if (a.Healing)
             return a.IsWithinReach(this, t);
-        if (a.Action is not (CombatAction.Melee or CombatAction.Ranged or CombatAction.MeleeOrRanged))
+        if (action is not (CombatAction.Melee or CombatAction.Ranged or CombatAction.MeleeOrRanged))
             return false;
         if (WeaponOf(a) is not { } weapon)
-        {
-            a.Action = CombatAction.None;
             return false;
-        }
-        if (a.Action == CombatAction.Melee)
+        if (action == CombatAction.Melee)
             return a.IsWithinReach(this, t);
         var distance = (uint)Vector2.Distance(a.Cell, t.Cell);
-        return a.Action == CombatAction.MeleeOrRanged
+        return action == CombatAction.MeleeOrRanged
             ? distance <= weapon.Range
             : FreeOfOpponents(a) && distance > 2 && distance <= weapon.Range;
     }
@@ -199,7 +213,7 @@ public sealed partial class Battle
     /// <summary>
     /// A in a turn the player plays, with the stick centred and R let go (<c>Combat.InputTurn</c>): set A is built again, and with
     /// a candidate, it's aimed at (state 9, the camera on the cursor's target), or for a bow, a thrown weapon or a flask aimed freely
-    /// at (state 18, the focus on it). With none, nothing. Whether it did.
+    /// at (state 18, its free cursor on it, <see cref="ThrownAim"/>). With none, nothing. Whether it did.
     /// </summary>
     public bool Attack()
     {
@@ -213,7 +227,7 @@ public sealed partial class Battle
         {
             // TargetSet.BeginAttackFocused.
             State = CombatState.TargetThrown;
-            Focus = _slots[TargetsA.Cursor]?.Cell ?? Focus;
+            ThrownAim = _slots[TargetsA.Cursor]?.Cell ?? ThrownAim;
             return true;
         }
         State = CombatState.TargetAttack;
@@ -224,7 +238,7 @@ public sealed partial class Battle
     /// <summary>
     /// Steps the cursor through set A: in state 9 the stick or the D-pad, left the next (+1) and right the one before (−1)
     /// (<c>Combat.StepAttackCursor</c>, <c>0x80084420</c>), the camera following it; in state 18 C-left and C-right
-    /// (<c>TargetSet.StepSpell</c>), the focus going to it. The attacker's body turns to it (<c>Combat.AimAtCursor</c>,
+    /// (<c>TargetSet.StepSpell</c>), the free cursor going to it. The attacker's body turns to it (<c>Combat.AimAtCursor</c>,
     /// <c>0x80084334</c>). Whether it stepped.
     /// </summary>
     public bool StepTarget(int by)
@@ -251,7 +265,7 @@ public sealed partial class Battle
         if (State == CombatState.TargetAttack)
             CameraOwner = target;
         else
-            Focus = target.Cell;
+            ThrownAim = target.Cell;
         if (TargetsA.Most < 2 && target != c)
         {
             var way = target.Cell - c.Cell;
@@ -298,7 +312,7 @@ public sealed partial class Battle
 
     /// <summary>
     /// B, Z or L while an attack is aimed (<c>Combat.ReturnToTurn</c>, <c>0x80083C70</c>): back to the turn, healing put away, the
-    /// focus on the combatant, the target sets built again and the camera given back. The body stays turned where it was.
+    /// aims on the combatant (<see cref="FocusOn"/>), the target sets built again and the camera given back. The body stays turned where it was.
     /// </summary>
     public bool Cancel()
     {
@@ -318,15 +332,15 @@ public sealed partial class Battle
         State = CombatState.Turn;
         // Combatant.RevertAction: the healing modes go (a flask goes back to the held action, session 9).
         c.Flags &= ~(CombatantFlags.LayOnHands | CombatantFlags.HealWithHerbs);
-        Focus = c.Cell;
+        FocusOn(c);
         RebuildTargets(c);
         CameraOwner = c;
         _aimTurn = null;
     }
 
     /// <summary>
-    /// A tick of state 18's free cursor (<c>Combat.MoveAreaCursor</c>, <c>0x8008465C</c>), the stick turned by the camera moving the
-    /// focus, kept on the grid and within the weapon's range of the attacker; then set A selects the candidate whose body is
+    /// A tick of state 18's free cursor (<c>Combat.MoveAreaCursor</c>, <c>0x8008465C</c>), the stick turned by the camera moving
+    /// <see cref="ThrownAim"/>, kept on the grid and within the weapon's range of the attacker; then set A selects the candidate whose body is
     /// nearest it, within a unit, or none (<c>0x80084A24</c>).
     /// </summary>
     private void MoveAimCursor(PlayerInput input)
@@ -337,14 +351,14 @@ public sealed partial class Battle
         var way = Facing.Rotate(new Vector2(-input.Stick.X, input.Stick.Y), look.X, look.Y);
         if (way.LengthSquared() > 0)
             way = Vector2.Normalize(way);
-        var focus = Focus + way * Cadence.PerTick(AimStep);
+        var focus = ThrownAim + way * Cadence.PerTick(AimStep);
         focus = Vector2.Clamp(focus, Vector2.Zero, new Vector2(Grid.Width, Grid.Depth));
         // Combatant.WeaponReach: a flask's is 400, the grid alone.
         var reach = c.HoldsFlask ? FlaskReach : WeaponOf(c)?.Range ?? 0;
         var off = focus - c.Cell;
         if (off.Length() > reach && off.LengthSquared() > 0)
             focus = c.Cell + Vector2.Normalize(off) * reach;
-        Focus = focus;
+        ThrownAim = focus;
         Combatant? nearest = null;
         var best = AimPick;
         foreach (var t in Combatants)
@@ -461,9 +475,8 @@ public sealed partial class Battle
                 outcome = ResolveRanged(a, t);
                 break;
             case CombatAction.MeleeOrRanged:
-                a.Action = CombatAction.Melee;
-                outcome = CanAttack(a, t) ? ResolveMelee(a, t) : ResolveRanged(a, t);
-                a.Action = CombatAction.MeleeOrRanged;
+                // Melee if it could attack as melee (the original sets the action to melee and back to ask).
+                outcome = CanAttack(a, t, CombatAction.Melee) ? ResolveMelee(a, t) : ResolveRanged(a, t);
                 break;
             case CombatAction.Flask:
                 // Combatant.ThrowFlask (0x80065600): a potion drunk, or a flask thrown; no swing of the weapon's.
@@ -578,7 +591,7 @@ public sealed partial class Battle
             && StartFlight(a, t))
         {
             State = CombatState.Cast;
-            Focus = a.Cell;
+            FocusOn(a);
             return;
         }
         Land(t);

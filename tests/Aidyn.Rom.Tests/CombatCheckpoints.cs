@@ -212,7 +212,7 @@ internal static class CombatCheckpoints
         battle.Order.Now = cp.ReadByte(s + 0x31);
         if (Enumerable.Range(0, Battle.SlotCount).Where(slot => built.Record(slot) == cp.ReadWord(s + 0x2C)).Cast<int?>().FirstOrDefault() is { } current)
             battle.Current = battle.Slots[current];
-        battle.Focus = new Vector2(Float(cp, s + 0x18), Float(cp, s + 0x1C));
+        battle.FocusAt(new Vector2(Float(cp, s + 0x18), Float(cp, s + 0x1C)));
         battle.NextReserve = cp.ReadByte(s + 7);
         // The leader's morale and whether it's gone (+0x11, +0x0C), and the quicksort's stream (Quicksort.Seed), which the AI reads.
         battle.LeaderMorale = cp.ReadByte(s + 0x11);

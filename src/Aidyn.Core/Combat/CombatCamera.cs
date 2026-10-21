@@ -16,7 +16,7 @@ namespace Aidyn.Core.Combat;
 /// On its first tick it's put 8 behind the current party member, away from the nearest enemy and 1.5 up, or the first
 /// combatant's if an enemy's turn begins the battle (<c>CombatCamera.PlaceBehind</c>, <c>0x8008D78C</c>). Each time a
 /// party member's turn takes it, only its goal is put there. Its goal is held 2 above the aim and leashed 4 to 10 from it
-/// in X and Z (8 to 16 while aiming a flask or placing an area, about the battle's focus); the eye eases to it at 1/32 a
+/// in X and Z (8 to 16 while aiming a flask or placing an area, about the aim, <see cref="Battle.ThrownAim"/> or <see cref="Battle.AreaAim"/>); the eye eases to it at 1/32 a
 /// tick, at most 0.5, and the aim at 1/16, at most 1. Through an enemy's turn the eye goes back to where its goal was and
 /// stays, at least 4 from the aim. It's kept a unit above the arena's floor (<c>KeepInArena</c>, <c>0x8008D29C</c>).
 /// </para>
@@ -101,7 +101,8 @@ public sealed class CombatCamera
         if (battle.State is CombatState.TargetThrown or CombatState.PlaceArea)
         {
             numbers = Aiming;
-            var focus = battle.Arena.Origin + new Vector3(battle.Focus.X, 0, battle.Focus.Y);
+            var aim = battle.State == CombatState.TargetThrown ? battle.ThrownAim : battle.AreaAim;
+            var focus = battle.Arena.Origin + new Vector3(aim.X, 0, aim.Y);
             target = new Vector3(focus.X, target.Y, focus.Z);
             enemyTurn = false;
         }

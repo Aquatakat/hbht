@@ -290,7 +290,7 @@ public sealed class BattleActionTests(Na10Import fixture)
         Assert.Same(sholeh, run.TurnOf("Sholeh"));
         Choose(run.Battle, false, r => r.Text == "Dispel Naming");
         Assert.Equal(CombatState.PlaceArea, run.Battle.State);
-        Assert.Equal(sholeh.Cell, run.Battle.Focus);
+        Assert.Equal(sholeh.Cell, run.Battle.AreaAim);
         var source = sholeh.CurrentSpell(run.Built.Game.Rules.Magic)!;
         var reach = source.Spell.Range * Aidyn.Core.Magic.Casting.Level(sholeh.Sheet, source);
 
@@ -298,10 +298,10 @@ public sealed class BattleActionTests(Na10Import fixture)
         for (var i = 0; i < 120; i++)
             run.Battle.Tick(run.Zone, false, _ => null, () => new Aidyn.Core.Trek.PlayerInput(new System.Numerics.Vector2(0, 1)));
         var body = sholeh.Body.Sphere.Position - run.Battle.Origin;
-        var off = run.Battle.Focus - new System.Numerics.Vector2(body.X, body.Z);
+        var off = run.Battle.AreaAim - new System.Numerics.Vector2(body.X, body.Z);
         Assert.True(off.Length() > 0.5f);
         Assert.True(off.Length() <= reach + 0.001f);
-        Assert.Equal(new AimMarker(run.Battle.Focus, Aidyn.Core.Magic.Casting.Level(sholeh.Sheet, source), Spell: true), run.Battle.Aim);
+        Assert.Equal(new AimMarker(run.Battle.AreaAim, Aidyn.Core.Magic.Casting.Level(sholeh.Sheet, source), Spell: true), run.Battle.Aim);
 
         // Everyone in it is taken, either side, an All spell's every candidate.
         Assert.Equal(run.Battle.TargetsB.Candidates, run.Battle.TargetsB.Selected);
