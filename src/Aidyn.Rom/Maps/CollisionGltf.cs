@@ -9,7 +9,7 @@ namespace Aidyn.Rom.Maps;
 /// Exports a map set's collision as glTF: a node per chunk at
 /// its <see cref="MapSets.ChunkOrigin"/>, with one mesh of its triangles. The triangles don't share
 /// vertices, so each vertex carries its triangle's <c>_SURFACE</c> (<see cref="CollisionSurface"/>),
-/// <c>_ROLE</c> (<see cref="CollisionRole"/>), <c>_FLAGS</c> (<see cref="TriangleFlags"/>) and <c>_TARGET</c>, under the
+/// <c>_ROLE</c> (<see cref="CollisionRole"/>), <c>_FLAGS</c> (<see cref="CollisionFlags"/>) and <c>_TARGET</c>, under the
 /// names <see cref="CollisionMesh"/> reads them by. With no normals, viewers shade them flat.
 /// </summary>
 /// <remarks>The importer exports each chunk alone, in its own coordinates, with <c>placeInSet</c> off.</remarks>
@@ -44,17 +44,10 @@ public static class CollisionGltf
                 foreach (var t in map.Triangles)
                 {
                     positions.AddRange([map.Vertices[t.A], map.Vertices[t.B], map.Vertices[t.C]]);
-                    var role = t.Role switch
-                    {
-                        TriangleRole.Toggle => CollisionRole.Toggle,
-                        TriangleRole.Trigger => CollisionRole.Trigger,
-                        TriangleRole.ExpansionPak => CollisionRole.ExpansionPak,
-                        _ => CollisionRole.Normal,
-                    };
                     for (var i = 0; i < 3; i++)
                     {
                         surfaces.Add((float)t.Surface);
-                        roles.Add((float)role);
+                        roles.Add((float)t.Role);
                         flags.Add((float)t.Flags);
                         targets.Add(t.ToggleId ?? t.TriggerObject ?? 0);
                     }

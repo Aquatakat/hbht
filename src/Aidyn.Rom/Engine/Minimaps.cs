@@ -10,7 +10,7 @@ namespace Aidyn.Rom.Engine;
 /// Whether the piece is seen from the start (<c>checked</c>). The game sets it when the piece is first shown, and saves it.
 /// </param>
 /// <param name="Image">The piece's Borg8.</param>
-public sealed record MinimapSection(int Row, int Column, int Group, bool Seen, int Image, int X, int Y);
+public sealed record RomMinimapSection(int Row, int Column, int Group, bool Seen, int Image, int X, int Y);
 
 /// <summary>A minimap image that shows while its flag is set.</summary>
 public sealed record MinimapFlagImage(ushort Flag, int Image);
@@ -30,7 +30,7 @@ public sealed record MinimapFlagImage(ushort Flag, int Image);
 /// Flags that change the Barrows' images. Code decides which piece each flag affects, and how.
 /// </param>
 public sealed record Minimaps(
-    IReadOnlyList<IReadOnlyList<MinimapSection>> Sections,
+    IReadOnlyList<IReadOnlyList<RomMinimapSection>> Sections,
     IReadOnlyList<MinimapFlagImage> Ehud,
     IReadOnlyList<MinimapFlagImage> RoogEntrance,
     IReadOnlyList<MinimapFlagImage> Barrows)
@@ -40,15 +40,15 @@ public sealed record Minimaps(
     public static Minimaps Read(RomImage rom)
     {
         var pointers = rom.Table(CodeTable.MinimapSections);
-        var sections = new List<IReadOnlyList<MinimapSection>>();
+        var sections = new List<IReadOnlyList<RomMinimapSection>>();
         for (var i = 0; Be.U32(pointers, i * 4) is var pointer and not 0; i++)
         {
             // Each list ends with a group of 0.
             var data = CodeSegment.At(rom, pointer);
-            var list = new List<MinimapSection>();
+            var list = new List<RomMinimapSection>();
             for (var at = 0; Be.U16(data, at + 4) != 0; at += SectionSize)
             {
-                list.Add(new MinimapSection(Be.U16(data, at), Be.U16(data, at + 2),
+                list.Add(new RomMinimapSection(Be.U16(data, at), Be.U16(data, at + 2),
                     Be.U16(data, at + 4), Be.U16(data, at + 6) != 0, Be.U16(data, at + 8),
                     Be.U16(data, at + 10), Be.U16(data, at + 12)));
             }

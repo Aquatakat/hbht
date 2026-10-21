@@ -5,10 +5,6 @@ using Aidyn.Rom.Db;
 using Aidyn.Rom.Engine;
 using Aidyn.Rom.Graphics;
 using Aidyn.Rom.Maps;
-using FlagGate = Aidyn.Plugins.Records.FlagGate;
-using PluginSceneModel = Aidyn.Plugins.Records.SceneModel;
-using PluginSceneObjectFlags = Aidyn.Plugins.Records.SceneObjectFlags;
-using RomSceneObjectFlags = Aidyn.Rom.Maps.SceneObjectFlags;
 
 namespace Aidyn.Rom.Import;
 
@@ -138,13 +134,13 @@ internal static class MapImporter
             {
                 SceneData scene => new SceneObject(o.Index, o.Position, o.Radius, pak, visible,
                     [
-                        .. scene.Models.Select(m => new PluginSceneModel(
+                        .. scene.Models.Select(m => new SceneModel(
                             scene.SceneFlags.HasFlag(RomSceneObjectFlags.Actor) && types.GetValueOrDefault(m.Borg) == BorgType.Actor
                                 ? RecordId.Hex(RecordTypes.Actor, m.Borg) : RecordId.Hex(RecordTypes.Scene, m.Borg),
                             m.DrawDistance) { Empty = empty(m.Borg) }),
                     ],
                     scene.Lods, scene.Rotation, scene.Scale, scene.Tint,
-                    (PluginSceneObjectFlags)((int)scene.SceneFlags & ~(int)RomSceneObjectFlags.Actor))
+                    (SceneObjectFlags)((int)scene.SceneFlags & ~(int)RomSceneObjectFlags.Actor))
                 {
                     GoesOut = scene.Models.Count > 1 && scene.Models[1].Borg == OrianaLight,
                 },
@@ -222,5 +218,5 @@ internal static class MapImporter
         return new MapRecord(id, records);
     }
 
-    private static FlagGate Gate(Maps.FlagGate gate) => new(DbRecordIds.Flag(gate.Flag), gate.Inverted);
+    private static FlagGate Gate(RomFlagGate gate) => new(DbRecordIds.Flag(gate.Flag), gate.Inverted);
 }

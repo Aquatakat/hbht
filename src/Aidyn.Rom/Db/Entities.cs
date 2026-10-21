@@ -3,7 +3,7 @@ using Aidyn.Plugins.Records;
 namespace Aidyn.Rom.Db;
 
 /// <summary>An element resistance: the element and a step, as in <see cref="EquipmentBonuses.ResistAmount"/>.</summary>
-public readonly record struct Resistance(Element Element, byte Amount);
+public readonly record struct RomResistance(Element Element, byte Amount);
 
 /// <summary>An <c>EntityDB</c> record (0x88 bytes): party members, NPCs and enemies.</summary>
 /// <param name="InternalName">A second name field. The game doesn't copy it to RAM.</param>
@@ -21,8 +21,8 @@ public readonly record struct Resistance(Element Element, byte Amount);
 /// <param name="ShieldSkill">0xFF on party members means can't learn; enemies use 0.</param>
 /// <param name="RitualIds">Starting rituals from early builds. Unused in the final game.</param>
 /// <param name="ExpReward">The game multiplies this by 50 on load, and by 1.5 again when awarding it.</param>
-/// <param name="LootCategory">The index of a <see cref="LootRecord"/>.</param>
-public sealed record EntityRecord(
+/// <param name="LootCategory">The index of a <see cref="RomLootRecord"/>.</param>
+public sealed record RomEntityRecord(
     ItemId Id,
     string Name,
     string InternalName,
@@ -48,7 +48,7 @@ public sealed record EntityRecord(
     byte BaseProtection,
     ItemId Shield,
     byte ShieldSkill,
-    IReadOnlyList<Resistance> Resistances,
+    IReadOnlyList<RomResistance> Resistances,
     IReadOnlyList<ItemId> RitualIds,
     IReadOnlyList<byte> RitualLevels,
     byte ExpReward,
@@ -56,12 +56,12 @@ public sealed record EntityRecord(
 {
     public const int Size = 0x88;
 
-    internal static EntityRecord Read(ref RecordReader r)
+    internal static RomEntityRecord Read(ref RecordReader r)
     {
         var name = r.Name(20);
         var internalName = r.Name(20);
         var category = r.U8();
-        return new EntityRecord(
+        return new RomEntityRecord(
             Id: r.Id(),
             Name: name,
             InternalName: internalName,

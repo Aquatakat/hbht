@@ -1,4 +1,5 @@
 using System.Numerics;
+using Aidyn.Plugins.Assets;
 using Aidyn.Plugins.Records;
 using Aidyn.Rom.Borg;
 using Aidyn.Rom.Maps;
@@ -14,7 +15,7 @@ public class CollisionTests
             .Select(l => (l.Index, Borg9Map.Parse(archive.Read(l.Index))))];
     });
 
-    private static IEnumerable<CollisionTriangle> AllTriangles => AllMaps.Value.SelectMany(m => m.Map.Triangles);
+    private static IEnumerable<RomCollisionTriangle> AllTriangles => AllMaps.Value.SelectMany(m => m.Map.Triangles);
 
     [Fact]
     public void EveryBorg9Parses()
@@ -55,12 +56,12 @@ public class CollisionTests
     [Fact]
     public void FlagsAreTheOnesThePhysicsReads()
     {
-        var flags = AllTriangles.Aggregate(TriangleFlags.None, (all, t) => all | t.Flags);
-        Assert.Equal(TriangleFlags.None, flags & (TriangleFlags.Passable | TriangleFlags.TakesSpeed |
-            TriangleFlags.RecomputeNormal | TriangleFlags.NoMargin));
+        var flags = AllTriangles.Aggregate(CollisionFlags.None, (all, t) => all | t.Flags);
+        Assert.Equal(CollisionFlags.None, flags & (CollisionFlags.Passable | CollisionFlags.TakesSpeed |
+            CollisionFlags.RecomputeNormal | CollisionFlags.NoMargin));
         // Invisible walls: the player's surface blocks the player, and the camera sees through it.
         Assert.All(AllTriangles, t =>
-            Assert.Equal(t.Surface == CollisionSurface.Player, t.Flags.HasFlag(TriangleFlags.SeeThrough)));
+            Assert.Equal(t.Surface == CollisionSurface.Player, t.Flags.HasFlag(CollisionFlags.SeeThrough)));
     }
 
     [Fact]
@@ -98,8 +99,8 @@ public class CollisionTests
                 .CountBy(e => e).ToDictionary();
             foreach (var t in map.Triangles)
             {
-                foreach (var (a, b, bit) in new[] { (t.A, t.B, TriangleFlags.EdgeAB), (t.B, t.C, TriangleFlags.EdgeBC),
-                    (t.C, t.A, TriangleFlags.EdgeCA) })
+                foreach (var (a, b, bit) in new[] { (t.A, t.B, CollisionFlags.EdgeAB), (t.B, t.C, CollisionFlags.EdgeBC),
+                    (t.C, t.A, CollisionFlags.EdgeCA) })
                 {
                     if (counts[Edge(a, b)] == 1)
                         Assert.True(t.Flags.HasFlag(bit), $"Borg9 {index}: an open edge without {bit}.");
@@ -124,14 +125,14 @@ public class CollisionTests
             toggles += ids.Count;
             Assert.Equal(changes.Select(c => (int)c.A).Order(), ids.Distinct().Order());
             // Each keeps the triangles' flags and adds Passable, so the way opens.
-            Assert.All(changes, c => Assert.Equal((0xFFFF, (int)TriangleFlags.Passable), (c.B, c.C)));
+            Assert.All(changes, c => Assert.Equal((0xFFFF, (int)CollisionFlags.Passable), (c.B, c.C)));
         }
 
         Assert.Equal(1_849, triggered.Count);
         Assert.Equal(1_532, triggered.Count(t => t == VoxelType.Camera));
         Assert.Equal(317, triggered.Count(t => t == VoxelType.Dialogue));
         Assert.Equal(62, toggles);
-        Assert.Equal(5_932, AllTriangles.Count(t => t.Role == TriangleRole.ExpansionPak));
+        Assert.Equal(5_932, AllTriangles.Count(t => t.Role == CollisionRole.ExpansionPak));
     }
 
     [Fact]

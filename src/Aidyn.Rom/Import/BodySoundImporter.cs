@@ -2,9 +2,6 @@ using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 using Aidyn.Rom.Db;
 using Aidyn.Rom.Engine;
-using EntityRecord = Aidyn.Plugins.Records.EntityRecord;
-using SpellRecord = Aidyn.Plugins.Records.SpellRecord;
-using WeaponRecord = Aidyn.Plugins.Records.WeaponRecord;
 
 namespace Aidyn.Rom.Import;
 

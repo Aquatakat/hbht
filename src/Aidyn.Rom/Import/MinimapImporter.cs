@@ -1,7 +1,6 @@
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 using Aidyn.Rom.Engine;
-using Section = Aidyn.Plugins.Records.MinimapSection;
 
 namespace Aidyn.Rom.Import;
 
@@ -21,7 +20,7 @@ internal static class MinimapImporter
         .. minimaps.Sections.Select((list, i) => new MinimapRecord(
             RecordId.Decimal(RecordTypes.Minimap, MapSets[i]),
             RecordId.Decimal(RecordTypes.MapSet, MapSets[i]),
-            [.. list.Select(s => new Section(s.Row, s.Column, s.Group, RecordId.Hex(RecordTypes.Image, s.Image), s.X, s.Y, s.Seen))],
+            [.. list.Select(s => new MinimapSection(s.Row, s.Column, s.Group, RecordId.Hex(RecordTypes.Image, s.Image), s.X, s.Y, s.Seen))],
             Rules(i, list, minimaps))),
     ];
 
@@ -30,7 +29,7 @@ internal static class MinimapImporter
     /// functions it calls, <c>0x8004badc</c>–<c>0x8004c34c</c>). The original chooses again only when the player crosses
     /// one of these bounds or a flag changes (<c>SpecialSections</c>), which comes to the same.
     /// </summary>
-    private static List<MinimapRule> Rules(int list, IReadOnlyList<Engine.MinimapSection> sections, Minimaps minimaps)
+    private static List<MinimapRule> Rules(int list, IReadOnlyList<RomMinimapSection> sections, Minimaps minimaps)
     {
         var rules = new List<MinimapRule>();
         void Rule(string chunk, int? image, int? flag = null, params MinimapBound[] bounds)
@@ -104,7 +103,7 @@ internal static class MinimapImporter
         return rules;
     }
 
-    private static int Index(IReadOnlyList<Engine.MinimapSection> sections, int image)
+    private static int Index(IReadOnlyList<RomMinimapSection> sections, int image)
     {
         for (var i = 0; i < sections.Count; i++)
         {

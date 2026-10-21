@@ -4,7 +4,6 @@ using Aidyn.Rom.Borg;
 using Aidyn.Rom.Db;
 using Aidyn.Rom.Engine;
 using Aidyn.Rom.Quests;
-using PluginSpell = Aidyn.Plugins.Records.SpellRecord;
 
 namespace Aidyn.Rom.Import;
 
@@ -71,7 +70,7 @@ internal static class MagicImporter
     /// Gives each spell what casting it shows (<see cref="SpellVisualTables"/>), by its place in <c>SpellList</c>, its kind. Every actor and
     /// scene must be the Borg of its type; a spell with nothing keeps none.
     /// </summary>
-    public static List<PluginSpell> WithVisuals(List<PluginSpell> spells, SpellVisualTables tables, BorgArchive archive) =>
+    public static List<SpellRecord> WithVisuals(List<SpellRecord> spells, SpellVisualTables tables, BorgArchive archive) =>
     [
         .. spells.Select(s =>
         {
@@ -245,7 +244,7 @@ internal static class MagicImporter
     /// <c>Combatant.ResistRoll</c> and <c>SpellResistanceApplies</c>; 0x10 a placed area, which <c>CanCast</c>,
     /// <c>BeginSpellTargeting</c> and <c>IsResistable</c> read). The facts and the ROM's spells must name each other exactly.
     /// </summary>
-    public static List<PluginSpell> WithEffects(List<PluginSpell> spells, EngineTables tables)
+    public static List<SpellRecord> WithEffects(List<SpellRecord> spells, EngineTables tables)
     {
         var facts = Facts(tables).ToDictionary(f => Spell(f.Id));
         var byId = spells.ToDictionary(s => s.Id);

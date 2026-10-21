@@ -1,6 +1,6 @@
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
-using GameDb = Aidyn.Rom.Db.GameDb;
+using Aidyn.Rom.Db;
 using Aidyn.Rom.Import;
 
 namespace Aidyn.Rom.Tests;

@@ -68,7 +68,7 @@ public enum VoxelFlags : ushort
 /// A condition on an event flag: true when the flag's value differs from <see cref="Inverted"/>.
 /// Flag 0 is always false and flag 1 always true, so an inverted flag 0 always holds.
 /// </summary>
-public readonly record struct FlagGate(ushort Flag, bool Inverted)
+public readonly record struct RomFlagGate(ushort Flag, bool Inverted)
 {
     /// <summary>The gate's value when it doesn't depend on a real flag, else null.</summary>
     public bool? Constant => Flag switch { 0 => Inverted, 1 => !Inverted, _ => null };
@@ -102,10 +102,10 @@ public sealed record VoxelObject(
     public const int Size = 0x6C;
 
     /// <summary>Whether a scene, container, teleporter or trigger is there at all.</summary>
-    public FlagGate Visible => new(FlagC, Flags.HasFlag(VoxelFlags.InvertVisible));
+    public RomFlagGate Visible => new(FlagC, Flags.HasFlag(VoxelFlags.InvertVisible));
 
     /// <summary>Whether a teleporter, trigger or dialogue works, and whether a monster party is there.</summary>
-    public FlagGate Enabled => new(FlagA, Flags.HasFlag(VoxelFlags.InvertEnabled));
+    public RomFlagGate Enabled => new(FlagA, Flags.HasFlag(VoxelFlags.InvertEnabled));
 }
 
 /// <summary>A map object's type-specific fields.</summary>
@@ -113,7 +113,7 @@ public abstract record VoxelData;
 
 /// <summary><c>Scene_obj_dat.sceneflags</c>. The record's <see cref="Plugins.Records.SceneObjectFlags"/> lacks <see cref="Actor"/>: the importer folds it into the model's record type.</summary>
 [Flags]
-public enum SceneObjectFlags : ushort
+public enum RomSceneObjectFlags : ushort
 {
     None = 0,
     /// <summary>Stays opaque when it comes between the camera and the player. Others fade.</summary>
@@ -134,11 +134,11 @@ public enum SceneObjectFlags : ushort
     Deferred = 0x40,
 }
 
-/// <param name="Borg">A Borg5, or a Borg7 with <see cref="SceneObjectFlags.Actor"/>.</param>
+/// <param name="Borg">A Borg5, or a Borg7 with <see cref="RomSceneObjectFlags.Actor"/>.</param>
 /// <param name="DrawDistance">
 /// Drawn out to this far from the camera, and from 2 short of the previous model's distance.
 /// </param>
-public readonly record struct SceneModel(int Borg, float DrawDistance);
+public readonly record struct RomSceneModel(int Borg, float DrawDistance);
 
 /// <summary>
 /// A model placed in the chunk. The object's radius is how far away it's drawn at all. The game
@@ -153,12 +153,12 @@ public readonly record struct SceneModel(int Borg, float DrawDistance);
 /// against 1.0's code). Most objects only turn about Y, the vertical.
 /// </param>
 public sealed record SceneData(
-    IReadOnlyList<SceneModel> Models,
+    IReadOnlyList<RomSceneModel> Models,
     int Lods,
     Vector3 Rotation,
     Vector3 Scale,
     Rgba Tint,
-    SceneObjectFlags SceneFlags) : VoxelData
+    RomSceneObjectFlags SceneFlags) : VoxelData
 {
     /// <summary><see cref="Rotation"/> as a quaternion, for row vectors as in <see cref="System.Numerics"/>.</summary>
     public Quaternion Orientation => Quaternion.Normalize(Quaternion.CreateFromRotationMatrix(
@@ -355,11 +355,11 @@ public static class Borg9Voxels
     private static SceneData Scene(ReadOnlySpan<byte> p)
     {
         // Three model slots, each a draw distance, an index and a run-time pointer.
-        var models = new List<SceneModel>();
+        var models = new List<RomSceneModel>();
         for (var i = 0; i < 3 && Be.U32(p, i * 12 + 4) is var borg and not 0; i++)
-            models.Add(new SceneModel((int)borg, Be.F32(p, i * 12)));
+            models.Add(new RomSceneModel((int)borg, Be.F32(p, i * 12)));
         return new SceneData(models, Be.U16(p, 0x40), new Vector3(Be.F32(p, 0x24), Be.F32(p, 0x28), Be.F32(p, 0x2C)),
-            new Vector3(Be.F32(p, 0x30), Be.F32(p, 0x34), Be.F32(p, 0x38)), CodeSegment.Colour(p, 0x3C), (SceneObjectFlags)Be.U16(p, 0x42));
+            new Vector3(Be.F32(p, 0x30), Be.F32(p, 0x34), Be.F32(p, 0x38)), CodeSegment.Colour(p, 0x3C), (RomSceneObjectFlags)Be.U16(p, 0x42));
     }
 
     private static List<(ItemId, byte, byte)> Enemies(ReadOnlySpan<byte> p)

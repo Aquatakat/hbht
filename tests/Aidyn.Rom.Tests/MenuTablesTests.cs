@@ -1,8 +1,8 @@
 using Aidyn.Core.Ui;
 using Aidyn.Plugins;
+using Aidyn.Plugins.Records;
 using Aidyn.Rom.Db;
 using Aidyn.Rom.Engine;
-using R = Aidyn.Plugins.Records;
 
 namespace Aidyn.Rom.Tests;
 
@@ -85,9 +85,9 @@ public class MenuTablesTests
         Assert.Equal(15, menu.EquipmentSlotImages.Count);
         Assert.Equal(MenuImages.EmptySlots, menu.EquipmentSlotImages.Select(i => Image(i)));
 
-        foreach (var aspect in Enum.GetValues<R.Aspect>())
+        foreach (var aspect in Enum.GetValues<Aspect>())
             Assert.Equal(items.AspectIcons[(int)aspect] is var a and not 0 ? Image(a) : (RecordId?)null, MenuImages.AspectIcon(aspect));
-        foreach (var school in Enum.GetValues<R.MagicSchool>())
+        foreach (var school in Enum.GetValues<MagicSchool>())
             Assert.Equal(items.SchoolIcons[(int)school] is var s and not 0 ? Image(s) : (RecordId?)null, MenuImages.SchoolIcon(school));
     }
 
@@ -129,12 +129,12 @@ public sealed class MenuImportTests(Na10Import fixture)
 {
     private PluginSet Set => fixture.Data.Set;
 
-    private R.SpellRecord Spell(int id) => Set.Get<R.SpellRecord>(RecordId.Hex(RecordTypes.Spell, id));
+    private SpellRecord Spell(int id) => Set.Get<SpellRecord>(RecordId.Hex(RecordTypes.Spell, id));
 
-    private R.ItemRecord Item(int id) => Set.Get<R.ItemRecord>(RecordId.Hex(RecordTypes.Item, id));
+    private ItemRecord Item(int id) => Set.Get<ItemRecord>(RecordId.Hex(RecordTypes.Item, id));
 
     private IReadOnlyList<string> Lines(RomStringTable table) =>
-        Set.Get<R.StringsRecord>(RecordId.Decimal(RecordTypes.Strings, (int)table)).Lines;
+        Set.Get<StringsRecord>(RecordId.Decimal(RecordTypes.Strings, (int)table)).Lines;
 
     /// <summary>A spell's icon is the image its symbol names, and its description is a line of the Spells table.</summary>
     [Fact]
@@ -146,7 +146,7 @@ public sealed class MenuImportTests(Na10Import fixture)
         Assert.StartsWith("All friendly entities", air.Description);
         Assert.Equal(Lines(RomStringTable.Spells)[0], air.Description);
 
-        var spells = Set.All<R.SpellRecord>(RecordTypes.Spell).ToList();
+        var spells = Set.All<SpellRecord>(RecordTypes.Spell).ToList();
         Assert.Equal(59, spells.Count);
         Assert.All(spells, s => Assert.NotNull(s.Icon));
         Assert.Equal([0x030F, 0x0311, 0x0327, 0x0328],
@@ -162,9 +162,9 @@ public sealed class MenuImportTests(Na10Import fixture)
         Assert.StartsWith("A sticky, incendiary liquid", Item(0x1000).Description);
         Assert.Equal(Lines(RomStringTable.PotionDetails)[0], Item(0x1000).Description);
 
-        var items = Set.All<R.ItemRecord>(RecordTypes.Item).ToList();
-        Assert.Equal(82, items.Count(i => i.Kind != R.ItemKind.Potion && i.Description is not null));
-        Assert.Equal(15, items.Count(i => i.Kind == R.ItemKind.Potion && i.Description is not null));
+        var items = Set.All<ItemRecord>(RecordTypes.Item).ToList();
+        Assert.Equal(82, items.Count(i => i.Kind != ItemKind.Potion && i.Description is not null));
+        Assert.Equal(15, items.Count(i => i.Kind == ItemKind.Potion && i.Description is not null));
         Assert.Null(Item(0x100B).Description);
         Assert.Null(Item(0x100C).Description);
     }

@@ -5,18 +5,18 @@ namespace Aidyn.Rom.Db;
 /// <summary>Every fixed database and text table in a ROM's DB block (roadmap 0.4).</summary>
 /// <remarks>
 /// Records are in ROM order. Five tables split their records into groups, and each group
-/// matches a field: entity <see cref="EntityRecord.Category"/>, weapon class, armor slot,
+/// matches a field: entity <see cref="RomEntityRecord.Category"/>, weapon class, armor slot,
 /// spell school and gear ID type. The groups are read and flattened, since the field says
 /// which group a record is in.
 /// </remarks>
 public sealed record GameDb(
-    IReadOnlyList<EntityRecord> Entities,
-    IReadOnlyList<WeaponRecord> Weapons,
-    IReadOnlyList<ArmorRecord> Armor,
-    IReadOnlyList<SpellRecord> Spells,
+    IReadOnlyList<RomEntityRecord> Entities,
+    IReadOnlyList<RomWeaponRecord> Weapons,
+    IReadOnlyList<RomArmorRecord> Armor,
+    IReadOnlyList<RomSpellRecord> Spells,
     IReadOnlyList<GearRecord> Gear,
-    IReadOnlyList<LootRecord> Loot,
-    IReadOnlyList<ShopRecord> Shops,
+    IReadOnlyList<RomLootRecord> Loot,
+    IReadOnlyList<RomShopRecord> Shops,
     IReadOnlyList<DialogEntityRecord> DialogEntities,
     GameStateFunnelTable GameStateFunnel,
     IReadOnlyList<FlaggedText> Journal,
@@ -26,13 +26,13 @@ public sealed record GameDb(
     IReadOnlyDictionary<RomStringTable, IReadOnlyList<string>> Strings)
 {
     public static GameDb Read(RomImage rom) => new(
-        Grouped(rom, DbTable.Entities, 7, EntityRecord.Size, EntityRecord.Read),
-        Grouped(rom, DbTable.Weapons, 11, WeaponRecord.Size, WeaponRecord.Read),
-        Grouped(rom, DbTable.Armor, 2, ArmorRecord.Size, ArmorRecord.Read),
-        Grouped(rom, DbTable.Spells, 6, SpellRecord.Size, SpellRecord.Read),
+        Grouped(rom, DbTable.Entities, 7, RomEntityRecord.Size, RomEntityRecord.Read),
+        Grouped(rom, DbTable.Weapons, 11, RomWeaponRecord.Size, RomWeaponRecord.Read),
+        Grouped(rom, DbTable.Armor, 2, RomArmorRecord.Size, RomArmorRecord.Read),
+        Grouped(rom, DbTable.Spells, 6, RomSpellRecord.Size, RomSpellRecord.Read),
         Grouped(rom, DbTable.Items, 11, GearRecord.Size, GearRecord.Read),
-        Flat(rom, DbTable.Chests, LootRecord.Size, LootRecord.Read),
-        Flat(rom, DbTable.Shops, ShopRecord.Size, ShopRecord.Read),
+        Flat(rom, DbTable.Chests, RomLootRecord.Size, RomLootRecord.Read),
+        Flat(rom, DbTable.Shops, RomShopRecord.Size, RomShopRecord.Read),
         Flat(rom, DbTable.DialogEntities, DialogEntityRecord.Size, DialogEntityRecord.Read),
         GameStateFunnelTable.Read(rom.Table(DbTable.GameStateFunnel)),
         FlaggedText.ReadList(rom.Table(DbTable.Journal), wideLengths: true),
