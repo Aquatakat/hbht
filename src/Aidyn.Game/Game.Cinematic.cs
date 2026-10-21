@@ -20,7 +20,7 @@ public partial class Game
     {
         _audio!.Music = null;
         _audio.StopAll();
-        _cinematic!.Play(cinematic, _game!.Party.Members.FirstOrDefault()?.Name ?? "Alaron");
+        _cinematic!.Play(cinematic, _session!.Game.Party.Members.FirstOrDefault()?.Name ?? "Alaron");
     }
 
     /// <summary>A tick of the cinematic, and its end (<c>Cinematic.EndCase</c>, <c>0x80053c20</c>), which the session carries out.</summary>

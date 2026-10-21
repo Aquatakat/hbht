@@ -185,7 +185,7 @@ public partial class Game
         _player!.Visible = true;
         PlaceShadow();
         _sky!.Apply();
-        _camera!.Follow = _follow;
+        _camera!.Follow = Trek!.Camera;
         _camera.Far = SkyView.Far;
         _camera.Sync();
         _player.Sync();

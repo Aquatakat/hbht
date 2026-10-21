@@ -22,7 +22,7 @@ public partial class Game
     {
         if (!_credits!.Play(ending))
             return;
-        if (_game!.Sounds is { } sounds)
+        if (_session!.Game.Sounds is { } sounds)
             _creditsMusic = _audio!.Start(sounds.Credits, GameAudio.Volume(_audio.MusicVolume), 0x80, loop: true);
         _audio!.Muted = true;
     }

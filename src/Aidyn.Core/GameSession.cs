@@ -1,8 +1,11 @@
 using System.Numerics;
 using Aidyn.Core.Actors;
+using Aidyn.Core.Cameras;
 using Aidyn.Core.Chunks;
 using Aidyn.Core.Combat;
 using Aidyn.Core.Events;
+using Aidyn.Core.Movement;
+using Aidyn.Core.Physics;
 using Aidyn.Core.Scripts;
 using Aidyn.Core.Trek;
 using Aidyn.Core.Ui;
@@ -107,13 +110,54 @@ public sealed class GameSession
     private bool? _reopenOnTheatre;
     private float _precipitationDensity = 1;
 
-    /// <param name="host">What presents the game: trek's views and the transitions.</param>
-    /// <param name="zone">The zone engine trek's world is loaded in (<see cref="TrekLoop.Zone"/>).</param>
-    public GameSession(GameState game, ITrekHost host, ZoneEngine zone)
+    private GameSession(GameState game, ITrekHost host, ZoneEngine zone, PlayerMotion player, FollowCamera camera)
     {
         Game = game;
         _host = host;
-        Trek = new TrekLoop(game, host, zone);
+        Trek = new TrekLoop(game, host, zone, player, camera);
+    }
+
+    /// <summary>
+    /// Starts a game where <paramref name="start"/> says (<c>Title.Leave</c>, then <c>initGameTrek</c>): the player's body is
+    /// made at its point, the chunk is entered, so that its terrain's flags are written before the chunks' objects are gated
+    /// by them, the 3×3 loads about him, he's set down on the ground if he's to be, the follow camera takes the mode the
+    /// chunk's terrain chooses, arriving as through a teleporter in an interior, and trek begins (<see cref="TrekLoop.Begin"/>).
+    /// Whoever presents the game then builds its views from <see cref="TrekLoop.Player"/> and <see cref="TrekLoop.Camera"/>.
+    /// </summary>
+    /// <param name="host">What presents the game: trek's views and the transitions.</param>
+    /// <param name="zone">The zone engine trek's world is loaded in (<see cref="TrekLoop.Zone"/>), on the start's map set.</param>
+    public static GameSession Start(GameState game, ITrekHost host, ZoneEngine zone, GameStart start)
+    {
+        var chunks = zone.Chunks;
+        if (chunks.MapSet.Id != start.Set.Id)
+            throw new ArgumentException($"The zone engine is on {chunks.MapSet.Label}, not {start.Set.Label}.", nameof(zone));
+        var chunk = chunks.Find(start.Chunk) ?? throw new KeyNotFoundException($"{start.Set.Label} has no chunk {start.Chunk}.");
+        var spawn = chunks.Origin(chunk) + start.Local;
+        var look = start.Heading == default ? GameStart.Facing(0) : Vector2.Normalize(start.Heading);
+        var player = new PlayerMotion(spawn, look);
+        var camera = new FollowCamera(spawn, look);
+        var session = new GameSession(game, host, zone, player, camera);
+        var trek = session.Trek;
+        trek.Enter(chunk);
+        chunks.Update(spawn);
+        if (start.SetDown)
+        {
+            // The original makes the player's body at a new game's height, 10, and sets it down from on high. This puts him
+            // on the highest ground below 1000, so a start anywhere works.
+            var radius = player.Sphere.Radius;
+            var above = spawn with { Y = 1000 };
+            if (SpherePhysics.Sweep(zone.World, above, above - new Vector3(0, 2000, 0), radius, false, out var ground, out var normal))
+            {
+                player.Sphere.Position = ground + normal * radius;
+                camera.Place(player.Sphere.Position, look);
+            }
+        }
+        // A save loaded from the game's menu arrives as through a teleporter, which chooses the mode.
+        var mode = start.Camera ?? FollowCamera.ModeFor(game.Plugins, chunk);
+        if (mode == CameraMode.Interior)
+            camera.Arrive(player.Sphere.Position, player.Sphere.Position, look, mode, null);
+        trek.Begin();
+        return session;
     }
 
     public GameState Game { get; }
@@ -667,7 +711,7 @@ public sealed class GameSession
     /// <summary>The chunk the player is in, and whether its terrain has the outdoor sky, for the World tab's map and Camp.</summary>
     public (ChunkRef? Place, bool Outdoors) Where()
     {
-        if (Trek.Player is null || Trek.Chunks.ChunkAt(Trek.Player.Sphere.Position) is not { } chunk)
+        if (Trek.Chunks.ChunkAt(Trek.Player.Sphere.Position) is not { } chunk)
             return (null, false);
         var terrain = TerrainRecord.Find(Game.Plugins, chunk.Terrain);
         return (new ChunkRef(Trek.Chunks.MapSet.Id, chunk.Row, chunk.Column), terrain?.SkyDrawn ?? false);

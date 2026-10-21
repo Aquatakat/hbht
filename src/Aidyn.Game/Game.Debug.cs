@@ -48,7 +48,7 @@ public partial class Game
                 _menu!.Open();
                 break;
             case "loot":
-                _menu!.OpenLoot(new ItemPile(_game!.Party.Inventory.Catalog), 0);
+                _menu!.OpenLoot(new ItemPile(_session!.Game.Party.Inventory.Catalog), 0);
                 break;
             case { } tab when Enum.TryParse<PauseTab>(tab, ignoreCase: true, out var opening):
                 _menu!.Open(opening);
@@ -275,7 +275,7 @@ public partial class Game
             (_camera!.Flying ? "  [free camera]" : "") + "\n" +
             (sphere.Touching ? $"on {SurfaceNames.Of(sphere.Surface)}" : "in the air") +
             $"  speed {Speed():F2}/s  request {motion.Request}  pace {motion.Pace:0.##} (F5)" +
-            $"  camera {_follow!.Mode.ToString().ToLowerInvariant()}{(Trek!.Use.CurrentCamera is { } held ? $" (object {held.Index})" : "")}" +
+            $"  camera {Trek!.Camera.Mode.ToString().ToLowerInvariant()}{(Trek!.Use.CurrentCamera is { } held ? $" (object {held.Index})" : "")}" +
             $"  {Clock(_sky!.Clock.TimeOfDay)}  sky {_sky.Placement.ToString().ToLowerInvariant()} (F6)" +
             $"  UI {_menu!.Screen.Lines} lines (F7)  wanderers {Trek.Wanderers.All.Count}\n" +
             $"music {_audio!.MusicPlaying?.Key ?? "none"}  sounds {Trek.Zone.Sounds.Playing} of the map's, {_audio.SoundsPlaying} one-shots" +

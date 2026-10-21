@@ -71,21 +71,15 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         }
     }
 
-    /// <summary>A new game's session, with the player on the ground at a chunk's point of the Overworld.</summary>
+    /// <summary>A new game's session, started as the runtime starts one (<see cref="GameSession.Start"/>), with the player set down at a chunk's point of the Overworld.</summary>
     private (GameSession Session, Host Host) Start(string chunkName = "I08", float x = 16, float z = 62)
     {
         var game = GameState.NewGame(Data.Set);
         var host = new Host();
-        var streamer = new ChunkStreamer(Data.Set, game, new CollisionWorld(), Data.Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, 0)),
-            new VisibleWorld());
-        var session = new GameSession(game, host, new ZoneEngine(game, streamer));
-        var chunk = streamer.Find(chunkName)!;
-        var point = streamer.Origin(chunk) + new Vector3(x, 10, z);
-        session.Trek.Enter(chunk);
-        streamer.Update(point);
-        var ground = Body.SetDown(streamer.World, point, 0.5f, null, near: point.Y - 0.5f).Position;
-        var look = new Vector2(0, -1);
-        session.Trek.Begin(new PlayerMotion(ground, look), new FollowCamera(ground, look));
+        var set = Data.Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, 0));
+        var streamer = new ChunkStreamer(Data.Set, game, new CollisionWorld(), set, new VisibleWorld());
+        var start = GameStart.OfNewGame(Data.Set) with { Set = set, Chunk = chunkName, Local = new Vector3(x, 10, z) };
+        var session = GameSession.Start(game, host, new ZoneEngine(game, streamer), start);
         return (session, host);
     }
 

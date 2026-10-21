@@ -107,13 +107,17 @@ public sealed class TrekLoop : IMapObjectHost
     /// draws, where the original's find only the player's chunk's collision (<c>Zones.PlayerMap</c>): the user's choices, so
     /// that near a chunk's edge they don't fall through the next one, and they splash on roofs and not on invisible walls.
     /// </param>
-    public TrekLoop(GameState game, ITrekHost host, ZoneEngine zone)
+    /// <param name="player">The player's body, which <see cref="GameSession.Start"/> sets down on the ground once the chunks are loaded.</param>
+    /// <param name="camera">The follow camera, behind him.</param>
+    public TrekLoop(GameState game, ITrekHost host, ZoneEngine zone, PlayerMotion player, FollowCamera camera)
     {
         Game = game;
         _host = host;
         Zone = zone;
+        Player = player;
+        Camera = camera;
         Wanderers = new Wanderers(game.Plugins);
-        Use = new MapObjectUse(game, MenuText.From(game.Plugins), this) { World = zone.World };
+        Use = new MapObjectUse(game, MenuText.From(game.Plugins), this) { World = zone.World, Camera = camera, PlayerRadius = player.Sphere.Radius };
         Hud = new TrekHud(game);
         _playerSounds = game.Plugins.TryGet<EntityRecord>(GameState.Alaron)?.Sounds;
         // Each chunk's wanderers load before its sounds and lights.
@@ -143,9 +147,9 @@ public sealed class TrekLoop : IMapObjectHost
     /// <summary>Using map objects, and the popups that shows.</summary>
     public MapObjectUse Use { get; }
 
-    public PlayerMotion Player { get; private set; } = null!;
+    public PlayerMotion Player { get; }
 
-    public FollowCamera Camera { get; private set; } = null!;
+    public FollowCamera Camera { get; }
 
     /// <summary>The player's animation, which moves him by its root motion.</summary>
     public IRootMotion PlayerAnimation { get; set; } = IActorMotion.Still;
@@ -197,16 +201,15 @@ public sealed class TrekLoop : IMapObjectHost
     /// </summary>
     public bool AtPlace { get; private set; }
 
-    /// <summary>Puts the player and the follow camera in trek, before the first tick.</summary>
-    public void Begin(PlayerMotion player, FollowCamera camera)
+    /// <summary>
+    /// Trek begins, the player set down and the chunks loaded about him, before the first tick: the zone engine hears from
+    /// the follow camera, the HUD starts, the chunk's music is asked for and the breadcrumbs are all where he stands.
+    /// </summary>
+    public void Begin()
     {
-        Player = player;
-        Camera = camera;
-        Zone.Camera = camera;
-        Use.Camera = camera;
-        Use.PlayerRadius = player.Sphere.Radius;
+        Zone.Camera = Camera;
         Hud.Start();
-        Zone.RequestMusic(Chunks.ChunkAt(player.Sphere.Position));
+        Zone.RequestMusic(Chunks.ChunkAt(Player.Sphere.Position));
         ResetBreadcrumbs();
     }
 

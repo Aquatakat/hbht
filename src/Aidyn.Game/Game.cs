@@ -47,7 +47,6 @@ public partial class Game : Node3D, ITrekHost
 
     // The solid surfaces the loaded chunks draw, which rain and snow land on, trek's and a cut-scene's stage's.
     private readonly VisibleWorld _visible = new();
-    private GameState? _game;
     private PauseMenu? _menu;
     /// <summary>The stick in menus, shared by the pause menu and trek's popups, conversations and cut-scenes.</summary>
     private readonly MenuStick _stick = new();
@@ -66,7 +65,6 @@ public partial class Game : Node3D, ITrekHost
     /// <summary>The texture of bodies' shadows (<c>BORG1_PlayerShadow</c>).</summary>
     private Texture2D? _shadowTexture;
     private SkyView? _sky;
-    private FollowCamera? _follow;
     private readonly FrameGate _textureFrame = new(Core.Cadence.TextureFrameTicks);
     private DrawDistance _drawDistance = DrawDistance.Original;
     private PluginSet? _plugins;
@@ -128,18 +126,18 @@ public partial class Game : Node3D, ITrekHost
 
     /// <summary>
     /// Builds the game from the command line's options, in the order its parts need each other: the plugins and audio,
-    /// the game, the sky, the world trek plays in, the player and camera, the UI over them, and the menus.
+    /// the game, the sky, the session started where the game starts (<see cref="GameSession.Start"/>), the player's and
+    /// the camera's views, the UI over them, and the menus.
     /// </summary>
     private void Start(LaunchOptions options)
     {
         var plugins = _plugins = _loadedPlugins ??= LoadPlugins();
         StartAudio(plugins);
-        // Where a new game starts, which plugins from an older import don't have: then this says to import again.
-        var newGame = GameSession.NewGame(plugins);
         // A new game, not a save, plays what the title's New Game does (GameSession.StartNewGame): the opening, then its script.
         var fresh = _pendingSave is null && (options.Save is null || _newGame) && options.PlaysOpening;
-        var game = _game = StartingGame(plugins, options);
-        var (set, place) = StartingPlace(plugins, game, newGame, options);
+        var game = StartingGame(plugins, options);
+        // Where it starts, which plugins from an older import can't say: then this says to import again.
+        var start = StartingPlace(plugins, game, options);
 
         BuildSky(plugins, game);
         _pointLights = options.PointLights;
@@ -152,17 +150,7 @@ public partial class Game : Node3D, ITrekHost
         // The command line's settings are for this run, and aren't kept unless the options menu changes something.
         options.ApplyTo(_settings);
 
-        var streamer = BuildWorld(plugins, game, set);
-        var trek = Trek!;
-        var arrival = GameSession.Arrival(plugins, newGame);
-        var chunkName = options.Chunk ?? place?.Chunk ?? arrival.Chunk;
-        var chunk = streamer.Find(chunkName) ?? throw new KeyNotFoundException($"{set.Label} has no chunk {chunkName}.");
-        var at = options.At is { } a ? new Vector3(a[0], arrival.At.Y, a[1]) : arrival.At.ToGodot();
-        // The original makes the player's body at a new game's height, 10, and sets it down from on high. This puts him
-        // on the highest ground below 1000, so --at works anywhere. A save puts him where he stood.
-        var spawn = _chunks!.Origin(chunk) + (place is not null ? place.Position.ToGodot() : at);
-        // The terrain's flags are written before the chunks' objects are gated by them.
-        trek.Enter(chunk);
+        var session = BuildWorld(plugins, game, start);
         // After the first terrain and the time, which can change the weather.
         if (options.Weather is { } weather)
         {
@@ -170,14 +158,11 @@ public partial class Game : Node3D, ITrekHost
             // Its sky too, at once.
             _sky!.ChooseAgain();
         }
-        streamer.Update(spawn.ToNumerics());
         _sky!.Apply();
 
-        var (centre, look, yaw) = Stand(spawn, place, options);
-        var motion = new PlayerMotion(centre, look);
-        BuildPlayer(plugins, motion);
-        BuildFollowCamera(plugins, chunk, centre, look, yaw, motion, options);
-        BuildTrekUi(plugins, trek);
+        BuildPlayer(plugins, session.Trek.Player);
+        BuildFollowCamera(session.Trek, options);
+        BuildTrekUi(plugins, session.Trek);
         BuildMenus(plugins, game);
         ApplySettings();
         if (options.Pace is { } pace)
@@ -187,7 +172,7 @@ public partial class Game : Node3D, ITrekHost
         GetViewport().SizeChanged += ApplyWorldLines;
         RunLaunchActions(options);
         if (fresh)
-            _session!.StartNewGame();
+            session.StartNewGame();
     }
 
     /// <summary>The sound bank, kept with the plugins, and the audio mixed from it and played.</summary>
@@ -217,16 +202,26 @@ public partial class Game : Node3D, ITrekHost
         return game;
     }
 
-    /// <summary>The map set to start in, and where the save stands in it, unless the options say otherwise: a new game's by default.</summary>
-    private static (MapSetRecord Set, SavePlace? Place) StartingPlace(PluginSet plugins, GameState game, NewGameRecord newGame, LaunchOptions options)
+    /// <summary>
+    /// Where the game starts (<see cref="GameStart"/>): where the save stands, or a new game's arrival, unless the options
+    /// say otherwise. <c>--chunk</c> or <c>--at</c> leave a save's place for a new game's arrival, set down from on high, so
+    /// they work anywhere; <c>--set</c> moves to another map set, where a save's place stands only if it's there; and
+    /// <c>--yaw</c> and <c>--camera</c> face him and choose the camera's mode.
+    /// </summary>
+    private static GameStart StartingPlace(PluginSet plugins, GameState game, LaunchOptions options)
     {
-        var place = options.PlacesPlayer ? null : game.Place;
-        var setId = options.Set is { } number
-            ? RecordId.Decimal(RecordTypes.MapSet, number)
-            : place?.MapSet ?? newGame.Chunk.MapSet;
-        if (place?.MapSet != setId)
-            place = null;
-        return (plugins.Get<MapSetRecord>(setId), place);
+        var start = options.PlacesPlayer ? GameStart.OfNewGame(plugins) : GameStart.For(game);
+        if (options.Set is { } number)
+            start = start.In(plugins, plugins.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, number)));
+        if (options.Chunk is { } chunk)
+            start = start with { Chunk = chunk };
+        if (options.At is { } at)
+            start = start with { Local = new System.Numerics.Vector3(at[0], start.Local.Y, at[1]) };
+        if (options.Yaw is { } yaw)
+            start = start with { Heading = GameStart.Facing(Mathf.DegToRad(yaw)) };
+        if (options.Camera is { } mode)
+            start = start with { Camera = mode };
+        return start;
     }
 
     /// <summary>The environment the scene is drawn in, and the sky behind it with its lens flare.</summary>
@@ -252,8 +247,11 @@ public partial class Game : Node3D, ITrekHost
         _sky.SkyShows = SkyShows;
     }
 
-    /// <summary>The models, the particles, and trek with its chunks as they're drawn. Returns the chunk streamer.</summary>
-    private ChunkStreamer BuildWorld(PluginSet plugins, GameState game, MapSetRecord set)
+    /// <summary>
+    /// The models, the particles, the session started where the game starts, and trek's chunks as they're drawn. Returns
+    /// the session.
+    /// </summary>
+    private GameSession BuildWorld(PluginSet plugins, GameState game, GameStart start)
     {
         var models = _models = new Models(plugins) { BodyRolls = game.Random.Animation };
         // The particles actors' emitters and the weather's rain and snow start in, drawn after everything else. The pool
@@ -264,28 +262,11 @@ public partial class Game : Node3D, ITrekHost
         // The texture engine code gives bodies' shadows (BORG1_PlayerShadow).
         if (plugins.FindAsset(RecordId.Hex(RecordTypes.Texture, 0x0003), "png") is { } shadowPng)
             _shadowTexture = Png.Texture(shadowPng);
-        var streamer = new ChunkStreamer(plugins, game, _world, set, _visible);
-        var trek = (_session = new GameSession(game, this, new ZoneEngine(game, streamer, _audio!, _particles.Head))).Trek;
-        _chunks = new ChunkStreamerView(plugins, models, streamer, trek.Wanderers, _shadowTexture);
+        var streamer = new ChunkStreamer(plugins, game, _world, start.Set, _visible);
+        var session = _session = GameSession.Start(game, this, new ZoneEngine(game, streamer, _audio!, _particles.Head), start);
+        _chunks = new ChunkStreamerView(plugins, models, streamer, session.Trek.Wanderers, _shadowTexture);
         AddChild(_chunks);
-        return streamer;
-    }
-
-    /// <summary>
-    /// Where the player stands and which way he faces: on the highest ground below the spawn unless a save puts him
-    /// where he stood, facing <c>--yaw</c>, or the save's heading, or along −Z. The look is (−sin yaw, −cos yaw).
-    /// </summary>
-    private (System.Numerics.Vector3 Centre, System.Numerics.Vector2 Look, float Yaw) Stand(Vector3 spawn, SavePlace? place, LaunchOptions options)
-    {
-        var centre = spawn.ToNumerics();
-        var above = centre with { Y = 1000 };
-        if (place is null && SpherePhysics.Sweep(_world, above, above - new System.Numerics.Vector3(0, 2000, 0), 0.5f, false, out var ground, out var normal))
-            centre = ground + normal * 0.5f;
-
-        var yaw = Mathf.DegToRad(options.Yaw ?? 0);
-        if (options.Yaw is null && place is { Heading: var heading } && heading != default)
-            yaw = MathF.Atan2(-heading.X, -heading.Y);
-        return (centre, new System.Numerics.Vector2(-MathF.Sin(yaw), -MathF.Cos(yaw)), yaw);
+        return session;
     }
 
     /// <summary>The player's body and its shadow.</summary>
@@ -315,21 +296,16 @@ public partial class Game : Node3D, ITrekHost
         }
     }
 
-    /// <summary>The core's follow camera, which trek begins with, and the rig that shows it.</summary>
-    private void BuildFollowCamera(PluginSet plugins, ChunkEntry chunk, System.Numerics.Vector3 centre, System.Numerics.Vector2 look, float yaw,
-        PlayerMotion motion, LaunchOptions options)
+    /// <summary>The rig that shows trek's follow camera, with the pitch and distance <c>--pitch</c> and <c>--distance</c> ask for.</summary>
+    private void BuildFollowCamera(TrekLoop trek, LaunchOptions options)
     {
-        var follow = _follow = new FollowCamera(centre, look);
+        var follow = trek.Camera;
         var pitch = -options.Pitch;
         follow.Pitch = follow.DefaultPitch = pitch;
         if (options.Distance is { } distance)
             follow.Distance = follow.DefaultDistance = distance;
-        // A save loaded from the game's menu arrives as through a teleporter, which chooses the mode.
-        var mode = options.Camera ?? FollowCamera.ModeFor(plugins, chunk);
-        if (mode == CameraMode.Interior)
-            follow.Arrive(centre, centre, look, mode, null);
-        Trek!.Begin(motion, follow);
-        _camera = new CameraRig { Follow = follow, Yaw = yaw, Pitch = Mathf.DegToRad(-pitch) };
+        var heading = trek.Player.Heading;
+        _camera = new CameraRig { Follow = follow, Yaw = MathF.Atan2(-heading.X, -heading.Y), Pitch = Mathf.DegToRad(-pitch) };
         AddChild(_camera);
         _camera.Sync();
     }
@@ -443,7 +419,7 @@ public partial class Game : Node3D, ITrekHost
     /// </summary>
     private void Tick()
     {
-        if (_player is null || _camera is null || _follow is null || _session is not { } session)
+        if (_player is null || _camera is null || _session is not { } session)
             return;
         _audio!.Step();
         // The HUD is trek's: not in a cut-scene. Under the pause menu and a backdrop's page it's drawn as it stands,
@@ -496,7 +472,7 @@ public partial class Game : Node3D, ITrekHost
         _player.Sync();
         // A camera object cutting jumps the view; it isn't blended from where it was. Godot resets interpolation
         // from where the camera is when it's called, so after it has moved.
-        var cut = _follow.TakeCut();
+        var cut = session.Trek.Camera.TakeCut();
         _camera.Sync();
         if (cut)
             _camera.ResetPhysicsInterpolation();
@@ -592,7 +568,7 @@ public partial class Game : Node3D, ITrekHost
             return new SceneView(transform.Origin.ToNumerics(), new(transform.Origin.X, transform.Origin.Z), flat, 0, cone);
         }
         // In a cut-scene or a battle there's no player: levels of detail go by the camera's aim.
-        var follow = Scene?.Camera ?? Battle?.Camera ?? _follow!;
+        var follow = Scene?.Camera ?? Battle?.Camera ?? Trek!.Camera;
         var from = Scene is not null || Battle is not null ? follow.Aim : _player!.Motion.Sphere.Position;
         return SceneView.Aimed(from, follow.Position, follow.Aim, cone);
     }
@@ -621,7 +597,7 @@ public partial class Game : Node3D, ITrekHost
         if (_shadow is null)
             return;
         var sphere = _player!.Motion.Sphere;
-        _shadow.Place(_world, sphere, BodyShadow.DrawAlpha(BodyShadow.TrekDistance, System.Numerics.Vector3.Distance(_follow!.Aim, sphere.Position), player: true));
+        _shadow.Place(_world, sphere, BodyShadow.DrawAlpha(BodyShadow.TrekDistance, System.Numerics.Vector3.Distance(Trek!.Camera.Aim, sphere.Position), player: true));
     }
 
     /// <summary>
@@ -645,7 +621,7 @@ public partial class Game : Node3D, ITrekHost
     /// <summary>Moves the wanderers' bodies to where they are, and fades them and their shadows by the camera's aim.</summary>
     private void DrawWanderers()
     {
-        var aim = _follow!.Aim;
+        var aim = Trek!.Camera.Aim;
         var centre = _chunks!.Chunks.MapAt(_player!.Motion.Sphere.Position);
         var ownAim = BodyShadow.ChunkAim(aim, centre?.Origin);
         _chunks.SyncWanderers();
@@ -839,7 +815,7 @@ public partial class Game : Node3D, ITrekHost
             _settings.UiLines = _settings.UiLines switch { < 360 => 360, < 480 => 480, _ => 240 };
             _settings.Notify();
         }
-        else if (e.IsActionPressed("quick_save") && _game is not null && Scene is null && Battle is null)
+        else if (e.IsActionPressed("quick_save") && _session is not null && Scene is null && Battle is null)
         {
             QuickSave();
         }
@@ -1019,7 +995,7 @@ public partial class Game : Node3D, ITrekHost
     /// <summary>A script's sounds. The cut-scene carries out the rest of its cues.</summary>
     void Core.Scripts.IScriptHost.Cue(Core.Scripts.ScriptCue cue)
     {
-        if (cue is Core.Scripts.SoundCue sound && _game?.Sounds is { } sounds && ScriptSounds.For(sounds, sound) is { } play)
+        if (cue is Core.Scripts.SoundCue sound && _session?.Game.Sounds is { } sounds && ScriptSounds.For(sounds, sound) is { } play)
             _audio!.Play(play);
     }
 
@@ -1040,14 +1016,14 @@ public partial class Game : Node3D, ITrekHost
     /// </summary>
     private string? SaveTo(string path, Image? snapshot)
     {
-        if (_game is null || _player is null || _chunks is null)
+        if (_session is not { } session || _player is null || _chunks is null)
             return "There's no game to save.";
         try
         {
-            if (!_session!.NotePlace())
+            if (!session.NotePlace())
                 return "The player isn't in a chunk.";
-            _game.Label = null;
-            SaveFile.Write(path, _game.Save());
+            session.Game.Label = null;
+            SaveFile.Write(path, session.Game.Save());
             _lastSave = path;
             if (snapshot is not null)
                 Screenshot(snapshot).SavePng(SaveSlot.ScreenshotPath(path));
@@ -1118,7 +1094,7 @@ public partial class Game : Node3D, ITrekHost
             return;
         }
         var path = Path.Combine(DataPaths.Saves, "quick" + SaveFile.Extension);
-        SaveFile.Write(path, _game!.Save());
+        SaveFile.Write(path, _session.Game.Save());
         _lastSave = path;
         Say($"Saved to {path}");
     }
