@@ -22,7 +22,7 @@ public class MapSoundsTests
         var bank = new SoundBank(PluginSet.Load([]));
         bank.Add(Tune, LongNote());
         bank.Add(Song, LongNote());
-        return new GameAudio(bank, new Settings(), 44100);
+        return new GameAudio(bank, 44100);
     }
 
     private static SoundObject Sound(int index, SoundFlags flags, RecordId? sequence = null, float minWait = 0, float maxWait = 0) =>

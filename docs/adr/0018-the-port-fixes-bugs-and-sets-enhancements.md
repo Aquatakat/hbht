@@ -1,6 +1,6 @@
 # 0018. The port fixes the original's bugs outright, and puts enhancements behind settings
 
-Status: Accepted · Oct 17, 2026 · Supersedes the fidelity toggle in [0003](0003-headless-rules-core.md) and [0007](0007-rom-versions.md)
+Status: Accepted · Oct 17, 2026 · Supersedes the fidelity toggle in [0003](0003-headless-rules-core.md) and [0007](0007-rom-versions.md) · How a setting reaches the core is refined by [0022](0022-the-core-is-handed-its-settings-each-tick.md)
 
 ## Context
 

@@ -376,7 +376,8 @@ public sealed class TrekLoop : IMapObjectHost
     /// the original does as it draws the scene objects (<c>RenderVoxelScenes</c>), from the player and the follow camera
     /// (<see cref="ChunkStreamer.PutOut"/>), and tells the host of each. It's game state, which a save keeps, so it goes by
     /// the original's cone of view (<see cref="ViewCone.Original"/>), of a 4:3 screen, whatever the window's shape, and not
-    /// by the view the runtime draws from: a wider window doesn't put a light out sooner.
+    /// by the view the runtime draws from: a wider window doesn't put a light out sooner. It goes by the original's distances
+    /// too, whatever the draw distance (<see cref="LoadedMap.PutOutDistances"/>).
     /// </summary>
     private void PutOut()
     {

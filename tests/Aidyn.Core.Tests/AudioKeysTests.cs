@@ -30,7 +30,7 @@ public class AudioKeysTests
         var bank = new SoundBank(PluginSet.Load([]));
         bank.Add(Step, LongNote());
         bank.Add(Ouch, LongNote());
-        var audio = new GameAudio(bank, new Settings(), 44100);
+        var audio = new GameAudio(bank, 44100);
         return (new AudioKeys(audio, Sounds(), new Lcg()), audio);
     }
 

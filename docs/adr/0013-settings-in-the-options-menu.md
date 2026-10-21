@@ -1,6 +1,6 @@
 # 0013. Graphics and fidelity settings live in the game's own options menu
 
-Status: Accepted · Oct 3, 2026
+Status: Accepted · Oct 3, 2026 · Its consequences on the runtime's `ApplySettings` and the command line's settings are superseded by [0022](0022-the-core-is-handed-its-settings-each-tick.md)
 
 ## Context
 

@@ -117,18 +117,21 @@ public sealed class GameSession
     private Triggers? _triggers;
     /// <summary>The pause menu reopening once trek has faded in, on the Theatre's page or as it was (trek's state 8), if it's to.</summary>
     private Transition.ReopenMenu? _reopen;
-    private float _precipitationDensity = 1;
+    /// <summary>The settings the session plays by: the last tick's, or those it started with (<see cref="Apply"/>).</summary>
+    private SessionSettings _settings;
     /// <summary>Whether the last tick froze trek, as while the runtime's free camera flies: then A and B in trek do nothing.</summary>
     private bool _frozen;
 
     private GameSession(GameState game, ITrekHost host, ZoneEngine zone, PlayerMotion player, FollowCamera camera, Settings? settings,
-        IPauseMenuHost? menuHost, string? savesFolder)
+        IPauseMenuHost? menuHost, string? savesFolder, SessionSettings? playing)
     {
         Game = game;
         _host = host;
         Trek = new TrekLoop(game, new Relay(this, host), zone, player, camera);
         zone.Sky.Warn = host.Warn;
         Menu = new PauseMenu(game, settings ?? new Settings(), savesFolder ?? DataPaths.Saves, Where, menuHost ?? NoMenuHost.Instance, Stick);
+        _settings = playing ?? SessionSettings.Original;
+        Apply();
     }
 
     /// <summary>
@@ -140,11 +143,15 @@ public sealed class GameSession
     /// </summary>
     /// <param name="host">What presents the game: trek's views and the transitions.</param>
     /// <param name="zone">The zone engine trek's world is loaded in (<see cref="TrekLoop.Zone"/>), on the start's map set.</param>
-    /// <param name="settings">The player's settings, which the pause menu's Options page changes; a default set if none.</param>
+    /// <param name="settings">
+    /// The player's settings, which the pause menu's Options page changes; a default set if none. The session doesn't play by
+    /// them: each tick is handed what it plays by (<see cref="Tick"/>).
+    /// </param>
     /// <param name="menuHost">What plays the pause menu's sounds, steps its scroll and writes saves; nothing does if none.</param>
     /// <param name="savesFolder">Where the save and load screens list saves: the data folder's by default.</param>
+    /// <param name="playing">What the session plays by until its first tick: the original's if none.</param>
     public static GameSession Start(GameState game, ITrekHost host, ZoneEngine zone, GameStart start, Settings? settings = null,
-        IPauseMenuHost? menuHost = null, string? savesFolder = null)
+        IPauseMenuHost? menuHost = null, string? savesFolder = null, SessionSettings? playing = null)
     {
         var chunks = zone.Chunks;
         if (chunks.MapSet.Id != start.Set.Id)
@@ -154,7 +161,7 @@ public sealed class GameSession
         var look = start.Heading == default ? GameStart.Facing(0) : Vector2.Normalize(start.Heading);
         var player = new PlayerMotion(spawn, look);
         var camera = new FollowCamera(spawn, look);
-        var session = new GameSession(game, host, zone, player, camera, settings, menuHost, savesFolder);
+        var session = new GameSession(game, host, zone, player, camera, settings, menuHost, savesFolder, playing);
         var trek = session.Trek;
         trek.Enter(chunk);
         chunks.Update(spawn);
@@ -254,12 +261,6 @@ public sealed class GameSession
     /// <summary>Whether the credits are rolling.</summary>
     public bool CreditsRolling => Credits is not null;
 
-    /// <summary>
-    /// The screen's height the credits lay their cards out on, 240 on the console's: the runtime's is as tall as the UI's
-    /// lines, and is set before they play.
-    /// </summary>
-    public int CreditsScreenHeight { get; set; } = 240;
-
     /// <summary>Whether the cinematic stands still where it is, not stepped, for a screenshot.</summary>
     public bool CinematicHeld { get; set; }
 
@@ -299,17 +300,28 @@ public sealed class GameSession
     /// <summary>Whether trek steps this tick: nothing holds the world and no cut-scene or battle plays in its place.</summary>
     public bool TrekRuns => !Held && Scene is null && Battle is null;
 
-    /// <summary>How dense rain and snow fall, trek's and a stage's: the settings' multiple of the original's.</summary>
-    public float PrecipitationDensity
+    /// <summary>What the session plays by of the player's settings: the last tick's, or those it started with.</summary>
+    public SessionSettings Settings => _settings;
+
+    /// <summary>How dense rain and snow fall, trek's, a stage's and an arena's: the settings', up to <see cref="Particles.WeatherParticles.MaxDensity"/>.</summary>
+    private float PrecipitationDensity => Math.Clamp(_settings.PrecipitationDensity, 0, Particles.WeatherParticles.MaxDensity);
+
+    /// <summary>
+    /// Hands the settings on to what plays by them, the one place the core takes them in: the audio's volumes, the rain and
+    /// snow of trek, a stage and an arena, the sky's placement, the player's pace and a battle's spell auras. A stage, an
+    /// arena and a battle made later take them as they're made, and the credits as they start.
+    /// </summary>
+    private void Apply()
     {
-        get => _precipitationDensity;
-        set
-        {
-            _precipitationDensity = value;
-            Zone.Precipitation?.Density = value;
-            Stage?.Precipitation?.Density = value;
-            Arena?.Precipitation?.Density = value;
-        }
+        var settings = _settings;
+        Zone.Audio.Settings = settings;
+        var density = PrecipitationDensity;
+        Zone.Precipitation?.Density = density;
+        Stage?.Precipitation?.Density = density;
+        Arena?.Precipitation?.Density = density;
+        Sky.Placement = settings.SkyPlacement;
+        Trek.Player.Pace = settings.Pace;
+        Battle?.Fx.Turns = settings.SpellAuras;
     }
 
     /// <summary>
@@ -319,14 +331,23 @@ public sealed class GameSession
     /// cut-scene ticks on its stage; trek reopens the menu once it has faded in after the credits or the Theatre, then ticks.
     /// The sky steps after trek, a cut-scene or a battle, and its stars twinkle in every mode, last.
     /// </summary>
+    /// <param name="settings">
+    /// What this tick plays by of the player's settings, handed on before anything steps (<see cref="Apply"/>):
+    /// <see cref="SessionSettings.Original"/> for the original's.
+    /// </param>
     /// <param name="readInput">The player's controls, read only when trek or a battle's turn takes them.</param>
     /// <param name="frozen">Whether only time passes in trek, as while the free camera flies.</param>
     /// <param name="actors">A cut-scene's actors' animations, or null for one that has none yet.</param>
     /// <param name="combatants">A battle's combatants' animations, or null for one that has none.</param>
     /// <param name="spellFx">A battle's spells' visuals' actors, or null for none (<see cref="Battle.Tick"/>).</param>
-    public SessionStep Tick(Func<PlayerInput> readInput, bool frozen, Func<CutSceneActor, IActorMotion?> actors,
+    public SessionStep Tick(SessionSettings settings, Func<PlayerInput> readInput, bool frozen, Func<CutSceneActor, IActorMotion?> actors,
         Func<Combatant, IActorMotion?>? combatants = null, ISpellFxHost? spellFx = null)
     {
+        if (settings != _settings)
+        {
+            _settings = settings;
+            Apply();
+        }
         Game.CountTick();
         _frozen = frozen;
         StepStick();
@@ -530,7 +551,7 @@ public sealed class GameSession
         // The stage's chunks play their sounds and light its actors, and its map set and chunk ask for their music
         // (InitZoneEngine); its rain falls about the cut-scene's camera.
         var zone = Stage = Zone.Stage(stage.Set);
-        zone.Precipitation?.Density = _precipitationDensity;
+        zone.Precipitation?.Density = PrecipitationDensity;
         zone.RequestMusic(stage.Chunk);
         zone.Chunks.Update(stage.Origin + new Vector3(stage.Set.CellSize / 2, 0, stage.Set.CellSize / 2));
         var scene = Scene = new CutScene(Game, script, start, stage, _host);
@@ -648,10 +669,11 @@ public sealed class GameSession
         }
         _lastArena = number;
         var zone = Arena = Zone.Stage(arena.Set);
-        zone.Precipitation?.Density = _precipitationDensity;
+        zone.Precipitation?.Density = PrecipitationDensity;
         zone.RequestMusic(arena.Chunk);
         zone.Chunks.Update(arena.Origin + Combat.Battle.ZonePoint);
         var battle = Battle = Combat.Battle.Begin(Game, setup, arena, zone.World);
+        battle.Fx.Turns = _settings.SpellAuras;
         zone.Camera = battle.Camera;
         foreach (var line in battle.Problems)
             _host.Warn(line);
@@ -911,7 +933,7 @@ public sealed class GameSession
     /// </summary>
     private void PlayCredits(CreditsRecord credits, bool ending, bool fromMenu)
     {
-        Credits = new CreditsShowing(new CreditsRoll(credits, Font.LineHeight(), CreditsScreenHeight, ending), fromMenu);
+        Credits = new CreditsShowing(new CreditsRoll(credits, Font.LineHeight(), _settings.UiLines, ending), fromMenu);
         Send(new Transition.PlayCredits(ending));
     }
 

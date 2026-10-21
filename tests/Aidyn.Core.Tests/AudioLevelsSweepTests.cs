@@ -22,11 +22,11 @@ public class AudioLevelsSweepTests
     private static readonly Sequence Note =
         new(1, [new Instrument([.. Enumerable.Repeat((short)8000, 1_000_000)], null)], [0x7A, 0x22, 0x76, 0xFF, 0x80, 0x00, .. new byte[1000]]);
 
-    private static GameAudio Audio(Settings settings)
+    private static GameAudio Audio(SessionSettings settings)
     {
         var bank = new SoundBank(PluginSet.Load([]));
         bank.Add(Tune, Note);
-        return new GameAudio(bank, settings, 44100);
+        return new GameAudio(bank, 44100) { Settings = settings };
     }
 
     private static string Hash(StringBuilder text) =>
@@ -47,8 +47,7 @@ public class AudioLevelsSweepTests
         foreach (var soundVolume in new[] { 0, 1, 7, 33, 50, 65, 99, 100 })
         foreach (var times in new[] { false, true })
         {
-            var settings = new Settings { SoundVolume = soundVolume };
-            var audio = Audio(settings);
+            var audio = Audio(SessionSettings.Original with { SoundVolume = soundVolume });
             audio.Play(new OneShot(Tune, 500, 3, times));
             for (var tick = 0; tick < 110; tick++)
             {
@@ -58,7 +57,7 @@ public class AudioLevelsSweepTests
             }
             foreach (var now in new[] { 100, 40, 0, 12 })
             {
-                settings.SoundVolume = now;
+                audio.Settings = audio.Settings with { SoundVolume = now };
                 audio.Step();
                 Record(text, audio, $"{soundVolume} {times} now {now}", duration: true);
             }
@@ -83,7 +82,7 @@ public class AudioLevelsSweepTests
         foreach (var distance in new[] { 0f, 0.4f, 1.3f, 2.9f, 4.4f, 5f, 6.1f, 7.7f, 9.3f, 9.99f, 10f })
         foreach (var angle in new[] { 0f, 0.7f, 2.1f, 4.0f, 5.6f })
         {
-            var audio = Audio(new Settings { SoundVolume = sound, MusicVolume = music });
+            var audio = Audio(SessionSettings.Original with { SoundVolume = sound, MusicVolume = music });
             var sounds = new MapSounds(audio, new Lcg(), _ => true);
             var at = new SoundObject(0, Vector3.Zero, 10, PakVariant.Any, null, Tune, volume, 1, 2, flags);
             sounds.Load(LoadedMap.Activate(new MapRecord(RecordId.Hex(RecordTypes.Map, 1), [at]), Worlds.Chunk(0), ItemData.Flags(), new MapObjectMemory(), ItemData.NewParty(), new Lcg()));

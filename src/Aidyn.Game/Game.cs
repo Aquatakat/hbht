@@ -36,9 +36,6 @@ namespace Aidyn.Game;
 /// </remarks>
 public partial class Game : Node3D, ITrekHost, IPauseMenuHost
 {
-    /// <summary>A faster pace than the original's, which feels slow on a PC (a setting, ADR 0018).</summary>
-    private const float BriskPace = 1.3f;
-
     /// <summary>Mouse drag in pixels to stick units: about 0.3° of orbit, and 0.02 of height, a pixel.</summary>
     private static readonly Vector2 DragToStick = new(0.2f, 0.4f);
 
@@ -80,6 +77,12 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost
     private BackdropLayer? _backdrop;
     /// <summary>The player's settings, which the options menu changes and <see cref="ApplySettings"/> carries out.</summary>
     private readonly Settings _settings = Settings.Load(DataPaths.Settings);
+
+    /// <summary>The command line's settings for this run, over the player's.</summary>
+    private LaunchSettings? _launch;
+
+    /// <summary>What the core plays by, made from the settings and the command line's as they change, and handed to every tick.</summary>
+    private SessionSettings _playing = SessionSettings.Original;
 
     /// <summary>The plugins, kept loaded when the System tab loads a save and the scene starts again.</summary>
     private static PluginSet? _loadedPlugins;
@@ -147,8 +150,9 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost
         // for after the Kendall and ambush cut-scenes.
         game.StateFlags.SetTime(game.Clock);
         options.SetFlags(game);
-        // The command line's settings are for this run, and aren't kept unless the options menu changes something.
-        options.ApplyTo(_settings);
+        // The command line's settings are for this run, over the player's, and never kept.
+        _launch = new LaunchSettings(options, _settings);
+        _playing = _launch.Session(_settings);
 
         var session = BuildWorld(plugins, game, start);
         // After the first terrain and the time, which can change the weather.
@@ -166,10 +170,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost
         BuildTrekUi(plugins, session.Trek);
         BuildMenus(plugins);
         ApplySettings();
-        if (options.Pace is { } pace)
-            _player!.Motion.Pace = pace;
-        _settings.Changed += ApplySettings;
-        _settings.Changed += () => _settings.Save(DataPaths.Settings);
+        _settings.Changed += SettingsChanged;
         GetViewport().SizeChanged += ApplyWorldLines;
         RunLaunchActions(options);
         if (fresh)
@@ -184,7 +185,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost
             _bank = new SoundBank(plugins);
             _bank.Missing += (id, why) => GD.PushWarning($"{id} can't play: {why}");
         }
-        _audio = new GameAudio(_bank, _settings, AudioOutput.MixRate);
+        _audio = new GameAudio(_bank, AudioOutput.MixRate) { Settings = _playing };
         AddChild(new AudioOutput(_audio));
     }
 
@@ -272,7 +273,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost
         if (plugins.FindAsset(RecordId.Hex(RecordTypes.Texture, 0x0003), "png") is { } shadowPng)
             _shadowTexture = Png.Texture(shadowPng);
         var streamer = new ChunkStreamer(plugins, game, _world, start.Set, _visible);
-        var session = _session = GameSession.Start(game, this, new ZoneEngine(game, streamer, _audio!, _particles.Head), start, _settings, this);
+        var session = _session = GameSession.Start(game, this, new ZoneEngine(game, streamer, _audio!, _particles.Head), start, _settings, this, playing: _playing);
         _chunks = new ChunkStreamerView(plugins, models, streamer, session.Trek.Wanderers, _shadowTexture);
         AddChild(_chunks);
         return session;
@@ -357,10 +358,25 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost
         AddChild(_credits);
     }
 
-    /// <summary>Carries out the settings: the window, the 3D view, the draw distance, the sky, the pace and the UI screens.</summary>
+    /// <summary>
+    /// A setting changed, in the options menu or with a debug key: the command line's for it gives way, what the core plays by
+    /// is made again for the next tick, what's drawn follows, and the player's settings are kept.
+    /// </summary>
+    private void SettingsChanged()
+    {
+        _launch?.Changed(_settings);
+        ApplySettings();
+        _settings.Save(DataPaths.Settings);
+    }
+
+    /// <summary>
+    /// Carries out the settings, with the command line's over the player's: what the core plays by from the next tick
+    /// (<see cref="SessionSettings"/>), and what's only drawn, the window, the 3D view, the draw distance and the UI screens.
+    /// </summary>
     private void ApplySettings()
     {
-        var s = _settings;
+        var s = _launch?.Over(_settings) ?? _settings;
+        _playing = _launch?.Session(_settings) ?? SessionSettings.From(_settings);
         var mode = s.Fullscreen ? DisplayServer.WindowMode.Fullscreen : DisplayServer.WindowMode.Windowed;
         if ((DisplayServer.WindowGetMode() is DisplayServer.WindowMode.Fullscreen or DisplayServer.WindowMode.ExclusiveFullscreen) != s.Fullscreen)
             DisplayServer.WindowSetMode(mode);
@@ -374,10 +390,6 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost
         };
         ApplyWorldLines();
         _drawDistance = new DrawDistance(s.DrawDistance, s.NearestDetail);
-        _session?.PrecipitationDensity = Math.Clamp(s.PrecipitationDensity, 0, WeatherParticles.MaxDensity);
-        _sky?.Sky.Placement = s.SkyPlacement;
-        _player?.Motion.Pace = s.BriskPace ? BriskPace : 1;
-        Battle?.Fx.Turns = s.SpellAuras;
         _cinematic?.Viewport.Msaa3D = GetViewport().Msaa3D;
         foreach (var screen in new[] { _menu?.Screen, _backdrop?.Screen, _cinematic?.Screen, _credits?.Screen, _trekScreen })
         {
@@ -386,9 +398,6 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost
             screen.Lines = s.UiLines;
             screen.Filter = s.UiFilter;
         }
-        // The credits lay their cards out on a screen as tall as the UI's lines.
-        if (_credits is not null && _session is not null)
-            _session.CreditsScreenHeight = _credits.Screen.CanvasSize.Y;
     }
 
     /// <summary>Draws the 3D world at the lines the settings ask for, scaled up to the window, or at the window's own.</summary>
@@ -428,7 +437,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost
         if (session.TrekRuns)
             _popupView!.Step();
         var before = _player.Motion.Sphere.Position;
-        var step = session.Tick(ReadInput, _camera.Flying,
+        var step = session.Tick(_playing, ReadInput, _camera.Flying,
             actor => _actorViews.TryGetValue(actor, out var view) ? view.Motion : null,
             combatant => _combatantViews.TryGetValue(combatant, out var view) ? view.Motion : null, _spellFxView);
         _backdrop!.Draw(session.Backdrop);
@@ -784,9 +793,9 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost
             _settings.BriskPace = !_settings.BriskPace;
             _settings.Notify();
         }
-        else if (e.IsActionPressed("toggle_sky_placement") && _sky?.Sky is { } sky)
+        else if (e.IsActionPressed("toggle_sky_placement") && _sky is not null)
         {
-            _settings.SkyPlacement = sky.Placement == Core.Sky.SkyPlacement.Original ? Core.Sky.SkyPlacement.Projected : Core.Sky.SkyPlacement.Original;
+            _settings.SkyPlacement = _settings.SkyPlacement == Core.Sky.SkyPlacement.Original ? Core.Sky.SkyPlacement.Projected : Core.Sky.SkyPlacement.Original;
             _settings.Notify();
         }
     }
