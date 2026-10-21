@@ -49,8 +49,8 @@ public sealed class ZoneEngine
         Chunks = chunks;
         Particles = particles;
         _shared = shared;
-        if (particles is not null && game.Weather is { } weather)
-            Precipitation = new WeatherParticles(particles, weather.Rules, game.Random.Cosmetic, () => Camera?.Aim ?? default,
+        if (particles is not null)
+            Precipitation = new WeatherParticles(particles, game.Weather.Rules, game.Random.Cosmetic, () => Camera?.Aim ?? default,
                 () => Camera?.LookXZ ?? Vector2.UnitX, () => Chunks.Visible, part);
         Lights = new WorldLights(game.Random.Cosmetic) { World = chunks.World };
         // What a mode keeps of its own hears of a chunk first, then the chunk's sounds and lights.
@@ -141,8 +141,7 @@ public sealed class ZoneEngine
     /// <param name="emitters">The rain's and snow's particles about the view: <see cref="Precipitation"/>, or none.</param>
     public void StepWeather(bool skyDrawn, IPrecipitationEmitters? emitters)
     {
-        if (Game.Weather is not { } weather)
-            return;
+        var weather = Game.Weather;
         if (_shared.SkyFrame.Tick())
         {
             weather.SkyFrame(skyDrawn, Game.Random.Cosmetic);
@@ -193,7 +192,7 @@ public sealed class ZoneEngine
         World.Clear();
         Visible?.Clear();
         Sounds.Clear();
-        Game.Weather?.Forget(Precipitation);
+        Game.Weather.Forget(Precipitation);
         Precipitation?.Clear();
     }
 
@@ -216,7 +215,7 @@ public sealed class ZoneEngine
     /// </summary>
     public void End()
     {
-        Game.Weather?.Forget(Precipitation);
+        Game.Weather.Forget(Precipitation);
         Precipitation?.Clear();
         Particles?.Clear();
         Free();

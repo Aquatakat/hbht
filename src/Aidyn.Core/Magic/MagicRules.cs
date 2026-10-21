@@ -12,7 +12,7 @@ public sealed class MagicRules
     private readonly Dictionary<RecordId, SpellRecord> _spells;
     private readonly Dictionary<RecordId, ItemRecord> _potions;
 
-    public MagicRules(MagicRecord record, IEnumerable<SpellRecord> spells, IEnumerable<ItemRecord> potions, InventoryRecord? inventory = null)
+    public MagicRules(MagicRecord record, IEnumerable<SpellRecord> spells, IEnumerable<ItemRecord> potions, InventoryRecord inventory)
     {
         Record = record;
         _spells = spells.ToDictionary(s => s.Id);
@@ -23,7 +23,7 @@ public sealed class MagicRules
     public MagicRecord Record { get; }
 
     /// <summary>The inventory's rules, which name the reagents' items.</summary>
-    public InventoryRecord? Inventory { get; }
+    public InventoryRecord Inventory { get; }
 
     public IEnumerable<SpellRecord> Spells => _spells.Values;
 
@@ -48,18 +48,14 @@ public sealed class MagicRules
     /// <summary>The item a reagent is, or null for none (<c>0x800E29CC</c>).</summary>
     public RecordId? ReagentItem(Reagent reagent) => reagent switch
     {
-        Reagent.Spice => Inventory?.Spice,
-        Reagent.Herb => Inventory?.Herb,
-        Reagent.Gemstone => Inventory?.Gemstone,
+        Reagent.Spice => Inventory.Spice,
+        Reagent.Herb => Inventory.Herb,
+        Reagent.Gemstone => Inventory.Gemstone,
         _ => null,
     };
 
-    /// <summary>The rules from the loaded plugins, or null if none has the magic record.</summary>
-    public static MagicRules? From(PluginSet plugins)
-    {
-        if (plugins.TrySingleton<MagicRecord>() is not { } record)
-            return null;
-        return new MagicRules(record, plugins.All<SpellRecord>(RecordTypes.Spell), plugins.All<ItemRecord>(RecordTypes.Item),
-            plugins.TrySingleton<InventoryRecord>());
-    }
+    /// <summary>The rules from the loaded plugins.</summary>
+    public static MagicRules From(PluginSet plugins) =>
+        new(plugins.Singleton<MagicRecord>(), plugins.All<SpellRecord>(RecordTypes.Spell), plugins.All<ItemRecord>(RecordTypes.Item),
+            plugins.Singleton<InventoryRecord>());
 }

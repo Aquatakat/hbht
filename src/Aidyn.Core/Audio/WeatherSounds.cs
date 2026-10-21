@@ -13,7 +13,7 @@ namespace Aidyn.Core.Audio;
 /// from the rain's drawn intensity (<c>AudioEngine.SetVolume</c>). The thunder goes through <c>Audio.PlaySound</c>
 /// with the sound volume as its gain, as the containers' sounds do.
 /// </remarks>
-public sealed class WeatherSounds(GameAudio audio, SoundsRecord? sounds)
+public sealed class WeatherSounds(GameAudio audio, SoundsRecord sounds)
 {
     /// <summary>Each thunder sound's lifetime in ticks, by its place in <see cref="SoundsRecord.Thunder"/> (literals in <c>RenderSky</c>).</summary>
     public static readonly int[] ThunderTicks = [240, 360, 420, 360];

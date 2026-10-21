@@ -923,7 +923,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost
     /// <summary>A script's sounds. The cut-scene carries out the rest of its cues.</summary>
     void Core.Scripts.IScriptHost.Cue(Core.Scripts.ScriptCue cue)
     {
-        if (cue is Core.Scripts.SoundCue sound && _session?.Game.Sounds is { } sounds && ScriptSounds.For(sounds, sound) is { } play)
+        if (cue is Core.Scripts.SoundCue sound && _session is { } session && ScriptSounds.For(session.Game.Sounds, sound) is { } play)
             _audio!.Play(play);
     }
 

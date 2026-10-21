@@ -429,7 +429,7 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
             host.Changed(map, scene);
         }
         // loot_func: by its kind, at the sound volume as its gain.
-        if (o.Kind != ContainerKind.Custom && game.Sounds?.Containers.ElementAtOrDefault((int)o.Kind) is { } opens)
+        if (o.Kind != ContainerKind.Custom && game.Sounds.Containers.ElementAtOrDefault((int)o.Kind) is { } opens)
             host.Sound(new Audio.OneShot(opens, ContainerSoundTicks, TimesSoundVolume: true));
         map.SetActive(o.Index, false);
         // Without an opened flag, it's remembered as emptied for a while.
@@ -438,8 +438,7 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
         Party.Gold += (uint)gold;
         if (loot.Stacks.Count == 0)
         {
-            if (game.Sounds is { } sounds)
-                host.Sound(new Audio.OneShot(sounds.GoldGained, Audio.OneShot.LongTicks));
+            host.Sound(new Audio.OneShot(game.Sounds.GoldGained, Audio.OneShot.LongTicks));
             Show(TrekPopup.Message(text.Format(MenuText.PickedUpGold, gold)));
         }
         else

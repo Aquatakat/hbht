@@ -52,15 +52,15 @@ public sealed class SkyState
     /// drawn, it changes at once, to the rain sky if the weather wants rain or snow and the sky is drawn.
     /// </summary>
     /// <param name="atOnce">Whether trek's world is being built, when nothing was up (<c>FreeZoneEngine</c> leaves sky type 2).</param>
-    public void Enter(SkyGradient terrain, bool drawn, SkyGradient? rain, Weather? weather, bool atOnce = false)
+    public void Enter(SkyGradient terrain, bool drawn, SkyGradient? rain, Weather weather, bool atOnce = false)
     {
         if (!atOnce && Current is not null && Drawn && drawn)
         {
-            if (weather?.HoldsSky != true)
+            if (!weather.HoldsSky)
                 Choose(terrain, drawn);
             return;
         }
-        Choose(drawn && rain is not null && weather?.WantsRainSky == true ? rain : terrain, drawn, gradual: false);
+        Choose(drawn && rain is not null && weather.WantsRainSky ? rain : terrain, drawn, gradual: false);
     }
 
     /// <summary>Advances the change by <paramref name="ticks"/> (<c>Sky::RenderSky</c>).</summary>

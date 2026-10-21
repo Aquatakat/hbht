@@ -789,8 +789,8 @@ public sealed class GameSession
             case PauseExitCode.Help:
                 Trek.ShowBackdrop(Game.Plugins.Get<DialogueRecord>(SystemMenu.HelpScript));
                 break;
-            case PauseExitCode.Credits when Game.Plugins.TrySingleton<CreditsRecord>() is { } credits:
-                PlayCredits(credits, ending: false, fromMenu: true);
+            case PauseExitCode.Credits:
+                PlayCredits(Game.Plugins.Singleton<CreditsRecord>(), ending: false, fromMenu: true);
                 break;
             case PauseExitCode.Theatre when exit.Cinematic is { } cinematic:
                 PlayCinematic(cinematic, fromTheatre: true);
@@ -990,8 +990,8 @@ public sealed class GameSession
                 return true;
             case TriggerEffect.Script { From: var from } when StartFrom(from):
                 return true;
-            case TriggerEffect.Credits credits when Game.Plugins.TrySingleton<CreditsRecord>() is { } record:
-                PlayCredits(record, credits.Ending, fromMenu: false);
+            case TriggerEffect.Credits credits:
+                PlayCredits(Game.Plugins.Singleton<CreditsRecord>(), credits.Ending, fromMenu: false);
                 return true;
             case TriggerEffect.GameOver:
                 Send(new Transition.GameOver());

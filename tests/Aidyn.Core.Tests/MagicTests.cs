@@ -235,7 +235,7 @@ public sealed class MagicTests
     public void ALuaEffectAndAnUnknownTypeAreReportedAndDoNothing()
     {
         var modded = MagicData.Spell(0x0340, "Modded", MagicSchool.Star, [new LuaEffect("mod.lua", "OnCast"), new Effect()], MagicData.Cast);
-        var rules = new MagicRules(MagicData.Record, [modded], []);
+        var rules = new MagicRules(MagicData.Record, [modded], [], MagicData.Inventory);
         Assert.Equal(2, rules.Problems.Count());
         // Neither lasts, so a cast leaves no record of them.
         Assert.DoesNotContain(modded.Effects!, EffectRules.Lasting);

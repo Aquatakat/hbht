@@ -337,7 +337,7 @@ public sealed class TrekLoop : IMapObjectHost
         if (playing && Use.Popup is null && !talking)
         {
             foreach (var w in Wanderers.Tick(world, motion.Sphere.Position, motion.Request, Game.Party, Game.Random.Wander,
-                Game.Weather?.FogTime ?? 0))
+                Game.Weather.FogTime))
                 CueBattle(Battle(BattleSource.Wanderer, w.Map, w.Party, ambush: true) with { AniByte = AniByte(motion.Request) });
         }
         // ProcessPlayers: the player is the first body, then the rest move and push.
@@ -455,7 +455,7 @@ public sealed class TrekLoop : IMapObjectHost
         Use.ClearCameras();
         // The weather's emitters are forgotten, then every emitter still spawning is killed, theirs among them, so the
         // rain starts again about the player from the next frame, asking for the rain sky again; its loop plays on.
-        Game.Weather?.Forget(Zone.Precipitation);
+        Game.Weather.Forget(Zone.Precipitation);
         Zone.Particles?.KillActive();
         var motion = Player;
         var from = motion.Sphere.Position;
