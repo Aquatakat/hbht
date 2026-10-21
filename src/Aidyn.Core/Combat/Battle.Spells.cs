@@ -36,7 +36,7 @@ public sealed partial class Battle
     private readonly int[] _spellCursors = [-1, -1, -1, -1], _itemCursors = [-1, -1, -1, -1];
 
     /// <summary>The spells' and potions' visuals (<c>combatspellvisuals.cpp</c>), which the runtime draws.</summary>
-    public SpellFx Fx => _fx ??= new SpellFx(Game?.Clock, Game?.Rules.Magic?.Record) { Cue = Cue };
+    public SpellFx Fx => _fx ??= new SpellFx(Game?.Clock, Game?.Rules.Magic.Record) { Cue = Cue };
 
     private SpellFx? _fx;
 
@@ -80,7 +80,7 @@ public sealed partial class Battle
     /// </summary>
     public bool CanCast(Combatant c, SpellSource source, Combatant t, Vector2 from, Vector2 centre)
     {
-        if (_rules?.Untargetable is { } untargetable && (untargetable.Contains(t.Entity) || untargetable.Contains(c.Entity)))
+        if (_rules.Untargetable is { } untargetable && (untargetable.Contains(t.Entity) || untargetable.Contains(c.Entity)))
             return false;
         var spell = source.Spell;
         if (!Casting.CanTarget(c, spell, t) || Casting.Requirement(spell, t.Sheet) != CastRefusal.None)
@@ -95,7 +95,8 @@ public sealed partial class Battle
         var (cellX, cellZ) = (ArenaGrid.CellOf(from.X), ArenaGrid.CellOf(from.Y));
         if (spell.Placed)
         {
-            (cellX, cellZ) = (Round(centre.X), Round(centre.Y));
+            // 0x800D2878: rounded half away from zero, as a byte.
+            (cellX, cellZ) = (Rounding.HalfAwayToByte(centre.X), Rounding.HalfAwayToByte(centre.Y));
             reach = level;
         }
         else
@@ -116,9 +117,6 @@ public sealed partial class Battle
             ? floor with { Y = floor.Y + SightAboveFloor }
             : top with { Y = Origin.Y + 10 };
         return HasSight(start, Head(t), t.Slot, t.Slot);
-
-        // 0x800D2878: rounded half away from zero, as a byte.
-        static int Round(float v) => (byte)(v >= 0 ? (int)(v + 0.5f) : -(int)(0.5f - v));
     }
 
     /// <summary>
@@ -167,7 +165,7 @@ public sealed partial class Battle
         var slot = c.PartySlot(Game.Party);
         var cursors = items ? _itemCursors : _spellCursors;
         var remembered = slot >= 0 ? cursors[slot] : -1;
-        var text = _rules?.Text;
+        var text = _rules.Text;
         Menu = items
             ? new CombatMenu(true, ItemRows(c), text?.NoItems, remembered)
             : new CombatMenu(false, SpellRows(c), text?.NoSpells, remembered);
@@ -215,7 +213,7 @@ public sealed partial class Battle
         var sheet = c.Sheet;
         var healer = sheet.Skills.Modified(Skill.Healer);
         var stamina = sheet.Stats.Modified(Stat.Stamina);
-        var text = _rules?.Text;
+        var text = _rules.Text;
         // Entity.CanLayOnHands (0x80071ED0) and CanHealWithHerbs (0x80071F38).
         if (healer != 0 && stamina >= Math.Max(1, 11 - healer))
             rows.Add(new(CombatMenuChoice.LayOnHands, text?.LayOnHands ?? "", CombatMenu.HealerIcon, CombatMenu.SkillColor));
@@ -229,7 +227,7 @@ public sealed partial class Battle
         for (var i = 0; i < sheet.Spells.Count; i++)
         {
             var spell = sheet.Spells[i].Spell;
-            if (magic?.ReagentItem(spell.Reagent) is { } reagent && !Game.Party.Inventory.Has(reagent))
+            if (magic.ReagentItem(spell.Reagent) is { } reagent && !Game.Party.Inventory.Has(reagent))
                 continue;
             if (PartOfDay == Calendar.PartOfDay.Night && spell.Effects?.Any(e => e is HealPerRoundEffect { DayOnly: true }) == true)
                 continue;
@@ -268,7 +266,7 @@ public sealed partial class Battle
         // CombatMenu.AddItemSpellRow (0x80089678): an item whose spell has charges left (CombatMenu.HasCharges, 0x800885E0).
         void AddItemSpell(ItemInstance? item, SpellChoice choice)
         {
-            if (item?.Item.Bonuses.Spell is not { } spell || item.Charges is not > 0 || Game.Rules.Magic?.Spell(spell.Spell) is not { } record)
+            if (item?.Item.Bonuses.Spell is not { } spell || item.Charges is not > 0 || Game.Rules.Magic.Spell(spell.Spell) is not { } record)
                 return;
             rows.Add(new(CombatMenuChoice.ItemSpell, record.Name, item.Item.Icon, CombatMenu.ItemSpellColor, choice));
         }
@@ -404,8 +402,7 @@ public sealed partial class Battle
             return;
         var look = Camera.LookXZ;
         var way = Facing.Rotate(new Vector2(-input.Stick.X, input.Stick.Y), look.X, look.Y);
-        if (way.LengthSquared() > 0)
-            way = Vector2.Normalize(way);
+        way = SafeNormalize.Of(way);
         var centre = AreaAim + way * Cadence.PerTick(AreaStep);
         centre = Vector2.Clamp(centre, Vector2.Zero, new Vector2(Grid.Width, Grid.Depth));
         if (centre == AreaAim)

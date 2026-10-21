@@ -125,7 +125,7 @@ public sealed partial class Battle
     {
         var random = Game.Random.Combat;
         var mine = 0;
-        foreach (var flask in Game.Rules.Magic?.Potions.Where(Potions.IsFlask) ?? [])
+        foreach (var flask in Game.Rules.Magic.Potions.Where(Potions.IsFlask))
         {
             if (flask.Effects?.OfType<BlastEffect>().FirstOrDefault() is not { } blast)
                 continue;
@@ -156,7 +156,7 @@ public sealed partial class Battle
     /// </summary>
     internal void FlaskExplosion(Combatant a, Combatant t, int damage)
     {
-        if (a.Potion is not { } potion || Game.Rules.Magic?.Potion(potion.Id) is not { } record)
+        if (a.Potion is not { } potion || Game.Rules.Magic.Potion(potion.Id) is not { } record)
             return;
         var landing = new Landing(record.Id, MagicSchool.None, 0, Potions.Margin, new EffectTarget(a.Sheet, a, this),
             new EffectTarget(t.Sheet, t, this), Game.Random.Combat) { RecordMargin = 0, Centre = BlastCell, Blast = damage };
@@ -174,7 +174,7 @@ public sealed partial class Battle
     /// </summary>
     void IMagicHost.Burst(Combatant t, RecordId source, int damage, bool stamina, Dice? corrode, (int X, int Z)? centre)
     {
-        var potion = Game.Rules.Magic?.Potion(source);
+        var potion = Game.Rules.Magic.Potion(source);
         var radius = corrode is null ? 0 : (byte)(Game.Random.Combat.RollD(corrode.Count, corrode.Sides) + corrode.Flat);
         var (cx, cz) = centre ?? (ArenaGrid.CellOf(t.Cell.X), ArenaGrid.CellOf(t.Cell.Y));
         for (var slot = 0; slot < InPlay; slot++)
@@ -250,7 +250,7 @@ public sealed partial class Battle
             SayBoth(PotionOnLine, a.Sheet.Name);
             return;
         }
-        var record = Game.Rules.Magic?.Potion(item.Id);
+        var record = Game.Rules.Magic.Potion(item.Id);
         if (effects.Any(e => e is HealEffect))
         {
             var gained = a.Sheet.Hp - before;
@@ -419,7 +419,7 @@ public sealed partial class Battle
     /// </summary>
     private void ShowAura(Combatant target, int level)
     {
-        var text = _rules?.Text?.Aura;
+        var text = _rules.Text?.Aura;
         var lines = new List<string> { target.Sheet.Name };
         if (level >= 1)
             lines.Add(target.Slot == LeaderSlot && !LeaderGone ? text?.Leader ?? "" : text?.Follower ?? "");

@@ -206,7 +206,7 @@ public sealed partial class Battle
                     blocked = true;
                     if (ClipToCircle(c.TurnStart, c.Radius, new Vector2(cx, cz), new Vector2(nx, nz)) is not { } edge)
                         break;
-                    (nx, nz) = (RoundHalfAway(edge.X), RoundHalfAway(edge.Y));
+                    (nx, nz) = (Rounding.HalfAwayToByte(edge.X), Rounding.HalfAwayToByte(edge.Y));
                 }
                 var direction = ArenaGrid.DirectionTo(cx, cz, nx, nz);
                 c.Facing = Directions[direction];
@@ -229,8 +229,6 @@ public sealed partial class Battle
         }
         FaceStep(ai);
         return false;
-
-        static int RoundHalfAway(float v) => v > 0 ? (int)(v + 0.5f) & 0xFF : -(int)(0.5f - v) & 0xFF;
     }
 
     /// <summary>State 5, with the stuck timer started and the state to go on to the one the walk began in (the AI's, 8).</summary>
@@ -496,8 +494,7 @@ public sealed partial class Battle
     {
         State = NextState = CombatState.Facing;
         var way = t.Cell - c.Cell;
-        if (way.LengthSquared() > 0)
-            c.Facing = Vector2.Normalize(way);
+        c.Facing = SafeNormalize.Of(way, c.Facing);
         c.Body.ClearPath();
         _turning = true;
     }
@@ -649,7 +646,7 @@ public sealed partial class Battle
 
     /// <summary>Whether a weapon may strike in melee (<c>Weapon.AllowsMelee</c>, <c>0x8007B730</c>): no range, a Breath or a Spit, or Spikes.</summary>
     private bool AllowsMelee(WeaponRecord w) =>
-        w.Range == 0 || w.Class is WeaponClass.Breath or WeaponClass.Spit || _rules?.CloseRange?.Contains(w.Id) == true;
+        w.Range == 0 || w.Class is WeaponClass.Breath or WeaponClass.Spit || _rules.CloseRange?.Contains(w.Id) == true;
 
     /// <summary>
     /// Trades the held weapon for the spare (<c>EnemyAI.SwapWeapon</c>, <c>0x8005A560</c>): "changes weapons", and the turn's spent
@@ -665,7 +662,7 @@ public sealed partial class Battle
         if (equipment.EquipWeapon(spare) != Items.EquipRefusal.None)
             equipment.Restore(spare);
         ai.Spare = held;
-        c.Drawn = _rules?.Missiles?.Any(m => m.Weapon == spare.Id) == true;
+        c.Drawn = _rules.Missiles?.Any(m => m.Weapon == spare.Id) == true;
         Write(Line(ChangesWeaponsLine, c));
         EnterRest();
         if (spare.Item.Weapon is { } w && AllowsMelee(w) && w.Range != 0)

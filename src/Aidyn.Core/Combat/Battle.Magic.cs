@@ -17,7 +17,7 @@ public sealed partial class Battle : IMagicHost
 
     private PartOfDay? _heldPartOfDay;
 
-    private MagicRules Magic => Game.Rules.Magic ?? throw new InvalidOperationException("No plugin has the magic record (aidyn:magic/0).");
+    private MagicRules Magic => Game.Rules.Magic;
 
     /// <summary>The weather class Wind's end set (<c>World+4</c>), for combat's penalties; null if no Wind has ended.</summary>
     public int? WeatherClass { get; private set; }
@@ -31,7 +31,7 @@ public sealed partial class Battle : IMagicHost
     IEnumerable<Combatant> IMagicHost.Combatants => Combatants;
 
     /// <summary>The battle's part of the day (<c>World+2</c>): what Darkness or Light holds, or the world's.</summary>
-    public PartOfDay PartOfDay => _heldPartOfDay ?? Game.Weather?.PartOfDay ?? Game.Clock.Date.PartOfDay;
+    public PartOfDay PartOfDay => _heldPartOfDay ?? Game.Weather.PartOfDay ?? Game.Clock.Date.PartOfDay;
 
     void IMagicHost.HoldPartOfDay(PartOfDay partOfDay) => _heldPartOfDay = partOfDay;
 

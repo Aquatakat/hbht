@@ -59,7 +59,7 @@ public sealed partial class Battle
     public const int VanishFrames = 60;
 
     /// <summary>The Shadow's rules (<see cref="CombatRecord.Shadow"/>), or null in a plugin without them.</summary>
-    public ShadowRule? ShadowRules => _rules?.Shadow;
+    public ShadowRule? ShadowRules => _rules.Shadow;
 
     /// <summary>
     /// The Shadow, while it's in the battle (<c>Combat.ShadowSlot</c>, <c>0x800D94CC</c>: set as its combatant is made, cleared as its
@@ -239,13 +239,13 @@ public sealed partial class Battle
         }
         State = CombatState.ShadowVanish;
         Write(CombatText(DissipatesLine));
-        _vanishTicks = 0;
+        _vanishFrame.Reset();
         foreach (var c in Combatants.Where(c => !c.Freed))
             c.Body.Request = Body.Idle;
     }
 
-    /// <summary>Ticks of state 29 so far.</summary>
-    private int _vanishTicks;
+    /// <summary>The ticks of state 29 so far, counted to frames.</summary>
+    private readonly FrameGate _vanishFrame = new(Cadence.FrameTicks);
 
     /// <summary>
     /// State 29 (<c>Combat.StateShadowDissipates</c>, <c>0x800229D8</c>): the field goes on being drawn, the count going on a frame at a
@@ -253,7 +253,7 @@ public sealed partial class Battle
     /// </summary>
     private void StepShadowVanish()
     {
-        if (++_vanishTicks % Cadence.FrameTicks != 0)
+        if (!_vanishFrame.Tick())
             return;
         if (++ShadowRounds < VanishFrames)
             return;

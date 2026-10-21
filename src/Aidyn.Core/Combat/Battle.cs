@@ -191,7 +191,7 @@ public sealed partial class Battle
     /// Whether the pause menu is due, from a turn (state 14, with the Party tab and Flee) or from any other state (27, the
     /// System tab alone), once its two frames have passed (<c>Combat.IdleFrames</c>).
     /// </summary>
-    private bool PauseDue => State is CombatState.Pause or CombatState.PauseRequested && _idle >= PauseFrames * Cadence.FrameTicks;
+    private bool PauseDue => State is CombatState.Pause or CombatState.PauseRequested && _idle >= Cadence.Frames(PauseFrames);
 
     /// <summary>Whether the pause menu has the Party tab and offers Flee: it came from a turn (state 14).</summary>
     public bool PausedFromTurn => State == CombatState.Pause;
@@ -391,7 +391,7 @@ public sealed partial class Battle
                 break;
             case CombatState.Pause or CombatState.PauseRequested:
                 // Combat.IdleFrames: the menu comes once its two frames have passed.
-                if (++_idle == PauseFrames * Cadence.FrameTicks)
+                if (++_idle == Cadence.Frames(PauseFrames))
                     Cue(new BattlePaused(PausedFromTurn, PausedFromTurn && CanFlee));
                 break;
             case CombatState.ShadowMerge:

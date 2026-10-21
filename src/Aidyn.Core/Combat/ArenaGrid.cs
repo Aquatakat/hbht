@@ -424,5 +424,5 @@ public sealed class ArenaGrid
     /// byte, as the grid's functions take it.
     /// </summary>
     public static int CellOf(float coordinate) =>
-        (sbyte)(coordinate > 0 ? (byte)(int)(coordinate + 0.5f) : -(byte)(int)(0.5f - coordinate));
+        (sbyte)Rounding.HalfAwayToByte(coordinate);
 }

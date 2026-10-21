@@ -720,7 +720,7 @@ public sealed class GameSession
                 PlayGameOver();
                 return;
             // Combat.StateShadowMerge returns game mode 0xE: the Shadow's cinematic, once the battle has gone, then trek where it began.
-            case BattleOutcome.Merged when Game.Plugins.TrySingleton<CombatRecord>()?.Shadow is { } shadow
+            case BattleOutcome.Merged when Game.Plugins.Singleton<CombatRecord>().Shadow is { } shadow
                 && Game.Plugins.TryGet<CinematicRecord>(shadow.Cinematic) is { } cinematic:
                 PlayCinematic(cinematic, fromTheatre: false);
                 return;
@@ -736,7 +736,7 @@ public sealed class GameSession
     /// </summary>
     private void PlayGameOver()
     {
-        if (Game.Plugins.TrySingleton<CombatRecord>()?.GameOver is { } gameOver
+        if (Game.Plugins.Singleton<CombatRecord>().GameOver is { } gameOver
             && Game.Plugins.TryGet<MapRecord>(gameOver.Map) is { } map
             && map.Objects.OfType<DialogueObject>().FirstOrDefault(d => d.Script == gameOver.Script) is { } dialogue
             && Game.Plugins.TryGet<DialogueRecord>(gameOver.Script) is { } script
