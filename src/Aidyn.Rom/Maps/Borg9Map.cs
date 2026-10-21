@@ -1,4 +1,5 @@
 using System.Numerics;
+using Aidyn.Plugins.Assets;
 
 namespace Aidyn.Rom.Maps;
 
@@ -13,7 +14,7 @@ public enum CollisionSurface : byte
     Default,
     /// <summary>Blocks the player and the camera. Most walls and floors.</summary>
     PlayerAndCamera,
-    /// <summary>Blocks only the player: every such triangle is also <see cref="TriangleFlags.SeeThrough"/>.</summary>
+    /// <summary>Blocks only the player: every such triangle is also <see cref="CollisionFlags.SeeThrough"/>.</summary>
     Player,
     Snow,
     Grass,
@@ -26,7 +27,7 @@ public enum CollisionSurface : byte
     Stone,
     StoneEcho,
     StoneHugeEcho,
-    /// <summary>Would slow and lighten whatever touches it, but no triangle has <see cref="TriangleFlags.TakesSpeed"/>.</summary>
+    /// <summary>Would slow and lighten whatever touches it, but no triangle has <see cref="CollisionFlags.TakesSpeed"/>.</summary>
     Water,
     TransSnow,
     TransGrass,
@@ -41,61 +42,29 @@ public enum CollisionSurface : byte
     TransStoneHugeEcho,
 }
 
-/// <summary><c>borg9_phys.flags</c>, as stored. The game sets <see cref="Callback"/> on every triangle it loads.</summary>
-[Flags]
-public enum TriangleFlags : ushort
-{
-    None = 0,
-    /// <summary>Things pass through, and only its callbacks run. A <see cref="Plugins.Records.TriggerKind.ChangeCollision"/> trigger sets it.</summary>
-    Passable = 0x1,
-    /// <summary>Whatever touches it takes on its surface's speed property (gravity and drag). Never set.</summary>
-    TakesSpeed = 0x2,
-    /// <summary>Collide with the edge from vertex A to B. Every edge no other triangle shares has its bit.</summary>
-    EdgeAB = 0x4,
-    /// <summary>Collide with the edge from C to A.</summary>
-    EdgeCA = 0x8,
-    /// <summary>Collide with the edge from B to C.</summary>
-    EdgeBC = 0x10,
-    VertexA = 0x20,
-    VertexB = 0x40,
-    VertexC = 0x80,
-    /// <summary>Recompute the normal each time. Never set.</summary>
-    RecomputeNormal = 0x100,
-    /// <summary>Line-of-sight tests ignore it: the camera, combat markers and light occlusion.</summary>
-    SeeThrough = 0x200,
-    /// <summary>Report touches to the zone engine, which sets footstep sounds and runs <see cref="CollisionTriangle.TriggerObject"/>.</summary>
-    Callback = 0x1000,
-    /// <summary>Touch it with no extra margin. Never set.</summary>
-    NoMargin = 0x2000,
-}
-
-/// <summary>What a triangle's ground type makes it (<c>borg9_phys.GroundType</c>'s top four bits).</summary>
-public enum TriangleRole : ushort
-{
-    Normal = 0,
-    /// <summary>A <see cref="Plugins.Records.TriggerKind.ChangeCollision"/> trigger can change its flags.</summary>
-    Toggle = 0x1000,
-    /// <summary>Walking on it runs a camera, teleporter or dialogue object.</summary>
-    Trigger = 0x2000,
-    /// <summary>Only there with the Expansion Pak. Without it, the game makes it passable.</summary>
-    ExpansionPak = 0x4000,
-}
-
 /// <summary>A collision triangle of a Borg9 (<c>borg9_phys</c>, 0x20 bytes).</summary>
 /// <param name="A">Indices into <see cref="Borg9Map.Vertices"/>, counter-clockwise seen from the front.</param>
 /// <param name="Normal">The unit normal of A, B, C, apart from 44 degenerate triangles.</param>
+/// <param name="Flags">As stored: the plugin's collision asset carries them unchanged.</param>
 /// <param name="Ground">As stored. See <see cref="Role"/>.</param>
-public sealed record CollisionTriangle(int A, int B, int C, Vector3 Normal, CollisionSurface Surface, TriangleFlags Flags, ushort Ground)
+public sealed record RomCollisionTriangle(int A, int B, int C, Vector3 Normal, CollisionSurface Surface, CollisionFlags Flags, ushort Ground)
 {
     public const int Size = 0x20;
 
-    public TriangleRole Role => (TriangleRole)(Ground & 0xF000);
+    /// <summary>What the ground type's top four bits make it: 0x1000 a toggle, 0x2000 a trigger, 0x4000 Expansion Pak only, else normal.</summary>
+    public CollisionRole Role => (Ground & 0xF000) switch
+    {
+        0x1000 => CollisionRole.Toggle,
+        0x2000 => CollisionRole.Trigger,
+        0x4000 => CollisionRole.ExpansionPak,
+        _ => CollisionRole.Normal,
+    };
 
-    /// <summary>For a <see cref="TriangleRole.Toggle"/>, the id its <see cref="Plugins.Records.TriggerKind.ChangeCollision"/> triggers name, else null.</summary>
-    public int? ToggleId => Role == TriangleRole.Toggle ? (Ground + 1) & 0x7F : null;
+    /// <summary>For a <see cref="CollisionRole.Toggle"/>, the id its <see cref="Plugins.Records.TriggerKind.ChangeCollision"/> triggers name, else null.</summary>
+    public int? ToggleId => Role == CollisionRole.Toggle ? (Ground + 1) & 0x7F : null;
 
-    /// <summary>For a <see cref="TriangleRole.Trigger"/>, the index of the object it runs, else null.</summary>
-    public int? TriggerObject => Role == TriangleRole.Trigger ? Ground & 0x7F : null;
+    /// <summary>For a <see cref="CollisionRole.Trigger"/>, the index of the object it runs, else null.</summary>
+    public int? TriggerObject => Role == CollisionRole.Trigger ? Ground & 0x7F : null;
 }
 
 /// <summary>
@@ -125,7 +94,7 @@ public sealed record Borg9Map(
     int Columns,
     int Rows,
     IReadOnlyList<Vector3> Vertices,
-    IReadOnlyList<CollisionTriangle> Triangles,
+    IReadOnlyList<RomCollisionTriangle> Triangles,
     IReadOnlyList<VoxelObject> Objects,
     IReadOnlyList<CollisionCell> Cells)
 {
@@ -166,7 +135,7 @@ public sealed record Borg9Map(
         Be.Expect("Borg9", "object indices", objectIndices, Align(triangleIndices + triangleIndexCount * 2));
         Be.Expect("Borg9", "vertices", vertices, Align(objectIndices + objectIndexCount * 2));
         Be.Expect("Borg9", "triangles", triangles, Align(vertices + vertexCount * 12));
-        Be.Expect("Borg9", "objects", (int)Be.U32(s, 0x44), triangles + triangleCount * CollisionTriangle.Size);
+        Be.Expect("Borg9", "objects", (int)Be.U32(s, 0x44), triangles + triangleCount * RomCollisionTriangle.Size);
         if (cellCount != columns * rows)
             throw new InvalidDataException($"The Borg9 has {cellCount} cells for a {columns}×{rows} grid.");
         if (cells + cellCount * CellRecordSize > data.Length)
@@ -176,17 +145,17 @@ public sealed record Borg9Map(
         for (var i = 0; i < vertexCount; i++)
             vertexList[i] = new Vector3(Be.F32(s, vertices + i * 12), Be.F32(s, vertices + i * 12 + 4), Be.F32(s, vertices + i * 12 + 8));
 
-        var triangleList = new CollisionTriangle[triangleCount];
+        var triangleList = new RomCollisionTriangle[triangleCount];
         for (var i = 0; i < triangleCount; i++)
         {
-            var t = s.Slice(triangles + i * CollisionTriangle.Size, CollisionTriangle.Size);
+            var t = s.Slice(triangles + i * RomCollisionTriangle.Size, RomCollisionTriangle.Size);
             var surface = Be.U32(t, 0x18);
             if (surface > (uint)CollisionSurface.TransStoneHugeEcho)
                 throw new InvalidDataException($"Triangle {i} has unknown surface {surface}.");
-            triangleList[i] = new CollisionTriangle(
+            triangleList[i] = new RomCollisionTriangle(
                 Vertex(Be.U32(t, 0), vertexCount, i), Vertex(Be.U32(t, 4), vertexCount, i), Vertex(Be.U32(t, 8), vertexCount, i),
                 new Vector3(Be.F32(t, 0xC), Be.F32(t, 0x10), Be.F32(t, 0x14)), (CollisionSurface)surface,
-                (TriangleFlags)Be.U16(t, 0x1C), Be.U16(t, 0x1E));
+                (CollisionFlags)Be.U16(t, 0x1C), Be.U16(t, 0x1E));
         }
 
         var cellList = new CollisionCell[cellCount];

@@ -12,10 +12,10 @@ public sealed record CinematicScene(int Animation, int Audio, int? Captions, flo
 /// <param name="Scene">The shot, counting from 0.</param>
 /// <param name="Start">When the fade starts, from the start of the shot.</param>
 /// <param name="Hold">Extra time the fade's colour stays.</param>
-public sealed record CinematicFade(int Scene, CinematicFadeColor Color, ushort Start, ushort Length, short Hold);
+public sealed record RomCinematicFade(int Scene, CinematicFadeColor Color, ushort Start, ushort Length, short Hold);
 
 /// <param name="DoneFlag">Set when the cinematic ends or is skipped, including when the Theatre menu replays it.</param>
-public sealed record Cinematic(IReadOnlyList<CinematicScene> Scenes, IReadOnlyList<CinematicFade> Fades, ushort DoneFlag);
+public sealed record RomCinematic(IReadOnlyList<CinematicScene> Scenes, IReadOnlyList<RomCinematicFade> Fades, ushort DoneFlag);
 
 /// <summary>
 /// The four cinematics (<c>Cinematics.cpp</c>, <c>CinematicFade.cpp</c>), read from the code
@@ -23,11 +23,11 @@ public sealed record Cinematic(IReadOnlyList<CinematicScene> Scenes, IReadOnlyLi
 /// </summary>
 public static class Cinematics
 {
-    public static IReadOnlyList<Cinematic> Read(RomImage rom)
+    public static IReadOnlyList<RomCinematic> Read(RomImage rom)
     {
         var pointers = rom.Table(CodeTable.Cinematics);
         var fadePointers = rom.Table(CodeTable.CinematicFades);
-        var cinematics = new List<Cinematic>();
+        var cinematics = new List<RomCinematic>();
         for (var i = 0; i < pointers.Length / 16; i++)
         {
             var animations = CodeSegment.At(rom, Be.U32(pointers, i * 16));
@@ -48,14 +48,14 @@ public static class Cinematics
 
             // Fades end with an entry for shot 0, which the game never reaches.
             var fadeData = CodeSegment.At(rom, Be.U32(fadePointers, i * 4));
-            var fades = new List<CinematicFade>();
+            var fades = new List<RomCinematicFade>();
             for (var at = 0; fadeData[at] != 0; at += 8)
             {
-                fades.Add(new CinematicFade(fadeData[at] - 1, (CinematicFadeColor)fadeData[at + 1],
+                fades.Add(new RomCinematicFade(fadeData[at] - 1, (CinematicFadeColor)fadeData[at + 1],
                     Be.U16(fadeData, at + 2), Be.U16(fadeData, at + 4), Be.S16(fadeData, at + 6)));
             }
 
-            cinematics.Add(new Cinematic(scenes, fades, Be.U16(flags, scenes.Count * 2)));
+            cinematics.Add(new RomCinematic(scenes, fades, Be.U16(flags, scenes.Count * 2)));
         }
         return cinematics;
     }

@@ -1,7 +1,7 @@
 namespace Aidyn.Rom.Db;
 
 /// <summary>One item roll in a loot table: a percent chance of between Min and Max of the item.</summary>
-public readonly record struct LootDrop(ItemId Item, byte Chance, byte Min, byte Max);
+public readonly record struct RomLootDrop(ItemId Item, byte Chance, byte Min, byte Max);
 
 /// <summary>A <c>ChestDB</c> record (0x38 bytes): what an enemy drops or a chest holds.</summary>
 /// <param name="GoldMin">The game rolls between the two and doubles the result.</param>
@@ -11,7 +11,7 @@ public readonly record struct LootDrop(ItemId Item, byte Chance, byte Min, byte 
 /// Six item rolls. Only the first two store a quantity range; the ROM has no range for the
 /// last four, which always give one, so they're read as 1–1.
 /// </param>
-public sealed record LootRecord(
+public sealed record RomLootRecord(
     ItemId Id,
     string Name,
     ushort GoldMin,
@@ -22,11 +22,11 @@ public sealed record LootRecord(
     byte ReagentChance,
     byte ReagentMin,
     byte ReagentMax,
-    IReadOnlyList<LootDrop> Drops)
+    IReadOnlyList<RomLootDrop> Drops)
 {
     public const int Size = 0x38;
 
-    internal static LootRecord Read(ref RecordReader r)
+    internal static RomLootRecord Read(ref RecordReader r)
     {
         var name = r.Name(20);
         var id = r.Id();
@@ -39,10 +39,10 @@ public sealed record LootRecord(
         var reagentMin = r.U8();
         var reagentMax = r.U8();
 
-        var drops = new LootDrop[6];
+        var drops = new RomLootDrop[6];
         for (var i = 0; i < drops.Length; i++)
             drops[i] = i < 2 ? new(r.Id(), r.U8(), r.U8(), r.U8()) : new(r.Id(), r.U8(), 1, 1);
 
-        return new LootRecord(id, name, goldMin, goldMax, armor, shield, weapons, reagentChance, reagentMin, reagentMax, drops);
+        return new RomLootRecord(id, name, goldMin, goldMax, armor, shield, weapons, reagentChance, reagentMin, reagentMax, drops);
     }
 }

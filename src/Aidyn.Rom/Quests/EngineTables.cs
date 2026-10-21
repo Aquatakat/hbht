@@ -12,7 +12,7 @@ public sealed record PartyMemberFlags(ItemId Member, ushort Joined, ushort Left,
 /// <summary>A key item: it gets its own inventory slot, and a flag that says the party has it.</summary>
 /// <param name="Held">Set when the party gains the item, and cleared when it has none left.</param>
 /// <param name="Region">A world map region flag that gaining the item also sets, or 0.</param>
-public sealed record KeyItemFlags(ItemId Item, ushort Held, ushort Region);
+public sealed record RomKeyItemFlags(ItemId Item, ushort Held, ushort Region);
 
 /// <summary>Entering this overworld chunk sets the flag of the world map region it's in.</summary>
 public sealed record RegionChunk(int Row, int Column, ushort Flag);
@@ -56,7 +56,7 @@ public enum ScriptEnding
 public sealed record EngineTables(
     IReadOnlyList<ItemId> EntityList,
     IReadOnlyList<PartyMemberFlags> Party,
-    IReadOnlyList<KeyItemFlags> KeyItems,
+    IReadOnlyList<RomKeyItemFlags> KeyItems,
     IReadOnlyList<RegionChunk> Regions,
     IReadOnlyList<ushort> CampDialogueFlags,
     IReadOnlyDictionary<int, ushort> ScriptBattleFlags,
@@ -84,7 +84,7 @@ public sealed record EngineTables(
         var regions = Be.U16s(rom.Table(CodeTable.KeyItemRegionFlags));
         if (held.Length != items.Length || regions.Length != items.Length)
             throw new InvalidDataException("The key item tables differ in length.");
-        var keyItems = items.Select((item, i) => new KeyItemFlags(new ItemId(item), held[i], regions[i])).ToList();
+        var keyItems = items.Select((item, i) => new RomKeyItemFlags(new ItemId(item), held[i], regions[i])).ToList();
 
         // Entered chunks are matched until an entry with a zero field.
         var regionData = rom.Table(CodeTable.RegionFlags);

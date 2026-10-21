@@ -4,15 +4,6 @@ using Aidyn.Rom.Db;
 using Aidyn.Rom.Engine;
 using Aidyn.Rom.Quests;
 using Aidyn.Rom.Text;
-using PluginArmor = Aidyn.Plugins.Records.ArmorRecord;
-using PluginEntity = Aidyn.Plugins.Records.EntityRecord;
-using PluginLoot = Aidyn.Plugins.Records.LootRecord;
-using PluginLootDrop = Aidyn.Plugins.Records.LootDrop;
-using PluginShop = Aidyn.Plugins.Records.ShopRecord;
-using PluginWeapon = Aidyn.Plugins.Records.WeaponRecord;
-using ShopStock = Aidyn.Plugins.Records.ShopStock;
-using Resistance = Aidyn.Plugins.Records.Resistance;
-using KeyItemFlags = Aidyn.Plugins.Records.KeyItemFlags;
 
 namespace Aidyn.Rom.Import;
 
@@ -86,7 +77,7 @@ internal static class ItemImporter
         lines.TryGetValue(id, out var line) ? DialogueText.Unescape(db.Strings[table][line]) : null;
 
     /// <param name="menu">Where items' and potions' descriptions come from. Without it, none have one.</param>
-    public static (List<PluginWeapon> Weapons, List<PluginArmor> Armor, List<ItemRecord> Items) BuildItems(
+    public static (List<WeaponRecord> Weapons, List<ArmorRecord> Armor, List<ItemRecord> Items) BuildItems(
         GameDb db, ItemTables tables, EngineTables engine, MenuTables? menu = null)
     {
         var reserved = tables.ReservedItems.Concat(tables.KeyEquipment).Concat(engine.KeyItems.Select(k => k.Item)).ToHashSet();
@@ -101,13 +92,13 @@ internal static class ItemImporter
         RecordId? Model(IReadOnlyDictionary<int, ushort> models, int position) =>
             models.TryGetValue(position, out var scene) ? Scene(scene) : null;
 
-        var weapons = db.Weapons.Select((w, i) => new PluginWeapon(
+        var weapons = db.Weapons.Select((w, i) => new WeaponRecord(
             DbRecordIds.Required(w.Id), w.Name, Icon(w.Id), w.Price, w.Class, w.RequiredStrength, w.Hit, w.Damage,
             Math.Min(w.Range * RangeTimesThree / 3, 255), w.Animation, w.ExpModifier, w.DamageType,
             Bonuses(w.Bonuses, w.SpellLevel), Traits(w.Id), Fixed: w.Id == staff,
             Model: Model(tables.WeaponModels, i)));
 
-        var armor = db.Armor.Select((a, i) => new PluginArmor(
+        var armor = db.Armor.Select((a, i) => new ArmorRecord(
             DbRecordIds.Required(a.Id), a.Name, Icon(a.Id), a.Price, a.Slot == 0 ? ArmorSlot.Body : ArmorSlot.Shield, a.Defense, a.Protection,
             a.Dexterity, a.Stealth, a.Unk1D, a.ExpBonus, Bonuses(a.Bonuses, a.Bonuses.SpellLevel), Traits(a.Id),
             Model(ItemTables.ShieldModels, i)));
@@ -140,7 +131,7 @@ internal static class ItemImporter
     }
 
     /// <summary>Niesen can equip only the Archmage Staff (<c>Entity::canEquipWeapon</c>).</summary>
-    public static List<PluginEntity> WithSoleWeapons(GameDb db, List<PluginEntity> entities)
+    public static List<EntityRecord> WithSoleWeapons(GameDb db, List<EntityRecord> entities)
     {
         var niesen = DbRecordIds.Required(db.Entities[NiesenDbPosition].Id);
         var staff = DbRecordIds.Required(db.Weapons[ArchmageStaffPosition].Id);
@@ -151,16 +142,16 @@ internal static class ItemImporter
     public static List<SkillRecord> WithIcons(ItemTables tables, List<SkillRecord> skills) =>
         [.. skills.Select(s => int.Parse(s.Id.Key) is var n && n < tables.SkillIcons.Count ? s with { Icon = Image(tables.SkillIcons[n]) } : s)];
 
-    public static List<PluginLoot> BuildLoot(GameDb db) => Sorted(db.Loot.Select(l => new PluginLoot(
+    public static List<LootRecord> BuildLoot(GameDb db) => Sorted(db.Loot.Select(l => new LootRecord(
         DbRecordIds.Required(l.Id), l.Name, l.GoldMin, l.GoldMax, l.ArmorChance, l.ShieldChance, [.. l.WeaponChances.Select(c => (int)c)],
         l.ReagentChance, l.ReagentMin, l.ReagentMax,
-        [.. l.Drops.Select(d => new PluginLootDrop(d.Item.IsNone ? null : DbRecordIds.Required(d.Item), d.Chance, d.Min, d.Max))])), l => l.Id);
+        [.. l.Drops.Select(d => new LootDrop(d.Item.IsNone ? null : DbRecordIds.Required(d.Item), d.Chance, d.Min, d.Max))])), l => l.Id);
 
     /// <summary>
     /// Each shop's stock (<c>InitShop</c>): a priced slot is stocked only when its third byte is
     /// nonzero, and the three extra slots are stocked at the base price.
     /// </summary>
-    public static List<PluginShop> BuildShops(GameDb db) => [.. db.Shops.Select((s, i) => new PluginShop(
+    public static List<ShopRecord> BuildShops(GameDb db) => [.. db.Shops.Select((s, i) => new ShopRecord(
         RecordId.Decimal(RecordTypes.Shop, i), DbRecordIds.Required(s.Shopkeeper),
         [
             .. s.Stock.Where(x => !x.Item.IsNone && x.Unk2 != 0).Select(x => new ShopStock(DbRecordIds.Required(x.Item), PriceMultipliers[x.PriceMultiplier])),

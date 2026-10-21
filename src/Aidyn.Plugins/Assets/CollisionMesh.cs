@@ -2,13 +2,22 @@ using System.Numerics;
 
 namespace Aidyn.Plugins.Assets;
 
-/// <summary>What a collision triangle does besides block (<c>borg9_phys.flags</c>).</summary>
+/// <summary>
+/// What a collision triangle does besides block (<c>borg9_phys.flags</c>), as the ROM stores them: the
+/// Borg9 reader parses them into this and the importer writes them unchanged. The game sets
+/// <see cref="Callback"/> on every triangle it loads.
+/// </summary>
 [Flags]
 public enum CollisionFlags
 {
     None = 0,
-    /// <summary>Things pass through it. A trigger can set this on a toggle to open the way.</summary>
+    /// <summary>
+    /// Things pass through it, and only its callbacks run. A trigger
+    /// (<see cref="Records.TriggerKind.ChangeCollision"/>) can set this on a toggle to open the way.
+    /// </summary>
     Passable = 0x1,
+    /// <summary>Whatever touches it takes on its surface's speed property (gravity and drag). Never set.</summary>
+    TakesSpeed = 0x2,
     /// <summary>Spheres collide with the edge from A to B as well as the face. Every edge no other triangle shares has its bit.</summary>
     EdgeAB = 0x4,
     /// <summary>The edge from C to A.</summary>
@@ -19,11 +28,20 @@ public enum CollisionFlags
     VertexA = 0x20,
     VertexB = 0x40,
     VertexC = 0x80,
-    /// <summary>Line-of-sight tests ignore it, so the camera passes through. Invisible walls.</summary>
+    /// <summary>Recompute the normal each time. Never set.</summary>
+    RecomputeNormal = 0x100,
+    /// <summary>Line-of-sight tests ignore it, so the camera passes through: the camera, combat markers and light occlusion. Invisible walls.</summary>
     SeeThrough = 0x200,
+    /// <summary>Report touches to the zone engine, which sets footstep sounds and runs the <see cref="CollisionRole.Trigger"/>'s object.</summary>
+    Callback = 0x1000,
+    /// <summary>Touch it with no extra margin. Never set.</summary>
+    NoMargin = 0x2000,
 }
 
-/// <summary>What a collision triangle is for.</summary>
+/// <summary>
+/// What a collision triangle is for. In the ROM it's the top four bits of <c>borg9_phys.GroundType</c>,
+/// 0x1000 for a toggle, 0x2000 for a trigger and 0x4000 for an Expansion Pak triangle.
+/// </summary>
 public enum CollisionRole
 {
     Normal,
@@ -31,7 +49,7 @@ public enum CollisionRole
     Toggle,
     /// <summary>Walking on it runs a map object: a camera, teleporter or dialogue.</summary>
     Trigger,
-    /// <summary>Only there with the Expansion Pak, which the runtime always has.</summary>
+    /// <summary>Only there with the Expansion Pak, which the runtime always has. Without it, the game makes it passable.</summary>
     ExpansionPak,
 }
 

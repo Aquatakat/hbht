@@ -41,7 +41,7 @@ internal static class CinematicImporter
                     s.Near,
                     s.Far,
                     s.Captions is { } list ? [.. db.Captions[list].Select(t => new CinematicCaption(t.Start * 2, t.End * 2, t.Text))] : [],
-                    [.. c.Fades.Where(f => f.Scene == shot).Select(f => new Aidyn.Plugins.Records.CinematicFade(
+                    [.. c.Fades.Where(f => f.Scene == shot).Select(f => new CinematicFade(
                         f.Color, f.Start * 2, f.Length * 2, f.Hold * 2))]);
             })],
             DbRecordIds.Flag(c.DoneFlag),

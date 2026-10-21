@@ -76,7 +76,7 @@ public sealed class CharacterImportTests(Na10Import fixture)
     [Fact]
     public void AlaronStartsAtLevelOneWithHisTrueNameFromTheRoogCinematic()
     {
-        var alaron = Set.Get<Plugins.Records.EntityRecord>(Alaron);
+        var alaron = Set.Get<EntityRecord>(Alaron);
 
         Assert.Equal("Alaron", alaron.Name);
         Assert.Equal(1, alaron.Level);
@@ -84,7 +84,7 @@ public sealed class CharacterImportTests(Na10Import fixture)
         Assert.False(alaron.TrueName);
         Assert.Equal(RecordId.Decimal(RecordTypes.Flag, 590), alaron.TrueNameFlag);
         Assert.True(alaron.Heavy);
-        Assert.Equal((Plugins.Records.Aspect.Solar, Plugins.Records.MagicSchool.Chaos, EntityCategory.Party),
+        Assert.Equal((Aspect.Solar, MagicSchool.Chaos, EntityCategory.Party),
             (alaron.Aspect, alaron.School, alaron.Category));
         Assert.Equal(2, alaron.Damage);
     }
@@ -101,7 +101,7 @@ public sealed class CharacterImportTests(Na10Import fixture)
     [Fact]
     public void OnlyAlaronHasATrueNameFlag()
     {
-        var entities = Set.All<Plugins.Records.EntityRecord>(RecordTypes.Entity).ToList();
+        var entities = Set.All<EntityRecord>(RecordTypes.Entity).ToList();
 
         Assert.Equal(221, entities.Count);
         Assert.Equal([Alaron], entities.Where(e => e.TrueNameFlag is not null).Select(e => e.Id));
@@ -128,7 +128,7 @@ public sealed class CharacterImportTests(Na10Import fixture)
             ("Sholeh", 523, 694, 622, false),
         ];
 
-        var members = Set.All<Plugins.Records.EntityRecord>(RecordTypes.Entity).Where(e => e.Member is not null).ToList();
+        var members = Set.All<EntityRecord>(RecordTypes.Entity).Where(e => e.Member is not null).ToList();
         Assert.Equal(expected.Select(e => e.Name).Order(), members.Select(e => e.Name).Order());
         foreach (var (name, joined, left, died, kept) in expected)
         {
@@ -140,14 +140,14 @@ public sealed class CharacterImportTests(Na10Import fixture)
         }
 
         // Alaron and Trahern are in the party, but not by flags the engine keeps.
-        Assert.Null(Set.Get<Plugins.Records.EntityRecord>(Alaron).Member);
-        Assert.Null(Set.Get<Plugins.Records.EntityRecord>(RecordId.Hex(RecordTypes.Entity, 0x0239)).Member);
+        Assert.Null(Set.Get<EntityRecord>(Alaron).Member);
+        Assert.Null(Set.Get<EntityRecord>(RecordId.Hex(RecordTypes.Entity, 0x0239)).Member);
     }
 
     [Fact]
     public void AlaronsSkillsAndGearAreThoseOfTheRecord()
     {
-        var alaron = Set.Get<Plugins.Records.EntityRecord>(Alaron);
+        var alaron = Set.Get<EntityRecord>(Alaron);
 
         Assert.Equal((3, 1, 1, 1), (alaron.Skills.Warrior, alaron.Skills.Wizard, alaron.Skills.Stealth, alaron.Skills.Troubadour));
         // No natural weapons: null is a skill that can never be learnt, as a zero is one that hasn't been yet.
@@ -162,8 +162,8 @@ public sealed class CharacterImportTests(Na10Import fixture)
     [Fact]
     public void ACharacterWhoCantLearnASkillHasNoLevelInIt()
     {
-        var brenna = Get<Plugins.Records.EntityRecord>("aidyn:entity/0x0243");
-        var farris = Get<Plugins.Records.EntityRecord>("aidyn:entity/0x0299");
+        var brenna = Get<EntityRecord>("aidyn:entity/0x0243");
+        var farris = Get<EntityRecord>("aidyn:entity/0x0299");
 
         Assert.Equal("Brenna", brenna.Name);
         Assert.Null(brenna.ShieldSkill);
@@ -175,7 +175,7 @@ public sealed class CharacterImportTests(Na10Import fixture)
     public void EmptySpellSlotsAreDroppedAndKnownOnesKeepTheirOrder()
     {
         var db = GameDb.Read(TestRoms.Get(RomVersionId.Na10));
-        var entities = Set.All<Plugins.Records.EntityRecord>(RecordTypes.Entity).ToDictionary(e => e.Id);
+        var entities = Set.All<EntityRecord>(RecordTypes.Entity).ToDictionary(e => e.Id);
 
         foreach (var rom in db.Entities)
         {
@@ -192,7 +192,7 @@ public sealed class CharacterImportTests(Na10Import fixture)
     [Fact]
     public void EveryEntitysWeaponSlotsKeepTheirPositions()
     {
-        var entities = Set.All<Plugins.Records.EntityRecord>(RecordTypes.Entity).ToList();
+        var entities = Set.All<EntityRecord>(RecordTypes.Entity).ToList();
 
         Assert.All(entities, e => Assert.Equal(3, e.Weapons.Count));
         Assert.All(entities, e => Assert.All(e.Weapons, w => Assert.True(w is null || w.Value.Type == RecordTypes.Weapon)));
@@ -202,14 +202,14 @@ public sealed class CharacterImportTests(Na10Import fixture)
     [Fact]
     public void ResistancesNameAnElementAndMultiplyDamageInQuarters()
     {
-        var entities = Set.All<Plugins.Records.EntityRecord>(RecordTypes.Entity).ToList();
+        var entities = Set.All<EntityRecord>(RecordTypes.Entity).ToList();
 
         Assert.All(entities, e =>
         {
             Assert.InRange(e.Resistances.Count, 0, 2);
             Assert.All(e.Resistances, r =>
             {
-                Assert.NotEqual(Plugins.Records.Element.None, r.Element);
+                Assert.NotEqual(Element.None, r.Element);
                 Assert.InRange(r.Damage, 0f, 2.5f);
                 Assert.Equal(0f, r.Damage * 4 % 1f);
             });
@@ -221,7 +221,7 @@ public sealed class CharacterImportTests(Na10Import fixture)
     public void ExperienceIsFiftyPerPointOfTheRewardByte()
     {
         var db = GameDb.Read(TestRoms.Get(RomVersionId.Na10));
-        var entities = Set.All<Plugins.Records.EntityRecord>(RecordTypes.Entity).ToDictionary(e => e.Id);
+        var entities = Set.All<EntityRecord>(RecordTypes.Entity).ToDictionary(e => e.Id);
 
         Assert.All(db.Entities, rom =>
         {
@@ -235,7 +235,7 @@ public sealed class CharacterImportTests(Na10Import fixture)
     public void EntitiesAreStillReadableAsDbRecordsByTheirNamesAndPortraits()
     {
         var alaron = Set.Get<DbRecord>(Alaron);
-        var entity = Set.Get<Plugins.Records.EntityRecord>(Alaron);
+        var entity = Set.Get<EntityRecord>(Alaron);
 
         Assert.Equal(("Alaron", RecordId.Hex(RecordTypes.Image, 0x0108)), (alaron.Name, alaron.Portrait));
         Assert.Equal((entity.Name, entity.Portrait), (alaron.Name, alaron.Portrait));
@@ -244,13 +244,13 @@ public sealed class CharacterImportTests(Na10Import fixture)
     [Fact]
     public void ASpellsTrainingCostIsItsExperienceByteTimesFifty()
     {
-        var immolation = Get<Plugins.Records.SpellRecord>("aidyn:spell/0x033D");
+        var immolation = Get<SpellRecord>("aidyn:spell/0x033D");
 
         Assert.Equal("Immolation", immolation.Name);
-        Assert.Equal((Plugins.Records.MagicSchool.Elemental, 4, 8, 200), (immolation.School, immolation.Wizard, immolation.Stamina, immolation.TrainingCost));
+        Assert.Equal((MagicSchool.Elemental, 4, 8, 200), (immolation.School, immolation.Wizard, immolation.Stamina, immolation.TrainingCost));
 
         var db = GameDb.Read(TestRoms.Get(RomVersionId.Na10));
-        var spells = Set.All<Plugins.Records.SpellRecord>(RecordTypes.Spell).ToDictionary(s => s.Id);
+        var spells = Set.All<SpellRecord>(RecordTypes.Spell).ToDictionary(s => s.Id);
         Assert.Equal(db.Spells.Count, spells.Count);
         Assert.All(db.Spells, rom =>
         {
@@ -318,7 +318,7 @@ public sealed class CharacterImportTests(Na10Import fixture)
 
         var oriana = Assert.Single(progression.Training.FreeTrainers);
         Assert.Equal(RecordId.Hex(RecordTypes.Entity, 0x0236), oriana);
-        Assert.Equal("Oriana", Get<Plugins.Records.EntityRecord>(oriana.ToString()).Name);
+        Assert.Equal("Oriana", Get<EntityRecord>(oriana.ToString()).Name);
         // shopkeepNotOriana adds 0x200 to entityList[144].
         Assert.Equal(new ItemId((ushort)(0x200 + rom.Table(CodeTable.EntityList)[CharacterImporter.OrianaDbPosition])), db.Entities[CharacterImporter.OrianaDbPosition].Id);
     }
@@ -344,7 +344,7 @@ public sealed class CharacterImportTests(Na10Import fixture)
     public void EveryEntityHasTheBodyTheRomsModelTableGivesIt()
     {
         var models = EntityModels.Read(TestRoms.Get(RomVersionId.Na10)).Entities.ToDictionary(m => DbRecordIds.For(m.Entity)!.Value);
-        var entities = Set.All<Plugins.Records.EntityRecord>(RecordTypes.Entity).ToList();
+        var entities = Set.All<EntityRecord>(RecordTypes.Entity).ToList();
 
         Assert.Equal(221, entities.Count);
         Assert.Equal(entities.Count, models.Count);

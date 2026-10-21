@@ -4,11 +4,6 @@ using Aidyn.Rom.Db;
 using Aidyn.Rom.Engine;
 using Aidyn.Rom.Quests;
 using Aidyn.Rom.Text;
-using PluginEntity = Aidyn.Plugins.Records.EntityRecord;
-using PluginResistance = Aidyn.Plugins.Records.Resistance;
-using PluginSpell = Aidyn.Plugins.Records.SpellRecord;
-using RomEntity = Aidyn.Rom.Db.EntityRecord;
-using RomSpell = Aidyn.Rom.Db.SpellRecord;
 
 namespace Aidyn.Rom.Import;
 
@@ -101,7 +96,7 @@ internal static class CharacterImporter
     /// <summary>A spell's training cost per point of its record's byte (<c>TempSpell::Init</c>).</summary>
     private const int SpellCostPerPoint = 50;
 
-    public static List<PluginEntity> BuildEntities(GameDb db, EntityModels models)
+    public static List<EntityRecord> BuildEntities(GameDb db, EntityModels models)
     {
         var portraits = models.Entities.ToDictionary(m => m.Entity, m => RecordId.Hex(RecordTypes.Image, m.Portrait));
         var bodies = models.Entities.ToDictionary(m => m.Entity, m => new EntityBody(RecordId.Hex(RecordTypes.Actor, m.Actor), m.Radius, m.Scale, m.Height, m.Strike));
@@ -165,7 +160,7 @@ internal static class CharacterImporter
     }
 
     /// <summary>Gives each recruitable member the flags the engine keeps for them (<c>Party::CheckFlags</c>).</summary>
-    public static List<PluginEntity> WithMembers(List<PluginEntity> entities, EngineTables tables)
+    public static List<EntityRecord> WithMembers(List<EntityRecord> entities, EngineTables tables)
     {
         var kept = KeptMemberPositions.Select(p => tables.EntityList[p]).ToHashSet();
         var members = tables.Party.ToDictionary(p => DbRecordIds.For(p.Member)!.Value, p => new MemberFlags(
@@ -187,7 +182,7 @@ internal static class CharacterImporter
     private const float EntityRadius = 0.75f;
     private const int BatActor = 0x2D4A;
 
-    private static PluginEntity Entity(RomEntity e, RecordId? portrait, bool alaron)
+    private static EntityRecord Entity(RomEntityRecord e, RecordId? portrait, bool alaron)
     {
         var category = (EntityCategory)e.Category;
         if (!Enum.IsDefined(category))
@@ -203,7 +198,7 @@ internal static class CharacterImporter
             throw new InvalidDataException($"Entity {e.Id} has {e.Weapons.Count} weapon slots.");
         var (skills, weaponSkills, shieldSkill) = SkillSlots.Split([.. e.Skills.Concat(e.WeaponSkills).Append(e.ShieldSkill).Select(Skill)]);
         var a = e.Stats;
-        return new PluginEntity(
+        return new EntityRecord(
             DbRecordIds.For(e.Id)!.Value, e.Name, portrait, category, e.Aspect, e.School,
             e.HasTrueName != 0, e.IsHeavy != 0, e.Level,
             new Attributes(a[0], a[1], a[2], a[3], a[4], a[5]),
@@ -212,7 +207,7 @@ internal static class CharacterImporter
             e.Armor.IsNone ? null : Record(e.Armor, DbType.Armor, e.Id),
             e.Shield.IsNone ? null : Record(e.Shield, DbType.Shield, e.Id),
             e.BaseProtection, e.Unk4E, e.Morale,
-            [.. e.Resistances.Where(r => r.Element != Element.None).Select(r => new PluginResistance(r.Element, r.Amount * ResistanceStep))],
+            [.. e.Resistances.Where(r => r.Element != Element.None).Select(r => new Resistance(r.Element, r.Amount * ResistanceStep))],
             e.ExpReward * ExpPerRewardPoint, e.LootCategory, e.Unk55, e.Unk56,
             alaron ? DbRecordIds.Flag(AlaronTrueNameFlag) : null);
     }
@@ -225,19 +220,19 @@ internal static class CharacterImporter
 
     /// <param name="items">Where the spell symbols' icons are. Without them or <paramref name="menu"/>, spells have no icon.</param>
     /// <param name="menu">Where each spell's symbol and description come from. Without it, spells have neither.</param>
-    public static List<PluginSpell> BuildSpells(GameDb db, ItemTables? items = null, MenuTables? menu = null) =>
+    public static List<SpellRecord> BuildSpells(GameDb db, ItemTables? items = null, MenuTables? menu = null) =>
     [
         .. db.Spells.Select((s, position) => (s, position)).Where(p => DbRecordIds.For(p.s.Id) is not null)
             .Select(p => Spell(db, p.s, p.position, items, menu))
             .DistinctBy(s => s.Id).OrderBy(s => s.Id.Key, StringComparer.Ordinal),
     ];
 
-    private static PluginSpell Spell(GameDb db, RomSpell s, int position, ItemTables? items, MenuTables? menu)
+    private static SpellRecord Spell(GameDb db, RomSpellRecord s, int position, ItemTables? items, MenuTables? menu)
     {
         var special = (SpellSpecial)s.Special;
         if (!Enum.IsDefined(special))
             throw new InvalidDataException($"Spell {s.Id} has special {s.Special}.");
-        return new PluginSpell(
+        return new SpellRecord(
             DbRecordIds.For(s.Id)!.Value, s.Name, s.School, s.Damage, s.StaminaCost, s.TargetCount,
             s.TargetType, s.WizardRequired, special, s.Range, s.Reagent,
             s.ExpModifier * SpellCostPerPoint, s.Unk1E,
