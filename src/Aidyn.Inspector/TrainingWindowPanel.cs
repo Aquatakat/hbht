@@ -23,17 +23,17 @@ public partial class TrainingWindowPanel : MenuWindowPanel
         Describe($"The training window against {(game.IsNewGame ? "a new game" : game.Name)}: what's trained stays in the game. The stick's up "
             + "and down move the trainer's cursor, which the member's list follows; its left and right change both between skills and "
             + "spells; C-left and C-right change the member. A asks to train the row, B leaves.");
-        AddButton("◀ ▶", "The stick left or right: skills or spells.", _training.Switch);
-        AddButton("▲", "The stick up.", () => _training.MoveCursor(-1));
-        AddButton("▼", "The stick down.", () => _training.MoveCursor(1));
-        AddButton("C-left", "The next member.", () => _training.ChangeMember(1));
-        AddButton("C-right", "The member before.", () => _training.ChangeMember(-1));
-        AddButton("A", "Ask to train the trainer's row, choose Yes or No, or close a message.", _training.Accept);
+        AddButton("◀ ▶", "The stick left or right: skills or spells.", () => Press(MenuAction.Left));
+        AddButton("▲", "The stick up.", () => Press(MenuAction.Up));
+        AddButton("▼", "The stick down.", () => Press(MenuAction.Down));
+        AddButton("C-left", "The next member.", () => Press(MenuAction.MemberLeft));
+        AddButton("C-right", "The member before.", () => Press(MenuAction.MemberRight));
+        AddButton("A", "Ask to train the trainer's row, choose Yes or No, or close a message.", () => Press(MenuAction.Accept));
         AddButton("B", "Close a message, or leave.", Back);
-        AddDetails("Show what C-down shows for the trainer's row, as it does while held.", closesMessage: true);
-        Presses(("a", _training.Accept), ("b", Back), ("up", () => _training.MoveCursor(-1)), ("down", () => _training.MoveCursor(1)),
-            ("left", _training.Switch), ("right", _training.Switch), ("cleft", () => _training.ChangeMember(1)),
-            ("cright", () => _training.ChangeMember(-1)), ("details", ToggleDetails));
+        AddDetails("Show what C-down shows for the trainer's row, as it does while held.");
+        Presses(("a", () => Press(MenuAction.Accept)), ("b", Back), ("up", () => Press(MenuAction.Up)), ("down", () => Press(MenuAction.Down)),
+            ("left", () => Press(MenuAction.Left)), ("right", () => Press(MenuAction.Right)), ("cleft", () => Press(MenuAction.MemberLeft)),
+            ("cright", () => Press(MenuAction.MemberRight)), ("details", ToggleDetails));
         Finish("with room, the trainer's list goes right of the member's.", closes: true);
     }
 

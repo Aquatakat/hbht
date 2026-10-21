@@ -289,6 +289,11 @@ public sealed class PauseMenu
         }
         if (System.Saves is { Request: not SaveRequest.None } saves)
             CarryOut(saves);
+        // The tab showing, or being slid to, steps: its popups' pulses and fades, its slides and screens.
+        if (Tab == PauseTab.Party)
+            Window.Step();
+        else if (Tab == PauseTab.System)
+            System.Step();
         var showing = Tab == PauseTab.World;
         World.Step(showing, Sliding, showing && _stick.Held(MenuAction.Up), showing && _stick.Held(MenuAction.Down));
     }

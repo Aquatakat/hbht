@@ -295,6 +295,7 @@ public sealed class CutScene
             Runner.Resume();
         CheckEnd();
         ShowPage(force: false);
+        Box.Step();
     }
 
     /// <summary>

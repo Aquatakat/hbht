@@ -33,7 +33,7 @@ public partial class CinematicLayer : CanvasLayer
     public CinematicLayer(PluginSet plugins, Models models, GameAudio? audio)
     {
         Name = "Cinematic";
-        Layer = PauseMenu.MenuLayer + 1;
+        Layer = PauseMenuView.MenuLayer + 1;
         Visible = false;
         _audio = audio;
         var backdrop = new ColorRect { Name = "Backdrop", Color = Colors.Black, MouseFilter = Control.MouseFilterEnum.Ignore };

@@ -34,7 +34,7 @@ namespace Aidyn.Game;
 /// UI screen's height, and F8 saves to <c>quick.json</c> in the saves folder. In a battle, F9 moves the radar between
 /// the log box and the screen's corner.
 /// </remarks>
-public partial class Game : Node3D, ITrekHost
+public partial class Game : Node3D, ITrekHost, IPauseMenuHost
 {
     /// <summary>A faster pace than the original's, which feels slow on a PC (a setting, ADR 0018).</summary>
     private const float BriskPace = 1.3f;
@@ -47,8 +47,8 @@ public partial class Game : Node3D, ITrekHost
 
     // The solid surfaces the loaded chunks draw, which rain and snow land on, trek's and a cut-scene's stage's.
     private readonly VisibleWorld _visible = new();
-    private PauseMenu? _menu;
-    /// <summary>The stick in menus, shared by the pause menu and trek's popups, conversations and cut-scenes.</summary>
+    private PauseMenuView? _menu;
+    /// <summary>Godot's events as the game's buttons, and the held directions told to the session's stick.</summary>
     private readonly MenuStick _stick = new();
     private Models? _models;
     private ParticlesView? _particles;
@@ -163,7 +163,7 @@ public partial class Game : Node3D, ITrekHost
         BuildPlayer(plugins, session.Trek.Player);
         BuildFollowCamera(session.Trek, options);
         BuildTrekUi(plugins, session.Trek);
-        BuildMenus(plugins, game);
+        BuildMenus(plugins);
         ApplySettings();
         if (options.Pace is { } pace)
             _player!.Motion.Pace = pace;
@@ -263,7 +263,7 @@ public partial class Game : Node3D, ITrekHost
         if (plugins.FindAsset(RecordId.Hex(RecordTypes.Texture, 0x0003), "png") is { } shadowPng)
             _shadowTexture = Png.Texture(shadowPng);
         var streamer = new ChunkStreamer(plugins, game, _world, start.Set, _visible);
-        var session = _session = GameSession.Start(game, this, new ZoneEngine(game, streamer, _audio!, _particles.Head), start);
+        var session = _session = GameSession.Start(game, this, new ZoneEngine(game, streamer, _audio!, _particles.Head), start, _settings, this);
         _chunks = new ChunkStreamerView(plugins, models, streamer, session.Trek.Wanderers, _shadowTexture);
         AddChild(_chunks);
         return session;
@@ -313,7 +313,7 @@ public partial class Game : Node3D, ITrekHost
     /// <summary>Trek's popups, over the world and under the pause menu, and the fade over them.</summary>
     private void BuildTrekUi(PluginSet plugins, TrekLoop trek)
     {
-        var trekUi = new CanvasLayer { Name = "Trek UI", Layer = PauseMenu.MenuLayer - 1 };
+        var trekUi = new CanvasLayer { Name = "Trek UI", Layer = PauseMenuView.MenuLayer - 1 };
         _trekScreen.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _trekScreen.MouseFilter = Control.MouseFilterEnum.Ignore;
         trekUi.AddChild(_trekScreen);
@@ -323,7 +323,7 @@ public partial class Game : Node3D, ITrekHost
         _trekScreen.Canvas.AddChild(_battleScreen);
         _popupView = new TrekPopupView(plugins);
         _trekScreen.Canvas.AddChild(_popupView);
-        _box = new ConversationBoxView(plugins) { Visible = false };
+        _box = new ConversationBoxView(plugins) { Visible = false, StepsBox = false, Box = trek.Box };
         _trekScreen.Canvas.AddChild(_box);
         _fade.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _fade.Visible = false;
@@ -331,28 +331,21 @@ public partial class Game : Node3D, ITrekHost
         AddChild(trekUi);
     }
 
-    /// <summary>The pause menu, the backdrop's page, the cinematic and the credits layers, and what the menu starts.</summary>
-    private void BuildMenus(PluginSet plugins, GameState game)
+    /// <summary>The pause menu's view on the session's menu, the backdrop's page, the cinematic and the credits layers.</summary>
+    private void BuildMenus(PluginSet plugins)
     {
         var session = _session!;
-        _menu = new PauseMenu(plugins, game, _settings, _stick) { SaveGame = SaveTo, LoadGame = LoadFrom, Where = session.Where, Audio = _audio };
-        AddChild(_menu);
+        var menu = _menu = new PauseMenuView(plugins, session.Menu);
+        AddChild(menu);
+        // The core's menu steps by the scroll actor's clock, and the held directions are the session's.
+        session.ScrollClock = () => (menu.ScrollFrame, menu.ScrollLength);
+        _stick.Repeat = session.Stick;
         _backdrop = new BackdropLayer(plugins);
         AddChild(_backdrop);
         _cinematic = new CinematicLayer(plugins, _models!, _audio!);
         AddChild(_cinematic);
         _credits = new CreditsLayer(plugins);
         AddChild(_credits);
-    }
-
-    /// <summary>
-    /// A tick of the pause menu, after the game's, and once it has rolled up, the session carries out how it ended
-    /// (<see cref="GameSession.MenuClosed"/>), the map gated again first, so what changed shows (<see cref="ITrekHost.Regated"/>).
-    /// </summary>
-    private void StepMenu()
-    {
-        if (_menu?.Step() is { } exit)
-            _session!.MenuClosed(exit);
     }
 
     /// <summary>Carries out the settings: the window, the 3D view, the draw distance, the sky, the pace and the UI screens.</summary>
@@ -403,11 +396,11 @@ public partial class Game : Node3D, ITrekHost
 
     public override void _ExitTree() => _models?.Dispose();
 
-    /// <summary>One 60 Hz tick: the game's, then the pause menu's.</summary>
+    /// <summary>One 60 Hz tick: the game's, which steps the pause menu too, then the menu's view on what it left.</summary>
     public override void _PhysicsProcess(double delta)
     {
         Tick();
-        StepMenu();
+        _menu?.Sync();
     }
 
     /// <summary>
@@ -438,7 +431,7 @@ public partial class Game : Node3D, ITrekHost
             case SessionStep.Credits:
                 DrawCredits();
                 return;
-            case SessionStep.Held:
+            case SessionStep.Held or SessionStep.MenuClosed:
                 return;
             case SessionStep.CutScene or SessionStep.CutSceneOver:
                 StepCutScene(over: step == SessionStep.CutSceneOver);
@@ -677,7 +670,7 @@ public partial class Game : Node3D, ITrekHost
     /// </summary>
     private void SetTickRate()
     {
-        var fast = Input.IsActionPressed("fast_forward") && _menu is not { IsOpen: true };
+        var fast = Input.IsActionPressed("fast_forward") && _session is not { MenuOpen: true };
         var rate = fast ? FastTicksPerSecond : Aidyn.Core.Calendar.GameClock.TicksPerSecond;
         if (Engine.PhysicsTicksPerSecond != rate)
             Engine.PhysicsTicksPerSecond = rate;
@@ -705,7 +698,6 @@ public partial class Game : Node3D, ITrekHost
         if (Scene is null && Battle is null)
             chunks.Chunks.Update(focus.ToNumerics());
         chunks.Fade(View(), _drawDistance);
-        RepeatStick(delta);
         // From where the scenery is drawn this frame: between ticks, the camera interpolated.
         var eye = _camera.Current.GetGlobalTransformInterpolated().Origin;
         Billboards.Face(chunks.BillboardFacings, eye);
@@ -716,96 +708,48 @@ public partial class Game : Node3D, ITrekHost
     }
 
     /// <summary>
-    /// The stick held in trek's popups, conversations and cut-scenes moves their cursor on as the D-pad would. With
-    /// none up, what was held is forgotten, so the next doesn't start by repeating. The pause menu steps its own.
+    /// A press: Godot's event becomes a <see cref="MenuAction"/> (<see cref="MenuStick.Translate"/>), the session sends it to
+    /// the mode that runs and says what it came to (<see cref="GameSession.Press"/>), and the views draw what changed. The
+    /// keyboard types into the pause menu's name entry first. Then the debug keys, where the mode leaves them: a cinematic,
+    /// the credits, a backdrop's page, a popup and a conversation take every press; the pause menu every one it has a use
+    /// for; a cut-scene and a battle let the free camera's and the overlay's keys through; and in trek anything the press
+    /// didn't do.
     /// </summary>
-    private void RepeatStick(double delta)
-    {
-        switch (_session?.Mode)
-        {
-            case GameMode.Menu:
-                return;
-            case GameMode.Popup or GameMode.Conversation or GameMode.CutScene or GameMode.Backdrop:
-            case GameMode.Combat when Battle?.Menu is not null:
-                _stick.Step(delta, direction => _UnhandledInput(new InputEventAction { Action = MenuStick.Dpad(direction), Pressed = true }));
-                break;
-            default:
-                _stick.Clear();
-                break;
-        }
-    }
-
     public override void _UnhandledInput(InputEvent e)
     {
         _stick.Track(e);
-        var action = _stick.Translate(e);
-        // The press goes to what runs (GameSession.Mode).
-        switch (_session?.Mode)
+        if (_session is not { } session)
+            return;
+        if (session.Menu.NameEntryOpen && e is InputEventKey { Pressed: true } typed && TypeName(session.Menu, typed))
         {
-            case GameMode.Cinematic:
-                CinematicInput(action);
-                return;
-            case GameMode.Credits:
-                CreditsInput(action);
+            _menu!.Redraw();
+            return;
+        }
+        var action = _stick.Translate(e);
+        var outcome = session.Press(action, keyboard: e is InputEventKey);
+        if (outcome != PressOutcome.Ignored)
+            ShowPressed(session);
+        switch (session.Mode)
+        {
+            case GameMode.Cinematic or GameMode.Credits or GameMode.Backdrop or GameMode.Popup or GameMode.Conversation:
                 return;
             case GameMode.Menu:
-                if (_menu!.Handle(e))
+                if (outcome == PressOutcome.Taken)
                     return;
                 break;
-            case GameMode.Backdrop:
-                Browse(action);
-                return;
-            case GameMode.Popup:
-                var use = Trek!.Use;
-                if (action == MenuAction.Accept)
-                    use.Accept();
-                else if (action == MenuAction.Back)
-                    use.Back();
-                else if (action is MenuAction.Up or MenuAction.Down)
-                    use.MoveCursor(MenuStick.Vertical(action));
-                else
-                    return;
-                ShowPopup();
-                _popupView!.QueueRedraw();
-                return;
-            case GameMode.Conversation:
-                Converse(action);
-                return;
             case GameMode.CutScene:
-                CutSceneInput(action);
                 if (!e.IsActionPressed("toggle_fly") && !e.IsActionPressed("toggle_overlay"))
                     return;
                 break;
             case GameMode.Combat:
-                CombatInput(action);
                 if (CombatDebugKey(e))
                     return;
                 if (!e.IsActionPressed("toggle_fly") && !e.IsActionPressed("toggle_overlay"))
                     return;
                 break;
             default:
-                if (action == MenuAction.Start)
-                {
-                    // The session opens the menu, unless trek's input is dead through a teleport or a fade into a cut-scene.
-                    _session!.OpenMenu();
+                if (outcome != PressOutcome.Ignored)
                     return;
-                }
-                if (Trek is { Cued: not null } or { CutSceneFade.Fading: true })
-                {
-                    // Trek's input is dead while it fades into or out of a cut-scene.
-                    if (action == MenuAction.Accept)
-                        return;
-                }
-                else if (action == MenuAction.Accept && _camera is { Flying: false } && Trek is { TeleportFade.Fading: false } && UseNearest())
-                {
-                    return;
-                }
-                else if (action == MenuAction.Back && _camera is { Flying: false } && Trek is { } trek)
-                {
-                    // B raises or lowers the party's portraits, and the minimap with them.
-                    trek.PressB();
-                    return;
-                }
                 break;
         }
 
@@ -818,7 +762,7 @@ public partial class Game : Node3D, ITrekHost
         {
             QuickSave();
         }
-        else if (_menu?.IsOpen == true && !e.IsActionPressed("toggle_overlay"))
+        else if (_session?.MenuOpen == true && !e.IsActionPressed("toggle_overlay"))
         {
             return;
         }
@@ -842,75 +786,43 @@ public partial class Game : Node3D, ITrekHost
         }
     }
 
-    /// <summary>A in trek: uses the map object the player reaches, and shows any popup it brings up.</summary>
-    private bool UseNearest()
+    /// <summary>
+    /// What a press changed, drawn at once rather than on the next tick: trek's popup, the box's cursor, a backdrop's page
+    /// and the menu's tabs.
+    /// </summary>
+    private void ShowPressed(GameSession session)
     {
-        var used = Trek!.UseNearest();
         ShowPopup();
-        return used;
+        _popupView!.QueueRedraw();
+        _box!.QueueRedraw();
+        _backdrop!.Draw(session.Backdrop);
+        _menu!.Redraw();
+        _battleScreen?.QueueRedraw();
     }
 
-    // Conversations.
-
     /// <summary>
-    /// The buttons in a conversation: A moves it on, bringing up the choices behind a line that showed
-    /// alone or taking the cursor's choice, and up and down move the cursor. Start does nothing.
+    /// The keyboard in the pause menu's name entry: a printable key types its character, Backspace rubs out, Enter confirms
+    /// and Escape cancels, before any of them reach the game's buttons. Whether the key was one of those.
     /// </summary>
-    private void Converse(MenuAction action)
+    private static bool TypeName(Core.Ui.PauseMenu menu, InputEventKey key) => key.Keycode switch
     {
-        var conversation = Trek!.Conversation!;
-        var runner = conversation.Runner;
-        if (runner.Status != Core.Scripts.ScriptStatus.Showing || runner.Page is null)
-            return;
-        var box = _box!.Box;
-        if (action == MenuAction.Accept)
-        {
-            if (_box.Accept(runner, conversation.Press) != DialogueAccept.ShowedChoices)
-                Trek.Refresh();
-        }
-        else if (action is MenuAction.Up or MenuAction.Down)
-        {
-            _box.Point(box.Highlight + MenuStick.Vertical(action));
-        }
-    }
+        Key.Backspace => menu.RubOutName(),
+        Key.Enter or Key.KpEnter => menu.ConfirmName(),
+        Key.Escape => menu.CancelName(),
+        _ => key.Unicode is > 31 and < 127 && menu.TypeName((char)key.Unicode),
+    };
 
     /// <summary>
-    /// The buttons on a backdrop's or the help menu's page: A takes the cursor's choice, or with none moves on, and
-    /// up and down move the cursor. In the help menu, B takes the last choice, Exit Help or back, or with none moves on
-    /// as A does: only a help script's page gets a B (<c>Dialogue.ShowNode</c>, 0x80047714, by its start mode, 4) and
-    /// it returns the last row, else the text, which carries the node's link (<c>Dialogue.OnBHelp</c>, 0x80048354).
-    /// </summary>
-    private void Browse(MenuAction action)
-    {
-        // The page takes presses once open, and until it closes.
-        if (_session!.Backdrop is not { Closing: false } shown || Trek!.Conversation?.Runner is not { Status: Core.Scripts.ScriptStatus.Showing, Page: { } page } runner)
-            return;
-        var back = action == MenuAction.Back && runner.Script.Mode == DialogueMode.Help;
-        if (action == MenuAction.Accept || back)
-        {
-            DialogueBox.Advance(runner, back ? page.Choices.Count - 1 : shown.Highlight);
-            Trek.Refresh();
-        }
-        else if (action is MenuAction.Up or MenuAction.Down)
-        {
-            shown.MoveCursor(MenuStick.Vertical(action));
-            _backdrop!.Draw(shown);
-        }
-    }
-
-    /// <summary>
-    /// Shows the conversation's page in the box, or a backdrop's on its picture, or hides the box once there's none
-    /// and lets a backdrop's page fade out.
+    /// Shows the conversation's page in the box trek lays it out in, or a backdrop's on its picture, or hides the box once
+    /// there's none and lets a backdrop's page fade out.
     /// </summary>
     void ITrekHost.ConversationChanged()
     {
         _backdrop!.Draw(_session!.Backdrop);
-        if (Trek!.Conversation is { ShowsBackdrop: true })
-            return;
-        if (Trek!.Conversation?.Runner is { Status: Core.Scripts.ScriptStatus.Showing, Page: { } page })
-            _box!.Show(page);
-        else
-            _box!.Visible = false;
+        var trek = Trek!;
+        _box!.Box = trek.Box;
+        _box.Visible = trek.Conversation is { ShowsBackdrop: false, Runner: { Status: Core.Scripts.ScriptStatus.Showing, Page: not null } };
+        _box.QueueRedraw();
     }
 
     /// <summary>
@@ -922,18 +834,13 @@ public partial class Game : Node3D, ITrekHost
     {
         switch (next)
         {
-            case Transition.OpenShop shop:
-                _menu!.OpenShop(shop.Shop);
+            case Transition.OpenShop or Transition.OpenTraining or Transition.OpenLoot or Transition.OpenMenu or Transition.PauseBattle
+                or Transition.PostBattle or Transition.ReopenMenu:
+                // The session has opened the menu on a tab or in its barter, training or post-battle state: its view shows it.
+                _menu!.Open();
                 break;
-            case Transition.OpenTraining training:
-                _menu!.OpenTraining(training.Trainer);
-                break;
-            case Transition.OpenLoot loot:
-                // The loot window: the pause menu in its barter state, which stops trek until it closes.
-                _menu!.OpenLoot(loot.Loot, loot.Gold);
-                break;
-            case Transition.OpenMenu open:
-                _menu!.Open(open.Tab);
+            case Transition.LoadGame load:
+                LoadFrom(load.Path);
                 break;
             case Transition.StartBattle battle:
                 SayBattle(battle.Setup);
@@ -941,14 +848,8 @@ public partial class Game : Node3D, ITrekHost
             case Transition.StartedBattle started:
                 ShowArena(started.Battle, started.Arena);
                 break;
-            case Transition.PauseBattle pause:
-                _menu!.OpenCombat(pause.PartyTab, pause.CanFlee, Battle is { } fighting ? CombatPause.For(fighting) : null);
-                break;
             case Transition.EndBattle:
                 FreeArena();
-                break;
-            case Transition.PostBattle won:
-                _menu!.OpenPostBattle(won.Spoils);
                 break;
             case Transition.GameOver:
                 GameOver();
@@ -983,14 +884,25 @@ public partial class Game : Node3D, ITrekHost
             case Transition.EndCinematic:
                 EndCinematic();
                 break;
-            case Transition.ReopenMenu { Theatre: true }:
-                _menu!.OpenTheatre();
+        }
+    }
+
+    /// <summary>The pause menu's sounds and the scroll's steps (<see cref="IPauseMenuHost"/>).</summary>
+    void IPauseMenuHost.Cue(PauseMenuCue cue)
+    {
+        switch (cue)
+        {
+            case MenuSoundCue sound:
+                _audio?.Play(sound.Sound);
                 break;
-            case Transition.ReopenMenu:
-                _menu!.Open();
+            case ScrollPlayCue scroll:
+                _menu?.PlayScroll(scroll.Cue);
                 break;
         }
     }
+
+    /// <summary>The System tab's Save, with the world as the menu opened over it (<see cref="SaveTo"/>).</summary>
+    string? IPauseMenuHost.Save(string path) => SaveTo(path, _menu?.Snapshot);
 
     /// <summary>A battle no trek cued (<see cref="Transition.StartBattle"/>), which nothing in the runtime sends: it's said.</summary>
     private void SayBattle(BattleSetup setup) => Say($"A battle with {setup.Party?.ToString() ?? "a script's enemies"} would start.");

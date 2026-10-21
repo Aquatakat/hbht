@@ -18,7 +18,7 @@ public partial class CreditsLayer : CanvasLayer
     public CreditsLayer(PluginSet plugins)
     {
         Name = "Credits";
-        Layer = PauseMenu.MenuLayer + 1;
+        Layer = PauseMenuView.MenuLayer + 1;
         Visible = false;
         var backdrop = new ColorRect { Name = "Backdrop", Color = Colors.Black, MouseFilter = Control.MouseFilterEnum.Ignore };
         backdrop.SetAnchorsPreset(Control.LayoutPreset.FullRect);

@@ -41,11 +41,4 @@ public partial class Game
         _audio.Muted = false;
         ShowFade(_session!.Trek.Brightness);
     }
-
-    /// <summary>A, B or Start ends them; they take every press.</summary>
-    private void CreditsInput(MenuAction action)
-    {
-        if (action is MenuAction.Accept or MenuAction.Back or MenuAction.Start)
-            _session!.Credits?.Roll.Skip();
-    }
 }

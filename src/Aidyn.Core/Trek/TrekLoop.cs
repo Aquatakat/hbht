@@ -347,6 +347,9 @@ public sealed class TrekLoop : IMapObjectHost
             w => keys.Sounding(_host.Motion(w), w.Audio, w.Sounds, w.Body.Sphere));
         if (Conversation is { } conversation && conversation.Tick())
             Refresh();
+        // The box's cursor pulses while a conversation shows (WidgetScrollMenu::Tick).
+        if (Conversation is not null)
+            Box.Step();
         foreach (var (part, target) in motion.Sphere.Trod)
         {
             if (Chunks.Map(part) is not { } map)

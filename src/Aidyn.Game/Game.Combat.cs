@@ -148,58 +148,6 @@ public partial class Game
     }
 
     /// <summary>
-    /// A press in combat (<c>Combat.Controls</c>): Start asks for the pause menu (combat's state 27, then 14); Z (the left trigger)
-    /// skips a turn the player plays (<c>Combat.SkipTurn</c>) or puts an aimed attack away; A attacks in a turn and confirms an
-    /// aimed attack's target, and skips the AI's walk (state 5); B puts it away; left and right step its cursor (state 9), and C-left and C-right a bow's or thrown
-    /// weapon's (state 18).
-    /// </summary>
-    private void CombatInput(MenuAction action)
-    {
-        var battle = Battle!;
-        // Combat.DismissPopup: any press closes Sense Aura's popup, and ends the turn.
-        if (action is not (MenuAction.None or MenuAction.DetailsRelease or MenuAction.AppraiseRelease) && battle.DismissAura())
-            return;
-        // A held menu (states 22 and 23): up and down move its cursor, and letting its button go chooses; nothing else does anything.
-        if (battle.Menu is { } menu)
-        {
-            if (action is MenuAction.Up or MenuAction.Down)
-                battle.MoveMenu(MenuStick.Vertical(action));
-            else if (action == (menu.Items ? MenuAction.AppraiseRelease : MenuAction.DetailsRelease))
-                battle.CloseMenu(menu.Items);
-            return;
-        }
-        switch (action)
-        {
-            case MenuAction.Appraise:
-                battle.OpenMenu(items: true);
-                break;
-            case MenuAction.Details:
-                battle.OpenMenu(items: false);
-                break;
-            case MenuAction.Start:
-                battle.Pause();
-                break;
-            case MenuAction.TabPrevious:
-                battle.Skip();
-                break;
-            case MenuAction.Accept:
-                // A attacks in a turn, confirms an aim, and skips the AI's walk (Combat.InputMoving).
-                if (!battle.Attack() && !battle.Confirm())
-                    battle.SkipWalk();
-                break;
-            case MenuAction.Back:
-                battle.Cancel();
-                break;
-            case MenuAction.Left or MenuAction.Right when battle.State is CombatState.TargetAttack or CombatState.TargetSpell:
-                battle.StepTarget(action == MenuAction.Left ? 1 : -1);
-                break;
-            case MenuAction.MemberLeft or MenuAction.MemberRight when battle.State == CombatState.TargetThrown:
-                battle.StepTarget(action == MenuAction.MemberLeft ? 1 : -1);
-                break;
-        }
-    }
-
-    /// <summary>
     /// The battle's debug keys: F9 moves the radar between the log box and the screen's bottom right corner, F10 routs the enemies
     /// and F11 fells the party (<see cref="Battle.Rout"/>, <see cref="Battle.Collapse"/>). Whether the event was one.
     /// </summary>

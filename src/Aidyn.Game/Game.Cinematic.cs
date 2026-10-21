@@ -36,11 +36,4 @@ public partial class Game
         _cinematic!.End();
         ResetInterpolation();
     }
-
-    /// <summary>B or Start skips the rest; the cinematic takes every press.</summary>
-    private void CinematicInput(MenuAction action)
-    {
-        if (action is MenuAction.Back or MenuAction.Start)
-            _session!.Cinematic?.Player.Skip();
-    }
 }

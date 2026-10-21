@@ -109,7 +109,7 @@ public partial class BackdropLayer : CanvasLayer
     public BackdropLayer(PluginSet plugins)
     {
         Name = "Backdrop";
-        Layer = PauseMenu.MenuLayer;
+        Layer = PauseMenuView.MenuLayer;
         Visible = false;
         _darkness.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         AddChild(_darkness);
