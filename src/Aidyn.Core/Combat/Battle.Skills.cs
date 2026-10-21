@@ -64,7 +64,7 @@ public sealed partial class Battle
         {
             // Combatant.ThrowMiss (0x80065120).
             GainExperience(a, points >> 1, WeaponClass.Thrown);
-            a.Body.Request = ThrowRequest;
+            Animate(a, ThrowRequest);
             ConsumeFlask(a, potion);
             Write(Line2(AttacksLine, a, t));
             Lines.Queue(Line(ThrowMissesLine, a));
@@ -76,7 +76,7 @@ public sealed partial class Battle
         BlastCell = (ArenaGrid.CellOf(t.Cell.X), ArenaGrid.CellOf(t.Cell.Y));
         a.Damage = (byte)damage;
         GainExperience(a, points, WeaponClass.Thrown);
-        a.Body.Request = ThrowRequest;
+        Animate(a, ThrowRequest);
         ConsumeFlask(a, potion);
         return 0;
     }
@@ -224,7 +224,7 @@ public sealed partial class Battle
                 CheckDeath(e, n);
             if (e.Freed)
                 continue;
-            e.Body.Request = HitRequest;
+            Animate(e, HitRequest);
             if (e != t)
             {
                 Numbers.Add(e, e.Damage, healing: false);
@@ -322,7 +322,7 @@ public sealed partial class Battle
             SayBoth(PerformsLine, sheet.Name);
             GainPerformance(c, points);
         }
-        c.Body.Request = CastRequest;
+        Animate(c, CastRequest);
         // Combat.EnterRestState (0x80023FEC): 120 ticks, then the turn ends.
         State = CombatState.Perform;
         _rest = RestTicks;
@@ -352,7 +352,7 @@ public sealed partial class Battle
         var gained = t.Sheet.Hp - before;
         if (result.Outcome == HealOutcome.Healed && gained > 0)
         {
-            a.Body.Request = CastRequest;
+            Animate(a, CastRequest);
             SayBoth(HealsLine, a.Sheet.Name, t.Sheet.Name);
             Lines.Queue(Gains(t, gained));
             t.Healed = (byte)gained;

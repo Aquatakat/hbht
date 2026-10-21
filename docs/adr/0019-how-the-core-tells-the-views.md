@@ -28,6 +28,6 @@ Combat's presentation will need much more of this: attack and hit animations, da
 
 ## Consequences
 
-- Combat's presentation is built as cue records through a combat host. Its tests can assert the sequence of cues a turn produces, and the editor can replay them.
+- Combat's presentation is built as cue records through a combat host. Its tests can assert the sequence of cues a turn produces, and the editor can replay them. Built Oct 21, 2026: `ICombatHost.Cue`, `Battle.Tick`'s returned `BattleStep`, and `CombatLog` as the one writer of the log box ([combat](../systems/combat.md#what-a-battle-tells-its-host)).
 - A view never has to diff the core's state to find out that something happened, and the core never needs to know which views exist.
 - Some existing code doesn't follow this yet: `Weather.SkyChange` and `FollowCamera.TakeCut`. It changes when it's next touched, not in a sweep. `PauseScroll.TakeCue` became the cue its `Step` and `Close` return, and the pause menu's events the session's own menu, which cues its sounds and the scroll's steps through `IPauseMenuHost` and returns its ending from its step (Oct 20, 2026).

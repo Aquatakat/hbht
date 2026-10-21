@@ -30,18 +30,21 @@ public partial class CombatNumbersView : Node3D
         }
     }
 
-    /// <summary>Draws the numbers showing, seen from a camera at <paramref name="eye"/>.</summary>
-    public void Sync(CombatNumbers numbers, System.Numerics.Vector3 eye)
+    /// <summary>A number starts showing (<see cref="NumberShown"/>).</summary>
+    public void Show(CombatNumber number) => _shown.TryAdd(number, Make(number));
+
+    /// <summary>A number has gone (<see cref="NumberGone"/>).</summary>
+    public void Remove(CombatNumber number)
     {
-        foreach (var gone in _shown.Keys.Except(numbers.Shown).ToList())
+        if (_shown.Remove(number, out var drawn))
+            drawn.Mesh.QueueFree();
+    }
+
+    /// <summary>Draws the numbers showing, seen from a camera at <paramref name="eye"/>.</summary>
+    public void Sync(System.Numerics.Vector3 eye)
+    {
+        foreach (var (number, drawn) in _shown)
         {
-            _shown[gone].Mesh.QueueFree();
-            _shown.Remove(gone);
-        }
-        foreach (var number in numbers.Shown)
-        {
-            if (!_shown.TryGetValue(number, out var drawn))
-                _shown[number] = drawn = Make(number);
             var (y, width, height) = number.Place(number.Scale(eye));
             drawn.Mesh.Position = new System.Numerics.Vector3(number.At.X, y, number.At.Z).ToGodot();
             ((QuadMesh)drawn.Mesh.Mesh).Size = new Vector2(Math.Max(width, 0.01f), Math.Max(height, 0.01f));
@@ -88,26 +91,35 @@ public partial class MissileView : Node3D
         Name = "Missile";
     }
 
-    /// <summary>Draws <paramref name="flight"/>, or nothing when none is flying.</summary>
-    public void Sync(MissileFlight? flight)
+    /// <summary>An arrow, thrown weapon or flask leaves (<see cref="MissileLaunched"/>): its scene is made.</summary>
+    public void Launch(MissileFlight flight)
     {
-        if (flight != _flight)
-        {
-            _scene?.QueueFree();
-            _scene = flight is null ? null : _models.Instantiate(flight.Scene);
-            if (_scene is not null)
-            {
-                _scene.Scale = Vector3.One * flight!.Scale;
-                _scene.Rotation = new Vector3(0, Mathf.DegToRad(flight.Turn), 0);
-                AddChild(_scene);
-            }
-            _flight = flight;
-        }
-        if (_scene is not null && flight is not null)
-        {
-            _scene.Position = flight.Drawn.ToGodot();
-            _scene.Rotation = new Vector3(0, Mathf.DegToRad(flight.Turn), 0);
-        }
+        Land();
+        _flight = flight;
+        _scene = _models.Instantiate(flight.Scene);
+        if (_scene is null)
+            return;
+        _scene.Scale = Vector3.One * flight.Scale;
+        _scene.Rotation = new Vector3(0, Mathf.DegToRad(flight.Turn), 0);
+        AddChild(_scene);
+        Sync();
+    }
+
+    /// <summary>It has landed (<see cref="MissileLanded"/>): its scene goes.</summary>
+    public void Land()
+    {
+        _scene?.QueueFree();
+        _scene = null;
+        _flight = null;
+    }
+
+    /// <summary>Draws the flight where it is on its arc, if one is flying.</summary>
+    public void Sync()
+    {
+        if (_scene is null || _flight is not { } flight)
+            return;
+        _scene.Position = flight.Drawn.ToGodot();
+        _scene.Rotation = new Vector3(0, Mathf.DegToRad(flight.Turn), 0);
     }
 }
 

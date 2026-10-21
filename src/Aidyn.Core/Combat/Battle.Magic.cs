@@ -291,7 +291,6 @@ public sealed partial class Battle : IMagicHost
             SayCasts(caster, spell, target);
             // QueueLog2: the third line, which takes the queued one's place as it's shown.
             var banished = Format(CombatText(BanishedLine), [target.Sheet.Name]);
-            _log.Add(banished);
             Lines.QueueThird(banished);
         }
         else if (result.Dispels > 0 && result.Dispelled == 0)

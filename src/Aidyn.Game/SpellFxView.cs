@@ -11,8 +11,9 @@ namespace Aidyn.Game;
 /// Draws the spells' and potions' visuals (<see cref="SpellFx"/>, <c>CombatSpellFx.Draw</c>, <c>0x8008C25C</c>): each actor where the core
 /// puts it, unturned and unscaled, playing its cast as the core ticks it, its emitters attached to the bodies of its cast; and each
 /// lasting scene in its turn at its owner's locator 3, at its alpha. Both are lit by their own scenes' lights and tinted by the
-/// screen's fade, with their billboards turned to the camera and their textures scrolling. It's also the core's host for the actors
-/// (<see cref="ISpellFxHost"/>): an actor's scene is made as the core first asks for its animation.
+/// screen's fade, with their billboards turned to the camera and their textures scrolling. Each is made as the battle cues its start
+/// (<see cref="SpellVisualStarted"/>) and freed as it cues its end (<see cref="SpellVisualEnded"/>). It's also the core's host for the
+/// actors (<see cref="ISpellFxHost"/>): an actor's animation, its scene made then if the cue hasn't made it yet.
 /// </summary>
 public partial class SpellFxView : Node3D, ISpellFxHost
 {
@@ -43,27 +44,28 @@ public partial class SpellFxView : Node3D, ISpellFxHost
     public bool Emitting(SpellFxVisual visual) =>
         _particles is not null && _shown.TryGetValue(visual, out var shown) && shown.Anchor is { } anchor && _particles.Head.HasEmitters(anchor);
 
-    /// <summary>
-    /// Draws what <paramref name="fx"/> holds now: visuals that have gone are freed, new lasting scenes made, and every one placed, at
-    /// the screen's <paramref name="fade"/>, its billboards turned toward <paramref name="eye"/>.
-    /// </summary>
-    public void Sync(SpellFx fx, float fade, Vector3 eye)
+    /// <summary>A visual starts (<see cref="SpellVisualStarted"/>): its scene or actor is made.</summary>
+    public void Started(SpellFxVisual visual) => Show(visual);
+
+    /// <summary>A visual has finished (<see cref="SpellVisualEnded"/>): its scene goes, and an actor's emitters stop with it, particles and all (<c>CombatSpellFx.FreeVisual</c>).</summary>
+    public void Ended(SpellFxVisual visual)
     {
-        var live = fx.Visuals.ToHashSet();
-        foreach (var gone in _shown.Keys.Where(v => !live.Contains(v)).ToList())
-        {
-            // CombatSpellFx.FreeVisual: an actor's emitters stop with it, particles and all.
-            if (_shown[gone].Anchor is { } anchor)
-                _particles?.Head.Stop(anchor);
-            _shown[gone].Node.QueueFree();
-            _shown.Remove(gone);
-        }
+        if (!_shown.Remove(visual, out var shown))
+            return;
+        if (shown.Anchor is { } anchor)
+            _particles?.Head.Stop(anchor);
+        shown.Node.QueueFree();
+    }
+
+    /// <summary>
+    /// Places every visual showing, at the screen's <paramref name="fade"/>, its billboards turned toward <paramref name="eye"/>.
+    /// </summary>
+    public void Sync(float fade, Vector3 eye)
+    {
         // Scene.SetTint(F, F, F, a), F the screen's fade as a byte.
         var f = (int)(fade * 255) / 255f;
-        foreach (var visual in live)
+        foreach (var (visual, shown) in _shown)
         {
-            if (Show(visual) is not { } shown)
-                continue;
             if (visual.IsActor)
             {
                 shown.Node.Position = visual.Position.ToGodot();

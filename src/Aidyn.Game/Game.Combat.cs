@@ -9,7 +9,9 @@ namespace Aidyn.Game;
 /// Battles in the runtime: trek fades out, the session frees its world, loads the battle's arena and sets the battle up on
 /// it (<see cref="Core.GameSession.BeginBattle"/>), and this draws it: the arena's chunks and sky, every combatant's body
 /// with its actor, the combat camera and the fade. Start asks for combat's pause menu; when the battle is over, the session
-/// brings trek back. See docs/systems/combat.md.
+/// brings trek back. The battle's one-offs come as its cues (<see cref="ICombatHost"/>): a body's view is made as it joins and freed
+/// as it goes, and so are a number's, a missile's and a spell's visual's; what they show each frame is the battle's state. See
+/// docs/systems/combat.md.
 /// </summary>
 public partial class Game
 {
@@ -48,7 +50,6 @@ public partial class Game
         AddChild(_arenaView);
         _camera!.Follow = battle.Camera;
         _camera.Far = SkyView.Far;
-        SyncCombatants(battle);
         _ringView = new CombatRingView(_models!);
         AddChild(_ringView);
         _numbersView = new CombatNumbersView(_plugins!);
@@ -83,21 +84,40 @@ public partial class Game
     }
 
     /// <summary>
-    /// A view for each combatant whose body is on the field: a reserve that has come in gets one, and one whose body has gone, its
-    /// fall played or its flight's fade, loses it (<c>Combat.FreeBody</c>).
+    /// A battle's one-off (ADR 0019): a body's view made as it comes onto the field, as the battle is set up or a reserve joins, and
+    /// freed once it has gone, its fall played or its flight's fade over (<c>Combat.FreeBody</c>); a number over a head, an arrow, thrown
+    /// weapon or flask in flight and a spell's visual made as each starts and freed as it ends. The rest is for the record.
     /// </summary>
-    private void SyncCombatants(Battle battle)
+    void ICombatHost.Cue(CombatCue cue)
     {
-        foreach (var (combatant, view) in _combatantViews.Where(p => p.Key.Freed && p.Key.Fading == 0 || !battle.Slots.Contains(p.Key)).ToList())
+        switch (cue)
         {
-            view.QueueFree();
-            _combatantViews.Remove(combatant);
-        }
-        foreach (var combatant in battle.Combatants.Where(c => !c.Freed && !_combatantViews.ContainsKey(c)))
-        {
-            var view = _combatantViews[combatant] = new CombatantView(combatant, _plugins!, _models!, _shadowTexture);
-            AddChild(view);
-            view.ResetPhysicsInterpolation();
+            case CombatantJoined { Combatant: var combatant } when !_combatantViews.ContainsKey(combatant):
+                var view = _combatantViews[combatant] = new CombatantView(combatant, _plugins!, _models!, _shadowTexture);
+                AddChild(view);
+                view.ResetPhysicsInterpolation();
+                break;
+            case CombatantGone { Combatant: var combatant } when _combatantViews.Remove(combatant, out var gone):
+                gone.QueueFree();
+                break;
+            case NumberShown shown:
+                _numbersView?.Show(shown.Number);
+                break;
+            case NumberGone gone:
+                _numbersView?.Remove(gone.Number);
+                break;
+            case MissileLaunched launched:
+                _missileView?.Launch(launched.Flight);
+                break;
+            case MissileLanded:
+                _missileView?.Land();
+                break;
+            case SpellVisualStarted started:
+                _spellFxView?.Started(started.Visual);
+                break;
+            case SpellVisualEnded ended:
+                _spellFxView?.Ended(ended.Visual);
+                break;
         }
     }
 
@@ -105,16 +125,15 @@ public partial class Game
     private void SyncBattle()
     {
         var battle = Battle!;
-        SyncCombatants(battle);
         foreach (var view in _combatantViews.Values)
         {
             view.Sync();
             view.Draw(_world, battle.Camera.Aim);
         }
-        _numbersView?.Sync(battle.Numbers, battle.Camera.Position);
-        _missileView?.Sync(battle.Flight);
+        _numbersView?.Sync(battle.Camera.Position);
+        _missileView?.Sync();
         _aimView?.Sync(battle);
-        _spellFxView?.Sync(battle.Fx, battle.Fade.Brightness, _camera!.Current.GlobalPosition);
+        _spellFxView?.Sync(battle.Fade.Brightness, _camera!.Current.GlobalPosition);
         _ringView?.Sync(battle);
         _camera!.Sync();
         ShowFade(battle.Fade.Brightness);
