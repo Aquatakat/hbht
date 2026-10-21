@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Aidyn.Plugins.Records;
 
 namespace Aidyn.Plugins.Tests;
@@ -43,14 +44,140 @@ public sealed class PluginSetTests : IDisposable
             Plugin("two", ["aidyn"], ("b.json", """{ "patch": "aidyn:weapon/0x0712", "damage": 7, "name": "Big club" }""")),
         ]);
 
-        var conflicts = set.Conflicts.OrderBy(c => c.Field, StringComparer.Ordinal).ToList();
-        Assert.Equal(2, conflicts.Count);
-        Assert.Equal("damage", conflicts[0].Field);
-        Assert.Equal(["aidyn", "one", "two"], conflicts[0].Plugins);
-        Assert.Equal("two", conflicts[0].Winner);
-        Assert.Equal("name", conflicts[1].Field);
-        Assert.Equal(["aidyn", "two"], conflicts[1].Plugins);
+        // The base sets every field of its records, and "name" patched by one mod is a patch, not a conflict.
+        var conflict = Assert.Single(set.Conflicts);
+        Assert.Equal("damage", conflict.Path);
+        Assert.Equal(["one", "two"], conflict.Plugins);
+        Assert.Equal("two", conflict.Winner);
         Assert.Equal(7, (int)set.GetJson(RecordId.Parse("aidyn:weapon/0x0712"))!["damage"]!);
+    }
+
+    private const string MapWithThreeObjects = """
+        [{ "id": "aidyn:map/0x0E87", "objects": [
+          { "type": "container", "index": 0, "position": [1, 0, 1], "radius": 1, "pak": "With", "kind": "Chest", "loot": "aidyn:loot/0x0401", "reach": 2 },
+          { "type": "savePoint", "index": 1, "position": [2, 0, 2], "radius": 1, "pak": "With" },
+          { "type": "scene", "index": 2, "position": [3, 0, 3], "radius": 1, "pak": "With", "models": [{ "model": "aidyn:scene/0x0B48", "drawDistance": 15 }] },
+        ] }]
+        """;
+
+    [Fact]
+    public void KeyedListsMergeElementByElement()
+    {
+        var set = PluginSet.Load([
+            Plugin("aidyn", null, ("maps.json", MapWithThreeObjects)),
+            Plugin("mymod", ["aidyn"], ("map.json", """
+                { "patch": "aidyn:map/0x0E87", "objects": [
+                  { "index": 0, "reach": 5 },
+                  { "index": 1, "$remove": true },
+                  { "type": "savePoint", "index": 7, "position": [9, 0, 9], "radius": 2, "pak": "With" },
+                ] }
+                """)),
+        ]);
+        var id = RecordId.Parse("aidyn:map/0x0E87");
+        var objects = (JsonArray)set.GetJson(id)!["objects"]!;
+
+        // Object 0 keeps every field but the one patched, 1 is gone, 2 survives untouched and 7 is added after it.
+        Assert.Equal([0, 2, 7], objects.Select(o => (int)o!["index"]!));
+        Assert.Equal(5, (int)objects[0]!["reach"]!);
+        Assert.Equal("Chest", (string)objects[0]!["kind"]!);
+        Assert.Equal("aidyn:loot/0x0401", (string)objects[0]!["loot"]!);
+        Assert.Equal(15, (int)objects[1]!["models"]![0]!["drawDistance"]!);
+        Assert.False(objects[2]!.AsObject().ContainsKey("$remove"));
+
+        var map = set.Get<MapRecord>(id);
+        Assert.Equal(5, Assert.IsType<ContainerObject>(map.Objects[0]).Reach);
+        Assert.IsType<SavePointObject>(map.Objects[2]);
+
+        // The setters are kept per element and field, and a field's include whatever set what encloses it.
+        Assert.Equal(["aidyn", "mymod"], set.Setters(id, "objects[0].reach"));
+        Assert.Equal(["aidyn"], set.Setters(id, "objects[0].kind"));
+        Assert.Equal(["aidyn", "mymod"], set.Setters(id, "objects[1]"));
+        Assert.Equal(["aidyn", "mymod"], set.Setters(id, "objects[7].position"));
+        Assert.Equal(["aidyn"], set.Setters(id, "objects"));
+        Assert.Empty(set.Conflicts);
+    }
+
+    [Fact]
+    public void KeyedElementsPatchedByTwoModsConflictAndOthersDoNot()
+    {
+        var set = PluginSet.Load([
+            Plugin("aidyn", null, ("maps.json", MapWithThreeObjects)),
+            Plugin("one", ["aidyn"], ("map.json", """{ "patch": "aidyn:map/0x0E87", "objects": [{ "index": 0, "reach": 5 }, { "index": 2, "radius": 3 }] }""")),
+            Plugin("two", ["aidyn"], ("map.json", """{ "patch": "aidyn:map/0x0E87", "objects": [{ "index": 0, "reach": 6 }, { "index": 1, "$remove": true }] }""")),
+        ]);
+        var conflict = Assert.Single(set.Conflicts);
+        Assert.Equal("objects[0].reach", conflict.Path);
+        Assert.Equal(["one", "two"], conflict.Plugins);
+        Assert.Equal(6, (int)set.GetJson(RecordId.Parse("aidyn:map/0x0E87"))!["objects"]![0]!["reach"]!);
+    }
+
+    [Fact]
+    public void CompositeKeysAndNestedObjectsInKeyedElementsMerge()
+    {
+        var set = PluginSet.Load([
+            Plugin("aidyn", null, ("mapsets.json", """
+                [{ "id": "aidyn:mapset/0", "label": "Overworld", "cellSize": 100, "chunks": [
+                  { "row": 9, "column": 8, "map": "aidyn:map/0x0E87", "terrain": 1, "music": "aidyn:sequence/0x0001" },
+                  { "row": 9, "column": 9, "map": "aidyn:map/0x0E88", "terrain": 1 },
+                ] }]
+                """)),
+            Plugin("mymod", ["aidyn"], ("mapset.json", """
+                { "patch": "aidyn:mapset/0", "chunks": [{ "row": 9, "column": 8, "music": null }, { "row": 9, "column": 9, "terrain": 4 }] }
+                """)),
+        ]);
+        var mapSet = set.Get<MapSetRecord>(RecordId.Parse("aidyn:mapset/0"));
+        Assert.Equal(2, mapSet.Chunks.Count);
+        Assert.Null(mapSet.Chunk(9, 8)!.Music);
+        Assert.Equal("aidyn:map/0x0E87", mapSet.Chunk(9, 8)!.Map.ToString());
+        Assert.Equal(4, mapSet.Chunk(9, 9)!.Terrain);
+        Assert.Equal(["aidyn", "mymod"], set.Setters(mapSet.Id, "chunks[9,8].music"));
+    }
+
+    [Fact]
+    public void UnkeyedListsAreReplacedWhole()
+    {
+        var set = PluginSet.Load([
+            Plugin("aidyn", null, ("maps.json", MapWithThreeObjects)),
+            Plugin("mymod", ["aidyn"], ("map.json", """
+                { "patch": "aidyn:map/0x0E87", "objects": [{ "index": 2, "models": [{ "model": "aidyn:scene/0x0B49", "drawDistance": 20 }] }] }
+                """)),
+        ]);
+        var scene = Assert.IsType<SceneObject>(set.Get<MapRecord>(RecordId.Parse("aidyn:map/0x0E87")).Objects[2]);
+        var model = Assert.Single(scene.Models);
+        Assert.Equal("aidyn:scene/0x0B49", model.Model.ToString());
+        Assert.Equal(20, model.DrawDistance);
+
+        // A list without a class, or a keyed list patched with something other than a list, is replaced too.
+        var weapons = PluginSet.Load([
+            Base(),
+            Plugin("mymod", ["aidyn"], ("club.json", """{ "patch": "aidyn:weapon/0x0712", "tags": ["a"] }""")),
+            Plugin("other", ["mymod"], ("club.json", """{ "patch": "aidyn:weapon/0x0712", "tags": ["b", "c"] }""")),
+        ]);
+        Assert.Equal(["b", "c"], ((JsonArray)weapons.GetJson(RecordId.Parse("aidyn:weapon/0x0712"))!["tags"]!).Select(t => (string)t!));
+    }
+
+    [Fact]
+    public void AKeyedElementWithoutItsKeyIsRefused()
+    {
+        var error = Assert.Throws<InvalidDataException>(() => PluginSet.Load([
+            Plugin("aidyn", null, ("maps.json", MapWithThreeObjects)),
+            Plugin("mymod", ["aidyn"], ("map.json", """{ "patch": "aidyn:map/0x0E87", "objects": [{ "reach": 5 }] }""")),
+        ]));
+        Assert.Contains("keyed by index", error.Message, StringComparison.Ordinal);
+        Assert.Contains("aidyn:map/0x0E87", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AnEditorsSchemaPointerIsIgnored()
+    {
+        var set = PluginSet.Load([
+            Plugin("aidyn", null, ("weapons.json", """{ "$schema": "weapon.schema.json", "id": "aidyn:weapon/0x0712", "name": "Club" }""")),
+            Plugin("mymod", ["aidyn"], ("club.json", """{ "$schema": "weapon.patch.schema.json", "patch": "aidyn:weapon/0x0712", "name": "Big club" }""")),
+        ]);
+        var club = set.GetJson(RecordId.Parse("aidyn:weapon/0x0712"))!;
+        Assert.False(club.ContainsKey("$schema"));
+        Assert.Equal("Big club", (string)club["name"]!);
+        Assert.Empty(set.Setters(RecordId.Parse("aidyn:weapon/0x0712"), "$schema"));
     }
 
     [Fact]

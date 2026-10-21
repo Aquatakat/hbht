@@ -262,7 +262,7 @@ public sealed record LootDrop(RecordId? Item, int Chance, int Min = 1, int Max =
 /// What it sells, in order, each at its price times a multiplier. When an item is listed twice, the
 /// original multiplies the one entry's price again.
 /// </param>
-public sealed record ShopRecord(RecordId Id, RecordId Shopkeeper, IReadOnlyList<ShopStock> Stock);
+public sealed record ShopRecord(RecordId Id, RecordId Shopkeeper, [property: KeyedList(nameof(ShopStock.Item))] IReadOnlyList<ShopStock> Stock);
 
 /// <param name="PriceMultiplier">One of ×0.5, ×0.75, ×1, ×1.25, ×1.5, ×2, ×3 and ×5 in the base game.</param>
 public sealed record ShopStock(RecordId Item, float PriceMultiplier = 1);
@@ -284,7 +284,7 @@ public sealed record RecipeRecord(
     RecordId Id,
     RecordId Skill,
     RecordId Product,
-    IReadOnlyList<Ingredient> Ingredients,
+    [property: KeyedList(nameof(Ingredient.Item))] IReadOnlyList<Ingredient> Ingredients,
     int Level,
     int Step,
     int? Unk5 = null);

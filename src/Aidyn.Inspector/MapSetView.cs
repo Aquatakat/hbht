@@ -665,7 +665,7 @@ public partial class MapSetView : VBoxContainer
         _opened.Text = "";
         var there = Shown(o) ? "" : " It isn't there with these switches.";
         _title.Text = $"{catalog.Describe(o)}\nObject {o.Index} of {marked.Chunk.Map}, in {_set!.Label} {marked.Chunk.Name}.{there}";
-        _fields.Show(json, field => catalog.Plugins.Setters(marked.Chunk.Map, "objects"), id => catalog.Find(id) is not null || id.Type == RecordTypes.Voxel);
+        _fields.Show(json, field => catalog.Plugins.Setters(marked.Chunk.Map, $"objects[{o.Index}].{field}"), id => catalog.Find(id) is not null || id.Type == RecordTypes.Voxel);
 
         var outOfView = _camera.IsPositionBehind(marked.Position) ||
             !new Rect2(Vector2.Zero, _container.Size).HasPoint(_camera.UnprojectPosition(marked.Position)) ||

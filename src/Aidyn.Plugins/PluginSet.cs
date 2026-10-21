@@ -18,8 +18,16 @@ public sealed record Plugin(string Directory, PluginManifest Manifest)
     }
 }
 
-/// <summary>A field that more than one plugin set, and which one won (ADR 0005's conflict report).</summary>
-public sealed record FieldConflict(RecordId Record, string Field, IReadOnlyList<string> Plugins)
+/// <summary>
+/// A field that more than one plugin patched, and which one won (ADR 0005's conflict report). The record's definer isn't
+/// among them: the base plugin sets every field of its records, and one mod patching a field is a patch, not a conflict.
+/// </summary>
+/// <param name="Path">
+/// A top-level field, such as <c>damage</c>, or through a keyed list (<see cref="KeyedListAttribute"/>) a keyed element or a
+/// field in one: <c>objects[12]</c>, <c>objects[12].position</c>, <c>chunks[9,8].music</c>.
+/// </param>
+/// <param name="Plugins">The plugins that patched it, in load order; the last one's value holds.</param>
+public sealed record FieldConflict(RecordId Record, string Path, IReadOnlyList<string> Plugins)
 {
     public string Winner => Plugins[^1];
 }
@@ -34,30 +42,44 @@ public sealed record AssetFile(RecordId Id, string Extension, string Path, strin
 /// <remarks>
 /// A record file under <c>records/</c> holds one object or an array of them. An object with an
 /// <c>id</c> is a new record in its plugin's namespace; one with a <c>patch</c> merges into an
-/// earlier plugin's record as a JSON Merge Patch (RFC 7386). Lists are replaced whole for now:
-/// element-wise merging of keyed lists needs the record schema, which comes with Phase 5.
+/// earlier plugin's record as a JSON Merge Patch (RFC 7386), except that a keyed list merges element by element
+/// (<see cref="MergePatch"/>). An object's <c>$schema</c>, for editors, is ignored.
 /// </remarks>
 public sealed class PluginSet
 {
     private readonly Dictionary<RecordId, JsonObject> _records = [];
-    private readonly Dictionary<(RecordId, string), List<string>> _setters = [];
+    // By record, then setter path (FieldConflict.Path), the plugins that set it, in load order.
+    private readonly Dictionary<RecordId, Dictionary<string, List<string>>> _setters = [];
     private readonly Dictionary<RecordId, string> _definedBy = [];
+    private readonly Dictionary<string, int> _loadIndex;
+
+    /// <summary>An editor's pointer at the schema, allowed on any record object and ignored.</summary>
+    public const string SchemaField = "$schema";
 
     // Records read as types, once each and after the merge: nothing changes the merged JSON once the set has loaded.
     // The runtime's audio thread and the editor's loading tasks read records as well as the main thread.
     private readonly ConcurrentDictionary<(RecordId, Type), object> _typed = new();
     private readonly ConcurrentDictionary<(string Type, Type), object> _typedAll = new();
 
-    private PluginSet(IReadOnlyList<Plugin> plugins) => Plugins = plugins;
+    private PluginSet(IReadOnlyList<Plugin> plugins)
+    {
+        Plugins = plugins;
+        _loadIndex = plugins.Select((p, i) => (p.Manifest.Id, i)).ToDictionary(p => p.Id, p => p.i, StringComparer.Ordinal);
+    }
 
     /// <summary>In load order.</summary>
     public IReadOnlyList<Plugin> Plugins { get; }
 
     public IEnumerable<RecordId> Ids => _records.Keys;
 
-    /// <summary>Every top-level field that more than one plugin set.</summary>
-    public IEnumerable<FieldConflict> Conflicts =>
-        _setters.Where(s => s.Value.Count > 1).Select(s => new FieldConflict(s.Key.Item1, s.Key.Item2, s.Value));
+    /// <summary>
+    /// Every field that more than one plugin patched, by record then path (ADR 0005's conflict report): a top-level field,
+    /// or a keyed list's element or a field in one. The record's definer doesn't count.
+    /// </summary>
+    public IEnumerable<FieldConflict> Conflicts => _setters
+        .SelectMany(r => r.Value.Select(s => new FieldConflict(r.Key, s.Key, [.. s.Value.Where(p => p != _definedBy.GetValueOrDefault(r.Key))])))
+        .Where(c => c.Plugins.Count > 1)
+        .OrderBy(c => c.Record.ToString(), StringComparer.Ordinal).ThenBy(c => c.Path, StringComparer.Ordinal);
 
     /// <summary>Loads plugin folders in the order given.</summary>
     public static PluginSet Load(IEnumerable<string> directories) => Load([.. directories.Select(Plugin.Open)]);
@@ -163,8 +185,48 @@ public sealed class PluginSet
     /// <summary>The ID of the plugin that defines the record, or null if none does.</summary>
     public string? DefinedBy(RecordId id) => _definedBy.GetValueOrDefault(id);
 
-    /// <summary>The plugins that set one of the record's top-level fields, in load order. The last one's value holds.</summary>
-    public IReadOnlyList<string> Setters(RecordId id, string field) => _setters.GetValueOrDefault((id, field)) ?? [];
+    /// <summary>
+    /// The plugins that set a field of the record, in load order, the definer among them. The last one's value holds.
+    /// <paramref name="path"/> is a top-level field, or through a keyed list an element or a field in one, as
+    /// <see cref="FieldConflict.Path"/> spells them; what set an enclosing path counts too, so <c>objects[12].position</c>
+    /// lists whoever set the position, added or removed object 12, or replaced the list.
+    /// </summary>
+    public IReadOnlyList<string> Setters(RecordId id, string path)
+    {
+        if (!_setters.TryGetValue(id, out var paths))
+            return [];
+        var plugins = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var ancestor in Ancestors(path))
+        {
+            foreach (var plugin in paths.GetValueOrDefault(ancestor) ?? [])
+                plugins.Add(plugin);
+        }
+        return InLoadOrder(plugins);
+    }
+
+    /// <summary>The plugins other than the record's definer that patched any of its fields, in load order.</summary>
+    public IReadOnlyList<string> Patchers(RecordId id)
+    {
+        if (!_setters.TryGetValue(id, out var paths))
+            return [];
+        var definer = _definedBy.GetValueOrDefault(id);
+        return InLoadOrder(paths.Values.SelectMany(p => p).Where(p => p != definer).ToHashSet(StringComparer.Ordinal));
+    }
+
+    private List<string> InLoadOrder(IEnumerable<string> plugins) => [.. plugins.OrderBy(p => _loadIndex.GetValueOrDefault(p, int.MaxValue))];
+
+    /// <summary>A path and the paths that enclose it: <c>objects[12].position</c> is in <c>objects[12]</c>, which is in <c>objects</c>.</summary>
+    private static IEnumerable<string> Ancestors(string path)
+    {
+        for (var i = 0; i < path.Length; i++)
+        {
+            if (path[i] == '[')
+                yield return path[..i];
+            else if (path[i] == ']' && i + 1 < path.Length)
+                yield return path[..(i + 1)];
+        }
+        yield return path;
+    }
 
     /// <summary>
     /// Every asset file, from the plugin that <see cref="FindAsset"/> would take it from. Files whose
@@ -277,6 +339,7 @@ public sealed class PluginSet
 
     private void Add(string pluginId, string file, JsonObject o)
     {
+        o.Remove(SchemaField);
         if (o["id"] is JsonValue idValue && o["patch"] is null)
         {
             var id = ParseId(file, idValue);
@@ -288,7 +351,7 @@ public sealed class PluginSet
             foreach (var (field, _) in o)
             {
                 if (field != "id")
-                    SetterList(id, field).Add(pluginId);
+                    AddSetter(id, field, pluginId);
             }
         }
         else if (o["patch"] is JsonValue patchValue && o["id"] is null)
@@ -296,14 +359,14 @@ public sealed class PluginSet
             var id = ParseId(file, patchValue);
             if (!_records.TryGetValue(id, out var target))
                 throw new InvalidDataException($"{file}: patches {id}, which no earlier plugin defines.");
-            foreach (var (field, value) in o)
+            o.Remove("patch");
+            try
             {
-                if (field == "patch")
-                    continue;
-                MergePatch.Apply(target, field, value);
-                var setters = SetterList(id, field);
-                if (setters.Count == 0 || setters[^1] != pluginId)
-                    setters.Add(pluginId);
+                MergePatch.Apply(target, o, RecordTypes.ClassOf(id.Type), path => AddSetter(id, path, pluginId));
+            }
+            catch (InvalidDataException e)
+            {
+                throw new InvalidDataException($"{file}: patching {id}: {e.Message}", e);
             }
         }
         else
@@ -312,11 +375,14 @@ public sealed class PluginSet
         }
     }
 
-    private List<string> SetterList(RecordId id, string field)
+    private void AddSetter(RecordId id, string path, string pluginId)
     {
-        if (!_setters.TryGetValue((id, field), out var list))
-            _setters[(id, field)] = list = [];
-        return list;
+        if (!_setters.TryGetValue(id, out var paths))
+            _setters[id] = paths = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        if (!paths.TryGetValue(path, out var list))
+            paths[path] = list = [];
+        if (list.Count == 0 || list[^1] != pluginId)
+            list.Add(pluginId);
     }
 
     private static RecordId ParseId(string file, JsonValue value) =>
@@ -325,11 +391,85 @@ public sealed class PluginSet
             : throw new InvalidDataException($"{file}: \"{value}\" isn't a record ID.");
 }
 
-/// <summary>JSON Merge Patch (RFC 7386).</summary>
+/// <summary>
+/// How a patch merges into a record (ADR 0005): JSON Merge Patch (RFC 7386), where a scalar or a list replaces the old
+/// value, an object merges field by field and <c>null</c> removes a field, except that a keyed list
+/// (<see cref="KeyedListAttribute"/>) merges element by element. Each element of the patch's list names its element by
+/// the key fields: one the record has merges into it as an object does, one it lacks is added at the end, and one with
+/// <c>"$remove": true</c> is removed. A keyed list patched with something other than a list, or whose record lacks the
+/// list, is replaced like any other value.
+/// </summary>
 public static class MergePatch
 {
-    /// <summary>Merges <paramref name="patch"/> into <paramref name="target"/>'s field <paramref name="field"/>.</summary>
-    public static void Apply(JsonObject target, string field, JsonNode? patch)
+    /// <summary>The field that removes a keyed list's element: <c>{ "index": 12, "$remove": true }</c>.</summary>
+    public const string RemoveField = "$remove";
+
+    /// <summary>
+    /// Merges every field of <paramref name="patch"/> into <paramref name="target"/>, a record of class <paramref name="type"/>
+    /// (null for a type without one, which merges as plain JSON), and tells <paramref name="touched"/> each path set: a
+    /// top-level field, a keyed element added or removed, or a field in one (<see cref="FieldConflict.Path"/>).
+    /// </summary>
+    public static void Apply(JsonObject target, JsonObject patch, Type? type, Action<string> touched) =>
+        Apply(target, patch, type, "", touched, null);
+
+    private static void Apply(JsonObject target, JsonObject patch, Type? type, string prefix, Action<string> touched, IReadOnlyList<string>? skip)
+    {
+        foreach (var (field, value) in patch)
+        {
+            if (skip?.Contains(field) == true)
+                continue;
+            var path = prefix + field;
+            var property = RecordSchema.Find(type, field);
+            if (property?.Keyed is { } keyed && value is JsonArray elements && target[field] is JsonArray existing)
+            {
+                foreach (var element in elements)
+                    ApplyElement(existing, element, keyed, path, touched);
+            }
+            else
+            {
+                if (value is JsonObject nested && target[field] is JsonObject into && property is not null)
+                    Apply(into, nested, RecordSchema.Concrete(property.Type, into), path + ".", static _ => { }, null);
+                else
+                    Merge(target, field, value);
+                touched(path);
+            }
+        }
+    }
+
+    private static void ApplyElement(JsonArray existing, JsonNode? element, RecordSchema.KeyedList keyed, string path, Action<string> touched)
+    {
+        if (element is not JsonObject o || keyed.KeyOf(o) is not { } key)
+            throw new InvalidDataException($"{path} is a list keyed by {keyed.Describe}: each element of a patch is an object with {(keyed.Keys.Count == 1 ? "it" : "them")}.");
+        var elementPath = $"{path}[{key}]";
+        var at = -1;
+        for (var i = 0; i < existing.Count && at < 0; i++)
+        {
+            if (keyed.KeyOf(existing[i]) == key)
+                at = i;
+        }
+        var remove = o[RemoveField] is JsonValue flag && flag.TryGetValue(out bool wanted) && wanted;
+        if (remove)
+        {
+            if (at >= 0)
+                existing.RemoveAt(at);
+        }
+        else if (at < 0)
+        {
+            var added = (JsonObject)o.DeepClone();
+            added.Remove(RemoveField);
+            existing.Add(added);
+        }
+        else
+        {
+            var current = (JsonObject)existing[at]!;
+            Apply(current, o, RecordSchema.Concrete(keyed.ElementType, current), elementPath + ".", touched, [.. keyed.Keys, RemoveField]);
+            return;
+        }
+        touched(elementPath);
+    }
+
+    /// <summary>JSON Merge Patch of one field: <c>null</c> removes it, an object merges into an object, anything else replaces.</summary>
+    private static void Merge(JsonObject target, string field, JsonNode? patch)
     {
         if (patch is null)
         {
@@ -340,7 +480,7 @@ public static class MergePatch
             if (target[field] is not JsonObject existing)
                 target[field] = existing = [];
             foreach (var (key, value) in patchObject)
-                Apply(existing, key, value);
+                Merge(existing, key, value);
         }
         else
         {

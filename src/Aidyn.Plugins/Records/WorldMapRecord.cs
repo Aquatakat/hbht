@@ -15,8 +15,8 @@ namespace Aidyn.Plugins.Records;
 /// <param name="Step">How far the ring moves a row (X) and a column (Y), truncated.</param>
 public sealed record WorldMapRecord(
     RecordId Id,
-    IReadOnlyList<MapPiece> Pieces,
-    IReadOnlyList<MapTown> Towns,
+    [property: KeyedList(nameof(MapPiece.Flag))] IReadOnlyList<MapPiece> Pieces,
+    [property: KeyedList(nameof(MapTown.Image))] IReadOnlyList<MapTown> Towns,
     RecordId Marker,
     RecordId MapSet,
     Vector2 Origin,

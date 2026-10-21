@@ -127,4 +127,51 @@ public static class RecordTypes
     ];
 
     public static bool IsKnown(string type) => All.Contains(type);
+
+    /// <summary>
+    /// The class a type's records read as, which says which of their lists are keyed (<see cref="KeyedListAttribute"/>), or null
+    /// for a type with no records of its own, such as an asset's or a map object's.
+    /// </summary>
+    public static Type? ClassOf(string type) => type switch
+    {
+        Entity => typeof(Records.EntityRecord),
+        Weapon => typeof(Records.WeaponRecord),
+        Armor => typeof(Records.ArmorRecord),
+        Spell => typeof(Records.SpellRecord),
+        Item => typeof(Records.ItemRecord),
+        DialogEntity => typeof(Records.DbRecord),
+        Loot => typeof(Records.LootRecord),
+        Flag => typeof(Records.FlagRecord),
+        Actor => typeof(Records.ActorRecord),
+        Map => typeof(Records.MapRecord),
+        Sequence => typeof(Records.SequenceRecord),
+        Dialogue => typeof(Records.DialogueRecord),
+        MapSet => typeof(Records.MapSetRecord),
+        Terrain => typeof(Records.TerrainRecord),
+        Journal => typeof(Records.JournalRecord),
+        StateFlags => typeof(Records.StateFlagsRecord),
+        WorldMap => typeof(Records.WorldMapRecord),
+        Minimap => typeof(Records.MinimapRecord),
+        Camping => typeof(Records.CampingRecord),
+        Combat => typeof(Records.CombatRecord),
+        Magic => typeof(Records.MagicRecord),
+        Sky => typeof(Records.SkyRecord),
+        Font => typeof(Records.FontRecord),
+        Strings => typeof(Records.StringsRecord),
+        Stat => typeof(Records.StatRecord),
+        Skill or WeaponSkill => typeof(Records.SkillRecord),
+        Progression => typeof(Records.ProgressionRecord),
+        Shop => typeof(Records.ShopRecord),
+        Recipe => typeof(Records.RecipeRecord),
+        Inventory => typeof(Records.InventoryRecord),
+        Sounds => typeof(Records.SoundsRecord),
+        Weather => typeof(Records.WeatherRecord),
+        Emitters => typeof(Records.EmittersRecord),
+        Cinematic => typeof(Records.CinematicRecord),
+        Credits => typeof(Records.CreditsRecord),
+        NewGame => typeof(Records.NewGameRecord),
+        Title => typeof(Records.TitleRecord),
+        Trigger => typeof(Records.TriggerRecord),
+        _ => null,
+    };
 }
