@@ -40,9 +40,9 @@ public class PauseScrollTests
     /// <summary>Steps a frame as the menu does, returning the clip it shows.</summary>
     private static (int, int)? Frame(PauseScroll menu, Scroll scroll)
     {
-        menu.Step(scroll.Clock, scroll.Length);
+        var cue = menu.Step(scroll.Clock, scroll.Length);
         if (menu.StepsScroll)
-            scroll.Play(menu.TakeCue());
+            scroll.Play(cue);
         return menu.Clip;
     }
 
@@ -58,8 +58,7 @@ public class PauseScrollTests
     /// <summary>Closes the menu as it does, stepping the scroll into its closing at once.</summary>
     private static void Close(PauseScroll menu, Scroll scroll, int tab)
     {
-        menu.Close(tab);
-        scroll.Play(menu.TakeCue());
+        scroll.Play(menu.Close(tab));
     }
 
     [Fact]
@@ -67,18 +66,19 @@ public class PauseScrollTests
     {
         var menu = new PauseScroll(tab: 1);
         var tints = new List<int>();
+        ScrollCue cue = default;
         while (menu.Phase == PauseScrollPhase.Darkening)
         {
             Assert.False(menu.ShowsMenu);
-            menu.Step(1, 11);
+            cue = menu.Step(1, 11);
             tints.Add(menu.Tint);
         }
         Assert.Equal([245, 235, 225, 215, 205, 195, 185, 175, 165, 155, 145, 135, 128, 128], tints);
         Assert.True(menu.ShowsMenu);
         // The tabs show from this frame, cut as the opening starts: Party's to nothing.
         Assert.Equal((160, 160), menu.Clip);
-        Assert.Equal(new ScrollCue(10), menu.TakeCue());
-        Assert.Equal(default, menu.TakeCue());
+        // The frame the tabs show from cued the scroll's opening; the frames before cued nothing.
+        Assert.Equal(new ScrollCue(10), cue);
     }
 
     [Fact]

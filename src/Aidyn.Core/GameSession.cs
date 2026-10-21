@@ -4,8 +4,11 @@ using Aidyn.Core.Cameras;
 using Aidyn.Core.Chunks;
 using Aidyn.Core.Combat;
 using Aidyn.Core.Events;
+using Aidyn.Core.Items;
+using Aidyn.Core.MapObjects;
 using Aidyn.Core.Movement;
 using Aidyn.Core.Physics;
+using Aidyn.Core.Scenes;
 using Aidyn.Core.Scripts;
 using Aidyn.Core.Trek;
 using Aidyn.Core.Ui;
@@ -84,6 +87,12 @@ public enum SessionStep
 
     /// <summary>A battle ticked, its screen has faded out, and it ends once drawn (<see cref="GameSession.EndBattle"/>).</summary>
     CombatOver,
+
+    /// <summary>
+    /// The pause menu rolled up this tick and how it ended was carried out (<see cref="GameSession.MenuClosed"/>): whoever draws
+    /// the world gates its scenery again, as the original reloads the map as the menu closes, and hides the menu.
+    /// </summary>
+    MenuClosed,
 }
 
 /// <summary>
@@ -110,11 +119,15 @@ public sealed class GameSession
     private bool? _reopenOnTheatre;
     private float _precipitationDensity = 1;
 
-    private GameSession(GameState game, ITrekHost host, ZoneEngine zone, PlayerMotion player, FollowCamera camera)
+    private GameSession(GameState game, ITrekHost host, ZoneEngine zone, PlayerMotion player, FollowCamera camera, Settings? settings,
+        IPauseMenuHost? menuHost, string? savesFolder)
     {
         Game = game;
         _host = host;
-        Trek = new TrekLoop(game, host, zone, player, camera);
+        // Trek's host is wrapped, so what trek asks of the runtime that opens the menu, loot and a script's shop or training, opens
+        // the menu here first.
+        Trek = new TrekLoop(game, new TrekHostProxy(this, host), zone, player, camera);
+        Menu = new PauseMenu(game, settings ?? new Settings(), savesFolder ?? DataPaths.Saves, Where, menuHost ?? NoMenuHost.Instance, Stick);
     }
 
     /// <summary>
@@ -126,7 +139,11 @@ public sealed class GameSession
     /// </summary>
     /// <param name="host">What presents the game: trek's views and the transitions.</param>
     /// <param name="zone">The zone engine trek's world is loaded in (<see cref="TrekLoop.Zone"/>), on the start's map set.</param>
-    public static GameSession Start(GameState game, ITrekHost host, ZoneEngine zone, GameStart start)
+    /// <param name="settings">The player's settings, which the pause menu's Options page changes; a default set if none.</param>
+    /// <param name="menuHost">What plays the pause menu's sounds, steps its scroll and writes saves; nothing does if none.</param>
+    /// <param name="savesFolder">Where the save and load screens list saves: the data folder's by default.</param>
+    public static GameSession Start(GameState game, ITrekHost host, ZoneEngine zone, GameStart start, Settings? settings = null,
+        IPauseMenuHost? menuHost = null, string? savesFolder = null)
     {
         var chunks = zone.Chunks;
         if (chunks.MapSet.Id != start.Set.Id)
@@ -136,7 +153,7 @@ public sealed class GameSession
         var look = start.Heading == default ? GameStart.Facing(0) : Vector2.Normalize(start.Heading);
         var player = new PlayerMotion(spawn, look);
         var camera = new FollowCamera(spawn, look);
-        var session = new GameSession(game, host, zone, player, camera);
+        var session = new GameSession(game, host, zone, player, camera, settings, menuHost, savesFolder);
         var trek = session.Trek;
         trek.Enter(chunk);
         chunks.Update(spawn);
@@ -179,8 +196,28 @@ public sealed class GameSession
     /// <summary>The battle's arena: a zone engine of its own on the Battle arenas (<see cref="ZoneEngine.Stage"/>).</summary>
     public ZoneEngine? Arena { get; private set; }
 
+    /// <summary>
+    /// The pause menu: its tabs, windows and presses (<see cref="Ui.PauseMenu"/>). It opens here, on Start in trek
+    /// (<see cref="Press"/>), on loot, a shop or training trek asks for, as combat pauses and after a battle, and whoever
+    /// draws it reads its state.
+    /// </summary>
+    public PauseMenu Menu { get; }
+
     /// <summary>Whether the pause menu is open.</summary>
-    public bool MenuOpen { get; private set; }
+    public bool MenuOpen => Menu.IsOpen;
+
+    /// <summary>
+    /// The stick's directions held, which repeat in the menus, popups, conversations, cut-scenes and combat's held menus
+    /// (<see cref="StickRepeat"/>): whoever reads the controls presses and releases them here, and each tick repeats what's due.
+    /// </summary>
+    public StickRepeat Stick { get; } = new();
+
+    /// <summary>
+    /// The pause menu's scroll actor's clock, which its opening and closing go by (<see cref="Ui.PauseMenu.Step"/>): the frame
+    /// it's at in its state, from 1, and the state's length. Whoever draws the scroll sets it; without one, past any state's end,
+    /// so the scroll's animations take no time.
+    /// </summary>
+    public Func<(int Frame, int Length)> ScrollClock { get; set; } = () => (1000, 1);
 
     /// <summary>
     /// What the battle just won gave, while its post-battle windows are up or about to be (game mode 6,
@@ -266,7 +303,16 @@ public sealed class GameSession
         // A backdrop's page fades and pulses whatever runs over it, after the mode it holds has had its tick: the tick its page
         // goes on is still held, as the runtime's layer stepped after the game.
         var mode = Mode;
+        StepStick(mode);
         Trek.StepBackdrop();
+        // The menu's tick, every tick, as the runtime stepped it after the game's: a frame of it while it's open, and once it has
+        // closed, how it ended, carried out here.
+        var (scrollFrame, scrollLength) = ScrollClock();
+        if (Menu.Step(scrollFrame, scrollLength) is { } exit)
+        {
+            MenuClosed(exit);
+            return SessionStep.MenuClosed;
+        }
         switch (mode)
         {
             case GameMode.Cinematic:
@@ -292,13 +338,19 @@ public sealed class GameSession
             {
                 // Combat's states 14 and 27: the pause menu, mode 3.
                 _menuAsked = true;
-                _host.Transition(new Transition.PauseBattle(battle.PausedFromTurn, battle.PausedFromTurn && battle.CanFlee));
+                var canFlee = battle.PausedFromTurn && battle.CanFlee;
+                Menu.OpenCombat(battle.PausedFromTurn, canFlee, CombatPause.For(battle));
+                _host.Transition(new Transition.PauseBattle(battle.PausedFromTurn, canFlee));
             }
             return battle.Over ? SessionStep.CombatOver : SessionStep.Combat;
         }
         if (_reopenOnTheatre is { } theatre && !Trek.CutSceneFade.Fading)
         {
             _reopenOnTheatre = null;
+            if (theatre)
+                Menu.OpenTheatre();
+            else
+                Menu.Open();
             _host.Transition(new Transition.ReopenMenu(theatre));
         }
         return Trek.Tick(readInput, frozen) switch
@@ -308,6 +360,29 @@ public sealed class GameSession
             TrekStep.Frozen => SessionStep.Frozen,
             _ => SessionStep.Trek,
         };
+    }
+
+    /// <summary>
+    /// A tick of the held directions: in the pause menu they repeat as its cursor's moves (<see cref="Ui.PauseMenu.Repeat"/>); in
+    /// trek's popups, conversations and backdrops, in a cut-scene and in combat's held menus they repeat as presses; and where
+    /// nothing has a cursor, what's held is forgotten, so the next doesn't start by repeating.
+    /// </summary>
+    private void StepStick(GameMode mode)
+    {
+        switch (mode)
+        {
+            case GameMode.Menu:
+                if (Menu.Repeats)
+                    Stick.Tick(Menu.Repeat);
+                break;
+            case GameMode.Popup or GameMode.Conversation or GameMode.CutScene or GameMode.Backdrop:
+            case GameMode.Combat when Battle?.Menu is not null:
+                Stick.Tick(direction => Press(direction));
+                break;
+            default:
+                Stick.Clear();
+                break;
+        }
     }
 
     /// <summary>The map's sounds, while the world is held still: trek's, not a stage's or an arena's.</summary>
@@ -499,6 +574,7 @@ public sealed class GameSession
         {
             case BattleOutcome.Won when battle.Spoils is { } spoils:
                 PostBattle = spoils;
+                Menu.OpenPostBattle(spoils);
                 _host.Transition(new Transition.PostBattle(spoils));
                 return;
             case BattleOutcome.Lost:
@@ -533,18 +609,13 @@ public sealed class GameSession
     }
 
     /// <summary>
-    /// The pause menu has opened, on a tab or in its barter or training state; in combat, as its pause asked
-    /// (<see cref="Transition.PauseBattle"/>).
-    /// </summary>
-    public void MenuOpened() => MenuOpen = true;
-
-    /// <summary>
-    /// The pause menu has rolled up, and trek carries on as its exit says (<see cref="PauseExit"/>): the party camps, the
-    /// help menu's script starts, the credits roll or the Theatre's cinematic plays.
+    /// The pause menu has rolled up (<see cref="Ui.PauseMenu.Step"/>), and the game carries on as its exit says
+    /// (<see cref="PauseExit"/>): the party camps, the help menu's script starts, the credits roll, the Theatre's cinematic
+    /// plays or a save is loaded; the post-battle windows close to trek, and combat's pause goes back to its turn or flees.
     /// </summary>
     public void MenuClosed(PauseExit exit)
     {
-        MenuOpen = false;
+        Menu.Discard();
         if (PostBattle is not null)
         {
             // The loot window closes to trek (PauseMenu.CloseToTrek): built again where the battle began, fading in.
@@ -575,6 +646,9 @@ public sealed class GameSession
             case PauseExitCode.Theatre when exit.Cinematic is { } cinematic:
                 PlayCinematic(cinematic, fromTheatre: true);
                 break;
+            case PauseExitCode.Load when exit.SavePath is { } path:
+                _host.Transition(new Transition.LoadGame(path));
+                break;
         }
     }
 
@@ -586,7 +660,8 @@ public sealed class GameSession
     /// conversation, else trek itself (<see cref="TrekLoop.Press"/>), where Start opens the pause menu. Returns what the
     /// press came to, for whoever reads the controls to show.
     /// </summary>
-    public PressOutcome Press(MenuAction action)
+    /// <param name="keyboard">Whether a keyboard key pressed it, which the pause menu's name entry hears differently (<see cref="Ui.PauseMenu.Press"/>).</param>
+    public PressOutcome Press(MenuAction action, bool keyboard = false)
     {
         if (action == MenuAction.None)
             return PressOutcome.Ignored;
@@ -597,14 +672,83 @@ public sealed class GameSession
             case GameMode.Credits:
                 return action is MenuAction.Accept or MenuAction.Back or MenuAction.Start ? PressOutcome.Skip : PressOutcome.Taken;
             case GameMode.Menu:
-                return PressOutcome.Ignored;
+                return Menu.Press(action, keyboard) ? PressOutcome.Taken : PressOutcome.Ignored;
             case GameMode.Combat:
                 return Battle!.Press(action) ? PressOutcome.Taken : PressOutcome.Ignored;
             case GameMode.CutScene:
                 return Scene!.Press(action) ? PressOutcome.Taken : PressOutcome.Ignored;
             default:
-                return Trek.Press(action, _frozen);
+                var outcome = Trek.Press(action, _frozen);
+                if (outcome == PressOutcome.MenuOpened)
+                    Menu.Open();
+                return outcome;
         }
+    }
+
+    /// <summary>Opens the pause menu over trek, as Start does, on a tab or the one it last showed: for the runtime's command line.</summary>
+    public void OpenMenu(PauseTab? tab = null) => Menu.Open(tab);
+
+    /// <summary>Opens the loot window over trek on a pile, as a container does: for the runtime's command line.</summary>
+    public void OpenLoot(ItemPile loot, int gold) => Menu.OpenLoot(loot, gold);
+
+    /// <summary>A menu host that plays nothing and can't save: a headless session's, unless a test gives it a recording one.</summary>
+    private sealed class NoMenuHost : IPauseMenuHost
+    {
+        public static readonly NoMenuHost Instance = new();
+
+        public void Cue(PauseMenuCue cue)
+        {
+        }
+
+        public string? Save(string path) => "Saving isn't possible here.";
+    }
+
+    /// <summary>
+    /// Trek's host, which opens the pause menu here on the way: on loot a container opens (<see cref="IMapObjectHost.OpenLoot"/>), and
+    /// a script's shop or training (<see cref="Transition.OpenShop"/>, <see cref="Transition.OpenTraining"/>), so the menu is open,
+    /// and the mode is its, as the runtime hears of them. Everything else passes straight through.
+    /// </summary>
+    private sealed class TrekHostProxy(GameSession session, ITrekHost host) : ITrekHost
+    {
+        public void Transition(Transition next)
+        {
+            switch (next)
+            {
+                case Transition.OpenShop shop:
+                    session.Menu.OpenShop(shop.Shop);
+                    break;
+                case Transition.OpenTraining training:
+                    session.Menu.OpenTraining(training.Trainer);
+                    break;
+            }
+            host.Transition(next);
+        }
+
+        public void OpenLoot(ItemPile loot, int gold)
+        {
+            session.Menu.OpenLoot(loot, gold);
+            host.OpenLoot(loot, gold);
+        }
+
+        public void Entered(ChunkEntry? chunk) => host.Entered(chunk);
+
+        public void Arrived() => host.Arrived();
+
+        public void ConversationChanged() => host.ConversationChanged();
+
+        public IRootMotion Motion(Wanderer wanderer) => host.Motion(wanderer);
+
+        public void Animate(LoadedMap map, SceneObject actor, int request) => host.Animate(map, actor, request);
+
+        public void Changed(LoadedMap map, SceneObject scene) => host.Changed(map, scene);
+
+        public void PutOut(LoadedMap map, SceneObject scene) => host.PutOut(map, scene);
+
+        public void Log(string text) => host.Log(text);
+
+        public void Warn(string text) => host.Warn(text);
+
+        public void Cue(ScriptCue cue) => host.Cue(cue);
     }
 
     /// <summary>

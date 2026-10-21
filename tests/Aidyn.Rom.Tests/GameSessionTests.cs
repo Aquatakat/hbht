@@ -26,10 +26,25 @@ public sealed partial class GameSessionTests(Na10Import fixture)
 {
     private Na10Import.Loaded Data => fixture.Data;
 
-    private sealed class Host : ITrekHost
+    private sealed class Host : ITrekHost, IPauseMenuHost
     {
         public List<Transition> Transitions { get; } = [];
         public List<string> Warnings { get; } = [];
+        /// <summary>The pause menu's cues, its sounds and the scroll's steps, in order.</summary>
+        public List<PauseMenuCue> Cues { get; } = [];
+        /// <summary>The paths the menu's Save asked to write.</summary>
+        public List<string> Saved { get; } = [];
+
+        void IPauseMenuHost.Cue(PauseMenuCue cue) => Cues.Add(cue);
+
+        string? IPauseMenuHost.Save(string path)
+        {
+            Saved.Add(path);
+            return null;
+        }
+
+        /// <summary>The menu sounds cued so far, by sequence, in order.</summary>
+        public List<RecordId> Sounds => Cues.OfType<MenuSoundCue>().Select(c => c.Sound.Sequence).ToList();
 
         void ITransitionHost.Transition(Transition next) => Transitions.Add(next);
 
@@ -79,7 +94,7 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         var set = Data.Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, 0));
         var streamer = new ChunkStreamer(Data.Set, game, new CollisionWorld(), set, new VisibleWorld());
         var start = GameStart.OfNewGame(Data.Set) with { Set = set, Chunk = chunkName, Local = new Vector3(x, 10, z) };
-        var session = GameSession.Start(game, host, new ZoneEngine(game, streamer), start);
+        var session = GameSession.Start(game, host, new ZoneEngine(game, streamer), start, menuHost: host);
         return (session, host);
     }
 
@@ -100,7 +115,7 @@ public sealed partial class GameSessionTests(Na10Import fixture)
 
         // The menu over it holds the world, and so does the help menu's page under the menu, until both have gone.
         session.Trek.ShowBackdrop(Data.Set.Get<DialogueRecord>(SystemMenu.HelpScript));
-        session.MenuOpened();
+        session.Menu.Open();
         Assert.Equal((GameMode.Menu, true, false), (session.Mode, session.Held, session.TrekRuns));
         var played = session.Game.PlayTime;
         var time = session.Game.Clock.Time;
@@ -120,7 +135,7 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         // A cinematic is over everything, the menu too.
         var cinematic = Data.Set.Get<CinematicRecord>(RecordId.Decimal(RecordTypes.Cinematic, 0));
         played = session.Game.PlayTime;
-        session.MenuOpened();
+        session.Menu.Open();
         session.PlayCinematic(cinematic, fromTheatre: false);
         Assert.Equal((GameMode.Cinematic, SessionStep.Cinematic), (session.Mode, Tick(session)));
         Assert.Equal(played + 1, session.Game.PlayTime);
@@ -279,7 +294,7 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         for (var i = 0; i < 5; i++)
             Tick(session);
         Assert.Equal(new Transition.PauseBattle(PartyTab: true, CanFlee: true), Assert.Single(host.Transitions));
-        session.MenuOpened();
+        session.Menu.Open();
         Assert.Equal(GameMode.Menu, session.Mode);
         session.MenuClosed(PauseExit.Flee);
         Assert.Equal((CombatState.LeaveFled, true), (battle.State, battle.Fled));
@@ -375,7 +390,7 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         Assert.Equal((GameMode.Menu, false), (session.Mode, session.TrekRuns));
         Assert.Equal(SessionStep.Held, Tick(session));
         host.Transitions.Clear();
-        session.MenuOpened();
+        session.Menu.Open();
         session.MenuClosed(PauseExit.Close);
         Assert.Equal([typeof(Transition.ResumeTrek)], host.Transitions.Select(t => t.GetType()));
         Assert.Null(session.PostBattle);
@@ -484,7 +499,7 @@ public sealed partial class GameSessionTests(Na10Import fixture)
     public void TheMenuReopensOnceTrekHasFadedInAfterTheCreditsAndTheTheatre()
     {
         var (session, host) = Start();
-        session.MenuOpened();
+        session.Menu.Open();
         session.MenuClosed(PauseExit.Credits);
         Assert.IsType<Transition.PlayCredits>(Assert.Single(host.Transitions));
         Assert.Equal((GameMode.Credits, SessionStep.Credits), (session.Mode, Tick(session)));

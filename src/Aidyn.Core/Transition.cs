@@ -74,6 +74,9 @@ public abstract record Transition
     /// <summary>Something to tell the player, such as that a keeper keeps no shop.</summary>
     public sealed record Say(string Text) : Transition;
 
+    /// <summary>The System tab's Load chose a save: this game ends, and the one at <paramref name="Path"/> starts, as the original's teleports there.</summary>
+    public sealed record LoadGame(string Path) : Transition;
+
     /// <summary>A cut-scene has begun on its stage, its first nodes run (<c>DialogueModeInitPrescripted</c>).</summary>
     public sealed record StartCutScene(CutScene Scene, ZoneEngine Stage) : Transition;
 
