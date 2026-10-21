@@ -16,8 +16,8 @@ namespace Aidyn.Rom.Tests;
 /// <summary>
 /// The AI's casters and bosses (M3 session 11) against the original's own results: a caster built by 1.0's own entity builder put in a
 /// rat's place on the user's Combat checkpoints, its turn begun, and 1.0's <c>ScoreSpellCells</c>, <c>ChooseSpellOrAttack</c>,
-/// <c>RunStyle</c> and <c>EnemyAI.Step</c> run on it in the MIPS interpreter (the session's research, <c>m3-s11-research.md</c> and
-/// <c>m3-s11-vectors.json</c>, kept here as <see cref="CasterVectors"/>). The port lays the same caster over the same battle
+/// <c>RunStyle</c> and <c>EnemyAI.Step</c> run on it in the MIPS interpreter (<c>tools/aivectors</c>, which writes
+/// <see cref="CasterVectors"/>). The port lays the same caster over the same battle
 /// (<see cref="Battle.Recast"/>, the rat's body kept) and plays the same turn. The tests skip without the ROM and the checkpoints.
 /// </summary>
 [Collection(ImportedPluginCollection.Name)]
