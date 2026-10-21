@@ -33,7 +33,7 @@ public enum CombatMenuChoice
 /// </summary>
 /// <param name="Spell">The spell it selects, for <see cref="CombatMenuChoice.Spell"/> and <see cref="CombatMenuChoice.ItemSpell"/>.</param>
 /// <param name="Potion">The potion it holds, for <see cref="CombatMenuChoice.Potion"/>.</param>
-public sealed record CombatMenuRow(CombatMenuChoice Choice, string Text, RecordId? Icon, Rgba Color, SpellChoice Spell = default, Potion? Potion = null);
+public sealed record CombatMenuRow(CombatMenuChoice Choice, string Text, RecordId? Icon, Rgba Color, SpellChoice Spell = default, Item? Potion = null);
 
 /// <summary>
 /// Combat's held menus (<c>CombatMenu</c>, <c>0x80087C60</c>–<c>0x80089780</c>, states 22 and 23): C-down's spells and skills, C-up's

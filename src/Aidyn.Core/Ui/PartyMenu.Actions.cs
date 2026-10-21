@@ -197,9 +197,9 @@ public sealed partial class PartyMenu
         }
         switch (row.Item.Kind)
         {
-            case ItemKind.Potion when Potions.Of(row.Item) is { } potion && Potions.IsFlask(potion):
+            case ItemKind.Potion when Potions.IsFlask(row.Item):
                 // Party.EquipFlaskInCombat (0x800753F0): the flask in hand, the turn over as the menu closes.
-                combat.HoldFlask(potion);
+                combat.HoldFlask(row.Item);
                 Refresh();
                 return true;
             case ItemKind.Potion:
@@ -369,7 +369,7 @@ public sealed partial class PartyMenu
     // WidgetPotionCraft::AFunc: not enough reagents, or a full stack, say so; flasks have their own lines.
     private void Brew(Character user, RecipeRecord recipe)
     {
-        var flask = Party.Inventory.Catalog.TryGet(recipe.Product) is { } product && Potions.Of(product) is { } p && Potions.IsFlask(p);
+        var flask = Party.Inventory.Catalog.TryGet(recipe.Product) is { } product && Potions.IsFlask(product);
         var result = Items.Crafting.Brew(Party, user, recipe, Random);
         Result(_text[result switch
         {
@@ -430,7 +430,7 @@ public sealed partial class PartyMenu
 /// The weapon changed (<c>Combatant.AfterEquipChange</c>, <c>0x800610C0</c>), equipped (which ends the turn as the menu closes) or
 /// taken off (which doesn't).
 /// </param>
-public sealed record CombatPause(Character? Member, Action<Potion> HoldFlask, Action<bool> WeaponChanged)
+public sealed record CombatPause(Character? Member, Action<Item> HoldFlask, Action<bool> WeaponChanged)
 {
     /// <summary>The rules of <paramref name="battle"/>'s pause, for its current combatant.</summary>
     public static CombatPause For(Combat.Battle battle) =>

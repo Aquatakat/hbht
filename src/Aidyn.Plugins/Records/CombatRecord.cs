@@ -59,11 +59,6 @@ namespace Aidyn.Plugins.Records;
 /// <param name="Text">
 /// The combat menus' and Sense Aura's words, which the code keeps rather than a string table. Null in a plugin from before it.
 /// </param>
-/// <param name="AreaSpells">
-/// The spells whose area the AI centres on its opponents and scores by who it would catch (<c>EnemyAI.AreaCentre</c>,
-/// <c>0x80058008</c>, and <c>EnemyAI.AimAreaSpell</c>, <c>0x8005974C</c>, by spell kind 8), and for which the party's casters make
-/// the AI spread out (<c>Combat.CreatePartyCombatants</c>, <c>0x8005C7C8</c>): Fireball. Null in a plugin from before it.
-/// </param>
 /// <param name="FlaskDanger">
 /// The flasks the party may hold, and the radius each makes the AI spread out by, the first held counting
 /// (<c>Combat.PartyPotionTier</c>, <c>0x8005C750</c>). Null in a plugin from before it.
@@ -96,7 +91,6 @@ public sealed record CombatRecord(
     [property: KeyedList(nameof(EncounterRule.Flag))] IReadOnlyList<EncounterRule>? Encounters = null,
     GameOverScene? GameOver = null,
     CombatText? Text = null,
-    IReadOnlyList<RecordId>? AreaSpells = null,
     [property: KeyedList(nameof(Records.FlaskDanger.Item))] IReadOnlyList<FlaskDanger>? FlaskDanger = null,
     ShadowRule? Shadow = null,
     IReadOnlyList<RecordId>? UndrawnWeapons = null,

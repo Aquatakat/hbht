@@ -17,21 +17,21 @@ public sealed class EndPotionEffectsTests
         var loremaster = alaron.Skills.Modified(Skill.Loremaster);
         var diplomat = alaron.Skills.Modified(Skill.Diplomat);
         var stealth = alaron.Skills.Modified(Skill.Stealth);
-        foreach (var potion in new[] { Potion.Strength, Potion.Dexterity, Potion.Clarity, Potion.Charisma, Potion.Stealth, Potion.Healing })
-            alaron.ApplyPotionEffect(potion, 0, 1000);
+        foreach (var potion in new[] { BasePotion.Strength, BasePotion.Dexterity, BasePotion.Clarity, BasePotion.Charisma, BasePotion.Stealth, BasePotion.Healing })
+            alaron.ApplyPotionEffect(PotionId(potion), 0, 1000);
         Assert.Equal(strength + 10, alaron.Stats.Base(Stat.Strength));
         Assert.Equal(stealth + 3, alaron.Skills.Modified(Skill.Stealth));
 
         alaron.EndBattleEffects();
 
-        Assert.Equal([Potion.Stealth], alaron.PotionEffects.Select(p => p.Potion));
+        Assert.Equal([PotionId(BasePotion.Stealth)], alaron.PotionEffects.Select(p => p.Source));
         Assert.Equal(strength, alaron.Stats.Base(Stat.Strength));
         Assert.Equal(dexterity, alaron.Stats.Base(Stat.Dexterity));
         Assert.Equal(loremaster, alaron.Skills.Modified(Skill.Loremaster));
         Assert.Equal(diplomat, alaron.Skills.Modified(Skill.Diplomat));
         // Stealth's +3 stays on, still counting down.
         Assert.Equal(stealth + 3, alaron.Skills.Modified(Skill.Stealth));
-        Assert.True(alaron.HasPotionEffect(Potion.Stealth));
+        Assert.True(alaron.HasEffect(PotionId(BasePotion.Stealth)));
     }
 
     [Fact]
@@ -39,7 +39,7 @@ public sealed class EndPotionEffectsTests
     {
         var alaron = Alaron();
         var modified = alaron.Stats.Modified(Stat.Strength);
-        alaron.ApplyPotionEffect(Potion.Strength, 0, 1000);
+        alaron.ApplyPotionEffect(PotionId(BasePotion.Strength), 0, 1000);
         Assert.Equal(modified + 10, alaron.Stats.Modified(Stat.Strength));
 
         alaron.EndBattleEffects();
@@ -52,8 +52,8 @@ public sealed class EndPotionEffectsTests
     public void TheKeptPotionsTimerIsLeftAlone()
     {
         var alaron = Alaron();
-        alaron.ApplyPotionEffect(Potion.Stealth, 0, 1234);
-        alaron.ApplyPotionEffect(Potion.Strength, 0, 99);
+        alaron.ApplyPotionEffect(PotionId(BasePotion.Stealth), 0, 1234);
+        alaron.ApplyPotionEffect(PotionId(BasePotion.Strength), 0, 99);
 
         alaron.EndBattleEffects();
 
@@ -64,12 +64,12 @@ public sealed class EndPotionEffectsTests
     public void ThePotionsLeftKeepTheirOrder()
     {
         var alaron = Alaron();
-        foreach (var potion in new[] { Potion.Clarity, Potion.Stealth, Potion.Charisma, Potion.Stealth })
-            alaron.ApplyPotionEffect(potion, 0, 1000);
+        foreach (var potion in new[] { BasePotion.Clarity, BasePotion.Stealth, BasePotion.Charisma, BasePotion.Stealth })
+            alaron.ApplyPotionEffect(PotionId(potion), 0, 1000);
 
         alaron.EndBattleEffects();
 
-        Assert.Equal([Potion.Stealth, Potion.Stealth], alaron.PotionEffects.Select(p => p.Potion));
+        Assert.Equal([PotionId(BasePotion.Stealth), PotionId(BasePotion.Stealth)], alaron.PotionEffects.Select(p => p.Source));
     }
 
     [Fact]

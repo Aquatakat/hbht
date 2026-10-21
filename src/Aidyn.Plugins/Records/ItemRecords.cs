@@ -96,6 +96,10 @@ public sealed record ArmorRecord(
 /// (<c>get_item_borg5</c>), or null when it has none.
 /// </param>
 /// <param name="Visuals">What a potion shows in a battle as it's drunk, or a flask at each one its blast hurts; its caster's actor is never used.</param>
+/// <param name="Use">
+/// How a potion is used (ADR 0021): drunk from the pause menu in trek, drunk from C-up's menu in a battle, or thrown in a battle as a
+/// flask, its effects landing where it does. With none, it can't be. Its effects decide whether drinking it does anything now.
+/// </param>
 public sealed record ItemRecord(
     RecordId Id,
     string Name,
@@ -114,7 +118,27 @@ public sealed record ItemRecord(
     RecordId? Model = null,
     IReadOnlyList<Effect>? Effects = null,
     EffectDuration? Duration = null,
-    MagicVisuals? Visuals = null);
+    MagicVisuals? Visuals = null,
+    PotionUse? Use = null);
+
+/// <summary>
+/// How a potion is used (ADR 0021). The base game's potions are drunk anywhere but Stealth, which C-up's menu leaves out
+/// (<c>CombatMenu.ListPotions</c>, <c>0x80088190</c>, skips kind 16), and the four flasks are thrown.
+/// </summary>
+[Flags]
+public enum PotionUse
+{
+    None = 0,
+    /// <summary>Drunk from the pause menu's Party tab in trek (<c>Entity::UsePotion</c>).</summary>
+    DrinkInTrek = 1,
+    /// <summary>Drunk from C-up's menu in a battle, by the one whose turn it is (<c>Combatant.DrinkPotion</c>).</summary>
+    DrinkInBattle = 2,
+    /// <summary>
+    /// Thrown in a battle, at the other side, taken in hand from the pause menu (<c>Combatant.ThrowFlask</c>): its effects land on the
+    /// one it hits, and its blast and corrosion burst about where it lands. Never drunk.
+    /// </summary>
+    Throw = 4,
+}
 
 /// <summary>
 /// What an item is (the original's <c>DBTypeEnum</c>, the high byte of its ID). Weapons and armor have

@@ -251,7 +251,7 @@ public sealed class PartyMemberTests(Na10Import fixture)
         godric.AddExp(3000);
         godric.Stats.Train(Stat.Strength, 2);
         godric.Skills.Train(Skill.Alchemist, 1);
-        godric.ApplyPotionEffect(Potion.Strength, 0, 5000);
+        godric.ApplyPotionEffect(PotionId(BasePotion.Strength), 0, 5000);
         var before = GameState.SaveCharacter(godric);
         Assert.NotNull(before.Weapon);
         Assert.NotNull(before.Armor);

@@ -65,13 +65,14 @@ public sealed class SpellCheckpointTests(Na10Import fixture)
         // CombatMenu.BuildItemsMenu run on 07: Alaron, hurt and tired, has the Healing, Stamina, Curing and Strength potions and his
         // sword's Whitefire; Rheda and Brenna, at full health and Stamina, only Strength; Sholeh the four.
         var alaron = battle.ItemRows(built[0]);
-        Assert.Equal([Potion.Healing, Potion.Stamina, Potion.Curing, Potion.Strength], alaron.Where(r => r.Potion is not null).Select(r => r.Potion!.Value));
+        Assert.Equal([PotionId(BasePotion.Healing), PotionId(BasePotion.Stamina), PotionId(BasePotion.Curing), PotionId(BasePotion.Strength)],
+            alaron.Where(r => r.Potion is not null).Select(r => r.Potion!.Id));
         var swords = alaron.Single(r => r.Choice == CombatMenuChoice.ItemSpell);
         Assert.Equal(("Whitefire", SpellSourceKind.Weapon), (swords.Text, swords.Spell.Source));
         Assert.Same(swords, alaron[^1]);
         Assert.Single(Rows(1));
         Assert.Equal(battle.ItemRows(built[1])[0].Text, battle.ItemRows(built[2])[0].Text);
-        Assert.Equal(Potion.Strength, battle.ItemRows(built[1])[0].Potion);
+        Assert.Equal(PotionId(BasePotion.Strength), battle.ItemRows(built[1])[0].Potion?.Id);
         Assert.Equal(4, Rows(3).Length);
     }
 
@@ -258,7 +259,7 @@ public sealed class FlaskCheckpointTests(Na10Import fixture)
         var built = At(Set, 5);
         var battle = built.Battle;
         var (alaron, rat) = (built[0], built[4]);
-        alaron.HoldPotion(Potion.FireFlask, battle);
+        alaron.HoldPotion(battle.Game.Party.Inventory.Catalog[PotionId(BasePotion.FireFlask)], battle);
         battle.BlastCell = (66, 56);
         Assert.Equal(31, rat.Sheet.Hp);
 
@@ -276,7 +277,7 @@ public sealed class FlaskCheckpointTests(Na10Import fixture)
         var built = At(Set, 5);
         var battle = built.Battle;
         var (alaron, rat) = (built[0], built[4]);
-        alaron.HoldPotion(Potion.FireFlask, battle);
+        alaron.HoldPotion(battle.Game.Party.Inventory.Catalog[PotionId(BasePotion.FireFlask)], battle);
         battle.BlastCell = (66, 56);
         var before = battle.Combatants.ToDictionary(c => c, c => c.Sheet.Hp);
         battle.FlaskExplosion(alaron, rat, 40);

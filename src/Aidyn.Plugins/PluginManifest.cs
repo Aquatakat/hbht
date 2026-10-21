@@ -79,8 +79,10 @@ public static class BasePlugin
     /// record the entities whose weapon isn't drawn and those who hold a bow in the other hand.
     /// 52 reads the last of the code's content tables (roadmap 1H): the actors combat always animates (<c>alwaysAnimated</c> on actors),
     /// the title screen's fly-throughs (<c>aidyn:title/0</c>) and the places each map set puts the player by number (<c>spawns</c>).
+    /// 53 writes how each potion is used (<c>use</c>: drunk in trek, in a battle, or thrown) and which spells the AI treats as an area
+    /// (<c>area</c> on the spell, where the combat record's <c>areaSpells</c> was), ADR 0021.
     /// </summary>
-    public const int ImporterVersion = 52;
+    public const int ImporterVersion = 53;
 
     /// <summary>
     /// What's wrong with the imported base plugin under <paramref name="pluginsDirectory"/>, worded for the player, or null if

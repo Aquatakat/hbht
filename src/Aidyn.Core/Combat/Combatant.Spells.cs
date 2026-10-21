@@ -54,11 +54,14 @@ public sealed partial class Combatant
     /// <summary>The action kept while a potion or flask is in hand (<c>+0x24</c>), which <see cref="RevertAction"/> puts back.</summary>
     internal CombatAction HeldAction { get; set; }
 
-    /// <summary>The potion or flask in hand (<c>+0x27</c>, with <see cref="CombatAction.Flask"/>): a flask to throw, a potion to drink.</summary>
-    public Potion? Potion { get; internal set; }
+    /// <summary>
+    /// The potion or flask in hand (<c>+0x27</c>, the original's potion kind, with <see cref="CombatAction.Flask"/>): a flask to throw,
+    /// a potion to drink.
+    /// </summary>
+    public Item? Potion { get; internal set; }
 
     /// <summary>Whether its potion in hand is a flask, thrown at the other side; otherwise it's drunk.</summary>
-    public bool HoldsFlask => Action == CombatAction.Flask && Potion is { } p && Items.Potions.IsFlask(p);
+    public bool HoldsFlask => Action == CombatAction.Flask && Potion is { } p && Potions.IsFlask(p);
 
     /// <summary>
     /// Its selected spell as a cast's source (<c>Entity.CurrentSpell</c>, <c>0x80070CB4</c>): the spellbook's entry, or the armor's,
@@ -90,13 +93,13 @@ public sealed partial class Combatant
     /// A potion or flask in hand (<c>Combatant.SetSpellAction</c>): the action kept to come back to, the potion's action, a
     /// performance stopped and the healing modes put away.
     /// </summary>
-    internal void HoldPotion(Potion potion, Battle battle)
+    internal void HoldPotion(Item potion, Battle battle)
     {
         if (Action != CombatAction.Flask)
             HeldAction = Action;
         Action = CombatAction.Flask;
         Potion = potion;
-        Drawn = Items.Potions.IsFlask(potion);
+        Drawn = Potions.IsFlask(potion);
         EquipVisuals(battle.Rules);
         if (Performing)
             StopPerforming(battle);
@@ -113,9 +116,9 @@ public sealed partial class Combatant
         Flags &= ~(CombatantFlags.LayOnHands | CombatantFlags.HealWithHerbs);
         if (Action != CombatAction.Flask || Potion is not { } potion)
             return;
-        if (Items.Potions.IsFlask(potion))
+        if (Potions.IsFlask(potion))
         {
-            if (inventory?.Has(Items.Potions.Id(potion)) == true)
+            if (inventory?.Has(potion.Id) == true)
                 return;
             Action = CombatAction.None;
         }

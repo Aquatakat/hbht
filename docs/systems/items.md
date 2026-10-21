@@ -51,7 +51,7 @@ A replaced item goes back to the inventory; if it can't, the new one does instea
 
 ## Potions
 
-Potion *n* is `Potion` *n* (`PotionEnum`): the Fire, Inferno, Sleep Gas and Acid flasks, then Healing, Stamina, Curing, Antidote, Restore, Strength, Dexterity, the left-out Aspect and Jumping, Clarity, Charisma, Defence and Stealth. Drinking one from the pause menu (`Potions.Drink`, `Entity::UsePotion`) does its effects and uses one up if it does something now (`Potions.CanDrink`, `Entity::CanUsePotion`), and otherwise says why and uses nothing:
+Potion *n* is `aidyn:item/0x10nn`, the original's `PotionEnum` *n*: the Fire, Inferno, Sleep Gas and Acid flasks, then Healing, Stamina, Curing, Antidote, Restore, Strength, Dexterity, the left-out Aspect and Jumping, Clarity, Charisma, Defence and Stealth. The core knows them only by their records ([ADR 0021](../adr/0021-instant-effects-land-in-one-place.md)): each has its effects and its `use`, whether it's drunk in trek, drunk from C-up's menu in a battle, or thrown as a flask ([magic](magic.md#potions-and-flasks)), so a plugin's potion is drunk or thrown as the base game's are. Drinking one from the pause menu (`Potions.Drink`, `Entity::UsePotion`) does its effects and uses one up if it does something now (`Potions.CanDrink`, `Entity::CanUsePotion`), and otherwise says why and uses nothing:
 
 | Potion | Drinkable | Does |
 | --- | --- | --- |
@@ -59,7 +59,7 @@ Potion *n* is `Potion` *n* (`PotionEnum`): the Fire, Inferno, Sleep Gas and Acid
 | Stamina | Stamina below its base (`slt`), or exhausted | Ends Exhaustion, and restores Stamina to its base |
 | Antidote, Restore | Poisoned, or under a weakening spell: Wraith Touch, Debilitation, Weakness, Exhaustion, Stupidity or Clumsiness | Ends the poison, or the weakening spells |
 | Strength, Dexterity, Clarity, Charisma, Defence, Stealth | Not already working | Works for 3 hours of game time ([characters](characters.md#a-character-sheet)) |
-| The flasks, Aspect, Jumping | Never outside combat | |
+| The flasks, Aspect, Jumping | Never outside combat: the flasks are thrown, and the other two have no effects | |
 
 The two refusals, "cannot be used right now" and "cannot be used in Trek mode", are C strings in code, not string table lines; the importer reads them onto the inventory record.
 

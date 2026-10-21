@@ -11,20 +11,21 @@ namespace Aidyn.Core.Tests;
 /// <summary>Potions, flasks and the inventory record's messages for them, for the potion and Party tab tests.</summary>
 internal static class PotionData
 {
-    public static ItemRecord Of(Potion potion) =>
+    public static ItemRecord Of(BasePotion potion) =>
         ItemData.NewItem(0, ItemKind.Potion) with
         {
-            Id = Potions.Id(potion),
+            Id = PotionId(potion),
             Name = potion.ToString(),
             Description = $"{potion} potion.",
             Effects = MagicData.Potion(potion).Effects,
             Duration = MagicData.Potion(potion).Duration,
+            Use = MagicData.Use(potion),
         };
 
     public static readonly InventoryMessages Messages = new("Not now.", "Not in trek.", "Only the lighthouse.");
 
     public static ItemCatalog Catalog(params object[] more) => ItemData.CatalogWith(TradeData.Rules() with { Messages = Messages },
-        [TradeData.Spice, TradeData.Herb, TradeData.Gem, TradeData.Hide, TradeData.Leather, .. Enum.GetValues<Potion>().Select(Of), .. more]);
+        [TradeData.Spice, TradeData.Herb, TradeData.Gem, TradeData.Hide, TradeData.Leather, .. Enum.GetValues<BasePotion>().Select(Of), .. more]);
 
     /// <summary>A member called <paramref name="name"/>, with the given skills and a distinct entity.</summary>
     public static Character Member(string name, int n = 0, SkillLevels? skills = null, int intelligence = 18, int stamina = 30,
@@ -40,53 +41,73 @@ internal static class PotionData
 
 public class PotionTests
 {
-    private static (CharacterParty Party, Character Member) Setup(params Potion[] carried)
+    private static (CharacterParty Party, Character Member) Setup(params BasePotion[] carried)
     {
         // A skill that can't be learnt can't be raised, so these start at 0.
         var member = PotionData.Member("Alaron", skills: new SkillLevels(Loremaster: 0, Diplomat: 0, Stealth: 0));
         var party = TradeData.PartyOf(PotionData.Catalog(), null, member);
         foreach (var potion in carried)
-            party.Inventory.Add(Potions.Id(potion));
+            party.Inventory.Add(PotionId(potion));
         return (party, member);
     }
 
-    private static Item Item(CharacterParty party, Potion potion) => party.Inventory.Catalog[Potions.Id(potion)];
+    private static Item Item(CharacterParty party, BasePotion potion) => party.Inventory.Catalog[PotionId(potion)];
 
     [Fact]
-    public void PotionsAreItemsTenHexByTheirNumberAndTheFirstFourAreFlasks()
+    public void APotionIsAFlaskWhenItsRecordSaysItsThrown()
     {
-        Assert.Equal(RecordId.Hex(RecordTypes.Item, 0x1004), Potions.Id(Potion.Healing));
-        Assert.Equal(Potion.Stealth, Potions.Of(RecordId.Hex(RecordTypes.Item, 0x1010)));
-        Assert.Null(Potions.Of(RecordId.Hex(RecordTypes.Item, 0x1011)));
-        Assert.True(Potions.IsFlask(Potion.AcidFlask));
-        Assert.False(Potions.IsFlask(Potion.Healing));
+        var catalog = PotionData.Catalog();
+        Assert.Equal(RecordId.Hex(RecordTypes.Item, 0x1004), PotionId(BasePotion.Healing));
+        Assert.True(Potions.IsFlask(catalog[PotionId(BasePotion.AcidFlask)]));
+        Assert.False(Potions.IsFlask(catalog[PotionId(BasePotion.Healing)]));
+        Assert.Equal(PotionUse.None, Potions.Use(catalog[TradeData.Herb.Id]));
+        Assert.False(Potions.IsFlask(catalog[TradeData.Herb.Id]));
+    }
+
+    /// <summary>Where a potion is drunk is its record's: one kept for battles isn't drunk in trek, and one with no use nowhere.</summary>
+    [Fact]
+    public void APotionIsDrunkOnlyWhereItsRecordSays()
+    {
+        var tonic = PotionData.Of(BasePotion.Healing) with { Id = RecordId.Parse("testmod:item/tonic"), Use = PotionUse.DrinkInBattle };
+        var inert = PotionData.Of(BasePotion.Healing) with { Id = RecordId.Parse("testmod:item/inert"), Use = null };
+        var member = PotionData.Member("Alaron");
+        var party = TradeData.PartyOf(PotionData.Catalog(tonic, inert), null, member);
+        party.Inventory.Add(tonic.Id);
+        party.Inventory.Add(inert.Id);
+        member.TakeDamage(5);
+        var (t, i) = (party.Inventory.Catalog[tonic.Id], party.Inventory.Catalog[inert.Id]);
+
+        Assert.Equal(DrinkResult.NotInTrek, Potions.Drink(party, member, t, new ScriptedRandom()));
+        Assert.Equal(DrinkResult.Drunk, Potions.CanDrink(member, t, inBattle: true));
+        Assert.Equal((DrinkResult.NotInTrek, DrinkResult.NotInTrek), (Potions.CanDrink(member, i), Potions.CanDrink(member, i, inBattle: true)));
+        Assert.Equal((1, 1), (party.Inventory.Count(tonic.Id), party.Inventory.Count(inert.Id)));
     }
 
     /// <summary>A healing potion at full health would do nothing, so it isn't drunk.</summary>
     [Fact]
     public void AHealingPotionAtFullHealthIsNotDrunk()
     {
-        var (party, member) = Setup(Potion.Healing);
+        var (party, member) = Setup(BasePotion.Healing);
 
-        Assert.Equal(DrinkResult.NotNow, Potions.Drink(party, member, Item(party, Potion.Healing), new ScriptedRandom()));
-        Assert.Equal(1, party.Inventory.Count(Potions.Id(Potion.Healing)));
+        Assert.Equal(DrinkResult.NotNow, Potions.Drink(party, member, Item(party, BasePotion.Healing), new ScriptedRandom()));
+        Assert.Equal(1, party.Inventory.Count(PotionId(BasePotion.Healing)));
     }
 
     /// <summary>Healing heals a share of the maximum from 15% to 25%, truncated, and Curing 40% to 60%.</summary>
     [Fact]
     public void HealingAndCuringHealAShareOfTheMaximumHitPoints()
     {
-        var (party, member) = Setup(Potion.Healing, Potion.Curing);
+        var (party, member) = Setup(BasePotion.Healing, BasePotion.Curing);
         member.TakeDamage(1000);
         Assert.Equal(0, member.Hp);
         var max = member.MaxHp;
 
-        Assert.Equal(DrinkResult.Drunk, Potions.Drink(party, member, Item(party, Potion.Healing), new ScriptedRandom(RandomFor.Range(15, 25, 20))));
+        Assert.Equal(DrinkResult.Drunk, Potions.Drink(party, member, Item(party, BasePotion.Healing), new ScriptedRandom(RandomFor.Range(15, 25, 20))));
         Assert.Equal((int)(0.2f * max), member.Hp);
-        Assert.False(party.Inventory.Has(Potions.Id(Potion.Healing)));
+        Assert.False(party.Inventory.Has(PotionId(BasePotion.Healing)));
 
         var before = member.Hp;
-        Potions.Drink(party, member, Item(party, Potion.Curing), new ScriptedRandom(RandomFor.Range(40, 60, 40)));
+        Potions.Drink(party, member, Item(party, BasePotion.Curing), new ScriptedRandom(RandomFor.Range(40, 60, 40)));
         Assert.Equal(before + (int)(0.4f * max), member.Hp);
     }
 
@@ -94,28 +115,28 @@ public class PotionTests
     [Fact]
     public void TheStaminaPotionWorksOnlyBelowStaminasBaseAndRestoresIt()
     {
-        var (party, member) = Setup(Potion.Stamina);
-        Assert.Equal(DrinkResult.NotNow, Potions.Drink(party, member, Item(party, Potion.Stamina), new ScriptedRandom()));
+        var (party, member) = Setup(BasePotion.Stamina);
+        Assert.Equal(DrinkResult.NotNow, Potions.Drink(party, member, Item(party, BasePotion.Stamina), new ScriptedRandom()));
 
         member.DrainStamina(5);
-        Assert.Equal(DrinkResult.Drunk, Potions.Drink(party, member, Item(party, Potion.Stamina), new ScriptedRandom()));
+        Assert.Equal(DrinkResult.Drunk, Potions.Drink(party, member, Item(party, BasePotion.Stamina), new ScriptedRandom()));
         Assert.Equal(member.Stats.Base(Stat.Stamina), member.Stats.Modified(Stat.Stamina));
     }
 
     /// <summary>Flasks and the left-out potions can't be drunk outside combat; the Antidote and Restore need effects combat brings.</summary>
     [Theory]
-    [InlineData(Potion.FireFlask, DrinkResult.NotInTrek)]
-    [InlineData(Potion.AcidFlask, DrinkResult.NotInTrek)]
-    [InlineData(Potion.Jumping, DrinkResult.NotInTrek)]
-    [InlineData(Potion.Aspect, DrinkResult.NotInTrek)]
-    [InlineData(Potion.Antidote, DrinkResult.NotNow)]
-    [InlineData(Potion.Restore, DrinkResult.NotNow)]
-    public void SomePotionsCantBeDrunkInTrek(Potion potion, DrinkResult expected)
+    [InlineData(BasePotion.FireFlask, DrinkResult.NotInTrek)]
+    [InlineData(BasePotion.AcidFlask, DrinkResult.NotInTrek)]
+    [InlineData(BasePotion.Jumping, DrinkResult.NotInTrek)]
+    [InlineData(BasePotion.Aspect, DrinkResult.NotInTrek)]
+    [InlineData(BasePotion.Antidote, DrinkResult.NotNow)]
+    [InlineData(BasePotion.Restore, DrinkResult.NotNow)]
+    public void SomePotionsCantBeDrunkInTrek(BasePotion potion, DrinkResult expected)
     {
         var (party, member) = Setup(potion);
 
         Assert.Equal(expected, Potions.Drink(party, member, Item(party, potion), new ScriptedRandom()));
-        Assert.True(party.Inventory.Has(Potions.Id(potion)));
+        Assert.True(party.Inventory.Has(PotionId(potion)));
     }
 
     /// <summary>
@@ -125,13 +146,13 @@ public class PotionTests
     [Fact]
     public void AStrengthPotionRaisesTheBaseForThreeHoursOfGameTime()
     {
-        var (party, member) = Setup(Potion.Strength, Potion.Strength);
+        var (party, member) = Setup(BasePotion.Strength, BasePotion.Strength);
         var strength = member.Stats.Base(Stat.Strength);
 
-        Assert.Equal(DrinkResult.Drunk, Potions.Drink(party, member, Item(party, Potion.Strength), new ScriptedRandom()));
+        Assert.Equal(DrinkResult.Drunk, Potions.Drink(party, member, Item(party, BasePotion.Strength), new ScriptedRandom()));
         Assert.Equal(strength + 10, member.Stats.Base(Stat.Strength));
         Assert.Equal(strength + 10, member.Stats.Modified(Stat.Strength));
-        Assert.Equal(DrinkResult.NotNow, Potions.Drink(party, member, Item(party, Potion.Strength), new ScriptedRandom()));
+        Assert.Equal(DrinkResult.NotNow, Potions.Drink(party, member, Item(party, BasePotion.Strength), new ScriptedRandom()));
 
         var ticks = (int)(Potions.Duration / GameClock.DaySpeed);
         Assert.Equal(9000, ticks);
@@ -149,10 +170,10 @@ public class PotionTests
     [Fact]
     public void SkillPotionsAddThreeToTheirSkillWhileTheyWork()
     {
-        var (party, member) = Setup(Potion.Clarity, Potion.Charisma, Potion.Stealth);
+        var (party, member) = Setup(BasePotion.Clarity, BasePotion.Charisma, BasePotion.Stealth);
         var before = new[] { Skill.Loremaster, Skill.Diplomat, Skill.Stealth }.Select(s => member.Skills.RawModified(s)).ToArray();
 
-        foreach (var potion in new[] { Potion.Clarity, Potion.Charisma, Potion.Stealth })
+        foreach (var potion in new[] { BasePotion.Clarity, BasePotion.Charisma, BasePotion.Stealth })
             Assert.Equal(DrinkResult.Drunk, Potions.Drink(party, member, Item(party, potion), new ScriptedRandom()));
         Assert.Equal(before.Select(b => b + 3), new[] { Skill.Loremaster, Skill.Diplomat, Skill.Stealth }.Select(s => member.Skills.RawModified(s)));
 
@@ -166,8 +187,8 @@ public class PotionTests
     public void ACharacterHoldsSevenEffectsAndADeadOnesDontRunDown()
     {
         var member = PotionData.Member("Alaron");
-        foreach (var potion in Enumerable.Repeat(Potion.Defence, 9))
-            member.ApplyPotionEffect(potion, 0, 100);
+        foreach (var potion in Enumerable.Repeat(BasePotion.Defence, 9))
+            member.ApplyPotionEffect(PotionId(potion), 0, 100);
         Assert.Equal(Character.PotionSlots, member.PotionEffects.Count);
 
         member.TakeDamage(1000);
@@ -281,11 +302,11 @@ public class PartyMenuActionTests
     {
         var other = PotionData.Member("Brenna", 1);
         var (party, _) = Setup(null, other);
-        party.Inventory.Add(Potions.Id(Potion.Healing));
+        party.Inventory.Add(PotionId(BasePotion.Healing));
         party.Inventory.Add(Rock.Id);
         var menu = Menu(party);
 
-        PointAt(menu, r => r.Item.Id == Potions.Id(Potion.Healing));
+        PointAt(menu, r => r.Item.Id == PotionId(BasePotion.Healing));
         menu.Accept();
         Assert.Equal(PotionData.Messages.PotionNotNow, menu.Message!.Text);
 
@@ -304,17 +325,17 @@ public class PartyMenuActionTests
     public void ADrunkPotionIsUsedUpAndAFlaskSaysItsForCombat()
     {
         var (party, member) = Setup();
-        party.Inventory.Add(Potions.Id(Potion.Strength));
-        party.Inventory.Add(Potions.Id(Potion.FireFlask));
+        party.Inventory.Add(PotionId(BasePotion.Strength));
+        party.Inventory.Add(PotionId(BasePotion.FireFlask));
         var menu = Menu(party);
 
-        PointAt(menu, r => r.Item.Id == Potions.Id(Potion.Strength));
+        PointAt(menu, r => r.Item.Id == PotionId(BasePotion.Strength));
         menu.Accept();
         Assert.Null(menu.Message);
-        Assert.True(member.HasPotionEffect(Potion.Strength));
-        Assert.DoesNotContain(menu.Inventory.Rows, r => r.Item.Id == Potions.Id(Potion.Strength));
+        Assert.True(member.HasEffect(PotionId(BasePotion.Strength)));
+        Assert.DoesNotContain(menu.Inventory.Rows, r => r.Item.Id == PotionId(BasePotion.Strength));
 
-        PointAt(menu, r => r.Item.Id == Potions.Id(Potion.FireFlask));
+        PointAt(menu, r => r.Item.Id == PotionId(BasePotion.FireFlask));
         menu.Accept();
         Assert.Equal(PotionData.Messages.PotionNotInTrek, menu.Message!.Text);
     }
@@ -338,10 +359,10 @@ public class PartyMenuActionTests
         Assert.Equal(MenuText.AlreadyKnows, Line(menu));
     }
 
-    private static readonly RecipeRecord Strength = TradeData.Recipe(0, Crafting.Alchemist, Potions.Id(Potion.Strength), 1, 0,
+    private static readonly RecipeRecord Strength = TradeData.Recipe(0, Crafting.Alchemist, PotionId(BasePotion.Strength), 1, 0,
         new Ingredient(TradeData.Herb.Id, 1));
 
-    private static readonly RecipeRecord Fire = TradeData.Recipe(1, Crafting.Alchemist, Potions.Id(Potion.FireFlask), 3, 0,
+    private static readonly RecipeRecord Fire = TradeData.Recipe(1, Crafting.Alchemist, PotionId(BasePotion.FireFlask), 3, 0,
         new Ingredient(TradeData.Spice.Id, 1));
 
     private static readonly RecipeRecord Armor = TradeData.Recipe(2, Crafting.Mechanic, TradeData.Leather.Id, 1, 0,
@@ -382,8 +403,8 @@ public class PartyMenuActionTests
 
         menu.Accept();
         Assert.Equal(MenuText.PotionMade, Line(menu));
-        Assert.Equal(1, party.Inventory.Count(Potions.Id(Potion.Strength)));
-        Assert.Contains(menu.Inventory.Rows, r => r.Item.Id == Potions.Id(Potion.Strength));
+        Assert.Equal(1, party.Inventory.Count(PotionId(BasePotion.Strength)));
+        Assert.Contains(menu.Inventory.Rows, r => r.Item.Id == PotionId(BasePotion.Strength));
 
         menu.Accept();
         Assert.True(menu.HasPopup);

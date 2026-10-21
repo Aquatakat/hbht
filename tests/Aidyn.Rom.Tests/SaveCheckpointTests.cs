@@ -316,16 +316,16 @@ public sealed class SaveCheckpointTests(Na10Import fixture)
         var game = Game(name, TestRoms.Checkpoint(name));
         var member = game.Party.Members.First();
         var strength = member.Stats.RawBase(Stat.Strength);
-        member.ApplyPotionEffect(Aidyn.Core.Items.Potion.Strength, 0, 5000);
-        member.ApplyPotionEffect(Aidyn.Core.Items.Potion.Defence, 2, 70);
+        member.ApplyPotionEffect(PotionId(BasePotion.Strength), 0, 5000);
+        member.ApplyPotionEffect(PotionId(BasePotion.Defence), 2, 70);
         game.PassTime(1);
 
         var again = GameState.Load(Set, SaveFile.Parse(SaveFile.Serialize(game.Save())));
         var loaded = again.Party.Members.First();
 
         Assert.Empty(again.Problems);
-        Assert.Equal([(Aidyn.Core.Items.Potion.Strength, 0, 5000u - 72), (Aidyn.Core.Items.Potion.Defence, 2, 0u)],
-            loaded.PotionEffects.Select(p => (p.Potion, p.Power, p.Timer)));
+        Assert.Equal([(PotionId(BasePotion.Strength), 0, 5000u - 72), (PotionId(BasePotion.Defence), 2, 0u)],
+            loaded.PotionEffects.Select(p => (p.Source, p.Power, p.Timer)));
         Assert.Equal(strength + 10, loaded.Stats.RawBase(Stat.Strength));
         Assert.Equal(member.Stats.Modified(Stat.Strength), loaded.Stats.Modified(Stat.Strength));
     }

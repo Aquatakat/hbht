@@ -70,7 +70,7 @@ public sealed partial class Battle
             Lines.Queue(Line(ThrowMissesLine, a));
             return 0;
         }
-        var damage = FlaskDamage(potion);
+        var damage = FlaskDamage(potion.Id);
         Write(Line2(AttacksLine, a, t));
         Lines.Queue(Line2(AttacksLine, a, t));
         BlastCell = (ArenaGrid.CellOf(t.Cell.X), ArenaGrid.CellOf(t.Cell.Y));
@@ -119,18 +119,18 @@ public sealed partial class Battle
 
     /// <summary>
     /// A flask's damage (<c>Combatant.FlaskDamage</c>, <c>0x80065270</c>): the original rolls every flask's dice, in their order, and
-    /// takes its own, so the port rolls each flask's blast and keeps this one's.
+    /// takes its own, so the port rolls the blast of every potion that's thrown, in the records' order, and keeps this one's.
     /// </summary>
-    private int FlaskDamage(Potion potion)
+    private int FlaskDamage(RecordId potion)
     {
         var random = Game.Random.Combat;
         var mine = 0;
-        foreach (var flask in Enum.GetValues<Potion>().Where(Potions.IsFlask))
+        foreach (var flask in Game.Rules.Magic?.Potions.Where(Potions.IsFlask) ?? [])
         {
-            if (Game.Rules.Magic?.Potion(Potions.Id(flask))?.Effects?.OfType<BlastEffect>().FirstOrDefault() is not { } blast)
+            if (flask.Effects?.OfType<BlastEffect>().FirstOrDefault() is not { } blast)
                 continue;
-            var rolled = (blast.Dice.Count > 0 ? random.RollD(blast.Dice.Count, blast.Dice.Sides) : 0) + blast.Dice.Flat;
-            if (flask == potion)
+            var rolled = EffectLanding.Roll(blast.Dice, random);
+            if (flask.Id == potion)
                 mine = rolled;
         }
         return mine;
@@ -142,29 +142,41 @@ public sealed partial class Battle
     /// port leaves it in hand until the turn's end puts it back (<see cref="EndTurn"/>), so the last one flies and bursts as the rest
     /// do: the user's choice.
     /// </summary>
-    private void ConsumeFlask(Combatant a, Potion potion)
+    private void ConsumeFlask(Combatant a, Item potion)
     {
         if (a.Controlled)
             return;
-        Game.Party.Inventory.Take(Potions.Id(potion));
+        Game.Party.Inventory.Take(potion.Id);
     }
 
     /// <summary>
-    /// A flask bursts (<c>Combatant.FlaskExplosion</c>, <c>0x800652F8</c>): about its landing cell, each living combatant in play at a
-    /// squared distance d (kept in a byte, as the original's, and at least 1) within the damage takes the damage ÷ d, from hit points,
-    /// or Stamina with Sleep Gas, others left with at least 1; the target's own loss is queued and its death checked; each it hit
-    /// recoils, and the others' numbers show at once. Acid's corrosion draws a radius first, and those within it lose protection for
-    /// the battle (radius ÷ d) instead of taking damage.
+    /// A flask lands (<c>Combatant.FlaskExplosion</c>, <c>0x800652F8</c>): its effects land on the target through
+    /// <see cref="EffectLanding"/> at <see cref="Potions.Margin"/>, its blast and corrosion bursting about the cell it landed at with the
+    /// damage its throw rolled (<see cref="IMagicHost.Burst"/>), and any damage of its own adding to the target's share.
     /// </summary>
     internal void FlaskExplosion(Combatant a, Combatant t, int damage)
     {
-        if (a.Potion is not { } potion || Game.Rules.Magic?.Potion(Potions.Id(potion)) is not { } record)
+        if (a.Potion is not { } potion || Game.Rules.Magic?.Potion(potion.Id) is not { } record)
             return;
-        var effects = record.Effects ?? [];
-        var corrode = effects.OfType<CorrodeEffect>().FirstOrDefault();
-        var stamina = effects.OfType<BlastEffect>().FirstOrDefault()?.Stamina == true;
-        var radius = corrode is null ? 0 : (byte)(Game.Random.Combat.RollD(corrode.Radius.Count, corrode.Radius.Sides) + corrode.Radius.Flat);
-        var (cx, cz) = BlastCell;
+        var landing = new Landing(record.Id, MagicSchool.None, 0, Potions.Margin, new EffectTarget(a.Sheet, a, this),
+            new EffectTarget(t.Sheet, t, this), Game.Random.Combat) { RecordMargin = 0, Centre = BlastCell, Blast = damage };
+        var result = EffectLanding.Land(record.Effects ?? [], record.Duration, landing);
+        if (result.Dice is { } dice)
+            t.Damage += Game.Random.Combat.RollD(dice & 0xFF, 6);
+    }
+
+    /// <summary>
+    /// A blast bursts (<c>Combatant.FlaskExplosion</c>, <c>0x800652F8</c>): about the centre, each living combatant in play at a squared
+    /// distance d (kept in a byte, as the original's, and at least 1) within the damage takes the damage / d, from hit points, or
+    /// Stamina with Sleep Gas, others left with at least 1; the target's own loss is queued and its death checked; each it hit
+    /// recoils, and the others' numbers show at once. Acid's corrosion draws a radius first, and those within it lose protection for
+    /// the battle (radius / d) instead of taking damage.
+    /// </summary>
+    void IMagicHost.Burst(Combatant t, RecordId source, int damage, bool stamina, Dice? corrode, (int X, int Z)? centre)
+    {
+        var potion = Game.Rules.Magic?.Potion(source);
+        var radius = corrode is null ? 0 : (byte)(Game.Random.Combat.RollD(corrode.Count, corrode.Sides) + corrode.Flat);
+        var (cx, cz) = centre ?? (ArenaGrid.CellOf(t.Cell.X), ArenaGrid.CellOf(t.Cell.Y));
         for (var slot = 0; slot < InPlay; slot++)
         {
             if (_slots[slot] is not { } e || e.Sheet.IsDead)
@@ -174,9 +186,10 @@ public sealed partial class Battle
             var d = squared > 1 ? squared : 1;
             if (corrode is not null && d <= radius)
             {
-                e.Sheet.AddEffect(record.Id, [new ProtectionEffect(new Magnitude(PerLevel: -1))], radius / d, MagicSchool.None, 0,
+                e.Sheet.AddEffect(source, [new ProtectionEffect(new Magnitude(PerLevel: -1))], radius / d, MagicSchool.None, 0,
                     CorrosionTicks, e, this, null);
-                AttachPotionVisual(e, record);
+                if (potion is not null)
+                    AttachPotionVisual(e, potion);
                 continue;
             }
             if (d > damage)
@@ -191,7 +204,8 @@ public sealed partial class Battle
                 if (n >= 1)
                 {
                     e.Sheet.DrainStamina(n);
-                    AttachPotionVisual(e, record);
+                    if (potion is not null)
+                        AttachPotionVisual(e, potion);
                 }
             }
             else
@@ -201,7 +215,8 @@ public sealed partial class Battle
                 if (n > 0)
                 {
                     e.Sheet.TakeDamage(n, e);
-                    AttachPotionVisual(e, record);
+                    if (potion is not null)
+                        AttachPotionVisual(e, potion);
                 }
             }
             e.Damage = (byte)n;
@@ -224,9 +239,8 @@ public sealed partial class Battle
     /// potion's visual plays on the body, which plays the cast's request (<see cref="AttachPotionVisual"/>), and the action goes back
     /// to what it was. No number shows.
     /// </summary>
-    private void DrinkPotion(Combatant a, Potion potion)
+    private void DrinkPotion(Combatant a, Item item)
     {
-        var item = Game.Party.Inventory.Catalog[Potions.Id(potion)];
         var effects = item.Gear?.Effects ?? [];
         var before = a.Sheet.Hp;
         var drunk = Potions.Drink(Game.Party, a.Sheet, item, Game.Random.Combat, a, this);
@@ -236,7 +250,7 @@ public sealed partial class Battle
             SayBoth(PotionOnLine, a.Sheet.Name);
             return;
         }
-        var record = Game.Rules.Magic?.Potion(Potions.Id(potion));
+        var record = Game.Rules.Magic?.Potion(item.Id);
         if (effects.Any(e => e is HealEffect))
         {
             var gained = a.Sheet.Hp - before;
@@ -367,7 +381,7 @@ public sealed partial class Battle
     /// A flask taken in hand from the pause menu's Party tab (<c>Party.EquipFlaskInCombat</c>, <c>0x800753F0</c>): it's the action, and
     /// the turn ends as the menu closes (state 19).
     /// </summary>
-    internal void HoldFlaskFromMenu(Potion potion)
+    internal void HoldFlaskFromMenu(Item potion)
     {
         if (State != CombatState.Pause || Current is not { Controlled: false } c)
             return;

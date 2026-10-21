@@ -1,6 +1,6 @@
 # 0020. One effect vocabulary for spells, potions and enchantments
 
-Status: Accepted · Oct 18, 2026
+Status: Accepted · Oct 18, 2026 · That a potion's use follows from its effects alone, and where the instant types are carried out, are superseded by [0021](0021-instant-effects-land-in-one-place.md)
 
 ## Context
 

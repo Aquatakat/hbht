@@ -21,7 +21,7 @@ internal static class MagicData
     public static readonly MagicRecord Record = new(RecordId.Decimal(RecordTypes.Magic, 0),
         new CastChance(4, 6, 1, 5, [0.75f, 1.25f, 1.25f, 0.75f, 0.75f], [0.5f, 0.75f, 1.25f, 1.5f]),
         new ResistRoll(3, 1, 1, 0.75f, 1.25f), RoundTicks: 600, MostDisabled: 2, Improvement: 0.1f, MaxLevel: 10,
-        KeptAfterBattle: [Potions.Id(Items.Potion.Stealth)]);
+        KeptAfterBattle: [PotionId(BasePotion.Stealth)]);
 
     public static SpellRecord Spell(int id, string name, MagicSchool school, IReadOnlyList<Effect> effects, EffectDuration? duration = null,
         SpellTargetType type = SpellTargetType.Party, SpellTargetCount count = SpellTargetCount.ByLevel, Resisted resisted = Resisted.Never,
@@ -92,26 +92,34 @@ internal static class MagicData
     private static readonly EffectDuration PotionTime = new(Flat: 648000);
 
     /// <summary>A potion's effects and duration, as the importer writes them.</summary>
-    public static (IReadOnlyList<Effect>? Effects, EffectDuration? Duration) Potion(Items.Potion potion) => potion switch
+    public static (IReadOnlyList<Effect>? Effects, EffectDuration? Duration) Potion(BasePotion potion) => potion switch
     {
-        Items.Potion.FireFlask => ([new BlastEffect(new Dice(4))], null),
-        Items.Potion.InfernoFlask => ([new BlastEffect(new Dice(8))], null),
-        Items.Potion.SleepGas => ([new BlastEffect(new Dice(0, 6, 15), Stamina: true)], null),
-        Items.Potion.AcidFlask => ([new BlastEffect(new Dice(2)), new CorrodeEffect(new Dice(2))], null),
-        Items.Potion.Healing => ([new HealEffect(15, 25)], null),
-        Items.Potion.Curing => ([new HealEffect(40, 60)], null),
-        Items.Potion.Stamina => ([new CureEffect([Exhaustion.Id]), new StaminaEffect(Magnitude.Fixed(0), ToBase: true)], null),
-        Items.Potion.Antidote => ([new CureEffect([Poison.Id])], null),
-        Items.Potion.Restore => ([new CureEffect([WraithTouch.Id, Weakening2.Id, Weakness.Id, Exhaustion.Id,
+        BasePotion.FireFlask => ([new BlastEffect(new Dice(4))], null),
+        BasePotion.InfernoFlask => ([new BlastEffect(new Dice(8))], null),
+        BasePotion.SleepGas => ([new BlastEffect(new Dice(0, 6, 15), Stamina: true)], null),
+        BasePotion.AcidFlask => ([new BlastEffect(new Dice(2)), new CorrodeEffect(new Dice(2))], null),
+        BasePotion.Healing => ([new HealEffect(15, 25)], null),
+        BasePotion.Curing => ([new HealEffect(40, 60)], null),
+        BasePotion.Stamina => ([new CureEffect([Exhaustion.Id]), new StaminaEffect(Magnitude.Fixed(0), ToBase: true)], null),
+        BasePotion.Antidote => ([new CureEffect([Poison.Id])], null),
+        BasePotion.Restore => ([new CureEffect([WraithTouch.Id, Weakening2.Id, Weakness.Id, Exhaustion.Id,
             RecordId.Hex(RecordTypes.Spell, 0x0336), Clumsiness.Id])], null),
-        Items.Potion.Strength => ([new StatEffect(Stat(Aidyn.Core.Characters.Stat.Strength), Magnitude.Fixed(10))], PotionTime),
-        Items.Potion.Dexterity => ([new StatEffect(Stat(Aidyn.Core.Characters.Stat.Dexterity), Magnitude.Fixed(10))], PotionTime),
-        Items.Potion.Clarity => ([new SkillEffect(SkillOf(Skill.Loremaster), Magnitude.Fixed(3))], PotionTime),
-        Items.Potion.Charisma => ([new SkillEffect(SkillOf(Skill.Diplomat), Magnitude.Fixed(3))], PotionTime),
-        Items.Potion.Defence => ([new ProtectionEffect(Magnitude.Fixed(15))], PotionTime),
-        Items.Potion.Stealth => ([new SkillEffect(SkillOf(Skill.Stealth), Magnitude.Fixed(3))], PotionTime),
+        BasePotion.Strength => ([new StatEffect(Stat(Aidyn.Core.Characters.Stat.Strength), Magnitude.Fixed(10))], PotionTime),
+        BasePotion.Dexterity => ([new StatEffect(Stat(Aidyn.Core.Characters.Stat.Dexterity), Magnitude.Fixed(10))], PotionTime),
+        BasePotion.Clarity => ([new SkillEffect(SkillOf(Skill.Loremaster), Magnitude.Fixed(3))], PotionTime),
+        BasePotion.Charisma => ([new SkillEffect(SkillOf(Skill.Diplomat), Magnitude.Fixed(3))], PotionTime),
+        BasePotion.Defence => ([new ProtectionEffect(Magnitude.Fixed(15))], PotionTime),
+        BasePotion.Stealth => ([new SkillEffect(SkillOf(Skill.Stealth), Magnitude.Fixed(3))], PotionTime),
         _ => (null, null),
     };
 
-    public static readonly MagicRules Rules = new(Record, Spells, Enum.GetValues<Items.Potion>().Select(PotionData.Of));
+    /// <summary>How a potion is used, as the importer writes it: the flasks thrown, Stealth only in trek, the rest anywhere.</summary>
+    public static PotionUse Use(BasePotion potion) => potion switch
+    {
+        < BasePotion.Healing => PotionUse.Throw,
+        BasePotion.Stealth => PotionUse.DrinkInTrek,
+        _ => PotionUse.DrinkInTrek | PotionUse.DrinkInBattle,
+    };
+
+    public static readonly MagicRules Rules = new(Record, Spells, Enum.GetValues<BasePotion>().Select(PotionData.Of));
 }

@@ -377,7 +377,7 @@ public sealed partial class Battle
         if (combatant.Ai is { } ai && ai.Flags.HasFlag(AiFlags.Plays))
             CheckFlee(combatant, LeaderGone || combatant.Slot != LeaderSlot);
         // A flask carried over is looked up: gone from the inventory, the hand is emptied.
-        if (combatant.HoldsFlask && Game?.Party.Inventory.Has(Items.Potions.Id(combatant.Potion!.Value)) != true)
+        if (combatant.HoldsFlask && Game?.Party.Inventory.Has(combatant.Potion!.Id) != true)
         {
             combatant.Action = CombatAction.None;
             combatant.Potion = null;
