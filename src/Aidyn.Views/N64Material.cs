@@ -28,9 +28,10 @@ namespace Aidyn.Views;
 /// lights instead. Untextured draws also take the mesh's tint colour.
 /// </para>
 /// <para>
-/// With <see cref="RspLighting"/>, as in the runtime, lit display lists are lit per vertex as the
+/// With <see cref="RspLighting"/>, as in the runtime and the Inspector, lit display lists are lit per vertex as the
 /// RSP lights them: an ambient plus the sun's colour times the cosine to it, clamped to 1, in
-/// on-screen values. Without it, as in the Inspector, Godot's lights stand in.
+/// on-screen values, from the sky's globals (<see cref="SetSky"/>, <see cref="SetSkyLight"/>). Without it, Godot's lights
+/// stand in.
 /// </para>
 /// <para>
 /// Fog is the RSP's: a per-vertex amount from the depth buffer's <c>z / w</c>, between the fog
@@ -140,6 +141,37 @@ public static class N64Material
         RenderingServer.GlobalShaderParameterAdd(SunDirectionParameter, RenderingServer.GlobalShaderParameterType.Vec3, new Vector3(0, 1, 0));
         RenderingServer.GlobalShaderParameterAdd(SunColorParameter, RenderingServer.GlobalShaderParameterType.Vec3, new Vector3(0, 0, 0));
         RenderingServer.GlobalShaderParameterAdd(BodyAmbientParameter, RenderingServer.GlobalShaderParameterType.Vec3, new Vector3(1, 1, 1));
+    }
+
+    /// <summary>
+    /// Sets every global from the core's sky as it last worked its colours out (<see cref="Core.Sky.SkyDirector.Apply"/>): the
+    /// scenery's tint, its fog for a camera with these clip planes, and the light (<see cref="SetSkyLight"/>). The runtime's
+    /// sky does, each frame. Nothing until a sky has been chosen.
+    /// </summary>
+    public static void SetSky(Core.Sky.SkyDirector sky, float near, float far)
+    {
+        if (!sky.Applied)
+            return;
+        DeclareGlobals();
+        RenderingServer.GlobalShaderParameterSet(TintParameter, sky.Colors.Tint.ToGodot());
+        RenderingServer.GlobalShaderParameterSet(FogColorParameter, sky.Colors.Fog.ToGodot());
+        RenderingServer.GlobalShaderParameterSet(FogParameter, new Vector4(sky.SceneryFogStart, 1000, near, far));
+        SetSkyLight(sky);
+    }
+
+    /// <summary>
+    /// Sets the globals that light lit display lists as the RSP does (<see cref="RspLighting"/>) from the core's sky: bodies'
+    /// ambient, half the sky colour, and the sun's light and its way. The editor sets these alone, from its game's sky, and
+    /// leaves the scenery untinted and unfogged. Nothing until a sky has been chosen.
+    /// </summary>
+    public static void SetSkyLight(Core.Sky.SkyDirector sky)
+    {
+        if (!sky.Applied)
+            return;
+        DeclareGlobals();
+        RenderingServer.GlobalShaderParameterSet(BodyAmbientParameter, sky.BodyAmbient.ToGodot());
+        RenderingServer.GlobalShaderParameterSet(SunColorParameter, sky.SunColor.ToGodot());
+        RenderingServer.GlobalShaderParameterSet(SunDirectionParameter, sky.SunDirection.ToGodot());
     }
 
     /// <summary>Replaces the imported materials of <paramref name="scene"/>, loaded from the glTF whose JSON is <paramref name="root"/>.</summary>

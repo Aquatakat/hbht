@@ -1,6 +1,7 @@
 using Aidyn.Core;
 using Aidyn.Core.Characters;
 using Aidyn.Core.Flags;
+using Aidyn.Core.Sky;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Saves;
 using Aidyn.Rom.Rig;
@@ -24,9 +25,16 @@ public sealed class EditorGame
         _plugins = plugins;
         Game = GameState.NewGame(plugins);
         _loadedParty = Game.SaveParty();
+        Sky = SkyOver(Game);
     }
 
     public GameState Game { get; private set; }
+
+    /// <summary>
+    /// The sky over where the game stands, at its time of day, which lights the previews' lit display lists as the RSP does
+    /// (<see cref="Views.N64Material.SetSkyLight"/>), as trek's sky lights the runtime's.
+    /// </summary>
+    public SkyDirector Sky { get; private set; }
 
     public FlagNetwork Network => Game.Flags;
 
@@ -111,7 +119,18 @@ public sealed class EditorGame
     private void Start(GameState game, string name, bool isNew)
     {
         Game = game;
+        Sky = SkyOver(game);
         _loadedParty = game.SaveParty();
         (Name, IsNewGame, Console) = (name, isNew, null);
+    }
+
+    /// <summary>The sky of the chunk the game stands in, chosen at once, as a save's or a new game's start chooses it.</summary>
+    private static SkyDirector SkyOver(GameState game)
+    {
+        var sky = new SkyDirector(game.Plugins, game.Clock, game.Weather, game.Random.Twinkle);
+        var start = GameStart.For(game);
+        sky.Enter(start.Set.Chunks.FirstOrDefault(c => c.Name == start.Chunk));
+        sky.Apply();
+        return sky;
     }
 }

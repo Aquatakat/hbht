@@ -33,6 +33,9 @@ public partial class Editor : Control
     public override void _Ready()
     {
         CultureInfo.DefaultThreadCurrentCulture = CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+        // Lit meshes are lit as the RSP lights them, by the game's sky, as in the runtime (ADR 0010), not by Godot's lights.
+        // The editor keeps linear light, so its own overlays draw as they are: no on-screen framebuffer.
+        N64Material.RspLighting = true;
         _records.SetAnchorsPreset(LayoutPreset.FullRect);
         AddChild(_records);
         _ = BackgroundTask.Report(StartAsync(CommandLine.Parse(OS.GetCmdlineUserArgs())));

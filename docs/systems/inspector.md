@@ -6,7 +6,7 @@ Per [ADR 0009](../adr/0009-code-organisation.md), the Inspector is the one tool 
 
 ## The editor's game
 
-The editor holds one game, the core's `GameState` ([saves](saves.md)), which flag pages show and set, scripts play against and change, and the party's pages show or try things on. A flag page's buttons change it:
+The editor holds one game, the core's `GameState` ([saves](saves.md)), which flag pages show and set, scripts play against and change, and the party's pages show or try things on. Its sky, over the chunk it stands in at its time of day (`EditorGame.Sky`), lights the previews' lit meshes as trek's sky lights the runtime's ([rendering](rendering.md#the-n64-material)). A flag page's buttons change it:
 
 - **Load checkpoint…** reads an ares state (see the [reference rig](../reference-rig.md)) as a save made from it loads (`CheckpointSave`), and says whether the core's network reproduces the console's derived flags, marking any the console has otherwise (such as the new journal entry flag, which loading clears). A state without a party gives a new game's party with the checkpoint's flags.
 - **Load save…** loads a save from the data folder's `saves` and lists anything it couldn't use.
