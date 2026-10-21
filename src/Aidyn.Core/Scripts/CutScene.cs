@@ -88,7 +88,7 @@ public sealed class CutScene
     public const float Near = 0.1f, Far = 125;
 
     /// <summary>How long an animation the script plays is asked for: the original's frame it's set in and the next.</summary>
-    private const int StimulusTicks = 2 * Cadence.FrameTicks;
+    private static readonly int StimulusTicks = Cadence.Frames(2);
 
     private readonly GameState _game;
     private readonly IScriptHost? _host;

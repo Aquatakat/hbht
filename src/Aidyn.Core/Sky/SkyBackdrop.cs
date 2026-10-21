@@ -62,7 +62,7 @@ public static class SkyBackdrop
     /// original draws it: its default pitch of 15° raises the camera by sin 15° of its distance, not tan, so it looks
     /// down by atan(sin 15°), 14.5° (<see cref="Cameras.FollowCamera.DefaultPitch"/>).
     /// </summary>
-    public static readonly float DomePitch = MathF.Atan(MathF.Sin(15 * MathF.PI / 180));
+    public static readonly float DomePitch = MathF.Atan(MathF.Sin(Degrees.ToRadians(15)));
 
     /// <summary>How many lines the original moves the gradient up at <see cref="DomePitch"/>: 59.</summary>
     public static readonly int DomeDown = (int)(MathF.Sin(MathF.Sin(DomePitch)) * ScreenLines);

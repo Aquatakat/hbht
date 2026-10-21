@@ -28,8 +28,8 @@ public static class SkyLight
     /// <param name="azimuth">The sun's second angle in the sky objects' table, 90 in the ROM, in degrees.</param>
     public static Vector3 SunDirection(float timeOfDay, float azimuth = 90)
     {
-        var height = GameClock.SunHeight(timeOfDay) * Deg;
-        var (sin, cos) = MathF.SinCos(azimuth * Deg);
+        var height = Degrees.ToRadians(GameClock.SunHeight(timeOfDay));
+        var (sin, cos) = MathF.SinCos(Degrees.ToRadians(azimuth));
         var across = MathF.Cos(height);
         return new Vector3(across * sin, MathF.Sin(height), across * cos);
     }
@@ -41,8 +41,8 @@ public static class SkyLight
     /// </summary>
     public static Vector3 MoonDirection(float timeOfDay, float azimuth = 0)
     {
-        var height = GameClock.MoonHeight(timeOfDay) * Deg;
-        var (sin, cos) = MathF.SinCos(azimuth * Deg);
+        var height = Degrees.ToRadians(GameClock.MoonHeight(timeOfDay));
+        var (sin, cos) = MathF.SinCos(Degrees.ToRadians(azimuth));
         var across = MathF.Cos(height);
         return new Vector3(across * sin, MathF.Sin(height), across * cos);
     }
@@ -62,6 +62,4 @@ public static class SkyLight
     /// <summary>The RSP's lighting of one vertex, in on-screen values.</summary>
     public static Vector3 Shade(Vector3 normal, Vector3 ambient, Vector3 sunDirection, Vector3 sunColor) =>
         Vector3.Min(ambient + sunColor * MathF.Max(Vector3.Dot(normal, sunDirection), 0), Vector3.One);
-
-    private const float Deg = MathF.PI / 180;
 }

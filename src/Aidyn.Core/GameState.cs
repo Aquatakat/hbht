@@ -273,15 +273,12 @@ public sealed class GameState : IScriptWorld
     /// 30 fps frame (<see cref="Cadence.FrameTicks"/>), as the original's <c>TrekLoop.TickClock</c> does once a drawn frame:
     /// a worn Ring of Healing heals.
     /// </summary>
-    private int _effectTicks;
+    private readonly FrameGate _effectFrame = new(Cadence.FrameTicks);
 
     public void PassTime(int ticks)
     {
         Clock.Step(ticks);
-        _effectTicks += ticks;
-        var frame = _effectTicks >= Cadence.FrameTicks;
-        if (frame)
-            _effectTicks = 0;
+        var frame = _effectFrame.Tick(ticks) > 0;
         foreach (var member in Party.Members)
             member.AgeEffects(ticks, frame, Clock.Date.PartOfDay, Random.Combat);
         for (var i = 0; i < ticks; i++)

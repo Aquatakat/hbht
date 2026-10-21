@@ -59,6 +59,21 @@ public class FrameGateTests
         Assert.True(gate.Tick());
     }
 
+    /// <summary>Several ticks at once end the frames they cover, and the rest wait for the next ticks, as one at a time would.</summary>
+    [Fact]
+    public void SeveralTicksAtOnceEndTheFramesTheyCover()
+    {
+        var gate = new FrameGate(Cadence.TextureFrameTicks);
+
+        Assert.Equal(0, gate.Tick(2));
+        Assert.Equal(1, gate.Tick(1));
+        Assert.Equal(2, gate.Tick(7));
+        Assert.Equal(1, gate.Ticks);
+        Assert.False(gate.Tick());
+        Assert.True(gate.Tick());
+        Assert.Equal(2 * Cadence.FrameTicks, Cadence.Frames(2));
+    }
+
     /// <summary>A pulse's restart keeps the ticks toward its next step, but its reset starts the frame over.</summary>
     [Fact]
     public void APulseRestartKeepsTheFrameAndItsResetDoesNot()

@@ -95,7 +95,7 @@ public static class ChunkView
 
     private static Vector2 Rotate(Vector2 v, float degrees)
     {
-        var (s, c) = MathF.SinCos(degrees * (MathF.PI / 180));
+        var (s, c) = MathF.SinCos(Degrees.ToRadians(degrees));
         return new Vector2(v.X * c - v.Y * s, v.X * s + v.Y * c);
     }
 }
