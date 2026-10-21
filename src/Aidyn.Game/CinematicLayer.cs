@@ -10,9 +10,10 @@ namespace Aidyn.Game;
 /// <summary>
 /// A cinematic over everything (game mode 0xE): the shot (<see cref="CinematicView"/>), the caption box on a UI screen
 /// of its own, and the fade over both, as the original draws them (<c>Cinematic.DrawShot</c>, <c>0x80053d94</c>, then
-/// <c>Cinematic.StepFades</c>). Each shot's music plays through it. The game steps it a tick at a time and carries out
-/// its end. All three are framed to the cinematic's aspect ratio, 4:3 for the original's, with black beside or above
-/// and below, since the sets end beyond the console's screen.
+/// <c>Cinematic.StepFades</c>). Each shot's music plays through it. The session steps it a tick at a time and carries out
+/// its end (<see cref="Core.GameSession.Cinematic"/>); this draws what each tick left (<see cref="Draw"/>). All three are
+/// framed to the cinematic's aspect ratio, 4:3 for the original's, with black beside or above and below, since the sets
+/// end beyond the console's screen.
 /// </summary>
 public partial class CinematicLayer : CanvasLayer
 {
@@ -62,30 +63,18 @@ public partial class CinematicLayer : CanvasLayer
     /// <summary>The 3D view, whose antialiasing the game sets.</summary>
     public SubViewport Viewport => _view.Viewport;
 
-    /// <summary>The cinematic playing, until its end has been carried out.</summary>
-    public CinematicPlayer? Player { get; private set; }
-
-    /// <summary>Whether it stands still where it is, for screenshots.</summary>
-    public bool Held { get; set; }
-
-    /// <summary>Whether one is playing.</summary>
-    public bool Playing => Player is not null;
-
-    /// <summary>Starts a cinematic, the party leader's name in its captions in place of Alaron's.</summary>
-    public void Play(CinematicRecord cinematic, string leader)
+    /// <summary>Shows a cinematic the session has started, framed to its aspect ratio, with nothing drawn yet.</summary>
+    public void Play(CinematicRecord cinematic)
     {
-        Player = new CinematicPlayer(cinematic, leader);
         _frame.Ratio = cinematic.Aspect;
         _captions.Caption = null;
         _fade.Color = Colors.Transparent;
         Visible = true;
     }
 
-    /// <summary>Steps on silently to a shot's tick, for the command line's screenshots, and shows it.</summary>
-    public void SkipTo(int shot, int time)
+    /// <summary>Steps the player on silently to a shot's tick, for the command line's screenshots, and shows it.</summary>
+    public void SkipTo(CinematicPlayer player, int shot, int time)
     {
-        if (Player is not { } player)
-            return;
         while (!player.Ended && !(player.ShotIndex == shot && player.Shot is not null && player.Time >= time))
             player.Step();
         if (player.Shot is not { } current)
@@ -97,15 +86,12 @@ public partial class CinematicLayer : CanvasLayer
         _fade.Color = Color.Color8(player.Fade.R, player.Fade.G, player.Fade.B, player.Fade.A);
     }
 
-    /// <summary>B or Start: the rest is skipped.</summary>
-    public void Skip() => Player?.Skip();
-
-    /// <summary>One tick. Returns the cinematic once it has ended, and hides.</summary>
-    public CinematicRecord? Step()
+    /// <summary>
+    /// Draws the tick the session stepped: a shot that started shows with its music, a shot freed stops its music, the
+    /// picture holding until the next, and a tick that drew poses the shot at its time with its caption and fade.
+    /// </summary>
+    public void Draw(CinematicPlayer player)
     {
-        if (Player is not { } player || Held)
-            return null;
-        player.Step();
         if (player.ShotStarted && player.Shot is { } shot)
         {
             _view.Show(shot);
@@ -123,13 +109,14 @@ public partial class CinematicLayer : CanvasLayer
             var f = player.Fade;
             _fade.Color = Color.Color8(f.R, f.G, f.B, f.A);
         }
-        if (!player.Ended)
-            return null;
+    }
+
+    /// <summary>The cinematic has ended: its music stops, its picture goes and the layer hides.</summary>
+    public void End()
+    {
         StopMusic();
         _view.Clear();
         Visible = false;
-        Player = null;
-        return player.Cinematic;
     }
 
     /// <summary>

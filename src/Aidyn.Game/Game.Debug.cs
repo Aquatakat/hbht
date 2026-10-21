@@ -210,10 +210,10 @@ public partial class Game
             return;
         }
         _session!.PlayCinematic(cinematic, fromTheatre: false);
-        if (parts.Length > 1)
-            _cinematic!.SkipTo(int.Parse(parts[1], CultureInfo.InvariantCulture),
+        if (parts.Length > 1 && _session.Cinematic is { } showing)
+            _cinematic!.SkipTo(showing.Player, int.Parse(parts[1], CultureInfo.InvariantCulture),
                 parts.Length > 2 ? int.Parse(parts[2], CultureInfo.InvariantCulture) : 0);
-        _cinematic!.Held = parts.Length > 3 && parts[3] == "hold";
+        _session.CinematicHeld = parts.Length > 3 && parts[3] == "hold";
     }
 
     /// <summary>

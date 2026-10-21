@@ -75,6 +75,12 @@ public sealed class ZoneEngine
     /// <summary>The loaded chunks' collision.</summary>
     public CollisionWorld World => Chunks.World;
 
+    /// <summary>
+    /// Whether its world is loaded: a chunk is. Trek's is freed under a cut-scene's stage and a battle's arena
+    /// (<see cref="Free"/>), and what plays after them, a cinematic or the credits, builds it again once it ends.
+    /// </summary>
+    public bool WorldLoaded => Chunks.All.Any();
+
     /// <summary>The solid surfaces the loaded chunks draw, if it keeps them, which rain and snow land on.</summary>
     public VisibleWorld? Visible => Chunks.Visible;
 

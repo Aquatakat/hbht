@@ -385,6 +385,23 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         battle.FreeBody(c);
     }
 
+    /// <summary>
+    /// Plays the cinematic or the credits running out, skipping what can be skipped, until the session has ended it and
+    /// carried out what follows; the ending's credits, which can't be, roll to their end.
+    /// </summary>
+    private static void PlayOut(GameSession session)
+    {
+        var mode = session.Mode;
+        Assert.True(mode is GameMode.Cinematic or GameMode.Credits);
+        for (var i = 0; i < 60000 && session.Mode == mode; i++)
+        {
+            session.Cinematic?.Player.Skip();
+            session.Credits?.Roll.Skip();
+            Tick(session);
+        }
+        Assert.NotEqual(mode, session.Mode);
+    }
+
     private static SessionStep TickUntil(GameSession session, SessionStep until, int most = 2000)
     {
         var step = SessionStep.Trek;
@@ -547,14 +564,14 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         session.MenuClosed(PauseExit.Credits);
         Assert.IsType<Transition.PlayCredits>(Assert.Single(host.Transitions));
         Assert.Equal((GameMode.Credits, SessionStep.Credits), (session.Mode, Tick(session)));
-        session.CreditsEnded();
+        PlayOut(session);
         Assert.Equal(new Transition.ReopenMenu(Theatre: false), TickUntilReopened(session, host));
 
         // The Theatre's cinematic: its done flag is set, and the menu reopens on the Theatre's page.
         var cinematic = Data.Set.Get<CinematicRecord>(RecordId.Decimal(RecordTypes.Cinematic, 2));
         session.MenuClosed(PauseExit.Theatre(cinematic));
         Assert.Equal(new Transition.PlayCinematic(cinematic), host.Transitions[^1]);
-        session.CinematicEnded();
+        PlayOut(session);
         Assert.True(session.Game.Flags.IsSet(cinematic.DoneFlag));
         Assert.Equal(new Transition.ReopenMenu(Theatre: true), TickUntilReopened(session, host));
     }
@@ -566,6 +583,75 @@ public sealed partial class GameSessionTests(Na10Import fixture)
             Tick(session);
         Assert.False(session.Trek.CutSceneFade.Fading);
         return Assert.Single(host.Transitions);
+    }
+
+    [Fact]
+    public void TheSessionStepsACinematicAndTheCreditsToTheirEnds()
+    {
+        var (session, host) = Start("G14", 40, 40);
+        var opening = Data.Set.Get<CinematicRecord>(RecordId.Decimal(RecordTypes.Cinematic, 0));
+
+        // The Theatre's opening, played out tick by tick with no skip: each tick is the cinematic's, its player moving through
+        // its shots; its end goes to the host, trek comes back, not built again, and the menu reopens on the Theatre's page once
+        // trek has faded in.
+        session.OpenMenu();
+        session.MenuClosed(PauseExit.Theatre(opening));
+        var showing = session.Cinematic!;
+        Assert.Equal((opening, true), (showing.Record, showing.FromTheatre));
+        host.Transitions.Clear();
+        var ticks = 0;
+        var shots = new HashSet<int>();
+        for (; ticks < 100000 && session.Mode == GameMode.Cinematic; ticks++)
+        {
+            Assert.Equal(SessionStep.Cinematic, Tick(session));
+            if (showing.Player.Shot is not null)
+                shots.Add(showing.Player.ShotIndex);
+        }
+        Assert.True(showing.Player.Ended && !showing.Player.Skipped);
+        Assert.Equal(opening.Shots.Count, shots.Count);
+        var length = opening.Shots.Sum(s => s.Length);
+        Assert.InRange(ticks, length - 2 * opening.Shots.Count, length + 2 * opening.Shots.Count + 4);
+        Assert.Equal([typeof(Transition.EndCinematic)], host.Transitions.Select(t => t.GetType()));
+        Assert.True(session.Game.Flags.IsSet(opening.DoneFlag));
+        Assert.Equal((GameMode.Trek, null), (session.Mode, session.Cinematic));
+        Assert.Equal(new Transition.ReopenMenu(Theatre: true), TickUntilReopened(session, host));
+
+        // Held for a screenshot, it stands still; let go, it goes on, and skipped, it ends in a few ticks.
+        session.MenuClosed(PauseExit.Theatre(opening));
+        var player = session.Cinematic!.Player;
+        for (var i = 0; i < 10; i++)
+            Tick(session);
+        var (shot, time) = (player.ShotIndex, player.Time);
+        session.CinematicHeld = true;
+        for (var i = 0; i < 10; i++)
+            Assert.Equal(SessionStep.Cinematic, Tick(session));
+        Assert.Equal((shot, time), (player.ShotIndex, player.Time));
+        session.CinematicHeld = false;
+        Tick(session);
+        Assert.NotEqual((shot, time), (player.ShotIndex, player.Time));
+        player.Skip();
+        for (ticks = 0; ticks < 10 && session.Mode == GameMode.Cinematic; ticks++)
+            Tick(session);
+        Assert.Equal((GameMode.Trek, true), (session.Mode, player.Skipped));
+        Assert.Equal(new Transition.ReopenMenu(Theatre: true), TickUntilReopened(session, host));
+
+        // The menu's credits roll on a screen as tall as the session is told, and A ends them at once: their end goes to the
+        // host as trek fades in from black, and the menu reopens once it has.
+        session.CreditsScreenHeight = 480;
+        host.Transitions.Clear();
+        session.MenuClosed(PauseExit.Credits);
+        var credits = session.Credits!;
+        Assert.Equal((false, true), (credits.Ending, credits.FromMenu));
+        Assert.Equal(new Transition.PlayCredits(), Assert.Single(host.Transitions));
+        for (var i = 0; i < 100; i++)
+            Assert.Equal(SessionStep.Credits, Tick(session));
+        Assert.NotEmpty(credits.Roll.Lines);
+        credits.Roll.Skip();
+        Assert.Equal(SessionStep.Credits, Tick(session));
+        Assert.Equal((GameMode.Trek, null), (session.Mode, session.Credits));
+        Assert.Equal(new Transition.EndCredits(Ending: false), host.Transitions[^1]);
+        Assert.True(session.Trek.CutSceneFade.Fading);
+        Assert.Equal(new Transition.ReopenMenu(Theatre: false), TickUntilReopened(session, host));
     }
 
     [Fact]

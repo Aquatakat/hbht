@@ -2,7 +2,7 @@
 
 How the port plays the four pre-animated cinematics, and the System tab's Theater, which plays them again. Addresses are 1.0's: `Cinematic.Load` `0x80053880`, `Cinematic.Tick` `0x80053934`, `Cinematic.StartShot` `0x80053e4c`, `Cinematic.EndCase` `0x80053c20`, the captions in `cinematictext.cpp` (`0x800545d0`–`0x80054ca0`), the box `TextBand` (`0x80055800`), and the menu in `theatermenu.cpp` (`Theatre.Build` `0x80044444`). The symbol map has the rest. The tables themselves are in [hardcoded-content](../hardcoded-content.md#scripts-and-cinematics-the-engine-starts).
 
-`CinematicPlayer` (`Aidyn.Core.Cinematics`) steps one, `CinematicLayer` and `CinematicView` draw it in the runtime, and `TheatreMenu` is the page.
+`CinematicPlayer` (`Aidyn.Core.Cinematics`) is one playing, which the session steps a tick at a time and ends itself (`GameSession.Cinematic`, its `EndCinematic` transition going out before what follows); `CinematicLayer` and `CinematicView` draw what each tick left in the runtime and play each shot's music; and `TheatreMenu` is the page.
 
 ## The records
 

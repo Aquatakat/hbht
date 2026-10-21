@@ -143,9 +143,9 @@ public sealed partial class GameSessionTests
         host.Transitions.Clear();
         session.EndBattle();
         Assert.Equal(GameMode.Cinematic, session.Mode);
-        Assert.Equal(RecordId.Decimal(RecordTypes.Cinematic, 1), session.Cinematic!.Id);
+        Assert.Equal(RecordId.Decimal(RecordTypes.Cinematic, 1), session.Cinematic!.Record.Id);
         Assert.False(game.Flags.IsSet(RecordId.Decimal(RecordTypes.Flag, 1004)));
-        session.CinematicEnded();
+        PlayOut(session);
         Assert.True(game.Flags.IsSet(RecordId.Decimal(RecordTypes.Flag, 569)));
         Assert.IsType<Transition.ResumeTrek>(host.Transitions.Last());
         Assert.Equal(GameMode.Trek, session.Mode);

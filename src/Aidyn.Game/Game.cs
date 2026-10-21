@@ -384,6 +384,9 @@ public partial class Game : Node3D, ITrekHost
             screen.Lines = s.UiLines;
             screen.Filter = s.UiFilter;
         }
+        // The credits lay their cards out on a screen as tall as the UI's lines.
+        if (_credits is not null && _session is not null)
+            _session.CreditsScreenHeight = _credits.Screen.CanvasSize.Y;
     }
 
     /// <summary>Draws the 3D world at the lines the settings ask for, scaled up to the window, or at the window's own.</summary>
@@ -409,7 +412,7 @@ public partial class Game : Node3D, ITrekHost
 
     /// <summary>
     /// One 60 Hz tick of the game (<see cref="GameSession.Tick"/>), and what draws the mode that ran: the cinematic or the
-    /// credits, which step themselves; a cut-scene; or trek, with its popup's pulse stepped before it.
+    /// credits; a cut-scene; or trek, with its popup's pulse stepped before it.
     /// </summary>
     private void Tick()
     {
@@ -430,10 +433,10 @@ public partial class Game : Node3D, ITrekHost
         switch (step)
         {
             case SessionStep.Cinematic:
-                StepCinematic();
+                DrawCinematic();
                 return;
             case SessionStep.Credits:
-                StepCredits();
+                DrawCredits();
                 return;
             case SessionStep.Held:
                 return;
@@ -968,11 +971,17 @@ public partial class Game : Node3D, ITrekHost
             case Transition.ResumeTrek:
                 ShowTrek();
                 break;
-            case Transition.PlayCredits credits:
-                PlayCredits(credits.Ending);
+            case Transition.PlayCredits:
+                PlayCredits();
+                break;
+            case Transition.EndCredits:
+                EndCredits();
                 break;
             case Transition.PlayCinematic cinematic:
                 PlayCinematic(cinematic.Cinematic);
+                break;
+            case Transition.EndCinematic:
+                EndCinematic();
                 break;
             case Transition.ReopenMenu { Theatre: true }:
                 _menu!.OpenTheatre();
