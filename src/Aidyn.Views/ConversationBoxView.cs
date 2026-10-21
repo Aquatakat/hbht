@@ -5,7 +5,7 @@ using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 using Godot;
 
-namespace Aidyn.Game;
+namespace Aidyn.Views;
 
 /// <summary>
 /// Draws a conversation's box (<see cref="DialogueBox"/>) on a <see cref="UiScreen"/>'s canvas, in

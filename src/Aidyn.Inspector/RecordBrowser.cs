@@ -3,7 +3,6 @@ using System.Text.Json.Nodes;
 using Aidyn.Core.Characters;
 using Aidyn.Core.Flags;
 using Aidyn.Core.Items;
-using Aidyn.Game;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Assets;
 using Aidyn.Plugins.Records;
@@ -65,6 +64,19 @@ public partial class RecordBrowser : Control
     private Task _showing = Task.CompletedTask;
 
     public override void _Ready() => BuildUi();
+
+    /// <summary>
+    /// The game's sky lights the previews' lit display lists, as the runtime's sky lights trek's (<see cref="N64Material.RspLighting"/>),
+    /// worked out again each frame for its time of day, which a script played here can move on. The scenery stays untinted and
+    /// unfogged.
+    /// </summary>
+    public override void _Process(double delta)
+    {
+        if (_game?.Sky is not { } sky)
+            return;
+        sky.Apply();
+        N64Material.SetSkyLight(sky);
+    }
 
     public override void _Notification(int what)
     {

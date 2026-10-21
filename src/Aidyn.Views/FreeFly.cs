@@ -1,6 +1,6 @@
 using Godot;
 
-namespace Aidyn.Game;
+namespace Aidyn.Views;
 
 /// <summary>The free camera's movement, which the runtime's camera and the editor's map view both fly by.</summary>
 public static class FreeFly

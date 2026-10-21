@@ -3,7 +3,7 @@ using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 using Godot;
 
-namespace Aidyn.Game;
+namespace Aidyn.Views;
 
 /// <summary>
 /// Draws the pause menu's Party tab (<see cref="PartyMenu"/>) on a <see cref="UiScreen"/>'s canvas, as the

@@ -1,7 +1,7 @@
 using System.Globalization;
 using Godot;
 
-namespace Aidyn.Game;
+namespace Aidyn.Views;
 
 /// <summary>
 /// The options both Godot projects take after <c>--</c>: <c>--name value</c> pairs (<see cref="Parse"/>), and the

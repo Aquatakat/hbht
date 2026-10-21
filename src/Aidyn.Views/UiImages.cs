@@ -3,7 +3,7 @@ using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 using Godot;
 
-namespace Aidyn.Game;
+namespace Aidyn.Views;
 
 /// <summary>UI images from the plugins, as textures, loaded once each.</summary>
 public sealed class UiImages(PluginSet plugins)

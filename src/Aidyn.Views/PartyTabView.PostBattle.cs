@@ -1,7 +1,7 @@
 using Aidyn.Core.Ui;
 using Godot;
 
-namespace Aidyn.Game;
+namespace Aidyn.Views;
 
 /// <summary>
 /// The post-battle window (<see cref="PostBattleMenu"/>, pause state 5).

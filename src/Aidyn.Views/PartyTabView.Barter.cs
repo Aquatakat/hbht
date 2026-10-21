@@ -2,7 +2,7 @@ using Aidyn.Core.Ui;
 using Aidyn.Plugins.Records;
 using Godot;
 
-namespace Aidyn.Game;
+namespace Aidyn.Views;
 
 /// <summary>
 /// The menu's barter state (<see cref="BarterMenu"/>): the loot window, or a shop's.

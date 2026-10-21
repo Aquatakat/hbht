@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using Godot;
 
-namespace Aidyn.Game;
+namespace Aidyn.Views;
 
 /// <summary>
 /// Poses the nodes an animation both turns and scales by setting each one's whole transform from its tracks, as the

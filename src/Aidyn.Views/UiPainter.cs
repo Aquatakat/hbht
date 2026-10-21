@@ -3,7 +3,7 @@ using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 using Godot;
 
-namespace Aidyn.Game;
+namespace Aidyn.Views;
 
 /// <summary>A font's layout and its sheet, to print with.</summary>
 public sealed record UiFont(TextLayout Layout, Texture2D? Sheet)

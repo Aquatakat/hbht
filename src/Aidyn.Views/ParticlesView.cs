@@ -5,7 +5,7 @@ using Aidyn.Plugins.Assets;
 using Aidyn.Plugins.Records;
 using Godot;
 
-namespace Aidyn.Game;
+namespace Aidyn.Views;
 
 /// <summary>
 /// Draws the engine's particles (<see cref="ParticleHead"/>), as <c>ParticleHead.Draw</c> (<c>0x800a92fc</c>) does: each
@@ -18,7 +18,7 @@ namespace Aidyn.Game;
 /// <remarks>
 /// Its owner steps <see cref="Head"/> by the tick with <see cref="Step"/>. A frame of particles runs every
 /// <see cref="Cadence.FrameTicks"/> ticks, and between frames the view moves each sprite on from where the last frame drew
-/// it, so they glide where the original's step. The editor shares this file.
+/// it, so they glide where the original's step. The editor draws with it too.
 /// </remarks>
 public partial class ParticlesView : Node3D
 {

@@ -8,6 +8,7 @@
     <Project Path="src/Aidyn.Inspector/Aidyn.Inspector.csproj" />
     <Project Path="src/Aidyn.Plugins/Aidyn.Plugins.csproj" />
     <Project Path="src/Aidyn.Rom/Aidyn.Rom.csproj" />
+    <Project Path="src/Aidyn.Views/Aidyn.Views.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Aidyn.Core.Tests/Aidyn.Core.Tests.csproj" />

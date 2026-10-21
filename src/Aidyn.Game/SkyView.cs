@@ -40,18 +40,7 @@ public partial class SkyView : Node
     /// Sets the global shader parameters to the colours as the director last worked them out (<see cref="SkyDirector.Apply"/>):
     /// nothing until a sky has been chosen.
     /// </summary>
-    public void Push()
-    {
-        var sky = Sky;
-        if (!sky.Applied)
-            return;
-        RenderingServer.GlobalShaderParameterSet(N64Material.TintParameter, sky.Colors.Tint.ToGodot());
-        RenderingServer.GlobalShaderParameterSet(N64Material.FogColorParameter, sky.Colors.Fog.ToGodot());
-        RenderingServer.GlobalShaderParameterSet(N64Material.FogParameter, new Vector4(sky.SceneryFogStart, 1000, Near, Far));
-        RenderingServer.GlobalShaderParameterSet(N64Material.BodyAmbientParameter, sky.BodyAmbient.ToGodot());
-        RenderingServer.GlobalShaderParameterSet(N64Material.SunColorParameter, sky.SunColor.ToGodot());
-        RenderingServer.GlobalShaderParameterSet(N64Material.SunDirectionParameter, sky.SunDirection.ToGodot());
-    }
+    public void Push() => N64Material.SetSky(Sky, Near, Far);
 
     /// <summary>A UI image, as a texture, or null if no plugin has it.</summary>
     public Texture2D? Image(RecordId image) => _images.Get(image);

@@ -1,6 +1,6 @@
 using Godot;
 
-namespace Aidyn.Game;
+namespace Aidyn.Views;
 
 /// <summary>Searches of node trees.</summary>
 public static class Nodes
