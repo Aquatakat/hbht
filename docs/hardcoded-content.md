@@ -9,7 +9,7 @@ This is the audit of content that lives in the game's code rather than its data.
 
 **Status** says where the reimplementation gets the fact:
 
-- **ROM:** read from the code segment at a per-version offset (`CodeTable` in `RomVersion.cs`). The code's tables are identical in all three ROMs and only their offsets differ. The flag tables are in `EngineTables`; the rest are in `Aidyn.Rom.Engine`.
+- **ROM:** read from the code segment at a per-version offset (`CodeTable` in `RomTables.cs`, placed by `RomVersions`). The code's tables are identical in all three ROMs and only their offsets differ, but for the spell visuals' code and the tables of pointers ([rom](formats/rom.md#where-each-version-has-its-tables)). The flag tables are in `EngineTables`; the rest are in `Aidyn.Rom.Engine`.
 - **Fact:** carried in the importer (`EngineFlags` for flags), because the code expresses it as a switch or a literal. Each is checked against 1.0's code.
 - **To do:** found, but not carried yet.
 

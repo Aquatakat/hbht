@@ -7,364 +7,6 @@ public enum RomVersionId
     Debug,
 }
 
-/// <summary>A byte range in the ROM.</summary>
-public readonly record struct RomRange(int Offset, int Length)
-{
-    public int End => Offset + Length;
-}
-
-/// <summary>LZ01x-compressed, encrypted string tables loaded through the game's <c>RomString::Load</c>.</summary>
-public enum RomStringTable
-{
-    /// <summary>Item descriptions for the item details screen.</summary>
-    Items,
-    /// <summary>Attribute descriptions.</summary>
-    Stats,
-    /// <summary>Spell descriptions.</summary>
-    Spells,
-    /// <summary>Skill descriptions.</summary>
-    Skills,
-    /// <summary>Potion descriptions.</summary>
-    PotionDetails,
-    /// <summary>Menu and UI text, including the debug menus.</summary>
-    Common,
-    /// <summary>The title screen's copyright notice.</summary>
-    Copyright,
-    /// <summary>Controller Pak messages.</summary>
-    Controller,
-    /// <summary>Combat log text.</summary>
-    Combat,
-    Cheats,
-    Credits,
-    PotionNames,
-}
-
-/// <summary>The fixed databases and other tables in the DB block, apart from the <see cref="RomStringTable"/>s.</summary>
-public enum DbTable
-{
-    Entities,
-    Weapons,
-    Armor,
-    Spells,
-    Items,
-    Chests,
-    Shops,
-    DialogEntities,
-    /// <summary>The debug flag viewer's sort order. Not read yet.</summary>
-    GameStateMod,
-    GameStateFunnel,
-    /// <summary>Audio key data (track 1D). Not read yet.</summary>
-    AudioKeys,
-    Journal,
-    TheatreMenu,
-    /// <summary>Compressed, encrypted cinematic captions.</summary>
-    CinematicText,
-    /// <summary>Where each cinematic's captions are in <see cref="CinematicText"/>, and when they show.</summary>
-    CinematicTextIndex,
-    CampEncounters,
-}
-
-/// <summary>
-/// Content tables in the code segment that engine code reads (roadmap 1H). Each range is the
-/// table's data, including its terminator where it has one.
-/// </summary>
-public enum CodeTable
-{
-    /// <summary>One byte per entity: the entity index the code's own tables use (the decomp's <c>entityList</c>).</summary>
-    EntityList,
-    /// <summary>Entity list index, joined flag, left flag, per recruitable member (<c>Party::CheckFlags</c>).</summary>
-    PartyFlags,
-    /// <summary>Entity list index and died flag, per recruitable member.</summary>
-    PartyDeathFlags,
-    /// <summary>The key items' "has" flags, in <see cref="KeyItems"/> order.</summary>
-    KeyItemFlags,
-    /// <summary>The 31 key items that get their own inventory slots and flags (<c>PartyInventory</c>).</summary>
-    KeyItems,
-    /// <summary>The world map region each key item reveals, or 0.</summary>
-    KeyItemRegionFlags,
-    /// <summary>Overworld row, column and region flag, as u32s (the decomp's <c>set_map_event_flag</c>).</summary>
-    RegionFlags,
-    /// <summary>The flag A values that mark a dialogue object as a camp scene (<c>Camp.cpp</c>).</summary>
-    CampDialogueFlags,
-    /// <summary>Script and flag pairs: winning the battle the script starts sets the flag (<c>dialoug_func</c>).</summary>
-    ScriptBattleFlags,
-    /// <summary>Scripts after which eight hours pass, as s32s ending with -1 (<c>isCampfireScene</c>).</summary>
-    CampfireScenes,
-    /// <summary>Scripts whose end leads somewhere: script, padding and ending kind (the decomp's <c>borg_short_list</c>).</summary>
-    ScriptEndings,
-    /// <summary>The death scene scripts. Only the first is used (<c>Gameover_func</c>).</summary>
-    GameOverScenes,
-    /// <summary>Flag, Borg8 image, x and y of each world map piece (<c>WorldMapPieces</c>).</summary>
-    WorldMapPieces,
-    /// <summary>Borg8 image, x and y of each town's name on the world map (<c>0x800d0b20</c> in 1.0).</summary>
-    WorldMapTowns,
-    /// <summary>The camp ambush's factor for each terrain type, 30 floats; 0 refuses camping (<c>camp_float_array</c>).</summary>
-    CampFactors,
-    /// <summary>
-    /// The chance of precipitation in percent for each season, six u8s and two of padding (<c>Weather.Roll</c>,
-    /// <c>0x8007bdb0</c> in 1.0, reads them as <c>0x800e3040</c>).
-    /// </summary>
-    SeasonPrecipitation,
-    /// <summary>The chance of precipitation in percent added for each terrain type, 28 s8s.</summary>
-    TerrainPrecipitation,
-    /// <summary>How hard precipitation falls on each terrain type, 28 floats.</summary>
-    TerrainPrecipitationScale,
-    /// <summary>Pointers to each cinematic's Borg6 scenes, flags, Borg12 audio and clip planes (<c>gCinematicPointers</c>).</summary>
-    Cinematics,
-    /// <summary>Pointers to each cinematic's fades (<c>sCFadePs</c>).</summary>
-    CinematicFades,
-    /// <summary>Pointers to the minimap section lists, ending with null (<c>minimap_sec_pointers</c>).</summary>
-    MinimapSections,
-    /// <summary>
-    /// Flag and Borg8 pairs, as u32s, in three lists that each end with zeros: the Ehud
-    /// underground's, the Roog entrance's and the Barrows' (<c>minimap_dats_2</c>).
-    /// </summary>
-    MinimapFlagImages,
-    /// <summary>
-    /// Each entity's Borg7, Borg8 portrait and sizes, 0x1C bytes each, ending with zeros
-    /// (<c>gEntityExtras</c>). Keyed by position in <see cref="EntityList"/> + 1.
-    /// </summary>
-    EntityModels,
-    /// <summary>One byte per dialogue entity, like <see cref="EntityList"/> (the decomp's <c>DialougEntList</c>).</summary>
-    DialogEntityList,
-    /// <summary>
-    /// Each dialogue entity's Borg7, Borg8 portrait and sizes, 0x14 bytes each, ending with zeros
-    /// (<c>dailougEnt_info_array</c>). Keyed by position in <see cref="DialogEntityList"/> + 1.
-    /// </summary>
-    DialogEntityModels,
-    /// <summary>17 s32 Borg1 indices, one per particle texture slot, −1 for empty (<c>partTextInds</c>).</summary>
-    ParticleTextures,
-    /// <summary>The Borg8 sky gradients by sky number, as u32s; number 0 is unused (<c>sky_borg8s</c>, <c>Sky::loadDay</c>).</summary>
-    SkyGradients,
-    /// <summary>
-    /// The sun, moon and stars, 20 bytes each, ending with a type 3 entry (<c>skyobjectStructs</c>).
-    /// The stars come first, then the sun and the moon.
-    /// </summary>
-    SkyObjects,
-    /// <summary>The clouds, 28 bytes each, ending with an image 3 entry (<c>gCloudData</c>).</summary>
-    Clouds,
-    /// <summary>The lens flare's eight pieces, 16 bytes each (<c>gLensFlareData</c>).</summary>
-    LensFlare,
-    /// <summary>
-    /// The fonts, 8 bytes each, ending with zeros (<c>font_face</c>): a u32 Borg8, then its rows
-    /// and columns of glyph cells as bytes. The main font, then the slim one.
-    /// </summary>
-    FontFaces,
-    /// <summary>
-    /// Each character's glyph cell, one byte per character from <c>0x20</c> to <c>0x8B</c>, where
-    /// 43 means the character isn't drawn (<c>struct_unk_.textIndexies</c>).
-    /// </summary>
-    FontGlyphs,
-    /// <summary>
-    /// The colours characters from <c>0x7F</c> draw in, in place of the text's: RGB bytes for the
-    /// eleven controller buttons, then zeros (<c>extraFontColors</c>).
-    /// </summary>
-    FontColors,
-    /// <summary>
-    /// The experience each level starts at, as s32s from level 0 to 40, then a 0 (<c>EXP_TNL</c>).
-    /// </summary>
-    LevelExp,
-    /// <summary>
-    /// The most each stat's base value reads as (<c>base_stat_cap</c>) and then the most its modified
-    /// value reads as (<c>modded_stat_cap</c>), 7 s32s each, by stat: Intelligence, Willpower,
-    /// Dexterity, Endurance, Strength, Stamina, Level.
-    /// </summary>
-    StatCaps,
-    /// <summary>
-    /// What training each stat costs, per square of the level raised to, as 7 s32s (<c>stat_multiplier</c>
-    /// in <c>CharStats::GetTraningPrice</c>). The level's is never used.
-    /// </summary>
-    StatTrainingCosts,
-    /// <summary>The same for the 12 skills, as s32s (the multipliers <c>CharSkills::GetSkillXpMod</c> copies).</summary>
-    SkillTrainingCosts,
-    /// <summary>The same for the 11 weapon classes, as s32s (<c>CharSkills::GetWeaponXpMod</c>).</summary>
-    WeaponTrainingCosts,
-    /// <summary>The 17 potions' prices, as u16s by potion (<c>potion_prices</c>).</summary>
-    PotionPrices,
-    /// <summary>
-    /// The Alchemist's 15 recipes, 7 bytes each: potion, spice, herb, gemstone, Alchemist level, an
-    /// unread byte and the least step (<c>potionRecipies</c>).
-    /// </summary>
-    PotionRecipes,
-    /// <summary>
-    /// The Mechanic's 5 recipes, 6 bytes each: the hide's item DB position as a u16, the armor's armor
-    /// DB position, the least step, the Mechanic level and padding (<c>ArmorRecipies</c>).
-    /// </summary>
-    ArmorRecipes,
-    /// <summary>
-    /// The menus' icons (<c>menuimages.cpp</c>): lists of u16 key and Borg8 pairs, each followed by its
-    /// count as a u32. Items by ID, skills, aspects, schools and spell symbols.
-    /// </summary>
-    MenuIcons,
-    /// <summary>
-    /// The 80 items with their own inventory slots after the general ones, as u16 IDs: reagents,
-    /// hides, scrolls and potions (<c>PartyInventory::AddKeyItem</c>).
-    /// </summary>
-    ReservedItems,
-    /// <summary>The 13 unique weapons, armor and gear with their own inventory slots, as u16 IDs (<c>AddKeyEquipment</c>).</summary>
-    KeyEquipment,
-    /// <summary>The 21 items that loot can't be left behind with, as u16 IDs (<c>IInventory::HasNoKeyItem</c>).</summary>
-    MustTakeItems,
-    /// <summary>The spells' positions that code tables key spells by: the low byte of each position's spell ID (<c>SpellList</c>).</summary>
-    SpellList,
-    /// <summary>
-    /// Each spell's icon symbol, as (position in <see cref="SpellList"/>, symbol) byte pairs ending with
-    /// 0xFF (<c>SpellDB::GetIcon</c>). A spell not listed has symbol 0.
-    /// </summary>
-    SpellSymbols,
-    /// <summary>Each potion's line in the PotionDetails string table, as (potion ID, line) u16 pairs ending with a 0 ID (<c>WidgetItemDetail</c>).</summary>
-    PotionDescriptions,
-    /// <summary>Each item's line in the Items string table, as (item ID, line) u16 pairs ending with a 0 ID.</summary>
-    ItemDescriptions,
-    /// <summary>Each spell's line in the Spells string table, as (spell ID, line) u16 pairs ending with a 0 ID.</summary>
-    SpellDescriptions,
-    /// <summary>The order the inventory list shows item kinds in, as u16 DB types ending with 0 (<c>D_800ed560</c>).</summary>
-    InventoryOrder,
-    /// <summary>Each equipment slot's empty image, 15 u32 Borg8 indices by slot (<c>gItemSlotBorg8Indecies</c>).</summary>
-    EquipmentSlotImages,
-    /// <summary>
-    /// The positions in the weapon DB that have a model, as bytes ending with 0xFF (<c>weapons_with_borg5</c>).
-    /// <see cref="WeaponModels"/> has each one's Borg5 at the same index.
-    /// </summary>
-    WeaponsWithModels,
-    /// <summary>The Borg5 of each weapon in <see cref="WeaponsWithModels"/>, as u16s, 66 of them (<c>weapon_borg5_ID</c>).</summary>
-    WeaponModels,
-    /// <summary>
-    /// The positions in the item DB that have a model, as u16s ending with 0xFFFF (<c>ItemBorg5Search</c>).
-    /// <see cref="ItemModels"/> has each one's Borg5 at the same index.
-    /// </summary>
-    ItemsWithModels,
-    /// <summary>The Borg5 of each item in <see cref="ItemsWithModels"/>, as u16s.</summary>
-    ItemModels,
-    /// <summary>What drinking a potion says when it would do nothing now, a C string (<c>Entity::CanUsePotion</c>).</summary>
-    PotionNotNow,
-    /// <summary>What drinking a flask, or a potion with no effect, says outside combat, a C string.</summary>
-    PotionNotInTrek,
-    /// <summary>What reading a scroll without a spell says, a C string (<c>Party::UseScroll</c>): the Lighthouse scroll's.</summary>
-    ScrollNoSpell,
-    /// <summary>The 39 Borg12s a script's <c>PlaySound</c> plays by its operand, as u32s, then a 0 (<c>dialoug_SFX</c>).</summary>
-    ScriptSounds,
-    /// <summary>
-    /// The containers' sounds, as u32 Borg12s: eight by container kind, then the four of a trapped one exploding
-    /// (<c>loot_func</c>, <c>open_explosive_chest</c>).
-    /// </summary>
-    ContainerSounds,
-    /// <summary>
-    /// The Overworld's chunks with music, by their Borg5 scenes as u16s, in two lists that each end with a 0
-    /// (<c>Zones.SetMapSet</c>).
-    /// </summary>
-    OverworldMusicScenes,
-    /// <summary>The Jundar interiors' chunks with music, by their Borg5 scenes as u16s, ending with a 0 (<c>Zones.JundarBgmList</c>).</summary>
-    JundarMusicScenes,
-    /// <summary>
-    /// The battle music as u16 Borg12s: five with the Expansion Pak, ending with a 0, then four without
-    /// (<c>Zones.SetMapSet</c>).
-    /// </summary>
-    BattleMusic,
-    /// <summary>
-    /// The 49 footstep keys, 8 bytes each as the audio keys' (<see cref="DbTable.AudioKeys"/>): a u16 frac, the request,
-    /// a count of step ids and four step ids. Entry 0 is empty (<c>AudioKeys.PlaySurfaceSteps</c>).
-    /// </summary>
-    FootstepEntries,
-    /// <summary>
-    /// The four footstep sets by body kind, 0x50 bytes each: 26 surfaces × the sneak, walk and run footstep keys' bytes,
-    /// 0 for none, then 2 bytes of padding.
-    /// </summary>
-    StepSets,
-    /// <summary>The 96 Borg12s step ids name, as u32s (<c>Audio.StepSounds</c>).</summary>
-    StepSounds,
-    /// <summary>The 126 Borg12s the audio keys' voice ids and the weapons' sounds name, as u32s (<c>Audio.VoiceSounds</c>).</summary>
-    VoiceSounds,
-    /// <summary>The 59 spells' casting sounds as u32 Borg12s, by spell position (<c>Audio.SpellSounds</c>).</summary>
-    SpellSounds,
-    /// <summary>
-    /// Each weapon's sound by its position in <see cref="WeaponsWithModels"/>, 8 bytes each: two u16 voice ids, one
-    /// picked at random, and padding, ending with 0xFFFF (<c>AudioKeys.WeaponSound</c>).
-    /// </summary>
-    WeaponSounds,
-    /// <summary>
-    /// The first line of each card of the credits' string table, 33 bytes (<c>Credits.CardStarts</c>): card k is its lines
-    /// from entry k to entry k + 1, and the last runs to the line before "The End" (<c>Credits.Start</c>).
-    /// </summary>
-    CreditsCards,
-    /// <summary>
-    /// The floats casting reads, 13 of them (<c>0x800D29CC</c> in 1.0): a Lunar caster's chance by the moon's phase (4), anyone else's by the
-    /// part of the day (5), the spell-improvement factor, an int-to-float constant the code needs there, and the resist roll's aspect
-    /// factors, same then different (<c>Combatant.CastChance</c>, <c>ResolveCastRoll</c>, <c>ResistRoll</c>).
-    /// </summary>
-    CastingFactors,
-    /// <summary>The weapon DB positions that are bows, as bytes ending with 0xFF (<c>Combat.BowKindWeapons</c>, <c>0x800E0C08</c> in 1.0): they fly as an arrow.</summary>
-    BowKindWeapons,
-    /// <summary>The weapon DB positions that are thrown, as bytes ending with 0xFF (<c>Combat.ThrownKindWeapons</c>, <c>0x800E0C14</c> in 1.0): they fly as themselves.</summary>
-    ThrownKindWeapons,
-    /// <summary>"Lay On Hands", the combat menu's row for the skill (<c>0x800D4880</c> in 1.0, <c>CombatMenu.PickLayOnHands</c>), a C string.</summary>
-    CombatLayOnHands,
-    /// <summary>"Heal With Herbs", the row for the skill (<c>0x800D4890</c> in 1.0, <c>CombatMenu.PickHealWithHerbs</c>), a C string.</summary>
-    CombatHealWithHerbs,
-    /// <summary>"Perform", the Troubadour's row (<c>0x800D48A0</c> in 1.0, <c>CombatMenu.PickTroubadour</c>), a C string.</summary>
-    CombatPerform,
-    /// <summary>What the combat menu says when there are no spells or skills to choose (<c>0x800D4858</c> in 1.0, <c>CombatMenu.OpenSpells</c>), a C string.</summary>
-    CombatNoSpells,
-    /// <summary>What the combat menu says when there are no potions or item spells to choose (<c>0x800D4834</c> in 1.0, <c>CombatMenu.OpenItems</c>), a C string.</summary>
-    CombatNoItems,
-    /// <summary>Sense Aura's line for a party member who follows (<c>0x800D3250</c> in 1.0), a C string.</summary>
-    AuraFollower,
-    /// <summary>Sense Aura's line for the party's leader (<c>0x800D325C</c> in 1.0), a C string.</summary>
-    AuraLeader,
-    /// <summary>Sense Aura's hitpoints line, a printf format (<c>0x800D3264</c> in 1.0).</summary>
-    AuraHitpoints,
-    /// <summary>Sense Aura's level line, a printf format (<c>0x800D3278</c> in 1.0).</summary>
-    AuraLevel,
-    /// <summary>Sense Aura's armor line, a printf format (<c>0x800D3284</c> in 1.0).</summary>
-    AuraProtection,
-    /// <summary>Sense Aura's line for a resistance at 0 or less, a printf format (<c>0x800D3214</c> in 1.0).</summary>
-    AuraImmune,
-    /// <summary>Sense Aura's line for a resistance above 0 and below <see cref="AuraResistantBelow"/>, a printf format (<c>0x800D3224</c> in 1.0).</summary>
-    AuraResistant,
-    /// <summary>Sense Aura's line for a resistance at or above <see cref="AuraResistantBelow"/>, a printf format (<c>0x800D3234</c> in 1.0).</summary>
-    AuraVulnerable,
-    /// <summary>The float a resistance is compared with (<c>0x800D3248</c> in 1.0): 2.0.</summary>
-    AuraResistantBelow,
-    /// <summary>The caster-actor switch of the spell visuals (role 0, <c>0x8008CB40</c> in 1.0, <c>CombatSpellFx.CasterActor</c>): the function and its case blocks. The five functions run back to back.</summary>
-    SpellVisualCasterActor,
-    /// <summary>The function that says whether a spell's target actor stands at the head (<c>0x8008CCA8</c> in 1.0, <c>CombatSpellFx.TargetAtHead</c>).</summary>
-    SpellVisualTargetHead,
-    /// <summary>The target-actor switch (role 1, <c>0x8008CCE0</c> in 1.0, <c>CombatSpellFx.TargetActor</c>).</summary>
-    SpellVisualTargetActor,
-    /// <summary>The target's aura-scene switch (role 5, <c>0x8008CE78</c> in 1.0, <c>CombatSpellFx.AuraScene</c>).</summary>
-    SpellVisualAura,
-    /// <summary>The potion-actor switch (role 2, <c>0x8008D038</c> in 1.0, <c>CombatSpellFx.PotionActor</c>).</summary>
-    SpellVisualPotionActor,
-    /// <summary>The potion's aura-scene switch (role 6, <c>0x8008D0FC</c> in 1.0, <c>CombatSpellFx.PotionAura</c>), to the end of the spell visuals' code.</summary>
-    SpellVisualPotionAura,
-    /// <summary>The jump tables of the six spell-visual switches, back to back (<c>0x800D4C98</c> in 1.0).</summary>
-    SpellVisualJumpTables,
-    /// <summary>
-    /// The instructions that load the refused cast's actor (<c>addiu s3, zero, 0x1CAA</c>, <c>0x8008B8D8</c> in 1.0) and, 8 bytes on, the resisted
-    /// cast's (<c>0x37F1</c>), in <c>CombatSpellFx.AddVisual</c>.
-    /// </summary>
-    SpellVisualRefusedResisted,
-    /// <summary>
-    /// The armor DB's positions, as the low byte of each position's armor or shield ID, 68 bytes (<c>ArmorList</c>, <c>0xE1850</c> in 1.0).
-    /// It is the armor DB's own order: <see cref="Engine.PositionLists"/> checks that.
-    /// </summary>
-    ArmorList,
-    /// <summary>The weapon DB's positions, as the low byte of each weapon ID, 105 bytes (<c>weaponList</c>, <c>0xE3790</c> in 1.0).</summary>
-    WeaponList,
-    /// <summary>The item DB's positions, as each item's u16 ID, 197 of them (<c>itemID_array</c>, <c>0xE3590</c> in 1.0).</summary>
-    ItemList,
-    /// <summary>
-    /// The Borg7 actors that <c>ProcessPlayers</c> animates in combat even idle and far from the camera's aim, as u16s ending with a 0
-    /// (<c>Body.AlwaysAnimated</c>, <c>0x800CDA50</c> in 1.0, read by <c>Body.InAlwaysAnimated</c>).
-    /// </summary>
-    AlwaysAnimated,
-    /// <summary>
-    /// The title screen's six fly-throughs, 20 bytes each (<c>0x800E09DC</c> in 1.0, <c>Title.StartScenery</c>): a Borg6 as a u32, then four
-    /// u32s whose low halves the code stores.
-    /// </summary>
-    FlycamSequences,
-}
-
 /// <summary>
 /// Where things are in one ROM version (ADR 0007). Every ROM offset the code uses comes from here.
 /// Entries are added as a reader is written and tested against them, so a missing table means
@@ -404,465 +46,185 @@ public sealed record RomLayout
 /// <param name="ResearchOnly">Readable, but the importer must never build <c>aidyn.base</c> from it.</param>
 public sealed record RomVersion(RomVersionId Id, string Name, string Sha1, bool ResearchOnly, RomLayout Layout);
 
+/// <summary>
+/// The supported ROMs and where each has its tables. NA 1.0's offsets are the table below; the other versions are NA 1.0
+/// moved (<see cref="Moves"/>), with a few tables resized, and the debug ROM's code segment, a different build, has a
+/// column of its own (<c>docs/formats/rom.md</c>).
+/// </summary>
 public static class RomVersions
 {
-    // Table order and 1.0 offsets follow the decomp's us.yaml, which folds ShopDB into ChestDB.
+    // NA 1.0's regions. Table order and 1.0 offsets follow the decomp's us.yaml, which folds ShopDB into ChestDB.
+    private const int BorgArchive = 0x00E7220, BorgList = 0x1F89C10, DbBlock = 0x1FC2BB0, MapChunkLists = 0x00DBD90;
+
+    /// <summary>The code segment's tables, in NA 1.0's order: length, NA 1.0's offset and the debug ROM's.</summary>
+    private static readonly CodeRow[] Code =
+    [
+        // NA 1.1 moves these by -0xC4: the spell visuals' code.
+        new(CodeTable.SpellVisualRefusedResisted, 12,     0x008C4D8, 0x0095C98),
+        // -0xB4.
+        new(CodeTable.SpellVisualCasterActor,     0x168,  0x008D740, 0x0096F08),
+        new(CodeTable.SpellVisualTargetHead,      0x38,   0x008D8A8, 0x0097070),
+        new(CodeTable.SpellVisualTargetActor,     0x198,  0x008D8E0, 0x00970A8),
+        new(CodeTable.SpellVisualAura,            0x1C0,  0x008DA78, 0x0097240),
+        new(CodeTable.SpellVisualPotionActor,     0xC4,   0x008DC38, 0x0097400),
+        new(CodeTable.SpellVisualPotionAura,      0xE0,   0x008DCFC, 0x00974C4),
+        // -0x10: the code from there on, and the data up to the camp tables.
+        new(CodeTable.ParticleTextures,           0x44,   0x00CE460, 0x00D94B8),
+        new(CodeTable.ContainerSounds,            0x30,   0x00CE5D0, 0x00D9A40),
+        new(CodeTable.AlwaysAnimated,             20,     0x00CE650, 0x00D9AC0),
+        new(CodeTable.SkyGradients,               0x24,   0x00CEB50, 0x00DA6A0),
+        new(CodeTable.GameOverScenes,             0xC,    0x00CEDE0, 0x00DAAA0),
+        new(CodeTable.OverworldMusicScenes,       0x4C,   0x00CF31C, 0x00DB384),
+        new(CodeTable.JundarMusicScenes,          0x10,   0x00CF368, 0x00DB3D0),
+        new(CodeTable.BattleMusic,                0x14,   0x00CF378, 0x00DB3E0),
+        new(CodeTable.CreditsCards,               0x21,   0x00CFC60, 0x00DC0D0),
+        new(CodeTable.PotionDescriptions,         0x40,   0x00D0360, 0x00DC8E0),
+        new(CodeTable.ItemDescriptions,           0x14C,  0x00D03A0, 0x00DC948),
+        new(CodeTable.SpellDescriptions,          0xE0,   0x00D04EC, 0x00DCAA8),
+        new(CodeTable.WorldMapTowns,              0x24,   0x00D1720, 0x00DDF50),
+        new(CodeTable.RegionFlags,                0x7A4,  0x00D1E6C, 0x00DE7CC),
+        new(CodeTable.ScriptBattleFlags,          0xC,    0x00D2A80, 0x00DF740),
+        new(CodeTable.CastingFactors,             0x34,   0x00D35CC, 0x00E075C),
+        new(CodeTable.WeaponModels,               0x86,   0x00D3B14, 0x00E0D14),
+        new(CodeTable.ItemModels,                 0xE,    0x00D3B9C, 0x00E0D9C),
+        new(CodeTable.SpellSymbols,               0x6E,   0x00D3C58, 0x00E0E54),
+        new(CodeTable.PotionNotNow,               0x26,   0x00D3D50, 0x00E0F68),
+        new(CodeTable.PotionNotInTrek,            0x29,   0x00D3D78, 0x00E0F90),
+        new(CodeTable.AuraImmune,                 13,     0x00D3E14, 0x00E102C),
+        new(CodeTable.AuraResistant,              16,     0x00D3E24, 0x00E103C),
+        new(CodeTable.AuraVulnerable,             17,     0x00D3E34, 0x00E104C),
+        new(CodeTable.AuraResistantBelow,         4,      0x00D3E48, 0x00E1060),
+        new(CodeTable.AuraFollower,               9,      0x00D3E50, 0x00E1068),
+        new(CodeTable.AuraLeader,                 7,      0x00D3E5C, 0x00E1074),
+        new(CodeTable.AuraHitpoints,              19,     0x00D3E64, 0x00E107C),
+        new(CodeTable.AuraLevel,                  10,     0x00D3E78, 0x00E1090),
+        new(CodeTable.AuraProtection,             26,     0x00D3E84, 0x00E109C),
+        new(CodeTable.PartyFlags,                 0x54,   0x00D42C4, 0x00E173C),
+        new(CodeTable.PartyDeathFlags,            0x38,   0x00D4318, 0x00E1790),
+        new(CodeTable.ScrollNoSpell,              0x57,   0x00D435C, 0x00E17D4),
+        new(CodeTable.SkillTrainingCosts,         0x30,   0x00D44D0, 0x00E193C),
+        new(CodeTable.WeaponTrainingCosts,        0x2C,   0x00D4500, 0x00E197C),
+        new(CodeTable.StatTrainingCosts,          0x1C,   0x00D4620, 0x00E1AF0),
+        new(CodeTable.WeaponSounds,               0x218,  0x00D50D0, 0x00E26C0),
+        new(CodeTable.CombatNoItems,              36,     0x00D5434, 0x00E2A24),
+        new(CodeTable.CombatNoSpells,             30,     0x00D5458, 0x00E2A48),
+        new(CodeTable.CombatLayOnHands,           13,     0x00D5480, 0x00E2A70),
+        new(CodeTable.CombatHealWithHerbs,        16,     0x00D5490, 0x00E2A80),
+        new(CodeTable.CombatPerform,              8,      0x00D54A0, 0x00E2A90),
+        new(CodeTable.SpellVisualJumpTables,      0x424,  0x00D5898, 0x00E3008),
+        new(CodeTable.ArmorRecipes,               0x1E,   0x00D8540, 0x00E6D10),
+        new(CodeTable.PotionRecipes,              0x69,   0x00D8560, 0x00E6D30),
+        new(CodeTable.CampDialogueFlags,          0x12,   0x00D85F0, 0x00E6E00),
+        new(CodeTable.CampfireScenes,             0x28,   0x00D8604, 0x00E6E14),
+        // +0x40: from the fonts to the end of the ROM, but for the text that grew.
+        new(CodeTable.FontFaces,                  0x18,   0x00DAF08, 0x00E9918),
+        new(CodeTable.LensFlare,                  0x80,   0x00DE770, 0x00ED230),
+        new(CodeTable.Clouds,                     0x620,  0x00DE808, 0x00ED2C8),
+        new(CodeTable.SkyObjects,                 0x758,  0x00DEE48, 0x00ED908),
+        new(CodeTable.InventoryOrder,             0x20,   0x00DF600, 0x00EE160),
+        new(CodeTable.EquipmentSlotImages,        0x3C,   0x00DF670, 0x00EE1D0),
+        new(CodeTable.MenuIcons,                  0x504,  0x00DF700, 0x00EE260),
+        new(CodeTable.WorldMapPieces,             0xA0,   0x00DFC40, 0x00EE7A0),
+        new(CodeTable.MinimapSections,            0x24,   0x00E07A4, 0x00EF304),
+        new(CodeTable.MinimapFlagImages,          0xE0,   0x00E07C8, 0x00EF328),
+        new(CodeTable.ScriptSounds,               0xA0,   0x00E0960, 0x00EF4C0),
+        new(CodeTable.ScriptEndings,              0x30,   0x00E0A1C, 0x00EF57C),
+        new(CodeTable.FootstepEntries,            0x188,  0x00E0A60, 0x00EF5D0),
+        new(CodeTable.StepSets,                   0x140,  0x00E0BE8, 0x00EF758),
+        new(CodeTable.StepSounds,                 0x180,  0x00E0D28, 0x00EF898),
+        new(CodeTable.VoiceSounds,                0x1F8,  0x00E0EA8, 0x00EFA18),
+        new(CodeTable.SpellSounds,                0xEC,   0x00E10A0, 0x00EFC10),
+        new(CodeTable.Cinematics,                 0x40,   0x00E1380, 0x00EFEF0),
+        new(CodeTable.CinematicFades,             0x10,   0x00E1598, 0x00F0108),
+        new(CodeTable.FlycamSequences,            120,    0x00E15DC, 0x00F014C),
+        new(CodeTable.BowKindWeapons,             9,      0x00E1808, 0x00F0378),
+        new(CodeTable.ThrownKindWeapons,          9,      0x00E1814, 0x00F0384),
+        new(CodeTable.ArmorList,                  68,     0x00E1850, 0x00F03C0),
+        new(CodeTable.DialogEntityList,           0x25,   0x00E1900, 0x00F0470),
+        new(CodeTable.EntityModels,               0x1848, 0x00E1930, 0x00F04A0),
+        new(CodeTable.DialogEntityModels,         0x294,  0x00E3178, 0x00F1CE8),
+        new(CodeTable.EntityList,                 0xDD,   0x00E3440, 0x00F1FB0),
+        new(CodeTable.WeaponsWithModels,          0x43,   0x00E3520, 0x00F2090),
+        new(CodeTable.ItemsWithModels,            0xE,    0x00E3564, 0x00F20D4),
+        new(CodeTable.ItemList,                   394,    0x00E3590, 0x00F2100),
+        new(CodeTable.SpellList,                  0x3B,   0x00E3740, 0x00F22B0),
+        new(CodeTable.WeaponList,                 105,    0x00E3790, 0x00F2300),
+        new(CodeTable.LevelExp,                   0xA8,   0x00E3804, 0x00F2378),
+        new(CodeTable.PotionPrices,               0x22,   0x00E38B0, 0x00F2420),
+        new(CodeTable.MustTakeItems,              0x2A,   0x00E38E0, 0x00F2450),
+        new(CodeTable.ReservedItems,              0xA0,   0x00E3910, 0x00F2490),
+        new(CodeTable.KeyItemFlags,               0x3E,   0x00E39B0, 0x00F2530),
+        new(CodeTable.KeyItems,                   0x3E,   0x00E39F0, 0x00F2570),
+        new(CodeTable.KeyItemRegionFlags,         0x3E,   0x00E3A30, 0x00F25B0),
+        new(CodeTable.KeyEquipment,               0x1A,   0x00E3A70, 0x00F25F0),
+        new(CodeTable.CampFactors,                0x78,   0x00E3B38, 0x00F26B8),
+        new(CodeTable.StatCaps,                   0x38,   0x00E3BE4, 0x00F2764),
+        new(CodeTable.SeasonPrecipitation,        0x8,    0x00E3C40, 0x00F27C0),
+        new(CodeTable.TerrainPrecipitation,       0x1C,   0x00E3C48, 0x00F27C8),
+        new(CodeTable.TerrainPrecipitationScale,  0x70,   0x00E3C64, 0x00F27E4),
+        new(CodeTable.FontGlyphs,                 0x6C,   0x00E56C0, 0x00F4240),
+        new(CodeTable.FontColors,                 0x24,   0x00E572C, 0x00F42AC),
+    ];
+
+    /// <summary>The DB block's tables, back to back in NA 1.0's order: the databases and the string tables, with their lengths and NA 1.0's offsets.</summary>
+    private static readonly BlockRow[] Block =
+    [
+        // NA 1.1 moves these by +0x40.
+        new(DbTable.Entities,               0x7588, 0x1FC2BB0),
+        new(DbTable.Weapons,                0x13E0, 0x1FCA140),
+        new(DbTable.Armor,                  0xCD0,  0x1FCB520),
+        new(DbTable.Spells,                 0x870,  0x1FCC1F0),
+        new(DbTable.Items,                  0x2210, 0x1FCCA60),
+        new(RomStringTable.Items,           0xED0,  0x1FCEC70),
+        new(RomStringTable.Stats,           0x2F0,  0x1FCFB40),
+        new(RomStringTable.Spells,          0x13A0, 0x1FCFE30),
+        new(RomStringTable.Skills,          0x790,  0x1FD11D0),
+        new(RomStringTable.PotionDetails,   0xA80,  0x1FD1960),
+        new(DbTable.Chests,                 0xDD0,  0x1FD23E0),
+        new(DbTable.Shops,                  0x1FB0, 0x1FD31B0),
+        new(DbTable.DialogEntities,         0x37C,  0x1FD5160),
+        new(DbTable.GameStateMod,           0x57F4, 0x1FD54DC),
+        new(DbTable.GameStateFunnel,        0xBAB0, 0x1FDACD0),
+        new(DbTable.AudioKeys,              0x1400, 0x1FE6780),
+        new(RomStringTable.Common,          0x2830, 0x1FE7B80),
+        // +0x170, after String/Common grew by 0x130.
+        new(RomStringTable.Copyright,       0x180,  0x1FEA3B0),
+        new(DbTable.Journal,                0x2090, 0x1FEA530),
+        new(DbTable.TheatreMenu,            0x60,   0x1FEC5C0),
+        new(DbTable.CinematicText,          0xD10,  0x1FEC620),
+        new(DbTable.CinematicTextIndex,     0x210,  0x1FED330),
+        new(RomStringTable.Controller,      0x410,  0x1FED540),
+        // +0x270, after String/Controller grew by 0x100.
+        new(RomStringTable.Combat,          0x500,  0x1FED950),
+        new(DbTable.CampEncounters,         0x870,  0x1FEDE50),
+        new(RomStringTable.Cheats,          0xF0,   0x1FEE6C0),
+        new(RomStringTable.Credits,         0x720,  0x1FEE7B0),
+        // The debug ROM moves this 0x30 less than the rest, after its shorter credits.
+        new(RomStringTable.PotionNames,     0x100,  0x1FEEED0),
+    ];
+
     public static RomVersion Na10 { get; } = new(
-        RomVersionId.Na10,
-        "NA 1.0",
-        "47ae795a2b12783a13e2b8d03439ce9a39fc826c",
-        ResearchOnly: false,
-        new RomLayout
-        {
-            BorgArchive = 0x00E7220,
-            BorgList = 0x1F89C10,
-            DbBlock = 0x1FC2BB0,
-            MapChunkLists = 0x00DBD90,
-            CodeTables = new Dictionary<CodeTable, RomRange>
-            {
-                [CodeTable.EntityList] = new(0x00E3440, 0xDD),
-                [CodeTable.PartyFlags] = new(0x00D42C4, 0x54),
-                [CodeTable.PartyDeathFlags] = new(0x00D4318, 0x38),
-                [CodeTable.KeyItemFlags] = new(0x00E39B0, 0x3E),
-                [CodeTable.KeyItems] = new(0x00E39F0, 0x3E),
-                [CodeTable.KeyItemRegionFlags] = new(0x00E3A30, 0x3E),
-                [CodeTable.RegionFlags] = new(0x00D1E6C, 0x7A4),
-                [CodeTable.CampDialogueFlags] = new(0x00D85F0, 0x12),
-                [CodeTable.ScriptBattleFlags] = new(0x00D2A80, 0xC),
-                [CodeTable.CampfireScenes] = new(0x00D8604, 0x28),
-                [CodeTable.ScriptEndings] = new(0x00E0A1C, 0x30),
-                [CodeTable.GameOverScenes] = new(0x00CEDE0, 0xC),
-                [CodeTable.WorldMapPieces] = new(0x00DFC40, 0xA0),
-                [CodeTable.WorldMapTowns] = new(0x00D1720, 0x24),
-                [CodeTable.CampFactors] = new(0x00E3B38, 0x78),
-                [CodeTable.SeasonPrecipitation] = new(0x00E3C40, 0x8),
-                [CodeTable.TerrainPrecipitation] = new(0x00E3C48, 0x1C),
-                [CodeTable.TerrainPrecipitationScale] = new(0x00E3C64, 0x70),
-                [CodeTable.Cinematics] = new(0x00E1380, 0x40),
-                [CodeTable.CinematicFades] = new(0x00E1598, 0x10),
-                [CodeTable.MinimapSections] = new(0x00E07A4, 0x24),
-                [CodeTable.MinimapFlagImages] = new(0x00E07C8, 0xE0),
-                [CodeTable.EntityModels] = new(0x00E1930, 0x1848),
-                [CodeTable.DialogEntityList] = new(0x00E1900, 0x25),
-                [CodeTable.DialogEntityModels] = new(0x00E3178, 0x294),
-                [CodeTable.ParticleTextures] = new(0x00CE460, 0x44),
-                [CodeTable.SkyGradients] = new(0x00CEB50, 0x24),
-                [CodeTable.SkyObjects] = new(0x00DEE48, 0x758),
-                [CodeTable.Clouds] = new(0x00DE808, 0x620),
-                [CodeTable.LensFlare] = new(0x00DE770, 0x80),
-                [CodeTable.FontFaces] = new(0x00DAF08, 0x18),
-                [CodeTable.FontGlyphs] = new(0x00E56C0, 0x6C),
-                [CodeTable.FontColors] = new(0x00E572C, 0x24),
-                [CodeTable.LevelExp] = new(0x00E3804, 0xA8),
-                [CodeTable.StatCaps] = new(0x00E3BE4, 0x38),
-                [CodeTable.StatTrainingCosts] = new(0x00D4620, 0x1C),
-                [CodeTable.SkillTrainingCosts] = new(0x00D44D0, 0x30),
-                [CodeTable.WeaponTrainingCosts] = new(0x00D4500, 0x2C),
-                [CodeTable.PotionPrices] = new(0x00E38B0, 0x22),
-                [CodeTable.PotionRecipes] = new(0x00D8560, 0x69),
-                [CodeTable.ArmorRecipes] = new(0x00D8540, 0x1E),
-                [CodeTable.MenuIcons] = new(0x00DF700, 0x504),
-                [CodeTable.ReservedItems] = new(0x00E3910, 0xA0),
-                [CodeTable.KeyEquipment] = new(0x00E3A70, 0x1A),
-                [CodeTable.MustTakeItems] = new(0x00E38E0, 0x2A),
-                [CodeTable.SpellList] = new(0x00E3740, 0x3B),
-                [CodeTable.SpellSymbols] = new(0x00D3C58, 0x6E),
-                [CodeTable.PotionDescriptions] = new(0x00D0360, 0x40),
-                [CodeTable.ItemDescriptions] = new(0x00D03A0, 0x14C),
-                [CodeTable.SpellDescriptions] = new(0x00D04EC, 0xE0),
-                [CodeTable.InventoryOrder] = new(0x00DF600, 0x20),
-                [CodeTable.EquipmentSlotImages] = new(0x00DF670, 0x3C),
-                [CodeTable.PotionNotNow] = new(0x00D3D50, 0x26),
-                [CodeTable.PotionNotInTrek] = new(0x00D3D78, 0x29),
-                [CodeTable.ScrollNoSpell] = new(0x00D435C, 0x57),
-                [CodeTable.ScriptSounds] = new(0x00E0960, 0xA0),
-                [CodeTable.ContainerSounds] = new(0x00CE5D0, 0x30),
-                [CodeTable.OverworldMusicScenes] = new(0x00CF31C, 0x4C),
-                [CodeTable.JundarMusicScenes] = new(0x00CF368, 0x10),
-                [CodeTable.BattleMusic] = new(0x00CF378, 0x14),
-                [CodeTable.FootstepEntries] = new(0x00E0A60, 0x188),
-                [CodeTable.StepSets] = new(0x00E0BE8, 0x140),
-                [CodeTable.StepSounds] = new(0x00E0D28, 0x180),
-                [CodeTable.CreditsCards] = new(0x00CFC60, 0x21),
-                [CodeTable.CastingFactors] = new(0x00D35CC, 0x34),
-                [CodeTable.BowKindWeapons] = new(0x00E1808, 9),
-                [CodeTable.ThrownKindWeapons] = new(0x00E1814, 9),
-                [CodeTable.CombatLayOnHands] = new(0x00D5480, 13),
-                [CodeTable.CombatHealWithHerbs] = new(0x00D5490, 16),
-                [CodeTable.CombatPerform] = new(0x00D54A0, 8),
-                [CodeTable.CombatNoSpells] = new(0x00D5458, 30),
-                [CodeTable.CombatNoItems] = new(0x00D5434, 36),
-                [CodeTable.AuraFollower] = new(0x00D3E50, 9),
-                [CodeTable.AuraLeader] = new(0x00D3E5C, 7),
-                [CodeTable.AuraHitpoints] = new(0x00D3E64, 19),
-                [CodeTable.AuraLevel] = new(0x00D3E78, 10),
-                [CodeTable.AuraProtection] = new(0x00D3E84, 26),
-                [CodeTable.AuraImmune] = new(0x00D3E14, 13),
-                [CodeTable.AuraResistant] = new(0x00D3E24, 16),
-                [CodeTable.AuraVulnerable] = new(0x00D3E34, 17),
-                [CodeTable.AuraResistantBelow] = new(0x00D3E48, 4),
-                [CodeTable.SpellVisualCasterActor] = new(0x008D740, 0x168),
-                [CodeTable.SpellVisualTargetHead] = new(0x008D8A8, 0x38),
-                [CodeTable.SpellVisualTargetActor] = new(0x008D8E0, 0x198),
-                [CodeTable.SpellVisualAura] = new(0x008DA78, 0x1C0),
-                [CodeTable.SpellVisualPotionActor] = new(0x008DC38, 0xC4),
-                [CodeTable.SpellVisualPotionAura] = new(0x008DCFC, 0xE0),
-                [CodeTable.SpellVisualJumpTables] = new(0x00D5898, 0x424),
-                [CodeTable.SpellVisualRefusedResisted] = new(0x008C4D8, 12),
-                [CodeTable.VoiceSounds] = new(0x00E0EA8, 0x1F8),
-                [CodeTable.SpellSounds] = new(0x00E10A0, 0xEC),
-                [CodeTable.WeaponSounds] = new(0x00D50D0, 0x218),
-                [CodeTable.WeaponsWithModels] = new(0x00E3520, 0x43),
-                [CodeTable.WeaponModels] = new(0x00D3B14, 0x86),
-                [CodeTable.ItemsWithModels] = new(0x00E3564, 0xE),
-                [CodeTable.ItemModels] = new(0x00D3B9C, 0xE),
-                [CodeTable.ArmorList] = new(0x00E1850, 68),
-                [CodeTable.WeaponList] = new(0x00E3790, 105),
-                [CodeTable.ItemList] = new(0x00E3590, 394),
-                [CodeTable.AlwaysAnimated] = new(0x00CE650, 20),
-                [CodeTable.FlycamSequences] = new(0x00E15DC, 120),
-            },
-            DbTables = new Dictionary<DbTable, RomRange>
-            {
-                [DbTable.Entities] = new(0x1FC2BB0, 0x7588),
-                [DbTable.Weapons] = new(0x1FCA140, 0x13E0),
-                [DbTable.Armor] = new(0x1FCB520, 0xCD0),
-                [DbTable.Spells] = new(0x1FCC1F0, 0x870),
-                [DbTable.Items] = new(0x1FCCA60, 0x2210),
-                [DbTable.Chests] = new(0x1FD23E0, 0xDD0),
-                [DbTable.Shops] = new(0x1FD31B0, 0x1FB0),
-                [DbTable.DialogEntities] = new(0x1FD5160, 0x37C),
-                [DbTable.GameStateMod] = new(0x1FD54DC, 0x57F4),
-                [DbTable.GameStateFunnel] = new(0x1FDACD0, 0xBAB0),
-                [DbTable.AudioKeys] = new(0x1FE6780, 0x1400),
-                [DbTable.Journal] = new(0x1FEA530, 0x2090),
-                [DbTable.TheatreMenu] = new(0x1FEC5C0, 0x60),
-                [DbTable.CinematicText] = new(0x1FEC620, 0xD10),
-                [DbTable.CinematicTextIndex] = new(0x1FED330, 0x210),
-                [DbTable.CampEncounters] = new(0x1FEDE50, 0x870),
-            },
-            StringTables = new Dictionary<RomStringTable, RomRange>
-            {
-                [RomStringTable.Items] = new(0x1FCEC70, 0xED0),
-                [RomStringTable.Stats] = new(0x1FCFB40, 0x2F0),
-                [RomStringTable.Spells] = new(0x1FCFE30, 0x13A0),
-                [RomStringTable.Skills] = new(0x1FD11D0, 0x790),
-                [RomStringTable.PotionDetails] = new(0x1FD1960, 0xA80),
-                [RomStringTable.Common] = new(0x1FE7B80, 0x2830),
-                [RomStringTable.Copyright] = new(0x1FEA3B0, 0x180),
-                [RomStringTable.Controller] = new(0x1FED540, 0x410),
-                [RomStringTable.Combat] = new(0x1FED950, 0x500),
-                [RomStringTable.Cheats] = new(0x1FEE6C0, 0xF0),
-                [RomStringTable.Credits] = new(0x1FEE7B0, 0x720),
-                [RomStringTable.PotionNames] = new(0x1FEEED0, 0x100),
-            },
-        });
+        RomVersionId.Na10, "NA 1.0", "47ae795a2b12783a13e2b8d03439ce9a39fc826c", ResearchOnly: false,
+        Place(new Moves((0, 0))));
 
-    // 1.1 is 1.0 shifted by +0x40 up to String/Common, which grew by 0x130. Copyright through
-    // the cinematic text are then at +0x170. String/Controller grew by 0x100, so everything
-    // after it is at +0x270. Apart from those two string tables, the data is unchanged.
+    // 1.1 is 1.0 rebuilt with fixes and new Controller Pak messages: its code segment moves by the amounts in the table's
+    // comments, from the first offset where the bytes show each, and its DB block by +0x40 and then by what the two string
+    // tables grew. Its code before 0x8BAC4 moves by other amounts, which no table needs yet.
     public static RomVersion Na11 { get; } = new(
-        RomVersionId.Na11,
-        "NA 1.1",
-        "f80e135e7e962308f51bb9f7600b25213549c688",
-        ResearchOnly: false,
-        new RomLayout
-        {
-            BorgArchive = 0x00E7260,
-            BorgList = 0x1F89C50,
-            DbBlock = 0x1FC2BF0,
-            MapChunkLists = 0x00DBDD0,
-            CodeTables = new Dictionary<CodeTable, RomRange>
-            {
-                [CodeTable.EntityList] = new(0x00E3480, 0xDD),
-                [CodeTable.PartyFlags] = new(0x00D42B4, 0x54),
-                [CodeTable.PartyDeathFlags] = new(0x00D4308, 0x38),
-                [CodeTable.KeyItemFlags] = new(0x00E39F0, 0x3E),
-                [CodeTable.KeyItems] = new(0x00E3A30, 0x3E),
-                [CodeTable.KeyItemRegionFlags] = new(0x00E3A70, 0x3E),
-                [CodeTable.RegionFlags] = new(0x00D1E5C, 0x7A4),
-                [CodeTable.CampDialogueFlags] = new(0x00D85E0, 0x12),
-                [CodeTable.ScriptBattleFlags] = new(0x00D2A70, 0xC),
-                [CodeTable.CampfireScenes] = new(0x00D85F4, 0x28),
-                [CodeTable.ScriptEndings] = new(0x00E0A5C, 0x30),
-                [CodeTable.GameOverScenes] = new(0x00CEDD0, 0xC),
-                [CodeTable.WorldMapPieces] = new(0x00DFC80, 0xA0),
-                [CodeTable.WorldMapTowns] = new(0x00D1710, 0x24),
-                [CodeTable.CampFactors] = new(0x00E3B78, 0x78),
-                [CodeTable.SeasonPrecipitation] = new(0x00E3C80, 0x8),
-                [CodeTable.TerrainPrecipitation] = new(0x00E3C88, 0x1C),
-                [CodeTable.TerrainPrecipitationScale] = new(0x00E3CA4, 0x70),
-                [CodeTable.Cinematics] = new(0x00E13C0, 0x40),
-                [CodeTable.CinematicFades] = new(0x00E15D8, 0x10),
-                [CodeTable.MinimapSections] = new(0x00E07E4, 0x24),
-                [CodeTable.MinimapFlagImages] = new(0x00E0808, 0xE0),
-                [CodeTable.EntityModels] = new(0x00E1970, 0x1848),
-                [CodeTable.DialogEntityList] = new(0x00E1940, 0x25),
-                [CodeTable.DialogEntityModels] = new(0x00E31B8, 0x294),
-                [CodeTable.ParticleTextures] = new(0x00CE450, 0x44),
-                [CodeTable.SkyGradients] = new(0x00CEB40, 0x24),
-                [CodeTable.SkyObjects] = new(0x00DEE88, 0x758),
-                [CodeTable.Clouds] = new(0x00DE848, 0x620),
-                [CodeTable.LensFlare] = new(0x00DE7B0, 0x80),
-                [CodeTable.FontFaces] = new(0x00DAF48, 0x18),
-                [CodeTable.FontGlyphs] = new(0x00E5700, 0x6C),
-                [CodeTable.FontColors] = new(0x00E576C, 0x24),
-                [CodeTable.LevelExp] = new(0x00E3844, 0xA8),
-                [CodeTable.StatCaps] = new(0x00E3C24, 0x38),
-                [CodeTable.StatTrainingCosts] = new(0x00D4610, 0x1C),
-                [CodeTable.SkillTrainingCosts] = new(0x00D44C0, 0x30),
-                [CodeTable.WeaponTrainingCosts] = new(0x00D44F0, 0x2C),
-                [CodeTable.PotionPrices] = new(0x00E38F0, 0x22),
-                [CodeTable.PotionRecipes] = new(0x00D8550, 0x69),
-                [CodeTable.ArmorRecipes] = new(0x00D8530, 0x1E),
-                [CodeTable.MenuIcons] = new(0x00DF740, 0x504),
-                [CodeTable.ReservedItems] = new(0x00E3950, 0xA0),
-                [CodeTable.KeyEquipment] = new(0x00E3AB0, 0x1A),
-                [CodeTable.MustTakeItems] = new(0x00E3920, 0x2A),
-                [CodeTable.SpellList] = new(0x00E3780, 0x3B),
-                [CodeTable.SpellSymbols] = new(0x00D3C48, 0x6E),
-                [CodeTable.PotionDescriptions] = new(0x00D0350, 0x40),
-                [CodeTable.ItemDescriptions] = new(0x00D0390, 0x14C),
-                [CodeTable.SpellDescriptions] = new(0x00D04DC, 0xE0),
-                [CodeTable.InventoryOrder] = new(0x00DF640, 0x20),
-                [CodeTable.EquipmentSlotImages] = new(0x00DF6B0, 0x3C),
-                [CodeTable.PotionNotNow] = new(0x00D3D40, 0x26),
-                [CodeTable.PotionNotInTrek] = new(0x00D3D68, 0x29),
-                [CodeTable.ScrollNoSpell] = new(0x00D434C, 0x57),
-                [CodeTable.ScriptSounds] = new(0x00E09A0, 0xA0),
-                [CodeTable.ContainerSounds] = new(0x00CE5C0, 0x30),
-                [CodeTable.OverworldMusicScenes] = new(0x00CF30C, 0x4C),
-                [CodeTable.JundarMusicScenes] = new(0x00CF358, 0x10),
-                [CodeTable.BattleMusic] = new(0x00CF368, 0x14),
-                [CodeTable.FootstepEntries] = new(0x00E0AA0, 0x188),
-                [CodeTable.StepSets] = new(0x00E0C28, 0x140),
-                [CodeTable.StepSounds] = new(0x00E0D68, 0x180),
-                [CodeTable.CreditsCards] = new(0x00CFC50, 0x21),
-                [CodeTable.CastingFactors] = new(0x00D35BC, 0x34),
-                [CodeTable.BowKindWeapons] = new(0x00E1848, 9),
-                [CodeTable.ThrownKindWeapons] = new(0x00E1854, 9),
-                [CodeTable.CombatLayOnHands] = new(0x00D5470, 13),
-                [CodeTable.CombatHealWithHerbs] = new(0x00D5480, 16),
-                [CodeTable.CombatPerform] = new(0x00D5490, 8),
-                [CodeTable.CombatNoSpells] = new(0x00D5448, 30),
-                [CodeTable.CombatNoItems] = new(0x00D5424, 36),
-                [CodeTable.AuraFollower] = new(0x00D3E40, 9),
-                [CodeTable.AuraLeader] = new(0x00D3E4C, 7),
-                [CodeTable.AuraHitpoints] = new(0x00D3E54, 19),
-                [CodeTable.AuraLevel] = new(0x00D3E68, 10),
-                [CodeTable.AuraProtection] = new(0x00D3E74, 26),
-                [CodeTable.AuraImmune] = new(0x00D3E04, 13),
-                [CodeTable.AuraResistant] = new(0x00D3E14, 16),
-                [CodeTable.AuraVulnerable] = new(0x00D3E24, 17),
-                [CodeTable.AuraResistantBelow] = new(0x00D3E38, 4),
-                [CodeTable.SpellVisualCasterActor] = new(0x008D68C, 0x168),
-                [CodeTable.SpellVisualTargetHead] = new(0x008D7F4, 0x38),
-                [CodeTable.SpellVisualTargetActor] = new(0x008D82C, 0x198),
-                [CodeTable.SpellVisualAura] = new(0x008D9C4, 0x1C0),
-                [CodeTable.SpellVisualPotionActor] = new(0x008DB84, 0xC4),
-                [CodeTable.SpellVisualPotionAura] = new(0x008DC48, 0xE0),
-                [CodeTable.SpellVisualJumpTables] = new(0x00D5888, 0x424),
-                [CodeTable.SpellVisualRefusedResisted] = new(0x008C414, 12),
-                [CodeTable.VoiceSounds] = new(0x00E0EE8, 0x1F8),
-                [CodeTable.SpellSounds] = new(0x00E10E0, 0xEC),
-                [CodeTable.WeaponSounds] = new(0x00D50C0, 0x218),
-                [CodeTable.WeaponsWithModels] = new(0x00E3560, 0x43),
-                [CodeTable.WeaponModels] = new(0x00D3B04, 0x86),
-                [CodeTable.ItemsWithModels] = new(0x00E35A4, 0xE),
-                [CodeTable.ItemModels] = new(0x00D3B8C, 0xE),
-                [CodeTable.ArmorList] = new(0x00E1890, 68),
-                [CodeTable.WeaponList] = new(0x00E37D0, 105),
-                [CodeTable.ItemList] = new(0x00E35D0, 394),
-                [CodeTable.AlwaysAnimated] = new(0x00CE640, 20),
-                [CodeTable.FlycamSequences] = new(0x00E161C, 120),
-            },
-            DbTables = new Dictionary<DbTable, RomRange>
-            {
-                [DbTable.Entities] = new(0x1FC2BF0, 0x7588),
-                [DbTable.Weapons] = new(0x1FCA180, 0x13E0),
-                [DbTable.Armor] = new(0x1FCB560, 0xCD0),
-                [DbTable.Spells] = new(0x1FCC230, 0x870),
-                [DbTable.Items] = new(0x1FCCAA0, 0x2210),
-                [DbTable.Chests] = new(0x1FD2420, 0xDD0),
-                [DbTable.Shops] = new(0x1FD31F0, 0x1FB0),
-                [DbTable.DialogEntities] = new(0x1FD51A0, 0x37C),
-                [DbTable.GameStateMod] = new(0x1FD551C, 0x57F4),
-                [DbTable.GameStateFunnel] = new(0x1FDAD10, 0xBAB0),
-                [DbTable.AudioKeys] = new(0x1FE67C0, 0x1400),
-                [DbTable.Journal] = new(0x1FEA6A0, 0x2090),
-                [DbTable.TheatreMenu] = new(0x1FEC730, 0x60),
-                [DbTable.CinematicText] = new(0x1FEC790, 0xD10),
-                [DbTable.CinematicTextIndex] = new(0x1FED4A0, 0x210),
-                [DbTable.CampEncounters] = new(0x1FEE0C0, 0x870),
-            },
-            StringTables = new Dictionary<RomStringTable, RomRange>
-            {
-                [RomStringTable.Items] = new(0x1FCECB0, 0xED0),
-                [RomStringTable.Stats] = new(0x1FCFB80, 0x2F0),
-                [RomStringTable.Spells] = new(0x1FCFE70, 0x13A0),
-                [RomStringTable.Skills] = new(0x1FD1210, 0x790),
-                [RomStringTable.PotionDetails] = new(0x1FD19A0, 0xA80),
-                [RomStringTable.Common] = new(0x1FE7BC0, 0x2960),
-                [RomStringTable.Copyright] = new(0x1FEA520, 0x180),
-                [RomStringTable.Controller] = new(0x1FED6B0, 0x510),
-                [RomStringTable.Combat] = new(0x1FEDBC0, 0x500),
-                [RomStringTable.Cheats] = new(0x1FEE930, 0xF0),
-                [RomStringTable.Credits] = new(0x1FEEA20, 0x720),
-                [RomStringTable.PotionNames] = new(0x1FEF140, 0x100),
-            },
-        });
+        RomVersionId.Na11, "NA 1.1", "f80e135e7e962308f51bb9f7600b25213549c688", ResearchOnly: false,
+        Place(
+            new Moves((0x008BAC4, -0xC4), (0x008D710, -0xB4), (0x008DDE4, -0x10), (0x00DAF08, +0x40), (0x1FEA3B0, +0x170), (0x1FED950, +0x270)),
+            resized: new() { [RomStringTable.Common] = 0x2960, [RomStringTable.Controller] = 0x510 }));
 
-    // The debug ROM is 1.0 shifted by +0xEB80, except that its credits are 0x30 bytes shorter.
+    // The debug ROM's archive and DB block are 1.0's moved by +0xEB80, but for its credits, which are 0x30 bytes shorter.
+    // Its code segment is its own build, whose tables are the code table's debug column.
     public static RomVersion Debug { get; } = new(
-        RomVersionId.Debug,
-        "Debug 02.01d-PRERELEASE",
-        "8169959ae059869b46461712a829ca0fe15c902c",
-        ResearchOnly: true,
-        new RomLayout
-        {
-            BorgArchive = 0x00F5DA0,
-            BorgList = 0x1F98790,
-            DbBlock = 0x1FD1730,
-            MapChunkLists = 0x00EA850,
-            CodeTables = new Dictionary<CodeTable, RomRange>
-            {
-                [CodeTable.EntityList] = new(0x00F1FB0, 0xDD),
-                [CodeTable.PartyFlags] = new(0x00E173C, 0x54),
-                [CodeTable.PartyDeathFlags] = new(0x00E1790, 0x38),
-                [CodeTable.KeyItemFlags] = new(0x00F2530, 0x3E),
-                [CodeTable.KeyItems] = new(0x00F2570, 0x3E),
-                [CodeTable.KeyItemRegionFlags] = new(0x00F25B0, 0x3E),
-                [CodeTable.RegionFlags] = new(0x00DE7CC, 0x7A4),
-                [CodeTable.CampDialogueFlags] = new(0x00E6E00, 0x12),
-                [CodeTable.ScriptBattleFlags] = new(0x00DF740, 0xC),
-                [CodeTable.CampfireScenes] = new(0x00E6E14, 0x28),
-                [CodeTable.ScriptEndings] = new(0x00EF57C, 0x30),
-                [CodeTable.GameOverScenes] = new(0x00DAAA0, 0xC),
-                [CodeTable.WorldMapPieces] = new(0x00EE7A0, 0xA0),
-                [CodeTable.WorldMapTowns] = new(0x00DDF50, 0x24),
-                [CodeTable.CampFactors] = new(0x00F26B8, 0x78),
-                [CodeTable.SeasonPrecipitation] = new(0x00F27C0, 0x8),
-                [CodeTable.TerrainPrecipitation] = new(0x00F27C8, 0x1C),
-                [CodeTable.TerrainPrecipitationScale] = new(0x00F27E4, 0x70),
-                [CodeTable.Cinematics] = new(0x00EFEF0, 0x40),
-                [CodeTable.CinematicFades] = new(0x00F0108, 0x10),
-                [CodeTable.MinimapSections] = new(0x00EF304, 0x24),
-                [CodeTable.MinimapFlagImages] = new(0x00EF328, 0xE0),
-                [CodeTable.EntityModels] = new(0x00F04A0, 0x1848),
-                [CodeTable.DialogEntityList] = new(0x00F0470, 0x25),
-                [CodeTable.DialogEntityModels] = new(0x00F1CE8, 0x294),
-                [CodeTable.ParticleTextures] = new(0x00D94B8, 0x44),
-                [CodeTable.SkyGradients] = new(0x00DA6A0, 0x24),
-                [CodeTable.SkyObjects] = new(0x00ED908, 0x758),
-                [CodeTable.Clouds] = new(0x00ED2C8, 0x620),
-                [CodeTable.LensFlare] = new(0x00ED230, 0x80),
-                [CodeTable.FontFaces] = new(0x00E9918, 0x18),
-                [CodeTable.FontGlyphs] = new(0x00F4240, 0x6C),
-                [CodeTable.FontColors] = new(0x00F42AC, 0x24),
-                [CodeTable.LevelExp] = new(0x00F2378, 0xA8),
-                [CodeTable.StatCaps] = new(0x00F2764, 0x38),
-                [CodeTable.StatTrainingCosts] = new(0x00E1AF0, 0x1C),
-                [CodeTable.SkillTrainingCosts] = new(0x00E193C, 0x30),
-                [CodeTable.WeaponTrainingCosts] = new(0x00E197C, 0x2C),
-                [CodeTable.PotionPrices] = new(0x00F2420, 0x22),
-                [CodeTable.PotionRecipes] = new(0x00E6D30, 0x69),
-                [CodeTable.ArmorRecipes] = new(0x00E6D10, 0x1E),
-                [CodeTable.MenuIcons] = new(0x00EE260, 0x504),
-                [CodeTable.ReservedItems] = new(0x00F2490, 0xA0),
-                [CodeTable.KeyEquipment] = new(0x00F25F0, 0x1A),
-                [CodeTable.MustTakeItems] = new(0x00F2450, 0x2A),
-                [CodeTable.SpellList] = new(0x00F22B0, 0x3B),
-                [CodeTable.SpellSymbols] = new(0x00E0E54, 0x6E),
-                [CodeTable.PotionDescriptions] = new(0x00DC8E0, 0x40),
-                [CodeTable.ItemDescriptions] = new(0x00DC948, 0x14C),
-                [CodeTable.SpellDescriptions] = new(0x00DCAA8, 0xE0),
-                [CodeTable.InventoryOrder] = new(0x00EE160, 0x20),
-                [CodeTable.EquipmentSlotImages] = new(0x00EE1D0, 0x3C),
-                [CodeTable.PotionNotNow] = new(0x00E0F68, 0x26),
-                [CodeTable.PotionNotInTrek] = new(0x00E0F90, 0x29),
-                [CodeTable.ScrollNoSpell] = new(0x00E17D4, 0x57),
-                [CodeTable.ScriptSounds] = new(0x00EF4C0, 0xA0),
-                [CodeTable.ContainerSounds] = new(0x00D9A40, 0x30),
-                [CodeTable.OverworldMusicScenes] = new(0x00DB384, 0x4C),
-                [CodeTable.JundarMusicScenes] = new(0x00DB3D0, 0x10),
-                [CodeTable.BattleMusic] = new(0x00DB3E0, 0x14),
-                [CodeTable.FootstepEntries] = new(0x00EF5D0, 0x188),
-                [CodeTable.StepSets] = new(0x00EF758, 0x140),
-                [CodeTable.StepSounds] = new(0x00EF898, 0x180),
-                [CodeTable.CreditsCards] = new(0x00DC0D0, 0x21),
-                [CodeTable.CastingFactors] = new(0x00E075C, 0x34),
-                [CodeTable.BowKindWeapons] = new(0x00F0378, 9),
-                [CodeTable.ThrownKindWeapons] = new(0x00F0384, 9),
-                [CodeTable.CombatLayOnHands] = new(0x00E2A70, 13),
-                [CodeTable.CombatHealWithHerbs] = new(0x00E2A80, 16),
-                [CodeTable.CombatPerform] = new(0x00E2A90, 8),
-                [CodeTable.CombatNoSpells] = new(0x00E2A48, 30),
-                [CodeTable.CombatNoItems] = new(0x00E2A24, 36),
-                [CodeTable.AuraFollower] = new(0x00E1068, 9),
-                [CodeTable.AuraLeader] = new(0x00E1074, 7),
-                [CodeTable.AuraHitpoints] = new(0x00E107C, 19),
-                [CodeTable.AuraLevel] = new(0x00E1090, 10),
-                [CodeTable.AuraProtection] = new(0x00E109C, 26),
-                [CodeTable.AuraImmune] = new(0x00E102C, 13),
-                [CodeTable.AuraResistant] = new(0x00E103C, 16),
-                [CodeTable.AuraVulnerable] = new(0x00E104C, 17),
-                [CodeTable.AuraResistantBelow] = new(0x00E1060, 4),
-                [CodeTable.SpellVisualCasterActor] = new(0x0096F08, 0x168),
-                [CodeTable.SpellVisualTargetHead] = new(0x0097070, 0x38),
-                [CodeTable.SpellVisualTargetActor] = new(0x00970A8, 0x198),
-                [CodeTable.SpellVisualAura] = new(0x0097240, 0x1C0),
-                [CodeTable.SpellVisualPotionActor] = new(0x0097400, 0xC4),
-                [CodeTable.SpellVisualPotionAura] = new(0x00974C4, 0xE0),
-                [CodeTable.SpellVisualJumpTables] = new(0x00E3008, 0x424),
-                [CodeTable.SpellVisualRefusedResisted] = new(0x0095C98, 12),
-                [CodeTable.VoiceSounds] = new(0x00EFA18, 0x1F8),
-                [CodeTable.SpellSounds] = new(0x00EFC10, 0xEC),
-                [CodeTable.WeaponSounds] = new(0x00E26C0, 0x218),
-                [CodeTable.WeaponsWithModels] = new(0x00F2090, 0x43),
-                [CodeTable.WeaponModels] = new(0x00E0D14, 0x86),
-                [CodeTable.ItemsWithModels] = new(0x00F20D4, 0xE),
-                [CodeTable.ItemModels] = new(0x00E0D9C, 0xE),
-                [CodeTable.ArmorList] = new(0x00F03C0, 68),
-                [CodeTable.WeaponList] = new(0x00F2300, 105),
-                [CodeTable.ItemList] = new(0x00F2100, 394),
-                [CodeTable.AlwaysAnimated] = new(0x00D9AC0, 20),
-                [CodeTable.FlycamSequences] = new(0x00F014C, 120),
-            },
-            DbTables = new Dictionary<DbTable, RomRange>
-            {
-                [DbTable.Entities] = new(0x1FD1730, 0x7588),
-                [DbTable.Weapons] = new(0x1FD8CC0, 0x13E0),
-                [DbTable.Armor] = new(0x1FDA0A0, 0xCD0),
-                [DbTable.Spells] = new(0x1FDAD70, 0x870),
-                [DbTable.Items] = new(0x1FDB5E0, 0x2210),
-                [DbTable.Chests] = new(0x1FE0F60, 0xDD0),
-                [DbTable.Shops] = new(0x1FE1D30, 0x1FB0),
-                [DbTable.DialogEntities] = new(0x1FE3CE0, 0x37C),
-                [DbTable.GameStateMod] = new(0x1FE405C, 0x57F4),
-                [DbTable.GameStateFunnel] = new(0x1FE9850, 0xBAB0),
-                [DbTable.AudioKeys] = new(0x1FF5300, 0x1400),
-                [DbTable.Journal] = new(0x1FF90B0, 0x2090),
-                [DbTable.TheatreMenu] = new(0x1FFB140, 0x60),
-                [DbTable.CinematicText] = new(0x1FFB1A0, 0xD10),
-                [DbTable.CinematicTextIndex] = new(0x1FFBEB0, 0x210),
-                [DbTable.CampEncounters] = new(0x1FFC9D0, 0x870),
-            },
-            StringTables = new Dictionary<RomStringTable, RomRange>
-            {
-                [RomStringTable.Items] = new(0x1FDD7F0, 0xED0),
-                [RomStringTable.Stats] = new(0x1FDE6C0, 0x2F0),
-                [RomStringTable.Spells] = new(0x1FDE9B0, 0x13A0),
-                [RomStringTable.Skills] = new(0x1FDFD50, 0x790),
-                [RomStringTable.PotionDetails] = new(0x1FE04E0, 0xA80),
-                [RomStringTable.Common] = new(0x1FF6700, 0x2830),
-                [RomStringTable.Copyright] = new(0x1FF8F30, 0x180),
-                [RomStringTable.Controller] = new(0x1FFC0C0, 0x410),
-                [RomStringTable.Combat] = new(0x1FFC4D0, 0x500),
-                [RomStringTable.Cheats] = new(0x1FFD240, 0xF0),
-                [RomStringTable.Credits] = new(0x1FFD330, 0x6F0),
-                [RomStringTable.PotionNames] = new(0x1FFDA20, 0x100),
-            },
-        });
+        RomVersionId.Debug, "Debug 02.01d-PRERELEASE", "8169959ae059869b46461712a829ca0fe15c902c", ResearchOnly: true,
+        Place(
+            new Moves((BorgArchive, +0xEB80), (0x1FEEED0, +0xEB50)),
+            code: row => row.Debug,
+            mapChunkLists: 0x00EA850,
+            resized: new() { [RomStringTable.Credits] = 0x6F0 }));
 
     public static IReadOnlyList<RomVersion> All { get; } = [Na10, Na11, Debug];
 
@@ -870,4 +232,48 @@ public static class RomVersions
 
     public static RomVersion? FindBySha1(string sha1) =>
         All.FirstOrDefault(v => string.Equals(v.Sha1, sha1, StringComparison.OrdinalIgnoreCase));
+
+    /// <param name="code">Where the version has a code table, if not where <paramref name="moves"/> puts NA 1.0's.</param>
+    /// <param name="mapChunkLists">Where the version has the map sets' chunk lists, if not where <paramref name="moves"/> puts NA 1.0's.</param>
+    /// <param name="resized">The string tables whose length isn't NA 1.0's. The moves carry what follows them.</param>
+    private static RomLayout Place(
+        Moves moves, Func<CodeRow, int>? code = null, int? mapChunkLists = null, Dictionary<RomStringTable, int>? resized = null)
+    {
+        code ??= row => moves.Of(row.Na10);
+        int Length(BlockRow row) =>
+            row.Table is RomStringTable table && resized is not null && resized.TryGetValue(table, out var length) ? length : row.Length;
+
+        return new RomLayout
+        {
+            BorgArchive = moves.Of(BorgArchive),
+            BorgList = moves.Of(BorgList),
+            DbBlock = moves.Of(DbBlock),
+            MapChunkLists = mapChunkLists ?? moves.Of(MapChunkLists),
+            CodeTables = Code.ToDictionary(row => row.Table, row => new RomRange(code(row), row.Length)),
+            DbTables = Block.Where(row => row.Table is DbTable)
+                .ToDictionary(row => (DbTable)row.Table, row => new RomRange(moves.Of(row.Na10), row.Length)),
+            StringTables = Block.Where(row => row.Table is RomStringTable)
+                .ToDictionary(row => (RomStringTable)row.Table, row => new RomRange(moves.Of(row.Na10), Length(row))),
+        };
+    }
+
+    private readonly record struct CodeRow(CodeTable Table, int Length, int Na10, int Debug);
+
+    /// <param name="Table">A <see cref="DbTable"/> or a <see cref="RomStringTable"/>.</param>
+    private readonly record struct BlockRow(Enum Table, int Length, int Na10);
+
+    /// <summary>
+    /// How a version moves NA 1.0's offsets: an offset from one step's <c>From</c> up to the next step's moves by its
+    /// <c>By</c>. One before the first step has no known place in the version.
+    /// </summary>
+    private sealed class Moves(params (int From, int By)[] steps)
+    {
+        public int Of(int na10)
+        {
+            for (var i = steps.Length - 1; i >= 0; i--)
+                if (steps[i].From <= na10)
+                    return na10 + steps[i].By;
+            throw new NotSupportedException($"0x{na10:X7} is before where this version's moves from NA 1.0 are known.");
+        }
+    }
 }
