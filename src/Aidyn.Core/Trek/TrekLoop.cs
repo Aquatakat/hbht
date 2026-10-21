@@ -35,8 +35,13 @@ public interface ITrekHost : IScriptHost, ITransitionHost
     /// <summary>A wanderer's animation, which moves its body by its root motion.</summary>
     IRootMotion Motion(Wanderer wanderer);
 
-    /// <inheritdoc cref="IMapObjectHost.OpenLoot"/>
-    void OpenLoot(ItemPile loot, int gold);
+    /// <summary>
+    /// A chunk's map objects were gated again by the flags as the pause menu rolled up (<see cref="TrekLoop.Regate"/>), and
+    /// some came or went: its scenery is to be built again. By default nothing is done.
+    /// </summary>
+    void Regated(LoadedMap map)
+    {
+    }
 
     /// <inheritdoc cref="IMapObjectHost.Animate"/>
     void Animate(LoadedMap map, SceneObject actor, int request);
@@ -511,6 +516,17 @@ public sealed class TrekLoop : IMapObjectHost
     }
 
     /// <summary>
+    /// Gates the loaded chunks' map objects again by the flags as they are now, as the pause menu rolls up: the original
+    /// reloads the map as the menu closes, so what changed in it shows. Each chunk whose objects came or went is told to the
+    /// host (<see cref="ITrekHost.Regated"/>).
+    /// </summary>
+    public void Regate()
+    {
+        foreach (var map in Chunks.Regate())
+            _host.Regated(map);
+    }
+
+    /// <summary>
     /// Loads the map set's chunks and their wanderers again where the player stands, as trek starts again
     /// after a cut-scene, a backdrop or the help menu (<c>initGameTrek</c>): every map object is gated by
     /// the flags as they are now, and the wanderers start at their home nodes. The weather drawn carries on
@@ -810,7 +826,8 @@ public sealed class TrekLoop : IMapObjectHost
         Refresh();
     }
 
-    void IMapObjectHost.OpenLoot(ItemPile loot, int gold) => _host.OpenLoot(loot, gold);
+    /// <summary>The loot window: the pause menu in its barter state, which holds the world until it closes.</summary>
+    void IMapObjectHost.OpenLoot(ItemPile loot, int gold) => _host.Transition(new Transition.OpenLoot(loot, gold));
 
     void IMapObjectHost.Animate(LoadedMap map, SceneObject actor, int request) => _host.Animate(map, actor, request);
 

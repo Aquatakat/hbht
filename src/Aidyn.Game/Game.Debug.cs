@@ -45,13 +45,13 @@ public partial class Game
         switch (options.Menu)
         {
             case "1":
-                _menu!.Open();
+                _session!.OpenMenu();
                 break;
             case "loot":
-                _menu!.OpenLoot(new ItemPile(_session!.Game.Party.Inventory.Catalog), 0);
+                _session!.OpenLoot(new ItemPile(_session.Game.Party.Inventory.Catalog), 0);
                 break;
             case { } tab when Enum.TryParse<PauseTab>(tab, ignoreCase: true, out var opening):
-                _menu!.Open(opening);
+                _session!.OpenMenu(opening);
                 break;
         }
 

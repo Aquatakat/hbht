@@ -154,9 +154,6 @@ public partial class PauseMenu : CanvasLayer
     /// <summary>The tab showing, or being slid to.</summary>
     public PauseTab Tab { get; private set; }
 
-    /// <summary>The menu opened, on a tab or in its barter or training state.</summary>
-    public event Action? Opened;
-
     /// <summary>
     /// Writes the game to a save file, with its screenshot from the world as the menu opened it; returns why it
     /// couldn't, or null.
@@ -249,7 +246,6 @@ public partial class PauseMenu : CanvasLayer
         Visible = true;
         Activate();
         ShowScroll();
-        Opened?.Invoke();
     }
 
     /// <summary>

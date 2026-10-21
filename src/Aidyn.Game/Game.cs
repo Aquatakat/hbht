@@ -336,10 +336,8 @@ public partial class Game : Node3D, ITrekHost
     {
         var session = _session!;
         _menu = new PauseMenu(plugins, game, _settings, _stick) { SaveGame = SaveTo, LoadGame = LoadFrom, Where = session.Where, Audio = _audio };
-        _menu.Opened += session.MenuOpened;
         AddChild(_menu);
         _backdrop = new BackdropLayer(plugins);
-        _backdrop.Closed += session.BackdropClosed;
         AddChild(_backdrop);
         _cinematic = new CinematicLayer(plugins, _models!, _audio!);
         AddChild(_cinematic);
@@ -348,17 +346,13 @@ public partial class Game : Node3D, ITrekHost
     }
 
     /// <summary>
-    /// A tick of the pause menu, after the game's, and once it has rolled up, the map reloaded, as the original's is as the
-    /// menu closes, so what changed shows; then the session carries out how it ended (<see cref="GameSession.MenuClosed"/>).
+    /// A tick of the pause menu, after the game's, and once it has rolled up, the session carries out how it ended
+    /// (<see cref="GameSession.MenuClosed"/>), the map gated again first, so what changed shows (<see cref="ITrekHost.Regated"/>).
     /// </summary>
     private void StepMenu()
     {
-        if (_menu?.Step() is not { } exit)
-            return;
-        // Trek's world is freed while a battle plays.
-        if (_session!.Battle is null)
-            _chunks!.Regate();
-        _session.MenuClosed(exit);
+        if (_menu?.Step() is { } exit)
+            _session!.MenuClosed(exit);
     }
 
     /// <summary>Carries out the settings: the window, the 3D view, the draw distance, the sky, the pace and the UI screens.</summary>
@@ -432,6 +426,7 @@ public partial class Game : Node3D, ITrekHost
         var step = session.Tick(ReadInput, _camera.Flying, _sky!.State.Drawn,
             actor => _actorViews.TryGetValue(actor, out var view) ? view.Motion : null,
             combatant => _combatantViews.TryGetValue(combatant, out var view) ? view.Motion : null, _spellFxView);
+        _backdrop!.Draw(session.Backdrop);
         switch (step)
         {
             case SessionStep.Cinematic:
@@ -786,16 +781,17 @@ public partial class Game : Node3D, ITrekHost
                     return;
                 break;
             default:
+                if (action == MenuAction.Start)
+                {
+                    // The session opens the menu, unless trek's input is dead through a teleport or a fade into a cut-scene.
+                    _session!.OpenMenu();
+                    return;
+                }
                 if (Trek is { Cued: not null } or { CutSceneFade.Fading: true })
                 {
                     // Trek's input is dead while it fades into or out of a cut-scene.
-                    if (action is MenuAction.Start or MenuAction.Accept)
+                    if (action == MenuAction.Accept)
                         return;
-                }
-                else if (action == MenuAction.Start && _menu is not null && Trek is { Teleporting: false })
-                {
-                    _menu.Open();
-                    return;
                 }
                 else if (action == MenuAction.Accept && _camera is { Flying: false } && Trek is { TeleportFade.Fading: false } && UseNearest())
                 {
@@ -851,9 +847,6 @@ public partial class Game : Node3D, ITrekHost
         return used;
     }
 
-    /// <summary>The loot window: the pause menu in its barter state, which stops trek until it closes.</summary>
-    void ITrekHost.OpenLoot(ItemPile loot, int gold) => _menu!.OpenLoot(loot, gold);
-
     // Conversations.
 
     /// <summary>
@@ -886,17 +879,19 @@ public partial class Game : Node3D, ITrekHost
     /// </summary>
     private void Browse(MenuAction action)
     {
-        if (!_backdrop!.Taking || Trek!.Conversation?.Runner is not { Status: Core.Scripts.ScriptStatus.Showing, Page: { } page } runner)
+        // The page takes presses once open, and until it closes.
+        if (_session!.Backdrop is not { Closing: false } shown || Trek!.Conversation?.Runner is not { Status: Core.Scripts.ScriptStatus.Showing, Page: { } page } runner)
             return;
         var back = action == MenuAction.Back && runner.Script.Mode == DialogueMode.Help;
         if (action == MenuAction.Accept || back)
         {
-            DialogueBox.Advance(runner, back ? page.Choices.Count - 1 : _backdrop.Page!.Highlight);
+            DialogueBox.Advance(runner, back ? page.Choices.Count - 1 : shown.Highlight);
             Trek.Refresh();
         }
         else if (action is MenuAction.Up or MenuAction.Down)
         {
-            _backdrop.MoveCursor(MenuStick.Vertical(action));
+            shown.MoveCursor(MenuStick.Vertical(action));
+            _backdrop!.Draw(shown);
         }
     }
 
@@ -906,18 +901,9 @@ public partial class Game : Node3D, ITrekHost
     /// </summary>
     void ITrekHost.ConversationChanged()
     {
-        if (Trek!.Conversation is { ShowsBackdrop: true } backdrop)
-        {
-            if (!_backdrop!.Showing)
-            {
-                _backdrop.Open(BackdropStyle.For(backdrop.Runner.Script.Backdrop));
-                _session!.BackdropOpened();
-            }
-            if (backdrop.Runner is { Status: Core.Scripts.ScriptStatus.Showing, Page: { } shown })
-                _backdrop.Show(shown);
+        _backdrop!.Draw(_session!.Backdrop);
+        if (Trek!.Conversation is { ShowsBackdrop: true })
             return;
-        }
-        _backdrop!.Close();
         if (Trek!.Conversation?.Runner is { Status: Core.Scripts.ScriptStatus.Showing, Page: { } page })
             _box!.Show(page);
         else
@@ -938,6 +924,13 @@ public partial class Game : Node3D, ITrekHost
                 break;
             case Transition.OpenTraining training:
                 _menu!.OpenTraining(training.Trainer);
+                break;
+            case Transition.OpenLoot loot:
+                // The loot window: the pause menu in its barter state, which stops trek until it closes.
+                _menu!.OpenLoot(loot.Loot, loot.Gold);
+                break;
+            case Transition.OpenMenu open:
+                _menu!.Open(open.Tab);
                 break;
             case Transition.StartBattle battle:
                 SayBattle(battle.Setup);
@@ -1006,6 +999,9 @@ public partial class Game : Node3D, ITrekHost
     }
 
     void ITrekHost.Changed(LoadedMap map, SceneObject scene) => _changed.Add(map);
+
+    /// <summary>The menu rolled up and the chunk's objects came or went: its scenery is built again before the frame.</summary>
+    void ITrekHost.Regated(LoadedMap map) => _chunks!.Rebuild(map);
 
     void ITrekHost.PutOut(LoadedMap map, SceneObject scene) => _chunks!.PutOut(map, scene);
 

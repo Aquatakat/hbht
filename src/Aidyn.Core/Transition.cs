@@ -2,8 +2,10 @@ using Aidyn.Core.Characters;
 using Aidyn.Core.Chunks;
 using Aidyn.Core.Combat;
 using Aidyn.Core.Items;
+using Aidyn.Core.MapObjects;
 using Aidyn.Core.Scripts;
 using Aidyn.Core.Trek;
+using Aidyn.Core.Ui;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 
@@ -33,6 +35,12 @@ public abstract record Transition
 
     /// <summary>Training opens at a trainer: the pause menu in its training state (<c>init_skill_trainer</c>).</summary>
     public sealed record OpenTraining(Trainer Trainer) : Transition;
+
+    /// <summary>A container's loot opens, with any gold in it: the pause menu in its barter state (<see cref="IMapObjectHost.OpenLoot"/>).</summary>
+    public sealed record OpenLoot(ItemPile Loot, int Gold) : Transition;
+
+    /// <summary>The pause menu opens in trek, as Start asks (<see cref="GameSession.OpenMenu"/>), on a tab or the one it last showed.</summary>
+    public sealed record OpenMenu(PauseTab? Tab = null) : Transition;
 
     /// <summary>
     /// A battle is to start, as a script's end or a map object decides it. Trek cues it (<see cref="TrekLoop.CueBattle"/>),

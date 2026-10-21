@@ -50,10 +50,6 @@ public sealed class TrekLoopTests(Na10Import fixture)
 
         IRootMotion ITrekHost.Motion(Wanderer wanderer) => IActorMotion.Still;
 
-        void ITrekHost.OpenLoot(ItemPile loot, int gold)
-        {
-        }
-
         void ITrekHost.Animate(LoadedMap map, SceneObject actor, int request)
         {
         }

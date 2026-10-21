@@ -89,8 +89,9 @@ public partial class BackdropView : Control
 /// <summary>
 /// A backdrop's or the help menu's page over the world: the world and the HUD, still as the game stops them, darkened
 /// to half as it fades in, as the pause menu darkens them (<see cref="PauseScroll.Dark"/>), and the page on a UI screen
-/// of its own over them. The game is paused while it shows, and the world goes on being drawn under a black layer,
-/// so the window's size redraws it. The original draws the world on behind its opaque page, which covers its whole
+/// of its own over them. The session makes and steps the page (<see cref="Core.GameSession.Backdrop"/>); this draws it.
+/// The game is paused while it shows, and the world goes on being drawn under a black layer, so the window's size
+/// redraws it. The original draws the world on behind its opaque page, which covers its whole
 /// 320 × 240 frame; the port centres the frame on the screen, so the world shows either side on a wider one.
 /// </summary>
 public partial class BackdropLayer : CanvasLayer
@@ -104,14 +105,12 @@ public partial class BackdropLayer : CanvasLayer
     };
     private readonly UiScreen _screen = new();
     private readonly BackdropView _view;
-    private readonly TextLayout _font;
 
     public BackdropLayer(PluginSet plugins)
     {
         Name = "Backdrop";
         Layer = PauseMenu.MenuLayer;
         Visible = false;
-        _font = new TextLayout(plugins.Get<FontRecord>(RecordId.Decimal(RecordTypes.Font, 0)));
         _darkness.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         AddChild(_darkness);
         _screen.SetAnchorsPreset(Control.LayoutPreset.FullRect);
@@ -125,64 +124,20 @@ public partial class BackdropLayer : CanvasLayer
     /// <summary>The UI screen, whose lines and filter the game sets.</summary>
     public UiScreen Screen => _screen;
 
-    /// <summary>The page, from its opening until it has faded out.</summary>
-    public BackdropPage? Page { get; private set; }
+    /// <summary>The page drawn, from its opening until it has faded out: the session's (<see cref="Core.GameSession.Backdrop"/>).</summary>
+    public BackdropPage? Page => _view.Page;
 
-    /// <summary>Whether a page shows, or is still fading out.</summary>
-    public bool Showing => Page is not null;
-
-    /// <summary>Whether the page takes presses: once open, and until it closes.</summary>
-    public bool Taking => Page is { Closing: false };
-
-    /// <summary>The page has faded out, and the game goes on.</summary>
-    public event Action? Closed;
-
-    /// <summary>Opens a page in a picture's style over the world.</summary>
-    public void Open(BackdropStyle style)
+    /// <summary>
+    /// Draws the session's page as it stands, each tick and after a press: shown as one opens, hidden once it has faded out,
+    /// and the world's tint from bright to the pause menu's half as it fades in.
+    /// </summary>
+    public void Draw(BackdropPage? page)
     {
-        Page = new BackdropPage(_font, style);
-        _view.Page = Page;
-        Visible = true;
-        Tint();
-    }
-
-    /// <summary>Shows a node's text and choices.</summary>
-    public void Show(ScriptPage page)
-    {
-        Page?.Show(page);
-        _view.QueueRedraw();
-    }
-
-    /// <summary>Moves the cursor.</summary>
-    public void MoveCursor(int by)
-    {
-        Page?.MoveCursor(by);
-        _view.QueueRedraw();
-    }
-
-    /// <summary>The page fades out, and the game goes on once it has.</summary>
-    public void Close() => Page?.Close();
-
-    public override void _PhysicsProcess(double delta)
-    {
-        if (Page is not { } page)
+        _view.Page = page;
+        Visible = page is not null;
+        if (page is null)
             return;
-        page.Step();
-        if (page.Closed)
-        {
-            Page = null;
-            _view.Page = null;
-            Visible = false;
-            Closed?.Invoke();
-            return;
-        }
-        Tint();
-    }
-
-    /// <summary>The world's tint, from bright to the pause menu's half as the page fades in.</summary>
-    private void Tint()
-    {
-        var alpha = Page!.Alpha / 255f;
+        var alpha = page.Alpha / 255f;
         var tint = Mathf.Lerp(1f, PauseScroll.Dark / 255f, alpha);
         _darkness.Color = new Color(0, 0, 0, 1 - tint);
         _view.QueueRedraw();

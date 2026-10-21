@@ -4,6 +4,8 @@ using Aidyn.Core.Cameras;
 using Aidyn.Core.Chunks;
 using Aidyn.Core.Combat;
 using Aidyn.Core.Events;
+using Aidyn.Core.Items;
+using Aidyn.Core.MapObjects;
 using Aidyn.Core.Movement;
 using Aidyn.Core.Physics;
 using Aidyn.Core.Scripts;
@@ -114,7 +116,7 @@ public sealed class GameSession
     {
         Game = game;
         _host = host;
-        Trek = new TrekLoop(game, host, zone, player, camera);
+        Trek = new TrekLoop(game, new Relay(this, host), zone, player, camera);
     }
 
     /// <summary>
@@ -179,7 +181,11 @@ public sealed class GameSession
     /// <summary>The battle's arena: a zone engine of its own on the Battle arenas (<see cref="ZoneEngine.Stage"/>).</summary>
     public ZoneEngine? Arena { get; private set; }
 
-    /// <summary>Whether the pause menu is open.</summary>
+    /// <summary>
+    /// Whether the pause menu is open: from the transition that opens it, Start's (<see cref="OpenMenu"/>), a container's
+    /// loot, a script's shop or training, a battle's pause, a win's post-battle windows or the menu reopening after the
+    /// credits or the Theatre, until it has rolled up (<see cref="MenuClosed"/>).
+    /// </summary>
     public bool MenuOpen { get; private set; }
 
     /// <summary>
@@ -188,8 +194,20 @@ public sealed class GameSession
     /// </summary>
     public BattleSpoils? PostBattle { get; private set; }
 
+    /// <summary>
+    /// A backdrop's or the help menu's page, from its opening until it has faded out (<see cref="BackdropPage"/>): made as
+    /// trek's conversation shows one (<see cref="Conversation.ShowsBackdrop"/>), shown each node, closed as the conversation
+    /// ends, and stepped here each tick. Whoever presents the game draws it.
+    /// </summary>
+    public BackdropPage? Backdrop { get; private set; }
+
     /// <summary>Whether a backdrop's or the help menu's page shows, or is still fading out.</summary>
-    public bool BackdropShowing { get; private set; }
+    public bool BackdropShowing => Backdrop is not null;
+
+    private TextLayout? _font;
+
+    /// <summary>The main font, which a backdrop's page is laid out in.</summary>
+    private TextLayout Font => _font ??= new TextLayout(Game.Plugins.Get<FontRecord>(RecordId.Decimal(RecordTypes.Font, 0)));
 
     /// <summary>Whether the credits are rolling.</summary>
     public bool CreditsRolling => _credits is not null;
@@ -259,6 +277,21 @@ public sealed class GameSession
         Func<Combatant, IActorMotion?>? combatants = null, ISpellFxHost? spellFx = null)
     {
         Game.CountTick();
+        var step = Step(readInput, frozen, skyDrawn, actors, combatants, spellFx);
+        // A backdrop's page fades and pulses in every mode, after the mode's step: once it has faded out, it's gone from the next tick's mode.
+        if (Backdrop is { } page)
+        {
+            page.Step();
+            if (page.Closed)
+                Backdrop = null;
+        }
+        return step;
+    }
+
+    /// <summary>The mode that runs steps (<see cref="Tick"/>).</summary>
+    private SessionStep Step(Func<PlayerInput> readInput, bool frozen, bool skyDrawn, Func<CutSceneActor, IActorMotion?> actors,
+        Func<Combatant, IActorMotion?>? combatants, ISpellFxHost? spellFx)
+    {
         switch (Mode)
         {
             case GameMode.Cinematic:
@@ -280,18 +313,17 @@ public sealed class GameSession
         if (Battle is { } battle)
         {
             battle.Tick(Arena!, skyDrawn, combatants ?? (_ => null), readInput, spellFx);
-            if (battle.Paused && !MenuOpen && !_menuAsked)
+            if (battle.Paused && !MenuOpen)
             {
                 // Combat's states 14 and 27: the pause menu, mode 3.
-                _menuAsked = true;
-                _host.Transition(new Transition.PauseBattle(battle.PausedFromTurn, battle.PausedFromTurn && battle.CanFlee));
+                Send(new Transition.PauseBattle(battle.PausedFromTurn, battle.PausedFromTurn && battle.CanFlee));
             }
             return battle.Over ? SessionStep.CombatOver : SessionStep.Combat;
         }
         if (_reopenOnTheatre is { } theatre && !Trek.CutSceneFade.Fading)
         {
             _reopenOnTheatre = null;
-            _host.Transition(new Transition.ReopenMenu(theatre));
+            Send(new Transition.ReopenMenu(theatre));
         }
         return Trek.Tick(readInput, frozen) switch
         {
@@ -326,8 +358,8 @@ public sealed class GameSession
         Zone.Particles?.Clear();
         if (CutSceneStage.For(Game.Plugins, stageRef, Trek.Chunks.World) is not { } stage)
         {
-            _host.Transition(new Transition.Say($"{script.Id} plays in a chunk no plugin has."));
-            _host.Transition(new Transition.EndCutScene(null));
+            Send(new Transition.Say($"{script.Id} plays in a chunk no plugin has."));
+            Send(new Transition.EndCutScene(null));
             ResumeTrek();
             return;
         }
@@ -340,7 +372,7 @@ public sealed class GameSession
         var scene = Scene = new CutScene(Game, script, start, stage, _host);
         zone.Camera = scene.Camera;
         scene.Start();
-        _host.Transition(new Transition.StartCutScene(scene, zone));
+        Send(new Transition.StartCutScene(scene, zone));
     }
 
     /// <summary>
@@ -356,7 +388,7 @@ public sealed class GameSession
         Stage = null;
         foreach (var problem in scene.Problems)
             _host.Warn(problem);
-        _host.Transition(new Transition.EndCutScene(scene));
+        Send(new Transition.EndCutScene(scene));
         // CutScene.Free's ending kinds, as the base plugin's triggers: the game over, Roog's cinematic and the ending's,
         // in place of trek.
         if (Fire(GameEvents.ScriptEnded, scene.Runner.Script.Id, worldFreed: true))
@@ -405,7 +437,7 @@ public sealed class GameSession
     private void ResumeTrek()
     {
         Trek.Resume();
-        _host.Transition(new Transition.ResumeTrek());
+        Send(new Transition.ResumeTrek());
     }
 
     /// <summary>Asks trek for a cut-scene, unless one or a battle is playing (<see cref="TrekLoop.Cue"/>).</summary>
@@ -425,9 +457,6 @@ public sealed class GameSession
     /// <summary>The last battle's arena, which a terrain choosing none keeps (<see cref="BattleSetup.ChooseArena"/>).</summary>
     private int _lastArena;
 
-    /// <summary>Whether combat's pause has asked for the menu, which it does once.</summary>
-    private bool _menuAsked;
-
     /// <summary>
     /// The cued battle begins (<c>Combat.Init</c>, <c>0x80022D1C</c>): trek's world goes, the zone engine starts again with
     /// its particles emptied, on the Battle arenas about the battle's arena, without wanderers, asking for the map set's
@@ -440,17 +469,17 @@ public sealed class GameSession
         if (setup.Party is null && setup.Enemies.Count == 0)
         {
             // A camp ambush on a terrain with no camp encounters (27): the original reads past the table and finds no enemy.
-            _host.Transition(new Transition.Say("The party is ambushed, but no one comes."));
+            Send(new Transition.Say("The party is ambushed, but no one comes."));
             Trek.Resume();
-            _host.Transition(new Transition.ResumeTrek());
+            Send(new Transition.ResumeTrek());
             return;
         }
         var number = setup.Arena ?? setup.ChooseArena(Game.Plugins, Game.Random.Combat) ?? _lastArena;
         if (Combat.Arena.For(Game.Plugins, number) is not { } arena)
         {
-            _host.Transition(new Transition.Say($"Arena {number} is in no plugin."));
+            Send(new Transition.Say($"Arena {number} is in no plugin."));
             Trek.Resume();
-            _host.Transition(new Transition.ResumeTrek());
+            Send(new Transition.ResumeTrek());
             return;
         }
         _lastArena = number;
@@ -460,10 +489,9 @@ public sealed class GameSession
         zone.Chunks.Update(arena.Origin + Combat.Battle.ZonePoint);
         var battle = Battle = Combat.Battle.Begin(Game, setup, arena, zone.World);
         zone.Camera = battle.Camera;
-        _menuAsked = false;
         foreach (var line in battle.Problems)
             _host.Warn(line);
-        _host.Transition(new Transition.StartedBattle(battle, zone));
+        Send(new Transition.StartedBattle(battle, zone));
     }
 
     /// <summary>
@@ -483,7 +511,7 @@ public sealed class GameSession
         Arena!.Audio.StopMusic();
         Arena.End();
         Arena = null;
-        _host.Transition(new Transition.EndBattle(battle));
+        Send(new Transition.EndBattle(battle));
         battle.Leave();
         if (battle.Rule?.End is { } end)
             Trek.Keep(end.Place, end.Position, end.Heading);
@@ -491,7 +519,7 @@ public sealed class GameSession
         {
             case BattleOutcome.Won when battle.Spoils is { } spoils:
                 PostBattle = spoils;
-                _host.Transition(new Transition.PostBattle(spoils));
+                Send(new Transition.PostBattle(spoils));
                 return;
             case BattleOutcome.Lost:
                 PlayGameOver();
@@ -503,7 +531,7 @@ public sealed class GameSession
                 return;
         }
         Trek.Resume(fled: battle.Outcome == BattleOutcome.Fled);
-        _host.Transition(new Transition.ResumeTrek());
+        Send(new Transition.ResumeTrek());
     }
 
     /// <summary>
@@ -521,48 +549,60 @@ public sealed class GameSession
             StartCutScene(script, new ScriptStart(dialogue.RefPointBase, MapRecord.VoxelId(map.Id, dialogue.Index)), stage);
             return;
         }
-        _host.Transition(new Transition.GameOver());
+        Send(new Transition.GameOver());
     }
 
     /// <summary>
-    /// The pause menu has opened, on a tab or in its barter or training state; in combat, as its pause asked
-    /// (<see cref="Transition.PauseBattle"/>).
+    /// Start in trek: the pause menu opens (<see cref="Transition.OpenMenu"/>), on a tab or the one it last showed, unless
+    /// trek is going through a teleporter or fading into a cut-scene or a battle, when the press is dead
+    /// (<c>Actor::Move</c>), or something else runs.
     /// </summary>
-    public void MenuOpened() => MenuOpen = true;
+    public void OpenMenu(PauseTab? tab = null)
+    {
+        if (Mode != GameMode.Trek || Trek.Teleporting || Trek.Cued is not null || Trek.CutSceneFade.Fading)
+            return;
+        Send(new Transition.OpenMenu(tab));
+    }
+
+    /// <summary>The loot window opens on a pile, as a container's does (<see cref="Transition.OpenLoot"/>).</summary>
+    public void OpenLoot(ItemPile loot, int gold) => Send(new Transition.OpenLoot(loot, gold));
 
     /// <summary>
-    /// The pause menu has rolled up, and trek carries on as its exit says (<see cref="PauseExit"/>): the party camps, the
-    /// help menu's script starts, the credits roll or the Theatre's cinematic plays.
+    /// The pause menu has rolled up: the map is gated again by the flags as they are now, as the original reloads it as the
+    /// menu closes (<see cref="TrekLoop.Regate"/>), and trek carries on as the menu's exit says (<see cref="PauseExit"/>): the
+    /// party camps, the help menu's script starts, the credits roll or the Theatre's cinematic plays.
     /// </summary>
     public void MenuClosed(PauseExit exit)
     {
         MenuOpen = false;
+        // Trek's world is freed while a battle plays.
+        if (Battle is null)
+            Trek.Regate();
         if (PostBattle is not null)
         {
             // The loot window closes to trek (PauseMenu.CloseToTrek): built again where the battle began, fading in.
             PostBattle = null;
             Trek.Resume();
-            _host.Transition(new Transition.ResumeTrek());
+            Send(new Transition.ResumeTrek());
             return;
         }
         if (Battle is { } battle)
         {
             // Combat's pause menu returns to the state it paused, or flees (state 16).
-            _menuAsked = false;
             battle.Unpause(exit.Code == PauseExitCode.Flee);
             return;
         }
         switch (exit.Code)
         {
             case PauseExitCode.Camp:
-                _host.Transition(new Transition.Camp(Trek.Camp()));
+                Send(new Transition.Camp(Trek.Camp()));
                 break;
             case PauseExitCode.Help:
                 Trek.ShowBackdrop(Game.Plugins.Get<DialogueRecord>(SystemMenu.HelpScript));
                 break;
             case PauseExitCode.Credits when Game.Plugins.TrySingleton<CreditsRecord>(RecordTypes.Credits) is not null:
                 _credits = (Ending: false, FromMenu: true, WorldFreed: false);
-                _host.Transition(new Transition.PlayCredits());
+                Send(new Transition.PlayCredits());
                 break;
             case PauseExitCode.Theatre when exit.Cinematic is { } cinematic:
                 PlayCinematic(cinematic, fromTheatre: true);
@@ -570,11 +610,70 @@ public sealed class GameSession
         }
     }
 
-    /// <summary>A backdrop's or the help menu's page has opened over the world.</summary>
-    public void BackdropOpened() => BackdropShowing = true;
+    /// <summary>
+    /// Trek's conversation has a new page or has ended (<see cref="ITrekHost.ConversationChanged"/>): a backdrop's or the
+    /// help menu's page opens in its picture's style as the conversation shows one, shows each node, and fades out as the
+    /// conversation ends.
+    /// </summary>
+    private void ConversationChanged()
+    {
+        if (Trek.Conversation is { ShowsBackdrop: true } conversation)
+        {
+            Backdrop ??= new BackdropPage(Font, BackdropStyle.For(conversation.Runner.Script.Backdrop));
+            if (conversation.Runner is { Status: ScriptStatus.Showing, Page: { } page })
+                Backdrop.Show(page);
+            return;
+        }
+        Backdrop?.Close();
+    }
 
-    /// <summary>The page has faded out, and the game goes on.</summary>
-    public void BackdropClosed() => BackdropShowing = false;
+    /// <summary>
+    /// Hands a transition to the host, noting the ones that open the pause menu (<see cref="MenuOpen"/>): Start's, a
+    /// container's loot, a script's shop or training, a battle's pause, a win's post-battle windows and the menu reopening.
+    /// </summary>
+    private void Send(Transition next)
+    {
+        if (next is Transition.OpenMenu or Transition.OpenLoot or Transition.OpenShop or Transition.OpenTraining
+            or Transition.PauseBattle or Transition.PostBattle or Transition.ReopenMenu)
+            MenuOpen = true;
+        _host.Transition(next);
+    }
+
+    /// <summary>
+    /// Trek's host as the session gives it: everything passes to the host that presents the game, and on the way the session
+    /// notes the transitions that open the menu (<see cref="Send"/>) and the conversation's changes that show a backdrop's
+    /// page (<see cref="ConversationChanged"/>).
+    /// </summary>
+    private sealed class Relay(GameSession session, ITrekHost host) : ITrekHost
+    {
+        public void Transition(Transition next) => session.Send(next);
+
+        public void ConversationChanged()
+        {
+            session.ConversationChanged();
+            host.ConversationChanged();
+        }
+
+        public void Entered(ChunkEntry? chunk) => host.Entered(chunk);
+
+        public void Arrived() => host.Arrived();
+
+        public IRootMotion Motion(Wanderer wanderer) => host.Motion(wanderer);
+
+        public void Animate(LoadedMap map, SceneObject actor, int request) => host.Animate(map, actor, request);
+
+        public void Changed(LoadedMap map, SceneObject scene) => host.Changed(map, scene);
+
+        public void PutOut(LoadedMap map, SceneObject scene) => host.PutOut(map, scene);
+
+        public void Regated(LoadedMap map) => host.Regated(map);
+
+        public void Log(string text) => host.Log(text);
+
+        public void Warn(string text) => host.Warn(text);
+
+        public void Cue(ScriptCue cue) => host.Cue(cue);
+    }
 
     /// <summary>
     /// Plays a cinematic (<c>Cinematic.Load</c>), unless one is playing: from the Theatre, the menu reopens on its page
@@ -588,7 +687,7 @@ public sealed class GameSession
         if (_cinematic is not null)
             return;
         _cinematic = (cinematic, fromTheatre, worldFreed);
-        _host.Transition(new Transition.PlayCinematic(cinematic));
+        Send(new Transition.PlayCinematic(cinematic));
     }
 
     /// <summary>
@@ -607,7 +706,7 @@ public sealed class GameSession
             return;
         Trek.Resume();
         if (worldFreed)
-            _host.Transition(new Transition.ResumeTrek());
+            Send(new Transition.ResumeTrek());
         if (fromTheatre)
             _reopenOnTheatre = true;
     }
@@ -623,7 +722,7 @@ public sealed class GameSession
         _credits = null;
         if (ending)
         {
-            _host.Transition(new Transition.GameOver());
+            Send(new Transition.GameOver());
             return;
         }
         if (worldFreed)
@@ -659,10 +758,10 @@ public sealed class GameSession
                 return true;
             case TriggerEffect.Credits credits when Game.Plugins.TrySingleton<CreditsRecord>(RecordTypes.Credits) is not null:
                 _credits = (credits.Ending, FromMenu: false, worldFreed);
-                _host.Transition(new Transition.PlayCredits(credits.Ending));
+                Send(new Transition.PlayCredits(credits.Ending));
                 return true;
             case TriggerEffect.GameOver:
-                _host.Transition(new Transition.GameOver());
+                Send(new Transition.GameOver());
                 return true;
         }
         _host.Warn($"A trigger on {name} asks for {effect}, which no plugin has.");
