@@ -2,8 +2,10 @@ using Aidyn.Core.Characters;
 using Aidyn.Core.Chunks;
 using Aidyn.Core.Combat;
 using Aidyn.Core.Items;
+using Aidyn.Core.MapObjects;
 using Aidyn.Core.Scripts;
 using Aidyn.Core.Trek;
+using Aidyn.Core.Ui;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 
@@ -33,6 +35,12 @@ public abstract record Transition
 
     /// <summary>Training opens at a trainer: the pause menu in its training state (<c>init_skill_trainer</c>).</summary>
     public sealed record OpenTraining(Trainer Trainer) : Transition;
+
+    /// <summary>A container's loot opens, with any gold in it: the pause menu in its barter state (<see cref="IMapObjectHost.OpenLoot"/>).</summary>
+    public sealed record OpenLoot(ItemPile Loot, int Gold) : Transition;
+
+    /// <summary>The pause menu opens in trek, as Start asks (<see cref="GameSession.OpenMenu"/>), on a tab or the one it last showed.</summary>
+    public sealed record OpenMenu(PauseTab? Tab = null) : Transition;
 
     /// <summary>
     /// A battle is to start, as a script's end or a map object decides it. Trek cues it (<see cref="TrekLoop.CueBattle"/>),
@@ -90,13 +98,23 @@ public abstract record Transition
     public sealed record ResumeTrek : Transition;
 
     /// <summary>
-    /// The credits play over trek held still (game mode 0x13); the ending's (<paramref name="Ending"/>) can't be skipped, end
-    /// with "The End", and end the game (<see cref="GameOver"/> follows them).
+    /// The credits play over trek held still (game mode 0x13); the session steps them (<see cref="GameSession.Credits"/>).
+    /// The ending's (<paramref name="Ending"/>) can't be skipped, end with "The End", and end the game
+    /// (<see cref="GameOver"/> follows them).
     /// </summary>
     public sealed record PlayCredits(bool Ending = false) : Transition;
 
-    /// <summary>A cinematic plays over everything (game mode 0xE).</summary>
+    /// <summary>The credits have ended (<c>Credits.Destroy</c>): their music stops at once, and the game's own comes back.</summary>
+    public sealed record EndCredits(bool Ending) : Transition;
+
+    /// <summary>A cinematic plays over everything (game mode 0xE); the session steps it (<see cref="GameSession.Cinematic"/>).</summary>
     public sealed record PlayCinematic(CinematicRecord Cinematic) : Transition;
+
+    /// <summary>
+    /// The cinematic has ended (<c>Cinematic.EndCase</c>): its last shot's music stops and its picture goes, before what
+    /// follows it is sent.
+    /// </summary>
+    public sealed record EndCinematic(CinematicRecord Cinematic) : Transition;
 
     /// <summary>The pause menu opens again, on the Theatre's page or as it last was (trek's state 8, <c>Theatre.Reopen</c>).</summary>
     public sealed record ReopenMenu(bool Theatre) : Transition;

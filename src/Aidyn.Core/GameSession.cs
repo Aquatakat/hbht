@@ -2,13 +2,13 @@ using System.Numerics;
 using Aidyn.Core.Actors;
 using Aidyn.Core.Cameras;
 using Aidyn.Core.Chunks;
+using Aidyn.Core.Cinematics;
 using Aidyn.Core.Combat;
 using Aidyn.Core.Events;
 using Aidyn.Core.Items;
 using Aidyn.Core.MapObjects;
 using Aidyn.Core.Movement;
 using Aidyn.Core.Physics;
-using Aidyn.Core.Scenes;
 using Aidyn.Core.Scripts;
 using Aidyn.Core.Trek;
 using Aidyn.Core.Ui;
@@ -89,8 +89,8 @@ public enum SessionStep
     CombatOver,
 
     /// <summary>
-    /// The pause menu rolled up this tick and how it ended was carried out (<see cref="GameSession.MenuClosed"/>): whoever draws
-    /// the world gates its scenery again, as the original reloads the map as the menu closes, and hides the menu.
+    /// The pause menu rolled up this tick and how it ended was carried out (<see cref="GameSession.MenuClosed"/>): the map was
+    /// gated again, and whoever draws the menu hides it.
     /// </summary>
     MenuClosed,
 }
@@ -104,29 +104,28 @@ public enum SessionStep
 /// transitions and keeps no rules of its own.
 /// </summary>
 /// <remarks>
-/// The pause menu's, a backdrop's, the credits' and a cinematic's drawing and stepping are presentation, which the runtime
-/// does: it says when the menu and a backdrop open and close, and when the credits and a cinematic end, and this carries
-/// out what follows. Combat is a mode here too, on a stage of trek's zone engine as a cut-scene is (<see cref="BeginBattle"/>).
+/// The pause menu (<see cref="Menu"/>), a backdrop's page, a cinematic and the credits are stepped here
+/// (<see cref="Backdrop"/>, <see cref="Cinematic"/>, <see cref="Credits"/>), and the runtime draws them; the menu's ending is
+/// carried out as its step returns it (<see cref="MenuClosed"/>). The player's presses come in as <see cref="MenuAction"/>s
+/// (<see cref="Press"/>), and the held directions repeat here (<see cref="Stick"/>). Combat is a mode here too, on a stage of
+/// trek's zone engine as a cut-scene is (<see cref="BeginBattle"/>).
 /// </remarks>
 public sealed class GameSession
 {
     private readonly ITrekHost _host;
-    private (CinematicRecord Record, bool FromTheatre, bool WorldFreed)? _cinematic;
-    /// <summary>The credits rolling: the ending's, from the menu's Credits, and whether trek's world has gone under them.</summary>
-    private (bool Ending, bool FromMenu, bool WorldFreed)? _credits;
     private Triggers? _triggers;
-    /// <summary>The pause menu reopens once trek has faded in, on the Theatre's page or as it was (trek's state 8).</summary>
-    private bool? _reopenOnTheatre;
+    /// <summary>The pause menu reopening once trek has faded in, on the Theatre's page or as it was (trek's state 8), if it's to.</summary>
+    private Transition.ReopenMenu? _reopen;
     private float _precipitationDensity = 1;
+    /// <summary>Whether the last tick froze trek, as while the runtime's free camera flies: then A and B in trek do nothing.</summary>
+    private bool _frozen;
 
     private GameSession(GameState game, ITrekHost host, ZoneEngine zone, PlayerMotion player, FollowCamera camera, Settings? settings,
         IPauseMenuHost? menuHost, string? savesFolder)
     {
         Game = game;
         _host = host;
-        // Trek's host is wrapped, so what trek asks of the runtime that opens the menu, loot and a script's shop or training, opens
-        // the menu here first.
-        Trek = new TrekLoop(game, new TrekHostProxy(this, host), zone, player, camera);
+        Trek = new TrekLoop(game, new Relay(this, host), zone, player, camera);
         Menu = new PauseMenu(game, settings ?? new Settings(), savesFolder ?? DataPaths.Saves, Where, menuHost ?? NoMenuHost.Instance, Stick);
     }
 
@@ -197,13 +196,14 @@ public sealed class GameSession
     public ZoneEngine? Arena { get; private set; }
 
     /// <summary>
-    /// The pause menu: its tabs, windows and presses (<see cref="Ui.PauseMenu"/>). It opens here, on Start in trek
-    /// (<see cref="Press"/>), on loot, a shop or training trek asks for, as combat pauses and after a battle, and whoever
-    /// draws it reads its state.
+    /// The pause menu: its tabs, windows and presses (<see cref="Ui.PauseMenu"/>). It opens with the transition that opens it,
+    /// Start's (<see cref="OpenMenu"/>), a container's loot, a script's shop or training, a battle's pause, a win's post-battle
+    /// windows or the menu reopening after the credits or the Theatre (<see cref="Send"/>), is stepped each tick, and closes
+    /// itself as its scroll rolls up, its ending carried out here (<see cref="MenuClosed"/>). Whoever draws it reads its state.
     /// </summary>
     public PauseMenu Menu { get; }
 
-    /// <summary>Whether the pause menu is open.</summary>
+    /// <summary>Whether the pause menu is open, from the transition that opens it until it has rolled up.</summary>
     public bool MenuOpen => Menu.IsOpen;
 
     /// <summary>
@@ -225,14 +225,35 @@ public sealed class GameSession
     /// </summary>
     public BattleSpoils? PostBattle { get; private set; }
 
-    /// <summary>Whether a backdrop's or the help menu's page shows, or is still fading out (<see cref="TrekLoop.Backdrop"/>).</summary>
-    public bool BackdropShowing => Trek.Backdrop is not null;
+    /// <summary>
+    /// A backdrop's or the help menu's page, from its opening until it has faded out (<see cref="TrekLoop.Backdrop"/>): made as
+    /// trek's conversation shows one, shown each node, taking the presses (<see cref="TrekLoop.Press"/>), closed as the
+    /// conversation ends, and stepped each tick. Whoever presents the game draws it.
+    /// </summary>
+    public BackdropPage? Backdrop => Trek.Backdrop;
 
-    /// <summary>Whether the last tick froze trek, as while the runtime's free camera flies: then A and B in trek do nothing.</summary>
-    private bool _frozen;
+    /// <summary>Whether a backdrop's or the help menu's page shows, or is still fading out.</summary>
+    public bool BackdropShowing => Backdrop is not null;
+
+    private TextLayout? _font;
+
+    /// <summary>The main font, which a backdrop's page is laid out in.</summary>
+    private TextLayout Font => _font ??= new TextLayout(Game.Plugins.Get<FontRecord>(RecordId.Decimal(RecordTypes.Font, 0)));
+
+    /// <summary>The credits rolling (<see cref="Transition.PlayCredits"/>), stepped each tick until they end (<see cref="CreditsEnded"/>).</summary>
+    public CreditsShowing? Credits { get; private set; }
 
     /// <summary>Whether the credits are rolling.</summary>
-    public bool CreditsRolling => _credits is not null;
+    public bool CreditsRolling => Credits is not null;
+
+    /// <summary>
+    /// The screen's height the credits lay their cards out on, 240 on the console's: the runtime's is as tall as the UI's
+    /// lines, and is set before they play.
+    /// </summary>
+    public int CreditsScreenHeight { get; set; } = 240;
+
+    /// <summary>Whether the cinematic stands still where it is, not stepped, for a screenshot.</summary>
+    public bool CinematicHeld { get; set; }
 
     /// <summary>The installed plugins' triggers, which the session fires its events on (roadmap 2.10).</summary>
     public Triggers Triggers => _triggers ??= LoadTriggers();
@@ -246,15 +267,15 @@ public sealed class GameSession
         return triggers;
     }
 
-    /// <summary>The cinematic playing.</summary>
-    public CinematicRecord? Cinematic => _cinematic?.Record;
+    /// <summary>The cinematic playing (<see cref="Transition.PlayCinematic"/>), stepped each tick until it ends (<see cref="CinematicEnded"/>).</summary>
+    public CinematicShowing? Cinematic { get; private set; }
 
     /// <summary>
     /// What runs, the highest that's up: a cinematic, the credits, the pause menu, a backdrop's page, a popup, a
     /// conversation, a cut-scene, a battle, else trek.
     /// </summary>
     public GameMode Mode =>
-        _cinematic is not null ? GameMode.Cinematic
+        Cinematic is not null ? GameMode.Cinematic
         : CreditsRolling ? GameMode.Credits
         : MenuOpen || PostBattle is not null ? GameMode.Menu
         : BackdropShowing ? GameMode.Backdrop
@@ -284,10 +305,10 @@ public sealed class GameSession
     }
 
     /// <summary>
-    /// One 60 Hz tick: it counts in every mode (<see cref="GameState.CountTick"/>), then the mode that runs steps. Under
-    /// the pause menu, a backdrop's page and the credits, the map's sounds go on with everything held still; a cinematic
-    /// holds everything. A cut-scene ticks on its stage; trek reopens the menu once it has faded in after the credits or the
-    /// Theatre, then ticks.
+    /// One 60 Hz tick: it counts in every mode (<see cref="GameState.CountTick"/>), then the mode that runs steps. A
+    /// cinematic steps, holding everything, and ends itself; the credits step with the map's sounds going on under them and
+    /// everything held still, and end themselves; under the pause menu and a backdrop's page the sounds go on the same. A
+    /// cut-scene ticks on its stage; trek reopens the menu once it has faded in after the credits or the Theatre, then ticks.
     /// </summary>
     /// <param name="readInput">The player's controls, read only when trek or a battle's turn takes them.</param>
     /// <param name="frozen">Whether only time passes in trek, as while the free camera flies.</param>
@@ -300,66 +321,20 @@ public sealed class GameSession
     {
         Game.CountTick();
         _frozen = frozen;
-        // A backdrop's page fades and pulses whatever runs over it, after the mode it holds has had its tick: the tick its page
-        // goes on is still held, as the runtime's layer stepped after the game.
-        var mode = Mode;
-        StepStick(mode);
-        Trek.StepBackdrop();
+        StepStick();
         // The menu's tick, every tick, as the runtime stepped it after the game's: a frame of it while it's open, and once it has
         // closed, how it ended, carried out here.
         var (scrollFrame, scrollLength) = ScrollClock();
         if (Menu.Step(scrollFrame, scrollLength) is { } exit)
         {
             MenuClosed(exit);
+            Trek.StepBackdrop();
             return SessionStep.MenuClosed;
         }
-        switch (mode)
-        {
-            case GameMode.Cinematic:
-                return SessionStep.Cinematic;
-            case GameMode.Credits:
-                StepSounds();
-                return SessionStep.Credits;
-            case GameMode.Menu or GameMode.Backdrop:
-                // The menu's frame keeps the map's sounds going, with everything held still (PauseMenu.Frame).
-                StepSounds();
-                return SessionStep.Held;
-        }
-        if (Scene is { } scene)
-        {
-            // The zone engine draws the stage, its sounds, weather and rain, as it draws trek (CutScene.Tick).
-            scene.Tick(Stage!, skyDrawn, actors);
-            return scene.Over ? SessionStep.CutSceneOver : SessionStep.CutScene;
-        }
-        if (Battle is { } battle)
-        {
-            battle.Tick(Arena!, skyDrawn, combatants ?? (_ => null), readInput, spellFx);
-            if (battle.Paused && !MenuOpen && !_menuAsked)
-            {
-                // Combat's states 14 and 27: the pause menu, mode 3.
-                _menuAsked = true;
-                var canFlee = battle.PausedFromTurn && battle.CanFlee;
-                Menu.OpenCombat(battle.PausedFromTurn, canFlee, CombatPause.For(battle));
-                _host.Transition(new Transition.PauseBattle(battle.PausedFromTurn, canFlee));
-            }
-            return battle.Over ? SessionStep.CombatOver : SessionStep.Combat;
-        }
-        if (_reopenOnTheatre is { } theatre && !Trek.CutSceneFade.Fading)
-        {
-            _reopenOnTheatre = null;
-            if (theatre)
-                Menu.OpenTheatre();
-            else
-                Menu.Open();
-            _host.Transition(new Transition.ReopenMenu(theatre));
-        }
-        return Trek.Tick(readInput, frozen) switch
-        {
-            TrekStep.CutScene => SessionStep.CutSceneCued,
-            TrekStep.Battle => SessionStep.BattleCued,
-            TrekStep.Frozen => SessionStep.Frozen,
-            _ => SessionStep.Trek,
-        };
+        var step = Step(readInput, frozen, skyDrawn, actors, combatants, spellFx);
+        // A backdrop's page fades and pulses in every mode, after the mode's step: once it has faded out, it's gone from the next tick's mode.
+        Trek.StepBackdrop();
+        return step;
     }
 
     /// <summary>
@@ -367,9 +342,9 @@ public sealed class GameSession
     /// trek's popups, conversations and backdrops, in a cut-scene and in combat's held menus they repeat as presses; and where
     /// nothing has a cursor, what's held is forgotten, so the next doesn't start by repeating.
     /// </summary>
-    private void StepStick(GameMode mode)
+    private void StepStick()
     {
-        switch (mode)
+        switch (Mode)
         {
             case GameMode.Menu:
                 if (Menu.Repeats)
@@ -385,11 +360,128 @@ public sealed class GameSession
         }
     }
 
+    /// <summary>
+    /// A press, to the mode that runs (<see cref="Mode"/>), as the original's modes each read the controller: a cinematic
+    /// takes every press, B or Start skipping it, and the credits too, A, B or Start ending them; the pause menu takes its own
+    /// (<see cref="Ui.PauseMenu.Press"/>); a battle's are <see cref="Combat.Battle.Press"/>; a cut-scene's its box's
+    /// (<see cref="CutScene.Press(MenuAction)"/>); and trek's go to what's up in it, a backdrop's page, a popup or a
+    /// conversation, else trek itself (<see cref="TrekLoop.Press"/>), where Start opens the pause menu (<see cref="OpenMenu"/>).
+    /// Returns what the press came to, for whoever reads the controls to show.
+    /// </summary>
+    /// <param name="keyboard">Whether a keyboard key pressed it, which the pause menu's name entry hears differently (<see cref="Ui.PauseMenu.Press"/>).</param>
+    public PressOutcome Press(MenuAction action, bool keyboard = false)
+    {
+        if (action == MenuAction.None)
+            return PressOutcome.Ignored;
+        switch (Mode)
+        {
+            case GameMode.Cinematic:
+                if (action is MenuAction.Back or MenuAction.Start)
+                    Cinematic!.Player.Skip();
+                return PressOutcome.Taken;
+            case GameMode.Credits:
+                if (action is MenuAction.Accept or MenuAction.Back or MenuAction.Start)
+                    Credits!.Roll.Skip();
+                return PressOutcome.Taken;
+            case GameMode.Menu:
+                return Menu.Press(action, keyboard) ? PressOutcome.Taken : PressOutcome.Ignored;
+            case GameMode.Combat:
+                return Battle!.Press(action) ? PressOutcome.Taken : PressOutcome.Ignored;
+            case GameMode.CutScene:
+                return Scene!.Press(action) ? PressOutcome.Taken : PressOutcome.Ignored;
+            default:
+                var outcome = Trek.Press(action, _frozen);
+                if (outcome == PressOutcome.MenuOpened)
+                    OpenMenu();
+                return outcome;
+        }
+    }
+
+    /// <summary>A menu host that plays nothing and can't save: a headless session's, unless a test gives it a recording one.</summary>
+    private sealed class NoMenuHost : IPauseMenuHost
+    {
+        public static readonly NoMenuHost Instance = new();
+
+        public void Cue(PauseMenuCue cue)
+        {
+        }
+
+        public string? Save(string path) => "Saving isn't possible here.";
+    }
+
+    /// <summary>The mode that runs steps (<see cref="Tick"/>).</summary>
+    private SessionStep Step(Func<PlayerInput> readInput, bool frozen, bool skyDrawn, Func<CutSceneActor, IActorMotion?> actors,
+        Func<Combatant, IActorMotion?>? combatants, ISpellFxHost? spellFx)
+    {
+        switch (Mode)
+        {
+            case GameMode.Cinematic:
+                StepCinematic();
+                return SessionStep.Cinematic;
+            case GameMode.Credits:
+                StepSounds();
+                StepCredits();
+                return SessionStep.Credits;
+            case GameMode.Menu or GameMode.Backdrop:
+                // The menu's frame keeps the map's sounds going, with everything held still (PauseMenu.Frame).
+                StepSounds();
+                return SessionStep.Held;
+        }
+        if (Scene is { } scene)
+        {
+            // The zone engine draws the stage, its sounds, weather and rain, as it draws trek (CutScene.Tick).
+            scene.Tick(Stage!, skyDrawn, actors);
+            return scene.Over ? SessionStep.CutSceneOver : SessionStep.CutScene;
+        }
+        if (Battle is { } battle)
+        {
+            battle.Tick(Arena!, skyDrawn, combatants ?? (_ => null), readInput, spellFx);
+            if (battle.Paused && !MenuOpen)
+            {
+                // Combat's states 14 and 27: the pause menu, mode 3.
+                Send(new Transition.PauseBattle(battle.PausedFromTurn, battle.PausedFromTurn && battle.CanFlee));
+            }
+            return battle.Over ? SessionStep.CombatOver : SessionStep.Combat;
+        }
+        if (_reopen is { } reopen && !Trek.CutSceneFade.Fading)
+        {
+            _reopen = null;
+            Send(reopen);
+        }
+        return Trek.Tick(readInput, frozen) switch
+        {
+            TrekStep.CutScene => SessionStep.CutSceneCued,
+            TrekStep.Battle => SessionStep.BattleCued,
+            TrekStep.Frozen => SessionStep.Frozen,
+            _ => SessionStep.Trek,
+        };
+    }
+
     /// <summary>The map's sounds, while the world is held still: trek's, not a stage's or an arena's.</summary>
     private void StepSounds()
     {
         if (Scene is null && Battle is null)
             Trek.StepSounds();
+    }
+
+    /// <summary>A tick of the cinematic, unless it's held for a screenshot, and its end once it has ended.</summary>
+    private void StepCinematic()
+    {
+        if (CinematicHeld)
+            return;
+        var player = Cinematic!.Player;
+        player.Step();
+        if (player.Ended)
+            CinematicEnded();
+    }
+
+    /// <summary>A tick of the credits, and their end once they've ended.</summary>
+    private void StepCredits()
+    {
+        var roll = Credits!.Roll;
+        roll.Step();
+        if (roll.Ended)
+            CreditsEnded();
     }
 
     /// <summary>
@@ -409,8 +501,8 @@ public sealed class GameSession
         Zone.Particles?.Clear();
         if (CutSceneStage.For(Game.Plugins, stageRef, Trek.Chunks.World) is not { } stage)
         {
-            _host.Transition(new Transition.Say($"{script.Id} plays in a chunk no plugin has."));
-            _host.Transition(new Transition.EndCutScene(null));
+            Send(new Transition.Say($"{script.Id} plays in a chunk no plugin has."));
+            Send(new Transition.EndCutScene(null));
             ResumeTrek();
             return;
         }
@@ -423,7 +515,7 @@ public sealed class GameSession
         var scene = Scene = new CutScene(Game, script, start, stage, _host);
         zone.Camera = scene.Camera;
         scene.Start();
-        _host.Transition(new Transition.StartCutScene(scene, zone));
+        Send(new Transition.StartCutScene(scene, zone));
     }
 
     /// <summary>
@@ -439,10 +531,10 @@ public sealed class GameSession
         Stage = null;
         foreach (var problem in scene.Problems)
             _host.Warn(problem);
-        _host.Transition(new Transition.EndCutScene(scene));
+        Send(new Transition.EndCutScene(scene));
         // CutScene.Free's ending kinds, as the base plugin's triggers: the game over, Roog's cinematic and the ending's,
         // in place of trek.
-        if (Fire(GameEvents.ScriptEnded, scene.Runner.Script.Id, worldFreed: true))
+        if (Fire(GameEvents.ScriptEnded, scene.Runner.Script.Id))
             return;
         if (scene.Runner.Ending is null or { Kind: ScriptEndKind.Ended } && Chained() is var (next, start, stage))
         {
@@ -488,7 +580,7 @@ public sealed class GameSession
     private void ResumeTrek()
     {
         Trek.Resume();
-        _host.Transition(new Transition.ResumeTrek());
+        Send(new Transition.ResumeTrek());
     }
 
     /// <summary>Asks trek for a cut-scene, unless one or a battle is playing (<see cref="TrekLoop.Cue"/>).</summary>
@@ -508,9 +600,6 @@ public sealed class GameSession
     /// <summary>The last battle's arena, which a terrain choosing none keeps (<see cref="BattleSetup.ChooseArena"/>).</summary>
     private int _lastArena;
 
-    /// <summary>Whether combat's pause has asked for the menu, which it does once.</summary>
-    private bool _menuAsked;
-
     /// <summary>
     /// The cued battle begins (<c>Combat.Init</c>, <c>0x80022D1C</c>): trek's world goes, the zone engine starts again with
     /// its particles emptied, on the Battle arenas about the battle's arena, without wanderers, asking for the map set's
@@ -523,17 +612,17 @@ public sealed class GameSession
         if (setup.Party is null && setup.Enemies.Count == 0)
         {
             // A camp ambush on a terrain with no camp encounters (27): the original reads past the table and finds no enemy.
-            _host.Transition(new Transition.Say("The party is ambushed, but no one comes."));
+            Send(new Transition.Say("The party is ambushed, but no one comes."));
             Trek.Resume();
-            _host.Transition(new Transition.ResumeTrek());
+            Send(new Transition.ResumeTrek());
             return;
         }
         var number = setup.Arena ?? setup.ChooseArena(Game.Plugins, Game.Random.Combat) ?? _lastArena;
         if (Combat.Arena.For(Game.Plugins, number) is not { } arena)
         {
-            _host.Transition(new Transition.Say($"Arena {number} is in no plugin."));
+            Send(new Transition.Say($"Arena {number} is in no plugin."));
             Trek.Resume();
-            _host.Transition(new Transition.ResumeTrek());
+            Send(new Transition.ResumeTrek());
             return;
         }
         _lastArena = number;
@@ -543,10 +632,9 @@ public sealed class GameSession
         zone.Chunks.Update(arena.Origin + Combat.Battle.ZonePoint);
         var battle = Battle = Combat.Battle.Begin(Game, setup, arena, zone.World);
         zone.Camera = battle.Camera;
-        _menuAsked = false;
         foreach (var line in battle.Problems)
             _host.Warn(line);
-        _host.Transition(new Transition.StartedBattle(battle, zone));
+        Send(new Transition.StartedBattle(battle, zone));
     }
 
     /// <summary>
@@ -566,7 +654,7 @@ public sealed class GameSession
         Arena!.Audio.StopMusic();
         Arena.End();
         Arena = null;
-        _host.Transition(new Transition.EndBattle(battle));
+        Send(new Transition.EndBattle(battle));
         battle.Leave();
         if (battle.Rule?.End is { } end)
             Trek.Keep(end.Place, end.Position, end.Heading);
@@ -574,8 +662,7 @@ public sealed class GameSession
         {
             case BattleOutcome.Won when battle.Spoils is { } spoils:
                 PostBattle = spoils;
-                Menu.OpenPostBattle(spoils);
-                _host.Transition(new Transition.PostBattle(spoils));
+                Send(new Transition.PostBattle(spoils));
                 return;
             case BattleOutcome.Lost:
                 PlayGameOver();
@@ -583,11 +670,11 @@ public sealed class GameSession
             // Combat.StateShadowMerge returns game mode 0xE: the Shadow's cinematic, once the battle has gone, then trek where it began.
             case BattleOutcome.Merged when Game.Plugins.TrySingleton<CombatRecord>(RecordTypes.Combat)?.Shadow is { } shadow
                 && Game.Plugins.TryGet<CinematicRecord>(shadow.Cinematic) is { } cinematic:
-                PlayCinematic(cinematic, fromTheatre: false, worldFreed: true);
+                PlayCinematic(cinematic, fromTheatre: false);
                 return;
         }
         Trek.Resume(fled: battle.Outcome == BattleOutcome.Fled);
-        _host.Transition(new Transition.ResumeTrek());
+        Send(new Transition.ResumeTrek());
     }
 
     /// <summary>
@@ -605,136 +692,120 @@ public sealed class GameSession
             StartCutScene(script, new ScriptStart(dialogue.RefPointBase, MapRecord.VoxelId(map.Id, dialogue.Index)), stage);
             return;
         }
-        _host.Transition(new Transition.GameOver());
+        Send(new Transition.GameOver());
     }
 
     /// <summary>
-    /// The pause menu has rolled up (<see cref="Ui.PauseMenu.Step"/>), and the game carries on as its exit says
-    /// (<see cref="PauseExit"/>): the party camps, the help menu's script starts, the credits roll, the Theatre's cinematic
+    /// Start in trek: the pause menu opens (<see cref="Transition.OpenMenu"/>), on a tab or the one it last showed, unless
+    /// trek is going through a teleporter or fading into a cut-scene or a battle, when the press is dead
+    /// (<c>Actor::Move</c>), or something else runs.
+    /// </summary>
+    public void OpenMenu(PauseTab? tab = null)
+    {
+        if (Mode != GameMode.Trek || Trek.Teleporting || Trek.Cued is not null || Trek.CutSceneFade.Fading)
+            return;
+        Send(new Transition.OpenMenu(tab));
+    }
+
+    /// <summary>The loot window opens on a pile, as a container's does (<see cref="Transition.OpenLoot"/>).</summary>
+    public void OpenLoot(ItemPile loot, int gold) => Send(new Transition.OpenLoot(loot, gold));
+
+    /// <summary>
+    /// The pause menu has rolled up (<see cref="Ui.PauseMenu.Step"/>): the map is gated again by the flags as they are now, as
+    /// the original reloads it as the menu closes (<see cref="TrekLoop.Regate"/>), and the game carries on as the menu's exit
+    /// says (<see cref="PauseExit"/>): the party camps, the help menu's script starts, the credits roll, the Theatre's cinematic
     /// plays or a save is loaded; the post-battle windows close to trek, and combat's pause goes back to its turn or flees.
     /// </summary>
     public void MenuClosed(PauseExit exit)
     {
         Menu.Discard();
+        // Trek's world is freed while a battle plays.
+        if (Battle is null)
+            Trek.Regate();
         if (PostBattle is not null)
         {
             // The loot window closes to trek (PauseMenu.CloseToTrek): built again where the battle began, fading in.
             PostBattle = null;
             Trek.Resume();
-            _host.Transition(new Transition.ResumeTrek());
+            Send(new Transition.ResumeTrek());
             return;
         }
         if (Battle is { } battle)
         {
             // Combat's pause menu returns to the state it paused, or flees (state 16).
-            _menuAsked = false;
             battle.Unpause(exit.Code == PauseExitCode.Flee);
             return;
         }
         switch (exit.Code)
         {
             case PauseExitCode.Camp:
-                _host.Transition(new Transition.Camp(Trek.Camp()));
+                Send(new Transition.Camp(Trek.Camp()));
                 break;
             case PauseExitCode.Help:
                 Trek.ShowBackdrop(Game.Plugins.Get<DialogueRecord>(SystemMenu.HelpScript));
                 break;
-            case PauseExitCode.Credits when Game.Plugins.TrySingleton<CreditsRecord>(RecordTypes.Credits) is not null:
-                _credits = (Ending: false, FromMenu: true, WorldFreed: false);
-                _host.Transition(new Transition.PlayCredits());
+            case PauseExitCode.Credits when Game.Plugins.TrySingleton<CreditsRecord>(RecordTypes.Credits) is { } credits:
+                PlayCredits(credits, ending: false, fromMenu: true);
                 break;
             case PauseExitCode.Theatre when exit.Cinematic is { } cinematic:
                 PlayCinematic(cinematic, fromTheatre: true);
                 break;
             case PauseExitCode.Load when exit.SavePath is { } path:
-                _host.Transition(new Transition.LoadGame(path));
+                Send(new Transition.LoadGame(path));
                 break;
         }
     }
 
     /// <summary>
-    /// A press, to the mode that runs (<see cref="Mode"/>), as the original's modes each read the controller: a cinematic
-    /// and the credits take every press, B or Start skipping the one and A, B or Start the other; the pause menu takes its
-    /// own (<see cref="Ui.PauseMenu"/>); a battle's are <see cref="Combat.Battle.Press"/>; a cut-scene's its box's
-    /// (<see cref="CutScene.Press(MenuAction)"/>); and trek's go to what's up in it, a backdrop's page, a popup or a
-    /// conversation, else trek itself (<see cref="TrekLoop.Press"/>), where Start opens the pause menu. Returns what the
-    /// press came to, for whoever reads the controls to show.
+    /// Hands a transition to the host, opening the pause menu first on the ones that open it (<see cref="Menu"/>): Start's, a
+    /// container's loot, a script's shop or training, a battle's pause, a win's post-battle windows and the menu reopening, so
+    /// the menu is open, and the mode is its, as the host hears of them.
     /// </summary>
-    /// <param name="keyboard">Whether a keyboard key pressed it, which the pause menu's name entry hears differently (<see cref="Ui.PauseMenu.Press"/>).</param>
-    public PressOutcome Press(MenuAction action, bool keyboard = false)
+    private void Send(Transition next)
     {
-        if (action == MenuAction.None)
-            return PressOutcome.Ignored;
-        switch (Mode)
+        switch (next)
         {
-            case GameMode.Cinematic:
-                return action is MenuAction.Back or MenuAction.Start ? PressOutcome.Skip : PressOutcome.Taken;
-            case GameMode.Credits:
-                return action is MenuAction.Accept or MenuAction.Back or MenuAction.Start ? PressOutcome.Skip : PressOutcome.Taken;
-            case GameMode.Menu:
-                return Menu.Press(action, keyboard) ? PressOutcome.Taken : PressOutcome.Ignored;
-            case GameMode.Combat:
-                return Battle!.Press(action) ? PressOutcome.Taken : PressOutcome.Ignored;
-            case GameMode.CutScene:
-                return Scene!.Press(action) ? PressOutcome.Taken : PressOutcome.Ignored;
-            default:
-                var outcome = Trek.Press(action, _frozen);
-                if (outcome == PressOutcome.MenuOpened)
-                    Menu.Open();
-                return outcome;
+            case Transition.OpenMenu open:
+                Menu.Open(open.Tab);
+                break;
+            case Transition.OpenLoot loot:
+                Menu.OpenLoot(loot.Loot, loot.Gold);
+                break;
+            case Transition.OpenShop shop:
+                Menu.OpenShop(shop.Shop);
+                break;
+            case Transition.OpenTraining training:
+                Menu.OpenTraining(training.Trainer);
+                break;
+            case Transition.PauseBattle pause:
+                Menu.OpenCombat(pause.PartyTab, pause.CanFlee, Battle is { } battle ? CombatPause.For(battle) : null);
+                break;
+            case Transition.PostBattle won:
+                Menu.OpenPostBattle(won.Spoils);
+                break;
+            case Transition.ReopenMenu { Theatre: true }:
+                Menu.OpenTheatre();
+                break;
+            case Transition.ReopenMenu:
+                Menu.Open();
+                break;
         }
-    }
-
-    /// <summary>Opens the pause menu over trek, as Start does, on a tab or the one it last showed: for the runtime's command line.</summary>
-    public void OpenMenu(PauseTab? tab = null) => Menu.Open(tab);
-
-    /// <summary>Opens the loot window over trek on a pile, as a container does: for the runtime's command line.</summary>
-    public void OpenLoot(ItemPile loot, int gold) => Menu.OpenLoot(loot, gold);
-
-    /// <summary>A menu host that plays nothing and can't save: a headless session's, unless a test gives it a recording one.</summary>
-    private sealed class NoMenuHost : IPauseMenuHost
-    {
-        public static readonly NoMenuHost Instance = new();
-
-        public void Cue(PauseMenuCue cue)
-        {
-        }
-
-        public string? Save(string path) => "Saving isn't possible here.";
+        _host.Transition(next);
     }
 
     /// <summary>
-    /// Trek's host, which opens the pause menu here on the way: on loot a container opens (<see cref="IMapObjectHost.OpenLoot"/>), and
-    /// a script's shop or training (<see cref="Transition.OpenShop"/>, <see cref="Transition.OpenTraining"/>), so the menu is open,
-    /// and the mode is its, as the runtime hears of them. Everything else passes straight through.
+    /// Trek's host as the session gives it: everything passes to the host that presents the game, and on the way the session
+    /// opens the menu on the transitions that open it (<see cref="Send"/>).
     /// </summary>
-    private sealed class TrekHostProxy(GameSession session, ITrekHost host) : ITrekHost
+    private sealed class Relay(GameSession session, ITrekHost host) : ITrekHost
     {
-        public void Transition(Transition next)
-        {
-            switch (next)
-            {
-                case Transition.OpenShop shop:
-                    session.Menu.OpenShop(shop.Shop);
-                    break;
-                case Transition.OpenTraining training:
-                    session.Menu.OpenTraining(training.Trainer);
-                    break;
-            }
-            host.Transition(next);
-        }
+        public void Transition(Transition next) => session.Send(next);
 
-        public void OpenLoot(ItemPile loot, int gold)
-        {
-            session.Menu.OpenLoot(loot, gold);
-            host.OpenLoot(loot, gold);
-        }
+        public void ConversationChanged() => host.ConversationChanged();
 
         public void Entered(ChunkEntry? chunk) => host.Entered(chunk);
 
         public void Arrived() => host.Arrived();
-
-        public void ConversationChanged() => host.ConversationChanged();
 
         public IRootMotion Motion(Wanderer wanderer) => host.Motion(wanderer);
 
@@ -744,6 +815,8 @@ public sealed class GameSession
 
         public void PutOut(LoadedMap map, SceneObject scene) => host.PutOut(map, scene);
 
+        public void Regated(LoadedMap map) => host.Regated(map);
+
         public void Log(string text) => host.Log(text);
 
         public void Warn(string text) => host.Warn(text);
@@ -752,61 +825,79 @@ public sealed class GameSession
     }
 
     /// <summary>
-    /// Plays a cinematic (<c>Cinematic.Load</c>), unless one is playing: from the Theatre, the menu reopens on its page
-    /// after it.
+    /// Plays a cinematic (<c>Cinematic.Load</c>), unless one is playing, the party leader's name in its captions in place
+    /// of Alaron's: from the Theatre, the menu reopens on its page after it. Trek's world may have gone for it, under a
+    /// battle (the Shadow's merge) or a cut-scene; it's built again after.
     /// </summary>
-    /// <param name="worldFreed">
-    /// Whether trek's world has gone for it, under a battle (the Shadow's merge) or a cut-scene, so it's built again after.
-    /// </param>
-    public void PlayCinematic(CinematicRecord cinematic, bool fromTheatre, bool worldFreed = false)
+    public void PlayCinematic(CinematicRecord cinematic, bool fromTheatre)
     {
-        if (_cinematic is not null)
+        if (Cinematic is not null)
             return;
-        _cinematic = (cinematic, fromTheatre, worldFreed);
-        _host.Transition(new Transition.PlayCinematic(cinematic));
+        Cinematic = new CinematicShowing(new CinematicPlayer(cinematic, Game.Party.Members.FirstOrDefault()?.Name ?? "Alaron"), fromTheatre);
+        Send(new Transition.PlayCinematic(cinematic));
     }
 
     /// <summary>
-    /// The cinematic has ended (<c>Cinematic.EndCase</c>, <c>0x80053c20</c>): its done flag is set however it ended, from the
-    /// Theatre too. In the story, what follows it is the triggers' on <see cref="GameEvents.CinematicEnded"/>: the opening's
-    /// script, Roog's True Name, the ending's credits. Unless one takes over, trek comes back where the player stood, its
-    /// music asked for again and the screen fading in from black; from the Theatre, the menu reopens on its page once it
-    /// has (trek's state 8).
+    /// The cinematic has ended (<c>Cinematic.EndCase</c>, <c>0x80053c20</c>): its picture and music go
+    /// (<see cref="Transition.EndCinematic"/>), and its done flag is set however it ended, from the Theatre too. In the
+    /// story, what follows it is the triggers' on <see cref="GameEvents.CinematicEnded"/>: the opening's script, Roog's True
+    /// Name, the ending's credits. Unless one takes over, trek comes back where the player stood, its music asked for again
+    /// and the screen fading in from black, its world built again if it had gone; from the Theatre, the menu reopens on its
+    /// page once it has (trek's state 8).
     /// </summary>
-    public void CinematicEnded()
+    private void CinematicEnded()
     {
-        var (cinematic, fromTheatre, worldFreed) = _cinematic ?? throw new InvalidOperationException("No cinematic is playing.");
-        _cinematic = null;
+        var (player, fromTheatre) = Cinematic ?? throw new InvalidOperationException("No cinematic is playing.");
+        Cinematic = null;
+        var cinematic = player.Cinematic;
+        Send(new Transition.EndCinematic(cinematic));
         Game.Flags.TrySet(cinematic.DoneFlag, true);
-        if (!fromTheatre && Fire(GameEvents.CinematicEnded, cinematic.Id, worldFreed))
+        if (!fromTheatre && Fire(GameEvents.CinematicEnded, cinematic.Id))
             return;
+        var freed = !Zone.WorldLoaded;
         Trek.Resume();
-        if (worldFreed)
-            _host.Transition(new Transition.ResumeTrek());
+        if (freed)
+            Send(new Transition.ResumeTrek());
         if (fromTheatre)
-            _reopenOnTheatre = true;
+            _reopen = new Transition.ReopenMenu(Theatre: true);
+    }
+
+    /// <summary>
+    /// Rolls the credits (<c>Credits.Start</c>) over the world held still, on a screen as tall as the UI's: the ending's,
+    /// which can't be skipped and end the game, or the menu's, after which the menu reopens.
+    /// </summary>
+    private void PlayCredits(CreditsRecord credits, bool ending, bool fromMenu)
+    {
+        Credits = new CreditsShowing(new CreditsRoll(credits, Font.LineHeight(), CreditsScreenHeight, ending), fromMenu);
+        Send(new Transition.PlayCredits(ending));
     }
 
     /// <summary>
     /// The credits have ended (<c>Credits.Destroy</c>): the ending's end the game (<see cref="Transition.GameOver"/>).
-    /// Otherwise trek fades in from black over half a second, built again if it had gone, and after the menu's Credits the
-    /// menu reopens once it has, on the System tab's list.
+    /// Otherwise trek fades in from black over half a second, built again if its world had gone, their music stopping and
+    /// the game's coming back as the screen is black (<see cref="Transition.EndCredits"/>), and after the menu's Credits the
+    /// menu reopens once it has faded in, on the System tab's list.
     /// </summary>
-    public void CreditsEnded()
+    private void CreditsEnded()
     {
-        var (ending, fromMenu, worldFreed) = _credits ?? throw new InvalidOperationException("No credits are rolling.");
-        _credits = null;
-        if (ending)
+        var (roll, fromMenu) = Credits ?? throw new InvalidOperationException("No credits are rolling.");
+        Credits = null;
+        if (roll.Ending)
         {
-            _host.Transition(new Transition.GameOver());
+            Send(new Transition.EndCredits(Ending: true));
+            Send(new Transition.GameOver());
             return;
         }
-        if (worldFreed)
-            ResumeTrek();
+        var freed = !Zone.WorldLoaded;
+        if (freed)
+            Trek.Resume();
         else
             Trek.CutSceneFade.In(TrekLoop.CutSceneFadePerTick);
+        Send(new Transition.EndCredits(Ending: false));
+        if (freed)
+            Send(new Transition.ResumeTrek());
         if (fromMenu)
-            _reopenOnTheatre = false;
+            _reopen = new Transition.ReopenMenu(Theatre: false);
     }
 
     /// <summary>
@@ -814,30 +905,29 @@ public sealed class GameSession
     /// <see cref="GameEvents.GameStarted"/> go off, the base plugin's playing the opening cinematic. False if none takes
     /// over, and trek simply starts.
     /// </summary>
-    public bool StartNewGame() => Fire(GameEvents.GameStarted, null, worldFreed: false);
+    public bool StartNewGame() => Fire(GameEvents.GameStarted, null);
 
     /// <summary>
     /// Fires an event on the triggers (<see cref="Triggers.Fire"/>), their sounds to the host, and carries out an effect that takes over from trek.
-    /// True if one did, so what would come next at the event's place, trek coming back, doesn't.
+    /// True if one did, so what would come next at the event's place, trek coming back, doesn't. Trek's world may have gone,
+    /// as under a cut-scene; what takes over builds it again after.
     /// </summary>
-    /// <param name="worldFreed">Whether trek's world has gone, as under a cut-scene, so it's built again after what takes over.</param>
-    private bool Fire(string name, RecordId? subject, bool worldFreed)
+    private bool Fire(string name, RecordId? subject)
     {
         if (Triggers.Fire(Game, name, subject, _host.Warn, _host) is not { } effect)
             return false;
         switch (effect)
         {
             case TriggerEffect.Cinematic { Play: var id } when Game.Plugins.TryGet<CinematicRecord>(id) is { } cinematic:
-                PlayCinematic(cinematic, fromTheatre: false, worldFreed);
+                PlayCinematic(cinematic, fromTheatre: false);
                 return true;
             case TriggerEffect.Script { From: var from } when StartFrom(from):
                 return true;
-            case TriggerEffect.Credits credits when Game.Plugins.TrySingleton<CreditsRecord>(RecordTypes.Credits) is not null:
-                _credits = (credits.Ending, FromMenu: false, worldFreed);
-                _host.Transition(new Transition.PlayCredits(credits.Ending));
+            case TriggerEffect.Credits credits when Game.Plugins.TrySingleton<CreditsRecord>(RecordTypes.Credits) is { } record:
+                PlayCredits(record, credits.Ending, fromMenu: false);
                 return true;
             case TriggerEffect.GameOver:
-                _host.Transition(new Transition.GameOver());
+                Send(new Transition.GameOver());
                 return true;
         }
         _host.Warn($"A trigger on {name} asks for {effect}, which no plugin has.");
@@ -901,4 +991,22 @@ public sealed class GameSession
         Game.Place = new SavePlace(Trek.Chunks.MapSet.Id, chunk.Name, position - Trek.Chunks.Origin(chunk), Trek.Player.Heading);
         return true;
     }
+}
+
+/// <summary>
+/// A cinematic playing over everything (game mode 0xE), which the session steps (<see cref="GameSession.Cinematic"/>):
+/// from the Theatre, after which the menu reopens on its page, or the story's, whose end the triggers carry on.
+/// </summary>
+public sealed record CinematicShowing(CinematicPlayer Player, bool FromTheatre)
+{
+    public CinematicRecord Record => Player.Cinematic;
+}
+
+/// <summary>
+/// The credits rolling (game mode 0x13), which the session steps (<see cref="GameSession.Credits"/>): the ending's, which
+/// end the game, or from the menu's Credits, after which the menu reopens.
+/// </summary>
+public sealed record CreditsShowing(CreditsRoll Roll, bool FromMenu)
+{
+    public bool Ending => Roll.Ending;
 }

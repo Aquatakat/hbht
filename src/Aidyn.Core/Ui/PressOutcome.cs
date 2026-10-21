@@ -17,7 +17,4 @@ public enum PressOutcome
 
     /// <summary>A in trek: the map object the player reaches was used.</summary>
     Used,
-
-    /// <summary>A cinematic or the credits skip to their end, which the view playing them does (<c>Cinematic.EndCase</c>, <c>Credits.Destroy</c>).</summary>
-    Skip,
 }

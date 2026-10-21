@@ -178,18 +178,31 @@ public sealed partial class GameSessionTests
     [Fact]
     public void ACinematicSkipsOnBOrStartAndTheCreditsOnAToo()
     {
-        var (session, _) = Start();
+        var (session, _) = Start("G14", 40, 40);
         var cinematic = Data.Set.Get<CinematicRecord>(RecordId.Decimal(RecordTypes.Cinematic, 0));
-        session.PlayCinematic(cinematic, fromTheatre: false);
+        session.PlayCinematic(cinematic, fromTheatre: true);
+        var player = session.Cinematic!.Player;
+        for (var i = 0; i < 10; i++)
+            Tick(session);
+        // A cinematic takes every press; only B and Start skip it, and it ends within a few ticks.
         Assert.Equal(PressOutcome.Taken, session.Press(MenuAction.Accept));
-        Assert.Equal(PressOutcome.Skip, session.Press(MenuAction.Back));
-        Assert.Equal(PressOutcome.Skip, session.Press(MenuAction.Start));
-        session.CinematicEnded();
+        Assert.False(player.Skipped);
+        Assert.Equal(PressOutcome.Taken, session.Press(MenuAction.Back));
+        Assert.True(player.Skipped);
+        for (var i = 0; i < 10 && session.Mode == GameMode.Cinematic; i++)
+            Tick(session);
+        Assert.Equal(GameMode.Trek, session.Mode);
 
+        // The credits take every press too, and A, B or Start ends them.
         session.MenuClosed(PauseExit.Credits);
         Assert.Equal(GameMode.Credits, session.Mode);
+        for (var i = 0; i < 10; i++)
+            Tick(session);
         Assert.Equal(PressOutcome.Taken, session.Press(MenuAction.Down));
-        Assert.Equal(PressOutcome.Skip, session.Press(MenuAction.Accept));
+        Assert.Equal(GameMode.Credits, session.Mode);
+        Assert.Equal(PressOutcome.Taken, session.Press(MenuAction.Accept));
+        Assert.Equal(SessionStep.Credits, Tick(session));
+        Assert.Equal(GameMode.Trek, session.Mode);
     }
 
     /// <summary>Opens the pause menu with Start and ticks until the scroll has unrolled and it takes presses.</summary>
