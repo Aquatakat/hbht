@@ -94,7 +94,7 @@ public sealed partial class Battle
             RollEquipmentDrops(chest, entity, random);
         if (chest.ReagentChance != 0 && random.RollD(1, 100) <= chest.ReagentChance)
         {
-            var rules = Game.Plugins.Singleton<InventoryRecord>(RecordTypes.Inventory);
+            var rules = Game.Plugins.Singleton<InventoryRecord>();
             RecordId[] reagents = [rules.Spice, rules.Herb, rules.Gemstone];
             var reagent = reagents[random.Range(0, 2)];
             var count = random.Range(chest.ReagentMin, chest.ReagentMax);

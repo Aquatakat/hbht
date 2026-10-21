@@ -452,33 +452,51 @@ public sealed class PluginSet
     /// <summary>The merged record as JSON. It's the set's own: read it, don't change it.</summary>
     public JsonObject? GetJson(RecordId id) => _records.GetValueOrDefault(id);
 
-    /// <summary>The merged record, read as <typeparamref name="T"/>.</summary>
+    /// <summary>The merged record, read as <typeparamref name="T"/>, which must be its type's class or a view of it (<see cref="RecordTypeInfo.Reads"/>).</summary>
     public T Get<T>(RecordId id) where T : class =>
         TryGet<T>(id) ?? throw new KeyNotFoundException($"No record {id}.");
 
     /// <summary>
     /// The merged record, read as <typeparamref name="T"/>, or null if no plugin has it. It's read once: every call for
-    /// the same record and type returns the same object, which <see cref="All{T}"/> holds too.
+    /// the same record and type returns the same object, which <see cref="All{T}(string)"/> holds too. A
+    /// <typeparamref name="T"/> that the record's type doesn't read as, such as a weather record asked of the combat ID, is
+    /// an <see cref="ArgumentException"/>, whether or not the record exists.
     /// </summary>
-    public T? TryGet<T>(RecordId id) where T : class =>
-        _records.TryGetValue(id, out var json)
+    public T? TryGet<T>(RecordId id) where T : class
+    {
+        CheckReads<T>(id.Type);
+        return _records.TryGetValue(id, out var json)
             ? (T)_typed.GetOrAdd((id, typeof(T)), static (_, json) => json.Deserialize<T>(PluginJson.Options)!, json)
             : null;
+    }
 
     /// <summary>Every merged record of a type, in the order of their IDs' spelling, each the object <see cref="TryGet{T}"/> returns.</summary>
-    public IReadOnlyList<T> All<T>(string type) where T : class =>
-        (IReadOnlyList<T>)_typedAll.GetOrAdd((type, typeof(T)), static (key, set) => set._records.Keys
+    public IReadOnlyList<T> All<T>(string type) where T : class
+    {
+        CheckReads<T>(type);
+        return (IReadOnlyList<T>)_typedAll.GetOrAdd((type, typeof(T)), static (key, set) => set._records.Keys
             .Where(id => id.Type == key.Type).OrderBy(id => id.ToString(), StringComparer.Ordinal)
             .Select(id => set.TryGet<T>(id)!).ToList().AsReadOnly(), this);
+    }
+
+    /// <summary>Every merged record of the one type whose class is <typeparamref name="T"/> (<see cref="RecordTypes.Of{T}"/>).</summary>
+    public IReadOnlyList<T> All<T>() where T : class => All<T>(RecordTypes.Of<T>().Name);
 
     /// <summary>
-    /// The record of a type there's only one of, <c>aidyn:&lt;type&gt;/0</c>, such as <c>aidyn:camping/0</c>. Plugins
-    /// patch it rather than add another.
+    /// The record of a type there's only one of, <c>aidyn:&lt;type&gt;/0</c>, such as <c>aidyn:camping/0</c>, the type being
+    /// the one whose class is <typeparamref name="T"/> (<see cref="RecordTypes.SingletonOf{T}"/>). Plugins patch it rather
+    /// than add another.
     /// </summary>
-    public T Singleton<T>(string type) where T : class => Get<T>(RecordId.Decimal(type, 0));
+    public T Singleton<T>() where T : class => Get<T>(RecordTypes.SingletonOf<T>().SingletonId);
 
     /// <summary>As <see cref="Singleton{T}"/>, or null if no plugin has it.</summary>
-    public T? TrySingleton<T>(string type) where T : class => TryGet<T>(RecordId.Decimal(type, 0));
+    public T? TrySingleton<T>() where T : class => TryGet<T>(RecordTypes.SingletonOf<T>().SingletonId);
+
+    private static void CheckReads<T>(string type)
+    {
+        if (!RecordTypes.Info(type).Reads(typeof(T)))
+            throw new ArgumentException($"A {type} record doesn't read as {typeof(T).Name}.", nameof(T));
+    }
 
     /// <summary>
     /// The file that provides <paramref name="id"/>'s asset, from the last plugin that has one:

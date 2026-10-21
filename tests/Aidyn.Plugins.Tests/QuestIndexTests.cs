@@ -227,10 +227,10 @@ public sealed class QuestIndexTests : IDisposable
         const string Party = "\"position\": [0, 0, 0], \"radius\": 1, \"pak\": \"Any\", \"enemies\": [], \"entity\": \"aidyn:entity/0x0001\", \"minSize\": 1, \"maxSize\": 1";
         var plugins = _temp.Aidyn(("items.json", $$"""
             [
-              { "id": "aidyn:item/0x1200", "name": "Key A", "icon": "aidyn:image/1", "price": 0, "kind": "Key", "keyItem": { "held": "aidyn:flag/100", "region": "aidyn:flag/101" } },
-              { "id": "aidyn:item/0x1201", "name": "Key B", "icon": "aidyn:image/1", "price": 0, "kind": "Key", "keyItem": { "held": "aidyn:flag/102" } },
-              { "id": "aidyn:item/0x1202", "name": "Key C", "icon": "aidyn:image/1", "price": 0, "kind": "Key", "keyItem": { "held": "aidyn:flag/1", "region": "aidyn:flag/0" } },
-              { "id": "aidyn:item/0x0010", "name": "Ring", "icon": "aidyn:image/1", "price": 5, "kind": "Ring" },
+              { "id": "aidyn:item/0x1200", "name": "Key A", "icon": "aidyn:image/0x0001", "price": 0, "kind": "Key", "keyItem": { "held": "aidyn:flag/100", "region": "aidyn:flag/101" } },
+              { "id": "aidyn:item/0x1201", "name": "Key B", "icon": "aidyn:image/0x0001", "price": 0, "kind": "Key", "keyItem": { "held": "aidyn:flag/102" } },
+              { "id": "aidyn:item/0x1202", "name": "Key C", "icon": "aidyn:image/0x0001", "price": 0, "kind": "Key", "keyItem": { "held": "aidyn:flag/1", "region": "aidyn:flag/0" } },
+              { "id": "aidyn:item/0x0010", "name": "Ring", "icon": "aidyn:image/0x0001", "price": 5, "kind": "Ring" },
               { "id": "aidyn:loot/0x0800", "name": "Loot A", "goldMin": 0, "goldMax": 0, "armorChance": 0, "shieldChance": 0, "weaponChances": [0, 0, 0],
                 "reagentChance": 0, "reagentMin": 0, "reagentMax": 0,
                 "drops": [ { "item": "aidyn:item/0x1201", "chance": 100 }, { "chance": 50 } ] },

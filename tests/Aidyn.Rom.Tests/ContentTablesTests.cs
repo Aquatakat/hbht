@@ -187,7 +187,7 @@ public class ContentTablesTests
         [Fact]
         public void TheTitleHasSixFlycamsAndTheFifthNeedsThePak()
         {
-            var title = fixture.Data.Set.Singleton<TitleRecord>(RecordTypes.Title);
+            var title = fixture.Data.Set.Singleton<TitleRecord>();
 
             Assert.Equal(6, title.Flycams.Count);
             var first = title.Flycams[0];
@@ -213,7 +213,7 @@ public class ContentTablesTests
             // Every spawn is a chunk of its set.
             Assert.All(sets, s => Assert.All(s.Spawns ?? [], p => Assert.Contains(s.Chunks, c => c.Row == p.Row && c.Column == p.Column)));
 
-            var start = fixture.Data.Set.Singleton<NewGameRecord>(RecordTypes.NewGame);
+            var start = fixture.Data.Set.Singleton<NewGameRecord>();
             Assert.Equal((overworld.Id, 9, 8), (start.Chunk.MapSet, start.Chunk.Row, start.Chunk.Column));
             Assert.Equal(overworld.Spawns![0].Position, start.Position);
         }

@@ -26,6 +26,12 @@ public class RecordIdTests
     [InlineData("mymod:flag/Met")] // mod key case
     [InlineData("aidyn:voxel/0x1A20/0x0001")] // hex only in the first segment
     [InlineData("aidyn/flag/1")]
+    [InlineData("aidyn:entity/47")] // a DB record is keyed by its ItemID
+    [InlineData("aidyn:flag/0x002F")] // a flag by a decimal
+    [InlineData("aidyn:voxel/0x1A20")] // a map object needs its index
+    [InlineData("aidyn:map/0x1A20/3")] // a map has none
+    [InlineData("mymod:flag/a/b")] // one segment unless nested
+    [InlineData("aidyn:geometry/0x0001")] // a Borg type nothing produces
     public void NonCanonicalIdsAreRejected(string text)
     {
         Assert.False(RecordId.TryParse(text, out _));
@@ -38,5 +44,10 @@ public class RecordIdTests
         Assert.Equal("aidyn:voxel/0x1A20/12", RecordId.Hex(RecordTypes.Voxel, 0x1A20, 12).ToString());
         Assert.Equal("aidyn:flag/5627", RecordId.Decimal(RecordTypes.Flag, 5627).ToString());
         Assert.Throws<ArgumentOutOfRangeException>(() => RecordId.Hex(RecordTypes.Scene, 0x10000));
+        // The registry's key shape holds for built IDs too.
+        Assert.Throws<ArgumentException>(() => RecordId.Decimal(RecordTypes.Entity, 1));
+        Assert.Throws<ArgumentException>(() => RecordId.Hex(RecordTypes.Flag, 1));
+        Assert.Throws<ArgumentException>(() => RecordId.Hex(RecordTypes.Voxel, 0x1A20));
+        Assert.Throws<ArgumentException>(() => RecordId.Hex(RecordTypes.Map, 0x1A20, 3));
     }
 }

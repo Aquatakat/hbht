@@ -12,15 +12,11 @@ namespace Aidyn.Plugins;
 public sealed record CatalogEntry(RecordId Id, bool HasRecord, IReadOnlyList<AssetFile> Assets, string Summary)
 {
     /// <summary>The Borg a base-game record or asset was imported from, for those keyed by archive index.</summary>
-    public int? Borg => Id.Namespace == RecordId.BaseNamespace && IsBorgType(Id.Type) && Id.Key.StartsWith("0x", StringComparison.Ordinal)
+    public int? Borg => Id.Namespace == RecordId.BaseNamespace && RecordTypes.Info(Id.Type).Key == KeyKind.Borg
         ? int.Parse(Id.Key.AsSpan(2, 4), NumberStyles.HexNumber, CultureInfo.InvariantCulture)
         : null;
 
     public AssetFile? Asset(string extension) => Assets.FirstOrDefault(a => a.Extension == extension);
-
-    private static bool IsBorgType(string type) => type is RecordTypes.Texture or RecordTypes.Geometry or RecordTypes.Camera
-        or RecordTypes.Light or RecordTypes.Scene or RecordTypes.Animation or RecordTypes.Actor or RecordTypes.Image
-        or RecordTypes.Map or RecordTypes.Sample or RecordTypes.Sequence or RecordTypes.Dialogue;
 }
 
 /// <summary>Where a record names another: the naming record, and the field's path in it, such as <c>objects[3].models[0].model</c>.</summary>

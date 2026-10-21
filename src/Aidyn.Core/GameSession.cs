@@ -453,7 +453,7 @@ public sealed class GameSession
                 PlayGameOver();
                 return;
             // Combat.StateShadowMerge returns game mode 0xE: the Shadow's cinematic, once the battle has gone, then trek where it began.
-            case BattleOutcome.Merged when Game.Plugins.TrySingleton<CombatRecord>(RecordTypes.Combat)?.Shadow is { } shadow
+            case BattleOutcome.Merged when Game.Plugins.TrySingleton<CombatRecord>()?.Shadow is { } shadow
                 && Game.Plugins.TryGet<CinematicRecord>(shadow.Cinematic) is { } cinematic:
                 PlayCinematic(cinematic, fromTheatre: false, worldFreed: true);
                 return;
@@ -469,7 +469,7 @@ public sealed class GameSession
     /// </summary>
     private void PlayGameOver()
     {
-        if (Game.Plugins.TrySingleton<CombatRecord>(RecordTypes.Combat)?.GameOver is { } gameOver
+        if (Game.Plugins.TrySingleton<CombatRecord>()?.GameOver is { } gameOver
             && Game.Plugins.TryGet<MapRecord>(gameOver.Map) is { } map
             && map.Objects.OfType<DialogueObject>().FirstOrDefault(d => d.Script == gameOver.Script) is { Stage: { } stage } dialogue
             && Game.Plugins.TryGet<DialogueRecord>(gameOver.Script) is { } script)
@@ -516,7 +516,7 @@ public sealed class GameSession
             case PauseExitCode.Help:
                 Trek.ShowBackdrop(Game.Plugins.Get<DialogueRecord>(SystemMenu.HelpScript));
                 break;
-            case PauseExitCode.Credits when Game.Plugins.TrySingleton<CreditsRecord>(RecordTypes.Credits) is not null:
+            case PauseExitCode.Credits when Game.Plugins.TrySingleton<CreditsRecord>() is not null:
                 _credits = (Ending: false, FromMenu: true, WorldFreed: false);
                 _host.Transition(new Transition.PlayCredits());
                 break;
@@ -613,7 +613,7 @@ public sealed class GameSession
                 return true;
             case TriggerEffect.Script { From: var from } when StartFrom(from):
                 return true;
-            case TriggerEffect.Credits credits when Game.Plugins.TrySingleton<CreditsRecord>(RecordTypes.Credits) is not null:
+            case TriggerEffect.Credits credits when Game.Plugins.TrySingleton<CreditsRecord>() is not null:
                 _credits = (credits.Ending, FromMenu: false, worldFreed);
                 _host.Transition(new Transition.PlayCredits(credits.Ending));
                 return true;
@@ -645,7 +645,7 @@ public sealed class GameSession
     /// builds. Plugins imported before the record was added have none, and the game can't start from them: this says to
     /// import again, as an out-of-date import does.
     /// </summary>
-    public static NewGameRecord NewGame(PluginSet plugins) => plugins.TrySingleton<NewGameRecord>(RecordTypes.NewGame)
+    public static NewGameRecord NewGame(PluginSet plugins) => plugins.TrySingleton<NewGameRecord>()
         ?? throw new InvalidDataException("The plugins have no new game record (aidyn:newgame/0): they were imported by an older importer. Run: aidyn import <rom>");
 
     /// <summary>

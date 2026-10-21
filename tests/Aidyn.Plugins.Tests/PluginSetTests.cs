@@ -304,15 +304,12 @@ public sealed class PluginSetTests : IDisposable
         Assert.Equal("objects[0].visible.flag", Assert.Single(catalog.ReferencesTo(RecordId.Parse("aidyn:flag/5"))).Path);
     }
 
-    /// <summary>A partial read of a weapon, as <see cref="DbRecord"/> is one, to read one record as two types.</summary>
-    private sealed record Damage(RecordId Id, int Value);
-
     [Fact]
     public void TypedRecordsAreReadOnceAndHoldTheMerge()
     {
         var set = PluginSet.Load([
             Base(),
-            Plugin("mymod", ["aidyn"], ("club.json", """{ "patch": "aidyn:weapon/0x0712", "name": "Big club", "value": 9 }""")),
+            Plugin("mymod", ["aidyn"], ("club.json", """{ "patch": "aidyn:weapon/0x0712", "name": "Big club", "price": 9 }""")),
         ]);
         var club = RecordId.Parse("aidyn:weapon/0x0712");
 
@@ -322,11 +319,15 @@ public sealed class PluginSetTests : IDisposable
         Assert.Same(read, set.TryGet<DbRecord>(club));
         Assert.Same(read, set.All<DbRecord>(RecordTypes.Weapon)[0]);
 
-        // The same record read as another type is that type's own object.
-        var damage = set.Get<Damage>(club);
-        Assert.Equal(9, damage.Value);
-        Assert.Same(damage, set.Get<Damage>(club));
+        // The same record read as its class is that type's own object; a type the record doesn't read as is refused.
+        var weapon = set.Get<WeaponRecord>(club);
+        Assert.Equal(9, weapon.Price);
+        Assert.Same(weapon, set.Get<WeaponRecord>(club));
         Assert.Null(set.TryGet<DbRecord>(RecordId.Parse("aidyn:weapon/0x0799")));
+        Assert.Throws<ArgumentException>(() => set.TryGet<ArmorRecord>(club));
+        Assert.Throws<ArgumentException>(() => set.All<WeatherRecord>(RecordTypes.Combat));
+        Assert.Throws<ArgumentException>(() => set.All<SkillRecord>());
+        Assert.Same(set.All<WeaponRecord>(RecordTypes.Weapon), set.All<WeaponRecord>());
     }
 
     [Fact]
@@ -355,11 +356,38 @@ public sealed class PluginSetTests : IDisposable
                 ("camping.json", """[{ "patch": "aidyn:camping/0", "name": "Better camping" }, { "id": "mymod:camping/0", "name": "Another" }]""")),
         ]);
 
-        var camping = set.Singleton<DbRecord>(RecordTypes.Camping);
-        Assert.Equal("Better camping", camping.Name);
-        Assert.Same(camping, set.TrySingleton<DbRecord>(RecordTypes.Camping));
-        Assert.Null(set.TrySingleton<DbRecord>(RecordTypes.Sky));
-        Assert.Throws<KeyNotFoundException>(() => set.Singleton<DbRecord>(RecordTypes.Sky));
+        var camping = set.Singleton<CampingRecord>();
+        Assert.Equal("aidyn:camping/0", camping.Id.ToString());
+        Assert.Equal("Better camping", (string)set.GetJson(camping.Id)!["name"]!);
+        Assert.Same(camping, set.TrySingleton<CampingRecord>());
+        Assert.Null(set.TrySingleton<SkyRecord>());
+        Assert.Throws<KeyNotFoundException>(() => set.Singleton<SkyRecord>());
+        // A type with many records, or one that's the class of two types, has no singleton.
+        Assert.Throws<ArgumentException>(() => set.Singleton<WeaponRecord>());
+        Assert.Throws<ArgumentException>(() => set.Singleton<SkillRecord>());
+    }
+
+    [Fact]
+    public void TheRegistryTiesEachTypeToItsClassKeyAndKinds()
+    {
+        Assert.Equal(typeof(CombatRecord), RecordTypes.Info(RecordTypes.Combat).Class);
+        Assert.True(RecordTypes.Info(RecordTypes.Combat).Singleton);
+        Assert.Equal("aidyn:combat/0", RecordTypes.Info(RecordTypes.Combat).SingletonId.ToString());
+        Assert.Equal(KeyKind.Db, RecordTypes.Info(RecordTypes.Entity).Key);
+        Assert.True(RecordTypes.Info(RecordTypes.Entity).Reads(typeof(DbRecord)));
+        Assert.False(RecordTypes.Info(RecordTypes.Entity).Reads(typeof(ItemRecord)));
+        Assert.Null(RecordTypes.Info(RecordTypes.Scene).Class);
+        Assert.Equal(KeyKind.Nested, RecordTypes.Info(RecordTypes.Voxel).Key);
+        Assert.Equal(RecordTypes.Entity, RecordTypes.Of<EntityRecord>().Name);
+        Assert.Throws<ArgumentException>(() => RecordTypes.Info("widget"));
+        Assert.Equal(RecordTypes.Registry.Select(t => t.Name), RecordTypes.Names);
+        Assert.True(RecordTypes.Registry.All(t => t.Class is null || t.Class.Name.EndsWith("Record", StringComparison.Ordinal)));
+
+        // The map object kinds come from MapObject's attributes, each with a name of its own.
+        Assert.Equal(["scene", "container", "light", "sound", "wanderNode", "monsterParty", "refPoint", "teleporter", "camera", "dialogue", "trigger", "savePoint"],
+            MapObjectKinds.All.Select(k => k.Discriminator));
+        Assert.All(MapObjectKinds.All, k => Assert.NotEqual(k.Type.Name, k.Name));
+        Assert.Equal("Monster party", MapObjectKinds.Name("monsterParty"));
     }
 
     [Fact]

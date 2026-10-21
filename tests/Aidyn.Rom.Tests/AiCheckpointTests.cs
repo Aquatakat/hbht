@@ -624,7 +624,7 @@ public sealed class AiCheckpointTests(Na10Import fixture, ITestOutputHelper outp
     public void EveryFightersStyleAndWeaponIsTheOriginals()
     {
         var game = GameState.NewGame(Set);
-        var rules = Set.Singleton<CombatRecord>(RecordTypes.Combat);
+        var rules = Set.Singleton<CombatRecord>();
         var counts = new SortedDictionary<int, int>();
         var styles = new Dictionary<RecordId, (int Style, RecordId? Weapon, RecordId? Spare)>();
         foreach (var entity in Set.All<EntityRecord>(RecordTypes.Entity))

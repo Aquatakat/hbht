@@ -104,7 +104,7 @@ public sealed record BattleSetup(
     /// each of the others (10, 15 and 20).
     /// </summary>
     public static int AmbushTier(PluginSet plugins, int level) =>
-        plugins.TrySingleton<CampingRecord>(RecordTypes.Camping)?.AmbushLevels is { } levels ? levels.Count(l => level > l) : 0;
+        plugins.TrySingleton<CampingRecord>()?.AmbushLevels is { } levels ? levels.Count(l => level > l) : 0;
 
     /// <summary>
     /// What the monster party carries besides its enemies' chests (<c>0x800D9470</c>): a loot table rolled as a chest with no

@@ -229,7 +229,7 @@ public sealed class CombatImportTests(Na10Import fixture)
         Assert.Equal([new PartyEnemy(Entity(0x0210), 2, 4), new PartyEnemy(Entity(0x0211), 2, 4)], plains[4].Enemies);
         Assert.All(Enumerable.Range(0, 27), t => Assert.Equal(5, TerrainRecord.Find(Set, t)!.Ambushes!.Count));
         Assert.Null(TerrainRecord.Find(Set, 27)!.Ambushes);
-        Assert.Equal([5, 10, 15, 20], Set.Singleton<CampingRecord>(RecordTypes.Camping).AmbushLevels!);
+        Assert.Equal([5, 10, 15, 20], Set.Singleton<CampingRecord>().AmbushLevels!);
     }
 
     /// <summary>

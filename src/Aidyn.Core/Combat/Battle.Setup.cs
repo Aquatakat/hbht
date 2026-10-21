@@ -44,7 +44,7 @@ public sealed partial class Battle
     public static Battle Begin(GameState game, BattleSetup setup, Arena arena, CollisionWorld world)
     {
         var plugins = game.Plugins;
-        var rules = plugins.Singleton<CombatRecord>(RecordTypes.Combat);
+        var rules = plugins.Singleton<CombatRecord>();
         var random = game.Random.Combat;
         var list = setup.EnemyList(game.Party, e => plugins.TryGet<EntityRecord>(e)?.Level ?? 0, random, rules.Fallback).ToList();
 
@@ -81,7 +81,7 @@ public sealed partial class Battle
     internal static Battle Ending(GameState game, BattleSetup setup, IReadOnlyList<RecordId> enemies)
     {
         var battle = new Battle(game, setup, null!, new CollisionWorld(), enemies) { NextReserve = enemies.Count };
-        battle._rules = game.Plugins.Singleton<CombatRecord>(RecordTypes.Combat);
+        battle._rules = game.Plugins.Singleton<CombatRecord>();
         return battle;
     }
 

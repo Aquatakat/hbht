@@ -10,7 +10,7 @@ namespace Aidyn.Core.Tests;
 /// <summary>Hand-made weapons, armor, items and inventory rules for the item tests.</summary>
 internal static class ItemData
 {
-    private static readonly RecordId Icon = RecordId.Decimal(RecordTypes.Image, 0);
+    private static readonly RecordId Icon = RecordId.Hex(RecordTypes.Image, 0);
 
     public static RecordId Flag(int n) => Ids.Flag(n);
 

@@ -35,13 +35,13 @@ public sealed class GameState : IScriptWorld
         Rules = CharacterRules.From(plugins);
         Items = ItemCatalog.From(plugins);
         Flags = FlagNetwork.Load(plugins);
-        StateFlagsRecord = plugins.Singleton<StateFlagsRecord>(RecordTypes.StateFlags);
+        StateFlagsRecord = plugins.Singleton<StateFlagsRecord>();
         StateFlags = new StateFlags(Flags, StateFlagsRecord);
         Party = new Party(Items, Flags);
         _saves = new CharacterSaves(plugins, Rules, Items, Flags, _problems);
         Minimaps = new MinimapSeen(plugins);
         _problems.AddRange(Rules.Magic?.Problems ?? []);
-        if (plugins.TrySingleton<WeatherRecord>(RecordTypes.Weather) is { } weather)
+        if (plugins.TrySingleton<WeatherRecord>() is { } weather)
             Weather = new Weather(weather);
     }
 
@@ -56,10 +56,10 @@ public sealed class GameState : IScriptWorld
     public StateFlagsRecord StateFlagsRecord { get; }
 
     /// <summary>How camping goes (<c>aidyn:camping/0</c>).</summary>
-    public CampingRecord Camping => Plugins.Singleton<CampingRecord>(RecordTypes.Camping);
+    public CampingRecord Camping => Plugins.Singleton<CampingRecord>();
 
     /// <summary>The sounds engine code plays (<c>aidyn:sounds/0</c>), or null if no plugin has them, when nothing plays.</summary>
-    public SoundsRecord? Sounds => Plugins.TrySingleton<SoundsRecord>(RecordTypes.Sounds);
+    public SoundsRecord? Sounds => Plugins.TrySingleton<SoundsRecord>();
 
     /// <summary>Writes the clock, rain and terrain into the flags.</summary>
     public StateFlags StateFlags { get; }
@@ -118,7 +118,7 @@ public sealed class GameState : IScriptWorld
         var game = new GameState(plugins) { Label = "New game" };
         game.Weather?.NewGame(game.Clock, game.Terrain(0), game.Random.World, game.Random.Cosmetic);
         game.WriteStateFlags();
-        var start = plugins.TrySingleton<NewGameRecord>(RecordTypes.NewGame);
+        var start = plugins.TrySingleton<NewGameRecord>();
         if (game.Recruit(start?.Leader ?? Alaron) is { } leader)
             game.Party.Add(leader);
         game.Party.Gold = start?.Gold ?? NewGameGold;

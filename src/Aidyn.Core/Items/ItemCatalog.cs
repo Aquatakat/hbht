@@ -104,5 +104,5 @@ public sealed class ItemCatalog
     /// <summary>The installed plugins' items.</summary>
     public static ItemCatalog From(PluginSet plugins) => new(
         plugins.All<WeaponRecord>(RecordTypes.Weapon), plugins.All<ArmorRecord>(RecordTypes.Armor), plugins.All<ItemRecord>(RecordTypes.Item),
-        plugins.Singleton<InventoryRecord>(RecordTypes.Inventory));
+        plugins.Singleton<InventoryRecord>());
 }

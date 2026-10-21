@@ -145,7 +145,7 @@ public abstract record Transition
     private static Transition ShopOf(GameState game, RecordId? keeper)
     {
         var plugins = game.Plugins;
-        var entity = keeper is { } id ? plugins.TryGet<EntityRecord>(id) : null;
+        var entity = keeper is { Type: RecordTypes.Entity } id ? plugins.TryGet<EntityRecord>(id) : null;
         if (entity is null || Shop.For(plugins.All<ShopRecord>(RecordTypes.Shop), entity.Id) is not { } record)
             return new Say($"{entity?.Name ?? keeper?.ToString() ?? "No one"} keeps no shop.");
         var party = game.Party;
@@ -158,7 +158,7 @@ public abstract record Transition
     /// </summary>
     private static Transition TrainingOf(GameState game, RecordId? keeper)
     {
-        if (keeper is not { } id || game.Plugins.TryGet<EntityRecord>(id) is not { } entity)
+        if (keeper is not { Type: RecordTypes.Entity } id || game.Plugins.TryGet<EntityRecord>(id) is not { } entity)
             return new Say($"{keeper?.ToString() ?? "No one"} teaches nothing.");
         return new OpenTraining(Trainer.From(entity, game.Rules, game.Plugins.Get<SpellRecord>));
     }
