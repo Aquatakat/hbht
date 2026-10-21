@@ -48,10 +48,6 @@ public sealed partial class GameSessionTests(Na10Import fixture)
 
         void ITransitionHost.Transition(Transition next) => Transitions.Add(next);
 
-        void ITrekHost.Entered(ChunkEntry? chunk)
-        {
-        }
-
         void ITrekHost.Arrived()
         {
         }
@@ -94,7 +90,7 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         return (session, host);
     }
 
-    private static SessionStep Tick(GameSession session) => session.Tick(() => new PlayerInput(Vector2.Zero), false, true, _ => null);
+    private static SessionStep Tick(GameSession session) => session.Tick(() => new PlayerInput(Vector2.Zero), false, _ => null);
 
     [Fact]
     public void TheModeIsTheHighestUpAndTheTickCountsInEveryMode()

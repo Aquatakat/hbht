@@ -39,8 +39,8 @@ public partial class Game
     }
 
     /// <summary>
-    /// The cut-scene has begun on its stage: its chunks drawn, its sky chosen at once with the scenery's fog ignoring the
-    /// weather (FreeZoneEngine leaves no sky), and the view through its camera.
+    /// The cut-scene has begun on its stage: its chunks drawn under the sky the session chose for it, and the view through its
+    /// camera.
     /// </summary>
     private void ShowStage(CutScene scene, ZoneEngine stage)
     {
@@ -52,10 +52,6 @@ public partial class Game
             _shadow.Visible = false;
         _stageView = new ChunkStreamerView(_plugins!, _models!, stage.Chunks, null, _shadowTexture) { Name = "Stage" };
         AddChild(_stageView);
-        _sky!.ClearSky();
-        _sky.Enter(scene.Stage.Chunk);
-        _sky.CutScene = true;
-        _sky.Apply();
         _camera!.Follow = scene.Camera;
         _camera.Far = CutScene.Far;
         SyncCutScene();
@@ -63,12 +59,11 @@ public partial class Game
     }
 
     /// <summary>
-    /// What draws a tick of the cut-scene the session stepped: the sky and the stage's scenery go on, and the actors, camera,
+    /// What draws a tick of the cut-scene the session stepped: the stage's scenery goes on, and the actors, camera,
     /// box and lights follow it. Once its screen has faded out, the session ends it.
     /// </summary>
     private void StepCutScene(bool over)
     {
-        _sky!.Step();
         ScrollTextures();
         SyncCutScene();
         if (_pointLights)
@@ -113,7 +108,7 @@ public partial class Game
     private void LightStage()
     {
         var stage = Stage!;
-        stage.BeginLightFrame(Scene!.Fade.Brightness, _sky!.State.Drawn, _sky.Moon);
+        stage.BeginLightFrame(Scene!.Fade.Brightness);
         _stageView!.LightActors(stage.Lights);
         foreach (var view in _actorViews.Values)
             view.Light(stage.Lights, stage.Chunks);
@@ -121,7 +116,7 @@ public partial class Game
 
     /// <summary>
     /// The cut-scene's stage has gone, or one couldn't start (<paramref name="scene"/> null): its actors and chunks are no
-    /// longer drawn, and the sky is cleared, so trek's chunk chooses its own at once as trek's world is built again.
+    /// longer drawn.
     /// </summary>
     private void FreeStage(CutScene? scene)
     {
@@ -134,19 +129,16 @@ public partial class Game
             _stageView = null;
             _box!.Visible = false;
         }
-        _sky!.ClearSky();
-        _sky.CutScene = false;
     }
 
     /// <summary>
     /// Trek is back where the player stood (<c>initGameTrek</c>): the player's body and the follow camera, aimed at him, and
-    /// the sky trek's chunk chose, as the screen fades in.
+    /// trek's sky, as the screen fades in.
     /// </summary>
     private void ShowTrek()
     {
         _player!.Visible = true;
         PlaceShadow();
-        _sky!.Apply();
         _camera!.Follow = Trek!.Camera;
         _camera.Far = SkyView.Far;
         _camera.Sync();

@@ -1,5 +1,4 @@
 using Aidyn.Core.Calendar;
-using Aidyn.Core.Sky;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 
@@ -53,8 +52,8 @@ public static class Sundial
             yield return new HudSprite(SunDot, x, y, 1, color with { A = dot });
     }
 
-    /// <summary>The moon's image by its phase (<see cref="SkyObjects.MoonPhase"/>), whatever the hour.</summary>
-    public static RecordId Moon(uint time) => SkyObjects.MoonPhase(time) switch
+    /// <summary>The moon's image by its phase (<see cref="GameClock.MoonPhase"/>), whatever the hour.</summary>
+    public static RecordId Moon(uint time) => GameClock.MoonPhase(time) switch
     {
         (0, _) => NewMoon,
         (1, true) => CrescentEarly,

@@ -97,6 +97,14 @@ public sealed class RandomStreams
     public Lcg Cosmetic { get; } = new();
 
     /// <summary>
+    /// The stream the stars twinkle on (<see cref="Sky.SkyObjects.Twinkle"/>), the port's own: the original draws their greys
+    /// from its one stream every frame, which the port keeps apart so the sky can't shift the cosmetic stream's sounds and
+    /// lights, and its draws come once a tick, not once a rendered frame. It starts from the boot seed as the others do, and
+    /// a save keeps it.
+    /// </summary>
+    public Lcg Twinkle { get; } = new();
+
+    /// <summary>
     /// The stream bodies' animations roll their branches on (<c>ActorStateMachine.Tick</c>'s, <c>0x800e69c0</c>): one
     /// for every body, as the original's. The original starts it at 0, never seeds it and doesn't save it, so neither
     /// does the port: it starts at 0 with every new or loaded game.

@@ -6,6 +6,7 @@ using Aidyn.Core.Lights;
 using Aidyn.Core.MapObjects;
 using Aidyn.Core.Particles;
 using Aidyn.Core.Physics;
+using Aidyn.Core.Sky;
 using Aidyn.Plugins.Records;
 
 namespace Aidyn.Core.Chunks;
@@ -16,13 +17,13 @@ namespace Aidyn.Core.Chunks;
 /// the 3×3 chunks loaded around a point (<see cref="Chunks"/>), with their collision and the surfaces they draw, and as each
 /// chunk loads and goes, its sounds (<see cref="Sounds"/>) and its light map objects (<see cref="Lights"/>). It asks for the
 /// map set's music, steers the rain and snow about its <see cref="Camera"/> (<see cref="Precipitation"/>), steps the weather
-/// as its frame draws it (<see cref="StepWeather"/>), and hears bodies' footsteps and voices from the camera
-/// (<see cref="Keys"/>). The mode that runs it says where the camera is, and steps its own bodies in between.
+/// as its frame draws it (<see cref="StepWeather"/>), keeps the sky (<see cref="Sky"/>), and hears bodies' footsteps and voices
+/// from the camera (<see cref="Keys"/>). The mode that runs it says where the camera is, and steps its own bodies in between.
 /// </summary>
 /// <remarks>
 /// A stage (<see cref="Stage"/>) is the zone engine started again on another map set while this one's world is freed, as
 /// the original starts it for a cut-scene: its own chunks, lights and rain, over the same audio, chunk sounds, audio keys,
-/// rain loop and thunder, which carry on, among them the music held from one chunk to the next (<c>Audio.PersistMusic</c>).
+/// rain loop, thunder and sky, which carry on, among them the music held from one chunk to the next (<c>Audio.PersistMusic</c>).
 /// The zone engine it was made from keeps the rest, its dynamic lights among them, for its world to be loaded again
 /// (<see cref="Trek.TrekLoop.Resume"/>). A battle's arena is a stage the same way (<see cref="GameSession.BeginBattle"/>).
 /// </remarks>
@@ -110,6 +111,12 @@ public sealed class ZoneEngine
     /// <summary>The rain loop and the thunder.</summary>
     public WeatherSounds WeatherSounds => _shared.WeatherSounds;
 
+    /// <summary>
+    /// The sky (<c>Sky::RenderSky</c>, which <c>HandleZoneEngineFrame</c> draws): one for trek's world and every stage made
+    /// from it, which each enters as it's built (<see cref="SkyDirector.ClearSky"/>). The session steps it.
+    /// </summary>
+    public SkyDirector Sky => _shared.Sky;
+
     /// <summary>The loaded chunks' light map objects and the dynamic lights, which light bodies and the maps' actors.</summary>
     public WorldLights Lights { get; }
 
@@ -163,15 +170,16 @@ public sealed class ZoneEngine
 
     /// <summary>
     /// Starts a frame of the lights as the zone engine draws them: dimmed by the screen's fade, with the sun while the sky is
-    /// outdoor, and lights that face the camera shining from its eye (<see cref="WorldLights.BeginFrame"/>).
+    /// outdoor, and the moon while it's up there (<see cref="WorldLights.Moon"/>, <see cref="SkyDirector.Moon"/>), and lights
+    /// that face the camera shining from its eye (<see cref="WorldLights.BeginFrame"/>).
     /// </summary>
-    /// <param name="moon">The way to the moon while it's up (<see cref="WorldLights.Moon"/>), whose light bodies get while the sky is outdoor.</param>
-    public void BeginLightFrame(float fade, bool sun, Vector3? moon = null)
+    public void BeginLightFrame(float fade)
     {
+        var outdoor = Sky.Drawn;
         Lights.Fade = fade;
         Lights.Eye = Camera!.Position;
-        Lights.Sun = sun;
-        Lights.Moon = sun ? moon : null;
+        Lights.Sun = outdoor;
+        Lights.Moon = outdoor ? Sky.Moon : null;
         Lights.BeginFrame(1);
     }
 
@@ -224,6 +232,8 @@ public sealed class ZoneEngine
         public AudioKeys Keys { get; } = new(audio, game.Sounds, game.Random.Cosmetic);
 
         public WeatherSounds WeatherSounds { get; } = new(audio, game.Sounds);
+
+        public SkyDirector Sky { get; } = new(game.Plugins, game.Clock, game.Weather, game.Random.Twinkle);
 
         /// <summary>The tick within a frame of the sky, which flashes lightning once a frame.</summary>
         public FrameGate SkyFrame { get; } = new(Cadence.FrameTicks);

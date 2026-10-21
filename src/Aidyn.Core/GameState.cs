@@ -190,6 +190,8 @@ public sealed class GameState : IScriptWorld
             game.Random.World.Seed = random.World;
             game.Random.Wander.Seed = random.Wander;
             game.Random.Cosmetic.Seed = random.Cosmetic;
+            if (random.Twinkle is { } twinkle)
+                game.Random.Twinkle.Seed = twinkle;
         }
         return game;
     }
@@ -210,7 +212,10 @@ public sealed class GameState : IScriptWorld
         {
             Skill = e.Key.Kind == MemoryKind.SkillCheck ? e.Key.Skill : null,
         })],
-        Random = new SaveRandom(Random.Combat.Seed, Random.Loot.Seed, Random.World.Seed, Random.Wander.Seed, Random.Cosmetic.Seed),
+        Random = new SaveRandom(Random.Combat.Seed, Random.Loot.Seed, Random.World.Seed, Random.Wander.Seed, Random.Cosmetic.Seed)
+        {
+            Twinkle = Random.Twinkle.Seed,
+        },
         Minimaps = Minimaps.Save(),
         Weather = Weather is { } w
             ? new SaveWeather(w.Kind.ToString(), w.Precipitation.ToString(), w.Intensity, w.Fog, w.Storm, w.Wind, w.Falling.ToString(),

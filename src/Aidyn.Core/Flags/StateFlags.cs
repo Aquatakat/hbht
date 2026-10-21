@@ -1,5 +1,4 @@
 using Aidyn.Core.Calendar;
-using Aidyn.Core.Sky;
 using Aidyn.Plugins.Records;
 
 namespace Aidyn.Core.Flags;
@@ -44,7 +43,7 @@ public sealed class StateFlags(FlagNetwork flags, StateFlagsRecord record)
     public void SetTime(GameClock clock)
     {
         var date = clock.Date;
-        SetTime(date, date.PartOfDay, SkyObjects.MoonPhase(clock.Time).Phase);
+        SetTime(date, date.PartOfDay, GameClock.MoonPhase(clock.Time).Phase);
     }
 
     /// <summary>0 clear, 1 rain, 2 snow (<c>set_weather_flags</c>).</summary>

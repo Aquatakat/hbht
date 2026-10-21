@@ -120,4 +120,50 @@ public sealed class GameClock
 
     /// <summary>The offset gone at once.</summary>
     public void ClearShownOffset() => (ShownOffset, _offsetGoal, _offsetRate) = (0, 0, 0);
+
+    // The sun and the moon, which the calendar moves: the sky draws them and lights by them, and the moon's phase is a flag.
+
+    /// <summary>
+    /// The sun's first angle, in degrees (<c>gSunObjP-&gt;pos.x</c>, <c>Skyobjects::UpdateSun</c>): the time of day × 360° − 90°,
+    /// so −90 at midnight, 0 at 06:00, 90 at noon and 180 at 18:00.
+    /// </summary>
+    public static float SunHeight(float timeOfDay) => timeOfDay * 360 - 90;
+
+    /// <summary>
+    /// The moon's first angle, in degrees (<c>Skyobjects::UpdateMoon</c>): twice (the time of day × 360° + 90°), wrapped into a
+    /// turn, so it goes round twice a day.
+    /// </summary>
+    public static float MoonHeight(float timeOfDay)
+    {
+        var height = (timeOfDay * 360 + 90) * 2;
+        while (height > 360)
+            height -= 360;
+        return height;
+    }
+
+    /// <summary>
+    /// The moon's phase on a date (<c>World::set_moonPhase</c>): 0 new, 1 crescent, 2 quarter and 3
+    /// full, over a cycle of four weeks.
+    /// </summary>
+    /// <remarks>
+    /// Days 0–2 of the cycle are full, 3–7 a quarter, 9–13 a crescent, 14–16 new, 17–21 a crescent
+    /// and 23–27 a quarter. Day 8 turns from quarter to crescent at noon, and day 22 from crescent to
+    /// quarter. The images count the first two weeks as waxing, though the moon wanes then.
+    /// </remarks>
+    public static (int Phase, bool Waxing) MoonPhase(uint time)
+    {
+        var week = (int)(time % Season / Week);
+        var day = (int)(time % Week / Day);
+        var afternoon = time % Day / Hour >= 12;
+        var phase = (day + (week & 3) * 7) switch
+        {
+            < 3 => 3,
+            >= 14 and <= 16 => 0,
+            (>= 3 and <= 7) or >= 23 => 2,
+            8 => afternoon ? 1 : 2,
+            22 => afternoon ? 2 : 1,
+            _ => 1,
+        };
+        return (phase, (week & 3) >> 1 == 0);
+    }
 }

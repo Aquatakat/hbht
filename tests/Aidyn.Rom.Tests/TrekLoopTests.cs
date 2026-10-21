@@ -30,11 +30,8 @@ public sealed class TrekLoopTests(Na10Import fixture)
 
     private sealed class Host : ITrekHost
     {
-        public List<ChunkEntry?> Entered { get; } = [];
         public int Arrivals { get; set; }
         public int ConversationChanges { get; set; }
-
-        void ITrekHost.Entered(ChunkEntry? chunk) => Entered.Add(chunk);
 
         void ITrekHost.Arrived() => Arrivals++;
 

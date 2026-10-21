@@ -10,6 +10,7 @@ using Aidyn.Core.MapObjects;
 using Aidyn.Core.Movement;
 using Aidyn.Core.Physics;
 using Aidyn.Core.Scripts;
+using Aidyn.Core.Sky;
 using Aidyn.Core.Trek;
 using Aidyn.Core.Ui;
 using Aidyn.Plugins;
@@ -126,6 +127,7 @@ public sealed class GameSession
         Game = game;
         _host = host;
         Trek = new TrekLoop(game, new Relay(this, host), zone, player, camera);
+        zone.Sky.Warn = host.Warn;
         Menu = new PauseMenu(game, settings ?? new Settings(), savesFolder ?? DataPaths.Saves, Where, menuHost ?? NoMenuHost.Instance, Stick);
     }
 
@@ -182,6 +184,12 @@ public sealed class GameSession
 
     /// <summary>The zone engine trek's world is loaded in, which a cut-scene's stage is made from.</summary>
     public ZoneEngine Zone => Trek.Zone;
+
+    /// <summary>
+    /// The sky, trek's and every stage's (<see cref="ZoneEngine.Sky"/>): stepped after trek, a cut-scene or a battle ticks,
+    /// its stars twinkling every tick, and chosen again as each world is built.
+    /// </summary>
+    public SkyDirector Sky => Zone.Sky;
 
     /// <summary>The cut-scene playing, in place of trek's world.</summary>
     public CutScene? Scene { get; private set; }
@@ -309,14 +317,14 @@ public sealed class GameSession
     /// cinematic steps, holding everything, and ends itself; the credits step with the map's sounds going on under them and
     /// everything held still, and end themselves; under the pause menu and a backdrop's page the sounds go on the same. A
     /// cut-scene ticks on its stage; trek reopens the menu once it has faded in after the credits or the Theatre, then ticks.
+    /// The sky steps after trek, a cut-scene or a battle, and its stars twinkle in every mode, last.
     /// </summary>
     /// <param name="readInput">The player's controls, read only when trek or a battle's turn takes them.</param>
     /// <param name="frozen">Whether only time passes in trek, as while the free camera flies.</param>
-    /// <param name="skyDrawn">Whether the stage's sky is drawn, for a cut-scene's weather.</param>
     /// <param name="actors">A cut-scene's actors' animations, or null for one that has none yet.</param>
     /// <param name="combatants">A battle's combatants' animations, or null for one that has none.</param>
     /// <param name="spellFx">A battle's spells' visuals' actors, or null for none (<see cref="Battle.Tick"/>).</param>
-    public SessionStep Tick(Func<PlayerInput> readInput, bool frozen, bool skyDrawn, Func<CutSceneActor, IActorMotion?> actors,
+    public SessionStep Tick(Func<PlayerInput> readInput, bool frozen, Func<CutSceneActor, IActorMotion?> actors,
         Func<Combatant, IActorMotion?>? combatants = null, ISpellFxHost? spellFx = null)
     {
         Game.CountTick();
@@ -329,11 +337,14 @@ public sealed class GameSession
         {
             MenuClosed(exit);
             Trek.StepBackdrop();
+            Sky.StepTwinkle();
             return SessionStep.MenuClosed;
         }
-        var step = Step(readInput, frozen, skyDrawn, actors, combatants, spellFx);
+        var step = Step(readInput, frozen, actors, combatants, spellFx);
         // A backdrop's page fades and pulses in every mode, after the mode's step: once it has faded out, it's gone from the next tick's mode.
         Trek.StepBackdrop();
+        // The sky is drawn behind whatever holds the world, and its stars twinkle as it's drawn.
+        Sky.StepTwinkle();
         return step;
     }
 
@@ -409,8 +420,11 @@ public sealed class GameSession
         public string? Save(string path) => "Saving isn't possible here.";
     }
 
-    /// <summary>The mode that runs steps (<see cref="Tick"/>).</summary>
-    private SessionStep Step(Func<PlayerInput> readInput, bool frozen, bool skyDrawn, Func<CutSceneActor, IActorMotion?> actors,
+    /// <summary>
+    /// The mode that runs steps (<see cref="Tick"/>), and after trek, a cut-scene or a battle, the sky (<see cref="SkyDirector.Step"/>):
+    /// not while the world is held, nor on the tick trek fades out into a cut-scene or a battle.
+    /// </summary>
+    private SessionStep Step(Func<PlayerInput> readInput, bool frozen, Func<CutSceneActor, IActorMotion?> actors,
         Func<Combatant, IActorMotion?>? combatants, ISpellFxHost? spellFx)
     {
         switch (Mode)
@@ -429,18 +443,22 @@ public sealed class GameSession
         }
         if (Scene is { } scene)
         {
-            // The zone engine draws the stage, its sounds, weather and rain, as it draws trek (CutScene.Tick).
-            scene.Tick(Stage!, skyDrawn, actors);
+            // The zone engine draws the stage, its sounds, weather and rain, as it draws trek (CutScene.Tick), under the stage's sky.
+            scene.Tick(Stage!, Sky.Drawn, actors);
+            Sky.Step();
             return scene.Over ? SessionStep.CutSceneOver : SessionStep.CutScene;
         }
         if (Battle is { } battle)
         {
-            battle.Tick(Arena!, skyDrawn, combatants ?? (_ => null), readInput, spellFx);
+            battle.Tick(Arena!, Sky.Drawn, combatants ?? (_ => null), readInput, spellFx);
             if (battle.Paused && !MenuOpen)
             {
                 // Combat's states 14 and 27: the pause menu, mode 3.
                 Send(new Transition.PauseBattle(battle.PausedFromTurn, battle.PausedFromTurn && battle.CanFlee));
             }
+            // A cast dims the sky for a while (CombatSpellFx.DimSky), where spells' visuals are drawn.
+            Sky.Dim = spellFx is null ? 1 : battle.Fx.Sky.Value;
+            Sky.Step();
             return battle.Over ? SessionStep.CombatOver : SessionStep.Combat;
         }
         if (_reopen is { } reopen && !Trek.CutSceneFade.Fading)
@@ -448,7 +466,10 @@ public sealed class GameSession
             _reopen = null;
             Send(reopen);
         }
-        return Trek.Tick(readInput, frozen) switch
+        var trek = Trek.Tick(readInput, frozen);
+        if (trek is TrekStep.Ran or TrekStep.Frozen)
+            Sky.Step();
+        return trek switch
         {
             TrekStep.CutScene => SessionStep.CutSceneCued,
             TrekStep.Battle => SessionStep.BattleCued,
@@ -789,6 +810,30 @@ public sealed class GameSession
             case Transition.ReopenMenu:
                 Menu.Open();
                 break;
+            // The sky as each world is built and goes (FreeZoneEngine leaves none up): a stage's or an arena's chunk chooses
+            // its own at once, a cut-scene's scenery fog ignoring the weather, and trek's chooses again as it's built.
+            case Transition.StartCutScene start:
+                Sky.ClearSky();
+                Sky.Enter(start.Scene.Stage.Chunk);
+                Sky.CutScene = true;
+                Sky.Apply();
+                break;
+            case Transition.EndCutScene:
+                Sky.ClearSky();
+                Sky.CutScene = false;
+                break;
+            case Transition.StartedBattle started:
+                Sky.ClearSky();
+                Sky.Enter(started.Battle.Arena.Chunk);
+                Sky.Apply();
+                break;
+            case Transition.EndBattle:
+                Sky.Dim = 1;
+                Sky.ClearSky();
+                break;
+            case Transition.ResumeTrek:
+                Sky.Apply();
+                break;
         }
         _host.Transition(next);
     }
@@ -802,8 +847,6 @@ public sealed class GameSession
         public void Transition(Transition next) => session.Send(next);
 
         public void ConversationChanged() => host.ConversationChanged();
-
-        public void Entered(ChunkEntry? chunk) => host.Entered(chunk);
 
         public void Arrived() => host.Arrived();
 

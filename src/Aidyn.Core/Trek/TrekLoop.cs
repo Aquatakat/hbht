@@ -23,9 +23,6 @@ namespace Aidyn.Core.Trek;
 /// </summary>
 public interface ITrekHost : IScriptHost, ITransitionHost
 {
-    /// <summary>The player is in a chunk, every tick: the sky follows it.</summary>
-    void Entered(ChunkEntry? chunk);
-
     /// <summary>The player has come through a teleporter and stands at its arrival point.</summary>
     void Arrived();
 
@@ -241,12 +238,13 @@ public sealed class TrekLoop : IMapObjectHost
     }
 
     /// <summary>
-    /// The player is in a chunk: its terrain is written into the flags, and another terrain may change the weather. Crossing into another chunk is a
+    /// The player is in a chunk: the sky follows it (<see cref="Sky.SkyDirector.Enter"/>), its terrain is written into the flags,
+    /// and another terrain may change the weather. Crossing into another chunk is a
     /// teleport in the original (<c>ConfirmPlayerWithinZone</c>), which ages what map objects remember.
     /// </summary>
     public void Enter(ChunkEntry? chunk)
     {
-        _host.Entered(chunk);
+        Zone.Sky.Enter(chunk);
         if (chunk is not null && _centre != (chunk.Row, chunk.Column))
         {
             if (_centre is not null)
@@ -477,6 +475,8 @@ public sealed class TrekLoop : IMapObjectHost
         Enter(arrival.Chunk);
         var camera = arrival.Camera is { } local ? origin + local : (Vector3?)null;
         Camera.Arrive(from, motion.Sphere.Position, motion.Heading, FollowCamera.ModeFor(Game.Plugins, arrival.Chunk), camera);
+        // The sky's colours are worked out again where he is, before he's shown there.
+        Zone.Sky.Apply();
         _host.Arrived();
     }
 

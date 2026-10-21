@@ -62,11 +62,12 @@ public class SkyObjectsTests
     {
         var objects = new SkyObjects(Sky());
         var sprites = new List<SkySprite>();
-        objects.Draw(sprites, At(12), Vector3.UnitX, Vector3.One, Size, new Lcg(1));
+        objects.Draw(sprites, At(12), Vector3.UnitX, Vector3.One, Size);
         Assert.DoesNotContain(sprites, s => s.Image == Image(0x1A1));
 
         sprites.Clear();
-        objects.Draw(sprites, At(3), Vector3.UnitX, Vector3.One, Size, new Lcg(1));
+        objects.Twinkle(new Lcg(1), 3 / 24f);
+        objects.Draw(sprites, At(3), Vector3.UnitX, Vector3.One, Size);
         var star = Assert.Single(sprites, s => s.Image == Image(0x1A1));
         // Twinkling in greys, brighter the lower the sun: at 03:00 it's 45° down, so alpha × sin 45°.
         Assert.Equal(star.Color.X, star.Color.Y);
@@ -75,12 +76,29 @@ public class SkyObjectsTests
     }
 
     [Fact]
+    public void EachStarTwinklesAGreyOfItsOwnInTheTablesOrderOnlyByNight()
+    {
+        var objects = new SkyObjects(Sky());
+        var random = new Lcg(7);
+        // By day nothing is drawn.
+        objects.Twinkle(random, 0.5f);
+        Assert.Equal(7u, random.Seed);
+        Assert.All(objects.Greys, g => Assert.Equal(0, g));
+
+        // By night every star draws, the one behind the camera too.
+        objects.Twinkle(random, 0.1f);
+        var expected = new Lcg(7);
+        Assert.Equal([(byte)expected.Range(160, 255), (byte)expected.Range(160, 255)], objects.Greys);
+        Assert.Equal(expected.Seed, random.Seed);
+    }
+
+    [Fact]
     public void TheSunIsDrawnInTheSkysSunColourAndLeavesItsMiddleForTheFlare()
     {
         var objects = new SkyObjects(Sky());
         var sprites = new List<SkySprite>();
         var color = new Vector3(0.9f, 0.6f, 0.3f);
-        objects.Draw(sprites, At(6), Vector3.UnitX, color, Size, new Lcg(1));
+        objects.Draw(sprites, At(6), Vector3.UnitX, color, Size);
 
         var sun = Assert.Single(sprites, s => s.Image == Image(0x1A2));
         Assert.Equal(color, sun.Color, new Tolerance());
@@ -88,7 +106,7 @@ public class SkyObjectsTests
         Near(new Vector2(192, 152), objects.SunMiddle);
 
         // Turning away leaves the flare's point where it was.
-        objects.Draw(sprites, At(6), -Vector3.UnitX, color, Size, new Lcg(1));
+        objects.Draw(sprites, At(6), -Vector3.UnitX, color, Size);
         Near(new Vector2(192, 152), objects.SunMiddle);
     }
 
@@ -103,17 +121,17 @@ public class SkyObjectsTests
     public void TheMoonGoesRoundEveryFourWeeks(int week, int day, int phase, bool waxing)
     {
         var time = (uint)(week * GameClock.Week + day * GameClock.Day);
-        Assert.Equal((phase, waxing), SkyObjects.MoonPhase(time));
+        Assert.Equal((phase, waxing), GameClock.MoonPhase(time));
     }
 
     [Fact]
     public void ANewGameStartsUnderANewMoon()
     {
-        Assert.Equal((0, false), SkyObjects.MoonPhase(GameClock.NewGame().Time));
+        Assert.Equal((0, false), GameClock.MoonPhase(GameClock.NewGame().Time));
         Assert.Equal(Image(0x194), SkyObjects.MoonImage(Sky().MoonPhases, GameClock.NewGame().Time));
         // Day 8 turns from quarter to crescent at noon.
-        Assert.Equal((2, true), SkyObjects.MoonPhase(GameClock.Week + GameClock.Day + 11 * GameClock.Hour));
-        Assert.Equal((1, true), SkyObjects.MoonPhase(GameClock.Week + GameClock.Day + 12 * GameClock.Hour));
+        Assert.Equal((2, true), GameClock.MoonPhase(GameClock.Week + GameClock.Day + 11 * GameClock.Hour));
+        Assert.Equal((1, true), GameClock.MoonPhase(GameClock.Week + GameClock.Day + 12 * GameClock.Hour));
     }
 
     [Fact]
