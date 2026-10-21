@@ -24,6 +24,7 @@ public sealed class SkyDirector
 {
     private readonly PluginSet _plugins;
     private readonly IRandom _twinkle;
+    private readonly FrameGate _twinkleFrame = new(Cadence.FrameTicks);
     private readonly Dictionary<RecordId, SkyGradient?> _gradients = [];
     private (int Row, int Column)? _chunk;
     private ChunkEntry? _entered;
@@ -207,11 +208,13 @@ public sealed class SkyDirector
     }
 
     /// <summary>
-    /// The stars twinkle (<see cref="SkyObjects.Twinkle"/>) while they're drawn, in an outdoor sky: once a tick in every mode,
-    /// as the sky is drawn behind whatever holds the world.
+    /// The stars twinkle (<see cref="SkyObjects.Twinkle"/>) while they're drawn, in an outdoor sky: once a 30 fps frame in
+    /// every mode (<see cref="Cadence.FrameTicks"/>), as the original draws the sky once a frame behind whatever holds the world.
     /// </summary>
     public void StepTwinkle()
     {
+        if (!_twinkleFrame.Tick())
+            return;
         if (Objects is not null && State is { Current: not null, Drawn: true })
             Objects.Twinkle(_twinkle, TimeOfDay);
     }

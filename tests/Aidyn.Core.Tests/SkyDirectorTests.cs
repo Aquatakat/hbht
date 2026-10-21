@@ -156,13 +156,16 @@ public sealed class SkyDirectorTests : IDisposable
         var twinkle = new Lcg();
         var sky = Director(clock, twinkle: twinkle);
         // Nothing is up yet.
-        sky.StepTwinkle();
+        Frame(sky);
         Assert.Equal(Lcg.BootSeed, twinkle.Seed);
 
         sky.Enter(Plains);
         var expected = new Lcg();
-        for (var tick = 0; tick < 3; tick++)
+        for (var frame = 0; frame < 3; frame++)
         {
+            // Once a 30 fps frame: the first of its two ticks draws nothing.
+            sky.StepTwinkle();
+            Assert.Equal(expected.Seed, twinkle.Seed);
             sky.StepTwinkle();
             byte[] greys = [.. Record.Stars.Select(_ => (byte)expected.Range(160, 255))];
             Assert.Equal(greys, sky.Objects!.Greys);
@@ -171,11 +174,17 @@ public sealed class SkyDirectorTests : IDisposable
 
         // Under a sky that isn't drawn, and by day, they don't.
         sky.Enter(Cave);
-        sky.StepTwinkle();
+        Frame(sky);
         sky.Enter(Plains);
         clock.SetTimeOfDay(12);
-        sky.StepTwinkle();
+        Frame(sky);
         Assert.Equal(expected.Seed, twinkle.Seed);
+
+        static void Frame(SkyDirector sky)
+        {
+            sky.StepTwinkle();
+            sky.StepTwinkle();
+        }
     }
 
     [Fact]

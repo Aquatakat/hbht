@@ -35,17 +35,18 @@ public sealed partial class GameSessionTests
     }
 
     [Fact]
-    public void TheStarsTwinkleEveryTickInEveryModeOnTheirOwnStreamAndASaveKeepsIt()
+    public void TheStarsTwinkleEveryFrameInEveryModeOnTheirOwnStreamAndASaveKeepsIt()
     {
         var (session, _) = Start("G14", 40, 40);
         var game = session.Game;
         game.Clock.SetTimeOfDay(2);
         var stars = Data.Set.TrySingleton<SkyRecord>()!.Stars.Count;
         var expected = new Lcg();
-        for (var tick = 0; tick < 4; tick++)
+        for (var frame = 0; frame < 4; frame++)
         {
-            if (tick == 2)
+            if (frame == 2)
                 session.OpenMenu();
+            Tick(session);
             Tick(session);
             byte[] greys = [.. Enumerable.Range(0, stars).Select(_ => (byte)expected.Range(160, 255))];
             Assert.Equal(greys, session.Sky.Objects!.Greys);
