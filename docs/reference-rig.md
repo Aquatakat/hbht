@@ -252,6 +252,20 @@ python tools/gdb/trace.py --report out/trace-<time>.log                         
 - **Input is the user's.** Scripting key presses into ares isn't worth it: taking the foreground needs a key first, and an Alt tap opens ares's menu bar. Do the action by hand at the two beeps.
 - **How it's built:** `tools/gdb/trace.py` runs inside gdb, with gdb's own Python, and is driven through `tools/gdb.ps1 -Source`. A timer interrupts the target to close each window. gdb is given an empty stdin, because without a console (as in `trace.ps1`'s background job) it blocks before starting.
 
+### Replaying the original's AI: `tools/aivectors/` (M3 session 11)
+
+`tools/aivectors/aivectors.py` writes `tests/Aidyn.Rom.Tests/CasterVectors.cs`, the table `CasterCheckpointTests` checks the port's casters and bosses against. It runs 1.0's own `ChooseSpellOrAttack`, `RunStyle` and `EnemyAI.Step` in a MIPS interpreter (`cpu.py`) over the RAM of the Combat 02 and 08–11 checkpoints, with each enemy caster built by the original's entity builder in a rat's place (`ovl.py`, `vec.py`, `vec2.py`). The cases are in `cases.py`, the one-off vectors (`ScoreSpellCells` by action slot, `SpellValue` by kind, `AICanCast`, the area danger, the morale spells) in `extras.py`, and `emit.py` writes the C# and a `vectors.json` with every case's full state.
+
+```bash
+pip install capstone numpy
+python tools/aivectors/aivectors.py                  # the 123 cases, about 12 minutes on 22 workers
+python tools/aivectors/aivectors.py --only Lugash    # a few cases, to out/aivectors/vectors.json only
+```
+
+- **Inputs** are read as the rest of the rig does: the 1.0 ROM in `roms/` (or `AIDYN_ROMS`, or `--roms`), and its code segment (ROM `0x1000`–, to the text's end at `0x800CCEC0`) is disassembled with capstone. A checkpoint's RDRAM comes from its `.bs1` through `bst.py`'s `load_rdram`. Both are built at run time, and the disassembly is cached in the gitignored `out/aivectors/insns.pkl`.
+- **The output is checked in,** the inputs aren't. It is deterministic: running it again gives the same file. Run it only when the cases change or a port-side finding needs a new vector, and commit the new table with the change.
+- **The interpreter** covers the integer and single/double float instructions these functions use, runs a function with `cpu.run(address, args)` and can replace one with a Python stub (`cpu.hooks`, in `sim.py`) for drawing, message queues and sounds. A case that hits an instruction it lacks stops with `unimpl`.
+
 ## Finding the original's code
 
 The project doesn't read the decomp ([ADR 0015](adr/0015-the-port-no-longer-reads-the-decomp.md)). A research run finds a system's code from what the project already knows and what the ROM and the checkpoints show, cheapest first:
