@@ -2,7 +2,7 @@ using Aidyn.Core.Ui;
 using Aidyn.Plugins.Records;
 using Godot;
 
-namespace Aidyn.Game;
+namespace Aidyn.Views;
 
 /// <summary>
 /// The menu's training state at a trainer (<see cref="TrainingMenu"/>).

@@ -5,7 +5,7 @@ using Aidyn.Plugins.Assets;
 using Aidyn.Plugins.Records;
 using Godot;
 
-namespace Aidyn.Game;
+namespace Aidyn.Views;
 
 /// <summary>
 /// Poses an instance of an actor's scene as the core's <see cref="ActorMotion"/> plays it: the state's animation at
@@ -16,7 +16,7 @@ namespace Aidyn.Game;
 /// An actor that moves by its animations, such as the player, is <see cref="Driven"/>: its owner ticks it through
 /// <see cref="Tick(int)"/>, which ticks the core's motion, poses the scene at once and returns the root's motion.
 /// Otherwise it ticks itself with the frame (<see cref="Update"/>), 60 times a second, and is posed between ticks. The
-/// editor shares this file, so it holds no nodes of its own.
+/// editor draws with it too (Aidyn.Views), so it holds no nodes of its own.
 /// </remarks>
 public sealed class ActorAnimator : IActorMotion
 {

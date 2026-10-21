@@ -24,6 +24,9 @@ public static class PluginJson
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         Converters = { new RecordIdConverter(), new Vector2Converter(), new Vector3Converter(), new RgbaConverter(), new JsonStringEnumConverter() },
+        // Explicit, so a type's metadata can be asked for (RecordSchema, MapObjectKinds) before anything is read with these:
+        // without it, GetTypeInfo throws until the first read fills the resolver in, as the editor's map view did at start.
+        TypeInfoResolver = new DefaultJsonTypeInfoResolver(),
     };
 
     public static JsonDocumentOptions DocumentOptions { get; } = new()

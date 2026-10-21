@@ -1,12 +1,12 @@
 using Godot;
 
-namespace Aidyn.Game;
+namespace Aidyn.Views;
 
 /// <summary>
 /// Loading the importer's glTF binaries (<c>.glb</c>) into a Godot node tree with the N64's materials.
 /// The runtime and the editor both load scenes through here.
 /// </summary>
-internal static class GlbFile
+public static class GlbFile
 {
     /// <summary>
     /// Loads the binary as Godot's glTF import does, then replaces its materials with

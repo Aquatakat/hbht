@@ -2,7 +2,6 @@ using System.Globalization;
 using Aidyn.Core;
 using Aidyn.Core.Characters;
 using Aidyn.Core.Items;
-using Aidyn.Game;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 using Godot;

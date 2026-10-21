@@ -3,7 +3,6 @@ using System.Text.Json.Nodes;
 using Aidyn.Core.Characters;
 using Aidyn.Core.Flags;
 using Aidyn.Core.Items;
-using Aidyn.Game;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Assets;
 using Aidyn.Plugins.Records;

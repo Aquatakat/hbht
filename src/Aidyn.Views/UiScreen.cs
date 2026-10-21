@@ -1,7 +1,7 @@
 using Aidyn.Core.Ui;
 using Godot;
 
-namespace Aidyn.Game;
+namespace Aidyn.Views;
 
 /// <summary>
 /// A low-resolution screen that UI is drawn on and then scaled up to fill this control: the

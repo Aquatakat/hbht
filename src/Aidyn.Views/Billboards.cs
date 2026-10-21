@@ -2,7 +2,7 @@ using Aidyn.Plugins.Assets;
 using Aidyn.Core.Scenes;
 using Godot;
 
-namespace Aidyn.Game;
+namespace Aidyn.Views;
 
 /// <summary>
 /// Turns scenes' billboards to face the camera, as the original draws them (<see cref="Billboard"/>).

@@ -3,7 +3,7 @@ using Aidyn.Plugins;
 using Aidyn.Plugins.Assets;
 using Godot;
 
-namespace Aidyn.Game;
+namespace Aidyn.Views;
 
 /// <summary>
 /// Scrolls textures, such as water and fire, as the original does (<see cref="TextureScroll"/>).

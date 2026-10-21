@@ -11,6 +11,12 @@
     <!-- The plugin format and the rules core: the runtime never reads the ROM (ADR 0001), and the build enforces it. -->
     <ProjectReference Include="..\Aidyn.Core\Aidyn.Core.csproj" />
     <ProjectReference Include="..\Aidyn.Plugins\Aidyn.Plugins.csproj" />
+    <!-- What the runtime draws with and shares with the editor (ADR 0022). -->
+    <ProjectReference Include="..\Aidyn.Views\Aidyn.Views.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Aidyn.Views" />
   </ItemGroup>
 
 </Project>

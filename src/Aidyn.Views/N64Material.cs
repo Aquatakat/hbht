@@ -3,7 +3,7 @@ using System.Text.Json;
 using Aidyn.Plugins.Assets;
 using Godot;
 
-namespace Aidyn.Game;
+namespace Aidyn.Views;
 
 /// <summary>
 /// Draws scene glTFs as the original's combiner and blender do (roadmap M1). Every material Godot's
@@ -45,7 +45,7 @@ namespace Aidyn.Game;
 /// which the runtime sets; each material keeps its Borg1 in <see cref="Borg1Meta"/> for that.
 /// </para>
 /// </remarks>
-internal static class N64Material
+public static class N64Material
 {
     /// <summary>Global: the scenery's tint, <c>gMainColor</c>, in on-screen values.</summary>
     public const string TintParameter = "n64_tint";

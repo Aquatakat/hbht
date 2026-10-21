@@ -1,6 +1,6 @@
 using Aidyn.Plugins.Assets;
 
-namespace Aidyn.Game;
+namespace Aidyn.Views;
 
 /// <summary>
 /// A scene's glTF binary, parsed once for the views that read what Godot's importer doesn't keep: the scene's

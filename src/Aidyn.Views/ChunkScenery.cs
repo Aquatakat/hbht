@@ -3,7 +3,7 @@ using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 using Godot;
 
-namespace Aidyn.Game;
+namespace Aidyn.Views;
 
 /// <summary>
 /// A chunk's scenery as nodes, at the chunk's origin: its scene, its see-through scene, and the
@@ -62,7 +62,7 @@ public sealed class ChunkScenery
             if (placed(o))
                 objects.AddChild(scenery.Place(plugins, models, o, model?.Invoke(o) ?? 0).Node);
         }
-        scenery.Billboards = global::Aidyn.Game.Billboards.Facings(scenery.Root);
+        scenery.Billboards = global::Aidyn.Views.Billboards.Facings(scenery.Root);
         return scenery;
     }
 

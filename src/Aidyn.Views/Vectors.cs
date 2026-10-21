@@ -1,4 +1,4 @@
-namespace Aidyn.Game;
+namespace Aidyn.Views;
 
 /// <summary>Between Godot's vectors and <see cref="System.Numerics"/>, which the plugins and the core use. The axes are the same.</summary>
 public static class Vectors

@@ -1,6 +1,6 @@
 using Godot;
 
-namespace Aidyn.Game;
+namespace Aidyn.Views;
 
 /// <summary>PNG files from the plugins' assets, as Godot images and textures.</summary>
 public static class Png

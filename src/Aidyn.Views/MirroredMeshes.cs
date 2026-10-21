@@ -1,7 +1,7 @@
 using Aidyn.Plugins.Assets;
 using Godot;
 
-namespace Aidyn.Game;
+namespace Aidyn.Views;
 
 /// <summary>
 /// Culls a scene's mirrored meshes as the N64 does. The RSP culls a triangle by the way it winds on screen, whatever

@@ -6,7 +6,6 @@ using Aidyn.Core.Items;
 using Aidyn.Core.MapObjects;
 using Aidyn.Core.Physics;
 using Aidyn.Core.Rng;
-using Aidyn.Game;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Assets;
 using Aidyn.Plugins.Records;

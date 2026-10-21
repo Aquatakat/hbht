@@ -3,7 +3,7 @@ using Aidyn.Plugins.Assets;
 using Aidyn.Plugins.Records;
 using Godot;
 
-namespace Aidyn.Game;
+namespace Aidyn.Views;
 
 /// <summary>
 /// Scene assets as Godot nodes. Each glTF is parsed once (<see cref="GlbScene"/>, for its extras and actor clips, and by
@@ -39,7 +39,7 @@ public sealed class Models(PluginSet plugins) : IDisposable
     /// </summary>
     /// <param name="lighting">How it's lit: as a body, unless it's a scene object's.</param>
     /// <param name="rolls">The stream its branches roll on: a body's are <see cref="BodyRolls"/>; by default its own, from 0.</param>
-    internal (Node3D Node, ActorAnimator? Animator)? InstantiateActor(ActorRecord actor, N64Material.Lighting lighting = N64Material.Lighting.Body,
+    public (Node3D Node, ActorAnimator? Animator)? InstantiateActor(ActorRecord actor, N64Material.Lighting lighting = N64Material.Lighting.Body,
         Core.Rng.IRandom? rolls = null)
     {
         if (Instantiate(actor.Scene) is not { } node)
