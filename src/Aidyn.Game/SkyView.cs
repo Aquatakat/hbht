@@ -12,13 +12,14 @@ namespace Aidyn.Game;
 /// </summary>
 /// <remarks>
 /// With no fog in the weather, as at a new game, the original fogs from 996 to 1000 on the depth buffer's scale
-/// (<c>SetSceneColors</c>), which with trek's planes of 1 and 180 (<c>ZoneEngine</c>'s draw) is from about 105 units out to
-/// the far plane. The weather's fog moves the start in (<see cref="SkyDirector.SceneryFogStart"/>).
+/// (<c>Zones.SetSceneColors</c>), which with trek's planes of 1 and 180 is from about 105 units out to the far plane. The
+/// weather's fog moves the start in (<see cref="SkyDirector.SceneryFogStart"/>). A cut-scene draws with planes of 0.1 and
+/// 125 (<see cref="SkyDirector.Planes"/>), so the same 996 is about 21 units out, on the stage's scenery and actors alike.
 /// </remarks>
 public partial class SkyView : Node
 {
-    /// <summary>Trek's clip planes (<c>Scene::SetNearFarPlanes</c> on the centre chunk).</summary>
-    public const float Near = 1, Far = 180;
+    /// <summary>Trek's clip planes, which battles keep (<see cref="SkyDirector.TrekNear"/>).</summary>
+    public const float Near = SkyDirector.TrekNear, Far = SkyDirector.TrekFar;
 
     private readonly PluginSet _plugins;
     private readonly UiImages _images;
@@ -38,9 +39,14 @@ public partial class SkyView : Node
 
     /// <summary>
     /// Sets the global shader parameters to the colours as the director last worked them out (<see cref="SkyDirector.Apply"/>):
-    /// nothing until a sky has been chosen.
+    /// nothing until a sky has been chosen. The fog is measured against the planes the original draws the frame with, a
+    /// cut-scene's while one plays (<see cref="SkyDirector.Planes"/>), whatever the Godot camera's own.
     /// </summary>
-    public void Push() => N64Material.SetSky(Sky, Near, Far);
+    public void Push()
+    {
+        var (near, far) = Sky.Planes;
+        N64Material.SetSky(Sky, near, far);
+    }
 
     /// <summary>A UI image, as a texture, or null if no plugin has it.</summary>
     public Texture2D? Image(RecordId image) => _images.Get(image);

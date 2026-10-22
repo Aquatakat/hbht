@@ -28,6 +28,12 @@ namespace Aidyn.Views;
 /// lights instead. Untextured draws also take the mesh's tint colour.
 /// </para>
 /// <para>
+/// The shade and the fog are worked out per vertex, in on-screen values, and interpolated as the RDP does: in on-screen
+/// values, straight across the screen, without perspective. Interpolating the glTF's linear vertex colours instead made
+/// every blend between a bright vertex and a dark one brighter and less tinted (Oriana's hut's floor, whose vertices run
+/// from white to a dim teal, came out warm where the original's is green).
+/// </para>
+/// <para>
 /// With <see cref="RspLighting"/>, as in the runtime and the Inspector, lit display lists are lit per vertex as the
 /// RSP lights them: an ambient plus the sun's colour times the cosine to it, clamped to 1, in
 /// on-screen values, from the sky's globals (<see cref="SetSky"/>, <see cref="SetSkyLight"/>). Without it, Godot's lights
@@ -497,7 +503,8 @@ public static class N64Material
                 	vec4 texel = textureGrad(albedo_texture, uv, dFdx(UV), dFdy(UV));
                 """
             : "vec4 texel = vec4(1.0);";
-        var shade = unlit ? "vec4(to_screen(COLOR.rgb), COLOR.a)" : rsp ? "vec4(lit_shade, 1.0)" : "vec4(1.0)";
+        // The shade at each vertex, in on-screen values: the vertex colour on unlit lists, the RSP's lighting on lit ones.
+        var vertexShade = unlit ? "vec4(to_screen(COLOR.rgb), COLOR.a)" : rsp ? "vec4(lit_shade, 1.0)" : "vec4(1.0)";
         var light = rsp
             ? """
 
@@ -509,7 +516,7 @@ public static class N64Material
                 		: (lighting == 3 ? vec3(0.0) : n64_sun_color * max(dot(normal, n64_sun_direction), 0.0))
                 		+ light0_color * max(dot(normal, light0_direction), 0.0) + light1_color * max(dot(normal, light1_direction), 0.0)
                 		+ light2_color * max(dot(normal, light2_direction), 0.0) + light3_color * max(dot(normal, light3_direction), 0.0);
-                	lit_shade = min(ambient + lights, vec3(1.0));
+                	vec3 lit_shade = min(ambient + lights, vec3(1.0));
                 """
             : "";
         var fog = onScreen
@@ -571,8 +578,11 @@ public static class N64Material
                 uniform float scroll = 0.0;
                 uniform float alpha_scissor = 0.5;
 
-                varying float fog;
-                varying vec3 lit_shade;
+                // The shade and the fog times the vertex's clip-space w, and that w. Dividing them again undoes Godot's
+                // perspective-correct interpolation, so they're interpolated straight across the screen as the RDP's are.
+                varying vec4 shade_w;
+                varying float fog_w;
+                varying float clip_w;
 
                 vec3 to_screen(vec3 c) {
                 	return mix(1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, c * 12.92, lessThan(c, vec3(0.0031308)));
@@ -599,12 +609,16 @@ public static class N64Material
                 	float far = n64_fog.w;
                 	float depth = max(-(MODELVIEW_MATRIX * vec4(VERTEX, 1.0)).z, 0.0001);
                 	float z = (far + near) / (far - near) - 2.0 * far * near / ((far - near) * depth);
-                	fog = far > near && lighting != 3 && unfogged == 0.0 ? clamp((z * 500.0 + 500.0 - n64_fog.x) / (n64_fog.y - n64_fog.x), 0.0, 1.0) : 0.0;{{light}}{{(texgen ? TexGen : "")}}
+                	float fog = far > near && lighting != 3 && unfogged == 0.0 ? clamp((z * 500.0 + 500.0 - n64_fog.x) / (n64_fog.y - n64_fog.x), 0.0, 1.0) : 0.0;{{light}}{{(texgen ? TexGen : "")}}
+                	clip_w = max((PROJECTION_MATRIX * (MODELVIEW_MATRIX * vec4(VERTEX, 1.0))).w, 0.0001);
+                	shade_w = {{vertexShade}} * clip_w;
+                	fog_w = fog * clip_w;
                 }
 
                 void fragment() {
                 	{{texel}}
-                	vec4 shade = {{shade}};
+                	vec4 shade = shade_w / clip_w;
+                	float fog = fog_w / clip_w;
                 	vec3 tint = scene_tint.a > 0.0 ? scene_tint.rgb
                 		: lighting != 0 ? vec3(1.0) : (object_tint.a > 0.0 ? (n64_tint + object_tint.rgb) * 0.5 : n64_tint);
                 	vec3 color = texel.rgb * shade.rgb * prim.rgb * tint;
