@@ -16,7 +16,7 @@ The importer writes three record types:
 
 `FlagNetwork` holds every flag's value, by handle. A base-game flag's handle is its number, and other plugins' flags follow in load order (ADR 0004).
 
-- **Reading.** Flag 0 always reads clear and flag 1 set. Reading a derived flag while anything has changed brings the network up to date first. Reading a plain flag doesn't. So the new journal entry flag, which the network sets, can lag until something reads a derived flag, as in the original.
+- **Reading.** Flag 0 always reads clear and flag 1 set. Reading a derived flag while anything has changed brings the network up to date first. Reading a plain flag doesn't. So the new journal entry flag, which the network sets, can lag until something reads a derived flag, as in the original. A map object's write is followed by such a read, so it brings the network up to date at once (`TrySetAndProcess`, [map objects](map-objects.md#map-objects-write-flags)).
 - **Writing.** Only plain flags from 2 up can be set. Writes to 0, 1 and derived flags do nothing, as `setEventFlag` refuses them.
 - **Unknown flags.** The rules read and write flags by record through `IsSet`, `Holds` (a map object's gate) and `TrySet`: a flag no loaded plugin has reads clear and its writes are ignored, since a mod can remove a flag another plugin's records still name, which the base game's never do. `Get(RecordId)` and `Set(RecordId)` throw instead, for tests.
 - **Bringing it up to date.** Derived flags are evaluated in order, each one seeing those before it already updated. If any changed, it starts again from the first. 13 inputs name a later derived flag, so the order matters.

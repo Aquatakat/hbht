@@ -175,6 +175,22 @@ public sealed class FlagNetwork
     }
 
     /// <summary>
+    /// Sets or clears a plain flag as a map object does, and brings the network up to date at once (see
+    /// <see cref="TrySet"/>). The original follows every map object's flag write with a read of derived flag 5626, whose
+    /// value it never uses (<c>getEventFlag(0x15FA)</c>: a trigger's flag at <c>0x80010bc4</c>, a used flag at
+    /// <c>0x80011760</c>, a container's opened flag at <c>0x800105ec</c>, an explosion's at <c>0x8000ffe4</c>, a secret
+    /// door's at <c>0x800117c0</c>, a talker's at <c>0x800109fc</c>), and reading a derived flag while anything has changed
+    /// processes the network (<c>0x800cb3ac</c>). So what the write turns on is there before the next tick, and a journal
+    /// entry's notice with it.
+    /// </summary>
+    public bool TrySetAndProcess(RecordId id, bool value)
+    {
+        var known = TrySet(id, value);
+        Process();
+        return known;
+    }
+
+    /// <summary>
     /// Writes a number into a run of plain flags, lowest bit first (<c>set_flag_array</c>). Bits past
     /// the last flag are dropped. It marks the network out of date even when nothing changes.
     /// </summary>

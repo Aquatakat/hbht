@@ -948,7 +948,7 @@ public sealed class TrekLoop : IMapObjectHost
             wanderer.Body.Held = true;
             Cue(cutscene, new ScriptStart(0, MapRecord.VoxelId(map.Record.Id, party.Index)), new ChunkRef(Chunks.MapSet.Id, chunk.Row, chunk.Column));
             if (party.Used is { } used)
-                Game.Flags.TrySet(used.Flag, true);
+                Game.Flags.TrySetAndProcess(used.Flag, true);
             return;
         }
         Conversation = Conversation.TalkTo(Game, wanderer, _host, Player);

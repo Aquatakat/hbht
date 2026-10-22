@@ -13,16 +13,21 @@ public sealed partial class GameSessionTests
         // M08's trigger (object 0, radius 5) sets 58, which enables the camp's dialogue (object 1, radius 200, by 5521).
         var (session, _) = Start("M08", 50, 76.2f);
         var trek = session.Trek;
+        var flags = session.Game.Flags;
         Tick(session);
-        Assert.True(session.Game.Flags.Peek(session.Game.Flags.Handle(RecordId.Decimal(RecordTypes.Flag, 58))));
-        // Reading a derived flag brings the journal's up to date, as M08's sounds do every tick (gated on 5284) where they play.
-        Assert.True(session.Game.Flags.IsSet(RecordId.Decimal(RecordTypes.Flag, 5521)));
+        // The trigger's write brings the flags up to date at once, as the original's read of 5626 after it does
+        // (0x80010bc4), with nothing else reading a derived flag: its journal entry is waiting, and the dialogue enabled.
+        Assert.True(flags.Peek(flags.Handle(RecordId.Decimal(RecordTypes.Flag, 58))));
+        Assert.True(flags.Peek(flags.Handle(RecordId.Decimal(RecordTypes.Flag, 5521))));
+        Assert.True(flags.Peek(flags.Handle(session.Game.StateFlagsRecord.NewJournalEntry)));
+        // The next tick tells it, on the approach.
+        Tick(session);
+        Assert.Equal(TrekLoop.NewJournalEntry, trek.Use.Popup?.Body?.Text);
         for (var i = 0; i < 10; i++)
             Tick(session);
 
-        // No grid cell lists the dialogue, so walking near it starts nothing: the journal's popup comes up instead.
+        // No grid cell lists the dialogue, so walking near it starts nothing.
         Assert.Null(trek.Cued);
-        Assert.Equal(TrekLoop.NewJournalEntry, trek.Use.Popup?.Body?.Text);
 
         // Its trigger triangles start it, wherever they are, once the popup has closed.
         var map = trek.Chunks.MapAt(trek.Player.Sphere.Position)!;
