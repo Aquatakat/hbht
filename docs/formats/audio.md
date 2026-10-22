@@ -6,7 +6,7 @@ The original has its own music and sound-effect format, not the N64 SDK's. It us
 
 ## Loops
 
-Music loops back to its start, never to a point within it. A Borg12 has a loop position, but it's 0 in all 476, and there's no jump or pattern-order event. Whether a sequence loops is up to whatever plays it: the music players ask for a loop, and sound effects don't. When a looping sequence ends, every voice is cut and it starts again a row later.
+Music loops back to its start, never to a point within it. A Borg12 has a loop position, but it's 0 in all 476, and there's no jump or pattern-order event. Whether a sequence loops is up to whatever plays it: the music players ask for a loop, and sound effects don't ([the driver](../systems/audio.md#the-driver) says how it loops).
 
 What does loop mid-sample is an **instrument**: about half of them loop a stretch of their sample for as long as the note plays, and the rest play once.
 
@@ -40,7 +40,7 @@ The file starts with a u32 offset of its sample list and a zero u32. The game ha
 | 0x18 | The instrument table's offset, always 0x20. |
 | 0x1C | The event stream's offset, always 0x20 + 16 × instruments. |
 
-**An instrument** is 16 bytes: a sample pointer (0 in the ROM), the loop's start and end in samples, then a loop count in the last byte. 0xFF loops for ever (the driver reads it as −1) and 0 plays once. No other count occurs. 22 instruments that play once still carry a start and end, which nothing reads. The loop's end is the sample after the loop's last. Instrument 0 of 0x0566 (1,382) loops to 45,288 in a sample of 28,648, so the original plays past the sample's end; the port plays silence there.
+**An instrument** is 16 bytes: a sample pointer (0 in the ROM), the loop's start and end in samples, then a loop count in the last byte. 0xFF loops for ever (the driver reads it as −1) and 0 plays once. No other count occurs. 22 instruments that play once still carry a start and end, which nothing reads. The loop's end is the sample after the loop's last. Instrument 0 of 0x0566 (1,382) loops to 45,288 in a sample of 28,648, so the original plays past the sample's end ([the driver](../systems/audio.md#the-driver) says what the port plays there).
 
 ### The event stream
 

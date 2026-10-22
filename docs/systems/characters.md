@@ -1,8 +1,8 @@
 # Characters (roadmap 2.2)
 
-`Aidyn.Core.Characters`. The entity DB's layout is in [db](../formats/db.md).
+`Aidyn.Core.Characters`: `Character` (the sheet, with its effects in `Character.Effects.cs`), `CharacterStats` and `CharacterSkills`, `CharacterRules` (the records' numbers: caps, prices, experience), `Training`, `Party` (the slots, the gold, the checks; its items in `Party.Items.cs`, [items](items.md)) and `CharacterSaves` (a sheet to and from a save, [saves](saves.md)). The entity DB's layout is in [db](../formats/db.md).
 
-Ports `CharStats` (`stats.cpp`), `CharSkills` (`skills.cpp`), the character sheet's hit points and experience (`entity.cpp`, `entityInfo.cpp`), the party's checks (`party.cpp`), and the training screens (`StatTrain.cpp`, `SkillTrain.cpp`, `WidgetSpellTrain.cpp`). The price functions and tables are the same in 1.0 and the debug build.
+They port the original's `CharStats` (`stats.cpp`), `CharSkills` (`skills.cpp`), the sheet's hit points and experience (`entity.cpp`, `entityInfo.cpp`), the party's checks (`party.cpp`) and the training screens (`StatTrain.cpp`, `SkillTrain.cpp`, `WidgetSpellTrain.cpp`). The price functions and tables are the same in 1.0 and the debug build.
 
 ## The records
 
@@ -16,9 +16,7 @@ The tables are read from the code segment for each ROM version; the literals are
 
 ## A character sheet
 
-`Character` is a `CharSheet`: stats, skills, experience, aspect, school, True Name, heavy, protection, damage and a spellbook. `Character.Create` builds one from an entity record (`Entity::Init`), with its experience at its level's threshold, as a joining party member's is. The sheet keeps that record (`Character.Record`) and reads its aspect, school, heavy and sole weapon from it; a loaded sheet (`Character.Restore`, from `CharacterSaves`) takes the record now installed, not the one it was saved under, and its True Name is the save's, or for a save without it the record's or its flag's, read as it loads. Skill levels are held as a row of 24 (`SkillSlots`: the skills, the weapon skills, the shield), which the records, saves and checkpoints split into their three parts. What raising a stat, skill or spell a level costs is `CharacterRules.TrainingCost`, and whether a character can learn a spell, for a scroll and a trainer alike, `Character.CanLearn`. Equipment is in [items](items.md); the effects of spells, potions and worn enchantments on the sheet are in [magic](magic.md).
-
-**Effects** ([magic](magic.md)): a character holds up to 15 spells' effects and seven potions', each with a power, a margin and a timer in the game clock's ticks (`Character.Effects`, `PotionEffects`). Strength and Dexterity potions raise the stat's base by 10, unless the character is dead; Clarity, Charisma and Stealth raise Loremaster, Diplomat and Stealth by 3, which does nothing to a skill the character can't learn; Defence raises protection by 15. Drinking one sets 3 hours of game time. In trek each tick of play runs every timer down by the clock's 72 (`Character.AgeEffects`, `TickGameTime`), not while the pause menu is open nor for a dead character, and a timer already at 0 ends its effect on the next tick, undoing it: 9,000 ticks of play. In combat a round runs them down by 600, 10 seconds of game time.
+`Character` is the original's `CharSheet`: stats, skills, experience, aspect, school, True Name, heavy, protection, damage and a spellbook. `Character.Create` builds one from an entity record (`Entity::Init`), with its experience at its level's threshold, as a joining party member's is. The sheet keeps that record and reads its aspect, school, heavy and sole weapon from it, so a loaded sheet takes the record now installed, not the one it was saved under; its True Name is the save's, or for a save without it the record's or its flag's. Skill levels are held as a row of 24 (`SkillSlots`: the skills, the weapon skills, the shield), which the records, saves and checkpoints split into their three parts. Whether a character can learn a spell, for a scroll and a trainer alike, is `Character.CanLearn`. Equipment is in [items](items.md); the effects of spells, potions and worn enchantments, up to 15 spells' and seven potions', and how they age, are in [magic](magic.md#effects-on-a-character).
 
 **Stats** (`CharacterStats`) are held four ways, as bytes that wrap as the original's do:
 
@@ -29,7 +27,7 @@ The tables are read from the code segment for each ROM version; the literals are
 | Base | `magicMod` | Trained, plus what spells and potions raise the base by. The sheet shows it, and maximum hit points count it. |
 | Modified | `Modded` | Everything: damage, spells, potions and gear. What rules read. |
 
-Base values read capped at the base cap, and modified ones at the cap and at least 0. Some enemies start above the base caps, such as 120 Stamina; they read as 90, but the excess counts in the modified value. Raising a stat tests the cap unsigned, so an amount that would take it below 0 raises it to the cap instead (`CharStats::AddBase`).
+Base values read capped at the base cap, and modified ones at the cap and at least 0. Some enemies start above the base caps, such as 120 Stamina; they read as 90, but the excess counts in the modified value. Raising a stat tests the cap unsigned, so an amount that would take it below 0 raises it to the cap instead (`CharStats::AddBase`). The original also tries to write the party's best stats and skills into flags whenever one changes, and never manages ([flags](flags.md#what-the-engine-writes)).
 
 **Hit points** are Endurance, Stamina and Level together. The maximum is their base values summed, and the current their modified ones, up to the maximum; both are bytes. Damage (`TakeDamage`) takes the Level's points first, then Stamina's, then Endurance's. What skills and spells cost (`DrainStamina`) takes Stamina, then Endurance, but never the Level. Healing restores Endurance, then Stamina, then the Level. So a character can be at full Endurance with no Level points left. Camping heals a fraction of the maximum, truncated, up to what's missing.
 
@@ -112,7 +110,7 @@ Scripts add and take away members (Borg13 ops 47 and 48), and `GameState.AddMemb
 
   The port keeps only those who left (`Party.Kept`), and takes a sheet out when its member rejoins; the mirror changes nothing anyone sees. The importer marks the five (`MemberFlags.Kept`).
 - **A full party is the scripts' business.** Retail ignores whether AddMember worked; the debug build crashes with "Couldn't add %d to the party". 20 of the 29 joining scripts check the party's size, which counts Alaron. The other nine, Gwernia's, are gated so they can't come up with the party full: their map objects need fewer than two of Abrecan, Godric and Rheda (5004). Brenna's need two.
-- **The full party's prompt is a script template.** Eleven cut-scenes share it (Keelin's `0x0382` and `0x0410`, Arturo's `0x0383` and `0x0404`, Becan's `0x039F`, Baird's `0x045E`, Donovan's `0x045F`, Rheda's `0x0518`, Abrecan's `0x0527`, Godric's `0x0529`, Dougal's `0x04EA`), with Niesen's `0x0472` alike.
+- **The full party's prompt is a script template**, which eleven joining cut-scenes share, and Niesen's (`0x0472`) is alike.
   - After "no room", it asks each member in turn (`CheckMember`). One who would leave says why, and a menu offers to leave (a goodbye, RemoveMember, and back to the join) or stay.
   - Brenna and Niesen never leave.
   - Rheda won't until flag 458 (Beat Shamsuk): "I haven't found a cure for Niesen yet". Dougal's script doesn't gate her.
@@ -125,9 +123,3 @@ Scripts add and take away members (Borg13 ops 47 and 48), and `GameState.AddMemb
 - **The died flags** (`Party.SyncMemberFlags`, `0x80074A4C`, the decomp's `Party::CheckDeaths`) are set for each dead member and cleared for each living one, at each party member's death in battle and as a battle ends (`GameState.WriteDeathFlags`). Sholeh's, 622, is also set at her death whatever her side, the combat record's ally ([combat](combat.md#deaths)).
 - **The dead leave the party** as every battle ends, won, lost or fled (`Party.AfterBattle`, `0x80074EE8`; `GameState.BringOutYourDead`): each, in order, has any kept sheet of theirs erased and what they wear put in the inventory, as a member leaving does, and the rest move up. Their joined flag stays set and their left flag clear, so the story still counts them as having joined. The port keeps only the sheets of those who left, so a member in the party has none to erase.
 - **The award** after a battle won is the whole experience pool to each living member (`Character.AddExp`, × 1.5): a dead member gains nothing ([combat](combat.md#a-turn)).
-
-## What's left
-
-Saving and loading a sheet, with the spellbook reordered as the original's loading leaves it, is in [saves](saves.md).
-
-- **Flags for the party's best stats and skills.** The original tries to raise them whenever a stat or skill changes (`Event_flag_stat`, `event_flag_skill_`), but its lookup never finds them, so the port doesn't either (see the [audit](../hardcoded-content.md)).

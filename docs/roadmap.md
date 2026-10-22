@@ -8,7 +8,7 @@ A PC reimplementation of Aidyn Chronicles: The First Mage that runs on content i
 
 **Quest logic is almost entirely data, not code.** The game runs on three data systems: an event-flag logic network (`GameStateFunnel`, [flags](systems/flags.md)), a dialogue and cut-scene bytecode (Borg13, [scripts](systems/scripts.md)), and map objects gated by flags (Borg9, [map-objects](systems/map-objects.md)). So extracting quests is a file-format problem. The code-lifting work is in **combat formulas, AI, and the places where engine code hardcodes content** ([hardcoded-content](hardcoded-content.md)). The game's content is already keyed records in tables and one big asset archive ([rom](formats/rom.md)), which makes a Bethesda-style mod system a natural fit.
 
-These systems are ported from the machine code rather than parsed from data: combat (the debug build's `combatengine/combat.cpp`, `combatEntity.cpp`, `turn.cpp` and `src/gamecombat.cpp`, about 5k lines), its AI (`combatengine/aiInfo.cpp` and `aiscores.cpp`, about 2k), character and party logic (2.2, 2.3), movement and physics (M1), wanderers (M2), and the hardcoded content (1H). The debug build "02.01d-PRERELEASE" names 117 of the original's source files and some functions, which the port uses (0.9).
+These systems are ported from the machine code rather than parsed from data: combat (the debug build's `combatengine/combat.cpp`, `combatEntity.cpp`, `turn.cpp` and `src/gamecombat.cpp`), its AI (`combatengine/aiInfo.cpp` and `aiscores.cpp`), character and party logic (2.2, 2.3), movement and physics (M1), wanderers (M2), and the hardcoded content (1H). The debug build "02.01d-PRERELEASE" names the original's source files and some functions, which the port uses (0.9).
 
 ## Where things stand
 
@@ -16,7 +16,7 @@ This is the one list of what's open. A task's status is in its phase's table bel
 
 ### Next
 
-**M4: the prologue** is done (Oct 22, 2026). The user played it from a new game to leaving Gwernia side by side with the emulator, and what differed is fixed ([playtests](playtests.md)): the opening from the load menu's new game, defeated combatants lingering and fading, the post-battle windows' silence, font and level-up, the HUD after a backdrop, the remembered party member, the world map's regions, the hut's and the cut-scenes' shading and fog, cut-outs' alpha, the camp's journal entry and Alaron's facing in the hut. Next, by the phases' order, is **Phase 4: content parity**, once the user has played the fixes and settled what they left:
+**M4: the prologue** is done: the user played it side by side with the emulator, and what differed is fixed ([playtests](playtests.md)). Next, by the phases' order, is **Phase 4: content parity**, once the user has played the fixes and settled what they left:
 
 1. **The fixes in play,** and their [user checks](user-checks.md): the cut-outs' fuller foliage, the post-battle level-up, a defeat's fade and the load menu's new game.
 2. **The user's choices** from them: whether a new game's save edited in the editor still plays the opening; the rain loop under the post-battle windows hushed or stopped; the console's cracks between meshes reproduced, welded or left; and mipmaps for the textures the ROM gives none.
@@ -24,11 +24,13 @@ This is the one list of what's open. A task's status is in its phase's table bel
 
 ### Left over from finished work
 
-- **M2:** the editor showing cut-scenes on its map, and the HUD in the editor.
-- **2.10:** what else could move onto triggers, each with its event ([events](systems/events.md#what-else-could-move-onto-triggers)): the first spell and potion's help (`spell.learned`, `item.bought`), the new journal entry's notice (`journal.added`), the camp scenes (`camp.started`), the cheat codes, the Shadow's cinematic and the Goblin Ambush's end (`battle.ended` with its outcome), and a conversation's end as `script.ended`. The editor doesn't show the triggers yet, nor the quest atlas what they read and set.
-- **Rendering:** the low-priority items in [rendering](systems/rendering.md#whats-left) (the lens flare's test, the sky overhead, texture filtering).
+- **M2:** the editor showing cut-scenes on its map, and the HUD in the editor; Alaron's requests as he opens a container (11) or a door (19), an explosion's particles and the trek popups' fades ([map-objects](systems/map-objects.md#whats-left)); the original's rescue of a player fallen out of the world (`ConfirmPlayerWithinZone`, [movement](systems/movement.md)); and the quest atlas reading the combat record's boss flags.
+- **1H:** the content literals [still in code](hardcoded-content.md#still-in-code) rather than records (the protagonist's entity, the backdrops' styles, the skill checks' numbers and the like).
+- **Weather:** a Day or Night spell's hold on the part of day doesn't stop the weather's roll under it in a battle ([magic](systems/magic.md#where-the-port-differs)).
+- **2.10:** what else could move onto triggers, each with its event ([events](systems/events.md#what-else-could-move-onto-triggers)): the first spell and potion's help (`spell.learned`, `item.bought`), the new journal entry's notice (`journal.added`), the camp scenes (`camp.started`), the cheat codes (`cheat.entered`), the Shadow's cinematic and the Goblin Ambush's end (`battle.ended` with its outcome), and a conversation's end as `script.ended`. The editor has no view of the triggers of its own, and the quest atlas doesn't show what they read and set.
+- **Rendering:** the items in [rendering](systems/rendering.md#whats-left): the lens flare's test, the sky overhead, texture filtering, environment maps in trek, which scenes are drawn, and the editor's billboards and containers. Translucent scenery over bodies is in [Next](#next).
 - **Rig:** measure the frame `delta` in combat, which can help choose its frame for per-frame behaviour ([ADR 0017](adr/0017-the-core-steps-every-tick.md)); it also sets how long a one-shot request is held and rounds an attack's strike to a frame ([combat](systems/combat.md#an-attack)). Checkpoint 10 suggests 3.
-- **M3:** `Talk`'s collision byte, which turns a used monster party's enemies to face the party when it's used from behind ([combat](systems/combat.md#the-port)); the camp ambush's enemies (`CampEncounters.Load`, with 7), until which a camp ambush says there's no one to fight. From the special battles: the merge's shield test turned round, which the data never reaches; idle bodies far from the camera that combat doesn't animate (`Body.AlwaysAnimated`); and a falling body's root motion, which the original skips. The rest of what M3 left is in [combat](systems/combat.md#not-settled)'s Not settled and the [user checks](user-checks.md#combat): no checkpoint holds the special battles, and none a caster's turn. From the playtest's fixes (Oct 19, 2026): an arrow or thrown weapon leaves the attacker's middle at the strike, not the hand's locator wherever the throw has it, which needs the actor's locators in the core.
+- **M3:** `Talk`'s collision byte, which turns a used monster party's enemies to face the party when it's used from behind ([combat](systems/combat.md#the-port)). From the special battles: the merge's shield test turned round, which the data never reaches; idle bodies far from the camera that combat doesn't animate (`Body.AlwaysAnimated`); a falling body's root motion, which the original skips; the half-alpha shadows of a few entities; combat's frame-counter limit on pausing; and the glide's aim by the original's eye height ([combat](systems/combat.md#where-the-port-differs)). The rest of what M3 left is in [combat](systems/combat.md#not-settled)'s Not settled and the [user checks](user-checks.md#combat): no checkpoint holds the special battles, and none a caster's turn.
 - **What the bodies hold** ([combat](systems/combat.md#what-the-bodies-hold)): an arrow, flask or thrown weapon leaving from the hand's locator (`+0x88`) rather than the body's middle, and not at all from an actor without it, as `Combat.StartCastCamera` does, needs the runtime to tell the core where the locator is; what's held lit at its locator rather than the body's centre; and the user's look at how the hands hold them ([user-checks](user-checks.md#combat)).
 
 ### Maybe
@@ -80,7 +82,7 @@ Each track ends with an exporter to an open format and a viewer in the inspector
 | **1E Quest atlas** | Borg13 decoding with its branching, the flag network, flag cross-references, journal linkage | L | What sets and reads every flag, and which journal entry it maps to (`aidyn flag <n>`, and the editor's Atlas tab) | Done |
 | **1F Text & UI assets** | String tables, the fonts, portraits, menu images | S | The dialogue box renders in the right font | Done |
 | **1G Saves** (optional) | Importing the original's Controller Pak saves | M | An original save imports | Open. The checkpoints already convert into saves (2.8). |
-| **1H Hardcoded content** | Every piece of content in code rather than data, each assigned an [ADR 0008](adr/0008-content-logic-layers.md) layer | M | [hardcoded-content](hardcoded-content.md) | Done Oct 19, 2026: every content table is read or carried (the last, importer 52, were the actors combat always animates, the title screen's fly-throughs and the map sets' spawn points; the position lists add no content) |
+| **1H Hardcoded content** | Every piece of content in code rather than data, each assigned an [ADR 0008](adr/0008-content-logic-layers.md) layer | M | [hardcoded-content](hardcoded-content.md) | Done Oct 19, 2026: every content table is read or carried |
 
 ### Phase 2: Rules core (headless, test-driven)
 
@@ -94,9 +96,9 @@ Where a task names the original's code, the file names are the debug build's.
 | **2.4 Borg13 VM.** Camera and actor cues go out through a host interface, so the core stays headless. | M | `dialogue.cpp` | Done |
 | **2.5 Combat rules.** Turn order, field-of-influence radius, hit, damage and crit, spells (targeting, radius, reagents, battery), status effects, reserve spawns, leader and flee logic, rewards. | **XL** | `combatengine/combat.cpp`, `combatEntity.cpp`, `turn.cpp`, `src/gamecombat.cpp` | Done Oct 19, 2026, with M3 ([combat](systems/combat.md)) |
 | **2.6 Enemy AI.** | L | `combatengine/aiInfo.cpp`, `aiscores.cpp` | Done Oct 19, 2026, with M3 ([combat](systems/combat.md#the-ai)) |
-| **2.7 Time & camping.** See [camping](systems/camping.md). | S | `sundial.cpp`, `menus/campmenucontroller.cpp` | Done Oct 4, 2026; the ambush's enemies with M3's session 7, Oct 18, 2026 |
+| **2.7 Time & camping.** See [camping](systems/camping.md). | S | `sundial.cpp`, `menus/campmenucontroller.cpp` | Done Oct 18, 2026 |
 | **2.8 Save/load** in the engine's own format. See [saves](systems/saves.md). | S | `questdata.cpp`, `saveParty.cpp` | Done Oct 1, 2026 |
-| **2.9 Differential tests.** Capture the random values the emulator consumed (ADR 0006), replay them into the core, and compare damage and turn logs. | L, ongoing | | Started: the checkpoints of one battle replay its setup, turns, a cast and attacks (`BattleCheckpointTests`, `MagicCheckpointTests`, `AttackCheckpointTests`) |
+| **2.9 Differential tests.** Capture the random values the emulator consumed (ADR 0006), replay them into the core, and compare damage and turn logs. | L, ongoing | | Started: the checkpoints of one battle replay its setup, turns, a cast and attacks ([combat](systems/combat.md#the-port)) |
 | **2.10 Events and triggers.** The core's named event list, and trigger records (*on event, if condition, do effects*) in Borg13's condition and effect vocabulary. Engine features that replace bespoke code (ADR 0008 layer 3) land with their system. | M | The 1H audit | Done Oct 19, 2026, with the cinematics' ([events](systems/events.md)); what else could move onto them is [above](#left-over-from-finished-work) |
 
 ### Phase 3: Godot runtime
@@ -107,7 +109,7 @@ A series of vertical slices, each one playable ([runtime](systems/runtime.md)).
 | --- | --- | --- | --- |
 | **M1: Walk Gwernia** | The chunk streamer, terrain, the N64 material, collision, the player, the follow camera, the sky, draw distance | 1A, 1C | Done Sep 29, 2026 |
 | **M2: Talk and trade** | Map objects, wanderers, conversations, shops, the pause menu, the journal, cut-scenes, training, camping, the HUD | 1E, 1F, 2.1–2.4 | Done Oct 4, 2026; leftovers [above](#left-over-from-finished-work) |
-| **M3: Fight** | Arena loading, spawns, the turn UI, radius targeting, spell visuals and particles, the combat log, status icons, post-battle XP and loot screens | 1B, 2.5, 2.6 | Done Oct 19, 2026, in twelve sessions ([combat](systems/combat.md#the-port)); leftovers [above](#left-over-from-finished-work) |
+| **M3: Fight** | Arena loading, spawns, the turn UI, radius targeting, spell visuals and particles, the combat log, status icons, post-battle XP and loot screens | 1B, 2.5, 2.6 | Done Oct 19, 2026 ([combat](systems/combat.md#the-port)); leftovers [above](#left-over-from-finished-work) |
 | **M4: The prologue** | From the opening through leaving Gwernia, end to end | Everything above | Done Oct 22, 2026, after the user's side-by-side playthrough ([playtests](playtests.md)); what it left is [above](#next) |
 | **M5: Full playthrough parity** | Every region, every quest and the ending, checked against the quest atlas | Phase 4 | |
 
@@ -118,49 +120,24 @@ Mostly testing rather than engineering (XL).
 - Walk every region against the emulator and log differences.
 - Use the quest atlas as a checklist: every flag reachable, every journal entry obtainable.
 - Rules parity: shops, trainers, loot tables and camp encounters for each area.
-- Decide which of the original's bugs to keep or fix, one at a time and with no toggle ([ADR 0018](adr/0018-the-port-fixes-bugs-and-sets-enhancements.md)), such as the `CheckPartyGoldU16` truncation, the crash when `TakeItem` runs on an item the party doesn't have, and the status-icon cycle gap (settled Oct 19, 2026: the original's by default, each character's as a setting).
+- Decide which of the original's bugs to keep or fix, one at a time and with no toggle ([ADR 0018](adr/0018-the-port-fixes-bugs-and-sets-enhancements.md)), such as the `CheckPartyGoldU16` truncation and the crash when `TakeItem` runs on an item the party doesn't have. (The spell auras' turn cycle is settled: the original's by default, each character's as the `SpellAuras` setting.)
 
 ### Phase 5: Mod system and tools
 
 The base game is a plugin, so the mod format is exercised all the time; Phase 5 exposes it and builds tooling on top.
 
-| Task | Size |
-| --- | --- |
-| Plugin loader: load order, dependencies, field-level merge, conflict report | M |
-| Flag and ID allocation for mod namespaces | S |
-| Asset overrides (glTF, PNG, OGG) and new assets | M |
-| Scripting: a Borg13 superset for dialogue and cut-scenes, plus sandboxed Lua event handlers on the 2.10 events (ADR 0008). Mods can't load .NET assemblies. | L |
-| **Editor.** Grow the inspector into a Construction Set: record editing, dialogue graph editing, map object placement, and a quest atlas that includes mod content | XL |
-| Documentation and a sample mod (a new trainer, a new quest and a rebalanced spell) | M |
+| Task | Size | Status |
+| --- | --- | --- |
+| Plugin loader: load order, dependencies, field-level merge, conflict report | M | Done: `PluginSet`, `aidyn conflicts`, `aidyn schema` |
+| Flag and ID allocation for mod namespaces | S | |
+| Asset overrides (glTF, PNG, OGG) and new assets | M | |
+| Scripting: a Borg13 superset for dialogue and cut-scenes, plus sandboxed Lua event handlers on the 2.10 events (ADR 0008). Mods can't load .NET assemblies. | L | |
+| **Editor.** Grow the inspector into a Construction Set: record editing, dialogue graph editing, map object placement, and a quest atlas that includes mod content | XL | |
+| Documentation and a sample mod (a new trainer, a new quest and a rebalanced spell) | M | |
 
 ### Phase 6: Enhancements (optional, post-parity)
 
 Widescreen, higher resolution, higher frame rate, longer draw distance, rebindable controls, and quality-of-life options such as visible stealth feedback, each a setting on the options menu ([ADR 0018](adr/0018-the-port-fixes-bugs-and-sets-enhancements.md)). Some came early and are the default: the floating conversation box and a UI screen of any shape. Their faithful mode, with its overscan bars, is left for here ([ui](systems/ui.md#a-faithful-mode-later)).
-
-## Dependency graph
-
-```mermaid
-graph LR
-  P01[0.1 Reference rig] --> P29[2.9 Diff tests]
-  P01 --> R[0.7–0.14 Reading the code]
-  P02[0.2 ROM ID] --> P03[0.3 Borg reader]
-  P02 --> P04[0.4 DB readers]
-  P05[0.5 ADRs] --> P04
-  P03 --> A[1A Static gfx] & B[1B Animation] & C[1C Maps] & D[1D Audio] & E[1E Quest atlas] & F[1F Text/UI]
-  P04 --> E
-  P04 --> CORE[Phase 2 core]
-  E --> H[1H Hardcode audit]
-  A --> B
-  A & C --> M1[M1 Walk]
-  E & F & CORE --> M2[M2 Talk]
-  R --> P25[2.5 Combat] --> P26[2.6 AI]
-  B & P25 & P26 --> M3[M3 Fight]
-  M1 & M2 & M3 --> M4[M4 Prologue]
-  H --> M4
-  M4 --> P4[Phase 4 parity] --> M5[M5 Full game]
-  P05 --> P5[Phase 5 mod tools]
-  M5 --> P5
-```
 
 ## Risk register
 

@@ -1,8 +1,6 @@
 # The flag engine (roadmap 2.1)
 
-`Aidyn.Core.Flags`. The flag table's format and what reads and sets each flag are in [quests](../formats/quests.md).
-
-Ported from `ProcessGameStates` and the getters and setters in `gamestatelib.cpp` and `gameStateFunnel.cpp`, from 1.0's machine code.
+`Aidyn.Core.Flags`: `FlagNetwork` (every flag's value and the derived flags' evaluation) and `StateFlags` (what the engine writes into flags). The flag table's format and what reads and sets each flag are in [quests](../formats/quests.md). They port the original's `ProcessGameStates` and the getters and setters in `gamestatelib.cpp` and `gameStateFunnel.cpp`, from 1.0's machine code.
 
 ## The records
 
@@ -18,7 +16,7 @@ The importer writes three record types:
 
 - **Reading.** Flag 0 always reads clear and flag 1 set. Reading a derived flag while anything has changed brings the network up to date first. Reading a plain flag doesn't. So the new journal entry flag, which the network sets, can lag until something reads a derived flag, as in the original. A map object's write is followed by such a read, so it brings the network up to date at once (`TrySetAndProcess`, [map objects](map-objects.md#map-objects-write-flags)).
 - **Writing.** Only plain flags from 2 up can be set. Writes to 0, 1 and derived flags do nothing, as `setEventFlag` refuses them.
-- **Unknown flags.** The rules read and write flags by record through `IsSet`, `Holds` (a map object's gate) and `TrySet`: a flag no loaded plugin has reads clear and its writes are ignored, since a mod can remove a flag another plugin's records still name, which the base game's never do. `Get(RecordId)` and `Set(RecordId)` throw instead, for tests.
+- **Unknown flags.** The rules read and write flags by record through `IsSet`, `Holds` (a map object's gate) and `TrySet`: a flag no loaded plugin has reads clear and its writes are ignored, since a mod can remove a flag another plugin's records still name, which the base game's never do. `Get(RecordId)` and `Set(RecordId, bool)` throw instead, for where an unknown flag is a mistake, as in tests.
 - **Bringing it up to date.** Derived flags are evaluated in order, each one seeing those before it already updated. If any changed, it starts again from the first. 13 inputs name a later derived flag, so the order matters.
 - **Formulas.** The inputs are read as bits, the first the lowest, or counted. Logic flags test all (AND), any (OR), exactly one (EOR), none (NOT), or the bits equal to the operand (MSK). Value and count flags compare with the operand by =, >, < or ≠. A kind with the other kind's operation reads as clear, since the original reports it as an error. No base flag does that, and none has an unused input (0xFFFF) or more than 9 inputs.
 - **The journal.** When a flag that names a journal entry turns on, the new journal entry flag is set, and the entry becomes the one the journal opens at (`newestJournal`). The port also lists the entry in `JournalOrder`, the order the journal shows them in and a save keeps ([saves](saves.md#the-format)); one whose flag clears keeps its place.
@@ -40,12 +38,9 @@ The importer writes three record types:
 | 2321–2324 | The terrain type of the player's chunk | On entering a chunk of another terrain |
 
 - **The terrain has four flags for 28 types**, so types from 16 wrap round.
-- **The party's best stats and skills are never written.** Flags 2325–2369 are laid out for the party's best Intelligence, Willpower, Endurance, Dexterity, Strength, Mechanic, Diplomat, Loremaster and Wizard, and derived flags 5287–5346 compare them with thresholds. But `Event_flag_stat` and `event_flag_skill_` look the stat up in their table with a count of 0, so the lookup always fails and they return. None of these flags is set in any checkpoint. So in the original, the secret teleporter in EhudUnder M05 (needing Mechanic above 5) and three dialogue objects in EhudUnder G03 (needing Loremaster above 4 or 5) never work. The port keeps that.
-- **Spells that turn day to night** freeze the part of the day in the original (`DayNightMagic`). They aren't ported yet (`PartOfDay` goes by the hour alone).
+- **The party's best stats and skills are never written.** Flags 2325–2369 are laid out for the party's best Intelligence, Willpower, Endurance, Dexterity, Strength, Mechanic, Diplomat, Loremaster and Wizard, and derived flags 5287–5346 compare them with thresholds. But `Event_flag_stat` and `event_flag_skill_`, which the original calls whenever a stat or skill changes, look the stat up in their table with a count of 0, so the lookup always fails and they return. None of these flags is set in any checkpoint. So in the original, the secret teleporter in EhudUnder M05 (needing Mechanic above 5) and three dialogue objects in EhudUnder G03 (needing Loremaster above 4 or 5) never work. The port keeps that.
+- **Darkness and Light** hold the part of the day in a battle, the original's lock at `World+5` ([weather](weather.md)). The port's hold is the battle's (`Battle.PartOfDay`, [magic](magic.md#where-the-port-differs)), and flags 2301–2303 go by the clock's hour alone. No checkpoint has the lock up.
 
 ## Checked against the checkpoints
 
-`AresCheckpoint` (`Aidyn.Rom.Rig`) reads the flags out of an ares state (see the [reference rig](../reference-rig.md)). Tests check all eight checkpoints, from 1.0 and the debug ROM:
-
-- Restoring a checkpoint's plain flags reproduces every one of its 626 derived flags.
-- The calendar, rain and terrain flags equal what `StateFlags` writes from the state's clock, rain and terrain, and the state's own part of the day and moon phase agree with them.
+`AresCheckpoint` (`Aidyn.Rom.Rig`) reads the flags out of an ares state ([reference rig](../reference-rig.md)). Over the eight story checkpoints, from 1.0 and the debug ROM, restoring the plain flags reproduces every derived flag, and the calendar, rain and terrain flags equal what `StateFlags` writes from the state's clock, rain and terrain.
