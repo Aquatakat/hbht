@@ -421,7 +421,7 @@ public sealed partial class PartyMenu
 }
 
 /// <summary>
-/// What the Party tab may do in a battle's pause (<c>PauseMenu.CombatMember</c>, <c>0x800DE9F0</c>): whose turn it is, and what the
+/// What the Party tab may do in a battle's pause (<c>PauseMenu.Member</c>, <c>0x800DE9F0</c>): whose turn it is, and what the
 /// battle does as a flask is taken in hand or the weapon changes.
 /// </summary>
 /// <param name="Member">The member whose turn it is, the only one who may change anything; null on an enemy's turn.</param>

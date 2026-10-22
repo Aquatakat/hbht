@@ -642,15 +642,16 @@ public sealed class TrekLoop : IMapObjectHost
 
     /// <summary>
     /// Loads the map set's chunks and their wanderers again where the player stands, as trek starts again
-    /// after a cut-scene, a backdrop or the help menu (<c>initGameTrek</c>): every map object is gated by
-    /// the flags as they are now, and the wanderers start at their home nodes. The weather drawn carries on
-    /// (<see cref="Free"/>).
+    /// after a cut-scene, a battle, a backdrop or the help menu (<c>initGameTrek</c>): every map object is gated by
+    /// the flags as they are now, the wanderers start at their home nodes, and the HUD starts again, the portraits
+    /// coming up and the minimap growing (<see cref="TrekHud.Start"/>). The weather drawn carries on (<see cref="Free"/>).
     /// </summary>
     public void Rebuild()
     {
         Free();
         Chunks.Update(Player.Sphere.Position);
         ResetBreadcrumbs();
+        Hud.Start();
     }
 
     /// <summary>
@@ -699,7 +700,6 @@ public sealed class TrekLoop : IMapObjectHost
         Zone.RequestMusic(Chunks.ChunkAt(at));
         Camera.AimAt(at);
         Camera.Snap = 1;
-        Hud.Start();
         CutSceneFade.In(CutSceneFadePerTick);
         _resumed = true;
     }

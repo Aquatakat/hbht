@@ -58,8 +58,9 @@ public sealed class PostBattleMenu : IPartyWindow
 
     /// <summary>The post-battle window on the party, after the battle that gave <paramref name="spoils"/>.</summary>
     /// <param name="random">The stream skill checks draw from; a fresh one if none.</param>
-    public static PostBattleMenu For(PluginSet plugins, Party party, BattleSpoils spoils, IRandom? random = null) =>
-        new(PartyMenu.From(plugins, party, random: random), spoils);
+    /// <param name="member">The member it opens on, the one the menu last showed (<see cref="PauseMenu.Member"/>).</param>
+    public static PostBattleMenu For(PluginSet plugins, Party party, BattleSpoils spoils, IRandom? random = null, int member = 0) =>
+        new(PartyMenu.From(plugins, party, member, random), spoils);
 
     /// <summary>The award's multiplier the line shows the pool times (<c>Entity::AddExp</c>'s 1.5).</summary>
     private static float Award(PartyMenu party) => party.Shown?.Rules.Progression.ExpAward ?? 1.5f;

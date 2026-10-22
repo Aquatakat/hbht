@@ -57,8 +57,9 @@ public sealed class TrainingMenu : IPartyWindow
     /// <summary>The training window on the party, at a trainer (<c>init_skill_trainer</c>).</summary>
     /// <param name="flags">The flags the first spell learnt sets.</param>
     /// <param name="random">The stream skill checks draw from; a fresh one if none.</param>
-    public static TrainingMenu For(PluginSet plugins, Party party, Trainer trainer, FlagNetwork? flags, IRandom? random = null) =>
-        new(PartyMenu.From(plugins, party, random: random), trainer, flags);
+    /// <param name="member">The member it opens on, the one the menu last showed (<see cref="PauseMenu.Member"/>).</param>
+    public static TrainingMenu For(PluginSet plugins, Party party, Trainer trainer, FlagNetwork? flags, IRandom? random = null, int member = 0) =>
+        new(PartyMenu.From(plugins, party, member, random), trainer, flags);
 
     /// <summary>The header and the member's lists.</summary>
     public PartyMenu Party { get; }

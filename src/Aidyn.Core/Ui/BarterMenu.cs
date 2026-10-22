@@ -85,16 +85,18 @@ public sealed class BarterMenu : IPartyWindow
     /// </summary>
     /// <param name="flags">The flags the first potion taken sets.</param>
     /// <param name="random">The stream skill checks draw from; a fresh one if none.</param>
-    public static BarterMenu ForLoot(PluginSet plugins, Party party, ItemPile loot, int gold, FlagNetwork? flags, IRandom? random = null) =>
-        new(PartyMenu.From(plugins, party, random: random), LootWindow.Showing(loot, gold, party, party.Inventory.Catalog, flags), null, flags);
+    /// <param name="member">The member the header shows, the one the menu last showed (<see cref="PauseMenu.Member"/>).</param>
+    public static BarterMenu ForLoot(PluginSet plugins, Party party, ItemPile loot, int gold, FlagNetwork? flags, IRandom? random = null, int member = 0) =>
+        new(PartyMenu.From(plugins, party, member, random), LootWindow.Showing(loot, gold, party, party.Inventory.Catalog, flags), null, flags);
 
     /// <summary>
     /// A shop's window (<c>InitShop</c>, <c>build_loot_menu</c> with a shopkeeper), on the shop as
     /// <see cref="Items.Shop.Open"/> opened it, which set the barter factor.
     /// </summary>
     /// <param name="random">The stream skill checks draw from; a fresh one if none.</param>
-    public static BarterMenu ForShop(PluginSet plugins, Shop shop, IRandom? random = null) =>
-        new(PartyMenu.From(plugins, shop.Party, random: random), null, shop, shop.Flags);
+    /// <param name="member">The member the header shows, the one the menu last showed (<see cref="PauseMenu.Member"/>).</param>
+    public static BarterMenu ForShop(PluginSet plugins, Shop shop, IRandom? random = null, int member = 0) =>
+        new(PartyMenu.From(plugins, shop.Party, member, random), null, shop, shop.Flags);
 
     /// <summary>The header and the party's inventory list.</summary>
     public PartyMenu Party { get; }

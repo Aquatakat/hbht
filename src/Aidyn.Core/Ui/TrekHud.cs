@@ -49,8 +49,10 @@ public sealed class TrekHud
     }
 
     /// <summary>
-    /// Trek starts, or starts again after a cut-scene (<c>initGameTrek</c>): the portraits come up, and the sun and moon
-    /// show if the player's under an outdoor sky.
+    /// Trek starts, or starts again after a cut-scene, a battle, a backdrop or the help menu (<c>InitGameTrek</c>,
+    /// <c>0x80020f40</c> in 1.0, which sets the portraits' flag and calls <c>toggle_show_minimap</c> with 1): the portraits
+    /// come up, the minimap grows, and the sun and moon show if the player's under an outdoor sky. Nothing else raises
+    /// them but B: standing still doesn't.
     /// </summary>
     public void Start()
     {
