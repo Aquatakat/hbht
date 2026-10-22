@@ -14,6 +14,14 @@ public static class SceneGltf
     private const int Nearest = 9728, Linear = 9729;
     private const int Repeat = 10497, ClampToEdge = 33071, MirroredRepeat = 33648;
 
+    /// <summary>
+    /// The texel alpha a cut-out draws from (a <c>MASK</c> material's <c>alphaCutoff</c>). The N64 cuts by coverage, with no
+    /// alpha compare (<c>G_RM_AA_ZB_TEX_EDGE2</c>, <c>0x113078</c>: <c>CVG_X_ALPHA</c> and <c>ALPHA_CVG_SEL</c>): a pixel's
+    /// coverage of eight is multiplied by the filtered texel alpha, and the pixel is drawn while any of it is left, so from
+    /// alpha 32 of 255, an eighth (see docs/systems/rendering.md).
+    /// </summary>
+    public const float CutOutAlpha = 0.125f;
+
     /// <param name="read">Reads a Borg by archive index.</param>
     /// <param name="index">The scene's archive index, recorded in the file.</param>
     /// <param name="animations">Borg6s of this scene, by archive index, to include as glTF animations.</param>
@@ -287,7 +295,7 @@ public static class SceneGltf
             if (texture is { } bound)
                 material["extras"]![ExtrasKeys.Borg1] = scene.Textures[bound];
             if (alphaMode == "MASK")
-                material["alphaCutoff"] = 0.5f;
+                material["alphaCutoff"] = CutOutAlpha;
             if (mesh.Flags.HasFlag(Borg2MaterialFlags.Unlit))
             {
                 gltf.UseExtension("KHR_materials_unlit");

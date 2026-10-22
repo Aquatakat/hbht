@@ -198,6 +198,21 @@ public class SceneTests
     }
 
     /// <summary>
+    /// Cut-outs are cut where coverage × texel alpha leaves nothing, from an eighth (<c>G_RM_AA_ZB_TEX_EDGE2</c>), not at half:
+    /// the Overworld K08's tree wall (CI8 0xF7B) wraps T at its foot, where the filter takes in its transparent top row, and cut
+    /// at half it showed the sky in a sliver along the path.
+    /// </summary>
+    [Fact]
+    public void CutOutsAreCutFromAnEighthOfAlpha()
+    {
+        var archive = BorgArchive.Open(TestRoms.Get(RomVersionId.Na10));
+        var wall = Json(archive, 0x1037).GetProperty("materials").EnumerateArray()
+            .Single(m => m.GetProperty("extras").TryGetProperty("borg1", out var b) && b.GetInt32() == 0xF7B);
+        Assert.Equal("MASK", wall.GetProperty("alphaMode").GetString());
+        Assert.Equal(0.125f, wall.GetProperty("alphaCutoff").GetSingle());
+    }
+
+    /// <summary>
     /// What a body holds hangs from a node under each locator's, turned by the locator model's rotation (<c>SceneGetLocatorMtx</c>:
     /// <c>guRotateRPYF</c> of the Borg2's rotation, X, Y and Z in that order, with no swap): Alaron's shield arm, locator 2, is turned
     /// by (2.36, 0.36, −3.11) radians, which puts the shield's face outward on his forearm.
