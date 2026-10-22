@@ -89,6 +89,16 @@ public sealed class SkyDirector
     /// </summary>
     public bool CutScene { get; set; }
 
+    /// <summary>Trek's clip planes, which battles keep (<c>Scene.SetClipPlanes</c>, <c>0x8009e234</c>, from <c>RenderZones</c>).</summary>
+    public const float TrekNear = 1, TrekFar = 180;
+
+    /// <summary>
+    /// The clip planes the zone engine draws the frame with, which the scenery's and bodies' fog is measured against:
+    /// <c>RenderZones</c> (<c>0x8000d574</c>) gives the frame's camera 0.1 and 125 in a cut-scene's mode (<c>Game.Mode</c>
+    /// 0xC) and 1 and 180 in any other. So a cut-scene's fog from 996 starts about 21 units out, where trek's is about 105.
+    /// </summary>
+    public (float Near, float Far) Planes => CutScene ? (Scripts.CutScene.Near, Scripts.CutScene.Far) : (TrekNear, TrekFar);
+
     /// <summary>How thick the weather's fog is, 0 to 1 (<c>fogTime</c>), as the weather has it.</summary>
     public float FogTime => Weather.FogTime;
 

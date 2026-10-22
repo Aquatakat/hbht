@@ -247,8 +247,11 @@ public sealed class SkyDirectorTests : IDisposable
         sky.Step();
         Assert.NotEqual(colors, sky.Colors);
 
-        // A cut-scene's scenery fog ignores the weather's; under a sky that isn't drawn, the sun is black; a cast dims it.
+        // A cut-scene's scenery fog ignores the weather's, and is measured against its planes; under a sky that isn't drawn,
+        // the sun is black; a cast dims it.
+        Assert.Equal((1f, 180f), sky.Planes);
         sky.CutScene = true;
+        Assert.Equal((0.1f, 125f), sky.Planes);
         sky.Enter(Cave);
         sky.Dim = 0.5f;
         sky.Apply();
