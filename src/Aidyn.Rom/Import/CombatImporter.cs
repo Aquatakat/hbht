@@ -21,6 +21,13 @@ internal static class CombatImporter
     }
 
     /// <summary>
+    /// The way Alaron faces in Oriana's hut after the Goblin Ambush, toward her: <c>Combat.Exit</c> (<c>0x80023060</c>) writes (1, 0)
+    /// into trek's kept facing (<c>Zones.SavedPosition</c>'s at <c>0x800D9078</c>), which <c>InitGameTrek</c> copies into the body's
+    /// own field (<c>+0x20</c>, <c>0x80020f40</c>), the original's reversed facing, so he faces (−1, 0).
+    /// </summary>
+    private static readonly System.Numerics.Vector2 OrianasHutHeading = new(-1, 0);
+
+    /// <summary>
     /// The combat record. The code names entities by their place in the entity list (<see cref="EngineTables.EntityList"/>),
     /// read from the ROM; the places, and the encounter flags' table, are carried as facts, checked in 1.0's code: Sholeh
     /// is 0xA4 (<c>Combat.FindSholeh</c>), the Skeleton 0xBB (<c>BattleSetup.FillEnemies</c>), the Shadow 0xAC, with whom the party can
@@ -64,7 +71,7 @@ internal static class CombatImporter
             [
                 new(DbRecordIds.Flag(978), NonLethal: true, QuietVictory: true, Speaker: At(AlaronPlace),
                     End: new EncounterEnd(DbRecordIds.Flag(47), new ChunkRef(RecordId.Decimal(RecordTypes.MapSet, 6), 5, 3),
-                        new System.Numerics.Vector3(5.9f, 0.5f, 3f), new System.Numerics.Vector2(1, 0), At(AlaronPlace), RestoresStrength: true),
+                        new System.Numerics.Vector3(5.9f, 0.5f, 3f), OrianasHutHeading, At(AlaronPlace), RestoresStrength: true),
                     HealsLeader: true, KeelOver: new KeelOver(At(AlaronPlace), KeelOverHits)),
             ],
             GameOver: new GameOverScene(RecordId.Hex(RecordTypes.Map, GameOverMap), RecordId.Hex(RecordTypes.Dialogue, tables.GameOverScript)),

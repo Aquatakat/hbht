@@ -254,7 +254,7 @@ public sealed class Container(ContainerObject record)
         Gold = 0;
         Loot = null;
         if (Record.Exploded is { } exploded)
-            flags.TrySet(exploded, true);
+            flags.TrySetAndProcess(exploded, true);
         return Containers.TrapDamage(party, level, random);
     }
 
@@ -266,9 +266,9 @@ public sealed class Container(ContainerObject record)
     public (ItemPile Items, int Gold) Open(FlagNetwork flags, ItemCatalog items, Func<RecordId, LootRecord> loot, IRandom random)
     {
         if (Record.Opened is { } opened)
-            flags.TrySet(opened, true);
+            flags.TrySetAndProcess(opened, true);
         if (Record.Used is { } used)
-            flags.TrySet(used.Flag, !used.Clear);
+            flags.TrySetAndProcess(used.Flag, !used.Clear);
         return Contents(items, loot, random);
     }
 
@@ -297,7 +297,7 @@ public sealed class Container(ContainerObject record)
     public ItemPile Harvest(float share, FlagNetwork flags, ItemCatalog items)
     {
         if (Record.Used is { } used)
-            flags.TrySet(used.Flag, !used.Clear);
+            flags.TrySetAndProcess(used.Flag, !used.Clear);
         return Reagent(share, items);
     }
 

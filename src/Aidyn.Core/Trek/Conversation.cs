@@ -90,7 +90,7 @@ public sealed class Conversation
         body.Face(-toBody);
         player.Face(toBody);
         if (party.Used is { } used)
-            game.Flags.TrySet(used.Flag, true);
+            game.Flags.TrySetAndProcess(used.Flag, true);
         return conversation;
     }
 

@@ -48,7 +48,7 @@ Every flag below that engine code names carries its label on the flag record, wh
 | Minimap pieces chosen by flags: the Ehud underground (4222–4232), the Roog entrance (4233–4237) and the Barrows (4286–4294). Which Barrows piece each flag shows is code. | `minimap_dats_2`, `MiniMap::BarrowsFlags` | 1: the minimap records' rules | ROM, the Barrows' as facts |
 | The Theatre menu lists a cinematic once its title's flag is set | `TheatreMenu.cpp` | 1: DB | ROM (DB block) |
 | Key item flags restore the key items when a save loads | `LoadKeyItems` | 1: item record | ROM |
-| Flag 5626, read after some map object actions; the result is never used | `objectJumpTables.cpp` | None | Fact |
+| Flag 5626, read after every map object's flag write; the result is never used, but the read brings the flags up to date, which the port does directly (`FlagNetwork.TrySetAndProcess`, [map objects](systems/map-objects.md#map-objects-write-flags)) | `objectJumpTables.cpp` | None | Fact |
 
 ## Scripts and cinematics the engine starts
 

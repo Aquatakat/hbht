@@ -1,3 +1,4 @@
+using System.Numerics;
 using Aidyn.Core;
 using Aidyn.Core.Events;
 using Aidyn.Core.Scripts;
@@ -175,6 +176,11 @@ public sealed partial class GameSessionTests
         host.Transitions.Clear();
         session.EndCutScene();
         Assert.Equal([typeof(Transition.EndCutScene), typeof(Transition.ResumeTrek)], host.Transitions.Select(t => t.GetType()));
+        // Back in the hut, Alaron faces Oriana (her monster party, object 6), as the place kept has him.
+        var map = trek.Chunks.MapAt(trek.Player.Sphere.Position)!;
+        var oriana = map.Origin + map.Record.Objects.OfType<MonsterPartyObject>().Single(o => o.Index == 6).Position;
+        var toOriana = Vector2.Normalize(new Vector2(oriana.X - trek.Player.Sphere.Position.X, oriana.Z - trek.Player.Sphere.Position.Z));
+        Assert.True(Vector2.Dot(toOriana, trek.Player.Heading) > 0.95f, $"he faces {trek.Player.Heading}, she's {toOriana} from him");
     }
 
     [Fact]
