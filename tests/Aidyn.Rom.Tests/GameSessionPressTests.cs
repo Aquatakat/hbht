@@ -71,6 +71,57 @@ public sealed partial class GameSessionTests
     }
 
     [Fact]
+    public void ThePortraitsComeUpAndTheMinimapGrowsAsTrekIsBuiltAgainAfterABackdropOrACutSceneButNotASign()
+    {
+        var (session, _) = Start("G14", 40, 40);
+        var trek = session.Trek;
+        var hud = trek.Hud;
+        Tick(session);
+        Assert.True(hud.Portraits.Shown && hud.Minimap.Large);
+
+        // The stick lowers them; standing still after doesn't raise them.
+        void Lower()
+        {
+            session.Tick(SessionSettings.Original, () => new Core.Trek.PlayerInput(new System.Numerics.Vector2(0, 0.3f)), false, _ => null);
+            for (var i = 0; i < 10; i++)
+                Tick(session);
+            Assert.False(hud.Portraits.Shown || hud.Minimap.Large);
+        }
+        Lower();
+
+        // A sign shows in the box over trek, which stays: they stay down.
+        var sign = Data.Set.All<DialogueRecord>(RecordTypes.Dialogue).First(d => d.Mode == DialogueMode.Sign
+            && Data.Of<DialogueObject>().Any(o => o.Object.Script == d.Id));
+        trek.ShowBackdrop(sign);
+        for (var i = 0; i < 20 && trek.Conversation is not null; i++)
+            session.Press(MenuAction.Accept);
+        Assert.Null(trek.Conversation);
+        Assert.False(hud.Portraits.Shown || hud.Minimap.Large);
+
+        // A backdrop, here the help menu, leaves trek and comes back through InitGameTrek: they come up.
+        session.MenuClosed(PauseExit.Help);
+        for (var i = 0; i < 10 && trek.Conversation is not null; i++)
+            session.Press(MenuAction.Back);
+        Assert.Null(trek.Conversation);
+        Assert.True(hud.Portraits.Shown && hud.Minimap.Large);
+        for (var i = 0; i < 120 && session.Mode != GameMode.Trek; i++)
+            Tick(session);
+        Lower();
+
+        // So does a cut-scene's end.
+        var ambush = Data.Set.Get<DialogueRecord>(RecordId.Parse("aidyn:dialogue/0x0365"));
+        var (_, map, dialogue) = Data.Of<DialogueObject>().First(d => d.Object.Script == ambush.Id && d.Object.Stage is not null);
+        session.Cue(ambush, new ScriptStart(dialogue.RefPointBase, MapRecord.VoxelId(map.Id, dialogue.Index)), dialogue.Stage!);
+        for (var i = 0; i < 200 && Tick(session) != SessionStep.CutSceneCued; i++)
+        {
+        }
+        session.BeginCutScene();
+        Tick(session);
+        session.EndCutScene();
+        Assert.True(hud.Portraits.Shown && hud.Minimap.Large);
+    }
+
+    [Fact]
     public void TheHelpMenusPageTakesAAndBAndFadesOutOnceItsScriptEnds()
     {
         var (session, host) = Start("G14", 40, 40);
@@ -342,6 +393,49 @@ public sealed partial class GameSessionTests
         for (var tick = 0; tick < 20; tick++)
             Tick(session);
         Assert.Equal(cursor, items.Cursor);
+    }
+
+    [Fact]
+    public void TheMenuRemembersTheMemberLastShownInEveryPartyWindowButStartsTheListAfresh()
+    {
+        var (session, _) = Start("G14", 40, 40);
+        var game = session.Game;
+        Assert.True(game.AddMember(RecordId.Hex(RecordTypes.Entity, 0x0240)));
+        Tick(session);
+        var menu = session.Menu;
+        Assert.Equal(0, menu.Member);
+
+        // C-left on the Party tab shows Brenna; the menu opens on her again, on the inventory's top row.
+        session.OpenMenu(PauseTab.Party);
+        for (var i = 0; i < 60 && !menu.Taking; i++)
+            Tick(session);
+        Assert.Equal(PressOutcome.Taken, session.Press(MenuAction.MemberLeft));
+        Assert.Equal(1, menu.Member);
+        for (var i = 0; i < 30; i++)
+            Tick(session);
+        session.Press(MenuAction.Down);
+        menu.CloseNow();
+        Assert.Equal(SessionStep.MenuClosed, Tick(session));
+        Assert.Equal(1, menu.Member);
+        session.OpenMenu();
+        Assert.Equal((PauseTab.Party, 1, PartyList.Inventory, 0),
+            (menu.Tab, menu.Party.Member, menu.Party.List, menu.Party.Inventory.Cursor));
+        menu.CloseNow();
+        Tick(session);
+
+        // The loot window opens on her too, and keeps her.
+        session.OpenLoot(new ItemPile(game.Party.Inventory.Catalog), gold: 0);
+        Assert.Equal(1, menu.Window.Menu.Member);
+        menu.CloseNow();
+        Tick(session);
+        Assert.Equal(1, menu.Member);
+
+        // Should she leave, it steps back to Alaron's slot, and keeps that.
+        game.Party.Remove(RecordId.Hex(RecordTypes.Entity, 0x0240));
+        session.OpenMenu(PauseTab.Party);
+        Assert.Equal((0, 0), (menu.Party.Member, menu.Member));
+        menu.CloseNow();
+        Tick(session);
     }
 
     [Fact]

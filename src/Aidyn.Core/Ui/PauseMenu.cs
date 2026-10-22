@@ -26,8 +26,8 @@ namespace Aidyn.Core.Ui;
 /// <para>
 /// Z or L, and R, change the tab, which slides over 32 frames, as the original's moves 10 pixels a frame across its 320, with
 /// the scroll; presses wait while it slides. There's no wrap. The System tab can be left only from its list, as the original's
-/// can. Each opening starts the tabs afresh: the first member, the inventory, the top row. The original remembers only which tab
-/// was open (<c>gGlobals.pauseMenuSection</c>, <see cref="Remembered"/>).
+/// can. Each opening starts the tabs afresh, on the inventory's top row, but remembers which tab was open
+/// (<c>gGlobals.pauseMenuSection</c>, <see cref="Remembered"/>) and the member last shown (<see cref="Member"/>).
 /// </para>
 /// </remarks>
 public sealed class PauseMenu
@@ -101,6 +101,18 @@ public sealed class PauseMenu
     /// <summary>The tab the menu last showed, which a default opening goes back to (<c>gGlobals.pauseMenuSection</c>).</summary>
     public PauseTab Remembered { get; private set; } = PauseTab.System;
 
+    /// <summary>
+    /// The party slot of the member every Party window opens on, the Party tab, barter, training and the post-battle windows alike
+    /// (<c>PauseMenu.Member</c>, <c>0x800DE9F0</c> in 1.0, a byte <c>DollMenu::InitMenu</c> builds them on): the one last shown, as
+    /// C-left and C-right change it in any of them (<c>PartyMenu.ChangeMember</c>, <c>0x8003054C</c>), or the member whose turn a
+    /// battle paused on (<c>Combat.StatePause</c>, <c>0x800226D0</c>). An empty slot steps back to the one before with a member, which
+    /// is kept (<c>0x80030128</c>). Nothing else sets it, so it outlasts trek and combat, and it isn't saved. The original's
+    /// outlasts a save loaded too; the port's goes with the session, which loading builds again, as <see cref="Remembered"/> does.
+    /// </summary>
+    public int Member => IsOpen ? Window.Menu.Member : _member;
+
+    private int _member;
+
     /// <summary>The scroll's opening and closing, the world's tint and where the tabs are cut.</summary>
     public PauseScroll Scroll { get; private set; } = new(0);
 
@@ -168,7 +180,7 @@ public sealed class PauseMenu
     {
         _combat = null;
         Open(PauseTab.Party, tabsLocked: true, brightens: false);
-        Window = BarterMenu.ForLoot(_game.Plugins, _game.Party, loot, gold, _game.Flags, _game.Random.World);
+        Window = BarterMenu.ForLoot(_game.Plugins, _game.Party, loot, gold, _game.Flags, _game.Random.World, Member);
         if (gold > 0)
             Coins();
     }
@@ -178,7 +190,7 @@ public sealed class PauseMenu
     {
         _combat = null;
         Open(PauseTab.Party, tabsLocked: true, brightens: false);
-        Window = BarterMenu.ForShop(_game.Plugins, shop, _game.Random.World);
+        Window = BarterMenu.ForShop(_game.Plugins, shop, _game.Random.World, Member);
     }
 
     /// <summary>Opens the menu in its training state at a trainer (<c>init_skill_trainer</c>). Training acts on the game.</summary>
@@ -186,7 +198,7 @@ public sealed class PauseMenu
     {
         _combat = null;
         Open(PauseTab.Party, tabsLocked: true);
-        Window = TrainingMenu.For(_game.Plugins, _game.Party, trainer, _game.Flags, _game.Random.World);
+        Window = TrainingMenu.For(_game.Plugins, _game.Party, trainer, _game.Flags, _game.Random.World, Member);
     }
 
     /// <summary>
@@ -202,7 +214,7 @@ public sealed class PauseMenu
         _spoils = spoils;
         _swap = 0;
         _windowAlpha = 255;
-        Window = PostBattleMenu.For(_game.Plugins, _game.Party, spoils, _game.Random.World);
+        Window = PostBattleMenu.For(_game.Plugins, _game.Party, spoils, _game.Random.World, Member);
         if (spoils.Levelled.Count > 0)
             _host.Cue(new MenuSoundCue(new OneShot(_game.Sounds.Menu.LevelUp, OneShot.LongTicks, OneShot.MenuTicks, TimesSoundVolume: true)));
     }
@@ -218,9 +230,12 @@ public sealed class PauseMenu
         _swap = 0;
         _windowAlpha = 255;
         // Skill checks and potions in trek draw from the world's stream.
-        // In a battle's pause the tab opens on the member whose turn it is (PauseMenu.CombatMember, 0x800DE9F0).
-        var member = rules?.Member is { } current ? Math.Max(0, _game.Party.Slots.ToList().IndexOf(current)) : 0;
-        var party = Party = PartyMenu.From(_game.Plugins, _game.Party, member, random: _game.Random.World);
+        // The tab opens on the member last shown, or in a battle's pause the member whose turn it is (Combat.StatePause).
+        if (rules?.Member is { } current && _game.Party.Slots.ToList().IndexOf(current) is >= 0 and var slot)
+            _member = slot;
+        var party = Party = PartyMenu.From(_game.Plugins, _game.Party, _member, random: _game.Random.World);
+        // An empty slot steps back to a member's, which is kept (DollMenu::InitMenu).
+        _member = party.Member;
         party.Combat = rules;
         Window = party;
         System = new SystemMenu(_game.Plugins, _settings, _game.Party, _savesFolder, isSet: _game.Flags.Get, combat: _combat?.CanFlee);
@@ -324,7 +339,7 @@ public sealed class PauseMenu
             _windowAlpha -= WindowFadeStep;
             if (_windowAlpha <= WindowFadeStep)
             {
-                Window = BarterMenu.ForLoot(_game.Plugins, _game.Party, _spoils!.Loot, _spoils.Gold, _game.Flags, _game.Random.World);
+                Window = BarterMenu.ForLoot(_game.Plugins, _game.Party, _spoils!.Loot, _spoils.Gold, _game.Flags, _game.Random.World, Member);
                 if (_spoils.Gold > 0)
                     Coins();
                 _windowAlpha = WindowFadeStep;
@@ -393,6 +408,8 @@ public sealed class PauseMenu
         IsOpen = false;
         if (!TabsLocked && _combat is null)
             Remembered = Tab;
+        // Every Party window keeps the member it last showed, a battle's pause and barter too.
+        _member = Window.Menu.Member;
         _spoils = null;
         _swap = 0;
         _windowAlpha = 255;
