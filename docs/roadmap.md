@@ -1,6 +1,6 @@
 # Aidyn Chronicles Reimplementation: Roadmap
 
-Sep 26, 2026 · Updated Oct 19, 2026
+Sep 26, 2026 · Updated Oct 22, 2026
 
 ## Summary
 
@@ -16,15 +16,16 @@ This is the one list of what's open. A task's status is in its phase's table bel
 
 ### Next
 
-Next, by the phases' order, is **M4: the prologue**, from the opening through leaving Gwernia, end to end. 2.10's events and triggers are done, with the opening, Roog's and the ending's cinematics on them ([events](systems/events.md)), and the user's first playthrough's story flow is fixed: the hand-overs into the cut-scenes after the opening and the Goblin Ambush, and the camp south of the castle. What's left:
+**M4: the prologue** is done (Oct 22, 2026). The user played it from a new game to leaving Gwernia side by side with the emulator, and what differed is fixed ([playtests](playtests.md)): the opening from the load menu's new game, defeated combatants lingering and fading, the post-battle windows' silence, font and level-up, the HUD after a backdrop, the remembered party member, the world map's regions, the hut's and the cut-scenes' shading and fog, cut-outs' alpha, the camp's journal entry and Alaron's facing in the hut. Next, by the phases' order, is **Phase 4: content parity**, once the user has played the fixes and settled what they left:
 
-1. **A playthrough of the prologue** against the emulator, the user playing the original alongside: the opening, Gwernia, the Goblin Ambush and Oriana's hut, and the way out, logging what differs, as M3's battles were.
-2. Whatever that turns up in the leftovers below that the prologue reaches.
+1. **The fixes in play,** and their [user checks](user-checks.md): the cut-outs' fuller foliage, the post-battle level-up, a defeat's fade and the load menu's new game.
+2. **The user's choices** from them: whether a new game's save edited in the editor still plays the opening; the rain loop under the post-battle windows hushed or stopped; the console's cracks between meshes reproduced, welded or left; and mipmaps for the textures the ROM gives none.
+3. **What they left:** which cut-scene the user saw end without the minimap growing, as the core grows it after every one ([ui](systems/ui.md)); the remembered member and tab carried across a load, as the original keeps the member; translucent scenery drawn after bodies, which tints the dress's hem in the misty sea's cut-scene ([rendering](systems/rendering.md#whats-left)); and a cut-scene's view 10–13% wider than the original's, the emulator's crop or the camera's field of view.
 
 ### Left over from finished work
 
 - **M2:** the editor showing cut-scenes on its map, and the HUD in the editor.
-- **2.10:** what else could move onto triggers, each with its event ([events](systems/events.md#what-else-could-move-onto-triggers)): the first spell and potion's help (`spell.learned`, `item.bought`), the new journal entry's notice (`journal.added`), the camp scenes (`camp.started`), the cheat codes, the Shadow's cinematic and the Goblin Ambush's end (`battle.ended` with its outcome), the world map's regions (`chunk.entered`), and a conversation's end as `script.ended`. The editor doesn't show the triggers yet, nor the quest atlas what they read and set.
+- **2.10:** what else could move onto triggers, each with its event ([events](systems/events.md#what-else-could-move-onto-triggers)): the first spell and potion's help (`spell.learned`, `item.bought`), the new journal entry's notice (`journal.added`), the camp scenes (`camp.started`), the cheat codes, the Shadow's cinematic and the Goblin Ambush's end (`battle.ended` with its outcome), and a conversation's end as `script.ended`. The editor doesn't show the triggers yet, nor the quest atlas what they read and set.
 - **Rendering:** the low-priority items in [rendering](systems/rendering.md#whats-left) (the lens flare's test, the sky overhead, texture filtering).
 - **Rig:** measure the frame `delta` in combat, which can help choose its frame for per-frame behaviour ([ADR 0017](adr/0017-the-core-steps-every-tick.md)); it also sets how long a one-shot request is held and rounds an attack's strike to a frame ([combat](systems/combat.md#an-attack)). Checkpoint 10 suggests 3.
 - **M3:** `Talk`'s collision byte, which turns a used monster party's enemies to face the party when it's used from behind ([combat](systems/combat.md#the-port)); the camp ambush's enemies (`CampEncounters.Load`, with 7), until which a camp ambush says there's no one to fight. From the special battles: the merge's shield test turned round, which the data never reaches; idle bodies far from the camera that combat doesn't animate (`Body.AlwaysAnimated`); and a falling body's root motion, which the original skips. The rest of what M3 left is in [combat](systems/combat.md#not-settled)'s Not settled and the [user checks](user-checks.md#combat): no checkpoint holds the special battles, and none a caster's turn. From the playtest's fixes (Oct 19, 2026): an arrow or thrown weapon leaves the attacker's middle at the strike, not the hand's locator wherever the throw has it, which needs the actor's locators in the core.
@@ -107,7 +108,7 @@ A series of vertical slices, each one playable ([runtime](systems/runtime.md)).
 | **M1: Walk Gwernia** | The chunk streamer, terrain, the N64 material, collision, the player, the follow camera, the sky, draw distance | 1A, 1C | Done Sep 29, 2026 |
 | **M2: Talk and trade** | Map objects, wanderers, conversations, shops, the pause menu, the journal, cut-scenes, training, camping, the HUD | 1E, 1F, 2.1–2.4 | Done Oct 4, 2026; leftovers [above](#left-over-from-finished-work) |
 | **M3: Fight** | Arena loading, spawns, the turn UI, radius targeting, spell visuals and particles, the combat log, status icons, post-battle XP and loot screens | 1B, 2.5, 2.6 | Done Oct 19, 2026, in twelve sessions ([combat](systems/combat.md#the-port)); leftovers [above](#left-over-from-finished-work) |
-| **M4: The prologue** | From the opening through leaving Gwernia, end to end | Everything above | Next ([above](#next)) |
+| **M4: The prologue** | From the opening through leaving Gwernia, end to end | Everything above | Done Oct 22, 2026, after the user's side-by-side playthrough ([playtests](playtests.md)); what it left is [above](#next) |
 | **M5: Full playthrough parity** | Every region, every quest and the ending, checked against the quest atlas | Phase 4 | |
 
 ### Phase 4: Content parity
