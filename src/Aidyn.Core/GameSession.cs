@@ -118,6 +118,12 @@ public sealed class GameSession
     /// <summary>How the battle playing ended, as its last step said (<see cref="BattleStep.Ended"/>).</summary>
     private BattleOutcome _battleEnd;
     private Triggers? _triggers;
+    /// <summary>
+    /// Whether the zone engine was last started for trek (<c>Zones.Mode</c> 0, <c>0x800d90a6</c>, which only <c>InitZoneEngine</c>
+    /// writes), so a cut-scene's stage loading now finds its world map region (<see cref="ZoneEngine.EnterRegion"/>): not after a
+    /// battle's arena (1) or the title's scenery (2), as the opening's stage follows.
+    /// </summary>
+    private bool _trekZones = true;
     /// <summary>The pause menu reopening once trek has faded in, on the Theatre's page or as it was (trek's state 8), if it's to.</summary>
     private Transition.ReopenMenu? _reopen;
     /// <summary>The settings the session plays by: the last tick's, or those it started with (<see cref="Apply"/>).</summary>
@@ -502,6 +508,7 @@ public sealed class GameSession
             _reopen = null;
             Send(reopen);
         }
+        _trekZones = true;
         var trek = Trek.Tick(readInput, frozen);
         if (trek is TrekStep.Ran or TrekStep.Frozen)
             Sky.Step();
@@ -569,6 +576,8 @@ public sealed class GameSession
         zone.Precipitation?.Density = PrecipitationDensity;
         zone.RequestMusic(stage.Chunk);
         zone.Chunks.Update(stage.Origin + new Vector3(stage.Set.CellSize / 2, 0, stage.Set.CellSize / 2));
+        if (_trekZones)
+            zone.EnterRegion(stage.Chunk);
         var scene = Scene = new CutScene(Game, script, start, stage, _host);
         zone.Camera = scene.Camera;
         scene.Start();
@@ -685,6 +694,7 @@ public sealed class GameSession
         }
         _lastArena = number;
         var zone = Arena = Zone.Stage(arena.Set);
+        _trekZones = false;
         zone.Precipitation?.Density = PrecipitationDensity;
         zone.RequestMusic(arena.Chunk);
         zone.Chunks.Update(arena.Origin + Combat.Battle.ZonePoint);
@@ -991,7 +1001,12 @@ public sealed class GameSession
     /// <see cref="GameEvents.GameStarted"/> go off, the base plugin's playing the opening cinematic. False if none takes
     /// over, and trek simply starts.
     /// </summary>
-    public bool StartNewGame() => Fire(GameEvents.GameStarted, null);
+    public bool StartNewGame()
+    {
+        // The opening plays from the title, whose scenery left the zone engine's mode at 2.
+        _trekZones = false;
+        return Fire(GameEvents.GameStarted, null);
+    }
 
     /// <summary>
     /// Fires an event on the triggers (<see cref="Triggers.Fire"/>), their sounds to the host, and carries out an effect that takes over from trek.

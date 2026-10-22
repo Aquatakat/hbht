@@ -21,7 +21,7 @@ Every flag below that engine code names carries its label on the flag record, wh
 | --- | --- | --- | --- |
 | Party members' joined, left and died flags | `Party::CheckFlags` | 1: member record | ROM |
 | Key items: each gets an inventory slot, a "has" flag, and sometimes a world map region flag | `PartyInventory.cpp` | 1: item record | ROM |
-| World map regions: entering an overworld chunk sets its region's flag | `set_map_event_flag` | 1: chunk field | ROM |
+| World map regions: entering a chunk sets its region's flag, outdoors in a map set with no minimap | `set_map_event_flag` (`ZoneEngine.EnterRegion`, `0x8004960c`) | 1: the chunk's `region` | ROM |
 | Boss flags: winning a battle with a boss in its first four enemy slots | `Combat.SetKillFlags` (`set_boss_flag`) | 1: the combat record's `bosses` | Fact, by entity list place (jump table `0x800D2B60`) |
 | Cinematic done flags (3, 569, 590, 601) | `Cinematic::EndCase` | 1: cinematic record | ROM |
 | The encounter flag of the Goblin Ambush and Lugash scripts' battles | `dialoug_func` | 1: script field | ROM |
@@ -271,7 +271,7 @@ An audit of the core and runtime for content literals the sections above don't c
 
 - **Code tables refer to entities by list position, not ID.** A 221-byte `entityList` in the code maps each position to an entity. The party tables use these positions, and so does the boss switch, which is a jump table over positions 168–186.
 - **Map 13's region flag is on Cradawgh's Body.** Gaining Map 13 reveals nothing.
-- **Two world map entries can't apply.** They name overworld chunks G18 and R29, which don't exist.
+- **Two world map entries can't apply.** They name overworld chunks G18 and R29, which don't exist. The table names chunks by row and column alone, with no map set, so Ugarit's M06, outdoors, sets region 1 (788) too, which the party has had since the game's first chunk.
 - **Most map items are never given.** Only Map 2 (in a container) and Map 7 (sold by shop 17, STTA05 in Talewok) have sources. No script, container, monster party, loot table or shop gives Map 5; its region flag (791) is set on entering Talewok's chunks, which shows the same piece of the world map. The Skull Key and the Map to the Goblin Lair have no source either; they're possibly cut content. The Blood Key is the only key item given as a monster party's direct loot.
 - **Talking monster parties fight under flag C.** When a talking party's dialogue starts a battle, the battle's encounter flag is the party's flag C, and winning sets it. Most such parties have C equal to B. One names derived flag 5264, so the write does nothing.
 - **Script battles don't set their flag on a win.** Only monster-party battles set the encounter flag on a win. The Goblin Ambush's flag, 978, is set when the party *loses*, and every special rule of that fight keys on it.
