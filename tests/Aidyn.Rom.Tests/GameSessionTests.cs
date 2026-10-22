@@ -567,7 +567,8 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         Assert.NotNull(game.Memory.Find(new Memory(id, MemoryKind.Beaten)));
         Assert.Equal((day + 1) * Core.Calendar.GameClock.Day + 6 * Core.Calendar.GameClock.Hour, game.Clock.Time);
 
-        // Its end: flag 47, Alaron healed, and trek in Oriana's hut, MiscInteriors E03, facing +x.
+        // Its end: flag 47, Alaron healed, and trek in Oriana's hut, MiscInteriors E03, facing her, −x: Combat.Exit's (1, 0) is the
+        // original's reversed facing (0x80023060, copied into the body's +0x20 by InitGameTrek).
         session.EndBattle();
         Assert.True(game.Flags.IsSet(RecordId.Decimal(RecordTypes.Flag, 47)));
         var alaron = game.Party.Slots[0]!;
@@ -576,7 +577,7 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         Assert.Equal(RecordId.Decimal(RecordTypes.MapSet, 6), trek.Chunks.MapSet.Id);
         var hut = trek.Chunks.MapSet.Chunks.Single(c => c.Row == 5 && c.Column == 3);
         Assert.Equal(trek.Chunks.Origin(hut) + new Vector3(5.9f, 0.5f, 3f), trek.Player.Sphere.Position);
-        Assert.Equal(new Vector2(1, 0), trek.Player.Heading);
+        Assert.Equal(new Vector2(-1, 0), trek.Player.Heading);
         Assert.Equal(GameMode.Trek, session.Mode);
     }
 
