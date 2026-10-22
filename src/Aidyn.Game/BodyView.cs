@@ -162,14 +162,14 @@ public abstract partial class BodyView : Node3D
 
     /// <summary>
     /// Fades the body by its distance from the camera's aim (<c>PlayerShadowAlpha</c>), over trek's distance or
-    /// <paramref name="distance"/>, hiding it when <paramref name="hidden"/>, and by <paramref name="opacity"/> as it goes. Returns its
-    /// alpha before that, and its distance from the aim.
+    /// <paramref name="distance"/>, capped at its own alpha, <paramref name="bodyAlpha"/> (<c>+0x70C</c>), and hiding it when
+    /// <paramref name="hidden"/>. Returns that alpha, and its distance from the aim.
     /// </summary>
-    protected (byte Alpha, float FromAim) Fade(System.Numerics.Vector3 aim, bool hidden = false, float distance = BodyShadow.TrekDistance, float opacity = 1)
+    protected (byte Alpha, float FromAim) Fade(System.Numerics.Vector3 aim, bool hidden = false, float distance = BodyShadow.TrekDistance, byte bodyAlpha = 0xFF)
     {
         var fromAim = System.Numerics.Vector3.Distance(aim, Body.Sphere.Position);
-        var alpha = BodyShadow.BodyAlpha(distance, fromAim) ?? 0;
-        var shown = hidden ? (byte)0 : (byte)(alpha * opacity);
+        var alpha = BodyShadow.BodyAlpha(distance, fromAim, bodyAlpha) ?? 0;
+        var shown = hidden ? (byte)0 : alpha;
         _model?.Show(shown);
         foreach (var held in _held)
             held?.Level.Show(shown);

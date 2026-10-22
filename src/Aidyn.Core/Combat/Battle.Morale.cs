@@ -19,8 +19,11 @@ public sealed partial class Battle
     /// <summary>How near a flee point it walks straight there when it has no path (<c>EnemyAI.FleeStep</c>, <c>0x800D2480</c>).</summary>
     private const float FleePointReach = 2.25f;
 
-    /// <summary>The ticks a fled body takes to fade from the field (<c>Body.FadeOut</c>'s <c>0x78</c>).</summary>
-    public const int FadeTicks = 120;
+    /// <summary>
+    /// The ticks a freed body, dead or fled, takes to fade from the field (<c>Body.FadeOut</c>'s <c>0x78</c>), and the last of them it
+    /// fades over (<c>ProcessPlayers</c>' 60.0 at <c>0x800CDB2C</c>): it's drawn whole for the first 60.
+    /// </summary>
+    public const int FadeTicks = 120, FadeShownTicks = 60;
 
     /// <summary>The leader's slot (<c>+0x10</c>): its combatant now, which a reserve may have taken.</summary>
     public int LeaderSlot { get; private set; } = -1;
@@ -204,7 +207,6 @@ public sealed partial class Battle
         c.Flags |= CombatantFlags.Gone;
         var (all, party, enemies) = ActiveCounts;
         ActiveCounts = c.Hostile ? (all - 1, party, enemies - 1) : (all - 1, party - 1, enemies);
-        c.Fading = FadeTicks;
         FreeBody(c, fled: true);
     }
 
