@@ -84,8 +84,9 @@ public static class BasePlugin
     /// 54 gives the combat record who can't be attacked or cast at (<c>untargetable</c>), apart from who lets the party flee.
     /// 55 turns Alaron toward Oriana where the Goblin Ambush's end leaves him: the original's kept facing is its reversed one.
     /// 56 gives each chunk the world map region flag entering it sets (<c>region</c>).
+    /// 57 cuts cut-outs out from an eighth of texel alpha, as the N64's coverage does (<c>alphaCutoff</c> 0.125 for 0.5).
     /// </summary>
-    public const int ImporterVersion = 56;
+    public const int ImporterVersion = 57;
 
     /// <summary>
     /// What's wrong with the imported base plugin under <paramref name="pluginsDirectory"/>, worded for the player, or null if
