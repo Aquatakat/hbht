@@ -46,6 +46,7 @@ Things only the user can settle, by playing the original in the emulator, by lis
 
 - **Wrapped pitches:** music 0x05DD and 0x05DE, and sounds such as 0x0759 and 0x075F, have notes above 65,535 Hz that the original keeps in 16 bits, so they'd play far too low. The port does the same. Listen for a low growl or rumble against `aidyn audio`'s render. [audio](formats/audio.md#the-event-stream)
 - **The sound volume at half:** by the code, the menu's sounds take the sound volume twice and the containers' three times. At half sound volume, are they a quarter as loud? The port plays them so. [audio](systems/audio.md#volumes)
+- **The post-battle windows in the runtime**, after a battle won in the forest that gains Alaron a level (as in the prologue): are the training and loot windows silent but for the menu's own sounds, and does the level-up jingle (0x05E8) play about a second after the scroll starts unrolling, as in the original? The runtime had streamed trek's chunks back in under the windows, playing the forest's sounds there; it no longer does. Whether those sounds alone drowned the jingle out, or something else kept it from playing, isn't settled, as the core plays it in the tests. In the rain, the rain should be silent under the windows too. [ui](systems/ui.md#after-a-battle)
 
 ## Rendering
 

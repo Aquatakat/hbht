@@ -58,6 +58,11 @@ public sealed class PauseMenu
     private int _swap;
     /// <summary>How opaque the window's lists and parts are as they swap, 0 to 255, by 60 a frame.</summary>
     private int _windowAlpha = 255;
+    /// <summary>
+    /// The sounds the window plays as the original builds it, once the world has darkened (<c>PauseMenu.Open</c> from
+    /// <c>PauseMenu.Frame</c>): the loot window's coins and the post-battle window's level-up.
+    /// </summary>
+    private readonly List<OneShot> _onBuilt = [];
 
     /// <param name="game">The game the menu shows and acts on.</param>
     /// <param name="settings">The player's settings, which the Options page changes.</param>
@@ -162,7 +167,8 @@ public sealed class PauseMenu
 
     /// <summary>
     /// Opens the menu in its barter state on loot (<c>build_loot_menu</c>), whose gold the party already has. Taking and dropping act
-    /// on the game; the pile is lost once it closes. The coins sound a second after the window opens.
+    /// on the game; the pile is lost once it closes. The coins sound a second after the window is built
+    /// (<c>BarterMenu.BarterMenu</c>, <c>0x8003CB68</c>), once the world has darkened.
     /// </summary>
     public void OpenLoot(ItemPile loot, int gold)
     {
@@ -170,7 +176,7 @@ public sealed class PauseMenu
         Open(PauseTab.Party, tabsLocked: true, brightens: false);
         Window = BarterMenu.ForLoot(_game.Plugins, _game.Party, loot, gold, _game.Flags, _game.Random.World);
         if (gold > 0)
-            Coins();
+            _onBuilt.Add(CoinsSound);
     }
 
     /// <summary>Opens the menu in its barter state on a shop (<c>InitShop</c>), which <see cref="Shop.Open"/> has opened on the game's party.</summary>
@@ -191,7 +197,8 @@ public sealed class PauseMenu
 
     /// <summary>
     /// Opens the post-battle windows over the black the battle left (game mode 6): the Party scroll unrolls on the post-battle window
-    /// (pause state 5, <see cref="PostBattleMenu"/>), and the level-up sound plays as it's built if anyone gained a level. B or Start
+    /// (pause state 5, <see cref="PostBattleMenu"/>), and the level-up sound plays a second after it's built, once the world has
+    /// darkened, if anyone gained a level (<c>PartyMenu.ListsCreate</c>, <c>0x80030C50</c>). B or Start
     /// fades its lists out and the loot window in on the same scroll (state 6, <see cref="BarterMenu.ForLoot"/>, the gold already
     /// given), whose close rolls the scroll up and snaps the world bright again.
     /// </summary>
@@ -204,7 +211,7 @@ public sealed class PauseMenu
         _windowAlpha = 255;
         Window = PostBattleMenu.For(_game.Plugins, _game.Party, spoils, _game.Random.World);
         if (spoils.Levelled.Count > 0)
-            _host.Cue(new MenuSoundCue(new OneShot(_game.Sounds.Menu.LevelUp, OneShot.LongTicks, OneShot.MenuTicks, TimesSoundVolume: true)));
+            _onBuilt.Add(new OneShot(_game.Sounds.Menu.LevelUp, OneShot.LongTicks, OneShot.MenuTicks, TimesSoundVolume: true));
     }
 
     /// <param name="brightens">Whether the world brightens again as it closes; the loot window and shops snap back.</param>
@@ -217,6 +224,7 @@ public sealed class PauseMenu
         _spoils = null;
         _swap = 0;
         _windowAlpha = 255;
+        _onBuilt.Clear();
         // Skill checks and potions in trek draw from the world's stream.
         // In a battle's pause the tab opens on the member whose turn it is (PauseMenu.CombatMember, 0x800DE9F0).
         var member = rules?.Member is { } current ? Math.Max(0, _game.Party.Slots.ToList().IndexOf(current)) : 0;
@@ -234,11 +242,8 @@ public sealed class PauseMenu
         IsOpen = true;
     }
 
-    /// <summary>The coins, a second after a window opens on gold, at the sound volume as their gain.</summary>
-    private void Coins()
-    {
-        _host.Cue(new MenuSoundCue(new OneShot(_game.Sounds.GoldGained, OneShot.LongTicks, OneShot.MenuTicks, TimesSoundVolume: true)));
-    }
+    /// <summary>The coins, a second after a window is built on gold, at the sound volume as their gain.</summary>
+    private OneShot CoinsSound => new(_game.Sounds.GoldGained, OneShot.LongTicks, OneShot.MenuTicks, TimesSoundVolume: true);
 
     /// <summary>A menu sound (<c>Audio.PlaySound</c> at gain 1), for so many ticks.</summary>
     private void Sound(Func<MenuSounds, RecordId> pick, int ticks)
@@ -307,7 +312,12 @@ public sealed class PauseMenu
         if (Scroll.StepsScroll)
             _host.Cue(new ScrollPlayCue(cue));
         if (wasDarkening && Scroll.ShowsMenu)
+        {
             SlideSound(opening: true);
+            foreach (var sound in _onBuilt)
+                _host.Cue(new MenuSoundCue(sound));
+            _onBuilt.Clear();
+        }
         if (Scroll.Phase == PauseScrollPhase.Closed)
             CloseNow();
     }
@@ -326,7 +336,7 @@ public sealed class PauseMenu
             {
                 Window = BarterMenu.ForLoot(_game.Plugins, _game.Party, _spoils!.Loot, _spoils.Gold, _game.Flags, _game.Random.World);
                 if (_spoils.Gold > 0)
-                    Coins();
+                    _host.Cue(new MenuSoundCue(CoinsSound));
                 _windowAlpha = WindowFadeStep;
                 _swap = 2;
             }

@@ -708,8 +708,9 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
             : Scene is not null ? Scene.Camera.Aim.ToGodot()
             : Battle is not null ? Battle.Camera.Aim.ToGodot()
             : _player.GlobalPosition;
-        // A cut-scene's and an arena's 3×3 stay as they loaded.
-        if (Scene is null && Battle is null)
+        // A cut-scene's and an arena's 3×3 stay as they loaded, and trek's world, which went with a battle, isn't built again
+        // under the post-battle windows.
+        if (_session?.StreamsTrek ?? true)
             chunks.Chunks.Update(focus.ToNumerics());
         chunks.Fade(View(), _drawDistance);
         // From where the scenery is drawn this frame: between ticks, the camera interpolated.

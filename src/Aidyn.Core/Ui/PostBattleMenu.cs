@@ -37,7 +37,10 @@ public sealed class PostBattleMenu : IPartyWindow
     /// <summary>Where line 491 starts, and the width it wraps to (from x 20 to 150).</summary>
     public static readonly (int X, int Y, int Wrap) EarnedPlace = (20, 92, 130);
 
-    /// <summary>Where the level lines start across, and how wide they wrap (to x 155); the first is 4 under line 491's bottom.</summary>
+    /// <summary>
+    /// Where the level lines start across, and how wide they wrap (to x 155); the first is 4 under line 491's bottom as the main
+    /// font wraps it, as the original measures it while the main font is set, though every line here is drawn in the slim one.
+    /// </summary>
     public static readonly (int X, int Wrap, int Gap) LevelPlace = (20, 135, 4);
 
     /// <summary>The cost lines' places: "XP Cost" and "XP Remaining", 11 apart (<c>PartyMenu.CostLines</c>, <c>0x800317E0</c>).</summary>

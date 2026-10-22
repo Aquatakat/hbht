@@ -102,6 +102,32 @@ public class GameAudioTests
     }
 
     [Fact]
+    public void TheRainLoopHushedPlaysOnUnheardUntilTheWeatherStepsItAgain()
+    {
+        var audio = Audio();
+        var sounds = new SoundsRecord(RecordId.Decimal(RecordTypes.Sounds, 0), new MenuSounds(Other, Other, Other, Other, Other, Other, Other, Other, Other, Other),
+            [], Other, Other, Other, [], [], Tune, [Other, Other, Other, Other], Other, Other, []);
+        var rain = new WeatherSounds(audio, sounds);
+        var weather = new Core.Calendar.Weather(WeatherTests.Rules);
+        weather.Force(Core.Calendar.WeatherKind.Precipitation, Core.Calendar.Precipitation.Rain, 0.5f);
+        weather.Draw(skyDrawn: true);
+        rain.Step(weather);
+        Loudness(audio);
+        Assert.True(Loudness(audio) > 0);
+
+        // The post-battle windows: silent, the loop still playing.
+        rain.Hush();
+        Loudness(audio);
+        Assert.Equal(0, Loudness(audio));
+        Assert.True(rain.RainPlaying);
+
+        // Trek's next tick brings it back where it was, not started over.
+        rain.Step(weather);
+        Loudness(audio);
+        Assert.True(Loudness(audio) > 0);
+    }
+
+    [Fact]
     public void OnlySixteenOneShotsPlayAtOnce()
     {
         var audio = Audio();

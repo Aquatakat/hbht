@@ -69,4 +69,12 @@ public sealed class WeatherSounds(GameAudio audio, SoundsRecord sounds)
         audio.Stop(_rain);
         _rain = default;
     }
+
+    /// <summary>
+    /// Silences the rain loop without stopping it, until the next <see cref="Step"/> sets its volume again: under the post-battle
+    /// windows, which the original's are silent through, as <c>Combat.Exit</c>'s <c>FreeZoneEngine</c> stops the loop
+    /// (<c>Weather.Free</c>, <c>0x8001e030</c>). The port carries the loop through trek's rebuilds (docs/systems/weather.md), so it
+    /// plays on, unheard, and trek's next tick brings it back where it was.
+    /// </summary>
+    public void Hush() => audio.Set(_rain, 0, Centre);
 }
