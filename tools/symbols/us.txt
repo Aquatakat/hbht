@@ -1479,6 +1479,8 @@ FollowCamera.EaseToward = 0x800a6688; // coined; a -= (a - b) / rate on each axi
 FollowCamera.Approach = 0x800a66d8; // FollowCamera.Approach
 FollowCamera.Anchor = 0x800a67d4; // coined; the orbit's fixed point: (p.x, p.y + Height, p.z)
 FollowCamera.StepInterior = 0x800a69d8; // FollowCamera.Interior.cs: Camera::Mode1 with its ten numbers and two flags (combat passes its own)
+FollowCamera.Step = 0x800a6e64; // FollowCamera.cs: Camera::Mode0, the outdoor follow
+FollowCamera.Orbiting = 0x800a72bc; // FollowCamera.cs: the R orbit, which Mode0 and Mode1 both call (the decomp's FUN_800b0fac)
 Camera.SetMode = 0x800a7664; // coined; camera.cpp: the mode at +0x46, the last at +0x44; ProcessVoxelCamera sets 2, which does nothing
 FollowCamera.Frame = 0x800a77b4; // FollowCamera.cs
 Particle.Reset = 0x800a7a90; // Particle.cs

@@ -61,7 +61,7 @@ public sealed class MapObjectImportTests(Na10Import fixture)
         }
         Assert.Empty(failures);
 
-        // GetVoxelFromObjectLink follows links until it reaches the type it wants, up to 51 steps.
+        // GetVoxelObjectFromLink follows links until it reaches the type it wants, up to 51 steps.
         MapObject? Follow(RecordId voxel, Func<MapObject, bool> wanted)
         {
             var current = objects[voxel];

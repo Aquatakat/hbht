@@ -10,10 +10,10 @@ namespace Aidyn.Rom.Import;
 /// </summary>
 /// <remarks>
 /// The families of records each have an importer, which builds them from what an <see cref="ImportContext"/>
-/// reads of the ROM and writes them through it: <see cref="WorldImporter"/>, <see cref="FlagImporter"/>,
-/// <see cref="CharacterImporter"/>, <see cref="ItemImporter"/>, <see cref="TextImporter"/>,
-/// <see cref="DialogueImporter"/>, <see cref="CinematicImporter"/>, <see cref="MapImporter"/>,
-/// <see cref="GraphicsImporter"/> and <see cref="AudioImporter"/>.
+/// reads of the ROM and writes them through it: <see cref="WorldImporter"/>, <see cref="CombatImporter"/>,
+/// <see cref="MagicImporter"/>, <see cref="FlagImporter"/>, <see cref="CharacterImporter"/>, <see cref="ItemImporter"/>,
+/// <see cref="TextImporter"/>, <see cref="DialogueImporter"/>, <see cref="CinematicImporter"/>,
+/// <see cref="TriggerImporter"/>, <see cref="MapImporter"/>, <see cref="GraphicsImporter"/> and <see cref="AudioImporter"/>.
 /// </remarks>
 public static class BaseImporter
 {

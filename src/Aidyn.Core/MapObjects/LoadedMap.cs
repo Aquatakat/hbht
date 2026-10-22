@@ -44,7 +44,7 @@ public sealed class Teleporter(TeleporterObject record)
 /// </summary>
 public sealed class LoadedMap
 {
-    /// <summary>How far <see cref="Linked"/> follows links, as <c>GetVoxelFromObjectLink</c> does.</summary>
+    /// <summary>How far <see cref="Linked"/> follows links, as <c>GetVoxelObjectFromLink</c> does.</summary>
     public const int MaxLinks = 51;
 
     private readonly Dictionary<int, MapObject> _objects;
@@ -119,7 +119,7 @@ public sealed class LoadedMap
 
     /// <summary>
     /// The object of type <typeparamref name="T"/> an object works with, following links from object to
-    /// object (<c>GetVoxelFromObjectLink</c>, checked in 1.0's code): a container's model, or the actor a
+    /// object (<c>GetVoxelObjectFromLink</c>, checked in 1.0's code): a container's model, or the actor a
     /// trigger animates. An object with no link is its own. Null where the chain ends elsewhere, which the
     /// original crashes on.
     /// </summary>

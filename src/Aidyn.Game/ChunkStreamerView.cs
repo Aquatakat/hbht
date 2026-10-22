@@ -166,16 +166,6 @@ public partial class ChunkStreamerView : Node3D
         }
     }
 
-    /// <summary>
-    /// Gates the loaded chunks' scene objects again by the flags (<see cref="ChunkStreamer.Regate"/>),
-    /// and builds again each chunk whose objects came or went.
-    /// </summary>
-    public void Regate()
-    {
-        foreach (var map in Chunks.Regate())
-            Rebuild(map);
-    }
-
     /// <summary>Builds a loaded chunk's scenery again, after a container's model changed or an object came or went.</summary>
     public void Rebuild(LoadedMap map)
     {

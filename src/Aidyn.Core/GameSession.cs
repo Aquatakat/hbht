@@ -371,8 +371,8 @@ public sealed class GameSession
         Game.CountTick();
         _frozen = frozen;
         StepStick();
-        // The menu's tick, every tick, as the runtime stepped it after the game's: a frame of it while it's open, and once it has
-        // closed, how it ended, carried out here.
+        // The menu's tick, every tick, before the mode's: a frame of it while it's open, and once it has closed, how it ended,
+        // carried out here.
         var (scrollFrame, scrollLength) = ScrollClock();
         if (Menu.Step(scrollFrame, scrollLength) is { } exit)
         {

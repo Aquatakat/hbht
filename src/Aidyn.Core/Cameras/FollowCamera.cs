@@ -8,7 +8,7 @@ namespace Aidyn.Core.Cameras;
 /// <summary>
 /// The camera that follows the player in trek: outdoors (<c>Camera::Mode0</c>), in interiors
 /// (<c>Camera::Mode1</c>, see <see cref="CameraMode.Interior"/>), and orbiting it with R
-/// (<c>FUN_800b0fac</c>). Camera objects take it over for a while (<see cref="CameraMove"/>).
+/// (0x800a72bc). Camera objects take it over for a while (<see cref="CameraMove"/>).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -397,7 +397,7 @@ public sealed partial class FollowCamera
     }
 
     /// <summary>
-    /// Orbiting (<c>FUN_800b0fac</c>): turned by <see cref="OrbitAngle"/> from where it was when R
+    /// Orbiting (0x800a72bc): turned by <see cref="OrbitAngle"/> from where it was when R
     /// went down, easing to <paramref name="distance"/> away, and between
     /// <paramref name="low"/> and <paramref name="high"/> above the aim.
     /// </summary>

@@ -255,7 +255,7 @@ public record MapObject(
     /// <summary>
     /// Another object in the same map it works with. To find a container's model or the actor a
     /// trigger animates, the game follows links from object to object until it reaches one of the
-    /// type it wants (<c>GetVoxelFromObjectLink</c>, checked in 1.0's code).
+    /// type it wants (<c>GetVoxelObjectFromLink</c>, checked in 1.0's code).
     /// </summary>
     [JsonPropertyOrder(1)]
     public RecordId? Link { get; init; }

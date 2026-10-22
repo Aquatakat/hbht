@@ -14,7 +14,7 @@ namespace Aidyn.Core;
 /// </summary>
 /// <remarks>
 /// Only the options menu (<see cref="Ui.OptionsMenu"/>) and the runtime read these. The core plays by what the runtime makes
-/// of them for each tick, with the command line's for the run over them (<see cref="SessionSettings"/>, ADR 0022), and the
+/// of them for each tick, with the command line's for the run over them (<see cref="SessionSettings"/>, ADR 0023), and the
 /// runtime draws by the rest.
 /// </remarks>
 public sealed class Settings
