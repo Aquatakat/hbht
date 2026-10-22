@@ -306,6 +306,14 @@ public sealed class GameSession
     /// <summary>Whether trek steps this tick: nothing holds the world and no cut-scene or battle plays in its place.</summary>
     public bool TrekRuns => !Held && Scene is null && Battle is null;
 
+    /// <summary>
+    /// Whether trek's chunks follow the player or the free camera, which the runtime streams them by: not under a cut-scene's
+    /// stage or a battle's arena, whose chunks stay as they loaded, and not through the post-battle windows, as trek's world
+    /// went with the battle (<c>TrekLoop.Free</c>, <c>Combat.Exit</c>) and is built again only as the loot window closes
+    /// (<c>PauseMenu.CloseToTrek</c>). Streamed under the windows, its chunks' sounds played there, where the original's are silent.
+    /// </summary>
+    public bool StreamsTrek => Scene is null && Battle is null && PostBattle is null;
+
     /// <summary>What the session plays by of the player's settings: the last tick's, or those it started with.</summary>
     public SessionSettings Settings => _settings;
 
@@ -713,6 +721,9 @@ public sealed class GameSession
         switch (_battleEnd)
         {
             case BattleOutcome.Won when battle.Spoils is { } spoils:
+                // The windows are silent but for their own sounds: the map's went with the arena, nothing streams trek's again
+                // under them (StreamsTrek), and the rain loop, which the port carries on, is hushed till trek steps it again.
+                Zone.WeatherSounds.Hush();
                 PostBattle = spoils;
                 Send(new Transition.PostBattle(spoils));
                 return;

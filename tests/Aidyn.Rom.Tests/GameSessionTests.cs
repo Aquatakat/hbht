@@ -514,6 +514,72 @@ public sealed partial class GameSessionTests(Na10Import fixture)
     }
 
     [Fact]
+    public void ThePostBattleWindowsAreSilentButForTheLevelUpOnceTheyAreBuilt()
+    {
+        // In K08's forest, within one of its sounds, played and mixed as the runtime plays them: trek's chunks follow the player
+        // while the session streams them (StreamsTrek), and the menu's sounds are played as they're cued.
+        var set = Data.Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, 0));
+        var k08 = set.Chunks.Single(c => c.Name == "K08");
+        var sound = Data.Set.Get<MapRecord>(k08.Map).Objects.OfType<SoundObject>().First(o => (o.Flags & SoundFlags.Loop) != 0);
+        var (session, host) = Start("K08", sound.Position.X, sound.Position.Z);
+        var audio = session.Zone.Audio;
+        var mixed = new short[2 * 735];
+        var played = 0;
+        void Run(int ticks)
+        {
+            for (var i = 0; i < ticks; i++)
+            {
+                audio.Step();
+                if (session.StreamsTrek)
+                    session.Trek.Chunks.Update(session.Trek.Player.Sphere.Position);
+                Tick(session);
+                foreach (var cue in host.Cues.Skip(played).OfType<MenuSoundCue>())
+                    audio.Play(cue.Sound);
+                played = host.Cues.Count;
+                audio.Render(mixed);
+            }
+        }
+        Run(60);
+        Assert.True(session.Zone.Sounds.Playing > 0);
+
+        // Alaron one short of his next level, the rats fall and the battle is won.
+        var (battle, _, _) = RatBattle(session, host);
+        played = host.Cues.Count;
+        var alaron = session.Game.Party.Slots[0]!;
+        alaron.TotalExp = alaron.NextLevelExp!.Value - 1;
+        foreach (var rat in battle.Combatants.Where(c => c.Hostile).ToList())
+            Kill(battle, rat);
+        battle.Skip();
+        Assert.Equal(SessionStep.CombatOver, TickUntil(session, SessionStep.CombatOver));
+        session.EndBattle();
+        Assert.Equal([alaron], session.PostBattle!.Levelled);
+        Assert.False(session.StreamsTrek);
+
+        // The level-up waits for the window to be built, once the world has darkened (PartyMenu.ListsCreate), then a second more.
+        var levelUp = session.Game.Sounds.Menu.LevelUp;
+        Assert.DoesNotContain(levelUp, host.Sounds);
+        var ticks = 0;
+        while (!session.Menu.Scroll.ShowsMenu && ticks++ < 60)
+            Run(1);
+        // 13 frames darkening, built on the 14th.
+        Assert.Equal(14, ticks);
+        Assert.Contains(host.Cues, c => c is MenuSoundCue { Sound: { Delay: Core.Audio.OneShot.MenuTicks } s } && s.Sequence == levelUp);
+        // Nothing of the map's plays under the windows: only the level-up, from a second on.
+        for (var i = 0; i < 300; i++)
+        {
+            Run(1);
+            Assert.Equal(0, session.Zone.Sounds.Playing);
+        }
+        Assert.Equal(1, audio.SoundsPlaying);
+
+        // The windows close, trek is built again, and its sounds come back.
+        session.MenuClosed(PauseExit.Close);
+        Assert.True(session.StreamsTrek);
+        Run(60);
+        Assert.True(session.Zone.Sounds.Playing > 0);
+    }
+
+    [Fact]
     public void ABattleLostHealsAlaronAndPlaysTheGameOverWhoseEndIsTheGames()
     {
         var (session, host) = Start();

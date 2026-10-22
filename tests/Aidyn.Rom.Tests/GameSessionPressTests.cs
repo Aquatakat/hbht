@@ -447,10 +447,14 @@ public sealed partial class GameSessionTests
         session.OpenLoot(new ItemPile(session.Game.Party.Inventory.Catalog), gold: 5);
         Assert.Equal((GameMode.Menu, PauseTab.Party, true), (session.Mode, menu.Tab, menu.TabsLocked));
         Assert.IsType<BarterMenu>(menu.Window);
-        // The coins sound a second after the window opens.
-        Assert.Contains(host.Cues, c => c is MenuSoundCue { Sound: { Delay: Core.Audio.OneShot.MenuTicks } s } && s.Sequence == session.Game.Sounds!.GoldGained);
+        // The coins sound a second after the window is built, once the world has darkened (BarterMenu.BarterMenu).
+        bool Coins() => host.Cues.Any(c => c is MenuSoundCue { Sound: { Delay: Core.Audio.OneShot.MenuTicks } s } && s.Sequence == session.Game.Sounds!.GoldGained);
+        Assert.False(Coins());
         var ticks = 0;
-        while (!menu.Taking && ticks++ < 60)
+        while (!menu.Scroll.ShowsMenu && ticks++ < 60)
+            Tick(session);
+        Assert.True(Coins());
+        while (!menu.Taking && ticks++ < 120)
             Tick(session);
         Assert.True(menu.Taking);
         // The tabs can't be changed, and B leaves an empty pile at once.
