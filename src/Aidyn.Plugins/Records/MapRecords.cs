@@ -52,6 +52,11 @@ public sealed record SpawnPoint(int Portal, int Row, int Column, Vector2 Positio
 /// <param name="Map">Its collision and map objects.</param>
 /// <param name="Terrain">The terrain type, which weather and camp encounters use.</param>
 /// <param name="Music">The music that plays as the player comes into it, before its map set's own.</param>
+/// <param name="Region">
+/// The world map region flag entering it sets, in trek or a cut-scene's stage, where its terrain draws the sky and its map set has
+/// no minimap (<c>LoadGameBorgScenes</c>). The original's table names a chunk by its row and column alone, so a few chunks of
+/// other map sets carry the Overworld's flags too.
+/// </param>
 public sealed record ChunkEntry(
     int Row,
     int Column,
@@ -59,11 +64,22 @@ public sealed record ChunkEntry(
     RecordId? AltScene,
     RecordId Map,
     int Terrain,
-    RecordId? Music = null)
+    RecordId? Music = null,
+    RecordId? Region = null)
 {
     /// <summary>The chunk as the debug overlay names it, such as <c>I08</c>.</summary>
     [JsonIgnore]
     public string Name => Row is >= 1 and <= 26 ? $"{(char)('A' + Row - 1)}{Column:D2}" : $"{Row},{Column}";
+
+    /// <summary>
+    /// The <see cref="Region"/> entering the chunk sets, or none: only where its terrain draws the sky and its map set has no
+    /// minimap (<c>LoadGameBorgScenes</c>, <c>0x8000b5f4</c>).
+    /// </summary>
+    public RecordId? RegionFound(PluginSet plugins, RecordId mapSet) =>
+        Region is { } region && TerrainRecord.Find(plugins, Terrain)?.SkyDrawn == true
+            && !plugins.All<MinimapRecord>(RecordTypes.Minimap).Any(m => m.MapSet == mapSet)
+            ? region
+            : null;
 }
 
 /// <summary>

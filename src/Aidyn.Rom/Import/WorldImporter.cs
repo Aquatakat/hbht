@@ -15,7 +15,7 @@ internal static class WorldImporter
     public static void Import(ImportContext ctx)
     {
         ctx.Report("Map sets");
-        ctx.WriteRecords("mapsets.json", BuildMapSets(ctx.Chunks, ctx.Audio));
+        ctx.WriteRecords("mapsets.json", BuildMapSets(ctx.Chunks, ctx.Audio, ctx.Engine.Regions));
 
         ctx.Report("Terrains");
         ctx.WriteRecords("terrains.json", BuildTerrains(ctx.Gradients, CampFactors.Read(ctx.Rom), ctx.Weather, ctx.Db.CampEncounters));
@@ -31,22 +31,28 @@ internal static class WorldImporter
 
     /// <summary>
     /// The map sets, with the music each plays as it's entered (<see cref="AudioFacts.MapMusic"/>) and the places the code puts the
-    /// player by number (<see cref="MapSets.Spawns"/>).
+    /// player by number (<see cref="MapSets.Spawns"/>), and the world map region each chunk's row and column name
+    /// (<see cref="EngineTables.Regions"/>): the code's table doesn't say a map set, so every set's chunk there gets it.
     /// </summary>
-    private static List<MapSetRecord> BuildMapSets(IReadOnlyList<MapChunk> chunks, AudioTables audio) =>
-    [
-        .. Enum.GetValues<MapSet>().Select(set => new MapSetRecord(
-            RecordId.Decimal(RecordTypes.MapSet, (int)set), set.ToString(), Maps.MapSets.CellSize(set),
-            [
-                .. chunks.Where(c => c.Set == set).Select(c => new ChunkEntry(c.Row, c.Column,
-                    c.Scene == 0 ? null : RecordId.Hex(RecordTypes.Scene, c.Scene),
-                    c.AltScene == 0 ? null : RecordId.Hex(RecordTypes.Scene, c.AltScene),
-                    RecordId.Hex(RecordTypes.Map, c.Collision), c.Terrain,
-                    AudioFacts.ChunkMusic(c, audio) is { } music ? RecordId.Hex(RecordTypes.Sequence, music) : null)),
-            ],
-            AudioFacts.MapMusic(set, audio) is { Count: > 0 } setMusic ? [.. setMusic.Select(m => RecordId.Hex(RecordTypes.Sequence, m))] : null,
-            Maps.MapSets.Spawns(set, chunks))),
-    ];
+    private static List<MapSetRecord> BuildMapSets(IReadOnlyList<MapChunk> chunks, AudioTables audio, IReadOnlyList<RegionChunk> regions)
+    {
+        var region = regions.ToDictionary(r => (r.Row, r.Column), r => DbRecordIds.Flag(r.Flag));
+        return
+        [
+            .. Enum.GetValues<MapSet>().Select(set => new MapSetRecord(
+                RecordId.Decimal(RecordTypes.MapSet, (int)set), set.ToString(), Maps.MapSets.CellSize(set),
+                [
+                    .. chunks.Where(c => c.Set == set).Select(c => new ChunkEntry(c.Row, c.Column,
+                        c.Scene == 0 ? null : RecordId.Hex(RecordTypes.Scene, c.Scene),
+                        c.AltScene == 0 ? null : RecordId.Hex(RecordTypes.Scene, c.AltScene),
+                        RecordId.Hex(RecordTypes.Map, c.Collision), c.Terrain,
+                        AudioFacts.ChunkMusic(c, audio) is { } music ? RecordId.Hex(RecordTypes.Sequence, music) : null,
+                        region.TryGetValue((c.Row, c.Column), out var flag) ? flag : null)),
+                ],
+                AudioFacts.MapMusic(set, audio) is { Count: > 0 } setMusic ? [.. setMusic.Select(m => RecordId.Hex(RecordTypes.Sequence, m))] : null,
+                Maps.MapSets.Spawns(set, chunks))),
+        ];
+    }
 
     /// <summary>
     /// The terrain types: each one's sky and whether it's drawn (a fact, <see cref="Skies.ForTerrain"/>), its camp

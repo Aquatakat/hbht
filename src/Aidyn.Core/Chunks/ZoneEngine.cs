@@ -133,6 +133,20 @@ public sealed class ZoneEngine
     public void RequestMusic(ChunkEntry? chunk) => Audio.Music = MapMusic.For(Chunks.MapSet, chunk, Game.Random.Cosmetic);
 
     /// <summary>
+    /// The chunk at the centre is entered (the end of <c>LoadGameBorgScenes</c>, <c>0x8000b5f4</c>), as trek's world is built,
+    /// on every crossing and teleport, and as a cut-scene's stage loads from trek: where its terrain draws the sky (sky type 3)
+    /// and its map set has no minimap, its world map region's flag is set (<c>ZoneEngine.EnterRegion</c>, <c>0x8004960c</c>), which
+    /// shows that region's piece of the World tab's map. A battle's arena never sets one (<c>Zones.Mode</c> 1). True if it did.
+    /// </summary>
+    public bool EnterRegion(ChunkEntry chunk)
+    {
+        if (chunk.RegionFound(Game.Plugins, Chunks.MapSet.Id) is not { } region)
+            return false;
+        Game.Flags.Set(region, true);
+        return true;
+    }
+
+    /// <summary>
     /// A tick of the weather as the zone engine draws it (<c>HandleZoneEngineFrame</c>), in trek and in cut-scenes:
     /// <c>RenderSky</c>'s lightning once a frame, with its thunder, then <c>ProcessWeather</c> every tick, with the
     /// rain loop. Its frames count on across stages, as the weather does.

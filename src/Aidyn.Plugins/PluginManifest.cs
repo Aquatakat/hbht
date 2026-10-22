@@ -82,8 +82,9 @@ public static class BasePlugin
     /// 53 writes how each potion is used (<c>use</c>: drunk in trek, in a battle, or thrown) and which spells the AI treats as an area
     /// (<c>area</c> on the spell, where the combat record's <c>areaSpells</c> was), ADR 0021.
     /// 54 gives the combat record who can't be attacked or cast at (<c>untargetable</c>), apart from who lets the party flee.
+    /// 55 gives each chunk the world map region flag entering it sets (<c>region</c>).
     /// </summary>
-    public const int ImporterVersion = 54;
+    public const int ImporterVersion = 55;
 
     /// <summary>
     /// What's wrong with the imported base plugin under <paramref name="pluginsDirectory"/>, worded for the player, or null if

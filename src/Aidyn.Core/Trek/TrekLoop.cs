@@ -238,8 +238,8 @@ public sealed class TrekLoop : IMapObjectHost
     }
 
     /// <summary>
-    /// The player is in a chunk: the sky follows it (<see cref="Sky.SkyDirector.Enter"/>), its terrain is written into the flags,
-    /// and another terrain may change the weather. Crossing into another chunk is a
+    /// The player is in a chunk: the sky follows it (<see cref="Sky.SkyDirector.Enter"/>), its world map region is found
+    /// (<see cref="ZoneEngine.EnterRegion"/>), its terrain is written into the flags, and another terrain may change the weather. Crossing into another chunk is a
     /// teleport in the original (<c>ConfirmPlayerWithinZone</c>), which ages what map objects remember.
     /// </summary>
     public void Enter(ChunkEntry? chunk)
@@ -255,6 +255,7 @@ public sealed class TrekLoop : IMapObjectHost
             return;
         _chunk = chunk;
         Zone.RequestMusic(chunk);
+        Zone.EnterRegion(chunk);
         Game.EnterTerrain(chunk.Terrain);
         Hud.Arrive(Game.Terrain(chunk.Terrain)?.SkyDrawn ?? true);
     }

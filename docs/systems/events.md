@@ -68,5 +68,6 @@ The [hardcoded-content](../hardcoded-content.md) audit names more layer 2 work. 
 - **`camp.started`:** the camp scenes and the Campsite's script (`Camp.cpp`), now the camping record's.
 - **`cheat.entered`:** the cheat codes' flags, gold and experience (`CheatCodes.cpp`).
 - **`battle.ended`** with its outcome: the Shadow's cinematic after a merge, and the Goblin Ambush's end, now the combat record's.
-- **`chunk.entered`:** the world map regions' flags, now the chunk records'.
 - **A conversation's end** as `script.ended`, and its shops, training and battles, now `Transition.AfterScript`.
+
+The world map's regions stay off triggers: which flag a chunk sets is the chunk's `region` (layer 1), and when it's set hangs on the sky, the minimap and the zone engine's mode, which no trigger condition reads, so a `chunk.entered` trigger would only restate the field ([ui](ui.md#the-world-tab)).

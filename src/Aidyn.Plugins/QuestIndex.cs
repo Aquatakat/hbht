@@ -87,6 +87,11 @@ public enum FlagRole
     SecretFound,
     /// <summary>A SetFlag trigger.</summary>
     TriggerSets,
+    /// <summary>
+    /// A world map region's flag, which entering a chunk of the map set (<see cref="FlagUse.By"/>) in the region sets
+    /// (<see cref="ChunkEntry.Region"/>), where the sky is drawn and the set has no minimap.
+    /// </summary>
+    ChunkEntered,
     /// <summary>The state flags record: the engine writes the flags it keeps its state in, and reads the random skill check option.</summary>
     Engine,
     /// <summary>
@@ -321,6 +326,11 @@ public sealed class QuestIndex
             Use(key.Held, item, FlagAccess.Set, FlagRole.KeyItem);
             Use(key.Region, item, FlagAccess.Set, FlagRole.KeyItem);
         }
+
+        // One use a map set and region, however many of its chunks find the region.
+        foreach (var set in plugins.All<MapSetRecord>(RecordTypes.MapSet))
+            foreach (var region in set.Chunks.Select(c => c.RegionFound(plugins, set.Id)).OfType<RecordId>().Distinct())
+                Use(region, set.Id, FlagAccess.Set, FlagRole.ChunkEntered);
 
         foreach (var state in plugins.All<StateFlagsRecord>(RecordTypes.StateFlags))
         {
