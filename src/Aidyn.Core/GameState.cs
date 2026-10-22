@@ -98,6 +98,15 @@ public sealed class GameState : IScriptWorld
     /// <summary>Where the player is, as the runtime last said. None is where a new game starts.</summary>
     public SavePlace? Place { get; set; }
 
+    /// <summary>
+    /// Whether the game, as it's loaded, starts as a new game does: it stands nowhere yet, so it's a new game's, or a save of
+    /// one (<c>aidyn save new</c>, the editor's new game), which the load screen lists as any other. Every save made in play
+    /// notes where the player stands (<see cref="GameSession.NotePlace"/>), as every save of the original is made in trek.
+    /// The runtime starts such a game with what the title's New Game does (<see cref="GameSession.StartNewGame"/>), the
+    /// opening cinematic and its script, wherever it comes from. Only meaningful before the game is played.
+    /// </summary>
+    public bool StartsAsNewGame => Place is null;
+
     /// <summary>A name for the game, such as the checkpoint or save it came from.</summary>
     public string? Label { get; set; }
 

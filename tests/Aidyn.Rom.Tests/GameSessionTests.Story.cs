@@ -57,6 +57,22 @@ public sealed partial class GameSessionTests
     }
 
     [Fact]
+    public void ASaveOfANewGameStartsAsOneAndASaveMadeInPlayDoesNot()
+    {
+        // A new game, and a save of it (aidyn save new, the editor's new game), stand nowhere: the load screen's entry for
+        // one starts as the title's New Game does.
+        Assert.True(GameState.NewGame(Data.Set).StartsAsNewGame);
+        var saved = GameState.Load(Data.Set, GameState.NewGame(Data.Set).Save());
+        Assert.Empty(saved.Problems);
+        Assert.True(saved.StartsAsNewGame);
+
+        // Every save made in play notes where the player stands, and loads as the save it is.
+        var (session, _) = Start();
+        Assert.True(session.NotePlace());
+        Assert.False(GameState.Load(Data.Set, session.Game.Save()).StartsAsNewGame);
+    }
+
+    [Fact]
     public void TheRooughahScenesEndPlaysRoogsCinematicWhoseEndGivesAlaronHisTrueName()
     {
         var (session, host) = Start();

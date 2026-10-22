@@ -136,9 +136,10 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     {
         var plugins = _plugins = _loadedPlugins ??= LoadPlugins();
         StartAudio(plugins);
-        // A new game, not a save, plays what the title's New Game does (GameSession.StartNewGame): the opening, then its script.
-        var fresh = _pendingSave is null && (options.Save is null || _newGame) && options.PlaysOpening;
         var game = StartingGame(plugins, options);
+        // A new game plays what the title's New Game does (GameSession.StartNewGame): the opening, then its script. So does
+        // a save of one loaded from the menu, which stands nowhere yet; a save made in play doesn't.
+        var fresh = game.StartsAsNewGame && options.PlaysOpening;
         // Where it starts, which plugins from an older import can't say: then this says to import again.
         var start = StartingPlace(plugins, game, options);
 
