@@ -125,10 +125,11 @@ public sealed class CombatCueTests(Na10Import fixture)
     }
 
     [Fact]
-    public void AlaronsBlowThatKillsRat7DiesAtTheSwingFallsAndTakesItsBodyAndNumberAway()
+    public void AlaronsBlowThatKillsRat7DiesAtTheSwingFallsAndFadesOutWhileTheNextTurnBegins()
     {
         var (built, host) = AlaronsTurn();
         var battle = built.Battle;
+        var rat = built[7];
         Assert.True(battle.Attack());
         Assert.True(battle.Confirm());
         Assert.Equal(7, battle.Target);
@@ -137,7 +138,8 @@ public sealed class CombatCueTests(Na10Import fixture)
         PlayOut(built, host);
 
         // As AttackCheckpointTests' kill has it: the death found as the blow is dealt, the hit, its 49 and the fall as it lands, the
-        // queued line with them, and the body gone after the fall, its number with it.
+        // queued line with them, and its number gone as the fall ends and its body is freed. The next turn begins at once, as the
+        // body starts its fade (Combat.FreeBody's Body.FadeOut): the battle doesn't wait for it.
         Assert.Equal(
         [
             "log Alaron attacks Giant Rat",
@@ -148,10 +150,25 @@ public sealed class CombatCueTests(Na10Import fixture)
             "animated 7 9",
             "log Giant Rat killed",
             "number gone 7",
-            "gone 7",
             "log Brenna begins action",
         ], host.Cues);
         Assert.Equal(["Alaron attacks Giant Rat", "Giant Rat killed", "Brenna begins action"], battle.Log.TakeLast(3));
+        Assert.True(rat.Freed);
+        Assert.Equal(Battle.FadeTicks, rat.Fading);
+
+        // ProcessPlayers: drawn whole for a second where it lay, then fading to nothing over the next, (u8)(left / 60 × 255), and gone.
+        var zone = Zone(built);
+        var alphas = new List<int>();
+        for (var i = 0; i < 200 && !host.Cues.Contains("gone 7"); i++)
+        {
+            battle.Tick(zone, false, _ => null);
+            alphas.Add(rat.Alpha);
+        }
+        Assert.Equal(Battle.FadeTicks, alphas.Count);
+        Assert.All(alphas.Take(60), a => Assert.Equal(255, a));
+        Assert.Equal([250, 246, 242], alphas.Skip(60).Take(3));
+        Assert.Equal([12, 8, 4, 0], alphas.TakeLast(4));
+        Assert.Equal("gone 7", host.Cues[^1]);
     }
 
     [Fact]
@@ -225,6 +242,35 @@ public sealed class CombatCueTests(Na10Import fixture)
             "visual ended 4 Potion",
             "log Brenna begins action",
         ], host.Cues);
+    }
+
+    [Fact]
+    public void ABodyStillFadingWhenAReserveTakesItsSlotFadesOutBesideIt()
+    {
+        // Checkpoint 08: rats 4 and 5 on the field, 6 and 7 dead, two reserves left.
+        var built = At(Set, 8);
+        var battle = built.Battle;
+        var host = new Recorder();
+        battle.Host = host;
+        var old = built[4];
+        old.Sheet.TakeDamage(old.Sheet.Hp, old);
+        battle.Death(old);
+        battle.FreeBody(old);
+        built.Game.Random.Combat.Seed = 0x12345;
+        battle.SpawnReserves();
+
+        // The reserve has slot 4 and a body of its own, made beside the old one, which goes on fading where it lay.
+        var newcomer = built[4];
+        Assert.NotSame(old, newcomer);
+        Assert.False(newcomer.Freed);
+        Assert.Equal(Battle.FadeTicks, old.Fading);
+        var zone = Zone(built);
+        for (var i = 0; i < Battle.FadeTicks; i++)
+            battle.Tick(zone, false, _ => null);
+        Assert.Equal(0, old.Fading);
+        Assert.Single(host.Cues, "gone 4");
+        Assert.DoesNotContain("gone 6", host.Cues);
+        Assert.False(newcomer.Freed);
     }
 
     [Fact]

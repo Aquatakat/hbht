@@ -151,13 +151,17 @@ public sealed partial class Combatant
     public bool PoseHeld { get; internal set; }
 
     /// <summary>
-    /// The ticks left of a fled body's fade (<c>Body.FadeOut</c>, <c>0x80014AD4</c>, its <c>+0x708</c>): it's gone from the battle,
-    /// but its body is drawn fading where it stood until this reaches 0.
+    /// The ticks left of a freed body's fade, a dead one's or a fled one's (<c>Body.FadeOut</c>, <c>0x80014AD4</c>, its <c>+0x708</c>,
+    /// which <c>Combat.FreeBody</c> starts): it's gone from the battle, but its body stays where it lay or stood, its animation no longer
+    /// stepped, pushing and pushed as any body, until this reaches 0.
     /// </summary>
     public int Fading { get; internal set; }
 
-    /// <summary>How opaque the body is drawn, 1 until it's freed, then fading out over <see cref="Battle.FadeTicks"/>.</summary>
-    public float Opacity => Freed ? (float)Fading / Battle.FadeTicks : 1;
+    /// <summary>
+    /// The body's own alpha (its <c>+0x70C</c>), which caps its distance's fade and its shadow's: 255 until it's freed and through the first
+    /// half of its fade, then <c>(u8)(ticks left / 60 × 255)</c> (<c>ProcessPlayers</c>, <c>0x80012CA4</c>–<c>0x80012D40</c>).
+    /// </summary>
+    public byte Alpha => Freed && Fading < Battle.FadeShownTicks ? (byte)(int)((float)Fading / Battle.FadeShownTicks * 255f) : (byte)0xFF;
 
     /// <summary>
     /// Whether its body has played its fall to the end and holds its last frame (the body's <c>+0x77C</c>): its animation no

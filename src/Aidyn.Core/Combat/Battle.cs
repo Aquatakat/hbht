@@ -300,6 +300,14 @@ public sealed partial class Battle
         {
             var combatant = _crowd[i];
             var start = combatant.Body.Sphere.Position;
+            // A freed body, fading (body flag 0x100), isn't a combatant's any more: ProcessPlayers no longer steps its actor
+            // (0x800130F0), so it holds the pose it had, and Combat.AfterFrame no longer sees it.
+            if (combatant.Freed)
+            {
+                combatant.Body.Step(World, IActorMotion.Still);
+                Movement.Crowd.Push(crowd, i, start);
+                continue;
+            }
             combatant.Audio.Weapon = WeaponOf(combatant) is { Model: not null } weapon ? weapon.Sounds : null;
             var animation = motion(combatant) is { } m ? keys.Sounding(m, combatant.Audio, combatant.Sounds, combatant.Body.Sphere) : IActorMotion.Still;
             // A body that has fallen holds its last frame; one a web or hold keeps doesn't step its idle (Body.IsHeld, 0x80012754).
@@ -332,17 +340,25 @@ public sealed partial class Battle
 
     private readonly List<Combatant> _crowd = [];
 
-    /// <summary>The combatants' bodies as they push each other, in slot order.</summary>
+    /// <summary>The freed bodies still fading (<see cref="Combatant.Fading"/>), which a reserve may have taken the slots of.</summary>
+    private readonly List<Combatant> _fading = [];
+
+    /// <summary>
+    /// The combatants' bodies as they push each other, in the order they were made: those in the battle, and the freed still fading
+    /// (<c>ProcessPlayers</c>, <c>0x80012CA4</c>: its <c>+0x708</c> less the tick, the body freed, <c>FreePlayer</c>, once it's
+    /// under 1, before it moves), which push and are pushed as any body is (only a body that's off or flagged <c>0x400</c> isn't).
+    /// </summary>
     private List<CrowdMember?> Crowd()
     {
-        _crowd.Clear();
-        _crowd.AddRange(Combatants.Where(c => !c.Freed));
-        // A fled body, gone from the battle at once, fades out where it stood.
-        foreach (var c in Combatants.Where(c => c.Fading > 0))
+        foreach (var c in _fading)
         {
             if (--c.Fading == 0)
-                Cue(new CombatantGone(c, Fled: true));
+                Cue(new CombatantGone(c, c.Gone));
         }
+        _fading.RemoveAll(c => c.Fading == 0);
+        _crowd.Clear();
+        // A reserve that has taken a fading body's slot has a body of its own, made after it (AllocPlayer's first free one).
+        _crowd.AddRange(_fading.Concat(Combatants.Where(c => !c.Freed)).OrderBy(c => c.Slot));
         return [.. _crowd.Select(c => (CrowdMember?)new CrowdMember(c.Body.Sphere, c.Body.Scale, null))];
     }
 

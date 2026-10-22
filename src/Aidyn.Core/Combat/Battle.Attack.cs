@@ -541,7 +541,9 @@ public sealed partial class Battle
 
     /// <summary>
     /// A body goes from the field (<c>Combat.FreeBody</c>, <c>0x80021C6C</c>): its effects and potions come off, its numbers go, its
-    /// portrait gets the skull, or the fled mark (<see cref="Ui.CombatGui.MarkGone"/>), and the body is no more.
+    /// portrait gets the skull, or the fled mark (<see cref="Ui.CombatGui.MarkGone"/>), and it's out of the battle. The body itself fades
+    /// out where it is (<c>Body.FadeOut</c>, <see cref="Combatant.Fading"/>), the dead's and the fled's alike, and is gone once its fade
+    /// is over (<see cref="CombatantGone"/>); the battle doesn't wait for it.
     /// </summary>
     internal void FreeBody(Combatant c, bool fled = false)
     {
@@ -554,9 +556,10 @@ public sealed partial class Battle
         c.Body.Field = null;
         if (CameraOwner == c)
             CameraOwner = Current;
-        // A fled body fades out first, and is gone once its fade is over (Crowd).
-        if (c.Fading == 0)
-            Cue(new CombatantGone(c, fled));
+        // Body.FadeOut: gone once its fade is over (Crowd).
+        c.Fading = FadeTicks;
+        if (!_fading.Contains(c))
+            _fading.Add(c);
     }
 
     /// <summary>Asks a body for a one-off animation, <paramref name="request"/>, and says so (<see cref="CombatantAnimated"/>).</summary>
