@@ -316,7 +316,7 @@ Read from 1.0's code and checked by running the original's own functions on the 
 
 ## The AI
 
-Read from 1.0's code (`0x80056E10`–`0x8005C0C0`, `aiInfo.cpp` and `aiscores.cpp`) and checked by running the original's own functions on the checkpoints' RAM.
+Read from 1.0's code (`0x80056E10`–`0x8005C0C0`, `aiInfo.cpp` and `aiscores.cpp`) and checked by running the original's own functions on the checkpoints' RAM. The user's memory of play agrees on the casters: they put up their shields and other help first, again and again, and once one takes to its weapon it doesn't cast again (the Wight late in the game, whose turn to its weapon players are glad of).
 
 **The record** (0x1C, `EnemyAI.Init`, `0x8005BA7C`; `EnemyAI.Free`, `0x8005BD90`):
 
@@ -653,14 +653,14 @@ Others:
 - A walk the AI gives up is forgotten at the turn's end; the original's body would run on into the next turn.
 - The loot is rolled on the loot stream, not the battle's (ADR 0006), so a battle's draws after it don't shift.
 - A win leaves through state 16 (`Battle.Over`), which the original never reaches for one, and the session opens the windows; the post-battle window opens on `PauseMenu.Member`, the member last shown or whose turn the last pause was on ([ui](ui.md#opening-and-closing)).
-- Detect Moon Phase and Detect Sun Phase do nothing in a battle; the original writes through a null pointer.
+- Detect Moon Phase and Detect Sun Phase do nothing in a battle; the original writes through a null pointer. Play never reaches it: the user knows no way to learn either, and takes them for cut content.
 - A placed area confirmed with no one in it goes back to the turn, as state 10 does with none selected; the original's branch for it wasn't read.
 - A cast beyond the visuals' pools shows nothing, where the original's reads past its free list; no battle comes near 64 lasting effects.
 - Body armor or a shield equipped from the combat pause's Party tab is refused with "You cannot equip that item!": the original's equip table has no row for them, so it looks to refuse them so.
 
 ## Not settled
 
-- **The special battles** are read, not run: no checkpoint holds the Goblin Ambush's or the Shadow's fight, so the aura, the hold, the vanish's frames and the merge's boost are matched to the code alone ([user-checks](../user-checks.md#combat)).
+- **The Shadow's battle** is read, not run: no checkpoint holds it, so the aura, the vanish's frames and the merge's boost are matched to the code alone ([user-checks](../user-checks.md#combat)). The Goblin Ambush's hold, also read alone, the user has seen play as the port has it.
 - **The merge's shield test**, turned round in the original (the skill goes up only when the Shadow has none): whether to keep it or turn it the right way isn't chosen. The data never reaches it, as the Shadow has shield 8.
 - **The frame's `delta` in combat**, taken as 2 ticks; checkpoint 10 suggests 3. It sets how long a one-shot request is held and rounds an attack's strike to a frame ([reference rig](../reference-rig.md)).
 - A fleeing enemy whose leg can't start goes on to `Execute` after `FleeAdvance` (`0x8005B3D0`–`0x8005B418`), so a cornered one may still attack; no case was run.
@@ -668,4 +668,4 @@ Others:
 - Exactly which cone `Talk`'s collision byte tests (`0x80010AE8`–`0x80010B74`).
 - Body flags `0x200` (set on enemies' bodies by `Combat.CreateBody`), `0x400` (skipped by the bodies' push) and `0x800` (`ProcessPlayers` calls `0x80015FEC`), which `TurnOrder.ClearActions` clears.
 - Exactly where in 05 to 06 the attack's draws fall, which a watchpoint on `0x800D8088` from 05 would show.
-- What only the emulator shows, in the [user checks](../user-checks.md#combat): how the healing numbers look (read as sinking, shrinking and fading in); the spells' look, as no capture of a cast exists (the visuals' sizes and timing, the glow, Darkness's and Light's sky, a hold's still pose, a second cast's lasting scene that nothing ends); the held menus' pixels (the rows' heights, the font's metrics, the arrows' places); and how the hands hold what the bodies hold.
+- What only the emulator shows, in the [user checks](../user-checks.md#combat): Darkness's and Light's sky and a hold's still pose. Endurance's casts are captured (`roms/combat-castingendurance*.png`, on Brenna and then Rheda) and the user found the shell, the sky's dimming, the glow and the lasting turns match.
