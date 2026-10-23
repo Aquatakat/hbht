@@ -49,6 +49,9 @@ public sealed class ZoneEngine
         Chunks = chunks;
         Particles = particles;
         _shared = shared;
+        // What an emitter that moves itself collides with (LoadGameBorgScenes sets the head's +0x338): the loaded chunks'.
+        if (particles is not null)
+            particles.World = chunks.World;
         if (particles is not null)
             Precipitation = new WeatherParticles(particles, game.Weather.Rules, game.Random.Cosmetic, () => Camera?.Aim ?? default,
                 () => Camera?.LookXZ ?? Vector2.UnitX, () => Chunks.Visible, part);

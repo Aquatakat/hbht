@@ -969,5 +969,7 @@ public sealed class TrekLoop : IMapObjectHost
 
     void IMapObjectHost.Sound(OneShot sound) => Zone.Audio.Play(sound);
 
-    void IMapObjectHost.Explode(Vector3 at) => Zone.Lights.Dynamic.Explosion(at);
+    // Containers.Explode (0x8000ffe4): its fires and burst in the particle pool, with their lights.
+    void IMapObjectHost.Explode(Vector3 at) =>
+        Particles.Explosion.Start(at, Zone.Lights.Dynamic, Zone.Particles, Game.Plugins.TrySingleton<ExplosionRecord>()?.Texture);
 }

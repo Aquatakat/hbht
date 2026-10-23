@@ -148,6 +148,9 @@ public static class RecordTypes
     /// <summary>A trigger: on an event, if its conditions hold, its effects (roadmap 2.10), keyed by a decimal number.</summary>
     public const string Trigger = "trigger";
 
+    /// <summary>How a trapped container's explosion is drawn. There's one, <c>aidyn:explosion/0</c>.</summary>
+    public const string Explosion = "explosion";
+
     private static readonly Type[] DbViews = [typeof(DbRecord)];
 
     /// <summary>Every type, in the registry's order: the DB records, the flags, the Borgs, then the rest as they were added.</summary>
@@ -198,6 +201,7 @@ public static class RecordTypes
         new(Combat, typeof(CombatRecord), KeyKind.Decimal, Singleton: true),
         new(Magic, typeof(MagicRecord), KeyKind.Decimal, Singleton: true),
         new(Trigger, typeof(TriggerRecord), KeyKind.Decimal),
+        new(Explosion, typeof(ExplosionRecord), KeyKind.Decimal, Singleton: true),
     ];
 
     private static readonly Dictionary<string, RecordTypeInfo> ByName = Registry.ToDictionary(t => t.Name, StringComparer.Ordinal);
