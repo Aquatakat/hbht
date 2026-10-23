@@ -3,13 +3,18 @@ using Aidyn.Plugins;
 
 namespace Aidyn.Core.Trek;
 
-/// <summary>Where the player stood in trek, kept as the original keeps it (<c>SaveZoneEngine</c>): the chunk, and where in it, and the way he faced.</summary>
-public readonly record struct Breadcrumb(RecordId MapSet, int Row, int Column, Vector3 Local, Vector2 Heading);
+/// <summary>
+/// Where the player stood in trek, kept as the original keeps it (<c>SaveZoneEngine</c>, <c>0x8000E3D4</c>): the chunk, where in
+/// it (+0x0), the way he faced (+0xC, the body's <c>+0x20</c>) and the follow camera's eye (+0x14, <c>Camera.Listener</c>), the
+/// last within the same chunk as <paramref name="Local"/>.
+/// </summary>
+public readonly record struct Breadcrumb(RecordId MapSet, int Row, int Column, Vector3 Local, Vector2 Heading, Vector3 Eye);
 
 /// <summary>
 /// The breadcrumbs (<c>Zones.Breadcrumbs</c>, <c>0x800D90E0</c>): the last 15 places the player stood in trek, kept every 120
 /// ticks but where one already kept in the map set is nearer than 10, in a ring. Fleeing a battle puts the party at the
-/// one in the map set farthest from where it began (<c>Zones.FindBreadcrumb</c>, <c>0x80009A48</c>). Every time trek is built
+/// one in the map set farthest from where it began (<c>Zones.FindBreadcrumb</c>, <c>0x80009A48</c>), facing as he did there and
+/// with the camera's eye where it was then (<see cref="TrekLoop.Resume"/>). Every time trek is built
 /// again, all 15 are where the player stands (<c>Zones.ResetBreadcrumbs</c>, <c>0x8000DF00</c>). They aren't saved.
 /// </summary>
 /// <remarks>
