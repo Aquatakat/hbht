@@ -7,7 +7,7 @@ namespace Aidyn.Core.Tests;
 
 /// <summary>
 /// What a combatant's body holds (<c>Combatant.EquipVisuals</c>, <c>0x80066AEC</c>): the weapon in the hand at locator 0, the shield on
-/// the arm at locator 2, a bow in the arm with its arrow in the hand, a flask, and the lute (<c>Combatant.StartTroubadour</c>).
+/// the arm at locator 2, a bow in the arm with its arrow in the hand, a flask, and the Troubadour's notes (<c>Combatant.StartTroubadour</c>).
 /// </summary>
 public sealed class HeldModelTests
 {
@@ -46,7 +46,7 @@ public sealed class HeldModelTests
 
         Assert.Equal(new HeldModel(Sword.Model!.Value, 0), c.Held[Combatant.HandSlot]);
         Assert.Equal(new HeldModel(Shield.Model!.Value, 2), c.Held[Combatant.ArmSlot]);
-        Assert.Null(c.Held[Combatant.LuteSlot]);
+        Assert.Null(c.Held[Combatant.NotesSlot]);
     }
 
     [Fact]
@@ -99,18 +99,18 @@ public sealed class HeldModelTests
     }
 
     [Fact]
-    public void TheLuteIsOnTheHeadsLocatorRaisedAndGoesWhenThePerformanceStops()
+    public void TheNotesAreOnTheHeadsLocatorRaisedAndGoWhenThePerformanceStops()
     {
         var c = Holding(Sword);
         c.SetDefaultAction(Rules());
-        c.HoldLute(true);
+        c.HoldNotes(true);
 
-        Assert.Equal(new HeldModel(Combatant.LuteScene, 3, 1), c.Held[Combatant.LuteSlot]);
-        // EquipVisuals leaves the lute be.
+        Assert.Equal(new HeldModel(Combatant.NotesScene, 3, 1), c.Held[Combatant.NotesSlot]);
+        // EquipVisuals leaves the notes be.
         c.EquipVisuals(Rules());
-        Assert.NotNull(c.Held[Combatant.LuteSlot]);
+        Assert.NotNull(c.Held[Combatant.NotesSlot]);
 
         c.StopPerforming(null);
-        Assert.Null(c.Held[Combatant.LuteSlot]);
+        Assert.Null(c.Held[Combatant.NotesSlot]);
     }
 }

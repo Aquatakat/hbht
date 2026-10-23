@@ -21,7 +21,11 @@ public static class Billboards
         [.. Nodes.FindAll<Node3D>(root).Where(n => SceneNames.IsFacing(n.Name.ToString()))];
 
     /// <summary>Turns each billboard to face <paramref name="camera"/>.</summary>
-    public static void Face(IEnumerable<Node3D> facings, Vector3 camera)
+    /// <param name="sceneScale">
+    /// The scene's scalar (<c>SceneData.scalar</c>) the billboard's own scale is multiplied by, or null for its parent's scale: a scene
+    /// object's, which places its scene by it. A scene placed on a matrix of its own, as a body's attachment is, leaves it at 1.
+    /// </param>
+    public static void Face(IEnumerable<Node3D> facings, Vector3 camera, Vector3? sceneScale = null)
     {
         foreach (var facing in facings)
         {
@@ -29,7 +33,7 @@ public static class Billboards
             if (facing.GetParent() is not Node3D billboard)
                 continue;
             // The transform's own scale, times the scene object's (SceneData.scalar).
-            var scale = billboard.Scale * (billboard.GetParentNode3D()?.GlobalBasis.Scale ?? Vector3.One);
+            var scale = billboard.Scale * (sceneScale ?? billboard.GetParentNode3D()?.GlobalBasis.Scale ?? Vector3.One);
             var position = billboard.GlobalPosition;
             var m = Billboard.World(position.ToNumerics(), scale.ToNumerics(), 0, camera.ToNumerics());
             facing.GlobalTransform = new Transform3D(

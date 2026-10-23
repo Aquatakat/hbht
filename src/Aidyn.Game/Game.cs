@@ -551,6 +551,8 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         var camera = _camera!.Current.GlobalTransform;
         foreach (var scene in Streamer!.DrawnScenes(camera.Origin, -camera.Basis.Z))
             scene.Draw();
+        foreach (var view in _combatantViews.Values)
+            view.ScrollHeld();
         _ringView?.Draw();
         _spellFxView?.Draw();
         _aimView?.Draw();

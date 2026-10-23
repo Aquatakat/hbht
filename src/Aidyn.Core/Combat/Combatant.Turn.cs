@@ -66,12 +66,12 @@ public sealed partial class Combatant
 
     /// <summary>
     /// Ends a performance (<c>Combatant.StopPerforming</c>, <c>0x80066100</c>): the flag cleared and the battle's Troubadour bonus gone
-    /// (<c>+0x13</c>). The lute on the body's attachment goes with it.
+    /// (<c>+0x13</c>). The notes over its head go with it.
     /// </summary>
     internal void StopPerforming(Battle? battle)
     {
         Flags &= ~CombatantFlags.Performing;
-        HoldLute(false);
+        HoldNotes(false);
         if (battle is not null)
             battle.TroubadourBonus = 0;
     }

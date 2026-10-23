@@ -125,10 +125,11 @@ public partial class Game
     private void SyncBattle()
     {
         var battle = Battle!;
+        var scenery = _session!.Arena!.Sky.Colors.Tint;
         foreach (var view in _combatantViews.Values)
         {
             view.Sync();
-            view.Draw(_world, battle.Camera.Aim);
+            view.Draw(_world, battle.Camera.Aim, battle.Camera.Position, scenery);
         }
         _numbersView?.Sync(battle.Camera.Position);
         _missileView?.Sync();

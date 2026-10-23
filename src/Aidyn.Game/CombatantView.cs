@@ -62,12 +62,16 @@ public partial class CombatantView : BodyView
     /// <summary>
     /// Fades it by its distance from the camera's aim (<c>PlayerShadowAlpha</c>) and places its shadow, as a body's, over
     /// combat's distance, 128 (<c>InitZoneEngine</c> in combat's mode); a body that has died or fled fades out where it is, it and its
-    /// shadow capped at its own alpha (<see cref="Combatant.Alpha"/>).
+    /// shadow capped at its own alpha (<see cref="Combatant.Alpha"/>), what it holds faded with it.
     /// </summary>
-    public void Draw(Core.Physics.CollisionWorld world, System.Numerics.Vector3 aim)
+    /// <param name="eye">The camera's place, which what it holds turns its billboards to: the Troubadour's notes.</param>
+    /// <param name="scenery">The scenery's tint, in on-screen values, which what it holds is tinted by (<see cref="BodyView.TintHeld"/>).</param>
+    public void Draw(Core.Physics.CollisionWorld world, System.Numerics.Vector3 aim, System.Numerics.Vector3 eye, System.Numerics.Vector3 scenery)
     {
         var alpha = Combatant.Alpha;
         var (_, fromAim) = Fade(aim, distance: BodyShadow.CombatDistance, bodyAlpha: alpha);
         PlaceShadow(world, BodyShadow.DrawAlpha(BodyShadow.CombatDistance, fromAim, player: Combatant.Entity == Core.GameState.Alaron, bodyAlpha: alpha));
+        FaceHeld(eye.ToGodot());
+        TintHeld(new Color(scenery.X, scenery.Y, scenery.Z));
     }
 }
