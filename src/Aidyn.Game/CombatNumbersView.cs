@@ -73,7 +73,7 @@ public partial class CombatNumbersView : Node3D
             // Scene.SetTextureTiles (G_TL_TILE, T clamped; S wraps, but the texture's first and last columns are always clear).
             TextureFilter = BaseMaterial3D.TextureFilterEnum.Linear,
             TextureRepeat = false,
-            NoDepthTest = true,
+            // G_RM_ZB_XLU_SURF: tested against what's drawn, not written, and drawn after the world and its bodies.
             RenderPriority = 10,
         };
         var mesh = new MeshInstance3D { Mesh = new QuadMesh(), MaterialOverride = material };
