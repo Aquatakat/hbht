@@ -293,4 +293,40 @@ public sealed class BreadcrumbsTests
         Assert.Equal(At(0, -60, column: 1), crumbs.Find(from, farthest: false));
         Assert.Equal(At(0, 150), crumbs.Find(from, farthest: true));
     }
+
+    // The port's rescue from a fall: the newest where he stood that no rescue has tried, with every other at its place.
+    [Fact]
+    public void ARescueTakesTheNewestUntriedWhereHeStoodAndMarksItsPlaceTried()
+    {
+        var crumbs = From(At(0));
+        Stay(crumbs, At(20));
+        Stay(crumbs, At(40) with { Grounded = false });
+        Stay(crumbs, At(60, mapSet: Interiors));
+
+        // Mid-air and in another map set are passed over; each rescue tries the next older place.
+        Assert.Equal(At(20), crumbs.Rescue(Overworld));
+        // All 13 left from the reset are one place, tried together.
+        Assert.Equal(At(0), crumbs.Rescue(Overworld));
+        Assert.Null(crumbs.Rescue(Overworld));
+
+        // One kept since is untried, and so is everything after a reset.
+        Stay(crumbs, At(80));
+        Assert.Equal(At(80), crumbs.Rescue(Overworld));
+        Assert.Null(crumbs.Rescue(Overworld));
+        crumbs.Reset(At(5));
+        Assert.Equal(At(5), crumbs.Rescue(Overworld));
+    }
+
+    [Fact]
+    public void KeptCountsEachOneKeptAndEachReset()
+    {
+        var crumbs = From(At(0));
+        var kept = crumbs.Kept;
+        crumbs.Tick(At(3));
+        Assert.Equal(kept, crumbs.Kept);
+        Stay(crumbs, At(20));
+        Assert.Equal(kept + 1, crumbs.Kept);
+        crumbs.Reset(At(0));
+        Assert.Equal(kept + 2, crumbs.Kept);
+    }
 }

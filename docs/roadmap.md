@@ -24,7 +24,7 @@ This is the one list of what's open. A task's status is in its phase's table bel
 
 ### Left over from finished work
 
-- **M2:** the editor showing cut-scenes on its map, and the HUD in the editor; Alaron's requests as he opens a container (11) or a door (19), an explosion's particles and the trek popups' fades ([map-objects](systems/map-objects.md#whats-left)); the original's rescue of a player fallen out of the world (`ConfirmPlayerWithinZone`, [movement](systems/movement.md)); and the quest atlas reading the combat record's boss flags.
+- **M2:** the editor showing cut-scenes on its map, and the HUD in the editor; Alaron's requests as he opens a container (11) or a door (19), an explosion's particles and the trek popups' fades ([map-objects](systems/map-objects.md#whats-left)); and the quest atlas reading the combat record's boss flags.
 - **1H:** the content literals [still in code](hardcoded-content.md#still-in-code) rather than records (the protagonist's entity, the backdrops' styles, the skill checks' numbers and the like).
 - **Weather:** a Day or Night spell's hold on the part of day doesn't stop the weather's roll under it in a battle ([magic](systems/magic.md#where-the-port-differs)).
 - **2.10:** what else could move onto triggers, each with its event ([events](systems/events.md#what-else-could-move-onto-triggers)): the first spell and potion's help (`spell.learned`, `item.bought`), the new journal entry's notice (`journal.added`), the camp scenes (`camp.started`), the cheat codes (`cheat.entered`), the Shadow's cinematic and the Goblin Ambush's end (`battle.ended` with its outcome), and a conversation's end as `script.ended`. The editor has no view of the triggers of its own, and the quest atlas doesn't show what they read and set.

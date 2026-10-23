@@ -80,7 +80,7 @@ public enum TrekStep
 /// into a teleport or a cut-scene. Each <see cref="Tick"/> steps them in the original's order. What draws trek
 /// reads the state here and is told what changed through <see cref="ITrekHost"/>.
 /// </summary>
-public sealed class TrekLoop : IMapObjectHost
+public sealed partial class TrekLoop : IMapObjectHost
 {
     /// <summary>
     /// How a teleport fades (<c>set_teleport_pointer</c>, <c>handleZoneEngineFrame</c>, <c>appState_1</c>):
@@ -204,7 +204,7 @@ public sealed class TrekLoop : IMapObjectHost
     /// <summary>Where the player stands, as a breadcrumb keeps it, with the follow camera's eye, or null out of the chunks.</summary>
     public Breadcrumb? Standing => Chunks.ChunkAt(Player.Sphere.Position) is { } chunk
         ? new Breadcrumb(Chunks.MapSet.Id, chunk.Row, chunk.Column, Player.Sphere.Position - Chunks.Origin(chunk), Player.Heading,
-            Camera.Position - Chunks.Origin(chunk))
+            Camera.Position - Chunks.Origin(chunk), Player.Grounded || OnGround())
         : null;
 
     /// <summary>The battle trek is fading out into, which starts once the screen is black.</summary>
@@ -335,6 +335,11 @@ public sealed class TrekLoop : IMapObjectHost
         Zone.Listen();
         var keys = Zone.Keys;
         StepPlayer(world, motion, input, Camera, keys.Sounding(PlayerAnimation, _playerAudio, _playerSounds, motion.Sphere));
+        if (motion.FellOut)
+        {
+            Rescue();
+            before = motion.Sphere.Position;
+        }
         // WanderTick, which a popup, a conversation, the menu and a fade stop.
         if (playing && Use.Popup is null && !talking)
         {

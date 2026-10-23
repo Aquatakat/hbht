@@ -28,25 +28,37 @@ public interface IRootMotion
 /// animations move. Walking and running speeds are his animations' root motion, about 1.26 and
 /// 3.6 units a second. What only the player does is here: the stick read along where the camera
 /// looks, sneaking, the turn a conversation asks of him, keeping to the ground on plain collision,
-/// and going back to where he last stood after a long fall.
+/// and finding he has fallen out of the world, which trek rescues him from (<see cref="Trek.TrekLoop"/>).
 /// </summary>
 public sealed class PlayerMotion
 {
     /// <summary>Alaron's sphere's radius.</summary>
     public const float Radius = 0.5f;
 
-    private Vector3 _safe, _safer;
+    /// <summary>Falling faster than this a tick, he has fallen out of the world (<c>ConfirmPlayerWithinZone</c>, <c>0x8000c078</c>).</summary>
+    public const float FallLimit = 0.3f;
+
+    /// <summary>Below this height, he has fallen out of the world (<c>ConfirmPlayerWithinZone</c>).</summary>
+    public const float Floor = -50;
 
     public PlayerMotion(Vector3 position, Vector2 heading)
     {
         Body = new Body(position, Radius) { Heading = Vector2.Normalize(heading) };
-        _safe = _safer = position;
     }
 
     /// <summary>His body, the first that <c>ProcessPlayers</c> steps.</summary>
     public Body Body { get; }
 
     public CollisionSphere Sphere => Body.Sphere;
+
+    /// <summary>Whether he stood on the ground on the last step: touching something that faces up.</summary>
+    public bool Grounded => Sphere.Touching && Sphere.ContactNormal.Y > 0.5f && Sphere.Velocity.Y > -0.048f;
+
+    /// <summary>
+    /// Whether he fell out of the world on the last step (<c>ConfirmPlayerWithinZone</c>): faster than <see cref="FallLimit"/> a
+    /// tick, or below <see cref="Floor"/>. He's stopped, and it's trek's to put him somewhere (<see cref="Trek.TrekLoop"/>).
+    /// </summary>
+    public bool FellOut { get; private set; }
 
     /// <summary>
     /// The way he faces, in X and Z. The original keeps the opposite, <c>facing</c>, which is why
@@ -96,11 +108,6 @@ public sealed class PlayerMotion
 
         var height = Sphere.Position.Y;
         SpherePhysics.Step(world, Sphere);
-        if (Sphere.Touching && Vector3.Distance(_safe, Sphere.Position) > 1)
-        {
-            _safer = _safe;
-            _safe = Sphere.Position;
-        }
         // On plain collision, which keeps velocity, don't slide down when there's ground just below.
         if (Sphere.Surface is 1 or 2 && SpherePhysics.Ground(world, Sphere.Position, Radius, 0.05f) && Sphere.Position.Y < height)
             Sphere.Position.Y = height;
@@ -108,20 +115,14 @@ public sealed class PlayerMotion
         Body.Press();
 
         var forward = Body.Animate(animation);
+        // Falling: no steering.
         if (Sphere.Velocity.Y <= -0.048f)
-        {
-            // Falling: no steering, and a long fall goes back to where he last stood.
             Sphere.Velocity.X = Sphere.Velocity.Z = 0;
-            if (Sphere.Velocity.Y < -0.3f)
-            {
-                Sphere.Velocity = Vector3.Zero;
-                Sphere.Position = _safer;
-            }
-        }
         else
-        {
             Body.Advance(forward);
-        }
+        FellOut = Sphere.Velocity.Y < -FallLimit || Sphere.Position.Y < Floor;
+        if (FellOut)
+            Sphere.Velocity = Vector3.Zero;
     }
 
     /// <summary>Reads the controls (<c>Actor::Move</c>, the trek parts).</summary>
