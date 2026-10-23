@@ -14,7 +14,7 @@ public sealed class BreadcrumbsTests
     private static readonly RecordId Interiors = RecordId.Decimal(RecordTypes.MapSet, 1);
 
     private static Breadcrumb At(float x, float z = 0, int row = 0, int column = 0, RecordId? mapSet = null) =>
-        new(mapSet ?? Overworld, row, column, new Vector3(x, 0, z), Vector2.UnitX);
+        new(mapSet ?? Overworld, row, column, new Vector3(x, 0, z), Vector2.UnitX, new Vector3(x - 5, 2, z));
 
     /// <summary>
     /// Ticks <see cref="Breadcrumbs.Ticks"/> times at <paramref name="place"/>. The first of them is the one that tests, as
@@ -122,7 +122,7 @@ public sealed class BreadcrumbsTests
     public void TheDistanceIsInThreeDimensions()
     {
         var crumbs = From(At(0));
-        var up = new Breadcrumb(Overworld, 0, 0, new Vector3(0, 12, 0), Vector2.UnitX);
+        var up = new Breadcrumb(Overworld, 0, 0, new Vector3(0, 12, 0), Vector2.UnitX, new Vector3(-5, 14, 0));
 
         crumbs.Tick(up);
 
@@ -178,6 +178,22 @@ public sealed class BreadcrumbsTests
 
         Assert.Equal(At(120), crumbs.All[0]);
         Assert.Equal(14, crumbs.All.Count(c => c == At(100)));
+    }
+
+    // SaveZoneEngine (0x8000E3D4) keeps the body's heading and the camera's eye with the place, and fleeing restores both
+    // from the farthest (InitGameTrek, 0x80020F40): the heading and eye of the place, not those of where the battle began.
+    [Fact]
+    public void TheFarthestKeepsTheHeadingAndTheCamerasEyeOfItsPlace()
+    {
+        var battle = At(0) with { Heading = -Vector2.UnitX, Eye = new Vector3(5, 2, 0) };
+        var crumbs = From(At(0));
+        var back = new Breadcrumb(Overworld, 0, 0, new Vector3(0, 0, 40), Vector2.UnitY, new Vector3(0, 2, 35));
+        crumbs.Tick(back);
+
+        var fled = crumbs.Find(battle, farthest: true);
+
+        Assert.Equal(back, fled);
+        Assert.Equal((Vector2.UnitY, new Vector3(0, 2, 35)), (fled!.Value.Heading, fled.Value.Eye));
     }
 
     // Zones.FindBreadcrumb: only crumbs in the same map set; nearest takes the last of equals, the farthest the last of equals.

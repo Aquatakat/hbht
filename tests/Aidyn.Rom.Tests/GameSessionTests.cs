@@ -335,13 +335,21 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         var (session, host) = Start();
         var trek = session.Trek;
         var start = trek.Player.Sphere.Position;
-        // He stands 30 away for a while, so a breadcrumb is kept there, then comes back.
+        // He stands 30 away for a while, facing back the way the battle will be, the camera behind him, so a breadcrumb is
+        // kept there; then he comes back, facing and seen the other way.
         var away = Body.SetDown(trek.Chunks.World, start + new Vector3(0, 0, -30), 0.5f, null).Position;
+        var toward = Vector2.UnitY;
         trek.Player.Sphere.Position = away;
+        trek.Player.Heading = toward;
+        trek.Camera.Place(away, toward);
         for (var i = 0; i < Breadcrumbs.Ticks + 1; i++)
             Tick(session);
         trek.Player.Sphere.Position = start;
-        Assert.Contains(trek.Breadcrumbs.All, c => Vector3.Distance(c.Local, away - trek.Chunks.Origin(trek.Chunks.ChunkAt(away)!)) < 1);
+        trek.Player.Heading = -toward;
+        trek.Camera.Place(start, -toward);
+        var awayOrigin = trek.Chunks.Origin(trek.Chunks.ChunkAt(away)!);
+        var kept = Assert.Single(trek.Breadcrumbs.All.Distinct(), c => Vector3.Distance(c.Local, away - awayOrigin) < 1);
+        Assert.Equal(toward, kept.Heading);
 
         // Two rats in arena 1, as a monster party used.
         var rat = RecordId.Hex(RecordTypes.Entity, 0x026E);
@@ -406,6 +414,13 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         Assert.Equal(GameMode.Trek, session.Mode);
         Assert.Equal([typeof(Transition.EndBattle), typeof(Transition.ResumeTrek)], host.Transitions.Select(t => t.GetType()));
         Assert.Equal(away, trek.Player.Sphere.Position);
+        // Facing as he did there, and seen from where the camera was then, behind him, not from where the battle began
+        // (InitGameTrek, 0x80020F40, from the breadcrumb InitZoneEngine copied over the kept place).
+        Assert.Equal(toward, trek.Player.Heading);
+        Assert.Equal(awayOrigin + kept.Eye, trek.Camera.Position);
+        var behind = new Vector2(trek.Camera.Position.X - away.X, trek.Camera.Position.Z - away.Z);
+        Assert.True(Vector2.Dot(Vector2.Normalize(behind), toward) < -0.9f);
+        Assert.Equal(away, trek.Camera.Aim);
         Assert.All(trek.Breadcrumbs.All, c => Assert.Equal(trek.Breadcrumbs.All[0], c));
         Assert.NotEmpty(trek.Wanderers.All);
     }

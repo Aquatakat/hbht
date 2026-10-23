@@ -201,9 +201,10 @@ public sealed class TrekLoop : IMapObjectHost
     /// <summary>The last places the player stood, which fleeing a battle goes back to.</summary>
     public Breadcrumbs Breadcrumbs { get; } = new();
 
-    /// <summary>Where the player stands, as a breadcrumb keeps it, or null out of the chunks.</summary>
+    /// <summary>Where the player stands, as a breadcrumb keeps it, with the follow camera's eye, or null out of the chunks.</summary>
     public Breadcrumb? Standing => Chunks.ChunkAt(Player.Sphere.Position) is { } chunk
-        ? new Breadcrumb(Chunks.MapSet.Id, chunk.Row, chunk.Column, Player.Sphere.Position - Chunks.Origin(chunk), Player.Heading)
+        ? new Breadcrumb(Chunks.MapSet.Id, chunk.Row, chunk.Column, Player.Sphere.Position - Chunks.Origin(chunk), Player.Heading,
+            Camera.Position - Chunks.Origin(chunk))
         : null;
 
     /// <summary>The battle trek is fading out into, which starts once the screen is black.</summary>
@@ -683,16 +684,21 @@ public sealed class TrekLoop : IMapObjectHost
     /// <summary>
     /// Trek comes back after a cut-scene or a battle: its world where the player stood, the follow camera aimed at
     /// him and swinging round quickly, and the screen fading in. Having <paramref name="fled"/> a battle, he stands at the
-    /// breadcrumb in the map set farthest from where it began, facing as he did there (<c>InitZoneEngine</c>'s restoring,
-    /// with <c>Zones.Fled</c> set), not set down, as the original puts him exactly where it kept him.
+    /// breadcrumb in the map set farthest from where it began, facing as he did there and with the camera's eye where it
+    /// was then, so it starts behind him as it was rather than from where the battle began (<c>InitZoneEngine</c>,
+    /// <c>0x8000DF84</c>, with <c>Zones.Fled</c> set, copies the breadcrumb over the kept place, and <c>InitGameTrek</c>,
+    /// <c>0x80020F40</c>, puts the body, its heading and the camera's eye from it). He isn't set down, as the original puts
+    /// him exactly where it kept him.
     /// </summary>
     public void Resume(bool fled = false)
     {
         if (fled && Standing is { } start && Breadcrumbs.Find(start, farthest: true) is { } crumb
             && Chunks.MapSet.Chunk(crumb.Row, crumb.Column) is { } chunk)
         {
-            Player.Sphere.Position = Chunks.Origin(chunk) + crumb.Local;
+            var origin = Chunks.Origin(chunk);
+            Player.Sphere.Position = origin + crumb.Local;
             Player.Heading = crumb.Heading;
+            Camera.PlaceAt(origin + crumb.Eye);
         }
         Rebuild();
         var at = Player.Sphere.Position;
