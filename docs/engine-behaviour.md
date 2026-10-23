@@ -475,7 +475,7 @@ Choosing any of these actions ends the turn:
 
 ### Troubadour
 
-Starting a performance locks the character into performing until it wears off. It gives a small boost to everything, comparable to Luck in Morrowind. **(machine code)** Only one performance can be going in a battle. Starting one rolls (Troubadour × 5 + Intelligence) × 2 against a d100 and costs 3 Stamina when it works; the boost is the roll's margin in steps, scaling every chance, both sides' the opposite ways. The performer pays a Stamina point each round, can act as usual, and stops as it acts, is engaged, changes weapon or runs out of Stamina ([combat](systems/combat.md#spells-potions-and-skills-in-a-turn)).
+Starting a performance locks the character into performing until it wears off. It gives a small boost to everything, comparable to Luck in Morrowind. **(machine code)** Only one performance can be going in a battle. Starting one rolls (Troubadour × 5 + Intelligence) × 2 against a d100 and costs 3 Stamina when it works; the boost is the roll's margin in steps, scaling every chance, both sides' the opposite ways. The performer pays a Stamina point each round, can act as usual, and stops as it acts, is engaged, changes weapon or runs out of Stamina ([combat](systems/combat.md#spells-potions-and-skills-in-a-turn)). While it lasts, a billboard of music notes scrolls over the performer's head ([combat](systems/combat.md#what-the-bodies-hold)).
 
 ### Enemy AI
 

@@ -133,7 +133,42 @@ public sealed class BattleActionTests(Na10Import fixture)
         Assert.True(run.Battle.Confirm());
         Assert.Equal(CombatState.Perform, run.Battle.State);
         Assert.Equal(alaron.Performing, run.Battle.TroubadourBonus > 0);
+        Assert.Equal(alaron.Performing, alaron.Held[Combatant.NotesSlot] is not null);
         run.UntilTurnEnds(alaron);
+    }
+
+    [Fact]
+    public void ThePerformersNotesShowOverItsHeadUntilThePerformanceEnds()
+    {
+        var run = Start();
+        var alaron = run.TurnOf("Alaron");
+        // (Troubadour × 5 + Intelligence) × 2 of at least 100 can't fail the d100.
+        alaron.Sheet.Skills.Modify(Aidyn.Core.Characters.Skill.Troubadour, 10);
+        Choose(run.Battle, false, r => r.Choice == CombatMenuChoice.Perform);
+        Assert.Null(alaron.Held[Combatant.NotesSlot]);
+        Assert.True(run.Battle.Confirm());
+        Assert.True(alaron.Performing);
+        // StartTroubadour's AttachItemToPlayer(body, 2, 0x1ABB): the head's locator, raised 1 in the world's Y.
+        Assert.Equal(new HeldModel(Combatant.NotesScene, 3, 1), alaron.Held[Combatant.NotesSlot]);
+        run.UntilTurnEnds(alaron);
+        Assert.NotNull(alaron.Held[Combatant.NotesSlot]);
+
+        // With no Stamina at the round's end the performance stops (if a blow or an engagement hasn't stopped it first), and the notes go with it.
+        var stats = alaron.Sheet.Stats;
+        alaron.Sheet.DrainStamina(stats.Modified(Aidyn.Core.Characters.Stat.Stamina));
+        Assert.Equal(0, stats.Modified(Aidyn.Core.Characters.Stat.Stamina));
+        // A turn of his own in the same round (a skip) keeps it going.
+        for (var turn = 0; turn < 4 && alaron.Performing; turn++)
+        {
+            Assert.NotNull(alaron.Held[Combatant.NotesSlot]);
+            run.TurnOf("Alaron");
+            if (!alaron.Performing)
+                break;
+            Assert.True(run.Battle.Skip());
+            run.UntilTurnEnds(alaron);
+        }
+        Assert.False(alaron.Performing);
+        Assert.Null(alaron.Held[Combatant.NotesSlot]);
     }
 
     [Fact]

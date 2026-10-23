@@ -959,7 +959,7 @@ Combatant.StopPerforming = 0x80066100; // coined; docs/systems/combat.md: bit 2 
 Combatant.UpdateActive = 0x8006615c; // coined; docs/systems/combat.md: bit 1 on unless a stat of Intelligence, Willpower, Dexterity or Strength is 0 or it is immobilised
 Combatant.GainSmallExperience = 0x8006620c; // coined; docs/systems/combat.md: a one-in-ten chance of an experience point
 Combatant.PlaceRingAndBody = 0x8006627c; // coined; docs/systems/combat.md: the body to its cell and the ring to it
-Combatant.StartTroubadour = 0x800662f4; // coined; docs/systems/combat.md: the roll against Strength and Dexterity: starts the performance (bit 2, +0x13, the lute), or the failure line
+Combatant.StartTroubadour = 0x800662f4; // coined; docs/systems/combat.md: (Troubadour × 5 + Intelligence) × 2 against a d100: starts the performance (bit 2, +0x13, the notes over the head, Borg5 0x1abb in slot 2), or the failure line
 Combatant.SetHealingMode = 0x8006662c; // coined; docs/systems/combat.md: bit 8 or 9 on (a healing action), target set A rebuilt
 Combatant.StartLayOnHands = 0x800666d4; // coined; docs/systems/combat.md: bit 8
 Combatant.StartHealWithHerbs = 0x800666f0; // coined; docs/systems/combat.md: bit 9
@@ -2213,8 +2213,12 @@ Body.AttachmentDefaultLocators = 0x800cdc0c; // coined; docs/systems/combat.md: 
 Combat.FreeQueue = 0x800d96b0; // coined; docs/systems/combat.md: AllocFreeQueueItem's queue of scenes freed later
 Scene.HasLocator = 0x8009eae8; // coined; docs/systems/combat.md: (scene, i): i < 8 and the scene's locator table (+0x1d4 + 4i) isn't -1; RenderPlayers skips an attachment without one
 Scene.SetPosition = 0x8009d960; // coined; docs/systems/combat.md: scene +0xb8..+0xc0 = x, y, z
-Scene.Translate = 0x8009d970; // coined; docs/systems/combat.md: adds x, y, z to scene +0xb8..+0xc0: the lute's +1.0 in Y (Combatant.LuteRaise)
+Scene.Translate = 0x8009d970; // coined; docs/systems/combat.md: adds x, y, z to scene +0xb8..+0xc0: the Troubadour's notes' +1.0 in Y (Combatant.NotesRaise)
 Scene.SetMatrix = 0x8009f1c8; // coined; docs/systems/combat.md: copies a 4x4 into scene +0x88: an attachment's locator matrix
+Scene.SetScale = 0x8009dbcc; // coined; docs/systems/combat.md: the scene's scalar (+0x1c8..+0x1d0, which billboards are sized by) and the matrix's rows renormalised and scaled by it: RenderPlayers' body scale
+Scene.ScaleMatrix = 0x8009dc6c; // coined; docs/systems/combat.md: the scene's scalar and the matrix's rows scaled by it, not renormalised: RenderPlayers' doubled attachments
+Scene.UseOwnMatrix = 0x8009e3b4; // coined; docs/systems/combat.md: scene flag 0x4 (+0x1f4), so Borg5Scene.Evaluate starts from the scene's +0x88 matrix: an attachment's
+Scene.EnableFog = 0x8009e590; // coined; docs/systems/combat.md: scene flag 0x100 (+0x1f4), the fog Scene.SetRenderMode reads
 Mtx.Multiply = 0x800a280c; // coined; docs/formats/scenes.md: (out, a, b): out = b x a, row vectors (SceneGetLocatorMtx's)
 ItemTables.WeaponModels = 0x8006cdd4; // ItemTables.WeaponModels (Aidyn.Rom); docs/formats/db.md: a weapon's table position to its Borg5 through CodeTable.WeaponsWithModels and WeaponModels, -1 for none
 Combatant.UndrawnWeapons = 0x800d2a0c; // CombatRecord.UndrawnWeapons (Aidyn.Plugins); docs/systems/combat.md: 8 entity list places, 0xff ends: Shamsuk, the Gorgon, the Chaos Lieutenant, the Harpy, the Marquis, the Minotaur, the Minotaur Lord, Niesen

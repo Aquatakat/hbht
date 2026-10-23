@@ -317,7 +317,7 @@ public sealed partial class Battle
             var step = Party.SkillCheckStep((short)(chance - roll));
             c.Flags = (c.Flags | CombatantFlags.Performing) & ~(CombatantFlags.LayOnHands | CombatantFlags.HealWithHerbs);
             TroubadourBonus = step < 2 ? 1 : step;
-            c.HoldLute(true);
+            c.HoldNotes(true);
             sheet.DrainStamina(3);
             SayBoth(PerformsLine, sheet.Name);
             GainPerformance(c, points);

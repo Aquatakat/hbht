@@ -24,8 +24,8 @@ public abstract partial class BodyView : Node3D
     private readonly ShadowDecal? _shadow;
     private readonly Models? _models;
 
-    /// <summary>What it holds in each attachment slot, and the model drawn for it (body <c>+0x730</c>).</summary>
-    private readonly (HeldModel Held, Level Level)?[] _held = new (HeldModel, Level)?[3];
+    /// <summary>What it holds in each attachment slot, the model drawn for it, and its billboards' facing nodes (body <c>+0x730</c>).</summary>
+    private readonly (HeldModel Held, Level Level, List<Node3D> Facings)?[] _held = new (HeldModel, Level, List<Node3D>)?[3];
 
     /// <summary>The meshes of its actor and of what it holds, made again as what it holds changes.</summary>
     private GeometryInstance3D[]? _meshes;
@@ -105,7 +105,8 @@ public abstract partial class BodyView : Node3D
     /// Puts in its actor's hands what it holds, slot by slot (<c>RenderPlayers</c>, <c>0x80013DCC</c>): each model on its locator's
     /// attachment node, turned by the locator model's rotation and moved and scaled with the transform it's on as the animation
     /// poses it, lit and faded as the body. A locator the actor doesn't have draws nothing, as the original's
-    /// <c>Scene.HasLocator</c> skips it. Call after each tick.
+    /// <c>Scene.HasLocator</c> skips it. Each held scene has its own copy of its scrolling textures, which <see cref="ScrollHeld"/>
+    /// moves on, and its billboards, which <see cref="FaceHeld"/> turns to the camera, as the Troubadour's notes need. Call after each tick.
     /// </summary>
     protected void Hold(IReadOnlyList<HeldModel?> held)
     {
@@ -123,14 +124,51 @@ public abstract partial class BodyView : Node3D
                     N64Material.SetLighting(item, N64Material.Lighting.Body);
                     ShadowDecal.MarkBody(item);
                     parent.AddChild(item);
-                    var level = new Level(item, null);
+                    var level = new Level(item, _models.Scrolls.Attach(h.Scene, item));
                     level.Show(_model!.Alpha);
-                    _held[slot] = (h, level);
+                    _held[slot] = (h, level, Billboards.Facings(item));
                 }
             }
-            // Only the lute is raised, in the world's Y, after it's placed on its locator.
-            if (_held[slot] is ({ Raise: not 0 } raised, var shown) && shown.Node.IsInsideTree() && shown.Node.GetParent() is Node3D on)
+            // Only the Troubadour's notes are raised, in the world's Y, after they're placed on their locator.
+            if (_held[slot] is ({ Raise: not 0 } raised, var shown, _) && shown.Node.IsInsideTree() && shown.Node.GetParent() is Node3D on)
                 shown.Node.GlobalPosition = on.GlobalPosition + new Vector3(0, raised.Raise, 0);
+        }
+    }
+
+    /// <summary>
+    /// Turns the billboards of what it holds to face <paramref name="eye"/>, as <c>Scene.Draw</c> draws an attachment as it does any scene
+    /// (<c>BorgAnimDrawSceneRaw</c>): at the billboard's place, sized by its own scale alone, as <c>RenderPlayers</c> leaves the scene's
+    /// scalar at 1 and the body's scale only moves where it's placed. Call after <see cref="Hold"/>.
+    /// </summary>
+    public void FaceHeld(Vector3 eye)
+    {
+        foreach (var held in _held)
+        {
+            if (held is { Facings.Count: > 0 } h && h.Level.Node.IsInsideTree())
+                Billboards.Face(h.Facings, eye, sceneScale: Vector3.One);
+        }
+    }
+
+    /// <summary>One draw of what it holds, which moves its scrolling textures on (<c>Scene.LoadTextureOp</c>), while it's shown.</summary>
+    public void ScrollHeld()
+    {
+        foreach (var held in _held)
+        {
+            if (held is { } h && h.Level.Node.Visible)
+                h.Level.Scrolling?.Draw();
+        }
+    }
+
+    /// <summary>
+    /// The prim colour of what it holds (<c>RenderPlayers</c>' <c>Scene.SetTint</c>, <c>0x80014254</c>): the scenery's tint, in on-screen
+    /// values, where the body's own scene is white. The screen's fade, which the original multiplies in too, is the runtime's overlay.
+    /// </summary>
+    public void TintHeld(Color scenery)
+    {
+        foreach (var held in _held)
+        {
+            if (held is { } h)
+                N64Material.SetSceneTint(h.Level.Node, scenery);
         }
     }
 

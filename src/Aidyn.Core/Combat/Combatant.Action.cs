@@ -29,33 +29,36 @@ public enum CombatAction : byte
 /// </summary>
 /// <param name="Scene">The scene drawn.</param>
 /// <param name="Locator">The locator of the body's actor it's drawn at; none on the actor draws nothing.</param>
-/// <param name="Raise">How far it's raised in the world's Y after it's placed: the lute's 1.</param>
+/// <param name="Raise">How far it's raised in the world's Y after it's placed: the Troubadour's notes' 1.</param>
 public readonly record struct HeldModel(RecordId Scene, int Locator, float Raise = 0);
 
 public sealed partial class Combatant
 {
-    /// <summary>The weapon's, the arrow's or the flask's attachment slot; the shield's or the bow's; and the lute's.</summary>
-    public const int HandSlot = 0, ArmSlot = 1, LuteSlot = 2;
+    /// <summary>The weapon's, the arrow's or the flask's attachment slot; the shield's or the bow's; and the Troubadour's notes'.</summary>
+    public const int HandSlot = 0, ArmSlot = 1, NotesSlot = 2;
 
     /// <summary>The locator each slot starts on (<c>Body.AttachmentDefaultLocators</c>, <c>0x800CDC0C</c>): the hand, the shield arm, and the head.</summary>
     private static readonly int[] DefaultLocators = [0, 2, 3];
 
-    /// <summary>The Troubadour's lute (<c>Combatant.StartTroubadour</c>), and how far it's raised (<c>RenderPlayers</c>, slot 2 alone).</summary>
-    public static readonly RecordId LuteScene = RecordId.Hex(RecordTypes.Scene, 0x1ABB);
+    /// <summary>
+    /// The Troubadour's performance (<c>Combatant.StartTroubadour</c>): a billboard of music notes, 1.64 square, standing on its foot, whose
+    /// texture scrolls (Borg1 <c>0x1ABA</c>), and how far it's raised above the head's locator (<c>RenderPlayers</c>, slot 2 alone).
+    /// </summary>
+    public static readonly RecordId NotesScene = RecordId.Hex(RecordTypes.Scene, 0x1ABB);
 
-    public const float LuteRaise = 1;
+    public const float NotesRaise = 1;
 
     private readonly HeldModel?[] _held = new HeldModel?[3];
 
     /// <summary>
-    /// What its body holds in each attachment slot (<see cref="HandSlot"/>, <see cref="ArmSlot"/>, <see cref="LuteSlot"/>), which
+    /// What its body holds in each attachment slot (<see cref="HandSlot"/>, <see cref="ArmSlot"/>, <see cref="NotesSlot"/>), which
     /// the runtime draws: in battle alone, as trek's bodies hold nothing but what a script shows.
     /// </summary>
     public IReadOnlyList<HeldModel?> Held => _held;
 
     /// <summary>
     /// Puts in its body's hands what its action holds (<c>Combatant.EquipVisuals</c>, <c>0x80066AEC</c>), the hand and the arm
-    /// emptied first and the lute left be. The arm holds the shield (its armor's model, at locator 2), unless its entity can never
+    /// emptied first and the notes left be. The arm holds the shield (its armor's model, at locator 2), unless its entity can never
     /// learn the shield skill (<c>Combatant.CannotUseShield</c>, <c>0x80066C18</c>). With no action the hand holds nothing; a flask or
     /// a potion in hand holds the flask; a bow holds its arrow in the hand and the bow itself in the arm in place of the shield, at
     /// locators 0 and 1, or 1 and 0 for <see cref="CombatRecord.OtherHand"/>; any other weapon holds its own model, none for a bite
@@ -97,9 +100,9 @@ public sealed partial class Combatant
     /// <summary>The arrow, flask or thrown weapon leaves the hand as it flies (<c>Combat.StartCastCamera</c>, <c>0x80023434</c>).</summary>
     internal void EmptyHand() => _held[HandSlot] = null;
 
-    /// <summary>The lute on the body as it performs (<c>Combatant.StartTroubadour</c>), or taken off (<c>StopPerforming</c>).</summary>
-    internal void HoldLute(bool held) =>
-        _held[LuteSlot] = held ? new HeldModel(LuteScene, DefaultLocators[LuteSlot], LuteRaise) : null;
+    /// <summary>The notes over the body's head as it performs (<c>Combatant.StartTroubadour</c>), or taken off (<c>StopPerforming</c>).</summary>
+    internal void HoldNotes(bool held) =>
+        _held[NotesSlot] = held ? new HeldModel(NotesScene, DefaultLocators[NotesSlot], NotesRaise) : null;
 
     /// <summary>What A does (<c>+0x25</c>), which its weapon sets (<see cref="SetDefaultAction"/>).</summary>
     public CombatAction Action { get; internal set; }
