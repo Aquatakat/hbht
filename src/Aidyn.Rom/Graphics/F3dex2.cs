@@ -96,9 +96,10 @@ public static class F3dex2
         if (address + count * N64Vertex.Size > memory.Length)
             throw new InvalidDataException($"G_VTX reads {count} vertices at 0x{w1:X8}, past the segment's end.");
 
+        // The RSP takes a load's vertices two at a time from its first, whatever buffer slot it starts at.
         var source = memory.Span[address..];
         for (var i = 0; i < count; i++)
-            buffer[first + i] = N64Vertex.Read(source[(i * N64Vertex.Size)..]);
+            buffer[first + i] = N64Vertex.Read(source[(i * N64Vertex.Size)..]) with { SecondOfPair = i % 2 == 1 };
     }
 
     private static short Unscale(short value, int scale, int pc)

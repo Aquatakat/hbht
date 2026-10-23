@@ -28,7 +28,7 @@ The importer writes each scene into the base plugin, and `aidyn scenes <rom> [<i
 - **Materials** follow the game's combiners:
   - Textured draws are texture × shade (the vertex colour or the lighting), with alpha = texture alpha × (1 − tint alpha). The tint's colour isn't used.
   - Untextured draws are shade × tint colour.
-  - Unlit display lists use `KHR_materials_unlit` with `COLOR_0`. Lit ones have normals.
+  - Unlit display lists use `KHR_materials_unlit` with `COLOR_0`. Lit ones have normals, and `TEXCOORD_1`, whose S is 1 on the vertices the RSP loads second of a pair, which a body's or a placed actor's lights don't reach ([geometry](geometry.md)).
   - Vertex colours and untextured tints are the values the N64 puts on screen, so they're decoded as sRGB into glTF's linear `COLOR_0` and `baseColorFactor`; written raw they would come out too bright ([rendering](../systems/rendering.md)).
   - The wrap and mirror flags map to sampler wrap modes, and flag 0x80 maps to nearest filtering.
   - Culling maps to `doubleSided`.

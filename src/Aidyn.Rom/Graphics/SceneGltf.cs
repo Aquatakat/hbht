@@ -504,6 +504,10 @@ public static class SceneGltf
             var size = mesh.Flags.HasFlag(Borg2MaterialFlags.EnvironmentMap) ? new Vector2(32768) : new Vector2(texture.Width * 64, texture.Height * 64);
             attributes["TEXCOORD_0"] = gltf.AddVectors(mesh.Vertices.Select(v => new Vector2(v.S, v.T) / size).ToList());
         }
+        // A lit list's second coordinates' S is 1 where the vertex was loaded second of a pair, which the engine's lights don't
+        // reach (N64Vertex.SecondOfPair): the N64 material lights it by the ambient alone.
+        if (!mesh.Flags.HasFlag(Borg2MaterialFlags.Unlit) && mesh.Vertices.Any(v => v.SecondOfPair))
+            attributes["TEXCOORD_1"] = gltf.AddVectors(mesh.Vertices.Select(v => new Vector2(v.SecondOfPair ? 1 : 0, 0)).ToList());
 
         return new JsonObject
         {

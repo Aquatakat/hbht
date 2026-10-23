@@ -22,6 +22,27 @@ public class GeometryTests
     }
 
     /// <summary>
+    /// The RSP lights a load's vertices two at a time from its first, so whether one is second of a pair goes by its place in
+    /// the load, not its buffer slot or its place in the vertices: the same vertex loaded twice can be either.
+    /// </summary>
+    [Fact]
+    public void VerticesAreSecondOfAPairByTheirPlaceInTheLoad()
+    {
+        // Vertices 0-3 into slots 2-5, then vertices 1-3 into slots 7-9; draw (2,3,4) and (7,8,9).
+        var triangles = F3dex2.Run(DisplayList(
+            0x0100_400C, 0x0A00_0000,
+            0x0100_3014, 0x0A00_0010,
+            0x0504_0608, 0x0000_0000,
+            0x050E_1012, 0x0000_0000,
+            0xDF00_0000, 0), 0, Segments);
+
+        Assert.Equal([(0, false), (1, true), (2, false)], Corners(triangles[0]));
+        Assert.Equal([(1, false), (2, true), (3, false)], Corners(triangles[1]));
+
+        static (int, bool)[] Corners(N64Triangle t) => [.. new[] { t.A, t.B, t.C }.Select(v => ((int)v.X, v.SecondOfPair))];
+    }
+
+    /// <summary>
     /// G_MODIFYVTX writes texture coordinates that the texture scale has already been applied to,
     /// so at a scale of ½ they come back doubled.
     /// </summary>
