@@ -2044,6 +2044,7 @@ PauseMenu.NeedsCleanup = 0x800df039; // coined; docs/systems/ui.md: set as the m
 CodeTable.WorldMapPieces = 0x800df040; // RomVersion.cs
 CodeTable.MinimapSections = 0x800dfba4; // RomVersion.cs
 CodeTable.MinimapFlagImages = 0x800dfbc8; // RomVersion.cs
+Plane.DrawStateList = 0x800dfcc0; // coined; docs/systems/combat.md: the display list Plane.SetDrawState calls: one cycle, G_CC_MODULATERGBA, G_TF_BILERP
 Dialogue.SoundTable = 0x800dfd60; // coined; docs/systems/audio.md
 CutScene.ReturnMode = 0x800dfe10; // coined; the mode CutScene.ModeFrame returns when it ends (0 after a game over)
 CutScene.Playing = 0x800dfe14; // coined; docs/systems/weather.md: set while a cut-scene plays, when the scenery's fog ignores the weather's
