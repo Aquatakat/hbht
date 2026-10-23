@@ -62,6 +62,7 @@ internal static class GraphicsImporter
         });
 
         ctx.WriteRecords("emitters.json", emitters.OrderBy(e => e.Id.Key, StringComparer.Ordinal).ToList());
+        ctx.WriteRecords("explosion.json", new[] { Explosion(particleTextures) });
 
         // Scenes carry their own textures. These are for what the engine draws with a texture
         // alone, such as bodies' shadows and particles. Only the full-size level is kept.
@@ -76,6 +77,16 @@ internal static class GraphicsImporter
         Parallel.ForEach(images, index =>
             ctx.WriteAsset(RecordId.Hex(RecordTypes.Image, index), "png", Png.Encode(Borg8Image.Parse(archive.Read(index)).Decode())));
     }
+
+    /// <summary>The particle texture slot a trapped container's explosion draws its fires and burst with (<c>Explosion.MakeFire</c>, <c>Explosion.Burst</c>).</summary>
+    internal const int ExplosionSlot = 2;
+
+    /// <summary>
+    /// How a trapped container's explosion is drawn: the texture of the slot its emitters name, looked up in the engine's
+    /// particle list (<c>partTextInds</c>), the slot a literal of 1.0's <c>Explosion.MakeFire</c> and <c>Explosion.Burst</c>.
+    /// </summary>
+    internal static ExplosionRecord Explosion(IReadOnlyList<int?> textures) => new(RecordId.Decimal(RecordTypes.Explosion, 0),
+        ExplosionSlot < textures.Count && textures[ExplosionSlot] is { } borg1 ? RecordId.Hex(RecordTypes.Texture, borg1) : null);
 
     /// <summary>
     /// An emitter as the plugin holds it, with its texture slot looked up in the engine's particle list

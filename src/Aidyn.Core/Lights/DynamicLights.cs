@@ -63,6 +63,9 @@ public sealed class DynamicLights
         }
     }
 
+    /// <summary>Whether a light is still lit in its slot: its life hasn't run out, and no new light has taken its place.</summary>
+    public bool IsLit(PointLight light) => Array.IndexOf(_lights, light) >= 0;
+
     public void Clear()
     {
         Array.Clear(_lights);
@@ -70,18 +73,24 @@ public sealed class DynamicLights
     }
 
     /// <summary>
-    /// A trapped container going off (<c>Containers.Explode</c>, 0x8000ffe4): four fires, each a light drifting at
-    /// random between a dark red and yellow, within 5, the first for 600 ticks and the rest for 60
-    /// (<c>Explosion.Fire</c>, 0x800174f8), then a burst within 10 that fades from orange to nothing over its 120
-    /// ticks (<c>Explosion.Burst</c>, 0x80016c00), all where the container is. Each comes with particles, which
-    /// aren't ported.
+    /// A trapped container going off (<c>Containers.Explode</c>, 0x8000ffe4) where there are no particles to go with its
+    /// lights: four fires, each a light drifting at random between a dark red and yellow, within 5, the first for 600 ticks
+    /// and the rest for 60 (<see cref="FireLight"/>), then a burst within 10 that fades from orange to nothing over its 120
+    /// ticks (<see cref="BurstLight"/>), all where the container is. With particles, <see cref="Particles.Explosion"/>
+    /// adds the same lights, each with its emitter, and the flying fires' follow them.
     /// </summary>
     public void Explosion(Vector3 at)
     {
-        Rgba red = new(0x60, 0, 0, 0), yellow = new(0xFF, 0xFF, 0, 0);
-        Add(600, at, 5, LightKind.Random, 0.75f, red, yellow);
+        FireLight(at, 600);
         for (var i = 0; i < 3; i++)
-            Add(60, at, 5, LightKind.Random, 0.75f, red, yellow);
-        Add(120, at, 10, LightKind.Alternate, 4, new Rgba(0xFF, 0x80, 0, 0), default);
+            FireLight(at, 60);
+        BurstLight(at);
     }
+
+    /// <summary>A fire's light (<c>Explosion.Fire</c>, 0x800174f8): drifting at random (speed 0.75) between dark red and yellow, within 5.</summary>
+    public PointLight? FireLight(Vector3 at, int ticks) =>
+        Add(ticks, at, 5, LightKind.Random, 0.75f, new Rgba(0x60, 0, 0, 0), new Rgba(0xFF, 0xFF, 0, 0));
+
+    /// <summary>A burst's light (<c>Explosion.Burst</c>, 0x80016c00): orange fading to nothing (alternate, speed 4) over 120 ticks, within 10.</summary>
+    public PointLight? BurstLight(Vector3 at) => Add(120, at, 10, LightKind.Alternate, 4, new Rgba(0xFF, 0x80, 0, 0), default);
 }

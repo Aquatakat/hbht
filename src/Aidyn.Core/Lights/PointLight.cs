@@ -45,8 +45,8 @@ public sealed class PointLight
     public static PointLight For(LightObject light, Vector3 origin) =>
         new(origin + light.Position, light.Radius, light.Kind, light.Speed, light.From, light.To, light.Occludable, light.FacesCamera);
 
-    /// <summary>Where it is in the world.</summary>
-    public Vector3 Position { get; }
+    /// <summary>Where it is in the world. A flying fire's light follows its fire (<see cref="Particles.Explosion"/>).</summary>
+    public Vector3 Position { get; internal set; }
 
     /// <summary>It lights what's nearer than this, more the nearer.</summary>
     public float Radius { get; }

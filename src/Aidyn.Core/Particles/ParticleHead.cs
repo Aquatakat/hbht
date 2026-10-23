@@ -1,4 +1,5 @@
 using System.Numerics;
+using Aidyn.Core.Physics;
 using Aidyn.Core.Rng;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
@@ -108,6 +109,12 @@ public sealed class ParticleHead
     /// </summary>
     public float Brightness { get; set; } = 1;
 
+    /// <summary>
+    /// The collision an emitter that moves itself (<see cref="EmitterFlags.Moves"/>) collides with (the head's <c>+0x338</c>,
+    /// which <c>LoadGameBorgScenes</c> sets), or null, which holds such emitters still. The zone engine gives it its world.
+    /// </summary>
+    public CollisionWorld? World { get; set; }
+
     /// <summary>The particles in use, emitters' heads and modifiers among them.</summary>
     public int ParticlesInUse => _usedParticles;
 
@@ -162,6 +169,7 @@ public sealed class ParticleHead
         (e.Update, e.Spawn, e.Step) = (update, spawn, step);
         (e.Record, e.Anchor) = (null, null);
         e.Position = e.TargetPosition = e.Direction = Vector3.Zero;
+        e.Sphere = null;
         _particles[head].Flags = ParticleFlags.Modifier | ParticleFlags.KeepAtDeath | ParticleFlags.Chain | ParticleFlags.Unmodified;
         return e;
     }
@@ -290,7 +298,8 @@ public sealed class ParticleHead
                 _particles[scaler].Vector = new Vector4(d, d, d, 0);
             }
         }
-        // Flag 0x200 moves the emitter itself, colliding with the map (ProcessCollisionSphere). No emitter has it.
+        // Flag 0x200 moves the emitter itself, colliding with the map (ProcessCollisionSphere), as code's flying fires
+        // do (EmitterFlags.Moves). No Borg5 emitter has it.
 
         Place(this, e);
         for (var i = 0; i < record.Burst; i++)
@@ -364,6 +373,10 @@ public sealed class ParticleHead
             if (e.Life >= 0)
             {
                 e.Update?.Invoke(this, e);
+                // One that moves itself steps its sphere by the frame's ticks and collides it with the world once
+                // (ProcessCollisionSphere), as a trapped container's flying fires do.
+                if (e.Flags.HasFlag(EmitterFlags.Moves) && e.Sphere is { } sphere && World is { } world)
+                    SpherePhysics.Step(world, sphere, delta);
                 e.Life -= delta;
                 if (e.Spawn is { } spawn && e.Life > 0)
                 {

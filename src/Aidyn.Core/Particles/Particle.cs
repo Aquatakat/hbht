@@ -1,4 +1,5 @@
 using System.Numerics;
+using Aidyn.Core.Physics;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
 
@@ -112,7 +113,10 @@ public enum EmitterFlags : ushort
     /// last. Nothing the port runs has it.
     /// </summary>
     FirstPass = 0x1000,
-    /// <summary>It moves itself, colliding with the map (flag 0x200 of a Borg5 emitter). No emitter has it.</summary>
+    /// <summary>
+    /// It moves itself, its <see cref="Emitter.Sphere"/> stepped and collided with the pool's world each frame: a trapped
+    /// container's three flying fires (<see cref="Explosion"/>). Flag 0x200 of a Borg5 emitter would set it; none has it.
+    /// </summary>
     Moves = 0x2000,
     /// <summary>Its particles bounce off its <see cref="Emitter.Floor"/>.</summary>
     Bounces = 0x4000,
@@ -180,6 +184,12 @@ public sealed class Emitter(int slot)
 
     /// <summary>Where it spawns from, its target and its direction, which a Borg5 emitter's locators set each frame.</summary>
     public Vector3 Position, TargetPosition, Direction;
+
+    /// <summary>
+    /// With <see cref="EmitterFlags.Moves"/>, the sphere it moves as (the emitter's <c>+0x1D0</c>: radius 0.25, the pool's one
+    /// gravity of 0.006 a tick² and keeping all its velocity), whose place code spawns from.
+    /// </summary>
+    public CollisionSphere? Sphere;
 
     public bool InUse => Flags.HasFlag(EmitterFlags.InUse);
 }
