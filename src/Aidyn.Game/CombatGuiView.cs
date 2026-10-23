@@ -79,26 +79,39 @@ public partial class CombatGuiView : Control
         var textHeight = _ui.Main.Layout.LineHeight();
         var heights = menu.Rows.Select(r => menu.RowHeight(IconSize(r.Icon).Y, textHeight)).ToList();
         var layout = menu.Layout(heights);
-        var list = layout.List;
-        var band = new ScreenRect(list.Left + ox, list.Top + oy, list.Right + ox, list.Bottom + oy);
-        _ui.Images.DrawPanel(this, _ui.Images.Around(band));
-        var clip = new Rect2I(band.Left, band.Top, band.Right - band.Left, band.Bottom - band.Top);
+        _ui.Images.DrawPanel(this, PanelAround(Offset(layout.Panel, ox, oy)));
+        var band = Offset(layout.List, ox, oy);
+        var cut = Offset(layout.Clip, ox, oy);
+        var clip = new Rect2I(cut.Left, cut.Top, cut.Right - cut.Left, cut.Bottom - cut.Top);
         for (var i = 0; i < menu.Rows.Count; i++)
         {
             var row = menu.Rows[i];
             var top = band.Top + layout.RowTops[i] - layout.Scroll;
-            if (top + heights[i] <= band.Top || top >= band.Bottom)
+            if (top + heights[i] <= cut.Top || top >= cut.Bottom)
                 continue;
             var color = i == menu.Cursor ? menu.CursorColor(row.Color) : row.Color;
             if (row.Icon is { } icon)
                 _ui.Image(this, icon, band.Left, top, clip: clip);
             var x = band.Left + menu.IconWidth + 5;
-            _ui.Text(this, _ui.Main, row.Text, x, top + menu.TextTop(textHeight), new ScreenRect(x, band.Top, band.Right + 40, band.Bottom), color, clip);
+            _ui.Text(this, _ui.Main, row.Text, x, top + menu.TextTop(textHeight), new ScreenRect(x, cut.Top, cut.Right + 40, cut.Bottom), color, clip);
         }
-        if (layout.UpArrow)
-            _ui.Image(this, CombatMenu.UpArrow, band.Left - 9, band.Top - 2 - IconSize(CombatMenu.UpArrow).Y);
-        if (layout.DownArrow)
-            _ui.Image(this, CombatMenu.DownArrow, band.Left - 9, band.Bottom + 2);
+        // The arrows' places are set as the menu is built, 8 left of the list and 2 off its top and bottom (BuildSpellsMenu, BuildItemsMenu).
+        if (layout.UpArrow > 0)
+            _ui.Image(this, CombatMenu.UpArrow, band.Left - 8, band.Top - 2 - IconSize(CombatMenu.UpArrow).Y, color: new Rgba(255, 255, 255, (byte)layout.UpArrow));
+        if (layout.DownArrow > 0)
+            _ui.Image(this, CombatMenu.DownArrow, band.Left - 8, band.Bottom + 2, color: new Rgba(255, 255, 255, (byte)layout.DownArrow));
+    }
+
+    private static ScreenRect Offset(ScreenRect r, int x, int y) => new(r.Left + x, r.Top + y, r.Right + x, r.Bottom + y);
+
+    /// <summary>
+    /// The feathered pieces round a <c>ChoicePopup</c>'s centre piece, each a pixel larger than its image, as <c>ChoicePopup.CreatePanel</c>
+    /// (<c>0x80045F24</c>) sizes them to inclusive rectangles: the top and bottom one taller, the sides one wider and a pixel further out.
+    /// </summary>
+    private FeatheredPanel PanelAround(ScreenRect centre)
+    {
+        var fitted = _ui.Images.Around(centre);
+        return fitted with { Top = fitted.Top + 1, Bottom = fitted.Bottom + 1, Left = fitted.Left + 1, Right = fitted.Right + 1 };
     }
 
     /// <summary>

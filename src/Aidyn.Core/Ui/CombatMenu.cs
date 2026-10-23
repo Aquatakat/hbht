@@ -71,6 +71,22 @@ public sealed class CombatMenu
     /// <summary>The list's width and centre, its tallest (with the Expansion Pak; 55 without), and the screen's middle it's centred on.</summary>
     public const int Width = 120, CentreX = 160, MostHeight = 95, CentreY = 120;
 
+    /// <summary>
+    /// The list's left edge, the rows' icons' (<c>ChoicePopup.CreateList</c>, <c>0x80045AF4</c>): a pixel left of the panel's centre
+    /// piece, which spans 100 to 220 inclusive (<see cref="PanelLeft"/>, <see cref="PanelRight"/>).
+    /// </summary>
+    public const int ListLeft = CentreX - (Width + 1) / 2 - 1;
+
+    /// <summary>The panel's centre piece, inclusive at both ends: 121 wide, the feathered edges outside it (<c>ChoicePopup.CreatePanel</c>).</summary>
+    public const int PanelLeft = CentreX - (Width + 1) / 2, PanelRight = CentreX + (Width + 1) / 2;
+
+    /// <summary>
+    /// The gap under every row, the last's too (<c>Widget.SetSpacing</c>, <c>0x800B2098</c>, on the list as the menus are built:
+    /// <c>WidgetScrollMenu</c>'s <c>+0x22</c>, which <c>WidgetPulseMenu.Step</c> adds after each row). The captures pin it: C-down's
+    /// rows 14 apart, C-up's 19.
+    /// </summary>
+    public const int Gap = 3;
+
     /// <summary>The icons' widths the rows' text starts after: the spells' menu's (the lute's) and the items' (the flask's).</summary>
     public const int SpellIconWidth = 10, ItemIconWidth = 16;
 
@@ -117,6 +133,21 @@ public sealed class CombatMenu
     // The remembered row is put on the cursor with the scroll at its goal at once.
     private bool _jump;
 
+    /// <summary>
+    /// The arrows' alphas (<c>ScrollArrows.Step</c>, <c>0x800B1908</c>): the up arrow's fading in while the first row is above the
+    /// list's top, the down arrow's while the last row's foot (its gap left out) is below its bottom, <see cref="ArrowFade"/> a tick,
+    /// both from 0 as the menu opens.
+    /// </summary>
+    public int UpArrowAlpha { get; private set; }
+
+    public int DownArrowAlpha { get; private set; }
+
+    /// <summary>How much the arrows' alphas change a tick (<c>ScrollArrows.Create</c>, <c>0x800B1640</c>).</summary>
+    public const int ArrowFade = 20;
+
+    // The last layout's list height and its last row's foot, for the arrows' step.
+    private int _shown, _lastFoot;
+
     /// <summary>The icon width the rows' text starts after.</summary>
     public int IconWidth => Items ? ItemIconWidth : SpellIconWidth;
 
@@ -134,6 +165,9 @@ public sealed class CombatMenu
         Pulse += _pulseWay;
         if (Pulse >= PulseSteps - 1 || Pulse <= 0)
             _pulseWay = -_pulseWay;
+        // The arrows judge the rows as they were laid out this tick, before the scroll moves.
+        UpArrowAlpha = Scroll > 0 ? WidgetFade.In(UpArrowAlpha, ArrowFade) : WidgetFade.Out(UpArrowAlpha, ArrowFade);
+        DownArrowAlpha = _lastFoot - Scroll > _shown ? WidgetFade.In(DownArrowAlpha, ArrowFade) : WidgetFade.Out(DownArrowAlpha, ArrowFade);
         if (Scroll < _scrollGoal)
             Scroll = Math.Min(_scrollGoal, Scroll + ScrollSpeed);
         else if (Scroll > _scrollGoal)
@@ -151,8 +185,9 @@ public sealed class CombatMenu
 
     /// <summary>
     /// Where it draws in the original's 320 × 240 frame, its rows as tall as <paramref name="heights"/> says, each its icon's or its
-    /// text's, stacked with no gap (<c>ChoicePopup.Layout</c>, <c>0x80046488</c>): the list centred on the screen, its scroll kept so the
-    /// cursor's row shows.
+    /// text's, with <see cref="Gap"/> under each (<c>WidgetPulseMenu.Step</c>, <c>0x80027C98</c>; <c>ChoicePopup.Layout</c>,
+    /// <c>0x80046488</c>): the list as tall as its rows and gaps up to <see cref="MostHeight"/>, centred on the screen, its scroll kept
+    /// so the cursor's row shows.
     /// </summary>
     public CombatMenuLayout Layout(IReadOnlyList<int> heights)
     {
@@ -161,7 +196,7 @@ public sealed class CombatMenu
         for (var i = 0; i < Rows.Count; i++)
         {
             tops[i] = content;
-            content += i < heights.Count ? heights[i] : 0;
+            content += (i < heights.Count ? heights[i] : 0) + Gap;
         }
         var height = Math.Min(content, MostHeight);
         var top = CentreY - height / 2;
@@ -179,9 +214,12 @@ public sealed class CombatMenu
             Scroll = _scrollGoal;
             _jump = false;
         }
-        var left = CentreX - Width / 2;
-        return new CombatMenuLayout(new ScreenRect(left, top, left + Width, top + height), tops, Scroll,
-            UpArrow: Scroll > 0, DownArrow: Scroll + height < content);
+        _shown = height;
+        _lastFoot = Rows.Count > 0 ? tops[^1] + heights[^1] : 0;
+        return new CombatMenuLayout(new ScreenRect(ListLeft, top, ListLeft + Width, top + height), tops, Scroll,
+            UpArrow: UpArrowAlpha, DownArrow: DownArrowAlpha,
+            Panel: new ScreenRect(PanelLeft, top, PanelRight + 1, top + height),
+            Clip: new ScreenRect(ListLeft, top, PanelRight + 2, top + height + 1));
     }
 
     /// <summary>
@@ -194,5 +232,10 @@ public sealed class CombatMenu
     public int TextTop(int textHeight) => IconWidth / 2 - textHeight / 2;
 }
 
-/// <summary>Where a held menu draws: its list's clip, each row's top in the list, the scroll, and which arrows show.</summary>
-public sealed record CombatMenuLayout(ScreenRect List, IReadOnlyList<int> RowTops, int Scroll, bool UpArrow, bool DownArrow);
+/// <summary>
+/// Where a held menu draws: its list (the rows' left edge and the visible height), each row's top in the list, the scroll, the
+/// arrows' alphas, the panel's centre piece the feathered edges go round, and what the rows are cut to (<c>ChoicePopup.CreateList</c>'s
+/// clip, x 99 to 221 and the list's top to its bottom, inclusive).
+/// </summary>
+public sealed record CombatMenuLayout(ScreenRect List, IReadOnlyList<int> RowTops, int Scroll, int UpArrow, int DownArrow, ScreenRect Panel,
+    ScreenRect Clip);
