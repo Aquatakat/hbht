@@ -8,7 +8,8 @@ namespace Aidyn.Game;
 /// <summary>
 /// Draws the numbers over heads (<see cref="CombatNumbers"/>, <c>CombatStatIndicator.Frame</c>, <c>0x8008A630</c>): each a quad
 /// facing the camera, its texture the number's digits put together from the ten digit textures into 64 × 16, centred, tinted
-/// yellowish white for damage and blue for healing, and rising, growing and fading as the core says.
+/// yellowish white for damage and blue for healing, and rising, growing and fading as the core says. Filtered bilinearly, as
+/// the original's are (docs/systems/combat.md, the numbers over heads).
 /// </summary>
 public partial class CombatNumbersView : Node3D
 {
@@ -68,7 +69,10 @@ public partial class CombatNumbersView : Node3D
             ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
             Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
             BillboardMode = BaseMaterial3D.BillboardModeEnum.Enabled,
-            TextureFilter = BaseMaterial3D.TextureFilterEnum.Nearest,
+            // Bilinear with no mip levels and clamped, as Plane.SetDrawState's state list (0x800DFCC0, G_TF_BILERP) and
+            // Scene.SetTextureTiles (G_TL_TILE, T clamped; S wraps, but the texture's first and last columns are always clear).
+            TextureFilter = BaseMaterial3D.TextureFilterEnum.Linear,
+            TextureRepeat = false,
             NoDepthTest = true,
             RenderPriority = 10,
         };
