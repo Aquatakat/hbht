@@ -181,14 +181,19 @@ public sealed class Borg2Geometry
             var flags = (Borg2MaterialFlags)BinaryPrimitives.ReadUInt32BigEndian(m);
             var tint = new Vector4(Be.F32(m, 4), Be.F32(m, 8), Be.F32(m, 0xC), Be.F32(m, 0x10));
             var box = ReadVertices(h[(boxes + i * BoundingBoxVertices * N64Vertex.Size)..], BoundingBoxVertices);
-            var (meshVertices, indices) = Index(F3dex2.Run(h[..table], list, segments, TextureScale));
+            var (meshVertices, indices) = Index(F3dex2.Run(h[..table], list, segments, TextureScale), lit: !flags.HasFlag(Borg2MaterialFlags.Unlit));
             meshes[i] = new Borg2Mesh(flags, tint, box, meshVertices, indices);
         }
 
         return new Borg2Geometry(alpha, scale, position, rotation, unknown24, unknown28, vertices, meshes);
     }
 
-    private static (N64Vertex[] Vertices, int[] Indices) Index(List<N64Triangle> triangles)
+    /// <summary>
+    /// The distinct vertices and the triangles' indices into them. A lit list keeps a vertex loaded first of a pair apart from the
+    /// same vertex loaded second (<see cref="N64Vertex.SecondOfPair"/>), as the engine's lights reach only the first; an unlit one
+    /// has no lights, so the pairs don't matter.
+    /// </summary>
+    private static (N64Vertex[] Vertices, int[] Indices) Index(List<N64Triangle> triangles, bool lit)
     {
         var vertices = new List<N64Vertex>();
         var lookup = new Dictionary<N64Vertex, int>();
@@ -204,6 +209,8 @@ public sealed class Borg2Geometry
 
         int IndexOf(N64Vertex v)
         {
+            if (!lit)
+                v = v with { SecondOfPair = false };
             if (!lookup.TryGetValue(v, out var index))
             {
                 index = vertices.Count;

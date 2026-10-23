@@ -36,8 +36,9 @@ namespace Aidyn.Views;
 /// <para>
 /// With <see cref="RspLighting"/>, as in the runtime and the Inspector, lit display lists are lit per vertex as the
 /// RSP lights them: an ambient plus the sun's colour times the cosine to it, clamped to 1, in
-/// on-screen values, from the sky's globals (<see cref="SetSky"/>, <see cref="SetSkyLight"/>). Without it, Godot's lights
-/// stand in.
+/// on-screen values, from the sky's globals (<see cref="SetSky"/>, <see cref="SetSkyLight"/>). A body's or an actor's lights
+/// reach only the vertices the RSP loaded first of a pair (the export's second coordinates); the rest take the ambient alone.
+/// Without it, Godot's lights stand in.
 /// </para>
 /// <para>
 /// Fog is the RSP's: a per-vertex amount from the depth buffer's <c>z / w</c>, between the fog
@@ -516,7 +517,10 @@ public static class N64Material
                 		: (lighting == 3 ? vec3(0.0) : n64_sun_color * max(dot(normal, n64_sun_direction), 0.0))
                 		+ light0_color * max(dot(normal, light0_direction), 0.0) + light1_color * max(dot(normal, light1_direction), 0.0)
                 		+ light2_color * max(dot(normal, light2_direction), 0.0) + light3_color * max(dot(normal, light3_direction), 0.0);
-                	vec3 lit_shade = min(ambient + lights, vec3(1.0));
+                	// The engine's lights (a body's, an actor's) reach only the first vertex of each pair the RSP loads; UV2's x is 1 on
+                	// the second, which takes the ambient alone. A scene's own lights fill both copies and reach every vertex.
+                	float reach = lighting == 3 ? 1.0 : 1.0 - UV2.x;
+                	vec3 lit_shade = min(ambient + lights * reach, vec3(1.0));
                 """
             : "";
         var fog = onScreen
