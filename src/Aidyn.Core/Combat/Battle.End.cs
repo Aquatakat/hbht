@@ -187,6 +187,22 @@ public sealed partial class Battle
         NextReserve = Enemies.Count;
     }
 
+    /// <summary>
+    /// The runtime's debug win, B held on a turn the player plays: the enemies are routed (<see cref="Rout"/>) and the turn
+    /// ends, so its change wins the battle. Whether it was such a turn. Not the original's.
+    /// </summary>
+    /// <remarks>
+    /// Not with the Shadow on the field: its battle ends in the merge or its vanishing, never a win, and felling it would skip both.
+    /// </remarks>
+    public bool ForceWin()
+    {
+        if (State != CombatState.Turn || Fade.Fading || Current is not { Controlled: false } current || Shadow is not null)
+            return false;
+        Rout();
+        EndTurn(current);
+        return true;
+    }
+
     /// <summary>The runtime's debug key: the whole party falls at once, so the next turn's change loses the battle. Not the original's.</summary>
     public void Collapse()
     {

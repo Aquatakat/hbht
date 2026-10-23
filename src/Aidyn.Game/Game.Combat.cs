@@ -75,6 +75,7 @@ public partial class Game
     /// </summary>
     private void StepBattle(bool over)
     {
+        HoldToWin();
         ScrollTextures();
         SyncBattle();
         if (_pointLights)
@@ -157,6 +158,40 @@ public partial class Game
             view.Light(arena.Lights, arena.Chunks, party: !view.Combatant.Hostile, view.Combatant.Tint.Level);
             if (_spellFx)
                 view.Tinted(arena.Sky.Colors.Sky * 0.5f, fade);
+        }
+    }
+
+    /// <summary>Debug: how long B is held for the battle to be won (<see cref="HoldToWin"/>), in seconds.</summary>
+    private const double WinHoldSeconds = 2;
+
+    /// <summary>How long B has been held in this battle, in seconds of the clock, or −1 once it has won and until it's let go.</summary>
+    private double _winHeld;
+
+    /// <summary>
+    /// Debug: B held for <see cref="WinHoldSeconds"/> wins the battle on the next turn the player plays (<see cref="Battle.ForceWin"/>).
+    /// Held through the enemies' turns, it wins as the player's comes. Counted in the clock's seconds, so fast-forward doesn't shorten it.
+    /// </summary>
+    private void HoldToWin()
+    {
+        if (!Input.IsActionPressed("menu_back"))
+        {
+            _winHeld = 0;
+            return;
+        }
+        if (_winHeld < 0)
+            return;
+        _winHeld += 1.0 / Engine.PhysicsTicksPerSecond;
+        if (_winHeld < WinHoldSeconds)
+            return;
+        if (Battle!.Shadow is not null)
+        {
+            _winHeld = -1;
+            Say("The Shadow's battle can't be won by holding B");
+        }
+        else if (Battle.ForceWin())
+        {
+            _winHeld = -1;
+            Say("Battle won (B held)");
         }
     }
 

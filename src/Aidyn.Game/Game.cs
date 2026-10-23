@@ -677,8 +677,8 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         return new PlayerInput(stick, Input.IsActionPressed("sneak"), orbit, orbitStick, Free: !shoulder);
     }
 
-    /// <summary>Debug: the tick rate while a thumbstick is held down, to cross the map quickly (3×).</summary>
-    private const int FastTicksPerSecond = 180;
+    /// <summary>Debug: the tick rate while a thumbstick is held down, to cross the map quickly (4×).</summary>
+    private const int FastTicksPerSecond = 240;
 
     /// <summary>
     /// Clicking in either thumbstick unlocks the tick rate to <see cref="FastTicksPerSecond"/>, as far as the machine

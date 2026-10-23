@@ -76,6 +76,31 @@ public sealed partial class GameSessionTests
         Assert.True(session.Game.Flags.IsSet(RecordId.Decimal(RecordTypes.Flag, 3204)));
     }
 
+    [Fact]
+    public void TheDebugWinWaitsForAPlayersTurnThenWinsButNeverTheShadowsBattle()
+    {
+        var (session, host) = Start();
+        var (battle, _, _) = RatBattle(session, host);
+        for (var i = 0; i < 2000 && !(battle.State == CombatState.Turn && !battle.Fade.Fading && battle.Current is { Controlled: false }); i++)
+        {
+            Assert.False(battle.ForceWin());
+            Tick(session);
+        }
+        Assert.True(battle.ForceWin());
+        Assert.Equal(CombatState.Victory, battle.State);
+        Assert.Equal(SessionStep.CombatOver, TickUntil(session, SessionStep.CombatOver));
+        Assert.Equal(BattleOutcome.Won, battle.Outcome);
+
+        var (shadows, _) = Start();
+        var shadow = ScriptBattle(shadows, 0x046E);
+        for (var i = 0; i < 600; i++)
+        {
+            Assert.False(shadow.ForceWin());
+            Tick(shadows);
+        }
+        Assert.NotNull(shadow.Shadow);
+    }
+
     private static readonly RecordId Horn = RecordId.Hex(RecordTypes.Item, 0x0D03), Merged = RecordId.Decimal(RecordTypes.Flag, 566);
 
     [Fact]
