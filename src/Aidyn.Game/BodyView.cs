@@ -46,7 +46,8 @@ public abstract partial class BodyView : Node3D
             _turn.AddChild(node);
             AddChild(_turn);
             ShadowDecal.MarkBody(node);
-            _model = new Level(node, null);
+            // Its emitters' particles show and fade with it (Level.Show).
+            _model = new Level(node, null) { Animator = animator };
             if (animator is not null)
             {
                 animator.Driven = true;

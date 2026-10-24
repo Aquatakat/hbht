@@ -243,6 +243,40 @@ public class ParticleTests
     }
 
     [Fact]
+    public void AnActorsParticlesShowAndFadeWithItButGoOnSteppingWhileItIsHidden()
+    {
+        var head = new ParticleHead(new Lcg());
+        var emitters = new EmittersRecord(RecordId.Hex(RecordTypes.Emitters, 0x2BCB), [Emitter(lifetime: 100, particleLifetime: 100, interval: -1)]);
+        var actor = new ActorParticles(head, emitters, new Anchor(Vector3.Zero));
+        // A wanderer 25 from the camera's aim isn't drawn (trek's 20, Movement.BodyShadow), so neither are its particles.
+        actor.Alpha = Movement.BodyShadow.BodyAlpha(Movement.BodyShadow.TrekDistance, 25) ?? 0;
+        actor.Entered(5);
+        head.Frame(2);
+        head.Frame(2);
+        head.Frame(2);
+        Assert.Empty(head.Sprites);
+        // They go on spawning and ageing unseen: one a frame.
+        Assert.Equal(3, head.ParticlesInUse - 1);
+        // Fading in over the last 2 units of its distance, at 19 it's half drawn, and they're drawn at its alpha.
+        actor.Alpha = Movement.BodyShadow.BodyAlpha(Movement.BodyShadow.TrekDistance, 19) ?? 0;
+        Assert.Equal(127, actor.Alpha);
+        head.Frame(2);
+        Assert.Equal(3, head.Sprites.Count);
+        Assert.All(head.Sprites, s => Assert.Equal(new Rgba(255, 255, 255, 127), s.Color));
+        // Whole, they're whole, and the ones drawn while hidden glide on from where they were.
+        actor.Alpha = 0xFF;
+        head.Frame(2);
+        Assert.Equal(4, head.Sprites.Count);
+        Assert.All(head.Sprites, s => Assert.Equal(White, s.Color));
+        // Particles of no actor's are always drawn.
+        var code = new ParticleHead(new Lcg());
+        code.Start(Emitter(burst: 1, interval: 0), new Anchor(Vector3.Zero));
+        code.Frame(2);
+        code.Frame(2);
+        Assert.Single(code.Sprites);
+    }
+
+    [Fact]
     public void AMissingLocatorEndsTheEmitter()
     {
         var head = new ParticleHead(new Lcg());

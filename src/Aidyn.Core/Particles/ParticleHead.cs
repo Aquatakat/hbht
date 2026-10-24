@@ -456,10 +456,22 @@ public sealed class ParticleHead
         }
     }
 
+    /// <summary>
+    /// Draws a particle (<c>ParticleHead.Draw</c>), at its actor's alpha, and not at all while its actor isn't drawn
+    /// (<see cref="IParticleAnchor.Alpha"/>, the user's choice). Hidden, it still moves and ages, so a fire is already
+    /// burning as its actor comes into view, and it's counted as drawn, so it glides on from where it is.
+    /// </summary>
     private void Draw(Emitter e, ref Particle p)
     {
-        _sprites.Add(new ParticleSprite(e.Slot, e.Texture, p.Position, p.WasDrawn ? p.LastDrawn : p.Position, p.Scale * SquareSide,
-            Bytes(p.Color), p.Flags.HasFlag(ParticleFlags.OwnOrientation) ? p.Orientation : null));
+        var alpha = e.Anchor?.Alpha ?? 0xFF;
+        if (alpha != 0)
+        {
+            var color = Bytes(p.Color);
+            if (alpha != 0xFF)
+                color = color with { A = (byte)(color.A * alpha / 0xFF) };
+            _sprites.Add(new ParticleSprite(e.Slot, e.Texture, p.Position, p.WasDrawn ? p.LastDrawn : p.Position, p.Scale * SquareSide,
+                color, p.Flags.HasFlag(ParticleFlags.OwnOrientation) ? p.Orientation : null));
+        }
         (p.LastDrawn, p.WasDrawn) = (p.Position, true);
     }
 
