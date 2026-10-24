@@ -151,6 +151,53 @@ public sealed class CutSceneRealDataTests(Na10Import fixture, ITestOutputHelper 
         Assert.InRange(angle, 28.9f, 36.4f);
     }
 
+    /// <summary>
+    /// The final cut-scene (<c>aidyn:dialogue/0x04FE</c>) spawns Phelan as his entity (<c>0x0230</c>), whose actor
+    /// (<c>aidyn:actor/0x2918</c>) is his one-legged model, at point 143 on the floor, set down from on high as every spawn is
+    /// (<c>CreateActor</c>, <c>0x8004f4c8</c>). He stands (state 0) until the script asks for request 20, and lies from then on:
+    /// states 9 and 10 for 20, 11 for 21, and his death (13, request 9) holds its last frame, never going on to 12. The pose is the views' to draw
+    /// (<c>TransformTracks</c>); this is the core's part, which was right.
+    /// </summary>
+    [Fact]
+    public void Phelan_lies_from_his_first_animation_and_his_death_holds()
+    {
+        var plugins = PluginSet.Load([fixture.Data.Dir]);
+        var scene = Staged(plugins, "aidyn:dialogue/0x04FE");
+        var motions = new Dictionary<CutSceneActor, ActorMotion>();
+        IActorMotion Motion(CutSceneActor actor)
+        {
+            if (!motions.TryGetValue(actor, out var motion))
+                motions[actor] = motion = ActorMotion.For(plugins, plugins.Get<ActorRecord>(actor.Look.Actor), new Core.Rng.Lcg(1))!;
+            return motion;
+        }
+        scene.Start();
+        var phelan = scene.Actor(Ids.Entity(0x0230))!;
+        Assert.Equal(RecordId.Hex(RecordTypes.Actor, 0x2918), phelan.Look.Actor);
+        var point = scene.Stage.PointAt(143)!.Value;
+        Assert.Equal(new Vector2(point.X, point.Z), new Vector2(phelan.Body.Sphere.Position.X, phelan.Body.Sphere.Position.Z));
+        var states = new List<int>();
+        var (shown, since) = (-1, 0);
+        for (var tick = 0; !scene.Over && tick < 20_000; tick++)
+        {
+            var node = scene.Page?.Line.Node ?? -1;
+            (shown, since) = node == shown ? (shown, since + 1) : (node, 0);
+            if (scene.Accepts && scene.Page is not null && since >= 60)
+                scene.Press(scene.Runner.Continue);
+            scene.Tick(Motion);
+            if (motions.TryGetValue(phelan, out var m) && (states.Count == 0 || states[^1] != m.Machine.State))
+                states.Add(m.Machine.State);
+        }
+        Assert.True(scene.Over);
+        // Standing until the first animation, then never again.
+        Assert.Equal(0, states[0]);
+        Assert.Equal(9, states[1]);
+        Assert.DoesNotContain(0, states.Skip(1));
+        Assert.Contains(11, states);
+        // The death holds its own last frame: the state after it (12) is never stepped to.
+        Assert.Equal(13, states[^1]);
+        Assert.True(phelan.Body.DeathHeld);
+    }
+
     [Fact]
     public void Every_cut_scene_plays_to_its_end()
     {

@@ -91,10 +91,12 @@ BodyShadow.DrawAlpha = 0x800122c4; // BodyShadow.cs: a body's shadow alpha, fadi
 Shadows.Render = 0x80012358; // coined; docs/systems/movement.md
 Player.FreeAudioSlot = 0x80012558; // coined; docs/systems/audio.md
 AllocPlayerAudio = 0x80012610; // string in the debug build 0x800d9000 (debug 0x800160bc)
+Bodies.Process = 0x80012784; // coined; docs/systems/scripts.md: every body's tick (the decomp's ProcessPlayers): steering, stick, collision, animation; a body moves across the ground only by its actor's root motion (0x80013318-0x80013400)
 Body.SetTint = 0x8001371c; // coined; docs/systems/combat.md: (body, rate, r, g, b) the target mark's pulse: body +0x760 rate, +0x764 colour
 Body.ClearTint = 0x80013774; // coined; docs/systems/combat.md: rate -inf, the pulse off
 Bodies.SetLights = 0x80013798; // coined; docs/systems/rendering.md: a body's prim, ambient, sun, moon, dynamic and map lights
 MapObjects.SetActorLights = 0x80013ac4; // coined; docs/systems/rendering.md: a map's actor's tint or lights
+Bodies.Render = 0x80013dcc; // coined; docs/systems/cameras.md: draws the bodies (the decomp's RenderPlayers); skips a hidden body's scene (+0x1e & 0x2000) only while CutScene.Playing, never what it holds
 Body.ClampToGoal = 0x80014518; // coined; docs/systems/combat.md: a body at or past Body.SetGoal's radius, in 3D from its centre, has its x and z put back on the sphere (Body.KeepInField)
 Bodies.LoadActor = 0x800147e8; // coined; docs/systems/rendering.md: loads a body's actor scene, with room for 4 lights
 Bodies.SetFlag = 0x80014a2c; // coined; a body's flags (+0x1e) |= x

@@ -13,6 +13,7 @@ public partial class CinematicView : SubViewportContainer
 {
     private readonly SubViewport _viewport = new() { OwnWorld3D = true, HandleInputLocally = false };
     private readonly Models _models;
+    private DrivenNodes? _driven;
     private Node3D? _scene;
     private Camera3D? _camera;
     private ScrollingScene? _scrolling;
@@ -48,6 +49,7 @@ public partial class CinematicView : SubViewportContainer
         _lights = new OwnLights(scene, _models.Glb(shot.Scene)!.Extras);
         _scrolling = _models.Scrolls.Attach(shot.Scene, scene);
         _mirroring = MirroredMeshes.For(scene, _models.Glb(shot.Scene)!.Extras);
+        _driven = _models.Glb(shot.Scene)!.Driven;
         _facings = Billboards.Facings(scene);
         _camera = Nodes.FindAll<Camera3D>(scene).FirstOrDefault();
         if (_camera is not null)
@@ -81,7 +83,7 @@ public partial class CinematicView : SubViewportContainer
         if (_player is not null)
         {
             _player.Seek((time - 1) / 60.0, update: true);
-            TransformTracks.Apply(_player);
+            TransformTracks.Apply(_player, _driven!);
         }
         _mirroring?.Update();
         _scrolling?.Draw();

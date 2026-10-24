@@ -40,5 +40,10 @@ public sealed class GlbScene : IDisposable
         return clips;
     }
 
+    /// <summary>What each of the scene's animations drives, with the nodes' rest values, read once (<see cref="TransformTracks"/>).</summary>
+    public DrivenNodes Driven => _driven ??= DrivenNodes.Read(Reader);
+
+    private DrivenNodes? _driven;
+
     public void Dispose() => Reader.Dispose();
 }
