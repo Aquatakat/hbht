@@ -21,6 +21,7 @@ internal static class MapImporter
         ctx.Report("Maps and collision");
         var chunks = ctx.Chunks;
         var maps = chunks.Select(c => c.Collision).Distinct().Order().ToDictionary(i => i, i => Borg9Map.Parse(ctx.Archive.Read(i)));
+        MapCorrections.Apply(chunks, maps);
         // A file per map set, since each map is in one, such as records/maps/Overworld.json.
         var mapRecords = BuildMaps(ctx.Archive, chunks, maps.ToDictionary(m => m.Key, m => m.Value.Objects), [.. ctx.Db.Loot.Select(l => l.Id)],
             maps.ToDictionary(m => m.Key, m => Grid(m.Value)), maps.ToDictionary(m => m.Key, m => m.Value.DrawnNeighbours));

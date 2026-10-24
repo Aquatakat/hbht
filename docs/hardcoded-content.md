@@ -254,6 +254,12 @@ The map chunk lists are read from the ROM (`MapChunks`). The rest of the Borgs e
 
 **Debug only:** the boulder that replaces scene models, and the debug menu's models.
 
+## Corrections to the ROM's maps
+
+Where the ROM's own data is in the way of play, the importer corrects it, each the user's choice and a departure from the original (ADR 0018). `MapCorrections` makes them on the parsed Borg9, before the map record and its collision are written, so a model and the triangles that are its body move together. Each names its map set, chunk and object, and the importer refuses a ROM where they aren't what it corrects (the three ROMs agree). They land in layer 1: a mod can put one back by patching the object's position and replacing the map's collision asset.
+
+- **The Roog Cave's mushroom** (`aidyn:voxel/0x1205/12`, scene `0x0BCB`), in D01 at (11.23, −0.11, 22.54), stands in the neck of the passage between two leaning rocks. Its collision is a box of 8 of the chunk's triangles (926–933), 0.71 square and 1.07 tall, about twice the height of its small model. The box all but touches the rock east of it, so the way past is west of it, against the corner of the other rock at (10.34, 22.29). There, the best way past brings the middle of Alaron's sphere within 0.32 of a wall, where his radius is 0.5. Running north to south he wedges more often than not, and walking or sneaking he can't pass either way. On the console, players squeeze past or don't, or resort to tricks. The user chose to keep the collision as the original has it and move the mushroom instead (Oct 24, 2026). It's slid by (−0.124, 0, 0.696), 0.71 in all: 0.1 toward the rock east of it, leaving its model 5 cm in front of the rock's face, and 0.7 north along that face, past the corner opposite. The best way past then keeps him 0.43 from the walls, and he walks, runs or sneaks past either way (`GameSessionTests.Mushroom.cs`). The floor is flat there, so the mushroom stays on the ground. Sliding it only toward the rock, as far as it goes before its model enters the rock (0.15), lets him run past both ways, but walking he still wedges.
+
 ## Still in code
 
 Content the port's core and runtime still hold as literals, with the layer each belongs in. The rest of the core's literals are engine vocabulary (the animation request numbers, 5 hit, 7 dodge, 8 death and so on, which every actor's state machine shares), text-line indices, and the menus' 320 × 240 layouts and colours, which are the UI's own (layer 3) and stay in code.

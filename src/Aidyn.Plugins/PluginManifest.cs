@@ -87,8 +87,9 @@ public static class BasePlugin
     /// 57 cuts cut-outs out from an eighth of texel alpha, as the N64's coverage does (<c>alphaCutoff</c> 0.125 for 0.5).
     /// 58 writes how a trapped container's explosion is drawn (<c>aidyn:explosion/0</c>): its particles' texture.
     /// 59 marks a lit list's vertices that the RSP loads second of a pair (<c>TEXCOORD_1</c>'s S of 1), which a body's lights don't reach.
+    /// 60 moves the Roog Cave's mushroom (<c>aidyn:voxel/0x1205/12</c>) and its collision out of the passage's neck (<c>MapCorrections</c>).
     /// </summary>
-    public const int ImporterVersion = 59;
+    public const int ImporterVersion = 60;
 
     /// <summary>
     /// What's wrong with the imported base plugin under <paramref name="pluginsDirectory"/>, worded for the player, or null if

@@ -40,6 +40,10 @@ The user found Alaron wedged at Overworld A22, feet at (46.7, −26.3, 40.1), un
   - **Crevices.** At Overworld B15 (76.5, −26.9, 30.0) and (97.1, −28.6, 10.8), H08 (71.4, −19.6, 55.2), H10 (114.0, −16.8, 90.2) and K18 (11.1, −11.4, 0.0), ChaosIsle C01 (63.2, 20.5, 60.4), the Misc interiors' I01 (36.0, 22.1, 19.5) and I07 (7.0, 0.5, 22.8) and (2.2, 1.7, 13.6), Erromon A03 (17.7, 1.3, 17.8) and the Barrows' A02 (21.5, 0.2, 7.0), his sphere drops into a V between two or more plain walls narrower than he is, with no ground under him, and the walls hold him whichever way he steers. The scan's C15 (−2.9, −28.5, 10.8) and I10 (14.0, −16.8, 90.2) are B15's second point and H10's, seen from across a chunk's border, and the Barrows' B02 is A02. 1.0's model sticks at B15 and I07 too. Neither the falling rule nor the fall rescue frees him there, and whether play can reach them isn't known.
 - **Not ported.** 1.0's `ProcessPlayers` also puts Alaron back where he last stood touching the ground, at least 1 from the place before, when he falls faster than 0.3 a tick (`0x8001338c`, `0x800cdb68`). It keeps that place at `0x800e6810`, and the one before at `0x800e681c`, the one it uses. The port's fall rescue covers that case instead ([above](#movement-and-collision)).
 
+## The Roog Cave's mushroom
+
+A notorious spot. In the Roog Cave's D01, a mushroom's collision box stands in the neck of the passage, near (10.4, 22.8), and leaves less room beside it than Alaron's sphere needs. Running, he passes from the south but often wedges from the north. Walking or sneaking, he can't pass either way. The collision is the original's and the port's physics agree with it. Instead, the importer moves the mushroom and its box 0.71 out of the neck, the user's choice ([hardcoded content](../hardcoded-content.md#corrections-to-the-roms-maps)).
+
 ## Bodies and the player
 
 The original has one body struct (`playerData`) and one loop over them (`ProcessPlayers`); the player is the first. The port has one `Body`, and `PlayerMotion` drives the player's.
