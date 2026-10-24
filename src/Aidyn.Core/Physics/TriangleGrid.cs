@@ -93,5 +93,46 @@ internal sealed class TriangleGrid<T> where T : struct, IGridTriangle
         }
     }
 
+    /// <summary>
+    /// The triangles of the parts other than <paramref name="except"/> with the same corners as <paramref name="triangle"/>, in any
+    /// order, each within <paramref name="tolerance"/>: its copies where chunks overlap. Replaces what <paramref name="into"/> held
+    /// with each copy's part and index, which the caller may change in place.
+    /// </summary>
+    public void Copies(ChunkKey except, in T triangle, float tolerance, List<(T[] Triangles, int Index)> into)
+    {
+        into.Clear();
+        var lowX = Math.Min(triangle.A.X, Math.Min(triangle.B.X, triangle.C.X)) - tolerance;
+        var lowZ = Math.Min(triangle.A.Z, Math.Min(triangle.B.Z, triangle.C.Z)) - tolerance;
+        var highX = Math.Max(triangle.A.X, Math.Max(triangle.B.X, triangle.C.X)) + tolerance;
+        var highZ = Math.Max(triangle.A.Z, Math.Max(triangle.B.Z, triangle.C.Z)) + tolerance;
+        var squared = tolerance * tolerance;
+        foreach (var (key, part) in _parts)
+        {
+            if (key == except || highX < part.MinX || lowX > part.MaxX || highZ < part.MinZ || lowZ > part.MaxZ)
+                continue;
+            _seen.Clear();
+            for (var x = Cell(lowX); x <= Cell(highX); x++)
+            {
+                for (var z = Cell(lowZ); z <= Cell(highZ); z++)
+                {
+                    if (!part.Cells.TryGetValue((x, z), out var cell))
+                        continue;
+                    foreach (var i in cell)
+                    {
+                        if (_seen.Add(i) && SameCorners(triangle, part.Triangles[i], squared) && SameCorners(part.Triangles[i], triangle, squared))
+                            into.Add((part.Triangles, i));
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>Whether every corner of <paramref name="a"/> is within the tolerance of one of <paramref name="b"/>'s.</summary>
+    private static bool SameCorners(in T a, in T b, float squared) =>
+        Near(a.A, b, squared) && Near(a.B, b, squared) && Near(a.C, b, squared);
+
+    private static bool Near(Vector3 p, in T b, float squared) =>
+        Vector3.DistanceSquared(p, b.A) <= squared || Vector3.DistanceSquared(p, b.B) <= squared || Vector3.DistanceSquared(p, b.C) <= squared;
+
     private static int Cell(float v) => (int)MathF.Floor(v / CellSize);
 }

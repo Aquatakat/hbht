@@ -450,4 +450,34 @@ public sealed class TrekLoopTests(Na10Import fixture)
             trek.Tick(Still);
         Assert.Equal(244f, trek.Hud.Draw(trek.Game, true, new Vector2(0, -1), 1, 640, 360).First(s => s.Image == Aidyn.Core.Ui.PartyPortraits.Frame).X);
     }
+
+    /// <summary>
+    /// The Jundar gate in P24 (object 1, a ChangeCollision trigger on flag 480, which the riddle's cut-scene sets) holds the
+    /// player back until the riddle is solved, then lets him walk through to the desert: O24's copy of the gate's wall, where
+    /// the chunks overlap, opens with P24's toggles.
+    /// </summary>
+    [Fact]
+    public void TheJundarGateLetsThePlayerThroughOnceItsRiddleIsSolved()
+    {
+        var (trek, _) = Start("P24", 3.9f, 70f);
+        trek.PlayerAnimation = new SteadyMotion(0.1f);
+        var map = trek.Chunks.MapAt(trek.Player.Sphere.Position)!;
+        Assert.Equal(RecordId.Hex(RecordTypes.Map, 0x1123), map.Record.Id);
+        float Walk(int ticks)
+        {
+            // Down on the stick, away from the camera behind him, is south through the gate.
+            for (var i = 0; i < ticks; i++)
+            {
+                if (trek.Use.Popup is not null)
+                    trek.Use.Accept();
+                trek.Tick(() => new PlayerInput(new Vector2(0, -1)));
+            }
+            return (trek.Player.Sphere.Position - map.Origin).Z;
+        }
+
+        // The gate's walls are at z 74.1 and 75.4; the passage runs between them to the desert at 76.8.
+        Assert.InRange(Walk(300), 73.5f, 74);
+        trek.Game.Flags.Set(Flag(480), true);
+        Assert.True(Walk(120) > 77);
+    }
 }

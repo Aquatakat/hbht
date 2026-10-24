@@ -50,21 +50,36 @@ public sealed class CollisionWorld
     /// <summary>Removes every part, as changing map set does.</summary>
     public void Clear() => _grid.Clear();
 
+    /// <summary>How near a corner of another part's triangle has to be to a toggle's for it to be the toggle's copy.</summary>
+    public const float CopyTolerance = 0.01f;
+
     /// <summary>
     /// Changes the flags of a part's toggles with id <paramref name="toggle"/>: ANDs them with
     /// <paramref name="keep"/>, then ORs in <paramref name="add"/>, as a <c>ChangeCollision</c> trigger
-    /// does (<c>trigger_vobject_func</c>). They stay so until the part is added again. Returns how many changed.
+    /// does (<c>MapObjectUse.Trigger</c>, <c>0x80010bc4</c>). They stay so until the part is added again. Returns how many
+    /// of the part's toggles changed.
     /// </summary>
+    /// <remarks>
+    /// The other loaded parts' copies of each toggle change with it: their triangles with the same corners
+    /// (<see cref="CopyTolerance"/>), where chunks overlap. The original collides only with the chunk the player is in, whose
+    /// toggles the trigger changes, so a neighbour's copy never stops him; the port collides with every loaded chunk, and
+    /// O24's plain copy of the Jundar gate in P24 kept it shut. A copy is changed on every call, changed toggle or not, so one
+    /// whose chunk loaded after the toggle did follows it the next time the trigger goes off.
+    /// </remarks>
     public int ChangeToggles(ChunkKey key, int toggle, int keep, int add)
     {
         if (_grid.Triangles(key) is not { } triangles)
             return 0;
         var changed = 0;
+        var copies = _copies ??= [];
         for (var i = 0; i < triangles.Length; i++)
         {
             var t = triangles[i];
             if (t.Role != CollisionRole.Toggle || t.Target != toggle)
                 continue;
+            _grid.Copies(key, t, CopyTolerance, copies);
+            foreach (var (others, j) in copies)
+                others[j] = others[j] with { Flags = (CollisionFlags)(((int)others[j].Flags & keep) | add) };
             var flags = (CollisionFlags)(((int)t.Flags & keep) | add);
             if (flags == t.Flags)
                 continue;
@@ -73,6 +88,8 @@ public sealed class CollisionWorld
         }
         return changed;
     }
+
+    private List<(Triangle[] Triangles, int Index)>? _copies;
 
     /// <summary>
     /// The triangles that may touch the box from <paramref name="min"/> to <paramref name="max"/> in

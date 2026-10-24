@@ -765,6 +765,74 @@ public sealed class MapObjectUseTests(Na10Import fixture)
         }
     }
 
+    /// <summary>
+    /// With the 3×3 around its chunk loaded, as trek collides with them, every trigger opens its way: nothing is left at a
+    /// toggle to stop a body pressed through it. O24 has a plain copy of the four triangles of the Jundar gate in P24, where the
+    /// two chunks overlap, which the original never collides with from P24; the copy goes with the toggles, and follows them
+    /// again when O24 loads afresh while P24's toggles are already open.
+    /// </summary>
+    [Fact]
+    public void EveryChangeCollisionTriggerOpensItsWayWithTheChunksAroundLoaded()
+    {
+        var copied = new List<string>();
+        foreach (var (map, trigger) in ChangeCollisionTriggers())
+        {
+            var (set, chunk) = Placed(map);
+            var key = ChunkKey.Of(set, chunk);
+            var world = new CollisionWorld();
+            var around = set.Chunks.Where(c => Math.Abs(c.Row - chunk.Row) <= 1 && Math.Abs(c.Column - chunk.Column) <= 1).ToList();
+            foreach (var near in around)
+                world.Add(ChunkKey.Of(set, near), Collision(Data.Set.Get<MapRecord>(near.Map)), set.Origin(near.Row, near.Column));
+            var origin = set.Origin(chunk.Row, chunk.Column);
+            var toggled = Collision(map).Where(t => !IsSliver(t) && t.Role == CollisionRole.Toggle && t.Target == trigger.Toggle).ToList();
+            var play = NewGame();
+            var loaded = LoadedMap.Activate(map, key, play.Game.Flags, play.Game.Memory, play.Game.Party, new Lcg(), origin);
+            play.Use.World = world;
+
+            // The faces that stop a body, where the chunk alone lets it through once they're open. Some faces of the slabs at
+            // T27 and Chaos Isle A07 sit in the cliff, the jambs or the floor, which hold a body back or push it whatever the
+            // toggle does.
+            var alone = new CollisionWorld();
+            alone.Add(key, Collision(map), origin);
+            alone.ChangeToggles(key, trigger.Toggle!.Value, trigger.KeepFlags!.Value, trigger.AddFlags!.Value);
+            var stopping = toggled.Where(t => Stops(world, t, origin) && !Stops(alone, t, origin)).ToList();
+            Assert.InRange(stopping.Count, (toggled.Count + 1) / 2, toggled.Count);
+            play.Use.Trigger(loaded, trigger);
+            Assert.All(stopping, t => Assert.False(Stops(world, t, origin), $"{map.Id} toggle {trigger.Toggle} lets a body through after"));
+
+            // The neighbours that hold copies: loaded afresh, theirs stop him again until the trigger goes off once more.
+            foreach (var near in around.Where(c => c != chunk))
+            {
+                var nearKey = ChunkKey.Of(set, near);
+                world.Remove(nearKey);
+                var stopped = stopping.Any(t => Stops(world, t, origin));
+                world.Add(nearKey, Collision(Data.Set.Get<MapRecord>(near.Map)), set.Origin(near.Row, near.Column));
+                if (!stopping.Any(t => Stops(world, t, origin)))
+                    continue;
+                Assert.False(stopped);
+                copied.Add($"{set.Label} {near.Name}");
+                play.Use.Trigger(loaded, trigger);
+                Assert.All(stopping, t => Assert.False(Stops(world, t, origin), $"{map.Id} toggle {trigger.Toggle}'s copy in {near.Name} follows it"));
+            }
+        }
+        Assert.Equal(["Overworld O24"], copied);
+    }
+
+    /// <summary>
+    /// Whether a body pressed into the middle of a triangle's front is held back from it: it starts 0.35 off and moves 0.05
+    /// in, and ends no more than half that further in, where it would end 0.05 in with nothing there and is pushed out to its
+    /// radius by a solid face. Other surfaces near the triangle may touch it, as long as they don't hold it back.
+    /// </summary>
+    private static bool Stops(CollisionWorld world, CollisionTriangle t, Vector3 origin)
+    {
+        var normal = Vector3.Normalize(Vector3.Cross(t.B - t.A, t.C - t.A));
+        var centre = (t.A + t.B + t.C) / 3 + origin;
+        var start = centre + normal * 0.35f;
+        var sphere = new CollisionSphere { Radius = 0.5f, Position = start, Velocity = -normal * 0.05f };
+        SpherePhysics.Step(world, sphere);
+        return Vector3.Dot(start - sphere.Position, normal) < 0.025f;
+    }
+
     private static bool IsSliver(CollisionTriangle t) => Vector3.Cross(t.B - t.A, t.C - t.A).Length() < 1e-6f;
 
     /// <summary>

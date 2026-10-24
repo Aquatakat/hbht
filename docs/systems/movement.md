@@ -24,7 +24,7 @@ Ported from `Actor::Move`, the player loop in `PlayerData.cpp`, `collide*.cpp` a
   - A bounce off an edge or corner only turns velocity already heading away from it.
   - A point exactly on a triangle's edge counts as inside for only half the triangles. A sphere balanced exactly on some shared edges can drop through.
 - Other bodies, wanderers, cut-scenes' actors and combatants, move by the same rules, steered by a goal instead of a stick, and push each other and the player apart: see [wanderers](wanderers.md).
-- Left out: the original only collides with the chunk the player is in, and keeps him 0.05 from its edges. The port collides with every loaded chunk.
+- Left out: the original only collides with the chunk the player is in, and keeps him 0.05 from its edges. The port collides with every loaded chunk. Where they overlap, a neighbour's triangles the original never meets from the player's chunk can differ from his chunk's own: O24 has a plain copy of the Jundar gate's toggles in P24, which open on the riddle, so a toggle's change carries to its copies ([map objects](map-objects.md#triggers)).
 
 ## Bodies and the player
 

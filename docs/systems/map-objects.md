@@ -46,7 +46,23 @@ One alone is used. Of several, the one with the best (farthest − its distance)
 
 ## Triggers
 
-`MapObjectUse.Trigger` (`trigger_vobject_func`): SetFlag sets its flag; Animate asks the actor its model links to for an animation; ChangeCollision changes its map's toggles with its id, ANDing their flags with one value and ORing in another. All nine in the base game keep every flag and add Passable, so they open a way, and each is tangible and gated on a flag, so it opens the way again each time the chunk loads and the player comes near. Then the trigger writes its Used flag.
+`MapObjectUse.Trigger` (`trigger_vobject_func`, `0x80010bc4`): SetFlag sets its flag; Animate asks the actor its model links to for an animation; ChangeCollision changes its map's toggles with its id, ANDing their flags with one value and ORing in another. Then the trigger writes its Used flag.
+
+**ChangeCollision** walks the triangles of the chunk the player is in (`Zones.PlayerMap`, `0x800d8288`: its count at `+0x24`, its 32-byte triangles at `+0x3c`), and changes those whose role (`+0x1e & 0xF000`) is `0x1000`, a toggle, and whose id (`+0x1e >> 5 & 0x7F`) is the trigger's (`+0x2c`): the flags at `+0x1c` are ANDed with `+0x2e` and ORed with `+0x30`. They stay so in the loaded Borg9 until the chunk loads again. All nine in the base game keep every flag and add Passable, so they open a way, and each is tangible with no Used flag, gated on a flag, so it opens the way again on every tick the player is within its radius, each time the chunk loads. They're the game's only barriers of collision a flag opens:
+
+| Where | Opens on | What it is |
+| --- | --- | --- |
+| Overworld P24, object 1 | flag 480, which the riddle's cut-scene (`0x04A3`, node 116) sets | The Jundar gate to the desert, a wall at each end of its passage |
+| Overworld T27, object 0 | flag 3699, which its Animate trigger (object 1, the cliff's actor `0x0E74`, request 19) writes as it's used | A slab across the way, beside the cliff teleporter that 3699 enables |
+| Overworld D14, object 0 | derived flag 5533 (any of 247, 3460, 3461) | A see-through wall, one quad |
+| Chaos Isle C01, object 0 | flag 3437, which its Animate trigger (object 6) writes | The door whose actor `0x0CD9` (object 71) is there while 3437 is clear |
+| Chaos Isle A07, object 3 | derived flag 5498 (3269 and 3270, the two levers' Animate triggers 4 and 5) | The door whose actor `0x0CD9` (object 61) is there while 5498 is clear |
+| Barrows G02, object 0 | there once flag 533 is set (Lugash beaten), as the chunk loads | The doorway whose actor `0x0CD9` (object 5) is there while 533 is clear |
+| Barrows G03, object 5 | flag 533 clear | A doorway open until Lugash is beaten, where actor `0x0CD9` (object 21) stands once he is |
+| Barrows G03, object 6 | flag 4279, which the dragon's cut-scene (`0x18FC`) sets | The doorway whose actor `0x0CD9` (object 20) is there while 4279 is clear |
+| Barrows H03, object 4 | flag 533 | The doorway whose actor `0x0CD9` (object 10) is there while 533 is clear |
+
+`CollisionWorld.ChangeToggles` ports it. The port collides with every loaded chunk where the original collides only with the player's ([movement](movement.md)), and where chunks overlap a neighbour can hold a plain copy of a toggle: O24 has one of each of the Jundar gate's four triangles in P24, which the original never collides with from P24, and which kept the gate shut in the port after the riddle. So the other loaded chunks' triangles with the same corners as a toggle (within 0.01) change with it, on every call, so a neighbour that loads after the toggles opened follows them the next time the trigger goes off. The gate's is the only copy in the base game; the other eight open with their neighbours loaded (`MapObjectUseTests`).
 
 ## Teleporters
 
