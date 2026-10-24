@@ -378,10 +378,9 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     {
         var s = _launch?.Over(_settings) ?? _settings;
         _playing = _launch?.Session(_settings) ?? SessionSettings.From(_settings);
-        var mode = s.Fullscreen ? DisplayServer.WindowMode.Fullscreen : DisplayServer.WindowMode.Windowed;
-        if ((DisplayServer.WindowGetMode() is DisplayServer.WindowMode.Fullscreen or DisplayServer.WindowMode.ExclusiveFullscreen) != s.Fullscreen)
-            DisplayServer.WindowSetMode(mode);
+        ApplyWindow(s);
         DisplayServer.WindowSetVsyncMode(s.VSync ? DisplayServer.VSyncMode.Enabled : DisplayServer.VSyncMode.Disabled);
+        Engine.MaxFps = s.FrameRateLimit == Core.Settings.DisplayRate ? RefreshRate(DisplayServer.WindowGetCurrentScreen()) : Math.Max(0, s.FrameRateLimit);
         GetViewport().Msaa3D = s.Antialiasing switch
         {
             >= 8 => Viewport.Msaa.Msaa8X,
@@ -401,13 +400,41 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         }
     }
 
-    /// <summary>Draws the 3D world at the lines the settings ask for, scaled up to the window, or at the window's own.</summary>
+    /// <summary>The window's mode and size as last carried out, so a change of any other setting leaves a window the player resized.</summary>
+    private (bool Fullscreen, int Width, int Height)? _window;
+
+    /// <summary>
+    /// Borderless fullscreen at the screen's resolution, or a window at the settings' size, centred on its screen. Godot 4 can't
+    /// change the screen's own mode, so there's no exclusive fullscreen at another resolution or refresh rate.
+    /// </summary>
+    private void ApplyWindow(Core.Settings s)
+    {
+        var wanted = (s.Fullscreen, s.WindowWidth, s.WindowHeight);
+        if (_window == wanted)
+            return;
+        var wasFullscreen = _window?.Fullscreen ?? DisplayServer.WindowGetMode() is DisplayServer.WindowMode.Fullscreen or DisplayServer.WindowMode.ExclusiveFullscreen;
+        _window = wanted;
+        if (wasFullscreen != s.Fullscreen)
+            DisplayServer.WindowSetMode(s.Fullscreen ? DisplayServer.WindowMode.Fullscreen : DisplayServer.WindowMode.Windowed);
+        if (s.Fullscreen || s.WindowWidth <= 0 || s.WindowHeight <= 0)
+            return;
+        var size = new Vector2I(s.WindowWidth, s.WindowHeight);
+        var screen = DisplayServer.ScreenGetUsableRect(DisplayServer.WindowGetCurrentScreen());
+        DisplayServer.WindowSetSize(size);
+        DisplayServer.WindowSetPosition(screen.Position + (screen.Size - size) / 2);
+    }
+
+    /// <summary>
+    /// Draws the 3D world at the lines the settings ask for, scaled up to the window, at the window's own, or at twice it and
+    /// scaled down (Godot's bilinear scaling supersamples above 1).
+    /// </summary>
     private void ApplyWorldLines()
     {
         var viewport = GetViewport();
         var height = viewport.GetVisibleRect().Size.Y;
         viewport.Scaling3DMode = Viewport.Scaling3DModeEnum.Bilinear;
-        viewport.Scaling3DScale = _settings.WorldLines > 0 && height > 0 ? Math.Min(1, _settings.WorldLines / height) : 1;
+        viewport.Scaling3DScale = _settings.Supersampled ? 2
+            : _settings.WorldLines > 0 && height > 0 ? Math.Min(1, _settings.WorldLines / height) : 1;
     }
 
     /// <summary>The installed plugins, after checking the base plugin is there and up to date.</summary>
@@ -921,6 +948,20 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
 
     /// <summary>The System tab's Save, with the world as the menu opened over it (<see cref="SaveTo"/>).</summary>
     string? IPauseMenuHost.Save(string path) => SaveTo(path, _menu?.Snapshot);
+
+    /// <summary>The screen the window is on, for the options' Video page.</summary>
+    ScreenInfo IPauseMenuHost.Screen
+    {
+        get
+        {
+            var screen = DisplayServer.WindowGetCurrentScreen();
+            var (size, usable, window) = (DisplayServer.ScreenGetSize(screen), DisplayServer.ScreenGetUsableRect(screen).Size, DisplayServer.WindowGetSize());
+            return new ScreenInfo(size.X, size.Y, usable.X, usable.Y, window.X, window.Y, RefreshRate(screen));
+        }
+    }
+
+    /// <summary>A screen's refresh rate to the nearest hertz, or 60 if the system doesn't say.</summary>
+    private static int RefreshRate(int screen) => DisplayServer.ScreenGetRefreshRate(screen) is var rate and > 0 ? (int)Math.Round(rate) : 60;
 
     /// <summary>A battle no trek cued (<see cref="Transition.StartBattle"/>), which nothing in the runtime sends: it's said.</summary>
     private void SayBattle(BattleSetup setup) => Say($"A battle with {setup.Party?.ToString() ?? "a script's enemies"} would start.");

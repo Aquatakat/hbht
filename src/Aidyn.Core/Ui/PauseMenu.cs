@@ -246,7 +246,8 @@ public sealed class PauseMenu
         _member = party.Member;
         party.Combat = rules;
         Window = party;
-        System = new SystemMenu(_game.Plugins, _settings, _game.Party, _savesFolder, isSet: _game.Flags.Get, combat: _combat?.CanFlee);
+        System = new SystemMenu(_game.Plugins, _settings, _game.Party, _savesFolder, isSet: _game.Flags.Get, combat: _combat?.CanFlee,
+            screen: () => _host.Screen);
         var (place, outdoors) = _where();
         World = new WorldMenu(_game.Plugins, _game, _mainFont ??= new TextLayout(_game.Plugins.Get<FontRecord>(RecordId.Decimal(RecordTypes.Font, 0))),
             place, outdoors);

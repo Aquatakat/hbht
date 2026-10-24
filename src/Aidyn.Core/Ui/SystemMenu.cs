@@ -89,6 +89,7 @@ public sealed class SystemMenu
     private readonly string _savesFolder;
     private readonly Func<string, IReadOnlyList<SaveSlot>>? _listSaves;
     private readonly Func<RecordId, bool> _isSet;
+    private readonly Func<ScreenInfo> _screen;
     private ISystemPage _page;
 
     /// <param name="party">The party, whose Alaron the options menu renames.</param>
@@ -99,10 +100,12 @@ public sealed class SystemMenu
     /// In combat, whether the party can flee: the list is Options alone, and Flee with it (<see cref="Combat.Battle.CanFlee"/>).
     /// Null in trek.
     /// </param>
+    /// <param name="screen">The screen the game is on as the options open, for the Video page; <see cref="ScreenInfo.Default"/> by default.</param>
     public SystemMenu(PluginSet plugins, Settings settings, Party party, string savesFolder, Func<string, IReadOnlyList<SaveSlot>>? listSaves = null,
-        Func<RecordId, bool>? isSet = null, bool? combat = null)
+        Func<RecordId, bool>? isSet = null, bool? combat = null, Func<ScreenInfo>? screen = null)
     {
         _isSet = isSet ?? (_ => false);
+        _screen = screen ?? (() => ScreenInfo.Default);
         _plugins = plugins;
         _text = MenuText.From(plugins);
         Settings = settings;
@@ -278,7 +281,7 @@ public sealed class SystemMenu
                     return null;
                 case SystemItem.Options:
                     menu.FadeFrom();
-                    menu.Options = new OptionsMenu(menu.Settings, inGame: true);
+                    menu.Options = new OptionsMenu(menu.Settings, inGame: true, menu._screen());
                     menu._page = new OptionsPage(menu);
                     return null;
                 case SystemItem.Theater:

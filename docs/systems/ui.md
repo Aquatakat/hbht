@@ -231,10 +231,12 @@ The user laid this out, and it isn't the original's ([ADR 0013](../adr/0013-sett
 
   | Page | Setting | Values |
   | --- | --- | --- |
-  | Video | Display | Windowed, Fullscreen |
-  | | Render Resolution | Native, 480 Lines, 240 Lines (bilinear, through Godot's 3D scaling) |
-  | | Anti-Aliasing | Off, 2x, 4x, 8x (MSAA) |
+  | Video | Display | Windowed, Fullscreen (borderless, at the screen's own resolution) |
+  | | Window Size | The 4:3 and 16:9 sizes from 640x480 to 3840x2160 that fit the screen less its taskbar, and the window's own; the window is centred. In fullscreen, the screen's size alone |
+  | | Render Resolution | 240, 480, 720, 1080, 1440 and 2160 lines under the window's or screen's height, at its shape, then its own and twice it (supersampled), each shown as width x height: bilinear, through Godot's 3D scaling |
+  | | Frame Rate Limit | Display (the screen's refresh rate), 30, 60, 90, 120 and 144 FPS, Unlimited (`Engine.MaxFps`) |
   | | V-Sync | On, Off |
+  | | Anti-Aliasing | Off, 2x, 4x, 8x (MSAA) |
   | Enhancements | Draw Distance | Original, Extended (the Overworld's terrain out to the 5 × 5 chunks round the player: [rendering](rendering.md#draw-distance)) |
   | | Object Distance | Original, 2x, 3x: see [rendering](rendering.md#draw-distance) |
   | | Model Detail | Original, Highest (the nearest level with a model, where the original draws one: [rendering](rendering.md#draw-distance)) |
@@ -244,6 +246,7 @@ The user laid this out, and it isn't the original's ([ADR 0013](../adr/0013-sett
   | | Pace | Original, Brisk (1.3×) |
   | | Status Auras | Original (the lasting spells' and potions' scenes over heads take turns one at a time across the battle), More Often (each character's in turn over its own head, all at once): see [combat](combat.md#what-spells-look-like) |
 
+- **The Video page lists what the screen allows.** The runtime says which screen the window is on as the options open (`IPauseMenuHost.Screen`, a `ScreenInfo`), and the page's rows are made again after each change, so Window Size and Render Resolution follow the display mode and the window's size. Godot 4 can't change the screen's own mode, so there's no exclusive fullscreen and no choice of the screen's resolution or refresh rate; Window Size and Frame Rate Limit stand in for them, the user's choice. A window the player resizes by hand keeps its size until Display or Window Size changes.
 - **The sky's placement** is off the menu, the user's choice: the projected sky is always drawn, and F6 or `--sky original` draws the original's for comparing ([rendering](rendering.md#the-skys-objects)).
 - **How a setting takes effect** is the runtime's ([runtime](runtime.md), [ADR 0023](../adr/0023-the-core-is-handed-its-settings-each-tick.md)): the menu changes the player's `Settings`, which nothing else in the core reads. The command line's settings for a run lie over the player's and are never saved ([runtime](runtime.md#the-command-line)), so the page shows the player's own.
 - **The original's resolution row** switches to the Expansion Pak's high resolution (512 × 240) and back; without the pak, it's greyed and the cursor skips it. "32 Bit Color" is in the table, but nothing reaches it.

@@ -40,12 +40,27 @@ public sealed class Settings
     /// <summary>How many lines the 3D world is drawn at, scaled up to the window, or 0 for the window's own.</summary>
     public int WorldLines { get; set; }
 
+    /// <summary>Whether the 3D world is drawn at twice the window's resolution and scaled down to it, supersampling.</summary>
+    public bool Supersampled { get; set; }
+
     /// <summary>Multisample anti-aliasing's samples: 0 (off), 2, 4 or 8.</summary>
     public int Antialiasing { get; set; }
 
+    /// <summary>Borderless fullscreen at the screen's own resolution, or a window.</summary>
     public bool Fullscreen { get; set; }
 
+    /// <summary>The window's size while it's windowed, or 0 × 0 for whatever size it opens at.</summary>
+    public int WindowWidth { get; set; }
+
+    public int WindowHeight { get; set; }
+
     public bool VSync { get; set; } = true;
+
+    /// <summary><see cref="FrameRateLimit"/>'s value for the screen's own refresh rate.</summary>
+    public const int DisplayRate = -1;
+
+    /// <summary>The most frames drawn a second: a number, <see cref="DisplayRate"/> for the screen's refresh rate, or 0 for no limit.</summary>
+    public int FrameRateLimit { get; set; } = DisplayRate;
 
     /// <summary>Whether the Overworld's terrain is drawn out to the 5 × 5 chunks around the player rather than the original's 3 × 3.</summary>
     public bool ExtendedDrawDistance { get; set; }

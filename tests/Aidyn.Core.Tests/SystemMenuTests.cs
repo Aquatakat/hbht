@@ -78,7 +78,8 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         var options = new OptionsMenu(new Settings(), inGame: true);
         options.Point(1);
         options.Accept();
-        Assert.Equal(["Display", "Render Resolution", "Anti-Aliasing", "V-Sync"], options.Rows.Rows.Select(r => r.Label));
+        Assert.Equal(["Display", "Window Size", "Render Resolution", "Frame Rate Limit", "V-Sync", "Anti-Aliasing"],
+            options.Rows.Rows.Select(r => r.Label));
         options.Back();
         options.Point(2);
         options.Accept();
@@ -87,6 +88,44 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         // A new player's are the original's, and the original's video out.
         Assert.Equal(["Original", "Original", "Original", "Original", "Original", "Video Out", "Original", "Original"],
             options.Rows.Rows.Select(r => r.ValueName));
+    }
+
+    [Fact]
+    public void TheVideoPageListsSizesForTheScreen()
+    {
+        var settings = new Settings();
+        // A 1080p screen whose taskbar leaves 1040 lines for a window, with the window at 1280 × 960.
+        var options = new OptionsMenu(settings, inGame: true, ScreenInfo.Default);
+        options.Point(1);
+        options.Accept();
+        OptionRow Row(string label) => options.Rows.Rows.Single(r => r.Label == label);
+
+        Assert.Equal(["640x480", "960x720", "1280x720", "1280x960", "1600x900"], Row("Window Size").Values);
+        Assert.Equal("1280x960", Row("Window Size").ValueName);
+        // The line counts under the window's, at its shape, then its own and twice it.
+        Assert.Equal(["320x240", "640x480", "960x720", "1280x960", "2560x1920"], Row("Render Resolution").Values);
+        Assert.Equal("1280x960", Row("Render Resolution").ValueName);
+        Assert.Equal(["Display", "30 FPS", "60 FPS", "90 FPS", "120 FPS", "144 FPS", "Unlimited"], Row("Frame Rate Limit").Values);
+        Assert.Equal("Display", Row("Frame Rate Limit").ValueName);
+
+        options.Point(1);
+        options.Change(1);
+        Assert.Equal((1600, 900), (settings.WindowWidth, settings.WindowHeight));
+        // The render resolutions follow the window's new shape.
+        Assert.Equal(["427x240", "853x480", "1280x720", "1600x900", "3200x1800"], Row("Render Resolution").Values);
+        options.Point(2);
+        options.Change(1);
+        Assert.Equal((0, true), (settings.WorldLines, settings.Supersampled));
+        options.Change(1);
+        Assert.Equal((240, false), (settings.WorldLines, settings.Supersampled));
+
+        // Fullscreen is the screen's own size, which the stick can't change.
+        options.Point(0);
+        options.Change(1);
+        Assert.True(settings.Fullscreen);
+        Assert.Equal(["1920x1080"], Row("Window Size").Values);
+        Assert.Equal(["427x240", "853x480", "1280x720", "1920x1080", "3840x2160"], Row("Render Resolution").Values);
+        Assert.Equal("427x240", Row("Render Resolution").ValueName);
     }
 
     [Fact]

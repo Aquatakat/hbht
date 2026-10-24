@@ -16,6 +16,9 @@ public interface IPauseMenuHost
     /// screenshot of the world as the menu opened. Returns why it couldn't, or null.
     /// </summary>
     string? Save(string path);
+
+    /// <summary>The screen the game is on, which the options' Video page lists its sizes from.</summary>
+    ScreenInfo Screen => ScreenInfo.Default;
 }
 
 /// <summary>A one-off the pause menu asks its host for.</summary>

@@ -41,6 +41,16 @@ public sealed record OptionRow(string Label, OptionKind Kind, Func<int> Get, Act
     public string? ValueName => Kind == OptionKind.Choice && Values.Count > 0 ? Values[Math.Clamp(Value, 0, Values.Count - 1)] : null;
 }
 
+/// <summary>
+/// The screen the game is on, as the options open, which the Video page's sizes are listed from: the screen's size, the
+/// part of it a window can take (less the taskbar), the window's size now, and the refresh rate.
+/// </summary>
+public sealed record ScreenInfo(int Width, int Height, int UsableWidth, int UsableHeight, int WindowWidth, int WindowHeight, int RefreshRate)
+{
+    /// <summary>A 1080p screen at 60 Hz with the window at the runtime's 1280 × 960, for tests and headless runs.</summary>
+    public static readonly ScreenInfo Default = new(1920, 1080, 1920, 1040, 1280, 960, 60);
+}
+
 /// <summary>The options menu's pages.</summary>
 public enum OptionsPage
 {
@@ -86,11 +96,14 @@ public sealed class OptionsMenu
     public Rgba HighlightNow => Pulse.Now(TextColor, HighlightColor);
 
     private readonly bool _inGame;
+    private readonly ScreenInfo _screen;
 
-    public OptionsMenu(Settings settings, bool inGame)
+    /// <param name="screen">The screen the game is on, or <see cref="ScreenInfo.Default"/>.</param>
+    public OptionsMenu(Settings settings, bool inGame, ScreenInfo? screen = null)
     {
         Settings = settings;
         _inGame = inGame;
+        _screen = screen ?? ScreenInfo.Default;
         Rows = new MenuList<OptionRow>(MainRows());
     }
 
@@ -114,7 +127,7 @@ public sealed class OptionsMenu
     /// <summary>A copy on the same page with the cursor on the same row, which the page fading out draws as it was.</summary>
     public OptionsMenu Copy()
     {
-        var copy = new OptionsMenu(Settings, _inGame);
+        var copy = new OptionsMenu(Settings, _inGame, _screen);
         if (Page != OptionsPage.Main)
             copy.Open(Page);
         copy.Rows.Point(Rows.Cursor);
@@ -142,6 +155,9 @@ public sealed class OptionsMenu
             return;
         row.Set(value);
         Changed = true;
+        // The window's mode and size change what the Video page lists.
+        if (Page == OptionsPage.Video)
+            Rows.Rows = VideoRows();
         Settings.Notify();
     }
 
@@ -224,19 +240,63 @@ public sealed class OptionsMenu
         ];
     }
 
+    /// <summary>
+    /// The Video page's rows. Window Size lists the sizes that fit the screen, and in fullscreen only the screen's own;
+    /// Render Resolution lists the line counts under the window's or screen's height at its shape, then its own and twice it.
+    /// </summary>
     private List<OptionRow> VideoRows()
     {
         var s = Settings;
+        var output = Output();
+        var renders = RenderResolutions(output.Height);
         return
         [
             Choice("Display", ["Windowed", "Fullscreen"], () => s.Fullscreen ? 1 : 0, v => s.Fullscreen = v == 1),
-            Choice("Render Resolution", ["Native", "480 Lines", "240 Lines"],
-                () => Array.IndexOf(WorldLines, s.WorldLines) is var i and >= 0 ? i : 0, v => s.WorldLines = WorldLines[v]),
+            s.Fullscreen ? Choice("Window Size", [Size(output)], () => 0, _ => { }) : WindowSizeRow(output),
+            Choice("Render Resolution", [.. renders.Select(r => Size(Render(output, r)))],
+                // A line count not listed, or at or past the output's own, draws at the output's own.
+                () => renders.IndexOf((s.Supersampled ? 0 : s.WorldLines, s.Supersampled)) is var i and >= 0 ? i : renders.Count - 2,
+                v => (s.WorldLines, s.Supersampled) = renders[v]),
+            Choice("Frame Rate Limit", [.. FrameRates.Select(r => r switch { Settings.DisplayRate => "Display", 0 => "Unlimited", _ => $"{r} FPS" })],
+                () => Array.IndexOf(FrameRates, s.FrameRateLimit) is var i and >= 0 ? i : 0, v => s.FrameRateLimit = FrameRates[v]),
+            Choice("V-Sync", ["On", "Off"], () => s.VSync ? 0 : 1, v => s.VSync = v == 0),
             Choice("Anti-Aliasing", ["Off", "2x", "4x", "8x"], () => Array.IndexOf(Samples, s.Antialiasing) is var i and >= 0 ? i : 0,
                 v => s.Antialiasing = Samples[v]),
-            Choice("V-Sync", ["On", "Off"], () => s.VSync ? 0 : 1, v => s.VSync = v == 0),
         ];
     }
+
+    /// <summary>What the 3D world is scaled to: the screen in fullscreen, else the window at its setting's size or as it is.</summary>
+    private (int Width, int Height) Output() => Settings switch
+    {
+        { Fullscreen: true } => (_screen.Width, _screen.Height),
+        { WindowWidth: > 0, WindowHeight: > 0 } s => (s.WindowWidth, s.WindowHeight),
+        _ => (_screen.WindowWidth, _screen.WindowHeight),
+    };
+
+    /// <summary>The window sizes that fit the screen, with the window's own among them, the one shown being the nearest to it.</summary>
+    private OptionRow WindowSizeRow((int Width, int Height) window)
+    {
+        var s = Settings;
+        List<(int Width, int Height)> sizes = [.. WindowSizes.Where(w => w.Width <= _screen.UsableWidth && w.Height <= _screen.UsableHeight)];
+        if (!sizes.Contains(window))
+            sizes.Add(window);
+        sizes.Sort((a, b) => (a.Width * a.Height).CompareTo(b.Width * b.Height));
+        return Choice("Window Size", [.. sizes.Select(Size)], () => sizes.IndexOf(window), v => (s.WindowWidth, s.WindowHeight) = sizes[v]);
+    }
+
+    /// <summary>The line counts under <paramref name="height"/>, then its own (0) and twice it.</summary>
+    private static List<(int Lines, bool Supersampled)> RenderResolutions(int height) =>
+        [.. RenderLines.Where(l => l < height).Select(l => (l, false)), (0, false), (0, true)];
+
+    /// <summary>The size the 3D world is drawn at for a render resolution, at the output's shape.</summary>
+    private static (int Width, int Height) Render((int Width, int Height) output, (int Lines, bool Supersampled) render) => render switch
+    {
+        { Supersampled: true } => (output.Width * 2, output.Height * 2),
+        { Lines: 0 } => output,
+        _ => ((int)Math.Round((double)render.Lines * output.Width / output.Height), render.Lines),
+    };
+
+    private static string Size((int Width, int Height) size) => $"{size.Width}x{size.Height}";
 
     private List<OptionRow> EnhancementRows()
     {
@@ -263,7 +323,16 @@ public sealed class OptionsMenu
         new(label, OptionKind.Choice, get, set, values);
 
     // The values the pages' rows step through.
-    private static readonly int[] WorldLines = [0, 480, 240], Samples = [0, 2, 4, 8], UiLines = [240, 360, 480];
+    private static readonly int[] Samples = [0, 2, 4, 8], UiLines = [240, 360, 480];
+
+    /// <summary>The render resolutions' line counts under the window's own: the original's 240 and 480, then the usual video modes.</summary>
+    private static readonly int[] RenderLines = [240, 480, 720, 1080, 1440, 2160];
+
+    private static readonly int[] FrameRates = [Settings.DisplayRate, 30, 60, 90, 120, 144, 0];
+
+    /// <summary>The window sizes offered, 4:3 and 16:9, of those that fit the screen.</summary>
+    private static readonly (int Width, int Height)[] WindowSizes =
+        [(640, 480), (960, 720), (1280, 720), (1280, 960), (1600, 900), (1600, 1200), (1920, 1080), (2560, 1440), (2880, 2160), (3840, 2160)];
     private static readonly float[] ObjectDistances = [1, 2, 3];
 
     /// <summary>The rain and snow's densities, up to <see cref="Particles.WeatherParticles.MaxDensity"/>.</summary>
