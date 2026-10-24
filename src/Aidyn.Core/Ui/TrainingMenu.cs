@@ -300,13 +300,15 @@ public sealed class TrainingMenu : IPartyWindow
         if (choice.Choices.Cursor != 0 || Party.Shown is not { } student)
             return;
         var gold = Party.Party.Gold;
+        var before = Party.Numbers;
+        var trained = false;
         if (CurrentSkill is { } skill)
         {
-            Training.TrainSkill(student, skill, Trainer, ref gold);
+            trained = Training.TrainSkill(student, skill, Trainer, ref gold).Allowed;
         }
         else if (CurrentSpell is { } row)
         {
-            Training.TrainSpell(student, row.Spell.Spell, Trainer, ref gold, out var learnt);
+            trained = Training.TrainSpell(student, row.Spell.Spell, Trainer, ref gold, out var learnt).Allowed;
             var flag = student.Rules.Training.FirstSpellFlag;
             if (learnt && flag is { } f && _flags is not null && !_flags.IsSet(f))
             {
@@ -316,6 +318,9 @@ public sealed class TrainingMenu : IPartyWindow
         }
         Party.Party.Gold = gold;
         Party.Refresh();
+        // The lists' purchase ends by crossfading the header's numbers (PartyMenu.HealthGoldChange, from 0x80037ccc).
+        if (trained)
+            Party.ChangeNumbers(before);
         Follow();
     }
 

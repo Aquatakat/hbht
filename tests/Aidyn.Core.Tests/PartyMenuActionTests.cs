@@ -340,6 +340,110 @@ public class PartyMenuActionTests
         Assert.Equal(PotionData.Messages.PotionNotInTrek, menu.Message!.Text);
     }
 
+    /// <summary>
+    /// A healing potion drunk from the Party tab changes the header as a member change does (PartyMenu.InventoryA ends with
+    /// PartyMenu.HealthGoldChange): the hit points, their maximum and the level crossfade from what they were, and the bar
+    /// tweens to the new share, over 15 frames on the menu's curve, finishing a frame later. The portraits stay, and no
+    /// member change starts until it has finished.
+    /// </summary>
+    [Fact]
+    public void ADrunkHealingPotionCrossfadesTheHitPointsAndTweensTheBar()
+    {
+        var (party, member) = Setup(null, PotionData.Member("Brenna", 1));
+        party.Inventory.Add(PotionId(BasePotion.Healing));
+        member.TakeDamage(1000);
+        var menu = Menu(party);
+        menu.Random = new ScriptedRandom(RandomFor.Range(15, 25, 20));
+        var before = new HeaderNumbers(0, member.MaxHp, member.Level);
+        Assert.Equal(before, menu.Numbers);
+
+        PointAt(menu, r => r.Item.Id == PotionId(BasePotion.Healing));
+        menu.Accept();
+        Assert.Equal((int)(0.2f * member.MaxHp), member.Hp);
+        Assert.Equal(before, menu.PreviousNumbers);
+        Assert.Null(menu.Previous);
+        Assert.True(menu.Changing);
+        menu.ChangeMember(1);
+        Assert.Equal(0, menu.Member);
+
+        const int width = 80;
+        var to = menu.HealthBar(width);
+        Assert.True(to > 0);
+        for (var frame = 0; frame <= PartyMenu.MemberFrames; frame++)
+        {
+            var change = MenuTween.Ease(frame, PartyMenu.MemberFrames);
+            Assert.Equal(change, menu.NumbersChange);
+            Assert.Equal(MenuTween.Value(0, to, change), MenuTween.Value(menu.PreviousNumbers!.Value.Bar(width), to, menu.NumbersChange));
+            Frames(menu, 1);
+        }
+        Assert.Null(menu.PreviousNumbers);
+        Assert.Equal(1, menu.NumbersChange);
+        Assert.False(menu.Changing);
+        menu.ChangeMember(1);
+        Assert.Equal(1, menu.Member);
+    }
+
+    /// <summary>A potion refused with a message leaves the header as it is.</summary>
+    [Fact]
+    public void ARefusedPotionLeavesTheHeaderStill()
+    {
+        var (party, _) = Setup();
+        party.Inventory.Add(PotionId(BasePotion.Healing));
+        var menu = Menu(party);
+
+        PointAt(menu, r => r.Item.Id == PotionId(BasePotion.Healing));
+        menu.Accept();
+
+        Assert.Equal(PotionData.Messages.PotionNotNow, menu.Message!.Text);
+        Assert.Null(menu.PreviousNumbers);
+        Assert.Null(menu.PreviousSlots);
+        Assert.False(menu.Changing);
+    }
+
+    /// <summary>
+    /// Putting an item on or taking it off crossfades the silhouette from what it wore, and the header's numbers with it
+    /// (PartyMenu.EquipmentChange and HealthGoldChange); the staff that stays changes nothing.
+    /// </summary>
+    [Fact]
+    public void EquippingCrossfadesTheSilhouetteAndTheNumbers()
+    {
+        var (party, member) = Setup();
+        party.Inventory.Add(Sword.Id);
+        party.Inventory.Add(Staff.Id);
+        var menu = Menu(party);
+
+        PointAt(menu, r => r.Item.Id == Sword.Id);
+        menu.Accept();
+        Assert.Null(menu.PreviousSlots![(int)EquipmentSlot.Weapon]);
+        Assert.Equal(Sword.Icon, menu.Worn(EquipmentSlot.Weapon)!.Item.Icon);
+        Assert.True(menu.SlotCrossfades(EquipmentSlot.Weapon));
+        Assert.False(menu.SlotCrossfades(EquipmentSlot.Helmet));
+        Assert.Equal(menu.Numbers, menu.PreviousNumbers);
+        Assert.Equal(0, menu.SlotsChange);
+
+        Frames(menu, PartyMenu.MemberFrames + 1);
+        Assert.Null(menu.PreviousSlots);
+        PointAt(menu, r => r.Item.Id == Sword.Id);
+        menu.Accept();
+        Assert.Equal(Sword.Icon, menu.PreviousSlots![(int)EquipmentSlot.Weapon]);
+        Assert.Null(menu.Worn(EquipmentSlot.Weapon));
+
+        Frames(menu, PartyMenu.MemberFrames + 1);
+        Assert.Equal(EquipRefusal.None, party.Equip(member, Staff.Id));
+        menu.Refresh();
+        PointAt(menu, r => r.Item.Id == Staff.Id);
+        menu.Accept();
+        Assert.NotNull(menu.Message);
+        Assert.Null(menu.PreviousSlots);
+        Assert.Null(menu.PreviousNumbers);
+    }
+
+    private static void Frames(PartyMenu menu, int frames)
+    {
+        for (var tick = 0; tick < frames * Cadence.MenuFrameTicks; tick++)
+            menu.Step();
+    }
+
     /// <summary>Reading a scroll teaches its spell and says so, naming the reader and the spell; reading it again says they know it.</summary>
     [Fact]
     public void ReadingAScrollTeachesItsSpellAndSaysSo()
@@ -481,8 +585,12 @@ public class PartyMenuActionTests
         Assert.Equal($"{MenuText.Health}|{brenna.Hp}|{brenna.MaxHp}|", targets.Rows.Rows[0].Health);
 
         var hp = brenna.Hp;
+        var header = menu.Numbers;
         menu.Accept();
         Assert.Equal($"{MenuText.HealsBy}|Alaron|Brenna|{brenna.Hp - hp}", menu.Message!.Text);
+        // The result crossfades the header, the Healer's, from before the Stamina it cost (MenuPopup.ShowResult).
+        Assert.Equal(header, menu.PreviousNumbers);
+        Assert.NotEqual(header, menu.Numbers);
         Assert.Equal(hp + 2 * 2 + 5, brenna.Hp);
         Assert.Equal(healer.Stats.Base(Stat.Stamina) - 3, healer.Stats.Modified(Stat.Stamina));
 

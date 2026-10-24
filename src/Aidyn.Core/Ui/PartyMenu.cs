@@ -119,7 +119,10 @@ public sealed partial class PartyMenu : IPartyWindow
     public int HealthBar(int width) => HealthBar(Shown, width);
 
     /// <summary>The share of the bar a member's hit points fill.</summary>
-    public static int HealthBar(Character? member, int width) => member is { MaxHp: > 0 } c ? (int)((float)c.Hp / c.MaxHp * width) : 0;
+    public static int HealthBar(Character? member, int width) => member is null ? 0 : HealthBar(member.Hp, member.MaxHp, width);
+
+    /// <summary>The share of the bar <paramref name="hp"/> of <paramref name="maxHp"/> fills: hp ÷ max × width in single precision, truncated.</summary>
+    public static int HealthBar(int hp, int maxHp, int width) => maxHp > 0 ? (int)((float)hp / maxHp * width) : 0;
 
     /// <summary>What a slot of the silhouette shows: the worn item's icon, or the slot's own image of what it takes.</summary>
     public RecordId SlotImage(EquipmentSlot slot) => SlotImage(slot, Shown);
@@ -173,7 +176,7 @@ public sealed partial class PartyMenu : IPartyWindow
     /// <summary>
     /// Shows the next member, or with a negative step the one before: C-left shows the next and C-right the one before
     /// (<c>PartyMenu.OnCLeft</c> at <c>0x8003e1c8</c>, <c>OnCRight</c> <c>0x8003e1f4</c>). Not while the header or the
-    /// lists are still changing.
+    /// lists are still changing, nor while the numbers or the silhouette are after something done to the member shown.
     /// </summary>
     public void ChangeMember(int by)
     {
