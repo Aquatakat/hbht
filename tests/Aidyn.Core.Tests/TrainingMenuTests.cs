@@ -145,9 +145,13 @@ public class TrainingMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlug
         menu.MoveCursor(1);
         menu.Accept();
         Assert.Equal(3, alaron.Skills.Base(Skill.Warrior));
+        Assert.Null(menu.Party.PreviousNumbers);
 
+        // The purchase crossfades the header's numbers, as every list's purchase ends (PartyMenu.HealthGoldChange).
+        var before = menu.Party.Numbers;
         menu.Accept();
         menu.Accept();
+        Assert.Equal(before, menu.Party.PreviousNumbers);
 
         Assert.Null(menu.Choice);
         Assert.Null(menu.Message);

@@ -249,18 +249,18 @@ public sealed class PostBattleMenu : IPartyWindow
         if (choice.Choices.Cursor != 0 || Party.Shown is not { } member)
             return;
         var gold = Party.Party.Gold;
-        switch (Party.List)
+        var before = Party.Numbers;
+        var quote = Party.List switch
         {
-            case PartyList.Stats when Party.Stats.Current is { } row:
-                Training.TrainStat(member, row.Stat);
-                break;
-            case PartyList.Skills when Party.Skills.Current is { } row:
-                Training.TrainSkill(member, row.Skill, null, ref gold);
-                break;
-            case PartyList.Spells when Party.Spells.Current is { } row:
-                Training.TrainSpell(member, row.Spell.Spell, null, ref gold, out _);
-                break;
-        }
+            PartyList.Stats when Party.Stats.Current is { } row => Training.TrainStat(member, row.Stat),
+            PartyList.Skills when Party.Skills.Current is { } row => Training.TrainSkill(member, row.Skill, null, ref gold),
+            PartyList.Spells when Party.Spells.Current is { } row => Training.TrainSpell(member, row.Spell.Spell, null, ref gold, out _),
+            _ => (TrainingQuote?)null,
+        };
         Party.Refresh();
+        // Each list's purchase ends by crossfading the header's numbers (PartyMenu.HealthGoldChange, from 0x80037ccc, 0x800391e0
+        // and 0x8003a90c), an Endurance point raising the maximum among them.
+        if (quote?.Allowed == true)
+            Party.ChangeNumbers(before);
     }
 }

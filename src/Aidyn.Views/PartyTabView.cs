@@ -494,19 +494,20 @@ public partial class PartyTabView : Control
     private static Rgba FadingOut(Rgba color, float ease) => color with { A = (byte)MenuTween.Value(color.A, 0, ease) };
 
     /// <summary>
-    /// The hit points bar, cut to the share left, and the hit points, level and gold. As the member changes
-    /// (<c>PartyMenu.HealthGoldChange</c>, <c>0x8003be5c</c>), the bar's width tweens to the new member's, and the hit
-    /// points and level crossfade, even where they're the same; the gold stays.
+    /// The hit points bar, cut to the share left, and the hit points, level and gold. As the member changes, or a potion,
+    /// the equipment, a skill or training changes the member shown (<c>PartyMenu.HealthGoldChange</c>, <c>0x8003be5c</c>),
+    /// the bar's width tweens to the new share, and the hit points, their maximum and the level crossfade, even where
+    /// they're the same; the gold stays.
     /// </summary>
     private void Health(Vector2I at, UiFont font)
     {
         var shown = Menu.Shown!;
         var bar = at + HealthBarAt;
-        var change = Menu.MemberChange;
+        var change = Menu.NumbersChange;
         var width = Menu.HealthBar(HealthBarSize.X);
-        if (Menu.Previous is { } before)
+        if (Menu.PreviousNumbers is { } before)
         {
-            width = MenuTween.Value(PartyMenu.HealthBar(before, HealthBarSize.X), width, change);
+            width = MenuTween.Value(before.Bar(HealthBarSize.X), width, change);
             var fading = FadingOut(PartyMenu.TextColor, change);
             Number(font, before.Hp, at + HpAt, fading);
             Number(font, before.MaxHp, at + MaxHpAt, fading);
@@ -521,22 +522,20 @@ public partial class PartyTabView : Control
     }
 
     /// <summary>
-    /// The silhouette's slots: what's worn, or each empty slot's image. As the member changes, a slot crossfades where
-    /// one member wears something in it and the other doesn't. From one worn item to another it changes at once, as the
-    /// user asked; the original crossfades every slot whose item differs (<c>PartyMenu.EquipmentChange</c>,
-    /// <c>0x8003e374</c>).
+    /// The silhouette's slots: what's worn, or each empty slot's image. As the member changes, or an item is put on or
+    /// taken off, the slots the core says crossfade (<see cref="PartyMenu.SlotCrossfades"/>) fade from what they showed.
     /// </summary>
     private void Silhouette(Vector2I at)
     {
-        var change = Menu.MemberChange;
+        var change = Menu.SlotsChange;
         foreach (var slot in Enum.GetValues<EquipmentSlot>())
         {
             var x = at.X + Slots[(int)slot].X;
             var y = at.Y + Slots[(int)slot].Y;
             var size = new Vector2I(SlotSize, SlotSize);
-            if (Menu.Previous is { } before && (PartyMenu.Worn(slot, before) is null) != (Menu.Worn(slot) is null))
+            if (Menu.PreviousSlots is { } before && Menu.SlotCrossfades(slot))
             {
-                _ui.Image(_canvas, PartyMenu.SlotImage(slot, before), x, y, size, FadingOut(White, change));
+                _ui.Image(_canvas, before[(int)slot] ?? MenuImages.EmptySlots[(int)slot], x, y, size, FadingOut(White, change));
                 _ui.Image(_canvas, Menu.SlotImage(slot), x, y, size, FadingIn(White, change));
             }
             else

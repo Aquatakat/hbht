@@ -136,18 +136,24 @@ public sealed partial class PartyMenu
     /// </summary>
     public CombatPause? Combat { get; set; }
 
-    // WidgetInvShop::AFunc.
+    // WidgetInvShop::AFunc. Whatever it does that isn't refused with a message, PartyMenu.InventoryA (0x80035fa0) ends
+    // at 0x80036694 by crossfading the silhouette's changed slots and the header's numbers (PartyMenu.EquipmentChange,
+    // HealthGoldChange): a potion drunk, a scroll read whatever it says, an item put on or taken off, a flask taken in hand.
     private void Use(InventoryRow row)
     {
         if (Shown is not { } member)
             return;
-        if (Combat is { } combat && UseInCombat(combat, member, row))
-            return;
+        var numbers = Numbers;
+        var slots = WornIcons;
+        if ((Combat is { } combat ? UseInCombat(combat, member, row) : null) ?? UseInTrek(member, row))
+            ChangeHeader(numbers, slots);
+    }
+
+    // A on the row out of a battle's turn rules: whether it did something.
+    private bool UseInTrek(Character member, InventoryRow row)
+    {
         if (row.Wearer is { } slot)
-        {
-            TakeOff(row, slot);
-            return;
-        }
+            return TakeOff(row, slot);
         switch (row.Item.Kind)
         {
             case ItemKind.Potion:
@@ -159,24 +165,23 @@ public sealed partial class PartyMenu
                     _ => null,
                 });
                 Refresh();
-                break;
+                return drink == DrinkResult.Drunk;
             case ItemKind.Scroll:
                 Read(member, row.Item);
                 Refresh();
-                break;
+                return true;
             default:
-                Equip(member, row);
-                break;
+                return Equip(member, row);
         }
     }
 
-    // The combat pause's A (PartyMenu.InventoryA): whether it dealt with the row.
-    private bool UseInCombat(CombatPause combat, Character member, InventoryRow row)
+    // The combat pause's A (PartyMenu.InventoryA): whether it did something, or null if it leaves the row to trek's rules.
+    private bool? UseInCombat(CombatPause combat, Character member, InventoryRow row)
     {
         if (member != combat.Member)
         {
             Say(_text[row.Wearer is null ? MenuText.NotTheirTurnToEquip : MenuText.NotTheirTurnToRemove]);
-            return true;
+            return false;
         }
         if (row.Wearer is not null)
         {
@@ -185,15 +190,15 @@ public sealed partial class PartyMenu
             if (row.Item.Kind is ItemKind.Armor or ItemKind.Shield)
             {
                 Say(_text[MenuText.NotInCombat]);
-                return true;
+                return false;
             }
             if (row.Item.Kind == ItemKind.Weapon && row.Item.Weapon?.Fixed != true)
             {
-                TakeOff(row, row.Wearer.Value);
+                var off = TakeOff(row, row.Wearer.Value);
                 combat.WeaponChanged(false);
-                return true;
+                return off;
             }
-            return false;
+            return null;
         }
         switch (row.Item.Kind)
         {
@@ -204,44 +209,46 @@ public sealed partial class PartyMenu
                 return true;
             case ItemKind.Potion:
                 Say(_text[MenuText.PotionFromCUp]);
-                return true;
+                return false;
             case ItemKind.Armor or ItemKind.Shield:
                 Say(_text[MenuText.CantEquip]);
-                return true;
+                return false;
             case ItemKind.Weapon:
                 // Party.EquipWeapon (0x800758CC), then Combatant.AfterEquipChange: the turn ends as the menu closes.
                 var before = member.Equipment.Weapon;
-                Equip(member, row);
+                var equipped = Equip(member, row);
                 if (member.Equipment.Weapon != before)
                     combat.WeaponChanged(true);
-                return true;
+                return equipped;
             case ItemKind.Scroll:
                 // Party.EquipScroll (0x80075A58): worn in a gear slot, its spell on C-up, no turn spent.
-                Equip(member, row);
-                return true;
+                return Equip(member, row);
             default:
-                return false;
+                return null;
         }
     }
 
     // Taking off: the Archmage Staff stays with its wielder, and an item the inventory has no room for
-    // stays on without a word, as the original's does.
-    private void TakeOff(InventoryRow row, int slot)
+    // stays on without a word, as the original's does. False only for the staff, as the original's no room
+    // still ends with the header's crossfade.
+    private bool TakeOff(InventoryRow row, int slot)
     {
         if (Party.Slots.ElementAtOrDefault(slot) is not { } wearer)
-            return;
+            return false;
         if (row.Item.Weapon?.Fixed == true)
         {
             Say(Format(MenuText.PowerfulMagic, row.Item.Name, wearer.Name));
-            return;
+            return false;
         }
         Party.Unequip(wearer, row.Instance);
         Refresh();
+        return true;
     }
 
     // Party::GetEquipError's messages (equip_error_labels). Too many rings, no gear slot free, or no room for
     // what it replaces give the general one, as GetEquipError3 and the item kinds' functions return 1.
-    private void Equip(Character member, InventoryRow row)
+    // Whether it was put on.
+    private bool Equip(Character member, InventoryRow row)
     {
         var refusal = Party.Equip(member, row.Item.Id);
         switch (refusal)
@@ -251,7 +258,7 @@ public sealed partial class PartyMenu
                 // The cursor stays where it was, or on what's left of the stack it equipped from.
                 if (Inventory.Rows.Select((r, i) => (r, i)).FirstOrDefault(e => e.r.Wearer is null && e.r.Item == row.Item) is { r: not null } left)
                     Inventory.Point(left.i);
-                break;
+                return true;
             case EquipRefusal.WrongAspect:
                 Say(_text[MenuText.WrongAspect]);
                 break;
@@ -269,6 +276,7 @@ public sealed partial class PartyMenu
                 Say(_text[MenuText.CantEquip]);
                 break;
         }
+        return false;
     }
 
     // Party::UseScroll, which says how it went whatever happens.
@@ -325,23 +333,24 @@ public sealed partial class PartyMenu
     {
         if (crafting.Rows.Current is not { } row || Party.Slots.ElementAtOrDefault(crafting.User) is not { } user)
             return;
+        var before = Numbers;
         switch (crafting.Task)
         {
             case CraftingTask.Alchemy:
-                Brew(user, row.Recipe!);
+                Brew(user, row.Recipe!, before);
                 break;
             case CraftingTask.Armor:
                 var made = Items.Crafting.MakeArmor(Party, user, row.Recipe!, Random) == CraftResult.Made;
-                Result(_text[made ? MenuText.ArmorMade : MenuText.ArmorFailed]);
+                Result(_text[made ? MenuText.ArmorMade : MenuText.ArmorFailed], before);
                 break;
             case CraftingTask.HealerTasks:
                 Crafting = Targets(crafting.User, row.Task!.Value, crafting.Fade);
                 break;
             case CraftingTask.LayOnHands:
-                Healed(user, row.Member!.Value, Items.Crafting.LayOnHands(user, Party.Slots[row.Member.Value]!));
+                Healed(user, row.Member!.Value, Items.Crafting.LayOnHands(user, Party.Slots[row.Member.Value]!), before);
                 break;
             case CraftingTask.HealWithHerbs:
-                Healed(user, row.Member!.Value, Items.Crafting.HerbHeal(Party, user, Party.Slots[row.Member.Value]!, Random));
+                Healed(user, row.Member!.Value, Items.Crafting.HerbHeal(Party, user, Party.Slots[row.Member.Value]!, Random), before);
                 break;
             case CraftingTask.Restore:
                 Crafting = new CraftingMenu(CraftingTask.RestoreStat, _text[MenuText.Restore],
@@ -357,7 +366,7 @@ public sealed partial class PartyMenu
                     HealOutcome.Healed => Format(MenuText.RestoredBy, target.Name, row.Text, restored.Amount),
                     HealOutcome.AlreadyWell => Format(MenuText.StatAtMax, target.Name, row.Text),
                     _ => Format(MenuText.HealFailed, user.Name),
-                });
+                }, before);
                 break;
         }
     }
@@ -367,7 +376,7 @@ public sealed partial class PartyMenu
         [Stat.Intelligence, Stat.Willpower, Stat.Dexterity, Stat.Endurance, Stat.Strength, Stat.Stamina];
 
     // WidgetPotionCraft::AFunc: not enough reagents, or a full stack, say so; flasks have their own lines.
-    private void Brew(Character user, RecipeRecord recipe)
+    private void Brew(Character user, RecipeRecord recipe, HeaderNumbers before)
     {
         var flask = Party.Inventory.Catalog.TryGet(recipe.Product) is { } product && Potions.IsFlask(product);
         var result = Items.Crafting.Brew(Party, user, recipe, Random);
@@ -376,7 +385,7 @@ public sealed partial class PartyMenu
             CraftResult.MissingIngredients => flask ? MenuText.FlaskComponents : MenuText.PotionComponents,
             CraftResult.Made => flask ? MenuText.FlaskMade : MenuText.PotionMade,
             _ => flask ? MenuText.FlaskFailed : MenuText.PotionFailed,
-        }]);
+        }], before);
     }
 
     // WidgetMenuHealer::LayOnHands and HealWithHerbs: the living members, but not the Healer for laying on hands, in
@@ -401,7 +410,7 @@ public sealed partial class PartyMenu
     }
 
     // Party::PrintHeal and HerbHeal's messages.
-    private void Healed(Character healer, int target, HealResult result)
+    private void Healed(Character healer, int target, HealResult result, HeaderNumbers before)
     {
         var who = Party.Slots[target]!;
         Result(result.Outcome switch
@@ -409,14 +418,17 @@ public sealed partial class PartyMenu
             HealOutcome.Healed => Format(MenuText.HealsBy, healer.Name, who.Name, result.Amount),
             HealOutcome.AlreadyWell => Format(MenuText.AlreadyAtMaxHealth, who.Name),
             _ => Format(MenuText.HealFailed, healer.Name),
-        });
+        }, before);
     }
 
-    // WidgetCrafting::TextPopup: the result, and the menu brought up to date under it.
-    private void Result(string text)
+    // WidgetCrafting::TextPopup: the result, and the menu brought up to date under it. Showing it (MenuPopup.ShowResult,
+    // 0x80055ed4) crossfades the header's numbers from how they stood before the task (PartyMenu.HealthGoldChange), whoever
+    // it healed and whatever it did, for the member whose skill it is, the member shown.
+    private void Result(string text, HeaderNumbers before)
     {
         Say(text, fromCrafting: true);
         Refresh();
+        ChangeNumbers(before);
     }
 }
 
