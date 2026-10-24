@@ -120,17 +120,26 @@ public sealed record BattleSetup(
     /// </summary>
     public FlagGate? PartyGate { get; init; }
 
-    /// <summary>A script's battle (<c>encounterDat_func</c>): its enemies one each, its arena and bytes, and its battle flag.</summary>
+    /// <summary>
+    /// A script's battle (<c>encounterDat_func</c>, <c>0x80050804</c>): its enemies one each, its arena (0 when it sets none) and
+    /// bytes, and its battle flag.
+    /// </summary>
     public static BattleSetup Scripted(IEnumerable<RecordId> enemies, int arena, int collisionByte, int aniByte, bool canFlee, RecordId? flag) =>
         new(BattleSource.Script, null, null, null, [.. enemies.Select(e => new PartyEnemy(e, 1, 1))], arena, Ambush: false, canFlee, flag,
             collisionByte, aniByte);
 
-    /// <summary>The script's battle in a conversation with someone who wanders: the original fights their party instead, under its flag C.</summary>
+    /// <summary>
+    /// The script's battle in a conversation with someone who wanders: the original fights their party instead, under its flag C
+    /// (<c>0x80051A4C</c>, as <c>Conversation.End</c> ends it in a battle). It fills the setup block again from
+    /// the party (<c>BattleSetup.FromMonsterParty</c>) over what the script's battle op wrote (<c>0x80050804</c>): the arena by
+    /// the terrain (<see cref="ChooseArena"/>), not the script's, which no such script sets; the collision and animation bytes 0;
+    /// and fleeing allowed.
+    /// </summary>
     public BattleSetup Against(RecordId id, MonsterPartyObject party) =>
         this with
         {
             Party = id, Enemies = party.Enemies, EncounterFlag = party.BattleFlag, Size = (party.MinSize, party.MaxSize),
-            BonusLoot = party.Loot, PartyGate = party.Enabled,
+            BonusLoot = party.Loot, PartyGate = party.Enabled, Arena = null, CollisionByte = 0, AniByte = 0, CanFlee = true,
         };
 
     /// <summary>

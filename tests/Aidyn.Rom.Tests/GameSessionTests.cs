@@ -320,13 +320,51 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         Assert.Null(camp.BonusLoot);
         var game = session.Game;
 
-        // A script's, where it ends, and in a conversation with a party, against it under its flag C.
-        var scripted = BattleSetup.Scripted([party.Entity], 3, 1, 2, canFlee: true, RecordId.Decimal(RecordTypes.Flag, 978));
+        // A script's, where it ends, and in a conversation with a party, against it under its flag C, filled again from the party
+        // (Conversation.BattleTalker, 0x80051A4C): the arena by the terrain, not the script's, the bytes 0 and fleeing allowed.
+        var scripted = BattleSetup.Scripted([party.Entity], 3, 1, 2, canFlee: false, RecordId.Decimal(RecordTypes.Flag, 978));
         var ending = new ScriptEnding(ScriptEndKind.Battle, null, scripted, 0, false);
         var battle = Assert.IsType<Transition.StartBattle>(Assert.Single(Transition.AfterScript(game, ending, null, (here, 4)))).Setup;
         Assert.Equal(scripted with { Place = here, Terrain = 4 }, battle);
         var talking = Assert.IsType<Transition.StartBattle>(Assert.Single(Transition.AfterScript(game, ending, null, (here, 4), (id, party)))).Setup;
-        Assert.Equal((BattleSource.Script, id, party.Enemies, party.BattleFlag, 3), (talking.Source, talking.Party, talking.Enemies, talking.EncounterFlag, talking.Arena));
+        Assert.Equal((BattleSource.Script, id, party.Enemies, party.BattleFlag, null, 0, 0, true),
+            (talking.Source, talking.Party, talking.Enemies, talking.EncounterFlag, talking.Arena, talking.CollisionByte, talking.AniByte, talking.CanFlee));
+        Assert.Equal(19, talking.ChooseArena(Data.Set, new Lcg(1)));
+    }
+
+    [Fact]
+    public void KitaraksBattleIsInHisTerrainsArenaNotTheScriptsUnsetOne()
+    {
+        // Kitarak talks in his room (map set 1, C01, terrain 16), and his conversation ends in a battle with his party, setting no arena.
+        var kitarak = RecordId.Hex(RecordTypes.Entity, 0x021D);
+        var (id, map, party) = Assert.Single(Data.Of<MonsterPartyObject>(), p => p.Object.Entity == kitarak);
+        var chunk = Data.MapSets.SelectMany(s => s.Chunks.Select(c => (Set: s, Chunk: c))).Single(p => p.Chunk.Map == map.Id);
+        Assert.Equal((RecordId.Decimal(RecordTypes.MapSet, 1), "C01", 16), (chunk.Set.Id, chunk.Chunk.Name, chunk.Chunk.Terrain));
+        var dialogue = Data.Set.Get<DialogueRecord>(party.Dialogue!.Value);
+        var ops = dialogue.Nodes.SelectMany(n => n.Ops ?? []).ToList();
+        Assert.Contains(ops, o => o.Command == DialogueCommand.Battle);
+        Assert.DoesNotContain(ops, o => o.Command == DialogueCommand.SetBattlefield);
+
+        // The script's op leaves arena 0, a forest; the conversation's end chooses by the terrain, arena 26 (M19) alone.
+        var scripted = BattleSetup.Scripted([], 0, 0, 0, canFlee: true, dialogue.BattleFlag);
+        var place = new ChunkRef(chunk.Set.Id, chunk.Chunk.Row, chunk.Chunk.Column);
+        var ending = new ScriptEnding(ScriptEndKind.Battle, null, scripted, 0, false);
+        var game = GameState.NewGame(Data.Set);
+        var setup = Assert.IsType<Transition.StartBattle>(
+            Assert.Single(Transition.AfterScript(game, ending, null, (place, chunk.Chunk.Terrain), (id, party)))).Setup;
+        Assert.Null(setup.Arena);
+        Assert.Equal(26, setup.ChooseArena(Data.Set, new Lcg(7)));
+        Assert.Equal("M19", Arena.For(Data.Set, 26)!.Chunk.Name);
+
+        // Every conversation with a party that ends in a battle sets no arena, so each takes its terrain's.
+        foreach (var (_, _, talker) in Data.Of<MonsterPartyObject>())
+        {
+            if (talker.Dialogue is not { } script || Data.Set.TryGet<DialogueRecord>(script) is not { Mode: DialogueMode.Conversation } talk)
+                continue;
+            var commands = talk.Nodes.SelectMany(n => n.Ops ?? []).Select(o => o.Command).ToList();
+            if (commands.Contains(DialogueCommand.Battle))
+                Assert.DoesNotContain(DialogueCommand.SetBattlefield, commands);
+        }
     }
 
     [Fact]
