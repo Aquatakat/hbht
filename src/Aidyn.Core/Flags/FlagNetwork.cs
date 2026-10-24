@@ -197,6 +197,19 @@ public sealed class FlagNetwork
     }
 
     /// <summary>
+    /// <see cref="TrySetAndProcess(RecordId, bool)"/> for an object's slot that may be empty: the original writes the slot,
+    /// which <c>setEventFlag</c> refuses when it's 0, and reads 5626 either way (a trigger's or harvest's Used flag through
+    /// <c>MapObjects.WriteUsed</c>, <c>0x80011760</c>, a container's opened flag at <c>0x800105ec</c>, an exploded flag at
+    /// <c>0x8000ffe4</c>, a talker's B at <c>0x800109fc</c>), so the network comes up to date whether or not there's a flag.
+    /// </summary>
+    public bool TrySetAndProcess(RecordId? id, bool value)
+    {
+        var known = id is { } flag && TrySet(flag, value);
+        Process();
+        return known;
+    }
+
+    /// <summary>
     /// Writes a number into a run of plain flags, lowest bit first (<c>set_flag_array</c>). Bits past
     /// the last flag are dropped. It marks the network out of date even when nothing changes.
     /// </summary>

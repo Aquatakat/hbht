@@ -30,12 +30,12 @@ public sealed partial class GameSessionTests
         return (session, host);
     }
 
-    /// <summary>The ticks until the new journal entry's notice is told, or −1 if it isn't within <paramref name="most"/>.</summary>
+    /// <summary>The ticks until the new journal entry's notice is told, or −1 if it isn't within <paramref name="most"/>, its audio rendered.</summary>
     private static int TicksToJournalNotice(GameSession session, int most = 300)
     {
         for (var i = 1; i <= most; i++)
         {
-            Tick(session);
+            Hear(session);
             if (session.Trek.Use.Popup?.Body?.Text == TrekLoop.NewJournalEntry)
                 return i;
         }
@@ -82,8 +82,10 @@ public sealed partial class GameSessionTests
         Assert.Equal(1, TicksToJournalNotice(session));
     }
 
-    [Fact]
-    public void TheLettersEntryWaitsInTheCaveUnderPortSaiidAndIsToldOnLeavingIt()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TheLettersEntryWaitsInTheCaveUnderPortSaiidUntilItsScrollIsTakenOrItsLeft(bool takeTheScroll)
     {
         // PortSaiid E01, the cave: the letter (object 1, its flag B 294) is a backdrop, script 0x041F, whose node 1 sets 295.
         var cave = Data.Set.Get<MapRecord>(RecordId.Hex(RecordTypes.Map, 0x12D8));
@@ -115,6 +117,15 @@ public sealed partial class GameSessionTests
         Assert.True(flags.IsSet(RecordId.Decimal(RecordTypes.Flag, 295)));
         Assert.False(NewEntryWaiting(session));
         Assert.Equal(-1, TicksToJournalNotice(session));
+
+        if (takeTheScroll)
+        {
+            // The scroll in the same cave (object 7, a custom container) writes its Used and opened flags and reads 5626
+            // (MapObjectUse.Loot, 0x800105ec): the entry waits at once, as on the cartridge.
+            trek.Use.Use(map, (ContainerObject)cave.Objects[7]);
+            Assert.True(NewEntryWaiting(session));
+            return;
+        }
 
         // Leaving through its door (object 0) loads the Overworld round Saiid, whose gates read derived flags: told as the
         // teleport's fade ends.
@@ -190,6 +201,58 @@ public sealed partial class GameSessionTests
         Assert.Equal([RecordId.Decimal(RecordTypes.Journal, 32), RecordId.Decimal(RecordTypes.Journal, 14)], flags.JournalOrder);
         Assert.True(flags.Peek(flags.Handle(game.StateFlagsRecord.NewJournalEntry)));
         Assert.True(OpenJournal(game).Single(i => i.Text.StartsWith("We killed")).Newest);
+    }
+
+    private static readonly short[] Mixed = new short[2 * 735];
+
+    /// <summary>A tick with its audio rendered, so the map's sounds end as they do in the runtime.</summary>
+    private static void Hear(GameSession session)
+    {
+        session.Zone.Audio.Step();
+        Tick(session);
+        session.Zone.Audio.Render(Mixed);
+    }
+
+    [Fact]
+    public void YerazasFirstConversationsEntryIsToldAsTheBirdsongNearHerEndsAfterIt()
+    {
+        // Overworld C08, Erromon's street: Yeraza (object 31, there by day) and her first conversation, script 0x03C5, whose
+        // node 27 sets 135, "I met a Mirari woman on the street today". Nothing in it reads a derived flag after; but she stands
+        // within 30 of sound object 142, a repeating birdsong gated by the day (derived 5284), which 1.0 reads every frame it
+        // isn't playing (Audio.UpdateSound, 0x8004ea10).
+        var street = Data.Set.Get<MapRecord>(RecordId.Hex(RecordTypes.Map, 0x0EFA));
+        var yeraza = (MonsterPartyObject)street.Objects[31];
+        var birdsong = (SoundObject)street.Objects[142];
+        var (session, _) = StartIn(0, "C08", yeraza.Position.X + 1, yeraza.Position.Z);
+        var trek = session.Trek;
+        var flags = session.Game.Flags;
+        for (var i = 0; i < 40; i++)
+            Hear(session);
+        var map = trek.Chunks.MapAt(trek.Player.Sphere.Position)!;
+        Assert.True(Vector3.Distance(trek.Player.Sphere.Position - map.Origin, birdsong.Position) < birdsong.Radius);
+        trek.Use.Use(map, yeraza);
+        // Through it to node 27, by the castle's question (the third answer) and the king's (the first).
+        for (var i = 0; i < 5000 && trek.Conversation is { } talk; i++)
+        {
+            if (talk.Runner is { Status: ScriptStatus.Showing, Page: not null } && trek.Press(MenuAction.Accept) == PressOutcome.Taken
+                && trek.Box.Layout is { Choices.Count: > 0 } && talk.Runner.Page is { Choices.Count: > 0 } menu)
+            {
+                var answer = menu.Choices.Select((c, k) => (c.Node, k)).FirstOrDefault(c => c.Node is 17 or 31).k;
+                for (var k = 0; k < answer; k++)
+                    trek.Press(MenuAction.Down);
+                trek.Press(MenuAction.Accept);
+            }
+            Hear(session);
+        }
+        Assert.Null(trek.Conversation);
+        Assert.True(flags.IsSet(RecordId.Decimal(RecordTypes.Flag, 135)));
+
+        // Told within a second or two of its end, once the birdsong stops; reading the gate only when it needs starting, as the
+        // port did, waited for the next song, about 12 seconds on.
+        var ticks = 0;
+        for (; ticks < 900 && trek.Use.Popup?.Body?.Text != TrekLoop.NewJournalEntry; ticks++)
+            Hear(session);
+        Assert.InRange(ticks, 1, 120);
     }
 
     [Fact]

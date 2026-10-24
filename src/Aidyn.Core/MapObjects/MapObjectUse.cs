@@ -86,12 +86,9 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
 
     private bool Holds(FlagGate? gate) => gate is null || Flags.Holds(gate);
 
-    // MapObjects.WriteUsed (0x80011760): each of a map object's writes brings the flags up to date at once.
-    private void Write(FlagWrite? used)
-    {
-        if (used is not null)
-            Flags.TrySetAndProcess(used.Flag, !used.Clear);
-    }
+    // MapObjects.WriteUsed (0x80011760): each of a map object's writes brings the flags up to date at once, with a flag in the
+    // slot or not.
+    private void Write(FlagWrite? used) => Flags.TrySetAndProcess(used?.Flag, used is not { Clear: true });
 
     // A, B and the stick on a popup.
 
@@ -331,10 +328,10 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
     {
         switch (trigger.Kind)
         {
-            case TriggerKind.SetFlag when trigger.Flag is { } flag:
+            case TriggerKind.SetFlag:
                 // Brought up to date at once, so a journal entry it adds is told on the next tick, as the camp south of
                 // Gwernia castle's is as the player reaches it.
-                Flags.TrySetAndProcess(flag, true);
+                Flags.TrySetAndProcess(trigger.Flag, true);
                 break;
             case TriggerKind.Animate when trigger.Request is { } request && map.Linked<SceneObject>(trigger) is { } actor:
                 host.Animate(map, actor, request);

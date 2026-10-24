@@ -112,6 +112,18 @@ public class FlagNetworkTests
     }
 
     [Fact]
+    public void AMapObjectsWriteBringsTheNetworkUpToDateWithAFlagInItsSlotOrNot()
+    {
+        // A script's write waits (plain flags don't process); a map object's empty slot still reads 5626, as 1.0's does.
+        var entry = RecordId.Decimal(RecordTypes.Journal, 4);
+        var flags = JournalNetwork((Logic(FlagOperation.Or, 0, 2), entry));
+        flags.Set(2, true);
+        Assert.False(flags.Peek(9));
+        Assert.False(flags.TrySetAndProcess((RecordId?)null, true));
+        Assert.True(flags.Peek(9));
+    }
+
+    [Fact]
     public void TheJournalListsEntriesAsTheyTurnOnAndARestorePutsUnsavedOnesFirst()
     {
         RecordId Entry(int n) => RecordId.Decimal(RecordTypes.Journal, n);

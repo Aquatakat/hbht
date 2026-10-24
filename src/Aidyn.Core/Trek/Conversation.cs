@@ -89,8 +89,8 @@ public sealed class Conversation
         var toBody = new Vector2(body.Sphere.Position.X - player.Sphere.Position.X, body.Sphere.Position.Z - player.Sphere.Position.Z);
         body.Face(-toBody);
         player.Face(toBody);
-        if (party.Used is { } used)
-            game.Flags.TrySetAndProcess(used.Flag, true);
+        // IMapObjectHost.Talk (0x800109fc) writes flag B and reads 5626, a flag in the slot or not.
+        game.Flags.TrySetAndProcess(party.Used?.Flag, true);
         return conversation;
     }
 

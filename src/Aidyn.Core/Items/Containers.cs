@@ -253,8 +253,7 @@ public sealed class Container(ContainerObject record)
         // open_explosive_chest.
         Gold = 0;
         Loot = null;
-        if (Record.Exploded is { } exploded)
-            flags.TrySetAndProcess(exploded, true);
+        flags.TrySetAndProcess(Record.Exploded, true);
         return Containers.TrapDamage(party, level, random);
     }
 
@@ -265,10 +264,11 @@ public sealed class Container(ContainerObject record)
     /// </summary>
     public (ItemPile Items, int Gold) Open(FlagNetwork flags, ItemCatalog items, Func<RecordId, LootRecord> loot, IRandom random)
     {
-        if (Record.Opened is { } opened)
-            flags.TrySetAndProcess(opened, true);
+        // MapObjectUse.Loot (0x800105ec) writes the opened flag and reads 5626, a flag in the slot or not; then the used flag,
+        // plainly (0x80017acc), which the network sees when something next reads a derived flag.
+        flags.TrySetAndProcess(Record.Opened, true);
         if (Record.Used is { } used)
-            flags.TrySetAndProcess(used.Flag, !used.Clear);
+            flags.TrySet(used.Flag, !used.Clear);
         return Contents(items, loot, random);
     }
 
@@ -296,8 +296,8 @@ public sealed class Container(ContainerObject record)
     /// </summary>
     public ItemPile Harvest(float share, FlagNetwork flags, ItemCatalog items)
     {
-        if (Record.Used is { } used)
-            flags.TrySetAndProcess(used.Flag, !used.Clear);
+        // get_loot_reagent writes it through MapObjects.WriteUsed (0x80011760), which reads 5626 with a flag in the slot or not.
+        flags.TrySetAndProcess(Record.Used?.Flag, Record.Used is not { Clear: true });
         return Reagent(share, items);
     }
 
