@@ -32,4 +32,5 @@ Things only the user can settle, by playing the original in the emulator, by lis
 
 ## Rendering
 
+- **Arena 27's floor past its rim** (a battle in Ugarit, map set 13, whose terrain 13 takes arena 27; arena 24, terrain 14, has the same floor): look out past the lit disc's edge into the dark. The ROM's vertices for the floor's outer skirt hold texture coordinates wrapped past 16 bits, so the brick texture should streak in long, faint, sheared bands fading to black, as the port draws it. Does it, or does the original tile it evenly (or show nothing there)? [combat](systems/combat.md#the-arenas)
 - **Particles:** a creature that emits while it stands or walks, such as a Fire Elemental, Air Elemental or Lava Hound wandering in trek, or Mago (dialogue entity 0x1413) in a scene. Compare the particles' size, colour, how fast they spawn and drift, and that they fade. The editor shows Oriana's orb with `--record aidyn:actor/0x2BD7 --drive 5`. [particles](formats/particles.md#the-simulation)

@@ -141,6 +141,39 @@ public class GeometryTests
         }
     }
 
+    /// <summary>
+    /// Arenas 24 and 27's floor (Borg2 13936, scene 0x3671) wraps S and T, and its disc's texture coordinates are a plane in
+    /// X and Z, each triangle shifted by whole tiles. The skirt out to ±250 would need coordinates past the 16 bits a vertex
+    /// holds (at the lists' 0.5 texture scale, ±16 tiles of the 32-texel texture), and the data holds them wrapped by whole
+    /// 32-tile turns instead, so its triangles stretch the texture in long streaks. That's the original's data, drawn as is.
+    /// </summary>
+    [Fact]
+    public void ArenaFloorsSkirtHoldsItsTextureCoordinatesWrappedPastSixteenBits()
+    {
+        var archive = BorgArchive.Open(TestRoms.Get(RomVersionId.Na10));
+        var mesh = Assert.Single(Borg2Geometry.Parse(archive.Read(13936)).Meshes);
+        Assert.True(mesh.Flags.HasFlag(Borg2MaterialFlags.WrapS | Borg2MaterialFlags.WrapT));
+        const int tile = 32 * 32 * 0x10000 / Borg2Geometry.TextureScale; // a 32-texel tile in 10.5 units, before the 0.5 scale
+        // The plane, from the first triangle's three disc vertices: S by X, T by Z.
+        var (a, b, c) = (mesh.Vertices[mesh.Indices[0]], mesh.Vertices[mesh.Indices[1]], mesh.Vertices[mesh.Indices[2]]);
+        var sPerX = (double)(b.S - c.S) / (b.X - c.X);
+        var tPerZ = (double)(a.T - b.T) / (a.Z - b.Z);
+        double S(N64Vertex v) => b.S + (v.X - b.X) * sPerX;
+        double T(N64Vertex v) => b.T + (v.Z - b.Z) * tPerZ;
+        static double OffTile(double d) => Math.Abs(d / tile - Math.Round(d / tile));
+        var overflowed = 0;
+        foreach (var v in mesh.Vertices)
+        {
+            // The plane's slopes come from vertices 23 apart and reach 250 out, so allow a twentieth of a tile.
+            Assert.True(OffTile(S(v) - v.S) < 0.05 && OffTile(T(v) - v.T) < 0.05, $"{v} is off the plane by part of a tile.");
+            if (S(v) is < short.MinValue or > short.MaxValue || T(v) is < short.MinValue or > short.MaxValue)
+                overflowed++;
+        }
+        // Every one of the skirt's far vertices (four corners, each in two triangles' loads), and none of the disc's.
+        Assert.Equal(8, overflowed);
+        Assert.Equal(8, mesh.Vertices.Count(v => v.Y == 0));
+    }
+
     /// <summary><paramref name="count"/> vertices with X = index and every other field distinct.</summary>
     private static ReadOnlyMemory<byte> Vertices(int count)
     {
