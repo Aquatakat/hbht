@@ -646,7 +646,7 @@ By the tick:
 
 - The camera acts every tick rather than once a frame; only its goal and holds are once-a-frame things, so it's the same at 30 fps.
 - The action's timers are counted and tested every tick, not once a frame, so where an attack's strike frame is odd its blow lands a tick sooner than at 30 fps (a goblin's Sabre at 81 rather than 82), and state 6's snap takes two ticks rather than two frames.
-- The AI's walk counts a tick's move toward the stuck timer, times a 30 fps frame's ticks, where the original counts a frame's; its body's 30 ticks of no progress are counted every tick by 0.01 of a tick. The stuck test leaves out the original's actor-speed term (an actor standing moves under 0.03 anyway).
+- The AI's walk counts a tick's move toward the stuck timer, times a 30 fps frame's ticks, where the original counts a frame's; its body's 30 ticks of no progress are counted once a 30 fps frame by 0.01 a frame, two ticks at a time, as all steering toward a goal is ([wanderers](wanderers.md)). The stuck test leaves out the original's actor-speed term (an actor standing moves under 0.03 anyway).
 - The Shadow's reach is tested every tick rather than at each drawn frame's end, and state 29 counts its frames by the cadence.
 - The spells' visuals step every tick; their timers are the same at 30 fps, and a lasting scene loads 10 ticks after the last rather than 5 frames.
 - Held, the stick and D-pad repeat an aim's cursor and a held menu's rows as the runtime's menus do; the original steps an aim once a press and repeats a menu after 30 polls and then every 5.
