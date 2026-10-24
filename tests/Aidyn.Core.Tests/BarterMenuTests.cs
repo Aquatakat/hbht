@@ -542,6 +542,50 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         Assert.Null(menu.Choice);
     }
 
+    /// <summary>
+    /// The user's Chaos Island loot: near 99 of two items, the pile offering more of each than fits. Each take fills the party's
+    /// stack and leaves the rest in the pile; a third take says the stack is full; B asks whether to leave them, and Yes closes.
+    /// </summary>
+    [Fact]
+    public void TakingPartOfStacksUpToNinetyNineThenLeavingTheRestCloses()
+    {
+        var (menu, party, loot, _) = Open(
+            fill: p =>
+            {
+                p.Add(TradeData.Trinket.Id, 10);
+                p.Add(TradeData.Spice.Id, 10);
+            },
+            stock: party =>
+            {
+                party.Inventory.Add(TradeData.Trinket.Id, 95);
+                party.Inventory.Add(TradeData.Spice.Id, 97);
+            });
+
+        menu.Point(pile: true, 0);
+        menu.Accept();
+        menu.Point(pile: true, 1);
+        menu.Accept();
+        Assert.Null(menu.Message);
+        Assert.Equal((99, 99), (party.Inventory.Count(TradeData.Trinket.Id), party.Inventory.Count(TradeData.Spice.Id)));
+        Assert.Equal(14, loot.Stacks.Sum(s => s.Quantity));
+        Assert.Equal(2, menu.Pile.Rows.Count);
+        Assert.True(menu.OnPile);
+
+        menu.Accept();
+        Assert.Equal(Line(MenuText.StackFull), menu.Message?.Text);
+        Assert.True(menu.Back());
+        Assert.Null(menu.Message);
+
+        Assert.True(menu.Back());
+        Assert.NotNull(menu.Choice);
+        menu.Accept();
+
+        Assert.True(menu.Closed);
+        Assert.Null(menu.Choice);
+        Assert.False(menu.HasPopup);
+        Assert.Equal((99, 99), (party.Inventory.Count(TradeData.Trinket.Id), party.Inventory.Count(TradeData.Spice.Id)));
+    }
+
     [Fact]
     public void ChoosingNotToLeaveTheItemsClosesTheChoiceAndLeavesTheWindowOpen()
     {

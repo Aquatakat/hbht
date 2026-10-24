@@ -365,6 +365,7 @@ BarterMenu.BarterMenu = 0x8003cb68; // BarterMenu.cs
 BarterMenu.PileLine = 0x8003cfd8; // BarterMenu.cs
 BarterMenu.Draw = 0x8003d0d8; // coined; docs/systems/ui.md: the barter widget's draw (vtable 0x800d0738 +0x44): the pile, its title and its line in the slim font
 BarterMenu.Step = 0x8003d198; // coined; the barter widget's step (vtable +0x2c), in the slim font
+BarterMenu.LeaveItems = 0x8003d5f4; // BarterMenu.cs; docs/systems/ui.md: the leave-items choice's "Yes, leave them." callback: PauseMenu.CloseToTrek
 BarterMenu.Back = 0x8003d614; // docs/systems/ui.md
 BarterMenu.Accept = 0x8003d7cc; // docs/systems/ui.md
 BarterMenu.Appraise = 0x8003de10; // BarterMenu.cs
@@ -673,6 +674,7 @@ Entity.CanLayOnHands = 0x80071ed0; // coined; docs/systems/combat.md: modified H
 Entity.CanHealWithHerbs = 0x80071f38; // coined; docs/systems/combat.md: modified Healer != 0, a Herb (0x0112) in the party's inventory, modified Stamina >= max(1, 5 - Healer)
 Entity.FindItem = 0x80072028; // coined; docs/systems/combat.md: (entity, item id): by the id's high byte 5 the armor, 6 the shield, 7 the held weapon, else the carried items (sheet +0x28); the item or null
 Inventory.Has = 0x80072db0; // coined; docs/systems/combat.md: (inventory, item id): the id is held (Find != -1)
+ItemPile.CanLeave = 0x80072de4; // Inventory.cs; docs/systems/ui.md: (inventory): none of the 21 must-take items (CodeTable.MustTakeItems) is in it; the loot window's B asks to leave the rest only then
 Party.IndexOf = 0x80074d3c; // coined; docs/systems/combat.md: (party, entity id): its slot 0-3, 0xFF if not in the party
 Party.EquipErrorIndex = 0x80075368; // coined; docs/systems/combat.md: (party, code): the equip error table's index for a check's code (pairs at 0x800D3750: 1 -> 1, 2 -> 6, 3 -> 5), 1 for an unknown one
 Party.EquipFlaskInCombat = 0x800753f0; // coined; docs/systems/combat.md: (party, entity, slot, item): a flask from the pause menu's Party tab: SetSpellAction and Combat.NextState = 19; refused for entity 0x024A

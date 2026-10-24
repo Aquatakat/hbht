@@ -486,8 +486,21 @@ public sealed class PauseMenu
         {
             PauseTab.System => HandleSystem(action),
             PauseTab.World => HandleWorld(action),
-            _ => Window.Press(action),
+            _ => HandleParty(action),
         };
+    }
+
+    /// <summary>
+    /// The Party tab's presses, to whichever window is up. A window that closes itself rolls the menu up as B on it would: the
+    /// loot window's "Yes, leave them." (<c>BarterMenu.LeaveItems</c>, <c>0x8003d5f4</c>, the choice's callback) calls
+    /// <c>PauseMenu.CloseToTrek</c> (<c>0x80048f40</c>), as B on an empty pile does, after a battle as after a container.
+    /// </summary>
+    private bool HandleParty(MenuAction action)
+    {
+        var taken = Window.Press(action);
+        if (Window.Closed)
+            Close(PauseExit.Close);
+        return taken;
     }
 
     /// <summary>The System tab's presses: A takes the row, which may roll the menu up, and the stick moves the cursor, steps an option or a save, or moves over the name entry's keys.</summary>
