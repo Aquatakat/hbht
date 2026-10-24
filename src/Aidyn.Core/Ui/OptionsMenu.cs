@@ -13,6 +13,12 @@ public enum OptionKind
 
     /// <summary>A row that opens something: another page, or the name entry. A opens it.</summary>
     Link,
+
+    /// <summary>A control's binding on the Controls page: A waits for an input to bind, and the menus' Appraise clears it.</summary>
+    Binding,
+
+    /// <summary>A row that does something at once, as Reset to Defaults does: A carries it out (its <see cref="OptionRow.Set"/>).</summary>
+    Command,
 }
 
 /// <summary>Where an options row that's a <see cref="OptionKind.Link"/> leads: one of the menu's pages, or out of it.</summary>
@@ -21,6 +27,7 @@ public enum OptionLink
     Audio,
     Video,
     Enhancements,
+    Controls,
     RenameCharacter,
 }
 
@@ -29,8 +36,11 @@ public enum OptionLink
 /// read and change the value, as a step from 0.
 /// </summary>
 /// <param name="GapBefore">Whether half a line's space comes before it, setting it off from the rows above.</param>
+/// <param name="Shown">For a binding, what it shows as its value.</param>
+/// <param name="Control">For a control's row, its ID (<see cref="Controls.GameControl.Id"/>).</param>
+/// <param name="Heading">A heading drawn above it, on a line of its own: the situation its controls are in.</param>
 public sealed record OptionRow(string Label, OptionKind Kind, Func<int> Get, Action<int> Set, IReadOnlyList<string> Values,
-    OptionLink? Link = null, bool GapBefore = false)
+    OptionLink? Link = null, bool GapBefore = false, Func<string>? Shown = null, string? Control = null, string? Heading = null)
 {
     /// <summary>How many steps the value has: a volume's from silent to full, or a choice's values.</summary>
     public int Steps => Kind == OptionKind.Volume ? Settings.MaxVolume + 1 : Values.Count;
@@ -38,7 +48,7 @@ public sealed record OptionRow(string Label, OptionKind Kind, Func<int> Get, Act
     public int Value => Get();
 
     /// <summary>The value's name, for a choice.</summary>
-    public string? ValueName => Kind == OptionKind.Choice && Values.Count > 0 ? Values[Math.Clamp(Value, 0, Values.Count - 1)] : null;
+    public string? ValueName => Kind == OptionKind.Choice && Values.Count > 0 ? Values[Math.Clamp(Value, 0, Values.Count - 1)] : Shown?.Invoke();
 }
 
 /// <summary>The options menu's pages.</summary>
@@ -55,6 +65,9 @@ public enum OptionsPage
 
     /// <summary>The port's settings that go beyond the original's look and feel.</summary>
     Enhancements,
+
+    /// <summary>The controls' bindings, on the keyboard and mouse or on a controller (ADR 0026).</summary>
+    Controls,
 }
 
 /// <summary>
@@ -68,7 +81,7 @@ public enum OptionsPage
 /// The port's own layout, which the user chose over the original's (ADR 0024): Title Case rather than capitals, and a
 /// page for each kind of setting rather than headings.
 /// </remarks>
-public sealed class OptionsMenu
+public sealed partial class OptionsMenu
 {
     /// <summary>The gap a row can have before it: half a line of the main font.</summary>
     public const int Gap = 5;
@@ -106,22 +119,34 @@ public sealed class OptionsMenu
     /// <summary>A setting changed since the menu opened, so the runtime keeps them.</summary>
     public bool Changed { get; private set; }
 
-    /// <summary>Steps by a 60 Hz tick: the cursor's pulse.</summary>
-    public void Step() => Pulse.Step();
+    /// <summary>Steps by a 60 Hz tick: the cursor's pulse, and the Controls page's prompt and message.</summary>
+    public void Step()
+    {
+        Pulse.Step();
+        StepPrompt();
+    }
 
-    public void MoveCursor(int by) => Rows.Move(by);
+    public void MoveCursor(int by)
+    {
+        if (Prompt is null)
+            Rows.Move(by);
+    }
 
     /// <summary>A copy on the same page with the cursor on the same row, which the page fading out draws as it was.</summary>
     public OptionsMenu Copy()
     {
-        var copy = new OptionsMenu(Settings, _inGame);
+        var copy = new OptionsMenu(Settings, _inGame) { Device = Device };
         if (Page != OptionsPage.Main)
             copy.Open(Page);
         copy.Rows.Point(Rows.Cursor);
         return copy;
     }
 
-    public void Point(int row) => Rows.Point(row);
+    public void Point(int row)
+    {
+        if (Prompt is null)
+            Rows.Point(row);
+    }
 
     /// <summary>Whether the cursor is on a volume, which steps every tick the stick is held rather than once a press.</summary>
     public bool OnVolume => Rows.Current?.Kind == OptionKind.Volume;
@@ -133,7 +158,7 @@ public sealed class OptionsMenu
     /// </summary>
     public void Change(int by)
     {
-        if (Rows.Current is not { } row || row.Kind == OptionKind.Link)
+        if (Prompt is not null || Rows.Current is not { } row || row.Kind is OptionKind.Link or OptionKind.Binding or OptionKind.Command)
             return;
         var value = row.Kind == OptionKind.Volume
             ? Math.Clamp(row.Value + by, 0, Settings.MaxVolume)
@@ -148,6 +173,8 @@ public sealed class OptionsMenu
     /// <summary>A: changes a choice to its next value, or opens a link. Returns the link if it leads out of the menu.</summary>
     public OptionLink? Accept()
     {
+        if (Prompt is not null || AcceptOnControls())
+            return null;
         switch (Rows.Current)
         {
             case { Kind: OptionKind.Choice }:
@@ -166,6 +193,9 @@ public sealed class OptionsMenu
     /// <summary>B: back from a page to the main one, and false on the main one, which the caller leaves.</summary>
     public bool Back()
     {
+        // The prompt takes every input, Back's among them, as what it binds.
+        if (Prompt is not null)
+            return true;
         if (Page == OptionsPage.Main)
             return false;
         var from = Page;
@@ -181,6 +211,7 @@ public sealed class OptionsMenu
         OptionLink.Audio => OptionsPage.Audio,
         OptionLink.Video => OptionsPage.Video,
         OptionLink.Enhancements => OptionsPage.Enhancements,
+        OptionLink.Controls => OptionsPage.Controls,
         _ => null,
     };
 
@@ -192,6 +223,7 @@ public sealed class OptionsMenu
             OptionsPage.Audio => AudioRows(),
             OptionsPage.Video => VideoRows(),
             OptionsPage.Enhancements => EnhancementRows(),
+            OptionsPage.Controls => ControlRows(),
             _ => MainRows(),
         };
         Rows.Point(0);
@@ -205,6 +237,7 @@ public sealed class OptionsMenu
             Link("Audio", OptionLink.Audio),
             Link("Video", OptionLink.Video),
             Link("Enhancements", OptionLink.Enhancements),
+            Link("Controls", OptionLink.Controls),
         ];
         if (_inGame)
             rows.Add(Link("Rename Character", OptionLink.RenameCharacter, gapBefore: true));

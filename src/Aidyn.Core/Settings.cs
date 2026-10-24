@@ -82,6 +82,7 @@ public sealed class Settings
     {
         var copy = (Settings)MemberwiseClone();
         copy.Changed = null;
+        copy.Controls = Controls.Copy();
         return copy;
     }
 
@@ -104,4 +105,10 @@ public sealed class Settings
             Directory.CreateDirectory(folder);
         File.WriteAllText(path, JsonSerializer.Serialize(this, PluginJson.Options) + "\n");
     }
+
+    /// <summary>The player's bindings, on the keyboard and mouse and on a controller (the options' Controls page, ADR 0026).</summary>
+    public Aidyn.Core.Controls.ControlBindings Controls { get; set; } = new();
+
+    /// <summary>How far the mouse turns the camera, as a multiple of the drag the runtime always had.</summary>
+    public float MouseSensitivity { get; set; } = 1;
 }
