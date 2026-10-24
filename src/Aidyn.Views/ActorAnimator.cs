@@ -27,12 +27,14 @@ public sealed class ActorAnimator : IActorMotion
     private readonly Vector3 _pivot;
     private readonly MirroredMeshes? _mirroring;
     private readonly HashSet<int> _still;
+    private readonly DrivenNodes _driven;
     private double _fraction;
     private int _warned = -1;
 
-    private ActorAnimator(ActorMotion motion, AnimationPlayer? player, Node3D? root, MirroredMeshes? mirroring, HashSet<int> still)
+    private ActorAnimator(ActorMotion motion, AnimationPlayer? player, Node3D? root, MirroredMeshes? mirroring, HashSet<int> still, DrivenNodes driven)
     {
         Motion = motion;
+        _driven = driven;
         _player = player;
         _still = still;
         _root = root;
@@ -82,7 +84,7 @@ public sealed class ActorAnimator : IActorMotion
         var rootName = SceneNames.Transform(actor.RootTransform);
         var root = FindNode(instance, n => n is Node3D && n.Name == rootName) as Node3D;
         var motion = new ActorMotion(actor, glb.Clips(actor.RootTransform), rolls);
-        return new ActorAnimator(motion, player, root, MirroredMeshes.For(instance, glb.Extras), [.. glb.Extras.StillAnimations.Select(a => a.Borg6)]);
+        return new ActorAnimator(motion, player, root, MirroredMeshes.For(instance, glb.Extras), [.. glb.Extras.StillAnimations.Select(a => a.Borg6)], glb.Driven);
     }
 
     /// <summary>Ticks at 60 Hz with the frame, unless <see cref="Driven"/>, and poses the scene between ticks.</summary>
@@ -149,7 +151,7 @@ public sealed class ActorAnimator : IActorMotion
             _player.Pause();
         }
         _player.Seek(seconds, update: true);
-        TransformTracks.Apply(_player);
+        TransformTracks.Apply(_player, _driven);
         if (_root is not null)
             HoldRoot(_root, _pivot);
         _mirroring?.Update();

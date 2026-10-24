@@ -297,7 +297,7 @@ public partial class ModelView : VBoxContainer
         var tick = 0;
         if (_player is not null)
         {
-            TransformTracks.Apply(_player);
+            TransformTracks.Apply(_player, _glb!.Driven);
             if (_root is not null && _animator is null && _actorPanel.InPlace)
                 ActorAnimator.HoldRoot(_root, _pivot);
             _mirroring?.Update();
