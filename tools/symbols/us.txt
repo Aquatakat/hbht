@@ -532,6 +532,7 @@ Conversation.Tick = 0x80051bd8; // Conversation.cs
 Conversation.Press = 0x80051c4c; // Conversation.cs
 Conversation.End = 0x80051ccc; // Conversation.cs
 TrekLoop.Cue = 0x80051e04; // TrekLoop.cs
+CutScene.StandActors = 0x80051e2c; // coined; docs/systems/scripts.md: each frame, every actor's request (+0x14) to 0 but the one the script animated (+0x88) while +0xac is set; the port's CutSceneActor.Settle
 CutScene.Press = 0x80051ed4; // CutScene.cs
 CutScene.CheckEnd = 0x80051f4c; // CutScene.cs
 Backdrop.LeaveTrek = 0x80051fd4; // coined; docs/systems/ui.md: a backdrop's and the help menu's start (Dialogue.ModeTable slots 2 and 4): TrekLoop.State to 0xb, which frees trek, and InitGameTrek builds it again as the script ends

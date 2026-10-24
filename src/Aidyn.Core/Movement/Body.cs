@@ -22,9 +22,10 @@ public sealed class Body
 {
     /// <summary>
     /// Animation requests (<c>ani_type</c>). <see cref="Talk"/> is what a script's speaker is asked for as a press moves its
-    /// box on (<see cref="Scripts.SpeakerTalk"/>).
+    /// box on (<see cref="Scripts.SpeakerTalk"/>). <see cref="Dying"/> is the one request a body's stick doesn't take back
+    /// (<see cref="StandUnlessDying"/>), and the one whose animation it holds at its end (<see cref="Mortal"/>).
     /// </summary>
-    public const int Idle = 0, Walk = 2, Run = 3, Talk = 4, Sneak = 25;
+    public const int Idle = 0, Walk = 2, Run = 3, Talk = 4, Dying = 9, Sneak = 25;
 
     /// <summary>A body's gravity, a tick² (about 10.8 m/s²).</summary>
     public const float Gravity = 0.003f;
@@ -95,7 +96,8 @@ public sealed class Body
 
     /// <summary>
     /// The request its actor last entered a state for (the body's <c>+0x18</c>), which combat waits on: back to 0 once a one-shot
-    /// animation, a swing, a hit or a fall, has played and the actor has gone back to idling.
+    /// animation, a swing, a hit or a fall, has played and the actor has gone back to idling. Combat keeps it, and so does
+    /// <see cref="Mortal"/> for the bodies that step through it.
     /// </summary>
     public int Playing { get; set; }
 
@@ -162,10 +164,17 @@ public sealed class Body
     public int? GiveUpTicks { get; set; }
 
     /// <summary>
-    /// Whether the screen is fading (<c>screenFadeMode</c>): while it's steered, it's asked to stand and
+    /// Whether the screen is fading (<c>screenFadeMode</c>): while it's steered, it's asked to stand, unless it's dying, and
     /// its stick isn't read, though its steering, and so its giving up, carries on (<c>Actor::Move</c>).
     /// </summary>
     public bool Faded { get; set; }
+
+    /// <summary>
+    /// Whether it has died and holds its death's last frame (the body's <c>+0x77C</c>): set by <see cref="Mortal"/>'s steps once its
+    /// actor has entered a state for <see cref="Dying"/> and the request has gone, and never cleared, as the original clears it only as
+    /// a body is made (<c>Player.Reset</c>, <c>0x80011C90</c>). Combat keeps its own (<c>Combatant.Fallen</c>).
+    /// </summary>
+    public bool DeathHeld { get; private set; }
 
     /// <summary>
     /// Sets off for a point (<c>Actor::SetAiDest</c>), stopping within <paramref name="radius"/> of it,
@@ -297,7 +306,7 @@ public sealed class Body
         {
             Steer(world);
             if (Faded)
-                Request = Idle;
+                StandUnlessDying();
             else
                 Control();
         }
@@ -317,7 +326,7 @@ public sealed class Body
     /// <param name="look">The way the camera looks across the ground.</param>
     public void Drive(MoveInput input, Vector2 look)
     {
-        Request = Idle;
+        StandUnlessDying();
         if (input.Held)
             return;
         var tilt = input.Stick.Length();
@@ -555,11 +564,68 @@ public sealed class Body
     /// <summary>Reads the stick (<c>Actor::Move</c>, the trek parts): it walks under 80% tilt and runs above.</summary>
     private void Control()
     {
-        Request = Idle;
+        StandUnlessDying();
         var tilt = Stick.Length();
         if (tilt <= Deadzone)
             return;
         Go(tilt, Stick);
+    }
+
+    /// <summary>
+    /// The stick's first word on the request (<c>Body.ApplyInput</c>, <c>0x80014FEC</c>): stand, unless it's asked to die. So a death a
+    /// script asks of an actor still turning where it stands, or one the screen's fade holds, is played; only a stick past the deadzone
+    /// puts a walk, run or sneak over it.
+    /// </summary>
+    private void StandUnlessDying()
+    {
+        if (Request != Dying)
+            Request = Idle;
+    }
+
+    /// <summary>
+    /// Its animation as <c>ProcessPlayers</c> (<c>0x80013200</c>–<c>0x800132D4</c>) steps it outside combat, which keeps a death's last
+    /// frame: once its actor has entered a state for <see cref="Dying"/> (<see cref="Playing"/>, the body's <c>+0x18</c>) and the
+    /// request has gone, <see cref="DeathHeld"/> is set, and from then on the animation plays to the end of the state it's in and stops
+    /// there, whatever it's asked for, its state machine no longer stepped. While it's still asked to die it stops there too, but a
+    /// state reached at its end under the request plays first. The cut-scenes' actors step through it; combat holds its fallen itself
+    /// (<c>Battle.AfterBodies</c>).
+    /// </summary>
+    /// <remarks>
+    /// The original still checks the body's sound keys on a held tick, at the last frame; no profile has a death key there, so the
+    /// port, which doesn't step the animation it's handed then, sounds the same.
+    /// </remarks>
+    public Actors.IActorMotion Mortal(Actors.IActorMotion animation) => new MortalMotion(this, animation);
+
+    private sealed class MortalMotion(Body body, Actors.IActorMotion animation) : Actors.IActorMotion
+    {
+        public int StateLength => animation.StateLength;
+
+        public int Frame => animation.Frame;
+
+        public bool Entered { get; private set; }
+
+        public float Tick(int request)
+        {
+            var atEnd = animation.Frame >= animation.StateLength;
+            if (body.Playing == Dying && request != Dying)
+                body.DeathHeld = true;
+            // A state its actor reaches at the end under the request is played, so a death asked for at an animation's end starts.
+            var keeps = (request == Dying || body.DeathHeld) && atEnd && !(request == Dying && body.Playing != Dying);
+            var moved = 0f;
+            // Held, the original takes the tick as one that enters a state, as it's at the end: the body takes the request.
+            if (keeps)
+            {
+                Entered = true;
+            }
+            else
+            {
+                moved = animation.Tick(request);
+                Entered = animation.Entered;
+            }
+            if (Entered)
+                body.Playing = request;
+            return moved;
+        }
     }
 
     private static Vector2 Normalize(Vector2 v) => SafeNormalize.Above(v, SpherePhysics.Epsilon * SpherePhysics.Epsilon, Vector2.UnitY);

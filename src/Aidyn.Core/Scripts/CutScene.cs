@@ -268,7 +268,8 @@ public sealed class CutScene
                 continue;
             body.Faded = Fade.Fading;
             steered |= body.Steered;
-            body.Step(Stage.World, motion(actor));
+            // ProcessPlayers holds a death's last frame for every body (Body.Mortal).
+            body.Step(Stage.World, body.Mortal(motion(actor)));
         }
         Cameras.Step(Camera, _game.Ticker);
 
