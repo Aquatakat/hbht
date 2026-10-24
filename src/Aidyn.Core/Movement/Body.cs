@@ -51,7 +51,7 @@ public sealed class Body
     /// </summary>
     public const float StepDistance = 30;
 
-    /// <summary>How far a body must come nearer its goal in a tick for the stick to follow it again.</summary>
+    /// <summary>How far a body must come nearer its goal since the last frame's test for the stick to follow it again (<c>0x800cdcc8</c>).</summary>
     private const float Nearer = 0.01f;
 
     /// <summary>
@@ -66,8 +66,10 @@ public sealed class Body
     private float _pace;
     /// <summary>The goal's distance at its nearest so far (<c>aiDestDist</c>).</summary>
     private float _nearest;
-    /// <summary>Ticks it hasn't come nearer its goal (<c>aiTravelTime</c>).</summary>
+    /// <summary>Ticks it hasn't come nearer its goal (<c>aiTravelTime</c>), a frame's at a time.</summary>
     private int _stalled;
+    /// <summary>Ticks until the steering toward the goal next tests it, once a frame (<see cref="Cadence.FrameTicks"/>).</summary>
+    private int _untilSteer;
 
     /// <param name="position">Its sphere's centre.</param>
     /// <param name="radius">Its sphere's radius, which <paramref name="scale"/> doesn't change for the world's collision.</param>
@@ -189,6 +191,7 @@ public sealed class Body
         GoalRadius = radius;
         _nearest = 1000;
         _stalled = 0;
+        _untilSteer = 0;
     }
 
     /// <summary>
@@ -443,12 +446,32 @@ public sealed class Body
     /// starts facing away walks a short curve. In trek, a body that can't get nearer keeps trying.
     /// Once within its radius, it stops; with nothing left to do, it lets go of its stick.
     /// </summary>
+    /// <remarks>
+    /// The original runs this once a frame (<c>Body.StepTowardGoal</c>, <c>0x800159c8</c>, from <c>ProcessPlayers</c>), and the
+    /// port once a 30 fps frame (<see cref="Cadence"/>), from its first step after it sets off: the test against the goal, the stick
+    /// it leaves for the frame, and the frame's ticks counted toward giving up (<c>+0x25c</c> += the frame's delta,
+    /// <c>0x80015aa4</c>). So the body walks on to the end of the frame it comes within its radius in, and lets go of its stick
+    /// as the next begins, which decides whether its walk's last step carries it on (<see cref="Animate"/>): Shamsuk's walk
+    /// to his tower's point 9 (<c>aidyn:dialogue/0x0494</c> node 44) ends half a unit short of it, not a whole one. Tested
+    /// each tick, the 0.01 it must come nearer was a tick's, and a walk's slow start counted twice as much toward giving up.
+    /// </remarks>
     private void Steer(CollisionWorld world)
     {
+        var frame = --_untilSteer < 0;
+        if (frame)
+            _untilSteer = Cadence.FrameTicks - 1;
         var busy = false;
         if (!Moving)
         {
-            Stick = default;
+            // Arrived within the frame: the stick holds till the next.
+            if (!frame && Stick != default)
+                busy = true;
+            else
+                Stick = default;
+        }
+        else if (!frame)
+        {
+            busy = true;
         }
         else
         {
@@ -460,7 +483,7 @@ public sealed class Body
                 _nearest = distance;
                 Stick = Normalize(toGoal) * (Walks ? 0.5f : 0.95f);
             }
-            else if (GiveUpTicks is { } most && ++_stalled >= most)
+            else if (GiveUpTicks is { } most && (_stalled += Cadence.FrameTicks) >= most)
             {
                 GiveUp(world);
                 return;

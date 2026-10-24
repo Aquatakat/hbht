@@ -531,6 +531,7 @@ Transition.AfterScript = 0x80051ad4; // Transition.cs: Conversation.End's ending
 Conversation.Tick = 0x80051bd8; // Conversation.cs
 Conversation.Press = 0x80051c4c; // Conversation.cs
 Conversation.End = 0x80051ccc; // Conversation.cs
+CutScene.SpeakerBody = 0x80051dc4; // coined; docs/systems/scripts.md: the speaker's body from the cut-scene's actors, which a press asks to talk (request 4)
 TrekLoop.Cue = 0x80051e04; // TrekLoop.cs
 CutScene.StandActors = 0x80051e2c; // coined; docs/systems/scripts.md: each frame, every actor's request (+0x14) to 0 but the one the script animated (+0x88) while +0xac is set; the port's CutSceneActor.Settle
 CutScene.Press = 0x80051ed4; // CutScene.cs
