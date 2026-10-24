@@ -294,7 +294,7 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         Assert.True(session.Trek.CutSceneFade.Fading);
         var here = new ChunkRef(place.Set.Id, place.Chunk.Row, place.Chunk.Column);
         Assert.Equal(new BattleSetup(BattleSource.MonsterParty, here, place.Chunk.Terrain, id, party.Enemies, null, false, true, party.Used?.Flag)
-            with { Enemies = fight.Enemies, Size = (party.MinSize, party.MaxSize), BonusLoot = party.Loot, PartyGate = party.Visible }, fight);
+            with { Enemies = fight.Enemies, Size = (party.MinSize, party.MaxSize), BonusLoot = party.Loot, PartyGate = party.Enabled }, fight);
         Assert.Equal(party.Enemies, fight.Enemies);
 
         // A wanderer catching the party is the same, as an ambush.

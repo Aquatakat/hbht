@@ -43,7 +43,7 @@ public sealed class MemoryEntry(Memory key, int value, int lifetime)
 /// What map objects remember for a while (the original's <c>VoxelChart</c>): a conversation's random
 /// line and skill checks, a container emptied that has no opened flag, a monster party beaten, a path
 /// light put out.
-/// It holds 19 memories. Each lasts a number of map loads, a teleport or a conversation's end, and
+/// It holds 19 memories. Each lasts a number of map loads, a teleport or a chunk crossed, and
 /// is saved with the game.
 /// </summary>
 /// <remarks>
@@ -130,7 +130,7 @@ public sealed class MapObjectMemory
     }
 
     /// <summary>
-    /// A map load, as a teleport or a conversation's end makes (<c>memset_voxelChart_entries</c>): every
+    /// A map load, as a teleport or a chunk crossed makes (<c>MapObjectMemory.Age</c>, <c>0x80056990</c>, from <c>TeleportPlayer</c>): every
     /// memory has one fewer to last, and those at 0 are forgotten.
     /// </summary>
     public void Age()

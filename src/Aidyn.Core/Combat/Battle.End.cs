@@ -102,12 +102,19 @@ public sealed partial class Battle
     /// and the gold pool goes to the party at once (<c>PauseMenu.PrepareLoot</c>, <c>0x80048FF8</c>). Then the battle leaves, for
     /// the post-battle windows (game mode 6).
     /// </summary>
+    /// <remarks>
+    /// A party with no encounter flag fights under flag 0, which the original's <c>FlagNetwork.Set</c> (<c>0x8001FDA8</c>) ignores
+    /// and its <c>FlagNetwork.Get</c> (<c>0x8001FD5C</c>) reads as 0, so it's remembered: a flagless party, as most wolves and
+    /// bears are, stays away for three map loads rather than standing there again as trek comes back.
+    /// </remarks>
     private void StepVictory()
     {
-        if (Setup.Party is { } party && Setup.EncounterFlag is { } flag)
+        if (Setup.Party is { } party)
         {
-            Game.Flags.TrySet(flag, true);
-            if ((Setup.PartyGate is not { } gate || Game.Flags.Holds(gate)) && !Game.Flags.IsSet(flag))
+            if (Setup.EncounterFlag is { } flag)
+                Game.Flags.TrySet(flag, true);
+            if ((Setup.PartyGate is not { } gate || Game.Flags.Holds(gate))
+                && !(Setup.EncounterFlag is { } set && Game.Flags.IsSet(set)))
                 RememberBeaten(party);
         }
         SetKillFlags();
