@@ -28,5 +28,6 @@ These are the Phase 0 decisions from the [roadmap](../roadmap.md) (task 0.5). Ea
 | [0022](0022-views-library.md) | The runtime and the editor share a views library, `Aidyn.Views`, in place of the editor linking the runtime's files; code flows from the core to the views to the runtime to the editor | Accepted |
 | [0023](0023-the-core-is-handed-its-settings-each-tick.md) | The core is handed what it needs of the settings each tick, an immutable record made from the player's with the command line's over them; nothing in the core reads `Settings` | Accepted |
 | [0024](0024-the-options-are-pages-by-kind.md) | The options are pages by kind (Audio, Video, Enhancements), in Title Case, and the sky's placement is off the menu | Accepted |
+| [0026](0026-controls-are-bound-by-situation.md) | Controls are listed by what the player does in each situation, bound per device in the core, with conflicts checked within a situation and the essential controls never left unbound | Accepted |
 
 Statuses: **Proposed** means drafted and waiting for review. **Accepted** means agreed. **Superseded** means replaced by a later record, which it links to.

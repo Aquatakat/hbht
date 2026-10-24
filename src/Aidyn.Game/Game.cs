@@ -36,9 +36,6 @@ namespace Aidyn.Game;
 /// </remarks>
 public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
 {
-    /// <summary>Mouse drag in pixels to stick units: about 0.3° of orbit, and 0.02 of height, a pixel.</summary>
-    private static readonly Vector2 DragToStick = new(0.2f, 0.4f);
-
     private readonly Label _message = new() { Position = new Vector2(8, 64) };
     private readonly CollisionWorld _world = new();
 
@@ -640,43 +637,6 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         }
     }
 
-    /// <summary>
-    /// The controls as the original reads them: the stick walks under 80% tilt and runs above,
-    /// and R with the stick orbits the camera. On a PC, Shift walks, Ctrl sneaks, and dragging
-    /// with the right mouse button, the right stick, or Q and E orbit it.
-    /// </summary>
-    private PlayerInput ReadInput()
-    {
-        var move = Input.GetVector("move_left", "move_right", "move_forward", "move_back");
-        var stick = new System.Numerics.Vector2(move.X, -move.Y);
-        if (Input.IsActionPressed("walk") && stick.Length() > 0.5f)
-            stick = System.Numerics.Vector2.Normalize(stick) * 0.5f;
-
-        var orbit = false;
-        var orbitStick = System.Numerics.Vector2.Zero;
-        // The right stick, Q and E, and the mouse turn the camera while the left stick and WASD still move him; only
-        // R with the left stick, as on the N64, holds him still.
-        var shoulder = Input.IsActionPressed("orbit");
-        var look = Input.GetVector("camera_left", "camera_right", "camera_down", "camera_up");
-        if (look != Vector2.Zero)
-        {
-            orbit = true;
-            orbitStick += new System.Numerics.Vector2(look.X, look.Y);
-        }
-        if (shoulder)
-        {
-            orbit = true;
-            orbitStick += stick;
-        }
-        var drag = _camera!.TakeDrag();
-        if (_camera.Dragging)
-        {
-            orbit = true;
-            orbitStick += new System.Numerics.Vector2(drag.X * DragToStick.X, drag.Y * DragToStick.Y);
-        }
-        return new PlayerInput(stick, Input.IsActionPressed("sneak"), orbit, orbitStick, Free: !shoulder);
-    }
-
     /// <summary>Debug: the tick rate while a thumbstick is held down, to cross the map quickly (4×).</summary>
     private const int FastTicksPerSecond = 240;
 
@@ -696,6 +656,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     public override void _Process(double delta)
     {
         SetTickRate();
+        CaptureMouse();
         if (Streamer is not { } chunks || _player is null || _camera is null)
             return;
         // The world goes on being drawn behind the pause menu and a backdrop's page, still: its scenery's actors,
@@ -735,8 +696,9 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     /// </summary>
     public override void _UnhandledInput(InputEvent e)
     {
+        _stick.Situation = _session is { } playing ? Core.Controls.Situations.Of(playing.Mode) : Core.Controls.Situation.Trek;
         _stick.Track(e);
-        if (_session is not { } session)
+        if (_session is not { } session || BindPrompted(session, e))
             return;
         if (session.Menu.NameEntryOpen && e is InputEventKey { Pressed: true } typed && TypeName(session.Menu, typed))
         {
@@ -1043,61 +1005,5 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
             if (_message.Text == text)
                 _message.Text = "";
         };
-    }
-
-    private static void AddInputs()
-    {
-        Add("move_forward", Key.W, Key.Up, JoyAxis.LeftY, -1);
-        Add("move_back", Key.S, Key.Down, JoyAxis.LeftY, 1);
-        Add("move_left", Key.A, Key.Left, JoyAxis.LeftX, -1);
-        Add("move_right", Key.D, Key.Right, JoyAxis.LeftX, 1);
-        Add("camera_left", Key.Q, null, JoyAxis.RightX, -1);
-        Add("camera_right", Key.E, null, JoyAxis.RightX, 1);
-        Add("camera_up", null, null, JoyAxis.RightY, -1);
-        Add("camera_down", null, null, JoyAxis.RightY, 1);
-        Add("walk", Key.Shift);
-        Add("sneak", Key.Ctrl, null, JoyAxis.TriggerLeft, 1);
-        Add("orbit", null, null, button: JoyButton.RightShoulder);
-        Add("fly_up", Key.Space);
-        Add("fly_down", Key.C);
-        Add("toggle_fly", Key.F);
-        Add("fast_forward", null, button: JoyButton.LeftStick);
-        InputMap.ActionAddEvent("fast_forward", new InputEventJoypadButton { ButtonIndex = JoyButton.RightStick });
-        Add("toggle_overlay", Key.F3);
-        Add("toggle_pace", Key.F5);
-        Add("toggle_sky_placement", Key.F6);
-        Add("cycle_ui_lines", Key.F7);
-        Add("quick_save", Key.F8);
-        Add("toggle_radar_anchor", Key.F9);
-        Add("battle_rout", Key.F10);
-        Add("battle_collapse", Key.F11);
-        // The pause menu (PauseMenu).
-        Add("pause", Key.Enter, Key.Escape, button: JoyButton.Start);
-        Add("menu_back", Key.Backspace, button: JoyButton.B);
-        Add("menu_accept", Key.Space, button: JoyButton.A);
-        Add("menu_member_left", Key.Q, button: JoyButton.LeftShoulder);
-        Add("menu_member_right", Key.E, button: JoyButton.RightShoulder);
-        Add("menu_details", Key.Tab, button: JoyButton.Y);
-        Add("menu_appraise", Key.R, button: JoyButton.X);
-        // Z or L, and R, change the tab.
-        Add("menu_tab_previous", Key.Z, null, JoyAxis.TriggerLeft, 1);
-        Add("menu_tab_next", Key.X, null, JoyAxis.TriggerRight, 1);
-        Add("menu_up", null, button: JoyButton.DpadUp);
-        Add("menu_down", null, button: JoyButton.DpadDown);
-        Add("menu_left", null, button: JoyButton.DpadLeft);
-        Add("menu_right", null, button: JoyButton.DpadRight);
-
-        static void Add(string action, Key? key, Key? alternative = null, JoyAxis? axis = null, float direction = 0, JoyButton? button = null)
-        {
-            if (InputMap.HasAction(action))
-                return;
-            InputMap.AddAction(action, 0.1f);
-            foreach (var k in new[] { key, alternative }.OfType<Key>())
-                InputMap.ActionAddEvent(action, new InputEventKey { PhysicalKeycode = k });
-            if (axis is { } j)
-                InputMap.ActionAddEvent(action, new InputEventJoypadMotion { Axis = j, AxisValue = direction });
-            if (button is { } b)
-                InputMap.ActionAddEvent(action, new InputEventJoypadButton { ButtonIndex = b });
-        }
     }
 }

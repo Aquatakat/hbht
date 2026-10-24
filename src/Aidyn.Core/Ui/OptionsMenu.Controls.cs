@@ -14,8 +14,8 @@ public sealed partial class OptionsMenu
     /// <summary>How long the prompt waits for an input before it gives up: 5 seconds. Nothing else ends it, so any key can be bound.</summary>
     public const int PromptTicks = 5 * 60;
 
-    /// <summary>How long a message about a change shows: 2 seconds.</summary>
-    public const int MessageTicks = 2 * 60;
+    /// <summary>How long a message about a change shows: 3 seconds.</summary>
+    public const int MessageTicks = 3 * 60;
 
     /// <summary>The mouse's sensitivities, as multiples of the drag the runtime always had.</summary>
     private static readonly float[] Sensitivities = [0.25f, 0.5f, 0.75f, 1, 1.5f, 2, 3, 4];
