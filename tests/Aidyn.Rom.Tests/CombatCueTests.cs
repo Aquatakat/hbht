@@ -22,7 +22,17 @@ public sealed class CombatCueTests(Na10Import fixture)
     {
         public List<string> Cues { get; } = [];
 
-        public void Cue(CombatCue cue) => Cues.Add(cue switch
+        /// <summary>The visuals started, in order.</summary>
+        public List<SpellFxVisual> Visuals { get; } = [];
+
+        public void Cue(CombatCue cue)
+        {
+            if (cue is SpellVisualStarted started)
+                Visuals.Add(started.Visual);
+            Cues.Add(Line(cue));
+        }
+
+        private static string Line(CombatCue cue) => cue switch
         {
             CombatantJoined j => $"joined {j.Combatant.Slot}",
             CombatantAnimated a => $"animated {a.Combatant.Slot} {a.Request}",
@@ -38,7 +48,7 @@ public sealed class CombatCueTests(Na10Import fixture)
             BattlePaused p => string.Create(CultureInfo.InvariantCulture, $"paused {p.PartyTab} {p.CanFlee}"),
             BattleEnded e => $"ended {e.Outcome}",
             _ => cue.ToString(),
-        });
+        };
     }
 
     /// <summary>Checkpoint 05's battle in Alaron's turn, faded in, with a recorder on it.</summary>
@@ -207,6 +217,41 @@ public sealed class CombatCueTests(Na10Import fixture)
             "log Endurance cast on Alaron",
             "log Giant Rat begins action",
         ], host.Cues);
+    }
+
+    [Fact]
+    public void AFailedCastPlaysTheRefusedActorAtTheCasterAndEndsThePlayersTurn()
+    {
+        // CastSpell (0x800648CC) returns 0xFFFE for a roll PrepareCast (0x8006406C) failed, which CastCurrentSpell (0x80065C08) hands
+        // CombatSpellFx.Start (0x8008C43C) as −2: the refused cast's actor at the caster (role 3, 0x1CAA), its rising puffs of smoke,
+        // with no glow and no dimming; the caster still plays request 5 and the spell's sound.
+        var built = At(Set, 7);
+        built.Game.Random.Combat.Seed = built.Cp.ReadWord(RandomState);
+        var battle = built.Battle;
+        var rheda = built[1];
+        // No Intelligence leaves the chance at the level's part alone, which this draw fails.
+        rheda.Sheet.Stats.ChangeModified(Aidyn.Core.Characters.Stat.Intelligence, -rheda.Sheet.Stats.Modified(Aidyn.Core.Characters.Stat.Intelligence));
+        rheda.Spell = new SpellChoice(SpellSourceKind.Known, rheda.Sheet.Spells.Select((s, i) => (s, i)).Single(p => p.s.Spell.Name == "Endurance").i);
+        Poke(battle, nameof(Battle.State), CombatState.TargetSpell);
+        battle.TargetsB.BeginSpell(battle, rheda);
+        var host = new Recorder();
+        battle.Host = host;
+        Assert.True(battle.Confirm());
+
+        PlayOut(built, host);
+
+        Assert.Equal(
+        [
+            "log Rheda fails to cast the spell",
+            "animated 1 5",
+            "visual 1 Refused",
+            "visual ended 1 Refused",
+            "animated 1 10",
+            "log Giant Rat begins action",
+        ], host.Cues);
+        Assert.Equal(1.0f, battle.Fx.Sky.Goal);
+        var refused = Assert.Single(host.Visuals);
+        Assert.Equal((RecordId.Hex(RecordTypes.Actor, 0x1CAA), rheda, rheda), (refused.Id, refused.Owner, refused.Other));
     }
 
     [Fact]

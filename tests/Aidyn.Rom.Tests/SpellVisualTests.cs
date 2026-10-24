@@ -151,4 +151,35 @@ public sealed class SpellVisualTests(Na10Import fixture)
         Assert.Equal(Actor(0x1CAA), magic.Refused);
         Assert.Equal(Actor(0x37F1), magic.Resisted);
     }
+
+    [Fact]
+    public void SevenOfTheVisualsActorsAreParticlesAloneWhoseAnimationsHoldTheirScenesStill()
+    {
+        // The refused and resisted casts' actors, Dragon Flames', Banishing's and Escape's targets', vs. Star's and Wraith Touch's
+        // casters' and the Fire Flask's have no models, and every Borg6 of theirs targets nothing: the importer lists them as still
+        // animations, so Godot gives their scenes no animation player. Their states still run, and request 5 starts their emitters,
+        // which are all they show (the runtime's ActorAnimator runs them without a player).
+        var set = fixture.Data.Set;
+        var magic = set.Singleton<MagicRecord>();
+        var spells = set.All<SpellRecord>(RecordTypes.Spell).ToList();
+        var actors = new[]
+        {
+            magic.Refused!.Value, magic.Resisted!.Value,
+            spells.Single(s => s.Name == "Dragon Flames").Visuals!.Target!.Value,
+            spells.Single(s => s.Name == "Banishing").Visuals!.Target!.Value,
+            spells.Single(s => s.Name == "vs. Star").Visuals!.Caster!.Value,
+            spells.Single(s => s.Name == "Wraith Touch").Visuals!.Caster!.Value,
+            set.Get<ItemRecord>(PotionItem(0)).Visuals!.Target!.Value,
+        };
+        Assert.Equal([Actor(0x1CAA), Actor(0x37F1), Actor(0x1C55), Actor(0x1C9F), Actor(0x1E9D), Actor(0x1EF7), Actor(0x1A56)], actors);
+        Assert.All(actors, id =>
+        {
+            var actor = set.Get<ActorRecord>(id);
+            var clips = Plugins.Assets.ActorClips.For(set, actor.Scene, actor.RootTransform)!;
+            Assert.False(clips.Animated);
+            Assert.All(actor.States, s => Assert.True(clips.Clip(s.Animation)?.Length > 0));
+            var emitters = set.Get<EmittersRecord>(RecordId.Hex(RecordTypes.Emitters, Convert.ToInt32(actor.Scene.Key, 16))).Emitters;
+            Assert.Contains(emitters, e => e.Request == 5 && e.Flags.HasFlag(ParticleEmitterFlags.ActorRequest));
+        });
+    }
 }

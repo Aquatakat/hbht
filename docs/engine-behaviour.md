@@ -557,6 +557,8 @@ Actions are confirmed: choosing a potion highlights the member who'll drink it, 
 
 Damage and healing numbers pop up briefly above the affected character. Status effects also display above heads, cycling through each active effect. With only one or two effects, an icon shows briefly followed by a long blank gap, possibly unintentionally. **(machine code)** They aren't icons: each lasting spell or potion effect from this battle has a translucent shell or ring over its target's head, and one at a time across the whole battle takes a turn of about two seconds, pulsing in and out, round all of them; nothing shows for five seconds after any cast. So one buff alone pulses every couple of seconds, and four buffed members each show for two seconds in nine ([combat](systems/combat.md#what-spells-look-like)).
 
+A spell that fails is remembered as fizzling in a puff of mist or smoke at the caster. **(machine code)** It does: a failed roll, a missing reagent, too little Stamina, an unavailable spell or a target the spell can't take all play one puff of coloured smoke at the caster's feet, rising and fading to violet over about a second and a half, with the cast's gesture and sound but no glow or dimming; a resisted spell plays a falling green and amber one at its target instead ([combat](systems/combat.md#what-spells-look-like)).
+
 ### Camera
 
 The battle camera is the same floating third-person camera as trek mode (see UI). **(machine code)** It's combat's own code, though, following whoever's turn it is, with its own offsets for each part of a turn.

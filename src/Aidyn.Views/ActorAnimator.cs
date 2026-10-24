@@ -16,21 +16,25 @@ namespace Aidyn.Views;
 /// An actor that moves by its animations, such as the player, is <see cref="Driven"/>: its owner ticks it through
 /// <see cref="Tick(int)"/>, which ticks the core's motion, poses the scene at once and returns the root's motion.
 /// Otherwise it ticks itself with the frame (<see cref="Update"/>), 60 times a second, and is posed between ticks. The
-/// editor draws with it too (Aidyn.Views), so it holds no nodes of its own.
+/// editor draws with it too (Aidyn.Views), so it holds no nodes of its own. An actor whose animations all hold its scene still
+/// (the importer's still animations, which glTF can't hold) has no animation player: its state machine still runs, for its
+/// states' lengths and the emitters its requests start, which is all the refused and resisted casts' actors are.
 /// </remarks>
 public sealed class ActorAnimator : IActorMotion
 {
-    private readonly AnimationPlayer _player;
+    private readonly AnimationPlayer? _player;
     private readonly Node3D? _root;
     private readonly Vector3 _pivot;
     private readonly MirroredMeshes? _mirroring;
+    private readonly HashSet<int> _still;
     private double _fraction;
     private int _warned = -1;
 
-    private ActorAnimator(ActorMotion motion, AnimationPlayer player, Node3D? root, MirroredMeshes? mirroring)
+    private ActorAnimator(ActorMotion motion, AnimationPlayer? player, Node3D? root, MirroredMeshes? mirroring, HashSet<int> still)
     {
         Motion = motion;
         _player = player;
+        _still = still;
         _root = root;
         _pivot = motion.Clips.Pivot.ToGodot();
         _mirroring = mirroring;
@@ -68,16 +72,17 @@ public sealed class ActorAnimator : IActorMotion
 
     /// <summary>
     /// An animator for an instance of the actor's scene, starting in its initial state, whose branches roll on
-    /// <paramref name="rolls"/>. Returns null if the scene has no animations.
+    /// <paramref name="rolls"/>. Returns null if the scene has no animations, still or moving.
     /// </summary>
     public static ActorAnimator? Create(Node3D instance, ActorRecord actor, GlbScene glb, IRandom rolls)
     {
-        if (Find<AnimationPlayer>(instance) is not { } player)
+        var player = Find<AnimationPlayer>(instance);
+        if (player is null && glb.Extras.StillAnimations.Count == 0)
             return null;
         var rootName = SceneNames.Transform(actor.RootTransform);
         var root = FindNode(instance, n => n is Node3D && n.Name == rootName) as Node3D;
         var motion = new ActorMotion(actor, glb.Clips(actor.RootTransform), rolls);
-        return new ActorAnimator(motion, player, root, MirroredMeshes.For(instance, glb.Extras));
+        return new ActorAnimator(motion, player, root, MirroredMeshes.For(instance, glb.Extras), [.. glb.Extras.StillAnimations.Select(a => a.Borg6)]);
     }
 
     /// <summary>Ticks at 60 Hz with the frame, unless <see cref="Driven"/>, and poses the scene between ticks.</summary>
@@ -128,10 +133,12 @@ public sealed class ActorAnimator : IActorMotion
     /// <summary>Poses the scene <paramref name="seconds"/> into the state's animation.</summary>
     private void Show(double seconds)
     {
-        var name = AnimationName(Machine.Actor.States[Machine.State]);
-        if (!_player.HasAnimation(name))
+        var state = Machine.Actor.States[Machine.State];
+        var name = AnimationName(state);
+        if (_player is null || !_player.HasAnimation(name))
         {
-            if (_warned != Machine.State)
+            // A still animation leaves the scene as it is.
+            if (_warned != Machine.State && !_still.Contains(Convert.ToInt32(state.Animation.Key, 16)))
                 GD.PushWarning($"{Machine.Actor.Id} has no animation {name}.");
             _warned = Machine.State;
             return;

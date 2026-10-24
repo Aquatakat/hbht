@@ -219,14 +219,16 @@ public partial class ModelView : VBoxContainer
             }
         }
 
-        if (actor is not null && _player is not null)
+        // An actor whose animations all hold it still has no player, but its states still run and start its emitters.
+        if (actor is not null && (_player is not null || file.Extras.StillAnimations.Count > 0))
         {
             _actor = actor;
             var rootName = SceneNames.Transform(actor.RootTransform);
             _root = Nodes.FindAll<Node3D>(scene).FirstOrDefault(n => n.Name == rootName);
             _pivot = file.Clips(actor.RootTransform).Pivot.ToGodot();
             _motion = Vector3.Zero;
-            _actorPanel.Show(actor, n => Ticks(ActorAnimator.AnimationName(actor.States[n])));
+            var clips = file.Clips(actor.RootTransform);
+            _actorPanel.Show(actor, n => clips.Clip(actor.States[n].Animation)?.Length ?? 0);
             _actorPanel.Visible = true;
             _ground = Ground(radius);
             _viewport.AddChild(_ground);
@@ -255,7 +257,7 @@ public partial class ModelView : VBoxContainer
 
     public override void _Process(double delta)
     {
-        if (_player is null || !IsVisibleInTree())
+        if (_player is null && _animator is null || !IsVisibleInTree())
             return;
         foreach (var (marker, node) in _markers)
         {
@@ -284,7 +286,7 @@ public partial class ModelView : VBoxContainer
         }
         else
         {
-            _player.Advance(delta);
+            _player?.Advance(delta);
         }
         ShowFrame();
     }
@@ -292,20 +294,22 @@ public partial class ModelView : VBoxContainer
     /// <summary>Holds the actor's root if asked, and shows where the animation is.</summary>
     private void ShowFrame()
     {
-        if (_player is null)
-            return;
-        TransformTracks.Apply(_player);
-        if (_root is not null && _animator is null && _actorPanel.InPlace)
-            ActorAnimator.HoldRoot(_root, _pivot);
-        _mirroring?.Update();
-        var tick = (int)Math.Round(_player.CurrentAnimationPosition * 60);
-        _time.SetValueNoSignal(tick);
+        var tick = 0;
+        if (_player is not null)
+        {
+            TransformTracks.Apply(_player);
+            if (_root is not null && _animator is null && _actorPanel.InPlace)
+                ActorAnimator.HoldRoot(_root, _pivot);
+            _mirroring?.Update();
+            tick = (int)Math.Round(_player.CurrentAnimationPosition * 60);
+            _time.SetValueNoSignal(tick);
+        }
         if (_animator is { Machine: var machine })
         {
             _tick.Text = $"time {machine.Clock} / {machine.Length(machine.State)}";
             _actorPanel.Mark(machine.State, $"state {machine.State}, time {machine.Clock} / {machine.Length(machine.State)}");
         }
-        else
+        else if (_player is not null)
         {
             _tick.Text = $"time {tick + 1} / {(int)_time.MaxValue}";
             if (_actor is not null)
