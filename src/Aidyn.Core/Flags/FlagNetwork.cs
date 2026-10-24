@@ -99,6 +99,12 @@ public sealed class FlagNetwork
     /// <summary>Whether a flag adds this journal entry.</summary>
     public bool HasJournalEntry(RecordId entry) => _entries.Contains(entry);
 
+    /// <summary>
+    /// Every journal entry a flag adds, in the order of the flags that add them, the network's: for the base game, the journal
+    /// table's.
+    /// </summary>
+    public IEnumerable<RecordId> JournalEntries => _journal.OfType<RecordId>().Distinct();
+
     public RecordId Id(int handle) => _ids[handle];
 
     public int Handle(RecordId id) =>
@@ -186,6 +192,19 @@ public sealed class FlagNetwork
     public bool TrySetAndProcess(RecordId id, bool value)
     {
         var known = TrySet(id, value);
+        Process();
+        return known;
+    }
+
+    /// <summary>
+    /// <see cref="TrySetAndProcess(RecordId, bool)"/> for an object's slot that may be empty: the original writes the slot,
+    /// which <c>setEventFlag</c> refuses when it's 0, and reads 5626 either way (a trigger's or harvest's Used flag through
+    /// <c>MapObjects.WriteUsed</c>, <c>0x80011760</c>, a container's opened flag at <c>0x800105ec</c>, an exploded flag at
+    /// <c>0x8000ffe4</c>, a talker's B at <c>0x800109fc</c>), so the network comes up to date whether or not there's a flag.
+    /// </summary>
+    public bool TrySetAndProcess(RecordId? id, bool value)
+    {
+        var known = id is { } flag && TrySet(flag, value);
         Process();
         return known;
     }
