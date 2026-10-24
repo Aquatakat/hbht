@@ -79,7 +79,7 @@ public sealed record BattleSetup(
         {
             Size = (party.MinSize, party.MaxSize),
             BonusLoot = party.Loot,
-            PartyGate = party.Visible,
+            PartyGate = party.Enabled,
         };
 
     /// <summary>
@@ -114,8 +114,9 @@ public sealed record BattleSetup(
     public RecordId? BonusLoot { get; init; }
 
     /// <summary>
-    /// The monster party's own gate, its flag A (<c>0x800D9482</c>, <c>0x800D9484</c>), which must still hold for a win to remember
-    /// it when its encounter flag can't be set.
+    /// The monster party's own gate, its flag A (<see cref="MapObject.Enabled"/>; <c>0x800D9482</c> and <c>0x800D9484</c>, which
+    /// <c>BattleSetup.FromMonsterParty</c> copies from the object's <c>+0x1C</c> and <c>+0x14</c>), which must still hold for a win to
+    /// remember it when its encounter flag can't be set.
     /// </summary>
     public FlagGate? PartyGate { get; init; }
 
@@ -129,7 +130,7 @@ public sealed record BattleSetup(
         this with
         {
             Party = id, Enemies = party.Enemies, EncounterFlag = party.BattleFlag, Size = (party.MinSize, party.MaxSize),
-            BonusLoot = party.Loot, PartyGate = party.Visible,
+            BonusLoot = party.Loot, PartyGate = party.Enabled,
         };
 
     /// <summary>
