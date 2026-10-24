@@ -78,12 +78,12 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         }
     }
 
-    /// <summary>A new game's session, started as the runtime starts one (<see cref="GameSession.Start"/>), with the player set down at a chunk's point of the Overworld.</summary>
-    private (GameSession Session, Host Host) Start(string chunkName = "I08", float x = 16, float z = 62)
+    /// <summary>A new game's session, started as the runtime starts one (<see cref="GameSession.Start"/>), with the player set down at a chunk's point of a map set, the Overworld unless another is given.</summary>
+    private (GameSession Session, Host Host) Start(string chunkName = "I08", float x = 16, float z = 62, int mapSet = 0)
     {
         var game = GameState.NewGame(Data.Set);
         var host = new Host();
-        var set = Data.Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, 0));
+        var set = Data.Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, mapSet));
         var streamer = new ChunkStreamer(Data.Set, game, new CollisionWorld(), set, new VisibleWorld());
         var start = GameStart.OfNewGame(Data.Set) with { Set = set, Chunk = chunkName, Local = new Vector3(x, 10, z) };
         var session = GameSession.Start(game, host, new ZoneEngine(game, streamer), start, menuHost: host);

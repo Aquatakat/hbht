@@ -244,6 +244,22 @@ public sealed class ImportTests(Na10Import fixture)
         Assert.Contains(catalog.ReferencesTo(RecordId.Parse("aidyn:flag/5")), r => r.From.Type == RecordTypes.Dialogue);
     }
 
+    /// <summary>
+    /// The mountains round Erromon (the town is the Overworld's B09, C08 and C09, terrain 19) are terrain 5, the one terrain whose
+    /// rolls bring snow; the Overworld has no other chunk of it. Rain carried in from elsewhere falls on there until a roll there
+    /// (the weather doc).
+    /// </summary>
+    [Fact]
+    public void TheMountainsRoundErromonAreTheOverworldsOnlySnowyTerrain()
+    {
+        var set = fixture.Data.Set;
+        var overworld = set.Get<MapSetRecord>(RecordId.Parse("aidyn:mapset/0"));
+        Assert.Equal(["A04", "A05", "A06", "B04", "B05", "B06", "B07", "B08", "C07", "C10"],
+            overworld.Chunks.Where(c => c.Terrain == 5).Select(c => c.Name).Order(StringComparer.Ordinal));
+        Assert.All(new[] { "B09", "C08", "C09" }, name => Assert.Equal(19, overworld.Chunks.Single(c => c.Name == name).Terrain));
+        Assert.Equal(["5"], set.All<TerrainRecord>(RecordTypes.Terrain).Where(t => t.Snow).Select(t => t.Id.Key));
+    }
+
     [Fact]
     public void ImportsAreDeterministic()
     {

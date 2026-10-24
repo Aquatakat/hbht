@@ -77,6 +77,33 @@ public class WeatherTests
         Assert.Equal(0, random.Remaining);
     }
 
+    /// <summary>
+    /// Snow is chosen only as the weather rolls (<c>Weather.Roll</c>, <c>0x8007bdb0</c>: a literal test of terrain 5), and nothing
+    /// else looks at the terrain, so rain rolled elsewhere falls on in the snowy mountains round Erromon until a roll there changes it.
+    /// </summary>
+    [Fact]
+    public void RainCarriedIntoSnowyTerrainFallsOnUntilARollThereChangesIt()
+    {
+        var weather = new Weather(Rules) { Wind = Vector3.Zero };
+        var still = new ScriptedRandom();
+        weather.Frame(PartOfDay.Midday, 0, Plains, still, still, wind: false);
+        weather.SetTerrain(0);
+        weather.Force(WeatherKind.Precipitation, Precipitation.Rain, 0.5f, 0.2f);
+
+        // Into the mountains: another terrain rolls, and a 75 keeps the rain.
+        Assert.True(weather.SetTerrain(5));
+        var kept = new ScriptedRandom(D100(75));
+        weather.Frame(PartOfDay.Midday, 0, Snowy, kept, still, wind: false);
+        Assert.Equal(0, kept.Remaining);
+        Assert.Equal((WeatherKind.Precipitation, Precipitation.Rain, 0.5f), (weather.Kind, weather.Precipitation, weather.Intensity));
+
+        // The next part of the day rolls there, and what falls is snow.
+        var snow = new ScriptedRandom(D100(76), D100(1), D100(1), 0, Share(1));
+        weather.Frame(PartOfDay.Afternoon, 0, Snowy, snow, still, wind: false);
+        Assert.Equal(0, snow.Remaining);
+        Assert.Equal((WeatherKind.Precipitation, Precipitation.Snow), (weather.Kind, weather.Precipitation));
+    }
+
     [Fact]
     public void SeventyAndOverIsFog()
     {

@@ -46,6 +46,8 @@ While the lock (+0x5) is up, the part of the day doesn't change and the weather 
 4. Otherwise it's fog from 0.1 to 0.75 (`Fog`), with nothing falling: class 1.
 5. The storm is a share of the rain's intensity, from 0 to it; snow and fog have none.
 
+**Snow is chosen only here**, by the literal test of terrain 5 as rain is rolled (`0x8007be74` in `Weather.Roll`: what falls is 1, made 2 where the world's terrain is 5); `ProcessWeather` and the drawing never look at the terrain. So rain rolled elsewhere and kept by the first die (three times in four) falls on into terrain 5, and snow out of it, until a roll there brings a change. Terrain 5 is the Overworld's mountains round Erromon (A04–A06, B04–B08, C07 and C10; the town is B09, C08 and C09, terrain 19), so rain falls there in the original too: walking up from the town in the rain keeps it three times in four, and only a later roll in the mountains turns it to snow, which their 30 makes likelier. The port's `Weather.Roll` and `SetTerrain` follow it.
+
 Every range is `ParticleHead.FloatRange` (`0x80093470`): a share from 0 to 1 times the span, from the lower; equal bounds draw nothing. The draws go: the first die; the second; the third, the intensity, the fog; then the storm (rain). The port rolls on the world's stream (ADR 0006).
 
 ## Over time

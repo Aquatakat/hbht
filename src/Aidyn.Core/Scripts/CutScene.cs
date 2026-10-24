@@ -244,6 +244,10 @@ public sealed class CutScene
         stage.Listen();
         var keys = stage.Keys;
         Tick(actor => animation(actor) is { } motion ? keys.Sounding(motion, actor.Audio, _actorSounds, actor.Body.Sphere) : IActorMotion.Still);
+        // HandleZoneEngineFrame runs Bgm.Update only while the screen isn't fading (0x8000e784), so the stage's music, asked for as
+        // it loaded (CutScene.LoadStage, 0x80051984), takes over once it has faded in: trek's plays on through the fade, and stops
+        // there if the stage's map set and chunk have none.
+        stage.Audio.HoldMusic = Fade.Fading;
         stage.StepSounds(Camera.Aim);
         stage.StepWeather(skyDrawn, stage.Precipitation);
     }
