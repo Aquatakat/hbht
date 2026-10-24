@@ -99,6 +99,12 @@ public sealed class FlagNetwork
     /// <summary>Whether a flag adds this journal entry.</summary>
     public bool HasJournalEntry(RecordId entry) => _entries.Contains(entry);
 
+    /// <summary>
+    /// Every journal entry a flag adds, in the order of the flags that add them, the network's: for the base game, the journal
+    /// table's.
+    /// </summary>
+    public IEnumerable<RecordId> JournalEntries => _journal.OfType<RecordId>().Distinct();
+
     public RecordId Id(int handle) => _ids[handle];
 
     public int Handle(RecordId id) =>

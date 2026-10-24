@@ -160,7 +160,13 @@ public sealed class WorldMenu
         var newest = flags.NewestJournalEntry;
         flags.NewestJournalEntry = null;
         var entries = _game.Plugins.All<JournalRecord>(RecordTypes.Journal).ToDictionary(j => j.Id);
-        var shown = flags.JournalOrder.Where(entries.ContainsKey).Select(id => entries[id]).Where(e => flags.IsSet(e.Flag));
+        // Journal::Load lists each entry by its own flag (Journal.AddEntry, 0x8005256c), so one whose flag a script or a battle has
+        // set is listed though the network hasn't added it yet: after those added, and not in the newest's colour. The flags are
+        // plain but entry 32's, derived 5017, whose read brings the network up to date as the list is made and can add to the
+        // order, which is why it's taken first.
+        var added = flags.JournalOrder.Where(entries.ContainsKey).ToList();
+        var waiting = flags.JournalEntries.Where(id => entries.ContainsKey(id) && !added.Contains(id));
+        var shown = added.Concat(waiting).Select(id => entries[id]).Where(e => flags.IsSet(e.Flag));
         return new JournalMenu(_font, [.. shown.Select(e => (e.Text, e.Id == newest))], _text[NoEntries]);
     }
 
