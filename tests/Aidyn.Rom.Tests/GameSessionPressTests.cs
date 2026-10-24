@@ -1,6 +1,7 @@
 using Aidyn.Core;
 using Aidyn.Core.Items;
 using Aidyn.Core.Scripts;
+using Aidyn.Core.Trek;
 using Aidyn.Core.Ui;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
@@ -402,6 +403,9 @@ public sealed partial class GameSessionTests
         var game = session.Game;
         Assert.True(game.AddMember(RecordId.Hex(RecordTypes.Entity, 0x0240)));
         Tick(session);
+        // Her joining's journal entry is told on the next trek tick (the user's choice), which A closes.
+        Assert.Equal(TrekLoop.NewJournalEntry, session.Trek.Use.Popup?.Body?.Text);
+        session.Trek.Use.Accept();
         var menu = session.Menu;
         Assert.Equal(0, menu.Member);
 

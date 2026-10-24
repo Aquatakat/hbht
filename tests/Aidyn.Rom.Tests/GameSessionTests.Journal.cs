@@ -12,9 +12,9 @@ using Aidyn.Plugins.Records;
 namespace Aidyn.Rom.Tests;
 
 /// <summary>
-/// When a journal entry's notice comes, which is when 1.0 brings the flag network up to date after its flag is set: at once
-/// after a map object's write, as trek comes back where loading the chunks reads a derived flag, and otherwise not until
-/// something reads one (docs/systems/flags.md#when-the-network-comes-up-to-date).
+/// When a journal entry's notice comes: on trek's first tick with nothing up after its flag is set, as the port brings the flag
+/// network up to date there, the user's choice; 1.0 tells it only once something reads a derived flag, so some waited
+/// (docs/systems/flags.md#when-the-network-comes-up-to-date).
 /// </summary>
 public sealed partial class GameSessionTests
 {
@@ -82,10 +82,8 @@ public sealed partial class GameSessionTests
         Assert.Equal(1, TicksToJournalNotice(session));
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void TheLettersEntryWaitsInTheCaveUnderPortSaiidUntilItsScrollIsTakenOrItsLeft(bool takeTheScroll)
+    [Fact]
+    public void TheLettersEntryIsToldAsTrekComesBackInTheCaveUnderPortSaiid()
     {
         // PortSaiid E01, the cave: the letter (object 1, its flag B 294) is a backdrop, script 0x041F, whose node 1 sets 295.
         var cave = Data.Set.Get<MapRecord>(RecordId.Hex(RecordTypes.Map, 0x12D8));
@@ -112,30 +110,16 @@ public sealed partial class GameSessionTests
             Tick(session);
         Assert.Equal(GameMode.Trek, session.Mode);
 
-        // Trek is built again in the cave, whose objects' gates are all plain flags, and nothing in it reads a derived one: the
-        // entry waits, unnoticed, as 1.0's does.
+        // Trek is built again in the cave, whose objects' gates are all plain flags, and nothing in it reads a derived one: 1.0's
+        // entry waits until its scroll or chest is used or he leaves (the user's cartridge longplay), and the port's is told once
+        // the backdrop has gone.
         Assert.True(flags.IsSet(RecordId.Decimal(RecordTypes.Flag, 295)));
-        Assert.False(NewEntryWaiting(session));
-        Assert.Equal(-1, TicksToJournalNotice(session));
-
-        if (takeTheScroll)
-        {
-            // The scroll in the same cave (object 7, a custom container) writes its Used and opened flags and reads 5626
-            // (MapObjectUse.Loot, 0x800105ec): the entry waits at once, as on the cartridge.
-            trek.Use.Use(map, (ContainerObject)cave.Objects[7]);
-            Assert.True(NewEntryWaiting(session));
-            return;
-        }
-
-        // Leaving through its door (object 0) loads the Overworld round Saiid, whose gates read derived flags: told as the
-        // teleport's fade ends.
-        trek.Use.Use(map, (TeleporterObject)cave.Objects[0]);
-        Assert.InRange(TicksToJournalNotice(session), 2, 120);
-        Assert.NotEqual(RecordId.Decimal(RecordTypes.MapSet, 2), trek.Chunks.MapSet.Id);
+        Assert.InRange(TicksToJournalNotice(session), 1, 60);
+        Assert.Equal(RecordId.Decimal(RecordTypes.MapSet, 2), trek.Chunks.MapSet.Id);
     }
 
     [Fact]
-    public void KitaraksEntryWaitsAfterHisBattleUntilTheJournalOrSomethingElseReadsADerivedFlag()
+    public void KitaraksEntryIsToldAsTrekComesBackAfterHisBattle()
     {
         // GoblinCamp C01: Kitarak's party (object 3), whose boss flag, 154, winning sets (Combat.SetKillFlags, 0x80067860), after
         // the reads the battle's end makes.
@@ -158,21 +142,12 @@ public sealed partial class GameSessionTests
         session.MenuClosed(PauseExit.Close);
         Assert.Equal(GameMode.Trek, session.Mode);
 
-        // Trek comes back in his room, where loading reads no derived flag and no tangible object is near: the entry waits,
-        // unnoticed, as 1.0's does, until the chest's flags are written or he leaves.
-        var beat = RecordId.Decimal(RecordTypes.Flag, 154);
-        Assert.True(flags.IsSet(beat));
-        Assert.False(NewEntryWaiting(session));
-        Assert.Equal(-1, TicksToJournalNotice(session));
-
-        // The journal lists it, as 1.0's reads each entry's own flag (Journal::Load, 0x8005263c), but not in the newest's colour.
-        // Reading entry 32's, derived flag 5017, brings the network up to date, which adds it: the notice is told once the menu
-        // has closed, and it's the newest when the journal next opens.
-        var listed = Assert.Single(OpenJournal(session.Game), e => e.Text.StartsWith("We killed the goblin king Kitarak"));
-        Assert.False(listed.Newest);
-        Assert.True(NewEntryWaiting(session));
+        // Trek comes back in his room, where loading reads no derived flag and no tangible object is near: 1.0's entry waits until
+        // the chest's flags are written, the journal opens or he leaves (the user's cartridge longplay); the port's is told as
+        // trek's 30-tick fade-in ends.
+        Assert.True(flags.IsSet(RecordId.Decimal(RecordTypes.Flag, 154)));
+        Assert.Equal(31, TicksToJournalNotice(session));
         Assert.Equal(RecordId.Decimal(RecordTypes.Journal, 14), flags.NewestJournalEntry);
-        Assert.Equal(1, TicksToJournalNotice(session));
         Assert.True(Assert.Single(OpenJournal(session.Game), e => e.Text.StartsWith("We killed the goblin king Kitarak")).Newest);
     }
 
@@ -214,7 +189,7 @@ public sealed partial class GameSessionTests
     }
 
     [Fact]
-    public void YerazasFirstConversationsEntryIsToldAsTheBirdsongNearHerEndsAfterIt()
+    public void YerazasFirstConversationsEntryIsToldAsItEnds()
     {
         // Overworld C08, Erromon's street: Yeraza (object 31, there by day) and her first conversation, script 0x03C5, whose
         // node 27 sets 135, "I met a Mirari woman on the street today". Nothing in it reads a derived flag after; but she stands
@@ -247,12 +222,9 @@ public sealed partial class GameSessionTests
         Assert.Null(trek.Conversation);
         Assert.True(flags.IsSet(RecordId.Decimal(RecordTypes.Flag, 135)));
 
-        // Told within a second or two of its end, once the birdsong stops; reading the gate only when it needs starting, as the
-        // port did, waited for the next song, about 12 seconds on.
-        var ticks = 0;
-        for (; ticks < 900 && trek.Use.Popup?.Body?.Text != TrekLoop.NewJournalEntry; ticks++)
-            Hear(session);
-        Assert.InRange(ticks, 1, 120);
+        // 1.0 tells it once the birdsong stops, within a second or two of the end, as the user's cartridge longplay shows; the port
+        // tells it on the tick the conversation ends, as it tells every entry (the user's choice).
+        Assert.Equal(TrekLoop.NewJournalEntry, trek.Use.Popup?.Body?.Text);
     }
 
     [Fact]

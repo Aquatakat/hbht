@@ -292,12 +292,19 @@ public sealed partial class TrekLoop : IMapObjectHost
         Enter(Chunks.ChunkAt(Player.Sphere.Position));
         // The clock stops under a popup or a conversation.
         var talking = Conversation is not null;
-        // NewJournalEntryPopup: with nothing else up, a new entry is told once, and its flag cleared.
+        // NewJournalEntryPopup: with nothing else up, a new entry is told once, and its flag cleared. The port brings the network
+        // up to date first, the user's choice: 1.0 tells an entry only once something happens to read a derived flag, so some
+        // waited for a chest, a door or a border (docs/systems/flags.md).
         var newEntry = Game.Flags.Handle(Game.StateFlagsRecord.NewJournalEntry);
-        if (!fading && Use.Popup is null && !talking && Game.Flags.Peek(newEntry))
+        if (!fading && Use.Popup is null && !talking)
         {
-            Game.Flags.Set(newEntry, false);
-            Use.Tell(NewJournalEntry);
+            if (Game.Flags.Dirty)
+                Game.Flags.Process();
+            if (Game.Flags.Peek(newEntry))
+            {
+                Game.Flags.Set(newEntry, false);
+                Use.Tell(NewJournalEntry);
+            }
         }
         // HandleZoneEngineFrame's weather (RenderSky's lightning and ProcessWeather), whatever stops the clock; then TickGameTime.
         Zone.StepWeather(_chunk is null || (Game.Terrain(_chunk.Terrain)?.SkyDrawn ?? true), Zone.Precipitation);
