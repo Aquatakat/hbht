@@ -381,7 +381,7 @@ public static class SceneGltf
             }
         }
 
-        var times = gltf.AddTimes(Enumerable.Range(0, count).Select(i => i / 60f).ToList());
+        var times = gltf.AddTimes(Enumerable.Range(0, count).Select(i => i / (float)SceneNames.AnimationSamplesPerSecond).ToList());
         var samplers = new JsonArray();
         var channels = new JsonArray();
         void Channel(int node, string path, int output)

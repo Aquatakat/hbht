@@ -49,6 +49,13 @@ public static class SceneNames
     /// <summary>An animation (Borg6 <paramref name="borg6"/>, its archive index).</summary>
     public static string Animation(int borg6) => Name(AnimationPrefix, borg6);
 
+    /// <summary>
+    /// How many samples a second an animation has: one a tick, the original's values at each. The exporter writes
+    /// sample <c>i</c> at <c>i / 60</c> seconds, and the views have Godot bake the clips at the same rate as they load
+    /// them, so a tick's pose stands on its own sample.
+    /// </summary>
+    public const int AnimationSamplesPerSecond = 60;
+
     /// <summary>A texture's image (Borg1 <paramref name="borg1"/>, its archive index).</summary>
     public static string Image(int borg1) => Name(ImagePrefix, borg1);
 

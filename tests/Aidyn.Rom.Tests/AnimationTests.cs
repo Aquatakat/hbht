@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Numerics;
 using System.Text.Json;
+using Aidyn.Plugins.Assets;
 using Aidyn.Rom.Borg;
 using Aidyn.Rom.Graphics;
 
@@ -165,18 +166,73 @@ public class AnimationTests
             var actual = new Quaternion(rotations[tick * 4], rotations[tick * 4 + 1], rotations[tick * 4 + 2], rotations[tick * 4 + 3]);
             Assert.True(MathF.Abs(Quaternion.Dot(expected, actual)) > 0.99999f, $"Tick {tick}: {expected} vs {actual}");
         }
+    }
 
-        static float[] Floats(JsonElement json, ReadOnlySpan<byte> bin, int accessor)
+    /// <summary>
+    /// The purple cube on Ardra's sceptre in the ending's fourth shot (scene 0x2097, Borg6 0x2098) is transform 145,
+    /// which turns about Z through its pivot by 99.9966° a tick for the whole shot, the pivot at the tip of the sceptre,
+    /// its parent transform 135. The pivot stays there at every sample, a sample a tick. Halfway between two samples,
+    /// with the translation and rotation interpolated apart, it doesn't: that's where Godot stood on every other tick
+    /// while the views had it bake the clips at 30 a second, and the cube flew up to 1.5 off the sceptre.
+    /// </summary>
+    [Fact]
+    public void ArdrasSceptreCubeStaysOnTheSceptreAtEveryTick()
+    {
+        var archive = BorgArchive.Open(TestRoms.Get(RomVersionId.Na10));
+        const int sceneIndex = 0x2097, animationIndex = 0x2098, cube = 145, sceptre = 135;
+        var scene = Borg5Scene.Parse(archive.Read(sceneIndex));
+        var animation = Borg6Animation.Parse(archive.Read(animationIndex));
+        Assert.Equal(sceptre, scene.Parent(cube));
+        var pivot = scene.Transforms[cube].Pivot;
+        var glb = SceneGltf.Export(scene, archive.Read, sceneIndex, [(animationIndex, animation)]);
+        var json = JsonDocument.Parse(glb.AsMemory(20, BitConverter.ToInt32(glb, 12))).RootElement;
+        var bin = glb.AsSpan(20 + BitConverter.ToInt32(glb, 12) + 8);
+
+        var clip = json.GetProperty("animations")[0];
+        float[] Track(ReadOnlySpan<byte> bin, string path)
         {
-            var a = json.GetProperty("accessors")[accessor];
-            var view = json.GetProperty("bufferViews")[a.GetProperty("bufferView").GetInt32()];
-            var width = a.GetProperty("type").GetString() switch { "SCALAR" => 1, "VEC3" => 3, _ => 4 };
-            var floats = new float[a.GetProperty("count").GetInt32() * width];
-            var at = view.GetProperty("byteOffset").GetInt32();
-            for (var i = 0; i < floats.Length; i++)
-                floats[i] = BinaryPrimitives.ReadSingleLittleEndian(bin[(at + i * 4)..]);
-            return floats;
+            var channel = clip.GetProperty("channels").EnumerateArray().First(c =>
+                c.GetProperty("target").GetProperty("node").GetInt32() == cube - scene.FirstNode &&
+                c.GetProperty("target").GetProperty("path").GetString() == path);
+            var sampler = clip.GetProperty("samplers")[channel.GetProperty("sampler").GetInt32()];
+            return Floats(json, bin, sampler.GetProperty("output").GetInt32());
         }
+        var times = Floats(json, bin, clip.GetProperty("samplers")[0].GetProperty("input").GetInt32());
+        var (translations, rotations, scales) = (Track(bin, "translation"), Track(bin, "rotation"), Track(bin, "scale"));
+        Vector3 V(float[] v, int i) => new(v[i * 3], v[i * 3 + 1], v[i * 3 + 2]);
+        Quaternion Q(int i) => new(rotations[i * 4], rotations[i * 4 + 1], rotations[i * 4 + 2], rotations[i * 4 + 3]);
+
+        // A sample a tick, the rate the views have Godot bake at.
+        Assert.Equal(animation.Length + 1, times.Length);
+        for (var i = 0; i < times.Length; i++)
+            Assert.Equal(i / (float)SceneNames.AnimationSamplesPerSecond, times[i]);
+
+        // The shot draws times 2 to length − 2 (docs/systems/cinematics.md), and sample i is time i + 1.
+        var strayed = 0f;
+        for (var i = 1; i <= animation.Length - 3; i++)
+        {
+            var at = Placed(V(translations, i), Q(i), V(scales, i));
+            Assert.True(Vector3.Distance(at, pivot) < 1e-3f, $"Time {i + 1}: the cube's pivot is at {at}, not {pivot}");
+            var halfway = Placed((V(translations, i - 1) + V(translations, i + 1)) / 2,
+                Quaternion.Slerp(Q(i - 1), Q(i + 1), 0.5f), (V(scales, i - 1) + V(scales, i + 1)) / 2);
+            strayed = MathF.Max(strayed, Vector3.Distance(halfway, pivot));
+        }
+        Assert.True(strayed > 1.4f, $"Halfway between samples the cube strays only {strayed}");
+
+        // Where the cube's pivot stands in the sceptre's frame, by the cube node's translation, rotation and scale.
+        Vector3 Placed(Vector3 translation, Quaternion rotation, Vector3 scale) => translation + Vector3.Transform(pivot * scale, rotation);
+    }
+
+    private static float[] Floats(JsonElement json, ReadOnlySpan<byte> bin, int accessor)
+    {
+        var a = json.GetProperty("accessors")[accessor];
+        var view = json.GetProperty("bufferViews")[a.GetProperty("bufferView").GetInt32()];
+        var width = a.GetProperty("type").GetString() switch { "SCALAR" => 1, "VEC3" => 3, _ => 4 };
+        var floats = new float[a.GetProperty("count").GetInt32() * width];
+        var at = view.GetProperty("byteOffset").GetInt32();
+        for (var i = 0; i < floats.Length; i++)
+            floats[i] = BinaryPrimitives.ReadSingleLittleEndian(bin[(at + i * 4)..]);
+        return floats;
     }
 
     /// <summary>Every actor starts in state 0, moves by transform 2, and animates one scene.</summary>

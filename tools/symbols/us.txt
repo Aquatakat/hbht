@@ -1420,6 +1420,7 @@ ParticleHead.Direction = 0x8009358c; // ParticleHead.cs: a random direction of a
 Scene.LoadTextureOp = 0x800938b0; // coined; docs/formats/textures.md
 LoadTextureImage = 0x80093cac; // string debug 0x800e2e64 (debug 0x8009d7d8)
 Scene.SetTextureTiles = 0x80094104; // coined; docs/systems/rendering.md
+Borg5Scene.PivotRotate = 0x8009497c; // Borg5Scene.cs Borg5Transform.PivotRotate: mtxOp 1, scale then guRotateRPYF order (roll +0x14, pitch +0x10, heading +0x18, degrees x DAT_800d538c straight to sinf/cosf, no wrap), the translation the position +0x1c less the pivot +0x34 turned and scaled; debug 0x8009e4c4
 Borg5Transform.CameraMatrix = 0x80094d7c; // coined; Borg5Scene.cs Borg5Transform.LookAt: (eye, at, up) to a camera-to-world matrix, X = up x look, Y = look x X, Z = eye - at, the row 3 the eye; keeps the last X if up x look is under 1e-6 (unlike guLookAtReflectF); the w column 0
 Borg5Transform.Direction = 0x80094f80; // Borg5Scene.cs Borg5Transform.Direction: mtxOp 3, only the Z row set (a light's direction)
 Borg5Transform.LookAt = 0x8009505c; // Borg5Scene.cs Borg5Transform.LookAt: mtxOp 4, a camera from Position and the angles (two guRotateRPYF), through Borg5Transform.CameraMatrix
