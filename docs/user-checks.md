@@ -11,6 +11,10 @@ Things only the user can settle, by playing the original in the emulator, by lis
 - **Item spells' charges:** cast a spell from a sword, armor or a ring (not a wand or scroll) several times in one battle and across battles. Does it ever run out, and does it come back with time? The code spends charges only from wands and scrolls worn as gear, and never recharges any. [magic](systems/magic.md#gear)
 - **The Ring of Healing in trek:** wear it on a hurt member and walk about by day. Do their hit points climb about one a frame, many a second, or slowly or not at all? The code heals one each time trek ages the effects, once a drawn frame, and the port does it once a 30 fps frame. [magic](systems/magic.md#not-settled)
 
+## Movement
+
+- **Wedged against a leaning rock face:** in the original, walk Alaron hard into the steep plain rock at Overworld A22, feet about (46.7, −26.3, 40.1) (the face just south of there), and then at D14 (55.2, −16.1, 19.1) and Q25 (88.3, −2.1, 46.5). Turn about and walk off each time. The model of 1.0's frames says he walks off at A22, where the port wedged him, but can stick at D14 and Q25, unable to steer or move until something else moves him. Does he? The port lets him steer after a quarter of a second held so. Then, in the port, look for the crevices between rock faces at B15 (76.5, −26.9, 30.0) and H08 (71.4, −19.6, 55.2): can play get him down into one, where no way out works? [movement](systems/movement.md#wedged-against-a-leaning-plain-wall)
+
 ## Menus
 
 - **A new game from the load menu** (the runtime, with a save from `aidyn save new` or the editor's new game): load it from the System tab's Load. Does it play the opening cinematic, then the opening's script on its stage, then trek in Overworld I08, as a plain launch does? [saves](systems/saves.md#the-format)

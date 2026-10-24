@@ -41,6 +41,37 @@ public sealed class PlayerMotion
     /// <summary>Below this height, he has fallen out of the world (<c>ConfirmPlayerWithinZone</c>).</summary>
     public const float Floor = -50;
 
+    /// <summary>
+    /// Falling faster than this a tick, he can't steer and his animation doesn't move him (<c>ProcessPlayers</c>, <c>0x800132f4</c>:
+    /// <c>0x800cdb60</c>, −0.048, for a body of Alaron's actor, <c>+0x70B</c>).
+    /// </summary>
+    public const float Falling = -0.048f;
+
+    /// <summary>
+    /// The ticks he may be falling by his velocity without dropping before he steers again (<see cref="Pinned"/>), the port's:
+    /// a quarter of a second.
+    /// </summary>
+    public const int PinnedTicks = 15;
+
+    /// <summary>Less than this lower than where <see cref="Pinned"/>'s count began, he hasn't dropped.</summary>
+    private const float PinnedDrop = 0.05f;
+
+    /// <summary>
+    /// The ticks in a row he has been falling by his velocity (<see cref="Falling"/>), on that tick or the one before, yet stands,
+    /// after each tick's collision, no more than <see cref="PinnedDrop"/> lower than as the count began. From
+    /// <see cref="PinnedTicks"/> he steers and his animation moves him again, the port's, as the user chose to rescue rather than
+    /// leave him stuck: against a leaning plain wall the ground rule, or a wall facing it, can hold him up while plain collision's
+    /// push keeps his velocity falling, and 1.0 leaves him there with no way out. A real fall drops him at least 0.048 a tick, so
+    /// it never counts past 2.
+    /// </summary>
+    public int Pinned { get; private set; }
+
+    /// <summary>His height as <see cref="Pinned"/>'s count began.</summary>
+    private float _pinnedFrom;
+
+    /// <summary>Whether he was falling (<see cref="Falling"/>) on the last tick.</summary>
+    private bool _fellLastTick;
+
     public PlayerMotion(Vector3 position, Vector2 heading)
     {
         Body = new Body(position, Radius) { Heading = Vector2.Normalize(heading) };
@@ -115,8 +146,18 @@ public sealed class PlayerMotion
         Body.Press();
 
         var forward = Body.Animate(animation);
-        // Falling: no steering.
-        if (Sphere.Velocity.Y <= -0.048f)
+        // Falling: no steering, unless he has been held where he is for a while, falling by his velocity alone.
+        var falling = Sphere.Velocity.Y <= Falling;
+        // A frame's push lands on one of its ticks, so a body held so can be falling on every other tick only.
+        var fellThisFrame = falling || _fellLastTick;
+        _fellLastTick = falling;
+        if (!fellThisFrame)
+            Pinned = 0;
+        else if (Pinned == 0)
+            (Pinned, _pinnedFrom) = (1, height);
+        else
+            Pinned = Sphere.Position.Y > _pinnedFrom - PinnedDrop ? Pinned + 1 : 0;
+        if (falling && Pinned < PinnedTicks)
             Sphere.Velocity.X = Sphere.Velocity.Z = 0;
         else
             Body.Advance(forward);
