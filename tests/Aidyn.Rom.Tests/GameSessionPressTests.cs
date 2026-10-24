@@ -470,4 +470,94 @@ public sealed partial class GameSessionTests
         // Locked tabs aren't remembered.
         Assert.Equal(PauseTab.System, menu.Remembered);
     }
+
+    /// <summary>Opens the loot window on herbs and spice the party holds nearly 99 of, and ticks until it takes presses.</summary>
+    private static (RecordId Herb, RecordId Spice) NearlyFullOfHerbsAndSpice(GameSession session)
+    {
+        var inventory = session.Game.Party.Inventory;
+        var rules = inventory.Catalog.Rules;
+        inventory.Add(rules.Herb, 95 - inventory.Count(rules.Herb));
+        inventory.Add(rules.Spice, 97 - inventory.Count(rules.Spice));
+        return (rules.Herb, rules.Spice);
+    }
+
+    /// <summary>Takes each item's row with A, then B and Yes to leave what's left, and ticks until the menu has closed.</summary>
+    private static void TakeEachThenLeaveTheRest(GameSession session, params RecordId[] items)
+    {
+        var menu = session.Menu;
+        var loot = Assert.IsType<BarterMenu>(menu.Window);
+        foreach (var item in items)
+        {
+            loot.Point(pile: true, loot.Pile.Rows.Select((r, i) => (r, i)).Single(e => e.r.Item.Id == item).i);
+            Assert.Equal(PressOutcome.Taken, session.Press(MenuAction.Accept));
+            Assert.Null(loot.Message);
+        }
+        Assert.Equal(PressOutcome.Taken, session.Press(MenuAction.Back));
+        Assert.NotNull(loot.Choice);
+        Assert.Equal(0, loot.Choice!.Choices.Cursor);
+        // "Yes, leave them." rolls the scroll up as B on an empty pile does (BarterMenu.LeaveItems, 0x8003d5f4: PauseMenu.CloseToTrek).
+        Assert.Equal(PressOutcome.Taken, session.Press(MenuAction.Accept));
+        Assert.Equal(PauseScrollPhase.Rolling, menu.Scroll.Phase);
+        TickUntilMenuClosed(session);
+    }
+
+    /// <summary>
+    /// A container's loot window, with more herbs and spice than fit under 99: taking each fills the party's stack and leaves the
+    /// rest, and "Yes, leave them." closes the window to trek, the rest lost.
+    /// </summary>
+    [Fact]
+    public void LeavingWhatDidntFitUnderNinetyNineClosesTheLootWindowToTrek()
+    {
+        var (session, _) = Start("G14", 40, 40);
+        Tick(session);
+        var (herb, spice) = NearlyFullOfHerbsAndSpice(session);
+        var pile = new ItemPile(session.Game.Party.Inventory.Catalog);
+        pile.Add(herb, 10);
+        pile.Add(spice, 10);
+        session.OpenLoot(pile, gold: 0);
+        while (!session.Menu.Taking)
+            Tick(session);
+
+        TakeEachThenLeaveTheRest(session, herb, spice);
+
+        Assert.Equal(GameMode.Trek, session.Mode);
+        Assert.Equal((99, 99), (session.Game.Party.Inventory.Count(herb), session.Game.Party.Inventory.Count(spice)));
+        Assert.Equal(14, pile.Stacks.Sum(s => s.Quantity));
+    }
+
+    /// <summary>
+    /// The user's Chaos Island battle: the post-battle window closes into the loot, which offers more herbs and spice than fit under
+    /// 99; taking part of each and choosing "Yes, leave them." ends the windows, and trek comes back.
+    /// </summary>
+    [Fact]
+    public void LeavingWhatDidntFitUnderNinetyNineEndsThePostBattleWindows()
+    {
+        var (session, host) = Start();
+        var (battle, _, _) = RatBattle(session, host);
+        foreach (var rat in battle.Combatants.Where(c => c.Hostile).ToList())
+            Kill(battle, rat);
+        Assert.True(battle.Skip());
+        Assert.Equal(SessionStep.CombatOver, TickUntil(session, SessionStep.CombatOver));
+        var (herb, spice) = NearlyFullOfHerbsAndSpice(session);
+        var spoils = battle.Spoils!;
+        spoils.Loot.Add(herb, 10);
+        spoils.Loot.Add(spice, 10);
+        session.EndBattle();
+        var menu = session.Menu;
+        while (!menu.Taking)
+            Assert.Equal(SessionStep.Held, Tick(session));
+        Assert.IsType<PostBattleMenu>(menu.Window);
+        // B closes the post-battle window into the loot.
+        Assert.Equal(PressOutcome.Taken, session.Press(MenuAction.Back));
+        while (menu.Swapping)
+            Assert.Equal(SessionStep.Held, Tick(session));
+        host.Transitions.Clear();
+
+        TakeEachThenLeaveTheRest(session, herb, spice);
+
+        Assert.Equal([typeof(Transition.ResumeTrek)], host.Transitions.Select(t => t.GetType()));
+        Assert.Null(session.PostBattle);
+        Assert.Equal(GameMode.Trek, session.Mode);
+        Assert.Equal((99, 99), (session.Game.Party.Inventory.Count(herb), session.Game.Party.Inventory.Count(spice)));
+    }
 }
