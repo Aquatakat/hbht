@@ -72,7 +72,7 @@ public sealed class ChunkScenery
     /// blended, after the opaque scenery, without writing depth, as the original does, and its
     /// cut-outs blended rather than cut (<see cref="N64Material.Faded"/>).
     /// </summary>
-    public void Fade(in SceneView view, DrawDistance range)
+    public void Fade(in SceneView view, ObjectDistance range)
     {
         Span<byte> alphas = stackalloc byte[3];
         foreach (var placed in Objects)

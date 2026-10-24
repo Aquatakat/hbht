@@ -73,7 +73,7 @@ public interface ISystemPage
 /// Each page crossfades with the one before (<c>OptionsMenu.Step</c>, <c>0x8003f81c</c>): the new one comes in at alpha 0
 /// and the old stays at 255, then each tick the new rises by 60 and the old falls by 60, 5 ticks each way. The
 /// original fades the list, the options, the save and load screens and the Theatre's page so; the port fades the
-/// graphics page and the name entry the same, as the user asked (Oct 17, 2026).
+/// options' pages and the name entry the same, as the user asked (Oct 17, 2026).
 /// </para>
 /// </remarks>
 public sealed class SystemMenu
@@ -300,7 +300,7 @@ public sealed class SystemMenu
         public void Point(int row) => menu.Items.Point(row);
     }
 
-    /// <summary>The options, and their graphics page: A follows a link, and Rename Character opens the name entry.</summary>
+    /// <summary>The options, and their pages: A follows a link, and Rename Character opens the name entry.</summary>
     private sealed class OptionsPage(SystemMenu menu) : ISystemPage
     {
         public SystemPage Kind => SystemPage.Options;

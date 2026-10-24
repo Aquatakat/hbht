@@ -63,7 +63,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     private Texture2D? _shadowTexture;
     private SkyView? _sky;
     private readonly FrameGate _textureFrame = new(Core.Cadence.TextureFrameTicks);
-    private DrawDistance _drawDistance = DrawDistance.Original;
+    private ObjectDistance _objectDistance = ObjectDistance.Original;
     private PluginSet? _plugins;
     private readonly UiScreen _trekScreen = new();
     private TrekPopupView? _popupView;
@@ -390,7 +390,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
             _ => Viewport.Msaa.Disabled,
         };
         ApplyWorldLines();
-        _drawDistance = new DrawDistance(s.DrawDistance, s.NearestDetail);
+        _objectDistance = new ObjectDistance(s.ObjectDistance, s.NearestDetail);
         _cinematic?.Viewport.Msaa3D = GetViewport().Msaa3D;
         foreach (var screen in new[] { _menu?.Screen, _backdrop?.Screen, _cinematic?.Screen, _credits?.Screen, _trekScreen })
         {
@@ -715,7 +715,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         // under the post-battle windows.
         if (_session?.StreamsTrek ?? true)
             chunks.Chunks.Update(focus.ToNumerics());
-        chunks.Fade(View(), _drawDistance);
+        chunks.Fade(View(), _objectDistance);
         // From where the scenery is drawn this frame: between ticks, the camera interpolated.
         var eye = _camera.Current.GetGlobalTransformInterpolated().Origin;
         Billboards.Face(chunks.BillboardFacings, eye);

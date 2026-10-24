@@ -500,10 +500,10 @@ public sealed class MapObjectImportTests(Na10Import fixture)
     {
         var map = Data.Map("aidyn:map/0x0FDB");
         var light = Assert.IsType<SceneObject>(map.Objects.Single(o => o.Index == 104));
-        var highest = new Core.Scenes.DrawDistance(NearestDetail: true);
+        var highest = new Core.Scenes.ObjectDistance(NearestDetail: true);
 
         // The player south of it, the camera 5 behind him, looking north at it.
-        byte[] At(SceneObject o, float distance, Core.Scenes.DrawDistance range)
+        byte[] At(SceneObject o, float distance, Core.Scenes.ObjectDistance range)
         {
             var at = o.Position + new System.Numerics.Vector3(0, 0, distance);
             var view = new Core.Scenes.SceneView(at, new(at.X, at.Z + 5), new(0, -1), 5, Core.Scenes.ViewCone.Original);
@@ -514,7 +514,7 @@ public sealed class MapObjectImportTests(Na10Import fixture)
 
         // The billboard, the second level, shows as the original's does, and fades out as the empty first fades in.
         foreach (var d in new[] { 20f, 10f, 4.5f, 3.5f, 2.5f })
-            Assert.Equal(At(light, d, Core.Scenes.DrawDistance.Original)[1], At(light, d, highest)[1]);
+            Assert.Equal(At(light, d, Core.Scenes.ObjectDistance.Original)[1], At(light, d, highest)[1]);
         Assert.Equal([0, 255], At(light, 10, highest));
         Assert.Equal([0, 127], At(light, 3.5f, highest));
         Assert.Equal([0, 0], At(light, 2.5f, highest));
@@ -522,7 +522,7 @@ public sealed class MapObjectImportTests(Na10Import fixture)
         // A tree near the lights: past its first level's distance the original draws its second, Highest still its first.
         var tree = map.Objects.OfType<SceneObject>().First(o => o.Lods == 2 && o.Models.Take(2).All(m => !m.Empty) && !o.GoesOut);
         var past = tree.Models[0].DrawDistance + 1;
-        Assert.Equal([0, 255], At(tree, past, Core.Scenes.DrawDistance.Original));
+        Assert.Equal([0, 255], At(tree, past, Core.Scenes.ObjectDistance.Original));
         Assert.Equal([255, 0], At(tree, past, highest));
         Assert.Equal([255, 0], At(tree, 1, highest));
     }

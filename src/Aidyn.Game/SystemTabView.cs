@@ -7,7 +7,7 @@ namespace Aidyn.Game;
 
 /// <summary>
 /// Draws the pause menu's System tab (<see cref="SystemMenu"/>) on a <see cref="UiScreen"/>'s canvas: its list, the
-/// options with their graphics page, the save and load screens and the name entry, in the original's 320 × 240 frame
+/// options with their pages, the save and load screens and the name entry, in the original's 320 × 240 frame
 /// at the screen's centre, on the tab's image, <c>0x00D8</c>.
 /// </summary>
 public partial class SystemTabView : Control
@@ -26,10 +26,10 @@ public partial class SystemTabView : Control
     private const int OptionsTitleTop = 40, OptionsLeft = 84, OptionsTop = 74, OptionsSpacing = 4;
 
     /// <summary>
-    /// The graphics page's labels' and values' left edges, its first row's top and its rows' pitch. The labels clear the System
-    /// roller, whose inner edge is at about x 61, as the original's options are shifted 25 right of centre to clear it.
+    /// The Video and Enhancements pages' labels' and values' left edges, their first row's top and their rows' pitch. The labels
+    /// clear the System roller, whose inner edge is at about x 61, as the original's options are shifted 25 right of centre to clear it.
     /// </summary>
-    private const int GraphicsLabel = 72, GraphicsValue = 204, GraphicsTop = 72, GraphicsPitch = 12;
+    private const int ChoiceLabel = 72, ChoiceValue = 204, ChoiceTop = 72, ChoicePitch = 12;
 
     // WidgetContPakData and ControllerPakSliders: the title, the screenshot stretched to 104 × 78, the portraits,
     // the arrow, the name and the time played, and the actions.
@@ -195,27 +195,30 @@ public partial class SystemTabView : Control
         }
     }
 
+    /// <summary>Whether the options' page lists settings with their values beside them, in two columns.</summary>
+    private static bool HasChoices(OptionsMenu options) => options.Page is OptionsPage.Video or OptionsPage.Enhancements;
+
     /// <summary>Where each options row is: its label's top, and the bottom of what it draws (a volume's bar too).</summary>
     private List<(int Top, int Bottom)> OptionRows(OptionsMenu options)
     {
         var rows = new List<(int, int)>();
-        var graphics = options.Page == OptionsPage.Graphics;
-        var y = graphics ? GraphicsTop : OptionsTop;
+        var choices = HasChoices(options);
+        var y = choices ? ChoiceTop : OptionsTop;
         foreach (var row in options.Rows.Rows)
         {
             if (row.GapBefore)
                 y += OptionsMenu.Gap;
             var height = _ui.Main.LineHeight + (row.Kind == OptionKind.Volume ? _ui.Size(MenuImages.VolumeBar).Y : 0);
             rows.Add((y, y + height));
-            y += graphics ? GraphicsPitch : height + OptionsSpacing;
+            y += choices ? ChoicePitch : height + OptionsSpacing;
         }
         return rows;
     }
 
     /// <summary>
-    /// The options (<c>WidgetOptionsConfig</c>), as the user laid them out: the original's title, its volumes' rope
-    /// bars under their labels, and Graphics and Rename Character set off by half a line; or the graphics page, under
-    /// the same title, each setting with its value beside it.
+    /// The options (<c>WidgetOptionsConfig</c>), as the user laid them out, under the original's title: the pages' links and Rename
+    /// Character set off by half a line, the Audio page's volumes with their rope bars under their labels, or the Video or
+    /// Enhancements page, each setting with its value beside it.
     /// </summary>
     private void Options(OptionsMenu options)
     {
@@ -228,10 +231,10 @@ public partial class SystemTabView : Control
             var row = options.Rows.Rows[i];
             var top = rows[i].Top;
             var color = i == options.Rows.Cursor ? cursor : OptionsMenu.TextColor;
-            if (options.Page == OptionsPage.Graphics)
+            if (HasChoices(options))
             {
-                _ui.Text(this, _ui.Main, row.Label, GraphicsLabel, top, color);
-                _ui.Text(this, _ui.Main, row.ValueName ?? "", GraphicsValue, top, color);
+                _ui.Text(this, _ui.Main, row.Label, ChoiceLabel, top, color);
+                _ui.Text(this, _ui.Main, row.ValueName ?? "", ChoiceValue, top, color);
                 continue;
             }
             _ui.Text(this, _ui.Main, row.Label, OptionsLeft, top, color);

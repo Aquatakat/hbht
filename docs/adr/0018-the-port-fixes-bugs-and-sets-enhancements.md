@@ -15,7 +15,7 @@ Rain shows the difference. The original's raindrops collide with the collision, 
 The port has already worked this way without a toggle anywhere:
 
 - **Bugs fixed:** the camera's mode now follows the chunk however the game was loaded ([cameras](../systems/cameras.md)), and each wanderer notices the player for itself ([wanderers](../systems/wanderers.md)).
-- **Enhancements as settings** on the options menu's graphics page ([0013](0013-settings-in-the-options-menu.md)): draw distance, model detail, the UI screen's height and filter, the sky's placement, rain density and a brisker pace.
+- **Enhancements as settings** on the options menu's pages ([0013](0013-settings-in-the-options-menu.md), [0024](0024-the-options-are-pages-by-kind.md)): draw distance, model detail, the UI screen's height and filter, the sky's placement, rain density and a brisker pace.
 
 ## Decision
 

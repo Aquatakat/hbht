@@ -214,7 +214,7 @@ public sealed class LoadedMap
     /// the scenery draws, so the settings don't scale it (docs/systems/rendering.md#draw-distance), and it isn't a setting the
     /// session is handed (<see cref="SessionSettings"/>).
     /// </summary>
-    public static readonly DrawDistance PutOutDistances = DrawDistance.Original;
+    public static readonly ObjectDistance PutOutDistances = ObjectDistance.Original;
 
     /// <summary>
     /// Puts out the active objects that go out once reached (<see cref="SceneObject.GoesOut"/>, Oriana's path

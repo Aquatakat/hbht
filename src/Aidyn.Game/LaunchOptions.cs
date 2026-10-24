@@ -20,7 +20,7 @@ namespace Aidyn.Game;
 /// &lt;x&gt;,&lt;y&gt;,&lt;z&gt;</c> to start with the free camera there in world coordinates, looking along <c>--yaw</c>
 /// and <c>--pitch</c>, <c>--time &lt;hours&gt;</c> for the time of day (a new game starts at 12), <c>--flags &lt;n&gt;,…</c>
 /// to set plain flags, <c>--weather rain|snow|fog|clear[,intensity[,fog]]</c> for the weather at once,
-/// <c>--precipitation &lt;scale&gt;</c> for that many times the original's raindrops and snowflakes, <c>--draw-distance
+/// <c>--precipitation &lt;scale&gt;</c> for that many times the original's raindrops and snowflakes, <c>--object-distance
 /// &lt;scale&gt;</c>, <c>--detail nearest</c>, <c>--lights off</c>, <c>--spell-fx off</c>, <c>--camera outdoor|interior</c> for the camera's mode
 /// (by default, what going through a door into the chunk gives), and <c>--hold &lt;action&gt;,&lt;seconds&gt;</c>, which
 /// holds an input such as <c>move_forward</c> (join several with <c>+</c>, as in <c>move_forward+walk</c>), and
@@ -130,8 +130,8 @@ public sealed class LaunchOptions(Dictionary<string, string> values)
         ? sky == "original" ? Core.Sky.SkyPlacement.Original : Core.Sky.SkyPlacement.Projected
         : null;
 
-    /// <summary><c>--draw-distance &lt;scale&gt;</c>.</summary>
-    public float? DrawDistance => Number("draw-distance");
+    /// <summary><c>--object-distance &lt;scale&gt;</c>.</summary>
+    public float? ObjectDistance => Number("object-distance");
 
     /// <summary><c>--detail nearest</c>: model detail's Highest.</summary>
     public bool? NearestDetail => Text("detail") is { } detail ? detail == "nearest" : null;

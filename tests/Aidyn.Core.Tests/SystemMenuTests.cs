@@ -1,4 +1,3 @@
-using Aidyn.Core.Sky;
 using Aidyn.Core.Ui;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
@@ -29,7 +28,9 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         var changes = 0;
         settings.Changed += () => changes++;
         var options = new OptionsMenu(settings, inGame: true);
+        options.Accept();
 
+        Assert.Equal(OptionsPage.Audio, options.Page);
         Assert.Equal((100, 65), (settings.SoundVolume, settings.MusicVolume));
         options.Change(1);
         Assert.Equal(100, settings.SoundVolume);
@@ -43,40 +44,59 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     }
 
     [Fact]
-    public void TheMainPageIsTheVolumesThenGraphicsAndRenameSetOffByHalfALine()
+    public void TheMainPageIsThePagesThenRenameSetOffByHalfALine()
     {
         var options = new OptionsMenu(new Settings(), inGame: true);
 
-        Assert.Equal(["Sound volume:", "Music volume:", "Graphics", "Rename Character"], options.Rows.Rows.Select(r => r.Label));
-        Assert.Equal([false, false, true, true], options.Rows.Rows.Select(r => r.GapBefore));
+        Assert.Equal(["Audio", "Video", "Enhancements", "Rename Character"], options.Rows.Rows.Select(r => r.Label));
+        Assert.Equal([false, false, false, true], options.Rows.Rows.Select(r => r.GapBefore));
         // The title screen's has no rename, as the original's leaves out its GAME rows.
         Assert.Equal(3, new OptionsMenu(new Settings(), inGame: false).Rows.Rows.Count);
     }
 
-    [Fact]
-    public void GraphicsOpensItsPageAndBReturnsToItsRow()
+    [Theory]
+    [InlineData(0, OptionsPage.Audio)]
+    [InlineData(1, OptionsPage.Video)]
+    [InlineData(2, OptionsPage.Enhancements)]
+    public void ALinkOpensItsPageAndBReturnsToItsRow(int row, OptionsPage page)
     {
-        var settings = new Settings();
-        var options = new OptionsMenu(settings, inGame: true);
-        options.Point(2);
+        var options = new OptionsMenu(new Settings(), inGame: true);
+        options.Point(row);
 
         Assert.Null(options.Accept());
-        Assert.Equal(OptionsPage.Graphics, options.Page);
+        Assert.Equal(page, options.Page);
         Assert.Equal(0, options.Rows.Cursor);
         Assert.True(options.Back());
         Assert.Equal(OptionsPage.Main, options.Page);
-        Assert.Equal(2, options.Rows.Cursor);
+        Assert.Equal(row, options.Rows.Cursor);
         Assert.False(options.Back());
     }
 
     [Fact]
-    public void AGraphicsSettingWrapsRoundItsValues()
+    public void TheVideoAndEnhancementsPagesListTheirSettings()
+    {
+        var options = new OptionsMenu(new Settings(), inGame: true);
+        options.Point(1);
+        options.Accept();
+        Assert.Equal(["Display", "Render Resolution", "Anti-Aliasing", "V-Sync"], options.Rows.Rows.Select(r => r.Label));
+        options.Back();
+        options.Point(2);
+        options.Accept();
+        Assert.Equal(["Draw Distance", "Object Distance", "Model Detail", "Rain and Snow", "Menu Size", "Menu Filter", "Pace", "Status Auras"],
+            options.Rows.Rows.Select(r => r.Label));
+        // A new player's are the original's, and the original's video out.
+        Assert.Equal(["Original", "Original", "Original", "Original", "Original", "Video Out", "Original", "Original"],
+            options.Rows.Rows.Select(r => r.ValueName));
+    }
+
+    [Fact]
+    public void AnEnhancementWrapsRoundItsValues()
     {
         var settings = new Settings();
         var options = new OptionsMenu(settings, inGame: true);
         options.Point(2);
         options.Accept();
-        options.Point(options.Rows.Rows.ToList().FindIndex(r => r.Label == "Menu size"));
+        options.Point(options.Rows.Rows.ToList().FindIndex(r => r.Label == "Menu Size"));
 
         Assert.Equal("Original", options.Rows.Current!.ValueName);
         options.Change(1);
@@ -88,9 +108,11 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         options.Change(-1);
         Assert.Equal(480, settings.UiLines);
 
-        options.Point(options.Rows.Rows.ToList().FindIndex(r => r.Label == "Sky"));
-        options.Change(1);
-        Assert.Equal(SkyPlacement.Original, settings.SkyPlacement);
+        options.Point(options.Rows.Rows.ToList().FindIndex(r => r.Label == "Object Distance"));
+        options.Change(-1);
+        Assert.Equal(3, settings.ObjectDistance);
+        options.Point(options.Rows.Rows.ToList().FindIndex(r => r.Label == "Menu Filter"));
+        Assert.Equal("Video Out", options.Rows.Current!.ValueName);
     }
 
     [Fact]
@@ -107,11 +129,11 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     {
         Directory.CreateDirectory(_saves);
         var path = Path.Combine(_saves, "settings.json");
-        new Settings { MusicVolume = 30, UiLines = 480, UiFilter = UiFilter.Smooth, BriskPace = true, DrawDistance = 1.4f }.Save(path);
+        new Settings { MusicVolume = 30, UiLines = 480, UiFilter = UiFilter.Smooth, BriskPace = true, ObjectDistance = 3, ExtendedDrawDistance = true }.Save(path);
 
         var read = Settings.Load(path);
 
-        Assert.Equal((30, 480, UiFilter.Smooth, true, 1.4f), (read.MusicVolume, read.UiLines, read.UiFilter, read.BriskPace, read.DrawDistance));
+        Assert.Equal((30, 480, UiFilter.Smooth, true, 3f, true), (read.MusicVolume, read.UiLines, read.UiFilter, read.BriskPace, read.ObjectDistance, read.ExtendedDrawDistance));
         Assert.Equal(100, Settings.Load(Path.Combine(_saves, "none.json")).SoundVolume);
     }
 
@@ -234,12 +256,12 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         Assert.Equal([(60, 195), (120, 135), (180, 75), (240, 15), (255, 0)], alphas);
         Assert.Null(system.Outgoing);
 
-        // The graphics page fades out as it was, though the options have gone back to their main page.
+        // The Enhancements page fades out as it was, though the options have gone back to their main page.
         system.Options!.Point(2);
         system.Accept();
-        Assert.Equal((OptionsPage.Graphics, OptionsPage.Main), (system.Options.Page, system.Outgoing!.Options!.Page));
+        Assert.Equal((OptionsPage.Enhancements, OptionsPage.Main), (system.Options.Page, system.Outgoing!.Options!.Page));
         system.Back();
-        Assert.Equal((OptionsPage.Main, OptionsPage.Graphics), (system.Options.Page, system.Outgoing!.Options!.Page));
+        Assert.Equal((OptionsPage.Main, OptionsPage.Enhancements), (system.Options.Page, system.Outgoing!.Options!.Page));
         Assert.Equal(2, system.Options.Rows.Cursor);
         // Back to the list, which the options fade out over.
         system.Back();

@@ -119,7 +119,7 @@ public partial class ChunkStreamerView : Node3D
     public IEnumerable<Node3D> BillboardFacings => _loaded.Values.SelectMany(c => c.Billboards);
 
     /// <summary>Shows and fades the loaded chunks' scene objects for this view (<see cref="ChunkScenery.Fade"/>).</summary>
-    public void Fade(in SceneView view, DrawDistance range)
+    public void Fade(in SceneView view, ObjectDistance range)
     {
         foreach (var scenery in _loaded.Values)
             scenery.Fade(view, range);

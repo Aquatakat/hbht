@@ -61,9 +61,9 @@ public readonly record struct ViewCone(float FadeFrom, float Gone)
 /// one is kept: Oriana's path lights, whose first level is empty, fade out as the player reaches them, and a tree
 /// shows its first level out to where its last ends.
 /// </param>
-public sealed record DrawDistance(float Scale = 1, bool NearestDetail = false)
+public sealed record ObjectDistance(float Scale = 1, bool NearestDetail = false)
 {
-    public static readonly DrawDistance Original = new();
+    public static readonly ObjectDistance Original = new();
 }
 
 /// <summary>
@@ -91,9 +91,9 @@ public static class SceneObjectFade
     /// <param name="o">The object.</param>
     /// <param name="origin">Its chunk's corner.</param>
     /// <param name="alphas">One for each of the object's <see cref="SceneObject.Lods"/>.</param>
-    public static void Alphas(SceneObject o, Vector3 origin, in SceneView view, Span<byte> alphas, DrawDistance? range = null)
+    public static void Alphas(SceneObject o, Vector3 origin, in SceneView view, Span<byte> alphas, ObjectDistance? range = null)
     {
-        range ??= DrawDistance.Original;
+        range ??= ObjectDistance.Original;
         alphas.Clear();
         var position = origin + o.Position;
         var distance = Vector3.Distance(view.Focus, position);
@@ -129,15 +129,15 @@ public static class SceneObjectFade
     }
 
     /// <summary>Level <paramref name="i"/>'s alpha by its distance alone (<see cref="LevelAlpha"/>).</summary>
-    private static byte Level(SceneObject o, int i, float distance, DrawDistance range) =>
+    private static byte Level(SceneObject o, int i, float distance, ObjectDistance range) =>
         LevelAlpha(distance, i == 0 ? 0 : Boundary(o, i - 1, range), Boundary(o, i, range));
 
     /// <summary>
-    /// Where level <paramref name="i"/> ends, stretched by <see cref="DrawDistance.Scale"/>, except where an empty level
+    /// Where level <paramref name="i"/> ends, stretched by <see cref="ObjectDistance.Scale"/>, except where an empty level
     /// gives way to one that draws something: there an object vanishes as the player nears it, Oriana's path lights
     /// among them, and the data's own distance is kept whatever the draw distance (the user's choice).
     /// </summary>
-    private static float Boundary(SceneObject o, int i, DrawDistance range)
+    private static float Boundary(SceneObject o, int i, ObjectDistance range)
     {
         var vanishes = o.Models[i].Empty && i + 1 < o.Models.Count && !o.Models[i + 1].Empty;
         return o.Models[i].DrawDistance * (vanishes ? 1 : range.Scale);

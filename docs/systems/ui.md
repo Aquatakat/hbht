@@ -207,8 +207,8 @@ The pause menu's first tab (`WidgetOptionsMenu`, `MakeScrollList` at `0x8003f8c4
 - **Help** rolls the menu up as closing does, and then the help menu starts, script `0x054B` on the book's page, which returns to trek when it ends, not to the menu ([books and the help menu](#books-and-the-help-menu)). A on Help, Credits or a seen cinematic returns the menu's exit (`PauseExit.Help`, `Credits` or `Theatre`), and the menu closes with it. The tab's pages (the list, the options, the save screens, the name entry and the Theatre's page) are `ISystemPage`s, which take the stick, A, B and the mouse each their own way.
 - **Theater** opens the Theatre's page: see [cinematics](cinematics.md#the-theatre).
 - **Credits** rolls the menu up as closing does, and then [the credits](#the-credits) play.
-- **The pages crossfade.** Choosing Load Game, Save Game, Options or Theater, or going back to the list, builds the new page at alpha 0 and keeps the one shown at 255 (`OptionsMenu.ShowLoad`, `ShowSave`, `ShowOptions`, `ShowTheatre`); each frame the tab's step raises the new page's alpha by 60 to 255 and lowers the old one's by 60 to 0 (`OptionsMenu.Step`, `0x8003f81c`), 5 frames each way. Only the widgets fade, not the parchment. The menu opening, on the list or on the Theatre's page after a cinematic, shows its page at once. The port's graphics page and the name entry crossfade the same way, the user's choice; `SystemMenu.Outgoing` keeps the options as they were before the page changed, to draw the page fading out.
-- **B or Start** on the list closes the menu. In a screen, B goes back to the list, or from the graphics page to the options.
+- **The pages crossfade.** Choosing Load Game, Save Game, Options or Theater, or going back to the list, builds the new page at alpha 0 and keeps the one shown at 255 (`OptionsMenu.ShowLoad`, `ShowSave`, `ShowOptions`, `ShowTheatre`); each frame the tab's step raises the new page's alpha by 60 to 255 and lowers the old one's by 60 to 0 (`OptionsMenu.Step`, `0x8003f81c`), 5 frames each way. Only the widgets fade, not the parchment. The menu opening, on the list or on the Theatre's page after a cinematic, shows its page at once. The options' pages and the name entry crossfade the same way, the user's choice; `SystemMenu.Outgoing` keeps the options as they were before the page changed, to draw the page fading out.
+- **B or Start** on the list closes the menu. In a screen, B goes back to the list, or from an options page to the options.
 
 #### Changing tab
 
@@ -221,28 +221,30 @@ The pause menu's first tab (`WidgetOptionsMenu`, `MakeScrollList` at `0x8003f8c4
 
 #### Options
 
-The user laid this out, and it isn't the original's ([ADR 0013](../adr/0013-settings-in-the-options-menu.md)). The original's is in capitals under the headings AUDIO, GRAPHICS and GAME, shifted 25 right of centre to clear the roller. The port's has mixed case and no headings, and the graphics settings go on a page of their own.
+The user laid this out, and it isn't the original's ([ADR 0013](../adr/0013-settings-in-the-options-menu.md), [ADR 0024](../adr/0024-the-options-are-pages-by-kind.md)). The original's is in capitals under the headings AUDIO, GRAPHICS and GAME, shifted 25 right of centre to clear the roller. The port's is in Title Case, the user's choice over the original's sentence case elsewhere, and each kind of setting has a page of its own under the same Options title.
 
-- **The page:** the Options title `0x00FD` centred at y 40. From y 74 at x 84 come "Sound volume:" and "Music volume:", each with its bar under it, then Graphics and Rename Character, each set off by half a line (5). Rows are 4 apart, and a volume's row is its label and the bar.
+- **The main page:** the Options title `0x00FD` centred at y 40. From y 74 at x 84 come Audio, Video and Enhancements, then Rename Character in a game, set off by half a line (5). Rows are 4 apart. A opens a page; B on a page comes back to the row that led there.
+- **Audio** lists "Sound Volume:" and "Music Volume:" in the same place, each with its bar under it; a volume's row is its label and the bar.
 - **The bars** are `0x00D7`, a braided rope 152 × 18. Each is drawn whole in (100, 100, 100) at a quarter of the widget's alpha, then again in the rows' colour, cut at 152 × the volume. The volumes are the original's floats from 0 to 1, which the stick steps by 0.01, so the port keeps them in hundredths. They start at 1.0 for sound and 0.65 for music (`app.cpp`). A volume steps every frame the stick is held, from the first, with no wait (not the menus' held repeat).
 - **The cursor's row** pulses from (130, 80, 80) toward dark brown (103, 70, 60), its alpha falling by 12 a step, so it fades nearly out at the deepest. Each channel moves a whole 20th of its way a step, rounded toward zero, so the colour reaches only (110, 80, 60). It steps in the page's draw (`OptionsPage.Draw`, `0x800419c8`), once a frame, and turns at 20, 40 frames a cycle.
-- **Graphics** opens a page under the same title, listing each setting at x 72 with its value at x 204, 12 apart, clear of the System roller's inner edge at about 61. The stick's left and right change the cursor's setting, wrapping round, and so does A. The settings take effect from the next tick and are kept in `settings.json` in the data folder:
+- **Video and Enhancements** list each setting at x 72 with its value at x 204, 12 apart, clear of the System roller's inner edge at about 61. The stick's left and right change the cursor's setting, wrapping round, and so does A. The settings take effect from the next tick and are kept in `settings.json` in the data folder:
 
-  | Setting | Values |
-  | --- | --- |
-  | Display | Windowed, Fullscreen |
-  | V-sync | On, Off |
-  | 3D resolution | Full, 480 lines, 240 lines (bilinear, through Godot's 3D scaling) |
-  | Anti-aliasing | Off, 2x, 4x, 8x (MSAA) |
-  | Draw distance | Original, Farther (1.2×), Farthest (1.4×): see [rendering](rendering.md#draw-distance) |
-  | Model detail | Original, Highest (the nearest level with a model, where the original draws one: [rendering](rendering.md#draw-distance)) |
-  | Rain and snow | Original, 2x, 4x, 8x ([weather](weather.md#more-rain-than-the-original)) |
-  | Sky | Projected, Original ([rendering](rendering.md#the-skys-objects)) |
-  | Menu size | Original (240 lines), Smaller (360), Smallest (480): the UI screen's height, for the menu and trek's popups and box |
-  | Menu filter | Video out, Sharp, Smooth (`UiFilter`) |
-  | Pace | Original, Brisk (1.3×) |
-  | Spell auras | Original (the lasting spells' and potions' scenes over heads take turns one at a time across the battle), Each character (each character's in turn over its own head, all at once): see [combat](combat.md#what-spells-look-like) |
+  | Page | Setting | Values |
+  | --- | --- | --- |
+  | Video | Display | Windowed, Fullscreen |
+  | | Render Resolution | Native, 480 Lines, 240 Lines (bilinear, through Godot's 3D scaling) |
+  | | Anti-Aliasing | Off, 2x, 4x, 8x (MSAA) |
+  | | V-Sync | On, Off |
+  | Enhancements | Draw Distance | Original, Extended (the Overworld's terrain out to the 5 × 5 chunks round the player: [rendering](rendering.md#draw-distance)) |
+  | | Object Distance | Original, 2x, 3x: see [rendering](rendering.md#draw-distance) |
+  | | Model Detail | Original, Highest (the nearest level with a model, where the original draws one: [rendering](rendering.md#draw-distance)) |
+  | | Rain and Snow | Original, 2x, 4x, 8x ([weather](weather.md#more-rain-than-the-original)) |
+  | | Menu Size | Original (240 lines), Smaller (360), Smallest (480): the UI screen's height, for the menu and trek's popups and box |
+  | | Menu Filter | Sharp, Smooth, Video Out (`UiFilter`) |
+  | | Pace | Original, Brisk (1.3×) |
+  | | Status Auras | Original (the lasting spells' and potions' scenes over heads take turns one at a time across the battle), More Often (each character's in turn over its own head, all at once): see [combat](combat.md#what-spells-look-like) |
 
+- **The sky's placement** is off the menu, the user's choice: the projected sky is always drawn, and F6 or `--sky original` draws the original's for comparing ([rendering](rendering.md#the-skys-objects)).
 - **How a setting takes effect** is the runtime's ([runtime](runtime.md), [ADR 0023](../adr/0023-the-core-is-handed-its-settings-each-tick.md)): the menu changes the player's `Settings`, which nothing else in the core reads. The command line's settings for a run lie over the player's and are never saved ([runtime](runtime.md#the-command-line)), so the page shows the player's own.
 - **The original's resolution row** switches to the Expansion Pak's high resolution (512 × 240) and back; without the pak, it's greyed and the cursor skips it. "32 Bit Color" is in the table, but nothing reaches it.
 - **The original keeps its volumes and resolution in every save** (`QuestData::Save`), so loading set them back. The port keeps the settings per player instead.

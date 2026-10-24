@@ -47,8 +47,11 @@ public sealed class Settings
 
     public bool VSync { get; set; } = true;
 
+    /// <summary>Whether the Overworld's terrain is drawn out to the 5 × 5 chunks around the player rather than the original's 3 × 3.</summary>
+    public bool ExtendedDrawDistance { get; set; }
+
     /// <summary>How far scene objects are drawn, as a multiple of the original's distances.</summary>
-    public float DrawDistance { get; set; } = 1;
+    public float ObjectDistance { get; set; } = 1;
 
     /// <summary>Whether scene objects always draw their nearest, most detailed level.</summary>
     public bool NearestDetail { get; set; }
@@ -56,6 +59,7 @@ public sealed class Settings
     /// <summary>How many raindrops and snowflakes fall, as a multiple of the original's (<see cref="Particles.WeatherParticles.Density"/>).</summary>
     public float PrecipitationDensity { get; set; } = 1;
 
+    /// <summary>How the sky places its objects: no longer on the options menu, the user's choice, but kept for F6 and <c>--sky</c>.</summary>
     public SkyPlacement SkyPlacement { get; set; } = SkyPlacement.Projected;
 
     /// <summary>Whether trek runs at a faster pace than the original's, which feels slow on a PC.</summary>

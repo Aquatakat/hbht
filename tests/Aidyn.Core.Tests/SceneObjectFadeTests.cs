@@ -105,10 +105,10 @@ public class SceneObjectFadeTests
     }
 
     [Fact]
-    public void AFartherDrawDistanceScalesTheRadiusAndEachLevel()
+    public void AFartherObjectDistanceScalesTheRadiusAndEachLevel()
     {
         var tree = Tree(Vector3.Zero, SceneObjectFlags.Solid);
-        var twice = new DrawDistance(2);
+        var twice = new ObjectDistance(2);
         Assert.Equal([255, 0], At(tree, 25, twice));
         Assert.Equal([0, 255], At(tree, 50, twice));
         Assert.Equal([0, 127], At(tree, 79.5f, twice));
@@ -118,7 +118,7 @@ public class SceneObjectFadeTests
     public void TheNearestDetailIsDrawnOutToTheFarthestLevelsDistance()
     {
         var tree = Tree(Vector3.Zero, SceneObjectFlags.Solid);
-        var nearest = new DrawDistance(NearestDetail: true);
+        var nearest = new ObjectDistance(NearestDetail: true);
         Assert.Equal([255, 0], At(tree, 20, nearest));
         Assert.Equal([127, 0], At(tree, 39.5f, nearest));
     }
@@ -129,7 +129,7 @@ public class SceneObjectFadeTests
         // An empty first level to 15, as Oriana's path lights' to 5: the second fades in from 13 to 14 and out from 39 to 40.
         var tree = Tree(Vector3.Zero, SceneObjectFlags.Solid);
         var light = tree with { Models = [tree.Models[0] with { Empty = true }, tree.Models[1]] };
-        var nearest = new DrawDistance(NearestDetail: true);
+        var nearest = new ObjectDistance(NearestDetail: true);
         Assert.Equal([0, 0], At(light, 12, nearest));
         Assert.Equal([0, 127], At(light, 13.5f, nearest));
         Assert.Equal([0, 255], At(light, 20, nearest));
@@ -138,12 +138,12 @@ public class SceneObjectFadeTests
     }
 
     [Fact]
-    public void AFartherDrawDistanceKeepsWhereAnEmptyLevelGivesWay()
+    public void AFartherObjectDistanceKeepsWhereAnEmptyLevelGivesWay()
     {
         // At 2×, the light still vanishes from 14 to 13 as the data has it, but reaches out to 80 like everything else.
         var tree = Tree(Vector3.Zero, SceneObjectFlags.Solid);
         var light = tree with { Models = [tree.Models[0] with { Empty = true }, tree.Models[1]] };
-        foreach (var range in new[] { new DrawDistance(2), new DrawDistance(2, NearestDetail: true) })
+        foreach (var range in new[] { new ObjectDistance(2), new ObjectDistance(2, NearestDetail: true) })
         {
             // The empty level's own alpha draws nothing, so only the billboard's matters.
             Assert.Equal([0, 127, 255, 127], new[] { 12, 13.5f, 50, 79.5f }.Select(d => At(light, d, range)[1]));
@@ -155,7 +155,7 @@ public class SceneObjectFadeTests
     {
         var tree = Tree(Vector3.Zero, SceneObjectFlags.Solid);
         var gone = tree with { Models = [tree.Models[0], tree.Models[1] with { Empty = true }] };
-        var nearest = new DrawDistance(NearestDetail: true);
+        var nearest = new ObjectDistance(NearestDetail: true);
         Assert.Equal([255, 0], At(gone, 13.5f, nearest));
         Assert.Equal([127, 0], At(gone, 14.5f, nearest));
         Assert.Equal([0, 0], At(gone, 20, nearest));
@@ -171,7 +171,7 @@ public class SceneObjectFadeTests
             2, Vector3.Zero, Vector3.One, default, flags);
 
     /// <summary>The levels' alphas with the player <paramref name="distance"/> along the look from the object, facing it.</summary>
-    private static byte[] At(SceneObject o, float distance, DrawDistance? range = null)
+    private static byte[] At(SceneObject o, float distance, ObjectDistance? range = null)
     {
         var view = View with { Focus = o.Position - new Vector3(distance, 0, 0), Camera = new Vector2(o.Position.X - distance - 10, o.Position.Z) };
         var alphas = new byte[o.Lods];

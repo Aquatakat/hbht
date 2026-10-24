@@ -1,4 +1,3 @@
-using Aidyn.Core.Sky;
 using Aidyn.Plugins.Records;
 
 namespace Aidyn.Core.Ui;
@@ -16,10 +15,12 @@ public enum OptionKind
     Link,
 }
 
-/// <summary>Where an options row that's a <see cref="OptionKind.Link"/> leads.</summary>
+/// <summary>Where an options row that's a <see cref="OptionKind.Link"/> leads: one of the menu's pages, or out of it.</summary>
 public enum OptionLink
 {
-    Graphics,
+    Audio,
+    Video,
+    Enhancements,
     RenameCharacter,
 }
 
@@ -43,23 +44,29 @@ public sealed record OptionRow(string Label, OptionKind Kind, Func<int> Get, Act
 /// <summary>The options menu's pages.</summary>
 public enum OptionsPage
 {
-    /// <summary>The original's: the volumes, then Graphics and, in a game, Rename Character.</summary>
+    /// <summary>The pages' links, and in a game Rename Character.</summary>
     Main,
 
-    /// <summary>The port's graphics and fidelity settings, which the original's menu has no room for.</summary>
-    Graphics,
+    /// <summary>The original's volumes, with their rope bars.</summary>
+    Audio,
+
+    /// <summary>The window, and how the 3D world is drawn into it.</summary>
+    Video,
+
+    /// <summary>The port's settings that go beyond the original's look and feel.</summary>
+    Enhancements,
 }
 
 /// <summary>
-/// The options menu (<c>OptionsMenu</c>): the original's volumes, the port's graphics and fidelity settings on
-/// a page of their own, and, in a game, renaming Alaron. The pause menu's System tab opens it, and so will the
+/// The options menu (<c>OptionsMenu</c>): links to its pages, the original's volumes on Audio and the port's settings on
+/// Video and Enhancements, and, in a game, renaming Alaron. The pause menu's System tab opens it, and so will the
 /// title screen's menu, without the rename (<paramref name="inGame"/>), as the original's title options leave
 /// out its GAME rows. It changes <see cref="Settings"/> as the stick moves, so the runtime carries a setting
 /// out at once.
 /// </summary>
 /// <remarks>
-/// The port's own layout, which the user chose over the original's (Oct 3, 2026): mixed case rather than
-/// capitals, and no headings, with the graphics settings a page off it rather than one row.
+/// The port's own layout, which the user chose over the original's (ADR 0024): Title Case rather than capitals, and a
+/// page for each kind of setting rather than headings.
 /// </remarks>
 public sealed class OptionsMenu
 {
@@ -146,76 +153,108 @@ public sealed class OptionsMenu
             case { Kind: OptionKind.Choice }:
                 Change(1);
                 return null;
-            case { Link: OptionLink.Graphics }:
-                Open(OptionsPage.Graphics);
-                return null;
             case { Link: { } link }:
-                return link;
+                if (PageOf(link) is not { } page)
+                    return link;
+                Open(page);
+                return null;
             default:
                 return null;
         }
     }
 
-    /// <summary>B: back from the graphics page to the main one, and false on the main one, which the caller leaves.</summary>
+    /// <summary>B: back from a page to the main one, and false on the main one, which the caller leaves.</summary>
     public bool Back()
     {
         if (Page == OptionsPage.Main)
             return false;
+        var from = Page;
         Open(OptionsPage.Main);
         // Back on the row that led there.
-        Rows.Point(Rows.Rows.ToList().FindIndex(r => r.Link == OptionLink.Graphics));
+        Rows.Point(Rows.Rows.ToList().FindIndex(r => r.Link is { } link && PageOf(link) == from));
         return true;
     }
+
+    /// <summary>The page a link opens, or null for one that leads out of the menu.</summary>
+    private static OptionsPage? PageOf(OptionLink link) => link switch
+    {
+        OptionLink.Audio => OptionsPage.Audio,
+        OptionLink.Video => OptionsPage.Video,
+        OptionLink.Enhancements => OptionsPage.Enhancements,
+        _ => null,
+    };
 
     private void Open(OptionsPage page)
     {
         Page = page;
-        Rows.Rows = page == OptionsPage.Main ? MainRows() : GraphicsRows();
+        Rows.Rows = page switch
+        {
+            OptionsPage.Audio => AudioRows(),
+            OptionsPage.Video => VideoRows(),
+            OptionsPage.Enhancements => EnhancementRows(),
+            _ => MainRows(),
+        };
         Rows.Point(0);
         Pulse.Reset();
     }
 
     private List<OptionRow> MainRows()
     {
-        var s = Settings;
         List<OptionRow> rows =
         [
-            new("Sound volume:", OptionKind.Volume, () => s.SoundVolume, v => s.SoundVolume = v, []),
-            new("Music volume:", OptionKind.Volume, () => s.MusicVolume, v => s.MusicVolume = v, []),
-            Link("Graphics", OptionLink.Graphics),
+            Link("Audio", OptionLink.Audio),
+            Link("Video", OptionLink.Video),
+            Link("Enhancements", OptionLink.Enhancements),
         ];
         if (_inGame)
-            rows.Add(Link("Rename Character", OptionLink.RenameCharacter));
+            rows.Add(Link("Rename Character", OptionLink.RenameCharacter, gapBefore: true));
         return rows;
     }
 
-    private static OptionRow Link(string label, OptionLink link) => new(label, OptionKind.Link, () => 0, _ => { }, [], link, GapBefore: true);
+    private static OptionRow Link(string label, OptionLink link, bool gapBefore = false) =>
+        new(label, OptionKind.Link, () => 0, _ => { }, [], link, gapBefore);
 
-    /// <summary>The graphics page's rows, each a setting with its values' names.</summary>
-    private List<OptionRow> GraphicsRows()
+    private List<OptionRow> AudioRows()
+    {
+        var s = Settings;
+        return
+        [
+            new("Sound Volume:", OptionKind.Volume, () => s.SoundVolume, v => s.SoundVolume = v, []),
+            new("Music Volume:", OptionKind.Volume, () => s.MusicVolume, v => s.MusicVolume = v, []),
+        ];
+    }
+
+    private List<OptionRow> VideoRows()
     {
         var s = Settings;
         return
         [
             Choice("Display", ["Windowed", "Fullscreen"], () => s.Fullscreen ? 1 : 0, v => s.Fullscreen = v == 1),
-            Choice("V-sync", ["On", "Off"], () => s.VSync ? 0 : 1, v => s.VSync = v == 0),
-            Choice("3D resolution", ["Full", "480 lines", "240 lines"], () => Array.IndexOf(WorldLines, s.WorldLines) is var i and >= 0 ? i : 0,
-                v => s.WorldLines = WorldLines[v]),
-            Choice("Anti-aliasing", ["Off", "2x", "4x", "8x"], () => Array.IndexOf(Samples, s.Antialiasing) is var i and >= 0 ? i : 0,
+            Choice("Render Resolution", ["Native", "480 Lines", "240 Lines"],
+                () => Array.IndexOf(WorldLines, s.WorldLines) is var i and >= 0 ? i : 0, v => s.WorldLines = WorldLines[v]),
+            Choice("Anti-Aliasing", ["Off", "2x", "4x", "8x"], () => Array.IndexOf(Samples, s.Antialiasing) is var i and >= 0 ? i : 0,
                 v => s.Antialiasing = Samples[v]),
-            Choice("Draw distance", ["Original", "Farther", "Farthest"], () => NearestIndex(DrawDistances, s.DrawDistance),
-                v => s.DrawDistance = DrawDistances[v]),
-            Choice("Model detail", ["Original", "Highest"], () => s.NearestDetail ? 1 : 0, v => s.NearestDetail = v == 1),
-            Choice("Rain and snow", ["Original", "2x", "4x", "8x"], () => NearestIndex(PrecipitationDensities, s.PrecipitationDensity),
+            Choice("V-Sync", ["On", "Off"], () => s.VSync ? 0 : 1, v => s.VSync = v == 0),
+        ];
+    }
+
+    private List<OptionRow> EnhancementRows()
+    {
+        var s = Settings;
+        return
+        [
+            Choice("Draw Distance", ["Original", "Extended"], () => s.ExtendedDrawDistance ? 1 : 0, v => s.ExtendedDrawDistance = v == 1),
+            Choice("Object Distance", ["Original", "2x", "3x"], () => NearestIndex(ObjectDistances, s.ObjectDistance),
+                v => s.ObjectDistance = ObjectDistances[v]),
+            Choice("Model Detail", ["Original", "Highest"], () => s.NearestDetail ? 1 : 0, v => s.NearestDetail = v == 1),
+            Choice("Rain and Snow", ["Original", "2x", "4x", "8x"], () => NearestIndex(PrecipitationDensities, s.PrecipitationDensity),
                 v => s.PrecipitationDensity = PrecipitationDensities[v]),
-            Choice("Sky", ["Projected", "Original"], () => s.SkyPlacement == SkyPlacement.Original ? 1 : 0,
-                v => s.SkyPlacement = v == 1 ? SkyPlacement.Original : SkyPlacement.Projected),
-            Choice("Menu size", ["Original", "Smaller", "Smallest"], () => Array.IndexOf(UiLines, s.UiLines) is var i and >= 0 ? i : 0,
+            Choice("Menu Size", ["Original", "Smaller", "Smallest"], () => Array.IndexOf(UiLines, s.UiLines) is var i and >= 0 ? i : 0,
                 v => s.UiLines = UiLines[v]),
-            Choice("Menu filter", ["Video out", "Sharp", "Smooth"], () => Array.IndexOf(Filters, s.UiFilter) is var i and >= 0 ? i : 0,
+            Choice("Menu Filter", ["Sharp", "Smooth", "Video Out"], () => Array.IndexOf(Filters, s.UiFilter) is var i and >= 0 ? i : 0,
                 v => s.UiFilter = Filters[v]),
             Choice("Pace", ["Original", "Brisk"], () => s.BriskPace ? 1 : 0, v => s.BriskPace = v == 1),
-            Choice("Spell auras", ["Original", "Each character"], () => s.SpellAuras == Combat.AuraTurns.EachCharacter ? 1 : 0,
+            Choice("Status Auras", ["Original", "More Often"], () => s.SpellAuras == Combat.AuraTurns.EachCharacter ? 1 : 0,
                 v => s.SpellAuras = v == 1 ? Combat.AuraTurns.EachCharacter : Combat.AuraTurns.Battle),
         ];
     }
@@ -223,13 +262,13 @@ public sealed class OptionsMenu
     private static OptionRow Choice(string label, IReadOnlyList<string> values, Func<int> get, Action<int> set) =>
         new(label, OptionKind.Choice, get, set, values);
 
-    // The values the graphics page's rows step through.
+    // The values the pages' rows step through.
     private static readonly int[] WorldLines = [0, 480, 240], Samples = [0, 2, 4, 8], UiLines = [240, 360, 480];
-    private static readonly float[] DrawDistances = [1, 1.2f, 1.4f];
+    private static readonly float[] ObjectDistances = [1, 2, 3];
 
     /// <summary>The rain and snow's densities, up to <see cref="Particles.WeatherParticles.MaxDensity"/>.</summary>
     private static readonly float[] PrecipitationDensities = [1, 2, 4, 8];
-    private static readonly UiFilter[] Filters = [UiFilter.VideoOut, UiFilter.Pixels, UiFilter.Smooth];
+    private static readonly UiFilter[] Filters = [UiFilter.Pixels, UiFilter.Smooth, UiFilter.VideoOut];
 
     private static int NearestIndex(float[] values, float value)
     {
