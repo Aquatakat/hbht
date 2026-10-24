@@ -196,9 +196,14 @@ public sealed class Level(Node3D node, ScrollingScene? scrolling)
             .Select(s => (s.mesh, s.surface, s.material, (Material)N64Material.Faded(s.material)!))),
     ];
 
-    /// <summary>Shows the model at an alpha, hiding it at 0.</summary>
+    /// <summary>
+    /// Shows the model at an alpha, hiding it at 0, and its actor's particles with it: drawn at that alpha, and not at all
+    /// at 0 (<see cref="Aidyn.Core.Particles.IParticleAnchor.Alpha"/>, the user's choice).
+    /// </summary>
     public void Show(byte alpha)
     {
+        if (Animator?.Particles is { } particles)
+            particles.Alpha = alpha;
         var faded = alpha is > 0 and < 0xFF;
         if (faded != (Alpha is > 0 and < 0xFF))
         {
