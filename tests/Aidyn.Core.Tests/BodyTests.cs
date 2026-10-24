@@ -1,8 +1,12 @@
 using System.Numerics;
+using Aidyn.Core.Actors;
 using Aidyn.Core.Chunks;
 using Aidyn.Core.Movement;
 using Aidyn.Core.Physics;
+using Aidyn.Core.Rng;
+using Aidyn.Plugins;
 using Aidyn.Plugins.Assets;
+using Aidyn.Plugins.Records;
 
 namespace Aidyn.Core.Tests;
 
@@ -287,5 +291,84 @@ public class BodyTests
         var bodies = new CrowdMember?[] { Member(new(-0.6f, 0.5f, 0)), Member(new(0, 0.5f, 0)), Member(new(-1, 0.5f, 3)) };
         Crowd.Push(bodies, 1, start);
         Assert.Equal(0.4f, bodies[1]!.Value.Sphere.Position.X, 1e-5f);
+    }
+    /// <summary>A state machine as a body's animation, moving nothing.</summary>
+    private sealed class MachineMotion(ActorStateMachine machine) : IActorMotion
+    {
+        public ActorStateMachine Machine => machine;
+
+        public int StateLength => machine.Length(machine.State);
+
+        public int Frame => machine.Clock;
+
+        public bool Entered { get; private set; }
+
+        public float Tick(int request)
+        {
+            machine.Request = request;
+            Entered = machine.Tick();
+            return 0;
+        }
+    }
+
+    /// <summary>Idle (0, 6 ticks) repeats, and dying interrupts it (1, 4 ticks), which goes back to idle for any request, as the Fire Lord's does.</summary>
+    private static MachineMotion Mortal() => new(new ActorStateMachine(new ActorRecord(RecordId.Parse("aidyn:actor/0x2FBA"),
+        RecordId.Parse("aidyn:scene/0x2FB0"), 2, 0,
+        [
+            new(RecordId.Parse("aidyn:animation/0x2FB4"), [new(Body.Dying, 100, true, 1), new(ActorStateMachine.AnyRequest, 100, false, 0)]),
+            new(RecordId.Parse("aidyn:animation/0x2FB9"), [new(ActorStateMachine.AnyRequest, 100, false, 0)]),
+        ]), state => state == 0 ? 6 : 4, new Lcg(0)));
+
+    [Fact]
+    public void ABodyAskedToDieHoldsItsDeathsLastFrameWhateverItsAskedForAfter()
+    {
+        // ProcessPlayers (0x80013200): once its actor has entered a state for 9 and 9 has gone, the body's +0x77C is set, and the
+        // animation plays to the end of the state and stops there, where its state machine would go back to idle.
+        var body = Settled(Standing);
+        var motion = Mortal();
+        body.Request = Body.Dying;
+        body.Step(Worlds.Flat(), body.Mortal(motion));
+        Assert.Equal((1, 1, Body.Dying), (motion.Machine.State, motion.Machine.Clock, body.Playing));
+        for (var i = 0; i < 30; i++)
+        {
+            body.Request = i == 10 ? Body.Talk : Body.Idle;
+            body.Step(Worlds.Flat(), body.Mortal(motion));
+        }
+        Assert.True(body.DeathHeld);
+        Assert.Equal((1, 4), (motion.Machine.State, motion.Machine.Clock));
+    }
+
+    [Fact]
+    public void ABodyStillAskedToDieStopsAtItsEndButOneOnlyAskedNowPlaysOn()
+    {
+        var body = Settled(Standing);
+        var motion = Mortal();
+        // Asked at idle's end, the request doesn't hold idle: the death it leads to plays, and holds while it's still asked for.
+        for (var i = 0; i < 5; i++)
+            body.Step(Worlds.Flat(), body.Mortal(motion));
+        Assert.Equal((0, 6), (motion.Machine.State, motion.Machine.Clock));
+        body.Request = Body.Dying;
+        for (var i = 0; i < 20; i++)
+            body.Step(Worlds.Flat(), body.Mortal(motion));
+        Assert.Equal((1, 4), (motion.Machine.State, motion.Machine.Clock));
+        Assert.False(body.DeathHeld);
+    }
+
+    [Fact]
+    public void ABodyTurningWhereItStandsKeepsADeathItsAskedFor()
+    {
+        // Body.ApplyInput (0x80014FEC) asks a steered body to stand only if it isn't dying, and its stick is still while it turns.
+        var body = Settled(Standing);
+        body.Face(new Vector2(1, 0));
+        body.Request = Body.Dying;
+        body.Step(Worlds.Flat(), new SteadyMotion(0));
+        Assert.True(body.Turning);
+        Assert.Equal(Body.Dying, body.Request);
+        body.Faded = true;
+        body.Step(Worlds.Flat(), new SteadyMotion(0));
+        Assert.Equal(Body.Dying, body.Request);
+        body.Request = Body.Talk;
+        body.Step(Worlds.Flat(), new SteadyMotion(0));
+        Assert.Equal(Body.Idle, body.Request);
     }
 }
