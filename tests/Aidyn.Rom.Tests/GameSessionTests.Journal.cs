@@ -18,14 +18,17 @@ namespace Aidyn.Rom.Tests;
 /// </summary>
 public sealed partial class GameSessionTests
 {
-    /// <summary>A new game's session, with the player set down at a point of a chunk of any map set.</summary>
-    private (GameSession Session, Host Host) StartIn(int mapSet, string chunkName, float x, float z, float y = 10)
+    /// <summary>
+    /// A new game's session, with the player set down at a point of a chunk of any map set, or with <paramref name="setDown"/>
+    /// false his sphere's centre put at that point, as a save puts him.
+    /// </summary>
+    private (GameSession Session, Host Host) StartIn(int mapSet, string chunkName, float x, float z, float y = 10, bool setDown = true)
     {
         var game = GameState.NewGame(Data.Set);
         var host = new Host();
         var set = Data.Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, mapSet));
         var streamer = new ChunkStreamer(Data.Set, game, new CollisionWorld(), set, new VisibleWorld());
-        var start = GameStart.OfNewGame(Data.Set) with { Set = set, Chunk = chunkName, Local = new Vector3(x, y, z) };
+        var start = GameStart.OfNewGame(Data.Set) with { Set = set, Chunk = chunkName, Local = new Vector3(x, y, z), SetDown = setDown };
         var session = GameSession.Start(game, host, new ZoneEngine(game, streamer), start, menuHost: host);
         return (session, host);
     }

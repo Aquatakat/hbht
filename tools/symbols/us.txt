@@ -2245,3 +2245,11 @@ Scene.EnableFog = 0x8009e590; // coined; docs/systems/combat.md: scene flag 0x10
 Mtx.Multiply = 0x800a280c; // coined; docs/formats/scenes.md: (out, a, b): out = b x a, row vectors (SceneGetLocatorMtx's)
 ItemTables.WeaponModels = 0x8006cdd4; // ItemTables.WeaponModels (Aidyn.Rom); docs/formats/db.md: a weapon's table position to its Borg5 through CodeTable.WeaponsWithModels and WeaponModels, -1 for none
 Combatant.UndrawnWeapons = 0x800d2a0c; // CombatRecord.UndrawnWeapons (Aidyn.Plugins); docs/systems/combat.md: 8 entity list places, 0xff ends: Shamsuk, the Gorgon, the Chaos Lieutenant, the Harpy, the Marquis, the Minotaur, the Minotaur Lord, Niesen
+Body.PressDown = 0x800cdb48; // Body.cs (PressDown); docs/systems/movement.md: f64 0.03, ProcessPlayers' push down a frame on a body on plain collision (surfaces 1, 2)
+PlayerMotion.Falling = 0x800cdb60; // PlayerMotion.Falling (Aidyn.Core); docs/systems/movement.md: f64 -0.048: falling at or past it, a body of Alaron's actor (+0x70B) doesn't steer or move by its animation
+PlayerMotion.GroundRuleReach = 0x800cdb40; // coined; docs/systems/movement.md: f64 0.05, how far below the ground rule sweeps for ground other than plain collision
+Body.FellBackSpeed = 0x800cdb68; // coined; docs/systems/movement.md: f64 -0.3: falling faster, ProcessPlayers puts Alaron back at Body.GroundBefore
+Body.LastGround = 0x800e6810; // coined; docs/systems/movement.md: Alaron's last place touching the ground at least 1 from the one before (x, y, z, then the camera's 2 shorts at +0x18)
+Body.GroundBefore = 0x800e681c; // coined; docs/systems/movement.md: the place Body.LastGround held before, where a fall faster than 0.3 puts him back
+SpherePhysics.Ground = 0x800a4570; // SpherePhysics.Ground (Aidyn.Core); docs/systems/movement.md: (grid, from, to, radius, hit, normal): a sphere swept through the cells, skipping surfaces 1 and 2; the ground rule's
+Collision.SphereCells = 0x800a3fb4; // coined; docs/systems/movement.md: (grid, sphere, ...): the cells a sphere's box (speed across the ground + radius + 1) covers, clamped to the grid
