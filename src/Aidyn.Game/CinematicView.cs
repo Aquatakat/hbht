@@ -45,6 +45,11 @@ public partial class CinematicView : SubViewportContainer
         if (_models.Instantiate(shot.Scene) is not { } scene)
             return;
         _scene = scene;
+        // Godot's physics interpolation would blend each node's translation and rotation apart between ticks, which takes a
+        // node turning fast about a pivot away from its origin off the pivot on the frames drawn between them: the cube on
+        // Ardra's sceptre in the ending's fourth shot turns 100° a tick and circled the sceptre's tip at 120 fps. So the scene
+        // stands on its ticks' poses, as the original's frames do, and only its camera is smoothed.
+        scene.PhysicsInterpolationMode = PhysicsInterpolationModeEnum.Off;
         _viewport.AddChild(scene);
         _lights = new OwnLights(scene, _models.Glb(shot.Scene)!.Extras);
         _scrolling = _models.Scrolls.Attach(shot.Scene, scene);
@@ -55,6 +60,7 @@ public partial class CinematicView : SubViewportContainer
         if (_camera is not null)
         {
             (_camera.Near, _camera.Far) = (shot.Near, shot.Far);
+            _camera.PhysicsInterpolationMode = PhysicsInterpolationModeEnum.On;
             _camera.MakeCurrent();
         }
         _player = Nodes.FindAll<AnimationPlayer>(scene).FirstOrDefault();
