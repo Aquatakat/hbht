@@ -286,21 +286,21 @@ public sealed partial class OptionsMenu
 
     /// <summary>
     /// The Video page's rows. Window Size lists the sizes that fit the screen and Maximized, and in fullscreen only the screen's own;
-    /// Render Resolution lists the line counts under the window's or screen's height at its shape, then its own and twice it.
+    /// Render Resolution lists the original's 240 and 480 lines, then parts of the window's or screen's size.
     /// </summary>
     private List<OptionRow> VideoRows()
     {
         var s = Settings;
         var output = Output();
-        var renders = RenderResolutions(output.Height);
         return
         [
             Choice("Display", ["Windowed", "Fullscreen"], () => s.Fullscreen ? 1 : 0, v => s.Fullscreen = v == 1),
             s.Fullscreen ? Choice("Window Size", [Size(output)], () => 0, _ => { }) : WindowSizeRow(Restored()),
-            Choice("Render Resolution", [.. renders.Select(r => Size(Render(output, r)))],
-                // A line count not listed, or at or past the output's own, draws at the output's own.
-                () => renders.IndexOf((s.Supersampled ? 0 : s.WorldLines, s.Supersampled)) is var i and >= 0 ? i : renders.Count - 2,
-                v => (s.WorldLines, s.Supersampled) = renders[v]),
+            Choice("Render Resolution", [.. Renders.Select(r => r.Lines > 0 ? $"{r.Lines}p" : $"{r.Scale * 100:0}%")],
+                () => s.WorldLines > 0
+                    ? Array.FindIndex(Renders, r => r.Lines == s.WorldLines) is var i and >= 0 ? i : 0
+                    : RenderLineCounts.Length + NearestIndex(Scales, s.RenderScale),
+                v => (s.WorldLines, s.RenderScale) = Renders[v]),
             Choice("Frame Rate Limit", [.. FrameRates.Select(r => r switch { Settings.DisplayRate => "Display", 0 => "Unlimited", _ => $"{r} FPS" })],
                 () => Array.IndexOf(FrameRates, s.FrameRateLimit) is var i and >= 0 ? i : 0, v => s.FrameRateLimit = FrameRates[v]),
             Choice("V-Sync", ["On", "Off"], () => s.VSync ? 0 : 1, v => s.VSync = v == 0),
@@ -345,18 +345,6 @@ public sealed partial class OptionsMenu
         });
     }
 
-    /// <summary>The line counts under <paramref name="height"/>, then its own (0) and twice it.</summary>
-    private static List<(int Lines, bool Supersampled)> RenderResolutions(int height) =>
-        [.. RenderLines.Where(l => l < height).Select(l => (l, false)), (0, false), (0, true)];
-
-    /// <summary>The size the 3D world is drawn at for a render resolution, at the output's shape.</summary>
-    private static (int Width, int Height) Render((int Width, int Height) output, (int Lines, bool Supersampled) render) => render switch
-    {
-        { Supersampled: true } => (output.Width * 2, output.Height * 2),
-        { Lines: 0 } => output,
-        _ => ((int)Math.Round((double)render.Lines * output.Width / output.Height), render.Lines),
-    };
-
     private static string Size((int Width, int Height) size) => $"{size.Width}x{size.Height}";
 
     private List<OptionRow> EnhancementRows()
@@ -386,8 +374,17 @@ public sealed partial class OptionsMenu
     // The values the pages' rows step through.
     private static readonly int[] Samples = [0, 2, 4, 8], UiLines = [240, 360, 480];
 
-    /// <summary>The render resolutions' line counts under the window's own: the original's 240 and 480, then the usual video modes.</summary>
-    private static readonly int[] RenderLines = [240, 480, 720, 1080, 1440, 2160];
+    /// <summary>
+    /// The render resolutions: the original's 240 lines and its Expansion Pak's 480, at the window's shape, which mean the same at any
+    /// size of window, then parts of the window's size, which keep meaning the same as it's resized. Above 1 supersamples, and 125%
+    /// is left out, as Godot's bilinear scaling reads only four pixels as it shrinks and smooths it next to nothing for half again the
+    /// pixels.
+    /// </summary>
+    private static readonly int[] RenderLineCounts = [240, 480];
+
+    private static readonly float[] Scales = [0.5f, 0.75f, 1, 1.5f, 2];
+
+    private static readonly (int Lines, float Scale)[] Renders = [.. RenderLineCounts.Select(l => (l, 1f)), .. Scales.Select(f => (0, f))];
 
     private static readonly int[] FrameRates = [Settings.DisplayRate, 30, 60, 90, 120, 144, 0];
 

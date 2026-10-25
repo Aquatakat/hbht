@@ -103,30 +103,46 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
 
         Assert.Equal(["640x480", "960x720", "1280x720", "1280x960", "1600x900", "Maximized"], Row("Window Size").Values);
         Assert.Equal("1280x960", Row("Window Size").ValueName);
-        // The line counts under the window's, at its shape, then its own and twice it.
-        Assert.Equal(["320x240", "640x480", "960x720", "1280x960", "2560x1920"], Row("Render Resolution").Values);
-        Assert.Equal("1280x960", Row("Render Resolution").ValueName);
+        // The original's line counts, then parts of the window's size.
+        Assert.Equal(["240p", "480p", "50%", "75%", "100%", "150%", "200%"], Row("Render Resolution").Values);
+        Assert.Equal("100%", Row("Render Resolution").ValueName);
         Assert.Equal(["Display", "30 FPS", "60 FPS", "90 FPS", "120 FPS", "144 FPS", "Unlimited"], Row("Frame Rate Limit").Values);
         Assert.Equal("Display", Row("Frame Rate Limit").ValueName);
 
         options.Point(1);
         options.Change(1);
         Assert.Equal((1600, 900), (settings.WindowWidth, settings.WindowHeight));
-        // The render resolutions follow the window's new shape.
-        Assert.Equal(["427x240", "853x480", "1280x720", "1600x900", "3200x1800"], Row("Render Resolution").Values);
         options.Point(2);
         options.Change(1);
-        Assert.Equal((0, true), (settings.WorldLines, settings.Supersampled));
-        options.Change(1);
-        Assert.Equal((240, false), (settings.WorldLines, settings.Supersampled));
+        Assert.Equal((0, 1.5f), (settings.WorldLines, settings.RenderScale));
+        options.Change(2);
+        Assert.Equal((240, 1f), (settings.WorldLines, settings.RenderScale));
+        Assert.Equal("240p", Row("Render Resolution").ValueName);
 
         // Fullscreen is the screen's own size, which the stick can't change.
         options.Point(0);
         options.Change(1);
         Assert.True(settings.Fullscreen);
         Assert.Equal(["1920x1080"], Row("Window Size").Values);
-        Assert.Equal(["427x240", "853x480", "1280x720", "1920x1080", "3840x2160"], Row("Render Resolution").Values);
-        Assert.Equal("427x240", Row("Render Resolution").ValueName);
+        Assert.Equal("240p", Row("Render Resolution").ValueName);
+    }
+
+    [Fact]
+    public void OlderRenderSettingsReadAsTheirScale()
+    {
+        using var folder = new TempPlugins();
+        Directory.CreateDirectory(folder.Root);
+        var path = Path.Combine(folder.Root, "settings.json");
+        File.WriteAllText(path, """{ "worldLines": 0, "supersampled": true }""");
+        Assert.Equal((0, 2f), (Settings.Load(path).WorldLines, Settings.Load(path).RenderScale));
+        File.WriteAllText(path, """{ "worldLines": 1080, "supersampled": false }""");
+        Assert.Equal((0, 1f), (Settings.Load(path).WorldLines, Settings.Load(path).RenderScale));
+        File.WriteAllText(path, """{ "worldLines": 480 }""");
+        Assert.Equal(480, Settings.Load(path).WorldLines);
+
+        // And the old name isn't written again.
+        Settings.Load(path).Save(path);
+        Assert.DoesNotContain("supersampled", File.ReadAllText(path));
     }
 
     [Fact]
@@ -138,15 +154,13 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         options.Accept();
         OptionRow Row(string label) => options.Rows.Rows.Single(r => r.Label == label);
 
-        // Maximized is the last size, and the render resolutions are then the maximized window's.
+        // Maximized is the last size.
         options.Point(1);
         Assert.Equal("1280x960", Row("Window Size").ValueName);
         options.Change(1);
         options.Change(1);
         Assert.True(settings.Maximized);
         Assert.Equal("Maximized", Row("Window Size").ValueName);
-        options.Refresh(ScreenInfo.Default with { WindowWidth = 1920, WindowHeight = 1017 });
-        Assert.Equal("1920x1017", Row("Render Resolution").ValueName);
         // A size restores it.
         options.Change(1);
         Assert.False(settings.Maximized);

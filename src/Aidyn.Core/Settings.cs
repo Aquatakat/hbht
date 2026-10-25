@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Aidyn.Core.Sky;
 using Aidyn.Core.Ui;
 using Aidyn.Plugins;
@@ -37,11 +38,29 @@ public sealed class Settings
     /// <summary>How the UI screen is scaled up to the window.</summary>
     public UiFilter UiFilter { get; set; } = UiFilter.VideoOut;
 
-    /// <summary>How many lines the 3D world is drawn at, scaled up to the window, or 0 for the window's own.</summary>
+    /// <summary>
+    /// How many lines the 3D world is drawn at, scaled up to the window: the original's 240 or its Expansion Pak's 480, or 0 to draw
+    /// it at <see cref="RenderScale"/>.
+    /// </summary>
     public int WorldLines { get; set; }
 
-    /// <summary>Whether the 3D world is drawn at twice the window's resolution and scaled down to it, supersampling.</summary>
-    public bool Supersampled { get; set; }
+    /// <summary>
+    /// The 3D world's size as a part of the window's (or the screen's, in fullscreen), when <see cref="WorldLines"/> is 0: under 1
+    /// scaled up, over 1 scaled down, supersampling.
+    /// </summary>
+    public float RenderScale { get; set; } = 1;
+
+    /// <summary>Older settings' supersampling, at twice the window's resolution: read as a render scale of 2, and never written.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Supersampled
+    {
+        get => false;
+        set
+        {
+            if (value)
+                RenderScale = 2;
+        }
+    }
 
     /// <summary>Multisample anti-aliasing's samples: 0 (off), 2, 4 or 8.</summary>
     public int Antialiasing { get; set; }
@@ -112,7 +131,11 @@ public sealed class Settings
     {
         try
         {
-            return File.Exists(path) ? JsonSerializer.Deserialize<Settings>(File.ReadAllText(path), PluginJson.Options) ?? new() : new();
+            var settings = File.Exists(path) ? JsonSerializer.Deserialize<Settings>(File.ReadAllText(path), PluginJson.Options) ?? new() : new();
+            // Older settings' line counts past 480 (720, 1080 and so on) were the window's own or under it: the window's own now.
+            if (settings.WorldLines is not (0 or 240 or 480))
+                settings.WorldLines = 0;
+            return settings;
         }
         catch (Exception e) when (e is IOException or JsonException or UnauthorizedAccessException)
         {

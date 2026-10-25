@@ -500,16 +500,17 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     }
 
     /// <summary>
-    /// Draws the 3D world at the lines the settings ask for, scaled up to the window, at the window's own, or at twice it and
-    /// scaled down (Godot's bilinear scaling supersamples above 1).
+    /// Draws the 3D world at the lines the settings ask for, scaled up to the window but never past its own, or at a part of the
+    /// window's size (Godot's bilinear scaling supersamples above 1).
     /// </summary>
     private void ApplyWorldLines()
     {
         var viewport = GetViewport();
         var height = viewport.GetVisibleRect().Size.Y;
         viewport.Scaling3DMode = Viewport.Scaling3DModeEnum.Bilinear;
-        viewport.Scaling3DScale = _settings.Supersampled ? 2
-            : _settings.WorldLines > 0 && height > 0 ? Math.Min(1, _settings.WorldLines / height) : 1;
+        viewport.Scaling3DScale = _settings.WorldLines > 0
+            ? height > 0 ? Math.Min(1, _settings.WorldLines / height) : 1
+            : Math.Clamp(_settings.RenderScale, 0.25f, 2);
     }
 
     /// <summary>The installed plugins, after checking the base plugin is there and up to date.</summary>
