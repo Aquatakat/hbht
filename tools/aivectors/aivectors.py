@@ -1,4 +1,4 @@
-"""Regenerates tests/Aidyn.Rom.Tests/CasterVectors.cs: 1.0's own enemy-caster AI, replayed on the combat checkpoints' RAM.
+"""Regenerates tests/HBHT.Rom.Tests/CasterVectors.cs: 1.0's own enemy-caster AI, replayed on the combat checkpoints' RAM.
 
     python tools/aivectors/aivectors.py                  # all 123 cases, about 12 minutes on 22 workers
     python tools/aivectors/aivectors.py --only Lugash    # the cases whose id has the text; writes out/aivectors/vectors.json only
@@ -13,7 +13,7 @@ What it does (docs/reference-rig.md, "Replaying the original's AI"):
      the area danger and the morale spells.
   3. Puts them in out/aivectors/vectors.json (emit.assemble) and writes the test's table from it (emit.write_cs).
 
-Needs `pip install capstone numpy`. The ROM and the states are found in roms/ or AIDYN_ROMS. Nothing it builds is kept outside out/.
+Needs `pip install capstone numpy`. The ROM and the states are found in roms/ or HBHT_ROMS. Nothing it builds is kept outside out/.
 """
 import argparse
 import json
@@ -27,7 +27,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import rig  # noqa: E402
 
-DEFAULT_CS = os.path.join(rig.REPO, 'tests', 'Aidyn.Rom.Tests', 'CasterVectors.cs')
+DEFAULT_CS = os.path.join(rig.REPO, 'tests', 'HBHT.Rom.Tests', 'CasterVectors.cs')
 
 
 def work(task):
@@ -52,13 +52,13 @@ def work(task):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
-    ap.add_argument('--roms', help='the folder with the 1.0 ROM and the checkpoints (default AIDYN_ROMS, else roms/)')
+    ap.add_argument('--roms', help='the folder with the 1.0 ROM and the checkpoints (default HBHT_ROMS, else roms/)')
     ap.add_argument('--out', default=DEFAULT_CS, help='the C# file to write')
     ap.add_argument('--jobs', type=int, default=min(os.cpu_count() or 1, 22), help='worker processes')
     ap.add_argument('--only', help='run only the cases whose id has this text, and write only out/aivectors/vectors.json')
     a = ap.parse_args()
     if a.roms:
-        os.environ['AIDYN_ROMS'] = a.roms     # inherited by the workers
+        os.environ['HBHT_ROMS'] = a.roms     # inherited by the workers
 
     import cases as case_lists
     import extras

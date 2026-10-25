@@ -1,10 +1,10 @@
 # Saves and the game state (roadmap 2.8)
 
-`Aidyn.Core.GameState` is the game as it stands, `Aidyn.Plugins.Saves` the port's save format, and `Aidyn.Rom.Rig.CheckpointSave` turns the user's checkpoints into saves. Ported from `QuestData.cpp`, `saveParty.cpp` and `voxelChart.cpp`.
+`HBHT.Core.GameState` is the game as it stands, `HBHT.Plugins.Saves` the port's save format, and `HBHT.Rom.Rig.CheckpointSave` turns the user's checkpoints into saves. Ported from `QuestData.cpp`, `saveParty.cpp` and `voxelChart.cpp`.
 
 ## The game state
 
-`GameState` holds the flags with the engine's state flags, the clock, the time played, the party with its inventory, what map objects remember, the random streams (ADR 0006) and where the player is. It's the `IScriptWorld` scripts run against, so the editor's script player and the runtime share it. `CharacterSaves` (`Aidyn.Core.Characters`) is the mapping between the party and its sheets and `SaveParty` and `SaveCharacter`, saving and loading side by side (`SaveParty::SaveCharSheet`, `LoadCharSheet`, the spellbook's order); `GameState` calls it.
+`GameState` holds the flags with the engine's state flags, the clock, the time played, the party with its inventory, what map objects remember, the random streams (ADR 0006) and where the player is. It's the `IScriptWorld` scripts run against, so the editor's script player and the runtime share it. `CharacterSaves` (`HBHT.Core.Characters`) is the mapping between the party and its sheets and `SaveParty` and `SaveCharacter`, saving and loading side by side (`SaveParty::SaveCharSheet`, `LoadCharSheet`, the spellbook's order); `GameState` calls it.
 
 - **A new game** (`init_DBs`): the flags' initial values, noon on day 2 of week 6, and Alaron alone, wearing what his record gives him, with 1 gold. The new game record says so (`aidyn:newgame/0`, [hardcoded content](../hardcoded-content.md)), and where he arrives (`GameSession.Arrival`): the Overworld's I08 at (16, 62), 10 up.
 - **Time passing** (`PassTime`) runs the clock and writes the calendar's flags, as trek does every frame. The time played is counted every tick, in every mode (`GameState.CountTick`, from `GameSession.Tick`).
@@ -14,9 +14,9 @@
 
 The CLI makes saves without the game, with the installed plugins:
 
-- `aidyn save new [<save>]` writes a new game.
-- `aidyn save from <checkpoint> [<save>]` turns a checkpoint into a save (below).
-- `aidyn save show <save>` loads a save with the core and prints what it makes of it (time, place, flags, each member's sheet, gold, inventory, memories), then anything it couldn't use, with exit code 1.
+- `hbht save new [<save>]` writes a new game.
+- `hbht save from <checkpoint> [<save>]` turns a checkpoint into a save (below).
+- `hbht save show <save>` loads a save with the core and prints what it makes of it (time, place, flags, each member's sheet, gold, inventory, memories), then anything it couldn't use, with exit code 1.
 
 They write to the data folder's `saves` unless given a path, where the System tab's save and load screens find them too, newest first. A save can be edited by hand, and `save show` says whether the game can use it.
 
@@ -61,7 +61,7 @@ A save made from the "Before final encounter" checkpoint, cut short:
 }
 ```
 
-- **The place** is the map set, the chunk by name, the centre of the player's sphere in the chunk's coordinates, and the way he faces in X and Z. The original keeps the opposite of that, `facing`. Without a place, the game starts as a new game does (`GameState.StartsAsNewGame`): where a new game arrives, and in the runtime with the opening cinematic and its script, as the title's New Game. Such a save is a new game's, `aidyn save new`'s or the editor's new game's, since every save made in play notes where the player stands (`GameSession.NotePlace`), as every one of the original's is made in trek. So the load screen's entry for one starts a new game whether it's loaded from the menu or the game began with it. The original's Continue goes straight to trek (`Title.ModeFrame`'s state 2 returns mode 1, `0x800551c0`), and its saves always have a place.
+- **The place** is the map set, the chunk by name, the centre of the player's sphere in the chunk's coordinates, and the way he faces in X and Z. The original keeps the opposite of that, `facing`. Without a place, the game starts as a new game does (`GameState.StartsAsNewGame`): where a new game arrives, and in the runtime with the opening cinematic and its script, as the title's New Game. Such a save is a new game's, `hbht save new`'s or the editor's new game's, since every save made in play notes where the player stands (`GameSession.NotePlace`), as every one of the original's is made in trek. So the load screen's entry for one starts a new game whether it's loaded from the menu or the game began with it. The original's Continue goes straight to trek (`Title.ModeFrame`'s state 2 returns mode 1, `0x800551c0`), and its saves always have a place.
 - **Flags** are the plain flags that are set, but for flag 1, which always is. Derived flags are evaluated on loading.
 - **The journal's order:** its entries in the order they were added (`journal`). The original doesn't keep it, as it lists them in its table's order; the user chose to list them as they came. On loading, an entry that's on and not listed, as in a save made from a checkpoint, comes before those listed, in the table's order.
 - **A member** is what the original saves of a character sheet (`SaveParty::SaveCharSheet`): experience, the trained and current stats, base skill levels, what's worn with each item's battery and charges, the spellbook, and the potions working on them, each with its power and what's left of its timer (`SavePotionEffect`). A skill that can't be learnt is left out. Loading applies the potions again after what's worn (`LoadCharSheetEffects`); the checkpoints' converter doesn't read them yet. The port also saves whether the member knows their True Name (`trueName`, from the sheet's bit in a checkpoint), as a plugin's trigger can give anyone theirs ([events](events.md)); the original's comes back from the record and Alaron's flag, 590, as it still does for a save without it. **Deviation:** the original saves none, since it saves its copies of the party's sheets (`SaveEntity::BenchParty`) and the copy (`SaveEntity::Copy`) leaves out the effects, so a potion's effect is gone after loading. The user chose to keep them.
@@ -89,7 +89,7 @@ A save made from the "Before final encounter" checkpoint, cut short:
 
 ## Map objects' memory
 
-`MapObjectMemory` (`Aidyn.Core.MapObjects`) is the original's `VoxelChart`: what map objects remember for a while.
+`MapObjectMemory` (`HBHT.Core.MapObjects`) is the original's `VoxelChart`: what map objects remember for a while.
 
 | Kind | Original's type | What | Lasts |
 | --- | --- | --- | --- |

@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="HBHT.Core.Tests" />
+    <InternalsVisibleTo Include="HBHT.Rom.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The rules core sees plugins and nothing else (ADR 0003). -->
+    <ProjectReference Include="..\HBHT.Plugins\HBHT.Plugins.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -33,7 +33,7 @@ $gdbArgs = @('-batch', '-ex', '"set architecture mips:4000"', '-ex', '"set endia
 foreach ($c in $Commands) { $gdbArgs += @('-ex', "`"$c`"") }
 if ($Source) { $gdbArgs += @('-x', "`"$((Resolve-Path -LiteralPath $Source).Path)`"") }
 $gdbArgs += @('-ex', 'detach')
-$log = Join-Path ([IO.Path]::GetTempPath()) "aidyn-gdb-$PID.log"
+$log = Join-Path ([IO.Path]::GetTempPath()) "hbht-gdb-$PID.log"
 try {
     # An empty stdin: without a console (a background job), gdb otherwise blocks before it starts.
     Set-Content "$log.in" '' -NoNewline

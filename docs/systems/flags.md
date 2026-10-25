@@ -1,6 +1,6 @@
 # The flag engine (roadmap 2.1)
 
-`Aidyn.Core.Flags`: `FlagNetwork` (every flag's value and the derived flags' evaluation) and `StateFlags` (what the engine writes into flags). The flag table's format and what reads and sets each flag are in [quests](../formats/quests.md). They port the original's `ProcessGameStates` and the getters and setters in `gamestatelib.cpp` and `gameStateFunnel.cpp`, from 1.0's machine code.
+`HBHT.Core.Flags`: `FlagNetwork` (every flag's value and the derived flags' evaluation) and `StateFlags` (what the engine writes into flags). The flag table's format and what reads and sets each flag are in [quests](../formats/quests.md). They port the original's `ProcessGameStates` and the getters and setters in `gamestatelib.cpp` and `gameStateFunnel.cpp`, from 1.0's machine code.
 
 ## The records
 
@@ -41,7 +41,7 @@ The minimap's and the world map's flags, and the B gates `RenderVoxelScenes` rea
 
 So after a cut-scene, a backdrop or a battle, an entry's notice comes as trek fades in where loading the 3×3, the dialogue the player stands in or a sound near him reads a derived flag, and otherwise waits. A conversation or a sign stays in trek and loads nothing: its entries come as it ends where a sound or a tangible object near the talker reads one, and otherwise wait, unless the script checks a derived flag after setting them. What the wait ends on is whatever reads one first: a chunk border, a tangible object, a container's or trigger's write, opening the journal, or leaving. None of it is the script's doing; nothing in the data sets a journal flag late on purpose.
 
-Over the 71 entries (`aidyn flag` and scripts over the quest index and the sound objects, Oct 23, 2026): 8 come at once from a map object's write, 27 as trek comes back after a cut-scene or battle, 4 either way, 1 by a `CheckFlag` later in its conversation (Trahern's request, 4), and 4 conversations' as they end, by a sound or a tangible object where the talker stands (Kendall, 1; Yeraza's first meeting, 11; the spirit on the road, 26; the lighthouse keeper's refusal, 31). Held back in 1.0, set where nothing near reads a derived flag:
+Over the 71 entries (`hbht flag` and scripts over the quest index and the sound objects, Oct 23, 2026): 8 come at once from a map object's write, 27 as trek comes back after a cut-scene or battle, 4 either way, 1 by a `CheckFlag` later in its conversation (Trahern's request, 4), and 4 conversations' as they end, by a sound or a tangible object where the talker stands (Kendall, 1; Yeraza's first meeting, 11; the spirit on the road, 26; the lighthouse keeper's refusal, 31). Held back in 1.0, set where nothing near reads a derived flag:
 
 - Bowden's hiding of the sword (5), talking to him in Gwernia castle's O01;
 - Kitarak's death (14), his boss flag, in his room in the Goblin Camp, until its chest or the door out;
@@ -79,4 +79,4 @@ The user's cartridge longplay bears out Kitarak's wait and the letter's (told as
 
 ## Checked against the checkpoints
 
-`AresCheckpoint` (`Aidyn.Rom.Rig`) reads the flags out of an ares state ([reference rig](../reference-rig.md)). Over the eight story checkpoints, from 1.0 and the debug ROM, restoring the plain flags reproduces every derived flag, and the calendar, rain and terrain flags equal what `StateFlags` writes from the state's clock, rain and terrain.
+`AresCheckpoint` (`HBHT.Rom.Rig`) reads the flags out of an ares state ([reference rig](../reference-rig.md)). Over the eight story checkpoints, from 1.0 and the debug ROM, restoring the plain flags reproduces every derived flag, and the calendar, rain and terrain flags equal what `StateFlags` writes from the state's clock, rain and terrain.

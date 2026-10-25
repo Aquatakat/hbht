@@ -1,0 +1,22 @@
+; Engine configuration file.
+
+config_version=5
+
+[application]
+
+config/name="HBHT Editor"
+run/main_scene="res://Main.tscn"
+config/features=PackedStringArray("4.7", "C#", "Forward Plus")
+
+[dotnet]
+
+project/assembly_name="HBHT.Editor"
+
+[display]
+
+window/size/viewport_width=1600
+window/size/viewport_height=900
+
+[rendering]
+
+limits/global_shader_variables/buffer_size=1048576

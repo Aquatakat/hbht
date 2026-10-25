@@ -26,7 +26,7 @@ A function is a symbol or any address inside it.
 The code segment is at ROM 0x1000, loaded at 0x80000400, in both 1.0 ("us", the default) and the
 debug ROM. Symbols come from the project's map, tools/symbols/<rom>.txt (lines of
 "name = 0xaddress;"), and without one everything works by address. 1.0's functions sit in the
-same order as the debug build's, so find one in the other by its neighbours. ROMs are found in roms/ (or AIDYN_ROMS) by name. Needs capstone (pip install capstone).
+same order as the debug build's, so find one in the other by its neighbours. ROMs are found in roms/ (or HBHT_ROMS) by name. Needs capstone (pip install capstone).
 """
 import argparse
 import bisect
@@ -41,7 +41,7 @@ from capstone import CS_ARCH_MIPS, CS_MODE_BIG_ENDIAN, CS_MODE_MIPS64, Cs
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
-ROMS = os.environ.get("AIDYN_ROMS") or os.path.join(REPO, "roms")
+ROMS = os.environ.get("HBHT_ROMS") or os.path.join(REPO, "roms")
 ROM_NAMES = {"us": "*(V1.0)*.z64", "debug": "AidynDebug.z64"}
 LOAD, START = 0x80000400, 0x1000
 

@@ -16,11 +16,11 @@ The code is split into plain .NET projects that the Godot project references:
 
 | Project | Contents | Depends on Godot |
 | --- | --- | --- |
-| `Aidyn.Rom` | ROM identification, Borg archive, DB readers, the importer | No |
-| `Aidyn.Plugins` | Plugin format, loading, merging, ID resolution | No |
-| `Aidyn.Core` | Rules core ([0003](0003-headless-rules-core.md)) | No |
-| `Aidyn.Game` | The Godot runtime: rendering, input, UI, audio | Yes |
-| `Aidyn.Inspector` | The asset inspector (roadmap 0.6), later the mod editor | Yes |
+| `HBHT.Rom` | ROM identification, Borg archive, DB readers, the importer | No |
+| `HBHT.Plugins` | Plugin format, loading, merging, ID resolution | No |
+| `HBHT.Core` | Rules core ([0003](0003-headless-rules-core.md)) | No |
+| `HBHT.Game` | The Godot runtime: rendering, input, UI, audio | Yes |
+| `HBHT.Editor` | The asset inspector (roadmap 0.6), later the mod editor | Yes |
 | `*.Tests` | Unit and differential tests | No |
 
 Pin the Godot version and the .NET SDK (with `global.json`) in the repository, the same way the rig pins ares.

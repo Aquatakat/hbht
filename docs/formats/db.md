@@ -1,6 +1,6 @@
 # DB tables (roadmap 0.4)
 
-The fixed databases at the end of the ROM: entities, items, spells, shops, camp encounters and the string tables (`Aidyn.Rom.Db`, `Aidyn.Rom.Text`). What each string table holds, and how the base plugin carries them, is in [text](text.md).
+The fixed databases at the end of the ROM: entities, items, spells, shops, camp encounters and the string tables (`HBHT.Rom.Db`, `HBHT.Rom.Text`). What each string table holds, and how the base plugin carries them, is in [text](text.md).
 
 - **Layout.** `RomVersions` places every table of the DB block in all three ROMs; [rom](rom.md#where-each-version-has-its-tables) has the moves. ShopDB starts at 1.0 `0x1FD31B0`. The debug ROM's credits are shorter than 1.0's: three names are missing and one date differs.
 - **All records are identical in all three ROMs.** Only the text tables noted in [rom.md](rom.md) differ.

@@ -3,8 +3,8 @@
 #        tools/godot.ps1 -ExePath    # print the executable's path and exit
 #
 # Examples:
-#   tools/godot.ps1 --path src/Aidyn.Inspector --editor
-#   tools/godot.ps1 --path src/Aidyn.Inspector
+#   tools/godot.ps1 --path src/HBHT.Editor --editor
+#   tools/godot.ps1 --path src/HBHT.Editor
 #
 # The editor is fetched from the official GitHub release, checked against the
 # release's SHA-512 and unpacked into the gitignored .tools/. Change the version

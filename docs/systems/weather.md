@@ -1,6 +1,6 @@
 # Weather
 
-How the weather changes, what it holds, and how the original draws and plays it. The rules are the core's `Weather` (`Aidyn.Core.Calendar`), and the rain and snow `WeatherParticles` (`Aidyn.Core.Particles`), in trek, in cut-scenes and in combat's arenas. Addresses are 1.0's unless marked. The original's functions and the port's classes share some names (`Weather.Roll`, `Weather.Init`); a name with an address is the original's.
+How the weather changes, what it holds, and how the original draws and plays it. The rules are the core's `Weather` (`HBHT.Core.Calendar`), and the rain and snow `WeatherParticles` (`HBHT.Core.Particles`), in trek, in cut-scenes and in combat's arenas. Addresses are 1.0's unless marked. The original's functions and the port's classes share some names (`Weather.Roll`, `Weather.Init`); a name with an address is the original's.
 
 ## The records
 

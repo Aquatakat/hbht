@@ -1,0 +1,20 @@
+<Project Sdk="Godot.NET.Sdk/4.7.2">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>HBHT.Views</RootNamespace>
+    <!--
+      Godot's SDK, for its source generators: without them a node's _Ready and _Process are never called. The library
+      isn't a Godot project, so no script path is generated: Godot gives its nodes scripts of their own as code makes
+      them (ADR 0022).
+    -->
+    <GodotDisabledSourceGenerators>ScriptPathAttribute</GodotDisabledSourceGenerators>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- What the runtime and the editor both draw with (ADR 0022). It reads plugins and the core, never the ROM. -->
+    <ProjectReference Include="..\HBHT.Core\HBHT.Core.csproj" />
+    <ProjectReference Include="..\HBHT.Plugins\HBHT.Plugins.csproj" />
+  </ItemGroup>
+
+</Project>

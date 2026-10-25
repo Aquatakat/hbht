@@ -1,6 +1,6 @@
 # Items and inventory (roadmap 2.3)
 
-`Aidyn.Core.Items`, and the party's side in `Party.Items.cs` (equipping, taking items for scripts, reading a scroll). The DB tables' layouts are in [db](../formats/db.md); the tables in code are read by `ItemTables` (`Aidyn.Rom.Engine`). The menus are in [ui](ui.md).
+`HBHT.Core.Items`, and the party's side in `Party.Items.cs` (equipping, taking items for scripts, reading a scroll). The DB tables' layouts are in [db](../formats/db.md); the tables in code are read by `ItemTables` (`HBHT.Rom.Engine`). The menus are in [ui](ui.md).
 
 - `ItemCatalog`: every item the rules can name (`Item`, whichever record it comes from) and the inventory's rules. `ItemInstance`: one held item, with its battery and charges.
 - `Equipment`: what a character wears and wields, and what that does to the sheet.

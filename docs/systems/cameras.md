@@ -1,6 +1,6 @@
 # Cameras
 
-`Aidyn.Core.Cameras`. The user's timings are in [playtests](../playtests.md).
+`HBHT.Core.Cameras`. The user's timings are in [playtests](../playtests.md).
 
 ## Why the original behaves as it does
 
@@ -8,10 +8,10 @@ The shape of `Camera::Mode0` (`0x800a6e64`) explains the timings in [playtests](
 
 ## The follow camera (`Camera::Mode0`)
 
-Ported as `Aidyn.Core.Cameras.FollowCamera`, from `Camera::Mode0` and the R orbit (`0x800a72bc`, the decomp's `FUN_800b0fac`), which `Mode0` and `Mode1` both call.
+Ported as `HBHT.Core.Cameras.FollowCamera`, from `Camera::Mode0` and the R orbit (`0x800a72bc`, the decomp's `FUN_800b0fac`), which `Mode0` and `Mode1` both call.
 
 - With R held, the orbit keeps the camera between 0 and 5 above the aim at a distance of 5, so it tops out at 45°.
-- **Port addition: moving while orbiting.** In the original the stick orbits with R held and he stands still. On a dual-stick pad the right stick, Q and E, and the mouse turn the camera while the left stick or WASD still walk him (`PlayerInput.Free`, in `Aidyn.Core.Trek`); only R with the stick holds him, as on the N64. The orbit's goal is a fixed point it turns about, so a walking player would leave it behind and swing the view. While he walks, `FollowCamera.Orbit(…, moving: true)` carries that point by how far the aim moved each tick, so the view stays as it was turned. Letting go of the stick returns the camera behind him as it does after R. The user chose this.
+- **Port addition: moving while orbiting.** In the original the stick orbits with R held and he stands still. On a dual-stick pad the right stick, Q and E, and the mouse turn the camera while the left stick or WASD still walk him (`PlayerInput.Free`, in `HBHT.Core.Trek`); only R with the stick holds him, as on the N64. The orbit's goal is a fixed point it turns about, so a walking player would leave it behind and swing the view. While he walks, `FollowCamera.Orbit(…, moving: true)` carries that point by how far the aim moved each tick, so the view stays as it was turned. Letting go of the stick returns the camera behind him as it does after R. The user chose this.
 - **Port addition: steering it.** What turns the camera is the player's to bind on the options' Controls page ([ui](ui.md#controls), [ADR 0026](../adr/0026-controls-are-bound-by-situation.md)), and `Game.ReadInput` makes the `PlayerInput` from it:
   - **Camera's own sources** (by default the right stick) and Camera Left and Right (Q and E) turn it while he walks, as above.
   - **Camera Hold** (RB, or the right mouse button) is R. A source on both Move and Camera (by default the left stick) moves him, and while Camera Hold is held steers the camera instead, and he stands still (`PlayerInput.Free` false, as R with the stick). A source on Move alone still walks him under the hold, so WASD walks while the mouse turns the camera with the right button held, as before. He stands still only while what would have moved him steers.
@@ -43,7 +43,7 @@ Ported as `FollowCamera.Interior.cs`, with the arguments `ProcessGameCamera` pas
 
 ## The combat camera (`ProcessCombatCamera`)
 
-Ported as `Aidyn.Core.Combat.CombatCamera`, from `ProcessCombatCamera` (`0x8008D8BC`, camera mode 4). It's the interiors' camera with other numbers, which `FollowCamera.StepLeashed` takes (`LeashNumbers`; the interiors' are `FollowCamera.Interior`): the goal leashed 4 to 10 from the aim in X and Z (8 to 16 while aiming a flask or placing an area), 2 above it, the aim 1.05 above the body that owns the camera and chasing it at 1/16 a tick, at most 1, the eye at 1/32, at most 0.5. It's put 8 behind a party member away from the nearest enemy, 1.5 up, at once on the battle's first frame and as a goal when a member's turn takes the camera; through an enemy's turn the eye holds where its goal was, at least 4 from the aim; and it's kept a unit above the arena's floor. [Combat](combat.md#the-rest-by-entry-point) has the addresses.
+Ported as `HBHT.Core.Combat.CombatCamera`, from `ProcessCombatCamera` (`0x8008D8BC`, camera mode 4). It's the interiors' camera with other numbers, which `FollowCamera.StepLeashed` takes (`LeashNumbers`; the interiors' are `FollowCamera.Interior`): the goal leashed 4 to 10 from the aim in X and Z (8 to 16 while aiming a flask or placing an area), 2 above it, the aim 1.05 above the body that owns the camera and chasing it at 1/16 a tick, at most 1, the eye at 1/32, at most 0.5. It's put 8 behind a party member away from the nearest enemy, 1.5 up, at once on the battle's first frame and as a goal when a member's turn takes the camera; through an enemy's turn the eye holds where its goal was, at least 4 from the aim; and it's kept a unit above the arena's floor. [Combat](combat.md#the-rest-by-entry-point) has the addresses.
 
 ## Camera objects (`processVoxelCamera`)
 

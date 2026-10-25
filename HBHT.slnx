@@ -1,0 +1,19 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/HBHT.Cli/HBHT.Cli.csproj" />
+    <Project Path="src/HBHT.Core/HBHT.Core.csproj" />
+    <Project Path="src/HBHT.Game/HBHT.Game.csproj">
+      <BuildType Project="Debug" />
+    </Project>
+    <Project Path="src/HBHT.Editor/HBHT.Editor.csproj" />
+    <Project Path="src/HBHT.Plugins/HBHT.Plugins.csproj" />
+    <Project Path="src/HBHT.Rom/HBHT.Rom.csproj" />
+    <Project Path="src/HBHT.Views/HBHT.Views.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/HBHT.Core.Tests/HBHT.Core.Tests.csproj" />
+    <Project Path="tests/HBHT.Plugins.Tests/HBHT.Plugins.Tests.csproj" />
+    <Project Path="tests/HBHT.Rom.Tests/HBHT.Rom.Tests.csproj" />
+    <Project Path="tests/HBHT.TestSupport/HBHT.TestSupport.csproj" />
+  </Folder>
+</Solution>

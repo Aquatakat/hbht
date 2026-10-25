@@ -1,10 +1,10 @@
 # 0012. The editor holds the importer, and code flows from the runtime to the editor
 
-Status: Accepted · Oct 3, 2026 · Supersedes the last consequence of [0010](0010-editor-reads-plugins.md), that the editor's reference to `Aidyn.Rom` goes when the Borg browser is deleted
+Status: Accepted · Oct 3, 2026 · Supersedes the last consequence of [0010](0010-editor-reads-plugins.md), that the editor's reference to `HBHT.Rom` goes when the Borg browser is deleted
 
 ## Context
 
-[0010](0010-editor-reads-plugins.md) made the editor read only plugins, and expected its reference to `Aidyn.Rom` to go with the Borg browser. The browser is gone, but the reference stayed, for two things: the editor runs the importer (**Import ROM…**), and it loads checkpoints, which `Aidyn.Rom.Rig` reads from an emulator's save state without a ROM.
+[0010](0010-editor-reads-plugins.md) made the editor read only plugins, and expected its reference to `HBHT.Rom` to go with the Borg browser. The browser is gone, but the reference stayed, for two things: the editor runs the importer (**Import ROM…**), and it loads checkpoints, which `HBHT.Rom.Rig` reads from an emulator's save state without a ROM.
 
 That raised what a player sees on first running the game, and where the importer lives at the end: in a third utility, in the runtime, or in the editor.
 
@@ -19,11 +19,11 @@ Separately, the runtime and the editor share code by linking files into each oth
 3. It imports the ROM into the data folder's `aidyn.base`.
 4. It offers **Play**, which closes the editor and starts the runtime, or **Editor**, which brings up the editor's controls in the same window.
 
-The importer stays a library in `Aidyn.Rom.Import`, which the editor and `aidyn import` both run. There's no third program.
+The importer stays a library in `HBHT.Rom.Import`, which the editor and `hbht import` both run. There's no third program.
 
 ### Which projects read the ROM
 
-- **The runtime never references `Aidyn.Rom`** ([0001](0001-importer-owns-the-rom.md)).
+- **The runtime never references `HBHT.Rom`** ([0001](0001-importer-owns-the-rom.md)).
 - **The editor references it** for the importer and for reading checkpoints. It still never decodes Borgs to show them: what it shows is what the importer wrote ([0010](0010-editor-reads-plugins.md)).
 
 ### Code flows one way: core, then runtime, then editor
@@ -34,7 +34,7 @@ The importer stays a library in `Aidyn.Rom.Import`, which the editor and `aidyn 
 
 ## Consequences
 
-- Until the first-run screen exists, the runtime tells the player to run `aidyn import`.
+- Until the first-run screen exists, the runtime tells the player to run `hbht import`.
 - How the runtime starts the editor depends on how the two Godot projects ship, which is Phase 6's packaging. Exporting them as one program with two scenes would also do.
 - The editor's **Import ROM…** becomes the first-run screen's import, with progress shown.
-- `N64Material` moved to the runtime, and nothing in `Aidyn.Game` uses `Aidyn.Inspector`.
+- `N64Material` moved to the runtime, and nothing in `HBHT.Game` uses `HBHT.Editor`.

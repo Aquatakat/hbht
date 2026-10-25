@@ -1,6 +1,6 @@
 # Using map objects (M2)
 
-`Aidyn.Core.MapObjects`. What map objects are and how the base plugin holds them is in [maps](../formats/maps.md); the rules for containers, locks and traps are in [items](items.md#containers).
+`HBHT.Core.MapObjects`. What map objects are and how the base plugin holds them is in [maps](../formats/maps.md); the rules for containers, locks and traps are in [items](items.md#containers).
 
 Ported from `objectJumpTables.cpp`, `voxObjects.cpp`, `voxObjects2.cpp` (`obj_ref_func`), `voxelProcess.cpp` (`ProcessVoxelObjects`), `lockpick.cpp`, `trapmenu.cpp` and the zone engine's `check_trigger` and `TeleportPlayer`.
 
@@ -92,7 +92,7 @@ Using a container (`loot_func`), once it's neither opened, destroyed nor remembe
 - **The one that stays** burns 600 ticks, growing its flames by 1. **The three thrown** burn 60, growing theirs by 0.35: each is an emitter that moves itself (emitter flag `0x2000`), a sphere of radius 0.25 leaving the container at 0.036 across the ground every way and 0.12 up, falling at 0.006 a tick² (the pool's one gravity, `0x800d58e4`) and colliding with the world each frame (`ProcessCollisionSphere`), so it rises about 1.2 and lands about 1.5 away, where the ground stops it. Its flames are born where it is, and its light goes with it while it's lit.
 - **The burst** (`Explosion.Burst`, `0x80016c00`): 75 particles of grey (0.35, 0.3, 0.25, 1) at scale 0.25, all at once from the container, every way at 0.04 to 0.06 a tick, falling at 6/7000 a tick², bouncing off the container's height (keeping 0.6), and fading to nothing over 420 ticks (over its life less one, `Particles.InverseLife`). Its light, orange fading to nothing within 10, lasts 120. Side by side with the emulator, the whole explosion looks as the original's.
 
-An emitter the pool has no room for comes without its light. `Aidyn.Core.Particles.Explosion` ports it, from `TrekLoop`'s `IMapObjectHost.Explode`; the runtime's `ParticlesView` draws it with the rest of the pool. The pool collides a thrown fire with every loaded chunk's collision (`ParticleHead.World`, which the zone engine gives it), where the original's head holds the one `LoadGameBorgScenes` sets (`+0x338`). With no pool the lights come alone (`DynamicLights.Explosion`).
+An emitter the pool has no room for comes without its light. `HBHT.Core.Particles.Explosion` ports it, from `TrekLoop`'s `IMapObjectHost.Explode`; the runtime's `ParticlesView` draws it with the rest of the pool. The pool collides a thrown fire with every loaded chunk's collision (`ParticleHead.World`, which the zone engine gives it), where the original's head holds the one `LoadGameBorgScenes` sets (`+0x338`). With no pool the lights come alone (`DynamicLights.Explosion`).
 
 ## Map objects write flags
 
@@ -124,4 +124,4 @@ The 23 lights along the path from Oriana's hut (15 in I08, 7 in J08, 1 in K08) g
 
 - Alaron's animations for opening a container (request 11) and a door (19), which the original asks for only when it chose among several objects.
 - The explosion's particles, and the popups' fades. Its lights ([rendering](rendering.md#point-lights)) and the containers', gold's and explosion's sounds are ported.
-- The editor's map object pages don't use doors, triggers or teleporters; a container's opens in the loot window ([inspector](inspector.md)).
+- The editor's map object pages don't use doors, triggers or teleporters; a container's opens in the loot window ([editor](editor.md)).

@@ -15,7 +15,7 @@ Two more pieces of the base game stayed keyed by number:
 
 ### Every effect lands through one function
 
-A spell's cast, a potion drunk in trek or in a battle, and a flask's landing all hand their effects to `EffectLanding.Land` (`Aidyn.Core.Magic`), with whose they are (the record, its school, the cast's level and margin), who sent them and whom they land on. It goes through the effects in the record's order:
+A spell's cast, a potion drunk in trek or in a battle, and a flask's landing all hand their effects to `EffectLanding.Land` (`HBHT.Core.Magic`), with whose they are (the record, its school, the cast's level and margin), who sent them and whom they land on. It goes through the effects in the record's order:
 
 - An effect that happens once does now (`EffectLanding.Once`): `damage` and `banish` add the d6 over the margin that the caller rolls; `dispel`, `cure` and `heal` act on the target's sheet; `flee`, `teleport`, `senseAura` and `revealPhase` ask the battle, and do nothing in trek.
 - A record with no duration has its lasting effects happen once and leave nothing, as 0020 says; the Stamina potion's is the base game's one.
@@ -43,6 +43,6 @@ A spell record carries `area`: the AI centres it on its opponents and scores it 
 ## Consequences
 
 - A plugin can give any spell, potion or flask any effect type, and it does what it does for the base game's carriers. One that needs a battle does nothing in trek, as before.
-- The base plugin is importer 53. `CombatRecord.AreaSpells` and `Aidyn.Core.Items.Potion` are gone; tests name the base game's potions by `BasePotion` in `Aidyn.TestSupport`.
+- The base plugin is importer 53. `CombatRecord.AreaSpells` and `HBHT.Core.Items.Potion` are gone; tests name the base game's potions by `BasePotion` in `HBHT.TestSupport`.
 - A dispel of the unschooled school takes nothing off, which 0020 says and the code now enforces in the one place.
 - The blast's distance rule (the damage over the squared distance, kept in a byte) is the flask's, and a spell's or potion's blast uses it too. A spell that blasts at several targets bursts once for each.

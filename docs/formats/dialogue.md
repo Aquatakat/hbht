@@ -1,6 +1,6 @@
 # Dialogue and cut-scene scripts: Borg13 (roadmap 1E)
 
-`aidyn dialogue <rom> [<index>...]` writes each Borg13 as text to `out/<version>/dialogue/`, with speakers named from the DB.
+`hbht dialogue <rom> [<index>...]` writes each Borg13 as text to `out/<version>/dialogue/`, with speakers named from the DB.
 
 - **Borg13 (892 scripts)** is a 0x18-byte header, then 0x38-byte nodes, then 8-byte actor entries, then plain ASCII text padded to 8 bytes. The text isn't encrypted, unlike the DB strings. It keeps `\n` and `\xHH` escapes, and a run of 20 `#` stands for the player's name. Many scripts carry leftover strings that no node uses, and some end with a blank node that nothing links to.
 - **Header:** `ID` is the script's number in the original tools (1004–13147), not its archive index. `flag` is set when a cut-scene, backdrop or help script finishes, but not after a conversation or sign. `start_func` is the presentation: 596 conversations, 211 cut-scenes, 78 backdrops (text over a picture, such as a book), 6 signposts and the help menu. `libraryType` picks the backdrop's picture and is 14 everywhere else. Op 19 duplicates it in each backdrop's first node, and the game never reads op 19.

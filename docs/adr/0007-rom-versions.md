@@ -15,14 +15,14 @@ The debug ROM (02.01d-PRERELEASE) has its own layout and content. PAL versions e
 ## Decision
 
 - **Byte order:** normalise to big-endian (`.z64`) before anything else. Detect the order from the first word: `80 37 12 40` is `.z64`, `37 80 40 12` is `.v64` (byte-swapped), and `40 12 37 80` is `.n64` (word-swapped).
-- **Identification:** identify the version by the SHA-1 of the normalised image. Hash tables live in `Aidyn.Rom` beside the offsets.
+- **Identification:** identify the version by the SHA-1 of the normalised image. Hash tables live in `HBHT.Rom` beside the offsets.
 - **Offsets:** every ROM offset comes from a per-version table: `Borg_List`, the DB block and each table in it, and the code-segment data tables (map chunk lists, dialogue SFX). No offset is hardcoded outside the table.
 - **Support order:**
   1. **NA 1.0** is the primary target (SHA-1 `47ae795a…fc826c`).
   2. **NA 1.1** follows once 0.4 can decode the DB tables and the differing ranges are identified. Its assets are shared with 1.0, so it gets the same `aidyn.base` records apart from those identified DB changes.
   3. **PAL** is later, after someone examines it.
 - **Unknown ROMs are refused**, with a message that shows the hash. That includes hacks, such as the low-level-enemy ROM the rig saves were played on. Guessing offsets by signature risks importing a subtly wrong `aidyn.base`, and every later bug report would then be suspect.
-- **The debug ROM is for research only.** `Aidyn.Rom` and the inspector can read it through its own offset table, but the importer never builds `aidyn.base` from it.
+- **The debug ROM is for research only.** `HBHT.Rom` and the editor can read it through its own offset table, but the importer never builds `aidyn.base` from it.
 
 ## Consequences
 

@@ -2,7 +2,7 @@
 
 ADR 0008's layer 2: *on an event, if its conditions hold, do its effects*. The core fires named events where the original's engine code does something the data doesn't say, and the plugins' trigger records say what follows. The base plugin's triggers carry what the original hardcodes at those places, so a mod changes or adds to them like any record, with no hook the base game has and mods don't.
 
-`GameEvents` and `Triggers` in `Aidyn.Core.Events`, `TriggerRecord` in `Aidyn.Plugins.Records`, `TriggerImporter` in `Aidyn.Rom.Import`. `GameSession` fires the events and carries out what takes over.
+`GameEvents` and `Triggers` in `HBHT.Core.Events`, `TriggerRecord` in `HBHT.Plugins.Records`, `TriggerImporter` in `HBHT.Rom.Import`. `GameSession` fires the events and carries out what takes over.
 
 ## The records
 
@@ -22,7 +22,7 @@ ADR 0008's layer 2: *on an event, if its conditions hold, do its effects*. The c
 | `credits` | The credits roll; with `ending`, they can't be skipped, end with "The End", and end the game | Yes |
 | `gameOver` | The game is over: it goes back to the title, its intro cards first ([ui](ui.md#coming-back-to-it)) | Yes |
 
-Conditions and ops go through the script VM's own, `ScriptOps` in `Aidyn.Core.Scripts`, so they mask and roll as a node does, and the gold's and experience's sounds go to the session's host. A condition's or op's target is also the speaker `CheckSpeakerStat` reads and the member `AddExp` gives to. The one difference is that a trigger has no map object and keeps nothing: each `CheckSkill` rolls the party's check afresh, though it still rolls 0–21 while `randomSkillChecks` is set.
+Conditions and ops go through the script VM's own, `ScriptOps` in `HBHT.Core.Scripts`, so they mask and roll as a node does, and the gold's and experience's sounds go to the session's host. A condition's or op's target is also the speaker `CheckSpeakerStat` reads and the member `AddExp` gives to. The one difference is that a trigger has no map object and keeps nothing: each `CheckSkill` rolls the party's check afresh, though it still rolls 0–21 while `randomSkillChecks` is set.
 
 An effect that takes over from trek ends the firing: the triggers after it on that event don't go off. One that can't be carried out (a cinematic no plugin has) is reported and the event's place goes on as it would without it. A type no build knows loads as a plain effect that does nothing, and `Triggers.Problems` reports it, as it does a trigger on an event the core never fires.
 

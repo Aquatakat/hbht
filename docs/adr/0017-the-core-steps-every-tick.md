@@ -18,7 +18,7 @@ Building M1 and M2 went another way:
 
 - **The core steps one tick at a time.** The runtime calls each system's step once per 60 Hz tick, and so do the tests. Systems that the original advances by `delta`, such as the clock, the clouds, lights and script waits, may take a tick count, and are given 1.
 - **The display is smoothed, not the rules.** The frame rate Godot draws at never changes what the core does.
-- **Per-frame behaviour is matched to an idealized frame**, a fixed number of ticks. Where the original acts once a frame, or loops toward a target fixed for the frame, the port does what the original does at that frame rate. The frames are named constants in `Aidyn.Core.Cadence`, each with its reason:
+- **Per-frame behaviour is matched to an idealized frame**, a fixed number of ticks. Where the original acts once a frame, or loops toward a target fixed for the frame, the port does what the original does at that frame rate. The frames are named constants in `HBHT.Core.Cadence`, each with its reason:
   - `FrameTicks = 2` (30 fps) is the default.
   - `TextureFrameTicks = 3` and `PrecipitationFrameTicks = 3` (20 fps) are the console's average, for scrolling textures and for rain and snow spawning.
   - `MenuFrameTicks = 1` (60 fps) is the pause menu's, which matched the original's timing in the emulator.

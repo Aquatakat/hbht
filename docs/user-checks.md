@@ -18,7 +18,7 @@ Things only the user can settle, by playing the original in the emulator, by lis
 
 ## Menus
 
-- **A new game from the load menu** (the runtime, with a save from `aidyn save new` or the editor's new game): load it from the System tab's Load. Does it play the opening cinematic, then the opening's script on its stage, then trek in Overworld I08, as a plain launch does? [saves](systems/saves.md#the-format)
+- **A new game from the load menu** (the runtime, with a save from `hbht save new` or the editor's new game): load it from the System tab's Load. Does it play the opening cinematic, then the opening's script on its stage, then trek in Overworld I08, as a plain launch does? [saves](systems/saves.md#the-format)
 
 ## Combat
 
@@ -32,6 +32,6 @@ Things only the user can settle, by playing the original in the emulator, by lis
 
 ## Sound
 
-- **Wrapped pitches:** music 0x05DD and 0x05DE, and sounds such as 0x0759 and 0x075F, have notes above 65,535 Hz that the original keeps in 16 bits, so they'd play far too low. The port does the same. Listen for a low growl or rumble against `aidyn audio`'s render. [audio](formats/audio.md#the-event-stream)
+- **Wrapped pitches:** music 0x05DD and 0x05DE, and sounds such as 0x0759 and 0x075F, have notes above 65,535 Hz that the original keeps in 16 bits, so they'd play far too low. The port does the same. Listen for a low growl or rumble against `hbht audio`'s render. [audio](formats/audio.md#the-event-stream)
 - **The sound volume at half:** by the code, the menu's sounds take the sound volume twice and the containers' three times. At half sound volume, are they a quarter as loud? The port plays them so. [audio](systems/audio.md#volumes)
 - **The post-battle windows in the runtime**, after a battle won in the forest that gains Alaron a level (as in the prologue): are the training and loot windows silent but for the menu's own sounds, with no ambient sound or rain under them, and does the level-up jingle (0x05E8) play about a second after the scroll starts unrolling, as in the original? [ui](systems/ui.md#after-a-battle)

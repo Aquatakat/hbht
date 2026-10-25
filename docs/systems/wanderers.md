@@ -1,6 +1,6 @@
 # Wanderers: monster parties' bodies (M2)
 
-`Aidyn.Core.Trek` (`Wanderers`, `Wanderer`) and `Aidyn.Core.Movement` (`Body`, `Crowd`). Ported from `wander.cpp`, `PlayerMove.cpp` (`Actor::SetAiDest`, `SetFacing`, `MoveTo`, `Move`) and `PlayerData.cpp` (`ProcessPlayers`, `PlayerShadowAlpha`, `renderPlayers`). What a monster party holds is in [maps](../formats/maps.md#map-objects-in-the-base-plugin-06).
+`HBHT.Core.Trek` (`Wanderers`, `Wanderer`) and `HBHT.Core.Movement` (`Body`, `Crowd`). Ported from `wander.cpp`, `PlayerMove.cpp` (`Actor::SetAiDest`, `SetFacing`, `MoveTo`, `Move`) and `PlayerData.cpp` (`ProcessPlayers`, `PlayerShadowAlpha`, `renderPlayers`). What a monster party holds is in [maps](../formats/maps.md#map-objects-in-the-base-plugin-06).
 
 A monster party is an NPC to talk to, if it has a dialogue, or a group of enemies the player sees as its leader. Either way it's one body in the world, which wanders between wander nodes.
 
@@ -72,7 +72,7 @@ After each body moves, the player first, it's pushed out of the others in its ch
 
 ### In the port
 
-`Conversation` (`Aidyn.Core.Trek`) is a script running in trek, with a wanderer (`Conversation.TalkTo`) or a sign (`Conversation.Show`), on the world random stream. `TrekLoop` keeps the push loop's nearest body for A (`Wanderers.Reaches`), and its `IMapObjectHost.Talk` starts a talker's conversation or a hunter's battle. Trek loads a chunk's wanderers as its zone engine loads the chunk, before the chunk's sounds and lights. Where it's not plain from the code:
+`Conversation` (`HBHT.Core.Trek`) is a script running in trek, with a wanderer (`Conversation.TalkTo`) or a sign (`Conversation.Show`), on the world random stream. `TrekLoop` keeps the push loop's nearest body for A (`Wanderers.Reaches`), and its `IMapObjectHost.Talk` starts a talker's conversation or a hunter's battle. Trek loads a chunk's wanderers as its zone engine loads the chunk, before the chunk's sounds and lights. Where it's not plain from the code:
 
 - **The player turns to the talker as a body does,** 10° a frame where he stands (`PlayerMotion.Face`).
 - **Walking into objects and onto triangles stops** during a conversation, except for their cameras, which take the camera from the conversation's framing.

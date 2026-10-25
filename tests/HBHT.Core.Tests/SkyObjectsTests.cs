@@ -1,0 +1,300 @@
+using System.Numerics;
+using HBHT.Core.Calendar;
+using HBHT.Core.Rng;
+using HBHT.Core.Sky;
+using HBHT.Plugins;
+using HBHT.Plugins.Records;
+
+namespace HBHT.Core.Tests;
+
+public class SkyObjectsTests
+{
+    private static RecordId Image(int n) => RecordId.Hex(RecordTypes.Image, n);
+
+    private static readonly Rgba White = new(250, 250, 250, 250);
+
+    /// <summary>A sky like the ROM's: two stars, the sun, the moon, two clouds and two flare pieces.</summary>
+    private static SkyRecord Sky() => new(
+        RecordId.Decimal(RecordTypes.Sky, 0),
+        new SkyBody(Image(0x1A2), 1, 0, 90, White),
+        new SkyBody(Image(0x198), 1, 0, 0, White),
+        new MoonImages(Image(0x194), Image(0x379F), Image(0x195), Image(0x37A0), Image(0x196), Image(0x198)),
+        [new SkyBody(Image(0x1A1), 0.19f, 10, 90, White), new SkyBody(Image(0x1A1), 0.19f, 10, 270, White)],
+        [Image(0x18F), Image(0x190), Image(0x191)],
+        [new Cloud(0, 0, -530, 255, 0.2f), new Cloud(1, 0, 530, 255, 0.4f)],
+        [Image(0x192), Image(0x193), Image(0x192)],
+        [new FlarePiece(0, 1, 5.02f, new Rgba(250, 250, 250, 50)), new FlarePiece(1, 0.5f, 1.12f, new Rgba(250, 250, 250, 50))]);
+
+    private static Vector2 Size(RecordId image) => image.Key switch
+    {
+        "0x01A2" => new Vector2(64, 64),
+        "0x018F" or "0x0190" => new Vector2(160, 60),
+        _ => new Vector2(16, 16),
+    };
+
+    private static uint At(float hours) => GameClock.NewGame().Time - 12 * GameClock.Hour + (uint)(hours * GameClock.Hour);
+
+    [Fact]
+    public void TheSunRisesInPlusXAndIsDrawnInTheMiddleWhenTheCameraLooksAtIt()
+    {
+        // At 06:00 its height is 0: on the horizon, in +X.
+        Near(new Vector2(160, 120), SkyObjects.Place(0, 90, false, Vector3.UnitX));
+        Assert.Null(SkyObjects.Place(0, 90, false, -Vector3.UnitX));
+
+        // Looking down moves it up the screen, 300 pixels to the unit of the look's height.
+        var down = Vector3.Normalize(new Vector3(1, -0.2f, 0));
+        Assert.Equal(120 + down.Y * 300, SkyObjects.Place(0, 90, false, down)!.Value.Y, 0.001f);
+
+        // Overhead at noon, it's off the top of the screen, and at the edge of what's drawn at all.
+        Assert.Null(SkyObjects.Place(90, 90, false, Vector3.UnitX));
+    }
+
+    [Fact]
+    public void TheSunsElevationIsTheSineOfItsHeight()
+    {
+        // At 09:00, a height of 45° draws it at sin(45°) × 90 ≈ 63.6° up.
+        var at = SkyObjects.Place(45, 90, false, Vector3.UnitX)!.Value;
+        Assert.Equal(120 - MathF.Sin(63.64f * MathF.PI / 180) * 300, at.Y, 0.1f);
+    }
+
+    [Fact]
+    public void StarsShowOnlyWhileTheSunIsDown()
+    {
+        var objects = new SkyObjects(Sky());
+        var sprites = new List<SkySprite>();
+        objects.Draw(sprites, At(12), Vector3.UnitX, Vector3.One, Size);
+        Assert.DoesNotContain(sprites, s => s.Image == Image(0x1A1));
+
+        sprites.Clear();
+        objects.Twinkle(new Lcg(1), 3 / 24f);
+        objects.Draw(sprites, At(3), Vector3.UnitX, Vector3.One, Size);
+        var star = Assert.Single(sprites, s => s.Image == Image(0x1A1));
+        // Twinkling in greys, brighter the lower the sun: at 03:00 it's 45° down, so alpha × sin 45°.
+        Assert.Equal(star.Color.X, star.Color.Y);
+        Assert.InRange(star.Color.X, 160 / 255f, 1);
+        Assert.Equal((byte)(250 * MathF.Sin(45 * MathF.PI / 180)) / 255f, star.Alpha, 0.001f);
+    }
+
+    [Fact]
+    public void EachStarTwinklesAGreyOfItsOwnInTheTablesOrderOnlyByNight()
+    {
+        var objects = new SkyObjects(Sky());
+        var random = new Lcg(7);
+        // By day nothing is drawn.
+        objects.Twinkle(random, 0.5f);
+        Assert.Equal(7u, random.Seed);
+        Assert.All(objects.Greys, g => Assert.Equal(0, g));
+
+        // By night every star draws, the one behind the camera too.
+        objects.Twinkle(random, 0.1f);
+        var expected = new Lcg(7);
+        Assert.Equal([(byte)expected.Range(160, 255), (byte)expected.Range(160, 255)], objects.Greys);
+        Assert.Equal(expected.Seed, random.Seed);
+    }
+
+    [Fact]
+    public void TheSunIsDrawnInTheSkysSunColourAndLeavesItsMiddleForTheFlare()
+    {
+        var objects = new SkyObjects(Sky());
+        var sprites = new List<SkySprite>();
+        var color = new Vector3(0.9f, 0.6f, 0.3f);
+        objects.Draw(sprites, At(6), Vector3.UnitX, color, Size);
+
+        var sun = Assert.Single(sprites, s => s.Image == Image(0x1A2));
+        Assert.Equal(color, sun.Color, new Tolerance());
+        Near(new Vector2(160, 120), sun.At);
+        Near(new Vector2(192, 152), objects.SunMiddle);
+
+        // Turning away leaves the flare's point where it was.
+        objects.Draw(sprites, At(6), -Vector3.UnitX, color, Size);
+        Near(new Vector2(192, 152), objects.SunMiddle);
+    }
+
+    [Theory]
+    [InlineData(0, 0, 3, true)]
+    [InlineData(0, 5, 2, true)]
+    [InlineData(1, 3, 1, true)]
+    [InlineData(2, 0, 0, false)]
+    [InlineData(2, 2, 0, false)]
+    [InlineData(3, 4, 2, false)]
+    [InlineData(4, 1, 3, true)]
+    public void TheMoonGoesRoundEveryFourWeeks(int week, int day, int phase, bool waxing)
+    {
+        var time = (uint)(week * GameClock.Week + day * GameClock.Day);
+        Assert.Equal((phase, waxing), GameClock.MoonPhase(time));
+    }
+
+    [Fact]
+    public void ANewGameStartsUnderANewMoon()
+    {
+        Assert.Equal((0, false), GameClock.MoonPhase(GameClock.NewGame().Time));
+        Assert.Equal(Image(0x194), SkyObjects.MoonImage(Sky().MoonPhases, GameClock.NewGame().Time));
+        // Day 8 turns from quarter to crescent at noon.
+        Assert.Equal((2, true), GameClock.MoonPhase(GameClock.Week + GameClock.Day + 11 * GameClock.Hour));
+        Assert.Equal((1, true), GameClock.MoonPhase(GameClock.Week + GameClock.Day + 12 * GameClock.Hour));
+    }
+
+    [Fact]
+    public void NearerCloudsAreHigherLargerAndMoreOpaque()
+    {
+        var clouds = new Clouds(Sky());
+        var sprites = new List<SkySprite>();
+        // Looking along +X, the game sees the cloud at −Z, with X and Z swapped.
+        clouds.Draw(sprites, Vector3.UnitX, new Vector3(0.8f), Size);
+
+        var cloud = Assert.Single(sprites);
+        var near = 1 - 530f / 750;
+        Assert.Equal(near + 0.2f, cloud.Scale, 0.0001f);
+        Assert.Equal((byte)(255 * MathF.Sqrt(near)) / 255f, cloud.Alpha, 0.0001f);
+        Assert.Equal(new Vector2(160 - 160 * near / 2, 120 - near * 240 - 60 * near / 2), cloud.At);
+    }
+
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(30f)]
+    [InlineData(60f)]
+    public void ProjectedPlacementIsPerspectivesAtAnyHeight(float height)
+    {
+        // The sun at an azimuth of 90° (+X), with the camera looking level, 25° to its right.
+        var off = 25 * MathF.PI / 180;
+        var look = new Vector3(MathF.Cos(off), 0, MathF.Sin(off));
+        var projected = SkyObjects.Place(height, 90, false, look, SkyPlacement.Projected)!.Value;
+        var original = SkyObjects.Place(height, 90, false, look)!.Value;
+
+        var focal = 120 / MathF.Tan(22.5f * MathF.PI / 180);
+        Assert.Equal(160 - focal * MathF.Tan(off), projected.X, 0.01f);
+        Assert.Equal(160 - 300 * MathF.Sin(off), original.X, 0.01f);
+        // Off to the side, a point above the horizon sits higher: 1 / cos of the angle off the look.
+        var up = MathF.Sin(height * MathF.PI / 180) * 90 * MathF.PI / 180;
+        Assert.Equal(120 - focal * MathF.Tan(up) / MathF.Cos(off), projected.Y, 0.01f);
+    }
+
+    [Theory]
+    [InlineData(0f, 0f)]
+    [InlineData(-15f, 0f)]
+    [InlineData(-15f, 30f)]
+    [InlineData(10f, -35f)]
+    public void ProjectedSpritesLandWherePerspectivePutsTheirDirection(float pitch, float turn)
+    {
+        // A camera pitched as the follow camera is, 15° down, turned 30° off the sun and its cloud,
+        // against a 4:3 look-at and 45° perspective, as the scenery is drawn.
+        var (sp, cp) = MathF.SinCos(pitch * MathF.PI / 180);
+        var (st, ct) = MathF.SinCos((90 + turn) * MathF.PI / 180);
+        var look = new Vector3(st * cp, sp, ct * cp);
+        var view = Matrix4x4.CreateLookAt(Vector3.Zero, look, Vector3.UnitY);
+        var projection = Matrix4x4.CreatePerspectiveFieldOfView(45 * MathF.PI / 180, 4f / 3, 1, 1000);
+        Vector2 Screen(Vector3 direction)
+        {
+            var clip = Vector4.Transform(Vector4.Transform(new Vector4(direction, 1), view), projection);
+            return new Vector2(160 + clip.X / clip.W * 160, 120 - clip.Y / clip.W * 120);
+        }
+
+        // The sun at 08:00, 30° up, in +X.
+        var sun = SkyObjects.Place(30, 90, false, look, SkyPlacement.Projected)!.Value;
+        var elevation = MathF.Sin(30 * MathF.PI / 180) * 90 * MathF.PI / 180;
+        Near(Screen(new Vector3(MathF.Cos(elevation), MathF.Sin(elevation), 0)), sun, 0.01f);
+
+        // The cloud at −Z, which the game sees at +X (with X and Z swapped).
+        var clouds = new Clouds(Sky()) { Placement = SkyPlacement.Projected };
+        var sprites = new List<SkySprite>();
+        clouds.Draw(sprites, look, new Vector3(0.8f), Size);
+        var near = 1 - 530f / 750;
+        var up = MathF.Asin(0.8f * near);
+        var cloud = Assert.Single(sprites);
+        // It's centred on its direction by nearness, while drawn at nearness + 0.2.
+        var middle = near / 2 / (near + 0.2f);
+        Near(Screen(new Vector3(MathF.Cos(up), MathF.Sin(up), 0)), cloud.Patch!.Value.At(middle, middle), 0.01f);
+        Near(cloud.At, cloud.Patch.Value.At(0, 0));
+    }
+
+    [Fact]
+    public void ProjectedSpritesStretchAndTiltTowardTheEdgesAsTheSceneryDoes()
+    {
+        // Looking 15° down, with a patch of sky 30° to the right of the look.
+        var look = Vector3.Normalize(new Vector3(0, -MathF.Tan(15 * MathF.PI / 180), -1));
+        var heading = new Vector2(MathF.Sin(30 * MathF.PI / 180), -MathF.Cos(30 * MathF.PI / 180));
+        var direction = SkyScreen.Direction(heading.X, heading.Y, 0.3f);
+        var patch = SkyPatch.Lay(direction, heading, Vector2.Zero, new Vector2(40, 40), look);
+        var (topLeft, topRight) = (patch.At(0, 0)!.Value, patch.At(1, 0)!.Value);
+        var (bottomLeft, bottomRight) = (patch.At(0, 1)!.Value, patch.At(1, 1)!.Value);
+
+        // Wider than 40 on the screen, and its top rises toward the edge, as a height above the
+        // horizon does: 1 / cos of the angle off the look, and more so looking down.
+        Assert.True(topRight.X - topLeft.X > 40);
+        Assert.True(topRight.Y < topLeft.Y);
+        // It's a trapezoid, not a rectangle: its far side is taller.
+        Assert.True(bottomRight.Y - topRight.Y > bottomLeft.Y - topLeft.Y);
+    }
+
+    [Fact]
+    public void ProjectedCloudsAreWhereTheOriginalPutsThemWhenLookedAtStraight()
+    {
+        // The cloud at −Z, seen at +X. Looking at its heading, level, both put it 240 × nearness up.
+        var near = 1 - 530f / 750;
+        var middle = near / 2 / (near + 0.2f);
+        var original = new List<SkySprite>();
+        var projected = new List<SkySprite>();
+        new Clouds(Sky()).Draw(original, Vector3.UnitX, new Vector3(0.8f), Size);
+        new Clouds(Sky()) { Placement = SkyPlacement.Projected }.Draw(projected, Vector3.UnitX, new Vector3(0.8f), Size);
+        var anchor = projected[0].Patch!.Value.At(middle, middle)!.Value;
+        Assert.Equal(160, anchor.X, 0.01f);
+        Assert.Equal(original[0].At.Y + 60 * near / 2, anchor.Y, 1f);
+
+        // Looking up at it until it's in the middle, they agree exactly, corner to corner.
+        var look = Vector3.Normalize(new Vector3(MathF.Sqrt(1 - MathF.Pow(0.8f * near, 2)), 0.8f * near, 0));
+        original.Clear();
+        projected.Clear();
+        new Clouds(Sky()).Draw(original, look, new Vector3(0.8f), Size);
+        new Clouds(Sky()) { Placement = SkyPlacement.Projected }.Draw(projected, look, new Vector3(0.8f), Size);
+        var patch = projected[0].Patch!.Value;
+        Near(original[0].At, patch.At(0, 0), 0.01f);
+        Near(original[0].At + new Vector2(160, 60) * (near + 0.2f), patch.At(1, 1), 0.01f);
+    }
+
+    [Fact]
+    public void TheWindBlowsCloudsRoundToTheOtherSide()
+    {
+        var clouds = new Clouds(Sky()) { Wind = new Vector3(0, 0, -1) };
+        // 4 × the wind a frame, 2 a tick: 110 ticks takes the first cloud from −530 to −750.
+        clouds.Step(110);
+        Assert.Equal(-750, clouds.Positions[0].Y, 0.01f);
+        clouds.Step();
+        Assert.Equal(750, clouds.Positions[0].Y, 0.01f);
+    }
+
+    [Fact]
+    public void TheFlareFadesInOverFiveFramesAndDarkensMostAtTheMiddle()
+    {
+        var flare = new LensFlare(Sky());
+        var middle = SkyScreen.Middle;
+        flare.Step(middle, clear: true, tintRed: 0.8f, outdoor: true, ticks: 4);
+        Assert.Equal(20, flare.Fade);
+        flare.Step(middle, clear: true, tintRed: 0.8f, outdoor: true, ticks: 20);
+        Assert.Equal(50, flare.Fade);
+        Assert.Equal(0.4f, flare.Value, 0.0001f);
+
+        // At the middle its pieces shrink away; 80 out they're full size.
+        var sprites = new List<SkySprite>();
+        flare.Draw(sprites, middle, 0.8f, Size);
+        Assert.Empty(sprites);
+        flare.Draw(sprites, middle + new Vector2(80, 0), 0.8f, Size);
+        Assert.Equal(2, sprites.Count);
+        Assert.Equal(5.02f, sprites[0].Scale);
+        Assert.Equal((byte)(50 * 0.8f) / 255f, sprites[0].Alpha);
+
+        // Hidden, it fades out, and the scenery isn't darkened.
+        flare.Step(middle, clear: false, tintRed: 0.8f, outdoor: true, ticks: 2);
+        Assert.Equal(40, flare.Fade);
+        flare.Step(middle + new Vector2(90, 0), clear: true, tintRed: 0.8f, outdoor: true);
+        Assert.Equal(0, flare.Value);
+    }
+
+    private static void Near(Vector2 expected, Vector2? actual, float within = 0.001f) =>
+        Assert.True(actual is { } a && Vector2.Distance(expected, a) < within, $"Expected {expected}, got {actual}.");
+
+    private sealed class Tolerance : IEqualityComparer<Vector3>
+    {
+        public bool Equals(Vector3 a, Vector3 b) => Vector3.Distance(a, b) < 0.003f;
+        public int GetHashCode(Vector3 v) => 0;
+    }
+}

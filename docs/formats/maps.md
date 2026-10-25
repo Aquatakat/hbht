@@ -1,6 +1,6 @@
 # Maps: chunk lists and Borg9 (roadmaps 1C and 1E)
 
-A map set is a grid of chunks, and each chunk is a Borg9 (collision, its grid and the map objects) plus up to two Borg5 scenes. `MapChunks` reads the chunk lists, `Borg9Map` the collision and grid, `Borg9Voxels` the map objects (`VoxelObject.cs`) and `CollisionGltf` writes the collision as glTF, all in `Aidyn.Rom.Maps`.
+A map set is a grid of chunks, and each chunk is a Borg9 (collision, its grid and the map objects) plus up to two Borg5 scenes. `MapChunks` reads the chunk lists, `Borg9Map` the collision and grid, `Borg9Voxels` the map objects (`VoxelObject.cs`) and `CollisionGltf` writes the collision as glTF, all in `HBHT.Rom.Maps`.
 
 ## Map objects
 

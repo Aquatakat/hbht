@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>hbht</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\HBHT.Core\HBHT.Core.csproj" />
+    <ProjectReference Include="..\HBHT.Rom\HBHT.Rom.csproj" />
+  </ItemGroup>
+
+</Project>

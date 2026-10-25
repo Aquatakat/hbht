@@ -2,7 +2,7 @@
 
 The original has its own music and sound-effect format, not the N64 SDK's. It uses libultra's synthesizer to mix voices, but not its sequence player or sound banks (`alSeqp*` and `alBnk*` aren't linked), and none of the samples are ADPCM. Every sound in the game, from the menu's cursor tick to the battle music, is a **Borg12**: rows of events over up to 16 tracks, close to a tracker module, which play **Borg11** samples of raw PCM. The debug build names the sequencer `./src/dcm.cpp` and the Borg12 loader `./src/n64BorgDCMModule.cpp`, so the original calls a Borg12 a DCM module. The sequencer, voice manager and mixer, and how the port plays all this, are in [audio](../systems/audio.md#the-driver).
 
-`aidyn audio <rom>` writes every sample as WAV and renders every sequence to WAV with the port's player, with a `sequences.csv`; `--plays <n>` loops a sequence `n` times.
+`hbht audio <rom>` writes every sample as WAV and renders every sequence to WAV with the port's player, with a `sequences.csv`; `--plays <n>` loops a sequence `n` times.
 
 ## Loops
 

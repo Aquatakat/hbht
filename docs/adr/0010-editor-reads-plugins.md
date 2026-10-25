@@ -23,4 +23,4 @@ There are two models to follow. Bethesda's Construction Set edits Morrowind's ES
 - `QuestAtlas` is rebuilt over plugin records, not ROM types. That also covers Phase 5's goal of an atlas that includes mod content.
 - Until then, the HTML quest atlas stays in use for looking up flags and scripts.
 - Viewing a format before it's imported is no longer possible in the editor. The CLI's exports (PNG, glTF, JSON, text) cover quick looks during decoding.
-- The editor's project references `Aidyn.Plugins` and `Aidyn.Core`. It references `Aidyn.Rom` only for the frozen Borg browser and for running the importer, and the browser's reference goes when the browser is deleted.
+- The editor's project references `HBHT.Plugins` and `HBHT.Core`. It references `HBHT.Rom` only for the frozen Borg browser and for running the importer, and the browser's reference goes when the browser is deleted.

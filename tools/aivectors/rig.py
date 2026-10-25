@@ -3,7 +3,7 @@
 Nothing derived from the ROM is kept in the repository. The disassembly is built here at run time (and cached in the gitignored
 out/aivectors/), and a checkpoint's RAM is read straight from its save state with tools/bst.py, as `bst.py --dump` does.
 
-The ROM and the states are found as the reference rig keeps them: in roms/ (or AIDYN_ROMS), the ROM by its name and a state as
+The ROM and the states are found as the reference rig keeps them: in roms/ (or HBHT_ROMS), the ROM by its name and a state as
 "<rom basename> - Combat NN, <label>.bs1".
 """
 import glob
@@ -27,14 +27,14 @@ _ram_cache = {}
 
 
 def roms_dir():
-    return os.environ.get('AIDYN_ROMS') or os.path.join(REPO, 'roms')
+    return os.environ.get('HBHT_ROMS') or os.path.join(REPO, 'roms')
 
 
 def rom_path():
     """1.0's ROM (rev byte 0x00), by name."""
     hits = glob.glob(os.path.join(glob.escape(roms_dir()), '*(V1.0)*.z64'))
     if not hits:
-        raise SystemExit(f'1.0 ROM (*(V1.0)*.z64) not found in {roms_dir()}; set AIDYN_ROMS')
+        raise SystemExit(f'1.0 ROM (*(V1.0)*.z64) not found in {roms_dir()}; set HBHT_ROMS')
     return hits[0]
 
 

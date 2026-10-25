@@ -25,7 +25,7 @@ A record ID is a string:
 ```
 
 - **Namespace:** `[a-z0-9_]+`. `aidyn` is reserved for the base game. Each plugin owns one namespace, its plugin ID ([0005](0005-plugin-format.md)).
-- **Type:** a record type from a fixed registry in `Aidyn.Plugins`, such as `entity`, `weapon`, `flag`, `dialogue`, `texture` or `voxel`.
+- **Type:** a record type from a fixed registry in `HBHT.Plugins`, such as `entity`, `weapon`, `flag`, `dialogue`, `texture` or `voxel`.
 - **Key:** one or more `/`-separated segments. In mod namespaces, keys are names in `[a-z0-9_]+`, for example `mymod:flag/met_the_hermit`. In `aidyn`, keys mirror the original numbering, in one canonical spelling per type:
 
 | Space | `aidyn` key | Example |

@@ -1,6 +1,6 @@
 # Characters (roadmap 2.2)
 
-`Aidyn.Core.Characters`: `Character` (the sheet, with its effects in `Character.Effects.cs`), `CharacterStats` and `CharacterSkills`, `CharacterRules` (the records' numbers: caps, prices, experience), `Training`, `Party` (the slots, the gold, the checks; its items in `Party.Items.cs`, [items](items.md)) and `CharacterSaves` (a sheet to and from a save, [saves](saves.md)). The entity DB's layout is in [db](../formats/db.md).
+`HBHT.Core.Characters`: `Character` (the sheet, with its effects in `Character.Effects.cs`), `CharacterStats` and `CharacterSkills`, `CharacterRules` (the records' numbers: caps, prices, experience), `Training`, `Party` (the slots, the gold, the checks; its items in `Party.Items.cs`, [items](items.md)) and `CharacterSaves` (a sheet to and from a save, [saves](saves.md)). The entity DB's layout is in [db](../formats/db.md).
 
 They port the original's `CharStats` (`stats.cpp`), `CharSkills` (`skills.cpp`), the sheet's hit points and experience (`entity.cpp`, `entityInfo.cpp`), the party's checks (`party.cpp`) and the training screens (`StatTrain.cpp`, `SkillTrain.cpp`, `WidgetSpellTrain.cpp`). The price functions and tables are the same in 1.0 and the debug build.
 

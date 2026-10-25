@@ -1,6 +1,6 @@
 # Textures and UI images: Borg1 and Borg8 (roadmap 1A)
 
-`Borg1Texture` and `Borg8Image` (`Aidyn.Rom.Graphics`) read them. `aidyn textures <rom>` writes every Borg1 and Borg8 as PNG, with an `index.csv` of formats, sizes and flags.
+`Borg1Texture` and `Borg8Image` (`HBHT.Rom.Graphics`) read them. `hbht textures <rom>` writes every Borg1 and Borg8 as PNG, with an `index.csv` of formats, sizes and flags.
 
 - **Borg1 (2,183 textures)** is a 0x18-byte header, then every mip level back to back, then an RGBA16 palette for CI8 (256 entries) and CI4 (16). There are `lods + 1` levels. Each level halves both sides, and each row is padded to at least 8 bytes. No texture has its own display list, and every bitmap starts at 0x18.
 - **Borg1 bitmaps are stored in TMEM order.** The game uploads each one with a single `LoadBlock`, so odd rows have each pair of 32-bit words swapped (64-bit words for RGBA32). Undoing the swap makes the first mip level match a downsample of the base level.
