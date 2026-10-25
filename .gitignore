@@ -13,3 +13,12 @@ ref/
 .godot/
 tools/ghidra_*/
 __pycache__/
+
+# Packaging (docs/systems/releases.md): the packages and their working folders are in out/;
+# tools/package.ps1 puts these beside each Godot project for the export and removes them.
+src/*/icon.ico
+src/*/icon.icns
+src/*/*.sln
+# Godot writes a .uid beside each C# script when its editor scans a project. Nothing here
+# refers to a script by UID: the scenes name them by path.
+*.cs.uid
