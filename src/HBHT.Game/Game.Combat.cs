@@ -173,7 +173,7 @@ public partial class Game
     /// </summary>
     private void HoldToWin()
     {
-        if (!Input.IsActionPressed(Core.Controls.GameControls.BattleCancel))
+        if (!Debugging || !Input.IsActionPressed(Core.Controls.GameControls.BattleCancel))
         {
             _winHeld = 0;
             return;

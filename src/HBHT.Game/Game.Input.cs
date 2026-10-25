@@ -16,7 +16,8 @@ public partial class Game
 
     /// <summary>
     /// The input actions: the debug keys', which aren't the player's to bind, and the player's controls', made from the bindings
-    /// (<see cref="InputBindings.Apply"/>) now and again whenever they change.
+    /// (<see cref="InputBindings.Apply"/>) now and again whenever they change. A release build has the debug keys' actions with
+    /// nothing bound to them (<see cref="Debugging"/>), so the launch options can still press them.
     /// </summary>
     private void AddInputs()
     {
@@ -24,7 +25,7 @@ public partial class Game
         Add("fly_down", Key.C);
         Add("toggle_fly", Key.F);
         Add("fast_forward", null, JoyButton.LeftStick);
-        if (InputMap.ActionGetEvents("fast_forward").Count < 2)
+        if (Debugging && InputMap.ActionGetEvents("fast_forward").Count < 2)
             InputMap.ActionAddEvent("fast_forward", new InputEventJoypadButton { ButtonIndex = JoyButton.RightStick });
         Add("toggle_overlay", Key.F3);
         Add("toggle_pace", Key.F5);
@@ -42,6 +43,8 @@ public partial class Game
             if (InputMap.HasAction(action))
                 return;
             InputMap.AddAction(action, 0.1f);
+            if (!Debugging)
+                return;
             if (key is { } k)
                 InputMap.ActionAddEvent(action, new InputEventKey { PhysicalKeycode = k });
             if (button is { } b)

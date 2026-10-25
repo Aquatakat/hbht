@@ -18,7 +18,13 @@ namespace HBHT.Game;
 /// </summary>
 public partial class Game
 {
-    private readonly Label _overlay = new() { Position = new Vector2(8, 8) };
+    /// <summary>
+    /// Whether the debug keys, the overlay, fast-forward and holding B to win a battle are there: in a debug build (a run under
+    /// the Godot editor's binary, or a debug export), not in the release packages.
+    /// </summary>
+    private static readonly bool Debugging = OS.IsDebugBuild();
+
+    private readonly Label _overlay = new() { Position = new Vector2(8, 8), Visible = Debugging };
 
     /// <summary>The player's last second of positions, for the overlay's speed.</summary>
     private readonly Queue<System.Numerics.Vector3> _track = new();
