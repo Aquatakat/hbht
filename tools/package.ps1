@@ -159,7 +159,7 @@ function New-WindowsPackages {
     $archive = [IO.Compression.ZipFile]::Open($zip, [IO.Compression.ZipArchiveMode]::Update)
     try {
         $writer = New-Object IO.StreamWriter($archive.CreateEntry('portable.txt').Open())
-        $writer.Write("This file makes HBHT portable: while it is here, HBHT keeps its data (the imported game, saves and settings) in this folder instead of %LOCALAPPDATA%\HBHT.`r`n")
+        $writer.Write("This file makes HBHT portable: while it is here, HBHT keeps its data (the imported game, saves and settings) in the data folder beside it instead of %LOCALAPPDATA%\HBHT.`r`n")
         $writer.Dispose()
     } finally {
         $archive.Dispose()
