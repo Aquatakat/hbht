@@ -42,17 +42,47 @@ function Invoke-Native([string]$exe, [string[]]$arguments) {
     if ($LASTEXITCODE -ne 0) { throw "$exe $($arguments -join ' ') exited with $LASTEXITCODE" }
 }
 
-# Godot exits 0 from a failed .NET export, with the failure only in its output, so
-# any ERROR line fails the step.
+# A .NET export's build leaves MSBuild's worker nodes and the compiler server running
+# after Godot exits, holding the handles they inherited. Without them nothing outlives
+# the export, and the build is the same from a clean machine as from a warm one.
+$env:MSBUILDDISABLENODEREUSE = '1'
+$env:DOTNET_CLI_USE_MSBUILD_SERVER = '0'
+$env:UseSharedCompilation = 'false'
+
+# How long one Godot run may take before it's taken as stuck.
+$godotTimeout = [TimeSpan]::FromMinutes(20)
+
+# Quotes an argument for a Windows command line, as Start-Process doesn't.
+function ConvertTo-Argument([string]$value) {
+    if ($value -and $value -notmatch '[\s"]') { return $value }
+    return '"' + ($value -replace '(\\*)"', '$1$1\"' -replace '(\\+)$', '$1$1') + '"'
+}
+
+# Godot's output goes to files rather than a pipe: a process the export leaves behind
+# that holds the pipe keeps it from ending, and the step waits forever (it did on
+# GitHub's Windows runners, the export finished). Godot exits 0 from a failed .NET
+# export, with the failure only in its output, so any ERROR line fails the step.
 function Invoke-Godot([string]$projectDir, [string[]]$arguments, [string]$log) {
     Write-Host "godot --path $projectDir $($arguments -join ' ')"
-    & $script:godot --headless --path $projectDir @arguments 2>&1 |
-        ForEach-Object { "$_" } |
-        Tee-Object -FilePath $log |
-        Where-Object { $_.Trim() -and $_ -notmatch '^\[ *(\d+%|DONE) *\]' } |
-        ForEach-Object { Write-Host "  $_" }
-    $code = $LASTEXITCODE
-    $errors = @(Select-String -LiteralPath $log -Pattern '^(ERROR|SCRIPT ERROR):')
+    $all = @('--headless', '--path', $projectDir) + $arguments
+    $errLog = "$log.stderr"
+    $process = Start-Process -FilePath $script:godot -ArgumentList (($all | ForEach-Object { ConvertTo-Argument $_ }) -join ' ') `
+        -RedirectStandardOutput $log -RedirectStandardError $errLog -NoNewWindow -PassThru
+    # The handle, so the exit code is still there once it has exited.
+    $null = $process.Handle
+    $stuck = $false
+    if (-not $process.WaitForExit([int]$godotTimeout.TotalMilliseconds)) {
+        $process.Kill($true)
+        $stuck = $true
+    }
+    foreach ($file in @($log, $errLog)) {
+        Get-Content -LiteralPath $file -ErrorAction SilentlyContinue |
+            Where-Object { $_.Trim() -and $_ -notmatch '^\[ *(\d+%|DONE) *\]' } |
+            ForEach-Object { Write-Host "  $_" }
+    }
+    if ($stuck) { throw "Godot was still running after $($godotTimeout.TotalMinutes) minutes; its output is in $log" }
+    $code = $process.ExitCode
+    $errors = @(Select-String -LiteralPath $log, $errLog -Pattern '^(ERROR|SCRIPT ERROR):')
     if ($code -ne 0 -or $errors.Count -gt 0) {
         throw "Godot failed (exit $code, $($errors.Count) errors); its output is in $log"
     }

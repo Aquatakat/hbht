@@ -51,6 +51,8 @@ jobs:
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    # A package takes about 10 minutes; a stuck one shouldn't hold the run for GitHub's 6 hours.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
