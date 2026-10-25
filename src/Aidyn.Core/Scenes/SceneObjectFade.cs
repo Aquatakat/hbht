@@ -50,10 +50,10 @@ public readonly record struct ViewCone(float FadeFrom, float Gone)
 }
 
 /// <summary>
-/// How far scene objects and their levels of detail are drawn, where the original draws them as it
-/// does and further isn't a choice yet. <see cref="Original"/> is the original's.
+/// How far scene objects and their levels of detail are drawn, and bodies in trek and cut-scenes (the Object Distance setting).
+/// <see cref="Original"/> is the original's.
 /// </summary>
-/// <param name="Scale">Multiplies each object's radius and each level's distance.</param>
+/// <param name="Scale">Multiplies each object's radius and each level's distance, and bodies' draw distance up to <see cref="Bodies"/>'s cap.</param>
 /// <param name="NearestDetail">
 /// The Model detail setting's Highest, the port's own: wherever the original draws a level of detail that draws
 /// something, the nearest level that draws anything is drawn in its place, at its alpha, and no other. Where the
@@ -64,6 +64,14 @@ public readonly record struct ViewCone(float FadeFrom, float Gone)
 public sealed record ObjectDistance(float Scale = 1, bool NearestDetail = false)
 {
     public static readonly ObjectDistance Original = new();
+
+    /// <summary>
+    /// How far from the camera's aim bodies are drawn in trek and cut-scenes: the original's 20
+    /// (<see cref="Movement.BodyShadow.TrekDistance"/>) scaled, but no further than bodies step
+    /// (<see cref="Movement.Body.StepDistance"/>, 30). Past that a body neither moves nor animates, so a wanderer would be seen
+    /// stopped mid-stride, or a body spawned over a hole hanging where it stopped falling.
+    /// </summary>
+    public float Bodies => MathF.Min(Movement.BodyShadow.TrekDistance * Scale, Movement.Body.StepDistance);
 }
 
 /// <summary>

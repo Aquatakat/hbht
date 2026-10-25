@@ -47,9 +47,10 @@ public partial class CutSceneActorView : BodyView
     /// looks out of its eyes, and places its shadow: Alaron's as the player's, others' within
     /// <see cref="BodyShadow.OthersDistance"/> of the aim.
     /// </summary>
-    public void Draw(Core.Physics.CollisionWorld world, System.Numerics.Vector3 aim)
+    /// <param name="distance">How far from the aim it's drawn (<see cref="Core.Scenes.ObjectDistance.Bodies"/>).</param>
+    public void Draw(Core.Physics.CollisionWorld world, System.Numerics.Vector3 aim, float distance)
     {
-        var (_, fromAim) = Fade(aim, Actor.Hidden);
-        PlaceShadow(world, BodyShadow.DrawAlpha(BodyShadow.TrekDistance, fromAim, player: Actor.Entity == GameState.Alaron));
+        var (_, fromAim) = Fade(aim, Actor.Hidden, distance);
+        PlaceShadow(world, BodyShadow.DrawAlpha(distance, fromAim, player: Actor.Entity == GameState.Alaron));
     }
 }

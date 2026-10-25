@@ -647,7 +647,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         if (_shadow is null)
             return;
         var sphere = _player!.Motion.Sphere;
-        _shadow.Place(_world, sphere, BodyShadow.DrawAlpha(BodyShadow.TrekDistance, System.Numerics.Vector3.Distance(Trek!.Camera.Aim, sphere.Position), player: true));
+        _shadow.Place(_world, sphere, BodyShadow.DrawAlpha(_objectDistance.Bodies, System.Numerics.Vector3.Distance(Trek!.Camera.Aim, sphere.Position), player: true));
     }
 
     /// <summary>
@@ -678,7 +678,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         foreach (var view in _chunks.Wanderers)
         {
             view.Sync();
-            view.Draw(_world, aim, ownAim);
+            view.Draw(_world, aim, ownAim, _objectDistance.Bodies);
         }
     }
 

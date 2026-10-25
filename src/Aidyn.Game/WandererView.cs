@@ -36,10 +36,11 @@ public partial class WandererView : BodyView
     /// coordinates, against the body's position in its own chunk's. For a body in another chunk that's off by the
     /// chunks between them, so its shadow seldom shows.
     /// </param>
-    public void Draw(Core.Physics.CollisionWorld world, System.Numerics.Vector3 aim, System.Numerics.Vector3 ownAim)
+    /// <param name="distance">How far from the aim it's drawn (<see cref="Core.Scenes.ObjectDistance.Bodies"/>).</param>
+    public void Draw(Core.Physics.CollisionWorld world, System.Numerics.Vector3 aim, System.Numerics.Vector3 ownAim, float distance)
     {
-        var (_, fromAim) = Fade(aim);
+        var (_, fromAim) = Fade(aim, distance: distance);
         var own = BodyShadow.OwnDistance(Body.Sphere.Position, Wanderer.Map.Origin, ownAim);
-        PlaceShadow(world, BodyShadow.DrawAlpha(BodyShadow.TrekDistance, fromAim, player: false, ownAim: own));
+        PlaceShadow(world, BodyShadow.DrawAlpha(distance, fromAim, player: false, ownAim: own));
     }
 }

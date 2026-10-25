@@ -105,6 +105,14 @@ public class SceneObjectFadeTests
     }
 
     [Fact]
+    public void BodiesAreDrawnFurtherOnlyAsFarAsTheyStep()
+    {
+        // The original's 20, then no further than the 30 past which a body neither moves nor animates.
+        Assert.Equal([20f, 30f, 30f], new[] { 1f, 2f, 3f }.Select(s => new ObjectDistance(s).Bodies));
+        Assert.Equal(Aidyn.Core.Movement.Body.StepDistance, new ObjectDistance(3).Bodies);
+    }
+
+    [Fact]
     public void AFartherObjectDistanceScalesTheRadiusAndEachLevel()
     {
         var tree = Tree(Vector3.Zero, SceneObjectFlags.Solid);
