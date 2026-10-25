@@ -120,14 +120,9 @@ public sealed class UiPainter
         MenuList<string> options, Rgba cursor)
     {
         var font = Main;
-        var half = width / 2;
-        var centre = new Vector2I(screen.X / 2, screen.Y / 2);
-        var (left, right) = (centre.X - half, centre.X + half);
-        var textHeight = font.Layout.Height(text, left, right);
+        var (left, top, right, choicesTop) = ChoiceLayout(screen, text, width, gap, options.Rows.Count);
         var rows = options.Rows;
         var rowHeight = font.LineHeight;
-        var top = centre.Y - (rows.Count * rowHeight + textHeight + gap) / 2;
-        var choicesTop = top + textHeight + gap;
         var bottom = choicesTop + rows.Count * rowHeight;
         Images.DrawPanel(canvas, Images.Around(new ScreenRect(left, top, right, bottom)));
         Text(canvas, font, text, left, top, new ScreenRect(left, top, right, choicesTop), textColor);
@@ -136,6 +131,25 @@ public sealed class UiPainter
             Text(canvas, font, rows[i], left - 1, choicesTop + i * rowHeight, new ScreenRect(left - 1, choicesTop, right + 1, bottom),
                 i == options.Cursor ? cursor : optionColor);
         }
+    }
+
+    /// <summary>The choice of a question under a point on the screen it's centred on, as <see cref="Choice(CanvasItem, Vector2I, MenuChoice, Rgba)"/> draws it.</summary>
+    public int? ChoiceAt(Vector2I screen, MenuChoice choice, Vector2 at)
+    {
+        var (left, _, right, choicesTop) = ChoiceLayout(screen, choice.Text, choice.Width, choice.Gap, choice.Choices.Rows.Count);
+        var row = (int)Math.Floor((at.Y - choicesTop) / Main.LineHeight);
+        return at.X >= left && at.X < right && row >= 0 && row < choice.Choices.Rows.Count ? row : null;
+    }
+
+    /// <summary>A question's sides, its top and its choices' top, all centred on the screen.</summary>
+    private (int Left, int Top, int Right, int ChoicesTop) ChoiceLayout(Vector2I screen, string text, int width, int gap, int choices)
+    {
+        var half = width / 2;
+        var centre = new Vector2I(screen.X / 2, screen.Y / 2);
+        var (left, right) = (centre.X - half, centre.X + half);
+        var textHeight = Main.Layout.Height(text, left, right);
+        var top = centre.Y - (choices * Main.LineHeight + textHeight + gap) / 2;
+        return (left, top, right, top + textHeight + gap);
     }
 
     /// <summary>Prints one line unbounded but by the screen, and cut to <paramref name="clip"/> if there's one.</summary>

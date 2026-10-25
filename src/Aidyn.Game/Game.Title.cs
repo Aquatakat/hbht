@@ -24,6 +24,9 @@ public partial class Game
     /// <summary>Whether the scene starts again on the title, as after the game over or the ending's credits (<c>Game.Restart</c>).</summary>
     private static bool _toTitle;
 
+    /// <summary>Whether that title starts at its logo, without the intro cards, as Quit Game's Return to Title does.</summary>
+    private static bool _titleLogo;
+
     /// <summary>The fly-through the title shows, kept from one title to the next as the original keeps its place (<c>Title.FlycamPlace</c>).</summary>
     private static int _titlePlace;
 

@@ -86,7 +86,7 @@ public sealed partial class GameSessionTests
 
         Assert.Equal(PressOutcome.Taken, session.Press(MenuAction.Start));
         var menu = title.Menu!;
-        Assert.Equal([SystemItem.NewGame, SystemItem.LoadGame, SystemItem.Options], menu.Items.Rows);
+        Assert.Equal([SystemItem.NewGame, SystemItem.LoadGame, SystemItem.Options, SystemItem.Quit], menu.Items.Rows);
         // Nothing takes a press while the logo fades out and the list in.
         session.Press(MenuAction.Down);
         Assert.Equal(0, menu.Items.Cursor);

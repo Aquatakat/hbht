@@ -419,11 +419,73 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         var party = TradeData.PartyOf(TradeData.Catalog(), ItemData.Flags(), Characters.Create(Characters.Alaron()));
         // OptionsMenu's combat branch: Options (161) and, while the party can flee from a turn's pause, Flee (378).
         var system = new SystemMenu(fixture.Plugins, new Settings(), party, _saves, combat: true);
-        Assert.Equal([SystemItem.Options, SystemItem.Flee], system.Items.Rows);
+        Assert.Equal([SystemItem.Options, SystemItem.Flee, SystemItem.Quit], system.Items.Rows);
         Assert.Equal("L378", system.Label(SystemItem.Flee));
         system.Items.Point(1);
         Assert.Equal(PauseExit.Flee, system.Accept());
-        Assert.Equal([SystemItem.Options], new SystemMenu(fixture.Plugins, new Settings(), party, _saves, combat: false).Items.Rows);
+        Assert.Equal([SystemItem.Options, SystemItem.Quit], new SystemMenu(fixture.Plugins, new Settings(), party, _saves, combat: false).Items.Rows);
+    }
+
+    // Quit Game, the port's.
+
+    [Fact]
+    public void QuitGameIsLastInEveryList()
+    {
+        var party = TradeData.PartyOf(TradeData.Catalog(), ItemData.Flags(), Characters.Create(Characters.Alaron()));
+
+        Assert.Equal(SystemItem.Quit, new SystemMenu(fixture.Plugins, new Settings(), party, _saves).Items.Rows[^1]);
+        Assert.Equal([SystemItem.NewGame, SystemItem.LoadGame, SystemItem.Options, SystemItem.Quit],
+            new SystemMenu(fixture.Plugins, new Settings(), party, _saves, title: true).Items.Rows);
+        Assert.Equal("Quit Game", new SystemMenu(fixture.Plugins, new Settings(), party, _saves).Label(SystemItem.Quit));
+    }
+
+    [Fact]
+    public void TheTitlesQuitGameQuitsAtOnce()
+    {
+        var party = TradeData.PartyOf(TradeData.Catalog(), ItemData.Flags(), Characters.Create(Characters.Alaron()));
+        var system = new SystemMenu(fixture.Plugins, new Settings(), party, _saves, title: true);
+        system.Items.Point(3);
+
+        Assert.Equal(PauseExit.Quit, system.Accept());
+        Assert.Equal(PauseExit.Quit, system.Ended);
+        Assert.Null(system.Quitting);
+    }
+
+    [Fact]
+    public void ThePauseMenusQuitGameAsksWhereToGoAndWarnsOfUnsavedProgress()
+    {
+        var party = TradeData.PartyOf(TradeData.Catalog(), ItemData.Flags(), Characters.Create(Characters.Alaron()));
+        var unsaved = true;
+        var system = new SystemMenu(fixture.Plugins, new Settings(), party, _saves, unsaved: () => unsaved);
+        system.Items.Point(system.Items.Rows.Count - 1);
+
+        Assert.Null(system.Accept());
+        var box = Assert.IsType<MenuChoice>(system.Quitting);
+        Assert.Equal(SystemMenu.Unsaved, box.Text);
+        Assert.Equal([SystemMenu.QuitToDesktop, SystemMenu.ReturnToTitle, $"L{SaveMenu.Cancel}"], box.Choices.Rows);
+        // The tab can't be left while it's up, and the list's cursor stays put under it.
+        Assert.False(system.OnList);
+        system.Point(0);
+        system.MoveCursor(1);
+        Assert.Equal((system.Items.Rows.Count - 1, 1), (system.Items.Cursor, box.Choices.Cursor));
+        Assert.Equal(PauseExit.ToTitle, system.Accept());
+        Assert.Null(system.Quitting);
+
+        // B takes it down, and so does Cancel; the menu stays open.
+        system.Accept();
+        Assert.True(system.Back());
+        Assert.Null(system.Quitting);
+        Assert.True(system.OnList);
+        system.Accept();
+        system.PointQuit(2);
+        Assert.Null(system.Accept());
+        Assert.True(system.OnList);
+
+        // Saved and unchanged since, it asks only where to go.
+        unsaved = false;
+        system.Accept();
+        Assert.Equal(("", 0), (system.Quitting!.Text, system.Quitting.Gap));
+        Assert.Equal(PauseExit.Quit, system.Accept());
     }
 
     // The save and load screens.

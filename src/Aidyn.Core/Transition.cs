@@ -73,6 +73,12 @@ public abstract record Transition
     /// </summary>
     public sealed record GameOver : Transition;
 
+    /// <summary>Quit Game, in the pause menu or the title's (<see cref="PauseExit.Quit"/>): the program ends.</summary>
+    public sealed record Quit : Transition;
+
+    /// <summary>Quit Game's Return to Title (<see cref="PauseExit.ToTitle"/>): this game ends, and the title shows over a new one, at its logo.</summary>
+    public sealed record ToTitle : Transition;
+
     /// <summary>The title shows (<see cref="GameSession.ShowTitle"/>): its cards, or the title over its fly-throughs, with trek's world gone.</summary>
     public sealed record ShowTitle(TitleScreen Title) : Transition;
 

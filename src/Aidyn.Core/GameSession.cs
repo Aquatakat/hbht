@@ -642,6 +642,11 @@ public sealed class GameSession
             Send(new Transition.LoadGame(path));
             return;
         }
+        if (exit.Code == PauseExitCode.Quit)
+        {
+            Send(new Transition.Quit());
+            return;
+        }
         if (Game.Party.Slots.FirstOrDefault(m => m?.Entity == GameState.Alaron) is { } alaron && exit.Name is { } name)
             alaron.Name = name;
         EndScenery();
@@ -928,6 +933,12 @@ public sealed class GameSession
     public void MenuClosed(PauseExit exit)
     {
         Menu.Discard();
+        // Quit Game leaves the game as it stands, in trek or a battle, and the host ends it.
+        if (exit.Code is PauseExitCode.Quit or PauseExitCode.ToTitle)
+        {
+            Send(exit.Code == PauseExitCode.Quit ? new Transition.Quit() : new Transition.ToTitle());
+            return;
+        }
         // Trek's world is freed while a battle plays.
         if (Battle is null)
             Trek.Regate();

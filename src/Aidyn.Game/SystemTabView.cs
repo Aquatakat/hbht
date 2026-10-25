@@ -92,6 +92,19 @@ public partial class SystemTabView : Control
         // The Controls page's prompt binds the wheel and the buttons too (Game.BindPrompted), so they go by.
         if (Menu.Options?.Prompt is not null)
             return;
+        if (Menu.Quitting is { } quitting)
+        {
+            // The quit box takes the mouse as the stick: hovering points at a choice.
+            if (@event is InputEventMouseMotion over && _ui.ChoiceAt(new Vector2I((int)Size.X, (int)Size.Y), quitting, over.Position) is { } choice)
+                Menu.PointQuit(choice);
+            else if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.WheelUp or MouseButton.WheelDown } scroll)
+                Menu.MoveCursor(scroll.ButtonIndex == MouseButton.WheelUp ? -1 : 1);
+            else
+                return;
+            QueueRedraw();
+            AcceptEvent();
+            return;
+        }
         if (@event is InputEventMouseMotion motion && RowAt(motion.Position - _origin) is { } row)
             Menu.Point(row);
         else if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.WheelUp or MouseButton.WheelDown } wheel)
@@ -155,6 +168,7 @@ public partial class SystemTabView : Control
         DrawSetTransform(Vector2.Zero);
         if (Menu.Saves is { } saves)
             _ui.Overlay(this, size, saves.Overlay);
+        _ui.Overlay(this, size, Menu.Overlay);
     }
 
     /// <summary>A page of the tab at an alpha, everything on it faded alike.</summary>
@@ -184,11 +198,12 @@ public partial class SystemTabView : Control
 
     /// <summary>
     /// The title's list (<c>IntroMenu.MakeList</c>, <c>0x80043ae8</c>): the title's top, and the rows', 19 apart, the scroll menu's gap of 8
-    /// under each line of 11; its box (<c>IntroMenu.ShowList</c>) reaches 66 either side of the list's centre, 48 above the rows and 68 below.
+    /// under each line of 11; its box (<c>IntroMenu.ShowList</c>) reaches 66 either side of the list's centre, 48 above the rows and 68 below,
+    /// for the original's three. The port's Quit Game makes four, the box reaching a row further down.
     /// </summary>
-    private const int TitleListTop = 75, TitleRowsTop = 115, TitleRowPitch = 19;
+    private const int TitleListTop = 75, TitleRowsTop = 115, TitleRowPitch = 19, TitleListRows = 3;
 
-    private static readonly ScreenRect TitleListBox = new(94, 67, 226, 183);
+    private ScreenRect TitleListBox => new(94, 67, 226, 183 + (Menu.Items.Rows.Count - TitleListRows) * TitleRowPitch);
 
     /// <summary>The name entry's box (<c>IntroMenu.ShowNameEntry</c>, <c>0x800437f8</c>): from 8 left of the grid, and from y 43 to 179.</summary>
     private static readonly ScreenRect NameBox = new(52, 43, 268, 179);

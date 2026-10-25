@@ -48,7 +48,8 @@ public enum TitlePhase
 /// <para>
 /// <b>Leaving</b>: New Game's name confirmed (state 6) or a save chosen to load fades the screen out by 0.05 a tick, 20 ticks, and then
 /// the title ends: the game begins with the opening cinematic (<c>Cinematic.Load(0, 1, 1)</c> at <c>0x80055434</c>), or the save
-/// loads. <c>Title.Leave</c> (<c>0x80055718</c>) stops the title's music.
+/// loads. <c>Title.Leave</c> (<c>0x80055718</c>) stops the title's music. The port's Quit Game, last in the menu, ends it at once with
+/// no fade, and the program with it (<see cref="PauseExit.Quit"/>).
 /// </para>
 /// </remarks>
 public sealed class TitleScreen
@@ -228,7 +229,13 @@ public sealed class TitleScreen
                     Menu.Sideways(by);
             }
             Menu.Step();
-            if (Menu.Saves is { Request: SaveRequest.Load, Target: { } path })
+            if (Menu.Ended is { Code: PauseExitCode.Quit } quit)
+            {
+                // Quit Game, the port's, ends the title at once, with no fade.
+                Phase = TitlePhase.Leaving;
+                Exit = quit;
+            }
+            else if (Menu.Saves is { Request: SaveRequest.Load, Target: { } path })
                 Leave(PauseExit.LoadFrom(path));
             else if (Menu.Ended is { } ended)
                 Leave(ended);

@@ -4,6 +4,7 @@ using Aidyn.Core.Combat;
 using Aidyn.Core.Items;
 using Aidyn.Plugins;
 using Aidyn.Plugins.Records;
+using Aidyn.Plugins.Saves;
 
 namespace Aidyn.Core.Ui;
 
@@ -63,6 +64,8 @@ public sealed class PauseMenu
     /// <c>PauseMenu.Frame</c>): the loot window's coins and the post-battle window's level-up.
     /// </summary>
     private readonly List<OneShot> _onBuilt = [];
+    /// <summary>The game as the System tab last saved it since the menu opened (<see cref="Fingerprint"/>), or null if it hasn't.</summary>
+    private string? _saved;
 
     /// <param name="game">The game the menu shows and acts on.</param>
     /// <param name="settings">The player's settings, which the Options page changes.</param>
@@ -151,6 +154,21 @@ public sealed class PauseMenu
     /// <summary>Whether the name entry is up to take the keyboard (<see cref="TypeName"/>).</summary>
     public bool NameEntryOpen => IsOpen && Tab == PauseTab.System && !Sliding && System.Rename is not null;
 
+    /// <summary>
+    /// Whether quitting now would lose progress, which Quit Game's box warns of: unless the game was saved since the menu opened and
+    /// is as it was saved. Unpausing between counts, and so does camping, which closes the menu, as the user asked; in the menu, a
+    /// change to anything a save keeps does, such as an item moved, a skill used or Alaron renamed, but not the time played, nor the
+    /// sky's twinkling and the other cosmetic draws. A battle can't be saved, so its menu always warns.
+    /// </summary>
+    public bool Unsaved => _saved is null || _saved != Fingerprint();
+
+    /// <summary>The game as a save keeps it, but for what passes on its own while the menu is open.</summary>
+    private string Fingerprint()
+    {
+        var save = _game.Save();
+        return SaveFile.Serialize(save with { PlayTime = 0, Random = save.Random! with { Cosmetic = 0, Twinkle = null } });
+    }
+
     /// <summary>Opens the menu afresh on the party as it is now, on the tab given or else the one it last showed.</summary>
     public void Open(PauseTab? tab = null)
     {
@@ -173,7 +191,10 @@ public sealed class PauseMenu
     /// <summary>Opens the menu on the Theatre's page, as it reopens after a cinematic the Theatre played (<c>Theatre.Reopen</c>).</summary>
     public void OpenTheatre()
     {
+        // The cinematic played over the world held still, so a save from before it still stands.
+        var saved = _saved;
         Open(PauseTab.System);
+        _saved = saved;
         System.ShowTheatre(fade: false);
     }
 
@@ -237,6 +258,7 @@ public sealed class PauseMenu
         _swap = 0;
         _windowAlpha = 255;
         _onBuilt.Clear();
+        _saved = null;
         // Skill checks and potions in trek draw from the world's stream.
         // The tab opens on the member last shown, or in a battle's pause the member whose turn it is (Combat.StatePause).
         if (rules?.Member is { } current && _game.Party.Slots.ToList().IndexOf(current) is >= 0 and var slot)
@@ -247,7 +269,7 @@ public sealed class PauseMenu
         party.Combat = rules;
         Window = party;
         System = new SystemMenu(_game.Plugins, _settings, _game.Party, _savesFolder, isSet: _game.Flags.Get, combat: _combat?.CanFlee,
-            screen: () => _host.Screen);
+            screen: () => _host.Screen, unsaved: () => Unsaved);
         var (place, outdoors) = _where();
         World = new WorldMenu(_game.Plugins, _game, _mainFont ??= new TextLayout(_game.Plugins.Get<FontRecord>(RecordId.Decimal(RecordTypes.Font, 0))),
             place, outdoors);
@@ -376,9 +398,14 @@ public sealed class PauseMenu
             return;
         }
         if (_host.Save(target) is { } error)
+        {
             saves.Failed(error);
+        }
         else
+        {
             saves.Saved();
+            _saved = Fingerprint();
+        }
     }
 
     /// <summary>Rolls the scroll up and closes the menu, which then ends as <paramref name="exit"/> says (<c>PauseMenu.Exit</c>).</summary>
@@ -511,9 +538,18 @@ public sealed class PauseMenu
         {
             case MenuAction.Accept:
                 // Help, Credits and a seen cinematic roll the menu up as closing does, and start once it has (PauseMenu.Exit's
-                // codes 3, 5 and 2).
-                if (System.Accept() is { } exit)
+                // codes 3, 5 and 2). Quit Game's choices don't wait for the scroll.
+                if (System.Accept() is not { } exit)
+                    return true;
+                if (exit.Code is PauseExitCode.Quit or PauseExitCode.ToTitle)
+                {
+                    _exit = exit;
+                    CloseNow();
+                }
+                else
+                {
                     Close(exit);
+                }
                 return true;
             case MenuAction.Left or MenuAction.Right:
                 // A volume is stepped every tick it's held, in Step.

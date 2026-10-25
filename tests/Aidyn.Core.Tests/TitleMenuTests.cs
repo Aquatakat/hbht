@@ -64,12 +64,12 @@ public class TitleMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugins
     }
 
     [Fact]
-    public void TheTitlesListIsNewGameLoadGameAndOptionsInOffWhite()
+    public void TheTitlesListIsNewGameLoadGameAndOptionsInOffWhiteThenThePortsQuitGame()
     {
         var menu = TitleMenu(Characters.Create(Characters.Alaron()));
 
-        Assert.Equal([SystemItem.NewGame, SystemItem.LoadGame, SystemItem.Options], menu.Items.Rows);
-        Assert.Equal(["L159", "L160", "L161"], menu.Items.Rows.Select(menu.Label));
+        Assert.Equal([SystemItem.NewGame, SystemItem.LoadGame, SystemItem.Options, SystemItem.Quit], menu.Items.Rows);
+        Assert.Equal(["L159", "L160", "L161", "Quit Game"], menu.Items.Rows.Select(menu.Label));
         Assert.Same(SystemStyle.Title, menu.Style);
         Assert.Equal(new Rgba(225, 225, 225, 255), menu.Style.Text);
         // B on the list does nothing: there's no menu to close.

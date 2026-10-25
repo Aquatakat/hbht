@@ -46,6 +46,15 @@ public enum PauseExitCode
     /// game begins. The title's own; the port keeps one list of the System menu's endings.
     /// </summary>
     NewGame = 7,
+
+    /// <summary>
+    /// Quit Game's Quit to Desktop, or the title menu's Quit Game: the program ends. The port's own, which the original, on a console,
+    /// has no need of.
+    /// </summary>
+    Quit = 8,
+
+    /// <summary>Quit Game's Return to Title: this game ends, and the title shows over a new one, at its logo. The port's own.</summary>
+    ToTitle = 9,
 }
 
 /// <summary>
@@ -68,6 +77,10 @@ public sealed record PauseExit(PauseExitCode Code, CinematicRecord? Cinematic = 
     public static readonly PauseExit Credits = new(PauseExitCode.Credits);
 
     public static readonly PauseExit Flee = new(PauseExitCode.Flee);
+
+    public static readonly PauseExit Quit = new(PauseExitCode.Quit);
+
+    public static readonly PauseExit ToTitle = new(PauseExitCode.ToTitle);
 
     /// <summary>The Theatre chose <paramref name="cinematic"/>.</summary>
     public static PauseExit Theatre(CinematicRecord cinematic) => new(PauseExitCode.Theatre, cinematic);

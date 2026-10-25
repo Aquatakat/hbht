@@ -19,6 +19,11 @@ public enum SystemItem
 
     /// <summary>The title's alone: the name entry, then a new game (<c>IntroMenu::ProcessIntroMenu</c>).</summary>
     NewGame,
+
+    /// <summary>
+    /// The port's, last in every list: the title's quits at once, and the pause menu's asks where to go (<see cref="SystemMenu.Quitting"/>).
+    /// </summary>
+    Quit,
 }
 
 /// <summary>
@@ -100,6 +105,12 @@ public interface ISystemPage
 /// The cursor starts on the first row each time the tab is built, as the original rebuilds it at each opening.
 /// </para>
 /// <para>
+/// Quit Game is the port's, as the user asked (Oct 25, 2026): a console game needs none, but a game in a full screen does. On the
+/// title it quits at once, there being nothing to lose. In the pause menu it asks, in the save screen's box (<see cref="MenuChoice"/>),
+/// whether to quit to the desktop or return to the title, or to cancel, as B does too; above the choices it says that unsaved progress
+/// will be lost, unless the game was saved from this opening of the menu and nothing has changed since (<see cref="PauseMenu.Unsaved"/>).
+/// </para>
+/// <para>
 /// Each page crossfades with the one before (<c>OptionsMenu.Step</c>, <c>0x8003f81c</c>): the new one comes in at alpha 0
 /// and the old stays at 255, then each tick the new rises by 60 and the old falls by 60, 5 ticks each way. The
 /// original fades the list, the options, the save and load screens and the Theatre's page so; the port fades the
@@ -112,7 +123,13 @@ public sealed class SystemMenu
     public static readonly Rgba TextColor = PartyMenu.TextColor;
 
     /// <summary>The rows' strings, by <see cref="SystemItem"/>: common lines, but Credits, which the code spells out.</summary>
-    private static readonly int[] Lines = [160, 377, 161, 162, -1, 173, 378, 159];
+    private static readonly int[] Lines = [160, 377, 161, 162, -1, 173, 378, 159, -1];
+
+    /// <summary>The quit box's choices, and what it says above them while there's progress to lose.</summary>
+    public const string QuitToDesktop = "Quit to Desktop", ReturnToTitle = "Return to Title", Unsaved = "Unsaved progress will be lost.";
+
+    /// <summary>The space between the quit box's warning and its choices.</summary>
+    public const int QuitGap = 8;
 
     private readonly PluginSet _plugins;
     private readonly MenuText _text;
@@ -120,6 +137,7 @@ public sealed class SystemMenu
     private readonly Func<string, IReadOnlyList<SaveSlot>>? _listSaves;
     private readonly Func<RecordId, bool> _isSet;
     private readonly Func<ScreenInfo> _screen;
+    private readonly Func<bool> _unsaved;
     private ISystemPage _page;
 
     /// <param name="party">The party, whose Alaron the options menu renames.</param>
@@ -135,13 +153,15 @@ public sealed class SystemMenu
     /// The title's menu (<c>IntroMenu</c>): New Game, Load Game and Options, in <see cref="SystemStyle.Title"/>, its pages crossfading 20 a
     /// tick (<c>IntroMenu.Step</c>, <c>0x80042d0c</c>). Its options have no Rename Character, and its load screen loads.
     /// </param>
+    /// <param name="unsaved">Whether quitting would lose progress, which the quit box warns of; always, by default.</param>
     public SystemMenu(PluginSet plugins, Settings settings, Party party, string savesFolder, Func<string, IReadOnlyList<SaveSlot>>? listSaves = null,
-        Func<RecordId, bool>? isSet = null, bool? combat = null, Func<ScreenInfo>? screen = null, bool title = false)
+        Func<RecordId, bool>? isSet = null, bool? combat = null, Func<ScreenInfo>? screen = null, bool title = false, Func<bool>? unsaved = null)
     {
         Title = title;
         Style = title ? SystemStyle.Title : SystemStyle.Pause;
         _isSet = isSet ?? (_ => false);
         _screen = screen ?? (() => ScreenInfo.Default);
+        _unsaved = unsaved ?? (() => true);
         _plugins = plugins;
         _text = MenuText.From(plugins);
         Settings = settings;
@@ -150,10 +170,10 @@ public sealed class SystemMenu
         _listSaves = listSaves;
         Items = new MenuList<SystemItem>(combat switch
         {
-            null when title => [SystemItem.NewGame, SystemItem.LoadGame, SystemItem.Options],
+            null when title => [SystemItem.NewGame, SystemItem.LoadGame, SystemItem.Options, SystemItem.Quit],
             null => [.. Enum.GetValues<SystemItem>().Where(i => i is not (SystemItem.Flee or SystemItem.NewGame))],
-            true => [SystemItem.Options, SystemItem.Flee],
-            false => [SystemItem.Options],
+            true => [SystemItem.Options, SystemItem.Flee, SystemItem.Quit],
+            false => [SystemItem.Options, SystemItem.Quit],
         });
         _page = new ListPage(this);
     }
@@ -169,7 +189,10 @@ public sealed class SystemMenu
     /// <summary>How much a page's alpha changes a tick as it crossfades: the pause menu's 60, the title's 20.</summary>
     public int FadeStep => Title ? 20 : WidgetFade.Step;
 
-    /// <summary>The title's New Game, once its name is confirmed: how the menu ends (<see cref="PauseExit.NewGame"/>). Null until then.</summary>
+    /// <summary>
+    /// The title's New Game, once its name is confirmed, or its Quit Game: how the menu ends (<see cref="PauseExit.NewGame"/>,
+    /// <see cref="PauseExit.Quit"/>). Null until then.
+    /// </summary>
     public PauseExit? Ended { get; private set; }
 
     /// <summary>Whether the pages are still crossfading, which the title's menu takes no presses through (<c>IntroMenu.Input</c>, <c>0x80043e44</c>).</summary>
@@ -205,11 +228,17 @@ public sealed class SystemMenu
     /// <summary>Whether the cursor is on a volume, which the stick steps every tick it's held (<see cref="OptionsMenu.OnVolume"/>).</summary>
     public bool OnVolume => Page == SystemPage.Options && Options!.OnVolume;
 
-    /// <summary>Whether the list is showing, which is the only time the tab can be left.</summary>
-    public bool OnList => Page == SystemPage.List;
+    /// <summary>Whether the list is showing with no box over it, which is the only time the tab can be left.</summary>
+    public bool OnList => Page == SystemPage.List && Quitting is null;
 
-    /// <summary>A row's text.</summary>
-    public string Label(SystemItem item) => Lines[(int)item] is var line and >= 0 ? _text[line] : "Credits";
+    /// <summary>The quit box over the list, which takes every press until it's answered or B closes it.</summary>
+    public MenuOverlay Overlay { get; } = new();
+
+    /// <summary>Quit Game's question: where to go, and a warning if there's unsaved progress. Null while it isn't up.</summary>
+    public MenuChoice? Quitting => Overlay.Choice;
+
+    /// <summary>A row's text: common lines, but Credits, which the code spells out, and Quit Game, the port's.</summary>
+    public string Label(SystemItem item) => Lines[(int)item] is var line and >= 0 ? _text[line] : item == SystemItem.Quit ? "Quit Game" : "Credits";
 
     /// <summary>The help menu's script, which Help starts (<c>0x054B</c>).</summary>
     public static readonly RecordId HelpScript = RecordId.Hex(RecordTypes.Dialogue, 0x054B);
@@ -224,6 +253,7 @@ public sealed class SystemMenu
                 Outgoing = null;
         }
         Pulse.Step();
+        Overlay.Step();
         Options?.Step();
         Saves?.Step();
         Rename?.Step();
@@ -262,6 +292,34 @@ public sealed class SystemMenu
 
     /// <inheritdoc cref="ISystemPage.Point"/>
     public void Point(int row) => _page.Point(row);
+
+    /// <summary>Puts the quit box's cursor on a choice, as hovering does.</summary>
+    public void PointQuit(int choice) => Quitting?.Choices.Point(choice);
+
+    /// <summary>
+    /// Puts Quit Game's question up, its cursor on Quit to Desktop, warning of progress to lose if there's any: in the shop's colours,
+    /// white over tan (<see cref="MenuChoice.Question"/>), which show the cursor better among three choices than the save screen's off-white.
+    /// </summary>
+    private void AskQuit()
+    {
+        var unsaved = _unsaved();
+        Overlay.Ask(MenuChoice.Question(unsaved ? Unsaved : "", [QuitToDesktop, ReturnToTitle, _text[SaveMenu.Cancel]]) with
+        {
+            Gap = unsaved ? QuitGap : 0,
+        });
+    }
+
+    /// <summary>A on the quit box: the program ends or the title shows, or Cancel takes the box down.</summary>
+    private PauseExit? AnswerQuit(int choice)
+    {
+        Overlay.CloseChoice();
+        return choice switch
+        {
+            0 => PauseExit.Quit,
+            1 => PauseExit.ToTitle,
+            _ => null,
+        };
+    }
 
     /// <summary>
     /// Follows a screen that finished outside the tab's own presses: the name entry confirmed or cancelled from the
@@ -370,12 +428,16 @@ public sealed class SystemMenu
         Pulse.Reset();
     }
 
-    /// <summary>The list: A opens a row's screen, or ends the menu for Credits or Help.</summary>
+    /// <summary>The list: A opens a row's screen, or ends the menu for Credits or Help; and the quit box over it, which takes the presses while it's up.</summary>
     private sealed class ListPage(SystemMenu menu) : ISystemPage
     {
         public SystemPage Kind => SystemPage.List;
 
-        public void MoveCursor(int by) => menu.Items.Move(by);
+        public void MoveCursor(int by)
+        {
+            if (!menu.Overlay.MoveCursor(by))
+                menu.Items.Move(by);
+        }
 
         public void Sideways(int by)
         {
@@ -383,6 +445,8 @@ public sealed class SystemMenu
 
         public PauseExit? Accept()
         {
+            if (menu.Quitting is { } quitting)
+                return menu.AnswerQuit(quitting.Choices.Cursor);
             var item = menu.Items.Current;
             switch (item)
             {
@@ -411,14 +475,30 @@ public sealed class SystemMenu
                     return PauseExit.Help;
                 case SystemItem.Flee:
                     return PauseExit.Flee;
+                case SystemItem.Quit when menu.Title:
+                    return menu.Ended = PauseExit.Quit;
+                case SystemItem.Quit:
+                    menu.AskQuit();
+                    return null;
                 default:
                     return null;
             }
         }
 
-        public bool Back() => false;
+        /// <summary>B takes the quit box down, or on the list closes the menu.</summary>
+        public bool Back()
+        {
+            if (menu.Quitting is null)
+                return false;
+            menu.Overlay.CloseChoice();
+            return true;
+        }
 
-        public void Point(int row) => menu.Items.Point(row);
+        public void Point(int row)
+        {
+            if (menu.Quitting is null)
+                menu.Items.Point(row);
+        }
     }
 
     /// <summary>The options, and their pages: A follows a link, and Rename Character opens the name entry.</summary>

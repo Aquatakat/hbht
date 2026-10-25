@@ -190,7 +190,8 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         _windowSave.Timeout += () => _settings.Save(DataPaths.Settings);
         AddChild(_windowSave);
         if (title)
-            StartTitle(options.TitleCards);
+            StartTitle(options.TitleCards && !_titleLogo);
+        _titleLogo = false;
         RunLaunchActions(options);
         if (fresh)
             session.StartNewGame();
@@ -996,6 +997,12 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
             case Transition.GameOver:
                 GameOver();
                 break;
+            case Transition.Quit:
+                Quit();
+                break;
+            case Transition.ToTitle:
+                ToTitle();
+                break;
             case Transition.ShowTitle title:
                 ShowTitle(title.Title);
                 break;
@@ -1159,6 +1166,21 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     {
         GD.Print("The game is over: back to the title.");
         _toTitle = true;
+        GetTree().ReloadCurrentScene();
+    }
+
+    /// <summary>Quit Game (<see cref="Transition.Quit"/>): the program ends, the window's size kept if it was waiting to be.</summary>
+    private void Quit()
+    {
+        if (_windowSave is { } pending && !pending.IsStopped())
+            _settings.Save(DataPaths.Settings);
+        GetTree().Quit();
+    }
+
+    /// <summary>Quit Game's Return to Title (<see cref="Transition.ToTitle"/>): the scene starts again on a new game, at the title's logo.</summary>
+    private void ToTitle()
+    {
+        _toTitle = _titleLogo = true;
         GetTree().ReloadCurrentScene();
     }
 
