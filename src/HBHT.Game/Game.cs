@@ -103,9 +103,14 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     /// <summary>The save the System tab loaded, which the scene starts again from.</summary>
     private static SaveGame? _pendingSave;
 
+    /// <summary>A portable install's data folder is found before any field reads a path, such as the settings' (runtime.md#the-data-folder).</summary>
+    static Game() => AppLauncher.UseAppFolder();
+
     public override void _Ready()
     {
         CultureInfo.DefaultThreadCurrentCulture = CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+        if (HandOffToEditor())
+            return;
         AddInputs();
         AddChild(_limiter);
         var hud = new CanvasLayer();
@@ -127,10 +132,26 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
             or ArgumentException)
         {
             GD.PrintErr(e.ToString());
-            _message.Text = e.Message;
+            _message.Text = BasePlugin.Diagnose(DataPaths.Plugins) is null ? e.Message : $"{e.Message}\nOr open HBHT Editor, beside the game, which imports it.";
             if (options.Screenshot is not null)
                 GetTree().Quit(1);
         }
+    }
+
+    /// <summary>
+    /// With no import, or one the current importer didn't write, starts the editor's import page and quits (runtime.md#with-no-import).
+    /// A screenshot run, or an editor that can't be started, goes on to <see cref="Start"/>, which shows the problem.
+    /// </summary>
+    private bool HandOffToEditor()
+    {
+        if (_loadedPlugins is not null || BasePlugin.Diagnose(DataPaths.Plugins) is not { } problem
+            || LaunchOptions.Parse(OS.GetCmdlineUserArgs()).Screenshot is not null)
+            return false;
+        GD.Print($"{problem}\nStarting the editor to import.");
+        if (!AppLauncher.LaunchEditor(fromGame: true))
+            return false;
+        GetTree().Quit();
+        return true;
     }
 
     /// <summary>

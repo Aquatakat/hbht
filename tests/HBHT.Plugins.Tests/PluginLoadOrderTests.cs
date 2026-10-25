@@ -136,6 +136,14 @@ public sealed class PluginLoadOrderTests : IDisposable
     }
 
     [Fact]
+    public void AManifestThatCantBeReadIsDiagnosedRatherThanThrown()
+    {
+        _temp.AddRaw(BasePlugin.Folder, "{ not json");
+
+        Assert.StartsWith("The import can't be read (", BasePlugin.Diagnose(_temp.Root), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ACurrentImportPassesAndLoads()
     {
         Base(importer: BasePlugin.ImporterVersion);

@@ -23,12 +23,17 @@ namespace HBHT.Editor;
 /// <c>--details 1</c>, and <c>--press &lt;a,b,up,down&gt;</c> presses those buttons in turn after. <c>--roll 1</c> rolls a
 /// loot table's page, or opens the container a map object's page picks, in the loot window, whose buttons
 /// <c>--press</c> also takes, with <c>left</c> and <c>right</c>. <c>--look 1</c>, after the wait, looks through a camera object's page's camera. <c>--ui-screenshot &lt;png&gt;</c> saves the UI screen too, in its own pixels,
-/// before it's scaled up.
+/// before it's scaled up. With no current import it shows the import page (<see cref="ImportPage"/>) instead: <c>--from-game 1</c>,
+/// which the game passes, ends it with Play, and <c>--rom &lt;path&gt;</c>, <c>--keep-mushroom 1</c> and <c>--import 1</c> fill it in
+/// and press Import.
 /// </remarks>
 public partial class Editor : Control
 {
     private readonly RecordBrowser _records = new() { Name = "Plugins" };
     private string? _uiShot;
+
+    /// <summary>A portable install's data folder is found before any field reads a path, such as the browser's plugins folder.</summary>
+    static Editor() => AppLauncher.UseAppFolder();
 
     public override void _Ready()
     {
@@ -45,12 +50,16 @@ public partial class Editor : Control
     {
         var png = args.GetValueOrDefault("screenshot");
         _uiShot = args.GetValueOrDefault("ui-screenshot");
+        // An import takes a few minutes.
         if (png is not null)
-            CommandLine.Watchdog(GetTree(), 60);
+            CommandLine.Watchdog(GetTree(), args.GetValueOrDefault("import") == "1" ? 900 : 60);
 
         if (args.TryGetValue("tab", out var tab))
             _records.SelectTab(tab);
-        await _records.LoadAsync(args.GetValueOrDefault("data") ?? DataPaths.Plugins);
+        var plugins = args.GetValueOrDefault("data") ?? DataPaths.Plugins;
+        if (BasePlugin.Diagnose(plugins) is not null && !await ImportFirstAsync(plugins, args, png))
+            return;
+        await _records.LoadAsync(plugins);
         // A bad checkpoint or save shouldn't stop the record opening, or a script waits for the watchdog.
         if (args.TryGetValue("checkpoint", out var checkpoint))
         {
@@ -102,6 +111,38 @@ public partial class Editor : Control
             _records.Map.LookThrough();
         if (png is not null)
             await Screenshot(png);
+    }
+
+    /// <summary>
+    /// With no current import, the import page in the browser's place (editor.md#the-import-page): true once it's imported and the
+    /// editor is to go on, false if it stays on the page, as it does when the game started it (Play ends it) or a screenshot was taken.
+    /// <c>--rom</c>, <c>--keep-mushroom 1</c> and <c>--import 1</c> fill it in and press Import, for scripts.
+    /// </summary>
+    private async Task<bool> ImportFirstAsync(string plugins, Dictionary<string, string> args, string? png)
+    {
+        var page = new ImportPage(plugins, AppLauncher.StartedFromGame(OS.GetCmdlineUserArgs()));
+        var center = new CenterContainer();
+        center.SetAnchorsPreset(LayoutPreset.FullRect);
+        center.AddChild(page);
+        _records.Visible = false;
+        AddChild(center);
+        var imported = new TaskCompletionSource();
+        page.Imported += () => imported.TrySetResult();
+        if (args.TryGetValue("rom", out var rom))
+            page.RomPath = rom;
+        if (args.GetValueOrDefault("keep-mushroom") == "1")
+            page.FixMushroom = false;
+        if (args.GetValueOrDefault("import") == "1")
+            await page.ImportAsync();
+        if (png is not null && !imported.Task.IsCompleted)
+        {
+            await Screenshot(png);
+            return false;
+        }
+        await imported.Task;
+        center.QueueFree();
+        _records.Visible = true;
+        return true;
     }
 
     private async Task Screenshot(string path)

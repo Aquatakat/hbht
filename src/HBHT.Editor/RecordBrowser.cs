@@ -18,8 +18,8 @@ namespace HBHT.Editor;
 /// (the buttons, Alt+Left and Alt+Right, or the mouse's side buttons).
 /// </summary>
 /// <remarks>
-/// It reads plugins only. Its one use of the ROM is running the importer, as the game's first-run
-/// screen will (ADR 0001).
+/// It reads plugins only. Its one use of the ROM is running the importer, through the import page
+/// (<see cref="ImportPage"/>), which is also the game's first run (ADR 0001, ADR 0012).
 /// </remarks>
 public partial class RecordBrowser : Control
 {
@@ -333,34 +333,32 @@ public partial class RecordBrowser : Control
             folderDialog.PopupCentered(new Vector2I(800, 500));
         };
 
-        var romDialog = new FileDialog
-        {
-            FileMode = FileDialog.FileModeEnum.OpenFile,
-            Access = FileDialog.AccessEnum.Filesystem,
-            Filters = ["*.z64, *.v64, *.n64 ; N64 ROMs"],
-            UseNativeDialog = true,
-            Title = "The ROM to import as aidyn.base",
-        };
-        romDialog.FileSelected += path => _ = Report(ImportAsync(path));
-        AddChild(romDialog);
-        _import.Pressed += () => romDialog.PopupCentered(new Vector2I(800, 500));
+        _import.Pressed += ShowImport;
     }
 
-    /// <summary>Runs the importer into the plugins folder, then loads it.</summary>
-    private async Task ImportAsync(string rom)
+    /// <summary>The import page in a window, into the plugins folder shown, which is loaded again once it's imported.</summary>
+    private void ShowImport()
     {
-        _import.Disabled = _folder.Disabled = true;
-        try
+        var page = new ImportPage(_pluginsDirectory, fromGame: false);
+        var margin = new MarginContainer();
+        foreach (var side in new[] { "left", "top", "right", "bottom" })
+            margin.AddThemeConstantOverride("margin_" + side, 16);
+        margin.AddChild(page);
+        var window = new Window { Title = "Import a ROM", Exclusive = true, Transient = true, WrapControls = true };
+        window.AddChild(margin);
+        // Not while the importer runs.
+        window.CloseRequested += () =>
         {
-            var progress = new Progress<string>(step => _status.Text = $"Importing: {step}…");
-            var directory = Path.Combine(_pluginsDirectory, BasePlugin.Folder);
-            await Task.Run(() => BaseImporter.Import(RomImage.Load(rom), directory, progress));
-            await LoadAsync(_pluginsDirectory);
-        }
-        finally
+            if (!page.Busy)
+                window.QueueFree();
+        };
+        page.Imported += () =>
         {
-            _import.Disabled = _folder.Disabled = false;
-        }
+            window.QueueFree();
+            _ = Report(LoadAsync(_pluginsDirectory));
+        };
+        AddChild(window);
+        window.PopupCentered();
     }
 
     private Task Report(Task task) => BackgroundTask.Report(task, e => _status.Text = e.Message);
@@ -510,7 +508,8 @@ public partial class RecordBrowser : Control
     private static string Welcome(PluginCatalog catalog)
     {
         var plugins = string.Join(", ", catalog.Plugins.Plugins.Select(p =>
-            p.Manifest.Import is { } import ? $"{p.Manifest.Id} ({p.Manifest.Name}, imported from {import.RomVersion} by importer {import.Importer})" : p.Manifest.Id));
+            p.Manifest.Import is { } import ? $"{p.Manifest.Id} ({p.Manifest.Name}, imported from {import.RomVersion} by importer {import.Importer}, " +
+                $"{((import.Options ?? ImportOptions.Default).FixMushroom ? "the mushroom fixed" : "the mushroom not fixed")})" : p.Manifest.Id));
         var conflicts = catalog.Plugins.Conflicts.Count();
         var conflicted = conflicts == 0 ? "" : $" {conflicts:N0} {(conflicts == 1 ? "field is" : "fields are")} patched by more than one plugin (hbht conflicts lists them).";
         return $"Loaded {plugins}.{conflicted} Pick a record, or type an ID such as aidyn:mapset/0 and press Enter.";

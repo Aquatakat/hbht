@@ -4,6 +4,20 @@
 
 The runtime keeps its loops thin (ADR 0012): the core's `GameSession` plays the game, and the runtime draws what each tick leaves and carries out what it asks. Each system's doc says how its part is drawn; this one says how they fit together, and holds the controls and the command line.
 
+## The data folder
+
+The plugins, the saves and `settings.json` live in the data folder (`DataPaths.Root`, in `HBHT.Plugins`), which the game, the editor and the CLI resolve alike:
+
+1. `HBHT_DATA` if it's set, which the tests, the tools and development use.
+2. Else a portable install's `data` folder beside the executables, when the app's folder holds `portable.txt` (the Windows portable zip ships it) or already holds an import there (`data/plugins/aidyn.base`).
+3. Else `HBHT` in the local application data folder: `%LOCALAPPDATA%\HBHT` on Windows, `~/.local/share/HBHT` on Linux, `~/Library/Application Support/HBHT` on macOS. The MSI install and the Linux tarball use it.
+
+`HBHT.Plugins` doesn't know Godot, so the app folder is handed in: both Godot apps call `AppLauncher.UseAppFolder` (in `HBHT.Views`) from their main node's static constructor, before any field reads a path, and it calls `DataPaths.UseAppFolder` with the executable's folder only when exported (`OS.HasFeature("template")`) and not on macOS, whose app bundles have no portable mode. The CLI never calls it, nor do the apps run in development, so those go by steps 1 and 3. `DataPaths.Resolve` is the rule over its inputs, which `DataPathsTests` checks.
+
+## With no import
+
+At startup, before anything loads, `Game` asks `BasePlugin.Diagnose` whether the base plugin is there and current. If it isn't, the game starts the editor with `--from-game 1` and quits, and the editor's import page imports and then offers **Play** ([editor](editor.md#the-import-page)). `AppLauncher.LaunchEditor` finds the editor beside the game: exported on Windows and Linux, `hbht-editor(.exe)` in the same folder; on macOS, `HBHT Editor.app` beside `HBHT.app`, through `open -n … --args`; in development, the same Godot binary with `--path` the repository's `src/HBHT.Editor`, found from `res://`. If it can't find or start it, or the run takes a screenshot, the game shows `Diagnose`'s words in its window as before, with a line saying to open the editor.
+
 ## How a tick runs
 
 `GameSession.Start` builds the game where a `GameStart` says (a save's place, or a new game's arrival with the command line's overrides, `Game.StartingPlace`), and the runtime builds its player and camera views from `TrekLoop.Player` and `Camera`; the tests start their sessions the same way. Then `Game._PhysicsProcess` calls `GameSession.Tick` once per 60 Hz tick, which in order:

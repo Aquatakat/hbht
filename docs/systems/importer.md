@@ -1,6 +1,14 @@
 # The importer and the base plugin (M1)
 
-`hbht import <rom>` turns a ROM into `aidyn.base`, the plugin the runtime loads (ADR 0001). It goes to `plugins/aidyn.base` in the data folder: `HBHT_DATA` if set, else `%LOCALAPPDATA%\HBHT`. `--out` puts it elsewhere. It refuses the debug ROM (ADR 0007).
+`hbht import <rom>` turns a ROM into `aidyn.base`, the plugin the runtime loads (ADR 0001). It goes to `plugins/aidyn.base` in the data folder ([runtime](runtime.md#the-data-folder)): from the CLI, `HBHT_DATA` if set, else `%LOCALAPPDATA%\HBHT`. `--out` puts it elsewhere. It refuses the debug ROM (ADR 0007). The editor's import page runs the same importer, asking for NA 1.0 alone ([editor](editor.md#the-import-page)).
+
+## The player's choices
+
+`BaseImporter.Import` takes an `ImportOptions` (in `HBHT.Plugins`), `ImportOptions.Default` if none, and the manifest records it (`import.options`), so the editor and a re-import can tell what was chosen. An import made before it was recorded had the defaults.
+
+- **`FixMushroom`** (default on): `MapCorrections` moves the Roog Cave's mushroom out of the passage's neck ([hardcoded content](../hardcoded-content.md#corrections-to-the-roms-maps)). Off, it stands where the ROM has it, with its collision. `hbht import <rom> --keep-mushroom` turns it off; the editor's import page offers it as **Fix the mushroom (recommended)** or **Don't fix the mushroom**.
+
+The defaults leave the records as importer 61 wrote them, so recording the choice didn't raise `BasePlugin.ImporterVersion`. A choice that changes the records is still the same importer: `Diagnose` goes by the version alone, and a re-import is the player's to ask for.
 
 ## The flow
 
@@ -24,7 +32,7 @@
 
 ## The base plugin
 
-- **`plugin.json`** records the importer version (`BasePlugin.ImporterVersion`) and the ROM's SHA-1. `BasePlugin.Diagnose`, which the runtime, the CLI and the editor all go by, refuses a base another importer version wrote, so the player imports again.
+- **`plugin.json`** records the importer version (`BasePlugin.ImporterVersion`), the ROM's SHA-1 and version, and the player's choices (`options`). `BasePlugin.Diagnose`, which the runtime, the CLI and the editor all go by, refuses a base another importer version wrote, so the player imports again.
 - **`records/`** holds a JSON file per family (`entities.json`, `combat.json`, `triggers.json` and so on), each record's system doc describing it. The loader reads every JSON file under `records/`, whatever the layout (ADR 0005), so the split is only for reading and diffing. Maps are a file per map set (`maps/Overworld.json` and so on).
 - **`assets/aidyn/<type>/<key>`** holds every scene as a glb (`aidyn:scene/0xHHHH`, the same glTF as `hbht scenes`), with locator nodes (`locator <i>`) for what the game attaches at run time; every chunk's collision (`aidyn:map/0xHHHH`, in the chunk's own coordinates); every texture and UI image as a PNG (`aidyn:texture/0xHHHH`, full size only, and `aidyn:image/0xHHHH`, which includes the sky gradients); every Borg12's events (`sequence/0xHHHH.dcm`) and every Borg11 (`sample/0xHHHH.wav`, [audio](../formats/audio.md#in-the-base-plugin)). Scenes carry their own textures; the texture records are for what the engine draws with a texture alone, such as bodies' shadows and particles. A mod replaces an asset by putting a file at the same path in its own `assets/`. The core reads some itself, headlessly, through `HBHT.Plugins.Assets`: collision (`CollisionMesh`), scenes' triangles (`SceneMesh`), actors' timing and root motion (`ActorClips`), and images' sizes (`PluginSet.ImageSize`).
 - **Record IDs** follow ADR 0004: `aidyn:<type>/<key>`, the key a DB `ItemID` or Borg index as `0xHHHH`, a decimal index, or for a map object the map's `0xHHHH` then its index. Map sets are numbered as the original's `EnumMapDatA`; a map (`aidyn:map/0xHHHH`) holds its map objects of every type but the code objects ([maps](../formats/maps.md#map-objects-in-the-base-plugin-06)).

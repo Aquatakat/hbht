@@ -22,7 +22,21 @@ public sealed record PluginManifest(
 /// <see cref="BasePlugin.ImporterVersion"/> or the ROM changes.
 /// </summary>
 /// <param name="Rom">The ROM's SHA-1.</param>
-public sealed record ImportInfo(int Importer, string Rom, string RomVersion);
+/// <param name="Options">The player's choices for the import. An import without them, before they were recorded, had the defaults.</param>
+public sealed record ImportInfo(int Importer, string Rom, string RomVersion, ImportOptions? Options = null);
+
+/// <summary>
+/// The player's choices for an import, which the base plugin's manifest records (<see cref="ImportInfo.Options"/>), so the editor
+/// and a re-import can tell.
+/// </summary>
+/// <param name="FixMushroom">
+/// Move the Roog Cave's mushroom out of the passage's neck, the correction the importer makes by default
+/// (docs/hardcoded-content.md#corrections-to-the-roms-maps). Without it, the mushroom stands where the ROM has it.
+/// </param>
+public sealed record ImportOptions(bool FixMushroom = true)
+{
+    public static ImportOptions Default { get; } = new();
+}
 
 /// <summary>The base game's plugin, which the importer writes from the user's ROM.</summary>
 public static class BasePlugin
@@ -89,6 +103,8 @@ public static class BasePlugin
     /// 59 marks a lit list's vertices that the RSP loads second of a pair (<c>TEXCOORD_1</c>'s S of 1), which a body's lights don't reach.
     /// 60 moves the Roog Cave's mushroom (<c>aidyn:voxel/0x1205/12</c>) and its collision out of the passage's neck (<c>MapCorrections</c>).
     /// 61 gives each title fly-through its animation's length (<c>length</c>), and names its coordinates' origin (<c>originRow</c>, <c>originColumn</c>).
+    /// Its manifest later records the import's options (<c>import.options</c>, <see cref="ImportOptions"/>), whose defaults leave the
+    /// records as 61 wrote them, and a 61 import without them had the defaults, so the version stayed.
     /// </summary>
     public const int ImporterVersion = 61;
 
@@ -102,10 +118,36 @@ public static class BasePlugin
         var directory = Path.Combine(pluginsDirectory, Folder);
         if (!File.Exists(Path.Combine(directory, PluginManifest.FileName)))
             return $"The game hasn't been imported. Run: hbht import <rom>\n(looked in {directory})";
-        var import = Plugin.Open(directory).Manifest.Import;
+        ImportInfo? import;
+        try
+        {
+            import = Plugin.Open(directory).Manifest.Import;
+        }
+        catch (Exception e) when (e is IOException or InvalidDataException or System.Text.Json.JsonException or UnauthorizedAccessException)
+        {
+            return $"The import can't be read ({e.Message}). Run: hbht import <rom>";
+        }
         return import?.Importer == ImporterVersion
             ? null
             : $"The import is out of date (imported by importer {import?.Importer.ToString() ?? "unknown"}, now {ImporterVersion}). Run: hbht import <rom>";
+    }
+
+    /// <summary>Whether there's a base plugin under <paramref name="pluginsDirectory"/>, current or not.</summary>
+    public static bool IsImported(string pluginsDirectory) => File.Exists(Path.Combine(pluginsDirectory, Folder, PluginManifest.FileName));
+
+    /// <summary>What the base plugin under <paramref name="pluginsDirectory"/> was imported from, or null if there's none to read.</summary>
+    public static ImportInfo? ImportOf(string pluginsDirectory)
+    {
+        if (!IsImported(pluginsDirectory))
+            return null;
+        try
+        {
+            return Plugin.Open(Path.Combine(pluginsDirectory, Folder)).Manifest.Import;
+        }
+        catch (Exception e) when (e is IOException or InvalidDataException or System.Text.Json.JsonException or UnauthorizedAccessException)
+        {
+            return null;
+        }
     }
 
     /// <summary>Throws an <see cref="IOException"/> with <see cref="Diagnose"/>'s words if the base plugin isn't there and current.</summary>
@@ -116,13 +158,57 @@ public static class BasePlugin
     }
 }
 
-/// <summary>Where the importer writes and the runtime reads, outside the repository.</summary>
+/// <summary>
+/// Where the importer writes and the runtime reads, outside the repository: the data folder (<see cref="Root"/>), with the plugins,
+/// the saves and the settings.
+/// </summary>
 public static class DataPaths
 {
-    /// <summary><c>HBHT_DATA</c> if set, else <c>HBHT</c> in the local application data folder.</summary>
-    public static string Root => Environment.GetEnvironmentVariable("HBHT_DATA") is { Length: > 0 } root
-        ? root
-        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "HBHT");
+    /// <summary>The environment variable that sets the data folder outright, which tests, tools and development use.</summary>
+    public const string Variable = "HBHT_DATA";
+
+    /// <summary>The file beside a portable install's executables that keeps its data beside them.</summary>
+    public const string PortableMarker = "portable.txt";
+
+    /// <summary>The data folder's name in a portable install's folder, and in the local application data folder.</summary>
+    public const string PortableFolder = "data", InstalledFolder = "HBHT";
+
+    private static string? _appFolder;
+
+    /// <summary>
+    /// The folder the exported game or editor runs from, which the Godot apps hand in first thing (<c>AppLauncher.UseAppFolder</c>),
+    /// so a portable install is found. The CLI, the tests and the apps in development never set it.
+    /// </summary>
+    public static void UseAppFolder(string? folder) => _appFolder = folder;
+
+    /// <summary>
+    /// The data folder: <c>HBHT_DATA</c> if set; else a portable install's <c>data</c> beside the executables, when the app folder
+    /// holds <c>portable.txt</c> or already holds an import there (<c>data/plugins/aidyn.base</c>); else <c>HBHT</c> in the local
+    /// application data folder (<c>%LOCALAPPDATA%</c> on Windows, <c>~/.local/share</c> on Linux).
+    /// </summary>
+    public static string Root => Resolve(Environment.GetEnvironmentVariable(Variable), _appFolder,
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
+
+    /// <summary><see cref="Root"/>'s rule over what it reads: the variable's value, the app folder and the local application data folder.</summary>
+    public static string Resolve(string? variable, string? appFolder, string localApplicationData)
+    {
+        if (variable is { Length: > 0 })
+            return variable;
+        if (appFolder is { Length: > 0 })
+        {
+            var portable = Path.Combine(appFolder, PortableFolder);
+            if (File.Exists(Path.Combine(appFolder, PortableMarker)) || Directory.Exists(Path.Combine(portable, "plugins", BasePlugin.Folder)))
+                return portable;
+        }
+        return Path.Combine(localApplicationData, InstalledFolder);
+    }
+
+    /// <summary>
+    /// The ROM the editor's import page last imported from, a path on one line, which it offers again: beside the plugins folder
+    /// it imported into, so in the data folder for the data folder's own.
+    /// </summary>
+    public static string LastRomFor(string pluginsDirectory) =>
+        Path.Combine(Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(Path.GetFullPath(pluginsDirectory))) ?? pluginsDirectory, "rom.txt");
 
     public static string Plugins => Path.Combine(Root, "plugins");
 

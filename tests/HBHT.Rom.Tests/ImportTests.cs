@@ -15,6 +15,8 @@ public sealed class ImportTests(Na10Import fixture)
         var set = fixture.Data.Set;
         var import = set.Plugins[0].Manifest.Import!;
         Assert.Equal((BasePlugin.ImporterVersion, rom.Sha1), (import.Importer, import.Rom));
+        // The manifest records the player's choices, the defaults here.
+        Assert.Equal(ImportOptions.Default, import.Options);
 
         var mapSets = set.All<MapSetRecord>(RecordTypes.MapSet).ToList();
         Assert.Equal(17, mapSets.Count);
