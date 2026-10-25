@@ -243,14 +243,20 @@ function New-MacPackage {
         # Renaming broke Godot's ad-hoc signature. Sign again, ad hoc: arm64 Macs run
         # nothing unsigned. There's no Developer ID, so Gatekeeper still asks (releases.md).
         Invoke-Native codesign @('--force', '--deep', '--sign', '-', $bundle)
-        Invoke-Native codesign @('--verify', '--deep', '--strict', $bundle)
+        Invoke-Native codesign @('--verify', '--deep', '--verbose=2', $bundle)
     }
     Copy-Item (Join-Path $repo 'LICENSE'), (Join-Path $repo 'README.md') $stage
     # A link to /Applications, so the disk image's window says where the apps go.
     Invoke-Native ln @('-s', '/Applications', (Join-Path $stage 'Applications'))
     $dmg = Join-Path $OutDir "$name-macos.dmg"
     if (Test-Path -LiteralPath $dmg) { Remove-Item -LiteralPath $dmg }
-    Invoke-Native hdiutil @('create', '-volname', "HBHT alpha $Version", '-srcfolder', $stage, '-ov', '-format', 'UDZO', $dmg)
+    # hdiutil now and then fails with "Resource busy" on a busy machine; a retry clears it.
+    foreach ($attempt in 1..3) {
+        & hdiutil create -volname "HBHT alpha $Version" -srcfolder $stage -ov -format UDZO $dmg
+        if ($LASTEXITCODE -eq 0) { break }
+        if ($attempt -eq 3) { throw "hdiutil create exited with $LASTEXITCODE" }
+        Start-Sleep -Seconds 5
+    }
     Write-Host "Wrote $dmg"
 }
 

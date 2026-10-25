@@ -9,4 +9,4 @@ im.save("hbht.ico", sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (12
 im.save("hbht.icns")
 ```
 
-Make them again after changing the logo. The Godot projects and the installers take their icons from here.
+Make them again after changing the logo. The Godot projects and the installers take their icons from here: each project's `icon.png` (its `config/icon`) is a copy of `logo.png`, which `tools/package.ps1` refreshes, and the script copies the `.ico` and `.icns` beside each project for the export ([releases](../../docs/systems/releases.md)).

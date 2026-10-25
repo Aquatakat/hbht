@@ -1,0 +1,109 @@
+# Builds the packages on Windows, Linux and macOS and publishes them as a prerelease,
+# "HBHT alpha N", tagged vN, where N is one more than the highest v<number> tag
+# (docs/systems/releases.md). Run by hand from the Actions tab.
+name: Release
+
+on:
+  workflow_dispatch:
+
+# Two runs at once would pick the same number.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  number:
+    name: Pick the release number
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.next.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: next
+        shell: pwsh
+        run: |
+          $numbers = @(git tag --list 'v*' | Where-Object { $_ -match '^v(\d+)$' } | ForEach-Object { [int]$Matches[1] })
+          $next = if ($numbers.Count -gt 0) { ($numbers | Measure-Object -Maximum).Maximum + 1 } else { 1 }
+          Write-Host "This release is v$next"
+          "version=$next" >> $env:GITHUB_OUTPUT
+
+  test:
+    name: Test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      # The real-data tests skip: CI has no ROMs.
+      - run: dotnet test
+
+  package:
+    name: Package (${{ matrix.os }})
+    needs: [number, test]
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      # The pinned Godot and the desktop export templates, fetched by tools/godot-pin.ps1.
+      - uses: actions/cache@v6
+        with:
+          path: .tools/godot
+          key: godot-${{ runner.os }}-${{ hashFiles('tools/godot-pin.ps1') }}
+      - name: Build the packages
+        shell: pwsh
+        run: ./tools/package.ps1 -Version ${{ needs.number.outputs.version }}
+      - name: Keep Godot's logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: logs-${{ runner.os }}
+          path: out/packages/work-*/logs
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v7
+        with:
+          name: packages-${{ runner.os }}
+          path: out/packages/HBHT-alpha-*
+          if-no-files-found: error
+          compression-level: 0
+
+  release:
+    name: Publish the release
+    needs: [number, package]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: packages-*
+          path: dist
+          merge-multiple: true
+      - name: Tag and release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.number.outputs.version }}
+        run: |
+          ./tools/release-notes.ps1 -Version $env:VERSION > notes.md
+          Get-Content notes.md
+          gh release create "v$env:VERSION" (Get-ChildItem dist -File).FullName `
+            --target $env:GITHUB_SHA `
+            --title "HBHT alpha $env:VERSION" `
+            --notes-file notes.md `
+            --prerelease
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
