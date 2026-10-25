@@ -5,7 +5,7 @@ using Aidyn.Core.Sky;
 namespace Aidyn.Game;
 
 /// <summary>
-/// The settings the command line sets for one run (<c>--sky</c>, <c>--object-distance</c>, <c>--detail</c>,
+/// The settings the command line sets for one run (<c>--sky</c>, <c>--object-distance</c>, <c>--draw-distance</c>, <c>--detail</c>,
 /// <c>--precipitation</c>, <c>--ui-lines</c>, <c>--spell-auras</c> and <c>--pace</c>): a layer over the player's settings,
 /// which the runtime draws by (<see cref="Over"/>) and makes each tick's <see cref="SessionSettings"/> from
 /// (<see cref="Session"/>), never written into them, so <c>settings.json</c> only ever holds the player's own. Each holds for
@@ -16,6 +16,7 @@ public sealed class LaunchSettings
 {
     private SkyPlacement? _sky;
     private float? _objectDistance;
+    private bool? _extendedDrawDistance;
     private bool? _nearestDetail;
     private float? _precipitation;
     private int? _uiLines;
@@ -30,6 +31,7 @@ public sealed class LaunchSettings
     {
         _sky = options.SkyPlacement;
         _objectDistance = options.ObjectDistance;
+        _extendedDrawDistance = options.ExtendedDrawDistance;
         _nearestDetail = options.NearestDetail;
         _precipitation = options.PrecipitationDensity;
         _uiLines = options.UiLines;
@@ -46,6 +48,8 @@ public sealed class LaunchSettings
             settings.SkyPlacement = sky;
         if (_objectDistance is { } objectDistance)
             settings.ObjectDistance = objectDistance;
+        if (_extendedDrawDistance is { } extended)
+            settings.ExtendedDrawDistance = extended;
         if (_nearestDetail is { } nearest)
             settings.NearestDetail = nearest;
         if (_precipitation is { } precipitation)
@@ -71,6 +75,8 @@ public sealed class LaunchSettings
             _sky = null;
         if (player.ObjectDistance != _seen.ObjectDistance)
             _objectDistance = null;
+        if (player.ExtendedDrawDistance != _seen.ExtendedDrawDistance)
+            _extendedDrawDistance = null;
         if (player.NearestDetail != _seen.NearestDetail)
             _nearestDetail = null;
         if (player.PrecipitationDensity != _seen.PrecipitationDensity)

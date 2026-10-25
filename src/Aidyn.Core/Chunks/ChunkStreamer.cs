@@ -53,6 +53,9 @@ public sealed class ChunkStreamer
     /// <summary>The chunk the 3×3 was last loaded around.</summary>
     public ChunkKey Centre { get; private set; }
 
+    /// <summary>The point the 3×3 was last loaded around (<see cref="Update"/>).</summary>
+    public Vector3 Focus { get; private set; }
+
     /// <summary>The loaded chunks and their map objects.</summary>
     public IEnumerable<(ChunkEntry Chunk, LoadedMap Map)> All => _maps.Select(m => (_chunks[m.Key], m.Value));
 
@@ -78,6 +81,7 @@ public sealed class ChunkStreamer
     /// <summary>Loads the chunks around <paramref name="position"/> and frees the rest. Returns whether any changed.</summary>
     public bool Update(Vector3 position)
     {
+        Focus = position;
         var centre = Centre = CellAt(position);
         var wanted = new HashSet<ChunkKey>();
         for (var r = centre.Row - 1; r <= centre.Row + 1; r++)
@@ -103,6 +107,14 @@ public sealed class ChunkStreamer
         }
         return changed;
     }
+
+    /// <summary>
+    /// Reads what loading a chunk of the map set reads ahead of time, from any thread: the triangles of the surfaces it draws,
+    /// if it keeps them. Nothing changes but when they're read, so a chunk loads the same whether it was prepared or not, and
+    /// the runtime prepares the chunks the next crossing could load off the main thread
+    /// (docs/adr/0025-chunks-load-off-the-main-thread.md).
+    /// </summary>
+    public void Prepare(ChunkEntry chunk) => _surfaces?.Warm(chunk);
 
     /// <summary>Frees every loaded chunk and streams another map set's, as a teleport into it does.</summary>
     public void Change(MapSetRecord set)

@@ -47,6 +47,11 @@ namespace Aidyn.Views;
 /// lights light fog through its <c>FOG</c> instead, after its lighting, in linear light.
 /// </para>
 /// <para>
+/// Under the Draw Distance setting's Extended (<see cref="RadialParameter"/>), the fog goes by the distance from the eye
+/// rather than the depth, and nothing is drawn past a sphere about the eye, so turning the camera doesn't bring scenery in
+/// and out at the screen's corners as the original's flat far plane does.
+/// </para>
+/// <para>
 /// Borg2 materials clamp, repeat or mirror S and T separately (faces are often half a texture,
 /// mirrored), which a <see cref="BaseMaterial3D"/> can't, so the shader wraps each axis itself.
 /// A scrolling texture's image then wraps round within the texture by <see cref="ScrollParameter"/>,
@@ -64,6 +69,11 @@ public static class N64Material
     /// planes it's measured against. No fog when far isn't beyond near.
     /// </summary>
     public const string FogParameter = "n64_fog";
+    /// <summary>
+    /// Global: under the Draw Distance setting's Extended, the radius about the eye past which nothing is drawn, which the fog
+    /// is then measured along instead of the depth; 0 for the original's depth and far plane.
+    /// </summary>
+    public const string RadialParameter = "n64_radial";
     /// <summary>Per instance: a scene object's tint, in on-screen values, with alpha 1, or 0 for none.</summary>
     public const string ObjectTintParameter = "object_tint";
     /// <summary>Per instance: the scene's own tint, in on-screen values, with alpha 1, or 0 for none (<see cref="SetSceneTint"/>).</summary>
@@ -145,6 +155,7 @@ public static class N64Material
         RenderingServer.GlobalShaderParameterAdd(TintParameter, RenderingServer.GlobalShaderParameterType.Vec3, new Vector3(1, 1, 1));
         RenderingServer.GlobalShaderParameterAdd(FogColorParameter, RenderingServer.GlobalShaderParameterType.Vec3, new Vector3(1, 1, 1));
         RenderingServer.GlobalShaderParameterAdd(FogParameter, RenderingServer.GlobalShaderParameterType.Vec4, new Vector4(0, 1000, 0, 0));
+        RenderingServer.GlobalShaderParameterAdd(RadialParameter, RenderingServer.GlobalShaderParameterType.Float, 0f);
         RenderingServer.GlobalShaderParameterAdd(SunDirectionParameter, RenderingServer.GlobalShaderParameterType.Vec3, new Vector3(0, 1, 0));
         RenderingServer.GlobalShaderParameterAdd(SunColorParameter, RenderingServer.GlobalShaderParameterType.Vec3, new Vector3(0, 0, 0));
         RenderingServer.GlobalShaderParameterAdd(BodyAmbientParameter, RenderingServer.GlobalShaderParameterType.Vec3, new Vector3(1, 1, 1));
@@ -155,7 +166,11 @@ public static class N64Material
     /// scenery's tint, its fog for a camera with these clip planes, and the light (<see cref="SetSkyLight"/>). The runtime's
     /// sky does, each frame. Nothing until a sky has been chosen.
     /// </summary>
-    public static void SetSky(Core.Sky.SkyDirector sky, float near, float far)
+    /// <param name="radial">
+    /// Past what distance from the eye nothing is drawn, with the fog measured along that distance (<see cref="RadialParameter"/>),
+    /// or 0 for the original's depth and far plane.
+    /// </param>
+    public static void SetSky(Core.Sky.SkyDirector sky, float near, float far, float radial = 0)
     {
         if (!sky.Applied)
             return;
@@ -163,6 +178,7 @@ public static class N64Material
         RenderingServer.GlobalShaderParameterSet(TintParameter, sky.Colors.Tint.ToGodot());
         RenderingServer.GlobalShaderParameterSet(FogColorParameter, sky.Colors.Fog.ToGodot());
         RenderingServer.GlobalShaderParameterSet(FogParameter, new Vector4(sky.SceneryFogStart, 1000, near, far));
+        RenderingServer.GlobalShaderParameterSet(RadialParameter, radial);
         SetSkyLight(sky);
     }
 
@@ -243,13 +259,13 @@ public static class N64Material
     {
         if (!FadedShaders.TryGetValue(material, out var shader))
             return null;
-        if (!FadedCopies.TryGetValue(material, out var copy))
+        // Atomically, as scenery is built off the main thread too.
+        return FadedCopies.GetValue(material, m =>
         {
-            copy = (ShaderMaterial)material.Duplicate();
+            var copy = (ShaderMaterial)m.Duplicate();
             copy.Shader = shader;
-            FadedCopies.Add(material, copy);
-        }
-        return copy;
+            return copy;
+        });
     }
 
     /// <summary>
@@ -260,13 +276,13 @@ public static class N64Material
     {
         if (!MirroredShaders.TryGetValue(material, out var shader))
             return null;
-        if (!MirroredCopies.TryGetValue(material, out var copy))
+        // Atomically, as scenery is built off the main thread too.
+        return MirroredCopies.GetValue(material, m =>
         {
-            copy = (ShaderMaterial)material.Duplicate();
+            var copy = (ShaderMaterial)m.Duplicate();
             copy.Shader = shader;
-            MirroredCopies.Add(material, copy);
-        }
-        return copy;
+            return copy;
+        });
     }
 
     /// <summary>Moves a scrolling texture's image, in its material and the material's faded and mirrored copies.</summary>
@@ -483,8 +499,22 @@ public static class N64Material
         var rsp = RspLighting && !unlit;
         var onScreen = OnScreenFramebuffer && (unlit || rsp);
         var key = $"{unlit} {rsp} {onScreen} {cull} {nearest} {blend} {textured} {texgen} {mirrored}";
-        if (Shaders.TryGetValue(key, out var shader))
-            return shader;
+        // Scenery is built off the main thread too (docs/adr/0025-chunks-load-off-the-main-thread.md). The lock is held for the
+        // cache alone, never while the renderer compiles, which another thread may have to wait on the main thread for: two
+        // threads wanting a new shader at once each compile one, and the first kept is used from then on.
+        lock (Shaders)
+        {
+            if (Shaders.TryGetValue(key, out var cached))
+                return cached;
+        }
+        var shader = CompileShader(unlit, rsp, onScreen, cull, nearest, blend, textured, texgen, mirrored);
+        lock (Shaders)
+            return Shaders.TryAdd(key, shader) ? shader : Shaders[key];
+    }
+
+    private static Shader CompileShader(bool unlit, bool rsp, bool onScreen, bool cull, bool nearest, Blend blend, bool textured, bool texgen, bool mirrored)
+    {
+        Shader shader;
 
         // Godot turns the culling round for a mirrored instance; a mirrored copy turns it back (see MirroredMeshes).
         var modes = new List<string> { !cull ? "cull_disabled" : mirrored ? "cull_front" : "cull_back" };
@@ -547,6 +577,8 @@ public static class N64Material
                 global uniform vec3 n64_fog_color;
                 // Start and end on the 0–1000 scale, then the near and far planes.
                 global uniform vec4 n64_fog;
+                // Draw Distance's Extended: nothing past this distance from the eye, which the fog goes by; or 0.
+                global uniform float n64_radial;
                 global uniform vec3 n64_sun_direction;
                 global uniform vec3 n64_sun_color;
                 global uniform vec3 n64_body_ambient;
@@ -608,10 +640,12 @@ public static class N64Material
                 }
 
                 void vertex() {
-                	// The depth buffer's z / w for the original's planes, on the 0–1000 scale.
+                	// The depth buffer's z / w for the original's planes, on the 0–1000 scale: by the depth, or under Draw
+                	// Distance's Extended by the distance from the eye, so the fog doesn't shift as the camera turns.
                 	float near = n64_fog.z;
                 	float far = n64_fog.w;
-                	float depth = max(-(MODELVIEW_MATRIX * vec4(VERTEX, 1.0)).z, 0.0001);
+                	vec3 seen = (MODELVIEW_MATRIX * vec4(VERTEX, 1.0)).xyz;
+                	float depth = max(n64_radial > 0.0 ? length(seen) : -seen.z, 0.0001);
                 	float z = (far + near) / (far - near) - 2.0 * far * near / ((far - near) * depth);
                 	float fog = far > near && lighting != 3 && unfogged == 0.0 ? clamp((z * 500.0 + 500.0 - n64_fog.x) / (n64_fog.y - n64_fog.x), 0.0, 1.0) : 0.0;{{light}}{{(texgen ? TexGen : "")}}
                 	clip_w = max((PROJECTION_MATRIX * (MODELVIEW_MATRIX * vec4(VERTEX, 1.0))).w, 0.0001);
@@ -620,6 +654,10 @@ public static class N64Material
                 }
 
                 void fragment() {
+                	// Draw Distance's Extended cuts at a sphere about the eye, where the fog has ended, not at a far plane.
+                	if (n64_radial > 0.0 && length(VERTEX) > n64_radial) {
+                		discard;
+                	}
                 	{{texel}}
                 	vec4 shade = shade_w / clip_w;
                 	float fog = fog_w / clip_w;
@@ -632,7 +670,6 @@ public static class N64Material
                 }
                 """,
         };
-        Shaders[key] = shader;
         return shader;
     }
 }

@@ -11,8 +11,9 @@ namespace Aidyn.Game;
 /// </summary>
 public partial class WandererView : BodyView
 {
-    public WandererView(Wanderer wanderer, Aidyn.Plugins.PluginSet plugins, Models models, Texture2D? shadow)
-        : base($"Wanderer {wanderer.Party.Index}", wanderer.Body, wanderer.Look, plugins, models, shadow)
+    /// <param name="builder">What builds its actor's scene off the main thread, or none to build it at once.</param>
+    public WandererView(Wanderer wanderer, Aidyn.Plugins.PluginSet plugins, Models models, Texture2D? shadow, ChunkBuilder? builder = null)
+        : base($"Wanderer {wanderer.Party.Index}", wanderer.Body, wanderer.Look, plugins, models, shadow, builder)
     {
         Wanderer = wanderer;
         Sync();

@@ -76,16 +76,30 @@ public sealed class ActorAnimator : IActorMotion
     /// An animator for an instance of the actor's scene, starting in its initial state, whose branches roll on
     /// <paramref name="rolls"/>. Returns null if the scene has no animations, still or moving.
     /// </summary>
-    public static ActorAnimator? Create(Node3D instance, ActorRecord actor, GlbScene glb, IRandom rolls)
+    public static ActorAnimator? Create(Node3D instance, ActorRecord actor, GlbScene glb, IRandom rolls) =>
+        Find<AnimationPlayer>(instance) is null && glb.Extras.StillAnimations.Count == 0 ? null : Create(instance, MotionFor(actor, glb, rolls), glb);
+
+    /// <summary>
+    /// An animator for an instance of the actor's scene that poses it as <paramref name="motion"/> plays, a motion made
+    /// before the instance was (<see cref="MotionFor"/>), as a wanderer's is while its body's scene is built off the main thread.
+    /// </summary>
+    public static ActorAnimator Create(Node3D instance, ActorMotion motion, GlbScene glb)
     {
-        var player = Find<AnimationPlayer>(instance);
-        if (player is null && glb.Extras.StillAnimations.Count == 0)
-            return null;
-        var rootName = SceneNames.Transform(actor.RootTransform);
+        var rootName = SceneNames.Transform(motion.Machine.Actor.RootTransform);
         var root = FindNode(instance, n => n is Node3D && n.Name == rootName) as Node3D;
-        var motion = new ActorMotion(actor, glb.Clips(actor.RootTransform), rolls);
-        return new ActorAnimator(motion, player, root, MirroredMeshes.For(instance, glb.Extras), [.. glb.Extras.StillAnimations.Select(a => a.Borg6)], glb.Driven);
+        return new ActorAnimator(motion, Find<AnimationPlayer>(instance), root, MirroredMeshes.For(instance, glb.Extras),
+            [.. glb.Extras.StillAnimations.Select(a => a.Borg6)], glb.Driven);
     }
+
+    /// <summary>
+    /// Whether an actor's scene has an animator (<see cref="Create(Node3D, ActorRecord, GlbScene, IRandom)"/>), from its glTF
+    /// alone, before Godot has read it: it has animations, which Godot gives an animation player, or still animations.
+    /// </summary>
+    public static bool Animated(GlbScene glb) =>
+        glb.Extras.StillAnimations.Count > 0 || glb.Reader.Root.TryGetProperty("animations", out var animations) && animations.GetArrayLength() > 0;
+
+    /// <summary>The core's motion for an actor, starting in its initial state, whose branches roll on <paramref name="rolls"/>.</summary>
+    public static ActorMotion MotionFor(ActorRecord actor, GlbScene glb, IRandom rolls) => new(actor, glb.Clips(actor.RootTransform), rolls);
 
     /// <summary>Ticks at 60 Hz with the frame, unless <see cref="Driven"/>, and poses the scene between ticks.</summary>
     public void Update(double delta)

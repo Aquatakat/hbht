@@ -133,6 +133,9 @@ public sealed class LaunchOptions(Dictionary<string, string> values)
     /// <summary><c>--object-distance &lt;scale&gt;</c>.</summary>
     public float? ObjectDistance => Number("object-distance");
 
+    /// <summary><c>--draw-distance original|extended</c>: the options' Draw Distance.</summary>
+    public bool? ExtendedDrawDistance => Text("draw-distance") is { } distance ? distance == "extended" : null;
+
     /// <summary><c>--detail nearest</c>: model detail's Highest.</summary>
     public bool? NearestDetail => Text("detail") is { } detail ? detail == "nearest" : null;
 

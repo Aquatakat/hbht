@@ -22,6 +22,32 @@ public sealed class ChunkSurfacesTests(Na10Import fixture)
         return (streamer, origin);
     }
 
+    [Fact]
+    public void AChunkPreparedAheadOnOtherThreadsLoadsTheSameSurfaces()
+    {
+        // Read ahead from several threads at once, as the runtime's builder reads ahead what a crossing could load, and loaded
+        // on this one: the same triangles as loading it cold.
+        var overworld = Data.MapSets.First(m => m.Label == "Overworld");
+        var cold = new ChunkStreamer(Data.Set, GameState.NewGame(Data.Set), new CollisionWorld(), overworld, new VisibleWorld());
+        var prepared = new ChunkStreamer(Data.Set, GameState.NewGame(Data.Set), new CollisionWorld(), overworld, new VisibleWorld());
+        var i08 = cold.Find("I08")!;
+        var near = overworld.Chunks.Where(c => Math.Abs(c.Row - i08.Row) <= 2 && Math.Abs(c.Column - i08.Column) <= 2).ToList();
+        Parallel.ForEach(near.Concat(near), new ParallelOptions { MaxDegreeOfParallelism = 4 }, prepared.Prepare);
+        var at = cold.Origin(i08) + new Vector3(50, 0, 50);
+        cold.Update(at);
+        prepared.Update(at);
+
+        Assert.Equal(cold.Visible!.Count, prepared.Visible!.Count);
+        for (var x = 5; x < 300; x += 7)
+        {
+            var top = cold.Origin(i08) + new Vector3(x - 100, 300, x / 3f);
+            var bottom = top with { Y = -300 };
+            var hit = cold.Visible.Raycast(top, bottom, out var a, out _, out var absorbsA);
+            Assert.Equal(hit, prepared.Visible.Raycast(top, bottom, out var b, out _, out var absorbsB));
+            Assert.Equal((a, absorbsA), (b, absorbsB));
+        }
+    }
+
     /// <summary>
     /// Down each column of a chunk, a unit apart: where the drawn surfaces and the collision both have something, how often the
     /// highest of each are within 0.3 of each other, and how many columns the collision stands over the drawn surfaces by more,
