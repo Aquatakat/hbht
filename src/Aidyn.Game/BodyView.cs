@@ -17,10 +17,17 @@ namespace Aidyn.Game;
 /// that reach it, with its shadow. The core steps its animations with the body, as it does the player's.
 /// A wanderer's view and a cut-scene actor's derive from it and add what is theirs.
 /// </summary>
+/// <remarks>
+/// A wanderer's actor's scene is built off the main thread (<see cref="ChunkBuilder"/>,
+/// docs/adr/0025-chunks-load-off-the-main-thread.md), and drawn once it's built (<see cref="TakeBuilt"/>). Its motion, which the
+/// core steps the body by, is made at once, rolling as it would have, and plays from the first tick whether the scene is
+/// there or not, so nothing the game does waits on the build.
+/// </remarks>
 public abstract partial class BodyView : Node3D
 {
-    private readonly Level? _model;
-    private readonly Node3D? _turn;
+    private Level? _model;
+    private Node3D? _turn;
+    private PendingBody? _pending;
     private readonly ShadowDecal? _shadow;
     private readonly Models? _models;
 
@@ -35,23 +42,21 @@ public abstract partial class BodyView : Node3D
     /// <see cref="Sync"/> when it has made what it adds.
     /// </summary>
     /// <param name="shadow">The shadow texture, or null for a body with no shadow.</param>
-    protected BodyView(string name, Body body, EntityBody look, PluginSet plugins, Models models, Texture2D? shadow)
+    /// <param name="builder">What builds its actor's scene off the main thread; with none, it's built at once.</param>
+    protected BodyView(string name, Body body, EntityBody look, PluginSet plugins, Models models, Texture2D? shadow, ChunkBuilder? builder = null)
     {
         Body = body;
         Name = name;
         _models = models;
-        if (plugins.TryGet<ActorRecord>(look.Actor) is { } actor && models.InstantiateActor(actor, rolls: models.BodyRolls) is var (node, animator))
+        if (plugins.TryGet<ActorRecord>(look.Actor) is { } actor)
         {
-            _turn = new Node3D { Scale = Vector3.One * body.Scale };
-            _turn.AddChild(node);
-            AddChild(_turn);
-            ShadowDecal.MarkBody(node);
-            // Its emitters' particles show and fade with it (Level.Show).
-            _model = new Level(node, null) { Animator = animator };
-            if (animator is not null)
+            if (builder is not null && models.Glb(actor.Scene) is { } glb)
+                Build(actor, glb, models, builder);
+            else if (models.InstantiateActor(actor, rolls: models.BodyRolls) is var (node, animator))
             {
-                animator.Driven = true;
-                Motion = animator;
+                Attach(node, animator);
+                if (animator is not null)
+                    Motion = animator;
             }
         }
         if (shadow is not null)
@@ -72,7 +77,131 @@ public abstract partial class BodyView : Node3D
     public Body Body { get; }
 
     /// <summary>Its animations, which the core ticks as the body steps.</summary>
-    public IActorMotion Motion { get; } = IActorMotion.Still;
+    public IActorMotion Motion { get; private set; } = IActorMotion.Still;
+
+    /// <summary>Draws its actor's scene once it's been built off the main thread, if it has. Once a frame.</summary>
+    public void TakeBuilt()
+    {
+        if (_pending is not { Done: true } pending)
+            return;
+        _pending = null;
+        if (pending.Built is not var (node, animator))
+            return;
+        pending.Taken = true;
+        Attach(node, animator);
+        Sync();
+        // Only an animator of the motion made beforehand: the game never waits on the build for how the body moves.
+        if (animator is not null && pending.Plays)
+        {
+            // Its emitters start on the main thread, which steps the particles.
+            animator.Particles = _models!.Particles?.For(pending.Actor, node);
+            pending.Animator = animator;
+        }
+    }
+
+    /// <summary>
+    /// Lets go of its actor's scene if it's being built off the main thread and hasn't been drawn, as the view goes: freed now
+    /// if it's built, else by the builder once it is.
+    /// </summary>
+    public void AbandonBuilt()
+    {
+        _pending?.Abandon();
+        _pending = null;
+    }
+
+    /// <summary>
+    /// Makes the actor's motion now, as building its scene at once would, and builds the scene off the main thread, for
+    /// <see cref="TakeBuilt"/> to draw.
+    /// </summary>
+    private void Build(ActorRecord actor, GlbScene glb, Models models, ChunkBuilder builder)
+    {
+        var motion = ActorAnimator.Animated(glb) ? ActorAnimator.MotionFor(actor, glb, models.BodyRolls) : null;
+        var pending = _pending = new PendingBody(actor, motion);
+        if (motion is not null)
+            Motion = pending;
+        builder.Build(() =>
+        {
+            (Node3D, ActorAnimator?)? built = null;
+            try
+            {
+                built = models.InstantiateActor(actor, particles: false, motion: motion);
+            }
+            finally
+            {
+                pending.Finish(built);
+            }
+        });
+    }
+
+    private void Attach(Node3D node, ActorAnimator? animator)
+    {
+        _turn = new Node3D { Scale = Vector3.One * Body.Scale };
+        _turn.AddChild(node);
+        AddChild(_turn);
+        ShadowDecal.MarkBody(node);
+        // Its emitters' particles show and fade with it (Level.Show).
+        _model = new Level(node, null) { Animator = animator };
+        _meshes = null;
+        if (animator is not null)
+            animator.Driven = true;
+    }
+
+    /// <summary>
+    /// A body's motion while its scene builds off the main thread: the core's, played alone, then through the scene's animator,
+    /// which poses the scene as it plays the same motion.
+    /// </summary>
+    private sealed class PendingBody(ActorRecord actor, ActorMotion? motion) : IActorMotion
+    {
+        private volatile bool _done;
+        private bool _abandoned;
+
+        public ActorRecord Actor { get; } = actor;
+
+        /// <summary>Whether it has a motion of its own, which it is the body's.</summary>
+        public bool Plays => motion is not null;
+
+        /// <summary>What the builder made, or null if it couldn't; read once <see cref="Done"/>.</summary>
+        public (Node3D Node, ActorAnimator? Animator)? Built { get; set; }
+
+        public bool Done => _done;
+
+        /// <summary>Whether its view drew what was built, on the main thread.</summary>
+        public bool Taken { get; set; }
+
+        /// <summary>The builder is done, with what it made: freed at once if the view has gone.</summary>
+        public void Finish((Node3D Node, ActorAnimator? Animator)? built)
+        {
+            lock (this)
+            {
+                Built = built;
+                _done = true;
+                if (_abandoned)
+                    built?.Node.Free();
+            }
+        }
+
+        /// <summary>Its view has gone: what's built is freed now, or by the builder once it's done.</summary>
+        public void Abandon()
+        {
+            lock (this)
+            {
+                _abandoned = true;
+                if (_done && !Taken)
+                    Built?.Node.Free();
+            }
+        }
+
+        /// <summary>Its scene's animator, once it's drawn.</summary>
+        public ActorAnimator? Animator { get; set; }
+
+        public int StateLength => motion!.StateLength;
+
+        public int Frame => motion!.Frame;
+
+        public bool Entered => motion!.Entered;
+
+        public float Tick(int request) => Animator?.Tick(request) ?? motion!.Tick(request);
+    }
 
     /// <summary>The actor's scene, or null for a body whose entity has no actor.</summary>
     protected Node3D? Model => _model?.Node;

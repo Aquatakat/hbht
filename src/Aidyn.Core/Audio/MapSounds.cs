@@ -21,6 +21,9 @@ public sealed class MapSounds(GameAudio audio, IRandom random, Func<MapObject, b
 
     private readonly List<Bubble> _bubbles = [];
 
+    /// <summary>How many sound objects the loaded chunks have, playing or not.</summary>
+    public int Count => _bubbles.Count;
+
     /// <summary>How many sounds are playing.</summary>
     public int Playing => _bubbles.Count(b => audio.IsPlaying(b.Handle));
 

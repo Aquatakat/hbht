@@ -11,6 +11,10 @@ namespace Aidyn.Views;
 /// <see cref="Level.Show"/> shows them. The runtime's <see cref="ChunkStreamer"/> keeps the 3×3
 /// around the player, and the editor draws a map set's with it.
 /// </summary>
+/// <remarks>
+/// It can be built on any thread, its nodes outside the tree, which only the main thread adds its <see cref="Root"/> to
+/// (docs/adr/0025-chunks-load-off-the-main-thread.md).
+/// </remarks>
 public sealed class ChunkScenery
 {
     private ChunkScenery(ChunkEntry chunk, Node3D root)
@@ -42,8 +46,9 @@ public sealed class ChunkScenery
     /// Which of an object's models its nearest level shows: 0, its own, or for a container's, 1 opened
     /// or 2 destroyed (<c>replace_container_voxel</c>). All 0 if not given.
     /// </param>
+    /// <param name="particles">Whether its actors' emitters start (<see cref="Models.Particles"/>).</param>
     public static ChunkScenery Load(PluginSet plugins, Models models, MapSetRecord set, ChunkEntry chunk, Func<SceneObject, bool> placed,
-        Func<SceneObject, int>? model = null)
+        Func<SceneObject, int>? model = null, bool particles = true)
     {
         var scenery = new ChunkScenery(chunk, new Node3D { Name = chunk.Name, Position = set.Origin(chunk.Row, chunk.Column).ToGodot() });
         foreach (var scene in new[] { chunk.Scene, chunk.AltScene }.OfType<RecordId>())
@@ -60,7 +65,7 @@ public sealed class ChunkScenery
         foreach (var o in plugins.Get<MapRecord>(chunk.Map).Objects.OfType<SceneObject>())
         {
             if (placed(o))
-                objects.AddChild(scenery.Place(plugins, models, o, model?.Invoke(o) ?? 0).Node);
+                objects.AddChild(scenery.Place(plugins, models, o, model?.Invoke(o) ?? 0, particles).Node);
         }
         scenery.Billboards = global::Aidyn.Views.Billboards.Facings(scenery.Root);
         return scenery;
@@ -118,7 +123,7 @@ public sealed class ChunkScenery
     /// A scene object's levels of detail, each hidden, the nearest showing model <paramref name="first"/>. The core's
     /// <see cref="Core.Chunks.ChunkSurfaces"/>, which rain lands on, places the nearest level the same way.
     /// </summary>
-    private PlacedObject Place(PluginSet plugins, Models models, SceneObject o, int first)
+    private PlacedObject Place(PluginSet plugins, Models models, SceneObject o, int first, bool particles)
     {
         var q = o.Orientation();
         var node = new Node3D
@@ -131,7 +136,7 @@ public sealed class ChunkScenery
         for (var i = 0; i < levels.Length; i++)
         {
             var model = i == 0 && first < o.Models.Count ? o.Models[first] : o.Models[i];
-            if (Instantiate(plugins, models, model.Model, o.Flags) is not ({ } instance, var animator))
+            if (Instantiate(plugins, models, model.Model, o.Flags, particles) is not ({ } instance, var animator))
                 continue;
             // The original averages a tinted object's tint with the scenery's (SetSceneColors).
             // Actors are lit instead.
@@ -151,12 +156,27 @@ public sealed class ChunkScenery
     /// A scene object's model. Its actors are lit by the tint and the sun, unless they're
     /// fullbright, when they're tinted like scenery (<c>set_sun_light</c>).
     /// </summary>
-    private static (Node3D Node, ActorAnimator? Animator)? Instantiate(PluginSet plugins, Models models, RecordId model, SceneObjectFlags flags)
+    private static (Node3D Node, ActorAnimator? Animator)? Instantiate(PluginSet plugins, Models models, RecordId model, SceneObjectFlags flags,
+        bool particles)
     {
         if (model.Type != RecordTypes.Actor)
             return models.Instantiate(model) is { } node ? (node, null) : null;
         var lighting = flags.HasFlag(SceneObjectFlags.Fullbright) ? N64Material.Lighting.Scenery : N64Material.Lighting.SceneObject;
-        return models.InstantiateActor(plugins.Get<ActorRecord>(model), lighting);
+        return models.InstantiateActor(plugins.Get<ActorRecord>(model), lighting, particles: particles);
+    }
+
+    /// <summary>
+    /// The assets a chunk's scenery copies: its scenes and the models of its scene objects, actors as they are. For parsing
+    /// them ahead of time (<see cref="Models.Warm"/>).
+    /// </summary>
+    public static IEnumerable<RecordId> Assets(PluginSet plugins, ChunkEntry chunk)
+    {
+        foreach (var scene in new[] { chunk.Scene, chunk.AltScene }.OfType<RecordId>())
+            yield return scene;
+        if (plugins.TryGet<MapRecord>(chunk.Map) is not { } map)
+            yield break;
+        foreach (var model in map.Objects.OfType<SceneObject>().SelectMany(o => o.Models.Take(Math.Max(o.Lods, 1))).Select(m => m.Model).Distinct())
+            yield return model;
     }
 }
 

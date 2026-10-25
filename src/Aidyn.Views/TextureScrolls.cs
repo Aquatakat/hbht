@@ -22,7 +22,10 @@ public sealed class TextureScrolls
     /// <summary>Takes a scene's scrolling textures from its glTF.</summary>
     public void Add(RecordId scene, SceneExtras extras)
     {
-        if (extras.Scrolling.Count > 0)
+        if (extras.Scrolling.Count == 0)
+            return;
+        // Under a lock, as scenery is built off the main thread too.
+        lock (_scenes)
             _scenes[scene] = [.. extras.Scrolling];
     }
 
@@ -32,8 +35,12 @@ public sealed class TextureScrolls
     /// </summary>
     public ScrollingScene? Attach(RecordId scene, Node instance)
     {
-        if (!_scenes.TryGetValue(scene, out var specs))
-            return null;
+        ScrollingTexture[]? specs;
+        lock (_scenes)
+        {
+            if (!_scenes.TryGetValue(scene, out specs))
+                return null;
+        }
         var textures = specs.Select(s => new Texture(new TextureScroll(s.Width, s.Move), s.Loads)).ToArray();
         var copies = new Dictionary<Material, ShaderMaterial>();
         foreach (var mesh in Nodes.FindAll<MeshInstance3D>(instance))

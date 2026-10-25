@@ -15,6 +15,7 @@ Ported from `objectJumpTables.cpp`, `voxObjects.cpp`, `voxObjects2.cpp` (`obj_re
 - **Links.** A container's model, or the actor a trigger animates, is found by following links from object to object (`Linked`).
 - **Only the chunk the player is in counts.** The original keeps only its objects at hand (`borg9DatPointer`), for A, for walking into objects and for trigger triangles. It looks up a trigger triangle's object in that chunk even when the triangle is a neighbour's, where they overlap; the port looks it up in the triangle's own chunk.
 - **Crossing into another chunk is a teleport** in the original (`ConfirmPlayerWithinZone`): it ages what map objects remember, and loads the chunks that come into the 3×3, keeping the rest as they are.
+- **Beyond the 3×3** (the port's Draw Distance Extended, [rendering](rendering.md#draw-distance)), the Overworld's outer 16 chunks of the 5 × 5 are drawn but not loaded: their maps are read for which scene objects show, by the same flags and the same memory (`LoadedMap.Scenery`, through `FlagNetwork.IsSetAsStored`, which doesn't bring the network up to date), with nothing rolled, written or aged, and none of their objects can be used, walked into or trodden on. The ring gates its scene objects again as the menu closes and as the 3×3 loads again where it was.
 
 ## What A reaches
 

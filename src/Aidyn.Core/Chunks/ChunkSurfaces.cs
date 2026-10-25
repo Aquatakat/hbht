@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Numerics;
 using Aidyn.Core.MapObjects;
 using Aidyn.Core.Physics;
@@ -15,11 +16,12 @@ namespace Aidyn.Core.Chunks;
 /// scrolling textures such as water, lava and fire. The see-through scenes are nearly all scrolling water; B22's also
 /// holds a strip of beach, which the rain splashes on. Scene objects are taken at their
 /// nearest level of detail, as their runtime node places it, whatever level is drawn, and as their scene stands before
-/// anything animates it. Billboards and bodies aren't in it, so rain passes through them. A scene's triangles are read once.
+/// anything animates it. Billboards and bodies aren't in it, so rain passes through them. A scene's triangles are read once,
+/// and can be read ahead of time on any thread (<see cref="Warm"/>), which changes nothing but when.
 /// </summary>
 public sealed class ChunkSurfaces(PluginSet plugins)
 {
-    private readonly Dictionary<RecordId, DrawnTriangle[]> _scenes = [];
+    private readonly ConcurrentDictionary<RecordId, DrawnTriangle[]> _scenes = new();
 
     /// <summary>A chunk's surfaces, in its own coordinates, with the objects its map places now.</summary>
     public IEnumerable<DrawnTriangle> For(ChunkEntry chunk, LoadedMap map)
@@ -56,10 +58,29 @@ public sealed class ChunkSurfaces(PluginSet plugins)
     /// <summary>Whether a drawn triangle absorbs rain rather than splashing it: all but solid draws that don't scroll.</summary>
     public static bool Absorbs(SceneTriangle t) => t.Blend != SurfaceBlend.Opaque || t.Scrolls;
 
-    private DrawnTriangle[] Scene(RecordId id)
+    /// <summary>
+    /// Reads the triangles of every scene a chunk could draw ahead of its loading, from any thread: its own and each of its
+    /// scene objects' models, actors' scenes as they are.
+    /// </summary>
+    public void Warm(ChunkEntry chunk)
     {
-        if (!_scenes.TryGetValue(id, out var triangles))
-            _scenes[id] = triangles = [.. SceneMesh.For(plugins, id).Select(t => new DrawnTriangle(t.A, t.B, t.C, Absorbs(t)))];
-        return triangles;
+        foreach (var scene in new[] { chunk.Scene, chunk.AltScene }.OfType<RecordId>())
+            Scene(scene);
+        if (plugins.TryGet<MapRecord>(chunk.Map) is not { } map)
+            return;
+        foreach (var o in map.Objects.OfType<SceneObject>())
+        {
+            foreach (var model in o.Models.Select(m => m.Model))
+            {
+                if (model.Type != RecordTypes.Actor)
+                    Scene(model);
+                else if (plugins.TryGet<ActorRecord>(model) is { } actor)
+                    Scene(actor.Scene);
+            }
+        }
     }
+
+    // Whichever thread reads a scene first keeps its triangles; any other reading it at once reads the same.
+    private DrawnTriangle[] Scene(RecordId id) =>
+        _scenes.GetOrAdd(id, id => [.. SceneMesh.For(plugins, id).Select(t => new DrawnTriangle(t.A, t.B, t.C, Absorbs(t)))]);
 }

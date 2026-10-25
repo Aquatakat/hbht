@@ -35,13 +35,24 @@ public sealed class GlbScene : IDisposable
     /// <summary>The scene's animations for an actor rooted at <paramref name="rootTransform"/>, read once.</summary>
     public ActorClips Clips(int rootTransform)
     {
-        if (!_clips.TryGetValue(rootTransform, out var clips))
-            _clips[rootTransform] = clips = ActorClips.Read(Reader, Extras, rootTransform);
-        return clips;
+        // Under a lock, as scenery is built off the main thread too.
+        lock (_clips)
+        {
+            if (!_clips.TryGetValue(rootTransform, out var clips))
+                _clips[rootTransform] = clips = ActorClips.Read(Reader, Extras, rootTransform);
+            return clips;
+        }
     }
 
     /// <summary>What each of the scene's animations drives, with the nodes' rest values, read once (<see cref="TransformTracks"/>).</summary>
-    public DrivenNodes Driven => _driven ??= DrivenNodes.Read(Reader);
+    public DrivenNodes Driven
+    {
+        get
+        {
+            lock (_clips)
+                return _driven ??= DrivenNodes.Read(Reader);
+        }
+    }
 
     private DrivenNodes? _driven;
 

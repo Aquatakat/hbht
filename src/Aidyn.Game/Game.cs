@@ -53,6 +53,11 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     private TrekLoop? Trek => _session?.Trek;
     /// <summary>Trek's chunks as they're drawn.</summary>
     private ChunkStreamerView? _chunks;
+    /// <summary>Trek's scenery beyond the 3×3 under Draw Distance's Extended, which only the runtime holds.</summary>
+    private SceneryRing? _ring;
+    /// <summary>What builds trek's chunks' scenery off the main thread (docs/adr/0025-chunks-load-off-the-main-thread.md).</summary>
+    private ChunkBuilder? _builder;
+    private bool _extendedDrawDistance;
     private Player? _player;
     private CameraRig? _camera;
     private ShadowDecal? _shadow;
@@ -272,7 +277,9 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
             _shadowTexture = Png.Texture(shadowPng);
         var streamer = new ChunkStreamer(plugins, game, _world, start.Set, _visible);
         var session = _session = GameSession.Start(game, this, new ZoneEngine(game, streamer, _audio!, _particles.Head), start, _settings, this, playing: _playing, combatHost: this);
-        _chunks = new ChunkStreamerView(plugins, models, streamer, session.Trek.Wanderers, _shadowTexture);
+        _ring = new SceneryRing(game, streamer);
+        _builder = new ChunkBuilder();
+        _chunks = new ChunkStreamerView(plugins, models, streamer, session.Trek.Wanderers, _shadowTexture, _ring, _builder);
         AddChild(_chunks);
         return session;
     }
@@ -387,6 +394,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         };
         ApplyWorldLines();
         _objectDistance = new ObjectDistance(s.ObjectDistance, s.NearestDetail);
+        _extendedDrawDistance = s.ExtendedDrawDistance;
         _cinematic?.Viewport.Msaa3D = GetViewport().Msaa3D;
         foreach (var screen in new[] { _menu?.Screen, _backdrop?.Screen, _cinematic?.Screen, _credits?.Screen, _trekScreen })
         {
@@ -437,7 +445,12 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     /// <summary>The installed plugins, after checking the base plugin is there and up to date.</summary>
     private static PluginSet LoadPlugins() => PluginSet.LoadInstalledChecked(DataPaths.Plugins);
 
-    public override void _ExitTree() => _models?.Dispose();
+    public override void _ExitTree()
+    {
+        _builder?.Dispose();
+        _chunks?.Discard();
+        _models?.Dispose();
+    }
 
     /// <summary>One 60 Hz tick: the game's, which steps the pause menu too, then the menu's view on what it left.</summary>
     public override void _PhysicsProcess(double delta)
@@ -475,6 +488,9 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
                 DrawCredits();
                 return;
             case SessionStep.Held or SessionStep.MenuClosed:
+                // The ring's scenery is gated again as the 3×3's is.
+                if (step == SessionStep.MenuClosed)
+                    _ring?.Regate();
                 return;
             case SessionStep.CutScene or SessionStep.CutSceneOver:
                 StepCutScene(over: step == SessionStep.CutSceneOver);
@@ -703,6 +719,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         // under the post-battle windows.
         if (_session?.StreamsTrek ?? true)
             chunks.Chunks.Update(focus.ToNumerics());
+        StreamFurther();
         chunks.Fade(View(), _objectDistance);
         // From where the scenery is drawn this frame: between ticks, the camera interpolated.
         var eye = _camera.Current.GetGlobalTransformInterpolated().Origin;
@@ -711,6 +728,28 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
 
         if (_overlay.Visible)
             UpdateOverlay(chunks, focus);
+    }
+
+    /// <summary>
+    /// Draw Distance's Extended, in trek alone: the ring of scenery round the 3×3 on the Overworld, and the frame cut at a sphere
+    /// about the eye, further over the ring. Then what's been built of trek's chunks off the main thread comes in, and what the
+    /// next crossing could load is read ahead.
+    /// </summary>
+    private void StreamFurther()
+    {
+        // Not under a cinematic or the credits either, which draw their own scenes through the same material.
+        var extended = _extendedDrawDistance && Scene is null && Battle is null
+            && _session is { StreamsTrek: true, Mode: not (GameMode.Cinematic or GameMode.Credits) };
+        _ring!.Enabled = extended;
+        _ring.Update();
+        _chunks!.Settle();
+        _chunks.Flush();
+        _chunks.ReadAhead();
+        _sky!.Radial = extended;
+        _sky.Further = _ring.Active;
+        // Only as it changes: setting it calls into the renderer, which can be busy with what the builder makes.
+        if (Scene is null && Battle is null && _camera!.Far != _sky.CameraFar)
+            _camera.Far = _sky.CameraFar;
     }
 
     /// <summary>

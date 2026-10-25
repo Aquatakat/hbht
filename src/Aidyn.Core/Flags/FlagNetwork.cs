@@ -146,6 +146,13 @@ public sealed class FlagNetwork
     public bool IsSet(RecordId id) => TryHandle(id, out var handle) && Get(handle);
 
     /// <summary>
+    /// Whether a flag is set as it's stored, an unknown one reading as clear, without bringing the network up to date: reading
+    /// it changes nothing, so what only draws can ask, such as the scenery beyond the 3×3 (<see cref="Chunks.SceneryRing"/>).
+    /// A derived flag can lag a plain one written since the network was last brought up to date, which trek does every tick.
+    /// </summary>
+    public bool IsSetAsStored(RecordId id) => TryHandle(id, out var handle) && handle != False && (handle == True || Peek(handle));
+
+    /// <summary>
     /// Whether a gate holds: whether its flag differs from its <see cref="FlagGate.Invert"/>, an unknown flag reading
     /// as clear (see <see cref="IsSet(RecordId)"/>).
     /// </summary>

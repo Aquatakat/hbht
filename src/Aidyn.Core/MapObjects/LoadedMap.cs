@@ -154,10 +154,25 @@ public sealed class LoadedMap
     /// </list>
     /// </summary>
     public static LoadedMap Activate(MapRecord record, ChunkKey key, FlagNetwork flags, MapObjectMemory memory, Characters.Party party,
-        IRandom random, Vector3 origin = default)
+        IRandom random, Vector3 origin = default) =>
+        Activate(record, key, flags.IsSet, memory, (party, random), origin);
+
+    /// <summary>
+    /// A chunk's objects as <see cref="Activate"/> would find them, for drawing its scenery alone, as the Draw Distance setting's
+    /// Extended does beyond the 3×3 (<see cref="Chunks.SceneryRing"/>): its scene objects there by their flags and not remembered
+    /// as put out, and its containers' models opened or destroyed, by the same rules. It changes nothing in the game: the flags are
+    /// read as they're stored (<see cref="FlagNetwork.IsSetAsStored"/>), nothing is rolled, so there's no Ranger's share, and a
+    /// secret door that needs a skill and isn't found isn't there. Nothing that plays may use what it returns.
+    /// </summary>
+    public static LoadedMap Scenery(MapRecord record, ChunkKey key, FlagNetwork flags, MapObjectMemory memory, Vector3 origin = default) =>
+        Activate(record, key, flags.IsSetAsStored, memory, rolls: null, origin);
+
+    private static LoadedMap Activate(MapRecord record, ChunkKey key, Func<RecordId, bool> isSet, MapObjectMemory memory,
+        (Characters.Party Party, IRandom Random)? rolls, Vector3 origin)
     {
         var map = new LoadedMap(record, key) { Origin = origin };
-        map.HarvestShare = Containers.HarvestShare(party, random);
+        if (rolls is var (party, random))
+            map.HarvestShare = Containers.HarvestShare(party, random);
 
         foreach (var o in record.Objects)
         {
@@ -165,10 +180,10 @@ public sealed class LoadedMap
                 continue;
             var active = o switch
             {
-                ContainerObject container => map.ActivateContainer(container, flags.IsSet, memory),
-                TeleporterObject teleporter => map.ActivateTeleporter(teleporter, flags.IsSet, party, random),
-                SceneObject scene => MapObjectPresence.There(o, flags.IsSet) && !map.Remembered(memory, scene),
-                _ => MapObjectPresence.There(o, flags.IsSet),
+                ContainerObject container => map.ActivateContainer(container, isSet, memory),
+                TeleporterObject teleporter => map.ActivateTeleporter(teleporter, isSet, rolls),
+                SceneObject scene => MapObjectPresence.There(o, isSet) && !map.Remembered(memory, scene),
+                _ => MapObjectPresence.There(o, isSet),
             };
             map.SetActive(o.Index, active);
         }
@@ -283,7 +298,7 @@ public sealed class LoadedMap
     }
 
     // TP_lock_secret_check.
-    private bool ActivateTeleporter(TeleporterObject o, Func<RecordId, bool> isSet, Characters.Party party, IRandom random)
+    private bool ActivateTeleporter(TeleporterObject o, Func<RecordId, bool> isSet, (Characters.Party Party, IRandom Random)? rolls)
     {
         var teleporter = _teleporters[o.Index] = new Teleporter(o);
         if (!MapObjectPresence.There(o, isSet))
@@ -292,7 +307,7 @@ public sealed class LoadedMap
         {
             if (o.SecretFlag is not { } secret || !isSet(secret))
             {
-                if (party.SecretSearch(random) < teleporter.SecretLevel)
+                if (rolls is not var (party, random) || party.SecretSearch(random) < teleporter.SecretLevel)
                     return false;
             }
             teleporter.SecretLevel = 0;
