@@ -30,5 +30,6 @@ These are the Phase 0 decisions from the [roadmap](../roadmap.md) (task 0.5). Ea
 | [0024](0024-the-options-are-pages-by-kind.md) | The options are pages by kind (Audio, Video, Enhancements), in Title Case, and the sky's placement is off the menu | Accepted |
 | [0025](0025-chunks-load-off-the-main-thread.md) | Chunks load off the main thread where it can't change the game: what changes it stays on the main thread, reading ahead and building nodes outside the tree go to one builder thread, and the main thread never waits on it | Accepted |
 | [0026](0026-controls-are-bound-by-situation.md) | Controls are listed by what the player does in each situation, bound per device in the core, with conflicts checked within a situation and the essential controls never left unbound | Accepted |
+| [0027](0027-conversations-take-the-menus-controls.md) | Cut-scenes and conversations take the menus' cursor, Accept, Back and Close Menu, and have no controls of their own | Accepted |
 
 Statuses: **Proposed** means drafted and waiting for review. **Accepted** means agreed. **Superseded** means replaced by a later record, which it links to.

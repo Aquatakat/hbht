@@ -11,7 +11,8 @@ public partial class SystemTabView
     /// situation's heading takes a line), and the foot's line under the list. Values start at x 188, clear of the longest label, and run to 304, clear of the
     /// System tab's right edge; one longer is printed in the slim font, as a save's long name is.
     /// </summary>
-    private const int ControlsTop = 70, ControlsListTop = 88, ControlsLines = 9, ControlsValue = 188, ControlsRight = 304, ControlsFoot = 202;
+    private const int ControlsTop = 70, ControlsListTop = 88, ControlsLines = 9, ControlsPitch = 12, ControlsValue = 188, ControlsRight = 304,
+        ControlsFoot = 202;
 
     /// <summary>
     /// Where the Controls page's rows and headings are: each row's top and bottom, off the page for one scrolled out of view, and
@@ -37,7 +38,7 @@ public partial class SystemTabView
         var headings = new List<(string, int)>();
         for (var l = first; l < Math.Min(lines.Count, first + ControlsLines); l++)
         {
-            var top = ControlsListTop + (l - first) * ChoicePitch;
+            var top = ControlsListTop + (l - first) * ControlsPitch;
             if (lines[l].Row >= 0)
                 places[lines[l].Row] = (top, top + _ui.Main.LineHeight);
             else if (lines[l].Heading is { } text)
@@ -69,24 +70,26 @@ public partial class SystemTabView
             var font = _ui.Main.Width(value) <= ControlsRight - ControlsValue ? _ui.Main : _ui.Slim;
             _ui.Text(this, font, value, ControlsValue, top, color);
         }
+        // On the parchment a little right of the frame's centre, as the rows are; on the title's box, on its centre.
+        var centre = Style.Parchment ? FrameWidth / 2 + 8 : OptionsCentre(options);
         foreach (var (text, top) in headings)
-            CentredText(text, FrameWidth / 2 + 8, top, Style.Heading);
+            CentredText(text, centre, top, Style.Heading);
         // The list's arrow, turned to point up and down.
         var arrow = _ui.Size(MenuImages.SliderRight);
         if (above)
             TurnedArrow(ControlsRight - arrow.Y, ControlsListTop + arrow.X - 2, -Mathf.Pi / 2);
         if (below)
-            TurnedArrow(ControlsRight, ControlsListTop + ControlsLines * ChoicePitch - arrow.X - 2, Mathf.Pi / 2);
+            TurnedArrow(ControlsRight, ControlsListTop + ControlsLines * ControlsPitch - arrow.X - 2, Mathf.Pi / 2);
         var foot = options.Message ?? (options.Prompt is null && options.Rows.Current?.Kind == OptionKind.Binding ? options.ClearHint : null);
         if (foot is not null)
-            CentredText(foot, FrameWidth / 2 + 8, ControlsFoot, Style.Text);
+            CentredText(foot, centre, ControlsFoot, Style.Text);
     }
 
     /// <summary>The list's arrow (<c>0x3757</c>, pointing right) turned about its corner at (x, y) in the frame.</summary>
     private void TurnedArrow(int x, int y, float angle)
     {
-        DrawSetTransform(_origin + new Vector2(x, y), angle);
+        DrawSetTransform(_pageOrigin + new Vector2(x, y), angle);
         _ui.Image(this, MenuImages.SliderRight, 0, 0, color: Style.Text);
-        DrawSetTransform(_origin);
+        DrawSetTransform(_pageOrigin);
     }
 }

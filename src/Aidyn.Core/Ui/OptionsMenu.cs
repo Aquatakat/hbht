@@ -93,8 +93,8 @@ public enum OptionsPage
 /// </remarks>
 public sealed partial class OptionsMenu
 {
-    /// <summary>The gap a row can have before it: half a line of the main font.</summary>
-    public const int Gap = 5;
+    /// <summary>The gap a row can have before it: half a line of the menus' lists, which are 16 apart.</summary>
+    public const int Gap = 8;
 
     /// <summary>
     /// The rows' colour (<c>COLOR_RED1</c>), and what the cursor's row pulses toward from it over
@@ -268,8 +268,8 @@ public sealed partial class OptionsMenu
         var s = Settings;
         return
         [
-            new("Sound Volume:", OptionKind.Volume, () => s.SoundVolume, v => s.SoundVolume = v, []),
-            new("Music Volume:", OptionKind.Volume, () => s.MusicVolume, v => s.MusicVolume = v, []),
+            new("Sound Volume", OptionKind.Volume, () => s.SoundVolume, v => s.SoundVolume = v, []),
+            new("Music Volume", OptionKind.Volume, () => s.MusicVolume, v => s.MusicVolume = v, []),
         ];
     }
 

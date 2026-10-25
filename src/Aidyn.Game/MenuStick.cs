@@ -37,14 +37,13 @@ public sealed class MenuStick
     public Situation Situation { get; set; } = Situation.Trek;
 
     /// <summary>
-    /// The situation's direction, as four actions, up, down, left and right: the menus' cursor, a battle's target, a conversation's
-    /// choice; none in trek, where the stick walks.
+    /// The situation's direction, as four actions, up, down, left and right: the menus' cursor, which a conversation's choices take
+    /// too, or a battle's target; none in trek, where the stick walks.
     /// </summary>
     public string[] Directions => Situation switch
     {
-        Situation.Menus => InputBindings.Menu,
+        Situation.Menus or Situation.Talking => InputBindings.Menu,
         _ when Situation.HasFlag(Situation.Combat) => InputBindings.Target,
-        Situation.Talking => InputBindings.Choose,
         _ => [],
     };
 

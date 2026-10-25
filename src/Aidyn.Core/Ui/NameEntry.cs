@@ -11,6 +11,11 @@ namespace Aidyn.Core.Ui;
 /// </summary>
 /// <remarks>
 /// <para>
+/// The letter the cursor writes is only shown until A types it: moving onto Rub Out, Cancel or OK puts back what
+/// the slot held, an empty slot showing its underscore again, and rubbing out or confirming leaves it out, so
+/// the grid's last three keys are never written into the name.
+/// </para>
+/// <para>
 /// The first letter and any after a space are capitals, the rest small, whatever key wrote them.
 /// </para>
 /// <para>
@@ -35,11 +40,15 @@ public sealed class NameEntry
 
     private readonly StringBuilder _name;
 
+    /// <summary>What the slot held before the cursor's key was written into it: a letter typed before, or null for an empty slot.</summary>
+    private char? _kept;
+
     public NameEntry(string name)
     {
         _name = new StringBuilder(name.Length > MaxLength ? name[..MaxLength] : name);
         Slot = Math.Min(_name.Length, MaxLength - 1);
         Key = Keys.IndexOf(OkKey);
+        Keep();
     }
 
     /// <summary>The name as it stands, with the slot being chosen in it.</summary>
@@ -118,9 +127,12 @@ public sealed class NameEntry
     public void Start()
     {
         if (Keys[Key] == OkKey)
+        {
             Confirm();
-        else
-            Key = Keys.IndexOf(OkKey);
+            return;
+        }
+        Key = Keys.IndexOf(OkKey);
+        Restore();
     }
 
     /// <summary>B: cancels, leaving the name as it was.</summary>
@@ -137,19 +149,24 @@ public sealed class NameEntry
         Write();
         // The last slot takes each letter in turn.
         Slot = Math.Min(Slot + 1, MaxLength - 1);
+        Keep();
         return true;
     }
 
     /// <summary>Rubs out the last letter, and the slot goes where the next goes.</summary>
     public void RubOut()
     {
+        Restore();
         if (_name.Length > 0)
             _name.Remove(_name.Length - 1, 1);
         Slot = Math.Min(_name.Length, MaxLength - 1);
+        Keep();
     }
 
+    /// <summary>Confirms the name as typed, without a letter the cursor only shows in the slot.</summary>
     public void Confirm()
     {
+        Restore();
         var name = _name.ToString().Trim();
         if (name.Length > 0)
             Chosen = name;
@@ -157,17 +174,32 @@ public sealed class NameEntry
             Cancelled = true;
     }
 
-    /// <summary>Writes the cursor's key into the slot, if it's a character, in the name's case.</summary>
+    /// <summary>Writes the cursor's key into the slot, if it's a character, in the name's case; on the last three keys, puts the slot back.</summary>
     private void Write()
     {
         var c = Keys[Key];
         if (c is RubOutKey or CancelKey or OkKey)
+        {
+            Restore();
             return;
+        }
         var capital = Slot == 0 || _name[Slot - 1] == ' ';
         c = capital ? char.ToUpperInvariant(c) : char.ToLowerInvariant(c);
         if (Slot < _name.Length)
             _name[Slot] = c;
         else
             _name.Append(c);
+    }
+
+    /// <summary>Notes what the slot holds now, as what it goes back to when the cursor leaves the characters.</summary>
+    private void Keep() => _kept = Slot < _name.Length ? _name[Slot] : null;
+
+    /// <summary>Puts the slot back as it was before the cursor wrote into it: the letter it held, or empty.</summary>
+    private void Restore()
+    {
+        if (_kept is { } kept)
+            _name[Slot] = kept;
+        else if (Slot < _name.Length)
+            _name.Length = Slot;
     }
 }

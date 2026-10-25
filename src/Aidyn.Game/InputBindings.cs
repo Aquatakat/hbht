@@ -25,15 +25,14 @@ public static class InputBindings
     /// <summary>Camera's sources that aren't Move's, but the mouse: they steer the camera always.</summary>
     public static readonly string[] Look = ["look_up", "look_down", "look_left", "look_right"];
 
-    /// <summary>The menus' cursor, a battle's target and held menus, and a conversation's choices.</summary>
+    /// <summary>The menus' cursor, which moves a conversation's choices too, and a battle's target and held menus.</summary>
     public static readonly string[] Menu = ["menu_up", "menu_down", "menu_left", "menu_right"],
-        Target = ["target_up", "target_down", "target_left", "target_right"],
-        Choose = ["choose_up", "choose_down", "choose_left", "choose_right"];
+        Target = ["target_up", "target_down", "target_left", "target_right"];
 
     /// <summary>Every action the bindings make: the buttons', and the directions'.</summary>
     public static readonly string[] Actions =
     [
-        .. GameControls.All.Where(c => c.Kind == ControlKind.Button).Select(c => c.Id), .. Move, .. Steer, .. Look, .. Menu, .. Target, .. Choose,
+        .. GameControls.All.Where(c => c.Kind == ControlKind.Button).Select(c => c.Id), .. Move, .. Steer, .. Look, .. Menu, .. Target,
     ];
 
     private static readonly Dictionary<string, JoyButton> Buttons = new()
@@ -80,7 +79,6 @@ public static class InputBindings
         AddSources(Look, looking.Except(moving));
         AddSources(Menu, bindings.Get(GameControls.MenuCursor));
         AddSources(Target, bindings.Get(GameControls.BattleTarget));
-        AddSources(Choose, bindings.Get(GameControls.TalkChoose));
     }
 
     /// <summary>Adds each source's four directions to four actions, up, down, left and right.</summary>

@@ -22,14 +22,17 @@ public partial class SystemTabView : Control
     /// <summary>The Theatre's page (<c>Theatre.Build</c>): the title's top, and its rows', 16 apart, centred on the list's centre.</summary>
     private const int TheatreTitleTop = 50, TheatreTop = 90;
 
-    /// <summary>The options' title's top, the rows' left (under the bar, which is centred) and the first row's top.</summary>
-    private const int OptionsTitleTop = 40, OptionsLeft = 84, OptionsTop = 74, OptionsSpacing = 4;
+    /// <summary>
+    /// The options' title's top, the Audio page's labels' left (over their bars, which are centred) and the first row's top. Their
+    /// rows are the list's 16 apart, but on the Controls page.
+    /// </summary>
+    private const int OptionsTitleTop = 40, OptionsLeft = 84, OptionsTop = 74;
 
     /// <summary>
-    /// The Video and Enhancements pages' labels' and values' left edges, their first row's top and their rows' pitch. The labels
-    /// clear the System roller, whose inner edge is at about x 61, as the original's options are shifted 25 right of centre to clear it.
+    /// The Video and Enhancements pages' labels' and values' left edges. The labels clear the System roller, whose inner edge is at
+    /// about x 61, as the original's options are shifted 25 right of centre to clear it.
     /// </summary>
-    private const int ChoiceLabel = 72, ChoiceValue = 204, ChoiceTop = 72, ChoicePitch = 12;
+    private const int ChoiceLabel = 72, ChoiceValue = 204;
 
     // WidgetContPakData and ControllerPakSliders: the title, the screenshot stretched to 104 × 78, the portraits,
     // the arrow, the name and the time played, and the actions.
@@ -51,6 +54,9 @@ public partial class SystemTabView : Control
     private readonly UiPainter _ui;
     private readonly Dictionary<string, Texture2D?> _screenshots = [];
     private Vector2I _origin;
+
+    /// <summary>Where the page being drawn has its corner: the frame's, or for the title's options, where their box is centred.</summary>
+    private Vector2I _pageOrigin;
 
     public SystemTabView(PluginSet plugins, SystemMenu menu)
     {
@@ -106,6 +112,7 @@ public partial class SystemTabView : Control
                 var row = (int)Math.Floor((at.Y - top + 2) / RowPitch);
                 return at.X >= ListCentre - 70 && at.X < ListCentre + 70 && row >= 0 && row < Menu.Items.Rows.Count ? row : null;
             case SystemPage.Options when Menu.Options is { } options:
+                at -= OptionsShift(options);
                 var rows = OptionRows(options);
                 for (var i = 0; i < rows.Count; i++)
                 {
@@ -127,7 +134,7 @@ public partial class SystemTabView : Control
     public override void _Draw()
     {
         var size = new Vector2I((int)Size.X, (int)Size.Y);
-        _origin = Origin();
+        _origin = _pageOrigin = Origin();
         DrawSetTransform(_origin);
         if (Style.Parchment)
             _ui.Image(this, MenuImages.SystemTab, 0, 0);
@@ -222,27 +229,57 @@ public partial class SystemTabView : Control
             SystemPage.List => TitleListBox,
             SystemPage.Rename => NameBox,
             SystemPage.Saves => new ScreenRect(SlotPanel.Position.X, SlotPanel.Position.Y, SlotPanel.End.X, SlotPanel.End.Y),
-            SystemPage.Options when screen.Options is { } options => OptionsBox(options),
+            SystemPage.Options when screen.Options is { } options => Shifted(OptionsBox(options), OptionsShift(options)),
             _ => null,
         };
         if (band is { } b)
             _ui.Images.DrawPanel(this, _ui.Images.Around(b), alpha / 255f);
     }
 
-    /// <summary>The options' box: from 6 above the title to 8 under the last row, and 12 beyond the widest row either side.</summary>
+    /// <summary>
+    /// The options' box, where the pause menu draws them: from 6 above the title to 8 under the last row (the foot's, on the Controls
+    /// page), and 12 beyond the rows either side: the bars' width on the main and Audio pages, the labels to the widest of any row's
+    /// values on Video and Enhancements, so changing one doesn't move the box, and the Controls page's whole width.
+    /// </summary>
     private ScreenRect OptionsBox(OptionsMenu options)
     {
-        var rows = OptionRows(options);
-        var bottom = rows.Where(r => r.Top >= 0).Select(r => r.Bottom).DefaultIfEmpty(OptionsTop).Max();
-        if (options.Page == OptionsPage.Controls)
-            bottom = ControlsFoot + _ui.Main.LineHeight;
+        var bottom = options.Page == OptionsPage.Controls
+            ? ControlsFoot + _ui.Main.LineHeight
+            : OptionRows(options).Select(r => r.Bottom).DefaultIfEmpty(OptionsTop).Max();
         var (left, right) = options.Page switch
         {
             OptionsPage.Main or OptionsPage.Audio => (OptionsLeft, OptionsLeft + _ui.Size(MenuImages.VolumeBar).X),
-            _ => (ChoiceLabel, ControlsRight),
+            OptionsPage.Controls => (ChoiceLabel, ControlsRight),
+            _ => (ChoiceLabel, ChoiceValue + options.Rows.Rows.SelectMany(r => r.Values).Select(_ui.Main.Width).DefaultIfEmpty(0).Max()),
         };
         return new ScreenRect(left - 12, OptionsTitleTop - 6, right + 12, bottom + 8);
     }
+
+    /// <summary>
+    /// How far the options are moved from where the pause menu draws them: not at all on the parchment, and on the title's box so the
+    /// box is centred on the screen, as the boxes are as wide and tall as each page needs.
+    /// </summary>
+    private Vector2I OptionsShift(OptionsMenu options)
+    {
+        if (Style.Parchment)
+            return Vector2I.Zero;
+        var box = OptionsBox(options);
+        return new Vector2I((FrameWidth - box.Left - box.Right) / 2, (FrameHeight - box.Top - box.Bottom) / 2);
+    }
+
+    /// <summary>
+    /// What the options' title, the main page's rows and the Controls page's headings are centred on: the frame on the parchment, the
+    /// box on the title's.
+    /// </summary>
+    private int OptionsCentre(OptionsMenu options)
+    {
+        if (Style.Parchment)
+            return FrameWidth / 2;
+        var box = OptionsBox(options);
+        return (box.Left + box.Right) / 2;
+    }
+
+    private static ScreenRect Shifted(ScreenRect r, Vector2I by) => new(r.Left + by.X, r.Top + by.Y, r.Right + by.X, r.Bottom + by.Y);
 
     /// <summary>
     /// The Theatre's page: "Theater" and a row a cinematic, its title or the dashes. A title is centred with the space the
@@ -264,33 +301,48 @@ public partial class SystemTabView : Control
     /// <summary>Whether the options' page lists settings with their values beside them, in two columns.</summary>
     private static bool HasChoices(OptionsMenu options) => options.Page is OptionsPage.Video or OptionsPage.Enhancements;
 
-    /// <summary>Where each options row is: its label's top, and the bottom of what it draws (a volume's bar too).</summary>
+    /// <summary>
+    /// Where each options row is: its label's top, and the bottom of what it draws (a volume's bar too). The rows are the list's 16
+    /// apart, a volume taking two of its lines, its label's and its bar's.
+    /// </summary>
     private List<(int Top, int Bottom)> OptionRows(OptionsMenu options)
     {
         if (options.Page == OptionsPage.Controls)
             return ControlPlaces(options).Rows;
         var rows = new List<(int, int)>();
-        var choices = HasChoices(options);
-        var y = choices ? ChoiceTop : OptionsTop;
+        var y = OptionsTop;
         foreach (var row in options.Rows.Rows)
         {
             if (row.GapBefore)
                 y += OptionsMenu.Gap;
-            var height = _ui.Main.LineHeight + (row.Kind == OptionKind.Volume ? _ui.Size(MenuImages.VolumeBar).Y : 0);
-            rows.Add((y, y + height));
-            y += choices ? ChoicePitch : height + OptionsSpacing;
+            var volume = row.Kind == OptionKind.Volume;
+            rows.Add((y, y + _ui.Main.LineHeight + (volume ? _ui.Size(MenuImages.VolumeBar).Y : 0)));
+            y += volume ? 2 * ListPitch : ListPitch;
         }
         return rows;
     }
 
     /// <summary>
-    /// The options (<c>WidgetOptionsConfig</c>), as the user laid them out, under the original's title: the pages' links and Rename
-    /// Character set off by half a line, the Audio page's volumes with their rope bars under their labels, or the Video or
-    /// Enhancements page, each setting with its value beside it.
+    /// The options (<c>WidgetOptionsConfig</c>), as the user laid them out, under the original's title, moved so the title's box is
+    /// centred (<see cref="OptionsShift"/>).
     /// </summary>
     private void Options(OptionsMenu options)
     {
-        CentredImage(MenuImages.OptionsTitle, FrameWidth / 2, OptionsTitleTop);
+        _pageOrigin = _origin + OptionsShift(options);
+        DrawSetTransform(_pageOrigin);
+        OptionsContent(options);
+        _pageOrigin = _origin;
+        DrawSetTransform(_origin);
+    }
+
+    /// <summary>
+    /// An options page: the pages' links centred, with Rename Character set off by half a line, the Audio page's volumes with their
+    /// rope bars under their labels, the Video or Enhancements page, each setting with its value beside it, or the Controls page.
+    /// </summary>
+    private void OptionsContent(OptionsMenu options)
+    {
+        var centre = OptionsCentre(options);
+        CentredImage(MenuImages.OptionsTitle, centre, OptionsTitleTop);
         if (options.Page == OptionsPage.Controls)
         {
             Controls(options);
@@ -310,15 +362,16 @@ public partial class SystemTabView : Control
                 _ui.Text(this, _ui.Main, row.ValueName ?? "", ChoiceValue, top, color);
                 continue;
             }
-            _ui.Text(this, _ui.Main, row.Label, OptionsLeft, top, color);
-            if (row.Kind == OptionKind.Volume)
+            if (row.Kind != OptionKind.Volume)
             {
-                // The rope whole and faint, then again in the rows' colour as far as the volume reaches.
-                var y = top + _ui.Main.LineHeight;
-                _ui.Image(this, MenuImages.VolumeBar, OptionsLeft, y, color: Style.BarEmpty);
-                _ui.ImageTo(this, MenuImages.VolumeBar, OptionsLeft, y, bar, OptionsLeft + bar.X * row.Value / Core.Settings.MaxVolume,
-                    Style.Text);
+                CentredText(row.Label, centre, top, color);
+                continue;
             }
+            _ui.Text(this, _ui.Main, row.Label, OptionsLeft, top, color);
+            // The rope whole and faint, then again in the rows' colour as far as the volume reaches.
+            var y = top + _ui.Main.LineHeight;
+            _ui.Image(this, MenuImages.VolumeBar, OptionsLeft, y, color: Style.BarEmpty);
+            _ui.ImageTo(this, MenuImages.VolumeBar, OptionsLeft, y, bar, OptionsLeft + bar.X * row.Value / Core.Settings.MaxVolume, Style.Text);
         }
     }
 
@@ -328,7 +381,12 @@ public partial class SystemTabView : Control
     /// </summary>
     private void Saves(SaveMenu saves)
     {
-        _ui.Image(this, saves.Saving ? MenuImages.SaveTitle : MenuImages.LoadTitle, SavesTitle.X, SavesTitle.Y);
+        // The title's is centred over its box.
+        var title = saves.Saving ? MenuImages.SaveTitle : MenuImages.LoadTitle;
+        if (Style.Parchment)
+            _ui.Image(this, title, SavesTitle.X, SavesTitle.Y);
+        else
+            CentredImage(title, SlotPanel.Position.X + SlotPanel.Size.X / 2, SavesTitle.Y);
         if (saves.Slide is { } slide)
             SlidingPages(saves, slide);
         else

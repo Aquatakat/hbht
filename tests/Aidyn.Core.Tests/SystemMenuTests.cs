@@ -230,13 +230,43 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         Assert.Equal(NameEntry.OkKey, NameEntry.Keys[entry.Key]);
         Assert.Null(entry.Chosen);
         entry.Start();
-        Assert.Equal("Alarona", entry.Chosen);
+        // The letter the cursor only showed isn't kept.
+        Assert.Equal("Alaron", entry.Chosen);
 
         var cancelled = new NameEntry("Alaron");
         cancelled.Type('x');
         cancelled.Back();
         Assert.True(cancelled.Cancelled);
         Assert.Null(cancelled.Chosen);
+    }
+
+    [Fact]
+    public void TheLastThreeKeysPutTheSlotBack()
+    {
+        var entry = new NameEntry("Alaron");
+        entry.Point(NameEntry.Keys.IndexOf('B'));
+        entry.Accept();
+        entry.Point(NameEntry.Keys.IndexOf(' '));
+        Assert.Equal("Alaronb ", entry.Name);
+        // Onto Rub Out: the slot is empty again, its underscore shown, and A rubs out the b typed.
+        entry.Move(1, 0);
+        Assert.Equal("Alaronb", entry.Name);
+        Assert.Equal(7, entry.Slot);
+        entry.Accept();
+        Assert.Equal("Alaron", entry.Name);
+        // Onto OK from a letter, then confirmed.
+        entry.Point(NameEntry.Keys.IndexOf('Z'));
+        entry.Point(NameEntry.Keys.IndexOf(NameEntry.OkKey));
+        Assert.Equal("Alaron", entry.Name);
+        entry.Accept();
+        Assert.Equal("Alaron", entry.Chosen);
+
+        // A full name's last slot gets its own letter back.
+        var full = new NameEntry("Abcdefghij");
+        full.Point(NameEntry.Keys.IndexOf('X'));
+        Assert.Equal("Abcdefghix", full.Name);
+        full.Point(NameEntry.Keys.IndexOf(NameEntry.CancelKey));
+        Assert.Equal("Abcdefghij", full.Name);
     }
 
     [Fact]

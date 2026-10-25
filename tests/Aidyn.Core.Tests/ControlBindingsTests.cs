@@ -55,11 +55,6 @@ public class ControlBindingsTests : IDisposable
     [InlineData("battle_ranged_left", "Key:Q", "Joy:LB")]
     [InlineData("battle_ranged_right", "Key:E", "Joy:RB")]
     [InlineData("battle_pause", "Key:Enter Key:Escape", "Joy:Start")]
-    // And conversations, cut-scenes, popups, cinematics and the credits.
-    [InlineData("talk_choose", "Source:WASD Source:Arrows", "Source:LeftStick Source:DPad")]
-    [InlineData("talk_continue", "Key:Space", "Joy:A")]
-    [InlineData("talk_close", "Key:Backspace", "Joy:B")]
-    [InlineData("talk_skip", "Key:Enter Key:Escape", "Joy:Start")]
     public void TheDefaultsAreTheBindingsTheRuntimeAlwaysHad(string control, string keyboard, string controller)
     {
         var bindings = new ControlBindings();
@@ -72,7 +67,7 @@ public class ControlBindingsTests : IDisposable
     [Fact]
     public void EveryControlIsListedOnceAndTheDefaultsDontConflict()
     {
-        Assert.Equal(33, GameControls.All.Count);
+        Assert.Equal(29, GameControls.All.Count);
         Assert.Equal(GameControls.All.Count, GameControls.All.Select(c => c.Id).Distinct().Count());
         Assert.Empty(new ControlBindings().Conflicts());
         Assert.All(GameControls.All.SelectMany(c => c.Keyboard.Concat(c.Controller)), b => Assert.True(Binding.IsValid(b), b));
@@ -181,7 +176,6 @@ public class ControlBindingsTests : IDisposable
 
         Assert.Equal("Accept Needs a Binding", bindings.Clear(GameControls.MenuAccept, Pad).Refusal);
         Assert.False(bindings.Clear(GameControls.Pause, Keys).Done);
-        Assert.False(bindings.Clear(GameControls.TalkContinue, Keys).Done);
         Assert.False(bindings.SetSources(GameControls.MenuCursor, Pad, []).Done);
         // Taking Accept's only key refuses the change.
         Assert.Equal("Accept Needs It", bindings.Rebind(GameControls.MenuBack, Keys, "Key:Space").Refusal);
@@ -264,6 +258,18 @@ public class ControlBindingsTests : IDisposable
     [InlineData(GameMode.Cinematic, Situation.Talking)]
     public void EachModeIsASituation(GameMode mode, Situation situation) => Assert.Equal(situation, Situations.Of(mode));
 
+    [Fact]
+    public void ConversationsTakeTheMenusCursorAcceptBackAndClose()
+    {
+        var talking = GameControls.In(Situation.Talking).Select(c => c.Id);
+        Assert.Equal([GameControls.MenuCursor, GameControls.MenuAccept, GameControls.MenuBack, GameControls.MenuClose], talking);
+
+        // So a rebound Accept is a conversation's too, and is checked against the rest of them.
+        var bindings = new ControlBindings();
+        Assert.True(bindings.Rebind(GameControls.MenuAccept, Keys, "Key:F").Done);
+        Assert.Empty(bindings.Conflicts());
+    }
+
     // The page.
 
     /// <summary>The options' Controls page, opened from the main page.</summary>
@@ -286,7 +292,7 @@ public class ControlBindingsTests : IDisposable
 
         Assert.Equal("Device", rows[0].Label);
         Assert.Equal("Keyboard", rows[0].ValueName);
-        Assert.Equal(["Trek", "Menus", "Combat", "Cut-Scenes and Conversations"], rows.Select(r => r.Heading).OfType<string>());
+        Assert.Equal(["Trek", "Menus", "Combat"], rows.Select(r => r.Heading).OfType<string>());
         Assert.Equal(["Mouse Sensitivity", "Reset to Defaults"], rows.TakeLast(2).Select(r => r.Label));
         Assert.Equal("WASD, Arrows", rows[RowOf(options, "move")].ValueName);
         Assert.Equal("Enter, Escape", rows[RowOf(options, "pause")].ValueName);

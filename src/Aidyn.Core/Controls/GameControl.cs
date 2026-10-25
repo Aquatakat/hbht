@@ -26,7 +26,10 @@ public enum Situation
     /// </summary>
     Aiming = 8,
 
-    /// <summary>Cut-scenes and conversations, and what reads presses as they do: trek's popups, a backdrop's or the help menu's page, a cinematic and the credits.</summary>
+    /// <summary>
+    /// Cut-scenes and conversations, and what reads presses as they do: trek's popups, a backdrop's or the help menu's page, a
+    /// cinematic and the credits. The menus' cursor, Accept, Back and Close Menu work them, so they have no controls of their own.
+    /// </summary>
     Talking = 16,
 }
 
@@ -98,10 +101,11 @@ public static class GameControls
         BattleSpells = "battle_spells", BattleItems = "battle_items", BattleRangedLeft = "battle_ranged_left", BattleRangedRight = "battle_ranged_right",
         BattlePause = "battle_pause";
 
-    public const string TalkChoose = "talk_choose", TalkContinue = "talk_continue", TalkClose = "talk_close", TalkSkip = "talk_skip";
-
     private const Situation Walking = Situation.Trek | Situation.Combat;
     private const Situation Battle = Situation.Combat | Situation.Aiming;
+
+    /// <summary>The menus, and cut-scenes and conversations, which the menus' cursor, Accept, Back and Close Menu work too.</summary>
+    private const Situation MenusAndTalking = Situation.Menus | Situation.Talking;
 
     public static readonly IReadOnlyList<GameControl> All =
     [
@@ -118,11 +122,12 @@ public static class GameControls
         Button(Portraits, "Portraits", Situation.Trek, Situation.Trek, MenuAction.Back, ["Key:Backspace"], ["Joy:B"]),
         Button(Pause, "Menu", Situation.Trek, Situation.Trek, MenuAction.Start, ["Key:Enter", "Key:Escape"], ["Joy:Start"], essential: true),
 
-        Sources(MenuCursor, "Move Cursor", Situation.Menus, Situation.Menus, [InputSource.Wasd, InputSource.Arrows],
+        // A conversation's choices, its next line, closing it and skipping a cut-scene are the menus' cursor, Accept, Back and Close Menu.
+        Sources(MenuCursor, "Move Cursor", Situation.Menus, MenusAndTalking, [InputSource.Wasd, InputSource.Arrows],
             [InputSource.LeftStick, InputSource.DPad], Walkable, essential: true),
-        Button(MenuAccept, "Accept", Situation.Menus, Situation.Menus, MenuAction.Accept, ["Key:Space"], ["Joy:A"], essential: true),
-        Button(MenuBack, "Back", Situation.Menus, Situation.Menus, MenuAction.Back, ["Key:Backspace"], ["Joy:B"], essential: true),
-        Button(MenuClose, "Close Menu", Situation.Menus, Situation.Menus, MenuAction.Start, ["Key:Enter", "Key:Escape"], ["Joy:Start"]),
+        Button(MenuAccept, "Accept", Situation.Menus, MenusAndTalking, MenuAction.Accept, ["Key:Space"], ["Joy:A"], essential: true),
+        Button(MenuBack, "Back", Situation.Menus, MenusAndTalking, MenuAction.Back, ["Key:Backspace"], ["Joy:B"], essential: true),
+        Button(MenuClose, "Close Menu", Situation.Menus, MenusAndTalking, MenuAction.Start, ["Key:Enter", "Key:Escape"], ["Joy:Start"]),
         Button(MenuDetails, "Details", Situation.Menus, Situation.Menus, MenuAction.Details, ["Key:Tab"], ["Joy:Y"], release: MenuAction.DetailsRelease),
         Button(MenuAppraise, "Appraise", Situation.Menus, Situation.Menus, MenuAction.Appraise, ["Key:R"], ["Joy:X"], release: MenuAction.AppraiseRelease),
         // C-left shows the next member.
@@ -141,11 +146,6 @@ public static class GameControls
         Button(BattleRangedLeft, "Ranged Left", Situation.Combat, Situation.Aiming, MenuAction.MemberLeft, ["Key:Q"], ["Joy:LB"]),
         Button(BattleRangedRight, "Ranged Right", Situation.Combat, Situation.Aiming, MenuAction.MemberRight, ["Key:E"], ["Joy:RB"]),
         Button(BattlePause, "Pause", Situation.Combat, Situation.Combat, MenuAction.Start, ["Key:Enter", "Key:Escape"], ["Joy:Start"], essential: true),
-
-        Sources(TalkChoose, "Choose", Situation.Talking, Situation.Talking, [InputSource.Wasd, InputSource.Arrows], [InputSource.LeftStick, InputSource.DPad], Walkable),
-        Button(TalkContinue, "Continue", Situation.Talking, Situation.Talking, MenuAction.Accept, ["Key:Space"], ["Joy:A"], essential: true),
-        Button(TalkClose, "Close", Situation.Talking, Situation.Talking, MenuAction.Back, ["Key:Backspace"], ["Joy:B"]),
-        Button(TalkSkip, "Skip", Situation.Talking, Situation.Talking, MenuAction.Start, ["Key:Enter", "Key:Escape"], ["Joy:Start"]),
     ];
 
     private static readonly Dictionary<string, GameControl> ById = All.ToDictionary(c => c.Id);
@@ -163,8 +163,7 @@ public static class GameControls
     {
         Situation.Trek => "Trek",
         Situation.Menus => "Menus",
-        Situation.Combat => "Combat",
-        _ => "Cut-Scenes and Conversations",
+        _ => "Combat",
     };
 
     private static GameControl Button(string id, string label, Situation heading, Situation live, MenuAction? press, string[] keyboard,
@@ -181,7 +180,7 @@ public static class Situations
 {
     /// <summary>
     /// The situation a mode is: trek, the menus, a battle (whose aiming is a part of it the conflicts are checked apart), or what
-    /// reads presses as a conversation does.
+    /// reads presses as a conversation does, which the menus' controls work.
     /// </summary>
     public static Situation Of(GameMode mode) => mode switch
     {
