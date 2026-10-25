@@ -747,6 +747,10 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         _chunks.ReadAhead();
         _sky!.Radial = extended;
         _sky.Further = _ring.Active;
+        // No chunk's stand-in for the land round it over a drawn chunk two or more away, which the original never draws.
+        var centre = _chunks.Chunks.Centre;
+        N64Material.SetCells(centre.Row, centre.Column, extended ? SceneryRing.Reach : 0, (float)_chunks.Chunks.MapSet.CellSize,
+            extended ? _chunks.DrawnCells(SceneryRing.Reach) : 0);
         // Only as it changes: setting it calls into the renderer, which can be busy with what the builder makes.
         if (Scene is null && Battle is null && _camera!.Far != _sky.CameraFar)
             _camera.Far = _sky.CameraFar;

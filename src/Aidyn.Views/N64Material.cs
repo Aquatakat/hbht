@@ -74,6 +74,15 @@ public static class N64Material
     /// is then measured along instead of the depth; 0 for the original's depth and far plane.
     /// </summary>
     public const string RadialParameter = "n64_radial";
+    /// <summary>
+    /// Global: under the Draw Distance setting's Extended, the drawn chunks' square, as the centre's row and column, how many
+    /// chunks out it reaches and the cells' size; a reach of 0 for none (<see cref="SetCells"/>).
+    /// </summary>
+    public const string CellsParameter = "n64_cells";
+    /// <summary>Global: which cells of <see cref="CellsParameter"/>'s square have their scenery drawn, a bit each, row by row from the corner.</summary>
+    public const string CellsDrawnParameter = "n64_cells_drawn";
+    /// <summary>Per instance: a chunk's own scene's row and column (<see cref="SetChunkCell"/>), or −1000 for anything else.</summary>
+    public const string ChunkCellParameter = "chunk_cell";
     /// <summary>Per instance: a scene object's tint, in on-screen values, with alpha 1, or 0 for none.</summary>
     public const string ObjectTintParameter = "object_tint";
     /// <summary>Per instance: the scene's own tint, in on-screen values, with alpha 1, or 0 for none (<see cref="SetSceneTint"/>).</summary>
@@ -156,6 +165,8 @@ public static class N64Material
         RenderingServer.GlobalShaderParameterAdd(FogColorParameter, RenderingServer.GlobalShaderParameterType.Vec3, new Vector3(1, 1, 1));
         RenderingServer.GlobalShaderParameterAdd(FogParameter, RenderingServer.GlobalShaderParameterType.Vec4, new Vector4(0, 1000, 0, 0));
         RenderingServer.GlobalShaderParameterAdd(RadialParameter, RenderingServer.GlobalShaderParameterType.Float, 0f);
+        RenderingServer.GlobalShaderParameterAdd(CellsParameter, RenderingServer.GlobalShaderParameterType.Vec4, new Vector4(0, 0, 0, 100));
+        RenderingServer.GlobalShaderParameterAdd(CellsDrawnParameter, RenderingServer.GlobalShaderParameterType.Int, 0);
         RenderingServer.GlobalShaderParameterAdd(SunDirectionParameter, RenderingServer.GlobalShaderParameterType.Vec3, new Vector3(0, 1, 0));
         RenderingServer.GlobalShaderParameterAdd(SunColorParameter, RenderingServer.GlobalShaderParameterType.Vec3, new Vector3(0, 0, 0));
         RenderingServer.GlobalShaderParameterAdd(BodyAmbientParameter, RenderingServer.GlobalShaderParameterType.Vec3, new Vector3(1, 1, 1));
@@ -393,6 +404,20 @@ public static class N64Material
             mesh.SetInstanceShaderParameter(UnfoggedParameter, unfogged ? 1f : 0f);
     }
 
+    /// <summary>
+    /// Under Draw Distance's Extended, the square of chunks drawn round the centre and which of its cells have scenery
+    /// (<see cref="CellsParameter"/>, <see cref="CellsDrawnParameter"/>): a chunk's own scene isn't drawn over a drawn cell two or
+    /// more from its own. A reach of 0 turns it off.
+    /// </summary>
+    public static void SetCells(int row, int column, int reach, float cellSize, int drawn)
+    {
+        RenderingServer.GlobalShaderParameterSet(CellsParameter, new Vector4(row, column, reach, cellSize));
+        RenderingServer.GlobalShaderParameterSet(CellsDrawnParameter, drawn);
+    }
+
+    /// <summary>Marks a chunk's own scene with its cell (<see cref="ChunkCellParameter"/>), which <see cref="SetCells"/> clips it by.</summary>
+    public static void SetChunkCell(Node scene, int row, int column) => SetOnMeshes(scene, ChunkCellParameter, new Vector2(row, column));
+
     private static void SetOnMeshes(Node root, StringName parameter, Variant value)
     {
         var stack = new Stack<Node>([root]);
@@ -579,10 +604,16 @@ public static class N64Material
                 global uniform vec4 n64_fog;
                 // Draw Distance's Extended: nothing past this distance from the eye, which the fog goes by; or 0.
                 global uniform float n64_radial;
+                // Draw Distance's Extended: the drawn chunks' square, as the centre's row and column, its reach and the cells'
+                // size (a reach of 0 for none), and which of its cells have scenery, a bit each, row by row from the corner.
+                global uniform vec4 n64_cells;
+                global uniform int n64_cells_drawn;
                 global uniform vec3 n64_sun_direction;
                 global uniform vec3 n64_sun_color;
                 global uniform vec3 n64_body_ambient;
                 instance uniform vec4 object_tint = vec4(0.0);
+                // A chunk's own scene's row and column, or -1000 for anything else.
+                instance uniform vec2 chunk_cell = vec2(-1000.0);
                 // A scene's own tint (Scene.SetTint), with alpha 1, which replaces the scenery's and a lit draw's white; or 0 for none.
                 instance uniform vec4 scene_tint = vec4(0.0);
                 // A body's own ambient, with alpha 1, in place of half the sky's (its tint, in combat); or 0 for none.
@@ -657,6 +688,18 @@ public static class N64Material
                 	// Draw Distance's Extended cuts at a sphere about the eye, where the fog has ended, not at a far plane.
                 	if (n64_radial > 0.0 && length(VERTEX) > n64_radial) {
                 		discard;
+                	}
+                	// Nor is a chunk's scene drawn over the scenery of a cell two or more from its own. Some Overworld chunks carry a
+                	// rough stand-in for the land round them, out to 330 away, which the original never draws over a chunk two away.
+                	if (n64_cells.z > 0.0 && chunk_cell.x > -999.0) {
+                		vec2 cell = floor((INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xz / n64_cells.w);
+                		vec2 own = abs(cell - chunk_cell);
+                		vec2 square = cell - n64_cells.xy + n64_cells.z;
+                		int side = int(n64_cells.z) * 2 + 1;
+                		if (max(own.x, own.y) >= 2.0 && all(greaterThanEqual(square, vec2(0.0))) && all(lessThan(square, vec2(float(side))))
+                				&& ((n64_cells_drawn >> (int(square.x) * side + int(square.y))) & 1) != 0) {
+                			discard;
+                		}
                 	}
                 	{{texel}}
                 	vec4 shade = shade_w / clip_w;

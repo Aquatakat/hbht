@@ -28,6 +28,9 @@ public sealed class ChunkScenery
     /// <summary>The chunk's node, at its origin in the map set.</summary>
     public Node3D Root { get; }
 
+    /// <summary>The chunk's own scenes, its scenery and its see-through scenery.</summary>
+    public List<Node3D> Scenes { get; } = [];
+
     /// <summary>The chunk's own scenes that scroll textures, which are drawn when the chunk is.</summary>
     public List<ScrollingScene> Own { get; } = [];
 
@@ -56,6 +59,7 @@ public sealed class ChunkScenery
             if (models.Instantiate(scene) is not { } node)
                 continue;
             scenery.Root.AddChild(node);
+            scenery.Scenes.Add(node);
             if (models.Scrolls.Attach(scene, node) is { } scrolling)
                 scenery.Own.Add(scrolling);
         }

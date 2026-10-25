@@ -293,6 +293,24 @@ public partial class ChunkStreamerView : Node3D
     }
 
     /// <summary>
+    /// Which cells of the square <paramref name="reach"/> chunks round the centre have scenery drawn, the 3×3's, the ring's or
+    /// what stands in for them, a bit each, row by row from the corner (<see cref="N64Material.SetCells"/>).
+    /// </summary>
+    public int DrawnCells(int reach)
+    {
+        var centre = Chunks.Centre;
+        var side = reach * 2 + 1;
+        var drawn = 0;
+        foreach (var key in _loaded.Keys.Concat(_ringLoaded.Keys).Select(m => m.Key).Concat(_standIns.Keys))
+        {
+            var (row, column) = (key.Row - centre.Row + reach, key.Column - centre.Column + reach);
+            if (key.MapSet == centre.MapSet && row >= 0 && row < side && column >= 0 && column < side)
+                drawn |= 1 << (row * side + column);
+        }
+        return drawn;
+    }
+
+    /// <summary>
     /// Lets go of the scenery that stood in for chunks whose new scenery isn't coming: a chunk the 3×3 let go of that the ring
     /// didn't take. Once a frame, after the 3×3 and the ring have moved.
     /// </summary>
@@ -436,6 +454,9 @@ public partial class ChunkStreamerView : Node3D
     private void Show(LoadedMap map, ChunkScenery scenery, bool ring)
     {
         (ring ? _ringLoaded : _loaded)[map] = scenery;
+        // Here rather than as it's built: it calls into the renderer, which serves the builder on the main thread.
+        foreach (var scene in scenery.Scenes)
+            N64Material.SetChunkCell(scene, scenery.Chunk.Row, scenery.Chunk.Column);
         AddChild(scenery.Root);
         if (_standIns.Remove(map.Key, out var standIn))
             standIn.Root.QueueFree();
