@@ -88,8 +88,9 @@ public static class BasePlugin
     /// 58 writes how a trapped container's explosion is drawn (<c>aidyn:explosion/0</c>): its particles' texture.
     /// 59 marks a lit list's vertices that the RSP loads second of a pair (<c>TEXCOORD_1</c>'s S of 1), which a body's lights don't reach.
     /// 60 moves the Roog Cave's mushroom (<c>aidyn:voxel/0x1205/12</c>) and its collision out of the passage's neck (<c>MapCorrections</c>).
+    /// 61 gives each title fly-through its animation's length (<c>length</c>), and names its coordinates' origin (<c>originRow</c>, <c>originColumn</c>).
     /// </summary>
-    public const int ImporterVersion = 60;
+    public const int ImporterVersion = 61;
 
     /// <summary>
     /// What's wrong with the imported base plugin under <paramref name="pluginsDirectory"/>, worded for the player, or null if

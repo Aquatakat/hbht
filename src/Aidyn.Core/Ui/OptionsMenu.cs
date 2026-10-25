@@ -82,7 +82,7 @@ public enum OptionsPage
 
 /// <summary>
 /// The options menu (<c>OptionsMenu</c>): links to its pages, the original's volumes on Audio and the port's settings on
-/// Video and Enhancements, and, in a game, renaming Alaron. The pause menu's System tab opens it, and so will the
+/// Video and Enhancements, and, in a game, renaming Alaron. The pause menu's System tab opens it, and so does the
 /// title screen's menu, without the rename (<paramref name="inGame"/>), as the original's title options leave
 /// out its GAME rows. It changes <see cref="Settings"/> as the stick moves, so the runtime carries a setting
 /// out at once.

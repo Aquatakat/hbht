@@ -206,7 +206,7 @@ internal static class WorldImporter
         {
             var animation = Graphics.Borg6Animation.Parse(archive.Read(f.Animation));
             return new TitleFlycam(RecordId.Hex(RecordTypes.Scene, animation.Scene), RecordId.Hex(RecordTypes.Animation, f.Animation),
-                f.Row, f.Column, [f.Unread1, f.Unread2], NeedsExpansionPak: i == TitleTables.PakSequence);
+                animation.Length, f.Row, f.Column, f.OriginRow, f.OriginColumn, NeedsExpansionPak: i == TitleTables.PakSequence);
         })]);
 
     /// <summary>

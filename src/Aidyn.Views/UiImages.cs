@@ -97,9 +97,10 @@ public sealed class UiImages(PluginSet plugins)
         return new FeatheredPanel(band, Height(Edges[0]), Height(Edges[1]), Width(Edges[2]), Width(Edges[3]));
     }
 
-    /// <summary>Draws a feathered panel in black, as the original's popups are drawn, each piece scaled to fit.</summary>
-    public void DrawPanel(CanvasItem canvas, FeatheredPanel panel)
+    /// <summary>Draws a feathered panel in black, as the original's popups are drawn, each piece scaled to fit, at an alpha.</summary>
+    public void DrawPanel(CanvasItem canvas, FeatheredPanel panel, float alpha = 1)
     {
+        var tint = new Color(0, 0, 0, alpha);
         var b = panel.Band;
         var (left, top, right, bottom) = ((float)b.Left, (float)b.Top, (float)b.Right, (float)b.Bottom);
         Piece(Band, new Rect2(left, top, right - left, bottom - top));
@@ -115,7 +116,7 @@ public sealed class UiImages(PluginSet plugins)
         void Piece(RecordId image, Rect2 rect)
         {
             if (rect.Size.X > 0 && rect.Size.Y > 0 && Get(image) is { } texture)
-                canvas.DrawTextureRect(texture, rect, false, Colors.Black);
+                canvas.DrawTextureRect(texture, rect, false, tint);
         }
     }
 }

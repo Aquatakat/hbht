@@ -70,6 +70,20 @@ public sealed class LaunchOptions(Dictionary<string, string> values)
             or "cutscene" or "cinematic" or "battle" or "screenshot" or "ui-screenshot" or "frames"),
     };
 
+    /// <summary>
+    /// Whether the game starts at the title (<c>--title cards</c>, <c>--title logo</c> without the cards, <c>--title off</c>): by default when
+    /// nothing on the command line says where to start, drives the run or plays the opening, as a plain launch is the console's start.
+    /// </summary>
+    public bool ShowsTitle => Text("title") switch
+    {
+        "off" => false,
+        null => PlaysOpening && !values.ContainsKey("opening"),
+        _ => true,
+    };
+
+    /// <summary>Whether the title starts with its intro cards: but for <c>--title logo</c>.</summary>
+    public bool TitleCards => Text("title") != "logo";
+
     /// <summary>Whether the start says where the player stands, in place of a save's.</summary>
     public bool PlacesPlayer => values.ContainsKey("chunk") || values.ContainsKey("at");
 

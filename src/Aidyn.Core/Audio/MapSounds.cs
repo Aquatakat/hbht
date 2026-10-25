@@ -21,6 +21,12 @@ public sealed class MapSounds(GameAudio audio, IRandom random, Func<MapObject, b
 
     private readonly List<Bubble> _bubbles = [];
 
+    /// <summary>
+    /// Whether music objects are passed over as chunks load, as on the title's scenery (<c>Audio.StartChunk</c> on <c>Zones.Mode</c> 2),
+    /// which plays the title's music.
+    /// </summary>
+    public bool SkipsMusic { get; set; }
+
     /// <summary>How many sound objects the loaded chunks have, playing or not.</summary>
     public int Count => _bubbles.Count;
 
@@ -32,7 +38,7 @@ public sealed class MapSounds(GameAudio audio, IRandom random, Func<MapObject, b
     {
         foreach (var o in map.Objects.OfType<SoundObject>())
         {
-            if (o.Pak == PakVariant.Without || _bubbles.Count(b => !b.Orphaned) >= MaxSounds)
+            if (o.Pak == PakVariant.Without || SkipsMusic && (o.Flags & SoundFlags.Music) != 0 || _bubbles.Count(b => !b.Orphaned) >= MaxSounds)
                 continue;
             var bubble = new Bubble(map, o, map.Origin + o.Position, () => there(o));
             // Audio.FindPersistentMusic: the same music playing on from a chunk that's gone is this one's.

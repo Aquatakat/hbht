@@ -100,9 +100,6 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     /// <summary>The save the System tab loaded, which the scene starts again from.</summary>
     private static SaveGame? _pendingSave;
 
-    /// <summary>The save the game last came from or went to, which the game over loads (<see cref="GameOver"/>).</summary>
-    private static string? _lastSave;
-
     public override void _Ready()
     {
         CultureInfo.DefaultThreadCurrentCulture = CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
@@ -114,8 +111,9 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         AddChild(hud);
 
         var options = LaunchOptions.Parse(OS.GetCmdlineUserArgs());
-        // A save loaded from the menu starts where it stands, and the command line's presses aren't made again.
-        if (_pendingSave is not null)
+        // A save loaded from the menu starts where it stands, and the command line's presses aren't made again; so does the title
+        // the game over goes back to.
+        if (_pendingSave is not null || _toTitle)
             options = options.OnlyScreenshot();
         try
         {
@@ -140,10 +138,16 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     {
         var plugins = _plugins = _loadedPlugins ??= LoadPlugins();
         StartAudio(plugins);
+        // A plain launch shows the title, as the game over and the ending's credits go back to it, over a new game that its New Game
+        // begins.
+        var title = _pendingSave is null && (_toTitle || options.ShowsTitle);
+        if (title)
+            _newGame = true;
+        _toTitle = false;
         var game = StartingGame(plugins, options);
         // A new game plays what the title's New Game does (GameSession.StartNewGame): the opening, then its script. So does
         // a save of one loaded from the menu, which stands nowhere yet; a save made in play doesn't.
-        var fresh = game.StartsAsNewGame && options.PlaysOpening;
+        var fresh = game.StartsAsNewGame && options.PlaysOpening && !title;
         // Where it starts, which plugins from an older import can't say: then this says to import again.
         var start = StartingPlace(plugins, game, options);
 
@@ -177,6 +181,8 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         ApplySettings();
         _settings.Changed += SettingsChanged;
         GetViewport().SizeChanged += ApplyWorldLines;
+        if (title)
+            StartTitle(options.TitleCards);
         RunLaunchActions(options);
         if (fresh)
             session.StartNewGame();
@@ -197,8 +203,6 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     /// <summary>The game the System tab's Load asked for, else the save or the new game the options ask for.</summary>
     private GameState StartingGame(PluginSet plugins, LaunchOptions options)
     {
-        if (_pendingSave is null && options.Save is { } started && _lastSave is null)
-            _lastSave = started;
         var game = _pendingSave is { } pending ? GameState.Load(plugins, pending)
             : options.Save is { } savePath && !_newGame ? GameState.Load(plugins, SaveFile.Read(savePath))
             : GameState.NewGame(plugins);
@@ -363,6 +367,8 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         AddChild(_cinematic);
         _credits = new CreditsLayer(plugins);
         AddChild(_credits);
+        _titleLayer = new TitleLayer(plugins, _models!);
+        AddChild(_titleLayer);
     }
 
     /// <summary>
@@ -398,7 +404,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         _objectDistance = new ObjectDistance(s.ObjectDistance, s.NearestDetail);
         _extendedDrawDistance = s.ExtendedDrawDistance;
         _cinematic?.Viewport.Msaa3D = GetViewport().Msaa3D;
-        foreach (var screen in new[] { _menu?.Screen, _backdrop?.Screen, _cinematic?.Screen, _credits?.Screen, _trekScreen })
+        foreach (var screen in new[] { _menu?.Screen, _backdrop?.Screen, _cinematic?.Screen, _credits?.Screen, _titleLayer?.Screen, _trekScreen })
         {
             if (screen is null)
                 continue;
@@ -472,7 +478,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         _audio!.Step();
         // The HUD is trek's: not in a cut-scene. Under the pause menu and a backdrop's page it's drawn as it stands,
         // as the world is, so that it lays itself out again as the window or the menu size changes.
-        _hud!.Visible = Scene is null && Battle is null;
+        _hud!.Visible = Scene is null && Battle is null && Title is null;
         _hud.QueueRedraw();
         if (session.TrekRuns)
             _popupView!.Step();
@@ -483,6 +489,10 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         _backdrop!.Draw(session.Backdrop);
         switch (step)
         {
+            case SessionStep.Title:
+                DrawTitle();
+                _particles!.Step();
+                return;
             case SessionStep.Cinematic:
                 DrawCinematic();
                 return;
@@ -617,9 +627,9 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
             flat = flat.LengthSquared() < 1e-6f ? default : System.Numerics.Vector2.Normalize(flat);
             return new SceneView(transform.Origin.ToNumerics(), new(transform.Origin.X, transform.Origin.Z), flat, 0, cone);
         }
-        // In a cut-scene or a battle there's no player: levels of detail go by the camera's aim.
-        var follow = Scene?.Camera ?? Battle?.Camera ?? Trek!.Camera;
-        var from = Scene is not null || Battle is not null ? follow.Aim : _player!.Motion.Sphere.Position;
+        // In a cut-scene, a battle or the title's fly-through there's no player: levels of detail go by the camera's aim.
+        var follow = Scene?.Camera ?? Battle?.Camera ?? Title?.Camera ?? Trek!.Camera;
+        var from = Scene is not null || Battle is not null || Title is not null ? follow.Aim : _player!.Motion.Sphere.Position;
         return SceneView.Aimed(from, follow.Position, follow.Aim, cone);
     }
 
@@ -716,6 +726,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         var focus = _camera.Flying ? _camera.Current.GlobalPosition
             : Scene is not null ? Scene.Camera.Aim.ToGodot()
             : Battle is not null ? Battle.Camera.Aim.ToGodot()
+            : Title is not null ? Title.Camera.Aim.ToGodot()
             : _player.GlobalPosition;
         // A cut-scene's and an arena's 3×3 stay as they loaded, and trek's world, which went with a battle, isn't built again
         // under the post-battle windows.
@@ -778,9 +789,11 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         _stick.Track(e);
         if (_session is not { } session || BindPrompted(session, e))
             return;
-        if (session.Menu.NameEntryOpen && e is InputEventKey { Pressed: true } typed && TypeName(session.Menu, typed))
+        var names = session.Title is { NameEntryOpen: true } title ? title.Menu : session.Menu.NameEntryOpen ? session.Menu.System : null;
+        if (names is not null && e is InputEventKey { Pressed: true } typed && TypeName(names, typed))
         {
             _menu!.Redraw();
+            _titleLayer?.Redraw();
             return;
         }
         var action = _stick.Translate(e);
@@ -789,7 +802,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
             ShowPressed(session);
         switch (session.Mode)
         {
-            case GameMode.Cinematic or GameMode.Credits or GameMode.Backdrop or GameMode.Popup or GameMode.Conversation:
+            case GameMode.Cinematic or GameMode.Credits or GameMode.Backdrop or GameMode.Popup or GameMode.Conversation or GameMode.Title:
                 return;
             case GameMode.Menu:
                 if (outcome == PressOutcome.Taken)
@@ -856,13 +869,14 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         _backdrop!.Draw(session.Backdrop);
         _menu!.Redraw();
         _battleScreen?.QueueRedraw();
+        _titleLayer?.Redraw();
     }
 
     /// <summary>
-    /// The keyboard in the pause menu's name entry: a printable key types its character, Backspace rubs out, Enter confirms
-    /// and Escape cancels, before any of them reach the game's buttons. Whether the key was one of those.
+    /// The keyboard in the pause menu's or the title's name entry: a printable key types its character, Backspace rubs out, Enter
+    /// confirms and Escape cancels, before any of them reach the game's buttons. Whether the key was one of those.
     /// </summary>
-    private static bool TypeName(Core.Ui.PauseMenu menu, InputEventKey key) => key.Keycode switch
+    private static bool TypeName(SystemMenu menu, InputEventKey key) => key.Keycode switch
     {
         Key.Backspace => menu.RubOutName(),
         Key.Enter or Key.KpEnter => menu.ConfirmName(),
@@ -911,6 +925,18 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
                 break;
             case Transition.GameOver:
                 GameOver();
+                break;
+            case Transition.ShowTitle title:
+                ShowTitle(title.Title);
+                break;
+            case Transition.StartTitleScenery scenery:
+                ShowScenery(scenery.Flycam, scenery.Scenery, scenery.Corner);
+                break;
+            case Transition.EndTitleScenery:
+                FreeScenery();
+                break;
+            case Transition.EndTitle:
+                EndTitle();
                 break;
             case Transition.Camp camp:
                 GD.Print($"Camping: {camp.Outcome}.");
@@ -1013,7 +1039,6 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
                 return "The player isn't in a chunk.";
             session.Game.Label = null;
             SaveFile.Write(path, session.Game.Save());
-            _lastSave = path;
             if (snapshot is not null)
                 Screenshot(snapshot).SavePng(SaveSlot.ScreenshotPath(path));
             return null;
@@ -1044,7 +1069,6 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         try
         {
             _pendingSave = SaveFile.Read(path);
-            _lastSave = path;
         }
         catch (Exception e) when (e is IOException or System.Text.Json.JsonException or InvalidDataException)
         {
@@ -1054,23 +1078,17 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         GetTree().ReloadCurrentScene();
     }
 
-    /// <summary>Whether the scene starts again on a new game, whatever the command line's save, as a game over with no save does.</summary>
+    /// <summary>Whether the scene starts again on a new game, whatever the command line's save, as the title's does.</summary>
     private static bool _newGame;
 
     /// <summary>
-    /// The game is over (<see cref="Transition.GameOver"/>): where the original goes back to the title, the runtime, which has none,
-    /// loads the save the game last came from or went to, the user's choice, or with none starts a new game.
+    /// The game is over (<see cref="Transition.GameOver"/>): Alaron's death scene or the ending's credits have ended, and the game starts
+    /// again at the title, its intro cards first (<c>Game.Restart</c>, <c>0x8001f284</c>, by way of <c>Title.Frame</c>), on a new game.
     /// </summary>
     private void GameOver()
     {
-        if (_lastSave is { } path && File.Exists(path))
-        {
-            GD.Print($"The game is over: loading {path}.");
-            LoadFrom(path);
-            return;
-        }
-        GD.Print("The game is over: a new game.");
-        _newGame = true;
+        GD.Print("The game is over: back to the title.");
+        _toTitle = true;
         GetTree().ReloadCurrentScene();
     }
 
@@ -1084,7 +1102,6 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         }
         var path = Path.Combine(DataPaths.Saves, "quick" + SaveFile.Extension);
         SaveFile.Write(path, _session.Game.Save());
-        _lastSave = path;
         Say($"Saved to {path}");
     }
 

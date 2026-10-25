@@ -16,6 +16,36 @@ public enum SystemItem
 
     /// <summary>Combat's alone, while the party can flee.</summary>
     Flee,
+
+    /// <summary>The title's alone: the name entry, then a new game (<c>IntroMenu::ProcessIntroMenu</c>).</summary>
+    NewGame,
+}
+
+/// <summary>
+/// The colours the System tab's pages are drawn in: the pause menu's browns on the parchment, or the title menu's whites on its
+/// feathered boxes (<c>IntroMenu</c>): the same pages in the same layout.
+/// </summary>
+/// <param name="Text">The rows' colour: the list's, the options', the save screens' and the name entry's.</param>
+/// <param name="CursorFrom">Where the list's and the save screens' cursor pulses from.</param>
+/// <param name="CursorTo">And toward.</param>
+/// <param name="OptionsCursor">What the options' cursor pulses toward from <paramref name="Text"/>.</param>
+/// <param name="Blank">"Create New Save" and the empty load screen's line.</param>
+/// <param name="Heading">The Controls page's situations.</param>
+/// <param name="BarEmpty">The volume bars' empty part.</param>
+/// <param name="Parchment">Whether the pages are on the System tab's parchment, or each on a feathered black box.</param>
+public sealed record SystemStyle(Rgba Text, Rgba CursorFrom, Rgba CursorTo, Rgba OptionsCursor, Rgba Blank, Rgba Heading, Rgba BarEmpty,
+    bool Parchment)
+{
+    /// <summary>The pause menu's: <c>COLOR_RED1</c> pulsing to <c>COLOR_PURPLE1</c>, and the options' to dark brown, its alpha falling.</summary>
+    public static readonly SystemStyle Pause = new(PartyMenu.TextColor, PartyMenu.HighlightFrom, PartyMenu.HighlightColor,
+        OptionsMenu.HighlightColor, SaveMenu.BlankColor, new Rgba(90, 55, 45, 255), OptionsMenu.BarEmpty, Parchment: true);
+
+    /// <summary>
+    /// The title's (<c>IntroMenu.MakeList</c>, <c>0x80043ae8</c>; <c>IntroMenu.ShowLoad</c>, <c>0x800439a8</c>; <c>OptionsPage.Create</c>
+    /// with 0): off-white, the cursor pulsing between the scroll menu's grey (<see cref="MenuPulse.ScrollFrom"/>) and white.
+    /// </summary>
+    public static readonly SystemStyle Title = new(new Rgba(225, 225, 225, 255), MenuPulse.ScrollFrom, MenuPulse.ScrollTo, MenuPulse.ScrollFrom,
+        new Rgba(160, 160, 160, 255), new Rgba(160, 160, 160, 255), new Rgba(100, 100, 100, 63), Parchment: false);
 }
 
 /// <summary>What the System tab shows: its list, or a screen it opened.</summary>
@@ -82,7 +112,7 @@ public sealed class SystemMenu
     public static readonly Rgba TextColor = PartyMenu.TextColor;
 
     /// <summary>The rows' strings, by <see cref="SystemItem"/>: common lines, but Credits, which the code spells out.</summary>
-    private static readonly int[] Lines = [160, 377, 161, 162, -1, 173, 378];
+    private static readonly int[] Lines = [160, 377, 161, 162, -1, 173, 378, 159];
 
     private readonly PluginSet _plugins;
     private readonly MenuText _text;
@@ -101,9 +131,15 @@ public sealed class SystemMenu
     /// Null in trek.
     /// </param>
     /// <param name="screen">The screen the game is on as the options open, for the Video page; <see cref="ScreenInfo.Default"/> by default.</param>
+    /// <param name="title">
+    /// The title's menu (<c>IntroMenu</c>): New Game, Load Game and Options, in <see cref="SystemStyle.Title"/>, its pages crossfading 20 a
+    /// tick (<c>IntroMenu.Step</c>, <c>0x80042d0c</c>). Its options have no Rename Character, and its load screen loads.
+    /// </param>
     public SystemMenu(PluginSet plugins, Settings settings, Party party, string savesFolder, Func<string, IReadOnlyList<SaveSlot>>? listSaves = null,
-        Func<RecordId, bool>? isSet = null, bool? combat = null, Func<ScreenInfo>? screen = null)
+        Func<RecordId, bool>? isSet = null, bool? combat = null, Func<ScreenInfo>? screen = null, bool title = false)
     {
+        Title = title;
+        Style = title ? SystemStyle.Title : SystemStyle.Pause;
         _isSet = isSet ?? (_ => false);
         _screen = screen ?? (() => ScreenInfo.Default);
         _plugins = plugins;
@@ -114,7 +150,8 @@ public sealed class SystemMenu
         _listSaves = listSaves;
         Items = new MenuList<SystemItem>(combat switch
         {
-            null => [.. Enum.GetValues<SystemItem>().Where(i => i != SystemItem.Flee)],
+            null when title => [SystemItem.NewGame, SystemItem.LoadGame, SystemItem.Options],
+            null => [.. Enum.GetValues<SystemItem>().Where(i => i is not (SystemItem.Flee or SystemItem.NewGame))],
             true => [SystemItem.Options, SystemItem.Flee],
             false => [SystemItem.Options],
         });
@@ -122,6 +159,21 @@ public sealed class SystemMenu
     }
 
     public Settings Settings { get; }
+
+    /// <summary>Whether it's the title's menu, which starts a new game or loads one.</summary>
+    public bool Title { get; }
+
+    /// <summary>The colours its pages are drawn in.</summary>
+    public SystemStyle Style { get; }
+
+    /// <summary>How much a page's alpha changes a tick as it crossfades: the pause menu's 60, the title's 20.</summary>
+    public int FadeStep => Title ? 20 : WidgetFade.Step;
+
+    /// <summary>The title's New Game, once its name is confirmed: how the menu ends (<see cref="PauseExit.NewGame"/>). Null until then.</summary>
+    public PauseExit? Ended { get; private set; }
+
+    /// <summary>Whether the pages are still crossfading, which the title's menu takes no presses through (<c>IntroMenu.Input</c>, <c>0x80043e44</c>).</summary>
+    public bool Fading => PageAlpha < 255 || Outgoing is not null;
 
     public Party Party { get; }
 
@@ -161,10 +213,10 @@ public sealed class SystemMenu
 
     public void Step()
     {
-        PageAlpha = (byte)WidgetFade.In(PageAlpha);
+        PageAlpha = (byte)WidgetFade.In(PageAlpha, FadeStep);
         if (Outgoing is not null)
         {
-            OutgoingAlpha = (byte)WidgetFade.Out(OutgoingAlpha);
+            OutgoingAlpha = (byte)WidgetFade.Out(OutgoingAlpha, FadeStep);
             if (OutgoingAlpha == 0)
                 Outgoing = null;
         }
@@ -184,9 +236,14 @@ public sealed class SystemMenu
     /// <summary>A: what the page does with it, and how the menu ends if Credits, Help or a seen cinematic close it.</summary>
     public PauseExit? Accept() => _page.Accept();
 
-    /// <summary>Start: in the name entry, goes to OK or confirms; elsewhere it's B.</summary>
+    /// <summary>Start: in the name entry, goes to OK or confirms; on the title's list it's A (<c>IntroMenu.OnStart</c>); elsewhere it's B.</summary>
     public bool Start()
     {
+        if (Title && Page == SystemPage.List)
+        {
+            Accept();
+            return true;
+        }
         if (Page != SystemPage.Rename)
             return Back();
         Rename!.Start();
@@ -230,15 +287,64 @@ public sealed class SystemMenu
         _page = new TheatrePage(this);
     }
 
+    /// <summary>
+    /// Starts the page shown fading in from nothing, as the title's list does as Start brings it up over the logo
+    /// (<c>IntroMenu.ShowList</c>, <c>0x80043598</c>).
+    /// </summary>
+    public void FadeIn() => (Outgoing, PageAlpha, OutgoingAlpha) = (null, 0, 0);
+
     private void CloseRename()
     {
         if (Rename is not { Closed: true } rename)
             return;
+        if (Title)
+        {
+            // The title's New Game: OK starts the game with the name (IntroMenu.Confirm, 0x80043cfc, state 6), and B or the cancel key
+            // goes back to the list.
+            if (rename.Chosen is { } chosen)
+            {
+                Ended = PauseExit.NewGame(chosen);
+                return;
+            }
+            ToList();
+            Rename = null;
+            return;
+        }
         FadeFrom();
         if (rename.Chosen is { } name && Alaron is { } alaron)
             alaron.Name = name;
         Rename = null;
         _page = new OptionsPage(this);
+    }
+
+    // The keyboard in the name entry, before any key reaches the menu's actions: a printable key types its character, Backspace
+    // rubs out, Enter confirms and Escape cancels. Each is true if the name entry was up to take it.
+
+    /// <summary>Types a character into the name entry (<see cref="NameEntry.Type"/>). False with no entry up, or a character it has no key for.</summary>
+    public bool TypeName(char c)
+    {
+        if (Rename is not { } entry || Ended is not null || !entry.Type(c))
+            return false;
+        Settle();
+        return true;
+    }
+
+    /// <summary>Rubs the last letter out.</summary>
+    public bool RubOutName() => NameKey(entry => entry.RubOut());
+
+    /// <summary>Confirms the name, as OK does.</summary>
+    public bool ConfirmName() => NameKey(entry => entry.Confirm());
+
+    /// <summary>Cancels the name entry.</summary>
+    public bool CancelName() => NameKey(entry => entry.Back());
+
+    private bool NameKey(Action<NameEntry> act)
+    {
+        if (Rename is not { } entry || Ended is not null)
+            return false;
+        act(entry);
+        Settle();
+        return true;
     }
 
     /// <summary>
@@ -277,6 +383,12 @@ public sealed class SystemMenu
             var item = menu.Items.Current;
             switch (item)
             {
+                case SystemItem.NewGame:
+                    // The name entry on the new game's Alaron (IntroMenu.ShowNameEntry, 0x800437f8).
+                    menu.FadeFrom();
+                    menu.Rename = new NameEntry(menu.Alaron?.Name ?? "Alaron");
+                    menu._page = new RenamePage(menu);
+                    return null;
                 case SystemItem.LoadGame or SystemItem.SaveGame:
                     menu.FadeFrom();
                     menu.Saves = SaveMenu.From(menu._plugins, item == SystemItem.SaveGame, menu._savesFolder, menu._listSaves);
@@ -284,7 +396,7 @@ public sealed class SystemMenu
                     return null;
                 case SystemItem.Options:
                     menu.FadeFrom();
-                    menu.Options = new OptionsMenu(menu.Settings, inGame: true, menu._screen());
+                    menu.Options = new OptionsMenu(menu.Settings, inGame: !menu.Title, menu._screen());
                     menu._page = new OptionsPage(menu);
                     return null;
                 case SystemItem.Theater:
@@ -387,13 +499,17 @@ public sealed class SystemMenu
 
         public PauseExit? Accept()
         {
+            if (menu.Ended is not null)
+                return null;
             menu.Rename!.Accept();
             menu.CloseRename();
-            return null;
+            return menu.Ended;
         }
 
         public bool Back()
         {
+            if (menu.Ended is not null)
+                return true;
             menu.Rename!.Back();
             menu.CloseRename();
             return true;

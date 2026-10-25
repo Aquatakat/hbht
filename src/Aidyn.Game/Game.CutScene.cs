@@ -22,8 +22,8 @@ public partial class Game
     /// <summary>The cut-scene's stage, in place of trek's world: its own zone engine (<see cref="ZoneEngine.Stage"/>).</summary>
     private ZoneEngine? Stage => _session?.Stage;
 
-    /// <summary>The chunks the world shows now: the cut-scene's, the battle's arena, or trek's.</summary>
-    private ChunkStreamerView? Streamer => Scene is not null ? _stageView : Battle is not null ? _arenaView : _chunks;
+    /// <summary>The chunks the world shows now: the title's fly-through's, the cut-scene's, the battle's arena, or trek's.</summary>
+    private ChunkStreamerView? Streamer => Title is not null ? _sceneryView : Scene is not null ? _stageView : Battle is not null ? _arenaView : _chunks;
 
     /// <summary>
     /// Trek has faded out into a cut-scene: the player's body goes with trek's world, and the session begins it

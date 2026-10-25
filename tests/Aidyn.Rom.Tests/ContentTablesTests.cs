@@ -193,9 +193,11 @@ public class ContentTablesTests
             var first = title.Flycams[0];
             Assert.Equal(RecordId.Hex(RecordTypes.Animation, 0x21DC), first.Animation);
             Assert.Equal((11, 9), (first.Row, first.Column));
-            Assert.Equal([11, 6], first.Unread);
+            Assert.Equal((11, 6), (first.OriginRow, first.OriginColumn));
             Assert.Equal([4], Enumerable.Range(0, 6).Where(i => title.Flycams[i].NeedsExpansionPak));
             Assert.All(title.Flycams, f => Assert.Equal(RecordTypes.Scene, f.Scene.Type));
+            // The Borg6s' lengths, which each fly-through fades out by.
+            Assert.Equal([1561, 2631, 2181, 1601, 1853, 2401], title.Flycams.Select(f => f.Length));
         }
 
         [Fact]

@@ -51,6 +51,9 @@ public enum GameMode
 
     /// <summary>A cinematic, over everything.</summary>
     Cinematic,
+
+    /// <summary>The title screen, its cards and its menu, with trek's world gone (game mode 0xF): over everything, as nothing else runs.</summary>
+    Title,
 }
 
 /// <summary>What a tick of the game came to, for whoever draws it.</summary>
@@ -64,6 +67,9 @@ public enum SessionStep
 
     /// <summary>The credits are rolling: their view steps them, and says when they end (<see cref="GameSession.CreditsEnded"/>).</summary>
     Credits,
+
+    /// <summary>The title screen ticked: its cards, or its fly-through and menu (<see cref="GameSession.Title"/>).</summary>
+    Title,
 
     /// <summary>A cut-scene ticked.</summary>
     CutScene,
@@ -115,6 +121,9 @@ public sealed class GameSession
 {
     private readonly ITrekHost _host;
     private readonly ICombatHost? _combatHost;
+    private readonly IPauseMenuHost _menuHost;
+    private readonly Settings _playerSettings;
+    private readonly string _savesFolder;
     /// <summary>How the battle playing ended, as its last step said (<see cref="BattleStep.Ended"/>).</summary>
     private BattleOutcome _battleEnd;
     private Triggers? _triggers;
@@ -137,9 +146,12 @@ public sealed class GameSession
         Game = game;
         _host = host;
         _combatHost = combatHost;
+        _menuHost = menuHost ?? NoMenuHost.Instance;
+        _playerSettings = settings ?? new Settings();
+        _savesFolder = savesFolder ?? DataPaths.Saves;
         Trek = new TrekLoop(game, new Relay(this, host), zone, player, camera);
         zone.Sky.Warn = host.Warn;
-        Menu = new PauseMenu(game, settings ?? new Settings(), savesFolder ?? DataPaths.Saves, Where, menuHost ?? NoMenuHost.Instance, Stick);
+        Menu = new PauseMenu(game, _playerSettings, _savesFolder, Where, _menuHost, Stick);
         _settings = playing ?? SessionSettings.Original;
         Apply();
     }
@@ -291,12 +303,19 @@ public sealed class GameSession
     /// <summary>The cinematic playing (<see cref="Transition.PlayCinematic"/>), stepped each tick until it ends (<see cref="CinematicEnded"/>).</summary>
     public CinematicShowing? Cinematic { get; private set; }
 
+    /// <summary>The title screen, from <see cref="ShowTitle"/> until New Game begins the game or a save is chosen to load.</summary>
+    public TitleScreen? Title { get; private set; }
+
+    /// <summary>The title's fly-through's scenery: the Overworld's chunks about its camera, in a zone engine of its own (<see cref="ZoneEngine.Stage"/>).</summary>
+    public ZoneEngine? Scenery { get; private set; }
+
     /// <summary>
     /// What runs, the highest that's up: a cinematic, the credits, the pause menu, a backdrop's page, a popup, a
     /// conversation, a cut-scene, a battle, else trek.
     /// </summary>
     public GameMode Mode =>
-        Cinematic is not null ? GameMode.Cinematic
+        Title is not null ? GameMode.Title
+        : Cinematic is not null ? GameMode.Cinematic
         : CreditsRolling ? GameMode.Credits
         : MenuOpen || PostBattle is not null ? GameMode.Menu
         : BackdropShowing ? GameMode.Backdrop
@@ -307,7 +326,7 @@ public sealed class GameSession
         : GameMode.Trek;
 
     /// <summary>Whether the world is held still: under the pause menu, a backdrop's page, the credits or a cinematic.</summary>
-    public bool Held => Mode is GameMode.Menu or GameMode.Backdrop or GameMode.Credits or GameMode.Cinematic;
+    public bool Held => Mode is GameMode.Menu or GameMode.Backdrop or GameMode.Credits or GameMode.Cinematic or GameMode.Title;
 
     /// <summary>Whether trek steps this tick: nothing holds the world and no cut-scene or battle plays in its place.</summary>
     public bool TrekRuns => !Held && Scene is null && Battle is null;
@@ -318,7 +337,7 @@ public sealed class GameSession
     /// went with the battle (<c>TrekLoop.Free</c>, <c>Combat.Exit</c>) and is built again only as the loot window closes
     /// (<c>PauseMenu.CloseToTrek</c>). Streamed under the windows, its chunks' sounds played there, where the original's are silent.
     /// </summary>
-    public bool StreamsTrek => Scene is null && Battle is null && PostBattle is null;
+    public bool StreamsTrek => Scene is null && Battle is null && PostBattle is null && Title is null;
 
     /// <summary>What the session plays by of the player's settings: the last tick's, or those it started with.</summary>
     public SessionSettings Settings => _settings;
@@ -368,7 +387,9 @@ public sealed class GameSession
             _settings = settings;
             Apply();
         }
-        Game.CountTick();
+        // The title is before the game: no time is played on it (the original's Game.Init after the cards starts the game's afresh).
+        if (Title is null)
+            Game.CountTick();
         _frozen = frozen;
         StepStick();
         // The menu's tick, every tick, before the mode's: a frame of it while it's open, and once it has closed, how it ended,
@@ -398,6 +419,9 @@ public sealed class GameSession
     {
         switch (Mode)
         {
+            case GameMode.Title when Title!.Repeats:
+                Stick.Tick(Title.Repeat);
+                break;
             case GameMode.Menu:
                 if (Menu.Repeats)
                     Stick.Tick(Menu.Repeat);
@@ -427,6 +451,8 @@ public sealed class GameSession
             return PressOutcome.Ignored;
         switch (Mode)
         {
+            case GameMode.Title:
+                return Title!.Press(action, keyboard) ? PressOutcome.Taken : PressOutcome.Ignored;
             case GameMode.Cinematic:
                 if (action is MenuAction.Back or MenuAction.Start)
                     Cinematic!.Player.Skip();
@@ -470,6 +496,9 @@ public sealed class GameSession
     {
         switch (Mode)
         {
+            case GameMode.Title:
+                StepTitle();
+                return SessionStep.Title;
             case GameMode.Cinematic:
                 StepCinematic();
                 return SessionStep.Cinematic;
@@ -521,10 +550,114 @@ public sealed class GameSession
         };
     }
 
+    /// <summary>
+    /// Shows the title screen (<c>Title.Frame</c>, then game mode 0xF), over a new game's session: trek's world goes and its music with
+    /// it, the title's music starts, and the intro cards play if <paramref name="cards"/>, then the fly-throughs from
+    /// <paramref name="place"/> behind the logo. The title then runs until New Game begins this game or a save is chosen to load.
+    /// </summary>
+    /// <param name="skippable">Whether A, B or Start skip the cards: the port's, with a saved game to load.</param>
+    /// <param name="listSaves">Lists the saves for the load screen; <see cref="SaveSlot.List"/> by default.</param>
+    public void ShowTitle(bool cards, bool skippable, int place = 0, Func<string, IReadOnlyList<SaveSlot>>? listSaves = null)
+    {
+        Trek.Free();
+        // The title's music plays from the cards on, looped at the music volume (Title.StartMusic, 0x8001b0b0), and the scenery's
+        // chunks don't play their music objects (Audio.StartChunk on Zones.Mode 2).
+        Zone.Audio.StopMusic();
+        Zone.Audio.Music = Game.Sounds.Title;
+        Zone.Sounds.SkipsMusic = true;
+        _trekZones = false;
+        Title = new TitleScreen(Game,
+            () => new SystemMenu(Game.Plugins, _playerSettings, Game.Party, _savesFolder, listSaves, Game.Flags.Get, screen: () => _menuHost.Screen,
+                title: true),
+            sound => _menuHost.Cue(new MenuSoundCue(sound)), cards, skippable, place);
+        Send(new Transition.ShowTitle(Title));
+    }
+
+    /// <summary>
+    /// A tick of the title: its cards, or its fly-through and menu. A fly-through starting builds its scenery; the scenery's chunks
+    /// follow the camera and play their sounds, under the sky at a new game's noon. Once the title has faded out, it ends
+    /// (<see cref="EndTitle"/>).
+    /// </summary>
+    private void StepTitle()
+    {
+        var title = Title!;
+        title.Step(Stick.Held);
+        if (title.FlycamStarted && title.Flycam is { } flycam)
+            StartScenery(flycam);
+        if (Scenery is { } scenery)
+        {
+            scenery.Chunks.Update(title.Camera.Position);
+            scenery.Listen();
+            scenery.StepSounds(title.Camera.Aim);
+            Sky.Step();
+        }
+        if (title.TakeExit() is { } exit)
+            EndTitle(exit);
+    }
+
+    /// <summary>
+    /// A fly-through's scenery (<c>Title.StartScenery</c>): the last's goes, and the Overworld's chunks load about the new one's row and
+    /// column in a zone engine of its own, under its centre chunk's sky.
+    /// </summary>
+    private void StartScenery(TitleFlycam flycam)
+    {
+        EndScenery();
+        if (Game.Plugins.TryGet<MapSetRecord>(TitleScreen.Overworld) is not { } set || set.Chunk(flycam.Row, flycam.Column) is not { } chunk)
+        {
+            _host.Warn($"The title's fly-through is over row {flycam.Row}, column {flycam.Column}, which the Overworld lacks.");
+            return;
+        }
+        var zone = Scenery = Zone.Stage(set);
+        var centre = set.Origin(chunk.Row, chunk.Column) + new Vector3(set.CellSize / 2, 0, set.CellSize / 2);
+        Title!.Look(centre, centre + Vector3.UnitX);
+        zone.Camera = Title.Camera;
+        zone.Chunks.Update(centre);
+        Sky.ClearSky();
+        Sky.Enter(chunk);
+        Sky.Apply();
+        // The animation's coordinates are from its origin chunk's corner.
+        Send(new Transition.StartTitleScenery(flycam, zone, set.Origin(flycam.OriginRow, flycam.OriginColumn)));
+    }
+
+    /// <summary>The fly-through's scenery goes (<c>Title.FreeScenery</c>, <c>0x80055698</c>).</summary>
+    private void EndScenery()
+    {
+        if (Scenery is not { } scenery)
+            return;
+        Scenery = null;
+        scenery.End();
+        Send(new Transition.EndTitleScenery());
+    }
+
+    /// <summary>
+    /// The title has faded out (<c>Title.Leave</c>): its scenery and music go. New Game names Alaron and begins this game, trek built where
+    /// it arrives and the opening playing over it (<see cref="StartNewGame"/>); a save chosen goes to the host to load, the title standing
+    /// as it was until it does.
+    /// </summary>
+    private void EndTitle(PauseExit exit)
+    {
+        if (exit is { Code: PauseExitCode.Load, SavePath: { } path })
+        {
+            Send(new Transition.LoadGame(path));
+            return;
+        }
+        if (Game.Party.Slots.FirstOrDefault(m => m?.Entity == GameState.Alaron) is { } alaron && exit.Name is { } name)
+            alaron.Name = name;
+        EndScenery();
+        Title = null;
+        Zone.Audio.StopMusic();
+        Zone.Sounds.SkipsMusic = false;
+        Sky.ClearSky();
+        Send(new Transition.EndTitle());
+        Trek.Resume();
+        Send(new Transition.ResumeTrek());
+        StartNewGame();
+    }
+
     /// <summary>The map's sounds, while the world is held still: trek's, not a stage's or an arena's.</summary>
     private void StepSounds()
     {
-        if (Scene is null && Battle is null)
+        if (Scene is null && Battle is null && Title is null)
             Trek.StepSounds();
     }
 

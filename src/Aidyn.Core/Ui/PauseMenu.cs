@@ -667,30 +667,15 @@ public sealed class PauseMenu
     // The keyboard in the name entry, before any key reaches the menu's actions: a printable key types its character, Backspace
     // rubs out, Enter confirms and Escape cancels. Each is true if the name entry was up to take it.
 
-    /// <summary>Types a character into the name entry (<see cref="NameEntry.Type"/>). False with no entry up, or a character it has no key for.</summary>
-    public bool TypeName(char c)
-    {
-        if (!NameEntryOpen || !System.Rename!.Type(c))
-            return false;
-        System.Settle();
-        return true;
-    }
+    /// <summary>Types a character into the name entry (<see cref="SystemMenu.TypeName"/>).</summary>
+    public bool TypeName(char c) => NameEntryOpen && System.TypeName(c);
 
     /// <summary>Rubs the last letter out.</summary>
-    public bool RubOutName() => NameKey(entry => entry.RubOut());
+    public bool RubOutName() => NameEntryOpen && System.RubOutName();
 
     /// <summary>Confirms the name, as OK does.</summary>
-    public bool ConfirmName() => NameKey(entry => entry.Confirm());
+    public bool ConfirmName() => NameEntryOpen && System.ConfirmName();
 
     /// <summary>Cancels the name entry.</summary>
-    public bool CancelName() => NameKey(entry => entry.Back());
-
-    private bool NameKey(Action<NameEntry> act)
-    {
-        if (!NameEntryOpen)
-            return false;
-        act(System.Rename!);
-        System.Settle();
-        return true;
-    }
+    public bool CancelName() => NameEntryOpen && System.CancelName();
 }

@@ -13,9 +13,6 @@ public partial class SystemTabView
     /// </summary>
     private const int ControlsTop = 70, ControlsListTop = 88, ControlsLines = 9, ControlsValue = 188, ControlsRight = 304, ControlsFoot = 202;
 
-    /// <summary>A situation's heading on the Controls page: a darker brown than the rows.</summary>
-    private static readonly Rgba HeadingColor = new(90, 55, 45, 255);
-
     /// <summary>
     /// Where the Controls page's rows and headings are: each row's top and bottom, off the page for one scrolled out of view, and
     /// each heading in view with its top. The list scrolls to keep the cursor's row in the middle, as far as it can.
@@ -57,7 +54,7 @@ public partial class SystemTabView
     private void Controls(OptionsMenu options)
     {
         var (places, headings, above, below) = ControlPlaces(options);
-        var cursor = options.HighlightNow;
+        var cursor = options.Pulse.Now(Style.Text, Style.OptionsCursor);
         for (var i = 0; i < places.Count; i++)
         {
             var top = places[i].Top;
@@ -66,14 +63,14 @@ public partial class SystemTabView
             var row = options.Rows.Rows[i];
             // The row waiting for an input stops pulsing, in the headings' darker brown, so the prompt reads at once.
             var waiting = options.Prompt is { } prompt && prompt.Control == row.Control;
-            var color = waiting ? HeadingColor : i == options.Rows.Cursor ? cursor : OptionsMenu.TextColor;
+            var color = waiting ? Style.Heading : i == options.Rows.Cursor ? cursor : Style.Text;
             _ui.Text(this, _ui.Main, row.Label, ChoiceLabel, top, color);
             var value = waiting ? options.PromptText! : row.ValueName ?? "";
             var font = _ui.Main.Width(value) <= ControlsRight - ControlsValue ? _ui.Main : _ui.Slim;
             _ui.Text(this, font, value, ControlsValue, top, color);
         }
         foreach (var (text, top) in headings)
-            CentredText(text, FrameWidth / 2 + 8, top, HeadingColor);
+            CentredText(text, FrameWidth / 2 + 8, top, Style.Heading);
         // The list's arrow, turned to point up and down.
         var arrow = _ui.Size(MenuImages.SliderRight);
         if (above)
@@ -82,14 +79,14 @@ public partial class SystemTabView
             TurnedArrow(ControlsRight, ControlsListTop + ControlsLines * ChoicePitch - arrow.X - 2, Mathf.Pi / 2);
         var foot = options.Message ?? (options.Prompt is null && options.Rows.Current?.Kind == OptionKind.Binding ? options.ClearHint : null);
         if (foot is not null)
-            CentredText(foot, FrameWidth / 2 + 8, ControlsFoot, OptionsMenu.TextColor);
+            CentredText(foot, FrameWidth / 2 + 8, ControlsFoot, Style.Text);
     }
 
     /// <summary>The list's arrow (<c>0x3757</c>, pointing right) turned about its corner at (x, y) in the frame.</summary>
     private void TurnedArrow(int x, int y, float angle)
     {
         DrawSetTransform(_origin + new Vector2(x, y), angle);
-        _ui.Image(this, MenuImages.SliderRight, 0, 0, color: OptionsMenu.TextColor);
+        _ui.Image(this, MenuImages.SliderRight, 0, 0, color: Style.Text);
         DrawSetTransform(_origin);
     }
 }

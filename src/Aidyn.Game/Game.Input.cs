@@ -126,11 +126,18 @@ public partial class Game
     /// </summary>
     private bool BindPrompted(GameSession session, InputEvent e)
     {
-        if (session.Mode != GameMode.Menu || session.Menu.System is not { Page: SystemPage.Options, Options: { Prompt: not null } options })
+        var system = session.Mode switch
+        {
+            GameMode.Menu => session.Menu.System,
+            GameMode.Title => session.Title!.Menu,
+            _ => null,
+        };
+        if (system is not { Page: SystemPage.Options, Options: { Prompt: not null } options })
             return false;
         if (InputBindings.Of(e) is { } binding)
             options.Bind(binding);
         _menu!.Redraw();
+        _titleLayer?.Redraw();
         GetViewport().SetInputAsHandled();
         return true;
     }

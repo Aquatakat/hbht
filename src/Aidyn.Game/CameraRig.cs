@@ -73,6 +73,12 @@ public partial class CameraRig : Node3D
             _camera.LookAtFromPosition(from, to, Vector3.Up);
     }
 
+    /// <summary>
+    /// Puts the view where a camera of a scene's animation is, roll and all, as the title's fly-throughs move it, with no follow camera
+    /// (<see cref="Follow"/> null). Call after each tick.
+    /// </summary>
+    public void ShowFrom(Transform3D transform) => _camera.GlobalTransform = transform;
+
     /// <summary>The mouse movement, in pixels, since the last call, while it steers.</summary>
     public Vector2 TakeDrag()
     {

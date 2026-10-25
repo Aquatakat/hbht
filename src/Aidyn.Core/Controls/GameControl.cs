@@ -186,7 +186,7 @@ public static class Situations
     public static Situation Of(GameMode mode) => mode switch
     {
         GameMode.Trek => Situation.Trek,
-        GameMode.Menu => Situation.Menus,
+        GameMode.Menu or GameMode.Title => Situation.Menus,
         GameMode.Combat => Situation.Combat | Situation.Aiming,
         _ => Situation.Talking,
     };

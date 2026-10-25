@@ -4,9 +4,12 @@ namespace Aidyn.Rom.Engine;
 /// <param name="Animation">The Borg6 that moves the camera (<c>FUN_80096098</c>, which loads it).</param>
 /// <param name="Row">Stored in <c>Zones.Row</c> (<c>0x800D83FA</c>).</param>
 /// <param name="Column">Stored in <c>Zones.Column</c> (<c>0x800D83FC</c>).</param>
-/// <param name="Unread1">Stored at <c>0x800D90DC</c>, which no code reads.</param>
-/// <param name="Unread2">Stored at <c>0x800D90DE</c>, which no code reads.</param>
-public sealed record Flycam(int Animation, int Row, int Column, int Unread1, int Unread2);
+/// <param name="OriginRow">
+/// Stored at <c>0x800D90DC</c>: the row of the chunk whose corner the animation's coordinates are from. No code names the address
+/// directly but the store; the camera's paths run a few units over the ground from that corner and from no other.
+/// </param>
+/// <param name="OriginColumn">Stored at <c>0x800D90DE</c>: that chunk's column.</param>
+public sealed record Flycam(int Animation, int Row, int Column, int OriginRow, int OriginColumn);
 
 /// <summary>The title screen's tables in the code segment.</summary>
 public static class TitleTables
@@ -39,7 +42,7 @@ public static class TitleTables
                 if (Be.U16(data, at + field * 4) != 0)
                     throw new InvalidDataException($"A fly-through's field {field} is over 16 bits.");
             flycams.Add(new Flycam((int)Be.U32(data, at), Row: Be.U16(data, at + 0xE), Column: Be.U16(data, at + 0x12),
-                Unread1: Be.U16(data, at + 6), Unread2: Be.U16(data, at + 0xA)));
+                OriginRow: Be.U16(data, at + 6), OriginColumn: Be.U16(data, at + 0xA)));
         }
         return flycams;
     }

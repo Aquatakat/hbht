@@ -69,9 +69,24 @@ public abstract record Transition
 
     /// <summary>
     /// The game is over (a trigger's <see cref="TriggerEffect.GameOver"/>, as the game over's death scene ends, or the ending's
-    /// credits): the original goes back to the title, and the runtime loads the last save, the user's choice.
+    /// credits): the game starts again at the title (<c>Game.Restart</c>, <c>0x8001f284</c>, by way of the intro cards).
     /// </summary>
     public sealed record GameOver : Transition;
+
+    /// <summary>The title shows (<see cref="GameSession.ShowTitle"/>): its cards, or the title over its fly-throughs, with trek's world gone.</summary>
+    public sealed record ShowTitle(TitleScreen Title) : Transition;
+
+    /// <summary>
+    /// A fly-through starts on the title, its scenery the Overworld's chunks about it in a zone engine of its own (<c>Title.StartScenery</c>).
+    /// Its animation's coordinates are from the corner of its origin chunk (<see cref="TitleFlycam.OriginRow"/>): <paramref name="Corner"/> in the world's.
+    /// </summary>
+    public sealed record StartTitleScenery(TitleFlycam Flycam, ZoneEngine Scenery, System.Numerics.Vector3 Corner) : Transition;
+
+    /// <summary>A fly-through's scenery has gone (<c>Title.FreeScenery</c>, <c>0x80055698</c>), as the next starts or the title ends.</summary>
+    public sealed record EndTitleScenery : Transition;
+
+    /// <summary>The title has ended (<c>Title.Leave</c>, <c>0x80055718</c>), its music stopped, as New Game begins the game.</summary>
+    public sealed record EndTitle : Transition;
 
     /// <summary>The party camped, as the World tab's Camp asked (<see cref="TrekLoop.Camp"/>).</summary>
     public sealed record Camp(CampOutcome Outcome) : Transition;

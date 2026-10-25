@@ -63,6 +63,9 @@ public partial class SystemTabView : Control
 
     public SystemMenu Menu { get; set; }
 
+    /// <summary>The colours the pages are drawn in, and whether on the parchment or each on a box: the pause menu's or the title's.</summary>
+    private SystemStyle Style => Menu.Style;
+
     /// <summary>How far the widgets are faded into the parchment, from 0 to 1, as on <see cref="PartyTabView.Veil"/>.</summary>
     public float Veil { get; set; }
 
@@ -99,8 +102,8 @@ public partial class SystemTabView : Control
         switch (Menu.Page)
         {
             case SystemPage.List:
-                var top = ListTop() + 24 + 16;
-                var row = (int)Math.Floor((at.Y - top + 2) / ListPitch);
+                var top = RowsTop();
+                var row = (int)Math.Floor((at.Y - top + 2) / RowPitch);
                 return at.X >= ListCentre - 70 && at.X < ListCentre + 70 && row >= 0 && row < Menu.Items.Rows.Count ? row : null;
             case SystemPage.Options when Menu.Options is { } options:
                 var rows = OptionRows(options);
@@ -126,9 +129,18 @@ public partial class SystemTabView : Control
         var size = new Vector2I((int)Size.X, (int)Size.Y);
         _origin = Origin();
         DrawSetTransform(_origin);
-        _ui.Image(this, MenuImages.SystemTab, 0, 0);
-        // The page, and the one before fading out over it (OptionsMenu.Step, 0x8003f81c).
-        Page(new SystemScreen(Menu.Page, Menu.Options, Menu.Saves, Menu.Rename, Menu.Theatre), Menu.PageAlpha);
+        if (Style.Parchment)
+            _ui.Image(this, MenuImages.SystemTab, 0, 0);
+        // The page, and the one before fading out over it (OptionsMenu.Step, 0x8003f81c). The title's are each on their box, the boxes
+        // drawn first by the pages' alphas (IntroMenu.Draw, 0x80042aa8).
+        var showing = new SystemScreen(Menu.Page, Menu.Options, Menu.Saves, Menu.Rename, Menu.Theatre);
+        if (!Style.Parchment)
+        {
+            Box(showing, Menu.PageAlpha);
+            if (Menu.Outgoing is { } fading)
+                Box(fading, Menu.OutgoingAlpha);
+        }
+        Page(showing, Menu.PageAlpha);
         if (Menu.Outgoing is { } outgoing)
             Page(outgoing, Menu.OutgoingAlpha);
         if (Veil > 0)
@@ -163,22 +175,73 @@ public partial class SystemTabView : Control
         _ui.Opacity = 1;
     }
 
-    /// <summary>The title and the list are centred together down the frame.</summary>
-    private int ListTop() => (FrameHeight - (24 + Menu.Items.Rows.Count * 11 + (Menu.Items.Rows.Count - 1) * 5 + 16)) / 2;
+    /// <summary>
+    /// The title's list (<c>IntroMenu.MakeList</c>, <c>0x80043ae8</c>): the title's top, and the rows', 19 apart, the scroll menu's gap of 8
+    /// under each line of 11; its box (<c>IntroMenu.ShowList</c>) reaches 66 either side of the list's centre, 48 above the rows and 68 below.
+    /// </summary>
+    private const int TitleListTop = 75, TitleRowsTop = 115, TitleRowPitch = 19;
+
+    private static readonly ScreenRect TitleListBox = new(94, 67, 226, 183);
+
+    /// <summary>The name entry's box (<c>IntroMenu.ShowNameEntry</c>, <c>0x800437f8</c>): from 8 left of the grid, and from y 43 to 179.</summary>
+    private static readonly ScreenRect NameBox = new(52, 43, 268, 179);
+
+    /// <summary>The list's title's top: the pause menu's is centred down the frame with the rows, the title's at 75.</summary>
+    private int ListTop() => Menu.Title ? TitleListTop
+        : (FrameHeight - (24 + Menu.Items.Rows.Count * 11 + (Menu.Items.Rows.Count - 1) * 5 + 16)) / 2;
+
+    /// <summary>The first row's top: 16 under the title in the pause menu, at 115 in the title's.</summary>
+    private int RowsTop() => Menu.Title ? TitleRowsTop : ListTop() + 24 + 16;
+
+    private int RowPitch => Menu.Title ? TitleRowPitch : ListPitch;
 
     private void List()
     {
-        var top = ListTop();
-        CentredImage(MenuImages.MenuTitle, ListCentre, top);
-        var y = top + 24 + 16;
-        var cursor = Menu.Pulse.Now(PartyMenu.HighlightFrom, PartyMenu.HighlightColor);
+        CentredImage(MenuImages.MenuTitle, ListCentre, ListTop());
+        var y = RowsTop();
+        var cursor = Menu.Pulse.Now(Style.CursorFrom, Style.CursorTo);
         for (var i = 0; i < Menu.Items.Rows.Count; i++)
         {
             var item = Menu.Items.Rows[i];
-            var color = i == Menu.Items.Cursor ? cursor : SystemMenu.TextColor;
-            CentredText(Menu.Label(item), ListCentre, y + i * ListPitch, color);
+            var color = i == Menu.Items.Cursor ? cursor : Style.Text;
+            CentredText(Menu.Label(item), ListCentre, y + i * RowPitch, color);
         }
-        _ui.Image(this, MenuImages.SliderRight, ListArrow.X, ListArrow.Y, color: SystemMenu.TextColor);
+        // The arrow to the Party tab; the title has no tabs.
+        if (!Menu.Title)
+            _ui.Image(this, MenuImages.SliderRight, ListArrow.X, ListArrow.Y, color: Style.Text);
+    }
+
+    /// <summary>
+    /// The title's feathered black box behind a page (<c>IntroMenu_ShadowBG</c>, <c>0x80042eb0</c>), at the page's alpha: the list's, the
+    /// name entry's and the save screen's where the original has them, and the options' about what each of the port's pages shows.
+    /// </summary>
+    private void Box(SystemScreen screen, byte alpha)
+    {
+        ScreenRect? band = screen.Page switch
+        {
+            SystemPage.List => TitleListBox,
+            SystemPage.Rename => NameBox,
+            SystemPage.Saves => new ScreenRect(SlotPanel.Position.X, SlotPanel.Position.Y, SlotPanel.End.X, SlotPanel.End.Y),
+            SystemPage.Options when screen.Options is { } options => OptionsBox(options),
+            _ => null,
+        };
+        if (band is { } b)
+            _ui.Images.DrawPanel(this, _ui.Images.Around(b), alpha / 255f);
+    }
+
+    /// <summary>The options' box: from 6 above the title to 8 under the last row, and 12 beyond the widest row either side.</summary>
+    private ScreenRect OptionsBox(OptionsMenu options)
+    {
+        var rows = OptionRows(options);
+        var bottom = rows.Where(r => r.Top >= 0).Select(r => r.Bottom).DefaultIfEmpty(OptionsTop).Max();
+        if (options.Page == OptionsPage.Controls)
+            bottom = ControlsFoot + _ui.Main.LineHeight;
+        var (left, right) = options.Page switch
+        {
+            OptionsPage.Main or OptionsPage.Audio => (OptionsLeft, OptionsLeft + _ui.Size(MenuImages.VolumeBar).X),
+            _ => (ChoiceLabel, ControlsRight),
+        };
+        return new ScreenRect(left - 12, OptionsTitleTop - 6, right + 12, bottom + 8);
     }
 
     /// <summary>
@@ -234,13 +297,13 @@ public partial class SystemTabView : Control
             return;
         }
         var rows = OptionRows(options);
-        var cursor = options.HighlightNow;
+        var cursor = options.Pulse.Now(Style.Text, Style.OptionsCursor);
         var bar = _ui.Size(MenuImages.VolumeBar);
         for (var i = 0; i < rows.Count; i++)
         {
             var row = options.Rows.Rows[i];
             var top = rows[i].Top;
-            var color = i == options.Rows.Cursor ? cursor : OptionsMenu.TextColor;
+            var color = i == options.Rows.Cursor ? cursor : Style.Text;
             if (HasChoices(options))
             {
                 _ui.Text(this, _ui.Main, row.Label, ChoiceLabel, top, color);
@@ -252,9 +315,9 @@ public partial class SystemTabView : Control
             {
                 // The rope whole and faint, then again in the rows' colour as far as the volume reaches.
                 var y = top + _ui.Main.LineHeight;
-                _ui.Image(this, MenuImages.VolumeBar, OptionsLeft, y, color: OptionsMenu.BarEmpty);
+                _ui.Image(this, MenuImages.VolumeBar, OptionsLeft, y, color: Style.BarEmpty);
                 _ui.ImageTo(this, MenuImages.VolumeBar, OptionsLeft, y, bar, OptionsLeft + bar.X * row.Value / Core.Settings.MaxVolume,
-                    OptionsMenu.TextColor);
+                    Style.Text);
             }
         }
     }
@@ -270,10 +333,10 @@ public partial class SystemTabView : Control
             SlidingPages(saves, slide);
         else
             SlotPage(saves, saves.Slot, 0, null);
-        var cursor = saves.Pulse.Now(PartyMenu.HighlightFrom, PartyMenu.HighlightColor);
+        var cursor = saves.Pulse.Now(Style.CursorFrom, Style.CursorTo);
         for (var i = 0; i < saves.Actions.Rows.Count; i++)
         {
-            var color = i == saves.Actions.Cursor && saves.Choice is null ? cursor : SaveMenu.TextColor;
+            var color = i == saves.Actions.Cursor && saves.Choice is null ? cursor : Style.Text;
             _ui.Text(this, _ui.Main, saves.Actions.Rows[i], SaveActions.X, SaveActions.Y + i * 11, color);
         }
     }
@@ -303,7 +366,7 @@ public partial class SystemTabView : Control
             _ => (Plugins.RecordId?)null,
         };
         if (arrow is { } a)
-            _ui.Image(this, a, SlotArrow.X + dx, SlotArrow.Y, color: SaveMenu.TextColor, clip: clip);
+            _ui.Image(this, a, SlotArrow.X + dx, SlotArrow.Y, color: Style.Text, clip: clip);
         if (saves.Slots.ElementAtOrDefault(index) is { } slot)
         {
             if (ScreenshotOf(slot) is { } shot)
@@ -314,13 +377,13 @@ public partial class SystemTabView : Control
             // A checkpoint's label can be longer than a name: in the slim font if the main one runs off the parchment.
             var name = saves.Name(slot);
             _ui.Text(this, _ui.Main.Width(name) <= FrameWidth - 8 - SlotName.X ? _ui.Main : _ui.Slim, name, SlotName.X + dx, SlotName.Y,
-                SaveMenu.TextColor, clip);
-            _ui.Text(this, _ui.Main, saves.Hours(slot), SlotHours.X + dx, SlotHours.Y, SaveMenu.TextColor, clip);
+                Style.Text, clip);
+            _ui.Text(this, _ui.Main, saves.Hours(slot), SlotHours.X + dx, SlotHours.Y, Style.Text, clip);
         }
         else
         {
             _ui.Text(this, _ui.Main, saves.BlankOf(index) ?? "", SlotName.X + dx, SlotName.Y,
-                new ScreenRect(SlotName.X + dx, 0, FrameWidth - 12 + dx, FrameHeight), SaveMenu.BlankColor, clip);
+                new ScreenRect(SlotName.X + dx, 0, FrameWidth - 12 + dx, FrameHeight), Style.Blank, clip);
         }
     }
 
@@ -348,7 +411,7 @@ public partial class SystemTabView : Control
         for (var i = 0; i < name.Length; i++)
         {
             var c = name[i].ToString();
-            _ui.Text(this, _ui.Main, c, x, NameTop, i == entry.Slot ? chosen : SystemMenu.TextColor);
+            _ui.Text(this, _ui.Main, c, x, NameTop, i == entry.Slot ? chosen : Style.Text);
             x += _ui.Main.Width(c);
         }
         // The next letter's place, which the font's underscore (a diamond) can't show.
@@ -361,7 +424,7 @@ public partial class SystemTabView : Control
             if (k == entry.Key)
                 _ui.Image(this, MenuImages.KeyCursor, cell.X, cell.Y, color: chosen);
             _ui.Text(this, _ui.Main, key, cell.X + (KeySize - _ui.Main.Width(key)) / 2, cell.Y + (KeySize - _ui.Main.LineHeight) / 2 + 1,
-                k == entry.Key ? KeyUnderCursor : SystemMenu.TextColor);
+                k == entry.Key ? KeyUnderCursor : Style.Text);
         }
     }
 

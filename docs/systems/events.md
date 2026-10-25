@@ -20,7 +20,7 @@ ADR 0008's layer 2: *on an event, if its conditions hold, do its effects*. The c
 | `cinematic` | The cinematic `play` plays over everything; trek comes back after it unless its own end leads elsewhere | Yes |
 | `script` | The cut-scene a dialogue object (`from`, an `aidyn:voxel/…`) starts plays at once, on its stage from its reference points, with no trek before it | Yes |
 | `credits` | The credits roll; with `ending`, they can't be skipped, end with "The End", and end the game | Yes |
-| `gameOver` | The game is over: the original goes back to the title, and the runtime loads the last save (the user's choice for the game over, [combat](combat.md#in-and-out)) | Yes |
+| `gameOver` | The game is over: it goes back to the title, its intro cards first ([ui](ui.md#coming-back-to-it)) | Yes |
 
 Conditions and ops go through the script VM's own, `ScriptOps` in `Aidyn.Core.Scripts`, so they mask and roll as a node does, and the gold's and experience's sounds go to the session's host. A condition's or op's target is also the speaker `CheckSpeakerStat` reads and the member `AddExp` gives to. The one difference is that a trigger has no map object and keeps nothing: each `CheckSkill` rolls the party's check afresh, though it still rolls 0–21 while `randomSkillChecks` is set.
 
@@ -30,7 +30,7 @@ An effect that takes over from trek ends the firing: the triggers after it on th
 
 | Event | Subject | Fired | What the original does there |
 | --- | --- | --- | --- |
-| `game.started` | none | A new game, its world built, before trek's first tick (`GameSession.StartNewGame`, which the runtime calls) | The title's New Game (`Title.ModeFrame`, `0x800551c0`) loads the opening: `Cinematic.Load(0, 1, 1)` at `0x80055434` |
+| `game.started` | none | A new game, its world built, before trek's first tick (`GameSession.StartNewGame`, which the title's New Game calls, and the runtime for `--opening on`) | The title's New Game (`Title.ModeFrame`, `0x800551c0`) loads the opening: `Cinematic.Load(0, 1, 1)` at `0x80055434` |
 | `cinematic.ended` | the cinematic | A cinematic's end in the story, its done flag set (`GameSession.CinematicEnded`); not one played from the Theatre | `Cinematic.EndCase` (`0x80053c20`) switches on the kind `Cinematic.Load` was given (table `0x800D20B0`) |
 | `script.ended` | the script | A cut-scene's end, its done flag set and its stage gone (`GameSession.EndCutScene`) | `CutScene.Free` (`0x8005169c`) switches on the script's ending kind, which `Script.Start` (`0x8004ff80`) looked up in the endings table (`0x800DFE1C`, `CutScene.EndingKind` `0x800dfe4c`) |
 
@@ -57,7 +57,7 @@ Every kind of the endings table takes over from trek, so a cinematic after a cut
 ### Where the port differs
 
 - **A new game builds trek's world before the opening.** The original builds it only after script 866 has ended (`InitGameTrek` runs on `TrekLoop.Frame`'s first frame, with `TrekLoop.Restoring` clear, so the player arrives at the new game's place). The port builds it where the player arrives, plays the opening over it, frees it for 866's stage and builds it again there after: the same place and the same pictures.
-- **The ending's credits end the game** by `Transition.GameOver`, which in the runtime loads the last save, as after the game over: the runtime has no title screen.
+- **The ending's credits end the game** by `Transition.GameOver`, which goes back to the title, as after the game over.
 
 ## What else could move onto triggers
 

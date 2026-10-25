@@ -40,6 +40,12 @@ public enum PauseExitCode
     /// its own, where this is 1; the port keeps one list of the menu's endings.
     /// </summary>
     Flee = 6,
+
+    /// <summary>
+    /// The title menu's New Game, its name confirmed (<c>IntroMenu.Confirm</c>, <c>0x80043cfc</c>, state 6): the title fades out and the
+    /// game begins. The title's own; the port keeps one list of the System menu's endings.
+    /// </summary>
+    NewGame = 7,
 }
 
 /// <summary>
@@ -48,7 +54,8 @@ public enum PauseExitCode
 /// </summary>
 /// <param name="Cinematic">The cinematic the Theatre chose, for <see cref="PauseExitCode.Theatre"/>.</param>
 /// <param name="SavePath">The save the load screen chose, for <see cref="PauseExitCode.Load"/>.</param>
-public sealed record PauseExit(PauseExitCode Code, CinematicRecord? Cinematic = null, string? SavePath = null)
+/// <param name="Name">Alaron's name, for <see cref="PauseExitCode.NewGame"/>.</param>
+public sealed record PauseExit(PauseExitCode Code, CinematicRecord? Cinematic = null, string? SavePath = null, string? Name = null)
 {
     public static readonly PauseExit Close = new(PauseExitCode.Close);
 
@@ -67,4 +74,7 @@ public sealed record PauseExit(PauseExitCode Code, CinematicRecord? Cinematic = 
 
     /// <summary>The load screen chose the save at <paramref name="path"/>.</summary>
     public static PauseExit LoadFrom(string path) => new(PauseExitCode.Load, SavePath: path);
+
+    /// <summary>The title's name entry confirmed <paramref name="name"/> for a new game.</summary>
+    public static PauseExit NewGame(string name) => new(PauseExitCode.NewGame, Name: name);
 }

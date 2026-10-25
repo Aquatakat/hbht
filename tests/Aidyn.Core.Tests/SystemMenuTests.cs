@@ -317,7 +317,7 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         var party = TradeData.PartyOf(TradeData.Catalog(), ItemData.Flags(), Characters.Create(Characters.Alaron()));
         var system = new SystemMenu(fixture.Plugins, new Settings(), party, _saves);
 
-        Assert.Equal(Enum.GetValues<SystemItem>().Where(i => i != SystemItem.Flee), system.Items.Rows);
+        Assert.Equal(Enum.GetValues<SystemItem>().Where(i => i is not (SystemItem.Flee or SystemItem.NewGame)), system.Items.Rows);
         Assert.Equal("L160", system.Label(SystemItem.LoadGame));
         Assert.Equal("L377", system.Label(SystemItem.SaveGame));
         Assert.Equal("Credits", system.Label(SystemItem.Credits));

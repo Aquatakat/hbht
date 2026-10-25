@@ -15,13 +15,19 @@ public sealed record TitleRecord(RecordId Id, IReadOnlyList<TitleFlycam> Flycams
 /// </summary>
 /// <param name="Scene">The scene the animation drives, whose camera the shot is seen through (its Borg6's scene).</param>
 /// <param name="Animation">The Borg6 that moves the camera.</param>
+/// <param name="Length">
+/// The animation's length in ticks. The fly-through fades out over its last 100 and the next is built
+/// (<c>Title.SceneryFrame</c>, <c>0x80054F70</c>).
+/// </param>
 /// <param name="Row">The Overworld chunk the scenery is loaded round, as <c>Zones.Row</c>: 1-based, as in <see cref="ChunkEntry.Row"/>.</param>
 /// <param name="Column">As <see cref="Row"/>, <c>Zones.Column</c>.</param>
-/// <param name="Unread">
-/// Two more u16s in the table, which <c>Title.StartScenery</c> stores at <c>0x800D90DC</c> and <c>0x800D90DE</c> and nothing in 1.0's
-/// code reads. Each is within a few chunks of the row and column, so they may be a second chunk of the camera's route. Kept as they are.
+/// <param name="OriginRow">
+/// The chunk whose corner the animation's coordinates are from: its row, which <c>Title.StartScenery</c> stores at <c>0x800D90DC</c>
+/// (its column at <c>0x800D90DE</c>). Every fly-through's camera runs a few units over the ground from that corner, and from no other.
 /// </param>
+/// <param name="OriginColumn">As <see cref="OriginRow"/>.</param>
 /// <param name="NeedsExpansionPak">
 /// Skipped without the Expansion Pak (<c>Memory.HasExpansionPak</c>): the one at place 4, which goes on to place 5.
 /// </param>
-public sealed record TitleFlycam(RecordId Scene, RecordId Animation, int Row, int Column, IReadOnlyList<int> Unread, bool NeedsExpansionPak = false);
+public sealed record TitleFlycam(RecordId Scene, RecordId Animation, int Length, int Row, int Column, int OriginRow, int OriginColumn,
+    bool NeedsExpansionPak = false);

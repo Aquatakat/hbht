@@ -1,4 +1,4 @@
-# UI: text, the conversation box, the pause menu, the HUD and the battle screen (roadmap 1F, M2, M3)
+# UI: text, the conversation box, the pause menu, the title screen, the HUD and the battle screen (roadmap 1F, M2, M3)
 
 How the port lays out and draws the original's UI. The fonts and string tables are in [text](../formats/text.md), the menus' sounds in [audio](audio.md#sound-effects), and the runtime's controls in [runtime](runtime.md). Positions are in the original's 320 × 240 frame, and addresses are 1.0's.
 
@@ -200,7 +200,7 @@ A battle won (combat's state 12) goes to game mode 6, the pause menu's post-batt
 
 ### The System tab
 
-The pause menu's first tab (`WidgetOptionsMenu`, `MakeScrollList` at `0x8003f8c4`), with Options (`WidgetOptionsConfig`), the save and load screens (`WidgetContPakData`, `ControllerPakSliders`) and the name entry (`InputMenu`). `SystemMenu` in the core, with `OptionsMenu`, `SaveMenu` and `NameEntry`, drawn by `SystemTabView`. Everything is in the main font; only the Party tab's widgets use the slim one. The captures `roms/menu-main2*.png` are the title screen's, for later.
+The pause menu's first tab (`WidgetOptionsMenu`, `MakeScrollList` at `0x8003f8c4`), with Options (`WidgetOptionsConfig`), the save and load screens (`WidgetContPakData`, `ControllerPakSliders`) and the name entry (`InputMenu`). `SystemMenu` in the core, with `OptionsMenu`, `SaveMenu` and `NameEntry`, drawn by `SystemTabView`. Everything is in the main font; only the Party tab's widgets use the slim one. The title screen's menu is the same pages in its own colours ([below](#the-menu)).
 
 - **The tab** is `0x00D8`, plain parchment. The wooden roller is the 3D scroll's.
 - **The list:** the title `0x00F2` ("Menu", 60 × 24), centred, then 16 below it six rows 16 apart, centred on x 160, in (130, 80, 80), the cursor's pulsing. The title and list are centred down the frame together, which puts the title at y 54 and the first row at 94. The rows are Load Game, Save Game, Options, Theater, Credits and Help (common lines 160, 377, 161, 162, a literal "Credits" in the code, and 173). In combat (game mode 3, `OptionsMenu.OptionsMenu`'s branch at `0x8003F8C4`) it lists only Options, and Flee (common line 378) while the party can flee and the pause came from a turn (combat's state 14); Flee closes the menu at once, with no confirmation, and the party flees ([combat](combat.md#in-and-out)). Its rows are centred down the frame with the title as trek's six are, which the user's screenshot of the original matches. A turn's pause has the System and Party tabs and opens on the Party tab; a pause from any other state (27) has the System tab alone (`Combat.PauseRequested`, `0x800D9588`; `PauseMenu.OnTabForward`, `0x8002F948`, never goes on to the World tab in combat). `PauseMenu.OpenCombat` opens it. The cursor starts on the first row at each opening. Under the list, the arrow `0x3757` (right only) at (170, 204).
@@ -374,7 +374,66 @@ The credits widget (game mode 0x13, `Credits.Frame` at `0x8001f648`, `Credits.St
 - **The music:** `Credits.Start` plays 0x05D9 (the sounds record's `Credits`), looped, at the music volume as it is then, and sets the sound and music volumes to 0, so trek's music and the map's sounds go on silently under it (`ProcessAudioBubbles` keeps running; `GameAudio.Muted` in the port). As they end (`Credits.Destroy`, `0x8002c5a0`) 0x05D9 stops at once and the volumes are set back. The calendar and the weather stand still; the play time counts on.
 - **The way out:** the System tab's credits return mode 9: trek fades in from black over 30 ticks (`0x800ce214`, 1/30), with input ignored, and then the menu opens on the System tab's list with the cursor on Load Game, rolling in as it always does. The original skips the fade-in the first time after the console starts (its flag `0x800db06c` is 0 only then); the Theatre's way back shares this. The port always fades in.
 - **In the port** they're drawn on a UI screen of their own, as tall as the menu's lines, with the cards centred across and down it.
-- **The runtime has no title** to go back to after the ending's: it loads the save the game last came from or went to, or with none starts a new game, the user's choice.
+- **After the ending's**, the game goes back to the title, its intro cards first ([the title screen](#coming-back-to-it)).
+
+## The title screen
+
+The intro cards and the title (`Title.Frame` `0x8001b154`, then game mode 0xF, `Title.ModeFrame` `0x800551c0`), with its menu (`IntroMenu`, built by `IntroMenu.Build` `0x800429b8`). `TitleScreen` and `IntroCards` in the core, which the session shows over a new game's session (`GameSession.ShowTitle`) and steps as its own mode, `GameMode.Title`; `TitleLayer` and `Game.Title.cs` in the runtime draw it. The user's captures are `roms/intro-*.png` and `roms/menu-main2*.png`.
+
+### Power-on
+
+`App.Init` (`0x8001ac7c`) sets `App.State` (`0x800d808c`) to 5, and `HandleAppFrame` switches on it: 5 checks the region (a PAL console gets Borg8 `0x37C3`, "This game is not designed for use on this system", for ever) and the controller (none: "WARNING NO CONTROLLER", `0xFB`, state 4, for ever); 3 is the Controller Pak's check (`PakCheck.Frame`, `0x80082280`: Start held at boot opens its manager, and a pak with no note and fewer than 28 free pages gets the Controller strings' screens); then 0, the cards, and 1, the game's modes, whose first call is `Game.Restart` (`0x8001f284`): mode 0xF, the title, fading in. The port has none of the checks: its saves are files.
+
+### The intro cards
+
+`Title.CardsFrame` (`0x8001b614`) clears the screen to black and steps a state machine (`0x800d80a8`) through five cards, each its own state and alpha. The title's music starts with them (`Title.StartMusic`, `0x8001b0b0`): 0x0632 (0x05D9 without the Pak), looped at the music volume, which plays on under the title; nothing else sounds on the cards.
+
+| Card | State | What it draws | Hold |
+| --- | --- | --- | --- |
+| The Expansion Pak | 5, `0x8001b86c` | Borg8 `0x3758`, "Expansion Pak Enhanced / Expansion Pak Detected" (`0x3759`, "No Expansion Pak Detected", without it) | 30 |
+| The legal text | 4, `0x8001b9bc` | The Copyright string table's 12 lines in the slim font, each centred (`Title.LegalLine`, `0x8001b928`), from y 59, 9 a line and 5 more after lines 1, 3 and 7 | 120 |
+| The N64 logo | 1, `0x8001bba8` | Scene `0x25A8`, not animated, seen from a camera going round it 40 out and 15 up, looking at its origin, 2° a tick from 0 (`Title.LogoAngle`, `0x800daebc`), with its own 45° and planes of 1 and 256, tinted grey by the fade; and "Licensed by Nintendo", `0x00FA`, centred at y 190 | 120 |
+| THQ | 2, `0x8001be3c` | `0x0101` | 120 |
+| H2O | 3, `0x8001bf10` | `0x00DE` | 120 |
+
+- **The images** are centred, white at the card's alpha (`Title.DrawCardImage`, `0x8001b778`). The legal text and the caption have every byte of their colour the alpha, so they fade as its square.
+- **The fade** (`Title.CardFade`, `0x8001b250`): 15 more a tick until it's whole (17 ticks), the hold, 15 less a tick to 0 (17 ticks), and black until 36 ticks from when it began to fade out; the next card starts on the tick after. 53 ticks and the hold a card, 775 ticks in all, about 13 seconds.
+- **Ticks:** the cards step once a pad event, which the controller's thread pushes once a 60 Hz retrace (`Input.Thread`, `0x80091344`), so a tick each whatever the frame rate. The menu's fades and blink step the same way.
+- **No button skips them** in the original: the pad's events are only counted. **The port lets A, B or Start skip all five** to the title when there's a saved game to load, the user's choice (`IntroCards.Skippable`); with none they play through.
+- **In the port** the cards are drawn in the 320 × 240 frame at the centre of the title's own UI screen, which follows Menu Size, so they shrink with the menus; the N64 logo's scene is drawn in a view of the frame's size on that screen.
+
+### The title
+
+`Title.Build` (`0x80054f04`) makes the menu and the scenery; then each frame `Title.Input` (`0x80055560`) hands the pad's events to the menu, the sky is drawn with the weather restored to clear (`Weather.Restore` with nothing), then the scenery and the menu, and the music's volume follows the Audio page.
+
+- **The fly-throughs** (`Title.StartScenery` `0x80054d70`, `Title.SceneryFrame` `0x80054f70`, the title record's `flycams`): a scene with a camera, moved by its Borg6 at a tick a tick, over the Overworld's chunks round the fly-through's row and column (`InitZoneEngine(2, 0)`). Its coordinates are from the corner of the fly-through's origin chunk (`originRow`, `originColumn`, the two u16s stored at `0x800D90DC` and `0x800D90DE`): from that corner, and no other, every fly-through's camera runs a few units over the ground. The clock stands at a new game's noon (`Game.Init`, which `Game.Restart` runs; `GameClock.Step` is trek's alone).
+- **Their fades:** the first fades in from black over 15 ticks. Once its animation is within 101 ticks of its end, it fades out over 100 (0.01 a tick), its scenery goes (`Title.FreeScenery`, `0x80055698`), and the next builds and fades in over 100, after the sixth the first. Without the Pak the fifth is passed over. The place (`Title.FlycamPlace`, `0x800e0a54`) moves on only once one has ended, and nothing resets it, so going back to the title shows the place it last left.
+- **The logo** (`IntroMenu.ShowPressStart`, `0x800432b4`): its shadow, the grey `0x0104` (213 × 180), at (40, 20), the logo `0x0103` over it at (54, 20), and PRESS START, the image `0x0102`, at (123, 205), 5 under the shadow, all white at the logo's alpha, which rises 20 a tick from 0. **PRESS START blinks** (`IntroMenu.Blink`, `0x80042e5c`): a count to 101, then back to 70, turning it on or off each time, so it's hidden for 101 ticks and then shown and hidden 31 each.
+- **A, B or Start** bring the menu up (`IntroMenu.OnA` `0x800442b4`, `OnB` `0x800440d8`, `OnStart` `0x800441c8`, all `IntroMenu.ShowList` `0x80043598`), each with its sound: the logo fades out 20 a tick as the list fades in, and nothing takes a press until both have (`IntroMenu.Input`, `0x80043e44`). Up and down play the cursor's sound even here.
+- **No idle timeout:** the title never goes back to the cards or to a demo, and it can't start the credits (`Credits.Source` 0 is only the unwritten default).
+
+### The menu
+
+The pause menu's System tab's pages (`SystemMenu` with `title`), in the title's colours on feathered black boxes (`SystemStyle.Title`), so a change to a page changes both, the user's choice: the list, the options, the load screen and the name entry are laid out where the System tab has them, but for the list.
+
+- **The list** (`IntroMenu.MakeList`, `0x80043ae8`): the title `0x00F2` at (130, 75), and New Game, Load Game and Options (common lines 159–161) centred on x 160 from y 115, 19 apart (the scroll menu's gap of 8 under each line), in off-white (225, 225, 225), the cursor's row pulsing between the scroll menu's grey (100, 100, 100, 100) and white. Load Game is always there, saves or none. **B does nothing** on it; Start chooses, as A does.
+- **The boxes** (`IntroMenu_ShadowBG`, `IntroMenu.ShadowBox` `0x80042eb0`): the conversation box's band and gradients, black, each page's at its alpha as the pages crossfade (`IntroMenu.Draw`, `0x80042aa8`). The list's is (94, 67)–(226, 183), the name entry's (52, 43)–(268, 179) and the load screen's the save screen's group box. The original's options box runs from 16 left of the page and 40 above it to 192 right and 20 below its last row; the port's options pages differ, so each is boxed 12 beyond its widest row either side, from 6 above the title to 8 under the last row.
+- **The pages crossfade** 20 a tick, 13 ticks (`IntroMenu.Step`, `0x80042d0c`), where the System tab's do 60, and take no press until they've settled.
+- **New Game** (`IntroMenu.ShowNameEntry`, `0x800437f8`) opens the name entry on Alaron's name ([renaming Alaron](#renaming-alaron)). OK, or Start twice, confirms (`IntroMenu.Confirm`, `0x80043cfc`, state 6); B or the cancel key goes back to the list.
+- **Load Game** (`IntroMenu.ShowLoad`, `0x800439a8`) opens the pause menu's load screen in the title's colours. The original's is 16 further left (51, 24), without the System roller to clear; the port keeps the System tab's place. **A and Start make no sound** on it. B goes back to the list (`IntroMenu.OnLoadBack`, `0x80043984`).
+- **Options** (`IntroMenu.ShowOptions`, `0x800436c8`; `OptionsPage.Create` with 0) is the port's options, without Rename Character, as the original's leaves out its GAME rows.
+- **Leaving:** a confirmed name, or a save chosen, fades the whole screen out by 0.05 a tick, 20 ticks (`Title.Action`, `0x800d958c`). Then `Title.Leave` (`0x80055718`) stops the title's music, and New Game loads the opening (`Cinematic.Load(0, 1, 1)` at `0x80055434`), a loaded game going straight to trek. In the port, New Game names Alaron, builds trek's world where a new game arrives and fires `game.started` ([events](events.md)) on the same session; a save chosen is loaded as the System tab's Load does ([runtime](runtime.md)).
+- **The sounds** (`IntroMenu.OnUp` `0x80044020` on): the cursor `0x073B` for up and down, A `0x0740` for A and Start, B `0x0741`, and the System tab's for the stick's left and right on the options.
+
+### Coming back to it
+
+Alaron's death and the ending's credits restart the game at the title: the death scene's ending kind 2 makes `CutScene.Free` (`0x8005169c`) return mode 0, and the ending's credits' end (`Credits.Frame`, `0x8001f648`, with `Credits.Source` 2) does the same; `ScreenFade.Step` frees the game and `App.State` goes back to 0, so **the five cards play again** before `Game.Restart` builds the title, on the fly-through it last showed. In the port both are `Transition.GameOver` ([events](events.md)), and the runtime starts its scene again on the title with a new game (`Game.GameOver`), its cards skippable as at launch.
+
+### In the port
+
+- **The session** (`GameSession.ShowTitle`): trek's world is freed and its music stopped; the title's music plays as the zone engine's, and its scenery's chunks skip their music objects, as the original's do on `Zones.Mode` 2 (`MapSounds.SkipsMusic`). Each fly-through's scenery is a stage of trek's zone engine on the Overworld (`GameSession.Scenery`), its chunks following the camera, its sounds heard from it, and the sky entering its chunk. No time is played on the title.
+- **The camera:** the runtime poses the fly-through's scene, hidden, at the title's time (`FlycamDriver`), its root at the origin chunk's corner, puts the view where its camera is, roll and all (`CameraRig.ShowFrom`), and tells the core (`TitleScreen.Look`). The view's field of view is trek's 45°, near 0.1 and the sky's far plane.
+- **The fades:** the fly-through's darkens the world (the trek UI's black layer), under the logo and the menu; the leaving fade darkens everything.
 
 ## Books and the help menu
 
