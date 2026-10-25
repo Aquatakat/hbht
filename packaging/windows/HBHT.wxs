@@ -1,0 +1,53 @@
+<!--
+  The Windows installer (docs/systems/releases.md). tools/package.ps1 builds it with
+  `wix build`, passing the version, the laid-out folder and the license as RTF:
+    -d Version=N.0.0 -d AppDir=<folder> -d LicenseRtf=<License.rtf> -d Icon=<hbht.ico>
+
+  Per-machine, into Program Files\HBHT, with Start menu shortcuts for both apps. The
+  UpgradeCode never changes: it is how a new release finds and replaces the old one.
+  The installer never writes the player's data folder (%LOCALAPPDATA%\HBHT), so
+  uninstalling leaves it alone.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package Name="HBHT"
+           Manufacturer="Aquatakat"
+           Version="$(var.Version)"
+           UpgradeCode="C3BB1BC3-1962-4840-A018-62B73223BA8A"
+           Scope="perMachine"
+           Language="1033">
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of HBHT is already installed." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <Icon Id="hbht.ico" SourceFile="$(var.Icon)" />
+    <Property Id="ARPPRODUCTICON" Value="hbht.ico" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/Aquatakat/hbht" />
+
+    <!-- One page with the license and Install. -->
+    <WixVariable Id="WixUILicenseRtf" Value="$(var.LicenseRtf)" />
+    <ui:WixUI Id="WixUI_Minimal" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="HBHT" />
+    </StandardDirectory>
+
+    <Feature Id="HBHT">
+      <ComponentGroupRef Id="AppFiles" />
+    </Feature>
+  </Package>
+
+  <Fragment>
+    <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
+      <!-- Everything laid out: the executables, the PCKs, the .NET data folders, LICENSE and README.md. -->
+      <Files Include="$(var.AppDir)\**" />
+      <!-- The shortcuts are in the all-users Start menu. Windows Installer's checks (ICE43,
+           ICE57) want a shortcut's component kept by a per-user registry value, which this is. -->
+      <Component Id="Shortcuts" Directory="ProgramMenuFolder">
+        <Shortcut Id="GameShortcut" Name="HBHT" Target="[INSTALLFOLDER]hbht.exe" WorkingDirectory="INSTALLFOLDER" />
+        <Shortcut Id="EditorShortcut" Name="HBHT Editor" Target="[INSTALLFOLDER]hbht-editor.exe" WorkingDirectory="INSTALLFOLDER" />
+        <RegistryValue Root="HKCU" Key="Software\Aquatakat\HBHT" Name="Shortcuts" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+</Wix>

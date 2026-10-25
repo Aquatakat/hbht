@@ -6,7 +6,9 @@ config_version=5
 
 config/name="HBHT"
 run/main_scene="res://Main.tscn"
+config/version="0"
 config/features=PackedStringArray("4.7", "C#", "Forward Plus")
+config/icon="res://icon.png"
 
 [dotnet]
 
@@ -20,3 +22,7 @@ window/size/viewport_height=960
 [physics]
 
 common/physics_interpolation=true
+
+[rendering]
+
+textures/vram_compression/import_etc2_astc=true

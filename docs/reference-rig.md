@@ -47,7 +47,7 @@ tools/godot.ps1 --path src/HBHT.Editor            # run the project
 tools/godot.ps1 -ExePath                              # print the executable's path
 ```
 
-- **The pin is in two places:** the version and hash in `tools/godot.ps1`, and `Godot.NET.Sdk/4.7.2` in each Godot project's `.csproj`. Change them together.
+- **The pin is in two places:** the version and the hashes of the editors and the export templates in `tools/godot-pin.ps1` (which `tools/godot.ps1` and the packaging script share, [releases](systems/releases.md)), and `Godot.NET.Sdk/4.7.2` in each Godot project's `.csproj`. Change them together.
 - **Godot projects state `TargetFramework` themselves.** The editor doesn't see `Directory.Build.props`, and if the `.csproj` has no `TargetFramework` it writes in its own default, `net8.0`, which can't reference the net10 libraries. Godot 4.7.2 runs net10 assemblies without trouble.
 - **No `.sln` is needed.** The editor builds the `.csproj`, and `dotnet build` builds Godot projects like any other, into `.godot/mono/temp/bin/`. The project's `.godot/` folder is a cache and is gitignored.
 

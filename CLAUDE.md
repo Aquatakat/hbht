@@ -13,7 +13,8 @@ Read what your task needs, not all of it.
 | How the original plays, from the player's side, written from memory | [docs/engine-behaviour.md](docs/engine-behaviour.md) |
 | How a ROM format is laid out, and what decoding it found | [docs/formats/](docs/formats/): `rom`, `db`, `textures`, `geometry`, `scenes`, `animation`, `actors`, `particles`, `dialogue`, `maps`, `quests`, `text`, `audio` |
 | Content the engine hardcodes, and which ADR 0008 layer it goes in | [docs/hardcoded-content.md](docs/hardcoded-content.md) |
-| How our code ports or runs a system | [docs/systems/](docs/systems/): `importer`, `plugins`, `runtime`, `movement`, `cameras`, `rendering`, `flags`, `scripts`, `characters`, `items`, `map-objects`, `wanderers`, `camping`, `combat`, `magic`, `saves`, `inspector`, `ui`, `audio`, `weather`, `cinematics`, `events` |
+| How our code ports or runs a system | [docs/systems/](docs/systems/): `importer`, `plugins`, `runtime`, `movement`, `cameras`, `rendering`, `flags`, `scripts`, `characters`, `items`, `map-objects`, `wanderers`, `camping`, `combat`, `magic`, `saves`, `editor`, `ui`, `audio`, `weather`, `cinematics`, `events` |
+| How the packages are built and laid out, and how the release workflow numbers and describes releases | [docs/systems/releases.md](docs/systems/releases.md) |
 | The user's notes from playing the runtime and timing the original | [docs/playtests.md](docs/playtests.md) |
 | What only the user can settle, in the emulator or the ROM | [docs/user-checks.md](docs/user-checks.md) |
 | The emulator, gdb, the pinned Godot, Ghidra, the ROMs, checkpoint save states, `tools/`, the code index and the symbol map, and finding the original's code in its machine code | [docs/reference-rig.md](docs/reference-rig.md) |
