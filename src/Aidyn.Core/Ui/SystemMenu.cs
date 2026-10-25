@@ -185,6 +185,9 @@ public sealed class SystemMenu
 
     public OptionsMenu? Options { get; private set; }
 
+    /// <summary>The window changed: the options' Video page, if it's open, lists what the screen allows now.</summary>
+    public void ScreenChanged() => Options?.Refresh(_screen());
+
     public SaveMenu? Saves { get; private set; }
 
     public NameEntry? Rename { get; private set; }

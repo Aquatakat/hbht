@@ -49,10 +49,16 @@ public sealed class Settings
     /// <summary>Borderless fullscreen at the screen's own resolution, or a window.</summary>
     public bool Fullscreen { get; set; }
 
-    /// <summary>The window's size while it's windowed, or 0 × 0 for whatever size it opens at.</summary>
+    /// <summary>
+    /// The window's size while it's windowed and not maximized, or 0 × 0 for whatever size it opens at. The runtime keeps it as the
+    /// player resizes the window by hand, too.
+    /// </summary>
     public int WindowWidth { get; set; }
 
     public int WindowHeight { get; set; }
+
+    /// <summary>Whether the window is maximized, by the options or by hand: <see cref="WindowWidth"/> × <see cref="WindowHeight"/> is then its size restored.</summary>
+    public bool Maximized { get; set; }
 
     public bool VSync { get; set; } = true;
 

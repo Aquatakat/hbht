@@ -109,7 +109,7 @@ public sealed partial class OptionsMenu
     public Rgba HighlightNow => Pulse.Now(TextColor, HighlightColor);
 
     private readonly bool _inGame;
-    private readonly ScreenInfo _screen;
+    private ScreenInfo _screen;
 
     /// <param name="screen">The screen the game is on, or <see cref="ScreenInfo.Default"/>.</param>
     public OptionsMenu(Settings settings, bool inGame, ScreenInfo? screen = null)
@@ -153,6 +153,17 @@ public sealed partial class OptionsMenu
             copy.Open(Page);
         copy.Rows.Point(Rows.Cursor);
         return copy;
+    }
+
+    /// <summary>
+    /// The window changed, by hand or as a setting was carried out: the Video page lists what the screen allows now, and shows the
+    /// window as it is.
+    /// </summary>
+    public void Refresh(ScreenInfo screen)
+    {
+        _screen = screen;
+        if (Page == OptionsPage.Video)
+            Rows.Rows = VideoRows();
     }
 
     public void Point(int row)
@@ -274,7 +285,7 @@ public sealed partial class OptionsMenu
     }
 
     /// <summary>
-    /// The Video page's rows. Window Size lists the sizes that fit the screen, and in fullscreen only the screen's own;
+    /// The Video page's rows. Window Size lists the sizes that fit the screen and Maximized, and in fullscreen only the screen's own;
     /// Render Resolution lists the line counts under the window's or screen's height at its shape, then its own and twice it.
     /// </summary>
     private List<OptionRow> VideoRows()
@@ -285,7 +296,7 @@ public sealed partial class OptionsMenu
         return
         [
             Choice("Display", ["Windowed", "Fullscreen"], () => s.Fullscreen ? 1 : 0, v => s.Fullscreen = v == 1),
-            s.Fullscreen ? Choice("Window Size", [Size(output)], () => 0, _ => { }) : WindowSizeRow(output),
+            s.Fullscreen ? Choice("Window Size", [Size(output)], () => 0, _ => { }) : WindowSizeRow(Restored()),
             Choice("Render Resolution", [.. renders.Select(r => Size(Render(output, r)))],
                 // A line count not listed, or at or past the output's own, draws at the output's own.
                 () => renders.IndexOf((s.Supersampled ? 0 : s.WorldLines, s.Supersampled)) is var i and >= 0 ? i : renders.Count - 2,
@@ -298,15 +309,26 @@ public sealed partial class OptionsMenu
         ];
     }
 
-    /// <summary>What the 3D world is scaled to: the screen in fullscreen, else the window at its setting's size or as it is.</summary>
+    /// <summary>
+    /// What the 3D world is scaled to: the screen in fullscreen, the window as it is when it's maximized, else the window at its
+    /// setting's size.
+    /// </summary>
     private (int Width, int Height) Output() => Settings switch
     {
         { Fullscreen: true } => (_screen.Width, _screen.Height),
-        { WindowWidth: > 0, WindowHeight: > 0 } s => (s.WindowWidth, s.WindowHeight),
-        _ => (_screen.WindowWidth, _screen.WindowHeight),
+        { Maximized: true } => (_screen.WindowWidth, _screen.WindowHeight),
+        _ => Restored(),
     };
 
-    /// <summary>The window sizes that fit the screen, with the window's own among them, the one shown being the nearest to it.</summary>
+    /// <summary>The window's size when it isn't maximized: its setting's, or as it opened.</summary>
+    private (int Width, int Height) Restored() => Settings is { WindowWidth: > 0, WindowHeight: > 0 } s
+        ? (s.WindowWidth, s.WindowHeight)
+        : (_screen.WindowWidth, _screen.WindowHeight);
+
+    /// <summary>
+    /// The window sizes that fit the screen, with the window's own among them if it was sized by hand, then Maximized. A size restores
+    /// a maximized window to it; the runtime sets the row to whatever the player makes the window by hand, maximized or not.
+    /// </summary>
     private OptionRow WindowSizeRow((int Width, int Height) window)
     {
         var s = Settings;
@@ -314,7 +336,13 @@ public sealed partial class OptionsMenu
         if (!sizes.Contains(window))
             sizes.Add(window);
         sizes.Sort((a, b) => (a.Width * a.Height).CompareTo(b.Width * b.Height));
-        return Choice("Window Size", [.. sizes.Select(Size)], () => sizes.IndexOf(window), v => (s.WindowWidth, s.WindowHeight) = sizes[v]);
+        return Choice("Window Size", [.. sizes.Select(Size), "Maximized"], () => s.Maximized ? sizes.Count : sizes.IndexOf(window), v =>
+        {
+            if (v == sizes.Count)
+                s.Maximized = true;
+            else
+                (s.Maximized, s.WindowWidth, s.WindowHeight) = (false, sizes[v].Width, sizes[v].Height);
+        });
     }
 
     /// <summary>The line counts under <paramref name="height"/>, then its own (0) and twice it.</summary>

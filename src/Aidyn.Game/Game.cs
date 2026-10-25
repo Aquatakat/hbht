@@ -181,6 +181,10 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         ApplySettings();
         _settings.Changed += SettingsChanged;
         GetViewport().SizeChanged += ApplyWorldLines;
+        GetWindow().SizeChanged += WindowChanged;
+        _windowSave = new Godot.Timer { OneShot = true, WaitTime = 0.5 };
+        _windowSave.Timeout += () => _settings.Save(DataPaths.Settings);
+        AddChild(_windowSave);
         if (title)
             StartTitle(options.TitleCards);
         RunLaunchActions(options);
@@ -413,28 +417,86 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         }
     }
 
-    /// <summary>The window's mode and size as last carried out, so a change of any other setting leaves a window the player resized.</summary>
-    private (bool Fullscreen, int Width, int Height)? _window;
+    /// <summary>The window's mode and size as last carried out or taken from the window, so a change of any other setting leaves it be.</summary>
+    private (bool Fullscreen, bool Maximized, int Width, int Height)? _window;
+
+    /// <summary>While <see cref="ApplyWindow"/> changes the window, whose steps aren't the player's to keep.</summary>
+    private bool _applyingWindow;
+
+    /// <summary>Keeps the settings half a second after the window's last change by hand, not at every step of a drag.</summary>
+    private Godot.Timer? _windowSave;
 
     /// <summary>
-    /// Borderless fullscreen at the screen's resolution, or a window at the settings' size, centred on its screen. Godot 4 can't
-    /// change the screen's own mode, so there's no exclusive fullscreen at another resolution or refresh rate.
+    /// Borderless fullscreen at the screen's resolution, or a window: maximized, or at the settings' size centred on its screen,
+    /// which a maximized window is restored to first. Godot 4 can't change the screen's own mode, so there's no exclusive fullscreen
+    /// at another resolution or refresh rate.
     /// </summary>
     private void ApplyWindow(Core.Settings s)
     {
-        var wanted = (s.Fullscreen, s.WindowWidth, s.WindowHeight);
+        var wanted = (s.Fullscreen, s.Maximized, s.WindowWidth, s.WindowHeight);
         if (_window == wanted)
             return;
-        var wasFullscreen = _window?.Fullscreen ?? DisplayServer.WindowGetMode() is DisplayServer.WindowMode.Fullscreen or DisplayServer.WindowMode.ExclusiveFullscreen;
         _window = wanted;
-        if (wasFullscreen != s.Fullscreen)
-            DisplayServer.WindowSetMode(s.Fullscreen ? DisplayServer.WindowMode.Fullscreen : DisplayServer.WindowMode.Windowed);
-        if (s.Fullscreen || s.WindowWidth <= 0 || s.WindowHeight <= 0)
+        _applyingWindow = true;
+        try
+        {
+            if (s.Fullscreen)
+            {
+                DisplayServer.WindowSetMode(DisplayServer.WindowMode.Fullscreen);
+                return;
+            }
+            DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
+            // The size it's restored to, even when it's maximized, so restoring it by hand goes back there.
+            if (s.WindowWidth > 0 && s.WindowHeight > 0)
+            {
+                var size = new Vector2I(s.WindowWidth, s.WindowHeight);
+                var screen = DisplayServer.ScreenGetUsableRect(DisplayServer.WindowGetCurrentScreen());
+                DisplayServer.WindowSetSize(size);
+                DisplayServer.WindowSetPosition(screen.Position + (screen.Size - size) / 2);
+            }
+            if (s.Maximized)
+                DisplayServer.WindowSetMode(DisplayServer.WindowMode.Maximized);
+        }
+        finally
+        {
+            _applyingWindow = false;
+            ScreenChanged();
+        }
+    }
+
+    /// <summary>
+    /// The window resized, maximized or restored by hand: the settings take it, so the Video page's Window Size says what the window
+    /// is, and keep it once the change settles. Fullscreen and minimized aren't the window's size, and leave them be.
+    /// </summary>
+    private void WindowChanged()
+    {
+        var mode = DisplayServer.WindowGetMode();
+        if (!_applyingWindow && !_settings.Fullscreen && mode is DisplayServer.WindowMode.Windowed or DisplayServer.WindowMode.Maximized)
+        {
+            var maximized = mode == DisplayServer.WindowMode.Maximized;
+            var size = DisplayServer.WindowGetSize();
+            var s = _settings;
+            if (maximized != s.Maximized || !maximized && (size.X, size.Y) != (s.WindowWidth, s.WindowHeight))
+            {
+                s.Maximized = maximized;
+                if (!maximized)
+                    (s.WindowWidth, s.WindowHeight) = (size.X, size.Y);
+                _window = (s.Fullscreen, s.Maximized, s.WindowWidth, s.WindowHeight);
+                _windowSave?.Start();
+            }
+        }
+        ScreenChanged();
+    }
+
+    /// <summary>Tells the open options, the pause menu's or the title's, of the window as it is now.</summary>
+    private void ScreenChanged()
+    {
+        if (_session is not { } session)
             return;
-        var size = new Vector2I(s.WindowWidth, s.WindowHeight);
-        var screen = DisplayServer.ScreenGetUsableRect(DisplayServer.WindowGetCurrentScreen());
-        DisplayServer.WindowSetSize(size);
-        DisplayServer.WindowSetPosition(screen.Position + (screen.Size - size) / 2);
+        session.Menu.System?.ScreenChanged();
+        session.Title?.Menu?.ScreenChanged();
+        _menu?.Redraw();
+        _titleLayer?.Redraw();
     }
 
     /// <summary>

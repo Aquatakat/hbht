@@ -101,7 +101,7 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         options.Accept();
         OptionRow Row(string label) => options.Rows.Rows.Single(r => r.Label == label);
 
-        Assert.Equal(["640x480", "960x720", "1280x720", "1280x960", "1600x900"], Row("Window Size").Values);
+        Assert.Equal(["640x480", "960x720", "1280x720", "1280x960", "1600x900", "Maximized"], Row("Window Size").Values);
         Assert.Equal("1280x960", Row("Window Size").ValueName);
         // The line counts under the window's, at its shape, then its own and twice it.
         Assert.Equal(["320x240", "640x480", "960x720", "1280x960", "2560x1920"], Row("Render Resolution").Values);
@@ -127,6 +127,36 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         Assert.Equal(["1920x1080"], Row("Window Size").Values);
         Assert.Equal(["427x240", "853x480", "1280x720", "1920x1080", "3840x2160"], Row("Render Resolution").Values);
         Assert.Equal("427x240", Row("Render Resolution").ValueName);
+    }
+
+    [Fact]
+    public void WindowSizeIsTheWindowAsItIs()
+    {
+        var settings = new Settings { WindowWidth = 1280, WindowHeight = 960 };
+        var options = new OptionsMenu(settings, inGame: true, ScreenInfo.Default);
+        options.Point(1);
+        options.Accept();
+        OptionRow Row(string label) => options.Rows.Rows.Single(r => r.Label == label);
+
+        // Maximized is the last size, and the render resolutions are then the maximized window's.
+        options.Point(1);
+        Assert.Equal("1280x960", Row("Window Size").ValueName);
+        options.Change(1);
+        options.Change(1);
+        Assert.True(settings.Maximized);
+        Assert.Equal("Maximized", Row("Window Size").ValueName);
+        options.Refresh(ScreenInfo.Default with { WindowWidth = 1920, WindowHeight = 1017 });
+        Assert.Equal("1920x1017", Row("Render Resolution").ValueName);
+        // A size restores it.
+        options.Change(1);
+        Assert.False(settings.Maximized);
+        Assert.Equal("640x480", Row("Window Size").ValueName);
+
+        // A size the player dragged the window to is listed among them, as the runtime sets it.
+        (settings.WindowWidth, settings.WindowHeight) = (1111, 777);
+        options.Refresh(ScreenInfo.Default with { WindowWidth = 1111, WindowHeight = 777 });
+        Assert.Equal("1111x777", Row("Window Size").ValueName);
+        Assert.Contains("1111x777", Row("Window Size").Values);
     }
 
     [Fact]
