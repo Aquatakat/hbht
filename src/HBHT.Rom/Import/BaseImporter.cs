@@ -18,13 +18,15 @@ namespace HBHT.Rom.Import;
 public static class BaseImporter
 {
     /// <summary>
-    /// Imports <paramref name="rom"/> into <paramref name="directory"/>, replacing what's there. It
-    /// writes to a sibling folder first, so a failed import leaves the old one in place.
+    /// Imports <paramref name="rom"/> into <paramref name="directory"/>, replacing what's there, with the player's choices
+    /// (<see cref="ImportOptions.Default"/> if none), which the manifest records. It writes to a sibling folder first, so a failed
+    /// import leaves the old one in place.
     /// </summary>
-    public static void Import(RomImage rom, string directory, IProgress<string>? progress = null)
+    public static void Import(RomImage rom, string directory, IProgress<string>? progress = null, ImportOptions? options = null)
     {
         if (rom.Version.ResearchOnly)
             throw new UnsupportedRomException(rom.Sha1, rom.Header);
+        options ??= ImportOptions.Default;
 
         directory = Path.GetFullPath(directory);
         var staging = directory + ".importing";
@@ -32,10 +34,10 @@ public static class BaseImporter
             Directory.Delete(staging, recursive: true);
         Directory.CreateDirectory(staging);
 
-        var context = new ImportContext(rom, staging, progress);
+        var context = new ImportContext(rom, staging, progress, options);
         context.WriteJson(PluginManifest.FileName, new PluginManifest(
             RecordId.BaseNamespace, "Aidyn Chronicles: The First Mage", "1.0.0",
-            Import: new ImportInfo(BasePlugin.ImporterVersion, rom.Sha1, rom.Version.Name)));
+            Import: new ImportInfo(BasePlugin.ImporterVersion, rom.Sha1, rom.Version.Name, options)));
 
         WorldImporter.Import(context);
         CombatImporter.Import(context);

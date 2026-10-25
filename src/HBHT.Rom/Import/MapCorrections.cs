@@ -1,11 +1,12 @@
 using System.Numerics;
+using HBHT.Plugins;
 using HBHT.Rom.Maps;
 
 namespace HBHT.Rom.Import;
 
 /// <summary>
 /// Corrections the importer makes to the ROM's maps, each the user's choice and a departure from the original
-/// (docs/hardcoded-content.md#corrections-to-the-roms-maps). Each is applied to the parsed Borg9 before its map record and its
+/// (docs/hardcoded-content.md#corrections-to-the-roms-maps), and the player's at import (<see cref="ImportOptions"/>). Each is applied to the parsed Borg9 before its map record and its
 /// collision are written, so what's drawn and what's hit stay together, and checks first that the ROM holds what it corrects.
 /// </summary>
 internal static class MapCorrections
@@ -37,12 +38,13 @@ internal static class MapCorrections
     internal static readonly MovedObject RoogCaveMushroom = new(MapSet.RoogCave, "D01", 12, 0x0BCB,
         new Vector3(11.234437f, -0.11293948f, 22.542595f), 926, 8, new Vector3(-0.124f, 0, 0.696f));
 
-    internal static readonly IReadOnlyList<MovedObject> Moved = [RoogCaveMushroom];
+    /// <summary>The objects the importer moves with the player's choices: the mushroom unless they keep it (<see cref="ImportOptions.FixMushroom"/>).</summary>
+    internal static IReadOnlyList<MovedObject> Moved(ImportOptions options) => options.FixMushroom ? [RoogCaveMushroom] : [];
 
-    /// <summary>The ROM's maps by Borg9, with the corrections made to those they name.</summary>
-    public static void Apply(IReadOnlyList<MapChunk> chunks, Dictionary<int, Borg9Map> maps)
+    /// <summary>The ROM's maps by Borg9, with the corrections the player's choices make to those they name.</summary>
+    public static void Apply(IReadOnlyList<MapChunk> chunks, Dictionary<int, Borg9Map> maps, ImportOptions options)
     {
-        foreach (var moved in Moved)
+        foreach (var moved in Moved(options))
         {
             var borg9 = chunks.Single(c => c.Set == moved.Set && c.Name == moved.Chunk).Collision;
             maps[borg9] = Apply(moved, borg9, maps[borg9]);

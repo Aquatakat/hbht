@@ -42,7 +42,7 @@ The user found Alaron wedged at Overworld A22, feet at (46.7, −26.3, 40.1), un
 
 ## The Roog Cave's mushroom
 
-A notorious spot. In the Roog Cave's D01, a mushroom's collision box stands in the neck of the passage, near (10.4, 22.8), and leaves less room beside it than Alaron's sphere needs. Running, he passes from the south but often wedges from the north. Walking or sneaking, he can't pass either way. The collision is the original's and the port's physics agree with it. Instead, the importer moves the mushroom and its box 0.71 out of the neck, the user's choice ([hardcoded content](../hardcoded-content.md#corrections-to-the-roms-maps)).
+A notorious spot. In the Roog Cave's D01, a mushroom's collision box stands in the neck of the passage, near (10.4, 22.8), and leaves less room beside it than Alaron's sphere needs. Running, he passes from the south but often wedges from the north. Walking or sneaking, he can't pass either way. The collision is the original's and the port's physics agree with it. Instead, the importer moves the mushroom and its box 0.71 out of the neck, the user's choice ([hardcoded content](../hardcoded-content.md#corrections-to-the-roms-maps)). It's the player's choice at import, on by default: the editor's import page offers **Fix the mushroom (recommended)** or **Don't fix the mushroom**, and `hbht import --keep-mushroom` leaves it where the ROM has it (`ImportOptions.FixMushroom`, [importer](importer.md#the-players-choices)).
 
 ## Bodies and the player
 

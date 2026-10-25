@@ -15,8 +15,11 @@ using HBHT.Rom.Text;
 const string Usage = """
     Usage:
       hbht identify <rom>
-      hbht import <rom> [--out <dir>]        the ROM as the base plugin the game loads (ADR 0001);
-                                           default dir: aidyn.base in the data folder (HBHT_DATA)
+      hbht import <rom> [--out <dir>] [--keep-mushroom]
+                                           the ROM as the base plugin the game loads (ADR 0001);
+                                           default dir: aidyn.base in the data folder (HBHT_DATA);
+                                           --keep-mushroom leaves the Roog Cave's mushroom where the ROM has it,
+                                           in the way, rather than moving it aside
       hbht borg summary <rom>
       hbht borg dump <rom> [--out <dir>]     default dir: out/<version>/borg
       hbht db dump <rom> [--out <dir>]       default dir: out/<version>/db
@@ -50,7 +53,8 @@ try
     return args switch
     {
         ["identify", var rom] => Identify(rom),
-        ["import", var rom, .. var rest] when OutOnly(rest, out var dir) => Import(rom, dir),
+        ["import", var rom, .. var rest] when OutOnly([.. rest.Where(a => a != "--keep-mushroom")], out var dir) =>
+            Import(rom, dir, new ImportOptions(FixMushroom: !rest.Contains("--keep-mushroom"))),
         ["borg", "summary", var rom] => BorgSummary(rom),
         ["borg", "dump", var rom, .. var rest] when OutOnly(rest, out var dir) => BorgDump(rom, dir),
         ["db", "dump", var rom, .. var rest] when OutOnly(rest, out var dir) => DbDump(rom, dir),
@@ -99,13 +103,14 @@ static int Identify(string path)
     return 0;
 }
 
-static int Import(string path, string? outDir)
+static int Import(string path, string? outDir, ImportOptions options)
 {
     var rom = RomImage.Load(path);
     outDir ??= DataPaths.Base;
     var watch = System.Diagnostics.Stopwatch.StartNew();
-    BaseImporter.Import(rom, outDir, new Progress<string>(step => Console.Error.WriteLine(step)));
-    Console.WriteLine($"Imported {rom.Version.Name} to {Path.GetFullPath(outDir)} in {watch.Elapsed.TotalSeconds:F0} s");
+    BaseImporter.Import(rom, outDir, new Progress<string>(step => Console.Error.WriteLine(step)), options);
+    var mushroom = options.FixMushroom ? "" : ", with the Roog Cave's mushroom where the ROM has it";
+    Console.WriteLine($"Imported {rom.Version.Name} to {Path.GetFullPath(outDir)}{mushroom} in {watch.Elapsed.TotalSeconds:F0} s");
     return 0;
 }
 

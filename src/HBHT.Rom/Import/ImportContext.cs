@@ -15,9 +15,12 @@ namespace HBHT.Rom.Import;
 /// runs them) build from this and write through it. The tables are read on the importing thread, before any
 /// parallel work that uses them.
 /// </summary>
-internal sealed class ImportContext(RomImage rom, string staging, IProgress<string>? progress = null)
+internal sealed class ImportContext(RomImage rom, string staging, IProgress<string>? progress = null, ImportOptions? options = null)
 {
     public RomImage Rom { get; } = rom;
+
+    /// <summary>The player's choices for the import, such as whether to move the Roog Cave's mushroom (<see cref="MapCorrections"/>).</summary>
+    public ImportOptions Options { get; } = options ?? ImportOptions.Default;
 
     /// <summary>The folder being written, which replaces the plugin's once the import is done.</summary>
     public string Staging { get; } = staging;

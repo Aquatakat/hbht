@@ -4,6 +4,16 @@ Per [ADR 0009](../adr/0009-code-organisation.md), the editor (first called the I
 
 `src/HBHT.Editor` is a Godot app. Run it with `tools/godot.ps1 --path src/HBHT.Editor` (build it first with `dotnet build`, or open it in the editor). It draws with the views it shares with the runtime in `HBHT.Views` (ADR 0022), and the runtime uses nothing of the editor's.
 
+## The import page
+
+When the base plugin is missing or out of date (`BasePlugin.Diagnose`), the editor opens on the import page (`ImportPage`) instead of the record browser, and the game, finding the same, starts the editor with `--from-game 1` and quits ([runtime](runtime.md#with-no-import)). It's the player's first run (ADR 0012), so it's plain and in the user's words: that a North American 1.0 ROM is required, the ROM's path with **Browse...**, **Fix the mushroom (recommended)** or **Don't fix the mushroom** with what that means ([importer](importer.md#the-players-choices)), and **Import**. An import that's out of date rather than missing adds a line above saying it's from an older version of HBHT and has to be done again.
+
+- **The ROM.** Browse filters to `*.z64`, `*.n64` and `*.v64`; `RomImage` reads any of the three byte orders whatever the extension. `ImportableRom.Open` (in `HBHT.Rom`) takes NA 1.0 alone, though the CLI also imports 1.1, and words what's wrong for the player: no file, not an N64 ROM, an N64 ROM HBHT doesn't know (with its SHA-1 and 1.0's), or another version by name. What's wrong shows on the page and the player can pick another.
+- **Importing** runs `BaseImporter.Import` off the main thread into the plugins folder's `aidyn.base`, with the choice as `ImportOptions`, showing its steps; the controls are disabled meanwhile and an error shows on the page. Then it remembers the ROM's path in `rom.txt` beside the plugins folder (`DataPaths.LastRomFor`: the data folder, for its own). The page fills in that path, and the mushroom choice from the old import's manifest, the default for an import that didn't record one.
+- **After.** Started by the game, it says the import is done and shows **Play**, which starts the game (`AppLauncher.LaunchGame`) and closes the editor, or says to start it if it can't. Otherwise the editor goes on into the record browser with the new plugins.
+
+The browser's **Import ROM…** opens the same page in a window, into the plugins folder it shows, which it loads again once imported; the window won't close while the importer runs. The status line after loading says whether the base plugin's mushroom was fixed.
+
 ## The editor's game
 
 The editor holds one game, the core's `GameState` ([saves](saves.md)), which flag pages show and set, scripts play against and change, and the party's pages show or try things on. Its sky, over the chunk it stands in at its time of day (`EditorGame.Sky`), lights the previews' lit meshes as trek's sky lights the runtime's ([rendering](rendering.md#the-n64-material)). A flag page's buttons change it:
@@ -15,7 +25,7 @@ The editor holds one game, the core's `GameState` ([saves](saves.md)), which fla
 
 ## Plugins
 
-It loads the plugins folder as the runtime does (`PluginSet.LoadInstalled`: `aidyn.base`, then the rest ordered by their dependencies and load-after hints, by ID where those leave it open), and shows `BasePlugin.Diagnose`'s words instead of loading when the import is missing or by another importer, from the data folder (`HBHT_DATA`, else `%LOCALAPPDATA%\Aidyn`) or wherever **Plugins folder…** points. **Import ROM…** runs the importer into that folder's `aidyn.base` and reloads.
+It loads the plugins folder as the runtime does (`PluginSet.LoadInstalled`: `aidyn.base`, then the rest ordered by their dependencies and load-after hints, by ID where those leave it open), from the data folder ([runtime](runtime.md#the-data-folder)) or wherever `--data` or **Plugins folder…** points. At startup a missing or out-of-date import opens the import page; a folder picked later that has none shows `BasePlugin.Diagnose`'s words instead of loading. **Import ROM…** opens the import page into that folder's `aidyn.base` and reloads.
 
 - **The list** is every record and every asset, by type (`PluginCatalog` in `HBHT.Plugins`). Scenes, textures and UI images are assets with no record, so they're listed by their asset's ID. The Borg column is the archive index a base-game ID's hex key stands for. The search filters by ID, Borg index or summary (`I08` finds the chunk's map), and from three letters finds scripts by what they say, showing the first line that matches.
 - **Links.** Any field whose value parses as a record ID is a link, so new record types need no editor code. A link to a record no plugin has, such as a flag, opens a page showing what names it.
@@ -44,6 +54,7 @@ It loads the plugins folder as the runtime does (`PluginSet.LoadInstalled`: `aid
 `tools/godot.ps1 --path src/HBHT.Editor -- --record aidyn:mapset/0 --tab preview --screenshot out/shot.png` opens a record, saves the window and quits. It gives up after a minute, so a hang can't block a script. `Editor` parses the options and takes the screenshot with the views' `CommandLine`, as the runtime does.
 
 - **The page:** `--record <id>`, `--tab preview|fields|used-by|atlas`, `--data <plugins folder>`.
+- **The import page**, with no current import: `--from-game 1` (which the game passes) ends it with Play; `--rom <path>`, `--keep-mushroom 1` and `--import 1` fill it in and press Import, and a screenshot waits for the import, giving up after 15 minutes rather than one. Without `--import`, `--screenshot` saves the page as it opens.
 - **The game:** `--checkpoint <state>` or `--save <save>` loads that game; `--play <moves>` plays a script that many moves, taking first choices, with its conversation box.
 - **The UI screen** (the conversation box and the windows): `--zoom <1-3>`, `--ui-filter pixels|videoout|smooth`, `--aspect 4:3|16:9`, `--ui-lines <n>`.
 - **Scenes and maps:** `--drive <request>` drives an actor; `--wireframe 1` and `--scene-camera 1` set those switches; `--collision surface|role` colours a map's collision; `--look 1` looks through a camera object's camera.
