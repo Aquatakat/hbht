@@ -396,12 +396,8 @@ public partial class SystemTabView : Control
     /// </summary>
     private void Saves(SaveMenu saves)
     {
-        // The title's is centred over its box.
         var title = saves.Saving ? MenuImages.SaveTitle : MenuImages.LoadTitle;
-        if (Style.Parchment)
-            _ui.Image(this, title, SavesTitle.X, SavesTitle.Y);
-        else
-            CentredImage(title, SlotPanel.Position.X + SlotPanel.Size.X / 2, SavesTitle.Y);
+        CentredImage(title, SavesTitleCentre(saves), SavesTitle.Y);
         if (saves.Slide is { } slide)
             SlidingPages(saves, slide);
         else
@@ -453,12 +449,23 @@ public partial class SystemTabView : Control
                 Style.Text, clip);
             _ui.Text(this, _ui.Main, saves.Hours(slot), SlotHours.X + dx, SlotHours.Y, Style.Text, clip);
         }
-        else
+        else if (saves.Saving)
         {
             _ui.Text(this, _ui.Main, saves.BlankOf(index) ?? "", SlotName.X + dx, SlotName.Y,
                 new ScreenRect(SlotName.X + dx, 0, FrameWidth - 12 + dx, FrameHeight), Style.Blank, clip);
         }
+        else
+        {
+            // That there are none is on one line under the title, with no screenshot beside it.
+            var none = saves.BlankOf(index) ?? "";
+            _ui.Text(this, _ui.Main, none, SavesTitleCentre(saves) - _ui.Main.Width(none) / 2 + dx, SlotName.Y, Style.Blank, clip);
+        }
     }
+
+    /// <summary>Where the save screen's title is centred: the parchment's is at its corner, the title's over its box.</summary>
+    private int SavesTitleCentre(SaveMenu saves) => Style.Parchment
+        ? SavesTitle.X + _ui.Size(saves.Saving ? MenuImages.SaveTitle : MenuImages.LoadTitle).X / 2
+        : SlotPanel.Position.X + SlotPanel.Size.X / 2;
 
     /// <summary>A save's screenshot, loaded once.</summary>
     private Texture2D? ScreenshotOf(SaveSlot slot)
