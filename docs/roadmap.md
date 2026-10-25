@@ -138,7 +138,7 @@ The base game is a plugin, so the mod format is exercised all the time; Phase 5 
 
 ### Phase 6: Enhancements (optional, post-parity)
 
-Widescreen, higher resolution, higher frame rate, longer draw distance, rebindable controls, and quality-of-life options such as visible stealth feedback, each a setting on the options menu ([ADR 0018](adr/0018-the-port-fixes-bugs-and-sets-enhancements.md)). Some came early and are the default: the floating conversation box and a UI screen of any shape. Their faithful mode, with its overscan bars, is left for here ([ui](systems/ui.md#a-faithful-mode-later)).
+Widescreen, higher resolution, higher frame rate, longer draw distance, rebindable controls, and quality-of-life options such as visible stealth feedback, each a setting on the options menu ([ADR 0018](adr/0018-the-port-fixes-bugs-and-sets-enhancements.md)). Some came early and are the default: the floating conversation box and a UI screen of any shape. Rebindable controls came early too, with mouse look ([ui](systems/ui.md#controls)). Their faithful mode, with its overscan bars, is left for here ([ui](systems/ui.md#a-faithful-mode-later)).
 
 ## Risk register
 

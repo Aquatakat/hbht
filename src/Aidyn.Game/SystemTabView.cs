@@ -80,6 +80,9 @@ public partial class SystemTabView : Control
 
     public override void _GuiInput(InputEvent @event)
     {
+        // The Controls page's prompt binds the wheel and the buttons too (Game.BindPrompted), so they go by.
+        if (Menu.Options?.Prompt is not null)
+            return;
         if (@event is InputEventMouseMotion motion && RowAt(motion.Position - _origin) is { } row)
             Menu.Point(row);
         else if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.WheelUp or MouseButton.WheelDown } wheel)
@@ -201,6 +204,8 @@ public partial class SystemTabView : Control
     /// <summary>Where each options row is: its label's top, and the bottom of what it draws (a volume's bar too).</summary>
     private List<(int Top, int Bottom)> OptionRows(OptionsMenu options)
     {
+        if (options.Page == OptionsPage.Controls)
+            return ControlPlaces(options).Rows;
         var rows = new List<(int, int)>();
         var choices = HasChoices(options);
         var y = choices ? ChoiceTop : OptionsTop;
@@ -223,6 +228,11 @@ public partial class SystemTabView : Control
     private void Options(OptionsMenu options)
     {
         CentredImage(MenuImages.OptionsTitle, FrameWidth / 2, OptionsTitleTop);
+        if (options.Page == OptionsPage.Controls)
+        {
+            Controls(options);
+            return;
+        }
         var rows = OptionRows(options);
         var cursor = options.HighlightNow;
         var bar = _ui.Size(MenuImages.VolumeBar);

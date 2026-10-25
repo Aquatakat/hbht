@@ -94,7 +94,9 @@ public partial class Game
     /// <summary>
     /// Each action pressed and let go in turn, a fifth of a second apart, as input events (<c>--press pause,menu_accept</c>).
     /// <c>wait:2</c> waits so many seconds more before the next, and <c>move_right:1.5</c> holds the action that long before
-    /// it's let go and the next comes, or with a + after it (<c>menu_details:2+</c>) while it's still held. Returns how long that takes after the half second before the first, or 0 with none.
+    /// it's let go and the next comes, or with a + after it (<c>menu_details:2+</c>) while it's still held. A binding's name
+    /// (<c>Key:P</c>, <c>Joy:Y</c>, <c>Axis:LeftX-</c>) presses that input itself, as the Controls page's prompt hears one.
+    /// Returns how long that takes after the half second before the first, or 0 with none.
     /// </summary>
     private double Press(string? presses)
     {
@@ -103,6 +105,13 @@ public partial class Game
         var at = 0.5;
         foreach (var token in presses.Split(','))
         {
+            // A binding (Key:P, Joy:Y, Axis:LeftX-) is pressed and let go as the device's own events, as the Controls page's prompt reads them.
+            if (InputBindings.Event(token) is { } raw)
+            {
+                GetTree().CreateTimer(at).Timeout += () => PressRaw(raw);
+                at += 0.2;
+                continue;
+            }
             // A held action ending in + lets the next come while it's held, as a held menu's cursor is moved.
             var overlap = token.EndsWith('+');
             var (name, seconds) = token.TrimEnd('+').Split(':') is [var n, var s]
@@ -129,6 +138,28 @@ public partial class Game
             at += (overlap ? 0 : held ?? 0) + 0.2;
         }
         return at;
+    }
+
+    /// <summary>A key, button or axis pressed and let go, as the device's own events.</summary>
+    private static void PressRaw(InputEvent raw)
+    {
+        var up = (InputEvent)raw.Duplicate();
+        switch (raw)
+        {
+            case InputEventKey key:
+                key.Pressed = true;
+                break;
+            case InputEventMouseButton mouse:
+                mouse.Pressed = true;
+                break;
+            case InputEventJoypadButton joy:
+                joy.Pressed = true;
+                break;
+        }
+        if (up is InputEventJoypadMotion motion)
+            motion.AxisValue = 0;
+        Input.ParseInputEvent(raw);
+        Input.ParseInputEvent(up);
     }
 
     /// <summary>

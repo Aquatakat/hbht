@@ -48,16 +48,17 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     {
         var options = new OptionsMenu(new Settings(), inGame: true);
 
-        Assert.Equal(["Audio", "Video", "Enhancements", "Rename Character"], options.Rows.Rows.Select(r => r.Label));
-        Assert.Equal([false, false, false, true], options.Rows.Rows.Select(r => r.GapBefore));
+        Assert.Equal(["Audio", "Video", "Enhancements", "Controls", "Rename Character"], options.Rows.Rows.Select(r => r.Label));
+        Assert.Equal([false, false, false, false, true], options.Rows.Rows.Select(r => r.GapBefore));
         // The title screen's has no rename, as the original's leaves out its GAME rows.
-        Assert.Equal(3, new OptionsMenu(new Settings(), inGame: false).Rows.Rows.Count);
+        Assert.Equal(4, new OptionsMenu(new Settings(), inGame: false).Rows.Rows.Count);
     }
 
     [Theory]
     [InlineData(0, OptionsPage.Audio)]
     [InlineData(1, OptionsPage.Video)]
     [InlineData(2, OptionsPage.Enhancements)]
+    [InlineData(3, OptionsPage.Controls)]
     public void ALinkOpensItsPageAndBReturnsToItsRow(int row, OptionsPage page)
     {
         var options = new OptionsMenu(new Settings(), inGame: true);
@@ -158,7 +159,7 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     public void RenameCharacterLeadsOutOfTheOptions()
     {
         var options = new OptionsMenu(new Settings(), inGame: true);
-        options.Point(3);
+        options.Point(4);
 
         Assert.Equal(OptionLink.RenameCharacter, options.Accept());
     }
@@ -261,7 +262,7 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         system.Accept();
         Assert.Equal(SystemPage.Options, system.Page);
         Assert.False(system.OnList);
-        system.Options!.Point(3);
+        system.Options!.Point(4);
         system.Accept();
         Assert.Equal(SystemPage.Rename, system.Page);
         system.Rename!.Type('o');

@@ -197,6 +197,9 @@ public sealed class SystemMenu
     /// <inheritdoc cref="ISystemPage.Back"/>
     public bool Back() => _page.Back();
 
+    /// <summary>The menus' Appraise: on the options' Controls page, clears the binding under the cursor (<see cref="OptionsMenu.Clear"/>).</summary>
+    public bool Clear() => Page == SystemPage.Options && Options!.Clear();
+
     /// <inheritdoc cref="ISystemPage.Point"/>
     public void Point(int row) => _page.Point(row);
 

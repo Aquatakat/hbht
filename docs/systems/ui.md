@@ -118,7 +118,7 @@ The menu's widgets animate with tweens (`MenuTween.CreateShort` at `0x800cc880`,
 - **The post-battle windows** (game mode 6) open with the Party scroll's opening over the black the battle left, and the loot window that follows closes with its closing roll; between them the post-battle window's lists fade out and the loot window's in, 60 a frame (`PauseMenu.CloseFade`, `OpenFade`), the scroll staying open ([below](#after-a-battle)).
 - **Each opening starts the tab afresh** on the inventory's top row, but on the member last shown, so the presses to reach something are the same every time from the same member.
 - **The member** every Party window opens on, the Party tab, barter, training and the post-battle windows alike, is one byte, `PauseMenu.Member` (`0x800DE9F0`), which `DollMenu::InitMenu` (`0x800300B0`) builds them on. Only three places in 1.0 store to it: C-left and C-right in any of them (`PartyMenu.ChangeMember`, `0x8003054C`, stores at `0x800305C8` and `0x800305F0`), a battle's pause from a turn, which sets the member whose turn it is (`Combat.StatePause`, store at `0x800226D0`; the pause from any other state, `0x80022930`, leaves it), and `InitMenu` itself, which steps back from an empty slot to the one before with a member and keeps that (`0x80030128`). So it outlasts trek, combat, the windows and a save loaded, and it isn't saved: it's 0 at power-on. The port keeps it in the core's `PauseMenu`, which the session holds. **Where the port differs:** loading a save builds a new session, and with it a new menu, so the member goes back to Alaron and the remembered tab ([changing tab](#changing-tab)) to System; whether loading resets the original's tab isn't settled. Carrying them across a load is open ([roadmap](../roadmap.md)).
-- **Input** is translated once into a `MenuAction` (`MenuStick.Translate`), the movement keys and the D-pad counting alike, and what a press does is the core's: `GameSession.Press` gives it to the mode that runs ([runtime](runtime.md)). Trek's (`TrekLoop.Press`) goes to a backdrop's page, a map object's popup or a conversation first, and otherwise Start opens the menu, A uses the map object reached and B raises the portraits, none of them while trek fades into a cut-scene or goes through a teleporter. The editor's panels press the same `IPartyWindow.Press`, so the two can't drift.
+- **Input** is translated once into a `MenuAction` (`MenuStick.Translate`), by the controls of the situation the game is in ([controls](#controls)), and what a press does is the core's: `GameSession.Press` gives it to the mode that runs ([runtime](runtime.md)). Trek's (`TrekLoop.Press`) goes to a backdrop's page, a map object's popup or a conversation first, and otherwise Start opens the menu, A uses the map object reached and B raises the portraits, none of them while trek fades into a cut-scene or goes through a teleporter. The editor's panels press the same `IPartyWindow.Press`, so the two can't drift.
 - **The stick counts once as it crosses a threshold** (`MenuStick`). The original's menus count a direction from 56 of the N64 stick's 80, 0.7 (`Controller::ReadInput`, `0x800915d8`); ares scales a full push to about 100, so the port counts from 0.58 and lets go below 0.5. **Held,** the stick or the D-pad repeats after 30 ticks and then every 5: the original's widgets count 30 of the controller's 60 samples a second, then 5 (`BaseWidget::Control`, `0x800ad708`), for the stick, the D-pad, C-up and C-down. The session's `StickRepeat` counts the ticks, so a hold repeats on the same ticks whatever the frame rate: in the pause menu a repeat moves the cursor (not while it opens, closes or slides); in trek's popups, conversations and backdrops, a cut-scene and combat's held menus it's a press; and where nothing has a cursor the hold is forgotten, so the next doesn't start by repeating. A keyboard key repeats as the system repeats it.
 
 ### The Party tab's actions
@@ -223,7 +223,7 @@ The pause menu's first tab (`WidgetOptionsMenu`, `MakeScrollList` at `0x8003f8c4
 
 The user laid this out, and it isn't the original's ([ADR 0013](../adr/0013-settings-in-the-options-menu.md), [ADR 0024](../adr/0024-the-options-are-pages-by-kind.md)). The original's is in capitals under the headings AUDIO, GRAPHICS and GAME, shifted 25 right of centre to clear the roller. The port's is in Title Case, the user's choice over the original's sentence case elsewhere, and each kind of setting has a page of its own under the same Options title.
 
-- **The main page:** the Options title `0x00FD` centred at y 40. From y 74 at x 84 come Audio, Video and Enhancements, then Rename Character in a game, set off by half a line (5). Rows are 4 apart. A opens a page; B on a page comes back to the row that led there.
+- **The main page:** the Options title `0x00FD` centred at y 40. From y 74 at x 84 come Audio, Video, Enhancements and Controls, then Rename Character in a game, set off by half a line (5). Rows are 4 apart. A opens a page; B on a page comes back to the row that led there.
 - **Audio** lists "Sound Volume:" and "Music Volume:" in the same place, each with its bar under it; a volume's row is its label and the bar.
 - **The bars** are `0x00D7`, a braided rope 152 × 18. Each is drawn whole in (100, 100, 100) at a quarter of the widget's alpha, then again in the rows' colour, cut at 152 × the volume. The volumes are the original's floats from 0 to 1, which the stick steps by 0.01, so the port keeps them in hundredths. They start at 1.0 for sound and 0.65 for music (`app.cpp`). A volume steps every frame the stick is held, from the first, with no wait (not the menus' held repeat).
 - **The cursor's row** pulses from (130, 80, 80) toward dark brown (103, 70, 60), its alpha falling by 12 a step, so it fades nearly out at the deepest. Each channel moves a whole 20th of its way a step, rounded toward zero, so the colour reaches only (110, 80, 60). It steps in the page's draw (`OptionsPage.Draw`, `0x800419c8`), once a frame, and turns at 20, 40 frames a cycle.
@@ -251,6 +251,49 @@ The user laid this out, and it isn't the original's ([ADR 0013](../adr/0013-sett
 - **How a setting takes effect** is the runtime's ([runtime](runtime.md), [ADR 0023](../adr/0023-the-core-is-handed-its-settings-each-tick.md)): the menu changes the player's `Settings`, which nothing else in the core reads. The command line's settings for a run lie over the player's and are never saved ([runtime](runtime.md#the-command-line)), so the page shows the player's own.
 - **The original's resolution row** switches to the Expansion Pak's high resolution (512 × 240) and back; without the pak, it's greyed and the cursor skips it. "32 Bit Color" is in the table, but nothing reaches it.
 - **The original keeps its volumes and resolution in every save** (`QuestData::Save`), so loading set them back. The port keeps the settings per player instead.
+
+#### Controls
+
+The port's own page ([ADR 0026](../adr/0026-controls-are-bound-by-situation.md)): every control can be rebound, on the keyboard with the mouse and on a controller apart. `OptionsMenu.Controls.cs` holds the page over `Settings.Controls` (`ControlBindings`), and `SystemTabView.Controls.cs` draws it; the runtime turns the bindings into Godot's input actions as the game starts and whenever they change (`InputBindings`, [runtime](runtime.md#controls)).
+
+- **The controls** are what the player does in each situation, not the N64's buttons (`GameControls`), so C-down is both the menus' Details and combat's Spell Menu, which share a default. The defaults are the bindings the runtime had before the page:
+
+  | Situation | Control | Keyboard | Controller | What it is |
+  | --- | --- | --- | --- | --- |
+  | Trek | Move | WASD, Arrows | Left Stick | the stick: walks under 80% tilt, runs above |
+  | | Camera | None | Both Sticks | what steers the camera ([cameras](cameras.md#the-follow-camera-cameramode0)) |
+  | | Camera Hold | Right Click | RB | the N64's R: steers with what moves |
+  | | Camera Left, Camera Right | Q, E | None | turn the camera |
+  | | Walk | Shift | None | the stick at half tilt |
+  | | Sneak | Ctrl | LT | Z |
+  | | Use | Space | A | A: uses the map object reached |
+  | | Portraits | Backspace | B | B: raises or lowers the portraits |
+  | | Menu | Enter, Escape | Start | Start: opens the pause menu |
+  | Menus | Move Cursor | WASD, Arrows | Left Stick, D-Pad | the stick and the D-pad |
+  | | Accept, Back | Space, Backspace | A, B | A, B |
+  | | Close Menu | Enter, Escape | Start | Start |
+  | | Details | Tab | Y | C-down, held |
+  | | Appraise | R | X | C-up, in a shop; on this page it clears a binding |
+  | | Next Member, Previous Member | Q, E | LB, RB | C-left, C-right |
+  | | Previous Tab, Next Tab | Z, X | LT, RT | Z or L, R |
+  | Combat | Target | WASD, Arrows | Left Stick, D-Pad | steps an attack's or a spell's target, moves a held menu's cursor |
+  | | Attack, Cancel | Space, Backspace | A, B | A, B |
+  | | Skip Turn | Z | LT | Z |
+  | | Spell Menu, Item Menu | Tab, R | Y, X | C-down, C-up, held |
+  | | Ranged Left, Ranged Right | Q, E | LB, RB | C-left, C-right: a bow's or thrown weapon's target |
+  | | Pause | Enter, Escape | Start | Start |
+  | Cut-Scenes and Conversations | Choose | WASD, Arrows | Left Stick, D-Pad | moves the choices' cursor |
+  | | Continue | Space | A | A |
+  | | Close | Backspace | B | B: closes a popup, the help menu's back, skips a cinematic |
+  | | Skip | Enter, Escape | Start | Start: skips a cinematic or the credits |
+
+  The last situation is also trek's popups, a backdrop's and the help menu's page, a cinematic and the credits. A battle's turn walks and turns the camera with trek's controls; Sneak still acts there, as it always has, but isn't checked against combat's buttons, since the left trigger is also Skip Turn. The debug keys (the F-keys, F and the free camera's Space and C, fast-forward on either stick's click) aren't on the page and stay fixed.
+- **The layout:** the Device row (Keyboard, Controller) at y 70, then the list from y 88, nine lines 12 apart, a situation's heading taking a line of its own, centred in a darker brown. Labels are at x 72 and values at x 188, clear of the longest label, Previous Member, to 304; a value longer than that is printed in the slim font, as a save's long name is. The list scrolls to keep the cursor's row in the middle, with the System list's arrow `0x3757` turned up or down at the right where there's more. Under the list, at y 202, the last change's message for three seconds, or on a binding what clears it ("R: Clear"). A table with a column for each device was tried first, but it doesn't fit the 320-pixel frame: the longest label (104 pixels in the main font) and two cells as wide as "Left Stick, D-Pad" (101) need over 300 of the 238 between the roller and the frame's edge. Mouse Sensitivity (0.25x to 4x, the drag the runtime had at 1x) is on the keyboard's page, then Reset to Defaults, which resets both devices.
+- **A button's row:** A shows "Press a Key... 5" (or "Press a Button...") in its value, the row steady in the headings' brown, counting the seconds down. The next key, mouse button or wheel turn (on the keyboard's page), or controller button, stick or trigger pushed past 0.6 (on the controller's), replaces the cell, and the prompt closes. Nothing else ends it but the five seconds, which change nothing, so Escape, Backspace, Start and B can be bound like any other; an input of the other device and the debug keys' F-keys are passed over. While it waits it takes every event, before the menus (`Game.BindPrompted`), and the System tab's mouse handling lets the wheel and buttons by. The menus' Appraise (R, X) clears the cell.
+- **A direction's row** (Move, Camera, Move Cursor, Target, Choose) is a choice among its sources' combinations on the device: the stick's left and right or A step through None, each source, and each combination, "Both Sticks" for the two sticks. The mouse is only Camera's; Move Cursor never offers None.
+- **Conflicts** are checked only within a situation, and the newest binding wins: whatever else in the same situation had the input loses it, a button its binding and a direction the source holding it, and the foot says "Taken From Portraits". Two directions may share a source, which is how Camera Hold works. A battle's aiming (`Situation.Aiming`) is apart from its turn, so RB is both Camera Hold on a turn and Ranged Right when aiming.
+- **No lockout:** the essential controls, trek's Menu, the menus' Move Cursor, Accept and Back, combat's Pause and a conversation's Continue, always keep a binding on each device. Clearing one is refused ("Accept Needs a Binding"), and so is a rebind that would take one's last binding ("Accept Needs It"); a `settings.json` that leaves one with none gets its default back. Without these the player couldn't open the menu, move on its pages, or leave a conversation.
+- **The file** keeps only the controls that differ from their defaults, each with all its bindings, under `controls`; unknown controls, bindings that aren't one of the forms and the debug keys are skipped as it loads. Each cell is replaced whole, so the page never adds a second key; the defaults' Enter and Escape come back with Reset.
 
 #### Renaming Alaron
 

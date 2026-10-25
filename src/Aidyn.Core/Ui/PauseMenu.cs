@@ -523,6 +523,8 @@ public sealed class PauseMenu
             case MenuAction.Up or MenuAction.Down:
                 System.MoveCursor(action.Vertical());
                 return true;
+            case MenuAction.Appraise:
+                return System.Clear();
             default:
                 return false;
         }

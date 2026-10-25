@@ -5,8 +5,8 @@ namespace Aidyn.Game;
 
 /// <summary>
 /// Shows the view from the core's <see cref="FollowCamera"/>, and a free-flying camera for looking
-/// around, which F toggles and WASD, Space and C move. Dragging with the right mouse button orbits
-/// the follow camera, or turns the free one.
+/// around, which F toggles and WASD, Space and C move. The mouse orbits the follow camera while Camera Hold is held (the right
+/// button by default), or always with the mouse on Camera (<see cref="MouseLook"/>); dragging with the right button turns the free one.
 /// </summary>
 public partial class CameraRig : Node3D
 {
@@ -32,8 +32,11 @@ public partial class CameraRig : Node3D
     public float Pitch { get; set; }
     public bool Flying { get; private set; }
 
-    /// <summary>Whether the right mouse button is down, which holds the follow camera's orbit.</summary>
-    public bool Dragging { get; private set; }
+    /// <summary>Whether the mouse, captured, always turns the follow camera: Camera takes it, and trek or a battle runs.</summary>
+    public bool MouseLook { get; set; }
+
+    /// <summary>Whether the mouse turns the follow camera now: always with <see cref="MouseLook"/>, else while Camera Hold is held.</summary>
+    public bool MouseSteers => MouseLook || Input.IsActionPressed(Core.Controls.GameControls.CameraHold);
 
     public override void _Ready()
     {
@@ -70,7 +73,7 @@ public partial class CameraRig : Node3D
             _camera.LookAtFromPosition(from, to, Vector3.Up);
     }
 
-    /// <summary>The mouse movement, in pixels, since the last call, while dragging.</summary>
+    /// <summary>The mouse movement, in pixels, since the last call, while it steers.</summary>
     public Vector2 TakeDrag()
     {
         var drag = _drag;
@@ -80,23 +83,21 @@ public partial class CameraRig : Node3D
 
     public override void _UnhandledInput(InputEvent e)
     {
-        if (e is InputEventMouseButton { ButtonIndex: MouseButton.Right } button)
+        if (e is not InputEventMouseMotion m)
+            return;
+        if (Flying)
         {
-            Dragging = button.Pressed;
-        }
-        else if (e is InputEventMouseMotion m && (m.ButtonMask & MouseButtonMask.Right) != 0)
-        {
-            if (Flying)
+            if ((m.ButtonMask & MouseButtonMask.Right) != 0)
             {
                 var rotation = _fly.Rotation;
                 rotation.Y -= m.Relative.X * MouseSpeed;
                 rotation.X = Mathf.Clamp(rotation.X - m.Relative.Y * MouseSpeed, -1.5f, 1.5f);
                 _fly.Rotation = rotation;
             }
-            else
-            {
-                _drag += m.Relative;
-            }
+        }
+        else if (MouseSteers)
+        {
+            _drag += m.Relative;
         }
     }
 
