@@ -235,7 +235,7 @@ The user laid this out, and it isn't the original's ([ADR 0013](../adr/0013-sett
   | Video | Display | Windowed, Fullscreen (borderless, at the screen's own resolution) |
   | | Window Size | The 4:3 and 16:9 sizes from 640x480 to 3840x2160 that fit the screen less its taskbar, and the window's own, then Maximized; a size restores a maximized window and centres it. In fullscreen, the screen's size alone |
   | | Render Resolution | 240p and 480p, the original's lines and its Expansion Pak's at the window's shape (never past the window's own), then 50%, 75%, 100%, 150% and 200% of the window's or screen's size, above 100% supersampled: bilinear, through Godot's 3D scaling. A part of the window means the same however it's resized, where a size such as 1920x1080 didn't; 125% is left out, as Godot's bilinear scaling reads only four pixels as it shrinks, smoothing next to nothing for half again the pixels. Older settings' supersampling reads as 200%, and their line counts past 480 as 100% |
-  | | Frame Rate Limit | Display (the screen's refresh rate), 30, 60, 90, 120 and 144 FPS, Unlimited (`Engine.MaxFps`) |
+  | | Frame Rate Limit | Display (the screen's refresh rate), 30, 60, 90, 120 and 144 FPS, Unlimited (`FrameLimiter`, not Godot's `Engine.MaxFps`, which in 4.7 sleeps a whole frame after the frame's work and so drew 60 as 43; with V-Sync on, a limit at or past the refresh rate is left to V-Sync) |
   | | V-Sync | On, Off |
   | | Anti-Aliasing | Off, 2x, 4x, 8x (MSAA) |
   | Enhancements | Draw Distance | Original, Extended (the Overworld's terrain out to the 5 × 5 chunks round the player: [rendering](rendering.md#draw-distance)) |

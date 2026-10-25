@@ -82,6 +82,9 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     /// <summary>The player's settings, which the options menu changes and <see cref="ApplySettings"/> carries out.</summary>
     private readonly Settings _settings = Settings.Load(DataPaths.Settings);
 
+    /// <summary>Holds the frames to the Frame Rate Limit.</summary>
+    private readonly FrameLimiter _limiter = new();
+
     /// <summary>The command line's settings for this run, over the player's.</summary>
     private LaunchSettings? _launch;
 
@@ -104,6 +107,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     {
         CultureInfo.DefaultThreadCurrentCulture = CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
         AddInputs();
+        AddChild(_limiter);
         var hud = new CanvasLayer();
         StyleOverlay();
         hud.AddChild(_overlay);
@@ -396,7 +400,10 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         _playing = _launch?.Session(_settings) ?? SessionSettings.From(_settings);
         ApplyWindow(s);
         DisplayServer.WindowSetVsyncMode(s.VSync ? DisplayServer.VSyncMode.Enabled : DisplayServer.VSyncMode.Disabled);
-        Engine.MaxFps = s.FrameRateLimit == Core.Settings.DisplayRate ? RefreshRate(DisplayServer.WindowGetCurrentScreen()) : Math.Max(0, s.FrameRateLimit);
+        // V-Sync holds the frames to the screen's rate already, and a limit at it as well only beats against it, losing frames.
+        var refresh = RefreshRate(DisplayServer.WindowGetCurrentScreen());
+        var limit = s.FrameRateLimit == Core.Settings.DisplayRate ? refresh : Math.Max(0, s.FrameRateLimit);
+        _limiter.Limit = s.VSync && limit >= refresh ? 0 : limit;
         GetViewport().Msaa3D = s.Antialiasing switch
         {
             >= 8 => Viewport.Msaa.Msaa8X,
