@@ -57,6 +57,13 @@ public sealed partial class Battle
     /// </summary>
     public ICombatHost? Host { get; set; }
 
+    /// <summary>
+    /// How many animation ticks the body the player steers in a turn plays per tick (<see cref="Body.Pace"/>), 1 being the
+    /// original's: the Pace setting's, which the session gives it as trek's player's. Every other body, and the steered one once
+    /// it attacks, casts or its turn ends, plays at the original's.
+    /// </summary>
+    public float Pace { get; set; } = 1;
+
     /// <summary>A one-off to whatever presents the battle.</summary>
     internal void Cue(CombatCue cue) => Host?.Cue(cue);
 
@@ -314,6 +321,7 @@ public sealed partial class Battle
             var still = combatant.Fallen || combatant.PoseHeld && combatant.Body.Request == 0 && combatant.Audio.Request == 0;
             // ProcessPlayers reads the frame before the actor steps for an attack's strike.
             var strikes = AtStrike(combatant, animation);
+            combatant.Body.Pace = State == CombatState.Turn && combatant == Current && !combatant.Controlled ? Pace : 1;
             combatant.Body.Step(World, still ? IActorMotion.Still : animation);
             Movement.Crowd.Push(crowd, i, start);
             AfterBodies(combatant, animation, strikes);

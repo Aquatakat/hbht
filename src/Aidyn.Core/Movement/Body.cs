@@ -118,7 +118,7 @@ public sealed class Body
 
     /// <summary>
     /// How many animation ticks it plays per tick, which scales its speed with its steps. 1 is the
-    /// original's; the brisk pace setting plays the player quicker (ADR 0018).
+    /// original's; the brisk pace setting plays the player quicker, in trek and in a battle's turns (ADR 0018).
     /// </summary>
     public float Pace { get; set; } = 1;
 

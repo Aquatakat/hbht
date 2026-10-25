@@ -361,6 +361,7 @@ public sealed class GameSession
         Sky.Placement = settings.SkyPlacement;
         Trek.Player.Pace = settings.Pace;
         Battle?.Fx.Turns = settings.SpellAuras;
+        Battle?.Pace = settings.Pace;
     }
 
     /// <summary>
@@ -834,6 +835,7 @@ public sealed class GameSession
         _battleEnd = BattleOutcome.None;
         var battle = Battle = Combat.Battle.Begin(Game, setup, arena, zone.World, _combatHost);
         battle.Fx.Turns = _settings.SpellAuras;
+        battle.Pace = _settings.Pace;
         zone.Camera = battle.Camera;
         foreach (var line in battle.Problems)
             _host.Warn(line);

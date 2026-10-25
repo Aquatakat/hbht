@@ -520,6 +520,22 @@ public sealed partial class GameSessionTests(Na10Import fixture)
     }
 
     [Fact]
+    public void TheBriskPaceQuickensTheBodyThePlayerSteersInATurnAndNoOther()
+    {
+        var (session, host) = Start();
+        var (battle, _, _) = RatBattle(session, host);
+        var alaron = battle.Current!;
+        var brisk = SessionSettings.Original with { Pace = SessionSettings.BriskPace };
+        Tick(session, brisk);
+        Assert.Equal(SessionSettings.BriskPace, battle.Pace);
+        Assert.Equal(SessionSettings.BriskPace, alaron.Body.Pace);
+        Assert.All(battle.Combatants.Where(c => c.Hostile), c => Assert.Equal(1, c.Body.Pace));
+        // The original's from the next tick, as the setting's turned back.
+        Tick(session);
+        Assert.Equal(1, alaron.Body.Pace);
+    }
+
+    [Fact]
     public void ABattleWonOpensThePostBattleWindowsAndTrekComesBackWhereItBegan()
     {
         var (session, host) = Start();

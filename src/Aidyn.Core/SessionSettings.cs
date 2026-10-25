@@ -31,7 +31,10 @@ public sealed record SessionSettings
     /// <summary>How the sky places the clouds, sun, moon and stars (<see cref="SkyDirector.Placement"/>).</summary>
     public SkyPlacement SkyPlacement { get; init; } = SkyPlacement.Original;
 
-    /// <summary>How many animation ticks the player plays per tick, 1 being the original's (<see cref="Movement.PlayerMotion.Pace"/>).</summary>
+    /// <summary>
+    /// How many animation ticks the player plays per tick, 1 being the original's: trek's (<see cref="Movement.PlayerMotion.Pace"/>), and
+    /// the body he steers in a battle's turn (<see cref="Battle.Pace"/>).
+    /// </summary>
     public float Pace { get; init; } = 1;
 
     /// <summary>How a battle's lasting spells' and potions' scenes over heads take their turns (<see cref="SpellFx.Turns"/>).</summary>
