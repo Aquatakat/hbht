@@ -298,6 +298,8 @@ public partial class ChunkStreamerView : Node3D
     /// </summary>
     public void Settle()
     {
+        if (_standIns.Count == 0)
+            return;
         foreach (var key in _standIns.Keys.Where(k => !_building.Keys.Any(m => m.Key == k)).ToList())
         {
             _standIns[key].Root.QueueFree();
