@@ -55,6 +55,8 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     private ChunkStreamerView? _chunks;
     /// <summary>Trek's scenery beyond the 3×3 under Draw Distance's Extended, which only the runtime holds.</summary>
     private SceneryRing? _ring;
+    /// <summary>The drawn chunks' cells as last handed to the shader (<see cref="N64Material.SetCells"/>), all 0 for none.</summary>
+    private (int Row, int Column, int Reach, int Drawn) _cells;
     /// <summary>What builds trek's chunks' scenery off the main thread (docs/adr/0025-chunks-load-off-the-main-thread.md).</summary>
     private ChunkBuilder? _builder;
     private bool _extendedDrawDistance;
@@ -747,10 +749,16 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         _chunks.ReadAhead();
         _sky!.Radial = extended;
         _sky.Further = _ring.Active;
-        // No chunk's stand-in for the land round it over a drawn chunk two or more away, which the original never draws.
+        // No chunk's stand-in for the land round it over a drawn chunk two or more away, which the original never draws: on the
+        // Overworld's 5 × 5 alone, as elsewhere Extended keeps the 3 × 3, drawn as the original's. Only as it changes, as for
+        // the camera's far plane below.
         var centre = _chunks.Chunks.Centre;
-        N64Material.SetCells(centre.Row, centre.Column, extended ? SceneryRing.Reach : 0, (float)_chunks.Chunks.MapSet.CellSize,
-            extended ? _chunks.DrawnCells(SceneryRing.Reach) : 0);
+        var cells = _ring.Active ? (centre.Row, centre.Column, SceneryRing.Reach, _chunks.DrawnCells(SceneryRing.Reach)) : (0, 0, 0, 0);
+        if (_cells != cells)
+        {
+            _cells = cells;
+            N64Material.SetCells(cells.Item1, cells.Item2, cells.Item3, (float)_chunks.Chunks.MapSet.CellSize, cells.Item4);
+        }
         // Only as it changes: setting it calls into the renderer, which can be busy with what the builder makes.
         if (Scene is null && Battle is null && _camera!.Far != _sky.CameraFar)
             _camera.Far = _sky.CameraFar;
