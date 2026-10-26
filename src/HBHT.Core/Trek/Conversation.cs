@@ -22,7 +22,9 @@ namespace HBHT.Core.Trek;
 /// press moves the script on and asks the speaker for its talking for a tick (<see cref="SpeakerTalk"/>):
 /// Alaron for his lines, and the wanderer for anyone else's, unless the script played an animation itself.
 /// A line that plays one (<see cref="DialogueCommand.PlayAnimation"/>) asks the same body for its request
-/// as it shows, in place of the talk, and nobody talks as it shows again.
+/// as it shows, in place of the talk, if the speaker's actor has a state for it; if not, the speaker talks.
+/// That's the port's fix: in 1.0 the line's speaker talks, nobody plays the request, and the line shows
+/// again until A (docs/systems/scripts.md).
 /// </para>
 /// <para>
 /// At the end the camera goes back to the player, and the wanderer sets off for its node again, or
@@ -32,12 +34,14 @@ namespace HBHT.Core.Trek;
 public sealed class Conversation
 {
     private readonly PlayerMotion _player;
+    private readonly PluginSet _plugins;
     private readonly Watch _host;
 
     private Conversation(GameState game, DialogueRecord script, ScriptStart start, IScriptHost host, PlayerMotion player, Wanderer? with)
     {
         _player = player;
-        _host = new Watch(host, Ask);
+        _plugins = game.Plugins;
+        _host = new Watch(host, Animate);
         With = with;
         Runner = game.RunScript(script, _host, start);
     }
@@ -191,6 +195,22 @@ public sealed class Conversation
             With.Body.Request = request;
     }
 
+    /// <summary>
+    /// Asks the speaker's body for an animated line's request in place of the talk, if the speaker's actor has a state for
+    /// it (any branch taken for the request). False, and the speaker talks as for any line, if it hasn't, or the speaker
+    /// has no body.
+    /// </summary>
+    private bool Animate(RecordId speaker, int request)
+    {
+        if (speaker.Type != RecordTypes.Entity || (speaker != GameState.Alaron && With is null)
+            || _plugins.TryGet<EntityRecord>(speaker)?.Body?.Actor is not { } actor
+            || _plugins.TryGet<ActorRecord>(actor) is not { } record
+            || !record.States.Any(s => s.Branches.Any(b => b.Request == request)))
+            return false;
+        Ask(speaker, request);
+        return true;
+    }
+
     private void Stand()
     {
         _player.Asked = Body.Idle;
@@ -199,21 +219,17 @@ public sealed class Conversation
     }
 
     /// <summary>
-    /// Passes the script's cues on, noting whether it played an animation (<c>ApplyStimulus</c>, <c>unkac</c>), and asks
-    /// the animated speaker's body for the request.
+    /// Passes the script's cues on, noting whether it played an animation (<c>ApplyStimulus</c>, <c>unkac</c>): an animated
+    /// line's speaker playing its request takes the place of the talk.
     /// </summary>
-    private sealed class Watch(IScriptHost host, Action<RecordId?, int> animate) : IScriptHost
+    private sealed class Watch(IScriptHost host, Func<RecordId, int, bool> animate) : IScriptHost
     {
         public SpeakerTalk Talk { get; } = new();
 
         public void Cue(ScriptCue cue)
         {
-            if (cue is AnimateCue animation)
-            {
+            if (cue is AnimateCue animation && (animation.Actor is not { } actor || animate(actor, animation.Request)))
                 Talk.Animated();
-                if (animation.Actor is not null)
-                    animate(animation.Actor, animation.Request);
-            }
             host.Cue(cue);
         }
     }

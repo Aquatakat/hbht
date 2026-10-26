@@ -61,10 +61,12 @@ internal static class ConversationPlugins
             Line(1, "Hmm.", 2, Says(GameState.Alaron)),
             Line(2, "Woof.", 3, Says(Sign)),
             Line(3, "Bye.", null, Says(Trahern), End)),
-        // A line that plays an animation: its speaker plays it as it shows, then the line shows again until A.
+        // Lines that play an animation, as each shows: Trahern's actor has no state for 5, so he talks; Alaron's has one for 19.
         Record(Animates,
-            Line(0, "Watch.", 1, Says(Trahern), Op(DialogueCommand.PlayAnimation, 5)),
-            Line(1, "Ta-da.", null, Says(Trahern), End)),
+            Line(0, "Hello.", 1, Says(Trahern)),
+            Line(1, "Watch.", 2, Says(Trahern), Op(DialogueCommand.PlayAnimation, 5)),
+            Line(2, "Here.", 3, Says(GameState.Alaron), Op(DialogueCommand.PlayAnimation, 19)),
+            Line(3, "Ta-da.", null, Says(Trahern), End)),
         // A wait of three ticks before the second line.
         Record(Waits,
             Line(0, "", 1, Op(DialogueCommand.Wait, 3)),
@@ -411,31 +413,30 @@ public sealed class ConversationTests(Na10Import fixture)
     }
 
     [Fact]
-    public void AnAnimatedLineAnimatesTheWandererAsItShowsAndNobodyTalksAsItShowsAgain()
+    public void AnAnimatedLinesSpeakerPlaysItInPlaceOfTheTalkOrTalksIfTheirActorHasNoStateForIt()
     {
-        // The first line plays 5 as it shows: Trahern's, so the wanderer's body is asked for it.
         var s = Make(ConversationPlugins.Animates);
         var conversation = s.Talk();
-        Assert.Equal("Watch.", conversation.Runner.Page!.Line.Text);
-        Assert.Contains(new AnimateCue(ConversationPlugins.Trahern, 5), s.Cues.Seen);
-        Assert.Equal(5, s.Body.Request);
-
-        // A: the line again, with nobody animating or talking.
         conversation.Press(conversation.Runner.Continue);
-        Assert.Equal(new AnimateCue(null, 5), s.Cues.Seen[^1]);
-        Assert.Equal("Watch.", conversation.Runner.Page!.Line.Text);
-        Assert.Equal(ConversationPlugins.Trahern, conversation.Runner.Page.Line.Speaker);
-        Assert.Equal(Body.Idle, s.Body.Request);
-        Assert.Equal(Body.Idle, s.Player.Asked);
 
-        // The next press has no animation, so Trahern talks.
+        // Trahern's actor has no state for 5: he talks, as for any line, and the line shows once.
+        Assert.Equal("Watch.", conversation.Runner.Page!.Line.Text);
+        Assert.Equal(new AnimateCue(ConversationPlugins.Trahern, 5), s.Cues.Seen[^1]);
+        Assert.Equal((Body.Talk, Body.Idle), (s.Body.Request, s.Player.Asked));
+        Assert.Null(conversation.Runner.Wait);
+
+        // Alaron's has one for 19, so he plays it in place of the talk.
+        conversation.Press(conversation.Runner.Continue);
+        Assert.Equal("Here.", conversation.Runner.Page!.Line.Text);
+        Assert.Equal((Body.Idle, 19), (s.Body.Request, s.Player.Asked));
+
         conversation.Press(conversation.Runner.Continue);
         Assert.Equal("Ta-da.", conversation.Runner.Page!.Line.Text);
-        Assert.Equal(Body.Talk, s.Body.Request);
+        Assert.Equal((Body.Talk, Body.Idle), (s.Body.Request, s.Player.Asked));
     }
 
     [Fact]
-    public void TheLighthouseKeeperHandsOverHisKeyAsTheUserSawIn10()
+    public void TheLighthouseKeeperTalksAndAlaronReachesOutAsHeTakesTheKey()
     {
         // Borg13 890 with the keeper rescued (derived 5349: 1294, 1442 and 1443 set, 277 clear) and not yet thanked (285):
         // on to the menu at node 8, asking him to come.
@@ -454,32 +455,19 @@ public sealed class ConversationTests(Na10Import fixture)
         }
         var keeper = RecordId.Hex(RecordTypes.Entity, 0x0205);
 
-        // 1. "Here... take the key", and the keeper (the wanderer's body) plays 19.
+        // "Here... take the key" asks the keeper for 19, which the Male Commoner's actor has no state for, so he talks.
         conversation.Press(runner.Continue);
         Assert.Equal((13, keeper), (runner.Page!.Line.Node, runner.Page.Line.Speaker));
         Assert.StartsWith("Here... take the key.", runner.Page.Line.Text);
         Assert.Equal(new AnimateCue(keeper, 19), s.Cues.Seen[^1]);
-        Assert.Equal(19, s.Body.Request);
-        Assert.Equal(Body.Idle, s.Player.Asked);
+        Assert.Equal((Body.Talk, Body.Idle), (s.Body.Request, s.Player.Asked));
 
-        // 2. The same line again, still.
-        conversation.Press(runner.Continue);
-        Assert.Equal(13, runner.Page!.Line.Node);
-        Assert.Equal(ScriptWait.Player, runner.Wait);
-        Assert.Equal((Body.Idle, Body.Idle), (s.Body.Request, s.Player.Asked));
-
-        // 3. "Thank you.", and Alaron plays 19.
+        // One press on: "Thank you.", and Alaron reaches out (his actor's 19).
         conversation.Press(runner.Continue);
         Assert.Equal((14, GameState.Alaron, "Thank you."), (runner.Page!.Line.Node, runner.Page.Line.Speaker, runner.Page.Line.Text));
-        Assert.Equal(new AnimateCue(GameState.Alaron, 19), s.Cues.Seen[^1]);
         Assert.Equal((Body.Idle, 19), (s.Body.Request, s.Player.Asked));
 
-        // 4. "Thank you." again, still.
-        conversation.Press(runner.Continue);
-        Assert.Equal(14, runner.Page!.Line.Node);
-        Assert.Equal((Body.Idle, Body.Idle), (s.Body.Request, s.Player.Asked));
-
-        // 5. On through the key (node 15) to the keeper's secret, which he talks through.
+        // One more: on through the key (node 15) to the keeper's secret, which he talks through.
         conversation.Press(runner.Continue);
         Assert.Equal(16, runner.Page!.Line.Node);
         Assert.Equal(Body.Talk, s.Body.Request);

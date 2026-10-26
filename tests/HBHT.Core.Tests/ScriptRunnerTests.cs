@@ -316,9 +316,10 @@ public class ScriptRunnerTests
     }
 
     [Fact]
-    public void AConversationsAnimatedLineAnimatesItsSpeakerThenShowsAgainStill()
+    public void AConversationsAnimatedLineAsksItsSpeakerForTheRequestAsItShowsAndShowsOnce()
     {
-        // Borg13 890's nodes 12 to 16, the lighthouse keeper handing Alaron his key, as the user saw 1.0 play them.
+        // Borg13 890's nodes 12 to 16, the lighthouse keeper handing Alaron his key. 1.0 shows each animated line twice with no
+        // one animating; the port's fix plays the request as the line shows, once.
         var keeper = RecordId.Hex(RecordTypes.Entity, 0x0205);
         var key = RecordId.Hex(RecordTypes.Item, 0x1205);
         var run = Start(Script(DialogueMode.Conversation,
@@ -328,35 +329,34 @@ public class ScriptRunnerTests
             Line(3, "", 4, Op(DialogueCommand.AddItem, target: key)),
             Line(4, "A secret?", null, Op(DialogueCommand.SetSpeaker, target: Alaron), End)));
 
-        // The keeper's line shows, and he plays 19 as it does.
         run.Runner.Continue();
         Assert.Equal("Here... take the key.", Text(run.Runner));
         Assert.Null(run.Runner.Wait);
         Assert.Equal(new AnimateCue(keeper, 19), Assert.Single(run.Host.Cues));
 
-        // A: the same line again, with no one animating.
-        run.Runner.Continue();
-        Assert.Equal("Here... take the key.", Text(run.Runner));
-        Assert.Equal(keeper, run.Runner.Page!.Line.Speaker);
-        Assert.Equal(ScriptWait.Player, run.Runner.Wait);
-        Assert.Equal(new AnimateCue(null, 19), run.Host.Cues[^1]);
-
-        // A: Alaron's line, and he plays 19.
         run.Runner.Continue();
         Assert.Equal("Thank you.", Text(run.Runner));
         Assert.Null(run.Runner.Wait);
         Assert.Equal(new AnimateCue(Alaron, 19), run.Host.Cues[^1]);
 
-        // A: his line again, still.
-        run.Runner.Continue();
-        Assert.Equal("Thank you.", Text(run.Runner));
-        Assert.Equal(ScriptWait.Player, run.Runner.Wait);
-        Assert.Equal(new AnimateCue(null, 19), run.Host.Cues[^1]);
-
-        // A: on through the key to the next line.
         run.Runner.Continue();
         Assert.Equal("A secret?", Text(run.Runner));
-        Assert.Equal(4, run.Host.Cues.Count);
+        Assert.Equal(2, run.Host.Cues.Count);
+    }
+
+    [Fact]
+    public void AnAnimatedLineWithNoSpeakerOfItsOwnAsksTheOneTheBoxShows()
+    {
+        // 0x037B's node 26, "Get out of my sight, worm!", sets no speaker: the Marquis, speaking from node 25, is asked.
+        var marquis = RecordId.Hex(RecordTypes.Entity, 0x0221);
+        var run = Start(Script(DialogueMode.Conversation,
+            Line(0, "Hmph.", 1, Op(DialogueCommand.SetSpeaker, target: marquis)),
+            Line(1, "Get out of my sight, worm!", null, Op(DialogueCommand.PlayAnimation, 5), End)));
+
+        run.Runner.Continue();
+        Assert.Equal("Get out of my sight, worm!", Text(run.Runner));
+        Assert.Equal(marquis, run.Runner.Page!.Line.Speaker);
+        Assert.Equal(new AnimateCue(marquis, 5), Assert.Single(run.Host.Cues));
     }
 
     [Fact]

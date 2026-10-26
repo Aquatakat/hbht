@@ -50,8 +50,8 @@ public enum ScriptWait
     /// <summary>The scripted camera finishing its move.</summary>
     Camera,
     /// <summary>
-    /// The player pressing A: a random line is showing, or an animation with no actor has the last line
-    /// showing again, as a conversation's always does.
+    /// The player pressing A: a random line is showing, or a cut-scene's animation with no actor has the last
+    /// line showing again.
     /// </summary>
     Player,
 }
@@ -311,9 +311,8 @@ public sealed class ScriptRunner
 
     /// <summary>
     /// Shows a line node's text as the page's line. In a conversation, a line whose effect is
-    /// <see cref="DialogueCommand.PlayAnimation"/> animates its speaker as it shows, as the user saw 1.0 do
-    /// (Borg13 890, nodes 13 and 14): the effect itself, run as the line is left, then shows the line
-    /// again (<see cref="Effect"/>). What in 1.0's code plays the animation here isn't found.
+    /// <see cref="DialogueCommand.PlayAnimation"/> asks its speaker, the one the box shows, for the request as it shows,
+    /// in place of the talk (<see cref="AnimateCue"/>). That's the port's fix: 1.0 animates no one there (<see cref="Effect"/>).
     /// </summary>
     private void Show(int node)
     {
@@ -645,9 +644,12 @@ public sealed class ScriptRunner
                 _host.Cue(new MoveCue(_speaker, RefPoint(op), op.Command == DialogueCommand.RunTo));
                 break;
             case DialogueCommand.PlayAnimation:
-                // In a conversation the speaker animated as the line showed (Show). Here, as it's left, the original
-                // looks the actor up from the page it has just cleared (FUN_800591e4), so no one animates, and the line
-                // shows again until A. Other scripts only animate actors they've spawned (FUN_80059ae8).
+                // In a conversation the original looks the actor up from the page it has just cleared (FUN_800591e4), so
+                // no one animates, and it waits for A with the line showing again. The port's fix plays it as the line
+                // shows instead (Show), and leaves nothing to wait for. Other scripts only animate actors they've
+                // spawned (FUN_80059ae8).
+                if (_script.Mode == DialogueMode.Conversation)
+                    break;
                 var actor = _script.Mode != DialogueMode.Conversation && _speaker is { } speaker && _spawned.Contains(speaker) ? speaker : (RecordId?)null;
                 WaitOn(node, actor is null ? ScriptWait.Player : ScriptWait.Animation);
                 _host.Cue(new AnimateCue(actor, value));

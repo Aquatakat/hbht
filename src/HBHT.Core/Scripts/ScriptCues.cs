@@ -39,11 +39,12 @@ public sealed record SpawnCue(RecordId? Actor, int RefPoint) : ScriptCue;
 public sealed record MoveCue(RecordId? Actor, int RefPoint, bool Run) : ScriptCue;
 
 /// <summary>
-/// An actor plays an animation (the request). In a cut-scene the script waits until it ends. With
+/// An actor plays an animation (the request). In a cut-scene the script waits until it ends; with
 /// no actor, nothing plays, and the script waits for the player to press A with the last line
-/// showing again. A conversation's animated line sends both: the speaker's as the line shows, which
-/// waits for nothing, and one with no actor as it's left, since the original looks the actor up from
-/// the line it has just cleared (<c>FUN_800591e4</c>).
+/// showing again. A conversation's animated line sends the speaker's as the line shows, and waits for
+/// nothing: the speaker plays it in place of the talk, or talks if their actor has no state for it.
+/// That's the port's fix: 1.0 looks the actor up from the line it has just cleared (<c>FUN_800591e4</c>),
+/// so no one animates, and the line shows again until A.
 /// </summary>
 public sealed record AnimateCue(RecordId? Actor, int Request) : ScriptCue;
 
