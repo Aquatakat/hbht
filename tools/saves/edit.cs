@@ -11,9 +11,10 @@ using HBHT.Plugins.Saves;
 
 // Edits a save for a user check:
 //   dotnet run tools/saves/edit.cs -- <in.json> <out.json> [--label <text>] [--at <mapset> <chunk> <x> <z> [<y>]] [--face <x> <z>]
-//                         [--set <n,...>] [--clear <n,...>]
+//                         [--set <n,...>] [--clear <n,...>] [--give <item ID> <n>]
 // --at stands the player on the floor under (x, y, z) of the chunk (y defaults to high above, sweeping down to the first floor),
-// facing the point --face gives (in the same chunk), or as he faced.
+// facing the point --face gives (in the same chunk), or as he faced. --give adds n of an item (aidyn:item/0x1000) to its stack,
+// or a new stack after the others.
 var (input, output) = (args[0], args[1]);
 var plugins = PluginSet.LoadInstalled(DataPaths.Plugins);
 var save = SaveFile.Read(input);
@@ -36,6 +37,15 @@ for (var i = 2; i < args.Length; i++)
         case "--face": face = new Vector2(F(args[++i]), F(args[++i])); break;
         case "--set": foreach (var n in args[++i].Split(',')) flags.Add(RecordId.Decimal(RecordTypes.Flag, int.Parse(n, CultureInfo.InvariantCulture))); break;
         case "--clear": foreach (var n in args[++i].Split(',')) flags.Remove(RecordId.Decimal(RecordTypes.Flag, int.Parse(n, CultureInfo.InvariantCulture))); break;
+        case "--give":
+            var (item, count) = (RecordId.Parse(args[i + 1]), int.Parse(args[i + 2], CultureInfo.InvariantCulture));
+            i += 2;
+            var stacks = save.Party.Inventory.ToList();
+            var held = stacks.FindIndex(s => s.Item == item);
+            if (held < 0) stacks.Add(new SaveStack(item, count));
+            else stacks[held] = stacks[held] with { Quantity = stacks[held].Quantity + count };
+            save = save with { Party = save.Party with { Inventory = stacks } };
+            break;
         default: throw new ArgumentException($"What's {args[i]}?");
     }
 }
