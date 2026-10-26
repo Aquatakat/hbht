@@ -46,7 +46,7 @@ Where the original crashes, or reads past its nodes, the runner ends the script 
 
 Two scripts have problems in the data:
 
-- **Node 24 of script 1040** (the harbour reunion, id 2192) is Dougal's line, and it lost its link to node 25 (its siblings have one, and an op 2 naming the next node). With Dougal in the party, the original reads a node past the end of the script, and the rest of the scene doesn't play. The runner ends the scene there, setting its done flag. What the console does is open ([to check](#to-check-in-the-emulator)).
+- **Node 24 of script 1040** (the harbour reunion, id 2192) is Dougal's line, and it lost its link to node 25 (its siblings have one, and an op 2 naming the next node). With Dougal in the party, the original reads a node past the end of the script and softlocks: the user saw 1.0 show an empty dialogue box with no portrait, which nothing moves on from, talking to Keelin in Port Saiid's inn with Dougal in the party. Play rarely gets there, since it needs a return to Port Saiid after Dougal joins. The runner ends the scene there, setting its done flag.
 - **Trahern's conversation** (936) goes round nodes 64–69 forever once flags 67 and 84 are both set. Nothing sets 84, so it can't happen.
 
 ## Cut-scenes
@@ -92,6 +92,3 @@ Two scripts have problems in the data:
 
 The session's `Tick` hears the actors from the camera and steps the stage's sounds, as `CutScene.PlayFrame` (`0x80050f50`) runs `HandleZoneEngineFrame`; the plain `Tick` the tests use steps the cut-scene alone. A real-data test plays every cut-scene a dialogue object or a talker starts to its end in a new game.
 
-## To check in the emulator
-
-A reading from the code waits on the console ([user-checks](../user-checks.md)): what the harbour reunion does at Dougal's line ([faults](#faults)).
