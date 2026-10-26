@@ -316,19 +316,63 @@ public class ScriptRunnerTests
     }
 
     [Fact]
-    public void AnAnimationWithNoActorWaitsForTheLastLineToBeReadAgain()
+    public void AConversationsAnimatedLineAnimatesItsSpeakerThenShowsAgainStill()
     {
+        // Borg13 890's nodes 12 to 16, the lighthouse keeper handing Alaron his key, as the user saw 1.0 play them.
+        var keeper = RecordId.Hex(RecordTypes.Entity, 0x0205);
+        var key = RecordId.Hex(RecordTypes.Item, 0x1205);
         var run = Start(Script(DialogueMode.Conversation,
+            Line(0, "I suppose I can understand your reluctance.", 1, Op(DialogueCommand.SetSpeaker, target: Alaron)),
+            Line(1, "Here... take the key.", 2, Op(DialogueCommand.SetSpeaker, target: keeper), Op(DialogueCommand.PlayAnimation, 19)),
+            Line(2, "Thank you.", 3, Op(DialogueCommand.SetSpeaker, target: Alaron), Op(DialogueCommand.PlayAnimation, 19)),
+            Line(3, "", 4, Op(DialogueCommand.AddItem, target: key)),
+            Line(4, "A secret?", null, Op(DialogueCommand.SetSpeaker, target: Alaron), End)));
+
+        // The keeper's line shows, and he plays 19 as it does.
+        run.Runner.Continue();
+        Assert.Equal("Here... take the key.", Text(run.Runner));
+        Assert.Null(run.Runner.Wait);
+        Assert.Equal(new AnimateCue(keeper, 19), Assert.Single(run.Host.Cues));
+
+        // A: the same line again, with no one animating.
+        run.Runner.Continue();
+        Assert.Equal("Here... take the key.", Text(run.Runner));
+        Assert.Equal(keeper, run.Runner.Page!.Line.Speaker);
+        Assert.Equal(ScriptWait.Player, run.Runner.Wait);
+        Assert.Equal(new AnimateCue(null, 19), run.Host.Cues[^1]);
+
+        // A: Alaron's line, and he plays 19.
+        run.Runner.Continue();
+        Assert.Equal("Thank you.", Text(run.Runner));
+        Assert.Null(run.Runner.Wait);
+        Assert.Equal(new AnimateCue(Alaron, 19), run.Host.Cues[^1]);
+
+        // A: his line again, still.
+        run.Runner.Continue();
+        Assert.Equal("Thank you.", Text(run.Runner));
+        Assert.Equal(ScriptWait.Player, run.Runner.Wait);
+        Assert.Equal(new AnimateCue(null, 19), run.Host.Cues[^1]);
+
+        // A: on through the key to the next line.
+        run.Runner.Continue();
+        Assert.Equal("A secret?", Text(run.Runner));
+        Assert.Equal(4, run.Host.Cues.Count);
+    }
+
+    [Fact]
+    public void ACutSceneAnimatesNoOneAsALineShows()
+    {
+        var run = Start(Script(DialogueMode.Cutscene,
             Line(0, "Watch this.", 1, Op(DialogueCommand.SetSpeaker, target: Trahern), Op(DialogueCommand.PlayAnimation, 5)),
             Line(1, "Ta-da.", null, End)));
 
+        Assert.Empty(run.Host.Cues);
         run.Runner.Continue();
 
-        Assert.Equal(new AnimateCue(null, 5), run.Host.Cues[^1]);
+        // Trahern wasn't spawned, so nothing plays and the line waits for A.
+        Assert.Equal(new AnimateCue(null, 5), Assert.Single(run.Host.Cues));
         Assert.Equal(ScriptWait.Player, run.Runner.Wait);
         Assert.Equal("Watch this.", Text(run.Runner));
-        run.Runner.Continue();
-        Assert.Equal("Ta-da.", Text(run.Runner));
     }
 
     [Fact]

@@ -77,6 +77,7 @@ After each body moves, the player first, it's pushed out of the others in its ch
 - **The player turns to the talker as a body does,** 10° a frame where he stands (`PlayerMotion.Face`).
 - **Walking into objects and onto triangles stops** during a conversation, except for their cameras, which take the camera from the conversation's framing.
 - **The talk request lasts a tick:** turning, or a steered body's step, overrides it, as `Actor::Move` does in the original.
+- **A line that plays an animation** (`PlayAnimation`) has its speaker's body, chosen as for the talk, asked for the request in place of the talk as it shows, for a tick as well, and nobody talks as it shows again. The user saw 1.0 do it; the code behind it isn't found ([scripts](scripts.md#ops-that-need-more-than-a-flag)).
 - **A conversation's scripts don't move the camera or walk anyone:** what one would wait for, but a timer, is taken as done (`TrekLoop.Refresh`).
 - **The end** (`Conversation.End`) leads where the script's ending says ([scripts](scripts.md#ops-that-need-more-than-a-flag)): a shop, training, a camp's hours or a battle.
 
