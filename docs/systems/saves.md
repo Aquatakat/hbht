@@ -23,7 +23,7 @@ They write to the data folder's `saves` unless given a path, where the System ta
 Three more read and write the original's saves in a Controller Pak (below), for loading the original at a place the user is to check. They take the ROM, for the inventory's slots, and use the pak ares keeps beside it (`<rom basename>.pak`) unless given `--pak`:
 
 - `hbht save pak <rom>` lists the pak's saves: slot, name, time played, place and party.
-- `hbht save to-pak <rom> <save> [<slot>]` writes a save into a slot, A to P (default A), replacing the one there. It keeps the pak as it was beside it first (`<pak>.<time>.bak`), and makes a blank pak if there's none. A save without a place, a new game's, is written where a new game arrives, without the opening. ares writes its pak back as it closes, so close it first.
+- `hbht save to-pak <rom> <save> [<slot>]` writes a save into a slot, A to P (default A), replacing the one there. It keeps the pak as it was beside it first (`<pak>.<time>.bak`), and makes a blank pak if there's none. A save without a place, a new game's, is written where a new game arrives, on the ground. Loading it skips the opening cinematic, but trek there starts the opening's script, whose dialogue object holds the arrival ([events](events.md#where-the-port-differs)). ares writes its pak back as it closes, so close it first.
 - `hbht save from-pak <rom> [<slot>] [--out <save>]` turns a slot's save into one of the port's.
 
 ## The format

@@ -4,8 +4,11 @@ namespace HBHT.Rom.Tests;
 
 public class ControllerPakTests
 {
-    /// <summary>The paks beside the ROMs: 1.0's with the four story saves, and 1.1's as ares formatted it, empty.</summary>
-    public const string Na10Pak = "Aidyn Chronicles - The First Mage (U) (V1.0) [!].pak", Na11Pak = "Aidyn Chronicles - The First Mage (U) (V1.1).pak";
+    /// <summary>
+    /// The paks beside the ROMs: the four story saves, kept apart from the pak ares uses for 1.0, which saves are written into
+    /// for checks, and 1.1's pak as ares formatted it, empty.
+    /// </summary>
+    public const string Na10Pak = "Aidyn Chronicles - The First Mage (U) (V1.0) [!] - story saves.pak", Na11Pak = "Aidyn Chronicles - The First Mage (U) (V1.1).pak";
 
     public static byte[] Pak(string name)
     {
@@ -24,8 +27,16 @@ public class ControllerPakTests
         Assert.Equal([5, 33, 61, 89], notes.Select(n => n.StartPage));
     }
 
+    /// <summary>The ID page is that of the pak ares formatted beside 1.1, which saves written into it leave as it is; the rest is empty.</summary>
     [Fact]
-    public void BlankIsAsAresFormatsOne() => Assert.Equal(Pak(Na11Pak), ControllerPak.Blank().ToArray());
+    public void BlankIsAsAresFormatsOne()
+    {
+        var blank = ControllerPak.Blank();
+        Assert.Equal(Pak(Na11Pak).AsSpan(0, 0x100).ToArray(), blank.ToArray().AsSpan(0, 0x100).ToArray());
+        Assert.Empty(blank.Notes);
+        var full = blank.WriteNote("NAYE", "78", FontText.Encode("CHRONICLES", 16), FontText.Encode("A", 4), new byte[123 * ControllerPak.PageSize]);
+        Assert.Equal((5, 123), (full.StartPage, full.Pages));
+    }
 
     [Fact]
     public void WritingTheSavesIntoABlankPakLaysThemOutAsTheGameDid()

@@ -206,7 +206,8 @@ public sealed class PakSaves
 
     /// <summary>
     /// Where a new game arrives (<see cref="NewGameRecord"/>), for a save without a place: the original's saves always have one,
-    /// and loading puts the player there in trek, without the opening.
+    /// and loading puts the player there in trek, skipping the opening cinematic: trek there starts the opening's script, whose dialogue
+    /// object holds the arrival (docs/systems/events.md).
     /// </summary>
     private SavePlace NewGamePlace(ICollection<string> problems)
     {
@@ -214,7 +215,7 @@ public sealed class PakSaves
             ?? throw new InvalidDataException("The save has no place, and the plugins no new game record to take one from.");
         var chunk = _plugins.Get<MapSetRecord>(start.Chunk.MapSet).Chunk(start.Chunk.Row, start.Chunk.Column)
             ?? throw new InvalidDataException($"{start.Chunk.MapSet} has no chunk {start.Chunk.Row},{start.Chunk.Column}, where a new game arrives.");
-        problems.Add($"The save has no place, so it's written where a new game arrives, {chunk.Name}, without the opening.");
+        problems.Add($"The save has no place, so it's written where a new game arrives, {chunk.Name}: loading it skips the opening cinematic, and trek there plays the opening's script.");
         return new SavePlace(start.Chunk.MapSet, chunk.Name, new Vector3(start.Position.X, start.Height, start.Position.Y), new Vector2(0, 1));
     }
 

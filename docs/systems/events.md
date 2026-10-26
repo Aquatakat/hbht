@@ -56,6 +56,7 @@ Every kind of the endings table takes over from trek, so a cinematic after a cut
 
 ### Where the port differs
 
+- **Script 866 is also trek's.** The dialogue object `EndOpening` takes it from, `voxel/0x0FDB/7` at (12.6, −17.1, 60.3) with a radius of 10, is enabled while flag 5 is clear (derived 5424), and 866 sets 5 as it ends. A new game arrives about 4 from it, so trek there before 866 has played starts it. The user saw the original do so, loading a save of a new game's flags written at the arrival (`hbht save to-pak`): 866 played, and Alaron stood in his corner of the forest after.
 - **A new game builds trek's world before the opening.** The original builds it only after script 866 has ended (`InitGameTrek` runs on `TrekLoop.Frame`'s first frame, with `TrekLoop.Restoring` clear, so the player arrives at the new game's place). The port builds it where the player arrives, plays the opening over it, frees it for 866's stage and builds it again there after: the same place and the same pictures.
 - **The ending's credits end the game** by `Transition.GameOver`, which goes back to the title, as after the game over.
 
