@@ -49,7 +49,10 @@ public enum ScriptWait
     Timer,
     /// <summary>The scripted camera finishing its move.</summary>
     Camera,
-    /// <summary>The player pressing A: a random line, or an animation with no actor, is showing.</summary>
+    /// <summary>
+    /// The player pressing A: a random line is showing, or an animation with no actor has the last line
+    /// showing again, as a conversation's always does.
+    /// </summary>
     Player,
 }
 
@@ -306,6 +309,19 @@ public sealed class ScriptRunner
         }
     }
 
+    /// <summary>
+    /// Shows a line node's text as the page's line. In a conversation, a line whose effect is
+    /// <see cref="DialogueCommand.PlayAnimation"/> animates its speaker as it shows, as the user saw 1.0 do
+    /// (Borg13 890, nodes 13 and 14): the effect itself, run as the line is left, then shows the line
+    /// again (<see cref="Effect"/>). What in 1.0's code plays the animation here isn't found.
+    /// </summary>
+    private void Show(int node)
+    {
+        Push(node, Node(node).Text);
+        if (_script.Mode == DialogueMode.Conversation && EffectOp(node) is { Command: DialogueCommand.PlayAnimation } op)
+            _host.Cue(new AnimateCue(_speaker, op.Value ?? 0));
+    }
+
     /// <summary>The start: node 0 is reached, and shown or walked through (<c>DialogNode_func</c>).</summary>
     private void Begin()
     {
@@ -318,7 +334,7 @@ public sealed class ScriptRunner
                 if (start.Text.Length == 0)
                     Advance(0);
                 else
-                    Push(0, start.Text);
+                    Show(0);
                 break;
             case DialogueNodeKind.If:
                 if (Branch(0) is { } through)
@@ -369,7 +385,7 @@ public sealed class ScriptRunner
                     Setup(chosen);
                     if (Node(chosen).Text.Length > 0)
                     {
-                        Push(chosen, Node(chosen).Text);
+                        Show(chosen);
                         return;
                     }
                     node = chosen;
@@ -407,7 +423,7 @@ public sealed class ScriptRunner
                     Setup(next);
                     if (Node(next).Text.Length > 0)
                     {
-                        Push(next, Node(next).Text);
+                        Show(next);
                         return;
                     }
                     node = next;
@@ -453,7 +469,7 @@ public sealed class ScriptRunner
         Setup(target);
         if (Node(target).Text.Length == 0)
             return target;
-        Push(target, Node(target).Text);
+        Show(target);
         return null;
     }
 
@@ -605,7 +621,7 @@ public sealed class ScriptRunner
     /// </summary>
     private void Effect(int node)
     {
-        if (Node(node).Ops?.FirstOrDefault(o => o.Command.IsEffect()) is not { } op)
+        if (EffectOp(node) is not { } op)
             return;
         var value = op.Value ?? 0;
         if (ScriptOps.ChangesState(op.Command))
@@ -629,8 +645,9 @@ public sealed class ScriptRunner
                 _host.Cue(new MoveCue(_speaker, RefPoint(op), op.Command == DialogueCommand.RunTo));
                 break;
             case DialogueCommand.PlayAnimation:
-                // A conversation looks the actor up from a line it has already cleared (FUN_800591e4), and
-                // other scripts only animate actors they've spawned (FUN_80059ae8).
+                // In a conversation the speaker animated as the line showed (Show). Here, as it's left, the original
+                // looks the actor up from the page it has just cleared (FUN_800591e4), so no one animates, and the line
+                // shows again until A. Other scripts only animate actors they've spawned (FUN_80059ae8).
                 var actor = _script.Mode != DialogueMode.Conversation && _speaker is { } speaker && _spawned.Contains(speaker) ? speaker : (RecordId?)null;
                 WaitOn(node, actor is null ? ScriptWait.Player : ScriptWait.Animation);
                 _host.Cue(new AnimateCue(actor, value));
@@ -673,6 +690,9 @@ public sealed class ScriptRunner
                 break;
         }
     }
+
+    /// <summary>A node's first effect op, the one that runs as it's left.</summary>
+    private DialogueOp? EffectOp(int node) => Node(node).Ops?.FirstOrDefault(o => o.Command.IsEffect());
 
     private void WaitOn(int node, ScriptWait wait)
     {

@@ -21,6 +21,8 @@ namespace HBHT.Core.Trek;
 /// turns to face the other. The camera frames the two (<see cref="FollowCamera.Frame"/>). Each
 /// press moves the script on and asks the speaker for its talking for a tick (<see cref="SpeakerTalk"/>):
 /// Alaron for his lines, and the wanderer for anyone else's, unless the script played an animation itself.
+/// A line that plays one (<see cref="DialogueCommand.PlayAnimation"/>) asks the same body for its request
+/// as it shows, in place of the talk, and nobody talks as it shows again.
 /// </para>
 /// <para>
 /// At the end the camera goes back to the player, and the wanderer sets off for its node again, or
@@ -35,7 +37,7 @@ public sealed class Conversation
     private Conversation(GameState game, DialogueRecord script, ScriptStart start, IScriptHost host, PlayerMotion player, Wanderer? with)
     {
         _player = player;
-        _host = new Watch(host);
+        _host = new Watch(host, Ask);
         With = with;
         Runner = game.RunScript(script, _host, start);
     }
@@ -115,12 +117,8 @@ public sealed class Conversation
     public void Press(Action advance)
     {
         Stand();
-        if (!_host.Talk.Press(advance) || Runner.Page?.Line.Speaker is not { Type: RecordTypes.Entity } speaker)
-            return;
-        if (speaker == GameState.Alaron)
-            _player.Asked = Body.Talk;
-        else if (With is not null)
-            With.Body.Request = Body.Talk;
+        if (_host.Talk.Press(advance))
+            Ask(Runner.Page?.Line.Speaker, Body.Talk);
     }
 
     /// <summary>
@@ -179,6 +177,20 @@ public sealed class Conversation
         With.Body.Held = true;
     }
 
+    /// <summary>
+    /// Asks a speaker's body for a request until the bodies next step: Alaron's for his lines, and the wanderer's for
+    /// anyone else's. A speaker that isn't an entity, as a sign is, has no body.
+    /// </summary>
+    private void Ask(RecordId? speaker, int request)
+    {
+        if (speaker is not { Type: RecordTypes.Entity } entity)
+            return;
+        if (entity == GameState.Alaron)
+            _player.Asked = request;
+        else if (With is not null)
+            With.Body.Request = request;
+    }
+
     private void Stand()
     {
         _player.Asked = Body.Idle;
@@ -186,15 +198,22 @@ public sealed class Conversation
             With.Body.Request = Body.Idle;
     }
 
-    /// <summary>Passes the script's cues on, noting whether it played an animation (<c>ApplyStimulus</c>, <c>unkac</c>).</summary>
-    private sealed class Watch(IScriptHost host) : IScriptHost
+    /// <summary>
+    /// Passes the script's cues on, noting whether it played an animation (<c>ApplyStimulus</c>, <c>unkac</c>), and asks
+    /// the animated speaker's body for the request.
+    /// </summary>
+    private sealed class Watch(IScriptHost host, Action<RecordId?, int> animate) : IScriptHost
     {
         public SpeakerTalk Talk { get; } = new();
 
         public void Cue(ScriptCue cue)
         {
-            if (cue is AnimateCue)
+            if (cue is AnimateCue animation)
+            {
                 Talk.Animated();
+                if (animation.Actor is not null)
+                    animate(animation.Actor, animation.Request);
+            }
             host.Cue(cue);
         }
     }
