@@ -49,7 +49,7 @@ Where the original crashes, or reads past its nodes, the runner ends the script 
 
 Two scripts have problems in the data:
 
-- **Node 24 of script 1040** (the harbour reunion, id 2192) is Dougal's line, and it lost its link to node 25 (its siblings have one, and an op 2 naming the next node). With Dougal in the party, the original reads a node past the end of the script and softlocks: the user saw 1.0 show an empty dialogue box with no portrait, which nothing moves on from, talking to Keelin in Port Saiid's inn with Dougal in the party. Play rarely gets there, since it needs a return to Port Saiid after Dougal joins. The runner ends the scene there, setting its done flag.
+- **Node 24 of script 1040** (the harbour reunion, id 2192) is Dougal's line, and it lost its link to node 25 (its siblings have one, and an op 2 naming the next node). With Dougal in the party, the original reads a node past the end of the script and softlocks: the user saw 1.0 show an empty dialogue box with no portrait, which nothing moves on from, talking to Keelin in Port Saiid's inn with Dougal in the party. Play rarely gets there, since it needs a return to Port Saiid after Dougal joins. The runner ends the scene there, setting its done flag, so it doesn't softlock, but the reunion and Keelin's joining don't play. The user chose to leave it so and not link the node in the import: it waits for the bugfix mod ([ADR 0029](../adr/0029-content-fixes-wait-for-a-bugfix-mod.md)).
 - **Trahern's conversation** (936) goes round nodes 64–69 forever once flags 67 and 84 are both set. Nothing sets 84, so it can't happen.
 
 ## Cut-scenes

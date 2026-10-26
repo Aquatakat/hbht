@@ -135,6 +135,7 @@ The base game is a plugin, so the mod format is exercised all the time; Phase 5 
 | Scripting: a Borg13 superset for dialogue and cut-scenes, plus sandboxed Lua event handlers on the 2.10 events (ADR 0008). Mods can't load .NET assemblies. | L | |
 | **Editor.** Grow the editor into a Construction Set: record editing, dialogue graph editing, map object placement, and a quest atlas that includes mod content | XL | |
 | Documentation and a sample mod (a new trainer, a new quest and a rebalanced spell) | M | |
+| A bugfix mod: the content fixes the user chooses, as patches to the base plugin ([ADR 0029](adr/0029-content-fixes-wait-for-a-bugfix-mod.md)). So far: script 1040's node 24, Dougal's, linked to node 25, so the harbour reunion plays with him in the party ([scripts](systems/scripts.md#faults)) | S | |
 
 ### Phase 6: Enhancements (optional, post-parity)
 

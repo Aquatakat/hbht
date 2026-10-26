@@ -21,7 +21,7 @@ These are the Phase 0 decisions from the [roadmap](../roadmap.md) (task 0.5). Ea
 | [0015](0015-the-port-no-longer-reads-the-decomp.md) | The port no longer reads the decomp; the rig grows its own index of the code | Accepted |
 | [0016](0016-sequences-keep-the-originals-events.md) | Sequences keep the original's event stream as an asset; samples are WAV | Accepted |
 | [0017](0017-the-core-steps-every-tick.md) | The core steps every tick, and per-frame behaviour is matched to a frame each system names in `Cadence` | Accepted |
-| [0018](0018-the-port-fixes-bugs-and-sets-enhancements.md) | The port fixes the original's bugs outright and puts enhancements behind settings; there's no fidelity toggle | Accepted, refined by [0023](0023-the-core-is-handed-its-settings-each-tick.md) |
+| [0018](0018-the-port-fixes-bugs-and-sets-enhancements.md) | The port fixes the original's bugs outright and puts enhancements behind settings; there's no fidelity toggle | Accepted, refined by [0023](0023-the-core-is-handed-its-settings-each-tick.md), added to for content by [0029](0029-content-fixes-wait-for-a-bugfix-mod.md) |
 | [0019](0019-how-the-core-tells-the-views.md) | How the core tells the views what changed: host calls and cues, events for lifecycle, polling for continuous state, returned endings | Accepted |
 | [0020](0020-one-effect-vocabulary.md) | One effect vocabulary for spells, potions and enchantments: records list effects of types the core implements, with Lua a reserved type | Accepted, partly superseded by [0021](0021-instant-effects-land-in-one-place.md) |
 | [0021](0021-instant-effects-land-in-one-place.md) | Instant effects land in one place for any spell, potion or flask; a potion record says how it's used, and a spell record whether it's an area | Accepted |
@@ -32,5 +32,6 @@ These are the Phase 0 decisions from the [roadmap](../roadmap.md) (task 0.5). Ea
 | [0026](0026-controls-are-bound-by-situation.md) | Controls are listed by what the player does in each situation, bound per device in the core, with conflicts checked within a situation and the essential controls never left unbound | Accepted |
 | [0027](0027-conversations-take-the-menus-controls.md) | Cut-scenes and conversations take the menus' cursor, Accept, Back and Close Menu, and have no controls of their own | Accepted |
 | [0028](0028-the-project-is-hbht.md) | The project is HBHT: the code is `HBHT.*`, the editor is `HBHT.Editor`, the tool is `hbht` and the data folder is `HBHT`; "aidyn" stays for the game's names and the imported data (record IDs, `aidyn.base`) | Accepted |
+| [0029](0029-content-fixes-wait-for-a-bugfix-mod.md) | The base import fixes only content that breaks the game; other content fixes wait for a bugfix mod | Accepted |
 
 Statuses: **Proposed** means drafted and waiting for review. **Accepted** means agreed. **Superseded** means replaced by a later record, which it links to.
