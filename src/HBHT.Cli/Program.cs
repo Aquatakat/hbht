@@ -46,6 +46,16 @@ const string Usage = """
       hbht save from <checkpoint> [<save>]   an ares checkpoint as a save; default: <its label>.json
                                            in the data folder's saves
       hbht save show <save>                  what the game makes of a save, loaded with the installed plugins
+      hbht save pak <rom> [--pak <pak>]      the original's saves in a Controller Pak; default pak: the one ares
+                                           keeps beside the ROM (<rom basename>.pak)
+      hbht save to-pak <rom> <save> [<slot>] [--pak <pak>]
+                                           a save as the original's, in a slot of the pak (A to P, default A),
+                                           replacing the save there; a pak that isn't there is made, and one
+                                           that is is kept first as <pak>.<time>.bak. Close ares first: it
+                                           writes its pak back as it closes
+      hbht save from-pak <rom> [<slot>] [--pak <pak>] [--out <save>]
+                                           the original's save in a slot (default A) as a save; default:
+                                           pak-<slot>.json in the data folder's saves
     """;
 
 try
@@ -72,6 +82,9 @@ try
         ["save", "from", var checkpoint] => SaveFrom(checkpoint, null),
         ["save", "from", var checkpoint, var save] => SaveFrom(checkpoint, save),
         ["save", "show", var save] => SaveShow(save),
+        ["save", "pak", var rom, .. var rest] when PakOptions(rest, out var slot, out var pak, out var save) && slot is null && save is null => SavePak(rom, pak),
+        ["save", "to-pak", var rom, var save, .. var rest] when PakOptions(rest, out var slot, out var pak, out var other) && other is null => SaveToPak(rom, save, slot ?? 'A', pak),
+        ["save", "from-pak", var rom, .. var rest] when PakOptions(rest, out var slot, out var pak, out var save) => SaveFromPak(rom, slot ?? 'A', pak, save),
         _ => Fail(Usage),
     };
 }
@@ -447,6 +460,87 @@ static int Conflicts()
         Console.WriteLine($"{c.Record} {c.Path}: {string.Join(", ", c.Plugins)}; {c.Winner} wins (defined by {plugins.DefinedBy(c.Record)})");
     var loaded = string.Join(", ", plugins.Plugins.Select(p => p.Manifest.Id));
     Console.WriteLine(conflicts.Count == 0 ? $"No field is patched by more than one plugin ({loaded})." : $"{conflicts.Count} fields are patched by more than one plugin ({loaded}).");
+    return 0;
+}
+
+/// <summary>A pak command's options: a slot's letter, <c>--pak</c> with the pak's path and <c>--out</c> with a save's.</summary>
+static bool PakOptions(string[] rest, out char? slot, out string? pak, out string? save)
+{
+    (slot, pak, save) = (null, null, null);
+    for (var i = 0; i < rest.Length; i++)
+    {
+        if (rest[i] == "--pak" && i + 1 < rest.Length && pak is null)
+            pak = rest[++i];
+        else if (rest[i] == "--out" && i + 1 < rest.Length && save is null)
+            save = rest[++i];
+        else if (rest[i].Length == 1 && PakSaves.Slots.Contains(char.ToUpperInvariant(rest[i][0])) && slot is null)
+            slot = char.ToUpperInvariant(rest[i][0]);
+        else
+            return false;
+    }
+    return true;
+}
+
+/// <summary>The pak ares keeps beside a ROM, <c>&lt;rom basename&gt;.pak</c>, unless another is given.</summary>
+static string PakPath(string rom, string? pak) => pak ?? Path.ChangeExtension(Path.GetFullPath(rom), ".pak");
+
+static int SavePak(string rom, string? pak)
+{
+    pak = PakPath(rom, pak);
+    var plugins = InstalledPlugins();
+    var saves = new PakSaves(plugins, RomImage.Load(rom));
+    var read = saves.Read(ControllerPak.Read(pak));
+    Console.WriteLine($"{Path.GetFullPath(pak)}: {read.Count} {(read.Count == 1 ? "save" : "saves")}");
+    foreach (var (slot, save) in read)
+    {
+        var played = TimeSpan.FromSeconds(save.PlayTime / 60.0);
+        var set = plugins.TryGet<HBHT.Plugins.Records.MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, save.Place.MapSet));
+        var chunk = set?.Chunk(save.Place.Row, save.Place.Column)?.Name ?? $"{save.Place.Row},{save.Place.Column}";
+        var party = save.Party.OfType<PakSheet>().Select(m =>
+            plugins.TryGet<HBHT.Plugins.Records.EntityRecord>(RecordId.Hex(RecordTypes.Entity, m.Entity))?.Name ?? $"0x{m.Entity:X4}");
+        Console.WriteLine($"  {slot}  {save.Name,-10} {(int)played.TotalHours}:{played.Minutes:D2}:{played.Seconds:D2}  " +
+            $"{set?.Label ?? $"map set {save.Place.MapSet}"} {chunk}  {string.Join(", ", party)}");
+    }
+    return 0;
+}
+
+static int SaveToPak(string rom, string path, char slot, string? pak)
+{
+    pak = PakPath(rom, pak);
+    var saves = new PakSaves(InstalledPlugins(), RomImage.Load(rom));
+    var problems = new List<string>();
+    var save = saves.FromSave(SaveFile.Read(path), problems);
+    ControllerPak target;
+    if (File.Exists(pak))
+    {
+        target = ControllerPak.Read(pak);
+        var backup = $"{pak}.{DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)}.bak";
+        File.Copy(pak, backup);
+        Console.WriteLine($"Kept the pak as it was in {backup}");
+    }
+    else
+        target = ControllerPak.Blank();
+    saves.Write(target, slot, save);
+    target.Write(pak);
+    foreach (var problem in problems)
+        Console.Error.WriteLine(problem);
+    Console.WriteLine($"Wrote {Path.GetFileName(path)} to slot {slot} of {Path.GetFullPath(pak)}");
+    return 0;
+}
+
+static int SaveFromPak(string rom, char slot, string? pak, string? path)
+{
+    pak = PakPath(rom, pak);
+    var saves = new PakSaves(InstalledPlugins(), RomImage.Load(rom));
+    var (_, found) = saves.Read(ControllerPak.Read(pak)).FirstOrDefault(s => s.Slot == slot);
+    if (found is null)
+        return Fail($"{pak} has no save in slot {slot}.");
+    var problems = new List<string>();
+    path = SavePath(path, $"pak-{slot}");
+    SaveFile.Write(path, saves.ToSave(found, $"{found.Name}, slot {slot}", problems));
+    foreach (var problem in problems)
+        Console.Error.WriteLine(problem);
+    Console.WriteLine($"Saved slot {slot} to {Path.GetFullPath(path)}");
     return 0;
 }
 

@@ -102,7 +102,7 @@ public static class CheckpointSave
 
     private const int FirstSkillCheck = 0x49, LastSkillCheck = 0x54;
 
-    private static SaveMemory? Memory(CheckpointMemory memory, PluginSet plugins, ICollection<string> problems)
+    internal static SaveMemory? Memory(CheckpointMemory memory, PluginSet plugins, ICollection<string> problems)
     {
         var mapSet = RecordId.Decimal(RecordTypes.MapSet, memory.MapSet);
         var where = $"{mapSet} chunk {memory.Row},{memory.Column} object {memory.Index}";

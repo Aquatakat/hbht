@@ -69,7 +69,7 @@ tools/ghidra.ps1 run us Decompile.java 0x80078d14   # a script from tools/ghidra
 
 ## Existing saves
 
-Mupen64Plus saves are in `%APPDATA%\Mupen64Plus\save`. Only `AIDYN_CHRONICLES (unknown rom).mpk` holds Aidyn data. Its four slots, all named "Alaron", are at the four story checkpoints' positions (below), and load on the debug ROM too. The playthrough used a hacked ROM with low-level enemies, so the party's stats, equipment and spells are below par for the story: good for flag, map and quest state, not for combat parity. The pak's layout is in [saves](systems/saves.md).
+Mupen64Plus saves are in `%APPDATA%\Mupen64Plus\save`. Only `AIDYN_CHRONICLES (unknown rom).mpk` holds Aidyn data. Its four slots, all named "Alaron", are at the four story checkpoints' positions (below), and load on the debug ROM too. The playthrough used a hacked ROM with low-level enemies, so the party's stats, equipment and spells are below par for the story: good for flag, map and quest state, not for combat parity. The pak's layout is in [saves](systems/saves.md#the-originals-save), and `hbht save to-pak` writes a save of the port's into the pak beside a ROM, so the original can be loaded at any place, with any flags and party: that's how a check in [user-checks](user-checks.md) is set up without playing to it.
 
 A Mupen `.mpk` is four 32 KB paks back to back. ares keeps one 32 KB Controller Pak beside the ROM as `<rom basename>.pak`, in the same raw layout, so converting means taking the first 32 KB:
 

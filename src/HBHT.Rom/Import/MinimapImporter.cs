@@ -10,8 +10,8 @@ namespace HBHT.Rom.Import;
 /// </summary>
 internal static class MinimapImporter
 {
-    /// <summary>Each list's map set, by <c>BorgMaps::LoadMap</c>'s calls to <c>MiniMap::LoadData</c> in 1.0.</summary>
-    private static readonly int[] MapSets = [4, 14, 7, 12, 11, 6, 9, 10];
+    /// <summary>Each list's map set, by <c>BorgMaps::LoadMap</c>'s calls to <c>MiniMap::LoadData</c> in 1.0, in the order of the code's table, which a save numbers the pieces in.</summary>
+    internal static readonly IReadOnlyList<int> MapSets = [4, 14, 7, 12, 11, 6, 9, 10];
 
     private const int Gwernia = 0, Ehud = 3, MageSchool = 4, RoogEntrance = 5, Barrows = 6;
 

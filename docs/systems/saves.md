@@ -20,6 +20,12 @@ The CLI makes saves without the game, with the installed plugins:
 
 They write to the data folder's `saves` unless given a path, where the System tab's save and load screens find them too, newest first. A save can be edited by hand, and `save show` says whether the game can use it.
 
+Three more read and write the original's saves in a Controller Pak (below), for loading the original at a place the user is to check. They take the ROM, for the inventory's slots, and use the pak ares keeps beside it (`<rom basename>.pak`) unless given `--pak`:
+
+- `hbht save pak <rom>` lists the pak's saves: slot, name, time played, place and party.
+- `hbht save to-pak <rom> <save> [<slot>]` writes a save into a slot, A to P (default A), replacing the one there. It keeps the pak as it was beside it first (`<pak>.<time>.bak`), and makes a blank pak if there's none. A save without a place, a new game's, is written where a new game arrives, without the opening. ares writes its pak back as it closes, so close it first.
+- `hbht save from-pak <rom> [<slot>] [--out <save>]` turns a slot's save into one of the port's.
+
 ## The format
 
 A save is JSON, like plugin source (ADR 0005), with records named by ID, so it can be read, diffed and edited by hand. Saves go in the data folder's `saves` (`DataPaths.Saves`). It holds what the original's save holds (`SaveDatStruct`), and no more: what the rules can work out again isn't kept, as the original's isn't.
@@ -124,3 +130,41 @@ A save made from the "Before final encounter" checkpoint, cut short:
 `gGlobals` is at 0x800D8088 in 1.0 and 0x800E68A8 in the debug build, and `TerrainPointer` at 0x800E303C and 0x800F1BBC.
 
 Loading a converted save gives what the console holds for every member's stats, skills, protection, damage, worn items and spellbook order, the party's gold and inventory, and every flag but 3617. Every checkpoint keeps Arturo's, Becan's and Godric's sheets, with nothing worn, as leaving leaves them, and the converter carries them over (`AresCheckpoint.Kept`, from `gSaveEntity` at `0x800DA4E0` in 1.0 and `0x800E8F10` in the debug build).
+
+## The original's save
+
+`PakSave` (`HBHT.Rom.Rig`) is the original's save field by field, and round-trips the user's four saves byte for byte; `PakSaves` turns one into the port's save and back, and reads and writes them in a pak (`ControllerPak`, libultra's file system). 1.1's save code is 1.0's, instruction for instruction but for data addresses, so its saves are the same.
+
+**The note.** A save is a note of 0x1C00 bytes, 28 pages: game code `NAYE`, company `78`, name `CHRONICLES` and extension the slot's letter, A to P, in the pak's character codes (`Pak.CharCodes`, `0x800E4220`). The save menu writes it in one `osPfsReadWriteFile` (`SaveMenu.WriteNote`, `0x8007EE34`), and a new one takes the first letter free (`SaveMenu.CreateNote`, `0x8007EB2C`). The load menu (`SaveMenu.ScanSlot`, `0x8007D9A4`) lists every note of that game code and company, whatever its name, and calls one whose CRC fails corrupt, offering to delete it. Nothing else is checked, so a save naming an entity or item that doesn't exist would break loading.
+
+**The file**, built by `PakSave.Make` (`0x8001A08C`) and loaded by `PakSave.Load` (`0x8001A20C`). Outside the bit stream, values are big-endian; bytes not listed are zero.
+
+| Offset | What |
+| --- | --- |
+| 0x0000 | Time played, in ticks. |
+| 0x0004 | The four party slots' entity IDs, 0 for an empty one: the load menu's portraits. |
+| 0x000C | Alaron's name, ending in a NUL. |
+| 0x0040 | The place (`Zones.SavedPosition`, `0x800D906C`, which loading starts the zone engine from): the player's sphere's centre, the original's `facing` (X and Z), the camera's eye (5 out along `facing` and 2.3 up in every save), then halfwords: the row (A is 1), the column, the map set, and 0xFFFF twice. |
+| 0x0080 | The plain flags, 0 to 5000, a bit each, lowest first in a byte (`GameStateFunnel.Pack`, `0x800CB58C`). Loading evaluates the derived ones and clears 3617. |
+| 0x0300 | The load menu's picture, 64 × 32 RGBA 5551, from the pause menu's snapshot. |
+| 0x1300 | The minimaps' pieces, a bit each, numbered across the eight in `CodeTable.MinimapSections`' order (map sets 4, 14, 7, 12, 11, 6, 9 and 10), 188 in all. Loading sets every piece from its bit, so one that starts seen needs its bit. |
+| 0x1340 | The bit stream, below. |
+| 0x1B00 | The chart as RAM holds it: the count of entries used, the 19 slot numbers (those in use first), and the 19 entries. |
+| 0x1BFC | The CRC: CRC-32, polynomial 0x04C11DB7, MSB first, from 0 with no final XOR, over the file with this word zero, plus 8 (`Crc.Seal`, `0x800CBC0C`). |
+
+**The bit stream** (`SaveBlock.Write`, `0x80019810`; `SaveBits`, `0x800026F0`–`0x800027F4`) packs each field's bits lowest first, from bit 0 of byte 0x1340. In order:
+
+- The clock and the gold, 32 bits each, and the party's three movement timers, 12 bits each in units of 7,200 ticks.
+- The party's four sheets, Alaron's first, each 0x500 bits (a null one zero), with Alaron's block after his: his name in 20 bytes, then 4-bit levels of the Elemental, Naming and Necromancy spells.
+- The five kept sheets, of 720 bits: Abrecan's, Arturo's, Becan's, Godric's and Keelin's, by entity. A member in the party has their own there too, copied just before saving.
+- The inventory (`Inventory.Save`, `0x800734C4`): 128 general stacks, each a quantity in 8 bits and an item; 80 quantities of 8 bits for the reserved items, by their first place in `CodeTable.ReservedItems` (which lists 0x110E twice); and the 13 key gear, an item each, by `CodeTable.KeyEquipment`. Key items aren't saved: loading gives each whose flag is set.
+- The weather: the roll's intensity, fog and storm, each × 1000 in 32 bits, and what falls in 8.
+- The sound and music volumes × 1000, 32 bits each, and the resolution in a bit.
+
+**A sheet** (`PakSave.WriteSheet`, `0x8001918C`; a party member's, `PakSave.WritePartySheet`, `0x800193AC`): the entity less 0x200 in 8 bits (0 for none); total and spendable experience, 24 bits each; the trained, then the current stats, each in the order Stamina (8 bits), Endurance (6), Level (6), Willpower, Intelligence, Strength and Dexterity (5 each); 18 skills of 4 bits (the 12, Hafted, Missile, Pole, Sword, Thrown and the shield; 0xF can't be learnt); armor, shield, weapon and 12 gear, an item each; the spells' levels, 4 bits each, by their place in the spell table: the 10 unschooled, then 13 slots for the school's spells and zeroes after them. Chaos, whose 13 are the Star spells, pads 13 more, since the padding is 13 less the school's count and Chaos's is 0 (`PakSave.WriteSpells`, `0x80018DC4`). A party member's then has 15 spell effects of 28 bits and 7 potions of 20, which the original never fills, since it saves the kept copies.
+
+**An item** is 28 bits (`PakSave.WriteItem`, `0x80018970`): the DB ID in 13, the spell's charges in 5 and the stat mod in 10, `stat << 7 | (amount + 50) & 0x7F`, written for every item that has one, a battery's with the Stamina left in it.
+
+**The port's save as the original's** (`PakSaves.FromSave`): what the port's save doesn't hold is written as a fresh save would have it: a black picture, the volumes' defaults, the timers at 0, the camera behind the player, and the memories in slots 0 on. The weather is the roll's, or clear without one. A reserved item's charges and battery are lost, as the original loses them. A spell of a school the character's sheet has no room for, and the potions working, are listed as not written. Back the other way (`ToSave`), the weather isn't read, as the save holds only part of it, and starts as a new game's.
+
+**Not settled:** which timer is running, walking or sneaking (nothing reads them); a save made here loading in the original, which only the user can try; the camera's rule, read from the four saves.
