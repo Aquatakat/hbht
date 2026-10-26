@@ -2,6 +2,20 @@
 
 Things only the user can settle, by playing the original in the emulator, by listening, or in full-game testing. Each says what to do and what to look for, and links to where the port's reading is written up. When one is settled, the finding goes in that doc and the item comes off this list. A check far into the story needn't be played to: a save can be written into the pak beside the ROM, at the place with the flags and party it needs (`hbht save to-pak`, [saves](systems/saves.md#the-originals-save)).
 
+## Setting up a check
+
+The user needn't play to a check: a save is written into the Controller Pak beside 1.0's ROM, at the place, flags and party the check needs, and the user loads it from the title in `tools/ares.ps1 v10`. Every save so far has loaded. The format and the commands are in [saves](systems/saves.md#making-and-checking-saves).
+
+1. **Start from a save of the port's.** `hbht save from-pak <rom> <slot> --pak "roms/<1.0 rom basename> - story saves.pak" --out <save>` takes one of the four story saves (A before the final encounter, B before Shamsuk's Tower, C before Rooughah, D in Terminor, each with the [checkpoint](reference-rig.md#checkpoint-library) captured at the same place); `hbht save from <checkpoint>` or `hbht save new` do too. Pick the one nearest the check in the story, and say which flags were changed to get there.
+2. **Find what the check needs.** The map object that starts the script or holds the place: search the installed base plugin's `records/maps/*.json` for the script's ID (its stage, position, radius and enabling flag), and `records/mapsets.json` for the chunk that places the map. `hbht flag <n>` says what sets, clears and reads a flag, and what a derived one is made of. `hbht dialogue <rom> <number>` dumps the script, for the path to the node that matters.
+3. **Edit it** with the scripts in `tools/saves/`, each run as `dotnet run tools/saves/<script>.cs -- …`:
+   - `party.cs <in> <out> --remove <entity hex,…> --add <entity hex,…>` changes the party by the scripts' own leave and join, so the party's flags follow.
+   - `edit.cs <in> <out> --at <map set> <chunk> <x> <z> [<y>] --face <x> <z> --set <n,…> --clear <n,…> --label <text>` stands the player on the floor under a point of the chunk (swept down on the port's collision; give `y` indoors, or it lands on the roof), facing another point, and sets or clears plain flags.
+   - `flags.cs <save> <n,…>` prints flags, derived ones included, as the save loads: check the object's enabling flag holds, and that what should be hidden is.
+4. **Write it**: `hbht save to-pak <rom> <save> A`. Close ares first, since it writes its pak back as it closes. Slot A is the checks'; the command keeps the pak as it was first (`<pak>.<time>.bak`), and the story saves stay untouched in `- story saves.pak`, which the tests read.
+5. **For the runtime**, the same JSON loads with `tools/godot.ps1 --path src/HBHT.Game -- --save <path>`. Keep it in the gitignored `out/` and give the user the path: what Claude writes under `%LOCALAPPDATA%` lands in the Claude app's private copy, not the data folder the user's runtime reads. The saves made for the checks so far are in `out/user-checks/`.
+6. **Ask exactly what the user saw**, step by step, and whose animation it was: in the lighthouse keeper's check, "they play their animations" meant their ordinary talk, not the line's own animation, and a fix built on the wrong reading had to be undone. Then the finding goes in the system's doc, the item comes off this list, and the port's fixes follow [ADR 0018](adr/0018-the-port-fixes-bugs-and-sets-enhancements.md) and, for the game's data, [ADR 0029](adr/0029-content-fixes-wait-for-a-bugfix-mod.md).
+
 ## Scripts and characters
 
 - **Sholeh in Ugarit after she joins** (`aidyn:dialogue/0x04AD`), in full-game testing: is she there again once she's joined, and what keeps her away when the party has no free place? The data doesn't show it. [wanderers](systems/wanderers.md#joining)
