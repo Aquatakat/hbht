@@ -214,9 +214,10 @@ public sealed class Models(PluginSet plugins) : IDisposable
             GD.PushWarning($"No asset for {scene}.");
             return null;
         }
-        // A scene with no geometry has no binary chunk, which Godot's reader warns about.
+        // A scene with no geometry has no binary chunk, which Godot's reader warns about: its nodes are built from the glTF, as a
+        // particle-only actor's locators place its emitters.
         if (!glb.HasBinaryChunk)
-            return new Node3D { Name = scene.ToString().Replace(':', '_').Replace('/', '_') };
+            return GlbFile.LoadNodes(glb, scene.ToString().Replace(':', '_').Replace('/', '_'));
         if (GlbFile.Load(glb, out _) is not { } node)
         {
             GD.PushWarning($"Godot couldn't load {scene}'s glTF.");
