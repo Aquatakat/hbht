@@ -44,6 +44,15 @@ public static class Cadence
     /// </summary>
     public const int MenuFrameTicks = 1;
 
+    /// <summary>The ticks in a frame of a battle's aiming cursors: 15 fps.</summary>
+    /// <remarks>
+    /// The flask's free cursor and an area spell's centre move 0.8 on a frame's first pad event, whatever its ticks
+    /// (<c>Combat.InputThrownTarget</c>, <c>0x80084BA0</c>; <c>Combat.MoveAreaCursor</c>, <c>0x8008465C</c>). The Combat
+    /// checkpoints' frames were 2 to 4 ticks (<c>Frame.Delta</c>, <c>0x800D8094</c>), 4 in both aiming states sampled. At
+    /// 30 fps the user found the flask's circle twice as fast as the console's, too quick to steer.
+    /// </remarks>
+    public const int AimFrameTicks = 4;
+
     /// <summary>The ticks in <paramref name="frames"/> of the default frame, <see cref="FrameTicks"/> each.</summary>
     public static int Frames(int frames) => frames * FrameTicks;
 

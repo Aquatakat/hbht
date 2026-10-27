@@ -442,9 +442,11 @@ public sealed partial class PartyMenu
 /// The weapon changed (<c>Combatant.AfterEquipChange</c>, <c>0x800610C0</c>), equipped (which ends the turn as the menu closes) or
 /// taken off (which doesn't).
 /// </param>
-public sealed record CombatPause(Character? Member, Action<Item> HoldFlask, Action<bool> WeaponChanged)
+/// <param name="Held">The flask or potion a member's combatant holds in hand (action 3), if any, which the silhouette's weapon slot shows.</param>
+public sealed record CombatPause(Character? Member, Action<Item> HoldFlask, Action<bool> WeaponChanged, Func<Character, Item?>? Held = null)
 {
     /// <summary>The rules of <paramref name="battle"/>'s pause, for its current combatant.</summary>
     public static CombatPause For(Combat.Battle battle) =>
-        new(battle.Current is { Controlled: false } c ? c.Sheet : null, battle.HoldFlaskFromMenu, battle.WeaponChangedFromMenu);
+        new(battle.Current is { Controlled: false } c ? c.Sheet : null, battle.HoldFlaskFromMenu, battle.WeaponChangedFromMenu,
+            member => battle.Combatants.FirstOrDefault(c => c.Sheet == member && c.Action == Combat.CombatAction.Flask)?.Potion);
 }

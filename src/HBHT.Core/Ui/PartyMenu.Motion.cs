@@ -84,7 +84,7 @@ public sealed partial class PartyMenu
     public HeaderNumbers Numbers => HeaderNumbers.Of(Shown);
 
     /// <summary>What each of the silhouette's slots wears now: its icon, or null.</summary>
-    public IReadOnlyList<RecordId?> WornIcons => [.. Enum.GetValues<EquipmentSlot>().Select(s => Worn(s)?.Item.Icon)];
+    public IReadOnlyList<RecordId?> WornIcons => [.. Enum.GetValues<EquipmentSlot>().Select(ShownIcon)];
 
     /// <summary>Starts the whole header and the silhouette changing over from the member shown.</summary>
     private void StartMemberChange()

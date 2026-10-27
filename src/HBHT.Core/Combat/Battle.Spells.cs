@@ -403,7 +403,7 @@ public sealed partial class Battle
         var look = Camera.LookXZ;
         var way = Facing.Rotate(new Vector2(-input.Stick.X, input.Stick.Y), look.X, look.Y);
         way = SafeNormalize.Of(way);
-        var centre = AreaAim + way * Cadence.PerTick(AreaStep);
+        var centre = AreaAim + way * (AreaStep / Cadence.AimFrameTicks);
         centre = Vector2.Clamp(centre, Vector2.Zero, new Vector2(Grid.Width, Grid.Depth));
         if (centre == AreaAim)
             return;

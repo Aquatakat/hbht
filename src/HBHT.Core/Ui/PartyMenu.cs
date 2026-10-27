@@ -125,7 +125,15 @@ public sealed partial class PartyMenu : IPartyWindow
     public static int HealthBar(int hp, int maxHp, int width) => maxHp > 0 ? (int)((float)hp / maxHp * width) : 0;
 
     /// <summary>What a slot of the silhouette shows: the worn item's icon, or the slot's own image of what it takes.</summary>
-    public RecordId SlotImage(EquipmentSlot slot) => SlotImage(slot, Shown);
+    public RecordId SlotImage(EquipmentSlot slot) => ShownIcon(slot) ?? MenuImages.EmptySlots[(int)slot];
+
+    /// <summary>
+    /// The icon a slot of the silhouette shows for the member shown: what it wears, but in a battle the weapon's slot shows the flask
+    /// or potion its combatant holds in hand (<c>DollEquipmentMenu::GetEntityItemId</c>'s weapon slot, <c>0x8003E66C</c>, which
+    /// gives the Fire Flask's icon, <c>0x1000</c>, for any held; the port gives the held one's own, the same in the base game).
+    /// </summary>
+    private RecordId? ShownIcon(EquipmentSlot slot) =>
+        slot == EquipmentSlot.Weapon && Shown is { } member && Combat?.Held?.Invoke(member) is { } held ? held.Icon : Worn(slot)?.Item.Icon;
 
     /// <summary>What a slot of the silhouette shows for a member.</summary>
     public static RecordId SlotImage(EquipmentSlot slot, Character? member) => Worn(slot, member)?.Item.Icon ?? MenuImages.EmptySlots[(int)slot];

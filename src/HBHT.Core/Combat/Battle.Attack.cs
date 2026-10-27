@@ -350,7 +350,7 @@ public sealed partial class Battle
         var look = Camera.LookXZ;
         var way = Facing.Rotate(new Vector2(-input.Stick.X, input.Stick.Y), look.X, look.Y);
         way = SafeNormalize.Of(way);
-        var focus = ThrownAim + way * Cadence.PerTick(AimStep);
+        var focus = ThrownAim + way * (AimStep / Cadence.AimFrameTicks);
         focus = Vector2.Clamp(focus, Vector2.Zero, new Vector2(Grid.Width, Grid.Depth));
         // Combatant.WeaponReach: a flask's is 400, the grid alone.
         var reach = c.HoldsFlask ? FlaskReach : WeaponOf(c)?.Range ?? 0;

@@ -243,6 +243,27 @@ public class PartyMenuActionTests
         Assert.Contains(menu.Inventory.Rows, r => r.Item.Id == Sword.Id && r.Wearer is null);
     }
 
+    /// <summary>In a battle, the silhouette's weapon slot shows the flask a member holds in hand, as 1.0's does, while the weapon is still worn.</summary>
+    [Fact]
+    public void AFlaskHeldInABattleShowsInTheWeaponSlot()
+    {
+        var (party, member) = Setup();
+        party.Inventory.Add(Sword.Id);
+        var menu = Menu(party);
+        PointAt(menu, r => r.Item.Id == Sword.Id);
+        menu.Accept();
+        var flask = party.Inventory.Catalog[PotionId(BasePotion.FireFlask)];
+        Item? held = null;
+        menu.Combat = new CombatPause(member, _ => { }, _ => { }, m => m == member ? held : null);
+        var sword = party.Inventory.Catalog[Sword.Id].Icon;
+        Assert.Equal(sword, menu.SlotImage(EquipmentSlot.Weapon));
+
+        held = flask;
+        Assert.Equal(flask.Icon, menu.SlotImage(EquipmentSlot.Weapon));
+        Assert.Equal(flask.Icon, menu.WornIcons[(int)EquipmentSlot.Weapon]);
+        Assert.Equal(Sword.Id, member.Equipment.Weapon?.Id);
+    }
+
     /// <summary>Equipping from a stack leaves the cursor on what's left of it.</summary>
     [Fact]
     public void EquippingFromAStackLeavesTheCursorOnTheStack()
