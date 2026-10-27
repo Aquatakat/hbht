@@ -25,8 +25,17 @@ public sealed record DbRecord(RecordId Id, string Name, RecordId? Portrait = nul
 /// The share of its attack's animation at which the blow lands and the target starts to react (<c>EntityBody.StrikePoint</c>,
 /// <c>0x8006C7FC</c>, which <c>ProcessPlayers</c> reads in combat); 0.4 for a dialogue entity or one the tables leave out.
 /// </param>
-public sealed record EntityBody(RecordId Actor, float Radius, float Scale, float Height, float Strike = EntityBody.DefaultStrike)
+/// <param name="ShotStrike">
+/// The share of its bow's shot at which the arrow leaves. The original has no such field: every entity's shot and throw leave at 0.4
+/// (<c>EntityBody.ShotStrike</c>, <c>0x8006C884</c>), which the port makes the entity's, each apart, for mods (the user's choice).
+/// </param>
+/// <param name="ThrowStrike">The share of its throw at which what it throws leaves its hand, as <paramref name="ShotStrike"/>.</param>
+public sealed record EntityBody(RecordId Actor, float Radius, float Scale, float Height, float Strike = EntityBody.DefaultStrike,
+    float ShotStrike = EntityBody.DefaultShotStrike, float ThrowStrike = EntityBody.DefaultShotStrike)
 {
     /// <summary>The strike's share for a record the tables leave out (<c>0x800D2CF8</c>).</summary>
     public const float DefaultStrike = 0.4f;
+
+    /// <summary>Every entity's share for a shot or a throw in the original (<c>0x800D2CFC</c>).</summary>
+    public const float DefaultShotStrike = 0.4f;
 }

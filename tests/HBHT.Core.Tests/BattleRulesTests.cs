@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Text.Json;
 using HBHT.Core.Characters;
 using HBHT.Core.Combat;
 using HBHT.Plugins;
@@ -348,5 +349,21 @@ public sealed class BattleRulesTests
 
         Assert.Equal("good4f", name);
         Assert.Null(point);
+    }
+
+    // ProcessPlayers: a bow's shot (14) and a throw (15) leave at their own shares, 0.4 for every entity in the original, and every
+    // other attack lands at the entity's strike. A body without shares of its own, as a plugin before the fields, reads 0.4.
+    [Theory]
+    [InlineData(12, 0.23f)]
+    [InlineData(14, 0.7f)]
+    [InlineData(15, 0.55f)]
+    [InlineData(16, 0.23f)]
+    public void AShotOrAThrowLeavesAtItsOwnShare(int request, float expected)
+    {
+        var look = new EntityBody(RecordId.Hex(RecordTypes.Actor, 0x302A), 1, 1, 1, Strike: 0.23f, ShotStrike: 0.7f, ThrowStrike: 0.55f);
+        Assert.Equal(expected, Battle.StrikeShare(look, request));
+        var plain = JsonSerializer.Deserialize<EntityBody>("""{"actor": "aidyn:actor/0x302A", "radius": 1, "scale": 1, "height": 1}""",
+            PluginJson.Options)!;
+        Assert.Equal(0.4f, Battle.StrikeShare(plain, request));
     }
 }

@@ -754,26 +754,37 @@ public sealed partial class Battle
     }
 
     /// <summary>
-    /// The attacks' requests (12 to 18), whose blow lands partway through (<see cref="AtStrike"/>), and the two whose share is fixed
-    /// rather than the entity's (<c>EntityBody.StrikePointRanged</c>, <c>0x8006C884</c>): a bow's (14) and a thrown weapon's (<see cref="ThrowRequest"/>).
+    /// The attacks' requests (12 to 18), whose blow lands partway through (<see cref="AtStrike"/>), and the two that take a share of
+    /// their own rather than the entity's strike (<see cref="StrikeShare"/>): a bow's (14) and a thrown weapon's (<see cref="ThrowRequest"/>).
     /// </summary>
     public const int FirstAttackRequest = 12, LastAttackRequest = 18, ShotRequest = 14;
 
     /// <summary>
     /// Whether a body playing an attack is at the frame its blow lands, before its actor steps this tick (<c>ProcessPlayers</c>,
-    /// <c>0x80013108</c>–<c>0x80013210</c>): its frame is <c>(u16)(int)(length × share)</c>, the share the entity's
-    /// (<see cref="EntityBody.Strike"/>, <c>EntityBody.StrikePoint</c>, <c>0x8006C7FC</c>), or 0.4 for a bow's or a thrown weapon's
-    /// (<c>0x800D2CFC</c>). There the body stops counting as playing it (<see cref="AfterBodies"/>), so the action's timer lets the blow
-    /// land or the missile leave while the swing plays on.
+    /// <c>0x80013108</c>–<c>0x80013210</c>): its frame is <c>(u16)(int)(length × share)</c> (<see cref="StrikeShare"/>). There the
+    /// body stops counting as playing it (<see cref="AfterBodies"/>), so the action's timer lets the blow land or the missile leave
+    /// while the swing plays on.
     /// </summary>
     private static bool AtStrike(Combatant c, IActorMotion animation)
     {
         var playing = c.Body.Playing;
         if (playing is < FirstAttackRequest or > LastAttackRequest)
             return false;
-        var share = playing is ShotRequest or ThrowRequest ? EntityBody.DefaultStrike : c.Look.Strike;
-        return animation.Frame == (ushort)(int)(animation.StateLength * share);
+        return animation.Frame == (ushort)(int)(animation.StateLength * StrikeShare(c.Look, playing));
     }
+
+    /// <summary>
+    /// The share of an attack's animation at which its blow lands or its missile leaves: the entity's strike
+    /// (<see cref="EntityBody.Strike"/>, <c>EntityBody.StrikePoint</c>, <c>0x8006C7FC</c>), or for a bow's shot or a throw the
+    /// entity's shot or throw strike (<see cref="EntityBody.ShotStrike"/>, <see cref="EntityBody.ThrowStrike"/>), which
+    /// <c>EntityBody.ShotStrike</c> (<c>0x8006C884</c>) makes 0.4 for both and every entity, unless a mod sets them.
+    /// </summary>
+    public static float StrikeShare(EntityBody look, int request) => request switch
+    {
+        ShotRequest => look.ShotStrike,
+        ThrowRequest => look.ThrowStrike,
+        _ => look.Strike,
+    };
 
     /// <summary>
     /// After each tick's bodies have stepped (<c>Combat.AfterFrame</c>, and <c>ProcessPlayers</c>'s part): a body takes the request its
