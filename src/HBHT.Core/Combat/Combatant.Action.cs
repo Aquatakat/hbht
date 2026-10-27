@@ -1,3 +1,4 @@
+using System.Numerics;
 using HBHT.Plugins;
 using HBHT.Plugins.Records;
 
@@ -95,10 +96,20 @@ public sealed partial class Combatant
             _held[ArmSlot] = new HeldModel(a, armLocator);
         if (hand is { } h && rules?.UndrawnWeapons?.Contains(Entity) != true)
             _held[HandSlot] = new HeldModel(h, handLocator);
+        HandLocator = handLocator;
     }
 
     /// <summary>The arrow, flask or thrown weapon leaves the hand as it flies (<c>Combat.StartCastCamera</c>, <c>0x80023434</c>).</summary>
     internal void EmptyHand() => _held[HandSlot] = null;
+
+    /// <summary>The locator the hand's slot holds at (<c>+0x88</c>), which an arrow, flask or thrown weapon leaves from.</summary>
+    public int HandLocator { get; private set; }
+
+    /// <summary>
+    /// Where its actor's locator n is in the world, as the runtime last drew it (<c>SceneGetLocatorPos</c>, <c>0x8009ECD0</c>), or
+    /// null if it has none; the runtime sets it as it makes the body's view. Null in a battle with no runtime.
+    /// </summary>
+    public Func<int, Vector3?>? LocatorAt { get; set; }
 
     /// <summary>The notes over the body's head as it performs (<c>Combatant.StartTroubadour</c>), or taken off (<c>StopPerforming</c>).</summary>
     internal void HoldNotes(bool held) =>

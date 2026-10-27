@@ -200,6 +200,36 @@ public sealed class BattleActionTests(Na10Import fixture)
     }
 
     [Fact]
+    public void AFlaskLeavesTheThrowersHandForTheTargetsCentre()
+    {
+        // Combat.StartCastCamera: from the hand's locator (+0x88) as the body was last drawn, to the target body's centre.
+        var run = Start();
+        var brenna = run.TurnOf("Brenna");
+        run.Built.Game.Party.Inventory.Add(PotionId(BasePotion.FireFlask), 2);
+        brenna.HoldPotion(run.Battle.Game.Party.Inventory.Catalog[PotionId(BasePotion.FireFlask)], run.Battle);
+        var hand = brenna.Body.Sphere.Position + new System.Numerics.Vector3(0.3f, 1.1f, 0.2f);
+        brenna.LocatorAt = i => i == brenna.HandLocator ? hand : null;
+        Assert.True(run.Battle.Attack());
+        Assert.True(run.Battle.Confirm());
+        MissileFlight? flight = null;
+        for (var i = 0; i < 2000 && run.Battle.Current == brenna && flight is null; i++)
+        {
+            run.Tick();
+            flight = run.Battle.Flight;
+        }
+        if (flight is null)
+        {
+            // A miss throws nothing that flies.
+            Assert.Contains(run.Battle.Log, l => l.Contains("misses", StringComparison.Ordinal));
+            return;
+        }
+        var target = run.Battle.Slots[run.Battle.Target]!;
+        Assert.Equal(0, brenna.HandLocator);
+        Assert.Equal(hand, flight.From);
+        Assert.True(System.Numerics.Vector3.Distance(target.Body.Sphere.Position, flight.From + flight.Way * flight.Length) < 1e-3f);
+    }
+
+    [Fact]
     public void TheLastFlaskOfAStackFliesAndTheHandIsEmptiedAtTheTurnsEnd()
     {
         // The port's fix, the user's choice: the original empties the hand as the last is thrown, so it never flies or bursts.

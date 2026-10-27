@@ -95,6 +95,7 @@ public partial class Game
         {
             case CombatantJoined { Combatant: var combatant } when !_combatantViews.ContainsKey(combatant):
                 var view = _combatantViews[combatant] = new CombatantView(combatant, _plugins!, _models!, _shadowTexture);
+                combatant.LocatorAt = view.Locator;
                 AddChild(view);
                 view.ResetPhysicsInterpolation();
                 break;

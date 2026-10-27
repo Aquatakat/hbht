@@ -611,17 +611,16 @@ public sealed partial class Battle
     }
 
     /// <summary>
-    /// The arrow or thrown weapon leaves (<c>Combat.StartCastCamera</c>, <c>Combatant.LoadWeaponScene</c>): from the attacker's middle,
-    /// as the port has no hand to take it from, to the target's; the arrow for a bow, else the weapon's own model, none for one
-    /// without. Whether one flies.
+    /// The arrow, flask or thrown weapon leaves (<c>Combat.StartCastCamera</c>, <c>Combatant.LoadWeaponScene</c>): from the attacker's
+    /// hand (<see cref="Hand"/>) to the target's middle, or a flask to its body's centre; the arrow for a bow, else the weapon's own
+    /// model, none for one without. Whether one flies.
     /// </summary>
     private bool StartFlight(Combatant a, Combatant t)
     {
         if (a.HoldsFlask)
         {
-            // Combatant.LoadWeaponScene: the flask's scene, to the target's feet, its muzzle number and spin (0x800D2B40).
-            var feet = t.Body.Sphere.Position with { Y = t.Body.Sphere.Position.Y - t.Body.Sphere.Radius };
-            Flight = new MissileFlight(FlaskScene, Middle(a), feet, FlaskMuzzle, a.Look.Scale, 0, FlaskSpin);
+            // Combatant.LoadWeaponScene: the flask's scene, to the target body's centre, its muzzle number and spin (0x800D2B40).
+            Flight = new MissileFlight(FlaskScene, Hand(a), t.Body.Sphere.Position, FlaskMuzzle, a.Look.Scale, 0, FlaskSpin);
             a.EmptyHand();
             Cue(new MissileLaunched(Flight));
             return true;
@@ -630,11 +629,18 @@ public sealed partial class Battle
             return false;
         if ((missile.Scene ?? weapon.Model) is not { } scene)
             return false;
-        Flight = new MissileFlight(scene, Middle(a), Middle(t), missile.Speed, a.Look.Scale, missile.Turn);
+        Flight = new MissileFlight(scene, Hand(a), Middle(t), missile.Speed, a.Look.Scale, missile.Turn);
         a.EmptyHand();
         Cue(new MissileLaunched(Flight));
         return true;
     }
+
+    /// <summary>
+    /// Where a missile leaves from: the hand's locator as the runtime last drew it (<c>SceneGetLocatorPos</c> of <c>+0x88</c>), at the
+    /// throw's or shot's strike. The original flies nothing from an actor without the locator (the hit still lands); the port flies it
+    /// from the body's middle, as it does with no runtime.
+    /// </summary>
+    private static Vector3 Hand(Combatant c) => c.LocatorAt?.Invoke(c.HandLocator) ?? Middle(c);
 
     /// <summary>The middle of a body: its feet and half its entity's height.</summary>
     private static Vector3 Middle(Combatant c) =>

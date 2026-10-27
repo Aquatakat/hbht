@@ -190,7 +190,7 @@ public sealed record EncounterEnd(RecordId? Flag, ChunkRef Place, System.Numeric
 /// <param name="Weapon">The weapon.</param>
 /// <param name="Scene">What flies: a bow's arrow (<c>aidyn:scene/0x348F</c>), or null for the weapon's own model (<see cref="WeaponRecord.Model"/>), as a thrown one does.</param>
 /// <param name="Speed">Its muzzle number, the first of <c>WeaponMuzzle</c>'s: the higher, the faster and flatter it flies.</param>
-/// <param name="Turn">Degrees it's turned about the vertical as it flies, <c>WeaponMuzzle</c>'s fourth: 90 for the Javelin, else 0.</param>
+/// <param name="Turn">Degrees it's rolled about its own X axis as it flies, before it's turned along its flight, <c>WeaponMuzzle</c>'s fourth: 90 for the Javelin, else 0.</param>
 public sealed record Missile(RecordId Weapon, RecordId? Scene, float Speed, float Turn = 0);
 
 /// <summary>Whether the party can flee a battle under the encounter flag <paramref name="Flag"/>.</summary>

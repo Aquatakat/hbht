@@ -82,7 +82,7 @@ public partial class CombatNumbersView : Node3D
     }
 }
 
-/// <summary>Draws an arrow or thrown weapon in flight (<see cref="MissileFlight"/>), its scene at its place on its arc.</summary>
+/// <summary>Draws an arrow, thrown weapon or flask in flight (<see cref="MissileFlight"/>), its scene at its place on its arc, turned as it is.</summary>
 public partial class MissileView : Node3D
 {
     private readonly Models _models;
@@ -103,8 +103,6 @@ public partial class MissileView : Node3D
         _scene = _models.Instantiate(flight.Scene);
         if (_scene is null)
             return;
-        _scene.Scale = Vector3.One * flight.Scale;
-        _scene.Rotation = new Vector3(0, Mathf.DegToRad(flight.Turn), 0);
         AddChild(_scene);
         Sync();
     }
@@ -122,8 +120,10 @@ public partial class MissileView : Node3D
     {
         if (_scene is null || _flight is not { } flight)
             return;
-        _scene.Position = flight.Drawn.ToGodot();
-        _scene.Rotation = new Vector3(0, Mathf.DegToRad(flight.Turn), 0);
+        // The rotation's rows are where the scene's axes go, Godot's basis's columns.
+        var r = flight.Rotation;
+        var basis = new Basis(new Vector3(r.M11, r.M12, r.M13), new Vector3(r.M21, r.M22, r.M23), new Vector3(r.M31, r.M32, r.M33));
+        _scene.Transform = new Transform3D(basis.Scaled(Vector3.One * flight.Scale), flight.Drawn.ToGodot());
     }
 }
 
