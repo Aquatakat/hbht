@@ -34,6 +34,14 @@ public sealed partial class Battle
     /// <summary>The cell a flask lands at (<c>+0x5444</c>, <c>+0x5445</c>), its blast's centre; a miss leaves the last.</summary>
     public (int X, int Z) BlastCell { get; internal set; }
 
+    /// <summary>
+    /// The target of a flask landing (<see cref="FlaskExplosion"/>), whose share of the blast waits for the blow; and whether the
+    /// blast held it (<see cref="IMagicHost.Burst"/>).
+    /// </summary>
+    private Combatant? _blastTarget;
+
+    private bool _blastHeld;
+
     /// <summary>Sense Aura's popup (<c>+0x4FB8</c>), its lines, while it's up; any press closes it and ends the turn.</summary>
     public string? Aura { get; private set; }
 
@@ -153,6 +161,10 @@ public sealed partial class Battle
     /// A flask lands (<c>Combatant.FlaskExplosion</c>, <c>0x800652F8</c>): its effects land on the target through
     /// <see cref="EffectLanding"/> at <see cref="Potions.Margin"/>, its blast and corrosion bursting about the cell it landed at with the
     /// damage its throw rolled (<see cref="IMagicHost.Burst"/>), and any damage of its own adding to the target's share.
+    /// The original takes the target's share of the blast from its hit points there, keeps it as the blow's, and takes it again as the
+    /// blow lands (<c>Combat.EndCast</c>), showing it once: a rat of 31 hit for 10 is left with 11, as the user saw in 1.0 and 1.1. The
+    /// port's fix, the user's choice: the blast holds the target's share for the blow, which takes it twice as one hit, so the
+    /// number over its head and the line say what it lost. Only a Cheat Death differs, which one hit sets off once.
     /// </summary>
     internal void FlaskExplosion(Combatant a, Combatant t, int damage)
     {
@@ -160,16 +172,24 @@ public sealed partial class Battle
             return;
         var landing = new Landing(record.Id, MagicSchool.None, 0, Potions.Margin, new EffectTarget(a.Sheet, a, this),
             new EffectTarget(t.Sheet, t, this), Game.Random.Combat) { RecordMargin = 0, Centre = BlastCell, Blast = damage };
+        (_blastTarget, _blastHeld) = (t, false);
         var result = EffectLanding.Land(record.Effects ?? [], record.Duration, landing);
+        _blastTarget = null;
         if (result.Dice is { } dice)
             t.Damage += Game.Random.Combat.RollD(dice & 0xFF, 6);
+        if (!_blastHeld)
+            return;
+        // The original queues the loss and checks the death in the blast, its share already taken; the share is still to come here.
+        LogHpLoss(t, t.Damage);
+        CheckDeath(t, t.Damage);
     }
 
     /// <summary>
     /// A blast bursts (<c>Combatant.FlaskExplosion</c>, <c>0x800652F8</c>): about the centre, each living combatant in play at a squared
     /// distance d (kept in a byte, as the original's, and at least 1) within the damage takes the damage / d, from hit points, or
     /// Stamina with Sleep Gas, others left with at least 1; the target's own loss is queued and its death checked; each it hit
-    /// recoils, and the others' numbers show at once. Acid's corrosion draws a radius first, and those within it lose protection for
+    /// recoils, and the others' numbers show at once. A flask's target's share from hit points waits for its blow, twice
+    /// (<see cref="FlaskExplosion"/>). Acid's corrosion draws a radius first, and those within it lose protection for
     /// the battle (radius / d) instead of taking damage.
     /// </summary>
     void IMagicHost.Burst(Combatant t, RecordId source, int damage, bool stamina, Dice? corrode, (int X, int Z)? centre)
@@ -195,6 +215,14 @@ public sealed partial class Battle
             if (d > damage)
                 continue;
             var n = damage / d;
+            if (e == t && e == _blastTarget && !stamina)
+            {
+                e.Damage = 2 * n;
+                _blastHeld = true;
+                if (potion is not null)
+                    AttachPotionVisual(e, potion);
+                continue;
+            }
             if (e == t)
                 LogHpLoss(t, n);
             if (stamina)

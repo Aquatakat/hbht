@@ -255,7 +255,7 @@ public sealed class CombatCueTests(Na10Import fixture)
     }
 
     [Fact]
-    public void AlaronsFireFlaskFliesLandsBurstsAndHitsRat4Twice()
+    public void AlaronsFireFlaskFliesLandsBurstsAndHitsRat4ForTwiceItsShare()
     {
         var (built, host) = AlaronsTurn();
         var battle = built.Battle;
@@ -270,8 +270,8 @@ public sealed class CombatCueTests(Na10Import fixture)
 
         PlayOut(built, host);
 
-        // The throw, the flask's flight and landing, the blast's potion visual and hit on its target, then the blow landing on it again
-        // as the original's does, with the number and the queued line; the visual ends before the next turn.
+        // The throw, the flask's flight and landing, the blast's potion visual on its target, then the blow landing its share twice,
+        // as the original's two hits do, with the number and the queued line saying so (the port's fix); the visual ends before the next turn.
         Assert.Equal(
         [
             "log Alaron attacks Giant Rat",
@@ -281,9 +281,8 @@ public sealed class CombatCueTests(Na10Import fixture)
             "animated 4 5",
             "visual 4 Potion",
             "animated 4 7",
-            "animated 4 7",
-            "number 4 13",
-            "log Giant Rat loses 13 hit points",
+            "number 4 26",
+            "log Giant Rat loses 26 hit points",
             "visual ended 4 Potion",
             "log Brenna begins action",
         ], host.Cues);

@@ -254,7 +254,7 @@ public sealed class FlaskCheckpointTests(Na10Import fixture)
     private PluginSet Set => fixture.Data.Set;
 
     [Fact]
-    public void TheTargetTakesTheBlastAndThenTheBlowAsTheOriginalDoes()
+    public void TheTargetTakesTheBlastTwiceAsOneBlow()
     {
         var built = At(Set, 5);
         var battle = built.Battle;
@@ -263,9 +263,11 @@ public sealed class FlaskCheckpointTests(Na10Import fixture)
         battle.BlastCell = (66, 56);
         Assert.Equal(31, rat.Sheet.Hp);
 
-        // The original: 31 -> 21 in the blast, its 10 kept on the rat, then 21 -> 11 as EndCast's ApplyHit lands it again.
+        // The original: 31 -> 21 in the blast, its 10 kept on the rat, then 21 -> 11 as EndCast's ApplyHit lands it again, showing 10.
+        // The port's fix: the blast holds the 10 twice for the blow, which takes 20 and says so.
         battle.FlaskExplosion(alaron, rat, 10);
-        Assert.Equal((21, 10), (rat.Sheet.Hp, rat.Damage));
+        Assert.Equal((31, 20), (rat.Sheet.Hp, rat.Damage));
+        Assert.Equal("Giant Rat loses 20 hit points", battle.Lines.Queued);
         Poke(battle, nameof(Battle.Target), rat.Slot);
         battle.Land(rat);
         Assert.Equal(11, rat.Sheet.Hp);
@@ -281,6 +283,8 @@ public sealed class FlaskCheckpointTests(Na10Import fixture)
         battle.BlastCell = (66, 56);
         var before = battle.Combatants.ToDictionary(c => c, c => c.Sheet.Hp);
         battle.FlaskExplosion(alaron, rat, 40);
+        Poke(battle, nameof(Battle.Target), rat.Slot);
+        battle.Land(rat);
         Assert.True(rat.Sheet.IsDead);
 
         // A rat 20 units squared away loses 2; party members whose squared distance wraps past 256 to 32 or less lose 1.
