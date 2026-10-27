@@ -663,19 +663,18 @@ public sealed partial class Battle
         Current?.EquipVisuals(_rules);
         if (Target < 0 || _slots[Target] is not { } t)
             return;
-        // A flask bursts first (Combatant.FlaskExplosion), then the target's own share lands as a blow.
-        if (Current is { Action: CombatAction.Flask } thrower)
-            FlaskExplosion(thrower, t, thrower.Damage);
-        Land(t);
+        // A flask bursts first (Combatant.FlaskExplosion), then the target's own share lands as a blow, showing what the blast took too.
+        var taken = Current is { Action: CombatAction.Flask } thrower ? FlaskExplosion(thrower, t, thrower.Damage) : 0;
+        Land(t, taken);
     }
 
     /// <summary>
     /// The blow lands: with damage, the target takes it (<c>Combat.ApplyHit</c>, <c>0x80021930</c>, through
     /// <see cref="Character.TakeDamage"/>), recoils and shows the number; with none, an opponent dodges and an ally is helped; one
     /// it killed falls (<c>Combat.PlayDeathAnimation</c>); and the result shows (state 4), the queued line with it
-    /// (<see cref="CombatLog.Flush"/>).
+    /// (<see cref="CombatLog.Flush"/>). Its number adds what a flask's blast already <paramref name="taken"/> (the port's fix).
     /// </summary>
-    internal void Land(Combatant t)
+    internal void Land(Combatant t, int taken = 0)
     {
         var body = t.Body;
         if (t.Damage == 0)
@@ -701,7 +700,7 @@ public sealed partial class Battle
                 Animate(t, DeathRequest);
                 body.Playing = DeathRequest;
             }
-            Numbers.Add(t, damage, healing: false);
+            Numbers.Add(t, damage + taken, healing: false);
             t.Damage = t.Healed = 0;
         }
         if (t.Sheet.IsDead)

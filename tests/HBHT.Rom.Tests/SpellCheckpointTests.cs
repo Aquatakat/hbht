@@ -1,3 +1,4 @@
+using HBHT.Core.Characters;
 using HBHT.Core.Combat;
 using HBHT.Core.Items;
 using HBHT.Core.Rng;
@@ -254,7 +255,7 @@ public sealed class FlaskCheckpointTests(Na10Import fixture)
     private PluginSet Set => fixture.Data.Set;
 
     [Fact]
-    public void TheTargetTakesTheBlastTwiceAsOneBlow()
+    public void TheTargetTakesTheBlastAndTheBlowAndShowsBoth()
     {
         var built = At(Set, 5);
         var battle = built.Battle;
@@ -264,13 +265,35 @@ public sealed class FlaskCheckpointTests(Na10Import fixture)
         Assert.Equal(31, rat.Sheet.Hp);
 
         // The original: 31 -> 21 in the blast, its 10 kept on the rat, then 21 -> 11 as EndCast's ApplyHit lands it again, showing 10.
-        // The port's fix: the blast holds the 10 twice for the blow, which takes 20 and says so.
-        battle.FlaskExplosion(alaron, rat, 10);
-        Assert.Equal((31, 20), (rat.Sheet.Hp, rat.Damage));
+        // The port's fix: the same damage, and the line and the blow's number say 20.
+        Assert.Equal(10, battle.FlaskExplosion(alaron, rat, 10));
+        Assert.Equal((21, 10), (rat.Sheet.Hp, rat.Damage));
         Assert.Equal("Giant Rat loses 20 hit points", battle.Lines.Queued);
         Poke(battle, nameof(Battle.Target), rat.Slot);
-        battle.Land(rat);
+        battle.Land(rat, 10);
         Assert.Equal(11, rat.Sheet.Hp);
+        Assert.Equal(20, Assert.Single(battle.Numbers.Shown, n => n.Slot == rat.Slot).Amount);
+    }
+
+    [Fact]
+    public void SleepGasDrainsItsTargetsStaminaThenTheBlowAndShowsBoth()
+    {
+        var built = At(Set, 5);
+        var battle = built.Battle;
+        var (alaron, rat) = (built[0], built[4]);
+        alaron.HoldPotion(battle.Game.Party.Inventory.Catalog[PotionId(BasePotion.SleepGas)], battle);
+        battle.BlastCell = (66, 56);
+        var stamina = rat.Sheet.Stats.Modified(Stat.Stamina);
+
+        // The blast drains 15 from Stamina, which hit points count; the blow takes 15 more, and both are said and shown as 30.
+        Assert.Equal(15, battle.FlaskExplosion(alaron, rat, 15));
+        Assert.Equal((16, 15), (rat.Sheet.Hp, rat.Damage));
+        Assert.Equal(Math.Max(0, stamina - 15), rat.Sheet.Stats.Modified(Stat.Stamina));
+        Assert.Equal("Giant Rat loses 30 hit points", battle.Lines.Queued);
+        Poke(battle, nameof(Battle.Target), rat.Slot);
+        battle.Land(rat, 15);
+        Assert.Equal(1, rat.Sheet.Hp);
+        Assert.Equal(30, Assert.Single(battle.Numbers.Shown, n => n.Slot == rat.Slot).Amount);
     }
 
     [Fact]
