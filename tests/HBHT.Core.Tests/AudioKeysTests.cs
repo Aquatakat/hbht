@@ -114,12 +114,29 @@ public class AudioKeysTests
     }
 
     [Fact]
-    public void LoudnessFallsToNothingAt15AndWrapsBeyond()
+    public void LoudnessFallsOnceToNothingAt30()
     {
+        // The original's falls to nothing at 15 and wraps loud again to 30, (int)(−1/3 × 255)'s low byte 171 at 20; the
+        // port's, the user's fix, falls once across the 30.
         Assert.Equal(255, AudioKeys.VolumeAndPan(Vector3.Zero, new Vector3(0, 0, 5), Vector3.Zero).Volume);
-        Assert.Equal(127, AudioKeys.VolumeAndPan(new Vector3(0, 0, -7.5f), new Vector3(0, 0, 5), Vector3.Zero).Volume);
-        Assert.Equal(0, AudioKeys.VolumeAndPan(new Vector3(0, 0, -15), new Vector3(0, 0, 5), Vector3.Zero).Volume);
-        // (int)(−1/3 × 255) is −85, whose low byte is 171.
-        Assert.Equal(171, AudioKeys.VolumeAndPan(new Vector3(0, 0, -20), new Vector3(0, 0, 5), Vector3.Zero).Volume);
+        Assert.Equal(127, AudioKeys.VolumeAndPan(new Vector3(0, 0, -15), new Vector3(0, 0, 5), Vector3.Zero).Volume);
+        // A third in single precision is a hair under, so it truncates to 84.
+        Assert.Equal(84, AudioKeys.VolumeAndPan(new Vector3(0, 0, -20), new Vector3(0, 0, 5), Vector3.Zero).Volume);
+        Assert.Equal(0, AudioKeys.VolumeAndPan(new Vector3(0, 0, -30), new Vector3(0, 0, 5), Vector3.Zero).Volume);
+        Assert.Equal(0, AudioKeys.VolumeAndPan(new Vector3(0, 0, -40), new Vector3(0, 0, 5), Vector3.Zero).Volume);
+    }
+
+    [Fact]
+    public void PanIsTheOriginalsTo15AndFullPastIt()
+    {
+        // Straight right of the camera, which looks along −z from (0, 0, 5) at the origin: the pan swings by distance / 15.
+        var eye = new Vector3(0, 0, 5);
+        Assert.Equal(AudioLevels.PanByte(AudioLevels.Pan(new Vector3(6, 0, 5), eye, Vector3.Zero, AudioLevels.Loudness(Vector3.Distance(new Vector3(6, 0, 5), Vector3.Zero), 15))),
+            AudioKeys.VolumeAndPan(new Vector3(6, 0, 5), eye, Vector3.Zero).Pan);
+        // Past 15 the original's wraps to the other side; the port's stays at the full side.
+        var right = AudioKeys.VolumeAndPan(new Vector3(25, 0, 5), eye, Vector3.Zero).Pan;
+        var left = AudioKeys.VolumeAndPan(new Vector3(-25, 0, 5), eye, Vector3.Zero).Pan;
+        Assert.True(right > 127 && left < 127, $"{right} and {left}");
+        Assert.InRange(left, 254 - right, 256 - right);
     }
 }

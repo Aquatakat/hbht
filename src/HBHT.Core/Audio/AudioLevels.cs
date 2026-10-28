@@ -31,11 +31,11 @@ public static class AudioLevels
     /// <summary>A kept sound's pan byte (<c>Audio.UpdateSound</c>): <c>trunc((pan + 1) × 0.5 × 255)</c> clamped, so a pan of 0 is 127.</summary>
     public static byte PanByte(float pan) => (byte)Math.Clamp((int)PanScaled(pan), 0, 255);
 
-    /// <summary>A body's loudness byte (<c>Audio.VolumeAndPan</c>): <c>trunc(loudness × 255)</c>, not clamped, so its low byte wraps.</summary>
+    /// <summary>
+    /// A body's loudness byte (<c>Audio.VolumeAndPan</c>): <c>trunc(loudness × 255)</c>, which the original doesn't clamp, so
+    /// below 0 its low byte wraps; the port's loudness is never below 0 (<see cref="AudioKeys.VolumeAndPan"/>).
+    /// </summary>
     public static byte LoudnessByte(float loudness) => ColorBytes.Double(loudness * 255.0);
-
-    /// <summary>A body's pan byte (<c>Audio.VolumeAndPan</c>): the same product as <see cref="PanByte"/>, not clamped.</summary>
-    public static byte WrappedPanByte(float pan) => ColorBytes.Double(PanScaled(pan));
 
     private static double PanScaled(float pan) => (pan + 1f) * 0.5f * 255.0;
 

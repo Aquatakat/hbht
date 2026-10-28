@@ -35,13 +35,19 @@ public sealed class BodyAudio
 
 /// <summary>
 /// Bodies' footsteps and voices (<c>audiokey.cpp</c>, <c>AudioKeys.ProcessPlayer</c>, 1.0 <c>0x80053560</c>): each tick,
-/// after a body's animation has stepped, the key that its request and frame reach plays, heard within 15 of the camera's
-/// eye (docs/systems/audio.md).
+/// after a body's animation has stepped, the key that its request and frame reach plays, heard within 30 of what the
+/// camera looks at (docs/systems/audio.md).
 /// </summary>
 public sealed class AudioKeys(GameAudio audio, SoundsRecord sounds, IRandom random)
 {
-    /// <summary>How far from what the camera looks at a body is heard, before the loudness wraps (<c>Audio.VolumeAndPan</c>'s 15).</summary>
-    public const float Hearing = 15;
+    /// <summary>
+    /// How far from what the camera looks at a body is heard: the port's one fall to nothing, the user's fix of the
+    /// original's two (<c>Audio.VolumeAndPan</c>'s 15, which wraps loud again to 30; <see cref="VolumeAndPan"/>).
+    /// </summary>
+    public const float Hearing = 30;
+
+    /// <summary>How far a body's pan swings to the full side (<c>Audio.VolumeAndPan</c>'s 15).</summary>
+    public const float PanReach = 15;
 
     /// <summary>How far from what the camera looks at bodies are stepped at all (<c>Players+0x68</c>).</summary>
     public const float Reach = 50;
@@ -151,13 +157,17 @@ public sealed class AudioKeys(GameAudio audio, SoundsRecord sounds, IRandom rand
     }
 
     /// <summary>
-    /// A body's loudness and pan (<c>Audio.VolumeAndPan</c>, 1.0 <c>0x8004EB90</c>), as bytes. Neither is clamped: past
-    /// 15 from what the camera looks at, the loudness's int wraps to its low byte, as the original's does.
+    /// A body's loudness and pan (<c>Audio.VolumeAndPan</c>, 1.0 <c>0x8004EB90</c>), as bytes. The original's loudness falls
+    /// to nothing at 15 from what the camera looks at and, unclamped, wraps loud again to 30, its pan wrapping with it; the
+    /// port's, the user's fix, falls once, from full to nothing at <see cref="Hearing"/>, 30, about as far as the original's
+    /// is heard, and its pan is the original's to 15 and full past it.
     /// </summary>
     public static (byte Volume, byte Pan) VolumeAndPan(Vector3 position, Vector3 eye, Vector3 aim)
     {
-        var loudness = AudioLevels.Loudness(Vector3.Distance(position, aim), Hearing);
-        return (AudioLevels.LoudnessByte(loudness), AudioLevels.WrappedPanByte(AudioLevels.Pan(position, eye, aim, loudness)));
+        var distance = Vector3.Distance(position, aim);
+        var loudness = MathF.Max(AudioLevels.Loudness(distance, Hearing), 0);
+        var pan = AudioLevels.Pan(position, eye, aim, MathF.Max(AudioLevels.Loudness(distance, PanReach), 0));
+        return (AudioLevels.LoudnessByte(loudness), AudioLevels.PanByte(pan));
     }
 
     /// <summary>

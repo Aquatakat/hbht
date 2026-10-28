@@ -103,21 +103,27 @@ public class AudioLevelsSweepTests
     }
 
     [Fact]
-    public void BodiesLoudnessAndPanWrapPastTheirHearing()
+    public void BodiesLoudnessFallsAndPanHoldsItsSidePastTheirHearing()
     {
-        var text = new StringBuilder();
+        // The original's both wrap past 15 (Audio.VolumeAndPan); the port's, the user's fix, never do: the loudness only
+        // falls with distance, to nothing from 30, and the pan stays on the body's side of the camera.
         foreach (var eye in new[] { new Vector3(0, 5, 20), new Vector3(15, 3, -4), new Vector3(-3, 1, 0) })
         foreach (var aim in new[] { Vector3.Zero, new Vector3(4, 0, -2) })
         {
+            var facing = Vector2.Normalize(new Vector2(aim.X - eye.X, aim.Z - eye.Z));
             for (var x = -52f; x <= 52f; x += 1.3f)
             for (var z = -52f; z <= 52f; z += 1.7f)
             {
-                var (volume, pan) = AudioKeys.VolumeAndPan(new Vector3(x, 0.5f, z), eye, aim);
-                text.Append(CultureInfo.InvariantCulture, $"{volume}/{pan} ");
+                var at = new Vector3(x, 0.5f, z);
+                var distance = Vector3.Distance(at, aim);
+                var (volume, pan) = AudioKeys.VolumeAndPan(at, eye, aim);
+                Assert.Equal(distance >= AudioKeys.Hearing ? 0 : (int)((1 - distance / AudioKeys.Hearing) * 255.0), volume);
+                var to = new Vector2(x - eye.X, z - eye.Z);
+                var side = facing.X * to.Y - facing.Y * to.X;
+                if (MathF.Abs(side) > 0.01f && distance > 1)
+                    Assert.True(side > 0 ? pan >= 127 : pan <= 128, $"{at} from {eye}: {pan}");
             }
-            text.Append('\n');
         }
-        Assert.Equal("019933BB3A20863F2AA61C6A0D8576E3BD482D43D5BBA6BD5B16373A7BDB9C13", Hash(text));
     }
 
     [Fact]

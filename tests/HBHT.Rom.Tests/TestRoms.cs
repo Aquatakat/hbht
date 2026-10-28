@@ -27,13 +27,18 @@ public static class TestRoms
 
     /// <summary>
     /// The names of the story checkpoints next to the ROMs (<c>… - label.bs1</c> to <c>.bs4</c>), for a theory over each:
-    /// every checkpoint but the combat captures (<see cref="CombatCheckpoints"/>), which are one battle's and hold none of
-    /// the story's facts the theories check. A theory with no checkpoints gets one empty name, which <see cref="Checkpoint"/> skips.
+    /// the four story labels' (docs/reference-rig.md#checkpoint-library), not the combat captures (<see cref="CombatCheckpoints"/>)
+    /// or the others, which hold none of the story's facts the theories check, nor ares's own numbered slots. A theory with
+    /// no checkpoints gets one empty name, which <see cref="Checkpoint"/> skips.
     /// </summary>
-    public static TheoryData<string> Checkpoints() => Named(n => !IsCombat(n));
+    public static TheoryData<string> Checkpoints() => Named(IsStory);
 
     /// <summary>The combat captures (<c>… - Combat NN, label.bs1</c>), one battle from the field before it to the loot.</summary>
     public static TheoryData<string> CombatCheckpoints() => Named(IsCombat);
+
+    private static readonly string[] StoryLabels = ["Before Shamsuk's Tower", "Before Rooughah", "Before final encounter", "Before Rooughah, in Terminor"];
+
+    private static bool IsStory(string name) => StoryLabels.Any(l => name[..^4].EndsWith($" - {l}", StringComparison.Ordinal));
 
     private static bool IsCombat(string name) => name.Contains(" - Combat ", StringComparison.Ordinal);
 
