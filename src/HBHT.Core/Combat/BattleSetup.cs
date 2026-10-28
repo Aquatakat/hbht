@@ -85,19 +85,23 @@ public sealed record BattleSetup(
     /// <summary>
     /// A camp ambush where the party camped (<c>CampEncounters.Load</c>, <c>0x800096DC</c>): no fleeing, no loot of its own and no
     /// flag; its enemies the terrain's (<see cref="TerrainRecord.Ambushes"/>) at the tier of the party's average level, dead
-    /// members counted, rolled as a monster party's with its least and most the two kinds' summed. A terrain with none, as 27,
-    /// has nobody to fight.
+    /// members counted (<see cref="CampAmbushers"/>), rolled as a monster party's with its least and most the two kinds' summed.
     /// </summary>
     public static BattleSetup CampAmbush(ChunkRef? place, int? terrain, PluginSet plugins, Characters.Party party)
     {
-        var enemies = terrain is { } t && TerrainRecord.Find(plugins, t)?.Ambushes is { Count: > 0 } tiers
-            ? tiers[Math.Min(AmbushTier(plugins, party.AverageLevel), tiers.Count - 1)].Enemies
-            : [];
+        var enemies = CampAmbushers(terrain is { } t ? TerrainRecord.Find(plugins, t) : null, plugins, party);
         return new(BattleSource.Camp, place, terrain, null, enemies, null, Ambush: true, CanFlee: false, null)
         {
             Size = (enemies.Sum(e => e.Min), enemies.Sum(e => e.Max)),
         };
     }
+
+    /// <summary>
+    /// Who ambushes a camp on this terrain: its <see cref="TerrainRecord.Ambushes"/> at the party's tier, or the last tier
+    /// it has; none where it has no ambushes, as terrain 27, which camping isn't ambushed on (<see cref="Trek.TrekLoop.Camp"/>).
+    /// </summary>
+    public static IReadOnlyList<PartyEnemy> CampAmbushers(TerrainRecord? terrain, PluginSet plugins, Characters.Party party) =>
+        terrain?.Ambushes is { Count: > 0 } tiers ? tiers[Math.Min(AmbushTier(plugins, party.AverageLevel), tiers.Count - 1)].Enemies : [];
 
     /// <summary>
     /// The camp ambush's tier for the party's average level: 0 up to the camping record's first level (5), then one more past

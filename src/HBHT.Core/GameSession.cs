@@ -815,14 +815,6 @@ public sealed class GameSession
     {
         var setup = Trek.BeginBattle();
         Zone.Particles?.Clear();
-        if (setup.Party is null && setup.Enemies.Count == 0)
-        {
-            // A camp ambush on a terrain with no camp encounters (27): the original reads past the table and finds no enemy.
-            Send(new Transition.Say("The party is ambushed, but no one comes."));
-            Trek.Resume();
-            Send(new Transition.ResumeTrek());
-            return;
-        }
         var number = setup.Arena ?? setup.ChooseArena(Game.Plugins, Game.Random.Combat) ?? _lastArena;
         if (Combat.Arena.For(Game.Plugins, number) is not { } arena)
         {

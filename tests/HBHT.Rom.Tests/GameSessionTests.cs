@@ -318,6 +318,14 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         Assert.Equal(expected, camp.Enemies);
         Assert.Equal((expected.Sum(e => e.Min), expected.Sum(e => e.Max)), camp.Size);
         Assert.Null(camp.BonusLoot);
+
+        // Terrain 27 (Overworld O26) has no one to ambush the party, so the same roll camps: the original crashes there.
+        var (east, _) = Start("O26", 45, 15);
+        foreach (var joined in new[] { 89, 90 })
+            east.Game.Flags.TrySet(RecordId.Decimal(RecordTypes.Flag, joined), true);
+        east.Game.Random.World.Seed = seed;
+        Assert.Equal(CampOutcome.Camped, east.Trek.Camp());
+        Assert.Null(east.Trek.CuedBattle);
         var game = session.Game;
 
         // A script's, where it ends, and in a conversation with a party, against it under its flag C, filled again from the party

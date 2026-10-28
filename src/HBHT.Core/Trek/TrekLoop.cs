@@ -728,7 +728,9 @@ public sealed partial class TrekLoop : IMapObjectHost
     /// World tab's Camp already checks; otherwise ambushed, which waits for combat, or healed by half, with the camp
     /// scene cued: the first dialogue object in the chunk whose enabling flag is one of the camping record's and holds
     /// while its check flag is set, wherever it is (<c>dialoug_ref_obj_func</c>), or else the Campsite's
-    /// (<c>campfire_func</c>). Eight hours pass when the scene ends, as it's a <c>rest</c> script.
+    /// (<c>campfire_func</c>). Eight hours pass when the scene ends, as it's a <c>rest</c> script. Where no one ambushes
+    /// the party (<see cref="BattleSetup.CampAmbushers"/>: terrain 27) there's no ambush roll, the user's choice: the original
+    /// rolls and crashes setting up a battle with no enemies (<c>Combat.CreateEnemyCombatants</c>, <c>0x8005d03c</c>).
     /// </summary>
     public CampOutcome Camp()
     {
@@ -738,7 +740,8 @@ public sealed partial class TrekLoop : IMapObjectHost
         var factor = terrain?.Camp ?? 0;
         if (factor <= 0)
             return CampOutcome.Refused;
-        if (Camping.Ambushed(rules, factor, Game.Party, Game.Flags.IsSet, Game.Random.World))
+        if (BattleSetup.CampAmbushers(terrain, Game.Plugins, Game.Party).Count > 0
+            && Camping.Ambushed(rules, factor, Game.Party, Game.Flags.IsSet, Game.Random.World))
         {
             var (place, terrainIndex) = Here();
             CueBattle(BattleSetup.CampAmbush(place, terrainIndex, Game.Plugins, Game.Party));
