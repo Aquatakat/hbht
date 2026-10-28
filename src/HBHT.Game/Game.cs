@@ -595,6 +595,9 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
                 // The ring's scenery is gated again as the 3×3's is.
                 if (step == SessionStep.MenuClosed)
                     _ring?.Regate();
+                // Object Distance changed under the menu: the wanderers are drawn to the new distance at once, as the scenery is.
+                else if (session.StreamsTrek && _wanderersDrawnTo != _objectDistance.Bodies)
+                    DrawWanderers();
                 return;
             case SessionStep.CutScene or SessionStep.CutSceneOver:
                 StepCutScene(over: step == SessionStep.CutSceneOver);
@@ -770,9 +773,13 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         _chunks.LightWanderers(lights, _chunks.Chunks);
     }
 
+    /// <summary>How far the wanderers were last drawn, so the options menu's Object Distance redraws them under it.</summary>
+    private float _wanderersDrawnTo;
+
     /// <summary>Moves the wanderers' bodies to where they are, and fades them and their shadows by the camera's aim.</summary>
     private void DrawWanderers()
     {
+        _wanderersDrawnTo = _objectDistance.Bodies;
         var aim = Trek!.Camera.Aim;
         var centre = _chunks!.Chunks.MapAt(_player!.Motion.Sphere.Position);
         var ownAim = BodyShadow.ChunkAim(aim, centre?.Origin);
