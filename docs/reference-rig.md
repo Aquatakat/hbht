@@ -125,6 +125,8 @@ tools/ares.ps1 debug -Checkpoint "Before final encounter"
 
 **One battle, for combat** (1.0 only, labels `Combat 01, …` to `Combat 14, …`), against ten rats with Alaron, Brenna, Rheda and Sholeh: 01 on the field before it; 02–04 the first turns (Rheda's, Sholeh's, Alaron's); 05 Alaron choosing a melee target; 06 the attack, a rat's death; 07 Rheda choosing a spell's target; 08 her Endurance cast on herself; 09 reserves joining and moving; 10 a rat's attack on Brenna; 11 a rat fleeing; 12 victory; 13 the post-battle training; 14 the loot. [Combat](systems/combat.md) reads them.
 
+**Wanderers around H13** (1.0 only): a new game's Alaron, loaded from a save written to the pak, standing in Overworld H13 at noon, with 27 wanderers in the six chunks its byte 0x1A leaves loaded ([wanderers](systems/wanderers.md#bodies-as-their-chunk-loads)).
+
 This copies the named state to the ROM's `.bs9` slot and passes `--save-state 9`. Slot 9 is scratch, and the named files are never written. The ares slot convention is `<rom basename>.bsN`.
 
 ### Emulator captures
