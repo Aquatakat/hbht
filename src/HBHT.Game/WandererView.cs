@@ -40,6 +40,8 @@ public partial class WandererView : BodyView
     public void Draw(Core.Physics.CollisionWorld world, System.Numerics.Vector3 aim, System.Numerics.Vector3 ownAim, float distance)
     {
         var (_, fromAim) = Fade(aim, distance: distance);
+        // Wherever the original steps a body its emitters start; past that, only where it's drawn.
+        StartsEmitters(fromAim <= MathF.Max(distance, Core.Movement.Body.StepDistance));
         var own = BodyShadow.OwnDistance(Body.Sphere.Position, Wanderer.Map.Origin, ownAim);
         PlaceShadow(world, BodyShadow.DrawAlpha(distance, fromAim, player: false, ownAim: own));
     }

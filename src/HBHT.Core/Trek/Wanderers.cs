@@ -26,6 +26,19 @@ public sealed class Wanderers(PluginSet plugins)
     /// <summary>A dialogue entity's perception (<c>EntityDB::GetPerception</c>).</summary>
     public const int DialoguePerception = 10;
 
+    /// <summary>
+    /// How far from what the camera looks at wanderers move and animate under Object Distance's 2× and 3×, the port's own,
+    /// the user's choice: well past where they're drawn (<see cref="Scenes.ObjectDistance.Bodies"/>, 40 and 60), so one
+    /// that comes into view is already wandering rather than standing where it stopped.
+    /// </summary>
+    public const float FarReach = 100;
+
+    /// <summary>How far wanderers step under an Object Distance: the original's 30 (<see cref="Body.StepDistance"/>) at 1×, <see cref="FarReach"/> past it.</summary>
+    public static float ReachFor(float objectDistance) => objectDistance > 1 ? FarReach : Body.StepDistance;
+
+    /// <summary>How far from what the camera looks at they step (<see cref="SessionSettings.WanderReach"/>); a cut-scene's actors keep the original's.</summary>
+    public float Reach { get; set; } = Body.StepDistance;
+
     private readonly List<Wanderer> _all = [];
     private readonly List<CrowdMember?> _crowd = [];
 
@@ -133,7 +146,7 @@ public sealed class Wanderers(PluginSet plugins)
 
     /// <summary>
     /// Steps the bodies after the player's own step, as <c>ProcessPlayers</c> does each tick: the
-    /// player is pushed out of the bodies in his chunk, then each body <see cref="Body.Near"/> the
+    /// player is pushed out of the bodies in his chunk, then each body within <see cref="Reach"/> of the
     /// camera's aim moves and is pushed out of the rest. Those further off stand still.
     /// </summary>
     /// <param name="player">The player's sphere.</param>
@@ -154,7 +167,7 @@ public sealed class Wanderers(PluginSet plugins)
         for (var i = 0; i < _all.Count; i++)
         {
             var body = _all[i].Body;
-            if (!body.Near(aim))
+            if (!body.Near(aim, Reach))
                 continue;
             var start = body.Sphere.Position;
             body.Step(world, animation(_all[i]));

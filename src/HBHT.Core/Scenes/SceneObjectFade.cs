@@ -66,12 +66,18 @@ public sealed record ObjectDistance(float Scale = 1, bool NearestDetail = false)
     public static readonly ObjectDistance Original = new();
 
     /// <summary>
-    /// How far from the camera's aim bodies are drawn in trek and cut-scenes: the original's 20
-    /// (<see cref="Movement.BodyShadow.TrekDistance"/>) scaled, but no further than bodies step
-    /// (<see cref="Movement.Body.StepDistance"/>, 30). Past that a body neither moves nor animates, so a wanderer would be seen
-    /// stopped mid-stride, or a body spawned over a hole hanging where it stopped falling.
+    /// How far from the camera's aim trek's bodies are drawn: the original's 20 (<see cref="Movement.BodyShadow.TrekDistance"/>)
+    /// scaled, 40 and 60, but no further than wanderers step under it (<see cref="Trek.Wanderers.ReachFor"/>). Past that a
+    /// body neither moves nor animates, so it would be seen stopped mid-stride, or spawned over a hole and hanging where it
+    /// stopped falling.
     /// </summary>
-    public float Bodies => MathF.Min(Movement.BodyShadow.TrekDistance * Scale, Movement.Body.StepDistance);
+    public float Bodies => MathF.Min(Movement.BodyShadow.TrekDistance * Scale, Trek.Wanderers.ReachFor(Scale));
+
+    /// <summary>
+    /// How far a cut-scene's actors are drawn: as <see cref="Bodies"/>, but no further than they step, the original's 30
+    /// (<see cref="Movement.Body.StepDistance"/>), which scripts' walks and waits are timed by.
+    /// </summary>
+    public float Actors => MathF.Min(Movement.BodyShadow.TrekDistance * Scale, Movement.Body.StepDistance);
 }
 
 /// <summary>

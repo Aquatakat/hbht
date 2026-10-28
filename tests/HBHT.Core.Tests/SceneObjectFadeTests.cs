@@ -107,9 +107,11 @@ public class SceneObjectFadeTests
     [Fact]
     public void BodiesAreDrawnFurtherOnlyAsFarAsTheyStep()
     {
-        // The original's 20, then no further than the 30 past which a body neither moves nor animates.
-        Assert.Equal([20f, 30f, 30f], new[] { 1f, 2f, 3f }.Select(s => new ObjectDistance(s).Bodies));
-        Assert.Equal(HBHT.Core.Movement.Body.StepDistance, new ObjectDistance(3).Bodies);
+        // The original's 20 scaled: trek's wanderers step out to 100 under 2× and 3× (Wanderers.ReachFor), so they're drawn
+        // to 40 and 60; a cut-scene's actors step only to the original's 30, past which one neither moves nor animates.
+        Assert.Equal([20f, 40f, 60f], new[] { 1f, 2f, 3f }.Select(s => new ObjectDistance(s).Bodies));
+        Assert.Equal([20f, 30f, 30f], new[] { 1f, 2f, 3f }.Select(s => new ObjectDistance(s).Actors));
+        Assert.Equal(HBHT.Core.Movement.Body.StepDistance, new ObjectDistance(3).Actors);
     }
 
     [Fact]

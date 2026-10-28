@@ -86,7 +86,7 @@ public partial class Game
                 view.ResetPhysicsInterpolation();
             }
             view.Sync();
-            view.Draw(_world, scene.Camera.Aim, _objectDistance.Bodies);
+            view.Draw(_world, scene.Camera.Aim, _objectDistance.Actors);
         }
         // A cut jumps the view rather than blending it over the tick. Godot resets interpolation from where the
         // camera is when it's called, so after the camera has moved.

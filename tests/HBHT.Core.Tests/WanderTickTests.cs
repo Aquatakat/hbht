@@ -626,4 +626,35 @@ public class WanderersTickTests(WanderersFixture fixture) : IClassFixture<Wander
         Assert.Equal([wanderer], ambushes);
         Assert.False(wanderer.Hunts);
     }
+
+    [Fact]
+    public void WanderersStepAsFarFromTheAimAsTheirReach()
+    {
+        var node = new WanderNodeObject(0, new Vector3(5, 0, 5), 0, PakVariant.Any, null, 2, 0, 0, 1000, WanderFlags.Move, []);
+        var party = new MonsterPartyObject(1, new Vector3(5, 0, 5), 20, PakVariant.Any, null, [], WanderersFixture.Entity, null, 0, 0,
+            MapRecord.VoxelId(MapId, 0), PartyFlags.Walks, null, null);
+        var map = LoadedMap.Activate(new MapRecord(MapId, [node, party]), Worlds.Chunk(0), ItemData.Flags(), new MapObjectMemory(), ItemData.NewParty(), new Lcg());
+        var world = Worlds.Flat();
+        var wanderers = new Wanderers(fixture.Plugins);
+        var wanderer = Assert.Single(wanderers.Load(map, 100, world, new MapObjectMemory()));
+        wanderer.Body.GoTo(new Vector2(15, 5), 0.5f, walk: true);
+        var player = new CollisionSphere { Position = new Vector3(500, 0.5f, 500) };
+        var motion = new SteadyMotion(0.02f);
+        var aim = wanderer.Body.Sphere.Position + new Vector3(0, 0, 60);
+        void Step() => wanderers.Step(world, player, player.Position, null, aim, _ => motion);
+
+        // 60 from the aim: the original's 30 leaves it where it stands.
+        Assert.Equal(Body.StepDistance, wanderers.Reach);
+        var at = wanderer.Body.Sphere.Position;
+        for (var i = 0; i < 30; i++)
+            Step();
+        Assert.Equal(at, wanderer.Body.Sphere.Position);
+
+        // Object Distance's 2× and 3× step it out to 100; Original keeps the 30.
+        Assert.Equal([30f, 100f, 100f], new[] { 1f, 2f, 3f }.Select(Wanderers.ReachFor));
+        wanderers.Reach = Wanderers.ReachFor(2);
+        for (var i = 0; i < 30; i++)
+            Step();
+        Assert.True(wanderer.Body.Sphere.Position.X > at.X + 0.1f, $"{wanderer.Body.Sphere.Position}");
+    }
 }

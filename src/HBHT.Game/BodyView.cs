@@ -344,6 +344,13 @@ public abstract partial class BodyView : Node3D
         return (alpha, fromAim);
     }
 
+    /// <summary>Whether its actor starts its emitters as it enters a state (<see cref="Core.Particles.ActorParticles.Starting"/>).</summary>
+    protected void StartsEmitters(bool starting)
+    {
+        if (_model?.Animator?.Particles is { } particles)
+            particles.Starting = starting;
+    }
+
     /// <summary>Places its shadow with the alpha <see cref="BodyShadow.DrawAlpha"/> gave, or hides it for none.</summary>
     protected void PlaceShadow(CollisionWorld world, byte? alpha) => _shadow?.Place(world, Body.Sphere, alpha);
 }

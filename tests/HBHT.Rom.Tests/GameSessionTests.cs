@@ -127,9 +127,16 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         Assert.Equal(next, session.Settings);
         Assert.Equal(4 * Core.Particles.WeatherParticles.OriginalPool, particles.MaxParticles);
 
+        // Object Distance's 2× steps trek's wanderers further, as it draws them further.
+        Assert.Equal(Core.Movement.Body.StepDistance, session.Trek.Wanderers.Reach);
+        settings.ObjectDistance = 2;
+        Tick(session, SessionSettings.From(settings));
+        Assert.Equal(Wanderers.FarReach, session.Trek.Wanderers.Reach);
+
         // And back again on the tick after the original's.
         Tick(session);
         Assert.Equal((1f, Core.Sky.SkyPlacement.Original, 65, 1f), Playing());
+        Assert.Equal(Core.Movement.Body.StepDistance, session.Trek.Wanderers.Reach);
     }
 
     [Fact]

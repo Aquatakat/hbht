@@ -29,9 +29,18 @@ public sealed class ActorParticles(ParticleHead head, EmittersRecord emitters, I
         set => _anchor.Alpha = value;
     }
 
-    /// <summary>Starts the emitters for <paramref name="request"/>.</summary>
+    /// <summary>
+    /// Whether it starts its emitters as it enters a state: always in the original, and in the port but for a wanderer
+    /// stepped past where the original steps and where it's drawn (<see cref="Trek.Wanderers.FarReach"/>), so bodies no one
+    /// sees don't take the pool's emitters from those near.
+    /// </summary>
+    public bool Starting { get; set; } = true;
+
+    /// <summary>Starts the emitters for <paramref name="request"/>, while it's <see cref="Starting"/>.</summary>
     public void Entered(int request)
     {
+        if (!Starting)
+            return;
         foreach (var e in emitters.Emitters)
         {
             if (e.Flags.HasFlag(ParticleEmitterFlags.ActorRequest) && e.Request == request)

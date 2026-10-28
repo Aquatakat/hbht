@@ -43,6 +43,12 @@ public sealed record SessionSettings
     /// <summary>How many lines tall the UI screen is, which the credits lay their cards out on: the console's 240.</summary>
     public int UiLines { get; init; } = 240;
 
+    /// <summary>
+    /// How far from what the camera looks at trek's wanderers move and animate (<see cref="Trek.Wanderers.Reach"/>): the
+    /// original's 30, or further under Object Distance's 2× and 3×, which draw them further (<see cref="Trek.Wanderers.ReachFor"/>).
+    /// </summary>
+    public float WanderReach { get; init; } = Movement.Body.StepDistance;
+
     /// <summary>What the core plays by of these settings: the pace is Brisk's or the original's.</summary>
     public static SessionSettings From(Settings settings) => new()
     {
@@ -53,5 +59,6 @@ public sealed record SessionSettings
         Pace = settings.BriskPace ? BriskPace : 1,
         SpellAuras = settings.SpellAuras,
         UiLines = Math.Max(settings.UiLines, 1),
+        WanderReach = Trek.Wanderers.ReachFor(settings.ObjectDistance),
     };
 }
