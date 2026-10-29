@@ -28,10 +28,6 @@ The user needn't play to a check: a save is written into the Controller Pak besi
 
 - **A new game from the load menu** (the runtime, with a save from `hbht save new` or the editor's new game): load it from the System tab's Load. Does it play the opening cinematic, then the opening's script on its stage, then trek in Overworld I08, as a plain launch does? [saves](systems/saves.md#the-format)
 
-## Combat
-
-- **The post-battle window's member:** after a battle in which you paused on someone other than Alaron's turn (Start on Brenna's turn, then back), does the post-battle window open on the member whose turn you paused on, rather than Alaron? The code's every write to the member says so, and the port does the same. [ui](systems/ui.md#after-a-battle)
-
 ## Sound
 
 - **Wrapped pitches:** music 0x05DD and 0x05DE, and sounds such as 0x0759 and 0x075F, have notes above 65,535 Hz that the original keeps in 16 bits, so they'd play far too low. The port does the same. Listen for a low growl or rumble against `hbht audio`'s render. [audio](formats/audio.md#the-event-stream)

@@ -673,7 +673,7 @@ Others:
 
 ## Not settled
 
-- **The Shadow's battle** is read, not run: no checkpoint holds it, so the aura, the vanish's frames and the merge's boost are matched to the code alone ([user-checks](../user-checks.md#combat)). The Goblin Ambush's hold, also read alone, the user has seen play as the port has it.
+- **The Shadow's battle** has no checkpoint, so the vanish's frames and the merge's boost are matched to the code alone; the user played both its ends in 1.0 and the port ([above](#the-special-battles)). The Goblin Ambush's hold, also read alone, the user has seen play as the port has it.
 - **The merge's shield test**, turned round in the original (the skill goes up only when the Shadow has none): whether to keep it or turn it the right way isn't chosen. The data never reaches it, as the Shadow has shield 8.
 - **The frame's `delta` in combat**, taken as 2 ticks; checkpoint 10 suggests 3. It sets how long a one-shot request is held and rounds an attack's strike to a frame ([reference rig](../reference-rig.md)).
 - A fleeing enemy whose leg can't start goes on to `Execute` after `FleeAdvance` (`0x8005B3D0`–`0x8005B418`), so a cornered one may still attack; no case was run.
@@ -681,4 +681,3 @@ Others:
 - Exactly which cone `Talk`'s collision byte tests (`0x80010AE8`–`0x80010B74`).
 - Body flags `0x200` (set on enemies' bodies by `Combat.CreateBody`), `0x400` (skipped by the bodies' push) and `0x800` (`ProcessPlayers` calls `0x80015FEC`), which `TurnOrder.ClearActions` clears.
 - Exactly where in 05 to 06 the attack's draws fall, which a watchpoint on `0x800D8088` from 05 would show.
-- What only the emulator shows, in the [user checks](../user-checks.md#combat): Darkness's and Light's sky and a hold's still pose. Endurance's casts are captured (`roms/combat-castingendurance*.png`, on Brenna and then Rheda) and the user found the shell, the sky's dimming, the glow and the lasting turns match.
