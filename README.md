@@ -47,10 +47,17 @@ Examples of some fixed bugs:
   and restarting.
 - The time of day and compass are meant to be hidden inside some interiors. The
   original shows them when you load a save inside, HBHT hides them.
+- Flasks show the correct amount of damage dealt.
 
 The type of things not fixed:
 - Rain and splash density stays pretty low by default.
 - Debuffing an enemy's stats makes them immobile.
+
+Something that may or may not be a bug?:
+- The Ring of Healing restoring 1 HP per frame outside of combat. No other
+  lingering spell effect works this way - the code path used for this seems
+  meant to be used solely for combat rounds. It works like the original, for
+  now, but if anyone has any input on this I'd appreciate it.
 
 ## Enhancements
 

@@ -19,7 +19,6 @@ The user needn't play to a check: a save is written into the Controller Pak besi
 ## Scripts and characters
 
 - **Sholeh in Ugarit after she joins** (`aidyn:dialogue/0x04AD`), in full-game testing: is she there again once she's joined, and what keeps her away when the party has no free place? The data doesn't show it. [wanderers](systems/wanderers.md#joining)
-- **Item spells' charges:** cast a spell from a sword, armor or a ring (not a wand or scroll) several times in one battle and across battles. Does it ever run out, and does it come back with time? The code spends charges only from wands and scrolls worn as gear, and never recharges any. [magic](systems/magic.md#gear)
 
 ## Movement
 
