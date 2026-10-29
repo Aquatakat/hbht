@@ -20,7 +20,6 @@ The user needn't play to a check: a save is written into the Controller Pak besi
 
 - **Sholeh in Ugarit after she joins** (`aidyn:dialogue/0x04AD`), in full-game testing: is she there again once she's joined, and what keeps her away when the party has no free place? The data doesn't show it. [wanderers](systems/wanderers.md#joining)
 - **Item spells' charges:** cast a spell from a sword, armor or a ring (not a wand or scroll) several times in one battle and across battles. Does it ever run out, and does it come back with time? The code spends charges only from wands and scrolls worn as gear, and never recharges any. [magic](systems/magic.md#gear)
-- **The Ring of Healing in trek:** wear it on a hurt member and walk about by day. Do their hit points climb about one a frame, many a second, or slowly or not at all? The code heals one each time trek ages the effects, once a drawn frame, and the port does it once a 30 fps frame. [magic](systems/magic.md#not-settled)
 
 ## Movement
 

@@ -258,7 +258,8 @@ public sealed class Equipment
     /// <summary>
     /// Puts an item in a slot without applying it, for a sheet whose values already count it, such as a
     /// save's or a checkpoint's. Gear goes in <paramref name="gearSlot"/>. An enchantment is put on without
-    /// changing the sheet.
+    /// changing the sheet, the user's fix: 1.0's load writes the save's empty effect slots over it
+    /// (<c>PakSave.ReadPartySheet</c>, <c>0x800194D4</c>).
     /// </summary>
     public void Restore(ItemInstance item, int gearSlot = -1)
     {

@@ -113,7 +113,8 @@ In the port, the throw rolls the `blast` dice of every thrown potion's record, i
 
 ## Gear
 
-- **Worn enchantments** go on with the armor, shield or gear (`Character.PutOnEnchantment`, from `Equipment`), never running down, and come off with it (the first of the spell's that never runs down). A dispel can take one off until the battle's end puts it back. Only three exist: the Haste Amulet (Haste 1), the Boots of Speed (Haste 5) and the Ring of Healing (Photosynthesis 1, margin 1).
+- **Worn enchantments** go on with the armor, shield or gear (`Character.PutOnEnchantment`, `0x8007192C`, from `Entity.ApplyItem`, `0x8006F2A8`), never running down, and come off with it (the first of the spell's that never runs down). A dispel can take one off until the battle's end puts it back. Only three exist: the Haste Amulet (Haste 1), the Boots of Speed (Haste 5) and the Ring of Healing (Photosynthesis 1, margin 1). The ring heals its margin each time trek ages the effects, once a drawn frame (`EffectRules.Round`'s case at `0x80070BF8`, skipped when `World+2` says night), and the user saw it in 1.0: about a hit point a frame.
+- **1.0 loses them on a load.** `PakSave.ReadPartySheet` (`0x80019498`) builds the sheet and puts on what's worn, enchantments with it (`PakSave.ReadSheet`, `0x8001928C`), then writes the 15 saved effects over the sheet's slots without looking (`0x800194D4`–`0x800194F8`). The save holds none, since it's written from the kept copies of the sheets (`Party.CopyToKept`, `0x8001844C`), which copy the gear as bare items, so the enchantments are gone. They come back when the item is taken off and put on again, or at the next battle's end (`Combat.Exit`, `0x80023060`, runs `Entity.ClearEffects` on each member). So a Ring of Healing worn at a load heals nothing until then, as the user saw. The port puts them on as loading puts the gear on, the user's fix ([below](#where-the-port-differs)).
 - **Charges** go only from wands and scrolls worn as gear; the spells of weapons, armor, shields and other gear never run out. Nothing recharges them (`Party.RechargeItems`, `0x80078D5C`, is empty). Batteries are [items](items.md#equipment)'.
 - **Resistances** on the body armor, shield, weapon and the 12 gear slots count with the character's own (`Equipment.Resistances`).
 
@@ -138,10 +139,10 @@ The user chose to keep these, which look like bugs, as the original has them:
 - One record can hold several effects; the original keys one per kind. The base game's records hold one each but Web of Starlight's (immobilise and 2d6) and Tap Stamina's.
 - Any spell, potion or flask can carry any effect type ([How effects land](#how-effects-land)); the original's code carries each instant one for its own kinds only. The base game's records hold them where the original has them, so nothing it plays changes.
 - Trek's ageing runs every tick, and what the effects do each round once a 30 fps frame (`Cadence.FrameTicks`), as the original does once a drawn frame.
+- A worn enchantment is on after a load (`Equipment.Restore`), where 1.0's is lost until the item is put on again or a battle ends ([above](#gear)). The user chose the fix: 1.0 restores other state badly on a load too.
 - The battle's held part of the day is the battle's alone (`Battle.PartOfDay`, `PartOfDayHeld`): it isn't written to the part-of-day flags. The original's lock (`World+5`) also stops the weather rolling; the port's battle still steps the clock and the weather each turn (`GameState.AdvanceTurn`), and doesn't stop the roll while a Day or Night spell holds the part of the day ([weather](weather.md)).
 
 ## Not settled
 
-- Whether a worn Ring of Healing really heals every frame in trek ([user-checks](../user-checks.md)).
 - What Wind's weather class 1 does in combat: weather.md calls it fog, and Wind's description says it clears fog.
 - The `unk1E` bits 0x20, 0x40 and 0x80, which nothing in combat reads.
