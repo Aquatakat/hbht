@@ -31,7 +31,6 @@ The user needn't play to a check: a save is written into the Controller Pak besi
 ## Combat
 
 - **The post-battle window's member:** after a battle in which you paused on someone other than Alaron's turn (Start on Brenna's turn, then back), does the post-battle window open on the member whose turn you paused on, rather than Alaron? The code's every write to the member says so, and the port does the same. [ui](systems/ui.md#after-a-battle)
-- **The Shadow's battle** (a save before the merge, flag 566 clear, at either meeting): with the Horn, does the Shadow walk straight at Alaron and, reaching him, cut to Shadow Self Merge, with no post-battle window, and trek back where the battle began? Without it (drop the Horn first), does each round's end hurt whoever is near it, (10 − distance)² each, for four rounds, and then "The Shadow dissipates" hold about a second before the fade? Is anyone within 10 of it held to a field of 1, with "caught in the vortex of the Shadow"? A checkpoint inside either battle would let the port be replayed against it. [combat](systems/combat.md#the-special-battles)
 
 ## Sound
 

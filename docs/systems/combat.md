@@ -504,7 +504,7 @@ Of the entities that carry a weapon, only Zaratas has no locators, so draws noth
 
 ## The special battles
 
-Read from 1.0's code, not run: no checkpoint holds either fight. The combat record carries both as rules ([hardcoded-content](../hardcoded-content.md#bespoke-behaviours), ADR 0008's layer 3): the Goblin Ambush's on its encounter rule, the Shadow's as `ShadowRule`.
+Read from 1.0's code: no checkpoint holds either fight. The user played the Shadow's in 1.0 and the port, from a save at its Overworld meeting (script `0x046E`, whose battle is the third answer, "Join me."), and saw both ends as below: without the Horn, the aura's (10 − d)², the vortex's field of 1 and its line, and four rounds, though the arena's size means the Shadow mostly reaches Alaron first and dissipates then; with it, the walk straight at Alaron and the merge, with no post-battle window, back to trek where the battle began. The combat record carries both as rules ([hardcoded-content](../hardcoded-content.md#bespoke-behaviours), ADR 0008's layer 3): the Goblin Ambush's on its encounter rule, the Shadow's as `ShadowRule`.
 
 **The Goblin Ambush** (encounter flag 978, script `0x0365`; the Shadow isn't in it, whatever the code's names say):
 
