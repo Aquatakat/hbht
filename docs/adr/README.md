@@ -33,6 +33,5 @@ These are the Phase 0 decisions from the [roadmap](../roadmap.md) (task 0.5). Ea
 | [0027](0027-conversations-take-the-menus-controls.md) | Cut-scenes and conversations take the menus' cursor, Accept, Back and Close Menu, and have no controls of their own | Accepted |
 | [0028](0028-the-project-is-hbht.md) | The project is HBHT: the code is `HBHT.*`, the editor is `HBHT.Editor`, the tool is `hbht` and the data folder is `HBHT`; "aidyn" stays for the game's names and the imported data (record IDs, `aidyn.base`) | Accepted |
 | [0029](0029-content-fixes-wait-for-a-bugfix-mod.md) | The base import fixes only content that breaks the game; other content fixes wait for a bugfix mod | Accepted |
-| [0030](0030-modern-variants-are-held-to-the-originals-reach.md) | A modern variant of a system, such as Modern movement, is a setting beside the original's rules, which stay the default, and is held to the original's reach by a check over all the content | Proposed |
 
 Statuses: **Proposed** means drafted and waiting for review. **Accepted** means agreed. **Superseded** means replaced by a later record, which it links to.
