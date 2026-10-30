@@ -25,8 +25,22 @@ public enum MovementMode
 /// <param name="StepHeight">How high a ledge he steps up onto when a wall stops him: his radius, as 1.0's sphere lifts him over lower.</param>
 /// <param name="SnapDown">How far below him he keeps to the ground going down slopes and stairs, rather than leaving it.</param>
 /// <param name="PlainIsWall">Whether plain collision is a wall where it's steep. Only a check of the reachability tool turns it off.</param>
+/// <param name="Stride">
+/// The ticks his speed is the mean root motion of, or 1 for none, the user's choice for now (Oct 30, 2026): his footfalls jerk
+/// him a little, which the user took for the camera's to smooth rather than his. 20 is about a stride of his run, which loops
+/// every 19 or 20 ticks.
+/// </param>
+/// <param name="SetOffTurn">
+/// How far he turns a tick toward the stick as he sets off from standing, before his animation's root first moves him: 60°, so
+/// he faces any way in the three ticks his run or walk stands still as it starts, and sets off straight rather than in a curve.
+/// </param>
+/// <param name="StopPace">
+/// How many times as fast the rest of his step plays once the stick is let go, carrying him as far a tick as it did: the
+/// original finishes the step, up to 19 ticks and 1.2 units of his run, before his stop plays in place.
+/// </param>
+/// <param name="StopReach">The furthest the rest of his step carries him once the stick is let go.</param>
 public sealed record ModernRules(float FloorUp = 0.45f, float PlainLevelUp = 0.97f, float StepHeight = 0.5f, float SnapDown = 0.5f,
-    bool PlainIsWall = true)
+    bool PlainIsWall = true, int Stride = 1, float SetOffTurn = MathF.PI / 3, float StopPace = 3, float StopReach = 0.3f)
 {
     public static readonly ModernRules Default = new();
 

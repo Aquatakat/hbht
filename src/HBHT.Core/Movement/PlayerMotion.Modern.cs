@@ -44,14 +44,20 @@ public sealed partial class PlayerMotion
     /// <summary>How near to his sphere a trigger triangle counts as touched.</summary>
     private const float TriggerMargin = 0.02f;
 
-    /// <summary>The ticks his speed is the mean root motion of: about a stride of his run, which loops every 19 or 20.</summary>
-    private const int StrideTicks = 20;
-
-    /// <summary>His animation's root motion over the last <see cref="StrideTicks"/> ticks, round from <see cref="_strideNext"/>.</summary>
-    private readonly float[] _stride = new float[StrideTicks];
+    /// <summary>His animation's root motion over the last <see cref="ModernRules.Stride"/> ticks, round from <see cref="_strideNext"/>.</summary>
+    private float[] _stride = [];
 
     private int _strideCount, _strideNext;
     private float _strideSum;
+
+    /// <summary>
+    /// Whether he's setting off: standing as of the last tick, or asked to move with his animation's root yet to move him, when he
+    /// turns by <see cref="ModernRules.SetOffTurn"/>.
+    /// </summary>
+    private bool _settingOff = true;
+
+    /// <summary>How far the rest of his step has carried him since the stick was let go (<see cref="ModernRules.StopReach"/>).</summary>
+    private float _stopped;
 
     private MovementMode _movement;
 
@@ -116,7 +122,20 @@ public sealed partial class PlayerMotion
     private void StepModern(CollisionWorld world, IRootMotion animation)
     {
         var s = Sphere;
-        var forward = Speed(Body.Animate(animation));
+        // Let go of the stick, the rest of his step plays faster, and carries him no further than StopReach.
+        var stopping = Body.Stopping;
+        var root = Body.Animate(animation, stopping ? Rules.StopPace : 1);
+        if (stopping)
+        {
+            root = Math.Clamp(Rules.StopReach - _stopped, 0, root);
+            _stopped += root;
+        }
+        else
+        {
+            _stopped = 0;
+        }
+        _settingOff = root == 0 && (_settingOff || Body.Request == Body.Idle);
+        var forward = Speed(root, stopping || Body.MovingStates == 1);
         var across = _across = new Vector3(Heading.X, 0, Heading.Y) * forward;
         var position = s.Position;
         SphereCast.PushOut(world, ref position, Radius, s.IgnoresSeeThrough);
@@ -157,25 +176,31 @@ public sealed partial class PlayerMotion
     }
 
     /// <summary>
-    /// His speed this tick from his animation's root motion, <paramref name="forward"/>: its mean over the last stride. The root
-    /// stops for the three ticks each state of the run is entered on, and pushes off at more than twice its mean a little later,
-    /// which a frame of 1.0's sums but doesn't hide; the mean is the same speed, steady. It counts from the first tick the root
-    /// moves after he stood, so he sets off as soon as the original would, and he stops as soon as his animation stops moving him.
+    /// His speed this tick from his animation's root motion, <paramref name="forward"/>: its mean over the last
+    /// <see cref="ModernRules.Stride"/> ticks, or with none, the root's own. The root stops for the three ticks each state of the
+    /// run is entered on, and pushes off at more than twice its mean a little later, which a frame of 1.0's sums but doesn't hide;
+    /// the mean is the same speed, steady. It counts from the first tick the root moves in the run's loop, so he sets off as soon
+    /// as the original would, and he stops as soon as his animation stops moving him. The start of a run or walk, and the rest of
+    /// a step once the stick is let go, aren't steps of a loop, and move him by the root's own (<paramref name="own"/>): averaged,
+    /// the start's push-off left him 0.2 behind his feet, which slid for a stride as he caught up.
     /// </summary>
-    private float Speed(float forward)
+    private float Speed(float forward, bool own)
     {
-        if (forward == 0 && (_strideCount == 0 || Body.Request == Body.Idle))
+        var stride = Rules.Stride;
+        if (stride <= 1 || own || (forward == 0 && (_strideCount == 0 || Body.Request == Body.Idle)))
         {
             (_strideCount, _strideNext, _strideSum) = (0, 0, 0);
-            return 0;
+            return forward;
         }
-        if (_strideCount == StrideTicks)
+        if (_stride.Length != stride)
+            (_stride, _strideCount, _strideNext, _strideSum) = (new float[stride], 0, 0, 0);
+        if (_strideCount == stride)
             _strideSum -= _stride[_strideNext];
         else
             _strideCount++;
         _stride[_strideNext] = forward;
         _strideSum += forward;
-        _strideNext = (_strideNext + 1) % StrideTicks;
+        _strideNext = (_strideNext + 1) % stride;
         return _strideSum / _strideCount;
     }
 

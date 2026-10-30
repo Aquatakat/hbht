@@ -218,6 +218,6 @@ public sealed partial class PlayerMotion
         TurnTo = null;
         // Up on the stick is the way the camera looks, and right is to its right.
         var wanted = Vector2.Normalize(Facing.Rotate(new Vector2(-input.Stick.X, input.Stick.Y), look.X, look.Y));
-        Body.Go(tilt, wanted, input.Sneak);
+        Body.Go(tilt, wanted, input.Sneak, _movement == MovementMode.Modern && _settingOff ? Rules.SetOffTurn : null);
     }
 }

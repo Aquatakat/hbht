@@ -140,6 +140,88 @@ public sealed partial class GameSessionTests
         Assert.Empty(original.Beyond(original));
     }
 
+    [Fact]
+    public void InModernMovementLettingGoMidStepStopsAlaronWithinAThirdOfAUnit()
+    {
+        // Let go at the start of a step of his run, the original carries him on through its 19 ticks, about 1.2 units,
+        // before his stop plays in place. The rest of the step plays three times as fast, and carries him no more than 0.3.
+        float Overrun(ModernRules rules, out int moving)
+        {
+            var (player, run) = StandingOnFlat(rules, Vector2.UnitY);
+            for (var i = 0; i < 60; i++)
+                player.Step(Flat, new MoveInput(Vector2.UnitY), Vector2.UnitY, run);
+            var from = player.Sphere.Position;
+            moving = 0;
+            for (var i = 1; i <= 60; i++)
+            {
+                var before = player.Sphere.Position;
+                player.Step(Flat, new MoveInput(Vector2.Zero), Vector2.UnitY, run);
+                if (player.Sphere.Position != before)
+                    moving = i;
+            }
+            return Vector3.Distance(from, player.Sphere.Position);
+        }
+
+        Assert.InRange(Overrun(ModernRules.Default, out var ticks), 0.1f, ModernRules.Default.StopReach + 1e-4f);
+        Assert.InRange(ticks, 1, 7);
+        Assert.True(Overrun(ModernRules.Default with { StopPace = 1, StopReach = float.PositiveInfinity }, out ticks) > 1.1f);
+        Assert.InRange(ticks, 15, 20);
+    }
+
+    [Fact]
+    public void InModernMovementAlaronTurnsBeforeSettingOffFromStanding()
+    {
+        // The stick pushed 170° from the way he faces: the original turns him 20° a frame as he runs, a curve to the side. He
+        // turns in the three ticks his run stands still as it starts, and sets off straight.
+        var stick = new Vector2(MathF.Sin(170 * MathF.PI / 180), MathF.Cos(170 * MathF.PI / 180));
+        // Looking along +Z, right on the stick is −X.
+        var way = stick with { X = -stick.X };
+        float Aside(ModernRules rules)
+        {
+            var (player, run) = StandingOnFlat(rules, Vector2.UnitY);
+            var from = player.Sphere.Position;
+            for (var i = 0; i < 60; i++)
+            {
+                var before = player.Sphere.Position;
+                player.Step(Flat, new MoveInput(stick), Vector2.UnitY, run);
+                if (player.Sphere.Position != before && before == from)
+                    Assert.True(Vector2.Dot(player.Heading, way) > 0.9999f || rules.SetOffTurn < 0.5f, $"set off facing {player.Heading}");
+            }
+            var moved = player.Sphere.Position - from;
+            return MathF.Abs(moved.X * way.Y - moved.Z * way.X);
+        }
+
+        Assert.True(Aside(ModernRules.Default) < 0.01f);
+        Assert.True(Aside(ModernRules.Default with { SetOffTurn = Cadence.PerTick(Body.TurnPerFrame) }) > 0.2f);
+    }
+
+    [Fact]
+    public void InModernMovementTheStartOfHisRunMovesAlaronByItsOwnRootEvenAveraged()
+    {
+        // Averaged over a stride, the start's push-off, twice the run's mean, left him 0.2 behind his feet as the run's loop began.
+        var (own, ownRun) = StandingOnFlat(ModernRules.Default, Vector2.UnitY);
+        var (averaged, averagedRun) = StandingOnFlat(ModernRules.Default with { Stride = 20 }, Vector2.UnitY);
+        for (var i = 0; i < 21; i++)
+        {
+            own.Step(Flat, new MoveInput(Vector2.UnitY), Vector2.UnitY, ownRun);
+            averaged.Step(Flat, new MoveInput(Vector2.UnitY), Vector2.UnitY, averagedRun);
+            Assert.Equal(own.Sphere.Position, averaged.Sphere.Position);
+        }
+        Assert.InRange(own.Sphere.Position.Z, 1.2f, 1.4f);
+    }
+
+    private static readonly CollisionWorld Flat = Worlds.Flat();
+
+    /// <summary>Alaron under Modern movement, standing on flat ground, facing <paramref name="heading"/>, with his actor.</summary>
+    private (PlayerMotion Player, ActorMotion Run) StandingOnFlat(ModernRules rules, Vector2 heading)
+    {
+        var player = new PlayerMotion(new Vector3(0, 0.6f, 0), heading) { Movement = MovementMode.Modern, Rules = rules };
+        var run = ActorMotion.For(Data.Set, Data.Set.Get<ActorRecord>(AlaronActor), new Lcg(0))!;
+        for (var i = 0; i < 20; i++)
+            player.Step(Flat, new MoveInput(Vector2.Zero), heading, run);
+        return (player, run);
+    }
+
     /// <summary>A map set's collision with the 3 × 3 chunks about a point of a chunk loaded, and the chunk's origin.</summary>
     private (CollisionWorld World, Vector3 Origin) Loaded(int mapSet, string chunkName, Vector3 local)
     {

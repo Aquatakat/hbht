@@ -378,23 +378,39 @@ public sealed class Body
     /// <c>+0x1A</c>): a stop entered as it goes back to idle plays in place, however its root moves, as a run's stop that carries its
     /// root back to rest does.
     /// </summary>
-    internal float Animate(IRootMotion animation)
+    /// <param name="faster">
+    /// How many times as fast it plays, at the same speed across the ground: its root motion is divided by it. Only Modern
+    /// movement's stop asks for other than 1 (<see cref="ModernRules.StopPace"/>).
+    /// </param>
+    internal float Animate(IRootMotion animation, float faster = 1)
     {
-        _pace += Pace;
+        _pace += Pace * faster;
         var forward = 0f;
         for (; _pace >= 1; _pace--)
         {
             var moved = animation.Tick(Request);
             if (animation is Actors.IActorMotion { Entered: true })
+            {
                 _entryRequest = Request;
+                MovingStates = Request == Idle ? 0 : MovingStates + 1;
+            }
             if (Request != Idle || _entryRequest != Idle)
                 forward += moved;
         }
-        return forward;
+        return forward / faster;
     }
 
     /// <summary>The request its animation's state was entered under (<c>+0x1A</c>), 0 as it's made.</summary>
     private int _entryRequest;
+
+    /// <summary>
+    /// How many states its actor has entered under a request other than standing since it last entered one standing: 1 in a walk's
+    /// or run's start.
+    /// </summary>
+    internal int MovingStates { get; private set; }
+
+    /// <summary>Whether it's asked to stand but still plays a state entered under another request, whose root still moves it.</summary>
+    internal bool Stopping => Request == Idle && _entryRequest != Idle;
 
     /// <summary>Moves it <paramref name="forward"/> along its heading, at its scale, and keeps it in its <see cref="Bounds"/>.</summary>
     internal void Advance(float forward)
@@ -427,10 +443,11 @@ public sealed class Body
     /// </summary>
     /// <param name="tilt">How far the stick is tilted, 0 to 1.</param>
     /// <param name="way">The way the stick points, in the world's X and Z.</param>
-    internal void Go(float tilt, Vector2 way, bool sneak = false)
+    /// <param name="turn">How far it turns this tick, or null for <see cref="TurnPerFrame"/>'s tick.</param>
+    internal void Go(float tilt, Vector2 way, bool sneak = false, float? turn = null)
     {
         Request = sneak ? Sneak : tilt >= RunTilt ? Run : Walk;
-        Heading = Facing.Turn(Heading, way, Cadence.PerTick(TurnPerFrame));
+        Heading = Facing.Turn(Heading, way, turn ?? Cadence.PerTick(TurnPerFrame));
     }
 
     /// <summary>
