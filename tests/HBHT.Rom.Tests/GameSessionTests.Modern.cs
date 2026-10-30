@@ -184,15 +184,18 @@ public sealed partial class GameSessionTests
             {
                 var before = player.Sphere.Position;
                 player.Step(Flat, new MoveInput(stick), Vector2.UnitY, run);
-                if (player.Sphere.Position != before && before == from)
-                    Assert.True(Vector2.Dot(player.Heading, way) > 0.9999f || rules.SetOffTurn < 0.5f, $"set off facing {player.Heading}");
+                if (player.Sphere.Position != before && before == from && rules.SetOffTurn >= MathF.PI / 3)
+                    Assert.True(Vector2.Dot(player.Heading, way) > 0.9999f, $"set off facing {player.Heading}");
             }
             var moved = player.Sphere.Position - from;
             return MathF.Abs(moved.X * way.Y - moved.Z * way.X);
         }
 
-        Assert.True(Aside(ModernRules.Default) < 0.01f);
-        Assert.True(Aside(ModernRules.Default with { SetOffTurn = Cadence.PerTick(Body.TurnPerFrame) }) > 0.2f);
+        var original = Aside(ModernRules.Default with { SetOffTurn = Cadence.PerTick(Body.TurnPerFrame) });
+        Assert.True(original > 0.2f);
+        Assert.True(Aside(ModernRules.Default with { SetOffTurn = MathF.PI / 3 }) < 0.01f);
+        // The base game's, 20° a tick, the user's: 80° before he moves, a curve half the original's.
+        Assert.InRange(Aside(ModernRules.Default), 0.01f, original);
     }
 
     [Fact]
@@ -208,6 +211,20 @@ public sealed partial class GameSessionTests
             Assert.Equal(own.Sphere.Position, averaged.Sphere.Position);
         }
         Assert.InRange(own.Sphere.Position.Z, 1.2f, 1.4f);
+    }
+
+    [Fact]
+    public void AlaronLeadsByHisEntitysStepsUnderModernMovement()
+    {
+        // The importer gives every entity the user's tuning, and the session hands the leader's to the player.
+        var body = Data.Set.Get<EntityRecord>(GameState.Alaron).Body!;
+        Assert.Equal((0.3f, 3f, 10, 20f), (body.StopReach, body.StopPace, body.Stride, body.SetOffTurn));
+        Assert.All(Data.Set.All<EntityRecord>(RecordTypes.Entity).Select(e => e.Body).OfType<EntityBody>(),
+            b => Assert.Equal((0.3f, 3f, 10, 20f), (b.StopReach, b.StopPace, b.Stride, b.SetOffTurn)));
+        var (session, _) = StartIn(0, "I08", 50, 50);
+        Hold(session, Vector2.Zero);
+        Assert.Equal(ModernRules.Default.For(body), session.Trek.Player.Rules);
+        Assert.Equal(MathF.PI / 9, session.Trek.Player.Rules.SetOffTurn, 1e-6f);
     }
 
     private static readonly CollisionWorld Flat = Worlds.Flat();

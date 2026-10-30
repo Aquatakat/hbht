@@ -1,3 +1,5 @@
+using HBHT.Plugins.Records;
+
 namespace HBHT.Core.Movement;
 
 /// <summary>How the player moves in trek: the Movement setting (docs/systems/movement.md#modern-movement).</summary>
@@ -26,23 +28,35 @@ public enum MovementMode
 /// <param name="SnapDown">How far below him he keeps to the ground going down slopes and stairs, rather than leaving it.</param>
 /// <param name="PlainIsWall">Whether plain collision is a wall where it's steep. Only a check of the reachability tool turns it off.</param>
 /// <param name="Stride">
-/// The ticks his speed is the mean root motion of, or 1 for none, the user's choice for now (Oct 30, 2026): his footfalls jerk
-/// him a little, which the user took for the camera's to smooth rather than his. 20 is about a stride of his run, which loops
-/// every 19 or 20 ticks.
+/// The ticks his speed is the mean root motion of, or 1 for none: his footfalls jerk him a little, which the mean glides over.
 /// </param>
 /// <param name="SetOffTurn">
-/// How far he turns a tick toward the stick as he sets off from standing, before his animation's root first moves him: 60°, so
-/// he faces any way in the three ticks his run or walk stands still as it starts, and sets off straight rather than in a curve.
+/// How far he turns a tick, in radians, toward the stick as he sets off from standing, before his animation's root first moves
+/// him: at 60° he faces any way in the three ticks his run or walk stands still as it starts, and sets off straight.
 /// </param>
 /// <param name="StopPace">
 /// How many times as fast the rest of his step plays once the stick is let go, carrying him as far a tick as it did: the
 /// original finishes the step, up to 19 ticks and 1.2 units of his run, before his stop plays in place.
 /// </param>
 /// <param name="StopReach">The furthest the rest of his step carries him once the stick is let go.</param>
+/// <remarks>
+/// The last four are the body's, which the party's leader's entity gives him (<see cref="For"/>, <c>EntityBody</c>); the rest are
+/// the world's.
+/// </remarks>
 public sealed record ModernRules(float FloorUp = 0.45f, float PlainLevelUp = 0.97f, float StepHeight = 0.5f, float SnapDown = 0.5f,
-    bool PlainIsWall = true, int Stride = 1, float SetOffTurn = MathF.PI / 3, float StopPace = 3, float StopReach = 0.3f)
+    bool PlainIsWall = true, int Stride = EntityBody.DefaultStride, float SetOffTurn = EntityBody.DefaultSetOffTurn * MathF.PI / 180,
+    float StopPace = EntityBody.DefaultStopPace, float StopReach = EntityBody.DefaultStopReach)
 {
     public static readonly ModernRules Default = new();
+
+    /// <summary>These rules with a body's own for its steps, or as they are for none.</summary>
+    public ModernRules For(EntityBody? body) => body is null ? this : this with
+    {
+        Stride = body.Stride,
+        SetOffTurn = body.SetOffTurn * MathF.PI / 180,
+        StopPace = body.StopPace,
+        StopReach = body.StopReach,
+    };
 
     /// <summary>Whether a triangle of this surface, facing up by <paramref name="up"/>, is ground to stand and walk on.</summary>
     public bool Ground(int surface, float up) => up >= (PlainIsWall && surface is 1 or 2 ? PlainLevelUp : FloorUp);

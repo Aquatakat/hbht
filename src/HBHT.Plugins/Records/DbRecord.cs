@@ -30,12 +30,33 @@ public sealed record DbRecord(RecordId Id, string Name, RecordId? Portrait = nul
 /// (<c>EntityBody.ShotStrike</c>, <c>0x8006C884</c>), which the port makes the entity's, each apart, for mods (the user's choice).
 /// </param>
 /// <param name="ThrowStrike">The share of its throw at which what it throws leaves its hand, as <paramref name="ShotStrike"/>.</param>
+/// <param name="StopReach">
+/// Under Modern movement, the port's, as it leads the party in trek: the furthest the rest of its step carries it once the stick is
+/// let go, before its scale. The original has no such field, and plays the whole step (docs/systems/movement.md#modern-movement).
+/// </param>
+/// <param name="StopPace">Under Modern movement, how many times as fast the rest of its step plays once the stick is let go.</param>
+/// <param name="Stride">Under Modern movement, the ticks its speed is the mean root motion of, or 1 for none.</param>
+/// <param name="SetOffTurn">
+/// Under Modern movement, how many degrees a tick it turns toward the stick as it sets off from standing, until its animation's
+/// root first moves it. The original's is 10, as on the move.
+/// </param>
 public sealed record EntityBody(RecordId Actor, float Radius, float Scale, float Height, float Strike = EntityBody.DefaultStrike,
-    float ShotStrike = EntityBody.DefaultShotStrike, float ThrowStrike = EntityBody.DefaultShotStrike)
+    float ShotStrike = EntityBody.DefaultShotStrike, float ThrowStrike = EntityBody.DefaultShotStrike,
+    float StopReach = EntityBody.DefaultStopReach, float StopPace = EntityBody.DefaultStopPace, int Stride = EntityBody.DefaultStride,
+    float SetOffTurn = EntityBody.DefaultSetOffTurn)
 {
     /// <summary>The strike's share for a record the tables leave out (<c>0x800D2CF8</c>).</summary>
     public const float DefaultStrike = 0.4f;
 
     /// <summary>Every entity's share for a shot or a throw in the original (<c>0x800D2CFC</c>).</summary>
     public const float DefaultShotStrike = 0.4f;
+
+    /// <summary>
+    /// What the importer gives every entity for Modern movement, the user's tuning to Alaron's run (Oct 30, 2026): 0.3 is about a
+    /// quarter of its step of 1.2, and 10 ticks about half its loop of 19.
+    /// </summary>
+    public const float DefaultStopReach = 0.3f, DefaultStopPace = 3, DefaultSetOffTurn = 20;
+
+    /// <inheritdoc cref="DefaultStopReach"/>
+    public const int DefaultStride = 10;
 }

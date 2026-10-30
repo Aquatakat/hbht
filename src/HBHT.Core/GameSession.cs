@@ -391,6 +391,7 @@ public sealed class GameSession
             _settings = settings;
             Apply();
         }
+        KeepPlayerBody();
         // The title is before the game: no time is played on it (the original's Game.Init after the cards starts the game's afresh).
         if (Title is null)
             Game.CountTick();
@@ -1209,6 +1210,23 @@ public sealed class GameSession
         var chunk = set.Chunk(start.Chunk.Row, start.Chunk.Column)
             ?? throw new InvalidDataException($"{set.Label} has no chunk at row {start.Chunk.Row}, column {start.Chunk.Column}.");
         return (set, chunk.Name, new Vector3(start.Position.X, start.Height, start.Position.Y));
+    }
+
+    /// <summary>The party leader's entity whose body's steps the player moves by under Modern movement, or null before the first tick.</summary>
+    private RecordId? _playerBodyOf;
+
+    /// <summary>
+    /// Gives the player the party leader's body's steps under Modern movement (<see cref="ModernRules.For"/>): how far the rest of a
+    /// step carries him once the stick is let go, and how he sets off. They're Alaron's in the base game, and change with the leader.
+    /// </summary>
+    private void KeepPlayerBody()
+    {
+        var leader = Game.Party.Members.FirstOrDefault()?.Entity;
+        if (leader == _playerBodyOf)
+            return;
+        _playerBodyOf = leader;
+        var body = leader is { } id ? Game.Plugins.TryGet<EntityRecord>(id)?.Body : null;
+        Trek.Player.Rules = ModernRules.Default.For(body);
     }
 
     /// <summary>The player's body's actor: the party leader's (<see cref="EntityBody.Actor"/>), Alaron's in the base game.</summary>
