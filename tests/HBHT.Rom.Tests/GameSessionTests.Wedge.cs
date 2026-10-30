@@ -138,22 +138,39 @@ public sealed partial class GameSessionTests
         // The user's climb out of the world, from (91.9, 1.4, 45.7) toward (90.6, 8.6, 41.0): a plain face (surface 1) of normal
         // Y 0.52 to 0.57. Collided once a frame after the frame's ticks of velocity, as ProcessPlayers does, plain collision's
         // kept fall carries him back down it, where collided every tick he walked up it.
+        var climbed = RunUpQ25(new Vector3(91.9f, 2.2f, 45.7f), new Vector2(90.6f, 41.0f), pace: 1);
+        Assert.True(climbed < 0.5f, $"climbed {climbed}");
+    }
+
+    [Fact]
+    public void AtBriskPaceAlaronSlidesBackDownQ25sSteepPlainFacesToo()
+    {
+        // Brisk's faster steps, with his gravity and velocity no faster, walked him up the plain face of normal Y 0.48 east of the
+        // user's climb, from 2.7 to above 6; his physics runs at his pace, the user's choice, and he stays at its foot. The user's
+        // climb holds at Brisk too.
+        Assert.True(RunUpQ25(new Vector3(95.1f, 2.7f, 48.9f), new Vector2(94.83f, 45.9f), SessionSettings.BriskPace) < 0.5f);
+        Assert.True(RunUpQ25(new Vector3(91.9f, 2.2f, 45.7f), new Vector2(90.6f, 41.0f), SessionSettings.BriskPace) < 0.5f);
+    }
+
+    /// <summary>Alaron with his run at <paramref name="pace"/>, from a point of Q25 toward another for 10 seconds: how far above his start he got.</summary>
+    private float RunUpQ25(Vector3 local, Vector2 toward, float pace)
+    {
         var set = Data.Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, 0));
         var chunk = set.Chunks.Single(c => c.Name == "Q25");
         var origin = set.Origin(chunk.Row, chunk.Column);
         var world = new CollisionWorld();
-        var start = origin + new Vector3(91.9f, 2.2f, 45.7f);
+        var start = origin + local;
         new ChunkStreamer(Data.Set, GameState.NewGame(Data.Set), world, set).Update(start);
-        var up = Vector2.Normalize(new Vector2(90.6f - 91.9f, 41.0f - 45.7f));
-        var player = new PlayerMotion(start, up);
+        var up = Vector2.Normalize(toward - new Vector2(local.X, local.Z));
+        var player = new PlayerMotion(start, up) { Pace = pace };
         var run = ActorMotion.For(Data.Set, Data.Set.Get<ActorRecord>(AlaronActor), new Lcg(0))!;
         var top = start.Y;
         for (var i = 0; i < 600; i++)
         {
             player.Step(world, new MoveInput(new Vector2(0, 1)), up, run);
             top = MathF.Max(top, player.Sphere.Position.Y);
+            Assert.False(player.FellOut);
         }
-        Assert.True(top < start.Y + 0.5f, $"climbed to {top - origin.Y}");
-        Assert.False(player.FellOut);
+        return top - start.Y;
     }
 }

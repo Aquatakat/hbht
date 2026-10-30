@@ -78,6 +78,9 @@ public sealed class PlayerMotion
     /// <summary>How far his animation's root has moved him forward over the frame so far, which moves him as it ends.</summary>
     private float _frameForward;
 
+    /// <summary>The fraction of a tick of gravity and velocity carried to the next frame, at a <see cref="Pace"/> other than 1.</summary>
+    private float _physicsTicks;
+
     public PlayerMotion(Vector3 position, Vector2 heading)
     {
         Body = new Body(position, Radius) { Heading = Vector2.Normalize(heading) };
@@ -155,8 +158,13 @@ public sealed class PlayerMotion
         var forward = _frameForward;
         _frameForward = 0;
 
+        // At a faster pace his gravity and velocity run as fast as his steps, the port's, the user's choice: the frame's fall
+        // still balances his climb up a steep plain face where it does at the original's pace.
+        _physicsTicks += Cadence.FrameTicks * Pace;
+        var ticks = Math.Max(1, (int)_physicsTicks);
+        _physicsTicks = Math.Max(0, _physicsTicks - ticks);
         var height = Sphere.Position.Y;
-        SpherePhysics.Step(world, Sphere, Cadence.FrameTicks);
+        SpherePhysics.Step(world, Sphere, ticks);
         // On plain collision, which keeps velocity, don't slide down when there's ground just below.
         if (Sphere.Surface is 1 or 2 && SpherePhysics.Ground(world, Sphere.Position, Radius, 0.05f) && Sphere.Position.Y < height)
             Sphere.Position.Y = height;
