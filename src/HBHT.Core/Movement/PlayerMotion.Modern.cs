@@ -141,6 +141,9 @@ public sealed partial class PlayerMotion
                 _onGround = Snap(world, ref position, Skin * 4);
             s.Velocity = _onGround ? Vector3.Zero : velocity;
         }
+        // A move no sum of which is a number, as off a triangle too thin to have one, is no move.
+        if (!float.IsFinite(position.X + position.Y + position.Z))
+            (position, s.Velocity) = (s.Position, Vector3.Zero);
         s.Position = position;
         if (_onGround)
             (s.Touching, s.ContactNormal, s.Surface, _groundHeight) = (true, _groundNormal, _groundSurface, position.Y);

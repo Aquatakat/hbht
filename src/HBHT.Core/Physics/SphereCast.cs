@@ -260,7 +260,7 @@ public static class SphereCast
             return b;
         var vc = d1 * d4 - d3 * d2;
         if (vc <= 0 && d1 >= 0 && d3 <= 0)
-            return a + ab * (d1 / (d1 - d3));
+            return a + ab * Share(d1, d1 - d3);
         var cp = p - c;
         var d5 = Vector3.Dot(ab, cp);
         var d6 = Vector3.Dot(ac, cp);
@@ -268,11 +268,14 @@ public static class SphereCast
             return c;
         var vb = d5 * d2 - d1 * d6;
         if (vb <= 0 && d2 >= 0 && d6 <= 0)
-            return a + ac * (d2 / (d2 - d6));
+            return a + ac * Share(d2, d2 - d6);
         var va = d3 * d6 - d5 * d4;
         if (va <= 0 && d4 - d3 >= 0 && d5 - d6 >= 0)
-            return b + (c - b) * ((d4 - d3) / (d4 - d3 + (d5 - d6)));
-        var denominator = 1 / (va + vb + vc);
-        return a + ab * (vb * denominator) + ac * (vc * denominator);
+            return b + (c - b) * Share(d4 - d3, d4 - d3 + (d5 - d6));
+        var sum = va + vb + vc;
+        return sum == 0 ? a : a + ab * (vb / sum) + ac * (vc / sum);
     }
+
+    /// <summary>A share of an edge, nothing where the sliver of a triangle it's on has none, rather than not a number.</summary>
+    private static float Share(float part, float whole) => whole == 0 ? 0 : part / whole;
 }
