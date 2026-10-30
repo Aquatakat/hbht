@@ -2440,3 +2440,15 @@ Body.GroundBefore = 0x800e681c; // coined; docs/systems/movement.md: the place B
 PakSave.WeatherSnapshot = 0x800e6830; // coined; docs/systems/saves.md: 16 bytes Weather.Pause fills from the world (floats from +8, +0xC and +0x10, and the byte at +6) and SaveBlock.Write saves x 1000
 SpherePhysics.Ground = 0x800a4570; // SpherePhysics.Ground (HBHT.Core); docs/systems/movement.md: (grid, from, to, radius, hit, normal): a sphere swept through the cells, skipping surfaces 1 and 2; the ground rule's
 Collision.SphereCells = 0x800a3fb4; // coined; docs/systems/movement.md: (grid, sphere, ...): the cells a sphere's box (speed across the ground + radius + 1) covers, clamped to the grid
+SpherePhysics.Step = 0x800a47cc; // SpherePhysics.Step (HBHT.Core); docs/systems/movement.md: (sphere, ..., ticks): the ticks of gravity and velocity, then one collision with the cells around it; Bodies.Process calls it once a frame for each body
+SpherePhysics.Inside = 0x800a4ac0; // SpherePhysics.Inside (HBHT.Core); docs/systems/movement.md: whether a point on a triangle's plane is inside it, by the plane's two axes its normal's largest drops
+SpherePhysics.MovingPlane = 0x800a4da4; // SpherePhysics.MovingPlane (HBHT.Core); docs/systems/movement.md: a moving sphere against a triangle's plane, and how deep
+SpherePhysics.SweepPlane = 0x800a4f7c; // SpherePhysics.SweepPlane (HBHT.Core); docs/systems/movement.md: whether a sphere's front, moving by a delta, crosses a triangle
+SpherePhysics.Edge = 0x800a5148; // SpherePhysics.Edge (HBHT.Core); docs/systems/movement.md: a sphere against an edge the triangle flags as open
+SpherePhysics.Vertex = 0x800a53b0; // coined; docs/systems/movement.md: a sphere against a corner the triangle flags as open
+Vec3.AddTo = 0x800a571c; // coined; docs/systems/movement.md: (a, b): a += b, as the collision adds gravity to velocity and velocity to place
+SpherePhysics.Bounce = 0x800a5784; // SpherePhysics.Bounce (HBHT.Core); docs/systems/movement.md: turns velocity heading into a triangle away from it
+Vec3.AddScaled = 0x800a5884; // coined; docs/systems/movement.md: (a, dir, scale): a += dir * scale, as a hit pushes the sphere out along the normal
+SpherePhysics.Dampen = 0x800a58c8; // SpherePhysics.Dampen (HBHT.Core); docs/systems/movement.md: each axis of velocity times 1 - |normal's|, skipped for a normal within 20 degrees (0.9397, 0x800d57e0) of the pass's last contact; then times the surface's keep
+SpherePhysics.Collide = 0x800a5b4c; // SpherePhysics.Collide (HBHT.Core); docs/systems/movement.md: one pass of a sphere over the triangles of its grid cells, counting contacts per cell
+SurfaceTable = 0x80362768; // coined; docs/systems/movement.md: 12 bytes a surface ID, an environment's and a property block's pointers; the keep at the block's +4, 1.0 for surfaces 1 and 2 and 0 for the rest

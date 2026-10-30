@@ -360,23 +360,16 @@ public sealed class Body
     }
 
     /// <summary>
-    /// After the world's collision (<c>ProcessPlayers</c>, <c>0x80012784</c>): off the ground it has no surface, and on plain
-    /// collision, which keeps velocity, it's pushed down onto it by 0.03 (<c>0x800cdb48</c>) once a frame, on the tick that ends a
-    /// 30 fps frame (<see cref="Cadence.FrameTicks"/>). Spread over the frame's ticks instead, the push holds a body against a
-    /// leaning plain wall falling at about 0.05 a tick, too slow to reach the ground the ground rule keeps it over and fast
-    /// enough to stop its steering, where 1.0 lands on the ground and walks on (docs/systems/movement.md).
+    /// After the world's collision, once a frame (<c>ProcessPlayers</c>, <c>0x80012784</c>): off the ground it has no surface, and
+    /// on plain collision, which keeps velocity, it's pushed down onto it by 0.03 (<c>0x800cdb48</c>).
     /// </summary>
     internal void Press()
     {
-        var frame = _pressFrame.Tick();
         if (!Sphere.Touching)
             Sphere.Surface = 0;
-        if (frame && Sphere.Surface is 1 or 2)
+        if (Sphere.Surface is 1 or 2)
             Sphere.Velocity.Y -= PressDown;
     }
-
-    /// <summary>Counts its ticks to the frames <see cref="Press"/> pushes on.</summary>
-    private readonly FrameGate _pressFrame = new(Cadence.FrameTicks);
 
     /// <summary>
     /// Plays its animation <see cref="Pace"/> ticks toward <see cref="Request"/>, carrying the fraction to the next

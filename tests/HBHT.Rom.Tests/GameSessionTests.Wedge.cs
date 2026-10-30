@@ -44,11 +44,12 @@ public sealed partial class GameSessionTests
                 Hold(session, new Vector2(0, 1));
             var crease = player.Sphere.Position;
             // Against the face, held up by the ground rule and pressed down once a frame: never falling fast enough to stop his
-            // steering, as he does in 1.0 at 30 fps, where the push isn't spread over the frame's ticks.
+            // steering, as in 1.0, where the user found he walks off.
             Assert.True(player.Sphere.Velocity.Y > -0.048f, $"{player.Sphere.Velocity}");
 
+            // Out every way within 4 seconds: up on the stick, he turns as he slides along the face, the slowest way in 2.6.
             var stick = new Vector2(MathF.Sin(way * MathF.PI / 4), MathF.Cos(way * MathF.PI / 4));
-            for (var i = 0; i < 120; i++)
+            for (var i = 0; i < 240; i++)
                 Hold(session, stick);
             Assert.True(Vector3.Distance(crease, player.Sphere.Position) > 1, $"way {way}: from {crease} to {player.Sphere.Position}");
             Assert.False(player.FellOut);
@@ -56,11 +57,11 @@ public sealed partial class GameSessionTests
     }
 
     [Fact]
-    public void InC15sSlotHeldFallingAlaronSteersAgainAfterAQuarterSecondAndWalksOutEveryWay()
+    public void InC15sSlotCollidedOnceAFrameAlaronWalksOutEveryWayWithoutTheRelease()
     {
         // The slot, about 1 wide, between C15's plain wall 335 (leaning back at 80°) and an upright plain wall facing it (1143):
-        // walked into it as the bulk scan walks into every steep plain wall, he hangs between the two falling by his velocity,
-        // never dropping, and without the port's release (PinnedTicks) he can't steer out any way.
+        // collided every tick he hung between the two falling by his velocity, and only the port's release (PinnedTicks) let him
+        // steer out. Collided once a frame, as 1.0 does, the frame's fall takes him down to the ground, and he walks out.
         var set = Data.Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, 0));
         var chunk = set.Chunks.Single(c => c.Name == "C15");
         var origin = set.Origin(chunk.Row, chunk.Column);
@@ -73,7 +74,6 @@ public sealed partial class GameSessionTests
         new ChunkStreamer(Data.Set, GameState.NewGame(Data.Set), world, set).Update(a);
         var inward = Vector2.Normalize(new Vector2(-normal.X, -normal.Z));
         var point = a * 0.6f + b * 0.2f + c * 0.2f;
-        var ways = new List<string>();
         for (var way = 0; way < 8; way++)
         {
             var player = new PlayerMotion(point - new Vector3(inward.X, 0, inward.Y) * 1.2f + new Vector3(0, 0.3f, 0), inward);
@@ -83,19 +83,77 @@ public sealed partial class GameSessionTests
             for (var i = 0; i < 60; i++)
                 player.Step(world, new MoveInput(new Vector2(0, 1)), inward, run);
             var notch = player.Sphere.Position;
-            var mostPinned = 0;
             var stick = new Vector2(MathF.Sin(way * MathF.PI / 4), MathF.Cos(way * MathF.PI / 4));
             for (var i = 0; i < 120; i++)
             {
                 player.Step(world, new MoveInput(stick), inward, run);
-                mostPinned = Math.Max(mostPinned, player.Pinned);
+                Assert.True(player.Pinned < PlayerMotion.PinnedTicks, $"way {way}: pinned {player.Pinned}");
             }
             Assert.False(player.FellOut);
-            if (Vector3.Distance(notch, player.Sphere.Position) > 1)
-                ways.Add($"{way}, pinned {mostPinned}");
+            Assert.True(Vector3.Distance(notch, player.Sphere.Position) > 1, $"way {way}: from {notch} to {player.Sphere.Position}");
         }
-        // Out every way, and only once the falling rule has let go of him.
-        Assert.Equal(8, ways.Count);
-        Assert.All(ways, w => Assert.True(int.Parse(w.Split("pinned ")[1]) >= PlayerMotion.PinnedTicks, w));
+    }
+
+    [Fact]
+    public void InD14sVHeldFallingAlaronSteersAgainAfterAQuarterSecondAndWalksOutEveryWay()
+    {
+        // The V between D14's leaning rock (Expansion Pak triangles 605 and 606) and the upright face behind it (627), plain
+        // collision both, a low rock about 1.4 high: run into it from the south-west, he hangs on it falling by his velocity and
+        // never dropping, and only the port's release (PinnedTicks) lets him steer away.
+        var set = Data.Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, 0));
+        var chunk = set.Chunks.Single(c => c.Name == "D14");
+        var origin = set.Origin(chunk.Row, chunk.Column);
+        var world = new CollisionWorld();
+        var start = origin + new Vector3(55.2f, -16.8f, 17.6f);
+        new ChunkStreamer(Data.Set, GameState.NewGame(Data.Set), world, set).Update(start);
+        var inward = Vector2.Normalize(new Vector2(0.64f, 0.76f));
+        var took = new List<int>();
+        for (var way = 0; way < 8; way++)
+        {
+            var player = new PlayerMotion(start, inward);
+            var run = ActorMotion.For(Data.Set, Data.Set.Get<ActorRecord>(AlaronActor), new Lcg(0))!;
+            var held = 0;
+            for (var i = 0; i < 90; i++)
+            {
+                player.Step(world, new MoveInput(new Vector2(0, 1)), inward, run);
+                held = Math.Max(held, player.Pinned);
+            }
+            Assert.True(held >= PlayerMotion.PinnedTicks, $"held {held}");
+            var notch = player.Sphere.Position;
+            var stick = new Vector2(MathF.Sin(way * MathF.PI / 4), MathF.Cos(way * MathF.PI / 4));
+            var ticks = 0;
+            for (; ticks < 600 && Vector3.Distance(notch, player.Sphere.Position) <= 1; ticks++)
+                player.Step(world, new MoveInput(stick), inward, run);
+            Assert.False(player.FellOut);
+            took.Add(ticks);
+        }
+        // Six ways in about a third of a second, just past the release; straight on, and straight back, slower.
+        Assert.All(took, t => Assert.InRange(t, 1, 420));
+        Assert.Equal(6, took.Count(t => t < 30));
+    }
+
+    [Fact]
+    public void RunningUpQ25sSteepPlainFaceAlaronSlidesBackDownAsIn1_0()
+    {
+        // The user's climb out of the world, from (91.9, 1.4, 45.7) toward (90.6, 8.6, 41.0): a plain face (surface 1) of normal
+        // Y 0.52 to 0.57. Collided once a frame after the frame's ticks of velocity, as ProcessPlayers does, plain collision's
+        // kept fall carries him back down it, where collided every tick he walked up it.
+        var set = Data.Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, 0));
+        var chunk = set.Chunks.Single(c => c.Name == "Q25");
+        var origin = set.Origin(chunk.Row, chunk.Column);
+        var world = new CollisionWorld();
+        var start = origin + new Vector3(91.9f, 2.2f, 45.7f);
+        new ChunkStreamer(Data.Set, GameState.NewGame(Data.Set), world, set).Update(start);
+        var up = Vector2.Normalize(new Vector2(90.6f - 91.9f, 41.0f - 45.7f));
+        var player = new PlayerMotion(start, up);
+        var run = ActorMotion.For(Data.Set, Data.Set.Get<ActorRecord>(AlaronActor), new Lcg(0))!;
+        var top = start.Y;
+        for (var i = 0; i < 600; i++)
+        {
+            player.Step(world, new MoveInput(new Vector2(0, 1)), up, run);
+            top = MathF.Max(top, player.Sphere.Position.Y);
+        }
+        Assert.True(top < start.Y + 0.5f, $"climbed to {top - origin.Y}");
+        Assert.False(player.FellOut);
     }
 }

@@ -645,7 +645,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
 
     private void ResetInterpolation()
     {
-        _player!.ResetPhysicsInterpolation();
+        _player!.Snap();
         _camera!.ResetPhysicsInterpolation();
         _shadow?.ResetPhysicsInterpolation();
     }

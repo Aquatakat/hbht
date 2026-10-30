@@ -14,8 +14,8 @@ namespace HBHT.Rom.Tests;
 
 /// <summary>
 /// The Roog Cave's mushroom (docs/hardcoded-content.md#corrections-to-the-roms-maps): where the ROM puts it, in the neck of D01's
-/// passage, Alaron wedges against it walking either way and often running north to south; the importer moves it, the user's
-/// choice, and he passes it every way he moves.
+/// passage, Alaron wedges against it walking or sneaking north to south; the importer moves it, the user's choice, and he passes
+/// it every way he moves.
 /// </summary>
 public sealed partial class GameSessionTests
 {
@@ -78,10 +78,9 @@ public sealed partial class GameSessionTests
                 romStuck.Add(what);
         }
         Assert.Empty(stuck);
-        // Where the ROM has it, walking and sneaking wedge him beside it every way, and running south from most starts.
-        foreach (var gait in new[] { "walk north", "walk south", "sneak north", "sneak south" })
-            Assert.Equal(5, romStuck.Count(s => s.StartsWith(gait, StringComparison.Ordinal)));
-        Assert.InRange(romStuck.Count(s => s.StartsWith("run south", StringComparison.Ordinal)), 3, 5);
+        // Where the ROM has it, walking or sneaking south wedge him beside it from every start; north, and running, he passes.
+        Assert.Equal([.. from gait in new[] { "walk", "sneak" } from side in new[] { -0.2f, -0.1f, 0f, 0.1f, 0.2f } select $"{gait} south from {side}"],
+            romStuck);
     }
 
     /// <summary>

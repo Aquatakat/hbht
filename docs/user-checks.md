@@ -16,10 +16,6 @@ The user needn't play to a check: a save is written into the Controller Pak besi
 5. **For the runtime**, the same JSON loads with `tools/godot.ps1 --path src/HBHT.Game -- --save <path>`. Keep it in the gitignored `out/` and give the user the path: what Claude writes under `%LOCALAPPDATA%` lands in the Claude app's private copy, not the data folder the user's runtime reads. The saves made for the checks so far are in `out/user-checks/`.
 6. **When the user reports back,** the finding goes in the system's doc and the item comes off this list. The port's fixes follow [ADR 0018](adr/0018-the-port-fixes-bugs-and-sets-enhancements.md) and, for the game's data, [ADR 0029](adr/0029-content-fixes-wait-for-a-bugfix-mod.md).
 
-## Movement
-
-- **Wedged against a leaning rock face:** in the original, walk Alaron hard into the steep plain rock at Overworld A22, feet about (46.7, −26.3, 40.1) (the face just south of there), and then at D14 (55.2, −16.1, 19.1) and Q25 (88.3, −2.1, 46.5). Turn about and walk off each time. The model of 1.0's frames says he walks off at A22, where the port wedged him, but can stick at D14 and Q25, unable to steer or move until something else moves him. Does he? The port lets him steer after a quarter of a second held so. Then, in the port, look for the crevices between rock faces at B15 (76.5, −26.9, 30.0) and H08 (71.4, −19.6, 55.2): can play get him down into one, where no way out works? Saves for each, from story save B, stand him about 3 from the face, facing it: A22, D14 and Q25 in 1.0's pak's slots A to C, and all five as `out/user-checks/wedge-*.json` and `crevice-*.json` for the runtime. D14's rock is Expansion Pak collision (`aidyn:map` triangles 605 and 606 lean at 73°), which ares has. [movement](systems/movement.md#wedged-against-a-leaning-plain-wall)
-
 ## Menus
 
 - **A new game from the load menu** (the runtime, with a save from `hbht save new` or the editor's new game): load it from the System tab's Load. Does it play the opening cinematic, then the opening's script on its stage, then trek in Overworld I08, as a plain launch does? [saves](systems/saves.md#the-format)

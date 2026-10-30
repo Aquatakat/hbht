@@ -215,7 +215,7 @@ public static class SpherePhysics
 
     /// <summary>
     /// Whether the sphere, one step further along its velocity, is into the triangle's plane
-    /// within the triangle (<c>FUN_800aea44</c>). <paramref name="depth"/> is how far that step's
+    /// within the triangle (<c>0x800a4da4</c>). <paramref name="depth"/> is how far that step's
     /// front is past the plane: negative when it's in.
     /// </summary>
     private static bool MovingPlane(Vector3 position, Vector3 velocity, float radius, in Triangle t, out float depth)
@@ -233,7 +233,7 @@ public static class SpherePhysics
         return Inside(position + velocity * share, t);
     }
 
-    /// <summary>Whether a sphere's front, moving by <paramref name="delta"/>, crosses the triangle (<c>FUN_800aec1c</c>).</summary>
+    /// <summary>Whether a sphere's front, moving by <paramref name="delta"/>, crosses the triangle (<c>0x800a4f7c</c>).</summary>
     private static bool SweepPlane(Vector3 from, Vector3 delta, float radius, in Triangle t, out Vector3 point) =>
         SweepPlane(from, delta, radius, t, out point, out _);
 
@@ -256,7 +256,7 @@ public static class SpherePhysics
 
     /// <summary>
     /// Whether an edge is within the radius of the segment from the sphere's centre a radius along
-    /// its velocity (<c>FUN_800aede8</c>). The point on the edge it measures to is placed with
+    /// its velocity (<c>0x800a5148</c>). The point on the edge it measures to is placed with
     /// the segment's parameter, as the game does.
     /// </summary>
     private static bool Edge(CollisionSphere s, Vector3 a, Vector3 b, ref float distance, out Vector3 direction)
@@ -285,7 +285,7 @@ public static class SpherePhysics
 
     /// <summary>
     /// Whether a point is inside the triangle, seen along the axis its normal is closest to
-    /// (<c>FUN_800ae760</c>). Points on an edge count as inside.
+    /// (<c>0x800a4ac0</c>). Points on an edge count as inside.
     /// </summary>
     private static bool Inside(Vector3 p, in Triangle t)
     {

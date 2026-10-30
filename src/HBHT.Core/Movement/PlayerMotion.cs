@@ -49,7 +49,7 @@ public sealed class PlayerMotion
 
     /// <summary>
     /// The ticks he may be falling by his velocity without dropping before he steers again (<see cref="Pinned"/>), the port's:
-    /// a quarter of a second.
+    /// about a quarter of a second, counted a frame at a time.
     /// </summary>
     public const int PinnedTicks = 15;
 
@@ -57,20 +57,26 @@ public sealed class PlayerMotion
     private const float PinnedDrop = 0.05f;
 
     /// <summary>
-    /// The ticks in a row he has been falling by his velocity (<see cref="Falling"/>), on that tick or the one before, yet stands,
-    /// after each tick's collision, no more than <see cref="PinnedDrop"/> lower than as the count began. From
+    /// The ticks of the frames in a row he has been falling by his velocity (<see cref="Falling"/>) at a frame's end, yet stands,
+    /// after each frame's collision, no more than <see cref="PinnedDrop"/> lower than as the count began. From
     /// <see cref="PinnedTicks"/> he steers and his animation moves him again, the port's, as the user chose to rescue rather than
     /// leave him stuck: against a leaning plain wall the ground rule, or a wall facing it, can hold him up while plain collision's
     /// push keeps his velocity falling, and 1.0 leaves him there with no way out. A real fall drops him at least 0.048 a tick, so
-    /// it never counts past 2.
+    /// it never counts past a frame.
     /// </summary>
     public int Pinned { get; private set; }
 
     /// <summary>His height as <see cref="Pinned"/>'s count began.</summary>
     private float _pinnedFrom;
 
-    /// <summary>Whether he was falling (<see cref="Falling"/>) on the last tick.</summary>
-    private bool _fellLastTick;
+    /// <summary>
+    /// Counts the ticks to the end of a 30 fps frame (<see cref="Cadence.FrameTicks"/>), on which <c>ProcessPlayers</c>, once a
+    /// frame, moves and collides him.
+    /// </summary>
+    private readonly FrameGate _frame = new(Cadence.FrameTicks);
+
+    /// <summary>How far his animation's root has moved him forward over the frame so far, which moves him as it ends.</summary>
+    private float _frameForward;
 
     public PlayerMotion(Vector3 position, Vector2 heading)
     {
@@ -131,32 +137,40 @@ public sealed class PlayerMotion
     /// <summary>Where his feet are: the sphere's bottom.</summary>
     public Vector3 Feet => Sphere.Position - new Vector3(0, Sphere.Radius, 0);
 
-    /// <summary>One 60 Hz tick.</summary>
+    /// <summary>
+    /// One 60 Hz tick. The stick and his animation are read every tick, and the rest is <c>ProcessPlayers</c>'s once a frame, on
+    /// the tick that ends a 30 fps frame, in its order: the frame's ticks of gravity and velocity, then one collision
+    /// (<c>ProcessCollisionSphere</c>, <c>0x80012e84</c>), the ground rule, plain collision's push, the falling rule, and last the
+    /// frame's root motion (<c>0x80013330</c>), which the next frame's collision clips. Against plain collision, which keeps his
+    /// velocity, a frame's fall carries him back down a steep face as it would in 1.0; collided every tick, he walked up faces of
+    /// normal Y 0.5 or so and out of the world (docs/systems/movement.md).
+    /// </summary>
     /// <param name="look">The way the camera looks across the ground, which up on the stick moves him.</param>
     public void Step(CollisionWorld world, MoveInput input, Vector2 look, IRootMotion animation)
     {
         Control(input, look);
+        _frameForward += Body.Animate(animation);
+        if (!_frame.Tick())
+            return;
+        var forward = _frameForward;
+        _frameForward = 0;
 
         var height = Sphere.Position.Y;
-        SpherePhysics.Step(world, Sphere);
+        SpherePhysics.Step(world, Sphere, Cadence.FrameTicks);
         // On plain collision, which keeps velocity, don't slide down when there's ground just below.
         if (Sphere.Surface is 1 or 2 && SpherePhysics.Ground(world, Sphere.Position, Radius, 0.05f) && Sphere.Position.Y < height)
             Sphere.Position.Y = height;
         // And press down onto it.
         Body.Press();
 
-        var forward = Body.Animate(animation);
         // Falling: no steering, unless he has been held where he is for a while, falling by his velocity alone.
         var falling = Sphere.Velocity.Y <= Falling;
-        // A frame's push lands on one of its ticks, so a body held so can be falling on every other tick only.
-        var fellThisFrame = falling || _fellLastTick;
-        _fellLastTick = falling;
-        if (!fellThisFrame)
+        if (!falling)
             Pinned = 0;
         else if (Pinned == 0)
-            (Pinned, _pinnedFrom) = (1, height);
+            (Pinned, _pinnedFrom) = (Cadence.FrameTicks, height);
         else
-            Pinned = Sphere.Position.Y > _pinnedFrom - PinnedDrop ? Pinned + 1 : 0;
+            Pinned = Sphere.Position.Y > _pinnedFrom - PinnedDrop ? Pinned + Cadence.FrameTicks : 0;
         if (falling && Pinned < PinnedTicks)
             Sphere.Velocity.X = Sphere.Velocity.Z = 0;
         else

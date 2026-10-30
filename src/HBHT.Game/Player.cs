@@ -36,11 +36,28 @@ public partial class Player : Node3D
         Sync();
     }
 
-    /// <summary>Moves the node to where the motion has him. Call after each tick.</summary>
+    /// <summary>Where his feet were as the last tick was drawn, or null after a <see cref="Snap"/>.</summary>
+    private System.Numerics.Vector3? _last;
+
+    /// <summary>
+    /// Moves the node to where the motion has him. Call after each tick. The core moves him once a 30 fps frame, as
+    /// <c>ProcessPlayers</c> does, so he's drawn at the mean of his last two ticks' places: a frame's step is drawn evenly over
+    /// its two ticks, half a tick late, rather than all on one.
+    /// </summary>
     public void Sync()
     {
-        Position = Motion.Feet.ToGodot();
+        var feet = Motion.Feet;
+        Position = (((_last ?? feet) + feet) / 2).ToGodot();
+        _last = feet;
         if (_model is not null)
             _model.Rotation = new Vector3(0, Mathf.Atan2(Motion.Heading.X, Motion.Heading.Y), 0);
+    }
+
+    /// <summary>Draws him where he is now, not partway from where he was, after a jump; then resets the interpolation.</summary>
+    public void Snap()
+    {
+        _last = null;
+        Sync();
+        ResetPhysicsInterpolation();
     }
 }
