@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using HBHT.Core.Movement;
 using HBHT.Core.Sky;
 using HBHT.Core.Ui;
 using HBHT.Plugins;
@@ -104,6 +105,12 @@ public sealed class Settings
 
     /// <summary>Whether trek runs at a faster pace than the original's, which feels slow on a PC.</summary>
     public bool BriskPace { get; set; }
+
+    /// <summary>
+    /// How the player moves in trek: the original's, or the port's Modern movement, which keeps to the ground and slides along
+    /// walls (docs/systems/movement.md#modern-movement).
+    /// </summary>
+    public MovementMode Movement { get; set; }
 
     /// <summary>
     /// How the lasting spells' and potions' scenes over heads take their turns in a battle: one at a time across the battle, as the

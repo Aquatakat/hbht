@@ -23,7 +23,9 @@ internal sealed class TriangleGrid<T> where T : struct, IGridTriangle
     private const float CellSize = 4;
 
     private readonly Dictionary<ChunkKey, Part> _parts = [];
-    private readonly HashSet<int> _seen = [];
+
+    /// <summary>The triangles a query has listed so far, one set a thread, so threads may query a grid nothing changes at once.</summary>
+    [ThreadStatic] private static HashSet<int>? _seen;
 
     private sealed record Part(T[] Triangles, Dictionary<(int X, int Z), int[]> Cells, float MinX, float MinZ, float MaxX, float MaxZ);
 
@@ -70,13 +72,14 @@ internal sealed class TriangleGrid<T> where T : struct, IGridTriangle
     public void Near(float minX, float minZ, float maxX, float maxZ, List<T> into, ChunkKey? only = null)
     {
         into.Clear();
+        var seen = _seen ??= [];
         foreach (var (key, part) in _parts)
         {
             if (only is { } one && one != key)
                 continue;
             if (maxX < part.MinX || minX > part.MaxX || maxZ < part.MinZ || minZ > part.MaxZ)
                 continue;
-            _seen.Clear();
+            seen.Clear();
             for (var x = Cell(minX); x <= Cell(maxX); x++)
             {
                 for (var z = Cell(minZ); z <= Cell(maxZ); z++)
@@ -85,7 +88,7 @@ internal sealed class TriangleGrid<T> where T : struct, IGridTriangle
                         continue;
                     foreach (var i in cell)
                     {
-                        if (_seen.Add(i))
+                        if (seen.Add(i))
                             into.Add(part.Triangles[i]);
                     }
                 }
@@ -106,11 +109,12 @@ internal sealed class TriangleGrid<T> where T : struct, IGridTriangle
         var highX = Math.Max(triangle.A.X, Math.Max(triangle.B.X, triangle.C.X)) + tolerance;
         var highZ = Math.Max(triangle.A.Z, Math.Max(triangle.B.Z, triangle.C.Z)) + tolerance;
         var squared = tolerance * tolerance;
+        var seen = _seen ??= [];
         foreach (var (key, part) in _parts)
         {
             if (key == except || highX < part.MinX || lowX > part.MaxX || highZ < part.MinZ || lowZ > part.MaxZ)
                 continue;
-            _seen.Clear();
+            seen.Clear();
             for (var x = Cell(lowX); x <= Cell(highX); x++)
             {
                 for (var z = Cell(lowZ); z <= Cell(highZ); z++)
@@ -119,7 +123,7 @@ internal sealed class TriangleGrid<T> where T : struct, IGridTriangle
                         continue;
                     foreach (var i in cell)
                     {
-                        if (_seen.Add(i) && SameCorners(triangle, part.Triangles[i], squared) && SameCorners(part.Triangles[i], triangle, squared))
+                        if (seen.Add(i) && SameCorners(triangle, part.Triangles[i], squared) && SameCorners(part.Triangles[i], triangle, squared))
                             into.Add((part.Triangles, i));
                     }
                 }

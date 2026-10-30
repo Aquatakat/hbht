@@ -16,7 +16,8 @@ namespace HBHT.Game;
 /// <c>--at</c> say otherwise; <c>--set &lt;n&gt;</c> (default the new game record's, the overworld), <c>--chunk &lt;name&gt;</c> and
 /// <c>--at &lt;x&gt;,&lt;z&gt;</c> in the chunk's coordinates (default where a new game starts, I08 at 16, 62), <c>--yaw</c>
 /// in degrees for the way the player and camera face (0 looks along −Z), <c>--pitch</c> (negative looks down, default −15)
-/// and <c>--distance</c> for the camera, <c>--pace</c> for the player's speed (1 is the original's), <c>--fly
+/// and <c>--distance</c> for the camera, <c>--pace</c> for the player's speed (1 is the original's), <c>--movement
+/// original|modern</c> for how he moves, <c>--fly
 /// &lt;x&gt;,&lt;y&gt;,&lt;z&gt;</c> to start with the free camera there in world coordinates, looking along <c>--yaw</c>
 /// and <c>--pitch</c>, <c>--time &lt;hours&gt;</c> for the time of day (a new game starts at 12), <c>--flags &lt;n&gt;,…</c>
 /// to set plain flags, <c>--weather rain|snow|fog|clear[,intensity[,fog]]</c> for the weather at once,
@@ -106,6 +107,11 @@ public sealed class LaunchOptions(Dictionary<string, string> values)
 
     /// <summary>The player's speed, 1 being the original's.</summary>
     public float? Pace => Number("pace");
+
+    /// <summary><c>--movement original|modern</c>: the options' Movement.</summary>
+    public Core.Movement.MovementMode? Movement => Text("movement") is { } movement
+        ? Enum.Parse<Core.Movement.MovementMode>(movement, ignoreCase: true)
+        : null;
 
     /// <summary>The time of day in hours.</summary>
     public float? Time => Number("time");

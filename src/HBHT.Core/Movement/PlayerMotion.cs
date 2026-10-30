@@ -30,7 +30,7 @@ public interface IRootMotion
 /// looks, sneaking, the turn a conversation asks of him, keeping to the ground on plain collision,
 /// and finding he has fallen out of the world, which trek rescues him from (<see cref="Trek.TrekLoop"/>).
 /// </summary>
-public sealed class PlayerMotion
+public sealed partial class PlayerMotion
 {
     /// <summary>Alaron's sphere's radius.</summary>
     public const float Radius = 0.5f;
@@ -91,8 +91,10 @@ public sealed class PlayerMotion
 
     public CollisionSphere Sphere => Body.Sphere;
 
-    /// <summary>Whether he stood on the ground on the last step: touching something that faces up.</summary>
-    public bool Grounded => Sphere.Touching && Sphere.ContactNormal.Y > 0.5f && Sphere.Velocity.Y > -0.048f;
+    /// <summary>Whether he stood on the ground on the last step: touching something that faces up, or under Modern movement, on its ground.</summary>
+    public bool Grounded => _movement == MovementMode.Modern
+        ? _onGround
+        : Sphere.Touching && Sphere.ContactNormal.Y > 0.5f && Sphere.Velocity.Y > -0.048f;
 
     /// <summary>
     /// Whether he fell out of the world on the last step (<c>ConfirmPlayerWithinZone</c>): faster than <see cref="FallLimit"/> a
@@ -146,12 +148,18 @@ public sealed class PlayerMotion
     /// (<c>ProcessCollisionSphere</c>, <c>0x80012e84</c>), the ground rule, plain collision's push, the falling rule, and last the
     /// frame's root motion (<c>0x80013330</c>), which the next frame's collision clips. Against plain collision, which keeps his
     /// velocity, a frame's fall carries him back down a steep face as it would in 1.0; collided every tick, he walked up faces of
-    /// normal Y 0.5 or so and out of the world (docs/systems/movement.md).
+    /// normal Y 0.5 or so and out of the world (docs/systems/movement.md). Under <see cref="MovementMode.Modern"/> movement, he
+    /// moves every tick instead (<see cref="StepModern"/>).
     /// </summary>
     /// <param name="look">The way the camera looks across the ground, which up on the stick moves him.</param>
     public void Step(CollisionWorld world, MoveInput input, Vector2 look, IRootMotion animation)
     {
         Control(input, look);
+        if (_movement == MovementMode.Modern)
+        {
+            StepModern(world, animation);
+            return;
+        }
         _frameForward += Body.Animate(animation);
         if (!_frame.Tick())
             return;

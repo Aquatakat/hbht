@@ -87,12 +87,13 @@ public sealed partial class GameSessionTests
     /// Alaron, with his run animation, set down at the way's start moved <paramref name="side"/> across it, steering for each of its
     /// points in turn: null once he's through, or where he's held after 15 seconds.
     /// </summary>
-    private Vector3? ThroughRoogNeck(CollisionWorld world, Vector3 origin, Vector2[] way, float side, MoveInput input)
+    private Vector3? ThroughRoogNeck(CollisionWorld world, Vector3 origin, Vector2[] way, float side, MoveInput input,
+        MovementMode movement = MovementMode.Original)
     {
         var toLocal = new Vector2(origin.X, origin.Z);
         var heading = Vector2.Normalize(way[1] - way[0]);
         var start = way[0] + new Vector2(-heading.Y, heading.X) * side;
-        var player = new PlayerMotion(origin + new Vector3(start.X, PlayerMotion.Radius + 0.01f, start.Y), heading);
+        var player = new PlayerMotion(origin + new Vector3(start.X, PlayerMotion.Radius + 0.01f, start.Y), heading) { Movement = movement };
         var animation = ActorMotion.For(Data.Set, Data.Set.Get<ActorRecord>(AlaronActor), new Lcg(0))!;
         for (var i = 0; i < 10; i++)
             player.Step(world, new MoveInput(Vector2.Zero), heading, animation);

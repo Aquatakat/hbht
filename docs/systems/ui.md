@@ -246,6 +246,7 @@ The user laid this out, and it isn't the original's ([ADR 0013](../adr/0013-sett
   | | Menu Size | Original (240 lines), Smaller (360), Smallest (480): the UI screen's height, for the menu and trek's popups and box |
   | | Menu Filter | Sharp, Smooth, Video Out (`UiFilter`) |
   | | Pace | Original, Brisk (1.3×) |
+  | | Movement | Original, Modern (the port's, which keeps to the ground and slides along walls: [movement](movement.md#modern-movement)) |
   | | Status Auras | Original (the lasting spells' and potions' scenes over heads take turns one at a time across the battle), More Often (each character's in turn over its own head, all at once): see [combat](combat.md#what-spells-look-like) |
 
 - **The Video page lists what the screen allows.** The runtime says which screen the window is on as the options open (`IPauseMenuHost.Screen`, a `ScreenInfo`), and the page's rows are made again after each change, so Window Size and Render Resolution follow the display mode and the window's size. Godot 4 can't change the screen's own mode, so there's no exclusive fullscreen and no choice of the screen's resolution or refresh rate; Window Size and Frame Rate Limit stand in for them, the user's choice.

@@ -1,4 +1,5 @@
 using HBHT.Core.Combat;
+using HBHT.Core.Movement;
 using HBHT.Core.Sky;
 
 namespace HBHT.Core;
@@ -6,7 +7,7 @@ namespace HBHT.Core;
 /// <summary>
 /// What the core plays by of the player's settings, for one tick (ADR 0022): the runtime makes it from <see cref="Settings"/>
 /// with the command line's for the run over them, and hands it to every <see cref="GameSession.Tick"/>, which hands it on to
-/// what reads a setting: the audio's volumes, the rain and snow, the sky's placement, the player's pace, a battle's spell
+/// what reads a setting: the audio's volumes, the rain and snow, the sky's placement, the player's pace and movement, a battle's spell
 /// auras and the credits' screen. Nothing in the core reads <see cref="Settings"/> for itself, so a setting changed between
 /// two ticks takes effect on the next, and a headless run plays by the one it's given, <see cref="Original"/> by default.
 /// What only the runtime draws, the window, the 3D view, the draw distance and the UI screens' filter, isn't here.
@@ -32,10 +33,13 @@ public sealed record SessionSettings
     public SkyPlacement SkyPlacement { get; init; } = SkyPlacement.Original;
 
     /// <summary>
-    /// How many animation ticks the player plays per tick, 1 being the original's: trek's (<see cref="Movement.PlayerMotion.Pace"/>), and
+    /// How many animation ticks the player plays per tick, 1 being the original's: trek's (<see cref="PlayerMotion.Pace"/>), and
     /// the body he steers in a battle's turn (<see cref="Battle.Pace"/>).
     /// </summary>
     public float Pace { get; init; } = 1;
+
+    /// <summary>How the player moves in trek (<see cref="PlayerMotion.Movement"/>): the original's, or Modern movement.</summary>
+    public MovementMode Movement { get; init; }
 
     /// <summary>How a battle's lasting spells' and potions' scenes over heads take their turns (<see cref="SpellFx.Turns"/>).</summary>
     public AuraTurns SpellAuras { get; init; } = AuraTurns.Battle;
@@ -47,7 +51,7 @@ public sealed record SessionSettings
     /// How far from what the camera looks at trek's wanderers move and animate (<see cref="Trek.Wanderers.Reach"/>): the
     /// original's 30, or further under Object Distance's 2× and 3×, which draw them further (<see cref="Trek.Wanderers.ReachFor"/>).
     /// </summary>
-    public float WanderReach { get; init; } = Movement.Body.StepDistance;
+    public float WanderReach { get; init; } = Body.StepDistance;
 
     /// <summary>What the core plays by of these settings: the pace is Brisk's or the original's.</summary>
     public static SessionSettings From(Settings settings) => new()
@@ -57,6 +61,7 @@ public sealed record SessionSettings
         PrecipitationDensity = settings.PrecipitationDensity,
         SkyPlacement = settings.SkyPlacement,
         Pace = settings.BriskPace ? BriskPace : 1,
+        Movement = settings.Movement,
         SpellAuras = settings.SpellAuras,
         UiLines = Math.Max(settings.UiLines, 1),
         WanderReach = Trek.Wanderers.ReachFor(settings.ObjectDistance),

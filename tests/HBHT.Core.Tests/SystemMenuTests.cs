@@ -84,10 +84,11 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         options.Back();
         options.Point(2);
         options.Accept();
-        Assert.Equal(["Draw Distance", "Object Distance", "Model Detail", "Rain and Snow", "Menu Size", "Menu Filter", "Pace", "Status Auras"],
+        Assert.Equal(["Draw Distance", "Object Distance", "Model Detail", "Rain and Snow", "Menu Size", "Menu Filter", "Pace", "Movement",
+                "Status Auras"],
             options.Rows.Rows.Select(r => r.Label));
         // A new player's are the original's, and the original's video out.
-        Assert.Equal(["Original", "Original", "Original", "Original", "Original", "Video Out", "Original", "Original"],
+        Assert.Equal(["Original", "Original", "Original", "Original", "Original", "Video Out", "Original", "Original", "Original"],
             options.Rows.Rows.Select(r => r.ValueName));
     }
 
@@ -213,11 +214,16 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     {
         Directory.CreateDirectory(_saves);
         var path = Path.Combine(_saves, "settings.json");
-        new Settings { MusicVolume = 30, UiLines = 480, UiFilter = UiFilter.Smooth, BriskPace = true, ObjectDistance = 3, ExtendedDrawDistance = true }.Save(path);
+        new Settings
+        {
+            MusicVolume = 30, UiLines = 480, UiFilter = UiFilter.Smooth, BriskPace = true, ObjectDistance = 3, ExtendedDrawDistance = true,
+            Movement = Movement.MovementMode.Modern,
+        }.Save(path);
 
         var read = Settings.Load(path);
 
         Assert.Equal((30, 480, UiFilter.Smooth, true, 3f, true), (read.MusicVolume, read.UiLines, read.UiFilter, read.BriskPace, read.ObjectDistance, read.ExtendedDrawDistance));
+        Assert.Equal(Movement.MovementMode.Modern, read.Movement);
         Assert.Equal(100, Settings.Load(Path.Combine(_saves, "none.json")).SoundVolume);
     }
 

@@ -347,7 +347,7 @@ public sealed class GameSession
 
     /// <summary>
     /// Hands the settings on to what plays by them, the one place the core takes them in: the audio's volumes, the rain and
-    /// snow of trek, a stage and an arena, the sky's placement, the player's pace, how far wanderers step and a battle's
+    /// snow of trek, a stage and an arena, the sky's placement, the player's pace and movement, how far wanderers step and a battle's
     /// spell auras. A stage, an
     /// arena and a battle made later take them as they're made, and the credits as they start.
     /// </summary>
@@ -361,6 +361,7 @@ public sealed class GameSession
         Arena?.Precipitation?.Density = density;
         Sky.Placement = settings.SkyPlacement;
         Trek.Player.Pace = settings.Pace;
+        Trek.Player.Movement = settings.Movement;
         Trek.Wanderers.Reach = settings.WanderReach;
         Battle?.Fx.Turns = settings.SpellAuras;
         Battle?.Pace = settings.Pace;

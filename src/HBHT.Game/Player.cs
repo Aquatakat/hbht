@@ -42,12 +42,13 @@ public partial class Player : Node3D
     /// <summary>
     /// Moves the node to where the motion has him. Call after each tick. The core moves him once a 30 fps frame, as
     /// <c>ProcessPlayers</c> does, so he's drawn at the mean of his last two ticks' places: a frame's step is drawn evenly over
-    /// its two ticks, half a tick late, rather than all on one.
+    /// its two ticks, half a tick late, rather than all on one. Modern movement moves him every tick, and he's drawn where he is.
     /// </summary>
     public void Sync()
     {
         var feet = Motion.Feet;
-        Position = (((_last ?? feet) + feet) / 2).ToGodot();
+        var drawn = Motion.Movement == MovementMode.Modern ? feet : ((_last ?? feet) + feet) / 2;
+        Position = drawn.ToGodot();
         _last = feet;
         if (_model is not null)
             _model.Rotation = new Vector3(0, Mathf.Atan2(Motion.Heading.X, Motion.Heading.Y), 0);

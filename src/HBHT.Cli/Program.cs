@@ -12,7 +12,7 @@ using HBHT.Rom.Import;
 using HBHT.Rom.Rig;
 using HBHT.Rom.Text;
 
-const string Usage = """
+const string Usage = $"""
     Usage:
       hbht identify <rom>
       hbht import <rom> [--out <dir>] [--keep-mushroom]
@@ -36,6 +36,7 @@ const string Usage = """
                                            (default 1); default dir: out/<version>/audio
       hbht flag <flag>...                    what sets, clears and reads each flag, in the installed plugins
       hbht conflicts                         the fields more than one installed plugin patches, and which wins (ADR 0005)
+    {ReachReport.Usage}
       hbht schema <dir>                      a JSON Schema per record type, for records (<type>.schema.json) and for
                                            patches to them (<type>.patch.schema.json), which editors validate mods by
       hbht strings <rom> <table>             one string table, numbered by line
@@ -74,6 +75,7 @@ try
         ["audio", var rom, .. var rest] => Audio(rom, rest),
         ["flag", .. var flags] when flags.Length > 0 => Flags(flags),
         ["conflicts"] => Conflicts(),
+        ["movement", "reach", .. var rest] => ReachReport.Run(InstalledPlugins(), rest),
         ["schema", var dir] => Schema(dir),
         ["strings", var rom, .. var rest] when OutOnly(rest, out var dir) => AllStrings(rom, dir),
         ["strings", var rom, var table] => Strings(rom, table),
