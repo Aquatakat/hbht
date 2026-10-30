@@ -94,7 +94,7 @@ Scripts add and take away members (Borg13 ops 47 and 48), and `GameState.AddMemb
   1. The member goes in the first free slot (slot 0 if it's empty), as their record starts them (`Entity::Init` mode 0). The weapons they bring but don't wield go into the inventory.
   2. Their joined flag is set and their left flag cleared.
   3. If a sheet was kept when they left, it replaces the new one (`SaveEntity::CopyMember`, `Copy`): experience, all four stat arrays, skills, the spellbook and what it wears. The record's gear is discarded, but the spare weapons are already in the inventory, so they come again each time.
-- **Someone already in the party.** The original doesn't check for this, and adds a second sheet. The port deliberately doesn't add them again, but still says they joined, so the one talking leaves the map as in the original. Only Sholeh's first meeting in Ugarit (`aidyn:dialogue/0x04AD`) can re-add someone, since nothing hides her after she joins ([wanderers](wanderers.md#joining)).
+- **Someone already in the party.** The original doesn't check for this, and adds a second sheet. The port deliberately doesn't add them again, but still says they joined, so the one talking leaves the map as in the original. Only Sholeh's first meeting, at Overworld S26 on the road to Ugarit (`aidyn:dialogue/0x04AD`), can re-add someone, since her joining doesn't hide her there; reaching Ugarit does ([wanderers](wanderers.md#joining)).
 - **Leaving** (`Party::RemoveAliveMember`, `0x80074DCC`):
   1. Everything they wear goes into the inventory (`StripMember`): the gear, the weapon, the armor and the shield. The Archmage Staff stays, and so does what the inventory has no room for.
   2. Their sheet is kept, if they're one of the five.

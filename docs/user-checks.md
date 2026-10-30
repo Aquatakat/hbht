@@ -18,7 +18,7 @@ The user needn't play to a check: a save is written into the Controller Pak besi
 
 ## Scripts and characters
 
-- **Sholeh in Ugarit after she joins** (`aidyn:dialogue/0x04AD`), in full-game testing: is she there again once she's joined, and what keeps her away when the party has no free place? The data doesn't show it. [wanderers](systems/wanderers.md#joining)
+- **Sholeh after she joins, and with a full party.** Three saves are in 1.0's pak, made from story save B (before Shamsuk's Tower, before the party reaches Ugarit), each standing Alaron a few paces from where she waits; they're also in `out/user-checks/` as `sholeh-*.json` for the runtime. **A** (`sholeh-joined-s26`): she has just joined at Overworld S26, with a free place in the party and Ugarit not reached yet. Is she standing there again, and does talking to her add a second Sholeh? **B** (`sholeh-full-s26`): a full party, after the battle with the beasts at S26 and before talking to her. Is she there, and does she say "If you need help in Ugarit, remember me"? **C** (`sholeh-full-ugarit`): a full party in Ugarit E09, never having met her. Is she there, and does she talk of the Jundar without offering to join? By the data, she's there in all three. [wanderers](systems/wanderers.md#joining)
 
 ## Movement
 

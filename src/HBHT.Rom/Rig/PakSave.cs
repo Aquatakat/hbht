@@ -371,7 +371,7 @@ public sealed record PakSheet(
     private const int KeptBits = 720, PartyBits = 0x500, ChaosPadding = 13 * 4, EffectCount = 15, PotionCount = 7;
 
     /// <summary>The order the stats are saved in, Stamina first, and each one's bits.</summary>
-    private static readonly (int Stat, int Bits)[] StatOrder = [(5, 8), (3, 6), (6, 6), (1, 5), (0, 5), (4, 5), (2, 5)];
+    internal static readonly (int Stat, int Bits)[] StatOrder = [(5, 8), (3, 6), (6, 6), (1, 5), (0, 5), (4, 5), (2, 5)];
 
     /// <summary>The skills saved, by their place in <see cref="SkillSlots"/>: all 12, five weapon skills and the shield.</summary>
     public static readonly IReadOnlyList<int> SavedSkills = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 15, 16, 17, 20, 21, 23];
@@ -624,7 +624,10 @@ internal ref struct BitReader(ReadOnlySpan<byte> bytes)
     public void Skip(int count) => _bit += count;
 }
 
-/// <summary>Writes the save's bit stream (<c>SaveBits.Write</c>, <c>0x80002700</c>), over zeroes: a skip leaves them.</summary>
+/// <summary>
+/// Writes the save's bit stream (<c>SaveBits.Write</c>, <c>0x80002700</c>), over zeroes: a skip leaves them. Like the
+/// original, it writes a value's low bits and drops the rest, so Sholeh's Intelligence of 35 is saved as 3.
+/// </summary>
 internal ref struct BitWriter(Span<byte> bytes)
 {
     private readonly Span<byte> _bytes = bytes;
@@ -632,8 +635,6 @@ internal ref struct BitWriter(Span<byte> bytes)
 
     public void Write(uint value, int count)
     {
-        if (count < 32 && value >> count != 0)
-            throw new InvalidOperationException($"{value} doesn't fit the save's {count} bits.");
         for (var k = 0; k < count; k++, _bit++)
         {
             if (_bit >> 3 >= _bytes.Length)

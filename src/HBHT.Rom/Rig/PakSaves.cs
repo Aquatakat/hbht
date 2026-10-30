@@ -305,6 +305,12 @@ public sealed class PakSaves
             problems.Add($"{c.Entity}'s {spell.Spell} isn't saved: the original keeps only the spells of the character's school and unschooled ones.");
         if (party && c.Potions.Count > 0)
             problems.Add($"{c.Entity}'s potions aren't saved, as the original never saves any.");
+        foreach (var (stats, which) in new[] { (c.Trained, "trained"), (c.Current, "current") })
+        {
+            var values = stats.ToArray();
+            foreach (var (stat, bits) in PakSheet.StatOrder.Where(s => values[s.Stat] >> s.Bits != 0))
+                problems.Add($"{c.Entity}'s {which} {StatNames[stat]} of {values[stat]} is saved as {values[stat] & ((1 << bits) - 1)}, in the original's {bits} bits.");
+        }
 
         return new PakSheet(entity, c.TotalExp, c.SpendableExp, c.Trained.ToArray(), c.Current.ToArray(),
             [.. PakSheet.SavedSkills.Select(s => levels[s] ?? 0xF)],
@@ -312,6 +318,8 @@ public sealed class PakSaves
             Levels(c, MagicSchool.None, PakSave.UnschooledSlots), Levels(c, block, PakSave.SchooledSlots),
             party ? new PakEffect?[15] : [], party ? new PakPotion?[7] : []);
     }
+
+    private static readonly string[] StatNames = ["Intelligence", "Willpower", "Dexterity", "Endurance", "Strength", "Stamina", "Level"];
 
     /// <summary>A character's levels of a school's spells by their place in its group, padded with zeroes to <paramref name="slots"/>.</summary>
     private int[] Levels(SaveCharacter c, MagicSchool school, int slots)
