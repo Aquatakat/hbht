@@ -7,7 +7,7 @@ namespace HBHT.Core.Combat;
 public sealed partial class Battle
 {
     /// <summary>The spawn sets a reserve's place is looked for in when its own is taken (<c>Combat.ChooseSpawn</c>), 0–4.</summary>
-    private const int SpawnSets = 5;
+    public const int SpawnSets = 5;
 
     /// <summary>Whether a reserve fled as it arrived this round (<c>+0x543C</c>), which the turn's change holds the battle for.</summary>
     private bool _reinforcementsFled;
