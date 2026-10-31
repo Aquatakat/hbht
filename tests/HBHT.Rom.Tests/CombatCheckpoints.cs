@@ -216,6 +216,11 @@ internal static class CombatCheckpoints
         foreach (var c in battle.Combatants.Where(c => !c.Sheet.IsDead))
             battle.Grid.Occupy(ArenaGrid.CellOf(c.Cell.X), ArenaGrid.CellOf(c.Cell.Y), c.Footprint);
 
+        // Darkness or Light holds the part of the day as it lands (World.LockPartOfDay, world +2), and the clock's turn doesn't move
+        // it; laid on without starting, its hold is laid too, at the part the RAM's world has.
+        if (battle.Combatants.Any(c => c.Sheet.Effects.Any(e => e.Effects.OfType<PartOfDayEffect>().Any())))
+            ((IMagicHost)battle).HoldPartOfDay((PartOfDay)cp.Weather.PartOfDay);
+
         // A cell off the collision is taken from the start, and freed with a combatant's footprint that once stood on it: a history the
         // overlay can't replay (08's cell (60,45), where Sholeh walked past). Free those the checkpoint has free and no one stands on.
         var rows = built.Struct + 0x3C;

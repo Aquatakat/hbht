@@ -441,6 +441,7 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
     /// Ticks until the combatant's turn has ended, the bodies moved by their animations' roots as the runtime's are, and checks the
     /// next turn as it begins: at the first line after <c>TurnOrder.Advance</c> has chosen it, its own (<c>TurnOrder.BeginTurn</c>), where
     /// the original's RAM was dumped, before its flee check and its ring. Failing a cue (a line the same as the last), after the tick.
+    /// A combatant's next turn in a row is the next turn too.
     /// </summary>
     private List<string> PlayOut(Built built, Combatant c, Func<List<string>> check, Action? eachTick = null)
     {
@@ -450,15 +451,18 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
         HBHT.Core.Actors.IActorMotion? Motion(Combatant m) => motions.TryGetValue(m, out var found) ? found
             : motions[m] = HBHT.Core.Actors.ActorMotion.For(Set, Set.Get<ActorRecord>(m.Look.Actor), built.Game.Random.Animation);
         List<string>? checkedThen = null;
+        // The turn, not the combatant: one with two turns in a row (Haste, or the order's grouping) begins its second at once.
+        var turn = fight.Order.Now;
+        bool Ended() => fight.Current != c || fight.Order.Now != turn;
         // A line, not just any cue: Advance passes over a combatant that can't act and ends the round with Current on it, and the
         // round's end cues its reserves and numbers before the next round is built.
         fight.Host = new Watch(cue =>
         {
-            if (checkedThen is null && fight.Current != c && cue is LogLine)
+            if (checkedThen is null && Ended() && cue is LogLine)
                 checkedThen = check();
         });
         var states = new List<(CombatState State, int Ticks)>();
-        for (var i = 0; i < 20000 && fight.Current == c && !fight.Over; i++)
+        for (var i = 0; i < 20000 && !Ended() && !fight.Over; i++)
         {
             fight.Tick(zone, false, Motion);
             // Sense Aura's popup waits for a press, which ends the turn; the player's came before the next turn's RAM.
