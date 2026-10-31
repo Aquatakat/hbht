@@ -206,10 +206,23 @@ public abstract partial class BodyView : Node3D
     /// <summary>The actor's scene, or null for a body whose entity has no actor.</summary>
     protected Node3D? Model => _model?.Node;
 
-    /// <summary>Moves the node to where the body is, and turns the model to its heading. Call after each tick.</summary>
+    /// <summary>Where its feet were as the last tick was drawn, or null before the first.</summary>
+    private System.Numerics.Vector3? _last;
+
+    /// <summary>
+    /// Moves the node to where the body is, and turns the model to its heading. Call after each tick. Under the original's
+    /// movement the core moves a body once a 30 fps frame, as <c>ProcessPlayers</c> does, so it's drawn at the mean of its last
+    /// two ticks' places, as the player is (<see cref="Player.Sync"/>); a jump of more than a unit, as a body put at its goal, is
+    /// drawn at once. Modern movement moves it every tick, and it's drawn where it is.
+    /// </summary>
     public virtual void Sync()
     {
-        Position = (Body.Sphere.Position - new System.Numerics.Vector3(0, Body.Sphere.Radius, 0)).ToGodot();
+        var feet = Body.Sphere.Position - new System.Numerics.Vector3(0, Body.Sphere.Radius, 0);
+        var drawn = Body.Movement == MovementMode.Modern || _last is not { } last || System.Numerics.Vector3.DistanceSquared(last, feet) > 1
+            ? feet
+            : (last + feet) / 2;
+        _last = feet;
+        Position = drawn.ToGodot();
         if (_turn is not null)
             _turn.Rotation = new Vector3(0, Mathf.Atan2(Body.Heading.X, Body.Heading.Y), 0);
     }

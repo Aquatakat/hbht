@@ -64,6 +64,9 @@ public sealed partial class Battle
     /// </summary>
     public float Pace { get; set; } = 1;
 
+    /// <summary>How the combatants move: the Movement setting (<see cref="SessionSettings.Movement"/>).</summary>
+    public MovementMode Movement { get; set; }
+
     /// <summary>A one-off to whatever presents the battle.</summary>
     internal void Cue(CombatCue cue) => Host?.Cue(cue);
 
@@ -309,10 +312,11 @@ public sealed partial class Battle
             var start = combatant.Body.Sphere.Position;
             // A freed body, fading (body flag 0x100), isn't a combatant's any more: ProcessPlayers no longer steps its actor
             // (0x800130F0), so it holds the pose it had, and Combat.AfterFrame no longer sees it.
+            combatant.Body.Movement = Movement;
             if (combatant.Freed)
             {
                 combatant.Body.Step(World, IActorMotion.Still);
-                Movement.Crowd.Push(crowd, i, start);
+                HBHT.Core.Movement.Crowd.Push(crowd, i, start);
                 continue;
             }
             combatant.Audio.Weapon = WeaponOf(combatant) is { Model: not null } weapon ? weapon.Sounds : null;
@@ -323,7 +327,7 @@ public sealed partial class Battle
             var strikes = AtStrike(combatant, animation);
             combatant.Body.Pace = State == CombatState.Turn && combatant == Current && !combatant.Controlled ? Pace : 1;
             combatant.Body.Step(World, still ? IActorMotion.Still : animation);
-            Movement.Crowd.Push(crowd, i, start);
+            HBHT.Core.Movement.Crowd.Push(crowd, i, start);
             AfterBodies(combatant, animation, strikes);
         }
         CombatCamera.Step(this);

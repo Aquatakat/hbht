@@ -136,6 +136,9 @@ public sealed class CutScene
 
     public ScreenFade Fade { get; } = new();
 
+    /// <summary>How the actors move: the Movement setting (<see cref="SessionSettings.Movement"/>), always at the original's pace.</summary>
+    public MovementMode Movement { get; set; }
+
     /// <summary>The actors spawned, in order. An actor spawned again leaves its first body standing, as in the original.</summary>
     public IReadOnlyList<CutSceneActor> Actors => _actors;
 
@@ -267,6 +270,9 @@ public sealed class CutScene
             if (!body.Near(Camera.Aim))
                 continue;
             body.Faded = Fade.Fading;
+            // The Movement setting, at the original's pace: a cut-scene is timed by its script, and never plays brisk.
+            body.Movement = Movement;
+            body.Pace = 1;
             steered |= body.Steered;
             // ProcessPlayers holds a death's last frame for every body (Body.Mortal).
             body.Step(Stage.World, body.Mortal(motion(actor)));

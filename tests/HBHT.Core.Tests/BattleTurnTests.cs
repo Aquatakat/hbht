@@ -440,8 +440,10 @@ public sealed class BattleTurnTests
         body.Heading = Vector2.UnitX;
         body.Request = Body.Walk;
 
-        // An animation that carries it 10 units forward along its heading in one tick.
-        body.Step(Worlds.Flat(), new SteadyMotion(10));
+        // An animation that carries it 10 units forward along its heading a tick, over the frame it's moved once in.
+        var world = Worlds.Flat();
+        body.Step(world, new SteadyMotion(10));
+        body.Step(world, new SteadyMotion(10));
 
         Assert.Equal(2f, body.Sphere.Position.X, 0.05f);
     }

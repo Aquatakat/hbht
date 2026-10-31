@@ -1,4 +1,5 @@
 using System.Numerics;
+using HBHT.Core;
 using HBHT.Core.Actors;
 using HBHT.Core.Movement;
 using HBHT.Core.Physics;
@@ -70,7 +71,8 @@ public sealed class ActorMotionTests(Na10Import fixture)
     /// runtime's root stood exactly on the baked samples only every other tick, halfway between them on the ticks
     /// between: each tick it moved him the mean of two ticks' motion, within 0.00002 of the core's, and where Godot stood
     /// on a sample he had gone exactly as far. On his first tick the runtime moved him by where his idle's root starts,
-    /// 0.037 back, taking the root to have stood at the origin before; the core moves him from where it starts.
+    /// 0.037 back, taking the root to have stood at the origin before; the core moves him from where it starts. The body moves
+    /// once a frame, by the frame's two ticks.
     /// </summary>
     [Fact]
     public void ABodyWalksByItsAnimationAsTheRuntimeMovedIt()
@@ -80,30 +82,38 @@ public sealed class ActorMotionTests(Na10Import fixture)
         var world = new CollisionWorld();
         var last = WalkTick(Walk.Length - 1);
         var checkedTicks = 0;
-        float walked = 0, runtimeWalked = 0;
+        float walked = 0, runtimeWalked = 0, frameMoved = 0, frameForward = 0;
         for (var tick = 1; tick <= last; tick++)
         {
             body.Request = tick <= 60 ? Body.Idle : Body.Walk;
             var before = body.Sphere.Position;
             body.Step(world, motion);
-            if (tick == 1)
-                Assert.InRange(body.Sphere.Position.Z - before.Z, -1e-5f, 1e-5f);
-            var at = Enumerable.Range(0, Walk.Length).FirstOrDefault(i => WalkTick(i) == tick, -1);
-            if (at < 0)
-                continue;
-            var (request, state, clock, forward) = Walk[at];
-            Assert.Equal((request, state, clock), (body.Request, motion.Machine.State, motion.Machine.Clock));
             var moved = body.Sphere.Position - before;
             Assert.Equal(0, moved.X);
-            Assert.Equal(forward, moved.Z, 2e-5f);
+            frameMoved += moved.Z;
+            var at = Enumerable.Range(0, Walk.Length).FirstOrDefault(i => WalkTick(i) == tick, -1);
+            if (at >= 0)
+            {
+                var (request, state, clock, forward) = Walk[at];
+                Assert.Equal((request, state, clock), (body.Request, motion.Machine.State, motion.Machine.Clock));
+                frameForward += forward;
+                checkedTicks++;
+            }
+            // The body moves once a frame, by the frame's two ticks of root motion, as ProcessPlayers moves it.
+            if (tick % Cadence.FrameTicks != 0)
+            {
+                Assert.Equal(before.Z, body.Sphere.Position.Z);
+                continue;
+            }
+            if (tick == 2 || tick > 60)
+                Assert.Equal(frameForward, frameMoved, 4e-5f);
             if (tick > 60)
             {
-                walked += moved.Z;
-                runtimeWalked += forward;
-                if ((clock - 1) % 2 == 0)
-                    Assert.Equal(runtimeWalked, walked, 1e-6f);
+                walked += frameMoved;
+                runtimeWalked += frameForward;
+                Assert.Equal(runtimeWalked, walked, 4e-5f);
             }
-            checkedTicks++;
+            (frameMoved, frameForward) = (0, 0);
         }
         Assert.Equal(Walk.Length, checkedTicks);
         Assert.InRange(walked, 1.2f, 1.22f);

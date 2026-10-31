@@ -39,6 +39,9 @@ public sealed class Wanderers(PluginSet plugins)
     /// <summary>How far from what the camera looks at they step (<see cref="SessionSettings.WanderReach"/>); a cut-scene's actors keep the original's.</summary>
     public float Reach { get; set; } = Body.StepDistance;
 
+    /// <summary>How the wanderers move: the Movement setting (<see cref="SessionSettings.Movement"/>).</summary>
+    public MovementMode Movement { get; set; }
+
     private readonly List<Wanderer> _all = [];
     private readonly List<CrowdMember?> _crowd = [];
 
@@ -170,6 +173,7 @@ public sealed class Wanderers(PluginSet plugins)
             if (!body.Near(aim, Reach))
                 continue;
             var start = body.Sphere.Position;
+            body.Movement = Movement;
             body.Step(world, animation(_all[i]));
             Crowd.Push(_crowd, i + 1, start);
         }

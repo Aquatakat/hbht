@@ -30,7 +30,7 @@ public interface IRootMotion
 /// looks, sneaking, the turn a conversation asks of him, keeping to the ground on plain collision,
 /// and finding he has fallen out of the world, which trek rescues him from (<see cref="Trek.TrekLoop"/>).
 /// </summary>
-public sealed partial class PlayerMotion
+public sealed class PlayerMotion
 {
     /// <summary>Alaron's sphere's radius.</summary>
     public const float Radius = 0.5f;
@@ -89,11 +89,34 @@ public sealed partial class PlayerMotion
     /// <summary>His body, the first that <c>ProcessPlayers</c> steps.</summary>
     public Body Body { get; }
 
+    /// <summary>
+    /// How he moves: <see cref="MovementMode.Original"/>, 1.0's, or <see cref="MovementMode.Modern"/>, the port's, which trek
+    /// sets each tick from the Movement setting (<see cref="SessionSettings.Movement"/>).
+    /// </summary>
+    public MovementMode Movement
+    {
+        get => Body.Movement;
+        set
+        {
+            if (value == Body.Movement)
+                return;
+            Body.Movement = value;
+            Pinned = 0;
+        }
+    }
+
+    /// <summary>What Modern movement takes for ground and wall, and the party leader's body's steps.</summary>
+    public ModernRules Rules
+    {
+        get => Body.Rules;
+        set => Body.Rules = value;
+    }
+
     public CollisionSphere Sphere => Body.Sphere;
 
     /// <summary>Whether he stood on the ground on the last step: touching something that faces up, or under Modern movement, on its ground.</summary>
-    public bool Grounded => _movement == MovementMode.Modern
-        ? _onGround
+    public bool Grounded => Movement == MovementMode.Modern
+        ? Body.Modern.OnGround
         : Sphere.Touching && Sphere.ContactNormal.Y > 0.5f && Sphere.Velocity.Y > -0.048f;
 
     /// <summary>
@@ -149,15 +172,21 @@ public sealed partial class PlayerMotion
     /// frame's root motion (<c>0x80013330</c>), which the next frame's collision clips. Against plain collision, which keeps his
     /// velocity, a frame's fall carries him back down a steep face as it would in 1.0; collided every tick, he walked up faces of
     /// normal Y 0.5 or so and out of the world (docs/systems/movement.md). Under <see cref="MovementMode.Modern"/> movement, he
-    /// moves every tick instead (<see cref="StepModern"/>).
+    /// moves every tick instead (<see cref="ModernMotion"/>).
     /// </summary>
     /// <param name="look">The way the camera looks across the ground, which up on the stick moves him.</param>
     public void Step(CollisionWorld world, MoveInput input, Vector2 look, IRootMotion animation)
     {
         Control(input, look);
-        if (_movement == MovementMode.Modern)
+        if (Movement == MovementMode.Modern)
         {
-            StepModern(world, animation);
+            Body.Modern.Step(world, animation);
+            FellOut = Sphere.Velocity.Y < -FallLimit || Sphere.Position.Y < Floor;
+            if (FellOut)
+            {
+                Sphere.Velocity = Vector3.Zero;
+                Body.Modern.Lift();
+            }
             return;
         }
         _frameForward += Body.Animate(animation);
@@ -218,6 +247,6 @@ public sealed partial class PlayerMotion
         TurnTo = null;
         // Up on the stick is the way the camera looks, and right is to its right.
         var wanted = Vector2.Normalize(Facing.Rotate(new Vector2(-input.Stick.X, input.Stick.Y), look.X, look.Y));
-        Body.Go(tilt, wanted, input.Sneak, _movement == MovementMode.Modern && _settingOff ? Rules.SetOffTurn : null);
+        Body.Go(tilt, wanted, input.Sneak, Body.SetOffTurn);
     }
 }

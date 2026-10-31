@@ -4,16 +4,25 @@ using HBHT.Core.Physics;
 namespace HBHT.Core.Movement;
 
 /// <summary>
-/// Modern movement, the port's, a setting (docs/systems/movement.md#modern-movement): the same sphere stepped every tick, which
-/// keeps to the ground and slides along walls. Ground is what faces up by <see cref="ModernRules.FloorUp"/> or more, except plain
+/// Modern movement, the port's, a setting (docs/systems/movement.md#modern-movement), which every body moves by under it, the
+/// player's among them: the same sphere stepped every tick, which keeps to the ground and slides along walls. Ground is what faces up by <see cref="ModernRules.FloorUp"/> or more, except plain
 /// collision (surfaces 1 and 2), the barriers, which is a wall unless it's nearly level. On the ground his animation's root
 /// motion, its mean over a stride, carries him across it at its speed, up and down slopes alike; a wall takes away what goes
 /// into it across the ground, so nothing he touches lifts him up it. He steps up onto ledges lower than his radius, squeezes up
 /// to as high between walls that narrow toward the ground, and keeps to the ground down slopes and stairs a step's height at a
 /// time. Off the ground he falls by gravity, with the original's falling rule, and nothing he touches bounces him.
 /// </summary>
-public sealed partial class PlayerMotion
+internal sealed class ModernMotion(Body body)
 {
+    private CollisionSphere Sphere => body.Sphere;
+    private Body Body => body;
+    private Vector2 Heading => body.Heading;
+    private ModernRules Rules => body.Rules;
+    private float Radius => body.Sphere.Radius;
+
+    /// <inheritdoc cref="PlayerMotion.Falling"/>
+    private const float Falling = PlayerMotion.Falling;
+
     /// <summary>How far clear of what he touches he's kept, so the next move starts outside it.</summary>
     private const float Skin = 0.005f;
 
@@ -59,7 +68,6 @@ public sealed partial class PlayerMotion
     /// <summary>How far the rest of his step has carried him since the stick was let go (<see cref="ModernRules.StopReach"/>).</summary>
     private float _stopped;
 
-    private MovementMode _movement;
 
     /// <summary>Whether he stood on the ground after the last Modern tick.</summary>
     private bool _onGround;
@@ -78,29 +86,21 @@ public sealed partial class PlayerMotion
 
     private Func<SphereCast.Hit, bool>? _ground;
 
-    /// <summary>
-    /// How he moves: <see cref="MovementMode.Original"/>, 1.0's, or <see cref="MovementMode.Modern"/>, the port's, which trek
-    /// sets each tick from the Movement setting (<see cref="SessionSettings.Movement"/>).
-    /// </summary>
-    public MovementMode Movement
+    /// <summary>Whether it stood on the ground after the last tick.</summary>
+    public bool OnGround => _onGround;
+
+    /// <summary>Whether it's setting off from standing, when it turns by <see cref="ModernRules.SetOffTurn"/>.</summary>
+    public bool SettingOff => _settingOff;
+
+    /// <summary>Takes up where the original's movement left it, on the ground if it was.</summary>
+    public void Begin(bool grounded)
     {
-        get => _movement;
-        set
-        {
-            if (value == _movement)
-                return;
-            if (value == MovementMode.Modern)
-            {
-                (_onGround, _groundNormal, _groundSurface) = (Grounded, Vector3.UnitY, Sphere.Surface);
-                _groundHeight = _onGround ? Sphere.Position.Y : float.NegativeInfinity;
-            }
-            _movement = value;
-            Pinned = 0;
-        }
+        (_onGround, _groundNormal, _groundSurface) = (grounded, Vector3.UnitY, Sphere.Surface);
+        _groundHeight = grounded ? Sphere.Position.Y : float.NegativeInfinity;
     }
 
-    /// <summary>What Modern movement takes for ground and wall.</summary>
-    public ModernRules Rules { get; set; } = ModernRules.Default;
+    /// <summary>Off the ground, as after a fall out of the world.</summary>
+    public void Lift() => _onGround = false;
 
     /// <summary>
     /// Whether a hit is ground: a face that's ground by <see cref="Rules"/>, or an edge or corner of one below him, nearly under
@@ -118,8 +118,8 @@ public sealed partial class PlayerMotion
         return Vector2.Dot(flat, way) < -0.5f * flat.Length() * way.Length();
     }
 
-    /// <summary>One tick of Modern movement: across the ground, or through the air.</summary>
-    private void StepModern(CollisionWorld world, IRootMotion animation)
+    /// <summary>One tick of Modern movement: across the ground, or through the air, kept in its body's bounds.</summary>
+    public void Step(CollisionWorld world, IRootMotion animation)
     {
         var s = Sphere;
         // Let go of the stick, the rest of his step plays faster, and carries him no further than StopReach.
@@ -136,7 +136,7 @@ public sealed partial class PlayerMotion
         }
         _settingOff = root == 0 && (_settingOff || Body.Request == Body.Idle);
         var forward = Speed(root, stopping || Body.MovingStates == 1);
-        var across = _across = new Vector3(Heading.X, 0, Heading.Y) * forward;
+        var across = _across = new Vector3(Heading.X, 0, Heading.Y) * (forward * body.Scale);
         var position = s.Position;
         SphereCast.PushOut(world, ref position, Radius, s.IgnoresSeeThrough);
         s.Touching = false;
@@ -164,15 +164,13 @@ public sealed partial class PlayerMotion
         if (!float.IsFinite(position.X + position.Y + position.Z))
             (position, s.Velocity) = (s.Position, Vector3.Zero);
         s.Position = position;
+        body.KeepInBounds();
         if (_onGround)
             (s.Touching, s.ContactNormal, s.Surface, _groundHeight) = (true, _groundNormal, _groundSurface, position.Y);
         else if (!s.Touching)
             s.Surface = 0;
         s.Trod.Clear();
-        SphereCast.Touched(world, position, Radius, TriggerMargin, s.Trod);
-        FellOut = s.Velocity.Y < -FallLimit || s.Position.Y < Floor;
-        if (FellOut)
-            (s.Velocity, _onGround) = (Vector3.Zero, false);
+        SphereCast.Touched(world, s.Position, Radius, TriggerMargin, s.Trod);
     }
 
     /// <summary>

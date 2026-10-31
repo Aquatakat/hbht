@@ -363,6 +363,9 @@ public sealed class GameSession
         Trek.Player.Pace = settings.Pace;
         Trek.Player.Movement = settings.Movement;
         Trek.Wanderers.Reach = settings.WanderReach;
+        Trek.Wanderers.Movement = settings.Movement;
+        Scene?.Movement = settings.Movement;
+        Battle?.Movement = settings.Movement;
         Battle?.Fx.Turns = settings.SpellAuras;
         Battle?.Pace = settings.Pace;
     }
@@ -721,7 +724,7 @@ public sealed class GameSession
         zone.Chunks.Update(stage.Origin + new Vector3(stage.Set.CellSize / 2, 0, stage.Set.CellSize / 2));
         if (_trekZones)
             zone.EnterRegion(stage.Chunk);
-        var scene = Scene = new CutScene(Game, script, start, stage, _host);
+        var scene = Scene = new CutScene(Game, script, start, stage, _host) { Movement = _settings.Movement };
         zone.Camera = scene.Camera;
         scene.Start();
         Send(new Transition.StartCutScene(scene, zone));
@@ -837,6 +840,7 @@ public sealed class GameSession
         var battle = Battle = Combat.Battle.Begin(Game, setup, arena, zone.World, _combatHost);
         battle.Fx.Turns = _settings.SpellAuras;
         battle.Pace = _settings.Pace;
+        battle.Movement = _settings.Movement;
         zone.Camera = battle.Camera;
         foreach (var line in battle.Problems)
             _host.Warn(line);

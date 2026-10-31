@@ -299,9 +299,45 @@ public sealed class Body
     public bool Near(Vector3 aim, float distance = StepDistance) => Vector3.Distance(Sphere.Position, aim) <= distance;
 
     /// <summary>
-    /// One 60 Hz tick of a body the stick doesn't drive (<c>ProcessPlayers</c>, for a body other than Alaron): its
-    /// steering, its stick, the world's collision, a push down on plain collision, and its animation's step. Bodies
-    /// push each other after (<see cref="Crowd"/>).
+    /// How it moves: <see cref="MovementMode.Original"/>, 1.0's, or <see cref="MovementMode.Modern"/>, the port's (<see cref="ModernMotion"/>),
+    /// which the Movement setting gives every body (<see cref="SessionSettings.Movement"/>).
+    /// </summary>
+    public MovementMode Movement
+    {
+        get => _movement;
+        set
+        {
+            if (value == _movement)
+                return;
+            if (value == MovementMode.Modern)
+                Modern.Begin(Sphere.Touching && Sphere.ContactNormal.Y > 0.5f && Sphere.Velocity.Y > -0.048f);
+            _movement = value;
+            _frameForward = 0;
+        }
+    }
+
+    private MovementMode _movement;
+
+    /// <summary>What Modern movement takes for ground and wall, and its own steps (<see cref="ModernRules.For"/>).</summary>
+    public ModernRules Rules { get; set; } = ModernRules.Default;
+
+    /// <summary>Its Modern movement's state, made as it's first moved so.</summary>
+    internal ModernMotion Modern => _modern ??= new ModernMotion(this);
+
+    private ModernMotion? _modern;
+
+    /// <summary>Counts the ticks to the end of a 30 fps frame, on which <c>ProcessPlayers</c> moves and collides it, once a frame.</summary>
+    private readonly FrameGate _frame = new(Cadence.FrameTicks);
+
+    /// <summary>How far its animation's root has moved it forward over the frame so far, which moves it as the frame ends.</summary>
+    private float _frameForward;
+
+    /// <summary>
+    /// One 60 Hz tick of a body the stick doesn't drive (<c>ProcessPlayers</c>, for a body other than Alaron): its steering and its
+    /// stick, and its animation, every tick; and once a frame, on the tick that ends a 30 fps frame, the frame's ticks of gravity
+    /// and velocity and one collision, a push down on plain collision, and the frame's root motion (<c>0x80012784</c>), as the
+    /// player's (<see cref="PlayerMotion.Step"/>). Under <see cref="MovementMode.Modern"/> movement it moves every tick instead.
+    /// Bodies push each other after (<see cref="Crowd"/>).
     /// </summary>
     public void Step(CollisionWorld world, IRootMotion animation)
     {
@@ -314,11 +350,26 @@ public sealed class Body
                 Control();
         }
 
-        SpherePhysics.Step(world, Sphere);
-        Press();
-        Advance(Animate(animation));
+        if (_movement == MovementMode.Modern)
+        {
+            Modern.Step(world, animation);
+        }
+        else
+        {
+            _frameForward += Animate(animation);
+            if (_frame.Tick())
+            {
+                SpherePhysics.Step(world, Sphere, Cadence.FrameTicks);
+                Press();
+                Advance(_frameForward);
+                _frameForward = 0;
+            }
+        }
         KeepInField();
     }
+
+    /// <summary>The way to turn as it sets off from standing under Modern movement (<see cref="ModernRules.SetOffTurn"/>), or null for its usual.</summary>
+    internal float? SetOffTurn => _movement == MovementMode.Modern && Modern.SettingOff ? Rules.SetOffTurn : null;
 
     /// <summary>
     /// The stick of a body the player drives that isn't trek's player, a party member's in its turn in combat
@@ -335,7 +386,7 @@ public sealed class Body
         var tilt = input.Stick.Length();
         if (tilt <= Deadzone)
             return;
-        Go(tilt, Vector2.Normalize(Facing.Rotate(new Vector2(-input.Stick.X, input.Stick.Y), look.X, look.Y)), input.Sneak);
+        Go(tilt, Vector2.Normalize(Facing.Rotate(new Vector2(-input.Stick.X, input.Stick.Y), look.X, look.Y)), input.Sneak, SetOffTurn);
     }
 
     /// <summary>
@@ -416,6 +467,12 @@ public sealed class Body
     internal void Advance(float forward)
     {
         Sphere.Position += new Vector3(Heading.X, 0, Heading.Y) * (forward * Scale);
+        KeepInBounds();
+    }
+
+    /// <summary>Keeps it in its <see cref="Bounds"/>.</summary>
+    internal void KeepInBounds()
+    {
         if (Bounds is var (min, max))
         {
             Sphere.Position.X = Math.Clamp(Sphere.Position.X, min.X, max.X);
@@ -584,12 +641,12 @@ public sealed class Body
 
     /// <summary>
     /// A body of <paramref name="look"/> made at <paramref name="at"/> and set down on the ground (<see cref="SetDown"/>), as
-    /// the original's <c>CreateActor</c>, <c>AllocWanderer</c> and combat's <c>CreateBody</c> make one. Whoever spawns it sets
-    /// the rest.
+    /// the original's <c>CreateActor</c>, <c>AllocWanderer</c> and combat's <c>CreateBody</c> make one, with its entity's steps
+    /// under Modern movement. Whoever spawns it sets the rest.
     /// </summary>
     public static Body Spawn(CollisionWorld world, Vector3 at, EntityBody look, IRandom? random, float? near = null)
     {
-        var body = new Body(at, look.Radius, look.Scale);
+        var body = new Body(at, look.Radius, look.Scale) { Rules = ModernRules.Default.For(look) };
         body.Sphere.Position = SetDown(world, at, look.Radius, random, near).Position;
         return body;
     }
@@ -601,7 +658,7 @@ public sealed class Body
         var tilt = Stick.Length();
         if (tilt <= Deadzone)
             return;
-        Go(tilt, Stick);
+        Go(tilt, Stick, turn: SetOffTurn);
     }
 
     /// <summary>
