@@ -352,7 +352,7 @@ public sealed class Body
 
         if (_movement == MovementMode.Modern)
         {
-            Modern.Step(world, animation);
+            Modern.Step(world, animation, _driven);
         }
         else
         {
@@ -365,8 +365,12 @@ public sealed class Body
                 _frameForward = 0;
             }
         }
+        _driven = false;
         KeepInField();
     }
+
+    /// <summary>Whether a stick drove it since its last step (<see cref="Drive"/>), which alone stops short and turns fast setting off.</summary>
+    private bool _driven;
 
     /// <summary>The way to turn as it sets off from standing under Modern movement (<see cref="ModernRules.SetOffTurn"/>), or null for its usual.</summary>
     internal float? SetOffTurn => _movement == MovementMode.Modern && Modern.SettingOff ? Rules.SetOffTurn : null;
@@ -380,6 +384,7 @@ public sealed class Body
     /// <param name="look">The way the camera looks across the ground.</param>
     public void Drive(MoveInput input, Vector2 look)
     {
+        _driven = true;
         StandUnlessDying();
         if (input.Held)
             return;
@@ -665,7 +670,7 @@ public sealed class Body
         var tilt = Stick.Length();
         if (tilt <= Deadzone)
             return;
-        Go(tilt, Stick, turn: SetOffTurn);
+        Go(tilt, Stick);
     }
 
     /// <summary>

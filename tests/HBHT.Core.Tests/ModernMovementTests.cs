@@ -227,16 +227,18 @@ public class ModernMovementTests
         world.Add(Worlds.Chunk(Worlds.OwnParts), Worlds.Floor(0, -20, 20, -20, 20), Vector3.Zero);
         var body = new Body(new Vector3(0, 0.5f, 0), 0.5f) { Movement = MovementMode.Modern, Heading = Vector2.UnitX };
         var walk = new SnapBack();
-        body.GoTo(new Vector2(3, 0), 1, walk: true);
         var furthest = 0f;
+        // Driven by a stick, as only such a body stops short: up on it, with the camera looking along +X, then let go.
         for (var i = 0; i < 120; i++)
         {
+            body.Drive(new MoveInput(i < 70 ? Vector2.UnitY : Vector2.Zero), Vector2.UnitX);
             body.Step(world, walk);
             furthest = MathF.Max(furthest, body.Sphere.Position.X);
         }
         Assert.True(furthest > 2, $"{furthest}");
         // Played StopPace times as fast at the same speed, so its root moves him a StopPace'th as far.
         Assert.Equal(furthest - SnapBack.Back / body.Rules.StopPace, body.Sphere.Position.X, 0.01f);
+        Assert.InRange(MathF.Abs(body.Sphere.Position.Z), 0, 0.01f);
     }
 
     /// <summary>A walk entered as it's asked for, moving 0.03 a tick, whose root goes back <see cref="Back"/> on its tenth tick after.</summary>

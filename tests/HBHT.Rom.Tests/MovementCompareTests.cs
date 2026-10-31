@@ -38,10 +38,10 @@ public sealed class MovementCompareTests(Na10Import fixture, ITestOutputHelper o
         Assert.Equal(262, differences.Count);
         Assert.All(differences, d => Assert.True(d.SameCourse, $"{d.Launch.Script} went another way"));
         Assert.All(differences, d => Assert.True(d.Original.Ended && d.Modern.Ended));
-        Assert.InRange(Of(MovementCompare.Severity.Same).Count(), 185, 205);
-        Assert.InRange(Of(MovementCompare.Severity.Jump).Count(), 6, 14);
-        Assert.InRange(Of(MovementCompare.Severity.Place).Count(), 18, 32);
-        Assert.InRange(Of(MovementCompare.Severity.Timing).Count(), 20, 34);
+        Assert.InRange(Of(MovementCompare.Severity.Same).Count(), 215, 232);
+        Assert.InRange(Of(MovementCompare.Severity.Jump).Count(), 4, 10);
+        Assert.InRange(Of(MovementCompare.Severity.Place).Count(), 9, 17);
+        Assert.InRange(Of(MovementCompare.Severity.Timing).Count(), 7, 15);
     }
 
     /// <summary>
@@ -67,13 +67,14 @@ public sealed class MovementCompareTests(Na10Import fixture, ITestOutputHelper o
     /// <summary>
     /// Where Modern gives up a walk the original doesn't, or more often, and pops the actor to its goal: the furthest pop under
     /// either. G12's gap between a wall's end and a post narrower than a sphere of radius 1 (0x03FC), the point behind H08's plain
-    /// wall (0x0364, 0x0365), and C05's gap between two invisible posts narrower than Alaron (0x04EB).
+    /// wall (0x0364, 0x0365), C05's gap between two invisible posts narrower than Alaron (0x04EB), and Q24's (0x04A4).
     /// </summary>
     [Fact]
-    public void Modern_gives_up_four_walks_the_original_makes()
+    public void Modern_gives_up_five_walks_the_original_makes()
     {
         var pops = Of(MovementCompare.Severity.GiveUp).ToDictionary(d => d.Launch.Script, d => d.Magnitude);
-        Assert.Equal(new HashSet<RecordId> { Script(0x03FC), Script(0x0364), Script(0x0365), Script(0x04EB) }, pops.Keys.ToHashSet());
+        Assert.Equal(new HashSet<RecordId> { Script(0x03FC), Script(0x0364), Script(0x0365), Script(0x04EB), Script(0x04A4) }, pops.Keys.ToHashSet());
+        Assert.InRange(pops[Script(0x04A4)], 4.7f, 5.7f);
         Assert.InRange(pops[Script(0x03FC)], 8.5f, 9.5f);
         Assert.InRange(pops[Script(0x0364)], 5.3f, 6.3f);
         Assert.InRange(pops[Script(0x04EB)], 2f, 2.5f);
@@ -100,20 +101,19 @@ public sealed class MovementCompareTests(Na10Import fixture, ITestOutputHelper o
     }
 
     /// <summary>
-    /// Modern's early stop: E22's runner in 0x0425 stops on its point under Modern, and the original's run carries it 3 past.
-    /// Without the early stop, most of the places and timings that differ are the same.
+    /// A body the game steers plays its whole step under Modern movement, as under the original's, the user's choice: only a body a
+    /// stick drives stops short. E22's runner in 0x0425, which Modern's early stop ended 3 short of where the original's run
+    /// carries it, ends where the original's does.
     /// </summary>
     [Fact]
-    public void The_early_stop_ends_a_run_short_of_where_the_original_carries_it()
+    public void A_steered_body_plays_its_whole_step_as_it_stops()
     {
-        var d = Differences().Single(d => d.Launch.Script == Script(0x0425));
-        var runner = d.Actors.MaxBy(a => a.Distance)!;
-        Assert.InRange(runner.Distance, 3, 3.6f);
+        Assert.Equal(MovementCompare.Severity.Same, Differences().Single(d => d.Launch.Script == Script(0x0425)).Severity);
         var walks = Differences().Where(d => d.SameCourse).SelectMany(d => d.Walks).Select(w => w.Delta).ToList();
         output.WriteLine($"{walks.Count} walks: {walks.Count(w => w < -MovementCompare.TimeTolerance)} shorter under Modern, " +
-            $"{walks.Count(w => w > MovementCompare.TimeTolerance)} longer");
-        Assert.InRange(walks.Count(w => w < -MovementCompare.TimeTolerance), 35, 50);
-        Assert.InRange(walks.Count(w => w > MovementCompare.TimeTolerance), 10, 22);
-        Assert.InRange(walks.Min(), -260, -200);
+            $"{walks.Count(w => w > MovementCompare.TimeTolerance)} longer, the least {walks.Min()}");
+        // Of 289 walks' waits, 12 shorter and 18 longer, the longest at the give-ups (0x0364, 0x0365, 0x04A4).
+        Assert.InRange(walks.Count(w => w < -MovementCompare.TimeTolerance), 8, 16);
+        Assert.InRange(walks.Count(w => w > MovementCompare.TimeTolerance), 13, 23);
     }
 }

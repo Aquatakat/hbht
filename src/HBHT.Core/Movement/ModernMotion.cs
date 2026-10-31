@@ -119,11 +119,16 @@ internal sealed class ModernMotion(Body body)
     }
 
     /// <summary>One tick of Modern movement: across the ground, or through the air, kept in its body's bounds.</summary>
-    public void Step(CollisionWorld world, IRootMotion animation)
+    /// <param name="driven">
+    /// Whether a stick drives it, the player's in trek or the party member's he steers in a battle, which alone stops short
+    /// (<see cref="ModernRules.StopReach"/>): a body the game steers, a cut-scene's actor, the AI's or a wanderer, plays its whole
+    /// step, as its script and walks were staged by the original's, the user's choice.
+    /// </param>
+    public void Step(CollisionWorld world, IRootMotion animation, bool driven)
     {
         var s = Sphere;
         // Let go of the stick, the rest of his step plays faster, and carries him no further than StopReach.
-        var stopping = Body.Stopping;
+        var stopping = driven && Body.Stopping;
         var root = Body.Animate(animation, stopping ? Rules.StopPace : 1);
         if (stopping)
         {

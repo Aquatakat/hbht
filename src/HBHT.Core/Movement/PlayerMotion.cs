@@ -180,7 +180,7 @@ public sealed class PlayerMotion
         Control(input, look);
         if (Movement == MovementMode.Modern)
         {
-            Body.Modern.Step(world, animation);
+            Body.Modern.Step(world, animation, driven: true);
             FellOut = Sphere.Velocity.Y < -FallLimit || Sphere.Position.Y < Floor;
             if (FellOut)
             {
