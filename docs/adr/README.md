@@ -33,5 +33,6 @@ These are the Phase 0 decisions from the [roadmap](../roadmap.md) (task 0.5). Ea
 | [0027](0027-conversations-take-the-menus-controls.md) | Cut-scenes and conversations take the menus' cursor, Accept, Back and Close Menu, and have no controls of their own | Accepted |
 | [0028](0028-the-project-is-hbht.md) | The project is HBHT: the code is `HBHT.*`, the editor is `HBHT.Editor`, the tool is `hbht` and the data folder is `HBHT`; "aidyn" stays for the game's names and the imported data (record IDs, `aidyn.base`) | Accepted |
 | [0029](0029-content-fixes-wait-for-a-bugfix-mod.md) | The base import fixes only content that breaks the game; other content fixes wait for a bugfix mod | Accepted |
+| [0030](0030-the-import-welds-the-seams.md) | The import welds the seams between meshes, an option on by default: a change to how imported assets are drawn, which a mod couldn't carry | Accepted |
 
 Statuses: **Proposed** means drafted and waiting for review. **Accepted** means agreed. **Superseded** means replaced by a later record, which it links to.

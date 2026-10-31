@@ -509,7 +509,8 @@ public partial class RecordBrowser : Control
     {
         var plugins = string.Join(", ", catalog.Plugins.Plugins.Select(p =>
             p.Manifest.Import is { } import ? $"{p.Manifest.Id} ({p.Manifest.Name}, imported from {import.RomVersion} by importer {import.Importer}, " +
-                $"{((import.Options ?? ImportOptions.Default).FixMushroom ? "the mushroom fixed" : "the mushroom not fixed")})" : p.Manifest.Id));
+                $"{((import.Options ?? ImportOptions.Default).FixMushroom ? "the mushroom fixed" : "the mushroom not fixed")}, " +
+                $"{((import.Options ?? ImportOptions.Default).WeldSeams ? "the seams welded" : "the seams not welded")})" : p.Manifest.Id));
         var conflicts = catalog.Plugins.Conflicts.Count();
         var conflicted = conflicts == 0 ? "" : $" {conflicts:N0} {(conflicts == 1 ? "field is" : "fields are")} patched by more than one plugin (hbht conflicts lists them).";
         return $"Loaded {plugins}.{conflicted} Pick a record, or type an ID such as aidyn:mapset/0 and press Enter.";

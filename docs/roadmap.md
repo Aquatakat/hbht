@@ -1,6 +1,6 @@
 # Aidyn Chronicles Reimplementation: Roadmap
 
-Sep 26, 2026 · Updated Oct 24, 2026
+Sep 26, 2026 · Updated Oct 30, 2026
 
 ## Summary
 
@@ -16,7 +16,7 @@ This is the one list of what's open. A task's status is in its phase's table bel
 
 ### Next
 
-**M4: the prologue** is done: the user played it side by side with the emulator, what differed is fixed, and the user has played the fixes ([playtests](playtests.md)). Next, by the phases' order, is **Phase 4: content parity**, once what the fixes left is settled. The console's cracks between meshes, reproduced, welded or left, go to a session of their own ([Maybe](#maybe)).
+**M4: the prologue** is done: the user played it side by side with the emulator, what differed is fixed, and the user has played the fixes ([playtests](playtests.md)). Next, by the phases' order, is **Phase 4: content parity**, once what the fixes left is settled.
 
 - **What the fixes left:** which cut-scene the user saw end without the minimap growing, as the core grows it after every one ([ui](systems/ui.md)); the remembered member and tab carried across a load, as the original keeps the member; translucent scenery drawn after bodies, which tints the dress's hem in the misty sea's cut-scene ([rendering](systems/rendering.md#whats-left)); and a cut-scene's view 10–13% wider than the original's, the emulator's crop or the camera's field of view.
 
@@ -27,6 +27,7 @@ This is the one list of what's open. A task's status is in its phase's table bel
 - **Weather:** a Day or Night spell's hold on the part of day doesn't stop the weather's roll under it in a battle ([magic](systems/magic.md#where-the-port-differs)).
 - **2.10:** what else could move onto triggers, each with its event ([events](systems/events.md#what-else-could-move-onto-triggers)): the first spell and potion's help (`spell.learned`, `item.bought`), the new journal entry's notice (`journal.added`), the camp scenes (`camp.started`), the cheat codes (`cheat.entered`), the Shadow's cinematic and the Goblin Ambush's end (`battle.ended` with its outcome), and a conversation's end as `script.ended`. The editor has no view of the triggers of its own, and the quest atlas doesn't show what they read and set.
 - **The lit lighthouse:** Overworld A15 and Lighthouse A05 swap to their lit scenes while 5017 holds (`CheckToggleZoneScene`, `0x8000aa14`; [hardcoded content](hardcoded-content.md)), which the port doesn't do yet. Its read of 5017 as those chunks load also brings the flags up to date ([flags](systems/flags.md#when-the-network-comes-up-to-date)).
+- **Seams:** the welded seams want a look round the world, in play ([rendering](systems/rendering.md#seams-between-meshes)): the 33 chunk pairs whose gaps run past 0.016 (among them A22/B22, C15/D15 and L20/L21), Abrecan's face, and the tree walls short of the ground. Not welded yet: placed scene objects to the scenery under them, and a mod's scenes to the base's.
 - **Rendering:** the items in [rendering](systems/rendering.md#whats-left): the lens flare's test, the sky overhead, texture filtering, environment maps in trek, which scenes are drawn, and the editor's billboards and containers. Translucent scenery over bodies is in [Next](#next).
 - **Rig:** measure the frame `delta` in combat, which can help choose its frame for per-frame behaviour ([ADR 0017](adr/0017-the-core-steps-every-tick.md)); it also sets how long a one-shot request is held and rounds an attack's strike to a frame ([combat](systems/combat.md#an-attack)). Checkpoint 10 suggests 3.
 - **M3:** `Talk`'s collision byte, which turns a used monster party's enemies to face the party when it's used from behind ([combat](systems/combat.md#the-port)). From the special battles: the merge's shield test turned round, which the data never reaches; idle bodies far from the camera that combat doesn't animate (`Body.AlwaysAnimated`); a falling body's root motion, which the original skips; the half-alpha shadows of a few entities; combat's frame-counter limit on pausing; and the glide's aim by the original's eye height ([combat](systems/combat.md#where-the-port-differs)). The rest of what M3 left is in [combat](systems/combat.md#not-settled)'s Not settled: no checkpoint holds the special battles, and none a caster's turn.
@@ -35,7 +36,6 @@ This is the one list of what's open. A task's status is in its phase's table bel
 ### Maybe
 
 - The editor showing wanderers on its map view.
-- **Closing the meshes' seams,** an option on import: the original's models have cracks where vertices don't quite meet (down Abrecan's face, the tree walls short of the ground), which the console shows too. Welding them, then a visual review of everything.
 - **Faster battles,** a setting, after combat's parity fixes: the next combatant starts moving while the last action plays, once nothing it touches is still in that action, as Ogre Battle 64 does. The rules and their random numbers stay as they are, since an attack's outcome is rolled when it's chosen; only what's drawn overlaps. The camera can pick shots that hold both, scoring angles by raycast.
 
 ## Phases

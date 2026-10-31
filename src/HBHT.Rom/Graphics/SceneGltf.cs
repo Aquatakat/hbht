@@ -25,8 +25,9 @@ public static class SceneGltf
     /// <param name="read">Reads a Borg by archive index.</param>
     /// <param name="index">The scene's archive index, recorded in the file.</param>
     /// <param name="animations">Borg6s of this scene, by archive index, to include as glTF animations.</param>
+    /// <param name="welds">Where <see cref="SeamWelds"/> moves vertices to, in the scene's coordinates.</param>
     public static byte[] Export(Borg5Scene scene, Func<int, byte[]> read, int index,
-        IReadOnlyList<(int Index, Borg6Animation Animation)>? animations = null)
+        IReadOnlyList<(int Index, Borg6Animation Animation)>? animations = null, IReadOnlyDictionary<DrawVertex, Vector3>? welds = null)
     {
         var gltf = new GltfBuilder();
         var models = scene.Models.Select(m => new Lazy<Borg2Geometry>(() => Borg2Geometry.Parse(read(m)))).ToArray();
@@ -38,14 +39,24 @@ public static class SceneGltf
 
         // Each transform's draws become one mesh with a primitive per draw.
         var primitives = new Dictionary<int, JsonArray>();
-        foreach (var draw in scene.Draws)
+        for (var d = 0; d < scene.Draws.Count; d++)
         {
+            var draw = scene.Draws[d];
             var model = models[draw.Model].Value;
             if (!IsDrawn(model, draw.DisplayList))
                 continue;
             var mesh = model.Meshes[draw.DisplayList];
             var texture = draw.Texture;
-            var primitive = Primitive(gltf, model, mesh, texture is { } ti ? textures[ti].Value : null);
+            var positions = mesh.Vertices.Select(v => Position(model, v)).ToList();
+            if (welds is not null && Matrix4x4.Invert(scene.WorldMatrix(draw.Transform), out var toNode))
+            {
+                for (var v = 0; v < positions.Count; v++)
+                {
+                    if (welds.TryGetValue(new DrawVertex(d, v), out var welded))
+                        positions[v] = Vector3.Transform(welded, toNode);
+                }
+            }
+            var primitive = Primitive(gltf, model, mesh, positions, texture is { } ti ? textures[ti].Value : null);
             primitive["material"] = Material(texture, mesh, model.Alpha);
             primitive["extras"] = new JsonObject
             {
@@ -483,12 +494,14 @@ public static class SceneGltf
         (model.Unknown28 & 1) == 0 && model.Alpha < 1 && displayList < model.Meshes.Count &&
         model.Meshes[displayList].Indices.Length > 0 && model.Meshes[displayList].Tint.W < 1;
 
-    private static JsonObject Primitive(GltfBuilder gltf, Borg2Geometry model, Borg2Mesh mesh, Borg1Texture? texture)
+    /// <summary>Where a model's vertex is on its node, with its Borg2's scale.</summary>
+    internal static Vector3 Position(Borg2Geometry model, N64Vertex v) => new Vector3(v.X, v.Y, v.Z) * (model.Scale / 16);
+
+    private static JsonObject Primitive(GltfBuilder gltf, Borg2Geometry model, Borg2Mesh mesh, List<Vector3> positions, Borg1Texture? texture)
     {
-        var scale = model.Scale / 16;
         var attributes = new JsonObject
         {
-            ["POSITION"] = gltf.AddPositions(mesh.Vertices.Select(v => new Vector3(v.X, v.Y, v.Z) * scale).ToList()),
+            ["POSITION"] = gltf.AddPositions(positions),
         };
         if (!mesh.Flags.HasFlag(Borg2MaterialFlags.Unlit))
             attributes["NORMAL"] = gltf.AddVectors(mesh.Vertices.Select(Normal).ToList());

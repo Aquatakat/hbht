@@ -15,11 +15,13 @@ using HBHT.Rom.Text;
 const string Usage = $"""
     Usage:
       hbht identify <rom>
-      hbht import <rom> [--out <dir>] [--keep-mushroom]
+      hbht import <rom> [--out <dir>] [--keep-mushroom] [--keep-seams]
                                            the ROM as the base plugin the game loads (ADR 0001);
                                            default dir: aidyn.base in the data folder (HBHT_DATA);
                                            --keep-mushroom leaves the Roog Cave's mushroom where the ROM has it,
-                                           in the way, rather than moving it aside
+                                           in the way, rather than moving it aside;
+                                           --keep-seams leaves the cracks between meshes
+                                           unwelded, as the ROM has them
       hbht borg summary <rom>
       hbht borg dump <rom> [--out <dir>]     default dir: out/<version>/borg
       hbht db dump <rom> [--out <dir>]       default dir: out/<version>/db
@@ -65,8 +67,8 @@ try
     return args switch
     {
         ["identify", var rom] => Identify(rom),
-        ["import", var rom, .. var rest] when OutOnly([.. rest.Where(a => a != "--keep-mushroom")], out var dir) =>
-            Import(rom, dir, new ImportOptions(FixMushroom: !rest.Contains("--keep-mushroom"))),
+        ["import", var rom, .. var rest] when OutOnly([.. rest.Where(a => a is not ("--keep-mushroom" or "--keep-seams"))], out var dir) =>
+            Import(rom, dir, new ImportOptions(FixMushroom: !rest.Contains("--keep-mushroom"), WeldSeams: !rest.Contains("--keep-seams"))),
         ["borg", "summary", var rom] => BorgSummary(rom),
         ["borg", "dump", var rom, .. var rest] when OutOnly(rest, out var dir) => BorgDump(rom, dir),
         ["db", "dump", var rom, .. var rest] when OutOnly(rest, out var dir) => DbDump(rom, dir),
@@ -127,7 +129,8 @@ static int Import(string path, string? outDir, ImportOptions options)
     var watch = System.Diagnostics.Stopwatch.StartNew();
     BaseImporter.Import(rom, outDir, new Progress<string>(step => Console.Error.WriteLine(step)), options);
     var mushroom = options.FixMushroom ? "" : ", with the Roog Cave's mushroom where the ROM has it";
-    Console.WriteLine($"Imported {rom.Version.Name} to {Path.GetFullPath(outDir)}{mushroom} in {watch.Elapsed.TotalSeconds:F0} s");
+    var seams = options.WeldSeams ? "" : ", with the seams between meshes unwelded";
+    Console.WriteLine($"Imported {rom.Version.Name} to {Path.GetFullPath(outDir)}{mushroom}{seams} in {watch.Elapsed.TotalSeconds:F0} s");
     return 0;
 }
 

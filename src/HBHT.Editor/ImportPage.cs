@@ -5,8 +5,8 @@ using Godot;
 namespace HBHT.Editor;
 
 /// <summary>
-/// The import page (docs/systems/editor.md#the-import-page): the ROM to import, the player's choice about the Roog Cave's mushroom
-/// (<see cref="ImportOptions"/>), and the importer run off the main thread with its steps shown. The editor shows it in place of the
+/// The import page (docs/systems/editor.md#the-import-page): the ROM to import, the player's choices about the Roog Cave's mushroom
+/// and the cracks between meshes (<see cref="ImportOptions"/>), and the importer run off the main thread with its steps shown. The editor shows it in place of the
 /// record browser when there's no current import, and in a window from the browser's Import ROM…. Started by the game
 /// (<see cref="AppLauncher.FromGame"/>), it ends with Play; otherwise with <see cref="Imported"/>.
 /// </summary>
@@ -21,6 +21,8 @@ public partial class ImportPage : VBoxContainer
     private readonly Button _browse = new() { Text = "Browse..." };
     private readonly CheckBox _fix = new() { Text = "Fix the mushroom (recommended)" };
     private readonly CheckBox _keep = new() { Text = "Don't fix the mushroom" };
+    private readonly CheckBox _weld = new() { Text = "Close the cracks in the scenery (recommended)" };
+    private readonly CheckBox _cracks = new() { Text = "Keep the cracks" };
     private readonly Button _import = new() { Text = "Import", CustomMinimumSize = new Vector2(120, 0) };
     private readonly Button _play = new() { Text = "Play", CustomMinimumSize = new Vector2(120, 0), Visible = false };
     private readonly Label _status = Wrapped("");
@@ -69,6 +71,17 @@ public partial class ImportPage : VBoxContainer
         about.AddThemeColorOverride("font_color", Dim);
         AddChild(about);
 
+        var seams = new ButtonGroup();
+        _weld.ButtonGroup = _cracks.ButtonGroup = seams;
+        var seamChoices = new VBoxContainer();
+        seamChoices.AddChild(_weld);
+        seamChoices.AddChild(_cracks);
+        AddChild(seamChoices);
+        var aboutSeams = Wrapped("Where pieces of the scenery almost meet, the original shows thin cracks of sky between them. " +
+            "Closing them joins the pieces. Keep the cracks to see the scenery exactly as the original has it.");
+        aboutSeams.AddThemeColorOverride("font_color", Dim);
+        AddChild(aboutSeams);
+
         var buttons = new HBoxContainer();
         buttons.AddChild(_import);
         buttons.AddChild(_play);
@@ -79,7 +92,9 @@ public partial class ImportPage : VBoxContainer
         // What the last import was made from and with, to do again.
         if (File.Exists(DataPaths.LastRomFor(pluginsDirectory)))
             _rom.Text = File.ReadAllText(DataPaths.LastRomFor(pluginsDirectory)).Trim();
-        FixMushroom = (BasePlugin.ImportOf(pluginsDirectory)?.Options ?? ImportOptions.Default).FixMushroom;
+        var last = BasePlugin.ImportOf(pluginsDirectory)?.Options ?? ImportOptions.Default;
+        FixMushroom = last.FixMushroom;
+        WeldSeams = last.WeldSeams;
 
         _browse.Pressed += () =>
         {
@@ -111,6 +126,13 @@ public partial class ImportPage : VBoxContainer
         set => (value ? _fix : _keep).ButtonPressed = true;
     }
 
+    /// <summary>The cracks choice (<c>--keep-seams</c>).</summary>
+    public bool WeldSeams
+    {
+        get => _weld.ButtonPressed;
+        set => (value ? _weld : _cracks).ButtonPressed = true;
+    }
+
     /// <summary>
     /// What Import does (and <c>--import 1</c>): checks the ROM is NA 1.0 and runs the importer into the plugins folder off the main
     /// thread, showing its steps, then remembers the ROM for next time. What's wrong is shown on the page, and the controls come back.
@@ -120,7 +142,7 @@ public partial class ImportPage : VBoxContainer
         if (Busy)
             return;
         var path = RomPath;
-        var options = new ImportOptions(FixMushroom);
+        var options = new ImportOptions(FixMushroom, WeldSeams);
         SetBusy(true);
         Say("Reading the ROM…");
         try
@@ -173,7 +195,7 @@ public partial class ImportPage : VBoxContainer
     {
         Busy = busy;
         _rom.Editable = !busy;
-        _browse.Disabled = _fix.Disabled = _keep.Disabled = _import.Disabled = busy;
+        _browse.Disabled = _fix.Disabled = _keep.Disabled = _weld.Disabled = _cracks.Disabled = _import.Disabled = busy;
     }
 
     private void Say(string text, bool problem = false)

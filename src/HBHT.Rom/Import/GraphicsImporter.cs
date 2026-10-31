@@ -47,14 +47,20 @@ internal static class GraphicsImporter
             .Select(l => (l.Index, Animation: Borg6Animation.Parse(archive.Read(l.Index))))
             .ToLookup(a => a.Animation.Scene);
         var scenes = archive.Listings.Where(l => l.Type == BorgType.Scene).Select(l => l.Index).ToList();
+        // The chunks' seams are welded together, a map set at a time; every other scene's, on its own.
+        var chunkScenes = ctx.Chunks.SelectMany(c => new[] { c.Scene, c.AltScene }).ToHashSet();
+        var chunkWelds = ctx.Options.WeldSeams ? SeamWelds.ForChunks(ctx.Chunks, archive.Read, s => animations[s].Any()) : [];
         var done = 0;
         var particleTextures = ctx.ParticleSlots;
         var emitters = new ConcurrentBag<EmittersRecord>();
         Parallel.ForEach(scenes, index =>
         {
             var scene = Borg5Scene.Parse(archive.Read(index));
+            var welds = !ctx.Options.WeldSeams ? null
+                : chunkScenes.Contains(index) ? chunkWelds.GetValueOrDefault(index)
+                : SeamWelds.ForScene(index, scene, archive.Read);
             ctx.WriteAsset(RecordId.Hex(RecordTypes.Scene, index), "glb",
-                SceneGltf.Export(scene, archive.Read, index, animations[index].ToList()));
+                SceneGltf.Export(scene, archive.Read, index, animations[index].ToList(), welds));
             if (scene.ParticleEmitters.Count > 0)
                 emitters.Add(new EmittersRecord(RecordId.Hex(RecordTypes.Emitters, index), [.. scene.ParticleEmitters.Select(e => Emitter(e, particleTextures))]));
             if (Interlocked.Increment(ref done) % 200 == 0)

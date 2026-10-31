@@ -33,7 +33,11 @@ public sealed record ImportInfo(int Importer, string Rom, string RomVersion, Imp
 /// Move the Roog Cave's mushroom out of the passage's neck, the correction the importer makes by default
 /// (docs/hardcoded-content.md#corrections-to-the-roms-maps). Without it, the mushroom stands where the ROM has it.
 /// </param>
-public sealed record ImportOptions(bool FixMushroom = true)
+/// <param name="WeldSeams">
+/// Close the cracks where the scenery's meshes miss each other by a hair, which the console shows as dashes of sky
+/// (docs/systems/rendering.md#seams-between-meshes). Without it, the meshes are where the ROM has them.
+/// </param>
+public sealed record ImportOptions(bool FixMushroom = true, bool WeldSeams = true)
 {
     public static ImportOptions Default { get; } = new();
 }
@@ -105,8 +109,9 @@ public static class BasePlugin
     /// 61 gives each title fly-through its animation's length (<c>length</c>), and names its coordinates' origin (<c>originRow</c>, <c>originColumn</c>).
     /// Its manifest later records the import's options (<c>import.options</c>, <see cref="ImportOptions"/>), whose defaults leave the
     /// records as 61 wrote them, and a 61 import without them had the defaults, so the version stayed.
+    /// 62 welds the seams between meshes that miss by a hair (<see cref="ImportOptions.WeldSeams"/>).
     /// </summary>
-    public const int ImporterVersion = 61;
+    public const int ImporterVersion = 62;
 
     /// <summary>
     /// What's wrong with the imported base plugin under <paramref name="pluginsDirectory"/>, worded for the player, or null if

@@ -1,6 +1,6 @@
 # 0029. The base import fixes only content that breaks the game; the rest waits for a bugfix mod
 
-Status: Accepted · Oct 25, 2026 · Adds to [0018](0018-the-port-fixes-bugs-and-sets-enhancements.md)
+Status: Accepted · Oct 25, 2026 · Adds to [0018](0018-the-port-fixes-bugs-and-sets-enhancements.md) · Added to for imported assets by [0030](0030-the-import-welds-the-seams.md)
 
 ## Context
 

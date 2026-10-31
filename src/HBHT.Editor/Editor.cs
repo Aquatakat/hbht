@@ -24,7 +24,7 @@ namespace HBHT.Editor;
 /// loot table's page, or opens the container a map object's page picks, in the loot window, whose buttons
 /// <c>--press</c> also takes, with <c>left</c> and <c>right</c>. <c>--look 1</c>, after the wait, looks through a camera object's page's camera. <c>--ui-screenshot &lt;png&gt;</c> saves the UI screen too, in its own pixels,
 /// before it's scaled up. With no current import it shows the import page (<see cref="ImportPage"/>) instead: <c>--from-game 1</c>,
-/// which the game passes, ends it with Play, and <c>--rom &lt;path&gt;</c>, <c>--keep-mushroom 1</c> and <c>--import 1</c> fill it in
+/// which the game passes, ends it with Play, and <c>--rom &lt;path&gt;</c>, <c>--keep-mushroom 1</c>, <c>--keep-seams 1</c> and <c>--import 1</c> fill it in
 /// and press Import.
 /// </remarks>
 public partial class Editor : Control
@@ -116,7 +116,7 @@ public partial class Editor : Control
     /// <summary>
     /// With no current import, the import page in the browser's place (editor.md#the-import-page): true once it's imported and the
     /// editor is to go on, false if it stays on the page, as it does when the game started it (Play ends it) or a screenshot was taken.
-    /// <c>--rom</c>, <c>--keep-mushroom 1</c> and <c>--import 1</c> fill it in and press Import, for scripts.
+    /// <c>--rom</c>, <c>--keep-mushroom 1</c>, <c>--keep-seams 1</c> and <c>--import 1</c> fill it in and press Import, for scripts.
     /// </summary>
     private async Task<bool> ImportFirstAsync(string plugins, Dictionary<string, string> args, string? png)
     {
@@ -132,6 +132,8 @@ public partial class Editor : Control
             page.RomPath = rom;
         if (args.GetValueOrDefault("keep-mushroom") == "1")
             page.FixMushroom = false;
+        if (args.GetValueOrDefault("keep-seams") == "1")
+            page.WeldSeams = false;
         if (args.GetValueOrDefault("import") == "1")
             await page.ImportAsync();
         if (png is not null && !imported.Task.IsCompleted)
