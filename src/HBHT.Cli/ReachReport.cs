@@ -15,8 +15,8 @@ internal static class ReachReport
     public const string Usage = """
           hbht movement reach [<mapset>...] [--pace original|brisk] [--chunk <name>] [--against original] [--plain-floor] [--all]
                                                where Modern movement reaches on foot that the original's doesn't, and the
-                                               other way, in each map set (number or label; default all but the Battle
-                                               arenas) at each pace; --chunk keeps to one chunk, --against original checks the
+                                               other way, in each map set (number or label; default all, the Battle arenas
+                                               from where combat puts bodies) at each pace; --chunk keeps to one chunk, --against original checks the
                                                original against itself, --plain-floor walks Modern up plain collision as ground,
                                                and --all lists every cluster rather than the first 25
         """;
@@ -72,7 +72,7 @@ internal static class ReachReport
             }
         }
         if (sets.Count == 0)
-            sets = [.. plugins.All<MapSetRecord>(RecordTypes.MapSet).Where(s => s.Label != "Battlefields").OrderBy(s => int.Parse(s.Id.Key, CultureInfo.InvariantCulture))];
+            sets = [.. plugins.All<MapSetRecord>(RecordTypes.MapSet).OrderBy(s => int.Parse(s.Id.Key, CultureInfo.InvariantCulture))];
 
         var modern = new Reach.Options(self ? MovementMode.Original : MovementMode.Modern,
             Rules: plainFloor ? ModernRules.Default with { PlainIsWall = false } : null);

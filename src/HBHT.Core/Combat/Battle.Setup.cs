@@ -330,8 +330,11 @@ public sealed partial class Battle
     }
 
     /// <summary>A spawn's cell: its X and Z truncated, or the zone engine's point for one the arena lacks.</summary>
-    private static Vector2 CellOf(ReferencePointObject? point) =>
+    internal static Vector2 CellOf(ReferencePointObject? point) =>
         point is null ? new Vector2(ZonePoint.X, ZonePoint.Z) : new Vector2((byte)(int)point.Position.X, (byte)(int)point.Position.Z);
+
+    /// <summary>Where a body is made for a combatant at <paramref name="cell"/> of an arena at <paramref name="origin"/>, before it's set down.</summary>
+    internal static Vector3 BodyStart(Vector3 origin, Vector2 cell) => origin + new Vector3(cell.X, BodyHeight, cell.Y);
 
     /// <summary>
     /// A combatant at a cell, facing a direction (<c>Combatant.Init</c> and <c>Combat.CreateBody</c>): its footprint taken on the
@@ -341,7 +344,7 @@ public sealed partial class Battle
     {
         var look = sheet.Record.Body ?? NoBody;
         var footprint = Footprint(look);
-        var at = Arena.Origin + new Vector3(cell.X, BodyHeight, cell.Y);
+        var at = BodyStart(Arena.Origin, cell);
         // A body walking to a point in combat gives it up where it stands after 30 ticks of coming no nearer (Body.StepTowardGoal).
         var body = Body.Spawn(World, at, look, Game.Random.Combat);
         body.Heading = Directions[direction];

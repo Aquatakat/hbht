@@ -1,6 +1,7 @@
 using System.Numerics;
 using HBHT.Core.Actors;
 using HBHT.Core.Chunks;
+using HBHT.Core.Combat;
 using HBHT.Core.MapObjects;
 using HBHT.Core.Physics;
 using HBHT.Core.Rng;
@@ -91,6 +92,9 @@ public sealed class Reach
     /// </summary>
     public static IReadOnlyList<(Vector3 At, float? Near)> Starts(PluginSet plugins, MapSetRecord set)
     {
+        // The Battle arenas are no one's arrival: combat puts bodies in them.
+        if (set.Id == Arena.MapSet)
+            return ArenaStarts(plugins);
         var starts = new List<(Vector3, float?)>();
         foreach (var map in plugins.All<MapRecord>(RecordTypes.Map))
         {
@@ -113,6 +117,52 @@ public sealed class Reach
             }
         }
         return starts;
+    }
+
+    /// <summary>
+    /// The places combat puts a body in each of the Battle arenas, in the world's coordinates, as <see cref="Body.Spawn"/> does
+    /// (<c>Combat.CreateBody</c>): the arena's 40 spawns, <c>good0a</c> to <c>bad4d</c>, which the party, the enemies and their
+    /// reserves are made at, each a unit up at its point's cell (<see cref="Battle.CellOf"/>), set down from on high. Chunks sharing
+    /// a map are the same arena, so only the first of them is taken.
+    /// </summary>
+    public static IReadOnlyList<(Vector3 At, float? Near)> ArenaStarts(PluginSet plugins) =>
+        [.. ArenaPlacements(plugins).Where(p => !p.Name.StartsWith("flee", StringComparison.Ordinal)).Select(p => (p.At, (float?)null))];
+
+    /// <summary>
+    /// The names and places combat puts bodies in the arenas, with the arena's number: <see cref="ArenaStarts"/>' spawns, and the
+    /// flee points, <c>flee0</c> to <c>flee7</c>, which fleeing enemies walk to (leaving within 1.5 of one) and nothing is made at.
+    /// </summary>
+    public static IEnumerable<(int Arena, string Name, Vector3 At)> ArenaPlacements(PluginSet plugins)
+    {
+        var maps = new HashSet<RecordId>();
+        for (var number = 0; number < Arena.Count; number++)
+        {
+            if (Arena.For(plugins, number) is not { } arena || !maps.Add(arena.Map.Id))
+                continue;
+            var names = new List<string>();
+            foreach (var good in (ReadOnlySpan<bool>)[true, false])
+                for (var set = 0; set < Battle.SpawnSets; set++)
+                    for (var letter = 0; letter < Battle.OnField; letter++)
+                        names.Add(Battle.SpawnPoint(good, set, letter));
+            names.AddRange(Enumerable.Range(0, Battle.MaxFleePoints).Select(Battle.FleePoint));
+            foreach (var name in names)
+                if (arena.Point(name) is { } point)
+                    yield return (number, name, Battle.BodyStart(arena.Origin, Battle.CellOf(point)));
+        }
+    }
+
+    /// <summary>
+    /// Where he is set down from a start: as <see cref="Body.SetDown"/> does for the player's arrivals, and for the rest, with the
+    /// tries to the side that the original's set-down makes when the sweep misses (a spawn on a triangle's edge, as the arenas'
+    /// are, can miss by rounding), drawn here from a generator of its own, if <paramref name="sideways"/>: the arenas' only, so the
+    /// other map sets' starts are the ones the check has always had.
+    /// </summary>
+    public static (Vector3 Ground, bool Grounded) SetDownAt(CollisionWorld world, Vector3 at, float? near, bool sideways = false)
+    {
+        var (ground, grounded) = Body.SetDown(world, at, PlayerMotion.Radius, null, near);
+        if (!grounded && near is not null)
+            (ground, grounded) = Body.SetDown(world, ground, PlayerMotion.Radius, null);
+        return grounded || !sideways ? (ground, grounded) : Body.SetDown(world, at, PlayerMotion.Radius, new Lcg(0));
     }
 
     /// <summary>Explores a map set from <paramref name="starts"/> (<see cref="Starts"/>).</summary>
@@ -146,9 +196,7 @@ public sealed class Reach
             if (!Inside(at, options))
                 continue;
             chunks.Update(at);
-            var (ground, grounded) = Body.SetDown(world, at, PlayerMotion.Radius, null, near);
-            if (!grounded && near is not null)
-                (ground, grounded) = Body.SetDown(world, ground, PlayerMotion.Radius, null);
+            var (ground, grounded) = SetDownAt(world, at, near, sideways: set.Id == Arena.MapSet);
             if (grounded && Rest(world, ground, Vector2.UnitY, options, clips, actor, null) is { } rest)
                 Queue(rest, null);
         }

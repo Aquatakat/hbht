@@ -2,6 +2,7 @@ using System.Numerics;
 using HBHT.Core;
 using HBHT.Core.Actors;
 using HBHT.Core.Chunks;
+using HBHT.Core.Combat;
 using HBHT.Core.Movement;
 using HBHT.Core.Physics;
 using HBHT.Core.Rng;
@@ -138,6 +139,67 @@ public sealed partial class GameSessionTests
 
         var original = Reach.Explore(Data.Set, set, starts, new Reach.Options(MovementMode.Original, Within: within));
         Assert.Empty(original.Beyond(original));
+    }
+
+    [Fact]
+    public void TheReachabilityCheckFindsEveryBattleArenaSpawnReachableFromTheOthersUnderBothMovementsAndNothingBetweenThem()
+    {
+        // Every place combat makes a body (an arena's 40 spawns) can reach the party's first and the enemies' first on foot, under
+        // the original's movement and Modern, so a combatant that walks from one to another is never stranded; nothing is reached
+        // by one movement and not the other, at either pace; and every flee point is walked to within 1.5 but M11's flee3, which
+        // stands on a rock nothing on the floor climbs, under either.
+        var set = Data.Set.Get<MapSetRecord>(Arena.MapSet);
+        var placements = Reach.ArenaPlacements(Data.Set).ToList();
+        var arenas = placements.Select(p => p.Arena).Distinct().ToList();
+        Assert.Equal(15, arenas.Count);
+        var problems = new List<string>();
+        foreach (var number in arenas)
+        {
+            var arena = Arena.For(Data.Set, number)!;
+            var spawns = placements.Where(p => p.Arena == number && !p.Name.StartsWith("flee", StringComparison.Ordinal)).ToList();
+            var flees = placements.Where(p => p.Arena == number && p.Name.StartsWith("flee", StringComparison.Ordinal)).ToList();
+            Assert.Equal(40, spawns.Count);
+
+            // Where each is set down.
+            var world = new CollisionWorld();
+            var streamer = new ChunkStreamer(Data.Set, GameState.NewGame(Data.Set), world, set);
+            var cells = new List<Reach.Cell>();
+            foreach (var spawn in spawns)
+            {
+                streamer.Update(spawn.At);
+                var (ground, grounded) = Reach.SetDownAt(world, spawn.At, null, sideways: true);
+                Assert.True(grounded, $"{spawn.Name} in arena {number} finds no ground");
+                cells.Add(Reach.Cell.Of(ground - new Vector3(0, PlayerMotion.Radius, 0)));
+            }
+
+            foreach (var pace in new[] { 1f, SessionSettings.BriskPace })
+            {
+                var explored = new Dictionary<MovementMode, Reach>();
+                foreach (var movement in new[] { MovementMode.Original, MovementMode.Modern })
+                {
+                    var options = new Reach.Options(movement, pace);
+                    var all = Reach.Explore(Data.Set, set, [.. spawns.Select(p => (p.At, (float?)null))], options);
+                    explored[movement] = all;
+                    foreach (var flee in flees)
+                    {
+                        var at = new Vector2(flee.At.X, flee.At.Z);
+                        if (!all.Cells.Any(c => Vector2.Distance(new Vector2(c.X + 0.5f, c.Z + 0.5f), at) <= 1.5f))
+                            problems.Add($"{movement} at {pace}: arena {number} {flee.Name} is not walked to");
+                    }
+                    if (pace != 1)
+                        continue;
+                    foreach (var seed in new[] { spawns.First(p => p.Name.StartsWith("good", StringComparison.Ordinal)), spawns.First(p => p.Name.StartsWith("bad", StringComparison.Ordinal)) })
+                    {
+                        var from = Reach.Explore(Data.Set, set, [(seed.At, (float?)null)], options);
+                        problems.AddRange(spawns.Where((p, i) => !from.Covers(cells[i])).Select(p => $"{movement}: arena {number} {p.Name} is not reached from {seed.Name}"));
+                    }
+                }
+                problems.AddRange(explored[MovementMode.Modern].Beyond(explored[MovementMode.Original]).Select(c => $"{pace}: arena {number} only Modern reaches {c.Top} ({c.Cells.Count} cells)"));
+                problems.AddRange(explored[MovementMode.Original].Beyond(explored[MovementMode.Modern]).Select(c => $"{pace}: arena {number} only the original reaches {c.Top} ({c.Cells.Count} cells)"));
+            }
+        }
+        string[] expected = [.. new[] { MovementMode.Original, MovementMode.Modern }.SelectMany(m => new[] { 1f, SessionSettings.BriskPace }.Select(p => $"{m} at {p}: arena 22 flee3 is not walked to"))];
+        Assert.Equal(expected.Order(StringComparer.Ordinal), problems.Order(StringComparer.Ordinal));
     }
 
     [Fact]
