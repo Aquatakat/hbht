@@ -97,9 +97,13 @@ The casters' turns pass but three walks:
   - At 0018, 1.0's Sorceror turned 20° a frame at the logger's slow frames, walked a wide curve away from its first corner and gave up. With frames of 4–6 ticks, the port's does the same.
   - At 0092 and 0096, the port's caster sticks against another caster's body, at the same place to the bit, because its 2-tick frame repeats after the push puts it back. 1.0's varying frames let its caster slide on.
 
+Setup 2's second session (`out/parity/20261031-134011-setup2`), with the logger recording A, passes every action, and every enemy turn but two, neither with A pressed. Both are the cadence ([combat](systems/combat.md#where-the-port-differs)):
+- At 0016, the Spellweaver plans 1.0's path to (11, 17), but 1.0's curved away from its first corner, dead astern, and gave up near its start, casting Mirror on itself 4.6 from where the port's does. At 4–6-tick frames the port's gives up near its start too, but curving the other way. Which way 1.0's first frames carry it isn't settled: its `Facing.Turn` turns as the port's does.
+- At 0020, the Sorceror's walk ends 0.14 short of 1.0's, and its Starlight Shield misses slot 5 by 0.003 of its reach, so slot 5's protection stays 10 for 1.0's 20. At 3–4-tick frames it reaches.
+
 Still to do:
 
-- **Setup 2's three walks,** above: whether a body stuck against another should slide on (the user's call), and how far the replay should play 1.0's frame lengths.
+- **Setup 2's walks,** above: whether a body stuck against another should slide on (the user's call), how far the replay should play 1.0's frame lengths, and which way 1.0's Spellweaver curved at 0016.
 - **Positions, shown but not checked:**
   - The attacker's body after a blow stands up to 0.5 from the original's (Brenna's backstab), with its footprint a cell over.
   - A reserve's walk with no action ends 4.6 from the original's (the second trial's slot 5). The original's body moved 0.26 from where it spawned at (17, 43) and gave up after 12 frames, about the 30 ticks of coming no nearer, while the port's runs its leg toward (23, 49).
