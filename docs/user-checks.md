@@ -83,21 +83,23 @@ Its enemies' turns pass too. Two of its rats' walks were the player's A, not the
 
 With A pressed where the walks ended, the port's rats end within 0.1 of the original's bodies.
 
-Setup 2's first session (`out/parity/20261031-123809-setup2`) was logged before the logger recorded A. Every party action passes but one:
+Setup 2's first session (`out/parity/20261031-123809-setup2`) was logged before the logger recorded A. Every party action passes:
 - Aura of Death, Wall of Bones, Dispel Necro, Light and Dispel Star;
 - Wraith Touch, Charming, Debilitation, Lightning and Earth Smite resisted, several by Mirror's counter;
 - vs. Star, Air Shield, Mirror and Remove Poison.
 
 The overlay copies Mirror's counter (`+0x28`) and the sheet's protection, which the effects laid on without starting don't add. The AI record's check compares its eight action slots (`+0x0A`), which a caster fills.
 
-The casters' turns differ:
-- At 0018, 0092 and 0096, the original's caster acted from short of where the port's walk ends: at 0018 on itself where the port's went for slot 7, and at 0092 and 0096 at Alaron where the port's walked on and rested. These look like A, which this log can't show.
-- At 0074 and 0081, the Spellweavers' Clumsiness takes 10 Dexterity off Sholeh and Keelin in the original, on the same draws and targets, and lands on neither in the port.
-- At 0094, the port's Spellweaver casts twice where the original's casts once (3 draws to 6). At 0095, the next turn is the original's slot 4 and the port's slot 7.
+The casters' turns pass but three walks:
+- **Clumsiness at 0074 and 0081** was the overlay's. Alaron's Light at 0061 holds the battle at Midday (`World.LockPartOfDay`, world `+2`). The overlay laid the effect on without the hold, so the turn's clock put Morning back. The Solar Spellweavers' chance then took ×0.75 for ×1.25, a cast margin of 4 for 1.0's 9, and the resists went the other way. The landed records show it: Alaron's Clumsiness keeps margin 7, and Sholeh's 1. The overlay now lays the hold too.
+- **The double cast at 0094** was the replay's. Slot 4 had two turns in a row, which the play-out ran as one. It now ends at the turn's change.
+- **The walks at 0018, 0092 and 0096 aren't A.** The port plans 1.0's paths, and none of 1.0's bodies ended at its leg's end. They're the port's cadence, written up in [combat](systems/combat.md#where-the-port-differs):
+  - At 0018, 1.0's Sorceror turned 20° a frame at the logger's slow frames, walked a wide curve away from its first corner and gave up. With frames of 4–6 ticks, the port's does the same.
+  - At 0092 and 0096, the port's caster sticks against another caster's body, at the same place to the bit, because its 2-tick frame repeats after the push puts it back. 1.0's varying frames let its caster slide on.
 
 Still to do:
 
-- **Setup 2's casters' turns,** above.
+- **Setup 2's three walks,** above: whether a body stuck against another should slide on (the user's call), and how far the replay should play 1.0's frame lengths.
 - **Positions, shown but not checked:**
   - The attacker's body after a blow stands up to 0.5 from the original's (Brenna's backstab), with its footprint a cell over.
   - A reserve's walk with no action ends 4.6 from the original's (the second trial's slot 5). The original's body moved 0.26 from where it spawned at (17, 43) and gave up after 12 frames, about the 30 ticks of coming no nearer, while the port's runs its leg toward (23, 49).
