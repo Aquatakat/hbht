@@ -251,6 +251,7 @@ tools/parity.ps1 -Label test -Checkpoint "Combat 09, rat newcomer joins and move
 python tools/gdb/parity.py --summary out/parity/<run>/battle-01   # the entry points, and the draws by caller, named
 ```
 
+- **Reading them in C#:** `ParityLog` (`HBHT.Rom.Rig`) reads a battle's folder, and `AresCheckpoint.FromRdram` reads a dump as it reads a state.
 - **Cost:** a hardware watchpoint on the seed stops at every draw, about 15 ms each in ares. Most draws are Weather.DriftWind's few a frame, so a battle runs at about 60% speed (Combat 09: 12 frames a second against 20). Dumping RAM takes about 2 s, which the game waits out, and about 1.7 MB gzipped.
 - **Where a draw stops:** `Rng.Next` and `Float0To1` store the seed in their return's delay slot, so gdb stops with `$pc` already back in the caller, and `$ra` equal to it. The chain above it is unwound by each function's prologue: its start from the code index, then its `addiu sp, sp, -N` and `sw ra, off(sp)`. gdb's own unwinder can't do this without symbols.
 - **A watchpoint's old and new values** don't come back in the text `gdb.execute(..., to_string=True)` returns. So the script reads the seed after each stop, and steps the generator back once for the old value.

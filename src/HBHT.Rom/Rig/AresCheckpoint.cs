@@ -44,6 +44,33 @@ public sealed class AresCheckpoint
 
     public static AresCheckpoint Read(string path) => Read(File.ReadAllBytes(path));
 
+    /// <summary>
+    /// RAM as gdb reads it, such as <c>tools/parity.ps1</c>'s dumps: 8 MB from <c>0x80000000</c>, big-endian, gzipped when
+    /// the path ends in <c>.gz</c>.
+    /// </summary>
+    public static AresCheckpoint FromRdram(string path)
+    {
+        using var file = File.OpenRead(path);
+        using var stream = path.EndsWith(".gz", StringComparison.OrdinalIgnoreCase)
+            ? new System.IO.Compression.GZipStream(file, System.IO.Compression.CompressionMode.Decompress) : (Stream)file;
+        using var bytes = new MemoryStream(RdramSize);
+        stream.CopyTo(bytes);
+        return FromRdram(bytes.ToArray());
+    }
+
+    /// <summary>RAM as gdb reads it: 8 MB from <c>0x80000000</c>, big-endian.</summary>
+    public static AresCheckpoint FromRdram(byte[] rdram)
+    {
+        if (rdram.Length != RdramSize)
+            throw new InvalidDataException($"RAM is 0x{RdramSize:X} bytes, not 0x{rdram.Length:X}.");
+        // As a state holds it: the magic, then RDRAM in little-endian words.
+        var state = new byte[4 + RdramSize];
+        "BST1"u8.CopyTo(state);
+        for (var i = 0; i < RdramSize; i += 4)
+            BinaryPrimitives.WriteUInt32LittleEndian(state.AsSpan(4 + i), BinaryPrimitives.ReadUInt32BigEndian(rdram.AsSpan(i)));
+        return Read(state);
+    }
+
     public static AresCheckpoint Read(byte[] state)
     {
         if (state.Length < 4 || state[0] != 'B' || state[1] != 'S' || state[2] != 'T' || state[3] != '1')
