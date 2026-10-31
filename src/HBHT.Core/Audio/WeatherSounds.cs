@@ -11,7 +11,8 @@ namespace HBHT.Core.Audio;
 /// The rain loop isn't a one-shot: <c>ProcessWeather</c> plays the sounds record's <see cref="SoundsRecord.Rain"/>
 /// straight on the sequencer (<c>AudioEngine.Play</c>), looped and centred at volume 0, and sets its volume every frame
 /// from the rain's drawn intensity (<c>AudioEngine.SetVolume</c>). The thunder goes through <c>Audio.PlaySound</c>
-/// with the sound volume as its gain, as the containers' sounds do.
+/// with the sound volume as its gain, as the containers' sounds do; the port's one-shots take it once
+/// (<see cref="GameAudio.Play(OneShot)"/>).
 /// </remarks>
 public sealed class WeatherSounds(GameAudio audio, SoundsRecord sounds)
 {
@@ -60,7 +61,7 @@ public sealed class WeatherSounds(GameAudio audio, SoundsRecord sounds)
     public void Thunder(int which)
     {
         if (sounds is not null && which >= 0 && which < sounds.Thunder.Count)
-            audio.Play(new OneShot(sounds.Thunder[which], ThunderTicks[Math.Min(which, ThunderTicks.Length - 1)], TimesSoundVolume: true));
+            audio.Play(new OneShot(sounds.Thunder[which], ThunderTicks[Math.Min(which, ThunderTicks.Length - 1)]));
     }
 
     /// <summary>Stops the rain loop (<c>Weather.StopRain</c>, <c>0x8001e770</c>).</summary>

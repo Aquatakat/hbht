@@ -18,5 +18,4 @@ The user needn't play to a check: a save is written into the Controller Pak besi
 
 ## Sound
 
-- **The sound volume at half:** by the code, the menu's sounds take the sound volume twice and the containers' three times. At half sound volume, are they a quarter as loud? The port plays them so. [audio](systems/audio.md#volumes)
 - **The post-battle windows in the runtime**, after a battle won in the forest that gains Alaron a level (as in the prologue): are the training and loot windows silent but for the menu's own sounds, with no ambient sound or rain under them, and does the level-up jingle (0x05E8) play about a second after the scroll starts unrolling, as in the original? [ui](systems/ui.md#after-a-battle)

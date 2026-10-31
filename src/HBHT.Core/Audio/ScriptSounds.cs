@@ -10,8 +10,8 @@ public static class ScriptSounds
     public static OneShot? For(SoundsRecord sounds, SoundCue cue) => cue.Sound switch
     {
         ScriptSound.Table when cue.Index >= 0 && cue.Index < sounds.Script.Count => new OneShot(sounds.Script[cue.Index], OneShot.LongTicks),
-        ScriptSound.GoldGained => new OneShot(sounds.GoldGained, OneShot.LongTicks, TimesSoundVolume: true),
-        ScriptSound.GoldPaid => new OneShot(sounds.GoldPaid, OneShot.LongTicks, TimesSoundVolume: true),
+        ScriptSound.GoldGained => new OneShot(sounds.GoldGained, OneShot.LongTicks),
+        ScriptSound.GoldPaid => new OneShot(sounds.GoldPaid, OneShot.LongTicks),
         ScriptSound.Experience => new OneShot(sounds.Experience, OneShot.LongTicks),
         _ => null,
     };

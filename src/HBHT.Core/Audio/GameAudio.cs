@@ -76,9 +76,8 @@ public sealed class GameAudio
 
     /// <summary>
     /// Plays a one-shot (<c>Audio.PlaySound</c>, 1.0 <c>0x8004E150</c>), centred, without falloff, from the next
-    /// <see cref="Step"/>. It's a sound object of its own: it keeps the sound volume now as its volume, and starts at
-    /// its gain, rising to full over 90 ticks. It holds its slot for its whole lifetime, and with all
-    /// <see cref="MaxSounds"/> held, it doesn't play.
+    /// <see cref="Step"/>. It's a sound object of its own, at the sound volume. It holds its slot for its whole lifetime,
+    /// and with all <see cref="MaxSounds"/> held, it doesn't play.
     /// </summary>
     public void Play(OneShot sound)
     {
@@ -87,9 +86,9 @@ public sealed class GameAudio
             var slot = Array.IndexOf(_sounds, null);
             if (slot < 0)
                 return;
-            _sounds[slot] = new Slot(sound, SoundVolume)
+            _sounds[slot] = new Slot(sound)
             {
-                Fade = sound.TimesSoundVolume ? SoundVolume : 1,
+                Fade = 1,
                 Lifetime = sound.Lifetime + sound.Delay,
                 Delay = sound.Delay,
             };
@@ -217,11 +216,12 @@ public sealed class GameAudio
     }
 
     /// <summary>
-    /// A one-shot is a <see cref="KeptSound"/>: its volume is its fade times the sound volume it was played at, as a
-    /// byte, times the sound volume now. So the sound volume counts twice, or three times for those whose gain it is.
-    /// It is centred, a pan of 0.
+    /// A one-shot is a <see cref="KeptSound"/> of volume 1, times the sound volume now, centred, a pan of 0. The original
+    /// keeps the sound volume at the call as its volume, and some callers pass it as its gain too, a fade rising to 1
+    /// over 90 ticks, so it counts twice or three times; the port's, the user's fix, counts it once
+    /// (docs/systems/audio.md#volumes).
     /// </summary>
-    private sealed class Slot(OneShot sound, float volume) : KeptSound(sound.Sequence, volume, false)
+    private sealed class Slot(OneShot sound) : KeptSound(sound.Sequence, 1, false)
     {
         public int Lifetime, Delay;
     }
@@ -230,10 +230,7 @@ public sealed class GameAudio
 /// <summary>A one-shot sound: <c>Audio.PlaySound</c>'s arguments.</summary>
 /// <param name="Lifetime">Ticks after its delay that it's stopped, whether or not it has ended.</param>
 /// <param name="Delay">Ticks before it starts.</param>
-/// <param name="TimesSoundVolume">
-/// Whether it's played with the sound volume as its gain, as the containers', thunder's and scripts' gold sounds are.
-/// </param>
-public readonly record struct OneShot(RecordId Sequence, int Lifetime, int Delay = 0, bool TimesSoundVolume = false)
+public readonly record struct OneShot(RecordId Sequence, int Lifetime, int Delay = 0)
 {
     /// <summary>The lifetime of the menus' cursors, a second of the menus' others, and five of the gold and experience sounds, in ticks.</summary>
     public const int ShortTicks = 30, MenuTicks = 60, LongTicks = 300;

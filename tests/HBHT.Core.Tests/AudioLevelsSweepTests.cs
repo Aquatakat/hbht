@@ -45,24 +45,34 @@ public class AudioLevelsSweepTests
     {
         var text = new StringBuilder();
         foreach (var soundVolume in new[] { 0, 1, 7, 33, 50, 65, 99, 100 })
-        foreach (var times in new[] { false, true })
         {
             var audio = Audio(SessionSettings.Original with { SoundVolume = soundVolume });
-            audio.Play(new OneShot(Tune, 500, 3, times));
+            audio.Play(new OneShot(Tune, 500, 3));
             for (var tick = 0; tick < 110; tick++)
             {
                 audio.Step();
                 // The first tick of a sound is the one a map sound's duration and a one-shot's differ on.
-                Record(text, audio, $"{soundVolume} {times} {tick}", duration: tick >= 5);
+                Record(text, audio, $"{soundVolume} {tick}", duration: tick >= 5);
             }
             foreach (var now in new[] { 100, 40, 0, 12 })
             {
                 audio.Settings = audio.Settings with { SoundVolume = now };
                 audio.Step();
-                Record(text, audio, $"{soundVolume} {times} now {now}", duration: true);
+                Record(text, audio, $"{soundVolume} now {now}", duration: true);
             }
         }
-        Assert.Equal("F2D050D7025B68872908C4FA041D53E70305DCAFF174E7327F2E9EE39C56306A", Hash(text));
+        Assert.Equal("B22A875CFB1A747C480F33621D2BF75407189462F0EFE57D3155B5EF2E3E44BE", Hash(text));
+    }
+
+    [Fact]
+    public void OneShotsTakeTheSoundVolumeOnce()
+    {
+        // The original's take it twice, and the containers', thunder's and gold's three times as they start; the
+        // port's, the user's fix, take it once, as a map's sounds and bodies' do.
+        var audio = Audio(SessionSettings.Original with { SoundVolume = 50 });
+        audio.Play(new OneShot(Tune, 500));
+        audio.Step();
+        Assert.Equal(127, audio.Engine.Playing().Single().Volume);
     }
 
     [Fact]
