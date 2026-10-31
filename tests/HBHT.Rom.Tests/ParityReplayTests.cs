@@ -439,7 +439,7 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
 
     /// <summary>
     /// Ticks until the combatant's turn has ended, the bodies moved by their animations' roots as the runtime's are, and checks the
-    /// next turn as it begins: at the first cue after <c>TurnOrder.Advance</c> has chosen it, its line (<c>TurnOrder.BeginTurn</c>), where
+    /// next turn as it begins: at the first line after <c>TurnOrder.Advance</c> has chosen it, its own (<c>TurnOrder.BeginTurn</c>), where
     /// the original's RAM was dumped, before its flee check and its ring. Failing a cue (a line the same as the last), after the tick.
     /// </summary>
     private List<string> PlayOut(Built built, Combatant c, Func<List<string>> check, Action? eachTick = null)
@@ -450,15 +450,20 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
         HBHT.Core.Actors.IActorMotion? Motion(Combatant m) => motions.TryGetValue(m, out var found) ? found
             : motions[m] = HBHT.Core.Actors.ActorMotion.For(Set, Set.Get<ActorRecord>(m.Look.Actor), built.Game.Random.Animation);
         List<string>? checkedThen = null;
-        fight.Host = new Watch(_ =>
+        // A line, not just any cue: Advance passes over a combatant that can't act and ends the round with Current on it, and the
+        // round's end cues its reserves and numbers before the next round is built.
+        fight.Host = new Watch(cue =>
         {
-            if (checkedThen is null && fight.Current != c)
+            if (checkedThen is null && fight.Current != c && cue is LogLine)
                 checkedThen = check();
         });
         var states = new List<(CombatState State, int Ticks)>();
         for (var i = 0; i < 20000 && fight.Current == c && !fight.Over; i++)
         {
             fight.Tick(zone, false, Motion);
+            // Sense Aura's popup waits for a press, which ends the turn; the player's came before the next turn's RAM.
+            if (fight.Aura is not null)
+                fight.DismissAura();
             eachTick?.Invoke();
             if (states.Count == 0 || states[^1].State != fight.State)
                 states.Add((fight.State, 0));

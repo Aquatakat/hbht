@@ -282,9 +282,7 @@ public sealed partial class Battle
         var d = (short)(int)(damage * multiplier);
         if (multiplier != 0 && d < 1)
             d = 1;
-        // A weakness makes a check due, and costs it morale from then on (the AI record's flags 0x12).
-        if (multiplier > 1 && t.Ai is { } ai)
-            ai.Flags |= AiFlags.CheckDue | AiFlags.HitLately;
+        HitByWeakness(t, multiplier);
         return d < 0 ? 0 : d;
 
         static bool Applies(Element resistance, Element element) => resistance == element || resistance switch
@@ -293,6 +291,17 @@ public sealed partial class Battle
             Element.Magic => element is not (Element.None or Element.Physical or Element.Cutting or Element.Smashing or Element.Holy),
             _ => false,
         };
+    }
+
+    /// <summary>
+    /// A weakness, a product of resistances over 1, makes a check due and costs morale from then on (the AI record's flags 0x12),
+    /// on a combatant the AI plays: a blow's (<c>ApplyResistance</c>, <c>0x800627A4</c>) and a spell's damage alike
+    /// (<c>Combatant.SpellDamage</c>, <c>0x80064A84</c>).
+    /// </summary>
+    public static void HitByWeakness(Combatant t, float? multiplier)
+    {
+        if (multiplier > 1 && t.Ai is { } ai && ai.Flags.HasFlag(AiFlags.Plays))
+            ai.Flags |= AiFlags.CheckDue | AiFlags.HitLately;
     }
 
     /// <summary>

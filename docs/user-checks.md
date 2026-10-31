@@ -47,7 +47,7 @@ The replay so far is `ParityReplayTests`, over every battle in `out/parity`. It 
 
 After an action or an enemy's turn, the next turn is checked as it begins, at the first cue after the port's `Advance` has chosen it, where the original's RAM was dumped. The check covers the draws' count, whose turn it is, and every combatant's stats, skills, protection, weapon, death and flight, and each living enemy's AI record (kind, target, morale and flags). Reserves that have joined are brought in at the RAM's cells first, and the overlay lays the round's turn order too.
 
-Both trials pass. Their actions are:
+Both trials and setup 1's first session pass. The trials' actions are:
 
 - Brenna's and Sholeh's backstabs;
 - Solar Wrath on three rats;
@@ -57,12 +57,23 @@ Both trials pass. Their actions are:
 - two flee attempts, one ending in a flight;
 - a reserve's walk.
 
+Setup 1's first session (`out/parity/20261031-105935-setup1`) adds:
+
+- Fireball, Dragon Flames, Earth Smite, Whitefire, Lightning, Immolation (twice), Acid Bolt, Tap Stamina, Haste, Darkness and Sense Aura;
+- Web of Starlight on two rats;
+- a Stamina Potion;
+- the Fire weakness raising the rats' morale check;
+- a round's end with three slots refilled by reserves.
+
+1.0 locked up on Sholeh's third Web, with two rats already held and reserves to come. Frames kept running, and nothing else in combat moved. The log ends there.
+
 Still to do:
 
 - **Effects' records and timers**, which the overlay doesn't copy.
 - **Positions, shown but not checked:**
   - The attacker's body after a blow stands up to 0.5 from the original's (Brenna's backstab), with its footprint a cell over.
   - A reserve's walk with no action ends 4.6 from the original's (the second trial's slot 5).
+  - Reserves that join at a round's end can take other spawn points than the original's, on the same draws. In setup 1, at the end of slot 5's turn, slot 6's reserve stands at (13, 26) for the original's (24, 39), and slot 7's at (24, 39) for (19, 23). The two disagree about which point is free, likely over a body that has fled or died.
 
 #### The formula vectors (no play)
 
