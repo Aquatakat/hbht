@@ -16,11 +16,9 @@ This is the one list of what's open. A task's status is in its phase's table bel
 
 ### Next
 
-**M4: the prologue** is done: the user played it side by side with the emulator, and what differed is fixed ([playtests](playtests.md)). Next, by the phases' order, is **Phase 4: content parity**, once the user has played the fixes and settled what they left:
+**M4: the prologue** is done: the user played it side by side with the emulator, what differed is fixed, and the user has played the fixes ([playtests](playtests.md)). Next, by the phases' order, is **Phase 4: content parity**, once what the fixes left is settled. The console's cracks between meshes, reproduced, welded or left, go to a session of their own ([Maybe](#maybe)).
 
-1. **The fixes in play:** a defeat's fade; and the title screen, its intro cards, fly-throughs and menu, with the game over and the ending's credits going back to it ([ui](systems/ui.md#the-title-screen)).
-2. **The user's choices** from them: whether a new game's save edited in the editor still plays the opening; the rain loop under the post-battle windows hushed or stopped; the console's cracks between meshes reproduced, welded or left; and mipmaps for the textures the ROM gives none.
-3. **What they left:** which cut-scene the user saw end without the minimap growing, as the core grows it after every one ([ui](systems/ui.md)); the remembered member and tab carried across a load, as the original keeps the member; translucent scenery drawn after bodies, which tints the dress's hem in the misty sea's cut-scene ([rendering](systems/rendering.md#whats-left)); and a cut-scene's view 10–13% wider than the original's, the emulator's crop or the camera's field of view.
+- **What the fixes left:** which cut-scene the user saw end without the minimap growing, as the core grows it after every one ([ui](systems/ui.md)); the remembered member and tab carried across a load, as the original keeps the member; translucent scenery drawn after bodies, which tints the dress's hem in the misty sea's cut-scene ([rendering](systems/rendering.md#whats-left)); and a cut-scene's view 10–13% wider than the original's, the emulator's crop or the camera's field of view.
 
 ### Left over from finished work
 
