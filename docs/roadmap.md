@@ -18,6 +18,7 @@ This is the one list of what's open. A task's status is in its phase's table bel
 
 **M4: the prologue** is done: the user played it side by side with the emulator, what differed is fixed, and the user has played the fixes ([playtests](playtests.md)). Next, by the phases' order, is **Phase 4: content parity**, once what the fixes left is settled.
 
+- **Combat parity (2.9):** the checks against the original's execution beyond the one battle the Combat checkpoints hold: formula vectors from 1.0's functions in the interpreter, and battles the user plays from written saves, logged at the rules' entry points and replayed into the port ([user-checks](user-checks.md#combat-parity-29)).
 - **What the fixes left:** which cut-scene the user saw end without the minimap growing, as the core grows it after every one ([ui](systems/ui.md)); the remembered member and tab carried across a load, as the original keeps the member; translucent scenery drawn after bodies, which tints the dress's hem in the misty sea's cut-scene ([rendering](systems/rendering.md#whats-left)); and a cut-scene's view 10–13% wider than the original's, the emulator's crop or the camera's field of view.
 
 ### Left over from finished work
