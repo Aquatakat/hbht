@@ -312,7 +312,7 @@ public partial class Game
             $"({local.X:F1}, {local.Y:F1}, {local.Z:F1})  {Engine.GetFramesPerSecond()} fps" +
             (_camera!.Flying ? "  [free camera]" : "") + "\n" +
             (sphere.Touching ? $"on {SurfaceNames.Of(sphere.Surface)}" : "in the air") +
-            $"  speed {Speed():F2}/s  request {motion.Request}  pace {motion.Pace:0.##} (F5)  {motion.Movement.ToString().ToLowerInvariant()} movement" +
+            $"  speed {Speed():F2}/s  request {motion.Request}  pace {motion.Pace:0.##} (F5)  {(motion.Movement == Core.Movement.MovementMode.Modern ? "smoother" : "original")} movement" +
             $"  camera {Trek!.Camera.Mode.ToString().ToLowerInvariant()}{(Trek!.Use.CurrentCamera is { } held ? $" (object {held.Index})" : "")}" +
             $"  {Clock(_sky!.Sky.Clock.TimeOfDay)}  sky {_sky.Sky.Placement.ToString().ToLowerInvariant()} (F6)" +
             $"  UI {_menu!.Screen.Lines} lines (F7)  wanderers {Trek.Wanderers.All.Count}\n" +

@@ -363,7 +363,7 @@ public sealed partial class OptionsMenu
             Choice("Menu Filter", ["Sharp", "Smooth", "Video Out"], () => Array.IndexOf(Filters, s.UiFilter) is var i and >= 0 ? i : 0,
                 v => s.UiFilter = Filters[v]),
             Choice("Pace", ["Original", "Brisk"], () => s.BriskPace ? 1 : 0, v => s.BriskPace = v == 1),
-            Choice("Movement", ["Original", "Modern"], () => (int)s.Movement, v => s.Movement = (Movement.MovementMode)v),
+            Choice("Movement", ["Original", "Smoother"], () => (int)s.Movement, v => s.Movement = (Movement.MovementMode)v),
             Choice("Status Auras", ["Original", "More Often"], () => s.SpellAuras == Combat.AuraTurns.EachCharacter ? 1 : 0,
                 v => s.SpellAuras = v == 1 ? Combat.AuraTurns.EachCharacter : Combat.AuraTurns.Battle),
         ];
