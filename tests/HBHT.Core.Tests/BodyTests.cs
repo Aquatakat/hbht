@@ -292,6 +292,17 @@ public class BodyTests
         Crowd.Push(bodies, 1, start);
         Assert.Equal(0.4f, bodies[1]!.Value.Sphere.Position.X, 1e-5f);
     }
+
+    [Fact]
+    public void TheBodyPushedOutOfIsWeighedAgainAndATouchLeftByThePushDoesntSendItBack()
+    {
+        // Body 0 is pushed out of body 1 to exactly touching it, and the turn starts again from body 1, which the original counts as a
+        // second push by rounding about half the time. The port lets a touch within Crowd.Rounding go, so the body slides on.
+        var start = new Vector3(-3, 0.5f, 0);
+        var bodies = new CrowdMember?[] { Member(new(0, 0.5f, 0)), Member(new(0.6f, 0.5f, 0)) };
+        Crowd.Push(bodies, 0, start);
+        Assert.Equal(-0.4f, bodies[0]!.Value.Sphere.Position.X, 1e-5f);
+    }
     /// <summary>A state machine as a body's animation, moving nothing.</summary>
     private sealed class MachineMotion(ActorStateMachine machine) : IActorMotion
     {

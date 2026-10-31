@@ -24,9 +24,13 @@ public sealed class BattleTimingTests(Na10Import fixture)
         private readonly CombatCheckpoints.Built _built;
         private readonly HBHT.Core.Chunks.ZoneEngine _zone;
 
-        public Run(PluginSet set)
+        /// <summary>Whether the party attacks what's in reach; otherwise it skips every turn, and only the rats strike.</summary>
+        private readonly bool _attack;
+
+        public Run(PluginSet set, bool attack = true)
         {
             _set = set;
+            _attack = attack;
             _built = CombatCheckpoints.Plain(set, 2);
             _zone = CombatCheckpoints.Zone(_built);
         }
@@ -41,7 +45,7 @@ public sealed class BattleTimingTests(Na10Import fixture)
         {
             if (Battle.State == CombatState.Turn && !Battle.Fade.Fading && Battle.Current is { Controlled: false })
             {
-                if (Battle.Attack())
+                if (_attack && Battle.Attack())
                     Battle.Confirm();
                 else
                     Battle.Skip();
@@ -124,11 +128,20 @@ public sealed class BattleTimingTests(Na10Import fixture)
     public void TheSwingTheHitTheDodgeAndTheDeathSound()
     {
         // The one-shot requests are held through a frame (Combat.AfterFrame) and an actor takes only a request its state has a branch
-        // for (ActorStateMachine.SetRequest), so each latches its request and its keys sound past their first frame.
-        var run = new Run(Set);
+        // for (ActorStateMachine.SetRequest), so each latches its request and its keys sound past their first frame. Alaron's club (12,
+        // the weapon's sound), a dodge (8) and a rat's death (9) come with the party attacking; a bite felt (7) with the party only
+        // skipping, as its blows may all dodge or kill.
+        var heard = Heard(new Run(Set), [8, 9, 12]);
+        heard.UnionWith(Heard(new Run(Set, attack: false), [7]));
+        Assert.Superset(new HashSet<int> { 7, 8, 9, 12 }, heard);
+    }
+
+    /// <summary>The requests whose keys sounded in a battle, until it's over or <paramref name="wanted"/> have.</summary>
+    private static HashSet<int> Heard(Run run, int[] wanted)
+    {
         var heard = new HashSet<int>();
         var slots = new Dictionary<Combatant, (SoundHandle, SoundHandle)>();
-        for (var i = 0; i < 100_000 && !run.Over && !heard.IsSupersetOf([7, 8, 9, 12]); i++)
+        for (var i = 0; i < 100_000 && !run.Over && !heard.IsSupersetOf(wanted); i++)
         {
             run.Tick();
             foreach (var c in run.Battle.Combatants)
@@ -139,7 +152,6 @@ public sealed class BattleTimingTests(Na10Import fixture)
                 slots[c] = now;
             }
         }
-        // Alaron's club (12, the weapon's sound), a rat's bite felt (7) or dodged (8), and a rat's death (9).
-        Assert.Superset(new HashSet<int> { 7, 8, 9, 12 }, heard);
+        return heard;
     }
 }

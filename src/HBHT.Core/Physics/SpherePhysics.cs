@@ -350,20 +350,25 @@ public static class SpherePhysics
 
     /// <summary>
     /// Pushes a body's sphere out of another body's, across the ground only, each at its scale
-    /// (<c>FUN_800b003c</c>, <c>FUN_800af120</c>): it moves straight away from the other until they
-    /// touch, and its velocity bounces and dampens as off a wall. The other doesn't move.
+    /// (<c>SpherePhysics.PushApart</c>, <c>0x800A634C</c>, through <c>SphereGap</c>, <c>0x800A5480</c>): it moves
+    /// straight away from the other until they touch, and its velocity bounces and dampens as off a wall. The
+    /// other doesn't move.
     /// </summary>
     /// <param name="distance">
     /// How far apart their centres are across the ground. When they don't touch, the original measures
     /// it with the other's radius at this body's scale rather than its own, and so does this.
     /// </param>
+    /// <param name="slack">
+    /// How far into the other a touch may be and not count: 0 is the original's, where exactly touching counts.
+    /// </param>
     /// <returns>Whether they touched.</returns>
-    public static bool PushApart(CollisionSphere s, float scale, CollisionSphere other, float otherScale, out float distance)
+    public static bool PushApart(CollisionSphere s, float scale, CollisionSphere other, float otherScale, out float distance,
+        float slack = 0)
     {
         var away = other.Position - s.Position;
         away.Y = 0;
         var gap = Normalize(ref away) - other.Radius * otherScale;
-        if (gap > s.Radius * scale)
+        if (gap > s.Radius * scale - slack)
         {
             distance = gap + other.Radius * scale;
             return false;
