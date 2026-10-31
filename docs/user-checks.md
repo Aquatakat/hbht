@@ -16,6 +16,6 @@ The user needn't play to a check: a save is written into the Controller Pak besi
 5. **For the runtime**, the same JSON loads with `tools/godot.ps1 --path src/HBHT.Game -- --save <path>`. Keep it in the gitignored `out/` and give the user the path: what Claude writes under `%LOCALAPPDATA%` lands in the Claude app's private copy, not the data folder the user's runtime reads. The saves made for the checks so far are in `out/user-checks/`.
 6. **When the user reports back,** the finding goes in the system's doc and the item comes off this list. The port's fixes follow [ADR 0018](adr/0018-the-port-fixes-bugs-and-sets-enhancements.md) and, for the game's data, [ADR 0029](adr/0029-content-fixes-wait-for-a-bugfix-mod.md).
 
-## Sound
+## Open
 
-- **The post-battle windows in the runtime**, after a battle won in the forest that gains Alaron a level (as in the prologue): are the training and loot windows silent but for the menu's own sounds, with no ambient sound or rain under them, and does the level-up jingle (0x05E8) play about a second after the scroll starts unrolling, as in the original? [ui](systems/ui.md#after-a-battle)
+None at the moment.
