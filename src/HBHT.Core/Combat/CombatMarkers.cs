@@ -72,7 +72,7 @@ public sealed class CombatMarkers
         for (var i = 0; i < Count; i++)
         {
             var at = new Vector3(centre.X + dx * radius, 0, centre.Z + dz * radius);
-            if (Ground(battle.World, at, battle.Game?.Random.Combat) is { } ground)
+            if (Ground(battle.World, at, battle.Game?.Random.Cosmetic) is { } ground)
             {
                 _points[i] = ground;
             }
@@ -99,6 +99,10 @@ public sealed class CombatMarkers
     /// rests on the first facing it, 0.01 above; on a miss it tries again from a little to the side of where it began, up
     /// to a quarter unit each way by two draws, four times. Null if every sweep misses.
     /// </summary>
+    /// <remarks>
+    /// The original retries by calling itself with the try's number, and draws on its one stream. The port's ring draws on the
+    /// cosmetic stream (ADR 0006), as nothing but the drawing reads where a teardrop stands, so a ring's misses move no rules draw.
+    /// </remarks>
     public static Vector3? Ground(CollisionWorld world, Vector3 at, IRandom? random)
     {
         for (var tries = 0; ; tries++)

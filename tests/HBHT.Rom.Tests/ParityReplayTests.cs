@@ -90,6 +90,12 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
     private static bool Cosmetic(ParityDraw draw) =>
         Callers(draw).Any(n => CosmeticCode.Any(c => n.StartsWith(c, StringComparison.Ordinal)));
 
+    /// <summary>
+    /// Whether a draw is the ring's (<c>CombatMarkers.RingPoint</c>). It retries by calling itself, so a deep retry's callers are
+    /// all <c>RingPoint</c>, with no sign of the turn it's laid out for.
+    /// </summary>
+    private static bool RingDraw(ParityDraw draw) => Callers(draw).Any(n => n.StartsWith("CombatMarkers.", StringComparison.Ordinal));
+
     // ---------------------------------------------------------------------------------------------------------------------------
     // The battle, built from the RAM at Combat.Setup
 
@@ -103,34 +109,42 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
     /// <summary>
     /// The original's draws of the rules in order, fed to the port's combat stream: before its <c>n</c>th draw, the stream is
     /// set to where the original's was before its <c>n</c>th. Each of the port's draws is kept with where the port drew it. The
-    /// ring's (<see cref="CombatMarkers.Ground"/>), which the port draws on the combat stream and the original's are cosmetic, take
-    /// none of the original's.
+    /// ring's draws (<see cref="CombatMarkers.Ground"/>), which the port takes from its cosmetic stream, are fed the same way from
+    /// the original's ring draws, and each of the cosmetic stream's is kept by where alone.
     /// </summary>
     private sealed class Feed
     {
-        private readonly IReadOnlyList<ParityDraw> _draws;
+        private readonly IReadOnlyList<ParityDraw> _draws, _ring;
 
-        public Feed(IReadOnlyList<ParityDraw> draws, Lcg stream)
+        public Feed(IReadOnlyList<ParityDraw> draws, Lcg stream, Lcg? cosmetic = null, IReadOnlyList<ParityDraw>? ring = null)
         {
-            _draws = draws;
+            (_draws, _ring) = (draws, ring ?? []);
             stream.BeforeDraw = Before;
+            if (cosmetic is not null)
+                cosmetic.BeforeDraw = BeforeCosmetic;
         }
 
         public List<(ParityDraw? Original, string Port)> Drawn { get; } = [];
 
         /// <summary>The port's draws for the rules.</summary>
-        public int Count => Drawn.Count(d => !d.Port.StartsWith(nameof(CombatMarkers), StringComparison.Ordinal));
+        public int Count => Drawn.Count;
 
-        private int _next;
+        /// <summary>Where the port drew on its cosmetic stream.</summary>
+        public List<string> CosmeticDrawn { get; } = [];
+
+        private int _next, _nextRing;
+
+        private void BeforeCosmetic(Lcg stream)
+        {
+            var caller = PortCaller();
+            if (caller.StartsWith(nameof(CombatMarkers), StringComparison.Ordinal) && _nextRing < _ring.Count)
+                stream.Seed = _ring[_nextRing++].Old;
+            CosmeticDrawn.Add(caller);
+        }
 
         private void Before(Lcg stream)
         {
             var caller = PortCaller();
-            if (caller.StartsWith(nameof(CombatMarkers), StringComparison.Ordinal))
-            {
-                Drawn.Add((null, caller));
-                return;
-            }
             var original = _next < _draws.Count ? _draws[_next] : null;
             _next++;
             if (original is not null)
@@ -174,7 +188,8 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
         // The rules' draws from Combat.Setup on (the setup block's own were drawn in trek).
         var setupAt = At([.. log.Records], setupEntry);
         var rules = log.Records.Skip(setupAt).OfType<ParityDraw>().Where(d => !Cosmetic(d)).ToList();
-        var feed = new Feed(rules, game.Random.Combat);
+        var ring = log.Records.Skip(setupAt).OfType<ParityDraw>().Where(RingDraw).ToList();
+        var feed = new Feed(rules, game.Random.Combat, game.Random.Cosmetic, ring);
         game.Random.Sort.Seed = ram.ReadWord(SortState);
 
         return new Replay(new Built(Battle.Begin(game, setup, arena, streamer.World), game, streamer, ram), log, feed);
@@ -192,7 +207,7 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
 
     private void Show(Feed feed, int from, int count)
     {
-        foreach (var (original, port) in feed.Drawn.Where(d => !d.Port.StartsWith(nameof(CombatMarkers), StringComparison.Ordinal)).Skip(from).Take(count))
+        foreach (var (original, port) in feed.Drawn.Skip(from).Take(count))
             output.WriteLine($"  {(original is null ? "(none)" : string.Join(" < ", Callers(original)))}  |  {port}");
     }
 
@@ -259,6 +274,39 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
             if (!EqualityComparer<T>.Default.Equals(original, portValue))
                 wrong.Add($"{what}: original {original}, port {portValue}");
         }
+    }
+
+    /// <summary>
+    /// The first turn's ring (<c>CombatMarkers.Update</c> from <c>Combat.StartFirstTurn</c>), on the original's ring draws: the port
+    /// draws as many for it, and its teardrops stand where the original's do in the first RAM dumped after it, which holds it until
+    /// the next turn lays its own. In the first trial, Sholeh's ring of 20 misses the ground under its 12th and 13th on every sweep,
+    /// four retries of two draws each, in both.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Battles))]
+    public void TheFirstRingIsTheOriginals(string battle)
+    {
+        var replay = Build(battle);
+        var (log, fight) = (replay.Log, replay.Battle);
+        var records = log.Records.ToList();
+        var from = At(records, log.Entries.First(e => e.Name == "Combat.Setup"));
+        var after = records.Skip(from + 1).OfType<ParityEntry>().ToList();
+        var next = after.FirstOrDefault(e => e.Name is "TurnOrder.BeginTurn" or "Combat.Exit");
+        var held = after.FirstOrDefault(e => e.Dump is not null && e.Name != "Combat.StartFirstTurn");
+        if (next is null || held is null)
+            Assert.Skip($"{battle} has no RAM dumped after its first ring.");
+
+        var original = records.Skip(from + 1).TakeWhile(r => !ReferenceEquals(r, next)).OfType<ParityDraw>().Count(RingDraw);
+        var port = replay.Feed.CosmeticDrawn.Count(c => c.StartsWith(nameof(CombatMarkers), StringComparison.Ordinal));
+        output.WriteLine($"{battle}: {fight.Current?.Sheet.Name}'s ring of {fight.Ring.Count}, radius {fight.Ring.RingRadius}; the original drew {original} for it, the port {port}; checked against {held.Name}'s RAM ({held.Dump})");
+        Assert.Equal(original, port);
+
+        var theirs = Ring(log.Ram(held));
+        var ours = fight.Ring.Points.ToArray().Select(p => p - fight.Origin).ToList();
+        Assert.Equal(theirs.Count, ours.Count);
+        var off = theirs.Zip(ours).Select((p, i) => (p, i)).Where(t => Vector3.Distance(t.p.First, t.p.Second) > 0.01f)
+            .Select(t => $"teardrop {t.i}: original {t.p.First}, port {t.p.Second}").ToList();
+        Assert.True(off.Count == 0, string.Join("; ", off));
     }
 
     // ---------------------------------------------------------------------------------------------------------------------------

@@ -82,11 +82,12 @@ public sealed class BattleTimingTests(Na10Import fixture)
     public void ABlowLandsAtTheAttacksStrikeWhileTheSwingPlaysOn()
     {
         // ProcessPlayers lets the attacker's body stop counting as playing its attack at (u16)(int)(length × share), its frame before
-        // the step; the action's timer then lands the blow on the next tick, and never before 30.
+        // the step; the action's timer then lands the blow on the next tick, and never before 30. The length is the attack state's,
+        // which an actor at the end of its last swing enters a tick late, by way of another.
         var run = new Run(Set);
         var attacks = new List<(string Name, int Ticks, int Expected)>();
         Combatant? attacker = null;
-        int started = 0, expected = 0;
+        int started = 0, expected = 0, length = 0, frame = 0;
         for (var i = 0; i < 100_000 && !run.Over && attacks.Count < 8; i++)
         {
             var before = run.Battle.State;
@@ -94,11 +95,14 @@ public sealed class BattleTimingTests(Na10Import fixture)
             var state = run.Battle.State;
             if (state == CombatState.Action && before != CombatState.Action && run.Battle.Current is { } a)
                 (attacker, started, expected) = (a, i, 0);
-            if (state == CombatState.Action && attacker is { } at && expected == 0 && at.Body.Playing is >= 12 and <= 18
-                && run.Motion(at) is { } motion)
+            if (state == CombatState.Action && attacker is { } at && run.Motion(at) is { } motion)
             {
-                var strike = (ushort)(int)(motion.StateLength * at.Look.Strike);
-                expected = Math.Max(Battle.SwingTicks, strike + 2);
+                if (at.Body.Playing is >= 12 and <= 18 && (motion.StateLength != length || motion.Frame < frame))
+                {
+                    var strike = (ushort)(int)(motion.StateLength * at.Look.Strike);
+                    expected = Math.Max(Battle.SwingTicks, i - started - 1 + strike + 2);
+                }
+                (length, frame) = (motion.StateLength, motion.Frame);
             }
             if (before == CombatState.Action && state != CombatState.Action && attacker is { } done)
             {

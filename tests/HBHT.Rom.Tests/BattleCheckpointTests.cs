@@ -36,9 +36,6 @@ public sealed class BattleCheckpointTests(Na10Import fixture, ITestOutputHelper 
     /// <summary>A body's flags (4: held in its field), and its field's centre and radius (<c>Body.SetGoal</c>).</summary>
     private const uint BodyFlags = 0x1E, BodyFieldCentre = 0x274, BodyFieldRadius = 0x280;
 
-    /// <summary>The ring's pool (<c>CombatMarkers.Pool</c>): 20 of 0x1C bytes, each its position at +4 and its flag at +0x18.</summary>
-    private const uint RingPool = 0x800E3138;
-
     /// <summary>The world (<c>World</c>), whose clock is at +0x20.</summary>
     private const uint WorldPointer = 0x800E303C;
 
@@ -297,13 +294,6 @@ public sealed class BattleCheckpointTests(Na10Import fixture, ITestOutputHelper 
 
     private static Vector3 Vector(AresCheckpoint c, uint address) => new(Float(c, address), Float(c, address + 4), Float(c, address + 8));
 
-    /// <summary>A checkpoint's ring: the positions of the teardrops it draws, in the arena chunk's coordinates.</summary>
-    private static List<Vector3> Ring(AresCheckpoint c)
-    {
-        var pool = c.ReadWord(RingPool);
-        return [.. Enumerable.Range(0, CombatMarkers.Pool).Select(i => pool + (uint)i * 0x1C).Where(m => c.ReadByte(m + 0x18) != 0).Select(m => Vector(c, m + 4))];
-    }
-
     /// <summary>
     /// The differences between a checkpoint's ring and the port's, more than a hundredth apart. One teardrop may be up to
     /// a retry's reach off (a quarter each way, at the same height), where one sweep missed and the next, a little to the
@@ -311,7 +301,7 @@ public sealed class BattleCheckpointTests(Na10Import fixture, ITestOutputHelper 
     /// </summary>
     private static List<string> RingDiffers(AresCheckpoint c, Battle battle, Vector3 origin)
     {
-        var original = Ring(c);
+        var original = CombatCheckpoints.Ring(c);
         var port = battle.Ring.Points.ToArray().Select(p => p - origin).ToList();
         if (original.Count != port.Count)
             return [$"original {original.Count} teardrops, port {port.Count}"];

@@ -56,6 +56,16 @@ internal static class CombatCheckpoints
 
     public static Vector3 Vector(AresCheckpoint c, uint address) => new(Float(c, address), Float(c, address + 4), Float(c, address + 8));
 
+    /// <summary>The ring's pool (<c>CombatMarkers.Pool</c>): 20 of 0x1C bytes, each its position at +4 and its flag at +0x18.</summary>
+    public const uint RingPool = 0x800E3138;
+
+    /// <summary>A checkpoint's ring: the positions of the teardrops it draws, in the arena chunk's coordinates.</summary>
+    public static List<Vector3> Ring(AresCheckpoint c)
+    {
+        var pool = c.ReadWord(RingPool);
+        return [.. Enumerable.Range(0, CombatMarkers.Pool).Select(i => pool + (uint)i * 0x1C).Where(m => c.ReadByte(m + 0x18) != 0).Select(m => Vector(c, m + 4))];
+    }
+
     /// <summary>Sets a property with a private setter (a battle's state the tests lay over).</summary>
     public static void Poke(object target, string property, object? value) =>
         target.GetType().GetProperty(property, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!.SetValue(target, value);
