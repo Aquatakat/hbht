@@ -47,7 +47,7 @@ The replay so far is `ParityReplayTests`, over every battle in `out/parity`. It 
 
 After an action or an enemy's turn, the next turn is checked as it begins, at the first cue after the port's `Advance` has chosen it, where the original's RAM was dumped. The check covers the draws' count, whose turn it is, and every combatant's stats, skills, protection, weapon, death and flight, and each living enemy's AI record (kind, target, morale and flags). Reserves that have joined are brought in at the RAM's cells first, and the overlay lays the round's turn order too.
 
-Both trials and setup 1's first session pass. The trials' actions are:
+Both trials and setup 1's first session pass, and every action of its second. The overlay lays each combatant's effects on from the RAM, slot for slot, with their timers (`CombatCheckpoints.OverlayEffects`). The trials' actions are:
 
 - Brenna's and Sholeh's backstabs;
 - Solar Wrath on three rats;
@@ -65,11 +65,25 @@ Setup 1's first session (`out/parity/20261031-105935-setup1`) adds:
 - the Fire weakness raising the rats' morale check;
 - a round's end with three slots refilled by reserves.
 
-1.0 locked up on Sholeh's third Web, the first to land. Frames kept running, and nothing else in combat moved. The log ends there. The likely cause is a hold landing on a one-tick frame ([combat](systems/combat.md#not-settled)). If a hold locks again, save a state in ares before closing it, so the RAM at the lock can settle it.
+1.0 locked up on Sholeh's third Web, the first to land. Frames kept running, and nothing else in combat moved. The log ends there. The likely cause is a hold landing on a one-tick frame ([combat](systems/combat.md#where-the-port-differs), which the port doesn't reproduce). If a hold locks again, save a state in ares before closing it, so the RAM at the lock can settle it.
+
+The second session (`out/parity/20261031-120218-setup1`) adds:
+
+- Frozen Doom landing twice without a lock;
+- Stellar Gravity, Solar Wrath, Light, and Poison over rounds;
+- the Sense Aura scroll and the Lightning wand;
+- Immolation burning at the rounds' ends;
+- a cast refused for its reagent.
+
+Its actions all pass. Wraith Touch, Wall of Bones and Charming can't be cast at Tomb Rats, which have no True Name, nor Aura of Death, which needs a Solar target, and 1.0 refuses all four as the port does. They move to setup 2, whose casters are Solar and have True Names.
+
+Two of its rats' walks differ from the original's:
+- At the turn dumped as 0037, slot 6's walk ends at (33.1, 19.9) in the original without an attack. The port's goes 1.7 further and bites Keelin.
+- At the turn dumped as 0051, slot 4 goes round Sholeh in the original and bites from (30, 12). The port's bites from (31.4, 10.4), near where it began.
 
 Still to do:
 
-- **Effects' records and timers**, which the overlay doesn't copy.
+- **The two rats' walks** of setup 1's second session, above.
 - **Positions, shown but not checked:**
   - The attacker's body after a blow stands up to 0.5 from the original's (Brenna's backstab), with its footprint a cell over.
   - A reserve's walk with no action ends 4.6 from the original's (the second trial's slot 5).
@@ -99,8 +113,8 @@ The party for most: Alaron, Sholeh (Star, Healer 10, Ranger 6, Long Bow), Dougal
 
 | # | Monster party | Arena | Enemies | Scenarios |
 | --- | --- | --- | --- | --- |
-| 1 | MiscInteriors E05 #1 (24, 64) | 27 | 12 Tomb Rats, weak to fire ×1.5, reserves | The party's spells: Fireball placed to catch a member; Dragon Flames by level; Lightning; Earth Smite; Whitefire; Immolation and Acid Bolt over rounds; Web of Starlight and Frozen Doom, with the disable limit while reserves are to come and Web's escape; Stellar Gravity and Haste; Solar Wrath and Aura of Death putting them to flight; Poison to a death; Tap Stamina; Wraith Touch and Wall of Bones against their True Name requirement; Darkness then Light; Sense Aura at levels 1, 5 and 9; a cast failed, one refused for its reagent and one for Stamina; a scroll and a wand; a level-0 spell |
-| 2 | ChaosIsle A07 #8 (27, 27) | 17, no flee points | 2 Chaos Spellweavers, 2 Chaos Sorcerors | Enemy casters: Starlight Shield, Mirror, Wall of Bones, Web, Darkness, Clumsiness, Crushing Death, Whitefire and Lightning at the party; the party's spells into Mirror; Dispel Star on their shields; the wards (vs. Star); enemies that can't flee |
+| 1 | MiscInteriors E05 #1 (24, 64) | 27 | 12 Tomb Rats, weak to fire ×1.5, reserves | The party's spells: Fireball placed to catch a member; Dragon Flames by level; Lightning; Earth Smite; Whitefire; Immolation and Acid Bolt over rounds; Web of Starlight and Frozen Doom, with the disable limit while reserves are to come and Web's escape; Stellar Gravity and Haste; Solar Wrath putting them to flight; Poison to a death; Tap Stamina; Darkness then Light; Sense Aura at levels 1, 5 and 9; a cast failed, one refused for its reagent and one for Stamina; a scroll and a wand; a level-0 spell |
+| 2 | ChaosIsle A07 #8 (27, 27) | 17, no flee points | 2 Chaos Spellweavers, 2 Chaos Sorcerors | Enemy casters: Starlight Shield, Mirror, Wall of Bones, Web, Darkness, Clumsiness, Crushing Death, Whitefire and Lightning at the party; the party's spells into Mirror; Dispel Star on their shields; Wraith Touch, Wall of Bones, Charming and Aura of Death, which need a True Name or a Solar target; the wards (vs. Star); enemies that can't flee |
 | 3 | Overworld M08 #2 (26, 85) | 2–3 | 10 Giant Rats, reserves | The skills and items: Lay On Hands and Heal With Herbs; Dougal performing for two rounds, then acting; a weapon changed and a flask taken in hand from the Party tab; Fire, Inferno, Acid and Sleep Gas flasks, one landing near a member; each potion drinkable; blows from behind with Keelin and from higher ground; a turn skipped; the win's loot and experience |
 | 4 | Overworld F14 #2 (29, 85), at night | 6–7 | 4 Bandit Woodsmen, long bows, style 3 | Ranged: Sholeh's and Keelin's shots at targets near and far, moved and not; the Woodsmen keeping their distance; Dougal's thrown Javelin; melee at night; rain if the weather brings it |
 | 5 | Overworld E09 #5 (98, 53) | 2–3 | 4 Goblin Poisoners, darts, style 3 | Thrown attacks at the party; Antidote and Remove Poison if the darts poison |
@@ -123,11 +137,11 @@ The saves are in `out/parity/saves/`. `base.json` is story save A with the party
 
   The party has 2 Herbs, so the third of Frozen Doom, Wall of Bones and Sense Aura gets refused for its reagent. The pak can't hold a spell at level 0, so the rise is tried at level 1 alone. Sense Aura is cast at 1 and 5, not 9.
 - **Setup 2, `setup2.json`, in slot B.** Flag 3078 is cleared, so party #8 is back. The other five parties of A07 stay beaten. The party stands 7 from them, facing them. On top of the story's spells:
-  - Alaron: Dispel Necro and Light at 5.
+  - Alaron: Dispel Necro, Light, Aura of Death, Wraith Touch and Wall of Bones at 5.
   - Dougal: Lightning and Earth Smite at 5.
   - Keelin: vs. Star at 5 and Lightning at 4.
 
-  Sholeh's Dispel Star and Dougal's Mirror are the story's.
+  Sholeh wears the Charming scroll. Her Dispel Star and Dougal's Mirror are the story's.
 
 Slots C and D still hold copies of story saves C and D.
 

@@ -5,6 +5,7 @@ using HBHT.Core.Calendar;
 using HBHT.Core.Characters;
 using HBHT.Core.Chunks;
 using HBHT.Core.Combat;
+using HBHT.Core.Magic;
 using HBHT.Core.Physics;
 using HBHT.Core.Rng;
 using HBHT.Plugins;
@@ -188,6 +189,7 @@ internal static class CombatCheckpoints
                 var i = (uint)stat;
                 SetStat(c.Sheet.Stats, stat, cp.ReadByte(stats + i), (sbyte)cp.ReadByte(stats + 7 + i), cp.ReadByte(stats + 0xE + i), (sbyte)cp.ReadByte(stats + 0x15 + i));
             }
+            OverlayEffects(game, cp, sheet, c.Sheet);
 
             // A freed body has no pointer: a dead combatant's. The body of a live one stands where the checkpoint's does.
             var body = built.Body(slot);
@@ -247,6 +249,57 @@ internal static class CombatCheckpoints
 
         Assert.Equal(cp.ReadByte(s + 0x10), battle.LeaderSlot);
         return built;
+    }
+
+    /// <summary>
+    /// A character's effects as the RAM has them, slot for slot, as their order is the order they age and draw in: the spells' 15
+    /// (<c>entity+0x34</c>, pointers to 0x18-byte records: kind, power, school, margin, u32 harmful, u32 timer, …, the visual at
+    /// <c>+0x14</c>) and the potions' 7 (<c>+0x38</c>, 0xC bytes: kind, power, u32 timer, the visual). They're laid on without
+    /// starting, as the RAM's stats and flags already hold what they did. A record's effects are its spell's lasting ones for its side
+    /// (by its harmful flag), Tap Stamina's caster's its gain. A morale effect gets back what it took, the record's <c>+0x01</c>. Not
+    /// read: Wraith Touch's drained amount, which matters only as the battle ends.
+    /// </summary>
+    public static void OverlayEffects(GameState game, AresCheckpoint cp, uint entity, Character sheet)
+    {
+        var spells = game.Plugins.All<SpellRecord>(RecordTypes.Spell).Where(s => s.Position is not null).ToDictionary(s => s.Position!.Value);
+        var spellSlots = new ActiveEffect?[sheet.Rules.Magic.Record.SpellEffects];
+        var potionSlots = new ActiveEffect?[sheet.Rules.Magic.Record.PotionEffects];
+        for (var i = 0; i < spellSlots.Length; i++)
+        {
+            var r = cp.ReadWord(cp.ReadWord(entity + 0x34) + (uint)i * 4);
+            if (r == 0)
+                continue;
+            var spell = spells[cp.ReadByte(r)];
+            var harmful = cp.ReadWord(r + 4) != 0;
+            var lasting = spell.Effects?.Where(EffectRules.Lasting).ToList() ?? [];
+            var gain = lasting.Where(e => e is StaminaEffect { ToCaster: true }).ToList();
+            var effects = !harmful && gain.Count > 0 ? gain
+                : [.. lasting.Except(gain).Where(e => e.For == EffectFor.Any || e.For == EffectFor.Opponents == harmful)];
+            var power = cp.ReadByte(r + 1);
+            var record = new ActiveEffect(spell.Id, effects, power, (MagicSchool)cp.ReadByte(r + 2), (sbyte)cp.ReadByte(r + 3), cp.ReadWord(r + 8))
+            {
+                Harmful = harmful,
+            };
+            for (var e = 0; e < effects.Count; e++)
+            {
+                if (effects[e] is MoraleEffect m)
+                    record.Amounts[e] = m.Amount.At(power) < 0 ? -power : power;
+                else if (effects[e] is DrainStatEffect)
+                    record.DrainedStat = record.Margin;
+            }
+            spellSlots[i] = record;
+        }
+        for (var i = 0; i < potionSlots.Length; i++)
+        {
+            var r = cp.ReadWord(cp.ReadWord(entity + 0x38) + (uint)i * 4);
+            if (r == 0)
+                continue;
+            var potion = RecordId.Hex(RecordTypes.Item, 0x1000 + cp.ReadByte(r));
+            var effects = sheet.Rules.Magic.Potion(potion)?.Effects?.Where(EffectRules.Lasting).ToList() ?? [];
+            potionSlots[i] = new ActiveEffect(potion, effects, cp.ReadByte(r + 1), MagicSchool.None, 0, cp.ReadWord(r + 4));
+        }
+        typeof(Character).GetField("_spellEffects", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(sheet, spellSlots);
+        typeof(Character).GetField("_potionEffects", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(sheet, potionSlots);
     }
 
     /// <summary>Sets a stat's four values (trained, current, base, modified) by what the sheet's mutators can do.</summary>

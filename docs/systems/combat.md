@@ -631,6 +631,14 @@ The user's choices:
 - **The aiming cursors' frame is 4 ticks** (`Cadence.AimFrameTicks`), 0.2 a tick, for state 18's free cursor and state 11's area: the Combat checkpoints' frames were 2 to 4 ticks (`Frame.Delta`, `0x800D8094`), 4 in both aiming states sampled, and at the port's usual 2 the user found the flask's circle twice as fast as the console's and hard to steer.
 - **The last flask of a stack flies and bursts** as the others do: the port leaves a thrown flask in hand until the turn's end puts the action back, where 1.0's `ConsumeFlask` empties the hand as it's thrown. In the README's fixes.
 - **Escape doesn't softlock**: state 2 goes on to the result when its target has left the field, a caster that has left still casts at the rest of its targets, and with every member able to fight gone the party has fled (state 20) at the next turn's change. Not in the README, as only cheating reaches the spell.
+- **A hold doesn't softlock.** In setup 1's first session (`out/parity/20261031-105935-setup1`), Sholeh's Web of Starlight landed on a Tomb Rat and the battle never went on. Frames kept running, combat sat in state 4 (`Combat.StateResult`) from about 70 frames after the cast, and no turn ended. Read from the code and the RAM before the cast (no RAM after it), the likely cause is:
+  1. `CombatSpellFx.Start` holds the target as the cast lands (`HoldBody`, body `+0x70E`), before its reaction.
+  2. Web does no damage on the cast, so the action asks the target for request 8, the dodge, and `Combat.AfterFrame` (`0x80023360`) clears the request (`+0x14`) after one frame.
+  3. `Bodies.Process` (`0x80012784`) doesn't step a held body whose `+0x14` and `+0x16` are both 0 (`Body.IsHeld`, `0x80012754`). `+0x16` is latched from the request only at the state's animation frame 1, which takes 2 ticks.
+  4. So on a frame of delta 1, the rat enters the dodge (`+0x18` = 8) and freezes in it.
+  5. `Combat.RemoveFallen` (`0x80021D2C`, from `StateResult`) waits for the target's `+0x18` to be 0, which never comes. The web can't age off either, as effects age at the round's end.
+
+  Any hold (Web, Wall of Bones, Frozen Doom) could lock this way. Nine of that log's 85 entry points ran at delta 1, and the user has seen a Web hold a rat in 1.0 without locking. Not seen: that the frame index is 0 right after a state change. RAM at a lock would settle it: combat state 4, `+0x14` = 6, and the target's body `+0x14`, `+0x16`, `+0x18` and `+0x70E` at 0, 0, 8 and 1. The port holds a request for the frame's 2 ticks (`Cadence`), so it never locks here, and the user chose to keep it that way.
 - **The Healer refused in the Shadow's battle says why**: Common line 437 stays shown and queued (`HealingBarredLine`), where 1.0's `ResolveHealer` overwrites it the same frame with "%s fails to perform healing". In the README's fixes.
 - **The Goblin Ambush's end sets the leader's Strength to its base** rather than adding the base to it, which doubled it when the battle ended before the second hit.
 - **A script's battle has no bonus loot**, where the original pays out the last monster party's again (`0x800D9470` is never cleared).
@@ -676,14 +684,6 @@ Others:
 
 - **The Shadow's battle** has no checkpoint, so the vanish's frames and the merge's boost are matched to the code alone; the user played both its ends in 1.0 and the port ([above](#the-special-battles)). The Goblin Ambush's hold, also read alone, the user has seen play as the port has it.
 - **The merge's shield test**, turned round in the original (the skill goes up only when the Shadow has none): whether to keep it or turn it the right way isn't chosen. The data never reaches it, as the Shadow has shield 8.
-- **A hold that locks the battle.** In setup 1's first session (`out/parity/20261031-105935-setup1`), Sholeh's Web of Starlight landed on a Tomb Rat and the battle never went on. Frames kept running, combat sat in state 4 (`Combat.StateResult`) from about 70 frames after the cast, and no turn ended. Read from the code and the RAM before the cast (no RAM after it), the likely cause is:
-  1. `CombatSpellFx.Start` holds the target as the cast lands (`HoldBody`, body `+0x70E`), before its reaction.
-  2. Web does no damage on the cast, so the action asks the target for request 8, the dodge, and `Combat.AfterFrame` (`0x80023360`) clears the request (`+0x14`) after one frame.
-  3. `Bodies.Process` (`0x80012784`) doesn't step a held body whose `+0x14` and `+0x16` are both 0 (`Body.IsHeld`, `0x80012754`). `+0x16` is latched from the request only at the state's animation frame 1, which takes 2 ticks.
-  4. So on a frame of delta 1, the rat enters the dodge (`+0x18` = 8) and freezes in it.
-  5. `Combat.RemoveFallen` (`0x80021D2C`, from `StateResult`) waits for the target's `+0x18` to be 0, which never comes. The web can't age off either, as effects age at the round's end.
-
-  Any hold (Web, Wall of Bones, Frozen Doom) could lock this way. Nine of that log's 85 entry points ran at delta 1, and the user has seen a Web hold a rat in 1.0 without locking. Not seen: that the frame index is 0 right after a state change. RAM at a lock would settle it: combat state 4, `+0x14` = 6, and the target's body `+0x14`, `+0x16`, `+0x18` and `+0x70E` at 0, 0, 8 and 1. The port holds a request for the frame's 2 ticks (`Cadence`), so it can't lock here.
 - **The frame's `delta` in combat**, taken as 2 ticks; checkpoint 10 suggests 3. It sets how long a one-shot request is held and rounds an attack's strike to a frame ([reference rig](../reference-rig.md)).
 - A fleeing enemy whose leg can't start goes on to `Execute` after `FleeAdvance` (`0x8005B3D0`–`0x8005B418`), so a cornered one may still attack; no case was run.
 - The actor field `+0x34` in state 5's stuck test (about 0.037 for a running rat), taken as its speed.

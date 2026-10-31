@@ -38,7 +38,7 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
         {
             foreach (var log in Directory.EnumerateFiles(LogFolder, "log.jsonl", SearchOption.AllDirectories).Order())
             {
-                if (File.ReadLines(log).Any(l => l.Contains("\"Combat.Setup\"", StringComparison.Ordinal)))
+                if (ParityLog.Lines(log).Any(l => l.Contains("\"Combat.Setup\"", StringComparison.Ordinal)))
                     data.Add(Path.GetRelativePath(LogFolder, Path.GetDirectoryName(log)!));
             }
         }

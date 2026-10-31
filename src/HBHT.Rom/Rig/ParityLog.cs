@@ -28,10 +28,23 @@ public sealed class ParityLog
     public AresCheckpoint Ram(ParityEntry entry) =>
         AresCheckpoint.FromRdram(Path.Combine(Folder, entry.Dump ?? throw new ArgumentException($"{entry.Name} dumped no RAM.")));
 
+    /// <summary>
+    /// A log's whole lines, read alongside the logger: a gdb that hasn't noticed ares close still holds it open for writing, and its
+    /// last line may not be written out yet.
+    /// </summary>
+    public static IEnumerable<string> Lines(string path)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        using var reader = new StreamReader(stream);
+        var text = reader.ReadToEnd();
+        var end = text.LastIndexOf('\n');
+        return end < 0 ? [] : text[..end].Split('\n').Select(l => l.TrimEnd('\r')).ToList();
+    }
+
     public static ParityLog Read(string folder)
     {
         var records = new List<ParityRecord>();
-        foreach (var line in File.ReadLines(Path.Combine(folder, "log.jsonl")))
+        foreach (var line in Lines(Path.Combine(folder, "log.jsonl")))
         {
             if (line.Length == 0)
                 continue;
