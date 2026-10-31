@@ -591,7 +591,14 @@ public sealed class Body
         if (Turning)
             Heading = TurnTo;
         Stop();
+        PutAtGoal++;
     }
+
+    /// <summary>
+    /// How many times it has given up a walk and been put at its goal (<see cref="GiveUpTicks"/>), which shows as a pop: for the
+    /// movement comparison (<see cref="MovementCompare"/>).
+    /// </summary>
+    public int PutAtGoal { get; private set; }
 
     /// <summary>The most sweeps from on high a set-down makes: the first, and four tries to the side.</summary>
     private const int SetDownTries = 5;

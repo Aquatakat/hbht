@@ -127,7 +127,8 @@ internal sealed class ModernMotion(Body body)
         var root = Body.Animate(animation, stopping ? Rules.StopPace : 1);
         if (stopping)
         {
-            root = Math.Clamp(Rules.StopReach - _stopped, 0, root);
+            // A step whose root goes back a little as it stops, as some actors' walks do, goes back: Math.Clamp threw on it.
+            root = MathF.Min(root, MathF.Max(0, Rules.StopReach - _stopped));
             _stopped += root;
         }
         else
