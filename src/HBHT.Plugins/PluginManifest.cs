@@ -34,7 +34,7 @@ public sealed record ImportInfo(int Importer, string Rom, string RomVersion, Imp
 /// (docs/hardcoded-content.md#corrections-to-the-roms-maps). Without it, the mushroom stands where the ROM has it.
 /// </param>
 /// <param name="WeldSeams">
-/// Close the cracks where the scenery's meshes miss each other by a hair, which the console shows as dashes of sky
+/// Join the seams where the scenery's meshes miss each other by a hair, which the console shows as dashes of sky
 /// (docs/systems/rendering.md#seams-between-meshes). Without it, the meshes are where the ROM has them.
 /// </param>
 public sealed record ImportOptions(bool FixMushroom = true, bool WeldSeams = true)

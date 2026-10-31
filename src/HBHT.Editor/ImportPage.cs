@@ -21,8 +21,8 @@ public partial class ImportPage : VBoxContainer
     private readonly Button _browse = new() { Text = "Browse..." };
     private readonly CheckBox _fix = new() { Text = "Fix the mushroom (recommended)" };
     private readonly CheckBox _keep = new() { Text = "Don't fix the mushroom" };
-    private readonly CheckBox _weld = new() { Text = "Close the cracks in the scenery (recommended)" };
-    private readonly CheckBox _cracks = new() { Text = "Keep the cracks" };
+    private readonly CheckBox _weld = new() { Text = "Join the seams in the scenery (recommended)" };
+    private readonly CheckBox _cracks = new() { Text = "Leave the seams" };
     private readonly Button _import = new() { Text = "Import", CustomMinimumSize = new Vector2(120, 0) };
     private readonly Button _play = new() { Text = "Play", CustomMinimumSize = new Vector2(120, 0), Visible = false };
     private readonly Label _status = Wrapped("");
@@ -77,8 +77,8 @@ public partial class ImportPage : VBoxContainer
         seamChoices.AddChild(_weld);
         seamChoices.AddChild(_cracks);
         AddChild(seamChoices);
-        var aboutSeams = Wrapped("Where pieces of the scenery almost meet, the original shows thin cracks of sky between them. " +
-            "Closing them joins the pieces. Keep the cracks to see the scenery exactly as the original has it.");
+        var aboutSeams = Wrapped("Where pieces of the scenery almost meet, the original shows thin seams of sky between them. " +
+            "Joining them edits the models slightly to remove the visible seam.");
         aboutSeams.AddThemeColorOverride("font_color", Dim);
         AddChild(aboutSeams);
 
