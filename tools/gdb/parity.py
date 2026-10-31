@@ -9,16 +9,18 @@ each into a folder of its own under PARITY_OUT (battle-01, battle-02, ...):
                   {"t": "enter", "name", "pc", "ra", "args", "seed", "state", "delta", "frame",
                    "current", "combatant", "dump"}                       a rules entry point
                   {"t": "leave", "name", "pc", "seed"}                   a watched setup function returned
-  NNNN.rdram.gz RDRAM, 8 MB big-endian from 0x80000000, at Combat.Setup, each TurnOrder.BeginTurn and
-                Combat.Exit's teardown (about 2 s each, which the game waits out)
+  NNNN.rdram.gz RDRAM, 8 MB big-endian from 0x80000000, at Combat.Setup, the first turn's start
+                (Combat.StartFirstTurn), each TurnOrder.BeginTurn, each turn's first
+                Combatant.ExecuteAction and Combat.Exit's teardown (about 2 s each, which the game waits out)
 
 Outside a battle only the functions that fill the setup block are watched, from their entry to their
 return: their draws go into the next battle's log, before its Combat.Setup.
 
 A draw stops where Rng.Next or Float0To1 returns, its store in the return's delay slot, so $pc is in
-the function that drew; "chain" is $pc and up to three return addresses above it, unwound by the
-functions' prologues (the code index's starts, then addiu sp and sw ra). Weather.DriftWind's own
-two draws a frame aren't unwound. Each stop costs about 15 ms in ares, so a battle plays at about 60% speed.
+the function that drew, or at __udivdi3's first instruction, where Rng.Below jumps with the store in the
+jump's delay slot. "chain" is $pc and the return addresses above it, unwound by the functions' prologues
+(the code index's starts, then addiu sp and sw ra), up to the third outside the generator's own functions
+(Rng.*, RandomExtensions.*, __udivdi3). Weather.DriftWind's own two draws a frame aren't unwound. Each stop costs about 15 ms in ares, so a battle plays at about 60% speed.
 
 Outside gdb: python tools/gdb/parity.py --summary <battle folder> prints the entry points and the draws'
 callers, named.
@@ -42,10 +44,11 @@ ACTIVE = 0x800DB0A0
 # The rules' entry points, each logged with the current combatant; those with dump=True also save RAM.
 ENTRIES = {
     0x8005D15C: ("Combat.Setup", True),
+    0x80022C9C: ("Combat.StartFirstTurn", True),
     0x8006AC4C: ("TurnOrder.Advance", False),
     0x8006A9C8: ("TurnOrder.BeginTurn", True),
     0x8005B314: ("EnemyAI.Step", False),
-    0x80065F6C: ("Combatant.ExecuteAction", False),
+    0x80065F6C: ("Combatant.ExecuteAction", True),  # the turn's first only: a spell runs it for each target
     0x800219D8: ("Combat.EndCast", False),
     0x8006A62C: ("TurnOrder.EndRound", False),
     0x8005E2AC: ("Combat.TallyRewards", False),
@@ -59,7 +62,12 @@ WINDOWS = {
 }
 # Weather.DriftWind's own draws, two every frame: logged, never unwound (those through ParticleHead.FloatRange are).
 UNWOUND_NOT = {0x8007BAE8, 0x8007BB74}
-DEPTH = 4
+# The generator's own functions, which a chain unwinds through without counting them: RandomExtensions.Range and
+# RollD, Rng.Seed to RandomExtensions.Float, and __udivdi3.
+PLUMBING = {0x800085B0, 0x800085E0, 0x80093180, 0x80093198, 0x800931C0, 0x80093214, 0x8009328C, 0x80093384, 0x800933D4,
+            0x80093428, 0x800B3C30}
+DEPTH = 3  # frames outside PLUMBING
+MAX_FRAMES = 10
 
 # The generator, seed * A + C, and a step back.
 A, C = 0x19660D, 0x3C6EF35F
@@ -79,12 +87,15 @@ class Code:
         self.read = read
         self.frames = {}
 
+    def start(self, pc):
+        i = bisect.bisect_right(self.starts, pc) - 1
+        return self.starts[i] if i >= 0 else None
+
     def frame(self, pc):
         """(frame size, $ra's offset in it) of the function holding pc, or None for a leaf."""
-        i = bisect.bisect_right(self.starts, pc) - 1
-        if i < 0:
+        start = self.start(pc)
+        if start is None:
             return None
-        start = self.starts[i]
         if start not in self.frames:
             words = self.read(start, 0x60)
             size = offset = None
@@ -101,8 +112,13 @@ class Code:
 
     def chain(self, pc, sp, ra):
         out = [pc]
-        for depth in range(DEPTH - 1):
-            frame = self.frame(pc - 4 if depth else pc)
+        found = 0 if self.start(pc) in PLUMBING else 1
+        for depth in range(MAX_FRAMES):
+            if found >= DEPTH:
+                break
+            at = pc - 4 if depth else pc
+            # At a function's first instruction (__udivdi3's, from Rng.Below) its prologue hasn't run.
+            frame = None if not depth and self.start(pc) == pc else self.frame(at)
             if frame is None:
                 if depth:
                     break  # a leaf above the first frame can't be unwound
@@ -114,6 +130,8 @@ class Code:
             if not 0x80000000 <= pc < 0x80800000:
                 break
             out.append(pc)
+            if self.start(pc - 4) not in PLUMBING:
+                found += 1
         return out
 
 
@@ -152,6 +170,7 @@ def log():
     out = None
     dumps = 0
     returns = {}  # a window's return address -> its name
+    acted = False  # whether this turn's Combatant.ExecuteAction has dumped RAM
 
     def write(record):
         if out:
@@ -222,6 +241,10 @@ def log():
         if pc not in ENTRIES:
             continue  # a stop of gdb's own
         name, dump = ENTRIES[pc]
+        if name == "Combatant.ExecuteAction":
+            dump, acted = not acted, True
+        elif name in ("Combat.StartFirstTurn", "TurnOrder.BeginTurn"):
+            acted = False
         if name == "Combat.Setup":
             folder = begin()
             in_battle = True
@@ -250,7 +273,7 @@ def log():
                 f.write(read(0x80000000, 0x800000))
             record["dumpSeconds"] = round(time.time() - t, 2)
         write(record)
-        if name == "TurnOrder.BeginTurn":
+        if name in ("Combat.StartFirstTurn", "TurnOrder.BeginTurn"):
             mark(f"battle {battle}: turn of slot {record['current']}")
         if name == "Combat.Exit":
             mark(f"battle {battle} ends")
@@ -280,7 +303,7 @@ def summary(folder):
             dump = f" -> {r['dump']}" if r.get("dump") else ""
             print(f"{r['name']}{who} seed {r['seed']:08x}{dump}")
         elif r["t"] == "draw" and r["pc"] not in UNWOUND_NOT:
-            key = " < ".join(name(a) for a in r["chain"])
+            key = " < ".join(name(a) for a in r["chain"] if not name(a).startswith(("Rng.", "RandomExtensions.", "__udivdi3")))
             callers[key] = callers.get(key, 0) + 1
     print()
     for key, n in sorted(callers.items(), key=lambda kv: -kv[1]):
