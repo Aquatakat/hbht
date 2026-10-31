@@ -548,7 +548,9 @@ public sealed class Body
         else
         {
             busy = true;
-            var toGoal = Goal - new Vector2(Sphere.Position.X, Sphere.Position.Z);
+            // Under Modern movement, from where its last move would have taken it had a wall not stopped it, as 1.0 steers by
+            // where a frame's root motion left it, before the next frame's collision pushes it back out of what it ran into.
+            var toGoal = Goal - (_movement == MovementMode.Modern ? Modern.Aim : new Vector2(Sphere.Position.X, Sphere.Position.Z));
             var distance = toGoal.Length();
             if (_nearest - distance > Nearer)
             {

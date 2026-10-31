@@ -217,6 +217,83 @@ public class ModernMovementTests
     }
 
     /// <summary>
+    /// A body put with its sphere's centre a little under a floor, as the set-down puts I13's actors in 0x0527, comes out on top of
+    /// it as 1.0's collision lifts it (<c>MovingPlane</c>); one put further under than its radius stays, the floor one-sided.
+    /// </summary>
+    [Theory]
+    [InlineData(1f, 1.7f)]
+    [InlineData(2f, 0.7f)]
+    public void ComesOutOnTopOfAFloorItIsPutALittleUnder(float floor, float rests)
+    {
+        var world = new CollisionWorld();
+        world.Add(Worlds.Chunk(Worlds.OwnParts), Worlds.Floor(0, -20, 20, -20, 20), Vector3.Zero);
+        world.Add(Worlds.Chunk(Worlds.OwnParts + 1), Worlds.Floor(floor, -5, 5, -5, 5, Sand), Vector3.Zero);
+        var body = new Body(new Vector3(0, 0.7f, 0), 0.7f) { Movement = MovementMode.Modern };
+        for (var i = 0; i < 30; i++)
+            body.Step(world, Run);
+        Assert.Equal(rests, body.Sphere.Position.Y, 0.02f);
+    }
+
+    /// <summary>
+    /// Running between two posts, square ones standing corner on, whose corners are nearer than his sphere is wide: he slips
+    /// through where they're wider apart than <see cref="ModernRules.WallEdge"/> of it, as 1.0's sphere slips past walls' edges,
+    /// and is held where they're narrower.
+    /// </summary>
+    [Theory]
+    [InlineData(0.85f, true)]
+    [InlineData(0.65f, false)]
+    public void SlipsBetweenPostsNarrowerThanItsSphere(float gap, bool through)
+    {
+        var world = new CollisionWorld();
+        world.Add(Worlds.Chunk(Worlds.OwnParts), Worlds.Floor(0, -20, 20, -20, 20), Vector3.Zero);
+        world.Add(Worlds.Chunk(Worlds.OwnParts + 1), Post(new Vector2(3, gap / 2 + 0.3f), 0.3f), Vector3.Zero);
+        world.Add(Worlds.Chunk(Worlds.OwnParts + 2), Post(new Vector2(3, -gap / 2 - 0.3f), 0.3f), Vector3.Zero);
+        var player = Player(new Vector3(0, 0.5f, 0), Vector2.UnitX);
+        Hold(world, player, Vector2.UnitX, 180);
+        Assert.Equal(through, player.Sphere.Position.X > 5);
+        Assert.Equal(0.5f, player.Sphere.Position.Y, 0.02f);
+    }
+
+    /// <summary>A square post of plain collision 3 high, standing corner on, its corners <paramref name="size"/> from its middle.</summary>
+    private static IEnumerable<CollisionTriangle> Post(Vector2 middle, float size)
+    {
+        Vector2[] corners = [middle + new Vector2(size, 0), middle + new Vector2(0, size), middle - new Vector2(size, 0), middle - new Vector2(0, size)];
+        for (var i = 0; i < 4; i++)
+        {
+            var (p, q) = (corners[i], corners[(i + 1) % 4]);
+            var (a, b) = (new Vector3(p.X, 0, p.Y), new Vector3(q.X, 0, q.Y));
+            var up = new Vector3(0, 3, 0);
+            // Facing out of the post.
+            var outward = new Vector3((p + q).X / 2 - middle.X, 0, (p + q).Y / 2 - middle.Y);
+            var face = Vector3.Cross(up, b - a);
+            if (Vector3.Dot(face, outward) < 0)
+                (a, b) = (b, a);
+            yield return Worlds.Triangle(a, a + up, b, Plain);
+            yield return Worlds.Triangle(b, a + up, b + up, Plain);
+        }
+    }
+
+    /// <summary>
+    /// A body steered to a point just behind a wall, pressed against the wall in front of it, is as near it as 1.0's, which
+    /// steers by where a frame's root motion left it before the next collision pushed it out of the wall: it gets there, as
+    /// 0x0365's runner does at H08, rather than giving up and popping into the wall.
+    /// </summary>
+    [Fact]
+    public void ReachesAGoalJustBehindTheWallItPressesAgainst()
+    {
+        var world = new CollisionWorld();
+        world.Add(Worlds.Chunk(Worlds.OwnParts), Worlds.Floor(0, -20, 20, -20, 20), Vector3.Zero);
+        world.Add(Worlds.Chunk(Worlds.OwnParts + 1), Worlds.Wall(3, 3).Select(t => t with { Surface = Plain }), Vector3.Zero);
+        var body = new Body(new Vector3(0, 0.505f, 0), 0.5f) { Movement = MovementMode.Modern, Heading = Vector2.UnitX, GiveUpTicks = 300 };
+        body.GoTo(new Vector2(3 - 0.5f + 1.03f, 0), 1, walk: false);
+        for (var i = 0; i < 400 && body.Moving; i++)
+            body.Step(world, Run);
+        Assert.False(body.Moving);
+        Assert.Equal(0, body.PutAtGoal);
+        Assert.True(body.Sphere.Position.X < 2.5f, $"{body.Sphere.Position}");
+    }
+
+    /// <summary>
     /// A walk whose state, let go of, carries its root back, as entity 0x0226's walk start (state 4 of <c>aidyn:actor/0x2C17</c>)
     /// snaps it back 2.25 at its end: the rest of the step takes him back, where the stop's reach threw on it.
     /// </summary>

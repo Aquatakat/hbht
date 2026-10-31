@@ -18,7 +18,10 @@ public enum CollisionFlags
     Passable = 0x1,
     /// <summary>Whatever touches it takes on its surface's speed property (gravity and drag). Never set.</summary>
     TakesSpeed = 0x2,
-    /// <summary>Spheres collide with the edge from A to B as well as the face. Every edge no other triangle shares has its bit.</summary>
+    /// <summary>
+    /// Spheres collide with the edge from A to B as well as the face. Each edge and corner has its bit on the first triangle that has
+    /// it and no other, so it's tested once: the bits don't mark which are exposed.
+    /// </summary>
     EdgeAB = 0x4,
     /// <summary>The edge from C to A.</summary>
     EdgeCA = 0x8,

@@ -26,6 +26,18 @@ public static class SphereCast
     /// <param name="OnFace">Whether it touched the face rather than an edge or a corner.</param>
     public readonly record struct Hit(float Share, Vector3 Normal, Vector3 Face, int Surface, bool OnFace);
 
+    /// <summary>
+    /// Which triangles are walls, by their surface and how far their normal faces up, whose edges and corners a sphere may come
+    /// within <paramref name="Share"/> of its radius of, where their faces, and all of the ground, keep it the whole of it away.
+    /// 1.0's sphere slips past the edges and corners of walls, and so through gaps narrower than itself
+    /// (docs/systems/movement.md#narrow-gaps).
+    /// </summary>
+    public sealed record SoftEdges(Func<int, float, bool> Wall, float Share)
+    {
+        /// <summary>How near to a triangle's edges and corners a sphere of <paramref name="radius"/> is kept.</summary>
+        internal float Reach(in Triangle t, float radius) => Wall(t.Surface, t.Normal.Y) ? radius * Share : radius;
+    }
+
     /// <summary>Two hits closer than this share of a move are at the same moment, as where triangles meet.</summary>
     private const float Tie = 1e-4f;
 
@@ -34,19 +46,19 @@ public static class SphereCast
     /// <summary>
     /// Whether a sphere moving by <paramref name="delta"/> touches anything, and where it first does. Of hits at the same moment,
     /// as on an edge two triangles share, one <paramref name="preferred"/> says yes to is taken. With <paramref name="only"/>, it
-    /// touches only what that says yes to.
+    /// touches only what that says yes to; with <paramref name="edges"/>, it passes nearer walls' edges and corners.
     /// </summary>
     public static bool Cast(CollisionWorld world, Vector3 from, Vector3 delta, float radius, bool skipSeeThrough, Func<Hit, bool> preferred,
-        out Hit hit, Func<Hit, bool>? only = null)
+        out Hit hit, Func<Hit, bool>? only = null, SoftEdges? edges = null)
     {
         hit = default;
         var found = false;
         var near = Near(world, from, delta.Length() + radius);
         foreach (var t in near)
         {
-            if (!Blocks(t, skipSeeThrough) || !Cast(t, from, delta, radius, out var h))
+            if (!Blocks(t, skipSeeThrough) || !Cast(t, from, delta, radius, edges?.Reach(t, radius) ?? radius, out var h))
                 continue;
-            if (t.Surface is not (1 or 2) && PlainCopy(t, from + delta * h.Share - h.Normal * radius, near, skipSeeThrough) is { } plain)
+            if (t.Surface is not (1 or 2) && PlainCopy(t, Closest(from + delta * h.Share, t), near, skipSeeThrough) is { } plain)
                 h = h with { Surface = plain };
             if ((only is null || only(h))
                 && (!found || h.Share < hit.Share - Tie || (h.Share < hit.Share + Tie && !preferred(hit) && preferred(h))))
@@ -81,10 +93,22 @@ public static class SphereCast
     private const float Overlap = 1e-3f;
 
     /// <summary>
-    /// Pushes a sphere out of what it overlaps by more than a rounding's worth, a few passes over the triangles about it, each out
-    /// along the way from the triangle's nearest point to its centre till it just touches. Returns whether it moved it.
+    /// How far clear of what it was in a push leaves a sphere, so that the next cast starts outside it rather than touching it at
+    /// once, as a move along a crease that strays a rounding's worth into either side would.
     /// </summary>
-    public static bool PushOut(CollisionWorld world, ref Vector3 centre, float radius, bool skipSeeThrough)
+    private const float Clear = 2e-3f;
+
+    /// <summary>
+    /// Pushes a sphere out of what it overlaps by more than a rounding's worth, a few passes over the triangles about it, each out
+    /// along the way from the triangle's nearest point to its centre till it just touches, walls' edges and corners at
+    /// <paramref name="edges"/>' share of its radius, so a body that slipped nearer them stays. A triangle whose plane its centre is
+    /// behind is left alone, as a cast leaves it, unless
+    /// <paramref name="recover"/>: then a face its centre is behind by less than its radius, and over, pushes it out to its front, as
+    /// 1.0's collision does (<c>MovingPlane</c>, <c>0x800a4da4</c>), so a body put a little into the ground or a wall, as a set-down
+    /// or a pop to its goal may put it, comes out where 1.0's does. Returns whether it moved it.
+    /// </summary>
+    public static bool PushOut(CollisionWorld world, ref Vector3 centre, float radius, bool skipSeeThrough, SoftEdges? edges = null,
+        bool recover = false)
     {
         var moved = false;
         for (var pass = 0; pass < 3; pass++)
@@ -92,13 +116,26 @@ public static class SphereCast
             var pushed = false;
             foreach (var t in Near(world, centre, radius))
             {
-                if (!Blocks(t, skipSeeThrough) || Vector3.Dot(centre - t.A, t.Normal) < 0)
+                if (!Blocks(t, skipSeeThrough))
                     continue;
-                var off = centre - Closest(centre, t);
+                var height = Vector3.Dot(centre - t.A, t.Normal);
+                if (height < 0)
+                {
+                    if (!recover || height <= -radius || !Inside(centre - t.Normal * height - t.A, Vector3.Zero, t.B - t.A, t.C - t.A, t.Normal))
+                        continue;
+                    centre += t.Normal * (radius + Clear - height);
+                    pushed = moved = true;
+                    continue;
+                }
+                var onPlane = centre - t.Normal * height;
+                var nearest = Closest(onPlane, t);
+                var reach = edges is not null && Vector3.DistanceSquared(nearest, onPlane) > 1e-10f ? edges.Reach(t, radius) : radius;
+                var off = centre - nearest;
                 var distance = off.Length();
-                if (distance >= radius - Overlap || distance < 1e-6f)
+                if (distance >= reach - Overlap)
                     continue;
-                centre += off / distance * (radius - distance);
+                // On the triangle itself, out through its front.
+                centre += distance < 1e-6f ? t.Normal * (radius + Clear) : off / distance * (reach + Clear - distance);
                 pushed = moved = true;
             }
             if (!pushed)
@@ -133,8 +170,11 @@ public static class SphereCast
         return near;
     }
 
-    /// <summary>A sphere at the origin moving by <paramref name="d"/> against one triangle, whose corners are relative to it.</summary>
-    private static bool Cast(in Triangle t, Vector3 from, Vector3 d, float r, out Hit hit)
+    /// <summary>
+    /// A sphere at the origin moving by <paramref name="d"/> against one triangle, whose corners are relative to it: its face at
+    /// the sphere's radius, and its edges and corners at <paramref name="edge"/> from its centre (<see cref="SoftEdges"/>).
+    /// </summary>
+    private static bool Cast(in Triangle t, Vector3 from, Vector3 d, float r, float edge, out Hit hit)
     {
         hit = default;
         var n = t.Normal;
@@ -164,12 +204,12 @@ public static class SphereCast
         }
         if (!onFace)
         {
-            Edge(a, b, d, r, ref best, ref normal);
-            Edge(b, c, d, r, ref best, ref normal);
-            Edge(c, a, d, r, ref best, ref normal);
-            Corner(a, d, r, ref best, ref normal);
-            Corner(b, d, r, ref best, ref normal);
-            Corner(c, d, r, ref best, ref normal);
+            Edge(a, b, d, edge, ref best, ref normal);
+            Edge(b, c, d, edge, ref best, ref normal);
+            Edge(c, a, d, edge, ref best, ref normal);
+            Corner(a, d, edge, ref best, ref normal);
+            Corner(b, d, edge, ref best, ref normal);
+            Corner(c, d, edge, ref best, ref normal);
         }
         if (best > 1)
             return false;
