@@ -166,6 +166,11 @@ The saves are in `out/parity/saves/`. `base.json` is story save A with the party
 
   Sholeh wears the Charming scroll. Her Dispel Star and Dougal's Mirror are the story's.
 
-Slots C and D still hold copies of story saves C and D.
+- **Setup 3, `setup3.json`, in slot C.** The party stands 8 west of the Giant Rats, facing them, 22 from M08's wolves. On top of `base.json`:
+  - Hurt, for the Healer and the potions: Alaron at 102 of 117 HP and Dougal at 108 of 122, their Level's points spent (`--current Level`). Keelin is at 35 of 72 with 3 Stamina, so a spell can be refused for Stamina before a Stamina Potion is drunk. Setups 1 and 2 never had a Stamina refusal.
+  - Flasks: Fire ×3, Inferno, Sleep Gas and Acid ×2. Dougal (Thrown 10) throws them.
+  - The potions the inventory lacked: Antidote, Dexterity, Clarity, Charisma and Defense ×2. Healing, Stamina, Curing, Restore, Strength and Stealth were there already.
+  - Dougal's Fireball 6 is from the story. It's there to place a blast that catches a member, which setup 1 didn't do.
+- **Setup 4, `setup4.json`, in slot D.** At 22:00, Night. The party stands on the slope 11.4 north-east of the Woodsmen (party #2, `0x025B`, radius 10), facing them, 24 from the Ogre (#0, radius 20) and 17 from the Wyverns (#1, radius 10). Keelin wears the Short Bow, and Dougal has 4 Javelins.
 
 Every log also settles the frame's delta in combat, and the first one where in a turn an attack's draws fall, both in [combat](systems/combat.md#not-settled). Each party above is always enabled but Kitarak's (while 154 is clear) and Lugash's (5250); others can stand in from the base plugin's monster parties.
