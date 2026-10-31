@@ -128,7 +128,7 @@ The party for most: Alaron, Sholeh (Star, Healer 10, Ranger 6, Long Bow), Dougal
 | # | Monster party | Arena | Enemies | Scenarios |
 | --- | --- | --- | --- | --- |
 | 1 | MiscInteriors E05 #1 (24, 64) | 27 | 12 Tomb Rats, weak to fire ×1.5, reserves | The party's spells: Fireball placed to catch a member; Dragon Flames by level; Lightning; Earth Smite; Whitefire; Immolation and Acid Bolt over rounds; Web of Starlight and Frozen Doom, with the disable limit while reserves are to come and Web's escape; Stellar Gravity and Haste; Solar Wrath putting them to flight; Poison to a death; Tap Stamina; Darkness then Light; Sense Aura at levels 1, 5 and 9; a cast failed, one refused for its reagent and one for Stamina; a scroll and a wand; a level-0 spell |
-| 2 | ChaosIsle A07 #8 (27, 27) | 17, no flee points | 2 Chaos Spellweavers, 2 Chaos Sorcerors | Enemy casters: Starlight Shield, Mirror, Wall of Bones, Web, Darkness, Clumsiness, Crushing Death, Whitefire and Lightning at the party; the party's spells into Mirror; Dispel Star on their shields; Wraith Touch, Wall of Bones, Charming and Aura of Death, which need a True Name or a Solar target; the wards (vs. Star); enemies that can't flee |
+| 2 | ChaosIsle A07 #8 (27, 27) | 17, no flee points | 2 Chaos Spellweavers, 2 Chaos Sorcerors | Enemy casters: Starlight Shield, Mirror, Wall of Bones, Web, Darkness, Clumsiness, Crushing Death, Whitefire and Lightning at the party; the party's spells into Mirror; Dispel Star on their shields; Wall of Bones, Charming and Aura of Death, which need a True Name or a Solar target; the wards (vs. Star); enemies that can't flee |
 | 3 | Overworld M08 #2 (26, 85) | 2–3 | 10 Giant Rats, reserves | The skills and items: Lay On Hands and Heal With Herbs; Dougal performing for two rounds, then acting; a weapon changed and a flask taken in hand from the Party tab; Fire, Inferno, Acid and Sleep Gas flasks, one landing near a member; each potion drinkable; blows from behind with Keelin and from higher ground; a turn skipped; the win's loot and experience |
 | 4 | Overworld F14 #2 (29, 85), at night | 6–7 | 4 Bandit Woodsmen, long bows, style 3 | Ranged: Sholeh's and Keelin's shots at targets near and far, moved and not; the Woodsmen keeping their distance; Dougal's thrown Javelin; melee at night; rain if the weather brings it |
 | 5 | Overworld E09 #5 (98, 53) | 2–3 | 4 Goblin Poisoners, darts, style 3 | Thrown attacks at the party; Antidote and Remove Poison if the darts poison |
@@ -151,7 +151,7 @@ The saves are in `out/parity/saves/`. `base.json` is story save A with the party
 
   The party has 2 Herbs, so the third of Frozen Doom, Wall of Bones and Sense Aura gets refused for its reagent. The pak can't hold a spell at level 0, so the rise is tried at level 1 alone. Sense Aura is cast at 1 and 5, not 9.
 - **Setup 2, `setup2.json`, in slot B.** Flag 3078 is cleared, so party #8 is back. The other five parties of A07 stay beaten. The party stands 7 from them, facing them. On top of the story's spells:
-  - Alaron: Dispel Necro, Light, Aura of Death, Wraith Touch and Wall of Bones at 5.
+  - Alaron: Dispel Necro, Light, Aura of Death and Wall of Bones at 5. Wraith Touch was taken off him after it crashed 1.0 on landing (`out/parity/20261031-132738-setup2`): a party caster's crashes 1.0, which play can't reach ([combat](systems/combat.md#what-spells-look-like)).
   - Dougal: Lightning and Earth Smite at 5.
   - Keelin: vs. Star at 5 and Lightning at 4.
 
