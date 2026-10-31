@@ -78,7 +78,7 @@ The port draws the drift from the cosmetic stream every second tick (`Cadence.Fr
 
 ## Differences from the original
 
-The user chose each of these, but for the rain loop under the post-battle windows, which is still open.
+The user chose each of these.
 
 - **Streams.** The original rolls the weather, drifts the wind and flashes the lightning from its one stream. The port rolls on the world's and draws the rest from the cosmetic one (ADR 0006).
 - **Saving the whole weather.** The port's save keeps the class, the wind and what's drawn, so a loaded game's weather looks as it did. In the original the class is whatever the fresh world's rolls left (the checkpoints show it stale), and the wind starts again at a new game's.
