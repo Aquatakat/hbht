@@ -27,6 +27,11 @@ public enum MovementMode
 /// <param name="StepHeight">How high a ledge he steps up onto when a wall stops him: his radius, as 1.0's sphere lifts him over lower.</param>
 /// <param name="SnapDown">How far below him he keeps to the ground going down slopes and stairs, rather than leaving it.</param>
 /// <param name="PlainIsWall">Whether plain collision is a wall where it's steep. Only a check of the reachability tool turns it off.</param>
+/// <param name="WallEdge">
+/// The share of his radius walls' edges and corners keep him from as he slips between walls that hold him, where faces and the
+/// ground keep him a whole radius away: 1.0's sphere slips past them, through gaps between a wall's end and a post, or two posts,
+/// that are narrower than it.
+/// </param>
 /// <param name="Stride">
 /// The ticks his speed is the mean root motion of, or 1 for none: his footfalls jerk him a little, which the mean glides over.
 /// </param>
@@ -44,7 +49,7 @@ public enum MovementMode
 /// the world's.
 /// </remarks>
 public sealed record ModernRules(float FloorUp = 0.45f, float PlainLevelUp = 0.97f, float StepHeight = 0.5f, float SnapDown = 0.5f,
-    bool PlainIsWall = true, int Stride = EntityBody.DefaultStride, float SetOffTurn = EntityBody.DefaultSetOffTurn * MathF.PI / 180,
+    bool PlainIsWall = true, float WallEdge = 0.75f, int Stride = EntityBody.DefaultStride, float SetOffTurn = EntityBody.DefaultSetOffTurn * MathF.PI / 180,
     float StopPace = EntityBody.DefaultStopPace, float StopReach = EntityBody.DefaultStopReach)
 {
     public static readonly ModernRules Default = new();

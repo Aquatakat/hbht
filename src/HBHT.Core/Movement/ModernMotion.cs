@@ -86,17 +86,52 @@ internal sealed class ModernMotion(Body body)
 
     private Func<SphereCast.Hit, bool>? _ground;
 
+    /// <summary>
+    /// Where the last tick left its sphere, so that a body put somewhere since, as a set-down, a pop to its goal or a teleport puts
+    /// it, is first pushed out of what it's in as 1.0's collision pushes it (<see cref="SphereCast.PushOut"/>'s recover).
+    /// </summary>
+    private Vector3 _left = new(float.NaN);
+
+    /// <summary>How much of the last tick's move across the ground walls took away, which <see cref="Aim"/> adds back.</summary>
+    private Vector2 _pressed;
+
+    private SphereCast.SoftEdges? _edges;
+    private ModernRules? _edgesFor;
+
+    /// <summary>Walls' edges as <see cref="ModernRules.WallEdge"/> keeps him from them.</summary>
+    private SphereCast.SoftEdges Edges
+    {
+        get
+        {
+            if (_edges is null || !ReferenceEquals(_edgesFor, Rules))
+            {
+                var rules = _edgesFor = Rules;
+                _edges = new SphereCast.SoftEdges((surface, up) => !rules.Ground(surface, up), rules.WallEdge);
+            }
+            return _edges;
+        }
+    }
+
     /// <summary>Whether it stood on the ground after the last tick.</summary>
     public bool OnGround => _onGround;
 
     /// <summary>Whether it's setting off from standing, when it turns by <see cref="ModernRules.SetOffTurn"/>.</summary>
     public bool SettingOff => _settingOff;
 
+    /// <summary>
+    /// Where it measures how near its goal it is from, across the ground: where its last move would have taken it had nothing
+    /// stopped it. 1.0 steers a body by where a frame's root motion left it, before the next frame's collision pushes it back out
+    /// of what it ran into (<c>ProcessPlayers</c>, docs/systems/movement.md#narrow-gaps), so a body pressed against a wall in
+    /// front of its goal is that much nearer it. Put somewhere since, it's where it was put.
+    /// </summary>
+    public Vector2 Aim => new Vector2(Sphere.Position.X, Sphere.Position.Z) + (Sphere.Position == _left ? _pressed : Vector2.Zero);
+
     /// <summary>Takes up where the original's movement left it, on the ground if it was.</summary>
     public void Begin(bool grounded)
     {
         (_onGround, _groundNormal, _groundSurface) = (grounded, Vector3.UnitY, Sphere.Surface);
         _groundHeight = grounded ? Sphere.Position.Y : float.NegativeInfinity;
+        _left = new Vector3(float.NaN);
     }
 
     /// <summary>Off the ground, as after a fall out of the world.</summary>
@@ -139,11 +174,15 @@ internal sealed class ModernMotion(Body body)
         var forward = Speed(root, stopping || Body.MovingStates == 1);
         var across = _across = new Vector3(Heading.X, 0, Heading.Y) * (forward * body.Scale);
         var position = s.Position;
-        SphereCast.PushOut(world, ref position, Radius, s.IgnoresSeeThrough);
+        // Put somewhere since the last tick, he comes out of what he's in as 1.0's sphere does, through the back of a face he's
+        // a little behind; otherwise a face he's behind is one he's passing through from behind, as 1.0's one-sided walls let him.
+        SphereCast.PushOut(world, ref position, Radius, s.IgnoresSeeThrough, Edges, recover: position != _left);
         s.Touching = false;
+        Vector3? aim = null;
         if (_onGround)
         {
             // On the ground he has no velocity: his animation moves him across it.
+            aim = position + across;
             Walk(world, ref position, across);
             _onGround = Snap(world, ref position, Rules.SnapDown);
             s.Velocity = Vector3.Zero;
@@ -166,6 +205,8 @@ internal sealed class ModernMotion(Body body)
             (position, s.Velocity) = (s.Position, Vector3.Zero);
         s.Position = position;
         body.KeepInBounds();
+        _left = s.Position;
+        _pressed = aim is { } wanted ? new Vector2(wanted.X - _left.X, wanted.Z - _left.Z) : Vector2.Zero;
         if (_onGround)
             (s.Touching, s.ContactNormal, s.Surface, _groundHeight) = (true, _groundNormal, _groundSurface, position.Y);
         else if (!s.Touching)
@@ -242,8 +283,40 @@ internal sealed class ModernMotion(Body body)
         }
         _groundNormal = normal;
         // Held between two walls, hardly moving.
-        if (walls >= 2 && Vector3.Dot(position - from, wanted) < 0.25f * wanted.LengthSquared())
+        if (walls >= 2 && Vector3.Dot(position - from, wanted) < 0.25f * wanted.LengthSquared() && !Slip(world, from, ref position, wanted))
             Squeeze(world, ref position, wanted, Rules.StepHeight);
+    }
+
+    /// <summary>
+    /// Slips him between walls that hold him, nearer their edges and corners than his radius (<see cref="ModernRules.WallEdge"/>),
+    /// as 1.0's sphere slips between a wall's end and a post: his move <paramref name="across"/> the ground from
+    /// <paramref name="from"/> tried again so, sliding as on the ground. Whether it took him further on than the move that held
+    /// him, by a twentieth of the way.
+    /// </summary>
+    private bool Slip(CollisionWorld world, Vector3 from, ref Vector3 position, Vector3 across)
+    {
+        var (at, wanted, normal) = (from, across, _groundNormal);
+        for (var i = 0; i < Slides && across.LengthSquared() > 1e-10f; i++)
+        {
+            var move = AlongGround(across, normal);
+            if (!Cast(world, at, move, out var hit, soft: true))
+            {
+                at += move;
+                break;
+            }
+            at += Short(move, hit.Share);
+            across *= 1 - hit.Share;
+            if (Ground(hit))
+            {
+                normal = hit.Normal;
+                continue;
+            }
+            across = AlongCrease(AlongGround(across, normal), normal, hit.Normal) with { Y = 0 };
+        }
+        if (Vector3.Dot(at - position, wanted) < 0.05f * wanted.LengthSquared())
+            return false;
+        (position, _groundNormal) = (at, normal);
+        return true;
     }
 
     /// <summary>
@@ -377,8 +450,9 @@ internal sealed class ModernMotion(Body body)
         return length < 1e-6f ? Vector3.Zero : move * (MathF.Max(0, share * length - Skin) / length);
     }
 
-    private bool Cast(CollisionWorld world, Vector3 from, Vector3 move, out SphereCast.Hit hit) =>
-        SphereCast.Cast(world, from, move, Radius, Sphere.IgnoresSeeThrough, _ground ??= Ground, out hit);
+    /// <param name="soft">Whether he may pass nearer walls' edges and corners than his radius, slipping (<see cref="Slip"/>).</param>
+    private bool Cast(CollisionWorld world, Vector3 from, Vector3 move, out SphereCast.Hit hit, bool soft = false) =>
+        SphereCast.Cast(world, from, move, Radius, Sphere.IgnoresSeeThrough, _ground ??= Ground, out hit, edges: soft ? Edges : null);
 
     private void Touch(SphereCast.Hit hit) => (Sphere.Touching, Sphere.ContactNormal) = (true, hit.Normal);
 

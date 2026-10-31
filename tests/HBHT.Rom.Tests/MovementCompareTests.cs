@@ -1,4 +1,3 @@
-using System.Numerics;
 using HBHT.Core;
 using HBHT.Core.Movement;
 using HBHT.Plugins;
@@ -38,65 +37,62 @@ public sealed class MovementCompareTests(Na10Import fixture, ITestOutputHelper o
         Assert.Equal(262, differences.Count);
         Assert.All(differences, d => Assert.True(d.SameCourse, $"{d.Launch.Script} went another way"));
         Assert.All(differences, d => Assert.True(d.Original.Ended && d.Modern.Ended));
-        Assert.InRange(Of(MovementCompare.Severity.Same).Count(), 185, 205);
+        Assert.InRange(Of(MovementCompare.Severity.Same).Count(), 195, 210);
         Assert.InRange(Of(MovementCompare.Severity.Jump).Count(), 6, 14);
-        Assert.InRange(Of(MovementCompare.Severity.Place).Count(), 18, 32);
+        Assert.InRange(Of(MovementCompare.Severity.Place).Count(), 18, 30);
         Assert.InRange(Of(MovementCompare.Severity.Timing).Count(), 20, 34);
+        Assert.Empty(Of(MovementCompare.Severity.FellOut));
+        Assert.Empty(Of(MovementCompare.Severity.GiveUp));
     }
 
     /// <summary>
     /// Alaron, spawned at the Overworld A22's point where the set-down from on high finds no ground, is left with his centre 0.07
-    /// behind the slope's face: the original's collision pushes him up onto it, and Modern's, which pushes a sphere only out of faces
-    /// its centre is in front of, lets him fall through the world till he's too far from the camera to step.
+    /// behind the slope's face: the original's collision pushes him up onto it, and so does Modern's, as he was put there, where he
+    /// fell through the world when it pushed a sphere only out of faces its centre is in front of.
     /// </summary>
     [Fact]
-    public void Modern_drops_Alaron_through_A22()
+    public void Modern_sets_Alaron_down_on_A22_as_the_original_does()
     {
-        var fell = Of(MovementCompare.Severity.FellOut).ToList();
-        Assert.Equal(new HashSet<RecordId> { Script(0x042C), Script(0x042F) }, fell.Select(d => d.Launch.Script).ToHashSet());
-        foreach (var d in fell)
+        var a22 = Differences().Where(d => d.Launch.Script == Script(0x042C) || d.Launch.Script == Script(0x042F))
+            .Where(d => d.Launch.Stage is { Row: 1, Column: 22 }).ToList();
+        // 0x042C's two launches there and 0x042F's one.
+        Assert.Equal(3, a22.Count);
+        foreach (var d in a22)
         {
-            var alaron = d.Actors.Single(a => a.Severity == MovementCompare.Severity.FellOut);
-            Assert.Equal(GameState.Alaron, alaron.Original.Entity);
-            Assert.False(alaron.Original.FellOut);
-            Assert.True(alaron.Modern.FellOut);
-            Assert.True(alaron.Modern.Position.Y < alaron.Original.Position.Y - 25);
+            var alaron = d.Actors.First(a => a.Original.Entity == GameState.Alaron);
+            Assert.False(alaron.Modern.FellOut);
+            Assert.True(alaron.Distance < 0.05f, $"{d.Launch.Script}: {alaron.Distance}");
         }
     }
 
     /// <summary>
-    /// Where Modern gives up a walk the original doesn't, or more often, and pops the actor to its goal: the furthest pop under
-    /// either. G12's gap between a wall's end and a post narrower than a sphere of radius 1 (0x03FC), the point behind H08's plain
-    /// wall (0x0364, 0x0365), and C05's gap between two invisible posts narrower than Alaron (0x04EB).
+    /// The walks Modern gave up and the original makes: G12's gap between a wall's end and a post narrower than a sphere of radius 1
+    /// (0x03FC) and C05's between two invisible posts narrower than Alaron (0x04EB), which it now slips through, the point behind
+    /// H08's plain wall (0x0365), which a body pressed against the wall now reaches as the original's does, and the walk on from
+    /// inside that wall where 0x0364's give-up put entity 0x0226, which it now comes out of. Every actor gives up as often under
+    /// both.
     /// </summary>
     [Fact]
-    public void Modern_gives_up_four_walks_the_original_makes()
+    public void Modern_makes_the_walks_the_original_makes()
     {
-        var pops = Of(MovementCompare.Severity.GiveUp).ToDictionary(d => d.Launch.Script, d => d.Magnitude);
-        Assert.Equal(new HashSet<RecordId> { Script(0x03FC), Script(0x0364), Script(0x0365), Script(0x04EB) }, pops.Keys.ToHashSet());
-        Assert.InRange(pops[Script(0x03FC)], 8.5f, 9.5f);
-        Assert.InRange(pops[Script(0x0364)], 5.3f, 6.3f);
-        Assert.InRange(pops[Script(0x04EB)], 2f, 2.5f);
-        Assert.InRange(pops[Script(0x0365)], 1.4f, 2f);
-        foreach (var d in Of(MovementCompare.Severity.GiveUp))
-            Assert.Contains(d.Actors, a => a.Modern.PutAtGoal > a.Original.PutAtGoal);
+        var those = Differences().Where(d => d.Launch.Script == Script(0x03FC) || d.Launch.Script == Script(0x0364)
+            || d.Launch.Script == Script(0x0365) || d.Launch.Script == Script(0x04EB)).ToList();
+        Assert.True(those.Count >= 4);
+        foreach (var d in Differences())
+            Assert.All(d.Actors, a => Assert.True(a.Modern.PutAtGoal == a.Original.PutAtGoal, $"{d.Launch.Script} actor {a.Index}"));
     }
 
     /// <summary>
     /// The Overworld I13's two actors, set down from on high onto a surface a floor covers, as the original's grid order has them:
-    /// the original's collision lifts them 1.05 onto the floor, and Modern leaves them in it.
+    /// the original's collision lifts them 1.05 onto the floor, and Modern's does too, where it left them in it.
     /// </summary>
     [Fact]
-    public void Modern_leaves_I13s_actors_a_floor_below()
+    public void Modern_lifts_I13s_actors_onto_the_floor_as_the_original_does()
     {
         var d = Differences().Single(d => d.Launch.Script == Script(0x0527));
         Assert.Equal(2, d.Original.Actors.Count);
         foreach (var a in d.Actors)
-        {
-            var (o, m) = (a.Original.Position, a.Modern.Position);
-            Assert.True(Vector2.Distance(new(o.X, o.Z), new(m.X, m.Z)) < 0.01f);
-            Assert.InRange(o.Y - m.Y, 1f, 1.1f);
-        }
+            Assert.True(a.Distance < 0.05f, $"actor {a.Index}: {a.Distance}");
     }
 
     /// <summary>
