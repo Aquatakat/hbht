@@ -129,7 +129,8 @@ public sealed class CombatCueTests(Na10Import fixture)
             "animated 2 7",
             "number 2 1",
             "log Brenna loses 1 hit point",
-            "log Giant Rat begins action",
+            // Checkpoint 10's round (0, 3, 2, 1, 7, 0, 3, 4, 1, 6, 5, 2), at the rat's place: Rheda's turn is next.
+            "log Rheda begins action",
         ], host.Cues);
         Assert.All(steps, s => Assert.Same(BattleStep.Ran, s));
     }

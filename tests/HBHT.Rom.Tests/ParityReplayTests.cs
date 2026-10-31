@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Numerics;
 using System.Text.RegularExpressions;
 using HBHT.Core;
+using HBHT.Core.Characters;
 using HBHT.Core.Chunks;
 using HBHT.Core.Combat;
 using HBHT.Core.Physics;
@@ -310,60 +311,179 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
     }
 
     // ---------------------------------------------------------------------------------------------------------------------------
-    // Each action, from the RAM at its Combatant.ExecuteAction to the next turn's
+    // Each action, from the RAM at its Combatant.ExecuteAction to the next turn's, and each AI's turn from its start
 
     /// <summary>A combat struct's target sets (<c>+0x4E64</c>, <c>+0x4F0C</c>): 14 selected flags at <c>+0x48</c>, a word each.</summary>
     private const uint TargetSetA = 0x4E64, TargetSetB = 0x4F0C, TargetSelected = 0x48;
 
     /// <summary>
     /// Each turn's first action as the port carries it out from the original's state: the battle built from the setup with the RAM at
-    /// the action's <c>Combatant.ExecuteAction</c> laid over it (<see cref="Overlay"/>), its spell, potion and targets as they were
+    /// the action's <c>Combatant.ExecuteAction</c> laid over it (<see cref="LayOver"/>), its spell, potion and targets as they were
     /// chosen, the original's draws from there to the next turn fed, and the port's <see cref="Battle.ExecuteAction"/> called with the
-    /// original's attacker, target and kind. Then the turn plays out, and the next turn's start is checked against its RAM: every
-    /// combatant's stats and skills, the dead, whose turn it is, and the draws' count. Bodies' places and the grid are shown, not checked.
+    /// original's attacker, target and kind. Then the turn plays out, and the next turn's start is checked (<see cref="CheckNext"/>).
     /// </summary>
     [Theory]
     [MemberData(nameof(Battles))]
     public void EachActionIsTheOriginals(string battle)
     {
         var log = Log(battle);
-        var records = log.Records.ToList();
         var actions = log.Entries.Where(e => e.Name == "Combatant.ExecuteAction" && e.Dump is not null).ToList();
         if (actions.Count == 0)
             Assert.Skip($"{battle} has no RAM at its actions: a log from before they were dumped.");
         var wrong = new List<string>();
         foreach (var action in actions)
         {
-            var next = records.Skip(At(records, action) + 1).OfType<ParityEntry>()
-                .FirstOrDefault(e => e.Name is "TurnOrder.BeginTurn" or "Combat.Exit" && e.Dump is not null);
-            if (next is null)
-                continue;
-            wrong.AddRange(ReplayAction(battle, log, action, next).Select(w => $"slot {action.Current}'s action ({action.Dump}): {w}"));
+            if (NextTurn(log, action) is { } next)
+                wrong.AddRange(ReplayAction(battle, log, action, next).Select(w => $"slot {action.Current}'s action ({action.Dump}): {w}"));
         }
         Assert.True(wrong.Count == 0, string.Join("\n", wrong));
     }
 
-    private List<string> ReplayAction(string battle, ParityLog log, ParityEntry action, ParityEntry next)
+    /// <summary>
+    /// Each enemy's turn as the port's AI plays it from the original's state: the RAM at its <c>TurnOrder.BeginTurn</c> laid over the
+    /// battle, the original's draws from there to the next turn fed, and the port's turn begun as <c>TurnOrder.Advance</c> begins it.
+    /// What the AI chose, if it acted, is checked against the original's <c>Combatant.ExecuteAction</c>: whom it went for, and where it
+    /// stood (to 0.5, as the walks' steps differ); then the next turn's start (<see cref="CheckNext"/>), and the AI's own record.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Battles))]
+    public void EachEnemyTurnIsTheOriginals(string battle)
+    {
+        var log = Log(battle);
+        var turns = log.Entries.Where(e => e.Name == "TurnOrder.BeginTurn" && e.Dump is not null && e.Combatant is { } c
+            && BitConverter.ToUInt32([.. c.AsSpan(0x44, 4).ToArray().Reverse()]) != 0).ToList();
+        if (turns.Count == 0)
+            Assert.Skip($"{battle} has no enemy's turn with RAM at its start.");
+        var wrong = new List<string>();
+        foreach (var turn in turns)
+        {
+            if (NextTurn(log, turn) is { } next)
+                wrong.AddRange(ReplayEnemyTurn(battle, log, turn, next).Select(w => $"slot {turn.Current}'s turn ({turn.Dump}): {w}"));
+        }
+        Assert.True(wrong.Count == 0, string.Join("\n", wrong));
+    }
+
+    /// <summary>The next turn's start with RAM, or the battle's end.</summary>
+    private static ParityEntry? NextTurn(ParityLog log, ParityEntry entry)
+    {
+        var records = log.Records.ToList();
+        return records.Skip(At(records, entry) + 1).OfType<ParityEntry>()
+            .FirstOrDefault(e => e.Name is "TurnOrder.BeginTurn" or "Combat.Exit" && e.Dump is not null);
+    }
+
+    /// <summary>The original's draws of the rules from an entry point to another.</summary>
+    private static List<ParityDraw> DrawsBetween(ParityLog log, ParityEntry from, ParityEntry to)
+    {
+        var records = log.Records.ToList();
+        return [.. records.Skip(At(records, from) + 1).TakeWhile(r => !ReferenceEquals(r, to)).OfType<ParityDraw>().Where(d => !Cosmetic(d))];
+    }
+
+    /// <summary>
+    /// The battle built from the setup with an entry point's RAM laid over it: the reserves that have joined in the original first
+    /// (<see cref="Join"/>), then <see cref="Overlay"/>.
+    /// </summary>
+    private (Replay Replay, Built Built) LayOver(string battle, ParityLog log, ParityEntry entry)
     {
         var replay = Build(battle, log);
-        var game = replay.Game;
-        var ram = log.Ram(action);
-        var built = replay.Built with { Cp = ram };
+        var built = replay.Built with { Cp = log.Ram(entry) };
+        var joined = Join(built);
+        if (joined.Count > 0)
+            output.WriteLine($"{entry.Dump}: slots {string.Join(", ", joined)} joined as reserves");
+        Overlay(built);
+        return (replay, built);
+    }
+
+    /// <summary>
+    /// The reserves in the original's RAM that the battle built afresh hasn't: each enemy slot where the original has a living
+    /// combatant and the port none, or a dead or gone one, takes the original's entity as <c>Combat.SpawnReserves</c> brings it in
+    /// (<see cref="Battle.SpawnReserves"/>), at the cell and direction the RAM has, which the overlay then lays over it. The slots.
+    /// </summary>
+    private static List<int> Join(Built built)
+    {
+        var (fight, game, ram) = (built.Battle, built.Game, built.Cp);
+        var joined = new List<int>();
+        for (var slot = fight.PartySize; slot < Battle.SlotCount; slot++)
+        {
+            var p = built.Record(slot);
+            if (p == 0)
+                continue;
+            var sheet = ram.ReadWord(p + 0x40);
+            var stats = ram.ReadWord(sheet + 0x18);
+            var dead = Enum.GetValues<Stat>().Where(s => s is Stat.Endurance or Stat.Stamina or Stat.Level)
+                .All(s => ram.ReadByte(stats + 0x15 + (uint)s) == 0);
+            var gone = (Half(ram, p + 0x2C) & (ushort)CombatantFlags.Gone) != 0;
+            if (fight.Slots[slot] is { } c && !(c.Sheet.IsDead || c.Gone) || dead || gone)
+                continue;
+            var entity = RecordId.Hex(RecordTypes.Entity, Half(ram, sheet));
+            var recruit = game.Recruit(entity);
+            Assert.NotNull(recruit);
+            var spare = Battle.ArmFromList(recruit, game.Items);
+            var cell = new Vector2(Float(ram, p), Float(ram, p + 4));
+            var newcomer = (Combatant)Call(fight, "Make", slot, recruit, true, false, cell, (int)ram.ReadByte(p + 0x14))!;
+            Call(fight, "GiveAi", newcomer, spare);
+            newcomer.UpdateRadius(fight);
+            newcomer.PlaceField(fight);
+            fight.Gui.Assign(entity, slot, enemy: true);
+            joined.Add(slot);
+        }
+        return joined;
+    }
+
+    private static object? Call(object target, string method, params object?[] args) =>
+        target.GetType().GetMethod(method, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic
+            | System.Reflection.BindingFlags.Public)!.Invoke(target, args);
+
+    /// <summary>A combatant's slot by its record's address in the RAM, or null.</summary>
+    private static int? SlotOf(Built built, uint record) =>
+        Enumerable.Range(0, Battle.SlotCount).Where(slot => record != 0 && built.Record(slot) == record).Cast<int?>().FirstOrDefault();
+
+    /// <summary>
+    /// Ticks until the combatant's turn has ended, the bodies moved by their animations' roots as the runtime's are, and checks the
+    /// next turn as it begins: at the first cue after <c>TurnOrder.Advance</c> has chosen it, its line (<c>TurnOrder.BeginTurn</c>), where
+    /// the original's RAM was dumped, before its flee check and its ring. Failing a cue (a line the same as the last), after the tick.
+    /// </summary>
+    private List<string> PlayOut(Built built, Combatant c, Func<List<string>> check, Action? eachTick = null)
+    {
         var fight = built.Battle;
+        var zone = Zone(built);
+        var motions = new Dictionary<Combatant, HBHT.Core.Actors.IActorMotion?>();
+        HBHT.Core.Actors.IActorMotion? Motion(Combatant m) => motions.TryGetValue(m, out var found) ? found
+            : motions[m] = HBHT.Core.Actors.ActorMotion.For(Set, Set.Get<ActorRecord>(m.Look.Actor), built.Game.Random.Animation);
+        List<string>? checkedThen = null;
+        fight.Host = new Watch(_ =>
+        {
+            if (checkedThen is null && fight.Current != c)
+                checkedThen = check();
+        });
+        var states = new List<(CombatState State, int Ticks)>();
+        for (var i = 0; i < 20000 && fight.Current == c && !fight.Over; i++)
+        {
+            fight.Tick(zone, false, Motion);
+            eachTick?.Invoke();
+            if (states.Count == 0 || states[^1].State != fight.State)
+                states.Add((fight.State, 0));
+            states[^1] = (fight.State, states[^1].Ticks + 1);
+        }
+        fight.Host = null;
+        output.WriteLine($"  states: {string.Join(", ", states.Take(12).Select(st => $"{st.State} {st.Ticks}"))}");
+        if (checkedThen is null)
+            output.WriteLine("  (no cue as the next turn began: checked after its start)");
+        return checkedThen ?? check();
+    }
+
+    private sealed class Watch(Action<CombatCue> cued) : ICombatHost
+    {
+        public void Cue(CombatCue cue) => cued(cue);
+    }
+
+    private List<string> ReplayAction(string battle, ParityLog log, ParityEntry action, ParityEntry next)
+    {
+        var (replay, built) = LayOver(battle, log, action);
+        var (game, fight, ram) = (replay.Game, built.Battle, built.Cp);
         var wrong = new List<string>();
 
-        // Reserves that have joined in the original haven't in the port's battle, built afresh.
-        var joined = Enumerable.Range(0, Battle.SlotCount).Where(slot => built.Record(slot) != 0 && fight.Slots[slot] is null).ToList();
-        if (joined.Count > 0)
-        {
-            output.WriteLine($"{action.Dump}: slots {string.Join(", ", joined)} joined as reserves, which the replay doesn't lay over yet");
-            return [];
-        }
-        Overlay(built);
-
         // Who, at whom and how (a0 to a2): a spell's kind is 0, a blow's or a potion's 1.
-        int SlotOf(Built b, uint record) => Enumerable.Range(0, Battle.SlotCount).First(slot => b.Record(slot) == record);
-        var (a, t) = (built[SlotOf(built, action.Args[0])], built[SlotOf(built, action.Args[1])]);
+        var (a, t) = (built[SlotOf(built, action.Args[0])!.Value], built[SlotOf(built, action.Args[1])!.Value]);
         var spell = action.Args[2] == 0;
         var p = built.Record(a.Slot);
         var sheet = ram.ReadWord(p + 0x40);
@@ -388,36 +508,83 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
         }
         for (var i = 0; i < 120 && fight.Fade.Fading; i++)
             fight.Fade.Step();
-
-        // The original's draws from here to the next turn, and the action.
-        var records = log.Records.ToList();
-        var draws = records.Skip(At(records, action) + 1).TakeWhile(r => !ReferenceEquals(r, next)).OfType<ParityDraw>().Where(d => !Cosmetic(d)).ToList();
-        var feed = new Feed(draws, game.Random.Combat);
         var what = spell ? $"casts {a.CurrentSpell(game.Rules.Magic)?.Spell.Name}" : a.Action == CombatAction.Flask ? $"uses the {a.Potion?.Name}" : a.Action.ToString();
 
-        // The facing state's (Combat.StateFacing) target, which the action's states read.
+        // The original's draws from here to the next turn; the facing state's (Combat.StateFacing) target, which the action's states
+        // read; and the action.
+        var draws = DrawsBetween(log, action, next);
+        var feed = new Feed(draws, game.Random.Combat);
         Poke(fight, nameof(Battle.Target), t.Slot);
         fight.ExecuteAction(a, t, spell);
-        var zone = Zone(built);
-        var states = new List<(CombatState State, int Ticks)>();
-        for (var i = 0; i < 20000 && fight.Current == a && !fight.Over; i++)
-        {
-            fight.Tick(zone, false, _ => null);
-            if (states.Count == 0 || states[^1].State != fight.State)
-                states.Add((fight.State, 0));
-            states[^1] = (fight.State, states[^1].Ticks + 1);
-        }
-        output.WriteLine($"  states: {string.Join(", ", states.Take(12).Select(st => $"{st.State} {st.Ticks}"))}");
+        output.WriteLine($"{action.Dump} -> {next.Dump}: slot {a.Slot} ({a.Sheet.Name}) {what} at slot {t.Slot} ({t.Sheet.Name})");
+        wrong.AddRange(PlayOut(built, a, () => CheckNext(built, log, next, a, feed, draws)));
+        return wrong;
+    }
 
+    private List<string> ReplayEnemyTurn(string battle, ParityLog log, ParityEntry turn, ParityEntry next)
+    {
+        var (replay, built) = LayOver(battle, log, turn);
+        var (game, fight) = (replay.Game, built.Battle);
+        var c = built[turn.Current!.Value];
+        Assert.Same(c, fight.Current);
+        var wrong = new List<string>();
+        for (var i = 0; i < 120 && fight.Fade.Fading; i++)
+            fight.Fade.Step();
+
+        // What the original did with its turn: its action, if it acted (the turn's first Combatant.ExecuteAction, with its RAM).
+        var records = log.Records.ToList();
+        var acted = records.Skip(At(records, turn) + 1).TakeWhile(r => !ReferenceEquals(r, next)).OfType<ParityEntry>()
+            .FirstOrDefault(e => e.Name == "Combatant.ExecuteAction");
+        var originalTarget = acted is null ? null : SlotOf(built with { Cp = acted.Dump is null ? built.Cp : log.Ram(acted) }, acted.Args[1]);
+        var originalCell = acted?.Combatant is { } bytes ? new Vector2(BigFloat(bytes, 0), BigFloat(bytes, 4)) : (Vector2?)null;
+
+        // Its turn begun as TurnOrder.Advance begins it (TurnOrder.BeginTurn, then the clock), on the original's draws.
+        var draws = DrawsBetween(log, turn, next);
+        var feed = new Feed(draws, game.Random.Combat);
+        output.WriteLine($"{turn.Dump} -> {next.Dump}: slot {c.Slot} ({c.Sheet.Name})'s turn");
+        Call(fight, "BeginTurn", c);
+        game.AdvanceTurn();
+        (int Target, Vector2 Cell)? portAction = null;
+        var atNext = PlayOut(built, c, () => CheckNext(built, log, next, c, feed, draws), () =>
+        {
+            if (portAction is null && fight.ActionActive)
+                portAction = (fight.Target, c.Cell);
+        });
+        output.WriteLine("  the original "
+            + (acted is null ? "didn't act" : $"went for slot {originalTarget} from {originalCell}")
+            + $", the port {(portAction is { } pa ? $"went for slot {pa.Target} from {pa.Cell}" : "didn't act")}");
+        if ((acted is null) != (portAction is null))
+            wrong.Add($"the original {(acted is null ? "didn't act" : "acted")}, the port {(portAction is null ? "didn't" : "did")}");
+        else if (portAction is { } port && acted is not null)
+        {
+            if (port.Target != originalTarget)
+                wrong.Add($"the original went for slot {originalTarget}, the port for slot {port.Target}");
+            if (originalCell is { } cell && Vector2.Distance(cell, port.Cell) > 0.5f)
+                wrong.Add($"the original acted from {cell}, the port from {port.Cell}");
+        }
+        wrong.AddRange(atNext);
+        return wrong;
+    }
+
+    private static float BigFloat(byte[] bytes, int at) => BitConverter.UInt32BitsToSingle(System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(bytes.AsSpan(at)));
+
+    /// <summary>
+    /// The next turn's start against its RAM: the draws' count, whose turn it is, every combatant's stats, skills, protection, weapon
+    /// and death (<see cref="Verify"/>), and the AI records' kind, target, morale and flags, and whether each enemy has fled. Bodies'
+    /// places, the grid, and where the combatant that played ended (to 0.5) are shown, not checked.
+    /// </summary>
+    private List<string> CheckNext(Built built, ParityLog log, ParityEntry next, Combatant played, Feed feed, List<ParityDraw> draws)
+    {
+        var fight = built.Battle;
         var then = built with { Cp = log.Ram(next) };
-        var current = then.Cp.ReadWord(then.Struct + 0x2C);
-        int? nextSlot = Enumerable.Range(0, Battle.SlotCount).Where(slot => current != 0 && then.Record(slot) == current).Cast<int?>().FirstOrDefault();
-        output.WriteLine($"{action.Dump} -> {next.Dump}: slot {a.Slot} ({a.Sheet.Name}) {what} at slot {t.Slot} ({t.Sheet.Name}); "
-            + $"the original drew {draws.Count}, the port {feed.Count}; next the original's slot {nextSlot}, the port's {fight.Current?.Slot}");
+        var wrong = new List<string>();
+        var nextSlot = SlotOf(then, then.Cp.ReadWord(then.Struct + 0x2C));
+        output.WriteLine($"  the original drew {draws.Count}, the port {feed.Count}; next the original's slot {nextSlot}, the port's {fight.Current?.Slot}");
         if (feed.Count != draws.Count)
-            Show(feed, 0, Math.Max(feed.Drawn.Count, draws.Count));
-        if (feed.Count != draws.Count)
+        {
+            Show(feed, 0, Math.Max(feed.Count, draws.Count));
             wrong.Add($"the original drew {draws.Count}, the port {feed.Count}");
+        }
         if (nextSlot != fight.Current?.Slot)
             wrong.Add($"next is the original's slot {nextSlot}, the port's {fight.Current?.Slot}");
         foreach (var line in Verify(then))
@@ -427,6 +594,26 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
             else
                 wrong.Add(line);
         }
+        for (var slot = 0; slot < Battle.SlotCount; slot++)
+        {
+            var p = then.Record(slot);
+            if (p == 0 || fight.Slots[slot] is not { } c)
+                continue;
+            var gone = (Half(then.Cp, p + 0x2C) & (ushort)CombatantFlags.Gone) != 0;
+            if (gone != c.Gone)
+                wrong.Add($"slot {slot} ({c.Sheet.Name}) gone: original {gone}, port {c.Gone}");
+            // A dead or gone combatant's AI record is never read again: the original's fleeing rat in the second trial has a morale of 5
+            // written as it leaves, the port's 0.
+            if (then.Cp.ReadWord(p + 0x44) is not 0 and var record && c.Ai is { } ai && !c.Sheet.IsDead && !gone)
+            {
+                var original = ((AiKind)then.Cp.ReadByte(record + 4), (int)(sbyte)then.Cp.ReadByte(record + 5), (int)(sbyte)then.Cp.ReadByte(record + 6), (AiFlags)then.Cp.ReadByte(record + 9));
+                var port = (ai.Kind, ai.Target, ai.Morale, ai.Flags);
+                if (original != port)
+                    wrong.Add($"slot {slot} ({c.Sheet.Name}) AI (kind, target, morale, flags): original {original}, port {port}");
+            }
+        }
+        if (then.Record(played.Slot) is not 0 and var r && !played.Gone && Vector2.Distance(new Vector2(Float(then.Cp, r), Float(then.Cp, r + 4)), played.Cell) > 0.5f)
+            output.WriteLine($"  (shown) slot {played.Slot} ended at {played.Cell}, the original at {new Vector2(Float(then.Cp, r), Float(then.Cp, r + 4))}");
         foreach (var line in wrong)
             output.WriteLine($"  {line}");
         return wrong;

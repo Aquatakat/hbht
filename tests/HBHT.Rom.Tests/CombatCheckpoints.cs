@@ -230,6 +230,11 @@ internal static class CombatCheckpoints
         var s = built.Struct;
         battle.ActiveCounts = (cp.ReadByte(s + 2), cp.ReadByte(s + 4), cp.ReadByte(s + 6));
         battle.FirstEnemyDied = cp.ReadWord(s + 8) != 0;
+        // The round's turns (+0x30 their count, +0x38 the list) and the toggle (+0x34), which each round's end builds afresh.
+        var turns = (List<int>)typeof(TurnOrder).GetField("_turns", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(battle.Order)!;
+        turns.Clear();
+        turns.AddRange(Enumerable.Range(0, cp.ReadByte(s + 0x30)).Select(i => (int)cp.ReadByte(cp.ReadWord(s + 0x38) + (uint)i)));
+        battle.Order.Toggle = cp.ReadWord(s + 0x34) != 0;
         battle.Order.Now = cp.ReadByte(s + 0x31);
         if (Enumerable.Range(0, Battle.SlotCount).Where(slot => built.Record(slot) == cp.ReadWord(s + 0x2C)).Cast<int?>().FirstOrDefault() is { } current)
             battle.Current = battle.Slots[current];
