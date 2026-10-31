@@ -102,4 +102,22 @@ The party for most: Alaron, Sholeh (Star, Healer 10, Ranger 6, Long Bow), Dougal
 | 12 | Barrows G03 #11 (21, 13), talked to | 18 | Lugash | His Cheat Death; fleeing allowed by 5250 |
 | 13 | MiscInteriors A09 #1 (38, 49) | 12–13, one flee point | 3 Gorgons | Frozen Doom at the party; a fleeing Gorgon cornered ([combat](systems/combat.md#not-settled)) |
 
+The saves are in `out/parity/saves/`. `base.json` is story save A with the party above: Rheda and Brenna left and Dougal and Keelin joined (`party.cs`), with Sholeh's Long Bow and the skills (`sheet.cs`). Each setup is built on it:
+
+- **Setup 1, `setup1.json`, in the pak's slot A.** The party stands 8 west of the Tomb Rats, facing them. The spells:
+  - Alaron: Acid Bolt, Aura of Death, Haste, Tap Stamina, Wraith Touch, Wall of Bones and Darkness at 5, and Sense Aura at 1.
+  - Sholeh: Whitefire, Web of Starlight, Frozen Doom, Stellar Gravity, Solar Wrath and Light at 5. She wears the Sense Aura (level 5) and Charming scrolls.
+  - Dougal: Fireball, Dragon Flames and Earth Smite at 5.
+  - Keelin: Lightning and Immolation at 4, Poison at 3 and Dragon Flames at 1. Keelin wears the Lightning wand and starts with 6 Stamina, so a cast gets refused for Stamina. The low Stamina leaves Keelin 38 of 72 HP.
+
+  The party has 2 Herbs, so the third of Frozen Doom, Wall of Bones and Sense Aura gets refused for its reagent. The pak can't hold a spell at level 0, so the rise is tried at level 1 alone. Sense Aura is cast at 1 and 5, not 9.
+- **Setup 2, `setup2.json`, in slot B.** Flag 3078 is cleared, so party #8 is back. The other five parties of A07 stay beaten. The party stands 7 from them, facing them. On top of the story's spells:
+  - Alaron: Dispel Necro and Light at 5.
+  - Dougal: Lightning and Earth Smite at 5.
+  - Keelin: vs. Star at 5 and Lightning at 4.
+
+  Sholeh's Dispel Star and Dougal's Mirror are the story's.
+
+Slots C and D still hold copies of story saves C and D.
+
 Every log also settles the frame's delta in combat, and the first one where in a turn an attack's draws fall, both in [combat](systems/combat.md#not-settled). Each party above is always enabled but Kitarak's (while 154 is clear) and Lugash's (5250); others can stand in from the base plugin's monster parties.
