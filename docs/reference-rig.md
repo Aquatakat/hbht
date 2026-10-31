@@ -237,6 +237,26 @@ python tools/gdb/trace.py --report out/trace-<time>.log                         
 - **Input is the user's.** Scripting key presses into ares isn't worth it: taking the foreground needs a key first, and an Alt tap opens ares's menu bar. Do the action by hand at the two beeps.
 - **How it's built:** `tools/gdb/trace.py` runs inside gdb, with gdb's own Python, and is driven through `tools/gdb.ps1 -Source`. A timer interrupts the target to close each window. gdb is given an empty stdin, because without a console (as in `trace.ps1`'s background job) it blocks before starting.
 
+### Combat parity logs: `tools/parity.ps1`
+
+What did a battle draw, and where? `tools/parity.ps1` boots 1.0 cold (the Controller Pak beside the ROM loads as usual) or at a checkpoint (`-Checkpoint`). gdb logs every battle until ares is closed, one beep as a battle begins and two as it ends. Each battle goes to a folder of its own, `out/parity/<time>-<label>/battle-NN`, which holds three things:
+
+- **`log.jsonl`:** every step of the stream (`0x800D8088`) from `Combat.Setup` to `Combat.Exit`, with the function that drew it and up to three callers above it. It also has the rules' entry points, each with the stream's state, the combat state, the frame's delta and counter, and the current combatant's 0x90 bytes.
+- **`NNNN.rdram.gz`:** RAM, 8 MB from `0x80000000`, big-endian (not a state's word-swapped layout), taken at `Combat.Setup`, at each `TurnOrder.BeginTurn` and at `Combat.Exit`'s teardown.
+- **The setup's draws:** outside a battle only the functions that fill the setup block are watched, from entry to return (`BattleSetup.FromMonsterParty`, `CampEncounters.Load`, `BattleSetup.Scripted`). Their draws go at the head of the next battle's log.
+
+```powershell
+tools/parity.ps1 -Label rats                                   # boot, load the pak's save, fight
+tools/parity.ps1 -Label test -Checkpoint "Combat 09, rat newcomer joins and moves" -Hours 0.02
+python tools/gdb/parity.py --summary out/parity/<run>/battle-01   # the entry points, and the draws by caller, named
+```
+
+- **Cost:** a hardware watchpoint on the seed stops at every draw, about 15 ms each in ares. Most draws are Weather.DriftWind's few a frame, so a battle runs at about 60% speed (Combat 09: 12 frames a second against 20). Dumping RAM takes about 2 s, which the game waits out, and about 1.7 MB gzipped.
+- **Where a draw stops:** `Rng.Next` and `Float0To1` store the seed in their return's delay slot, so gdb stops with `$pc` already back in the caller, and `$ra` equal to it. The chain above it is unwound by each function's prologue: its start from the code index, then its `addiu sp, sp, -N` and `sw ra, off(sp)`. gdb's own unwinder can't do this without symbols.
+- **A watchpoint's old and new values** don't come back in the text `gdb.execute(..., to_string=True)` returns. So the script reads the seed after each stop, and steps the generator back once for the old value.
+- **`Combat.Exit` runs every frame** and tears down only when `Combat.ExitRequested` is set. The script breaks at `0x80023090`, past that check.
+- **Entering mid-battle**, from a checkpoint or a state loaded during a battle, logs from there. The Combat checkpoints 06, 10 and 11 soon wait on a player's turn, so trying the script on them shows the AI's turns and the cosmetic draws, not an action's.
+
 ### Replaying the original's AI: `tools/aivectors/`
 
 `tools/aivectors/aivectors.py` writes `tests/HBHT.Rom.Tests/CasterVectors.cs`, the table `CasterCheckpointTests` checks the port's casters and bosses against. It runs 1.0's own `ChooseSpellOrAttack`, `RunStyle` and `EnemyAI.Step` in a MIPS interpreter (`cpu.py`) over the RAM of the Combat 02 and 08–11 checkpoints, with each enemy caster built by the original's entity builder in a rat's place (`ovl.py`, `vec.py`, `vec2.py`). The cases are in `cases.py`, the one-off vectors (`ScoreSpellCells` by action slot, `SpellValue` by kind, `AICanCast`, the area danger, the morale spells) in `extras.py`, and `emit.py` writes the C# and a `vectors.json` with every case's full state.
