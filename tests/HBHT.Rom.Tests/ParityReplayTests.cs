@@ -18,7 +18,8 @@ namespace HBHT.Rom.Tests;
 /// Combat parity's replay (roadmap 2.9): the battles the user fought in the original under <c>tools/parity.ps1</c>, played again in
 /// the port on the original's draws. The battle is built from the RAM at <c>Combat.Setup</c>, its combat stream set before each
 /// draw to where the original's one stream was before its draw of the same rank, the cosmetic draws skipped, and checked against
-/// the RAM at the first turn. The tests skip without logs in <c>out/parity</c> (or <c>HBHT_PARITY</c>).
+/// the RAM at the first turn; and each turn's first action carried out from the RAM at it and checked against the next turn's. The
+/// tests skip without logs in <c>out/parity</c> (or <c>HBHT_PARITY</c>).
 /// </summary>
 [Collection(ImportedPluginCollection.Name)]
 public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHelper output)
@@ -92,7 +93,12 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
     // ---------------------------------------------------------------------------------------------------------------------------
     // The battle, built from the RAM at Combat.Setup
 
-    private sealed record Replay(Battle Battle, GameState Game, ParityLog Log, AresCheckpoint Setup, Feed Feed);
+    private sealed record Replay(Built Built, ParityLog Log, Feed Feed)
+    {
+        public Battle Battle => Built.Battle;
+
+        public GameState Game => Built.Game;
+    }
 
     /// <summary>
     /// The original's draws of the rules in order, fed to the port's combat stream: before its <c>n</c>th draw, the stream is
@@ -141,9 +147,9 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
         }
     }
 
-    private Replay Build(string battle)
+    private Replay Build(string battle, ParityLog? read = null)
     {
-        var log = Log(battle);
+        var log = read ?? Log(battle);
         var setupEntry = log.Entries.First(e => e.Name == "Combat.Setup");
         var ram = log.Ram(setupEntry);
         Assert.Equal(1, ram.ReadByte(SetupBlock));
@@ -166,24 +172,27 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
         streamer.Update(arena.Origin + Battle.ZonePoint);
 
         // The rules' draws from Combat.Setup on (the setup block's own were drawn in trek).
-        var setupAt = log.Records.ToList().IndexOf(setupEntry);
+        var setupAt = At([.. log.Records], setupEntry);
         var rules = log.Records.Skip(setupAt).OfType<ParityDraw>().Where(d => !Cosmetic(d)).ToList();
         var feed = new Feed(rules, game.Random.Combat);
         game.Random.Sort.Seed = ram.ReadWord(SortState);
 
-        return new Replay(Battle.Begin(game, setup, arena, streamer.World), game, log, ram, feed);
+        return new Replay(new Built(Battle.Begin(game, setup, arena, streamer.World), game, streamer, ram), log, feed);
     }
+
+    /// <summary>Where a record is in the log: by reference, as records compare by value.</summary>
+    private static int At(List<ParityRecord> records, ParityRecord record) => records.FindIndex(r => ReferenceEquals(r, record));
 
     /// <summary>The original's draws of the rules between an entry point and the next (but a setup window's).</summary>
     private static List<ParityDraw> RulesDrawsAfter(ParityLog log, ParityEntry entry)
     {
         var records = log.Records.ToList();
-        return [.. records.Skip(records.IndexOf(entry) + 1).TakeWhile(r => r is not ParityEntry).OfType<ParityDraw>().Where(d => !Cosmetic(d))];
+        return [.. records.Skip(At(records, entry) + 1).TakeWhile(r => r is not ParityEntry).OfType<ParityDraw>().Where(d => !Cosmetic(d))];
     }
 
     private void Show(Feed feed, int from, int count)
     {
-        foreach (var (original, port) in feed.Drawn.Skip(from).Take(count))
+        foreach (var (original, port) in feed.Drawn.Where(d => !d.Port.StartsWith(nameof(CombatMarkers), StringComparison.Ordinal)).Skip(from).Take(count))
             output.WriteLine($"  {(original is null ? "(none)" : string.Join(" < ", Callers(original)))}  |  {port}");
     }
 
@@ -250,5 +259,128 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
             if (!EqualityComparer<T>.Default.Equals(original, portValue))
                 wrong.Add($"{what}: original {original}, port {portValue}");
         }
+    }
+
+    // ---------------------------------------------------------------------------------------------------------------------------
+    // Each action, from the RAM at its Combatant.ExecuteAction to the next turn's
+
+    /// <summary>A combat struct's target sets (<c>+0x4E64</c>, <c>+0x4F0C</c>): 14 selected flags at <c>+0x48</c>, a word each.</summary>
+    private const uint TargetSetA = 0x4E64, TargetSetB = 0x4F0C, TargetSelected = 0x48;
+
+    /// <summary>
+    /// Each turn's first action as the port carries it out from the original's state: the battle built from the setup with the RAM at
+    /// the action's <c>Combatant.ExecuteAction</c> laid over it (<see cref="Overlay"/>), its spell, potion and targets as they were
+    /// chosen, the original's draws from there to the next turn fed, and the port's <see cref="Battle.ExecuteAction"/> called with the
+    /// original's attacker, target and kind. Then the turn plays out, and the next turn's start is checked against its RAM: every
+    /// combatant's stats and skills, the dead, whose turn it is, and the draws' count. Bodies' places and the grid are shown, not checked.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Battles))]
+    public void EachActionIsTheOriginals(string battle)
+    {
+        var log = Log(battle);
+        var records = log.Records.ToList();
+        var actions = log.Entries.Where(e => e.Name == "Combatant.ExecuteAction" && e.Dump is not null).ToList();
+        if (actions.Count == 0)
+            Assert.Skip($"{battle} has no RAM at its actions: a log from before they were dumped.");
+        var wrong = new List<string>();
+        foreach (var action in actions)
+        {
+            var next = records.Skip(At(records, action) + 1).OfType<ParityEntry>()
+                .FirstOrDefault(e => e.Name is "TurnOrder.BeginTurn" or "Combat.Exit" && e.Dump is not null);
+            if (next is null)
+                continue;
+            wrong.AddRange(ReplayAction(battle, log, action, next).Select(w => $"slot {action.Current}'s action ({action.Dump}): {w}"));
+        }
+        Assert.True(wrong.Count == 0, string.Join("\n", wrong));
+    }
+
+    private List<string> ReplayAction(string battle, ParityLog log, ParityEntry action, ParityEntry next)
+    {
+        var replay = Build(battle, log);
+        var game = replay.Game;
+        var ram = log.Ram(action);
+        var built = replay.Built with { Cp = ram };
+        var fight = built.Battle;
+        var wrong = new List<string>();
+
+        // Reserves that have joined in the original haven't in the port's battle, built afresh.
+        var joined = Enumerable.Range(0, Battle.SlotCount).Where(slot => built.Record(slot) != 0 && fight.Slots[slot] is null).ToList();
+        if (joined.Count > 0)
+        {
+            output.WriteLine($"{action.Dump}: slots {string.Join(", ", joined)} joined as reserves, which the replay doesn't lay over yet");
+            return [];
+        }
+        Overlay(built);
+
+        // Who, at whom and how (a0 to a2): a spell's kind is 0, a blow's or a potion's 1.
+        int SlotOf(Built b, uint record) => Enumerable.Range(0, Battle.SlotCount).First(slot => b.Record(slot) == record);
+        var (a, t) = (built[SlotOf(built, action.Args[0])], built[SlotOf(built, action.Args[1])]);
+        var spell = action.Args[2] == 0;
+        var p = built.Record(a.Slot);
+        var sheet = ram.ReadWord(p + 0x40);
+        a.CastMargin = (sbyte)ram.ReadByte(sheet + 0x3C);
+        a.Spell = new SpellChoice((SpellSourceKind)ram.ReadByte(sheet + 0x3D), ram.ReadByte(sheet + 0x3E));
+        if (a.Action == CombatAction.Flask)
+        {
+            // The potion's kind (+0x27), its item 0x1000 on.
+            var potion = game.Items.TryGet(RecordId.Hex(RecordTypes.Item, 0x1000 + ram.ReadByte(p + 0x27)));
+            Assert.NotNull(potion);
+            a.HoldPotion(potion, fight);
+        }
+        foreach (var (set, at) in new[] { (fight.TargetsA, TargetSetA), (fight.TargetsB, TargetSetB) })
+        {
+            set.Rebuild(fight, a);
+            set.ClearSelection();
+            for (var slot = 0; slot < Battle.SlotCount; slot++)
+            {
+                if (ram.ReadWord(built.Struct + at + TargetSelected + (uint)slot * 4) != 0 && !set.Select(slot))
+                    wrong.Add($"the port's target set {(set == fight.TargetsB ? "B" : "A")} can't select slot {slot}");
+            }
+        }
+        for (var i = 0; i < 120 && fight.Fade.Fading; i++)
+            fight.Fade.Step();
+
+        // The original's draws from here to the next turn, and the action.
+        var records = log.Records.ToList();
+        var draws = records.Skip(At(records, action) + 1).TakeWhile(r => !ReferenceEquals(r, next)).OfType<ParityDraw>().Where(d => !Cosmetic(d)).ToList();
+        var feed = new Feed(draws, game.Random.Combat);
+        var what = spell ? $"casts {a.CurrentSpell(game.Rules.Magic)?.Spell.Name}" : a.Action == CombatAction.Flask ? $"uses the {a.Potion?.Name}" : a.Action.ToString();
+
+        // The facing state's (Combat.StateFacing) target, which the action's states read.
+        Poke(fight, nameof(Battle.Target), t.Slot);
+        fight.ExecuteAction(a, t, spell);
+        var zone = Zone(built);
+        var states = new List<(CombatState State, int Ticks)>();
+        for (var i = 0; i < 20000 && fight.Current == a && !fight.Over; i++)
+        {
+            fight.Tick(zone, false, _ => null);
+            if (states.Count == 0 || states[^1].State != fight.State)
+                states.Add((fight.State, 0));
+            states[^1] = (fight.State, states[^1].Ticks + 1);
+        }
+        output.WriteLine($"  states: {string.Join(", ", states.Take(12).Select(st => $"{st.State} {st.Ticks}"))}");
+
+        var then = built with { Cp = log.Ram(next) };
+        var current = then.Cp.ReadWord(then.Struct + 0x2C);
+        int? nextSlot = Enumerable.Range(0, Battle.SlotCount).Where(slot => current != 0 && then.Record(slot) == current).Cast<int?>().FirstOrDefault();
+        output.WriteLine($"{action.Dump} -> {next.Dump}: slot {a.Slot} ({a.Sheet.Name}) {what} at slot {t.Slot} ({t.Sheet.Name}); "
+            + $"the original drew {draws.Count}, the port {feed.Count}; next the original's slot {nextSlot}, the port's {fight.Current?.Slot}");
+        if (feed.Count != draws.Count)
+            Show(feed, 0, Math.Max(feed.Drawn.Count, draws.Count));
+        if (feed.Count != draws.Count)
+            wrong.Add($"the original drew {draws.Count}, the port {feed.Count}");
+        if (nextSlot != fight.Current?.Slot)
+            wrong.Add($"next is the original's slot {nextSlot}, the port's {fight.Current?.Slot}");
+        foreach (var line in Verify(then))
+        {
+            if (line.Contains("body at", StringComparison.Ordinal) || line.Contains("grid cells", StringComparison.Ordinal))
+                output.WriteLine($"  (shown) {line}");
+            else
+                wrong.Add(line);
+        }
+        foreach (var line in wrong)
+            output.WriteLine($"  {line}");
+        return wrong;
     }
 }

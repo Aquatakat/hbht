@@ -112,7 +112,18 @@ internal static class CombatCheckpoints
     /// </summary>
     public static Built At(PluginSet Set, int checkpoint)
     {
-        var built = Plain(Set, checkpoint);
+        var built = Overlay(Plain(Set, checkpoint));
+        var wrong = Verify(built);
+        Assert.True(wrong.Count == 0, $"the overlay of checkpoint {checkpoint:00} differs from its RAM: {string.Join("; ", wrong)}");
+        return built;
+    }
+
+    /// <summary>
+    /// Lays the RAM of <paramref name="built"/>'s <see cref="Built.Cp"/> over its battle, as <see cref="At"/> describes, for a checkpoint's
+    /// or a parity log's (<see cref="ParityReplayTests"/>). The original's combatants must be the battle's, slot for slot.
+    /// </summary>
+    public static Built Overlay(Built built)
+    {
         var (battle, game, cp) = (built.Battle, built.Game, built.Cp);
 
         // The day: the clock, its part and the rain, which the chances read.
@@ -220,8 +231,6 @@ internal static class CombatCheckpoints
         game.Random.Sort.Seed = cp.ReadWord(SortState);
 
         Assert.Equal(cp.ReadByte(s + 0x10), battle.LeaderSlot);
-        var wrong = Verify(built);
-        Assert.True(wrong.Count == 0, $"the overlay of checkpoint {checkpoint:00} differs from its RAM: {string.Join("; ", wrong)}");
         return built;
     }
 
