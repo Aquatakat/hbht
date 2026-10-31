@@ -47,7 +47,7 @@ The replay so far is `ParityReplayTests`, over every battle in `out/parity`. It 
 
 After an action or an enemy's turn, the next turn is checked as it begins, at the first cue after the port's `Advance` has chosen it, where the original's RAM was dumped. The check covers the draws' count, whose turn it is, and every combatant's stats, skills, protection, weapon, death and flight, and each living enemy's AI record (kind, target, morale and flags). Reserves that have joined are brought in at the RAM's cells first, and the overlay lays the round's turn order too.
 
-Both trials and setup 1's first session pass, and every action of its second. The overlay lays each combatant's effects on from the RAM, slot for slot, with their timers (`CombatCheckpoints.OverlayEffects`). The trials' actions are:
+Both trials and both of setup 1's sessions pass, and every party action of setup 2's but one. The overlay lays each combatant's effects on from the RAM, slot for slot, with their timers (`CombatCheckpoints.OverlayEffects`). The trials' actions are:
 
 - Brenna's and Sholeh's backstabs;
 - Solar Wrath on three rats;
@@ -83,8 +83,21 @@ Its enemies' turns pass too. Two of its rats' walks were the player's A, not the
 
 With A pressed where the walks ended, the port's rats end within 0.1 of the original's bodies.
 
+Setup 2's first session (`out/parity/20261031-123809-setup2`) was logged before the logger recorded A. Every party action passes but one:
+- Aura of Death, Wall of Bones, Dispel Necro, Light and Dispel Star;
+- Wraith Touch, Charming, Debilitation, Lightning and Earth Smite resisted, several by Mirror's counter;
+- vs. Star, Air Shield, Mirror and Remove Poison.
+
+The overlay copies Mirror's counter (`+0x28`) and the sheet's protection, which the effects laid on without starting don't add. The AI record's check compares its eight action slots (`+0x0A`), which a caster fills.
+
+The casters' turns differ:
+- At 0018, 0092 and 0096, the original's caster acted from short of where the port's walk ends: at 0018 on itself where the port's went for slot 7, and at 0092 and 0096 at Alaron where the port's walked on and rested. These look like A, which this log can't show.
+- At 0074 and 0081, the Spellweavers' Clumsiness takes 10 Dexterity off Sholeh and Keelin in the original, on the same draws and targets, and lands on neither in the port.
+- At 0094, the port's Spellweaver casts twice where the original's casts once (3 draws to 6). At 0095, the next turn is the original's slot 4 and the port's slot 7.
+
 Still to do:
 
+- **Setup 2's casters' turns,** above.
 - **Positions, shown but not checked:**
   - The attacker's body after a blow stands up to 0.5 from the original's (Brenna's backstab), with its footprint a cell over.
   - A reserve's walk with no action ends 4.6 from the original's (the second trial's slot 5). The original's body moved 0.26 from where it spawned at (17, 43) and gave up after 12 frames, about the 30 ticks of coming no nearer, while the port's runs its leg toward (23, 49).

@@ -164,6 +164,7 @@ internal static class CombatCheckpoints
             c.Moves = cp.ReadByte(p + 0x22);
             c.Footprint = cp.ReadByte(p + 0x23);
             c.Action = (CombatAction)cp.ReadByte(p + 0x25);
+            c.Mirror = cp.ReadByte(p + 0x28);
             c.Damage = cp.ReadByte(p + 0x29);
             c.Flags = (CombatantFlags)Half(cp, p + 0x2C);
 
@@ -190,6 +191,8 @@ internal static class CombatCheckpoints
                 SetStat(c.Sheet.Stats, stat, cp.ReadByte(stats + i), (sbyte)cp.ReadByte(stats + 7 + i), cp.ReadByte(stats + 0xE + i), (sbyte)cp.ReadByte(stats + 0x15 + i));
             }
             OverlayEffects(game, cp, sheet, c.Sheet);
+            // The protection (+0x14's +2), which the effects laid on without starting don't add.
+            c.Sheet.Protection = cp.ReadByte(cp.ReadWord(sheet + 0x14) + 2);
 
             // A freed body has no pointer: a dead combatant's. The body of a live one stands where the checkpoint's does.
             var body = built.Body(slot);
@@ -346,8 +349,16 @@ internal static class CombatCheckpoints
                 if (original != port)
                     wrong.Add($"{who} skill {skill.Slot}: original {original}, port {port}");
             }
-            if (cp.ReadWord(p + 0x44) is not 0 and var record && c.Ai is { } ai && (cp.ReadByte(record + 8), cp.ReadByte(record + 0x0A)) != (ai.Style, 0xFF))
-                wrong.Add($"{who} AI style: original {cp.ReadByte(record + 8)}, port {ai.Style}");
+            if (cp.ReadWord(p + 0x44) is not 0 and var record && c.Ai is { } ai)
+            {
+                if (cp.ReadByte(record + 8) != ai.Style)
+                    wrong.Add($"{who} AI style: original {cp.ReadByte(record + 8)}, port {ai.Style}");
+                // The action slots (+0x0A to +0x11): spell kinds, or 0xFF.
+                var slots = Enumerable.Range(0, EnemyAI.ActionSlots).Select(i => cp.ReadByte(record + 0x0A + (uint)i)).ToList();
+                var portSlots = ai.Slots.Select(id => id is { } spell ? (byte)built.Game.Plugins.Get<SpellRecord>(spell).Position!.Value : (byte)0xFF).ToList();
+                if (!slots.SequenceEqual(portSlots))
+                    wrong.Add($"{who} AI slots: original {Convert.ToHexString([.. slots])}, port {Convert.ToHexString([.. portSlots])}");
+            }
             if (cp.ReadByte(cp.ReadWord(sheet + 0x14) + 2) != c.Sheet.Protection)
                 wrong.Add($"{who} protection: original {cp.ReadByte(cp.ReadWord(sheet + 0x14) + 2)}, port {c.Sheet.Protection}");
             var weapon = cp.ReadWord(sheet + 0x24);
