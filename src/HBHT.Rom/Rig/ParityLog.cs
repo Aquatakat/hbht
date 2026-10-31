@@ -24,6 +24,12 @@ public sealed class ParityLog
 
     public IEnumerable<ParityEntry> Entries => Records.OfType<ParityEntry>();
 
+    /// <summary>
+    /// Whether the logger watched an entry point, by the list it gives at <c>Combat.Setup</c>; false for a log made before it gave
+    /// one, whatever it watched.
+    /// </summary>
+    public bool Watches(string name) => Entries.FirstOrDefault(e => e.Name == "Combat.Setup")?.Watched?.Contains(name) == true;
+
     /// <summary>The RAM an entry point dumped.</summary>
     public AresCheckpoint Ram(ParityEntry entry) =>
         AresCheckpoint.FromRdram(Path.Combine(Folder, entry.Dump ?? throw new ArgumentException($"{entry.Name} dumped no RAM.")));
@@ -63,6 +69,9 @@ public sealed class ParityLog
                     Current = r.TryGetProperty("current", out var c) && c.ValueKind == JsonValueKind.Number ? c.GetInt32() : null,
                     Combatant = Hex(r, "combatant"),
                     Dump = r.TryGetProperty("dump", out var d) && d.ValueKind == JsonValueKind.String ? d.GetString() : null,
+                    Watched = r.TryGetProperty("watched", out var w) && w.ValueKind == JsonValueKind.Array
+                        ? [.. w.EnumerateArray().Select(n => n.GetString()!)]
+                        : null,
                 },
                 "leave" => new ParityLeave(r.GetProperty("name").GetString()!, at, r.GetProperty("seed").GetUInt32()),
                 var t => throw new InvalidDataException($"A record of type {t}."),
@@ -103,6 +112,9 @@ public sealed record ParityEntry(string Name, uint At, uint Return, IReadOnlyLis
 
     /// <summary>The RAM dumped here, by its file's name in the battle's folder.</summary>
     public string? Dump { get; init; }
+
+    /// <summary><c>Combat.Setup</c>'s: the entry points the logger watched, or null from a logger that didn't say.</summary>
+    public IReadOnlyList<string>? Watched { get; init; }
 }
 
 /// <summary>A function that fills the setup block returned.</summary>

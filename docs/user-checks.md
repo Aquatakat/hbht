@@ -43,7 +43,7 @@ The replay so far is `ParityReplayTests`, over every battle in `out/parity`. It 
 - **The setup:** its draws, one for one.
 - **The first turn:** its order, directions, footprints and radii.
 - **Each turn's first action**, carried out from the RAM at its `Combatant.ExecuteAction`. The RAM is laid over the battle (`CombatCheckpoints.Overlay`), with the spell, potion and targets as chosen, and the port's `Battle.ExecuteAction` runs with the original's attacker, target and kind.
-- **Each enemy's turn**, played by the port's AI from the RAM at its `TurnOrder.BeginTurn`, the bodies moved by their animations' roots. It's checked against the original's `Combatant.ExecuteAction`: whether it acted, whom it went for, and where it stood, to 0.5.
+- **Each enemy's turn**, played by the port's AI from the RAM at its `TurnOrder.BeginTurn`, the bodies moved by their animations' roots. It's checked against the original's `Combatant.ExecuteAction`: whether it acted, whom it went for, and where it stood, to 0.5. Where the player pressed A in the walk, which puts the body at its leg's end at once ([combat](systems/combat.md#the-ai)), the replay presses it too (`PressedA`). The logger now records the press (`Combat.InputMoving` at its call of `Body.GiveUp`), and lists what it watched at `Combat.Setup`. For logs made before, which list nothing, the replay infers it: the walk the port's outlasts at six ticks a frame, with the original's body at the port's leg's end after it.
 
 After an action or an enemy's turn, the next turn is checked as it begins, at the first cue after the port's `Advance` has chosen it, where the original's RAM was dumped. The check covers the draws' count, whose turn it is, and every combatant's stats, skills, protection, weapon, death and flight, and each living enemy's AI record (kind, target, morale and flags). Reserves that have joined are brought in at the RAM's cells first, and the overlay lays the round's turn order too.
 
@@ -77,16 +77,17 @@ The second session (`out/parity/20261031-120218-setup1`) adds:
 
 Its actions all pass. Wraith Touch, Wall of Bones and Charming can't be cast at Tomb Rats, which have no True Name, nor Aura of Death, which needs a Solar target, and 1.0 refuses all four as the port does. They move to setup 2, whose casters are Solar and have True Names.
 
-Two of its rats' walks differ from the original's:
-- At the turn dumped as 0037, slot 6's walk ends at (33.1, 19.9) in the original without an attack. The port's goes 1.7 further and bites Keelin.
-- At the turn dumped as 0051, slot 4 goes round Sholeh in the original and bites from (30, 12). The port's bites from (31.4, 10.4), near where it began.
+Its enemies' turns pass too. Two of its rats' walks were the player's A, not the AI's:
+- At the turn dumped as 0037, slot 6's walk ended in 15 frames, where the port's takes about 30. The original's rat went for Alaron, its leg cut at its field's edge at (33, 20), and stood within 0.14 of it without an attack. The port's, walking on, brushed past Keelin and bit him from where it arrived.
+- At 0051, slot 4's walk ended in 11 frames, where the port's takes about 20. At `Combat.ExecuteAction` its body stood at exactly (30, 12), Sholeh's cell and its leg's end, and it bit her from there. At 0041 the same rat on the same path stuck against her and bit from where it stopped, as the port's does.
+
+With A pressed where the walks ended, the port's rats end within 0.1 of the original's bodies.
 
 Still to do:
 
-- **The two rats' walks** of setup 1's second session, above.
 - **Positions, shown but not checked:**
   - The attacker's body after a blow stands up to 0.5 from the original's (Brenna's backstab), with its footprint a cell over.
-  - A reserve's walk with no action ends 4.6 from the original's (the second trial's slot 5).
+  - A reserve's walk with no action ends 4.6 from the original's (the second trial's slot 5). The original's body moved 0.26 from where it spawned at (17, 43) and gave up after 12 frames, about the 30 ticks of coming no nearer, while the port's runs its leg toward (23, 49).
   - Reserves that join at a round's end can take other spawn points than the original's, on the same draws. In setup 1, at the end of slot 5's turn, slot 6's reserve stands at (13, 26) for the original's (24, 39), and slot 7's at (24, 39) for (19, 23). The two disagree about which point is free, likely over a body that has fled or died.
 
 #### The formula vectors (no play)

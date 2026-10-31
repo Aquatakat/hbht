@@ -7,7 +7,8 @@ each into a folder of its own under PARITY_OUT (battle-01, battle-02, ...):
   log.jsonl     one record a line:
                   {"t": "draw", "old", "new", "pc", "chain", "state"}   a step of the stream
                   {"t": "enter", "name", "pc", "ra", "args", "seed", "state", "delta", "frame",
-                   "current", "combatant", "dump"}                       a rules entry point
+                   "current", "combatant", "dump"}                       a rules entry point; Combat.Setup's also
+                                                                         lists the entry points "watched"
                   {"t": "leave", "name", "pc", "seed"}                   a watched setup function returned
   NNNN.rdram.gz RDRAM, 8 MB big-endian from 0x80000000, at Combat.Setup, the first turn's start
                 (Combat.StartFirstTurn), each TurnOrder.BeginTurn, each turn's first
@@ -53,6 +54,7 @@ ENTRIES = {
     0x8006A62C: ("TurnOrder.EndRound", False),
     0x8005E2AC: ("Combat.TallyRewards", False),
     0x80023090: ("Combat.Exit", True),  # past its check of Combat.ExitRequested, which it makes every frame
+    0x80085000: ("Combat.InputMoving", False),  # at its call of Body.GiveUp: the player's A, skipping a walk to its leg's end
 }
 # What fills the setup block in trek: its draws are watched from entry to return.
 WINDOWS = {
@@ -258,6 +260,8 @@ def log():
                   "args": [reg(r) for r in ("a0", "a1", "a2", "a3")], "seed": word(SEED),
                   "state": read(STATE, 2).hex(), "delta": read(DELTA, 4).hex(), "frame": None,
                   "current": None, "combatant": None, "dump": None}
+        if name == "Combat.Setup":
+            record["watched"] = [n for n, _ in ENTRIES.values()]
         if 0x80000000 <= combat < 0x80800000:
             record["frame"] = word(combat + 0x5448)
             current = word(combat + 0x2C)

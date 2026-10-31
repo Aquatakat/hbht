@@ -64,6 +64,28 @@ public sealed class ParityLogTests
             Assert.Equal([0x00, 0xFF], turn.Combatant);
             Assert.Equal([1, 1], turn.State);
             Assert.Null(log.Entries.First().Dump);
+            Assert.False(log.Watches("TurnOrder.BeginTurn"));
+        }
+        finally
+        {
+            Directory.Delete(folder, true);
+        }
+    }
+
+    [Fact]
+    public void CombatSetupListsWhatTheLoggerWatched()
+    {
+        var folder = Directory.CreateTempSubdirectory("hbht-parity-").FullName;
+        try
+        {
+            File.WriteAllLines(Path.Combine(folder, "log.jsonl"),
+            [
+                """{"t": "enter", "name": "Combat.Setup", "pc": 2147864924, "ra": 0, "args": [0, 0, 0, 0], "seed": 7, "state": "0000", "delta": "40000000", "frame": null, "current": null, "combatant": null, "dump": "0001.rdram.gz", "watched": ["Combat.Setup", "Combat.InputMoving"]}""",
+            ]);
+            var log = ParityLog.Read(folder);
+
+            Assert.True(log.Watches("Combat.InputMoving"));
+            Assert.False(log.Watches("Combat.EndCast"));
         }
         finally
         {

@@ -550,8 +550,12 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
         Call(fight, "BeginTurn", c);
         game.AdvanceTurn();
         (int Target, Vector2 Cell)? portAction = null;
+        var (press, walked) = (PressedA(built, log, turn, next), 0);
         var atNext = PlayOut(built, c, () => CheckNext(built, log, next, c, feed, draws), () =>
         {
+            if (fight.State == CombatState.Moving && ++walked == press?.Ticks
+                && (press.Value.EndedAt is not { } end || Vector2.Distance(end, c.Cell) < 0.5f) && fight.SkipWalk())
+                output.WriteLine($"  A pressed {walked} ticks into the walk, where the original's player cut it short");
             if (portAction is null && fight.ActionActive)
                 portAction = (fight.Target, c.Cell);
         });
@@ -569,6 +573,38 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
         }
         wrong.AddRange(atNext);
         return wrong;
+    }
+
+    /// <summary>The first of <c>Weather.DriftWind</c>'s two draws, one every frame the original draws, which counts its frames.</summary>
+    private const uint FrameDraw = 0x8007BAE8;
+
+    /// <summary>
+    /// When the original's player pressed A in the AI's walk (<c>Combat.InputMoving</c>, which puts the body at its leg's end with
+    /// <c>Body.GiveUp</c>), in ticks of the walk, for the port to press it then if it's still walking; null where it wasn't. A log
+    /// that watched for it gives the frames walked before it, at its frame's delta. One made before is read from the walk: a walk
+    /// the port's outlasts at six ticks a frame, the most a frame takes, was cut short, by A if the body then stood at its leg's
+    /// end (<paramref name="built"/>'s RAM at the first dump after the walk, which the port's combatant's place, standing on the
+    /// leg's end, is to be within 0.5 of), and is pressed then; a body that stuck and gave up where it stood wasn't. Pressed then
+    /// rather than sooner, setup 1's two (in the second session, at 0037 and 0051) end within 0.1 of the original's bodies. A body
+    /// gone by then (fled) can't say.
+    /// </summary>
+    private static (int Ticks, Vector2? EndedAt)? PressedA(Built built, ParityLog log, ParityEntry turn, ParityEntry next)
+    {
+        var records = log.Records.ToList();
+        var during = records.Skip(At(records, turn) + 1).TakeWhile(r => !ReferenceEquals(r, next)).ToList();
+        var press = during.OfType<ParityEntry>().FirstOrDefault(e => e.Name == "Combat.InputMoving");
+        var frames = during.TakeWhile(r => !ReferenceEquals(r, press)).OfType<ParityDraw>()
+            .Count(d => d.At == FrameDraw && d.State == (int)CombatState.Moving);
+        if (press is not null)
+            return (Math.Max(1, frames * (int)BigFloat(press.Delta!, 0)), null);
+        if (frames == 0 || log.Watches("Combat.InputMoving"))
+            return null;
+        var after = during.OfType<ParityEntry>().FirstOrDefault(e => e.Dump is not null) ?? next;
+        var then = built with { Cp = log.Ram(after) };
+        if (then.Body(turn.Current!.Value) is not (not 0 and var body))
+            return null;
+        var at = Vector(then.Cp, body + BodyPosition);
+        return (frames * 6, new Vector2(at.X, at.Z));
     }
 
     private static float BigFloat(byte[] bytes, int at) => BitConverter.UInt32BitsToSingle(System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(bytes.AsSpan(at)));
