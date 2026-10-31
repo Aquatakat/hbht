@@ -590,6 +590,8 @@ public sealed class GameSession
     {
         var title = Title!;
         title.Step(Stick.Held);
+        if (title.CardsSkipped > 0)
+            Zone.Audio.AdvanceMusic(title.CardsSkipped);
         if (title.FlycamStarted && title.Flycam is { } flycam)
             StartScenery(flycam);
         if (Scenery is { } scenery)

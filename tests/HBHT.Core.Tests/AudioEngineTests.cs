@@ -86,6 +86,30 @@ public class AudioEngineTests
     }
 
     [Fact]
+    public void AdvancingASequenceThenPlayingItSoundsAsPlayingItThrough()
+    {
+        // A looping saw, three notes at two pitches five rows apart, and the sequence looping: over a second, a few hundred rows.
+        var saw = new Instrument([.. Enumerable.Range(0, 200).Select(i => (short)(i * 100 - 10_000))], new SampleLoop(0, 200));
+        byte[] stream = [.. NoteAtFullVolume, 0x83, 0x42, 0x00, 0x50, 0x83, 0x42, .. PitchAtRate, 0x83];
+        var sequence = new Sequence(1, [saw], stream);
+        const int steps = 1234;
+
+        // At the original's rate a sequencer call is 44 frames.
+        var through = new AudioEngine(AudioEngine.OriginalRate);
+        through.Play(sequence, loop: true);
+        through.Render(new short[steps * 44 * 2]);
+        var advanced = new AudioEngine(AudioEngine.OriginalRate);
+        var handle = advanced.Play(sequence, loop: true);
+        advanced.Advance(handle, steps * 44.0 / AudioEngine.OriginalRate);
+
+        var (a, b) = (new short[4410 * 2], new short[4410 * 2]);
+        through.Render(a);
+        advanced.Render(b);
+        Assert.Contains(a, s => Math.Abs((int)s) > 500);
+        Assert.All(a.Zip(b), p => Assert.InRange(p.First - p.Second, -2, 2));
+    }
+
+    [Fact]
     public void ALoopingInstrumentGoesBackToItsLoopStart()
     {
         // A ramp of 100 samples that loops over its last 50 never falls below 50 once it's there.

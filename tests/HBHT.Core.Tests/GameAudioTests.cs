@@ -28,6 +28,34 @@ public class GameAudioTests
     }
 
     [Fact]
+    public void MusicAdvancedBeforeItStartsStartsAsFarIn()
+    {
+        // A saw that never repeats within the test, so where in it the music is shows.
+        var saw = new Sequence(1, [new Instrument([.. Enumerable.Range(0, 200_000).Select(i => (short)(i % 3000))], null)], [0x7A, 0x22, 0x76, 0xFF, 0x80, 0x00, .. new byte[1000]]);
+        GameAudio Started(Action<GameAudio> start)
+        {
+            var bank = new SoundBank(PluginSet.Load([]));
+            bank.Add(Tune, saw);
+            var audio = new GameAudio(bank, 44100) { Settings = SessionSettings.Original, Music = Tune };
+            start(audio);
+            return audio;
+        }
+        static short[] Next(GameAudio audio)
+        {
+            var frames = new short[2 * 441];
+            audio.Render(frames);
+            return frames;
+        }
+
+        var before = Started(a => { a.AdvanceMusic(30); a.Step(); });
+        var after = Started(a => { a.Step(); a.AdvanceMusic(30); });
+        var not = Started(a => a.Step());
+        var ahead = Next(before);
+        Assert.Equal(ahead, Next(after));
+        Assert.NotEqual(ahead, Next(not));
+    }
+
+    [Fact]
     public void MusicStartsWhenAskedForAndStopsWhenNotAsWhatsAskedForChanges()
     {
         var audio = Audio();

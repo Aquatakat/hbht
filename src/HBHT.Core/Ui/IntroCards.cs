@@ -40,7 +40,8 @@ public enum IntroCard
 /// </para>
 /// <para>
 /// Nothing reads the buttons on the cards, so the original's can't be skipped. The port lets them be when there's a saved game
-/// (<see cref="Skippable"/>), the user's choice: A, B or Start goes straight to the title.
+/// (<see cref="Skippable"/>), the user's choice: A, B or Start goes straight to the title, and the title's music, which swells as
+/// the cards end, skips on as far (<see cref="Skipped"/>).
 /// </para>
 /// </remarks>
 public sealed class IntroCards(bool skippable)
@@ -76,11 +77,15 @@ public sealed class IntroCards(bool skippable)
     /// <summary>The lines the legal text leaves a gap after.</summary>
     public static readonly IReadOnlyList<int> LegalBreaks = [1, 3, 7];
 
+    /// <summary>How long the cards take, in ticks: each fades in over 17, holds, and is dark 36 from its fade out.</summary>
+    public static readonly int Ticks = Cards.Sum(c => 255 / FadeStep + c.Hold + DarkTicks);
+
     private enum Phase { In, Hold, Out }
 
     private int _index;
     private Phase _phase;
     private int _ticks;
+    private int _played;
 
     /// <summary>Whether A, B or Start skips them: with a saved game to load.</summary>
     public bool Skippable { get; } = skippable;
@@ -97,11 +102,15 @@ public sealed class IntroCards(bool skippable)
     /// <summary>Whether the last card has gone.</summary>
     public bool Ended => _index >= Cards.Count;
 
+    /// <summary>The ticks the cards had left when they were skipped, or 0 if they played through.</summary>
+    public int Skipped { get; private set; }
+
     /// <summary>A tick of the card showing (<c>Title.CardFade</c>): its fade in, its hold, its fade out and the black after.</summary>
     public void Step()
     {
         if (Ended)
             return;
+        _played++;
         if (Card == IntroCard.Nintendo)
         {
             LogoAngle += LogoTurn;
@@ -136,6 +145,7 @@ public sealed class IntroCards(bool skippable)
     {
         if (!Skippable || action is not (MenuAction.Accept or MenuAction.Back or MenuAction.Start))
             return false;
+        Skipped = Ticks - _played;
         _index = Cards.Count;
         Alpha = 0;
         return true;

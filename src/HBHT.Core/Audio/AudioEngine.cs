@@ -156,6 +156,22 @@ public sealed class AudioEngine
         p.Elapsed = 0;
     }
 
+    /// <summary>
+    /// Plays on <paramref name="seconds"/> of it at once, unheard, as if it had played them: its sequencer's calls, each moving
+    /// its notes on through their samples. The port's, to skip ahead in a piece of music; the original never seeks.
+    /// </summary>
+    public void Advance(SoundHandle handle, double seconds)
+    {
+        var steps = (int)Math.Round(seconds * OriginalRate / StepSamples);
+        for (var n = 0; n < steps && Find(handle) is { } p; n++)
+        {
+            StepPlayer(handle.Player, p);
+            for (var t = 0; t < p.Sequence.Tracks; t++)
+                VoiceOf(p.Tracks[t])?.Skip(_framesPerStep);
+            UpdateVoices();
+        }
+    }
+
     /// <summary>Mixes the next frames into <paramref name="stereo"/>, interleaved left and right.</summary>
     public void Render(Span<short> stereo)
     {
@@ -213,35 +229,37 @@ public sealed class AudioEngine
     private void StepPlayers()
     {
         for (var i = 0; i < MaxPlayers; i++)
+            if (_players[i] is { Playing: true } p)
+                StepPlayer(i, p);
+    }
+
+    /// <summary>One sequence's millisecond: it stops at its duration, or reads a row when its counter comes round.</summary>
+    private void StepPlayer(int i, Player p)
+    {
+        if (p.Duration >= 0 && p.Elapsed >= p.Duration)
+            Stop(i, p);
+        else if (p.Counter < p.Reload)
+            p.Counter++;
+        else
         {
-            var p = _players[i];
-            if (!p.Playing)
-                continue;
-            if (p.Duration >= 0 && p.Elapsed >= p.Duration)
-                Stop(i, p);
-            else if (p.Counter < p.Reload)
-                p.Counter++;
-            else
+            ReadRow(p, sound: true);
+            if (p.Position >= p.Sequence.Stream.Length)
             {
-                ReadRow(p, sound: true);
-                if (p.Position >= p.Sequence.Stream.Length)
+                if (!p.Loop)
+                    Stop(i, p);
+                else
                 {
-                    if (!p.Loop)
-                        Stop(i, p);
-                    else
+                    p.Position = p.Sequence.LoopPosition;
+                    for (var t = 0; t < p.Sequence.Tracks; t++)
                     {
-                        p.Position = p.Sequence.LoopPosition;
-                        for (var t = 0; t < p.Sequence.Tracks; t++)
-                        {
-                            StopVoice(p.Tracks[t]);
-                            p.Tracks[t].Wait = 0;
-                        }
+                        StopVoice(p.Tracks[t]);
+                        p.Tracks[t].Wait = 0;
                     }
                 }
-                p.Counter = 0;
             }
-            p.Elapsed++;
+            p.Counter = 0;
         }
+        p.Elapsed++;
     }
 
     /// <summary>One row: an event, or a wait, for each track (docs/formats/audio.md).</summary>
@@ -443,6 +461,15 @@ public sealed class AudioEngine
         public byte VolumeByte, PanByte;
         public float Left, Right, LeftStep, RightStep;
         public int Ramp;
+
+        /// <summary>Moves on <paramref name="frames"/> frames unheard, its gains at where they glide to.</summary>
+        public void Skip(double frames)
+        {
+            (Left, Right, Ramp) = (Left + LeftStep * Ramp, Right + RightStep * Ramp, 0);
+            Position += Ratio * frames;
+            if (Instrument.Loop is { } loop && loop.End > loop.Start && Position >= loop.End)
+                Position = loop.Start + (Position - loop.End) % (loop.End - loop.Start);
+        }
 
         public void Mix(ref float left, ref float right)
         {

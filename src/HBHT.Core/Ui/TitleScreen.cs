@@ -124,6 +124,12 @@ public sealed class TitleScreen
     /// </summary>
     public bool FlycamStarted { get; private set; }
 
+    /// <summary>
+    /// The ticks the intro cards had left when they were skipped, on the tick they end, else 0: the session moves the title's music on
+    /// as far, so it swells as the fly-through starts, as it does when they play through.
+    /// </summary>
+    public int CardsSkipped { get; private set; }
+
     /// <summary>How bright the fly-through is, 0 to 1, as it fades in from black and out to it.</summary>
     public float SceneryBrightness { get; private set; }
 
@@ -180,11 +186,13 @@ public sealed class TitleScreen
     public void Step(Func<MenuAction, bool> held)
     {
         FlycamStarted = false;
+        CardsSkipped = 0;
         if (Phase == TitlePhase.Cards)
         {
             Cards!.Step();
             if (!Cards.Ended)
                 return;
+            CardsSkipped = Cards.Skipped;
             Cards = null;
             Phase = TitlePhase.Title;
             _startPending = true;

@@ -20,6 +20,7 @@ public sealed class GameAudio
     private readonly Slot?[] _sounds = new Slot?[MaxSounds];
     private RecordId? _musicPlaying;
     private SoundHandle _music;
+    private int _musicAhead;
 
     public GameAudio(SoundBank bank, int rate = AudioEngine.OriginalRate)
     {
@@ -168,6 +169,21 @@ public sealed class GameAudio
     }
 
     /// <summary>
+    /// Moves the music <paramref name="ticks"/> on at once, as if they had played: the port's, so that skipping the intro cards keeps
+    /// the title's music where it would have been. Music asked for and not yet started starts that far in.
+    /// </summary>
+    public void AdvanceMusic(int ticks)
+    {
+        lock (_sync)
+        {
+            if (Music == _musicPlaying && Engine.IsPlaying(_music))
+                Engine.Advance(_music, ticks / 60.0);
+            else
+                _musicAhead += ticks;
+        }
+    }
+
+    /// <summary>
     /// Cuts the music at once and asks for none (<c>Bgm.Stop(1)</c>, 1.0 <c>0x8000E4C4</c>, from <c>FreeZoneEngine(0)</c> as trek or a
     /// battle's arena goes): no fade, and the sounds play on. The next piece asked for starts from its beginning.
     /// </summary>
@@ -179,6 +195,7 @@ public sealed class GameAudio
             _music = default;
             _musicPlaying = null;
             Music = null;
+            _musicAhead = 0;
         }
     }
 
@@ -191,6 +208,7 @@ public sealed class GameAudio
             Array.Clear(_sounds);
             _musicPlaying = null;
             _music = default;
+            _musicAhead = 0;
         }
     }
 
@@ -209,7 +227,11 @@ public sealed class GameAudio
             _music = default;
             _musicPlaying = Music;
             if (Music is { } id && Bank.Get(id) is { } sequence)
+            {
                 _music = Engine.Play(sequence, Volume(MusicVolume), 0x80, loop: true);
+                Engine.Advance(_music, _musicAhead / 60.0);
+            }
+            _musicAhead = 0;
         }
         // Sent again every frame, so the options' slider acts at once.
         Engine.SetVolume(_music, Volume(MusicVolume));

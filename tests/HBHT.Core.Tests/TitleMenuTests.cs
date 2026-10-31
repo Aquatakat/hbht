@@ -26,6 +26,8 @@ public class TitleMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugins
 
         // 53 ticks a card and its hold: the Pak's 30, the rest 120 (Title.CardFade, 0x8001b250).
         Assert.Equal(775, ticks.Count);
+        Assert.Equal(775, IntroCards.Ticks);
+        Assert.Equal(0, cards.Skipped);
         Assert.Equal((IntroCard.ExpansionPak, 15), ticks[0]);
         Assert.Equal((IntroCard.ExpansionPak, 255), ticks[16]);
         Assert.Equal((IntroCard.ExpansionPak, 255), ticks[16 + 30]);
@@ -61,6 +63,8 @@ public class TitleMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugins
         Assert.False(cards.Press(MenuAction.Up));
         Assert.True(cards.Press(press));
         Assert.True(cards.Ended);
+        // What they had left, which the title's music skips on by.
+        Assert.Equal(774, cards.Skipped);
     }
 
     [Fact]
