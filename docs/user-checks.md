@@ -60,12 +60,12 @@ Both trials and setup 1's first session pass. The trials' actions are:
 Setup 1's first session (`out/parity/20261031-105935-setup1`) adds:
 
 - Fireball, Dragon Flames, Earth Smite, Whitefire, Lightning, Immolation (twice), Acid Bolt, Tap Stamina, Haste, Darkness and Sense Aura;
-- Web of Starlight on two rats;
+- Web of Starlight failing its cast roll twice;
 - a Stamina Potion;
 - the Fire weakness raising the rats' morale check;
 - a round's end with three slots refilled by reserves.
 
-1.0 locked up on Sholeh's third Web, with two rats already held and reserves to come. Frames kept running, and nothing else in combat moved. The log ends there.
+1.0 locked up on Sholeh's third Web, the first to land. Frames kept running, and nothing else in combat moved. The log ends there. The likely cause is a hold landing on a one-tick frame ([combat](systems/combat.md#not-settled)). If a hold locks again, save a state in ares before closing it, so the RAM at the lock can settle it.
 
 Still to do:
 
