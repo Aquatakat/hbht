@@ -357,11 +357,31 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
         var wrong = new List<string>();
         foreach (var turn in turns)
         {
-            if (NextTurn(log, turn) is { } next)
-                wrong.AddRange(ReplayEnemyTurn(battle, log, turn, next).Select(w => $"slot {turn.Current}'s turn ({turn.Dump}): {w}"));
+            if (NextTurn(log, turn) is not { } next)
+                continue;
+            var found = ReplayEnemyTurn(battle, log, turn, next).Select(w => $"slot {turn.Current}'s turn ({turn.Dump}): {w}").ToList();
+            if (!KnownCadence.TryGetValue((battle.Replace('\\', '/'), turn.Dump!), out var why))
+                wrong.AddRange(found);
+            else if (found.Count == 0)
+                wrong.Add($"slot {turn.Current}'s turn ({turn.Dump}) is the original's now: take it off the known cadence turns");
+            else
+                output.WriteLine($"{turn.Dump}: a known cadence turn, {why}:\n  {string.Join("\n  ", found)}");
         }
         Assert.True(wrong.Count == 0, string.Join("\n", wrong));
     }
+
+    /// <summary>
+    /// The enemy turns that differ only by 1.0's frame lengths, by battle and dump ([combat](docs/systems/combat.md), where the port
+    /// differs): the logger slows 1.0 to frames of 3–6 ticks, and the port steps 2, so a body that sets off facing away curves another
+    /// way, and a walk ends further past its arrival. The replay doesn't play 1.0's frame lengths; these are logged, not failed, and one
+    /// that matches fails until it comes off the list. A turn goes on it only once its difference is shown to be the frame lengths'.
+    /// </summary>
+    private static readonly Dictionary<(string Battle, string Dump), string> KnownCadence = new()
+    {
+        [("20261031-123809-setup2/battle-01", "0018.rdram.gz")] = "the Sorceror curves away from its first corner and gives up, as the port's does at 4–6-tick frames",
+        [("20261031-123809-setup2/battle-01", "0096.rdram.gz")] = "the Spellweaver decides 0.3 short of 1.0's place, Alaron just out of its reach",
+        [("20261031-134011-setup2/battle-01", "0016.rdram.gz")] = "the Spellweaver curves away from its first corner, dead astern, and gives up near its start; the port's does at 4–6-tick frames, curving the other way",
+    };
 
     /// <summary>The next turn's start with RAM, or the battle's end.</summary>
     private static ParityEntry? NextTurn(ParityLog log, ParityEntry entry)

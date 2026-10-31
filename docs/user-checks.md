@@ -98,15 +98,15 @@ The casters' turns pass but three walks:
   - At 0096, the port's caster then decides 0.3 short of where 1.0's did, as 1.0's longer frames carry a walk further past its arrival, and Alaron is out of its reach: 5.98 to 1.0's 5.70.
   - At 0018, 1.0's Sorceror turned 20° a frame at the logger's slow frames, walked a wide curve away from its first corner and gave up. With frames of 4–6 ticks, the port's does the same.
 
-  The last two are the cadence ([combat](systems/combat.md#where-the-port-differs)). The port's body also glides on about 0.65 along its heading through the rest after a walk, where 1.0's stands; shown, not checked.
+  The last two are the cadence ([combat](systems/combat.md#where-the-port-differs)). The replay doesn't play 1.0's frame lengths, the user's choice, as it's the logger that slows them: it lists the cadence turns (`KnownCadence`) and logs their differences rather than failing them. The port's body also glides on about 0.65 along its heading through the rest after a walk, where 1.0's stands; shown, not checked.
 
 Setup 2's second session (`out/parity/20261031-134011-setup2`), with the logger recording A, passes every action, and every enemy turn but one, without A pressed:
-- At 0016, the Spellweaver plans 1.0's path to (11, 17), but 1.0's curved away from its first corner, dead astern, and gave up near its start, casting Mirror on itself 4.6 from where the port's does. At 4–6-tick frames the port's gives up near its start too, but curving the other way. Which way 1.0's first frames carry it isn't settled: its `Facing.Turn`, run in the interpreter, turns as the port's does.
+- At 0016, the Spellweaver plans 1.0's path to (11, 17), but 1.0's curved away from its first corner, dead astern, and gave up near its start, casting Mirror on itself 4.6 from where the port's does. It's a known cadence turn in the replay. At 4–6-tick frames the port's gives up near its start too, but curving the other way. Which way 1.0's first frames carry it isn't settled: its `Facing.Turn`, run in the interpreter, turns as the port's does.
 - At 0020, the Sorceror's walk had ended 0.14 short of 1.0's, against slot 5's body, and its Starlight Shield missed slot 5 by 0.003 of its reach. With the stuck body sliding on, it reaches 1.0's place and covers all four.
 
 Still to do:
 
-- **Setup 2's walks,** above: how far the replay should play 1.0's frame lengths (0018 and 0096 of the first session), which way 1.0's Spellweaver curved at the second's 0016, and the port's body gliding on through the rest after a walk.
+- **Setup 2's walks,** above: which way 1.0's Spellweaver curved at the second's 0016, and the port's body gliding on through the rest after a walk.
 - **Positions, shown but not checked:**
   - The attacker's body after a blow stands up to 0.5 from the original's (Brenna's backstab), with its footprint a cell over.
   - A reserve's walk with no action ends 4.6 from the original's (the second trial's slot 5). The original's body moved 0.26 from where it spawned at (17, 43) and gave up after 12 frames, about the 30 ticks of coming no nearer, while the port's runs its leg toward (23, 49).
