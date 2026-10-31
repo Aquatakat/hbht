@@ -38,7 +38,7 @@ The campaign has two halves. **The formulas** run in the interpreter with no pla
 4. **The replay.** The port builds the battle from the RAM at `Combat.Setup`, as `BattleCheckpointTests` does from checkpoint 01, and plays it turn by turn: before each of its combat stream's draws, the stream set to where the original's was before its draw of the same rank, the cosmetic ones skipped; the player's turns from the log (where the body stood, the action, the spell or item, the targets), the AI's its own. It compares each turn's start with that turn's RAM (hit points, Stamina, stats, effects and their timers, the log's lines, places) and reports the first difference.
 5. **Then the runtime.** The user plays the same setups in the port for feel, side by side, as in M4: not draw for draw, as the port's combat stream has no cosmetic draws and the bodies go where they're steered.
 
-To build first: the replay.
+The replay so far (`ParityReplayTests`, over every battle in `out/parity`) builds the battle from the RAM at `Combat.Setup` on the original's draws (`Lcg.BeforeDraw`). It checks the setup's draws one for one and the first turn's order, directions, footprints and radii. The first trial (Combat 01's rats, five turns) passes both, all 74 of the setup's draws lining up. Next are the turns: each action replayed from the RAM at its `Combatant.ExecuteAction` and checked against the next turn's, which needs a log made since those dumps were added.
 
 #### The formula vectors (no play)
 

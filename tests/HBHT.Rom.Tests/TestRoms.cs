@@ -103,7 +103,7 @@ public static class TestRoms
         return (folder, images);
     }
 
-    private static string RepoRoot()
+    internal static string RepoRoot()
     {
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
         {

@@ -21,7 +21,17 @@ public sealed class Lcg(uint seed = Lcg.BootSeed) : IRandom
 
     public uint Seed { get; set; } = seed;
 
-    public uint Next() => Seed = Seed * 0x19660D + 0x3C6EF35F;
+    /// <summary>
+    /// Called before each draw, and may set <see cref="Seed"/>: combat parity's replay feeds the original's draws through it, its
+    /// one stream's state before each draw of the rules, past the cosmetic draws between them.
+    /// </summary>
+    public Action<Lcg>? BeforeDraw { get; set; }
+
+    public uint Next()
+    {
+        BeforeDraw?.Invoke(this);
+        return Seed = Seed * 0x19660D + 0x3C6EF35F;
+    }
 }
 
 public static class RandomExtensions
