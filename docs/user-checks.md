@@ -186,14 +186,14 @@ The party for most: Alaron, Sholeh (Star, Healer 10, Ranger 6, Long Bow), Dougal
 
 The saves are in `out/parity/saves/`. `base.json` is story save A with the party above: Rheda and Brenna left and Dougal and Keelin joined (`party.cs`), with Sholeh's Long Bow and the skills (`sheet.cs`). Each setup is built on it:
 
-- **Setup 1, `setup1.json`, in the pak's slot A.** The party stands 8 west of the Tomb Rats, facing them. The spells:
+- **Setup 1, `setup1.json`, once in the pak's slot A.** The party stands 8 west of the Tomb Rats, facing them. The spells:
   - Alaron: Acid Bolt, Aura of Death, Haste, Tap Stamina, Wraith Touch, Wall of Bones and Darkness at 5, and Sense Aura at 1.
   - Sholeh: Whitefire, Web of Starlight, Frozen Doom, Stellar Gravity, Solar Wrath and Light at 5. She wears the Sense Aura (level 5) and Charming scrolls.
   - Dougal: Fireball, Dragon Flames and Earth Smite at 5.
   - Keelin: Lightning and Immolation at 4, Poison at 3 and Dragon Flames at 1. Keelin wears the Lightning wand and starts with 6 Stamina, so a cast gets refused for Stamina. The low Stamina leaves Keelin 38 of 72 HP.
 
   The party has 2 Herbs, so the third of Frozen Doom, Wall of Bones and Sense Aura gets refused for its reagent. The pak can't hold a spell at level 0, so the rise is tried at level 1 alone. Sense Aura is cast at 1 and 5, not 9.
-- **Setup 2, `setup2.json`, in slot B.** Flag 3078 is cleared, so party #8 is back. The other five parties of A07 stay beaten. The party stands 7 from them, facing them. On top of the story's spells:
+- **Setup 2, `setup2.json`, once in slot B.** Flag 3078 is cleared, so party #8 is back. The other five parties of A07 stay beaten. The party stands 7 from them, facing them. On top of the story's spells:
   - Alaron: Dispel Necro, Light, Aura of Death and Wall of Bones at 5. Wraith Touch was taken off him after it crashed 1.0 on landing (`out/parity/20261031-132738-setup2`): a party caster's crashes 1.0, which play can't reach ([combat](systems/combat.md#what-spells-look-like)).
   - Dougal: Lightning and Earth Smite at 5.
   - Keelin: vs. Star at 5 and Lightning at 4.
@@ -206,5 +206,9 @@ The saves are in `out/parity/saves/`. `base.json` is story save A with the party
   - The potions the inventory lacked: Antidote, Dexterity, Clarity, Charisma and Defense ×2. Healing, Stamina, Curing, Restore, Strength and Stealth were there already.
   - Dougal's Fireball 6 is from the story. It's there to place a blast that catches a member, which setup 1 didn't do.
 - **Setup 4, `setup4.json`, in slot D.** At 22:00, Night. The party stands on the slope 11.4 north-east of the Woodsmen (party #2, `0x025B`, radius 10), facing them, 24 from the Ogre (#0, radius 20) and 17 from the Wyverns (#1, radius 10). Keelin wears the Short Bow, and Dougal has 4 Javelins.
+- **Setup 5, `setup5.json`, in slot A.** The party stands 11 west of the Goblin Poisoners (Overworld E09 #5, `0x0284`, level 5, radius 10), facing them, 37 from the Cave Bears (#4). The inventory has 3 Antidotes on top of the base's potions, and Keelin knows Remove Poison 3 from the story.
+- **Setup 6, `setup6.json`, in slot B.** The party stands 8 south of the four Wraiths (EhudUnder E03 #4, `0x0265`, level 20, radius 10), facing them, in the only open floor round them. A teleporter (#3) is 2 beyond the Wraiths. Restore is Sholeh's Healer 10 with the party's Herbs, or one of the 3 Restore Potions.
+
+Setups 5 and 6 replaced 1 and 2 in slots A and B. To fight 1 or 2 again, write its save back with `hbht save to-pak`.
 
 Every log also settles the frame's delta in combat, and the first one where in a turn an attack's draws fall, both in [combat](systems/combat.md#not-settled). Each party above is always enabled but Kitarak's (while 154 is clear) and Lugash's (5250); others can stand in from the base plugin's monster parties.
