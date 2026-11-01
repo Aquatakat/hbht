@@ -218,6 +218,14 @@ Two differences were the port's:
 - **The talk.** 1.0's collision byte is 0 within 60° of the party's heading (`0x80010AA8`–`0x80010B74`, [wanderers](systems/wanderers.md#talking)), so a talk at the side is 1, and the Wolves start facing away. The port passed 0 for every talk, so its Wolves faced the party, 6–7 for 1.0's 2–3. The port now tests the cone (`TrekLoop.TalkByte`). The replay, which had passed 0 for every battle but an ambush, reads 1.0's byte.
 - **The animation byte.** 1.0 writes it each frame a hunter's notice holds, not as it catches him. Battle 7, run at and then sneaking, was caught running. Battle 8's sneak was last noticed as Alaron stood. The port took his request as the Wolf caught him, and now keeps what he was doing when last noticed (`Wanderers.NoticedAs`). The replay reads the byte from RAM, so it didn't show this.
 
+Setup 10's session (`out/parity/20261031-235130-setup10`), against the Trolls, played as written. Every action passes:
+- In the first battle, a Troll's blow killed Keelin, and the party fled by the pause.
+- In the second, Alaron cast Cheat Death on himself and the Trolls' three blows at him passed through it. The last took the battle to state 13 (`Combat.StateDefeat`) and on to the game over script (21, `Combat.StateLeaveToScript`).
+
+Every enemy turn passes but one, 0008 in the second battle. 1.0's Troll stuck on the Troll in slot 3, the two exactly touching (3.40, their radii), 2.98 from Alaron. It gave up there without a blow, though Alaron was within its reach of 3.15. The port's slides on round it and strikes him. With the slide off it stops within 0.07 of 1.0's and doesn't strike. It's with the port's fixes (`KnownFixes`), the slide being the user's choice in setup 2.
+
+The second battle's first ring was turned 0.054° from the port's. 1.0 keeps the way round its rings from ring to ring ([combat](systems/combat.md#the-arenas)), and each ring falls 0.006° short of a turn: 9 rings in the first battle make 0.054°. The ring's check now allows for the rings laid before it in the session.
+
 Still to do:
 
 - **Setup 2's walks,** above: which way 1.0's Spellweaver curved at the second's 0016.

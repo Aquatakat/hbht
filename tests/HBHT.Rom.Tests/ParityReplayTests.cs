@@ -307,11 +307,26 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
         Assert.Equal(original, port);
 
         var theirs = Ring(log.Ram(held));
-        var ours = fight.Ring.Points.ToArray().Select(p => p - fight.Origin).ToList();
+        // 1.0 keeps the direction it turns a ring's teardrops by from ring to ring, from boot, and a ring's steps of
+        // 360 / n × 0.017453 fall 0.006° short of a turn, so each ring it lays starts that far back (setup 10's second battle: 9 rings
+        // before it, 0.054°). The port starts every ring straight ahead, as the drift can't be seen.
+        var centre = fight.Origin + new Vector3(fight.Current!.TurnStart.X, 0, fight.Current.TurnStart.Y);
+        var (sin, cos) = MathF.SinCos(RingsBefore(battle) * (360 * 0.017453f - 2 * MathF.PI));
+        var ours = fight.Ring.Points.ToArray().Select(p => p - centre)
+            .Select(d => centre + new Vector3(cos * d.X - sin * d.Z, d.Y, cos * d.Z + sin * d.X) - fight.Origin).ToList();
         Assert.Equal(theirs.Count, ours.Count);
         var off = theirs.Zip(ours).Select((p, i) => (p, i)).Where(t => Vector3.Distance(t.p.First, t.p.Second) > 0.01f)
             .Select(t => $"teardrop {t.i}: original {t.p.First}, port {t.p.Second}").ToList();
         Assert.True(off.Count == 0, string.Join("; ", off));
+    }
+
+    /// <summary>The rings 1.0 laid in the session before a battle: each earlier battle's first turn and every turn begun after it.</summary>
+    private static int RingsBefore(string battle)
+    {
+        var session = Path.GetDirectoryName(battle)!;
+        return Directory.EnumerateDirectories(Path.Combine(LogFolder, session), "battle-*")
+            .Where(b => string.CompareOrdinal(Path.GetFileName(b), Path.GetFileName(battle)) < 0)
+            .Sum(b => ParityLog.Read(b).Entries.Count(e => e.Name is "Combat.StartFirstTurn" or "TurnOrder.BeginTurn"));
     }
 
     // ---------------------------------------------------------------------------------------------------------------------------
@@ -413,6 +428,7 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
         [("20261031-172849-setup3/battle-01", "0120.rdram.gz")] = "Dougal's Fireball with a flask in hand does its damage",
         [("20261031-201521-setup5b/battle-01", "0064.rdram.gz")] = "1.0's Poisoner sticks on Keelin's body by the push's rounding and gives up 0.24 from its start; the port's slides on round her (Crowd.Rounding), and with the slide off ends within 0.35 of 1.0's",
         [("20261031-230020-setup8/battle-01", "0016.rdram.gz")] = "the Skeleton slides on round Keelin (Crowd.Rounding) and strikes from 0.59 past 1.0's; with the slide off it strikes from within 0.38 of 1.0's",
+        [("20261031-235130-setup10/battle-02", "0008.rdram.gz")] = "1.0's Troll sticks on the Troll in slot 3, exactly touching, 2.98 from Alaron and gives up without a blow; the port's slides on round it (Crowd.Rounding) and strikes him; with the slide off it stops within 0.07 of 1.0's and doesn't",
     };
 
     /// <summary>The next turn's start with RAM, or the battle's end.</summary>
