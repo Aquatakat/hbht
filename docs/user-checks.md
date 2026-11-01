@@ -8,7 +8,7 @@ A check far into the story needn't be played to: Claude writes a save at the pla
 
 ### The lit lighthouse
 
-In 1.0 and the port, after the scroll's cut-scene in the lighthouse's lantern room (Lighthouse A05): compare the room, lit, side by side. The lit scene bakes the room's colours far brighter and is the one chunk scene with lights of its own, a pale blue directional and a white ambient, which the port leaves out as it does for all scenery; a bluer, brighter room in 1.0 than in the port says 1.0 lights it by them ([rendering](systems/rendering.md#a-scenes-own-lights)). Outside, on the Overworld's A15, the lit scene differs from the dark only by one small quad high on the tower, so there's little to see there ([maps](formats/maps.md)). Claude can write a save at the lighthouse with 286 set or clear.
+In 1.0 and the port, after the scroll's cut-scene in the lighthouse's lantern room (Lighthouse A05): compare the room, lit, side by side. The lit scene bakes the room's colours far brighter and is the one chunk scene with lights of its own, a pale blue directional and a white ambient, which the port leaves out as it does for all scenery; a bluer, brighter room in 1.0 than in the port says 1.0 lights it by them ([rendering](systems/rendering.md#a-scenes-own-lights)). Outside, on the Overworld's A15, the lit scene differs from the dark only by one small quad high on the tower, so there's little to see there ([maps](formats/maps.md)). The saves, from story save D, are in 1.0's pak and `out/user-checks/lighthouse/` for the port: A, the lantern room dark with the scroll, before its cut-scene (`room-dark.json`); B, the room lit (`room-lit.json`); C and D, outside the door, dark and lit (`outside-dark.json`, `outside-lit.json`).
 
 ### Combat parity (2.9)
 
