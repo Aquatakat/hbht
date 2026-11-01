@@ -180,6 +180,10 @@ public sealed record BattleSetup(
             }
         }
     Sure:
+        // Sure ones that reached the most come to the most (ChooseKinds returns it, not the count): past it only for a most of 0,
+        // which leaves the fallback.
+        if (list.Count > most)
+            list.RemoveRange(most, list.Count - most);
         // Twelve sure ones under the party's most would have the original write a thirteenth; no party has so many.
         if (list.Count < most && list.Count < Battle.MaxEnemies)
         {

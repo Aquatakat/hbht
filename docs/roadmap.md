@@ -18,7 +18,7 @@ This is the one list of what's open. A task's status is in its phase's table bel
 
 **M4: the prologue** is done: the user played it side by side with the emulator, what differed is fixed, and the user has played the fixes. Next, by the phases' order, is **Phase 4: content parity**, once what the fixes left is settled.
 
-- **Combat parity (2.9):** the formula vectors from 1.0's functions in the interpreter past melee's (ranged and flasks, casting, effects and potions, turn order and setup and rewards, morale and the AI), the replay laying each actor's state from the RAM, the positions shown but not checked (among them reserves taking other spawn points than 1.0's on the same draws, which may be the port's) ([combat parity](systems/combat-parity.md#whats-left)).
+- **Combat parity (2.9):** the formula vectors from 1.0's functions in the interpreter past melee's, the turns', the setup's and the rewards' (ranged and flasks, casting, effects and potions, morale and the AI), the replay laying each actor's state from the RAM, the positions shown but not checked (among them reserves taking other spawn points than 1.0's on the same draws, which may be the port's) ([combat parity](systems/combat-parity.md#whats-left)).
 - **What the fixes left:** the remembered member and tab carried across a load, as the original keeps the member ([pause menu](systems/pause-menu.md#opening-and-closing)); and translucent scenery drawn after bodies, which tints the dress's hem in the misty sea's cut-scene ([rendering](systems/rendering.md#whats-left)).
 
 ### Left over from finished work
@@ -104,7 +104,7 @@ Where a task names the original's code, the file names are the debug build's.
 | **2.6 Enemy AI.** | L | `combatengine/aiInfo.cpp`, `aiscores.cpp` | Done Oct 19, 2026, with M3 ([combat](systems/combat-ai.md)) |
 | **2.7 Time & camping.** See [camping](systems/camping.md). | S | `sundial.cpp`, `menus/campmenucontroller.cpp` | Done Oct 18, 2026 |
 | **2.8 Save/load** in the engine's own format. See [saves](systems/saves.md). | S | `questdata.cpp`, `saveParty.cpp` | Done Oct 1, 2026 |
-| **2.9 Differential tests.** Capture the random values the emulator consumed (ADR 0006), replay them into the core, and compare damage and turn logs. | L, ongoing | | Started: the Combat checkpoints and 13 played setups replay into the port, and melee's formula vectors agree ([combat parity](systems/combat-parity.md)) |
+| **2.9 Differential tests.** Capture the random values the emulator consumed (ADR 0006), replay them into the core, and compare damage and turn logs. | L, ongoing | | Started: the Combat checkpoints and 13 played setups replay into the port, and the formula vectors of melee, the turns, the setup and the rewards agree ([combat parity](systems/combat-parity.md)) |
 | **2.10 Events and triggers.** The core's named event list, and trigger records (*on event, if condition, do effects*) in Borg13's condition and effect vocabulary. Engine features that replace bespoke code (ADR 0008 layer 3) land with their system. | M | The 1H audit | Done Oct 19, 2026, with the cinematics' ([events](systems/events.md)); what else could move onto them is [above](#left-over-from-finished-work) |
 
 ### Phase 3: Godot runtime
