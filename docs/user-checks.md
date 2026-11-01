@@ -254,6 +254,11 @@ No Cheat Death was on Lugash in 1.0's RAM: his effect records were empty at ever
 
 Setup 12b's session (`out/parity/20261101-100932-setup12b`), with Dougal and Keelin wielding Lightreavers, won. Every action and Lugash turn passes, and so does the win at `Combat.Exit`: 8257 experience, a Restore Potion, the Staff of Lugash, Royal Platemail, a Sapphire Gem and 20 Spice. The kill flag 533 was set ("The lich is dead."), and 1.0 showed its journal entry at once on the return to trek, as the port's does as trek fades in.
 
+Setup 13's session (`out/parity/20261101-102351-setup13`), against the three Gorgons in arena 12, ended with the leader (slot 4) and slot 5 dead and slot 6 at about a quarter. Every action passes, the Gorgons' Frozen Dooms on the party among them, with no lock. Every Gorgon turn passes but one:
+- **0062** is the cadence. The player's A put the Gorgon at its leg's end, (19, 27), 2.25 from Sholeh for a reach of 2.14. Through the 4 frames before it decided, 3 ticks each, 1.0's body ran on 0.34 toward her and struck from 1.78. The port's decides 2 ticks after the walk and rests. It's a known cadence turn in the replay, like setup 6's 0040.
+
+None fled. From 0025 on, slot 6 was asked every turn: the leader gone, it was the only one able. Its morale came to about 8: 11, −1 for Lunar by day, −4 for the leader gone and +2 for the dead leader's 11, which `Combat+0x11` keeps. So it fled only on a 2d6 roll over 8, about 28%. On six of its eight checks it was engaged, so a flight couldn't start. Neither of the other two rolled over. The port's checks are the same, draw for draw. A cornered flight is still unchecked ([combat](systems/combat.md#not-settled)). Sholeh's Solar Wrath on the two that aren't the leader would bring one: it makes a check due and takes 8 from their morale.
+
 Still to do:
 
 - **Setup 2's walks,** above: which way 1.0's Spellweaver curved at the second's 0016.

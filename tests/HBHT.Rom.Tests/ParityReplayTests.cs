@@ -415,6 +415,7 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
         [("20261031-230020-setup8/battle-01", "0037.rdram.gz")] = "the Skeleton Archer faces 162° from its leg and swings wide through +Z as it turns, coming no nearer, and 1.0's body gives up after 11 frames; the port's turns round at 2-tick frames and walks on, and at 5-tick frames gives up and shoots from within 0.27 of 1.0's",
         [("20261101-083418-setup11/battle-01", "0009.rdram.gz")] = "the Hobgoblin's walk at Alaron ends 1.05 off 1.0's, out of reach, and it rests; at the logger's 4-tick frames the port's strikes him from within 0.08 of 1.0's",
         [("20261101-083418-setup11/battle-01", "0068.rdram.gz")] = "not the cadence but the animation: 1.0's Hobgoblin was mid-fidget (its actor's state 12, clock 27 of 101), which takes no run request, so its walk to (19, 10) gave up after 30 ticks on its cell; the replay starts bodies idle, and the port's walks to (19, 11.14). Seeded at state 12, clock 27, the port's acts from (19, 12) as 1.0's does",
+        [("20261101-102351-setup13/battle-01", "0062.rdram.gz")] = "the player's A put the Gorgon at its leg's end, 2.25 from Sholeh for a reach of 2.14; 1.0's body ran on 0.34 toward her through the 4 frames of 3 ticks before it decided and struck from 1.78, the port's decides 2 ticks after and rests",
     };
 
     /// <summary>
