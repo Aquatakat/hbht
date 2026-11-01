@@ -53,6 +53,17 @@ public sealed class MagicTests
     }
 
     [Fact]
+    public void AMoraleSpellLeavesNoRecordOnOneWithNoMorale()
+    {
+        // Entity.AddEffect's case for Aura of Death and Solar Wrath (0x800702F0) adds nothing to a target with no AI record.
+        var aura = MagicData.Spell(0x0334, "Aura of Death", MagicSchool.Necromancy, [new MoraleEffect(Magnitude.Per(-1))], MagicData.Cast);
+        var alaron = Alaron();
+        var on = new EffectTarget(alaron, null, null);
+        EffectLanding.Land(aura.Effects!, aura.Duration, new Landing(aura.Id, aura.School, 4, 5, on, on, new Lcg()));
+        Assert.Empty(alaron.Effects);
+    }
+
+    [Fact]
     public void SpiritShieldLeavesALevelOfProtectionAndAirShieldNone()
     {
         var alaron = Alaron();

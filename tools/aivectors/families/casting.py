@@ -214,4 +214,31 @@ def cases():
         for tag, es in entries:
             pk = f'learn:0,{kind},5' + ''.join(f'|resist:4,{i},{e},{m}' for i, (e, m) in enumerate(es))
             add(f'resistance-k{kind}-{tag}', (0, 4), pk, script=CASTS, steer=[NOT_RESISTED])
+
+    # Not enough Stamina for the cost, max(1, the spell's - L): Dragon Flames at 5 costs 5, at 10 costs 1 (with Wizard 10).
+    for s in (0, 1, 4, 5, 6):
+        add(f'DF-stamina{s}', (0, 4), DF + f'|mod:0,Stamina,{s}|cur:0,Stamina,{s}', script=CASTS, steer=[NOT_RESISTED])
+    for s in (0, 1):
+        add(f'DF10-stamina{s}', (0, 4), f'learn:0,6,10|mod:0,Stamina,{s}|cur:0,Stamina,{s}', script=CASTS, steer=[NOT_RESISTED])
+
+    # A requirement unmet and met: Aura of Death (25) takes only the Solar, Solar Wrath (47) only the Lunar, Wraith Touch (26) and
+    # Remove Poison (2) only those with a True Name (the party), Earth Smite (7) and Web (57) only the small (the heavy flag).
+    for kind in (25, 47, 26, 2, 7, 57):
+        add(f'require-k{kind}-rat', (0, 4), f'learn:0,{kind},5', script=CASTS, steer=[NOT_RESISTED])
+        add(f'require-k{kind}-ratsolar', (0, 4), f'learn:0,{kind},5|aspect:4,2', script=CASTS, steer=[NOT_RESISTED])
+        add(f'require-k{kind}-rheda', (0, 1), f'learn:0,{kind},5', script=CASTS, steer=[NOT_RESISTED])
+
+    # A caster that has acted this turn casts at the margin it kept, with no roll, reagent or Stamina: a margin of 7, of 0, and none.
+    for m in (7, 0, 0xFF, 0xFE):
+        add(f'DF-acted{m}', (0, 4), DF + f'|acted:0,{m}', script=CASTS, steer=[NOT_RESISTED])
+        add(f'web-acted{m}', (3, 4), f'acted:3,{m}|learn:3,57,8', script=CASTS, steer=[NOT_RESISTED])
+
+    # The level's rise, cast or not: a d100 at or under (5 - L)^2 x 0.1, halved on a failure (ResolveCastRoll), for L 0 and 1, and 2,
+    # which can't. A failure is the roll at the chance or over.
+    for level in (0, 1, 2):
+        for r in (1, 2, 3):
+            add(f'rise-L{level}-cast-roll{r}', (0, 4), f'learn:0,6,{level}', script=CASTS,
+                steer=[('Combatant.ResolveCastRoll', d100(r)), NOT_RESISTED])
+            add(f'rise-L{level}-failed-roll{r}', (0, 4), f'learn:0,6,{level}', script={0: d100(100)},
+                steer=[('Combatant.ResolveCastRoll', d100(r))])
     return out

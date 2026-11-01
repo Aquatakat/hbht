@@ -63,6 +63,16 @@ public sealed class CastingVectorTests(Na10Import fixture, ITestOutputHelper out
         ["mirror"] = (b, a) => FormulaState.Slot(b, a[0]).Mirror = FormulaState.Int(a[1]),
     };
 
+    /// <summary>
+    /// A record's power byte (<c>+1</c>) as 1.0 keeps it: the level, but Wraith Touch's the amount it drained, which the port keeps in
+    /// <see cref="ActiveEffect.Amounts"/>. Its margin byte (<c>+3</c>) is read as a byte, as the port's signed one holds the same bits.
+    /// </summary>
+    private static int RecordPower(ActiveEffect e)
+    {
+        var drain = e.Effects.ToList().FindIndex(x => x is DrainStatEffect);
+        return drain >= 0 ? e.Amounts[drain] : e.Power;
+    }
+
     private static SpellRecord SpellOfKind(CombatCheckpoints.Built b, int kind) =>
         b.Game.Plugins.All<SpellRecord>(RecordTypes.Spell).Single(s => s.Position == kind);
 
@@ -101,7 +111,7 @@ public sealed class CastingVectorTests(Na10Import fixture, ITestOutputHelper out
             ("stamina", a.Sheet.Stats.RawModified(Stat.Stamina)),
             ("level", source.Known?.Level ?? -1),
             ("effects", sheet.Effects.Count == 0 ? "-"
-                : string.Join('/', sheet.Effects.Select(e => $"{spells.GetValueOrDefault(e.Source)}:{e.Power}:{e.Margin}:{e.Timer}"))),
+                : string.Join('/', sheet.Effects.Select(e => $"{spells.GetValueOrDefault(e.Source)}:{RecordPower(e)}:{(byte)e.Margin}:{e.Timer}"))),
             ("tmod", string.Join('.', Enum.GetValues<Stat>().Select(s => (byte)sheet.Stats.RawModified(s)))),
             ("tbase", string.Join('.', Enum.GetValues<Stat>().Select(s => sheet.Stats.RawBase(s)))),
             ("prot", sheet.Protection),
