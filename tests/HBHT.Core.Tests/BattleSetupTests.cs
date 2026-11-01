@@ -73,6 +73,15 @@ public sealed class BattleSetupTests
         Assert.Equal(Repeated((A, 3)), list);
     }
 
+    // ChooseKinds takes the most as the count once the sure ones reach it: a most of 0 leaves none, so the fallback fights.
+    [Fact]
+    public void AMostOfNoneFightsTheFallback()
+    {
+        var list = Fill(Fight(0, 0, Kind(A, 2, 2)), new ScriptedRandom());
+
+        Assert.Equal([Fallback], list);
+    }
+
     [Fact]
     public void TheSureOnesStopAtTwelve()
     {
