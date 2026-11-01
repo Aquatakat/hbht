@@ -2,6 +2,7 @@
 
     python tools/aivectors/aivectors.py                  # all 123 cases, about 12 minutes on 22 workers
     python tools/aivectors/aivectors.py --only Lugash    # the cases whose id has the text; writes out/aivectors/vectors.json only
+    python tools/aivectors/aivectors.py --extras         # only the one-off vectors (about a minute); writes CasterExtraVectors.cs only
     python tools/aivectors/aivectors.py --roms DIR --jobs 8 --out other.cs
 
 What it does (docs/reference-rig.md, "Replaying the original's AI"):
@@ -11,7 +12,8 @@ What it does (docs/reference-rig.md, "Replaying the original's AI"):
      turn, and runs ScoreSpellCells, ChooseSpellOrAttack, RunStyle and EnemyAI.Step in the MIPS interpreter (cpu.py) for five seeds of the
      sort's stream (vec.py, vec2.py). Then the one-off vectors of extras.py: ScoreSpellCells by action slot, SpellValue by kind, AICanCast,
      the area danger and the morale spells.
-  3. Puts them in out/aivectors/vectors.json (emit.assemble) and writes the test's table from it (emit.write_cs).
+  3. Puts them in out/aivectors/vectors.json (emit.assemble) and writes the tests' tables from it: CasterVectors.cs (emit.write_cs) for
+     the cases, CasterExtraVectors.cs (emit_extra.write_cs) for the one-off vectors.
 
 Needs `pip install capstone numpy`. The ROM and the states are found in roms/ or HBHT_ROMS. Nothing it builds is kept outside out/.
 """
@@ -28,6 +30,7 @@ sys.path.insert(0, HERE)
 import rig  # noqa: E402
 
 DEFAULT_CS = os.path.join(rig.REPO, 'tests', 'HBHT.Rom.Tests', 'CasterVectors.cs')
+EXTRA_CS = os.path.join(rig.REPO, 'tests', 'HBHT.Rom.Tests', 'CasterExtraVectors.cs')
 
 
 def work(task):
@@ -54,8 +57,10 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     ap.add_argument('--roms', help='the folder with the 1.0 ROM and the checkpoints (default HBHT_ROMS, else roms/)')
     ap.add_argument('--out', default=DEFAULT_CS, help='the C# file to write')
+    ap.add_argument('--extra-out', default=EXTRA_CS, help='the C# file the one-off vectors are written to')
     ap.add_argument('--jobs', type=int, default=min(os.cpu_count() or 1, 22), help='worker processes')
     ap.add_argument('--only', help='run only the cases whose id has this text, and write only out/aivectors/vectors.json')
+    ap.add_argument('--extras', action='store_true', help='run only the one-off vectors (extras.py), about a minute, and write only CasterExtraVectors.cs')
     a = ap.parse_args()
     if a.roms:
         os.environ['HBHT_ROMS'] = a.roms     # inherited by the workers
@@ -65,7 +70,9 @@ def main():
     cases = case_lists.all_cases()
     singles = extras.SINGLE_CASES
     extra = ['kinds', 'aican', 'misc']
-    if a.only:
+    if a.extras:
+        cases = []
+    elif a.only:
         cases = [c for c in cases if a.only in c['id']]
         singles = [c for c in singles if a.only in c['id']]
         extra = []
@@ -95,6 +102,10 @@ def main():
     done['single'].sort(key=lambda r: order[r['id']])
     vectors = emit.assemble(done['case'], done['single'], done['kinds'], done['aican'], done['misc'])
     os.makedirs(rig.OUT, exist_ok=True)
+    if a.extras:
+        import emit_extra
+        print(f'{a.extra_out}: {emit_extra.write_cs(vectors, a.extra_out)} bytes')
+        return
     path = os.path.join(rig.OUT, 'vectors.json')
     with open(path, 'w') as f:
         json.dump(vectors, f, separators=(',', ':'))
@@ -104,6 +115,8 @@ def main():
         return
     n, size = emit.write_cs(vectors, a.out)
     print(f'{a.out}: {n} cases, {size} bytes')
+    import emit_extra
+    print(f'{a.extra_out}: {emit_extra.write_cs(vectors, a.extra_out)} bytes')
 
 
 if __name__ == '__main__':

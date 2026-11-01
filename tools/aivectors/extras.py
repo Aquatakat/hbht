@@ -180,7 +180,7 @@ def aican():
             r = c2.cpu.run(0x80060a94, [c2.p, tgt, sp], maxsteps=2_000_000) & 0xff
             req = c2.cpu.run(0x800712c0, [S2.rd32(tgt + 0x40), sp]) & 0xff
             tm = c2.cpu.run(0x80071260, [c2.ent, sp]) & 0xff
-            rows.append(dict(label='edited spell struct (Whitefire) for the part of the day / requirement', special=special, partOfDay=part, targetEntity='%04x' % S2.rd16(S2.rd32(tgt + 0x40)),
+            rows.append(dict(label='edited spell struct (the known spell at index 3: Lightning) for the part of the day / requirement', special=special, partOfDay=part, targetEntity='%04x' % S2.rd16(S2.rd32(tgt + 0x40)),
                              requirement=req, timeAllows=tm, staminaModified=S2.rd8(S2.rd32(c2.ent + 0x18) + 0x15 + 5), result=bool(r)))
     # a combatant without an AI record or with flag 8 clear is always allowed
     c2 = fork(ctx)

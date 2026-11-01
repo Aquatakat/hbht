@@ -6,6 +6,7 @@ using HBHT.Core;
 using HBHT.Core.Calendar;
 using HBHT.Core.Characters;
 using HBHT.Core.Combat;
+using HBHT.Core.Items;
 using HBHT.Plugins;
 using HBHT.Plugins.Records;
 
@@ -21,7 +22,7 @@ namespace HBHT.Rom.Tests;
 /// (<see cref="Battle.Recast"/>, the rat's body kept) and plays the same turn. The tests skip without the ROM and the checkpoints.
 /// </summary>
 [Collection(ImportedPluginCollection.Name)]
-public sealed class CasterCheckpointTests(Na10Import fixture, ITestOutputHelper output)
+public sealed partial class CasterCheckpointTests(Na10Import fixture, ITestOutputHelper output)
 {
     private PluginSet Set => fixture.Data.Set;
 
@@ -32,11 +33,11 @@ public sealed class CasterCheckpointTests(Na10Import fixture, ITestOutputHelper 
     private static readonly string[] SightFixed = ["cp11-s6-21c-BanditBoss-nostamina", "cp08-s5-221-Marquis-nostamina"];
 
     /// <summary>
-    /// The cases, but the five that wear a weapon as armor or a shield to give those action slots a spell (no enemy has one, and the
-    /// port's equipment won't wear it), and those the port's line of sight changes.
+    /// The cases, but those the port's line of sight changes. (The five that wear a weapon as armor or a shield to give those action
+    /// slots a spell, which no enemy in the data has, are laid by reflection: the <c>itemspell</c> mod of <see cref="Begin"/>.)
     /// </summary>
     public static TheoryData<string> Cases =>
-        [.. CasterVectors.Cases.Where(c => !c.Mods.Contains("itemspell") && !SightFixed.Contains(c.Id)).Select(c => c.Id)];
+        [.. CasterVectors.Cases.Where(c => !SightFixed.Contains(c.Id)).Select(c => c.Id)];
 
     [Fact]
     public void AnAttacksSightRunsHeadToHead()
@@ -56,10 +57,13 @@ public sealed class CasterCheckpointTests(Na10Import fixture, ITestOutputHelper 
     /// place, the case's changes made, and the turn begun as <c>TurnOrder.Advance</c> and <c>BeginTurn</c> do: the focus on the caster,
     /// state 8, and both target sets built for it.
     /// </summary>
-    private (Built Built, Combatant Caster) Begin(CasterVectors.Case k)
+    private (Built Built, Combatant Caster) Begin(CasterVectors.Case k) => Begin(k.Checkpoint, k.Slot, k.Entity, k.Mods);
+
+    /// <summary>The same for a caster and a list of changes (<c>name:args|name:args</c>) given directly.</summary>
+    private (Built Built, Combatant Caster) Begin(int checkpoint, int casterSlot, int casterEntity, string changes)
     {
         Built built;
-        if (k.Checkpoint == 2)
+        if (checkpoint == 2)
         {
             built = Plain(Set, 2);
             // What 01's battle doesn't hold of 02's: Rheda has moved, which an attack's chance reads.
@@ -71,13 +75,13 @@ public sealed class CasterCheckpointTests(Na10Import fixture, ITestOutputHelper 
         }
         else
         {
-            built = At(Set, k.Checkpoint);
+            built = At(Set, checkpoint);
         }
         var battle = built.Battle;
-        var entity = RecordId.Hex(RecordTypes.Entity, k.Entity);
-        var c = battle.Recast(k.Slot, built.Game.Recruit(entity)!);
+        var entity = RecordId.Hex(RecordTypes.Entity, casterEntity);
+        var c = battle.Recast(casterSlot, built.Game.Recruit(entity)!);
         var radius = (int?)null;
-        foreach (var mod in k.Mods.Split('|', StringSplitOptions.RemoveEmptyEntries))
+        foreach (var mod in changes.Split('|', StringSplitOptions.RemoveEmptyEntries))
         {
             var (name, args) = (mod[..mod.IndexOf(':')], mod[(mod.IndexOf(':') + 1)..]);
             var n = args.Split(',');
@@ -87,8 +91,12 @@ public sealed class CasterCheckpointTests(Na10Import fixture, ITestOutputHelper 
                     Move(battle, battle.Slots[int.Parse(n[0])]!, float.Parse(n[1], CultureInfo.InvariantCulture), float.Parse(n[2], CultureInfo.InvariantCulture));
                     break;
                 case "stamina":
-                    var stats = battle.Slots[int.Parse(n[0])]!.Sheet.Stats;
-                    SetStat(stats, Stat.Stamina, stats.Trained(Stat.Stamina), int.Parse(n[1]), stats.Base(Stat.Stamina), int.Parse(n[1]));
+                    SetStamina(battle.Slots[int.Parse(n[0])]!, int.Parse(n[1]));
+                    break;
+                case "entity":
+                    // The combatant's entity word overwritten, as the kind vectors do for an elemental or a zombie: the slot made again
+                    // from that entity (its body kept), which is all SpellValue and the spell's filter read of it.
+                    battle.Recast(int.Parse(n[0]), built.Game.Recruit(RecordId.Hex(RecordTypes.Entity, Convert.ToInt32(n[1], 16)))!);
                     break;
                 case "danger":
                     battle.Danger = int.Parse(n[0]);
@@ -113,6 +121,15 @@ public sealed class CasterCheckpointTests(Na10Import fixture, ITestOutputHelper 
                             default: throw new InvalidDataException($"AI byte {offset} = {value}");
                         }
                     }
+                    break;
+                case "itemspell":
+                    // 1.0 builds the weapon record as an item worn as the armor or the shield; the port's equipment won't wear a
+                    // weapon there, so it is put in the slot as the vectors' FormulaState puts a weapon in hand. Action slot 5 or 6 takes
+                    // its spell, as EnemyAI.Init does for an item's.
+                    var worn = new ItemInstance(built.Game.Items.TryGet(TestRoms.ItemId((ushort)int.Parse(n[1])))!);
+                    var armor = n[0] == "armor";
+                    typeof(Equipment).GetProperty(armor ? nameof(Equipment.Armor) : nameof(Equipment.Shield))!.SetValue(c.Sheet.Equipment, worn);
+                    c.Ai!.Slots[armor ? 5 : 6] = worn.Item.Bonuses.Spell?.Spell;
                     break;
                 case "spellsel":
                     c.Spell = int.Parse(n[0]) == 0 ? SpellChoice.None : new SpellChoice((SpellSourceKind)int.Parse(n[0]), int.Parse(n[1]));
@@ -142,6 +159,13 @@ public sealed class CasterCheckpointTests(Na10Import fixture, ITestOutputHelper 
         Poke(battle.TargetsB, nameof(TargetSet.Cursor), (int)built.Cp.ReadByte(built.Struct + 0x4F0C + 0xA6));
         battle.RebuildTargets(c);
         return (built, c);
+    }
+
+    /// <summary>A combatant's current and modified Stamina set, the base unchanged (the vectors' <c>stamina</c> change).</summary>
+    private static void SetStamina(Combatant c, int value)
+    {
+        var stats = c.Sheet.Stats;
+        SetStat(stats, Stat.Stamina, stats.Trained(Stat.Stamina), value, stats.Base(Stat.Stamina), value);
     }
 
     /// <summary>A combatant and its body moved to a place, the grid following.</summary>
