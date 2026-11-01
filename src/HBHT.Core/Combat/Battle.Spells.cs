@@ -108,7 +108,11 @@ public sealed partial class Battle
         // The caster at itself is where it's taken to stand, as the original's, which moves its place.
         var at = t == c ? from : t.Cell;
         var (tx, tz) = (ArenaGrid.CellOf(at.X), ArenaGrid.CellOf(at.Y));
-        if (Grid.WalkClear(cellX, cellZ, tx, tz) || (cellX, cellZ) == (tx, tz))
+        // The port's fix: the caster's own footprint doesn't block its walk. 1.0's AI scores its spells with the footprint lifted off
+        // the grid (ScoreSpellCells) and acts with it on (Execute), so a 2-cell caster with its targets toward +X or +Z, whose walk
+        // starts under its own footprint, scored a cast from where it stood and then rested every turn (docs/systems/combat.md).
+        var own = spell.Placed ? 0 : c.Footprint;
+        if (Grid.WalkClear(cellX, cellZ, tx, tz, own) || (cellX, cellZ) == (tx, tz))
             return true;
         if (t.Freed)
             return false;

@@ -44,6 +44,8 @@ Examples of some fixed bugs:
 - Damage spells work when the caster is holding a flask.
 - A spell that does no damage names its caster in the battle log, rather than its
   target.
+- Large enemy casters no longer freeze in place, neither casting nor closing in,
+  when the party stands to one side of them.
 
 The type of things not fixed:
 - Rain and splash density stays pretty low by default.

@@ -183,10 +183,12 @@ public sealed class ArenaGrid
     /// <remarks>
     /// The original steps only toward +X (a line longer in X) or +Z (longer in Z): going the other way its loop never starts,
     /// and the line is clear unchecked. The port keeps that, since it decides who can be attacked without the 3D line of sight
-    /// (<see cref="Battle.CanAttack"/>).
+    /// (<see cref="Battle.CanAttack"/>). <paramref name="ownFootprint"/> is the walker's, from (x0, z0), whose cells don't count as
+    /// taken: the port's fix for a caster whose own footprint blocks its cast (<see cref="Battle.CanCast(Combatant, Magic.SpellSource, Combatant, System.Numerics.Vector2, System.Numerics.Vector2)"/>).
     /// </remarks>
-    public bool WalkClear(int x0, int z0, int x1, int z1)
+    public bool WalkClear(int x0, int z0, int x1, int z1, int ownFootprint = 0)
     {
+        var (ownX, ownZ) = ((byte)x0, (byte)z0);
         (x0, z0, x1, z1) = ((byte)x0, (byte)z0, (byte)x1, (byte)z1);
         var dx = (int)(sbyte)(x0 - x1);
         var dz = (int)(sbyte)(z0 - z1);
@@ -211,7 +213,8 @@ public sealed class ArenaGrid
             if (IsOutside((sbyte)x, (sbyte)z))
                 return false;
             (x, z) = (x & 0xFF, z & 0xFF);
-            if (IsOccupied(x, z) && IsStep(x, z, x1, z1))
+            var own = x - ownX is >= 0 && x - ownX < ownFootprint && z - ownZ >= 0 && z - ownZ < ownFootprint;
+            if (!own && IsOccupied(x, z) && IsStep(x, z, x1, z1))
                 return false;
             if (!IsStep(prevX, prevZ, x, z) && IsStep(prevX, prevZ, x1, z1))
                 return false;

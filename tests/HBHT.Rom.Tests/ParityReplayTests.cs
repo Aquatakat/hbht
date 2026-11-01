@@ -422,6 +422,8 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
     /// ([combat](docs/systems/combat.md), where the port differs). Their differences are logged, not failed, and one that matches fails
     /// until it comes off the list.
     /// </summary>
+    private const string OwnFootprint = "the joining Hobgoblin's own 2-cell footprint no longer blocks its cast toward +X or +Z, so it casts the Tap Stamina it scored where 1.0's rested (ArenaGrid.WalkClear's own footprint)";
+
     private static readonly Dictionary<(string Battle, string Dump), string> KnownFixes = new()
     {
         [("20261031-172849-setup3/battle-01", "0097.rdram.gz")] = "Dougal's Fireball with a flask in hand does its damage",
@@ -431,6 +433,38 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
         [("20261031-201521-setup5b/battle-01", "0064.rdram.gz")] = "1.0's Poisoner sticks on Keelin's body by the push's rounding and gives up 0.24 from its start; the port's slides on round her (Crowd.Rounding), and with the slide off ends within 0.35 of 1.0's",
         [("20261031-230020-setup8/battle-01", "0016.rdram.gz")] = "the Skeleton slides on round Keelin (Crowd.Rounding) and strikes from 0.59 past 1.0's; with the slide off it strikes from within 0.38 of 1.0's",
         [("20261031-235130-setup10/battle-02", "0008.rdram.gz")] = "1.0's Troll sticks on the Troll in slot 3, exactly touching, 2.98 from Alaron and gives up without a blow; the port's slides on round it (Crowd.Rounding) and strikes him; with the slide off it stops within 0.07 of 1.0's and doesn't",
+        [("20261101-083418-setup11/battle-01", "0044.rdram.gz")] = OwnFootprint,
+        [("20261101-083418-setup11/battle-01", "0056.rdram.gz")] = OwnFootprint,
+        [("20261101-083418-setup11/battle-01", "0087.rdram.gz")] = OwnFootprint,
+        [("20261101-083418-setup11/battle-01", "0094.rdram.gz")] = OwnFootprint,
+        [("20261101-083418-setup11/battle-01", "0100.rdram.gz")] = OwnFootprint,
+        [("20261101-083418-setup11/battle-01", "0110.rdram.gz")] = OwnFootprint,
+        [("20261101-083418-setup11/battle-01", "0115.rdram.gz")] = OwnFootprint,
+        [("20261101-083418-setup11/battle-01", "0117.rdram.gz")] = OwnFootprint,
+        [("20261101-083418-setup11/battle-01", "0118.rdram.gz")] = OwnFootprint,
+        [("20261101-083418-setup11/battle-01", "0125.rdram.gz")] = OwnFootprint,
+        [("20261101-083418-setup11/battle-01", "0132.rdram.gz")] = OwnFootprint,
+        [("20261101-083418-setup11/battle-01", "0134.rdram.gz")] = OwnFootprint,
+        [("20261101-083418-setup11/battle-01", "0135.rdram.gz")] = OwnFootprint,
+        [("20261101-083418-setup11/battle-01", "0143.rdram.gz")] = OwnFootprint,
+        [("20261101-083418-setup11/battle-01", "0144.rdram.gz")] = OwnFootprint,
+        [("20261101-083418-setup11/battle-01", "0145.rdram.gz")] = OwnFootprint,
+        [("20261101-083418-setup11/battle-01", "0152.rdram.gz")] = OwnFootprint,
+        [("20261101-083418-setup11/battle-01", "0154.rdram.gz")] = OwnFootprint,
+        [("20261101-083418-setup11/battle-01", "0160.rdram.gz")] = OwnFootprint,
+        [("20261101-083418-setup11/battle-01", "0165.rdram.gz")] = OwnFootprint,
+        [("20261101-083418-setup11/battle-01", "0168.rdram.gz")] = OwnFootprint,
+        [("20261101-083418-setup11/battle-01", "0172.rdram.gz")] = OwnFootprint,
+        [("20261101-083418-setup11/battle-01", "0178.rdram.gz")] = OwnFootprint,
+        [("20261101-083418-setup11/battle-01", "0184.rdram.gz")] = OwnFootprint,
+        [("20261101-083418-setup11/battle-01", "0187.rdram.gz")] = OwnFootprint,
+        [("20261101-083418-setup11/battle-01", "0190.rdram.gz")] = OwnFootprint,
+        [("20261101-083418-setup11/battle-01", "0198.rdram.gz")] = OwnFootprint,
+        [("20261101-083418-setup11/battle-01", "0199.rdram.gz")] = OwnFootprint,
+        [("20261101-083418-setup11/battle-01", "0207.rdram.gz")] = OwnFootprint,
+        [("20261101-083418-setup11/battle-01", "0211.rdram.gz")] = OwnFootprint,
+        [("20261101-083418-setup11/battle-01", "0222.rdram.gz")] = OwnFootprint,
+        [("20261101-083418-setup11/battle-01", "0236.rdram.gz")] = OwnFootprint,
     };
 
     /// <summary>The next turn's start with RAM, or the battle's end.</summary>

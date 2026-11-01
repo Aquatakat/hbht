@@ -240,6 +240,8 @@ Every enemy turn passes but two, neither of them the port's rules:
 - **0009** is the cadence. The Hobgoblin's walk at Alaron ended 1.05 off 1.0's, out of reach, and it rested. At the logger's 4-tick frames the port's strikes him from within 0.08 of 1.0's. It's a known cadence turn in the replay.
 - **0068** is the animation. The newcomer Hobgoblin in slot 6 cast Spirit Shield on itself. 1.0's AI chose (19, 10), as the port's does, with the same scores and path, run in 1.0's interpreter on that RAM. But its actor was mid-fidget, which takes no run request, so its body never moved, and the stuck timer gave up after 30 ticks on its cell, (19, 12) ([combat](systems/combat.md#the-ai)). The replay starts every body idle, so the port's walked to (19, 11.14). Seeded in the fidget's state and clock, it acts from (19, 12) as 1.0's does. It's logged with the known cadence turns until the replay lays each actor's state from the RAM.
 
+The user saw the three Hobgoblins that joined once the first three fell cast their buffs and sometimes Tap Stamina, and then neither close in nor strike. From dump 0100 on they only rested, in 1.0 and the port alike. 1.0's AI scores Tap Stamina from their own cells with their 2-cell footprints lifted off the grid, then builds its targets with them on, which blocks the cast toward the party, at +X and +Z. So they rested every turn ([combat](systems/combat.md#the-ai)). The port fixes it, the user's choice: they cast what scored. The replay lists the 32 Hobgoblin turns that now differ with its fixes.
+
 Setup 12's session (`out/parity/20261101-092600-setup12`) has five battles against Lugash, in arena 18. Battles 1–3 were lost: his Wall of Bones held Alaron and Sholeh, the only two who could hurt him, through Alaron's vs. Necromancy. Battle 4 fled at once, as 5250's rule allows (`Combat.ApplyFleeRuleByFlag`, after `Combat.Setup`'s dump, which reads 0). Battle 5 can be ignored. Every action and every Lugash turn passes:
 - his Wall of Bones on all four members and Clumsiness on Keelin;
 - Sholeh's four Webs of Starlight at him, none of which held;
@@ -249,6 +251,8 @@ Setup 12's session (`out/parity/20261101-092600-setup12`) has five battles again
 One difference was the replay's own. The overlay laid each skill through `CharacterSkills.Train`, which holds a base at the trainer's cap. Lugash's record has Wizard 15, over it, so a Train of 0 took his base to 10. The overlay now lays the skills' bytes as they are. The rules read the base through the cap.
 
 No Cheat Death was on Lugash in 1.0's RAM: his effect records were empty at every turn.
+
+Setup 12b's session (`out/parity/20261101-100932-setup12b`), with Dougal and Keelin wielding Lightreavers, won. Every action and Lugash turn passes, and so does the win at `Combat.Exit`: 8257 experience, a Restore Potion, the Staff of Lugash, Royal Platemail, a Sapphire Gem and 20 Spice. The kill flag 533 was set ("The lich is dead."), and 1.0 showed its journal entry at once on the return to trek, as the port's does as trek fades in.
 
 Still to do:
 

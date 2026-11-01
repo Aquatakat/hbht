@@ -201,6 +201,29 @@ public sealed class ArenaGridTests
         Assert.Equal(8, grid[1, 1]);
     }
 
+    // Setup 11's joining Hobgoblins: a 2-cell footprint at (16, 25), its walk toward +X starting at (17, 25), under its own footprint.
+    [Fact]
+    public void AWalkTowardPlusXFromATwoCellFootprintStartsUnderIt()
+    {
+        var grid = Sized(40, 40);
+        grid.Occupy(16, 25, 2);
+
+        Assert.False(grid.WalkClear(16, 25, 27, 33));
+        Assert.True(grid.WalkClear(16, 25, 27, 33, ownFootprint: 2));
+        // Toward -X the walk is unchecked either way.
+        Assert.True(grid.WalkClear(16, 25, 5, 20));
+    }
+
+    [Fact]
+    public void TheWalkersOwnFootprintDoesntClearAnotherBody()
+    {
+        var grid = Sized(40, 40);
+        grid.Occupy(16, 25, 2);
+        grid.Occupy(20, 27, 1);
+
+        Assert.False(grid.WalkClear(16, 25, 27, 33, ownFootprint: 2));
+    }
+
     [Fact]
     public void AFillOnlyCoversTheWidthAndDepth()
     {
