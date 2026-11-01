@@ -395,6 +395,8 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
         [("20261031-205206-setup6/battle-01", "0040.rdram.gz")] = "1.0's Wraith decides two frames after its walk arrives, the logger's 6-tick frames carrying it 0.63 on into Wraith Touch's reach of Dougal; the port's decides 2–3 ticks after, as 1.0's at 30 fps, out of reach",
         [("20261031-190448-setup4/battle-01", "0006.rdram.gz")] = "the Woodsman's first corner is dead astern: 1.0's walks 0.9 away in 6 frames of 5–6 ticks and gives up; the port's gives up within 0.37 of it at 5-tick frames",
         [("20261031-223128-setup7/battle-01", "0024.rdram.gz")] = "the charmed Air Elemental's walk at the logger's 4-tick frames ends 1.17 further on, in reach of the Dust Devil; the port's at 4-tick frames ends within 0.01 of it and strikes",
+        [("20261031-230020-setup8/battle-01", "0018.rdram.gz")] = "the Giant Skeleton's walk ends 0.58 off 1.0's and out of reach of Dougal; at 3-tick frames the port's strikes him as 1.0's does",
+        [("20261031-230020-setup8/battle-01", "0037.rdram.gz")] = "the Skeleton Archer faces 162° from its leg and swings wide through +Z as it turns, coming no nearer, and 1.0's body gives up after 11 frames; the port's turns round at 2-tick frames and walks on, and at 5-tick frames gives up and shoots from within 0.27 of 1.0's",
     };
 
     /// <summary>
@@ -409,6 +411,7 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
         [("20261031-172849-setup3/battle-01", "0113.rdram.gz")] = "Dougal's Fireball with a flask in hand does its damage",
         [("20261031-172849-setup3/battle-01", "0120.rdram.gz")] = "Dougal's Fireball with a flask in hand does its damage",
         [("20261031-201521-setup5b/battle-01", "0064.rdram.gz")] = "1.0's Poisoner sticks on Keelin's body by the push's rounding and gives up 0.24 from its start; the port's slides on round her (Crowd.Rounding), and with the slide off ends within 0.35 of 1.0's",
+        [("20261031-230020-setup8/battle-01", "0016.rdram.gz")] = "the Skeleton slides on round Keelin (Crowd.Rounding) and strikes from 0.59 past 1.0's; with the slide off it strikes from within 0.38 of 1.0's",
     };
 
     /// <summary>The next turn's start with RAM, or the battle's end.</summary>
@@ -639,8 +642,7 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
                 && (press.Value.EndedAt is not { } end || Vector2.Distance(end, c.Cell) < 0.5f) && fight.SkipWalk())
                 output.WriteLine($"  A pressed {walked} ticks into the walk, where the original's player cut it short");
             if (portAction is null && fight.ActionActive)
-                portAction = (fight.Target, c.Cell);
-        });
+                portAction = (fight.Target, c.Cell);        });
         output.WriteLine("  the original "
             + (acted is null ? "didn't act" : $"went for slot {originalTarget} from {originalCell}")
             + $", the port {(portAction is { } pa ? $"went for slot {pa.Target} from {pa.Cell}" : "didn't act")}");
