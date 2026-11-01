@@ -64,7 +64,7 @@ No spell both deals damage and leaves a record: the damage byte of Immolation, A
 
 **Targets**: who a cast may take, how many and from how far (`Casting.TargetCount`, `CanTarget`, `Reach`) are target set B's, [combat-actions](combat-actions.md#spells-potions-and-skills-in-a-turn).
 
-**A weapon's spell** (`Combatant.WeaponSpellProc`, `0x800627D0`; `Battle.Strike`) is cast after every melee and ranged hit when it may take the target: an item's spell at the enchantment's level, its damage added to the hit's. Cast as any spell, its roll's step is kept as the attacker's cast margin (`+0x3C`, `PrepareCast`'s `0x80064184`) until the turn ends; nothing reads it.
+**A weapon's spell** (`Combatant.WeaponSpellProc`, `0x800627D0`; `Battle.Strike`) is cast after every melee and ranged hit when it may take the target: an item's spell at the enchantment's level, its damage added to the hit's. Cast as any spell, its roll's step is kept as the attacker's cast margin (`+0x3C`, `PrepareCast`'s `0x80064184`) until the turn ends, and only a later cast in the same turn reads it (below). The spell is the weapon record's `+0x1C`, its place in the spell list (`0x800E2B40`) and its level, built on the stack and freed after (`Spell.Free`, `0x800728D8`). **No charge is spent or needed**: an item's `PrepareCast` takes its d100 at `0x800640B4` and never reaches `Entity.UseCharge`, which the port matches (`SpellSource.Proc`). An attacker that has acted this turn (`+0x2C` bit 0) skips `PrepareCast`'s d100 and casts at the margin it kept. The formula vectors run it for twelve weapons ([combat-parity](combat-parity.md#the-formula-vectors)).
 
 ## How effects land
 
@@ -86,7 +86,7 @@ A spell lands at its cast's level and margin. A potion or flask lands at level 0
 - **Ending** (`Character.RemoveEffect`, `0x800724B8`): each effect undone (`EffectRules.End`).
 - **Death** (`Character.TakeDamage`): a Cheat Death on the dead heals twice its margin (`& 0x7FFF`, shifted) and ends; otherwise, in a battle, every spell's record comes off, and every potion's, and if that brought the character back its Endurance, Stamina and Level are put to 0 (`0x80071E28`). Taking a stat back does nothing to the dead, so a buff on the dead stays raised ([below](#the-originals-quirks-the-port-keeps)).
 - **A battle's end** (`Character.EndBattleEffects`, the original's `Entity.ClearEffects` `0x80071830`): the potions but Stealth's (`MagicRecord.KeptAfterBattle`), every spell record, then the armor's, shield's and gear's enchantments back on.
-- **What reads them** besides the table's rules: `Combatant.IsImmobilised` (`0x80062250`), which an attack's chance and whether a combatant can act ask ([combat](combat.md#a-turn)), and the AI's morale, −1 for any harmful record.
+- **What reads them** besides the table's rules: `Combatant.IsImmobilised` (`0x80062250`: any record of kind 34, 53 or 57, the list at `0x800E0C38` through `IsImmobilisingKind`, `0x800639AC`), which an attack's chance and whether a combatant can act ask ([combat](combat.md#a-turn)), and the AI's morale, −1 for any harmful record.
 
 ## Potions and flasks
 

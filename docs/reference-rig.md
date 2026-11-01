@@ -289,6 +289,18 @@ python tools/aivectors/aivectors.py --only Lugash    # a few cases, to out/aivec
 - **The output is checked in,** the inputs aren't. It is deterministic: running it again gives the same file. Run it only when the cases change or a port-side finding needs a new vector, and commit the new table with the change.
 - **The interpreter** covers the integer and single/double float instructions these functions use, runs a function with `cpu.run(address, args)` and can replace one with a Python stub (`cpu.hooks`, in `sim.py`) for drawing, message queues and sounds. A case that hits an instruction it lacks stops with `unimpl`.
 
+**The formula vectors** (combat parity's, [combat-parity](systems/combat-parity.md#the-formula-vectors)) are the same interpreter made general: `formulas.py` runs a family of 1.0's combat functions (`families/<name>.py`) on a Combat checkpoint's or a parity log's RAM, with typed pokes (`state.py`) and the main stream's draws recorded by function and scripted by index (`draws.py`), and writes `tests/HBHT.Rom.Tests/Formulas/<Family>Vectors.cs`, which `<Family>VectorTests` checks the port against through `FormulaState`.
+
+```bash
+python tools/aivectors/formulas.py --list                # the families
+python tools/aivectors/formulas.py melee                 # every melee vector, about a second on 16 workers
+python tools/aivectors/formulas.py melee --only behind   # the vectors whose id has the text, printed, nothing written
+```
+
+- **Inputs:** as above, and for the vectors on a log's state, the parity logs in `out/parity/` (or `HBHT_PARITY`); the tests skip those without them. In a worktree, `roms/` and `out/parity/` can be junctions to the main checkout's.
+- **A source** is `cp05`, or `log:<session>/<battle>:<dump>` for a dump beside a log, read gzipped as `AresCheckpoint.FromRdram` reads it. A poke is `name:arg,…`, several joined by `|`: `mod`, `base` and `cur` for a stat's parts, `skill`, `place`, `face`, `height`, `daypart`, `troubadour`, `weapon`, `noshield`, `resist`, `aspect`, `effect` and `acted`, listed in `state.py`'s docstring.
+- **Draws:** `draws.d100(r)` is the raw value of a d100 that comes up `r`; a script sets the stream to the seed before the value (`draws.seed_before`) at that draw's index, and the port's `FormulaState.Draws` does the same through `Lcg.BeforeDraw`.
+
 ## Finding the original's code
 
 The project doesn't read the decomp ([ADR 0015](adr/0015-the-port-no-longer-reads-the-decomp.md)). A research run finds a system's code from what the project already knows and what the ROM and the checkpoints show, cheapest first:

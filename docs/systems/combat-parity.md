@@ -3,7 +3,7 @@
 Roadmap 2.9's differential tests: the port's [combat](combat.md) checked against 1.0's own execution. The combat checkpoints hold one battle, the party against ten rats, which pins the setup, the turn order, the rats' AI, melee and ranged at a few pairs, the casters' choices (`CasterCheckpointTests`, over the vectors `tools/aivectors` writes from 1.0's functions in its interpreter), the Fire and Sleep Gas flasks' blasts and the rewards. Past that, the campaign has two halves:
 
 - **The flow**: battles the user plays in 1.0 from saves written for them, logged by `tools/parity.ps1` and replayed into the port. How a setup's save is made and a battle logged is the [reference rig](../reference-rig.md#combat-parity-logs-toolsparityps1)'s.
-- **The formulas**: 1.0's own functions run in the interpreter on a checkpoint's RAM with the inputs varied, against the port's with the same draws, as `tools/aivectors` does for the casters ([below](#the-formula-vectors)).
+- **The formulas**: 1.0's own functions run in the interpreter on a checkpoint's or a log's RAM with the inputs varied, against the port's with the same draws ([below](#the-formula-vectors)). Melee's are done.
 
 What the logs settled about 1.0 itself is written in the topic docs: [combat](combat.md), [combat-actions](combat-actions.md), [combat-ai](combat-ai.md) and [magic](magic.md).
 
@@ -89,21 +89,39 @@ The fixes the logs found besides, which the replay doesn't list because it reads
 
 ## The formula vectors
 
-Not yet run. Each would run on the Combat checkpoints' RAM and on each setup's first state, with every input that matters varied:
+1.0's own combat functions run in the MIPS interpreter (`tools/aivectors`) on a battle's RAM, with one input changed at a time and the draws fixed, and the port's same functions on the same state with the same draws. A vector is a state (a Combat checkpoint, or a parity log's dump), its pokes (typed changes: a stat, a skill, a place, a facing, a cell's height, the part of the day, an effect, a weapon in hand…), the stream's seed and any draws scripted to come up a value, and what came of it as `name=value …`, the draws' count among them. `tools/aivectors/formulas.py <family>` writes a family's table (`tests/HBHT.Rom.Tests/Formulas/<Family>Vectors.cs`); the [reference rig](../reference-rig.md#replaying-the-originals-ai-toolsaivectors) has the commands.
 
-| Function | Varied |
-| --- | --- |
-| `MeleeChance`, `ResolveMelee`, `MeleeDamage`, `ApplyResistance` | Strength tiers; from behind, with Thief; height up and down; each part of the day; a Lunar and a Solar attacker; no Stamina, either side's; a held target; a shield, from the front and behind; Warrior's adjusted roll; the Troubadour's bonus; a weakness, a resistance, one of 0; a weapon's spell (`WeaponSpellProc`); the weapon skill's roll landing and missing |
-| `RangedChance`, `ResolveRanged` | distance past 6; rain's intensity; night; a target that has moved or acted |
-| `ThrowChance`, `FlaskDamage`, `FlaskExplosion` | each flask; fog, storm and night with distance; Acid's corrosion; a thrown weapon |
-| `CastSpell` (`CheckSpellAvailable`, `PrepareCast`, `CastChance`, `ResistRoll`, `ApplySpellEffect`, `SpellDamage`) | every spell kind; each part of the day, and the moon's phases for a Lunar caster; failure; the reagent, Stamina and Field refusals; a requirement unmet; wards and aspects in the resist; Mirror's counter; the disable limit with reserves to come; the level's rise at 0 and 1; an item's spell and its charge |
-| `AddEffect`, `AgeEffects` (`EffectRules.Round`, `End`), `Dispel`, `CurePoison`, `TakeDamage` | every lasting kind over its rounds: Poison, Immolation, Acid Bolt, Web's escape, Photosynthesis by day and night, Tap Stamina, Wraith Touch, the morale spells given back; Cheat Death; death taking the effects |
-| `DrinkPotion`, `CanDrink` | every potion, each where it's refused |
-| `ResolveHealer` (`LayOnHands`, `HealWithHerbs`), `StartTroubadour` | Healer and Troubadour levels, Stamina short, a performance already going |
-| `UpdateRadius`, `TurnsPerRound`, `TurnOrder.Build` | each Dexterity threshold; Haste; Stellar Gravity; engaged; performing |
-| `FillEnemies`, `ChooseArena`, `BattleAmbushRoll` | parties of every shape, the level trim; every terrain; the Ranger's margins |
-| `TallyRewards`, `RollChestItem` | chests with gold (the doubling) and drops with worth |
-| `EnemyAI.Step`, `CheckFlee`, `Morale` | styles 1–4 as themselves; the morale spells; a weakness making the check due; the item-spell cases `CasterCheckpointTests` leaves out; `tools/aivectors/extras.py`'s vectors, which no test reads yet |
+| Function | Varied | Done |
+| --- | --- | --- |
+| `MeleeChance`, `ResolveMelee`, `MeleeDamage`, `ApplyResistance` | Strength tiers; from behind, with Thief; height up and down; each part of the day; a Lunar and a Solar attacker; no Stamina, either side's; a held target; a shield, from the front and behind; Warrior's adjusted roll; the Troubadour's bonus; a weakness, a resistance, one of 0; a weapon's spell (`WeaponSpellProc`); the weapon skill's roll landing and missing | `MeleeVectorTests` |
+| `RangedChance`, `ResolveRanged` | distance past 6; rain's intensity; night; a target that has moved or acted | |
+| `ThrowChance`, `FlaskDamage`, `FlaskExplosion` | each flask; fog, storm and night with distance; Acid's corrosion; a thrown weapon | |
+| `CastSpell` (`CheckSpellAvailable`, `PrepareCast`, `CastChance`, `ResistRoll`, `ApplySpellEffect`, `SpellDamage`) | every spell kind; each part of the day, and the moon's phases for a Lunar caster; failure; the reagent, Stamina and Field refusals; a requirement unmet; wards and aspects in the resist; Mirror's counter; the disable limit with reserves to come; the level's rise at 0 and 1; an item's spell and its charge | |
+| `AddEffect`, `AgeEffects` (`EffectRules.Round`, `End`), `Dispel`, `CurePoison`, `TakeDamage` | every lasting kind over its rounds: Poison, Immolation, Acid Bolt, Web's escape, Photosynthesis by day and night, Tap Stamina, Wraith Touch, the morale spells given back; Cheat Death; death taking the effects | |
+| `DrinkPotion`, `CanDrink` | every potion, each where it's refused | |
+| `ResolveHealer` (`LayOnHands`, `HealWithHerbs`), `StartTroubadour` | Healer and Troubadour levels, Stamina short, a performance already going | |
+| `UpdateRadius`, `TurnsPerRound`, `TurnOrder.Build` | each Dexterity threshold; Haste; Stellar Gravity; engaged; performing | |
+| `FillEnemies`, `ChooseArena`, `BattleAmbushRoll` | parties of every shape, the level trim; every terrain; the Ranger's margins | |
+| `TallyRewards`, `RollChestItem` | chests with gold (the doubling) and drops with worth | |
+| `EnemyAI.Step`, `CheckFlee`, `Morale` | styles 1–4 as themselves; the morale spells; a weakness making the check due; the item-spell cases `CasterCheckpointTests` leaves out; `tools/aivectors/extras.py`'s vectors, which no test reads yet | |
+
+**Melee** (`MeleeVectorTests`, 219 vectors): `IsBehind`, `MeleeChance` as `ResolveMelee` calls it, then `ResolveMelee` with the damage, the resistances and the weapon's spell. Each gives whether the blow is from behind, the chance, the d100 and the roll as Warrior turned it, the damage, the draws, the weapon skill's base after, the target's AI flags after and the attacker's cast margin after. 171 vectors are on checkpoint 05 (Alaron and rat 4, made to give chances from 5 to over 1000), varying each input of the table, the edges among them: 45° off the target's facing and 90°, a roll at Warrior's limit and one past it, a fifth of the chance under Warrior, both sides of each Strength tier, and the weapon skill's roll at its threshold and one over, on a hit and a miss. The resistances run by five weapons' elements (Cutting, Smashing, Physical, Fire, Holy) against weaknesses, resistances, immunity, Physical's and Magic's reach and two entries at once; the weapon's spell by twelve weapons, landed, missed, and with a cast margin kept from earlier in the turn. 48 more are on seven parity logs' first turns, for real entities: the Skeletons, the Wraiths, Lugash against the Lightreavers, the Air Elemental, the Tomb Rats against Firedrake Fang, Kitarak's Warfang and its spell at the party, and the bandits at night.
+
+**All agree with 1.0**, so nothing was fixed and nothing is listed as a known difference. What the run settled about 1.0 is in [combat-actions](combat-actions.md#an-attack) and [magic](magic.md#casting): a weapon's spell spends no charge, an attacker that has acted this turn casts it at the margin it kept, the resistance entries' order, an entry of element 0 never applying, and the three holding kinds (34, 53, 57). A mutation of the port's ×1.15 fails the two vectors it should.
+
+### Adding a family
+
+A family is one Python module and one C# test class, which touch nothing of the others':
+
+1. **`tools/aivectors/families/<name>.py`**: `FAMILY` (the C# class's stem), a docstring (the table's comment), `cases()` listing the vectors and `run(vector)` running one. A vector is a dict of `id`, `source` (`cp05`, or `log:<session>/<battle>:<dump>`), `pokes`, `args` (the slots and the like the test reads), `seed` and `script` (`{draw index: raw value}`; `draws.d100(r)` is a d100 coming up `r`). `run` builds a `state.State(source, pokes, seed=, script=)`, calls the function (`st.call(address, args, sp_args=)`; arguments past the fourth go on the stack from `sp+0x10`), and returns the results as `[(name, value), …]` and `st.draws.callers()`. `melee.py`'s `add(…, steer=(function, value))` fixes the first draw a function makes, once a dry run has found its index.
+2. **`python tools/aivectors/formulas.py <name>`** writes `tests/HBHT.Rom.Tests/Formulas/<Family>Vectors.cs` and `out/aivectors/<name>.json`. `--only text` runs a few and prints them, writing nothing.
+3. **`tests/HBHT.Rom.Tests/Formulas/<Family>VectorTests.cs`**: for each vector, `FormulaState.Build(set, v.Source)`, `FormulaState.Poke(built, v.Pokes)`, then `new FormulaState.Draws(built.Game.Random.Combat, v.Seed, v.Script)` before the port's call, and `FormulaState.Differences(v.Expect, actual)` over the same names. `MeleeVectorTests` is the pattern, with its `KnownDifferences`: a vector where the port differs on purpose is logged with its reason rather than failed, and fails once it agrees.
+
+- **Pokes:** the shared ones are in `state.py` and `FormulaState.Pokes`, each on both sides. A family's own go in a dict of its own on both sides (`State(…, extra=)`, `FormulaState.Poke(…, extra)`), so that sibling families don't edit the shared files at once. A poke changes only what its 1.0 side writes: `weapon` sets the pointer, so the port's puts the weapon in hand whoever may wield it and puts the stats back after.
+- **Draws:** every draw on the main stream goes through `Rng.Next` or `Rng.Float0To1`, which `draws.py` hooks (`Float0To1` steps the stream itself). The port's `Lcg.BeforeDraw` does the same by index. A draw's function is named by unwinding the generator's frames by their prologues, as the parity logger does.
+- **Stubs:** none were needed for melee; the log lines and `sprintf` run in the interpreter. `Entity.SenseAura` opens a popup that halts the interpreter in `__osEnqueueAndYield`, so a casting family stubs it (`st.cpu.hooks[address] = lambda cpu: 0`). `PrepareCast` sets the acted flag; each vector is a fresh copy of the RAM, so nothing carries from one to the next.
+- **States:** a parity log's `0002.rdram.gz` is its `Combat.StartFirstTurn`, where every slot is the setup's; a later dump works too, with the reserves that joined brought in (`CombatCheckpoints.FromLog`). A function that reads the cells reads them as the records last read the bodies (`ArenaGrid.HeightDifference`), which the overlay lays.
+- **Cost:** a vector runs in a few milliseconds in the interpreter and in about 0.1 s in the test, after the import.
 
 ## What's left
 
@@ -114,4 +132,4 @@ Not yet run. Each would run on the Combat checkpoints' RAM and on each setup's f
   - A reserve's walk with no action ends 4.6 from the original's (the second trial's slot 5): 1.0's body moved 0.26 from its spawn at (17, 43) and gave up after 12 frames, while the port's runs its leg toward (23, 49).
   - Reserves that join at a round's end can take other spawn points than the original's, on the same draws. In setup 1, at the end of slot 5's turn, slot 6's reserve stands at (13, 26) for the original's (24, 39), and slot 7's at (24, 39) for (19, 23). The two disagree about which point is free, likely over a body that has fled or died.
 - **Not in a log**, by the user's choice: the Shadow's and the Goblin Ambush's battles, which the user played in 1.0 and the port and found alike, their outcomes being the code's rules rather than the draws' ([combat](combat.md#the-special-battles)); the Antidote drunk in battle (its cure is Remove Poison's, which passed); a spell's level rising from 0, which the pak can't hold; and setup 14, Sense Aura at level 9, whose popup was compared by eye.
-- **The formula vectors**, [above](#the-formula-vectors).
+- **The formula vectors** for the families after melee, [above](#the-formula-vectors).
