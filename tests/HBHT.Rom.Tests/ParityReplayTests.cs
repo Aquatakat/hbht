@@ -389,6 +389,7 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
         [("20261031-123809-setup2/battle-01", "0018.rdram.gz")] = "the Sorceror curves away from its first corner and gives up, as the port's does at 4–6-tick frames",
         [("20261031-123809-setup2/battle-01", "0096.rdram.gz")] = "the Spellweaver decides 0.3 short of 1.0's place, Alaron just out of its reach",
         [("20261031-134011-setup2/battle-01", "0016.rdram.gz")] = "the Spellweaver curves away from its first corner, dead astern, and gives up near its start; the port's does at 4–6-tick frames, curving the other way",
+        [("20261031-205206-setup6/battle-01", "0040.rdram.gz")] = "1.0's Wraith decides two frames after its walk arrives, the logger's 6-tick frames carrying it 0.63 on into Wraith Touch's reach of Dougal; the port's decides 2–3 ticks after, as 1.0's at 30 fps, out of reach",
         [("20261031-190448-setup4/battle-01", "0006.rdram.gz")] = "the Woodsman's first corner is dead astern: 1.0's walks 0.9 away in 6 frames of 5–6 ticks and gives up; the port's gives up within 0.37 of it at 5-tick frames",
     };
 

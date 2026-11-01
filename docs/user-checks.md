@@ -98,7 +98,7 @@ The casters' turns pass but three walks:
   - At 0096, the port's caster then decides 0.3 short of where 1.0's did, as 1.0's longer frames carry a walk further past its arrival, and Alaron is out of its reach: 5.98 to 1.0's 5.70.
   - At 0018, 1.0's Sorceror turned 20° a frame at the logger's slow frames, walked a wide curve away from its first corner and gave up. With frames of 4–6 ticks, the port's does the same.
 
-  The last two are the cadence ([combat](systems/combat.md#where-the-port-differs)). The replay doesn't play 1.0's frame lengths, the user's choice, as it's the logger that slows them: it lists the cadence turns (`KnownCadence`) and logs their differences rather than failing them. The port's body also glides on about 0.65 along its heading through the rest after a walk, where 1.0's stands; shown, not checked.
+  The last two are the cadence ([combat](systems/combat.md#where-the-port-differs)). The replay doesn't play 1.0's frame lengths, the user's choice, as it's the logger that slows them: it lists the cadence turns (`KnownCadence`) and logs their differences rather than failing them. The port's body runs on through the rest after a walk, as 1.0's does at 30 fps. Under the logger, 1.0's frames use the run up before it acts ([combat](systems/combat.md#the-ai), setup 6's 0040).
 
 Setup 2's second session (`out/parity/20261031-134011-setup2`), with the logger recording A, passes every action, and every enemy turn but one, without A pressed:
 - At 0016, the Spellweaver plans 1.0's path to (11, 17), but 1.0's curved away from its first corner, dead astern, and gave up near its start, casting Mirror on itself 4.6 from where the port's does. It's a known cadence turn in the replay. At 4–6-tick frames the port's gives up near its start too, but curving the other way. Which way 1.0's first frames carry it isn't settled: its `Facing.Turn`, run in the interpreter, turns as the port's does.
@@ -168,11 +168,11 @@ Setup 6's session (`out/parity/20261031-205206-setup6`), against the Wraiths, en
 
 Light wasn't cast, as base Sholeh doesn't know it. The Healer's popup didn't open in the battle's pause. Every action passes once the overlay lays Wraith Touch's drained amount: 1.0 keeps it in the record's power byte (`+0x01`), which `Entity.UndoEffect`'s kind `0x1A` gives back.
 
-One Wraith turn differs, 0040. 1.0's Wraith turned to face for 3 frames after its walk, its body running on 0.63, and cast Wraith Touch at Dougal from (17.01, 23.13). The port's took 2 ticks to turn and decided at (17.04, 23.76), out of reach, then rested while its body ran on. It's the port's body running on through the rest after a walk, below, and now it changes an action.
+One Wraith turn differs, 0040. 1.0's Wraith turned to face for 3 frames after its walk, its body running on 0.63, and cast Wraith Touch at Dougal from (17.01, 23.13). The port's took 2 ticks to turn and decided at (17.04, 23.76), out of reach, then rested while its body ran on. It's the cadence. 1.0 decides two frames after a walk arrives, and the logger's 6-tick frames had carried its body 0.63 on by then ([combat](systems/combat.md#the-ai)). At 30 fps that's about 4 ticks, the port's 2–3. It's a known cadence turn in the replay.
 
 Still to do:
 
-- **Setup 6's 0040 and the glide:** where 1.0's body is after a walk when the AI decides, and whether it stands through the rest. Setup 2's walks, above: which way 1.0's Spellweaver curved at the second's 0016, and the port's body gliding on through the rest after a walk.
+- **Setup 2's walks,** above: which way 1.0's Spellweaver curved at the second's 0016.
 - **Positions, shown but not checked:**
   - The attacker's body after a blow stands up to 0.5 from the original's (Brenna's backstab), with its footprint a cell over.
   - A reserve's walk with no action ends 4.6 from the original's (the second trial's slot 5). The original's body moved 0.26 from where it spawned at (17, 43) and gave up after 12 frames, about the 30 ticks of coming no nearer, while the port's runs its leg toward (23, 49).

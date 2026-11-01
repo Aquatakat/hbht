@@ -117,6 +117,7 @@ Bodies.ClearFlag = 0x80014a3c; // coined; a body's flags (+0x1e) &= ~x
 CutScene.Unhide = 0x80014dfc; // docs/systems/cameras.md
 Body.StickAlongCamera = 0x80014f20; // coined; the stick (x, y) turned by the camera's look across the ground
 Body.ApplyInput = 0x80014fec; // coined; docs/systems/combat.md: (body, event): trek's and combat's stick handler: R orbits the camera, else the stick along the camera's look sets the heading's goal and the request (2 walk, 3 run from 0.8, 0x19 with Z held)
+Body.ZeroStick = 0x80015530; // coined; docs/systems/combat.md: (body): zeroes the stick (+0x11c/+0x120), +0x124/+0x128/+0x150, only if flag 2 is clear; Body.Stop's first call
 Body.Stop = 0x800156e8; // Body.cs
 Body.WalkTo = 0x80015724; // coined; docs/systems/combat.md: (body, x, y, z, flag 8): an AI walk's destination, flag 0x10 set
 Body.ClearPath = 0x80015850; // coined; docs/systems/combat.md: flag 0x10 cleared, the 16-entry path queue (+0x154) zeroed
