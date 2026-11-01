@@ -254,7 +254,8 @@ public partial class SystemTabView : Control
     /// <summary>
     /// The options' box, where the pause menu draws them: from 6 above the title to 8 under the last row (the foot's, on the Controls
     /// page), and 12 beyond the rows either side: the bars' width on the main and Audio pages, the labels to the widest of any row's
-    /// values on Video and Enhancements, so changing one doesn't move the box, and the Controls page's whole width.
+    /// values on Video and Enhancements, so changing one doesn't move the box, or to the arrows if they scroll, and the Controls page's
+    /// whole width.
     /// </summary>
     private ScreenRect OptionsBox(OptionsMenu options)
     {
@@ -265,7 +266,8 @@ public partial class SystemTabView : Control
         {
             OptionsPage.Main or OptionsPage.Audio => (OptionsLeft, OptionsLeft + _ui.Size(MenuImages.VolumeBar).X),
             OptionsPage.Controls => (ChoiceLabel, ControlsRight),
-            _ => (ChoiceLabel, ChoiceValue + options.Rows.Rows.SelectMany(r => r.Values).Select(_ui.Main.Width).DefaultIfEmpty(0).Max()),
+            _ => (ChoiceLabel, Math.Max(ChoicesScroll(options) ? ControlsRight : 0,
+                ChoiceValue + options.Rows.Rows.SelectMany(r => r.Values).Select(_ui.Main.Width).DefaultIfEmpty(0).Max())),
         };
         return new ScreenRect(left - 12, OptionsTitleTop - 6, right + 12, bottom + 8);
     }
@@ -317,8 +319,21 @@ public partial class SystemTabView : Control
     private static bool HasChoices(OptionsMenu options) => options.Page is OptionsPage.Video or OptionsPage.Enhancements;
 
     /// <summary>
-    /// Where each options row is: its label's top, and the bottom of what it draws (a volume's bar too). The rows are the list's 16
-    /// apart, a volume taking two of its lines, its label's and its bar's.
+    /// How many of the Video and Enhancements pages' rows show at once, the last ending above the parchment's foot; more scroll, as
+    /// the Controls page's do.
+    /// </summary>
+    private const int ChoiceLines = 8;
+
+    /// <summary>The first of the Video or Enhancements page's rows in view: the list scrolls to keep the cursor's row in the middle, as far as it can.</summary>
+    private static int FirstChoice(OptionsMenu options) =>
+        Math.Clamp(options.Rows.Cursor - ChoiceLines / 2, 0, Math.Max(0, options.Rows.Rows.Count - ChoiceLines));
+
+    /// <summary>Whether the Video or Enhancements page has more rows than show at once.</summary>
+    private static bool ChoicesScroll(OptionsMenu options) => HasChoices(options) && options.Rows.Rows.Count > ChoiceLines;
+
+    /// <summary>
+    /// Where each options row is: its label's top, and the bottom of what it draws (a volume's bar too), off the page for one scrolled
+    /// out of view. The rows are the list's 16 apart, a volume taking two of its lines, its label's and its bar's.
     /// </summary>
     private List<(int Top, int Bottom)> OptionRows(OptionsMenu options)
     {
@@ -326,8 +341,15 @@ public partial class SystemTabView : Control
             return ControlPlaces(options).Rows;
         var rows = new List<(int, int)>();
         var y = OptionsTop;
-        foreach (var row in options.Rows.Rows)
+        var first = HasChoices(options) ? FirstChoice(options) : 0;
+        for (var i = 0; i < options.Rows.Rows.Count; i++)
         {
+            var row = options.Rows.Rows[i];
+            if (HasChoices(options) && (i < first || i >= first + ChoiceLines))
+            {
+                rows.Add((-1000, -1000));
+                continue;
+            }
             if (row.GapBefore)
                 y += OptionsMenu.Gap;
             var volume = row.Kind == OptionKind.Volume;
@@ -370,6 +392,8 @@ public partial class SystemTabView : Control
         {
             var row = options.Rows.Rows[i];
             var top = rows[i].Top;
+            if (top < 0)
+                continue;
             var color = i == options.Rows.Cursor ? cursor : Style.Text;
             if (HasChoices(options))
             {
@@ -387,6 +411,16 @@ public partial class SystemTabView : Control
             var y = top + _ui.Main.LineHeight;
             _ui.Image(this, MenuImages.VolumeBar, OptionsLeft, y, color: Style.BarEmpty);
             _ui.ImageTo(this, MenuImages.VolumeBar, OptionsLeft, y, bar, OptionsLeft + bar.X * row.Value / Core.Settings.MaxVolume, Style.Text);
+        }
+        if (ChoicesScroll(options))
+        {
+            // The Controls page's arrows, where it has them, saying there's more above or below.
+            var first = FirstChoice(options);
+            var arrow = _ui.Size(MenuImages.SliderRight);
+            if (first > 0)
+                TurnedArrow(ControlsRight - arrow.Y, OptionsTop + arrow.X - 2, -Mathf.Pi / 2);
+            if (first + ChoiceLines < rows.Count)
+                TurnedArrow(ControlsRight, OptionsTop + ChoiceLines * ListPitch - arrow.X - 2, Mathf.Pi / 2);
         }
     }
 
