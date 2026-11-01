@@ -50,7 +50,7 @@ What can be equipped (`Party::GetEquipError` and the item kinds' functions):
 
 A replaced item goes back to the inventory; if it can't, the new one does instead. An equipped item takes its stack's battery and charges, and taking it off gives the stack its own, even if the stack was there already (`UpdateItemStatCharges`). Taking a worn item off, by the item itself or by its ID for a script, is `Equipment.Remove`, which undoes its bonuses as putting it on applied them. Gear's free slot is checked before the old piece comes off, so with all 12 worn nothing can be swapped.
 
-**Where the port differs.** The Archmage Staff can't be taken off (`Party::RemoveWeaponsFrom`), but the original lets whoever wields it equip another weapon, and the staff vanishes with its bonuses still applied. The port refuses to replace it. Only Niesen wields it in the base game, and he can wield nothing else.
+**Where the port differs.** The Archmage Staff can't be taken off (`Party::RemoveWeaponsFrom`), but the original lets whoever wields it equip another weapon over it, and the staff vanishes with its bonuses still applied. The base game never reaches that: only Niesen wields it, he can wield nothing else, and the staff leaves with him. The port refuses the replacement, a defensive path for a mod that hands the staff to someone else.
 
 **Starting gear** (`Entity::Init`, `EquipFunc0`): an entity wears its armor, carries its shield if it has the skill, and wields the first of its three weapons it can. The others go to the party's inventory as it joins, if it wields one; one it can't wield while it wields none is lost. Enemies choose their weapons another way ([combat](combat.md)).
 
