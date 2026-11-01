@@ -42,6 +42,8 @@ Examples of some fixed bugs:
   original shows them when you load a save inside, HBHT hides them.
 - Flasks show the correct amount of damage dealt.
 - Damage spells work when the caster is holding a flask.
+- A spell that does no damage names its caster in the battle log, rather than its
+  target.
 
 The type of things not fixed:
 - Rain and splash density stays pretty low by default.

@@ -180,6 +180,12 @@ Setup 7's session (`out/parity/20261031-223128-setup7`), against the Dust Devil 
 
 1.0's line for Alaron's Wind read "Air Elemental casts Wind", the user saw. A cast that does no damage logs through `Combatant.LogResisted` (`0x8006382C`), which takes the caster for the casts line and the target for the resists line. `CastCurrentSpell` passes the target as both (`0x80065C84`), so the target is named as the caster. The port's line names the caster.
 
+Setup 7b's session (`out/parity/20261031-224749-setup7b`), against the two Salamanders (Fire ×0), passes every action and every Salamander turn:
+- Dougal's Fireball did nothing, and 1.0's line read "Salamander casts Fireball", the target named as the caster again;
+- his Fire Flask hurt the Salamander. 1.0's blast reads no resistance (`FlaskExplosion`, [magic](systems/magic.md#potions-and-flasks)), so a flask has no element, and the port's is the same.
+
+The port's line names the caster, a fix ([combat](systems/combat.md#where-the-port-differs)).
+
 Banishing went unchecked. Debilitation at 10 takes 20 from Strength, and Alaron, at 9, had no more turns: `Combatant.UpdateActive` (`0x8006615C`) makes a combatant with no Intelligence, Willpower, Dexterity or Strength left inactive, in the port as in 1.0.
 
 Every enemy turn passes but one. At 0024 the charmed Air Elemental's walk ended 1.17 short of 1.0's and didn't strike the Dust Devil. At the logger's 4-tick frames the port's ends within 0.01 of 1.0's and strikes, and its walk at 0021 ends at 1.0's too. It's a known cadence turn in the replay.
