@@ -285,8 +285,8 @@ internal static class CombatCheckpoints
     /// (<c>entity+0x34</c>, pointers to 0x18-byte records: kind, power, school, margin, u32 harmful, u32 timer, …, the visual at
     /// <c>+0x14</c>) and the potions' 7 (<c>+0x38</c>, 0xC bytes: kind, power, u32 timer, the visual). They're laid on without
     /// starting, as the RAM's stats and flags already hold what they did. A record's effects are its spell's lasting ones for its side
-    /// (by its harmful flag), Tap Stamina's caster's its gain. A morale effect gets back what it took, the record's <c>+0x01</c>. Not
-    /// read: Wraith Touch's drained amount, which matters only as the battle ends.
+    /// (by its harmful flag), Tap Stamina's caster's its gain. A morale effect gets back what it took, the record's <c>+0x01</c>, and
+    /// Wraith Touch the stat its margin byte names by the amount its <c>+0x01</c> holds (<c>Entity.UndoEffect</c>'s kind <c>0x1A</c>).
     /// </summary>
     public static void OverlayEffects(GameState game, AresCheckpoint cp, uint entity, Character sheet)
     {
@@ -314,7 +314,7 @@ internal static class CombatCheckpoints
                 if (effects[e] is MoraleEffect m)
                     record.Amounts[e] = m.Amount.At(power) < 0 ? -power : power;
                 else if (effects[e] is DrainStatEffect)
-                    record.DrainedStat = record.Margin;
+                    (record.DrainedStat, record.Amounts[e]) = (record.Margin, power);
             }
             spellSlots[i] = record;
         }

@@ -243,6 +243,18 @@ public class PartyMenuActionTests
         Assert.Contains(menu.Inventory.Rows, r => r.Item.Id == Sword.Id && r.Wearer is null);
     }
 
+    /// <summary>In a battle's pause the skills' popups don't open, as the user saw 1.0's Healer popup stay shut: Restore is trek's alone.</summary>
+    [Fact]
+    public void TheHealerPopupDoesNotOpenInABattle()
+    {
+        var (party, member) = Setup(new SkillLevels(Healer: 2));
+        var menu = Menu(party);
+        menu.Combat = new CombatPause(member, _ => { }, _ => { }, _ => null);
+
+        OpenSkill(menu, Skill.Healer);
+        Assert.Null(menu.Crafting);
+    }
+
     /// <summary>In a battle, the silhouette's weapon slot shows the flask a member holds in hand, as 1.0's does, while the weapon is still worn.</summary>
     [Fact]
     public void AFlaskHeldInABattleShowsInTheWeaponSlot()

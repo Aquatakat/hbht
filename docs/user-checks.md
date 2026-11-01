@@ -157,12 +157,22 @@ Every Poisoner turn passes but one, 0064. The Poisoner made for a cell 0.87 from
 
 What the session showed:
 - **Dougal had no turns.** Taking his base Dexterity to 0 (4, less his armor's 4) left him out of every round. 1.0's `TurnsPerRound` (`0x8005F4D0`) gives none at 0, and the port's matches. So no member could drink the Antidote while poisoned. The Antidote goes unchecked, the user's call: its cure is the same `cure` effect as Remove Poison's, which the session checked.
-- **Restore wasn't offered in the battle**, the user saw. 1.0's Healer in a battle lays on hands or heals with herbs (`ResolveHealer`), and its Restore is the pause menu's Healer popup (`MakeHealerMenu`, `0x800034A0`, `Healer.ShowRestoreMembers`). The port's party menu opens that popup in a battle's pause too. Whether 1.0's does isn't settled: nothing calls `MakeHealerMenu` directly, and what 1.0 does on A on the Healer skill in a battle's pause is below.
+- **Restore wasn't offered in the battle**, the user saw. 1.0's Healer in a battle lays on hands or heals with herbs (`ResolveHealer`), and its Restore is the pause menu's Healer popup (`MakeHealerMenu`, `0x800034A0`, `Healer.ShowRestoreMembers`). In setup 6 the user found it doesn't open in a battle's pause, and the port now keeps it shut too ([ui](systems/ui.md)).
+
+Setup 6's session (`out/parity/20261031-205206-setup6`), against the Wraiths, ended unfinished. It covered:
+- a Wraith's Darkness;
+- blows that did nothing;
+- Fireball, Wind and Web at the Wraiths, halved;
+- Wraith Touch on four members;
+- a Restore Potion giving back the drained Dexterity.
+
+Light wasn't cast, as base Sholeh doesn't know it. The Healer's popup didn't open in the battle's pause. Every action passes once the overlay lays Wraith Touch's drained amount: 1.0 keeps it in the record's power byte (`+0x01`), which `Entity.UndoEffect`'s kind `0x1A` gives back.
+
+One Wraith turn differs, 0040. 1.0's Wraith turned to face for 3 frames after its walk, its body running on 0.63, and cast Wraith Touch at Dougal from (17.01, 23.13). The port's took 2 ticks to turn and decided at (17.04, 23.76), out of reach, then rested while its body ran on. It's the port's body running on through the rest after a walk, below, and now it changes an action.
 
 Still to do:
 
-- **The Healer's popup in a battle's pause:** in 1.0, open the pause menu in a battle, go to the Party tab's skills on the Healer, and press A. Does the Lay On Hands / Heal With Herbs / Restore popup open, and does Restore work there? The port opens it.
-- **Setup 2's walks,** above: which way 1.0's Spellweaver curved at the second's 0016, and the port's body gliding on through the rest after a walk.
+- **Setup 6's 0040 and the glide:** where 1.0's body is after a walk when the AI decides, and whether it stands through the rest. Setup 2's walks, above: which way 1.0's Spellweaver curved at the second's 0016, and the port's body gliding on through the rest after a walk.
 - **Positions, shown but not checked:**
   - The attacker's body after a blow stands up to 0.5 from the original's (Brenna's backstab), with its footprint a cell over.
   - A reserve's walk with no action ends 4.6 from the original's (the second trial's slot 5). The original's body moved 0.26 from where it spawned at (17, 43) and gave up after 12 frames, about the 30 ticks of coming no nearer, while the port's runs its leg toward (23, 49).

@@ -294,10 +294,11 @@ public sealed partial class PartyMenu
         });
     }
 
-    // get_crafting_menu: the Alchemist, Healer and Mechanic have popups; other skills do nothing.
+    // get_crafting_menu: the Alchemist, Healer and Mechanic have popups; other skills do nothing. In a battle's pause none opens: the
+    // user saw 1.0's Healer popup stay shut there (setup 6), so Restore is trek's alone.
     private void OpenCrafting(SkillId skill)
     {
-        if (Shown is not { } member || !skill.IsSkill)
+        if (Shown is not { } member || !skill.IsSkill || Combat is not null)
             return;
         switch ((Skill)skill.Slot)
         {
