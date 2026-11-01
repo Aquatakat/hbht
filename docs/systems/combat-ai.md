@@ -85,18 +85,20 @@ All the original's:
 | a weakness has hit it (flag `0x10`, set with the check due by `ApplyResistance`) | −2 |
 | no Stamina | −1 |
 | strictly fewer than half the enemies that began able | −1 |
-| a harmful effect on it | −1 |
+| a harmful effect on it (any of its 15 records with the harmful word, `+4`, set: `0x8005707C`–`0x800570A0`) | −1 |
 | fewer than half the party able | +2 |
 | its target has no Stamina, unless its selected spell, whether it casts this turn or not, is one for its own side (`Combatant.IsFriendlySpell`, `0x80061008`: target type Party) | +3 |
 | flag 4 (nothing sets it) | +2 |
 | its own check: the leader gone or unable | −4 |
-| its own check: the leader's morale 8–10, 11 | +1, +2 |
+| its own check: the leader's morale 8–10, 11 or more | +1, +2 |
+
+Both halves are strict: with exactly half the enemies that began able the check is called for (`MayCheckMorale`'s "no more than half") but costs nothing, and with exactly half the party able it gains nothing. The target's term reads the AI's target (`+5`) whatever it is, a party member or not. `CheckFlee` reads the morale as a byte, unsigned: 12 or more, or below 0, and it never checks. A morale spell takes no more than the morale there is ([magic](magic.md#what-each-spell-does)), so only an entity's record could put it below 0, and none does. Each term, and the edges of each, are checked against 1.0's own functions ([combat-parity](combat-parity.md#the-formula-vectors)).
 
 The leader's morale (`Combat+0x11`) is worked out only while it lives and isn't cleared when it dies, so a dead leader's last still has its say: a Gorgon of morale 11 whose leader of 11 has died checks at about 8 (−1 Lunar by day, −4 the leader gone, +2 its morale), fleeing on a roll over it. An engaged enemy rolls and can't start a flight. The morale spells (Aura of Death, Solar Wrath) take their level off and make a check due ([magic](magic.md#what-each-spell-does)), which is how the party puts enemies to flight.
 
 ## Fleeing
 
-`EnemyAI.BeginFleeWalk` (`0x8005B038`): each of its turns says "%s flees" and heads for the nearest flee point (`EnemyAI.NearestFleePoint`, `0x8005AE3C`, the last of equals), as any walk: one leg, bounded by its field. Within 1.5 of the point it leaves at once. After the leg (`EnemyAI.FleeAdvance`, `0x8005B434`) its turns count down, and it leaves on the last, within 1.5 of a flee point, or if it hasn't got a unit from where its turn began (`Combat+0x5318`); then it rests. With no path, it walks straight to a flee point within 2.25 (`EnemyAI.FleeStep`, `0x8005AA3C`). With no flee point at all it stops fleeing and chooses as any other. **In arenas 12 and 13 every flight is at once**: their one flee point, `flee0` at (48.7, 11.7), is past the 46-wide grid, so no path reaches it and none is within 2.25. The fleeing enemy's turn ends where it began, and it leaves.
+`EnemyAI.BeginFleeWalk` (`0x8005B038`): each of its turns says "%s flees" and heads for the nearest flee point (`EnemyAI.NearestFleePoint`, `0x8005AE3C`, the last of equals), as any walk: one leg, bounded by its field. Within 1.5 of the point it leaves at once. After the leg (`EnemyAI.FleeAdvance`, `0x8005B434`) its turns count down, and it leaves on the last, within 1.5 of a flee point, or if it hasn't got a unit from where its turn began (`Combat+0x5318`; a unit exactly is enough to stay); then it rests. With no path, it walks straight to a flee point within 2.25 (`EnemyAI.FleeStep`, `0x8005AA3C`). With no flee point at all it stops fleeing and chooses as any other. **In arenas 12 and 13 every flight is at once**: their one flee point, `flee0` at (48.7, 11.7), is past the 46-wide grid, so no path reaches it and none is within 2.25. The fleeing enemy's turn ends where it began, and it leaves.
 
 **A flight never stays on the field and acts.** Every dead end of a flight's turn goes through `FleeAdvance`, and one that hasn't moved a unit leaves. With no path, `Act` (`0x8005AD9C`) runs `FleeStep` and `FleeAdvance` itself and the turn stops there. With a path whose first corner can't be walked, `Step` (`0x8005B3D0`–`0x8005B418`) goes on to `Execute` after `FleeAdvance`, for a combatant already gone. Nothing in `Execute` tests the actor's flag 6 (`CanTargetBySide` and `SpellCanTarget` test it only on the target), and the reach tests read its place, which `Leave` keeps, so with someone in reach of where it stood, `FaceCombatant` (`0x8005FD28`) puts state 6 over `FleeAdvance`'s rest. State 6 (`0x800221B0`) finds its body gone and ends the turn (`Combatant.EndTurn`), with no attack or cast: the turn ends the next frame instead of after 120 ticks. Otherwise `Execute` rests again, and a weapon swap logs "%s changes weapons" for the gone enemy. `WalkPath` (`0x8005A0D8`) walks no corner when the first step of `WalkIsClear`'s line is taken or steep, which `TrimPath` can bring about: it cuts a detour that comes back beside its start to a first step the planner never tested, such as up a ledge the detour went round. Or `ClipToCircle`'s quadratic finds no root, about 0.6% of corners outside the field. Neither has been seen in play.
 
@@ -104,7 +106,7 @@ The leader's morale (`Combat+0x11`) is worked out only while it lives and isn't 
 
 ## Reserves that flee as they arrive
 
-`EnemyAI.ReserveFleesOnArrival` (`0x80056E18`), inside `Combat.SpawnReserves` as a dead or gone combatant's slot is to be refilled ([combat](combat.md#a-turn)): only where there are flee points, with morale under 12, and while **more** than half the enemies that began are still able; its record's morale, less 1 for its aspect (any but Solar counting as Lunar), 4 with the leader gone or unable, and the leader's morale's say, from 2 to 11, against 2d6. Fleeing, it's passed over (`+0x07` moves on), its small portrait marked (`CombatGui.MarkReserveFled`), its slot left as it was until the next round, and `Combat+0x543C` set: the next turn's change shows "Enemy reinforcements flee" and the whole battle holds 60 ticks (`Combat.HoldForMessage`, `0x80022AEC`). `Combat.SkipFleeingReserves` has no caller.
+`EnemyAI.ReserveFleesOnArrival` (`0x80056E18`), inside `Combat.SpawnReserves` as a dead or gone combatant's slot is to be refilled ([combat](combat.md#a-turn)): only where there are flee points, with morale under 12, and while **more** than half the enemies that began are still able; its record's morale, less 1 for its aspect (any but Solar counting as Lunar), 4 with the leader gone or unable, and the leader's morale's say, from 2 to 11, against 2d6. Its aspect is the record's (`+0x1A`), 2 Solar and anything else Lunar. Its own −1 for fewer than half the enemies able (`0x80056EBC`–`0x80056EC8`) never applies, as it has already returned at half or fewer. Fleeing, it's passed over (`+0x07` moves on), its small portrait marked (`CombatGui.MarkReserveFled`), its slot left as it was until the next round, and `Combat+0x543C` set: the next turn's change shows "Enemy reinforcements flee" and the whole battle holds 60 ticks (`Combat.HoldForMessage`, `0x80022AEC`). `Combat.SkipFleeingReserves` has no caller.
 
 **Sholeh** with an AI record plays her turns the same way; on the party's side she never counts as fleeing.
 
@@ -116,7 +118,7 @@ The leader's morale (`Combat+0x11`) is worked out only while it lives and isn't 
 | `Battle.Casters.cs` | styles 5–10's spells: `ChooseSpellOrAttack`, `ScoreSpellCells`, `AreaCentre`, `AimAreaSpell`, the area danger (`PartyDanger`) |
 | `Battle.Morale.cs` | morale, fleeing, `Leave`, `ReserveFleesOnArrival` with the hold (`CombatLog.HoldOn`) |
 
-`CasterCheckpointTests` checks the casters and bosses against `CasterVectors.cs`, which `tools/aivectors` writes from 1.0's own functions; `AiCheckpointTests` the rats.
+`CasterCheckpointTests` checks the casters and bosses against `CasterVectors.cs`, which `tools/aivectors` writes from 1.0's own functions; `AiCheckpointTests` the rats; `AiVectorTests` morale, the check to flee, the reserves' flight on arriving, a turn of styles 0–4 and of a flight, and `FleeAdvance` ([combat-parity](combat-parity.md#the-formula-vectors)).
 
 ### Traps
 
