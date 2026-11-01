@@ -12,14 +12,14 @@ The shape of `Camera::Mode0` (`0x800a6e64`) explains that. The aim chases Alaron
 
 Ported as `HBHT.Core.Cameras.FollowCamera`, from `Camera::Mode0` and the R orbit (`0x800a72bc`, the decomp's `FUN_800b0fac`), which `Mode0` and `Mode1` both call.
 
-- With R held, the orbit keeps the camera between 0 and 5 above the aim, its reach across the ground easing toward 5 by 1/32 of the gap a tick, so it tops out at 45° once eased out and is steeper while nearer. The user saw it go no lower than level with Alaron and no higher than about 75° in 1.0.
+- With R held, the orbit keeps the camera between 0 and 5 above the aim, its reach across the ground easing toward 5 by 1/32 of the gap a tick, so it tops out at 45° once eased out and is steeper while nearer, and never goes below level with Alaron. The user found the port's orbit matches 1.0's.
 - **Port addition: moving while orbiting.** In the original the stick orbits with R held and he stands still. On a dual-stick pad the right stick, Q and E, and the mouse turn the camera while the left stick or WASD still walk him (`PlayerInput.Free`, in `HBHT.Core.Trek`); only R with the stick holds him, as on the N64. The orbit's goal is a fixed point it turns about, so a walking player would leave it behind and swing the view. While he walks, `FollowCamera.Orbit(…, moving: true)` carries that point by how far the aim moved each tick, so the view stays as it was turned. Letting go of the stick returns the camera behind him as it does after R. The user's choice.
 - **Port addition: steering it.** What turns the camera is the player's to bind on the options' Controls page ([ui](pause-menu.md#controls), [ADR 0026](../adr/0026-controls-are-bound-by-situation.md)), and `Game.ReadInput` makes the `PlayerInput` from it:
   - **Camera's own sources** (by default the right stick) and Camera Left and Right (Q and E) turn it while he walks, as above.
   - **Camera Hold** (RB, or the right mouse button) is R. A source on both Move and Camera (by default the left stick) moves him, and while Camera Hold is held steers the camera instead, and he stands still (`PlayerInput.Free` false, as R with the stick). A source on Move alone still walks him under the hold, so WASD walks while the mouse turns the camera with the right button held. He stands still only while what would have moved him steers.
   - **The mouse** can't move him. Off the Camera row it steers while Camera Hold is held, a drag: about 0.3° of orbit and 0.02 of height a pixel, times Mouse Sensitivity. On the Camera row it's mouse look: it always steers, and the runtime captures it in trek and a battle's turn and lets it go elsewhere. The orbit is then held every tick (`PlayerInput.Orbit`), so the camera stays where the mouse leaves it and is carried with him as he walks, rather than returning behind him when the mouse stops, and the stick walks him the way the camera looks.
   - **Stick look:** the right stick on Camera, the default, turns it as Q and E do; pushed up it raises the camera, as R with the stick does. The mouse's up lowers it, as mouse look does in most games. There's no Invert row: the stick keeps the N64's sense, and the mouse the PC's.
-- `Mode0` doesn't avoid walls at all. Only the R orbit pulls in. It moves an eighth of the way a frame toward a point 0.25 *past* the wall (the ROM has the −0.25), while still easing out toward 5. The two settle about 3.1 from the player, so with a wall any closer, the camera ends up behind it. The user saw 1.0's outdoor camera pull in toward Alaron when it meets collision, which in the code only the orbit does.
+- `Mode0` doesn't avoid walls at all. Only the R orbit pulls in. It moves an eighth of the way a frame toward a point 0.25 *past* the wall (the ROM has the −0.25), while still easing out toward 5. The two settle about 3.1 from the player, so with a wall any closer, the camera ends up behind it. The user found the port's matches 1.0's at walls.
 - Interiors use `Mode1`, which does keep the camera off walls (below).
 - Loading and dialogue set a quick swing (`unk80`), but the first tick after a load cancels it, because the anchor starts at the origin.
 
@@ -73,6 +73,8 @@ From 1.0's machine code. Talking to a wanderer, both bodies are flagged `ACTOR_8
 - At the end the camera is given back to the player (`GiveCameraToPlayer`) with a quick swing of 5 frames (`unk80` 5), and its pitch back to the default.
 
 ## Cut-scenes' cameras
+
+Framed as 1.0's: a cut-scene in the port looks wider than in the emulator only by 1.0's overscan bars, which the port doesn't draw ([ui](ui.md#the-screen)).
 
 `ScriptCameras`, from 1.0's machine code. Each camera op of a script starts a move that holds the camera for its duration (`DialougCreateScriptCamera`, `AllocScriptCamera` at `0x800168f8`): a camera object's move (`CameraMove`) with the op's flags, aimed at a point the op chose as it ran.
 
