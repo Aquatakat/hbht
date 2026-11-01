@@ -333,8 +333,15 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
         var wrong = new List<string>();
         foreach (var action in actions)
         {
-            if (NextTurn(log, action) is { } next)
-                wrong.AddRange(ReplayAction(battle, log, action, next).Select(w => $"slot {action.Current}'s action ({action.Dump}): {w}"));
+            if (NextTurn(log, action) is not { } next)
+                continue;
+            var found = ReplayAction(battle, log, action, next).Select(w => $"slot {action.Current}'s action ({action.Dump}): {w}").ToList();
+            if (!KnownFixes.TryGetValue((battle.Replace('\\', '/'), action.Dump!), out var why))
+                wrong.AddRange(found);
+            else if (found.Count == 0)
+                wrong.Add($"slot {action.Current}'s action ({action.Dump}) is the original's now: take it off the known fixes");
+            else
+                output.WriteLine($"{action.Dump}: the port's fix, {why}:\n  {string.Join("\n  ", found)}");
         }
         Assert.True(wrong.Count == 0, string.Join("\n", wrong));
     }
@@ -381,6 +388,18 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
         [("20261031-123809-setup2/battle-01", "0018.rdram.gz")] = "the Sorceror curves away from its first corner and gives up, as the port's does at 4–6-tick frames",
         [("20261031-123809-setup2/battle-01", "0096.rdram.gz")] = "the Spellweaver decides 0.3 short of 1.0's place, Alaron just out of its reach",
         [("20261031-134011-setup2/battle-01", "0016.rdram.gz")] = "the Spellweaver curves away from its first corner, dead astern, and gives up near its start; the port's does at 4–6-tick frames, curving the other way",
+    };
+
+    /// <summary>
+    /// The actions where the port fixes one of 1.0's bugs, the user's choice, by battle and dump ([combat](docs/systems/combat.md),
+    /// where the port differs). Their differences are logged, not failed, and one that matches fails until it comes off the list.
+    /// </summary>
+    private static readonly Dictionary<(string Battle, string Dump), string> KnownFixes = new()
+    {
+        [("20261031-172849-setup3/battle-01", "0097.rdram.gz")] = "Dougal's Fireball with a flask in hand does its damage",
+        [("20261031-172849-setup3/battle-01", "0103.rdram.gz")] = "Dougal's Fireball with a flask in hand does its damage",
+        [("20261031-172849-setup3/battle-01", "0113.rdram.gz")] = "Dougal's Fireball with a flask in hand does its damage",
+        [("20261031-172849-setup3/battle-01", "0120.rdram.gz")] = "Dougal's Fireball with a flask in hand does its damage",
     };
 
     /// <summary>The next turn's start with RAM, or the battle's end.</summary>

@@ -114,7 +114,7 @@ Setup 3's session (`out/parity/20261031-172849-setup3`) covered these, and the b
 - the four flasks, Acid's catching Keelin;
 - the rewards.
 
-Every enemy turn passes. So does every action but Dougal's four Fireballs. 1.0 cast them for no damage, as he still had a flask in hand ([combat](systems/combat.md#spells-potions-and-skills-in-a-turn)). Whether the port keeps that is the user's call.
+Every enemy turn passes. So does every action but Dougal's four Fireballs. 1.0 cast them for no damage, as he still had a flask in hand ([combat](systems/combat.md#spells-potions-and-skills-in-a-turn)). The port fixes that, the user's choice, and the replay logs the four as its fix.
 
 Three of the differences were the replay's own:
 - The overlay now puts on the weapon the RAM wields and lays the skills, so the Party tab's change and the potions' bonuses carry through.

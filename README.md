@@ -48,6 +48,9 @@ Examples of some fixed bugs:
 - The time of day and compass are meant to be hidden inside some interiors. The
   original shows them when you load a save inside, HBHT hides them.
 - Flasks show the correct amount of damage dealt.
+- Damage spells do their damage when the caster has a flask in hand. The
+  original drops the damage while a member holds a flask of a kind the party has
+  more of, from one throw until the stack runs out.
 
 The type of things not fixed:
 - Rain and splash density stays pretty low by default.
