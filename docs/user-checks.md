@@ -128,6 +128,16 @@ What the session showed of 1.0's menus:
 - Acid's corrosion takes protection and isn't a poison, so the Antidote had nothing to cure here. Setup 5's darts can poison.
 - Restore had nothing to undo either. Setup 6's Wraith Touch can drain a stat.
 
+Setup 4's first session (`out/parity/20261031-185317-setup4`) crawled at a frame every three seconds. The night sky draws for its stars every frame, a logger stop each ([the rig](reference-rig.md#combat-parity-logs-toolsparityps1)), and the logger now skips those draws.
+
+The second session (`out/parity/20261031-190448-setup4`) ran at night with no rain, and the battle wasn't finished. Every action passes:
+- Sholeh's and Keelin's shots at near and far Woodsmen, moved and not;
+- the Woodsmen's eight shots, style 3 keeping its distance;
+- Dougal's Javelin;
+- Alaron's two blows at night.
+
+Every Woodsman's turn passes but one. At 0006, the Woodsman's first corner was dead astern. 1.0's walked 0.9 away in 6 frames of 5–6 ticks and gave up. At 2-tick frames the port's turns round and walks on 3.5 further, and at 5-tick frames it gives up within 0.37 of 1.0's. It's a known cadence turn in the replay, like setup 2's second session at 0016.
+
 Still to do:
 
 - **Setup 2's walks,** above: which way 1.0's Spellweaver curved at the second's 0016, and the port's body gliding on through the rest after a walk.
