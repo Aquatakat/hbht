@@ -566,6 +566,7 @@ public sealed partial class Battle
     internal void Animate(Combatant c, int request)
     {
         c.Body.Request = request;
+        c.CastStrike = SpellRecord.DefaultStrike;
         Cue(new CombatantAnimated(c, request));
     }
 
@@ -768,6 +769,9 @@ public sealed partial class Battle
     private static bool AtStrike(Combatant c, IActorMotion animation)
     {
         var playing = c.Body.Playing;
+        // The port's: a spell's cast lands at its own share (SpellRecord.Strike), below 1; 1.0's every spell at the animation's end.
+        if (playing == CastRequest)
+            return c.CastStrike < 1 && animation.Frame == (ushort)(int)(animation.StateLength * c.CastStrike);
         if (playing is < FirstAttackRequest or > LastAttackRequest)
             return false;
         return animation.Frame == (ushort)(int)(animation.StateLength * StrikeShare(c.Look, playing));

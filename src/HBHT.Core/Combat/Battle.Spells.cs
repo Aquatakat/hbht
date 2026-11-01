@@ -489,6 +489,7 @@ public sealed partial class Battle
             SayQueued(ResistsLine, t.Sheet.Name);
         }
         Animate(a, CastRequest);
+        a.CastStrike = source.Spell.Strike;
         // Player.SetCastSound: the spell's sound as the caster's request 5 plays, a refused cast's too.
         a.Audio.Cast = source.Spell.Cast;
         var cast = Fx.Start(a, t, source.Spell, outcome.Result switch

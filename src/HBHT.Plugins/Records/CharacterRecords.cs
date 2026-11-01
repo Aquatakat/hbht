@@ -312,6 +312,13 @@ public sealed record TrainingPrices(int FirstLevelGold, int GoldPerLevel, float 
 /// enemies spread out by twice the casting level (<c>EnemyAI.AreaCentre</c>, <c>0x80058008</c>, <c>EnemyAI.AimAreaSpell</c>,
 /// <c>0x8005974C</c>, and <c>Combat.CreatePartyCombatants</c>, <c>0x8005C7C8</c>, all by spell kind 8): Fireball.
 /// </param>
+/// <param name="Strike">
+/// The share of its caster's cast animation (request 5) at which it lands and the target starts to react, as an entity's
+/// <see cref="EntityBody.Strike"/> times a blow. The original has no such field: a cast lands as the caster's cast animation ends
+/// (<c>ProcessPlayers</c> tests the strike's frame only for the attacks, 12 to 18), which is 1, every spell's. The port makes it
+/// the spell's, for mods, so that a cast can land as its visual strikes (the user's choice). Below 1, it lands at the frame
+/// <c>(int)(length × this)</c>; at 1 or more, as the animation ends. Either way, no sooner than the action timer's 30 ticks.
+/// </param>
 public sealed record SpellRecord(
     RecordId Id,
     string Name,
@@ -339,7 +346,12 @@ public sealed record SpellRecord(
     TargetFilter? Filter = null,
     int? AiValue = null,
     MagicVisuals? Visuals = null,
-    bool Area = false);
+    bool Area = false,
+    float Strike = SpellRecord.DefaultStrike)
+{
+    /// <summary>Every spell's strike in the original: the end of its caster's cast animation.</summary>
+    public const float DefaultStrike = 1;
+}
 
 /// <summary>How many targets a spell takes.</summary>
 public enum SpellTargetCount

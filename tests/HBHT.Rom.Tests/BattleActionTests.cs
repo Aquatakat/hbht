@@ -339,6 +339,50 @@ public sealed class BattleActionTests(Na10Import fixture)
             - new System.Numerics.Vector2(run.Battle.Origin.X, run.Battle.Origin.Z));
     }
 
+    [Theory]
+    [InlineData(0.25f)]
+    [InlineData(0.5f)]
+    public void ASpellsStrikeLandsItPartWayThroughTheCastAnimation(float strike)
+    {
+        // The port's, for mods: 1.0's every spell lands as the cast animation ends, the base plugin's 1.
+        var base1 = ActionTicks(SpellRecord.DefaultStrike);
+        var early = ActionTicks(strike);
+        Assert.True(base1.Length > 60, $"the cast animation runs {base1.Length} ticks");
+        var expected = Math.Max(Battle.SwingTicks, (int)(base1.Length * strike));
+        Assert.InRange(early.Ticks, expected - 2, expected + 2);
+        Assert.InRange(base1.Ticks, base1.Length - 2, base1.Length + 2);
+
+        // Rheda's vs. Naming at herself: the ticks state 2 waits before she's helped, and her cast animation's length.
+        (int Ticks, int Length) ActionTicks(float share)
+        {
+            var run = Start();
+            var rheda = run.TurnOf("Rheda");
+            var spell = run.Built.Game.Rules.Magic!.Spell(RecordId.Hex(RecordTypes.Spell, 0x031E))! with { Strike = share };
+            rheda.Sheet.LearnSpell(spell);
+            rheda.Sheet.Skills.Train(HBHT.Core.Characters.Skill.Wizard, 10);
+            run.Built.Game.Party.Inventory.Add(run.Built.Game.Party.Inventory.Catalog.Rules.Gemstone);
+            Choose(run.Battle, false, r => r.Text == spell.Name);
+            for (var i = 0; i < Battle.SlotCount && run.Battle.TargetsB.Cursor != rheda.Slot; i++)
+                run.Battle.StepTarget(1);
+            Assert.True(run.Battle.Confirm());
+            // The bodies with their actors' real animations, which the cast's share is of.
+            var motions = new Dictionary<Combatant, HBHT.Core.Actors.IActorMotion?>();
+            HBHT.Core.Actors.IActorMotion? Motion(Combatant c) => motions.TryGetValue(c, out var m) ? m
+                : motions[c] = HBHT.Core.Actors.ActorMotion.For(Set, Set.Get<ActorRecord>(c.Look.Actor), run.Built.Game.Random.Animation);
+            var (ticks, length) = (0, 0);
+            for (var i = 0; i < 2000 && run.Battle.State != CombatState.Action; i++)
+                run.Battle.Tick(run.Zone, false, Motion);
+            while (run.Battle.State == CombatState.Action && ticks < 2000)
+            {
+                run.Battle.Tick(run.Zone, false, Motion);
+                ticks++;
+                if (rheda.Body.Playing == Battle.CastRequest && Motion(rheda) is { } cast)
+                    length = cast.StateLength;
+            }
+            return (ticks, length);
+        }
+    }
+
     [Fact]
     public void TeleportationsANothingWhereItCouldntLand()
     {
