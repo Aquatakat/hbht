@@ -57,6 +57,7 @@ public sealed record SpawnPoint(int Portal, int Row, int Column, Vector2 Positio
 /// no minimap (<c>LoadGameBorgScenes</c>). The original's table names a chunk by its row and column alone, so a few chunks of
 /// other map sets carry the Overworld's flags too.
 /// </param>
+/// <param name="Swap">The scenes it draws in place of its own while a flag holds, as it loads (<see cref="Drawn"/>).</param>
 public sealed record ChunkEntry(
     int Row,
     int Column,
@@ -65,8 +66,21 @@ public sealed record ChunkEntry(
     RecordId Map,
     int Terrain,
     RecordId? Music = null,
-    RecordId? Region = null)
+    RecordId? Region = null,
+    SceneSwap? Swap = null)
 {
+    /// <summary>
+    /// The chunk as it's drawn by the flags as they are, which it's read by as it loads: with its <see cref="Swap"/>'s scenes
+    /// while that holds, else as it is.
+    /// </summary>
+    public ChunkEntry Drawn(Func<FlagGate, bool> holds) =>
+        Swap is { } swap && holds(swap.While) ? this with { Scene = swap.Scene, AltScene = swap.AltScene } : this;
+
+    /// <summary>Every scene it could draw: its own, and its <see cref="Swap"/>'s.</summary>
+    [JsonIgnore]
+    public IEnumerable<RecordId> AllScenes =>
+        new[] { Scene, AltScene, Swap?.Scene, Swap?.AltScene }.OfType<RecordId>().Distinct();
+
     /// <summary>The chunk as the debug overlay names it, such as <c>I08</c>.</summary>
     [JsonIgnore]
     public string Name => Row is >= 1 and <= 26 ? $"{(char)('A' + Row - 1)}{Column:D2}" : $"{Row},{Column}";
@@ -181,6 +195,15 @@ public enum PakVariant
 
 /// <summary>A condition on an event flag: true when the flag's value differs from <see cref="Invert"/>.</summary>
 public sealed record FlagGate(RecordId Flag, bool Invert = false);
+
+/// <summary>
+/// The scenes a chunk draws in place of its own while a flag holds, such as the lighthouse's lit ones
+/// (<see cref="ChunkEntry.Swap"/>).
+/// </summary>
+/// <param name="While">The flag, read as the chunk loads.</param>
+/// <param name="Scene">Its scenery then, as <see cref="ChunkEntry.Scene"/>.</param>
+/// <param name="AltScene">Its see-through scenery then, as <see cref="ChunkEntry.AltScene"/>.</param>
+public sealed record SceneSwap(FlagGate While, RecordId? Scene, RecordId? AltScene);
 
 /// <summary>A flag an object writes when it's used: it sets it, or clears it if <see cref="Clear"/>.</summary>
 public sealed record FlagWrite(RecordId Flag, bool Clear = false);

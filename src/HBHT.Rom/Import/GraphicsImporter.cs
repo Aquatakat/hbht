@@ -50,6 +50,20 @@ internal static class GraphicsImporter
         // The chunks' seams are welded together, a map set at a time; every other scene's, on its own.
         var chunkScenes = ctx.Chunks.SelectMany(c => new[] { c.Scene, c.AltScene }).ToHashSet();
         var chunkWelds = ctx.Options.WeldSeams ? SeamWelds.ForChunks(ctx.Chunks, archive.Read, s => animations[s].Any()) : [];
+        // A lit scene the zone engine swaps in (ToggledScenes) is welded as its chunk's, to the neighbours round it.
+        foreach (var toggled in ToggledScenes.Read(ctx.Rom))
+        {
+            foreach (var chunk in ctx.Chunks.Where(c => c.Scene == toggled.Scene))
+            {
+                chunkScenes.Add(toggled.Lit);
+                if (!ctx.Options.WeldSeams)
+                    continue;
+                var around = ctx.Chunks.Where(c => c.Set == chunk.Set && Math.Abs(c.Row - chunk.Row) <= 1 && Math.Abs(c.Column - chunk.Column) <= 1)
+                    .Select(c => c == chunk ? c with { Scene = toggled.Lit } : c).ToList();
+                if (SeamWelds.ForChunks(around, archive.Read, s => animations[s].Any()).TryGetValue(toggled.Lit, out var welds))
+                    chunkWelds[toggled.Lit] = welds;
+            }
+        }
         var done = 0;
         var particleTextures = ctx.ParticleSlots;
         var emitters = new ConcurrentBag<EmittersRecord>();

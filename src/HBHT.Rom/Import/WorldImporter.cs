@@ -15,7 +15,7 @@ internal static class WorldImporter
     public static void Import(ImportContext ctx)
     {
         ctx.Report("Map sets");
-        ctx.WriteRecords("mapsets.json", BuildMapSets(ctx.Chunks, ctx.Audio, ctx.Engine.Regions));
+        ctx.WriteRecords("mapsets.json", BuildMapSets(ctx.Chunks, ctx.Audio, ctx.Engine.Regions, ToggledScenes.Read(ctx.Rom)));
 
         ctx.Report("Terrains");
         ctx.WriteRecords("terrains.json", BuildTerrains(ctx.Gradients, CampFactors.Read(ctx.Rom), ctx.Weather, ctx.Db.CampEncounters));
@@ -32,11 +32,15 @@ internal static class WorldImporter
     /// <summary>
     /// The map sets, with the music each plays as it's entered (<see cref="AudioFacts.MapMusic"/>) and the places the code puts the
     /// player by number (<see cref="MapSets.Spawns"/>), and the world map region each chunk's row and column name
-    /// (<see cref="EngineTables.Regions"/>): the code's table doesn't say a map set, so every set's chunk there gets it.
+    /// (<see cref="EngineTables.Regions"/>): the code's table doesn't say a map set, so every set's chunk there gets it. A chunk whose
+    /// scene the zone engine swaps for a lit one while a flag holds (<see cref="ToggledScenes"/>) gets that as its swap, with its own
+    /// see-through scene, which the code leaves.
     /// </summary>
-    private static List<MapSetRecord> BuildMapSets(IReadOnlyList<MapChunk> chunks, AudioTables audio, IReadOnlyList<RegionChunk> regions)
+    private static List<MapSetRecord> BuildMapSets(IReadOnlyList<MapChunk> chunks, AudioTables audio, IReadOnlyList<RegionChunk> regions,
+        IReadOnlyList<ToggledScene> toggled)
     {
         var region = regions.ToDictionary(r => (r.Row, r.Column), r => DbRecordIds.Flag(r.Flag));
+        var lit = toggled.ToDictionary(t => t.Scene);
         return
         [
             .. Enum.GetValues<MapSet>().Select(set => new MapSetRecord(
@@ -47,7 +51,11 @@ internal static class WorldImporter
                         c.AltScene == 0 ? null : RecordId.Hex(RecordTypes.Scene, c.AltScene),
                         RecordId.Hex(RecordTypes.Map, c.Collision), c.Terrain,
                         AudioFacts.ChunkMusic(c, audio) is { } music ? RecordId.Hex(RecordTypes.Sequence, music) : null,
-                        region.TryGetValue((c.Row, c.Column), out var flag) ? flag : null)),
+                        region.TryGetValue((c.Row, c.Column), out var flag) ? flag : null,
+                        lit.TryGetValue(c.Scene, out var swap)
+                            ? new SceneSwap(new FlagGate(DbRecordIds.Flag(swap.Flag)), RecordId.Hex(RecordTypes.Scene, swap.Lit),
+                                c.AltScene == 0 ? null : RecordId.Hex(RecordTypes.Scene, c.AltScene))
+                            : null)),
                 ],
                 AudioFacts.MapMusic(set, audio) is { Count: > 0 } setMusic ? [.. setMusic.Select(m => RecordId.Hex(RecordTypes.Sequence, m))] : null,
                 Maps.MapSets.Spawns(set, chunks))),

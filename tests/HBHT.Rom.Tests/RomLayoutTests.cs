@@ -60,6 +60,8 @@ public class RomLayoutTests
             var original = na10.Table(table);
             if (SpellVisualCode.Contains(table))
                 Assert.Equal(Shapes(original), Shapes(bytes));
+            else if (table == CodeTable.ToggledZoneScenes)
+                Assert.Equal(WithoutJumps(original), WithoutJumps(bytes));
             else if (table == CodeTable.SpellVisualJumpTables)
                 Assert.Equal(CasesAt(na10, original), CasesAt(rom, bytes));
             else if (PointerTables.Contains(table))
@@ -98,6 +100,10 @@ public class RomLayoutTests
     /// <summary>Each instruction's opcode and registers, without the immediates and targets that addresses change.</summary>
     private static List<uint> Shapes(ReadOnlySpan<byte> code) =>
         [.. Words(code).Select(ins => ins >> 26 is 0 ? ins : ins & 0xFFFF0000u)];
+
+    /// <summary>Each instruction, but a jump's or call's target, which each build has its own of: the immediates are the table.</summary>
+    private static List<uint> WithoutJumps(ReadOnlySpan<byte> code) =>
+        [.. Words(code).Select(ins => ins >> 26 is 2 or 3 ? ins & 0xFC000000u : ins)];
 
     /// <summary>Each jump table entry as the spell visual function it lands in and how far into it, and the padding between tables as nulls.</summary>
     private static List<(CodeTable, int)?> CasesAt(RomImage rom, ReadOnlySpan<byte> jumpTables) =>

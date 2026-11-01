@@ -88,14 +88,14 @@ public sealed class SceneryRing(GameState game, ChunkStreamer inner)
         }
 
         var changed = false;
-        foreach (var key in _maps.Keys.Where(k => !wanted.Contains(k)).ToList())
+        foreach (var key in _maps.Keys.Where(k => !wanted.Contains(k) || Drawn(set, k) != _maps[k].Chunk).ToList())
         {
             Unload(key);
             changed = true;
         }
         foreach (var key in wanted.Where(k => !_maps.ContainsKey(k)))
         {
-            var chunk = set.Chunk(key.Row, key.Column)!;
+            var chunk = Drawn(set, key);
             var map = LoadedMap.Scenery(game.Plugins.Get<MapRecord>(chunk.Map), key, game.Flags, game.Memory, set.Origin(key.Row, key.Column));
             _maps[key] = (chunk, map);
             Loaded?.Invoke(chunk, map);
@@ -106,16 +106,18 @@ public sealed class SceneryRing(GameState game, ChunkStreamer inner)
 
     /// <summary>
     /// Gates the ring's scene objects again by the flags and the memory, as the streamer's are when the pause menu closes
-    /// (<see cref="ChunkStreamer.Regate"/>) and as they load again: each chunk whose scenery changed goes and comes back
-    /// (<see cref="Unloading"/>, <see cref="Loaded"/>). Returns whether any did.
+    /// (<see cref="ChunkStreamer.Regate"/>) and as they load again, and its scenes by them (<see cref="ChunkEntry.Swap"/>): each chunk
+    /// whose scenery changed goes and comes back (<see cref="Unloading"/>, <see cref="Loaded"/>). Returns whether any did.
     /// </summary>
     public bool Regate()
     {
         var changed = false;
-        foreach (var (key, (chunk, old)) in _maps.ToList())
+        foreach (var (key, (was, old)) in _maps.ToList())
         {
+            var chunk = Drawn(inner.MapSet, key);
             var map = LoadedMap.Scenery(old.Record, key, game.Flags, game.Memory, old.Origin);
-            if (old.Record.Objects.OfType<SceneObject>().All(o => old.IsActive(o.Index) == map.IsActive(o.Index) && old.Look(o.Index) == map.Look(o.Index)))
+            if (chunk == was
+                && old.Record.Objects.OfType<SceneObject>().All(o => old.IsActive(o.Index) == map.IsActive(o.Index) && old.Look(o.Index) == map.Look(o.Index)))
                 continue;
             Unload(key);
             _maps[key] = (chunk, map);
@@ -134,6 +136,13 @@ public sealed class SceneryRing(GameState game, ChunkStreamer inner)
             Unload(key);
         return true;
     }
+
+    /// <summary>
+    /// A chunk of the map set as the flags draw it now (<see cref="ChunkEntry.Drawn"/>), read as they're stored, so that drawing it
+    /// changes nothing (<see cref="Flags.FlagNetwork.IsSetAsStored"/>).
+    /// </summary>
+    private ChunkEntry Drawn(MapSetRecord set, ChunkKey key) =>
+        set.Chunk(key.Row, key.Column)!.Drawn(gate => game.Flags.IsSetAsStored(gate.Flag) != gate.Invert);
 
     private void Unload(ChunkKey key)
     {

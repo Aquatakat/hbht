@@ -175,7 +175,7 @@ public sealed class ChunkScenery
     /// </summary>
     public static IEnumerable<RecordId> Assets(PluginSet plugins, ChunkEntry chunk)
     {
-        foreach (var scene in new[] { chunk.Scene, chunk.AltScene }.OfType<RecordId>())
+        foreach (var scene in chunk.AllScenes)
             yield return scene;
         if (plugins.TryGet<MapRecord>(chunk.Map) is not { } map)
             yield break;

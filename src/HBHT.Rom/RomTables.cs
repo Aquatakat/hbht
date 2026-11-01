@@ -63,6 +63,11 @@ public enum DbTable
 /// </summary>
 public enum CodeTable
 {
+    /// <summary>
+    /// The instructions of <c>CheckToggleZoneScene</c> (<c>0x8000aa14</c> in 1.0) from its first test on, <c>0x8000aa3c</c>: the two dark
+    /// scenes it tests a chunk's first scene for, the flag it reads and the lit scenes it puts in their place (<see cref="Engine.ToggledScenes"/>).
+    /// </summary>
+    ToggledZoneScenes,
     /// <summary>One byte per entity: the entity index the code's own tables use (the decomp's <c>entityList</c>).</summary>
     EntityList,
     /// <summary>Entity list index, joined flag, left flag, per recruitable member (<c>Party::CheckFlags</c>).</summary>

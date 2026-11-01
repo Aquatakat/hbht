@@ -59,6 +59,8 @@ public static class RomVersions
     /// <summary>The code segment's tables, in NA 1.0's order: length, NA 1.0's offset and the debug ROM's.</summary>
     private static readonly CodeRow[] Code =
     [
+        // NA 1.1 moves this by -0x100: the zone engine's code.
+        new(CodeTable.ToggledZoneScenes,          0x48,   0x000B63C, 0x000E7D4),
         // NA 1.1 moves these by -0xC4: the spell visuals' code.
         new(CodeTable.SpellVisualRefusedResisted, 12,     0x008C4D8, 0x0095C98),
         // -0xB4.
@@ -209,11 +211,11 @@ public static class RomVersions
 
     // 1.1 is 1.0 rebuilt with fixes and new Controller Pak messages: its code segment moves by the amounts in the table's
     // comments, from the first offset where the bytes show each, and its DB block by +0x40 and then by what the two string
-    // tables grew. Its code before 0x8BAC4 moves by other amounts, which no table needs yet.
+    // tables grew. Its code before 0x8BAC4 moves by other amounts, of which only the zone engine's is known.
     public static RomVersion Na11 { get; } = new(
         RomVersionId.Na11, "NA 1.1", "f80e135e7e962308f51bb9f7600b25213549c688", ResearchOnly: false,
         Place(
-            new Moves((0x008BAC4, -0xC4), (0x008D710, -0xB4), (0x008DDE4, -0x10), (0x00DAF08, +0x40), (0x1FEA3B0, +0x170), (0x1FED950, +0x270)),
+            new Moves((0x000B63C, -0x100), (0x008BAC4, -0xC4), (0x008D710, -0xB4), (0x008DDE4, -0x10), (0x00DAF08, +0x40), (0x1FEA3B0, +0x170), (0x1FED950, +0x270)),
             resized: new() { [RomStringTable.Common] = 0x2960, [RomStringTable.Controller] = 0x510 }));
 
     // The debug ROM's archive and DB block are 1.0's moved by +0xEB80, but for its credits, which are 0x30 bytes shorter.

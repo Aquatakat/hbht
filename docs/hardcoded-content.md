@@ -177,7 +177,6 @@ One shape runs through them all: the best member (or the living pooled) rolls a 
 | The fly-throughs' map set, the Overworld | `TitleScreen.Overworld` | `Title.StartScenery` `0x80054d70` | 1: the title record |
 | The help menu is script 1355 | `SystemMenu.HelpScript` | `gametrek.cpp` | 1: a game setting |
 | The backdrops' pictures: 1–4 and 9–12 pick a Borg8 (`0x3602`–`0x3608`) and the page's text, pulse and shadow colours; only 4 narrows the text | `BackdropStyle.For` | `Backdrop.Page` `0x80047930`, `Backdrop.Widgets` `0x80046db8` | 1: a record per picture |
-| The lighthouse's lit scenes while 5017 holds (Overworld A15, Lighthouse A05) | not ported | `CheckToggleZoneScene` `0x8000aa14` | 1: a chunk scene's flag condition |
 | Interiors are the terrains whose sky isn't drawn, for the camera | `FollowCamera.ModeFor` | `TeleportPlayer` | 1: a camera mode on the terrain record |
 | The Extended draw distance only in the Overworld | `SceneryRing.Overworld` | port's own | 1: a map set field |
 | Thunder's lifetimes, 240, 360, 420, 360, by place | `WeatherSounds.ThunderTicks` | `RenderSky` `0x8001d840` | 1: beside each sound on `aidyn:sounds/0` |

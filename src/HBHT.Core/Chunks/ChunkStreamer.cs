@@ -20,6 +20,9 @@ public sealed class ChunkStreamer
 {
     private readonly PluginSet _plugins;
     private readonly GameState _game;
+    /// <summary>The map set's chunks as it has them.</summary>
+    private readonly Dictionary<ChunkKey, ChunkEntry> _own = [];
+    /// <summary>The map set's chunks, the loaded ones as they were drawn as they loaded (<see cref="ChunkEntry.Drawn"/>).</summary>
     private readonly Dictionary<ChunkKey, ChunkEntry> _chunks = [];
     private readonly Dictionary<ChunkKey, LoadedMap> _maps = [];
     private readonly ChunkSurfaces? _surfaces;
@@ -78,7 +81,11 @@ public sealed class ChunkStreamer
     /// <summary>The chunk a loaded map is.</summary>
     public ChunkEntry? ChunkOf(LoadedMap map) => _chunks.GetValueOrDefault(map.Key);
 
-    /// <summary>Loads the chunks around <paramref name="position"/> and frees the rest. Returns whether any changed.</summary>
+    /// <summary>
+    /// Loads the chunks around <paramref name="position"/> and frees the rest, and loads again a chunk the flags now draw with other
+    /// scenes (<see cref="ChunkEntry.Swap"/>), as the original does a cell whose scene isn't the one it was loaded with
+    /// (<c>LoadGameBorgScenes</c>). Returns whether any changed.
+    /// </summary>
     public bool Update(Vector3 position)
     {
         Focus = position;
@@ -95,14 +102,14 @@ public sealed class ChunkStreamer
         }
 
         var changed = false;
-        foreach (var cell in _maps.Keys.Where(k => !wanted.Contains(k)).ToList())
+        foreach (var cell in _maps.Keys.Where(k => !wanted.Contains(k) || Redrawn(k)).ToList())
         {
             Unload(cell);
             changed = true;
         }
         foreach (var cell in wanted.Where(k => !_maps.ContainsKey(k)).ToList())
         {
-            Load(_chunks[cell]);
+            Load(_own[cell]);
             changed = true;
         }
         return changed;
@@ -121,9 +128,10 @@ public sealed class ChunkStreamer
     {
         Clear();
         MapSet = set;
+        _own.Clear();
         _chunks.Clear();
         foreach (var chunk in set.Chunks)
-            _chunks[ChunkKey.Of(set, chunk)] = chunk;
+            _own[ChunkKey.Of(set, chunk)] = _chunks[ChunkKey.Of(set, chunk)] = chunk;
     }
 
     /// <summary>Frees every loaded chunk.</summary>
@@ -136,11 +144,17 @@ public sealed class ChunkStreamer
     /// <summary>
     /// Gates the loaded chunks' scene objects again by the flags, as the original does when it reloads
     /// the map after the pause menu, a shop, training, a battle or a teleport (<c>loadGameBorgScenes</c>).
-    /// Collision and the rest of the objects stay as they are.
+    /// Collision and the rest of the objects stay as they are, but for a chunk the flags now draw with other scenes, which loads
+    /// again whole (<see cref="Update"/>).
     /// </summary>
-    /// <returns>The maps whose scene objects came or went.</returns>
+    /// <returns>The maps whose scene objects came or went, but for those loaded again.</returns>
     public IReadOnlyList<LoadedMap> Regate()
     {
+        foreach (var cell in _maps.Keys.Where(Redrawn).ToList())
+        {
+            Unload(cell);
+            Load(_own[cell]);
+        }
         IReadOnlyList<LoadedMap> changed = [.. _maps.Values.Where(m => m.Regate(_game.Flags, _game.Memory))];
         foreach (var map in changed)
             Refresh(map);
@@ -179,10 +193,11 @@ public sealed class ChunkStreamer
     }
 
     // The chunk's collision, and its objects activated by the flags as the original does as it loads
-    // (VoxelObjects_Activate).
-    private void Load(ChunkEntry chunk)
+    // (VoxelObjects_Activate), with the scenes the flags draw it with (CheckToggleZoneScene).
+    private void Load(ChunkEntry own)
     {
-        var cell = ChunkKey.Of(MapSet, chunk);
+        var cell = ChunkKey.Of(MapSet, own);
+        var chunk = _chunks[cell] = own.Drawn(_game.Flags.Holds);
         var origin = Origin(chunk);
         if (CollisionMesh.For(_plugins, chunk.Map) is { Count: > 0 } collision)
             World.Add(cell, collision, origin);
@@ -191,6 +206,9 @@ public sealed class ChunkStreamer
         Visible?.Add(cell, _surfaces!.For(chunk, map), origin);
         Loaded?.Invoke(chunk, map);
     }
+
+    /// <summary>Whether a loaded chunk's scenes aren't the ones the flags draw it with now. Only a chunk with a swap reads its flag.</summary>
+    private bool Redrawn(ChunkKey cell) => _own[cell].Swap is not null && _own[cell].Drawn(_game.Flags.Holds) != _chunks[cell];
 
     private void Unload(ChunkKey cell)
     {

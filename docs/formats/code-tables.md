@@ -37,7 +37,7 @@ Code tables name entities, dialogue entities, spells, armor, weapons and items b
 | Camp dialogue check (4240, set while it runs) | `Camp.cpp` | Fact | camping `Checking` |
 | Camp scenes: the first dialogue object in the player's chunk whose flag A is one of eight, and holds, however far | `CampDialogueFlags` `0xD85F0` (`Camp_CheckDialougFlags`) | `EngineTables` | camping `Scenes` |
 | Camp ambushes only while derived 5004 holds (`FLAG_Gwernia2MembersNoBrenna`: two of Abrecan, Godric and Rheda joined) | `Party::CampCheck` | Fact | camping `Ambushes` |
-| The lighthouse chunks' lit scenes while 5017 holds | `CheckToggleZoneScene` `0x8000aa14` | Fact (the flag's label only) | none: not ported ([hardcoded content](../hardcoded-content.md#trek-and-the-world)) |
+| The lighthouse chunks' lit scenes while 5017 holds: the dark scenes tested, the flag and the lit scenes, as immediates | `CheckToggleZoneScene` `0x8000aa14`, from `0x8000aa3c` | `ToggledScenes` | map set chunks' `swap` ([maps](maps.md)) |
 | Minimap pieces by flag: the Ehud underground (4222–4232), the Roog entrance (4233–4237), the Barrows (4286–4294) | `MinimapFlagImages` `0xE07C8` (`minimap_dats_2`); which Barrows piece each shows, `MiniMap::BarrowsFlags` `0x8004bfac` | `Minimaps`, the Barrows' as facts (`MinimapImporter`) | `aidyn:minimap/<map set>` |
 | The Theatre lists a cinematic once its title's flag is set | `TheatreMenu.cpp` | DB block | cinematic |
 | Flag 5626, read after every map object's flag write, its value unused ([map objects](../systems/map-objects.md#map-objects-write-flags)) | `objectJumpTables.cpp` | Fact | none |

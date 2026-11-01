@@ -64,7 +64,7 @@ public sealed class ChunkSurfaces(PluginSet plugins)
     /// </summary>
     public void Warm(ChunkEntry chunk)
     {
-        foreach (var scene in new[] { chunk.Scene, chunk.AltScene }.OfType<RecordId>())
+        foreach (var scene in chunk.AllScenes)
             Scene(scene);
         if (plugins.TryGet<MapRecord>(chunk.Map) is not { } map)
             return;
