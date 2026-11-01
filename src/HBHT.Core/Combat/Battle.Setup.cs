@@ -163,6 +163,11 @@ public sealed partial class Battle
         _rooted = rules.Rooted ?? [];
         foreach (var combatant in Combatants)
         {
+            // 1.0 makes the bodies here, in slot order, after Combat.Setup has built the turn order (Combat.Init, 0x80022ED8), so a
+            // body that finds no floor where it's made tries to the side (Body.SetDown's draws) after the turn order's draws.
+            // The cell isn't moved with it: the target sets' reach tests read a nudged body into it (Combat.ResetTargetSets, next).
+            combatant.Body.Sphere.Position = Body.SetDown(World, BodyStart(Arena.Origin, combatant.Cell), combatant.Look.Radius,
+                Game.Random.Combat).Position;
             combatant.UpdateRadius(this);
             combatant.PlaceField(this);
         }
@@ -326,7 +331,7 @@ public sealed partial class Battle
         var (name, point, direction) = Spawn(party, reserve: false, letter, roll, Game.Random.Combat);
         if (point is null)
             _problems.Add($"{Arena.Map.Id} has no spawn {name}, where the original stops (FindReferencePointName).");
-        return Make(slot, sheet, hostile, party, CellOf(point), direction);
+        return Make(slot, sheet, hostile, party, CellOf(point), direction, nudge: false);
     }
 
     /// <summary>A spawn's cell: its X and Z truncated, or the zone engine's point for one the arena lacks.</summary>
@@ -339,14 +344,16 @@ public sealed partial class Battle
     /// <summary>
     /// A combatant at a cell, facing a direction (<c>Combatant.Init</c> and <c>Combat.CreateBody</c>): its footprint taken on the
     /// grid, its body made a unit up and set down, and what A does with its weapon (<see cref="Combatant.SetDefaultAction"/>).
+    /// Without <paramref name="nudge"/>, a body that finds no floor stays where it was made, for the setup's bodies to try to the side
+    /// on the combat stream after the turn order is built, as 1.0's <c>Combat.CreateBody</c> does (<see cref="Build"/>).
     /// </summary>
-    private Combatant Make(int slot, Character sheet, bool hostile, bool party, Vector2 cell, int direction)
+    private Combatant Make(int slot, Character sheet, bool hostile, bool party, Vector2 cell, int direction, bool nudge = true)
     {
         var look = sheet.Record.Body ?? NoBody;
         var footprint = Footprint(look);
         var at = BodyStart(Arena.Origin, cell);
         // A body walking to a point in combat gives it up where it stands after 30 ticks of coming no nearer (Body.StepTowardGoal).
-        var body = Body.Spawn(World, at, look, Game.Random.Combat);
+        var body = Body.Spawn(World, at, look, nudge ? Game.Random.Combat : null);
         body.Heading = Directions[direction];
         body.GiveUpTicks = 30;
         body.StaysWhenStalled = true;
