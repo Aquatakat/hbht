@@ -170,7 +170,23 @@ Light wasn't cast, as base Sholeh doesn't know it. The Healer's popup didn't ope
 
 One Wraith turn differs, 0040. 1.0's Wraith turned to face for 3 frames after its walk, its body running on 0.63, and cast Wraith Touch at Dougal from (17.01, 23.13). The port's took 2 ticks to turn and decided at (17.04, 23.76), out of reach, then rested while its body ran on. It's the cadence. 1.0 decides two frames after a walk arrives, and the logger's 6-tick frames had carried its body 0.63 on by then ([combat](systems/combat.md#the-ai)). At 30 fps that's about 4 ticks, the port's 2–3. It's a known cadence turn in the replay.
 
+Setup 7's session (`out/parity/20261031-223128-setup7`), against the Dust Devil and the Air Elemental, was won. Every action passes:
+- Alaron's Wind at the Air Elemental, for nothing (Air ×0);
+- Keelin's Short Sword at the Dust Devil, Cutting taking Physical's ×0.25;
+- Alaron's Lodin's Sword at the Air Elemental, which hurt it: the sword is Holy, which its Physical ×0 doesn't cover;
+- Dougal's Control Elem landing on the Air Elemental, which then fought the Dust Devil for the party;
+- the Dust Devil's Debilitation and Lightning, and Dougal's Fireballs;
+- the win with the charmed Air Elemental the only enemy left.
+
+1.0's line for Alaron's Wind read "Air Elemental casts Wind", the user saw. A cast that does no damage logs through `Combatant.LogResisted` (`0x8006382C`), which takes the caster for the casts line and the target for the resists line. `CastCurrentSpell` passes the target as both (`0x80065C84`), so the target is named as the caster. The port's line names the caster.
+
+Banishing went unchecked. Debilitation at 10 takes 20 from Strength, and Alaron, at 9, had no more turns: `Combatant.UpdateActive` (`0x8006615C`) makes a combatant with no Intelligence, Willpower, Dexterity or Strength left inactive, in the port as in 1.0.
+
+Every enemy turn passes but one. At 0024 the charmed Air Elemental's walk ended 1.17 short of 1.0's and didn't strike the Dust Devil. At the logger's 4-tick frames the port's ends within 0.01 of 1.0's and strikes, and its walk at 0021 ends at 1.0's too. It's a known cadence turn in the replay.
+
 Still to do:
+
+- **Banishing,** which setup 7 didn't reach: setup 7 again, with Alaron casting it on his first turn, before the Dust Devil's Debilitation can take his Strength.
 
 - **Setup 2's walks,** above: which way 1.0's Spellweaver curved at the second's 0016.
 - **Positions, shown but not checked:**
