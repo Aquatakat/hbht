@@ -197,6 +197,16 @@ internal static class CombatCheckpoints
             }
             if (c.Sheet.Equipment.Weapon is { Charges: not null } held && cp.ReadWord(weapon + 0x10) is var charges and >= 0x80000000 and < 0x80800000)
                 held.Charges = cp.ReadByte(charges + 4);
+            // The batteries (the StatMod at +0xC's amount, +1), which casts draw before Stamina: Kitarak's Warfang has 15. The armor
+            // and shield are +0x20's two pointers, and the gear +0x28's slots.
+            var armor = cp.ReadWord(sheet + 0x20);
+            var gear = cp.ReadWord(sheet + 0x28);
+            var slots = InRam(gear) ? cp.ReadWord(gear) : 0;
+            LayBattery(cp, c.Sheet.Equipment.Weapon, weapon);
+            LayBattery(cp, c.Sheet.Equipment.Armor, InRam(armor) ? cp.ReadWord(armor) : 0);
+            LayBattery(cp, c.Sheet.Equipment.Shield, InRam(armor) ? cp.ReadWord(armor + 4) : 0);
+            for (var i = 0; i < Equipment.GearSlots && InRam(slots); i++)
+                LayBattery(cp, c.Sheet.Equipment.Gear[i], cp.ReadWord(slots + (uint)i * 4));
 
             var stats = cp.ReadWord(sheet + 0x18);
             foreach (var stat in Enum.GetValues<Stat>())
@@ -205,11 +215,13 @@ internal static class CombatCheckpoints
                 SetStat(c.Sheet.Stats, stat, cp.ReadByte(stats + i), (sbyte)cp.ReadByte(stats + 7 + i), cp.ReadByte(stats + 0xE + i), (sbyte)cp.ReadByte(stats + 0x15 + i));
             }
             // The skills' base and modified levels (+0x1C), which the potions' and gear's bonuses, laid on without starting, don't move.
+            // Laid raw: training caps a base, which an entity's record can pass (Lugash's Wizard 15).
             var skills = cp.ReadWord(sheet + 0x1C);
+            var (rawBase, rawModified) = (SkillBytes(c.Sheet.Skills, "_base"), SkillBytes(c.Sheet.Skills, "_modified"));
             foreach (var skill in SkillId.All)
             {
-                c.Sheet.Skills.Train(skill, (sbyte)cp.ReadByte(skills + (uint)skill.Slot) - c.Sheet.Skills.RawBase(skill));
-                c.Sheet.Skills.Modify(skill, (sbyte)cp.ReadByte(skills + 0x18 + (uint)skill.Slot) - c.Sheet.Skills.RawModified(skill));
+                rawBase[skill.Slot] = (sbyte)cp.ReadByte(skills + (uint)skill.Slot);
+                rawModified[skill.Slot] = (sbyte)cp.ReadByte(skills + 0x18 + (uint)skill.Slot);
             }
             OverlayEffects(game, cp, sheet, c.Sheet);
             // The protection (+0x14's +2), which the effects laid on without starting don't add.
@@ -335,6 +347,21 @@ internal static class CombatCheckpoints
     }
 
     /// <summary>Sets a stat's four values (trained, current, base, modified) by what the sheet's mutators can do.</summary>
+    private static bool InRam(uint pointer) => pointer is >= 0x80000000 and < 0x80800000;
+
+    private static sbyte[] SkillBytes(CharacterSkills skills, string field) =>
+        (sbyte[])typeof(CharacterSkills).GetField(field, BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(skills)!;
+
+    /// <summary>An item's battery from its <c>ItemInstance</c> in RAM: the Stamina (stat 5) its <c>StatMod</c> has left.</summary>
+    private static void LayBattery(AresCheckpoint cp, ItemInstance? item, uint instance)
+    {
+        if (item is not { Battery: not null } || !InRam(instance))
+            return;
+        var statMod = cp.ReadWord(instance + 0xC);
+        if (InRam(statMod) && cp.ReadByte(statMod) == 5)
+            item.Battery = (sbyte)cp.ReadByte(statMod + 1);
+    }
+
     public static void SetStat(CharacterStats stats, Stat stat, int trained, int current, int @base, int modified)
     {
         if (stats.Trained(stat) != trained)

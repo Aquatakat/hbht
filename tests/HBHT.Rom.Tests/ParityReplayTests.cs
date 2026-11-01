@@ -413,6 +413,8 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
         [("20261031-223128-setup7/battle-01", "0024.rdram.gz")] = "the charmed Air Elemental's walk at the logger's 4-tick frames ends 1.17 further on, in reach of the Dust Devil; the port's at 4-tick frames ends within 0.01 of it and strikes",
         [("20261031-230020-setup8/battle-01", "0018.rdram.gz")] = "the Giant Skeleton's walk ends 0.58 off 1.0's and out of reach of Dougal; at 3-tick frames the port's strikes him as 1.0's does",
         [("20261031-230020-setup8/battle-01", "0037.rdram.gz")] = "the Skeleton Archer faces 162° from its leg and swings wide through +Z as it turns, coming no nearer, and 1.0's body gives up after 11 frames; the port's turns round at 2-tick frames and walks on, and at 5-tick frames gives up and shoots from within 0.27 of 1.0's",
+        [("20261101-083418-setup11/battle-01", "0009.rdram.gz")] = "the Hobgoblin's walk at Alaron ends 1.05 off 1.0's, out of reach, and it rests; at the logger's 4-tick frames the port's strikes him from within 0.08 of 1.0's",
+        [("20261101-083418-setup11/battle-01", "0068.rdram.gz")] = "not the cadence but the animation: 1.0's Hobgoblin was mid-fidget (its actor's state 12, clock 27 of 101), which takes no run request, so its walk to (19, 10) gave up after 30 ticks on its cell; the replay starts bodies idle, and the port's walks to (19, 11.14). Seeded at state 12, clock 27, the port's acts from (19, 12) as 1.0's does",
     };
 
     /// <summary>

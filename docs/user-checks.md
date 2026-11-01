@@ -226,6 +226,30 @@ Every enemy turn passes but one, 0008 in the second battle. 1.0's Troll stuck on
 
 The second battle's first ring was turned 0.054° from the port's. 1.0 keeps the way round its rings from ring to ring ([combat](systems/combat.md#the-arenas)), and each ring falls 0.006° short of a turn: 9 rings in the first battle make 0.054°. The ring's check now allows for the rings laid before it in the session.
 
+Setup 11's session (`out/parity/20261101-083418-setup11`), against Kitarak and his Hobgoblins in arena 26, was won. The pause menu had no Flee, as 0x800D9481 is clear for a boss. The journal's "We killed the goblin king Kitarak" came only once the party left the room, where the port tells it as trek fades in, the user's choice ([flags](systems/flags.md#when-the-network-comes-up-to-date)). Every action passes:
+- Kitarak's 17 Tap Staminas and his Warfang blows, whose enchantment is Tap Stamina 3;
+- the Hobgoblins' Spirit Shields and Tap Staminas;
+- the party's blows, shots and Healing Potions;
+- the win.
+
+Kitarak never cast Crushing Death in the log. His Tap Stamina scores 55 + 5 wherever it reaches anyone, and Crushing Death 13 + 2 ([combat](systems/combat.md#the-ai)).
+
+One difference was the replay's own. Warfang has a 15-point Stamina battery, which a cast draws before Stamina, and the overlay laid its charges but not the battery. Kitarak's casts at 0209 and 0219, with the battery spent, took his own Stamina in 1.0 and the full battery in the port. The overlay now lays each worn item's battery (its `StatMod` at `+0xC`).
+
+Every enemy turn passes but two, neither of them the port's rules:
+- **0009** is the cadence. The Hobgoblin's walk at Alaron ended 1.05 off 1.0's, out of reach, and it rested. At the logger's 4-tick frames the port's strikes him from within 0.08 of 1.0's. It's a known cadence turn in the replay.
+- **0068** is the animation. The newcomer Hobgoblin in slot 6 cast Spirit Shield on itself. 1.0's AI chose (19, 10), as the port's does, with the same scores and path, run in 1.0's interpreter on that RAM. But its actor was mid-fidget, which takes no run request, so its body never moved, and the stuck timer gave up after 30 ticks on its cell, (19, 12) ([combat](systems/combat.md#the-ai)). The replay starts every body idle, so the port's walked to (19, 11.14). Seeded in the fidget's state and clock, it acts from (19, 12) as 1.0's does. It's logged with the known cadence turns until the replay lays each actor's state from the RAM.
+
+Setup 12's session (`out/parity/20261101-092600-setup12`) has five battles against Lugash, in arena 18. Battles 1–3 were lost: his Wall of Bones held Alaron and Sholeh, the only two who could hurt him, through Alaron's vs. Necromancy. Battle 4 fled at once, as 5250's rule allows (`Combat.ApplyFleeRuleByFlag`, after `Combat.Setup`'s dump, which reads 0). Battle 5 can be ignored. Every action and every Lugash turn passes:
+- his Wall of Bones on all four members and Clumsiness on Keelin;
+- Sholeh's four Webs of Starlight at him, none of which held;
+- Alaron's blows with Lodin's Sword, Holy;
+- Fireball, Debilitation, Wind, the shots and Keelin's blow, which did nothing.
+
+One difference was the replay's own. The overlay laid each skill through `CharacterSkills.Train`, which holds a base at the trainer's cap. Lugash's record has Wizard 15, over it, so a Train of 0 took his base to 10. The overlay now lays the skills' bytes as they are. The rules read the base through the cap.
+
+No Cheat Death was on Lugash in 1.0's RAM: his effect records were empty at every turn.
+
 Still to do:
 
 - **Setup 2's walks,** above: which way 1.0's Spellweaver curved at the second's 0016.
@@ -304,8 +328,9 @@ The saves are in `out/parity/saves/`. `base.json` is story save A with the party
 - **Setup 10, `setup10.json`, in slot B.** The party stands 10 east of the 12 Trolls (N24 #0, level 15, Strength 40, radius 8), facing them, 37 from O24's Cyclops (#2, radius 15). The only floor near the Trolls runs east from them. Alaron knows Cheat Death 5 (a Gemstone, 5 Stamina) and has 10 Stamina, at 48 of 117 HP. Keelin has 2 Stamina, at 34 of 72.
 - **Setup 11, `setup11.json`, in slot A.** `base.json` with 154 (Kitarak beaten), 1210 (his party talked to) and 151 (his conversation's done flag) cleared, so Kitarak's party (GoblinCamp C01 #3, `0x021D`, level 10, with 6 Hobgoblins, level 5) is back. 3122 is set, so the Chaos Major's party (#4, enabled by 458), 6 from Kitarak's home, is gone. The party stands at (13, 6) inside the room's door (teleporter #1), 10 from Kitarak, facing him. His conversation (`0x03CF`) is six lines and a battle. He wields Warfang (Magic) and knows Tap Stamina 5, Spirit Shield 4 and Crushing Death 2. The Hobgoblins have Great Axes, Tap Stamina 5 and Spirit Shield 4. Both are Naming ×1.25.
 - **Setup 12, `setup12.json`, in slot B.** `base.json` with 533 (Lugash beaten) and 548 (Fate recovered) cleared, so 5250 holds: its inputs 532, 533, 548 and 4279, as bits, are 8. That enables the dialogue object #9 (`0x04D1`, tangible, radius 10) and Lugash's party #11. The party stands at the stair's foot (`stairbottom`, (8.6, 14.6)), 15.7 from the dialogue, facing Lugash. With 548 clear, the script runs Lugash's speech to a menu, whose "Give me the horn." sets 532 and starts the battle, in arena 18. Lugash (level 25, Lunar) is Physical ×0 and Magic ×0. He knows Whitefire, Darkness, Wall of Bones and Crushing Death at 15, and Clumsiness at 10. Alaron's Lodin's Sword is Holy. The script's 532 takes 5250 down, so each try needs the save loaded again.
+- **Setup 12b, `setup12b.json`, in slot B, once 12's.** Setup 12 with Dougal and Keelin each wielding a Lightreaver, a Holy sword with no Strength required (damage 10, hit 100, Physical ×0 for its wearer), so three members can hurt Lugash.
 - **Setup 13, `setup13.json`, in slot C.** `base.json` but for the place: (52, 49), at the east mouth of the Gorgons' hollow, 15 from their home (MiscInteriors A09 #1, `0x0217`, radius 20), facing it. The three Gorgons are level 10, Lunar, Physical ×0.5 and morale 11, with Frozen Doom 10. Arenas 12–13 have one flee point. The leader isn't asked its morale while it lives, so a flight comes from Sholeh's Solar Wrath 8, or from the others falling.
 
-Setups 5 and 6 replaced 1 and 2 in slots A and B, then 7, 7b and 8 replaced 5b, 6 and 3 in A, B and C, 9 and 10 replaced 7 and 7b in A and B, and 11, 12 and 13 replaced 9, 10 and 8 in A, B and C. Slot D holds 4. To fight an earlier one again, write its save back with `hbht save to-pak`.
+Setups 5 and 6 replaced 1 and 2 in slots A and B, then 7, 7b and 8 replaced 5b, 6 and 3 in A, B and C, 9 and 10 replaced 7 and 7b in A and B, 11, 12 and 13 replaced 9, 10 and 8 in A, B and C, and 12b replaced 12 in B. Slot D holds 4. To fight an earlier one again, write its save back with `hbht save to-pak`.
 
 Every log also settles the frame's delta in combat, and the first one where in a turn an attack's draws fall, both in [combat](systems/combat.md#not-settled). Each party above is always enabled but Kitarak's (while 154 is clear) and Lugash's (5250); others can stand in from the base plugin's monster parties.
