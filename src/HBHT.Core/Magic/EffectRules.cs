@@ -199,7 +199,8 @@ internal static class EffectRules
                 // The clock's own part of the day (World+1), not the one Darkness holds.
                 if (h.DayOnly && partOfDay == PartOfDay.Night)
                     break;
-                sheet.Heal(record.Margin);
+                // Healed by the margin as a byte (Entity.AgeEffects, kind 0x2E), counted as it's signed.
+                sheet.Heal((byte)record.Margin);
                 healed += record.Margin;
                 break;
             case ImmobiliseEffect { Escape: > 0 } i:
