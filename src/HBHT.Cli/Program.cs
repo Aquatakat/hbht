@@ -517,17 +517,23 @@ static int SaveToPak(string rom, string path, char slot, string? pak)
     var saves = new PakSaves(InstalledPlugins(), RomImage.Load(rom));
     var problems = new List<string>();
     var save = saves.FromSave(SaveFile.Read(path), problems);
-    ControllerPak target;
+    var target = File.Exists(pak) ? ControllerPak.Read(pak) : ControllerPak.Blank();
+    try
+    {
+        saves.Write(target, slot, save);
+    }
+    catch (InvalidOperationException e)
+    {
+        // A full pak: say so, and name the slots that could be replaced instead.
+        Console.Error.WriteLine($"Couldn't write slot {slot}: {e.Message} Replace one of the saves in it ('hbht save pak {rom}' lists them).");
+        return 1;
+    }
     if (File.Exists(pak))
     {
-        target = ControllerPak.Read(pak);
         var backup = $"{pak}.{DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)}.bak";
         File.Copy(pak, backup);
         Console.WriteLine($"Kept the pak as it was in {backup}");
     }
-    else
-        target = ControllerPak.Blank();
-    saves.Write(target, slot, save);
     target.Write(pak);
     foreach (var problem in problems)
         Console.Error.WriteLine(problem);
