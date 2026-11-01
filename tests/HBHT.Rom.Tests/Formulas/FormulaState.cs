@@ -86,10 +86,13 @@ internal static class FormulaState
         ["height"] = (b, a) => SetHeight(b.Battle.Grid, Int(a[0]), Int(a[1]), Int(a[2])),
         ["daypart"] = (b, a) => b.Game.Weather!.PartOfDay = (PartOfDay)Int(a[0]),
         ["troubadour"] = (b, a) => CombatCheckpoints.Poke(b.Battle, nameof(Battle.TroubadourBonus), Int(a[0])),
+        // Put in hand whoever may wield it, as the RAM's pointer is (the port's Equipment.EquipWeapon refuses another's item).
         ["weapon"] = (b, a) => KeepingStats(Slot(b, a[0]).Sheet, s =>
         {
             s.Equipment.RemoveWeapon();
-            Assert.Equal(EquipRefusal.None, s.Equipment.EquipWeapon(new ItemInstance(b.Game.Items.TryGet(TestRoms.ItemId((ushort)Int(a[1])))!)));
+            var weapon = new ItemInstance(b.Game.Items.TryGet(TestRoms.ItemId((ushort)Int(a[1])))!);
+            if (s.Equipment.EquipWeapon(weapon) != EquipRefusal.None)
+                typeof(Equipment).GetProperty(nameof(Equipment.Weapon))!.SetValue(s.Equipment, weapon);
         }),
         ["noshield"] = (b, a) => KeepingStats(Slot(b, a[0]).Sheet, s => s.Equipment.RemoveShield()),
         ["resist"] = (b, a) =>
@@ -103,6 +106,12 @@ internal static class FormulaState
             SetRecord(sheet, sheet.Record with { Resistances = [.. list.Where(r => r.Element != Element.None)] });
         },
         ["aspect"] = (b, a) => SetRecord(Slot(b, a[0]).Sheet, Slot(b, a[0]).Sheet.Record with { Aspect = (Aspect)Int(a[1]) }),
+        ["acted"] = (b, a) =>
+        {
+            var c = Slot(b, a[0]);
+            c.Flags |= CombatantFlags.Acted;
+            c.CastMargin = (sbyte)Int(a[1]);
+        },
         ["effect"] = (b, a) =>
         {
             var on = Slot(b, a[0]);

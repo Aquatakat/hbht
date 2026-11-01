@@ -18,9 +18,12 @@ the port's names (Stat, Skill, WeaponClass, Shield). The pokes:
     troubadour:n           the Troubadour's bonus (Combat+0x13)
     weapon:slot,id         the entity's weapon (+0x24) a new instance of item id (hex, the DB's: 0x07xx), its stats left as they were
     noshield:slot          no shield (the armor pair's second, entity+0x20 +4)
-    resist:slot,i,e,m      the combatant's resistance entry i (0-1: +0x30 + 8i, the element byte and the f32 multiplier)
-    aspect:slot,n          the entity's aspect (0 none, 1 Lunar, 2 Solar)
+    resist:slot,i,e,m      the combatant's resistance entry i (0-1: +0x30 + 8i, the element byte and the f32 multiplier at +4); element
+                           0 is none
+    aspect:slot,n          the sheet's aspect, 1 Lunar or 2 Solar (entity+0x14, +0xC bit 4 set for Solar)
     effect:slot,kind,power,timer,margin    Character.AddEffect (0x800702F0), as the spells lay one on
+    acted:slot,margin      the combatant has acted this turn (flags +0x2C bit 0) with a cast's margin kept (entity+0x3C), as PrepareCast
+                           leaves them
 A family can add its own pokes (a dict of name -> function(State, args) passed to State.poke).
 """
 import gzip
@@ -195,12 +198,21 @@ def _resist(st, a):
 
 
 def _aspect(st, a):
-    raise NotImplementedError('aspect: settled by the research')
+    # The sheet's (entity+0x14) +0xC bit 4: Solar set, Lunar clear (Combatant.AspectScale, 0x80062CF8).
+    sheet = st.cpu.rd32(st.entity(_int(a[0])) + 0x14)
+    v = st.cpu.rd8(sheet + 0xC)
+    st.cpu.wr8(sheet + 0xC, (v | 4) if _int(a[1]) == 2 else (v & ~4))
 
 
 def _effect(st, a):
     p = st.record(_int(a[0]))
     st.call(0x800702F0, [st.cpu.rd32(p + 0x40), _int(a[1]), _int(a[2]), _int(a[3]), _int(a[4]), p])
+
+
+def _acted(st, a):
+    p = st.record(_int(a[0]))
+    st.cpu.wr16(p + 0x2C, st.cpu.rd16(p + 0x2C) | 1)
+    st.cpu.wr8(st.entity(_int(a[0])) + 0x3C, _int(a[1]))
 
 
 def alloc(cpu, size, tag=0x800D2668):
@@ -210,5 +222,5 @@ def alloc(cpu, size, tag=0x800D2668):
 POKES = {
     'mod': _stat('modified'), 'base': _stat('base'), 'cur': _stat('current'), 'skill': _skill, 'place': _place, 'face': _face,
     'height': _height, 'daypart': _daypart, 'troubadour': _troubadour, 'weapon': _weapon, 'noshield': _noshield, 'resist': _resist,
-    'aspect': _aspect, 'effect': _effect,
+    'aspect': _aspect, 'effect': _effect, 'acted': _acted,
 }

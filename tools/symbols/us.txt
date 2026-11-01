@@ -1319,6 +1319,7 @@ Character.SubStat = 0x80072450; // Character.Effects.cs: AddStat's reverse, boun
 Character.RemoveEffect = 0x800724b8; // Character.Effects.cs: (entity, slot): UndoEffect, frees the visual and the record
 Entity.IsWeakeningKind = 0x8007253c; // coined; docs/systems/magic.md: the record's kind is in 0x800d34b4
 Entity.Aspect = 0x80072844; // coined; docs/systems/magic.md: 2 Solar if entity+0x14 struct flag bit 2, else 1 Lunar
+Spell.Free = 0x800728d8; // coined; docs/systems/combat-actions.md: (spell): frees a spell struct's buffers at +0xC and +0x10 and zeroes them; Combatant.WeaponSpellProc frees its stack spell with it after every proc
 Inventory.Add = 0x80073574; // coined; docs/systems/magic.md: the party inventory's vtable +0x34: (id, count), Aspect potion to Healing
 Inventory.Remove = 0x80073688; // coined; docs/systems/magic.md: vtable +0x3c: (id, count): true if the stack was there
 Inventory.LoadReserved = 0x80073af8; // coined; docs/systems/saves.md: (inventory, stream): 80 quantities of 8 bits into the slots from 0x80, the items from CodeTable.ReservedItems
