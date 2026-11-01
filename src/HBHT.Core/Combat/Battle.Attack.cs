@@ -435,6 +435,7 @@ public sealed partial class Battle
         if (a.Performing)
             a.StopPerforming(this);
         a.LastTarget = t.Slot;
+        _cast = null;
         int damage;
         if (spell)
         {
@@ -566,7 +567,6 @@ public sealed partial class Battle
     internal void Animate(Combatant c, int request)
     {
         c.Body.Request = request;
-        c.CastStrike = SpellRecord.DefaultStrike;
         Cue(new CombatantAnimated(c, request));
     }
 
@@ -578,6 +578,15 @@ public sealed partial class Battle
     private bool SwingEnded()
     {
         _actionTimer++;
+        // The port's: a spell lands at its strike in its effect, not as its caster's cast ends (SpellRecord.Strike).
+        if (_cast is { } spell)
+        {
+            if (!spell.Started || spell.Fx is { Struck: false } || _actionTimer < SwingTicks)
+                return false;
+            spell.Landed = true;
+            _actionTimer = 0;
+            return true;
+        }
         // A caster that Escape took off the field has no swing to wait for (the port's fix; the original waits for its body for ever).
         if (Current is not { } c || !c.Freed && c.Body.Playing != 0 || _actionTimer < SwingTicks)
             return false;
@@ -741,9 +750,12 @@ public sealed partial class Battle
     {
         if (TargetsA.Selected + TargetsB.Selected == 0 || Target < 0 || _slots[Target] is not { } t)
             return;
-        if (!t.Freed && (t.Body.Playing != 0 || _actionTimer < ResultTicks))
+        // The port's: a living target's reaction to a spell is waited for no longer than SpellReleaseTicks.
+        var released = _cast is { Landed: true } && !t.Sheet.IsDead && _actionTimer >= SpellReleaseTicks;
+        if (!t.Freed && !released && (t.Body.Playing != 0 || _actionTimer < ResultTicks))
             return;
         _actionTimer = 0;
+        _cast = null;
         if (t.Sheet.IsDead && !t.Freed)
             FreeBody(t);
         CameraOwner = Current;
@@ -769,9 +781,6 @@ public sealed partial class Battle
     private static bool AtStrike(Combatant c, IActorMotion animation)
     {
         var playing = c.Body.Playing;
-        // The port's: a spell's cast lands at its own share (SpellRecord.Strike), below 1; 1.0's every spell at the animation's end.
-        if (playing == CastRequest)
-            return c.CastStrike < 1 && animation.Frame == (ushort)(int)(animation.StateLength * c.CastStrike);
         if (playing is < FirstAttackRequest or > LastAttackRequest)
             return false;
         return animation.Frame == (ushort)(int)(animation.StateLength * StrikeShare(c.Look, playing));

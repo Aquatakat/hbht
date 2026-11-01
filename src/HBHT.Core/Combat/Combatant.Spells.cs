@@ -51,12 +51,6 @@ public sealed partial class Combatant
     /// </summary>
     public int CastMargin { get; internal set; } = -1;
 
-    /// <summary>
-    /// The share of its cast animation at which the spell it's casting lands (<see cref="SpellRecord.Strike"/>), set as the cast starts;
-    /// any other request puts back the original's, the animation's end.
-    /// </summary>
-    internal float CastStrike { get; set; } = SpellRecord.DefaultStrike;
-
     /// <summary>The action kept while a potion or flask is in hand (<c>+0x24</c>), which <see cref="RevertAction"/> puts back.</summary>
     internal CombatAction HeldAction { get; set; }
 

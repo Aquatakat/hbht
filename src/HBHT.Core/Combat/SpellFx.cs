@@ -95,6 +95,12 @@ public sealed class SpellFxVisual
 
     // B +0x28's flags.
     internal bool Live, RequestPending, Waiting, Playing, Loaded, Finished, StopAsked;
+
+    /// <summary>The share of its cast state at which its cast lands, for the actor that times it (<see cref="SpellFxCast.Struck"/>).</summary>
+    internal float? Strike;
+
+    /// <summary>Whether it has played to its <see cref="Strike"/>, or has no animation to play to it.</summary>
+    internal bool Struck;
 }
 
 /// <summary>
@@ -125,6 +131,15 @@ public sealed class SpellFxCast : IEffectVisual
     internal int Caster = -1, Target = -1;
     internal int First = -1, Second = -1, Lasting = -1;
     internal bool Live, Ended;
+
+    /// <summary>Whether the target's actor (<see cref="Second"/>) times the strike, rather than the caster's (<see cref="First"/>).</summary>
+    internal bool StrikesAtTarget;
+
+    /// <summary>
+    /// Whether the cast has come to its strike (<see cref="SpellRecord.Strike"/>, the port's): the actor that times it, the target's or
+    /// with none the caster's, has played that share of its cast state; at once with no actor, or once it's gone.
+    /// </summary>
+    public bool Struck => _fx.Struck(this);
 
     /// <summary>Whether it holds the sky's time of day while its effect lasts: Darkness's and Light's.</summary>
     internal bool HoldsTime => Effects.Any(e => e is PartOfDayEffect);
@@ -275,10 +290,17 @@ public sealed class SpellFx
                     Hold(cast.Target);
                 break;
         }
+        // The port's: the actor at the target, or with none the caster's, times the cast's strike.
+        cast.StrikesAtTarget = cast.Second >= 0;
+        if ((cast.StrikesAtTarget ? cast.Second : cast.First) is var timer and >= 0)
+            _visuals[timer]!.Strike = spell.Strike;
         cast.Live = true;
         Started(cast);
         return cast;
     }
+
+    internal bool Struck(SpellFxCast cast) =>
+        (cast.StrikesAtTarget ? cast.Second : cast.First) is not (var h and >= 0) || _visuals[h] is not { } v || v.Struck;
 
     /// <summary>
     /// A potion's visuals on one who drinks it or whom a flask's blast hurts (<c>CombatSpellFx.StartPotion</c>, <c>0x8008C664</c>,
@@ -573,8 +595,11 @@ public sealed class SpellFx
             // Its cast (request 5) from the first tick, stepped until the state's animation has run its length.
             if (motion is not null && motion.Frame < motion.StateLength)
                 motion.Tick(Battle.CastRequest);
+            if (v.Strike is { } strike && (motion is null || motion.Frame >= (int)(motion.StateLength * strike)))
+                v.Struck = true;
             if (motion is null || motion.Frame >= motion.StateLength)
             {
+                v.Struck = true;
                 v.Played = true;
                 if (host?.Emitting(v) != true)
                     v.Finished = true;

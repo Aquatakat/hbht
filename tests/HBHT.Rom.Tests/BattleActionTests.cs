@@ -339,48 +339,75 @@ public sealed class BattleActionTests(Na10Import fixture)
             - new System.Numerics.Vector2(run.Battle.Origin.X, run.Battle.Origin.Z));
     }
 
-    [Theory]
-    [InlineData(0.25f)]
-    [InlineData(0.5f)]
-    public void ASpellsStrikeLandsItPartWayThroughTheCastAnimation(float strike)
+    /// <summary>The spells' visuals with their actors' real animations, which a spell's strike is a share of.</summary>
+    private sealed class FxHost(PluginSet set) : ISpellFxHost
     {
-        // The port's, for mods: 1.0's every spell lands as the cast animation ends, the base plugin's 1.
-        var base1 = ActionTicks(SpellRecord.DefaultStrike);
-        var early = ActionTicks(strike);
-        Assert.True(base1.Length > 60, $"the cast animation runs {base1.Length} ticks");
-        var expected = Math.Max(Battle.SwingTicks, (int)(base1.Length * strike));
-        Assert.InRange(early.Ticks, expected - 2, expected + 2);
-        Assert.InRange(base1.Ticks, base1.Length - 2, base1.Length + 2);
+        private readonly Dictionary<SpellFxVisual, HBHT.Core.Actors.IActorMotion?> _motions = [];
 
-        // Rheda's vs. Naming at herself: the ticks state 2 waits before she's helped, and her cast animation's length.
-        (int Ticks, int Length) ActionTicks(float share)
+        public HBHT.Core.Actors.IActorMotion? Motion(SpellFxVisual visual) => _motions.TryGetValue(visual, out var m) ? m
+            : _motions[visual] = HBHT.Core.Actors.ActorMotion.For(set, set.Get<ActorRecord>(visual.Id), new HBHT.Core.Rng.Lcg(1));
+
+        public bool Emitting(SpellFxVisual visual) => false;
+    }
+
+    [Theory]
+    [InlineData(1f, 0f)]
+    [InlineData(0.5f, 0f)]
+    [InlineData(0.5f, 0.5f)]
+    [InlineData(0.1f, 0.25f)]
+    public void ASpellLandsAtItsStrikeInItsEffectWhichStartsAtTheCastersCastStrike(float strike, float castStrike)
+    {
+        // The port's, the user's choice: 1.0 starts every visual with the cast and lands it as the caster's cast animation ends.
+        // Rheda's vs. Naming at herself, whose effect is its caster's actor (0x1E4F's cast state, 159 ticks); her cast runs 239.
+        var run = Start();
+        var rheda = run.TurnOf("Rheda");
+        rheda.Look = rheda.Look with { CastStrike = castStrike };
+        var spell = run.Built.Game.Rules.Magic!.Spell(RecordId.Hex(RecordTypes.Spell, 0x031E))! with { Strike = strike };
+        rheda.Sheet.LearnSpell(spell);
+        rheda.Sheet.Skills.Train(HBHT.Core.Characters.Skill.Wizard, 10);
+        run.Built.Game.Party.Inventory.Add(run.Built.Game.Party.Inventory.Catalog.Rules.Gemstone);
+        Choose(run.Battle, false, r => r.Text == spell.Name);
+        for (var i = 0; i < Battle.SlotCount && run.Battle.TargetsB.Cursor != rheda.Slot; i++)
+            run.Battle.StepTarget(1);
+        Assert.True(run.Battle.Confirm());
+
+        var motions = new Dictionary<Combatant, HBHT.Core.Actors.IActorMotion?>();
+        HBHT.Core.Actors.IActorMotion? Motion(Combatant c) => motions.TryGetValue(c, out var m) ? m
+            : motions[c] = HBHT.Core.Actors.ActorMotion.For(Set, Set.Get<ActorRecord>(c.Look.Actor), run.Built.Game.Random.Animation);
+        var fx = new FxHost(Set);
+        void Tick() => run.Battle.Tick(run.Zone, false, Motion, fx: fx);
+        for (var i = 0; i < 2000 && run.Battle.State != CombatState.Action; i++)
+            Tick();
+
+        // The ticks of state 2 until the visual starts and until the cast lands, and the cast's and the effect's lengths.
+        var (ticks, started, cast, effect) = (0, -1, 0, 0);
+        while (run.Battle.State == CombatState.Action && ticks < 2000)
         {
-            var run = Start();
-            var rheda = run.TurnOf("Rheda");
-            var spell = run.Built.Game.Rules.Magic!.Spell(RecordId.Hex(RecordTypes.Spell, 0x031E))! with { Strike = share };
-            rheda.Sheet.LearnSpell(spell);
-            rheda.Sheet.Skills.Train(HBHT.Core.Characters.Skill.Wizard, 10);
-            run.Built.Game.Party.Inventory.Add(run.Built.Game.Party.Inventory.Catalog.Rules.Gemstone);
-            Choose(run.Battle, false, r => r.Text == spell.Name);
-            for (var i = 0; i < Battle.SlotCount && run.Battle.TargetsB.Cursor != rheda.Slot; i++)
-                run.Battle.StepTarget(1);
-            Assert.True(run.Battle.Confirm());
-            // The bodies with their actors' real animations, which the cast's share is of.
-            var motions = new Dictionary<Combatant, HBHT.Core.Actors.IActorMotion?>();
-            HBHT.Core.Actors.IActorMotion? Motion(Combatant c) => motions.TryGetValue(c, out var m) ? m
-                : motions[c] = HBHT.Core.Actors.ActorMotion.For(Set, Set.Get<ActorRecord>(c.Look.Actor), run.Built.Game.Random.Animation);
-            var (ticks, length) = (0, 0);
-            for (var i = 0; i < 2000 && run.Battle.State != CombatState.Action; i++)
-                run.Battle.Tick(run.Zone, false, Motion);
-            while (run.Battle.State == CombatState.Action && ticks < 2000)
+            Tick();
+            ticks++;
+            if (rheda.Body.Playing == Battle.CastRequest && Motion(rheda) is { } casting)
+                cast = casting.StateLength;
+            if (started < 0 && run.Battle.Fx.Visuals.FirstOrDefault(v => v.Owner == rheda && v.IsActor) is { } visual)
             {
-                run.Battle.Tick(run.Zone, false, Motion);
-                ticks++;
-                if (rheda.Body.Playing == Battle.CastRequest && Motion(rheda) is { } cast)
-                    length = cast.StateLength;
+                started = ticks;
+                effect = fx.Motion(visual)!.StateLength;
             }
-            return (ticks, length);
         }
+        Assert.InRange(cast, 200, 300);
+        Assert.InRange(effect, 120, 200);
+        var startAt = castStrike == 0 ? 0 : (int)(cast * castStrike);
+        Assert.InRange(started, startAt - 1, startAt + 3);
+        var landAt = Math.Max(Battle.SwingTicks, started + (int)(effect * strike));
+        Assert.InRange(ticks, landAt - 1, landAt + 3);
+
+        // State 4 waits for her reaction, her own cast playing on, no longer than SpellReleaseTicks.
+        var result = 0;
+        while (run.Battle.State == CombatState.Result && run.Battle.Current == rheda && result < 2000)
+        {
+            Tick();
+            result++;
+        }
+        Assert.InRange(result, Battle.ResultTicks, Battle.SpellReleaseTicks + 2);
     }
 
     [Fact]

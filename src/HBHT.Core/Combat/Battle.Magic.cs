@@ -95,6 +95,16 @@ public sealed partial class Battle : IMagicHost
         var point = _placed ?? AimCentre(caster);
         if (!TeleportLands(caster, point))
             return false;
+        if (_deferTeleport)
+            _teleportTo = point;
+        else
+            MoveTo(caster, point);
+        return true;
+    }
+
+    /// <summary>Teleportation's move, as <c>Entity.Teleport</c> makes it once the point is free.</summary>
+    private void MoveTo(Combatant caster, Vector2 point)
+    {
         caster.Cell = point;
         if (!caster.Sheet.IsDead && !caster.Gone && !caster.Freed)
             caster.Body.Field = null;
@@ -103,7 +113,6 @@ public sealed partial class Battle : IMagicHost
         body.Sphere.Position = Body.SetDown(World, at, body.Sphere.Radius, Game.Random.Combat).Position;
         body.Sphere.Velocity = Vector3.Zero;
         body.Stop();
-        return true;
     }
 
     /// <summary>Whether the Shadow is in the battle (<see cref="Shadow"/>), which bars Teleportation.</summary>

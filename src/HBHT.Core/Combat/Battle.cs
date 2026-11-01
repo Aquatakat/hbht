@@ -320,7 +320,8 @@ public sealed partial class Battle
                 continue;
             }
             combatant.Audio.Weapon = WeaponOf(combatant) is { Model: not null } weapon ? weapon.Sounds : null;
-            var animation = motion(combatant) is { } m ? keys.Sounding(m, combatant.Audio, combatant.Sounds, combatant.Body.Sphere) : IActorMotion.Still;
+            var own = motion(combatant);
+            var animation = own is { } m ? keys.Sounding(m, combatant.Audio, combatant.Sounds, combatant.Body.Sphere) : IActorMotion.Still;
             // A body that has fallen holds its last frame; one a web or hold keeps doesn't step its idle (Body.IsHeld, 0x80012754).
             var still = combatant.Fallen || combatant.PoseHeld && combatant.Body.Request == 0 && combatant.Audio.Request == 0;
             // ProcessPlayers reads the frame before the actor steps for an attack's strike.
@@ -329,6 +330,8 @@ public sealed partial class Battle
             combatant.Body.Step(World, still ? IActorMotion.Still : animation);
             HBHT.Core.Movement.Crowd.Push(crowd, i, start);
             AfterBodies(combatant, animation, strikes);
+            if (_cast is { Started: false } waiting && waiting.Caster == combatant)
+                StepCastStart(waiting, own is null ? null : animation);
         }
         CombatCamera.Step(this);
         arena.StepSounds(Camera.Aim);

@@ -74,8 +74,8 @@ public sealed partial class Combatant
     /// <summary>Its entity.</summary>
     public RecordId Entity => Sheet.Entity;
 
-    /// <summary>Its entity's actor, radius, scale and height.</summary>
-    public EntityBody Look { get; }
+    /// <summary>Its entity's actor, radius, scale and height, and when its blows land and its casts' effects start.</summary>
+    public EntityBody Look { get; internal set; }
 
     /// <summary>Its body in the arena.</summary>
     public Body Body { get; }

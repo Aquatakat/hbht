@@ -30,6 +30,11 @@ public sealed record DbRecord(RecordId Id, string Name, RecordId? Portrait = nul
 /// (<c>EntityBody.ShotStrike</c>, <c>0x8006C884</c>), which the port makes the entity's, each apart, for mods (the user's choice).
 /// </param>
 /// <param name="ThrowStrike">The share of its throw at which what it throws leaves its hand, as <paramref name="ShotStrike"/>.</param>
+/// <param name="CastStrike">
+/// The share of its cast animation (request 5) at which its spell's effect starts: its visual, the glow and the sky's dimming, and
+/// Teleportation's move. The original has no such field: every cast's visual starts with the cast (<c>Combatant.CastCurrentSpell</c>),
+/// which is 0, what the importer gives every entity. The port makes it the entity's, for mods (the user's choice).
+/// </param>
 /// <param name="StopReach">
 /// Under Modern movement, the port's, as it leads the party in trek: the furthest the rest of its step carries it once the stick is
 /// let go, before its scale. The original has no such field, and plays the whole step (docs/systems/movement.md#modern-movement).
@@ -42,6 +47,7 @@ public sealed record DbRecord(RecordId Id, string Name, RecordId? Portrait = nul
 /// </param>
 public sealed record EntityBody(RecordId Actor, float Radius, float Scale, float Height, float Strike = EntityBody.DefaultStrike,
     float ShotStrike = EntityBody.DefaultShotStrike, float ThrowStrike = EntityBody.DefaultShotStrike,
+    float CastStrike = EntityBody.DefaultCastStrike,
     float StopReach = EntityBody.DefaultStopReach, float StopPace = EntityBody.DefaultStopPace, int Stride = EntityBody.DefaultStride,
     float SetOffTurn = EntityBody.DefaultSetOffTurn)
 {
@@ -50,6 +56,9 @@ public sealed record EntityBody(RecordId Actor, float Radius, float Scale, float
 
     /// <summary>Every entity's share for a shot or a throw in the original (<c>0x800D2CFC</c>).</summary>
     public const float DefaultShotStrike = 0.4f;
+
+    /// <summary>Every entity's share for a cast's effect in the original: the cast's start.</summary>
+    public const float DefaultCastStrike = 0;
 
     /// <summary>
     /// What the importer gives every entity for Modern movement, the user's tuning to Alaron's run (Oct 30, 2026): 0.3 is about a

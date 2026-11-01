@@ -313,11 +313,12 @@ public sealed record TrainingPrices(int FirstLevelGold, int GoldPerLevel, float 
 /// <c>0x8005974C</c>, and <c>Combat.CreatePartyCombatants</c>, <c>0x8005C7C8</c>, all by spell kind 8): Fireball.
 /// </param>
 /// <param name="Strike">
-/// The share of its caster's cast animation (request 5) at which it lands and the target starts to react, as an entity's
-/// <see cref="EntityBody.Strike"/> times a blow. The original has no such field: a cast lands as the caster's cast animation ends
-/// (<c>ProcessPlayers</c> tests the strike's frame only for the attacks, 12 to 18), which is 1, every spell's. The port makes it
-/// the spell's, for mods, so that a cast can land as its visual strikes (the user's choice). Below 1, it lands at the frame
-/// <c>(int)(length × this)</c>; at 1 or more, as the animation ends. Either way, no sooner than the action timer's 30 ticks.
+/// The share of its effect's animation at which it lands, the target reacting and its number shown: the cast state of the actor
+/// its visual plays at the target, or with none at the caster (a refused cast's or a resisted one's, when it's that), at the frame
+/// <c>(int)(length × this)</c>; with no actor, as the visual starts; never before the action's 30 ticks. The original has no such
+/// field: a cast lands as its caster's cast animation (request 5) ends, whatever its visual does (<c>ProcessPlayers</c> tests a
+/// strike's frame only for the attacks, 12 to 18). The port ties it to the effect, the user's choice, and the importer gives each
+/// spell the share that lands it about when 1.0 lands it for a typical caster (docs/systems/combat-actions.md).
 /// </param>
 public sealed record SpellRecord(
     RecordId Id,
@@ -349,7 +350,7 @@ public sealed record SpellRecord(
     bool Area = false,
     float Strike = SpellRecord.DefaultStrike)
 {
-    /// <summary>Every spell's strike in the original: the end of its caster's cast animation.</summary>
+    /// <summary>A spell's strike with none given: its effect's end.</summary>
     public const float DefaultStrike = 1;
 }
 

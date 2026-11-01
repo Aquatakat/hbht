@@ -1,4 +1,5 @@
 using System.Numerics;
+using HBHT.Core.Actors;
 using HBHT.Core.Characters;
 using HBHT.Core.Items;
 using HBHT.Core.Magic;
@@ -473,7 +474,10 @@ public sealed partial class Battle
             return 0;
         var prepared = a.Flags.HasFlag(CombatantFlags.Acted);
         var castMargin = prepared ? a.CastMargin : -1;
+        // Teleportation's move waits for the visual, which may wait for the caster's castStrike.
+        _deferTeleport = true;
         var outcome = CastAt(a, source, t, ref prepared, ref castMargin);
+        _deferTeleport = false;
         a.CastMargin = MarginAfter(outcome, castMargin);
         if (outcome.Refusal is CastRefusal.NoReagent or CastRefusal.NoStamina or CastRefusal.NoCharges)
         {
@@ -489,20 +493,87 @@ public sealed partial class Battle
             SayQueued(ResistsLine, t.Sheet.Name);
         }
         Animate(a, CastRequest);
-        a.CastStrike = source.Spell.Strike;
         // Player.SetCastSound: the spell's sound as the caster's request 5 plays, a refused cast's too.
         a.Audio.Cast = source.Spell.Cast;
-        var cast = Fx.Start(a, t, source.Spell, outcome.Result switch
+        var kind = outcome.Result switch
         {
             CastResult.NotCast => SpellVisualKind.Failed,
             CastResult.Resisted => SpellVisualKind.Resisted,
             _ => SpellVisualKind.Cast,
-        });
-        // The handle goes on the target's first record of the spell that has none, so its end ends the lasting scene.
-        if (cast is not null && (damage != 0 || outcome.Result == CastResult.Effect)
-            && t.Sheet.Effects.FirstOrDefault(e => e.Source == source.Spell.Id && e.Visual is null) is { } record)
-            record.Visual = cast;
+        };
+        _cast = new CastUnderway(a, t, source.Spell, kind, damage != 0 || outcome.Result == CastResult.Effect, _teleportTo);
+        _teleportTo = null;
+        if (a.Look.CastStrike <= 0)
+            StartCastFx(_cast);
         return damage;
+    }
+
+    /// <summary>
+    /// A cast in states 2 and 4 (the port's): its visual, which starts at its caster's <see cref="EntityBody.CastStrike"/> of the cast
+    /// animation, and its landing, at its spell's <see cref="SpellRecord.Strike"/> of its effect, after which the target's reaction is
+    /// waited for no longer than <see cref="SpellReleaseTicks"/>. 1.0 starts the visual with the cast and lands it as the caster's cast
+    /// animation ends.
+    /// </summary>
+    private sealed class CastUnderway(Combatant caster, Combatant target, SpellRecord spell, SpellVisualKind kind, bool files, Vector2? teleportTo)
+    {
+        public Combatant Caster { get; } = caster;
+        public Combatant Target { get; } = target;
+        public SpellRecord Spell { get; } = spell;
+        public SpellVisualKind Kind { get; } = kind;
+
+        /// <summary>Whether its visual's handle goes on the target's effect record: it did damage or added an effect.</summary>
+        public bool Files { get; } = files;
+
+        /// <summary>Where Teleportation moves the caster as the visual starts.</summary>
+        public Vector2? TeleportTo { get; } = teleportTo;
+
+        public SpellFxCast? Fx { get; set; }
+        public bool Started { get; set; }
+
+        /// <summary>Whether the caster's body has been seen playing the cast, and the ticks waited for it.</summary>
+        public bool Seen { get; set; }
+        public int Waited { get; set; }
+
+        /// <summary>Whether it has landed (state 2 is over).</summary>
+        public bool Landed { get; set; }
+    }
+
+    /// <summary>The most ticks state 4 waits for a spell's target to react after it lands, the port's (the user's choice).</summary>
+    public const int SpellReleaseTicks = 120;
+
+    private CastUnderway? _cast;
+    private bool _deferTeleport;
+    private Vector2? _teleportTo;
+
+    /// <summary>
+    /// The cast's visual starts (<c>CombatSpellFx.Start</c>, <c>0x8008C43C</c>), with Teleportation's move before it; the handle goes on
+    /// the target's first record of the spell that has none, so its end ends the lasting scene.
+    /// </summary>
+    private void StartCastFx(CastUnderway cast)
+    {
+        cast.Started = true;
+        if (cast.TeleportTo is { } point)
+            MoveTo(cast.Caster, point);
+        cast.Fx = Fx.Start(cast.Caster, cast.Target, cast.Spell, cast.Kind);
+        if (cast.Fx is not null && cast.Files
+            && cast.Target.Sheet.Effects.FirstOrDefault(e => e.Source == cast.Spell.Id && e.Visual is null) is { } record)
+            record.Visual = cast.Fx;
+    }
+
+    /// <summary>
+    /// A tick of a cast whose visual waits for its caster's castStrike: it starts at that frame of the cast state, or as the cast
+    /// state ends, or at once for a caster with no animation, no cast state or no body left.
+    /// </summary>
+    private void StepCastStart(CastUnderway cast, IActorMotion? animation)
+    {
+        var body = cast.Caster.Body;
+        if (body.Playing == CastRequest)
+            cast.Seen = true;
+        var start = animation is null || cast.Caster.Freed
+            || cast.Seen && (body.Playing != CastRequest || animation.Frame >= (int)(animation.StateLength * cast.Caster.Look.CastStrike))
+            || !cast.Seen && ++cast.Waited > Cadence.FrameTicks + 1;
+        if (start)
+            StartCastFx(cast);
     }
 
     /// <summary>

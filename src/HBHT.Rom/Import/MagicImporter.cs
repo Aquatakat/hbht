@@ -68,7 +68,8 @@ internal static class MagicImporter
 
     /// <summary>
     /// Gives each spell what casting it shows (<see cref="SpellVisualTables"/>), by its place in <c>SpellList</c>, its kind. Every actor and
-    /// scene must be the Borg of its type; a spell with nothing keeps none.
+    /// scene must be the Borg of its type; a spell with nothing keeps none. A spell with an actor strikes at its share of that actor's
+    /// cast (<see cref="SpellStrike"/>): the target's if it has one, else the caster's.
     /// </summary>
     public static List<SpellRecord> WithVisuals(List<SpellRecord> spells, SpellVisualTables tables, BorgArchive archive) =>
     [
@@ -85,6 +86,9 @@ internal static class MagicImporter
                 Visuals = new MagicVisuals(
                     caster, target, tables.TargetAtHead.Contains(kind), aura,
                     caster is null ? 0 : tables.Caster[kind].Memory, target is null ? 0 : tables.Target[kind].Memory),
+                Strike = target is not null ? SpellStrike.Share(SpellStrike.CastLength(archive, tables.Target[kind].Borg))
+                    : caster is not null ? SpellStrike.Share(SpellStrike.CastLength(archive, tables.Caster[kind].Borg))
+                    : SpellRecord.DefaultStrike,
             };
         }),
     ];
