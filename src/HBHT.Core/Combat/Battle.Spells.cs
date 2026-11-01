@@ -462,8 +462,7 @@ public sealed partial class Battle
         var prepared = a.Flags.HasFlag(CombatantFlags.Acted);
         var castMargin = prepared ? a.CastMargin : -1;
         var outcome = CastAt(a, source, t, ref prepared, ref castMargin);
-        a.CastMargin = outcome.Result == CastResult.NotCast && outcome.Refusal is not (CastRefusal.Failed or CastRefusal.NeedsTrueName
-            or CastRefusal.TooLarge or CastRefusal.NeedsSolar or CastRefusal.NeedsLunar or CastRefusal.WrongTime) ? -2 : castMargin;
+        a.CastMargin = MarginAfter(outcome, castMargin);
         if (outcome.Refusal is CastRefusal.NoReagent or CastRefusal.NoStamina or CastRefusal.NoCharges)
         {
             // Combatant.FailSpell (0x800636A4): the spell is no longer selected, and set B is emptied.
@@ -492,6 +491,14 @@ public sealed partial class Battle
             record.Visual = cast;
         return damage;
     }
+
+    /// <summary>
+    /// The caster's cast margin after a cast at one target: −2 (<c>0xFE</c>) once refused for the field, the reagent, the Stamina or
+    /// the charges (<c>CheckSpellAvailable</c> and <c>Combatant.FailSpell</c> write it), else what the cast left.
+    /// </summary>
+    internal static int MarginAfter(CastOutcome outcome, int castMargin) =>
+        outcome.Result == CastResult.NotCast && outcome.Refusal is not (CastRefusal.Failed or CastRefusal.NeedsTrueName
+            or CastRefusal.TooLarge or CastRefusal.NeedsSolar or CastRefusal.NeedsLunar or CastRefusal.WrongTime) ? -2 : castMargin;
 
     /// <summary>
     /// A potion's visual on a body (<c>Combatant.AttachSpellVisual</c>, <c>0x80064B10</c>), as it's drunk or a flask's blast hurts it:
