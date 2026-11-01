@@ -1,5 +1,5 @@
 """Casting: Combatant.CastSpell (0x800648CC) at one target, as CastCurrentSpell (0x80065C08) calls it with the caster's selected spell
-built by Entity.SpellCopy (0x80070D50): CheckSpellAvailable (0x800635B8), PrepareCast (0x8006406C) with AttemptCast's reagent, Stamina,
+built by Entity.CurrentSpellChecked (0x80070D50): CheckSpellAvailable (0x800635B8), PrepareCast (0x8006406C) with AttemptCast's reagent, Stamina,
 CastChance and roll (0x80063F7C) or an item's charge, ResistRoll (0x80064298), ApplySpellEffect (0x800646E0) and SpellDamage
 (0x800649E4), on the Combat checkpoints and the parity logs' states with one input changed at a time. Args are the caster's and the
 target's slots. Each vector gives: what CastSpell returns (the damage, or -1 resisted, -2 not cast, -3 an effect with no number), the
@@ -13,8 +13,8 @@ from draws import d100
 FAMILY = 'Casting'
 
 CAST_SPELL = 0x800648CC
-SPELL_COPY = 0x80070D50          # Entity.SpellCopy(entity, line, 0): the selected spell built for the cast
-LEARN = 0x8007AD70               # Spellbook.Learn(book, id, level)
+SPELL_COPY = 0x80070D50          # Entity.CurrentSpellChecked(entity, line, 0): the selected spell, as CastCurrentSpell asks
+LEARN = 0x8007AD70               # Spellbook.Add(book, id, level)
 SENSE_AURA = 0x80070070
 SPELL_LIST = 0x800E2B40
 
@@ -76,7 +76,7 @@ def take(cpu, item, n=1):
 
 def count(cpu, item):
     """The party's count of an item: its stack's quantity (the stacks 0x18 bytes from +4, the id at +0 and the quantity at +0x14,
-    as Inventory.Find, its vtable's +0x54 at 0x8007370C, walks them)."""
+    as Inventory.Find, 0x8007370C, walks them)."""
     inv = inventory(cpu)
     for i in range(0xFC):
         stack = inv + 4 + 0x18 * i
