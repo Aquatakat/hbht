@@ -86,7 +86,7 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
 
     /// <summary>What draws on the original's stream for show, which the port draws on its cosmetic stream or not at all.</summary>
     private static readonly string[] CosmeticCode =
-        ["Weather.", "ParticleHead.", "AudioKeys.", "AllocPlayerAudio", "CombatMarkers.", "RenderSky", "Sky.", "CombatSpellFx."];
+        ["Weather.", "ParticleHead.", "AudioKeys.", "AllocPlayerAudio", "CombatMarkers.", "RenderSky", "Sky.", "SkyObjects.", "CombatSpellFx."];
 
     private static bool Cosmetic(ParityDraw draw) =>
         Callers(draw).Any(n => CosmeticCode.Any(c => n.StartsWith(c, StringComparison.Ordinal)));

@@ -23,6 +23,10 @@ jump's delay slot. "chain" is $pc and the return addresses above it, unwound by 
 (the code index's starts, then addiu sp and sw ra), up to the third outside the generator's own functions
 (Rng.*, RandomExtensions.*, __udivdi3). Weather.DriftWind's own two draws a frame aren't unwound. Each stop costs about 15 ms in ares, so a battle plays at about 60% speed.
 
+The night sky's draws aren't logged: SkyObjects.Draw draws for its stars every frame, a stop each, which slowed a
+battle at night to a frame every few seconds. The watchpoint is off from its entry to its return, two stops a
+frame. They're cosmetic, and the replay sets the stream before each draw of the rules from the log.
+
 Outside gdb: python tools/gdb/parity.py --summary <battle folder> prints the entry points and the draws'
 callers, named.
 """
@@ -61,6 +65,10 @@ WINDOWS = {
     0x800094B4: "BattleSetup.FromMonsterParty",
     0x800096DC: "CampEncounters.Load",
     0x80050804: "BattleSetup.Scripted",
+}
+# Drawing that draws only for its looks, with the watchpoint off from entry to return: the night sky's stars.
+QUIET = {
+    0x80029764: "SkyObjects.Draw",
 }
 # Weather.DriftWind's own draws, two every frame: logged, never unwound (those through ParticleHead.FloatRange are).
 UNWOUND_NOT = {0x8007BAE8, 0x8007BB74}
@@ -166,6 +174,14 @@ def log():
         gdb.execute(f"break *0x{at:x}", to_string=True)
     gdb.execute(f"watch *(unsigned int*)0x{SEED:x}", to_string=True)
     watch = [b for b in gdb.breakpoints() if b.type == gdb.BP_HARDWARE_WATCHPOINT][0]
+    quiet = [gdb.Breakpoint(f"*0x{at:x}", internal=True) for at in QUIET]
+    quiet_returns = set()  # a quiet function's return address, where the watchpoint goes back on
+
+    def watching(on):
+        """The watchpoint on or off, and the quiet functions' breakpoints with it, so trek stops for neither."""
+        watch.enabled = on
+        for b in quiet:
+            b.enabled = on
 
     battle = 0
     pending = []  # records made before a battle's folder exists: a setup window's draws
@@ -201,7 +217,7 @@ def log():
     if in_battle:
         folder = begin()
         mark("attached during a battle; logging from here")
-    watch.enabled = in_battle
+    watching(in_battle)
     mark("ready")
 
     while True:
@@ -214,6 +230,19 @@ def log():
             mark("ares closed")
             break
         pc = reg("pc")
+
+        if pc in QUIET:
+            ra = reg("ra")
+            if ra not in quiet_returns:
+                quiet_returns.add(ra)
+                gdb.execute(f"break *0x{ra:x}", to_string=True)
+            watch.enabled = False
+            continue
+        if pc in quiet_returns:
+            quiet_returns.discard(pc)
+            gdb.execute(f"clear *0x{pc:x}", to_string=True)
+            watching(in_battle or bool(returns))
+            continue
 
         if pc not in ENTRIES and pc not in WINDOWS and pc not in returns:
             # The watchpoint (its old and new values aren't in the text gdb hands back): the seed now, and
@@ -228,7 +257,7 @@ def log():
             gdb.execute(f"clear *0x{pc:x}", to_string=True)
             write({"t": "leave", "name": name, "pc": pc, "seed": word(SEED)})
             if not in_battle and not returns:
-                watch.enabled = False
+                watching(False)
             continue
 
         if pc in WINDOWS:
@@ -237,7 +266,7 @@ def log():
             gdb.execute(f"break *0x{ra:x}", to_string=True)
             write({"t": "enter", "name": WINDOWS[pc], "pc": pc, "ra": ra,
                    "args": [reg(r) for r in ("a0", "a1", "a2", "a3")], "seed": word(SEED)})
-            watch.enabled = True
+            watching(True)
             continue
 
         if pc not in ENTRIES:
@@ -250,11 +279,11 @@ def log():
         if name == "Combat.Setup":
             folder = begin()
             in_battle = True
-            watch.enabled = True
+            watching(True)
         if out is None:
             folder = begin()
             in_battle = True
-            watch.enabled = True
+            watching(True)
         combat = word(COMBAT)
         record = {"t": "enter", "name": name, "pc": pc, "ra": reg("ra"),
                   "args": [reg(r) for r in ("a0", "a1", "a2", "a3")], "seed": word(SEED),
@@ -284,7 +313,7 @@ def log():
             out.close()
             out = None
             in_battle = False
-            watch.enabled = bool(returns)
+            watching(bool(returns))
     progress.close()
 
 
