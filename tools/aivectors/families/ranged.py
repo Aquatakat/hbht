@@ -7,8 +7,6 @@ Combatant.ThrowFlask (0x80065600) asks for it, then ThrowFlask with FlaskDamage 
 calls it, Combatant.FlaskExplosion (0x800652F8); each gives the distance, the chance, the d100 and the roll, the damage kept on the thrower,
 the landing cell, Thrown's base and the throw's draws, then each combatant's hit points, Stamina, protection (TotalProtection's, no shield)
 and damage byte, those able to act and the draws."""
-import struct
-
 import state
 from draws import d100, value_for
 
@@ -68,7 +66,7 @@ GET_CELL = 0x8005EDD0             # Combatant.GetCell(record, &x, &z)
 DISTANCE_TO = 0x8006035C          # Combatant.DistanceTo(a, b), f32
 FLASK_EXPLOSION = 0x800652F8
 HP = 0x8006E93C                   # Character.Hp(entity)
-POTION_VISUAL = 0x8008AA28       # Combatant.AttachSpellVisual's visual, started on a body
+POTION_VISUAL = 0x8008AA28       # CombatStatIndicator.StartPotion, AttachSpellVisual's visual on a body
 TOTAL_PROTECTION = 0x8005F570     # Combatant.TotalProtection(record): the sheet's, the armor's, Warrior / 5, the potions'; no shield
 
 
@@ -372,7 +370,7 @@ def cases():
     # dice at their most.
     for dump, t, kind in (('0046', 7, 3), ('0064', 4, 0), ('0079', 4, 1), ('0088', 6, 2)):
         src = f'log:20261031-172849-setup3/battle-01:{dump}.rdram.gz'
-        # The RAM has the flask in Keelin's hand already; the poke lays it over the port's battle, which the overlay doesn't.
+        # The RAM has the flask in Dougal's hand already; the poke lays it over the port's battle, which the overlay doesn't.
         pk = f'flask:2,{kind}'
         for r in (10, 60, 100):
             throw(f'setup3-{dump}-{FLASKS[kind]}-roll{r}', pk, a=2, t=t, source=src, script={0: d100(r)})

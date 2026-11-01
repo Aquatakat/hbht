@@ -94,8 +94,8 @@ The fixes the logs found besides, which the replay doesn't list because it reads
 | Function | Varied | Done |
 | --- | --- | --- |
 | `MeleeChance`, `ResolveMelee`, `MeleeDamage`, `ApplyResistance` | Strength tiers; from behind, with Thief; height up and down; each part of the day; a Lunar and a Solar attacker; no Stamina, either side's; a held target; a shield, from the front and behind; Warrior's adjusted roll; the Troubadour's bonus; a weakness, a resistance, one of 0; a weapon's spell (`WeaponSpellProc`); the weapon skill's roll landing and missing | `MeleeVectorTests` |
-| `RangedChance`, `ResolveRanged` | distance past 6; rain's intensity; night; a target that has moved or acted | |
-| `ThrowChance`, `FlaskDamage`, `FlaskExplosion` | each flask; fog, storm and night with distance; Acid's corrosion; a thrown weapon | |
+| `RangedChance`, `ResolveRanged` | distance past 6; rain's intensity; night; a target that has moved or acted | `RangedVectorTests` |
+| `ThrowChance`, `FlaskDamage`, `FlaskExplosion` | each flask; fog, storm and night with distance; Acid's corrosion; a thrown weapon | `RangedVectorTests` |
 | `CastSpell` (`CheckSpellAvailable`, `PrepareCast`, `CastChance`, `ResistRoll`, `ApplySpellEffect`, `SpellDamage`) | every spell kind; each part of the day, and the moon's phases for a Lunar caster; failure; the reagent, Stamina and Field refusals; a requirement unmet; wards and aspects in the resist; Mirror's counter; the disable limit with reserves to come; the level's rise at 0 and 1; an item's spell and its charge | |
 | `AddEffect`, `AgeEffects` (`EffectRules.Round`, `End`), `Dispel`, `CurePoison`, `TakeDamage` | every lasting kind over its rounds: Poison, Immolation, Acid Bolt, Web's escape, Photosynthesis by day and night, Tap Stamina, Wraith Touch, the morale spells given back; Cheat Death; death taking the effects | |
 | `DrinkPotion`, `CanDrink` | every potion, each where it's refused | |
@@ -108,6 +108,30 @@ The fixes the logs found besides, which the replay doesn't list because it reads
 **Melee** (`MeleeVectorTests`, 219 vectors): `IsBehind`, `MeleeChance` as `ResolveMelee` calls it, then `ResolveMelee` with the damage, the resistances and the weapon's spell. Each gives whether the blow is from behind, the chance, the d100 and the roll as Warrior turned it, the damage, the draws, the weapon skill's base after, the target's AI flags after and the attacker's cast margin after. 171 vectors are on checkpoint 05 (Alaron and rat 4, made to give chances from 5 to over 1000), varying each input of the table, the edges among them: 45° off the target's facing and 90°, a roll at Warrior's limit and one past it, a fifth of the chance under Warrior, both sides of each Strength tier, and the weapon skill's roll at its threshold and one over, on a hit and a miss. The resistances run by five weapons' elements (Cutting, Smashing, Physical, Fire, Holy) against weaknesses, resistances, immunity, Physical's and Magic's reach and two entries at once; the weapon's spell by twelve weapons, landed, missed, and with a cast margin kept from earlier in the turn. 48 more are on seven parity logs' first turns, for real entities: the Skeletons, the Wraiths, Lugash against the Lightreavers, the Air Elemental, the Tomb Rats against Firedrake Fang, Kitarak's Warfang and its spell at the party, and the bandits at night.
 
 **All agree with 1.0**, so nothing was fixed and nothing is listed as a known difference. What the run settled about 1.0 is in [combat-actions](combat-actions.md#an-attack) and [magic](magic.md#casting): a weapon's spell spends no charge, an attacker that has acted this turn casts it at the margin it kept, the resistance entries' order, an entry of element 0 never applying, and the three holding kinds (34, 53, 57). A mutation of the port's ×1.15 fails the two vectors it should.
+
+**Ranged and flasks** (`RangedVectorTests`, 290 vectors). A shot is `IsBehind`, `RangedChance` as `ResolveRanged` calls it, then `ResolveRanged`, giving melee's results but the margin. A throw puts a flask in hand (action 3 and its kind, `+0x25` and `+0x27`). It asks `ThrowChance` as `ThrowFlask` does (the target's `GetCell` and the records' distance truncated to a byte), runs `ThrowFlask`, and on a hit runs `FlaskExplosion` as `Combat.EndCast` calls it. Each gives the distance, the chance, the rolls, the damage kept on the thrower, the landing cell, Thrown's base and the throw's draws, then every combatant's hit points, Stamina, protection (`TotalProtection`'s) and damage byte, and those able to act (`Combat+2`, `+4`, `+6`). Two more modes throw twice (Acid stacking) and burst a missed flask about a given cell, as `EndCast` does while the hand still holds one.
+
+- **Checkpoint 05, 222 vectors.** Alaron and rat 4, with a Short Bow or a flask put in his hand, vary each input:
+  - the distance along a row and on a slant that truncates;
+  - the rain's intensity near and far, and the weather's class, which a shot doesn't read;
+  - each part of the day for a Solar and a Lunar archer or thrower, and fog, a storm and the night at distances 6 to 30 (the distance counted again in fog and storm);
+  - a target with 1 to 3 moves or the acted flag, which neither chance reads, and the thrower's moved flag;
+  - no Stamina either side, a held target, the height, from behind, the shield, the Troubadour, Missile and Thrown levels;
+  - seventeen missile and thrown weapons, the Javelin among them, with resistances to their elements;
+  - each flask hit, missed and at Warrior's adjusted roll, with the thrower beside the target and others left at 1;
+  - the dice at their most, and the squared distance's byte at 250, 256, 257, 289 and 512;
+  - Acid taking protection to none, against armour and on a member of the thrower's side, twice, and from a missed flask;
+  - a blast's share of 15 and of 16 on a rat of 31 (16 kills it before its blow);
+  - a rat made a thrower throwing each flask at the party;
+  - Thrown's training at its thresholds.
+- **Four parity logs' states, 68 vectors,** each at the shot's or throw's own `ExecuteAction`: setup 4's bandits at night in fog, a Javelin and the party's shots; setup 5's Goblin Poisoners' darts; setup 8's Skeleton Archer in a storm, and in clear weather; setup 3's two shots and its four flasks (Dougal's Acid catching Keelin), each at three rolls and with the dice at their most; and Fire and Inferno flasks put in setup 4's bandits' hands.
+
+**All agree with 1.0**, so nothing was fixed and nothing is listed as a known difference. The last of a stack, which 1.0 never bursts, is the port's choice and isn't run: the vectors burst it as `EndCast` would with more in hand. What the run settled about 1.0 is in [combat-actions](combat-actions.md#an-attack) and [magic](magic.md#potions-and-flasks). Three mutations of the port each fail their vectors and no others: the blast's distance kept in a short, night's ×0.7 as ×0.75, and the weather's distance term off by one.
+
+Two traps for a family that calls these functions:
+
+- **Pointers as arguments must be sign-extended.** `FlaskExplosion` compares each record with the target's by the whole register (`0x8006546C`, `0x80065494`, `0x80065590`), and `lw` sign-extends the pointers it loads. A zero-extended target pointer is taken for someone else and clamped as one.
+- **The blast's visual reaches the hardware.** `CombatStatIndicator.StartPotion` (`0x8008AA28`), which `AttachSpellVisual` calls, is stubbed. `ShowDamage`, `CheckDeath` and the log run as they are.
 
 ### Adding a family
 

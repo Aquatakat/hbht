@@ -1518,6 +1518,7 @@ CombatStatIndicator.Init = 0x8008a000; // coined; docs/systems/combat.md: the te
 CombatStatIndicator.Add = 0x8008a128; // coined; docs/systems/combat.md: (body, kind, amount): a floating number that rises and fades over a body
 CombatStatIndicator.Frame = 0x8008a630; // coined; docs/systems/combat.md: draws and ages the numbers, 120 ticks
 CombatStatIndicator.Free = 0x8008a8d4; // coined; docs/systems/combat.md
+CombatStatIndicator.StartPotion = 0x8008aa28; // coined; docs/systems/combat-parity.md: a wrapper of CombatSpellFx.StartPotion, which Combatant.AttachSpellVisual calls for a potion's visual on a body; the formula vectors stub it
 CombatSpellFx.DrawCastScene = 0x8008aa90; // coined; docs/systems/combat.md: the aim cylinder's draw: unturned, placed, scaled, Zones.SetSceneColors(scene, alpha, 0, colour), Scene.Draw
 CombatSpellFx.DrawNumber = 0x8008abd8; // coined; docs/systems/combat.md: (focus, r, colour): the translucent cylinder, scene 0x0797, set on the floor and scaled (r + 0.2, 2, r + 0.2) at alpha 64, as Combat.DrawTargetCounts uses
 CombatSpellFx.Start = 0x8008c43c; // coined; docs/systems/combat.md: (caster body, target body, spell, result): a spell's visual; returns its handle, which Combatant.CastCurrentSpell files in the effect
