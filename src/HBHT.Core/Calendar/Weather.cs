@@ -301,10 +301,13 @@ public sealed class Weather
     /// The rain's or snow's particles, which this makes, steers and frees as <see cref="Emitting"/> says; none where
     /// nothing draws them, as in the port's cut-scenes, when <see cref="Emitting"/> still follows the original's.
     /// </param>
-    public void Draw(bool skyDrawn, int ticks = 1, IPrecipitationEmitters? emitters = null)
+    /// <param name="fogLifted">Whether the fog moves toward none rather than the weather's: a battle held clear by Wind, the
+    /// port's (the original's Wind leaves the fog drawn).</param>
+    public void Draw(bool skyDrawn, int ticks = 1, IPrecipitationEmitters? emitters = null, bool fogLifted = false)
     {
+        var fog = fogLifted ? 0 : Fog;
         if (_skyDrawn != skyDrawn)
-            FogTime = Fog;
+            FogTime = fog;
         _skyDrawn = skyDrawn;
         Wanted = Precipitation;
         // The world wants another: the emitters are forgotten, and run out their lives.
@@ -360,8 +363,8 @@ public sealed class Weather
             RainLoop = true;
             RainLoopStarts++;
         }
-        FogTime = MathF.Abs(FogTime - Fog) < 0.01f ? Fog
-            : FogTime < Fog ? FogTime + ticks * _rules.FogRate : FogTime - ticks * _rules.FogRate;
+        FogTime = MathF.Abs(FogTime - fog) < 0.01f ? fog
+            : FogTime < fog ? FogTime + ticks * _rules.FogRate : FogTime - ticks * _rules.FogRate;
         if (!skyDrawn)
         {
             if (Emitting)

@@ -163,8 +163,14 @@ public sealed record MoraleEffect(Magnitude Amount) : Effect;
 /// </param>
 public sealed record StaminaEffect(Magnitude Amount, bool ToBase = false, bool ToCaster = false, bool RaisesMaximum = false) : Effect;
 
-/// <summary>Sets combat's weather class as it ends (<c>World+4</c>): Wind on an ally, 1.</summary>
-public sealed record WeatherEffect(int AtEnd) : Effect;
+/// <summary>
+/// Combat's class of bad weather (<c>World+4</c>: 0 none, 1 fog, 2 storm), which a throw's chance reads. Wind on an ally holds it
+/// at none while it lasts, lifting the drawn fog too, and lets the weather's own back as it ends, the user's choice: its description
+/// says it dispels fog. 1.0's sets it to fog as it ends and does nothing while it lasts (<c>AtEnd</c> 1, no <c>During</c>).
+/// </summary>
+/// <param name="During">The class while the effect lasts, or none to leave the weather's; at 0 the drawn fog lifts.</param>
+/// <param name="AtEnd">The class the battle is set to as the effect ends, or none to go back to the weather's.</param>
+public sealed record WeatherEffect(int? During = null, int? AtEnd = null) : Effect;
 
 /// <summary>
 /// Ends the target's effects of the named spells, once. Remove Poison and the Antidote (Poison), Restore (the six weakening spells)

@@ -19,8 +19,17 @@ public sealed partial class Battle : IMagicHost
 
     private MagicRules Magic => Game.Rules.Magic;
 
-    /// <summary>The weather class Wind's end set (<c>World+4</c>), for combat's penalties; null if no Wind has ended.</summary>
-    public int? WeatherClass { get; private set; }
+    private int _weatherHolds, _heldWeatherClass;
+    private int? _weatherClassSet;
+
+    /// <summary>
+    /// Combat's class of bad weather (<c>World+4</c>: 0 none, 1 fog, 2 storm), which a throw's chance reads: what an effect holds
+    /// while it lasts (Wind on an ally, none), else what one set as it ended, else the weather's own, as it rolls each turn.
+    /// </summary>
+    public int WeatherClass => _weatherHolds > 0 ? _heldWeatherClass : _weatherClassSet ?? (int)Game.Weather.Kind;
+
+    /// <summary>Whether an effect holds the battle's weather clear, so the drawn fog lifts.</summary>
+    public bool FogLifted => _weatherHolds > 0 && _heldWeatherClass == 0;
 
     /// <summary>Whether Detect Moon Phase or Detect Sun Phase was cast: the HUD shows the moon's or the sun's phase.</summary>
     public (bool Moon, bool Sun) PhasesShown { get; private set; }
@@ -42,7 +51,19 @@ public sealed partial class Battle : IMagicHost
 
     int IMagicHost.MoonPhase => GameClock.MoonPhase(Game.Clock.Time).Phase;
 
-    void IMagicHost.SetWeatherClass(int weatherClass) => WeatherClass = weatherClass;
+    void IMagicHost.HoldWeatherClass(int weatherClass)
+    {
+        _weatherHolds++;
+        _heldWeatherClass = weatherClass;
+    }
+
+    void IMagicHost.ReleaseWeatherClass(bool held, int? atEnd)
+    {
+        if (held && _weatherHolds > 0)
+            _weatherHolds--;
+        if (atEnd is { } weatherClass)
+            _weatherClassSet = weatherClass;
+    }
 
     /// <summary>The Troubadour's bonus (<c>+0x13</c>), which session 9 sets.</summary>
     public int TroubadourBonus { get; internal set; }

@@ -202,6 +202,23 @@ public class WeatherTests
         Assert.Equal(0.5f, weather.FogTime);
     }
 
+    // The port's Wind: while a battle's weather is held clear, the drawn fog thins away at the fog's rate, and thickens back after.
+    [Fact]
+    public void LiftedFogThinsAwayAndComesBackAtTheFogsRate()
+    {
+        var weather = new Weather(Rules);
+        weather.Force(WeatherKind.Fog, fog: 0.5f);
+        weather.Draw(skyDrawn: true);
+        weather.Draw(skyDrawn: true, ticks: 90, fogLifted: true);
+        Assert.Equal(0.4f, weather.FogTime, 4);
+        Assert.Equal(0.5f, weather.Fog);
+        for (var i = 0; i < 400; i++)
+            weather.Draw(skyDrawn: true, fogLifted: true);
+        Assert.Equal(0f, weather.FogTime);
+        weather.Draw(skyDrawn: true, ticks: 90);
+        Assert.Equal(0.1f, weather.FogTime, 4);
+    }
+
     [Fact]
     public void ALoadedGameDrawsTheRainAsTheSaveHasItWithTheRainSkyAtOnce()
     {

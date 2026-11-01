@@ -332,7 +332,7 @@ public sealed partial class Battle
         }
         CombatCamera.Step(this);
         arena.StepSounds(Camera.Aim);
-        arena.StepWeather(skyDrawn, arena.Precipitation);
+        arena.StepWeather(skyDrawn, arena.Precipitation, FogLifted);
         if (!held)
             Step();
         // Combat.AfterFrame: the Shadow reaching its merger, at every frame's end.

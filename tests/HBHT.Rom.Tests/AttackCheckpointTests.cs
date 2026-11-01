@@ -6,6 +6,7 @@ using HBHT.Core.Characters;
 using HBHT.Core.Chunks;
 using HBHT.Core.Combat;
 using HBHT.Core.Items;
+using HBHT.Core.Magic;
 using HBHT.Core.Physics;
 using HBHT.Core.Rng;
 using HBHT.Core.Ui;
@@ -269,6 +270,35 @@ public sealed class AttackCheckpointTests(Na10Import fixture, ITestOutputHelper 
 
         Assert.Equal([92, 96, 91, 100], Enumerable.Range(4, 4).Select(t => built.Battle.RangedChance(sholeh, built[t], behind: false)));
         Assert.Equal([111, 117, 109, 120], Enumerable.Range(4, 4).Select(t => built.Battle.RangedChance(sholeh, built[t], behind: true)));
+    }
+
+    // Combat.WeatherPenalty (0x80062D78) reads the world's class of bad weather (World+4): fog 10, a storm 20. Wind on an ally holds
+    // it clear while it lasts, the user's choice, and the weather's own comes back as it ends.
+    [Fact]
+    public void AThrowTakesTheWeathersPenaltyButNotUnderWind()
+    {
+        var built = At(5);
+        var (battle, alaron, rat) = (built.Battle, built[0], built[7]);
+        var weather = battle.Game.Weather;
+        int Chance(WeatherKind kind)
+        {
+            weather.Kind = kind;
+            return battle.ThrowChance(alaron, rat, 3);
+        }
+        var (clear, fog, storm) = (Chance(WeatherKind.Clear), Chance(WeatherKind.Fog), Chance(WeatherKind.Precipitation));
+        // The penalty comes off before the aspect's scale.
+        Assert.True(clear > fog && fog > storm, $"{clear} {fog} {storm}");
+        Assert.False(battle.FogLifted);
+
+        var wind = battle.Game.Rules.Magic.Spell(RecordId.Hex(RecordTypes.Spell, 0x0309))!;
+        var lasting = wind.Effects!.Where(e => e.For == EffectFor.Allies && EffectRules.Lasting(e)).ToList();
+        var record = alaron.Sheet.AddEffect(wind.Id, lasting, 5, wind.School, 3, wind.Duration!.At(5), alaron, battle, null)!;
+        Assert.Equal((0, true), (battle.WeatherClass, battle.FogLifted));
+        Assert.Equal(clear, battle.ThrowChance(alaron, rat, 3));
+
+        alaron.Sheet.RemoveEffect(record, alaron, battle);
+        Assert.Equal((2, false), (battle.WeatherClass, battle.FogLifted));
+        Assert.Equal(storm, battle.ThrowChance(alaron, rat, 3));
     }
 
     [Fact]

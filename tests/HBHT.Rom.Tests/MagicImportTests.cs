@@ -104,7 +104,7 @@ public sealed class MagicImportTests(Na10Import fixture)
         Assert.Equal(EffectFor.Allies, stamina.For);
         Assert.True(stamina.RaisesMaximum);
         var weather = Assert.IsType<WeatherEffect>(wind.Effects[2]);
-        Assert.Equal((EffectFor.Allies, 1), (weather.For, weather.AtEnd));
+        Assert.Equal((EffectFor.Allies, (int?)0, (int?)null), (weather.For, weather.During, weather.AtEnd));
         Assert.Equal(new EffectDuration(PerLevel: 1800), wind.Duration);
     }
 

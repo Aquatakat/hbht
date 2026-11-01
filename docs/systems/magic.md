@@ -34,7 +34,7 @@ Sorted by what the code does with it (`Entity.AddEffect` `0x800702F0`, `Combatan
 | `fieldRadius` | Haste (30) +L; Stellar Gravity (56) −L | `Combatant.UpdateRadius` (`0x8005F29C`), record by record: Gravity takes L off, leaving 1 if that's as much or more |
 | `morale` | Aura of Death (25), Solar Wrath (47), −L | the AI record's morale, no more than it has, and a morale check due; given back exactly as it ends (`EffectRules.End`, `0x800707EC`), by its timer, a dispel, a lethal blow or leaving the field (`Combatant.Death` takes off only the holds); a party member, with no AI record, is untouched |
 | `stamina` | Tap Stamina (33): the target −2L, the caster +2L up to its base (a record on each); Wind on an ally +2L to Stamina and its maximum (`Entity.AddStaminaEffect`, `0x80072158`, never given back) | once |
-| `weather` | Wind on an ally | as it ends, combat's weather class to 1, fog (`World+4`), which a throw's chance reads ([combat-actions](combat-actions.md#spells-potions-and-skills-in-a-turn)), though Wind's description says it clears fog; the drawn fog doesn't change |
+| `weather` | Wind on an ally | while it lasts, combat's class of bad weather held at none (`During` 0: `Battle.WeatherClass`, which a throw's chance reads, [combat-actions](combat-actions.md#spells-potions-and-skills-in-a-turn)), with the drawn fog thinning away (`Battle.FogLifted`); as it ends, the weather's own again. 1.0's does nothing while it lasts and sets fog as it ends (`World+4` to 1, `AtEnd` 1), though its description says it dispels fog |
 | `cure` | Remove Poison (2): Poison records cast with a lower margin than this cast's | once (`Entity.CurePoison`, `0x80071A6C`) |
 | `dispel` | Dispel Elemental, Naming, Necro, Star (42–45) | every record of the school, if the margin × their number reaches the sum of their margins (`Entity.Dispel`, `0x80071CD8`); unschooled ones never |
 | `partOfDay` | Darkness (29) night, Light (54) day | the other's records come off everyone, and the battle's part of the day is held (`Entity.SetLight`, `0x80071BDC`) |
@@ -137,6 +137,7 @@ The user chose to keep these, which look like bugs, as the original has them:
 
 ## Where the port differs
 
+- **Wind does what its description says**, the user's choice: on an ally it holds the battle's weather clear while it lasts, the drawn fog lifting at the fog's rate, and lets the weather's own back as it ends ([the table](#what-each-spell-does)). 1.0's left the weather alone while it lasted and set fog as it ended, so a throw took fog's penalty after a Wind even in clear weather. Several Winds hold it together (`Battle.HoldWeatherClass`, counted). The permanent Stamina raise is 1.0's, kept.
 - One record can hold several effects; the original keys one per kind. The base game's records hold one each but Web of Starlight's (immobilise and 2d6) and Tap Stamina's.
 - Any spell, potion or flask can carry any effect type ([How effects land](#how-effects-land)); the original's code carries each instant one for its own kinds only. The base game's records hold them where the original has them, so nothing it plays changes.
 - Trek's ageing runs every tick, and what the effects do each round once a 30 fps frame (`Cadence.FrameTicks`), as the original does once a drawn frame.

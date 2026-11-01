@@ -156,7 +156,8 @@ public sealed class ZoneEngine
     /// </summary>
     /// <param name="skyDrawn">Whether the sky is drawn (the original's sky type 3).</param>
     /// <param name="emitters">The rain's and snow's particles about the view: <see cref="Precipitation"/>, or none.</param>
-    public void StepWeather(bool skyDrawn, IPrecipitationEmitters? emitters)
+    /// <param name="fogLifted">Whether the drawn fog thins away while it holds: a battle under Wind.</param>
+    public void StepWeather(bool skyDrawn, IPrecipitationEmitters? emitters, bool fogLifted = false)
     {
         var weather = Game.Weather;
         if (_shared.SkyFrame.Tick())
@@ -166,7 +167,7 @@ public sealed class ZoneEngine
                 WeatherSounds.Thunder(thunder);
         }
         // The rain's particles go with the weather's one decision about them.
-        weather.Draw(skyDrawn, emitters: emitters);
+        weather.Draw(skyDrawn, emitters: emitters, fogLifted: fogLifted);
         WeatherSounds.Step(weather);
     }
 

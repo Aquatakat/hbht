@@ -32,7 +32,7 @@ The cloud cover isn't weather: it's set to 1 once (`0x80027390`) and nothing cha
 - **After camping** (`GameState.Lapse`, `0x8007c098`, eight hours), once, if the part of the day is another.
 - **At a new game** (`World.Init`, `0x8007b7a0`, then `World.SetDate`, `0x8007b914`, at noon): the world starts at part 0 and terrain 0, so setting noon is a change, and the weather may change by season 0's and terrain 0's chances before the first chunk's terrain rolls again.
 - **Each combatant's turn** moves the clock on by 600 (`World.AdvanceTurn`, `0x8007c01c`), which can roll as `World.Update` follows; the first turn doesn't. The port's is `GameState.AdvanceTurn` ([combat](combat.md#a-turn)).
-- **Nothing else.** No script command, map object or flag sets the weather. The end of a Wind enchantment (effect 0xB in `0x800707ec`) sets only the world's +0x4 to fog; the port's battle keeps it as `Battle.WeatherClass` ([magic](magic.md)).
+- **Nothing else.** No script command, map object or flag sets the weather. The end of a Wind enchantment (effect 0xB in `0x800707ec`) sets only the world's +0x4 to fog. The port's Wind holds the battle's class clear while it lasts instead, and lifts the drawn fog (`Weather.Draw`'s `fogLifted`, from `Battle.FogLifted`), the user's choice ([magic](magic.md#where-the-port-differs)).
 
 While the lock (+0x5) is up, the part of the day doesn't change and the weather doesn't roll. The port's battle holds its own part of the day (`Battle.PartOfDay`), but doesn't yet stop the roll under it ([magic](magic.md#where-the-port-differs)).
 

@@ -189,7 +189,7 @@ internal static class MagicImporter
             [
                 new DamageEffect(Magnitude.Fixed(2), [Element.Air]) { For = EffectFor.Opponents },
                 new StaminaEffect(Magnitude.Per(2), RaisesMaximum: true) { For = EffectFor.Allies },
-                new WeatherEffect(1) { For = EffectFor.Allies },
+                new WeatherEffect(During: 0) { For = EffectFor.Allies },
             ], Lasting, Resisted.Opponents),
             F(0x033A, "Teleportation", 0, [new TeleportEffect()]),
             F(0x0337, "Brilliance", 53, [Boost(Intelligence, 2)], Lasting),

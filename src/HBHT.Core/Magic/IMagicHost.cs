@@ -27,8 +27,11 @@ public interface IMagicHost
     /// <summary>The moon's phase, 0–3, which a Lunar caster's chance reads (<c>World+3</c>).</summary>
     int MoonPhase { get; }
 
-    /// <summary>Sets combat's class of bad weather (<c>World+4</c>): Wind's end.</summary>
-    void SetWeatherClass(int weatherClass);
+    /// <summary>Holds combat's class of bad weather (<c>World+4</c>) while an effect lasts: Wind on an ally, at none.</summary>
+    void HoldWeatherClass(int weatherClass);
+
+    /// <summary>Lets go of a <see cref="HoldWeatherClass"/> as its effect ends, then sets the class if <paramref name="atEnd"/> names one.</summary>
+    void ReleaseWeatherClass(bool held, int? atEnd);
 
     /// <summary>The Troubadour's bonus in play (<c>Combat.Current+0x13</c>), 0 with none.</summary>
     int TroubadourBonus { get; }

@@ -76,6 +76,9 @@ internal static class EffectRules
             case StaminaEffect s:
                 StartStamina(s, power, sheet);
                 break;
+            case WeatherEffect { During: { } during } when target.Host is { } weatherHost:
+                weatherHost.HoldWeatherClass(during);
+                break;
             case PartOfDayEffect d when target.Host is { } host:
                 // Entity.SetLight: the other's records come off everyone, then the part of the day is held.
                 foreach (var combatant in host.Combatants)
@@ -153,7 +156,7 @@ internal static class EffectRules
                 shaken.Morale = morale - record.Amounts[index];
                 break;
             case WeatherEffect w:
-                target.Host?.SetWeatherClass(w.AtEnd);
+                target.Host?.ReleaseWeatherClass(w.During is not null, w.AtEnd);
                 break;
             case PartOfDayEffect:
                 target.Host?.ReleasePartOfDay();
