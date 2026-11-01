@@ -27,8 +27,14 @@ public sealed class CastingVectorTests(Na10Import fixture, ITestOutputHelper out
     /// </summary>
     private static readonly Dictionary<string, string> KnownDifferences = new()
     {
+        ["limit-web3-rat-web"] = EnemyHoldLimited,
+        ["limit-charm3-rat-web"] = EnemyHoldLimited,
         ["cp05-kind32"] = "1.0's Stamina spell lowers Stamina by 2 a level (Entity.AddEffect's case 0x20 jumps to the negating path at 0x80070560 that Exhaustion's takes); the port's raises it, as its description says",
     };
+
+    private const string EnemyHoldLimited = "1.0 blocks an enemy's hold on the party while three in the enemies' slots are held or "
+        + "charmed and reserves are to come (Combatant.CheckImmobilisingLimit, 0x80063B9C, runs DisableLimit whatever the caster's side), "
+        + "rolling the margin's d6 instead; the port limits the party's side alone";
 
     public static TheoryData<string> Ids => [.. CastingVectors.Vectors.Select(v => v.Id)];
 
@@ -73,7 +79,9 @@ public sealed class CastingVectorTests(Na10Import fixture, ITestOutputHelper out
             if (FormulaState.Int(a[1]) is > 0 and var n)
                 inventory.Add(item, n);
         },
-        ["select"] = (b, a) => FormulaState.Slot(b, a[0]).Spell = new SpellChoice((SpellSourceKind)FormulaState.Int(a[1]), FormulaState.Int(a[2])),
+        // reserves:12: none left to come (Combat+7).
+        ["reserves"] = (b, a) => b.Battle.NextReserve = FormulaState.Int(a[0]) >= 12 ? b.Battle.Enemies.Count : throw new NotSupportedException(),
+        ["select"] =(b, a) => FormulaState.Slot(b, a[0]).Spell = new SpellChoice((SpellSourceKind)FormulaState.Int(a[1]), FormulaState.Int(a[2])),
         ["charges"] = (b, a) =>
         {
             var c = FormulaState.Slot(b, a[0]);

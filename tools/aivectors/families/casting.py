@@ -138,7 +138,12 @@ def _moon(st, a):
     st.cpu.wr8(st.cpu.rd32(WORLD) + 3, int(a[0], 0))
 
 
-EXTRA = {'learn': _learn, 'mirror': _mirror, 'reagent': _reagent, 'select': _select, 'charges': _charges, 'gear': _gear,
+def _reserves(st, a):
+    """reserves:n: Combat+7, the next reserve's place in the enemy list; 12 when none is left to come."""
+    st.cpu.wr8(st.combat + 7, int(a[0], 0))
+
+
+EXTRA = {'reserves': _reserves, 'learn': _learn, 'mirror': _mirror, 'reagent': _reagent, 'select': _select, 'charges': _charges, 'gear': _gear,
          'moon': _moon}
 
 
@@ -219,6 +224,24 @@ ESCAPE, TELEPORTATION = 1, 12
 FOR_PARTY = {1, 2, 3, 10, 12, 13, 19, 23, 30, 32, 35, 37, 38, 39, 40, 41, 46, 48, 51}
 NOT_RESISTED = ('Combatant.ResistRoll', d100(100))
 CHARMS = (4, 17, 27)
+# Casts target set B never offers: Control Elem at the Dust Devil, which its filter (Combatant.SpellKindAllowsTarget, 0x8006088C, by
+# Entity.IsElemental, 0x8006E110) leaves out; AddEffect's charm asks the same again and doesn't take, where the port's charm takes.
+UNREACHABLE = {('setup7', 4, 4)}
+# The parity logs' casters: their slots, each with the opponents it casts at.
+LOGS = {
+    # Tomb Rats, reserves to come: the party's spread of spells.
+    'setup1': ('20261031-105935-setup1', [(0, [4]), (1, [4]), (2, [4]), (3, [4])]),
+    # The Chaos casters (Spellweavers 4-5, Sorcerors 6-7) at the party, and the party's at them.
+    'setup2': ('20261031-123809-setup2', [(4, [0, 2]), (5, [1]), (6, [0, 3]), (7, [2]), (0, [5]), (1, [6]), (2, [4, 6]), (3, [7])]),
+    # Kitarak (4) and a Hobgoblin (5): Tap Stamina, Spirit Shield, Crushing Death and Kitarak's Warfang's Darkness.
+    'setup11': ('20261101-083418-setup11', [(4, [0, 2]), (5, [1])]),
+    # Lugash (4, Wizard 15) and his weapon's Web, and the party's at him.
+    'setup12': ('20261101-092600-setup12', [(4, [0, 1, 3]), (1, [4]), (2, [4])]),
+    # The Dust Devil (4) and the Air Elemental (5): Dougal's Control Elem, Alaron's Banishing.
+    'setup7': ('20261031-223128-setup7', [(2, [5, 4]), (0, [5]), (4, [0, 3])]),
+    # The Wraiths' Wraith Touch and Darkness at the party.
+    'setup6': ('20261031-205206-setup6', [(4, [0, 2])]),
+}
 EARTH, SOLAR, PHYSICAL, NECROMANCY, FIRE, LUNAR, NAMING, WATER, MAGIC, AIR, STAR, ELEMENTAL = 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12
 
 
@@ -387,4 +410,46 @@ def cases():
         add(f'item-weapon-whitefire-charges{n}', (0, 4), f'select:0,4,0|charges:0,{n}', script=CASTS, steer=[NOT_RESISTED])
     add('item-weapon-acted', (0, 4), 'select:0,4,0|acted:0,6', script=CASTS, steer=[NOT_RESISTED])
     add('item-scroll-acted', (0, 4), 'gear:0,0x1109|select:0,5,0|acted:0,6', script=CASTS, steer=[NOT_RESISTED])
+
+    # The parity logs' states, each at its first turn's start (Combat.StartFirstTurn's dump): every spell each caster knows, at its own
+    # level, cast at itself for the party's side's spells and at an opponent for the rest, landed and not resisted, and with the resist
+    # roll at 20; and the casters' weapons' spells from the menu.
+    for tag, (folder, casters) in LOGS.items():
+        source = f'log:{folder}/battle-01:0002.rdram.gz'
+        st = state.State(source, '')
+        for caster, opponents in casters:
+            book = st.cpu.rd32(st.entity(caster) + 0x2C)
+            for i in range(st.cpu.rd8(book + 4)):
+                sp = st.cpu.rd32(st.cpu.rd32(book) + 4 * i)
+                kind = next(k for k in range(59) if spell_id(st.cpu, k) == st.cpu.rd16(sp))
+                if kind in (ESCAPE, 49, 50, 21):
+                    continue
+                for t in ([caster] if st.cpu.rd8(sp + 0x19) == 1 else opponents):
+                    if (tag, kind, t) in UNREACHABLE:
+                        continue
+                    for r, steer in ((20, NOT_RESISTED), (20, ('Combatant.ResistRoll', d100(20))), (85, NOT_RESISTED)):
+                        add(f'{tag}-{caster}-k{kind}-{t}-roll{r}{"-resist20" if steer is not NOT_RESISTED else ""}', (caster, t),
+                            f'select:{caster},1,{i}', source=source, script={0: d100(r)}, steer=[steer])
+            weapon = st.cpu.rd32(st.entity(caster) + 0x24)
+            if weapon and st.cpu.rd32(weapon + 0x10):
+                for t in opponents:
+                    add(f'{tag}-{caster}-weapon-{t}', (caster, t), f'select:{caster},4,0', source=source, script=CASTS,
+                        steer=[NOT_RESISTED])
+
+    # The disable limit (Combatant.DisableLimit, 0x80063A00), on setup 1's state, where reserves are still to come (Combat+7 isn't
+    # 12): a hold or a charm of the party's is blocked while three in the enemies' slots are held or charmed, and still rolls the
+    # margin's d6: Sholeh's Web of Starlight (57), and her Whitefire, which isn't limited, with rats 5-7 held by Web records laid on
+    # or charmed by Charming's; and a rat's Web at Alaron, which CheckImmobilisingLimit (0x80063B9C) limits whatever the caster's
+    # side. With no reserves to come (Combat+7 at 12) nothing is limited.
+    s1 = f'log:{LOGS["setup1"][0]}/battle-01:0002.rdram.gz'
+    for held in range(4):
+        for how, kind in (('web', 57), ('charm', 16)):
+            pk = ''.join(f'|effect:{5 + i},{kind},5,3000,5' for i in range(held))
+            add(f'limit-{how}{held}-sholeh-web', (1, 4), 'select:1,1,4' + pk, source=s1, script=CASTS, steer=[NOT_RESISTED])
+            add(f'limit-{how}{held}-sholeh-whitefire', (1, 4), 'select:1,1,5' + pk, source=s1, script=CASTS, steer=[NOT_RESISTED])
+            add(f'limit-{how}{held}-rat-web', (4, 0), 'learn:4,57,5|skill:4,Wizard,5|mod:0,Willpower,0|mod:0,Endurance,0' + pk, source=s1,
+                script=CASTS,
+                steer=[NOT_RESISTED])
+            add(f'limit-{how}{held}-sholeh-web-noreserves', (1, 4), 'select:1,1,4|reserves:12' + pk, source=s1, script=CASTS,
+                steer=[NOT_RESISTED])
     return out
