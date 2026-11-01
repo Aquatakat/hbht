@@ -102,6 +102,9 @@ public sealed class Wanderer
     /// </summary>
     public bool Calmed { get; set; }
 
+    /// <summary>Whether it noticed the player in its last tick.</summary>
+    internal bool Noticed { get; private set; }
+
     /// <summary>How far it notices the player doing each thing, set as he first comes near (<c>perceptionsSet</c>), or null.</summary>
     public NoticeRanges? Ranges { get; private set; }
 
@@ -209,6 +212,7 @@ public sealed class Wanderer
         // The original keeps one "noticed" for the whole loop, so every hunter after one that notices
         // the player chases him too; as the user chose, each notices for itself.
         var noticed = Hunts && bodyOut <= Leash && !Calmed && perceived <= (Ranges ?? default).For(tick.PlayerRequest);
+        Noticed = noticed;
 
         if (!Hunts && playerProx < FaceDistance)
         {

@@ -628,6 +628,31 @@ public class WanderersTickTests(WanderersFixture fixture) : IClassFixture<Wander
     }
 
     [Fact]
+    public void TheAmbushIsWhatThePlayerWasDoingTheLastTickHeWasNoticed()
+    {
+        // Setup 9's seventh battle: Alaron ran at the Wolves, then sneaked as they closed, and 1.0's byte was 3 (0x8000FAD4).
+        var node = new WanderNodeObject(0, new Vector3(5, 0, 5), 0, PakVariant.Any, null, 2, 0, 0, 1000, WanderFlags.Move, []);
+        var party = new MonsterPartyObject(1, new Vector3(5, 0, 5), 20, PakVariant.Any, null, [], WanderersFixture.Entity, null, 0, 0,
+            MapRecord.VoxelId(MapId, 0), PartyFlags.Walks, null, null);
+        var map = LoadedMap.Activate(new MapRecord(MapId, [node, party]), Worlds.Chunk(0), ItemData.Flags(), new MapObjectMemory(), ItemData.NewParty(), new Lcg());
+        var world = Worlds.Flat();
+        var wanderers = new Wanderers(fixture.Plugins);
+        var wanderer = Assert.Single(wanderers.Load(map, 20, world, new MapObjectMemory()));
+        var at = wanderer.Body.Sphere.Position;
+        var facing = new Vector3(-1, 0, -1) / MathF.Sqrt(2);
+
+        // Noticed running at 12, inside the running range of 15 from where it looks.
+        Assert.Empty(wanderers.Tick(world, at + facing * 12, Body.Run, null, new ScriptedRandom()));
+        Assert.Equal(3, wanderers.NoticedAs);
+
+        // Sneaking, with no party to hide him: not noticed, but still chased, and caught within 7 as he was last noticed.
+        var ambushes = wanderers.Tick(world, at + facing * 4, Body.Sneak, null, new ScriptedRandom());
+        Assert.Equal([wanderer], ambushes);
+        Assert.False(wanderer.Noticed);
+        Assert.Equal(3, wanderers.NoticedAs);
+    }
+
+    [Fact]
     public void WanderersStepAsFarFromTheAimAsTheirReach()
     {
         var node = new WanderNodeObject(0, new Vector3(5, 0, 5), 0, PakVariant.Any, null, 2, 0, 0, 1000, WanderFlags.Move, []);
@@ -656,5 +681,26 @@ public class WanderersTickTests(WanderersFixture fixture) : IClassFixture<Wander
         for (var i = 0; i < 30; i++)
             Step();
         Assert.True(wanderer.Body.Sphere.Position.X > at.X + 0.1f, $"{wanderer.Body.Sphere.Position}");
+    }
+}
+
+/// <summary>Which way a hunter used by A starts its battle facing (<c>IMapObjectHost.Talk</c>, <c>0x80010AA8</c>–<c>0x80010B74</c>).</summary>
+public class TalkByteTests
+{
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(59, 0)]
+    [InlineData(61, 1)]
+    [InlineData(90, 1)]
+    [InlineData(180, 1)]
+    [InlineData(-59, 0)]
+    [InlineData(-90, 1)]
+    public void ThePartyFacesThePlayerOnlyWithinSixtyDegreesOfItsHeading(float degrees, int expected)
+    {
+        // Setup 9's fourth battle: Alaron talked at a Wolf's side, and 1.0's byte was 1.
+        var party = new Vector3(10, 0.5f, 10);
+        var angle = degrees * MathF.PI / 180;
+        var player = party + new Vector3(MathF.Cos(angle), 0, MathF.Sin(angle)) * 1.5f;
+        Assert.Equal(expected, TrekLoop.TalkByte(party, Vector2.UnitX, player));
     }
 }

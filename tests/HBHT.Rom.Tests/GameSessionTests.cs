@@ -293,7 +293,9 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         var place = placements.First(map.Id)!;
         var (session, host) = Start(place.Chunk.Name, party.Position.X, party.Position.Z);
         var loaded = session.Trek.Chunks.All.Single(c => c.Map.Record.Id == map.Id).Map;
-        Assert.Contains(session.Trek.Wanderers.All, w => w.Party == party);
+        var wanderer = Assert.Single(session.Trek.Wanderers.All, w => w.Party == party);
+        // Which way its enemies start facing is by where the player stands against its body's heading (0x80010AA8).
+        var faces = TrekLoop.TalkByte(wanderer.Body.Sphere.Position, wanderer.Body.Heading, session.Trek.Player.Sphere.Position);
         ((IMapObjectHost)session.Trek).Talk(loaded, party);
         // Trek cues it, fading out, rather than handing it on.
         Assert.Empty(host.Transitions);
@@ -301,12 +303,13 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         Assert.True(session.Trek.CutSceneFade.Fading);
         var here = new ChunkRef(place.Set.Id, place.Chunk.Row, place.Chunk.Column);
         Assert.Equal(new BattleSetup(BattleSource.MonsterParty, here, place.Chunk.Terrain, id, party.Enemies, null, false, true, party.Used?.Flag)
-            with { Enemies = fight.Enemies, Size = (party.MinSize, party.MaxSize), BonusLoot = party.Loot, PartyGate = party.Enabled }, fight);
+            with { Enemies = fight.Enemies, Size = (party.MinSize, party.MaxSize), BonusLoot = party.Loot, PartyGate = party.Enabled,
+                CollisionByte = faces }, fight);
         Assert.Equal(party.Enemies, fight.Enemies);
 
         // A wanderer catching the party is the same, as an ambush.
         var ambush = BattleSetup.WithParty(BattleSource.Wanderer, id, party, here, place.Chunk.Terrain, ambush: true);
-        Assert.Equal(fight with { Source = BattleSource.Wanderer, Ambush = true }, ambush);
+        Assert.Equal(fight with { Source = BattleSource.Wanderer, Ambush = true, CollisionByte = 0 }, ambush);
 
         // A camp ambush where the player stands, in G14 (terrain 0): the terrain's two kinds at the party's level's tier, its least
         // and most theirs summed, and no fleeing. Two of the Gwernia recruits make ambushes possible; each camp that isn't one heals and cues the scene.

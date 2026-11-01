@@ -141,11 +141,21 @@ public sealed class Wanderers(PluginSet plugins)
         List<Wanderer>? ambushes = null;
         foreach (var w in _all)
         {
-            if (w.Tick(tick))
+            var ambushed = w.Tick(tick);
+            if (w.Noticed)
+                NoticedAs = TrekLoop.AniByte(playerRequest);
+            if (ambushed)
                 (ambushes ??= []).Add(w);
         }
         return ambushes ?? (IReadOnlyList<Wanderer>)[];
     }
+
+    /// <summary>
+    /// What the player was doing the last tick a hunter noticed him, for an ambush's spawn sets (<c>EncounterDat.aniByte</c>,
+    /// <c>0x800D9480</c>, which <c>WanderTick</c> writes at <c>0x8000FAD4</c>–<c>0x8000FB78</c> as each hunter notices him, and not
+    /// as it catches him): 3 running, 2 walking, 1 sneaking, else 0. Run at, then sneaking as they close, he's still caught running.
+    /// </summary>
+    public int NoticedAs { get; private set; }
 
     /// <summary>
     /// Steps the bodies after the player's own step, as <c>ProcessPlayers</c> does each tick: the

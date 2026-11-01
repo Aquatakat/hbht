@@ -179,7 +179,8 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
         var flag = Half(ram, EncounterFlag);
         var setup = new BattleSetup(ambush ? BattleSource.Wanderer : BattleSource.MonsterParty, null, null, null, enemies,
             Arena: ram.ReadByte(ArenaByte), Ambush: ambush, CanFlee: ram.ReadByte(FleeByte) != 0,
-            EncounterFlag: flag == 0 ? null : RecordId.Decimal(RecordTypes.Flag, flag), CollisionByte: 0, AniByte: ram.ReadByte(AniByte));
+            EncounterFlag: flag == 0 ? null : RecordId.Decimal(RecordTypes.Flag, flag), CollisionByte: ram.ReadByte(CollisionByte),
+            AniByte: ram.ReadByte(AniByte));
 
         var arena = Arena.For(Set, setup.Arena!.Value)!;
         Assert.NotNull(arena);

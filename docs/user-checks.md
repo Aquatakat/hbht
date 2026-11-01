@@ -201,6 +201,23 @@ Every enemy turn passes but three, none of them the port's rules:
 - **0018** is the cadence. The Giant Skeleton's walk ended 0.58 off 1.0's, out of Dougal's reach. At 3-tick frames it strikes him as 1.0's does.
 - **0037** is the cadence. The Skeleton Archer, having shot Dougal, faced 162° from its leg to (33, 8) and swung wide through +Z as it turned, coming no nearer. 1.0's body gave up after 11 frames in state 5, at (32.28, 8.86). The port's turns round at 2-tick frames and walks on. At 5-tick frames it gives up too, and shoots from within 0.27 of 1.0's. The deltas logged at the entry points were 2–3 ticks, but each of the walk's frames stopped the logger for two draws, so they likely ran longer.
 
+Setup 9's session (`out/parity/20261031-233707-setup9`) has eight battles with the Wolves, each fled at once. The setup block's bytes, as each battle began:
+
+| Battle | How | Collision | Animation |
+| --- | --- | --- | --- |
+| 1 | ran at them | 2, the ambush | 3 |
+| 2 | walked | 2 | 2 |
+| 3, 5, 6 | sneaked | 2 | 1 |
+| 4 | talked to a Wolf at its side, with a Stealth Potion | 1 | 0 |
+| 7 | ran, then sneaked as they closed | 2 | 3 |
+| 8 | sneaked | 2 | 0 |
+
+Every battle's setup draws and first turn pass, the ambushes' spawn sets and the Ranger's roll among them. The user found talking from in front or behind hard to reach: the Wolves keep moving, and a sneak near them was noticed and ambushed four times.
+
+Two differences were the port's:
+- **The talk.** 1.0's collision byte is 0 within 60° of the party's heading (`0x80010AA8`–`0x80010B74`, [wanderers](systems/wanderers.md#talking)), so a talk at the side is 1, and the Wolves start facing away. The port passed 0 for every talk, so its Wolves faced the party, 6–7 for 1.0's 2–3. The port now tests the cone (`TrekLoop.TalkByte`). The replay, which had passed 0 for every battle but an ambush, reads 1.0's byte.
+- **The animation byte.** 1.0 writes it each frame a hunter's notice holds, not as it catches him. Battle 7, run at and then sneaking, was caught running. Battle 8's sneak was last noticed as Alaron stood. The port took his request as the Wolf caught him, and now keeps what he was doing when last noticed (`Wanderers.NoticedAs`). The replay reads the byte from RAM, so it didn't show this.
+
 Still to do:
 
 - **Setup 2's walks,** above: which way 1.0's Spellweaver curved at the second's 0016.
