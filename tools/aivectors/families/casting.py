@@ -56,7 +56,90 @@ def _mirror(st, a):
     st.cpu.wr8(st.record(int(a[0], 0)) + 0x28, int(a[1], 0))
 
 
-EXTRA = {'learn': _learn, 'mirror': _mirror}
+PARTY = 0x800D9684
+REAGENTS = 0x800E29CC            # Spell.Reagents: the reagent items by the spell's +0x1D, u16
+WORLD = 0x800E303C
+
+
+def inventory(cpu):
+    return cpu.rd32(cpu.rd32(PARTY) + 0x10)
+
+
+def take(cpu, item, n=1):
+    """Inventory.Remove (its vtable's +0x3C, this adjusted by +0x38): whether it had one."""
+    inv = inventory(cpu)
+    vt = cpu.rd32(inv)
+    adjust = cpu.rd16(vt + 0x38)
+    adjust -= 0x10000 if adjust & 0x8000 else 0
+    return cpu.run(cpu.rd32(vt + 0x3C), [inv + adjust, item, n], maxsteps=2_000_000) & 0xFF
+
+
+def count(cpu, item):
+    """The party's count of an item: its stack's quantity (the stacks 0x18 bytes from +4, the id at +0 and the quantity at +0x14,
+    as Inventory.Find, its vtable's +0x54 at 0x8007370C, walks them)."""
+    inv = inventory(cpu)
+    for i in range(0xFC):
+        stack = inv + 4 + 0x18 * i
+        if cpu.rd16(stack) == item and cpu.rd32(stack + 0x14):
+            return cpu.rd32(stack + 0x14)
+    return 0
+
+
+def _reagent(st, a):
+    """reagent:id,n: the party holds n of the item."""
+    item, n = int(a[0], 0), int(a[1], 0)
+    if count(st.cpu, item):
+        take(st.cpu, item, count(st.cpu, item))
+    if n:
+        st.cpu.run(0x80073574, [inventory(st.cpu), item, n], maxsteps=2_000_000)
+
+
+def _select(st, a):
+    """select:slot,source,index: the selected spell (+0x3D the source: 1 known, 2 armor, 3 shield, 4 weapon, 5 gear; +0x3E)."""
+    ent = st.entity(int(a[0], 0))
+    st.cpu.wr8(ent + 0x3D, int(a[1], 0))
+    st.cpu.wr8(ent + 0x3E, int(a[2], 0))
+
+
+def source_item(st, slot):
+    """The item the selected spell comes from (Entity.CurrentSpell's sources 2-5), or 0."""
+    cpu = st.cpu
+    ent = st.entity(slot)
+    source, index = cpu.rd8(ent + 0x3D), cpu.rd8(ent + 0x3E)
+    if source in (2, 3):
+        return cpu.rd32(cpu.rd32(ent + 0x20) + 4 * (source - 2))
+    if source == 4:
+        return cpu.rd32(ent + 0x24)
+    if source == 5:
+        return cpu.rd32(cpu.rd32(cpu.rd32(ent + 0x28)) + 4 * index)
+    return 0
+
+
+def _charges(st, a):
+    """charges:slot,n: the selected spell's item's charges ((item+0x10)+4)."""
+    st.cpu.wr8(st.cpu.rd32(source_item(st, int(a[0], 0)) + 0x10) + 4, int(a[1], 0))
+
+
+def _gear(st, a):
+    """gear:slot,id[,battery]: the item worn in a gear slot (Entity.EquipGear, 0x8006F1EC), as the Party tab's equip puts it on
+    (0x80075CDC), its stat bonus the DB's, or a battery of the Stamina stat at the given charge."""
+    cpu = st.cpu
+    ent = st.entity(int(a[0], 0))
+    mod = 0
+    if len(a) > 2:
+        mod = state.alloc(cpu, 2)
+        cpu.wr8(mod, 5)
+        cpu.wr8(mod + 1, int(a[2], 0))
+    cpu.run(0x8006F1EC, [ent, int(a[1], 0), mod], maxsteps=5_000_000)
+
+
+def _moon(st, a):
+    """moon:n: the moon's phase (World+3, 0-3), which a Lunar caster's chance goes by."""
+    st.cpu.wr8(st.cpu.rd32(WORLD) + 3, int(a[0], 0))
+
+
+EXTRA = {'learn': _learn, 'mirror': _mirror, 'reagent': _reagent, 'select': _select, 'charges': _charges, 'gear': _gear,
+         'moon': _moon}
 
 
 def s16(v):
@@ -96,16 +179,35 @@ def run(v):
     cpu = st.cpu
     ent = st.entity(a)
     source, index = cpu.rd8(ent + 0x3D), cpu.rd8(ent + 0x3E)
+    # The selection as it was: a refusal puts it to none (Combatant.FailSpell).
+    item = source_item(st, a) if source != 1 else 0
     spell = st.call(SPELL_COPY, [ent, 0x13CB, 0]) & 0xFFFFFFFF
     result = s16(st.call(CAST_SPELL, [st.record(a), st.record(t), spell, 0]))
     level = -1
     if source == 1:
         book = cpu.rd32(ent + 0x2C)
         level = cpu.rd8(cpu.rd32(cpu.rd32(book) + 4 * index) + 0x14)
+    charges = cpu.rd8(cpu.rd32(item + 0x10) + 4) if item and cpu.rd32(item + 0x10) else -1
+    reagent = cpu.rd8(spell + 0x1D)
     expect = [('result', result), ('margin', s8(cpu.rd8(ent + 0x3C))), ('acted', cpu.rd16(st.record(a) + 0x2C) & 1),
-              ('draws', len(st.draws.drawn)), ('stamina', st.stat(a, 'Stamina')), ('level', level)]
+              ('draws', len(st.draws.drawn)), ('stamina', st.stat(a, 'Stamina')), ('level', level), ('charges', charges),
+              ('batteries', batteries(st, a))]
     expect += target_state(st, t)
+    expect.append(('reagents', count(cpu, cpu.rd16(REAGENTS + 2 * (reagent - 1) if reagent in (1, 2, 3) else REAGENTS)) if reagent else -1))
     return expect, st.draws.callers()
+
+
+def batteries(st, slot):
+    """The worn gear's batteries by slot (an item whose +0xC is the Stamina stat's: its charge), "slot:charge" joined by '/'."""
+    cpu = st.cpu
+    gear = cpu.rd32(st.entity(slot) + 0x28)
+    out = []
+    for i in range(cpu.rd8(gear + 4)):
+        item = cpu.rd32(cpu.rd32(gear) + 4 * i)
+        mod = cpu.rd32(item + 0xC) if item else 0
+        if mod and cpu.rd8(mod) == 5:
+            out.append(f'{i}:{cpu.rd8(mod + 1)}')
+    return '/'.join(out) or '-'
 
 
 # ---- the vectors
@@ -241,4 +343,48 @@ def cases():
                 steer=[('Combatant.ResolveCastRoll', d100(r)), NOT_RESISTED])
             add(f'rise-L{level}-failed-roll{r}', (0, 4), f'learn:0,6,{level}', script={0: d100(100)},
                 steer=[('Combatant.ResolveCastRoll', d100(r))])
+
+    # The moon's phase for a Lunar caster (World+3: x0.5, 0.75, 1.25, 1.5): Sholeh (3) and Alaron made Lunar.
+    for phase in range(4):
+        for r in (20, 45, 70, 99):
+            add(f'moon{phase}-sholeh-roll{r}', (3, 4), f'learn:3,6,5|moon:{phase}', script={0: d100(r)}, steer=[NOT_RESISTED])
+            add(f'moon{phase}-alaron-lunar-roll{r}', (0, 4), DF + f'|aspect:0,1|moon:{phase}', script={0: d100(r)}, steer=[NOT_RESISTED])
+        add(f'moon{phase}-alaron-solar', (0, 4), DF + f'|moon:{phase}', script={0: d100(70)}, steer=[NOT_RESISTED])
+
+    # The reagent (the spell's +0x1D, Spell.Reagents at 0x800E29CC): Dragon Flames takes a gemstone (0x0113) from the party's; none
+    # left refuses it, a failed roll gives it back. Poison needs none. An enemy, from the enemy list, pays none.
+    GEM = 0x113
+    for n in (0, 1, 2):
+        add(f'reagent{n}-cast', (0, 4), DF + f'|reagent:0x{GEM:X},{n}', script=CASTS, steer=[NOT_RESISTED])
+        add(f'reagent{n}-failed', (0, 4), DF + f'|reagent:0x{GEM:X},{n}', script={0: d100(100)})
+    add('reagent0-stamina0', (0, 4), DF + f'|reagent:0x{GEM:X},0|mod:0,Stamina,0|cur:0,Stamina,0', script=CASTS)
+    add('reagent1-stamina0', (0, 4), DF + f'|reagent:0x{GEM:X},1|mod:0,Stamina,0|cur:0,Stamina,0', script=CASTS)
+    add('poison-noreagents', (0, 4), 'learn:0,36,5|reagent:0x111,0|reagent:0x112,0|reagent:0x113,0', script=CASTS, steer=[NOT_RESISTED])
+    for kind in (6, 9, 57):
+        add(f'rat-k{kind}-noreagents', (4, 0), f'learn:4,{kind},5|skill:4,Wizard,5|reagent:0x111,0|reagent:0x112,0|reagent:0x113,0',
+            script=CASTS, steer=[NOT_RESISTED])
+
+    # The worn items' batteries (an item whose stat bonus is Stamina's), drawn by slot before Stamina: the Magedrake Ring (0x0C27, 25),
+    # the Wizard's Wand (0x0D0B, 20) and the Namers Ring (0x0C31, 10), against Dragon Flames' cost of 5 (and 10 at level 0).
+    for pk, tag in (('gear:0,0x0C27,25', 'ring25'), ('gear:0,0x0C27,3', 'ring3'), ('gear:0,0x0C27,5', 'ring5'), ('gear:0,0x0C27,0', 'ring0'),
+                    ('gear:0,0x0D0B,2|gear:0,0x0C31,10', 'two'), ('gear:0,0x0D0B,2|gear:0,0x0C31,1', 'two-short')):
+        # The gear first: an equipment change puts the selected spell to none (Entity.ApplyItem).
+        add(f'battery-{tag}', (0, 4), pk + '|' + DF, script=CASTS, steer=[NOT_RESISTED])
+        add(f'battery-{tag}-L0', (0, 4), pk + '|learn:0,6,0', script=CASTS, steer=[NOT_RESISTED])
+        add(f'battery-{tag}-stamina1', (0, 4), pk + '|' + DF + '|mod:0,Stamina,1|cur:0,Stamina,1', script=CASTS, steer=[NOT_RESISTED])
+        add(f'battery-{tag}-failed', (0, 4), pk + '|' + DF, script={0: d100(100)})
+
+    # An item's spell: a scroll or a wand worn as gear spends a charge, the weapon's from the menu (C-up) none; none left refuses it.
+    # No reagent, no Stamina, no roll but a d100's step.
+    for item, tag in ((0x1109, 'scroll-lightning'), (0x0D16, 'wand-lightning'), (0x0D13, 'wand-web'), (0x1132, 'scroll-fireball'),
+                      (0x1104, 'scroll-weakness')):
+        for r in (1, 50, 100):
+            add(f'item-{tag}-roll{r}', (0, 4), f'gear:0,0x{item:X}|select:0,5,0', script={0: d100(r)}, steer=[NOT_RESISTED])
+        add(f'item-{tag}-charges0', (0, 4), f'gear:0,0x{item:X}|select:0,5,0|charges:0,0', script=CASTS, steer=[NOT_RESISTED])
+        add(f'item-{tag}-second-slot', (0, 4), f'gear:0,0x0C27,25|gear:0,0x{item:X}|select:0,5,1|reagent:0x111,0|reagent:0x112,0'
+            f'|reagent:0x113,0|mod:0,Stamina,0|cur:0,Stamina,0', script=CASTS, steer=[NOT_RESISTED])
+    for n in (3, 1, 0):
+        add(f'item-weapon-whitefire-charges{n}', (0, 4), f'select:0,4,0|charges:0,{n}', script=CASTS, steer=[NOT_RESISTED])
+    add('item-weapon-acted', (0, 4), 'select:0,4,0|acted:0,6', script=CASTS, steer=[NOT_RESISTED])
+    add('item-scroll-acted', (0, 4), 'gear:0,0x1109|select:0,5,0|acted:0,6', script=CASTS, steer=[NOT_RESISTED])
     return out

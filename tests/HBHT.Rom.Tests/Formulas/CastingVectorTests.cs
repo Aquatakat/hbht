@@ -1,5 +1,7 @@
 using System.Reflection;
+using HBHT.Core.Calendar;
 using HBHT.Core.Characters;
+using HBHT.Core.Items;
 using HBHT.Core.Combat;
 using HBHT.Core.Magic;
 using HBHT.Plugins;
@@ -61,6 +63,37 @@ public sealed class CastingVectorTests(Na10Import fixture, ITestOutputHelper out
             c.Spell = new SpellChoice(SpellSourceKind.Known, c.Sheet.Spells.ToList().IndexOf(known));
         },
         ["mirror"] = (b, a) => FormulaState.Slot(b, a[0]).Mirror = FormulaState.Int(a[1]),
+        ["reagent"] = (b, a) =>
+        {
+            var inventory = b.Game.Party.Inventory;
+            var item = TestRoms.ItemId((ushort)FormulaState.Int(a[0]));
+            while (inventory.Take(item))
+            {
+            }
+            if (FormulaState.Int(a[1]) is > 0 and var n)
+                inventory.Add(item, n);
+        },
+        ["select"] = (b, a) => FormulaState.Slot(b, a[0]).Spell = new SpellChoice((SpellSourceKind)FormulaState.Int(a[1]), FormulaState.Int(a[2])),
+        ["charges"] = (b, a) =>
+        {
+            var c = FormulaState.Slot(b, a[0]);
+            c.CurrentSpell(b.Game.Rules.Magic)!.Item!.Charges = FormulaState.Int(a[1]);
+        },
+        // gear:slot,id[,battery]: as Entity.EquipGear puts it on, a battery's charge given (1.0's stat bonus copied from the stack).
+        ["gear"] = (b, a) =>
+        {
+            var gear = new ItemInstance(b.Game.Items.TryGet(TestRoms.ItemId((ushort)FormulaState.Int(a[1])))!);
+            gear.Battery = a.Length > 2 ? FormulaState.Int(a[2]) : null;
+            Assert.Equal(EquipRefusal.None, FormulaState.Slot(b, a[0]).Sheet.Equipment.EquipGear(gear));
+        },
+        // moon:n: the clock moved to a day of that phase (GameClock.MoonPhase), the season and the time of day kept.
+        ["moon"] = (b, a) =>
+        {
+            var clock = b.Game.Clock;
+            var day = FormulaState.Int(a[0]) switch { 3 => 0, 0 => 14, 2 => 3, _ => 10 };
+            clock.Time = clock.Time / GameClock.Season * GameClock.Season + (uint)day * GameClock.Day + clock.Time % GameClock.Day;
+            Assert.Equal(FormulaState.Int(a[0]), GameClock.MoonPhase(clock.Time).Phase);
+        },
     };
 
     /// <summary>
@@ -110,6 +143,9 @@ public sealed class CastingVectorTests(Na10Import fixture, ITestOutputHelper out
             ("draws", draws.Count),
             ("stamina", a.Sheet.Stats.RawModified(Stat.Stamina)),
             ("level", source.Known?.Level ?? -1),
+            ("charges", source.Item?.Charges ?? -1),
+            ("batteries", string.Join('/', a.Sheet.Equipment.Gear.Take(a.Sheet.Equipment.GearCount).Select((g, i) => (g, i))
+                .Where(p => p.g?.Battery is not null).Select(p => $"{p.i}:{p.g!.Battery}")) is { Length: > 0 } b ? b : "-"),
             ("effects", sheet.Effects.Count == 0 ? "-"
                 : string.Join('/', sheet.Effects.Select(e => $"{spells.GetValueOrDefault(e.Source)}:{RecordPower(e)}:{(byte)e.Margin}:{e.Timer}"))),
             ("tmod", string.Join('.', Enum.GetValues<Stat>().Select(s => (byte)sheet.Stats.RawModified(s)))),
@@ -119,6 +155,7 @@ public sealed class CastingVectorTests(Na10Import fixture, ITestOutputHelper out
             ("tflags", (int)(t.Flags & (CombatantFlags.Active | CombatantFlags.Hostile))),
             ("morale", t.Ai?.Morale ?? -1),
             ("aiflags", t.Ai is { } ai ? (int)ai.Flags : -1),
+            ("reagents", built.Game.Rules.Magic.ReagentItem(source.Spell.Reagent) is { } reagent ? built.Game.Party.Inventory.Count(reagent) : -1),
         };
         return FormulaState.Differences(v.Expect, actual);
     }
