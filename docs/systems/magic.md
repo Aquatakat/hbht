@@ -138,7 +138,8 @@ The user chose to keep these, which look like bugs, as the original has them:
 
 ## Where the port differs
 
-- **The Stamina spell raises Stamina** by 2L as it lands and takes it back as it ends, as its description says. 1.0's lowers it: `Character.AddEffect`'s case for kind 32 jumps into the weakening kinds' path (`0x80070560`, −2L), and `EffectRules.End` takes 2L more, so each cast leaves Stamina's base and maximum 4L lower until a load. The formula vectors list it as a known difference (`EffectsVectorTests`) until the user chooses.
+- **The Stamina spell raises Stamina** by 2L as it lands and takes it back as it ends, as its description says. 1.0's lowers it: `Character.AddEffect`'s case for kind 32 jumps into the weakening kinds' path (`0x80070560`, −2L), and `EffectRules.End` takes 2L more, so each cast leaves Stamina's base and maximum 4L lower until a load. The user chose the fix; the formula vectors list it as a known difference (`EffectsVectorTests`, `CastingVectorTests`).
+- **The enemies may hold the whole party**, the user's choice. 1.0 runs the disable limit whatever the caster's side (`Combatant.CheckImmobilisingLimit`, `0x80063B9C`, through `DisableLimit`, `0x80063A00`, which counts the held and charmed in the enemies' slots): while three enemies are held or charmed and reserves are to come, an enemy's hold on a member is refused as resisted, and rolls the margin's d6 instead. It reads as a check meant for the party's casts reaching the enemies' too. The port limits the party's casts alone (`CastingVectorTests` lists the difference).
 - **Wind does what its description says**, the user's choice: on an ally it holds the battle's weather clear while it lasts, the drawn fog lifting at the fog's rate, and lets the weather's own back as it ends ([the table](#what-each-spell-does)). 1.0's left the weather alone while it lasted and set fog as it ended, so a throw took fog's penalty after a Wind even in clear weather. Several Winds hold it together (`Battle.HoldWeatherClass`, counted). The permanent Stamina raise is 1.0's, kept.
 - A charm takes whoever it's cast at. 1.0's `Entity.AddEffect` asks again what target set B's filter asked (`Ids.IsElemental`, `0x8006E110`, for Control Elem; the Marquis; the Zombies) and adds the record without the charm when it fails, which only a cast outside the filter, a mod's, reaches.
 - One record can hold several effects; the original keys one per kind. The base game's records hold one each but Web of Starlight's (immobilise and 2d6) and Tap Stamina's.
@@ -149,11 +150,5 @@ The user chose to keep these, which look like bugs, as the original has them:
 
 ## Not settled
 
-The user's to choose, which the formula vectors list as known differences ([combat-parity](combat-parity.md#the-formula-vectors)):
-
-- **1.0's Stamina spell (32) lowers Stamina** by 2 a level, base and modified, as Exhaustion does: `Entity.AddEffect`'s case `0x20` takes the negating path at `0x80070560` that Exhaustion's (`0x1F`) takes, with the record not marked harmful. Its description says it raises Stamina, and the port's record raises it (+2L).
-- **1.0 limits an enemy's hold on the party** by the enemies held or charmed ([Casting](#casting), step 6). It reads as a check meant for the party's casts reaching the enemies' too; the port leaves the enemies' side unlimited.
-
-Not the user's:
 
 - The `unk1E` bits 0x20, 0x40 and 0x80, which nothing in combat reads.

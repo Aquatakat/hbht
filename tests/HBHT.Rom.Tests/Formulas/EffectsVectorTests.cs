@@ -39,7 +39,7 @@ public sealed class EffectsVectorTests(Na10Import fixture, ITestOutputHelper out
         "setup7-add-4-on4", "setup7-add-17-on4", "setup7-add-17-on5", "setup7-add-27-on4", "setup7-add-27-on5" }
         .Select(id => KeyValuePair.Create(id, UnallowedCharm))).ToDictionary();
 
-    private const string StaminaSpell = "1.0's Stamina spell lowers Stamina 2L as it lands and 2L more as it ends";
+    private const string StaminaSpell = "1.0's Stamina spell lowers Stamina 2L as it lands and 2L more as it ends; the port's raises it, the user's choice";
 
     /// <summary>
     /// A charm at one its kind doesn't allow (Control Elem at a non-elemental, Control Marquis and Control Zombies at another entity): 1.0's

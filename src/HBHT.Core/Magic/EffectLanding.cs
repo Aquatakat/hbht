@@ -98,8 +98,6 @@ internal static class EffectLanding
             var timer = d.At(landing.Level);
             var lasting = effects.Where(e => EffectRules.Lasting(e) && e is not StaminaEffect { ToCaster: true }).ToList();
             var target = landing.Target;
-            // Entity.AddEffect's morale case (0x800702F0, to 0x80070764): a target with no morale, a party member, takes no record.
-            lasting.RemoveAll(e => e is MoraleEffect && target.Combatant?.Morale is null);
             if (lasting.Count > 0)
             {
                 target.Sheet.AddEffect(landing.Source, lasting, landing.Level, landing.School, landing.RecordMargin, timer, target.Combatant,
