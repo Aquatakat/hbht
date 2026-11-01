@@ -175,17 +175,24 @@ public sealed partial class Battle : IMagicHost
     {
         var aged = new List<(Combatant, EffectAgeing)>();
         foreach (var combatant in Combatants.Where(c => !c.Flags.HasFlag(CombatantFlags.Gone)))
-        {
-            var ageing = combatant.Sheet.AgeRound(combatant, this, Game.Clock.Date.PartOfDay, Game.Random.Combat);
-            // Combatant.Death (0x80062080) takes off what holds it; the rest of a death is session 5's.
-            if (ageing.Died)
-            {
-                foreach (var held in combatant.Sheet.Effects.Where(e => e.Effects.Any(x => x is ImmobiliseEffect)).ToList())
-                    combatant.Sheet.RemoveEffect(held, combatant, this);
-            }
-            aged.Add((combatant, ageing));
-        }
+            aged.Add((combatant, AgeEffects(combatant)));
         return aged;
+    }
+
+    /// <summary>
+    /// One combatant's effects age a round (<c>Character.AgeEffects</c>, <c>0x80071444</c>), Photosynthesis healing by the battle's part
+    /// of the day (<c>World+2</c>, which Darkness and Light hold), not the clock's.
+    /// </summary>
+    internal EffectAgeing AgeEffects(Combatant combatant)
+    {
+        var ageing = combatant.Sheet.AgeRound(combatant, this, PartOfDay, Game.Random.Combat);
+        // Combatant.Death (0x80062080) takes off what holds it; the rest of a death is session 5's.
+        if (ageing.Died)
+        {
+            foreach (var held in combatant.Sheet.Effects.Where(e => e.Effects.Any(x => x is ImmobiliseEffect)).ToList())
+                combatant.Sheet.RemoveEffect(held, combatant, this);
+        }
+        return ageing;
     }
 
     private CastOutcome CastAt(Combatant caster, SpellSource source, Combatant target, ref bool prepared, ref int castMargin)
