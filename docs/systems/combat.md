@@ -388,6 +388,7 @@ Not ported:
 
 By the tick:
 
+- **Combat's frame is 2 ticks**, the user's choice, and 1.0's `delta` at full speed isn't measured (checkpoint 10 suggests 3; the parity logs' deltas are the logger's slowed frames). It sets how long a one-shot request is held and rounds an attack's strike to a frame, but measuring it would only line the parity logs up: the port's movement doesn't step by it.
 - The camera acts every tick rather than once a frame; only its goal and holds are once-a-frame things, so it's the same at 30 fps.
 - The Shadow's reach is tested every tick rather than at each drawn frame's end, and state 29 counts its frames by the cadence.
 
@@ -399,5 +400,4 @@ Others:
 ## Not settled
 
 - **The merge's shield test**, turned round in the original (the skill goes up only when the Shadow has none): whether to keep it or turn it the right way isn't chosen. The data never reaches it, as the Shadow has shield 8.
-- **The frame's `delta` in combat at full speed**, taken as 2 ticks; checkpoint 10 suggests 3. It sets how long a one-shot request is held and rounds an attack's strike to a frame ([reference rig](../reference-rig.md)). The parity logs' deltas are the logger's slowed frames, so they don't settle it.
 - Body flags `0x200` (set on enemies' bodies by `Combat.CreateBody`), `0x400` (skipped by the bodies' push) and `0x800` (`ProcessPlayers` calls `0x80015FEC`), which `TurnOrder.ClearActions` clears.
