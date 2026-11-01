@@ -25,9 +25,6 @@ namespace HBHT.Rom.Tests;
 [Collection(ImportedPluginCollection.Name)]
 public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHelper output)
 {
-    private const uint SetupBlock = 0x800D9456, EnemyList = 0x800D9458, EncounterFlag = 0x800D9472, CollisionByte = 0x800D947E,
-        ArenaByte = 0x800D947F, AniByte = 0x800D9480, FleeByte = 0x800D9481;
-
     private PluginSet Set => fixture.Data.Set;
 
     /// <summary>The battles logged, as paths under the logs' folder, each with its <c>Combat.Setup</c>.</summary>
@@ -165,36 +162,16 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
     private Replay Build(string battle, ParityLog? read = null)
     {
         var log = read ?? Log(battle);
-        var setupEntry = log.Entries.First(e => e.Name == "Combat.Setup");
-        var ram = log.Ram(setupEntry);
-        Assert.Equal(1, ram.ReadByte(SetupBlock));
-
-        var game = GameState.Load(Set, CheckpointSave.Convert(ram, Set, $"parity {battle}"));
-        Assert.Empty(game.Problems);
-
-        // The setup block, as every source fills it (combat.md's In and out).
-        var enemies = Enumerable.Range(0, Battle.MaxEnemies).Select(i => Half(ram, EnemyList + (uint)i * 2)).TakeWhile(e => e != 0)
-            .Select(e => new PartyEnemy(RecordId.Hex(RecordTypes.Entity, e), 1, 1)).ToList();
-        var ambush = ram.ReadByte(CollisionByte) == 2;
-        var flag = Half(ram, EncounterFlag);
-        var setup = new BattleSetup(ambush ? BattleSource.Wanderer : BattleSource.MonsterParty, null, null, null, enemies,
-            Arena: ram.ReadByte(ArenaByte), Ambush: ambush, CanFlee: ram.ReadByte(FleeByte) != 0,
-            EncounterFlag: flag == 0 ? null : RecordId.Decimal(RecordTypes.Flag, flag), CollisionByte: ram.ReadByte(CollisionByte),
-            AniByte: ram.ReadByte(AniByte));
-
-        var arena = Arena.For(Set, setup.Arena!.Value)!;
-        Assert.NotNull(arena);
-        var streamer = new ChunkStreamer(Set, game, new CollisionWorld(), Set.Get<MapSetRecord>(Arena.MapSet));
-        streamer.Update(arena.Origin + Battle.ZonePoint);
-
-        // The rules' draws from Combat.Setup on (the setup block's own were drawn in trek).
-        var setupAt = At([.. log.Records], setupEntry);
-        var rules = log.Records.Skip(setupAt).OfType<ParityDraw>().Where(d => !Cosmetic(d)).ToList();
-        var ring = log.Records.Skip(setupAt).OfType<ParityDraw>().Where(RingDraw).ToList();
-        var feed = new Feed(rules, game.Random.Combat, game.Random.Cosmetic, ring);
-        game.Random.Sort.Seed = ram.ReadWord(SortState);
-
-        return new Replay(new Built(Battle.Begin(game, setup, arena, streamer.World), game, streamer, ram), log, feed);
+        Feed? feed = null;
+        var built = FromSetup(Set, log, $"parity {battle}", game =>
+        {
+            // The rules' draws from Combat.Setup on (the setup block's own were drawn in trek).
+            var setupAt = At([.. log.Records], log.Entries.First(e => e.Name == "Combat.Setup"));
+            var rules = log.Records.Skip(setupAt).OfType<ParityDraw>().Where(d => !Cosmetic(d)).ToList();
+            var ring = log.Records.Skip(setupAt).OfType<ParityDraw>().Where(RingDraw).ToList();
+            feed = new Feed(rules, game.Random.Combat, game.Random.Cosmetic, ring);
+        });
+        return new Replay(built, log, feed!);
     }
 
     /// <summary>Where a record is in the log: by reference, as records compare by value.</summary>
@@ -516,42 +493,6 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
             output.WriteLine($"{entry.Dump}: slots {string.Join(", ", joined)} joined as reserves");
         Overlay(built);
         return (replay, built);
-    }
-
-    /// <summary>
-    /// The reserves in the original's RAM that the battle built afresh hasn't: each enemy slot where the original has a living
-    /// combatant and the port none, or a dead or gone one, takes the original's entity as <c>Combat.SpawnReserves</c> brings it in
-    /// (<see cref="Battle.SpawnReserves"/>), at the cell and direction the RAM has, which the overlay then lays over it. The slots.
-    /// </summary>
-    private static List<int> Join(Built built)
-    {
-        var (fight, game, ram) = (built.Battle, built.Game, built.Cp);
-        var joined = new List<int>();
-        for (var slot = fight.PartySize; slot < Battle.SlotCount; slot++)
-        {
-            var p = built.Record(slot);
-            if (p == 0)
-                continue;
-            var sheet = ram.ReadWord(p + 0x40);
-            var stats = ram.ReadWord(sheet + 0x18);
-            var dead = Enum.GetValues<Stat>().Where(s => s is Stat.Endurance or Stat.Stamina or Stat.Level)
-                .All(s => ram.ReadByte(stats + 0x15 + (uint)s) == 0);
-            var gone = (Half(ram, p + 0x2C) & (ushort)CombatantFlags.Gone) != 0;
-            if (fight.Slots[slot] is { } c && !(c.Sheet.IsDead || c.Gone) || dead || gone)
-                continue;
-            var entity = RecordId.Hex(RecordTypes.Entity, Half(ram, sheet));
-            var recruit = game.Recruit(entity);
-            Assert.NotNull(recruit);
-            var spare = Battle.ArmFromList(recruit, game.Items);
-            var cell = new Vector2(Float(ram, p), Float(ram, p + 4));
-            var newcomer = (Combatant)Call(fight, "Make", slot, recruit, true, false, cell, (int)ram.ReadByte(p + 0x14))!;
-            Call(fight, "GiveAi", newcomer, spare);
-            newcomer.UpdateRadius(fight);
-            newcomer.PlaceField(fight);
-            fight.Gui.Assign(entity, slot, enemy: true);
-            joined.Add(slot);
-        }
-        return joined;
     }
 
     private static object? Call(object target, string method, params object?[] args) =>

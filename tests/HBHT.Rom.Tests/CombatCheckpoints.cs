@@ -116,6 +116,95 @@ internal static class CombatCheckpoints
         return new Built(Battle.Begin(game, setup, arena, streamer.World, host), game, streamer, cp);
     }
 
+    // ---------------------------------------------------------------------------------------------------------------------------
+    // A parity log's battle (tools/parity.ps1), built from the RAM at its Combat.Setup
+
+    private const uint SetupBlock = 0x800D9456, EnemyList = 0x800D9458, EncounterFlag = 0x800D9472, CollisionByte = 0x800D947E,
+        ArenaByte = 0x800D947F, AniByte = 0x800D9480, FleeByte = 0x800D9481;
+
+    /// <summary>
+    /// A logged battle as the port begins it from the RAM at its <c>Combat.Setup</c>: the game the RAM holds, and the battle its setup
+    /// block (combat.md's In and out) asks for. <paramref name="beforeBegin"/> runs on the game before <see cref="Battle.Begin"/> draws
+    /// (<see cref="ParityReplayTests"/> feeds the original's draws from there). The built's RAM is the setup's.
+    /// </summary>
+    public static Built FromSetup(PluginSet set, ParityLog log, string label, Action<GameState>? beforeBegin = null)
+    {
+        var ram = log.Ram(log.Entries.First(e => e.Name == "Combat.Setup"));
+        Assert.Equal(1, ram.ReadByte(SetupBlock));
+
+        var game = GameState.Load(set, CheckpointSave.Convert(ram, set, label));
+        Assert.Empty(game.Problems);
+
+        var enemies = Enumerable.Range(0, Battle.MaxEnemies).Select(i => Half(ram, EnemyList + (uint)i * 2)).TakeWhile(e => e != 0)
+            .Select(e => new PartyEnemy(RecordId.Hex(RecordTypes.Entity, e), 1, 1)).ToList();
+        var ambush = ram.ReadByte(CollisionByte) == 2;
+        var flag = Half(ram, EncounterFlag);
+        var setup = new BattleSetup(ambush ? BattleSource.Wanderer : BattleSource.MonsterParty, null, null, null, enemies,
+            Arena: ram.ReadByte(ArenaByte), Ambush: ambush, CanFlee: ram.ReadByte(FleeByte) != 0,
+            EncounterFlag: flag == 0 ? null : RecordId.Decimal(RecordTypes.Flag, flag), CollisionByte: ram.ReadByte(CollisionByte),
+            AniByte: ram.ReadByte(AniByte));
+
+        var arena = Arena.For(set, setup.Arena!.Value)!;
+        Assert.NotNull(arena);
+        var streamer = new ChunkStreamer(set, game, new CollisionWorld(), set.Get<MapSetRecord>(Arena.MapSet));
+        streamer.Update(arena.Origin + Battle.ZonePoint);
+        beforeBegin?.Invoke(game);
+        game.Random.Sort.Seed = ram.ReadWord(SortState);
+        return new Built(Battle.Begin(game, setup, arena, streamer.World), game, streamer, ram);
+    }
+
+    /// <summary>
+    /// A logged battle with the RAM an entry point dumped laid over it (<paramref name="dump"/>, its file in the log's folder): built
+    /// from its setup (<see cref="FromSetup"/>), the reserves that had joined by then brought in (<see cref="Join"/>), then
+    /// <see cref="Overlay"/>.
+    /// </summary>
+    public static Built FromLog(PluginSet set, ParityLog log, string dump)
+    {
+        var entry = log.Entries.FirstOrDefault(e => e.Dump == dump) ?? throw new ArgumentException($"{log.Folder} dumped no {dump}.");
+        var built = FromSetup(set, log, $"parity {log.Folder}") with { Cp = log.Ram(entry) };
+        Join(built);
+        return Overlay(built);
+    }
+
+    /// <summary>
+    /// The reserves in the original's RAM that the battle built afresh hasn't: each enemy slot where the original has a living
+    /// combatant and the port none, or a dead or gone one, takes the original's entity as <c>Combat.SpawnReserves</c> brings it in
+    /// (<see cref="Battle.SpawnReserves"/>), at the cell and direction the RAM has, which the overlay then lays over it. The slots.
+    /// </summary>
+    public static List<int> Join(Built built)
+    {
+        var (fight, game, ram) = (built.Battle, built.Game, built.Cp);
+        var joined = new List<int>();
+        for (var slot = fight.PartySize; slot < Battle.SlotCount; slot++)
+        {
+            var p = built.Record(slot);
+            if (p == 0)
+                continue;
+            var sheet = ram.ReadWord(p + 0x40);
+            var stats = ram.ReadWord(sheet + 0x18);
+            var dead = Enum.GetValues<Stat>().Where(s => s is Stat.Endurance or Stat.Stamina or Stat.Level)
+                .All(s => ram.ReadByte(stats + 0x15 + (uint)s) == 0);
+            var gone = (Half(ram, p + 0x2C) & (ushort)CombatantFlags.Gone) != 0;
+            if (fight.Slots[slot] is { } c && !(c.Sheet.IsDead || c.Gone) || dead || gone)
+                continue;
+            var entity = RecordId.Hex(RecordTypes.Entity, Half(ram, sheet));
+            var recruit = game.Recruit(entity);
+            Assert.NotNull(recruit);
+            var spare = Battle.ArmFromList(recruit, game.Items);
+            var cell = new Vector2(Float(ram, p), Float(ram, p + 4));
+            var newcomer = (Combatant)Call(fight, "Make", slot, recruit, true, false, cell, (int)ram.ReadByte(p + 0x14))!;
+            Call(fight, "GiveAi", newcomer, spare);
+            newcomer.UpdateRadius(fight);
+            newcomer.PlaceField(fight);
+            fight.Gui.Assign(entity, slot, enemy: true);
+            joined.Add(slot);
+        }
+        return joined;
+    }
+
+    private static object? Call(object target, string method, params object?[] args) =>
+        target.GetType().GetMethod(method, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)!.Invoke(target, args);
+
     /// <summary>
     /// Checkpoint 01's battle with checkpoint <paramref name="checkpoint"/>'s state laid over it: the day, then each combatant's cell, turn
     /// start, last target, direction, facing, moves, action, flags, field radius, stats, and its body's place and heading, who is dead
