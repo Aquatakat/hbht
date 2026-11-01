@@ -34,13 +34,6 @@ weirder quirks, but this is a game limited by its hardware and rushed out the
 door, so some bugs and limitations are corrected at the expense of perfect N64
 accuracy.
 
-Timing is a big one. A lot of effects in the game (weather, animated textures,
-some RNG) are directly tied to framerate, so the speed could vary. On a modern
-computer, this isn't as much of an issue, but in order to get the feel roughly
-the same, some reasonable defaults were chosen: weather and animated textures
-go as fast as if the original were running at 20 FPS, camera movement is a
-little faster at 30 FPS.
-
 Examples of some fixed bugs:
 - Precipitation splashes on visible geometry, rather than on collision boxes.
 - Weather continues from trek mode into cutscenes rather than reverting to clear
@@ -48,14 +41,20 @@ Examples of some fixed bugs:
 - The time of day and compass are meant to be hidden inside some interiors. The
   original shows them when you load a save inside, HBHT hides them.
 - Flasks show the correct amount of damage dealt.
-- A healing potion says how many hit points it actually restored, not the
-  amount it rolled before topping out at full health.
-- Damage spells do their damage when the caster is holding a flask. In the
-  original, those spells do no damage.
+- Damage spells work when the caster is holding a flask.
 
 The type of things not fixed:
 - Rain and splash density stays pretty low by default.
 - Debuffing an enemy's stats makes them immobile.
+
+Differences from the original:
+- Weather, animated textures, and camera movement are tied to frame rate in the
+  original. HBHT moves them at a fixed rate at speeds meant to maintain their
+  look and feel.
+- Some combat AI movement that may fail out and skip their turn in the original
+  due to low frame rate may succeed in HBHT. This is fairly rare, and doesn't
+  have a large impact on the feel of combat. The AI is still janky, gets stuck,
+  skips their turns, etc.
 
 Something that may or may not be a bug?:
 - The Ring of Healing restoring 1 HP per frame outside of combat. No other
@@ -71,6 +70,7 @@ Something that may or may not be a bug?:
 - Higher rain and snow density
 - Three size settings for the HUD and menus
 - Faster movement speed
+- Smoother movement
 - Status auras appear more often in battle
 - Rebindable controls
 

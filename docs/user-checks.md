@@ -156,7 +156,7 @@ Setup 5b's session (`out/parity/20261031-201521-setup5b`) was won, and every act
 Every Poisoner turn passes but one, 0064. The Poisoner made for a cell 0.87 from Keelin, its target. 1.0's body stuck on hers by the push's rounding after 0.24 and gave up. The port's slides on round her, the user's choice in setup 2 (`Crowd.Rounding`), and with the slide off it ends within 0.35 of 1.0's. The replay logs it with the port's fixes (`KnownFixes`).
 
 What the session showed:
-- **Dougal had no turns.** Taking his base Dexterity to 0 (4, less his armor's 4) left him out of every round. 1.0's `TurnsPerRound` (`0x8005F4D0`) gives none at 0, and the port's matches. So no member could drink the Antidote while poisoned.
+- **Dougal had no turns.** Taking his base Dexterity to 0 (4, less his armor's 4) left him out of every round. 1.0's `TurnsPerRound` (`0x8005F4D0`) gives none at 0, and the port's matches. So no member could drink the Antidote while poisoned. The Antidote goes unchecked, the user's call: its cure is the same `cure` effect as Remove Poison's, which the session checked.
 - **Restore wasn't offered in the battle**, the user saw. 1.0's Healer in a battle lays on hands or heals with herbs (`ResolveHealer`), and its Restore is the pause menu's Healer popup (`MakeHealerMenu`, `0x800034A0`, `Healer.ShowRestoreMembers`). The port's party menu opens that popup in a battle's pause too. Whether 1.0's does isn't settled: nothing calls `MakeHealerMenu` directly, and what 1.0 does on A on the Healer skill in a battle's pause is below.
 
 Still to do:
