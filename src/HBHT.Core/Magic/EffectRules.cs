@@ -36,9 +36,16 @@ internal static class EffectRules
         _ => false,
     };
 
-    /// <summary>Whether the effect refuses its target, so nothing goes on: the Shadow held (<c>0x800702F0</c> returns <c>0xFFFF</c>).</summary>
-    public static bool Refuses(Effect effect, EffectTarget target) =>
-        effect is ImmobiliseEffect { Immune: { } immune } && target.Combatant is not null && immune.Contains(target.Sheet.Entity);
+    /// <summary>
+    /// Whether the effect refuses its target, so nothing goes on (<c>0x800702F0</c> returns <c>0xFFFF</c>): the Shadow held, and a morale
+    /// effect on one with no morale, a party member or anyone out of a battle.
+    /// </summary>
+    public static bool Refuses(Effect effect, EffectTarget target) => effect switch
+    {
+        ImmobiliseEffect { Immune: { } immune } => target.Combatant is not null && immune.Contains(target.Sheet.Entity),
+        MoraleEffect => target.Combatant?.Morale is null,
+        _ => false,
+    };
 
     /// <summary>An effect starting on its target, at the record's power.</summary>
     public static void Start(ActiveEffect record, int index, EffectTarget target, IRandom random)

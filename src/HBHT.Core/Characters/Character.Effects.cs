@@ -247,6 +247,7 @@ public sealed partial class Character
 
     /// <summary>
     /// Takes damage: the Level's points first, then as <see cref="DrainStamina"/> (<c>Character.TakeDamage</c>, <c>0x8006EB8C</c>).
+    /// A combatant performing stops.
     /// A blow that kills is undone by a Cheat Death on it, which heals twice its margin and ends. Otherwise the dead lose their
     /// spells' effects, if they're in a battle, and their potions'.
     /// </summary>
@@ -254,7 +255,10 @@ public sealed partial class Character
     /// <returns>Whether a Cheat Death saved it: the log says it "cheats death" (<c>Combatant.CheckDeath</c>).</returns>
     public bool TakeDamage(int amount, Combatant? on = null)
     {
-        // A hit ends a Troubadour's performance (0x80066100): session 9 ports it.
+        // Any damage on a combatant ends its performance (Combatant.StopPerforming, 0x80066100), even one that doesn't kill; a poison's
+        // loss doesn't come through here.
+        if (on is { Performing: true })
+            on.StopPerforming(on.MagicHost as Battle);
         amount = (short)amount;
         var level = Stats.Modified(Stat.Level);
         if (level >= amount)
