@@ -355,6 +355,11 @@ public sealed partial class Battle
     /// point must be clear of bodies, or nothing happens; the camera goes back to the caster, the cast is chosen (its margin 0) and the
     /// caster turns to its first target (state 6).
     /// </summary>
+    /// <remarks>
+    /// <b>Where the port differs</b>, the user's choice: Teleportation's point must also be one the caster could land on
+    /// (<see cref="TeleportLands"/>), or nothing happens. 1.0 casts at a point its <c>Entity.Teleport</c> then refuses, off the floor or
+    /// where the caster's footprint is taken, spending the cast and the turn and moving no one, with no line.
+    /// </remarks>
     private bool ConfirmSpell(Combatant c)
     {
         var placed = State == CombatState.PlaceArea;
@@ -366,7 +371,8 @@ public sealed partial class Battle
             return true;
         }
         Target = TargetsB.SelectedSlots.Last();
-        if (placed && c.CurrentSpell(this)?.Spell.Effects?.Any(e => e is TeleportEffect) == true && !SpotIsClear(c, AreaAim))
+        if (placed && c.CurrentSpell(this)?.Spell.Effects?.Any(e => e is TeleportEffect) == true
+            && (!SpotIsClear(c, AreaAim) || !TeleportLands(c, AreaAim)))
             return false;
         CameraOwner = c;
         _aimTurn = null;
@@ -377,6 +383,12 @@ public sealed partial class Battle
             State = CombatState.Facing;
         return true;
     }
+
+    /// <summary>
+    /// Whether <c>Entity.Teleport</c> (<c>0x80071978</c>) would put <paramref name="c"/> at <paramref name="point"/>: the footprint there,
+    /// the point truncated, is free on the grid (<c>ArenaGrid.IsOccupied</c>), its own cells still taken and a cell with no floor too.
+    /// </summary>
+    internal bool TeleportLands(Combatant c, Vector2 point) => !Grid.IsOccupied((int)point.X, (int)point.Y, c.Footprint);
 
     /// <summary>
     /// Whether no living body's centre is within its own scaled radius and <paramref name="c"/>'s of a point (<c>Combat.SpotIsClear</c>,

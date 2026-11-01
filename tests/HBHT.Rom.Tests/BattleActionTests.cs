@@ -340,6 +340,40 @@ public sealed class BattleActionTests(Na10Import fixture)
     }
 
     [Fact]
+    public void TeleportationsANothingWhereItCouldntLand()
+    {
+        // The port's fix, the user's choice: 1.0 casts at a point Entity.Teleport refuses, spending the turn and moving no one.
+        var run = Start();
+        var rheda = run.TurnOf("Rheda");
+        var teleportation = run.Built.Game.Rules.Magic!.Spell(RecordId.Hex(RecordTypes.Spell, 0x033A))!;
+        rheda.Sheet.LearnSpell(teleportation);
+        rheda.Sheet.Spells[^1].Level = 10;
+        rheda.Sheet.Skills.Train(HBHT.Core.Characters.Skill.Wizard, 10);
+        var gemstone = run.Built.Game.Party.Inventory.Catalog.Rules.Gemstone;
+        run.Built.Game.Party.Inventory.Add(gemstone);
+        var gemstones = run.Built.Game.Party.Inventory.Count(gemstone);
+        Choose(run.Battle, false, r => r.Text == "Teleportation");
+
+        // Pushed off the arena's floor, where every cell is taken.
+        var taken = false;
+        for (var i = 0; i < 30 && !taken; i++)
+        {
+            for (var t = 0; t < 6; t++)
+                run.Battle.Tick(run.Zone, false, _ => null, () => new HBHT.Core.Trek.PlayerInput(new System.Numerics.Vector2(0, 1)));
+            taken = !run.Battle.TeleportLands(rheda, run.Battle.AreaAim);
+        }
+        Assert.True(taken);
+        Assert.False(run.Battle.Confirm());
+        Assert.Equal(CombatState.PlaceArea, run.Battle.State);
+        for (var i = 0; i < 60; i++)
+            run.Tick();
+        Assert.Same(rheda, run.Battle.Current);
+        Assert.Equal(CombatState.PlaceArea, run.Battle.State);
+        Assert.Equal(gemstones, run.Built.Game.Party.Inventory.Count(gemstone));
+        Assert.False(rheda.Flags.HasFlag(CombatantFlags.Acted));
+    }
+
+    [Fact]
     public void AHealerHealsHerselfWithAHerbFromCDown()
     {
         var run = Start();

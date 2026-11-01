@@ -93,7 +93,7 @@ public sealed partial class Battle : IMagicHost
     bool IMagicHost.Teleport(Combatant caster)
     {
         var point = _placed ?? AimCentre(caster);
-        if (Grid.IsOccupied((int)point.X, (int)point.Y, caster.Footprint))
+        if (!TeleportLands(caster, point))
             return false;
         caster.Cell = point;
         if (!caster.Sheet.IsDead && !caster.Gone && !caster.Freed)
