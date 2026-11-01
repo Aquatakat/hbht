@@ -163,8 +163,8 @@ internal sealed class ModernMotion(Body body)
     {
         var s = Sphere;
         // Let go of the stick, the rest of his step plays faster, and carries him no further than StopReach.
-        var stopping = driven && Body.Stopping;
-        var root = Body.Animate(animation, stopping ? Rules.StopPace : 1);
+        var stopping = driven && Body.StoppingStep;
+        var root = Body.Animate(animation, stopping ? Rules.StopPace : 1, Climb(driven && !stopping));
         if (stopping)
         {
             // A step whose root goes back a little as it stops, as some actors' walks do, goes back: Math.Clamp threw on it.
@@ -219,6 +219,30 @@ internal sealed class ModernMotion(Body body)
         s.Trod.Clear();
         SphereCast.Touched(world, s.Position, Radius, TriggerMargin, s.Trod);
     }
+
+    /// <summary>
+    /// The share of his pace his animation plays at this tick (<see cref="ModernRules.Climb"/>), by how steeply the ground he stands
+    /// on rises along his heading: slower up a slope, its root slowing him with it, and his whole pace on the level and down. It
+    /// eases toward that a share a tick (<see cref="ClimbEase"/>), so a ledge's lip or a crease between two triangles doesn't
+    /// jerk his stride. Only a body a stick drives climbs slower, as only it stops short: a body the game steers keeps the
+    /// original's timings.
+    /// </summary>
+    private float Climb(bool driven)
+    {
+        var target = 1f;
+        if (driven && _onGround && Body.Request != Body.Idle)
+        {
+            var n = _groundNormal;
+            target = Rules.Climb(MathF.Atan(-(n.X * Heading.X + n.Z * Heading.Y) / MathF.Max(n.Y, LipUp)));
+        }
+        return _climb += (target - _climb) * ClimbEase;
+    }
+
+    /// <summary>The share of his pace he climbed at last tick (<see cref="Climb"/>).</summary>
+    private float _climb = 1;
+
+    /// <summary>The share of the way to the climb's new pace he goes a tick: most of it in a sixth of a second.</summary>
+    private const float ClimbEase = 0.15f;
 
     /// <summary>
     /// His speed this tick from his animation's root motion, <paramref name="forward"/>: its mean over the last

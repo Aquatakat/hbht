@@ -44,14 +44,28 @@ public enum MovementMode
 /// original finishes the step, up to 19 ticks and 1.2 units of his run, before his stop plays in place.
 /// </param>
 /// <param name="StopReach">The furthest the rest of his step carries him once the stick is let go.</param>
+/// <param name="ClimbFrom">How steep, in radians, the ground rises ahead of him before he climbs it slower: 15°.</param>
+/// <param name="ClimbTo">How steep, in radians, the ground rises ahead of him where he climbs it slowest: 60°, near the steepest ground.</param>
+/// <param name="ClimbSlowest">
+/// The share of his pace he climbs at from <paramref name="ClimbTo"/>, his animation and its root slowed alike: a half, as the
+/// original climbs the Wizard's School's stairs.
+/// </param>
 /// <remarks>
-/// The last four are the body's, which the party's leader's entity gives him (<see cref="For"/>, <c>EntityBody</c>); the rest are
-/// the world's.
+/// <see cref="Stride"/>, <see cref="SetOffTurn"/>, <see cref="StopPace"/> and <see cref="StopReach"/> are the body's, which the
+/// party's leader's entity gives him (<see cref="For"/>, <c>EntityBody</c>); the rest are the world's.
 /// </remarks>
 public sealed record ModernRules(float FloorUp = 0.45f, float PlainLevelUp = 0.97f, float StepHeight = 0.5f, float SnapDown = 0.5f,
     bool PlainIsWall = true, float WallEdge = 0.75f, int Stride = EntityBody.DefaultStride, float SetOffTurn = EntityBody.DefaultSetOffTurn * MathF.PI / 180,
-    float StopPace = EntityBody.DefaultStopPace, float StopReach = EntityBody.DefaultStopReach)
+    float StopPace = EntityBody.DefaultStopPace, float StopReach = EntityBody.DefaultStopReach,
+    float ClimbFrom = 15 * MathF.PI / 180, float ClimbTo = 60 * MathF.PI / 180, float ClimbSlowest = 0.5f)
 {
+    /// <summary>
+    /// The share of his pace he climbs ground rising <paramref name="angle"/> radians ahead of him at: all of it to
+    /// <see cref="ClimbFrom"/>, and less in a straight line to <see cref="ClimbSlowest"/> at <see cref="ClimbTo"/> and steeper.
+    /// </summary>
+    public float Climb(float angle) =>
+        angle <= ClimbFrom ? 1 : 1 - (1 - ClimbSlowest) * MathF.Min(1, (angle - ClimbFrom) / MathF.Max(ClimbTo - ClimbFrom, 1e-3f));
+
     public static readonly ModernRules Default = new();
 
     /// <summary>These rules with a body's own for its steps, or as they are for none.</summary>

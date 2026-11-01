@@ -86,30 +86,31 @@ public class ModernMovementTests
     {
         var world = SlopeWorld(up, Sand);
         var player = Player(new Vector3(0, 0.5f, 0), Vector2.UnitX);
-        Hold(world, player, Vector2.UnitX, 180, () => Assert.True(player.Grounded, $"off the ground at {player.Sphere.Position}"));
+        // Up the steepest at half his pace (ClimbsSteepGroundSlower).
+        Hold(world, player, Vector2.UnitX, 360, () => Assert.True(player.Grounded, $"off the ground at {player.Sphere.Position}"));
         var height = 8 * MathF.Tan(MathF.Acos(up));
         Assert.True(player.Feet.Y > height - 0.05f, $"got to {player.Feet}, the top {height}");
     }
 
     [Fact]
-    public void KeepsItsSpeedAcrossTheGroundOnASlope()
+    public void KeepsItsSpeedAcrossTheGroundDownASlope()
     {
         var flat = Worlds.Flat();
         var player = Player(new Vector3(0, 0.5f, 0), Vector2.UnitX);
         Hold(flat, player, Vector2.UnitX, 60);
         var onFlat = player.Sphere.Position.X;
 
-        // Up a slope of 45° from where he starts: the same distance across the ground in the same time.
+        // Down a slope of 45° from where he starts: the same distance across the ground in the same time. Up it he's slower
+        // (ClimbsSteepGroundSlower).
         var world = new CollisionWorld();
         world.Add(Worlds.Chunk(Worlds.OwnParts), Slope(-1, 20, MathF.Sqrt(0.5f), Sand), Vector3.Zero);
-        world.Add(Worlds.Chunk(Worlds.OwnParts + 1), Worlds.Floor(0, -20, -1, -20, 20), Vector3.Zero);
-        var climber = Player(new Vector3(0, 1 + 0.5f * MathF.Sqrt(2) + 0.01f, 0), Vector2.UnitX);
-        climber.Step(world, new MoveInput(Vector2.Zero), Vector2.UnitX, Run);
+        var climber = Player(new Vector3(18, 19 + 0.5f * MathF.Sqrt(2) + 0.01f, 0), -Vector2.UnitX);
+        climber.Step(world, new MoveInput(Vector2.Zero), -Vector2.UnitX, Run);
         Assert.True(climber.Grounded);
         var start = climber.Sphere.Position;
-        Hold(world, climber, Vector2.UnitX, 60);
-        Assert.Equal(onFlat, climber.Sphere.Position.X - start.X, 0.02f);
-        Assert.Equal(climber.Sphere.Position.X - start.X, climber.Sphere.Position.Y - start.Y, 0.02f);
+        Hold(world, climber, -Vector2.UnitX, 60);
+        Assert.Equal(onFlat, start.X - climber.Sphere.Position.X, 0.02f);
+        Assert.Equal(start.X - climber.Sphere.Position.X, start.Y - climber.Sphere.Position.Y, 0.02f);
     }
 
     [Theory]
@@ -316,6 +317,64 @@ public class ModernMovementTests
         // Played StopPace times as fast at the same speed, so its root moves him a StopPace'th as far.
         Assert.Equal(furthest - SnapBack.Back / body.Rules.StopPace, body.Sphere.Position.X, 0.01f);
         Assert.InRange(MathF.Abs(body.Sphere.Position.Z), 0, 0.01f);
+    }
+
+    /// <summary>
+    /// Up ground rising to 15° he runs as on the level; steeper, slower, to half his pace at 60°: his animation is played slower,
+    /// its root slowing him with it.
+    /// </summary>
+    [Theory]
+    [InlineData(10, 1)]
+    [InlineData(45, 2 / 3f)]
+    [InlineData(60, 0.5f)]
+    public void ClimbsSteepGroundSlower(float degrees, float share)
+    {
+        var world = SlopeWorld(MathF.Cos(degrees * MathF.PI / 180), Sand);
+        var player = Player(new Vector3(0, 0.5f, 0), Vector2.UnitX);
+        // Onto the slope, which starts at X 2, and settled into his climb.
+        Hold(world, player, Vector2.UnitX, 100);
+        var start = player.Sphere.Position.X;
+        Assert.True(start > 3 && player.Grounded, $"{player.Sphere.Position}");
+        Hold(world, player, Vector2.UnitX, 40);
+        Assert.True(player.Sphere.Position.X < 10, $"{player.Sphere.Position}");
+        Assert.Equal(0.06f * share, (player.Sphere.Position.X - start) / 40, 0.002f);
+    }
+
+    /// <summary>
+    /// A conversation asks for his talk for a tick, and it plays out as he's asked to stand: at his own pace, not the stop's,
+    /// which played his talk three times as fast as the one he talked to.
+    /// </summary>
+    [Fact]
+    public void HisTalkPlaysAtHisOwnPace()
+    {
+        var world = new CollisionWorld();
+        world.Add(Worlds.Chunk(Worlds.OwnParts), Worlds.Floor(0, -20, 20, -20, 20), Vector3.Zero);
+        var player = Player(new Vector3(0, 0.5f, 0), Vector2.UnitX);
+        var talk = new Counted();
+        player.Asked = Body.Talk;
+        for (var i = 0; i < 30; i++)
+            player.Step(world, new MoveInput(Vector2.Zero), Vector2.UnitX, talk);
+        Assert.Equal(30, talk.Ticks);
+    }
+
+    /// <summary>Counts the ticks it's played, entering a state as it's asked for one.</summary>
+    private sealed class Counted : Actors.IActorMotion
+    {
+        private int _request;
+
+        public int Ticks { get; private set; }
+
+        public int StateLength => 60;
+
+        public bool Entered { get; private set; }
+
+        public float Tick(int request)
+        {
+            Entered = request != _request && request != Body.Idle;
+            _request = request;
+            Ticks++;
+            return 0;
+        }
     }
 
     /// <summary>A walk entered as it's asked for, moving 0.03 a tick, whose root goes back <see cref="Back"/> on its tenth tick after.</summary>

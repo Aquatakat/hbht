@@ -438,9 +438,13 @@ public sealed class Body
     /// How many times as fast it plays, at the same speed across the ground: its root motion is divided by it. Only Modern
     /// movement's stop asks for other than 1 (<see cref="ModernRules.StopPace"/>).
     /// </param>
-    internal float Animate(IRootMotion animation, float faster = 1)
+    /// <param name="rate">
+    /// The share of its pace it plays at, root and all, so it's that much slower across the ground with its feet still planted.
+    /// Only Modern movement's climb asks for other than 1 (<see cref="ModernRules.Climb"/>).
+    /// </param>
+    internal float Animate(IRootMotion animation, float faster = 1, float rate = 1)
     {
-        _pace += Pace * faster;
+        _pace += Pace * faster * rate;
         var forward = 0f;
         for (; _pace >= 1; _pace--)
         {
@@ -467,6 +471,12 @@ public sealed class Body
 
     /// <summary>Whether it's asked to stand but still plays a state entered under another request, whose root still moves it.</summary>
     internal bool Stopping => Request == Idle && _entryRequest != Idle;
+
+    /// <summary>
+    /// Whether it's <see cref="Stopping"/> a step: a walk's, run's or sneak's. A talk is asked for a tick and plays out under
+    /// standing too, but isn't a step, and under Modern movement played at the stop's pace (<see cref="ModernRules.StopPace"/>).
+    /// </summary>
+    internal bool StoppingStep => Stopping && _entryRequest is Walk or Run or Sneak;
 
     /// <summary>Moves it <paramref name="forward"/> along its heading, at its scale, and keeps it in its <see cref="Bounds"/>.</summary>
     internal void Advance(float forward)

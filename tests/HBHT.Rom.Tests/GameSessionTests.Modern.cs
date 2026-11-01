@@ -47,14 +47,14 @@ public sealed partial class GameSessionTests
     public void InModernMovementAlaronRunsUpQ25sSandRampWithoutLeavingIt(float pace)
     {
         // Sand (surface 5) of normal Y 0.48 and 0.79, meant to be climbed, from its foot to its top at about (98.5, 4.4, 44.3)
-        // in three seconds, on the ground all the way.
+        // in five seconds, slowing to half his pace on its steepest part, on the ground all the way.
         var (world, origin) = Loaded(0, "Q25", new Vector3(88.3f, -1.2f, 48.0f));
         var way = Vector2.Normalize(new Vector2(98.5f - 88.3f, 44.3f - 48.0f));
         var player = new PlayerMotion(origin + new Vector3(88.3f, -1.2f, 48.0f), way) { Movement = MovementMode.Modern, Pace = pace };
         var run = ActorMotion.For(Data.Set, Data.Set.Get<ActorRecord>(AlaronActor), new Lcg(0))!;
         for (var i = 0; i < 20; i++)
             player.Step(world, new MoveInput(Vector2.Zero), way, run);
-        for (var i = 0; i < 180 && Vector2.Distance(Local(player, origin), new Vector2(98.5f, 44.3f)) > 0.5f; i++)
+        for (var i = 0; i < 300 && Vector2.Distance(Local(player, origin), new Vector2(98.5f, 44.3f)) > 0.5f; i++)
         {
             player.Step(world, new MoveInput(new Vector2(0, 1)), way, run);
             Assert.True(player.Grounded, $"off the ground at {player.Sphere.Position - origin}");
@@ -65,11 +65,11 @@ public sealed partial class GameSessionTests
 
     [Theory]
     [InlineData(MovementMode.Original, 150)]
-    [InlineData(MovementMode.Modern, 90)]
+    [InlineData(MovementMode.Modern, 120)]
     public void AlaronClimbsTheWizardsSchoolsSteeperStairs(MovementMode movement, int ticks)
     {
         // JundarInteriors A01's first flight, triangles 170 and 171, of normal Y 0.71: 2.6 up over 2.6 toward −X. The original
-        // climbs it at half his pace; Modern at all of it.
+        // climbs it at half his pace; Modern at two thirds of it, slowed by its 45° (ModernRules.Climb).
         var (world, origin) = Loaded(11, "A01", new Vector3(17.5f, 0.6f, 22.2f));
         var way = -Vector2.UnitX;
         var player = new PlayerMotion(origin + new Vector3(17.5f, 0.6f, 22.2f), way) { Movement = movement };
