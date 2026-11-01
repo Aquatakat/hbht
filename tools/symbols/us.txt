@@ -1042,7 +1042,7 @@ Combatant.IsBehind = 0x8005fb54; // the port's; docs/systems/combat.md: the atta
 Combatant.PointBody = 0x8005fc38; // coined; docs/systems/combat.md: moves the body toward the combatant's cell
 Combatant.FaceAndSettle = 0x8005fc98; // coined; docs/systems/combat.md: turns the body to its facing, then state 6 (NextState = the old state)
 Combatant.FaceCombatant = 0x8005fd28; // coined; docs/systems/combat.md: state 6; the facing toward another combatant
-Combatant.PlaceBody = 0x8005fe04; // coined; docs/systems/combat.md: puts the body on its cell and sets it down
+Combatant.PlaceBody = 0x8005fe04; // coined; docs/systems/combat-actions.md: the body's X and Z the combatant's plus the scaled radius (body+0x34), set down (0, 0, 0); only Entity.Teleport calls it
 Combatant.ApplyFacing = 0x8005fe64; // coined; docs/systems/combat.md: the body's facing from the combatant's
 Combatant.AnimationForWeapon = 0x8005fee4; // coined; docs/systems/combat.md: the weapon class's attack animation request, by the table at 0x800d27e0, 0x12 if none
 Combatant.WeaponReach = 0x8005ff74; // coined; docs/systems/combat.md: the weapon's reach: 400 for a thrown flask, 0 unarmed, else the weapon's byte +0x27
@@ -1304,7 +1304,7 @@ Entity.ClearPotions = 0x80071754; // coined
 Character.LevelForExp = 0x800717a4; // coined; the last CodeTable.LevelExp threshold the total reaches, 40 at most
 Entity.ClearEffects = 0x80071830; // coined; the potion effects but kind 0x10, the 15 spell effects, then the gear's modifiers
 Character.PutOnEnchantment = 0x8007192c; // Character.Effects.cs: (entity, item): AddEffect of the item's permanent record, when it has one
-Entity.Teleport = 0x80071978; // coined; docs/systems/magic.md: Teleportation: the combatant to Combat+0x18/+0x1c unless that cell is taken
+Entity.Teleport = 0x80071978; // coined; docs/systems/combat-actions.md: Teleportation, Character.AddEffect's kind 12: unless the footprint at Combat+0x18/+0x1c truncated is taken (IsOccupied), SetPosition, TurnOrder.StopBody, PlaceBody
 Entity.CurePoison = 0x80071a6c; // coined; docs/systems/magic.md: (entity, combatant, margin): removes Poison records whose margin byte is below it
 Entity.WraithDrain = 0x80071b0c; // coined; docs/systems/magic.md: Wraith Touch: a random stat of 0, 1, 2, 4 lowered by 2d6, and its permanent record
 Entity.SetLight = 0x80071bdc; // coined; docs/systems/magic.md: (entity, kind 29 or 54): removes the opposite spell from everyone, locks the part of the day at night or day

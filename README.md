@@ -42,10 +42,9 @@ Examples of some fixed bugs:
   original shows them when you load a save inside, HBHT hides them.
 - Flasks show the correct amount of damage dealt.
 - Damage spells work when the caster is holding a flask.
-- A spell that does no damage names its caster in the battle log, rather than its
-  target.
-- Large enemy casters no longer freeze in place, neither casting nor closing in,
-  when the party stands to one side of them.
+- Some larger enemy spellcasters (Hobgoblins) cast their spells in situations
+  where the original would cause them to freeze depending on the position of
+  their targets.
 
 The type of things not fixed:
 - Rain and splash density stays pretty low by default.
@@ -81,9 +80,19 @@ Something that may or may not be a bug?:
 Each of these is optional, except for the frame rate. You can limit it to 30,
 but there's no going back to the 15-20 from the console.
 
+These enhancements are planned:
+
+- An overhaul of camera movement and placement, including during non cut-scene
+  dialogue.
+- Asynchronous battle movement (two enemies whose turns won't affect each other
+  move at the same time, similar to Ogre Battle 64).
+- An overhaul of battle AI - smarter (or dumber!) decision-making based on
+  stats, and sensible pathfinding.
+- Replaceable menus at native resolution.
+
 ## Status
 
-Trek mode has been tested from a new game through defeating Pochanargarat. More
+Trek mode has been tested from a new game through defeating Pochangarat. More
 combat testing is required. The editor hasn't been meaningfully started, though
 there is an inspector and a map/dialogue viewer.
 
@@ -92,9 +101,9 @@ there is an inspector and a map/dialogue viewer.
 | Trek | ✅ Complete, tested in a variety of situations. There's probably some odd edge cases left. |
 | Quest progression | ✅ A full playthrough revealed no quest progression or flag-related bugs. The side quests (Gwernia's Inn, Elisheva's Tomb, etc.) have not been tested yet. Some content-related bugs are left unfixed, leaving them for the mod editor (talking to Keelin in Terminor from certain angles loads the wrong set of camera positions). |
 | Cut-scenes | ⚠️ All story cut-scenes play through with no game-breaking issues. Some edge cases involving differences between HBHT and the original cause some cut-scenes to play out better (Niesen no longer faces the wrong way during the Fire Lord cutscene) and some to play out worse (Shamsuk sometimes doesn't stand in the correct spot in the scene prior to his fight). A full test of all cut-scenes is required. |
-| Combat | ⚠️ Combat has been fully implemented, but only basic combat has been thoroughly tested (Alaron vs rats and bats in the intro). A full test of all spell types in various scenarios is required. |
+| Combat | ✅ Combat has been compared against the ROM in a variety of scenarios, and simulations were conducted to confirm the damage and stat formulas match exactly. There may be some edge cases left. Some oddities that are accurate to the original might get tidied up (failed casts in some situations causing the target to play the dodge animation). |
 | Menu | ✅ Complete |
-| Editor | ⏳ An inspector is available for in-game maps, characters, scenes, dialogue. Editing hasn't been started yet. Some systemic changes need to happen first - custom fights like the Goblin ambush, that whole weird thing with Sholeh, and the Shadow should be reimplemented as scripts rather than being hardcoded. |
+| Editor | ⏳ An inspector is available for in-game maps, characters, scenes, dialogue. Editing hasn't been started yet. An audit of hardcoded content is required, followed by a finalization of the plugin format. |
 
 ## Credits
 

@@ -3,6 +3,7 @@ using HBHT.Core.Calendar;
 using HBHT.Core.Characters;
 using HBHT.Core.Items;
 using HBHT.Core.Magic;
+using HBHT.Core.Movement;
 using HBHT.Core.Rng;
 using HBHT.Plugins.Records;
 
@@ -81,11 +82,27 @@ public sealed partial class Battle : IMagicHost
         return true;
     }
 
+    /// <summary>
+    /// Teleportation's move (<c>Entity.Teleport</c>, <c>0x80071978</c>, as the spell lands, before the caster's cast and its visual):
+    /// with the caster's footprint free at the placed point, truncated (<c>ArenaGrid.IsOccupied</c>, its own cells still taken), the
+    /// combatant stands at the point (<c>Combatant.SetPosition</c>), its field goes (<c>TurnOrder.StopBody</c>), and its body is put
+    /// at the point plus its scaled radius across and set down there (<c>Combatant.PlaceBody</c>, <c>0x8005FE04</c>). Its facing
+    /// stays, and the grid isn't touched: the next read of the body takes its footprint from the point and puts it where the body
+    /// stands, and the cells it left stay taken until a path is found.
+    /// </summary>
     bool IMagicHost.Teleport(Combatant caster)
     {
-        if (_placed is not { } point || Grid.Inside((int)point.X, (int)point.Y) && (Grid[(int)point.X, (int)point.Y] & ArenaGrid.Taken) != 0)
+        var point = _placed ?? AimCentre(caster);
+        if (Grid.IsOccupied((int)point.X, (int)point.Y, caster.Footprint))
             return false;
         caster.Cell = point;
+        if (!caster.Sheet.IsDead && !caster.Gone && !caster.Freed)
+            caster.Body.Field = null;
+        var body = caster.Body;
+        var at = Origin + new Vector3(point.X + body.ScaledRadius, body.Sphere.Position.Y, point.Y + body.ScaledRadius);
+        body.Sphere.Position = Body.SetDown(World, at, body.Sphere.Radius, Game.Random.Combat).Position;
+        body.Sphere.Velocity = Vector3.Zero;
+        body.Stop();
         return true;
     }
 
@@ -109,6 +126,7 @@ public sealed partial class Battle : IMagicHost
 
     void IMagicHost.Log(string line) => Write(line);
 
+    /// <summary>The point <see cref="Cast"/> was given, for a cast outside the states; theirs is the aim's (<see cref="AimCentre"/>).</summary>
     private Vector2? _placed;
 
     /// <summary>
@@ -127,6 +145,7 @@ public sealed partial class Battle : IMagicHost
         var castMargin = -1;
         foreach (var target in targets)
             outcomes.Add(CastAt(caster, source, target, ref prepared, ref castMargin));
+        _placed = null;
         return outcomes;
     }
 

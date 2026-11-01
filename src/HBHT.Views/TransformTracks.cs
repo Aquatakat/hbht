@@ -31,6 +31,8 @@ public static class TransformTracks
 
     private static readonly ConditionalWeakTable<Animation, List<Posed>> Posing = [];
 
+    private static readonly ConditionalWeakTable<Node3D, StrongBox<Quaternion>> Kept = [];
+
     /// <summary>Poses the player's animation's turned and scaled nodes, and those it holds at rest, where the player stands in it.</summary>
     /// <param name="driven">What the scene's glTF animations drive (<see cref="GlbScene.Driven"/>).</param>
     public static void Apply(AnimationPlayer player, DrivenNodes driven)
@@ -45,10 +47,22 @@ public static class TransformTracks
             if (root.GetNodeOrNull<Node3D>(n.Path) is not { } node)
                 continue;
             var position = n.Position >= 0 ? animation.PositionTrackInterpolate(n.Position, time) : n.RestPosition ?? node.Position;
-            var rotation = n.Rotation >= 0 ? animation.RotationTrackInterpolate(n.Rotation, time) : n.RestRotation ?? node.Quaternion;
+            var rotation = n.Rotation >= 0 ? animation.RotationTrackInterpolate(n.Rotation, time) : n.RestRotation ?? KeptRotation(node);
             var scale = n.Scale >= 0 ? animation.ScaleTrackInterpolate(n.Scale, time) : n.RestScale ?? node.Scale;
             node.Transform = new Transform3D(new Basis(rotation) * Basis.FromScale(scale), position);
         }
+    }
+
+    /// <summary>
+    /// The rotation a node keeps where nothing poses it: its own, or while a scale track holds it at nothing, whose basis has no
+    /// rotation to read (Godot refuses it), the last it had.
+    /// </summary>
+    private static Quaternion KeptRotation(Node3D node)
+    {
+        var kept = Kept.GetValue(node, _ => new StrongBox<Quaternion>(Quaternion.Identity));
+        if (node.Basis.Determinant() != 0)
+            kept.Value = node.Quaternion;
+        return kept.Value;
     }
 
     /// <summary>

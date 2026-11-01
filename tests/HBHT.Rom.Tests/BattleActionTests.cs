@@ -292,6 +292,54 @@ public sealed class BattleActionTests(Na10Import fixture)
     }
 
     [Fact]
+    public void TeleportationPutsItsCasterAtThePlacedPointBeforeItsVisualPlays()
+    {
+        var run = Start();
+        var rheda = run.TurnOf("Rheda");
+        var teleportation = run.Built.Game.Rules.Magic!.Spell(RecordId.Hex(RecordTypes.Spell, 0x033A))!;
+        rheda.Sheet.LearnSpell(teleportation);
+        rheda.Sheet.Spells[^1].Level = 10;
+        rheda.Sheet.Skills.Train(HBHT.Core.Characters.Skill.Wizard, 10);
+        run.Built.Game.Party.Inventory.Add(run.Built.Game.Party.Inventory.Catalog.Rules.Gemstone);
+        Choose(run.Battle, false, r => r.Text == "Teleportation");
+        Assert.Equal(CombatState.PlaceArea, run.Battle.State);
+
+        // The stick pushed a way at a time until the point is a few units off on a free cell (a cell with no floor counts as taken,
+        // where Entity.Teleport spends the cast and moves no one), and clear of bodies: A does nothing until it is.
+        var start = rheda.Body.Sphere.Position;
+        System.Numerics.Vector2[] ways = [new(0, 1), new(1, 0), new(0, -1), new(-1, 0)];
+        var confirmed = false;
+        var point = run.Battle.AreaAim;
+        foreach (var way in ways)
+        {
+            for (var step = 0; step < 8 && !confirmed; step++)
+            {
+                for (var i = 0; i < 6; i++)
+                    run.Battle.Tick(run.Zone, false, _ => null, () => new HBHT.Core.Trek.PlayerInput(way));
+                point = run.Battle.AreaAim;
+                confirmed = System.Numerics.Vector2.Distance(point, rheda.Cell) > 3
+                    && !run.Battle.Grid.IsOccupied((int)point.X, (int)point.Y, rheda.Footprint) && run.Battle.Confirm();
+            }
+            if (confirmed)
+                break;
+        }
+        Assert.True(confirmed);
+        for (var i = 0; i < 400 && !run.Battle.Fx.Casts.Any(); i++)
+            run.Tick();
+        if (run.Battle.Log.Any(l => l.Contains("fails to cast", StringComparison.Ordinal)))
+            return;
+
+        // Entity.Teleport: the body at the point plus its scaled radius across, set down, as the visual starts.
+        var at = rheda.Body.Sphere.Position - run.Battle.Origin;
+        Assert.Equal(point.X + rheda.Body.ScaledRadius, at.X, 3);
+        Assert.Equal(point.Y + rheda.Body.ScaledRadius, at.Z, 3);
+        Assert.True(System.Numerics.Vector2.Distance(new(start.X, start.Z), new(rheda.Body.Sphere.Position.X, rheda.Body.Sphere.Position.Z)) > 1);
+        run.UntilTurnEnds(rheda);
+        Assert.Equal(new System.Numerics.Vector2(at.X, at.Z), new System.Numerics.Vector2(rheda.Body.Sphere.Position.X, rheda.Body.Sphere.Position.Z)
+            - new System.Numerics.Vector2(run.Battle.Origin.X, run.Battle.Origin.Z));
+    }
+
+    [Fact]
     public void AHealerHealsHerselfWithAHerbFromCDown()
     {
         var run = Start();

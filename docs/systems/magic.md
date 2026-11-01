@@ -42,7 +42,7 @@ Sorted by what the code does with it (`Entity.AddEffect` `0x800702F0`, `Combatan
 | `reflect` | Mirror (37), 3L | the combatant's counter (`+0x28`), which the resist roll spends; it isn't taken back as Mirror ends |
 | `drainStat` | Wraith Touch (26) | Intelligence, Willpower, Dexterity or Strength (`0x800D34B0`, by 1d4) less 2d6, base and modified, for the battle; the record's margin byte holds the stat and its power byte (`+0x01`) the amount, which `EffectRules.End` gives back |
 | `banish` | Banishing (15) | (margin + the target's hit points) d6 |
-| `flee`, `teleport` | Escape (1), Teleportation (12) | the targets flee if the battle allows; the caster moves to the placed point if it's free, not in the Shadow's battle (`Battle.TeleportBarred`) |
+| `flee`, `teleport` | Escape (1), Teleportation (12) | the targets flee if the battle allows; the caster moves to the placed point if its footprint there is free on the grid, not in the Shadow's battle (`Battle.TeleportBarred`; [combat-actions](combat-actions.md#spells-potions-and-skills-in-a-turn)) |
 | `senseAura`, `revealPhase` | Sense Aura (21), Detect Moon Phase (49), Detect Sun Phase (50) | the details popup, by the level ([combat-actions](combat-actions.md#spells-potions-and-skills-in-a-turn)); trek's sundial's moon or sun, which a battle neither draws nor has (1.0 writes through a null pointer; the port does nothing). No one can learn either Detect, so play never reaches it |
 | none | Detecting Traps (18), Opening (20), and Stealth (55, Stealth +6L) | target type Field: "Spell Unavailable"; nothing casts them anywhere |
 
