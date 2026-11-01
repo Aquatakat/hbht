@@ -190,6 +190,17 @@ Banishing wasn't reached in that session. Debilitation at 10 takes 20 from Stren
 
 Every enemy turn passes but one. At 0024 the charmed Air Elemental's walk ended 1.17 short of 1.0's and didn't strike the Dust Devil. At the logger's 4-tick frames the port's ends within 0.01 of 1.0's and strikes, and its walk at 0021 ends at 1.0's too. It's a known cadence turn in the replay.
 
+Setup 8's session (`out/parity/20261031-230020-setup8`), against Ugarit2's Skeletons (Cutting ×0.25, Smashing ×1.5), passes every action. Those include:
+- Dougal's three Longsword blows at a Skeleton (0008, 0024, 0033);
+- after the swap from the Party tab, his two War Hammer blows at the Giant Skeleton (0043, 0055);
+- Keelin's blow;
+- the Skeletons' and Giant Skeleton's blows, and the Skeleton Archer's three shots.
+
+Every enemy turn passes but three, none of them the port's rules:
+- **0016** is the slide. The Skeleton slid on round Keelin and struck from 0.59 past 1.0's place. With the slide off it strikes from within 0.38 of it. It's with the port's fixes (`KnownFixes`).
+- **0018** is the cadence. The Giant Skeleton's walk ended 0.58 off 1.0's, out of Dougal's reach. At 3-tick frames it strikes him as 1.0's does.
+- **0037** is the cadence. The Skeleton Archer, having shot Dougal, faced 162° from its leg to (33, 8) and swung wide through +Z as it turned, coming no nearer. 1.0's body gave up after 11 frames in state 5, at (32.28, 8.86). The port's turns round at 2-tick frames and walks on. At 5-tick frames it gives up too, and shoots from within 0.27 of 1.0's. The deltas logged at the entry points were 2–3 ticks, but each of the walk's frames stopped the logger for two draws, so they likely ran longer.
+
 Still to do:
 
 - **Setup 2's walks,** above: which way 1.0's Spellweaver curved at the second's 0016.
