@@ -149,8 +149,19 @@ One difference was the replay's own, at 0061. Rebuilding the target sets tested 
 
 Setup 5b (`setup5b.json`, slot A) weakens two members for the poison checks. Keelin's current Dexterity is 4 and Willpower 2, and Dougal's are 4 (0 modified) and 4. A dart's chance takes off twice its target's Dexterity, and the lowered stats give Restore something to restore.
 
+Setup 5b's session (`out/parity/20261031-201521-setup5b`) was won, and every action passes. It covered:
+- the darts landing and poisoning, with poison's damage at the rounds' ends;
+- Remove Poison curing it.
+
+Every Poisoner turn passes but one, 0064. The Poisoner made for a cell 0.87 from Keelin, its target. 1.0's body stuck on hers by the push's rounding after 0.24 and gave up. The port's slides on round her, the user's choice in setup 2 (`Crowd.Rounding`), and with the slide off it ends within 0.35 of 1.0's. The replay logs it with the port's fixes (`KnownFixes`).
+
+What the session showed:
+- **Dougal had no turns.** Taking his base Dexterity to 0 (4, less his armor's 4) left him out of every round. 1.0's `TurnsPerRound` (`0x8005F4D0`) gives none at 0, and the port's matches. So no member could drink the Antidote while poisoned.
+- **Restore wasn't offered in the battle**, the user saw. 1.0's Healer in a battle lays on hands or heals with herbs (`ResolveHealer`), and its Restore is the pause menu's Healer popup (`MakeHealerMenu`, `0x800034A0`, `Healer.ShowRestoreMembers`). The port's party menu opens that popup in a battle's pause too. Whether 1.0's does isn't settled: nothing calls `MakeHealerMenu` directly, and what 1.0 does on A on the Healer skill in a battle's pause is below.
+
 Still to do:
 
+- **The Healer's popup in a battle's pause:** in 1.0, open the pause menu in a battle, go to the Party tab's skills on the Healer, and press A. Does the Lay On Hands / Heal With Herbs / Restore popup open, and does Restore work there? The port opens it.
 - **Setup 2's walks,** above: which way 1.0's Spellweaver curved at the second's 0016, and the port's body gliding on through the rest after a walk.
 - **Positions, shown but not checked:**
   - The attacker's body after a blow stands up to 0.5 from the original's (Brenna's backstab), with its footprint a cell over.

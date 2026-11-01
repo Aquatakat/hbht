@@ -367,12 +367,13 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
             if (NextTurn(log, turn) is not { } next)
                 continue;
             var found = ReplayEnemyTurn(battle, log, turn, next).Select(w => $"slot {turn.Current}'s turn ({turn.Dump}): {w}").ToList();
-            if (!KnownCadence.TryGetValue((battle.Replace('\\', '/'), turn.Dump!), out var why))
+            if (!KnownCadence.TryGetValue((battle.Replace('\\', '/'), turn.Dump!), out var why)
+                && !KnownFixes.TryGetValue((battle.Replace('\\', '/'), turn.Dump!), out why))
                 wrong.AddRange(found);
             else if (found.Count == 0)
-                wrong.Add($"slot {turn.Current}'s turn ({turn.Dump}) is the original's now: take it off the known cadence turns");
+                wrong.Add($"slot {turn.Current}'s turn ({turn.Dump}) is the original's now: take it off the known cadence turns or fixes");
             else
-                output.WriteLine($"{turn.Dump}: a known cadence turn, {why}:\n  {string.Join("\n  ", found)}");
+                output.WriteLine($"{turn.Dump}: a known cadence turn or fix, {why}:\n  {string.Join("\n  ", found)}");
         }
         Assert.True(wrong.Count == 0, string.Join("\n", wrong));
     }
@@ -392,8 +393,9 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
     };
 
     /// <summary>
-    /// The actions where the port fixes one of 1.0's bugs, the user's choice, by battle and dump ([combat](docs/systems/combat.md),
-    /// where the port differs). Their differences are logged, not failed, and one that matches fails until it comes off the list.
+    /// The actions and enemy turns where the port fixes one of 1.0's bugs or differs by the user's choice, by battle and dump
+    /// ([combat](docs/systems/combat.md), where the port differs). Their differences are logged, not failed, and one that matches fails
+    /// until it comes off the list.
     /// </summary>
     private static readonly Dictionary<(string Battle, string Dump), string> KnownFixes = new()
     {
@@ -401,6 +403,7 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
         [("20261031-172849-setup3/battle-01", "0103.rdram.gz")] = "Dougal's Fireball with a flask in hand does its damage",
         [("20261031-172849-setup3/battle-01", "0113.rdram.gz")] = "Dougal's Fireball with a flask in hand does its damage",
         [("20261031-172849-setup3/battle-01", "0120.rdram.gz")] = "Dougal's Fireball with a flask in hand does its damage",
+        [("20261031-201521-setup5b/battle-01", "0064.rdram.gz")] = "1.0's Poisoner sticks on Keelin's body by the push's rounding and gives up 0.24 from its start; the port's slides on round her (Crowd.Rounding), and with the slide off ends within 0.35 of 1.0's",
     };
 
     /// <summary>The next turn's start with RAM, or the battle's end.</summary>
