@@ -1,4 +1,4 @@
-# Log battles in the original for combat parity (roadmap 2.9, docs/user-checks.md#combat-parity-29).
+# Log battles in the original for combat parity (roadmap 2.9, docs/systems/combat-parity.md).
 # Usage: tools/parity.ps1 [-Label <setup>] [-Checkpoint "<label>"] [-Hours 4] [-Out <folder>]
 #
 # ares boots 1.0 cold (or at a checkpoint), with the Controller Pak beside the ROM, and gdb logs every

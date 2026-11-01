@@ -13,7 +13,7 @@ namespace HBHT.Core.Characters;
 /// </summary>
 /// <remarks>
 /// The original raises flags for the party's best stats as these change (<c>Event_flag_stat</c>),
-/// but its lookup never finds them (see the hardcoded-content audit), so nothing is raised here.
+/// but its lookup never finds them (<c>docs/formats/code-tables.md</c>), so nothing is raised here.
 /// </remarks>
 public sealed class CharacterStats
 {

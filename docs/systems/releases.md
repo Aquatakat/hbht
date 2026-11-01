@@ -36,11 +36,11 @@ The executables carry the logo (`assets/branding/hbht.ico`) and version resource
 
 ### Linux
 
-A **tar.gz** of the folder. It's what Godot exports, it keeps the executable bits, and it needs nothing to build or maintain; players unpack it anywhere and run `hbht`. The executables need the libraries any Godot 4 game does (Vulkan or OpenGL drivers, X11 or Wayland, ALSA or PulseAudio). AppImage and Flatpak were passed over for now: two programs in one AppImage need a launcher to choose between them, and Flatpak needs a manifest, a runtime and a repository to publish to, and sandboxes the paths the importer reads ROMs from.
+A **tar.gz** of the folder, which keeps the executable bits; players unpack it anywhere and run `hbht`. The executables need the libraries any Godot 4 game does (Vulkan or OpenGL drivers, X11 or Wayland, ALSA or PulseAudio). Not AppImage, as two programs in one need a launcher to choose between them, nor Flatpak, which needs a manifest, a runtime and a repository, and sandboxes the paths the importer reads ROMs from.
 
 ### macOS
 
-A **disk image** (`hdiutil`, on the macOS runner) with both apps, because a player drags apps out of a disk image into Applications as a matter of course, and the two have to stay side by side.
+A **disk image** (`hdiutil`, on the macOS runner) with both apps, which the player drags to Applications together: the two have to stay side by side.
 
 Godot names a bundle's executable and PCK after the project (`HBHT Editor`), so the script renames them to `hbht` and `hbht-editor`, with `CFBundleExecutable`, and signs each bundle again ad hoc (`codesign --sign -`), since the rename breaks Godot's signature and Apple silicon runs nothing unsigned. Godot looks for the PCK in `Contents/Resources` by the executable's name, so the two renames go together. Bundle identifiers are `io.github.aquatakat.hbht` and `io.github.aquatakat.hbht.editor`.
 

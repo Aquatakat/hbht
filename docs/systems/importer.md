@@ -4,12 +4,14 @@
 
 ## The player's choices
 
-`BaseImporter.Import` takes an `ImportOptions` (in `HBHT.Plugins`), `ImportOptions.Default` if none, and the manifest records it (`import.options`), so the editor and a re-import can tell what was chosen. An import made before it was recorded had the defaults.
+`BaseImporter.Import` takes an `ImportOptions` (in `HBHT.Plugins`), `ImportOptions.Default` if none, and the manifest records it (`import.options`), so the editor and a re-import can tell what was chosen.
 
-- **`FixMushroom`** (default on): `MapCorrections` moves the Roog Cave's mushroom out of the passage's neck ([hardcoded content](../hardcoded-content.md#corrections-to-the-roms-maps)). Off, it stands where the ROM has it, with its collision. `hbht import <rom> --keep-mushroom` turns it off; the editor's import page offers it as **Fix the mushroom (recommended)** or **Don't fix the mushroom**.
+Each choice corrects the ROM's own data where it gets in the way of play: the user's choice and a departure from the original (ADR 0018), and the player's at import, on by default. `MapCorrections` makes the map corrections on the parsed Borg9 before the map record and its collision are written, so a model and its collision triangles move together. Each names its map set, chunk and object, and the importer refuses a ROM where they aren't what it corrects (the three ROMs agree). They're layer 1 ([ADR 0008](../adr/0008-content-logic-layers.md)): a mod puts one back by patching the object's position and replacing the map's collision asset.
+
+- **`FixMushroom`** (default on): `MapCorrections` moves the Roog Cave's mushroom out of the passage's neck ([movement](movement.md#the-roog-caves-mushroom)). `hbht import <rom> --keep-mushroom` turns it off; the editor's import page offers **Fix the mushroom (recommended)** or **Don't fix the mushroom**.
 - **`WeldSeams`** (default on): `SeamWelds` closes the cracks between meshes that miss by a hair, and `SceneGltf` writes the welded vertices where it puts them ([rendering](rendering.md#seams-between-meshes), [ADR 0030](../adr/0030-the-import-welds-the-seams.md)). Off, the scenes' vertices are where the ROM has them. `hbht import <rom> --keep-seams` turns it off; the editor's import page offers it as **Join the seams in the scenery (recommended)** or **Leave the seams**.
 
-The mushroom's defaults left the records as importer 61 wrote them, so recording the choice didn't raise `BasePlugin.ImporterVersion`; welding by default is 62. A choice that changes the records is still the same importer: `Diagnose` goes by the version alone, and a re-import is the player's to ask for.
+A choice changes the records but not the importer version: `BasePlugin.Diagnose` goes by the version alone, so a base imported with other choices still loads, and importing again is the player's to ask for.
 
 ## The flow
 
@@ -17,7 +19,7 @@ The mushroom's defaults left the records as importer 61 wrote them, so recording
 
 - `WorldImporter`: map sets, terrains, weather, the World tab's map, camping, the new game, the title, the sky.
 - `CombatImporter`: the combat record (`aidyn:combat/0`) and its `text` ([combat](combat.md), [hardcoded content](../hardcoded-content.md#bespoke-behaviours)).
-- `MagicImporter`: spells' and potions' effects and visuals, and the magic record (`aidyn:magic/0`) ([magic](magic.md)). The ROM keeps no effects as data, since the original's code switches on a spell's kind, so each is a fact checked against 1.0's machine code, and the importer fails on a spell without one, a fact without a spell, or a name or entity place that differs.
+- `MagicImporter`: spells' and potions' effects and visuals, and the magic record (`aidyn:magic/0`) ([magic](magic.md)). The original's code switches on a spell's kind, so each effect is a fact, and the importer fails on a spell without one, a fact without a spell, or a name or entity place that differs.
 - `FlagImporter`: flags, the journal, the state flags.
 - `CharacterImporter`: dialogue entities' names, entities, spells, stats, skills, progression.
 - `ItemImporter`: weapons, armor, items, loot, shops, recipes, inventory.
@@ -43,7 +45,7 @@ The mushroom's defaults left the records as importer 61 wrote them, so recording
 - **Reading the ROM.** A reader of the ROM's bytes uses `Be` (big-endian fields, tables as arrays, lists up to a terminator, a Borg's bounds-checked slice) and `RomImage.Table` for a code-segment or DB table's range in the version's layout ([rom](../formats/rom.md#where-each-version-has-its-tables)).
 - **`Rom` types and records.** A type in `HBHT.Rom` that is the ROM's form of something a plugin record also models takes a `Rom` prefix (`RomEntityRecord`, `RomCinematic` and so on), so no name in the two assemblies means two types and the importers need no `using` aliases. An enum both sides need is defined once, in `HBHT.Plugins` (the Borg9 reader parses straight into `CollisionFlags` and `CollisionRole`). Where the ROM's enum has members the record's leaves out, the importer casts one into the other, and `ParallelEnumTests` checks that the names and values still match.
 - **Facts** are what the original's code holds as a switch or literal rather than a table. The importer carries them, checked against 1.0's machine code, and refuses a ROM where one doesn't fit (a sky image that isn't a UI image, a position list that doesn't match its DB). [hardcoded content](../hardcoded-content.md) maps each.
-- **Corrections** to the ROM's data are the user's choice, one at a time, and keyed on the exact record, which the importer checks first: `MapCorrections` for the maps, listed in [hardcoded content](../hardcoded-content.md#corrections-to-the-roms-maps).
+- **Corrections** to the ROM's data are the user's choice, one at a time, each an import option on by default, and keyed on the exact record, which the importer checks first (ADR 0018): `MapCorrections` for the maps, of which the Roog Cave's mushroom is the one ([movement](movement.md#the-roog-caves-mushroom)).
 - **Bump `BasePlugin.ImporterVersion`** whenever what the importer writes changes, with a line in its comment saying what changed; a stale base is then refused rather than read wrongly. Branches made in parallel each bump it, so renumber on merge.
 - **Deterministic.** Two imports are byte-identical, which a test checks. JSON is indented, with vectors and colours on one line, so two imports diff cleanly.
 

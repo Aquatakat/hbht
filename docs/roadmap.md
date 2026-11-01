@@ -1,6 +1,6 @@
 # Aidyn Chronicles Reimplementation: Roadmap
 
-Sep 26, 2026 · Updated Oct 30, 2026
+Sep 26, 2026 · Updated Nov 1, 2026
 
 ## Summary
 
@@ -16,27 +16,34 @@ This is the one list of what's open. A task's status is in its phase's table bel
 
 ### Next
 
-**M4: the prologue** is done: the user played it side by side with the emulator, what differed is fixed, and the user has played the fixes ([playtests](playtests.md)). Next, by the phases' order, is **Phase 4: content parity**, once what the fixes left is settled.
+**M4: the prologue** is done: the user played it side by side with the emulator, what differed is fixed, and the user has played the fixes. Next, by the phases' order, is **Phase 4: content parity**, once what the fixes left is settled.
 
-- **Combat parity (2.9):** the checks against the original's execution beyond the one battle the Combat checkpoints hold: formula vectors from 1.0's functions in the interpreter, and battles the user plays from written saves, logged at the rules' entry points and replayed into the port ([user-checks](user-checks.md#combat-parity-29)).
-- **What the fixes left:** which cut-scene the user saw end without the minimap growing, as the core grows it after every one ([ui](systems/ui.md)); the remembered member and tab carried across a load, as the original keeps the member; translucent scenery drawn after bodies, which tints the dress's hem in the misty sea's cut-scene ([rendering](systems/rendering.md#whats-left)); and a cut-scene's view 10–13% wider than the original's, the emulator's crop or the camera's field of view.
+- **Combat parity (2.9):** the formula vectors from 1.0's functions in the interpreter, the replay laying each actor's state from the RAM, the positions shown but not checked (among them reserves taking other spawn points than 1.0's on the same draws, which may be the port's), and the battles not logged yet ([combat parity](systems/combat-parity.md#whats-left)).
+- **A throw's weather penalty** reads only the battle's own class of bad weather, which only a Wind enchantment's end sets, where 1.0's `Combat.WeatherPenalty` reads the world's (`World+4`), which the weather's roll sets too. So a flask or thrown weapon in a foggy or stormy battle skips its penalty in the port ([combat](systems/combat-actions.md#an-attack), [weather](systems/weather.md)). It looks like the port's bug; check it against the code and fix it.
+- **What the fixes left:** the remembered member and tab carried across a load, as the original keeps the member ([pause menu](systems/pause-menu.md#opening-and-closing)); and translucent scenery drawn after bodies, which tints the dress's hem in the misty sea's cut-scene ([rendering](systems/rendering.md#whats-left)). Two more wait on the user ([user-checks](user-checks.md)): which cut-scene ends without the minimap growing, and why a cut-scene's view is 10–13% wider than the original's.
 
 ### Left over from finished work
 
-- **M2:** the editor showing cut-scenes on its map, and the HUD in the editor; Alaron's requests as he opens a container (11) or a door (19), an explosion's particles and the trek popups' fades ([map-objects](systems/map-objects.md#whats-left)); and the quest atlas reading the combat record's boss flags.
-- **1H:** the content literals [still in code](hardcoded-content.md#still-in-code) rather than records (the protagonist's entity, the backdrops' styles, the skill checks' numbers and the like).
+- **M2:** the editor showing cut-scenes on its map, the HUD and the World tab; Alaron's requests as he opens a container (11) or a door (19), and the trek popups' fades ([map-objects](systems/map-objects.md#whats-left)); and the quest atlas reading the combat record's boss flags.
+- **The menus' motion:** the conversation box's widgets fading and a menu taller than its bounds scrolling ([ui](systems/ui.md#the-conversation-box)); a message's fade ([pause menu](systems/pause-menu.md#the-party-tabs-actions)); the loot window's parchment sliding in ([pause menu](systems/pause-menu.md#the-loot-window)); the training lists sliding ([pause menu](systems/pause-menu.md#training)); and the mouse choosing a row, and on the World tab ([pause menu](systems/pause-menu.md)).
+- **Content still in code:** the [hardcoded content](hardcoded-content.md) log, planned in [Phase 5](#phase-5-mod-system-and-tools).
 - **Weather:** a Day or Night spell's hold on the part of day doesn't stop the weather's roll under it in a battle ([magic](systems/magic.md#where-the-port-differs)).
-- **2.10:** what else could move onto triggers, each with its event ([events](systems/events.md#what-else-could-move-onto-triggers)): the first spell and potion's help (`spell.learned`, `item.bought`), the new journal entry's notice (`journal.added`), the camp scenes (`camp.started`), the cheat codes (`cheat.entered`), the Shadow's cinematic and the Goblin Ambush's end (`battle.ended` with its outcome), and a conversation's end as `script.ended`. The editor has no view of the triggers of its own, and the quest atlas doesn't show what they read and set.
-- **The lit lighthouse:** Overworld A15 and Lighthouse A05 swap to their lit scenes while 5017 holds (`CheckToggleZoneScene`, `0x8000aa14`; [hardcoded content](hardcoded-content.md)), which the port doesn't do yet. Its read of 5017 as those chunks load also brings the flags up to date ([flags](systems/flags.md#when-the-network-comes-up-to-date)).
+- **2.10:** what else could move onto triggers, each with its event ([events](systems/events.md#what-else-could-move-onto-triggers)): the first spell and potion's help (`spell.learned`, `item.bought`), the new journal entry's notice (`journal.added`), the camp scenes (`camp.started`), the Shadow's cinematic and the Goblin Ambush's end (`battle.ended` with its outcome), and a conversation's end as `script.ended`. The editor has no view of the triggers of its own, and the quest atlas doesn't show what they read and set.
+- **Cheat codes:** not ported at all; typed as Alaron's name, they'd come in through the name entry as triggers on `cheat.entered` ([hardcoded content](hardcoded-content.md)).
+- **The lit lighthouse:** Overworld A15 and Lighthouse A05 swap to their lit scenes while 5017 holds (`CheckToggleZoneScene`, `0x8000aa14`), which the port doesn't do yet ([hardcoded content](hardcoded-content.md#trek-and-the-world)). Its read of 5017 as those chunks load also brings the flags up to date ([flags](systems/flags.md#when-the-network-comes-up-to-date)).
 - **Seams:** the welded seams want a look round the world, in play ([rendering](systems/rendering.md#seams-between-meshes)): the 33 chunk pairs whose gaps run past 0.016 (among them A22/B22, C15/D15 and L20/L21), Abrecan's face, and the tree walls short of the ground. Not welded yet: placed scene objects to the scenery under them, and a mod's scenes to the base's.
 - **Rendering:** the items in [rendering](systems/rendering.md#whats-left): the lens flare's test, the sky overhead, texture filtering, environment maps in trek, which scenes are drawn, and the editor's billboards and containers. Translucent scenery over bodies is in [Next](#next).
-- **Rig:** measure the frame `delta` in combat, which can help choose its frame for per-frame behaviour ([ADR 0017](adr/0017-the-core-steps-every-tick.md)); it also sets how long a one-shot request is held and rounds an attack's strike to a frame ([combat](systems/combat.md#an-attack)). Checkpoint 10 suggests 3.
-- **M3:** From the special battles: the merge's shield test turned round, which the data never reaches; idle bodies far from the camera that combat doesn't animate (`Body.AlwaysAnimated`); a falling body's root motion, which the original skips; the half-alpha shadows of a few entities; combat's frame-counter limit on pausing; and the glide's aim by the original's eye height ([combat](systems/combat.md#where-the-port-differs)). The rest of what M3 left is in [combat](systems/combat.md#not-settled)'s Not settled: no checkpoint holds the special battles, and none a caster's turn.
-- **What the bodies hold** ([combat](systems/combat.md#what-the-bodies-hold)): an arrow, flask or thrown weapon flying not at all from an actor without the hand's locator, as `Combat.StartCastCamera` does; what's held lit at its locator rather than the body's centre.
+- **Movement:** the crevices that trap Alaron were found while the port collided every tick; check them again now it collides once a frame ([movement](systems/movement.md#wedged-against-a-leaning-plain-wall)).
+- **Audio:** the sounds not played yet: dialogue entities' voices and steps, the parchment popup's opening, the crafting and Healer lists' closing, and the save and load screens' own A and B ([audio](systems/audio.md#not-played-yet)).
+- **Saves:** what converting a checkpoint doesn't read yet: the potions working on a member, Alaron's name and the minimaps' pieces ([saves](systems/saves.md#checkpoints-as-saves)).
+- **Rig:** measure the frame `delta` in combat at full speed, which can help choose its frame for per-frame behaviour ([ADR 0017](adr/0017-the-core-steps-every-tick.md)); it also sets how long a one-shot request is held and rounds an attack's strike to a frame ([combat](systems/combat.md#not-settled)). Checkpoint 10 suggests 3.
+- **M3:** the merge's shield test turned round, which the data never reaches ([combat](systems/combat.md#not-settled)); and from combat's [Where the port differs](systems/combat.md#where-the-port-differs): idle bodies far from the camera that combat doesn't animate (`Body.AlwaysAnimated`), the half-alpha shadows of a few entities, combat's frame-counter limit on pausing, and the glide's aim by the original's eye height. A falling body's root motion, which the original skips for Alaron's actor, is skipped in the port only for the player in trek ([movement](systems/movement.md)).
+- **What the bodies hold** ([combat](systems/combat-actions.md#what-the-bodies-hold)): an arrow, flask or thrown weapon flying not at all from an actor without the hand's locator, as `Combat.StartCastCamera` does; what's held lit at its locator rather than the body's centre.
 
 ### Maybe
 
 - The editor showing wanderers on its map view.
+- A profile of trek on the Talewok shore toward Port Saiid, where fast-forward once fell from about 120 fps to 25 while it was fine elsewhere: something there costs far more per tick.
 - **Faster battles,** a setting, after combat's parity fixes: the next combatant starts moving while the last action plays, once nothing it touches is still in that action, as Ogre Battle 64 does. The rules and their random numbers stay as they are, since an attack's outcome is rolled when it's chosen; only what's drawn overlaps. The camera can pick shots that hold both, scoring angles by raycast.
 
 ## Phases
@@ -82,7 +89,7 @@ Each track ends with an exporter to an open format and a viewer in the editor: i
 | **1E Quest atlas** | Borg13 decoding with its branching, the flag network, flag cross-references, journal linkage | L | What sets and reads every flag, and which journal entry it maps to (`hbht flag <n>`, and the editor's Atlas tab) | Done |
 | **1F Text & UI assets** | String tables, the fonts, portraits, menu images | S | The dialogue box renders in the right font | Done |
 | **1G Saves** (optional) | Importing the original's Controller Pak saves | M | An original save imports | Open. The checkpoints already convert into saves (2.8). |
-| **1H Hardcoded content** | Every piece of content in code rather than data, each assigned an [ADR 0008](adr/0008-content-logic-layers.md) layer | M | [hardcoded-content](hardcoded-content.md) | Done Oct 19, 2026: every content table is read or carried |
+| **1H Hardcoded content** | Every piece of content in code rather than data, each assigned an [ADR 0008](adr/0008-content-logic-layers.md) layer | M | [code-tables](formats/code-tables.md) | Done Oct 19, 2026: every content table is read or carried; what the port's code still holds is the [hardcoded content](hardcoded-content.md) log |
 
 ### Phase 2: Rules core (headless, test-driven)
 
@@ -95,10 +102,10 @@ Where a task names the original's code, the file names are the debug build's.
 | **2.3 Items & inventory.** Equip rules, shops, chests, crafting. | M | `data/itemdb.cpp`, `chestdb.cpp`, `shopdb.cpp` | Done Oct 1, 2026 |
 | **2.4 Borg13 VM.** Camera and actor cues go out through a host interface, so the core stays headless. | M | `dialogue.cpp` | Done |
 | **2.5 Combat rules.** Turn order, field-of-influence radius, hit, damage and crit, spells (targeting, radius, reagents, battery), status effects, reserve spawns, leader and flee logic, rewards. | **XL** | `combatengine/combat.cpp`, `combatEntity.cpp`, `turn.cpp`, `src/gamecombat.cpp` | Done Oct 19, 2026, with M3 ([combat](systems/combat.md)) |
-| **2.6 Enemy AI.** | L | `combatengine/aiInfo.cpp`, `aiscores.cpp` | Done Oct 19, 2026, with M3 ([combat](systems/combat.md#the-ai)) |
+| **2.6 Enemy AI.** | L | `combatengine/aiInfo.cpp`, `aiscores.cpp` | Done Oct 19, 2026, with M3 ([combat](systems/combat-ai.md)) |
 | **2.7 Time & camping.** See [camping](systems/camping.md). | S | `sundial.cpp`, `menus/campmenucontroller.cpp` | Done Oct 18, 2026 |
 | **2.8 Save/load** in the engine's own format. See [saves](systems/saves.md). | S | `questdata.cpp`, `saveParty.cpp` | Done Oct 1, 2026 |
-| **2.9 Differential tests.** Capture the random values the emulator consumed (ADR 0006), replay them into the core, and compare damage and turn logs. | L, ongoing | | Started: the checkpoints of one battle replay its setup, turns, a cast and attacks ([combat](systems/combat.md#the-port)) |
+| **2.9 Differential tests.** Capture the random values the emulator consumed (ADR 0006), replay them into the core, and compare damage and turn logs. | L, ongoing | | Started: the Combat checkpoints and 13 played setups replay into the port ([combat parity](systems/combat-parity.md)) |
 | **2.10 Events and triggers.** The core's named event list, and trigger records (*on event, if condition, do effects*) in Borg13's condition and effect vocabulary. Engine features that replace bespoke code (ADR 0008 layer 3) land with their system. | M | The 1H audit | Done Oct 19, 2026, with the cinematics' ([events](systems/events.md)); what else could move onto them is [above](#left-over-from-finished-work) |
 
 ### Phase 3: Godot runtime
@@ -110,7 +117,7 @@ A series of vertical slices, each one playable ([runtime](systems/runtime.md)).
 | **M1: Walk Gwernia** | The chunk streamer, terrain, the N64 material, collision, the player, the follow camera, the sky, draw distance | 1A, 1C | Done Sep 29, 2026 |
 | **M2: Talk and trade** | Map objects, wanderers, conversations, shops, the pause menu, the journal, cut-scenes, training, camping, the HUD | 1E, 1F, 2.1–2.4 | Done Oct 4, 2026; leftovers [above](#left-over-from-finished-work) |
 | **M3: Fight** | Arena loading, spawns, the turn UI, radius targeting, spell visuals and particles, the combat log, status icons, post-battle XP and loot screens | 1B, 2.5, 2.6 | Done Oct 19, 2026 ([combat](systems/combat.md#the-port)); leftovers [above](#left-over-from-finished-work) |
-| **M4: The prologue** | From the opening through leaving Gwernia, end to end | Everything above | Done Oct 22, 2026, after the user's side-by-side playthrough ([playtests](playtests.md)); what it left is [above](#next) |
+| **M4: The prologue** | From the opening through leaving Gwernia, end to end | Everything above | Done Oct 22, 2026, after the user's side-by-side playthrough; what it left is [above](#next) |
 | **M5: Full playthrough parity** | Every region, every quest and the ending, checked against the quest atlas | Phase 4 | |
 
 ### Phase 4: Content parity
@@ -130,6 +137,7 @@ The base game is a plugin, so the mod format is exercised all the time; Phase 5 
 | --- | --- | --- |
 | Plugin loader: load order, dependencies, field-level merge, conflict report | M | Done: `PluginSet`, `hbht conflicts`, `hbht schema` |
 | Flag and ID allocation for mod namespaces | S | |
+| Content out of code: the [hardcoded content](hardcoded-content.md) log, from records and fields (the protagonist read from the new game record, three code tables read rather than written as literals) to features that need designing (skill checks, combat's chance and damage formulas, an AI record, aspects and elements) and the events the cheats and the first-spell help wait on | L | |
 | Asset overrides (glTF, PNG, OGG) and new assets | M | |
 | Scripting: a Borg13 superset for dialogue and cut-scenes, plus sandboxed Lua event handlers on the 2.10 events (ADR 0008). Mods can't load .NET assemblies. | L | |
 | **Editor.** Grow the editor into a Construction Set: record editing, dialogue graph editing, map object placement, and a quest atlas that includes mod content | XL | |
@@ -138,7 +146,7 @@ The base game is a plugin, so the mod format is exercised all the time; Phase 5 
 
 ### Phase 6: Enhancements (optional, post-parity)
 
-Widescreen, higher resolution, higher frame rate, longer draw distance, rebindable controls, and quality-of-life options such as visible stealth feedback, each a setting on the options menu ([ADR 0018](adr/0018-the-port-fixes-bugs-and-sets-enhancements.md)). Some came early and are the default: the floating conversation box and a UI screen of any shape. Rebindable controls came early too, with mouse look ([ui](systems/ui.md#controls)). Their faithful mode, with its overscan bars, is left for here ([ui](systems/ui.md#a-faithful-mode-later)). An overhaul of the combat AI fits here too, as an option over the original's: combat parity keeps the AI's quirks, such as its walks giving up where 1.0's do, as 1.0 plays them.
+Widescreen, higher resolution, higher frame rate, longer draw distance, rebindable controls, and quality-of-life options such as visible stealth feedback, each a setting on the options menu ([ADR 0018](adr/0018-the-port-fixes-bugs-and-sets-enhancements.md)). Some came early and are the default: the floating conversation box and a UI screen of any shape. Rebindable controls came early too, with mouse look ([ui](systems/pause-menu.md#controls)). Their faithful mode, with its overscan bars, is left for here ([ui](systems/ui.md#a-faithful-mode-later)). An overhaul of the combat AI fits here too, as an option over the original's: combat parity keeps the AI's quirks, such as its walks giving up where 1.0's do, as 1.0 plays them.
 
 ## Risk register
 

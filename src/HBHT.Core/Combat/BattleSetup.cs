@@ -25,7 +25,7 @@ public enum BattleSource
 /// a camp ambush and a script. Combat (M3) fills in the rest as it builds the battle: how many of each enemy come between
 /// their minimum and maximum, a camp ambush's enemies from the camp encounters by the terrain and the party's level, the
 /// arena by the chunk, the bosses' flags by the enemies' records (in the first four slots), and the flee rules
-/// (<see cref="CanFlee"/>), all in <c>docs/hardcoded-content.md</c>.
+/// (<see cref="CanFlee"/>), all in <c>docs/formats/code-tables.md#combat</c>.
 /// </summary>
 /// <param name="Source">Where it comes from.</param>
 /// <param name="Place">The chunk it starts in: where the player stands, or a cut-scene's stage.</param>

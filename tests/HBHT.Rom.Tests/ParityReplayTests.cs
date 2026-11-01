@@ -398,8 +398,8 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
     }
 
     /// <summary>
-    /// The enemy turns that differ only by 1.0's frame lengths, by battle and dump ([combat](docs/systems/combat.md), where the port
-    /// differs): the logger slows 1.0 to frames of 3–6 ticks, and the port steps 2, so a body that sets off facing away curves another
+    /// The enemy turns that differ only by 1.0's frame lengths, by battle and dump ([combat parity](docs/systems/combat-parity.md#the-known-differences)): the
+    /// logger slows 1.0 to frames of 3–6 ticks, and the port steps 2, so a body that sets off facing away curves another
     /// way, and a walk ends further past its arrival. The replay doesn't play 1.0's frame lengths; these are logged, not failed, and one
     /// that matches fails until it comes off the list. A turn goes on it only once its difference is shown to be the frame lengths'.
     /// </summary>
@@ -420,7 +420,7 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
 
     /// <summary>
     /// The actions and enemy turns where the port fixes one of 1.0's bugs or differs by the user's choice, by battle and dump
-    /// ([combat](docs/systems/combat.md), where the port differs). Their differences are logged, not failed, and one that matches fails
+    /// ([combat parity](docs/systems/combat-parity.md#the-known-differences)). Their differences are logged, not failed, and one that matches fails
     /// until it comes off the list.
     /// </summary>
     private const string OwnFootprint = "the joining Hobgoblin's own 2-cell footprint no longer blocks its cast toward +X or +Z, so it casts the Tap Stamina it scored where 1.0's rested (ArenaGrid.WalkClear's own footprint)";

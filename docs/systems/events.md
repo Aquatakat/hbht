@@ -52,23 +52,23 @@ An effect that takes over from trek ends the firing: the triggers after it on th
 
 Every kind of the endings table takes over from trek, so a cinematic after a cut-scene starts straight from its end, with no trek built and none drawn. After Roog's, trek is built again where the player stood and fades in, as after any cut-scene; Alaron's True Name also comes back whenever his sheet is built while 590, that cinematic's done flag, is set ([characters](characters.md)).
 
-**The Shadow's cinematic** stays on the combat record's `shadow` (`GameSession.EndBattle`): it's chosen by how a battle ended, merged, which no condition says, and the record's `shadow` holds the merge's rules with it. A `battle.ended` event with the outcome as a condition would carry it.
+**The Shadow's cinematic** stays on the combat record's `shadow` (`GameSession.EndBattle`): it's chosen by how a battle ended, merged, which no condition says, and the record's `shadow` holds the merge's rules with it.
 
 ### Where the port differs
 
-- **Script 866 is also trek's.** The dialogue object `EndOpening` takes it from, `voxel/0x0FDB/7` at (12.6, −17.1, 60.3) with a radius of 10, is enabled while flag 5 is clear (derived 5424), and 866 sets 5 as it ends. A new game arrives about 4 from it, so trek there before 866 has played starts it. The user saw the original do so, loading a save of a new game's flags written at the arrival (`hbht save to-pak`): 866 played, and Alaron stood in his corner of the forest after.
+- **Script 866 is also trek's.** The dialogue object `EndOpening` takes it from, `voxel/0x0FDB/7` at (12.6, −17.1, 60.3) with a radius of 10, is enabled while flag 5 is clear (derived 5424), and 866 sets 5 as it ends. A new game arrives about 4 from it, so trek there before 866 has played starts it, in 1.0 as in the port: a save of a new game's flags at the arrival plays 866 in trek.
 - **A new game builds trek's world before the opening.** The original builds it only after script 866 has ended (`InitGameTrek` runs on `TrekLoop.Frame`'s first frame, with `TrekLoop.Restoring` clear, so the player arrives at the new game's place). The port builds it where the player arrives, plays the opening over it, frees it for 866's stage and builds it again there after: the same place and the same pictures.
 - **The ending's credits end the game** by `Transition.GameOver`, which goes back to the title, as after the game over.
 
 ## What else could move onto triggers
 
-The [hardcoded-content](../hardcoded-content.md) audit names more layer 2 work. Each needs its event added to `GameEvents` and fired where the original does it:
+The core fires only the three events above. Each of these needs its event added to `GameEvents` and fired where the original does it ([hardcoded content](../hardcoded-content.md) logs the rest still in code):
 
-- **`spell.learned` and `item.bought`:** the first spell learned (3611) and the first potion bought (3612), which show the help.
-- **`journal.added`:** the new journal entry's notice (3617), which trek shows now.
-- **`camp.started`:** the camp scenes and the Campsite's script (`Camp.cpp`), now the camping record's.
-- **`cheat.entered`:** the cheat codes' flags, gold and experience (`CheatCodes.cpp`).
-- **`battle.ended`** with its outcome: the Shadow's cinematic after a merge, and the Goblin Ambush's end, now the combat record's.
-- **A conversation's end** as `script.ended`, and its shops, training and battles, now `Transition.AfterScript`.
+- **`spell.learned` and `item.bought`:** the first spell learned (3611) and the first potion bought (3612), whose help the training and barter windows show (`TrainingMenu`, `BarterMenu`).
+- **`journal.added`:** the new journal entry's notice (3617), which `TrekLoop` shows.
+- **`camp.started`:** the camp scenes and the Campsite's script (`Camp.cpp`), on the camping record ([camping](camping.md)).
+- **`cheat.entered`:** the cheat codes' flags, gold and experience (`CheatCodes.cpp`). The cheats aren't ported at all.
+- **`battle.ended`** with its outcome as a condition: the Shadow's cinematic after a merge, and the Goblin Ambush's end, both on the combat record.
+- **A conversation's end** as `script.ended`, and its shops, training and battles, which `Transition.AfterScript` decides.
 
-The world map's regions stay off triggers: which flag a chunk sets is the chunk's `region` (layer 1), and when it's set hangs on the sky, the minimap and the zone engine's mode, which no trigger condition reads, so a `chunk.entered` trigger would only restate the field ([ui](ui.md#the-world-tab)).
+The world map's regions stay off triggers: which flag a chunk sets is the chunk's `region` (layer 1), and when it's set hangs on the sky, the minimap and the zone engine's mode, which no trigger condition reads, so a `chunk.entered` trigger would only restate the field ([ui](pause-menu.md#the-world-tab)).

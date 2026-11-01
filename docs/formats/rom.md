@@ -1,12 +1,12 @@
 # ROM layout and versions (roadmap 0.2, 0.3)
 
-What the three ROMs share, where they differ, and how the Borg archive is stored. The ROMs themselves and their hashes are in the [reference rig](../reference-rig.md).
+What the three ROMs share, where they differ, and how the Borg archive is stored. `RomImage` identifies a ROM and `RomVersions` holds each version's offsets; `BorgArchive` reads the archive, and `Lzb` and `Lzo1x` decompress. The ROMs themselves and their hashes are in the [reference rig](../reference-rig.md).
 
 ## The layout (NA 1.0)
 
 | Region | Contents |
 | --- | --- |
-| `0x0001000`–`0x00E7220` | Code segment. It also holds data tables, such as the per-map-set chunk lists and the dialogue SFX tables ([hardcoded content](../hardcoded-content.md)). |
+| `0x0001000`–`0x00E7220` | Code segment. It also holds data tables, such as the map sets' chunk lists and the dialogue SFX tables ([code tables](code-tables.md)). |
 | `0x00E7220`–`0x1F89C10` | **Borg archive**: about 30 MB holding every art, level, audio and dialogue asset. |
 | `0x1F89C10` | `Borg_List`: the archive index. Each entry has type, compression, compressed and uncompressed sizes, and offset. |
 | `0x1FC2BB0`–`0x1FEEFD0` | Fixed databases ([db](db.md)): Entity, Weapon, Armor, Spell, Item, Chest, DialogEntity, GameStateMod, GameStateFunnel, Audiokey, Journal, Theatre menu, cinematic text, controller and combat strings, CampEncounters, cheats, credits, and the item, stat and spell string tables. |
@@ -39,13 +39,11 @@ Compression comes in two schemes, LZB (most Borgs) and LZ01x (text), and strings
 - **Code segment:** changed (about 760k bytes differ even after allowing for the move). Its data is 1.0's, moved.
 - **DB block:** every record is identical. The only change is new text: five Controller Pak error messages appended to `String/Common` and four to `String/Controller`, which grew and move everything after them.
 
-So 1.1 has code fixes and a few new messages, and all assets and records are shared.
-
 The debug ROM's Borg archive and `Borg_List` are 1.0's too, and its DB block is 1.0's but for its credits, which are shorter (three names missing, one date different). Its code segment is a different build.
 
 ## Where each version has its tables
 
-`RomVersions` holds one table of what the code reads: each code-segment table and each table of the DB block, with its length and NA 1.0's offset, and for a code-segment table the debug ROM's offset too. The other versions are NA 1.0 moved: a list of steps, each moving the 1.0 offsets from where it starts up to the next step by one amount, and the string tables whose length changed.
+`RomVersions` holds one table of what the code reads: each code-segment table (`CodeTable`) and each table of the DB block (`DbTable`), with its length and NA 1.0's offset, and for a code-segment table the debug ROM's offset too. Readers take a table's range through `RomImage.Table`. The other versions are NA 1.0 moved: a list of steps, each moving the 1.0 offsets from where it starts up to the next step by one amount, and the string tables whose length changed. What each code-segment table holds, and which reader and record carry it, is in [code tables](code-tables.md).
 
 | 1.0 offsets from | NA 1.1 moves them | What's there |
 | --- | --- | --- |
@@ -58,9 +56,9 @@ The debug ROM's Borg archive and `Borg_List` are 1.0's too, and its DB block is 
 
 Each step starts at the first 1.0 offset where 1.1's bytes match at that move. The change between them lies in the bytes before, which match neither move or are zeros (`0xD8ABC`–`0xDAF08` for `+0x40`). 1.1's code before `0x8BAC4` moves by other amounts, mostly `-0xD0`, which no table needs yet.
 
-The debug ROM moves 1.0's Borg archive and DB block by `+0xEB80`, and `String/PotionNames` by `+0xEB50`, after its credits, which are `0x6F0` bytes, not `0x720`. Its code segment's data is in nearly the same order as 1.0's but moves by a different amount almost table by table (`+0xB058` to `+0xEB80`), so its code-segment tables, and the map sets' chunk lists at `0xEA850`, are their own column.
+The debug ROM moves 1.0's Borg archive and DB block by `+0xEB80`, and `String/PotionNames` by `+0xEB50`, after its credits, which are `0x6F0` bytes, not `0x720`. Its code segment's data is in nearly the same order as 1.0's but moves by a different amount almost table by table (`+0xB058` to `+0xEB80`), so its code-segment tables are their own column.
 
-The tables' bytes are 1.0's in every version except where the build put addresses in them: the spell visuals' code and jump tables, and the pointer tables (`Cinematics`, `CinematicFades`, `MinimapSections`). `RomLayoutTests.EveryTableIsWhereTheRomHasIt` checks every table in every version against 1.0's: the same bytes, the same strings (but for the three that changed), the same instructions without their immediates, jump table entries landing at the same place in the same function, and pointers to the same bytes.
+The tables' bytes are 1.0's in every version except where the build put addresses in them: the spell visuals' code and jump tables, and the pointer tables (`Cinematics`, `CinematicFades`, `MinimapSections`). `RomLayoutTests` checks every table in every version against 1.0's: the same bytes, the same strings (but for the three that changed), the same instructions without their immediates, jump table entries landing at the same place in the same function, and pointers to the same bytes.
 
 A new table is one row: its length, 1.0's offset and the debug ROM's. 1.1 needs nothing more unless the table is before `0x8BAC4`.
 

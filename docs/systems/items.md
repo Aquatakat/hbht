@@ -1,6 +1,6 @@
 # Items and inventory (roadmap 2.3)
 
-`HBHT.Core.Items`, and the party's side in `Party.Items.cs` (equipping, taking items for scripts, reading a scroll). The DB tables' layouts are in [db](../formats/db.md); the tables in code are read by `ItemTables` (`HBHT.Rom.Engine`). The menus are in [ui](ui.md).
+`HBHT.Core.Items`, and the party's side in `Party.Items.cs` (equipping, taking items for scripts, reading a scroll). The DB tables' layouts are in [db](../formats/db.md); the tables in code are read by `ItemTables` (`HBHT.Rom.Engine`). The menus are in [the pause menu](pause-menu.md).
 
 - `ItemCatalog`: every item the rules can name (`Item`, whichever record it comes from) and the inventory's rules. `ItemInstance`: one held item, with its battery and charges.
 - `Equipment`: what a character wears and wields, and what that does to the sheet.
@@ -50,7 +50,7 @@ What can be equipped (`Party::GetEquipError` and the item kinds' functions):
 
 A replaced item goes back to the inventory; if it can't, the new one does instead. An equipped item takes its stack's battery and charges, and taking it off gives the stack its own, even if the stack was there already (`UpdateItemStatCharges`). Taking a worn item off, by the item itself or by its ID for a script, is `Equipment.Remove`, which undoes its bonuses as putting it on applied them. Gear's free slot is checked before the old piece comes off, so with all 12 worn nothing can be swapped.
 
-**One deviation.** The Archmage Staff can't be taken off (`Party::RemoveWeaponsFrom`), but the original lets whoever wields it equip another weapon, and the staff vanishes with its bonuses still applied. The port refuses to replace it. Only Niesen wields it in the base game, and he can wield nothing else.
+**Where the port differs.** The Archmage Staff can't be taken off (`Party::RemoveWeaponsFrom`), but the original lets whoever wields it equip another weapon, and the staff vanishes with its bonuses still applied. The port refuses to replace it. Only Niesen wields it in the base game, and he can wield nothing else.
 
 **Starting gear** (`Entity::Init`, `EquipFunc0`): an entity wears its armor, carries its shield if it has the skill, and wields the first of its three weapons it can. The others go to the party's inventory as it joins, if it wields one; one it can't wield while it wields none is lost. Enemies choose their weapons another way ([combat](combat.md)).
 
@@ -58,13 +58,13 @@ A replaced item goes back to the inventory; if it can't, the new one does instea
 
 ## Potions
 
-Potion *n* is `aidyn:item/0x10nn`, the original's `PotionEnum` *n*: the Fire, Inferno, Sleep Gas and Acid flasks, then Healing, Stamina, Curing, Antidote, Restore, Strength, Dexterity, the left-out Aspect and Jumping, Clarity, Charisma, Defence and Stealth. The core knows them only by their records ([ADR 0021](../adr/0021-instant-effects-land-in-one-place.md)): each has its effects and its `use`, so a plugin's potion is drunk or thrown as the base game's are. What each does, and when it can be drunk (`Potions.CanDrink`, `Entity::CanUsePotion`), are [magic](magic.md#potions-and-flasks)'s. Drinking one from the pause menu (`Potions.Drink`, `Entity::UsePotion`) uses one up if it does something now, and otherwise says why and uses nothing. A potion drunk changes the Party tab's header as a member change does, the hit points crossfading and the bar tweening ([ui](ui.md#changing-member-and-list)).
+Potion *n* is `aidyn:item/0x10nn`, the original's `PotionEnum` *n*: the Fire, Inferno, Sleep Gas and Acid flasks, then Healing, Stamina, Curing, Antidote, Restore, Strength, Dexterity, the left-out Aspect and Jumping, Clarity, Charisma, Defence and Stealth. The core knows them only by their records ([ADR 0021](../adr/0021-instant-effects-land-in-one-place.md)): each has its effects and its `use`, so a plugin's potion is drunk or thrown as the base game's are. What each does, and when it can be drunk (`Potions.CanDrink`, `Entity::CanUsePotion`), are [magic](magic.md#potions-and-flasks)'s. Drinking one from the pause menu (`Potions.Drink`, `Entity::UsePotion`) uses one up if it does something now, and otherwise says why and uses nothing.
 
 The two refusals, "cannot be used right now" and "cannot be used in Trek mode", are C strings in code, not string table lines; the importer reads them onto the inventory record.
 
 ## The inventory
 
-The party's (`PartyInventory`, the original's name too) holds each item as one stack, up to 99. Most items share 128 general slots; reagents, hides, scrolls, potions, key items and 13 unique pieces of gear have slots of their own. A new stack takes the quantity it's given, uncapped; only adding to a stack caps it. A key item sets its region flag and its held flag when first gained, and clears the held flag when the last is taken. The Aspect potion becomes a Healing potion as it's gained.
+The party's (`PartyInventory`, the original's name too) holds each item as one stack, up to 99, in the general slots or its own (`ownSlot`, above). A new stack takes the quantity it's given, uncapped; only adding to a stack caps it. A key item sets its region flag and its held flag when first gained, and clears the held flag when the last is taken. The Aspect potion becomes a Healing potion as it's gained.
 
 Loot and shop stock are a **pile** (`ItemPile`, the original's `GenericInventory`) of up to 64 stacks, which refuses the Cyclops Club.
 
@@ -85,15 +85,15 @@ Both are worked in single precision and truncated to 16 bits (`WidgetInvShop::Ge
 
 **Appraisal** (C-up on the shop's stock, `Party::ApraisePrice`): the member best at it, dead or not, judges by Intelligence + Merchant × 6 (x), as (−0.0186603x² + 2.366025x + 50) / 100. The code clamps it to 125 after dividing by 100, so the bound is never reached. The item's base price × that × 3 / the asking price, rounded, picks one of Common's lines 384–390 (counting from 0), from "This is highway robbery!" up, past 6 the last.
 
-Buying or taking the first potion sets flag 3612, whose help is a trigger (2.10).
+Buying or taking the first potion sets flag 3612 (`Trade.NoteFirstPotion`), and the window shows the potion help; moving that onto a trigger is open ([events](events.md#what-else-could-move-onto-triggers)).
 
-The shop's window is in [ui](ui.md#the-shop).
+The shop's window is in [ui](pause-menu.md#the-shop).
 
 ## Containers
 
 `Container` is a chest, sack, crate or barrel, or a herb, spice or gem source, as it is in the world (`loot_func`). Using it:
 
-1. Once its opened or exploded flag is set, it's gone. (Without an opened flag, the original remembers it for a while in its `VoxelChart`, which is the runtime's.)
+1. Once its opened or exploded flag is set, it's gone. (Without an opened flag, it's remembered for 10 map loads: [saves](saves.md#map-objects-memory).)
 2. A **source** gives the reagent of its kind (a herb source herbs, a spice source spice): its count, which the map holds as gold, times the Ranger's share, truncated to a byte and at least 1. The share is rolled as the chunk's objects are set up: the best Ranger's Intelligence + Ranger × 7, times d100 / 100, from 0 to 1 (`Party::HarvestSkill`). So the Ranger skill brings the count up to the source's own.
 3. A **trap** comes first. Disarming it (`Party::DisarmSkill`): the member with the highest modified Mechanic above 0, the first on a tie, among those with the Stamina it costs (10 less their level, at least 1), rolls d100 against Intelligence × 4 + Mechanic × 10; passing, they pay, and the step must reach the trap's level. With no such member it fails. Failing sets it off ([the explosion](map-objects.md#containers)): the container is destroyed with what it held, its exploded flag set, and each living member takes the trap's level × d4 from Endurance, down to 1 (a first d4 giving less than 2 gives 1; otherwise a second d4 counts). A trapped door works the same.
 4. A **lock** next. Picking it (`Party::Lockpicking`) needs no roll: the best thief, dead or not, can pick a lock below their Thief level counted up to 10, for 10 less that in Stamina, at least 1. Locks of 10 or more can't be picked. The messages tell how far beyond the thief it is: 1–2, 3–5 or more.
@@ -101,7 +101,7 @@ The shop's window is in [ui](ui.md#the-shop).
 
 Picking and disarming last until the chunk is loaded again, but each leads straight to opening.
 
-The **loot window** (`LootWindow`, and the menu over it, [ui](ui.md#the-loot-window)) takes a stack at a time, as many as the party's stack has room for, each new stack with the pile's battery and charges. The party can drop what it carries, which is lost, unless it's worth 1 gold or less at half price, or it's worn. It can't close while it holds a must-take item. `Container.Contents` and `Container.Reagent` give what opening and harvesting give without setting the flags, for the editor.
+The **loot window** (`LootWindow`, and the menu over it, [ui](pause-menu.md#the-loot-window)) takes a stack at a time, as many as the party's stack has room for, each new stack with the pile's battery and charges. The party can drop what it carries, which is lost, unless it's worth 1 gold or less at half price, or it's worn. It can't close while it holds a must-take item. `Container.Contents` and `Container.Reagent` give what opening and harvesting give without setting the flags, for the editor.
 
 ## Crafting
 
@@ -117,4 +117,4 @@ The skills used from the pause menu (`Crafting`; in a battle the Healer's two ar
 
 A potion isn't brewed while the party holds 99. The Mechanic's check rolls, and its Stamina is paid, before the hide is looked for. A herb is used up even when the Healer hasn't the Stamina.
 
-The pause menu's popups for these, and what they say, are in [ui](ui.md#the-party-tabs-actions). The Mechanic's popup makes each recipe's own armor; the Alchemist's messages say Flask for the flasks and Potion for the rest.
+The pause menu's popups for these, and what they say, are in [ui](pause-menu.md#the-party-tabs-actions). The Mechanic's popup makes each recipe's own armor; the Alchemist's messages say Flask for the flasks and Potion for the rest.

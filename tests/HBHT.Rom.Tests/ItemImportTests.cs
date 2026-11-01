@@ -525,7 +525,7 @@ public sealed class ItemImportTests(Na10Import fixture)
         });
     }
 
-    /// <summary>The hardcoded-content audit finds shop 17, STTA05 in Talewok, as the only source of Map 7.</summary>
+    /// <summary>The code tables' findings (docs/formats/code-tables.md) find shop 17, STTA05 in Talewok, as the only source of Map 7.</summary>
     [Fact]
     public void ShopSeventeenSellsMapSeven()
     {

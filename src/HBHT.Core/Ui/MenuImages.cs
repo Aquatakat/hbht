@@ -5,7 +5,7 @@ namespace HBHT.Core.Ui;
 
 /// <summary>
 /// UI chrome the menus draw with: images the engine's code names, which need no records and which
-/// mods replace as assets under the same IDs (see <c>docs/hardcoded-content.md</c>).
+/// mods replace as assets under the same IDs (see <c>docs/formats/code-tables.md#assets-the-code-names</c>).
 /// </summary>
 public static class MenuImages
 {

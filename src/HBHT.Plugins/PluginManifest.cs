@@ -31,7 +31,7 @@ public sealed record ImportInfo(int Importer, string Rom, string RomVersion, Imp
 /// </summary>
 /// <param name="FixMushroom">
 /// Move the Roog Cave's mushroom out of the passage's neck, the correction the importer makes by default
-/// (docs/hardcoded-content.md#corrections-to-the-roms-maps). Without it, the mushroom stands where the ROM has it.
+/// (docs/systems/importer.md#the-players-choices). Without it, the mushroom stands where the ROM has it.
 /// </param>
 /// <param name="WeldSeams">
 /// Join the seams where the scenery's meshes miss each other by a hair, which the console shows as dashes of sky

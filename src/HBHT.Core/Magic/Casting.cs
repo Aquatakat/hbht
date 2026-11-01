@@ -102,7 +102,7 @@ public static class Casting
     public static float Reach(SpellRecord spell, int level) => spell.Placed ? level : level * spell.Range;
 
     /// <summary>
-    /// What a spell needs of its target (<c>Spell.TargetRequirement</c>, <c>0x800712C0</c>): a True Name, to be no bigger than the
+    /// What a spell needs of its target (<c>Casting.Requirement</c>, <c>0x800712C0</c>): a True Name, to be no bigger than the
     /// party (the record's heavy flag, set on the small), or an aspect.
     /// </summary>
     public static CastRefusal Requirement(SpellRecord spell, Character target) => spell.Special switch

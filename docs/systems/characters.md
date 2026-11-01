@@ -12,7 +12,7 @@ They port the original's `CharStats` (`stats.cpp`), `CharSkills` (`skills.cpp`),
 - **Skills** (`aidyn:skill/0`–`11`) and **weapon skills** (`aidyn:weaponskill/0`–`10` by weapon class, and `11` the shield), with names, descriptions, training costs and the caps 10 and 15 (`SKILLMAXBASE`, `SKILLMAXMOD`). Merchant costs 750 and Ranger 1000. The six monster weapon classes cost nothing and have no description; the shield's name and cost (500) are literals in code.
 - **Progression** (`aidyn:progression/0`): the experience each level starts at (`EXP_TNL`, levels 0–40), the award multiplier (1.5), the training prices and the flag the first spell learnt at a trainer sets (3611).
 
-The tables are read from the code segment for each ROM version; the literals are facts from the code (see the [hardcoded-content audit](../hardcoded-content.md#characters)).
+The tables are read from the code segment for each ROM version, and the literals are carried as facts from the code.
 
 ## A character sheet
 
@@ -42,7 +42,7 @@ Base values read capped at the base cap, and modified ones at the cap and at lea
 - **After a battle**, with no trainer, a character spends experience alone on its attributes, on the skills it's above level 0 in, and on the spells it knows. A skill at 0 isn't offered, so it has to be started at a trainer.
 - **At a trainer**, the character raises what the trainer teaches: the trainer's skills above 0, and spells, up to the trainer's own level of each. Experience costs 80% (in single precision, truncated), and gold (n + 1) × 40 for raising level *n*, or 200 from level 0 or for a new spell. Oriana charges no gold. Attributes aren't offered.
 - **Prices in experience** are (n + 1)² × the cost for raising level *n*, for stats, skills and spells alike.
-- **The window** at a trainer is in [ui](ui.md#training), with what its lines show.
+- **The window** at a trainer is in [ui](pause-menu.md#training), with what its lines show.
 - **Spells.** A character whose Wizard can never be learnt can't learn spells. A new spell needs the character's base Wizard at least the spell's, and the same school, an unschooled spell, or a Chaos character. Spells stop at level 10. The first spell learnt sets flag 3611 and shows help, which the training window does; `TrainSpell` says whether the spell is new.
 
 ## The party
@@ -94,7 +94,7 @@ Scripts add and take away members (Borg13 ops 47 and 48), and `GameState.AddMemb
   1. The member goes in the first free slot (slot 0 if it's empty), as their record starts them (`Entity::Init` mode 0). The weapons they bring but don't wield go into the inventory.
   2. Their joined flag is set and their left flag cleared.
   3. If a sheet was kept when they left, it replaces the new one (`SaveEntity::CopyMember`, `Copy`): experience, all four stat arrays, skills, the spellbook and what it wears. The record's gear is discarded, but the spare weapons are already in the inventory, so they come again each time.
-- **Someone already in the party.** The original doesn't check for this, and adds a second sheet, as the user saw with Sholeh in 1.0. The port deliberately doesn't add them again, but still says they joined, so the one talking leaves the map as in the original. Only Sholeh's first meeting, at Overworld S26 on the road to Ugarit (`aidyn:dialogue/0x04AD`), can re-add someone, since her joining doesn't hide her there; reaching Ugarit does ([wanderers](wanderers.md#joining)).
+- **Someone already in the party.** The original doesn't check, and adds a second sheet. The port doesn't add them again, but still says they joined, so the one talking leaves the map as in the original. Only Sholeh's first meeting, at Overworld S26 on the road to Ugarit (`aidyn:dialogue/0x04AD`), can re-add someone, since her joining doesn't hide her there; reaching Ugarit does ([wanderers](wanderers.md#joining)).
 - **Leaving** (`Party::RemoveAliveMember`, `0x80074DCC`):
   1. Everything they wear goes into the inventory (`StripMember`): the gear, the weapon, the armor and the shield. The Archmage Staff stays, and so does what the inventory has no room for.
   2. Their sheet is kept, if they're one of the five.
@@ -109,17 +109,17 @@ Scripts add and take away members (Borg13 ops 47 and 48), and `GameState.AddMemb
   - A member who dies in battle has theirs erased (`Party.EraseKeptSheetsOf`, `0x80017F84`).
 
   The port keeps only those who left (`Party.Kept`), and takes a sheet out when its member rejoins; the mirror changes nothing anyone sees. The importer marks the five (`MemberFlags.Kept`).
-- **A full party is the scripts' business.** Retail ignores whether AddMember worked; the debug build crashes with "Couldn't add %d to the party". 20 of the 29 joining scripts check the party's size, which counts Alaron. The other nine, Gwernia's, are gated so they can't come up with the party full: their map objects need fewer than two of Abrecan, Godric and Rheda (5004). Brenna's need two.
+- **A full party is the scripts' business.** Retail ignores whether AddMember worked; the debug build crashes with "Couldn't add %d to the party". Most joining scripts check the party's size, which counts Alaron. Gwernia's nine don't, and are gated so they can't come up with the party full: their map objects need fewer than two of Abrecan, Godric and Rheda (5004). Brenna's need two.
 - **The full party's prompt is a script template**, which eleven joining cut-scenes share, and Niesen's (`0x0472`) is alike.
   - After "no room", it asks each member in turn (`CheckMember`). One who would leave says why, and a menu offers to leave (a goodbye, RemoveMember, and back to the join) or stay.
   - Brenna and Niesen never leave.
   - Rheda won't until flag 458 (Beat Shamsuk): "I haven't found a cure for Niesen yet". Dougal's script doesn't gate her.
   - Farris and Dougal aren't asked.
 
-  The VM runs all of it, so nothing in the engine is needed.
+  The VM runs all of it; nothing in the engine is needed.
 
 ## Deaths
 
-- **The died flags** (`Party.SyncMemberFlags`, `0x80074A4C`, the decomp's `Party::CheckDeaths`) are set for each dead member and cleared for each living one, at each party member's death in battle and as a battle ends (`GameState.WriteDeathFlags`). Sholeh's, 622, is also set at her death whatever her side, the combat record's ally ([combat](combat.md#deaths)).
-- **The dead leave the party** as every battle ends, won, lost or fled (`Party.AfterBattle`, `0x80074EE8`; `GameState.BringOutYourDead`): each, in order, has any kept sheet of theirs erased and what they wear put in the inventory, as a member leaving does, and the rest move up. Their joined flag stays set and their left flag clear, so the story still counts them as having joined. The port keeps only the sheets of those who left, so a member in the party has none to erase.
+- **The died flags** (`Party.SyncMemberFlags`, `0x80074A4C`, the decomp's `Party::CheckDeaths`; the table `CodeTable.PartyDeathFlags`, `0x800D3718`) are set for each dead member and cleared for each living one, at each party member's death in battle (`Combatant.Death`) and as a battle ends (`GameState.WriteDeathFlags`). Sholeh's, 622, is also set at the start of `Combatant.Death` (`0x80062080`) for any combatant whose entity is hers, ally, enemy or member, the combat record's `ally` ([combat](combat.md#deaths)).
+- **The dead leave the party** as every battle ends, won, lost or fled (`Party.AfterBattle`, `0x80074EE8`, from `Combat.Exit`; `GameState.BringOutYourDead`): the flags are written, then each dead member, in order, has any kept sheet of theirs erased (`Party.EraseKeptSheetsOf`, `0x80017F84`) and what they wear put in the inventory (`Party.RemoveMember`, `0x80075080`, through `Party.StripMember`, `0x80074FE4`), as a member leaving does, and the rest move up (`Party.Compact`, `0x80074F78`). Their joined flag stays set and their left flag clear, so the story still counts them as having joined. The port keeps only the sheets of those who left, so a member in the party has none to erase.
 - **The award** after a battle won is the whole experience pool to each living member (`Character.AddExp`, × 1.5): a dead member gains nothing ([combat](combat.md#a-turn)).

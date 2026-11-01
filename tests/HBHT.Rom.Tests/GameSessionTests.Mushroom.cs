@@ -13,7 +13,7 @@ using HBHT.Rom.Maps;
 namespace HBHT.Rom.Tests;
 
 /// <summary>
-/// The Roog Cave's mushroom (docs/hardcoded-content.md#corrections-to-the-roms-maps): where the ROM puts it, in the neck of D01's
+/// The Roog Cave's mushroom (docs/systems/movement.md#the-roog-caves-mushroom): where the ROM puts it, in the neck of D01's
 /// passage, Alaron wedges against it walking or sneaking north to south; the importer moves it, the user's choice, and he passes
 /// it every way he moves.
 /// </summary>

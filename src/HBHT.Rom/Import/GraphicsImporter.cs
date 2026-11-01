@@ -16,7 +16,7 @@ internal static class GraphicsImporter
     /// <summary>
     /// Alaron's actor (<c>BORG7_Alaron</c>) and the head scene the game draws on its locator 3
     /// (<c>some_borg5</c>, <c>Actor::ChangeAppearance</c>). Engine code holds both as literals; see
-    /// the hardcoded-content audit.
+    /// <c>docs/formats/code-tables.md#the-world</c>.
     /// </summary>
     private const int AlaronActor = 0x25F9, AlaronHead = 0x25AA;
 

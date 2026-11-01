@@ -7,7 +7,7 @@ namespace HBHT.Core.Characters;
 /// </summary>
 /// <remarks>
 /// The original raises flags for the party's best skills as these change (<c>event_flag_skill_</c>),
-/// but its lookup never finds them (see the hardcoded-content audit), so nothing is raised here.
+/// but its lookup never finds them (<c>docs/formats/code-tables.md</c>), so nothing is raised here.
 /// </remarks>
 public sealed class CharacterSkills
 {

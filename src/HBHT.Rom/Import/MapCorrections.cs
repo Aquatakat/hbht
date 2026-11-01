@@ -6,7 +6,7 @@ namespace HBHT.Rom.Import;
 
 /// <summary>
 /// Corrections the importer makes to the ROM's maps, each the user's choice and a departure from the original
-/// (docs/hardcoded-content.md#corrections-to-the-roms-maps), and the player's at import (<see cref="ImportOptions"/>). Each is applied to the parsed Borg9 before its map record and its
+/// (docs/systems/importer.md#the-players-choices), and the player's at import (<see cref="ImportOptions"/>). Each is applied to the parsed Borg9 before its map record and its
 /// collision are written, so what's drawn and what's hit stay together, and checks first that the ROM holds what it corrects.
 /// </summary>
 internal static class MapCorrections
@@ -27,9 +27,9 @@ internal static class MapCorrections
     /// The mushroom in the Roog Cave's D01 (<c>aidyn:voxel/0x1205/12</c>, scene <c>0x0BCB</c>), in the neck of the passage between
     /// two leaning rocks, at local (11.2, 22.5). Its collision is a box of 8 triangles (926–933), 0.71 square and 1.07 tall. The
     /// box all but touches the rock east of it, so the way past is west of it, against the corner of the other rock at
-    /// (10.34, 22.29), where the best way past brings the middle of Alaron's sphere (radius 0.5) within 0.32 of a wall. Running
-    /// north to south he wedges there more often than not, and walking or sneaking he can't pass either way; on the console
-    /// players squeeze by, or not, or resort to tricks. The user chose to keep the collision as the original has it and move the
+    /// (10.34, 22.29), where the best way past brings the middle of Alaron's sphere (radius 0.5) within 0.32 of a wall. Walking
+    /// or sneaking north to south he wedges there from every start; northward, and running either way, he passes. On the
+    /// console players squeeze by, or not, or resort to tricks. The user chose to keep the collision as the original has it and move the
     /// mushroom instead. It's slid 0.1 toward the rock east of it, to 5 cm in front of its face, and 0.7 north along that face,
     /// past the corner opposite: (−0.124, 0, 0.696), 0.71 in all. Then he walks, runs or sneaks past it either way. The floor
     /// there is flat, so it stays on the ground. Slid only toward the rock, as far as it goes before its model enters the rock

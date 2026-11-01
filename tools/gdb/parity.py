@@ -1,5 +1,5 @@
 """Combat parity logs (roadmap 2.9): every draw a battle makes on the original's stream, its rules' entry
-points, and its RAM at each turn's start, for the port to replay (docs/user-checks.md#combat-parity-29).
+points, and its RAM at each turn's start, for the port to replay (docs/systems/combat-parity.md).
 
 Inside gdb (tools/parity.ps1 runs it), against 1.0. A battle is logged from Combat.Setup to Combat.Exit,
 each into a folder of its own under PARITY_OUT (battle-01, battle-02, ...):
