@@ -186,13 +186,11 @@ Setup 7b's session (`out/parity/20261031-224749-setup7b`), against the two Salam
 
 The port's line names the caster, a fix ([combat](systems/combat.md#where-the-port-differs)).
 
-Banishing went unchecked. Debilitation at 10 takes 20 from Strength, and Alaron, at 9, had no more turns: `Combatant.UpdateActive` (`0x8006615C`) makes a combatant with no Intelligence, Willpower, Dexterity or Strength left inactive, in the port as in 1.0.
+Banishing wasn't reached in that session. Debilitation at 10 takes 20 from Strength, and Alaron, at 9, had no more turns: `Combatant.UpdateActive` (`0x8006615C`) makes a combatant with no Intelligence, Willpower, Dexterity or Strength left inactive, in the port as in 1.0. Setup 7's second session (`out/parity/20261031-225545-setup7`) has Alaron's Banishing landing on the Air Elemental, which passes, its 115 draws one for one. Its second battle, against the Dust Devil, was closed at its first turn. That turn's check found 1.0's Dust Devil at 31.999998 for its spawn's 32: setting its body down on the floor moved it by float noise, and its cell is read back from the body. The first turn's cells are now checked to 0.0001.
 
 Every enemy turn passes but one. At 0024 the charmed Air Elemental's walk ended 1.17 short of 1.0's and didn't strike the Dust Devil. At the logger's 4-tick frames the port's ends within 0.01 of 1.0's and strikes, and its walk at 0021 ends at 1.0's too. It's a known cadence turn in the replay.
 
 Still to do:
-
-- **Banishing,** which setup 7 didn't reach: setup 7 again, with Alaron casting it on his first turn, before the Dust Devil's Debilitation can take his Strength.
 
 - **Setup 2's walks,** above: which way 1.0's Spellweaver curved at the second's 0016.
 - **Positions, shown but not checked:**

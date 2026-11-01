@@ -259,9 +259,12 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
             if (port is null || slot == acted)
                 continue;
             var who = $"slot {slot} ({port.Sheet.Name})";
-            // After the first turn, the bodies it touched have settled their cells a little (a rat hit by Solar Wrath, by 0.03).
+            // After the first turn, the bodies it touched have settled their cells a little (a rat hit by Solar Wrath, by 0.03). Before
+            // it, a body set down on the floor can have moved by float noise, its cell read back from it (setup 7's second session:
+            // 1.0's Dust Devil at 31.999998 for its spawn's 32).
             var cell = new Vector2(Float(ram, p), Float(ram, p + 4));
-            Check($"{who} cell", acted < 0 ? cell : Vector2.Round(cell * 10) / 10, acted < 0 ? port.Cell : Vector2.Round(port.Cell * 10) / 10);
+            var places = acted < 0 ? 10000 : 10;
+            Check($"{who} cell", Vector2.Round(cell * places) / places, Vector2.Round(port.Cell * places) / places);
             Check($"{who} direction", (int)ram.ReadByte(p + 0x14), port.Direction);
             Check($"{who} footprint", (int)ram.ReadByte(p + 0x23), port.Footprint);
             Check($"{who} radius", (int)ram.ReadByte(p + 0x21), port.Radius);
