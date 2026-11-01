@@ -5,6 +5,7 @@ using HBHT.Core.Calendar;
 using HBHT.Core.Characters;
 using HBHT.Core.Chunks;
 using HBHT.Core.Combat;
+using HBHT.Core.Items;
 using HBHT.Core.Magic;
 using HBHT.Core.Physics;
 using HBHT.Core.Rng;
@@ -184,11 +185,31 @@ internal static class CombatCheckpoints
             }
 
             var sheet = cp.ReadWord(p + 0x40);
+            // The weapon (+0x24), which the Party tab changes mid-battle, with its spell's charges (+0x10's +4): put on before the stats and
+            // skills are laid, as putting it on changes them.
+            var weapon = cp.ReadWord(sheet + 0x24);
+            var wielded = weapon == 0 ? null : (RecordId?)TestRoms.ItemId(Half(cp, weapon));
+            if (wielded != c.Sheet.Equipment.Weapon?.Id)
+            {
+                c.Sheet.Equipment.RemoveWeapon();
+                if (wielded is { } id)
+                    Assert.Equal(EquipRefusal.None, c.Sheet.Equipment.EquipWeapon(new ItemInstance(game.Items.TryGet(id)!)));
+            }
+            if (c.Sheet.Equipment.Weapon is { Charges: not null } held && cp.ReadWord(weapon + 0x10) is var charges and >= 0x80000000 and < 0x80800000)
+                held.Charges = cp.ReadByte(charges + 4);
+
             var stats = cp.ReadWord(sheet + 0x18);
             foreach (var stat in Enum.GetValues<Stat>())
             {
                 var i = (uint)stat;
                 SetStat(c.Sheet.Stats, stat, cp.ReadByte(stats + i), (sbyte)cp.ReadByte(stats + 7 + i), cp.ReadByte(stats + 0xE + i), (sbyte)cp.ReadByte(stats + 0x15 + i));
+            }
+            // The skills' base and modified levels (+0x1C), which the potions' and gear's bonuses, laid on without starting, don't move.
+            var skills = cp.ReadWord(sheet + 0x1C);
+            foreach (var skill in SkillId.All)
+            {
+                c.Sheet.Skills.Train(skill, (sbyte)cp.ReadByte(skills + (uint)skill.Slot) - c.Sheet.Skills.RawBase(skill));
+                c.Sheet.Skills.Modify(skill, (sbyte)cp.ReadByte(skills + 0x18 + (uint)skill.Slot) - c.Sheet.Skills.RawModified(skill));
             }
             OverlayEffects(game, cp, sheet, c.Sheet);
             // The protection (+0x14's +2), which the effects laid on without starting don't add.
@@ -304,6 +325,9 @@ internal static class CombatCheckpoints
                 continue;
             var potion = RecordId.Hex(RecordTypes.Item, 0x1000 + cp.ReadByte(r));
             var effects = sheet.Rules.Magic.Potion(potion)?.Effects?.Where(EffectRules.Lasting).ToList() ?? [];
+            // A flask's corrosion (kind 3, Acid's) is the protection its burst takes, a level a point (IMagicHost.Burst).
+            if (sheet.Rules.Magic.Potion(potion)?.Effects?.OfType<CorrodeEffect>().Any() == true)
+                effects = [new ProtectionEffect(new Magnitude(PerLevel: -1))];
             potionSlots[i] = new ActiveEffect(potion, effects, cp.ReadByte(r + 1), MagicSchool.None, 0, cp.ReadWord(r + 4));
         }
         typeof(Character).GetField("_spellEffects", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(sheet, spellSlots);

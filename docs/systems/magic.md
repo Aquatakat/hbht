@@ -111,6 +111,8 @@ A potion is data (ADR 0021): an item of kind Potion whose record has its effects
 
 In the port, the throw rolls the `blast` dice of every thrown potion's record, in the records' order, and keeps its own, as the original's `FlaskDamage` rolls all three, so the RNG stays in step. The flask then lands through `EffectLanding` on the one it hit (`Battle.FlaskExplosion`), and its blast and corrosion burst in `IMagicHost.Burst`, corrosion as a `protection` of −1 a level at the radius ÷ d.
 
+**Neither the Defence potion's protection nor Acid's corrosion goes on the sheet's protection byte.** They're potion records, and `Combatant.TotalProtection` (`0x8005F570`) adds them each time it works out a total. It walks the seven potion records (the entity's `+0x38`), takes off each corrosion record's power (kind 3), and adds 15 if a Defence record (kind `0x0F`) is there. Then it adds the sheet's byte, body armor and a fifth of Warrior, and the total is 0 if it comes to under 1. The port does the same: a potion's `protection` effect skips the sheet (`EffectRules.Start` and `End`), and `Battle.Protection` adds `Character.PotionProtection`. Setup 3 showed why it matters: when the port put corrosion on the byte, a Giant Rat with 3 protection and 5 corrosion wrapped round to 254 and could barely be hurt.
+
 ## Gear
 
 - **Worn enchantments** go on with the armor, shield or gear (`Character.PutOnEnchantment`, `0x8007192C`, from `Entity.ApplyItem`, `0x8006F2A8`), never running down, and come off with it (the first of the spell's that never runs down). A dispel can take one off until the battle's end puts it back. Only three exist: the Haste Amulet (Haste 1), the Boots of Speed (Haste 5) and the Ring of Healing (Photosynthesis 1, margin 1). The ring heals its margin each time trek ages the effects, once a drawn frame (`EffectRules.Round`'s case at `0x80070BF8`, skipped when `World+2` says night), and the user saw it in 1.0: about a hit point a frame.
@@ -135,7 +137,6 @@ The user chose to keep these, which look like bugs, as the original has them:
 
 ## Where the port differs
 
-- The Defence potion and the Acid flask's corrosion change the sheet's protection, as the shields do, where the original adds them when it works out the total (`Combatant.TotalProtection`); the totals differ only when the sum is below 0.
 - One record can hold several effects; the original keys one per kind. The base game's records hold one each but Web of Starlight's (immobilise and 2d6) and Tap Stamina's.
 - Any spell, potion or flask can carry any effect type ([How effects land](#how-effects-land)); the original's code carries each instant one for its own kinds only. The base game's records hold them where the original has them, so nothing it plays changes.
 - Trek's ageing runs every tick, and what the effects do each round once a 30 fps frame (`Cadence.FrameTicks`), as the original does once a drawn frame.

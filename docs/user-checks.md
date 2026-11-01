@@ -104,6 +104,30 @@ Setup 2's second session (`out/parity/20261031-134011-setup2`), with the logger 
 - At 0016, the Spellweaver plans 1.0's path to (11, 17), but 1.0's curved away from its first corner, dead astern, and gave up near its start, casting Mirror on itself 4.6 from where the port's does. It's a known cadence turn in the replay. At 4–6-tick frames the port's gives up near its start too, but curving the other way. Which way 1.0's first frames carry it isn't settled: its `Facing.Turn`, run in the interpreter, turns as the port's does.
 - At 0020, the Sorceror's walk had ended 0.14 short of 1.0's, against slot 5's body, and its Starlight Shield missed slot 5 by 0.003 of its reach. With the stuck body sliding on, it reaches 1.0's place and covers all four.
 
+Setup 3's session (`out/parity/20261031-172849-setup3`) covered these, and the battle was won:
+- a cast refused for Stamina;
+- Lay On Hands and Heal With Herbs;
+- Dougal performing;
+- Alaron's Warfang put in hand from the Party tab, and its spell;
+- the Stamina, Strength, Dexterity, Clarity, Defence, Healing, Charisma and Curing potions;
+- Keelin's blows from behind;
+- the four flasks, Acid's catching Keelin;
+- the rewards.
+
+Every enemy turn passes. So does every action but Dougal's four Fireballs. 1.0 cast them for no damage, as he still had a flask in hand ([combat](systems/combat.md#spells-potions-and-skills-in-a-turn)). Whether the port keeps that is the user's call.
+
+Three of the differences were the replay's own:
+- The overlay now puts on the weapon the RAM wields and lays the skills, so the Party tab's change and the potions' bonuses carry through.
+- A won battle is checked at `Combat.Exit`, with the rewards' draws on the port's loot stream.
+- Acid's corrosion record is laid as the protection it takes.
+
+One was the port's: Acid's corrosion wrapped a rat's protection byte to 254 ([magic](systems/magic.md#potions-and-flasks)).
+
+What the session showed of 1.0's menus:
+- C-up's menu leaves out a potion that can't be drunk, such as Healing at full health. It never lists Stealth, which can't be drunk in a battle.
+- Acid's corrosion takes protection and isn't a poison, so the Antidote had nothing to cure here. Setup 5's darts can poison.
+- Restore had nothing to undo either. Setup 6's Wraith Touch can drain a stat.
+
 Still to do:
 
 - **Setup 2's walks,** above: which way 1.0's Spellweaver curved at the second's 0016, and the port's body gliding on through the rest after a walk.

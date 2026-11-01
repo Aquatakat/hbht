@@ -29,6 +29,13 @@ public sealed partial class Character
     /// <summary>The potions working on it, by slot.</summary>
     public IReadOnlyList<ActiveEffect> PotionEffects => [.. PotionEffectSlots.OfType<ActiveEffect>()];
 
+    /// <summary>
+    /// What the potions working on it add to its protection: the Defence potion's and Acid's corrosion, which stay off the sheet's byte
+    /// and count only in the total (<c>Combatant.TotalProtection</c>, <c>0x8005F570</c>, which subtracts each kind-3 record's power and
+    /// adds 15 for a Defence potion's).
+    /// </summary>
+    public int PotionProtection => PotionEffects.Sum(p => p.Effects.OfType<ProtectionEffect>().Sum(e => e.Amount.At(p.Power)));
+
     /// <summary>The effect a spell or potion has on it, if it's on.</summary>
     public ActiveEffect? FindEffect(RecordId source) =>
         Slots(source).FirstOrDefault(e => e?.Source == source);

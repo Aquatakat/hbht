@@ -395,7 +395,27 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
     private static List<ParityDraw> DrawsBetween(ParityLog log, ParityEntry from, ParityEntry to)
     {
         var records = log.Records.ToList();
-        return [.. records.Skip(At(records, from) + 1).TakeWhile(r => !ReferenceEquals(r, to)).OfType<ParityDraw>().Where(d => !Cosmetic(d))];
+        return [.. records.Skip(At(records, from) + 1).TakeWhile(r => !ReferenceEquals(r, to) && !IsRewards(r)).OfType<ParityDraw>().Where(d => !Cosmetic(d))];
+    }
+
+    /// <summary>
+    /// The original's draws for a won battle's rewards (<c>Combat.TallyRewards</c>) before <paramref name="to"/>, on its one stream,
+    /// which the port rolls on its loot stream (ADR 0006): none for a turn that doesn't win.
+    /// </summary>
+    private static List<ParityDraw> LootBetween(ParityLog log, ParityEntry from, ParityEntry to)
+    {
+        var records = log.Records.ToList();
+        return [.. records.Skip(At(records, from) + 1).TakeWhile(r => !ReferenceEquals(r, to)).SkipWhile(r => !IsRewards(r)).OfType<ParityDraw>().Where(d => !Cosmetic(d))];
+    }
+
+    private static bool IsRewards(object record) => record is ParityEntry { Name: "Combat.TallyRewards" };
+
+    private List<string> CheckLoot(Feed feed, List<ParityDraw> draws)
+    {
+        if (feed.Count == draws.Count)
+            return [];
+        output.WriteLine($"  the rewards: the original drew {draws.Count}, the port's loot stream {feed.Count}");
+        return [$"the rewards: the original drew {draws.Count}, the port's loot stream {feed.Count}"];
     }
 
     /// <summary>
@@ -463,7 +483,7 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
     /// the original's RAM was dumped, before its flee check and its ring. Failing a cue (a line the same as the last), after the tick.
     /// A combatant's next turn in a row is the next turn too.
     /// </summary>
-    private List<string> PlayOut(Built built, Combatant c, Func<List<string>> check, Action? eachTick = null)
+    private List<string> PlayOut(Built built, Combatant c, bool toExit, Func<List<string>> check, Action? eachTick = null)
     {
         var fight = built.Battle;
         var zone = Zone(built);
@@ -473,12 +493,13 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
         List<string>? checkedThen = null;
         // The turn, not the combatant: one with two turns in a row (Haste, or the order's grouping) begins its second at once.
         var turn = fight.Order.Now;
-        bool Ended() => fight.Current != c || fight.Order.Now != turn;
+        // A battle won is checked at its Combat.Exit, after the rewards' draws: as the victory begins, not at the line of the death that won it.
+        bool Ended() => toExit ? fight.State == CombatState.Victory || fight.Over : fight.Current != c || fight.Order.Now != turn;
         // A line, not just any cue: Advance passes over a combatant that can't act and ends the round with Current on it, and the
         // round's end cues its reserves and numbers before the next round is built.
         fight.Host = new Watch(cue =>
         {
-            if (checkedThen is null && Ended() && cue is LogLine)
+            if (checkedThen is null && !toExit && Ended() && cue is LogLine)
                 checkedThen = check();
         });
         var states = new List<(CombatState State, int Ticks)>();
@@ -495,7 +516,7 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
         }
         fight.Host = null;
         output.WriteLine($"  states: {string.Join(", ", states.Take(12).Select(st => $"{st.State} {st.Ticks}"))}");
-        if (checkedThen is null)
+        if (checkedThen is null && !toExit)
             output.WriteLine("  (no cue as the next turn began: checked after its start)");
         return checkedThen ?? check();
     }
@@ -543,10 +564,12 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
         // read; and the action.
         var draws = DrawsBetween(log, action, next);
         var feed = new Feed(draws, game.Random.Combat);
+        var loot = LootBetween(log, action, next);
+        var lootFeed = new Feed(loot, game.Random.Loot);
         Poke(fight, nameof(Battle.Target), t.Slot);
         fight.ExecuteAction(a, t, spell);
         output.WriteLine($"{action.Dump} -> {next.Dump}: slot {a.Slot} ({a.Sheet.Name}) {what} at slot {t.Slot} ({t.Sheet.Name})");
-        wrong.AddRange(PlayOut(built, a, () => CheckNext(built, log, next, a, feed, draws)));
+        wrong.AddRange(PlayOut(built, a, next.Name == "Combat.Exit", () => [.. CheckNext(built, log, next, a, feed, draws), .. CheckLoot(lootFeed, loot)]));
         return wrong;
     }
 
@@ -570,12 +593,14 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
         // Its turn begun as TurnOrder.Advance begins it (TurnOrder.BeginTurn, then the clock), on the original's draws.
         var draws = DrawsBetween(log, turn, next);
         var feed = new Feed(draws, game.Random.Combat);
+        var loot = LootBetween(log, turn, next);
+        var lootFeed = new Feed(loot, game.Random.Loot);
         output.WriteLine($"{turn.Dump} -> {next.Dump}: slot {c.Slot} ({c.Sheet.Name})'s turn");
         Call(fight, "BeginTurn", c);
         game.AdvanceTurn();
         (int Target, Vector2 Cell)? portAction = null;
         var (press, walked) = (PressedA(built, log, turn, next), 0);
-        var atNext = PlayOut(built, c, () => CheckNext(built, log, next, c, feed, draws), () =>
+        var atNext = PlayOut(built, c, next.Name == "Combat.Exit", () => [.. CheckNext(built, log, next, c, feed, draws), .. CheckLoot(lootFeed, loot)], () =>
         {
             if (fight.State == CombatState.Moving && ++walked == press?.Ticks
                 && (press.Value.EndedAt is not { } end || Vector2.Distance(end, c.Cell) < 0.5f) && fight.SkipWalk())

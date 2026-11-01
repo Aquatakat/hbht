@@ -99,12 +99,13 @@ public sealed partial class Battle
 
     /// <summary>
     /// Protection against an attack (<c>Combatant.ProtectionVsAttack</c>, <c>0x8005F71C</c>, over <c>TotalProtection</c>,
-    /// <c>0x8005F570</c>): the sheet's (gear's and the effects', the Defence potion's and Acid's among them), body armor's and a
-    /// fifth of Warrior, none if under 1; and the shield's unless struck from behind; as a byte.
+    /// <c>0x8005F570</c>): the sheet's (gear's and the spells'), body armor's, a fifth of Warrior and the potions' (the Defence
+    /// potion's and Acid's corrosion, <see cref="Character.PotionProtection"/>), none if under 1; and the shield's unless struck from
+    /// behind; as a byte.
     /// </summary>
     public static int Protection(Character c, bool behind)
     {
-        var total = c.Protection + (c.Equipment.Armor?.Item.Armor?.Protection ?? 0) + c.Skills.Modified(Skill.Warrior) / 5;
+        var total = c.Protection + (c.Equipment.Armor?.Item.Armor?.Protection ?? 0) + c.Skills.Modified(Skill.Warrior) / 5 + c.PotionProtection;
         total = total < 1 ? 0 : total & 0xFF;
         if (!behind && c.Equipment.Shield?.Item.Armor is { } shield)
             total += shield.Protection;

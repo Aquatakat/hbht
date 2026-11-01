@@ -53,7 +53,8 @@ internal static class EffectRules
             case SkillEffect s:
                 sheet.Skills.Modify(SkillId.FromRecord(s.Skill), s.Amount.At(power));
                 break;
-            case ProtectionEffect p:
+            // A potion's, the Defence potion's or Acid's corrosion, isn't on the sheet: the total adds it (Character.PotionProtection).
+            case ProtectionEffect p when !record.IsPotion:
                 sheet.Protection = (byte)(sheet.Protection + p.Amount.At(power));
                 break;
             case ImmobiliseEffect when target.Combatant is { } held:
@@ -137,7 +138,7 @@ internal static class EffectRules
             case SkillEffect s:
                 sheet.Skills.Modify(SkillId.FromRecord(s.Skill), -s.Amount.At(power));
                 break;
-            case ProtectionEffect p:
+            case ProtectionEffect p when !record.IsPotion:
                 sheet.Protection = (byte)(sheet.Protection - p.Amount.At(power) + (p.Leaves?.At(power) ?? 0));
                 break;
             case ImmobiliseEffect when target.Combatant is { } held:
