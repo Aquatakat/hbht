@@ -138,6 +138,17 @@ The second session (`out/parity/20261031-190448-setup4`) ran at night with no ra
 
 Every Woodsman's turn passes but one. At 0006, the Woodsman's first corner was dead astern. 1.0's walked 0.9 away in 6 frames of 5–6 ticks and gave up. At 2-tick frames the port's turns round and walks on 3.5 further, and at 5-tick frames it gives up within 0.37 of 1.0's. It's a known cadence turn in the replay, like setup 2's second session at 0016.
 
+Setup 5's session (`out/parity/20261031-194638-setup5`) was won, and every action and Poisoner turn passes:
+- the Poisoners' darts thrown at the party, style 3;
+- Dougal's and Alaron's blows;
+- the party's shots.
+
+One dart in 13 hit, Keelin's at 0021. Its Poison enchantment (`0x0332`, level 3) was cast at him, through `Combatant.WeaponSpellProc`'s cast roll and resist, and didn't land, in 1.0 and the replay alike. The Antidote is missing from C-up's menu for a member who isn't poisoned.
+
+One difference was the replay's own, at 0061. Rebuilding the target sets tested reach, which read Alaron's body into his cell, a cell over from where 1.0's record had last read it. The blow's height difference, which reads the cell (`ArenaGrid.HeightDifference`, `0x80067AD4`), went from −1 to 0. That raised the margin across a `SkillCheckStep`, so the blow did 42 for 1.0's 41. The replay now puts the cells back after the rebuild.
+
+Setup 5b (`setup5b.json`, slot A) weakens two members for the poison checks. Keelin's current Dexterity is 4 and Willpower 2, and Dougal's are 4 (0 modified) and 4. A dart's chance takes off twice its target's Dexterity, and the lowered stats give Restore something to restore.
+
 Still to do:
 
 - **Setup 2's walks,** above: which way 1.0's Spellweaver curved at the second's 0016, and the port's body gliding on through the rest after a walk.
@@ -206,7 +217,7 @@ The saves are in `out/parity/saves/`. `base.json` is story save A with the party
   - The potions the inventory lacked: Antidote, Dexterity, Clarity, Charisma and Defense ×2. Healing, Stamina, Curing, Restore, Strength and Stealth were there already.
   - Dougal's Fireball 6 is from the story. It's there to place a blast that catches a member, which setup 1 didn't do.
 - **Setup 4, `setup4.json`, in slot D.** At 22:00, Night. The party stands on the slope 11.4 north-east of the Woodsmen (party #2, `0x025B`, radius 10), facing them, 24 from the Ogre (#0, radius 20) and 17 from the Wyverns (#1, radius 10). Keelin wears the Short Bow, and Dougal has 4 Javelins.
-- **Setup 5, `setup5.json`, in slot A.** The party stands 11 west of the Goblin Poisoners (Overworld E09 #5, `0x0284`, level 5, radius 10), facing them, 37 from the Cave Bears (#4). The inventory has 3 Antidotes on top of the base's potions, and Keelin knows Remove Poison 3 from the story.
+- **Setup 5, `setup5.json`, once in slot A, now 5b's.** The party stands 11 west of the Goblin Poisoners (Overworld E09 #5, `0x0284`, level 5, radius 10), facing them, 37 from the Cave Bears (#4). The inventory has 3 Antidotes on top of the base's potions, and Keelin knows Remove Poison 3 from the story.
 - **Setup 6, `setup6.json`, in slot B.** The party stands 8 south of the four Wraiths (EhudUnder E03 #4, `0x0265`, level 20, radius 10), facing them, in the only open floor round them. A teleporter (#3) is 2 beyond the Wraiths. Restore is Sholeh's Healer 10 with the party's Herbs, or one of the 3 Restore Potions.
 
 Setups 5 and 6 replaced 1 and 2 in slots A and B. To fight 1 or 2 again, write its save back with `hbht save to-pak`.

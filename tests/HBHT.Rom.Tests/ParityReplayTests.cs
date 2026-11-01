@@ -566,6 +566,9 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
             Assert.NotNull(potion);
             a.HoldPotion(potion, fight);
         }
+        // Rebuilding the sets tests reach, which reads the bodies into the combatants' cells; 1.0's records kept the cells they last read
+        // (setup 5's 0061: Alaron's a cell from his body, which the blow's height difference reads), so they're put back after.
+        var cells = fight.Combatants.Select(c => (c, c.Cell, c.ReadFrom)).ToList();
         foreach (var (set, at) in new[] { (fight.TargetsA, TargetSetA), (fight.TargetsB, TargetSetB) })
         {
             set.Rebuild(fight, a);
@@ -576,6 +579,8 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
                     wrong.Add($"the port's target set {(set == fight.TargetsB ? "B" : "A")} can't select slot {slot}");
             }
         }
+        foreach (var (c, cell, readFrom) in cells)
+            (c.Cell, c.ReadFrom) = (cell, readFrom);
         for (var i = 0; i < 120 && fight.Fade.Fading; i++)
             fight.Fade.Step();
         var what = spell ? $"casts {a.CurrentSpell(game.Rules.Magic)?.Spell.Name}" : a.Action == CombatAction.Flask ? $"uses the {a.Potion?.Name}" : a.Action.ToString();
