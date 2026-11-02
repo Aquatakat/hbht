@@ -56,6 +56,11 @@ public partial class Game
             case "loot":
                 _session!.OpenLoot(new ItemPile(_session.Game.Party.Inventory.Catalog), 0);
                 break;
+            case { } train when train.StartsWith("train:", StringComparison.Ordinal):
+                var game = _session!.Game;
+                if (RecordId.TryParse(train["train:".Length..], out var id) && game.Plugins.TryGet<EntityRecord>(id) is { } entity)
+                    _session.OpenTraining(HBHT.Core.Characters.Trainer.From(entity, game.Rules, game.Plugins.Get<SpellRecord>));
+                break;
             case { } tab when Enum.TryParse<PauseTab>(tab, ignoreCase: true, out var opening):
                 _session!.OpenMenu(opening);
                 break;

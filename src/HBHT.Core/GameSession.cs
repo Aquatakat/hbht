@@ -926,6 +926,9 @@ public sealed class GameSession
     /// <summary>The loot window opens on a pile, as a container's does (<see cref="Transition.OpenLoot"/>).</summary>
     public void OpenLoot(ItemPile loot, int gold) => Send(new Transition.OpenLoot(loot, gold));
 
+    /// <summary>Opens training with <paramref name="trainer"/>, as a script's Train command does.</summary>
+    public void OpenTraining(Characters.Trainer trainer) => Send(new Transition.OpenTraining(trainer));
+
     /// <summary>
     /// The pause menu has rolled up (<see cref="Ui.PauseMenu.Step"/>): the map is gated again by the flags as they are now, as
     /// the original reloads it as the menu closes (<see cref="TrekLoop.Regate"/>), and the game carries on as the menu's exit

@@ -152,7 +152,7 @@ The pause menu's training state at a trainer (`WidgetDollMenu` with `WidgetMenuS
 - **C-down** shows the skill's description, or the trainer's spell. **B or Start** closes the window.
 - **The conversation's end opens it** (`PauseMenu.OpenTraining`), with the keeper as the trainer. The original opens it with empty lists when there's no keeper; the port says so and stays in trek.
 - **After a battle**, with no trainer, the post-battle window lists the member's own spells, skills and stats: [below](#after-a-battle).
-- **Not ported yet:** the lists sliding 140 pixels over 20 frames as the stick changes them.
+- **The lists slide** as the stick changes them, both on the same press, the same way, 140 pixels over 20 frames, eased: the doll menu sends left and right to the member's lists, the Party tab's own change (`PartyMenu.ChangeList`, `0x80031620`, over spells and skills alone, with its sound), and then to the trainer's (`TrainingMenu.ChangeList`, `0x800323D4`; `DollMenu.Left` `0x8003DFB0` and `Right` `0x8003E030`). The trainer's list rests at x 20 and is cut to (20, 88)–(157, 166); to the right, the new one comes from x −120 and the old goes to 160. A press while either slides does nothing (`PartyMenu.Changing`, `0x800304B4`). The member's list is drawn under the parchment, as the window's own widgets come after the lists. The port draws them on the Party tab's list layer and the trainer's on a clip of its own over the parchment (`TrainingMenu.Slide`, `PartyTabView.DrawTrainer`); `--menu train:<entity>` opens training with that trainer ([runtime](runtime.md)).
 
 ## After a battle
 

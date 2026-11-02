@@ -23,14 +23,19 @@ public partial class PartyTabView
     /// <summary>The member's list's cursor: it pulses on the trainer's row, and is plain when the member hasn't it.</summary>
     private Rgba MemberCursor(TrainingMenu training) => training.Followed ? Menu.HighlightNow : PartyMenu.TextColor;
 
-    private void DrawTraining(TrainingMenu training)
+    /// <summary>
+    /// Training's parchment, title and price lines, over the member's list, which the Party tab's list layer draws as it slides
+    /// (<see cref="DrawLists"/>), and under the trainer's list (<see cref="DrawTrainer"/>).
+    /// </summary>
+    private void DrawTraining()
     {
-        List(0, _ui.Slim, MemberCursor(training));
-
+        if (Menu.Shown is null || OwnTab || Window is not TrainingMenu training)
+            return;
+        _canvas = _trainingLayer;
+        _trainingLayer.DrawSetTransform(_origin);
         _ui.Parchment(_canvas, ClassicParchment.X, ClassicParchment.Y);
         var title = _ui.Size(training.Title);
         _ui.Image(_canvas, training.Title, PileTitleCentre - title.X / 2, TrainTitleFoot - title.Y);
-        TrainerRows(training, TrainingMenu.Layout, _ui.Slim);
         var y = ClassicGoldLine.Y;
         foreach (var line in training.PriceLines)
         {
@@ -39,15 +44,35 @@ public partial class PartyTabView
             y += _ui.Main.LineHeight;
         }
 
-        // C-down's details cover the trainer's list on their own layer (DrawDetails).
-        if (training.Help is { } help)
-            Help(help);
+        // The trainer's list is on its own layer, cut to its bounds as it slides (DrawTrainer); the help over it is on the
+        // overlay (DrawOverlay), and C-down's details on theirs (DrawDetails).
     }
 
-    /// <summary>The trainer's skills or spells, drawn as the member's are.</summary>
-    private void TrainerRows(TrainingMenu training, ListLayout layout, UiFont font)
+    /// <summary>
+    /// The trainer's list over the parchment, cut to its bounds, or as the stick changes it, the list it left sliding out and the
+    /// other sliding in after it, both the same way, a list's width over <see cref="PartyMenu.ListFrames"/> frames
+    /// (<c>TrainingMenu.ChangeList</c>, <c>0x800323D4</c>): to the right, the new list from x −120 and the old to 160.
+    /// </summary>
+    private void DrawTrainer()
     {
-        if (training.OnSpells)
+        if (Menu.Shown is null || Window is not TrainingMenu training)
+            return;
+        _canvas = _trainerLayer;
+        if (training.Slide is not { } slide)
+        {
+            TrainerRows(training, training.OnSpells, 0, _ui.Slim);
+            return;
+        }
+        var by = slide.Direction * PartyMenu.ListDistance;
+        TrainerRows(training, slide.From, MenuTween.Value(0, by, training.ListChange), _ui.Slim);
+        TrainerRows(training, training.OnSpells, MenuTween.Value(-by, 0, training.ListChange), _ui.Slim);
+    }
+
+    /// <summary>The trainer's skills or spells, drawn as the member's are, <paramref name="shift"/> across.</summary>
+    private void TrainerRows(TrainingMenu training, bool spells, int shift, UiFont font)
+    {
+        var layout = TrainingMenu.Layout.Shifted(shift);
+        if (spells)
             SpellRows(training.Spells, layout, font, Menu.HighlightNow);
         else
             SkillRows(training.Skills, layout, font, Menu.HighlightNow);

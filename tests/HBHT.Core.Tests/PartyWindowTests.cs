@@ -92,8 +92,15 @@ public class PartyWindowTests(BarterPlugins fixture) : IClassFixture<BarterPlugi
         Assert.False(training.OnSpells);
         ((IPartyWindow)training).Sideways(-1);
         Assert.True(training.OnSpells);
+        // The trainer's lists slide, the way the Party tab's do, and a press while they slide does nothing.
+        Assert.Equal((false, 1), (training.Slide!.From, training.Slide.Direction));
+        ((IPartyWindow)training).Sideways(1);
+        Assert.True(training.OnSpells);
+        while (training.Slide is not null)
+            training.Step();
         ((IPartyWindow)training).Sideways(1);
         Assert.False(training.OnSpells);
+        Assert.Equal((true, -1), (training.Slide!.From, training.Slide.Direction));
     }
 
     /// <summary>Only the loot window and shops take C-up, and only the loot window closes itself.</summary>

@@ -105,6 +105,13 @@ public partial class PartyTabView : Control
     /// staying (<c>PauseMenu.CloseFade</c>, <c>OpenFade</c>).
     /// </summary>
     private readonly Control _windowLayer = new() { Name = "Window", MouseFilter = MouseFilterEnum.Ignore };
+    /// <summary>
+    /// Training's parchment and lines over the member's list (<see cref="DrawTraining"/>), and on it the trainer's list, cut to
+    /// its bounds as it slides (<see cref="DrawTrainer"/>).
+    /// </summary>
+    private readonly Control _trainingLayer = new() { Name = "Training", MouseFilter = MouseFilterEnum.Ignore };
+    private readonly Control _trainerClip = new() { Name = "Trainer", ClipContents = true, MouseFilter = MouseFilterEnum.Ignore };
+    private readonly Control _trainerLayer = new() { MouseFilter = MouseFilterEnum.Ignore };
     /// <summary>What's drawn over those: the veil and the messages.</summary>
     private readonly Control _overlay = new() { Name = "Overlay", MouseFilter = MouseFilterEnum.Ignore };
 
@@ -122,6 +129,12 @@ public partial class PartyTabView : Control
         _listClip.AddChild(_listLayer);
         AddChild(_listClip);
         _listLayer.Draw += DrawLists;
+        _trainingLayer.SetAnchorsPreset(LayoutPreset.FullRect);
+        AddChild(_trainingLayer);
+        _trainingLayer.Draw += DrawTraining;
+        _trainerClip.AddChild(_trainerLayer);
+        _trainingLayer.AddChild(_trainerClip);
+        _trainerLayer.Draw += DrawTrainer;
         foreach (var layer in new[] { _craftingLayer, _detailsLayer, _overlay })
         {
             layer.SetAnchorsPreset(LayoutPreset.FullRect);
@@ -270,6 +283,15 @@ public partial class PartyTabView : Control
         _listClip.Size = ListClip.Size;
         _listLayer.Position = -ListClip.Position;
         _listLayer.Size = new Vector2(FrameWidth, FrameHeight);
+        var trainer = TrainingMenu.Layout.Bounds;
+        _trainingLayer.Visible = Window is TrainingMenu;
+        _trainingLayer.Modulate = new Color(1, 1, 1, WindowAlpha);
+        _trainingLayer.QueueRedraw();
+        _trainerClip.Position = _origin + new Vector2I(trainer.Left, trainer.Top);
+        _trainerClip.Size = new Vector2(trainer.Right - trainer.Left, trainer.Bottom - trainer.Top);
+        _trainerLayer.Position = new Vector2(-trainer.Left, -trainer.Top);
+        _trainerLayer.Size = new Vector2(FrameWidth, FrameHeight);
+        _trainerLayer.QueueRedraw();
         _canvas = this;
         DrawSetTransform(_origin);
         _windowLayer.Modulate = new Color(1, 1, 1, WindowAlpha);
@@ -298,8 +320,8 @@ public partial class PartyTabView : Control
             case BarterMenu barter:
                 DrawBarter(barter);
                 break;
-            case TrainingMenu training:
-                DrawTraining(training);
+            case TrainingMenu:
+                // On its own layer, over the member's list (DrawTraining).
                 break;
             case PostBattleMenu postBattle:
                 DrawPostBattle(postBattle);
@@ -316,18 +338,20 @@ public partial class PartyTabView : Control
     /// </summary>
     private void DrawLists()
     {
-        if (Menu.Shown is null || !OwnTab && Window is not PostBattleMenu)
+        if (Menu.Shown is null || !OwnTab && Window is not (PostBattleMenu or TrainingMenu))
             return;
         _canvas = _listLayer;
+        // Training's member's list pulses on the trainer's row, and is plain when the member hasn't it.
+        var cursor = Window is TrainingMenu training ? MemberCursor(training) : (Rgba?)null;
         if (Menu.Slide is not { } slide)
         {
-            List(0, _ui.Slim);
+            List(0, _ui.Slim, cursor);
             return;
         }
         var left = PartyMenu.ClassicList.Left;
         var by = slide.Direction * PartyMenu.ListDistance;
-        List(MenuTween.Value(left, left + by, Menu.ListChange) - left, _ui.Slim, which: slide.From);
-        List(MenuTween.Value(left - by, left, Menu.ListChange) - left, _ui.Slim);
+        List(MenuTween.Value(left, left + by, Menu.ListChange) - left, _ui.Slim, cursor, slide.From);
+        List(MenuTween.Value(left - by, left, Menu.ListChange) - left, _ui.Slim, cursor);
     }
 
     /// <summary>A layer's modulate for a fade's alpha.</summary>
@@ -371,6 +395,9 @@ public partial class PartyTabView : Control
             return;
         _canvas = _overlay;
         _overlay.DrawSetTransform(_origin);
+        // Training's help covers the trainer's list, which is on a layer of its own over the window's.
+        if (Window is TrainingMenu { Help: { } help } && !OwnTab)
+            Help(help);
         if (Veil > 0)
             _ui.Plain(_canvas, MenuImages.PartyTab, PlainPatches, 0, 0, new Rgba(255, 255, 255, (byte)(Veil * 255)));
         _overlay.DrawSetTransform(Vector2.Zero);

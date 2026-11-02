@@ -68,8 +68,21 @@ public sealed class TrainingMenu : IPartyWindow
 
     bool IPartyWindow.ChangesMember => true;
 
-    /// <summary>The stick's left and right both change the lists between skills and spells (<see cref="Switch"/>).</summary>
-    void IPartyWindow.Sideways(int direction) => Switch();
+    /// <summary>The stick's left and right both change the lists between skills and spells (<see cref="Switch"/>), the lists moving the other way.</summary>
+    void IPartyWindow.Sideways(int direction) => Switch(-direction);
+
+    private readonly FrameGate _frame = new(Cadence.MenuFrameTicks);
+
+    /// <summary>
+    /// The trainer's list sliding out as the other slides in, with whether it's the spells and the way the lists move (1 right,
+    /// −1 left), or null (<c>TrainingMenu.ChangeList</c>, <c>0x800323D4</c>): both move a list's width,
+    /// <see cref="PartyMenu.ListDistance"/>, over <see cref="PartyMenu.ListFrames"/> frames, eased, the new one from beside the
+    /// trainer's list's place at x 20.
+    /// </summary>
+    public MenuSlide<bool>? Slide { get; private set; }
+
+    /// <summary>How far the trainer's lists have slid, eased, from 0 to 1.</summary>
+    public float ListChange => Slide?.Change ?? 1;
 
     public Trainer Trainer { get; }
 
@@ -145,12 +158,20 @@ public sealed class TrainingMenu : IPartyWindow
         }
     }
 
-    /// <summary>Changes both lists between skills and spells (the stick's left and right).</summary>
-    public void Switch()
+    /// <summary>
+    /// Changes both lists between skills and spells (the stick's left and right), both sliding together the lists'
+    /// <paramref name="direction"/>'s way: the member's as the Party tab's do, by its own list change on the same press
+    /// (<c>DollMenu.Left</c> <c>0x8003DFB0</c> and <c>Right</c> <c>0x8003E030</c> call <c>PartyMenu.ChangeList</c> and then
+    /// <c>TrainingMenu.ChangeList</c>), and the trainer's on the parchment. A press while they slide does nothing
+    /// (<c>PartyMenu.Changing</c>, <c>0x800304B4</c>, asks both).
+    /// </summary>
+    public void Switch(int direction = 1)
     {
-        if (HasPopup)
+        if (HasPopup || Slide is not null || Party.Slide is not null)
             return;
-        Party.ShowList(OnSpells ? PartyList.Skills : PartyList.Spells);
+        Slide = new MenuSlide<bool>(OnSpells, Math.Sign(direction), PartyMenu.ListFrames, MenuTween.Ease);
+        // The member's lists in training are the spells and the skills (PartyMenu.ListsCreate, 0x80030C50), so each press changes them over.
+        Party.ChangeList(direction, [PartyList.Spells, PartyList.Skills]);
         Follow();
     }
 
@@ -203,11 +224,13 @@ public sealed class TrainingMenu : IPartyWindow
         return null;
     }
 
-    /// <summary>Steps the cursors' pulses and the details' fade by a tick.</summary>
+    /// <summary>Steps the cursors' pulses, the details' fade and the trainer's lists' slide by a tick.</summary>
     public void Step()
     {
         Party.Step();
         Overlay.Step();
+        if (_frame.Tick() && Slide?.Step() == false)
+            Slide = null;
     }
 
     /// <summary>A: closes a message or the help, chooses Yes or No, or asks to train the trainer's row.</summary>
