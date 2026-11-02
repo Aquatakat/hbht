@@ -29,9 +29,39 @@ public sealed class MagicCheckpointTests(Na10Import fixture)
     /// <summary>The sheets (<c>Entity</c>) of Alaron and Rheda, which stay put from 07 to 12.</summary>
     private const uint AlaronSheet = 0x8035DEA8, RhedaSheet = 0x8035F2F8;
 
-    private static readonly RecordId Endurance = RecordId.Hex(RecordTypes.Spell, 0x0310);
+    private static readonly RecordId Endurance = RecordId.Hex(RecordTypes.Spell, 0x0310), Darkness = RecordId.Hex(RecordTypes.Spell, 0x0316);
 
     private PluginSet Set => fixture.Data.Set;
+
+    /// <summary>
+    /// Darkness in checkpoint 01's battle, a little before noon (<c>Entity.SetLight</c>, <c>World.LockPartOfDay</c>): the battle's
+    /// part of the day is night, and a turn carrying the clock into the afternoon rolls no weather and leaves it night
+    /// (<c>World.UpdatePartOfDay</c>). As the record ends (<c>EffectRules.End</c>, <c>0x80070958</c>), the part the battle began in
+    /// comes back, so the next turn, in the afternoon, rolls.
+    /// </summary>
+    [Fact]
+    public void DarknessHoldsThePartOfTheDayAndTheWeatherTillItEnds()
+    {
+        var built = CombatCheckpoints.Plain(Set, 2);
+        var (battle, game) = (built.Battle, built.Game);
+        game.Clock.Time = game.Clock.Time / GameClock.Day * GameClock.Day + 12 * GameClock.Hour - GameState.TurnTime / 2;
+        game.Weather.PartOfDay = battle.StartPartOfDay = PartOfDay.Midday;
+        var alaron = battle.Combatants.First(c => c.Sheet.Name == "Alaron");
+        var darkness = Set.Get<SpellRecord>(Darkness);
+        var record = alaron.Sheet.AddEffect(darkness.Id, darkness.Effects!, 5, darkness.School, 3, 9999, alaron, battle, null)!;
+        Assert.Equal((PartOfDay.Night, true), (battle.PartOfDay, battle.PartOfDayHeld));
+
+        var seed = game.Random.World.Seed;
+        game.AdvanceTurn();
+        Assert.Equal(PartOfDay.Afternoon, game.Clock.Date.PartOfDay);
+        Assert.Equal((PartOfDay.Night, seed), (battle.PartOfDay, game.Random.World.Seed));
+
+        alaron.Sheet.RemoveEffect(record, alaron, battle);
+        Assert.Equal((PartOfDay.Midday, false), (battle.PartOfDay, battle.PartOfDayHeld));
+        game.AdvanceTurn();
+        Assert.NotEqual(seed, game.Random.World.Seed);
+        Assert.Equal(PartOfDay.Afternoon, battle.PartOfDay);
+    }
 
     private static AresCheckpoint Combat(int number)
     {

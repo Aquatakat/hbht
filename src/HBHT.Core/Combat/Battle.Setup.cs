@@ -57,7 +57,11 @@ public sealed partial class Battle
             list.RemoveAt(list.IndexOf(sholeh));
             onField--;
         }
-        var battle = new Battle(game, setup, arena, world, list) { EnemiesOnField = onField, NextReserve = onField, Host = host };
+        var battle = new Battle(game, setup, arena, world, list)
+        {
+            EnemiesOnField = onField, NextReserve = onField, Host = host,
+            StartPartOfDay = game.Weather.PartOfDay ?? game.Clock.Date.PartOfDay,
+        };
         battle.Build(rules, ally);
         return battle;
     }

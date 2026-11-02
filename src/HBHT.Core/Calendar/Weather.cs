@@ -218,19 +218,46 @@ public sealed class Weather
     }
 
     /// <summary>
-    /// A frame of the world's clock, or a jump in it (<c>World.Update</c>): the weather rolls if the part of the day has
-    /// changed, and the wind may wander.
+    /// How many holds Darkness and Light have on the part of the day (the world's <c>+0x5</c>). While any is up, the part of
+    /// the day the weather saw doesn't change and the weather doesn't roll.
+    /// </summary>
+    public int PartOfDayLocks { get; private set; }
+
+    /// <summary>
+    /// Darkness or Light holds the part of the day (<c>World.LockPartOfDay</c>, <c>0x8007B8EC</c>, from <c>Entity.SetLight</c>):
+    /// one more hold, and the part of the day the weather saw is <paramref name="held"/>'s. A hold is one record's, which
+    /// the battle's end takes off with the rest, so none outlasts the battle.
+    /// </summary>
+    public void LockPartOfDay(PartOfDay held)
+    {
+        PartOfDayLocks++;
+        PartOfDay = held;
+    }
+
+    /// <summary>A Darkness or Light record ends (<c>World.UnlockPartOfDay</c>, <c>0x8007B8FC</c>): one hold less, if any.</summary>
+    public void UnlockPartOfDay()
+    {
+        if (PartOfDayLocks > 0)
+            PartOfDayLocks--;
+    }
+
+    /// <summary>
+    /// A frame of the world's clock, or a jump in it (<c>World.Update</c>): unless the part of the day is held, the weather
+    /// rolls if it has changed (<c>World.UpdatePartOfDay</c>, <c>0x8007BD3C</c>), and the wind may wander.
     /// </summary>
     /// <param name="wind">Whether the wind wanders this time: once a frame, which the port takes as every
     /// <see cref="Cadence.FrameTicks"/> ticks.</param>
     public void Frame(PartOfDay partOfDay, int season, TerrainRecord? terrain, IRandom world, IRandom cosmetic, bool wind = true)
     {
-        if (PartOfDay is { } last && last != partOfDay)
+        if (PartOfDayLocks == 0)
         {
+            if (PartOfDay is { } last && last != partOfDay)
+            {
+                PartOfDay = partOfDay;
+                Roll(season, terrain, world);
+            }
             PartOfDay = partOfDay;
-            Roll(season, terrain, world);
         }
-        PartOfDay = partOfDay;
         if (wind)
             DriftWind(cosmetic);
     }

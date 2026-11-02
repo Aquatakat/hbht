@@ -147,6 +147,48 @@ public class WeatherTests
         Assert.Equal(PartOfDay.Midday, weather.PartOfDay);
     }
 
+    /// <summary>
+    /// Darkness and Light hold the part of the day (<c>World.LockPartOfDay</c>, <c>0x8007B8EC</c>): it's the held one, and while
+    /// any hold is up the clock's doesn't replace it and nothing rolls (<c>World.UpdatePartOfDay</c>, <c>0x8007BD3C</c>). As the
+    /// last lets go, the next frame rolls, since the clock's part isn't the held one.
+    /// </summary>
+    [Fact]
+    public void WhileThePartOfTheDayIsHeldNothingRollsAndItsReleaseRolls()
+    {
+        var weather = new Weather(Rules) { Wind = Vector3.Zero };
+        var still = new ScriptedRandom();
+        weather.Frame(PartOfDay.Midday, 0, Plains, still, still, wind: false);
+
+        // Two Darknesses; the afternoon comes under them.
+        weather.LockPartOfDay(PartOfDay.Night);
+        weather.LockPartOfDay(PartOfDay.Night);
+        weather.Frame(PartOfDay.Afternoon, 0, Plains, still, still, wind: false);
+        weather.UnlockPartOfDay();
+        weather.Frame(PartOfDay.Afternoon, 0, Plains, still, still, wind: false);
+        Assert.Equal((PartOfDay.Night, 1), (weather.PartOfDay, weather.PartOfDayLocks));
+
+        weather.UnlockPartOfDay();
+        weather.UnlockPartOfDay();
+        Assert.Equal(0, weather.PartOfDayLocks);
+        var roll = new ScriptedRandom(D100(1));
+        weather.Frame(PartOfDay.Afternoon, 0, Plains, roll, still, wind: false);
+        Assert.Equal(0, roll.Remaining);
+        Assert.Equal(PartOfDay.Afternoon, weather.PartOfDay);
+    }
+
+    /// <summary>Light lets go at midday, the part it holds: no change, so no roll.</summary>
+    [Fact]
+    public void ReleasedAtThePartItHeldNothingRolls()
+    {
+        var weather = new Weather(Rules) { Wind = Vector3.Zero };
+        var still = new ScriptedRandom();
+        weather.Frame(PartOfDay.Morning, 0, Plains, still, still, wind: false);
+        weather.LockPartOfDay(PartOfDay.Midday);
+        weather.UnlockPartOfDay();
+        weather.Frame(PartOfDay.Midday, 0, Plains, still, still, wind: false);
+        Assert.Equal(PartOfDay.Midday, weather.PartOfDay);
+    }
+
     [Fact]
     public void TheWindWandersAndKeepsUnderItsMost()
     {

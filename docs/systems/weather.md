@@ -34,7 +34,12 @@ The cloud cover isn't weather: it's set to 1 once (`0x80027390`) and nothing cha
 - **Each combatant's turn** moves the clock on by 600 (`World.AdvanceTurn`, `0x8007c01c`), which can roll as `World.Update` follows; the first turn doesn't. The port's is `GameState.AdvanceTurn` ([combat](combat.md#a-turn)).
 - **Nothing else.** No script command, map object or flag sets the weather. The end of a Wind enchantment (effect 0xB in `0x800707ec`) sets only the world's +0x4 to fog. The port's Wind holds the battle's class clear while it lasts instead, and lifts the drawn fog (`Weather.Draw`'s `fogLifted`, from `Battle.FogLifted`), the user's choice ([magic](magic.md#where-the-port-differs)).
 
-While the lock (+0x5) is up, the part of the day doesn't change and the weather doesn't roll. The port's battle holds its own part of the day (`Battle.PartOfDay`), but doesn't yet stop the roll under it ([magic](magic.md#where-the-port-differs)).
+**The lock** (+0x5) is a count of Darkness's and Light's records in a battle. While it's up, `World.UpdatePartOfDay` returns at once: the part of the day the world saw (+0x2) doesn't change and the weather doesn't roll.
+
+- **A cast that makes a record** (`Entity.SetLight`, `0x80071BDC`, from `Character.AddEffect`, `0x800702F0`, only as the record is made) takes the other spell's records off everyone, raises the lock (`World.LockPartOfDay`, `0x8007B8EC`) and sets +0x2 to night (Darkness) or 1, from 9:00 (Light). A cast at someone who has the record already does nothing, so each hold is one record's.
+- **A record's end** (`EffectRules.End`, `0x80070958`) lowers it (`World.UnlockPartOfDay`, `0x8007B8FC`, not below 0) and puts +0x2 back to the part the battle began in (`Combat+0x00`), even while another record holds it. Once the last is down, the next turn rolls if the clock's part isn't that one.
+- **None outlasts its battle:** `Combat.Exit` ends every combatant's records, the enemies' too, and nothing else writes +0x5 but `World.Init`'s clearing at a reset.
+- **In the port** the lock is `Weather.PartOfDayLocks`, raised and lowered through the battle (`Battle.PartOfDay`, `StartPartOfDay`).
 
 ## The roll
 

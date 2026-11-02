@@ -339,7 +339,9 @@ internal static class CombatCheckpoints
             battle.Grid.Occupy(ArenaGrid.CellOf(c.Cell.X), ArenaGrid.CellOf(c.Cell.Y), c.Footprint);
 
         // Darkness or Light holds the part of the day as it lands (World.LockPartOfDay, world +2), and the clock's turn doesn't move
-        // it; laid on without starting, its hold is laid too, at the part the RAM's world has.
+        // it; laid on without starting, its hold is laid too, at the part the RAM's world has. A record's end puts back the part the
+        // battle began in (Combat+0x00).
+        battle.StartPartOfDay = (PartOfDay)cp.ReadByte(built.Struct);
         if (battle.Combatants.Any(c => c.Sheet.Effects.Any(e => e.Effects.OfType<PartOfDayEffect>().Any())))
             ((IMagicHost)battle).HoldPartOfDay((PartOfDay)cp.Weather.PartOfDay);
 

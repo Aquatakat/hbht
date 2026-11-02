@@ -123,7 +123,7 @@ The Battle arenas are `aidyn:mapset/16` ("Battlefields", 150 to a cell): 28 chun
 
 | Offset | Holds |
 | --- | --- |
-| `+0x00` | the part of the day as it began |
+| `+0x00` | the part of the day as it began, from `World+2` (`Combat.Setup`); a Darkness or Light record's end puts it back there (`Battle.StartPartOfDay`, [weather](weather.md#when-it-changes)) |
 | `+0x01` | combatants in play (8, growing as reserves join, to 14) |
 | `+0x02` | of them, active, able to act (8, then 7 after a rat died) |
 | `+0x03`, `+0x04` | the party's size, and its members active |

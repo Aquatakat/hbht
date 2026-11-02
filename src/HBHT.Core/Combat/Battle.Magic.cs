@@ -16,8 +16,6 @@ public sealed partial class Battle : IMagicHost
     private const int CastsLine = 0x6C, CastOnLine = 0x70, ResistsLine = 0x68, FailsToCastLine = 0x64, MissingComponentLine = 0x5C,
         NotEnoughStaminaLine = 0x60, UnavailableLine = 0x58, DispelFailsLine = 0xE4, BanishedLine = 0xE8, FleesLine = 0x78;
 
-    private PartOfDay? _heldPartOfDay;
-
     private MagicRules Magic => Game.Rules.Magic;
 
     private int _weatherHolds, _heldWeatherClass;
@@ -40,15 +38,30 @@ public sealed partial class Battle : IMagicHost
 
     IEnumerable<Combatant> IMagicHost.Combatants => Combatants;
 
-    /// <summary>The battle's part of the day (<c>World+2</c>): what Darkness or Light holds, or the world's.</summary>
-    public PartOfDay PartOfDay => _heldPartOfDay ?? Game.Weather.PartOfDay ?? Game.Clock.Date.PartOfDay;
+    /// <summary>
+    /// The battle's part of the day (<c>World+2</c>): the one the weather last saw, which Darkness or Light holds
+    /// (<see cref="Weather.LockPartOfDay"/>), or the clock's before it's seen.
+    /// </summary>
+    public PartOfDay PartOfDay => Game.Weather.PartOfDay ?? Game.Clock.Date.PartOfDay;
 
-    void IMagicHost.HoldPartOfDay(PartOfDay partOfDay) => _heldPartOfDay = partOfDay;
+    /// <summary>The part of the day as the battle began (<c>Combat+0x00</c>, from <c>World+2</c> in <c>Combat.Setup</c>).</summary>
+    public PartOfDay StartPartOfDay { get; internal set; }
 
-    void IMagicHost.ReleasePartOfDay() => _heldPartOfDay = null;
+    void IMagicHost.HoldPartOfDay(PartOfDay partOfDay) => Game.Weather.LockPartOfDay(partOfDay);
+
+    /// <summary>
+    /// A Darkness or Light record ends (<c>EffectRules.End</c>, <c>0x80070958</c>): one hold less, and the part of the day the
+    /// weather saw is the battle's start's again, even while another record holds it. So once the last hold is down, the
+    /// weather rolls at the next turn if the clock's part isn't the one the battle began in.
+    /// </summary>
+    void IMagicHost.ReleasePartOfDay()
+    {
+        Game.Weather.UnlockPartOfDay();
+        Game.Weather.PartOfDay = StartPartOfDay;
+    }
 
     /// <summary>Whether Darkness or Light holds the part of the day (<c>World+5</c>), so it doesn't change and the weather doesn't roll.</summary>
-    public bool PartOfDayHeld => _heldPartOfDay is not null;
+    public bool PartOfDayHeld => Game.Weather.PartOfDayLocks > 0;
 
     int IMagicHost.MoonPhase => GameClock.MoonPhase(Game.Clock.Time).Phase;
 
