@@ -718,6 +718,8 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     {
         if (_popupView!.Popup != Trek!.Use.Popup)
             _popupView.Popup = Trek.Use.Popup;
+        if (_popupView.Leaving != Trek.Use.Leaving)
+            _popupView.Leaving = Trek.Use.Leaving;
     }
 
     /// <summary>Darkens the screen to a brightness, from 0 for black to 1.</summary>

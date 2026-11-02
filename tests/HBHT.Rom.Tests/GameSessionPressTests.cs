@@ -59,6 +59,9 @@ public sealed partial class GameSessionTests
         var (session, _) = Start();
         session.Trek.Use.Tell("Something.");
         Assert.Equal(GameMode.Popup, session.Mode);
+        // It takes nothing while it fades in, and nothing reaches trek under it.
+        Assert.Equal(PressOutcome.Ignored, session.Press(MenuAction.Accept));
+        Settle(session);
         Assert.Equal(PressOutcome.Ignored, session.Press(MenuAction.Start));
         Assert.Equal(PressOutcome.Ignored, session.Press(MenuAction.Details));
         Assert.Equal(GameMode.Popup, session.Mode);
@@ -66,9 +69,23 @@ public sealed partial class GameSessionTests
         Assert.Null(session.Trek.Use.Popup);
         Assert.Equal(GameMode.Trek, session.Mode);
 
+        // It fades out over trek, which takes presses again at once.
+        Assert.NotNull(session.Trek.Use.Leaving);
+        Assert.Equal(PressOutcome.MenuOpened, session.Press(MenuAction.Start));
+        session.Menu.CloseNow();
+
         session.Trek.Use.Tell("Again.");
+        Settle(session);
         Assert.Equal(PressOutcome.Taken, session.Press(MenuAction.Back));
         Assert.Equal(GameMode.Trek, session.Mode);
+    }
+
+    /// <summary>Ticks until trek's popup has faded in.</summary>
+    private static void Settle(GameSession session)
+    {
+        for (var i = 0; i < 10 && session.Trek.Use.Popup is { IsOpen: false }; i++)
+            Tick(session);
+        Assert.True(session.Trek.Use.Popup!.IsOpen);
     }
 
     [Fact]
@@ -335,6 +352,50 @@ public sealed partial class GameSessionTests
         Assert.Equal(PauseTab.World, menu.Remembered);
         OpenMenu(session);
         Assert.Equal(PauseTab.World, menu.Tab);
+    }
+
+    [Fact]
+    public void APopupTakesThePressesWithoutTheMenusSoundsAndAParchmentPlaysItsOwn()
+    {
+        var (session, host) = Start("G14", 40, 40);
+        Tick(session);
+        OpenMenu(session);
+        var menu = session.Menu;
+        var sounds = session.Game.Sounds!.Menu;
+        session.Press(MenuAction.TabNext);
+        while (menu.Sliding)
+            Tick(session);
+        Assert.NotNull(menu.Window.Details());
+
+        // C-down is silent, and the details play their own as they open; under them, nothing plays the menu's.
+        host.Cues.Clear();
+        session.Press(MenuAction.Details);
+        Assert.Equal([sounds.TabBack], host.Sounds);
+        for (var i = 0; i < 10; i++)
+            Tick(session);
+        host.Cues.Clear();
+        session.Press(MenuAction.Down);
+        session.Press(MenuAction.Accept);
+        Assert.Empty(host.Sounds);
+        // Let go, they play their closing.
+        session.Press(MenuAction.DetailsRelease);
+        for (var i = 0; i < 10; i++)
+            Tick(session);
+        Assert.Equal([sounds.TabForward], host.Sounds);
+
+        // A message closes on A in silence.
+        menu.Window.Overlay.Say("A message.");
+        for (var i = 0; i < 10; i++)
+            Tick(session);
+        host.Cues.Clear();
+        session.Press(MenuAction.Accept);
+        for (var i = 0; i < 10; i++)
+            Tick(session);
+        Assert.Null(menu.Window.Overlay.Message);
+        Assert.Empty(host.Sounds);
+        // With nothing up, the menu plays its own again.
+        session.Press(MenuAction.Down);
+        Assert.Equal([sounds.Cursor, sounds.Cursor], host.Sounds);
     }
 
     [Fact]

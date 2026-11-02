@@ -31,10 +31,21 @@ public enum TrekPopupKind
 /// (<see cref="MenuMessage"/>, <see cref="MenuChoice"/>), which the painter draws alike.
 /// </summary>
 /// <remarks>
-/// It differs from the menus' <see cref="MenuOverlay"/> on purpose. Trek has one popup at a time, so there's no stack,
-/// and no fade (the original's popups fade, which the port leaves out); <see cref="MapObjectUse"/> closes it and runs
-/// what was waiting on it. Its choice pulses a trek frame at a time (<see cref="Cadence.FrameTicks"/>), where the
-/// menus' widgets step every tick, and a choice's question and options share one colour.
+/// <para>
+/// It differs from the menus' <see cref="MenuOverlay"/> on purpose. Trek has one popup at a time, so there's no stack;
+/// <see cref="MapObjectUse"/> closes it and runs what was waiting on it. Its choice pulses a trek frame at a time
+/// (<see cref="Cadence.FrameTicks"/>), where the menus' widgets step every tick, and a choice's question and options share
+/// one colour.
+/// </para>
+/// <para>
+/// A message and the trap's damage are the pause menu's messages (<c>TextPopup.New</c>, <c>0x80044C80</c>, from
+/// <c>MessagePopup.Create</c>, <c>0x80044E34</c>, and <c>TrapMenu.Damage</c>, <c>0x80056430</c>), and fade as they do, 90 a
+/// frame (<see cref="Fade"/>), but a trek frame at a time: trek steps its widgets once a frame whatever its ticks
+/// (<c>TrekLoop.DrawFrame</c>, <c>0x80020DAC</c>). Made on a press, one is drawn at 90 that frame, then 180 and 255, where
+/// it's open and takes presses (<c>WidgetManager.Input</c>, <c>0x800AD2D4</c>); none reaches it, nor trek, before. Closed, it's
+/// drawn at 165 and 75 and then freed. The question (<c>ChoicePopup.Create</c>, <c>0x800457F4</c>) has no fade: it's drawn
+/// whole from its first frame, and goes at the press (<c>ChoicePopup.Close</c>, <c>0x80045640</c>).
+/// </para>
 /// </remarks>
 public sealed class TrekPopup
 {
@@ -52,12 +63,41 @@ public sealed class TrekPopup
 
     private readonly MenuList<string> _noChoices = new([]);
 
+    /// <summary>The trek frame the fade steps by.</summary>
+    private readonly FrameGate _frame = new(Cadence.FrameTicks);
+
     private TrekPopup(TrekPopupKind kind, MenuMessage? body, MenuChoice? question, Rgba color)
     {
         Kind = kind;
         Body = body;
         Question = question;
         Color = color;
+        if (kind == TrekPopupKind.Choice)
+            return;
+        // Made on a press, it steps once before that frame is drawn.
+        Fade = new PopupFade(MenuOverlay.MessageStep);
+        Fade.Advance();
+    }
+
+    /// <summary>A message's or the damage's fade, 90 a trek frame; null for a choice, which doesn't fade.</summary>
+    public PopupFade? Fade { get; }
+
+    /// <summary>Whether it's open, and so takes presses: a choice from the first, a message once it has faded in.</summary>
+    public bool IsOpen => Fade?.IsOpen ?? true;
+
+    /// <summary>The whole popup's alpha, which the painter draws it at.</summary>
+    public int Alpha => Fade?.Alpha ?? WidgetFade.Opaque;
+
+    /// <summary>Whether it has faded out after closing, and is no longer drawn.</summary>
+    public bool IsGone => Fade?.IsGone ?? false;
+
+    /// <summary>Starts it fading out, a step at once, as the press's frame steps it before it's drawn.</summary>
+    internal void Close()
+    {
+        if (Fade is not { } fade)
+            return;
+        fade.Close();
+        fade.Advance();
     }
 
     public TrekPopupKind Kind { get; }
@@ -85,8 +125,13 @@ public sealed class TrekPopup
     /// <summary>The colour the cursor's option has now.</summary>
     public Rgba Highlight => _pulse.Now(MenuPulse.ScrollFrom, MenuPulse.ScrollTo);
 
-    /// <summary>Steps the cursor's pulse by a 60 Hz tick.</summary>
-    public void Step() => _pulse.Step();
+    /// <summary>Steps the cursor's pulse, and on a trek frame's last tick the fade, by a 60 Hz tick.</summary>
+    public void Step()
+    {
+        _pulse.Step();
+        if (_frame.Tick())
+            Fade?.Advance();
+    }
 
     /// <summary>A message wrapped at <paramref name="wrap"/>, 150 for most (<c>TrekTextPopup</c>).</summary>
     public static TrekPopup Message(string text, int wrap = MenuMessage.MaxWidth) =>

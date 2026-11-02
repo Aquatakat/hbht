@@ -359,8 +359,10 @@ public sealed partial class TrekLoop : IMapObjectHost
             w => keys.Sounding(_host.Motion(w), w.Audio, w.Sounds, w.Body.Sphere));
         if (Conversation is { } conversation && conversation.Tick())
             Refresh();
-        // The box's cursor pulses while a conversation shows (WidgetScrollMenu::Tick), and the box fades in and out.
+        // The box's cursor pulses while a conversation shows (WidgetScrollMenu::Tick), and the box fades in and out, as
+        // map objects' popups do.
         Box.Step();
+        Use.Step();
         foreach (var (part, target) in motion.Sphere.Trod)
         {
             if (Chunks.Map(part) is not { } map)

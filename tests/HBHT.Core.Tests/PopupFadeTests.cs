@@ -1,3 +1,4 @@
+using HBHT.Core.MapObjects;
 using HBHT.Core.Ui;
 
 namespace HBHT.Core.Tests;
@@ -39,5 +40,42 @@ public class PopupFadeTests
             (195, PopupFadeState.Closing), (135, PopupFadeState.Closing), (75, PopupFadeState.Closing),
             (15, PopupFadeState.Closing), (0, PopupFadeState.Gone),
         ], drawn);
+    }
+
+    /// <summary>
+    /// A trek message fades as the pause menu's do, 90 a step, but a trek frame a step: drawn at 90 as it's made, then
+    /// 180 and 255, where it's open; closed, 165 at once, then 75, and gone.
+    /// </summary>
+    [Fact]
+    public void ATrekMessageFadesNinetyATrekFrame()
+    {
+        var popup = TrekPopup.Message("a");
+        var drawn = new List<int> { popup.Alpha };
+        for (var frame = 0; frame < 2; frame++)
+        {
+            for (var tick = 0; tick < Cadence.FrameTicks; tick++)
+                popup.Step();
+            drawn.Add(popup.Alpha);
+        }
+        Assert.Equal([90, 180, 255], drawn);
+        Assert.True(popup.IsOpen);
+
+        popup.Close();
+        drawn = [popup.Alpha];
+        for (var tick = 0; tick < 2 * Cadence.FrameTicks; tick++)
+        {
+            popup.Step();
+            if (tick % Cadence.FrameTicks == Cadence.FrameTicks - 1)
+                drawn.Add(popup.Alpha);
+        }
+        Assert.Equal([165, 75, 0], drawn);
+        Assert.True(popup.IsGone);
+    }
+
+    [Fact]
+    public void ATrekQuestionDoesntFade()
+    {
+        var popup = TrekPopup.Choice("a", 180, 10, TrekPopup.PaleGreen, ["b", "c"]);
+        Assert.Equal((255, true, null), (popup.Alpha, popup.IsOpen, popup.Fade));
     }
 }

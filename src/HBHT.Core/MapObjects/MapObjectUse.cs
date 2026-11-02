@@ -77,8 +77,24 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
     /// <summary>The collision whose toggles triggers change, keyed by <see cref="LoadedMap.Key"/>.</summary>
     public CollisionWorld? World { get; set; }
 
-    /// <summary>The popup over the world, if one is up.</summary>
+    /// <summary>The popup over the world, if one is up: from when it's made, fading in, to the press that closes it.</summary>
     public TrekPopup? Popup { get; private set; }
+
+    /// <summary>
+    /// A popup fading out after the press that closed it. It's only drawn: what waited on it ran at the press, and trek runs
+    /// on, taking presses, as in 1.0, where the press's callback clears <c>Popups.Message</c> (<c>0x800D8160</c>) as it starts
+    /// the fade (<c>Popups.OnNoticeClosed</c>, <c>0x8001152C</c>).
+    /// </summary>
+    public TrekPopup? Leaving { get; private set; }
+
+    /// <summary>Steps the popup up and the one fading out by a 60 Hz tick, dropping the second once it's gone.</summary>
+    public void Step()
+    {
+        Popup?.Step();
+        Leaving?.Step();
+        if (Leaving?.IsGone == true)
+            Leaving = null;
+    }
 
     private FlagNetwork Flags => game.Flags;
 
@@ -99,6 +115,9 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
     public bool Press(MenuAction action)
     {
         if (Popup is null)
+            return false;
+        // Fading in, it takes no press, and nothing under it does either.
+        if (!Popup.IsOpen)
             return false;
         switch (action)
         {
@@ -152,6 +171,11 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
 
     private void Close()
     {
+        if (Popup is { Fade: not null } popup)
+        {
+            popup.Close();
+            Leaving = popup;
+        }
         Popup = null;
         _onClose = null;
         _onChoose = null;

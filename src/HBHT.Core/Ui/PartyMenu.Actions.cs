@@ -81,7 +81,7 @@ public sealed partial class PartyMenu
     public void Accept()
     {
         if (Message is not null)
-            CloseMessage();
+            CloseResult();
         else if (DetailsPane.Showing)
             return;
         else if (Crafting is not null)
@@ -102,7 +102,7 @@ public sealed partial class PartyMenu
     public bool Back()
     {
         if (Message is not null)
-            CloseMessage();
+            CloseResult();
         else if (OpenCraftingPopup is { } crafting)
             crafting.Fade.Close();
         else if (Crafting is null && !DetailsPane.Showing)
@@ -110,12 +110,18 @@ public sealed partial class PartyMenu
         return true;
     }
 
-    /// <summary>Closes the message, and fades out the crafting popup under it if it showed its result (A, B or C-down). True if there was one.</summary>
-    public bool CloseMessage()
+    /// <summary>C-down or C-up on the message: closes it alone (<c>TextPopup.Close</c>, <c>0x80044C5C</c>), a crafting list under it staying. True if there was one.</summary>
+    public bool CloseMessage() => Overlay.CloseMessage();
+
+    /// <summary>
+    /// A or B on the message: closes it, and fades out the crafting popup under it if it showed its result, as B on the list
+    /// would (<c>MenuPopup.OnResultClosed</c>, <c>0x80055C50</c>).
+    /// </summary>
+    private void CloseResult()
     {
         if (Message is { FromCrafting: true } && Overlay.MessageOpen)
             Crafting?.Fade.Close();
-        return Overlay.CloseMessage();
+        Overlay.CloseMessage();
     }
 
     // A plugin older than the messages in code has none, and says nothing.

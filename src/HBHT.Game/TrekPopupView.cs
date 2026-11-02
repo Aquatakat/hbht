@@ -26,6 +26,17 @@ public partial class TrekPopupView : Control
         }
     }
 
+    /// <summary>A popup fading out after its press, drawn under the one up.</summary>
+    public TrekPopup? Leaving
+    {
+        get;
+        set
+        {
+            field = value;
+            QueueRedraw();
+        }
+    }
+
     public TrekPopupView(PluginSet plugins)
     {
         _ui = new UiPainter(plugins);
@@ -40,20 +51,27 @@ public partial class TrekPopupView : Control
             QueueRedraw();
     }
 
-    /// <summary>Steps the cursor's pulse by a 60 Hz tick.</summary>
+    /// <summary>Draws a tick on: the choice's pulse and the fades, which trek steps (<see cref="MapObjectUse.Step"/>).</summary>
     public void Step()
     {
-        if (Popup is not { Kind: TrekPopupKind.Choice } popup)
-            return;
-        popup.Step();
-        QueueRedraw();
+        if (Popup is { Kind: TrekPopupKind.Choice } or { IsOpen: false } || Leaving is not null)
+            QueueRedraw();
     }
 
     public override void _Draw()
     {
-        if (Popup is not { } popup)
-            return;
+        if (Leaving is { } leaving)
+            DrawPopup(leaving);
+        if (Popup is { } popup)
+            DrawPopup(popup);
+    }
+
+    private void DrawPopup(TrekPopup popup)
+    {
         var screen = (Vector2I)Size;
+        // The fade is the whole popup's, its box and text alike.
+        var opacity = _ui.Opacity;
+        _ui.Opacity = opacity * popup.Alpha / 255f;
         switch (popup.Kind)
         {
             case TrekPopupKind.Message:
@@ -66,6 +84,7 @@ public partial class TrekPopupView : Control
                 Choice(screen, popup);
                 break;
         }
+        _ui.Opacity = opacity;
     }
 
     // TrapMenu::TakeDamage: 16 wider than the widest line, and each line as tall as the first's height plus 2.
