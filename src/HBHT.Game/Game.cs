@@ -214,6 +214,14 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
             StartTitle(options.TitleCards && !_titleLogo);
         _titleLogo = false;
         RunLaunchActions(options);
+        _resizeSettle = new Godot.Timer { OneShot = true, WaitTime = 0.3 };
+        _resizeSettle.Timeout += () =>
+        {
+            _resizing = false;
+            ApplyMsaa();
+            ApplyWorldLines();
+        };
+        AddChild(_resizeSettle);
         if (fresh)
             session.StartNewGame();
     }
@@ -426,7 +434,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         var refresh = RefreshRate(DisplayServer.WindowGetCurrentScreen());
         var limit = s.FrameRateLimit == Core.Settings.DisplayRate ? refresh : Math.Max(0, s.FrameRateLimit);
         _limiter.Limit = s.VSync && limit >= refresh ? 0 : limit;
-        GetViewport().Msaa3D = s.Antialiasing switch
+        _msaa = s.Antialiasing switch
         {
             >= 8 => Viewport.Msaa.Msaa8X,
             >= 4 => Viewport.Msaa.Msaa4X,
@@ -436,7 +444,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         ApplyWorldLines();
         _objectDistance = new ObjectDistance(s.ObjectDistance, s.NearestDetail);
         _extendedDrawDistance = s.ExtendedDrawDistance;
-        _cinematic?.Viewport.Msaa3D = GetViewport().Msaa3D;
+        ApplyMsaa();
         foreach (var screen in new[] { _menu?.Screen, _backdrop?.Screen, _cinematic?.Screen, _credits?.Screen, _titleLayer?.Screen, _trekScreen })
         {
             if (screen is null)
@@ -503,7 +511,24 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         if (!_applyingWindow && !_settings.Fullscreen && mode is DisplayServer.WindowMode.Windowed or DisplayServer.WindowMode.Maximized)
         {
             var maximized = mode == DisplayServer.WindowMode.Maximized;
+        var now = Time.GetTicksMsec();
+        if (now - _lastResize < ResizeBurstMs)
+        {
+            if (!_resizing)
+            {
+                _resizing = true;
+                ApplyMsaa();
+                ApplyWorldLines();
+            }
+            _resizeSettle?.Start();
+        }
+        _lastResize = now;
             var size = DisplayServer.WindowGetSize();
+        if (++_resizesUndrawn >= ResizesPerDraw && mode != DisplayServer.WindowMode.Minimized)
+        {
+            _resizesUndrawn = 0;
+            RenderingServer.ForceDraw(swapBuffers: false);
+        }
             var s = _settings;
             if (maximized != s.Maximized || !maximized && (size.X, size.Y) != (s.WindowWidth, s.WindowHeight))
             {
@@ -521,6 +546,43 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     private void ScreenChanged()
     {
         if (_session is not { } session)
+    /// <summary>The 3D views' antialiasing as the settings ask for it.</summary>
+    private Viewport.Msaa _msaa;
+
+    /// <summary>
+    /// Whether the window is being resized in a burst, as a drag of its edge does, with the 3D views drawn at their least till it
+    /// settles: no antialiasing, and Godot's smallest 3D scale. Godot 4.7 remakes a view's render buffers at each step of the
+    /// window's size and frees the old ones only as frames go by, but a drag on Windows draws frames from a timer that a quick drag
+    /// starves, so the steps' buffers pile up. At full size they're tens of MB a step, hundreds at 8× MSAA, and a quick drag ran
+    /// the card out of memory (<c>VkResult -2</c>), spamming the console with the failures that followed until the next resize.
+    /// A bare Godot project does the same. Drawn small, a step is a few MB, the window's own 2D target most of it, and a frame
+    /// drawn every few steps (<see cref="ResizesPerDraw"/>) frees them however long the drag.
+    /// </summary>
+    private bool _resizing;
+
+    /// <summary>When the window's size last changed, in Godot's milliseconds.</summary>
+    private ulong _lastResize;
+
+    /// <summary>Changes of the window's size since a frame was last drawn.</summary>
+    private int _resizesUndrawn;
+
+    /// <summary>A frame is drawn, unshown, after this many changes of the window's size without one, so Godot frees the buffers they left.</summary>
+    private const int ResizesPerDraw = 4;
+
+    /// <summary>Draws the 3D views as the settings ask again once the window's size has been still a moment.</summary>
+    private Godot.Timer? _resizeSettle;
+
+    /// <summary>Two changes of the window's size this close together are a burst.</summary>
+    private const ulong ResizeBurstMs = 250;
+
+    /// <summary>The settings' antialiasing on the 3D views, the world's and the cinematic's, unless the window is being resized.</summary>
+    private void ApplyMsaa()
+    {
+        var msaa = _resizing ? Viewport.Msaa.Disabled : _msaa;
+        GetViewport().Msaa3D = msaa;
+        _cinematic?.Viewport.Msaa3D = msaa;
+    }
+
             return;
         session.Menu.System?.ScreenChanged();
         session.Title?.Menu?.ScreenChanged();
@@ -530,20 +592,21 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
 
     /// <summary>
     /// Draws the 3D world at the lines the settings ask for, scaled up to the window but never past its own, or at a part of the
-    /// window's size (Godot's bilinear scaling supersamples above 1).
+    /// window's size (Godot's bilinear scaling supersamples above 1), or at Godot's least while the window is being resized.
     /// </summary>
     private void ApplyWorldLines()
     {
         var viewport = GetViewport();
         var height = viewport.GetVisibleRect().Size.Y;
         viewport.Scaling3DMode = Viewport.Scaling3DModeEnum.Bilinear;
-        viewport.Scaling3DScale = _settings.WorldLines > 0
-            ? height > 0 ? Math.Min(1, _settings.WorldLines / height) : 1
+        viewport.Scaling3DScale = _resizing ? 0.1f
+            : _settings.WorldLines > 0 ? height > 0 ? Math.Min(1, _settings.WorldLines / height) : 1
             : Math.Clamp(_settings.RenderScale, 0.25f, 2);
     }
 
     /// <summary>The installed plugins, after checking the base plugin is there and up to date.</summary>
     private static PluginSet LoadPlugins() => PluginSet.LoadInstalledChecked(DataPaths.Plugins);
+        _cinematic?.Viewport.Scaling3DScale = _resizing ? 0.1f : 1;
 
     public override void _ExitTree()
     {
@@ -813,6 +876,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         CaptureMouse();
         if (Streamer is not { } chunks || _player is null || _camera is null)
             return;
+        _resizesUndrawn = 0;
         // The world goes on being drawn behind the pause menu and a backdrop's page, still: its scenery's actors,
         // which animate with the frame, stop, and so does the free camera. The parent processes first, so this
         // holds from the frame the menu opens.
