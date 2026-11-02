@@ -276,11 +276,32 @@ public sealed class UiPainter
             color is { } c ? Tint(c) : White);
     }
 
-    /// <summary>The parchment popup at (x, y), with its shadow 5 to the right and 2 down (<c>WidgetMenuPopup</c>).</summary>
+    /// <summary>
+    /// The parchment popup at (x, y), with its shadow 5 to the right and 2 down (<c>WidgetMenuPopup</c>). What falls in the
+    /// frame's first columns, which the TV's overscan hid on the console, fades in across them, the user's choice: the details'
+    /// parchment starts at the frame's edge, where a wider screen shows the System tab beside it.
+    /// </summary>
     public void Parchment(CanvasItem canvas, int x, int y)
     {
-        Image(canvas, MenuImages.ParchmentShadow, x + 5, y + 2);
-        Image(canvas, MenuImages.Parchment, x, y);
+        FadedIn(canvas, MenuImages.ParchmentShadow, x + 5, y + 2);
+        FadedIn(canvas, MenuImages.Parchment, x, y);
+    }
+
+    /// <summary>The columns of the frame a parchment fades in across: the overscan, and the column more the original's clip stops short of.</summary>
+    private const int FadeColumns = PauseScroll.Overscan + 1;
+
+    /// <summary>An image at its own size at (x, y), each of its columns in the frame's first <see cref="FadeColumns"/> drawn fainter toward the edge.</summary>
+    private void FadedIn(CanvasItem canvas, RecordId image, int x, int y)
+    {
+        if (Images.Get(image) is not { } texture)
+            return;
+        var size = (Vector2I)texture.GetSize();
+        var faded = Math.Clamp(FadeColumns - x, 0, size.X);
+        for (var c = 0; c < faded; c++)
+            canvas.DrawTextureRectRegion(texture, new Rect2(x + c, y, 1, size.Y), new Rect2(c, 0, 1, size.Y),
+                new Color(1, 1, 1, Opacity * (x + c + 0.5f) / FadeColumns));
+        if (faded < size.X)
+            canvas.DrawTextureRectRegion(texture, new Rect2(x + faded, y, size.X - faded, size.Y), new Rect2(faded, 0, size.X - faded, size.Y), White);
     }
 
     /// <summary>
