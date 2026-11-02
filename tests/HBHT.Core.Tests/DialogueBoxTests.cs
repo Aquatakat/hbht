@@ -208,6 +208,58 @@ public class DialogueBoxTests
         Assert.Equal(DialogueBox.ChoiceColor, box.HighlightNow);
     }
 
+    [Fact]
+    public void TheBoxFadesInAsItComesUpAndOutAsItGoes()
+    {
+        var box = Box();
+        Assert.False(box.Visible);
+
+        var alphas = new List<int>();
+        box.Show(Page("a"));
+        for (var i = 0; i < 5; i++)
+        {
+            box.Step();
+            alphas.Add(box.Alpha);
+        }
+        Assert.Equal([60, 120, 180, 240, 255], alphas);
+        Assert.False(box.Fading);
+
+        // A new page shows at once, at full strength.
+        box.Show(Page("b"));
+        box.Step();
+        Assert.Equal(255, box.Alpha);
+
+        // Hidden, it fades out on the page it showed, and is drawn no more at 0.
+        box.Hide();
+        alphas.Clear();
+        for (var i = 0; i < 5; i++)
+        {
+            Assert.True(box.Visible);
+            box.Step();
+            alphas.Add(box.Alpha);
+        }
+        Assert.Equal([195, 135, 75, 15, 0], alphas);
+        Assert.Equal("b", box.Layout!.Line!.Text);
+        Assert.False(box.Visible);
+    }
+
+    [Fact]
+    public void ABoxShownAgainAsItFadesOutFadesBackInFromThere()
+    {
+        var box = Box();
+        box.Show(Page("a"));
+        StepFrames(box, 3);
+        box.Hide();
+        box.Step();
+        box.Step();
+
+        box.Show(Page("b"));
+        box.Step();
+
+        Assert.Equal(135 + 60, box.Alpha);
+        Assert.True(box.Fading);
+    }
+
     private static void StepFrames(DialogueBox box, int frames)
     {
         for (var i = 0; i < frames * Cadence.FrameTicks; i++)

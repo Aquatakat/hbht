@@ -359,9 +359,8 @@ public sealed partial class TrekLoop : IMapObjectHost
             w => keys.Sounding(_host.Motion(w), w.Audio, w.Sounds, w.Body.Sphere));
         if (Conversation is { } conversation && conversation.Tick())
             Refresh();
-        // The box's cursor pulses while a conversation shows (WidgetScrollMenu::Tick).
-        if (Conversation is not null)
-            Box.Step();
+        // The box's cursor pulses while a conversation shows (WidgetScrollMenu::Tick), and the box fades in and out.
+        Box.Step();
         foreach (var (part, target) in motion.Sphere.Trod)
         {
             if (Chunks.Map(part) is not { } map)
@@ -848,6 +847,7 @@ public sealed partial class TrekLoop : IMapObjectHost
         {
             conversation.End(Wanderers, Camera);
             Conversation = null;
+            Box.Hide();
             Backdrop?.Close();
             if (conversation.RebuildsTrek)
                 Rebuild();
@@ -865,13 +865,13 @@ public sealed partial class TrekLoop : IMapObjectHost
             if (Backdrop is null or { Closing: true })
                 Backdrop = new BackdropPage(_font ??= new TextLayout(Game.Plugins.Get<FontRecord>(RecordId.Decimal(RecordTypes.Font, 0))),
                     BackdropStyle.For(runner.Script.Backdrop));
-            if (runner is { Status: ScriptStatus.Showing, Page: { } page })
-                Backdrop.Show(page);
+            if (runner is { Status: ScriptStatus.Showing, Page: { } backdropPage })
+                Backdrop.Show(backdropPage);
         }
-        else if (runner is { Status: ScriptStatus.Showing, Page: { } page })
-        {
+        if (!conversation.ShowsBackdrop && runner is { Status: ScriptStatus.Showing, Page: { } page })
             Box.Show(page);
-        }
+        else
+            Box.Hide();
         _host.ConversationChanged();
     }
 

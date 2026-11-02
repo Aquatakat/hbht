@@ -1056,7 +1056,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         _backdrop!.Draw(_session!.Backdrop);
         var trek = Trek!;
         _box!.Box = trek.Box;
-        _box.Visible = trek.Conversation is { ShowsBackdrop: false, Runner: { Status: Core.Scripts.ScriptStatus.Showing, Page: not null } };
+        _box.Visible = trek.Box.Visible;
         _box.QueueRedraw();
     }
 

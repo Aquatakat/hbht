@@ -98,14 +98,16 @@ public partial class ConversationBoxView : Control
     {
         if (StepsBox)
             Box.Step();
-        if (Visible && Box.Layout is { Choices.Count: > 0 })
+        if (Visible && (Box.Fading || Box.Layout is { Choices.Count: > 0 }))
             QueueRedraw();
     }
 
     public override void _Draw()
     {
-        if (Box.Layout is not { } layout)
+        if (Box.Layout is not { } layout || !Box.Visible)
             return;
+        // The fade is the whole box's, its panel, portrait and text alike.
+        SelfModulate = new Color(1, 1, 1, Box.Alpha / 255f);
         _images.DrawPanel(this, layout.Panel);
         if (_border is not null)
             DrawTexture(_border, new Vector2(layout.BorderX, layout.BorderY));

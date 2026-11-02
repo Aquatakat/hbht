@@ -113,8 +113,26 @@ public sealed class DialogueBox(TextLayout font, int borderWidth, int borderHeig
     public static DialogueBox For(PluginSet plugins) =>
         new(new TextLayout(plugins.Get<FontRecord>(RecordId.Decimal(RecordTypes.Font, 0))), BorderSize, BorderSize, GameState.Alaron);
 
-    /// <summary>What the box shows now, or none before the first page.</summary>
+    /// <summary>What the box shows now, or none before the first page. A hidden box keeps its last, to fade out on.</summary>
     public DialogueBoxLayout? Layout { get; private set; }
+
+    /// <summary>Whether the box is up: from <see cref="Show"/> to <see cref="Hide"/>.</summary>
+    public bool Shown { get; private set; }
+
+    /// <summary>
+    /// The whole box's alpha, from 0 to 255: it fades in as it comes up and out as it goes, by the menus' widget fade
+    /// (<see cref="WidgetFade"/>) a tick, as a script's backdrop page does. 1.0's box has no fade: it's made of plain widgets
+    /// (<c>Dialogue.CreateWidgets</c>, <c>0x80046920</c>) and comes and goes at once. The port fades it as its other boxes
+    /// fade, the user's choice. A new page or a change in size shows at once, as in 1.0, and presses reach the box while it
+    /// fades in, so pressing through a conversation loses none.
+    /// </summary>
+    public int Alpha { get; private set; }
+
+    /// <summary>Whether the box is drawn: up, or still fading out.</summary>
+    public bool Visible => Layout is not null && (Shown || Alpha > 0);
+
+    /// <summary>Whether the box is fading in or out.</summary>
+    public bool Fading => Alpha != (Shown ? WidgetFade.Opaque : 0);
 
     /// <summary>The choice the cursor is on.</summary>
     public int Highlight { get; private set; }
@@ -136,6 +154,7 @@ public sealed class DialogueBox(TextLayout font, int borderWidth, int borderHeig
     /// <summary>Shows a new page, with the cursor on its first choice.</summary>
     public DialogueBoxLayout Show(ScriptPage page)
     {
+        Shown = true;
         _page = page;
         _choicesAlone = false;
         Highlight = 0;
@@ -202,8 +221,15 @@ public sealed class DialogueBox(TextLayout font, int borderWidth, int borderHeig
         }
     }
 
-    /// <summary>Advances the cursor's pulse by one 60 Hz tick.</summary>
-    public void Step() => _pulse.Step();
+    /// <summary>Takes the box down, fading out on the page it showed; the next <see cref="Show"/> fades it in from where it is.</summary>
+    public void Hide() => Shown = false;
+
+    /// <summary>Advances the fade and the cursor's pulse by one 60 Hz tick.</summary>
+    public void Step()
+    {
+        Alpha = Shown ? WidgetFade.In(Alpha) : WidgetFade.Out(Alpha);
+        _pulse.Step();
+    }
 
     /// <summary>
     /// The cursor's choice's colour now. Each channel moves by a whole step a frame, the difference

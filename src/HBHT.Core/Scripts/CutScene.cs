@@ -208,6 +208,7 @@ public sealed class CutScene
         if (page is null)
         {
             _shownLine = null;
+            Box.Hide();
             return;
         }
         if (force || page.Line != _shownLine)

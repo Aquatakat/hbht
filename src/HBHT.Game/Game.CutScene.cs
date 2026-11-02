@@ -94,9 +94,9 @@ public partial class Game
         _camera!.Sync();
         if (cut)
             _camera.ResetPhysicsInterpolation();
-        // The box as the cut-scene lays it out, while it has a page.
+        // The box as the cut-scene lays it out, while it has a page and as it fades out.
         _box!.Box = scene.Box;
-        _box.Visible = scene.Page is not null;
+        _box.Visible = scene.Box.Visible;
         ShowFade(scene.Fade.Brightness);
     }
 
