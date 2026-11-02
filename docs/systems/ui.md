@@ -44,7 +44,8 @@ Every menu, popup and page takes a press as a `MenuAction`, which the runtime tr
 - **Choices** are in tan (200, 180, 100), from x 88, 4 pixels apart, and end at 228. The cursor's choice pulses toward (50, 45, 25, 63) and back over 24 frames each way, whole steps per channel (`WidgetScrollMenu::Tick`).
 - **A line before its own speaker's choices shows alone.** When a menu's first choice has the line's speaker, the line shows first, and A brings up the choices alone under Alaron's portrait. The box shrinks to the choices but never below 180, its four lines (Brenna's recruiting shows it); the portrait and its border stay where the line put them, since `Setup` doesn't move them on that path.
 
-Not ported yet: the widgets' fade in and out (`fadeFloatMirror`) and scrolling a menu taller than its bounds.
+- **Nothing fades.** `Dialogue.CreateWidgets` (`0x80046920`) builds the box with no open or close hooks and nothing sets its alpha, so it shows at full strength on the frame after `StartDialog` (`0x8004700C`) adds it and takes input from then; each node is laid out afresh at once (`Dialogue.Layout`, `0x80046B08`: the portrait swapped, the line set, the choices rebuilt), and `Dialogue.Destroy` (`0x800477E0`) removes it at once. The name `fadeFloatMirror` is in neither ROM.
+- **The choices never scroll.** At most 8 (`WidgetScrollMenu`, 9 slots). Their bounds are their own height up from 228 (`Dialogue.ShowNode` measures them with one step), so the cursor is always inside them; there are no arrows. Over the base game's 791 menus the tallest is 116 pixels (the help menu's 8-row nodes in `0x054B`; 115 in a conversation, `0x03F0`), nowhere near the 184 the box has above 228. A mod's menu taller than that would run off the top of the screen in 1.0, its cursor still reaching the rows there.
 
 ## Books and the help menu
 
