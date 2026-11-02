@@ -108,7 +108,13 @@ public sealed class UiPainter
         if (overlay.Choice is { } choice)
             Choice(canvas, screen, choice, overlay.Highlight);
         if (overlay.Message is { } message)
+        {
+            // The message's fade multiplies everything of it, its panel and text alike.
+            var opacity = Opacity;
+            Opacity *= (overlay.MessageFade?.Alpha ?? WidgetFade.Opaque) / 255f;
             Message(canvas, screen, message);
+            Opacity = opacity;
+        }
     }
 
     /// <summary>

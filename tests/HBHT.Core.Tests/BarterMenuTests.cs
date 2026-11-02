@@ -573,7 +573,9 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
 
         menu.Accept();
         Assert.Equal(Line(MenuText.StackFull), menu.Message?.Text);
+        MenuFades.Settle(menu.Overlay, menu.Step);
         Assert.True(menu.Back());
+        MenuFades.Settle(menu.Overlay, menu.Step);
         Assert.Null(menu.Message);
 
         Assert.True(menu.Back());
@@ -637,15 +639,24 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
 
         menu.Back();
         Assert.NotNull(menu.Message);
-        menu.Accept();
-        Assert.Null(menu.Message);
-
-        menu.Back();
-        Assert.True(menu.Back());
-        Assert.Null(menu.Message);
-
-        menu.Back();
+        // A press does nothing until the message has faded in, and it's up until it has faded out.
         Assert.True(menu.CloseMessage());
+        MenuFades.Settle(menu.Overlay, menu.Step);
+        menu.Accept();
+        Assert.NotNull(menu.Message);
+        MenuFades.Settle(menu.Overlay, menu.Step);
+        Assert.Null(menu.Message);
+
+        menu.Back();
+        MenuFades.Settle(menu.Overlay, menu.Step);
+        Assert.True(menu.Back());
+        MenuFades.Settle(menu.Overlay, menu.Step);
+        Assert.Null(menu.Message);
+
+        menu.Back();
+        MenuFades.Settle(menu.Overlay, menu.Step);
+        Assert.True(menu.CloseMessage());
+        MenuFades.Settle(menu.Overlay, menu.Step);
         Assert.Null(menu.Message);
         Assert.False(menu.CloseMessage());
     }
@@ -703,7 +714,9 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         menu.Point(pile: false, 0);
 
         Assert.True(menu.OnPile);
+        MenuFades.Settle(menu.Overlay, menu.Step);
         menu.CloseMessage();
+        MenuFades.Settle(menu.Overlay, menu.Step);
         menu.ShowParty();
         Assert.False(menu.OnPile);
     }

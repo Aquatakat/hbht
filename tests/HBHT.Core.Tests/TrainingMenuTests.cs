@@ -125,7 +125,9 @@ public class TrainingMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlug
         Select(poor, Skill.Warrior);
         poor.Accept();
         Assert.Equal("L516 12800 160", poor.Message?.Text);
+        MenuFades.Settle(poor.Overlay, poor.Step);
         poor.Accept();
+        MenuFades.Settle(poor.Overlay, poor.Step);
         Assert.Null(poor.Message);
     }
 
@@ -237,7 +239,9 @@ public class TrainingMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlug
         Select(menu, Skill.Warrior);
         menu.Accept();
 
+        MenuFades.Settle(menu.Overlay, menu.Step);
         Assert.True(menu.Back());
+        MenuFades.Settle(menu.Overlay, menu.Step);
         Assert.Null(menu.Message);
         Assert.False(menu.Back());
     }

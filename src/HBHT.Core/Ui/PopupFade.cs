@@ -23,7 +23,8 @@ public enum PopupFadeState
 /// the newest widget, and only once it's open (<c>WidgetManager.Input</c>, <c>0x800ad2d4</c>), so no press reaches the
 /// popup or the tab under it while it fades either way.
 /// </remarks>
-public sealed class PopupFade
+/// <param name="step">How much the alpha changes a frame: <see cref="WidgetFade.Step"/>, or a message's 90 (<see cref="MenuOverlay.MessageStep"/>).</param>
+public sealed class PopupFade(int step = WidgetFade.Step)
 {
     /// <summary>The popup's alpha now, from 0 to 255.</summary>
     public int Alpha { get; private set; }
@@ -48,12 +49,12 @@ public sealed class PopupFade
         switch (State)
         {
             case PopupFadeState.Opening:
-                Alpha = WidgetFade.In(Alpha);
+                Alpha = WidgetFade.In(Alpha, step);
                 if (Alpha == WidgetFade.Opaque)
                     State = PopupFadeState.Open;
                 break;
             case PopupFadeState.Closing:
-                Alpha = WidgetFade.Out(Alpha);
+                Alpha = WidgetFade.Out(Alpha, step);
                 if (Alpha == 0)
                     State = PopupFadeState.Gone;
                 break;

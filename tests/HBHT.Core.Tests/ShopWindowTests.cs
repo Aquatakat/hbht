@@ -136,7 +136,9 @@ public class ShopWindowTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         menu.Accept();
         Assert.Equal(Line(MenuText.MerchantRefuses), menu.Message?.Text);
 
+        MenuFades.Settle(menu.Overlay, menu.Step);
         menu.Accept();
+        MenuFades.Settle(menu.Overlay, menu.Step);
         menu.Point(pile: false, menu.Party.Inventory.Rows.ToList().FindIndex(r => r.Wearer is not null && r.Item.Id == ring.Id));
         menu.Accept();
         Assert.Equal(Line(MenuText.UnequipToSell), menu.Message?.Text);
@@ -201,7 +203,9 @@ public class ShopWindowTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         menu.Appraise();
 
         Assert.Equal(Line(MenuText.Appraisal + menu.Shop!.Appraise(menu.Pile.Rows[trinket].Instance)), menu.Message?.Text);
+        MenuFades.Settle(menu.Overlay, menu.Step);
         menu.Appraise();
+        MenuFades.Settle(menu.Overlay, menu.Step);
         Assert.Null(menu.Message);
 
         menu.Point(pile: false, PartyRow(menu, TradeData.Trinket.Id));

@@ -304,7 +304,9 @@ public class PartyMenuActionTests
         Assert.Equal(MenuText.NeedsStrength, Line(menu));
         Assert.Null(member.Equipment.Weapon);
 
+        MenuFades.Settle(menu.Overlay, menu.Step);
         menu.Accept();
+        MenuFades.Settle(menu.Overlay, menu.Step);
         PointAt(menu, r => r.Item.Id == Rock.Id);
         menu.Accept();
         Assert.Equal(MenuText.CantEquip, Line(menu));
@@ -349,7 +351,9 @@ public class PartyMenuActionTests
         menu.ChangeList(1);
         Assert.Equal((cursor, 0, PartyList.Inventory), (menu.Inventory.Cursor, menu.Member, menu.List));
 
+        MenuFades.Settle(menu.Overlay, menu.Step);
         Assert.True(menu.Back());
+        MenuFades.Settle(menu.Overlay, menu.Step);
         Assert.Null(menu.Message);
         Assert.False(menu.Back());
     }
@@ -490,7 +494,9 @@ public class PartyMenuActionTests
         Assert.Equal($"{MenuText.Learned}|Alaron|{Fireball.Name}|", menu.Message!.Text);
         Assert.NotNull(member.FindSpell(Fireball.Id));
 
+        MenuFades.Settle(menu.Overlay, menu.Step);
         menu.Accept();
+        MenuFades.Settle(menu.Overlay, menu.Step);
         PointAt(menu, r => r.Item.Id == Scroll.Id);
         menu.Accept();
         Assert.Equal(MenuText.AlreadyKnows, Line(menu));
@@ -543,6 +549,7 @@ public class PartyMenuActionTests
         Assert.Equal(1, party.Inventory.Count(PotionId(BasePotion.Strength)));
         Assert.Contains(menu.Inventory.Rows, r => r.Item.Id == PotionId(BasePotion.Strength));
 
+        MenuFades.Settle(menu.Overlay, menu.Step);
         menu.Accept();
         Assert.True(menu.HasPopup);
         Fade(menu);
@@ -573,7 +580,9 @@ public class PartyMenuActionTests
 
         Assert.Equal(MenuText.NoArmorComponents, Line(menu));
         Assert.Null(menu.Crafting);
+        MenuFades.Settle(menu.Overlay, menu.Step);
         menu.Accept();
+        MenuFades.Settle(menu.Overlay, menu.Step);
         Assert.False(menu.HasPopup);
     }
 
@@ -627,6 +636,7 @@ public class PartyMenuActionTests
         Assert.Equal(hp + 2 * 2 + 5, brenna.Hp);
         Assert.Equal(healer.Stats.Base(Stat.Stamina) - 3, healer.Stats.Modified(Stat.Stamina));
 
+        MenuFades.Settle(menu.Overlay, menu.Step);
         menu.Accept();
         Fade(menu);
         Assert.False(menu.HasPopup);

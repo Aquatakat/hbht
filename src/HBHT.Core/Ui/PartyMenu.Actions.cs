@@ -113,7 +113,7 @@ public sealed partial class PartyMenu
     /// <summary>Closes the message, and fades out the crafting popup under it if it showed its result (A, B or C-down). True if there was one.</summary>
     public bool CloseMessage()
     {
-        if (Message is { FromCrafting: true })
+        if (Message is { FromCrafting: true } && Overlay.MessageOpen)
             Crafting?.Fade.Close();
         return Overlay.CloseMessage();
     }

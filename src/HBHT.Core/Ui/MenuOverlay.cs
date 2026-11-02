@@ -43,8 +43,22 @@ public sealed class MenuOverlay
 {
     private readonly MenuPulse _pulse = new();
 
-    /// <summary>A message over everything, which a press closes.</summary>
+    /// <summary>A message over everything, which a press closes, up while it fades in and out (<see cref="MessageFade"/>).</summary>
     public MenuMessage? Message { get; private set; }
+
+    /// <summary>
+    /// How much a message's alpha changes a frame, in and out (<c>TextPopup.FadeIn</c>, <c>0x80044B80</c>, and
+    /// <c>FadeOut</c>, <c>0x80044BF4</c>): from 0 it's drawn at 90, 180 and 255, where it's open; closing, at 165 and 75, and
+    /// then it's freed under 91 before it's drawn at 0.
+    /// </summary>
+    public const int MessageStep = 90;
+
+    /// <summary>
+    /// The message's fade, null with none up. It takes no press until it's open, and none while it fades out, which nothing
+    /// under it takes either: input goes to the newest widget, and only once it's open (<c>WidgetManager.Input</c>,
+    /// <c>0x800AD2D4</c>).
+    /// </summary>
+    public PopupFade? MessageFade { get; private set; }
 
     /// <summary>The help on the parchment, which a press closes.</summary>
     public string? Help { get; private set; }
@@ -69,11 +83,18 @@ public sealed class MenuOverlay
     /// <summary>The colour the choice's cursor pulses to now.</summary>
     public Rgba Highlight => _pulse.Now(MenuPulse.ScrollFrom, MenuPulse.ScrollTo);
 
-    /// <summary>Puts a message up, over what is open.</summary>
-    public void Say(MenuMessage message) => Message = message;
+    /// <summary>Puts a message up, over what is open, fading in.</summary>
+    public void Say(MenuMessage message)
+    {
+        Message = message;
+        MessageFade = new PopupFade(MessageStep);
+    }
 
     /// <summary>Puts a message of the usual shape up.</summary>
-    public void Say(string text) => Message = new MenuMessage(text);
+    public void Say(string text) => Say(new MenuMessage(text));
+
+    /// <summary>Whether the message is up and open, so a press closes it.</summary>
+    public bool MessageOpen => MessageFade?.IsOpen == true;
 
     /// <summary>Puts the help up.</summary>
     public void ShowHelp(string text) => Help = text;
@@ -88,12 +109,16 @@ public sealed class MenuOverlay
     /// <summary>Starts the cursor's pulse again from the first colour, for a popup of the menu's own that shares it.</summary>
     public void ResetPulse() => _pulse.Reset();
 
-    /// <summary>Closes the message. True if there was one.</summary>
+    /// <summary>
+    /// A press on the message: it fades out if it's open (<c>TextPopup.Close</c>, <c>0x80044C5C</c>), and does nothing while it
+    /// fades. True if there was one, which takes the press either way.
+    /// </summary>
     public bool CloseMessage()
     {
         if (Message is null)
             return false;
-        Message = null;
+        if (MessageOpen)
+            MessageFade!.Close();
         return true;
     }
 
@@ -127,10 +152,13 @@ public sealed class MenuOverlay
     /// <summary>C-down let go: the details fade out once they're open.</summary>
     public void ReleaseDetails() => Details.Release();
 
-    /// <summary>Steps the choice's pulse and the details' fade by a tick.</summary>
+    /// <summary>Steps the choice's pulse, the message's fade and the details' by a tick.</summary>
     public void Step()
     {
         _pulse.Step();
         Details.Advance();
+        MessageFade?.Advance();
+        if (MessageFade?.IsGone == true)
+            (Message, MessageFade) = (null, null);
     }
 }

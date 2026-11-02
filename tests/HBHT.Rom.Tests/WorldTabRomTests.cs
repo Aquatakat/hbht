@@ -98,7 +98,12 @@ public sealed class WorldTabRomTests(Na10Import fixture)
         var menu = new WorldMenu(Set, game, MainFont, new ChunkRef(RecordId.Decimal(RecordTypes.MapSet, 6), 3, 5), outdoors: false);
         Assert.Null(menu.Accept());
         Assert.Equal("The party cannot camp here.", menu.Message?.Text);
+        // The message fades in before a press closes it, and out after (MenuOverlay.MessageFade).
+        for (var i = 0; i < 3; i++)
+            menu.Step(showing: true, sliding: false);
         Assert.Null(menu.Accept());
+        for (var i = 0; i < 3; i++)
+            menu.Step(showing: true, sliding: false);
         Assert.Null(menu.Message);
 
         // Nor does Gwernia's country, terrain 19, where the checkpoint stands; G14, terrain 0, does.

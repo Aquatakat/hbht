@@ -31,7 +31,9 @@ public class MenuOverlayTests
         Assert.False(overlay.MoveCursor(1));
         Assert.Equal(0, overlay.Choice!.Choices.Cursor);
 
+        MenuFades.Settle(overlay, overlay.Step);
         Assert.True(overlay.Dismiss());
+        MenuFades.Settle(overlay, overlay.Step);
         Assert.Null(overlay.Message);
         Assert.Equal(MenuPopupLayer.Help, overlay.Top);
 
@@ -59,7 +61,9 @@ public class MenuOverlayTests
 
         overlay.Say("message");
         Assert.Equal(MenuPopupLayer.Message, overlay.Top);
+        MenuFades.Settle(overlay, overlay.Step);
         overlay.CloseMessage();
+        MenuFades.Settle(overlay, overlay.Step);
         Assert.Equal(MenuPopupLayer.Details, overlay.Top);
 
         // A press that isn't to open them opens nothing.

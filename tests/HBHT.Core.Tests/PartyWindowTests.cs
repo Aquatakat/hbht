@@ -126,7 +126,9 @@ public class PartyWindowTests(BarterPlugins fixture) : IClassFixture<BarterPlugi
 
         window.Overlay.Say("A message");
         Assert.True(window.HasPopup);
+        MenuFades.Settle(window.Overlay, tab.Step);
         Assert.True(window.CloseMessage());
+        MenuFades.Settle(window.Overlay, tab.Step);
         Assert.False(window.HasPopup);
     }
 }
