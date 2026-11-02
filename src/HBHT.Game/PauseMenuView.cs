@@ -237,8 +237,9 @@ public partial class PauseMenuView : CanvasLayer
             : (float.NegativeInfinity, float.PositiveInfinity);
         if (_scrollView is { } view)
         {
-            view.WorldShift = PauseScroll.TabX[1] - PauseScroll.TabX[_menu.Scroll.WorldEndTab];
-            view.X = position <= 1
+            // The System tab alone is barter's scroll a tab over, centred on it.
+            view.X = _menu.Scroll.CentredOnSystem ? PauseScroll.TabX[1]
+                : position <= 1
                 ? Mathf.Lerp(PauseScroll.TabX[0], PauseScroll.TabX[1], position)
                 : Mathf.Lerp(PauseScroll.TabX[1], PauseScroll.TabX[2], position - 1);
             var (systemEnd, worldEnd) = view.Arrange();

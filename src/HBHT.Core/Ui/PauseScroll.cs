@@ -60,10 +60,8 @@ public readonly record struct ScrollCue(int Request, int Join = 0, bool WorldHel
 /// <item>A battle's pause on a turn has the System and Party tabs but no World tab, so its World end's roller holds where
 /// barter's does while the System end's runs on out past the System tab (Nov 2, 2026). The view draws each end's
 /// roller from a copy of the scroll of its own, so the two can be at different frames.</item>
-/// <item>A battle's pause off a turn has the System tab alone. Its World end's roller is held as barter's is but a tab
-/// over, at the System tab's right edge, where the console's frame ended, from the start (<see cref="WorldEndTab"/>).
-/// The System end's opening starts where its roller reaches that edge, and its closing ends there: the frames the
-/// original spends with it beyond the frame's edge, showing nothing, are left out, so the rollers never cross.</item>
+/// <item>A battle's pause off a turn has the System tab alone, which unrolls and rolls up as barter does, the whole
+/// scroll a tab over, centred on it (<see cref="CentredOnSystem"/>).</item>
 /// </list>
 /// </remarks>
 public sealed class PauseScroll
@@ -166,10 +164,14 @@ public sealed class PauseScroll
         _holds = holds;
         _worldHolds = lastTab == Party;
         _systemAlone = lastTab == System;
+        _holds |= _systemAlone;
     }
 
-    /// <summary>The tab whose right edge the World end's roller holds at, where it holds while the System end's doesn't.</summary>
-    public int WorldEndTab => _systemAlone ? System : Party;
+    /// <summary>Whether the scroll is barter's a tab over, centred on the System tab, which it unrolls and rolls up as barter's does.</summary>
+    public bool CentredOnSystem => _systemAlone;
+
+    /// <summary>The tab whose opening and closing the scroll plays: the Party tab's for the System tab alone.</summary>
+    private int Shape => _systemAlone ? Party : Tab;
 
     public PauseScrollPhase Phase { get; private set; }
 
@@ -219,23 +221,17 @@ public sealed class PauseScroll
                     return cue;
                 }
                 Phase = PauseScrollPhase.Unrolling;
-                cue = new(Openings[Tab].Request);
-                if (_systemAlone)
-                {
-                    // The System end's roller starts at the frame's right edge, where the World end's is held.
-                    cue = cue with { Join = Openings[System].Start, WorldJoin = HoldsAt };
-                    _worldHeld = true;
-                }
-                Clip = OpenClip(Openings[Tab], 1);
+                cue = new(Openings[Shape].Request);
+                Clip = OpenClip(Openings[Shape], 1);
                 Alpha = Rise(1);
                 return cue;
             case PauseScrollPhase.Unrolling:
-                Clip = OpenClip(Openings[Tab], frame);
+                Clip = OpenClip(Openings[Shape], frame);
                 Alpha = Rise(frame);
-                if (frame <= Openings[Tab].Start || frame < length)
+                if (frame <= Openings[Shape].Start || frame < length)
                     return cue;
                 Phase = PauseScrollPhase.Open;
-                if (Tab == Party)
+                if (Shape == Party)
                 {
                     cue = new(Openings[System].Request, PartyRunsOnAt);
                     _runningOn = true;
@@ -269,12 +265,10 @@ public sealed class PauseScroll
                     cue = new(Closings[Party].Request, 1);
                     return cue;
                 }
-                var closing = Closings[Tab];
-                // With the System tab alone, its closing ends as its roller reaches the World end's at the frame's edge.
-                var end = _systemAlone ? closing.End : length;
+                var closing = Closings[Shape];
                 Clip = CloseClip(closing, frame);
-                Alpha = frame <= closing.FadeFrom ? 1 : Math.Max(0, (float)(end - frame) / (end - closing.FadeFrom));
-                if (frame <= closing.Start || frame < end)
+                Alpha = frame <= closing.FadeFrom ? 1 : Math.Max(0, (float)(length - frame) / (length - closing.FadeFrom));
+                if (frame <= closing.Start || frame < length)
                     return cue;
                 // Rolled up: it brightens from this frame on.
                 Phase = PauseScrollPhase.Brightening;
@@ -308,7 +302,7 @@ public sealed class PauseScroll
         Clip = null;
         Alpha = 1;
         ScrollCue cue;
-        if (tab == Party)
+        if (Shape == Party)
         {
             // The other tabs' closing first, from where their opening has got to if it's still running on or held.
             _rollingIn = true;
@@ -317,7 +311,7 @@ public sealed class PauseScroll
         }
         else
             cue = new ScrollCue(Closings[tab].Request);
-        if (_worldHeld && !_systemAlone)
+        if (_worldHeld)
         {
             // The World end's roller turns back from where it holds, and waits there for the System end's to come to it.
             _worldHeld = false;
@@ -328,7 +322,7 @@ public sealed class PauseScroll
     }
 
     /// <summary>The Party tab's scroll fades in as it rises into the frame.</summary>
-    private float Rise(int frame) => Tab == Party ? Math.Min(1, (float)frame / RiseFrames) : 1;
+    private float Rise(int frame) => Shape == Party ? Math.Min(1, (float)frame / RiseFrames) : 1;
 
     private static (int, int)? OpenClip(Opening o, int frame)
     {

@@ -98,15 +98,9 @@ public partial class PauseScrollView : Control
         set
         {
             _system.Scroll.Position = new Vector3(value, 0, 0);
-            _world.Scroll.Position = new Vector3(value + WorldShift, 0, 0);
+            _world.Scroll.Position = new Vector3(value, 0, 0);
         }
     }
-
-    /// <summary>
-    /// How far the World end's copy of the scroll is from the System end's, across its scene: a tab's way left where its
-    /// roller holds at the System tab's right edge (<see cref="PauseScroll.WorldEndTab"/>).
-    /// </summary>
-    public float WorldShift { get; set; }
 
     /// <summary>How opaque it's drawn.</summary>
     public float Alpha { get; set; } = 1;

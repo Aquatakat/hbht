@@ -179,29 +179,28 @@ public class PauseScrollTests
     }
 
     [Fact]
-    public void ABattlesPauseOffATurnStartsAndEndsItsSystemEndAtTheFramesEdgeWithTheWorldEndHeldThere()
+    public void ABattlesPauseOffATurnUnrollsAndRollsUpAsBarterDoes()
     {
         var menu = new PauseScroll(tab: 0, lastTab: 0);
-        var (system, world) = (NewScroll(), NewScroll());
+        Assert.True(menu.CentredOnSystem);
+        var scroll = NewScroll();
         while (menu.Phase == PauseScrollPhase.Darkening)
-            Frame(menu, system, world);
-        // The opening starts at frame 8, its roller at the frame's right edge, and the World end's is held there.
-        Assert.Equal((22, 8, 22, 11), (system.State, system.Clock, world.State, world.Clock));
+            Frame(menu, scroll);
+        // The Party tab's opening, from the middle out, run on to barter's frame and held.
+        Assert.Equal((10, 1), (scroll.State, scroll.Clock));
+        Assert.Equal((160, 160), menu.Clip);
         while (menu.Phase != PauseScrollPhase.Open)
-            Frame(menu, system, world);
+            Frame(menu, scroll);
         for (var i = 0; i < 20; i++)
-            Frame(menu, system, world);
-        Assert.Equal((22, 11), (world.State, world.Clock));
-
-        // Rolling up, the World end's stays; the System end's ends at frame 31 of 39, where it reaches it, faded out.
-        Play(menu.Close(tab: 0), system, world);
+            Frame(menu, scroll);
+        Assert.Equal((22, 11), (scroll.State, scroll.Clock));
+        Assert.False(menu.StepsScroll);
+        // Closing turns it back, as barter's does.
+        Close(menu, scroll, tab: 0);
+        Assert.Equal((11, 29), (scroll.State, scroll.Clock));
         while (menu.Phase == PauseScrollPhase.Rolling)
-        {
-            Frame(menu, system, world);
-            Assert.Equal((22, 11), (world.State, world.Clock));
-        }
-        Assert.Equal((11, 31), (system.State, system.Clock));
-        Assert.Equal(0, menu.Alpha);
+            Frame(menu, scroll);
+        Assert.Equal(19, scroll.State);
     }
 
     [Fact]
