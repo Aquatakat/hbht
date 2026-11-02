@@ -125,6 +125,85 @@ public class PauseScrollTests
         Assert.Equal(0, scroll.State);
     }
 
+    /// <summary>Steps a frame with each end's roller apart, as the view plays them: the World end's held, or joined where it isn't the System end's.</summary>
+    private static void Frame(PauseScroll menu, Scroll system, Scroll world)
+    {
+        var cue = menu.Step(system.Clock, system.Length);
+        if (menu.StepsScroll)
+            Play(cue, system, world);
+    }
+
+    private static void Play(ScrollCue cue, Scroll system, Scroll world)
+    {
+        system.Play(cue);
+        if (cue.WorldJoin > 0)
+            world.Play(new ScrollCue(cue.Request, cue.WorldJoin));
+        else if (!cue.WorldHeld)
+            world.Play(cue);
+    }
+
+    [Fact]
+    public void ABattlesPauseOnATurnHoldsTheWorldEndWhereBartersDoesAndRunsTheSystemEndOn()
+    {
+        var menu = new PauseScroll(tab: 1, lastTab: 1);
+        var (system, world) = (NewScroll(), NewScroll());
+        while (menu.Phase != PauseScrollPhase.Open)
+            Frame(menu, system, world);
+        // Both run on into the other tabs' opening; the World end holds at barter's frame, the System end goes to the end.
+        while (system.State == 22)
+            Frame(menu, system, world);
+        Assert.Equal((22, 11), (world.State, world.Clock));
+        for (var i = 0; i < 20; i++)
+            Frame(menu, system, world);
+        Assert.Equal((0, 22, 11), (system.State, world.State, world.Clock));
+
+        // Rolling up, the System end's roller comes in from the end, and the World end's waits where it holds, turned back,
+        // until the System end's reaches it; then both go on together into the Party tab's closing.
+        Play(menu.Close(tab: 1), system, world);
+        Assert.Equal((11, 1), (system.State, system.Clock));
+        Assert.Equal((11, 29), (world.State, world.Clock));
+        while (system.Clock < 29)
+        {
+            Frame(menu, system, world);
+            Assert.Equal((11, 29), (world.State, world.Clock));
+        }
+        Frame(menu, system, world);
+        Assert.Equal((30, 30), (system.Clock, world.Clock));
+        Frame(menu, system, world);
+        Assert.Equal((19, 1, 19, 1), (system.State, system.Clock, world.State, world.Clock));
+        while (menu.Phase == PauseScrollPhase.Rolling)
+        {
+            Frame(menu, system, world);
+            Assert.Equal((system.State, system.Clock), (world.State, world.Clock));
+        }
+    }
+
+    [Fact]
+    public void ABattlesPauseOffATurnStartsAndEndsItsSystemEndAtTheFramesEdgeWithTheWorldEndHeldThere()
+    {
+        var menu = new PauseScroll(tab: 0, lastTab: 0);
+        var (system, world) = (NewScroll(), NewScroll());
+        while (menu.Phase == PauseScrollPhase.Darkening)
+            Frame(menu, system, world);
+        // The opening starts at frame 8, its roller at the frame's right edge, and the World end's is held there.
+        Assert.Equal((22, 8, 22, 11), (system.State, system.Clock, world.State, world.Clock));
+        while (menu.Phase != PauseScrollPhase.Open)
+            Frame(menu, system, world);
+        for (var i = 0; i < 20; i++)
+            Frame(menu, system, world);
+        Assert.Equal((22, 11), (world.State, world.Clock));
+
+        // Rolling up, the World end's stays; the System end's ends at frame 31 of 39, where it reaches it, faded out.
+        Play(menu.Close(tab: 0), system, world);
+        while (menu.Phase == PauseScrollPhase.Rolling)
+        {
+            Frame(menu, system, world);
+            Assert.Equal((22, 11), (world.State, world.Clock));
+        }
+        Assert.Equal((11, 31), (system.State, system.Clock));
+        Assert.Equal(0, menu.Alpha);
+    }
+
     [Fact]
     public void BarterAndTrainingRunOnAFrameAndHold()
     {

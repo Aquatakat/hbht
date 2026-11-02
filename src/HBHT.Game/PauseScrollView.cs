@@ -26,6 +26,12 @@ namespace HBHT.Game;
 /// the World tab's (<see cref="PauseScroll.TabX"/>), and 320 pixels at both. The two cameras see one world, each
 /// drawing one roller; while both are near enough, one draws both.
 /// </para>
+/// <para>
+/// Each end draws its roller from a copy of the scroll of its own, which the menu steps together but for where the World
+/// end's holds while the System end's runs on, in a battle's pause on a turn (<see cref="ScrollCue.WorldHeld"/>). The
+/// System end's copy draws its roller and the paper's shadow, the World end's its roller, and the rest of each is on a
+/// layer no camera sees.
+/// </para>
 /// </remarks>
 public partial class PauseScrollView : Control
 {
@@ -34,34 +40,28 @@ public partial class PauseScrollView : Control
 
     private const float FieldOfView = 45, Near = 1, Far = 256;
 
-    /// <summary>The render layers of the System end's roller, with the paper's shadow beside it, and the World end's.</summary>
-    private const uint SystemLayer = 1 << 1, WorldLayer = 1 << 2;
+    /// <summary>
+    /// The render layers of the System end's roller, with the paper's shadow beside it, and the World end's, and the one
+    /// for what each end's copy of the scroll doesn't draw.
+    /// </summary>
+    private const uint SystemLayer = 1 << 1, WorldLayer = 1 << 2, UnseenLayer = 1 << 3;
 
     private readonly End _system, _world;
-    private readonly Node3D _scroll;
-    private readonly ActorAnimator _animator;
     private readonly int _initialState;
     private bool _measured, _apart;
 
-    private PauseScrollView(Node3D scroll, ActorAnimator animator, int initialState)
+    private PauseScrollView((Node3D Node, ActorAnimator Animator) system, (Node3D Node, ActorAnimator Animator) world, int initialState)
     {
         Name = "Pause scroll";
         MouseFilter = MouseFilterEnum.Ignore;
         // The viewports' colours are what the material wrote over transparent black: already times their alpha.
         Material = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.PremultAlpha };
-        _scroll = scroll;
-        _animator = animator;
         _initialState = initialState;
-        animator.Driven = true;
         var environment = new Godot.Environment { BackgroundMode = Godot.Environment.BGMode.ClearColor, BackgroundColor = Colors.Transparent };
         OnScreenOutput.Apply(environment);
-        // The scene's own camera is the original's export of it; the menu aims its own.
-        foreach (var camera in Nodes.FindAll<Camera3D>(_scroll))
-            camera.Free();
-        var world = new World3D();
-        _system = new End(world, environment, home: 0);
-        _world = new End(world, environment, home: 2);
-        _system.View.AddChild(_scroll);
+        var shared = new World3D();
+        _system = new End(shared, environment, home: 0, system.Node, system.Animator);
+        _world = new End(shared, environment, home: 2, world.Node, world.Animator);
         AddChild(_system.View);
         AddChild(_world.View);
     }
@@ -69,28 +69,44 @@ public partial class PauseScrollView : Control
     /// <summary>The scroll, or null if no plugin has its actor or scene.</summary>
     public static PauseScrollView? Create(Plugins.PluginSet plugins, Models models)
     {
-        if (plugins.TryGet<ActorRecord>(Actor) is not { } actor ||
-            models.InstantiateActor(actor, N64Material.Lighting.Own) is not ({ } node, { } animator))
+        if (plugins.TryGet<ActorRecord>(Actor) is not { } actor || Copy(actor) is not { } system || Copy(actor) is not { } world)
         {
             GD.PushWarning($"No {Actor} for the pause menu's scroll.");
             return null;
         }
-        Light(node, models.Glb(actor.Scene)!.Extras);
-        return new PauseScrollView(node, animator, actor.InitialState);
+        return new PauseScrollView(system, world, actor.InitialState);
+
+        (Node3D, ActorAnimator)? Copy(ActorRecord actor)
+        {
+            if (models.InstantiateActor(actor, N64Material.Lighting.Own) is not ({ } node, { } animator))
+                return null;
+            Light(node, models.Glb(actor.Scene)!.Extras);
+            return (node, animator);
+        }
     }
 
-    /// <summary>The scroll's clock in the state it's in, from 1.</summary>
-    public int Frame => _animator.Frame;
+    /// <summary>The scroll's clock in the state it's in, from 1: the System end's.</summary>
+    public int Frame => _system.Animator.Frame;
 
     /// <summary>The length of the state it's in, in frames.</summary>
-    public int Length => _animator.StateLength;
+    public int Length => _system.Animator.StateLength;
 
     /// <summary>Where the scroll is across its scene, which the tabs' slide moves.</summary>
     public float X
     {
-        get => _scroll.Position.X;
-        set => _scroll.Position = new Vector3(value, 0, 0);
+        get => _system.Scroll.Position.X;
+        set
+        {
+            _system.Scroll.Position = new Vector3(value, 0, 0);
+            _world.Scroll.Position = new Vector3(value + WorldShift, 0, 0);
+        }
     }
+
+    /// <summary>
+    /// How far the World end's copy of the scroll is from the System end's, across its scene: a tab's way left where its
+    /// roller holds at the System tab's right edge (<see cref="PauseScroll.WorldEndTab"/>).
+    /// </summary>
+    public float WorldShift { get; set; }
 
     /// <summary>How opaque it's drawn.</summary>
     public float Alpha { get; set; } = 1;
@@ -98,19 +114,34 @@ public partial class PauseScrollView : Control
     /// <summary>Back to its first state's first frame, as the original builds it afresh for each opening.</summary>
     public void Restart()
     {
-        _animator.Request = 0;
-        _animator.Enter(_initialState);
+        foreach (var end in new[] { _system, _world })
+        {
+            end.Animator.Request = 0;
+            end.Animator.Enter(_initialState);
+        }
         if (!_measured)
             Measure();
     }
 
-    /// <summary>One frame: a step toward the cue's request, or into its state partway through.</summary>
+    /// <summary>
+    /// One frame: a step toward the cue's request, or into its state partway through; the World end's roller held, or
+    /// entering it at a frame of its own, where the cue says so.
+    /// </summary>
     public void Play(ScrollCue cue)
     {
-        if (cue.Join > 0)
-            _animator.Join(cue.Request, cue.Join);
+        Play(_system.Animator, cue.Request, cue.Join);
+        if (cue.WorldJoin > 0)
+            _world.Animator.Join(cue.Request, cue.WorldJoin);
+        else if (!cue.WorldHeld)
+            Play(_world.Animator, cue.Request, cue.Join);
+    }
+
+    private static void Play(ActorAnimator animator, int request, int join)
+    {
+        if (join > 0)
+            animator.Join(request, join);
         else
-            _animator.TickMotion(cue.Request);
+            animator.TickMotion(request);
     }
 
     /// <summary>
@@ -177,34 +208,48 @@ public partial class PauseScrollView : Control
     private Vector3 Axis(End end) => end.Roller!.GlobalTransform * end.Roller.GetAabb().GetCenter();
 
     /// <summary>
-    /// Finds each end's roller, and where it is in its first state, open: the meshes left of the scroll's middle go
-    /// with the System end, the rest with the World end, and each end's outermost is its roller.
+    /// Finds each end's roller in its copy of the scroll, and where it is in its first state, open: the meshes left of the
+    /// scroll's middle go with the System end, the rest with the World end, and each end's outermost is its roller. Each
+    /// copy shows its own end's meshes only.
     /// </summary>
     private void Measure()
     {
         var x = X;
-        X = 0;
-        foreach (var mesh in Nodes.FindAll<MeshInstance3D>(_scroll))
+        _system.Scroll.Position = _world.Scroll.Position = Vector3.Zero;
+        foreach (var end in new[] { _system, _world })
         {
-            var centre = (mesh.GlobalTransform * mesh.GetAabb().GetCenter()).X;
-            var end = centre < 0 ? _system : _world;
-            mesh.Layers = end == _system ? SystemLayer : WorldLayer;
-            if (end.Roller is null || Math.Abs(centre) > Math.Abs(end.Open))
-                (end.Roller, end.Open) = (mesh, centre);
+            foreach (var mesh in Nodes.FindAll<MeshInstance3D>(end.Scroll))
+            {
+                var centre = (mesh.GlobalTransform * mesh.GetAabb().GetCenter()).X;
+                if ((centre < 0) != (end == _system))
+                {
+                    mesh.Layers = UnseenLayer;
+                    continue;
+                }
+                mesh.Layers = end == _system ? SystemLayer : WorldLayer;
+                if (end.Roller is null || Math.Abs(centre) > Math.Abs(end.Open))
+                    (end.Roller, end.Open) = (mesh, centre);
+            }
         }
         X = x;
         _measured = _system.Roller is not null && _world.Roller is not null;
     }
 
-    /// <summary>One end of the scroll: its roller, and the viewport and camera that draw it.</summary>
+    /// <summary>One end of the scroll: its copy of the scroll, its roller, and the viewport and camera that draw it.</summary>
     private sealed class End
     {
         private readonly int _home;
         private float _shift;
 
-        public End(World3D world, Godot.Environment environment, int home)
+        public End(World3D world, Godot.Environment environment, int home, Node3D scroll, ActorAnimator animator)
         {
             _home = home;
+            Scroll = scroll;
+            Animator = animator;
+            animator.Driven = true;
+            // The scene's own camera is the original's export of it; the menu aims its own.
+            foreach (var camera in Nodes.FindAll<Camera3D>(scroll))
+                camera.Free();
             View = new SubViewport { World3D = world, TransparentBg = true, RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled };
             // The menu poses the scroll a frame at a time, to be drawn as it is. Interpolated, as the project has it, it
             // drew a tick behind, and its first frame shown was where it had been reset to, rolled out.
@@ -214,8 +259,11 @@ public partial class PauseScrollView : Control
             Camera.Current = true;
             // Looking straight down, with −Z up the screen and +X to the right.
             Camera.Transform = new Transform3D(new Basis(Vector3.Right, Vector3.Forward, Vector3.Up), new Vector3(0, PauseScroll.CameraHeight, 0));
+            View.AddChild(scroll);
         }
 
+        public Node3D Scroll { get; }
+        public ActorAnimator Animator { get; }
         public SubViewport View { get; }
         public Camera3D Camera { get; }
         public MeshInstance3D? Roller { get; set; }

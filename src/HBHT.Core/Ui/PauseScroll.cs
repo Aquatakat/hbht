@@ -23,7 +23,9 @@ public enum PauseScrollPhase
 /// Above 0, the frame of the request's state to enter it at instead of stepping, where the port runs one of the
 /// scroll's animations on into another (<see cref="Actors.ActorStateMachine.Join"/>).
 /// </param>
-public readonly record struct ScrollCue(int Request, int Join = 0);
+/// <param name="WorldHeld">Whether the World end's roller stands still this frame, held while the System end's runs on.</param>
+/// <param name="WorldJoin">Above 0, the frame the World end's roller enters the request's state at, where it isn't the System end's.</param>
+public readonly record struct ScrollCue(int Request, int Join = 0, bool WorldHeld = false, int WorldJoin = 0);
 
 /// <summary>
 /// The pause menu's opening and closing, frame by frame: the world darkening behind it, the 3D scroll unrolling and
@@ -55,6 +57,13 @@ public readonly record struct ScrollCue(int Request, int Join = 0);
 /// there.</item>
 /// <item>Barter and training, which can't change tab, run on only a little way and hold there, the rollers just past
 /// what the Party tab draws, its parchment's edges still under them.</item>
+/// <item>A battle's pause on a turn has the System and Party tabs but no World tab, so its World end's roller holds where
+/// barter's does while the System end's runs on out past the System tab (Nov 2, 2026). The view draws each end's
+/// roller from a copy of the scroll of its own, so the two can be at different frames.</item>
+/// <item>A battle's pause off a turn has the System tab alone. Its World end's roller is held as barter's is but a tab
+/// over, at the System tab's right edge, where the console's frame ended, from the start (<see cref="WorldEndTab"/>).
+/// The System end's opening starts where its roller reaches that edge, and its closing ends there: the frames the
+/// original spends with it beyond the frame's edge, showing nothing, are left out, so the rollers never cross.</item>
 /// </list>
 /// </remarks>
 public sealed class PauseScroll
@@ -124,7 +133,7 @@ public sealed class PauseScroll
     /// <summary>A side of the clip this near the frame's edge counts as at it: the overscan, and the column more the Party tab's clip stops short of it.</summary>
     private const int ClipOverscan = Overscan + 1;
 
-    private readonly bool _brightens, _holds;
+    private readonly bool _brightens, _holds, _worldHolds, _systemAlone;
     /// <summary>Whether the Party tab's scroll is running on into the other tabs' opening.</summary>
     private bool _runningOn;
     /// <summary>Closing from Party: the other tabs' closing, before the Party tab's own.</summary>
@@ -133,6 +142,11 @@ public sealed class PauseScroll
     private bool _held;
     /// <summary>The frame the scroll shows while running on or held.</summary>
     private int _shown;
+    /// <summary>The World end's roller held while the System end's runs on, and the frame it holds at.</summary>
+    private bool _worldHeld;
+    private int _worldShown;
+    /// <summary>Rolling up, the frame of the closing the World end's roller waits at until the System end's reaches it; 0 for none.</summary>
+    private int _worldWaits;
 
     /// <param name="tab">The tab it opens on: 0 System, 1 Party, 2 World.</param>
     /// <param name="brightens">
@@ -141,12 +155,21 @@ public sealed class PauseScroll
     /// <param name="holds">
     /// Whether the scroll runs on only a little way and holds there, for barter and training, which can't change tab.
     /// </param>
-    public PauseScroll(int tab, bool brightens = true, bool holds = false)
+    /// <param name="lastTab">
+    /// The rightmost tab the menu has: the World tab's, or in a battle the Party tab's on a turn and the System tab's off
+    /// one, where the World end's roller holds at that tab's right edge.
+    /// </param>
+    public PauseScroll(int tab, bool brightens = true, bool holds = false, int lastTab = 2)
     {
         Tab = tab;
         _brightens = brightens;
         _holds = holds;
+        _worldHolds = lastTab == Party;
+        _systemAlone = lastTab == System;
     }
+
+    /// <summary>The tab whose right edge the World end's roller holds at, where it holds while the System end's doesn't.</summary>
+    public int WorldEndTab => _systemAlone ? System : Party;
 
     public PauseScrollPhase Phase { get; private set; }
 
@@ -180,6 +203,12 @@ public sealed class PauseScroll
     /// </summary>
     public ScrollCue Step(int frame, int length)
     {
+        var cue = StepPhase(frame, length);
+        return cue.WorldJoin > 0 || !_worldHeld ? cue : cue with { WorldHeld = true };
+    }
+
+    private ScrollCue StepPhase(int frame, int length)
+    {
         ScrollCue cue = default;
         switch (Phase)
         {
@@ -191,6 +220,12 @@ public sealed class PauseScroll
                 }
                 Phase = PauseScrollPhase.Unrolling;
                 cue = new(Openings[Tab].Request);
+                if (_systemAlone)
+                {
+                    // The System end's roller starts at the frame's right edge, where the World end's is held.
+                    cue = cue with { Join = Openings[System].Start, WorldJoin = HoldsAt };
+                    _worldHeld = true;
+                }
                 Clip = OpenClip(Openings[Tab], 1);
                 Alpha = Rise(1);
                 return cue;
@@ -217,23 +252,29 @@ public sealed class PauseScroll
                     (_runningOn, _held, _shown) = (false, true, frame);
                     return cue;
                 }
+                if (_worldHolds && !_worldHeld && frame >= HoldsAt)
+                    (_worldHeld, _worldShown) = (true, frame);
                 _runningOn = frame < length;
                 _shown = frame + 1;
                 return cue;
             case PauseScrollPhase.Rolling:
+                cue = cue with { WorldHeld = frame < _worldWaits };
                 if (_rollingIn)
                 {
                     Clip = null;
                     if (frame < PartyClosingFrom)
                         return cue;
                     _rollingIn = false;
+                    _worldWaits = 0;
                     cue = new(Closings[Party].Request, 1);
                     return cue;
                 }
                 var closing = Closings[Tab];
+                // With the System tab alone, its closing ends as its roller reaches the World end's at the frame's edge.
+                var end = _systemAlone ? closing.End : length;
                 Clip = CloseClip(closing, frame);
-                Alpha = frame <= closing.FadeFrom ? 1 : Math.Max(0, (float)(length - frame) / (length - closing.FadeFrom));
-                if (frame <= closing.Start || frame < length)
+                Alpha = frame <= closing.FadeFrom ? 1 : Math.Max(0, (float)(end - frame) / (end - closing.FadeFrom));
+                if (frame <= closing.Start || frame < end)
                     return cue;
                 // Rolled up: it brightens from this frame on.
                 Phase = PauseScrollPhase.Brightening;
@@ -266,15 +307,24 @@ public sealed class PauseScroll
         Phase = PauseScrollPhase.Rolling;
         Clip = null;
         Alpha = 1;
+        ScrollCue cue;
         if (tab == Party)
         {
             // The other tabs' closing first, from where their opening has got to if it's still running on or held.
             _rollingIn = true;
-            var cue = _runningOn || _held ? new ScrollCue(Closings[System].Request, Reversed - _shown) : new ScrollCue(Closings[System].Request);
+            cue = _runningOn || _held ? new ScrollCue(Closings[System].Request, Reversed - _shown) : new ScrollCue(Closings[System].Request);
             (_runningOn, _held) = (false, false);
-            return cue;
         }
-        return new ScrollCue(Closings[tab].Request);
+        else
+            cue = new ScrollCue(Closings[tab].Request);
+        if (_worldHeld && !_systemAlone)
+        {
+            // The World end's roller turns back from where it holds, and waits there for the System end's to come to it.
+            _worldHeld = false;
+            _worldWaits = Reversed - _worldShown;
+            cue = cue with { WorldJoin = _worldWaits };
+        }
+        return _worldHeld ? cue with { WorldHeld = true } : cue;
     }
 
     /// <summary>The Party tab's scroll fades in as it rises into the frame.</summary>

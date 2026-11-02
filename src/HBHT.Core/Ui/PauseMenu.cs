@@ -251,7 +251,7 @@ public sealed class PauseMenu
     /// <param name="brightens">Whether the world brightens again as it closes; the loot window and shops snap back.</param>
     private void Open(PauseTab tab, bool tabsLocked, bool brightens = true, CombatPause? rules = null)
     {
-        Scroll = new PauseScroll((int)tab, brightens, holds: tabsLocked);
+        Scroll = new PauseScroll((int)tab, brightens, holds: tabsLocked, lastTab: (int)LastTab);
         _exit = PauseExit.Close;
         _ended = null;
         _frame.Reset();
