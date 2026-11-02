@@ -19,7 +19,7 @@ This is the one list of what's open. A task's status is in its phase's table bel
 **M4: the prologue** is done: the user played it side by side with the emulator, what differed is fixed, and the user has played the fixes. Next, by the phases' order, is **Phase 4: content parity**, once what the fixes left is settled.
 
 - **Combat parity (2.9):** the formula vectors from 1.0's functions in the interpreter past melee's, the turns', the setup's and the rewards' (ranged and flasks, casting, effects and potions, morale and the AI), the replay laying each actor's state from the RAM, the positions shown but not checked (among them reserves taking other spawn points than 1.0's on the same draws, which may be the port's) ([combat parity](systems/combat-parity.md#whats-left)).
-- **What the fixes left:** the remembered member and tab carried across a load, as the original keeps the member ([pause menu](systems/pause-menu.md#opening-and-closing)); and translucent scenery drawn after bodies, which tints the dress's hem in the misty sea's cut-scene ([rendering](systems/rendering.md#whats-left)).
+- **What the fixes left:** translucent scenery drawn after bodies, which tints the dress's hem in the misty sea's cut-scene ([rendering](systems/rendering.md#whats-left)).
 
 ### Left over from finished work
 

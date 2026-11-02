@@ -115,7 +115,8 @@ public sealed class PauseMenu
     /// C-left and C-right change it in any of them (<c>PartyMenu.ChangeMember</c>, <c>0x8003054C</c>), or the member whose turn a
     /// battle paused on (<c>Combat.StatePause</c>, <c>0x800226D0</c>). An empty slot steps back to the one before with a member, which
     /// is kept (<c>0x80030128</c>). Nothing else sets it, so it outlasts trek and combat, and it isn't saved. The original's
-    /// outlasts a save loaded too; the port's goes with the session, which loading builds again, as <see cref="Remembered"/> does.
+    /// outlasts a save loaded too; the port's goes with the session, which loading builds again, as <see cref="Remembered"/> does: a
+    /// loaded game opens on its leader, the user's choice (docs/systems/pause-menu.md).
     /// </summary>
     public int Member => IsOpen ? Window.Menu.Member : _member;
 
