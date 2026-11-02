@@ -210,10 +210,6 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         _windowSave = new Godot.Timer { OneShot = true, WaitTime = 0.5 };
         _windowSave.Timeout += () => _settings.Save(DataPaths.Settings);
         AddChild(_windowSave);
-        if (title)
-            StartTitle(options.TitleCards && !_titleLogo);
-        _titleLogo = false;
-        RunLaunchActions(options);
         _resizeSettle = new Godot.Timer { OneShot = true, WaitTime = 0.3 };
         _resizeSettle.Timeout += () =>
         {
@@ -222,6 +218,10 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
             ApplyWorldLines();
         };
         AddChild(_resizeSettle);
+        if (title)
+            StartTitle(options.TitleCards && !_titleLogo);
+        _titleLogo = false;
+        RunLaunchActions(options);
         if (fresh)
             session.StartNewGame();
     }
@@ -507,10 +507,6 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     /// </summary>
     private void WindowChanged()
     {
-        var mode = DisplayServer.WindowGetMode();
-        if (!_applyingWindow && !_settings.Fullscreen && mode is DisplayServer.WindowMode.Windowed or DisplayServer.WindowMode.Maximized)
-        {
-            var maximized = mode == DisplayServer.WindowMode.Maximized;
         var now = Time.GetTicksMsec();
         if (now - _lastResize < ResizeBurstMs)
         {
@@ -523,12 +519,16 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
             _resizeSettle?.Start();
         }
         _lastResize = now;
-            var size = DisplayServer.WindowGetSize();
+        var mode = DisplayServer.WindowGetMode();
         if (++_resizesUndrawn >= ResizesPerDraw && mode != DisplayServer.WindowMode.Minimized)
         {
             _resizesUndrawn = 0;
             RenderingServer.ForceDraw(swapBuffers: false);
         }
+        if (!_applyingWindow && !_settings.Fullscreen && mode is DisplayServer.WindowMode.Windowed or DisplayServer.WindowMode.Maximized)
+        {
+            var maximized = mode == DisplayServer.WindowMode.Maximized;
+            var size = DisplayServer.WindowGetSize();
             var s = _settings;
             if (maximized != s.Maximized || !maximized && (size.X, size.Y) != (s.WindowWidth, s.WindowHeight))
             {
@@ -542,10 +542,6 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         ScreenChanged();
     }
 
-    /// <summary>Tells the open options, the pause menu's or the title's, of the window as it is now.</summary>
-    private void ScreenChanged()
-    {
-        if (_session is not { } session)
     /// <summary>The 3D views' antialiasing as the settings ask for it.</summary>
     private Viewport.Msaa _msaa;
 
@@ -583,6 +579,10 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         _cinematic?.Viewport.Msaa3D = msaa;
     }
 
+    /// <summary>Tells the open options, the pause menu's or the title's, of the window as it is now.</summary>
+    private void ScreenChanged()
+    {
+        if (_session is not { } session)
             return;
         session.Menu.System?.ScreenChanged();
         session.Title?.Menu?.ScreenChanged();
@@ -602,11 +602,11 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         viewport.Scaling3DScale = _resizing ? 0.1f
             : _settings.WorldLines > 0 ? height > 0 ? Math.Min(1, _settings.WorldLines / height) : 1
             : Math.Clamp(_settings.RenderScale, 0.25f, 2);
+        _cinematic?.Viewport.Scaling3DScale = _resizing ? 0.1f : 1;
     }
 
     /// <summary>The installed plugins, after checking the base plugin is there and up to date.</summary>
     private static PluginSet LoadPlugins() => PluginSet.LoadInstalledChecked(DataPaths.Plugins);
-        _cinematic?.Viewport.Scaling3DScale = _resizing ? 0.1f : 1;
 
     public override void _ExitTree()
     {
@@ -872,11 +872,11 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
 
     public override void _Process(double delta)
     {
+        _resizesUndrawn = 0;
         SetTickRate();
         CaptureMouse();
         if (Streamer is not { } chunks || _player is null || _camera is null)
             return;
-        _resizesUndrawn = 0;
         // The world goes on being drawn behind the pause menu and a backdrop's page, still: its scenery's actors,
         // which animate with the frame, stop, and so does the free camera. The parent processes first, so this
         // holds from the frame the menu opens.
