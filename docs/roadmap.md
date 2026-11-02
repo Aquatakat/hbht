@@ -1,6 +1,6 @@
 # Aidyn Chronicles Reimplementation: Roadmap
 
-Sep 26, 2026 · Updated Nov 1, 2026
+Sep 26, 2026 · Updated Nov 2, 2026
 
 ## Summary
 
@@ -16,10 +16,9 @@ This is the one list of what's open. A task's status is in its phase's table bel
 
 ### Next
 
-**M4: the prologue** is done: the user played it side by side with the emulator, what differed is fixed, and the user has played the fixes. Next, by the phases' order, is **Phase 4: content parity**, once what the fixes left is settled.
+**M4: the prologue** is done: the user played it side by side with the emulator, what differed is fixed, and the user has played the fixes. Next, by the phases' order, is **Phase 4: content parity**.
 
 - **Combat parity (2.9):** the formula vectors from 1.0's functions in the interpreter past melee's, the turns', the setup's and the rewards' (ranged and flasks, casting, effects and potions, morale and the AI), the replay laying each actor's state from the RAM, the positions shown but not checked (among them reserves taking other spawn points than 1.0's on the same draws, which may be the port's) ([combat parity](systems/combat-parity.md#whats-left)).
-- **What the fixes left:** translucent scenery drawn after bodies, which tints the dress's hem in the misty sea's cut-scene ([rendering](systems/rendering.md#whats-left)).
 
 ### Left over from finished work
 
@@ -29,7 +28,7 @@ This is the one list of what's open. A task's status is in its phase's table bel
 - **Weather:** a Day or Night spell's hold on the part of day doesn't stop the weather's roll under it in a battle ([magic](systems/magic.md#where-the-port-differs)).
 - **2.10:** what else could move onto triggers, each with its event ([events](systems/events.md#what-else-could-move-onto-triggers)): the first spell and potion's help (`spell.learned`, `item.bought`), the new journal entry's notice (`journal.added`), the camp scenes (`camp.started`), the Shadow's cinematic and the Goblin Ambush's end (`battle.ended` with its outcome), and a conversation's end as `script.ended`. The editor has no view of the triggers of its own, and the quest atlas doesn't show what they read and set.
 - **Cheat codes:** not ported at all; typed as Alaron's name, they'd come in through the name entry as triggers on `cheat.entered` ([hardcoded content](hardcoded-content.md)).
-- **Rendering:** the items in [rendering](systems/rendering.md#whats-left): the lens flare's test, the sky overhead, texture filtering, environment maps in trek, which scenes are drawn, and the editor's billboards and containers. Translucent scenery over bodies is in [Next](#next).
+- **Rendering:** the items in [rendering](systems/rendering.md#whats-left): the lens flare's test, the sky overhead, texture filtering, environment maps in trek, which scenes are drawn, and the editor's billboards and containers.
 - **Audio:** the sounds not played yet: dialogue entities' voices and steps, the parchment popup's opening, the crafting and Healer lists' closing, and the save and load screens' own A and B ([audio](systems/audio.md#not-played-yet)).
 - **Saves:** what converting a checkpoint doesn't read yet: the potions working on a member, Alaron's name and the minimaps' pieces ([saves](systems/saves.md#checkpoints-as-saves)).
 - **M3:** the merge's shield test turned round, which the data never reaches ([combat](systems/combat.md#not-settled)); and from combat's [Where the port differs](systems/combat.md#where-the-port-differs): idle bodies far from the camera that combat doesn't animate (`Body.AlwaysAnimated`), the half-alpha shadows of a few entities, combat's frame-counter limit on pausing, and the glide's aim by the original's eye height. A falling body's root motion, which the original skips for Alaron's actor, is skipped in the port only for the player in trek ([movement](systems/movement.md)).
