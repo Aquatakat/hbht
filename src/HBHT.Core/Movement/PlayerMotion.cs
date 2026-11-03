@@ -138,9 +138,20 @@ public sealed class PlayerMotion
     /// <summary>
     /// An animation asked for in place of standing until trek takes the controls again, as using a container (request 11) or a
     /// teleporter (19) asks: the original writes it over the body's request after reading the controls (<c>MapObjectUse.Reach</c>,
-    /// <c>0x80004A58</c>), and it holds while the use keeps trek from reading them. <see cref="Asked"/> comes first.
+    /// <c>0x80004A58</c>), and it holds while the use keeps trek from reading them. It plays once, the port's, the user's choice: it
+    /// goes on the last frame of the state his actor entered for it, where the original's loops while a popup is up.
+    /// <see cref="Asked"/> comes first.
     /// </summary>
-    public int? Latched { get; set; }
+    public int? Latched
+    {
+        get => _latched;
+        set => (_latched, _latchedEntered) = (value, false);
+    }
+
+    private int? _latched;
+
+    /// <summary>Whether his actor has entered a state under <see cref="Latched"/>.</summary>
+    private bool _latchedEntered;
 
     /// <summary>Turns him to face <paramref name="heading"/> where he stands (<c>Actor::SetFacing</c>).</summary>
     public void Face(Vector2 heading) =>
@@ -172,6 +183,7 @@ public sealed class PlayerMotion
         if (Movement == MovementMode.Modern)
         {
             Body.Modern.Step(world, animation, driven: true);
+            PlayOnce(animation);
             FellOut = Sphere.Velocity.Y < -FallLimit || Sphere.Position.Y < Floor;
             if (FellOut)
             {
@@ -181,6 +193,7 @@ public sealed class PlayerMotion
             return;
         }
         _frameForward += Body.Animate(animation);
+        PlayOnce(animation);
         if (!_frame.Tick())
             return;
         var forward = _frameForward;
@@ -204,6 +217,33 @@ public sealed class PlayerMotion
         FellOut = Sphere.Velocity.Y < -FallLimit || Sphere.Position.Y < Floor;
         if (FellOut)
             Sphere.Velocity = Vector3.Zero;
+    }
+
+    /// <summary>
+    /// Lets <see cref="Latched"/> go on the last frame of the state his actor entered for it, so the state that follows is
+    /// standing's. An animation that isn't an actor's holds it.
+    /// </summary>
+    private void PlayOnce(IRootMotion animation)
+    {
+        if (Latched is not { } latched || animation is not Actors.IActorMotion actor)
+            return;
+        if (actor.Entered && Body.EntryRequest == latched)
+            _latchedEntered = true;
+        if (_latchedEntered && actor.Frame >= actor.StateLength)
+            Latched = null;
+    }
+
+    /// <summary>
+    /// Cuts short the animation <see cref="Latched"/> asked for: he stands at once, his actor back in its initial state, as he
+    /// comes through a door (<see cref="Trek.TrekLoop"/>).
+    /// </summary>
+    public void Stand(IRootMotion animation)
+    {
+        Latched = null;
+        if (animation is not Actors.IActorMotion actor)
+            return;
+        actor.Restart();
+        Body.Restarted();
     }
 
     /// <summary>Reads the controls (<c>Actor::Move</c>, the trek parts).</summary>
