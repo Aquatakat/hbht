@@ -112,8 +112,9 @@ public static class BasePlugin
     /// 62 welds the seams between meshes that miss by a hair (<see cref="ImportOptions.WeldSeams"/>).
     /// 63 has Wind on an ally hold combat's weather clear while it lasts (<c>weather</c>'s <c>during</c> 0), where 1.0's sets fog as it ends.
     /// 64 gives each entity's body its combat alpha (<c>alpha</c>): 127 for the seven bosses on actor 0x33DB and the Spirit Wolf, 255 for the rest.
+    /// 65 gives each dialogue entity the sounds 1.0 gives its body (<c>sounds</c>): the profile of the entity at its place in the dialogue entity list.
     /// </summary>
-    public const int ImporterVersion = 64;
+    public const int ImporterVersion = 65;
 
     /// <summary>
     /// What's wrong with the imported base plugin under <paramref name="pluginsDirectory"/>, worded for the player, or null if

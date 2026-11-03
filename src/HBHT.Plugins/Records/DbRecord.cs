@@ -10,7 +10,11 @@ namespace HBHT.Plugins.Records;
 /// for other records.
 /// </param>
 /// <param name="Body">How an entity or a dialogue entity stands in the world. None for other records.</param>
-public sealed record DbRecord(RecordId Id, string Name, RecordId? Portrait = null, EntityBody? Body = null);
+/// <param name="Sounds">
+/// Its body's footsteps and voice, as an entity record's. A dialogue entity's is the profile of the entity at its place in the
+/// dialogue entity list, which 1.0 borrows for it (docs/systems/audio.md). None for silence, and for other records.
+/// </param>
+public sealed record DbRecord(RecordId Id, string Name, RecordId? Portrait = null, EntityBody? Body = null, BodySounds? Sounds = null);
 
 /// <summary>
 /// How an entity or a dialogue entity stands in the world, as a wanderer or a cut-scene's actor

@@ -98,6 +98,40 @@ public sealed class CharacterImportTests(Na10Import fixture)
         Assert.Equal(0x24E, CharacterImporter.AlaronTrueNameFlag);
     }
 
+    /// <summary>
+    /// 1.0 gives a dialogue entity at place p of <c>DialogEntityList</c> the sound profile of the entity at place p of
+    /// <c>EntityList</c> (<c>Wanderers.Alloc</c> stores <c>GetIdIndex</c>, <c>AudioKeys.ProcessPlayer</c> reads the entities' table with
+    /// it). The base data's are all people's steps, kind 2.
+    /// </summary>
+    [Fact]
+    public void ADialogueEntityHasTheProfileOfTheEntityAtItsPlace()
+    {
+        var db = GameDb.Read(TestRoms.Get(RomVersionId.Na10));
+        string Json(BodySounds? s) => System.Text.Json.JsonSerializer.Serialize(s, PluginJson.Options);
+
+        var amann = Set.Get<DbRecord>(DbRecordIds.For(db.DialogEntities[36].Id)!.Value);
+        Assert.Equal("Amann", amann.Name);
+        Assert.Equal(RecordId.Hex(RecordTypes.DialogEntity, 0x1400), amann.Id);
+        var peer = Set.Get<EntityRecord>(DbRecordIds.For(db.Entities[36].Id)!.Value);
+        Assert.NotNull(peer.Sounds);
+        Assert.Equal(Json(peer.Sounds), Json(amann.Sounds));
+
+        // Every place the dialogue entities fill has a profile of the entities, and every one is people's steps.
+        for (var place = 0; place < db.DialogEntities.Count; place++)
+        {
+            var talker = Set.Get<DbRecord>(DbRecordIds.For(db.DialogEntities[place].Id)!.Value);
+            var entity = Set.Get<EntityRecord>(DbRecordIds.For(db.Entities[place].Id)!.Value);
+            Assert.Equal(Json(entity.Sounds), Json(talker.Sounds));
+            Assert.True(talker.Sounds is null or { Kind: 2 }, $"{talker.Name} is kind {talker.Sounds?.Kind}");
+        }
+
+        // The dialogue entities that monster parties walk as.
+        var walkers = Set.All<MapRecord>(RecordTypes.Map).SelectMany(m => m.Objects).OfType<MonsterPartyObject>()
+            .Select(p => p.Entity).Where(e => e.Type == RecordTypes.DialogEntity).Distinct().ToList();
+        Assert.Equal(18, walkers.Count);
+        Assert.All(walkers, w => Assert.Equal(2, Set.Get<DbRecord>(w).Sounds?.Kind));
+    }
+
     [Fact]
     public void OnlyAlaronHasATrueNameFlag()
     {
