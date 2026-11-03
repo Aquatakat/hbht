@@ -43,9 +43,9 @@ public static class CheckpointSave
             Party = new SaveParty
             {
                 Gold = checkpoint.Gold,
-                Members = [.. checkpoint.Party.Select(Member)],
+                Members = [.. checkpoint.Party.Select(m => Member(m, plugins))],
                 // The game keeps a copy for kept members in the party too; the port keeps only those who left.
-                Kept = [.. checkpoint.Kept.Where(k => checkpoint.Party.All(m => m.Id != k.Id)).Select(Member)],
+                Kept = [.. checkpoint.Kept.Where(k => checkpoint.Party.All(m => m.Id != k.Id)).Select(m => Member(m, plugins))],
                 Inventory = [.. checkpoint.Inventory.Select(s => new SaveStack(DbRecordIds.Item(s.Item.Id), s.Quantity)
                 {
                     Battery = Battery(s.Item),
@@ -53,6 +53,7 @@ public static class CheckpointSave
                 })],
             },
             Memories = [.. checkpoint.Memories.Select(m => Memory(m, plugins, problems)).OfType<SaveMemory>()],
+            Minimaps = PakSaves.SavedMinimaps(plugins, checkpoint.Minimaps),
             Weather = Weather(checkpoint.Weather),
         };
     }
@@ -69,12 +70,15 @@ public static class CheckpointSave
     /// <summary>The flags that are plain bits, 0 to 5000.</summary>
     private const int BitFlags = 5001;
 
-    private static SaveCharacter Member(CheckpointCharacter sheet)
+    private static SaveCharacter Member(CheckpointCharacter sheet, PluginSet plugins)
     {
         // The console's slots: the 12 skills, the 11 weapon skills, then the shield. -1 can't be learnt.
         var (skills, weaponSkills, shieldSkill) = SkillSlots.Split([.. sheet.SkillBase.Select(level => level == -1 ? (int?)null : level)]);
-        return new SaveCharacter(RecordId.Hex(RecordTypes.Entity, sheet.Id))
+        var id = RecordId.Hex(RecordTypes.Entity, sheet.Id);
+        return new SaveCharacter(id)
         {
+            // The sheet's name, where it isn't the record's (Alaron's, which the player names).
+            Name = sheet.Name is { Length: > 0 } name && name != plugins.TryGet<EntityRecord>(id)?.Name ? name : null,
             TrueName = (sheet.Flags & 1) != 0,
             TotalExp = sheet.TotalExp,
             SpendableExp = sheet.SpendableExp,

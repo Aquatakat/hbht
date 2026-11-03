@@ -385,15 +385,22 @@ public sealed class PakSaves
     }
 
     /// <summary>The minimaps, in the order the save numbers their pieces (<c>CodeTable.MinimapSections</c>).</summary>
-    private IEnumerable<MinimapRecord> Minimaps() =>
-        MinimapImporter.MapSets.Select(m => _plugins.TryGet<MinimapRecord>(RecordId.Decimal(RecordTypes.Minimap, m))).OfType<MinimapRecord>();
+    private IEnumerable<MinimapRecord> Minimaps() => Minimaps(_plugins);
 
-    /// <summary>The pieces seen, by minimap, for those not as they start, as <c>MinimapSeen.Save</c> lists them.</summary>
-    private List<SaveMinimap> SavedMinimaps(IReadOnlySet<int> bits)
+    private static IEnumerable<MinimapRecord> Minimaps(PluginSet plugins) =>
+        MinimapImporter.MapSets.Select(m => plugins.TryGet<MinimapRecord>(RecordId.Decimal(RecordTypes.Minimap, m))).OfType<MinimapRecord>();
+
+    private List<SaveMinimap> SavedMinimaps(IReadOnlySet<int> bits) => SavedMinimaps(_plugins, bits);
+
+    /// <summary>
+    /// The pieces seen, by minimap, for those not as they start, as <c>MinimapSeen.Save</c> lists them: <paramref name="bits"/> are
+    /// the pieces seen, numbered across the eight minimaps as a save or a checkpoint's RAM numbers them.
+    /// </summary>
+    internal static List<SaveMinimap> SavedMinimaps(PluginSet plugins, IReadOnlySet<int> bits)
     {
         var saved = new List<SaveMinimap>();
         var at = 0;
-        foreach (var minimap in Minimaps())
+        foreach (var minimap in Minimaps(plugins))
         {
             var seen = Enumerable.Range(0, minimap.Sections.Count).Where(i => bits.Contains(at + i)).ToList();
             if (!seen.SequenceEqual(Enumerable.Range(0, minimap.Sections.Count).Where(i => minimap.Sections[i].Seen)))

@@ -115,7 +115,7 @@ A save made from the "Before final encounter" checkpoint, cut short:
 
 ## Checkpoints as saves
 
-`CheckpointSave.Convert` reads a checkpoint (`AresCheckpoint`) into a save: its time played, clock, place, plain flags (2 to 5000; the first 5,001 flags are plain), the party's sheets, gold and inventory, the chart and the weather. The random streams start as a new game's, since the original's saves don't keep its seed. Where the RAM holds them, in both builds:
+`CheckpointSave.Convert` reads a checkpoint (`AresCheckpoint`) into a save: its time played, clock, place, plain flags (2 to 5000; the first 5,001 flags are plain), the party's sheets (with Alaron's name), gold and inventory, the chart, the minimaps' pieces and the weather. The random streams start as a new game's, since the original's saves don't keep its seed. Where the RAM holds them, in both builds:
 
 | What | Where |
 | --- | --- |
@@ -126,10 +126,12 @@ A save made from the "Before final encounter" checkpoint, cut short:
 | The chart (`voxelChart`, 19 × 12 bytes) | 0x800E0A74 in 1.0, 0x800EF5E4 in the debug build |
 | The weather as rolled: kind, what falls, intensity, fog, storm and wind | `*TerrainPointer` + 0x4, + 0x6, + 0x8, + 0xC, + 0x10, + 0x14 |
 | The weather as drawn: what's falling, how hard, the fog (`fogTime`) | `gGlobals` + 0x394 + 0x2, + 0x4, + 0xC |
+| A sheet's name: a pointer to a heap C string, 20 bytes at most (`PakSave.WriteAlaron`, `0x80019028`; `Party.CopyToKept`, `0x8001844C`, ends with a `strcpy` of it) | the sheet + 0x4 |
+| The minimaps' pieces (`CodeTable.MinimapSections`): the table of eight list pointers, each list 14-byte pieces ending at a group (+4) of 0, a piece's seen halfword at +6, live. `MinimapSeen.Save` (`0x80049760`) numbers them across the lists, 188 in all | 0x800DFBA4 in 1.0, 0x800EE704 in the debug build |
 
 `gGlobals` is at 0x800D8088 in 1.0 and 0x800E68A8 in the debug build, and `TerrainPointer` at 0x800E303C and 0x800F1BBC.
 
-The kept sheets of members not in the party come over too (`AresCheckpoint.Kept`, from `gSaveEntity` at `0x800DA4E0` in 1.0 and `0x800E8F10` in the debug build), and each member's True Name from the sheet's bit. The converter doesn't read the potions working on a member, Alaron's name or the minimaps' pieces.
+The kept sheets of members not in the party come over too (`AresCheckpoint.Kept`, from `gSaveEntity` at `0x800DA4E0` in 1.0 and `0x800E8F10` in the debug build), and each member's True Name from the sheet's bit. The converter sets a member's name only where the sheet's differs from the record's, which no checkpoint's does (Alaron is "Alaron" in all). It reads the minimaps' pieces as `PakSaves` does, listing a minimap when its pieces aren't as it starts: the start's checkpoint has 8 seen, "Before Shamsuk's Tower" 26, "Before Rooughah" 96 and the later two 97, in both builds, and the story saves on the 1.0 pak hold the same counts. The converter doesn't read the potions working on a member.
 
 ## The original's save
 

@@ -30,6 +30,7 @@ public sealed class AresCheckpoint
     private Build? _build;
     private CheckpointPlace? _place;
     private IReadOnlyList<CheckpointMemory>? _memories;
+    private HashSet<int>? _minimaps;
 
     private AresCheckpoint(byte[] state, int rdramStart, uint funnel)
     {
@@ -107,7 +108,7 @@ public sealed class AresCheckpoint
     /// Where the globals the port reads are in a build of the game: <c>gGlobals</c> with its
     /// <c>party</c> pointer, the <c>TerrainPointer</c>, and the <c>voxelChart</c>.
     /// </summary>
-    private sealed record Build(uint Globals, uint PartyPointer, uint TerrainPointer, uint VoxelChart, uint KeptPointer);
+    private sealed record Build(uint Globals, uint PartyPointer, uint TerrainPointer, uint VoxelChart, uint KeptPointer, uint MinimapSections);
 
     /// <summary>
     /// 1.0's addresses, then the debug build's. A state doesn't say which it's of, so the first whose
@@ -116,8 +117,8 @@ public sealed class AresCheckpoint
     /// </summary>
     private static readonly Build[] Builds =
     [
-        new(0x800D8088, 0x800D9684, 0x800E303C, 0x800E0A74, 0x800DA4E0),
-        new(0x800E68A8, 0x800E7EA0, 0x800F1BBC, 0x800EF5E4, 0x800E8F10),
+        new(0x800D8088, 0x800D9684, 0x800E303C, 0x800E0A74, 0x800DA4E0, 0x800DFBA4),
+        new(0x800E68A8, 0x800E7EA0, 0x800F1BBC, 0x800EF5E4, 0x800E8F10, 0x800EE704),
     ];
 
     /// <summary>The build this state is of, found once, by which one's party pointer leads to a party.</summary>
@@ -174,6 +175,31 @@ public sealed class AresCheckpoint
     /// order. 1.0 has the chart at 0x800E0A74, the debug build at 0x800EF5E4.
     /// </summary>
     public IReadOnlyList<CheckpointMemory> Memories => _memories ??= ReadMemories();
+
+    /// <summary>
+    /// The minimaps' pieces seen, numbered across the eight lists as <c>MinimapSeen.Save</c> (<c>0x80049760</c>) packs them:
+    /// the pointer table <c>CodeTable.MinimapSections</c> (<c>0x800DFBA4</c> in 1.0, <c>0x800EE704</c> in the debug build)
+    /// leads to each list of 14-byte pieces, ending at a group (+4) of 0, and a piece's seen halfword (+6) is live in RAM.
+    /// </summary>
+    public IReadOnlySet<int> Minimaps => _minimaps ??= ReadMinimaps();
+
+    private const uint MinimapPieceSize = 14;
+
+    private HashSet<int> ReadMinimaps()
+    {
+        var table = WhichBuild().MinimapSections;
+        var seen = new HashSet<int>();
+        var at = 0;
+        for (var list = 0u; ReadWord(table + list * 4) is var pointer and not 0; list++)
+        {
+            for (var piece = pointer; Half(piece + 4) != 0; piece += MinimapPieceSize, at++)
+            {
+                if (Half(piece + 6) != 0)
+                    seen.Add(at);
+            }
+        }
+        return seen;
+    }
 
     private CheckpointPlace ReadPlace()
     {
@@ -306,12 +332,27 @@ public sealed class AresCheckpoint
             Signed(skills, 24), Signed(skills + 0x18, 24),
             ReadWord(exp + 4), ReadWord(exp + 8), ReadByte(exp + 1), ReadByte(exp + 2), ReadByte(exp + 3), ReadByte(exp + 0xC), spells)
         {
+            Name = ReadName(ReadWord(sheet + 4)),
             Weapon = OptionalItem(ReadWord(sheet + 0x24)),
             Armor = InRam(armor) ? OptionalItem(ReadWord(armor)) : null,
             Shield = InRam(armor) ? OptionalItem(ReadWord(armor + 4)) : null,
             Gear = InRam(slots) ? [.. Enumerable.Range(0, (int)GearSlots).Select(i => OptionalItem(ReadWord(slots + (uint)i * 4)))] : [],
             GearCount = InRam(gear) ? ReadByte(gear + 4) : 0,
         };
+    }
+
+    private const int NameLength = 20;
+
+    /// <summary>
+    /// A sheet's name: the C string its pointer at +4 leads to, in a 20-byte buffer (<c>PakSave.WriteAlaron</c>, <c>0x80019028</c>,
+    /// reads it by <c>strlen</c>; <c>Party.CopyToKept</c>, <c>0x8001844C</c>, ends with a <c>strcpy</c> of it).
+    /// </summary>
+    private string? ReadName(uint pointer)
+    {
+        if (!InRam(pointer) || pointer + NameLength > 0x80000000 + RdramSize)
+            return null;
+        var bytes = Enumerable.Range(0, NameLength).Select(i => ReadByte(pointer + (uint)i)).TakeWhile(b => b != 0).ToArray();
+        return System.Text.Encoding.Latin1.GetString(bytes);
     }
 
     private int[] Bytes(uint address, int count) => [.. Enumerable.Range(0, count).Select(i => (int)ReadByte(address + (uint)i))];
@@ -367,6 +408,9 @@ public sealed record CheckpointCharacter(
     int Flags,
     IReadOnlyList<(ushort Spell, int Level)> Spells)
 {
+    /// <summary>The name the sheet's pointer at +4 leads to, null if it leads nowhere.</summary>
+    public string? Name { get; init; }
+
     public CheckpointItem? Weapon { get; init; }
 
     public CheckpointItem? Armor { get; init; }
