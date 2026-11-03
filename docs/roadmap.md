@@ -22,19 +22,18 @@ This is the one list of what's open. A task's status is in its phase's table bel
 
 ### Left over from finished work
 
-- **M2:** the editor showing cut-scenes on its map; Alaron's requests as he opens a container (11) or a door (19) ([map-objects](systems/map-objects.md#whats-left)); and the quest atlas reading the combat record's boss flags.
+- **M2:** Alaron's requests as he opens a container (11) or uses a teleporter (19) ([map-objects](systems/map-objects.md#whats-left)); and the quest atlas reading the combat record's boss flags.
 - **The menus' mouse:** the mouse choosing a row, and on the World tab ([pause menu](systems/pause-menu.md)); the user has set it aside for now. The menus' motion is otherwise 1.0's: their slides, fades and scroll, a battle's pause on a wide screen and the details' edge.
 - **Content still in code:** the [hardcoded content](hardcoded-content.md) log, planned in [Phase 5](#phase-5-mod-system-and-tools).
 - **2.10:** what else could move onto triggers, each with its event ([events](systems/events.md#what-else-could-move-onto-triggers)): the first spell and potion's help (`spell.learned`, `item.bought`), the new journal entry's notice (`journal.added`), the camp scenes (`camp.started`), the Shadow's cinematic and the Goblin Ambush's end (`battle.ended` with its outcome), and a conversation's end as `script.ended`. The editor has no view of the triggers of its own, and the quest atlas doesn't show what they read and set.
-- **Rendering:** the items in [rendering](systems/rendering.md#whats-left): the lens flare's test, the sky overhead, texture filtering, environment maps in trek, which scenes are drawn, and the editor's billboards and containers.
+- **Rendering:** the items in [rendering](systems/rendering.md#whats-left): environment maps in trek, the scenes a chunk draws past its own edge under the longer draw distance, with that distance chosen chunk by chunk, and the editor's billboards and containers.
 - **Audio:** the sounds not played yet: dialogue entities' voices and steps ([audio](systems/audio.md#not-played-yet)).
 - **Saves:** what converting a checkpoint doesn't read yet: the potions working on a member, Alaron's name and the minimaps' pieces ([saves](systems/saves.md#checkpoints-as-saves)).
-- **M3:** the merge's shield test turned round, which the data never reaches ([combat](systems/combat.md#not-settled)); and from combat's [Where the port differs](systems/combat.md#where-the-port-differs): idle bodies far from the camera that combat doesn't animate (`Body.AlwaysAnimated`), the half-alpha shadows of a few entities, combat's frame-counter limit on pausing, and the glide's aim by the original's eye height. A falling body's root motion, which the original skips for Alaron's actor, is skipped in the port only for the player in trek ([movement](systems/movement.md)).
-- **What the bodies hold** ([combat](systems/combat-actions.md#what-the-bodies-hold)): an arrow, flask or thrown weapon flying not at all from an actor without the hand's locator, as `Combat.StartCastCamera` does; what's held lit at its locator rather than the body's centre.
+- **M3:** the merge's shield test turned round, which decides whether the merge raises Alaron's shield skill ([combat](systems/combat.md#not-settled)); the half-alpha bodies of the seven Chaos lieutenants and the Spirit Wolf ([combat](systems/combat.md#where-the-port-differs)). A falling body's root motion, which the original skips for Alaron's actor, is skipped in the port only for the player in trek ([movement](systems/movement.md)).
+- **What the bodies hold** ([combat](systems/combat-actions.md#what-the-bodies-hold)): what a cut-scene shows in a hand (`ShowItem`) taking the scenery's tint.
 
 ### Maybe
 
-- The editor showing wanderers on its map view.
 - A profile of trek on the Talewok shore toward Port Saiid, where fast-forward once fell from about 120 fps to 25 while it was fine elsewhere: something there costs far more per tick.
 - **Faster battles,** a setting, after combat's parity fixes: the next combatant starts moving while the last action plays, once nothing it touches is still in that action, as Ogre Battle 64 does. The rules and their random numbers stay as they are, since an attack's outcome is rolled when it's chosen; only what's drawn overlaps. The camera can pick shots that hold both, scoring angles by raycast.
 
@@ -80,7 +79,7 @@ Each track ends with an exporter to an open format and a viewer in the editor: i
 | **1D Audio** | Borg11 PCM, Borg12 sequences and their playback, the audiokey table | M | BGM plays correctly | Done Oct 10, 2026; what isn't played yet is in [audio](systems/audio.md) |
 | **1E Quest atlas** | Borg13 decoding with its branching, the flag network, flag cross-references, journal linkage | L | What sets and reads every flag, and which journal entry it maps to (`hbht flag <n>`, and the editor's Atlas tab) | Done |
 | **1F Text & UI assets** | String tables, the fonts, portraits, menu images | S | The dialogue box renders in the right font | Done |
-| **1G Saves** (optional) | Importing the original's Controller Pak saves | M | An original save imports | Open. The checkpoints already convert into saves (2.8). |
+| **1G Saves** (optional) | Importing the original's Controller Pak saves | M | An original save imports | Done Oct 2026: `hbht save from-pak` ([saves](systems/saves.md#the-originals-save)). No button in the runtime or the editor, the user's choice: emulators keep their paks in their own ways. |
 | **1H Hardcoded content** | Every piece of content in code rather than data, each assigned an [ADR 0008](adr/0008-content-logic-layers.md) layer | M | [code-tables](formats/code-tables.md) | Done Oct 19, 2026: every content table is read or carried; what the port's code still holds is the [hardcoded content](hardcoded-content.md) log |
 
 ### Phase 2: Rules core (headless, test-driven)
@@ -132,7 +131,7 @@ The base game is a plugin, so the mod format is exercised all the time; Phase 5 
 | Content out of code: the [hardcoded content](hardcoded-content.md) log, from records and fields (the protagonist read from the new game record, three code tables read rather than written as literals) to features that need designing (skill checks, combat's chance and damage formulas, an AI record, aspects and elements) and the events the cheats and the first-spell help wait on | L | |
 | Asset overrides (glTF, PNG, OGG) and new assets | M | |
 | Scripting: a Borg13 superset for dialogue and cut-scenes, plus sandboxed Lua event handlers on the 2.10 events (ADR 0008). Mods can't load .NET assemblies. | L | |
-| **Editor.** Grow the editor into a Construction Set: record editing, dialogue graph editing, map object placement, and a quest atlas that includes mod content. It shows the HUD and the World tab too, which the runtime draws and the editor doesn't yet | XL | |
+| **Editor.** Grow the editor into a Construction Set: record editing, dialogue graph editing, map object placement, and a quest atlas that includes mod content. It shows the HUD and the World tab too, which the runtime draws and the editor doesn't yet; its map object pages use doors, triggers and teleporters; its map shows wanderers; and how it shows a cut-scene on its map, past the reference points it already draws, is to be worked out with the user | XL | |
 | Cheat codes: not ported at all; typed as Alaron's name, they'd come in through the name entry as triggers on `cheat.entered`, with their accepted and rejected sounds (0x0718, 0x0721) ([hardcoded content](hardcoded-content.md)) | S | |
 | Documentation and a sample mod (a new trainer, a new quest and a rebalanced spell) | M | |
 | A bugfix mod: the content fixes the user chooses, as patches to the base plugin ([ADR 0029](adr/0029-content-fixes-wait-for-a-bugfix-mod.md)), for what crashed or softlocked the original, and wording the game is inconsistent in; cut-scenes' oddities, which are in most of them, are out of its scope. So far: script 1040's node 24, Dougal's, linked to node 25, so the harbour reunion plays with him in the party ([scripts](systems/scripts.md#faults)); Sense Aura's "%d Total Hitpoints" as "%d Total Hit Points", the combat record's `text.aura.hitpoints`, as the rest of the game writes it ([combat-actions](systems/combat-actions.md#spells-potions-and-skills-in-a-turn)) | S | |
