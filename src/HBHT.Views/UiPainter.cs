@@ -102,11 +102,17 @@ public sealed class UiPainter
     public void Choice(CanvasItem canvas, Vector2I screen, MenuChoice choice, Rgba cursor) =>
         Choice(canvas, screen, choice.Text, choice.Width, choice.Gap, choice.Color, choice.ChoiceColor, choice.Choices, cursor);
 
-    /// <summary>The popups a menu has open that are drawn over the screen: its question, then its message over that.</summary>
+    /// <summary>
+    /// The popups a menu has open that are drawn over the screen: its question, an answered one under it as it fades out,
+    /// then its message over that.
+    /// </summary>
     public void Overlay(CanvasItem canvas, Vector2I screen, MenuOverlay overlay)
     {
-        if (overlay.Choice is { } choice)
-            Choice(canvas, screen, choice, overlay.Highlight);
+        var question = overlay.Question;
+        if (question.Leaving is { } leaving)
+            Faded(question.LeavingAlpha, () => Choice(canvas, screen, leaving, overlay.Highlight));
+        if (question.Up is { } choice)
+            Faded(question.Alpha, () => Choice(canvas, screen, choice, overlay.Highlight));
         if (overlay.Message is { } message)
         {
             // The message's fade multiplies everything of it, its panel and text alike.
@@ -115,6 +121,15 @@ public sealed class UiPainter
             Message(canvas, screen, message);
             Opacity = opacity;
         }
+    }
+
+    /// <summary>Draws at <paramref name="alpha"/> times the opacity: a fade multiplies everything of a popup, its panel and text alike.</summary>
+    public void Faded(int alpha, Action draw)
+    {
+        var opacity = Opacity;
+        Opacity *= alpha / 255f;
+        draw();
+        Opacity = opacity;
     }
 
     /// <summary>

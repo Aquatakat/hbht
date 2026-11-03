@@ -64,7 +64,10 @@ public sealed class MenuOverlay
     public string? Help { get; private set; }
 
     /// <summary>A question over choices, which the menu answers.</summary>
-    public MenuChoice? Choice { get; private set; }
+    public MenuChoice? Choice => Question.Up;
+
+    /// <summary>The question as it fades in and out, the port's (<see cref="QuestionFade{T}"/>).</summary>
+    public QuestionFade<MenuChoice> Question { get; } = new();
 
     /// <summary>C-down's details of the row the menu points at, which fade as popups do (<see cref="PopupFade"/>).</summary>
     public DetailsPane Details { get; } = new();
@@ -102,7 +105,7 @@ public sealed class MenuOverlay
     /// <summary>Puts a question up, its cursor pulsing from the first colour.</summary>
     public void Ask(MenuChoice choice)
     {
-        Choice = choice;
+        Question.Ask(choice);
         ResetPulse();
     }
 
@@ -134,8 +137,8 @@ public sealed class MenuOverlay
     /// <summary>Closes the message, else the help: the layers a press closes outright. True if one closed.</summary>
     public bool Dismiss() => CloseMessage() || CloseHelp();
 
-    /// <summary>Takes the question down, answered or not.</summary>
-    public void CloseChoice() => Choice = null;
+    /// <summary>Takes the question down, answered or not, to fade out.</summary>
+    public void CloseChoice() => Question.Close();
 
     /// <summary>Moves the question's cursor, if it's the popup that takes the presses. True if it was.</summary>
     public bool MoveCursor(int by)
@@ -152,10 +155,11 @@ public sealed class MenuOverlay
     /// <summary>C-down let go: the details fade out once they're open.</summary>
     public void ReleaseDetails() => Details.Release();
 
-    /// <summary>Steps the choice's pulse, the message's fade and the details' by a tick.</summary>
+    /// <summary>Steps the choice's pulse, the question's fade, the message's and the details' by a tick.</summary>
     public void Step()
     {
         _pulse.Step();
+        Question.Step();
         Details.Advance();
         MessageFade?.Advance();
         if (MessageFade?.IsGone == true)

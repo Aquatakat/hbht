@@ -171,7 +171,10 @@ public sealed class BarterMenu : IPartyWindow
     public string? Help => Overlay.Help;
 
     /// <summary>The question that drops or sells some of what the party carries.</summary>
-    public BarterConfirm? Confirm { get; private set; }
+    public BarterConfirm? Confirm => ConfirmFade.Up;
+
+    /// <summary>The drop's or the sale's question as it fades in and out, the port's (<see cref="QuestionFade{T}"/>).</summary>
+    public QuestionFade<BarterConfirm> ConfirmFade { get; } = new();
 
     /// <summary>Whether to leave the items that are left.</summary>
     public MenuChoice? Choice => Overlay.Choice;
@@ -234,6 +237,7 @@ public sealed class BarterMenu : IPartyWindow
     {
         Party.Step();
         Overlay.Step();
+        ConfirmFade.Step();
     }
 
     /// <summary>A: closes a message or the help, chooses in a popup, or takes, buys, drops or sells the active row.</summary>
@@ -358,14 +362,14 @@ public sealed class BarterMenu : IPartyWindow
                 : text.Format(selling ? MenuText.SellSome : MenuText.DropSome, q), q)));
         }
         var question = selling ? text.Format(MenuText.SellConfirm, price, row.Item.Name) : text.Format(MenuText.DropConfirm, row.Item.Name);
-        Confirm = new BarterConfirm(question, new MenuList<BarterOption>(options), row.Item.Id, price);
+        ConfirmFade.Ask(new BarterConfirm(question, new MenuList<BarterOption>(options), row.Item.Id, price));
         Overlay.ResetPulse();
     }
 
     // DollBarterConfirm::AFunc: the cursor stays on the row, which what's left or the next moves up into.
     private void Trade(BarterConfirm confirm)
     {
-        Confirm = null;
+        ConfirmFade.Close();
         if (confirm.Options.Current is not { Quantity: > 0 } option)
             return;
         if (Shop is { } shop)

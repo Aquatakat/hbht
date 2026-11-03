@@ -72,6 +72,39 @@ public class PopupFadeTests
         Assert.True(popup.IsGone);
     }
 
+    /// <summary>
+    /// A menu's question fades as a message does, 90 an update, where 1.0's has no fade, the user's choice. Answered, it's
+    /// gone from the overlay at once, and fades out from under it.
+    /// </summary>
+    [Fact]
+    public void AMenusQuestionFadesInAndOutNinetyAnUpdate()
+    {
+        var overlay = new MenuOverlay();
+        var choice = MenuChoice.Question("a", ["b", "c"]);
+        overlay.Ask(choice);
+        var drawn = new List<int>();
+        for (var i = 0; i < 3; i++)
+        {
+            overlay.Step();
+            drawn.Add(overlay.Question.Alpha);
+        }
+        Assert.Equal([90, 180, 255], drawn);
+        Assert.False(overlay.Question.Fading);
+
+        overlay.CloseChoice();
+        Assert.Null(overlay.Choice);
+        Assert.False(overlay.HasPopup);
+        Assert.Same(choice, overlay.Question.Leaving);
+        drawn = [];
+        for (var i = 0; i < 3; i++)
+        {
+            overlay.Step();
+            drawn.Add(overlay.Question.LeavingAlpha);
+        }
+        Assert.Equal([165, 75, 0], drawn);
+        Assert.Null(overlay.Question.Leaving);
+    }
+
     /// <summary>The trap's question fades as a message does, where 1.0's has no fade, the user's choice.</summary>
     [Fact]
     public void ATrekQuestionFadesAsAMessageDoes()

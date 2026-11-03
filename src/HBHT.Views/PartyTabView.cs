@@ -454,8 +454,14 @@ public partial class PartyTabView : Control
     private void Popups()
     {
         var screen = (Vector2I)Size;
-        if (Window is BarterMenu { Confirm: { } confirm } barter)
-            Confirm(confirm, barter.PopupHighlight);
+        if (Window is BarterMenu barter)
+        {
+            var fade = barter.ConfirmFade;
+            if (fade.Leaving is { } leaving)
+                _ui.Faded(fade.LeavingAlpha, () => Confirm(leaving, barter.PopupHighlight));
+            if (fade.Up is { } confirm)
+                _ui.Faded(fade.Alpha, () => Confirm(confirm, barter.PopupHighlight));
+        }
         _ui.Overlay(_canvas, screen, Window.Overlay);
     }
 
