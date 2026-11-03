@@ -76,6 +76,7 @@ public partial class Game
     private void SyncCutScene()
     {
         var scene = Scene!;
+        var scenery = Stage!.Sky.Colors.Tint;
         foreach (var actor in scene.Actors)
         {
             if (!_actorViews.TryGetValue(actor, out var view))
@@ -86,7 +87,7 @@ public partial class Game
                 view.ResetPhysicsInterpolation();
             }
             view.Sync();
-            view.Draw(_world, scene.Camera.Aim, _objectDistance.Actors);
+            view.Draw(_world, scene.Camera.Aim, _objectDistance.Actors, scene.Camera.Position, scenery);
         }
         // A cut jumps the view rather than blending it over the tick. Godot resets interpolation from where the
         // camera is when it's called, so after the camera has moved.
