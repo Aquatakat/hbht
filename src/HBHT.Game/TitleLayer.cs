@@ -222,8 +222,6 @@ public partial class TitleLayer : CanvasLayer
             var angle = Mathf.DegToRad(degrees);
             _camera.LookAtFromPosition(new Vector3(Mathf.Sin(angle) * IntroCards.LogoDistance, IntroCards.LogoHeight, Mathf.Cos(angle) * IntroCards.LogoDistance),
                 Vector3.Zero, Vector3.Up);
-            if (_scene is not null)
-                N64Material.SetEye(_scene, _camera.GlobalPosition);
             _lights?.Apply();
             var shade = alpha / 255f;
             Modulate = new Color(shade, shade, shade);
