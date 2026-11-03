@@ -17,7 +17,7 @@ A choice changes the records but not the importer version: `BasePlugin.Diagnose`
 
 `BaseImporter.Import` stages the plugin in a sibling folder (`<dir>.importing`) and moves it into place when it's done. An `ImportContext` holds what the families share: the ROM, its Borg archive and DB, each code-segment table read once on first use (`EngineTables`, `BodySoundTables`, `AudioTables` and the rest), and the writers for records and assets. An importer per family then builds its records, in this order:
 
-- `WorldImporter`: map sets, terrains, weather, the World tab's map, camping, the new game, the title, the sky.
+- `WorldImporter`: map sets, terrains, weather, the World tab's map, camping, the new game, the title, the sky. The Overworld's chunks take what `ChunkCuts` took out of their scenes (their `fill` and `shows`, and a chunk for each fill over a cell with none) and which ones Draw Distance's Extended draws further round (`extended`, `MapSets.Extended`) ([rendering](rendering.md#draw-distance)).
 - `CombatImporter`: the combat record (`aidyn:combat/0`) and its `text` ([combat](combat.md), [hardcoded content](../hardcoded-content.md#bespoke-behaviours)).
 - `MagicImporter`: spells' and potions' effects and visuals, and the magic record (`aidyn:magic/0`) ([magic](magic.md)). The original's code switches on a spell's kind, so each effect is a fact, and the importer fails on a spell without one, a fact without a spell, or a name or entity place that differs.
 - `FlagImporter`: flags, the journal, the state flags.
@@ -28,7 +28,7 @@ A choice changes the records but not the importer version: `BasePlugin.Diagnose`
 - `CinematicImporter`: the four cinematics, the credits.
 - `TriggerImporter`: the base game's triggers, `aidyn:trigger/<n>` in `triggers.json` ([events](events.md)).
 - `MapImporter`: minimaps, maps and their collision.
-- `GraphicsImporter`: actors, scenes and their emitters, textures, UI images.
+- `GraphicsImporter`: actors, scenes and their emitters, textures, UI images, and the fills. The chunk scenes' seam welds and the Overworld's cut are worked out once, in the context (`ctx.ChunkWelds`, `ctx.OverworldCuts`), since the map sets need the cut first; a chunk scene's export draws what the cut left it (`SceneGltf.Export`'s `cut`).
 - `AudioImporter`: the sounds record, sequences, samples.
 
 `BodySoundImporter` and `MinimapImporter` build the sounds and minimap records the others write.

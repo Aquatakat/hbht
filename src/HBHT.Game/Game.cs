@@ -55,8 +55,6 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     private ChunkStreamerView? _chunks;
     /// <summary>Trek's scenery beyond the 3×3 under Draw Distance's Extended, which only the runtime holds.</summary>
     private SceneryRing? _ring;
-    /// <summary>The drawn chunks' cells as last handed to the shader (<see cref="N64Material.SetCells"/>), all 0 for none.</summary>
-    private (int Row, int Column, int Reach, int Drawn) _cells;
     /// <summary>What builds trek's chunks' scenery off the main thread (docs/adr/0025-chunks-load-off-the-main-thread.md).</summary>
     private ChunkBuilder? _builder;
     private bool _extendedDrawDistance;
@@ -911,32 +909,22 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     }
 
     /// <summary>
-    /// Draw Distance's Extended, in trek alone: the ring of scenery round the 3×3 on the Overworld, and the frame cut at a sphere
-    /// about the eye, further over the ring. Then what's been built of trek's chunks off the main thread comes in, and what the
-    /// next crossing could load is read ahead.
+    /// In trek alone, the scenery round the 3×3: what its chunks show, and under Draw Distance's Extended, the 5×5 round a chunk that
+    /// has it, with the frame cut at a sphere about the eye, further over the 5×5. Then what's been built of trek's chunks off the
+    /// main thread comes in, and what the next crossing could load is read ahead.
     /// </summary>
     private void StreamFurther()
     {
         // Not under a cinematic or the credits either, which draw their own scenes through the same material.
-        var extended = _extendedDrawDistance && Scene is null && Battle is null
-            && _session is { StreamsTrek: true, Mode: not (GameMode.Cinematic or GameMode.Credits) };
-        _ring!.Enabled = extended;
+        var trek = Scene is null && Battle is null && _session is { StreamsTrek: true, Mode: not (GameMode.Cinematic or GameMode.Credits) };
+        _ring!.Enabled = trek;
+        _ring.Extended = _extendedDrawDistance;
         _ring.Update();
         _chunks!.Settle();
         _chunks.Flush();
         _chunks.ReadAhead();
-        _sky!.Radial = extended;
-        _sky.Further = _ring.Active;
-        // No chunk's stand-in for the land round it over a drawn chunk two or more away, which the original never draws: on the
-        // Overworld's 5 × 5 alone, as elsewhere Extended keeps the 3 × 3, drawn as the original's. Only as it changes, as for
-        // the camera's far plane below.
-        var centre = _chunks.Chunks.Centre;
-        var cells = _ring.Active ? (centre.Row, centre.Column, SceneryRing.Reach, _chunks.DrawnCells(SceneryRing.Reach)) : (0, 0, 0, 0);
-        if (_cells != cells)
-        {
-            _cells = cells;
-            N64Material.SetCells(cells.Item1, cells.Item2, cells.Item3, (float)_chunks.Chunks.MapSet.CellSize, cells.Item4);
-        }
+        _sky!.Radial = trek && _extendedDrawDistance;
+        _sky.Further = _ring.Reach == SceneryRing.ExtendedReach;
         // Only as it changes: setting it calls into the renderer, which can be busy with what the builder makes.
         if (Scene is null && Battle is null && _camera!.Far != _sky.CameraFar)
             _camera.Far = _sky.CameraFar;

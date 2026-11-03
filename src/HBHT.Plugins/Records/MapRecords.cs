@@ -44,7 +44,8 @@ public sealed record SpawnPoint(int Portal, int Row, int Column, Vector2 Positio
 
 /// <summary>
 /// One chunk of a <see cref="MapSetRecord"/>. The runtime keeps the 3×3 chunks around the player
-/// loaded.
+/// loaded, and draws the scenery of those its <see cref="Shows"/> name and, under Draw Distance's Extended, of the 5×5
+/// (docs/systems/rendering.md#draw-distance).
 /// </summary>
 /// <param name="Row">1-based. The debug overlay shows it as a letter, so row 8 is H.</param>
 /// <param name="Scene">The chunk's scenery, drawn at its origin.</param>
@@ -58,6 +59,20 @@ public sealed record SpawnPoint(int Portal, int Row, int Column, Vector2 Positio
 /// other map sets carry the Overworld's flags too.
 /// </param>
 /// <param name="Swap">The scenes it draws in place of its own while a flag holds, as it loads (<see cref="Drawn"/>).</param>
+/// <param name="Fill">
+/// What other chunks' scenes drew over its cell that its own don't, which the importer took out of theirs: drawn with it, whatever
+/// it swaps (<c>aidyn:fill/n</c>, a glTF in the chunk's coordinates like a scene's). The importer makes a chunk of its own for a
+/// cell that had only this, as the original has for some of the sea.
+/// </param>
+/// <param name="Extended">
+/// Whether Draw Distance's Extended draws the 5×5 round it while it's the centre, and draws it in the 5×5 round another. Off, the
+/// player in it sees the 3×3, and it isn't drawn further than the 3×3 round another.
+/// </param>
+/// <param name="Shows">
+/// The chunks that draw what its scenes drew over their cells, which the importer took out of its scenes: their scenery is
+/// drawn while it's loaded, out to one past the 3×3 or the 5×5 round the player, so the view past the loaded chunks is the
+/// chunks themselves rather than a copy of them. Null for none.
+/// </param>
 public sealed record ChunkEntry(
     int Row,
     int Column,
@@ -67,7 +82,10 @@ public sealed record ChunkEntry(
     int Terrain,
     RecordId? Music = null,
     RecordId? Region = null,
-    SceneSwap? Swap = null)
+    SceneSwap? Swap = null,
+    RecordId? Fill = null,
+    bool Extended = false,
+    [property: KeyedList(nameof(ChunkCell.Row), nameof(ChunkCell.Column))] IReadOnlyList<ChunkCell>? Shows = null)
 {
     /// <summary>
     /// The chunk as it's drawn by the flags as they are, which it's read by as it loads: with its <see cref="Swap"/>'s scenes
@@ -76,10 +94,10 @@ public sealed record ChunkEntry(
     public ChunkEntry Drawn(Func<FlagGate, bool> holds) =>
         Swap is { } swap && holds(swap.While) ? this with { Scene = swap.Scene, AltScene = swap.AltScene } : this;
 
-    /// <summary>Every scene it could draw: its own, and its <see cref="Swap"/>'s.</summary>
+    /// <summary>Every scene it could draw: its own, its <see cref="Swap"/>'s, and its <see cref="Fill"/>.</summary>
     [JsonIgnore]
     public IEnumerable<RecordId> AllScenes =>
-        new[] { Scene, AltScene, Swap?.Scene, Swap?.AltScene }.OfType<RecordId>().Distinct();
+        new[] { Scene, AltScene, Swap?.Scene, Swap?.AltScene, Fill }.OfType<RecordId>().Distinct();
 
     /// <summary>The chunk as the debug overlay names it, such as <c>I08</c>.</summary>
     [JsonIgnore]
@@ -95,6 +113,9 @@ public sealed record ChunkEntry(
             ? region
             : null;
 }
+
+/// <summary>A chunk's place in its map set, as <see cref="ChunkEntry.Shows"/> names it.</summary>
+public sealed record ChunkCell(int Row, int Column);
 
 /// <summary>
 /// One chunk's map objects (<c>aidyn:map/0xHHHH</c>, a Borg9). Its collision is the asset of the

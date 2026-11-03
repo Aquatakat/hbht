@@ -13,6 +13,9 @@ public static class SceneNames
     /// <summary>The scene's camera node.</summary>
     public const string Camera = "camera";
 
+    /// <summary>A chunk's fill's one node, which holds what it draws.</summary>
+    public const string Fill = "fill";
+
     /// <summary>What follows a billboard's transform number in the name of its node that turns to the camera.</summary>
     public const string FacingSuffix = " facing";
 

@@ -151,6 +151,12 @@ public static class RecordTypes
     /// <summary>How a trapped container's explosion is drawn. There's one, <c>aidyn:explosion/0</c>.</summary>
     public const string Explosion = "explosion";
 
+    /// <summary>
+    /// A chunk's fill (<see cref="ChunkEntry.Fill"/>): an asset alone, a glTF of what other chunks' scenes drew over its cell, keyed by
+    /// a decimal number.
+    /// </summary>
+    public const string Fill = "fill";
+
     private static readonly Type[] DbViews = [typeof(DbRecord)];
 
     /// <summary>Every type, in the registry's order: the DB records, the flags, the Borgs, then the rest as they were added.</summary>
@@ -202,6 +208,7 @@ public static class RecordTypes
         new(Magic, typeof(MagicRecord), KeyKind.Decimal, Singleton: true),
         new(Trigger, typeof(TriggerRecord), KeyKind.Decimal),
         new(Explosion, typeof(ExplosionRecord), KeyKind.Decimal, Singleton: true),
+        new(Fill, null, KeyKind.Decimal),
     ];
 
     private static readonly Dictionary<string, RecordTypeInfo> ByName = Registry.ToDictionary(t => t.Name, StringComparer.Ordinal);

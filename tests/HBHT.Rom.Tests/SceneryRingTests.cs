@@ -14,8 +14,8 @@ using HBHT.Plugins.Saves;
 namespace HBHT.Rom.Tests;
 
 /// <summary>
-/// The Draw Distance setting's Extended on NA 1.0's data (<see cref="SceneryRing"/>): the Overworld's 5×5 drawn, its outer
-/// 16 chunks as scenery only, which a game plays the same with or without.
+/// The scenery round the 3×3 on NA 1.0's data (<see cref="SceneryRing"/>): what its chunks show, and under the Draw Distance
+/// setting's Extended the Overworld's 5×5, as scenery only, which a game plays the same with or without.
 /// </summary>
 [Collection(ImportedPluginCollection.Name)]
 public sealed class SceneryRingTests(Na10Import fixture)
@@ -67,7 +67,7 @@ public sealed class SceneryRingTests(Na10Import fixture)
         var game = GameState.NewGame(Data.Set);
         var zone = new ZoneEngine(game, new ChunkStreamer(Data.Set, game, new CollisionWorld(), Set(0), new VisibleWorld()));
         var chunks = zone.Chunks;
-        var ring = new SceneryRing(game, chunks) { Enabled = true };
+        var ring = new SceneryRing(game, chunks) { Enabled = true, Extended = true };
         var loaded = new List<LoadedMap>();
         ring.Loaded += (_, map) => loaded.Add(map);
         // I12, in the middle of the Overworld's widest stretch.
@@ -81,11 +81,15 @@ public sealed class SceneryRingTests(Na10Import fixture)
         Assert.True(ring.Update());
 
         var centre = chunks.Centre;
-        var there = Enumerable.Range(-2, 5).SelectMany(r => Enumerable.Range(-2, 5).Select(c => (r, c)))
-            .Count(o => Math.Max(Math.Abs(o.r), Math.Abs(o.c)) == 2 && chunks.MapSet.Chunk(centre.Row + o.r, centre.Column + o.c) is not null);
-        Assert.InRange(there, 8, 16);
-        Assert.Equal(there, loaded.Count);
-        Assert.All(loaded, m => Assert.Equal(2, Math.Max(Math.Abs(m.Key.Row - centre.Row), Math.Abs(m.Key.Column - centre.Column))));
+        int Distance(ChunkKey k) => Math.Max(Math.Abs(k.Row - centre.Row), Math.Abs(k.Column - centre.Column));
+        // The 5×5's outer 16, and past them what its chunks show, one further.
+        var ringOf = Enumerable.Range(-2, 5).SelectMany(r => Enumerable.Range(-2, 5).Select(c => centre with { Row = centre.Row + r, Column = centre.Column + c }))
+            .Where(k => Distance(k) == 2 && chunks.MapSet.Chunk(k.Row, k.Column) is not null).ToList();
+        Assert.InRange(ringOf.Count, 8, 16);
+        Assert.Superset(ringOf.ToHashSet(), loaded.Select(m => m.Key).ToHashSet());
+        Assert.All(loaded, m => Assert.InRange(Distance(m.Key), 2, 3));
+        Assert.All(loaded.Where(m => Distance(m.Key) == 3), m => Assert.Contains(ringOf.Concat(chunks.All.Select(c => c.Map.Key)),
+            k => chunks.MapSet.Chunk(k.Row, k.Column)!.Shows?.Contains(new ChunkCell(m.Key.Row, m.Key.Column)) == true));
         Assert.Equal(loaded.Select(m => m.Key).ToHashSet(), ring.All.Select(c => c.Map.Key).ToHashSet());
         Assert.DoesNotContain(loaded, m => chunks.Map(m.Key) is not null);
         // Scenery alone: no collision, drawn surfaces, sounds or lights, and nothing remembered, rolled or aged.
@@ -109,7 +113,7 @@ public sealed class SceneryRingTests(Na10Import fixture)
     {
         var game = GameState.NewGame(Data.Set);
         var chunks = new ChunkStreamer(Data.Set, game, new CollisionWorld(), Set(0));
-        var ring = new SceneryRing(game, chunks) { Enabled = true };
+        var ring = new SceneryRing(game, chunks) { Enabled = true, Extended = true };
         var i12 = chunks.Origin(chunks.Find("I12")!) + new Vector3(50, 0, 50);
         chunks.Update(i12);
         ring.Update();
@@ -130,7 +134,7 @@ public sealed class SceneryRingTests(Na10Import fixture)
     {
         var game = GameState.NewGame(Data.Set);
         var chunks = new ChunkStreamer(Data.Set, game, new CollisionWorld(), Set(0));
-        var ring = new SceneryRing(game, chunks) { Enabled = true };
+        var ring = new SceneryRing(game, chunks) { Enabled = true, Extended = true };
         var j08 = chunks.Find("J08")!;
         var lights = Data.Set.Get<MapRecord>(j08.Map).Objects.OfType<SceneObject>().Where(o => o.GoesOut).ToList();
         Assert.NotEmpty(lights);
@@ -160,31 +164,56 @@ public sealed class SceneryRingTests(Na10Import fixture)
     }
 
     [Fact]
-    public void OffTheOverworldOrDisabledItHoldsNothing()
+    public void UnderOriginalItDrawsTheChunksTheThreeByThreeShows()
     {
         var game = GameState.NewGame(Data.Set);
         var chunks = new ChunkStreamer(Data.Set, game, new CollisionWorld(), Set(0));
-        var ring = new SceneryRing(game, chunks);
-        chunks.Update(chunks.Origin(chunks.Find("I12")!) + new Vector3(50, 0, 50));
-        Assert.False(ring.Update());
-        Assert.Empty(ring.All);
-
-        ring.Enabled = true;
+        var ring = new SceneryRing(game, chunks) { Enabled = true };
+        // L20's 3×3 has M20, whose scene drew a copy of J19, two rows north of L20: the original's view across the bay.
+        chunks.Update(chunks.Origin(chunks.Find("L20")!) + new Vector3(50, 0, 50));
         Assert.True(ring.Update());
-        Assert.NotEmpty(ring.All);
+        Assert.Equal(1, ring.Reach);
+        var centre = chunks.Centre;
+        Assert.Contains(ring.All, c => c.Chunk.Name == "J19");
+        Assert.All(ring.All, c => Assert.Equal(2, Math.Max(Math.Abs(c.Chunk.Row - centre.Row), Math.Abs(c.Chunk.Column - centre.Column))));
+
+        // Extended reaches the 5×5, with what it shows one further.
+        ring.Extended = true;
+        Assert.True(ring.Update());
+        Assert.Equal(2, ring.Reach);
+        Assert.Contains(ring.All, c => Math.Max(Math.Abs(c.Chunk.Row - centre.Row), Math.Abs(c.Chunk.Column - centre.Column)) == 3);
+
+        // Disabled, as out of trek: nothing.
+        ring.Enabled = false;
+        Assert.True(ring.Update());
+        Assert.Empty(ring.All);
+    }
+
+    [Fact]
+    public void OnTheIslandsOrOffTheOverworldExtendedKeepsTheThreeByThree()
+    {
+        var game = GameState.NewGame(Data.Set);
+        var chunks = new ChunkStreamer(Data.Set, game, new CollisionWorld(), Set(0));
+        var ring = new SceneryRing(game, chunks) { Enabled = true, Extended = true };
+        // Namer's Isle: Chaos Isle's D22, two rows south, isn't drawn.
+        chunks.Update(chunks.Origin(chunks.Find("B22")!) + new Vector3(50, 0, 50));
+        ring.Update();
+        Assert.Equal(1, ring.Reach);
+        Assert.DoesNotContain(ring.All, c => c.Chunk.Name is "D22" or "D23" or "D21");
 
         // Another map set, Gwernia's interiors among them: the original's 3×3 alone.
-        var other = Data.Set.All<MapSetRecord>(RecordTypes.MapSet).First(s => s.Id != SceneryRing.Overworld && s.Chunks.Count > 9);
+        var other = Data.Set.All<MapSetRecord>(RecordTypes.MapSet).First(s => s.Id != Set(0).Id && s.Chunks.Count > 9);
         chunks.Change(other);
         var middle = other.Chunks.OrderBy(c => c.Row).ThenBy(c => c.Column).ElementAt(other.Chunks.Count / 2);
         chunks.Update(chunks.Origin(middle) + new Vector3(1, 0, 1));
-        Assert.True(ring.Update());
+        ring.Update();
         Assert.Empty(ring.All);
 
         // An emptied 3×3, as under a cut-scene's stage: nothing.
         chunks.Change(Set(0));
         chunks.Update(chunks.Origin(chunks.Find("I12")!) + new Vector3(50, 0, 50));
         ring.Update();
+        Assert.NotEmpty(ring.All);
         chunks.Clear();
         ring.Update();
         Assert.Empty(ring.All);
@@ -207,7 +236,7 @@ public sealed class SceneryRingTests(Na10Import fixture)
         var streamer = new ChunkStreamer(Data.Set, game, new CollisionWorld(), Set(0), new VisibleWorld());
         var start = GameStart.OfNewGame(Data.Set) with { Set = Set(0), Chunk = "I08", Local = new Vector3(16, 10, 62) };
         var session = GameSession.Start(game, new Host(), new ZoneEngine(game, streamer), start);
-        var scenery = new SceneryRing(game, streamer) { Enabled = ring };
+        var scenery = new SceneryRing(game, streamer) { Enabled = ring, Extended = ring };
         var from = streamer.Origin(streamer.Find("I09")!) + new Vector3(50, 0, 50);
         var shown = 0;
         scenery.Loaded += (_, map) => shown += map.Record.Objects.OfType<SceneObject>().Count(o => map.IsActive(o.Index));

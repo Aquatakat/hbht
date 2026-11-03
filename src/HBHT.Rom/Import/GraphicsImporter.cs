@@ -43,27 +43,14 @@ internal static class GraphicsImporter
         ctx.WriteRecords("actors.json", actorRecords);
 
         ctx.Report("Scenes");
-        var animations = archive.Listings.Where(l => l.Type == BorgType.Animation)
-            .Select(l => (l.Index, Animation: Borg6Animation.Parse(archive.Read(l.Index))))
-            .ToLookup(a => a.Animation.Scene);
+        var animations = ctx.Animations;
         var scenes = archive.Listings.Where(l => l.Type == BorgType.Scene).Select(l => l.Index).ToList();
-        // The chunks' seams are welded together, a map set at a time; every other scene's, on its own.
-        var chunkScenes = ctx.Chunks.SelectMany(c => new[] { c.Scene, c.AltScene }).ToHashSet();
-        var chunkWelds = ctx.Options.WeldSeams ? SeamWelds.ForChunks(ctx.Chunks, archive.Read, s => animations[s].Any()) : [];
-        // A lit scene the zone engine swaps in (ToggledScenes) is welded as its chunk's, to the neighbours round it.
-        foreach (var toggled in ToggledScenes.Read(ctx.Rom))
-        {
-            foreach (var chunk in ctx.Chunks.Where(c => c.Scene == toggled.Scene))
-            {
-                chunkScenes.Add(toggled.Lit);
-                if (!ctx.Options.WeldSeams)
-                    continue;
-                var around = ctx.Chunks.Where(c => c.Set == chunk.Set && Math.Abs(c.Row - chunk.Row) <= 1 && Math.Abs(c.Column - chunk.Column) <= 1)
-                    .Select(c => c == chunk ? c with { Scene = toggled.Lit } : c).ToList();
-                if (SeamWelds.ForChunks(around, archive.Read, s => animations[s].Any()).TryGetValue(toggled.Lit, out var welds))
-                    chunkWelds[toggled.Lit] = welds;
-            }
-        }
+        // The chunks' seams are welded together, a map set at a time, and a lit scene the zone engine swaps in (ToggledScenes)
+        // as its chunk's; every other scene's, on its own.
+        var chunkScenes = ctx.Chunks.SelectMany(c => new[] { c.Scene, c.AltScene }).Concat(ctx.Swaps.Select(s => s.Scene)).ToHashSet();
+        var chunkWelds = ctx.ChunkWelds;
+        // The Overworld's chunk scenes draw nothing over other chunks' cells: it's in the chunks that draw it, or their fills.
+        var cuts = ctx.OverworldCuts;
         var done = 0;
         var particleTextures = ctx.ParticleSlots;
         var emitters = new ConcurrentBag<EmittersRecord>();
@@ -74,12 +61,16 @@ internal static class GraphicsImporter
                 : chunkScenes.Contains(index) ? chunkWelds.GetValueOrDefault(index)
                 : SeamWelds.ForScene(index, scene, archive.Read);
             ctx.WriteAsset(RecordId.Hex(RecordTypes.Scene, index), "glb",
-                SceneGltf.Export(scene, archive.Read, index, animations[index].ToList(), welds));
+                SceneGltf.Export(scene, archive.Read, index, animations[index].ToList(), welds, cuts.Scenes.GetValueOrDefault(index)));
             if (scene.ParticleEmitters.Count > 0)
                 emitters.Add(new EmittersRecord(RecordId.Hex(RecordTypes.Emitters, index), [.. scene.ParticleEmitters.Select(e => Emitter(e, particleTextures))]));
             if (Interlocked.Increment(ref done) % 200 == 0)
                 ctx.Report($"Scenes {done}/{scenes.Count}");
         });
+
+        ctx.Report("Fills");
+        Parallel.For(0, cuts.Fills.Count, i =>
+            ctx.WriteAsset(WorldImporter.FillId(i), "glb", SceneGltf.ExportFill(cuts.Fills[i].Pieces, archive.Read)));
 
         ctx.WriteRecords("emitters.json", emitters.OrderBy(e => e.Id.Key, StringComparer.Ordinal).ToList());
         ctx.WriteRecords("explosion.json", new[] { Explosion(particleTextures) });

@@ -25,7 +25,7 @@ This is the one list of what's open. A task's status is in its phase's table bel
 - **The menus' mouse:** the mouse choosing a row, and on the World tab ([pause menu](systems/pause-menu.md)); the user has set it aside for now. The menus' motion is otherwise 1.0's: their slides, fades and scroll, a battle's pause on a wide screen and the details' edge.
 - **Content still in code:** the [hardcoded content](hardcoded-content.md) log, planned in [Phase 5](#phase-5-mod-system-and-tools).
 - **2.10:** what else could move onto triggers, each with its event ([events](systems/events.md#what-else-could-move-onto-triggers)): the first spell and potion's help (`spell.learned`, `item.bought`), the new journal entry's notice (`journal.added`), the camp scenes (`camp.started`), the Shadow's cinematic and the Goblin Ambush's end (`battle.ended` with its outcome), and a conversation's end as `script.ended`. The editor has no view of the triggers of its own, and the quest atlas doesn't show what they read and set.
-- **Rendering:** the items in [rendering](systems/rendering.md#whats-left): the scenes a chunk draws past its own edge under the longer draw distance, with that distance chosen chunk by chunk.
+- **Rendering:** the items in [rendering](systems/rendering.md#whats-left).
 
 ### Maybe
 

@@ -29,13 +29,14 @@ public sealed class WorldMapRegionTests(Na10Import fixture)
 
     /// <summary>
     /// The code's table names 160 of the Overworld's 172 chunks, in eighteen regions: the prologue's forest and Gwernia are all
-    /// region 1. It names chunks by row and column alone, so Ugarit's M06 carries region 1 as well.
+    /// region 1. It names chunks by row and column alone, so Ugarit's M06 carries region 1 as well. The chunks the importer makes
+    /// for fills (<see cref="Graphics.ChunkCuts"/>) have none.
     /// </summary>
     [Fact]
     public void ChunksCarryTheRegionTheirRowAndColumnName()
     {
         var overworld = Set(0);
-        Assert.Equal((172, 160), (overworld.Chunks.Count, overworld.Chunks.Count(c => c.Region is not null)));
+        Assert.Equal((172, 160), (overworld.Chunks.Count(c => c.Scene is not null), overworld.Chunks.Count(c => c.Region is not null)));
         Assert.Equal(Enumerable.Range(788, 18), overworld.Chunks.Select(c => c.Region).OfType<RecordId>().Distinct()
             .Select(f => int.Parse(f.Key)).Order());
         Assert.All(new[] { "I08", "J08", "K08", "K09", "L08", "M06", "M07", "M08" },

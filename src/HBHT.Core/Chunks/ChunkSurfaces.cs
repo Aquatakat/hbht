@@ -36,6 +36,11 @@ public sealed class ChunkSurfaces(PluginSet plugins)
             foreach (var t in Scene(water))
                 yield return t;
         }
+        if (chunk.Fill is { } fill)
+        {
+            foreach (var t in Scene(fill))
+                yield return t;
+        }
         foreach (var o in map.Record.Objects.OfType<SceneObject>())
         {
             if (!map.IsActive(o.Index) || Math.Min(o.Lods, o.Models.Count) == 0)

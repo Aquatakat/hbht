@@ -1,9 +1,11 @@
+using System.Numerics;
 using System.Text.Json;
 using HBHT.Plugins;
 using HBHT.Plugins.Assets;
 using HBHT.Rom.Borg;
 using HBHT.Rom.Db;
 using HBHT.Rom.Engine;
+using HBHT.Rom.Graphics;
 using HBHT.Rom.Maps;
 using HBHT.Rom.Quests;
 
@@ -54,6 +56,44 @@ internal sealed class ImportContext(RomImage rom, string staging, IProgress<stri
     public MenuTables Menus => field ??= MenuTables.Read(Rom);
 
     public EntityModels Models => field ??= EntityModels.Read(Rom);
+
+    /// <summary>Every Borg6 with its index, by the scene it animates.</summary>
+    public ILookup<int, (int Index, Borg6Animation Animation)> Animations => field ??= Archive.Listings
+        .Where(l => l.Type == BorgType.Animation)
+        .Select(l => (l.Index, Animation: Borg6Animation.Parse(Archive.Read(l.Index))))
+        .ToLookup(a => a.Animation.Scene);
+
+    /// <summary>
+    /// The scenes chunks swap in while a flag holds, with the chunks that do (<see cref="ToggledScenes"/>).
+    /// </summary>
+    public IReadOnlyList<(MapChunk Chunk, int Scene)> Swaps => field ??=
+        [.. ToggledScenes.Read(Rom).SelectMany(t => Chunks.Where(c => c.Scene == t.Scene).Select(c => (c, t.Lit)))];
+
+    /// <summary>
+    /// Where <see cref="SeamWelds"/> moves the chunk scenes' vertices, by scene: welded a map set at a time, and a lit scene a chunk
+    /// swaps in welded as its chunk's, to the neighbours round it. None without <see cref="ImportOptions.WeldSeams"/>.
+    /// </summary>
+    public Dictionary<int, Dictionary<DrawVertex, Vector3>> ChunkWelds => field ??= WeldChunks();
+
+    /// <summary>What <see cref="ChunkCuts"/> takes out of the chunk scenes of the map sets Draw Distance's Extended draws further in.</summary>
+    public ChunkCuts OverworldCuts => field ??= ChunkCuts.For([.. Chunks.Where(c => c.Set == MapSet.Overworld)],
+        Swaps.Where(s => s.Chunk.Set == MapSet.Overworld), Archive.Read, ChunkWelds);
+
+    private Dictionary<int, Dictionary<DrawVertex, Vector3>> WeldChunks()
+    {
+        if (!Options.WeldSeams)
+            return [];
+        bool Animated(int scene) => Animations[scene].Any();
+        var welds = SeamWelds.ForChunks(Chunks, Archive.Read, Animated);
+        foreach (var (chunk, lit) in Swaps)
+        {
+            var around = Chunks.Where(c => c.Set == chunk.Set && Math.Abs(c.Row - chunk.Row) <= 1 && Math.Abs(c.Column - chunk.Column) <= 1)
+                .Select(c => c == chunk ? c with { Scene = lit } : c).ToList();
+            if (SeamWelds.ForChunks(around, Archive.Read, Animated).TryGetValue(lit, out var moved))
+                welds[lit] = moved;
+        }
+        return welds;
+    }
 
     private static GameDb ReadDb(RomImage rom)
     {

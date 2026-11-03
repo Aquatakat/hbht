@@ -96,6 +96,31 @@ public static class MapSets
     /// </summary>
     public static Vector3 ChunkOrigin(MapChunk chunk) =>
         new Vector3(chunk.Row, 0, chunk.Column) * CellSize(chunk.Set);
+
+    /// <summary>
+    /// The chunks Draw Distance's Extended draws the 5×5 round, a port addition (docs/systems/rendering.md#draw-distance): the
+    /// Overworld's that its portal 0, a new game's start, reaches through chunks side by side or corner to corner. That leaves out
+    /// the islands the boats sail to, Namer's Isle and Chaos Isle, whose chunks are two apart and would show each other. Other sets'
+    /// chunks are walled in, so none.
+    /// </summary>
+    public static HashSet<(int Row, int Column)> Extended(IReadOnlyList<MapChunk> chunks)
+    {
+        var cells = chunks.Where(c => c.Set == MapSet.Overworld).Select(c => (c.Row, c.Column)).ToHashSet();
+        var start = Spawns(MapSet.Overworld, chunks)!.Single(p => p.Portal == 0);
+        var reached = new HashSet<(int Row, int Column)>();
+        var next = new Queue<(int Row, int Column)>([(start.Row, start.Column)]);
+        while (next.TryDequeue(out var cell))
+        {
+            if (!cells.Contains(cell) || !reached.Add(cell))
+                continue;
+            for (var r = -1; r <= 1; r++)
+            {
+                for (var c = -1; c <= 1; c++)
+                    next.Enqueue((cell.Row + r, cell.Column + c));
+            }
+        }
+        return reached;
+    }
 }
 
 public static class MapChunks
