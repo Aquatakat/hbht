@@ -16,12 +16,13 @@ Script 0x0432, Becan's, starts from the dialogue object `aidyn:voxel/0x0F0B/1` i
 
 ### What changed on Nov 3, 2026, by eye
 
-Not yet looked at in the runtime or the editor. Run `hbht import` first: the base plugin is at importer 65.
+Not yet looked at in the runtime or the editor. Run `hbht import` first: the base plugin is at importer 66.
 
 - **The half-alpha bodies** ([combat](systems/combat.md)): a Spirit Wolf in battle is drawn at half alpha, body and shadow, and fades from there to nothing after its fall, with no jump to opaque. `--battle aidyn:voxel/0x0F9B/5` fights one on the Overworld. The seven Chaos lieutenants (Ksathra, Shatrevar, Mehrdad, Golnar, Nasim, Behrooz, Assim) are the same.
 - **What a cut-scene shows in a hand takes the scenery's tint** ([combat-actions](systems/combat-actions.md#what-the-bodies-hold)): with `--cutscene aidyn:dialogue/0x04F1 --time 22` (or 0x0393, 0x0495, 0x04DB), the item is as dim as the hand holding it, not bright white.
 - **Environment maps look from the camera** ([rendering](systems/rendering.md#environment-maps)): the silver dish in Gwernia Castle E01 (`--set 4 --chunk E01 --at 10,10 --camera interior`) has a sheen that slides as the camera turns; the opening cinematic's door hinges look as before.
 - **The editor's model view turns billboards to the camera** ([editor](systems/editor.md)): open a tree's scene or Oriana's path light (`aidyn:scene/0x374A`) and orbit it; the cards keep facing you.
 - **The editor's map shows opened and destroyed containers under Flags** ([map-objects](systems/map-objects.md)): open `aidyn:map/0x0ECF` with **Flags** on, set flag 2103 on the Flags page and show the map again: container 16's chest shows opened; clear 2103 and set 2104: destroyed; **Flags** off: closed.
+- **The view past the loaded chunks** ([rendering](systems/rendering.md#draw-distance)): under both Draw Distances, walk the Overworld's coasts and look out to sea and across bays, for holes in the sea, a cell's sea of another shade beside its neighbour's, or land that floats or pops in close. Claude looked from M22 over L23 (the old hole), from L20 across the bay to J19, from I19 toward K20, from Namer's Isle east and from C08 to Erromon's peaks. Under Original, J19 from L20 is J19 itself now, with its scaffolding. In the editor, the map shows the Overworld's new chunks of sea.
 - **Dialogue entities' footsteps** ([audio](systems/audio.md#bodies-sounds)): Amann's patrol in the Misc interiors' E01, or Damek's at Overworld Q16, is heard stepping. (How dialogue entities get their sounds may change: folding them into entities is being looked at.)
 

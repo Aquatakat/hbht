@@ -2,6 +2,7 @@ using HBHT.Plugins;
 using HBHT.Plugins.Records;
 using HBHT.Rom.Borg;
 using HBHT.Rom.Engine;
+using HBHT.Rom.Graphics;
 using HBHT.Rom.Maps;
 using HBHT.Rom.Quests;
 
@@ -15,7 +16,7 @@ internal static class WorldImporter
     public static void Import(ImportContext ctx)
     {
         ctx.Report("Map sets");
-        ctx.WriteRecords("mapsets.json", BuildMapSets(ctx.Chunks, ctx.Audio, ctx.Engine.Regions, ToggledScenes.Read(ctx.Rom)));
+        ctx.WriteRecords("mapsets.json", BuildMapSets(ctx.Chunks, ctx.Audio, ctx.Engine.Regions, ToggledScenes.Read(ctx.Rom), ctx.OverworldCuts));
 
         ctx.Report("Terrains");
         ctx.WriteRecords("terrains.json", BuildTerrains(ctx.Gradients, CampFactors.Read(ctx.Rom), ctx.Weather, ctx.Db.CampEncounters));
@@ -36,11 +37,22 @@ internal static class WorldImporter
     /// scene the zone engine swaps for a lit one while a flag holds (<see cref="ToggledScenes"/>) gets that as its swap, with its own
     /// see-through scene, which the code leaves.
     /// </summary>
+    /// <remarks>
+    /// The Overworld's chunks have what <see cref="ChunkCuts"/> took out of their scenes: the chunks each <c>shows</c>, and the
+    /// fill of each cell other chunks' scenes drew over. A cell with a fill and no chunk gets one, with the map of the original's
+    /// own chunks of sea (<see cref="SeaMap"/>), and the terrain and the Draw Distance of the chunk nearest it that gave to the fill.
+    /// Draw Distance's Extended draws the 5×5 round a chunk by <see cref="MapSets.Extended"/>.
+    /// </remarks>
     private static List<MapSetRecord> BuildMapSets(IReadOnlyList<MapChunk> chunks, AudioTables audio, IReadOnlyList<RegionChunk> regions,
-        IReadOnlyList<ToggledScene> toggled)
+        IReadOnlyList<ToggledScene> toggled, ChunkCuts cuts)
     {
         var region = regions.ToDictionary(r => (r.Row, r.Column), r => DbRecordIds.Flag(r.Flag));
         var lit = toggled.ToDictionary(t => t.Scene);
+        var extended = MapSets.Extended(chunks);
+        var fills = cuts.Fills.Select((f, i) => (Fill: f, Id: FillId(i))).ToDictionary(f => (f.Fill.Row, f.Fill.Column));
+        var overworld = chunks.Where(c => c.Set == MapSet.Overworld).ToDictionary(c => (c.Row, c.Column));
+        IReadOnlyList<ChunkCell>? Shows((int Row, int Column) cell) =>
+            cuts.Shows.TryGetValue(cell, out var shows) ? [.. shows.Select(s => new ChunkCell(s.Row, s.Column))] : null;
         return
         [
             .. Enum.GetValues<MapSet>().Select(set => new MapSetRecord(
@@ -55,12 +67,28 @@ internal static class WorldImporter
                         lit.TryGetValue(c.Scene, out var swap)
                             ? new SceneSwap(new FlagGate(DbRecordIds.Flag(swap.Flag)), RecordId.Hex(RecordTypes.Scene, swap.Lit),
                                 c.AltScene == 0 ? null : RecordId.Hex(RecordTypes.Scene, c.AltScene))
-                            : null)),
+                            : null,
+                        set == MapSet.Overworld && fills.TryGetValue((c.Row, c.Column), out var fill) ? fill.Id : null,
+                        set == MapSet.Overworld && extended.Contains((c.Row, c.Column)),
+                        set == MapSet.Overworld ? Shows((c.Row, c.Column)) : null)),
+                    .. set != MapSet.Overworld ? [] : fills.Values.Where(f => !overworld.ContainsKey((f.Fill.Row, f.Fill.Column)))
+                        .OrderBy(f => f.Fill.Row).ThenBy(f => f.Fill.Column)
+                        .Select(f => new ChunkEntry(f.Fill.Row, f.Fill.Column, null, null, RecordId.Hex(RecordTypes.Map, SeaMap),
+                            overworld[f.Fill.Nearest].Terrain, Fill: f.Id, Extended: extended.Contains(f.Fill.Nearest))),
                 ],
                 AudioFacts.MapMusic(set, audio) is { Count: > 0 } setMusic ? [.. setMusic.Select(m => RecordId.Hex(RecordTypes.Sequence, m))] : null,
                 Maps.MapSets.Spawns(set, chunks))),
         ];
     }
+
+    /// <summary>The ID of the <paramref name="index"/>th of <see cref="ChunkCuts.Fills"/>.</summary>
+    internal static RecordId FillId(int index) => RecordId.Decimal(RecordTypes.Fill, index);
+
+    /// <summary>
+    /// The map the original's own chunks of sea share (L23, S17, S18 and T17 on the Overworld), with no objects, which the chunks
+    /// made for fills take too.
+    /// </summary>
+    internal const int SeaMap = 0x3559;
 
     /// <summary>
     /// The terrain types: each one's sky and whether it's drawn (a fact, <see cref="Skies.ForTerrain"/>), its camp

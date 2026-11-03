@@ -20,7 +20,9 @@ public sealed class ImportTests(Na10Import fixture)
 
         var mapSets = set.All<MapSetRecord>(RecordTypes.MapSet).ToList();
         Assert.Equal(17, mapSets.Count);
-        Assert.Equal(543, mapSets.Sum(s => s.Chunks.Count));
+        // The original's, and those the importer makes for fills on the Overworld, with no scene of their own.
+        Assert.Equal(543, mapSets.Sum(s => s.Chunks.Count(c => c.Scene is not null || c.AltScene is not null)));
+        Assert.Equal(137, mapSets.Sum(s => s.Chunks.Count(c => c.Scene is null && c.AltScene is null)));
         var overworld = set.Get<MapSetRecord>(RecordId.Parse("aidyn:mapset/0"));
         Assert.Equal(("Overworld", 100f), (overworld.Label, overworld.CellSize));
         Assert.Contains(overworld.Chunks, c => c.Name == "I08");
@@ -256,8 +258,9 @@ public sealed class ImportTests(Na10Import fixture)
     {
         var set = fixture.Data.Set;
         var overworld = set.Get<MapSetRecord>(RecordId.Parse("aidyn:mapset/0"));
+        // The original's chunks: one made for a fill takes the terrain of the chunk nearest it that gave to it.
         Assert.Equal(["A04", "A05", "A06", "B04", "B05", "B06", "B07", "B08", "C07", "C10"],
-            overworld.Chunks.Where(c => c.Terrain == 5).Select(c => c.Name).Order(StringComparer.Ordinal));
+            overworld.Chunks.Where(c => c.Terrain == 5 && c.Scene is not null).Select(c => c.Name).Order(StringComparer.Ordinal));
         Assert.All(new[] { "B09", "C08", "C09" }, name => Assert.Equal(19, overworld.Chunks.Single(c => c.Name == name).Terrain));
         Assert.Equal(["5"], set.All<TerrainRecord>(RecordTypes.Terrain).Where(t => t.Snow).Select(t => t.Id.Key));
     }

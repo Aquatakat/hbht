@@ -113,8 +113,11 @@ public static class BasePlugin
     /// 63 has Wind on an ally hold combat's weather clear while it lasts (<c>weather</c>'s <c>during</c> 0), where 1.0's sets fog as it ends.
     /// 64 gives each entity's body its combat alpha (<c>alpha</c>): 127 for the seven bosses on actor 0x33DB and the Spirit Wolf, 255 for the rest.
     /// 65 gives each dialogue entity the sounds 1.0 gives its body (<c>sounds</c>): the profile of the entity at its place in the dialogue entity list.
+    /// 66 takes out of the Overworld's chunk scenes what they drew over other chunks' cells: a copy of a chunk is dropped for the chunk
+    /// (<c>shows</c>), and the rest moves into the chunk of the cell it's over (<c>fill</c>, <c>aidyn:fill/n</c>), made where there was none;
+    /// and marks the chunks Draw Distance's Extended draws the 5×5 round (<c>extended</c>).
     /// </summary>
-    public const int ImporterVersion = 65;
+    public const int ImporterVersion = 66;
 
     /// <summary>
     /// What's wrong with the imported base plugin under <paramref name="pluginsDirectory"/>, worded for the player, or null if

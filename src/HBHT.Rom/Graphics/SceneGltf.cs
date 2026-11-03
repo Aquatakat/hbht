@@ -26,16 +26,15 @@ public static class SceneGltf
     /// <param name="index">The scene's archive index, recorded in the file.</param>
     /// <param name="animations">Borg6s of this scene, by archive index, to include as glTF animations.</param>
     /// <param name="welds">Where <see cref="SeamWelds"/> moves vertices to, in the scene's coordinates.</param>
+    /// <param name="cut">What a chunk scene draws in place of the draws <see cref="ChunkCuts"/> changed, which are welded already.</param>
     public static byte[] Export(Borg5Scene scene, Func<int, byte[]> read, int index,
-        IReadOnlyList<(int Index, Borg6Animation Animation)>? animations = null, IReadOnlyDictionary<DrawVertex, Vector3>? welds = null)
+        IReadOnlyList<(int Index, Borg6Animation Animation)>? animations = null, IReadOnlyDictionary<DrawVertex, Vector3>? welds = null,
+        SceneCut? cut = null)
     {
         var gltf = new GltfBuilder();
+        var materials = new Materials(gltf, read);
         var models = scene.Models.Select(m => new Lazy<Borg2Geometry>(() => Borg2Geometry.Parse(read(m)))).ToArray();
-        var textures = scene.Textures.Select(t => new Lazy<Borg1Texture>(() => Borg1Texture.Parse(read(t)))).ToArray();
-        var images = new Dictionary<int, int>();
-        var samplers = new Dictionary<(int, int, int, int), int>();
-        var gltfTextures = new Dictionary<(int, int), int>();
-        var materials = new Dictionary<(int?, Borg2MaterialFlags, Vector4, float), int>();
+        var textures = scene.Textures.Select(t => new Lazy<Borg1Texture>(() => materials.Texture(t))).ToArray();
 
         // Each transform's draws become one mesh with a primitive per draw.
         var primitives = new Dictionary<int, JsonArray>();
@@ -47,17 +46,30 @@ public static class SceneGltf
                 continue;
             var mesh = model.Meshes[draw.DisplayList];
             var texture = draw.Texture;
-            var positions = mesh.Vertices.Select(v => Position(model, v)).ToList();
-            if (welds is not null && Matrix4x4.Invert(scene.WorldMatrix(draw.Transform), out var toNode))
+            IReadOnlyList<CutVertex> vertices;
+            IReadOnlyList<int> indices;
+            if (cut is not null && cut.Draws.TryGetValue(d, out var polygons))
             {
-                for (var v = 0; v < positions.Count; v++)
-                {
-                    if (welds.TryGetValue(new DrawVertex(d, v), out var welded))
-                        positions[v] = Vector3.Transform(welded, toNode);
-                }
+                if (polygons.Count == 0)
+                    continue;
+                (vertices, indices) = Fan(polygons);
             }
-            var primitive = Primitive(gltf, model, mesh, positions, texture is { } ti ? textures[ti].Value : null);
-            primitive["material"] = Material(texture, mesh, model.Alpha);
+            else
+            {
+                var positions = mesh.Vertices.Select(v => Position(model, v)).ToList();
+                if (welds is not null && Matrix4x4.Invert(scene.WorldMatrix(draw.Transform), out var toNode))
+                {
+                    for (var v = 0; v < positions.Count; v++)
+                    {
+                        if (welds.TryGetValue(new DrawVertex(d, v), out var welded))
+                            positions[v] = Vector3.Transform(welded, toNode);
+                    }
+                }
+                vertices = [.. mesh.Vertices.Select((v, i) => CutVertex.Of(v, positions[i]))];
+                indices = mesh.Indices;
+            }
+            var primitive = Primitive(gltf, mesh.Flags, vertices, indices, texture is { } ti ? textures[ti].Value : null);
+            primitive["material"] = materials.Material(texture is { } bound ? scene.Textures[bound] : null, mesh, model.Alpha);
             primitive["extras"] = new JsonObject
             {
                 ["model"] = scene.Models[draw.Model],
@@ -271,25 +283,114 @@ public static class SceneGltf
             }
             return null;
         }
+    }
 
-        int Material(int? texture, Borg2Mesh mesh, float modelAlpha)
+    /// <summary>
+    /// A chunk's fill (<see cref="ChunkCuts"/>): the pieces of other chunks' draws it holds, on one node, in its chunk's
+    /// coordinates, with each texture scrolling as the first scene that draws it here has it.
+    /// </summary>
+    public static byte[] ExportFill(IReadOnlyList<FillPiece> pieces, Func<int, byte[]> read)
+    {
+        var gltf = new GltfBuilder();
+        var materials = new Materials(gltf, read);
+        var scenes = new Dictionary<int, Borg5Scene>();
+        var models = new Dictionary<int, Borg2Geometry>();
+        var list = new JsonArray();
+        var scrolling = new JsonArray();
+        var scrolls = new HashSet<int>();
+        foreach (var piece in pieces)
         {
-            var key = (texture, mesh.Flags, mesh.Tint, modelAlpha);
-            if (materials.TryGetValue(key, out var existing))
+            if (!scenes.TryGetValue(piece.Scene, out var scene))
+                scenes[piece.Scene] = scene = Borg5Scene.Parse(read(piece.Scene));
+            var draw = scene.Draws[piece.Draw];
+            var borg2 = scene.Models[draw.Model];
+            if (!models.TryGetValue(borg2, out var model))
+                models[borg2] = model = Borg2Geometry.Parse(read(borg2));
+            var mesh = model.Meshes[draw.DisplayList];
+            int? borg1 = draw.Texture is { } slot ? scene.Textures[slot] : null;
+            var (vertices, indices) = Fan(piece.Polygons);
+            var primitive = Primitive(gltf, mesh.Flags, vertices, indices, borg1 is { } b ? materials.Texture(b) : null);
+            primitive["material"] = materials.Material(borg1, mesh, model.Alpha);
+            primitive["extras"] = new JsonObject
+            {
+                ["scene"] = piece.Scene,
+                ["model"] = borg2,
+                ["displayList"] = draw.DisplayList,
+                ["texture"] = borg1,
+            };
+            list.Add(primitive);
+            if (borg1 is { } drawn && scrolls.Add(drawn))
+            {
+                var textures = scene.Textures.Select(t => new Lazy<Borg1Texture>(() => materials.Texture(t))).ToArray();
+                foreach (var entry in ScrollingTextures(scene, textures))
+                {
+                    if (entry![ExtrasKeys.Borg1]!.GetValue<int>() == drawn)
+                        scrolling.Add(entry.DeepClone());
+                }
+            }
+        }
+        var root = gltf.AddNode(new JsonObject
+        {
+            ["name"] = SceneNames.Fill,
+            ["mesh"] = gltf.AddMesh(new JsonObject { ["primitives"] = list }),
+        });
+        var extras = new JsonObject();
+        if (scrolling.Count > 0)
+            extras[ExtrasKeys.ScrollingTextures] = scrolling;
+        return gltf.ToGlb([root], extras);
+    }
+
+    /// <summary>Polygons as triangles, each a fan from its first corner.</summary>
+    private static (List<CutVertex> Vertices, List<int> Indices) Fan(IReadOnlyList<CutVertex[]> polygons)
+    {
+        var vertices = new List<CutVertex>();
+        var indices = new List<int>();
+        foreach (var polygon in polygons)
+        {
+            var first = vertices.Count;
+            vertices.AddRange(polygon);
+            for (var i = 1; i + 1 < polygon.Length; i++)
+                indices.AddRange([first, first + i, first + i + 1]);
+        }
+        return (vertices, indices);
+    }
+
+    /// <summary>A glTF's materials and textures, each made once, by the Borg1 drawn and how.</summary>
+    private sealed class Materials(GltfBuilder gltf, Func<int, byte[]> read)
+    {
+        private readonly Dictionary<int, Borg1Texture> _textures = [];
+        private readonly Dictionary<int, int> _images = [];
+        private readonly Dictionary<(int, int, int, int), int> _samplers = [];
+        private readonly Dictionary<(int, int), int> _gltfTextures = [];
+        private readonly Dictionary<(int?, Borg2MaterialFlags, Vector4, float), int> _materials = [];
+
+        /// <summary>A Borg1, read once.</summary>
+        public Borg1Texture Texture(int borg1)
+        {
+            if (!_textures.TryGetValue(borg1, out var texture))
+                _textures[borg1] = texture = Borg1Texture.Parse(read(borg1));
+            return texture;
+        }
+
+        /// <summary>The material a draw of <paramref name="borg1"/>, or of no texture, is drawn with.</summary>
+        public int Material(int? borg1, Borg2Mesh mesh, float modelAlpha)
+        {
+            var key = (borg1, mesh.Flags, mesh.Tint, modelAlpha);
+            if (_materials.TryGetValue(key, out var existing))
                 return existing;
 
             var alpha = (1 - mesh.Tint.W) * (1 - modelAlpha);
             var pbr = new JsonObject { ["metallicFactor"] = 0f, ["roughnessFactor"] = 1f };
             var alphaMode = alpha < 1 ? "BLEND" : "OPAQUE";
-            if (texture is { } t)
+            if (borg1 is { } t)
             {
                 // The combiner multiplies the texture by the shade (vertex colour or lighting); the
                 // tint's colour is unused.
                 pbr["baseColorFactor"] = new JsonArray(1f, 1f, 1f, alpha);
                 pbr["baseColorTexture"] = new JsonObject { ["index"] = GltfTexture(t, mesh.Flags) };
-                var borg1 = textures[t].Value;
-                if (alpha >= 1 && borg1.Flags.HasFlag(Borg1Flags.HasTransparency))
-                    alphaMode = borg1.Format is Borg1Format.Ia16 or Borg1Format.Ia8 or Borg1Format.Rgba32 ? "BLEND" : "MASK";
+                var texture = Texture(t);
+                if (alpha >= 1 && texture.Flags.HasFlag(Borg1Flags.HasTransparency))
+                    alphaMode = texture.Format is Borg1Format.Ia16 or Borg1Format.Ia8 or Borg1Format.Rgba32 ? "BLEND" : "MASK";
             }
             else
             {
@@ -303,8 +404,8 @@ public static class SceneGltf
                 ["doubleSided"] = !mesh.Flags.HasFlag(Borg2MaterialFlags.CullBack),
                 ["extras"] = new JsonObject { [ExtrasKeys.Borg2Flags] = (uint)mesh.Flags },
             };
-            if (texture is { } bound)
-                material["extras"]![ExtrasKeys.Borg1] = scene.Textures[bound];
+            if (borg1 is { } bound)
+                material["extras"]![ExtrasKeys.Borg1] = bound;
             if (alphaMode == "MASK")
                 material["alphaCutoff"] = CutOutAlpha;
             if (mesh.Flags.HasFlag(Borg2MaterialFlags.Unlit))
@@ -312,22 +413,22 @@ public static class SceneGltf
                 gltf.UseExtension("KHR_materials_unlit");
                 material["extensions"] = new JsonObject { ["KHR_materials_unlit"] = new JsonObject() };
             }
-            return materials[key] = gltf.AddMaterial(material);
+            return _materials[key] = gltf.AddMaterial(material);
         }
 
-        int GltfTexture(int texture, Borg2MaterialFlags flags)
+        private int GltfTexture(int borg1, Borg2MaterialFlags flags)
         {
-            if (!images.TryGetValue(texture, out var image))
-                images[texture] = image = gltf.AddPng(Png.Encode(textures[texture].Value.Decode()), SceneNames.Image(scene.Textures[texture]));
+            if (!_images.TryGetValue(borg1, out var image))
+                _images[borg1] = image = gltf.AddPng(Png.Encode(Texture(borg1).Decode()), SceneNames.Image(borg1));
 
             var filter = flags.HasFlag(Borg2MaterialFlags.PointFilter) ? Nearest : Linear;
             var samplerKey = (filter, filter, Wrap(flags, Borg2MaterialFlags.WrapS, Borg2MaterialFlags.MirrorS),
                 Wrap(flags, Borg2MaterialFlags.WrapT, Borg2MaterialFlags.MirrorT));
-            if (!samplers.TryGetValue(samplerKey, out var sampler))
-                samplers[samplerKey] = sampler = gltf.AddSampler(samplerKey.Item1, samplerKey.Item2, samplerKey.Item3, samplerKey.Item4);
+            if (!_samplers.TryGetValue(samplerKey, out var sampler))
+                _samplers[samplerKey] = sampler = gltf.AddSampler(samplerKey.Item1, samplerKey.Item2, samplerKey.Item3, samplerKey.Item4);
 
-            if (!gltfTextures.TryGetValue((image, sampler), out var result))
-                gltfTextures[(image, sampler)] = result = gltf.AddTexture(image, sampler);
+            if (!_gltfTextures.TryGetValue((image, sampler), out var result))
+                _gltfTextures[(image, sampler)] = result = gltf.AddTexture(image, sampler);
             return result;
         }
     }
@@ -497,35 +598,36 @@ public static class SceneGltf
     /// <summary>Where a model's vertex is on its node, with its Borg2's scale.</summary>
     internal static Vector3 Position(Borg2Geometry model, N64Vertex v) => new Vector3(v.X, v.Y, v.Z) * (model.Scale / 16);
 
-    private static JsonObject Primitive(GltfBuilder gltf, Borg2Geometry model, Borg2Mesh mesh, List<Vector3> positions, Borg1Texture? texture)
+    private static JsonObject Primitive(GltfBuilder gltf, Borg2MaterialFlags flags, IReadOnlyList<CutVertex> vertices, IReadOnlyList<int> indices,
+        Borg1Texture? texture)
     {
         var attributes = new JsonObject
         {
-            ["POSITION"] = gltf.AddPositions(positions),
+            ["POSITION"] = gltf.AddPositions([.. vertices.Select(v => v.Position)]),
         };
-        if (!mesh.Flags.HasFlag(Borg2MaterialFlags.Unlit))
-            attributes["NORMAL"] = gltf.AddVectors(mesh.Vertices.Select(Normal).ToList());
+        if (!flags.HasFlag(Borg2MaterialFlags.Unlit))
+            attributes["NORMAL"] = gltf.AddVectors([.. vertices.Select(v => Normal(v.Normal))]);
         else if (texture is not null)
-            attributes["COLOR_0"] = gltf.AddVectors(mesh.Vertices.Select(v => ToLinear(new Vector3(v.R, v.G, v.B) / 255)).ToList());
+            attributes["COLOR_0"] = gltf.AddVectors([.. vertices.Select(v => ToLinear(new Vector3(v.Color.X, v.Color.Y, v.Color.Z)))]);
         else
-            attributes["COLOR_0"] = gltf.AddVectors(mesh.Vertices.Select(v => new Vector4(ToLinear(new Vector3(v.R, v.G, v.B) / 255), v.A / 255f)).ToList());
+            attributes["COLOR_0"] = gltf.AddVectors([.. vertices.Select(v => new Vector4(ToLinear(new Vector3(v.Color.X, v.Color.Y, v.Color.Z)), v.Color.W))]);
         if (texture is not null)
         {
             // 64 units of S or T per texel; T = 0 is the texture's first row, which is glTF's top. An environment-mapped
             // list's texture is scaled by its size (G_TEXTURE with W << 6 and H << 6, where others have 0x8000), so
             // 32768 units span it; a lit one's coordinates are made from its normals instead.
-            var size = mesh.Flags.HasFlag(Borg2MaterialFlags.EnvironmentMap) ? new Vector2(32768) : new Vector2(texture.Width * 64, texture.Height * 64);
-            attributes["TEXCOORD_0"] = gltf.AddVectors(mesh.Vertices.Select(v => new Vector2(v.S, v.T) / size).ToList());
+            var size = flags.HasFlag(Borg2MaterialFlags.EnvironmentMap) ? new Vector2(32768) : new Vector2(texture.Width * 64, texture.Height * 64);
+            attributes["TEXCOORD_0"] = gltf.AddVectors([.. vertices.Select(v => v.St / size)]);
         }
         // A lit list's second coordinates' S is 1 where the vertex was loaded second of a pair, which the engine's lights don't
         // reach (N64Vertex.SecondOfPair): the N64 material lights it by the ambient alone.
-        if (!mesh.Flags.HasFlag(Borg2MaterialFlags.Unlit) && mesh.Vertices.Any(v => v.SecondOfPair))
-            attributes["TEXCOORD_1"] = gltf.AddVectors(mesh.Vertices.Select(v => new Vector2(v.SecondOfPair ? 1 : 0, 0)).ToList());
+        if (!flags.HasFlag(Borg2MaterialFlags.Unlit) && vertices.Any(v => v.Second))
+            attributes["TEXCOORD_1"] = gltf.AddVectors([.. vertices.Select(v => new Vector2(v.Second ? 1 : 0, 0))]);
 
         return new JsonObject
         {
             ["attributes"] = attributes,
-            ["indices"] = gltf.AddIndices(mesh.Indices, mesh.Vertices.Length),
+            ["indices"] = gltf.AddIndices(indices, vertices.Count),
         };
     }
 
@@ -544,12 +646,7 @@ public static class SceneGltf
         return new JsonArray(c.X, c.Y, c.Z, alpha);
     }
 
-    private static Vector3 Normal(N64Vertex v)
-    {
-        var (x, y, z) = v.Normal;
-        var n = new Vector3(x, y, z);
-        return n == Vector3.Zero ? Vector3.UnitY : Vector3.Normalize(n);
-    }
+    private static Vector3 Normal(Vector3 n) => n == Vector3.Zero ? Vector3.UnitY : Vector3.Normalize(n);
 
     /// <summary>Sets a node's translation, rotation and scale, leaving out the defaults.</summary>
     private static void SetTrs(JsonObject node, Vector3 scale, Quaternion rotation, Vector3 translation)

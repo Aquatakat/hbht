@@ -179,7 +179,6 @@ One shape runs through them all: the best member (or the living pooled) rolls a 
 | The help menu is script 1355 | `SystemMenu.HelpScript` | `gametrek.cpp` | 1: a game setting |
 | The backdrops' pictures: 1–4 and 9–12 pick a Borg8 (`0x3602`–`0x3608`) and the page's text, pulse and shadow colours; only 4 narrows the text | `BackdropStyle.For` | `Backdrop.Page` `0x80047930`, `Backdrop.Widgets` `0x80046db8` | 1: a record per picture |
 | Interiors are the terrains whose sky isn't drawn, for the camera | `FollowCamera.ModeFor` | `TeleportPlayer` | 1: a camera mode on the terrain record |
-| The Extended draw distance only in the Overworld | `SceneryRing.Overworld` | port's own | 1: a map set field |
 | Thunder's lifetimes, 240, 360, 420, 360, by place | `WeatherSounds.ThunderTicks` | `RenderSky` `0x8001d840` | 1: beside each sound on `aidyn:sounds/0` |
 | A trapped container's fires, burst and lights: counts, lives, sizes, colours, the lights' radii ([map objects](systems/map-objects.md#containers)) | `Explosion`, `DynamicLights.FireLight`, `BurstLight` | `Containers.Explode` `0x8000ffe4`, `Explosion.Fire` `0x800174f8`, `Explosion.Burst` `0x80016c00` | 1: on `aidyn:explosion/0`, which holds only the texture |
 | The rest of the look: rain's spread, heights and splashes beyond the weather record, the sky's colour constants and fog start | `WeatherParticles`, `SkyColors`, `SkyState.ChangeTicks` | `ProcessWeather`, `Sky::SetColors` `0x8001cee0` | 3, if mods want another look. Low |

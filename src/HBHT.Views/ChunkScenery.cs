@@ -54,7 +54,7 @@ public sealed class ChunkScenery
         Func<SceneObject, int>? model = null, bool particles = true)
     {
         var scenery = new ChunkScenery(chunk, new Node3D { Name = chunk.Name, Position = set.Origin(chunk.Row, chunk.Column).ToGodot() });
-        foreach (var scene in new[] { chunk.Scene, chunk.AltScene }.OfType<RecordId>())
+        foreach (var scene in new[] { chunk.Scene, chunk.AltScene, chunk.Fill }.OfType<RecordId>())
         {
             if (models.Instantiate(scene) is not { } node)
                 continue;

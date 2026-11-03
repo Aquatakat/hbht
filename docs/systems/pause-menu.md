@@ -200,7 +200,7 @@ The user laid this out, and it isn't the original's ([ADR 0013](../adr/0013-sett
   | | Frame Rate Limit | Display (the screen's refresh rate), 30, 60, 90, 120 and 144 FPS, Unlimited (`FrameLimiter`: Godot 4.7's `Engine.MaxFps` sleeps a whole frame after the frame's work, drawing 60 as 43; with V-Sync on, a limit at or past the refresh rate is left to V-Sync) |
   | | V-Sync | On, Off |
   | | Anti-Aliasing | Off, 2x, 4x, 8x (MSAA) |
-  | Enhancements | Draw Distance | Original, Extended (the Overworld's terrain out to the 5 × 5 chunks round the player: [rendering](rendering.md#draw-distance)) |
+  | Enhancements | Draw Distance | Original, Extended (the terrain out to the 5 × 5 chunks round the player, on the Overworld's mainland: [rendering](rendering.md#draw-distance)) |
   | | Object Distance | Original, 2x, 3x: scene objects, containers among them, and trek's wanderers, which step further to be drawn to 40 and 60 (a cut-scene's actors to 30): see [rendering](rendering.md#draw-distance) |
   | | Model Detail | Original, Highest (the nearest level with a model, where the original draws one: [rendering](rendering.md#draw-distance)) |
   | | Rain and Snow | Original, 2x, 4x, 8x ([weather](weather.md#more-rain-than-the-original)) |
