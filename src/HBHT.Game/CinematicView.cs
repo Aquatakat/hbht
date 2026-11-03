@@ -96,8 +96,6 @@ public partial class CinematicView : SubViewportContainer
         if (_camera is not null)
         {
             Billboards.Face(_facings, _camera.GlobalPosition);
-            // The scene's eye is its camera's position (Cinematic.StartShot leaves the camera its own).
-            N64Material.SetEye(_scene, _camera.GlobalPosition);
         }
         _lights?.Apply();
     }
