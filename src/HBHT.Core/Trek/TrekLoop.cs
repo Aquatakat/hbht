@@ -159,6 +159,20 @@ public sealed partial class TrekLoop : IMapObjectHost
     /// <summary>The player's animation, which moves him by its root motion.</summary>
     public IRootMotion PlayerAnimation { get; set; } = IActorMotion.Still;
 
+    /// <summary>
+    /// The party leader's body (<see cref="EntityBody"/>), whose shares of the player's animations time his uses of containers and
+    /// teleporters, or null for the original's timing.
+    /// </summary>
+    public EntityBody? PlayerLook { get; set; }
+
+    /// <summary>
+    /// The container or teleporter A used that waits for its share of the player's animation for it (<see cref="UseNearest"/>),
+    /// with the controls dead meanwhile, or null.
+    /// </summary>
+    public MapObject? Using => _using?.Object;
+
+    private UseUnderway? _using;
+
     /// <summary>The sundial, the party's portraits, and the compass or the minimap.</summary>
     public TrekHud Hud { get; }
 
@@ -330,7 +344,11 @@ public sealed partial class TrekLoop : IMapObjectHost
             else
                 Use.TouchCameras(centre, at);
         }
-        var input = fading || Use.Popup is not null || talking ? new PlayerInput(Vector2.Zero) : readInput();
+        // The animation a use asked for holds while trek doesn't read the controls, and goes as it reads them again (Actor::Move).
+        var gated = fading || Use.Popup is not null || talking || _using is not null;
+        if (!gated)
+            motion.Latched = null;
+        var input = gated ? new PlayerInput(Vector2.Zero) : readInput();
         // Actor::Move: the stick pushed lowers the portraits, but not while it orbits the camera.
         if (!input.Locked && input.Pushed)
             Hud.Raise(false);
@@ -347,6 +365,8 @@ public sealed partial class TrekLoop : IMapObjectHost
             Rescue();
             before = motion.Sphere.Position;
         }
+        if (_using is { } underway && !fading)
+            StepUse(underway);
         // WanderTick, which a popup, a conversation, the menu and a fade stop.
         if (playing && Use.Popup is null && !talking)
         {
@@ -520,9 +540,9 @@ public sealed partial class TrekLoop : IMapObjectHost
         switch (action)
         {
             case MenuAction.Start:
-                return dead || Teleporting ? PressOutcome.Ignored : PressOutcome.MenuOpened;
+                return dead || Teleporting || _using is not null ? PressOutcome.Ignored : PressOutcome.MenuOpened;
             case MenuAction.Accept:
-                if (dead || frozen || TeleportFade.Fading)
+                if (dead || frozen || TeleportFade.Fading || _using is not null)
                     return PressOutcome.Ignored;
                 return UseNearest() ? PressOutcome.Used : PressOutcome.Ignored;
             case MenuAction.Back:
@@ -598,16 +618,65 @@ public sealed partial class TrekLoop : IMapObjectHost
             Backdrop = null;
     }
 
-    /// <summary>A in trek: uses the map object the player reaches in the chunk he's in (<c>obj_ref_func</c>).</summary>
+    /// <summary>
+    /// A in trek: uses the map object the player reaches in the chunk he's in (<c>obj_ref_func</c>). A container or a teleporter
+    /// asks for his animation for it, which holds while the use keeps trek from reading the controls (<see cref="PlayerMotion.Latched"/>),
+    /// and is used at its share of that animation (<see cref="EntityBody.ContainerStrike"/>, <see cref="EntityBody.TeleporterStrike"/>):
+    /// at once in the base game, as in 1.0, which uses it and then asks (<c>MapObjectUse.Reach</c>, <c>0x80004A58</c>). 1.0 asks
+    /// only when A weighed more than one object, and the port always does, the user's choice.
+    /// </summary>
     public bool UseNearest()
     {
         var sphere = Player.Sphere;
-        if (Chunks.MapAt(sphere.Position) is not { } map)
+        if (Use.Popup is not null || Chunks.MapAt(sphere.Position) is not { } map)
             return false;
         (MonsterPartyObject, Vector3, float)? body = null;
         if (Nearest is ({ } nearest, var distance) && nearest.Map == map && Wanderers.Reaches(nearest, distance, sphere))
             body = (nearest.Party, nearest.Body.Sphere.Position - map.Origin, distance);
-        return Use.UseNearest(map, sphere.Position - map.Origin, Player.Heading, sphere.Radius, body);
+        if (Use.Reach(map, sphere.Position - map.Origin, Player.Heading, sphere.Radius, body) is not { } o)
+            return false;
+        var (request, strike) = o switch
+        {
+            ContainerObject => (Body.OpenContainer, PlayerLook?.ContainerStrike ?? EntityBody.DefaultOpenStrike),
+            TeleporterObject => (Body.UseTeleporter, PlayerLook?.TeleporterStrike ?? EntityBody.DefaultOpenStrike),
+            _ => ((int?)null, 0f),
+        };
+        Player.Latched = request;
+        if (request is { } asked && strike > 0)
+            _using = new UseUnderway(map, o, asked, strike);
+        else
+            Use.Use(map, o);
+        return true;
+    }
+
+    /// <summary>A container or a teleporter A used, waiting for its share of the player's animation for it.</summary>
+    private sealed class UseUnderway(LoadedMap map, MapObject used, int request, float strike)
+    {
+        public LoadedMap Map { get; } = map;
+        public MapObject Object { get; } = used;
+        public int Request { get; } = request;
+        public float Strike { get; } = strike;
+
+        /// <summary>Whether his actor has entered a state under the request.</summary>
+        public bool Seen { get; set; }
+    }
+
+    /// <summary>
+    /// A tick of a use waiting for its share of the player's animation: it's used at that frame of the first state his actor enters
+    /// under the request, which may wait for the state he's in to end, or at once with no animation. An actor without the animation
+    /// starts its state again under the request, and times it by that. It's used then if the object is still there to use.
+    /// </summary>
+    private void StepUse(UseUnderway underway)
+    {
+        if (PlayerAnimation is IActorMotion { Entered: true } && Player.Body.EntryRequest == underway.Request)
+            underway.Seen = true;
+        var due = PlayerAnimation is not IActorMotion animation
+            || underway.Seen && animation.Frame >= (int)(animation.StateLength * underway.Strike);
+        if (!due)
+            return;
+        _using = null;
+        if (Chunks.MapAt(Player.Sphere.Position) == underway.Map && underway.Map.IsActive(underway.Object.Index))
+            Use.Use(underway.Map, underway.Object);
     }
 
     /// <summary>
@@ -641,6 +710,8 @@ public sealed partial class TrekLoop : IMapObjectHost
         Zone.Free();
         Wanderers.Clear();
         Nearest = default;
+        _using = null;
+        Player.Latched = null;
         Use.ClearCameras();
     }
 

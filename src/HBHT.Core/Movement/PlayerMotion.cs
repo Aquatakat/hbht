@@ -135,6 +135,13 @@ public sealed class PlayerMotion
     /// </summary>
     public int? Asked { get; set; }
 
+    /// <summary>
+    /// An animation asked for in place of standing until trek takes the controls again, as using a container (request 11) or a
+    /// teleporter (19) asks: the original writes it over the body's request after reading the controls (<c>MapObjectUse.Reach</c>,
+    /// <c>0x80004A58</c>), and it holds while the use keeps trek from reading them. <see cref="Asked"/> comes first.
+    /// </summary>
+    public int? Latched { get; set; }
+
     /// <summary>Turns him to face <paramref name="heading"/> where he stands (<c>Actor::SetFacing</c>).</summary>
     public void Face(Vector2 heading) =>
         TurnTo = heading.LengthSquared() > SpherePhysics.Epsilon * SpherePhysics.Epsilon ? Vector2.Normalize(heading) : null;
@@ -202,7 +209,7 @@ public sealed class PlayerMotion
     /// <summary>Reads the controls (<c>Actor::Move</c>, the trek parts).</summary>
     private void Control(MoveInput input, Vector2 look)
     {
-        Body.Request = Asked ?? Body.Idle;
+        Body.Request = Asked ?? Latched ?? Body.Idle;
         Asked = null;
         if (input.Held)
             return;
