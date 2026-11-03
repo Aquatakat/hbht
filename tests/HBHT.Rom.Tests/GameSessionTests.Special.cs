@@ -141,6 +141,7 @@ public sealed partial class GameSessionTests
         game.Party.Inventory.Add(Horn);
         var alaronSheet = game.Party.Slots[0]!;
         var (strength, stamina, protection) = (alaronSheet.Stats.Base(Stat.Strength), alaronSheet.Stats.Base(Stat.Stamina), alaronSheet.Protection);
+        var shield = alaronSheet.Skills.RawBase(SkillId.Shield);
         var battle = ScriptBattle(session, 0x046E);
         var shadow = battle.Shadow!;
         var alaron = battle.Merger!;
@@ -163,6 +164,8 @@ public sealed partial class GameSessionTests
         Assert.True(game.Flags.IsSet(Merged));
         Assert.Equal((strength + 6, stamina + 10, protection + 5), (alaronSheet.Stats.Base(Stat.Strength), alaronSheet.Stats.Base(Stat.Stamina), alaronSheet.Protection));
         Assert.Equal((10, 10), (alaronSheet.Skills.Base(Skill.Stealth), alaronSheet.Skills.Base(Skill.Wizard)));
+        // The Shadow's shield of 8 raises his, the original's turned-round test turned the right way.
+        Assert.True(alaronSheet.Skills.RawBase(SkillId.Shield) > shield);
         Assert.All(Enumerable.Range(0x31C, 5), n => Assert.Equal(10, alaronSheet.FindSpell(RecordId.Hex(RecordTypes.Spell, n))!.Level));
 
         host.Transitions.Clear();

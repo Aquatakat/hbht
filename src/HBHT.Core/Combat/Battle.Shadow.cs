@@ -306,9 +306,10 @@ public sealed partial class Battle
     /// The merge's boost (<c>Combat.MergeShadow</c>, <c>0x800675C0</c>), to the party's first member from the Shadow's sheet as it stands:
     /// each stat raised as training does (<see cref="CharacterStats.Train"/>: trained, base, current and modified, up to the base cap),
     /// protection raised; each skill and weapon skill the Shadow has (its modified level not 0) raised by the difference of their base
-    /// levels (each read to 10 at most), or by the least if that isn't positive, as training does; the shield skill the same way but only
-    /// when the Shadow has none, the original's test turned round; each of the Shadow's spells raised the same way to at most the cap, or
-    /// learnt at the Shadow's own level; then the flag.
+    /// levels (each read to 10 at most), or by the least if that isn't positive, as training does, the shield skill too, where the
+    /// original's test is turned round and raises it only when the Shadow has none (<c>Skills.AddShieldBase</c>; the port turns it the
+    /// right way, the user's choice); each of the Shadow's spells raised the same way to at most the cap, or learnt at the Shadow's own
+    /// level; then the flag.
     /// </summary>
     internal void MergeShadow(Character member, Character shadow)
     {
@@ -324,8 +325,7 @@ public sealed partial class Battle
         static int BaseLevel(Character c, SkillId skill) => (sbyte)Math.Min(c.Skills.RawBase(skill), 10);
         foreach (var skill in SkillId.All)
         {
-            var has = skill.IsShield ? shadow.Skills.Modified(skill) == 0 : shadow.Skills.Modified(skill) != 0;
-            if (has)
+            if (shadow.Skills.Modified(skill) != 0)
                 member.Skills.Train(skill, Raise(BaseLevel(shadow, skill), BaseLevel(member, skill)));
         }
         foreach (var spell in shadow.Spells)

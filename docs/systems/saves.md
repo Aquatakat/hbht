@@ -131,7 +131,7 @@ A save made from the "Before final encounter" checkpoint, cut short:
 
 `gGlobals` is at 0x800D8088 in 1.0 and 0x800E68A8 in the debug build, and `TerrainPointer` at 0x800E303C and 0x800F1BBC.
 
-The kept sheets of members not in the party come over too (`AresCheckpoint.Kept`, from `gSaveEntity` at `0x800DA4E0` in 1.0 and `0x800E8F10` in the debug build), and each member's True Name from the sheet's bit. The converter sets a member's name only where the sheet's differs from the record's, which no checkpoint's does (Alaron is "Alaron" in all). It reads the minimaps' pieces as `PakSaves` does, listing a minimap when its pieces aren't as it starts: the start's checkpoint has 8 seen, "Before Shamsuk's Tower" 26, "Before Rooughah" 96 and the later two 97, in both builds, and the story saves on the 1.0 pak hold the same counts. The converter doesn't read the potions working on a member.
+The kept sheets of members not in the party come over too (`AresCheckpoint.Kept`, from `gSaveEntity` at `0x800DA4E0` in 1.0 and `0x800E8F10` in the debug build), and each member's True Name from the sheet's bit. The converter sets a member's name only where the sheet's differs from the record's, which no checkpoint's does (Alaron is "Alaron" in all). It reads the minimaps' pieces as `PakSaves` does, listing a minimap when its pieces aren't as it starts: the start's checkpoint has 8 seen, "Before Shamsuk's Tower" 26, "Before Rooughah" 96 and the later two 97, in both builds, and the story saves on the 1.0 pak hold the same counts. The converter doesn't read the potions working on a member, the user's choice: no checkpoint needs them (a member's list is at sheet `+0x38`, 7 pointers to 12-byte records of kind, power and a u32 timer at `+4`).
 
 ## The original's save
 

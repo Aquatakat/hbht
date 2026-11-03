@@ -22,15 +22,13 @@ This is the one list of what's open. A task's status is in its phase's table bel
 
 ### Left over from finished work
 
-- **M2:** Alaron's requests as he opens a container (11) or uses a teleporter (19) ([map-objects](systems/map-objects.md#whats-left)); and the quest atlas reading the combat record's boss flags.
+- **M2:** Alaron's requests as he opens a container (11) or uses a teleporter (19) ([map-objects](systems/map-objects.md#whats-left)).
 - **The menus' mouse:** the mouse choosing a row, and on the World tab ([pause menu](systems/pause-menu.md)); the user has set it aside for now. The menus' motion is otherwise 1.0's: their slides, fades and scroll, a battle's pause on a wide screen and the details' edge.
 - **Content still in code:** the [hardcoded content](hardcoded-content.md) log, planned in [Phase 5](#phase-5-mod-system-and-tools).
 - **2.10:** what else could move onto triggers, each with its event ([events](systems/events.md#what-else-could-move-onto-triggers)): the first spell and potion's help (`spell.learned`, `item.bought`), the new journal entry's notice (`journal.added`), the camp scenes (`camp.started`), the Shadow's cinematic and the Goblin Ambush's end (`battle.ended` with its outcome), and a conversation's end as `script.ended`. The editor has no view of the triggers of its own, and the quest atlas doesn't show what they read and set.
-- **Rendering:** the items in [rendering](systems/rendering.md#whats-left): environment maps in trek, the scenes a chunk draws past its own edge under the longer draw distance, with that distance chosen chunk by chunk, and the editor's billboards and containers.
+- **Rendering:** the items in [rendering](systems/rendering.md#whats-left): environment maps in trek, the scenes a chunk draws past its own edge under the longer draw distance, with that distance chosen chunk by chunk.
 - **Audio:** the sounds not played yet: dialogue entities' voices and steps ([audio](systems/audio.md#not-played-yet)).
-- **Saves:** what converting a checkpoint doesn't read yet: the potions working on a member, Alaron's name and the minimaps' pieces ([saves](systems/saves.md#checkpoints-as-saves)).
-- **M3:** the merge's shield test turned round, which decides whether the merge raises Alaron's shield skill ([combat](systems/combat.md#not-settled)); the half-alpha bodies of the seven Chaos lieutenants and the Spirit Wolf ([combat](systems/combat.md#where-the-port-differs)). A falling body's root motion, which the original skips for Alaron's actor, is skipped in the port only for the player in trek ([movement](systems/movement.md)).
-- **What the bodies hold** ([combat](systems/combat-actions.md#what-the-bodies-hold)): what a cut-scene shows in a hand (`ShowItem`) taking the scenery's tint.
+- **M3:** a falling body's root motion, which the original skips for Alaron's actor, is skipped in the port only for the player in trek ([movement](systems/movement.md)).
 
 ### Maybe
 
