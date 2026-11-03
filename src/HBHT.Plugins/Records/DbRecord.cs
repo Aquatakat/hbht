@@ -45,12 +45,20 @@ public sealed record DbRecord(RecordId Id, string Name, RecordId? Portrait = nul
 /// Under Modern movement, how many degrees a tick it turns toward the stick as it sets off from standing, until its animation's
 /// root first moves it. The original's is 10, as on the move.
 /// </param>
+/// <param name="Alpha">
+/// How opaque its body is in combat, 0 to 255 (the body's <c>+0x70C</c>, which <c>EntityBody.ShadowAlpha</c>, <c>0x8006C798</c>, gives
+/// <c>Combat.CreateBody</c>, <c>0x8005C474</c>): it caps the body's own draw and its shadow's. The original makes it 127 for the entity list's
+/// places <c>0xAF</c> to <c>0xB5</c> and <c>0xC0</c>, and 255 for every other. A freed body fades out from it.
+/// </param>
 public sealed record EntityBody(RecordId Actor, float Radius, float Scale, float Height, float Strike = EntityBody.DefaultStrike,
     float ShotStrike = EntityBody.DefaultShotStrike, float ThrowStrike = EntityBody.DefaultShotStrike,
     float CastStrike = EntityBody.DefaultCastStrike,
     float StopReach = EntityBody.DefaultStopReach, float StopPace = EntityBody.DefaultStopPace, int Stride = EntityBody.DefaultStride,
-    float SetOffTurn = EntityBody.DefaultSetOffTurn)
+    float SetOffTurn = EntityBody.DefaultSetOffTurn, byte Alpha = EntityBody.DefaultAlpha)
 {
+    /// <summary>A body's alpha for every entity the original doesn't make translucent.</summary>
+    public const byte DefaultAlpha = 255;
+
     /// <summary>The strike's share for a record the tables leave out (<c>0x800D2CF8</c>).</summary>
     public const float DefaultStrike = 0.4f;
 

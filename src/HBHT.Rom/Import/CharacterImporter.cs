@@ -99,7 +99,7 @@ internal static class CharacterImporter
     public static List<EntityRecord> BuildEntities(GameDb db, EntityModels models)
     {
         var portraits = models.Entities.ToDictionary(m => m.Entity, m => RecordId.Hex(RecordTypes.Image, m.Portrait));
-        var bodies = models.Entities.ToDictionary(m => m.Entity, m => new EntityBody(RecordId.Hex(RecordTypes.Actor, m.Actor), m.Radius, m.Scale, m.Height, m.Strike));
+        var bodies = models.Entities.ToDictionary(m => m.Entity, m => new EntityBody(RecordId.Hex(RecordTypes.Actor, m.Actor), m.Radius, m.Scale, m.Height, m.Strike, Alpha: m.Alpha));
         var alaron = db.Entities[AlaronDbPosition].Id;
         return
         [
