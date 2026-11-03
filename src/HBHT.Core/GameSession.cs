@@ -1226,7 +1226,8 @@ public sealed class GameSession
 
     /// <summary>
     /// Gives the player the party leader's body's steps under Modern movement (<see cref="ModernRules.For"/>): how far the rest of a
-    /// step carries him once the stick is let go, and how he sets off. They're Alaron's in the base game, and change with the leader.
+    /// step carries him once the stick is let go, and how he sets off; and its timing of his uses of containers and teleporters
+    /// (<see cref="TrekLoop.PlayerLook"/>). They're Alaron's in the base game, and change with the leader.
     /// </summary>
     private void KeepPlayerBody()
     {
@@ -1236,6 +1237,7 @@ public sealed class GameSession
         _playerBodyOf = leader;
         var body = leader is { } id ? Game.Plugins.TryGet<EntityRecord>(id)?.Body : null;
         Trek.Player.Rules = ModernRules.Default.For(body);
+        Trek.PlayerLook = body;
         // His body takes the leader's actor, which decides whether it falls straight (Body.FallsStraight); a leader without a body
         // record leaves it as it was, Alaron's.
         if (body is not null)

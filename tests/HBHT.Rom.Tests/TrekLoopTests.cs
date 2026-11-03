@@ -12,6 +12,7 @@ using HBHT.Core.Physics;
 using HBHT.Core.Rng;
 using HBHT.Core.Scripts;
 using HBHT.Core.Trek;
+using HBHT.Core.Ui;
 using HBHT.Plugins;
 using HBHT.Plugins.Records;
 
@@ -479,5 +480,122 @@ public sealed class TrekLoopTests(Na10Import fixture)
         Assert.InRange(Walk(300), 73.5f, 74);
         trek.Game.Flags.Set(Flag(480), true);
         Assert.True(Walk(120) > 77);
+    }
+
+    /// <summary>
+    /// Trek in Gwernia with the player standing on a door to another map set that A reaches alone, with nothing to stop it.
+    /// </summary>
+    private (TrekLoop Trek, LoadedMap Map, TeleporterObject Door) StartOnADoor()
+    {
+        var (trek, _) = Start("M07", 40, 55);
+        var map = trek.Chunks.MapAt(trek.Player.Sphere.Position)!;
+        var door = map.Objects.OfType<TeleporterObject>().First(t => t.LockLevel == 0 && t.TrapLevel == 0 && t.SecretFlag is null
+            && TeleportArrival.For(Data.Set, t) is { } a && a.Set.Id != Overworld
+            && trek.Use.Reach(map, t.Position, trek.Player.Heading, trek.Player.Sphere.Radius) == t);
+        trek.Player.Sphere.Position = map.Origin + door.Position;
+        return (trek, map, door);
+    }
+
+    /// <summary>
+    /// A on a door the player reaches alone asks for his animation for it (request 19), which 1.0 asks for only when A weighed
+    /// more than one object: it's used at once, as in 1.0, and the request holds through the fade out and in, until trek reads
+    /// the controls again.
+    /// </summary>
+    [Fact]
+    public void ADoorAsksForThePlayersAnimationAndHoldsItThroughItsFade()
+    {
+        var (trek, _, _) = StartOnADoor();
+        Assert.Equal(PressOutcome.Used, trek.Press(MenuAction.Accept));
+        Assert.True(trek.Teleporting);
+        Assert.Null(trek.Using);
+        for (var i = 0; i < 22; i++)
+        {
+            trek.Tick(NotRead);
+            Assert.Equal(Body.UseTeleporter, trek.Player.Request);
+        }
+        trek.Tick(Still);
+        Assert.False(trek.TeleportFade.Fading);
+        Assert.Equal(Body.Idle, trek.Player.Request);
+        Assert.Null(trek.Player.Latched);
+    }
+
+    /// <summary>
+    /// A on a locked chest the player reaches alone asks for his animation for opening it (request 11), which holds while the lock's
+    /// popup is up and goes as it closes.
+    /// </summary>
+    [Fact]
+    public void ALockedChestAsksForThePlayersAnimationWhileItsPopupIsUp()
+    {
+        var (trek, _) = Start("J09", 60, 40);
+        var map = trek.Chunks.MapAt(trek.Player.Sphere.Position)!;
+        var chest = map.Objects.OfType<ContainerObject>().First(c => c.LockLevel != 0 && c.TrapLevel == 0
+            && trek.Use.Reach(map, c.Position, trek.Player.Heading, trek.Player.Sphere.Radius) == c);
+        trek.Player.Sphere.Position = map.Origin + chest.Position;
+
+        Assert.Equal(PressOutcome.Used, trek.Press(MenuAction.Accept));
+        Assert.NotNull(trek.Use.Popup);
+        for (var i = 0; i < 30; i++)
+        {
+            trek.Tick(NotRead);
+            Assert.Equal(Body.OpenContainer, trek.Player.Request);
+        }
+        trek.Use.Back();
+        trek.Tick(Still);
+        Assert.Equal(Body.Idle, trek.Player.Request);
+    }
+
+    /// <summary>An actor whose every request enters a state of a set length, which plays out before the next.</summary>
+    private sealed class StatesOf(int length) : IActorMotion
+    {
+        private int _request = -1;
+
+        public int StateLength => length;
+
+        public int Frame { get; private set; }
+
+        public bool Entered { get; private set; }
+
+        public float Tick(int request)
+        {
+            Entered = Frame >= length || _request < 0;
+            if (Entered)
+                (_request, Frame) = (request, 1);
+            else
+                Frame++;
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// A mod's leader whose teleporterStrike is 0.5 uses a door at half his animation for it, once his actor has entered a state
+    /// for the request, with the controls dead meanwhile; A and Start do nothing till then.
+    /// </summary>
+    [Fact]
+    public void ALeadersTeleporterStrikeTimesTheDoorByItsAnimation()
+    {
+        var (trek, _, door) = StartOnADoor();
+        trek.PlayerLook = new EntityBody(Body.AlaronActor, 0.5f, 1, 1, TeleporterStrike: 0.5f);
+        var motion = new StatesOf(20);
+        trek.PlayerAnimation = motion;
+        // The state he's in plays out first: 5 frames of idling are left.
+        for (var i = 0; i < 15; i++)
+            motion.Tick(Body.Idle);
+
+        Assert.Equal(PressOutcome.Used, trek.Press(MenuAction.Accept));
+        Assert.Same(door, trek.Using);
+        Assert.False(trek.Teleporting);
+        Assert.Equal(PressOutcome.Ignored, trek.Press(MenuAction.Accept));
+        Assert.Equal(PressOutcome.Ignored, trek.Press(MenuAction.Start));
+        var ticks = 0;
+        while (!trek.Teleporting)
+        {
+            Assert.True(++ticks < 60, "The door was never used.");
+            trek.Tick(NotRead);
+            Assert.Equal(Body.UseTeleporter, trek.Player.Request);
+        }
+        // 5 ticks finishing the idle, then frames 1 to 10 of the new state.
+        Assert.Equal(15, ticks);
+        Assert.Equal(10, motion.Frame);
+        Assert.Null(trek.Using);
     }
 }

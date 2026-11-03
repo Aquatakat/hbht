@@ -25,8 +25,10 @@ public sealed class Body
     /// Animation requests (<c>ani_type</c>). <see cref="Talk"/> is what a script's speaker is asked for as a press moves its
     /// box on (<see cref="Scripts.SpeakerTalk"/>). <see cref="Dying"/> is the one request a body's stick doesn't take back
     /// (<see cref="StandUnlessDying"/>), and the one whose animation it holds at its end (<see cref="Mortal"/>).
+    /// <see cref="OpenContainer"/> and <see cref="UseTeleporter"/> are the player's as A uses a container or a teleporter
+    /// (<see cref="PlayerMotion.Latched"/>).
     /// </summary>
-    public const int Idle = 0, Walk = 2, Run = 3, Talk = 4, Dying = 9, Sneak = 25;
+    public const int Idle = 0, Walk = 2, Run = 3, Talk = 4, Dying = 9, OpenContainer = 11, UseTeleporter = 19, Sneak = 25;
 
     /// <summary>A body's gravity, a tick² (about 10.8 m/s²).</summary>
     public const float Gravity = 0.003f;
@@ -556,6 +558,9 @@ public sealed class Body
 
     /// <summary>The request its animation's state was entered under (<c>+0x1A</c>), 0 as it's made.</summary>
     private int _entryRequest;
+
+    /// <inheritdoc cref="_entryRequest"/>
+    internal int EntryRequest => _entryRequest;
 
     /// <summary>
     /// How many states its actor has entered under a request other than standing since it last entered one standing: 1 in a walk's

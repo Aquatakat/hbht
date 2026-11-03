@@ -39,6 +39,16 @@ public sealed record DbRecord(RecordId Id, string Name, RecordId? Portrait = nul
 /// Teleportation's move. The original has no such field: every cast's visual starts with the cast (<c>Combatant.CastCurrentSpell</c>),
 /// which is 0, what the importer gives every entity. The port makes it the entity's, for mods (the user's choice).
 /// </param>
+/// <param name="ContainerStrike">
+/// As it leads the party in trek, the share of its animation for opening a container (request 11) at which the container opens:
+/// its lock, trap or loot. The original has no such field: A opens it at once (<c>MapObjectUse.Reach</c>, <c>0x80004654</c>, uses
+/// the object and then asks for the animation), which is 0, what the importer gives every entity. The port makes it the
+/// entity's, for mods (the user's choice).
+/// </param>
+/// <param name="TeleporterStrike">
+/// As it leads the party in trek, the share of its animation for using a door or another teleporter (request 19) at which it's
+/// used: its lock, trap or fade. 0 in the original and for every entity the importer writes, as <paramref name="ContainerStrike"/>.
+/// </param>
 /// <param name="StopReach">
 /// Under Modern movement, the port's, as it leads the party in trek: the furthest the rest of its step carries it once the stick is
 /// let go, before its scale. The original has no such field, and plays the whole step (docs/systems/movement.md#modern-movement).
@@ -57,6 +67,7 @@ public sealed record DbRecord(RecordId Id, string Name, RecordId? Portrait = nul
 public sealed record EntityBody(RecordId Actor, float Radius, float Scale, float Height, float Strike = EntityBody.DefaultStrike,
     float ShotStrike = EntityBody.DefaultShotStrike, float ThrowStrike = EntityBody.DefaultShotStrike,
     float CastStrike = EntityBody.DefaultCastStrike,
+    float ContainerStrike = EntityBody.DefaultOpenStrike, float TeleporterStrike = EntityBody.DefaultOpenStrike,
     float StopReach = EntityBody.DefaultStopReach, float StopPace = EntityBody.DefaultStopPace, int Stride = EntityBody.DefaultStride,
     float SetOffTurn = EntityBody.DefaultSetOffTurn, byte Alpha = EntityBody.DefaultAlpha)
 {
@@ -71,6 +82,9 @@ public sealed record EntityBody(RecordId Actor, float Radius, float Scale, float
 
     /// <summary>Every entity's share for a cast's effect in the original: the cast's start.</summary>
     public const float DefaultCastStrike = 0;
+
+    /// <summary>Every entity's share for opening a container or using a teleporter in the original: the press's tick.</summary>
+    public const float DefaultOpenStrike = 0;
 
     /// <summary>
     /// What the importer gives every entity for Modern movement, the user's tuning to Alaron's run (Oct 30, 2026): 0.3 is about a
