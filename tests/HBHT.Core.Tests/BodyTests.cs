@@ -382,4 +382,77 @@ public class BodyTests
         body.Step(Worlds.Flat(), new SteadyMotion(0));
         Assert.Equal(Body.Idle, body.Request);
     }
+
+    /// <summary>Level ground to x = 5 and nothing beyond, so a body walking +X from x = 3 steps off it and falls.</summary>
+    private static CollisionWorld Cliff()
+    {
+        var world = new CollisionWorld();
+        world.Add(Worlds.Chunk(Worlds.OwnParts), Worlds.Floor(0, -20, 5, -20, 20), Vector3.Zero);
+        return world;
+    }
+
+    /// <summary>
+    /// A body of <paramref name="actor"/>, made as combat, a cut-scene or a wanderer makes one, walking off <see cref="Cliff"/>: how
+    /// far across the ground its animation carries it in the 20 ticks after its fall reaches <see cref="Body.Falling"/>, and the
+    /// velocity across the ground it ends with.
+    /// </summary>
+    private static (float Moved, Vector3 Velocity) WalkOffTheCliff(RecordId actor)
+    {
+        var world = Cliff();
+        var body = Body.Spawn(world, new Vector3(3, 1, 0), new EntityBody(actor, 0.5f, 1, 1), random: null);
+        body.Heading = Vector2.UnitX;
+        body.Request = Body.Walk;
+        var motion = new SteadyMotion(0.05f);
+        var ticks = 0;
+        for (; body.Sphere.Velocity.Y > Body.Falling && ticks < 400; ticks++)
+            body.Step(world, motion);
+        Assert.True(ticks < 400, "it never fell");
+        Assert.True(body.Sphere.Position.X > 5, $"it fell from {body.Sphere.Position}");
+        var from = body.Sphere.Position.X;
+        for (var i = 0; i < 20; i++)
+            body.Step(world, motion);
+        return (body.Sphere.Position.X - from, body.Sphere.Velocity);
+    }
+
+    [Fact]
+    public void ABodyOfAlaronsActorFallingPastTheLimitIsNotMovedByItsAnimation()
+    {
+        // ProcessPlayers (0x800132F4) skips the frame's root motion and zeroes the velocity across the ground at -0.048 a tick,
+        // for a body whose +0x70B is set, which is any of Alaron's actor (0x800147E8), combatants and cut-scenes' actors included.
+        var (moved, velocity) = WalkOffTheCliff(Body.AlaronActor);
+        Assert.Equal(0, moved, 1e-5f);
+        Assert.Equal(0, velocity.X);
+        Assert.Equal(0, velocity.Z);
+        Assert.True(velocity.Y < Body.Falling);
+    }
+
+    [Fact]
+    public void AnyOtherBodyIsMovedByItsAnimationWhileItFalls()
+    {
+        // 10 frames of 0.05 a tick, 2 ticks each.
+        var (moved, _) = WalkOffTheCliff(RecordId.Hex(RecordTypes.Actor, 0x2D4A));
+        Assert.Equal(1, moved, 0.05f);
+    }
+
+    [Fact]
+    public void ABodyOfAlaronsActorIsMovedByItsAnimationOnTheGround()
+    {
+        var world = Worlds.Flat();
+        var body = Body.Spawn(world, new Vector3(0, 1, 0), new EntityBody(Body.AlaronActor, 0.5f, 1, 1), random: null);
+        Assert.True(body.FallsStraight);
+        body.Heading = Vector2.UnitX;
+        body.Request = Body.Walk;
+        for (var i = 0; i < 20; i++)
+            body.Step(world, new SteadyMotion(0.05f));
+        Assert.Equal(1, body.Sphere.Position.X, 0.05f);
+    }
+
+    [Fact]
+    public void OnlyAlaronsActorFallsStraight()
+    {
+        Assert.True(new PlayerMotion(Vector3.Zero, Vector2.UnitX).Body.FallsStraight);
+        Assert.False(new Body(Vector3.Zero, 0.5f).FallsStraight);
+        var other = new EntityBody(RecordId.Hex(RecordTypes.Actor, 0x2D4A), 0.5f, 1, 1);
+        Assert.False(Body.Spawn(Worlds.Flat(), new Vector3(0, 1, 0), other, random: null).FallsStraight);
+    }
 }

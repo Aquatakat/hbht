@@ -1,6 +1,7 @@
 using System.Numerics;
 using HBHT.Core.Physics;
 using HBHT.Core.Rng;
+using HBHT.Plugins;
 using HBHT.Plugins.Records;
 
 namespace HBHT.Core.Movement;
@@ -32,6 +33,30 @@ public sealed class Body
 
     /// <summary>The push down a frame onto plain collision, which keeps velocity (surfaces 1 and 2): <c>0x800cdb48</c>, 0.03.</summary>
     private const float PressDown = 0.03f;
+
+    /// <summary>
+    /// Alaron's actor, <c>0x25F9</c>: the one a body is of whose <c>+0x70B</c> is set as it takes its actor (<c>Bodies.LoadActor</c>,
+    /// <c>0x800147E8</c>, which nothing else sets it in), and so the one the falling rule applies to (<see cref="FallsStraight"/>).
+    /// The body of whoever leads is of the leader's actor, so it is the player's in the base game
+    /// (<see cref="GameSession.PlayerActor"/>), and a combatant's or a cut-scene's actor's when they're of his.
+    /// </summary>
+    public static readonly RecordId AlaronActor = RecordId.Hex(RecordTypes.Actor, 0x25F9);
+
+    /// <summary>
+    /// Falling at or faster than this a tick, a body of Alaron's actor (<see cref="FallsStraight"/>) can't steer and its animation
+    /// doesn't move it (<c>ProcessPlayers</c>, <c>0x800132f4</c>: <c>0x800cdb60</c>, −0.048), and its velocity across the ground is
+    /// zeroed.
+    /// </summary>
+    public const float Falling = -0.048f;
+
+    /// <summary>
+    /// The ticks a body may be falling by its velocity without dropping before it steers again (<see cref="Pinned"/>), the port's:
+    /// about a quarter of a second, counted a frame at a time.
+    /// </summary>
+    public const int PinnedTicks = 15;
+
+    /// <summary>Less than this lower than where <see cref="Pinned"/>'s count began, it hasn't dropped.</summary>
+    private const float PinnedDrop = 0.05f;
 
     /// <summary>
     /// How far a body turns toward the stick each frame (<c>Actor::Move</c>): 20°. The decomp reads 2°; the ROM's
@@ -92,6 +117,21 @@ public sealed class Body
 
     /// <summary>The way it faces, in X and Z. The original keeps the opposite, <c>facing</c>.</summary>
     public Vector2 Heading { get; set; } = Vector2.Normalize(new Vector2(-1, -1));
+
+    /// <summary>
+    /// The actor it takes (<c>Bodies.LoadActor</c>, <c>0x800147E8</c>): set as it's made, from its entity's body (<see cref="Spawn"/>)
+    /// or the party leader's for the player's (<see cref="PlayerMotion"/>, Alaron's until the session says otherwise). Null for a body
+    /// made with none.
+    /// </summary>
+    public RecordId? Actor { get; set; }
+
+    /// <summary>
+    /// Whether it falls straight (the body's <c>+0x70B</c>): it's of Alaron's actor (<see cref="AlaronActor"/>). Falling at
+    /// <see cref="Falling"/> or faster, it's neither steered nor moved by its animation, and its velocity across the ground is zeroed
+    /// (<see cref="Falls"/>). The original keys it by the actor and nothing else, so it holds for a combatant, a cut-scene's actor or a
+    /// wanderer of Alaron's actor as it does for the player in trek, wherever it falls from.
+    /// </summary>
+    public bool FallsStraight => Actor == AlaronActor;
 
     /// <summary>The animation it's asked for (<c>ani_type</c>).</summary>
     public int Request { get; set; }
@@ -313,6 +353,7 @@ public sealed class Body
                 Modern.Begin(Sphere.Touching && Sphere.ContactNormal.Y > 0.5f && Sphere.Velocity.Y > -0.048f);
             _movement = value;
             _frameForward = 0;
+            Pinned = 0;
         }
     }
 
@@ -335,8 +376,8 @@ public sealed class Body
     /// <summary>
     /// One 60 Hz tick of a body the stick doesn't drive (<c>ProcessPlayers</c>, for a body other than Alaron): its steering and its
     /// stick, and its animation, every tick; and once a frame, on the tick that ends a 30 fps frame, the frame's ticks of gravity
-    /// and velocity and one collision, a push down on plain collision, and the frame's root motion (<c>0x80012784</c>), as the
-    /// player's (<see cref="PlayerMotion.Step"/>). Under <see cref="MovementMode.Modern"/> movement it moves every tick instead.
+    /// and velocity and one collision, the ground rule (<see cref="KeepHeight"/>), a push down on plain collision, the falling rule
+    /// (<see cref="Falls"/>), those two for a body of Alaron's actor alone, and the frame's root motion (<c>0x80012784</c>), as the player's (<see cref="PlayerMotion.Step"/>). Under <see cref="MovementMode.Modern"/> movement it moves every tick instead.
     /// Bodies push each other after (<see cref="Crowd"/>).
     /// </summary>
     public void Step(CollisionWorld world, IRootMotion animation)
@@ -359,9 +400,12 @@ public sealed class Body
             _frameForward += Animate(animation);
             if (_frame.Tick())
             {
+                var height = Sphere.Position.Y;
                 SpherePhysics.Step(world, Sphere, Cadence.FrameTicks);
+                KeepHeight(world, height);
                 Press();
-                Advance(_frameForward);
+                if (!Falls(height))
+                    Advance(_frameForward);
                 _frameForward = 0;
             }
         }
@@ -425,6 +469,56 @@ public sealed class Body
             Sphere.Surface = 0;
         if (Sphere.Surface is 1 or 2)
             Sphere.Velocity.Y -= PressDown;
+    }
+
+    /// <summary>
+    /// The ground rule, after the frame's collision (<c>ProcessPlayers</c>, <c>0x80012f40</c>–<c>0x80012fa4</c>, <c>0x800a4570</c>,
+    /// <c>0x800cdb40</c>), for a body that <see cref="FallsStraight"/>: one on plain collision (surfaces 1 and 2) that ends lower than
+    /// it began, with ground other than those within 0.05 below (a sweep of its sphere), is put back at the height it began at. Its
+    /// velocity is kept.
+    /// </summary>
+    /// <param name="height">Its height before the frame's collision.</param>
+    internal void KeepHeight(CollisionWorld world, float height)
+    {
+        if (FallsStraight && Sphere.Surface is 1 or 2 && SpherePhysics.Ground(world, Sphere.Position, Sphere.Radius, 0.05f)
+            && Sphere.Position.Y < height)
+            Sphere.Position.Y = height;
+    }
+
+    /// <summary>
+    /// The ticks of the frames in a row a body that <see cref="FallsStraight"/> has been falling by its velocity
+    /// (<see cref="Falling"/>) at a frame's end, yet stands, after each frame's collision, no more than <see cref="PinnedDrop"/> lower
+    /// than as the count began. From <see cref="PinnedTicks"/> it steers and its animation moves it again, the port's, as the user
+    /// chose to rescue rather than leave it stuck: against a leaning plain wall the ground rule, or a wall facing it, can hold it up
+    /// while plain collision's push keeps its velocity falling, and 1.0 leaves it there with no way out. A real fall drops it at
+    /// least 0.048 a tick, so it never counts past a frame.
+    /// </summary>
+    public int Pinned { get; private set; }
+
+    /// <summary>Its height as <see cref="Pinned"/>'s count began.</summary>
+    private float _pinnedFrom;
+
+    /// <summary>
+    /// The falling rule, at the end of a frame's collision and its push down, before the frame's root motion (<c>ProcessPlayers</c>,
+    /// <c>0x800132f4</c>–<c>0x80013330</c>, for a body that <see cref="FallsStraight"/>): falling at <see cref="Falling"/> or faster,
+    /// its velocity across the ground is zeroed (<c>0x80013310</c>) and the frame's root motion skipped. Returns whether it skipped it.
+    /// Other bodies' animations move them however they fall. 1.0 also puts a body back where it last stood when it falls faster than
+    /// <see cref="PlayerMotion.FallLimit"/> (<c>0x8001338c</c>), which the port leaves to trek's rescue (docs/systems/movement.md).
+    /// </summary>
+    /// <param name="height">Its height before the frame's collision, where <see cref="Pinned"/>'s count begins.</param>
+    internal bool Falls(float height)
+    {
+        var falling = FallsStraight && Sphere.Velocity.Y <= Falling;
+        if (!falling)
+            Pinned = 0;
+        else if (Pinned == 0)
+            (Pinned, _pinnedFrom) = (Cadence.FrameTicks, height);
+        else
+            Pinned = Sphere.Position.Y > _pinnedFrom - PinnedDrop ? Pinned + Cadence.FrameTicks : 0;
+        if (!falling || Pinned >= PinnedTicks)
+            return false;
+        Sphere.Velocity.X = Sphere.Velocity.Z = 0;
+        return true;
     }
 
     /// <summary>
@@ -670,7 +764,7 @@ public sealed class Body
     /// </summary>
     public static Body Spawn(CollisionWorld world, Vector3 at, EntityBody look, IRandom? random, float? near = null)
     {
-        var body = new Body(at, look.Radius, look.Scale) { Rules = ModernRules.Default.For(look) };
+        var body = new Body(at, look.Radius, look.Scale) { Rules = ModernRules.Default.For(look), Actor = look.Actor };
         body.Sphere.Position = SetDown(world, at, look.Radius, random, near).Position;
         return body;
     }
