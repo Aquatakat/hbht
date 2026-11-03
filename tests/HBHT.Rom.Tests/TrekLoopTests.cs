@@ -498,50 +498,66 @@ public sealed class TrekLoopTests(Na10Import fixture)
 
     /// <summary>
     /// A on a door the player reaches alone asks for his animation for it (request 19), which 1.0 asks for only when A weighed
-    /// more than one object: it's used at once, as in 1.0, and the request holds through the fade out and in, until trek reads
-    /// the controls again.
+    /// more than one object: it's used at once, as in 1.0, the animation plays under the fade out, and he comes through standing,
+    /// his actor back in its idle state.
     /// </summary>
     [Fact]
-    public void ADoorAsksForThePlayersAnimationAndHoldsItThroughItsFade()
+    public void ADoorAsksForThePlayersAnimationUntilHeComesThroughStanding()
     {
         var (trek, _, _) = StartOnADoor();
+        var motion = new StatesOf(91);
+        trek.PlayerAnimation = motion;
         Assert.Equal(PressOutcome.Used, trek.Press(MenuAction.Accept));
         Assert.True(trek.Teleporting);
         Assert.Null(trek.Using);
-        for (var i = 0; i < 22; i++)
+        for (var i = 0; i < 7; i++)
         {
             trek.Tick(NotRead);
             Assert.Equal(Body.UseTeleporter, trek.Player.Request);
         }
+        Assert.Equal(0, motion.Restarts);
+        // Through the door, at black.
+        trek.Tick(NotRead);
+        Assert.False(trek.Teleporting);
+        Assert.Equal(1, motion.Restarts);
+        Assert.Null(trek.Player.Latched);
+        for (var i = 0; i < 14; i++)
+        {
+            trek.Tick(NotRead);
+            Assert.Equal(Body.Idle, trek.Player.Request);
+        }
         trek.Tick(Still);
         Assert.False(trek.TeleportFade.Fading);
-        Assert.Equal(Body.Idle, trek.Player.Request);
-        Assert.Null(trek.Player.Latched);
+        Assert.Equal(1, motion.Restarts);
     }
 
     /// <summary>
-    /// A on a locked chest the player reaches alone asks for his animation for opening it (request 11), which holds while the lock's
-    /// popup is up and goes as it closes.
+    /// A on a locked chest the player reaches alone asks for his animation for opening it (request 11), which plays once while the
+    /// lock's popup is up: on its last frame he's asked to stand again.
     /// </summary>
     [Fact]
-    public void ALockedChestAsksForThePlayersAnimationWhileItsPopupIsUp()
+    public void ALockedChestPlaysThePlayersAnimationOnceUnderItsPopup()
     {
         var (trek, _) = Start("J09", 60, 40);
         var map = trek.Chunks.MapAt(trek.Player.Sphere.Position)!;
         var chest = map.Objects.OfType<ContainerObject>().First(c => c.LockLevel != 0 && c.TrapLevel == 0
             && trek.Use.Reach(map, c.Position, trek.Player.Heading, trek.Player.Sphere.Radius) == c);
         trek.Player.Sphere.Position = map.Origin + chest.Position;
+        trek.PlayerAnimation = new StatesOf(20);
 
         Assert.Equal(PressOutcome.Used, trek.Press(MenuAction.Accept));
         Assert.NotNull(trek.Use.Popup);
-        for (var i = 0; i < 30; i++)
+        for (var i = 0; i < 20; i++)
         {
             trek.Tick(NotRead);
             Assert.Equal(Body.OpenContainer, trek.Player.Request);
         }
-        trek.Use.Back();
-        trek.Tick(Still);
-        Assert.Equal(Body.Idle, trek.Player.Request);
+        for (var i = 0; i < 30; i++)
+        {
+            trek.Tick(NotRead);
+            Assert.Equal(Body.Idle, trek.Player.Request);
+        }
+        Assert.NotNull(trek.Use.Popup);
     }
 
     /// <summary>An actor whose every request enters a state of a set length, which plays out before the next.</summary>
@@ -554,6 +570,11 @@ public sealed class TrekLoopTests(Na10Import fixture)
         public int Frame { get; private set; }
 
         public bool Entered { get; private set; }
+
+        /// <summary>How many times it has been put back in its initial state.</summary>
+        public int Restarts { get; private set; }
+
+        public void Restart() => (Frame, Restarts) = (1, Restarts + 1);
 
         public float Tick(int request)
         {

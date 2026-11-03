@@ -20,6 +20,14 @@ public interface IActorMotion : IRootMotion
     /// </summary>
     bool Entered => true;
 
+    /// <summary>
+    /// Starts its initial state from its first tick, cutting short the state it plays, as the player stands on coming through a
+    /// door (<see cref="Movement.PlayerMotion.Stand"/>). Nothing for one with no animations.
+    /// </summary>
+    void Restart()
+    {
+    }
+
     /// <summary>For a body with no animations, or none yet: it stands, and its state lasts a tick.</summary>
     static readonly IActorMotion Still = new StillMotion();
 

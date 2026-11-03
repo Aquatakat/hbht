@@ -562,6 +562,9 @@ public sealed class Body
     /// <inheritdoc cref="_entryRequest"/>
     internal int EntryRequest => _entryRequest;
 
+    /// <summary>Its actor has been put back in its initial state (<see cref="Actors.IActorMotion.Restart"/>), standing.</summary>
+    internal void Restarted() => (_entryRequest, MovingStates) = (Idle, 0);
+
     /// <summary>
     /// How many states its actor has entered under a request other than standing since it last entered one standing: 1 in a walk's
     /// or run's start.

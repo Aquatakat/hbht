@@ -454,6 +454,9 @@ public sealed partial class TrekLoop : IMapObjectHost
         {
             _pending = null;
             TeleportFade.In(TeleportFadeInPerTick, fromBlack: false);
+            // He comes through standing, his animation for the door cut short, the port's, the user's choice.
+            if (Player.Latched == Body.UseTeleporter)
+                Player.Stand(PlayerAnimation);
             GoThrough(teleporter);
         }
         // Trek's first frame after it's built again is drawn black: InitGameTrek starts the fade-in after the frame's

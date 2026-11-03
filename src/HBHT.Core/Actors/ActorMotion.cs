@@ -127,6 +127,9 @@ public sealed class ActorMotion : IActorMotion
     /// <summary>Plays a state from its first tick, as a branch does.</summary>
     public void Enter(int state) => Machine.Enter(state);
 
+    /// <inheritdoc/>
+    public void Restart() => Enter(_actor.InitialState);
+
     /// <summary>Enters the state a request leads to partway through, at <paramref name="clock"/> (<see cref="ActorStateMachine.Join"/>).</summary>
     public void Join(int request, int clock) => Machine.Join(request, clock);
 

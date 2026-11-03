@@ -138,6 +138,9 @@ public sealed class ActorAnimator : IActorMotion
         Show(0);
     }
 
+    /// <inheritdoc/>
+    public void Restart() => Enter(Machine.Actor.InitialState);
+
     /// <summary>Enters the state a request leads to partway through, at <paramref name="clock"/> (<see cref="ActorStateMachine.Join"/>).</summary>
     public void Join(int request, int clock)
     {
