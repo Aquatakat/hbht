@@ -30,6 +30,8 @@ public partial class ModelView : VBoxContainer
     private readonly ActorPanel _actorPanel = new() { Visible = false, CustomMinimumSize = new Vector2(0, 220) };
     private readonly List<(MeshInstance3D Marker, Node3D Node)> _markers = [];
     private Node3D? _content;
+    // The scene's billboards' facing nodes, turned to the camera every frame as the runtime does.
+    private List<Node3D> _facings = [];
     private Camera3D? _ownCamera;
     // The scene camera's own planes, from its Borg3, which a cinematic's shot replaces.
     private float _ownNear, _ownFar;
@@ -140,6 +142,7 @@ public partial class ModelView : VBoxContainer
     {
         _content?.QueueFree();
         _content = null;
+        _facings = [];
         _ownCamera = null;
         _player = null;
         _actor = null;
@@ -185,6 +188,10 @@ public partial class ModelView : VBoxContainer
         _content = scene;
         _glb = file;
         _viewport.AddChild(scene);
+        // Billboards are turned to the camera in world space, whatever their parents do (Models.Load does the same).
+        _facings = Billboards.Facings(scene);
+        foreach (var facing in _facings)
+            facing.TopLevel = true;
 
         // The scene's own lights replace the headlight; unlit materials ignore both.
         _headlight.Visible = Nodes.FindAll<Light3D>(scene).Count == 0;
@@ -257,7 +264,17 @@ public partial class ModelView : VBoxContainer
 
     public override void _Process(double delta)
     {
-        if (_player is null && _animator is null || !IsVisibleInTree())
+        if (!IsVisibleInTree())
+            return;
+        Step(delta);
+        // After the animation has moved them, and whether the scene plays or is held: the camera may be orbiting a still model.
+        if (_facings.Count > 0)
+            Billboards.Face(_facings, (_sceneCamera.ButtonPressed && _ownCamera is not null ? _ownCamera : _camera).GlobalPosition);
+    }
+
+    private void Step(double delta)
+    {
+        if (_player is null && _animator is null)
             return;
         foreach (var (marker, node) in _markers)
         {
