@@ -130,6 +130,25 @@ public sealed class QuestIndexTests : IDisposable
     }
 
     [Fact]
+    public void WinningABattleWithABossSetsItsFlag()
+    {
+        var plugins = _temp.Aidyn(("combat.json", """
+            [
+              {
+                "id": "aidyn:combat/0", "ally": "aidyn:entity/0x0001", "bystanders": [], "fallback": "aidyn:entity/0x0001",
+                "noFlee": [], "flee": [], "fleeByEncounter": [],
+                "bosses": [ { "entity": "aidyn:entity/0x0248", "flag": "aidyn:flag/90" }, { "entity": "aidyn:entity/0x0243", "flag": "aidyn:flag/0" } ],
+              },
+            ]
+            """));
+        var index = QuestIndex.Build(plugins);
+
+        Assert.Equal([new FlagUse(Flag(90), Id("aidyn:entity/0x0248"), FlagAccess.Set, FlagRole.BossFlag)], index.UsesOf(Flag(90)));
+        Assert.Equal([new QuestEdge(Id("aidyn:entity/0x0248"), Flag(90), FlagRole.BossFlag, FlagAccess.Set)], index.Upstream(Flag(90)));
+        Assert.Empty(index.UsesOf(Flag(0)));
+    }
+
+    [Fact]
     public void GatesOnTheConstantFlagsAreLeftOut()
     {
         var index = Index();

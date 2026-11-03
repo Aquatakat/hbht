@@ -171,6 +171,7 @@ public partial class AtlasView : VBoxContainer
             FlagRole.TrapDisarmed => "disarming it",
             FlagRole.SecretFound => use.Access == FlagAccess.Read ? "a secret door, found while set" : "finding the secret door",
             FlagRole.TriggerSets => "a trigger",
+            FlagRole.BossFlag => "winning a battle with the boss",
             FlagRole.Engine => "the engine",
             FlagRole.ChunkEntered => "entering a chunk in the region",
             _ => use.Role.ToString(),

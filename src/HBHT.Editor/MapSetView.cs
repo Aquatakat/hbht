@@ -110,6 +110,8 @@ public partial class MapSetView : VBoxContainer
     private readonly RecordFieldsView _fields = new() { SizeFlagsVertical = SizeFlags.ExpandFill };
 
     private readonly Dictionary<(int Row, int Column), ChunkScenery> _chunks = [];
+    // The model each container's scene object was built showing, by chunk: only those not as placed.
+    private readonly Dictionary<(int Row, int Column), IReadOnlyDictionary<int, ContainerLook>> _looks = [];
     private readonly List<Marked> _objects = [];
     private readonly List<Marked> _shown = [];
     private readonly Dictionary<RecordId, ChunkEntry> _chunkOfMap = [];
@@ -222,6 +224,7 @@ public partial class MapSetView : VBoxContainer
         foreach (var chunk in _chunks.Values)
             chunk.Root.QueueFree();
         _chunks.Clear();
+        _looks.Clear();
         _collisionLayer.Clear();
         _objects.Clear();
         _chunkOfMap.Clear();
@@ -281,10 +284,7 @@ public partial class MapSetView : VBoxContainer
         {
             var chunk = missing[i];
             var origin = focus.Set.Origin(chunk.Row, chunk.Column).ToGodot();
-            var scenery = _chunks[(chunk.Row, chunk.Column)] = ChunkScenery.Load(plugins, models, focus.Set, chunk, _ => true);
-            _world.AddChild(scenery.Root);
-            foreach (var placed in scenery.Objects)
-                placed.Levels.FirstOrDefault(l => l is not null)?.Show(0xFF);
+            BuildScenery(plugins, models, focus.Set, chunk);
             foreach (var o in plugins.Get<MapRecord>(chunk.Map).Objects)
                 _objects.Add(new Marked(MapRecord.VoxelId(chunk.Map, o.Index), o, chunk, o.Position.ToGodot() + origin));
             if (clock.ElapsedMilliseconds > 30 && i < missing.Count - 1)
@@ -305,6 +305,44 @@ public partial class MapSetView : VBoxContainer
         SetStatus(summary: Summary());
         // An object opened from elsewhere is framed; one picked here only if it's out of view.
         Select(focus.Object is { } id ? _objects.FirstOrDefault(m => m.Id == id) : null, missing.Count > 0 ? Framing.Always : Framing.OutOfView);
+    }
+
+    /// <summary>
+    /// A chunk's scenery, with its containers' scene objects showing the model the editor's game's flags give them while the
+    /// <b>Flags</b> switch is on (<see cref="LoadedMap.Looks"/>, as the runtime loads them), else as placed.
+    /// </summary>
+    private void BuildScenery(PluginSet plugins, Models models, MapSetRecord set, ChunkEntry chunk)
+    {
+        var looks = ContainerLooks(plugins, chunk);
+        var scenery = _chunks[(chunk.Row, chunk.Column)] = ChunkScenery.Load(plugins, models, set, chunk, _ => true,
+            o => (int)looks.GetValueOrDefault(o.Index));
+        _looks[(chunk.Row, chunk.Column)] = looks;
+        // A chunk built again has billboards to turn.
+        _facedChunks = -1;
+        _world.AddChild(scenery.Root);
+        foreach (var placed in scenery.Objects)
+            placed.Levels.FirstOrDefault(l => l is not null)?.Show(0xFF);
+    }
+
+    private IReadOnlyDictionary<int, ContainerLook> ContainerLooks(PluginSet plugins, ChunkEntry chunk) =>
+        _gate.ButtonPressed && _game is { } game
+            ? LoadedMap.Looks(plugins.Get<MapRecord>(chunk.Map), game.Network.IsSet, game.Game.Memory)
+            : new Dictionary<int, ContainerLook>();
+
+    /// <summary>Builds again the chunks whose containers should show other models than they were built with.</summary>
+    private void RefreshContainerLooks()
+    {
+        if (_catalog is not { } catalog || _models is not { } models || _set is not { } set)
+            return;
+        foreach (var chunk in set.Chunks.Where(c => _chunks.ContainsKey((c.Row, c.Column))))
+        {
+            var key = (chunk.Row, chunk.Column);
+            var looks = ContainerLooks(catalog.Plugins, chunk);
+            if (looks.Count == _looks[key].Count && looks.All(l => _looks[key].TryGetValue(l.Key, out var built) && built == l.Value))
+                continue;
+            _chunks[key].Root.QueueFree();
+            BuildScenery(catalog.Plugins, models, set, chunk);
+        }
     }
 
     private CollisionLayer.Colouring Colouring => (CollisionLayer.Colouring)_collision.GetSelectedId();
@@ -375,6 +413,7 @@ public partial class MapSetView : VBoxContainer
 
     private void ApplyFilters()
     {
+        RefreshContainerLooks();
         ApplySceneFilters();
         RebuildMarkers();
         if (_set is not null && _chunks.Count > 0)

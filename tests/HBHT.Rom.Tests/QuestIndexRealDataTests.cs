@@ -46,6 +46,7 @@ public sealed class QuestIndexRealDataTests(Na10Import fixture)
         Assert.Equal(257, counts[FlagRole.TriggerSets]);
         Assert.Equal(22, counts[FlagRole.SecretFound]);
         Assert.Equal(1212, counts[FlagRole.PartyBeaten]);
+        Assert.Equal(11, counts[FlagRole.BossFlag]);
 
         // 81 scripts aren't started by any map object or script, so may be unused. Two of them belong to
         // monster parties that are silent. Code alone starts the help menu (1355).
@@ -110,6 +111,22 @@ public sealed class QuestIndexRealDataTests(Na10Import fixture)
 
         Assert.Equal([.. Enumerable.Range(4222, 16), .. Enumerable.Range(4286, 9)], flags.Order());
         Assert.All(flags, f => Assert.Contains(Data.Index.UsesOf(Flag(f)), u => u.Role == FlagRole.TriggerSets));
+    }
+
+    /// <summary>Winning a battle with a boss sets its flag (<c>Combat.SetKillFlags</c>): Kitarak's 154 and Pochanargat's 3204.</summary>
+    [Fact]
+    public void BossFlagsAreSetByTheirEntities()
+    {
+        var bosses = Data.Set.Singleton<CombatRecord>().Bosses!;
+        Assert.Equal(11, bosses.Count);
+        foreach (var (name, flag) in new[] { ("Kitarak", 154), ("Pochanargat", 3204) })
+        {
+            var entity = Data.Set.Get<EntityRecord>(bosses.Single(b => b.Flag == Flag(flag)).Entity);
+            Assert.Equal(name, entity.Name);
+            Assert.Equal([new FlagUse(Flag(flag), entity.Id, FlagAccess.Set, FlagRole.BossFlag)],
+                Data.Index.UsesOf(Flag(flag)).Where(u => u.Role == FlagRole.BossFlag));
+            Assert.Contains(new QuestEdge(entity.Id, Flag(flag), FlagRole.BossFlag, FlagAccess.Set), Data.Index.Upstream(Flag(flag)));
+        }
     }
 
     /// <summary>A dialogue object's flag B is always its script's done flag, or 0. The game doesn't read it, so the import drops it.</summary>

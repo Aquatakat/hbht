@@ -123,18 +123,52 @@ public sealed class LoadedMap
     /// trigger animates. An object with no link is its own. Null where the chain ends elsewhere, which the
     /// original crashes on.
     /// </summary>
-    public T? Linked<T>(MapObject from) where T : MapObject
+    public T? Linked<T>(MapObject from) where T : MapObject => Follow<T>(_objects, from);
+
+    private static T? Follow<T>(IReadOnlyDictionary<int, MapObject> objects, MapObject from) where T : MapObject
     {
         var o = from;
         for (var i = 0; i < MaxLinks && o.Link is { } link; i++)
         {
-            if (this[MapRecord.IndexOf(link)] is not { } next)
+            if (!objects.TryGetValue(MapRecord.IndexOf(link), out var next))
                 return null;
             o = next;
             if (o is T found)
                 return found;
         }
         return o as T;
+    }
+
+    /// <summary>
+    /// How a chest, sack, crate or barrel's model shows (<c>exploding_container_check</c>): opened if its opened flag is set or it's
+    /// remembered as emptied, else destroyed if its exploded flag is set, else as placed. Null for a herb, spice, gem or custom container,
+    /// whose model shows only while it is there. What <see cref="Activate"/> does and the editor's map view does by its game's flags.
+    /// </summary>
+    /// <param name="map">The map the container is in, which the memory keys it by.</param>
+    public static ContainerLook? LookOf(RecordId map, ContainerObject o, Func<RecordId, bool> isSet, MapObjectMemory memory)
+    {
+        if (o.Kind >= ContainerKind.Herb)
+            return null;
+        if (o.Opened is { } opened && isSet(opened) || Remembered(memory, map, o.Index))
+            return ContainerLook.Opened;
+        return o.Exploded is { } exploded && isSet(exploded) ? ContainerLook.Destroyed : ContainerLook.Closed;
+    }
+
+    /// <summary>
+    /// The model each scene object a container links to shows, by the scene object's index, for the containers whose look isn't as
+    /// placed (<see cref="LookOf"/>): the choice <see cref="Activate"/> makes as a chunk loads, without activating anything.
+    /// </summary>
+    public static IReadOnlyDictionary<int, ContainerLook> Looks(MapRecord record, Func<RecordId, bool> isSet, MapObjectMemory memory)
+    {
+        var objects = record.Objects.ToDictionary(o => o.Index);
+        var looks = new Dictionary<int, ContainerLook>();
+        foreach (var container in record.Objects.OfType<ContainerObject>())
+        {
+            if (LookOf(record.Id, container, isSet, memory) is { } look and not ContainerLook.Closed
+                && Follow<SceneObject>(objects, container) is { } scene)
+                looks[scene.Index] = look;
+        }
+        return looks;
     }
 
     /// <summary>
@@ -271,30 +305,25 @@ public sealed class LoadedMap
     }
 
     /// <summary>Whether a container is remembered as emptied, which it is when it has no opened flag.</summary>
-    public bool Remembered(MapObjectMemory memory, ContainerObject container) =>
-        memory.Find(new Memory(MapRecord.VoxelId(Record.Id, container.Index), MemoryKind.Opened)) is not null;
+    public bool Remembered(MapObjectMemory memory, ContainerObject container) => Remembered(memory, Record.Id, container.Index);
+
+    private static bool Remembered(MapObjectMemory memory, RecordId map, int index) =>
+        memory.Find(new Memory(MapRecord.VoxelId(map, index), MemoryKind.Opened)) is not null;
 
     // exploding_container_check.
     private bool ActivateContainer(ContainerObject o, Func<RecordId, bool> isSet, MapObjectMemory memory)
     {
         var container = _containers[o.Index] = new Container(o);
         var scene = Linked<SceneObject>(o);
-        if (o.Kind >= ContainerKind.Herb)
+        if (LookOf(Record.Id, o, isSet, memory) is not { } look)
             return MapObjectPresence.There(o, isSet) && !Remembered(memory, o);
-        if (o.Opened is { } opened && isSet(opened) || Remembered(memory, o))
-        {
-            if (scene is not null)
-                SetLook(scene.Index, ContainerLook.Opened);
+        if (look == ContainerLook.Closed)
+            return true;
+        if (scene is not null)
+            SetLook(scene.Index, look);
+        if (look == ContainerLook.Opened)
             container.Empty();
-            return false;
-        }
-        if (o.Exploded is { } exploded && isSet(exploded))
-        {
-            if (scene is not null)
-                SetLook(scene.Index, ContainerLook.Destroyed);
-            return false;
-        }
-        return true;
+        return false;
     }
 
     // TP_lock_secret_check.
