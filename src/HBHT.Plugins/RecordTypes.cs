@@ -20,7 +20,7 @@ public enum KeyKind
 /// <param name="Class">The class its records read as, or null for a type with no records of its own: an asset's, or a map object's.</param>
 /// <param name="Key">How its base-game keys are spelled.</param>
 /// <param name="Singleton">Whether there's one record, <c>aidyn:&lt;type&gt;/0</c>, which plugins patch rather than add to.</param>
-/// <param name="Views">Other classes its records read as: <see cref="DbRecord"/> reads a DB record's name, portrait and body alone.</param>
+/// <param name="Views">Other classes its records read as: <see cref="DbRecord"/> reads a DB record's name, portrait, body and sounds alone.</param>
 public sealed record RecordTypeInfo(string Name, Type? Class, KeyKind Key, bool Singleton = false, IReadOnlyList<Type>? Views = null)
 {
     /// <summary>Whether its records read as <paramref name="type"/>: the class or a view.</summary>

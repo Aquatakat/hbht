@@ -16,18 +16,33 @@ internal static class BodySoundImporter
     /// <summary>A profile's keys, their ids resolved through the voice sounds. Kind 0 makes no sound, so it's none.</summary>
     public static List<EntityRecord> WithSounds(GameDb db, BodySoundTables tables, List<EntityRecord> entities)
     {
-        var positions = new Dictionary<RecordId, int>();
-        for (var i = 0; i < db.Entities.Count; i++)
+        var sounds = Sounds(db.Entities.Select(e => e.Id), tables);
+        return [.. entities.Select(e => sounds.TryGetValue(e.Id, out var s) ? e with { Sounds = s } : e)];
+    }
+
+    /// <summary>
+    /// A dialogue entity's sounds are the profile at its place in <c>DialogEntityList</c> in the entities' table, the entity's at
+    /// that place (<c>Wanderers.Alloc</c> stores <c>GetIdIndex</c> of its ID, and <c>AudioKeys.ProcessPlayer</c> reads the
+    /// entity profiles with it). That list is the DB's order (<see cref="PositionLists"/>), as the entity list is. Kind 0 is none.
+    /// </summary>
+    public static List<DbRecord> WithSounds(GameDb db, BodySoundTables tables, List<DbRecord> dialogEntities)
+    {
+        var sounds = Sounds(db.DialogEntities.Select(e => e.Id), tables);
+        return [.. dialogEntities.Select(e => sounds.TryGetValue(e.Id, out var s) ? e with { Sounds = s } : e)];
+    }
+
+    /// <summary>The profile at each record's place in its DB table, for those whose isn't kind 0.</summary>
+    private static Dictionary<RecordId, BodySounds> Sounds(IEnumerable<ItemId> records, BodySoundTables tables)
+    {
+        var sounds = new Dictionary<RecordId, BodySounds>();
+        var place = 0;
+        foreach (var record in records)
         {
-            if (DbRecordIds.For(db.Entities[i].Id) is { } id)
-                positions.TryAdd(id, i);
+            var p = place++;
+            if (DbRecordIds.For(record) is { } id && p < tables.Profiles.Count && tables.Profiles[p] is { Kind: not 0 } profile)
+                sounds.TryAdd(id, new BodySounds(profile.Kind, [.. profile.Keys.Select(k => Key(k, tables.VoiceSounds))]));
         }
-        return
-        [
-            .. entities.Select(e => positions.TryGetValue(e.Id, out var p) && p < tables.Profiles.Count && tables.Profiles[p] is { Kind: not 0 } profile
-                ? e with { Sounds = new BodySounds(profile.Kind, [.. profile.Keys.Select(k => Key(k, tables.VoiceSounds))]) }
-                : e),
-        ];
+        return sounds;
     }
 
     public static List<WeaponRecord> WithSounds(GameDb db, BodySoundTables tables, List<WeaponRecord> weapons)

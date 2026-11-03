@@ -65,8 +65,8 @@ public sealed class Wanderers(PluginSet plugins)
                 continue;
             if (party.Home is not { } homeId || map[MapRecord.IndexOf(homeId)] is not WanderNodeObject home || (home.Flags & WanderFlags.Move) == 0)
                 continue;
-            var look = plugins.TryGet<DbRecord>(party.Entity)?.Body;
-            if (look is null)
+            var record = plugins.TryGet<DbRecord>(party.Entity);
+            if (record?.Body is not { } look)
                 continue;
             var at = map.Origin + party.Position;
             // AllocWanderer sweeps from 1 above the party to 1 below, its sphere's centre there, or failing that from on high.
@@ -75,7 +75,7 @@ public sealed class Wanderers(PluginSet plugins)
             // A talker may be a dialogue entity, which has no entity record.
             var entity = party.Entity.Type == RecordTypes.Entity ? plugins.TryGet<EntityRecord>(party.Entity) : null;
             var perception = entity?.Perception ?? DialoguePerception;
-            var wanderer = new Wanderer(map, party, look, body, perception) { Sounds = entity?.Sounds };
+            var wanderer = new Wanderer(map, party, look, body, perception) { Sounds = record.Sounds };
             wanderer.Take(home);
             wanderer.Resume();
             _all.Add(wanderer);

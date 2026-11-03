@@ -121,7 +121,7 @@ internal static class CharacterImporter
         var db = ctx.Db;
         ctx.Report("Names");
         foreach (var (file, records) in BuildNames(db, ctx.Models))
-            ctx.WriteRecords(file, records);
+            ctx.WriteRecords(file, file == DialogEntitiesFile ? BodySoundImporter.WithSounds(db, ctx.BodySounds, records) : records);
 
         ctx.Report("Characters");
         ctx.WriteRecords("entities.json", BodySoundImporter.WithSounds(db, ctx.BodySounds,
@@ -148,7 +148,7 @@ internal static class CharacterImporter
         var fallback = CharacterImporter.Fallback(CharacterImporter.DialogEntityRadius);
         return
         [
-            ("dialogentities.json", [.. Names(db.DialogEntities.Select(e => (e.Id, e.Name)), portraits)
+            (DialogEntitiesFile, [.. Names(db.DialogEntities.Select(e => (e.Id, e.Name)), portraits)
                 .Select(r => r with { Body = bodies.GetValueOrDefault(r.Id, fallback) })]),
         ];
 
@@ -178,6 +178,8 @@ internal static class CharacterImporter
 
     /// <summary>Every dialogue entity's collision radius (<c>EntityDB::GetCollideRadius</c>).</summary>
     public const float DialogEntityRadius = 0.55f;
+
+    private const string DialogEntitiesFile = "dialogentities.json";
 
     private const float EntityRadius = 0.75f;
     private const int BatActor = 0x2D4A;
