@@ -87,6 +87,8 @@ public enum FlagRole
     SecretFound,
     /// <summary>A SetFlag trigger.</summary>
     TriggerSets,
+    /// <summary>A boss's flag, which winning a battle with the entity (<see cref="FlagUse.By"/>) among the enemy list's first four sets.</summary>
+    BossFlag,
     /// <summary>
     /// A world map region's flag, which entering a chunk of the map set (<see cref="FlagUse.By"/>) in the region sets
     /// (<see cref="ChunkEntry.Region"/>), where the sky is drawn and the set has no minimap.
@@ -320,6 +322,11 @@ public sealed class QuestIndex
             Use(flags.Left, entity, FlagAccess.Set, FlagRole.Member);
             Use(flags.Died, entity, FlagAccess.Set, FlagRole.Member);
         }
+
+        // Winning a battle with the boss sets its flag, however the battle started.
+        foreach (var combat in plugins.All<CombatRecord>(RecordTypes.Combat))
+            foreach (var boss in combat.Bosses ?? [])
+                Use(boss.Flag, boss.Entity, FlagAccess.Set, FlagRole.BossFlag);
 
         foreach (var (item, key) in keyItems)
         {
