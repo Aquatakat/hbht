@@ -765,6 +765,8 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
             scene.Draw();
         foreach (var view in _combatantViews.Values)
             view.ScrollHeld();
+        foreach (var view in _actorViews.Values)
+            view.ScrollHeld();
         _ringView?.Draw();
         _spellFxView?.Draw();
         _aimView?.Draw();

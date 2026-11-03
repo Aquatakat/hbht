@@ -11,7 +11,7 @@ namespace HBHT.Game;
 /// <summary>
 /// Draws a cut-scene's actor (<c>renderPlayers</c>): its entity's actor at its scale, standing at its
 /// feet and facing its heading, faded by its distance from the camera's aim, with its shadow and the
-/// item it holds. The core steps its animations as the body moves.
+/// item it holds, which takes the scenery's tint as a combatant's does (<see cref="BodyView.TintHeld"/>). The core steps its animations as the body moves.
 /// </summary>
 /// <remarks>
 /// It's lit as a body is (<c>RenderPlayers</c>, <c>0x800140f0</c>, through <c>Bodies.SetLights</c>, <c>0x80013798</c>):
@@ -48,9 +48,13 @@ public partial class CutSceneActorView : BodyView
     /// <see cref="BodyShadow.OthersDistance"/> of the aim.
     /// </summary>
     /// <param name="distance">How far from the aim it's drawn (<see cref="Core.Scenes.ObjectDistance.Actors"/>).</param>
-    public void Draw(Core.Physics.CollisionWorld world, System.Numerics.Vector3 aim, float distance)
+    /// <param name="eye">The camera's place, which what it holds turns its billboards to.</param>
+    /// <param name="scenery">The stage's scenery tint, in on-screen values, which what it holds is tinted by (<see cref="BodyView.TintHeld"/>).</param>
+    public void Draw(Core.Physics.CollisionWorld world, System.Numerics.Vector3 aim, float distance, System.Numerics.Vector3 eye, System.Numerics.Vector3 scenery)
     {
         var (_, fromAim) = Fade(aim, Actor.Hidden, distance);
         PlaceShadow(world, BodyShadow.DrawAlpha(distance, fromAim, player: Actor.Entity == GameState.Alaron));
+        FaceHeld(eye.ToGodot());
+        TintHeld(new Color(scenery.X, scenery.Y, scenery.Z));
     }
 }
