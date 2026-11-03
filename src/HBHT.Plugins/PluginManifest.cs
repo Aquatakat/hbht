@@ -111,8 +111,9 @@ public static class BasePlugin
     /// records as 61 wrote them, and a 61 import without them had the defaults, so the version stayed.
     /// 62 welds the seams between meshes that miss by a hair (<see cref="ImportOptions.WeldSeams"/>).
     /// 63 has Wind on an ally hold combat's weather clear while it lasts (<c>weather</c>'s <c>during</c> 0), where 1.0's sets fog as it ends.
+    /// 64 gives each entity's body its combat alpha (<c>alpha</c>): 127 for the seven bosses on actor 0x33DB and the Spirit Wolf, 255 for the rest.
     /// </summary>
-    public const int ImporterVersion = 63;
+    public const int ImporterVersion = 64;
 
     /// <summary>
     /// What's wrong with the imported base plugin under <paramref name="pluginsDirectory"/>, worded for the player, or null if

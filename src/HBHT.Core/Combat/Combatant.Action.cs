@@ -172,10 +172,13 @@ public sealed partial class Combatant
     public int Fading { get; internal set; }
 
     /// <summary>
-    /// The body's own alpha (its <c>+0x70C</c>), which caps its distance's fade and its shadow's: 255 until it's freed and through the first
-    /// half of its fade, then <c>(u8)(ticks left / 60 × 255)</c> (<c>ProcessPlayers</c>, <c>0x80012CA4</c>–<c>0x80012D40</c>).
+    /// The body's own alpha (its <c>+0x70C</c>), which caps its distance's fade and its shadow's: its entity's
+    /// (<see cref="EntityBody.Alpha"/>, 255 but for the half-alpha few) until it's freed and through the first half of its fade, then
+    /// <c>(u8)(ticks left / 60 × alpha)</c>. The original's fade (<c>ProcessPlayers</c>, <c>0x80012CA4</c>–<c>0x80012D40</c>) is of 255
+    /// whatever the body's alpha was, so a half-alpha body jumps to nearly opaque as it starts to fade; the port's fades from its own
+    /// (the user's choice).
     /// </summary>
-    public byte Alpha => Freed && Fading < Battle.FadeShownTicks ? (byte)(int)((float)Fading / Battle.FadeShownTicks * 255f) : (byte)0xFF;
+    public byte Alpha => Freed && Fading < Battle.FadeShownTicks ? (byte)(int)((float)Fading / Battle.FadeShownTicks * Look.Alpha) : Look.Alpha;
 
     /// <summary>
     /// Whether its body has played its fall to the end and holds its last frame (the body's <c>+0x77C</c>): its animation no

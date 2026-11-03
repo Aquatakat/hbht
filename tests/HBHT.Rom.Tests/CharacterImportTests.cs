@@ -351,10 +351,28 @@ public sealed class CharacterImportTests(Na10Import fixture)
         Assert.All(entities, e =>
         {
             var model = models[e.Id];
-            Assert.Equal(new EntityBody(RecordId.Hex(RecordTypes.Actor, model.Actor), model.Radius, model.Scale, model.Height, model.Strike), e.Body);
+            Assert.Equal(new EntityBody(RecordId.Hex(RecordTypes.Actor, model.Actor), model.Radius, model.Scale, model.Height, model.Strike, Alpha: model.Alpha), e.Body);
             Assert.NotNull(Set.TryGet<ActorRecord>(e.Body!.Actor));
             Assert.Equal(e.Body, Set.Get<DbRecord>(e.Id).Body);
         });
+    }
+
+    // EntityBody.ShadowAlpha (0x8006C798) gives the entity list's places 0xAF-0xB5 and 0xC0 an alpha of 0x7F, and every other 0xFF.
+    [Fact]
+    public void TheSevenBossesAndTheSpiritWolfHaveBodiesOfHalfAlphaAndEveryOtherIsWhole()
+    {
+        var rom = TestRoms.Get(RomVersionId.Na10);
+        var list = rom.Table(CodeTable.EntityList).ToArray();
+        var half = new[] { 0xAF, 0xB0, 0xB1, 0xB2, 0xB3, 0xB4, 0xB5, 0xC0 }.Select(place => DbRecordIds.For(ItemId.Of(DbType.Entity, list[place]))!.Value).ToHashSet();
+        Assert.Equal(8, half.Count);
+        // Their places are the seven who fight on actor 0x33DB and the Spirit Wolf (entity 0x0287).
+        Assert.Contains(RecordId.Hex(RecordTypes.Entity, 0x0287), half);
+
+        var entities = Set.All<EntityRecord>(RecordTypes.Entity).ToList();
+        Assert.Equal(8, entities.Count(e => e.Body!.Alpha == 127));
+        Assert.All(entities, e => Assert.Equal(half.Contains(e.Id) ? 127 : 255, e.Body!.Alpha));
+        Assert.All(entities.Where(e => half.Contains(e.Id) && e.Id != RecordId.Hex(RecordTypes.Entity, 0x0287)),
+            e => Assert.Equal(RecordId.Hex(RecordTypes.Actor, 0x33DB), e.Body!.Actor));
     }
 
     [Fact]
