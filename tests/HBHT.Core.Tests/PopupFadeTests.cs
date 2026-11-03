@@ -72,10 +72,19 @@ public class PopupFadeTests
         Assert.True(popup.IsGone);
     }
 
+    /// <summary>The trap's question fades as a message does, where 1.0's has no fade, the user's choice.</summary>
     [Fact]
-    public void ATrekQuestionDoesntFade()
+    public void ATrekQuestionFadesAsAMessageDoes()
     {
         var popup = TrekPopup.Choice("a", 180, 10, TrekPopup.PaleGreen, ["b", "c"]);
-        Assert.Equal((255, true, null), (popup.Alpha, popup.IsOpen, popup.Fade));
+        var drawn = new List<int> { popup.Alpha };
+        for (var tick = 0; tick < 2 * Cadence.FrameTicks; tick++)
+        {
+            popup.Step();
+            if (tick % Cadence.FrameTicks == Cadence.FrameTicks - 1)
+                drawn.Add(popup.Alpha);
+        }
+        Assert.Equal([90, 180, 255], drawn);
+        Assert.True(popup.IsOpen);
     }
 }

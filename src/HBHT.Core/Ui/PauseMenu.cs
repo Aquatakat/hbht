@@ -398,8 +398,6 @@ public sealed class PauseMenu
         var target = saves.Target!;
         if (saves.Request == SaveRequest.Load)
         {
-            // The load done (PauseMenu.OnLoaded, 0x80048E18) plays A's sound again, over the press's own.
-            Sound(m => m.Accept, OneShot.MenuTicks);
             _exit = PauseExit.LoadFrom(target);
             CloseNow();
             return;
@@ -478,12 +476,11 @@ public sealed class PauseMenu
         if (!Taking || _swap != 0)
             return true;
         var sliding = Sliding || System.Saves is { Sliding: true };
-        var underPopup = UnderPopup;
         var saves = System.Saves;
         var parchments = Parchments();
         var taken = HandleInput(action);
         ParchmentSounds(parchments);
-        if (taken && !sliding && !underPopup)
+        if (taken && !sliding)
             PressSound(action, keyboard);
         // The save and load screens' way out (OptionsMenu.OnSaveExit, 0x8003FF30): A on Exit, or Continue on the saved
         // question, back to the list. B plays the menu's own sound at the press alone.
@@ -491,19 +488,6 @@ public sealed class PauseMenu
             Sound(m => m.Back, OneShot.MenuTicks);
         return taken;
     }
-
-    /// <summary>
-    /// Whether a popup is up over the tab, fading or not: a message, the help, a question, the details or a crafting list on
-    /// the Party tab, the World tab's message, or a question on the save screen. Each is the widget manager's newest, which
-    /// takes every press alone (<c>WidgetManager.Input</c>, <c>0x800AD2D4</c>), so the menu's own callbacks (<c>BigAssMenu</c>,
-    /// <c>0x8002E538</c>) never hear them, and none of the menu's press sounds plays: only the popup's own.
-    /// </summary>
-    private bool UnderPopup => Tab switch
-    {
-        PauseTab.Party => Window.HasPopup,
-        PauseTab.World => World.Message is not null,
-        _ => System.Saves?.Overlay.Choice is not null,
-    };
 
     /// <summary>The Party tab's parchment popups (<c>MenuPopup</c>) as they stand: the crafting list, the details and the help.</summary>
     private readonly record struct ParchmentState(PopupFade? List, bool ListClosing, PopupFade? Details, bool DetailsClosing, bool Help);
@@ -676,10 +660,12 @@ public sealed class PauseMenu
     }
 
     /// <summary>
-    /// The sounds the menu makes for a press it took with no popup up, whatever the page did with it (<c>BigAssMenu</c>'s
-    /// callbacks): the cursor for up and down, A, B and Start, the member for C-left and C-right, and the page's cursor for
-    /// the Party tab's lists and the World tab. C-down is silent: the details play their own as they open
-    /// (<see cref="ParchmentSounds"/>). Tabs, opening and closing play their own.
+    /// The sounds the menu makes for a press it took, whatever the page did with it (<c>BigAssMenu</c>'s callbacks): the
+    /// cursor for up and down, A, B and Start, the member for C-left and C-right, and the page's cursor for the Party tab's
+    /// lists and the World tab. C-down is silent: the details play their own as they open (<see cref="ParchmentSounds"/>).
+    /// Tabs, opening and closing play their own. Under a popup they play too, where 1.0's are silent, the user's choice: in
+    /// 1.0 the popup, the widget manager's newest, takes the press alone (<c>WidgetManager.Input</c>, <c>0x800AD2D4</c>), and
+    /// <c>BigAssMenu</c> (<c>0x8002E538</c>) never hears it.
     /// </summary>
     private void PressSound(MenuAction action, bool keyboard)
     {
@@ -708,15 +694,15 @@ public sealed class PauseMenu
 
     /// <summary>
     /// Up or down: the menu's cursor sound, and the World tab's own besides. The Party tab's lists play the cursor's
-    /// themselves too, so it plays twice at once, louder, as the user confirmed. The journal takes the presses itself, and
-    /// scrolls silently, and under a popup nothing plays: no scroll menu plays a sound of its own.
+    /// themselves too, so with no popup up it plays twice at once, louder, as the user confirmed. The journal takes the
+    /// presses itself, and scrolls silently.
     /// </summary>
     private void CursorSound()
     {
-        if ((Tab == PauseTab.World && World.Journal is not null) || UnderPopup)
+        if (Tab == PauseTab.World && World.Journal is not null)
             return;
         Sound(m => m.Cursor, OneShot.ShortTicks);
-        if (Tab == PauseTab.Party && OwnTab)
+        if (Tab == PauseTab.Party && OwnTab && !Window.HasPopup)
             Sound(m => m.Cursor, OneShot.ShortTicks);
         if (Tab == PauseTab.World)
             Sound(m => m.PageCursor, OneShot.ShortTicks);

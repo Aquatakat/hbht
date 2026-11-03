@@ -355,7 +355,7 @@ public sealed partial class GameSessionTests
     }
 
     [Fact]
-    public void APopupTakesThePressesWithoutTheMenusSoundsAndAParchmentPlaysItsOwn()
+    public void APopupTakesThePressesWithTheMenusSoundsAndAParchmentPlaysItsOwn()
     {
         var (session, host) = Start("G14", 40, 40);
         Tick(session);
@@ -367,7 +367,8 @@ public sealed partial class GameSessionTests
             Tick(session);
         Assert.NotNull(menu.Window.Details());
 
-        // C-down is silent, and the details play their own as they open; under them, nothing plays the menu's.
+        // C-down is silent, and the details play their own as they open; under them, the menu's play as ever, where 1.0's
+        // are silent, the user's choice. The list under them doesn't play its cursor too.
         host.Cues.Clear();
         session.Press(MenuAction.Details);
         Assert.Equal([sounds.TabBack], host.Sounds);
@@ -376,14 +377,15 @@ public sealed partial class GameSessionTests
         host.Cues.Clear();
         session.Press(MenuAction.Down);
         session.Press(MenuAction.Accept);
-        Assert.Empty(host.Sounds);
+        Assert.Equal([sounds.Cursor, sounds.Accept], host.Sounds);
+        host.Cues.Clear();
         // Let go, they play their closing.
         session.Press(MenuAction.DetailsRelease);
         for (var i = 0; i < 10; i++)
             Tick(session);
         Assert.Equal([sounds.TabForward], host.Sounds);
 
-        // A message closes on A in silence.
+        // A message closes on A with A's sound.
         menu.Window.Overlay.Say("A message.");
         for (var i = 0; i < 10; i++)
             Tick(session);
@@ -392,8 +394,9 @@ public sealed partial class GameSessionTests
         for (var i = 0; i < 10; i++)
             Tick(session);
         Assert.Null(menu.Window.Overlay.Message);
-        Assert.Empty(host.Sounds);
-        // With nothing up, the menu plays its own again.
+        Assert.Equal([sounds.Accept], host.Sounds);
+        host.Cues.Clear();
+        // With nothing up, the list plays its cursor besides the menu's.
         session.Press(MenuAction.Down);
         Assert.Equal([sounds.Cursor, sounds.Cursor], host.Sounds);
     }

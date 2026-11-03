@@ -43,8 +43,9 @@ public enum TrekPopupKind
 /// frame (<see cref="Fade"/>), but a trek frame at a time: trek steps its widgets once a frame whatever its ticks
 /// (<c>TrekLoop.DrawFrame</c>, <c>0x80020DAC</c>). Made on a press, one is drawn at 90 that frame, then 180 and 255, where
 /// it's open and takes presses (<c>WidgetManager.Input</c>, <c>0x800AD2D4</c>); none reaches it, nor trek, before. Closed, it's
-/// drawn at 165 and 75 and then freed. The question (<c>ChoicePopup.Create</c>, <c>0x800457F4</c>) has no fade: it's drawn
-/// whole from its first frame, and goes at the press (<c>ChoicePopup.Close</c>, <c>0x80045640</c>).
+/// drawn at 165 and 75 and then freed. The question fades the same, where 1.0's has no fade (<c>ChoicePopup.Create</c>,
+/// <c>0x800457F4</c>, drawn whole from its first frame and gone at the press, <c>ChoicePopup.Close</c>, <c>0x80045640</c>):
+/// the user's choice, as every other feathered box fades.
 /// </para>
 /// </remarks>
 public sealed class TrekPopup
@@ -72,32 +73,28 @@ public sealed class TrekPopup
         Body = body;
         Question = question;
         Color = color;
-        if (kind == TrekPopupKind.Choice)
-            return;
         // Made on a press, it steps once before that frame is drawn.
         Fade = new PopupFade(MenuOverlay.MessageStep);
         Fade.Advance();
     }
 
-    /// <summary>A message's or the damage's fade, 90 a trek frame; null for a choice, which doesn't fade.</summary>
-    public PopupFade? Fade { get; }
+    /// <summary>Its fade, 90 a trek frame.</summary>
+    public PopupFade Fade { get; }
 
-    /// <summary>Whether it's open, and so takes presses: a choice from the first, a message once it has faded in.</summary>
-    public bool IsOpen => Fade?.IsOpen ?? true;
+    /// <summary>Whether it's open, and so takes presses: once it has faded in.</summary>
+    public bool IsOpen => Fade.IsOpen;
 
     /// <summary>The whole popup's alpha, which the painter draws it at.</summary>
-    public int Alpha => Fade?.Alpha ?? WidgetFade.Opaque;
+    public int Alpha => Fade.Alpha;
 
     /// <summary>Whether it has faded out after closing, and is no longer drawn.</summary>
-    public bool IsGone => Fade?.IsGone ?? false;
+    public bool IsGone => Fade.IsGone;
 
     /// <summary>Starts it fading out, a step at once, as the press's frame steps it before it's drawn.</summary>
     internal void Close()
     {
-        if (Fade is not { } fade)
-            return;
-        fade.Close();
-        fade.Advance();
+        Fade.Close();
+        Fade.Advance();
     }
 
     public TrekPopupKind Kind { get; }
@@ -130,7 +127,7 @@ public sealed class TrekPopup
     {
         _pulse.Step();
         if (_frame.Tick())
-            Fade?.Advance();
+            Fade.Advance();
     }
 
     /// <summary>A message wrapped at <paramref name="wrap"/>, 150 for most (<c>TrekTextPopup</c>).</summary>

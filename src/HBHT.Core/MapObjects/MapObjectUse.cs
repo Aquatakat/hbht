@@ -171,7 +171,7 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
 
     private void Close()
     {
-        if (Popup is { Fade: not null } popup)
+        if (Popup is { } popup)
         {
             popup.Close();
             Leaving = popup;
