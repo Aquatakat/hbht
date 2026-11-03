@@ -43,7 +43,7 @@ public sealed class Reach
     }
 
     /// <summary>Alaron's actor, whose run moves him.</summary>
-    public static readonly RecordId Alaron = RecordId.Hex(RecordTypes.Actor, 0x25F9);
+    public static readonly RecordId Alaron = Body.AlaronActor;
 
     private Reach(MapSetRecord set, Dictionary<Cell, (Vector3, Vector2)> cells, Dictionary<Vector3, (Vector3, Vector2)> parents, int runs)
     {

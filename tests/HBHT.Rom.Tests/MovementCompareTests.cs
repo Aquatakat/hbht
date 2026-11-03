@@ -42,7 +42,9 @@ public sealed class MovementCompareTests(Na10Import fixture, ITestOutputHelper o
         Assert.InRange(Of(MovementCompare.Severity.Place).Count(), 8, 16);
         Assert.InRange(Of(MovementCompare.Severity.Timing).Count(), 8, 16);
         Assert.Empty(Of(MovementCompare.Severity.FellOut));
-        Assert.Empty(Of(MovementCompare.Severity.GiveUp));
+        // Alaron in 0x0432 falls straight under the original's, as a body of his actor does (Body.FallsStraight), against the plain
+        // wall he walks along, and gives up his walk; Modern's makes it.
+        Assert.Equal(new[] { Script(0x0432) }, Of(MovementCompare.Severity.GiveUp).Select(d => d.Launch.Script));
     }
 
     /// <summary>
@@ -70,7 +72,8 @@ public sealed class MovementCompareTests(Na10Import fixture, ITestOutputHelper o
     /// (0x03FC) and C05's between two invisible posts narrower than Alaron (0x04EB), which it now slips through, the point behind
     /// H08's plain wall (0x0365), which a body pressed against the wall now reaches as the original's does, and the walk on from
     /// inside that wall where 0x0364's give-up put entity 0x0226, which it now comes out of. Every actor gives up as often under
-    /// both.
+    /// both, but Alaron in 0x0432, who falls straight under the original's (<see cref="Body.FallsStraight"/>) against the plain wall
+    /// he walks along and gives up his walk.
     /// </summary>
     [Fact]
     public void Modern_makes_the_walks_the_original_makes()
@@ -78,7 +81,7 @@ public sealed class MovementCompareTests(Na10Import fixture, ITestOutputHelper o
         var those = Differences().Where(d => d.Launch.Script == Script(0x03FC) || d.Launch.Script == Script(0x0364)
             || d.Launch.Script == Script(0x0365) || d.Launch.Script == Script(0x04EB)).ToList();
         Assert.True(those.Count >= 4);
-        foreach (var d in Differences())
+        foreach (var d in Differences().Where(d => d.Launch.Script != Script(0x0432)))
             Assert.All(d.Actors, a => Assert.True(a.Modern.PutAtGoal == a.Original.PutAtGoal, $"{d.Launch.Script} actor {a.Index}"));
     }
 

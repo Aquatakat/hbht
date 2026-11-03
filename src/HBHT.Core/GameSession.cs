@@ -1233,6 +1233,10 @@ public sealed class GameSession
         _playerBodyOf = leader;
         var body = leader is { } id ? Game.Plugins.TryGet<EntityRecord>(id)?.Body : null;
         Trek.Player.Rules = ModernRules.Default.For(body);
+        // His body takes the leader's actor, which decides whether it falls straight (Body.FallsStraight); a leader without a body
+        // record leaves it as it was, Alaron's.
+        if (body is not null)
+            Trek.Player.Body.Actor = body.Actor;
     }
 
     /// <summary>The player's body's actor: the party leader's (<see cref="EntityBody.Actor"/>), Alaron's in the base game.</summary>

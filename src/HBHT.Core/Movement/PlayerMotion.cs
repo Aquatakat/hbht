@@ -42,32 +42,16 @@ public sealed class PlayerMotion
     public const float Floor = -50;
 
     /// <summary>
-    /// Falling faster than this a tick, he can't steer and his animation doesn't move him (<c>ProcessPlayers</c>, <c>0x800132f4</c>:
-    /// <c>0x800cdb60</c>, −0.048, for a body of Alaron's actor, <c>+0x70B</c>).
+    /// Falling faster than this a tick, he can't steer and his animation doesn't move him: the falling rule of a body of Alaron's
+    /// actor, which is every body's of his (<see cref="Body.Falling"/>, <see cref="Body.Falls"/>).
     /// </summary>
-    public const float Falling = -0.048f;
+    public const float Falling = Body.Falling;
 
-    /// <summary>
-    /// The ticks he may be falling by his velocity without dropping before he steers again (<see cref="Pinned"/>), the port's:
-    /// about a quarter of a second, counted a frame at a time.
-    /// </summary>
-    public const int PinnedTicks = 15;
+    /// <inheritdoc cref="Body.PinnedTicks"/>
+    public const int PinnedTicks = Body.PinnedTicks;
 
-    /// <summary>Less than this lower than where <see cref="Pinned"/>'s count began, he hasn't dropped.</summary>
-    private const float PinnedDrop = 0.05f;
-
-    /// <summary>
-    /// The ticks of the frames in a row he has been falling by his velocity (<see cref="Falling"/>) at a frame's end, yet stands,
-    /// after each frame's collision, no more than <see cref="PinnedDrop"/> lower than as the count began. From
-    /// <see cref="PinnedTicks"/> he steers and his animation moves him again, the port's, as the user chose to rescue rather than
-    /// leave him stuck: against a leaning plain wall the ground rule, or a wall facing it, can hold him up while plain collision's
-    /// push keeps his velocity falling, and 1.0 leaves him there with no way out. A real fall drops him at least 0.048 a tick, so
-    /// it never counts past a frame.
-    /// </summary>
-    public int Pinned { get; private set; }
-
-    /// <summary>His height as <see cref="Pinned"/>'s count began.</summary>
-    private float _pinnedFrom;
+    /// <inheritdoc cref="Body.Pinned"/>
+    public int Pinned => Body.Pinned;
 
     /// <summary>
     /// Counts the ticks to the end of a 30 fps frame (<see cref="Cadence.FrameTicks"/>), on which <c>ProcessPlayers</c>, once a
@@ -83,7 +67,8 @@ public sealed class PlayerMotion
 
     public PlayerMotion(Vector3 position, Vector2 heading)
     {
-        Body = new Body(position, Radius) { Heading = Vector2.Normalize(heading) };
+        // Alaron's, the base game's leader, until the session gives it the leader's (GameSession.PlayerActor).
+        Body = new Body(position, Radius) { Heading = Vector2.Normalize(heading), Actor = Body.AlaronActor };
     }
 
     /// <summary>His body, the first that <c>ProcessPlayers</c> steps.</summary>
@@ -101,7 +86,6 @@ public sealed class PlayerMotion
             if (value == Body.Movement)
                 return;
             Body.Movement = value;
-            Pinned = 0;
         }
     }
 
@@ -203,22 +187,12 @@ public sealed class PlayerMotion
         var height = Sphere.Position.Y;
         SpherePhysics.Step(world, Sphere, ticks);
         // On plain collision, which keeps velocity, don't slide down when there's ground just below.
-        if (Sphere.Surface is 1 or 2 && SpherePhysics.Ground(world, Sphere.Position, Radius, 0.05f) && Sphere.Position.Y < height)
-            Sphere.Position.Y = height;
+        Body.KeepHeight(world, height);
         // And press down onto it.
         Body.Press();
 
         // Falling: no steering, unless he has been held where he is for a while, falling by his velocity alone.
-        var falling = Sphere.Velocity.Y <= Falling;
-        if (!falling)
-            Pinned = 0;
-        else if (Pinned == 0)
-            (Pinned, _pinnedFrom) = (Cadence.FrameTicks, height);
-        else
-            Pinned = Sphere.Position.Y > _pinnedFrom - PinnedDrop ? Pinned + Cadence.FrameTicks : 0;
-        if (falling && Pinned < PinnedTicks)
-            Sphere.Velocity.X = Sphere.Velocity.Z = 0;
-        else
+        if (!Body.Falls(height))
             Body.Advance(forward);
         FellOut = Sphere.Velocity.Y < -FallLimit || Sphere.Position.Y < Floor;
         if (FellOut)
