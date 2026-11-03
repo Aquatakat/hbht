@@ -154,7 +154,7 @@ The kept sheets of members not in the party come over too (`AresCheckpoint.Kept`
 
 **The bit stream** (`SaveBlock.Write`, `0x80019810`; `SaveBits`, `0x800026F0`–`0x800027F4`) packs each field's bits lowest first, from bit 0 of byte 0x1340. In order:
 
-- The clock and the gold, 32 bits each, and the party's three movement timers, 12 bits each in units of 7,200 ticks.
+- The clock and the gold, 32 bits each, and the party's three movement timers, 12 bits each in units of 7,200 ticks: run, walk and sneak, from party `+0x20`, `+0x1C` and `+0x18`. `Party.TickMoveTimers` (`0x80078D64`, from `TrekLoop.TickClock`) adds each tick's time to one by the player's request (2 walk, modulo 108,000; 3 run, modulo 18,000; 25 sneak, modulo 36,000), so they cycle rather than total. Nothing but the save reads them, so the port doesn't keep them.
 - The party's four sheets, Alaron's first, each 0x500 bits (a null one zero), with Alaron's block after his: his name in 20 bytes, then 4-bit levels of the Elemental, Naming and Necromancy spells.
 - The five kept sheets, of 720 bits: Abrecan's, Arturo's, Becan's, Godric's and Keelin's, by entity. A member in the party has their own there too, copied just before saving.
 - The inventory (`Inventory.Save`, `0x800734C4`): 128 general stacks, each a quantity in 8 bits and an item; 80 quantities of 8 bits for the reserved items, by their first place in `CodeTable.ReservedItems` (which lists 0x110E twice); and the 13 key gear, an item each, by `CodeTable.KeyEquipment`. Key items aren't saved: loading gives each whose flag is set.

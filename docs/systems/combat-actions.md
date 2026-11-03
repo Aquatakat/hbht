@@ -197,12 +197,11 @@ The user's choices:
   - **It lands at the spell's `strike`**, a share of its effect (`SpellRecord.Strike`, `SpellFxCast.Struck`): the cast state of the actor its visual plays at the target, or with none at the caster, the refused or resisted actor when it's that; with no actor, as the effect starts; never before state 2's 30 ticks. The importer gives each spell 153 ÷ its effect's length, at most 1: 153 ticks is the mean of the cast animations of the party's casters (Alaron 91, Sholeh 123, Godric 129, Brenna 131, Keelin 161, Dougal 201, Rheda 239), so the base game lands a spell about when 1.0 does for a typical caster.
   - **State 4 waits no longer than 120 ticks** for a living target's reaction to a spell (`Battle.SpellReleaseTicks`), so a long reaction, or a caster's own cast playing on after it lands on itself, doesn't hold the turn; the visuals play on into the next turn, as 1.0's do.
 - **A shot and a throw leave at the entity's own shares**, its body's `shotStrike` and `throwStrike` (`EntityBody`, `Battle.StrikeShare`), where 1.0 has one 0.4 for both and every entity (`EntityBody.ShotStrike`, `0x8006C884`). The importer leaves both at 0.4, so the base game plays as 1.0's; a mod can time a bow's or a thrown weapon's release to its own actor, as `strike` times a melee blow.
+- **A missile without a hand flies from the attacker's middle**, the user's choice: an arrow, flask or thrown weapon leaves from the hand's locator as the runtime last drew it (`Combatant.LocatorAt`, which the runtime sets from `CombatantView.Locator`), but from the attacker's middle (its feet plus half its height) for an actor without that locator, where `Combat.StartCastCamera` flies nothing, and in a battle with no runtime. Every entity of the base game that shoots, throws or carries a flask has the locator, so only a mod's reaches it.
 - **Kept as the original's**: Heal With Herbs in the Shadow's battle loses its herb before the bar refuses it, as a potion drunk there is used up for nothing; Acid thrown and missed corrodes about the last flask's cell; a flask's blast keeps its distance in a byte and reads no resistance ([magic](magic.md#potions-and-flasks)).
 
 Not ported:
 
-- An arrow, flask or thrown weapon leaves from the hand's locator as the runtime last drew it (`Combatant.LocatorAt`, which the runtime sets from `CombatantView.Locator`), but from the attacker's middle (its feet plus half its height) for an actor without that locator, where `Combat.StartCastCamera` flies nothing, and in a battle with no runtime.
-- What a body holds is lit by the lights at the body's centre, not at its locator.
 - Trek's bodies (a script's `ShowItem`) don't take the scenery's tint or face their billboards.
 
 By the tick:
