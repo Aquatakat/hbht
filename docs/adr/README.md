@@ -34,5 +34,8 @@ These are the Phase 0 decisions from the [roadmap](../roadmap.md) (task 0.5). Ea
 | [0028](0028-the-project-is-hbht.md) | The project is HBHT: the code is `HBHT.*`, the editor is `HBHT.Editor`, the tool is `hbht` and the data folder is `HBHT`; "aidyn" stays for the game's names and the imported data (record IDs, `aidyn.base`) | Accepted |
 | [0029](0029-content-fixes-wait-for-a-bugfix-mod.md) | The base import fixes only content that breaks the game; other content fixes wait for a bugfix mod | Accepted |
 | [0030](0030-the-import-welds-the-seams.md) | The import welds the seams between meshes, an option on by default: a change to how imported assets are drawn, which a mod couldn't carry | Accepted |
+| [0031](0031-one-item-type.md) | One item type: weapons and armor are items with a kind, their weapon-only fields grouped, requirements and bonuses keyed by stat, skill and element, and the lists about one item fields on it | Accepted |
+| [0032](0032-one-entity-type.md) | One entity type: a character sheet is optional, dialogue entities are entities, the sheet's skills and stats are keyed by ID, the weapon slots are named, and the lists about one entity fields on it | Accepted |
+| [0033](0033-closed-enums-become-records.md) | Closed enums become records: schools, elements, weapon skills (in place of weapon classes) and animation requests, keyed by the original's numbers | Accepted |
 
 Statuses: **Proposed** means drafted and waiting for review. **Accepted** means agreed. **Superseded** means replaced by a later record, which it links to.
