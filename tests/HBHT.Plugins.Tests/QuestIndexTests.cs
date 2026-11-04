@@ -11,7 +11,7 @@ public sealed class QuestIndexTests : IDisposable
     /// <summary>
     /// Script 0x0100 checks flag 10 twice and sets and clears flag 20; it ends by setting 30, and
     /// winning its battle sets 31. Script 0x0101 sets flag 20 and checks 40. Flag 50 is derived
-    /// from 10 and 20. Flag 60 lists journal entry 2. Map 0x0200 has objects gated
+    /// from 10 and 20. Flag 60 lists journal entry 2. Chunk A01 has objects gated
     /// on flag 10, on flag 20 inverted, and on flags 0 and 1. The engine writes 70 and 71, and
     /// reads 72.
     /// </summary>
@@ -46,7 +46,7 @@ public sealed class QuestIndexTests : IDisposable
               { "id": "aidyn:flag/60", "journal": "aidyn:journal/2" },
               { "id": "aidyn:journal/2", "text": "Find the key." },
               {
-                "id": "aidyn:map/0x0200",
+                "id": "aidyn:chunk/0/A01", "mapSet": "aidyn:mapset/0", "row": 1, "column": 1, "terrain": "aidyn:terrain/1",
                 "objects": [
                   { "type": "chest", "index": 0, "position": [0, 0, 0], "radius": 1, "visible": { "flag": "aidyn:flag/10" } },
                   { "type": "chest", "index": 1, "position": [0, 0, 0], "radius": 1, "visible": { "flag": "aidyn:flag/20", "invert": true } },
@@ -79,7 +79,7 @@ public sealed class QuestIndexTests : IDisposable
                 new FlagUse(Flag(10), ScriptA, FlagAccess.Read, FlagRole.ScriptOp, 0),
                 new FlagUse(Flag(10), ScriptA, FlagAccess.Read, FlagRole.ScriptOp, 1),
                 new FlagUse(Flag(10), Id("aidyn:flag/50"), FlagAccess.Read, FlagRole.DerivedInput),
-                new FlagUse(Flag(10), Id("aidyn:voxel/0x0200/0"), FlagAccess.Read, FlagRole.ObjectVisible),
+                new FlagUse(Flag(10), Id("aidyn:mapobject/0/A01/0"), FlagAccess.Read, FlagRole.ObjectVisible),
             ],
             index.UsesOf(Flag(10)));
         Assert.Equal(
@@ -88,7 +88,7 @@ public sealed class QuestIndexTests : IDisposable
                 new FlagUse(Flag(20), ScriptA, FlagAccess.Clear, FlagRole.ScriptOp, 1),
                 new FlagUse(Flag(20), ScriptB, FlagAccess.Set, FlagRole.ScriptOp, 0),
                 new FlagUse(Flag(20), Id("aidyn:flag/50"), FlagAccess.Read, FlagRole.DerivedInput),
-                new FlagUse(Flag(20), Id("aidyn:voxel/0x0200/1"), FlagAccess.Read, FlagRole.ObjectVisible, Inverted: true),
+                new FlagUse(Flag(20), Id("aidyn:mapobject/0/A01/1"), FlagAccess.Read, FlagRole.ObjectVisible, Inverted: true),
             ],
             index.UsesOf(Flag(20)));
     }
@@ -152,8 +152,8 @@ public sealed class QuestIndexTests : IDisposable
 
         Assert.Empty(index.UsesOf(Flag(0)));
         Assert.Empty(index.UsesOf(Flag(1)));
-        Assert.Empty(index.UsesBy(Id("aidyn:voxel/0x0200/2")));
-        Assert.Empty(index.UsesBy(Id("aidyn:voxel/0x0200/3")));
+        Assert.Empty(index.UsesBy(Id("aidyn:mapobject/0/A01/2")));
+        Assert.Empty(index.UsesBy(Id("aidyn:mapobject/0/A01/3")));
     }
 
     [Fact]
@@ -198,7 +198,7 @@ public sealed class QuestIndexTests : IDisposable
         Assert.Equal(
             [
                 new QuestEdge(Flag(20), Flag(50), FlagRole.DerivedInput, FlagAccess.Read),
-                new QuestEdge(Flag(20), Id("aidyn:voxel/0x0200/1"), FlagRole.ObjectVisible, FlagAccess.Read),
+                new QuestEdge(Flag(20), Id("aidyn:mapobject/0/A01/1"), FlagRole.ObjectVisible, FlagAccess.Read),
             ],
             index.Downstream(Flag(20)));
         Assert.Equal([new QuestEdge(Flag(60), Id("aidyn:journal/2"), FlagRole.JournalListed, FlagAccess.Read)], index.Downstream(Flag(60)));
@@ -213,7 +213,7 @@ public sealed class QuestIndexTests : IDisposable
                 new QuestEdge(ScriptA, Flag(31), FlagRole.ScriptBattle, FlagAccess.Set),
             ],
             index.Downstream(ScriptA));
-        Assert.Equal([new QuestEdge(Flag(10), Id("aidyn:voxel/0x0200/0"), FlagRole.ObjectVisible, FlagAccess.Read)], index.Upstream(Id("aidyn:voxel/0x0200/0")));
+        Assert.Equal([new QuestEdge(Flag(10), Id("aidyn:mapobject/0/A01/0"), FlagRole.ObjectVisible, FlagAccess.Read)], index.Upstream(Id("aidyn:mapobject/0/A01/0")));
     }
 
     [Fact]
@@ -234,12 +234,13 @@ public sealed class QuestIndexTests : IDisposable
     /// Key items 0x1200 (held flag 100, region flag 101), 0x1201 (held 102) and 0x1202 (held 1 and region 0,
     /// the constant flags), and the plain item 0x0010. Loot 0x0800 drops 0x1201 and an empty roll, and loot
     /// 0x0801 drops only 0x0010. Script 0x0100 adds, takes and adds a plain item; script 0x0101 starts a
-    /// battle. Map 0x0300 has containers and monster parties that give them. Shop 3 sells 0x1200 and 0x0010.
+    /// battle. Chunk A02 has containers, encounters and npcs that give them. Shop 3 sells 0x1200 and 0x0010.
     /// </summary>
     private QuestIndex ItemIndex()
     {
         const string Obj = "\"position\": [0, 0, 0], \"radius\": 1, \"kind\": \"Chest\", \"lockLevel\": 0, \"trapLevel\": 0, \"gold\": 0";
-        const string Party = "\"position\": [0, 0, 0], \"radius\": 1, \"enemies\": [], \"entity\": \"aidyn:entity/0x0001\", \"minSize\": 1, \"maxSize\": 1";
+        const string Party = "\"position\": [0, 0, 0], \"radius\": 1, \"entity\": \"aidyn:entity/0x0001\"";
+        const string Fighters = "\"enemies\": [], \"minSize\": 1, \"maxSize\": 1";
         var plugins = _temp.Aidyn(("items.json", $$"""
             [
               { "id": "aidyn:item/0x1200", "name": "Key A", "icon": "aidyn:image/0x0001", "price": 0, "kind": "Key", "keyItem": { "held": "aidyn:flag/100", "region": "aidyn:flag/101" } },
@@ -270,18 +271,18 @@ public sealed class QuestIndexTests : IDisposable
                 "nodes": [ { "index": 0, "kind": "Line", "text": "" } ],
               },
               {
-                "id": "aidyn:map/0x0300",
+                "id": "aidyn:chunk/0/A02", "mapSet": "aidyn:mapset/0", "row": 1, "column": 2, "terrain": "aidyn:terrain/1",
                 "objects": [
                   { "type": "container", "index": 0, {{Obj}}, "item": "aidyn:item/0x1200" },
                   { "type": "container", "index": 1, {{Obj}}, "loot": "aidyn:loot/0x0800" },
                   { "type": "container", "index": 2, {{Obj}}, "loot": "aidyn:loot/0x0801", "item": "aidyn:item/0x0010" },
                   { "type": "container", "index": 3, {{Obj}}, "loot": "aidyn:loot/0x0800", "item": "aidyn:item/0x1200" },
                   { "type": "container", "index": 4, {{Obj}}, "item": "aidyn:item/0x1202" },
-                  { "type": "monsterParty", "index": 5, {{Party}}, "loot": "aidyn:loot/0x0800" },
-                  { "type": "monsterParty", "index": 6, {{Party}}, "loot": "aidyn:loot/0x0800", "script": "aidyn:script/0x0101" },
-                  { "type": "monsterParty", "index": 7, {{Party}}, "loot": "aidyn:loot/0x0800", "script": "aidyn:script/0x0102" },
-                  { "type": "monsterParty", "index": 8, {{Party}}, "loot": "aidyn:loot/0x0800", "script": "aidyn:script/0x0101", "flags": "Silent" },
-                  { "type": "monsterParty", "index": 9, {{Party}}, "loot": "aidyn:loot/0x0801" },
+                  { "type": "encounter", "index": 5, {{Party}}, {{Fighters}}, "loot": "aidyn:loot/0x0800" },
+                  { "type": "npc", "index": 6, {{Party}}, "loot": "aidyn:loot/0x0800", "script": "aidyn:script/0x0101" },
+                  { "type": "npc", "index": 7, {{Party}}, "loot": "aidyn:loot/0x0800", "script": "aidyn:script/0x0102" },
+                  { "type": "npc", "index": 8, {{Party}}, "loot": "aidyn:loot/0x0800", "script": "aidyn:script/0x0101", "flags": "Silent" },
+                  { "type": "encounter", "index": 9, {{Party}}, {{Fighters}}, "loot": "aidyn:loot/0x0801" },
                 ],
               },
             ]
@@ -329,28 +330,28 @@ public sealed class QuestIndexTests : IDisposable
         var index = ItemIndex();
 
         // An item; a loot table, whose empty roll is skipped; both, with the table's key item before the item's.
-        Assert.Equal([Given(100, "aidyn:voxel/0x0300/0"), Given(101, "aidyn:voxel/0x0300/0")], index.UsesBy(Id("aidyn:voxel/0x0300/0")));
-        Assert.Equal([Given(102, "aidyn:voxel/0x0300/1")], index.UsesBy(Id("aidyn:voxel/0x0300/1")));
+        Assert.Equal([Given(100, "aidyn:mapobject/0/A02/0"), Given(101, "aidyn:mapobject/0/A02/0")], index.UsesBy(Id("aidyn:mapobject/0/A02/0")));
+        Assert.Equal([Given(102, "aidyn:mapobject/0/A02/1")], index.UsesBy(Id("aidyn:mapobject/0/A02/1")));
         Assert.Equal(
-            [Given(100, "aidyn:voxel/0x0300/3"), Given(101, "aidyn:voxel/0x0300/3"), Given(102, "aidyn:voxel/0x0300/3")],
-            index.UsesBy(Id("aidyn:voxel/0x0300/3")).OrderBy(u => u.Flag.Key, StringComparer.Ordinal));
+            [Given(100, "aidyn:mapobject/0/A02/3"), Given(101, "aidyn:mapobject/0/A02/3"), Given(102, "aidyn:mapobject/0/A02/3")],
+            index.UsesBy(Id("aidyn:mapobject/0/A02/3")).OrderBy(u => u.Flag.Key, StringComparer.Ordinal));
         // A plain item and plain loot give nothing, and a key item on the constant flags no use.
-        Assert.Empty(index.UsesBy(Id("aidyn:voxel/0x0300/2")));
-        Assert.Empty(index.UsesBy(Id("aidyn:voxel/0x0300/4")));
+        Assert.Empty(index.UsesBy(Id("aidyn:mapobject/0/A02/2")));
+        Assert.Empty(index.UsesBy(Id("aidyn:mapobject/0/A02/4")));
     }
 
     [Fact]
-    public void MonsterPartiesGiveTheirLootOnlyWhenTheyAreFought()
+    public void EncountersAndNpcsGiveTheirLootOnlyWhenTheyAreFought()
     {
         var index = ItemIndex();
-        Assert.Equal([Given(102, "aidyn:voxel/0x0300/5")], index.UsesBy(Id("aidyn:voxel/0x0300/5")).Where(u => u.Role == FlagRole.ItemGiven));
+        Assert.Equal([Given(102, "aidyn:mapobject/0/A02/5")], index.UsesBy(Id("aidyn:mapobject/0/A02/5")).Where(u => u.Role == FlagRole.ItemGiven));
 
-        // No script: a fight. A script with a battle: a fight. One without, and a silent one: not.
-        Assert.Contains(Given(102, "aidyn:voxel/0x0300/6"), index.UsesBy(Id("aidyn:voxel/0x0300/6")));
-        Assert.Empty(index.UsesBy(Id("aidyn:voxel/0x0300/7")));
-        Assert.Empty(index.UsesBy(Id("aidyn:voxel/0x0300/8")));
+        // An encounter (no script): a fight. An npc whose script has a battle: a fight. One without, and a silent one: not.
+        Assert.Contains(Given(102, "aidyn:mapobject/0/A02/6"), index.UsesBy(Id("aidyn:mapobject/0/A02/6")));
+        Assert.Empty(index.UsesBy(Id("aidyn:mapobject/0/A02/7")));
+        Assert.Empty(index.UsesBy(Id("aidyn:mapobject/0/A02/8")));
         // A fought party with plain loot gives nothing.
-        Assert.DoesNotContain(index.UsesBy(Id("aidyn:voxel/0x0300/9")), u => u.Role == FlagRole.ItemGiven);
+        Assert.DoesNotContain(index.UsesBy(Id("aidyn:mapobject/0/A02/9")), u => u.Role == FlagRole.ItemGiven);
     }
 
     [Fact]

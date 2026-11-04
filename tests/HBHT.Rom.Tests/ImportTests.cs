@@ -21,19 +21,23 @@ public sealed class ImportTests(Na10Import fixture)
         var mapSets = set.All<MapSetRecord>(RecordTypes.MapSet).ToList();
         Assert.Equal(17, mapSets.Count);
         // The original's, and those the importer makes for fills on the Overworld, with no scene of their own.
-        Assert.Equal(543, mapSets.Sum(s => s.Chunks.Count(c => c.Scene is not null || c.AltScene is not null)));
-        Assert.Equal(137, mapSets.Sum(s => s.Chunks.Count(c => c.Scene is null && c.AltScene is null)));
+        var allChunks = mapSets.SelectMany(s => set.ChunksIn(s.Id)).ToList();
+        Assert.Equal(680, allChunks.Count);
+        Assert.Equal(680, set.IdsOf(RecordTypes.Chunk).Count);
+        Assert.Equal(543, allChunks.Count(c => c.Scene is not null || c.AltScene is not null));
+        Assert.Equal(137, allChunks.Count(c => c.Scene is null && c.AltScene is null));
         var overworld = set.Get<MapSetRecord>(RecordId.Parse("aidyn:mapset/0"));
+        var overworldChunks = set.ChunksIn(overworld.Id).ToList();
         Assert.Equal(("Overworld", 100f), (overworld.Label, overworld.CellSize));
-        Assert.Contains(overworld.Chunks, c => c.Name == "I08");
+        Assert.Contains(overworldChunks, c => c.Name == "I08");
 
         var sceneObjects = 0;
-        foreach (var chunk in mapSets.SelectMany(s => s.Chunks))
+        foreach (var chunk in allChunks)
         {
             foreach (var scene in new[] { chunk.Scene, chunk.AltScene }.OfType<RecordId>())
                 Assert.NotNull(set.FindAsset(scene, "glb"));
-            Assert.NotNull(set.FindAsset(chunk.Map, "glb"));
-            foreach (var o in set.Get<MapRecord>(chunk.Map).Objects.OfType<SceneObject>())
+            Assert.NotNull(set.FindAsset(chunk.Collision!.Value, "glb"));
+            foreach (var o in chunk.Objects.OfType<SceneObject>())
             {
                 sceneObjects++;
                 foreach (var model in o.Models)
@@ -49,9 +53,10 @@ public sealed class ImportTests(Na10Import fixture)
 
         // A chunk's collision reads back as its Borg9's triangles, in the chunk's own coordinates.
         var archive = Borg.BorgArchive.Open(rom);
-        var i08 = overworld.Chunks.Single(c => c.Name == "I08");
-        var borg9 = Maps.Borg9Map.Parse(archive.Read(Convert.ToInt32(i08.Map.Key, 16)));
-        var collision = CollisionMesh.Read(File.ReadAllBytes(set.FindAsset(i08.Map, "glb")!));
+        var i08 = overworldChunks.Single(c => c.Name == "I08");
+        Assert.Equal(i08.Collision!.Value.Key, i08.Borg);
+        var borg9 = Maps.Borg9Map.Parse(archive.Read(Convert.ToInt32(i08.Collision!.Value.Key, 16)));
+        var collision = CollisionMesh.Read(File.ReadAllBytes(set.FindAsset(i08.Collision!.Value, "glb")!));
         Assert.Equal(borg9.Triangles.Count, collision.Count);
         for (var t = 0; t < collision.Count; t++)
         {
@@ -70,8 +75,7 @@ public sealed class ImportTests(Na10Import fixture)
         foreach (var sequence in sequences)
             Core.Audio.Sequence.Load(set, sequence.Id, samples);
         Assert.Equal(145, samples.Count);
-        var sounds = mapSets.SelectMany(m => m.Chunks).Select(c => c.Map).Distinct()
-            .SelectMany(m => set.Get<MapRecord>(m).Objects.OfType<SoundObject>()).ToList();
+        var sounds = allChunks.SelectMany(c => c.Objects.OfType<SoundObject>()).ToList();
         Assert.Equal(1037, sounds.Count);
         Assert.All(sounds, o => Assert.NotNull(set.TryGet<SequenceRecord>(o.Sound)));
         Assert.Equal(Audio.Borg11Sample.Parse(archive.Read(0x559)).Samples, samples[RecordId.Hex(RecordTypes.Sample, 0x559)]);
@@ -86,11 +90,13 @@ public sealed class ImportTests(Na10Import fixture)
         var terrains = set.All<TerrainRecord>(RecordTypes.Terrain).ToList();
         Assert.Equal(28, terrains.Count);
         Assert.All(terrains, t => Assert.NotNull(set.FindAsset(t.Sky, "png")));
-        Assert.Equal(RecordId.Hex(RecordTypes.Image, 0x19F), set.Get<TerrainRecord>(RecordId.Decimal(RecordTypes.Terrain, i08.Terrain)).Sky);
-        // Every terrain's battles take an arena (BattleSetup.ChooseArena): terrain 20 takes 6-7 or 8-11, terrain 6 arena 18 alone.
+        Assert.Equal(RecordId.Hex(RecordTypes.Image, 0x19F), set.Get<TerrainRecord>(i08.Terrain).Sky);
+        // Every terrain's battles take an arena (BattleSetup.ChooseArena): terrain 20 takes G01 or G03, or I01, I03, I05 or I07 (arenas
+        // 6-7 or 8-11 of the original); terrain 6 arena 18 alone.
         Assert.All(terrains, t => Assert.NotEmpty(t.Arenas!));
-        Assert.Equal([new ArenaRange(6, 7), new ArenaRange(8, 11)], set.Get<TerrainRecord>(RecordId.Parse("aidyn:terrain/20")).Arenas!);
-        Assert.Equal([new ArenaRange(18, 18)], set.Get<TerrainRecord>(RecordId.Parse("aidyn:terrain/6")).Arenas!);
+        Assert.Equal([[Ids.Chunk(16, "G01"), Ids.Chunk(16, "G03")], [Ids.Chunk(16, "I01"), Ids.Chunk(16, "I03"), Ids.Chunk(16, "I05"), Ids.Chunk(16, "I07")]],
+            set.Get<TerrainRecord>(RecordId.Parse("aidyn:terrain/20")).Arenas!);
+        Assert.Equal([[Battlefield.Chunk(18)]], set.Get<TerrainRecord>(RecordId.Parse("aidyn:terrain/6")).Arenas!);
 
         // The one sky record, with every image it names there as PNG.
         var sky = set.Get<SkyRecord>(RecordId.Parse("aidyn:sky/0"));
@@ -141,22 +147,23 @@ public sealed class ImportTests(Na10Import fixture)
         Assert.Equal((50f, 0f), (set.Get<TerrainRecord>(RecordId.Parse("aidyn:terrain/10")).Camp, set.Get<TerrainRecord>(RecordId.Parse("aidyn:terrain/19")).Camp));
         var camping = set.Get<CampingRecord>(RecordId.Parse("aidyn:camping/0"));
         Assert.Equal(8, camping.Scenes.Count);
-        Assert.Contains(set.Get<MapRecord>(camping.Campsite).Objects, o => o is ScriptObject);
+        Assert.Equal(Ids.MapObject(6, "C05", 0), camping.Campsite);
+        Assert.IsType<ScriptObject>(ChunkRecord.Find(set, camping.Campsite));
 
         // The minimaps: eight map sets', every piece's image imported and every rule's piece one of its own.
-        var minimaps = set.All<MinimapRecord>(RecordTypes.Minimap).ToList();
+        var minimaps = mapSets.Where(s => s.Minimap is not null).ToList();
         Assert.Equal([4, 6, 7, 9, 10, 11, 12, 14], minimaps.Select(m => int.Parse(m.Id.Key)).Order());
-        Assert.All(minimaps.SelectMany(m => m.Sections), s => Assert.NotNull(set.FindAsset(s.Image, "png")));
-        Assert.All(minimaps, m => Assert.All(m.Rules, r => Assert.True(r.Section is null || r.Section < m.Sections.Count)));
+        Assert.All(minimaps.SelectMany(m => m.Minimap!.Sections), s => Assert.NotNull(set.FindAsset(s.Image, "png")));
+        Assert.All(minimaps, m => Assert.All(m.Minimap!.Rules, r => Assert.True(r.Section is null || r.Section < m.Minimap.Sections.Count)));
 
         // The engine's sounds and the map sets' music: every one a sequence. The Overworld's two lists of chunks with
         // music, thirteen and twenty-two, and five battle pieces.
         var engineSounds = set.Get<SoundsRecord>(RecordId.Parse("aidyn:sounds/0"));
         Assert.Equal((39, 8, 4), (engineSounds.Script.Count, engineSounds.Containers.Count, engineSounds.Explosions.Count));
-        Assert.Equal((13, 22), (overworld.Chunks.Count(c => c.Music?.Key == "0x062C"), overworld.Chunks.Count(c => c.Music?.Key == "0x05EA")));
-        Assert.Equal("0x062C", overworld.Chunks.Single(c => c.Name == "M23").Music?.Key);
+        Assert.Equal((13, 22), (overworldChunks.Count(c => c.Music?.Key == "0x062C"), overworldChunks.Count(c => c.Music?.Key == "0x05EA")));
+        Assert.Equal("0x062C", overworldChunks.Single(c => c.Name == "M23").Music?.Key);
         Assert.Equal(5, set.Get<MapSetRecord>(RecordId.Parse("aidyn:mapset/16")).Music?.Count);
-        var music = mapSets.SelectMany(s => (s.Music ?? []).Concat(s.Chunks.Select(c => c.Music).OfType<RecordId>()));
+        var music = mapSets.SelectMany(s => (s.Music ?? []).Concat(set.ChunksIn(s.Id).Select(c => c.Music).OfType<RecordId>()));
         Assert.All(engineSounds.Script.Concat(engineSounds.Containers).Concat(engineSounds.Explosions).Concat(music)
             .Append(engineSounds.Menu.Cursor).Append(engineSounds.Title), s => Assert.NotNull(set.TryGet<SequenceRecord>(s)));
 
@@ -228,12 +235,15 @@ public sealed class ImportTests(Na10Import fixture)
         // The editor's catalog: every record and asset with a summary, and what names what.
         var catalog = PluginCatalog.Build(set);
         Assert.DoesNotContain(catalog.Entries, e => e.Summary.StartsWith('‹'));
-        var i08Map = catalog.Find(i08.Map)!;
-        Assert.True(i08Map.HasRecord);
-        Assert.Equal(Convert.ToInt32(i08.Map.Key, 16), i08Map.Borg);
-        Assert.Contains("Overworld I08", i08Map.Summary, StringComparison.Ordinal);
-        Assert.NotNull(i08Map.Asset("glb"));
-        Assert.Contains(catalog.ReferencesTo(i08.Map), r => r.From == overworld.Id && r.Path.StartsWith("chunks[", StringComparison.Ordinal));
+        var i08Entry = catalog.Find(i08.Id)!;
+        Assert.True(i08Entry.HasRecord);
+        Assert.Contains("Overworld I08", i08Entry.Summary, StringComparison.Ordinal);
+        // Its collision is an asset alone, keyed by the Borg9, and the new game's record names the chunk.
+        var i08Collision = catalog.Find(i08.Collision!.Value)!;
+        Assert.False(i08Collision.HasRecord);
+        Assert.Equal(Convert.ToInt32(i08.Collision.Value.Key, 16), i08Collision.Borg);
+        Assert.NotNull(i08Collision.Asset("glb"));
+        Assert.Contains(catalog.ReferencesTo(i08.Id), r => r.From.Type == RecordTypes.NewGame && r.Path == "chunk");
         Assert.Equal("12×37", catalog.Find(RecordId.Hex(RecordTypes.Image, 0x19F))!.Summary);
         Assert.Contains(catalog.ReferencesTo(RecordId.Hex(RecordTypes.Image, 0x19F)), r => r.From.Type == RecordTypes.Terrain);
         Assert.All(textures, l => Assert.NotNull(catalog.Find(RecordId.Hex(RecordTypes.Texture, l.Index))));
@@ -259,11 +269,11 @@ public sealed class ImportTests(Na10Import fixture)
     public void TheMountainsRoundErromonAreTheOverworldsOnlySnowyTerrain()
     {
         var set = fixture.Data.Set;
-        var overworld = set.Get<MapSetRecord>(RecordId.Parse("aidyn:mapset/0"));
+        var overworld = set.ChunksIn(RecordId.Parse("aidyn:mapset/0")).ToList();
         // The original's chunks: one made for a fill takes the terrain of the chunk nearest it that gave to it.
         Assert.Equal(["A04", "A05", "A06", "B04", "B05", "B06", "B07", "B08", "C07", "C10"],
-            overworld.Chunks.Where(c => c.Terrain == 5 && c.Scene is not null).Select(c => c.Name).Order(StringComparer.Ordinal));
-        Assert.All(new[] { "B09", "C08", "C09" }, name => Assert.Equal(19, overworld.Chunks.Single(c => c.Name == name).Terrain));
+            overworld.Where(c => c.Terrain.Key == "5" && c.Scene is not null).Select(c => c.Name).Order(StringComparer.Ordinal));
+        Assert.All(new[] { "B09", "C08", "C09" }, name => Assert.Equal(RecordId.Decimal(RecordTypes.Terrain, 19), overworld.Single(c => c.Name == name).Terrain));
         Assert.Equal(["5"], set.All<TerrainRecord>(RecordTypes.Terrain).Where(t => t.Snow).Select(t => t.Id.Key));
     }
 

@@ -118,7 +118,7 @@ public sealed class ScriptRunner
     private const int NoCase = 0xFFFF;
     private const int MaxLines = 9;
     private const int MaxEnemies = 12;
-    private const int MaxBattlefield = 0x1B;
+
     /// <summary>Steps through nodes without the player before the runner gives up on a loop.</summary>
     private const int MaxSteps = 10_000;
 
@@ -141,7 +141,9 @@ public sealed class ScriptRunner
     /// <summary>The speaker of the last line shown.</summary>
     private RecordId? _speaker;
     private int _cameraTime = 60;
-    private int _collisionByte, _battlefield, _aniByte;
+    private int _collisionByte, _aniByte;
+    /// <summary>The battle's arena, if a <see cref="ScriptOp.BattleArena"/> named one.</summary>
+    private RecordId? _battlefield;
     /// <summary>A case's value, when fewer than two of its links matched (<c>unk10e</c>).</summary>
     private int? _pendingCase;
     /// <summary>The menu or case a line with no link goes back to (<c>unk116</c>).</summary>
@@ -569,7 +571,7 @@ public sealed class ScriptRunner
                     _collisionByte = collision.Value & 0xFF;
                     break;
                 case ScriptOp.BattleArena arena:
-                    _battlefield = arena.Arena & 0xFF;
+                    _battlefield = arena.Arena;
                     break;
                 case ScriptOp.BattleAnimationByte animation:
                     _aniByte = animation.Value & 0xFF;
@@ -748,8 +750,8 @@ public sealed class ScriptRunner
         BattleSetup? battle = null;
         if (kind == ScriptEndKind.Battle)
         {
-            battle = BattleSetup.Scripted(_enemies, _battlefield > MaxBattlefield ? 0 : _battlefield, _collisionByte, _aniByte,
-                _script.Mode != ScriptMode.Cutscene, _script.BattleFlag);
+            battle = BattleSetup.Scripted(_enemies, _battlefield, _collisionByte, _aniByte,
+                _script.Mode != ScriptMode.Cutscene, _script.BattleFlag, _script.BattleRules);
         }
         var rest = (kind == ScriptEndKind.Camp ? 8 : 0) + (_script.Rest ? 8 : 0);
         Ending = new ScriptEnding(kind, keeper ?? _speaker, battle, rest, _partnerJoined, fault);

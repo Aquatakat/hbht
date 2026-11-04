@@ -5,11 +5,11 @@ using HBHT.Plugins.Records;
 namespace HBHT.Core.Chunks;
 
 /// <summary>
-/// The scenery the 3×3 the chunk streamer keeps loaded looks out on: the chunks its chunks show (<see cref="ChunkEntry.Shows"/>),
+/// The scenery the 3×3 the chunk streamer keeps loaded looks out on: the chunks its chunks show (<see cref="ChunkRecord.Shows"/>),
 /// which draw what their scenes drew over those chunks' cells in the original, out to one past the 3×3; and under the Draw
 /// Distance setting's Extended, a port addition, the chunks round the 3×3 that make up the 5×5 round the player, with what all of
 /// those show, out to one past the 5×5 (docs/systems/rendering.md#draw-distance). Extended draws the 5×5 only round a chunk that
-/// has it (<see cref="ChunkEntry.Extended"/>), and only the chunks of it that have it too. They're scenery only: their scenes and
+/// has it (<see cref="ChunkRecord.Extended"/>), and only the chunks of it that have it too. They're scenery only: their scenes and
 /// the scene objects their maps place, and nothing else. They have no collision, sounds, lights or wanderers, their map objects do
 /// nothing, and loading them is no map load, so what map objects remember doesn't age by them. Which scene objects show is decided
 /// as the 3×3's are, by their flag gates and the memory that keeps a put-out light out (<see cref="LoadedMap.Scenery"/>), read
@@ -26,7 +26,7 @@ public sealed class SceneryRing(GameState game, ChunkStreamer inner)
     /// <summary>How many chunks out from the centre Extended reaches: the 5×5's 2, where the streamer's 3×3 reaches 1.</summary>
     public const int ExtendedReach = 2;
 
-    private readonly Dictionary<ChunkKey, (ChunkEntry Chunk, LoadedMap Map)> _maps = [];
+    private readonly Dictionary<ChunkKey, (ChunkRecord Chunk, LoadedMap Map)> _maps = [];
     /// <summary>
     /// What it was last brought round: the 3×3's map set, its centre, and the centre's map, which is another once it reloads, and
     /// how far it reached.
@@ -46,19 +46,19 @@ public sealed class SceneryRing(GameState game, ChunkStreamer inner)
     /// How many chunks out from the centre it reaches now: <see cref="ExtendedReach"/> under Extended round a chunk that has it,
     /// else the 3×3's 1. What the chunks show is drawn one further.
     /// </summary>
-    public int Reach => Active && Extended && inner.MapSet.Chunk(inner.Centre.Row, inner.Centre.Column) is { Extended: true } ? ExtendedReach : 1;
+    public int Reach => Active && Extended && inner.Chunk(inner.Centre) is { Extended: true } ? ExtendedReach : 1;
 
     /// <summary>The 3×3 it's drawn around.</summary>
     public ChunkStreamer Inner => inner;
 
     /// <summary>A chunk's scenery has come into the ring.</summary>
-    public event Action<ChunkEntry, LoadedMap>? Loaded;
+    public event Action<ChunkRecord, LoadedMap>? Loaded;
 
     /// <summary>A chunk's scenery is leaving the ring: out of it, or into the 3×3.</summary>
-    public event Action<ChunkEntry, LoadedMap>? Unloading;
+    public event Action<ChunkRecord, LoadedMap>? Unloading;
 
     /// <summary>The ring's chunks, and which of their scene objects show.</summary>
-    public IEnumerable<(ChunkEntry Chunk, LoadedMap Map)> All => _maps.Values;
+    public IEnumerable<(ChunkRecord Chunk, LoadedMap Map)> All => _maps.Values;
 
     /// <summary>The ring's chunk at a key, if it has it.</summary>
     public LoadedMap? Map(ChunkKey key) => _maps.TryGetValue(key, out var entry) ? entry.Map : null;
@@ -88,7 +88,7 @@ public sealed class SceneryRing(GameState game, ChunkStreamer inner)
         }
         _around = (set.Id, centre, centreMap, reach);
 
-        var wanted = Wanted(set, centre, reach);
+        var wanted = Wanted(game.Plugins, set, centre, reach);
         var changed = false;
         foreach (var key in _maps.Keys.Where(k => !wanted.Contains(k) || Drawn(set, k) != _maps[k].Chunk).ToList())
         {
@@ -98,7 +98,7 @@ public sealed class SceneryRing(GameState game, ChunkStreamer inner)
         foreach (var key in wanted.Where(k => !_maps.ContainsKey(k)))
         {
             var chunk = Drawn(set, key);
-            var map = LoadedMap.Scenery(game.Plugins.Get<MapRecord>(chunk.Map), key, game.Flags, game.Memory, set.Origin(key.Row, key.Column));
+            var map = LoadedMap.Scenery(chunk, key, game.Flags, game.Memory, set.Origin(key.Row, key.Column));
             _maps[key] = (chunk, map);
             Loaded?.Invoke(chunk, map);
             changed = true;
@@ -110,16 +110,17 @@ public sealed class SceneryRing(GameState game, ChunkStreamer inner)
     /// The chunks past the 3×3 it draws round <paramref name="centre"/>: those of the square <paramref name="reach"/> out that have
     /// Extended, and those that the 3×3's chunks and these show, out to one further.
     /// </summary>
-    public static HashSet<ChunkKey> Wanted(MapSetRecord set, ChunkKey centre, int reach)
+    public static HashSet<ChunkKey> Wanted(PluginSet plugins, MapSetRecord set, ChunkKey centre, int reach)
     {
+        var index = ChunkIndex.For(plugins);
         static int Distance(ChunkKey centre, int row, int column) => Math.Max(Math.Abs(row - centre.Row), Math.Abs(column - centre.Column));
         var wanted = new HashSet<ChunkKey>();
-        var looking = new List<ChunkEntry>();
+        var looking = new List<ChunkRecord>();
         for (var r = centre.Row - reach; r <= centre.Row + reach; r++)
         {
             for (var c = centre.Column - reach; c <= centre.Column + reach; c++)
             {
-                if (set.Chunk(r, c) is not { } chunk)
+                if (plugins.ChunkAt(set.Id, r, c) is not { } chunk)
                     continue;
                 if (Distance(centre, r, c) <= 1)
                 {
@@ -132,9 +133,10 @@ public sealed class SceneryRing(GameState game, ChunkStreamer inner)
                 }
             }
         }
-        foreach (var cell in looking.SelectMany(c => c.Shows ?? []))
+        foreach (var shown in looking.SelectMany(c => c.Shows ?? []))
         {
-            if (Distance(centre, cell.Row, cell.Column) is > 1 and var d && d <= reach + 1 && set.Chunk(cell.Row, cell.Column) is not null)
+            if (index.CellOf(shown) is { } cell && cell.MapSet == set.Id
+                && Distance(centre, cell.Row, cell.Column) is > 1 and var d && d <= reach + 1)
                 wanted.Add(centre with { Row = cell.Row, Column = cell.Column });
         }
         return wanted;
@@ -142,7 +144,7 @@ public sealed class SceneryRing(GameState game, ChunkStreamer inner)
 
     /// <summary>
     /// Gates the ring's scene objects again by the flags and the memory, as the streamer's are when the pause menu closes
-    /// (<see cref="ChunkStreamer.Regate"/>) and as they load again, and its scenes by them (<see cref="ChunkEntry.Swap"/>): each chunk
+    /// (<see cref="ChunkStreamer.Regate"/>) and as they load again, and its scenes by them (<see cref="ChunkRecord.Swap"/>): each chunk
     /// whose scenery changed goes and comes back (<see cref="Unloading"/>, <see cref="Loaded"/>). Returns whether any did.
     /// </summary>
     public bool Regate()
@@ -174,11 +176,11 @@ public sealed class SceneryRing(GameState game, ChunkStreamer inner)
     }
 
     /// <summary>
-    /// A chunk of the map set as the flags draw it now (<see cref="ChunkEntry.Drawn"/>), read as they're stored, so that drawing it
+    /// A chunk of the map set as the flags draw it now (<see cref="ChunkRecord.Drawn"/>), read as they're stored, so that drawing it
     /// changes nothing (<see cref="Flags.FlagNetwork.IsSetAsStored"/>).
     /// </summary>
-    private ChunkEntry Drawn(MapSetRecord set, ChunkKey key) =>
-        set.Chunk(key.Row, key.Column)!.Drawn(gate => game.Flags.IsSetAsStored(gate.Flag) != gate.Invert);
+    private ChunkRecord Drawn(MapSetRecord set, ChunkKey key) =>
+        game.Plugins.ChunkAt(set.Id, key.Row, key.Column)!.Drawn(gate => game.Flags.IsSetAsStored(gate.Flag) != gate.Invert);
 
     private void Unload(ChunkKey key)
     {

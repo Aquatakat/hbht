@@ -91,10 +91,10 @@ public sealed class ZoneEngine
     /// <summary>
     /// A chunk has loaded, before its sounds and lights: what a mode keeps of its own, such as trek's wanderers, loads here.
     /// </summary>
-    public event Action<ChunkEntry, LoadedMap>? Loaded;
+    public event Action<ChunkRecord, LoadedMap>? Loaded;
 
     /// <summary>A chunk is going, before its sounds and lights.</summary>
-    public event Action<ChunkEntry, LoadedMap>? Unloading;
+    public event Action<ChunkRecord, LoadedMap>? Unloading;
 
     /// <summary>
     /// The camera the zone engine draws from (<c>Camera.Listener</c>): the rain falls about it, bodies are heard from it, and
@@ -133,7 +133,7 @@ public sealed class ZoneEngine
     /// Asks for the music of the map set and a chunk in it (<c>Zones.SetMapSet</c>), as the original does as the zone engine
     /// starts, on every crossing into another chunk and every teleport. Out of the chunks with music, it stops.
     /// </summary>
-    public void RequestMusic(ChunkEntry? chunk) => Audio.Music = MapMusic.For(Chunks.MapSet, chunk, Game.Random.Cosmetic);
+    public void RequestMusic(ChunkRecord? chunk) => Audio.Music = MapMusic.For(Chunks.MapSet, chunk, Game.Random.Cosmetic);
 
     /// <summary>
     /// The chunk at the centre is entered (the end of <c>LoadGameBorgScenes</c>, <c>0x8000b5f4</c>), as trek's world is built,
@@ -141,9 +141,9 @@ public sealed class ZoneEngine
     /// and its map set has no minimap, its world map region's flag is set (<c>ZoneEngine.EnterRegion</c>, <c>0x8004960c</c>), which
     /// shows that region's piece of the World tab's map. A battle's arena never sets one (<c>Zones.Mode</c> 1). True if it did.
     /// </summary>
-    public bool EnterRegion(ChunkEntry chunk)
+    public bool EnterRegion(ChunkRecord chunk)
     {
-        if (chunk.RegionFound(Game.Plugins, Chunks.MapSet.Id) is not { } region)
+        if (chunk.RegionFound(Game.Plugins) is not { } region)
             return false;
         Game.Flags.Set(region, true);
         return true;

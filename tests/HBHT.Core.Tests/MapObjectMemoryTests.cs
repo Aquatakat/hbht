@@ -6,7 +6,7 @@ namespace HBHT.Core.Tests;
 public class MapObjectMemoryTests
 {
     private static Memory Key(int index, MemoryKind kind = MemoryKind.RandomLine, int skill = 0) =>
-        new(RecordId.Parse($"aidyn:voxel/0x1063/{index}"), kind, skill);
+        new(MapObject(0, "K11", index), kind, skill);
 
     /// <summary>A full chart: objects 0 to 18, of the kinds in turn.</summary>
     private static MapObjectMemory Full(params MemoryKind[] kinds)

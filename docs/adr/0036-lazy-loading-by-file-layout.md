@@ -12,6 +12,7 @@ Status: Accepted · Nov 3, 2026 · Supersedes [0005](0005-plugin-format.md)'s co
 - **`PluginSet` indexes those files by their path without reading them,** and reads and merges a record the first time it's asked for. A file whose record isn't the one its path names is an error when it's read.
 - **Mods' records load as before, eagerly,** in any file layout the author likes (0005). A mod's patch to a lazily indexed record reads that record as the patch loads, so patches apply and the conflict report sees them as before.
 - **`All<T>()` still reads every record of a type,** and validation reads every record; those are the editor's, the quest atlas's and the CLI's, off the game's hot path. The chunk index (0035) comes from the chunks' IDs, so finding the chunk in a cell reads no file.
+- **The import reads its plugin back whole** and refuses itself if a record doesn't read, so the runtime's checked load validates every mod's record and every base record a mod patches, but leaves the base plugin's unread lazily indexed records unread: they're the importer's own, already checked.
 - **The compiled cache becomes an optimisation** that may come later, not something loading needs.
 
 ## Consequences

@@ -78,7 +78,7 @@ public sealed partial class Battle
     {
         var (name, point, direction) = Spawn(party: false, reserve: true, letter, 0, Game.Random.Combat);
         if (point is null)
-            _problems.Add($"{Arena.Map.Id} has no spawn {name}, where the original stops (FindReferencePointName).");
+            _problems.Add($"{Arena.Chunk.Id} has no spawn {name}, where the original stops (FindReferencePointName).");
         var cell = CellOf(point);
         var reach = look.Radius * look.Scale;
         if (!Grid.IsOccupied((int)cell.X, (int)cell.Y, footprint) && Clear(cell, reach))

@@ -1,3 +1,4 @@
+using HBHT.Plugins;
 using HBHT.Plugins.Records;
 
 namespace HBHT.Rom.Engine;
@@ -6,10 +7,20 @@ namespace HBHT.Rom.Engine;
 /// Which of the Battle arenas a battle takes by the terrain of the chunk it starts in (<c>BattleSetup.ChooseArena</c>,
 /// <c>0x80008698</c> in 1.0): a switch through the jump table at <c>0x800CD400</c>, which this carries as a fact, checked
 /// against 1.0's code. Each case is a roll over a range of arenas, or for terrains 20–22 one of two ranges, each half the
-/// time.
+/// time. A record names an arena by its chunk (ADR 0035), which the importer finds by its number (<see cref="Chunks"/>).
 /// </summary>
 public static class Arenas
 {
+    /// <summary>
+    /// The arenas' chunks by their numbers (<c>Zones.ArenaChunks</c>, <c>0x800DCA74</c>): the Battle arenas' chunks in the map set table's
+    /// order, the nth chunk arena n.
+    /// </summary>
+    public static IReadOnlyList<RecordId> Chunks(IReadOnlyList<Maps.MapChunk> chunks) =>
+        [.. chunks.Where(c => c.Set == Maps.MapSet.Battlefields).Select(c => ChunkRecord.IdOf((int)c.Set, c.Row, c.Column))];
+
+    /// <summary>A range of arena numbers, from <paramref name="Min"/> to <paramref name="Max"/>, inclusive, one of which a battle rolls.</summary>
+    public sealed record ArenaRange(int Min, int Max);
+
     /// <summary>The ranges a terrain's battles choose from, the first being the one-in-two's.</summary>
     public static IReadOnlyList<ArenaRange> ForTerrain(int terrain) => terrain switch
     {

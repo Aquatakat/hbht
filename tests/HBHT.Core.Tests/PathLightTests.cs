@@ -11,8 +11,8 @@ namespace HBHT.Core.Tests;
 /// <summary>Oriana's path lights go out as the player reaches them (<c>RenderVoxelScenes</c>).</summary>
 public class PathLightTests
 {
-    private static readonly RecordId MapId = RecordId.Hex(RecordTypes.Map, 0x0FDB);
-    private static readonly RecordId Other = RecordId.Hex(RecordTypes.Map, 0x100D);
+    private static readonly RecordId MapId = Chunk(0, "F05");
+    private static readonly RecordId Other = Chunk(0, "G06");
 
     /// <summary>A light as I08's are: an empty scene to 5, the billboard to 24, radius 24.</summary>
     private static SceneObject Light(int index, Vector3 position, bool goesOut = true) =>
@@ -24,7 +24,7 @@ public class PathLightTests
         };
 
     private static LoadedMap Load(MapObjectMemory memory, RecordId? id = null, params MapObject[] objects) =>
-        LoadedMap.Activate(new MapRecord(id ?? MapId, objects), Worlds.Chunk(0), ItemData.Flags(), memory, ItemData.NewParty(), new Lcg());
+        LoadedMap.Activate(TestChunk.Of(id ?? MapId, objects), Worlds.Chunk(0), ItemData.Flags(), memory, ItemData.NewParty(), new Lcg());
 
     /// <summary>The player at <paramref name="focus"/>, the camera 5 behind him along +Z, looking along −Z.</summary>
     private static SceneView View(Vector3 focus) =>
@@ -44,7 +44,7 @@ public class PathLightTests
         Assert.False(map.IsActive(0));
         Assert.True(map.IsActive(1));
         var entry = Assert.Single(memory.Entries);
-        Assert.Equal((MapRecord.VoxelId(MapId, 0), MemoryKind.PutOut, 16), (entry.Key.MapObject, entry.Key.Kind, entry.Lifetime));
+        Assert.Equal((ChunkRecord.ObjectId(MapId, 0), MemoryKind.PutOut, 16), (entry.Key.MapObject, entry.Key.Kind, entry.Lifetime));
 
         // Walking away doesn't bring it back, and an object that doesn't go out never does.
         Assert.Empty(map.PutOut(View(new Vector3(0, 0, 50)), memory, MapId));
@@ -92,7 +92,7 @@ public class PathLightTests
         var light = Light(3, new Vector3(0, 0, 40));
         Load(memory, Other, light).PutOut(View(new Vector3(0, 0, 42)), memory, MapId);
 
-        Assert.Equal(MapRecord.VoxelId(MapId, 3), Assert.Single(memory.Entries).Key.MapObject);
+        Assert.Equal(ChunkRecord.ObjectId(MapId, 3), Assert.Single(memory.Entries).Key.MapObject);
         Assert.True(Load(memory, Other, light).IsActive(3));
         Assert.False(Load(memory, MapId, Light(3, new Vector3(50, 0, 50), goesOut: false)).IsActive(3));
     }

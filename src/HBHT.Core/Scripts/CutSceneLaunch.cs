@@ -7,7 +7,7 @@ namespace HBHT.Core.Scripts;
 /// A cut-scene to start: its script, where it starts from, and the chunk it plays on as its stage. What a trek cues
 /// (<see cref="Trek.TrekLoop.Cue(CutSceneLaunch)"/>) and a session starts.
 /// </summary>
-public readonly record struct CutSceneLaunch(ScriptRecord Script, ScriptStart Start, ChunkRef Stage)
+public readonly record struct CutSceneLaunch(ScriptRecord Script, ScriptStart Start, RecordId Stage)
 {
     /// <summary>
     /// What a dialogue object starts when its script is a cut-scene a plugin has and it names a stage, its reference

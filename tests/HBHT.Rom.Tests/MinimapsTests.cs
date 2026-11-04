@@ -54,7 +54,7 @@ public class MinimapsTests
     {
         var rom = TestRoms.Get(RomVersionId.Na10);
         var minimaps = Minimaps.Read(rom);
-        var barrows = Import.MinimapImporter.Build(minimaps).Single(m => m.MapSet.Key == "9");
+        var barrows = Import.MinimapImporter.Build(minimaps).Single(m => m.Key == 9).Value;
 
         // The code's literals are the flags of the Barrows list, though some show another piece than the list's.
         Assert.Equal(minimaps.Barrows.Select(b => (int)b.Flag).Order(), barrows.Rules.Where(r => r.Flag is not null)

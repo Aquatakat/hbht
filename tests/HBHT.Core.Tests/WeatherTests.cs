@@ -7,6 +7,8 @@ namespace HBHT.Core.Tests;
 
 public class WeatherTests
 {
+    private static RecordId TerrainId(int n) => RecordId.Decimal(RecordTypes.Terrain, n);
+
     /// <summary>The base game's rules, as the importer writes them.</summary>
     internal static readonly WeatherRecord Rules = new(RecordId.Decimal(RecordTypes.Weather, 0), [43, 48, 33, 25, 36, 40],
         KeepAtMost: 75, FallBelow: 70, IntensitySpread: 0.15f, FallFog: new WeatherRange(0.1f, 0.35f), Fog: new WeatherRange(0.1f, 0.75f),
@@ -87,11 +89,11 @@ public class WeatherTests
         var weather = new Weather(Rules) { Wind = Vector3.Zero };
         var still = new ScriptedRandom();
         weather.Frame(PartOfDay.Midday, 0, Plains, still, still, wind: false);
-        weather.SetTerrain(0);
+        weather.SetTerrain(TerrainId(0));
         weather.Force(WeatherKind.Precipitation, Precipitation.Rain, 0.5f, 0.2f);
 
         // Into the mountains: another terrain rolls, and a 75 keeps the rain.
-        Assert.True(weather.SetTerrain(5));
+        Assert.True(weather.SetTerrain(TerrainId(5)));
         var kept = new ScriptedRandom(D100(75));
         weather.Frame(PartOfDay.Midday, 0, Snowy, kept, still, wind: false);
         Assert.Equal(0, kept.Remaining);
@@ -137,10 +139,10 @@ public class WeatherTests
         weather.Frame(PartOfDay.Midday, 0, Plains, once, still, wind: false);
         Assert.Equal(0, once.Remaining);
 
-        Assert.False(weather.SetTerrain(0));
-        Assert.False(weather.SetTerrain(0));
+        Assert.False(weather.SetTerrain(TerrainId(0)));
+        Assert.False(weather.SetTerrain(TerrainId(0)));
         weather.Frame(PartOfDay.Midday, 0, Plains, still, still, wind: false);
-        Assert.True(weather.SetTerrain(5));
+        Assert.True(weather.SetTerrain(TerrainId(5)));
         var again = new ScriptedRandom(D100(1));
         weather.Frame(PartOfDay.Midday, 0, Snowy, again, still, wind: false);
         Assert.Equal(0, again.Remaining);

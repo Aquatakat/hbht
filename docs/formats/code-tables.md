@@ -65,7 +65,7 @@ Which events the base plugin's triggers carry, with the call sites, is [events](
 
 | What | 1.0 | Read by | Record |
 | --- | --- | --- | --- |
-| Fleeing: a boss on the field forbids it (Kitarak, the Marquis, Pochanargat, Shamsuk, Sheridan, Ksathra, Shatrevar, Mehrdad, Golnar, Nasim, Behrooz, Assim), the Shadow allows it, the last on the field having the say; then 978 forbids it and 5250 (Lugash) and 3749 (the Marquis) allow it | `Combat.ForbidFleeForBosses` `0x8005CCCC`, `Combat.ApplyFleeRuleByFlag` (ROM `0xD3288`, `0xD32A0`) | Fact, by entity list position | entity `combat.flee`; combat `fleeByEncounter` |
+| Fleeing: a boss on the field forbids it (Kitarak, the Marquis, Pochanargat, Shamsuk, Sheridan, Ksathra, Shatrevar, Mehrdad, Golnar, Nasim, Behrooz, Assim), the Shadow allows it, the last on the field having the say; then 978 forbids it and 5250 (Lugash) and 3749 (the Marquis) allow it | `Combat.ForbidFleeForBosses` `0x8005CCCC`, `Combat.ApplyFleeRuleByFlag` (ROM `0xD3288`, `0xD32A0`) | Fact, by entity list position | entity `combat.flee`; `battleRules.flee` on the script, npc or encounter that starts the battle ([combat](../systems/combat.md#a-battles-own-rules)) |
 | Sholeh, among an enemy list's first four, fights on the party's side | `Combat.FindSholeh` `0x8005C6C0`, position `0xA4` | Fact | entity `combat.fightsForParty` |
 | Bystanders dropped from an enemy list | `Combat.IsExcludedEnemy` `0x8005C0C0`: positions 0–`0x56`, `0x82`–`0x90`, `0x92`–`0x96` | Fact | entity `combat.bystander` |
 | A monster party rolling none fights one Skeleton | `BattleSetup.FillEnemies` `0x80009374`, position `0xBB` | Fact | combat `fallback` |
@@ -80,7 +80,7 @@ Which events the base plugin's triggers carry, with the call sites, is [events](
 | The area spell the AI centres on its opponents (Fireball, kind 8) | `EnemyAI.AreaCentre`, `EnemyAI.AimAreaSpell` | Fact, checked at kind 8 | spell `targeting.blast` ([ADR 0021](../adr/0021-instant-effects-land-in-one-place.md)) |
 | The combat menu's C strings: the skill rows (Lay On Hands, Heal With Herbs, Perform) and the empty lists' words | `CombatLayOnHands` `0xD5480`, `CombatHealWithHerbs` `0xD5490`, `CombatPerform` `0xD54A0`, `CombatNoSpells` `0xD5458`, `CombatNoItems` `0xD5434` | `CombatImporter.ReadText` | combat `text` |
 | Sense Aura's lines (some printf formats): follower, leader, hit points, level, armor, and a resistance's Immune at 0 or less, Resistant below 2.0, Vulnerable from 2.0; the element name is Common's line 241 + the element byte (`Entity.ElementNames`, `0x800e0c00`, set at `0x80083620`) | `AuraFollower` `0xD3E50` to `AuraProtection` `0xD3E84`, `AuraImmune` `0xD3E14` to `AuraVulnerable` `0xD3E34`, the float `0xD3E48` (`Entity.SenseAura` `0x80070070`, `Entity.AppendResistanceLine` `0x8006FFB0`) | `CombatImporter.ReadText` | combat `text` |
-| The Goblin Ambush's and the Shadow's rules | [hardcoded content](../hardcoded-content.md#bespoke-behaviours) | Facts (`CombatImporter`) | combat `encounters`, `shadow` |
+| The Goblin Ambush's and the Shadow's rules | [hardcoded content](../hardcoded-content.md#bespoke-behaviours) | Facts (`CombatImporter`) | `battleRules` on script `0x0365` and its npcs; combat `shadow` |
 
 ## Characters
 

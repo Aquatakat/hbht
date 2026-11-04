@@ -63,9 +63,9 @@ public sealed partial class GameSessionTests
         // collided every tick he hung between the two falling by his velocity, and only the port's release (PinnedTicks) let him
         // steer out. Collided once a frame, as 1.0 does, the frame's fall takes him down to the ground, and he walks out.
         var set = Data.Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, 0));
-        var chunk = set.Chunks.Single(c => c.Name == "C15");
+        var chunk = Data.Set.ChunksIn(set.Id).Single(c => c.Name == "C15");
         var origin = set.Origin(chunk.Row, chunk.Column);
-        var wall = CollisionMesh.For(Data.Set, chunk.Map)[335];
+        var wall = CollisionMesh.For(Data.Set, chunk.Collision!.Value)[335];
         var (a, b, c) = (wall.A + origin, wall.B + origin, wall.C + origin);
         var normal = Vector3.Normalize(Vector3.Cross(b - a, c - a));
         Assert.Equal(1, wall.Surface);
@@ -101,7 +101,7 @@ public sealed partial class GameSessionTests
         // collision both, a low rock about 1.4 high: run into it from the south-west, he hangs on it falling by his velocity and
         // never dropping, and only the port's release (PinnedTicks) lets him steer away.
         var set = Data.Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, 0));
-        var chunk = set.Chunks.Single(c => c.Name == "D14");
+        var chunk = Data.Set.ChunksIn(set.Id).Single(c => c.Name == "D14");
         var origin = set.Origin(chunk.Row, chunk.Column);
         var world = new CollisionWorld();
         var start = origin + new Vector3(55.2f, -16.8f, 17.6f);
@@ -156,7 +156,7 @@ public sealed partial class GameSessionTests
     private float RunUpQ25(Vector3 local, Vector2 toward, float pace)
     {
         var set = Data.Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, 0));
-        var chunk = set.Chunks.Single(c => c.Name == "Q25");
+        var chunk = Data.Set.ChunksIn(set.Id).Single(c => c.Name == "Q25");
         var origin = set.Origin(chunk.Row, chunk.Column);
         var world = new CollisionWorld();
         var start = origin + local;

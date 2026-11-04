@@ -306,13 +306,15 @@ public class ConversationCameraTests
 /// <summary>Whether A reaches a wanderer's body (<c>0x80004480</c>).</summary>
 public class WandererReachTests
 {
-    private static readonly RecordId MapId = RecordId.Hex(RecordTypes.Map, 0x1000);
+    private static readonly RecordId MapId = Chunk(0, "K11");
 
     private static Wanderer Standing(float scale, PartyFlags flags = PartyFlags.None, bool talks = true)
     {
-        var party = new MonsterPartyObject(0, Vector3.Zero, 20, null, [], RecordId.Hex(RecordTypes.Entity, 0x300), null, 0, 0, null,
-            flags, talks ? RecordId.Hex(RecordTypes.Script, 1) : null, null);
-        var map = LoadedMap.Activate(new MapRecord(MapId, [party]), Worlds.Chunk(0), ItemData.Flags(), new MapObjectMemory(), ItemData.NewParty(), new Lcg());
+        var entity = RecordId.Hex(RecordTypes.Entity, 0x300);
+        PartyObject party = talks
+            ? new NpcObject(0, Vector3.Zero, 20, null, entity, null, flags, RecordId.Hex(RecordTypes.Script, 1))
+            : new EncounterObject(0, Vector3.Zero, 20, null, entity, null, flags, [], null, 0, 0);
+        var map = LoadedMap.Activate(TestChunk.Of(MapId, [party]), Worlds.Chunk(0), ItemData.Flags(), new MapObjectMemory(), ItemData.NewParty(), new Lcg());
         return new Wanderer(map, party, new EntityBody(RecordId.Hex(RecordTypes.Actor, 1), 0.5f, scale, 2), new Body(new Vector3(0, 0.5f, 0), 0.5f, scale), 10);
     }
 

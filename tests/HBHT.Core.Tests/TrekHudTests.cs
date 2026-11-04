@@ -102,7 +102,7 @@ public class TrekHudTests
     }
 
     /// <summary>Two groups: A01 has two pieces by height, B01 one, and C01 is the other group's.</summary>
-    private static readonly MinimapRecord Plan = new(RecordId.Decimal(RecordTypes.Minimap, 99), RecordId.Decimal(RecordTypes.MapSet, 99),
+    private static readonly MinimapPlan Plan = new(
         [
             new MinimapSection(1, 1, 1, RecordId.Hex(RecordTypes.Image, 1), 10, 10),
             new MinimapSection(1, 1, 1, RecordId.Hex(RecordTypes.Image, 2), 10, 30),
@@ -110,6 +110,9 @@ public class TrekHudTests
             new MinimapSection(3, 1, 2, RecordId.Hex(RecordTypes.Image, 4), 0, 0),
         ],
         [new MinimapRule(1, 1, 1, Bounds: [new MinimapBound(MinimapAxis.Y, Above: 4)])]);
+
+    /// <summary>A map set that has the plan as its minimap (ADR 0035).</summary>
+    private static readonly MapSetRecord PlanSet = new(RecordId.Decimal(RecordTypes.MapSet, 99), "Plan", 100, Minimap: Plan);
 
     [Fact]
     public void TheRulesChooseAPieceOrTheChunksFirst()
@@ -126,9 +129,9 @@ public class TrekHudTests
     {
         var seen = new MinimapSeen(PluginSet.Load([]));
         var minimap = new Minimap(seen, _ => (20, 10));
-        minimap.Load(Plan);
+        minimap.Load(PlanSet);
         minimap.Choose(1, 1, default, ItemData.Flags());
-        Assert.True(minimap.Showing && seen.IsSeen(Plan, 0));
+        Assert.True(minimap.Showing && seen.IsSeen(PlanSet, 0));
         minimap.StepFrame();
         // Its group's seen pieces: B01's, seen from the start, and A01's lower one, now.
         Assert.Equal([RecordId.Hex(RecordTypes.Image, 3), RecordId.Hex(RecordTypes.Image, 1)], Pieces());

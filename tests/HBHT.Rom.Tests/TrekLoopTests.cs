@@ -118,7 +118,7 @@ public sealed class TrekLoopTests(Na10Import fixture)
         var map = trek.Chunks.MapAt(trek.Player.Sphere.Position)!;
         var door = map.Objects.OfType<TeleporterObject>().First(t => t.LockLevel == 0 && t.TrapLevel == 0 && t.SecretFlag is null
             && TeleportArrival.For(Data.Set, t) is { } a && a.Set.Id != Overworld
-            && Data.Set.Get<TerrainRecord>(RecordId.Decimal(RecordTypes.Terrain, a.Chunk.Terrain)) is { SkyDrawn: false });
+            && Data.Set.Get<TerrainRecord>(a.Chunk.Terrain) is { SkyDrawn: false });
         ((IMapObjectHost)trek).Teleport(map, door);
         for (var i = 0; i < 120; i++)
         {
@@ -134,7 +134,7 @@ public sealed class TrekLoopTests(Na10Import fixture)
     /// I08's path light 90, lit once Oriana's conversation sets flag 50. Walking north at 104 instead treads on a trigger
     /// that cues a cut-scene.
     /// </summary>
-    private SceneObject PathLight => Assert.IsType<SceneObject>(Data.Map("aidyn:map/0x0FDB").Objects.Single(o => o.Index == 90));
+    private SceneObject PathLight => Assert.IsType<SceneObject>(Data.Chunk(Ids.Chunk(0, "I08")).Objects.Single(o => o.Index == 90));
 
     /// <summary>Trek in I08 with the path lights lit and the player <paramref name="south"/> south of light 90, facing it.</summary>
     private (TrekLoop Trek, Host Host, LoadedMap Map) StartByPathLight(float south)
@@ -142,7 +142,7 @@ public sealed class TrekLoopTests(Na10Import fixture)
         var light = PathLight;
         var (trek, host) = Start("I08", light.Position.X, light.Position.Z + south, prepare: game => game.Flags.Set(Flag(50), true));
         var map = trek.Chunks.MapAt(trek.Player.Sphere.Position)!;
-        Assert.Equal(RecordId.Hex(RecordTypes.Map, 0x0FDB), map.Record.Id);
+        Assert.Equal(Ids.Chunk(0, "I08"), map.Record.Id);
         Assert.True(map.IsActive(light.Index));
         return (trek, host, map);
     }
@@ -174,7 +174,7 @@ public sealed class TrekLoopTests(Na10Import fixture)
                 Assert.InRange(Vector3.Distance(trek.Player.Sphere.Position, at), 2, 3);
                 Assert.Equal(0, (tick + 1) % Cadence.FrameTicks);
                 var memory = Assert.Single(trek.Game.Memory.Entries, e => e.Key.Kind == MemoryKind.PutOut);
-                Assert.Equal((MapRecord.VoxelId(map.Record.Id, light.Index), MapObjectMemory.PutOutLoads), (memory.Key.MapObject, memory.Lifetime));
+                Assert.Equal((map.Record.ObjectId(light.Index), MapObjectMemory.PutOutLoads), (memory.Key.MapObject, memory.Lifetime));
 
                 // Walking on past it doesn't bring it back.
                 var position = trek.Player.Sphere.Position;
@@ -208,8 +208,8 @@ public sealed class TrekLoopTests(Na10Import fixture)
     }
 
     /// <summary>How many chunks the map set has in the 3×3 around one: fewer at its edges.</summary>
-    private static int Around(ChunkStreamer chunks, ChunkEntry chunk) =>
-        chunks.MapSet.Chunks.Count(c => Math.Abs(c.Row - chunk.Row) <= 1 && Math.Abs(c.Column - chunk.Column) <= 1);
+    private int Around(ChunkStreamer chunks, ChunkRecord chunk) =>
+        Data.Set.ChunksIn(chunks.MapSet.Id).Count(c => Math.Abs(c.Row - chunk.Row) <= 1 && Math.Abs(c.Column - chunk.Column) <= 1);
 
     private static PlayerInput NotRead() => throw new InvalidOperationException("Trek read the player's input.");
 
@@ -229,7 +229,7 @@ public sealed class TrekLoopTests(Na10Import fixture)
         // Far off, every chunk the 3×3 left is gone, and its wanderers with it.
         var before = chunks.All.Select(c => c.Map).ToList();
         var i08 = chunks.Find("I08")!;
-        var far = chunks.MapSet.Chunks.MaxBy(c => Math.Abs(c.Row - i08.Row) + Math.Abs(c.Column - i08.Column))!;
+        var far = Data.Set.ChunksIn(chunks.MapSet.Id).MaxBy(c => Math.Abs(c.Row - i08.Row) + Math.Abs(c.Column - i08.Column))!;
         chunks.Update(chunks.Origin(far) + new Vector3(50, 0, 50));
         Assert.DoesNotContain(chunks.All, c => before.Contains(c.Map));
         Assert.All(trek.Wanderers.All, w => Assert.Contains(chunks.All, c => c.Map == w.Map));
@@ -244,7 +244,7 @@ public sealed class TrekLoopTests(Na10Import fixture)
         var door = map.Objects.OfType<TeleporterObject>().First(t => t.LockLevel == 0 && t.TrapLevel == 0 && t.SecretFlag is null
             && TeleportArrival.For(Data.Set, t) is { } a && a.Set.Id != Overworld);
         var arrival = TeleportArrival.For(Data.Set, door)!;
-        var memory = trek.Game.Memory.Remember(new Memory(MapRecord.VoxelId(map.Record.Id, door.Index), MemoryKind.Opened), 0);
+        var memory = trek.Game.Memory.Remember(new Memory(map.Record.ObjectId(door.Index), MemoryKind.Opened), 0);
         var time = trek.Game.Clock.Time;
 
         ((IMapObjectHost)trek).Teleport(map, door);
@@ -302,7 +302,7 @@ public sealed class TrekLoopTests(Na10Import fixture)
     public void CrossingIntoAnotherChunkAgesWhatMapObjectsRemember()
     {
         var (trek, _) = Start();
-        var memory = trek.Game.Memory.Remember(new Memory(MapRecord.VoxelId(RecordId.Hex(RecordTypes.Map, 0x0FB6), 0), MemoryKind.Opened), 0);
+        var memory = trek.Game.Memory.Remember(new Memory(Ids.MapObject(0, "H08", 0), MemoryKind.Opened), 0);
         trek.Tick(Still);
         Assert.Equal(MapObjectMemory.Long, memory.Lifetime);
 
@@ -322,7 +322,7 @@ public sealed class TrekLoopTests(Na10Import fixture)
             .First(d => Data.Set.TryGet<ScriptRecord>(d.Object.Plays) is { Mode: ScriptMode.Cutscene } && d.Object.Stage is not null);
         var script = Data.Set.Get<ScriptRecord>(dialogue.Plays);
 
-        trek.Cue(script, new ScriptStart(dialogue.Marks, id), dialogue.Stage!);
+        trek.Cue(script, new ScriptStart(dialogue.Marks, id), dialogue.Stage!.Value);
         var ticks = 0;
         while (trek.Tick(NotRead) == TrekStep.Ran)
             Assert.InRange(++ticks, 1, 60);
@@ -361,7 +361,7 @@ public sealed class TrekLoopTests(Na10Import fixture)
         var loops = weather.RainLoopStarts;
         var (id, _, dialogue) = Data.Of<ScriptObject>()
             .First(d => Data.Set.TryGet<ScriptRecord>(d.Object.Plays) is { Mode: ScriptMode.Cutscene } && d.Object.Stage is not null);
-        trek.Cue(Data.Set.Get<ScriptRecord>(dialogue.Plays), new ScriptStart(dialogue.Marks, id), dialogue.Stage!);
+        trek.Cue(Data.Set.Get<ScriptRecord>(dialogue.Plays), new ScriptStart(dialogue.Marks, id), dialogue.Stage!.Value);
         while (trek.Tick(Still) == TrekStep.Ran)
             particles.Step();
         var before = weather.FallIntensity;
@@ -396,14 +396,15 @@ public sealed class TrekLoopTests(Na10Import fixture)
             trek.Tick(Still);
         var minimap = trek.Hud.Minimap;
         Assert.True(minimap.Showing);
+        var gwernia = Data.Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, 4));
         Assert.Equal(RecordId.Hex(RecordTypes.Image, 0x97), minimap.Record!.Sections[minimap.Section!.Value].Image);
-        Assert.True(trek.Game.Minimaps.IsSeen(minimap.Record, minimap.Section.Value));
+        Assert.True(trek.Game.Minimaps.IsSeen(gwernia, minimap.Section.Value));
         // Seeing it is saved, and the pieces seen from the start aren't.
         var save = trek.Game.Save();
-        Assert.Equal([minimap.Section.Value], save.Minimaps.Single(m => m.Minimap == minimap.Record.Id).Seen.Except(
+        Assert.Equal([minimap.Section.Value], save.Minimaps.Single(m => m.MapSet == gwernia.Id).Seen.Except(
             minimap.Record.Sections.Select((s, i) => (s, i)).Where(p => p.s.Seen).Select(p => p.i)));
         Assert.True(GameState.Load(Data.Set, HBHT.Plugins.Saves.SaveFile.Parse(HBHT.Plugins.Saves.SaveFile.Serialize(save))).Minimaps
-            .IsSeen(minimap.Record, minimap.Section.Value));
+            .IsSeen(gwernia, minimap.Section.Value));
         Assert.Equal((187f, 101f), Piece());
 
         // Moving lowers the portraits and shrinks the minimap over 14 frames, the piece centred in the small box.
@@ -463,7 +464,7 @@ public sealed class TrekLoopTests(Na10Import fixture)
         var (trek, _) = Start("P24", 3.9f, 70f);
         trek.PlayerAnimation = new SteadyMotion(0.1f);
         var map = trek.Chunks.MapAt(trek.Player.Sphere.Position)!;
-        Assert.Equal(RecordId.Hex(RecordTypes.Map, 0x1123), map.Record.Id);
+        Assert.Equal(Ids.Chunk(0, "P24"), map.Record.Id);
         float Walk(int ticks)
         {
             // Down on the stick, away from the camera behind him, is south through the gate.

@@ -13,18 +13,18 @@ namespace HBHT.Core.Scripts;
 /// <summary>
 /// Where a cut-scene plays (<c>DialogueModeInitPrescripted_set_map</c>): the 3×3 chunks around its
 /// staging chunk, which the runtime loads into <see cref="World"/> without their wanderers, and the
-/// staging chunk's map, whose reference points' marks the script names.
+/// staging chunk, whose reference points' marks the script names.
 /// </summary>
-public sealed record CutSceneStage(MapSetRecord Set, ChunkEntry Chunk, MapRecord Map, CollisionWorld World)
+public sealed record CutSceneStage(MapSetRecord Set, ChunkRecord Chunk, CollisionWorld World)
 {
     /// <summary>Where the staging chunk's coordinates start in the map set.</summary>
     public Vector3 Origin => Set.Origin(Chunk.Row, Chunk.Column);
 
     /// <summary>
-    /// The reference point with a mark, in the staging chunk's map only (<c>FindReferncePoint</c>,
+    /// The reference point with a mark, in the staging chunk only (<c>FindReferncePoint</c>,
     /// <c>0x8000b6f0</c>): its position in the map set, and the way it faces.
     /// </summary>
-    public ReferencePointObject? Point(int mark) => Map.Objects.OfType<ReferencePointObject>().FirstOrDefault(p => p.Mark == mark);
+    public ReferencePointObject? Point(int mark) => Chunk.Objects.OfType<ReferencePointObject>().FirstOrDefault(p => p.Mark == mark);
 
     /// <summary>A mark's position in the map set.</summary>
     public Vector3? PointAt(int mark) => Point(mark) is { } point ? Origin + point.Position : null;
@@ -33,13 +33,11 @@ public sealed record CutSceneStage(MapSetRecord Set, ChunkEntry Chunk, MapRecord
     public (Vector2 Min, Vector2 Max) Bounds => Body.ChunkBounds(Origin, Set.CellSize);
 
     /// <summary>A chunk of a map set as a stage, or null if no plugin has it.</summary>
-    public static CutSceneStage? For(PluginSet plugins, ChunkRef chunk, CollisionWorld world)
+    public static CutSceneStage? For(PluginSet plugins, RecordId chunk, CollisionWorld world)
     {
-        if (plugins.TryGet<MapSetRecord>(chunk.MapSet) is not { } set
-            || set.Chunk(chunk.Row, chunk.Column) is not { } entry
-            || plugins.TryGet<MapRecord>(entry.Map) is not { } map)
+        if (plugins.TryGet<ChunkRecord>(chunk) is not { } entry || plugins.TryGet<MapSetRecord>(entry.MapSet) is not { } set)
             return null;
-        return new CutSceneStage(set, entry, map, world);
+        return new CutSceneStage(set, entry, world);
     }
 }
 
@@ -464,7 +462,7 @@ public sealed class CutScene
     {
         if (Stage.PointAt(mark) is { } at)
             return at;
-        Problem($"names mark {mark}, which {Stage.Map.Id} doesn't have.");
+        Problem($"names mark {mark}, which {Stage.Chunk.Id} doesn't have.");
         return null;
     }
 

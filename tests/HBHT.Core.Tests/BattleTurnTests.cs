@@ -668,7 +668,7 @@ public sealed class BattleTurnTests
     private static ArenaGrid Grid(int width, int depth)
     {
         var grid = new ArenaGrid();
-        grid.Init(new MapRecord(RecordId.Hex(RecordTypes.Map, 1), [], new ObjectGrid(Vector2.Zero, new Vector2(1, 1), width, depth, [])));
+        grid.Init(TestChunk.Of(Chunk(16, "A01"), [], new ObjectGrid(Vector2.Zero, new Vector2(1, 1), width, depth, [])));
         return grid;
     }
 
@@ -738,7 +738,7 @@ public sealed class BattleTurnTests
     {
         var hero = Fighter(0, 20, x: 3, z: 3);
         var battle = Alone(hero);
-        battle.Grid.Init(new MapRecord(RecordId.Hex(RecordTypes.Map, 1), [], new ObjectGrid(Vector2.Zero, new Vector2(1, 1), 10, 10, [])));
+        battle.Grid.Init(TestChunk.Of(Chunk(16, "A01"), [], new ObjectGrid(Vector2.Zero, new Vector2(1, 1), 10, 10, [])));
         hero.Footprint = 2;
 
         hero.SyncFromBody(battle);

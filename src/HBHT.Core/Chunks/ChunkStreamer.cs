@@ -20,10 +20,11 @@ public sealed class ChunkStreamer
 {
     private readonly PluginSet _plugins;
     private readonly GameState _game;
-    /// <summary>The map set's chunks as it has them.</summary>
-    private readonly Dictionary<ChunkKey, ChunkEntry> _own = [];
-    /// <summary>The map set's chunks, the loaded ones as they were drawn as they loaded (<see cref="ChunkEntry.Drawn"/>).</summary>
-    private readonly Dictionary<ChunkKey, ChunkEntry> _chunks = [];
+    private readonly ChunkIndex _index;
+    /// <summary>The map set's chunks as they are, read as they're first wanted (ADR 0036); null for a cell with none.</summary>
+    private readonly Dictionary<ChunkKey, ChunkRecord?> _own = [];
+    /// <summary>The loaded chunks as they were drawn as they loaded (<see cref="ChunkRecord.Drawn"/>).</summary>
+    private readonly Dictionary<ChunkKey, ChunkRecord> _chunks = [];
     private readonly Dictionary<ChunkKey, LoadedMap> _maps = [];
     private readonly ChunkSurfaces? _surfaces;
 
@@ -31,6 +32,7 @@ public sealed class ChunkStreamer
     {
         _plugins = plugins;
         _game = game;
+        _index = ChunkIndex.For(plugins);
         World = world;
         Visible = visible;
         if (visible is not null)
@@ -48,10 +50,10 @@ public sealed class ChunkStreamer
     public VisibleWorld? Visible { get; }
 
     /// <summary>A chunk has loaded: its collision is in the world and its objects are activated.</summary>
-    public event Action<ChunkEntry, LoadedMap>? Loaded;
+    public event Action<ChunkRecord, LoadedMap>? Loaded;
 
     /// <summary>A chunk is going: its collision and objects go after this.</summary>
-    public event Action<ChunkEntry, LoadedMap>? Unloading;
+    public event Action<ChunkRecord, LoadedMap>? Unloading;
 
     /// <summary>The chunk the 3×3 was last loaded around.</summary>
     public ChunkKey Centre { get; private set; }
@@ -60,17 +62,32 @@ public sealed class ChunkStreamer
     public Vector3 Focus { get; private set; }
 
     /// <summary>The loaded chunks and their map objects.</summary>
-    public IEnumerable<(ChunkEntry Chunk, LoadedMap Map)> All => _maps.Select(m => (_chunks[m.Key], m.Value));
+    public IEnumerable<(ChunkRecord Chunk, LoadedMap Map)> All => _maps.Select(m => (_chunks[m.Key], m.Value));
 
     /// <summary>The chunk a point is in.</summary>
     public ChunkKey CellAt(Vector3 position) =>
         new(MapSet.Id, (int)MathF.Floor(position.X / MapSet.CellSize), (int)MathF.Floor(position.Z / MapSet.CellSize));
 
-    public ChunkEntry? ChunkAt(Vector3 position) => _chunks.GetValueOrDefault(CellAt(position));
+    /// <summary>The chunk a point is in, as it was drawn if it's loaded.</summary>
+    public ChunkRecord? ChunkAt(Vector3 position) => Drawn(CellAt(position));
 
-    public ChunkEntry? Find(string name) => _chunks.Values.FirstOrDefault(c => c.Name == name);
+    /// <summary>A chunk of the map set by its name, such as <c>I08</c> (<see cref="ChunkRecord.NameOf"/>), as it was drawn if it's loaded.</summary>
+    public ChunkRecord? Find(string name) => ChunkRecord.CellOf(name) is { } cell ? Drawn(new ChunkKey(MapSet.Id, cell.Row, cell.Column)) : null;
 
-    public Vector3 Origin(ChunkEntry chunk) => MapSet.Origin(chunk.Row, chunk.Column);
+    /// <summary>The map set's chunk in a cell, as it is, or null where it has none.</summary>
+    public ChunkRecord? Chunk(ChunkKey cell)
+    {
+        if (cell.MapSet != MapSet.Id)
+            return null;
+        if (!_own.TryGetValue(cell, out var chunk))
+            _own[cell] = chunk = _index.At(cell.MapSet, cell.Row, cell.Column) is { } id ? _plugins.TryGet<ChunkRecord>(id) : null;
+        return chunk;
+    }
+
+    /// <summary>A chunk of the map set as it was drawn as it loaded, or as it is if it isn't loaded.</summary>
+    private ChunkRecord? Drawn(ChunkKey cell) => _chunks.GetValueOrDefault(cell) ?? Chunk(cell);
+
+    public Vector3 Origin(ChunkRecord chunk) => MapSet.Origin(chunk.Row, chunk.Column);
 
     /// <summary>A loaded chunk's map objects, by the key its collision is under.</summary>
     public LoadedMap? Map(ChunkKey key) => _maps.GetValueOrDefault(key);
@@ -79,11 +96,11 @@ public sealed class ChunkStreamer
     public LoadedMap? MapAt(Vector3 position) => _maps.GetValueOrDefault(CellAt(position));
 
     /// <summary>The chunk a loaded map is.</summary>
-    public ChunkEntry? ChunkOf(LoadedMap map) => _chunks.GetValueOrDefault(map.Key);
+    public ChunkRecord? ChunkOf(LoadedMap map) => _chunks.GetValueOrDefault(map.Key);
 
     /// <summary>
     /// Loads the chunks around <paramref name="position"/> and frees the rest, and loads again a chunk the flags now draw with other
-    /// scenes (<see cref="ChunkEntry.Swap"/>), as the original does a cell whose scene isn't the one it was loaded with
+    /// scenes (<see cref="ChunkRecord.Swap"/>), as the original does a cell whose scene isn't the one it was loaded with
     /// (<c>LoadGameBorgScenes</c>). Returns whether any changed.
     /// </summary>
     public bool Update(Vector3 position)
@@ -96,7 +113,7 @@ public sealed class ChunkStreamer
             for (var c = centre.Column - 1; c <= centre.Column + 1; c++)
             {
                 var cell = centre with { Row = r, Column = c };
-                if (_chunks.ContainsKey(cell))
+                if (Chunk(cell) is not null)
                     wanted.Add(cell);
             }
         }
@@ -109,7 +126,7 @@ public sealed class ChunkStreamer
         }
         foreach (var cell in wanted.Where(k => !_maps.ContainsKey(k)).ToList())
         {
-            Load(_own[cell]);
+            Load(Chunk(cell)!);
             changed = true;
         }
         return changed;
@@ -121,7 +138,7 @@ public sealed class ChunkStreamer
     /// the runtime prepares the chunks the next crossing could load off the main thread
     /// (docs/adr/0025-chunks-load-off-the-main-thread.md).
     /// </summary>
-    public void Prepare(ChunkEntry chunk) => _surfaces?.Warm(chunk);
+    public void Prepare(ChunkRecord chunk) => _surfaces?.Warm(chunk);
 
     /// <summary>Frees every loaded chunk and streams another map set's, as a teleport into it does.</summary>
     public void Change(MapSetRecord set)
@@ -130,8 +147,6 @@ public sealed class ChunkStreamer
         MapSet = set;
         _own.Clear();
         _chunks.Clear();
-        foreach (var chunk in set.Chunks)
-            _own[ChunkKey.Of(set, chunk)] = _chunks[ChunkKey.Of(set, chunk)] = chunk;
     }
 
     /// <summary>Frees every loaded chunk.</summary>
@@ -153,7 +168,7 @@ public sealed class ChunkStreamer
         foreach (var cell in _maps.Keys.Where(Redrawn).ToList())
         {
             Unload(cell);
-            Load(_own[cell]);
+            Load(Chunk(cell)!);
         }
         IReadOnlyList<LoadedMap> changed = [.. _maps.Values.Where(m => m.Regate(_game.Flags, _game.Memory))];
         foreach (var map in changed)
@@ -184,7 +199,7 @@ public sealed class ChunkStreamer
         foreach (var map in _maps.Values)
         {
             var before = putOut?.Count ?? 0;
-            foreach (var o in map.PutOut(view, _game.Memory, centre.Map))
+            foreach (var o in map.PutOut(view, _game.Memory, centre.Id))
                 (putOut ??= []).Add((map, o));
             if ((putOut?.Count ?? 0) > before)
                 Refresh(map);
@@ -194,26 +209,26 @@ public sealed class ChunkStreamer
 
     // The chunk's collision, and its objects activated by the flags as the original does as it loads
     // (VoxelObjects_Activate), with the scenes the flags draw it with (CheckToggleZoneScene).
-    private void Load(ChunkEntry own)
+    private void Load(ChunkRecord own)
     {
-        var cell = ChunkKey.Of(MapSet, own);
+        var cell = ChunkKey.Of(own);
         var chunk = _chunks[cell] = own.Drawn(_game.Flags.Holds);
         var origin = Origin(chunk);
-        if (CollisionMesh.For(_plugins, chunk.Map) is { Count: > 0 } collision)
+        if (chunk.Collision is { } asset && CollisionMesh.For(_plugins, asset) is { Count: > 0 } collision)
             World.Add(cell, collision, origin);
-        var map = _maps[cell] = LoadedMap.Activate(_plugins.Get<MapRecord>(chunk.Map), cell, _game.Flags, _game.Memory, _game.Party,
-            _game.Random.World, origin);
+        var map = _maps[cell] = LoadedMap.Activate(chunk, cell, _game.Flags, _game.Memory, _game.Party, _game.Random.World, origin);
         Visible?.Add(cell, _surfaces!.For(chunk, map), origin);
         Loaded?.Invoke(chunk, map);
     }
 
     /// <summary>Whether a loaded chunk's scenes aren't the ones the flags draw it with now. Only a chunk with a swap reads its flag.</summary>
-    private bool Redrawn(ChunkKey cell) => _own[cell].Swap is not null && _own[cell].Drawn(_game.Flags.Holds) != _chunks[cell];
+    private bool Redrawn(ChunkKey cell) => Chunk(cell) is { Swap: not null } own && own.Drawn(_game.Flags.Holds) != _chunks[cell];
 
     private void Unload(ChunkKey cell)
     {
         Unloading?.Invoke(_chunks[cell], _maps[cell]);
         _maps.Remove(cell);
+        _chunks.Remove(cell);
         World.Remove(cell);
         Visible?.Remove(cell);
     }

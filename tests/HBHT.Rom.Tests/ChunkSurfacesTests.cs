@@ -31,7 +31,7 @@ public sealed class ChunkSurfacesTests(Na10Import fixture)
         var cold = new ChunkStreamer(Data.Set, GameState.NewGame(Data.Set), new CollisionWorld(), overworld, new VisibleWorld());
         var prepared = new ChunkStreamer(Data.Set, GameState.NewGame(Data.Set), new CollisionWorld(), overworld, new VisibleWorld());
         var i08 = cold.Find("I08")!;
-        var near = overworld.Chunks.Where(c => Math.Abs(c.Row - i08.Row) <= 2 && Math.Abs(c.Column - i08.Column) <= 2).ToList();
+        var near = HBHT.Plugins.ChunkLookup.ChunksIn(Data.Set, overworld.Id).Where(c => Math.Abs(c.Row - i08.Row) <= 2 && Math.Abs(c.Column - i08.Column) <= 2).ToList();
         Parallel.ForEach(near.Concat(near), new ParallelOptions { MaxDegreeOfParallelism = 4 }, prepared.Prepare);
         var at = cold.Origin(i08) + new Vector3(50, 0, 50);
         cold.Update(at);

@@ -5,6 +5,7 @@ using HBHT.Core.Chunks;
 using HBHT.Core.Movement;
 using HBHT.Core.Physics;
 using HBHT.Core.Scripts;
+using HBHT.Core.Trek;
 using HBHT.Plugins;
 using HBHT.Plugins.Assets;
 using HBHT.Plugins.Records;
@@ -28,37 +29,40 @@ public sealed class CutSceneRealDataTests(Na10Import fixture, ITestOutputHelper 
         public float Tick(int request) => request switch { Body.Walk => 0.03f, Body.Run => 0.06f, _ => 0 };
     }
 
-    private sealed record Start(RecordId Script, ScriptStart From, ChunkRef Stage);
+    private sealed record Start(RecordId Script, ScriptStart From, RecordId Stage);
 
-    /// <summary>What starts a cut-scene: dialogue objects with their stage and base, and talkers in their own chunk from 0.</summary>
+    /// <summary>
+    /// What starts a cut-scene: script objects with their stage and marks, and talkers from mark 0 in their own chunk, or with a stage
+    /// (<see cref="NpcObject.Stage"/>) as that script object starts it (<see cref="TrekLoop.TalkerLaunch"/>).
+    /// </summary>
     private IEnumerable<Start> Starts(PluginSet plugins)
     {
-        var chunkOf = plugins.All<MapSetRecord>(RecordTypes.MapSet)
-            .SelectMany(s => s.Chunks.Select(c => (c.Map, Ref: new ChunkRef(s.Id, c.Row, c.Column))))
-            .GroupBy(c => c.Map).ToDictionary(g => g.Key, g => g.First().Ref);
-        foreach (var map in fixture.Data.Maps)
+        foreach (var chunk in fixture.Data.ChunkRecords)
         {
-            foreach (var o in map.Objects)
+            foreach (var o in chunk.Objects)
             {
-                var source = MapRecord.VoxelId(map.Id, o.Index);
+                var source = chunk.ObjectId(o.Index);
                 if (o is ScriptObject { Stage: { } stage } d && Mode(plugins, d.Plays) == ScriptMode.Cutscene)
                     yield return new Start(d.Plays, new ScriptStart(d.Marks, source), stage);
-                else if (o is MonsterPartyObject { Script: { } script } p && (p.Flags & PartyFlags.Silent) == 0
-                    && Mode(plugins, script) == ScriptMode.Cutscene && chunkOf.TryGetValue(map.Id, out var own))
-                    yield return new Start(script, new ScriptStart(0, source), own);
+                else if (o is NpcObject npc && (npc.Flags & PartyFlags.Silent) == 0
+                    && plugins.TryGet<ScriptRecord>(npc.Script) is { Mode: ScriptMode.Cutscene } script)
+                {
+                    var launch = TrekLoop.TalkerLaunch(plugins, script, npc, source, chunk.Id);
+                    yield return new Start(script.Id, launch.Start, launch.Stage);
+                }
             }
         }
     }
 
     private static ScriptMode? Mode(PluginSet plugins, RecordId script) => plugins.TryGet<ScriptRecord>(script)?.Mode;
 
-    private static CollisionWorld World(PluginSet plugins, MapSetRecord set, ChunkEntry centre)
+    private static CollisionWorld World(PluginSet plugins, MapSetRecord set, ChunkRecord centre)
     {
         var world = new CollisionWorld();
-        foreach (var chunk in set.Chunks.Where(c => Math.Abs(c.Row - centre.Row) <= 1 && Math.Abs(c.Column - centre.Column) <= 1))
+        foreach (var chunk in plugins.ChunksIn(set.Id).Where(c => Math.Abs(c.Row - centre.Row) <= 1 && Math.Abs(c.Column - centre.Column) <= 1))
         {
-            if (plugins.FindAsset(chunk.Map, "glb") is { } glb)
-                world.Add(ChunkKey.Of(set, chunk), CollisionMesh.Read(File.ReadAllBytes(glb)), set.Origin(chunk.Row, chunk.Column));
+            if (chunk.Collision is { } collision && plugins.FindAsset(collision, "glb") is { } glb)
+                world.Add(ChunkKey.Of(chunk), CollisionMesh.Read(File.ReadAllBytes(glb)), set.Origin(chunk.Row, chunk.Column));
         }
         return world;
     }
@@ -236,6 +240,6 @@ public sealed class CutSceneRealDataTests(Na10Import fixture, ITestOutputHelper 
         Assert.Equal(305, played);
         // Only talkers' cut-scenes, staged in the chunk the player stands in, name reference points their party's chunk
         // lacks; the player may stand in a neighbour as he talks.
-        Assert.All(problems, p => Assert.IsType<MonsterPartyObject>(fixture.Data.Objects[RecordId.Parse(p[..p.IndexOf(": ", StringComparison.Ordinal)])]));
+        Assert.All(problems, p => Assert.IsType<NpcObject>(fixture.Data.Objects[RecordId.Parse(p[..p.IndexOf(": ", StringComparison.Ordinal)])]));
     }
 }

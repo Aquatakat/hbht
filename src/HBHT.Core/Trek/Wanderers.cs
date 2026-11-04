@@ -62,11 +62,11 @@ public sealed class Wanderers(PluginSet plugins)
     public IReadOnlyList<Wanderer> Load(LoadedMap map, float cellSize, CollisionWorld world, MapObjectMemory memory, IRandom? random = null)
     {
         var added = new List<Wanderer>();
-        foreach (var party in map.Objects.OfType<MonsterPartyObject>())
+        foreach (var party in map.Objects.OfType<PartyObject>())
         {
-            if (!map.IsActive(party.Index) || memory.Find(new Memory(MapRecord.VoxelId(map.Record.Id, party.Index), MemoryKind.Beaten)) is not null)
+            if (!map.IsActive(party.Index) || memory.Find(new Memory(ChunkRecord.ObjectId(map.Record.Id, party.Index), MemoryKind.Beaten)) is not null)
                 continue;
-            if (party.Home is not { } homeId || map[MapRecord.IndexOf(homeId)] is not WanderNodeObject home || (home.Flags & WanderFlags.Move) == 0)
+            if (party.Home is not { } homeId || map[ChunkRecord.IndexOf(homeId)] is not WanderNodeObject home || (home.Flags & WanderFlags.Move) == 0)
                 continue;
             var record = plugins.TryGet<DbRecord>(party.Entity);
             if (record?.Body is not { } look)
@@ -104,7 +104,7 @@ public sealed class Wanderers(PluginSet plugins)
     public const float TalkHeight = 2;
 
     /// <summary>The wanderer whose party this is, in that chunk, if it has a body.</summary>
-    public Wanderer? Of(LoadedMap map, MonsterPartyObject party) => _all.FirstOrDefault(w => w.Map == map && w.Party == party);
+    public Wanderer? Of(LoadedMap map, PartyObject party) => _all.FirstOrDefault(w => w.Map == map && w.Party == party);
 
     /// <summary>
     /// Takes away a wanderer's body, as when its party joins the player's (<c>Actor::FreePlayer</c>).

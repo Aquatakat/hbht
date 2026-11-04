@@ -190,9 +190,10 @@ public sealed class CombatImportTests(Na10Import fixture)
     public void TheGameOverStartsFromItsDialogueObjectInTheDreamscape()
     {
         var gameOver = Combat.GameOver!;
-        Assert.Equal(RecordId.Hex(RecordTypes.Script, 0x0512), gameOver.Script);
-        var map = Set.Get<MapRecord>(gameOver.Map);
-        Assert.NotNull(map.Objects.OfType<ScriptObject>().Single(d => d.Plays == gameOver.Script).Stage);
+        var dreamscape = (ScriptObject)ChunkRecord.Find(Set, gameOver.From)!;
+        Assert.Equal(RecordId.Hex(RecordTypes.Script, 0x0512), dreamscape.Plays);
+        Assert.Equal(Ids.MapObject(6, "C03", 2), gameOver.From);
+        Assert.NotNull(dreamscape.Stage);
         Assert.Equal(new[] { 0x0512, 0x0513, 0x0514 }.Select(n => RecordId.Hex(RecordTypes.Script, n)), Set.All<TriggerRecord>(RecordTypes.Trigger)
             .Where(t => t.Do is [ScriptOp.GameOver]).Select(t => t.Subject!.Value));
     }
@@ -200,11 +201,19 @@ public sealed class CombatImportTests(Na10Import fixture)
     [Fact]
     public void TheGoblinAmbushIsNonLethalAndEndsInOrianasHut()
     {
-        var rule = Combat.Encounter(RecordId.Decimal(RecordTypes.Flag, 978))!;
-        Assert.True(rule is { NonLethal: true, QuietVictory: true });
-        Assert.Equal(new ChunkRef(RecordId.Decimal(RecordTypes.MapSet, 6), 5, 3), rule.End!.Place);
-        Assert.NotNull(Set.Get<MapSetRecord>(rule.End.Place.MapSet).Chunks.Single(c => c.Row == 5 && c.Column == 3));
-        Assert.Null(Combat.Encounter(RecordId.Decimal(RecordTypes.Flag, 5250)));
+        // The rules are on what starts the battle (ADR 0035): script 0x0365 and the three npcs that fight under its flag, 978.
+        var script = Set.Get<ScriptRecord>(RecordId.Hex(RecordTypes.Script, 0x0365));
+        var rule = script.BattleRules!;
+        Assert.Equal(RecordId.Decimal(RecordTypes.Flag, 978), script.BattleFlag);
+        Assert.True(rule is { Flee: false, NonLethal: true, QuietVictory: true });
+        Assert.Equal(Ids.Chunk(6, "E03"), rule.End!.Place);
+        Assert.NotNull(Set.TryGet<ChunkRecord>(rule.End.Place));
+        foreach (var (chunk, index) in new[] { ("H08", 8), ("H08", 13), ("I08", 26) })
+            Assert.Equal(rule, Assert.IsType<NpcObject>(Set.Get<ChunkRecord>(Ids.Chunk(0, chunk)).Object(index)).BattleRules);
+        // Lugash's fight (flag 5250) may be fled and has no more rules, and the Marquis's (3749) the same.
+        Assert.Equal(new BattleRules(Flee: true), Set.Get<ScriptRecord>(RecordId.Hex(RecordTypes.Script, 0x04D1)).BattleRules);
+        Assert.Equal(new BattleRules(Flee: true), Assert.IsType<NpcObject>(Set.Get<ChunkRecord>(Ids.Chunk(0, "E23")).Object(2)).BattleRules);
+        Assert.All(Set.All<ChunkRecord>().SelectMany(c => c.Objects).OfType<EncounterObject>(), e => Assert.Null(e.BattleRules));
         // Combat.Init heals the first member; Combatant.ShadowFightTrick holds Alaron to 1 a hit, and the second keels him over.
         Assert.True(rule.HealsLeader);
         Assert.Equal(new KeelOver(RecordId.Hex(RecordTypes.Entity, 0x023F), 2), rule.KeelOver);
@@ -227,12 +236,12 @@ public sealed class CombatImportTests(Na10Import fixture)
     public void TerrainsHaveTheCampEncountersFiveTiersAndTerrain27None()
     {
         static RecordId Entity(int id) => RecordId.Hex(RecordTypes.Entity, id);
-        var plains = TerrainRecord.Find(Set, 0)!.Ambushes!;
+        var plains = Set.Get<TerrainRecord>(RecordId.Decimal(RecordTypes.Terrain, 0)).Ambushes!;
         Assert.Equal(5, plains.Count);
         Assert.Equal([new PartyEnemy(Entity(0x026E), 1, 3), new PartyEnemy(Entity(0x0215), 1, 1)], plains[0].Enemies);
         Assert.Equal([new PartyEnemy(Entity(0x0210), 2, 4), new PartyEnemy(Entity(0x0211), 2, 4)], plains[4].Enemies);
-        Assert.All(Enumerable.Range(0, 27), t => Assert.Equal(5, TerrainRecord.Find(Set, t)!.Ambushes!.Count));
-        Assert.Empty(TerrainRecord.Find(Set, 27)!.Ambushes);
+        Assert.All(Enumerable.Range(0, 27), t => Assert.Equal(5, Set.Get<TerrainRecord>(RecordId.Decimal(RecordTypes.Terrain, t)).Ambushes!.Count));
+        Assert.Empty(Set.Get<TerrainRecord>(RecordId.Decimal(RecordTypes.Terrain, 27)).Ambushes);
         Assert.Equal([5, 10, 15, 20], Set.Singleton<CampingRecord>().AmbushLevels!);
     }
 

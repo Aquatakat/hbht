@@ -30,17 +30,16 @@ public readonly record struct RecordId
 
     /// <summary>
     /// A base-game record keyed by an archive index or a u16 <c>ItemID</c>: <c>0x</c> and four uppercase hex digits
-    /// (<see cref="KeyKind.Db"/> and <see cref="KeyKind.Borg"/>), or with <paramref name="nested"/> a record nested in one by
-    /// its index (<see cref="KeyKind.Nested"/>). A type keyed otherwise is an <see cref="ArgumentException"/>.
+    /// (<see cref="KeyKind.Db"/> and <see cref="KeyKind.Borg"/>). A type keyed otherwise is an <see cref="ArgumentException"/>.
     /// </summary>
-    public static RecordId Hex(string type, int value, params int[] nested)
+    public static RecordId Hex(string type, int value)
     {
         if (value is < 0 or > 0xFFFF)
             throw new ArgumentOutOfRangeException(nameof(value), value, "Base-game hex keys are u16.");
         var kind = RecordTypes.Info(type).Key;
-        if (kind == KeyKind.Nested ? nested.Length != 1 : kind == KeyKind.Decimal || nested.Length != 0)
+        if (kind is not (KeyKind.Db or KeyKind.Borg))
             throw new ArgumentException($"A {type} record is keyed by {Spelling(kind)}.", nameof(type));
-        return Base(type, "0x" + value.ToString("X4", CultureInfo.InvariantCulture), nested);
+        return new RecordId(BaseNamespace, type, "0x" + value.ToString("X4", CultureInfo.InvariantCulture));
     }
 
     /// <summary>A base-game record keyed by a decimal index (<see cref="KeyKind.Decimal"/>), such as a flag. A type keyed otherwise is an <see cref="ArgumentException"/>.</summary>
@@ -50,17 +49,7 @@ public readonly record struct RecordId
         var kind = RecordTypes.Info(type).Key;
         if (kind != KeyKind.Decimal)
             throw new ArgumentException($"A {type} record is keyed by {Spelling(kind)}.", nameof(type));
-        return Base(type, value.ToString(CultureInfo.InvariantCulture), []);
-    }
-
-    private static RecordId Base(string type, string key, int[] nested)
-    {
-        foreach (var n in nested)
-        {
-            ArgumentOutOfRangeException.ThrowIfNegative(n);
-            key += "/" + n.ToString(CultureInfo.InvariantCulture);
-        }
-        return new RecordId(BaseNamespace, type, key);
+        return new RecordId(BaseNamespace, type, value.ToString(CultureInfo.InvariantCulture));
     }
 
     private static string Spelling(KeyKind kind) => kind switch
@@ -68,7 +57,8 @@ public readonly record struct RecordId
         KeyKind.Db => "its u16 ItemID, 0xHHHH",
         KeyKind.Borg => "its archive index, 0xHHHH",
         KeyKind.Decimal => "a decimal index",
-        _ => "its parent's 0xHHHH then its decimal index",
+        KeyKind.Chunk => "its map set's number then its cell's name",
+        _ => "its chunk's key then its decimal index",
     };
 
     public static RecordId Parse(string text) =>
@@ -110,17 +100,40 @@ public readonly record struct RecordId
 
     /// <summary>
     /// The key's shape, by the type's <see cref="KeyKind"/> (ADR 0004): in <c>aidyn</c>, a u16 as <c>0xHHHH</c> for a DB record or a
-    /// Borg, a decimal without leading zeros for the rest, and for a nested record its parent's key then its decimal index; in
-    /// a mod, a name, or for a nested record a name then its decimal index.
+    /// Borg, a decimal without leading zeros for most, a chunk's map set then its cell's name (ADR 0035), and a map object's chunk key
+    /// then its decimal index; in a mod, a name, or for a map object its chunk's name then its decimal index.
     /// </summary>
     private static string? CheckKey(string ns, RecordTypeInfo info, string key)
     {
         var segments = key.Split('/');
-        var nested = info.Key == KeyKind.Nested;
-        if (segments.Length != (nested ? 2 : 1))
-            return nested ? $"a {info.Name} key is its parent's key then its index" : $"a {info.Name} key is one segment";
+        var mod = ns != BaseNamespace;
+        // A chunk's segments, before a map object's index.
+        var chunkSegments = mod ? 1 : 2;
+        var wanted = info.Key switch
+        {
+            KeyKind.Chunk => chunkSegments,
+            KeyKind.MapObject => chunkSegments + 1,
+            _ => 1,
+        };
+        if (segments.Length != wanted)
+        {
+            return info.Key switch
+            {
+                KeyKind.Chunk => mod ? $"a mod's {info.Name} key is one name" : $"a {info.Name} key is its map set's number then its cell's name, such as 8/C05",
+                KeyKind.MapObject => mod ? $"a mod's {info.Name} key is its chunk's name then its index" : $"a {info.Name} key is its chunk's key then its index, such as 8/C05/17",
+                _ => $"a {info.Name} key is one segment",
+            };
+        }
+        if (info.Key is KeyKind.Chunk or KeyKind.MapObject)
+        {
+            if (mod ? !IsName(segments[0]) : !IsCanonicalDecimal(segments[0]) || !IsCellName(segments[1]))
+                return mod ? "a mod's chunk key is [a-z0-9_]+" : "a chunk key is its map set's number then its cell's name, such as 8/C05 or 0/0_13";
+            if (info.Key == KeyKind.MapObject && !IsCanonicalDecimal(segments[^1]))
+                return "a map object's index is a decimal without leading zeros";
+            return null;
+        }
         var first = segments[0];
-        if (ns != BaseNamespace)
+        if (mod)
         {
             if (!IsName(first))
                 return "a mod's key is [a-z0-9_]+";
@@ -134,10 +147,24 @@ public readonly record struct RecordId
         {
             return $"a {info.Name} key is 0x and four uppercase hex digits";
         }
-        if (nested && !IsCanonicalDecimal(segments[1]))
-            return "a nested record's index is a decimal without leading zeros";
         return null;
     }
+
+    /// <summary>
+    /// A cell's name as a base chunk key spells it (<c>ChunkRecord.NameOf</c>): its row's letter and its column in at least two digits,
+    /// such as <c>C05</c>, or for a cell those can't name its row and column, <c>0_13</c> or <c>-1_13</c>.
+    /// </summary>
+    private static bool IsCellName(string s)
+    {
+        if (s.Length >= 3 && s[0] is >= 'A' and <= 'Z')
+            return s.AsSpan(1).ContainsOnly("0123456789") && (s.Length == 3 || s[1] != '0');
+        var underscore = s.IndexOf('_', StringComparison.Ordinal);
+        if (underscore < 0)
+            return false;
+        return IsSignedDecimal(s[..underscore]) && IsSignedDecimal(s[(underscore + 1)..]);
+    }
+
+    private static bool IsSignedDecimal(string s) => s.StartsWith('-') ? s != "-0" && IsCanonicalDecimal(s[1..]) : IsCanonicalDecimal(s);
 
     private static bool IsHex(string s) => s.Length == 6 && s.StartsWith("0x", StringComparison.Ordinal) && s.AsSpan(2).ContainsOnly("0123456789ABCDEF");
 

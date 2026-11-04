@@ -18,7 +18,7 @@ ADR 0008's layer 2: *on an event, if its conditions hold, do its ops*. The core 
 | `flag.set`, `flag.clear`, `party.addGold`, `party.takeGold`, `party.addItem`, `party.takeItem`, `party.addMember`, `party.removeMember`, `party.addExp` | As a node's effect runs them | |
 | `party.learnTrueName` | The party member `member` knows his True Name, which a save keeps ([saves](saves.md)) | |
 | `cinematic.play` | The `cinematic` plays over everything; trek comes back after it unless its own end leads elsewhere | Yes |
-| `script.start` | The cut-scene a script object (`from`, an `aidyn:voxel/…`) starts plays at once, on its stage from its marks, with no trek before it | Yes |
+| `script.start` | The cut-scene a script object (`from`, an `aidyn:mapobject/…`) starts plays at once, on its stage from its marks, with no trek before it | Yes |
 | `credits.roll` | The credits roll; with `ending`, they can't be skipped, end with "The End", and end the game | Yes |
 | `game.over` | The game is over: it goes back to the title, its intro cards first ([ui](ui.md#coming-back-to-it)) | Yes |
 | `lua` | Reserved for Phase 5: does nothing, and is reported | |
@@ -44,7 +44,7 @@ An op that takes over from trek ends the firing: the triggers after it on that e
 | Trigger | On | If | Do | The original |
 | --- | --- | --- | --- | --- |
 | 0 | `game.started` | | `cinematic.play` the opening (`cinematic/0`) | `Title.ModeFrame`, above |
-| 1 | `cinematic.ended` 0 | | `script.start` from `voxel/0x0FDB/7`: script 866 (`0x0362`, number 1004) on its stage | `Cinematic.EndOpening` (`0x8005403c`) loads Borg9 0x0FDB, takes the last script object whose script is 0x0362 (`+0x28`), and calls `Script.Start` with its stage, returning mode 0xC: no trek is built first |
+| 1 | `cinematic.ended` 0 | | `script.start` from `aidyn:mapobject/0/I08/7`: script 866 (`0x0362`, number 1004) on its stage | `Cinematic.EndOpening` (`0x8005403c`) loads Borg9 0x0FDB, takes the last script object whose script is 0x0362 (`+0x28`), and calls `Script.Start` with its stage, returning mode 0xC: no trek is built first |
 | 2 | `script.ended` 0x04F4 (the Rooughah scene, 1268) | `check.flag` 3442 | `cinematic.play` Roog's (`cinematic/2`) | `CutScene.Free`'s kind 3: `FlagNetwork.Get(0xD72)` at `0x8005179c`, then `Cinematic.Load(2, 3, 1)`; with 3442 clear, the ordinary end |
 | 3 | `script.ended` 0x04FE (the last scene, 1278) | | `cinematic.play` the ending (`cinematic/3`) | Kind 1: `Cinematic.Load(3, 2, 0)` |
 | 4–6 | `script.ended` 0x0512–0x0514 (the death scenes) | | `game.over` | Kind 2: the return mode 0, the restart at the title (`Game.Restart`, `0x8001f284`) |
@@ -57,7 +57,7 @@ Every kind of the endings table takes over from trek, so a cinematic after a cut
 
 ### Where the port differs
 
-- **Script 866 is also trek's.** The script object `EndOpening` takes it from, `voxel/0x0FDB/7` at (12.6, −17.1, 60.3) with a radius of 10, is enabled while flag 5 is clear (derived 5424), and 866 sets 5 as it ends. A new game arrives about 4 from it, so trek there before 866 has played starts it, in 1.0 as in the port: a save of a new game's flags at the arrival plays 866 in trek.
+- **Script 866 is also trek's.** The script object `EndOpening` takes it from, `aidyn:mapobject/0/I08/7` (Borg9 0x0FDB's object 7) at (12.6, −17.1, 60.3) with a radius of 10, is enabled while flag 5 is clear (derived 5424), and 866 sets 5 as it ends. A new game arrives about 4 from it, so trek there before 866 has played starts it, in 1.0 as in the port: a save of a new game's flags at the arrival plays 866 in trek.
 - **A new game builds trek's world before the opening.** The original builds it only after script 866 has ended (`InitGameTrek` runs on `TrekLoop.Frame`'s first frame, with `TrekLoop.Restoring` clear, so the player arrives at the new game's place). The port builds it where the player arrives, plays the opening over it, frees it for 866's stage and builds it again there after: the same place and the same pictures.
 - **The ending's credits end the game** by `Transition.GameOver`, which goes back to the title, as after the game over.
 

@@ -10,8 +10,9 @@ namespace HBHT.Core.Tests;
 /// <summary>The arena's grid (<c>ArenaGrid.Init</c> <c>0x80067960</c>, <c>Fill</c> <c>0x8005E900</c>, <c>Occupy</c> <c>0x8006820C</c>).</summary>
 public sealed class ArenaGridTests
 {
-    private static MapRecord MapOf(float cellX, float cellZ, int columns, int rows) =>
-        new(RecordId.Hex(RecordTypes.Map, 1), [], new ObjectGrid(Vector2.Zero, new Vector2(cellX, cellZ), columns, rows, []));
+    private static ChunkRecord MapOf(float cellX, float cellZ, int columns, int rows) =>
+        new(Chunk(16, "A01"), RecordId.Decimal(RecordTypes.MapSet, 16), 1, 1, RecordId.Decimal(RecordTypes.Terrain, 0), [],
+            Grid: new ObjectGrid(Vector2.Zero, new Vector2(cellX, cellZ), columns, rows, []));
 
     private static ArenaGrid Sized(int width, int depth)
     {
@@ -51,7 +52,7 @@ public sealed class ArenaGridTests
     {
         var grid = Sized(4, 4);
 
-        grid.Init(new MapRecord(RecordId.Hex(RecordTypes.Map, 2), []));
+        grid.Init(new ChunkRecord(Chunk(16, "A03"), RecordId.Decimal(RecordTypes.MapSet, 16), 1, 3, RecordId.Decimal(RecordTypes.Terrain, 0), []));
 
         Assert.Equal((0, 0), (grid.Width, grid.Depth));
         Assert.False(grid.Inside(0, 0));

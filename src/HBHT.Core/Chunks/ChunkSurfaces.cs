@@ -24,7 +24,7 @@ public sealed class ChunkSurfaces(PluginSet plugins)
     private readonly ConcurrentDictionary<RecordId, DrawnTriangle[]> _scenes = new();
 
     /// <summary>A chunk's surfaces, in its own coordinates, with the objects its map places now.</summary>
-    public IEnumerable<DrawnTriangle> For(ChunkEntry chunk, LoadedMap map)
+    public IEnumerable<DrawnTriangle> For(ChunkRecord chunk, LoadedMap map)
     {
         if (chunk.Scene is { } scene)
         {
@@ -66,13 +66,11 @@ public sealed class ChunkSurfaces(PluginSet plugins)
     /// Reads the triangles of every scene a chunk could draw ahead of its loading, from any thread: its own and each of its
     /// scene objects' models, actors' scenes as they are.
     /// </summary>
-    public void Warm(ChunkEntry chunk)
+    public void Warm(ChunkRecord chunk)
     {
         foreach (var scene in chunk.AllScenes)
             Scene(scene);
-        if (plugins.TryGet<MapRecord>(chunk.Map) is not { } map)
-            return;
-        foreach (var o in map.Objects.OfType<SceneObject>())
+        foreach (var o in chunk.Objects.OfType<SceneObject>())
         {
             foreach (var model in o.Models.Append(o.Opened).Append(o.Destroyed).OfType<SceneModel>().Select(m => m.Model))
             {

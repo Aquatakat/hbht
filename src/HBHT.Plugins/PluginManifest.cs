@@ -131,8 +131,14 @@ public static class BasePlugin
     /// typed and polymorphic on <c>op</c>, naming their actor, with one <c>condition</c> and one <c>effect</c> per node; the script map
     /// object is <c>script</c> with <c>plays</c> and <c>marks</c>, a reference point's <c>id</c> is its <c>mark</c>; and triggers' <c>if</c>
     /// and <c>do</c> hold the same ops.
+    /// 70 is the format's fourth slice (ADRs 0035, 0036): a <c>chunk</c> record per cell (<c>aidyn:chunk/8/C05</c>), one file each under
+    /// <c>records/chunks/&lt;set&gt;/</c> and read on first use, holding what the map set's chunk entry and the <c>map</c> record held,
+    /// the shared Borg9s copied into each cell, its collision an asset of its own (<c>aidyn:collision/0xHHHH</c>); map objects keyed by
+    /// their chunk (<c>aidyn:mapobject/8/C05/17</c>); references to a cell as chunk IDs, arenas among them; the minimap on its map set;
+    /// monster parties as <c>npc</c> and <c>encounter</c>, an npc's stand-in enemies dropped and its <c>stage</c>; and a battle's own
+    /// rules (<c>battleRules</c>) on the script, npc or encounter that starts it.
     /// </summary>
-    public const int ImporterVersion = 69;
+    public const int ImporterVersion = 70;
 
     /// <summary>
     /// What's wrong with the imported base plugin under <paramref name="pluginsDirectory"/>, worded for the player, or null if

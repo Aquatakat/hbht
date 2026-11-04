@@ -28,11 +28,10 @@ public sealed class CutSceneTests(Na10Import fixture)
 
     private static CutSceneStage Stage()
     {
-        var mapId = RecordId.Hex(RecordTypes.Map, 0x7002);
-        var map = new MapRecord(mapId, [.. Enumerable.Range(1, 4).Select(i =>
-            (MapObject)new ReferencePointObject(i, Points[i], 1, null, i, $"point {i}", null))]);
-        var set = new MapSetRecord(RecordId.Decimal(RecordTypes.MapSet, 99), "Test", 100, [new ChunkEntry(1, 1, null, null, mapId, 0)]);
-        return new CutSceneStage(set, set.Chunks[0], map, Worlds.Ground(0, 100, Corner));
+        var set = new MapSetRecord(RecordId.Decimal(RecordTypes.MapSet, 99), "Test", 100);
+        var chunk = new ChunkRecord(ChunkRecord.IdOf(99, 1, 1), set.Id, 1, 1, RecordId.Decimal(RecordTypes.Terrain, 0),
+            [.. Enumerable.Range(1, 4).Select(i => (MapObject)new ReferencePointObject(i, Points[i], 1, null, i, $"point {i}", null))]);
+        return new CutSceneStage(set, chunk, Worlds.Ground(0, 100, Corner));
     }
 
     private static Vector3 At(int point) => Corner + Points[point];

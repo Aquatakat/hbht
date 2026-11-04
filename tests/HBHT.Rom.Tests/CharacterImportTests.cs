@@ -132,7 +132,7 @@ public sealed class CharacterImportTests(Na10Import fixture)
         }
 
         // The dialogue entities that monster parties walk as.
-        var walkers = Set.All<MapRecord>(RecordTypes.Map).SelectMany(m => m.Objects).OfType<MonsterPartyObject>()
+        var walkers = Set.All<ChunkRecord>(RecordTypes.Chunk).SelectMany(m => m.Objects).OfType<PartyObject>()
             .Select(p => p.Entity).Where(e => e.Key.StartsWith("0x14", StringComparison.Ordinal)).Distinct().ToList();
         // (16 of what were 18: two of the walkers were twins, which are their entities now.)
         Assert.Equal(16, walkers.Count);

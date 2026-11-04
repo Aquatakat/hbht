@@ -78,7 +78,7 @@ internal sealed class FlagReport
                 if (node is { } at && LineNear(script, at) is { Length: > 0 } text)
                     where += $" near \"{Shorten(text)}\"";
                 return where + StartedFrom(by);
-            case RecordTypes.Voxel:
+            case RecordTypes.MapObject:
                 return Object(by);
             case RecordTypes.Flag:
                 return $"derived flag {by.Key}";
@@ -93,12 +93,12 @@ internal sealed class FlagReport
         var starters = _index.StartersOf(script);
         if (starters.Count == 0)
             return ", started by code or nothing";
-        return ", started from " + string.Join("; ", starters.Take(3).Select(s => s.By.Type == RecordTypes.Voxel ? Object(s.By) : s.By.ToString()))
+        return ", started from " + string.Join("; ", starters.Take(3).Select(s => s.By.Type == RecordTypes.MapObject ? Object(s.By) : s.By.ToString()))
             + (starters.Count > 3 ? $" and {starters.Count - 3} more" : "");
     }
 
     /// <summary>A map object as text: what it is, where its map sits, and its index.</summary>
-    private string Object(RecordId voxel) => $"{_catalog.Describe(voxel)} (object {MapRecord.IndexOf(voxel)})";
+    private string Object(RecordId voxel) => $"{_catalog.Describe(voxel)} (object {ChunkRecord.IndexOf(voxel)})";
 
     /// <summary>The node's own text, or the nearest text on the way to it.</summary>
     private static string LineNear(ScriptRecord script, int node)

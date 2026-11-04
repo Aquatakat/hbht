@@ -65,7 +65,7 @@ public class ScriptRunnerTests
         var flags = new FlagNetwork(Data.Value.Flags, RecordId.Decimal(RecordTypes.Flag, EngineFlags.NewJournalEntry));
         flags.Restore(h => h > 1 && random.Next(4) == 0);
         var runner = new ScriptRunner(script, flags, new RandomWorld(random), new Cues(), new Lcg((uint)seed), id => scripts.GetValueOrDefault(id),
-            new ScriptStart(0, RecordId.Hex(RecordTypes.Voxel, 1, 2)));
+            new ScriptStart(0, Ids.MapObject(0, "A01", 2)));
         runner.Start();
         var trail = new Queue<string>();
         trailText = "";

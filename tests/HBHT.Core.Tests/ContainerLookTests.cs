@@ -8,7 +8,7 @@ namespace HBHT.Core.Tests;
 /// <summary>Which model a container's linked scene object shows by the flags (<see cref="LoadedMap.LookOf"/>, <see cref="LoadedMap.Looks"/>).</summary>
 public class ContainerLookTests
 {
-    private static readonly RecordId Map = RecordId.Parse("aidyn:map/0x1063");
+    private static readonly RecordId Map = Chunk(0, "K11");
 
     private static Func<RecordId, bool> Set(params int[] flags) => id => flags.Any(f => Flag(f) == id);
 
@@ -17,7 +17,7 @@ public class ContainerLookTests
 
     // A container whose opened flag is 13 and exploded flag 14, linked to the scene object after it.
     private static ContainerObject Container(int index, ContainerKind kind = ContainerKind.Chest) =>
-        new(index, Vector3.Zero, 5, null, kind, Flag(13), Flag(14), 0, 0, null, 0, null) { Link = MapRecord.VoxelId(Map, index + 1) };
+        new(index, Vector3.Zero, 5, null, kind, Flag(13), Flag(14), 0, 0, null, 0, null) { Link = ChunkRecord.ObjectId(Map, index + 1) };
 
     [Fact]
     public void AnOpenedFlagShowsTheOpenedModelAndAnExplodedOneTheDestroyed()
@@ -36,7 +36,7 @@ public class ContainerLookTests
     public void AnEmptiedContainerRememberedByTheMapObjectsShowsOpenedToo()
     {
         var memory = new MapObjectMemory();
-        memory.Remember(new Memory(MapRecord.VoxelId(Map, 0), MemoryKind.Opened), 0);
+        memory.Remember(new Memory(ChunkRecord.ObjectId(Map, 0), MemoryKind.Opened), 0);
 
         Assert.Equal(ContainerLook.Opened, LoadedMap.LookOf(Map, Container(0), Set(), memory));
         Assert.Equal(ContainerLook.Closed, LoadedMap.LookOf(Map, Container(2), Set(), memory));
@@ -51,7 +51,7 @@ public class ContainerLookTests
     [Fact]
     public void LooksNameTheLinkedSceneObjectsOfTheChangedContainers()
     {
-        var record = new MapRecord(Map, [Container(0), Scene(1), Container(2), Scene(3), Container(4, ContainerKind.Herb), Scene(5)]);
+        var record = TestChunk.Of(Map, [Container(0), Scene(1), Container(2), Scene(3), Container(4, ContainerKind.Herb), Scene(5)]);
 
         Assert.Empty(LoadedMap.Looks(record, Set(), new MapObjectMemory()));
         Assert.Equal(new Dictionary<int, ContainerLook> { [1] = ContainerLook.Opened, [3] = ContainerLook.Opened },
@@ -65,7 +65,7 @@ public class ContainerLookTests
     private static MapObjectMemory Remembered(int index)
     {
         var memory = new MapObjectMemory();
-        memory.Remember(new Memory(MapRecord.VoxelId(Map, index), MemoryKind.Opened), 0);
+        memory.Remember(new Memory(ChunkRecord.ObjectId(Map, index), MemoryKind.Opened), 0);
         return memory;
     }
 }

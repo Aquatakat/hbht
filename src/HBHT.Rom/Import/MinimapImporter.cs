@@ -15,14 +15,11 @@ internal static class MinimapImporter
 
     private const int Gwernia = 0, Ehud = 3, MageSchool = 4, RoogEntrance = 5, Barrows = 6;
 
-    public static List<MinimapRecord> Build(Minimaps minimaps) =>
-    [
-        .. minimaps.Sections.Select((list, i) => new MinimapRecord(
-            RecordId.Decimal(RecordTypes.Minimap, MapSets[i]),
-            RecordId.Decimal(RecordTypes.MapSet, MapSets[i]),
+    /// <summary>Each minimap, by the number of the map set it's on (<see cref="MapSetRecord.Minimap"/>).</summary>
+    public static Dictionary<int, MinimapPlan> Build(Minimaps minimaps) =>
+        minimaps.Sections.Select((list, i) => (Set: MapSets[i], Minimap: new MinimapPlan(
             [.. list.Select(s => new MinimapSection(s.Row, s.Column, s.Group, RecordId.Hex(RecordTypes.Image, s.Image), s.X, s.Y, s.Seen))],
-            Rules(i, list, minimaps))),
-    ];
+            Rules(i, list, minimaps)))).ToDictionary(m => m.Set, m => m.Minimap);
 
     /// <summary>
     /// The chunks whose piece isn't simply their own (<c>ShowingSpecialSection</c>, <c>0x8004b96c</c> in 1.0, and the

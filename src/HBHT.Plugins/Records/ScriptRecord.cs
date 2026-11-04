@@ -22,6 +22,10 @@ namespace HBHT.Plugins.Records;
 /// Set by winning the battle this script starts. Only the Goblin Ambush and Lugash's fight have
 /// one; the original keeps them in a table (<c>dialoug_func</c>).
 /// </param>
+/// <param name="BattleRules">
+/// The rules of the battle this script starts when it's played from a script object, under its <paramref name="BattleFlag"/>
+/// (ADR 0035): the Goblin Ambush's and Lugash's. A battle an npc's script starts is the npc's, with the npc's rules.
+/// </param>
 /// <param name="Rest">
 /// Eight hours pass when it ends: the camp scenes and the Campsite's own script
 /// (<c>isCampfireScene</c>). Left out when false.
@@ -36,7 +40,8 @@ public sealed record ScriptRecord(
     RecordId? DoneFlag = null,
     int? Backdrop = null,
     RecordId? BattleFlag = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool Rest = false);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool Rest = false,
+    BattleRules? BattleRules = null);
 
 /// <summary>How a script is presented (the original's <c>start_func</c>).</summary>
 public enum ScriptMode

@@ -57,17 +57,17 @@ public enum FlagRole
     /// while the flag is set and adds when it turns on, so the entry reads the flag.
     /// </summary>
     JournalListed,
-    /// <summary>A map object's visibility gate. <see cref="FlagUse.By"/> is the object (<c>aidyn:voxel/…</c>), which reads the flag.</summary>
+    /// <summary>A map object's visibility gate. <see cref="FlagUse.By"/> is the object (<c>aidyn:mapobject/…</c>), which reads the flag.</summary>
     ObjectVisible,
-    /// <summary>A map object's enabled gate: whether it works, or for a monster party whether it's there.</summary>
+    /// <summary>A map object's enabled gate: whether it works, or for an npc or an encounter whether it's there.</summary>
     ObjectEnabled,
     /// <summary>What a container or trigger writes when it's used.</summary>
     ObjectUsed,
-    /// <summary>A monster party without a script: it's gone while the flag is set, and beating it sets it.</summary>
+    /// <summary>An encounter: it's gone while the flag is set, and beating it sets it.</summary>
     PartyBeaten,
-    /// <summary>A monster party with a script: talking to it sets the flag.</summary>
+    /// <summary>An npc: talking to it sets the flag.</summary>
     PartyTalkedTo,
-    /// <summary>A monster party's battle flag, which winning the battle its script starts sets.</summary>
+    /// <summary>An npc's battle flag, which winning the battle its script starts sets.</summary>
     PartyFought,
     /// <summary>A container's opened flag: it's empty while set, and opening it sets it.</summary>
     ContainerOpened,
@@ -89,7 +89,7 @@ public enum FlagRole
     BossFlag,
     /// <summary>
     /// A world map region's flag, which entering a chunk of the map set (<see cref="FlagUse.By"/>) in the region sets
-    /// (<see cref="ChunkEntry.Region"/>), where the sky is drawn and the set has no minimap.
+    /// (<see cref="ChunkRecord.Region"/>), where the sky is drawn and the set has no minimap.
     /// </summary>
     ChunkEntered,
     /// <summary>The state flags record: the engine writes the flags it keeps its state in, and reads the random skill check option.</summary>
@@ -112,7 +112,7 @@ public enum FlagRole
 public sealed record FlagUse(RecordId Flag, RecordId By, FlagAccess Access, FlagRole Role, int? At = null, bool Inverted = false);
 
 /// <summary>
-/// What starts a script: a script object or a monster party (<c>aidyn:voxel/…</c>), or another
+/// What starts a script: a script object or an npc (<c>aidyn:mapobject/…</c>), or another
 /// script, whose RandomLine op at node <see cref="At"/> takes a line from it.
 /// </summary>
 public sealed record ScriptStarter(RecordId Script, RecordId By, int? At = null);
@@ -249,10 +249,10 @@ public sealed class QuestIndex
                 uses.Add(new FlagUse(flag.Id, entry, FlagAccess.Read, FlagRole.JournalListed));
         }
 
-        foreach (var map in plugins.All<MapRecord>(RecordTypes.Map))
+        foreach (var map in plugins.All<ChunkRecord>(RecordTypes.Chunk))
         {
             foreach (var mapObject in map.Objects)
-                AddObject(MapRecord.VoxelId(map.Id, mapObject.Index), mapObject);
+                AddObject(map.ObjectId(mapObject.Index), mapObject);
         }
 
         // Flags 0 and 1 are constants, not quest state, so neither reads nor writes of them count.
@@ -285,8 +285,8 @@ public sealed class QuestIndex
                     Use(t.Used?.Flag, voxel, used, FlagRole.ObjectUsed);
                     break;
                 // A silent party does nothing when the player uses it.
-                case MonsterPartyObject m when m.Script is { } script:
-                    if (!m.Flags.HasFlag(PartyFlags.Silent))
+                case NpcObject m:
+                    if (!m.Flags.HasFlag(PartyFlags.Silent) && m.Script is var script)
                     {
                         starters.Add(new ScriptStarter(script, voxel));
                         Use(m.Used?.Flag, voxel, FlagAccess.Set, FlagRole.PartyTalkedTo);
@@ -298,7 +298,7 @@ public sealed class QuestIndex
                         }
                     }
                     break;
-                case MonsterPartyObject m:
+                case EncounterObject m:
                     Use(m.Used?.Flag, voxel, FlagAccess.Read, FlagRole.PartyBeaten);
                     Use(m.Used?.Flag, voxel, FlagAccess.Set, FlagRole.PartyBeaten);
                     GiveKeyItems(KeyItemsIn(m.Loot), voxel);
@@ -347,7 +347,7 @@ public sealed class QuestIndex
 
         // One use a map set and region, however many of its chunks find the region.
         foreach (var set in plugins.All<MapSetRecord>(RecordTypes.MapSet))
-            foreach (var region in set.Chunks.Select(c => c.RegionFound(plugins, set.Id)).OfType<RecordId>().Distinct())
+            foreach (var region in plugins.ChunksIn(set.Id).Select(c => c.RegionFound(plugins)).OfType<RecordId>().Distinct())
                 Use(region, set.Id, FlagAccess.Set, FlagRole.ChunkEntered);
 
         foreach (var state in plugins.All<StateFlagsRecord>(RecordTypes.StateFlags))

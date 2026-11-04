@@ -31,7 +31,7 @@ public interface IMapObjectHost
     /// A pressed on a monster party's body (<c>monsterpary_func</c>): a talker's conversation starts
     /// (<see cref="Trek.Conversation"/>), and a hunter's battle. Does nothing by default.
     /// </summary>
-    void Talk(LoadedMap map, MonsterPartyObject party) { }
+    void Talk(LoadedMap map, PartyObject party) { }
 
     /// <summary>Asks an actor a scene object places for an animation (<c>Borg7_SetAnimation</c>).</summary>
     void Animate(LoadedMap map, SceneObject actor, int request);
@@ -204,7 +204,7 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
     /// The monster party whose body A reaches (see <see cref="Trek.Wanderers.Reaches"/>), where its body is in
     /// the chunk's coordinates, and how far across the ground, which it's weighed by.
     /// </param>
-    public MapObject? Reach(LoadedMap map, Vector3 at, Vector2 heading, float radius, (MonsterPartyObject Party, Vector3 At, float Distance)? body = null)
+    public MapObject? Reach(LoadedMap map, Vector3 at, Vector2 heading, float radius, (PartyObject Party, Vector3 At, float Distance)? body = null)
     {
         // A map without a grid, which only a mod's could be, weighs all its objects.
         var listed = map.Record.Grid is { } grid ? grid.At(at).Select(i => map[i]).OfType<MapObject>() : map.Objects;
@@ -245,7 +245,7 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
     }
 
     /// <summary>A pressed in trek: uses what the player reaches, if anything. False if nothing.</summary>
-    public bool UseNearest(LoadedMap map, Vector3 at, Vector2 heading, float radius, (MonsterPartyObject Party, Vector3 At, float Distance)? body = null)
+    public bool UseNearest(LoadedMap map, Vector3 at, Vector2 heading, float radius, (PartyObject Party, Vector3 At, float Distance)? body = null)
     {
         if (Popup is not null || Reach(map, at, heading, radius, body) is not { } o)
             return false;
@@ -270,7 +270,7 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
             case TripwireObject tripwire:
                 Trip(map, tripwire);
                 break;
-            case MonsterPartyObject party:
+            case PartyObject party:
                 host.Talk(map, party);
                 break;
         }
@@ -436,7 +436,7 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
             host.Changed(map, scene);
         }
         if (stays)
-            game.Memory.Remember(new Memory(MapRecord.VoxelId(map.Record.Id, o.Index), MemoryKind.Opened), 0);
+            game.Memory.Remember(new Memory(ChunkRecord.ObjectId(map.Record.Id, o.Index), MemoryKind.Opened), 0);
         host.OpenLoot(loot, 0);
     }
 
@@ -458,7 +458,7 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
         map.SetActive(o.Index, false);
         // Without an opened flag, it's remembered as emptied for a while.
         if (o.Opened is null && !(o.Exploded is { } exploded && Flags.IsSet(exploded)))
-            game.Memory.Remember(new Memory(MapRecord.VoxelId(map.Record.Id, o.Index), MemoryKind.Opened), 0);
+            game.Memory.Remember(new Memory(ChunkRecord.ObjectId(map.Record.Id, o.Index), MemoryKind.Opened), 0);
         Party.Gold += (uint)gold;
         if (loot.Stacks.Count == 0)
         {

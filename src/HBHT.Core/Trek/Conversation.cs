@@ -85,9 +85,9 @@ public sealed class Conversation
     public static Conversation? TalkTo(GameState game, Wanderer wanderer, IScriptHost host, PlayerMotion player)
     {
         var party = wanderer.Party;
-        if (party.Script is not { } id || (party.Flags & PartyFlags.Silent) != 0 || game.Plugins.TryGet<ScriptRecord>(id) is not { } script)
+        if (party is not NpcObject { Script: var id } || (party.Flags & PartyFlags.Silent) != 0 || game.Plugins.TryGet<ScriptRecord>(id) is not { } script)
             return null;
-        var conversation = new Conversation(game, script, new ScriptStart(0, MapRecord.VoxelId(wanderer.Map.Record.Id, party.Index)), host,
+        var conversation = new Conversation(game, script, new ScriptStart(0, ChunkRecord.ObjectId(wanderer.Map.Record.Id, party.Index)), host,
             player, wanderer);
         conversation.Runner.Start();
         conversation.Hold();

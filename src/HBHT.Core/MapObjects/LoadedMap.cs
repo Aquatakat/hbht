@@ -54,14 +54,14 @@ public sealed class LoadedMap
     private readonly Dictionary<int, ContainerLook> _looks = [];
     private readonly Dictionary<int, CameraMove> _cameraMoves = [];
 
-    private LoadedMap(MapRecord record, ChunkKey key)
+    private LoadedMap(ChunkRecord record, ChunkKey key)
     {
         Record = record;
         Key = key;
         _objects = record.Objects.ToDictionary(o => o.Index);
     }
 
-    public MapRecord Record { get; }
+    public ChunkRecord Record { get; }
 
     /// <summary>The chunk it is, which its collision and drawn surfaces are under in the world.</summary>
     public ChunkKey Key { get; }
@@ -104,7 +104,7 @@ public sealed class LoadedMap
     {
         if (!_cameraMoves.TryGetValue(camera.Index, out var move))
         {
-            var point = camera.RefPoint is { } id && MapRecord.MapOf(id) == Record.Id && this[MapRecord.IndexOf(id)] is ReferencePointObject reference
+            var point = camera.RefPoint is { } id && ChunkRecord.ChunkOf(id) == Record.Id && this[ChunkRecord.IndexOf(id)] is ReferencePointObject reference
                 ? Origin + reference.Position
                 : (Vector3?)null;
             _cameraMoves[camera.Index] = move = new CameraMove(camera.Flags, point, new Vector3(camera.Pitch, camera.Distance, camera.Ticks));
@@ -141,7 +141,7 @@ public sealed class LoadedMap
         var o = from;
         for (var i = 0; i < MaxLinks && o.Link is { } link; i++)
         {
-            if (!objects.TryGetValue(MapRecord.IndexOf(link), out var next))
+            if (!objects.TryGetValue(ChunkRecord.IndexOf(link), out var next))
                 return null;
             o = next;
             if (o is T found)
@@ -169,7 +169,7 @@ public sealed class LoadedMap
     /// The model each scene object a container links to shows, by the scene object's index, for the containers whose look isn't as
     /// placed (<see cref="LookOf"/>): the choice <see cref="Activate"/> makes as a chunk loads, without activating anything.
     /// </summary>
-    public static IReadOnlyDictionary<int, ContainerLook> Looks(MapRecord record, Func<RecordId, bool> isSet, MapObjectMemory memory)
+    public static IReadOnlyDictionary<int, ContainerLook> Looks(ChunkRecord record, Func<RecordId, bool> isSet, MapObjectMemory memory)
     {
         var objects = record.Objects.ToDictionary(o => o.Index);
         var looks = new Dictionary<int, ContainerLook>();
@@ -198,7 +198,7 @@ public sealed class LoadedMap
     /// looks every scene object up in the chart).</item>
     /// </list>
     /// </summary>
-    public static LoadedMap Activate(MapRecord record, ChunkKey key, FlagNetwork flags, MapObjectMemory memory, Characters.Party party,
+    public static LoadedMap Activate(ChunkRecord record, ChunkKey key, FlagNetwork flags, MapObjectMemory memory, Characters.Party party,
         IRandom random, Vector3 origin = default) =>
         Activate(record, key, flags.IsSet, memory, (party, random), origin);
 
@@ -209,10 +209,10 @@ public sealed class LoadedMap
     /// read as they're stored (<see cref="FlagNetwork.IsSetAsStored"/>), nothing is rolled, so there's no Ranger's share, and a
     /// secret door that needs a skill and isn't found isn't there. Nothing that plays may use what it returns.
     /// </summary>
-    public static LoadedMap Scenery(MapRecord record, ChunkKey key, FlagNetwork flags, MapObjectMemory memory, Vector3 origin = default) =>
+    public static LoadedMap Scenery(ChunkRecord record, ChunkKey key, FlagNetwork flags, MapObjectMemory memory, Vector3 origin = default) =>
         Activate(record, key, flags.IsSetAsStored, memory, rolls: null, origin);
 
-    private static LoadedMap Activate(MapRecord record, ChunkKey key, Func<RecordId, bool> isSet, MapObjectMemory memory,
+    private static LoadedMap Activate(ChunkRecord record, ChunkKey key, Func<RecordId, bool> isSet, MapObjectMemory memory,
         (Characters.Party Party, IRandom Random)? rolls, Vector3 origin)
     {
         var map = new LoadedMap(record, key) { Origin = origin };
@@ -264,7 +264,7 @@ public sealed class LoadedMap
 
     /// <summary>Whether a scene object is remembered as put out.</summary>
     public bool Remembered(MapObjectMemory memory, SceneObject scene) =>
-        memory.Find(new Memory(MapRecord.VoxelId(Record.Id, scene.Index), MemoryKind.PutOut)) is not null;
+        memory.Find(new Memory(ChunkRecord.ObjectId(Record.Id, scene.Index), MemoryKind.PutOut)) is not null;
 
     /// <summary>
     /// The distances what goes out once reached is put out by (<see cref="PutOut"/>): the original's, whatever the Draw distance
@@ -307,7 +307,7 @@ public sealed class LoadedMap
             if (alphas[0] == 0 || alphas[1] != 0)
                 continue;
             SetActive(scene.Index, false);
-            memory.Remember(new Memory(MapRecord.VoxelId(centre, scene.Index), MemoryKind.PutOut), 0, MapObjectMemory.PutOutLoads);
+            memory.Remember(new Memory(ChunkRecord.ObjectId(centre, scene.Index), MemoryKind.PutOut), 0, MapObjectMemory.PutOutLoads);
             (putOut ??= []).Add(scene);
         }
         return putOut ?? [];
@@ -317,7 +317,7 @@ public sealed class LoadedMap
     public bool Remembered(MapObjectMemory memory, ContainerObject container) => Remembered(memory, Record.Id, container.Index);
 
     private static bool Remembered(MapObjectMemory memory, RecordId map, int index) =>
-        memory.Find(new Memory(MapRecord.VoxelId(map, index), MemoryKind.Opened)) is not null;
+        memory.Find(new Memory(ChunkRecord.ObjectId(map, index), MemoryKind.Opened)) is not null;
 
     // exploding_container_check.
     private bool ActivateContainer(ContainerObject o, Func<RecordId, bool> isSet, MapObjectMemory memory)

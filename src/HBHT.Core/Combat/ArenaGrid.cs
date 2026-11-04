@@ -55,7 +55,7 @@ public sealed class ArenaGrid
     /// Sizes the grid by the arena map's object grid (<c>ArenaGrid.Init</c>, <c>0x80067960</c>): its cell size times its
     /// columns and rows, each rounded half away from zero to a byte, and empties it.
     /// </summary>
-    public void Init(MapRecord map)
+    public void Init(ChunkRecord map)
     {
         Array.Clear(_cells);
         if (map.Grid is not { } grid)

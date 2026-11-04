@@ -11,8 +11,16 @@ public enum KeyKind
     Borg,
     /// <summary>A decimal index without leading zeros: <c>aidyn:flag/47</c>; a singleton's is 0.</summary>
     Decimal,
-    /// <summary>The parent's Borg key, then the decimal index within it: <c>aidyn:voxel/0x1A20/12</c>. In a mod, a name then the index.</summary>
-    Nested,
+    /// <summary>
+    /// A chunk's: its map set's decimal number, then the original's name for its cell (<c>ChunkRecord.NameOf</c>):
+    /// <c>aidyn:chunk/8/C05</c>. In a mod, a name: <c>mymod:chunk/hermit_isle</c>.
+    /// </summary>
+    Chunk,
+    /// <summary>
+    /// A map object's: its chunk's key, then its decimal index within the chunk: <c>aidyn:mapobject/8/C05/17</c>. In a mod's chunk, the
+    /// chunk's name then the index: <c>mymod:mapobject/hermit_isle/3</c>.
+    /// </summary>
+    MapObject,
 }
 
 /// <summary>What the registry knows of a record type.</summary>
@@ -21,7 +29,12 @@ public enum KeyKind
 /// <param name="Key">How its base-game keys are spelled.</param>
 /// <param name="Singleton">Whether there's one record, <c>aidyn:&lt;type&gt;/0</c>, which plugins patch rather than add to.</param>
 /// <param name="Views">Other classes its records read as: <see cref="DbRecord"/> reads a DB record's name, portrait, body and sounds alone.</param>
-public sealed record RecordTypeInfo(string Name, Type? Class, KeyKind Key, bool Singleton = false, IReadOnlyList<Type>? Views = null)
+/// <param name="LazyFolder">
+/// The folder under the base plugin's <c>records/</c> that holds its records a file each, by their key (<c>records/chunks/8/C05.json</c>),
+/// which the plugin set reads only once one is asked for (ADR 0036); null for a type the base plugin writes otherwise.
+/// </param>
+public sealed record RecordTypeInfo(string Name, Type? Class, KeyKind Key, bool Singleton = false, IReadOnlyList<Type>? Views = null,
+    string? LazyFolder = null)
 {
     /// <summary>Whether its records read as <paramref name="type"/>: the class or a view.</summary>
     public bool Reads(Type type) => type == Class || Views?.Contains(type) == true;
@@ -34,7 +47,7 @@ public sealed record RecordTypeInfo(string Name, Type? Class, KeyKind Key, bool 
 /// The fixed registry of record types (ADR 0004): each type's name, class, key shape and whether there's one of it
 /// (<see cref="Info"/>). Borg assets are named by what they are, and one archive index space is shared by all of them, so
 /// <c>aidyn:scene/0x0A0E</c> is Borg 0x0A0E. Scenes, textures, UI images, samples and animations are assets alone, with
-/// no record and no class; a map object is nested in its map's record.
+/// no record and no class; a map object is nested in its chunk's record.
 /// </summary>
 public static class RecordTypes
 {
@@ -56,15 +69,24 @@ public static class RecordTypes
     public const string Animation = "animation";
     public const string Actor = "actor";
     public const string Image = "image";
-    /// <summary>A Borg9: one chunk's collision and map objects.</summary>
-    public const string Map = "map";
+    /// <summary>
+    /// A Borg9's collision, an asset alone (<c>assets/aidyn/collision/0xHHHH.glb</c>), which every chunk the Borg9 is copied into names
+    /// (ADR 0035).
+    /// </summary>
+    public const string Collision = "collision";
     public const string Sample = "sample";
     public const string Sequence = "sequence";
     /// <summary>A Borg13: a conversation, cut-scene, backdrop, sign or the help menu (ADR 0034).</summary>
     public const string Script = "script";
 
-    /// <summary>A map object, nested in its <see cref="Map"/>: <c>aidyn:voxel/0x1A20/12</c>.</summary>
-    public const string Voxel = "voxel";
+    /// <summary>
+    /// One cell of a map set, with its scenery, collision and map objects (ADR 0035): <c>aidyn:chunk/8/C05</c>, keyed by its map set's
+    /// number and the original's name for the cell.
+    /// </summary>
+    public const string Chunk = "chunk";
+
+    /// <summary>A map object, nested in its <see cref="Chunk"/>: <c>aidyn:mapobject/8/C05/17</c>.</summary>
+    public const string MapObject = "mapobject";
 
     /// <summary>A set of chunks loaded as one world, keyed by the original's set number.</summary>
     public const string MapSet = "mapset";
@@ -81,8 +103,6 @@ public static class RecordTypes
     /// <summary>The World tab's map: its pieces, towns and the party's ring. There's one, <c>aidyn:worldmap/0</c>.</summary>
     public const string WorldMap = "worldmap";
 
-    /// <summary>A map set's minimap in trek, by the map set's number, such as <c>aidyn:minimap/4</c> for Gwernia castle's.</summary>
-    public const string Minimap = "minimap";
 
     /// <summary>How camping goes: the ambush, the heal and the camp scenes. There's one, <c>aidyn:camping/0</c>.</summary>
     public const string Camping = "camping";
@@ -180,18 +200,18 @@ public static class RecordTypes
         new(Animation, null, KeyKind.Borg),
         new(Actor, typeof(ActorRecord), KeyKind.Borg),
         new(Image, null, KeyKind.Borg),
-        new(Map, typeof(MapRecord), KeyKind.Borg),
+        new(Collision, null, KeyKind.Borg),
         new(Sample, null, KeyKind.Borg),
         new(Sequence, typeof(SequenceRecord), KeyKind.Borg),
-        new(Script, typeof(ScriptRecord), KeyKind.Borg),
-        new(Voxel, null, KeyKind.Nested),
+        new(Script, typeof(ScriptRecord), KeyKind.Borg, LazyFolder: "scripts"),
+        new(Chunk, typeof(ChunkRecord), KeyKind.Chunk, LazyFolder: "chunks"),
+        new(MapObject, null, KeyKind.MapObject),
         new(MapSet, typeof(MapSetRecord), KeyKind.Decimal),
         new(Terrain, typeof(TerrainRecord), KeyKind.Decimal),
         new(Sky, typeof(SkyRecord), KeyKind.Decimal, Singleton: true),
         new(Journal, typeof(JournalRecord), KeyKind.Decimal),
         new(StateFlags, typeof(StateFlagsRecord), KeyKind.Decimal, Singleton: true),
         new(WorldMap, typeof(WorldMapRecord), KeyKind.Decimal, Singleton: true),
-        new(Minimap, typeof(MinimapRecord), KeyKind.Decimal),
         new(Camping, typeof(CampingRecord), KeyKind.Decimal, Singleton: true),
         new(Font, typeof(FontRecord), KeyKind.Decimal),
         new(Strings, typeof(StringsRecord), KeyKind.Decimal),

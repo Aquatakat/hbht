@@ -606,15 +606,15 @@ public sealed class GameSession
     }
 
     /// <summary>
-    /// A fly-through's scenery (<c>Title.StartScenery</c>): the last's goes, and the Overworld's chunks load about the new one's row and
-    /// column in a zone engine of its own, under its centre chunk's sky.
+    /// A fly-through's scenery (<c>Title.StartScenery</c>): the last's goes, and its map set's chunks load about its chunk in a zone
+    /// engine of its own, under that chunk's sky.
     /// </summary>
     private void StartScenery(TitleFlycam flycam)
     {
         EndScenery();
-        if (Game.Plugins.TryGet<MapSetRecord>(TitleScreen.Overworld) is not { } set || set.Chunk(flycam.Row, flycam.Column) is not { } chunk)
+        if (Game.Plugins.TryGet<ChunkRecord>(flycam.Chunk) is not { } chunk || Game.Plugins.TryGet<MapSetRecord>(chunk.MapSet) is not { } set)
         {
-            _host.Warn($"The title's fly-through is over row {flycam.Row}, column {flycam.Column}, which the Overworld lacks.");
+            _host.Warn($"The title's fly-through is over {flycam.Chunk}, which no plugin has.");
             return;
         }
         var zone = Scenery = Zone.Stage(set);
@@ -625,8 +625,10 @@ public sealed class GameSession
         Sky.ClearSky();
         Sky.Enter(chunk);
         Sky.Apply();
-        // The animation's coordinates are from its origin chunk's corner.
-        Send(new Transition.StartTitleScenery(flycam, zone, set.Origin(flycam.OriginRow, flycam.OriginColumn)));
+        // The animation's coordinates are from its origin chunk's corner, which needn't be a chunk any plugin has.
+        var origin = ChunkIndex.For(Game.Plugins).CellOf(flycam.Origin) is { } cell ? (cell.Row, cell.Column)
+            : ChunkRecord.PlaceOf(flycam.Origin) is { } place ? (place.Row, place.Column) : (chunk.Row, chunk.Column);
+        Send(new Transition.StartTitleScenery(flycam, zone, set.Origin(origin.Item1, origin.Item2)));
     }
 
     /// <summary>The fly-through's scenery goes (<c>Title.FreeScenery</c>, <c>0x80055698</c>).</summary>
@@ -760,7 +762,7 @@ public sealed class GameSession
         {
             var chunk = scene.Stage.Chunk;
             Trek.CarryOut(
-                Transition.AfterScript(Game, ending, ending.Speaker, (new ChunkRef(scene.Stage.Set.Id, chunk.Row, chunk.Column), chunk.Terrain)));
+                Transition.AfterScript(Game, ending, ending.Speaker, (chunk.Id, chunk.Terrain)));
         }
     }
 
@@ -774,8 +776,9 @@ public sealed class GameSession
     private CutSceneLaunch? Chained()
     {
         var at = Trek.Player.Sphere.Position;
-        if (!Trek.AtPlace || Trek.Chunks.ChunkAt(at) is not { } chunk || Game.Plugins.TryGet<MapRecord>(chunk.Map) is not { } map)
+        if (!Trek.AtPlace || Trek.Chunks.ChunkAt(at) is not { } chunk)
             return null;
+        var map = chunk;
         var local = at - Trek.Chunks.Origin(chunk);
         foreach (var dialogue in map.Objects.OfType<ScriptObject>())
         {
@@ -783,7 +786,7 @@ public sealed class GameSession
                 || dialogue.Enabled is { } gate && !Game.Flags.Holds(gate))
                 continue;
             // The original starts any script there; every one the data reaches is a cut-scene with a stage.
-            return CutSceneLaunch.Of(Game.Plugins, dialogue, MapRecord.VoxelId(map.Id, dialogue.Index));
+            return CutSceneLaunch.Of(Game.Plugins, dialogue, ChunkRecord.ObjectId(map.Id, dialogue.Index));
         }
         return null;
     }
@@ -803,7 +806,7 @@ public sealed class GameSession
     }
 
     /// <inheritdoc cref="Cue(CutSceneLaunch)"/>
-    public void Cue(ScriptRecord script, ScriptStart start, ChunkRef stage) => Cue(new CutSceneLaunch(script, start, stage));
+    public void Cue(ScriptRecord script, ScriptStart start, RecordId stage) => Cue(new CutSceneLaunch(script, start, stage));
 
     /// <summary>Asks trek for a battle, unless one or a cut-scene is playing (<see cref="TrekLoop.CueBattle"/>).</summary>
     public void CueBattle(BattleSetup setup)
@@ -812,8 +815,11 @@ public sealed class GameSession
             Trek.CueBattle(setup);
     }
 
-    /// <summary>The last battle's arena, which a terrain choosing none keeps (<see cref="BattleSetup.ChooseArena"/>).</summary>
-    private int _lastArena;
+    /// <summary>
+    /// The last battle's arena, which a terrain choosing none keeps (<see cref="BattleSetup.ChooseArena"/>): before any, the combat record's
+    /// default (the original's arena 0).
+    /// </summary>
+    private RecordId? _lastArena;
 
     /// <summary>
     /// The cued battle begins (<c>Combat.Init</c>, <c>0x80022D1C</c>): trek's world goes, the zone engine starts again with
@@ -824,10 +830,11 @@ public sealed class GameSession
     {
         var setup = Trek.BeginBattle();
         Zone.Particles?.Clear();
-        var number = setup.Arena ?? setup.ChooseArena(Game.Plugins, Game.Random.Combat) ?? _lastArena;
+        var number = setup.Arena ?? setup.ChooseArena(Game.Plugins, Game.Random.Combat) ?? _lastArena
+            ?? Game.Plugins.Singleton<CombatRecord>().DefaultArena;
         if (Combat.Arena.For(Game.Plugins, number) is not { } arena)
         {
-            Send(new Transition.Say($"Arena {number} is in no plugin."));
+            Send(new Transition.Say($"The arena {number} is in no plugin."));
             Trek.Resume();
             Send(new Transition.ResumeTrek());
             return;
@@ -900,10 +907,9 @@ public sealed class GameSession
     private void PlayGameOver()
     {
         if (Game.Plugins.Singleton<CombatRecord>().GameOver is { } gameOver
-            && Game.Plugins.TryGet<MapRecord>(gameOver.Map) is { } map
-            && map.Objects.OfType<ScriptObject>().FirstOrDefault(d => d.Plays == gameOver.Script) is { } dialogue
-            && Game.Plugins.TryGet<ScriptRecord>(gameOver.Script) is { } script
-            && CutSceneLaunch.Of(script, dialogue, MapRecord.VoxelId(map.Id, dialogue.Index)) is { } launch)
+            && ChunkRecord.Find(Game.Plugins, gameOver.From) is ScriptObject dialogue
+            && Game.Plugins.TryGet<ScriptRecord>(dialogue.Plays) is { } script
+            && CutSceneLaunch.Of(script, dialogue, gameOver.From) is { } launch)
         {
             StartCutScene(launch);
             return;
@@ -1193,7 +1199,7 @@ public sealed class GameSession
     /// </summary>
     private bool StartFrom(RecordId voxel)
     {
-        if (MapRecord.Find(Game.Plugins, voxel) is not ScriptObject dialogue
+        if (ChunkRecord.Find(Game.Plugins, voxel) is not ScriptObject dialogue
             || CutSceneLaunch.Of(Game.Plugins, dialogue, voxel) is not { } launch)
             return false;
         Trek.Free();
@@ -1215,10 +1221,9 @@ public sealed class GameSession
     /// </summary>
     public static (MapSetRecord Set, string Chunk, Vector3 At) Arrival(PluginSet plugins, NewGameRecord start)
     {
-        var set = plugins.Get<MapSetRecord>(start.Chunk.MapSet);
-        var chunk = set.Chunk(start.Chunk.Row, start.Chunk.Column)
-            ?? throw new InvalidDataException($"{set.Label} has no chunk at row {start.Chunk.Row}, column {start.Chunk.Column}.");
-        return (set, chunk.Name, new Vector3(start.Position.X, start.Height, start.Position.Y));
+        var chunk = plugins.TryGet<ChunkRecord>(start.Chunk)
+            ?? throw new InvalidDataException($"No plugin has {start.Chunk}, where a new game arrives.");
+        return (plugins.Get<MapSetRecord>(chunk.MapSet), chunk.Name, new Vector3(start.Position.X, start.Height, start.Position.Y));
     }
 
     /// <summary>The party leader's entity whose body's steps the player moves by under Modern movement, or null before the first tick.</summary>
@@ -1249,12 +1254,12 @@ public sealed class GameSession
         Game.Party.Members.FirstOrDefault() is { } leader ? Game.Plugins.TryGet<EntityRecord>(leader.Entity)?.Body?.Actor : null;
 
     /// <summary>The chunk the player is in, and whether its terrain has the outdoor sky, for the World tab's map and Camp.</summary>
-    public (ChunkRef? Place, bool Outdoors) Where()
+    public (RecordId? Place, bool Outdoors) Where()
     {
         if (Trek.Chunks.ChunkAt(Trek.Player.Sphere.Position) is not { } chunk)
             return (null, false);
-        var terrain = TerrainRecord.Find(Game.Plugins, chunk.Terrain);
-        return (new ChunkRef(Trek.Chunks.MapSet.Id, chunk.Row, chunk.Column), terrain?.SkyDrawn ?? false);
+        var terrain = Game.Plugins.TryGet<TerrainRecord>(chunk.Terrain);
+        return (chunk.Id, terrain?.SkyDrawn ?? false);
     }
 
     /// <summary>Notes where the player stands and which way he faces, for a save (<see cref="GameState.Place"/>). False if he isn't in a chunk.</summary>

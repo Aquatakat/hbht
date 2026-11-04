@@ -7,12 +7,12 @@ namespace HBHT.TestSupport;
 public static class Combats
 {
     /// <summary>
-    /// A combat record that names nothing: <paramref name="fallback"/> as given, every list empty, the menus' words blank, gold doubled
-    /// as 1.0's is. Tests set what they need with <c>with</c>; who fights for the party and the rest are the entities' own
-    /// (<see cref="EntityCombat"/>).
+    /// A combat record that names nothing: <paramref name="fallback"/> as given, the Battlefields' A01 as the default arena, the menus'
+    /// words blank, gold doubled as 1.0's is. Tests set what they need with <c>with</c>; who fights for the party and the rest are the
+    /// entities' own (<see cref="EntityCombat"/>), and a battle's own rules are on what starts it (<see cref="BattleRules"/>).
     /// </summary>
     public static CombatRecord Rules(RecordId fallback) => new(
-        RecordId.Decimal(RecordTypes.Combat, 0), fallback, [], LootGoldMultiplier: 2, Encounters: [],
+        RecordId.Decimal(RecordTypes.Combat, 0), fallback, ChunkRecord.IdOf(16, 1, 1), LootGoldMultiplier: 2,
         Text: new CombatText("", "", "", "", "", new SenseAuraText("", "", "", "", "", "", "", "", 2)));
 }
 

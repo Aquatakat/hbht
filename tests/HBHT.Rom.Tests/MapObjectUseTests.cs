@@ -75,17 +75,16 @@ public sealed class MapObjectUseTests(Na10Import fixture)
     }
 
     /// <summary>The chunk as it loads, with a generator of its own so what's used afterwards rolls the same.</summary>
-    private static LoadedMap Load(Play play, MapRecord map) =>
+    private static LoadedMap Load(Play play, ChunkRecord map) =>
         LoadedMap.Activate(map, Worlds.Chunk(), play.Game.Flags, play.Game.Memory, play.Game.Party, new Lcg());
 
-    private IReadOnlyList<CollisionTriangle> Collision(MapRecord map) =>
-        Collisions.GetOrAdd(Data.Set.FindAsset(map.Id, "glb")!, path => CollisionMesh.Read(File.ReadAllBytes(path)));
+    private IReadOnlyList<CollisionTriangle> Collision(ChunkRecord map) =>
+        Collisions.GetOrAdd(Data.Set.FindAsset(map.Collision!.Value, "glb")!, path => CollisionMesh.Read(File.ReadAllBytes(path)));
 
-    /// <summary>The map set and chunk a map is placed in.</summary>
-    private (MapSetRecord Set, ChunkEntry Chunk) Placed(MapRecord map) =>
-        Data.MapSets.SelectMany(s => s.Chunks.Select(c => (Set: s, Chunk: c))).First(p => p.Chunk.Map == map.Id);
+    /// <summary>The map set and chunk a chunk record is in.</summary>
+    private (MapSetRecord Set, ChunkRecord Chunk) Placed(ChunkRecord map) => (Data.Set.Get<MapSetRecord>(map.MapSet), map);
 
-    private MapRecord I08 => Data.Set.Get<MapRecord>(Data.Chunk(new ChunkRef(Overworld, 9, 8))!.Map);
+    private ChunkRecord I08 => Data.Set.ChunkAt(Overworld, 9, 8)!;
 
     private static bool HoldsSomething(ContainerObject c) => c.Gold != 0 || c.Loot is not null || c.Item is not null;
 
@@ -101,12 +100,12 @@ public sealed class MapObjectUseTests(Na10Import fixture)
     [Fact]
     public void AContainersReachIsItsOwnNotItsRadius()
     {
-        var containers = Data.Maps.SelectMany(m => m.Objects).OfType<ContainerObject>().ToList();
+        var containers = Data.ChunkRecords.SelectMany(m => m.Objects).OfType<ContainerObject>().ToList();
 
         // chestSize: 2 for most, where the radius is 10.
         Assert.InRange(containers.Count(c => c.Reach == 2 && c.Radius == 10), 200, int.MaxValue);
         Assert.All(containers, c => Assert.InRange(c.Reach, 1, 5));
-        Assert.All(Data.Maps, m => Assert.NotNull(m.Grid));
+        Assert.All(Data.ChunkRecords, m => Assert.NotNull(m.Grid));
     }
 
     [Fact]
@@ -163,18 +162,18 @@ public sealed class MapObjectUseTests(Na10Import fixture)
     public void OnTheGridEveryCellAnObjectsReachCoversListsIt()
     {
         var missed = new List<string>();
-        foreach (var map in Data.Maps)
+        foreach (var map in Data.ChunkRecords)
         {
             foreach (var o in map.Objects.Where(o => !o.Tangible && o is ContainerObject or TeleporterObject or ScriptObject or TripwireObject))
             {
                 var reach = o is ContainerObject c ? c.Reach + PlayerRadius : o.Radius;
                 if (Disc(o.Position, reach).Any(p => OnGrid(map.Grid!, p) && !map.Grid!.At(p).Contains(o.Index)))
-                    missed.Add($"{MapRecord.VoxelId(map.Id, o.Index)}");
+                    missed.Add($"{map.ObjectId(o.Index)}");
             }
         }
         // But one dialogue that's off its map's grid altogether, which the first cell doesn't list, so A never
         // reaches it, as in the original; only a trigger triangle naming it could start it.
-        Assert.Equal(["aidyn:voxel/0x185C/0"], missed);
+        Assert.Equal(["aidyn:mapobject/6/C05/0"], missed);
     }
 
     [Fact]
@@ -184,7 +183,7 @@ public sealed class MapObjectUseTests(Na10Import fixture)
         // cell's list counts, which doesn't hold it.
         var play = NewGame();
         bool Works(MapObject o) => o.Enabled is not { } gate || play.Flag(gate.Flag) != gate.Invert;
-        foreach (var record in Data.Maps)
+        foreach (var record in Data.ChunkRecords)
         {
             var grid = record.Grid!;
             foreach (var door in record.Objects.OfType<TeleporterObject>().Where(t => !t.Tangible && Works(t) && !grid.Cells[0].Contains(t.Index)))
@@ -212,9 +211,9 @@ public sealed class MapObjectUseTests(Na10Import fixture)
     {
         int cameras = 0, dialogues = 0, others = 0, triggers = 0;
         var failures = new List<string>();
-        foreach (var map in Data.Maps)
+        foreach (var map in Data.ChunkRecords)
         {
-            Assert.NotNull(Data.Set.FindAsset(map.Id, "glb"));
+            Assert.NotNull(Data.Set.FindAsset(map.Collision!.Value, "glb"));
             foreach (var t in Collision(map).Where(t => t.Role == CollisionRole.Trigger))
             {
                 triggers++;
@@ -235,7 +234,7 @@ public sealed class MapObjectUseTests(Na10Import fixture)
     {
         var failures = new List<string>();
         var toggles = 0;
-        foreach (var map in Data.Maps)
+        foreach (var map in Data.ChunkRecords)
         {
             var ids = Collision(map).Where(t => t.Role == CollisionRole.Toggle).Select(t => t.Target).ToHashSet();
             toggles += Collision(map).Count(t => t.Role == CollisionRole.Toggle);
@@ -294,7 +293,7 @@ public sealed class MapObjectUseTests(Na10Import fixture)
         Assert.True(loaded.IsActive(chest.Index));
         Assert.Equal(ContainerLook.Closed, loaded.Look(Scene(loaded, chest).Index));
 
-        play.Game.Memory.Remember(new Memory(MapRecord.VoxelId(map.Id, chest.Index), MemoryKind.Opened), 0);
+        play.Game.Memory.Remember(new Memory(map.ObjectId(chest.Index), MemoryKind.Opened), 0);
         loaded = Load(play, map);
         Assert.False(loaded.IsActive(chest.Index));
         Assert.Equal(ContainerLook.Opened, loaded.Look(Scene(loaded, chest).Index));
@@ -422,7 +421,7 @@ public sealed class MapObjectUseTests(Na10Import fixture)
 
     private static string Danger(int level) => level < 3 ? "slightly" : level < 6 ? "moderately" : "very";
 
-    private List<(MapRecord Map, ContainerObject Container)> Trapped() =>
+    private List<(ChunkRecord Map, ContainerObject Container)> Trapped() =>
         [.. Data.Of<ContainerObject>().Where(c => c.Object.TrapLevel > 0).Select(c => (c.Map, c.Object))];
 
     [Fact]
@@ -522,7 +521,7 @@ public sealed class MapObjectUseTests(Na10Import fixture)
             var again = Load(play, map);
             if (chest.Exploded is null)
             {
-                comeBack.Add(MapRecord.VoxelId(map.Id, chest.Index).ToString());
+                comeBack.Add(map.ObjectId(chest.Index).ToString());
                 Assert.True(again.IsActive(chest.Index));
                 Assert.Equal(ContainerLook.Closed, again.Look(scene.Index));
                 continue;
@@ -530,7 +529,7 @@ public sealed class MapObjectUseTests(Na10Import fixture)
             Assert.False(again.IsActive(chest.Index));
             Assert.Equal(chest.Opened == chest.Exploded ? ContainerLook.Opened : ContainerLook.Destroyed, again.Look(scene.Index));
         }
-        Assert.Equal(["aidyn:voxel/0x0F88/40", "aidyn:voxel/0x10CC/37", "aidyn:voxel/0x1119/16"], comeBack);
+        Assert.Equal(["aidyn:mapobject/0/G09/40", "aidyn:mapobject/0/N21/37", "aidyn:mapobject/0/P21/16"], comeBack);
     }
 
     // Locks.
@@ -713,7 +712,7 @@ public sealed class MapObjectUseTests(Na10Import fixture)
 
     // ChangeCollision triggers.
 
-    private IEnumerable<(MapRecord Map, TripwireObject Trigger)> ChangeCollisionTriggers() =>
+    private IEnumerable<(ChunkRecord Map, TripwireObject Trigger)> ChangeCollisionTriggers() =>
         Data.Of<TripwireObject>().Where(t => t.Object.Does is ChangeCollisionAction).Select(t => (t.Map, t.Object));
 
     private static ChangeCollisionAction Change(TripwireObject tripwire) => (ChangeCollisionAction)tripwire.Does;
@@ -780,11 +779,11 @@ public sealed class MapObjectUseTests(Na10Import fixture)
         foreach (var (map, trigger) in ChangeCollisionTriggers())
         {
             var (set, chunk) = Placed(map);
-            var key = ChunkKey.Of(set, chunk);
+            var key = ChunkKey.Of(chunk);
             var world = new CollisionWorld();
-            var around = set.Chunks.Where(c => Math.Abs(c.Row - chunk.Row) <= 1 && Math.Abs(c.Column - chunk.Column) <= 1).ToList();
+            var around = Data.Set.ChunksIn(set.Id).Where(c => Math.Abs(c.Row - chunk.Row) <= 1 && Math.Abs(c.Column - chunk.Column) <= 1).ToList();
             foreach (var near in around)
-                world.Add(ChunkKey.Of(set, near), Collision(Data.Set.Get<MapRecord>(near.Map)), set.Origin(near.Row, near.Column));
+                world.Add(ChunkKey.Of(near), Collision(near), set.Origin(near.Row, near.Column));
             var origin = set.Origin(chunk.Row, chunk.Column);
             var toggled = Collision(map).Where(t => !IsSliver(t) && t.Role == CollisionRole.Toggle && t.Target == Change(trigger).Toggle).ToList();
             var play = NewGame();
@@ -805,10 +804,10 @@ public sealed class MapObjectUseTests(Na10Import fixture)
             // The neighbours that hold copies: loaded afresh, theirs stop him again until the trigger goes off once more.
             foreach (var near in around.Where(c => c != chunk))
             {
-                var nearKey = ChunkKey.Of(set, near);
+                var nearKey = ChunkKey.Of(near);
                 world.Remove(nearKey);
                 var stopped = stopping.Any(t => Stops(world, t, origin));
-                world.Add(nearKey, Collision(Data.Set.Get<MapRecord>(near.Map)), set.Origin(near.Row, near.Column));
+                world.Add(nearKey, Collision(near), set.Origin(near.Row, near.Column));
                 if (!stopping.Any(t => Stops(world, t, origin)))
                     continue;
                 Assert.False(stopped);
@@ -853,13 +852,13 @@ public sealed class MapObjectUseTests(Na10Import fixture)
     // Arrivals.
 
     /// <summary>A chunk's collision and its neighbours', as the runtime holds them around a player.</summary>
-    private CollisionWorld Around(MapSetRecord set, ChunkEntry chunk)
+    private CollisionWorld Around(MapSetRecord set, ChunkRecord chunk)
     {
         if (_worlds.TryGetValue((set.Id, chunk.Row, chunk.Column), out var world))
             return world;
         world = new CollisionWorld();
-        foreach (var near in set.Chunks.Where(c => Math.Abs(c.Row - chunk.Row) <= 1 && Math.Abs(c.Column - chunk.Column) <= 1))
-            world.Add(ChunkKey.Of(set, near), Collision(Data.Set.Get<MapRecord>(near.Map)), set.Origin(near.Row, near.Column));
+        foreach (var near in Data.Set.ChunksIn(set.Id).Where(c => Math.Abs(c.Row - chunk.Row) <= 1 && Math.Abs(c.Column - chunk.Column) <= 1))
+            world.Add(ChunkKey.Of(near), Collision(near), set.Origin(near.Row, near.Column));
         return _worlds[(set.Id, chunk.Row, chunk.Column)] = world;
     }
 
@@ -874,8 +873,7 @@ public sealed class MapObjectUseTests(Na10Import fixture)
         {
             var arrival = TeleportArrival.For(Data.Set, t);
             Assert.NotNull(arrival);
-            Assert.Equal(t.Destination.MapSet, arrival.Set.Id);
-            Assert.Equal((t.Destination.Row, t.Destination.Column), (arrival.Chunk.Row, arrival.Chunk.Column));
+            Assert.Equal(t.Leads, arrival.Chunk.Id);
 
             if (t.Arrival is { } point)
             {
@@ -899,7 +897,7 @@ public sealed class MapObjectUseTests(Na10Import fixture)
             else
                 withoutCamera.Add($"{id} {t.Name}");
         }
-        Assert.Equal(["aidyn:voxel/0x1871/0 patioL2"], withoutPoint);
+        Assert.Equal(["aidyn:mapobject/11/K07/0 patioL2"], withoutPoint);
         // 197 teleporters name a camera point, and the rest leave the camera where it is.
         Assert.Equal(697, withoutCamera.Count);
     }
@@ -936,13 +934,14 @@ public sealed class MapObjectUseTests(Na10Import fixture)
         // original tests that point, a radius off the arrival's; with a smaller radius they settle. The other
         // two, into the Ehud's tower chunks Q03 and E09, have no ground at all under them.
         Assert.Equal(
-        [
-            "aidyn:voxel/0x0F01/14 entry",
-            "aidyn:voxel/0x0F01/16 jumpBdown",
-            "aidyn:voxel/0x12AC/3 fromErromon",
-            "aidyn:voxel/0x1530/1 SageExit",
-            "aidyn:voxel/0x16EA/1 doorfromF",
-            "aidyn:voxel/0x1956/1 doorfromDE",
-        ], floating);
+        new[]
+        {
+            "aidyn:mapobject/0/C09/14 entry",
+            "aidyn:mapobject/0/C09/16 jumpBdown",
+            "aidyn:mapobject/7/C12/3 fromErromon",
+            "aidyn:mapobject/11/I05/1 SageExit",
+            "aidyn:mapobject/12/Q05/1 doorfromF",
+            "aidyn:mapobject/12/E07/1 doorfromDE",
+        }.Order(StringComparer.Ordinal), floating.Order(StringComparer.Ordinal));
     }
 }

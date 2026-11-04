@@ -39,7 +39,10 @@ public sealed class Minimap(MinimapSeen seen, Func<RecordId, (int Width, int Hei
     private int? _group;
 
     /// <summary>The minimap loaded, if the map set has one.</summary>
-    public MinimapRecord? Record { get; private set; }
+    public MinimapPlan? Record => _set?.Minimap;
+
+    /// <summary>The map set whose minimap is loaded, or null.</summary>
+    private MapSetRecord? _set;
 
     /// <summary>Whether it's large (<c>B_buttonToggle</c>), kept whether a minimap is loaded or not.</summary>
     public bool Large { get; private set; } = true;
@@ -54,11 +57,13 @@ public sealed class Minimap(MinimapSeen seen, Func<RecordId, (int Width, int Hei
     /// The map set's minimap is loaded, or none (<c>MiniMap::LoadData</c>, <c>MiniMap::Free</c>). The same one loaded
     /// again keeps where it was; another starts afresh, at its size at once.
     /// </summary>
-    public void Load(MinimapRecord? record)
+    public void Load(MapSetRecord? set)
     {
-        if (record == Record)
+        if (set?.Minimap is null)
+            set = null;
+        if (set == _set)
             return;
-        Record = record;
+        _set = set;
         _pieces = [];
         _fading = [];
         _current = null;
@@ -129,7 +134,7 @@ public sealed class Minimap(MinimapSeen seen, Func<RecordId, (int Width, int Hei
                 _current = new Piece(index);
                 _pieces.Insert(0, _current);
             }
-            seen.See(record, index);
+            seen.See(_set!, index);
             _current.Recolour();
             var (x, y) = Offset();
             _offsetX.To(x);
@@ -140,9 +145,9 @@ public sealed class Minimap(MinimapSeen seen, Func<RecordId, (int Width, int Hei
         // A new group: the old one fades where it is, and the new one is every piece of it seen, the first on top.
         _group = section.Group;
         _fading = _pieces;
-        seen.See(record, index);
+        seen.See(_set!, index);
         _pieces = [.. Enumerable.Range(0, record.Sections.Count).Reverse()
-            .Where(i => record.Sections[i].Group == section.Group && seen.IsSeen(record, i)).Select(i => new Piece(i))];
+            .Where(i => record.Sections[i].Group == section.Group && seen.IsSeen(_set!, i)).Select(i => new Piece(i))];
         _current = _pieces.Find(p => p.Section == index)!;
         _current.Recolour();
         var (ox, oy) = Offset();
@@ -154,7 +159,7 @@ public sealed class Minimap(MinimapSeen seen, Func<RecordId, (int Width, int Hei
     /// The piece the rules choose for where the player stands: the first rule for the chunk whose flag and bounds hold,
     /// or the chunk's first piece.
     /// </summary>
-    public static int? Select(MinimapRecord record, int row, int column, Vector3 at, FlagNetwork flags)
+    public static int? Select(MinimapPlan record, int row, int column, Vector3 at, FlagNetwork flags)
     {
         foreach (var rule in record.Rules)
         {

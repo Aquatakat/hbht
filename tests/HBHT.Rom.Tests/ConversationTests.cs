@@ -148,7 +148,7 @@ internal sealed class CueLog : IScriptHost
 /// <summary>Records which monster party A talked to.</summary>
 internal sealed class TalkHost : IMapObjectHost
 {
-    public List<MonsterPartyObject> Talks { get; } = [];
+    public List<PartyObject> Talks { get; } = [];
 
     public void Teleport(LoadedMap from, TeleporterObject teleporter) { }
 
@@ -156,7 +156,7 @@ internal sealed class TalkHost : IMapObjectHost
 
     public void StartScript(LoadedMap map, ScriptObject dialogue) { }
 
-    public void Talk(LoadedMap map, MonsterPartyObject party) => Talks.Add(party);
+    public void Talk(LoadedMap map, PartyObject party) => Talks.Add(party);
 
     public void Animate(LoadedMap map, SceneObject actor, int request) { }
 
@@ -172,7 +172,7 @@ internal sealed class TalkHost : IMapObjectHost
 [Collection(ImportedPluginCollection.Name)]
 public sealed class ConversationTests(Na10Import fixture)
 {
-    private static readonly RecordId MapId = RecordId.Hex(RecordTypes.Map, 0x7001);
+    private static readonly RecordId MapId = Ids.Chunk(0, "K11");
 
     private PluginSet Plugins => ConversationPlugins.Get(fixture.Data.Dir);
 
@@ -193,7 +193,7 @@ public sealed class ConversationTests(Na10Import fixture)
     }
 
     /// <summary>A real talker's entity, which has a body.</summary>
-    private RecordId Entity => fixture.Data.Of<MonsterPartyObject>().First(p => p.Object.Script is not null).Object.Entity;
+    private RecordId Entity => fixture.Data.Of<NpcObject>().First().Object.Entity;
 
     /// <summary>A plain flag nothing has set, which a party's flag B can set.</summary>
     private static RecordId SpareFlag(GameState game)
@@ -215,9 +215,12 @@ public sealed class ConversationTests(Na10Import fixture)
     {
         var game = GameState.NewGame(Plugins);
         var node = new WanderNodeObject(0, new Vector3(10, 0, 10), 0, null, nodeRadius, 0, 0, 1000, WanderFlags.Move, []);
-        var party = new MonsterPartyObject(1, new Vector3(10, 0, 10), 20, null, [], Entity, null, 0, 0, MapRecord.VoxelId(MapId, 0), flags,
-            dialogue, null) { Used = withUsed ? new FlagWrite(SpareFlag(game)) : null };
-        var map = LoadedMap.Activate(new MapRecord(MapId, [node, party]), Worlds.Chunk(), game.Flags, game.Memory, game.Party, new Lcg());
+        var home = ChunkRecord.ObjectId(MapId, 0);
+        PartyObject party = (dialogue is { } script
+            ? (PartyObject)new NpcObject(1, new Vector3(10, 0, 10), 20, null, Entity, home, flags, script)
+            : new EncounterObject(1, new Vector3(10, 0, 10), 20, null, Entity, home, flags, [], null, 0, 0))
+            with { Used = withUsed ? new FlagWrite(SpareFlag(game)) : null };
+        var map = LoadedMap.Activate(TestChunk.Of(MapId, [node, party]), Worlds.Chunk(), game.Flags, game.Memory, game.Party, new Lcg());
         var world = Worlds.Ground(-50, 80);
         var wanderers = new Wanderers(game.Plugins);
         var wanderer = Assert.Single(wanderers.Load(map, 100, world, game.Memory));
@@ -339,7 +342,7 @@ public sealed class ConversationTests(Na10Import fixture)
 
         Assert.Equal(ScriptStatus.Showing, conversation.Runner.Status);
         Assert.Contains(s.Cues.Seen, c => c is CameraCue { Shot: CameraShot.CutTo, Mark: 2 });
-        var voxel = MapRecord.VoxelId(MapId, s.Wanderer.Party.Index);
+        var voxel = ChunkRecord.ObjectId(MapId, s.Wanderer.Party.Index);
         Assert.NotNull(s.Game.Memory.Find(new Memory(voxel, MemoryKind.SkillCheck, 0)));
     }
 
@@ -682,14 +685,14 @@ public sealed class ConversationTests(Na10Import fixture)
 
     private static SavePointObject Spot(int index, Vector3 at, float radius = 10) => new(index, at, radius, null);
 
-    private static MonsterPartyObject Party(Vector3 at) =>
-        new(1, at, 20, null, [], RecordId.Hex(RecordTypes.Entity, 0x300), null, 0, 0, null, PartyFlags.None, ConversationPlugins.Talk, null);
+    private static NpcObject Party(Vector3 at) =>
+        new(1, at, 20, null, RecordId.Hex(RecordTypes.Entity, 0x300), null, PartyFlags.None, ConversationPlugins.Talk);
 
-    private (MapObjectUse Use, LoadedMap Map, MonsterPartyObject Party, TalkHost Host) Reaching(Vector3 partyAt, params SavePointObject[] objects)
+    private (MapObjectUse Use, LoadedMap Map, NpcObject Party, TalkHost Host) Reaching(Vector3 partyAt, params SavePointObject[] objects)
     {
         var game = GameState.NewGame(Plugins);
         var party = Party(partyAt);
-        var map = LoadedMap.Activate(new MapRecord(MapId, [party, .. objects]), Worlds.Chunk(), game.Flags, game.Memory, game.Party, new Lcg());
+        var map = LoadedMap.Activate(TestChunk.Of(MapId, [party, .. objects]), Worlds.Chunk(), game.Flags, game.Memory, game.Party, new Lcg());
         var host = new TalkHost();
         return (UseOver(game, host), map, party, host);
     }
@@ -764,15 +767,15 @@ public sealed class ConversationTests(Na10Import fixture)
     // Every party in the game.
 
     /// <summary>
-    /// Godric's late-game cut-scene (<c>aidyn:script/0x0529</c>), from his party on Overworld map <c>0x0FC5</c>: he joins,
+    /// Godric's late-game cut-scene (<c>aidyn:script/0x0529</c>), from his party in Overworld chunk H13: he joins,
     /// the cut-scene rebuilds trek as it ends, and the chunk loaded again has no body for him, as his party is there only
     /// while his joined flag (90) is clear. Before, the cut-scene's AddMember left him wandering, to be recruited again.
     /// </summary>
     [Fact]
     public void GodricsCutSceneTakesHimOffTheMapWhenTrekIsRebuilt()
     {
-        var (_, record, party) = fixture.Data.Of<MonsterPartyObject>()
-            .Single(p => p.Map.Id == RecordId.Hex(RecordTypes.Map, 0x0FC5) && p.Object.Index == 26);
+        var (_, record, party) = fixture.Data.Of<NpcObject>()
+            .Single(p => p.Map.Id == Ids.Chunk(0, "H13") && p.Object.Index == 26);
         var godric = RecordId.Hex(RecordTypes.Entity, 0x0248);
         Assert.Equal(godric, party.Entity);
         var game = GameState.NewGame(Plugins);
@@ -816,7 +819,7 @@ public sealed class ConversationTests(Na10Import fixture)
     [Fact]
     public void TalkingToEveryTalkerInTheGameStartsItsScriptWithoutAFault()
     {
-        var talkers = fixture.Data.Of<MonsterPartyObject>().Where(p => p.Object.Script is not null).ToList();
+        var talkers = fixture.Data.Of<NpcObject>().ToList();
         var silent = talkers.Count(p => (p.Object.Flags & PartyFlags.Silent) != 0);
         var started = new Dictionary<string, int>();
         var faults = new List<string>();
@@ -831,14 +834,14 @@ public sealed class ConversationTests(Na10Import fixture)
             // Without their flags' gates, which a new game mostly keeps shut.
             var record = group.First().Map with
             {
-                Objects = [.. group.First().Map.Objects.Select(o => o is MonsterPartyObject p && wanted.Contains(p.Index) ? p with { Visible = null, Enabled = null } : o)],
+                Objects = [.. group.First().Map.Objects.Select(o => o is NpcObject p && wanted.Contains(p.Index) ? p with { Visible = null, Enabled = null } : o)],
             };
             var map = LoadedMap.Activate(record, Worlds.Chunk(), game.Flags, game.Memory, game.Party, new Lcg());
             var wanderers = new Wanderers(game.Plugins);
             wanderers.Load(map, 1_000_000, new CollisionWorld(), game.Memory);
             foreach (var (id, _, party) in group)
             {
-                if (wanderers.Of(map, record.Objects.OfType<MonsterPartyObject>().Single(p => p.Index == party.Index)) is not { } wanderer)
+                if (wanderers.Of(map, record.Objects.OfType<NpcObject>().Single(p => p.Index == party.Index)) is not { } wanderer)
                 {
                     faults.Add($"{id}: no body");
                     continue;

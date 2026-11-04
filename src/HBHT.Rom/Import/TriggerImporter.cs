@@ -25,9 +25,7 @@ internal static class TriggerImporter
     public static void Import(ImportContext ctx)
     {
         ctx.Report("Triggers");
-        var opening = Borg9Voxels.Read(ctx.Archive.Read(OpeningMap))
-            .First(o => o.Data is DialogueData d && d.Script == OpeningScript).Index;
-        ctx.WriteRecords("triggers.json", BuildTriggers(ctx.Engine, MapRecord.VoxelId(RecordId.Hex(RecordTypes.Map, OpeningMap), opening)));
+        ctx.WriteRecords("triggers.json", BuildTriggers(ctx.Engine, WorldImporter.FirstScriptObject(ctx.Chunks, ctx.Archive, OpeningMap, OpeningScript)));
     }
 
     /// <summary>

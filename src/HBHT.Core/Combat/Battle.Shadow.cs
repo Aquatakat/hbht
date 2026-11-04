@@ -7,7 +7,7 @@ using HBHT.Plugins.Records;
 namespace HBHT.Core.Combat;
 
 // The special battles' rules (gamecombat.cpp's Shadow functions, Combatant.ShadowFightTrick): the Goblin Ambush's hold on Alaron, and
-// the Shadow's aura, slowing, vanishing and merging, with the combat record's rules for both (EncounterRule.KeelOver, ShadowRule).
+// the Shadow's aura, slowing, vanishing and merging, with the combat record's rules for both (BattleRules.KeelOver, ShadowRule).
 // docs/systems/combat.md's "The special battles" has the original's.
 public sealed partial class Battle
 {
@@ -15,14 +15,14 @@ public sealed partial class Battle
 
     /// <summary>
     /// Hits the battle's own rules still let its member take before keeling over (<c>Combat.ShadowTurnsLeft</c>, <c>0x800D94CE</c>,
-    /// which <c>Combat.Init</c> sets for the Goblin Ambush): <see cref="EncounterRule.KeelOver"/>'s.
+    /// which <c>Combat.Init</c> sets for the Goblin Ambush): <see cref="BattleRules.KeelOver"/>'s.
     /// </summary>
     public int KeelOverHits { get; private set; }
 
     /// <summary>
     /// The battle's own hold on a member (<c>Combatant.ShadowFightTrick</c>, <c>0x80065DCC</c>, from <c>Combatant.ExecuteAction</c>
     /// before the death is found, for an attack, a flask thrown or a spell's first target alike): in a battle whose rules have one
-    /// (<see cref="EncounterRule.KeelOver"/>, the Goblin Ambush's), a blow that would hurt its member takes 1 hit point instead,
+    /// (<see cref="BattleRules.KeelOver"/>, the Goblin Ambush's), a blow that would hurt its member takes 1 hit point instead,
     /// which replaces the queued line; and the last of its hits takes the member's Strength to 0, so it can't act, and at the next
     /// turn's change the party has fallen, though the member lives. Returns the damage.
     /// </summary>

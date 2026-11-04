@@ -20,7 +20,7 @@ public sealed class BattleSetupTests
     private static PartyEnemy Kind(RecordId entity, int least, int most) => new(entity, least, most);
 
     private static BattleSetup Fight(int least, int most, params PartyEnemy[] kinds) =>
-        new(BattleSource.MonsterParty, null, null, MapRecord.VoxelId(RecordId.Hex(RecordTypes.Map, 1), 0), kinds, null, false, true, null)
+        new(BattleSource.Encounter, null, null, MapObject(0, "I08", 0), kinds, null, false, true, null)
         {
             Size = (least, most),
         };
@@ -284,7 +284,7 @@ public sealed class BattleSetupTests
     [Fact]
     public void AScriptsEnemiesAreListedAsGivenWithNoDraws()
     {
-        var setup = BattleSetup.Scripted([A, B, A, C], 3, 0, 0, canFlee: true, null);
+        var setup = BattleSetup.Scripted([A, B, A, C], A03, 0, 0, canFlee: true, null);
         var random = new ScriptedRandom();
 
         var list = setup.EnemyList(PartyOfLevel(), _ => 99, random, Fallback);
@@ -295,7 +295,7 @@ public sealed class BattleSetupTests
     [Fact]
     public void AScriptsEnemiesAreNotTrimmedByLevel()
     {
-        var setup = BattleSetup.Scripted([A, A, A, A, A, A, A, A, A, A], 0, 0, 0, canFlee: true, null);
+        var setup = BattleSetup.Scripted([A, A, A, A, A, A, A, A, A, A], A01, 0, 0, canFlee: true, null);
 
         Assert.Equal(10, setup.EnemyList(PartyOfLevel(), _ => 50, new ScriptedRandom(), Fallback).Count);
     }
@@ -303,7 +303,7 @@ public sealed class BattleSetupTests
     [Fact]
     public void AScriptsEnemiesStopAtTwelve()
     {
-        var setup = BattleSetup.Scripted([.. Enumerable.Repeat(A, 15)], 0, 0, 0, canFlee: true, null);
+        var setup = BattleSetup.Scripted([.. Enumerable.Repeat(A, 15)], A01, 0, 0, canFlee: true, null);
 
         Assert.Equal(12, setup.EnemyList(PartyOfLevel(), _ => 1, new ScriptedRandom(), Fallback).Count);
     }
@@ -318,60 +318,69 @@ public sealed class BattleSetupTests
         Assert.Equal(0, random.Remaining);
     }
 
-    // ChooseArena (0x80008698), from the terrain's record.
-    private static PluginSet TerrainPlugins(TempPlugins temp, int terrain, IReadOnlyList<ArenaRange>? arenas)
+    // ChooseArena (0x80008698), from the terrain's record: groups of arena chunks.
+    private static readonly RecordId A01 = Chunk(16, "A01");
+    private static readonly RecordId A03 = Chunk(16, "A03");
+    private static readonly RecordId G01 = Chunk(16, "G01");
+    private static readonly RecordId G03 = Chunk(16, "G03");
+    private static readonly RecordId I01 = Chunk(16, "I01");
+    private static readonly RecordId I03 = Chunk(16, "I03");
+    private static readonly RecordId I05 = Chunk(16, "I05");
+    private static readonly RecordId I07 = Chunk(16, "I07");
+
+    private static PluginSet TerrainPlugins(TempPlugins temp, int terrain, IReadOnlyList<IReadOnlyList<RecordId>>? arenas)
     {
         var record = new TerrainRecord(RecordId.Decimal(RecordTypes.Terrain, terrain), RecordId.Decimal(RecordTypes.Sky, 0), true, Arenas: arenas);
         return temp.Aidyn(("terrain.json", JsonSerializer.Serialize(new[] { record }, PluginJson.Options)));
     }
 
     private static BattleSetup At(int? terrain) =>
-        new(BattleSource.Wanderer, null, terrain, null, [], null, false, true, null);
+        new(BattleSource.Wanderer, null, terrain is { } t ? RecordId.Decimal(RecordTypes.Terrain, t) : null, null, [], null, false, true, null);
 
     [Fact]
     public void AFixedArenaDrawsNothing()
     {
         using var temp = new TempPlugins();
-        var plugins = TerrainPlugins(temp, 4, [new ArenaRange(19, 19)]);
+        var plugins = TerrainPlugins(temp, 4, [[A01]]);
 
-        Assert.Equal(19, At(4).ChooseArena(plugins, new ScriptedRandom()));
+        Assert.Equal(A01, At(4).ChooseArena(plugins, new ScriptedRandom()));
     }
 
     [Fact]
-    public void ARangeDrawsOnceInclusive()
+    public void AGroupDrawsOnceInclusive()
     {
         using var temp = new TempPlugins();
-        var plugins = TerrainPlugins(temp, 0, [new ArenaRange(6, 7)]);
+        var plugins = TerrainPlugins(temp, 0, [[G01, G03]]);
 
-        var low = new ScriptedRandom(BattleDice.Range(6, 7, 6));
-        var high = new ScriptedRandom(BattleDice.Range(6, 7, 7));
+        var low = new ScriptedRandom(BattleDice.Range(0, 1, 0));
+        var high = new ScriptedRandom(BattleDice.Range(0, 1, 1));
 
-        Assert.Equal(6, At(0).ChooseArena(plugins, low));
-        Assert.Equal(7, At(0).ChooseArena(plugins, high));
+        Assert.Equal(G01, At(0).ChooseArena(plugins, low));
+        Assert.Equal(G03, At(0).ChooseArena(plugins, high));
         Assert.Equal(0, low.Remaining);
         Assert.Equal(0, high.Remaining);
     }
 
-    // Terrains 20-22: RollD(1, 2) first, 1 picks the first range, then one Range.
+    // Terrains 20-22: RollD(1, 2) first, 1 picks the first group, then one Range over it.
     [Fact]
-    public void TwoRangesRollAD2FirstAndOneTakesTheFirstRange()
+    public void TwoGroupsRollAD2FirstAndOneTakesTheFirstGroup()
     {
         using var temp = new TempPlugins();
-        var plugins = TerrainPlugins(temp, 20, [new ArenaRange(6, 7), new ArenaRange(8, 11)]);
-        var random = new ScriptedRandom(BattleDice.Range(1, 2, 1), BattleDice.Range(6, 7, 7));
+        var plugins = TerrainPlugins(temp, 20, [[G01, G03], [I01, I03, I05, I07]]);
+        var random = new ScriptedRandom(BattleDice.Range(1, 2, 1), BattleDice.Range(0, 1, 1));
 
-        Assert.Equal(7, At(20).ChooseArena(plugins, random));
+        Assert.Equal(G03, At(20).ChooseArena(plugins, random));
         Assert.Equal(0, random.Remaining);
     }
 
     [Fact]
-    public void TwoRangesAndATwoTakeTheSecondRange()
+    public void TwoGroupsAndATwoTakeTheSecondGroup()
     {
         using var temp = new TempPlugins();
-        var plugins = TerrainPlugins(temp, 20, [new ArenaRange(6, 7), new ArenaRange(8, 11)]);
-        var random = new ScriptedRandom(BattleDice.Range(1, 2, 2), BattleDice.Range(8, 11, 10));
+        var plugins = TerrainPlugins(temp, 20, [[G01, G03], [I01, I03, I05, I07]]);
+        var random = new ScriptedRandom(BattleDice.Range(1, 2, 2), BattleDice.Range(0, 3, 2));
 
-        Assert.Equal(10, At(20).ChooseArena(plugins, random));
+        Assert.Equal(I05, At(20).ChooseArena(plugins, random));
         Assert.Equal(0, random.Remaining);
     }
 

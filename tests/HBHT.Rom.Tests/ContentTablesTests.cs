@@ -181,8 +181,7 @@ public class ContentTablesTests
             Assert.Equal(6, title.Flycams.Count);
             var first = title.Flycams[0];
             Assert.Equal(RecordId.Hex(RecordTypes.Animation, 0x21DC), first.Animation);
-            Assert.Equal((11, 9), (first.Row, first.Column));
-            Assert.Equal((11, 6), (first.OriginRow, first.OriginColumn));
+            Assert.Equal((Ids.Chunk(0, "K09"), Ids.Chunk(0, "K06")), (first.Chunk, first.Origin));
             Assert.All(title.Flycams, f => Assert.Equal(RecordTypes.Scene, f.Scene.Type));
             // The Borg6s' lengths, which each fly-through fades out by.
             Assert.Equal([1561, 2631, 2181, 1601, 1853, 2401], title.Flycams.Select(f => f.Length));
@@ -201,10 +200,10 @@ public class ContentTablesTests
             Assert.Equal(["Barrows", "Battlefields", "EhudUnder", "Erromon", "JundarInteriors", "MiscInteriors", "Overworld", "Ugarit"],
                 sets.Where(s => s.Spawns is not null).Select(s => s.Label).Order(StringComparer.Ordinal));
             // Every spawn is a chunk of its set.
-            Assert.All(sets, s => Assert.All(s.Spawns ?? [], p => Assert.Contains(s.Chunks, c => c.Row == p.Row && c.Column == p.Column)));
+            Assert.All(sets, s => Assert.All(s.Spawns ?? [], p => Assert.NotNull(fixture.Data.Set.ChunkAt(s.Id, p.Row, p.Column))));
 
             var start = fixture.Data.Set.Singleton<NewGameRecord>();
-            Assert.Equal((overworld.Id, 9, 8), (start.Chunk.MapSet, start.Chunk.Row, start.Chunk.Column));
+            Assert.Equal(Ids.Chunk(0, "I08"), start.Chunk);
             Assert.Equal(overworld.Spawns![0].Position, start.Position);
         }
     }

@@ -11,22 +11,22 @@ public sealed class MapObjectImportTests(Na10Import fixture)
 {
     private Na10Import.Loaded Data => fixture.Data;
 
-    private static int Borg(RecordId map) => Convert.ToInt32(map.Key[2..], 16);
-
-    private static RecordId Voxel(int borg9, int index) => MapRecord.VoxelId(RecordId.Hex(RecordTypes.Map, borg9), index);
+    /// <summary>The chunks that were imported from a Borg9: one, or for the nine the original shares, every cell that uses it (ADR 0035).</summary>
+    private IEnumerable<ChunkRecord> ChunksOf(int borg9) => Data.ChunkRecords.Where(c => c.Borg == $"0x{borg9:X4}");
 
     [Fact]
     public void EveryMapObjectOfEveryTypeIsImportedInIndexOrder()
     {
-        var maps = Data.Maps;
+        var maps = Data.ChunkRecords;
         var counts = maps.SelectMany(m => m.Objects).GroupBy(o => o.GetType().Name).ToDictionary(g => g.Key, g => g.Count());
         Assert.Equal(new Dictionary<string, int>
         {
-            [nameof(ReferencePointObject)] = 8792,
+            [nameof(ReferencePointObject)] = 9381,
             // Without the 3 scenes in 0x11AF and the sound in 0x0E96 the original has only without the Expansion Pak.
-            [nameof(SceneObject)] = 8314,
+            [nameof(SceneObject)] = 8366,
             [nameof(WanderNodeObject)] = 2052,
-            [nameof(MonsterPartyObject)] = 1079,
+            [nameof(EncounterObject)] = 658,
+            [nameof(NpcObject)] = 421,
             [nameof(SoundObject)] = 1037,
             [nameof(TeleporterObject)] = 894,
             [nameof(LightObject)] = 777,
@@ -36,7 +36,7 @@ public sealed class MapObjectImportTests(Na10Import fixture)
             [nameof(CameraObject)] = 244,
             [nameof(SavePointObject)] = 3,
         }, counts);
-        Assert.Equal(24228, maps.Sum(m => m.Objects.Count));
+        Assert.Equal(24869, maps.Sum(m => m.Objects.Count));
 
         // Code objects are left out, so indices can skip, but never repeat or go backwards.
         foreach (var map in maps)
@@ -48,7 +48,7 @@ public sealed class MapObjectImportTests(Na10Import fixture)
         {
             var expected = romObjects.Where(o => o.Type != Maps.VoxelType.Code && !o.Flags.HasFlag(Maps.VoxelFlags.NoExpansionPak))
                 .Select(o => o.Index);
-            Assert.Equal(expected, Data.Map($"aidyn:map/0x{borg:X4}").Objects.Select(o => o.Index));
+            Assert.All(ChunksOf(borg), chunk => Assert.Equal(expected, chunk.Objects.Select(o => o.Index)));
         }
     }
 
@@ -57,10 +57,10 @@ public sealed class MapObjectImportTests(Na10Import fixture)
     {
         var objects = Data.Objects;
         var failures = new List<string>();
-        foreach (var (map, o) in Data.Maps.SelectMany(m => m.Objects.Select(o => (m, o))))
+        foreach (var (map, o) in Data.ChunkRecords.SelectMany(m => m.Objects.Select(o => (m, o))))
         {
-            if (o.Link is { } link && (MapRecord.MapOf(link) != map.Id || !objects.ContainsKey(link)))
-                failures.Add($"{MapRecord.VoxelId(map.Id, o.Index)} links to {link}");
+            if (o.Link is { } link && (ChunkRecord.ChunkOf(link) != map.Id || !objects.ContainsKey(link)))
+                failures.Add($"{map.ObjectId(o.Index)} links to {link}");
         }
         Assert.Empty(failures);
 
@@ -105,13 +105,13 @@ public sealed class MapObjectImportTests(Na10Import fixture)
         {
             foreach (var next in node.Next)
             {
-                if (MapRecord.MapOf(next) != map.Id || objects[next] is not WanderNodeObject)
+                if (ChunkRecord.ChunkOf(next) != map.Id || objects[next] is not WanderNodeObject)
                     failures.Add($"{id}: next {next} isn't a wander node in its map");
             }
         }
-        foreach (var (id, map, party) in Data.Of<MonsterPartyObject>())
+        foreach (var (id, map, party) in Data.Of<PartyObject>())
         {
-            if (party.Home is not { } home || MapRecord.MapOf(home) != map.Id || objects[home] is not WanderNodeObject { Flags: var flags })
+            if (party.Home is not { } home || ChunkRecord.ChunkOf(home) != map.Id || objects[home] is not WanderNodeObject { Flags: var flags })
                 failures.Add($"{id}: home {party.Home} isn't a wander node in its map");
             // The original crashes if a party's home node doesn't have Move.
             else if (!flags.HasFlag(WanderFlags.Move))
@@ -120,7 +120,7 @@ public sealed class MapObjectImportTests(Na10Import fixture)
         foreach (var (id, map, camera) in Data.Of<CameraObject>().Where(c => c.Object.RefPoint is not null))
         {
             var point = camera.RefPoint!.Value;
-            if (MapRecord.MapOf(point) != map.Id || objects[point] is not ReferencePointObject)
+            if (ChunkRecord.ChunkOf(point) != map.Id || objects[point] is not ReferencePointObject)
                 failures.Add($"{id}: reference point {point} isn't in its map");
         }
         Assert.Empty(failures);
@@ -132,19 +132,24 @@ public sealed class MapObjectImportTests(Na10Import fixture)
         var failures = new List<string>();
         foreach (var (id, _, teleporter) in Data.Of<TeleporterObject>())
         {
-            var chunk = Data.Chunk(teleporter.Destination);
+            var chunk = teleporter.Leads is { } leads ? Data.Set.TryGet<ChunkRecord>(leads) : null;
             if (chunk is null)
-                failures.Add($"{id}: no chunk {teleporter.Destination}");
+                failures.Add($"{id}: no chunk {teleporter.Leads}");
             foreach (var point in new[] { teleporter.Arrival, teleporter.Camera }.OfType<RecordId>())
             {
-                if (chunk is null || MapRecord.MapOf(point) != chunk.Map || Data.Objects[point] is not ReferencePointObject)
-                    failures.Add($"{id}: {point} isn't a reference point of {teleporter.Destination}'s map");
+                if (chunk is null || ChunkRecord.ChunkOf(point) != chunk.Id || Data.Objects[point] is not ReferencePointObject)
+                    failures.Add($"{id}: {point} isn't a reference point of {teleporter.Leads}");
             }
         }
         foreach (var (id, _, dialogue) in Data.Of<ScriptObject>().Where(d => d.Object.Stage is not null))
         {
-            if (Data.Chunk(dialogue.Stage!) is null)
+            if (!Data.Set.Contains(dialogue.Stage!.Value))
                 failures.Add($"{id}: no chunk {dialogue.Stage}");
+        }
+        foreach (var (id, _, npc) in Data.Of<NpcObject>().Where(n => n.Object.Stage is not null))
+        {
+            if (Data.Objects.GetValueOrDefault(npc.Stage!.Value) is not ScriptObject { Stage: not null })
+                failures.Add($"{id}: its stage {npc.Stage} isn't a script object with a stage");
         }
         Assert.Empty(failures);
     }
@@ -166,14 +171,17 @@ public sealed class MapObjectImportTests(Na10Import fixture)
             if (dialogue.Plays.Type != RecordTypes.Script)
                 failures.Add($"{id}: script {dialogue.Plays} isn't a script");
         }
-        foreach (var (id, _, party) in Data.Of<MonsterPartyObject>())
+        foreach (var (id, _, party) in Data.Of<PartyObject>())
         {
-            Has(id, party.Script, "script");
-            if (party.Script is { Type: not RecordTypes.Script })
-                failures.Add($"{id}: script {party.Script} isn't a script");
+            if (party is NpcObject npc)
+            {
+                Has(id, npc.Script, "script");
+                if (npc.Script.Type != RecordTypes.Script)
+                    failures.Add($"{id}: script {npc.Script} isn't a script");
+            }
             Has(id, party.Entity, "entity");
-            Has(id, party.Loot, "loot");
-            foreach (var enemy in party.Enemies)
+            Has(id, party.BonusLoot, "loot");
+            foreach (var enemy in party.Fighters)
                 Has(id, enemy.Entity, "enemy");
         }
         foreach (var (id, _, container) in Data.Of<ContainerObject>())
@@ -187,7 +195,8 @@ public sealed class MapObjectImportTests(Na10Import fixture)
         Assert.Contains(Data.Of<ContainerObject>(), c => c.Object.Item is { Type: RecordTypes.Item } item && item.Key.StartsWith("0x10", StringComparison.Ordinal));
 
         // Something of each is there to be checked.
-        Assert.Contains(Data.Of<MonsterPartyObject>(), p => p.Object.Loot is not null && p.Object.Script is not null);
+        Assert.Contains(Data.Of<NpcObject>(), p => p.Object.Loot is not null);
+        Assert.Contains(Data.Of<EncounterObject>(), p => p.Object.Loot is not null);
         Assert.Contains(Data.Of<ContainerObject>(), c => c.Object.Loot is not null);
         Assert.Contains(Data.Of<ContainerObject>(), c => c.Object.Item is not null);
     }
@@ -196,20 +205,20 @@ public sealed class MapObjectImportTests(Na10Import fixture)
     public void TheMissingReferencePointsAreExactlyTheKnownOnes()
     {
         // patioL2 (Borg9 6257, object 0) names a point its destination doesn't have, and five teleporters into
-        // Jundar's interiors A01 name camera points it doesn't have.
+        // Jundar's interiors A01 name camera points it doesn't have. (A shared Borg9 has no teleporters, so each is in one chunk.)
         (int Borg9, int Index) patio = (6257, 0);
         HashSet<(int, int)> cameras = [(5278, 0), (5300, 1), (5412, 1), (5432, 0), (6257, 0)];
         var failures = new List<string>();
         var teleporters = 0;
         foreach (var (borg, romObjects) in Data.RomObjects)
         {
-            var map = Data.Map($"aidyn:map/0x{borg:X4}");
+            foreach (var map in ChunksOf(borg))
             foreach (var rom in romObjects.Where(o => o.Data is Maps.TeleporterData))
             {
                 teleporters++;
                 var data = (Maps.TeleporterData)rom.Data!;
                 var o = (TeleporterObject)map.Objects.Single(x => x.Index == rom.Index);
-                var where = $"{Voxel(borg, rom.Index)}";
+                var where = $"{map.ObjectId(rom.Index)}";
 
                 var ownPosition = data.RefPoint == Maps.TeleporterData.OwnPosition;
                 var lost = (borg, rom.Index) == patio;
@@ -230,9 +239,9 @@ public sealed class MapObjectImportTests(Na10Import fixture)
                 {
                     if (point is not { } found)
                         continue;
-                    var destination = Data.Map(Data.Chunk(o.Destination)!.Map.ToString());
+                    var destination = Data.Chunk(o.Leads!.Value);
                     var first = destination.Objects.OfType<ReferencePointObject>().First(r => r.Mark == id);
-                    if (found != MapRecord.VoxelId(destination.Id, first.Index))
+                    if (found != destination.ObjectId(first.Index))
                         failures.Add($"{where}: {found} isn't the first point with ID {id}");
                 }
 
@@ -250,25 +259,25 @@ public sealed class MapObjectImportTests(Na10Import fixture)
     public void GatesAndFlagsAreOnlyOnTheTypesThatReadThem()
     {
         var failures = new List<string>();
-        foreach (var (map, o) in Data.Maps.SelectMany(m => m.Objects.Select(o => (m, o))))
+        foreach (var (map, o) in Data.ChunkRecords.SelectMany(m => m.Objects.Select(o => (m, o))))
         {
-            var where = MapRecord.VoxelId(map.Id, o.Index);
+            var where = map.ObjectId(o.Index);
             var kind = (o as ContainerObject)?.Kind;
             var crate = kind is ContainerKind.Chest or ContainerKind.Sack or ContainerKind.Crate or ContainerKind.Barrel;
 
             // Parties, dialogues and save points are always there, and so are the plain containers until they're opened.
             // A gate that always holds, flag 0 inverted, is written as none.
-            var alwaysThere = o is MonsterPartyObject or ScriptObject or SavePointObject || crate;
+            var alwaysThere = o is PartyObject or ScriptObject or SavePointObject || crate;
             if (o.Visible is not null && alwaysThere || o.Visible is { Invert: true } v && Number(v.Flag) == 0)
                 failures.Add($"{where}: a {o.GetType().Name} {kind} has visible gate {o.Visible}");
 
-            var works = o is TeleporterObject or TripwireObject or ScriptObject or MonsterPartyObject || (kind is not null && !crate);
+            var works = o is TeleporterObject or TripwireObject or ScriptObject or PartyObject || (kind is not null && !crate);
             if (o.Enabled is not null && !works || o.Enabled is { Invert: true } e && Number(e.Flag) == 0)
                 failures.Add($"{where}: a {o.GetType().Name} {kind} has enabled gate {o.Enabled}");
 
-            if (o.Used is not null && o is not (ContainerObject or TripwireObject or MonsterPartyObject))
+            if (o.Used is not null && o is not (ContainerObject or TripwireObject or PartyObject))
                 failures.Add($"{where}: a {o.GetType().Name} writes {o.Used}");
-            if (o is MonsterPartyObject && o.Used is { Clear: true })
+            if (o is PartyObject && o.Used is { Clear: true })
                 failures.Add($"{where}: a party clears {o.Used.Flag}");
 
             if (o.Tangible && o is not (TeleporterObject or TripwireObject or ScriptObject))
@@ -277,22 +286,24 @@ public sealed class MapObjectImportTests(Na10Import fixture)
         Assert.Empty(failures);
 
         // Each gate is used somewhere.
-        Assert.Contains(Data.Maps.SelectMany(m => m.Objects), o => o.Used is { Clear: true });
-        Assert.Contains(Data.Maps.SelectMany(m => m.Objects), o => o.Enabled is { Invert: true });
-        Assert.Contains(Data.Maps.SelectMany(m => m.Objects), o => o.Tangible);
+        Assert.Contains(Data.ChunkRecords.SelectMany(m => m.Objects), o => o.Used is { Clear: true });
+        Assert.Contains(Data.ChunkRecords.SelectMany(m => m.Objects), o => o.Enabled is { Invert: true });
+        Assert.Contains(Data.ChunkRecords.SelectMany(m => m.Objects), o => o.Tangible);
     }
 
     [Fact]
-    public void TheMapRecordsWriteBackAsTheFilesTheyCameFrom()
+    public void TheChunkRecordsWriteBackAsTheFilesTheyCameFrom()
     {
-        // A file per map set, holding the maps its chunks name, in ID order.
-        var files = Directory.GetFiles(Path.Combine(Data.Dir, "records", "maps")).Select(Path.GetFileNameWithoutExtension).Order().ToList();
-        Assert.Equal(Data.MapSets.Where(s => s.Chunks.Count > 0).Select(s => s.Label).Order(), files);
-        foreach (var set in Data.MapSets.Where(s => s.Chunks.Count > 0))
+        // A file per chunk, named for its ID (ADR 0036), and no maps or minimaps files any more.
+        var records = Path.Combine(Data.Dir, "records");
+        Assert.False(Directory.Exists(Path.Combine(records, "maps")));
+        Assert.False(File.Exists(Path.Combine(records, "minimaps.json")));
+        var files = Directory.GetFiles(Path.Combine(records, "chunks"), "*.json", SearchOption.AllDirectories);
+        Assert.Equal(680, files.Length);
+        foreach (var chunk in Data.ChunkRecords)
         {
-            var maps = set.Chunks.Select(c => c.Map).ToHashSet();
-            var written = File.ReadAllBytes(Path.Combine(Data.Dir, "records", "maps", set.Label + ".json"));
-            Assert.Equal(written, JsonSerializer.SerializeToUtf8Bytes(Data.Maps.Where(m => maps.Contains(m.Id)).ToList(), PluginJson.Options));
+            var written = File.ReadAllBytes(Path.Combine([records, "chunks", .. chunk.Id.Key.Split('/')]) + ".json");
+            Assert.Equal(written, JsonSerializer.SerializeToUtf8Bytes(chunk, PluginJson.Options));
         }
     }
 
@@ -360,11 +371,11 @@ public sealed class MapObjectImportTests(Na10Import fixture)
             .Where(u => u.Role == FlagRole.ItemGiven)
             .ToList();
         Assert.Equal(
-            new Dictionary<string, int> { [RecordTypes.Script] = 8, [RecordTypes.Shop] = 2, [RecordTypes.Voxel] = 8 },
+            new Dictionary<string, int> { [RecordTypes.Script] = 8, [RecordTypes.Shop] = 2, [RecordTypes.MapObject] = 8 },
             given.GroupBy(u => u.By.Type).ToDictionary(g => g.Key, g => g.Count()));
-        var voxels = given.Where(u => u.By.Type == RecordTypes.Voxel).GroupBy(u => Data.Objects[u.By].GetType().Name)
+        var voxels = given.Where(u => u.By.Type == RecordTypes.MapObject).GroupBy(u => Data.Objects[u.By].GetType().Name)
             .ToDictionary(g => g.Key, g => g.Count());
-        Assert.Equal(new Dictionary<string, int> { [nameof(ContainerObject)] = 7, [nameof(MonsterPartyObject)] = 1 }, voxels);
+        Assert.Equal(new Dictionary<string, int> { [nameof(ContainerObject)] = 7, [nameof(EncounterObject)] = 1 }, voxels);
         Assert.All(given, u => Assert.Contains(items, i => i.KeyItem!.Held == u.Flag || i.KeyItem.Region == u.Flag));
 
         // Map 7 is sold in shop 17, and its held and region flags both come with it.
@@ -424,13 +435,13 @@ public sealed class MapObjectImportTests(Na10Import fixture)
     public void TheEhudUndergroundSecretDoorsAreTeleportersInItsMaps()
     {
         var ehud = Data.MapSets.Single(s => s.Label == "EhudUnder");
-        var maps = ehud.Chunks.Select(c => c.Map).ToHashSet();
+        var maps = Data.Set.ChunksIn(ehud.Id).Select(c => c.Id).ToHashSet();
         foreach (var n in new[] { 955, 956, 957, 958, 960, 961, 962, 963 })
         {
             var found = Data.Index.UsesOf(Flag(n)).Where(u => u is { Role: FlagRole.SecretFound, Access: FlagAccess.Set }).ToList();
             var door = Assert.Single(found);
             Assert.IsType<TeleporterObject>(Data.Objects[door.By]);
-            Assert.Contains(MapRecord.MapOf(door.By), maps);
+            Assert.Contains(ChunkRecord.ChunkOf(door.By), maps);
         }
     }
 
@@ -438,18 +449,19 @@ public sealed class MapObjectImportTests(Na10Import fixture)
     public void ACheckedChestAndDoorHaveTheFieldsThePlayerSees()
     {
         // A chest with a lock, a trap and gold, which links to its model.
-        var chest = Assert.IsType<ContainerObject>(Assert.Single(Data.Map("aidyn:map/0x0EE0").Objects, o => o.Index == 10));
+        var chest = Assert.IsType<ContainerObject>(Assert.Single(Data.Chunk(Ids.Chunk(0, "B09")).Objects, o => o.Index == 10));
         Assert.Equal(
             (ContainerKind.Chest, Flag(3378), Flag(3379), 2, 1, RecordId.Parse("aidyn:loot/0x0803"), 1000),
             (chest.Kind, chest.Opened!.Value, chest.Exploded!.Value, chest.LockLevel, chest.TrapLevel, chest.Loot!.Value, chest.Gold));
-        Assert.Equal(Voxel(0x0EE0, 11), chest.Link);
+        Assert.Equal(Ids.MapObject(0, "B09", 11), chest.Link);
         Assert.IsType<SceneObject>(Data.Objects[chest.Link!.Value]);
         Assert.False(string.IsNullOrEmpty(Data.Set.Get<DbRecord>(chest.Loot.Value).Name));
 
-        var door = Assert.IsType<TeleporterObject>(Assert.Single(Data.Map("aidyn:map/0x0EAA").Objects, o => o.Index == 4));
+        var door = Assert.IsType<TeleporterObject>(Assert.Single(Data.Chunk(Ids.Chunk(0, "A15")).Objects, o => o.Index == 4));
         Assert.Equal("Front_enter", door.Name);
-        Assert.Equal(new ChunkRef(RecordId.Parse("aidyn:mapset/3"), 1, 3), door.Destination);
-        Assert.Equal(Voxel(0x11F6, 26), door.Arrival);
+        Assert.Equal(Ids.Chunk(3, "A03"), door.Leads);
+        Assert.Null(door.Destination);
+        Assert.Equal(Ids.MapObject(3, "A03", 26), door.Arrival);
         Assert.Equal(
             (4, Flag(5221), Flag(976), 4, Flag(975), Flag(975)),
             (door.LockLevel, door.LockFlag!.Value, door.PickedFlag!.Value, door.TrapLevel, door.TrapFlag!.Value, door.DisarmFlag!.Value));
@@ -460,9 +472,8 @@ public sealed class MapObjectImportTests(Na10Import fixture)
     {
         // RenderVoxelScenes puts out an object whose second model is BORG5_OrianaLight (0x374A).
         var lights = Data.Of<SceneObject>().Where(o => o.Object.GoesOut).ToList();
-        var chunkOf = Data.MapSets.Single(s => s.Label == "Overworld").Chunks.DistinctBy(c => c.Map).ToDictionary(c => c.Map, c => c.Name);
         Assert.Equal(new Dictionary<string, int> { ["I08"] = 15, ["J08"] = 7, ["K08"] = 1 },
-            lights.CountBy(l => chunkOf[l.Map.Id]).ToDictionary());
+            lights.CountBy(l => l.Map.Name).ToDictionary());
         Assert.All(lights, l =>
         {
             Assert.Equal([RecordId.Hex(RecordTypes.Scene, 0x1910), RecordId.Hex(RecordTypes.Scene, 0x374A)], l.Object.Models.Select(m => m.Model));
@@ -485,7 +496,7 @@ public sealed class MapObjectImportTests(Na10Import fixture)
     {
         var game = Core.GameState.NewGame(Data.Set);
         game.Flags.Set(Flag(50), true);
-        var record = Data.Map("aidyn:map/0x0FDB");
+        var record = Data.Chunk(Ids.Chunk(0, "I08"));
         Core.MapObjects.LoadedMap Load() => Core.MapObjects.LoadedMap.Activate(record, Worlds.Chunk(), game.Flags, game.Memory, game.Party, new Core.Rng.Lcg());
         var map = Load();
         var light = Assert.IsType<SceneObject>(map[104]);
@@ -502,7 +513,7 @@ public sealed class MapObjectImportTests(Na10Import fixture)
     [Fact]
     public void AtHighestDetailAPathLightFadesOutAsThePlayerNearsItAndATreeShowsItsNearestLevel()
     {
-        var map = Data.Map("aidyn:map/0x0FDB");
+        var map = Data.Chunk(Ids.Chunk(0, "I08"));
         var light = Assert.IsType<SceneObject>(map.Objects.Single(o => o.Index == 104));
         var highest = new Core.Scenes.ObjectDistance(NearestDetail: true);
 
@@ -534,15 +545,15 @@ public sealed class MapObjectImportTests(Na10Import fixture)
     [Fact]
     public void TwentyOneOverworldMapsDrawNeighboursWhateverTheView()
     {
-        var chunks = Data.MapSets.SelectMany(s => s.Chunks.Select(c => (Set: s.Label, Chunk: c))).ToList();
-        var forcing = chunks.Where(c => Data.Map(c.Chunk.Map.ToString()).DrawnNeighbours is not null).ToList();
+        var chunks = Data.MapSets.SelectMany(s => Data.Set.ChunksIn(s.Id).Select(c => (Set: s.Label, Chunk: c))).ToList();
+        var forcing = chunks.Where(c => c.Chunk.DrawnNeighbours is not null).ToList();
         Assert.Equal(21, forcing.Count);
         Assert.All(forcing, c => Assert.Equal("Overworld", c.Set));
         Assert.Equal("A15 B08 B15 G14 G19 H14 H19 I14 I17 I18 I19 J15 J16 J17 J19 K19 K20 L20 M20 M21 M22",
             string.Join(' ', forcing.Select(c => c.Chunk.Name).Order()));
         // I18 draws its four corners; I19 its north-east, south-east, south, west and east: 0xEA.
         Assert.Equal(Neighbours.NorthWest | Neighbours.NorthEast | Neighbours.SouthWest | Neighbours.SouthEast,
-            Data.Map("aidyn:map/0x0FFE").DrawnNeighbours);
-        Assert.Equal((Neighbours)0xEA, Data.Map("aidyn:map/0x1004").DrawnNeighbours);
+            Data.Chunk(Ids.Chunk(0, "I18")).DrawnNeighbours);
+        Assert.Equal((Neighbours)0xEA, Data.Chunk(Ids.Chunk(0, "I19")).DrawnNeighbours);
     }
 }

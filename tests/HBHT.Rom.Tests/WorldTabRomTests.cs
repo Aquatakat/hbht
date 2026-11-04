@@ -44,15 +44,15 @@ public sealed class WorldTabRomTests(Na10Import fixture)
     public void BeforeTheFinalEncounterTheTabShowsTheEarthSeasonsThirteenthAndTheWholeMap()
     {
         var game = Checkpoint();
-        var menu = new WorldMenu(Set, game, MainFont, new ChunkRef(RecordId.Decimal(RecordTypes.MapSet, 0), 13, 6), outdoors: true);
+        var menu = new WorldMenu(Set, game, MainFont, Ids.Chunk(0, "M06"), outdoors: true);
 
         Assert.Equal("THE EARTH SEASON", menu.SeasonName.Trim());
         Assert.Equal((173, 93), menu.Today);
         Assert.Equal(18, menu.Pieces.Count);
         // The blue ring in the capture, its centre at (112.5, 46.5).
         Assert.Equal((108, 42), menu.Marker);
-        Assert.Null(new WorldMenu(Set, game, MainFont, new ChunkRef(RecordId.Decimal(RecordTypes.MapSet, 6), 3, 5), outdoors: true).Marker);
-        Assert.Null(new WorldMenu(Set, game, MainFont, new ChunkRef(RecordId.Decimal(RecordTypes.MapSet, 0), 13, 6), outdoors: false).Marker);
+        Assert.Null(new WorldMenu(Set, game, MainFont, Ids.Chunk(6, "C05"), outdoors: true).Marker);
+        Assert.Null(new WorldMenu(Set, game, MainFont, Ids.Chunk(0, "M06"), outdoors: false).Marker);
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public sealed class WorldTabRomTests(Na10Import fixture)
     {
         var game = GameState.NewGame(Set);
         // MiscInteriors' chunks, but I05, allow no camping.
-        var menu = new WorldMenu(Set, game, MainFont, new ChunkRef(RecordId.Decimal(RecordTypes.MapSet, 6), 3, 5), outdoors: false);
+        var menu = new WorldMenu(Set, game, MainFont, Ids.Chunk(6, "C05"), outdoors: false);
         Assert.Null(menu.Accept());
         Assert.Equal("The party cannot camp here.", menu.Message?.Text);
         // The message fades in before a press closes it, and out after (MenuOverlay.MessageFade).
@@ -107,10 +107,10 @@ public sealed class WorldTabRomTests(Na10Import fixture)
         Assert.Null(menu.Message);
 
         // Nor does Gwernia's country, terrain 19, where the checkpoint stands; G14, terrain 0, does.
-        var gwernia = new WorldMenu(Set, game, MainFont, new ChunkRef(RecordId.Decimal(RecordTypes.MapSet, 0), 13, 6), outdoors: true);
+        var gwernia = new WorldMenu(Set, game, MainFont, Ids.Chunk(0, "M06"), outdoors: true);
         gwernia.Accept();
         Assert.NotNull(gwernia.Message);
-        var outside = new WorldMenu(Set, game, MainFont, new ChunkRef(RecordId.Decimal(RecordTypes.MapSet, 0), 7, 14), outdoors: true);
+        var outside = new WorldMenu(Set, game, MainFont, Ids.Chunk(0, "G14"), outdoors: true);
         // Camp ends the menu, and the party camps once it has rolled up.
         Assert.Equal(PauseExit.Camp, outside.Accept());
         Assert.Equal(1, (int)PauseExitCode.Camp);

@@ -28,7 +28,7 @@ public sealed class SchemaTests
     [Fact]
     public void VectorsColoursAndKindsAreSpelledOut()
     {
-        var schema = RecordSchema.JsonSchema(typeof(MapRecord));
+        var schema = RecordSchema.JsonSchema(typeof(ChunkRecord));
         var kinds = schema["properties"]!["objects"]!["items"]!["anyOf"]!.AsArray();
         Assert.Equal(MapObjectKinds.All.Select(k => k.Discriminator), kinds.Select(k => (string)k!["properties"]!["type"]!["const"]!));
         var light = kinds.First(k => (string)k!["properties"]!["type"]!["const"]! == "light")!["properties"]!;
@@ -47,7 +47,7 @@ public sealed class SchemaTests
     [Fact]
     public void APatchsSchemaRequiresOnlyThePatchAndAllowsRemovals()
     {
-        var schema = RecordSchema.JsonSchema(typeof(MapRecord), patch: true);
+        var schema = RecordSchema.JsonSchema(typeof(ChunkRecord), patch: true);
         Assert.Equal(["patch"], schema["required"]!.AsArray().Select(r => (string)r!));
         var properties = schema["properties"]!.AsObject();
         Assert.False(properties.ContainsKey("id"));

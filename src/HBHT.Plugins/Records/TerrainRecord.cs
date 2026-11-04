@@ -1,7 +1,7 @@
 namespace HBHT.Plugins.Records;
 
 /// <summary>
-/// A terrain type (<c>aidyn:terrain/n</c>), which each chunk carries (<see cref="ChunkEntry.Terrain"/>).
+/// A terrain type (<c>aidyn:terrain/n</c>), which each chunk carries (<see cref="ChunkRecord.Terrain"/>).
 /// The chunk the player is in sets the sky, whether the party can camp, the weather, and later camp encounters.
 /// </summary>
 /// <param name="Sky">
@@ -24,9 +24,10 @@ namespace HBHT.Plugins.Records;
 /// <param name="PrecipitationScale">How hard rain or snow falls here: its intensity is this give or take the weather record's spread.</param>
 /// <param name="Snow">Precipitation here is snow rather than rain.</param>
 /// <param name="Arenas">
-/// Which of the Battle arenas (<c>aidyn:mapset/16</c>, by chunk) a battle here takes: a roll over a range, or with two,
-/// one of them half the time, the first if the roll says so (<c>BattleSetup.ChooseArena</c>). Empty, as it is if not given,
-/// keeps the last battle's arena.
+/// Which of the Battle arenas (chunks of <c>aidyn:mapset/16</c>) a battle here takes: one of a group at random, or with two groups,
+/// one of them half the time, the first if a d2 says 1, then one of its arenas (<c>BattleSetup.ChooseArena</c>, which rolls over a
+/// range of the original's arena numbers that the importer turned into each group's chunks). Empty, as it is if not given, keeps the
+/// last battle's arena.
 /// </param>
 /// <param name="Ambushes">
 /// Who ambushes the party as it camps here, by the party's level: five tiers, for an average level of up to
@@ -34,19 +35,14 @@ namespace HBHT.Plugins.Records;
 /// <c>CampEncounters.Load</c>). Empty if not given: no ambush comes.
 /// </param>
 public sealed record TerrainRecord(RecordId Id, RecordId Sky, bool SkyDrawn, float Camp = 0, int Precipitation = 0,
-    float PrecipitationScale = 0, bool Snow = false, IReadOnlyList<ArenaRange>? Arenas = null, IReadOnlyList<CampAmbush>? Ambushes = null)
+    float PrecipitationScale = 0, bool Snow = false, IReadOnlyList<IReadOnlyList<RecordId>>? Arenas = null,
+    IReadOnlyList<CampAmbush>? Ambushes = null)
 {
-    public IReadOnlyList<ArenaRange> Arenas { get; init; } = Arenas ?? [];
+    public IReadOnlyList<IReadOnlyList<RecordId>> Arenas { get; init; } = Arenas ?? [];
 
     public IReadOnlyList<CampAmbush> Ambushes { get; init; } = Ambushes ?? [];
-
-    /// <summary>The terrain a chunk carries (<see cref="ChunkEntry.Terrain"/>), if a plugin has its record.</summary>
-    public static TerrainRecord? Find(PluginSet plugins, int terrain) =>
-        plugins.TryGet<TerrainRecord>(RecordId.Decimal(RecordTypes.Terrain, terrain));
 }
 
 /// <summary>A camp ambush's enemies at one level tier: each kind with how many always come and how many can.</summary>
 public sealed record CampAmbush(IReadOnlyList<PartyEnemy> Enemies);
 
-/// <summary>The Battle arenas from <paramref name="Min"/> to <paramref name="Max"/>, inclusive, one of which a battle rolls.</summary>
-public sealed record ArenaRange(int Min, int Max);

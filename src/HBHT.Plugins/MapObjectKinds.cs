@@ -20,7 +20,8 @@ public static class MapObjectKinds
         [typeof(LightObject)] = "Light",
         [typeof(SoundObject)] = "Sound",
         [typeof(WanderNodeObject)] = "Wander node",
-        [typeof(MonsterPartyObject)] = "Monster party",
+        [typeof(EncounterObject)] = "Encounter",
+        [typeof(NpcObject)] = "Npc",
         [typeof(ReferencePointObject)] = "Reference point",
         [typeof(TeleporterObject)] = "Teleporter",
         [typeof(CameraObject)] = "Camera",
@@ -32,7 +33,7 @@ public static class MapObjectKinds
     public static readonly IReadOnlyList<Kind> All =
         [.. RecordSchema.DerivedTypes(typeof(MapObject)).Select(d => new Kind(d.Type, d.Discriminator, Names.GetValueOrDefault(d.Type) ?? d.Type.Name))];
 
-    /// <summary>The name of a map object's kind, such as "Monster party".</summary>
+    /// <summary>The name of a map object's kind, such as "Encounter".</summary>
     public static string Name(MapObject o) => All.FirstOrDefault(k => k.Type == o.GetType())?.Name ?? o.GetType().Name;
 
     /// <summary>The name of the kind a JSON discriminator names, or the discriminator itself if it names none.</summary>

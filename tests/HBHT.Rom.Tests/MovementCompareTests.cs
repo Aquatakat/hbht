@@ -34,7 +34,7 @@ public sealed class MovementCompareTests(Na10Import fixture, ITestOutputHelper o
         var differences = Differences();
         foreach (var group in differences.GroupBy(d => d.Severity))
             output.WriteLine($"{group.Key}: {group.Count()}");
-        Assert.Equal(262, differences.Count);
+        Assert.Equal(256, differences.Count);
         Assert.All(differences, d => Assert.True(d.SameCourse, $"{d.Launch.Script} went another way"));
         Assert.All(differences, d => Assert.True(d.Original.Ended && d.Modern.Ended));
         Assert.InRange(Of(MovementCompare.Severity.Same).Count(), 222, 238);
@@ -56,7 +56,7 @@ public sealed class MovementCompareTests(Na10Import fixture, ITestOutputHelper o
     public void Modern_sets_Alaron_down_on_A22_as_the_original_does()
     {
         var a22 = Differences().Where(d => d.Launch.Script == Script(0x042C) || d.Launch.Script == Script(0x042F))
-            .Where(d => d.Launch.Stage is { Row: 1, Column: 22 }).ToList();
+            .Where(d => d.Launch.Stage == Ids.Chunk(0, "A22")).ToList();
         // 0x042C's two launches there and 0x042F's one.
         Assert.Equal(3, a22.Count);
         foreach (var d in a22)

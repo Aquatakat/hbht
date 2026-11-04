@@ -85,8 +85,8 @@ public partial class AtlasView : VBoxContainer
     {
         (_catalog, _index, _open) = (catalog, index, open);
         _engine = [.. catalog.Plugins.All<StateFlagsRecord>(RecordTypes.StateFlags).SelectMany(s => index.UsesBy(s.Id)).Select(u => u.Flag)];
-        _keys = id.Type == RecordTypes.Map && catalog.Plugins.TryGet<MapRecord>(id) is { } map
-            ? [.. map.Objects.Select(o => RecordId.Parse($"{id.Namespace}:{RecordTypes.Voxel}/{id.Key}/{o.Index}"))]
+        _keys = id.Type == RecordTypes.Chunk && catalog.Plugins.TryGet<ChunkRecord>(id) is { } map
+            ? [.. map.Objects.Select(o => RecordId.Parse($"{id.Namespace}:{RecordTypes.MapObject}/{id.Key}/{o.Index}"))]
             : [id];
         ListUses();
         DrawGraph();
@@ -128,7 +128,7 @@ public partial class AtlasView : VBoxContainer
         row.SetMetadata(1, other.ToString());
         row.SetTooltipText(1, other.ToString());
         row.SetText(2, at is { } node ? $"node {node}" : of is { } key ? key.Key : "");
-        var summary = other.Type == RecordTypes.Voxel ? Summary(other) : _catalog!.Find(other)?.Summary ?? "";
+        var summary = other.Type == RecordTypes.MapObject ? Summary(other) : _catalog!.Find(other)?.Summary ?? "";
         row.SetText(3, summary);
         row.SetTooltipText(3, summary);
         Count++;
@@ -249,7 +249,7 @@ public partial class AtlasView : VBoxContainer
         {
             RecordTypes.Flag => _catalog!.Plugins.TryGet<FlagRecord>(key)?.Formula is null ? new Color(0.88f, 0.69f, 0.29f) : new Color(0.77f, 0.54f, 0.94f),
             RecordTypes.Script => new Color(0.44f, 0.66f, 1f),
-            RecordTypes.Voxel => new Color(0.49f, 0.81f, 0.54f),
+            RecordTypes.MapObject => new Color(0.49f, 0.81f, 0.54f),
             RecordTypes.Journal => new Color(0.9f, 0.9f, 0.9f),
             _ => new Color(0.6f, 0.62f, 0.67f),
         };
@@ -282,14 +282,14 @@ public partial class AtlasView : VBoxContainer
     {
         RecordTypes.Flag => $"Flag {key.Key}",
         RecordTypes.Script => $"Script {key.Key}",
-        RecordTypes.Voxel => $"Object {key.Key}",
+        RecordTypes.MapObject => $"Object {key.Key}",
         RecordTypes.Journal => $"Journal {key.Key}",
         _ => key.ToString(),
     };
 
     private string Summary(RecordId key)
     {
-        if (key.Type == RecordTypes.Voxel)
+        if (key.Type == RecordTypes.MapObject)
             return _catalog!.Describe(key);
         var summary = _catalog!.Find(key)?.Summary;
         return !string.IsNullOrEmpty(summary) ? summary : key.Type == RecordTypes.Flag ? "Plain flag" : key.ToString();

@@ -16,13 +16,13 @@ internal static class WorldImporter
     public static void Import(ImportContext ctx)
     {
         ctx.Report("Map sets");
-        ctx.WriteRecords("mapsets.json", BuildMapSets(ctx.Chunks, ctx.Audio, ctx.Engine.Regions, ToggledScenes.Read(ctx.Rom), ctx.OverworldCuts));
+        ctx.WriteRecords("mapsets.json", BuildMapSets(ctx.Chunks, ctx.Audio, MinimapImporter.Build(Minimaps.Read(ctx.Rom))));
 
         ctx.Report("Terrains");
-        ctx.WriteRecords("terrains.json", BuildTerrains(ctx.Gradients, CampFactors.Read(ctx.Rom), ctx.Weather, ctx.Db.CampEncounters));
+        ctx.WriteRecords("terrains.json", BuildTerrains(ctx.Gradients, CampFactors.Read(ctx.Rom), ctx.Weather, ctx.Db.CampEncounters, ctx.ArenaChunks));
         ctx.WriteRecords("weather.json", new[] { BuildWeather(ctx.Weather, ctx.Gradients, ctx.ParticleSlots) });
         ctx.WriteRecords("worldmap.json", new[] { BuildWorldMap(ctx.Engine, WorldMapTowns.Read(ctx.Rom)) });
-        ctx.WriteRecords("camping.json", new[] { BuildCamping(ctx.Engine) });
+        ctx.WriteRecords("camping.json", new[] { BuildCamping(ctx.Engine, ctx.Chunks, ctx.Archive) });
         ctx.WriteRecords("newgame.json", new[] { BuildNewGame(ctx.Db, ctx.Chunks) });
         ctx.WriteRecords("title.json", new[] { BuildTitle(ctx.Rom, ctx.Archive) });
 
@@ -31,61 +31,80 @@ internal static class WorldImporter
     }
 
     /// <summary>
-    /// The map sets, with the music each plays as it's entered (<see cref="AudioFacts.MapMusic"/>) and the places the code puts the
-    /// player by number (<see cref="MapSets.Spawns"/>), and the world map region each chunk's row and column name
-    /// (<see cref="EngineTables.Regions"/>): the code's table doesn't say a map set, so every set's chunk there gets it. A chunk whose
+    /// The map sets, with the music each plays as it's entered (<see cref="AudioFacts.MapMusic"/>), the places the code puts the
+    /// player by number (<see cref="MapSets.Spawns"/>) and its minimap, if it has one (<see cref="MinimapImporter"/>). Their chunks are
+    /// records of their own (<see cref="BuildCells"/>).
+    /// </summary>
+    internal static List<MapSetRecord> BuildMapSets(IReadOnlyList<MapChunk> chunks, AudioTables audio, IReadOnlyDictionary<int, MinimapPlan> minimaps) =>
+    [
+        .. Enum.GetValues<MapSet>().Select(set => new MapSetRecord(
+            RecordId.Decimal(RecordTypes.MapSet, (int)set), set.ToString(), Maps.MapSets.CellSize(set),
+            AudioFacts.MapMusic(set, audio) is { Count: > 0 } setMusic ? [.. setMusic.Select(m => RecordId.Hex(RecordTypes.Sequence, m))] : null,
+            Maps.MapSets.Spawns(set, chunks),
+            minimaps.GetValueOrDefault((int)set))),
+    ];
+
+    /// <summary>
+    /// Every cell's chunk (ADR 0035) as the map set's chunk table has it, without its map objects, which <see cref="MapImporter"/> adds,
+    /// with the Borg9 it takes them and its collision from: its scenes, terrain and music, and the world map region its row and column
+    /// name (<see cref="EngineTables.Regions"/>; the code's table doesn't say a map set, so every set's chunk there gets it). A chunk whose
     /// scene the zone engine swaps for a lit one while a flag holds (<see cref="ToggledScenes"/>) gets that as its swap, with its own
     /// see-through scene, which the code leaves.
     /// </summary>
     /// <remarks>
     /// The Overworld's chunks have what <see cref="ChunkCuts"/> took out of their scenes: the chunks each <c>shows</c>, and the
-    /// fill of each cell other chunks' scenes drew over. A cell with a fill and no chunk gets one, with the map of the original's
+    /// fill of each cell other chunks' scenes drew over. A cell with a fill and no chunk gets one, with the Borg9 of the original's
     /// own chunks of sea (<see cref="SeaMap"/>), and the terrain and the Draw Distance of the chunk nearest it that gave to the fill.
     /// Draw Distance's Extended draws the 5×5 round a chunk by <see cref="MapSets.Extended"/>.
     /// </remarks>
-    private static List<MapSetRecord> BuildMapSets(IReadOnlyList<MapChunk> chunks, AudioTables audio, IReadOnlyList<RegionChunk> regions,
-        IReadOnlyList<ToggledScene> toggled, ChunkCuts cuts)
+    internal static List<(ChunkRecord Chunk, int Borg)> BuildCells(ImportContext ctx) =>
+        BuildCells(ctx.Chunks, ctx.Audio, ctx.Engine.Regions, ToggledScenes.Read(ctx.Rom), ctx.OverworldCuts);
+
+    internal static List<(ChunkRecord Chunk, int Borg)> BuildCells(IReadOnlyList<MapChunk> chunks, AudioTables audio,
+        IReadOnlyList<RegionChunk> regions, IReadOnlyList<ToggledScene> toggled, ChunkCuts cuts)
     {
         var region = regions.ToDictionary(r => (r.Row, r.Column), r => DbRecordIds.Flag(r.Flag));
         var lit = toggled.ToDictionary(t => t.Scene);
         var extended = MapSets.Extended(chunks);
         var fills = cuts.Fills.Select((f, i) => (Fill: f, Id: FillId(i))).ToDictionary(f => (f.Fill.Row, f.Fill.Column));
         var overworld = chunks.Where(c => c.Set == MapSet.Overworld).ToDictionary(c => (c.Row, c.Column));
-        IReadOnlyList<ChunkCell>? Shows((int Row, int Column) cell) =>
-            cuts.Shows.TryGetValue(cell, out var shows) ? [.. shows.Select(s => new ChunkCell(s.Row, s.Column))] : null;
-        return
-        [
-            .. Enum.GetValues<MapSet>().Select(set => new MapSetRecord(
-                RecordId.Decimal(RecordTypes.MapSet, (int)set), set.ToString(), Maps.MapSets.CellSize(set),
-                [
-                    .. chunks.Where(c => c.Set == set).Select(c => new ChunkEntry(c.Row, c.Column,
-                        c.Scene == 0 ? null : RecordId.Hex(RecordTypes.Scene, c.Scene),
-                        c.AltScene == 0 ? null : RecordId.Hex(RecordTypes.Scene, c.AltScene),
-                        RecordId.Hex(RecordTypes.Map, c.Collision), c.Terrain,
-                        AudioFacts.ChunkMusic(c, audio) is { } music ? RecordId.Hex(RecordTypes.Sequence, music) : null,
-                        region.TryGetValue((c.Row, c.Column), out var flag) ? flag : null,
-                        lit.TryGetValue(c.Scene, out var swap)
-                            ? new SceneSwap(new FlagGate(DbRecordIds.Flag(swap.Flag)), RecordId.Hex(RecordTypes.Scene, swap.Lit),
-                                c.AltScene == 0 ? null : RecordId.Hex(RecordTypes.Scene, c.AltScene))
-                            : null,
-                        set == MapSet.Overworld && fills.TryGetValue((c.Row, c.Column), out var fill) ? fill.Id : null,
-                        set == MapSet.Overworld && extended.Contains((c.Row, c.Column)),
-                        set == MapSet.Overworld ? Shows((c.Row, c.Column)) : null)),
-                    .. set != MapSet.Overworld ? [] : fills.Values.Where(f => !overworld.ContainsKey((f.Fill.Row, f.Fill.Column)))
-                        .OrderBy(f => f.Fill.Row).ThenBy(f => f.Fill.Column)
-                        .Select(f => new ChunkEntry(f.Fill.Row, f.Fill.Column, null, null, RecordId.Hex(RecordTypes.Map, SeaMap),
-                            overworld[f.Fill.Nearest].Terrain, Fill: f.Id, Extended: extended.Contains(f.Fill.Nearest))),
-                ],
-                AudioFacts.MapMusic(set, audio) is { Count: > 0 } setMusic ? [.. setMusic.Select(m => RecordId.Hex(RecordTypes.Sequence, m))] : null,
-                Maps.MapSets.Spawns(set, chunks))),
-        ];
+        IReadOnlyList<RecordId>? Shows((int Row, int Column) cell) =>
+            cuts.Shows.TryGetValue(cell, out var shows) ? [.. shows.Select(s => MapImporter.ChunkId(MapSet.Overworld, s.Row, s.Column))] : null;
+        RecordId Set(MapSet set) => RecordId.Decimal(RecordTypes.MapSet, (int)set);
+        var cells = chunks.Select(c => (new ChunkRecord(MapImporter.ChunkId(c), Set(c.Set), c.Row, c.Column, TerrainId(c.Terrain), [],
+            Borg: Hex(c.Collision),
+            Collision: RecordId.Hex(RecordTypes.Collision, c.Collision),
+            Scene: c.Scene == 0 ? null : RecordId.Hex(RecordTypes.Scene, c.Scene),
+            AltScene: c.AltScene == 0 ? null : RecordId.Hex(RecordTypes.Scene, c.AltScene),
+            Music: AudioFacts.ChunkMusic(c, audio) is { } music ? RecordId.Hex(RecordTypes.Sequence, music) : null,
+            Region: region.TryGetValue((c.Row, c.Column), out var flag) ? flag : null,
+            Swap: lit.TryGetValue(c.Scene, out var swap)
+                ? new SceneSwap(new FlagGate(DbRecordIds.Flag(swap.Flag)), RecordId.Hex(RecordTypes.Scene, swap.Lit),
+                    c.AltScene == 0 ? null : RecordId.Hex(RecordTypes.Scene, c.AltScene))
+                : null,
+            Fill: c.Set == MapSet.Overworld && fills.TryGetValue((c.Row, c.Column), out var fill) ? fill.Id : null,
+            Extended: c.Set == MapSet.Overworld && extended.Contains((c.Row, c.Column)),
+            Shows: c.Set == MapSet.Overworld ? Shows((c.Row, c.Column)) : null), c.Collision)).ToList();
+        cells.AddRange(fills.Values.Where(f => !overworld.ContainsKey((f.Fill.Row, f.Fill.Column)))
+            .OrderBy(f => f.Fill.Row).ThenBy(f => f.Fill.Column)
+            .Select(f => (new ChunkRecord(MapImporter.ChunkId(MapSet.Overworld, f.Fill.Row, f.Fill.Column), Set(MapSet.Overworld),
+                f.Fill.Row, f.Fill.Column, TerrainId(overworld[f.Fill.Nearest].Terrain), [],
+                Borg: Hex(SeaMap), Collision: RecordId.Hex(RecordTypes.Collision, SeaMap), Fill: f.Id,
+                Extended: extended.Contains(f.Fill.Nearest)), SeaMap)));
+        return cells;
     }
+
+    /// <summary>A Borg's number as a chunk's <see cref="ChunkRecord.Borg"/> spells it, <c>0x1436</c>.</summary>
+    private static string Hex(int borg) => "0x" + borg.ToString("X4", System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>A terrain type's record ID.</summary>
+    internal static RecordId TerrainId(int terrain) => RecordId.Decimal(RecordTypes.Terrain, terrain);
 
     /// <summary>The ID of the <paramref name="index"/>th of <see cref="ChunkCuts.Fills"/>.</summary>
     internal static RecordId FillId(int index) => RecordId.Decimal(RecordTypes.Fill, index);
 
     /// <summary>
-    /// The map the original's own chunks of sea share (L23, S17, S18 and T17 on the Overworld), with no objects, which the chunks
+    /// The Borg9 the original's own chunks of sea share (L23, S17, S18 and T17 on the Overworld), with no objects, which the chunks
     /// made for fills take too.
     /// </summary>
     internal const int SeaMap = 0x3559;
@@ -93,16 +112,18 @@ internal static class WorldImporter
     /// <summary>
     /// The terrain types: each one's sky and whether it's drawn (a fact, <see cref="Skies.ForTerrain"/>), its camp
     /// ambush factor, its weather from the code's tables, with snow on type 5 alone, a literal in
-    /// <c>Weather.Roll</c> (<c>0x8007bdb0</c> in 1.0), the Battle arenas its battles take (a fact, <see cref="Arenas"/>),
-    /// and who ambushes a camp there, from the camp encounters (<see cref="CampAmbushes"/>).
+    /// <c>Weather.Roll</c> (<c>0x8007bdb0</c> in 1.0), the Battle arenas its battles take (a fact, <see cref="Arenas"/>, by the
+    /// arenas' chunks, <paramref name="arenas"/>), and who ambushes a camp there, from the camp encounters (<see cref="CampAmbushes"/>).
     /// </summary>
+    /// <param name="arenas">The Battle arenas' chunks by the original's numbers (<see cref="Arenas.Chunks"/>), or none to leave them out.</param>
     internal static List<TerrainRecord> BuildTerrains(IReadOnlyList<int> gradients, float[] campFactors, WeatherTables weather,
-        IReadOnlyList<Db.CampEncounter>? camp = null) =>
+        IReadOnlyList<Db.CampEncounter>? camp = null, IReadOnlyList<RecordId>? arenas = null) =>
         [.. Enumerable.Range(0, Skies.TerrainCount).Select(t =>
         {
             var (sky, drawn) = Skies.ForTerrain(t);
-            return new TerrainRecord(RecordId.Decimal(RecordTypes.Terrain, t), RecordId.Hex(RecordTypes.Image, gradients[sky]), drawn, campFactors[t],
-                weather.Terrains[t], weather.Scales[t], Snow: t == SnowTerrain, Arenas: Arenas.ForTerrain(t),
+            return new TerrainRecord(TerrainId(t), RecordId.Hex(RecordTypes.Image, gradients[sky]), drawn, campFactors[t],
+                weather.Terrains[t], weather.Scales[t], Snow: t == SnowTerrain,
+                Arenas: arenas is null ? null : [.. Arenas.ForTerrain(t).Select(r => (IReadOnlyList<RecordId>)[.. Enumerable.Range(r.Min, r.Max - r.Min + 1).Select(n => arenas[n])])],
                 Ambushes: camp is null ? null : CampAmbushes(camp, t));
         })];
 
@@ -193,9 +214,10 @@ internal static class WorldImporter
 
     /// <summary>
     /// Camping's settings: the camp scenes' flags from the code's table, and the rest literals in the code
-    /// (<c>get_ranger_camping_bool</c>, <c>Party::CampAmbushCheck</c>, <c>campfire_func</c>), carried as facts.
+    /// (<c>get_ranger_camping_bool</c>, <c>Party::CampAmbushCheck</c>, <c>campfire_func</c>), carried as facts: the Campsite is the first
+    /// script object in Borg9 <see cref="CampsiteMap"/>, in the chunk of it.
     /// </summary>
-    internal static CampingRecord BuildCamping(EngineTables tables) => new(
+    internal static CampingRecord BuildCamping(EngineTables tables, IReadOnlyList<MapChunk> chunks, BorgArchive archive) => new(
         RecordId.Decimal(RecordTypes.Camping, 0),
         "The party cannot camp here.",
         DbRecordIds.Flag(EngineFlags.CampAmbushes),
@@ -207,8 +229,24 @@ internal static class WorldImporter
         EffectTicks: 8 * 60 * 60 * 60 / 72,
         DbRecordIds.Flag(EngineFlags.CampCheck),
         [.. tables.CampDialogueFlags.Select(f => DbRecordIds.Flag(f))],
-        RecordId.Hex(RecordTypes.Map, 0x185C),
+        FirstScriptObject(chunks, archive, CampsiteMap),
         AmbushLevels: [5, 10, 15, 20]);
+
+    /// <summary>The Campsite's Borg9, whose first script object camping starts when no camp scene does (<c>campfire_func</c>).</summary>
+    internal const int CampsiteMap = 0x185C;
+
+    /// <summary>
+    /// The first script object of a Borg9 that one chunk has (the original's dialogue object), as the chunk's map object's ID; a Borg9 that
+    /// isn't one chunk's, or that has none, is an <see cref="InvalidDataException"/>.
+    /// </summary>
+    internal static RecordId FirstScriptObject(IReadOnlyList<MapChunk> chunks, BorgArchive archive, int borg9, int? script = null)
+    {
+        var chunk = chunks.Where(c => c.Collision == borg9).ToList() is [var only] ? only
+            : throw new InvalidDataException($"Borg9 0x{borg9:X4} isn't one chunk's.");
+        var found = Borg9Voxels.Read(archive.Read(borg9)).FirstOrDefault(o => o.Data is DialogueData d && (script is null || d.Script == script))
+            ?? throw new InvalidDataException($"Borg9 0x{borg9:X4} has no script object{(script is { } s ? $" playing 0x{s:X4}" : "")}.");
+        return ChunkRecord.ObjectId(MapImporter.ChunkId(chunk), found.Index);
+    }
 
     /// <summary>
     /// How a new game starts, carried as facts: literals in 1.0's code. The title screen hands the game the Overworld's portal 0
@@ -223,7 +261,7 @@ internal static class WorldImporter
         var portal = MapSets.Spawns(MapSet.Overworld, chunks)!.Single(p => p.Portal == 0);
         return new(
             RecordId.Decimal(RecordTypes.NewGame, 0),
-            new ChunkRef(RecordId.Decimal(RecordTypes.MapSet, (int)MapSet.Overworld), portal.Row, portal.Column),
+            MapImporter.ChunkId(MapSet.Overworld, portal.Row, portal.Column),
             portal.Position,
             Height: 10,
             DbRecordIds.For(db.Entities[CharacterImporter.AlaronDbPosition].Id)
@@ -242,7 +280,7 @@ internal static class WorldImporter
         {
             var animation = Graphics.Borg6Animation.Parse(archive.Read(f.Animation));
             return new TitleFlycam(RecordId.Hex(RecordTypes.Scene, animation.Scene), RecordId.Hex(RecordTypes.Animation, f.Animation),
-                animation.Length, f.Row, f.Column, f.OriginRow, f.OriginColumn);
+                animation.Length, MapImporter.ChunkId(MapSet.Overworld, f.Row, f.Column), MapImporter.ChunkId(MapSet.Overworld, f.OriginRow, f.OriginColumn));
         })]);
 
     /// <summary>

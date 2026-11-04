@@ -59,7 +59,7 @@ public sealed class ZoneEngineTests(Na10Import fixture)
         };
         var chunks = zone.Chunks;
         // About a chunk with light map objects, which are kept once each has loaded.
-        var lit = chunks.MapSet.Chunks.First(c => Data.Set.Get<MapRecord>(c.Map).Objects.OfType<LightObject>().Any());
+        var lit = Data.Set.ChunksIn(chunks.MapSet.Id).First(c => c.Objects.OfType<LightObject>().Any());
         chunks.Update(chunks.Origin(lit) + new Vector3(1, 0, 1));
 
         Assert.Equal(chunks.All.Select(c => c.Map), loaded);
@@ -97,7 +97,7 @@ public sealed class ZoneEngineTests(Na10Import fixture)
         Assert.Null(stage.Camera);
 
         // Loading the stage fills the shared world, not trek's chunks.
-        stage.Chunks.Update(stage.Chunks.Origin(stage.Chunks.MapSet.Chunks[0]) + new Vector3(1, 0, 1));
+        stage.Chunks.Update(stage.Chunks.Origin(Data.Set.ChunksIn(stage.Chunks.MapSet.Id).First()) + new Vector3(1, 0, 1));
         Assert.NotEmpty(stage.Chunks.All);
         Assert.Empty(trek.Chunks.All);
         Assert.True(trek.World.Count > 0);
@@ -206,8 +206,8 @@ public sealed class ZoneEngineTests(Na10Import fixture)
             && Data.Set.TryGet<ScriptRecord>(d.Object.Plays) is { Mode: ScriptMode.Cutscene }).Take(40))
         {
             var script = Data.Set.Get<ScriptRecord>(dialogue.Plays);
-            var start = new ScriptStart(dialogue.Marks, MapRecord.VoxelId(map.Id, dialogue.Index));
-            var stage = CutSceneStage.For(Data.Set, dialogue.Stage!, new CollisionWorld())!;
+            var start = new ScriptStart(dialogue.Marks, map.ObjectId(dialogue.Index));
+            var stage = CutSceneStage.For(Data.Set, dialogue.Stage!.Value, new CollisionWorld())!;
             var streamer = new ChunkStreamer(Data.Set, GameState.NewGame(Data.Set), stage.World, stage.Set);
             streamer.Update(stage.Origin + new Vector3(stage.Set.CellSize / 2, 0, stage.Set.CellSize / 2));
             var still = new CutScene(GameState.NewGame(Data.Set), script, start, stage);

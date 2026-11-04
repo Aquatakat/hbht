@@ -213,10 +213,9 @@ public sealed class BattleRulesTests
             .SelectMany(set => new[] { "good", "bad" }.Select(side => (set, side)))
             .SelectMany(p => "abcd".Select(letter => $"{p.side}{p.set}{letter}"))
             .Select((name, i) => (MapObject)new ReferencePointObject(i, new Vector3(10 + i, 0, 20), 0, null, i, name, null));
-        var map = new MapRecord(RecordId.Hex(RecordTypes.Map, 7), [.. points]);
-        var chunk = new ChunkEntry(3, 3, null, null, map.Id, 0);
-        var set = new MapSetRecord(Combat.Arena.MapSet, "Battle", 150, [chunk]);
-        return BattleFixtures.Create(setup, new Combat.Arena(0, set, chunk, map));
+        var chunk = TestChunk.Of(Chunk(16, "C03"), [.. points]);
+        var set = new MapSetRecord(Combat.Arena.MapSet, "Battle", 150);
+        return BattleFixtures.Create(setup, new Combat.Arena(set, chunk));
     }
 
     private static BattleSetup Setup(bool ambush = false, int collision = 0, int animation = 0) =>

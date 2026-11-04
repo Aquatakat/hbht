@@ -94,11 +94,17 @@ public sealed record AssetFile(RecordId Id, string Extension, string Path, strin
 /// A record file under <c>records/</c> holds one object or an array of them. An object with an
 /// <c>id</c> is a new record in its plugin's namespace; one with a <c>patch</c> merges into an
 /// earlier plugin's record as a JSON Merge Patch (RFC 7386), except that a keyed list merges element by element
-/// (<see cref="MergePatch"/>). An object's <c>$schema</c>, for editors, is ignored.
+/// (<see cref="MergePatch"/>). An object's <c>$schema</c>, for editors, is ignored. The base plugin's records of a type with a
+/// <see cref="RecordTypeInfo.LazyFolder"/>, a file each named for its key, are indexed by their path and read when first asked for
+/// (ADR 0036).
 /// </remarks>
 public sealed class PluginSet
 {
-    private readonly Dictionary<RecordId, JsonObject> _records = [];
+    // The records read: every plugin's but the base plugin's lazily indexed ones (_lazy) until each is first asked for.
+    private readonly ConcurrentDictionary<RecordId, JsonObject> _records = [];
+    // The base plugin's records a file each, by ID, read on first use (ADR 0036). Fixed once the set has loaded.
+    private readonly Dictionary<RecordId, string> _lazy = [];
+    private readonly Lock _lazyLock = new();
     // By record, then setter path (FieldConflict.Path), the plugins that set it, in load order.
     private readonly Dictionary<RecordId, Dictionary<string, List<string>>> _setters = [];
     private readonly Dictionary<RecordId, string> _definedBy = [];
@@ -121,7 +127,8 @@ public sealed class PluginSet
     /// <summary>In load order.</summary>
     public IReadOnlyList<Plugin> Plugins { get; }
 
-    public IEnumerable<RecordId> Ids => _records.Keys;
+    /// <summary>Every record's ID, read or not.</summary>
+    public IEnumerable<RecordId> Ids => _records.Keys.Concat(_lazy.Keys.Where(id => !_records.ContainsKey(id)));
 
     /// <summary>
     /// Every field that more than one plugin patched, by record then path (ADR 0005's conflict report): a top-level field,
@@ -177,17 +184,18 @@ public sealed class PluginSet
     }
 
     /// <summary>
-    /// <see cref="LoadInstalled"/> after <see cref="BasePlugin.Require"/>, then <see cref="Validate"/>: it throws an
-    /// <see cref="IOException"/> saying to import if the base plugin isn't there, or was written by an importer other than
-    /// the current one, and an <see cref="InvalidDataException"/> with the <see cref="ValidationReport"/> if a record can't
-    /// be read. The runtime and the CLI load by it, so a mod's mistake stops the game with its name rather than being
-    /// played around.
+    /// <see cref="LoadInstalled"/> after <see cref="BasePlugin.Require"/>, then <see cref="Validate"/> of every record but the base
+    /// plugin's lazily indexed ones that nothing has read (ADR 0036), which are the importer's own, read back as the import ends
+    /// (<c>BaseImporter</c>): it throws an <see cref="IOException"/> saying to import if the base plugin isn't there, or was written by
+    /// an importer other than the current one, and an <see cref="InvalidDataException"/> with the <see cref="ValidationReport"/> if a
+    /// record can't be read. The runtime and the CLI load by it, so a mod's mistake stops the game with its name rather than being
+    /// played around: every mod's record is read, and so is every base record a mod patches.
     /// </summary>
     public static PluginSet LoadInstalledChecked(string pluginsDirectory)
     {
         BasePlugin.Require(pluginsDirectory);
         var set = LoadInstalled(pluginsDirectory);
-        var report = set.Validate();
+        var report = set.Validate(unread: false);
         return report.IsClean ? set : throw new InvalidDataException(report.Describe());
     }
 
@@ -200,13 +208,27 @@ public sealed class PluginSet
     /// kind in a mod is never what its author meant, and is an error rather than a warning so that it's found and not played
     /// around.
     /// </summary>
-    public ValidationReport Validate()
+    /// <param name="unread">
+    /// Whether to read and check the base plugin's lazily indexed records that nothing has read yet (ADR 0036), as the editor and
+    /// the import do; without, as the runtime starts, they're left unread.
+    /// </param>
+    public ValidationReport Validate(bool unread = true)
     {
         var problems = new List<RecordProblem>();
-        foreach (var (id, json) in _records.OrderBy(r => r.Key.ToString(), StringComparer.Ordinal))
+        foreach (var id in Ids.Where(id => unread || _records.ContainsKey(id)).OrderBy(r => r.ToString(), StringComparer.Ordinal))
         {
             if (RecordTypes.ClassOf(id.Type) is not { } type)
                 continue;
+            JsonObject json;
+            try
+            {
+                json = Json(id)!;
+            }
+            catch (InvalidDataException e)
+            {
+                problems.Add(new RecordProblem(id, "", Blame(id, ""), e.Message));
+                continue;
+            }
             object? record = null;
             try
             {
@@ -221,7 +243,10 @@ public sealed class PluginSet
             foreach (var (path, message) in Rules(record))
                 problems.Add(new RecordProblem(id, path, Blame(id, path), message));
         }
-        return new ValidationReport(problems);
+        // ADR 0035: one chunk to a cell, the later plugin's claim the problem.
+        foreach (var (chunk, holder) in ChunkIndex.For(this).Clashes)
+            problems.Add(new RecordProblem(chunk, "", Blame(chunk, ""), $"It claims the cell {holder} already has."));
+        return new ValidationReport(problems.OrderBy(p => p.Record.ToString(), StringComparer.Ordinal).ToList());
     }
 
     /// <summary>
@@ -268,6 +293,17 @@ public sealed class PluginSet
                         foreach (var problem in OpRules(effect, OpUse.Effect, "a node's effect"))
                             yield return ($"{at}.effect", problem);
                     }
+                }
+                break;
+            case ChunkRecord chunk:
+                if (ChunkRecord.PlaceOf(chunk.Id) is { } place && place != (chunk.MapSet, chunk.Row, chunk.Column))
+                    yield return ("", $"A base chunk's ID names its cell, and this one's names {place.MapSet} {ChunkRecord.NameOf(place.Row, place.Column)}.");
+                foreach (var o in chunk.Objects)
+                {
+                    if (o is TeleporterObject { Destination: null, Arrival: null })
+                        yield return ($"objects[{o.Index}]", "A teleporter needs a destination or an arrival.");
+                    else if (o is TeleporterObject { Destination: { } to, Arrival: { } arrival } && ChunkRecord.ChunkOf(arrival) != to)
+                        yield return ($"objects[{o.Index}]", $"The teleporter's arrival is in {ChunkRecord.ChunkOf(arrival)}, not its destination {to}.");
                 }
                 break;
             case TriggerRecord trigger:
@@ -437,7 +473,10 @@ public sealed class PluginSet
         return ordered;
     }
 
-    public bool Contains(RecordId id) => _records.ContainsKey(id);
+    public bool Contains(RecordId id) => _records.ContainsKey(id) || _lazy.ContainsKey(id);
+
+    /// <summary>Whether the record has been read: every record but the base plugin's lazily indexed ones, until each is asked for (ADR 0036).</summary>
+    public bool IsRead(RecordId id) => _records.ContainsKey(id);
 
     /// <summary>The ID of the plugin that defines the record, or null if none does.</summary>
     public string? DefinedBy(RecordId id) => _definedBy.GetValueOrDefault(id);
@@ -451,7 +490,20 @@ public sealed class PluginSet
     public IReadOnlyList<string> Setters(RecordId id, string path)
     {
         if (!_setters.TryGetValue(id, out var paths))
-            return [];
+        {
+            // A lazily indexed record no plugin patched: its definer set every field it has, and the whole record where it
+            // can't be read (Validate blames a file that holds another record on it).
+            if (!_lazy.ContainsKey(id))
+                return [];
+            try
+            {
+                return Json(id) is { } json && json.ContainsKey(TopField(path)) ? [_definedBy[id]] : [];
+            }
+            catch (InvalidDataException)
+            {
+                return path.Length == 0 ? [_definedBy[id]] : [];
+            }
+        }
         var plugins = new HashSet<string>(StringComparer.Ordinal);
         foreach (var ancestor in Ancestors(path))
         {
@@ -469,6 +521,16 @@ public sealed class PluginSet
         var definer = _definedBy.GetValueOrDefault(id);
         return InLoadOrder(paths.Values.SelectMany(p => p).Where(p => p != definer).ToHashSet(StringComparer.Ordinal));
     }
+
+    /// <summary>A setter path's top-level field: <c>objects</c> of <c>objects[12].position</c>.</summary>
+    private static string TopField(string path)
+    {
+        var end = path.AsSpan().IndexOfAny('.', '[');
+        return end < 0 ? path : path[..end];
+    }
+
+    /// <summary>Where a plugin stands in the load order, for which of two claims is the later.</summary>
+    internal int LoadIndex(string plugin) => _loadIndex.GetValueOrDefault(plugin, int.MaxValue);
 
     private List<string> InLoadOrder(IEnumerable<string> plugins) => [.. plugins.OrderBy(p => _loadIndex.GetValueOrDefault(p, int.MaxValue))];
 
@@ -527,8 +589,33 @@ public sealed class PluginSet
         return found.Values;
     }
 
-    /// <summary>The merged record as JSON. It's the set's own: read it, don't change it.</summary>
-    public JsonObject? GetJson(RecordId id) => _records.GetValueOrDefault(id);
+    /// <summary>The merged record as JSON, read now if it hadn't been. It's the set's own: read it, don't change it.</summary>
+    public JsonObject? GetJson(RecordId id) => Json(id);
+
+    /// <summary>
+    /// The record's JSON: read already, or one of the base plugin's lazily indexed records, read now, once, under a lock, from
+    /// whichever thread asks first (ADR 0036). A file that holds another record than its path names is an
+    /// <see cref="InvalidDataException"/>.
+    /// </summary>
+    private JsonObject? Json(RecordId id)
+    {
+        if (_records.TryGetValue(id, out var json))
+            return json;
+        if (!_lazy.TryGetValue(id, out var file))
+            return null;
+        lock (_lazyLock)
+        {
+            if (_records.TryGetValue(id, out json))
+                return json;
+            var node = JsonNode.Parse(File.ReadAllBytes(file), documentOptions: PluginJson.DocumentOptions) as JsonObject
+                ?? throw new InvalidDataException($"{file}: a file of the base plugin's {id.Type} records holds one object, {id}.");
+            node.Remove(SchemaField);
+            if (node["id"] is not JsonValue value || !value.TryGetValue(out string? text) || text != id.ToString())
+                throw new InvalidDataException($"{file}: its path names {id}, so it holds that record and no other.");
+            _records[id] = node;
+            return node;
+        }
+    }
 
     /// <summary>The merged record, read as <typeparamref name="T"/>, which must be its type's class or a view of it (<see cref="RecordTypeInfo.Reads"/>).</summary>
     public T Get<T>(RecordId id) where T : class =>
@@ -543,7 +630,7 @@ public sealed class PluginSet
     public T? TryGet<T>(RecordId id) where T : class
     {
         CheckReads<T>(id.Type);
-        return _records.TryGetValue(id, out var json)
+        return Json(id) is { } json
             ? (T)_typed.GetOrAdd((id, typeof(T)), static (_, json) => json.Deserialize<T>(PluginJson.Options)!, json)
             : null;
     }
@@ -552,10 +639,13 @@ public sealed class PluginSet
     public IReadOnlyList<T> All<T>(string type) where T : class
     {
         CheckReads<T>(type);
-        return (IReadOnlyList<T>)_typedAll.GetOrAdd((type, typeof(T)), static (key, set) => set._records.Keys
-            .Where(id => id.Type == key.Type).OrderBy(id => id.ToString(), StringComparer.Ordinal)
+        return (IReadOnlyList<T>)_typedAll.GetOrAdd((type, typeof(T)), static (key, set) => set.IdsOf(key.Type)
             .Select(id => set.TryGet<T>(id)!).ToList().AsReadOnly(), this);
     }
+
+    /// <summary>The IDs of every record of a type, read or not, in the order of their spelling.</summary>
+    public IReadOnlyList<RecordId> IdsOf(string type) =>
+        [.. Ids.Where(id => id.Type == type).OrderBy(id => id.ToString(), StringComparer.Ordinal)];
 
     /// <summary>Every merged record of the one type whose class is <typeparamref name="T"/> (<see cref="RecordTypes.Of{T}"/>).</summary>
     public IReadOnlyList<T> All<T>() where T : class => All<T>(RecordTypes.Of<T>().Name);
@@ -610,6 +700,13 @@ public sealed class PluginSet
             .Order(StringComparer.Ordinal);
         foreach (var file in files)
         {
+            if (plugin.Manifest.Id == RecordId.BaseNamespace && LazyId(records, file) is { } lazy)
+            {
+                if (_records.ContainsKey(lazy) || !_lazy.TryAdd(lazy, file))
+                    throw new InvalidDataException($"{file}: {lazy} is defined twice.");
+                _definedBy[lazy] = plugin.Manifest.Id;
+                continue;
+            }
             var node = JsonNode.Parse(File.ReadAllBytes(file), documentOptions: PluginJson.DocumentOptions);
             var objects = node switch
             {
@@ -626,6 +723,19 @@ public sealed class PluginSet
         }
     }
 
+    /// <summary>
+    /// The ID a base plugin's file names by its path, where it's in a type's <see cref="RecordTypeInfo.LazyFolder"/>
+    /// (<c>records/chunks/8/C05.json</c> is <c>aidyn:chunk/8/C05</c>), or null for a file read as any other.
+    /// </summary>
+    private static RecordId? LazyId(string records, string file)
+    {
+        var parts = Path.GetRelativePath(records, file).Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (parts.Length < 2 || RecordTypes.Registry.FirstOrDefault(t => t.LazyFolder == parts[0]) is not { } type)
+            return null;
+        parts[^1] = Path.GetFileNameWithoutExtension(parts[^1]);
+        return RecordId.TryParse($"{RecordId.BaseNamespace}:{type.Name}/{string.Join('/', parts[1..])}", out var id) ? id : null;
+    }
+
     private void Add(string pluginId, string file, JsonObject o)
     {
         o.Remove(SchemaField);
@@ -634,7 +744,7 @@ public sealed class PluginSet
             var id = ParseId(file, idValue);
             if (id.Namespace != pluginId)
                 throw new InvalidDataException($"{file}: {pluginId} can only add records in its own namespace, not {id}. Patch it instead.");
-            if (!_records.TryAdd(id, (JsonObject)o.DeepClone()))
+            if (_lazy.ContainsKey(id) || !_records.TryAdd(id, (JsonObject)o.DeepClone()))
                 throw new InvalidDataException($"{file}: {id} is defined twice.");
             _definedBy[id] = pluginId;
             foreach (var (field, _) in o)
@@ -646,6 +756,15 @@ public sealed class PluginSet
         else if (o["patch"] is JsonValue patchValue && o["id"] is null)
         {
             var id = ParseId(file, patchValue);
+            // A patch reads a lazily indexed record as it loads, so that it merges and the conflict report sees it (ADR 0036).
+            if (!_records.ContainsKey(id) && _lazy.ContainsKey(id) && Json(id) is { } read)
+            {
+                foreach (var (field, _) in read)
+                {
+                    if (field != "id")
+                        AddSetter(id, field, _definedBy[id]);
+                }
+            }
             if (!_records.TryGetValue(id, out var target))
                 throw new InvalidDataException($"{file}: patches {id}, which no earlier plugin defines.");
             o.Remove("patch");

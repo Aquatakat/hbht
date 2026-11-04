@@ -11,8 +11,12 @@ public class MapObjectPresenceTests
 
     private static readonly RecordId Entity = RecordId.Parse("aidyn:entity/0x0001");
 
-    private static MonsterPartyObject Party(RecordId? dialogue) =>
-        new(0, Vector3.Zero, 5, null, [], Entity, null, 1, 1, null, PartyFlags.None, dialogue, null)
+    /// <summary>An encounter, or with a script an npc.</summary>
+    private static PartyObject Party(RecordId? dialogue) =>
+        (dialogue is { } script
+            ? (PartyObject)new NpcObject(0, Vector3.Zero, 5, null, Entity, null, PartyFlags.None, script)
+            : new EncounterObject(0, Vector3.Zero, 5, null, Entity, null, PartyFlags.None, [], null, 1, 1))
+        with
         {
             Enabled = new FlagGate(Flag(10)),
             Used = new FlagWrite(Flag(11)),

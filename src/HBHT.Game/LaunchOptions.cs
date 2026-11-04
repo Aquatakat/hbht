@@ -33,9 +33,10 @@ namespace HBHT.Game;
 /// &lt;n&gt;</c> sets the UI screen's height, and <c>--press &lt;action&gt;,…</c> presses each action in turn, such as
 /// <c>pause,menu_member_left</c>. <c>--cutscene &lt;id&gt;</c> plays a cut-scene at once, as what starts it would,
 /// <c>--cinematic &lt;n&gt;</c> a cinematic, <c>--opening on|off</c> whether a new game plays its opening (by default, when
-/// no option says where to start or drives the run), and <c>--battle &lt;id&gt;</c> a battle with a monster party
-/// (<c>aidyn:voxel/…</c>) where the player stands, or <c>--battle arena,&lt;n&gt;[,ambush]</c> one with that monster
-/// party in arena n, with <c>--radar box</c> to put the battle screen's radar in the log box.
+/// no option says where to start or drives the run), and <c>--battle &lt;id&gt;</c> a battle with an encounter or an npc
+/// (<c>aidyn:mapobject/…</c>) where the player stands, or <c>--battle &lt;id&gt;,&lt;arena&gt;[,ambush]</c> one in that arena (its
+/// chunk's ID, or its name in the Battle arenas, such as <c>E11</c>), with <c>--radar box</c> to put the battle screen's radar in the
+/// log box.
 /// </remarks>
 public sealed class LaunchOptions(Dictionary<string, string> values)
 {
@@ -194,7 +195,7 @@ public sealed class LaunchOptions(Dictionary<string, string> values)
     /// <summary>A cut-scene to play at once.</summary>
     public RecordId? CutScene => Text("cutscene") is { } id ? RecordId.Parse(id) : null;
 
-    /// <summary>A battle to start, as a monster party's ID, then optionally <c>,&lt;arena&gt;</c> and <c>,ambush</c>.</summary>
+    /// <summary>A battle to start, as an encounter's or an npc's ID, then optionally <c>,&lt;arena&gt;</c> and <c>,ambush</c>.</summary>
     public string? Battle => Text("battle");
 
     /// <summary>Where the battle screen's radar sits: <c>--radar box</c> for the log box, as the original has it, rather than the screen's corner.</summary>

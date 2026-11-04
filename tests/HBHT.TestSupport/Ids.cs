@@ -15,6 +15,13 @@ public static class Ids
     /// <summary>The script in Borg13 archive index <paramref name="borg"/>, <c>aidyn:script/0x…</c>.</summary>
     public static RecordId Script(int borg) => RecordId.Hex(RecordTypes.Script, borg);
 
+    /// <summary>The base game's chunk named <paramref name="name"/> in map set <paramref name="mapSet"/>, <c>aidyn:chunk/8/C05</c> (ADR 0035).</summary>
+    public static RecordId Chunk(int mapSet, string name) => RecordId.Parse($"{RecordId.BaseNamespace}:{RecordTypes.Chunk}/{mapSet}/{name}");
+
+    /// <summary>Object <paramref name="index"/> of the base game's chunk <paramref name="name"/> in <paramref name="mapSet"/>, <c>aidyn:mapobject/8/C05/17</c>.</summary>
+    public static RecordId MapObject(int mapSet, string name, int index) =>
+        RecordId.Parse($"{RecordId.BaseNamespace}:{RecordTypes.MapObject}/{mapSet}/{name}/{index}");
+
     /// <summary>The base game's potion or flask <paramref name="potion"/>, <c>aidyn:item/0x10nn</c>.</summary>
     public static RecordId PotionId(BasePotion potion) => RecordId.Hex(RecordTypes.Item, 0x1000 + (int)potion);
 

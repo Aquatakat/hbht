@@ -1,5 +1,6 @@
 using System.Numerics;
 using HBHT.Core.Rng;
+using HBHT.Plugins;
 using HBHT.Plugins.Records;
 
 namespace HBHT.Core.Calendar;
@@ -92,7 +93,7 @@ public sealed class Weather
     public PartOfDay? PartOfDay { get; set; }
 
     /// <summary>The terrain the player is in (the world's <c>+0x24</c>), or null before the first.</summary>
-    public int? Terrain { get; set; }
+    public RecordId? Terrain { get; set; }
 
     // What's drawn: ProcessWeather's.
 
@@ -175,7 +176,7 @@ public sealed class Weather
     public void NewGame(GameClock clock, TerrainRecord? terrain0, IRandom world, IRandom cosmetic)
     {
         PartOfDay = Calendar.PartOfDay.Morning;
-        Terrain = 0;
+        Terrain = RecordId.Decimal(RecordTypes.Terrain, 0);
         Frame(clock.Date.PartOfDay, clock.Date.Season, terrain0, world, cosmetic);
     }
 
@@ -273,7 +274,7 @@ public sealed class Weather
     /// of the day the weather saw moves on by one, so the frame that follows rolls.
     /// </summary>
     /// <returns>Whether it's another terrain.</returns>
-    public bool SetTerrain(int terrain)
+    public bool SetTerrain(RecordId terrain)
     {
         var other = Terrain is { } was && was != terrain;
         if (other && PartOfDay is { } part)

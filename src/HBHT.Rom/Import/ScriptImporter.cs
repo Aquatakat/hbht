@@ -20,8 +20,10 @@ internal static class ScriptImporter
         var names = ctx.Db.Entities.Select(e => (Id: DbRecordIds.For(e.Id), e.Name))
             .Concat(ctx.Db.DialogEntities.Select(e => (Id: DbRecordIds.For(e.Id), e.Name)))
             .Where(e => e.Id is not null).DistinctBy(e => e.Id).ToDictionary(e => e.Id!.Value, e => e.Name);
-        foreach (var script in BuildScripts(ctx.Archive, ctx.Engine, names.GetValueOrDefault))
+        var scripts = BuildScripts(ctx.Archive, ctx.Engine, names.GetValueOrDefault, new Report(), ctx.ArenaChunks);
+        foreach (var script in scripts)
             ctx.WriteRecords($"scripts/{script.Id.Key}.json", script);
+        ctx.Scripts = scripts;
     }
 
     /// <summary>
@@ -48,16 +50,22 @@ internal static class ScriptImporter
         public List<string> Dropped { get; } = [];
     }
 
-    internal static List<ScriptRecord> BuildScripts(BorgArchive archive, EngineTables tables, Func<RecordId, string?>? names = null) =>
-        BuildScripts(archive, tables, names, new Report());
+    internal static List<ScriptRecord> BuildScripts(BorgArchive archive, EngineTables tables, Func<RecordId, string?>? names = null,
+        IReadOnlyList<RecordId>? arenas = null) =>
+        BuildScripts(archive, tables, names, new Report(), arenas);
 
     /// <summary>
     /// Every Borg13 as a <see cref="ScriptRecord"/>, in archive order. Text is cleaned (<see cref="DialogueText"/>), the ops the
     /// game never reads are dropped, each node gets its speaker (<see cref="Speakers"/>), and each op its typed form with the
-    /// speaker in force as its actor. A node a Case links to gets its range.
+    /// speaker in force as its actor. A node a Case links to gets its range. A battle's arena, which the original names by its number, is
+    /// its chunk (<paramref name="arenas"/>, <see cref="Arenas.Chunks"/>), arena 0's for a number above 27 as the original takes it; without
+    /// them, the Battlefields' A01. A script with a battle flag has the rules 1.0 keys by it (<see cref="CombatImporter.BattleRules"/>).
     /// </summary>
-    internal static List<ScriptRecord> BuildScripts(BorgArchive archive, EngineTables tables, Func<RecordId, string?>? names, Report report)
+    internal static List<ScriptRecord> BuildScripts(BorgArchive archive, EngineTables tables, Func<RecordId, string?>? names, Report report,
+        IReadOnlyList<RecordId>? arenas = null)
     {
+        RecordId Arena(int number) => arenas is { Count: > 0 } a ? a[(number & 0xFF) < a.Count ? number & 0xFF : 0] : ChunkRecord.IdOf(16, 1, 1);
+        var rules = CombatImporter.BattleRules(tables);
         var parsed = archive.Listings.Where(l => l.Type == BorgType.Dialogue)
             .Select(l => (l.Index, Script: Borg13Script.Parse(archive.Read(l.Index)))).ToList();
         var blanks = parsed.ToDictionary(p => p.Index, p => p.Script.BlankNodes);
@@ -78,7 +86,7 @@ internal static class ScriptImporter
                 var where = $"{script.Id} node {node.Index}";
                 var setup = nodeOps.Where(op => !op.Opcode.IsCondition() && !op.Opcode.IsEffect() && op.Opcode != Borg13Opcode.SetSpeaker)
                     .OrderBy(op => SetsUp(op.Opcode) ? 0 : 1)
-                    .Select(op => Setup(op, speaker, where, report)).OfType<ScriptOp>().ToList();
+                    .Select(op => Setup(op, speaker, where, report, Arena)).OfType<ScriptOp>().ToList();
                 var condition = nodeOps.Cast<Borg13Op?>().FirstOrDefault(op => op!.Value.Opcode.IsCondition()) is { } c
                     ? Condition(c, speaker, where, report) : null;
                 var effects = nodeOps.Where(op => op.Opcode.IsEffect()).ToList();
@@ -119,7 +127,8 @@ internal static class ScriptImporter
                 hasDoneFlag ? DbRecordIds.Flag(script.DoneFlag) : null,
                 mode is ScriptMode.Backdrop or ScriptMode.Help ? script.Backdrop : null,
                 tables.ScriptBattleFlags.TryGetValue(index, out var battle) ? DbRecordIds.Flag(battle) : null,
-                tables.CampfireScenes.Contains(index)));
+                tables.CampfireScenes.Contains(index),
+                tables.ScriptBattleFlags.TryGetValue(index, out var flag) && rules.TryGetValue(flag, out var own) ? own : null));
         }
         return records;
     }
@@ -224,7 +233,7 @@ internal static class ScriptImporter
     }
 
     /// <summary>A setup op, from 1.0's command (docs/systems/scripts.md has the table).</summary>
-    private static ScriptOp? Setup(Borg13Op op, RecordId? speaker, string where, Report report) => op.Opcode switch
+    private static ScriptOp? Setup(Borg13Op op, RecordId? speaker, string where, Report report, Func<int, RecordId> arena) => op.Opcode switch
     {
         Borg13Opcode.CameraCutTo => new ScriptOp.CameraCutTo { Mark = op.Value },
         Borg13Opcode.CameraCutToActor => Need(Entity(op), a => new ScriptOp.CameraCutTo { Actor = a }, op, where, report),
@@ -244,7 +253,7 @@ internal static class ScriptImporter
         Borg13Opcode.FaceRefPoint => Need(speaker, a => new ScriptOp.ActorFace(a, op.Value), op, where, report),
         Borg13Opcode.CreateActor => Need(speaker, a => new ScriptOp.ActorSpawn(a, op.Value), op, where, report),
         Borg13Opcode.SetCollideByte => new ScriptOp.BattleCollisionByte(op.Value),
-        Borg13Opcode.SetBattlefield => new ScriptOp.BattleArena(op.Value),
+        Borg13Opcode.SetBattlefield => new ScriptOp.BattleArena(arena(op.Value)),
         Borg13Opcode.SetAniByte => new ScriptOp.BattleAnimationByte(op.Value),
         Borg13Opcode.ResetVisited => new ScriptOp.ScriptResetChoices(),
         _ => throw new InvalidDataException($"{where}: {op} isn't a setup op."),

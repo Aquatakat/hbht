@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Text.Json;
 using HBHT.Plugins;
+using HBHT.Plugins.Records;
 using HBHT.Plugins.Assets;
 using HBHT.Rom.Borg;
 using HBHT.Rom.Db;
@@ -33,6 +34,12 @@ internal sealed class ImportContext(RomImage rom, string staging, IProgress<stri
     public GameDb Db => field ??= ReadDb(Rom);
 
     public IReadOnlyList<MapChunk> Chunks => field ??= MapChunks.Read(Rom);
+
+    /// <summary>The Battle arenas' chunks by their numbers (<see cref="Arenas.Chunks"/>).</summary>
+    public IReadOnlyList<RecordId> ArenaChunks => field ??= Arenas.Chunks(Chunks);
+
+    /// <summary>The scripts, once <see cref="ScriptImporter"/> has built them, which the chunks' npcs are read against.</summary>
+    public IReadOnlyList<ScriptRecord>? Scripts { get; set; }
 
     public EngineTables Engine => field ??= EngineTables.Read(Rom);
 

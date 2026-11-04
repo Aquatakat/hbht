@@ -1,5 +1,6 @@
 using System.Numerics;
 using HBHT.Core.Cameras;
+using HBHT.Core.Chunks;
 using HBHT.Core.Movement;
 using HBHT.Core.Physics;
 
@@ -61,7 +62,7 @@ public sealed partial class TrekLoop
             motion.Sphere.Position = ground;
             LastRescue = FallRescue.SetDown;
         }
-        else if (Breadcrumbs.Rescue(Chunks.MapSet.Id) is { } crumb && Chunks.MapSet.Chunk(crumb.Row, crumb.Column) is { } chunk)
+        else if (Breadcrumbs.Rescue(Chunks.MapSet.Id) is { } crumb && Chunks.Chunk(new ChunkKey(Chunks.MapSet.Id, crumb.Row, crumb.Column)) is { } chunk)
         {
             var origin = Chunks.Origin(chunk);
             motion.Sphere.Position = origin + crumb.Local;

@@ -14,7 +14,7 @@ public class ScriptRunnerTests
     private static readonly RecordId Trahern = RecordId.Hex(RecordTypes.Entity, 0x0239);
     private static readonly RecordId Goblin = RecordId.Hex(RecordTypes.Entity, 0x0280);
     private static readonly RecordId Sword = RecordId.Hex(RecordTypes.Item, 0x073A);
-    private static readonly RecordId Chest = RecordId.Parse("aidyn:voxel/0x1A20/3");
+    private static readonly RecordId Chest = MapObject(0, "K11", 3);
     private static readonly RecordId ScriptId = RecordId.Hex(RecordTypes.Script, 0x0400);
     private static readonly RecordId Rumours = RecordId.Hex(RecordTypes.Script, 0x0325);
 
@@ -521,7 +521,7 @@ public class ScriptRunnerTests
     {
         var script = Script(mode,
             Line(0, "Get them!", null, new ScriptOp.BattleAddEnemy(Goblin), new ScriptOp.BattleAddEnemy(Goblin),
-                new ScriptOp.BattleArena(30), new ScriptOp.BattleCollisionByte(2), new ScriptOp.BattleStart()))
+                new ScriptOp.BattleArena(Chunk(16, "I03")), new ScriptOp.BattleCollisionByte(2), new ScriptOp.BattleStart()))
             with { BattleFlag = Flag(6) };
         var run = Start(script);
         run.Runner.Continue();
@@ -530,7 +530,7 @@ public class ScriptRunnerTests
         Assert.Equal(ScriptEndKind.Battle, ending.Kind);
         Assert.Equal(BattleSource.Script, ending.Battle!.Source);
         Assert.Equal([new PartyEnemy(Goblin, 1, 1), new PartyEnemy(Goblin, 1, 1)], ending.Battle.Enemies);
-        Assert.Equal(0, ending.Battle.Arena);
+        Assert.Equal(Chunk(16, "I03"), ending.Battle.Arena);
         Assert.Equal(2, ending.Battle.CollisionByte);
         Assert.Equal(canFlee, ending.Battle.CanFlee);
         Assert.Equal(Flag(6), ending.Battle.EncounterFlag);

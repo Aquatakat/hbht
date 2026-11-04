@@ -11,6 +11,6 @@ namespace HBHT.Core.Audio;
 public static class MapMusic
 {
     /// <summary>The chunk's own music, else one of the set's at random (<c>Rng.Below</c>), else none, which stops it.</summary>
-    public static RecordId? For(MapSetRecord set, ChunkEntry? chunk, IRandom random) =>
+    public static RecordId? For(MapSetRecord set, ChunkRecord? chunk, IRandom random) =>
         chunk?.Music ?? (set.Music is { Count: > 0 } music ? music[(int)random.Below((uint)music.Count)] : null);
 }

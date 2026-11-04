@@ -16,7 +16,7 @@ namespace HBHT.Core.Tests;
 public class DialogueWandererSoundTests
 {
     private static readonly RecordId Talker = RecordId.Hex(RecordTypes.Entity, 0x1400), Step = RecordId.Hex(RecordTypes.Sequence, 1);
-    private static readonly RecordId MapId = RecordId.Hex(RecordTypes.Map, 0x1000);
+    private static readonly RecordId MapId = Chunk(0, "K11");
 
     private const int Walk = 2, Grass = 4;
 
@@ -28,9 +28,8 @@ public class DialogueWandererSoundTests
         var record = new DbRecord(Talker, "Amann", null, new EntityBody(RecordId.Hex(RecordTypes.Actor, 1), 0.55f, 1, 2), sounds);
         var plugins = temp.Aidyn(("dialogentities.json", JsonSerializer.Serialize(new[] { record }, PluginJson.Options)));
         var node = new WanderNodeObject(0, new Vector3(5, 0, 5), 0, null, 2, 0, 0, 1000, WanderFlags.Move, []);
-        var party = new MonsterPartyObject(1, new Vector3(5, 0, 5), 20, null, [], Talker, null, 0, 0,
-            MapRecord.VoxelId(MapId, 0), PartyFlags.Walks, null, null);
-        var map = LoadedMap.Activate(new MapRecord(MapId, [node, party]), Worlds.Chunk(0), ItemData.Flags(), new MapObjectMemory(), ItemData.NewParty(), new Lcg());
+        var party = new EncounterObject(1, new Vector3(5, 0, 5), 20, null, Talker, ChunkRecord.ObjectId(MapId, 0), PartyFlags.Walks, [], null, 0, 0);
+        var map = LoadedMap.Activate(TestChunk.Of(MapId, [node, party]), Worlds.Chunk(0), ItemData.Flags(), new MapObjectMemory(), ItemData.NewParty(), new Lcg());
         return Assert.Single(new Wanderers(plugins).Load(map, 20, Worlds.Flat(), new MapObjectMemory()));
     }
 

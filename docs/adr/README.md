@@ -7,7 +7,7 @@ These are the Phase 0 decisions from the [roadmap](../roadmap.md) (task 0.5). Ea
 | [0001](0001-importer-owns-the-rom.md) | The runtime never reads the ROM; an importer turns it into a base plugin | Accepted |
 | [0002](0002-godot-and-csharp.md) | Engine: Godot 4 with C# (.NET) | Accepted, added to by [0022](0022-views-library.md) |
 | [0003](0003-headless-rules-core.md) | Game rules live in a headless C# library | Accepted, partly superseded by [0015](0015-the-port-no-longer-reads-the-decomp.md) and [0018](0018-the-port-fixes-bugs-and-sets-enhancements.md) |
-| [0004](0004-record-ids.md) | Record ID scheme | Accepted |
+| [0004](0004-record-ids.md) | Record ID scheme | Accepted, map objects' keys superseded by [0035](0035-chunks-as-records.md) |
 | [0005](0005-plugin-format.md) | Plugin format: JSON with comments, field-level overrides | Accepted, partly superseded by [0016](0016-sequences-keep-the-originals-events.md) and [0036](0036-lazy-loading-by-file-layout.md) |
 | [0006](0006-tick-model-and-rng.md) | Tick model and RNG | Accepted, partly superseded by [0017](0017-the-core-steps-every-tick.md) |
 | [0007](0007-rom-versions.md) | ROM version support | Accepted, partly superseded by [0018](0018-the-port-fixes-bugs-and-sets-enhancements.md) |

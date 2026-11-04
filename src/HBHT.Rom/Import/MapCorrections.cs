@@ -24,7 +24,7 @@ internal static class MapCorrections
     internal sealed record MovedObject(MapSet Set, string Chunk, int Object, int Scene, Vector3 At, int FirstTriangle, int Triangles, Vector3 By);
 
     /// <summary>
-    /// The mushroom in the Roog Cave's D01 (<c>aidyn:voxel/0x1205/12</c>, scene <c>0x0BCB</c>), in the neck of the passage between
+    /// The mushroom in the Roog Cave's D01 (<c>aidyn:mapobject/10/D01/12</c>, scene <c>0x0BCB</c>), in the neck of the passage between
     /// two leaning rocks, at local (11.2, 22.5). Its collision is a box of 8 triangles (926–933), 0.71 square and 1.07 tall. The
     /// box all but touches the rock east of it, so the way past is west of it, against the corner of the other rock at
     /// (10.34, 22.29), where the best way past brings the middle of Alaron's sphere (radius 0.5) within 0.32 of a wall. Walking

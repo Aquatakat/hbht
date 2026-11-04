@@ -29,7 +29,7 @@ public class MapSoundsTests
         new(index, new Vector3(0, 0, 0), 10, null, sequence ?? Tune, 1, minWait, maxWait, flags);
 
     private static LoadedMap Map(ChunkKey key, params SoundObject[] sounds) =>
-        LoadedMap.Activate(new MapRecord(RecordId.Hex(RecordTypes.Map, 1), sounds), key, ItemData.Flags(), new MapObjectMemory(), ItemData.NewParty(), new Lcg());
+        LoadedMap.Activate(TestChunk.Of(Chunk(0, "A01"), sounds), key, ItemData.Flags(), new MapObjectMemory(), ItemData.NewParty(), new Lcg());
 
     private static readonly Vector3 Eye = new(0, 5, 20);
 

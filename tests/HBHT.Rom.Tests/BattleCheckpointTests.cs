@@ -72,14 +72,14 @@ public sealed class BattleCheckpointTests(Na10Import fixture, ITestOutputHelper 
         Assert.Empty(game.Problems);
 
         // The arena's chunk loaded about the zone engine's point in it, as GameSession.BeginBattle has it.
-        var arena = Arena.For(Set, 3)!;
+        var arena = Arena.For(Set, Battlefield.Chunk(3))!;
         Assert.NotNull(arena);
         var streamer = new ChunkStreamer(Set, game, new CollisionWorld(), Set.Get<MapSetRecord>(Arena.MapSet));
         streamer.Update(arena.Origin + Battle.ZonePoint);
 
         // A wanderer's ambush of ten giant rats, handed over as the list (the enemy roll is checked elsewhere).
         var setup = new BattleSetup(BattleSource.Wanderer, null, null, null, [.. Enumerable.Repeat(new PartyEnemy(Rat, 1, 1), 10)],
-            Arena: 3, Ambush: true, CanFlee: true, EncounterFlag: null, CollisionByte: 0, AniByte: 2);
+            Arena: Battlefield.Chunk(3), Ambush: true, CanFlee: true, EncounterFlag: null, CollisionByte: 0, AniByte: 2);
 
         var random = new Lcg(before.ReadWord(RandomState));
         for (var i = 0; i < DrawsBeforeSetup; i++)

@@ -16,7 +16,7 @@ public enum BattleOutcome
     /// <summary>Lost (state 13, then 21): the game over script.</summary>
     Lost,
 
-    /// <summary>Lost, but not the game's end (<see cref="EncounterRule.NonLethal"/>): trek the next morning.</summary>
+    /// <summary>Lost, but not the game's end (<see cref="BattleRules.NonLethal"/>): trek the next morning.</summary>
     Spared,
 
     /// <summary>Fled (state 20): trek at the farthest breadcrumb.</summary>
@@ -55,8 +55,8 @@ public sealed partial class Battle
     /// <summary>What a win gave, once the battle has left after it.</summary>
     public BattleSpoils? Spoils { get; private set; }
 
-    /// <summary>The battle's own rules, by its encounter flag (<see cref="CombatRecord.Encounters"/>): the Goblin Ambush's.</summary>
-    public EncounterRule? Rule => _rules.Encounter(Setup.EncounterFlag);
+    /// <summary>The battle's own rules, from what started it (<see cref="BattleSetup.Rules"/>): the Goblin Ambush's.</summary>
+    public BattleRules? Rule => Setup.Rules;
 
     /// <summary>Whether losing isn't the game's end (<c>Combat.NonLethal</c>, <c>0x800DA0DC</c>).</summary>
     public bool NonLethal => Rule is { NonLethal: true };

@@ -74,7 +74,7 @@ internal static class CompareReport
                 continue;
             var (o, m) = (d.Original, d.Modern);
             s.AppendLine(CultureInfo.InvariantCulture,
-                $"{d.Launch.Script} from {d.Launch.From.MapObject} (points from {d.Launch.From.Marks}, stage {d.Launch.Stage.MapSet} {d.Launch.Stage.Row},{d.Launch.Stage.Column}): {d.Severity}, " +
+                $"{d.Launch.Script} from {d.Launch.From.MapObject} (points from {d.Launch.From.Marks}, stage {d.Launch.Stage}): {d.Severity}, " +
                 $"{Ticks(o)} ticks under the original, {Ticks(m)} under Modern ({d.TickDelta:+0;-0;0})");
             var waits = o.Waits.Keys.Union(m.Waits.Keys).Order()
                 .Select(k => (Kind: k, Delta: m.Waits.GetValueOrDefault(k) - o.Waits.GetValueOrDefault(k)))

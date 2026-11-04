@@ -60,7 +60,7 @@ public sealed partial class GameSessionTests
     {
         // JundarInteriors A01: coming in from Jundar (entryL1) puts him at point 68, 6.13 from the SetFlag trigger (object 5,
         // radius 5) that sets 216, "We are granted admittance to the Wizard's School."
-        var school = Data.Set.Get<MapRecord>(RecordId.Hex(RecordTypes.Map, 0x1890));
+        var school = Data.Set.Get<ChunkRecord>(Ids.Chunk(11, "A01"));
         var arrival = school.Objects[68].Position;
         var trigger = (TripwireObject)school.Objects[5];
         var (session, _) = StartIn(11, "A01", arrival.X, arrival.Z);
@@ -89,7 +89,7 @@ public sealed partial class GameSessionTests
     public void TheLettersEntryIsToldAsTrekComesBackInTheCaveUnderPortSaiid()
     {
         // PortSaiid E01, the cave: the letter (object 1, its flag B 294) is a backdrop, script 0x041F, whose node 1 sets 295.
-        var cave = Data.Set.Get<MapRecord>(RecordId.Hex(RecordTypes.Map, 0x12D8));
+        var cave = Data.Set.Get<ChunkRecord>(Ids.Chunk(2, "E01"));
         var letter = (ScriptObject)cave.Objects[1];
         var (session, _) = StartIn(2, "E01", letter.Position.X - 0.5f, letter.Position.Z);
         var trek = session.Trek;
@@ -126,14 +126,14 @@ public sealed partial class GameSessionTests
     {
         // GoblinCamp C01: Kitarak's party (object 3), whose boss flag, 154, winning sets (Combat.SetKillFlags, 0x80067860), after
         // the reads the battle's end makes.
-        var room = Data.Set.Get<MapRecord>(RecordId.Hex(RecordTypes.Map, 0x35A5));
-        var kitarak = (MonsterPartyObject)room.Objects[3];
+        var room = Data.Set.Get<ChunkRecord>(Ids.Chunk(1, "C01"));
+        var kitarak = (NpcObject)room.Objects[3];
         var (session, _) = StartIn(1, "C01", kitarak.Position.X + 2, kitarak.Position.Z + 2);
         var trek = session.Trek;
         var flags = session.Game.Flags;
         Tick(session);
         var (place, terrain) = trek.Here();
-        session.CueBattle(BattleSetup.WithParty(BattleSource.MonsterParty, MapRecord.VoxelId(room.Id, kitarak.Index), kitarak, place, terrain,
+        session.CueBattle(BattleSetup.WithParty(BattleSource.Encounter, room.ObjectId(kitarak.Index), kitarak, place, terrain,
             ambush: false));
         Assert.Equal(SessionStep.BattleCued, TickUntil(session, SessionStep.BattleCued));
         session.BeginBattle();
@@ -198,8 +198,8 @@ public sealed partial class GameSessionTests
         // node 27 sets 135, "I met a Mirari woman on the street today". Nothing in it reads a derived flag after; but she stands
         // within 30 of sound object 142, a repeating birdsong gated by the day (derived 5284), which 1.0 reads every frame it
         // isn't playing (Audio.UpdateSound, 0x8004ea10).
-        var street = Data.Set.Get<MapRecord>(RecordId.Hex(RecordTypes.Map, 0x0EFA));
-        var yeraza = (MonsterPartyObject)street.Objects[31];
+        var street = Data.Set.Get<ChunkRecord>(Ids.Chunk(0, "C08"));
+        var yeraza = (NpcObject)street.Objects[31];
         var birdsong = (SoundObject)street.Objects[142];
         var (session, _) = StartIn(0, "C08", yeraza.Position.X + 1, yeraza.Position.Z);
         var trek = session.Trek;

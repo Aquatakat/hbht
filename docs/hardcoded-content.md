@@ -73,7 +73,7 @@ Most of what's left. The combat record (`aidyn:combat/0`, `CombatRecord`), `aidy
 
 | What | Port | 1.0 | Needs |
 | --- | --- | --- | --- |
-| The arenas are map set 16's 28 chunks, a body made at (20, 0, 20); a script's arena above `0x1B` is 0 | `Arena.MapSet`, `Arena.Count`, `Battle.ZonePoint`; `ScriptRunner.MaxBattlefield` | `Zones.ArenaChunks` `0x800DCA74`; `dialoug_func` | 1: the combat record names the arenas' map set, and the count comes from its chunks |
+| The arenas are map set 16's chunks, a body made at (20, 0, 20) | `Arena.MapSet`, `Battle.ZonePoint` | `Zones.ArenaChunks` `0x800DCA74`; `dialoug_func` | Records name an arena by its chunk (ADR 0035), so the numbers, their count and a script's arena above `0x1B` are the importer's; the map set the arena tools list stays named |
 | Enemy counts: trimmed by 0.3, 0.2, 0.1 or 0 by party level × 3 ÷ enemy level; 12 at most, 4 on the field (the boss flags read the same four) | `BattleSetup.LevelTrim`, `Battle.MaxEnemies`, `OnField`; `ScriptRunner.MaxEnemies` | `BattleSetup.FillEnemies` `0x80009374`, `TrimByLevel` `0x800088E4`, `0x800CD470` | 1: the combat record |
 | Fleeing by where a battle comes from: a monster party's allows it, a camp ambush's doesn't, a script's does unless it's a cut-scene; the record's lists come after | `BattleSetup.WithParty`, `CampAmbush`, `Scripted` | | 1: the combat record |
 | Spawns: reference points named `good` or `bad`, a set and a letter; the set 4 − the pace byte (run 3, walk 2, sneak 1, from the player's pace as noticed or talked to); reserves at set 0, then the other four; the direction drawn 1–3 or 5–7; an ambush's collision byte 2; the Ranger's roll shifting the set; Sholeh at letter d | `Battle.SpawnPoint`, `Spawn`, `SpawnSets`, `AmbushByte`, `Build`; `TrekLoop.AniByte`, `TalkByte` | `Combat.SpawnPosition` `0x8005C294`, `Combat.ChooseSpawn` `0x8005D748`; `0x8000FAD4`–`0x8000FB78`, `0x80010AA8`–`0x80010B74` | 3: an arena convention a mod's arenas follow, on the combat record; Sholeh's letter on its `ally` |
@@ -119,7 +119,7 @@ of the record, so two mods adding to one no longer conflict. Each is layer 1, do
 | combat `droppedClasses` | weapon skill `drops` | `Combat.DropWeaponClasses` `0x800D26C8` |
 | combat `text.aura.elements` | element `name` | `0x800E0C00` |
 
-`combat.fleeByEncounter` and `encounters` wait for the chunks' slice, which gives encounters a place of their own.
+`combat.fleeByEncounter` and `encounters` are `battleRules` on the script, npc or encounter that starts each battle (ADR 0035).
 
 ### Values the original's rules name, which are records now
 
@@ -140,11 +140,11 @@ name one value, and the core names its base ID for them (`HBHT.Core.Magic.School
 
 ADR 0008 names six behaviours as bespoke. Brenna's Ranger check is the camp ambush's roll, Lugash and Pochanargat are records, Sholeh is the combat record's `ally` and her member flags, and Alaron's True Name is an entity field and a trigger ([code tables](formats/code-tables.md)). The two that need layer 3 are the Goblin Ambush and the Shadow, features on the combat record. [combat](systems/combat.md#the-special-battles) has how they run.
 
-**The Goblin Ambush** (encounter flag 978) is an `EncounterRule`, but its fleeing, which is `fleeByEncounter`:
+**The Goblin Ambush** (encounter flag 978) is `battleRules` on script `0x0365` and its three npcs (ADR 0035):
 
 | Behaviour | Carried as | 1.0 |
 | --- | --- | --- |
-| No fleeing | `fleeByEncounter` | `encounter_id_check` |
+| No fleeing | `flee: false` | `encounter_id_check` |
 | The first member healed in full as it starts | `healsLeader` | `Combat.Init` `0x80022D1C` |
 | Each blow on Alaron deals 1; the second drops his Strength to 0 and plays his fall, so the battle is lost with him alive | `keelOver` (Alaron, 2 hits) | `Combatant.ShadowFightTrick` `0x80065DCC`, `Combat.ApplyHit` `0x80021930` |
 | No game over: the "PlotPoison" line, locked to Alaron, the fade, the flag, the clock at 6:00 the next day | `nonLethal`, `speaker` | `TurnOrder.Defeat`, `Combat.StateDefeatWait`, `Combat.StateDefeat` |

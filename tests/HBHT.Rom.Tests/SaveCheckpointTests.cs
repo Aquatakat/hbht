@@ -111,7 +111,7 @@ public sealed class SaveCheckpointTests(Na10Import fixture)
 
         // The place: the chunk by name, and the heading the way the player faces, which is the opposite of the console's.
         var place = save.Place!;
-        var chunk = Set.Get<MapSetRecord>(place.MapSet).Chunks.Single(c => c.Row == checkpoint.Place.Row && c.Column == checkpoint.Place.Column);
+        var chunk = Set.ChunkAt(place.MapSet, checkpoint.Place.Row, checkpoint.Place.Column)!;
         Assert.Equal(RecordId.Decimal(RecordTypes.MapSet, checkpoint.Place.MapSet), place.MapSet);
         Assert.Equal(chunk.Name, place.Chunk);
         Assert.Equal(checkpoint.Place.Position, place.Position);
@@ -126,13 +126,13 @@ public sealed class SaveCheckpointTests(Na10Import fixture)
         Assert.Equal(checkpoint.Memories.Count, memories.Count);
         // What remembers a random line or a skill check here is a monster party's dialogue, not a dialogue object.
         foreach (var memory in memories)
-            Assert.NotNull(Assert.IsType<MonsterPartyObject>(fixture.Data.Objects[memory.MapObject]).Script);
+            Assert.IsType<NpcObject>(fixture.Data.Objects[memory.MapObject]);
 
         switch (LabelOf(name))
         {
             case "Before final encounter":
-                var l08 = RecordId.Parse("aidyn:voxel/0x1063/2");
-                Assert.Equal(l08, MapRecord.VoxelId(Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, 0)).Chunks.Single(c => c.Name == "L08").Map, 2));
+                var l08 = Ids.MapObject(0, "L08", 2);
+                Assert.Equal(l08, ChunkRecord.ObjectId(Set.ChunkAt(RecordId.Decimal(RecordTypes.MapSet, 0), 12, 8)!.Id, 2));
                 Assert.Equal(
                     [
                         new SaveMemory(l08, "RandomLine", 99, 7),
@@ -141,9 +141,9 @@ public sealed class SaveCheckpointTests(Na10Import fixture)
                     memories);
                 break;
             case "Before Rooughah, in Terminor":
-                var map = Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, 8)).Chunks.Single(c => c.Name == "G01").Map;
-                Assert.Equal(RecordId.Parse("aidyn:voxel/0x13D4/32"), MapRecord.VoxelId(map, 32));
-                Assert.Equal([new SaveMemory(MapRecord.VoxelId(map, 32), "RandomLine", 100, 10)], memories);
+                var map = Set.ChunkAt(RecordId.Decimal(RecordTypes.MapSet, 8), 7, 1)!.Id;
+                Assert.Equal(Ids.MapObject(8, "G01", 32), ChunkRecord.ObjectId(map, 32));
+                Assert.Equal([new SaveMemory(ChunkRecord.ObjectId(map, 32), "RandomLine", 100, 10)], memories);
                 break;
             default:
                 Assert.Empty(memories);

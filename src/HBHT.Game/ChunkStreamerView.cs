@@ -127,7 +127,7 @@ public partial class ChunkStreamerView : Node3D
             view.AbandonBuilt();
     }
 
-    public Vector3 Origin(ChunkEntry chunk) => Chunks.Origin(chunk).ToGodot();
+    public Vector3 Origin(ChunkRecord chunk) => Chunks.Origin(chunk).ToGodot();
 
     /// <summary>The wanderers' bodies as they're drawn.</summary>
     public IEnumerable<WandererView> Wanderers => _views.Values;
@@ -327,24 +327,28 @@ public partial class ChunkStreamerView : Node3D
         var plugins = _plugins!;
         var models = _models!;
         var chunks = Chunks;
+        var index = ChunkIndex.For(plugins);
         var reach = ring ? _ring!.Reach + 1 : 2;
         for (var r = centre.Row - reach; r <= centre.Row + reach; r++)
         {
             for (var c = centre.Column - reach; c <= centre.Column + reach; c++)
             {
                 var distance = Math.Max(Math.Abs(r - centre.Row), Math.Abs(c - centre.Column));
-                if (distance < 2 || set.Chunk(r, c) is not { } chunk)
+                if (distance < 2 || index.At(set.Id, r, c) is not { } id)
                     continue;
                 var inner = distance == 2;
+                // The chunk's record is read here too, off the main thread, the first time (ADR 0036).
                 _builder.ReadAhead(() =>
                 {
+                    if (plugins.TryGet<ChunkRecord>(id) is not { } chunk)
+                        return;
                     if (inner)
                         chunks.Prepare(chunk);
                     foreach (var asset in ChunkScenery.Assets(plugins, chunk))
                         models.Warm(asset);
-                    if (inner && plugins.TryGet<MapRecord>(chunk.Map) is { } map)
+                    if (inner)
                     {
-                        foreach (var party in map.Objects.OfType<MonsterPartyObject>())
+                        foreach (var party in chunk.Objects.OfType<PartyObject>())
                         {
                             if (plugins.TryGet<DbRecord>(party.Entity)?.Body is { } look)
                                 models.Warm(look.Actor);
@@ -355,7 +359,7 @@ public partial class ChunkStreamerView : Node3D
         }
     }
 
-    private void Add(ChunkEntry chunk, LoadedMap map)
+    private void Add(ChunkRecord chunk, LoadedMap map)
     {
         if (_builder is null || Near(chunk))
             Show(map, Scenery(chunk, map, ring: false), ring: false);
@@ -364,7 +368,7 @@ public partial class ChunkStreamerView : Node3D
         SyncWanderers();
     }
 
-    private void Remove(ChunkEntry chunk, LoadedMap map)
+    private void Remove(ChunkRecord chunk, LoadedMap map)
     {
         _building.Remove(map);
         if (_loaded.Remove(map, out var scenery))
@@ -378,7 +382,7 @@ public partial class ChunkStreamerView : Node3D
         SyncWanderers();
     }
 
-    private void AddRing(ChunkEntry chunk, LoadedMap map)
+    private void AddRing(ChunkRecord chunk, LoadedMap map)
     {
         if (_builder is null)
             Show(map, Scenery(chunk, map, ring: true), ring: true);
@@ -386,7 +390,7 @@ public partial class ChunkStreamerView : Node3D
             Queue(chunk, map, ring: true);
     }
 
-    private void RemoveRing(ChunkEntry chunk, LoadedMap map)
+    private void RemoveRing(ChunkRecord chunk, LoadedMap map)
     {
         _building.Remove(map);
         if (!_ringLoaded.Remove(map, out var scenery))
@@ -400,7 +404,7 @@ public partial class ChunkStreamerView : Node3D
     }
 
     /// <summary>Whether a chunk is near enough to where the 3×3 was loaded about to be built at once.</summary>
-    private bool Near(ChunkEntry chunk)
+    private bool Near(ChunkRecord chunk)
     {
         var size = Chunks.MapSet.CellSize;
         var corner = Chunks.Origin(chunk);
@@ -411,7 +415,7 @@ public partial class ChunkStreamerView : Node3D
     }
 
     /// <summary>Builds a chunk's scenery off the main thread, by its objects as they stand now.</summary>
-    private void Queue(ChunkEntry chunk, LoadedMap map, bool ring)
+    private void Queue(ChunkRecord chunk, LoadedMap map, bool ring)
     {
         var shown = map.Record.Objects.OfType<SceneObject>().ToDictionary(o => o.Index, o => (Active: map.IsActive(o.Index), Look: map.Look(o.Index)));
         var building = _building[map] = new Building(chunk, map, ring);
@@ -451,13 +455,13 @@ public partial class ChunkStreamerView : Node3D
     // Whether a scene object is there is decided as its chunk loads, not every frame. The runtime
     // plays with the Expansion Pak. The ring's actors start no emitters: they share the particles' pool with
     // what's near, and are drawn only within their levels of detail, nearer than the ring.
-    private ChunkScenery Scenery(ChunkEntry chunk, LoadedMap map, bool ring) =>
+    private ChunkScenery Scenery(ChunkRecord chunk, LoadedMap map, bool ring) =>
         ChunkScenery.Load(_plugins!, _models!, Chunks.MapSet, chunk, o => map.IsActive(o.Index), map.Nearest, particles: !ring);
 
     /// <summary>A chunk's scenery building off the main thread, and once built, what it came to (null if it failed).</summary>
-    private sealed class Building(ChunkEntry chunk, LoadedMap map, bool ring)
+    private sealed class Building(ChunkRecord chunk, LoadedMap map, bool ring)
     {
-        public ChunkEntry Chunk { get; } = chunk;
+        public ChunkRecord Chunk { get; } = chunk;
         public LoadedMap Map { get; } = map;
         public bool Ring { get; } = ring;
         public ChunkScenery? Scenery { get; set; }

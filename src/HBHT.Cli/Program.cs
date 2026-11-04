@@ -502,7 +502,7 @@ static int SavePak(string rom, string? pak)
     {
         var played = TimeSpan.FromSeconds(save.PlayTime / 60.0);
         var set = plugins.TryGet<HBHT.Plugins.Records.MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, save.Place.MapSet));
-        var chunk = set?.Chunk(save.Place.Row, save.Place.Column)?.Name ?? $"{save.Place.Row},{save.Place.Column}";
+        var chunk = HBHT.Plugins.Records.ChunkRecord.NameOf(save.Place.Row, save.Place.Column);
         var party = save.Party.OfType<PakSheet>().Select(m =>
             plugins.TryGet<HBHT.Plugins.Records.EntityRecord>(RecordId.Hex(RecordTypes.Entity, m.Entity))?.Name ?? $"0x{m.Entity:X4}");
         Console.WriteLine($"  {slot}  {save.Name,-10} {(int)played.TotalHours}:{played.Minutes:D2}:{played.Seconds:D2}  " +

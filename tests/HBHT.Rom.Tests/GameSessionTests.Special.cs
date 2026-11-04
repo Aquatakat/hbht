@@ -21,7 +21,7 @@ public sealed partial class GameSessionTests
         var enemies = ops.OfType<ScriptOp.BattleAddEnemy>().Select(o => o.Entity).ToList();
         var arena = ops.OfType<ScriptOp.BattleArena>().First().Arena;
         var (place, terrain) = session.Trek.Here();
-        var setup = BattleSetup.Scripted(enemies, arena, 0, 0, dialogue.Mode != ScriptMode.Cutscene, dialogue.BattleFlag)
+        var setup = BattleSetup.Scripted(enemies, arena, 0, 0, dialogue.Mode != ScriptMode.Cutscene, dialogue.BattleFlag, dialogue.BattleRules)
             with { Place = place, Terrain = terrain };
         session.CueBattle(setup);
         var step = SessionStep.Trek;

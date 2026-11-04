@@ -46,7 +46,7 @@ public sealed partial class GameSessionTests
         // Trek's input is dead while it fades into a cut-scene.
         var ambush = Data.Set.Get<ScriptRecord>(RecordId.Parse("aidyn:script/0x0365"));
         var (_, map, dialogue) = Data.Of<ScriptObject>().First(d => d.Object.Plays == ambush.Id && d.Object.Stage is not null);
-        session.Cue(ambush, new ScriptStart(dialogue.Marks, MapRecord.VoxelId(map.Id, dialogue.Index)), dialogue.Stage!);
+        session.Cue(ambush, new ScriptStart(dialogue.Marks, map.ObjectId(dialogue.Index)), dialogue.Stage!.Value);
         Tick(session);
         Assert.Equal(PressOutcome.Ignored, session.Press(MenuAction.Start));
         Assert.Equal(PressOutcome.Ignored, session.Press(MenuAction.Accept));
@@ -129,7 +129,7 @@ public sealed partial class GameSessionTests
         // So does a cut-scene's end.
         var ambush = Data.Set.Get<ScriptRecord>(RecordId.Parse("aidyn:script/0x0365"));
         var (_, map, dialogue) = Data.Of<ScriptObject>().First(d => d.Object.Plays == ambush.Id && d.Object.Stage is not null);
-        session.Cue(ambush, new ScriptStart(dialogue.Marks, MapRecord.VoxelId(map.Id, dialogue.Index)), dialogue.Stage!);
+        session.Cue(ambush, new ScriptStart(dialogue.Marks, map.ObjectId(dialogue.Index)), dialogue.Stage!.Value);
         for (var i = 0; i < 200 && Tick(session) != SessionStep.CutSceneCued; i++)
         {
         }
@@ -222,7 +222,7 @@ public sealed partial class GameSessionTests
         var (session, _) = Start();
         var ambush = Data.Set.Get<ScriptRecord>(RecordId.Parse("aidyn:script/0x0365"));
         var (_, map, dialogue) = Data.Of<ScriptObject>().First(d => d.Object.Plays == ambush.Id && d.Object.Stage is not null);
-        session.Cue(ambush, new ScriptStart(dialogue.Marks, MapRecord.VoxelId(map.Id, dialogue.Index)), dialogue.Stage!);
+        session.Cue(ambush, new ScriptStart(dialogue.Marks, map.ObjectId(dialogue.Index)), dialogue.Stage!.Value);
         var step = SessionStep.Trek;
         for (var i = 0; i < 200 && step != SessionStep.CutSceneCued; i++)
             step = Tick(session);

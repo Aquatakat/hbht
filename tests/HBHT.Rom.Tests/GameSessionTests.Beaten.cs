@@ -13,17 +13,16 @@ namespace HBHT.Rom.Tests;
 public sealed partial class GameSessionTests
 {
     /// <summary>The Cave Bear north of Erromon, in the Overworld's A06: a fight with no flag to mark it beaten.</summary>
-    private static readonly RecordId CaveBear = RecordId.Parse("aidyn:voxel/0x0E96/0");
+    private static readonly RecordId CaveBear = Ids.MapObject(0, "A06", 0);
 
     [Fact]
     public void AFlaglessPartyBeatenStaysAwayUntilThePlayerHasLeftTheAreaAndComeBack()
     {
-        var map = Data.Set.Get<MapRecord>(MapRecord.MapOf(CaveBear));
-        var bear = Assert.IsType<MonsterPartyObject>(map.Objects.Single(o => o.Index == MapRecord.IndexOf(CaveBear)));
+        var map = Data.Set.Get<ChunkRecord>(ChunkRecord.ChunkOf(CaveBear));
+        var bear = Assert.IsType<EncounterObject>(map.Objects.Single(o => o.Index == ChunkRecord.IndexOf(CaveBear)));
         Assert.Equal("Cave Bear", Data.Set.Get<EntityRecord>(bear.Entity).Name);
         Assert.Null(bear.Used);
-        Assert.Null(bear.Script);
-
+        
         var (session, host) = Start("A06", 30, 60);
         var trek = session.Trek;
         bool BearThere() => trek.Wanderers.All.Any(w => w.Map.Record.Id == map.Id && w.Party.Index == bear.Index);
@@ -31,7 +30,7 @@ public sealed partial class GameSessionTests
 
         // The bear's battle, won: under flag 0, which can't be set and reads clear, so it's remembered (Combat.StateVictory, 0x80022450).
         var (place, terrain) = trek.Here();
-        session.CueBattle(BattleSetup.WithParty(BattleSource.MonsterParty, CaveBear, bear, place, terrain, ambush: false) with { Arena = 1 });
+        session.CueBattle(BattleSetup.WithParty(BattleSource.Encounter, CaveBear, bear, place, terrain, ambush: false) with { Arena = Battlefield.Chunk(1) });
         Assert.Equal(SessionStep.BattleCued, TickUntil(session, SessionStep.BattleCued, 200));
         session.BeginBattle();
         var battle = session.Battle!;
@@ -60,7 +59,7 @@ public sealed partial class GameSessionTests
         var set = trek.Chunks.MapSet;
         void WalkTo(string name)
         {
-            var chunk = set.Chunks.Single(c => c.Name == name);
+            var chunk = Data.Set.ChunksIn(set.Id).Single(c => c.Name == name);
             // The first ground on a 10-unit grid across the chunk.
             var (at, grounded) = (from x in Enumerable.Range(1, 9)
                                   from z in Enumerable.Range(1, 9)

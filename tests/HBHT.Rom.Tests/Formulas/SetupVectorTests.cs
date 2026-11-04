@@ -82,7 +82,7 @@ public sealed class SetupVectorTests(Na10Import fixture, ITestOutputHelper outpu
             case Fill:
             {
                 var kinds = args[2..].Chunk(3).Select(k => new PartyEnemy(RecordId.Hex(RecordTypes.Entity, k[0]), k[1], k[2])).ToList();
-                var setup = new BattleSetup(BattleSource.MonsterParty, null, null, null, kinds, null, false, true, null) { Size = (args[0], args[1]) };
+                var setup = new BattleSetup(BattleSource.Encounter, null, null, null, kinds, null, false, true, null) { Size = (args[0], args[1]) };
                 var list = setup.FillEnemies(game.Party, e => game.Plugins.TryGet<EntityRecord>(e)?.Sheet?.Level ?? 0, random,
                     game.Plugins.Singleton<CombatRecord>().Fallback);
                 actual.Add(("enemies", list.Count > 0 ? string.Join(',', list.Select(e => e.Key)) : "-"));
@@ -90,8 +90,8 @@ public sealed class SetupVectorTests(Na10Import fixture, ITestOutputHelper outpu
             }
             case ChooseArena:
             {
-                var setup = new BattleSetup(BattleSource.MonsterParty, null, args[0], null, [], null, false, true, null);
-                actual.Add(("arena", setup.ChooseArena(game.Plugins, random) is { } arena ? arena : "none"));
+                var setup = new BattleSetup(BattleSource.Encounter, null, RecordId.Decimal(RecordTypes.Terrain, args[0]), null, [], null, false, true, null);
+                actual.Add(("arena", setup.ChooseArena(game.Plugins, random) is { } arena ? Battlefield.Number(arena) : "none"));
                 break;
             }
             case Ambush:

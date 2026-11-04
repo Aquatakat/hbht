@@ -73,7 +73,7 @@ public sealed partial class GameSessionTests
         }
 
         // The new game's chunk, I08, is terrain 2, under sky 0: its noon column, 6.
-        var plains = TerrainRecord.Find(Data.Set, 2)!;
+        var plains = Data.Set.Get<TerrainRecord>(RecordId.Decimal(RecordTypes.Terrain, 2));
         var gradient = new SkyGradient(PngImage.Read(Data.Set.FindAsset(plains.Sky, "png")!)!.Value.Rgba);
         (int, int, int) Bytes(int row) => ((int)MathF.Round(gradient[6, row].X * 255), (int)MathF.Round(gradient[6, row].Y * 255), (int)MathF.Round(gradient[6, row].Z * 255));
         Assert.Equal((225, 225, 225), Bytes(SkyGradient.TintRow));

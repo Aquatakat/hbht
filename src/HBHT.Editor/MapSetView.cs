@@ -23,10 +23,10 @@ namespace HBHT.Editor;
 public partial class MapSetView : VBoxContainer
 {
     /// <summary>What to show: chunks of a set, framing a chunk, an object, or the chunks.</summary>
-    public sealed record Focus(MapSetRecord Set, IReadOnlyList<ChunkEntry> Chunks, ChunkEntry? Chunk = null, RecordId? Object = null);
+    public sealed record Focus(MapSetRecord Set, IReadOnlyList<ChunkRecord> Chunks, ChunkRecord? Chunk = null, RecordId? Object = null);
 
     /// <summary>A map object with a marker, where it is in the map set.</summary>
-    private sealed record Marked(RecordId Id, MapObject Object, ChunkEntry Chunk, Vector3 Position);
+    private sealed record Marked(RecordId Id, MapObject Object, ChunkRecord Chunk, Vector3 Position);
 
     private const float MarkerPixels = 10;
 
@@ -114,7 +114,10 @@ public partial class MapSetView : VBoxContainer
     private readonly Dictionary<(int Row, int Column), IReadOnlyDictionary<int, ContainerLook>> _looks = [];
     private readonly List<Marked> _objects = [];
     private readonly List<Marked> _shown = [];
-    private readonly Dictionary<RecordId, ChunkEntry> _chunkOfMap = [];
+    private readonly Dictionary<RecordId, ChunkRecord> _chunkOfId = [];
+
+    /// <summary>How many chunks the map set shown has.</summary>
+    private int _setChunks;
 
     private PluginCatalog? _catalog;
     private Models? _models;
@@ -196,14 +199,14 @@ public partial class MapSetView : VBoxContainer
         _all.Pressed += () =>
         {
             if (_set is { } set && _catalog is { } catalog && _models is { } models)
-                _ = BackgroundTask.Report(ShowAsync(catalog, models, _game, new Focus(set, set.Chunks)));
+                _ = BackgroundTask.Report(ShowAsync(catalog, models, _game, new Focus(set, [.. catalog.Plugins.ChunksIn(set.Id)])));
         };
         _fields.Opened += id => Opened?.Invoke(id);
         _orbit.PointUnder = point => Cast(point)?.Point;
         _orbit.Near = 0.05f;
     }
 
-    /// <summary>A link was followed, or an object picked: its voxel ID.</summary>
+    /// <summary>A link was followed, or an object picked: its map object's ID.</summary>
     public event Action<RecordId>? Opened;
 
     /// <summary>Colours the collision, for scripts (<c>--collision surface|role</c>).</summary>
@@ -223,7 +226,8 @@ public partial class MapSetView : VBoxContainer
         _looks.Clear();
         _collisionLayer.Clear();
         _objects.Clear();
-        _chunkOfMap.Clear();
+        _chunkOfId.Clear();
+        _setChunks = 0;
         SetStatus("", "");
         _set = null;
         _catalog = null;
@@ -245,17 +249,18 @@ public partial class MapSetView : VBoxContainer
         var generation = ++_generation;
         (_catalog, _models, _game, _set) = (catalog, models, game, focus.Set);
         _gate.Disabled = game is null;
-        foreach (var chunk in focus.Set.Chunks)
-            _chunkOfMap.TryAdd(chunk.Map, chunk);
+        _setChunks = ChunkIndex.For(catalog.Plugins).In(focus.Set.Id).Count;
+        foreach (var chunk in focus.Chunks)
+            _chunkOfId.TryAdd(chunk.Id, chunk);
 
-        var centre = focus.Object is { } voxel && _chunkOfMap.GetValueOrDefault(MapRecord.MapOf(voxel)) is { } objectChunk
+        var centre = focus.Object is { } voxel && _chunkOfId.GetValueOrDefault(ChunkRecord.ChunkOf(voxel)) is { } objectChunk
             ? objectChunk
             : focus.Chunk;
         var missing = focus.Chunks.Where(c => !_chunks.ContainsKey((c.Row, c.Column)))
             .OrderBy(c => centre is null ? 0 : Math.Max(Math.Abs(c.Row - centre.Row), Math.Abs(c.Column - centre.Column)))
             .ToList();
         var plugins = catalog.Plugins;
-        var reading = Task.Run(() => missing.ToDictionary(c => c, c => plugins.FindAsset(c.Map, "glb") is { } path
+        var reading = Task.Run(() => missing.ToDictionary(c => c, c => c.Collision is { } asset && plugins.FindAsset(asset, "glb") is { } path
             ? CollisionMesh.Read(File.ReadAllBytes(path)) : (IReadOnlyList<CollisionTriangle>)[]));
 
         var collision = await reading;
@@ -273,7 +278,7 @@ public partial class MapSetView : VBoxContainer
             FrameCells([focus.Chunk]);
         else if (focus.Object is not null ? missing.Count > 0 && centre is not null : missing.Count == focus.Chunks.Count)
             FrameCells(focus.Object is not null ? [centre!] : focus.Chunks);
-        _all.Visible = _chunks.Count + missing.Count < focus.Set.Chunks.Count;
+        _all.Visible = _chunks.Count + missing.Count < _setChunks;
 
         var clock = Stopwatch.StartNew();
         for (var i = 0; i < missing.Count; i++)
@@ -281,8 +286,8 @@ public partial class MapSetView : VBoxContainer
             var chunk = missing[i];
             var origin = focus.Set.Origin(chunk.Row, chunk.Column).ToGodot();
             BuildScenery(plugins, models, focus.Set, chunk);
-            foreach (var o in plugins.Get<MapRecord>(chunk.Map).Objects)
-                _objects.Add(new Marked(MapRecord.VoxelId(chunk.Map, o.Index), o, chunk, o.Position.ToGodot() + origin));
+            foreach (var o in chunk.Objects)
+                _objects.Add(new Marked(chunk.ObjectId(o.Index), o, chunk, o.Position.ToGodot() + origin));
             if (clock.ElapsedMilliseconds > 30 && i < missing.Count - 1)
             {
                 SetStatus(summary: $"Loading {focus.Set.Label}: {i + 1:N0} of {missing.Count:N0} chunks…");
@@ -297,7 +302,7 @@ public partial class MapSetView : VBoxContainer
         // Each chunk's collision was coloured as it came in.
         _collisionLayer.Node.Visible = Colouring != CollisionLayer.Colouring.Off;
         ApplyFilters();
-        _all.Visible = _chunks.Count < focus.Set.Chunks.Count;
+        _all.Visible = _chunks.Count < _setChunks;
         SetStatus(summary: Summary());
         // An object opened from elsewhere is framed; one picked here only if it's out of view.
         Select(focus.Object is { } id ? _objects.FirstOrDefault(m => m.Id == id) : null, missing.Count > 0 ? Framing.Always : Framing.OutOfView);
@@ -307,7 +312,7 @@ public partial class MapSetView : VBoxContainer
     /// A chunk's scenery, with its containers' scene objects showing the model the editor's game's flags give them while the
     /// <b>Flags</b> switch is on (<see cref="LoadedMap.Looks"/>, as the runtime loads them), else as placed.
     /// </summary>
-    private void BuildScenery(PluginSet plugins, Models models, MapSetRecord set, ChunkEntry chunk)
+    private void BuildScenery(PluginSet plugins, Models models, MapSetRecord set, ChunkRecord chunk)
     {
         var looks = ContainerLooks(plugins, chunk);
         var scenery = _chunks[(chunk.Row, chunk.Column)] = ChunkScenery.Load(plugins, models, set, chunk, _ => true,
@@ -320,9 +325,9 @@ public partial class MapSetView : VBoxContainer
             placed.Levels.FirstOrDefault(l => l is not null)?.Show(0xFF);
     }
 
-    private IReadOnlyDictionary<int, ContainerLook> ContainerLooks(PluginSet plugins, ChunkEntry chunk) =>
+    private IReadOnlyDictionary<int, ContainerLook> ContainerLooks(PluginSet plugins, ChunkRecord chunk) =>
         _gate.ButtonPressed && _game is { } game
-            ? LoadedMap.Looks(plugins.Get<MapRecord>(chunk.Map), game.Network.IsSet, game.Game.Memory)
+            ? LoadedMap.Looks(chunk, game.Network.IsSet, game.Game.Memory)
             : new Dictionary<int, ContainerLook>();
 
     /// <summary>Builds again the chunks whose containers should show other models than they were built with.</summary>
@@ -330,7 +335,7 @@ public partial class MapSetView : VBoxContainer
     {
         if (_catalog is not { } catalog || _models is not { } models || _set is not { } set)
             return;
-        foreach (var chunk in set.Chunks.Where(c => _chunks.ContainsKey((c.Row, c.Column))))
+        foreach (var chunk in _chunkOfId.Values.Where(c => _chunks.ContainsKey((c.Row, c.Column))).ToList())
         {
             var key = (chunk.Row, chunk.Column);
             var looks = ContainerLooks(catalog.Plugins, chunk);
@@ -346,7 +351,7 @@ public partial class MapSetView : VBoxContainer
     private string Summary()
     {
         var shown = _objects.Count(m => Shown(m.Object));
-        return $"{_set!.Label}: {_chunks.Count:N0} of {_set.Chunks.Count:N0} chunks, cells {_set.CellSize:0.##} apart, " +
+        return $"{_set!.Label}: {_chunks.Count:N0} of {_setChunks:N0} chunks, cells {_set.CellSize:0.##} apart, " +
             $"{_collisionLayer.Triangles:N0} triangles, {shown:N0} objects";
     }
 
@@ -501,7 +506,7 @@ public partial class MapSetView : VBoxContainer
 
     // ---- The grid and framing -------------------------------------------------------------------
 
-    private void AddGridCell(ChunkEntry chunk, Vector3 origin)
+    private void AddGridCell(ChunkRecord chunk, Vector3 origin)
     {
         var size = _set!.CellSize;
         var y = _collisionLayer.Bounds(chunk)?.GetCenter().Y ?? origin.Y;
@@ -530,7 +535,7 @@ public partial class MapSetView : VBoxContainer
     /// Frames chunks by their collision, cut to their cells, since one chunk has a stray box far
     /// away. Interiors are small rooms in large cells.
     /// </summary>
-    private void FrameCells(IEnumerable<ChunkEntry> chunks)
+    private void FrameCells(IEnumerable<ChunkRecord> chunks)
     {
         var set = _set!;
         Aabb? box = null;
@@ -546,7 +551,7 @@ public partial class MapSetView : VBoxContainer
         if (box is not { } framed)
             return;
         // Far enough to see the whole set from well outside it.
-        _orbit.Far = Mathf.Max(10000, (set.Chunks.Max(c => Math.Max(c.Row, c.Column)) + 1) * set.CellSize * 4);
+        _orbit.Far = Mathf.Max(10000, (_chunkOfId.Values.Select(c => Math.Max(c.Row, c.Column)).DefaultIfEmpty(0).Max() + 1) * set.CellSize * 4);
         _orbit.Pitch = -0.85f;
         _orbit.Yaw = 0.35f;
         _orbit.Frame(_camera, framed.GetCenter(), Mathf.Max(framed.Size.Length() / 2, 5) * 0.6f);
@@ -679,7 +684,7 @@ public partial class MapSetView : VBoxContainer
             }
         }
         lines.SurfaceSetColor(new Color(1, 1, 1, 0.9f));
-        var linked = Links(json).Where(id => id.Type == RecordTypes.Voxel).Distinct()
+        var linked = Links(json).Where(id => id.Type == RecordTypes.MapObject).Distinct()
             .Select(id => _objects.FirstOrDefault(m => m.Id == id)).OfType<Marked>().ToList();
         foreach (var other in linked)
         {
@@ -698,8 +703,8 @@ public partial class MapSetView : VBoxContainer
         _lookThrough.Visible = o is CameraObject { RefPoint: not null } camera && (camera.Flags & CameraFlags.Position) != 0;
         _opened.Text = "";
         var there = Shown(o) ? "" : " It isn't there with these switches.";
-        _title.Text = $"{catalog.Describe(o)}\nObject {o.Index} of {marked.Chunk.Map}, in {_set!.Label} {marked.Chunk.Name}.{there}";
-        _fields.Show(json, field => catalog.Plugins.Setters(marked.Chunk.Map, $"objects[{o.Index}].{field}"), id => catalog.Find(id) is not null || id.Type == RecordTypes.Voxel);
+        _title.Text = $"{catalog.Describe(o)}\nObject {o.Index} of {marked.Chunk.Id}, in {_set!.Label} {marked.Chunk.Name}.{there}";
+        _fields.Show(json, field => catalog.Plugins.Setters(marked.Chunk.Id, $"objects[{o.Index}].{field}"), id => catalog.Find(id) is not null || id.Type == RecordTypes.MapObject);
 
         var outOfView = _camera.IsPositionBehind(marked.Position) ||
             !new Rect2(Vector2.Zero, _container.Size).HasPoint(_camera.UnprojectPosition(marked.Position)) ||

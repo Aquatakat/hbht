@@ -10,12 +10,12 @@ namespace HBHT.Core.Chunks;
 /// sets' I08 are different keys, so a stage's or an arena's chunks can't be taken for trek's.
 /// </summary>
 /// <param name="MapSet">The map set's record, <c>aidyn:mapset/&lt;n&gt;</c>.</param>
-/// <param name="Row">As in <see cref="ChunkEntry.Row"/>.</param>
-/// <param name="Column">As in <see cref="ChunkEntry.Column"/>.</param>
+/// <param name="Row">As in <see cref="ChunkRecord.Row"/>.</param>
+/// <param name="Column">As in <see cref="ChunkRecord.Column"/>.</param>
 public readonly record struct ChunkKey(RecordId MapSet, int Row, int Column)
 {
-    /// <summary>A chunk of a map set.</summary>
-    public static ChunkKey Of(MapSetRecord set, ChunkEntry chunk) => new(set.Id, chunk.Row, chunk.Column);
+    /// <summary>A chunk's cell.</summary>
+    public static ChunkKey Of(ChunkRecord chunk) => new(chunk.MapSet, chunk.Row, chunk.Column);
 
     public override string ToString() => $"{MapSet} {Row},{Column}";
 }

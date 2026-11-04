@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Numerics;
 using System.Text.Json.Serialization;
 
@@ -5,32 +6,34 @@ namespace HBHT.Plugins.Records;
 
 /// <summary>
 /// A set of map chunks loaded as one world, such as the overworld or the Gwernia interiors
-/// (<c>aidyn:mapset/n</c>, the original's <c>EnumMapDatA</c>). Teleporters move between sets.
+/// (<c>aidyn:mapset/n</c>, the original's <c>EnumMapDatA</c>). Teleporters move between sets. Its chunks are records of their own
+/// (<see cref="ChunkRecord"/>), which say they're in it: the plugin set finds them by their cell (<see cref="ChunkIndex"/>, ADR 0035).
 /// </summary>
 /// <param name="Label">The set's name, for tools.</param>
 /// <param name="CellSize">The spacing of the chunks, the same along X and Z.</param>
 /// <param name="Music">
 /// The music that plays in the set, one at random as each chunk is come into, where the chunk has none of its own
-/// (<see cref="ChunkEntry.Music"/>). With neither, the music stops.
+/// (<see cref="ChunkRecord.Music"/>). With neither, the music stops.
 /// </param>
 /// <param name="Spawns">
 /// The places the game puts the player when it enters the set by number, not through a teleporter (<c>Zones.SetMapSet</c>'s portals,
 /// <c>0x80026264</c>), or null for a set the code gives none. The Overworld's portal 0 is a new game's start
 /// (<see cref="NewGameRecord"/>).
 /// </param>
+/// <param name="Minimap">Its minimap in trek, or none (8 of the 17 have one).</param>
 public sealed record MapSetRecord(
     RecordId Id,
     string Label,
     float CellSize,
-    [property: KeyedList(nameof(ChunkEntry.Row), nameof(ChunkEntry.Column))] IReadOnlyList<ChunkEntry> Chunks,
     IReadOnlyList<RecordId>? Music = null,
-    [property: KeyedList(nameof(SpawnPoint.Portal))] IReadOnlyList<SpawnPoint>? Spawns = null)
+    [property: KeyedList(nameof(SpawnPoint.Portal))] IReadOnlyList<SpawnPoint>? Spawns = null,
+    MinimapPlan? Minimap = null)
 {
     /// <summary>Where a chunk's own coordinates start: rows run along X and columns along Z.</summary>
     public Vector3 Origin(int row, int column) => new Vector3(row, 0, column) * CellSize;
 
-    /// <summary>The chunk at a row and column, or null where the set has none.</summary>
-    public ChunkEntry? Chunk(int row, int column) => Chunks.FirstOrDefault(c => c.Row == row && c.Column == column);
+    /// <summary>Where a chunk of the set's own coordinates start.</summary>
+    public Vector3 Origin(ChunkRecord chunk) => Origin(chunk.Row, chunk.Column);
 }
 
 /// <summary>
@@ -38,20 +41,35 @@ public sealed record MapSetRecord(
 /// immediates and x and z floats. The player's body is made 10 up and set down from there (<c>InitGameTrek</c>).
 /// </summary>
 /// <param name="Portal">The number the code is asked for: 0, or 1 in the Misc interiors. A Battle arena's is its number.</param>
-/// <param name="Row">As in <see cref="ChunkEntry.Row"/>.</param>
+/// <param name="Row">As in <see cref="ChunkRecord.Row"/>.</param>
 /// <param name="Position">Where in the chunk, x and z.</param>
 public sealed record SpawnPoint(int Portal, int Row, int Column, Vector2 Position);
 
 /// <summary>
-/// One chunk of a <see cref="MapSetRecord"/>. The runtime keeps the 3×3 chunks around the player
-/// loaded, and draws the scenery of those its <see cref="Shows"/> name and, under Draw Distance's Extended, of the 5×5
-/// (docs/systems/rendering.md#draw-distance).
+/// One cell of a map set (<c>aidyn:chunk/&lt;set&gt;/&lt;name&gt;</c>, ADR 0035): its scenery, its collision, and its map objects. The
+/// runtime keeps the 3×3 chunks around the player loaded, and draws the scenery of those its <see cref="Shows"/> name and, under Draw
+/// Distance's Extended, of the 5×5 (docs/systems/rendering.md#draw-distance). The base plugin writes each in a file of its own,
+/// <c>records/chunks/&lt;set&gt;/&lt;name&gt;.json</c>, which is read when the chunk is first asked for (ADR 0036).
 /// </summary>
-/// <param name="Row">1-based. The debug overlay shows it as a letter, so row 8 is H.</param>
-/// <param name="Scene">The chunk's scenery, drawn at its origin.</param>
+/// <param name="MapSet">The map set it's a cell of.</param>
+/// <param name="Row">1-based: row 8 is H. Rows run along X.</param>
+/// <param name="Column">Columns run along Z.</param>
+/// <param name="Terrain">The terrain type, which the sky, the weather, camping and a battle's arena go by.</param>
+/// <param name="Objects">
+/// Its map objects, keyed by <see cref="MapObject.Index"/>, which is also the last segment of the object's ID
+/// (<c>aidyn:mapobject/8/C05/17</c>, <see cref="ObjectId(int)"/>). Every type is imported but the code objects, which the game does
+/// nothing with.
+/// </param>
+/// <param name="Borg">
+/// The Borg9 it came from, such as <c>0x1436</c>, for the emulator and AidynEditor: nothing reads it. The original shares 9 between
+/// cells (the sea's and 21 arenas'), which the importer copies into each.
+/// </param>
+/// <param name="Collision">
+/// Its collision, an asset (<c>aidyn:collision/0xHHHH</c>): a glTF mesh in chunk coordinates whose vertices carry their triangle's
+/// <c>_SURFACE</c>, <c>_ROLE</c>, <c>_FLAGS</c> and <c>_TARGET</c>. Chunks copied from one Borg9 name the same. None, no collision.
+/// </param>
+/// <param name="Scene">Its scenery, drawn at its origin.</param>
 /// <param name="AltScene">Its see-through scenery, such as water, drawn after everything else.</param>
-/// <param name="Map">Its collision and map objects.</param>
-/// <param name="Terrain">The terrain type, which weather and camp encounters use.</param>
 /// <param name="Music">The music that plays as the player comes into it, before its map set's own.</param>
 /// <param name="Region">
 /// The world map region flag entering it sets, in trek or a cut-scene's stage, where its terrain draws the sky and its map set has
@@ -73,25 +91,39 @@ public sealed record SpawnPoint(int Portal, int Row, int Column, Vector2 Positio
 /// drawn while it's loaded, out to one past the 3×3 or the 5×5 round the player, so the view past the loaded chunks is the
 /// chunks themselves rather than a copy of them. Null for none.
 /// </param>
-public sealed record ChunkEntry(
+/// <param name="Grid">The objects each cell of the chunk's collision grid lists, or none for a chunk without one.</param>
+public sealed record ChunkRecord(
+    RecordId Id,
+    RecordId MapSet,
     int Row,
     int Column,
-    RecordId? Scene,
-    RecordId? AltScene,
-    RecordId Map,
-    int Terrain,
+    RecordId Terrain,
+    [property: KeyedList(nameof(MapObject.Index)), JsonPropertyOrder(2)] IReadOnlyList<MapObject> Objects,
+    string? Borg = null,
+    RecordId? Collision = null,
+    RecordId? Scene = null,
+    RecordId? AltScene = null,
     RecordId? Music = null,
     RecordId? Region = null,
     SceneSwap? Swap = null,
     RecordId? Fill = null,
-    bool Extended = false,
-    [property: KeyedList(nameof(ChunkCell.Row), nameof(ChunkCell.Column))] IReadOnlyList<ChunkCell>? Shows = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool Extended = false,
+    IReadOnlyList<RecordId>? Shows = null,
+    [property: JsonPropertyOrder(1)] ObjectGrid? Grid = null)
 {
+    /// <summary>
+    /// The neighbours drawn while the player is in this chunk even when the camera's view doesn't cross them
+    /// (Borg9 header byte 0x1B, which <c>RenderZones</c> and <c>RenderTransZones</c> read). Only 21 chunks of the
+    /// Overworld have any. Null for none.
+    /// </summary>
+    [JsonPropertyOrder(1)]
+    public Neighbours? DrawnNeighbours { get; init; }
+
     /// <summary>
     /// The chunk as it's drawn by the flags as they are, which it's read by as it loads: with its <see cref="Swap"/>'s scenes
     /// while that holds, else as it is.
     /// </summary>
-    public ChunkEntry Drawn(Func<FlagGate, bool> holds) =>
+    public ChunkRecord Drawn(Func<FlagGate, bool> holds) =>
         Swap is { } swap && holds(swap.While) ? this with { Scene = swap.Scene, AltScene = swap.AltScene } : this;
 
     /// <summary>Every scene it could draw: its own, its <see cref="Swap"/>'s, and its <see cref="Fill"/>.</summary>
@@ -99,63 +131,121 @@ public sealed record ChunkEntry(
     public IEnumerable<RecordId> AllScenes =>
         new[] { Scene, AltScene, Swap?.Scene, Swap?.AltScene, Fill }.OfType<RecordId>().Distinct();
 
-    /// <summary>The chunk as the debug overlay names it, such as <c>I08</c>.</summary>
+    /// <summary>The chunk as the debug overlay names it, such as <c>I08</c> (<see cref="NameOf"/>), whatever its ID.</summary>
     [JsonIgnore]
-    public string Name => Row is >= 1 and <= 26 ? $"{(char)('A' + Row - 1)}{Column:D2}" : $"{Row},{Column}";
+    public string Name => NameOf(Row, Column);
 
     /// <summary>
     /// The <see cref="Region"/> entering the chunk sets, or none: only where its terrain draws the sky and its map set has no
     /// minimap (<c>LoadGameBorgScenes</c>, <c>0x8000b5f4</c>).
     /// </summary>
-    public RecordId? RegionFound(PluginSet plugins, RecordId mapSet) =>
-        Region is { } region && TerrainRecord.Find(plugins, Terrain)?.SkyDrawn == true
-            && !plugins.All<MinimapRecord>(RecordTypes.Minimap).Any(m => m.MapSet == mapSet)
+    public RecordId? RegionFound(PluginSet plugins) =>
+        Region is { } region && plugins.TryGet<TerrainRecord>(Terrain)?.SkyDrawn == true
+            && plugins.TryGet<MapSetRecord>(MapSet)?.Minimap is null
             ? region
             : null;
-}
 
-/// <summary>A chunk's place in its map set, as <see cref="ChunkEntry.Shows"/> names it.</summary>
-public sealed record ChunkCell(int Row, int Column);
+    /// <summary>Its object at an index, or null.</summary>
+    public MapObject? Object(int index) => Objects.FirstOrDefault(o => o.Index == index);
+
+    /// <summary>The ID of its object at <paramref name="index"/>, such as <c>aidyn:mapobject/8/C05/17</c>.</summary>
+    public RecordId ObjectId(int index) => ObjectId(Id, index);
+
+    /// <summary>
+    /// A cell's name, as the original's debug build prints it (<c>"New Grid: %d-%c%02d"</c>): the row's letter, <c>row − 1 + 'A'</c>,
+    /// then the column in two digits, such as <c>C05</c>. A cell outside rows A–Z or at a negative column, which the original has none
+    /// of (the importer's sea north of the Overworld's row A), is its row and column, such as <c>0_13</c> and <c>-1_13</c>.
+    /// </summary>
+    public static string NameOf(int row, int column) =>
+        row is >= 1 and <= 26 && column >= 0
+            ? string.Create(CultureInfo.InvariantCulture, $"{(char)('A' + row - 1)}{column:D2}")
+            : string.Create(CultureInfo.InvariantCulture, $"{row}_{column}");
+
+    /// <summary>The row and column a cell's name (<see cref="NameOf"/>) says, or null for a name it doesn't spell.</summary>
+    public static (int Row, int Column)? CellOf(string name)
+    {
+        if (name.Length >= 3 && name[0] is >= 'A' and <= 'Z'
+            && int.TryParse(name.AsSpan(1), NumberStyles.None, CultureInfo.InvariantCulture, out var column))
+            return (name[0] - 'A' + 1, column);
+        var underscore = name.IndexOf('_', StringComparison.Ordinal);
+        return underscore > 0
+            && int.TryParse(name.AsSpan(0, underscore), NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var row)
+            && int.TryParse(name.AsSpan(underscore + 1), NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var col)
+            ? (row, col)
+            : null;
+    }
+
+    /// <summary>A base-game chunk's ID: <c>aidyn:chunk/&lt;set&gt;/&lt;name&gt;</c>, such as <c>aidyn:chunk/8/C05</c>.</summary>
+    public static RecordId IdOf(int mapSet, int row, int column) =>
+        RecordId.Parse(string.Create(CultureInfo.InvariantCulture, $"{RecordId.BaseNamespace}:{RecordTypes.Chunk}/{mapSet}/{NameOf(row, column)}"));
+
+    /// <summary>A base-game chunk's ID in a map set by its record, <c>aidyn:mapset/n</c>.</summary>
+    public static RecordId IdOf(RecordId mapSet, int row, int column) =>
+        IdOf(int.Parse(mapSet.Key, CultureInfo.InvariantCulture), row, column);
+
+    /// <summary>
+    /// The map set, row and column a base-game chunk's ID names, read from the ID alone (the plugin set indexes the base plugin's
+    /// chunks without reading them, ADR 0036); null for a mod's chunk, whose key is a name.
+    /// </summary>
+    public static (RecordId MapSet, int Row, int Column)? PlaceOf(RecordId chunk)
+    {
+        if (chunk.Namespace != RecordId.BaseNamespace || chunk.Type != RecordTypes.Chunk)
+            return null;
+        var slash = chunk.Key.IndexOf('/', StringComparison.Ordinal);
+        return CellOf(chunk.Key[(slash + 1)..]) is { } cell
+            ? (RecordId.Parse($"{RecordId.BaseNamespace}:{RecordTypes.MapSet}/{chunk.Key[..slash]}"), cell.Row, cell.Column)
+            : null;
+    }
+
+    /// <summary>The ID of the object at <paramref name="index"/> in <paramref name="chunk"/>, such as <c>aidyn:mapobject/8/C05/17</c>.</summary>
+    public static RecordId ObjectId(RecordId chunk, int index) =>
+        RecordId.Parse(string.Create(CultureInfo.InvariantCulture, $"{chunk.Namespace}:{RecordTypes.MapObject}/{chunk.Key}/{index}"));
+
+    /// <summary>The chunk a map object's ID names an object of.</summary>
+    public static RecordId ChunkOf(RecordId mapObject) =>
+        RecordId.Parse($"{mapObject.Namespace}:{RecordTypes.Chunk}/{mapObject.Key[..mapObject.Key.LastIndexOf('/')]}");
+
+    /// <summary>The index within its chunk of the object a map object's ID names, <see cref="MapObject.Index"/>.</summary>
+    public static int IndexOf(RecordId mapObject) =>
+        int.Parse(mapObject.Key.AsSpan(mapObject.Key.LastIndexOf('/') + 1), NumberStyles.None, CultureInfo.InvariantCulture);
+
+    /// <summary>The object a map object's ID names, or null if no plugin has its chunk or the chunk has none at that index.</summary>
+    public static MapObject? Find(PluginSet plugins, RecordId mapObject) =>
+        plugins.TryGet<ChunkRecord>(ChunkOf(mapObject))?.Object(IndexOf(mapObject));
+}
 
 /// <summary>
-/// One chunk's map objects (<c>aidyn:map/0xHHHH</c>, a Borg9). Its collision is the asset of the
-/// same ID: a glTF mesh in chunk coordinates whose vertices carry their triangle's
-/// <c>_SURFACE</c>, <c>_ROLE</c>, <c>_FLAGS</c> and <c>_TARGET</c>.
+/// A map set's minimap in trek (<c>MiniMap</c>), its <see cref="MapSetRecord.Minimap"/>: pieces of a drawn plan, one of which is
+/// the player's, chosen by the chunk he's in, and in some chunks by where he stands or by flags. The pieces of the chosen one's group
+/// that have been seen show around it, and seeing a piece is saved.
 /// </summary>
-/// <param name="Objects">
-/// Keyed by <see cref="MapObject.Index"/>, which is also the last segment of the object's
-/// <c>aidyn:voxel/…</c> ID (<see cref="VoxelId"/>). Every type is imported except the code
-/// objects, which the game does nothing with.
+/// <param name="Sections">The pieces, in the order the game saves whether they've been seen.</param>
+/// <param name="Rules">
+/// Which piece a chunk shows, where it isn't simply the chunk's own: for the player's chunk, the first rule whose flag
+/// and bounds hold chooses its piece, or none. With no rule holding, the chunk's first piece is chosen, and a chunk with
+/// none shows no minimap.
 /// </param>
-/// <param name="Grid">The objects each cell of the chunk's grid lists, or none for a map without one.</param>
-public sealed record MapRecord(RecordId Id, [property: KeyedList(nameof(MapObject.Index))] IReadOnlyList<MapObject> Objects, ObjectGrid? Grid = null)
-{
-    /// <summary>
-    /// The neighbours drawn while the player is in this chunk even when the camera's view doesn't cross them
-    /// (Borg9 header byte 0x1B, which <c>RenderZones</c> and <c>RenderTransZones</c> read). Only 21 chunks of the
-    /// Overworld have any. Null for none.
-    /// </summary>
-    public Neighbours? DrawnNeighbours { get; init; }
+public sealed record MinimapPlan(IReadOnlyList<MinimapSection> Sections, IReadOnlyList<MinimapRule> Rules);
 
-    /// <summary>The ID of the object at <paramref name="index"/> in the map <paramref name="map"/>, such as <c>aidyn:voxel/0x1A20/12</c>.</summary>
-    public static RecordId VoxelId(RecordId map, int index) =>
-        RecordId.Parse(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{map.Namespace}:{RecordTypes.Voxel}/{map.Key}/{index}"));
+/// <summary>
+/// A piece of a minimap: its image's top-left at (<paramref name="X"/>, <paramref name="Y"/>) in its group's plan, in
+/// screen pixels.
+/// </summary>
+/// <param name="Row">The row in its map set, counting from 1 for A, of the chunk the piece is for.</param>
+/// <param name="Group">Pieces drawn together: a floor or a building.</param>
+/// <param name="Seen">Whether it's seen from the start.</param>
+public sealed record MinimapSection(int Row, int Column, int Group, RecordId Image, int X, int Y, bool Seen = false);
 
-    /// <summary>The map a voxel ID names an object of.</summary>
-    public static RecordId MapOf(RecordId voxel) =>
-        RecordId.Parse($"{voxel.Namespace}:{RecordTypes.Map}/{voxel.Key[..voxel.Key.IndexOf('/', StringComparison.Ordinal)]}");
+/// <summary>
+/// In the chunk at <paramref name="Row"/> and <paramref name="Column"/> of its map set, chooses piece <paramref name="Section"/>, or
+/// none when it's null, while <paramref name="Flag"/> is set and the player is within <paramref name="Bounds"/>.
+/// </summary>
+public sealed record MinimapRule(int Row, int Column, int? Section, RecordId? Flag = null, IReadOnlyList<MinimapBound>? Bounds = null);
 
-    /// <summary>The index within its map of the object a voxel ID names, <see cref="MapObject.Index"/>.</summary>
-    public static int IndexOf(RecordId voxel) =>
-        int.Parse(voxel.Key.AsSpan(voxel.Key.LastIndexOf('/') + 1), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture);
+/// <summary>A bound on where the player stands in the chunk, in its own coordinates: below a value, above one, or both.</summary>
+public sealed record MinimapBound(MinimapAxis Axis, float? Below = null, float? Above = null);
 
-    /// <summary>The object a voxel ID names, or null if no plugin has its map or the map has none at that index.</summary>
-    public static MapObject? Find(PluginSet plugins, RecordId voxel)
-    {
-        var index = IndexOf(voxel);
-        return plugins.TryGet<MapRecord>(MapOf(voxel))?.Objects.FirstOrDefault(o => o.Index == index);
-    }
-}
+public enum MinimapAxis { X, Y, Z }
 
 /// <summary>
 /// The eight chunks around one, a bit each, in the order the original's zone engine walks them (its table at
@@ -209,25 +299,21 @@ public sealed record FlagGate(RecordId Flag, bool Invert = false);
 
 /// <summary>
 /// The scenes a chunk draws in place of its own while a flag holds, such as the lighthouse's lit ones
-/// (<see cref="ChunkEntry.Swap"/>).
+/// (<see cref="ChunkRecord.Swap"/>).
 /// </summary>
 /// <param name="While">The flag, read as the chunk loads.</param>
-/// <param name="Scene">Its scenery then, as <see cref="ChunkEntry.Scene"/>.</param>
-/// <param name="AltScene">Its see-through scenery then, as <see cref="ChunkEntry.AltScene"/>.</param>
+/// <param name="Scene">Its scenery then, as <see cref="ChunkRecord.Scene"/>.</param>
+/// <param name="AltScene">Its see-through scenery then, as <see cref="ChunkRecord.AltScene"/>.</param>
 public sealed record SceneSwap(FlagGate While, RecordId? Scene, RecordId? AltScene);
 
 /// <summary>A flag an object writes when it's used: it sets it, or clears it if <see cref="Clear"/>.</summary>
 public sealed record FlagWrite(RecordId Flag, bool Clear = false);
 
-/// <summary>A chunk of a map set, which teleporters lead to and cut-scenes are staged in.</summary>
-/// <param name="Row">As in <see cref="ChunkEntry.Row"/>.</param>
-public sealed record ChunkRef(RecordId MapSet, int Row, int Column);
-
 /// <summary>
-/// A placed map object: a voxel in the original. The flag slots are the original's C, A and B, and
-/// each type has the ones the game reads; the others are left out.
+/// A placed map object: a voxel in the original (<c>aidyn:mapobject/&lt;chunk&gt;/&lt;index&gt;</c>, ADR 0035). The flag slots are the
+/// original's C, A and B, and each type has the ones the game reads; the others are left out.
 /// </summary>
-/// <param name="Index">Within its map.</param>
+/// <param name="Index">Within its chunk.</param>
 /// <param name="Position">In chunk coordinates.</param>
 /// <param name="Radius">
 /// How near the player has to be to use it or to set it off, or for scenery, how far away it's
@@ -236,7 +322,7 @@ public sealed record ChunkRef(RecordId MapSet, int Row, int Column);
 /// <param name="Visible">
 /// Whether it's there at all, as the chunk loads (flag C). Scenes, lights, sounds, wander nodes,
 /// reference points, teleporters, cameras, tripwires, and herb, spice, gem and custom containers
-/// have one. Monster parties, script objects and save points are always there, but for their
+/// have one. Npcs, encounters, script objects and save points are always there, but for their
 /// <see cref="Enabled"/>. Null means always, as the importer writes the original's flag 0 inverted.
 /// </param>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type", IgnoreUnrecognizedTypeDiscriminators = true)]
@@ -245,7 +331,8 @@ public sealed record ChunkRef(RecordId MapSet, int Row, int Column);
 [JsonDerivedType(typeof(LightObject), "light")]
 [JsonDerivedType(typeof(SoundObject), "sound")]
 [JsonDerivedType(typeof(WanderNodeObject), "wanderNode")]
-[JsonDerivedType(typeof(MonsterPartyObject), "monsterParty")]
+[JsonDerivedType(typeof(EncounterObject), "encounter")]
+[JsonDerivedType(typeof(NpcObject), "npc")]
 [JsonDerivedType(typeof(ReferencePointObject), "refPoint")]
 [JsonDerivedType(typeof(TeleporterObject), "teleporter")]
 [JsonDerivedType(typeof(CameraObject), "camera")]
@@ -260,14 +347,14 @@ public record MapObject(
 {
     /// <summary>
     /// Whether it works (flag A): whether a teleporter, tripwire, script object or herb, spice, gem or
-    /// custom container can be used, and whether a monster party is there at all. Null means always.
+    /// custom container can be used, and whether an npc or an encounter is there at all. Null means always.
     /// </summary>
     [JsonPropertyOrder(-1)]
     public FlagGate? Enabled { get; init; }
 
     /// <summary>
-    /// What using it writes (flag B): opening a container, setting off a tripwire, or talking to or
-    /// beating a monster party. Left out where it would write flag 0, which the game ignores.
+    /// What using it writes (flag B): opening a container, setting off a tripwire, talking to an npc or
+    /// beating an encounter. Left out where it would write flag 0, which the game ignores.
     /// </summary>
     [JsonPropertyOrder(-1)]
     public FlagWrite? Used { get; init; }
@@ -286,7 +373,7 @@ public record MapObject(
     public bool Reachable { get; init; }
 
     /// <summary>
-    /// Another object in the same map it works with. To find a container's model or the actor a
+    /// Another object in the same chunk it works with. To find a container's model or the actor a
     /// tripwire animates, the game follows links from object to object until it reaches one of the
     /// type it wants (<c>GetVoxelObjectFromLink</c>, checked in 1.0's code).
     /// </summary>
@@ -504,12 +591,12 @@ public enum WanderFlags
     Rotate = 0x2,
 }
 
-/// <summary>A point wandering NPCs and monster parties move between. Each party names its home node.</summary>
+/// <summary>A point npcs and encounters wander between. Each names its home node.</summary>
 /// <param name="WanderRadius">How far a wanderer can stray from its goal before it walks back.</param>
 /// <param name="Scatter">Each visit's goal is up to this far from the node, in a random direction.</param>
 /// <param name="Chance">The chance of going on to <see cref="Next"/>[1] rather than [0].</param>
 /// <param name="Wait">Ticks before moving on.</param>
-/// <param name="Next">The nodes that follow, in the same map.</param>
+/// <param name="Next">The nodes that follow, in the same chunk.</param>
 public sealed record WanderNodeObject(
     int Index,
     Vector3 Position,
@@ -522,7 +609,7 @@ public sealed record WanderNodeObject(
     WanderFlags Flags,
     IReadOnlyList<RecordId> Next) : MapObject(Index, Position, Radius, Visible);
 
-/// <summary>One kind of enemy in a monster party.</summary>
+/// <summary>One kind of enemy in a party.</summary>
 /// <param name="Min">How many a battle always has.</param>
 /// <param name="Max">How many it can have, with random extras.</param>
 public sealed record PartyEnemy(RecordId Entity, int Min, int Max);
@@ -534,46 +621,160 @@ public enum PartyFlags
     None = 0,
     /// <summary>
     /// Walks to its wander nodes rather than running (<c>FUN_80012d44</c>, which the decomp reads as a
-    /// wander node's flags; 1.0's code reads the party's). Set on 990 of the 1,079.
+    /// wander node's flags; 1.0's code reads the party's). Set on 990 of the 1,079 npcs and encounters.
     /// </summary>
     Walks = 0x2,
     /// <summary>
     /// Talking to it does nothing, though it has a script: it's the body in a scene a script
-    /// object starts.
+    /// object starts. Only an npc has it.
     /// </summary>
     Silent = 0x4,
 }
 
 /// <summary>
-/// An NPC, or a group of enemies, which wanders from its home node. It's there while
-/// <see cref="MapObject.Enabled"/> holds. With a script, using it talks to it and sets
-/// <see cref="MapObject.Used"/>. Without, it's a fight: it's gone while <c>Used</c> is set, and
-/// winning sets it.
+/// Someone or something that wanders from its home node: the original's monster party, which is an <see cref="NpcObject"/> with a
+/// script or an <see cref="EncounterObject"/> without one (ADR 0035). It's there while <see cref="MapObject.Enabled"/> holds.
 /// </summary>
-/// <param name="Entity">The NPC, or the group's leader, which is what the player sees.</param>
-/// <param name="Loot">A loot table the party drops, besides its enemies', or a single item.</param>
-/// <param name="MinSize">A battle with fewer enemies than this, after the random extras, has none.</param>
-/// <param name="MaxSize">The most enemies a battle with the party has.</param>
-/// <param name="Home">The wander node it starts from, in the same map.</param>
-/// <param name="Script">The script talking to it starts.</param>
-/// <param name="BattleFlag">
-/// With a script that starts a battle, the flag winning it sets (flag C). Otherwise a battle sets
-/// <see cref="MapObject.Used"/>.
-/// </param>
-public sealed record MonsterPartyObject(
+/// <param name="Entity">Who the player sees: the npc, or an encounter's leader.</param>
+/// <param name="Home">The wander node it starts from, in the same chunk.</param>
+public abstract record PartyObject(
     int Index,
     Vector3 Position,
     float Radius,
     FlagGate? Visible,
-    IReadOnlyList<PartyEnemy> Enemies,
+    [property: JsonPropertyOrder(-1)] RecordId Entity,
+    [property: JsonPropertyOrder(-1)] RecordId? Home,
+    [property: JsonPropertyOrder(-1)] PartyFlags Flags) : MapObject(Index, Position, Radius, Visible)
+{
+    /// <summary>Who fights the party in a battle with it. An npc whose script starts no battle has none.</summary>
+    [JsonIgnore]
+    public abstract IReadOnlyList<PartyEnemy> Fighters { get; }
+
+    /// <summary>A loot table the party drops in a battle with it, besides its enemies', or a single item.</summary>
+    [JsonIgnore]
+    public abstract RecordId? BonusLoot { get; }
+
+    /// <summary>A battle with fewer enemies than this, after the random extras, has none.</summary>
+    [JsonIgnore]
+    public abstract int FewestFighters { get; }
+
+    /// <summary>The most enemies a battle with it has.</summary>
+    [JsonIgnore]
+    public abstract int MostFighters { get; }
+
+    /// <summary>
+    /// The battle's encounter flag (<c>BattleSetup.FromMonsterParty</c>): an encounter's <see cref="MapObject.Used"/>, which winning
+    /// sets, or an npc's <see cref="NpcObject.BattleFlag"/>, which winning its battle sets too.
+    /// </summary>
+    [JsonIgnore]
+    public abstract RecordId? EncounterFlag { get; }
+
+    /// <summary>
+    /// The rules of a battle with it, or none: what the original keys by its encounter flag (<c>Combat.ApplyFleeRuleByFlag</c> and
+    /// the Goblin Ambush's), which the importer puts here (ADR 0035).
+    /// </summary>
+    [JsonPropertyOrder(1)]
+    public BattleRules? BattleRules { get; init; }
+}
+
+/// <summary>
+/// A group of enemies that wanders from its home node and fights the party: using it, or its catching the party, starts a battle
+/// (<c>monsterpary_func</c>, <c>WanderTick</c>). It's gone while <see cref="MapObject.Used"/> is set, and winning sets it, so
+/// <c>Used</c> is the flag the original keys the battle's rules on, its encounter flag.
+/// </summary>
+/// <param name="Enemies">Who fights: each kind with how many always come and how many can.</param>
+/// <param name="Loot">A loot table the party drops, besides its enemies', or a single item.</param>
+/// <param name="MinSize">A battle with fewer enemies than this, after the random extras, has none.</param>
+/// <param name="MaxSize">The most enemies a battle with it has.</param>
+public sealed record EncounterObject(
+    int Index,
+    Vector3 Position,
+    float Radius,
+    FlagGate? Visible,
     RecordId Entity,
-    RecordId? Loot,
-    int MinSize,
-    int MaxSize,
     RecordId? Home,
     PartyFlags Flags,
-    RecordId? Script,
-    RecordId? BattleFlag) : MapObject(Index, Position, Radius, Visible);
+    IReadOnlyList<PartyEnemy> Enemies,
+    RecordId? Loot,
+    int MinSize,
+    int MaxSize) : PartyObject(Index, Position, Radius, Visible, Entity, Home, Flags)
+{
+    [JsonIgnore]
+    public override IReadOnlyList<PartyEnemy> Fighters => Enemies;
+
+    [JsonIgnore]
+    public override RecordId? BonusLoot => Loot;
+
+    [JsonIgnore]
+    public override int FewestFighters => MinSize;
+
+    [JsonIgnore]
+    public override int MostFighters => MaxSize;
+
+    [JsonIgnore]
+    public override RecordId? EncounterFlag => Used?.Flag;
+}
+
+/// <summary>
+/// Someone who wanders from its home node and talks: using it starts its script and sets <see cref="MapObject.Used"/>. A silent npc
+/// is the body in a scene a script object starts, and using it does nothing. Its script can start a battle, which the original fights
+/// against the npc's party rather than the script's list (<c>0x80051A4C</c>): its <see cref="Enemies"/>, <see cref="Loot"/> and size,
+/// with <see cref="BattleFlag"/> set by winning. 35 of the base game's npcs fight that way.
+/// </summary>
+/// <param name="Script">The script talking to it starts.</param>
+public sealed record NpcObject(
+    int Index,
+    Vector3 Position,
+    float Radius,
+    FlagGate? Visible,
+    RecordId Entity,
+    RecordId? Home,
+    PartyFlags Flags,
+    RecordId Script) : PartyObject(Index, Position, Radius, Visible, Entity, Home, Flags)
+{
+    /// <summary>
+    /// Who fights the party when its script starts a battle, or none. The original gives every npc a list, most naming only the npc
+    /// itself; the importer leaves those out where the script starts no battle.
+    /// </summary>
+    public IReadOnlyList<PartyEnemy>? Enemies { get; init; }
+
+    /// <summary>A loot table the party drops in its battle, besides its enemies', or a single item.</summary>
+    public RecordId? Loot { get; init; }
+
+    /// <summary>A battle with fewer enemies than this, after the random extras, has none. 0 if not given.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int MinSize { get; init; }
+
+    /// <summary>The most enemies its battle has. 0 if not given.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int MaxSize { get; init; }
+
+    /// <summary>The flag winning the battle its script starts sets (the original's flag C), which the battle's rules keyed on.</summary>
+    public RecordId? BattleFlag { get; init; }
+
+    /// <summary>
+    /// The script object whose marks and stage its script plays a cut-scene with, rather than from marks 0 in the chunk the player is
+    /// in: the port's fix, chosen by the user, for a cut-scene that names marks only that object's find, which the original crashes on
+    /// (Keelin's in Terminor C05; docs/systems/scripts.md). The importer sets it where the npc isn't silent, its cut-scene names a mark
+    /// that marks 0 doesn't find in its chunk, and a script object in its chunk that plays the same script finds them all.
+    /// </summary>
+    public RecordId? Stage { get; init; }
+
+    [JsonIgnore]
+    public override IReadOnlyList<PartyEnemy> Fighters => Enemies ?? [];
+
+    [JsonIgnore]
+    public override RecordId? BonusLoot => Loot;
+
+    [JsonIgnore]
+    public override int FewestFighters => MinSize;
+
+    [JsonIgnore]
+    public override int MostFighters => MaxSize;
+
+    [JsonIgnore]
+    public override RecordId? EncounterFlag => BattleFlag;
+}
 
 /// <summary>A named point that teleporters, cameras and scripts refer to. Most sit in clusters where cut-scenes place their cameras.</summary>
 /// <param name="Mark">
@@ -591,6 +792,10 @@ public sealed record ReferencePointObject(
     Vector3? Facing) : MapObject(Index, Position, Radius, Visible);
 
 /// <summary>A door, ladder or portal to another chunk or map set.</summary>
+/// <param name="Destination">
+/// The chunk it leads to, written only where it has no <see cref="Arrival"/>: an arrival's chunk is the destination
+/// (<see cref="Leads"/>).
+/// </param>
 /// <param name="Arrival">
 /// The reference point in the destination chunk the player arrives at, facing its
 /// <see cref="ReferencePointObject.Facing"/>. Without one, the player arrives at the teleporter's
@@ -618,7 +823,7 @@ public sealed record TeleporterObject(
     Vector3 Position,
     float Radius,
     FlagGate? Visible,
-    ChunkRef Destination,
+    RecordId? Destination,
     RecordId? Arrival,
     RecordId? Camera,
     int LockLevel,
@@ -629,7 +834,12 @@ public sealed record TeleporterObject(
     RecordId? DisarmFlag,
     RecordId? SecretFlag,
     int SecretLevel,
-    string Name) : MapObject(Index, Position, Radius, Visible);
+    string Name) : MapObject(Index, Position, Radius, Visible)
+{
+    /// <summary>The chunk it leads to: its <see cref="Arrival"/>'s, else its <see cref="Destination"/>; null for a teleporter with neither.</summary>
+    [JsonIgnore]
+    public RecordId? Leads => Arrival is { } arrival ? ChunkRecord.ChunkOf(arrival) : Destination;
+}
 
 /// <summary>How a camera object moves the camera (the original's <c>CamObjFlags</c>).</summary>
 [Flags]
@@ -659,7 +869,7 @@ public enum CameraFlags
 }
 
 /// <summary>Takes over the camera while the player is within its radius, or walks on a trigger triangle that names it.</summary>
-/// <param name="RefPoint">The reference point in the same map to move to. Without one, just above the player.</param>
+/// <param name="RefPoint">The reference point in the same chunk to move to. Without one, just above the player.</param>
 /// <param name="Ticks">How long a pan, sine, ease in or ease out takes (the original's values' Z). 0 if not given.</param>
 /// <param name="Pitch">Degrees up the outdoor camera follows at, for <see cref="CameraFlags.Pitch"/> (X). 0 if not given.</param>
 /// <param name="Distance">How far behind the outdoor camera follows, for <see cref="CameraFlags.Distance"/> (Y). 0 if not given.</param>
@@ -691,7 +901,7 @@ public sealed record ScriptObject(
     float Radius,
     FlagGate? Visible,
     RecordId Plays,
-    ChunkRef? Stage,
+    RecordId? Stage,
     int Marks,
     string Name) : MapObject(Index, Position, Radius, Visible);
 
@@ -726,7 +936,7 @@ public sealed record SetFlagAction(RecordId Flag) : TripwireAction;
 public sealed record AnimateAction(RecordId Request) : TripwireAction;
 
 /// <summary>
-/// Changes the collision flags of the map's toggle triangles with id <see cref="Toggle"/>: ANDs them with <see cref="KeepFlags"/>,
+/// Changes the collision flags of the chunk's toggle triangles with id <see cref="Toggle"/>: ANDs them with <see cref="KeepFlags"/>,
 /// then ORs in <see cref="AddFlags"/>.
 /// </summary>
 public sealed record ChangeCollisionAction(int Toggle, int KeepFlags, int AddFlags) : TripwireAction;

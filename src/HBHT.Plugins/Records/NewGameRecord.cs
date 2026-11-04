@@ -20,4 +20,4 @@ namespace HBHT.Plugins.Records;
 /// <c>0x800557c0</c>).
 /// </param>
 /// <param name="Gold">The party's gold (<c>init_DBs</c>).</param>
-public sealed record NewGameRecord(RecordId Id, ChunkRef Chunk, Vector2 Position, float Height, RecordId Leader, uint Gold);
+public sealed record NewGameRecord(RecordId Id, RecordId Chunk, Vector2 Position, float Height, RecordId Leader, uint Gold);

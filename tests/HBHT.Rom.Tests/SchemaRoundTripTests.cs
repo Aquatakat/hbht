@@ -43,10 +43,10 @@ public sealed class SchemaRoundTripTests(Na10Import fixture)
     }
 
     [Fact]
-    public void EveryMapAndScriptValidates()
+    public void EveryChunkAndScriptValidates()
     {
         var set = fixture.Data.Set;
-        foreach (var (type, cls) in new[] { (RecordTypes.Map, typeof(Plugins.Records.MapRecord)), (RecordTypes.Script, typeof(Plugins.Records.ScriptRecord)) })
+        foreach (var (type, cls) in new[] { (RecordTypes.Chunk, typeof(Plugins.Records.ChunkRecord)), (RecordTypes.Script, typeof(Plugins.Records.ScriptRecord)) })
         {
             var schema = Schema(cls);
             foreach (var id in set.Ids.Where(i => i.Type == type))
@@ -61,26 +61,26 @@ public sealed class SchemaRoundTripTests(Na10Import fixture)
     public void TheSchemaRefusesWhatStrictReadingRefuses()
     {
         var set = fixture.Data.Set;
-        var map = (JsonObject)set.GetJson(set.Ids.First(i => i.Type == RecordTypes.Map))!.DeepClone();
-        var schema = Schema(typeof(Plugins.Records.MapRecord));
+        var map = (JsonObject)set.GetJson(set.Ids.First(i => i.Type == RecordTypes.Chunk))!.DeepClone();
+        var schema = Schema(typeof(Plugins.Records.ChunkRecord));
         Assert.True(schema.Evaluate(Element(map), Options).IsValid);
 
         var first = (JsonObject)map["objects"]![0]!;
         first["radious"] = 3;
         Assert.False(schema.Evaluate(Element(map), Options).IsValid);
-        Assert.Throws<JsonException>(() => map.Deserialize<Plugins.Records.MapRecord>(PluginJson.Strict));
+        Assert.Throws<JsonException>(() => map.Deserialize<Plugins.Records.ChunkRecord>(PluginJson.Strict));
         first.Remove("radious");
 
         first["type"] = "chest";
         Assert.False(schema.Evaluate(Element(map), Options).IsValid);
-        Assert.Throws<JsonException>(() => map.Deserialize<Plugins.Records.MapRecord>(PluginJson.Strict));
+        Assert.Throws<JsonException>(() => map.Deserialize<Plugins.Records.ChunkRecord>(PluginJson.Strict));
     }
 
     [Fact]
     public void APatchValidatesByThePatchSchema()
     {
-        var schema = Schema(typeof(Plugins.Records.MapRecord), patch: true);
-        var patch = JsonNode.Parse("""{ "patch": "aidyn:map/0x0E87", "$schema": "map.patch.schema.json", "objects": [{ "index": 3, "radius": 2 }, { "index": 4, "$remove": true }], "grid": null }""");
+        var schema = Schema(typeof(Plugins.Records.ChunkRecord), patch: true);
+        var patch = JsonNode.Parse("""{ "patch": "aidyn:chunk/0/I08", "$schema": "chunk.patch.schema.json", "objects": [{ "index": 3, "radius": 2 }, { "index": 4, "$remove": true }], "grid": null }""");
         var result = schema.Evaluate(Element(patch), Options);
         Assert.True(result.IsValid, string.Join("; ", Failures(result)));
         Assert.False(schema.Evaluate(Element(JsonNode.Parse("""{ "id": "aidyn:map/0x0E87" }""")), Options).IsValid);

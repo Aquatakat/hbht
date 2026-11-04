@@ -523,14 +523,14 @@ public partial class RecordBrowser : Control
         _current = id;
         var plugins = catalog.Plugins;
         var entry = catalog.Find(id);
-        var voxel = id.Type == RecordTypes.Voxel;
+        var voxel = id.Type == RecordTypes.MapObject;
         // A map object's fields are its map record's.
         var json = voxel ? MapObjects.Json(plugins, id) : plugins.GetJson(id);
         var references = catalog.ReferencesTo(id);
 
         _header.Text = voxel ? ObjectHeader(catalog, id, json) : Header(catalog, id, entry, json, references.Count);
-        _fields.Show(json, field => voxel ? plugins.Setters(MapRecord.MapOf(id), $"objects[{MapRecord.IndexOf(id)}].{field}") : plugins.Setters(id, field),
-            other => catalog.Find(other) is not null || other.Type == RecordTypes.Voxel);
+        _fields.Show(json, field => voxel ? plugins.Setters(ChunkRecord.ChunkOf(id), $"objects[{ChunkRecord.IndexOf(id)}].{field}") : plugins.Setters(id, field),
+            other => catalog.Find(other) is not null || other.Type == RecordTypes.MapObject);
         ShowUsedBy(catalog, references);
         if (_quests is { } quests)
         {
@@ -579,10 +579,10 @@ public partial class RecordBrowser : Control
 
     private static string ObjectHeader(PluginCatalog catalog, RecordId id, JsonObject? json)
     {
-        var map = MapRecord.MapOf(id);
+        var map = ChunkRecord.ChunkOf(id);
         if (json is null)
             return $"{id}\nNo plugin has this map object.";
-        return $"{id}\n{catalog.Describe(id)}\nObject {MapRecord.IndexOf(id)} of {map}, defined by {catalog.Plugins.DefinedBy(map)}";
+        return $"{id}\n{catalog.Describe(id)}\nObject {ChunkRecord.IndexOf(id)} of {map}, defined by {catalog.Plugins.DefinedBy(map)}";
     }
 
     private void ShowUsedBy(PluginCatalog catalog, IReadOnlyList<RecordReference> references)
@@ -647,7 +647,7 @@ public partial class RecordBrowser : Control
             return focus;
         if (entry?.Asset("glb") is { } glb)
         {
-            var note = id.Type == RecordTypes.Map ? "Collision, in the chunk's own coordinates." : "";
+            var note = id.Type == RecordTypes.Chunk ? "Collision, in the chunk's own coordinates." : "";
             return (await File.ReadAllBytesAsync(glb.Path), "", note);
         }
         if (entry?.Asset("png") is { } png)
@@ -718,20 +718,24 @@ public partial class RecordBrowser : Control
     }
 
     /// <summary>
-    /// A map set shows whole. A map shows the 3×3 chunks around it, as the game loads them, and a
-    /// map object its map's, picked, unless more of its map set is loaded already.
+    /// A map set shows whole. A chunk shows the 3×3 chunks around it, as the game loads them, and a
+    /// map object its chunk's, picked, unless more of its map set is loaded already.
     /// </summary>
     private static MapSetView.Focus? MapFocus(PluginSet plugins, RecordId id)
     {
         if (id.Type == RecordTypes.MapSet)
-            return plugins.TryGet<MapSetRecord>(id) is { } set ? new MapSetView.Focus(set, set.Chunks) : null;
-        if (id.Type is not (RecordTypes.Map or RecordTypes.Voxel))
+            return plugins.TryGet<MapSetRecord>(id) is { } set ? new MapSetView.Focus(set, [.. plugins.ChunksIn(set.Id)]) : null;
+        if (id.Type is not (RecordTypes.Chunk or RecordTypes.MapObject))
             return null;
-        var map = id.Type == RecordTypes.Map ? id : MapRecord.MapOf(id);
-        if (MapPlacements.For(plugins).First(map) is not { } place)
+        var chunk = id.Type == RecordTypes.Chunk ? id : ChunkRecord.ChunkOf(id);
+        if (ChunkPlace.Of(plugins, chunk) is not { } place)
             return null;
-        var around = place.Set.Chunks.Where(c => Math.Abs(c.Row - place.Chunk.Row) <= 1 && Math.Abs(c.Column - place.Chunk.Column) <= 1).ToList();
-        return new MapSetView.Focus(place.Set, around, place.Chunk, id.Type == RecordTypes.Voxel ? id : null);
+        List<ChunkRecord> around = [];
+        for (var r = place.Chunk.Row - 1; r <= place.Chunk.Row + 1; r++)
+            for (var c = place.Chunk.Column - 1; c <= place.Chunk.Column + 1; c++)
+                if (plugins.ChunkAt(place.Set.Id, r, c) is { } near)
+                    around.Add(near);
+        return new MapSetView.Focus(place.Set, around, place.Chunk, id.Type == RecordTypes.MapObject ? id : null);
     }
 
     private void SetPreview(Control content)

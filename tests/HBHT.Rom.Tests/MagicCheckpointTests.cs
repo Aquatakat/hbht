@@ -107,12 +107,12 @@ public sealed class MagicCheckpointTests(Na10Import fixture)
         var start = Combat(7);
         var game = GameState.Load(Set, CheckpointSave.Convert(before, Set, "Combat 01, before"));
         Assert.Empty(game.Problems);
-        var arena = Arena.For(Set, 3)!;
+        var arena = Arena.For(Set, Battlefield.Chunk(3))!;
         Assert.NotNull(arena);
         var streamer = new ChunkStreamer(Set, game, new CollisionWorld(), Set.Get<MapSetRecord>(Arena.MapSet));
         streamer.Update(arena.Origin + Battle.ZonePoint);
         var setup = new BattleSetup(BattleSource.Wanderer, null, null, null, [.. Enumerable.Repeat(new PartyEnemy(RecordId.Hex(RecordTypes.Entity, 0x026E), 1, 1), 10)],
-            Arena: 3, Ambush: true, CanFlee: true, EncounterFlag: null, CollisionByte: 0, AniByte: 2);
+            Arena: Battlefield.Chunk(3), Ambush: true, CanFlee: true, EncounterFlag: null, CollisionByte: 0, AniByte: 2);
         game.Random.Combat.Seed = before.ReadWord(RandomState);
         var battle = Battle.Begin(game, setup, arena, streamer.World);
 

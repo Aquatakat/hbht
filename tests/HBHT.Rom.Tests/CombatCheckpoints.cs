@@ -103,12 +103,12 @@ internal static class CombatCheckpoints
         var cp = Combat(checkpoint);
         var game = GameState.Load(Set, CheckpointSave.Convert(before, Set, "Combat 01, before"));
         Assert.Empty(game.Problems);
-        var arena = Arena.For(Set, 3)!;
+        var arena = Arena.For(Set, Battlefield.Chunk(3))!;
         Assert.NotNull(arena);
         var streamer = new ChunkStreamer(Set, game, new CollisionWorld(), Set.Get<MapSetRecord>(Arena.MapSet));
         streamer.Update(arena.Origin + Battle.ZonePoint);
         var setup = new BattleSetup(BattleSource.Wanderer, null, null, null, [.. Enumerable.Repeat(new PartyEnemy(Rat, 1, 1), 10)],
-            Arena: 3, Ambush: true, CanFlee: true, EncounterFlag: null, CollisionByte: 0, AniByte: 2);
+            Arena: Battlefield.Chunk(3), Ambush: true, CanFlee: true, EncounterFlag: null, CollisionByte: 0, AniByte: 2);
         var random = new Lcg(before.ReadWord(RandomState));
         for (var i = 0; i < DrawsBeforeSetup; i++)
             random.Next();
@@ -139,8 +139,8 @@ internal static class CombatCheckpoints
             .Select(e => new PartyEnemy(RecordId.Hex(RecordTypes.Entity, e), 1, 1)).ToList();
         var ambush = ram.ReadByte(CollisionByte) == 2;
         var flag = Half(ram, EncounterFlag);
-        var setup = new BattleSetup(ambush ? BattleSource.Wanderer : BattleSource.MonsterParty, null, null, null, enemies,
-            Arena: ram.ReadByte(ArenaByte), Ambush: ambush, CanFlee: ram.ReadByte(FleeByte) != 0,
+        var setup = new BattleSetup(ambush ? BattleSource.Wanderer : BattleSource.Encounter, null, null, null, enemies,
+            Arena: Battlefield.Chunk(ram.ReadByte(ArenaByte)), Ambush: ambush, CanFlee: ram.ReadByte(FleeByte) != 0,
             EncounterFlag: flag == 0 ? null : RecordId.Decimal(RecordTypes.Flag, flag), CollisionByte: ram.ReadByte(CollisionByte),
             AniByte: ram.ReadByte(AniByte));
 

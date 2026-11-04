@@ -42,7 +42,7 @@ public sealed class PauseMenu
     private readonly GameState _game;
     private readonly Settings _settings;
     private readonly string _savesFolder;
-    private readonly Func<(ChunkRef? Place, bool Outdoors)> _where;
+    private readonly Func<(RecordId? Place, bool Outdoors)> _where;
     private readonly IPauseMenuHost _host;
     private readonly StickRepeat _stick;
     private readonly FrameGate _frame = new(Cadence.MenuFrameTicks);
@@ -73,7 +73,7 @@ public sealed class PauseMenu
     /// <param name="where">The chunk the player is in, and whether it's outdoors, which the World tab's map and Camp read.</param>
     /// <param name="host">What plays the menu's sounds, steps its scroll and writes saves.</param>
     /// <param name="stick">The held directions, which a volume and the journal step by, and which opening and closing forget.</param>
-    public PauseMenu(GameState game, Settings settings, string savesFolder, Func<(ChunkRef? Place, bool Outdoors)> where, IPauseMenuHost host,
+    public PauseMenu(GameState game, Settings settings, string savesFolder, Func<(RecordId? Place, bool Outdoors)> where, IPauseMenuHost host,
         StickRepeat stick)
     {
         _game = game;

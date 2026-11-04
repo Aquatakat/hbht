@@ -84,12 +84,12 @@ public sealed class SceneryRingTests(Na10Import fixture)
         int Distance(ChunkKey k) => Math.Max(Math.Abs(k.Row - centre.Row), Math.Abs(k.Column - centre.Column));
         // The 5×5's outer 16, and past them what its chunks show, one further.
         var ringOf = Enumerable.Range(-2, 5).SelectMany(r => Enumerable.Range(-2, 5).Select(c => centre with { Row = centre.Row + r, Column = centre.Column + c }))
-            .Where(k => Distance(k) == 2 && chunks.MapSet.Chunk(k.Row, k.Column) is not null).ToList();
+            .Where(k => Distance(k) == 2 && Data.Set.ChunkAt(chunks.MapSet.Id, k.Row, k.Column) is not null).ToList();
         Assert.InRange(ringOf.Count, 8, 16);
         Assert.Superset(ringOf.ToHashSet(), loaded.Select(m => m.Key).ToHashSet());
         Assert.All(loaded, m => Assert.InRange(Distance(m.Key), 2, 3));
         Assert.All(loaded.Where(m => Distance(m.Key) == 3), m => Assert.Contains(ringOf.Concat(chunks.All.Select(c => c.Map.Key)),
-            k => chunks.MapSet.Chunk(k.Row, k.Column)!.Shows?.Contains(new ChunkCell(m.Key.Row, m.Key.Column)) == true));
+            k => Data.Set.ChunkAt(chunks.MapSet.Id, k.Row, k.Column)!.Shows?.Contains(ChunkRecord.IdOf(chunks.MapSet.Id, m.Key.Row, m.Key.Column)) == true));
         Assert.Equal(loaded.Select(m => m.Key).ToHashSet(), ring.All.Select(c => c.Map.Key).ToHashSet());
         Assert.DoesNotContain(loaded, m => chunks.Map(m.Key) is not null);
         // Scenery alone: no collision, drawn surfaces, sounds or lights, and nothing remembered, rolled or aged.
@@ -136,13 +136,13 @@ public sealed class SceneryRingTests(Na10Import fixture)
         var chunks = new ChunkStreamer(Data.Set, game, new CollisionWorld(), Set(0));
         var ring = new SceneryRing(game, chunks) { Enabled = true, Extended = true };
         var j08 = chunks.Find("J08")!;
-        var lights = Data.Set.Get<MapRecord>(j08.Map).Objects.OfType<SceneObject>().Where(o => o.GoesOut).ToList();
+        var lights = j08.Objects.OfType<SceneObject>().Where(o => o.GoesOut).ToList();
         Assert.NotEmpty(lights);
         // I10's 3×3 leaves J08 in the ring, a row down and two columns west.
         var i10 = chunks.Origin(chunks.Find("I10")!) + new Vector3(50, 0, 50);
         chunks.Update(i10);
         ring.Update();
-        var shown = ring.Map(ChunkKey.Of(chunks.MapSet, j08))!;
+        var shown = ring.Map(ChunkKey.Of(j08))!;
         // Oriana's path lights aren't there until her conversation sets flag 50.
         Assert.All(lights, o => Assert.False(shown.IsActive(o.Index)));
 
@@ -152,11 +152,11 @@ public sealed class SceneryRingTests(Na10Import fixture)
         Assert.False(ring.Regate());
         game.Flags.Process();
         var putOut = lights[0];
-        game.Memory.Remember(new Memory(MapRecord.VoxelId(j08.Map, putOut.Index), MemoryKind.PutOut), 0, MapObjectMemory.PutOutLoads);
+        game.Memory.Remember(new Memory(j08.ObjectId(putOut.Index), MemoryKind.PutOut), 0, MapObjectMemory.PutOutLoads);
         var memory = game.Memory.Entries.Select(e => (e.Key, e.Value, e.Lifetime)).ToList();
         // Gated again, as the menu closing does: the lights are there, but for the one remembered as put out.
         Assert.True(ring.Regate());
-        shown = ring.Map(ChunkKey.Of(chunks.MapSet, j08))!;
+        shown = ring.Map(ChunkKey.Of(j08))!;
         Assert.False(shown.IsActive(putOut.Index));
         Assert.All(lights.Skip(1), o => Assert.True(shown.IsActive(o.Index)));
         Assert.Equal(memory, game.Memory.Entries.Select(e => (e.Key, e.Value, e.Lifetime)));
@@ -202,9 +202,10 @@ public sealed class SceneryRingTests(Na10Import fixture)
         Assert.DoesNotContain(ring.All, c => c.Chunk.Name is "D22" or "D23" or "D21");
 
         // Another map set, Gwernia's interiors among them: the original's 3×3 alone.
-        var other = Data.Set.All<MapSetRecord>(RecordTypes.MapSet).First(s => s.Id != Set(0).Id && s.Chunks.Count > 9);
+        var other = Data.Set.All<MapSetRecord>(RecordTypes.MapSet).First(s => s.Id != Set(0).Id && Data.Set.ChunksIn(s.Id).Count() > 9);
         chunks.Change(other);
-        var middle = other.Chunks.OrderBy(c => c.Row).ThenBy(c => c.Column).ElementAt(other.Chunks.Count / 2);
+        var otherChunks = Data.Set.ChunksIn(other.Id).ToList();
+        var middle = otherChunks.OrderBy(c => c.Row).ThenBy(c => c.Column).ElementAt(otherChunks.Count / 2);
         chunks.Update(chunks.Origin(middle) + new Vector3(1, 0, 1));
         ring.Update();
         Assert.Empty(ring.All);

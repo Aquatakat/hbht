@@ -86,7 +86,7 @@ public sealed class PakSaves
         problems ??= [];
         var place = pak.Place;
         var mapSet = RecordId.Decimal(RecordTypes.MapSet, place.MapSet);
-        var chunk = _plugins.TryGet<MapSetRecord>(mapSet)?.Chunk(place.Row, place.Column);
+        var chunk = _plugins.ChunkAt(mapSet, place.Row, place.Column);
         if (chunk is null)
             problems.Add($"{mapSet} has no chunk {place.Row},{place.Column}, where the player is.");
 
@@ -110,7 +110,7 @@ public sealed class PakSaves
             Plugins = [.. _plugins.Plugins.Select(p => new SavedPlugin(p.Manifest.Id, p.Manifest.Version))],
             PlayTime = pak.PlayTime,
             Time = pak.Clock,
-            Place = new SavePlace(mapSet, chunk?.Name ?? new ChunkEntry(place.Row, place.Column, null, null, default, 0).Name,
+            Place = new SavePlace(mapSet, chunk?.Name ?? ChunkRecord.NameOf(place.Row, place.Column),
                 place.Position, -place.Facing),
             Flags = [.. pak.Flags.Where(f => f >= 2).Order().Select(DbRecordIds.Flag)],
             Party = new SaveParty
@@ -140,7 +140,7 @@ public sealed class PakSaves
             throw new InvalidDataException("The original's save has Alaron first, and at most four in the party.");
 
         var mapSet = _plugins.TryGet<MapSetRecord>(place.MapSet) ?? throw new InvalidDataException($"No plugin has {place.MapSet}.");
-        var chunk = mapSet.Chunks.FirstOrDefault(c => c.Name == place.Chunk)
+        var chunk = (ChunkRecord.CellOf(place.Chunk) is { } cell ? _plugins.ChunkAt(mapSet.Id, cell.Row, cell.Column) : null)
             ?? throw new InvalidDataException($"{place.MapSet} has no chunk {place.Chunk}.");
         var facing = -place.Heading;
 
@@ -225,10 +225,10 @@ public sealed class PakSaves
     {
         var start = _plugins.TrySingleton<NewGameRecord>()
             ?? throw new InvalidDataException("The save has no place, and the plugins no new game record to take one from.");
-        var chunk = _plugins.Get<MapSetRecord>(start.Chunk.MapSet).Chunk(start.Chunk.Row, start.Chunk.Column)
-            ?? throw new InvalidDataException($"{start.Chunk.MapSet} has no chunk {start.Chunk.Row},{start.Chunk.Column}, where a new game arrives.");
+        var chunk = _plugins.TryGet<ChunkRecord>(start.Chunk)
+            ?? throw new InvalidDataException($"No plugin has {start.Chunk}, where a new game arrives.");
         problems.Add($"The save has no place, so it's written where a new game arrives, {chunk.Name}: loading it skips the opening cinematic, and trek there plays the opening's script.");
-        return new SavePlace(start.Chunk.MapSet, chunk.Name, new Vector3(start.Position.X, start.Height, start.Position.Y), new Vector2(0, 1));
+        return new SavePlace(chunk.MapSet, chunk.Name, new Vector3(start.Position.X, start.Height, start.Position.Y), new Vector2(0, 1));
     }
 
     private static readonly string[] Falls = ["None", "Rain", "Snow"];
@@ -392,10 +392,11 @@ public sealed class PakSaves
     }
 
     /// <summary>The minimaps, in the order the save numbers their pieces (<c>CodeTable.MinimapSections</c>).</summary>
-    private IEnumerable<MinimapRecord> Minimaps() => Minimaps(_plugins);
+    private IEnumerable<(RecordId Id, MinimapPlan Minimap)> Minimaps() => Minimaps(_plugins);
 
-    private static IEnumerable<MinimapRecord> Minimaps(PluginSet plugins) =>
-        MinimapImporter.MapSets.Select(m => plugins.TryGet<MinimapRecord>(RecordId.Decimal(RecordTypes.Minimap, m))).OfType<MinimapRecord>();
+    private static IEnumerable<(RecordId Id, MinimapPlan Minimap)> Minimaps(PluginSet plugins) =>
+        MinimapImporter.MapSets.Select(m => plugins.TryGet<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, m)))
+            .Where(s => s?.Minimap is not null).Select(s => (s!.Id, s.Minimap!));
 
     private List<SaveMinimap> SavedMinimaps(IReadOnlySet<int> bits) => SavedMinimaps(_plugins, bits);
 
@@ -407,14 +408,14 @@ public sealed class PakSaves
     {
         var saved = new List<SaveMinimap>();
         var at = 0;
-        foreach (var minimap in Minimaps(plugins))
+        foreach (var (id, minimap) in Minimaps(plugins))
         {
             var seen = Enumerable.Range(0, minimap.Sections.Count).Where(i => bits.Contains(at + i)).ToList();
             if (!seen.SequenceEqual(Enumerable.Range(0, minimap.Sections.Count).Where(i => minimap.Sections[i].Seen)))
-                saved.Add(new SaveMinimap(minimap.Id, seen));
+                saved.Add(new SaveMinimap(id, seen));
             at += minimap.Sections.Count;
         }
-        return [.. saved.OrderBy(m => m.Minimap.ToString(), StringComparer.Ordinal)];
+        return [.. saved.OrderBy(m => m.MapSet.ToString(), StringComparer.Ordinal)];
     }
 
     /// <summary>Every piece seen: a minimap the save doesn't list as it starts, as loading sets each piece from its bit.</summary>
@@ -422,30 +423,29 @@ public sealed class PakSaves
     {
         var bits = new HashSet<int>();
         var at = 0;
-        var listed = saved.ToDictionary(m => m.Minimap, m => m.Seen);
-        foreach (var minimap in Minimaps())
+        var listed = saved.ToDictionary(m => m.MapSet, m => m.Seen);
+        foreach (var (id, minimap) in Minimaps())
         {
-            var seen = listed.Remove(minimap.Id, out var s) ? s : [.. Enumerable.Range(0, minimap.Sections.Count).Where(i => minimap.Sections[i].Seen)];
+            var seen = listed.Remove(id, out var s) ? s : [.. Enumerable.Range(0, minimap.Sections.Count).Where(i => minimap.Sections[i].Seen)];
             bits.UnionWith(seen.Where(i => i < minimap.Sections.Count).Select(i => at + i));
             at += minimap.Sections.Count;
         }
         foreach (var other in listed.Keys)
-            problems.Add($"{other} isn't one of the original's minimaps.");
+            problems.Add($"{other} has none of the original's minimaps.");
         return bits;
     }
 
     private const int FirstSkillCheck = 0x49;
 
-    /// <summary>A memory as the chart holds one, at the first chunk that places its map.</summary>
+    /// <summary>A memory as the chart holds one, by its object's chunk's cell and its index.</summary>
     private CheckpointMemory? Memory(SaveMemory memory, ICollection<string> problems)
     {
-        var map = MapRecord.MapOf(memory.MapObject);
-        if (MapPlacements.For(_plugins).First(map) is not { } place)
+        if (memory.MapObject.Type != RecordTypes.MapObject || _plugins.TryGet<ChunkRecord>(ChunkRecord.ChunkOf(memory.MapObject)) is not { } chunk)
         {
-            problems.Add($"{memory.MapObject} is in a map no map set places, so its memory isn't saved.");
+            problems.Add($"{memory.MapObject} is in no chunk a plugin has, so its memory isn't saved.");
             return null;
         }
-        var index = int.Parse(memory.MapObject.Key.Split('/')[^1], CultureInfo.InvariantCulture);
+        var index = ChunkRecord.IndexOf(memory.MapObject);
         (int Type, uint Value)? kind = memory.Kind switch
         {
             "RandomLine" => (9, (uint)BitConverter.SingleToInt32Bits(memory.Value / 100f)),
@@ -460,6 +460,6 @@ public sealed class PakSaves
             problems.Add($"{memory.MapObject} remembers {memory.Kind}, which the original doesn't.");
             return null;
         }
-        return new CheckpointMemory(index, memory.Lifetime, Number(place.Set.Id), place.Chunk.Row, place.Chunk.Column, k.Type, k.Value);
+        return new CheckpointMemory(index, memory.Lifetime, Number(chunk.MapSet), chunk.Row, chunk.Column, k.Type, k.Value);
     }
 }

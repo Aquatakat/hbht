@@ -21,8 +21,32 @@ internal static class CombatImporter
     public static void Import(ImportContext ctx)
     {
         ctx.Report("Combat");
-        ctx.WriteRecords("combat.json", new[] { BuildCombat(ctx.Engine, ReadText(ctx.Rom)) });
+        ctx.WriteRecords("combat.json", new[] { BuildCombat(ctx.Engine, ReadText(ctx.Rom), ctx.ArenaChunks,
+            WorldImporter.FirstScriptObject(ctx.Chunks, ctx.Archive, GameOverMap, ctx.Engine.GameOverScript)) });
     }
+
+    /// <summary>
+    /// The battles with rules of their own, by their encounter flag, as 1.0 keys them: <c>Combat.ApplyFleeRuleByFlag</c>'s three
+    /// (<c>0x800D26A0</c>: the Goblin Ambush's 978 forbids fleeing, Lugash's 5250 and the Marquis's 3749 allow it), and the Goblin
+    /// Ambush's (<c>Combat.Init</c>, <c>TurnOrder.Defeat</c>, <c>Combat.StateDefeat</c> and <c>Combat.Exit</c>). The importer puts them on
+    /// each source of the flag (ADR 0035): a script's battle flag, an npc's, an encounter's flag B.
+    /// </summary>
+    internal static IReadOnlyDictionary<int, BattleRules> BattleRules(EngineTables tables)
+    {
+        RecordId At(int place) => EntityAt(tables, place);
+        return new Dictionary<int, BattleRules>
+        {
+            [GoblinAmbush] = new(Flee: false, NonLethal: true, QuietVictory: true, Speaker: At(AlaronPlace),
+                End: new EncounterEnd(DbRecordIds.Flag(47), MapImporter.ChunkId(Maps.MapSet.MiscInteriors, 5, 3),
+                    new System.Numerics.Vector3(5.9f, 0.5f, 3f), OrianasHutHeading, At(AlaronPlace), RestoresStrength: true),
+                HealsLeader: true, KeelOver: new KeelOver(At(AlaronPlace), KeelOverHits)),
+            [5250] = new(Flee: true),
+            [3749] = new(Flee: true),
+        };
+    }
+
+    /// <summary>The Goblin Ambush's encounter flag.</summary>
+    internal const int GoblinAmbush = 978;
 
     /// <summary>
     /// The way Alaron faces in Oriana's hut after the Goblin Ambush, toward her: <c>Combat.Exit</c> (<c>0x80023060</c>) writes (1, 0)
@@ -32,32 +56,22 @@ internal static class CombatImporter
     private static readonly System.Numerics.Vector2 OrianasHutHeading = new(-1, 0);
 
     /// <summary>
-    /// The combat record: the Skeleton 0xBB (<c>BattleSetup.FillEnemies</c>), the encounters <c>0x800D26A0</c>'s three, the Goblin
-    /// Ambush's rules (<c>Combat.Init</c>, <c>TurnOrder.Defeat</c>, <c>Combat.StateDefeat</c> and <c>Combat.Exit</c>), the game over's
-    /// map, with its script read from the ROM's list (<see cref="EngineTables.GameOverScript"/>), and the Shadow's rules. What the code
-    /// keeps about one entity or item goes on it (<see cref="Entities"/>, <see cref="Items"/>).
+    /// The combat record: the Skeleton 0xBB (<c>BattleSetup.FillEnemies</c>), arena 0 as the arena a script's battle takes when it names
+    /// none, the game over's script object, the first in its map (<see cref="GameOverMap"/>) that plays the script the ROM's list names
+    /// (<see cref="EngineTables.GameOverScript"/>), and the Shadow's rules. What the code keeps about one entity or item goes on it
+    /// (<see cref="Entities"/>, <see cref="Items"/>), and about one battle on what starts it (<see cref="BattleRules"/>).
     /// </summary>
-    internal static CombatRecord BuildCombat(EngineTables tables, CombatText text)
+    /// <param name="arenas">The arenas' chunks by number (<see cref="Arenas.Chunks"/>); without them, the Battlefields' A01.</param>
+    /// <param name="gameOver">The game over's script object, if it's known.</param>
+    internal static CombatRecord BuildCombat(EngineTables tables, CombatText text, IReadOnlyList<RecordId>? arenas = null, RecordId? gameOver = null)
     {
         RecordId At(int place) => EntityAt(tables, place);
         return new CombatRecord(
             RecordId.Decimal(RecordTypes.Combat, 0),
             Fallback: At(0xBB),
-            FleeByEncounter:
-            [
-                new(DbRecordIds.Flag(978), false),
-                new(DbRecordIds.Flag(5250), true),
-                new(DbRecordIds.Flag(3749), true),
-            ],
+            DefaultArena: arenas is { Count: > 0 } ? arenas[0] : ChunkRecord.IdOf((int)Maps.MapSet.Battlefields, 1, 1),
             LootGoldMultiplier: 2,
-            Encounters:
-            [
-                new(DbRecordIds.Flag(978), NonLethal: true, QuietVictory: true, Speaker: At(AlaronPlace),
-                    End: new EncounterEnd(DbRecordIds.Flag(47), new ChunkRef(RecordId.Decimal(RecordTypes.MapSet, 6), 5, 3),
-                        new System.Numerics.Vector3(5.9f, 0.5f, 3f), OrianasHutHeading, At(AlaronPlace), RestoresStrength: true),
-                    HealsLeader: true, KeelOver: new KeelOver(At(AlaronPlace), KeelOverHits)),
-            ],
-            GameOver: new GameOverScene(RecordId.Hex(RecordTypes.Map, GameOverMap), RecordId.Hex(RecordTypes.Script, tables.GameOverScript)),
+            GameOver: gameOver is { } from ? new GameOverScene(from) : null,
             Text: text,
             Shadow: Shadow(At));
     }
@@ -191,7 +205,7 @@ internal static class CombatImporter
     /// The Dreamscape's map (Borg9 <c>0xD5F</c>), in which <c>Combat.StartGameOverScript</c> (<c>0x8001F860</c>) looks for the
     /// dialogue object that starts the game over script (<c>CodeTable.GameOverScenes</c>' first; its other two are never read).
     /// </summary>
-    private const int GameOverMap = 0x0D5F;
+    internal const int GameOverMap = 0x0D5F;
 
     /// <summary>
     /// <c>Combat.SetKillFlags</c>' jump table (<c>0x800D2B60</c>, 19 cases from entity list place <c>0xA8</c>), read case by case in

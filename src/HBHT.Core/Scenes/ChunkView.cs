@@ -17,7 +17,7 @@ namespace HBHT.Core.Scenes;
 /// </para>
 /// <para>
 /// The player's chunk's map can also have neighbours drawn out of view as well
-/// (<see cref="MapRecord.DrawnNeighbours"/>, Borg9 header byte 0x1B): 21 chunks of the Overworld do, none
+/// (<see cref="ChunkRecord.DrawnNeighbours"/>, Borg9 header byte 0x1B): 21 chunks of the Overworld do, none
 /// of Gwernia's. <c>RenderZones</c> (<c>0x8000d574</c>) and <c>RenderTransZones</c> (<c>0x8000dd44</c>) walk
 /// the neighbours in their table's order (<c>0x800CD700</c>, <see cref="Neighbours"/>) and draw one if the
 /// view crosses it or its bit is set.

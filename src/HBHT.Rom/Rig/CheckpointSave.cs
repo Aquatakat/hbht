@@ -25,7 +25,7 @@ public static class CheckpointSave
         problems ??= [];
         var place = checkpoint.Place;
         var mapSet = RecordId.Decimal(RecordTypes.MapSet, place.MapSet);
-        var chunk = plugins.TryGet<MapSetRecord>(mapSet)?.Chunk(place.Row, place.Column);
+        var chunk = plugins.ChunkAt(mapSet, place.Row, place.Column);
         if (chunk is null)
             problems.Add($"{mapSet} has no chunk {place.Row},{place.Column}, where the player is.");
 
@@ -36,7 +36,7 @@ public static class CheckpointSave
             Plugins = [.. plugins.Plugins.Select(p => new SavedPlugin(p.Manifest.Id, p.Manifest.Version))],
             PlayTime = checkpoint.PlayTime,
             Time = checkpoint.Time,
-            Place = new SavePlace(mapSet, chunk?.Name ?? new ChunkEntry(place.Row, place.Column, null, null, default, 0).Name,
+            Place = new SavePlace(mapSet, chunk?.Name ?? ChunkRecord.NameOf(place.Row, place.Column),
                 place.Position, -place.Facing),
             // The first 5001 flags are plain bits, of which 0 and 1 are constants.
             Flags = [.. Enumerable.Range(2, BitFlags - 2).Where(n => flags[n]).Select(n => DbRecordIds.Flag(n))],
@@ -110,13 +110,13 @@ public static class CheckpointSave
     {
         var mapSet = RecordId.Decimal(RecordTypes.MapSet, memory.MapSet);
         var where = $"{mapSet} chunk {memory.Row},{memory.Column} object {memory.Index}";
-        var chunk = plugins.TryGet<MapSetRecord>(mapSet)?.Chunk(memory.Row, memory.Column);
+        var chunk = plugins.ChunkAt(mapSet, memory.Row, memory.Column);
         if (chunk is null)
         {
             problems.Add($"{where} remembers something, but the map set has no such chunk.");
             return null;
         }
-        var mapObject = MapRecord.VoxelId(chunk.Map, memory.Index);
+        var mapObject = chunk.ObjectId(memory.Index);
         switch (memory.Type)
         {
             case 9:

@@ -6,7 +6,9 @@ namespace HBHT.Rom.Import;
 /// <summary>
 /// Turns a ROM into <c>aidyn.base</c> (ADR 0001): records under <c>records/</c> and converted assets
 /// under <c>assets/aidyn/</c>, keyed by record ID. The output is deterministic: the same ROM and
-/// <see cref="BasePlugin.ImporterVersion"/> always give the same bytes.
+/// <see cref="BasePlugin.ImporterVersion"/> always give the same bytes. It's read back whole before it replaces the last import, so
+/// a record the plugin set can't read is the importer's error, found here, and the runtime needn't read the base plugin's lazily
+/// loaded records to check them (ADR 0036).
 /// </summary>
 /// <remarks>
 /// The families of records each have an importer, which builds them from what an <see cref="ImportContext"/>
@@ -53,6 +55,12 @@ public static class BaseImporter
         MapImporter.Import(context);
         GraphicsImporter.Import(context);
         AudioImporter.Import(context);
+
+        // What was written reads back, every record of it (PluginSet.Validate), before it replaces the old import.
+        progress?.Report("Checking");
+        var report = PluginSet.Load([staging]).Validate();
+        if (!report.IsClean)
+            throw new InvalidDataException($"The import doesn't read back. {report.Describe(20)}");
 
         if (Directory.Exists(directory))
             Directory.Delete(directory, recursive: true);

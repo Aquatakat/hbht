@@ -30,10 +30,11 @@ public sealed class SkyDirectorTests : IDisposable
     /// <summary>The gradients: a day's, a dark one and the rain's, each one colour down every column but for the sky row.</summary>
     private const int Day = 1, Dark = 2, Rain = 3;
 
-    private static readonly ChunkEntry Plains = Chunk(0, 0, terrain: 0), Hills = Chunk(0, 1, terrain: 1), Cave = Chunk(0, 2, terrain: 2),
+    private static readonly ChunkRecord Plains = Chunk(0, 0, terrain: 0), Hills = Chunk(0, 1, terrain: 1), Cave = Chunk(0, 2, terrain: 2),
         MorePlains = Chunk(1, 0, terrain: 0);
 
-    private static ChunkEntry Chunk(int row, int column, int terrain) => new(row, column, null, null, RecordId.Hex(RecordTypes.Map, 0), terrain);
+    private static ChunkRecord Chunk(int row, int column, int terrain) =>
+        new(ChunkRecord.IdOf(0, row, column), RecordId.Decimal(RecordTypes.MapSet, 0), row, column, RecordId.Decimal(RecordTypes.Terrain, terrain), []);
 
     private readonly TempPlugins _temp = new();
     private readonly PluginSet _plugins;
@@ -277,6 +278,6 @@ public sealed class SkyDirectorTests : IDisposable
         sky.Warn = told.Add;
         sky.Enter(Chunk(5, 5, terrain: 9));
         Assert.Null(sky.State.Current);
-        Assert.Equal(["No sky for terrain 9."], told);
+        Assert.Equal(["No sky for terrain aidyn:terrain/9."], told);
     }
 }

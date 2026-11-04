@@ -54,7 +54,7 @@ public sealed class VictoryCheckpointTests(Na10Import fixture)
         else
             game.Random.Loot.Seed = Combat(11).ReadWord(0x800D8088);
         var list = enemies.Select(Id).ToList();
-        var setup = new BattleSetup(BattleSource.Wanderer, null, null, null, [], 3, false, true, null)
+        var setup = new BattleSetup(BattleSource.Wanderer, null, null, null, [], Battlefield.Chunk(3), false, true, null)
         {
             BonusLoot = bonus is { } b ? Id(b) : null,
         };
@@ -117,7 +117,7 @@ public sealed class VictoryCheckpointTests(Na10Import fixture)
         var rheda = game.Party.Members.Single(m => m.Entity == Id(0x24C));
         var before = rheda.TotalExp;
         rheda.TakeDamage(1000, null);
-        var battle = Battle.Ending(game, new BattleSetup(BattleSource.Wanderer, null, null, null, [], 3, false, true, null), [Rat]);
+        var battle = Battle.Ending(game, new BattleSetup(BattleSource.Wanderer, null, null, null, [], Battlefield.Chunk(3), false, true, null), [Rat]);
         battle.TallyRewards();
         Assert.Equal(before, rheda.TotalExp);
         Assert.Equal(1602226u, game.Party.Members.First().TotalExp);
@@ -130,10 +130,10 @@ public sealed class VictoryCheckpointTests(Na10Import fixture)
         var kitarak = Id(0x21D);
         var flag = RecordId.Decimal(RecordTypes.Flag, 154);
         game.Flags.TrySet(flag, false);
-        var late = Battle.Ending(game, new BattleSetup(BattleSource.Script, null, null, null, [], 3, false, true, null), [Rat, Rat, Rat, Rat, kitarak]);
+        var late = Battle.Ending(game, new BattleSetup(BattleSource.Script, null, null, null, [], Battlefield.Chunk(3), false, true, null), [Rat, Rat, Rat, Rat, kitarak]);
         late.SetKillFlags();
         Assert.False(game.Flags.IsSet(flag));
-        var first = Battle.Ending(game, new BattleSetup(BattleSource.Script, null, null, null, [], 3, false, true, null), [Rat, kitarak]);
+        var first = Battle.Ending(game, new BattleSetup(BattleSource.Script, null, null, null, [], Battlefield.Chunk(3), false, true, null), [Rat, kitarak]);
         first.SetKillFlags();
         Assert.True(game.Flags.IsSet(flag));
     }
@@ -153,7 +153,7 @@ public sealed class VictoryCheckpointTests(Na10Import fixture)
         }
         Assert.NotEmpty(worn);
         var before = worn.Distinct().ToDictionary(w => w, w => game.Party.Inventory.Count(w));
-        Battle.Ending(game, new BattleSetup(BattleSource.Wanderer, null, null, null, [], 3, false, true, null), [Rat]).Leave();
+        Battle.Ending(game, new BattleSetup(BattleSource.Wanderer, null, null, null, [], Battlefield.Chunk(3), false, true, null), [Rat]).Leave();
         Assert.Equal([GameState.Alaron, Id(0x243)], game.Party.Members.Select(m => m.Entity));
         Assert.True(game.Flags.IsSet(Of(617)) && game.Flags.IsSet(Of(622)));
         Assert.True(game.Flags.IsSet(Of(91)) && game.Flags.IsSet(Of(523)));
@@ -192,7 +192,7 @@ public sealed class VictoryCheckpointTests(Na10Import fixture)
         var alaron = game.Party.Slots[0]!;
         alaron.TotalExp = alaron.NextLevelExp!.Value - 1;
         var level = alaron.Stats.Base(Core.Characters.Stat.Level);
-        var battle = Battle.Ending(game, new BattleSetup(BattleSource.Wanderer, null, null, null, [], 3, false, true, null), [Rat]);
+        var battle = Battle.Ending(game, new BattleSetup(BattleSource.Wanderer, null, null, null, [], Battlefield.Chunk(3), false, true, null), [Rat]);
         battle.TallyRewards();
         Assert.Equal(level + 1, alaron.Stats.Base(Core.Characters.Stat.Level));
         Assert.Equal([alaron], battle.Levelled);

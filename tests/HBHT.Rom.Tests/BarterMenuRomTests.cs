@@ -96,7 +96,7 @@ public sealed class BarterMenuRomTests(Na10Import fixture)
     private (GameState Game, ItemPile Loot, int Gold) OpenTheStartChest()
     {
         var data = fixture.Data;
-        var map = Set.Get<MapRecord>(data.Chunk(new ChunkRef(Overworld, 9, 8))!.Map);
+        var map = Set.ChunkAt(Overworld, 9, 8)!;
         var chest = map.Objects.OfType<ContainerObject>().Single(c => c.Index == 111);
         Assert.Equal(RecordId.Parse("aidyn:loot/0x0839"), chest.Loot);
         var game = GameState.NewGame(Set);

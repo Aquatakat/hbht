@@ -27,7 +27,7 @@ public sealed class SkyDirector
     private readonly FrameGate _twinkleFrame = new(Cadence.FrameTicks);
     private readonly Dictionary<RecordId, SkyGradient?> _gradients = [];
     private (int Row, int Column)? _chunk;
-    private ChunkEntry? _entered;
+    private ChunkRecord? _entered;
     /// <summary>The sky of the terrain last entered (<c>Weather.Data</c> + 0x10), and the rain sky.</summary>
     private SkyGradient? _terrain, _rain;
 
@@ -147,14 +147,14 @@ public sealed class SkyDirector
     /// chunk chooses again, which restarts a change of sky in progress, as in the original, unless the weather holds
     /// the sky. The first chunk after <see cref="ClearSky"/> chooses at once.
     /// </summary>
-    public void Enter(ChunkEntry? chunk)
+    public void Enter(ChunkRecord? chunk)
     {
         if (chunk is null || (chunk.Row, chunk.Column) == _chunk)
             return;
         var first = _chunk is null;
         _chunk = (chunk.Row, chunk.Column);
         _entered = chunk;
-        if (TerrainRecord.Find(_plugins, chunk.Terrain) is not { } terrain ||
+        if (_plugins.TryGet<TerrainRecord>(chunk.Terrain) is not { } terrain ||
             Gradient(terrain.Sky) is not { } gradient)
         {
             Warn($"No sky for terrain {chunk.Terrain}.");

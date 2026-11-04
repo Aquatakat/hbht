@@ -11,7 +11,7 @@ namespace HBHT.Core.MapObjects;
 /// <param name="Position">In the chunk's coordinates: the arrival point, or the teleporter's own position.</param>
 /// <param name="Heading">The way the arrival point turns the player, or null to keep his.</param>
 /// <param name="Camera">A reference point in the chunk for the camera, in its coordinates, or null.</param>
-public sealed record TeleportArrival(MapSetRecord Set, ChunkEntry Chunk, Vector3 Position, Vector2? Heading, Vector3? Camera)
+public sealed record TeleportArrival(MapSetRecord Set, ChunkRecord Chunk, Vector3 Position, Vector2? Heading, Vector3? Camera)
 {
     /// <summary>
     /// Where a teleporter leads, or null if its map set or chunk isn't installed. Without an arrival
@@ -19,9 +19,8 @@ public sealed record TeleportArrival(MapSetRecord Set, ChunkEntry Chunk, Vector3
     /// </summary>
     public static TeleportArrival? For(PluginSet plugins, TeleporterObject teleporter)
     {
-        var destination = teleporter.Destination;
-        if (plugins.TryGet<MapSetRecord>(destination.MapSet) is not { } set
-            || set.Chunk(destination.Row, destination.Column) is not { } chunk)
+        if (teleporter.Leads is not { } destination || plugins.TryGet<ChunkRecord>(destination) is not { } chunk
+            || plugins.TryGet<MapSetRecord>(chunk.MapSet) is not { } set)
             return null;
         var arrival = teleporter.Arrival is { } id ? Point(plugins, id) : null;
         Vector2? heading = null;
@@ -33,7 +32,7 @@ public sealed record TeleportArrival(MapSetRecord Set, ChunkEntry Chunk, Vector3
     }
 
     private static ReferencePointObject? Point(PluginSet plugins, RecordId voxel) =>
-        plugins.TryGet<MapRecord>(MapRecord.MapOf(voxel)) is { } map
-            ? map.Objects.OfType<ReferencePointObject>().FirstOrDefault(o => o.Index == MapRecord.IndexOf(voxel))
+        plugins.TryGet<ChunkRecord>(ChunkRecord.ChunkOf(voxel)) is { } map
+            ? map.Objects.OfType<ReferencePointObject>().FirstOrDefault(o => o.Index == ChunkRecord.IndexOf(voxel))
             : null;
 }

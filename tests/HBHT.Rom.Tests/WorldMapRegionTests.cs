@@ -25,6 +25,8 @@ public sealed class WorldMapRegionTests(Na10Import fixture)
     private static readonly RecordId Gwernia = Ids.Flag(788);
     private static readonly RecordId Talewok = Ids.Flag(791);
 
+    private IEnumerable<ChunkRecord> ChunksOf(MapSetRecord set) => Data.Set.ChunksIn(set.Id);
+
     private MapSetRecord Set(int n) => Data.MapSets.Single(s => s.Id == RecordId.Decimal(RecordTypes.MapSet, n));
 
     /// <summary>
@@ -36,16 +38,16 @@ public sealed class WorldMapRegionTests(Na10Import fixture)
     public void ChunksCarryTheRegionTheirRowAndColumnName()
     {
         var overworld = Set(0);
-        Assert.Equal((172, 160), (overworld.Chunks.Count(c => c.Scene is not null), overworld.Chunks.Count(c => c.Region is not null)));
-        Assert.Equal(Enumerable.Range(788, 18), overworld.Chunks.Select(c => c.Region).OfType<RecordId>().Distinct()
+        Assert.Equal((172, 160), (ChunksOf(overworld).Count(c => c.Scene is not null), ChunksOf(overworld).Count(c => c.Region is not null)));
+        Assert.Equal(Enumerable.Range(788, 18), ChunksOf(overworld).Select(c => c.Region).OfType<RecordId>().Distinct()
             .Select(f => int.Parse(f.Key)).Order());
         Assert.All(new[] { "I08", "J08", "K08", "K09", "L08", "M06", "M07", "M08" },
-            name => Assert.Equal(Gwernia, overworld.Chunks.Single(c => c.Name == name).Region));
-        Assert.Equal(Talewok, overworld.Chunks.Single(c => c.Name == "I10").Region);
-        Assert.Null(overworld.Chunks.Single(c => c.Name == "I16").Region);
-        Assert.Equal(Gwernia, Set(13).Chunks.Single(c => c.Name == "M06").Region);
+            name => Assert.Equal(Gwernia, ChunksOf(overworld).Single(c => c.Name == name).Region));
+        Assert.Equal(Talewok, ChunksOf(overworld).Single(c => c.Name == "I10").Region);
+        Assert.Null(ChunksOf(overworld).Single(c => c.Name == "I16").Region);
+        Assert.Equal(Gwernia, ChunksOf(Set(13)).Single(c => c.Name == "M06").Region);
         Assert.Equal(Data.Set.Get<WorldMapRecord>(RecordId.Decimal(RecordTypes.WorldMap, 0)).Pieces.Select(p => p.Flag),
-            overworld.Chunks.Select(c => c.Region).OfType<RecordId>().Distinct().OrderBy(f => int.Parse(f.Key)));
+            ChunksOf(overworld).Select(c => c.Region).OfType<RecordId>().Distinct().OrderBy(f => int.Parse(f.Key)));
     }
 
     /// <summary>
@@ -82,13 +84,13 @@ public sealed class WorldMapRegionTests(Na10Import fixture)
         {
             var mapSet = Set(set);
             var zone = new ZoneEngine(game, new ChunkStreamer(Data.Set, game, new CollisionWorld(), mapSet, new VisibleWorld()));
-            return zone.EnterRegion(mapSet.Chunks.Single(c => c.Name == name));
+            return zone.EnterRegion(ChunksOf(mapSet).Single(c => c.Name == name));
         }
 
-        var ehud = Set(12).Chunks.Single(c => c.Name == "C09");
+        var ehud = ChunksOf(Set(12)).Single(c => c.Name == "C09");
         Assert.Equal((ehud.Region, true), (Ids.Flag(789), game.Terrain(ehud.Terrain)!.SkyDrawn));
         Assert.False(Enter(12, "C09"));
-        Assert.All(Set(4).Chunks.Where(c => c.Region is not null), c => Assert.False(Enter(4, c.Name)));
+        Assert.All(ChunksOf(Set(4)).Where(c => c.Region is not null), c => Assert.False(Enter(4, c.Name)));
         Assert.Empty(Pieces(game));
         Assert.True(Enter(13, "M06"));
         Assert.Equal([Gwernia], Pieces(game));
@@ -100,14 +102,14 @@ public sealed class WorldMapRegionTests(Na10Import fixture)
     {
         var overworld = Set(0);
         var (_, map, dialogue, region) = Data.Of<ScriptObject>()
-            .Where(d => d.Object.Stage is { } stage && stage.MapSet == overworld.Id)
-            .Select(d => (d.Id, d.Map, d.Object, Region: Data.Chunk(d.Object.Stage!)?.RegionFound(Data.Set, overworld.Id)))
+            .Where(d => d.Object.Stage is { } stage && Data.Set.TryGet<ChunkRecord>(stage)?.MapSet == overworld.Id)
+            .Select(d => (d.Id, d.Map, d.Object, Region: Data.Chunk(d.Object.Stage!.Value).RegionFound(Data.Set)))
             .First(d => d.Region is { } r && r != Gwernia);
         var game = GameState.NewGame(Data.Set);
         var streamer = new ChunkStreamer(Data.Set, game, new CollisionWorld(), overworld, new VisibleWorld());
         var session = GameSession.Start(game, new Host(), new ZoneEngine(game, streamer), GameStart.OfNewGame(Data.Set));
-        session.Cue(Data.Set.Get<ScriptRecord>(dialogue.Plays), new ScriptStart(dialogue.Marks, MapRecord.VoxelId(map.Id, dialogue.Index)),
-            dialogue.Stage!);
+        session.Cue(Data.Set.Get<ScriptRecord>(dialogue.Plays), new ScriptStart(dialogue.Marks, map.ObjectId(dialogue.Index)),
+            dialogue.Stage!.Value);
         var step = SessionStep.Trek;
         for (var i = 0; i < 200 && step != SessionStep.CutSceneCued; i++)
             step = session.Tick(SessionSettings.Original, () => new PlayerInput(Vector2.Zero), false, _ => null);

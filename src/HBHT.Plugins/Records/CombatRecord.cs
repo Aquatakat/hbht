@@ -1,27 +1,23 @@
 namespace HBHT.Plugins.Records;
 
 /// <summary>
-/// What combat keeps of content, there being one, <c>aidyn:combat/0</c>: the enemy a roll that comes to none fights, which
-/// encounters decide whether the party can flee and have rules of their own, loot's gold, the game over, the menus' words and the
-/// Shadow's rules. What's about one entity or item is on it (<see cref="EntityCombat"/>, <see cref="WeaponStats"/>,
-/// <see cref="ItemRecord"/>). docs/systems/combat.md says where each is in the original.
+/// What combat keeps of content, there being one, <c>aidyn:combat/0</c>: the enemy a roll that comes to none fights, the arena a
+/// script's battle takes by default, loot's gold, the game over, the menus' words and the Shadow's rules. What's about one entity,
+/// item or battle is on it (<see cref="EntityCombat"/>, <see cref="WeaponStats"/>, <see cref="ItemRecord"/>, and a battle's own rules,
+/// <see cref="BattleRules"/>, on the script, npc or encounter that starts it). docs/systems/combat.md says where each is in the original.
 /// </summary>
-/// <param name="Fallback">The enemy a monster party's roll fights when it comes to none (<c>BattleSetup.FillEnemies</c>): a Skeleton.</param>
-/// <param name="FleeByEncounter">
-/// Encounter flags that have the last word on fleeing (<c>Combat.ApplyFleeRuleByFlag</c>, <c>0x800D26A0</c>): the Goblin
-/// Ambush's forbids it, Lugash's and the Marquis's allow it.
+/// <param name="Fallback">The enemy a party's roll fights when it comes to none (<c>BattleSetup.FillEnemies</c>): a Skeleton.</param>
+/// <param name="DefaultArena">
+/// The Battle arena a script's battle takes when it names none, and a battle whose terrain chooses none before any other battle has
+/// chosen one: the original's arena 0 (<c>Zones.ArenaChunks</c>, <c>0x800DCA74</c>), Battlefields A01.
 /// </param>
 /// <param name="LootGoldMultiplier">
 /// What the gold a loot table rolls is multiplied by (<see cref="LootRecord.GoldMin"/>): 2, as a container doubles its roll
 /// (<c>get_chest_loot</c>, a shift left by one) and a battle the sum of its chests' (<c>Combat.AddChestLoot</c>, <c>0x8005E0F0</c>).
 /// </param>
-/// <param name="Encounters">
-/// The battles with rules of their own, by their encounter flag (the Goblin Ambush's 978): a loss that isn't the game's end,
-/// no victory line, and what happens after it however it ends.
-/// </param>
 /// <param name="GameOver">
-/// What a lost battle plays (<c>Combat.StartGameOverScript</c>, <c>0x8001F860</c>): the script, from the first script
-/// object that starts it in the map. With none, a lost battle ends the game at once.
+/// What a lost battle plays (<c>Combat.StartGameOverScript</c>, <c>0x8001F860</c>): a script object's script, from it. With none, a lost
+/// battle ends the game at once.
 /// </param>
 /// <param name="Text">
 /// The combat menus' and Sense Aura's words, which the code keeps rather than a string table.
@@ -30,16 +26,11 @@ namespace HBHT.Plugins.Records;
 public sealed record CombatRecord(
     RecordId Id,
     RecordId Fallback,
-    [property: KeyedList(nameof(EncounterFlee.Flag))] IReadOnlyList<EncounterFlee> FleeByEncounter,
+    RecordId DefaultArena,
     int LootGoldMultiplier,
-    [property: KeyedList(nameof(EncounterRule.Flag))] IReadOnlyList<EncounterRule> Encounters,
     CombatText Text,
     GameOverScene? GameOver = null,
-    ShadowRule? Shadow = null)
-{
-    /// <summary>The rules of the battle under encounter flag <paramref name="flag"/>, if it has any.</summary>
-    public EncounterRule? Encounter(RecordId? flag) => flag is { } f ? Encounters.FirstOrDefault(e => e.Flag == f) : null;
-}
+    ShadowRule? Shadow = null);
 
 /// <summary>
 /// The Shadow's rules, in any battle it's in (<c>Combat.ShadowSlot</c>, <c>0x800D94CC</c>, set as its combatant is made): ADR 0008's
@@ -73,16 +64,26 @@ public sealed record ShadowBoost(IReadOnlyList<StatGain> Stats, int Protection, 
 /// <summary>A stat (<c>aidyn:stat/n</c>) raised by so much.</summary>
 public sealed record StatGain(RecordId Stat, int Amount);
 
-/// <summary>The game over: <paramref name="Script"/>, started from its script object in <paramref name="Map"/> (the Dreamscape's).</summary>
-public sealed record GameOverScene(RecordId Map, RecordId Script);
+/// <summary>
+/// The game over: the script of the script object <paramref name="From"/> (the Dreamscape's), started from it as a cut-scene. The
+/// original names the script and starts it from the first script object in the Dreamscape's map that plays it, which the importer finds.
+/// </summary>
+public sealed record GameOverScene(RecordId From);
 
 /// <summary>
-/// A battle's own rules, by its encounter flag (<c>Combat.NonLethal</c>, <c>0x800DA0DC</c>, and <c>Combat.Exit</c>'s branch,
-/// <c>0x80023060</c>, for the Goblin Ambush).
+/// A battle's own rules (ADR 0035), on what starts it: a script's <see cref="ScriptRecord.BattleRules"/>, an npc's or an encounter's
+/// <see cref="PartyObject.BattleRules"/>. The original keys them by the battle's encounter flag (<c>Combat.ApplyFleeRuleByFlag</c>,
+/// <c>0x800D26A0</c>; <c>Combat.NonLethal</c>, <c>0x800DA0DC</c>; <c>Combat.Exit</c>'s branch, <c>0x80023060</c>), which is the one
+/// its source gives, so the importer puts them on each source of that flag: the Goblin Ambush's (978) on script <c>0x0365</c> and its
+/// three npcs, Lugash's (5250) on script <c>0x04D1</c>, the Marquis's (3749) on his npc.
 /// </summary>
+/// <param name="Flee">
+/// Whether the party can flee, with the last word over the bosses' (<c>Combat.ApplyFleeRuleByFlag</c>): the Goblin Ambush forbids it,
+/// Lugash's and the Marquis's fights allow it. Null leaves it to the battle's source and its enemies.
+/// </param>
 /// <param name="NonLethal">
 /// Losing isn't the game's end: the party's defeat line is <paramref name="Speaker"/>'s own (the combat strings' <c>0x74</c>),
-/// then after 120 frames the screen fades, the encounter flag is set, the monster party fought is remembered, and the clock
+/// then after 120 frames the screen fades, the encounter flag is set, the party fought is remembered, and the clock
 /// goes on to 6:00 the next day (<c>Combat.StateDefeat</c>, <c>0x80022590</c>).
 /// </param>
 /// <param name="QuietVictory">A win shows no victory line (<c>TurnOrder.Victory</c>).</param>
@@ -90,7 +91,7 @@ public sealed record GameOverScene(RecordId Map, RecordId Script);
 /// <param name="End">What follows the battle however it ends, won, lost or fled.</param>
 /// <param name="HealsLeader">The party's first member is healed in full as the battle starts (<c>Combat.Init</c>, <c>0x80022D1C</c>).</param>
 /// <param name="KeelOver">A member who keels over after so many hits rather than dying (<c>Combatant.ShadowFightTrick</c>, <c>0x80065DCC</c>).</param>
-public sealed record EncounterRule(RecordId Flag, bool NonLethal = false, bool QuietVictory = false, RecordId? Speaker = null,
+public sealed record BattleRules(bool? Flee = null, bool NonLethal = false, bool QuietVictory = false, RecordId? Speaker = null,
     EncounterEnd? End = null, bool HealsLeader = false, KeelOver? KeelOver = null);
 
 /// <summary>
@@ -104,13 +105,11 @@ public sealed record KeelOver(RecordId Member, int Hits);
 /// What follows a battle with its own rules, however it ends (<c>Combat.Exit</c>): the party's leader's Strength back to its base,
 /// <paramref name="Flag"/> set, the party taken to <paramref name="Place"/>, and <paramref name="Healed"/> healed in full.
 /// </summary>
+/// <param name="Place">The chunk trek starts again in.</param>
 /// <param name="Position">Where in the chunk trek starts again.</param>
 /// <param name="Heading">The way the player faces there, across the ground.</param>
-public sealed record EncounterEnd(RecordId? Flag, ChunkRef Place, System.Numerics.Vector3 Position, System.Numerics.Vector2 Heading,
+public sealed record EncounterEnd(RecordId? Flag, RecordId Place, System.Numerics.Vector3 Position, System.Numerics.Vector2 Heading,
     RecordId? Healed, bool RestoresStrength);
-
-/// <summary>Whether the party can flee a battle under the encounter flag <paramref name="Flag"/>.</summary>
-public sealed record EncounterFlee(RecordId Flag, bool CanFlee);
 
 /// <summary>
 /// The combat menus' words and Sense Aura's, which 1.0 keeps as C strings in its code segment, not in a string table. A Sense Aura

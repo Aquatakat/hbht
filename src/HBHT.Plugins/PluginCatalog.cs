@@ -68,7 +68,7 @@ public sealed class PluginCatalog
 
         var assets = plugins.Assets().ToLookup(a => a.Id);
         var ids = plugins.Ids.Concat(assets.Select(g => g.Key)).ToHashSet();
-        var placements = MapPlacements.For(plugins);
+        var chunks = ChunkIndex.For(plugins);
         var entries = new Dictionary<RecordId, CatalogEntry>();
         foreach (var id in ids)
         {
@@ -77,7 +77,7 @@ public sealed class PluginCatalog
             string summary;
             try
             {
-                summary = Summary(id, json, files, placements, references.GetValueOrDefault(id)?.Count ?? 0);
+                summary = Summary(plugins, id, json, files, chunks, references.GetValueOrDefault(id)?.Count ?? 0);
             }
             catch (Exception e) when (e is InvalidOperationException or FormatException or IOException)
             {
@@ -109,13 +109,13 @@ public sealed class PluginCatalog
     }
 
     /// <summary>
-    /// What a map object is, such as "Monster party: Male Commoner" or "Teleporter patioL2": its kind's name
+    /// What a map object is, such as "Npc: Male Commoner" or "Teleporter patioL2": its kind's name
     /// (<see cref="MapObjectKinds"/>), and the one detail that tells it from others of its kind.
     /// </summary>
     public string Describe(MapObject? o) => o switch
     {
         ScriptObject d => $"Script object {d.Name}",
-        MonsterPartyObject m => $"Monster party: {Find(m.Entity)?.Summary ?? m.Entity.ToString()}",
+        PartyObject m => $"{MapObjectKinds.Name(m)}: {Find(m.Entity)?.Summary ?? m.Entity.ToString()}",
         TeleporterObject t => $"Teleporter {t.Name}",
         ContainerObject c => c.Kind.ToString(),
         TripwireObject t => t.Does switch
@@ -131,28 +131,25 @@ public sealed class PluginCatalog
         null => "Object",
     };
 
-    /// <summary>
-    /// What a voxel ID names and where, such as "Teleporter patioL2, in JundarInteriors K07". Where is every chunk that
-    /// places its map, joined by " / ": the battle arenas and a few overworld maps are placed by several.
-    /// </summary>
-    public string Describe(RecordId voxel)
+    /// <summary>What a map object's ID names and where, such as "Teleporter patioL2, in JundarInteriors K07".</summary>
+    public string Describe(RecordId mapObject)
     {
-        var map = MapRecord.MapOf(voxel);
-        var places = MapPlacements.For(Plugins).All(map);
-        var where = places.Count > 0 ? string.Join(" / ", places) : $"map {map.Key}";
-        return $"{Describe(MapRecord.Find(Plugins, voxel))}, in {where}";
+        var chunk = ChunkRecord.ChunkOf(mapObject);
+        var where = ChunkPlace.Of(Plugins, chunk)?.ToString() ?? $"chunk {chunk.Key}";
+        return $"{Describe(ChunkRecord.Find(Plugins, mapObject))}, in {where}";
     }
 
-    private static string Summary(RecordId id, JsonObject? json, List<AssetFile> files, MapPlacements placements, int usedBy)
+    private static string Summary(PluginSet plugins, RecordId id, JsonObject? json, List<AssetFile> files, ChunkIndex chunks, int usedBy)
     {
         var parts = new List<string>();
         switch (id.Type)
         {
             case RecordTypes.MapSet when json is not null:
-                parts.Add($"{(string?)json["label"]}, {Count(json["chunks"], "chunk")}");
+                parts.Add($"{(string?)json["label"]}, {Plural(chunks.In(id).Count, "chunk")}");
                 break;
-            case RecordTypes.Map:
-                parts.AddRange(placements.All(id).Select(p => p.ToString()));
+            case RecordTypes.Chunk:
+                if (chunks.CellOf(id) is { } cell && plugins.TryGet<MapSetRecord>(cell.MapSet) is { } set)
+                    parts.Add($"{set.Label} {ChunkRecord.NameOf(cell.Row, cell.Column)}");
                 if (json?["objects"] is JsonArray objects)
                 {
                     parts.Add(objects.Count == 0 ? "no objects" : string.Join(", ", objects.OfType<JsonObject>()

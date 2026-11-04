@@ -43,13 +43,14 @@ public sealed class CheckpointNameAndMinimapTests(Na10Import fixture)
 
         // The save lists the minimaps that aren't as they start, and loading sets each piece from its bit: the bits that come back
         // from the save are the checkpoint's.
-        var saved = save.Minimaps.ToDictionary(m => m.Minimap, m => m.Seen);
+        var saved = save.Minimaps.ToDictionary(m => m.MapSet, m => m.Seen);
         var at = 0;
         var back = new HashSet<int>();
         foreach (var set in HBHT.Rom.Import.MinimapImporter.MapSets)
         {
-            var minimap = Set.Get<HBHT.Plugins.Records.MinimapRecord>(RecordId.Decimal(RecordTypes.Minimap, set));
-            var pieces = saved.TryGetValue(minimap.Id, out var s) ? s : [.. Enumerable.Range(0, minimap.Sections.Count).Where(i => minimap.Sections[i].Seen)];
+            var mapSet = Set.Get<HBHT.Plugins.Records.MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, set));
+            var minimap = mapSet.Minimap!;
+            var pieces = saved.TryGetValue(mapSet.Id, out var s) ? s : [.. Enumerable.Range(0, minimap.Sections.Count).Where(i => minimap.Sections[i].Seen)];
             back.UnionWith(pieces.Select(i => at + i));
             at += minimap.Sections.Count;
         }

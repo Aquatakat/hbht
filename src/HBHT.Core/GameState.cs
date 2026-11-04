@@ -121,7 +121,7 @@ public sealed class GameState : IScriptWorld
     public static GameState NewGame(PluginSet plugins)
     {
         var game = new GameState(plugins) { Label = "New game" };
-        game.Weather.NewGame(game.Clock, game.Terrain(0), game.Random.World, game.Random.Cosmetic);
+        game.Weather.NewGame(game.Clock, game.Terrain(RecordId.Decimal(RecordTypes.Terrain, 0)), game.Random.World, game.Random.Cosmetic);
         game.WriteStateFlags();
         var start = plugins.Singleton<NewGameRecord>();
         if (game.Recruit(start.Leader) is { } leader)
@@ -288,19 +288,21 @@ public sealed class GameState : IScriptWorld
 
     /// <summary>
     /// The player enters a chunk of <paramref name="terrain"/> (<c>World::SetTerrain</c>): its terrain's flags are
-    /// written, and for another terrain, the weather may change.
+    /// written, and for another terrain, the weather may change. The state flags hold the original's terrain numbers, so a mod's
+    /// terrain writes none.
     /// </summary>
-    public void EnterTerrain(int terrain)
+    public void EnterTerrain(RecordId terrain)
     {
         Weather.SetTerrain(terrain);
         Weather.Frame(Clock.Date.PartOfDay, Clock.Date.Season, Terrain(terrain), Random.World, Random.Cosmetic);
         WriteStateFlags();
-        StateFlags.SetTerrain(terrain);
+        if (terrain.Namespace == RecordId.BaseNamespace && int.TryParse(terrain.Key, System.Globalization.CultureInfo.InvariantCulture, out var number))
+            StateFlags.SetTerrain(number);
     }
 
     /// <summary>The terrain's record, if a plugin has it.</summary>
-    public TerrainRecord? Terrain(int? terrain) =>
-        terrain is { } t ? TerrainRecord.Find(Plugins, t) : null;
+    public TerrainRecord? Terrain(RecordId? terrain) =>
+        terrain is { } t ? Plugins.TryGet<TerrainRecord>(t) : null;
 
     // World.Update: the calendar's flags and the rain's.
     private void WriteStateFlags()

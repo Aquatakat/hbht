@@ -153,13 +153,15 @@ public sealed class ChunkCutsImportTests(Na10Import fixture)
 
     private MapSetRecord Overworld => Data.Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, 0));
 
-    private ChunkEntry Chunk(string name) => Overworld.Chunks.Single(c => c.Name == name);
+    private IReadOnlyList<ChunkRecord> OverworldChunks => [.. Data.Set.ChunksIn(Overworld.Id)];
+
+    private ChunkRecord Chunk(string name) => OverworldChunks.Single(c => c.Name == name);
 
     [Fact]
     public void NoChunkSceneDrawsPastItsNeighbours()
     {
         var set = Overworld;
-        foreach (var chunk in set.Chunks)
+        foreach (var chunk in OverworldChunks)
         {
             foreach (var scene in new[] { chunk.Scene, chunk.AltScene }.OfType<RecordId>())
             {
@@ -175,7 +177,7 @@ public sealed class ChunkCutsImportTests(Na10Import fixture)
     public void AFillLiesInItsCell()
     {
         var set = Overworld;
-        var fills = set.Chunks.Where(c => c.Fill is not null).ToList();
+        var fills = OverworldChunks.Where(c => c.Fill is not null).ToList();
         Assert.InRange(fills.Count, 130, 160);
         Assert.Equal(fills.Count, fills.Select(c => c.Fill).Distinct().Count());
         foreach (var chunk in fills)
@@ -191,10 +193,10 @@ public sealed class ChunkCutsImportTests(Na10Import fixture)
     public void ACopyOfAChunkIsDroppedForTheChunk()
     {
         // H08 carries I09, which its byte 0x1A leaves unloaded; S18 is T17's whole scene; M20 carries all of J19.
-        Assert.Contains(new ChunkCell(9, 9), Chunk("H08").Shows!);
-        Assert.Contains(new ChunkCell(20, 17), Chunk("S18").Shows!);
-        Assert.Contains(new ChunkCell(10, 19), Chunk("M20").Shows!);
-        Assert.Contains(new ChunkCell(11, 20), Chunk("M21").Shows!);
+        Assert.Contains(Ids.Chunk(0, "I09"), Chunk("H08").Shows!);
+        Assert.Contains(Ids.Chunk(0, "T17"), Chunk("S18").Shows!);
+        Assert.Contains(Ids.Chunk(0, "J19"), Chunk("M20").Shows!);
+        Assert.Contains(Ids.Chunk(0, "K20"), Chunk("M21").Shows!);
         Assert.Empty(SceneMesh.For(Data.Set, Chunk("S18").Scene!.Value));
     }
 
@@ -202,11 +204,11 @@ public sealed class ChunkCutsImportTests(Na10Import fixture)
     public void WhatsOverACellWithNoChunkIsAChunkOfItsOwn()
     {
         var set = Overworld;
-        var made = set.Chunks.Where(c => c.Scene is null && c.AltScene is null && c.Fill is not null).ToList();
+        var made = OverworldChunks.Where(c => c.Scene is null && c.AltScene is null && c.Fill is not null).ToList();
         Assert.InRange(made.Count, 120, 150);
         // On the original's own map for its chunks of sea, which has no objects.
-        Assert.All(made, c => Assert.Equal(RecordId.Hex(RecordTypes.Map, 0x3559), c.Map));
-        Assert.Empty(Data.Set.Get<MapRecord>(RecordId.Hex(RecordTypes.Map, 0x3559)).Objects);
+        Assert.All(made, c => Assert.Equal("0x3559", c.Borg));
+        Assert.All(made, c => Assert.Empty(c.Objects));
         // The sea past Lighthouse Point, two rows off the map's top, and J20, which only M20 and its neighbours drew.
         Assert.Contains(made, c => c.Row == -1 && c.Column == 15);
         Assert.Contains(made, c => c.Name == "J20");
@@ -218,9 +220,9 @@ public sealed class ChunkCutsImportTests(Na10Import fixture)
     [Fact]
     public void ExtendedDrawsFurtherOnTheMainlandAlone()
     {
-        var off = Overworld.Chunks.Where(c => c.Scene is not null && !c.Extended).Select(c => c.Name).Order();
+        var off = OverworldChunks.Where(c => c.Scene is not null && !c.Extended).Select(c => c.Name).Order();
         // Namer's Isle and Chaos Isle.
         Assert.Equal(["A22", "B22", "D22", "D23", "E22", "E23", "F23"], off);
-        Assert.All(Data.MapSets.Where(s => s.Id != Overworld.Id).SelectMany(s => s.Chunks), c => Assert.False(c.Extended));
+        Assert.All(Data.MapSets.Where(s => s.Id != Overworld.Id).SelectMany(s => Data.Set.ChunksIn(s.Id)), c => Assert.False(c.Extended));
     }
 }

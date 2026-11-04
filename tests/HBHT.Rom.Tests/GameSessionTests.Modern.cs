@@ -92,14 +92,14 @@ public sealed partial class GameSessionTests
     {
         var (chunk, rom) = RoogD01();
         var set = Data.Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, (int)MapSet.RoogCave));
-        var entry = set.Chunks.Single(c => c.Name == "D01");
+        var entry = Data.Set.Get<ChunkRecord>(Ids.Chunk((int)MapSet.RoogCave, "D01"));
         CollisionWorld World(IEnumerable<CollisionTriangle> triangles)
         {
             var world = new CollisionWorld();
-            world.Add(new ChunkKey(set.Id, entry.Row, entry.Column), triangles, set.Origin(entry.Row, entry.Column));
+            world.Add(ChunkKey.Of(entry), triangles, set.Origin(entry.Row, entry.Column));
             return world;
         }
-        var imported = World(CollisionMesh.For(Data.Set, entry.Map));
+        var imported = World(CollisionMesh.For(Data.Set, entry.Collision!.Value));
         var original = World(CollisionMesh.Read(CollisionGltf.Export([(chunk, rom)], placeInSet: false)));
         var stuck = new List<string>();
         foreach (var (world, which) in new[] { (imported, "moved"), (original, "the ROM's") })
@@ -125,7 +125,7 @@ public sealed partial class GameSessionTests
         // reach the ramp's top at about 4.4 and no higher, while Modern with plain collision for ground walks up the faces beside it
         // and out of the world, above 10.
         var set = Data.Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, 0));
-        var chunk = set.Chunks.Single(c => c.Name == "Q25");
+        var chunk = Data.Set.ChunksIn(set.Id).Single(c => c.Name == "Q25");
         var origin = set.Origin(chunk.Row, chunk.Column);
         (Vector3, float?)[] starts =
             [(origin + new Vector3(88.3f, -1.2f, 48.0f), null), (origin + new Vector3(91.9f, 2.2f, 45.7f), null), (origin + new Vector3(95.1f, 3.2f, 48.9f), null)];
@@ -198,7 +198,7 @@ public sealed partial class GameSessionTests
                 problems.AddRange(explored[MovementMode.Original].Beyond(explored[MovementMode.Modern]).Select(c => $"{pace}: arena {number} only the original reaches {c.Top} ({c.Cells.Count} cells)"));
             }
         }
-        string[] expected = [.. new[] { MovementMode.Original, MovementMode.Modern }.SelectMany(m => new[] { 1f, SessionSettings.BriskPace }.Select(p => $"{m} at {p}: arena 22 flee3 is not walked to"))];
+        string[] expected = [.. new[] { MovementMode.Original, MovementMode.Modern }.SelectMany(m => new[] { 1f, SessionSettings.BriskPace }.Select(p => $"{m} at {p}: arena {Battlefield.Chunk(22)} flee3 is not walked to"))];
         Assert.Equal(expected.Order(StringComparer.Ordinal), problems.Order(StringComparer.Ordinal));
     }
 
@@ -305,7 +305,7 @@ public sealed partial class GameSessionTests
     private (CollisionWorld World, Vector3 Origin) Loaded(int mapSet, string chunkName, Vector3 local)
     {
         var set = Data.Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, mapSet));
-        var chunk = set.Chunks.Single(c => c.Name == chunkName);
+        var chunk = Data.Set.ChunksIn(set.Id).Single(c => c.Name == chunkName);
         var origin = set.Origin(chunk.Row, chunk.Column);
         var world = new CollisionWorld();
         new ChunkStreamer(Data.Set, GameState.NewGame(Data.Set), world, set).Update(origin + local);

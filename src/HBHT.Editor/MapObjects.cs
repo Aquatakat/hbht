@@ -18,7 +18,7 @@ public static class MapObjects
         [typeof(LightObject)] = Color.FromHtml("#fff4a8"),
         [typeof(SoundObject)] = Color.FromHtml("#6ec6ff"),
         [typeof(WanderNodeObject)] = Color.FromHtml("#9be38b"),
-        [typeof(MonsterPartyObject)] = Color.FromHtml("#ff5c5c"),
+        [typeof(PartyObject)] = Color.FromHtml("#ff5c5c"),
         [typeof(ReferencePointObject)] = Color.FromHtml("#c792ea"),
         [typeof(TeleporterObject)] = Color.FromHtml("#00e5c0"),
         [typeof(CameraObject)] = Color.FromHtml("#ff9f43"),
@@ -37,7 +37,7 @@ public static class MapObjects
     /// <summary>An object's fields as its map record holds them.</summary>
     public static JsonObject? Json(PluginSet plugins, RecordId voxel)
     {
-        var index = MapRecord.IndexOf(voxel);
-        return (plugins.GetJson(MapRecord.MapOf(voxel))?["objects"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault(o => (int?)o["index"] == index);
+        var index = ChunkRecord.IndexOf(voxel);
+        return (plugins.GetJson(ChunkRecord.ChunkOf(voxel))?["objects"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault(o => (int?)o["index"] == index);
     }
 }

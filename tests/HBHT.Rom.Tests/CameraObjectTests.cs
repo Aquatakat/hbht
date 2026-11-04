@@ -42,17 +42,17 @@ public sealed class CameraObjectTests(Na10Import fixture)
         public void Sound(HBHT.Core.Audio.OneShot sound) { }
     }
 
-    private IReadOnlyList<CollisionTriangle> Collision(MapRecord map) =>
-        Collisions.GetOrAdd(Data.Set.FindAsset(map.Id, "glb")!, path => CollisionMesh.Read(File.ReadAllBytes(path)));
+    private IReadOnlyList<CollisionTriangle> Collision(ChunkRecord map) =>
+        Collisions.GetOrAdd(Data.Set.FindAsset(map.Collision!.Value, "glb")!, path => CollisionMesh.Read(File.ReadAllBytes(path)));
 
-    private IEnumerable<(MapRecord Map, CameraObject Camera)> Cameras() =>
-        Data.Maps.SelectMany(m => m.Objects.OfType<CameraObject>().Select(c => (Map: m, Camera: c)));
+    private IEnumerable<(ChunkRecord Map, CameraObject Camera)> Cameras() =>
+        Data.ChunkRecords.SelectMany(m => m.Objects.OfType<CameraObject>().Select(c => (Map: m, Camera: c)));
 
     /// <summary>Which cameras trigger triangles name, by map and index, and how many triangles name them.</summary>
     private Dictionary<(RecordId Map, int Index), int> NamedByTriangles()
     {
         var named = new Dictionary<(RecordId, int), int>();
-        foreach (var map in Data.Maps)
+        foreach (var map in Data.ChunkRecords)
         {
             foreach (var triangle in Collision(map).Where(t => t.Role == CollisionRole.Trigger && map.Objects.Any(o => o.Index == t.Target && o is CameraObject)))
                 named[(map.Id, triangle.Target)] = named.GetValueOrDefault((map.Id, triangle.Target)) + 1;
@@ -60,12 +60,11 @@ public sealed class CameraObjectTests(Na10Import fixture)
         return named;
     }
 
-    private static bool ListedByAGridCell(MapRecord map, CameraObject camera) => map.Grid is { } grid && grid.Cells.Any(c => c.Contains(camera.Index));
+    private static bool ListedByAGridCell(ChunkRecord map, CameraObject camera) => map.Grid is { } grid && grid.Cells.Any(c => c.Contains(camera.Index));
 
-    private MapRecord Chunk(RecordId set, int row, int column) =>
-        Data.Set.Get<MapRecord>(Data.Chunk(new ChunkRef(set, row, column))!.Map);
+    private ChunkRecord Chunk(RecordId set, int row, int column) => Data.Set.ChunkAt(set, row, column)!;
 
-    private ReferencePointObject RefPoint(MapRecord map, CameraObject camera) => (ReferencePointObject)map.Objects.Single(o => o.Index == MapRecord.IndexOf(camera.RefPoint!.Value));
+    private ReferencePointObject RefPoint(ChunkRecord map, CameraObject camera) => (ReferencePointObject)map.Objects.Single(o => o.Index == ChunkRecord.IndexOf(camera.RefPoint!.Value));
 
     private sealed class Play
     {
@@ -77,7 +76,7 @@ public sealed class CameraObjectTests(Na10Import fixture)
     }
 
     /// <summary>A new game with a chunk loaded at <paramref name="origin"/>, and a camera for its camera objects to move.</summary>
-    private Play Start(MapRecord map, Vector3 origin)
+    private Play Start(ChunkRecord map, Vector3 origin)
     {
         var game = GameState.NewGame(Data.Set);
         var use = new MapObjectUse(game, MenuText.From(Data.Set), new IdleHost());
@@ -103,7 +102,7 @@ public sealed class CameraObjectTests(Na10Import fixture)
         Assert.DoesNotContain(listed, c => named.ContainsKey((c.Map.Id, c.Camera.Index)));
         Assert.DoesNotContain(byTriangle, c => ListedByAGridCell(c.Map, c.Camera));
 
-        Assert.All(listed, c => Assert.True(c.Camera.Radius < 200, $"{MapRecord.VoxelId(c.Map.Id, c.Camera.Index)}: {c.Camera.Radius}"));
+        Assert.All(listed, c => Assert.True(c.Camera.Radius < 200, $"{c.Map.ObjectId(c.Camera.Index)}: {c.Camera.Radius}"));
         Assert.All(byTriangle, c => Assert.Equal(200, c.Camera.Radius));
         Assert.Equal(1532, named.Values.Sum());
     }
@@ -118,11 +117,11 @@ public sealed class CameraObjectTests(Na10Import fixture)
 
         foreach (var (map, camera) in moving)
         {
-            var id = MapRecord.VoxelId(map.Id, camera.Index);
+            var id = map.ObjectId(camera.Index);
             Assert.True((camera.Flags & Moves) != 0, $"{id} has no move type: {camera.Flags}");
             Assert.NotNull(camera.RefPoint);
-            Assert.Equal(map.Id, MapRecord.MapOf(camera.RefPoint!.Value));
-            Assert.IsType<ReferencePointObject>(map.Objects.Single(o => o.Index == MapRecord.IndexOf(camera.RefPoint.Value)));
+            Assert.Equal(map.Id, ChunkRecord.ChunkOf(camera.RefPoint!.Value));
+            Assert.IsType<ReferencePointObject>(map.Objects.Single(o => o.Index == ChunkRecord.IndexOf(camera.RefPoint.Value)));
         }
 
         // The rest only set how the outdoor camera follows.
@@ -142,11 +141,11 @@ public sealed class CameraObjectTests(Na10Import fixture)
     [Fact]
     public void TheGwerniaInteriorsOfTerrainSixteenOrEightUseTheInteriorsCameraAndTheOverworldNeverDoes()
     {
-        var interiors = Data.MapSets.Single(s => s.Id == GwerniaInteriors).Chunks.Where(c => c.Terrain is 16 or 8).ToList();
+        var interiors = Data.Set.ChunksIn(GwerniaInteriors).Where(c => c.Terrain.Key is "16" or "8").ToList();
         Assert.NotEmpty(interiors);
         Assert.All(interiors, c => Assert.Equal(CameraMode.Interior, FollowCamera.ModeFor(Data.Set, c)));
 
-        var overworld = Data.MapSets.Single(s => s.Id == Overworld).Chunks;
+        var overworld = Data.Set.ChunksIn(Overworld).ToList();
         Assert.NotEmpty(overworld);
         Assert.All(overworld, c => Assert.Equal(CameraMode.Outdoor, FollowCamera.ModeFor(Data.Set, c)));
     }
@@ -160,7 +159,7 @@ public sealed class CameraObjectTests(Na10Import fixture)
         foreach (var terrain in terrains)
         {
             var number = int.Parse(terrain.Id.Key, System.Globalization.CultureInfo.InvariantCulture);
-            var chunk = new ChunkEntry(1, 1, null, null, Data.Maps[0].Id, number);
+            var chunk = Data.ChunkRecords[0] with { Terrain = terrain.Id };
             var expected = interior.Contains(number) ? CameraMode.Interior : CameraMode.Outdoor;
             Assert.True(expected == FollowCamera.ModeFor(Data.Set, chunk), $"terrain {number}");
         }
@@ -172,7 +171,7 @@ public sealed class CameraObjectTests(Na10Import fixture)
     public void HouseAsFirstCameraCutsToItsReferencePointWhereverTheChunkIsPlaced()
     {
         var map = Chunk(GwerniaInteriors, 1, 3);
-        Assert.Equal(RecordId.Parse("aidyn:map/0x15BC"), map.Id);
+        Assert.Equal(Ids.Chunk(5, "A03"), map.Id);
         var camera = (CameraObject)map.Objects.Single(o => o.Index == 0);
         Assert.Equal(CameraFlags.Cut | CameraFlags.Track | CameraFlags.Position, camera.Flags);
         Assert.Equal(8, camera.Radius);
@@ -225,7 +224,7 @@ public sealed class CameraObjectTests(Na10Import fixture)
     public void TheInnsTriangleCamerasHoldTheCameraEaseToTheirPointAndLetGoASecondAfterTheLastTread()
     {
         var map = Chunk(GwerniaInteriors, 1, 7);
-        Assert.Equal(RecordId.Parse("aidyn:map/0x15E2"), map.Id);
+        Assert.Equal(Ids.Chunk(5, "A07"), map.Id);
         var cameras = map.Objects.OfType<CameraObject>().ToList();
         Assert.Equal([0, 1, 2, 3], cameras.Select(c => c.Index));
         Assert.All(cameras, c =>
@@ -308,7 +307,7 @@ public sealed class CameraObjectTests(Na10Import fixture)
     public void TheOverworldsA15FirstCameraEasesInToItsPointOverThirtyTicks()
     {
         var map = Chunk(Overworld, 1, 15);
-        Assert.Equal(RecordId.Parse("aidyn:map/0x0EAA"), map.Id);
+        Assert.Equal(Ids.Chunk(0, "A15"), map.Id);
         var camera = (CameraObject)map.Objects.Single(o => o.Index == 0);
         Assert.Equal(CameraFlags.EaseIn | CameraFlags.Track | CameraFlags.Position, camera.Flags);
         Assert.Equal(0x8 | 0x2000 | 0x8000, (int)camera.Flags);

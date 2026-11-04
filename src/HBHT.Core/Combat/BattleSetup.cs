@@ -7,11 +7,11 @@ namespace HBHT.Core.Combat;
 /// <summary>Where a battle comes from.</summary>
 public enum BattleSource
 {
-    /// <summary>A wandering monster party caught the party in trek (<c>WanderTick</c>).</summary>
+    /// <summary>A wandering encounter caught the party in trek (<c>WanderTick</c>).</summary>
     Wanderer,
 
-    /// <summary>The player used a monster party with no dialogue, which fights (<c>monsterpary_func</c>).</summary>
-    MonsterParty,
+    /// <summary>The player used an encounter, which fights (<c>monsterpary_func</c>).</summary>
+    Encounter,
 
     /// <summary>The party was ambushed as it camped (<c>Party::CampAmbushCheck</c>, trek state 2 after the camp, <c>0x80004ac0</c>).</summary>
     Camp,
@@ -29,67 +29,75 @@ public enum BattleSource
 /// </summary>
 /// <param name="Source">Where it comes from.</param>
 /// <param name="Place">The chunk it starts in: where the player stands, or a cut-scene's stage.</param>
-/// <param name="Terrain">That chunk's terrain, by which a camp ambush's enemies are chosen.</param>
+/// <param name="Terrain">That chunk's terrain, by which a camp ambush's enemies and the arena are chosen.</param>
 /// <param name="Party">
-/// The monster party fought (<c>aidyn:voxel/…</c>): the one that caught the party or was used, or the one talking in a
+/// The party fought (<c>aidyn:mapobject/…</c>): the encounter that caught the party or was used, or the npc talking in a
 /// conversation whose script starts the battle, as the original fights the talker's party instead.
 /// </param>
 /// <param name="Enemies">
 /// Who fights: a monster party's kinds of enemy, each with how many always come and how many can, or a script's
 /// <see cref="ScriptOp.BattleAddEnemy"/>s in order, one each, or a camp ambush's two kinds.
 /// </param>
-/// <param name="Arena">A script's arena (<see cref="ScriptOp.BattleArena"/>, 0 when it sets one above 27), or null.</param>
+/// <param name="Arena">A script's arena, a chunk of the Battle arenas (<see cref="ScriptOp.BattleArena"/>), or null to choose by the terrain.</param>
 /// <param name="Ambush">Whether the enemies came at the party: a wanderer catching it, or a camp ambush.</param>
 /// <param name="CanFlee">
 /// Whether the party may flee before the bosses and encounter flags have their say: monster parties' battles yes, camp
 /// ambushes no, scripts' unless the script is a cut-scene.
 /// </param>
 /// <param name="EncounterFlag">
-/// The battle's encounter flag, which its special rules key on: a fighting monster party's used flag, which winning sets;
-/// a talking party's flag C (<see cref="MonsterPartyObject.BattleFlag"/>), which winning sets too; or a script's
-/// <see cref="ScriptRecord.BattleFlag"/>, which a win doesn't set.
+/// The battle's encounter flag: an encounter's used flag, which winning sets; an npc's <see cref="NpcObject.BattleFlag"/>, which
+/// winning sets too; or a script's <see cref="ScriptRecord.BattleFlag"/>, which a win doesn't set. The original keys a battle's own rules
+/// by it, which the port reads from the battle's source (<see cref="Rules"/>).
 /// </param>
 /// <param name="CollisionByte">A script's <see cref="ScriptOp.BattleCollisionByte"/>.</param>
 /// <param name="AniByte">A script's <see cref="ScriptOp.BattleAnimationByte"/>.</param>
 public sealed record BattleSetup(
     BattleSource Source,
-    ChunkRef? Place,
-    int? Terrain,
+    RecordId? Place,
+    RecordId? Terrain,
     RecordId? Party,
     IReadOnlyList<PartyEnemy> Enemies,
-    int? Arena,
+    RecordId? Arena,
     bool Ambush,
     bool CanFlee,
     RecordId? EncounterFlag,
     int CollisionByte = 0,
     int AniByte = 0)
 {
-    /// <summary>A monster party's least and most enemies (<see cref="MonsterPartyObject.MinSize"/>, <see cref="MonsterPartyObject.MaxSize"/>).</summary>
+    /// <summary>A party's least and most enemies (<see cref="PartyObject.FewestFighters"/>, <see cref="PartyObject.MostFighters"/>).</summary>
     public (int Min, int Max) Size { get; init; } = (0, Battle.MaxEnemies);
 
     /// <summary>The share of each kind the level trim drops, by the party's level over the enemies' in thirds (<c>0x800CD470</c>).</summary>
     private static readonly float[] LevelTrim = [0.3f, 0.2f, 0.1f, 0f];
 
     /// <summary>
-    /// A battle with a monster party (<paramref name="id"/>, <c>aidyn:voxel/…</c>): its enemies, fleeing allowed, and its
-    /// flag C if it talks, or else its used flag.
+    /// A battle with a party (<paramref name="id"/>, <c>aidyn:mapobject/…</c>): its enemies, fleeing allowed, its encounter flag
+    /// (<see cref="PartyObject.EncounterFlag"/>), and its own rules.
     /// </summary>
-    public static BattleSetup WithParty(BattleSource source, RecordId id, MonsterPartyObject party, ChunkRef? place, int? terrain, bool ambush) =>
-        new(source, place, terrain, id, party.Enemies, null, ambush, CanFlee: true, party.Script is null ? party.Used?.Flag : party.BattleFlag)
+    public static BattleSetup WithParty(BattleSource source, RecordId id, PartyObject party, RecordId? place, RecordId? terrain, bool ambush) =>
+        new(source, place, terrain, id, party.Fighters, null, ambush, CanFlee: true, party.EncounterFlag)
         {
-            Size = (party.MinSize, party.MaxSize),
-            BonusLoot = party.Loot,
+            Size = (party.FewestFighters, party.MostFighters),
+            BonusLoot = party.BonusLoot,
             PartyGate = party.Enabled,
+            Rules = party.BattleRules,
         };
+
+    /// <summary>
+    /// The battle's own rules (ADR 0035), which the original keys by its encounter flag: its script's
+    /// (<see cref="ScriptRecord.BattleRules"/>), or its party's (<see cref="PartyObject.BattleRules"/>). With none, the battle's source and
+    /// its enemies say whether the party can flee, and losing ends the game.
+    /// </summary>
+    public BattleRules? Rules { get; init; }
 
     /// <summary>
     /// A camp ambush where the party camped (<c>CampEncounters.Load</c>, <c>0x800096DC</c>): no fleeing, no loot of its own and no
     /// flag; its enemies the terrain's (<see cref="TerrainRecord.Ambushes"/>) at the tier of the party's average level, dead
     /// members counted (<see cref="CampAmbushers"/>), rolled as a monster party's with its least and most the two kinds' summed.
     /// </summary>
-    public static BattleSetup CampAmbush(ChunkRef? place, int? terrain, PluginSet plugins, Characters.Party party)
+    public static BattleSetup CampAmbush(RecordId? place, RecordId? terrain, PluginSet plugins, Characters.Party party)
     {
-        var enemies = CampAmbushers(terrain is { } t ? TerrainRecord.Find(plugins, t) : null, plugins, party);
+        var enemies = CampAmbushers(terrain is { } t ? plugins.TryGet<TerrainRecord>(t) : null, plugins, party);
         return new(BattleSource.Camp, place, terrain, null, enemies, null, Ambush: true, CanFlee: false, null)
         {
             Size = (enemies.Sum(e => e.Min), enemies.Sum(e => e.Max)),
@@ -125,12 +133,14 @@ public sealed record BattleSetup(
     public FlagGate? PartyGate { get; init; }
 
     /// <summary>
-    /// A script's battle (<c>encounterDat_func</c>, <c>0x80050804</c>): its enemies one each, its arena (0 when it sets none) and
-    /// bytes, and its battle flag.
+    /// A script's battle (<c>encounterDat_func</c>, <c>0x80050804</c>): its enemies one each, its arena (none when it sets none, which
+    /// takes the combat record's <see cref="CombatRecord.DefaultArena"/>, the original's 0, rather than the terrain's) and bytes, and its
+    /// battle flag and rules.
     /// </summary>
-    public static BattleSetup Scripted(IEnumerable<RecordId> enemies, int arena, int collisionByte, int aniByte, bool canFlee, RecordId? flag) =>
+    public static BattleSetup Scripted(IEnumerable<RecordId> enemies, RecordId? arena, int collisionByte, int aniByte, bool canFlee, RecordId? flag,
+        BattleRules? rules = null) =>
         new(BattleSource.Script, null, null, null, [.. enemies.Select(e => new PartyEnemy(e, 1, 1))], arena, Ambush: false, canFlee, flag,
-            collisionByte, aniByte);
+            collisionByte, aniByte) { Rules = rules };
 
     /// <summary>
     /// The script's battle in a conversation with someone who wanders: the original fights their party instead, under its flag C
@@ -139,11 +149,12 @@ public sealed record BattleSetup(
     /// the terrain (<see cref="ChooseArena"/>), not the script's, which no such script sets; the collision and animation bytes 0;
     /// and fleeing allowed.
     /// </summary>
-    public BattleSetup Against(RecordId id, MonsterPartyObject party) =>
+    public BattleSetup Against(RecordId id, PartyObject party) =>
         this with
         {
-            Party = id, Enemies = party.Enemies, EncounterFlag = party.BattleFlag, Size = (party.MinSize, party.MaxSize),
-            BonusLoot = party.Loot, PartyGate = party.Enabled, Arena = null, CollisionByte = 0, AniByte = 0, CanFlee = true,
+            Party = id, Enemies = party.Fighters, EncounterFlag = party.EncounterFlag, Size = (party.FewestFighters, party.MostFighters),
+            BonusLoot = party.BonusLoot, PartyGate = party.Enabled, Arena = null, CollisionByte = 0, AniByte = 0, CanFlee = true,
+            Rules = party.BattleRules,
         };
 
     /// <summary>
@@ -236,14 +247,18 @@ public sealed record BattleSetup(
 
     /// <summary>
     /// The arena by the terrain of the chunk the battle starts in (<c>BattleSetup.ChooseArena</c>, <c>0x80008698</c>), from
-    /// the terrain's record (<see cref="TerrainRecord.Arenas"/>): a roll over its range, or with two ranges, a d2 first, 1
-    /// for the first. Null where the terrain chooses none, which keeps the last battle's.
+    /// the terrain's record (<see cref="TerrainRecord.Arenas"/>): one of its group by a roll over it, or with two groups, a d2 first, 1
+    /// for the first. The roll over a group's places is the original's over its range of arena numbers. Null where the terrain chooses
+    /// none, which keeps the last battle's.
     /// </summary>
-    public int? ChooseArena(PluginSet plugins, IRandom random)
+    public RecordId? ChooseArena(PluginSet plugins, IRandom random)
     {
-        if (Terrain is not { } terrain || TerrainRecord.Find(plugins, terrain)?.Arenas is not { Count: > 0 } arenas)
+        // A script's own battle (not one against the npc talking) takes arena 0 when it names none (encounterDat_func).
+        if (Source == BattleSource.Script && Party is null)
+            return plugins.Singleton<CombatRecord>().DefaultArena;
+        if (Terrain is not { } terrain || plugins.TryGet<TerrainRecord>(terrain)?.Arenas is not { Count: > 0 } arenas)
             return null;
-        var range = arenas.Count > 1 && random.RollD(1, 2) != 1 ? arenas[1] : arenas[0];
-        return random.Range(range.Min, range.Max);
+        var group = arenas.Count > 1 && random.RollD(1, 2) != 1 ? arenas[1] : arenas[0];
+        return group.Count == 0 ? null : group[random.Range(0, group.Count - 1)];
     }
 }

@@ -230,8 +230,8 @@ public sealed partial class FollowCamera
     /// The mode a teleport into <paramref name="chunk"/> chooses (<c>TeleportPlayer</c>): interior where
     /// its terrain doesn't draw the sky, the original's sky type 4.
     /// </summary>
-    public static CameraMode ModeFor(PluginSet plugins, ChunkEntry chunk) =>
-        TerrainRecord.Find(plugins, chunk.Terrain) is { SkyDrawn: false }
+    public static CameraMode ModeFor(PluginSet plugins, ChunkRecord chunk) =>
+        plugins.TryGet<TerrainRecord>(chunk.Terrain) is { SkyDrawn: false }
             ? CameraMode.Interior
             : CameraMode.Outdoor;
 

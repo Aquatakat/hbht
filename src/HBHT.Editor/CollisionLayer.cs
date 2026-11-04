@@ -48,9 +48,9 @@ public sealed class CollisionLayer
     private readonly Dictionary<(int Row, int Column), Chunk> _chunks = [];
 
     /// <summary>A chunk's triangles, in the map set's coordinates.</summary>
-    private sealed class Chunk(ChunkEntry entry, CollisionTriangle[] triangles, Vector3[] corners, Aabb bounds, MeshInstance3D? mesh)
+    private sealed class Chunk(ChunkRecord entry, CollisionTriangle[] triangles, Vector3[] corners, Aabb bounds, MeshInstance3D? mesh)
     {
-        public ChunkEntry Entry { get; } = entry;
+        public ChunkRecord Entry { get; } = entry;
         public CollisionTriangle[] Triangles { get; } = triangles;
         public Vector3[] Corners { get; } = corners;
         public Aabb Bounds { get; } = bounds;
@@ -58,7 +58,7 @@ public sealed class CollisionLayer
     }
 
     /// <summary>A triangle a ray meets.</summary>
-    public readonly record struct Hit(ChunkEntry Chunk, CollisionTriangle Triangle, Vector3 Point, float Distance);
+    public readonly record struct Hit(ChunkRecord Chunk, CollisionTriangle Triangle, Vector3 Point, float Distance);
 
     public Node3D Node { get; } = new() { Name = "Collision" };
 
@@ -71,17 +71,17 @@ public sealed class CollisionLayer
         _chunks.Clear();
     }
 
-    public bool Contains(ChunkEntry chunk) => _chunks.ContainsKey((chunk.Row, chunk.Column));
+    public bool Contains(ChunkRecord chunk) => _chunks.ContainsKey((chunk.Row, chunk.Column));
 
     /// <summary>The chunk's collision bounds, in the map set's coordinates, if it has any.</summary>
-    public Aabb? Bounds(ChunkEntry chunk) =>
+    public Aabb? Bounds(ChunkRecord chunk) =>
         _chunks.TryGetValue((chunk.Row, chunk.Column), out var c) && c.Triangles.Length > 0 ? c.Bounds : null;
 
     /// <summary>
     /// The middle of the trigger triangles in a chunk that run its object <paramref name="target"/>, in
     /// the map set's coordinates, or null if none do or the chunk isn't loaded.
     /// </summary>
-    public Vector3? TriggerCentre(ChunkEntry entry, int target)
+    public Vector3? TriggerCentre(ChunkRecord entry, int target)
     {
         if (!_chunks.TryGetValue((entry.Row, entry.Column), out var chunk))
             return null;
@@ -98,7 +98,7 @@ public sealed class CollisionLayer
     }
 
     /// <summary>Adds a chunk's collision, read from its map's asset, at its origin.</summary>
-    public void Add(ChunkEntry entry, IReadOnlyList<CollisionTriangle> triangles, Vector3 origin, Colouring colouring, bool pak)
+    public void Add(ChunkRecord entry, IReadOnlyList<CollisionTriangle> triangles, Vector3 origin, Colouring colouring, bool pak)
     {
         var corners = new Vector3[triangles.Count * 3];
         for (var i = 0; i < triangles.Count; i++)

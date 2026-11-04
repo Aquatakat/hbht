@@ -99,8 +99,8 @@ public sealed partial class Battle
     {
         var random = Game.Random.Combat;
         _rules = rules;
-        Grid.Init(Arena.Map);
-        Grid.Fill(World, Arena.Origin, Chunks.ChunkKey.Of(Arena.Set, Arena.Chunk));
+        Grid.Init(Arena.Chunk);
+        Grid.Fill(World, Arena.Origin, Chunks.ChunkKey.Of(Arena.Chunk));
         var roll = CollisionByte == AmbushByte ? AmbushRoll(Game.Party, random) : 0;
 
         // Combat.CreatePartyCombatants: the living members in order, each its spawn's letter by the count so far.
@@ -164,9 +164,9 @@ public sealed partial class Battle
         Order.Build(this, random);
         Current = Order.Current(this);
         FocusAt(Current?.Cell ?? default);
-        // Combat.ApplyFleeRuleByFlag has the last word.
-        if (Setup.EncounterFlag is { } flag && rules.FleeByEncounter.FirstOrDefault(e => e.Flag == flag) is { } rule)
-            CanFlee = rule.CanFlee;
+        // Combat.ApplyFleeRuleByFlag has the last word: the battle's own rules, which 1.0 keys by its encounter flag.
+        if (Setup.Rules?.Flee is { } flee)
+            CanFlee = flee;
 
         // Combat.CreateBody: each body as it's made works its radius out and is held in its field where it stands.
         foreach (var combatant in Combatants)
@@ -338,7 +338,7 @@ public sealed partial class Battle
     {
         var (name, point, direction) = Spawn(party, reserve: false, letter, roll, Game.Random.Combat);
         if (point is null)
-            _problems.Add($"{Arena.Map.Id} has no spawn {name}, where the original stops (FindReferencePointName).");
+            _problems.Add($"{Arena.Chunk.Id} has no spawn {name}, where the original stops (FindReferencePointName).");
         return Make(slot, sheet, hostile, party, CellOf(point), direction, nudge: false);
     }
 

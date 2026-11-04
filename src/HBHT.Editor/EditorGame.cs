@@ -3,6 +3,7 @@ using HBHT.Core.Characters;
 using HBHT.Core.Flags;
 using HBHT.Core.Sky;
 using HBHT.Plugins;
+using HBHT.Plugins.Records;
 using HBHT.Plugins.Saves;
 using HBHT.Rom.Rig;
 
@@ -129,7 +130,7 @@ public sealed class EditorGame
     {
         var sky = new SkyDirector(game.Plugins, game.Clock, game.Weather, game.Random.Twinkle);
         var start = GameStart.For(game);
-        sky.Enter(start.Set.Chunks.FirstOrDefault(c => c.Name == start.Chunk));
+        sky.Enter(ChunkRecord.CellOf(start.Chunk) is { } cell ? game.Plugins.ChunkAt(start.Set.Id, cell.Row, cell.Column) : null);
         sky.Apply();
         return sky;
     }

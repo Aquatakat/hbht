@@ -12,7 +12,7 @@ namespace HBHT.Plugins.Records;
 public sealed record TitleRecord(RecordId Id, IReadOnlyList<TitleFlycam> Flycams);
 
 /// <summary>
-/// One fly-through: a camera animation over the Overworld, drawn with the 3×3 chunks round (<paramref name="Row"/>, <paramref name="Column"/>).
+/// One fly-through: a camera animation over a map set, drawn with the 3×3 chunks round <paramref name="Chunk"/>.
 /// </summary>
 /// <param name="Scene">The scene the animation drives, whose camera the shot is seen through (its Borg6's scene).</param>
 /// <param name="Animation">The Borg6 that moves the camera.</param>
@@ -20,11 +20,13 @@ public sealed record TitleRecord(RecordId Id, IReadOnlyList<TitleFlycam> Flycams
 /// The animation's length in ticks. The fly-through fades out over its last 100 and the next is built
 /// (<c>Title.SceneryFrame</c>, <c>0x80054F70</c>).
 /// </param>
-/// <param name="Row">The Overworld chunk the scenery is loaded round, as <c>Zones.Row</c>: 1-based, as in <see cref="ChunkEntry.Row"/>.</param>
-/// <param name="Column">As <see cref="Row"/>, <c>Zones.Column</c>.</param>
-/// <param name="OriginRow">
-/// The chunk whose corner the animation's coordinates are from: its row, which <c>Title.StartScenery</c> stores at <c>0x800D90DC</c>
-/// (its column at <c>0x800D90DE</c>). Every fly-through's camera runs a few units over the ground from that corner, and from no other.
+/// <param name="Chunk">
+/// The chunk the scenery is loaded round: an Overworld chunk in the original, whose row and column it sets as <c>Zones.Row</c> and
+/// <c>Zones.Column</c>.
 /// </param>
-/// <param name="OriginColumn">As <see cref="OriginRow"/>.</param>
-public sealed record TitleFlycam(RecordId Scene, RecordId Animation, int Length, int Row, int Column, int OriginRow, int OriginColumn);
+/// <param name="Origin">
+/// The chunk whose corner the animation's coordinates are from, in the same map set: <c>Title.StartScenery</c> stores its row at
+/// <c>0x800D90DC</c> and its column at <c>0x800D90DE</c>. Every fly-through's camera runs a few units over the ground from that corner,
+/// and from no other.
+/// </param>
+public sealed record TitleFlycam(RecordId Scene, RecordId Animation, int Length, RecordId Chunk, RecordId Origin);

@@ -66,7 +66,7 @@ public sealed record SaveGame
 }
 
 /// <summary>A minimap's seen pieces, by their place in its record.</summary>
-public sealed record SaveMinimap(RecordId Minimap, IReadOnlyList<int> Seen);
+public sealed record SaveMinimap(RecordId MapSet, IReadOnlyList<int> Seen);
 
 public sealed record SavedPlugin(string Id, string Version);
 

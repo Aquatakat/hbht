@@ -96,7 +96,7 @@ public sealed partial class TrekLoop : IMapObjectHost
     private TeleporterObject? _pending;
     /// <summary>The chunk the player was last in, to age what map objects remember as he crosses into another.</summary>
     private (int Row, int Column)? _centre;
-    private ChunkEntry? _chunk;
+    private ChunkRecord? _chunk;
     /// <summary>Whether trek has just been built again and hasn't ticked, so its fade-in hasn't stepped (<see cref="Resume"/>).</summary>
     private bool _resumed;
     /// <summary>The last script a dialogue object asked to start that trek can't run yet, such as a backdrop.</summary>
@@ -257,7 +257,7 @@ public sealed partial class TrekLoop : IMapObjectHost
     /// (<see cref="ZoneEngine.EnterRegion"/>), its terrain is written into the flags, and another terrain may change the weather. Crossing into another chunk is a
     /// teleport in the original (<c>ConfirmPlayerWithinZone</c>), which ages what map objects remember.
     /// </summary>
-    public void Enter(ChunkEntry? chunk)
+    public void Enter(ChunkRecord? chunk)
     {
         Zone.Sky.Enter(chunk);
         if (chunk is not null && _centre != (chunk.Row, chunk.Column))
@@ -633,7 +633,7 @@ public sealed partial class TrekLoop : IMapObjectHost
         var sphere = Player.Sphere;
         if (Use.Popup is not null || Chunks.MapAt(sphere.Position) is not { } map)
             return false;
-        (MonsterPartyObject, Vector3, float)? body = null;
+        (PartyObject, Vector3, float)? body = null;
         if (Nearest is ({ } nearest, var distance) && nearest.Map == map && Wanderers.Reaches(nearest, distance, sphere))
             body = (nearest.Party, nearest.Body.Sphere.Position - map.Origin, distance);
         if (Use.Reach(map, sphere.Position - map.Origin, Player.Heading, sphere.Radius, body) is not { } o)
@@ -749,12 +749,11 @@ public sealed partial class TrekLoop : IMapObjectHost
     /// party to Oriana's hut (<c>Combat.Exit</c>'s <c>Zones.SavedPosition</c>). Trek's world must be freed, as it is under a
     /// battle; <see cref="Resume"/> builds it there.
     /// </summary>
-    public void Keep(ChunkRef place, Vector3 position, Vector2 heading)
+    public void Keep(RecordId place, Vector3 position, Vector2 heading)
     {
-        if (Game.Plugins.TryGet<MapSetRecord>(place.MapSet) is not { } set
-            || set.Chunk(place.Row, place.Column) is not { } chunk)
+        if (Game.Plugins.TryGet<ChunkRecord>(place) is not { } chunk || Game.Plugins.TryGet<MapSetRecord>(chunk.MapSet) is not { } set)
         {
-            _host.Transition(new Transition.Say($"{place.MapSet} has no chunk at row {place.Row}, column {place.Column}."));
+            _host.Transition(new Transition.Say($"No plugin has {place}, where trek starts again."));
             return;
         }
         if (set.Id != Chunks.MapSet.Id)
@@ -780,7 +779,7 @@ public sealed partial class TrekLoop : IMapObjectHost
     public void Resume(bool fled = false)
     {
         if (fled && Standing is { } start && Breadcrumbs.Find(start, farthest: true) is { } crumb
-            && Chunks.MapSet.Chunk(crumb.Row, crumb.Column) is { } chunk)
+            && Chunks.Chunk(new ChunkKey(Chunks.MapSet.Id, crumb.Row, crumb.Column)) is { } chunk)
         {
             var origin = Chunks.Origin(chunk);
             Player.Sphere.Position = origin + crumb.Local;
@@ -811,7 +810,7 @@ public sealed partial class TrekLoop : IMapObjectHost
     {
         var rules = Game.Camping;
         var at = Player.Sphere.Position;
-        var terrain = Chunks.ChunkAt(at) is { } chunk ? TerrainRecord.Find(Game.Plugins, chunk.Terrain) : null;
+        var terrain = Chunks.ChunkAt(at) is { } chunk ? Game.Plugins.TryGet<TerrainRecord>(chunk.Terrain) : null;
         var factor = terrain?.Camp ?? 0;
         if (factor <= 0)
             return CampOutcome.Refused;
@@ -829,12 +828,11 @@ public sealed partial class TrekLoop : IMapObjectHost
         var scene = map?.Record.Objects.OfType<ScriptObject>().FirstOrDefault(d =>
             d.Enabled is { } gate && rules.Scenes.Contains(gate.Flag) && Game.Flags.Holds(gate));
         Game.Flags.TrySet(rules.Checking, false);
-        RecordId? source = scene is not null ? MapRecord.VoxelId(map!.Record.Id, scene.Index) : null;
-        if (scene is null && Game.Plugins.TryGet<MapRecord>(rules.Campsite) is { } campsite
-            && campsite.Objects.OfType<ScriptObject>().FirstOrDefault() is { } fire)
+        RecordId? source = scene is not null ? ChunkRecord.ObjectId(map!.Record.Id, scene.Index) : null;
+        if (scene is null && ChunkRecord.Find(Game.Plugins, rules.Campsite) is ScriptObject fire)
         {
             scene = fire;
-            source = MapRecord.VoxelId(campsite.Id, fire.Index);
+            source = rules.Campsite;
         }
         if (scene is not null && CutSceneLaunch.Of(Game.Plugins, scene, source) is { } launch)
             Cue(launch);
@@ -856,7 +854,7 @@ public sealed partial class TrekLoop : IMapObjectHost
     }
 
     /// <inheritdoc cref="Cue(CutSceneLaunch)"/>
-    public void Cue(ScriptRecord script, ScriptStart start, ChunkRef stage) => Cue(new CutSceneLaunch(script, start, stage));
+    public void Cue(ScriptRecord script, ScriptStart start, RecordId stage) => Cue(new CutSceneLaunch(script, start, stage));
 
     /// <summary>
     /// Asks for a battle (<c>TrekLoop.QueueState(2)</c>, <c>0x8001FF04</c>): trek fades out as into a cut-scene, and
@@ -931,7 +929,7 @@ public sealed partial class TrekLoop : IMapObjectHost
             var ending = conversation.Runner.Ending!;
             if (ending.Fault is { } fault)
                 _host.Warn($"{conversation.Runner.Script.Id}: {fault}");
-            var talker = conversation.With is { } with ? (MapRecord.VoxelId(with.Map.Record.Id, with.Party.Index), with.Party) : default((RecordId, MonsterPartyObject)?);
+            var talker = conversation.With is { } with ? (ChunkRecord.ObjectId(with.Map.Record.Id, with.Party.Index), with.Party) : default((RecordId, PartyObject)?);
             CarryOut(Transition.AfterScript(Game, ending, conversation.Keeper, Here(), talker));
             return;
         }
@@ -952,8 +950,8 @@ public sealed partial class TrekLoop : IMapObjectHost
     }
 
     /// <summary>The chunk the player is in, and its terrain, where a battle in trek starts.</summary>
-    public (ChunkRef? Chunk, int? Terrain) Here() =>
-        Chunks.ChunkAt(Player.Sphere.Position) is { } chunk ? (new ChunkRef(Chunks.MapSet.Id, chunk.Row, chunk.Column), chunk.Terrain) : (null, null);
+    public (RecordId? Chunk, RecordId? Terrain) Here() =>
+        Chunks.ChunkAt(Player.Sphere.Position) is { } chunk ? (chunk.Id, chunk.Terrain) : (null, null);
 
     /// <summary>
     /// What the player is doing, for the enemies' spawn set (<c>EncounterDat.aniByte</c>, which <c>Wanderer.Tick</c> notes as a hunter
@@ -979,11 +977,21 @@ public sealed partial class TrekLoop : IMapObjectHost
         return Vector3.Distance(ahead, player) < distance ? 0 : 1;
     }
 
-    /// <summary>A battle with a monster party in a loaded map, where the player stands.</summary>
-    private BattleSetup Battle(BattleSource source, LoadedMap map, MonsterPartyObject party, bool ambush)
+    /// <summary>
+    /// What a talker's cut-scene starts (<c>monsterpary_func</c>): the script from mark 0 staged in the chunk the player stands in, as
+    /// 1.0 does; or with the npc's <see cref="NpcObject.Stage"/>, from that script object's marks and on its stage, the port's fix, chosen
+    /// by the user, for the cut-scenes 1.0 crashes on that way (docs/systems/scripts.md). What the script remembers is the npc's.
+    /// </summary>
+    public static CutSceneLaunch TalkerLaunch(PluginSet plugins, ScriptRecord script, NpcObject npc, RecordId npcId, RecordId playerChunk) =>
+        npc.Stage is { } stage && ChunkRecord.Find(plugins, stage) is ScriptObject { Stage: { } chunk } staged
+            ? new CutSceneLaunch(script, new ScriptStart(staged.Marks, npcId), chunk)
+            : new CutSceneLaunch(script, new ScriptStart(0, npcId), playerChunk);
+
+    /// <summary>A battle with a party in a loaded chunk, where the player stands.</summary>
+    private BattleSetup Battle(BattleSource source, LoadedMap map, PartyObject party, bool ambush)
     {
         var (place, terrain) = Here();
-        return BattleSetup.WithParty(source, MapRecord.VoxelId(map.Record.Id, party.Index), party, place, terrain, ambush);
+        return BattleSetup.WithParty(source, ChunkRecord.ObjectId(map.Record.Id, party.Index), party, place, terrain, ambush);
     }
 
     // What using map objects asks of trek.
@@ -1002,7 +1010,7 @@ public sealed partial class TrekLoop : IMapObjectHost
         // One script at a time (dialoug_func).
         if (Conversation is not null)
             return;
-        var source = MapRecord.VoxelId(map.Record.Id, dialogue.Index);
+        var source = ChunkRecord.ObjectId(map.Record.Id, dialogue.Index);
         if (Game.Plugins.TryGet<ScriptRecord>(dialogue.Plays) is { Mode: ScriptMode.Sign } sign)
         {
             Conversation = Conversation.Show(Game, sign, new ScriptStart(dialogue.Marks, source), _host, Player);
@@ -1039,25 +1047,25 @@ public sealed partial class TrekLoop : IMapObjectHost
         Refresh();
     }
 
-    void IMapObjectHost.Talk(LoadedMap map, MonsterPartyObject party)
+    void IMapObjectHost.Talk(LoadedMap map, PartyObject party)
     {
         if (Conversation is not null || Wanderers.Of(map, party) is not { } wanderer)
             return;
-        if (party.Script is null)
+        if (party is not NpcObject npc)
         {
-            CueBattle(Battle(BattleSource.MonsterParty, map, party, ambush: false)
+            CueBattle(Battle(BattleSource.Encounter, map, party, ambush: false)
                 with { CollisionByte = TalkByte(wanderer.Body.Sphere.Position, wanderer.Body.Heading, Player.Sphere.Position) });
             return;
         }
-        // A talker whose script is a cut-scene stages it in the chunk the player is in, from reference
-        // point 0 (monsterpary_func), and holds still as trek fades out.
-        if (Game.Plugins.TryGet<ScriptRecord>(party.Script.Value) is { Mode: ScriptMode.Cutscene } cutscene)
+        // A talker whose script is a cut-scene stages it in the chunk the player is in, from mark 0 (monsterpary_func), and holds
+        // still as trek fades out; or, with a stage (the port's fix, NpcObject.Stage), as that script object stages it.
+        if (Game.Plugins.TryGet<ScriptRecord>(npc.Script) is { Mode: ScriptMode.Cutscene } cutscene)
         {
             if ((party.Flags & PartyFlags.Silent) != 0 || Chunks.ChunkAt(Player.Sphere.Position) is not { } chunk)
                 return;
             wanderer.Calmed = true;
             wanderer.Body.Held = true;
-            Cue(cutscene, new ScriptStart(0, MapRecord.VoxelId(map.Record.Id, party.Index)), new ChunkRef(Chunks.MapSet.Id, chunk.Row, chunk.Column));
+            Cue(TalkerLaunch(Game.Plugins, cutscene, npc, ChunkRecord.ObjectId(map.Record.Id, party.Index), chunk.Id));
             Game.Flags.TrySetAndProcess(party.Used?.Flag, true);
             return;
         }

@@ -107,7 +107,7 @@ internal static class ReachReport
     {
         if (chunkName is null)
             return null;
-        if (set.Chunks.FirstOrDefault(c => c.Name == chunkName) is not { } chunk)
+        if (ChunkRecord.CellOf(chunkName) is not { } chunk)
             return null;
         var origin = set.Origin(chunk.Row, chunk.Column);
         return (origin with { Y = -1000 }, origin + new Vector3(set.CellSize, 1000, set.CellSize));
@@ -135,11 +135,10 @@ internal static class ReachReport
                 var top = new Vector3(c.Top.X + 0.5f, c.Top.Y, c.Top.Z + 0.5f);
                 var row = (int)MathF.Floor(top.X / set.CellSize);
                 var column = (int)MathF.Floor(top.Z / set.CellSize);
-                var chunk = set.Chunk(row, column);
                 var local = top - set.Origin(row, column);
                 var rise = c.Rise is { } r ? $"{r:+0;-0;0} above the other's reach" : "nothing reached near";
                 s.AppendLine(CultureInfo.InvariantCulture,
-                    $"    {chunk?.Name ?? $"{row},{column}"} ({local.X:F1}, {local.Y:F1}, {local.Z:F1}): {c.Cells.Count} cells, {rise}");
+                    $"    {ChunkRecord.NameOf(row, column)} ({local.X:F1}, {local.Y:F1}, {local.Z:F1}): {c.Cells.Count} cells, {rise}");
                 if (!all)
                     continue;
                 // The run that first took him where the other doesn't reach, on the way there, and the one after.
@@ -151,7 +150,7 @@ internal static class ReachReport
                     var (fromRow, fromColumn) = ((int)MathF.Floor(from.X / set.CellSize), (int)MathF.Floor(from.Z / set.CellSize));
                     var start = from - set.Origin(fromRow, fromColumn);
                     s.AppendLine(CultureInfo.InvariantCulture,
-                        $"      from {set.Chunk(fromRow, fromColumn)?.Name} ({start.X:F2}, {start.Y:F2}, {start.Z:F2}) toward ({way.X:F2}, {way.Y:F2})");
+                        $"      from {ChunkRecord.NameOf(fromRow, fromColumn)} ({start.X:F2}, {start.Y:F2}, {start.Z:F2}) toward ({way.X:F2}, {way.Y:F2})");
                 }
             }
             if (!all && clusters.Count > 25)

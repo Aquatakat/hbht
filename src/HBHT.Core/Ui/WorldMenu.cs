@@ -46,7 +46,7 @@ public sealed class WorldMenu
     /// <param name="font">The main font, which the journal wraps its entries in.</param>
     /// <param name="place">The chunk the player is in, or none, as in a cut-scene's stage.</param>
     /// <param name="outdoors">Whether the sky is the outdoor one, which the party's ring needs.</param>
-    public WorldMenu(PluginSet plugins, GameState game, TextLayout font, ChunkRef? place, bool outdoors)
+    public WorldMenu(PluginSet plugins, GameState game, TextLayout font, RecordId? place, bool outdoors)
     {
         _game = game;
         _text = MenuText.From(plugins);
@@ -65,7 +65,7 @@ public sealed class WorldMenu
         Today = (160 + 14 * column - (OneLeft.Contains(row * 7 + column) ? 1 : 2), 65 + 14 * row);
 
         Pieces = [.. Map.Pieces.Where(p => game.Flags.IsSet(p.Flag))];
-        if (outdoors && place is { } chunk && chunk.MapSet == Map.MapSet)
+        if (outdoors && place is { } id && plugins.TryGet<ChunkRecord>(id) is { } chunk && chunk.MapSet == Map.MapSet)
         {
             Marker = ((int)Map.Origin.X + (int)((chunk.Row - 1) * Map.Step.X),
                 (int)Map.Origin.Y + (int)((chunk.Column - Map.FirstColumn) * Map.Step.Y));
@@ -197,8 +197,6 @@ public sealed class WorldMenu
         _marker.Step();
     }
 
-    private static TerrainRecord? TerrainOf(PluginSet plugins, ChunkRef at) =>
-        plugins.TryGet<MapSetRecord>(at.MapSet)?.Chunk(at.Row, at.Column) is { } chunk
-            ? TerrainRecord.Find(plugins, chunk.Terrain)
-            : null;
+    private static TerrainRecord? TerrainOf(PluginSet plugins, RecordId at) =>
+        plugins.TryGet<ChunkRecord>(at) is { } chunk ? plugins.TryGet<TerrainRecord>(chunk.Terrain) : null;
 }

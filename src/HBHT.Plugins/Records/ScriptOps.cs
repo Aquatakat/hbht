@@ -168,8 +168,11 @@ public record ScriptOp
         protected override OpUse Places() => OpUse.Setup;
     }
 
-    /// <summary>The battle's arena, by the Battle arenas' number; above 27 is 0 (21).</summary>
-    public sealed record BattleArena(int Arena) : ScriptOp
+    /// <summary>
+    /// The battle's arena, a chunk of the Battle arenas (21). The original names it by its number (<c>Zones.ArenaChunks</c>, the order of
+    /// map set 16's chunks), and one above 27 is arena 0, which the importer resolves.
+    /// </summary>
+    public sealed record BattleArena(RecordId Arena) : ScriptOp
     {
         protected override OpUse Places() => OpUse.Setup;
     }
@@ -398,7 +401,7 @@ public record ScriptOp
     }
 
     /// <summary>
-    /// The script a script object starts (<paramref name="From"/>, an <c>aidyn:voxel/…</c>) plays as walking into it would,
+    /// The script a script object starts (<paramref name="From"/>, an <c>aidyn:mapobject/…</c>) plays as walking into it would,
     /// a cut-scene on the object's stage from its marks, but at once, with no trek before it. Takes over.
     /// </summary>
     public sealed record StartScript(RecordId From) : ScriptOp

@@ -29,8 +29,8 @@ public static class MapObjectPresence
             return false;
         return o switch
         {
-            MonsterPartyObject party => (party.Enabled is not { } enabled || Holds(enabled, isSet))
-                && (party.Script is not null || party.Used is not { } used || !isSet(used.Flag)),
+            PartyObject party => (party.Enabled is not { } enabled || Holds(enabled, isSet))
+                && (party is NpcObject || party.Used is not { } used || !isSet(used.Flag)),
             ContainerObject { Kind: ContainerKind.Chest or ContainerKind.Sack or ContainerKind.Crate or ContainerKind.Barrel } container =>
                 !(container.Opened is { } opened && isSet(opened)) && !(container.Exploded is { } exploded && isSet(exploded)),
             ContainerObject container => container.Enabled is not { } enabled || Holds(enabled, isSet),

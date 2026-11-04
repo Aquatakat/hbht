@@ -148,7 +148,7 @@ public abstract record Transition
     /// <param name="place">The chunk a battle would start in, and its terrain.</param>
     /// <param name="talker">The monster party talking, whose party a battle fights instead (<see cref="BattleSetup.Against"/>).</param>
     public static IReadOnlyList<Transition> AfterScript(GameState game, ScriptEnding ending, RecordId? keeper,
-        (ChunkRef? Chunk, int? Terrain) place = default, (RecordId Id, MonsterPartyObject Party)? talker = null)
+        (RecordId? Chunk, RecordId? Terrain) place = default, (RecordId Id, PartyObject Party)? talker = null)
     {
         var next = new List<Transition>();
         if (ending.RestHours > 0)

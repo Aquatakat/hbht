@@ -28,20 +28,20 @@ public sealed class WandererTests(Na10Import fixture)
 
     private MapSetRecord Set => Data.MapSets.Single(s => s.Id == Overworld);
 
-    private IReadOnlyList<CollisionTriangle> Collision(MapRecord map) =>
-        Collisions.GetOrAdd(Data.Set.FindAsset(map.Id, "glb")!, path => CollisionMesh.Read(File.ReadAllBytes(path)));
+    private IReadOnlyList<CollisionTriangle> Collision(ChunkRecord map) =>
+        Collisions.GetOrAdd(Data.Set.FindAsset(map.Collision!.Value, "glb")!, path => CollisionMesh.Read(File.ReadAllBytes(path)));
 
-    private MapRecord Chunk(int row, int column) => Data.Set.Get<MapRecord>(Data.Chunk(new ChunkRef(Overworld, row, column))!.Map);
+    private ChunkRecord Chunk(int row, int column) => Data.Set.ChunkAt(Overworld, row, column)!;
 
-    private static WanderNodeObject? HomeOf(MapRecord map, MonsterPartyObject party) =>
-        party.Home is { } home && MapRecord.MapOf(home) == map.Id ? map.Objects.FirstOrDefault(o => o.Index == MapRecord.IndexOf(home)) as WanderNodeObject : null;
+    private static WanderNodeObject? HomeOf(ChunkRecord map, PartyObject party) =>
+        party.Home is { } home && ChunkRecord.ChunkOf(home) == map.Id ? map.Objects.FirstOrDefault(o => o.Index == ChunkRecord.IndexOf(home)) as WanderNodeObject : null;
 
-    private static bool HasMovingHome(MapRecord map, MonsterPartyObject party) => HomeOf(map, party) is { } home && (home.Flags & WanderFlags.Move) != 0;
+    private static bool HasMovingHome(ChunkRecord map, PartyObject party) => HomeOf(map, party) is { } home && (home.Flags & WanderFlags.Move) != 0;
 
     /// <summary>A chunk of the Overworld loaded on a new game, with its collision in a world and the wanderers it gives.</summary>
     private sealed class Loaded
     {
-        public required MapRecord Map { get; init; }
+        public required ChunkRecord Map { get; init; }
         public required LoadedMap Chunk { get; init; }
         public required CollisionWorld World { get; init; }
         public required Wanderers Wanderers { get; init; }
@@ -63,18 +63,18 @@ public sealed class WandererTests(Na10Import fixture)
         return new Loaded { Map = map, Chunk = loaded, World = world, Wanderers = wanderers, Added = added, Game = game };
     }
 
-    private static IEnumerable<MonsterPartyObject> Active(Loaded l) =>
-        l.Map.Objects.OfType<MonsterPartyObject>().Where(p => l.Chunk.IsActive(p.Index) && HasMovingHome(l.Map, p));
+    private static IEnumerable<PartyObject> Active(Loaded l) =>
+        l.Map.Objects.OfType<PartyObject>().Where(p => l.Chunk.IsActive(p.Index) && HasMovingHome(l.Map, p));
 
     [Fact]
     public void EveryMonsterPartysHomeIsAMovingWanderNodeOfItsOwnMap()
     {
-        var parties = Data.Of<MonsterPartyObject>().ToList();
+        var parties = Data.Of<PartyObject>().ToList();
         Assert.Equal(1079, parties.Count);
         foreach (var (id, map, party) in parties)
         {
             Assert.NotNull(party.Home);
-            Assert.Equal(map.Id, MapRecord.MapOf(party.Home!.Value));
+            Assert.Equal(map.Id, ChunkRecord.ChunkOf(party.Home!.Value));
             var home = HomeOf(map, party);
             Assert.True(home is not null, $"{id}: home {party.Home} isn't a wander node");
             Assert.True((home!.Flags & WanderFlags.Move) != 0, $"{id}: home {party.Home} doesn't move: {home.Flags}");
@@ -84,7 +84,7 @@ public sealed class WandererTests(Na10Import fixture)
     [Fact]
     public void EveryMonsterPartysEntityHasABodyWithAnActor()
     {
-        var parties = Data.Of<MonsterPartyObject>().ToList();
+        var parties = Data.Of<PartyObject>().ToList();
         Assert.All(parties, p =>
         {
             var body = Data.Set.TryGet<DbRecord>(p.Object.Entity)?.Body;
@@ -97,7 +97,7 @@ public sealed class WandererTests(Na10Import fixture)
     [Fact]
     public void MostMonsterPartiesWalkToTheirNodes()
     {
-        var parties = Data.Of<MonsterPartyObject>().ToList();
+        var parties = Data.Of<PartyObject>().ToList();
         Assert.Equal(990, parties.Count(p => (p.Object.Flags & PartyFlags.Walks) != 0));
     }
 
@@ -229,7 +229,7 @@ public sealed class WandererTests(Na10Import fixture)
         {
             for (var c = column - 1; c <= column + 1; c++)
             {
-                if (Data.Chunk(new ChunkRef(Overworld, r, c)) is not null)
+                if (Data.Set.ChunkAt(Overworld, r, c) is not null)
                     Load(r, c, game, world, wanderers);
             }
         }
@@ -352,11 +352,11 @@ public sealed class WandererTests(Na10Import fixture)
     {
         var game = GameState.NewGame(Data.Set);
         var counts = new Dictionary<(int Row, int Column), int>();
-        foreach (var entry in Set.Chunks)
+        foreach (var map in Data.Set.ChunksIn(Set.Id))
         {
-            var map = Data.Set.Get<MapRecord>(entry.Map);
-            var loaded = LoadedMap.Activate(map, ChunkKey.Of(Set, entry), game.Flags, game.Memory, game.Party, new Lcg(), Set.Origin(entry.Row, entry.Column));
-            counts[(entry.Row, entry.Column)] = map.Objects.OfType<MonsterPartyObject>().Count(p => loaded.IsActive(p.Index) && HasMovingHome(map, p));
+            var entry = map;
+            var loaded = LoadedMap.Activate(map, ChunkKey.Of(entry), game.Flags, game.Memory, game.Party, new Lcg(), Set.Origin(entry.Row, entry.Column));
+            counts[(entry.Row, entry.Column)] = map.Objects.OfType<PartyObject>().Count(p => loaded.IsActive(p.Index) && HasMovingHome(map, p));
         }
 
         int Block(int row, int column) => Enumerable.Range(row - 1, 3).Sum(r => Enumerable.Range(column - 1, 3).Sum(c => counts.GetValueOrDefault((r, c))));

@@ -1,6 +1,6 @@
 # 0004. Record ID scheme
 
-Status: Accepted · Sep 27, 2026
+Status: Accepted · Sep 27, 2026 · Map objects' keys are their chunk's since [0035](0035-chunks-as-records.md)
 
 ## Context
 
@@ -33,7 +33,7 @@ A record ID is a string:
 | DB records | The full u16 `ItemID`, as `0x` plus 4 uppercase hex digits | `aidyn:entity/0x023F` |
 | Event flags | Decimal index | `aidyn:flag/47` |
 | Borg assets | `Borg_List` index, as `0x` plus 4 uppercase hex digits | `aidyn:dialogue/0x0B12` |
-| Nested records | The parent's key, then the index within it | `aidyn:voxel/0x1A20/12` |
+| Nested records | The parent's key, then the index within it | `aidyn:voxel/0x1A20/12` (map objects are keyed by their chunk since [0035](0035-chunks-as-records.md): `aidyn:mapobject/8/C05/17`) |
 
 The ID for a DB record keeps the type byte even though the record type already implies it. That way the key matches the decomp, AidynEditor and memory dumps exactly.
 

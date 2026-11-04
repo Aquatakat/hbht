@@ -17,13 +17,13 @@ namespace HBHT.Views;
 /// </remarks>
 public sealed class ChunkScenery
 {
-    private ChunkScenery(ChunkEntry chunk, Node3D root)
+    private ChunkScenery(ChunkRecord chunk, Node3D root)
     {
         Chunk = chunk;
         Root = root;
     }
 
-    public ChunkEntry Chunk { get; }
+    public ChunkRecord Chunk { get; }
 
     /// <summary>The chunk's node, at its origin in the map set.</summary>
     public Node3D Root { get; }
@@ -50,7 +50,7 @@ public sealed class ChunkScenery
     /// (<c>replace_container_voxel</c>). Its own if not given.
     /// </param>
     /// <param name="particles">Whether its actors' emitters start (<see cref="Models.Particles"/>).</param>
-    public static ChunkScenery Load(PluginSet plugins, Models models, MapSetRecord set, ChunkEntry chunk, Func<SceneObject, bool> placed,
+    public static ChunkScenery Load(PluginSet plugins, Models models, MapSetRecord set, ChunkRecord chunk, Func<SceneObject, bool> placed,
         Func<SceneObject, SceneModel>? model = null, bool particles = true)
     {
         var scenery = new ChunkScenery(chunk, new Node3D { Name = chunk.Name, Position = set.Origin(chunk.Row, chunk.Column).ToGodot() });
@@ -66,7 +66,7 @@ public sealed class ChunkScenery
 
         var objects = new Node3D { Name = "Scenery" };
         scenery.Root.AddChild(objects);
-        foreach (var o in plugins.Get<MapRecord>(chunk.Map).Objects.OfType<SceneObject>())
+        foreach (var o in chunk.Objects.OfType<SceneObject>())
         {
             if (placed(o))
                 objects.AddChild(scenery.Place(plugins, models, o, model?.Invoke(o) ?? o.Models[0], particles).Node);
@@ -173,13 +173,11 @@ public sealed class ChunkScenery
     /// The assets a chunk's scenery copies: its scenes and the models of its scene objects, actors as they are. For parsing
     /// them ahead of time (<see cref="Models.Warm"/>).
     /// </summary>
-    public static IEnumerable<RecordId> Assets(PluginSet plugins, ChunkEntry chunk)
+    public static IEnumerable<RecordId> Assets(PluginSet plugins, ChunkRecord chunk)
     {
         foreach (var scene in chunk.AllScenes)
             yield return scene;
-        if (plugins.TryGet<MapRecord>(chunk.Map) is not { } map)
-            yield break;
-        foreach (var model in map.Objects.OfType<SceneObject>().SelectMany(o => o.Models).Select(m => m.Model).Distinct())
+        foreach (var model in chunk.Objects.OfType<SceneObject>().SelectMany(o => o.Models).Select(m => m.Model).Distinct())
             yield return model;
     }
 }

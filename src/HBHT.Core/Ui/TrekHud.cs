@@ -13,14 +13,12 @@ namespace HBHT.Core.Ui;
 /// </summary>
 public sealed class TrekHud
 {
-    private readonly Dictionary<RecordId, MinimapRecord> _minimaps;
     private readonly FrameGate _frame = new(Cadence.FrameTicks);
 
     public TrekHud(GameState game)
     {
         // A minimap's pieces are centred by their images' sizes.
         Minimap = new Minimap(game.Minimaps, game.Plugins.ImageSize);
-        _minimaps = game.Plugins.All<MinimapRecord>(RecordTypes.Minimap).ToDictionary(m => m.MapSet);
     }
 
     public PartyPortraits Portraits { get; } = new();
@@ -72,13 +70,13 @@ public sealed class TrekHud
     }
 
     /// <summary>The player is in a map set: its minimap, if it has one, is loaded.</summary>
-    public void Enter(MapSetRecord set) => Minimap.Load(_minimaps.GetValueOrDefault(set.Id));
+    public void Enter(MapSetRecord set) => Minimap.Load(set);
 
     /// <summary>
     /// A tick with the HUD up, the player in <paramref name="chunk"/> at <paramref name="at"/> in its coordinates. Once a
     /// frame, the minimap chooses its piece and steps, and the portraits slide.
     /// </summary>
-    public void Tick(ChunkEntry? chunk, Vector3 at, FlagNetwork flags)
+    public void Tick(ChunkRecord? chunk, Vector3 at, FlagNetwork flags)
     {
         if (!_frame.Tick())
             return;

@@ -99,6 +99,9 @@ public class ScriptImportTests
                     Assert.Equal(RecordTypes.Request, animate.Request.Type);
                     Assert.Equal(RecordTypes.Entity, animate.Actor.Type);
                     break;
+                case ScriptOp.BattleArena arena:
+                    Assert.Equal(RecordTypes.Chunk, arena.Arena.Type);
+                    break;
                 default:
                     // Whoever acts, enemy or member an op names is an entity.
                     Assert.All(Named(op), r => Assert.Equal(RecordTypes.Entity, r.Type));

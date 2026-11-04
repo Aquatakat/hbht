@@ -29,7 +29,7 @@ public sealed class ToggledScenesTests(Na10Import fixture)
     [Fact]
     public void TheImportSwapsTheFirstSceneOfOverworldA15AndLighthouseA05Alone()
     {
-        var swapped = Data.MapSets.SelectMany(s => s.Chunks.Where(c => c.Swap is not null).Select(c => (s.Label, c))).ToList();
+        var swapped = Data.MapSets.SelectMany(s => Data.Set.ChunksIn(s.Id).Where(c => c.Swap is not null).Select(c => (s.Label, c))).ToList();
         Assert.Equal(["Overworld A15", "Lighthouse A05"], swapped.Select(s => $"{s.Label} {s.c.Name}"));
         var (_, a15) = swapped[0];
         Assert.Equal(new SceneSwap(new FlagGate(Ids.Flag(5017)), Scene(0x35BA), Scene(0x0EAD)), a15.Swap);
@@ -44,8 +44,8 @@ public sealed class ToggledScenesTests(Na10Import fixture)
         var game = GameState.NewGame(Data.Set);
         var set = Data.MapSets.Single(s => s.Label == "Lighthouse");
         var chunks = new ChunkStreamer(Data.Set, game, new CollisionWorld(), set, new VisibleWorld());
-        var a05 = chunks.Origin(set.Chunks.Single(c => c.Name == "A05")) + new Vector3(10, 0, 10);
-        var loaded = new List<ChunkEntry>();
+        var a05 = chunks.Origin(Data.Set.ChunksIn(set.Id).Single(c => c.Name == "A05")) + new Vector3(10, 0, 10);
+        var loaded = new List<ChunkRecord>();
         chunks.Loaded += (chunk, _) => loaded.Add(chunk);
 
         chunks.Update(a05);

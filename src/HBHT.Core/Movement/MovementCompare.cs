@@ -34,7 +34,7 @@ public static class MovementCompare
     /// A cut-scene the game starts: from a dialogue object, on its stage with its reference points numbered from its own, or from
     /// a talker's party in the chunk it stands in, numbered from 0. <paramref name="Sources"/> is how many map objects start it so.
     /// </summary>
-    public sealed record Launch(RecordId Script, ScriptStart From, ChunkRef Stage, int Sources);
+    public sealed record Launch(RecordId Script, ScriptStart From, RecordId Stage, int Sources);
 
     /// <summary>A walk's wait: how long the script waited for its actors, and the walks or runs it waited for.</summary>
     public sealed record Walk(int Ticks, IReadOnlyList<MoveCue> Moves);
@@ -146,25 +146,24 @@ public static class MovementCompare
 
     /// <summary>
     /// The cut-scenes the base game starts, as <see cref="GameSession"/> starts them: every dialogue object whose script is a
-    /// cut-scene with a stage, and every talking party's, staged in the party's own chunk. Those that start the same script the same
-    /// way on the same stage are one.
+    /// cut-scene with a stage, and every talking npc's, staged in the npc's own chunk or by its stage (<see cref="TrekLoop.TalkerLaunch"/>).
+    /// Those that start the same script the same way on the same stage are one.
     /// </summary>
     public static IReadOnlyList<Launch> Launches(PluginSet plugins)
     {
-        var chunkOf = plugins.All<MapSetRecord>(RecordTypes.MapSet)
-            .SelectMany(s => s.Chunks.Select(c => (c.Map, Ref: new ChunkRef(s.Id, c.Row, c.Column))))
-            .GroupBy(c => c.Map).ToDictionary(g => g.Key, g => g.First().Ref);
-        var found = new List<(RecordId Script, ScriptStart From, ChunkRef Stage)>();
-        foreach (var map in plugins.All<MapRecord>(RecordTypes.Map))
+        var found = new List<(RecordId Script, ScriptStart From, RecordId Stage)>();
+        foreach (var map in plugins.All<ChunkRecord>(RecordTypes.Chunk))
         {
             foreach (var o in map.Objects)
             {
-                var source = MapRecord.VoxelId(map.Id, o.Index);
+                var source = ChunkRecord.ObjectId(map.Id, o.Index);
                 if (o is ScriptObject { Stage: { } stage } d && Mode(plugins, d.Plays) == ScriptMode.Cutscene)
                     found.Add((d.Plays, new ScriptStart(d.Marks, source), stage));
-                else if (o is MonsterPartyObject { Script: { } script } p && (p.Flags & PartyFlags.Silent) == 0
-                    && Mode(plugins, script) == ScriptMode.Cutscene && chunkOf.TryGetValue(map.Id, out var own))
-                    found.Add((script, new ScriptStart(0, source), own));
+                else if (o is NpcObject p && (p.Flags & PartyFlags.Silent) == 0 && plugins.TryGet<ScriptRecord>(p.Script) is { Mode: ScriptMode.Cutscene } talked)
+                {
+                    var launch = Trek.TrekLoop.TalkerLaunch(plugins, talked, p, source, map.Id);
+                    found.Add((p.Script, launch.Start, launch.Stage));
+                }
             }
         }
         return [.. found.GroupBy(f => (f.Script, f.From.Marks, f.Stage))
@@ -189,7 +188,7 @@ public static class MovementCompare
             if (Stage(plugins, group.Key) is not { } stage)
             {
                 foreach (var launch in group)
-                    missed.Add($"{launch.Script}: its stage {group.Key.MapSet} ({group.Key.Row}, {group.Key.Column}) isn't in any plugin.");
+                    missed.Add($"{launch.Script}: its stage {group.Key} isn't in any plugin.");
                 return;
             }
             foreach (var launch in group)
@@ -214,13 +213,12 @@ public static class MovementCompare
             .ThenBy(d => d.Launch.Script.ToString(), StringComparer.Ordinal).ThenBy(d => d.Launch.From.Marks)];
 
     /// <summary>A chunk as a stage, with the 3 × 3 about it loaded as <see cref="GameSession"/> loads it, in a new game.</summary>
-    public static CutSceneStage? Stage(PluginSet plugins, ChunkRef chunk)
+    public static CutSceneStage? Stage(PluginSet plugins, RecordId chunk)
     {
-        if (plugins.TryGet<MapSetRecord>(chunk.MapSet) is not { } set)
-            return null;
         var world = new CollisionWorld();
         if (CutSceneStage.For(plugins, chunk, world) is not { } stage)
             return null;
+        var set = stage.Set;
         var streamer = new ChunkStreamer(plugins, GameState.NewGame(plugins), world, set);
         streamer.Update(stage.Origin + new Vector3(set.CellSize / 2, 0, set.CellSize / 2));
         return stage;

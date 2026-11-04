@@ -53,7 +53,7 @@ public sealed class PluginSetTests : IDisposable
     }
 
     private const string MapWithThreeObjects = """
-        [{ "id": "aidyn:map/0x0E87", "objects": [
+        [{ "id": "aidyn:chunk/0/I08", "mapSet": "aidyn:mapset/0", "row": 9, "column": 8, "terrain": "aidyn:terrain/1", "objects": [
           { "type": "container", "index": 0, "position": [1, 0, 1], "radius": 1, "kind": "Chest", "loot": "aidyn:loot/0x0401", "reach": 2 },
           { "type": "savePoint", "index": 1, "position": [2, 0, 2], "radius": 1 },
           { "type": "scene", "index": 2, "position": [3, 0, 3], "radius": 1, "models": [{ "model": "aidyn:scene/0x0B48", "drawDistance": 15 }] },
@@ -64,16 +64,16 @@ public sealed class PluginSetTests : IDisposable
     public void KeyedListsMergeElementByElement()
     {
         var set = PluginSet.Load([
-            Plugin("aidyn", null, ("maps.json", MapWithThreeObjects)),
+            Plugin("aidyn", null, ("chunks.json", MapWithThreeObjects)),
             Plugin("mymod", ["aidyn"], ("map.json", """
-                { "patch": "aidyn:map/0x0E87", "objects": [
+                { "patch": "aidyn:chunk/0/I08", "objects": [
                   { "index": 0, "reach": 5 },
                   { "index": 1, "$remove": true },
                   { "type": "savePoint", "index": 7, "position": [9, 0, 9], "radius": 2 },
                 ] }
                 """)),
         ]);
-        var id = RecordId.Parse("aidyn:map/0x0E87");
+        var id = RecordId.Parse("aidyn:chunk/0/I08");
         var objects = (JsonArray)set.GetJson(id)!["objects"]!;
 
         // Object 0 keeps every field but the one patched, 1 is gone, 2 survives untouched and 7 is added after it.
@@ -84,7 +84,7 @@ public sealed class PluginSetTests : IDisposable
         Assert.Equal(15, (int)objects[1]!["models"]![0]!["drawDistance"]!);
         Assert.False(objects[2]!.AsObject().ContainsKey("$remove"));
 
-        var map = set.Get<MapRecord>(id);
+        var map = set.Get<ChunkRecord>(id);
         Assert.Equal(5, Assert.IsType<ContainerObject>(map.Objects[0]).Reach);
         Assert.IsType<SavePointObject>(map.Objects[2]);
 
@@ -101,14 +101,14 @@ public sealed class PluginSetTests : IDisposable
     public void KeyedElementsPatchedByTwoModsConflictAndOthersDoNot()
     {
         var set = PluginSet.Load([
-            Plugin("aidyn", null, ("maps.json", MapWithThreeObjects)),
-            Plugin("one", ["aidyn"], ("map.json", """{ "patch": "aidyn:map/0x0E87", "objects": [{ "index": 0, "reach": 5 }, { "index": 2, "radius": 3 }] }""")),
-            Plugin("two", ["aidyn"], ("map.json", """{ "patch": "aidyn:map/0x0E87", "objects": [{ "index": 0, "reach": 6 }, { "index": 1, "$remove": true }] }""")),
+            Plugin("aidyn", null, ("chunks.json", MapWithThreeObjects)),
+            Plugin("one", ["aidyn"], ("map.json", """{ "patch": "aidyn:chunk/0/I08", "objects": [{ "index": 0, "reach": 5 }, { "index": 2, "radius": 3 }] }""")),
+            Plugin("two", ["aidyn"], ("map.json", """{ "patch": "aidyn:chunk/0/I08", "objects": [{ "index": 0, "reach": 6 }, { "index": 1, "$remove": true }] }""")),
         ]);
         var conflict = Assert.Single(set.Conflicts);
         Assert.Equal("objects[0].reach", conflict.Path);
         Assert.Equal(["one", "two"], conflict.Plugins);
-        Assert.Equal(6, (int)set.GetJson(RecordId.Parse("aidyn:map/0x0E87"))!["objects"]![0]!["reach"]!);
+        Assert.Equal(6, (int)set.GetJson(RecordId.Parse("aidyn:chunk/0/I08"))!["objects"]![0]!["reach"]!);
     }
 
     [Fact]
@@ -116,33 +116,43 @@ public sealed class PluginSetTests : IDisposable
     {
         var set = PluginSet.Load([
             Plugin("aidyn", null, ("mapsets.json", """
-                [{ "id": "aidyn:mapset/0", "label": "Overworld", "cellSize": 100, "chunks": [
-                  { "row": 9, "column": 8, "map": "aidyn:map/0x0E87", "terrain": 1, "music": "aidyn:sequence/0x0001" },
-                  { "row": 9, "column": 9, "map": "aidyn:map/0x0E88", "terrain": 1 },
+                [{ "id": "aidyn:mapset/0", "label": "Overworld", "cellSize": 100, "spawns": [
+                  { "portal": 0, "row": 9, "column": 8, "position": [1, 2] },
+                  { "portal": 1, "row": 9, "column": 9, "position": [3, 4] },
                 ] }]
+                """), ("chunks.json", """
+                [{ "id": "aidyn:chunk/0/I08", "mapSet": "aidyn:mapset/0", "row": 9, "column": 8, "terrain": "aidyn:terrain/1", "music": "aidyn:sequence/0x0001", "objects": [] }]
                 """)),
             Plugin("mymod", ["aidyn"], ("mapset.json", """
-                { "patch": "aidyn:mapset/0", "chunks": [{ "row": 9, "column": 8, "music": null }, { "row": 9, "column": 9, "terrain": 4 }] }
+                { "patch": "aidyn:mapset/0", "spawns": [{ "portal": 0, "column": 9 }, { "portal": 1, "position": [5, 6] }] }
+                """), ("chunk.json", """
+                { "patch": "aidyn:chunk/0/I08", "music": null, "terrain": "aidyn:terrain/4" }
                 """)),
         ]);
         var mapSet = set.Get<MapSetRecord>(RecordId.Parse("aidyn:mapset/0"));
-        Assert.Equal(2, mapSet.Chunks.Count);
-        Assert.Null(mapSet.Chunk(9, 8)!.Music);
-        Assert.Equal("aidyn:map/0x0E87", mapSet.Chunk(9, 8)!.Map.ToString());
-        Assert.Equal(4, mapSet.Chunk(9, 9)!.Terrain);
-        Assert.Equal(["aidyn", "mymod"], set.Setters(mapSet.Id, "chunks[9,8].music"));
+        Assert.Equal(2, mapSet.Spawns!.Count);
+        Assert.Equal(9, mapSet.Spawns[0].Column);
+        Assert.Equal(new System.Numerics.Vector2(1, 2), mapSet.Spawns[0].Position);
+        Assert.Equal(new System.Numerics.Vector2(5, 6), mapSet.Spawns[1].Position);
+        Assert.Equal(["aidyn", "mymod"], set.Setters(mapSet.Id, "spawns[0].column"));
+        Assert.Equal(["aidyn"], set.Setters(mapSet.Id, "spawns[0].row"));
+
+        var chunk = set.Get<ChunkRecord>(RecordId.Parse("aidyn:chunk/0/I08"));
+        Assert.Null(chunk.Music);
+        Assert.Equal("aidyn:terrain/4", chunk.Terrain.ToString());
+        Assert.Equal(["aidyn", "mymod"], set.Setters(chunk.Id, "music"));
     }
 
     [Fact]
     public void UnkeyedListsAreReplacedWhole()
     {
         var set = PluginSet.Load([
-            Plugin("aidyn", null, ("maps.json", MapWithThreeObjects)),
+            Plugin("aidyn", null, ("chunks.json", MapWithThreeObjects)),
             Plugin("mymod", ["aidyn"], ("map.json", """
-                { "patch": "aidyn:map/0x0E87", "objects": [{ "index": 2, "models": [{ "model": "aidyn:scene/0x0B49", "drawDistance": 20 }] }] }
+                { "patch": "aidyn:chunk/0/I08", "objects": [{ "index": 2, "models": [{ "model": "aidyn:scene/0x0B49", "drawDistance": 20 }] }] }
                 """)),
         ]);
-        var scene = Assert.IsType<SceneObject>(set.Get<MapRecord>(RecordId.Parse("aidyn:map/0x0E87")).Objects[2]);
+        var scene = Assert.IsType<SceneObject>(set.Get<ChunkRecord>(RecordId.Parse("aidyn:chunk/0/I08")).Objects[2]);
         var model = Assert.Single(scene.Models);
         Assert.Equal("aidyn:scene/0x0B49", model.Model.ToString());
         Assert.Equal(20, model.DrawDistance);
@@ -160,11 +170,11 @@ public sealed class PluginSetTests : IDisposable
     public void AKeyedElementWithoutItsKeyIsRefused()
     {
         var error = Assert.Throws<InvalidDataException>(() => PluginSet.Load([
-            Plugin("aidyn", null, ("maps.json", MapWithThreeObjects)),
-            Plugin("mymod", ["aidyn"], ("map.json", """{ "patch": "aidyn:map/0x0E87", "objects": [{ "reach": 5 }] }""")),
+            Plugin("aidyn", null, ("chunks.json", MapWithThreeObjects)),
+            Plugin("mymod", ["aidyn"], ("map.json", """{ "patch": "aidyn:chunk/0/I08", "objects": [{ "reach": 5 }] }""")),
         ]));
         Assert.Contains("keyed by index", error.Message, StringComparison.Ordinal);
-        Assert.Contains("aidyn:map/0x0E87", error.Message, StringComparison.Ordinal);
+        Assert.Contains("aidyn:chunk/0/I08", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -229,12 +239,12 @@ public sealed class PluginSetTests : IDisposable
             Directory.CreateDirectory(Path.Combine(dir, "assets", "aidyn", "scene"));
             File.WriteAllText(Path.Combine(dir, "assets", "aidyn", "scene", "0x0A0E.glb"), "");
         }
-        Directory.CreateDirectory(Path.Combine(baseDir, "assets", "aidyn", "voxel", "0x1A20"));
-        File.WriteAllText(Path.Combine(baseDir, "assets", "aidyn", "voxel", "0x1A20", "12.png"), "");
+        Directory.CreateDirectory(Path.Combine(baseDir, "assets", "aidyn", "mapobject", "0", "I08"));
+        File.WriteAllText(Path.Combine(baseDir, "assets", "aidyn", "mapobject", "0", "I08", "12.png"), "");
 
         var set = PluginSet.Load([baseDir, modDir]);
         Assert.StartsWith(modDir, set.FindAsset(RecordId.Parse("aidyn:scene/0x0A0E"), "glb"), StringComparison.Ordinal);
-        Assert.StartsWith(baseDir, set.FindAsset(RecordId.Parse("aidyn:voxel/0x1A20/12"), "png"), StringComparison.Ordinal);
+        Assert.StartsWith(baseDir, set.FindAsset(RecordId.Parse("aidyn:mapobject/0/I08/12"), "png"), StringComparison.Ordinal);
         Assert.Null(set.FindAsset(RecordId.Parse("aidyn:scene/0x0A0F"), "glb"));
     }
 
@@ -257,9 +267,10 @@ public sealed class PluginSetTests : IDisposable
     public void TheCatalogListsRecordsAndAssetsAndWhatNamesThem()
     {
         var baseDir = Plugin("aidyn", null,
-            ("mapsets.json", """[{ "id": "aidyn:mapset/0", "label": "Overworld", "cellSize": 100, "chunks": [{ "row": 9, "column": 8, "map": "aidyn:map/0x0E87" }] }]"""),
-            ("maps.json", """
-                [{ "id": "aidyn:map/0x0E87", "objects": [
+            ("mapsets.json", """[{ "id": "aidyn:mapset/0", "label": "Overworld", "cellSize": 100 }]"""),
+            ("chunks.json", """
+                [{ "id": "aidyn:chunk/0/I08", "mapSet": "aidyn:mapset/0", "row": 9, "column": 8, "terrain": "aidyn:terrain/1",
+                  "collision": "aidyn:collision/0x0E87", "objects": [
                   { "type": "scene", "index": 0, "visible": { "flag": "aidyn:flag/5" }, "models": [{ "model": "aidyn:scene/0x0B48" }] },
                   { "type": "scene", "index": 1, "visible": { "flag": "aidyn:flag/0" }, "models": [{ "model": "aidyn:scene/0x0B48" }] },
                 ] }]
@@ -272,7 +283,7 @@ public sealed class PluginSetTests : IDisposable
             File.WriteAllBytes(full, bytes);
         }
         Asset(baseDir, "aidyn/scene/0x0B48.glb", []);
-        Asset(baseDir, "aidyn/map/0x0E87.glb", []);
+        Asset(baseDir, "aidyn/collision/0x0E87.glb", []);
         Asset(modDir, "aidyn/scene/0x0B48.glb", []);
         Asset(baseDir, "aidyn/scene/0x0B49.glb", []);
         Asset(baseDir, "aidyn/image/0x019F.png", [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13, .. "IHDR"u8, 0, 0, 0, 12, 0, 0, 0, 37]);
@@ -280,13 +291,17 @@ public sealed class PluginSetTests : IDisposable
 
         var catalog = PluginCatalog.Build(PluginSet.Load([baseDir, modDir]));
 
-        Assert.Equal(["aidyn:image/0x019F", "aidyn:map/0x0E87", "aidyn:mapset/0", "aidyn:scene/0x0B48", "aidyn:scene/0x0B49"],
+        Assert.Equal(["aidyn:chunk/0/I08", "aidyn:collision/0x0E87", "aidyn:image/0x019F", "aidyn:mapset/0", "aidyn:scene/0x0B48", "aidyn:scene/0x0B49"],
             catalog.Entries.Select(e => e.Id.ToString()));
-        var map = catalog.Find(RecordId.Parse("aidyn:map/0x0E87"))!;
-        Assert.True(map.HasRecord);
-        Assert.Equal(0x0E87, map.Borg);
-        Assert.Equal("Overworld I08, 2 scenes", map.Summary);
-        Assert.Equal("aidyn", map.Asset("glb")!.Plugin);
+        var chunk = catalog.Find(RecordId.Parse("aidyn:chunk/0/I08"))!;
+        Assert.True(chunk.HasRecord);
+        Assert.Null(chunk.Borg);
+        Assert.Equal("Overworld I08, 2 scenes", chunk.Summary);
+        // Its collision is an asset alone, keyed by the Borg9 it was imported from.
+        var collision = catalog.Find(RecordId.Parse("aidyn:collision/0x0E87"))!;
+        Assert.False(collision.HasRecord);
+        Assert.Equal(0x0E87, collision.Borg);
+        Assert.Equal("aidyn", collision.Asset("glb")!.Plugin);
         Assert.Equal("Overworld, 1 chunk", catalog.Find(RecordId.Parse("aidyn:mapset/0"))!.Summary);
         Assert.Null(catalog.Find(RecordId.Parse("aidyn:mapset/0"))!.Borg);
 
@@ -377,17 +392,21 @@ public sealed class PluginSetTests : IDisposable
         Assert.True(RecordTypes.Info(RecordTypes.Entity).Reads(typeof(DbRecord)));
         Assert.False(RecordTypes.Info(RecordTypes.Entity).Reads(typeof(ItemRecord)));
         Assert.Null(RecordTypes.Info(RecordTypes.Scene).Class);
-        Assert.Equal(KeyKind.Nested, RecordTypes.Info(RecordTypes.Voxel).Key);
+        Assert.Equal(KeyKind.Chunk, RecordTypes.Info(RecordTypes.Chunk).Key);
+        Assert.Equal(KeyKind.MapObject, RecordTypes.Info(RecordTypes.MapObject).Key);
+        Assert.Equal("chunks", RecordTypes.Info(RecordTypes.Chunk).LazyFolder);
+        Assert.Equal("scripts", RecordTypes.Info(RecordTypes.Script).LazyFolder);
+        Assert.Null(RecordTypes.Info(RecordTypes.Entity).LazyFolder);
         Assert.Equal(RecordTypes.Entity, RecordTypes.Of<EntityRecord>().Name);
         Assert.Throws<ArgumentException>(() => RecordTypes.Info("widget"));
         Assert.Equal(RecordTypes.Registry.Select(t => t.Name), RecordTypes.Names);
         Assert.True(RecordTypes.Registry.All(t => t.Class is null || t.Class.Name.EndsWith("Record", StringComparison.Ordinal)));
 
         // The map object kinds come from MapObject's attributes, each with a name of its own.
-        Assert.Equal(["scene", "container", "light", "sound", "wanderNode", "monsterParty", "refPoint", "teleporter", "camera", "script", "tripwire", "savePoint"],
+        Assert.Equal(["scene", "container", "light", "sound", "wanderNode", "encounter", "npc", "refPoint", "teleporter", "camera", "script", "tripwire", "savePoint"],
             MapObjectKinds.All.Select(k => k.Discriminator));
         Assert.All(MapObjectKinds.All, k => Assert.NotEqual(k.Type.Name, k.Name));
-        Assert.Equal("Monster party", MapObjectKinds.Name("monsterParty"));
+        Assert.Equal("Encounter", MapObjectKinds.Name("encounter"));
     }
 
     [Fact]
@@ -396,12 +415,12 @@ public sealed class PluginSetTests : IDisposable
         var original = new SceneObject(3, new(1.5f, 2, -3), 45, new FlagGate(RecordId.Parse("aidyn:flag/0"), true),
             [new SceneModel(RecordId.Parse("aidyn:scene/0x0B48"), 15)], new(0, 0.5f, 0), new(1, 1, 1),
             new Rgba(1, 2, 3, 4), SceneObjectFlags.Solid | SceneObjectFlags.Tint);
-        MapRecord map = new(RecordId.Parse("aidyn:map/0x0E87"), [original]);
+        ChunkRecord map = new(RecordId.Parse("aidyn:chunk/0/I08"), RecordId.Parse("aidyn:mapset/0"), 9, 8, RecordId.Parse("aidyn:terrain/1"), [original]);
         var json = JsonSerializer.Serialize(map, PluginJson.Options);
         Assert.Contains("\"type\": \"scene\"", json, StringComparison.Ordinal);
         Assert.Contains("[1.5, 2, -3]", json, StringComparison.Ordinal);
 
-        var read = PluginSet.Load([Plugin("aidyn", null, ("maps.json", json))]).Get<MapRecord>(map.Id);
+        var read = PluginSet.Load([Plugin("aidyn", null, ("chunks.json", json))]).Get<ChunkRecord>(map.Id);
         var scene = Assert.IsType<SceneObject>(Assert.Single(read.Objects));
         Assert.Equal(original.Models, scene.Models);
         Assert.Equal(original with { Models = scene.Models }, scene);

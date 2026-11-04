@@ -22,7 +22,7 @@ public sealed partial class GameSessionTests
     {
         var id = RecordId.Hex(RecordTypes.Script, script);
         var (voxel, _, dialogue) = Data.Of<ScriptObject>().First(d => d.Object.Plays == id && d.Object.Stage is not null);
-        session.Cue(Data.Set.Get<ScriptRecord>(id), new ScriptStart(dialogue.Marks, voxel), dialogue.Stage!);
+        session.Cue(Data.Set.Get<ScriptRecord>(id), new ScriptStart(dialogue.Marks, voxel), dialogue.Stage!.Value);
         Assert.Equal(SessionStep.CutSceneCued, TickUntil(session, SessionStep.CutSceneCued));
         session.BeginCutScene();
         return session.Scene!;
@@ -53,7 +53,7 @@ public sealed partial class GameSessionTests
         Assert.Equal([typeof(Transition.EndCinematic), typeof(Transition.StartCutScene)], host.Transitions.Select(t => t.GetType()));
         var started = (Transition.StartCutScene)host.Transitions[1];
         Assert.Equal(RecordId.Hex(RecordTypes.Script, 0x0362), started.Scene.Runner.Script.Id);
-        Assert.Equal(RecordId.Parse("aidyn:voxel/0x0FDB/7"), started.Scene.Runner.Origin.MapObject);
+        Assert.Equal(Ids.MapObject(0, "I08", 7), started.Scene.Runner.Origin.MapObject);
         Assert.Equal((GameMode.CutScene, SessionStep.CutScene), (session.Mode, Tick(session)));
     }
 
@@ -178,7 +178,7 @@ public sealed partial class GameSessionTests
         Assert.Equal([typeof(Transition.EndCutScene), typeof(Transition.ResumeTrek)], host.Transitions.Select(t => t.GetType()));
         // Back in the hut, Alaron faces Oriana (her monster party, object 6), as the place kept has him.
         var map = trek.Chunks.MapAt(trek.Player.Sphere.Position)!;
-        var oriana = map.Origin + map.Record.Objects.OfType<MonsterPartyObject>().Single(o => o.Index == 6).Position;
+        var oriana = map.Origin + map.Record.Objects.OfType<PartyObject>().Single(o => o.Index == 6).Position;
         var toOriana = Vector2.Normalize(new Vector2(oriana.X - trek.Player.Sphere.Position.X, oriana.Z - trek.Player.Sphere.Position.Z));
         Assert.True(Vector2.Dot(toOriana, trek.Player.Heading) > 0.95f, $"he faces {trek.Player.Heading}, she's {toOriana} from him");
     }

@@ -174,8 +174,8 @@ public partial class Game
     }
 
     /// <summary>
-    /// Starts a battle from the command line (<c>--battle aidyn:voxel/0x0E8A/3[,arena][,ambush]</c>): with the monster
-    /// party given, where the player stands, as using it would, in the arena given or else the one the terrain chooses,
+    /// Starts a battle from the command line (<c>--battle aidyn:mapobject/0/I08/26[,arena][,ambush]</c>): with the encounter or
+    /// npc given, where the player stands, as using it would, in the arena given or else the one the terrain chooses,
     /// and as an ambush if asked. A script (<c>--battle aidyn:script/0x046E</c>) starts the battle its end would, with its
     /// enemies, arena, bytes and encounter flag, as though its talk had come to it.
     /// </summary>
@@ -187,24 +187,27 @@ public partial class Game
         {
             var ops = script.Nodes.SelectMany(n => n.Ops).ToList();
             var enemies = ops.OfType<ScriptOp.BattleAddEnemy>().Select(o => o.Entity).Take(12);
-            var field = ops.OfType<ScriptOp.BattleArena>().LastOrDefault()?.Arena ?? 0;
+            var field = ops.OfType<ScriptOp.BattleArena>().LastOrDefault()?.Arena;
             var (at, kind) = Trek!.Here();
-            var scripted = Core.Combat.BattleSetup.Scripted(enemies, field > 27 ? 0 : field,
+            var scripted = Core.Combat.BattleSetup.Scripted(enemies, field,
                 ops.OfType<ScriptOp.BattleCollisionByte>().LastOrDefault()?.Value ?? 0, ops.OfType<ScriptOp.BattleAnimationByte>().LastOrDefault()?.Value ?? 0,
-                script.Mode != ScriptMode.Cutscene, script.BattleFlag)
+                script.Mode != ScriptMode.Cutscene, script.BattleFlag, script.BattleRules)
                 with { Place = at, Terrain = kind };
             _session!.CueBattle(scripted);
             return;
         }
-        if (id.Type != RecordTypes.Voxel || MapRecord.Find(_plugins!, id) is not MonsterPartyObject party)
+        if (id.Type != RecordTypes.MapObject || ChunkRecord.Find(_plugins!, id) is not PartyObject party)
         {
-            Say($"{parts[0]} isn't a monster party.");
+            Say($"{parts[0]} isn't an npc or an encounter.");
             return;
         }
         var ambush = parts.Contains("ambush");
-        int? arena = parts.Length > 1 && int.TryParse(parts[1], out var n) ? n : null;
+        // An arena by its chunk's ID, or its name in the Battle arenas, such as E11.
+        RecordId? arena = parts.Length > 1 && RecordId.TryParse(parts[1], out var chosen) ? chosen
+            : parts.Length > 1 && ChunkRecord.CellOf(parts[1]) is { } cell ? ChunkIndex.For(_plugins!).At(Core.Combat.Arena.MapSet, cell.Row, cell.Column)
+            : null;
         var (place, terrain) = Trek!.Here();
-        var setup = Core.Combat.BattleSetup.WithParty(Core.Combat.BattleSource.MonsterParty, id, party, place, terrain, ambush) with { Arena = arena };
+        var setup = Core.Combat.BattleSetup.WithParty(Core.Combat.BattleSource.Encounter, id, party, place, terrain, ambush) with { Arena = arena };
         _session!.CueBattle(setup);
     }
 
@@ -219,22 +222,21 @@ public partial class Game
             Say($"{script} isn't a cut-scene.");
             return;
         }
-        var maps = _plugins.All<MapRecord>(RecordTypes.Map).ToList();
+        var maps = _plugins.All<ChunkRecord>(RecordTypes.Chunk).ToList();
         foreach (var map in maps)
         {
             if (map.Objects.OfType<ScriptObject>().FirstOrDefault(d => d.Plays == script && d.Stage is not null) is { } dialogue
-                && CutSceneLaunch.Of(record, dialogue, MapRecord.VoxelId(map.Id, dialogue.Index)) is { } launch)
+                && CutSceneLaunch.Of(record, dialogue, ChunkRecord.ObjectId(map.Id, dialogue.Index)) is { } launch)
             {
                 _session!.Cue(launch);
                 return;
             }
         }
-        var placements = MapPlacements.For(_plugins);
         foreach (var map in maps)
         {
-            if (map.Objects.OfType<MonsterPartyObject>().FirstOrDefault(p => p.Script == script) is { } party && placements.First(map.Id) is { } place)
+            if (map.Objects.OfType<NpcObject>().FirstOrDefault(p => p.Script == script) is { } party)
             {
-                _session!.Cue(record, new ScriptStart(0, MapRecord.VoxelId(map.Id, party.Index)), new ChunkRef(place.Set.Id, place.Chunk.Row, place.Chunk.Column));
+                _session!.Cue(Core.Trek.TrekLoop.TalkerLaunch(_plugins, record, party, map.ObjectId(party.Index), map.Id));
                 return;
             }
         }
@@ -310,7 +312,7 @@ public partial class Game
         var local = chunk is null ? focus : focus - chunks.Origin(chunk);
         var motion = _player!.Motion;
         var sphere = motion.Sphere;
-        _overlay.Text = (Battle is { } battle ? $"battle in arena {battle.Arena.Number} ({battle.Arena.Chunk.Name}), {battle.State}, {battle.Current?.Sheet.Name ?? "no one"}'s turn {battle.Order.Now + 1} of {battle.Order.Turns.Count}" +
+        _overlay.Text = (Battle is { } battle ? $"battle in arena {battle.Arena.Chunk.Name}, {battle.State}, {battle.Current?.Sheet.Name ?? "no one"}'s turn {battle.Order.Now + 1} of {battle.Order.Turns.Count}" +
                 $"{(battle.Current is { } now ? $", field {now.Radius} (ring {battle.Ring.RingRadius:F2}, {battle.Ring.Count} teardrops), moves {now.Moves}, {System.Numerics.Vector2.Distance(now.Cell, now.TurnStart):F2} from its start" : "")}\n" +
                 $"{string.Join(", ", battle.Combatants.Select(c => $"{c.Slot} {c.Sheet.Name} ({c.Cell.X:F2}, {c.Cell.Y:F2}) r {c.Radius}{(c.Engaged ? " engaged" : "")}"))}, eye {Local(battle.Camera.Position)} aim {Local(battle.Camera.Aim)}{(battle.CanFlee ? "; can flee" : "")}\n" : "") +
             (Scene is { } scene ?$"cut-scene {scene.Runner.Script.Id}, waiting for {scene.Runner.Wait?.ToString() ?? "nothing"}, {scene.Actors.Count} actors, {scene.Cameras.Count} camera moves\n" : "") +

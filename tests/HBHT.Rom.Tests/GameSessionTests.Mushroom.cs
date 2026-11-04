@@ -28,13 +28,14 @@ public sealed partial class GameSessionTests
     {
         var moved = MapCorrections.RoogCaveMushroom;
         var (chunk, rom) = RoogD01();
-        var map = RecordId.Hex(RecordTypes.Map, chunk.Collision);
-        var mushroom = (SceneObject)Data.Set.Get<MapRecord>(map).Objects.Single(o => o.Index == moved.Object);
+        var d01 = Data.Set.Get<ChunkRecord>(Ids.Chunk((int)MapSet.RoogCave, "D01"));
+        Assert.Equal(RecordId.Hex(RecordTypes.Collision, chunk.Collision), d01.Collision);
+        var mushroom = (SceneObject)d01.Objects.Single(o => o.Index == moved.Object);
         Assert.Equal(RecordId.Hex(RecordTypes.Scene, moved.Scene), mushroom.Models[0].Model);
         Assert.Equal(rom.Objects[moved.Object].Position + moved.By, mushroom.Position);
 
         // Its 8 triangles move with it and no others do.
-        var collision = CollisionMesh.For(Data.Set, map);
+        var collision = CollisionMesh.For(Data.Set, d01.Collision!.Value);
         Assert.Equal(rom.Triangles.Count, collision.Count);
         for (var t = 0; t < collision.Count; t++)
         {
@@ -50,14 +51,14 @@ public sealed partial class GameSessionTests
     {
         var (chunk, rom) = RoogD01();
         var set = Data.Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, (int)MapSet.RoogCave));
-        var entry = set.Chunks.Single(c => c.Name == "D01");
+        var entry = Data.Set.Get<ChunkRecord>(Ids.Chunk((int)MapSet.RoogCave, "D01"));
         CollisionWorld World(IEnumerable<CollisionTriangle> triangles)
         {
             var world = new CollisionWorld();
-            world.Add(new ChunkKey(set.Id, entry.Row, entry.Column), triangles, set.Origin(entry.Row, entry.Column));
+            world.Add(ChunkKey.Of(entry), triangles, set.Origin(entry.Row, entry.Column));
             return world;
         }
-        var imported = World(CollisionMesh.For(Data.Set, entry.Map));
+        var imported = World(CollisionMesh.For(Data.Set, entry.Collision!.Value));
         var original = World(CollisionMesh.Read(CollisionGltf.Export([(chunk, rom)], placeInSet: false)));
 
         var gaits = new (string Name, MoveInput Input)[]

@@ -27,21 +27,21 @@ public sealed class Wanderer
     /// <summary>The sphere swept from a hunter to the player to see that nothing's between them.</summary>
     private const float AmbushSweepRadius = 0.5f;
 
-    internal Wanderer(LoadedMap map, MonsterPartyObject party, EntityBody look, Body body, int perception)
+    internal Wanderer(LoadedMap map, PartyObject party, EntityBody look, Body body, int perception)
     {
         Map = map;
         Party = party;
         Look = look;
         Body = body;
         Perception = perception;
-        Hunts = party.Script is null;
+        Hunts = party is EncounterObject;
         Home = new Vector2(party.Position.X, party.Position.Z) + new Vector2(map.Origin.X, map.Origin.Z);
     }
 
     /// <summary>The chunk it belongs to, which it stays in.</summary>
     public LoadedMap Map { get; }
 
-    public MonsterPartyObject Party { get; }
+    public PartyObject Party { get; }
 
     /// <summary>The party's entity's model and size.</summary>
     public EntityBody Look { get; }
@@ -54,8 +54,8 @@ public sealed class Wanderer
     /// <summary>What its sounds keep between ticks.</summary>
     public Audio.BodyAudio Audio { get; } = new();
 
-    /// <summary>Whether it talks rather than fights: a party with a dialogue.</summary>
-    public bool Talks => Party.Script is not null;
+    /// <summary>Whether it talks rather than fights: an npc.</summary>
+    public bool Talks => Party is NpcObject;
 
     /// <summary>
     /// Whether it notices and chases the player (<c>moveType</c> 1): a party without a dialogue, until
@@ -140,7 +140,7 @@ public sealed class Wanderer
             1 => node.Next[0],
             _ => node.Next[roll < node.Chance ? 1 : 0],
         };
-        var next = link is { } id ? Map[MapRecord.IndexOf(id)] as WanderNodeObject ?? node : node;
+        var next = link is { } id ? Map[ChunkRecord.IndexOf(id)] as WanderNodeObject ?? node : node;
         Take(next);
         if ((next.Flags & WanderFlags.Move) == 0)
             return;

@@ -96,11 +96,11 @@ public sealed class Reach
         if (set.Id == Arena.MapSet)
             return ArenaStarts(plugins);
         var starts = new List<(Vector3, float?)>();
-        foreach (var map in plugins.All<MapRecord>(RecordTypes.Map))
+        foreach (var map in plugins.All<ChunkRecord>(RecordTypes.Chunk))
         {
             foreach (var teleporter in map.Objects.OfType<TeleporterObject>())
             {
-                if (teleporter.Destination.MapSet != set.Id || TeleportArrival.For(plugins, teleporter) is not { } arrival)
+                if (TeleportArrival.For(plugins, teleporter) is not { } arrival || arrival.Chunk.MapSet != set.Id)
                     continue;
                 var at = set.Origin(arrival.Chunk.Row, arrival.Chunk.Column) + arrival.Position;
                 starts.Add((at, at.Y - PlayerMotion.Radius));
@@ -108,9 +108,9 @@ public sealed class Reach
         }
         foreach (var spawn in set.Spawns ?? [])
             starts.Add((set.Origin(spawn.Row, spawn.Column) + new Vector3(spawn.Position.X, 0, spawn.Position.Y), null));
-        foreach (var chunk in set.Chunks)
+        foreach (var chunk in plugins.ChunksIn(set.Id))
         {
-            foreach (var save in plugins.Get<MapRecord>(chunk.Map).Objects.OfType<SavePointObject>())
+            foreach (var save in chunk.Objects.OfType<SavePointObject>())
             {
                 var at = set.Origin(chunk.Row, chunk.Column) + save.Position;
                 starts.Add((at, at.Y - PlayerMotion.Radius));
@@ -122,22 +122,22 @@ public sealed class Reach
     /// <summary>
     /// The places combat puts a body in each of the Battle arenas, in the world's coordinates, as <see cref="Body.Spawn"/> does
     /// (<c>Combat.CreateBody</c>): the arena's 40 spawns, <c>good0a</c> to <c>bad4d</c>, which the party, the enemies and their
-    /// reserves are made at, each a unit up at its point's cell (<see cref="Battle.CellOf"/>), set down from on high. Chunks sharing
-    /// a map are the same arena, so only the first of them is taken.
+    /// reserves are made at, each a unit up at its point's cell (<see cref="Battle.CellOf"/>), set down from on high. Chunks copied from
+    /// one Borg9 are the same arena, so only the first of them is taken.
     /// </summary>
     public static IReadOnlyList<(Vector3 At, float? Near)> ArenaStarts(PluginSet plugins) =>
         [.. ArenaPlacements(plugins).Where(p => !p.Name.StartsWith("flee", StringComparison.Ordinal)).Select(p => (p.At, (float?)null))];
 
     /// <summary>
-    /// The names and places combat puts bodies in the arenas, with the arena's number: <see cref="ArenaStarts"/>' spawns, and the
+    /// The names and places combat puts bodies in the arenas, with the arena's chunk: <see cref="ArenaStarts"/>' spawns, and the
     /// flee points, <c>flee0</c> to <c>flee7</c>, which fleeing enemies walk to (leaving within 1.5 of one) and nothing is made at.
     /// </summary>
-    public static IEnumerable<(int Arena, string Name, Vector3 At)> ArenaPlacements(PluginSet plugins)
+    public static IEnumerable<(RecordId Arena, string Name, Vector3 At)> ArenaPlacements(PluginSet plugins)
     {
-        var maps = new HashSet<RecordId>();
-        for (var number = 0; number < Arena.Count; number++)
+        var borgs = new HashSet<string?>();
+        foreach (var id in ChunkIndex.For(plugins).In(Arena.MapSet))
         {
-            if (Arena.For(plugins, number) is not { } arena || !maps.Add(arena.Map.Id))
+            if (Arena.For(plugins, id) is not { } arena || arena.Chunk.Borg is { } borg && !borgs.Add(borg))
                 continue;
             var names = new List<string>();
             foreach (var good in (ReadOnlySpan<bool>)[true, false])
@@ -147,7 +147,7 @@ public sealed class Reach
             names.AddRange(Enumerable.Range(0, Battle.MaxFleePoints).Select(Battle.FleePoint));
             foreach (var name in names)
                 if (arena.Point(name) is { } point)
-                    yield return (number, name, Battle.BodyStart(arena.Origin, Battle.CellOf(point)));
+                    yield return (id, name, Battle.BodyStart(arena.Origin, Battle.CellOf(point)));
         }
     }
 
