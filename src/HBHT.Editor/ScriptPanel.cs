@@ -110,7 +110,7 @@ public partial class ScriptPanel : VBoxContainer
     {
         var header = new HFlowContainer();
         header.AddThemeConstantOverride("h_separation", 12);
-        var facts = new List<string> { $"{_script.Label ?? _script.Id.ToString()}: {_script.Mode}, number {_script.Number}, {_script.Nodes.Count} nodes" };
+        var facts = new List<string> { $"{_script.Label ?? $"Number {_script.Number}"}: {_script.Mode}, {_script.Nodes.Count} nodes" };
         if (_script.Backdrop is { } backdrop)
             facts.Add($"backdrop {backdrop}");
         if (_script.Rest)
