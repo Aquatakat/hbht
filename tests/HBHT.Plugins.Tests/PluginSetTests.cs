@@ -384,7 +384,7 @@ public sealed class PluginSetTests : IDisposable
         Assert.True(RecordTypes.Registry.All(t => t.Class is null || t.Class.Name.EndsWith("Record", StringComparison.Ordinal)));
 
         // The map object kinds come from MapObject's attributes, each with a name of its own.
-        Assert.Equal(["scene", "container", "light", "sound", "wanderNode", "monsterParty", "refPoint", "teleporter", "camera", "dialogue", "tripwire", "savePoint"],
+        Assert.Equal(["scene", "container", "light", "sound", "wanderNode", "monsterParty", "refPoint", "teleporter", "camera", "script", "tripwire", "savePoint"],
             MapObjectKinds.All.Select(k => k.Discriminator));
         Assert.All(MapObjectKinds.All, k => Assert.NotEqual(k.Type.Name, k.Name));
         Assert.Equal("Monster party", MapObjectKinds.Name("monsterParty"));

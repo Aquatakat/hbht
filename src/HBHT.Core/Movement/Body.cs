@@ -636,7 +636,7 @@ public sealed class Body
     /// it leaves for the frame, and the frame's ticks counted toward giving up (<c>+0x25c</c> += the frame's delta,
     /// <c>0x80015aa4</c>). So the body walks on to the end of the frame it comes within its radius in, and lets go of its stick
     /// as the next begins, which decides whether its walk's last step carries it on (<see cref="Animate"/>): Shamsuk's walk
-    /// to his tower's point 9 (<c>aidyn:dialogue/0x0494</c> node 44) ends half a unit short of it, not a whole one. Tested
+    /// to his tower's point 9 (<c>aidyn:script/0x0494</c> node 44) ends half a unit short of it, not a whole one. Tested
     /// each tick, the 0.01 it must come nearer was a tick's, and a walk's slow start counted twice as much toward giving up.
     /// </remarks>
     private void Steer(CollisionWorld world)

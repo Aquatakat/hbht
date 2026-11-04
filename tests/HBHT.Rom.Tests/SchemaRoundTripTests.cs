@@ -46,7 +46,7 @@ public sealed class SchemaRoundTripTests(Na10Import fixture)
     public void EveryMapAndScriptValidates()
     {
         var set = fixture.Data.Set;
-        foreach (var (type, cls) in new[] { (RecordTypes.Map, typeof(Plugins.Records.MapRecord)), (RecordTypes.Dialogue, typeof(Plugins.Records.DialogueRecord)) })
+        foreach (var (type, cls) in new[] { (RecordTypes.Map, typeof(Plugins.Records.MapRecord)), (RecordTypes.Script, typeof(Plugins.Records.ScriptRecord)) })
         {
             var schema = Schema(cls);
             foreach (var id in set.Ids.Where(i => i.Type == type))

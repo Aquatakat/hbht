@@ -60,7 +60,8 @@ public static class RecordTypes
     public const string Map = "map";
     public const string Sample = "sample";
     public const string Sequence = "sequence";
-    public const string Dialogue = "dialogue";
+    /// <summary>A Borg13: a conversation, cut-scene, backdrop, sign or the help menu (ADR 0034).</summary>
+    public const string Script = "script";
 
     /// <summary>A map object, nested in its <see cref="Map"/>: <c>aidyn:voxel/0x1A20/12</c>.</summary>
     public const string Voxel = "voxel";
@@ -182,7 +183,7 @@ public static class RecordTypes
         new(Map, typeof(MapRecord), KeyKind.Borg),
         new(Sample, null, KeyKind.Borg),
         new(Sequence, typeof(SequenceRecord), KeyKind.Borg),
-        new(Dialogue, typeof(DialogueRecord), KeyKind.Borg),
+        new(Script, typeof(ScriptRecord), KeyKind.Borg),
         new(Voxel, null, KeyKind.Nested),
         new(MapSet, typeof(MapSetRecord), KeyKind.Decimal),
         new(Terrain, typeof(TerrainRecord), KeyKind.Decimal),

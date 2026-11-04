@@ -241,7 +241,7 @@ public sealed class SystemMenu
     public string Label(SystemItem item) => Lines[(int)item] is var line and >= 0 ? _text[line] : item == SystemItem.Quit ? "Quit Game" : "Credits";
 
     /// <summary>The help menu's script, which Help starts (<c>0x054B</c>).</summary>
-    public static readonly RecordId HelpScript = RecordId.Hex(RecordTypes.Dialogue, 0x054B);
+    public static readonly RecordId HelpScript = RecordId.Hex(RecordTypes.Script, 0x054B);
 
     public void Step()
     {

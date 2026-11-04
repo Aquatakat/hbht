@@ -90,7 +90,7 @@ public sealed partial class GameSessionTests
     {
         // PortSaiid E01, the cave: the letter (object 1, its flag B 294) is a backdrop, script 0x041F, whose node 1 sets 295.
         var cave = Data.Set.Get<MapRecord>(RecordId.Hex(RecordTypes.Map, 0x12D8));
-        var letter = (DialogueObject)cave.Objects[1];
+        var letter = (ScriptObject)cave.Objects[1];
         var (session, _) = StartIn(2, "E01", letter.Position.X - 0.5f, letter.Position.Z);
         var trek = session.Trek;
         var flags = session.Game.Flags;

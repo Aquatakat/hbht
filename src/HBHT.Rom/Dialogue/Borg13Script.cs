@@ -36,10 +36,10 @@ public sealed record Borg13Node(
     public const int Size = 0x38;
     public const ushort NoUpperBound = 65000;
 
-    public DialogueNodeKind Kind => (Flags & 1) != 0 ? DialogueNodeKind.Line
-        : (Flags & 2) != 0 ? DialogueNodeKind.If
-        : (Flags & 4) != 0 ? DialogueNodeKind.Case
-        : DialogueNodeKind.Menu;
+    public ScriptNodeKind Kind => (Flags & 1) != 0 ? ScriptNodeKind.Line
+        : (Flags & 2) != 0 ? ScriptNodeKind.If
+        : (Flags & 4) != 0 ? ScriptNodeKind.Case
+        : ScriptNodeKind.Menu;
 
     /// <summary>The op an If or Case evaluates: the first condition op.</summary>
     public Borg13Op? Condition => Ops.Cast<Borg13Op?>().FirstOrDefault(op => op!.Value.Opcode.IsCondition());
@@ -68,7 +68,7 @@ public sealed record Borg13Node(
 public sealed record Borg13Script(
     ushort Id,
     ushort DoneFlag,
-    DialogueMode StartMode,
+    ScriptMode StartMode,
     byte Backdrop,
     IReadOnlyList<ItemId> Actors,
     IReadOnlyList<Borg13Node> Nodes,
@@ -102,7 +102,7 @@ public sealed record Borg13Script(
                 $"{nodeCount} nodes and {actorCount} actors in 0x{data.Length:X} bytes.");
         if (nodeCount == 0)
             throw new InvalidDataException("Borg13 has no nodes.");
-        if (startMode > (byte)DialogueMode.Help)
+        if (startMode > (byte)ScriptMode.Help)
             throw new InvalidDataException($"Unknown Borg13 start mode {startMode}.");
 
         var text = data.AsSpan((int)textOffset, textSize);
@@ -128,7 +128,7 @@ public sealed record Borg13Script(
                 throw new InvalidDataException($"Borg13 actor {i} padding isn't zero.");
         }
 
-        return new Borg13Script(id, doneFlag, (DialogueMode)startMode, backdrop, actors, nodes, nodeCount - nodes.Count);
+        return new Borg13Script(id, doneFlag, (ScriptMode)startMode, backdrop, actors, nodes, nodeCount - nodes.Count);
     }
 
     /// <summary>Reads a node, or returns null for a blank one: no ops, text or links, and no index.</summary>

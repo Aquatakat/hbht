@@ -13,7 +13,7 @@ namespace HBHT.Core.Scripts;
 /// <summary>
 /// Where a cut-scene plays (<c>DialogueModeInitPrescripted_set_map</c>): the 3×3 chunks around its
 /// staging chunk, which the runtime loads into <see cref="World"/> without their wanderers, and the
-/// staging chunk's map, whose reference points the script names.
+/// staging chunk's map, whose reference points' marks the script names.
 /// </summary>
 public sealed record CutSceneStage(MapSetRecord Set, ChunkEntry Chunk, MapRecord Map, CollisionWorld World)
 {
@@ -21,13 +21,13 @@ public sealed record CutSceneStage(MapSetRecord Set, ChunkEntry Chunk, MapRecord
     public Vector3 Origin => Set.Origin(Chunk.Row, Chunk.Column);
 
     /// <summary>
-    /// A reference point by its id, in the staging chunk's map only (<c>FindReferncePoint</c>,
+    /// The reference point with a mark, in the staging chunk's map only (<c>FindReferncePoint</c>,
     /// <c>0x8000b6f0</c>): its position in the map set, and the way it faces.
     /// </summary>
-    public ReferencePointObject? Point(int id) => Map.Objects.OfType<ReferencePointObject>().FirstOrDefault(p => p.Id == id);
+    public ReferencePointObject? Point(int mark) => Map.Objects.OfType<ReferencePointObject>().FirstOrDefault(p => p.Mark == mark);
 
-    /// <summary>A reference point's position in the map set.</summary>
-    public Vector3? PointAt(int id) => Point(id) is { } point ? Origin + point.Position : null;
+    /// <summary>A mark's position in the map set.</summary>
+    public Vector3? PointAt(int mark) => Point(mark) is { } point ? Origin + point.Position : null;
 
     /// <summary>Where actors are kept: the staging chunk, 0.05 inside its edges.</summary>
     public (Vector2 Min, Vector2 Max) Bounds => Body.ChunkBounds(Origin, Set.CellSize);
@@ -44,9 +44,9 @@ public sealed record CutSceneStage(MapSetRecord Set, ChunkEntry Chunk, MapRecord
 }
 
 /// <summary>
-/// A cut-scene (a script whose mode is <see cref="DialogueMode.Cutscene"/>): the original's dialogue
+/// A cut-scene (a script whose mode is <see cref="ScriptMode.Cutscene"/>): the original's dialogue
 /// mode with its own world (<c>Dialog_GameState</c>). Trek's world is gone while it plays; the script
-/// spawns its actors at the stage's reference points, walks, turns and animates them, hands them items,
+/// spawns its actors at the stage's marks, walks, turns and animates them, hands them items,
 /// and moves the camera, while its lines show in the conversation box. Checked in 1.0's code.
 /// </summary>
 /// <remarks>
@@ -81,7 +81,7 @@ public sealed class CutScene
     /// <summary>An actor that comes no nearer where it's going for this long is put there (<c>0x12C</c>).</summary>
     public const int GiveUpTicks = 300;
 
-    /// <summary>How far a walk or run stops from its reference point (<c>SetAiDest</c>'s radius).</summary>
+    /// <summary>How far a walk or run stops from its mark (<c>SetAiDest</c>'s radius).</summary>
     public const float ArriveRadius = 1;
 
     /// <summary>The camera's near and far planes in a cut-scene (<c>RenderZones</c>, <c>0x8000d66c</c>): 0.1 and 125, against trek's 1 and 180.</summary>
@@ -110,7 +110,7 @@ public sealed class CutScene
     private bool _ending;
 
     /// <param name="host">Where sounds go, and every cue for the record.</param>
-    public CutScene(GameState game, DialogueRecord script, ScriptStart start, CutSceneStage stage, IScriptHost? host = null)
+    public CutScene(GameState game, ScriptRecord script, ScriptStart start, CutSceneStage stage, IScriptHost? host = null)
     {
         _game = game;
         _host = host;
@@ -345,14 +345,14 @@ public sealed class CutScene
                 Spawn(spawn);
                 break;
             case FaceCue face:
-                if (Speaker(face.Actor, "turn") is { } turner && Point(face.RefPoint) is { } toward)
+                if (Speaker(face.Actor, "turn") is { } turner && Point(face.Mark) is { } toward)
                 {
                     var at = turner.Body.Sphere.Position;
                     turner.Body.Face(new Vector2(toward.X - at.X, toward.Z - at.Z));
                 }
                 break;
             case MoveCue move:
-                if (Speaker(move.Actor, "walk") is { } walker && Point(move.RefPoint) is { } to)
+                if (Speaker(move.Actor, "walk") is { } walker && Point(move.Mark) is { } to)
                     walker.Body.GoTo(new Vector2(to.X, to.Z), ArriveRadius, walk: !move.Run);
                 break;
             case AnimateCue { Actor: { } animated } animate:
@@ -362,7 +362,7 @@ public sealed class CutScene
                     actor.Stimulate(animate.Request, StimulusTicks);
                     _animating = actor;
                 }
-                // Its spawn failed on a reference point the stage doesn't have, where the original reads garbage:
+                // Its spawn failed on a mark the stage doesn't have, where the original reads garbage:
                 // there's nothing to wait for.
                 else
                 {
@@ -384,16 +384,17 @@ public sealed class CutScene
         }
     }
 
-    /// <summary>Spawns the speaker at a reference point, set down on the ground (<c>CreateActor</c>).</summary>
+    /// <summary>Spawns an actor at a mark, set down on the ground (<c>CreateActor</c>).</summary>
     private void Spawn(SpawnCue spawn)
     {
         Unhide();
-        if (spawn.Actor is not { } entity || _game.Plugins.TryGet<DbRecord>(entity)?.Body is not { } look)
+        var entity = spawn.Actor;
+        if (_game.Plugins.TryGet<DbRecord>(entity)?.Body is not { } look)
         {
-            Problem($"{spawn.Actor?.ToString() ?? "no speaker"} has no body to spawn.");
+            Problem($"{entity} has no body to spawn.");
             return;
         }
-        if (Point(spawn.RefPoint) is not { } at)
+        if (Point(spawn.Mark) is not { } at)
             return;
         var body = Body.Spawn(Stage.World, at, look, _game.Random.World);
         body.SnapNextFace = true;
@@ -403,44 +404,42 @@ public sealed class CutScene
     }
 
     /// <summary>
-    /// Starts a camera move (<c>DialoguePreCallback</c>'s camera ops, from 1.0's jump table at
-    /// <c>0x800d1d80</c>). Ops on a reference point move the camera or its aim there; ops on an actor move
-    /// it to the actor's eyes. Angle-to and pan-to are crossed, as in the original: angle-to a point and
-    /// pan-to an actor pan at a steady speed, and the other two ease.
+    /// Starts a camera move (<c>DialoguePreCallback</c>'s camera ops, from 1.0's jump table at <c>0x800d1d80</c>): moves to a
+    /// mark move the camera or its aim there; moves to an actor move it to the actor's eyes, and a cut there hides the actor
+    /// for a point of view. A turn eases unless it's steady (1.0's angle-to a point and pan-to an actor; the importer says
+    /// which).
     /// </summary>
     private void Move(CameraCue cue)
     {
-        var (flags, onActor) = cue.Command switch
+        var flags = cue.Shot switch
         {
-            DialogueCommand.CameraCutTo => (CameraFlags.Position | CameraFlags.Cut, false),
-            DialogueCommand.CameraCutToActor => (CameraFlags.Position | CameraFlags.Cut, true),
-            DialogueCommand.CameraOn => (CameraFlags.Aim | CameraFlags.Cut, false),
-            DialogueCommand.CameraOnActor => (CameraFlags.Aim | CameraFlags.Cut, true),
-            DialogueCommand.CameraAngleTo => (CameraFlags.Aim | CameraFlags.Pan, false),
-            DialogueCommand.CameraAngleToActor => (CameraFlags.Aim | CameraFlags.Sine, true),
-            DialogueCommand.CameraPanTo => (CameraFlags.Aim | CameraFlags.Sine, false),
-            DialogueCommand.CameraPanToActor => (CameraFlags.Aim | CameraFlags.Pan, true),
-            DialogueCommand.CameraSineTo => (CameraFlags.Position | CameraFlags.Sine, false),
-            DialogueCommand.CameraSineToActor => (CameraFlags.Position | CameraFlags.Sine, true),
-            _ => (CameraFlags.Track, false),
+            CameraShot.CutTo => CameraFlags.Position | CameraFlags.Cut,
+            CameraShot.LookAt => CameraFlags.Aim | CameraFlags.Cut,
+            CameraShot.TurnTo => CameraFlags.Aim | (cue.Steady ? CameraFlags.Pan : CameraFlags.Sine),
+            CameraShot.MoveTo => CameraFlags.Position | (cue.Steady ? CameraFlags.Pan : CameraFlags.Sine),
+            _ => CameraFlags.Track,
         };
         // FUN_80014dfc: these show every actor again, before a point-of-view cut hides its own.
-        if (cue.Command is DialogueCommand.CameraCutTo or DialogueCommand.CameraCutToActor or DialogueCommand.CameraSineTo
-            or DialogueCommand.CameraSineToActor)
+        if (cue.Shot is CameraShot.CutTo or CameraShot.MoveTo)
             Unhide();
-        // The original crashes on a camera op without its actor.
-        if (Speaker(onActor ? cue.Actor : cue.Speaker, $"have the camera ({cue.Command})") is not { } subject)
-            return;
         Vector3? point = null;
-        if (!onActor && cue.Command != DialogueCommand.CameraTrackOn)
+        Vector3 focus;
+        if (cue.Mark is { } mark)
         {
-            if (Point(cue.RefPoint ?? 0) is not { } at)
+            // 1.0 reads the speaker's actor for a move to a point too, and crashes without one; the move doesn't use it,
+            // so the op names none (ADR 0034).
+            if (Point(mark) is not { } at)
                 return;
-            point = at;
+            point = focus = at;
         }
-        if (cue.Command == DialogueCommand.CameraCutToActor)
-            subject.Hidden = true;
-        var focus = onActor ? subject.Eyes : subject.Body.Sphere.Position;
+        else
+        {
+            if (Speaker(cue.Actor, $"have the camera ({cue.Shot})") is not { } subject)
+                return;
+            if (cue.Shot == CameraShot.CutTo)
+                subject.Hidden = true;
+            focus = cue.Shot == CameraShot.Follow ? subject.Body.Sphere.Position : subject.Eyes;
+        }
         if (!Cameras.Start(flags, point, focus, cue.Ticks))
             Problem($"starts an eighth camera move, where the original crashes (\"No Free Cameras!\").");
     }
@@ -451,21 +450,21 @@ public sealed class CutScene
             actor.Hidden = false;
     }
 
-    /// <summary>The actor an op acts on, or a problem noted: the original reads through a null pointer.</summary>
+    /// <summary>The actor an op acts on, if it's spawned, or a problem noted: the original reads through a null pointer.</summary>
     private CutSceneActor? Speaker(RecordId? entity, string what)
     {
         if (Actor(entity) is { } actor)
             return actor;
-        Problem($"{entity?.ToString() ?? "no speaker"} isn't spawned to {what}.");
+        Problem($"{entity?.ToString() ?? "no actor"} isn't spawned to {what}.");
         return null;
     }
 
-    /// <summary>A reference point of the stage, or a problem noted: the original reads address 0.</summary>
-    private Vector3? Point(int id)
+    /// <summary>A mark of the stage, or a problem noted: the original reads address 0.</summary>
+    private Vector3? Point(int mark)
     {
-        if (Stage.PointAt(id) is { } at)
+        if (Stage.PointAt(mark) is { } at)
             return at;
-        Problem($"names reference point {id}, which {Stage.Map.Id} doesn't have.");
+        Problem($"names mark {mark}, which {Stage.Map.Id} doesn't have.");
         return null;
     }
 

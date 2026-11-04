@@ -51,7 +51,7 @@ public sealed class CutSceneTests(Na10Import fixture)
     {
         var game = GameState.NewGame(Plugins);
         var cues = new CueLog();
-        var scene = new CutScene(game, Plugins.Get<DialogueRecord>(script), new ScriptStart(), Stage(), cues);
+        var scene = new CutScene(game, Plugins.Get<ScriptRecord>(script), new ScriptStart(), Stage(), cues);
         scene.Start();
         return (scene, cues);
     }

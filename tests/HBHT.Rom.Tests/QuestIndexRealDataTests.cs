@@ -43,7 +43,8 @@ public sealed class QuestIndexRealDataTests(Na10Import fixture)
         var counts = Data.Set.All<FlagRecord>(RecordTypes.Flag)
             .SelectMany(f => Data.Index.UsesOf(f.Id)).GroupBy(u => u.Role).ToDictionary(g => g.Key, g => g.Count());
 
-        Assert.Equal(720, counts[FlagRole.ScriptOp]);
+        // The flag script 1901 (archive 1019) sets at node 88 in a second effect, which 1.0 never runs, isn't written.
+        Assert.Equal(719, counts[FlagRole.ScriptOp]);
         Assert.Equal(290, counts[FlagRole.ScriptDone]);
         Assert.Equal(2, counts[FlagRole.ScriptBattle]);
         // Without the 71 journal triggers' inputs.
@@ -55,9 +56,9 @@ public sealed class QuestIndexRealDataTests(Na10Import fixture)
 
         // 81 scripts aren't started by any map object or script, so may be unused. Two of them belong to
         // monster parties that are silent. Code alone starts the help menu (1355).
-        var unstarted = Data.Set.All<DialogueRecord>(RecordTypes.Dialogue).Where(s => Data.Index.StartersOf(s.Id).Count == 0).ToList();
+        var unstarted = Data.Set.All<ScriptRecord>(RecordTypes.Script).Where(s => Data.Index.StartersOf(s.Id).Count == 0).ToList();
         Assert.Equal(81, unstarted.Count);
-        Assert.Contains(RecordId.Hex(RecordTypes.Dialogue, EngineFlags.HelpScript), unstarted.Select(s => s.Id));
+        Assert.Contains(RecordId.Hex(RecordTypes.Script, EngineFlags.HelpScript), unstarted.Select(s => s.Id));
     }
 
     /// <summary>

@@ -57,7 +57,7 @@ internal static class CombatImporter
                         new System.Numerics.Vector3(5.9f, 0.5f, 3f), OrianasHutHeading, At(AlaronPlace), RestoresStrength: true),
                     HealsLeader: true, KeelOver: new KeelOver(At(AlaronPlace), KeelOverHits)),
             ],
-            GameOver: new GameOverScene(RecordId.Hex(RecordTypes.Map, GameOverMap), RecordId.Hex(RecordTypes.Dialogue, tables.GameOverScript)),
+            GameOver: new GameOverScene(RecordId.Hex(RecordTypes.Map, GameOverMap), RecordId.Hex(RecordTypes.Script, tables.GameOverScript)),
             Text: text,
             Shadow: Shadow(At));
     }

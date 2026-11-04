@@ -20,9 +20,9 @@ public sealed partial class GameSessionTests
     /// <summary>A cut-scene begun from the dialogue object that starts it, as walking into it would, once trek has faded out.</summary>
     private CutScene PlayCutScene(GameSession session, int script)
     {
-        var id = RecordId.Hex(RecordTypes.Dialogue, script);
-        var (voxel, _, dialogue) = Data.Of<DialogueObject>().First(d => d.Object.Script == id && d.Object.Stage is not null);
-        session.Cue(Data.Set.Get<DialogueRecord>(id), new ScriptStart(dialogue.RefPointBase, voxel), dialogue.Stage!);
+        var id = RecordId.Hex(RecordTypes.Script, script);
+        var (voxel, _, dialogue) = Data.Of<ScriptObject>().First(d => d.Object.Plays == id && d.Object.Stage is not null);
+        session.Cue(Data.Set.Get<ScriptRecord>(id), new ScriptStart(dialogue.Marks, voxel), dialogue.Stage!);
         Assert.Equal(SessionStep.CutSceneCued, TickUntil(session, SessionStep.CutSceneCued));
         session.BeginCutScene();
         return session.Scene!;
@@ -52,7 +52,7 @@ public sealed partial class GameSessionTests
         Assert.True(session.Game.Flags.IsSet(opening.DoneFlag));
         Assert.Equal([typeof(Transition.EndCinematic), typeof(Transition.StartCutScene)], host.Transitions.Select(t => t.GetType()));
         var started = (Transition.StartCutScene)host.Transitions[1];
-        Assert.Equal(RecordId.Hex(RecordTypes.Dialogue, 0x0362), started.Scene.Runner.Script.Id);
+        Assert.Equal(RecordId.Hex(RecordTypes.Script, 0x0362), started.Scene.Runner.Script.Id);
         Assert.Equal(RecordId.Parse("aidyn:voxel/0x0FDB/7"), started.Scene.Runner.Origin.MapObject);
         Assert.Equal((GameMode.CutScene, SessionStep.CutScene), (session.Mode, Tick(session)));
     }
@@ -159,7 +159,7 @@ public sealed partial class GameSessionTests
         Assert.Equal(SessionStep.CutSceneCued, step);
         Assert.Equal(0, brightest);
         Assert.InRange(ticks, 1, 10);
-        Assert.Equal(RecordId.Hex(RecordTypes.Dialogue, 0x0392), trek.Cued!.Value.Script.Id);
+        Assert.Equal(RecordId.Hex(RecordTypes.Script, 0x0392), trek.Cued!.Value.Script.Id);
         session.BeginCutScene();
 
         // Its end, its done flag (48) set, chains into the next (#1183, the blue area, enabled by 5042) from the place kept.
@@ -167,7 +167,7 @@ public sealed partial class GameSessionTests
         host.Transitions.Clear();
         session.EndCutScene();
         Assert.Equal([typeof(Transition.EndCutScene), typeof(Transition.StartCutScene)], host.Transitions.Select(t => t.GetType()));
-        Assert.Equal(RecordId.Hex(RecordTypes.Dialogue, 0x0393), session.Scene!.Runner.Script.Id);
+        Assert.Equal(RecordId.Hex(RecordTypes.Script, 0x0393), session.Scene!.Runner.Script.Id);
         var stage = session.Scene.Stage;
         Assert.Equal((RecordId.Decimal(RecordTypes.MapSet, 6), 3, 3), (stage.Set.Id, stage.Chunk.Row, stage.Chunk.Column));
 

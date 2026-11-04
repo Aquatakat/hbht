@@ -234,9 +234,9 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         Assert.Equal(new Transition.OpenMenu(PauseTab.World), Assert.Single(host.Transitions));
         session.MenuClosed(PauseExit.Close);
         host.Transitions.Clear();
-        var ambush = Data.Set.Get<DialogueRecord>(RecordId.Parse("aidyn:dialogue/0x0365"));
-        var (_, map, dialogue) = Data.Of<DialogueObject>().First(d => d.Object.Script == ambush.Id && d.Object.Stage is not null);
-        session.Cue(ambush, new ScriptStart(dialogue.RefPointBase, MapRecord.VoxelId(map.Id, dialogue.Index)), dialogue.Stage!);
+        var ambush = Data.Set.Get<ScriptRecord>(RecordId.Parse("aidyn:script/0x0365"));
+        var (_, map, dialogue) = Data.Of<ScriptObject>().First(d => d.Object.Plays == ambush.Id && d.Object.Stage is not null);
+        session.Cue(ambush, new ScriptStart(dialogue.Marks, MapRecord.VoxelId(map.Id, dialogue.Index)), dialogue.Stage!);
         session.OpenMenu();
         Assert.Empty(host.Transitions);
         Assert.False(session.MenuOpen);
@@ -288,7 +288,7 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         // A monster party with no dialogue, used: it fights.
         var placements = MapPlacements.For(Data.Set);
         var overworld = RecordId.Decimal(RecordTypes.MapSet, 0);
-        var (id, map, party) = Data.Of<MonsterPartyObject>().First(p => p.Object is { Dialogue: null, Home: not null }
+        var (id, map, party) = Data.Of<MonsterPartyObject>().First(p => p.Object is { Script: null, Home: not null }
             && placements.First(p.Map.Id) is { Set.Id: var set } && set == overworld);
         var place = placements.First(map.Id)!;
         var (session, host) = Start(place.Chunk.Name, party.Position.X, party.Position.Z);
@@ -358,10 +358,10 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         var (id, map, party) = Assert.Single(Data.Of<MonsterPartyObject>(), p => p.Object.Entity == kitarak);
         var chunk = Data.MapSets.SelectMany(s => s.Chunks.Select(c => (Set: s, Chunk: c))).Single(p => p.Chunk.Map == map.Id);
         Assert.Equal((RecordId.Decimal(RecordTypes.MapSet, 1), "C01", 16), (chunk.Set.Id, chunk.Chunk.Name, chunk.Chunk.Terrain));
-        var dialogue = Data.Set.Get<DialogueRecord>(party.Dialogue!.Value);
-        var ops = dialogue.Nodes.SelectMany(n => n.Ops ?? []).ToList();
-        Assert.Contains(ops, o => o.Command == DialogueCommand.Battle);
-        Assert.DoesNotContain(ops, o => o.Command == DialogueCommand.SetBattlefield);
+        var dialogue = Data.Set.Get<ScriptRecord>(party.Script!.Value);
+        var ops = dialogue.Nodes.SelectMany(n => n.Ops).ToList();
+        Assert.Contains(ops, o => o is ScriptOp.BattleStart);
+        Assert.DoesNotContain(ops, o => o is ScriptOp.BattleArena);
 
         // The script's op leaves arena 0, a forest; the conversation's end chooses by the terrain, arena 26 (M19) alone.
         var scripted = BattleSetup.Scripted([], 0, 0, 0, canFlee: true, dialogue.BattleFlag);
@@ -377,11 +377,11 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         // Every conversation with a party that ends in a battle sets no arena, so each takes its terrain's.
         foreach (var (_, _, talker) in Data.Of<MonsterPartyObject>())
         {
-            if (talker.Dialogue is not { } script || Data.Set.TryGet<DialogueRecord>(script) is not { Mode: DialogueMode.Conversation } talk)
+            if (talker.Script is not { } script || Data.Set.TryGet<ScriptRecord>(script) is not { Mode: ScriptMode.Conversation } talk)
                 continue;
-            var commands = talk.Nodes.SelectMany(n => n.Ops ?? []).Select(o => o.Command).ToList();
-            if (commands.Contains(DialogueCommand.Battle))
-                Assert.DoesNotContain(DialogueCommand.SetBattlefield, commands);
+            var talkOps = talk.Nodes.SelectMany(n => n.Ops).ToList();
+            if (talkOps.Any(o => o is ScriptOp.BattleStart))
+                Assert.DoesNotContain(talkOps, o => o is ScriptOp.BattleArena);
         }
     }
 
@@ -409,7 +409,7 @@ public sealed partial class GameSessionTests(Na10Import fixture)
 
         // Two rats in arena 1, as a monster party used.
         var rat = RecordId.Hex(RecordTypes.Entity, 0x026E);
-        var (id, _, rats) = Data.Of<MonsterPartyObject>().First(p => p.Object is { Dialogue: null, MinSize: 2, MaxSize: 2 }
+        var (id, _, rats) = Data.Of<MonsterPartyObject>().First(p => p.Object is { Script: null, MinSize: 2, MaxSize: 2 }
             && p.Object.Enemies.All(e => e.Entity == rat));
         var (place, terrain) = trek.Here();
         session.CueBattle(BattleSetup.WithParty(BattleSource.MonsterParty, id, rats, place, terrain, ambush: false) with { Arena = 1 });
@@ -485,7 +485,7 @@ public sealed partial class GameSessionTests(Na10Import fixture)
     private (Battle Battle, RecordId Party, MonsterPartyObject Rats) RatBattle(GameSession session, Host host, RecordId? flag = null)
     {
         var rat = RecordId.Hex(RecordTypes.Entity, 0x026E);
-        var (id, _, rats) = Data.Of<MonsterPartyObject>().First(p => p.Object is { Dialogue: null, MinSize: 2, MaxSize: 2 }
+        var (id, _, rats) = Data.Of<MonsterPartyObject>().First(p => p.Object is { Script: null, MinSize: 2, MaxSize: 2 }
             && p.Object.Enemies.All(e => e.Entity == rat));
         var (place, terrain) = session.Trek.Here();
         var setup = BattleSetup.WithParty(BattleSource.MonsterParty, id, rats, place, terrain, ambush: false) with { Arena = 1 };
@@ -685,7 +685,7 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         // The game over's death scene plays from its dialogue object in the Dreamscape, and its end is the game's.
         session.EndBattle();
         Assert.Contains(host.Transitions, t => t is Transition.StartCutScene);
-        Assert.Equal(RecordId.Hex(RecordTypes.Dialogue, 0x0512), session.Scene!.Runner.Script.Id);
+        Assert.Equal(RecordId.Hex(RecordTypes.Script, 0x0512), session.Scene!.Runner.Script.Id);
         Assert.Contains(session.Game.Party.Members, m => m.Entity == GameState.Alaron);
         Assert.Equal(SessionStep.CutScene, Tick(session));
         host.Transitions.Clear();
@@ -738,9 +738,9 @@ public sealed partial class GameSessionTests(Na10Import fixture)
     public void ACutSceneBeginsOnItsStageAndTrekComesBackAfter()
     {
         var (session, host) = Start();
-        var ambush = Data.Set.Get<DialogueRecord>(RecordId.Parse("aidyn:dialogue/0x0365"));
-        var (_, map, dialogue) = Data.Of<DialogueObject>().First(d => d.Object.Script == ambush.Id && d.Object.Stage is not null);
-        session.Cue(ambush, new ScriptStart(dialogue.RefPointBase, MapRecord.VoxelId(map.Id, dialogue.Index)), dialogue.Stage!);
+        var ambush = Data.Set.Get<ScriptRecord>(RecordId.Parse("aidyn:script/0x0365"));
+        var (_, map, dialogue) = Data.Of<ScriptObject>().First(d => d.Object.Plays == ambush.Id && d.Object.Stage is not null);
+        session.Cue(ambush, new ScriptStart(dialogue.Marks, MapRecord.VoxelId(map.Id, dialogue.Index)), dialogue.Stage!);
 
         // Trek fades out, then says the cut-scene takes over; it begins once drawn.
         var step = SessionStep.Trek;

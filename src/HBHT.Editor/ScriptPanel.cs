@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Globalization;
 using HBHT.Core;
 using HBHT.Core.Characters;
@@ -35,7 +37,7 @@ public partial class ScriptPanel : VBoxContainer
 
     private readonly PluginCatalog _catalog;
     private readonly EditorGame? _game;
-    private readonly DialogueRecord _script;
+    private readonly ScriptRecord _script;
     private readonly Action<RecordId> _open;
     private readonly GraphEdit _graph = new()
     {
@@ -69,7 +71,7 @@ public partial class ScriptPanel : VBoxContainer
     private bool[]? _before;
     private bool _arranged;
 
-    public ScriptPanel(PluginCatalog catalog, EditorGame? game, CharacterRules? rules, ItemCatalog? items, DialogueRecord script, Action<RecordId> open)
+    public ScriptPanel(PluginCatalog catalog, EditorGame? game, CharacterRules? rules, ItemCatalog? items, ScriptRecord script, Action<RecordId> open)
     {
         (_catalog, _game, _rules, _items, _script, _open) = (catalog, game, rules, items, script, open);
         _world = game is null ? null : new EditorWorld(game, Log, NameOf);
@@ -108,13 +110,11 @@ public partial class ScriptPanel : VBoxContainer
     {
         var header = new HFlowContainer();
         header.AddThemeConstantOverride("h_separation", 12);
-        var facts = new List<string> { $"{_script.Mode}, number {_script.Number}, {_script.Nodes.Count} nodes" };
+        var facts = new List<string> { $"{_script.Label ?? _script.Id.ToString()}: {_script.Mode}, number {_script.Number}, {_script.Nodes.Count} nodes" };
         if (_script.Backdrop is { } backdrop)
             facts.Add($"backdrop {backdrop}");
         if (_script.Rest)
             facts.Add("eight hours pass when it ends");
-        if (_script.BlankNodes > 0)
-            facts.Add("a blank node, which random lines count");
         header.AddChild(new Label { Text = string.Join(", ", facts) + "." });
         if (_script.DoneFlag is { } done)
             header.AddChild(Link(done, "Sets when done: "));
@@ -139,7 +139,7 @@ public partial class ScriptPanel : VBoxContainer
         return id.Type switch
         {
             RecordTypes.Flag => summary is { Length: > 0 } s ? $"flag {id.Key} ({PluginCatalog.Truncate(s, 40)})" : $"flag {id.Key}",
-            RecordTypes.Dialogue => $"script {id.Key}",
+            RecordTypes.Script => $"script {id.Key}",
             _ => summary is { Length: > 0 } name ? name : id.Key,
         };
     }
@@ -194,7 +194,7 @@ public partial class ScriptPanel : VBoxContainer
     /// Splits the nodes into cards: a line with one link continues into the node it links to, when
     /// that's a line with nothing else leading to it. Each card lists its nodes in reading order.
     /// </summary>
-    private static List<List<int>> Cards(IReadOnlyList<DialogueNode> nodes)
+    private static List<List<int>> Cards(IReadOnlyList<ScriptNode> nodes)
     {
         var into = new int[nodes.Count];
         foreach (var link in nodes.SelectMany(n => n.Links ?? []))
@@ -216,13 +216,13 @@ public partial class ScriptPanel : VBoxContainer
         }
         return cards;
 
-        bool Runs(DialogueNode node) => node.Kind == DialogueNodeKind.Line && node.Links is { Count: 1 };
+        bool Runs(ScriptNode node) => node.Kind == ScriptNodeKind.Line && node.Links is { Count: 1 };
         int? Next(int index) => Runs(nodes[index]) && Continued(nodes[index].Links![0]) ? nodes[index].Links![0] : null;
-        bool Continued(int index) => index != 0 && nodes[index].Kind == DialogueNodeKind.Line && into[index] == 1
+        bool Continued(int index) => index != 0 && nodes[index].Kind == ScriptNodeKind.Line && into[index] == 1
             && nodes.Any(n => Runs(n) && n.Links![0] == index);
     }
 
-    private PanelContainer Section(DialogueNode node, bool numbered, bool withLinks)
+    private PanelContainer Section(ScriptNode node, bool numbered, bool withLinks)
     {
         var section = new PanelContainer { TooltipText = node.Text };
         section.AddThemeStyleboxOverride("panel", Plain);
@@ -230,44 +230,59 @@ public partial class ScriptPanel : VBoxContainer
         section.AddChild(body);
         if (numbered)
             body.AddChild(Dimmed(node.Index.ToString(CultureInfo.InvariantCulture)));
+        if (node.Speaker is { } speaker)
+            body.AddChild(Link(speaker));
         if (node.Text.Length > 0)
             body.AddChild(new Label { Text = PluginCatalog.Truncate(Display(node.Text), 240), AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(NodeWidth, 0) });
-        foreach (var op in node.Ops ?? [])
+        foreach (var op in node.Ops)
             body.AddChild(OpRow(op));
         if (LinkText(node, withLinks) is { } links)
             body.AddChild(Dimmed(links));
         return section;
     }
 
-    private static Color KindColor(DialogueNodeKind kind) => kind switch
+    private static Color KindColor(ScriptNodeKind kind) => kind switch
     {
-        DialogueNodeKind.If => new Color(0.88f, 0.69f, 0.29f),
-        DialogueNodeKind.Case => new Color(0.93f, 0.5f, 0.25f),
-        DialogueNodeKind.Menu => new Color(0.42f, 0.66f, 1f),
+        ScriptNodeKind.If => new Color(0.88f, 0.69f, 0.29f),
+        ScriptNodeKind.Case => new Color(0.93f, 0.5f, 0.25f),
+        ScriptNodeKind.Menu => new Color(0.42f, 0.66f, 1f),
         _ => new Color(0.6f, 0.62f, 0.67f),
     };
 
-    private Control OpRow(DialogueOp op)
+    /// <summary>An op as a plugin writes it (ADR 0034): its name, then each parameter, a record as a link to it.</summary>
+    private Control OpRow(ScriptOp op)
     {
-        var row = new HBoxContainer();
-        row.AddChild(new Label { Text = op.Command.ToString() });
-        if (op.Target is { } target)
-            row.AddChild(Link(target));
-        else if (op.Value is { } value)
-            row.AddChild(Dimmed(op.Command == DialogueCommand.CheckSkill && value < Skills.Length ? Skills[value] : value.ToString(CultureInfo.InvariantCulture), wrap: false));
+        var row = new HFlowContainer { CustomMinimumSize = new Vector2(NodeWidth, 0) };
+        row.AddChild(new Label { Text = op.Name ?? "Unknown op" });
+        if (JsonSerializer.SerializeToNode(op, PluginJson.Options) is not JsonObject json)
+            return row;
+        foreach (var (field, value) in json)
+        {
+            if (field == "op" || value is null)
+                continue;
+            if (value is JsonValue v && v.TryGetValue(out string? text) && RecordId.TryParse(text, out var id, out _))
+            {
+                row.AddChild(Dimmed(field, wrap: false));
+                row.AddChild(Link(id));
+            }
+            else
+            {
+                row.AddChild(Dimmed($"{field} {value.ToJsonString()}", wrap: false));
+            }
+        }
         return row;
     }
 
     /// <summary>A node's range, if a case selects it, and where it goes, which a card shows under its last node.</summary>
-    private static string? LinkText(DialogueNode node, bool withLinks)
+    private static string? LinkText(ScriptNode node, bool withLinks)
     {
         var links = node.Links ?? [];
         var range = node.Selects is { } r ? $"selected by {r.Min}{(r.Max is { } max ? max == r.Min ? "" : $"–{max}" : "+")}. " : "";
         var text = !withLinks ? "" : node.Kind switch
         {
-            DialogueNodeKind.If when links.Count == 2 => $"1 → {links[0]}, else → {links[1]}",
+            ScriptNodeKind.If when links.Count == 2 => $"1 → {links[0]}, else → {links[1]}",
             _ when links.Count > 0 => "→ " + string.Join(", ", links),
-            DialogueNodeKind.Line => "No link: back to the last menu.",
+            ScriptNodeKind.Line => "No link: back to the last menu.",
             _ => "",
         };
         return range.Length + text.Length > 0 ? (range + text).TrimEnd() : null;
@@ -479,9 +494,8 @@ public partial class ScriptPanel : VBoxContainer
     /// <summary>The party, and a control for each thing the script checks other than flags.</summary>
     private void BuildAnswers()
     {
-        var ops = _script.Nodes.SelectMany(n => n.Ops ?? []).ToList();
-        var checks = ops.Where(o => o.Command.IsCondition()).ToList();
-        foreach (var member in checks.Where(o => o.Command == DialogueCommand.CheckMember).Select(o => o.Target).OfType<RecordId>().Distinct())
+        var ops = _script.Nodes.SelectMany(n => n.Ops).ToList();
+        foreach (var member in ops.OfType<ScriptOp.CheckMember>().Select(o => o.Entity).Distinct())
         {
             var box = new CheckBox { Text = $"{NameOf(member)} is in the party" };
             box.Toggled += on =>
@@ -497,11 +511,12 @@ public partial class ScriptPanel : VBoxContainer
             _members[member] = box;
             _answers.AddChild(box);
         }
-        foreach (var item in checks.Where(o => o.Command == DialogueCommand.CheckItem).Select(o => o.Target).OfType<RecordId>().Distinct())
+        foreach (var item in ops.OfType<ScriptOp.CheckItem>().Select(o => o.Item).Distinct())
             _answers.AddChild(_held[item] = HeldItem(item));
-        foreach (var skill in checks.Where(o => o.Command == DialogueCommand.CheckSkill).Select(o => o.Value ?? 0).Distinct().Order())
+        foreach (var skill in ops.OfType<ScriptOp.CheckSkill>().Select(o => SkillId.TryFromRecord(o.Skill)).OfType<SkillId>()
+                     .Where(s => s.IsSkill).Select(s => s.Slot).Distinct().Order())
             _answers.AddChild(FixedCheck(skill));
-        if (checks.Any(o => o.Command == DialogueCommand.CheckGold) || ops.Any(o => o.Command is DialogueCommand.TakeGold))
+        if (ops.Any(o => o is ScriptOp.CheckGold or ScriptOp.PartyTakeGold))
         {
             var row = new HBoxContainer();
             _gold = new SpinBox { MinValue = 0, MaxValue = 10_000_000, Step = 1 };
@@ -553,11 +568,17 @@ public partial class ScriptPanel : VBoxContainer
         var party = _world.Party;
         var members = party.Members.Select(m => $"{m.Name} ({m.Level}, {m.Hp}/{m.MaxHp} HP)").ToList();
         var text = $"The game's party, by level and hit points: {(members.Count == 0 ? "no one" : string.Join(", ", members))}. {party.Gold:N0} gold.";
-        var stats = _script.Nodes.SelectMany(n => n.Ops ?? [])
-            .Where(o => o.Command is DialogueCommand.CheckBestStat or DialogueCommand.CheckWorstStat or DialogueCommand.CheckSpeakerStat)
-            .Select(o => o.Value ?? 0).Where(v => v is >= 0 and <= (int)Stat.Level).Distinct().Order();
+        var stats = _script.Nodes.SelectMany(n => n.Ops)
+            .Select(o => o switch
+            {
+                ScriptOp.CheckBestStat best => best.Stat,
+                ScriptOp.CheckWorstStat worst => worst.Stat,
+                ScriptOp.CheckStat of => of.Stat,
+                _ => (RecordId?)null,
+            })
+            .OfType<RecordId>().Select(StatId.TryFromRecord).OfType<Stat>().Distinct().Order();
         foreach (var stat in stats)
-            text += $" {(Stat)stat}: best {party.BestStat((Stat)stat)}, worst {party.WorstStat((Stat)stat)}.";
+            text += $" {stat}: best {party.BestStat(stat)}, worst {party.WorstStat(stat)}.";
         var inventory = party.Inventory;
         text += $" It carries {inventory.Stacks.Count:N0} kind{(inventory.Stacks.Count == 1 ? "" : "s")} of item.";
         _party.TooltipText = string.Join('\n', inventory.Stacks.Select(s => s.ToString()));
@@ -729,10 +750,10 @@ public partial class ScriptPanel : VBoxContainer
 
     private string Describe(ScriptCue cue) => cue switch
     {
-        CameraCue c => $"Camera {c.Command}" + (c.RefPoint is { } p ? $" ref {p}" : "") + (c.Actor is { } a ? $" {NameOf(a)}" : "") + $", {c.Ticks} ticks",
-        FaceCue f => $"{Who(f.Actor)} faces ref {f.RefPoint}",
-        SpawnCue s => $"{Who(s.Actor)} spawns at ref {s.RefPoint}",
-        MoveCue m => $"{Who(m.Actor)} {(m.Run ? "runs" : "walks")} to ref {m.RefPoint}",
+        CameraCue c => $"Camera {c.Shot}{(c.Steady ? ", steady," : "")}" + (c.Mark is { } p ? $" mark {p}" : "") + (c.Actor is { } a ? $" {NameOf(a)}" : "") + $", {c.Ticks} ticks",
+        FaceCue f => $"{Who(f.Actor)} faces mark {f.Mark}",
+        SpawnCue s => $"{Who(s.Actor)} spawns at mark {s.Mark}",
+        MoveCue m => $"{Who(m.Actor)} {(m.Run ? "runs" : "walks")} to mark {m.Mark}",
         AnimateCue a => a.Actor is { } actor ? $"{NameOf(actor)} plays animation {a.Request}" : $"Animation {a.Request} with no actor: nothing plays",
         HoldCue h => h.Item is { } item ? $"{Who(h.Actor)} holds {NameOf(item)}" : $"{Who(h.Actor)} puts it away",
         SoundCue s => s.Sound == ScriptSound.Table ? $"Sound {s.Index}" : $"Sound: {s.Sound}",

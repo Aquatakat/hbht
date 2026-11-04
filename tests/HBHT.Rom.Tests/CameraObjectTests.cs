@@ -33,7 +33,7 @@ public sealed class CameraObjectTests(Na10Import fixture)
 
         public void OpenLoot(ItemPile loot, int gold) { }
 
-        public void StartScript(LoadedMap map, DialogueObject dialogue) { }
+        public void StartScript(LoadedMap map, ScriptObject dialogue) { }
 
         public void Animate(LoadedMap map, SceneObject actor, int request) { }
 

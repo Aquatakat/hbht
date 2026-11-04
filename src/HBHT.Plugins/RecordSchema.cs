@@ -81,7 +81,7 @@ public static class RecordSchema
     public static Property? Find(Type? type, string name) => type is null ? null : Properties(type).GetValueOrDefault(name);
 
     /// <summary>
-    /// The class an object is read as: for a polymorphic type, the derived type its <c>type</c> discriminator names,
+    /// The class an object is read as: for a polymorphic type, the derived type its discriminator names,
     /// else <paramref name="type"/> itself.
     /// </summary>
     public static Type Concrete(Type type, JsonObject json)
@@ -97,6 +97,9 @@ public static class RecordSchema
         }
         return type;
     }
+
+    /// <summary>The field a polymorphic type's discriminator is in (<c>type</c>, or a script op's <c>op</c>), or null for a type that isn't one.</summary>
+    public static string? DiscriminatorField(Type type) => PluginJson.Options.GetTypeInfo(type).PolymorphismOptions?.TypeDiscriminatorPropertyName;
 
     /// <summary>The derived types a polymorphic type reads as, by discriminator, or empty for a type that isn't polymorphic.</summary>
     public static IReadOnlyList<(string Discriminator, Type Type)> DerivedTypes(Type type) =>

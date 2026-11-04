@@ -12,19 +12,26 @@ Battles the user plays in 1.0 from written saves, logged with `tools/parity.ps1`
 
 ### Alaron's walk in Becan's cut-scene (movement)
 
-Script 0x0432, Becan's, starts from the dialogue object `aidyn:voxel/0x0F0B/1` in the Misc interiors' C05 and sets flag 328 as it ends. Under the original's movement the port's Alaron walks along a plain wall (surface 2) falling just fast enough (−0.072 a tick, past −0.048) that 1.0's rule for a body of his actor stops his animation moving him, so the walk gives up and puts him at its goal, 1.4 away; under Modern he walks it. Claude can write a save at the object with flag 328 clear. In 1.0, watch Alaron's walk in the cut-scene: does he walk the whole way, or stand and then jump to where he ends up? If he walks, the port's contact with that wall differs from 1.0's, and the port's walk is what to fix ([movement](systems/movement.md#the-cut-scene-comparison)).
+Script 0x0432, Becan's, starts from the script object `aidyn:voxel/0x0F0B/1` in the Misc interiors' C05 and sets flag 328 as it ends. Under the original's movement the port's Alaron walks along a plain wall (surface 2) falling just fast enough (−0.072 a tick, past −0.048) that 1.0's rule for a body of his actor stops his animation moving him, so the walk gives up and puts him at its goal, 1.4 away; under Modern he walks it. Claude can write a save at the object with flag 328 clear. In 1.0, watch Alaron's walk in the cut-scene: does he walk the whole way, or stand and then jump to where he ends up? If he walks, the port's contact with that wall differs from 1.0's, and the port's walk is what to fix ([movement](systems/movement.md#the-cut-scene-comparison)).
 
 ### The data format's second slice (importer 68)
 
 - **Cadme's and Xibid's talkers on the Overworld** ([wanderers](systems/wanderers.md#talking)): four talkers named the dialogue entity twin of Cadme (`aidyn:map/0x0F47`, `0x0FDB`) or Xibid (two in `aidyn:map/0x0FC5`), which the import merged into the entity, as the user chose. They now push and are pushed at the entity's radius (Cadme 0.45, Xibid 0.4, where 0.55 was), and notice the party at the entity's perception, 0 where 10 was. Talk to each: the conversation and their look should be as before.
 - **Sense Aura, the item details and the spell lists** ([combat](systems/combat.md), [items](systems/items.md)): the element names, armor's Dexterity and Stealth lines and the school icons come from the new records; they should read as before.
 
+### The data format's third slice (importer 69)
+
+Each node now names its speaker, which the importer works out from the links into it ([scripts](systems/scripts.md#speakers)). Two lines are reached with different speakers in force in 1.0 and were given one by hand:
+
+- **Cadme's "Farewell."** (script 1446, `aidyn:script/0x03B9`, node 6): it's now always Alaron's. In 1.0 it shows Alaron's portrait after his "I have no time to tell it now." and Cadme's after her own closing lines ("Go gently." and the like). Talk to her through a few of her topics and end the talk: see whether Alaron's "Farewell." reads right, or whether it should be hers.
+- **"Let's see what the old man has."** (script 1470, `aidyn:script/0x03C3`, node 37, a cut-scene at a shop, with Dougal not in the party): now Alaron's, as the camera frames him. In 1.0 its portrait is Rheda's, Brenna's or Alaron's, by who spoke before. Play it with Rheda or Brenna in the party.
+
 ### What changed on Nov 3, 2026, by eye
 
 Not yet looked at in the runtime or the editor. Run `hbht import` first: the base plugin is at importer 66.
 
 - **The half-alpha bodies** ([combat](systems/combat.md)): a Spirit Wolf in battle is drawn at half alpha, body and shadow, and fades from there to nothing after its fall, with no jump to opaque. `--battle aidyn:voxel/0x0F9B/5` fights one on the Overworld. The seven Chaos lieutenants (Ksathra, Shatrevar, Mehrdad, Golnar, Nasim, Behrooz, Assim) are the same.
-- **What a cut-scene shows in a hand takes the scenery's tint** ([combat-actions](systems/combat-actions.md#what-the-bodies-hold)): with `--cutscene aidyn:dialogue/0x04F1 --time 22` (or 0x0393, 0x0495, 0x04DB), the item is as dim as the hand holding it, not bright white.
+- **What a cut-scene shows in a hand takes the scenery's tint** ([combat-actions](systems/combat-actions.md#what-the-bodies-hold)): with `--cutscene aidyn:script/0x04F1 --time 22` (or 0x0393, 0x0495, 0x04DB), the item is as dim as the hand holding it, not bright white.
 - **Environment maps look from the camera** ([rendering](systems/rendering.md#environment-maps)): the silver dish in Gwernia Castle E01 (`--set 4 --chunk E01 --at 10,10 --camera interior`) has a sheen that slides as the camera turns; the opening cinematic's door hinges look as before.
 - **The editor's model view turns billboards to the camera** ([editor](systems/editor.md)): open a tree's scene or Oriana's path light (`aidyn:scene/0x374A`) and orbit it; the cards keep facing you.
 - **The editor's map shows opened and destroyed containers under Flags** ([map-objects](systems/map-objects.md)): open `aidyn:map/0x0ECF` with **Flags** on, set flag 2103 on the Flags page and show the map again: container 16's chest shows opened; clear 2103 and set 2104: destroyed; **Flags** off: closed.

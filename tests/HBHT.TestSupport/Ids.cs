@@ -12,8 +12,8 @@ public static class Ids
     /// <summary>Entity <paramref name="n"/>, <c>aidyn:entity/0x…</c>.</summary>
     public static RecordId Entity(int n) => RecordId.Hex(RecordTypes.Entity, n);
 
-    /// <summary>The script in Borg13 archive index <paramref name="borg"/>, <c>aidyn:dialogue/0x…</c>.</summary>
-    public static RecordId Script(int borg) => RecordId.Hex(RecordTypes.Dialogue, borg);
+    /// <summary>The script in Borg13 archive index <paramref name="borg"/>, <c>aidyn:script/0x…</c>.</summary>
+    public static RecordId Script(int borg) => RecordId.Hex(RecordTypes.Script, borg);
 
     /// <summary>The base game's potion or flask <paramref name="potion"/>, <c>aidyn:item/0x10nn</c>.</summary>
     public static RecordId PotionId(BasePotion potion) => RecordId.Hex(RecordTypes.Item, 0x1000 + (int)potion);

@@ -41,7 +41,7 @@ public class MapObjectPresenceTests
         Assert.False(MapObjectPresence.There(Party(null), Set()));
         Assert.True(MapObjectPresence.There(Party(null), Set(10)));
         Assert.False(MapObjectPresence.There(Party(null), Set(10, 11)));
-        Assert.True(MapObjectPresence.There(Party(RecordId.Parse("aidyn:dialogue/0x0001")), Set(10, 11)));
+        Assert.True(MapObjectPresence.There(Party(RecordId.Parse("aidyn:script/0x0001")), Set(10, 11)));
     }
 
     [Fact]

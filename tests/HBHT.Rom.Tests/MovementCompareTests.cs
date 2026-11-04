@@ -24,7 +24,7 @@ public sealed class MovementCompareTests(Na10Import fixture, ITestOutputHelper o
         return _differences = differences;
     }
 
-    private static RecordId Script(int index) => RecordId.Hex(RecordTypes.Dialogue, index);
+    private static RecordId Script(int index) => RecordId.Hex(RecordTypes.Script, index);
 
     private IEnumerable<MovementCompare.Difference> Of(MovementCompare.Severity severity) => Differences().Where(d => d.Severity == severity);
 

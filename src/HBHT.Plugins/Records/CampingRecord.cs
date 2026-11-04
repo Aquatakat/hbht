@@ -14,10 +14,10 @@ namespace HBHT.Plugins.Records;
 /// <param name="EffectTicks">Ticks of play that pass for the members' potions and other effects as they heal.</param>
 /// <param name="Checking">Set while the game looks for a camp scene, which the scenes' flags read.</param>
 /// <param name="Scenes">
-/// A dialogue object in the player's chunk whose enabling flag is one of these, and holds, starts as the party camps,
+/// A script object in the player's chunk whose enabling flag is one of these, and holds, starts as the party camps,
 /// the first found, wherever it is.
 /// </param>
-/// <param name="Campsite">With no camp scene, this map's first dialogue object starts.</param>
+/// <param name="Campsite">With no camp scene, this map's first script object starts.</param>
 /// <param name="AmbushLevels">
 /// The highest average party level of each of the ambush's tiers but the last (<see cref="TerrainRecord.Ambushes"/>): 5, 10,
 /// 15 and 20 (<c>CampEncounters.Load</c>).

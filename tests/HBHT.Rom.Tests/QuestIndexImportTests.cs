@@ -39,7 +39,7 @@ public sealed class QuestIndexImportTests(Na10Import fixture)
         Assert.Contains(found, t => t.Script == keeper);
         Assert.Equal(found, found.OrderBy(t => t.Script.Key, StringComparer.Ordinal).ThenBy(t => t.Node));
         Assert.Equal(found, index.FindText("LIGHTHOUSE"));
-        Assert.All(found, t => Assert.Contains("lighthouse", plugins.Get<DialogueRecord>(t.Script).Nodes[t.Node].Text, StringComparison.OrdinalIgnoreCase));
+        Assert.All(found, t => Assert.Contains("lighthouse", plugins.Get<ScriptRecord>(t.Script).Nodes[t.Node].Text, StringComparison.OrdinalIgnoreCase));
 
         // A scene object's gate is a use by its voxel ID, except a gate on the constant flags 0 and 1.
         var gated = plugins.All<MapRecord>(RecordTypes.Map)

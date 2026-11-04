@@ -141,7 +141,7 @@ public sealed class ImportTests(Na10Import fixture)
         Assert.Equal((50f, 0f), (set.Get<TerrainRecord>(RecordId.Parse("aidyn:terrain/10")).Camp, set.Get<TerrainRecord>(RecordId.Parse("aidyn:terrain/19")).Camp));
         var camping = set.Get<CampingRecord>(RecordId.Parse("aidyn:camping/0"));
         Assert.Equal(8, camping.Scenes.Count);
-        Assert.Contains(set.Get<MapRecord>(camping.Campsite).Objects, o => o is DialogueObject);
+        Assert.Contains(set.Get<MapRecord>(camping.Campsite).Objects, o => o is ScriptObject);
 
         // The minimaps: eight map sets', every piece's image imported and every rule's piece one of its own.
         var minimaps = set.All<MinimapRecord>(RecordTypes.Minimap).ToList();
@@ -241,13 +241,13 @@ public sealed class ImportTests(Na10Import fixture)
         Assert.Contains(catalog.ReferencesTo(RecordId.Parse("aidyn:flag/5")), r => r.From == RecordId.Parse("aidyn:flag/5423"));
 
         // Every script, and the entry a conversation makes in the catalog.
-        var scripts = set.All<DialogueRecord>(RecordTypes.Dialogue).ToList();
+        var scripts = set.All<ScriptRecord>(RecordTypes.Script).ToList();
         Assert.Equal(892, scripts.Count);
-        var dialogueId = RecordId.Hex(RecordTypes.Dialogue, 475);
-        var conversation = set.Get<DialogueRecord>(dialogueId);
-        Assert.Equal(DialogueMode.Conversation, conversation.Mode);
-        Assert.StartsWith($"Conversation, {conversation.Nodes.Count} nodes: ", catalog.Find(dialogueId)!.Summary, StringComparison.Ordinal);
-        Assert.Contains(catalog.ReferencesTo(RecordId.Parse("aidyn:flag/5")), r => r.From.Type == RecordTypes.Dialogue);
+        var dialogueId = RecordId.Hex(RecordTypes.Script, 475);
+        var conversation = set.Get<ScriptRecord>(dialogueId);
+        Assert.Equal(ScriptMode.Conversation, conversation.Mode);
+        Assert.StartsWith($"{conversation.Label}, Conversation, {conversation.Nodes.Count} nodes: ", catalog.Find(dialogueId)!.Summary, StringComparison.Ordinal);
+        Assert.Contains(catalog.ReferencesTo(RecordId.Parse("aidyn:flag/5")), r => r.From.Type == RecordTypes.Script);
     }
 
     /// <summary>

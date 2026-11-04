@@ -99,14 +99,14 @@ public sealed class WorldMapRegionTests(Na10Import fixture)
     public void ACutScenesStageFindsItsRegion()
     {
         var overworld = Set(0);
-        var (_, map, dialogue, region) = Data.Of<DialogueObject>()
+        var (_, map, dialogue, region) = Data.Of<ScriptObject>()
             .Where(d => d.Object.Stage is { } stage && stage.MapSet == overworld.Id)
             .Select(d => (d.Id, d.Map, d.Object, Region: Data.Chunk(d.Object.Stage!)?.RegionFound(Data.Set, overworld.Id)))
             .First(d => d.Region is { } r && r != Gwernia);
         var game = GameState.NewGame(Data.Set);
         var streamer = new ChunkStreamer(Data.Set, game, new CollisionWorld(), overworld, new VisibleWorld());
         var session = GameSession.Start(game, new Host(), new ZoneEngine(game, streamer), GameStart.OfNewGame(Data.Set));
-        session.Cue(Data.Set.Get<DialogueRecord>(dialogue.Script), new ScriptStart(dialogue.RefPointBase, MapRecord.VoxelId(map.Id, dialogue.Index)),
+        session.Cue(Data.Set.Get<ScriptRecord>(dialogue.Plays), new ScriptStart(dialogue.Marks, MapRecord.VoxelId(map.Id, dialogue.Index)),
             dialogue.Stage!);
         var step = SessionStep.Trek;
         for (var i = 0; i < 200 && step != SessionStep.CutSceneCued; i++)

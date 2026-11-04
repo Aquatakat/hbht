@@ -33,7 +33,7 @@ public sealed class MapPlacementTests : IDisposable
                   { "id": "aidyn:map/0x0E87", "objects": [
                     { "type": "teleporter", "index": 0, "name": "patioL2" },
                     { "type": "monsterParty", "index": 1, "entity": "aidyn:entity/0x023F" },
-                    { "type": "dialogue", "index": 2, "name": "stagenorth", "script": "aidyn:dialogue/0x0364" },
+                    { "type": "script", "index": 2, "name": "stagenorth", "plays": "aidyn:script/0x0364" },
                     { "type": "savePoint", "index": 3 },
                     { "type": "wanderNode", "index": 4 },
                     { "type": "wanderNode", "index": 5 },
@@ -86,7 +86,7 @@ public sealed class MapPlacementTests : IDisposable
 
         Assert.Equal("Teleporter patioL2, in Overworld I08 / Battlefields C03 / Battlefields 27,4", Voxel(0));
         Assert.Equal("Monster party: Alaron, in Overworld I08 / Battlefields C03 / Battlefields 27,4", Voxel(1));
-        Assert.Equal("Dialogue object stagenorth, in Overworld I08 / Battlefields C03 / Battlefields 27,4", Voxel(2));
+        Assert.Equal("Script object stagenorth, in Overworld I08 / Battlefields C03 / Battlefields 27,4", Voxel(2));
         Assert.Equal("Save point, in Overworld I08 / Battlefields C03 / Battlefields 27,4", Voxel(3));
         Assert.Equal("Wander node, in Overworld I08 / Battlefields C03 / Battlefields 27,4", Voxel(4));
         Assert.Equal("Scene object: aidyn:scene/0x0B48, in Overworld I08 / Battlefields C03 / Battlefields 27,4", Voxel(12));
@@ -94,7 +94,7 @@ public sealed class MapPlacementTests : IDisposable
         Assert.Equal("Object, in map 0x0E99", _catalog.Describe(MapRecord.VoxelId(Lonely, 0)));
 
         // The map list counts the same kinds by the same names.
-        Assert.Equal("Overworld I08, Battlefields C03, Battlefields 27,4, 1 teleporter, 1 monster party, 1 dialogue, 1 save point, 2 wander nodes, 1 scene",
+        Assert.Equal("Overworld I08, Battlefields C03, Battlefields 27,4, 1 teleporter, 1 monster party, 1 script, 1 save point, 2 wander nodes, 1 scene",
             _catalog.Find(Patio)!.Summary);
         Assert.Equal("Overworld A01, no objects", _catalog.Find(RecordId.Parse("aidyn:map/0x0E88"))!.Summary);
     }

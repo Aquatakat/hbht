@@ -44,9 +44,9 @@ public sealed partial class GameSessionTests
         Tick(session);
 
         // Trek's input is dead while it fades into a cut-scene.
-        var ambush = Data.Set.Get<DialogueRecord>(RecordId.Parse("aidyn:dialogue/0x0365"));
-        var (_, map, dialogue) = Data.Of<DialogueObject>().First(d => d.Object.Script == ambush.Id && d.Object.Stage is not null);
-        session.Cue(ambush, new ScriptStart(dialogue.RefPointBase, MapRecord.VoxelId(map.Id, dialogue.Index)), dialogue.Stage!);
+        var ambush = Data.Set.Get<ScriptRecord>(RecordId.Parse("aidyn:script/0x0365"));
+        var (_, map, dialogue) = Data.Of<ScriptObject>().First(d => d.Object.Plays == ambush.Id && d.Object.Stage is not null);
+        session.Cue(ambush, new ScriptStart(dialogue.Marks, MapRecord.VoxelId(map.Id, dialogue.Index)), dialogue.Stage!);
         Tick(session);
         Assert.Equal(PressOutcome.Ignored, session.Press(MenuAction.Start));
         Assert.Equal(PressOutcome.Ignored, session.Press(MenuAction.Accept));
@@ -108,8 +108,8 @@ public sealed partial class GameSessionTests
         Lower();
 
         // A sign shows in the box over trek, which stays: they stay down.
-        var sign = Data.Set.All<DialogueRecord>(RecordTypes.Dialogue).First(d => d.Mode == DialogueMode.Sign
-            && Data.Of<DialogueObject>().Any(o => o.Object.Script == d.Id));
+        var sign = Data.Set.All<ScriptRecord>(RecordTypes.Script).First(d => d.Mode == ScriptMode.Sign
+            && Data.Of<ScriptObject>().Any(o => o.Object.Plays == d.Id));
         trek.ShowBackdrop(sign);
         for (var i = 0; i < 20 && trek.Conversation is not null; i++)
             session.Press(MenuAction.Accept);
@@ -127,9 +127,9 @@ public sealed partial class GameSessionTests
         Lower();
 
         // So does a cut-scene's end.
-        var ambush = Data.Set.Get<DialogueRecord>(RecordId.Parse("aidyn:dialogue/0x0365"));
-        var (_, map, dialogue) = Data.Of<DialogueObject>().First(d => d.Object.Script == ambush.Id && d.Object.Stage is not null);
-        session.Cue(ambush, new ScriptStart(dialogue.RefPointBase, MapRecord.VoxelId(map.Id, dialogue.Index)), dialogue.Stage!);
+        var ambush = Data.Set.Get<ScriptRecord>(RecordId.Parse("aidyn:script/0x0365"));
+        var (_, map, dialogue) = Data.Of<ScriptObject>().First(d => d.Object.Plays == ambush.Id && d.Object.Stage is not null);
+        session.Cue(ambush, new ScriptStart(dialogue.Marks, MapRecord.VoxelId(map.Id, dialogue.Index)), dialogue.Stage!);
         for (var i = 0; i < 200 && Tick(session) != SessionStep.CutSceneCued; i++)
         {
         }
@@ -194,8 +194,8 @@ public sealed partial class GameSessionTests
     {
         var (session, host) = Start();
         var trek = session.Trek;
-        var sign = Data.Set.All<DialogueRecord>(RecordTypes.Dialogue).First(d => d.Mode == DialogueMode.Sign
-            && Data.Of<DialogueObject>().Any(o => o.Object.Script == d.Id));
+        var sign = Data.Set.All<ScriptRecord>(RecordTypes.Script).First(d => d.Mode == ScriptMode.Sign
+            && Data.Of<ScriptObject>().Any(o => o.Object.Plays == d.Id));
         trek.ShowBackdrop(sign);
         Assert.Equal(GameMode.Conversation, session.Mode);
         Assert.NotNull(trek.Box.Layout);
@@ -220,9 +220,9 @@ public sealed partial class GameSessionTests
     public void ACutScenesPressesReachItsBoxOnlyOnceItAccepts()
     {
         var (session, _) = Start();
-        var ambush = Data.Set.Get<DialogueRecord>(RecordId.Parse("aidyn:dialogue/0x0365"));
-        var (_, map, dialogue) = Data.Of<DialogueObject>().First(d => d.Object.Script == ambush.Id && d.Object.Stage is not null);
-        session.Cue(ambush, new ScriptStart(dialogue.RefPointBase, MapRecord.VoxelId(map.Id, dialogue.Index)), dialogue.Stage!);
+        var ambush = Data.Set.Get<ScriptRecord>(RecordId.Parse("aidyn:script/0x0365"));
+        var (_, map, dialogue) = Data.Of<ScriptObject>().First(d => d.Object.Plays == ambush.Id && d.Object.Stage is not null);
+        session.Cue(ambush, new ScriptStart(dialogue.Marks, MapRecord.VoxelId(map.Id, dialogue.Index)), dialogue.Stage!);
         var step = SessionStep.Trek;
         for (var i = 0; i < 200 && step != SessionStep.CutSceneCued; i++)
             step = Tick(session);

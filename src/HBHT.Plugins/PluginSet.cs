@@ -226,7 +226,8 @@ public sealed class PluginSet
 
     /// <summary>
     /// What a record's type asks of its fields together, which their shapes alone can't say: a weapon's own fields on a weapon alone
-    /// (ADR 0031), and an entity's combat traits and free training only with a sheet (ADR 0032).
+    /// (ADR 0031), an entity's combat traits and free training only with a sheet (ADR 0032), and each script or trigger op where it
+    /// can run, a camera move with one target, and a range only on a trigger's condition (ADR 0034).
     /// </summary>
     private static IEnumerable<(string Path, string Message)> Rules(object? record)
     {
@@ -246,7 +247,54 @@ public sealed class PluginSet
                 if (entity.Member is not null)
                     yield return ("member", "An entity with no sheet can't join the party.");
                 break;
+            case ScriptRecord script:
+                foreach (var node in script.Nodes)
+                {
+                    var at = $"nodes[{node.Index}]";
+                    for (var i = 0; i < (node.Setup?.Count ?? 0); i++)
+                    {
+                        foreach (var problem in OpRules(node.Setup![i], OpUse.Setup, "a node's setup"))
+                            yield return ($"{at}.setup[{i}]", problem);
+                    }
+                    if (node.Condition is { } condition)
+                    {
+                        foreach (var problem in OpRules(condition, OpUse.Condition, "a node's condition"))
+                            yield return ($"{at}.condition", problem);
+                        if (condition is ScriptOp.Check { Range: not null })
+                            yield return ($"{at}.condition", "Only a trigger's condition has a range; a Case's links select by theirs.");
+                    }
+                    if (node.Effect is { } effect)
+                    {
+                        foreach (var problem in OpRules(effect, OpUse.Effect, "a node's effect"))
+                            yield return ($"{at}.effect", problem);
+                    }
+                }
+                break;
+            case TriggerRecord trigger:
+                for (var i = 0; i < (trigger.If?.Count ?? 0); i++)
+                {
+                    foreach (var problem in OpRules(trigger.If![i], OpUse.Condition, "a trigger's if"))
+                        yield return ($"if[{i}]", problem);
+                }
+                for (var i = 0; i < trigger.Do.Count; i++)
+                {
+                    foreach (var problem in OpRules(trigger.Do[i], OpUse.Trigger, "a trigger's do"))
+                        yield return ($"do[{i}]", problem);
+                }
+                break;
         }
+    }
+
+    /// <summary>What's wrong with an op where it is: it can't run there, or a camera move doesn't say where to.</summary>
+    private static IEnumerable<string> OpRules(ScriptOp op, OpUse place, string where)
+    {
+        if (op.Use == OpUse.None)
+            yield return $"{where} has an op this build doesn't know, which does nothing.";
+        else if ((op.Use & place) == 0)
+            yield return $"{op.Name} can't run in {where}" + ((op.Use & OpUse.Trigger) == 0 && place == OpUse.Trigger
+                ? ": it needs a stage, an actor or a running script." : ".");
+        if (op is ScriptOp.CameraMove move && (move.Mark is null) == (move.Actor is null))
+            yield return $"{op.Name} needs a mark or an actor, and not both.";
     }
 
     /// <summary>The plugin that last set <paramref name="path"/> or what encloses it, else the record's definer.</summary>
@@ -314,7 +362,7 @@ public sealed class PluginSet
     private void CheckShape(RecordId id, JsonObject json, Type type, string prefix, List<RecordProblem> problems)
     {
         var kinds = RecordSchema.DerivedTypes(type);
-        if (kinds.Count > 0 && json["type"] is null)
+        if (kinds.Count > 0 && json[RecordSchema.DiscriminatorField(type)!] is null)
         {
             var path = prefix.TrimEnd('.');
             problems.Add(new RecordProblem(id, path, Blame(id, path), $"{(path.Length == 0 ? "The record" : path)} lacks its type: one of {string.Join(", ", kinds.Select(k => k.Discriminator))}."));

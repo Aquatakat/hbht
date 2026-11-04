@@ -22,7 +22,7 @@ public sealed partial class GameSessionTests
         var bear = Assert.IsType<MonsterPartyObject>(map.Objects.Single(o => o.Index == MapRecord.IndexOf(CaveBear)));
         Assert.Equal("Cave Bear", Data.Set.Get<EntityRecord>(bear.Entity).Name);
         Assert.Null(bear.Used);
-        Assert.Null(bear.Dialogue);
+        Assert.Null(bear.Script);
 
         var (session, host) = Start("A06", 30, 60);
         var trek = session.Trek;

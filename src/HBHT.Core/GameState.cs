@@ -374,8 +374,8 @@ public sealed class GameState : IScriptWorld
     /// <param name="host">Where the script's cues go.</param>
     /// <param name="start">Where it starts and which map object it remembers by, or a new game's start.</param>
     /// <param name="world">What the script reads and changes, or this game. The editor passes its own, which fixes skill checks by hand and logs.</param>
-    public ScriptRunner RunScript(DialogueRecord script, IScriptHost host, ScriptStart? start = null, IScriptWorld? world = null) =>
-        new(script, Flags, world ?? this, host, Random.World, id => Plugins.TryGet<DialogueRecord>(id), start, StateFlagsRecord.RandomSkillChecks);
+    public ScriptRunner RunScript(ScriptRecord script, IScriptHost host, ScriptStart? start = null, IScriptWorld? world = null) =>
+        new(script, Flags, world ?? this, host, Random.World, id => Plugins.TryGet<ScriptRecord>(id), start, StateFlagsRecord.RandomSkillChecks);
 
     bool IScriptWorld.InParty(RecordId entity) => Party.Contains(entity);
 
@@ -421,7 +421,7 @@ public sealed class GameState : IScriptWorld
     /// <remarks>
     /// The original adds a second sheet for someone already in the party, and says they joined. Here
     /// they're not added again, but it still says they joined, so the one talking leaves the map as
-    /// in the original. Only Sholeh's first meeting in Ugarit (<c>aidyn:dialogue/0x04AD</c>) can do it,
+    /// in the original. Only Sholeh's first meeting in Ugarit (<c>aidyn:script/0x04AD</c>) can do it,
     /// as nothing hides her after she joins.
     /// </remarks>
     public bool AddMember(RecordId entity)

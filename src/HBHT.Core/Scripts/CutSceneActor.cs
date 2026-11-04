@@ -6,7 +6,7 @@ using HBHT.Plugins.Records;
 namespace HBHT.Core.Scripts;
 
 /// <summary>
-/// One of a cut-scene's actors once <see cref="DialogueCommand.CreateActor"/> has spawned it
+/// One of a cut-scene's actors once <see cref="ScriptOp.ActorSpawn"/> has spawned it
 /// (<c>ActorAndID</c> and its <c>playerData</c>): a body with its entity's look, which the script walks,
 /// turns, animates and hands items to.
 /// </summary>
@@ -41,7 +41,7 @@ public sealed class CutSceneActor
 
     /// <summary>
     /// Not drawn, as the camera looks out of its eyes (<c>ACTOR_2000</c>, which only
-    /// <see cref="DialogueCommand.CameraCutToActor"/> sets). Its shadow and what it holds still are.
+    /// <see cref="ScriptOp.CameraCutTo"/> sets). Its shadow and what it holds still are.
     /// </summary>
     public bool Hidden { get; internal set; }
 

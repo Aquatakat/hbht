@@ -46,7 +46,7 @@ public sealed class MapObjectUseTests(Na10Import fixture)
     {
         public List<TeleporterObject> Teleports { get; } = [];
         public List<(ItemPile Loot, int Gold)> Loots { get; } = [];
-        public List<DialogueObject> Scripts { get; } = [];
+        public List<ScriptObject> Scripts { get; } = [];
         public List<(SceneObject Actor, int Request)> Animations { get; } = [];
         public List<SceneObject> Changes { get; } = [];
         public List<HBHT.Core.Audio.OneShot> Sounds { get; } = [];
@@ -57,7 +57,7 @@ public sealed class MapObjectUseTests(Na10Import fixture)
 
         public void OpenLoot(ItemPile loot, int gold) => Loots.Add((loot, gold));
 
-        public void StartScript(LoadedMap map, DialogueObject dialogue) => Scripts.Add(dialogue);
+        public void StartScript(LoadedMap map, ScriptObject dialogue) => Scripts.Add(dialogue);
 
         public void Animate(LoadedMap map, SceneObject actor, int request) => Animations.Add((actor, request));
 
@@ -165,7 +165,7 @@ public sealed class MapObjectUseTests(Na10Import fixture)
         var missed = new List<string>();
         foreach (var map in Data.Maps)
         {
-            foreach (var o in map.Objects.Where(o => !o.Tangible && o is ContainerObject or TeleporterObject or DialogueObject or TripwireObject))
+            foreach (var o in map.Objects.Where(o => !o.Tangible && o is ContainerObject or TeleporterObject or ScriptObject or TripwireObject))
             {
                 var reach = o is ContainerObject c ? c.Reach + PlayerRadius : o.Radius;
                 if (Disc(o.Position, reach).Any(p => OnGrid(map.Grid!, p) && !map.Grid!.At(p).Contains(o.Index)))
@@ -221,7 +221,7 @@ public sealed class MapObjectUseTests(Na10Import fixture)
                 switch (map.Objects.FirstOrDefault(o => o.Index == t.Target))
                 {
                     case CameraObject: cameras++; break;
-                    case DialogueObject: dialogues++; break;
+                    case ScriptObject: dialogues++; break;
                     case var other: others++; failures.Add($"{map.Id}: a triangle names {t.Target}, {other?.GetType().Name ?? "nothing"}"); break;
                 }
             }

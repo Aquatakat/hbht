@@ -24,7 +24,7 @@ Ported from `objectJumpTables.cpp`, `voxObjects.cpp`, `voxObjects2.cpp` (`obj_re
 | Type | In reach |
 | --- | --- |
 | Container | Within its reach plus the player's radius (0.5), from the player's centre in 3D: 2.5 for most. Its reach isn't its radius, which is 10 for most (see [maps](../formats/maps.md#map-objects-in-the-base-plugin-06)). Then a herb, spice, gem or custom container always; a chest, sack, crate or barrel only until opened, and only if it holds gold, a loot table or an item (`container_obj_check`) |
-| Teleporter, tripwire, dialogue | Within its radius, while its Enabled holds |
+| Teleporter, tripwire, script object | Within its radius, while its Enabled holds |
 | Save point | Within its radius, and using it does nothing |
 | Monster party | Only the player's nearest body, if it's a wanderer's within reach and its party isn't silent, weighed by its distance and its body's position ([wanderers](wanderers.md#talking)) |
 
@@ -41,7 +41,7 @@ A container asks for the player's animation for opening it (request 11; Alaron's
 
 - **Tangible objects** (`ProcessVoxelObjects`, `0x80083838`), each tick: of the objects the grid cell under the player lists (`ObjectGrid.CellAt` `0x800a4110` and `ObjectGrid.Cell` `0x800a568c`, at `0x800838a4`), as A's reach takes them, each active one he's within the radius of (3D, inclusive) whose Enabled holds, read then: a teleporter takes him through, skipping its secret, trap and lock; a tripwire goes off, every tick he's there; a dialogue starts its script. Nothing starts while a script runs (`Script.Running`, `0x800520bc`), and a dialogue or teleporter only while no popup, menu or dialogue is up, no trek state is queued and trek is in its state 3 (`MapObjects.CanStart`, `0x80010d08`); none of it waits for a fade, so trek's first frame after a cut-scene or a battle can start one ([scripts](scripts.md#the-world-it-plays-in)). `MapObjectUse.Touch` ports it, through trek's fade-in but not a teleport's fade or a fade-out into a cut-scene or a battle.
 - **Trigger triangles** (`MapObjectUse.Tread`, `0x8000a3ec`, which `PerformCallback`'s type 8 calls through `Zones.TriggerHook`), when the player touches one whose object is active: 1,532 name cameras (below) and 317 dialogues, which start their script if its Enabled holds, **however far he is**: the gate's distance test is skipped (`MapObjects.TouchesBody` with 0, `0x8000a52c`). A teleporter named by a triangle would take him through at once, whatever its gates, but none is. The collision asset carries each triangle's object as `_TARGET` ([maps](../formats/maps.md)).
-- **The 11 dialogues the triangles name** are listed in no grid cell, so walking within their radius starts nothing: only their triangles do. 10 have radius 200 and one 25 (P25's, `0x1126` #2, whose 24 triangles reach past it). They're story cut-scenes set off on patches of floor: Overworld J15, M08, P22, P25, Q27, R26, R27 (four) and Erromon A14. **The camp south of Gwernia castle** is one: reaching it, M08's tripwire (object 0, radius 5) sets flag 58, whose journal entry's notice comes up the next tick ([below](#map-objects-write-flags)) and which enables the camp's dialogue (object 1, by 5521). The Chaos minions' cut-scene (`0x04E0`) starts when he treads on one of its 11 triangles round the camp with the notice closed, as he leaves: west of it at x 36–43, east and south-east at x 52–59, and a patch to the north-east, so leaving the camp any way starts it.
+- **The 11 script objects the triangles name** are listed in no grid cell, so walking within their radius starts nothing: only their triangles do. 10 have radius 200 and one 25 (P25's, `0x1126` #2, whose 24 triangles reach past it). They're story cut-scenes set off on patches of floor: Overworld J15, M08, P22, P25, Q27, R26, R27 (four) and Erromon A14. **The camp south of Gwernia castle** is one: reaching it, M08's tripwire (object 0, radius 5) sets flag 58, whose journal entry's notice comes up the next tick ([below](#map-objects-write-flags)) and which enables the camp's dialogue (object 1, by 5521). The Chaos minions' cut-scene (`0x04E0`) starts when he treads on one of its 11 triangles round the camp with the notice closed, as he leaves: west of it at x 36–43, east and south-east at x 52–59, and a patch to the north-east, so leaving the camp any way starts it.
 
 ## Camera objects
 
@@ -130,7 +130,7 @@ The 23 lights along the path from Oriana's hut (15 in I08, 7 in J08, 1 in K08) g
 
 ## In the runtime
 
-`TrekLoop` is the `IMapObjectHost`: it handles doors, dialogues and talkers itself and passes the rest to the runtime, which builds a chunk's scenery again when a container's model changes.
+`TrekLoop` is the `IMapObjectHost`: it handles doors, script objects and talkers itself and passes the rest to the runtime, which builds a chunk's scenery again when a container's model changes.
 
 ## What's left
 

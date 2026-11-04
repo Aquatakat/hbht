@@ -139,7 +139,7 @@ public class WanderTickTests
         Make(PartyAt(Vector3.Zero, leash), [Node(0, new Vector3(0, 0, 5))], new Vector3(0, 0.5f, 0), world: world);
 
     private static Setup Talker() =>
-        Make(PartyAt(Vector3.Zero, 20, dialogue: RecordId.Hex(RecordTypes.Dialogue, 1)), [Node(0, new Vector3(0, 0, 5))], new Vector3(0, 0.5f, 0));
+        Make(PartyAt(Vector3.Zero, 20, dialogue: RecordId.Hex(RecordTypes.Script, 1)), [Node(0, new Vector3(0, 0, 5))], new Vector3(0, 0.5f, 0));
 
     private static bool Tick(Setup s, Vector3 player, int request = Body.Walk, float sneak = 0.5f, float fog = 0, IRandom? random = null) =>
         s.Wanderer.Tick(new WanderTick(s.World, player, request, sneak, fog, random ?? new ScriptedRandom()));
@@ -426,7 +426,7 @@ public class WanderTickTests
     [Fact]
     public void ATalkerTurningToThePlayerDoesntMoveOn()
     {
-        var s = Make(PartyAt(Vector3.Zero, 20, dialogue: RecordId.Hex(RecordTypes.Dialogue, 1)),
+        var s = Make(PartyAt(Vector3.Zero, 20, dialogue: RecordId.Hex(RecordTypes.Script, 1)),
             [Node(0, new Vector3(0, 0, 5), wait: 0, next: 1), Node(1, new Vector3(10, 0, 0))], new Vector3(0, 0.5f, 0));
         // Its timer has run out, and the scripted stream would refuse a draw.
         Tick(s, Player(2));

@@ -45,7 +45,7 @@ public enum Borg13Opcode : byte
     /// <summary>Spawns the speaker's actor at a reference point.</summary>
     CreateActor = 18,
     /// <summary>
-    /// The first op of every <see cref="DialogueMode.Backdrop"/> script, equal to its
+    /// The first op of every <see cref="ScriptMode.Backdrop"/> script, equal to its
     /// <see cref="Borg13Script.Backdrop"/>. The game reads the header's copy, not this.
     /// </summary>
     Backdrop = 19,

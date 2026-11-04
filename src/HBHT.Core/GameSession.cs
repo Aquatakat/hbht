@@ -777,7 +777,7 @@ public sealed class GameSession
         if (!Trek.AtPlace || Trek.Chunks.ChunkAt(at) is not { } chunk || Game.Plugins.TryGet<MapRecord>(chunk.Map) is not { } map)
             return null;
         var local = at - Trek.Chunks.Origin(chunk);
-        foreach (var dialogue in map.Objects.OfType<DialogueObject>())
+        foreach (var dialogue in map.Objects.OfType<ScriptObject>())
         {
             if (!dialogue.Tangible || Vector3.Distance(dialogue.Position, local) > dialogue.Radius
                 || dialogue.Enabled is { } gate && !Game.Flags.Holds(gate))
@@ -803,7 +803,7 @@ public sealed class GameSession
     }
 
     /// <inheritdoc cref="Cue(CutSceneLaunch)"/>
-    public void Cue(DialogueRecord script, ScriptStart start, ChunkRef stage) => Cue(new CutSceneLaunch(script, start, stage));
+    public void Cue(ScriptRecord script, ScriptStart start, ChunkRef stage) => Cue(new CutSceneLaunch(script, start, stage));
 
     /// <summary>Asks trek for a battle, unless one or a cut-scene is playing (<see cref="TrekLoop.CueBattle"/>).</summary>
     public void CueBattle(BattleSetup setup)
@@ -901,8 +901,8 @@ public sealed class GameSession
     {
         if (Game.Plugins.Singleton<CombatRecord>().GameOver is { } gameOver
             && Game.Plugins.TryGet<MapRecord>(gameOver.Map) is { } map
-            && map.Objects.OfType<DialogueObject>().FirstOrDefault(d => d.Script == gameOver.Script) is { } dialogue
-            && Game.Plugins.TryGet<DialogueRecord>(gameOver.Script) is { } script
+            && map.Objects.OfType<ScriptObject>().FirstOrDefault(d => d.Plays == gameOver.Script) is { } dialogue
+            && Game.Plugins.TryGet<ScriptRecord>(gameOver.Script) is { } script
             && CutSceneLaunch.Of(script, dialogue, MapRecord.VoxelId(map.Id, dialogue.Index)) is { } launch)
         {
             StartCutScene(launch);
@@ -967,7 +967,7 @@ public sealed class GameSession
                 Send(new Transition.Camp(Trek.Camp()));
                 break;
             case PauseExitCode.Help:
-                Trek.ShowBackdrop(Game.Plugins.Get<DialogueRecord>(SystemMenu.HelpScript));
+                Trek.ShowBackdrop(Game.Plugins.Get<ScriptRecord>(SystemMenu.HelpScript));
                 break;
             case PauseExitCode.Credits:
                 PlayCredits(Game.Plugins.Singleton<CreditsRecord>(), ending: false, fromMenu: true);
@@ -1160,7 +1160,7 @@ public sealed class GameSession
     }
 
     /// <summary>
-    /// Fires an event on the triggers (<see cref="Triggers.Fire"/>), their sounds to the host, and carries out an effect that takes over from trek.
+    /// Fires an event on the triggers (<see cref="Triggers.Fire"/>), their sounds to the host, and carries out an op that takes over from trek.
     /// True if one did, so what would come next at the event's place, trek coming back, doesn't. Trek's world may have gone,
     /// as under a cut-scene; what takes over builds it again after.
     /// </summary>
@@ -1170,15 +1170,15 @@ public sealed class GameSession
             return false;
         switch (effect)
         {
-            case TriggerEffect.Cinematic { Play: var id } when Game.Plugins.TryGet<CinematicRecord>(id) is { } cinematic:
+            case ScriptOp.CinematicPlay { Cinematic: var id } when Game.Plugins.TryGet<CinematicRecord>(id) is { } cinematic:
                 PlayCinematic(cinematic, fromTheatre: false);
                 return true;
-            case TriggerEffect.Script { From: var from } when StartFrom(from):
+            case ScriptOp.StartScript { From: var from } when StartFrom(from):
                 return true;
-            case TriggerEffect.Credits credits:
+            case ScriptOp.CreditsRoll credits:
                 PlayCredits(Game.Plugins.Singleton<CreditsRecord>(), credits.Ending, fromMenu: false);
                 return true;
-            case TriggerEffect.GameOver:
+            case ScriptOp.GameOver:
                 Send(new Transition.GameOver());
                 return true;
         }
@@ -1187,13 +1187,13 @@ public sealed class GameSession
     }
 
     /// <summary>
-    /// Starts the script a dialogue object starts, at once and in place of trek: a cut-scene on the object's stage from its
-    /// reference points, trek's world going first if it hasn't. False if the object or its script isn't a cut-scene a
+    /// Starts the script a script object starts, at once and in place of trek: a cut-scene on the object's stage from its
+    /// marks, trek's world going first if it hasn't. False if the object or its script isn't a cut-scene a
     /// plugin has.
     /// </summary>
     private bool StartFrom(RecordId voxel)
     {
-        if (MapRecord.Find(Game.Plugins, voxel) is not DialogueObject dialogue
+        if (MapRecord.Find(Game.Plugins, voxel) is not ScriptObject dialogue
             || CutSceneLaunch.Of(Game.Plugins, dialogue, voxel) is not { } launch)
             return false;
         Trek.Free();

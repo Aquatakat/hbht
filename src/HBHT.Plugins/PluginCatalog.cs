@@ -114,7 +114,7 @@ public sealed class PluginCatalog
     /// </summary>
     public string Describe(MapObject? o) => o switch
     {
-        DialogueObject d => $"Dialogue object {d.Name}",
+        ScriptObject d => $"Script object {d.Name}",
         MonsterPartyObject m => $"Monster party: {Find(m.Entity)?.Summary ?? m.Entity.ToString()}",
         TeleporterObject t => $"Teleporter {t.Name}",
         ContainerObject c => c.Kind.ToString(),
@@ -180,7 +180,9 @@ public sealed class PluginCatalog
             case RecordTypes.Journal when json is not null:
                 parts.Add(Truncate((string?)json["text"] ?? "", 80));
                 break;
-            case RecordTypes.Dialogue when json is not null:
+            case RecordTypes.Script when json is not null:
+                if ((string?)json["label"] is { } scriptLabel)
+                    parts.Add(scriptLabel);
                 var nodes = json["nodes"] as JsonArray ?? [];
                 var first = nodes.OfType<JsonObject>().Select(n => (string?)n["text"]).FirstOrDefault(t => !string.IsNullOrWhiteSpace(t));
                 parts.Add($"{(string?)json["mode"]}, {Count(nodes, "node")}" + (first is null ? "" : $": {Truncate(first.Replace("\n", " ", StringComparison.Ordinal), 60)}"));

@@ -63,11 +63,11 @@ public enum FlagRole
     ObjectEnabled,
     /// <summary>What a container or trigger writes when it's used.</summary>
     ObjectUsed,
-    /// <summary>A monster party without a dialogue: it's gone while the flag is set, and beating it sets it.</summary>
+    /// <summary>A monster party without a script: it's gone while the flag is set, and beating it sets it.</summary>
     PartyBeaten,
-    /// <summary>A monster party with a dialogue: talking to it sets the flag.</summary>
+    /// <summary>A monster party with a script: talking to it sets the flag.</summary>
     PartyTalkedTo,
-    /// <summary>A monster party's battle flag, which winning the battle its dialogue starts sets.</summary>
+    /// <summary>A monster party's battle flag, which winning the battle its script starts sets.</summary>
     PartyFought,
     /// <summary>A container's opened flag: it's empty while set, and opening it sets it.</summary>
     ContainerOpened,
@@ -112,7 +112,7 @@ public enum FlagRole
 public sealed record FlagUse(RecordId Flag, RecordId By, FlagAccess Access, FlagRole Role, int? At = null, bool Inverted = false);
 
 /// <summary>
-/// What starts a script: a dialogue object or a monster party (<c>aidyn:voxel/…</c>), or another
+/// What starts a script: a script object or a monster party (<c>aidyn:voxel/…</c>), or another
 /// script, whose RandomLine op at node <see cref="At"/> takes a line from it.
 /// </summary>
 public sealed record ScriptStarter(RecordId Script, RecordId By, int? At = null);
@@ -191,31 +191,47 @@ public sealed class QuestIndex
             }
         }
 
-        foreach (var script in plugins.All<DialogueRecord>(RecordTypes.Dialogue))
+        foreach (var script in plugins.All<ScriptRecord>(RecordTypes.Script))
         {
             foreach (var node in script.Nodes)
             {
                 if (node.Text.Length > 0)
                     text.Add((script.Id, node.Index, node.Text));
-                foreach (var op in node.Ops ?? [])
+                foreach (var op in node.Ops)
                 {
-                    if (op.Target is { Type: RecordTypes.Flag } flag && ScriptAccess(op.Command) is { } access)
-                        uses.Add(new FlagUse(flag, script.Id, access, FlagRole.ScriptOp, node.Index));
-                    else if (op is { Command: DialogueCommand.RandomLine, Target: { } lines })
-                        starters.Add(new ScriptStarter(lines, script.Id, node.Index));
-                    else if (op.Command == DialogueCommand.Battle)
-                        battles.Add(script.Id);
-                    else if (op is { Command: DialogueCommand.AddItem, Target: { } given } && keyItems.TryGetValue(given, out var key))
-                        GiveKeyItems([key], script.Id, node.Index);
-                    else if (op is { Command: DialogueCommand.TakeItem, Target: { } taken } && keyItems.TryGetValue(taken, out var lost))
-                        Use(lost.Held, script.Id, FlagAccess.Clear, FlagRole.ItemTaken, at: node.Index);
-                    else if (op is { Command: DialogueCommand.AddMember or DialogueCommand.RemoveMember, Target: { } member }
-                        && members.TryGetValue(member, out var flags))
+                    switch (op)
                     {
-                        var joins = op.Command == DialogueCommand.AddMember;
-                        var role = joins ? FlagRole.MemberAdded : FlagRole.MemberRemoved;
-                        Use(flags.Joined, script.Id, joins ? FlagAccess.Set : FlagAccess.Clear, role, at: node.Index);
-                        Use(flags.Left, script.Id, joins ? FlagAccess.Clear : FlagAccess.Set, role, at: node.Index);
+                        case ScriptOp.CheckFlag check:
+                            uses.Add(new FlagUse(check.Flag, script.Id, FlagAccess.Read, FlagRole.ScriptOp, node.Index));
+                            break;
+                        case ScriptOp.FlagSet set:
+                            uses.Add(new FlagUse(set.Flag, script.Id, FlagAccess.Set, FlagRole.ScriptOp, node.Index));
+                            break;
+                        case ScriptOp.FlagClear clear:
+                            uses.Add(new FlagUse(clear.Flag, script.Id, FlagAccess.Clear, FlagRole.ScriptOp, node.Index));
+                            break;
+                        case ScriptOp.ScriptRandomLine lines:
+                            starters.Add(new ScriptStarter(lines.From, script.Id, node.Index));
+                            break;
+                        case ScriptOp.BattleStart:
+                            battles.Add(script.Id);
+                            break;
+                        case ScriptOp.PartyAddItem given when keyItems.TryGetValue(given.Item, out var key):
+                            GiveKeyItems([key], script.Id, node.Index);
+                            break;
+                        case ScriptOp.PartyTakeItem taken when keyItems.TryGetValue(taken.Item, out var lost):
+                            Use(lost.Held, script.Id, FlagAccess.Clear, FlagRole.ItemTaken, at: node.Index);
+                            break;
+                        case ScriptOp.PartyAddMember or ScriptOp.PartyRemoveMember:
+                            var joins = op is ScriptOp.PartyAddMember;
+                            var member = op is ScriptOp.PartyAddMember add ? add.Entity : ((ScriptOp.PartyRemoveMember)op).Entity;
+                            if (members.TryGetValue(member, out var flags))
+                            {
+                                var role = joins ? FlagRole.MemberAdded : FlagRole.MemberRemoved;
+                                Use(flags.Joined, script.Id, joins ? FlagAccess.Set : FlagAccess.Clear, role, at: node.Index);
+                                Use(flags.Left, script.Id, joins ? FlagAccess.Clear : FlagAccess.Set, role, at: node.Index);
+                            }
+                            break;
                     }
                 }
             }
@@ -269,13 +285,13 @@ public sealed class QuestIndex
                     Use(t.Used?.Flag, voxel, used, FlagRole.ObjectUsed);
                     break;
                 // A silent party does nothing when the player uses it.
-                case MonsterPartyObject m when m.Dialogue is { } dialogue:
+                case MonsterPartyObject m when m.Script is { } script:
                     if (!m.Flags.HasFlag(PartyFlags.Silent))
                     {
-                        starters.Add(new ScriptStarter(dialogue, voxel));
+                        starters.Add(new ScriptStarter(script, voxel));
                         Use(m.Used?.Flag, voxel, FlagAccess.Set, FlagRole.PartyTalkedTo);
-                        // The dialogue decides whether there's a fight, and only a fought party drops its loot.
-                        if (battles.Contains(dialogue))
+                        // The script decides whether there's a fight, and only a fought party drops its loot.
+                        if (battles.Contains(script))
                         {
                             Use(m.BattleFlag, voxel, FlagAccess.Set, FlagRole.PartyFought);
                             GiveKeyItems(KeyItemsIn(m.Loot), voxel);
@@ -301,8 +317,8 @@ public sealed class QuestIndex
                     Use(t.SecretFlag, voxel, FlagAccess.Read, FlagRole.SecretFound);
                     Use(t.SecretFlag, voxel, FlagAccess.Set, FlagRole.SecretFound);
                     break;
-                case DialogueObject d:
-                    starters.Add(new ScriptStarter(d.Script, voxel));
+                case ScriptObject d:
+                    starters.Add(new ScriptStarter(d.Plays, voxel));
                     break;
             }
         }
@@ -383,14 +399,6 @@ public sealed class QuestIndex
     /// <summary>Flag 0 always reads as clear and flag 1 as set, so a gate on either is a constant, not quest state.</summary>
     private static bool IsConstant(RecordId flag) =>
         flag.Namespace == RecordId.BaseNamespace && flag.Type == RecordTypes.Flag && flag.Key is "0" or "1";
-
-    private static FlagAccess? ScriptAccess(DialogueCommand command) => command switch
-    {
-        DialogueCommand.CheckFlag => FlagAccess.Read,
-        DialogueCommand.SetFlag => FlagAccess.Set,
-        DialogueCommand.ClearFlag => FlagAccess.Clear,
-        _ => null,
-    };
 
     private static QuestEdge Edge(FlagUse use) => use.Access == FlagAccess.Read
         ? new QuestEdge(use.Flag, use.By, use.Role, use.Access)

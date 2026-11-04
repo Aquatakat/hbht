@@ -1,3 +1,4 @@
+using HBHT.Core.Characters;
 using HBHT.Core.Flags;
 using HBHT.Core.MapObjects;
 using HBHT.Core.Rng;
@@ -7,10 +8,10 @@ using HBHT.Plugins.Records;
 namespace HBHT.Core.Scripts;
 
 /// <summary>
-/// Borg13's condition ops, and the effect ops that change the game's state, against the flags and the world: what a script's
+/// The condition ops, and the effect ops that change the game's state, against the flags and the world: what a script's
 /// nodes run (<see cref="ScriptRunner"/>, <c>DialogEvalCallback</c> and <c>DialogCallbackC</c>) and the plugins' triggers run
-/// the same way (<see cref="Events.Triggers"/>). What differs between them is given: the speaker, whether skill checks are
-/// kept, the map object that remembers them, and where the sounds go.
+/// the same way (<see cref="Events.Triggers"/>). What differs between them is given: whether skill checks are kept, the map
+/// object that remembers them, and where the sounds go.
 /// </summary>
 public sealed class ScriptOps
 {
@@ -46,29 +47,31 @@ public sealed class ScriptOps
     }
 
     /// <summary>The effect ops this runs: those that change the game's state, with no actor, camera or ending in them.</summary>
-    public static bool ChangesState(DialogueCommand command) => command is DialogueCommand.SetFlag or DialogueCommand.ClearFlag
-        or DialogueCommand.AddGold or DialogueCommand.TakeGold or DialogueCommand.AddItem or DialogueCommand.TakeItem
-        or DialogueCommand.AddMember or DialogueCommand.RemoveMember or DialogueCommand.AddExp;
+    public static bool ChangesState(ScriptOp op) => op is ScriptOp.FlagSet or ScriptOp.FlagClear or ScriptOp.PartyAddGold
+        or ScriptOp.PartyTakeGold or ScriptOp.PartyAddItem or ScriptOp.PartyTakeItem or ScriptOp.PartyAddMember
+        or ScriptOp.PartyRemoveMember or ScriptOp.PartyAddExp;
 
-    /// <summary>A condition op's value, as a u16 (<c>DialogEvalCallback</c>); 0 for an op that isn't one.</summary>
-    /// <param name="speaker">Whose stat <see cref="DialogueCommand.CheckSpeakerStat"/> reads.</param>
-    public int Condition(DialogueCommand command, RecordId? target, int value, RecordId? speaker)
+    /// <summary>A condition op's value, as a u16 (<c>DialogEvalCallback</c>); 0 for an op this build doesn't know.</summary>
+    public int Condition(ScriptOp.Check check)
     {
-        var result = command switch
+        var result = check switch
         {
-            DialogueCommand.CheckMember => target is { } member && _world.InParty(member) ? 1 : 0,
-            DialogueCommand.CheckFlag => target is { } flag && _flags.IsSet(flag) ? 1 : 0,
-            DialogueCommand.CheckSkill => SkillCheck(value),
-            DialogueCommand.CheckItem => target is { } item && _world.HasItem(item) ? 1 : 0,
-            DialogueCommand.CheckBestStat => _world.BestStat(value),
-            DialogueCommand.CheckWorstStat => _world.WorstStat(value),
-            DialogueCommand.CheckSpeakerStat => _world.MemberStat(speaker, value),
-            DialogueCommand.CheckPartySize => _world.PartySize,
-            DialogueCommand.CheckGold => (int)_world.Gold,
+            ScriptOp.CheckMember member => _world.InParty(member.Entity) ? 1 : 0,
+            ScriptOp.CheckFlag flag => _flags.IsSet(flag.Flag) ? 1 : 0,
+            // A mod's skill isn't one the party holds (ADR 0032): the check is 0.
+            ScriptOp.CheckSkill skill => SkillId.TryFromRecord(skill.Skill) is { IsSkill: true } id ? SkillCheck(id.Slot) : 0,
+            ScriptOp.CheckItem item => _world.HasItem(item.Item) ? 1 : 0,
+            ScriptOp.CheckBestStat best => StatNumber(best.Stat) is { } stat ? _world.BestStat(stat) : 0,
+            ScriptOp.CheckWorstStat worst => StatNumber(worst.Stat) is { } stat ? _world.WorstStat(stat) : 0,
+            ScriptOp.CheckStat of => StatNumber(of.Stat) is { } stat ? _world.MemberStat(of.Member, stat) : 0,
+            ScriptOp.CheckPartySize => _world.PartySize,
+            ScriptOp.CheckGold => (int)_world.Gold,
             _ => 0,
         };
         return result & 0xFFFF;
     }
+
+    private static int? StatNumber(RecordId stat) => StatId.TryFromRecord(stat) is { } s ? (int)s : null;
 
     /// <summary>
     /// The party's check of a skill (<c>dialougSkillCheck</c>). The first check is kept, where checks are, and the map object
@@ -98,34 +101,35 @@ public sealed class ScriptOps
     /// False where it does nothing: an op this doesn't run, taking more gold than the party has or an item it lacks, adding a
     /// member to a full party, experience for someone not in it.
     /// </summary>
-    /// <param name="member">Who <see cref="DialogueCommand.AddExp"/> gives to: a script's speaker.</param>
-    public bool Effect(DialogueCommand command, RecordId? target, int value, RecordId? member)
+    public bool Effect(ScriptOp op)
     {
-        switch (command)
+        switch (op)
         {
-            case DialogueCommand.SetFlag or DialogueCommand.ClearFlag:
-                return target is { } flag && _flags.TrySet(flag, command == DialogueCommand.SetFlag);
-            case DialogueCommand.AddGold:
-                _world.Gold += (uint)(value & 0xFFFF);
+            case ScriptOp.FlagSet set:
+                return _flags.TrySet(set.Flag, true);
+            case ScriptOp.FlagClear clear:
+                return _flags.TrySet(clear.Flag, false);
+            case ScriptOp.PartyAddGold add:
+                _world.Gold += (uint)(add.Amount & 0xFFFF);
                 _host?.Cue(new SoundCue(ScriptSound.GoldGained));
                 return true;
-            case DialogueCommand.TakeGold:
-                if (_world.Gold < (uint)(value & 0xFFFF))
+            case ScriptOp.PartyTakeGold take:
+                if (_world.Gold < (uint)(take.Amount & 0xFFFF))
                     return false;
-                _world.Gold -= (uint)(value & 0xFFFF);
+                _world.Gold -= (uint)(take.Amount & 0xFFFF);
                 _host?.Cue(new SoundCue(ScriptSound.GoldPaid));
                 return true;
-            case DialogueCommand.AddItem when target is { } item:
-                _world.AddItem(item);
+            case ScriptOp.PartyAddItem item:
+                _world.AddItem(item.Item);
                 return true;
-            case DialogueCommand.TakeItem:
-                return target is { } taken && _world.TakeItem(taken);
-            case DialogueCommand.AddMember:
-                return target is { } joining && _world.AddMember(joining);
-            case DialogueCommand.RemoveMember when target is { } leaving:
-                _world.RemoveMember(leaving);
+            case ScriptOp.PartyTakeItem taken:
+                return _world.TakeItem(taken.Item);
+            case ScriptOp.PartyAddMember joining:
+                return _world.AddMember(joining.Entity);
+            case ScriptOp.PartyRemoveMember leaving:
+                _world.RemoveMember(leaving.Entity);
                 return true;
-            case DialogueCommand.AddExp when member is { } given && _world.AddExp(given, value):
+            case ScriptOp.PartyAddExp exp when _world.AddExp(exp.Member, exp.Amount):
                 _host?.Cue(new SoundCue(ScriptSound.Experience));
                 return true;
             default:

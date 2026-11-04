@@ -126,7 +126,7 @@ public sealed class SaveCheckpointTests(Na10Import fixture)
         Assert.Equal(checkpoint.Memories.Count, memories.Count);
         // What remembers a random line or a skill check here is a monster party's dialogue, not a dialogue object.
         foreach (var memory in memories)
-            Assert.NotNull(Assert.IsType<MonsterPartyObject>(fixture.Data.Objects[memory.MapObject]).Dialogue);
+            Assert.NotNull(Assert.IsType<MonsterPartyObject>(fixture.Data.Objects[memory.MapObject]).Script);
 
         switch (LabelOf(name))
         {

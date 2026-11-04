@@ -36,9 +36,9 @@ public enum BattleSource
 /// </param>
 /// <param name="Enemies">
 /// Who fights: a monster party's kinds of enemy, each with how many always come and how many can, or a script's
-/// <see cref="DialogueCommand.AddEnemy"/>s in order, one each, or a camp ambush's two kinds.
+/// <see cref="ScriptOp.BattleAddEnemy"/>s in order, one each, or a camp ambush's two kinds.
 /// </param>
-/// <param name="Arena">A script's arena (<see cref="DialogueCommand.SetBattlefield"/>, 0 when it sets one above 27), or null.</param>
+/// <param name="Arena">A script's arena (<see cref="ScriptOp.BattleArena"/>, 0 when it sets one above 27), or null.</param>
 /// <param name="Ambush">Whether the enemies came at the party: a wanderer catching it, or a camp ambush.</param>
 /// <param name="CanFlee">
 /// Whether the party may flee before the bosses and encounter flags have their say: monster parties' battles yes, camp
@@ -47,10 +47,10 @@ public enum BattleSource
 /// <param name="EncounterFlag">
 /// The battle's encounter flag, which its special rules key on: a fighting monster party's used flag, which winning sets;
 /// a talking party's flag C (<see cref="MonsterPartyObject.BattleFlag"/>), which winning sets too; or a script's
-/// <see cref="DialogueRecord.BattleFlag"/>, which a win doesn't set.
+/// <see cref="ScriptRecord.BattleFlag"/>, which a win doesn't set.
 /// </param>
-/// <param name="CollisionByte">A script's <see cref="DialogueCommand.SetCollideByte"/>.</param>
-/// <param name="AniByte">A script's <see cref="DialogueCommand.SetAniByte"/>.</param>
+/// <param name="CollisionByte">A script's <see cref="ScriptOp.BattleCollisionByte"/>.</param>
+/// <param name="AniByte">A script's <see cref="ScriptOp.BattleAnimationByte"/>.</param>
 public sealed record BattleSetup(
     BattleSource Source,
     ChunkRef? Place,
@@ -75,7 +75,7 @@ public sealed record BattleSetup(
     /// flag C if it talks, or else its used flag.
     /// </summary>
     public static BattleSetup WithParty(BattleSource source, RecordId id, MonsterPartyObject party, ChunkRef? place, int? terrain, bool ambush) =>
-        new(source, place, terrain, id, party.Enemies, null, ambush, CanFlee: true, party.Dialogue is null ? party.Used?.Flag : party.BattleFlag)
+        new(source, place, terrain, id, party.Enemies, null, ambush, CanFlee: true, party.Script is null ? party.Used?.Flag : party.BattleFlag)
         {
             Size = (party.MinSize, party.MaxSize),
             BonusLoot = party.Loot,

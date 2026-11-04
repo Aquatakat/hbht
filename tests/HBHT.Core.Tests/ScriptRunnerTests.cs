@@ -15,8 +15,8 @@ public class ScriptRunnerTests
     private static readonly RecordId Goblin = RecordId.Hex(RecordTypes.Entity, 0x0280);
     private static readonly RecordId Sword = RecordId.Hex(RecordTypes.Item, 0x073A);
     private static readonly RecordId Chest = RecordId.Parse("aidyn:voxel/0x1A20/3");
-    private static readonly RecordId ScriptId = RecordId.Hex(RecordTypes.Dialogue, 0x0400);
-    private static readonly RecordId Rumours = RecordId.Hex(RecordTypes.Dialogue, 0x0325);
+    private static readonly RecordId ScriptId = RecordId.Hex(RecordTypes.Script, 0x0400);
+    private static readonly RecordId Rumours = RecordId.Hex(RecordTypes.Script, 0x0325);
 
     /// <summary>Plain flags 0–9, with 1 set; 9 is the new journal entry flag.</summary>
     private static FlagNetwork Flags() => new(Enumerable.Range(0, 10).Select(i => new FlagRecord(Flag(i), Initial: i == 1)), Flag(9));
@@ -65,31 +65,34 @@ public class ScriptRunnerTests
     /// <summary>The value that makes <see cref="RandomExtensions.Range"/> over <paramref name="count"/> numbers give <paramref name="n"/>.</summary>
     private static uint Draw(int n, int count) => (uint)(((ulong)n << 32) / (ulong)count + 1);
 
-    private static DialogueNode Line(int index, string text, int? link = null, params DialogueOp[] ops) =>
-        new(index, DialogueNodeKind.Line, text, ops.Length == 0 ? null : ops, link is { } l ? [l] : null);
+    /// <summary>A line with no speaker.</summary>
+    private static ScriptNode Line(int index, string text, int? link = null, params ScriptOp[] ops) =>
+        ScriptNodes.Line(index, text, link, null, ops);
 
-    private static DialogueNode Choice(int index, string text, int? link, DialogueRange? selects, params DialogueOp[] ops) =>
+    /// <summary>A line its <paramref name="speaker"/> says.</summary>
+    private static ScriptNode Spoken(int index, RecordId speaker, string text, int? link = null, params ScriptOp[] ops) =>
+        ScriptNodes.Line(index, text, link, speaker, ops);
+
+    private static ScriptNode Choice(int index, string text, int? link, ScriptRange? selects, params ScriptOp[] ops) =>
         Line(index, text, link, ops) with { Selects = selects };
 
-    private static DialogueNode Menu(int index, string text, int[] links, params DialogueOp[] ops) =>
-        new(index, DialogueNodeKind.Menu, text, ops.Length == 0 ? null : ops, links);
+    private static ScriptNode Menu(int index, string text, int[] links, RecordId? speaker = null, params ScriptOp[] ops) =>
+        ScriptNodes.Node(index, ScriptNodeKind.Menu, text, links, speaker, ops);
 
-    private static DialogueNode If(int index, DialogueOp condition, int then, int otherwise) =>
-        new(index, DialogueNodeKind.If, "", [condition], [then, otherwise]);
+    private static ScriptNode If(int index, ScriptOp condition, int then, int otherwise) =>
+        ScriptNodes.Node(index, ScriptNodeKind.If, "", [then, otherwise], null, condition);
 
-    private static DialogueNode Case(int index, string text, DialogueOp condition, params int[] links) =>
-        new(index, DialogueNodeKind.Case, text, [condition], links);
+    private static ScriptNode Case(int index, string text, ScriptOp condition, params int[] links) =>
+        ScriptNodes.Node(index, ScriptNodeKind.Case, text, links, null, condition);
 
-    private static DialogueOp Op(DialogueCommand command, int? value = null, RecordId? target = null) => new(command, value, target);
+    private static readonly ScriptOp End = new ScriptOp.ScriptEnd();
 
-    private static readonly DialogueOp End = Op(DialogueCommand.EndDialogue);
-
-    private static DialogueRecord Script(DialogueMode mode, params DialogueNode[] nodes) => new(ScriptId, 1234, mode, nodes);
+    private static ScriptRecord Script(ScriptMode mode, params ScriptNode[] nodes) => new(ScriptId, 1234, mode, nodes);
 
     private sealed record Run(ScriptRunner Runner, FlagNetwork Flags, World World, Host Host);
 
-    private static Run Start(DialogueRecord script, World? world = null, IRandom? random = null, ScriptStart? start = null,
-        FlagNetwork? flags = null, IEnumerable<DialogueRecord>? others = null, RecordId? randomSkillChecks = null)
+    private static Run Start(ScriptRecord script, World? world = null, IRandom? random = null, ScriptStart? start = null,
+        FlagNetwork? flags = null, IEnumerable<ScriptRecord>? others = null, RecordId? randomSkillChecks = null)
     {
         flags ??= Flags();
         world ??= new World();
@@ -108,7 +111,7 @@ public class ScriptRunnerTests
     [Fact]
     public void LinesShowInTurnAndTheLastOneEndsTheScript()
     {
-        var run = Start(Script(DialogueMode.Conversation,
+        var run = Start(Script(ScriptMode.Conversation,
             Line(0, "Hello.", 1),
             Line(1, "Goodbye.", null, End)));
 
@@ -125,7 +128,7 @@ public class ScriptRunnerTests
     public void ThePlayersNameIsTheFirstMembersAsItStandsWhenEachPageIsShown()
     {
         var world = new World { PlayerName = "Eric" };
-        var run = Start(Script(DialogueMode.Conversation,
+        var run = Start(Script(ScriptMode.Conversation,
             Line(0, "Hail, {player}.", 1),
             Menu(1, "What will {player} do?", [2]),
             Choice(2, "{player} leaves.", null, null, End)), world);
@@ -140,7 +143,7 @@ public class ScriptRunnerTests
     [Fact]
     public void ThePlayersNameStaysAsTheRecordHoldsItWithNoOneInTheParty()
     {
-        var run = Start(Script(DialogueMode.Conversation, Line(0, "Hail, {player}.", null, End)), new World { PlayerName = null });
+        var run = Start(Script(ScriptMode.Conversation, Line(0, "Hail, {player}.", null, End)), new World { PlayerName = null });
 
         Assert.Equal("Hail, {player}.", Text(run.Runner));
     }
@@ -148,8 +151,8 @@ public class ScriptRunnerTests
     [Fact]
     public void ALinesEffectRunsWhenItIsLeftAndOnlyTheFirstRuns()
     {
-        var run = Start(Script(DialogueMode.Conversation,
-            Line(0, "Hello.", 1, Op(DialogueCommand.SetFlag, target: Flag(2)), Op(DialogueCommand.SetFlag, target: Flag(3))),
+        var run = Start(Script(ScriptMode.Conversation,
+            Line(0, "Hello.", 1, new ScriptOp.FlagSet(Flag(2)), new ScriptOp.FlagSet(Flag(3))),
             Line(1, "Goodbye.", null, End)));
 
         Assert.False(run.Flags.Get(2));
@@ -161,8 +164,8 @@ public class ScriptRunnerTests
     [Fact]
     public void ALineWithNoTextIsWalkedThrough()
     {
-        var run = Start(Script(DialogueMode.Conversation,
-            Line(0, "", 1, Op(DialogueCommand.SetFlag, target: Flag(2))),
+        var run = Start(Script(ScriptMode.Conversation,
+            Line(0, "", 1, new ScriptOp.FlagSet(Flag(2))),
             Line(1, "Goodbye.", null, End)));
 
         Assert.True(run.Flags.Get(2));
@@ -175,24 +178,24 @@ public class ScriptRunnerTests
     [InlineData(0, "Many of you.")]
     public void AnIfTakesItsFirstLinkOnlyForExactlyOne(int partySize, string expected)
     {
-        var run = Start(Script(DialogueMode.Conversation,
-            If(0, Op(DialogueCommand.CheckPartySize), 1, 2),
+        var run = Start(Script(ScriptMode.Conversation,
+            If(0, new ScriptOp.CheckPartySize(), 1, 2),
             Line(1, "Just you.", null, End),
             Line(2, "Many of you.", null, End)), new World { PartySize = partySize });
 
         Assert.Equal(expected, Text(run.Runner));
     }
 
-    private static DialogueRecord Shopkeeper(DialogueMode mode) => Script(mode,
-        Menu(0, "What'll it be?", [1, 2], Op(DialogueCommand.SetSpeaker, target: Trahern)),
-        Line(1, "Tell me about the goblins.", 3, Op(DialogueCommand.SetSpeaker, target: Alaron)),
-        Line(2, "Goodbye.", null, End),
-        Line(3, "They're back.", null, Op(DialogueCommand.SetSpeaker, target: Trahern)));
+    private static ScriptRecord Shopkeeper(ScriptMode mode) => Script(mode,
+        Menu(0, "What'll it be?", [1, 2], Trahern),
+        Spoken(1, Alaron, "Tell me about the goblins.", 3),
+        Spoken(2, Alaron, "Goodbye.", null, End),
+        Spoken(3, Trahern, "They're back."));
 
     [Fact]
     public void AMenuHidesTheChoicesTakenAndALineWithNoLinkGoesBackToIt()
     {
-        var run = Start(Shopkeeper(DialogueMode.Conversation));
+        var run = Start(Shopkeeper(ScriptMode.Conversation));
         Assert.Equal(["Tell me about the goblins.", "Goodbye."], Choices(run.Runner));
 
         run.Runner.Choose(0);
@@ -206,9 +209,9 @@ public class ScriptRunnerTests
     }
 
     [Theory]
-    [InlineData(DialogueMode.Backdrop)]
-    [InlineData(DialogueMode.Help)]
-    public void BackdropsAndTheHelpMenuOfferChoicesAgain(DialogueMode mode)
+    [InlineData(ScriptMode.Backdrop)]
+    [InlineData(ScriptMode.Help)]
+    public void BackdropsAndTheHelpMenuOfferChoicesAgain(ScriptMode mode)
     {
         var run = Start(Shopkeeper(mode));
         run.Runner.Choose(0);
@@ -220,7 +223,7 @@ public class ScriptRunnerTests
     [Fact]
     public void EachLineCarriesTheSpeakerWhenItWasAdded()
     {
-        var run = Start(Shopkeeper(DialogueMode.Conversation));
+        var run = Start(Shopkeeper(ScriptMode.Conversation));
 
         Assert.Equal(Trahern, run.Runner.Page!.Line.Speaker);
         Assert.Equal([Alaron, Alaron], run.Runner.Page.Choices.Select(c => c.Speaker));
@@ -229,9 +232,25 @@ public class ScriptRunnerTests
     }
 
     [Fact]
+    public void ALineShowsUnderItsOwnNodesSpeakerAndANodeWithNoneShowsNone()
+    {
+        var run = Start(Script(ScriptMode.Conversation,
+            Spoken(0, Trahern, "Well met.", 1),
+            Line(1, "Indeed.", 2),
+            Spoken(2, Trahern, "Farewell.", null, End)));
+
+        Assert.Equal(Trahern, run.Runner.Page!.Line.Speaker);
+        run.Runner.Continue();
+        // The earlier speaker doesn't carry over to a node that names none.
+        Assert.Equal("Indeed.", Text(run.Runner));
+        Assert.Null(run.Runner.Page!.Line.Speaker);
+        Assert.Null(run.Runner.Speaker);
+    }
+
+    [Fact]
     public void ChoosingAChoiceItCannotLeaveEndsWithAFault()
     {
-        var run = Start(Script(DialogueMode.Conversation,
+        var run = Start(Script(ScriptMode.Conversation,
             Menu(0, "What'll it be?", [1]),
             Menu(1, "A menu as a choice.", [0])));
 
@@ -241,8 +260,8 @@ public class ScriptRunnerTests
         Assert.Contains("Invalid node to evaluate", run.Runner.Ending!.Fault);
     }
 
-    private static DialogueRecord Haggle() => Script(DialogueMode.Conversation,
-        Case(0, "How much have you got?", Op(DialogueCommand.CheckGold), 1, 2, 3),
+    private static ScriptRecord Haggle() => Script(ScriptMode.Conversation,
+        Case(0, "How much have you got?", new ScriptOp.CheckGold(), 1, 2, 3),
         Choice(1, "Nothing at all.", null, new(0, 0), End),
         Choice(2, "Some.", null, new(1, 99), End),
         Choice(3, "Plenty.", null, new(50, null), End));
@@ -286,9 +305,9 @@ public class ScriptRunnerTests
     [Fact]
     public void WalkingWaitsForTheRuntimeAndCountsFromTheScriptsReferencePoint()
     {
-        var run = Start(Script(DialogueMode.Cutscene,
-            Line(0, "Follow me.", 1, Op(DialogueCommand.SetSpeaker, target: Trahern), Op(DialogueCommand.RunTo, 4)),
-            Line(1, "Here we are.", null, End)), start: new ScriptStart(RefPoint: 20));
+        var run = Start(Script(ScriptMode.Cutscene,
+            Spoken(0, Trahern, "Follow me.", 1, new ScriptOp.ActorRunTo(Trahern, 4)),
+            Line(1, "Here we are.", null, End)), start: new ScriptStart(Marks: 20));
 
         run.Runner.Continue();
         Assert.Equal(ScriptStatus.Waiting, run.Runner.Status);
@@ -303,8 +322,8 @@ public class ScriptRunnerTests
     [Fact]
     public void AWaitCountsDownTicks()
     {
-        var run = Start(Script(DialogueMode.Cutscene,
-            Line(0, "", 1, Op(DialogueCommand.Wait, 10)),
+        var run = Start(Script(ScriptMode.Cutscene,
+            Line(0, "", 1, new ScriptOp.ScriptWait(10)),
             Line(1, "Done.", null, End)));
 
         Assert.Equal(ScriptWait.Timer, run.Runner.Wait);
@@ -322,12 +341,12 @@ public class ScriptRunnerTests
         // one animating; the port's fix plays the request as the line shows, once.
         var keeper = RecordId.Hex(RecordTypes.Entity, 0x0205);
         var key = RecordId.Hex(RecordTypes.Item, 0x1205);
-        var run = Start(Script(DialogueMode.Conversation,
-            Line(0, "I suppose I can understand your reluctance.", 1, Op(DialogueCommand.SetSpeaker, target: Alaron)),
-            Line(1, "Here... take the key.", 2, Op(DialogueCommand.SetSpeaker, target: keeper), Op(DialogueCommand.PlayAnimation, 19)),
-            Line(2, "Thank you.", 3, Op(DialogueCommand.SetSpeaker, target: Alaron), Op(DialogueCommand.PlayAnimation, 19)),
-            Line(3, "", 4, Op(DialogueCommand.AddItem, target: key)),
-            Line(4, "A secret?", null, Op(DialogueCommand.SetSpeaker, target: Alaron), End)));
+        var run = Start(Script(ScriptMode.Conversation,
+            Spoken(0, Alaron, "I suppose I can understand your reluctance.", 1),
+            Spoken(1, keeper, "Here... take the key.", 2, new ScriptOp.ActorAnimate(keeper, RecordIds.Request(19))),
+            Spoken(2, Alaron, "Thank you.", 3, new ScriptOp.ActorAnimate(Alaron, RecordIds.Request(19))),
+            Line(3, "", 4, new ScriptOp.PartyAddItem(key)),
+            Spoken(4, Alaron, "A secret?", null, End)));
 
         run.Runner.Continue();
         Assert.Equal("Here... take the key.", Text(run.Runner));
@@ -345,13 +364,13 @@ public class ScriptRunnerTests
     }
 
     [Fact]
-    public void AnAnimatedLineWithNoSpeakerOfItsOwnAsksTheOneTheBoxShows()
+    public void AnAnimatedLineAsksTheActorItNamesWhichIsTheOneTheBoxShows()
     {
-        // 0x037B's node 26, "Get out of my sight, worm!", sets no speaker: the Marquis, speaking from node 25, is asked.
+        // 0x037B's node 26, "Get out of my sight, worm!": the Marquis, speaking from node 25 and again here, is asked.
         var marquis = RecordId.Hex(RecordTypes.Entity, 0x0221);
-        var run = Start(Script(DialogueMode.Conversation,
-            Line(0, "Hmph.", 1, Op(DialogueCommand.SetSpeaker, target: marquis)),
-            Line(1, "Get out of my sight, worm!", null, Op(DialogueCommand.PlayAnimation, 5), End)));
+        var run = Start(Script(ScriptMode.Conversation,
+            Spoken(0, marquis, "Hmph.", 1),
+            Spoken(1, marquis, "Get out of my sight, worm!", null, new ScriptOp.ActorAnimate(marquis, RecordIds.Request(5)))));
 
         run.Runner.Continue();
         Assert.Equal("Get out of my sight, worm!", Text(run.Runner));
@@ -362,8 +381,8 @@ public class ScriptRunnerTests
     [Fact]
     public void ACutSceneAnimatesNoOneAsALineShows()
     {
-        var run = Start(Script(DialogueMode.Cutscene,
-            Line(0, "Watch this.", 1, Op(DialogueCommand.SetSpeaker, target: Trahern), Op(DialogueCommand.PlayAnimation, 5)),
+        var run = Start(Script(ScriptMode.Cutscene,
+            Spoken(0, Trahern, "Watch this.", 1, new ScriptOp.ActorAnimate(Trahern, RecordIds.Request(5))),
             Line(1, "Ta-da.", null, End)));
 
         Assert.Empty(run.Host.Cues);
@@ -378,8 +397,8 @@ public class ScriptRunnerTests
     [Fact]
     public void ACutSceneAnimatesOnlyActorsItHasSpawned()
     {
-        var script = Script(DialogueMode.Cutscene,
-            Line(0, "", 1, Op(DialogueCommand.SetSpeaker, target: Trahern), Op(DialogueCommand.CreateActor, 2), Op(DialogueCommand.PlayAnimation, 5)),
+        var script = Script(ScriptMode.Cutscene,
+            Line(0, "", 1, new ScriptOp.ActorSpawn(Trahern, 2), new ScriptOp.ActorAnimate(Trahern, RecordIds.Request(5))),
             Line(1, "Ta-da.", null, End)) with { Actors = [Trahern] };
 
         var run = Start(script);
@@ -389,13 +408,14 @@ public class ScriptRunnerTests
         Assert.Equal(ScriptWait.Animation, run.Runner.Wait);
     }
 
-    private static DialogueRecord RumourScript(int blankNodes) => new(Rumours, 900, DialogueMode.Conversation,
+    private static ScriptRecord RumourScript() => new(Rumours, 900, ScriptMode.Conversation,
     [
         Line(0, "First rumour.", 1), Line(1, "Second rumour.", 2), Line(2, "Third rumour.", null, End),
-    ], BlankNodes: blankNodes);
+    ]);
 
-    private static DialogueRecord Gossip() => Script(DialogueMode.Conversation,
-        Line(0, "", 1, Op(DialogueCommand.RandomLine, target: Rumours)),
+    /// <summary>A line of the rumours; <paramref name="blankNodes"/> is 1 where the rumours ended with a blank node, which counts as the first.</summary>
+    private static ScriptRecord Gossip(int blankNodes = 0) => Script(ScriptMode.Conversation,
+        Line(0, "", 1, new ScriptOp.ScriptRandomLine(Rumours, blankNodes == 0 ? null : 1 + blankNodes)),
         Line(1, "That's all I know.", null, End));
 
     [Theory]
@@ -408,7 +428,7 @@ public class ScriptRunnerTests
     [InlineData(75, 1, "First rumour.")]
     public void ARandomLineIsPickedByARollOfTheOtherScriptsNodes(int roll, int blankNodes, string expected)
     {
-        var run = Start(Gossip(), random: new ScriptedRandom(Draw(roll, 101)), others: [RumourScript(blankNodes)]);
+        var run = Start(Gossip(blankNodes), random: new ScriptedRandom(Draw(roll, 101)), others: [RumourScript()]);
 
         Assert.Equal(expected, Text(run.Runner));
         Assert.Equal(ScriptWait.Player, run.Runner.Wait);
@@ -421,16 +441,16 @@ public class ScriptRunnerTests
     {
         var world = new World();
         var start = new ScriptStart(MapObject: Chest);
-        var first = Start(Gossip(), world, new ScriptedRandom(Draw(40, 101)), start, others: [RumourScript(0)]);
-        var again = Start(Gossip(), world, new ScriptedRandom(Draw(90, 101)), start, others: [RumourScript(0)]);
+        var first = Start(Gossip(), world, new ScriptedRandom(Draw(40, 101)), start, others: [RumourScript()]);
+        var again = Start(Gossip(), world, new ScriptedRandom(Draw(90, 101)), start, others: [RumourScript()]);
 
         Assert.Equal("Second rumour.", Text(first.Runner));
         Assert.Equal("Second rumour.", Text(again.Runner));
         Assert.Equal(40, world.Memory[new Memory(Chest, MemoryKind.RandomLine)]);
     }
 
-    private static DialogueRecord LockPicking(int skill) => Script(DialogueMode.Conversation,
-        Case(0, "A lock.", Op(DialogueCommand.CheckSkill, skill), 1, 2),
+    private static ScriptRecord LockPicking(int skill) => Script(ScriptMode.Conversation,
+        Case(0, "A lock.", new ScriptOp.CheckSkill(RecordIds.Skill(skill)), 1, 2),
         Choice(1, "Too hard.", null, new(0, 4), End),
         Choice(2, "It opens.", null, new(5, null), End));
 
@@ -470,10 +490,10 @@ public class ScriptRunnerTests
     }
 
     [Theory]
-    [InlineData(DialogueMode.Cutscene, true)]
-    [InlineData(DialogueMode.Backdrop, true)]
-    [InlineData(DialogueMode.Conversation, false)]
-    public void ScriptsWithADoneFlagSetItWhenTheyEnd(DialogueMode mode, bool set)
+    [InlineData(ScriptMode.Cutscene, true)]
+    [InlineData(ScriptMode.Backdrop, true)]
+    [InlineData(ScriptMode.Conversation, false)]
+    public void ScriptsWithADoneFlagSetItWhenTheyEnd(ScriptMode mode, bool set)
     {
         var script = Script(mode, Line(0, "The end.", null, End)) with { DoneFlag = set ? Flag(4) : null };
         var run = Start(script);
@@ -486,7 +506,7 @@ public class ScriptRunnerTests
     [Fact]
     public void SkippingEndsTheScriptAndSetsItsDoneFlag()
     {
-        var script = Script(DialogueMode.Cutscene, Line(0, "A long scene.", 1), Line(1, "Still going.", null, End)) with { DoneFlag = Flag(4) };
+        var script = Script(ScriptMode.Cutscene, Line(0, "A long scene.", 1), Line(1, "Still going.", null, End)) with { DoneFlag = Flag(4) };
         var run = Start(script);
 
         run.Runner.Skip();
@@ -495,13 +515,13 @@ public class ScriptRunnerTests
     }
 
     [Theory]
-    [InlineData(DialogueMode.Cutscene, false)]
-    [InlineData(DialogueMode.Conversation, true)]
-    public void ABattleEndsTheScriptWithItsEnemies(DialogueMode mode, bool canFlee)
+    [InlineData(ScriptMode.Cutscene, false)]
+    [InlineData(ScriptMode.Conversation, true)]
+    public void ABattleEndsTheScriptWithItsEnemies(ScriptMode mode, bool canFlee)
     {
         var script = Script(mode,
-            Line(0, "Get them!", null, Op(DialogueCommand.AddEnemy, target: Goblin), Op(DialogueCommand.AddEnemy, target: Goblin),
-                Op(DialogueCommand.SetBattlefield, 30), Op(DialogueCommand.SetCollideByte, 2), Op(DialogueCommand.Battle)))
+            Line(0, "Get them!", null, new ScriptOp.BattleAddEnemy(Goblin), new ScriptOp.BattleAddEnemy(Goblin),
+                new ScriptOp.BattleArena(30), new ScriptOp.BattleCollisionByte(2), new ScriptOp.BattleStart()))
             with { BattleFlag = Flag(6) };
         var run = Start(script);
         run.Runner.Continue();
@@ -520,8 +540,8 @@ public class ScriptRunnerTests
     [Fact]
     public void AThirteenthEnemyEndsWithAFault()
     {
-        var ops = Enumerable.Repeat(Op(DialogueCommand.AddEnemy, target: Goblin), 4).ToArray();
-        var run = Start(Script(DialogueMode.Cutscene,
+        var ops = Enumerable.Repeat<ScriptOp>(new ScriptOp.BattleAddEnemy(Goblin), 4).ToArray();
+        var run = Start(Script(ScriptMode.Cutscene,
             Line(0, "", 1, ops), Line(1, "", 2, ops), Line(2, "", 3, ops), Line(3, "One too many.", null, ops)));
 
         Assert.Contains("Too many monsters", run.Runner.Ending!.Fault);
@@ -530,7 +550,7 @@ public class ScriptRunnerTests
     [Fact]
     public void ALineWithNoWayOnEndsWithAFault()
     {
-        var run = Start(Script(DialogueMode.Cutscene, Line(0, "Dougal's line.", null)));
+        var run = Start(Script(ScriptMode.Cutscene, Line(0, "Dougal's line.", null)));
 
         run.Runner.Continue();
         Assert.Contains("no menu to go back to", run.Runner.Ending!.Fault);
@@ -539,9 +559,9 @@ public class ScriptRunnerTests
     [Fact]
     public void GoldIsOnlyTakenIfThePartyHasEnough()
     {
-        var script = Script(DialogueMode.Conversation,
-            Line(0, "That'll be 50.", 1, Op(DialogueCommand.TakeGold, 50)),
-            Line(1, "And 50 back.", null, Op(DialogueCommand.AddGold, 50)));
+        var script = Script(ScriptMode.Conversation,
+            Line(0, "That'll be 50.", 1, new ScriptOp.PartyTakeGold(50)),
+            Line(1, "And 50 back.", null, new ScriptOp.PartyAddGold(50)));
         var poor = Start(script, new World { Gold = 40 });
         var rich = Start(script, new World { Gold = 60 });
 
@@ -555,7 +575,7 @@ public class ScriptRunnerTests
     [Fact]
     public void ACampHealRestsEightHoursAndACampSceneEightMore()
     {
-        var script = Script(DialogueMode.Conversation, Line(0, "Rest now.", null, Op(DialogueCommand.CampHeal)));
+        var script = Script(ScriptMode.Conversation, Line(0, "Rest now.", null, new ScriptOp.PartyCampHeal()));
         var heal = Start(script);
         var campScene = Start(script with { Rest = true });
         heal.Runner.Continue();
@@ -570,8 +590,8 @@ public class ScriptRunnerTests
     [Fact]
     public void RecruitingInAConversationSendsThePartnerAway()
     {
-        var run = Start(Script(DialogueMode.Conversation,
-            Line(0, "I'll join you.", 1, Op(DialogueCommand.AddMember, target: Trahern)),
+        var run = Start(Script(ScriptMode.Conversation,
+            Line(0, "I'll join you.", 1, new ScriptOp.PartyAddMember(Trahern)),
             Line(1, "Let's go.", null, End)));
         run.Runner.Continue();
         run.Runner.Continue();
@@ -583,8 +603,8 @@ public class ScriptRunnerTests
     [Fact]
     public void ExperienceGoesToTheSpeakerIfTheyAreAMember()
     {
-        var script = Script(DialogueMode.Conversation,
-            Line(0, "Well done.", 1, Op(DialogueCommand.SetSpeaker, target: Alaron), Op(DialogueCommand.AddExp, 100)),
+        var script = Script(ScriptMode.Conversation,
+            Spoken(0, Alaron, "Well done.", 1, new ScriptOp.PartyAddExp(Alaron, 100)),
             Line(1, "Thanks.", null, End));
         var member = Start(script, new World { Members = { Alaron } });
         var stranger = Start(script);
@@ -599,8 +619,8 @@ public class ScriptRunnerTests
     [Fact]
     public void ResettingVisitedOffersEveryChoiceAgain()
     {
-        var script = Script(DialogueMode.Conversation,
-            Menu(0, "What'll it be?", [1, 2], Op(DialogueCommand.ResetVisited)),
+        var script = Script(ScriptMode.Conversation,
+            Menu(0, "What'll it be?", [1, 2], null, new ScriptOp.ScriptResetChoices()),
             Line(1, "Tell me again.", 3),
             Line(2, "Goodbye.", null, End),
             Line(3, "All right.", null));
@@ -613,25 +633,25 @@ public class ScriptRunnerTests
     }
 
     [Fact]
-    public void CamerasFrameFromTheSpeakerAndTakeTheCameraTime()
+    public void CamerasTakeTheCameraTimeAndCountMarksFromTheScriptsFirst()
     {
-        var run = Start(Script(DialogueMode.Cutscene,
-            Line(0, "Look.", null, Op(DialogueCommand.SetSpeaker, target: Trahern), Op(DialogueCommand.CameraTime, 90),
-                Op(DialogueCommand.CameraCutTo, 3), Op(DialogueCommand.CameraPanTo, 4), Op(DialogueCommand.CameraOnActor, target: Alaron))),
-            start: new ScriptStart(RefPoint: 10));
+        var run = Start(Script(ScriptMode.Cutscene,
+            Spoken(0, Trahern, "Look.", null, new ScriptOp.CameraTime(90),
+                new ScriptOp.CameraCutTo { Mark = 3 }, new ScriptOp.CameraTurnTo { Mark = 4 }, new ScriptOp.CameraLookAt { Actor = Alaron })),
+            start: new ScriptStart(Marks: 10));
 
         Assert.Equal(
         [
-            new CameraCue(DialogueCommand.CameraCutTo, 13, null, Trahern, 1),
-            new CameraCue(DialogueCommand.CameraPanTo, 14, null, Trahern, 90),
-            new CameraCue(DialogueCommand.CameraOnActor, null, Alaron, Trahern, 1),
+            new CameraCue(CameraShot.CutTo, 13, null, 1),
+            new CameraCue(CameraShot.TurnTo, 14, null, 90),
+            new CameraCue(CameraShot.LookAt, null, Alaron, 1),
         ], run.Host.Cues);
     }
 
     [Fact]
     public void ThePagesLineLosesItsLeadingSpacesButChoicesKeepTheirs()
     {
-        var run = Start(Script(DialogueMode.Sign,
+        var run = Start(Script(ScriptMode.Sign,
             Menu(0, "   The crossroads.", [1]),
             Line(1, "  Lonely Mountain", null, End)));
 
@@ -642,9 +662,9 @@ public class ScriptRunnerTests
     [Fact]
     public void ItemsAreTakenAndGiven()
     {
-        var run = Start(Script(DialogueMode.Conversation,
-            If(0, Op(DialogueCommand.CheckItem, target: Sword), 1, 2),
-            Line(1, "My sword! Here's a reward.", 3, Op(DialogueCommand.TakeItem, target: Sword)),
+        var run = Start(Script(ScriptMode.Conversation,
+            If(0, new ScriptOp.CheckItem(Sword), 1, 2),
+            Line(1, "My sword! Here's a reward.", 3, new ScriptOp.PartyTakeItem(Sword)),
             Line(2, "No sword?", null, End),
             Line(3, "Thanks.", null, End)), new World { Items = { Sword } });
 

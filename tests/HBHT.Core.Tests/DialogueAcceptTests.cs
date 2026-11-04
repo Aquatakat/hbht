@@ -13,7 +13,7 @@ public class DialogueAcceptTests
 {
     private static readonly RecordId Player = RecordId.Hex(RecordTypes.Entity, 0x023F);
     private static readonly RecordId Trahern = RecordId.Hex(RecordTypes.Entity, 0x0239);
-    private static readonly RecordId Rumours = RecordId.Hex(RecordTypes.Dialogue, 0x0325);
+    private static readonly RecordId Rumours = RecordId.Hex(RecordTypes.Script, 0x0325);
 
     private sealed class World : IScriptWorld
     {
@@ -45,44 +45,42 @@ public class DialogueAcceptTests
         public void Cue(ScriptCue cue) { }
     }
 
-    private static DialogueNode Line(int index, string text, int? link = null, params DialogueOp[] ops) =>
-        new(index, DialogueNodeKind.Line, text, ops.Length == 0 ? null : ops, link is { } l ? [l] : null);
+    private static ScriptNode Line(int index, string text, int? link = null, RecordId? speaker = null, params ScriptOp[] ops) =>
+        ScriptNodes.Line(index, text, link, speaker, ops);
 
-    private static DialogueNode Menu(int index, string text, int[] links, params DialogueOp[] ops) =>
-        new(index, DialogueNodeKind.Menu, text, ops.Length == 0 ? null : ops, links);
+    private static ScriptNode Menu(int index, string text, int[] links, RecordId? speaker = null, params ScriptOp[] ops) =>
+        ScriptNodes.Node(index, ScriptNodeKind.Menu, text, links, speaker, ops);
 
-    private static DialogueOp Op(DialogueCommand command, int? value = null, RecordId? target = null) => new(command, value, target);
+    private static readonly ScriptOp End = new ScriptOp.ScriptEnd();
 
-    private static readonly DialogueOp End = Op(DialogueCommand.EndDialogue);
-
-    private static DialogueRecord Script(params DialogueNode[] nodes) =>
-        new(RecordId.Hex(RecordTypes.Dialogue, 0x0400), 1234, DialogueMode.Conversation, nodes);
+    private static ScriptRecord Script(params ScriptNode[] nodes) =>
+        new(RecordId.Hex(RecordTypes.Script, 0x0400), 1234, ScriptMode.Conversation, nodes);
 
     /// <summary>A menu from Trahern whose choices are his too, so its line shows alone first, then a choice that goes on and one that ends.</summary>
-    private static readonly DialogueRecord Alone = Script(
-        Menu(0, "Well?", [1, 2], Op(DialogueCommand.SetSpeaker, target: Trahern)),
-        Line(1, "Yes.", 3),
-        Line(2, "No.", null, End),
-        Line(3, "Then go.", null, End));
+    private static readonly ScriptRecord Alone = Script(
+        Menu(0, "Well?", [1, 2], Trahern),
+        Line(1, "Yes.", 3, Trahern),
+        Line(2, "No.", null, Trahern, End),
+        Line(3, "Then go.", null, Trahern, End));
 
     /// <summary>A menu whose choices are Alaron's, so its line and choices show together.</summary>
-    private static readonly DialogueRecord Together = Script(
-        Menu(0, "Well?", [1, 2], Op(DialogueCommand.SetSpeaker, target: Trahern)),
-        Line(1, "Yes.", 3, Op(DialogueCommand.SetSpeaker, target: Player)),
-        Line(2, "No.", null, Op(DialogueCommand.SetSpeaker, target: Player), End),
-        Line(3, "Then go.", null, End));
+    private static readonly ScriptRecord Together = Script(
+        Menu(0, "Well?", [1, 2], Trahern),
+        Line(1, "Yes.", 3, Player),
+        Line(2, "No.", null, Player, End),
+        Line(3, "Then go.", null, Player, End));
 
-    private static readonly DialogueRecord Plain = Script(
+    private static readonly ScriptRecord Plain = Script(
         Line(0, "Hello.", 1),
-        Line(1, "Goodbye.", null, End));
+        Line(1, "Goodbye.", null, null, End));
 
-    private static readonly DialogueRecord Gossip = Script(
-        Line(0, "", 1, Op(DialogueCommand.RandomLine, target: Rumours)),
-        Line(1, "That's all I know.", null, End));
+    private static readonly ScriptRecord Gossip = Script(
+        Line(0, "", 1, Trahern, new ScriptOp.ScriptRandomLine(Rumours)),
+        Line(1, "That's all I know.", null, Trahern, End));
 
-    private static readonly DialogueRecord RumourScript = new(Rumours, 1, DialogueMode.Conversation, [Line(0, "A rumour.", null, End)]);
+    private static readonly ScriptRecord RumourScript = new(Rumours, 1, ScriptMode.Conversation, [Line(0, "A rumour.", null, Trahern, End)]);
 
-    private static (ScriptRunner Runner, DialogueBox Box) Open(DialogueRecord script)
+    private static (ScriptRunner Runner, DialogueBox Box) Open(ScriptRecord script)
     {
         var flags = new FlagNetwork(Enumerable.Range(0, 10).Select(i => new FlagRecord(RecordId.Decimal(RecordTypes.Flag, i), Initial: false)),
             RecordId.Decimal(RecordTypes.Flag, 9));

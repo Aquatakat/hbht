@@ -282,8 +282,8 @@ public sealed class TrekLoopTests(Na10Import fixture)
     public void ASignStopsTheClockAndTheWanderersButNotTheWorld()
     {
         var (trek, host) = Start();
-        var (_, record, sign) = Data.Of<DialogueObject>()
-            .First(d => Data.Set.TryGet<DialogueRecord>(d.Object.Script) is { Mode: DialogueMode.Sign });
+        var (_, record, sign) = Data.Of<ScriptObject>()
+            .First(d => Data.Set.TryGet<ScriptRecord>(d.Object.Plays) is { Mode: ScriptMode.Sign });
         var map = LoadedMap.Activate(record, Worlds.Chunk(), trek.Game.Flags, trek.Game.Memory, trek.Game.Party, new Lcg());
 
         ((IMapObjectHost)trek).StartScript(map, sign);
@@ -318,11 +318,11 @@ public sealed class TrekLoopTests(Na10Import fixture)
     public void ACueFadesTrekOutThenItsWorldGoesForTheCutSceneAndComesBackAfter()
     {
         var (trek, _) = Start();
-        var (id, map, dialogue) = Data.Of<DialogueObject>()
-            .First(d => Data.Set.TryGet<DialogueRecord>(d.Object.Script) is { Mode: DialogueMode.Cutscene } && d.Object.Stage is not null);
-        var script = Data.Set.Get<DialogueRecord>(dialogue.Script);
+        var (id, map, dialogue) = Data.Of<ScriptObject>()
+            .First(d => Data.Set.TryGet<ScriptRecord>(d.Object.Plays) is { Mode: ScriptMode.Cutscene } && d.Object.Stage is not null);
+        var script = Data.Set.Get<ScriptRecord>(dialogue.Plays);
 
-        trek.Cue(script, new ScriptStart(dialogue.RefPointBase, id), dialogue.Stage!);
+        trek.Cue(script, new ScriptStart(dialogue.Marks, id), dialogue.Stage!);
         var ticks = 0;
         while (trek.Tick(NotRead) == TrekStep.Ran)
             Assert.InRange(++ticks, 1, 60);
@@ -359,9 +359,9 @@ public sealed class TrekLoopTests(Na10Import fixture)
         }
         Assert.True(trek.Zone.WeatherSounds.RainPlaying && weather.SkyOverridden && weather.Emitting);
         var loops = weather.RainLoopStarts;
-        var (id, _, dialogue) = Data.Of<DialogueObject>()
-            .First(d => Data.Set.TryGet<DialogueRecord>(d.Object.Script) is { Mode: DialogueMode.Cutscene } && d.Object.Stage is not null);
-        trek.Cue(Data.Set.Get<DialogueRecord>(dialogue.Script), new ScriptStart(dialogue.RefPointBase, id), dialogue.Stage!);
+        var (id, _, dialogue) = Data.Of<ScriptObject>()
+            .First(d => Data.Set.TryGet<ScriptRecord>(d.Object.Plays) is { Mode: ScriptMode.Cutscene } && d.Object.Stage is not null);
+        trek.Cue(Data.Set.Get<ScriptRecord>(dialogue.Plays), new ScriptStart(dialogue.Marks, id), dialogue.Stage!);
         while (trek.Tick(Still) == TrekStep.Ran)
             particles.Step();
         var before = weather.FallIntensity;

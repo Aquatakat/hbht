@@ -12,7 +12,7 @@ using HBHT.Plugins.Records;
 namespace HBHT.Rom.Tests;
 
 /// <summary>
-/// The Fire Lord's scene at the end of Shamsuk's Tower (<c>aidyn:dialogue/0x048F</c>), played with its actors' real animations: he
+/// The Fire Lord's scene at the end of Shamsuk's Tower (<c>aidyn:script/0x048F</c>), played with its actors' real animations: he
 /// dies at node 221, and Niesen at 230 (Rheda in the party) or 237 (not), and both lie at their deaths' last frames to the end.
 /// </summary>
 public sealed partial class GameSessionTests

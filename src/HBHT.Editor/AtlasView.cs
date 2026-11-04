@@ -248,7 +248,7 @@ public partial class AtlasView : VBoxContainer
         var color = key.Type switch
         {
             RecordTypes.Flag => _catalog!.Plugins.TryGet<FlagRecord>(key)?.Formula is null ? new Color(0.88f, 0.69f, 0.29f) : new Color(0.77f, 0.54f, 0.94f),
-            RecordTypes.Dialogue => new Color(0.44f, 0.66f, 1f),
+            RecordTypes.Script => new Color(0.44f, 0.66f, 1f),
             RecordTypes.Voxel => new Color(0.49f, 0.81f, 0.54f),
             RecordTypes.Journal => new Color(0.9f, 0.9f, 0.9f),
             _ => new Color(0.6f, 0.62f, 0.67f),
@@ -281,7 +281,7 @@ public partial class AtlasView : VBoxContainer
     private string Title(RecordId key) => key.Type switch
     {
         RecordTypes.Flag => $"Flag {key.Key}",
-        RecordTypes.Dialogue => $"Script {key.Key}",
+        RecordTypes.Script => $"Script {key.Key}",
         RecordTypes.Voxel => $"Object {key.Key}",
         RecordTypes.Journal => $"Journal {key.Key}",
         _ => key.ToString(),

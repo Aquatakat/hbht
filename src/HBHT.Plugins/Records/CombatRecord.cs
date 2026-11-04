@@ -20,7 +20,7 @@ namespace HBHT.Plugins.Records;
 /// no victory line, and what happens after it however it ends.
 /// </param>
 /// <param name="GameOver">
-/// What a lost battle plays (<c>Combat.StartGameOverScript</c>, <c>0x8001F860</c>): the script, from the first dialogue
+/// What a lost battle plays (<c>Combat.StartGameOverScript</c>, <c>0x8001F860</c>): the script, from the first script
 /// object that starts it in the map. With none, a lost battle ends the game at once.
 /// </param>
 /// <param name="Text">
@@ -73,7 +73,7 @@ public sealed record ShadowBoost(IReadOnlyList<StatGain> Stats, int Protection, 
 /// <summary>A stat (<c>aidyn:stat/n</c>) raised by so much.</summary>
 public sealed record StatGain(RecordId Stat, int Amount);
 
-/// <summary>The game over: <paramref name="Script"/>, started from its dialogue object in <paramref name="Map"/> (the Dreamscape's).</summary>
+/// <summary>The game over: <paramref name="Script"/>, started from its script object in <paramref name="Map"/> (the Dreamscape's).</summary>
 public sealed record GameOverScene(RecordId Map, RecordId Script);
 
 /// <summary>

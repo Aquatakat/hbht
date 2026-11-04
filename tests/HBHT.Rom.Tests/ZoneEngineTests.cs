@@ -202,11 +202,11 @@ public sealed class ZoneEngineTests(Na10Import fixture)
         // The script's cameras keep their place by the game's ticker, which the runtime counts once a tick before the
         // cut-scene steps, and which a headless run leaves alone: both play every move alike, as a move is stepped every tick.
         var played = 0;
-        foreach (var (_, map, dialogue) in Data.Of<DialogueObject>().Where(d => d.Object.Stage is not null
-            && Data.Set.TryGet<DialogueRecord>(d.Object.Script) is { Mode: DialogueMode.Cutscene }).Take(40))
+        foreach (var (_, map, dialogue) in Data.Of<ScriptObject>().Where(d => d.Object.Stage is not null
+            && Data.Set.TryGet<ScriptRecord>(d.Object.Plays) is { Mode: ScriptMode.Cutscene }).Take(40))
         {
-            var script = Data.Set.Get<DialogueRecord>(dialogue.Script);
-            var start = new ScriptStart(dialogue.RefPointBase, MapRecord.VoxelId(map.Id, dialogue.Index));
+            var script = Data.Set.Get<ScriptRecord>(dialogue.Plays);
+            var start = new ScriptStart(dialogue.Marks, MapRecord.VoxelId(map.Id, dialogue.Index));
             var stage = CutSceneStage.For(Data.Set, dialogue.Stage!, new CollisionWorld())!;
             var streamer = new ChunkStreamer(Data.Set, GameState.NewGame(Data.Set), stage.World, stage.Set);
             streamer.Update(stage.Origin + new Vector3(stage.Set.CellSize / 2, 0, stage.Set.CellSize / 2));

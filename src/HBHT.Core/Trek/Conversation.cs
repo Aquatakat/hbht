@@ -21,7 +21,7 @@ namespace HBHT.Core.Trek;
 /// turns to face the other. The camera frames the two (<see cref="FollowCamera.Frame"/>). Each
 /// press moves the script on and asks the speaker for its talking for a tick (<see cref="SpeakerTalk"/>):
 /// Alaron for his lines, and the wanderer for anyone else's, unless the script played an animation itself.
-/// A line that plays one (<see cref="DialogueCommand.PlayAnimation"/>) asks the same body for its request
+/// A line that plays one (<see cref="ScriptOp.ActorAnimate"/>) asks the same body for its request
 /// as it shows, in place of the talk, if the speaker's actor has a state for it; if not, the speaker talks.
 /// That's the port's fix: in 1.0 the line's speaker talks, nobody plays the request, and the line shows
 /// again until A (docs/systems/scripts.md).
@@ -37,7 +37,7 @@ public sealed class Conversation
     private readonly PluginSet _plugins;
     private readonly Watch _host;
 
-    private Conversation(GameState game, DialogueRecord script, ScriptStart start, IScriptHost host, PlayerMotion player, Wanderer? with)
+    private Conversation(GameState game, ScriptRecord script, ScriptStart start, IScriptHost host, PlayerMotion player, Wanderer? with)
     {
         _player = player;
         _plugins = game.Plugins;
@@ -64,7 +64,7 @@ public sealed class Conversation
     /// Whether the script shows its page over a picture, a backdrop or the help menu, rather than in the
     /// conversation box. The world stops under it, as under the pause menu.
     /// </summary>
-    public bool ShowsBackdrop => Runner.Script.Mode is DialogueMode.Backdrop or DialogueMode.Help;
+    public bool ShowsBackdrop => Runner.Script.Mode is ScriptMode.Backdrop or ScriptMode.Help;
 
     /// <summary>
     /// Whether trek's world is rebuilt when the script ends, as it is for a cut-scene, a backdrop or the
@@ -74,7 +74,7 @@ public sealed class Conversation
     /// party is still there starts again at its home node. That's what takes a recruit away whose
     /// cut-scene added them. A conversation or a sign stays in trek, and nothing is gated again.
     /// </summary>
-    public bool RebuildsTrek => Runner.Script.Mode is DialogueMode.Cutscene or DialogueMode.Backdrop or DialogueMode.Help;
+    public bool RebuildsTrek => Runner.Script.Mode is ScriptMode.Cutscene or ScriptMode.Backdrop or ScriptMode.Help;
 
     /// <summary>
     /// Talks to a wanderer (<c>monsterpary_func</c>, <c>monsterparty_wanderstruct</c>): its party's
@@ -85,7 +85,7 @@ public sealed class Conversation
     public static Conversation? TalkTo(GameState game, Wanderer wanderer, IScriptHost host, PlayerMotion player)
     {
         var party = wanderer.Party;
-        if (party.Dialogue is not { } id || (party.Flags & PartyFlags.Silent) != 0 || game.Plugins.TryGet<DialogueRecord>(id) is not { } script)
+        if (party.Script is not { } id || (party.Flags & PartyFlags.Silent) != 0 || game.Plugins.TryGet<ScriptRecord>(id) is not { } script)
             return null;
         var conversation = new Conversation(game, script, new ScriptStart(0, MapRecord.VoxelId(wanderer.Map.Record.Id, party.Index)), host,
             player, wanderer);
@@ -104,7 +104,7 @@ public sealed class Conversation
     /// Runs a script with no one to talk to, as a sign does (<c>dialouge_vobject_func</c> with a sign's
     /// script): the box shows, and the player stands.
     /// </summary>
-    public static Conversation Show(GameState game, DialogueRecord script, ScriptStart start, IScriptHost host, PlayerMotion player)
+    public static Conversation Show(GameState game, ScriptRecord script, ScriptStart start, IScriptHost host, PlayerMotion player)
     {
         var conversation = new Conversation(game, script, start, host, player, null);
         conversation.Runner.Start();

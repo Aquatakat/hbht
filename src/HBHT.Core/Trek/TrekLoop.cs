@@ -592,7 +592,7 @@ public sealed partial class TrekLoop : IMapObjectHost
     {
         if (page.Closing || Conversation?.Runner is not { Status: ScriptStatus.Showing, Page: { } shown } runner)
             return PressOutcome.Ignored;
-        var back = action == MenuAction.Back && runner.Script.Mode == DialogueMode.Help;
+        var back = action == MenuAction.Back && runner.Script.Mode == ScriptMode.Help;
         if (action == MenuAction.Accept || back)
         {
             DialogueBox.Advance(runner, back ? shown.Choices.Count - 1 : page.Highlight);
@@ -826,12 +826,12 @@ public sealed partial class TrekLoop : IMapObjectHost
 
         Game.Flags.TrySet(rules.Checking, true);
         var map = Chunks.MapAt(at);
-        var scene = map?.Record.Objects.OfType<DialogueObject>().FirstOrDefault(d =>
+        var scene = map?.Record.Objects.OfType<ScriptObject>().FirstOrDefault(d =>
             d.Enabled is { } gate && rules.Scenes.Contains(gate.Flag) && Game.Flags.Holds(gate));
         Game.Flags.TrySet(rules.Checking, false);
         RecordId? source = scene is not null ? MapRecord.VoxelId(map!.Record.Id, scene.Index) : null;
         if (scene is null && Game.Plugins.TryGet<MapRecord>(rules.Campsite) is { } campsite
-            && campsite.Objects.OfType<DialogueObject>().FirstOrDefault() is { } fire)
+            && campsite.Objects.OfType<ScriptObject>().FirstOrDefault() is { } fire)
         {
             scene = fire;
             source = MapRecord.VoxelId(campsite.Id, fire.Index);
@@ -856,7 +856,7 @@ public sealed partial class TrekLoop : IMapObjectHost
     }
 
     /// <inheritdoc cref="Cue(CutSceneLaunch)"/>
-    public void Cue(DialogueRecord script, ScriptStart start, ChunkRef stage) => Cue(new CutSceneLaunch(script, start, stage));
+    public void Cue(ScriptRecord script, ScriptStart start, ChunkRef stage) => Cue(new CutSceneLaunch(script, start, stage));
 
     /// <summary>
     /// Asks for a battle (<c>TrekLoop.QueueState(2)</c>, <c>0x8001FF04</c>): trek fades out as into a cut-scene, and
@@ -997,15 +997,15 @@ public sealed partial class TrekLoop : IMapObjectHost
         TeleportFade.Out(TeleportFadeOutPerTick);
     }
 
-    void IMapObjectHost.StartScript(LoadedMap map, DialogueObject dialogue)
+    void IMapObjectHost.StartScript(LoadedMap map, ScriptObject dialogue)
     {
         // One script at a time (dialoug_func).
         if (Conversation is not null)
             return;
         var source = MapRecord.VoxelId(map.Record.Id, dialogue.Index);
-        if (Game.Plugins.TryGet<DialogueRecord>(dialogue.Script) is { Mode: DialogueMode.Sign } sign)
+        if (Game.Plugins.TryGet<ScriptRecord>(dialogue.Plays) is { Mode: ScriptMode.Sign } sign)
         {
-            Conversation = Conversation.Show(Game, sign, new ScriptStart(dialogue.RefPointBase, source), _host, Player);
+            Conversation = Conversation.Show(Game, sign, new ScriptStart(dialogue.Marks, source), _host, Player);
             Refresh();
             return;
         }
@@ -1014,16 +1014,16 @@ public sealed partial class TrekLoop : IMapObjectHost
             Cue(launch);
             return;
         }
-        if (Game.Plugins.TryGet<DialogueRecord>(dialogue.Script) is { Mode: DialogueMode.Backdrop or DialogueMode.Help } backdrop)
+        if (Game.Plugins.TryGet<ScriptRecord>(dialogue.Plays) is { Mode: ScriptMode.Backdrop or ScriptMode.Help } backdrop)
         {
-            ShowBackdrop(backdrop, new ScriptStart(dialogue.RefPointBase, source));
+            ShowBackdrop(backdrop, new ScriptStart(dialogue.Marks, source));
             return;
         }
         // A tangible dialogue asks every tick, so say it once.
-        if (_lastScript == dialogue.Script)
+        if (_lastScript == dialogue.Plays)
             return;
-        _lastScript = dialogue.Script;
-        _host.Transition(new Transition.Say($"{dialogue.Name} would start {dialogue.Script}."));
+        _lastScript = dialogue.Plays;
+        _host.Transition(new Transition.Say($"{dialogue.Name} would start {dialogue.Plays}."));
     }
 
     /// <summary>
@@ -1031,7 +1031,7 @@ public sealed partial class TrekLoop : IMapObjectHost
     /// which stops under it as under the pause menu, and trek is rebuilt once it ends (<see cref="Conversation.RebuildsTrek"/>).
     /// One script at a time.
     /// </summary>
-    public void ShowBackdrop(DialogueRecord script, ScriptStart? start = null)
+    public void ShowBackdrop(ScriptRecord script, ScriptStart? start = null)
     {
         if (Conversation is not null)
             return;
@@ -1043,7 +1043,7 @@ public sealed partial class TrekLoop : IMapObjectHost
     {
         if (Conversation is not null || Wanderers.Of(map, party) is not { } wanderer)
             return;
-        if (party.Dialogue is null)
+        if (party.Script is null)
         {
             CueBattle(Battle(BattleSource.MonsterParty, map, party, ambush: false)
                 with { CollisionByte = TalkByte(wanderer.Body.Sphere.Position, wanderer.Body.Heading, Player.Sphere.Position) });
@@ -1051,7 +1051,7 @@ public sealed partial class TrekLoop : IMapObjectHost
         }
         // A talker whose script is a cut-scene stages it in the chunk the player is in, from reference
         // point 0 (monsterpary_func), and holds still as trek fades out.
-        if (Game.Plugins.TryGet<DialogueRecord>(party.Dialogue.Value) is { Mode: DialogueMode.Cutscene } cutscene)
+        if (Game.Plugins.TryGet<ScriptRecord>(party.Script.Value) is { Mode: ScriptMode.Cutscene } cutscene)
         {
             if ((party.Flags & PartyFlags.Silent) != 0 || Chunks.ChunkAt(Player.Sphere.Position) is not { } chunk)
                 return;

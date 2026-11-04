@@ -210,7 +210,7 @@ One shape runs through them all: the best member (or the living pooled) rolls a 
 | What | Port | 1.0 | Needs |
 | --- | --- | --- | --- |
 | Wanderers: a hunter notices at Perception × (1 − fog × 0.75), × 1.5 running, × 0.6 × sneak sneaking, × 0.55 × sneak otherwise, gives up past 2 × Perception, stands 300 ticks, runs to within 2 and ambushes within 7; a talker faces the player within 3; sneak is 1 − min(best Stealth ÷ 10, 1) × 0.8 | `Wanderer` (`GiveUpTicks`, `AmbushDistance`, `FaceDistance`), `NoticeRanges.SneakFor` | `Wanderer.Tick` `0x8000f6a4`, `0x8000fa38`, `0x8000fc0c`, `0x8000fc28` | 3: a wanderer settings record ([wanderers](systems/wanderers.md)) |
-| A party hunts when it has no dialogue | `Wanderer` (`Hunts`) | `moveType` 1 against 0 | 1: a field of the monster party object |
+| A party hunts when it has no script | `Wanderer` (`Hunts`) | `moveType` 1 against 0 | 1: a field of the monster party object |
 | One from the dialogue entity table notices at 10, and a wanderer whose entity no plugin has | The entities' `perception`, which the importer writes 10 on those (`CharacterImporter.DialoguePerception`); `Wanderers.DialoguePerception` for none | `EntityDB::GetPerception` | Done, ADR 0032. Unsettled whether 1.0 reads it per dialogue entity |
 | Camp ambushes are Ranger's | `Camping.AmbushChance` | `Party::CampAmbushCheck` `0x80078d14` | 1: a skill on the camping record (its numbers are there) |
 | Rest: 8 hours after a camp heal and 8 more for a camp scene; the heal full | `ScriptRunner` (`ScriptEnding.RestHours`), `Party.CampHeal` | `World::Lapse8Hours`, `camp_healing` (1.0, 0.5) `0x800d386c` | 1: hours on the script and camping records |

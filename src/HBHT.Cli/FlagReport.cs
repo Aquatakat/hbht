@@ -73,7 +73,7 @@ internal sealed class FlagReport
     {
         switch (by.Type)
         {
-            case RecordTypes.Dialogue when _plugins.TryGet<DialogueRecord>(by) is { } script:
+            case RecordTypes.Script when _plugins.TryGet<ScriptRecord>(by) is { } script:
                 var where = $"{by} ({script.Mode}){(node is { } n ? $" node {n}" : "")}";
                 if (node is { } at && LineNear(script, at) is { Length: > 0 } text)
                     where += $" near \"{Shorten(text)}\"";
@@ -101,7 +101,7 @@ internal sealed class FlagReport
     private string Object(RecordId voxel) => $"{_catalog.Describe(voxel)} (object {MapRecord.IndexOf(voxel)})";
 
     /// <summary>The node's own text, or the nearest text on the way to it.</summary>
-    private static string LineNear(DialogueRecord script, int node)
+    private static string LineNear(ScriptRecord script, int node)
     {
         var seen = new HashSet<int>();
         var queue = new Queue<int>([node]);

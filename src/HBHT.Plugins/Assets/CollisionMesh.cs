@@ -50,7 +50,7 @@ public enum CollisionRole
     Normal,
     /// <summary>A trigger can make it passable.</summary>
     Toggle,
-    /// <summary>Walking on it runs a map object: a camera, teleporter or dialogue.</summary>
+    /// <summary>Walking on it runs a map object: a camera, teleporter or script object.</summary>
     Trigger,
     /// <summary>Only there with the Expansion Pak, which the runtime always has. Without it, the game makes it passable.</summary>
     ExpansionPak,

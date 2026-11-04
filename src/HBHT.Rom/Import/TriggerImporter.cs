@@ -13,7 +13,7 @@ namespace HBHT.Rom.Import;
 /// </summary>
 internal static class TriggerImporter
 {
-    /// <summary>The opening's cut-scene: Borg13 0x0362 (number 1004), from its dialogue object in Overworld I08's Borg9.</summary>
+    /// <summary>The opening's cut-scene: Borg13 0x0362 (number 1004), from its script object in Overworld I08's Borg9.</summary>
     internal const int OpeningScript = 0x0362, OpeningMap = 0x0FDB;
 
     /// <summary>The cinematics by their place in the table.</summary>
@@ -35,30 +35,30 @@ internal static class TriggerImporter
     /// entry (<c>CutScene.Free</c>'s kinds: the game over, Roog's cinematic with its flag, the ending's), Roog's True Name
     /// after his cinematic, and the ending's credits after its.
     /// </summary>
-    /// <param name="openingObject">The dialogue object the opening's cut-scene starts from.</param>
+    /// <param name="openingObject">The script object the opening's cut-scene starts from.</param>
     internal static List<TriggerRecord> BuildTriggers(EngineTables tables, RecordId openingObject)
     {
         var cinematic = (int n) => RecordId.Decimal(RecordTypes.Cinematic, n);
-        var triggers = new List<(string On, RecordId? Subject, IReadOnlyList<TriggerCondition>? If, IReadOnlyList<TriggerEffect> Do)>
+        var triggers = new List<(string On, RecordId? Subject, IReadOnlyList<ScriptOp>? If, IReadOnlyList<ScriptOp> Do)>
         {
-            ("game.started", null, null, [new TriggerEffect.Cinematic(cinematic(Opening))]),
-            ("cinematic.ended", cinematic(Opening), null, [new TriggerEffect.Script(openingObject)]),
+            ("game.started", null, null, [new ScriptOp.CinematicPlay(cinematic(Opening))]),
+            ("cinematic.ended", cinematic(Opening), null, [new ScriptOp.StartScript(openingObject)]),
         };
         foreach (var (script, ending) in tables.ScriptEndings.OrderBy(e => e.Key))
         {
-            var subject = RecordId.Hex(RecordTypes.Dialogue, script);
+            var subject = RecordId.Hex(RecordTypes.Script, script);
             triggers.Add(ending switch
             {
-                ScriptEnding.GameOver => ("script.ended", subject, null, [new TriggerEffect.GameOver()]),
+                ScriptEnding.GameOver => ("script.ended", subject, null, [new ScriptOp.GameOver()]),
                 ScriptEnding.RoogCinematic => ("script.ended", subject,
-                    [new TriggerCondition(DialogueCommand.CheckFlag, Target: DbRecordIds.Flag(RoogFlag))],
-                    [new TriggerEffect.Cinematic(cinematic(Roog))]),
-                ScriptEnding.EndingCinematic => ("script.ended", subject, null, [new TriggerEffect.Cinematic(cinematic(Ending))]),
+                    [new ScriptOp.CheckFlag(DbRecordIds.Flag(RoogFlag))],
+                    [new ScriptOp.CinematicPlay(cinematic(Roog))]),
+                ScriptEnding.EndingCinematic => ("script.ended", subject, null, [new ScriptOp.CinematicPlay(cinematic(Ending))]),
                 _ => throw new InvalidDataException($"Script {script} has an ending no trigger carries."),
             });
         }
-        triggers.Add(("cinematic.ended", cinematic(Roog), null, [new TriggerEffect.TrueName(DbRecordIds.Required(new ItemId(Alaron)))]));
-        triggers.Add(("cinematic.ended", cinematic(Ending), null, [new TriggerEffect.Credits(Ending: true)]));
+        triggers.Add(("cinematic.ended", cinematic(Roog), null, [new ScriptOp.PartyLearnTrueName(DbRecordIds.Required(new ItemId(Alaron)))]));
+        triggers.Add(("cinematic.ended", cinematic(Ending), null, [new ScriptOp.CreditsRoll(Ending: true)]));
         return [.. triggers.Select((t, i) => new TriggerRecord(RecordId.Decimal(RecordTypes.Trigger, i), t.On, t.Subject, t.If, t.Do))];
     }
 

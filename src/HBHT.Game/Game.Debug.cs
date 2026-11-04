@@ -176,21 +176,22 @@ public partial class Game
     /// <summary>
     /// Starts a battle from the command line (<c>--battle aidyn:voxel/0x0E8A/3[,arena][,ambush]</c>): with the monster
     /// party given, where the player stands, as using it would, in the arena given or else the one the terrain chooses,
-    /// and as an ambush if asked. A script (<c>--battle aidyn:dialogue/0x046E</c>) starts the battle its end would, with its
+    /// and as an ambush if asked. A script (<c>--battle aidyn:script/0x046E</c>) starts the battle its end would, with its
     /// enemies, arena, bytes and encounter flag, as though its talk had come to it.
     /// </summary>
     private void BattleFromCommandLine(string battle)
     {
         var parts = battle.Split(',');
         var id = RecordId.Parse(parts[0]);
-        if (id.Type == RecordTypes.Dialogue && _plugins!.TryGet<DialogueRecord>(id) is { } script)
+        if (id.Type == RecordTypes.Script && _plugins!.TryGet<ScriptRecord>(id) is { } script)
         {
-            var ops = script.Nodes.SelectMany(n => n.Ops ?? []).ToList();
-            int Value(DialogueCommand command) => ops.LastOrDefault(o => o.Command == command)?.Value ?? 0;
-            var enemies = ops.Where(o => o.Command == DialogueCommand.AddEnemy && o.Target is not null).Select(o => o.Target!.Value).Take(12);
+            var ops = script.Nodes.SelectMany(n => n.Ops).ToList();
+            var enemies = ops.OfType<ScriptOp.BattleAddEnemy>().Select(o => o.Entity).Take(12);
+            var field = ops.OfType<ScriptOp.BattleArena>().LastOrDefault()?.Arena ?? 0;
             var (at, kind) = Trek!.Here();
-            var scripted = Core.Combat.BattleSetup.Scripted(enemies, Value(DialogueCommand.SetBattlefield) is var b && b > 27 ? 0 : b,
-                Value(DialogueCommand.SetCollideByte), Value(DialogueCommand.SetAniByte), script.Mode != DialogueMode.Cutscene, script.BattleFlag)
+            var scripted = Core.Combat.BattleSetup.Scripted(enemies, field > 27 ? 0 : field,
+                ops.OfType<ScriptOp.BattleCollisionByte>().LastOrDefault()?.Value ?? 0, ops.OfType<ScriptOp.BattleAnimationByte>().LastOrDefault()?.Value ?? 0,
+                script.Mode != ScriptMode.Cutscene, script.BattleFlag)
                 with { Place = at, Terrain = kind };
             _session!.CueBattle(scripted);
             return;
@@ -208,12 +209,12 @@ public partial class Game
     }
 
     /// <summary>
-    /// Plays a cut-scene from the command line (<c>--cutscene aidyn:dialogue/0x0365</c>), as the first dialogue object
+    /// Plays a cut-scene from the command line (<c>--cutscene aidyn:script/0x0365</c>), as the first script object
     /// that starts it would, or else the first talker, in its own chunk.
     /// </summary>
     private void CueFromCommandLine(RecordId script)
     {
-        if (_plugins!.TryGet<DialogueRecord>(script) is not { Mode: DialogueMode.Cutscene } record)
+        if (_plugins!.TryGet<ScriptRecord>(script) is not { Mode: ScriptMode.Cutscene } record)
         {
             Say($"{script} isn't a cut-scene.");
             return;
@@ -221,7 +222,7 @@ public partial class Game
         var maps = _plugins.All<MapRecord>(RecordTypes.Map).ToList();
         foreach (var map in maps)
         {
-            if (map.Objects.OfType<DialogueObject>().FirstOrDefault(d => d.Script == script && d.Stage is not null) is { } dialogue
+            if (map.Objects.OfType<ScriptObject>().FirstOrDefault(d => d.Plays == script && d.Stage is not null) is { } dialogue
                 && CutSceneLaunch.Of(record, dialogue, MapRecord.VoxelId(map.Id, dialogue.Index)) is { } launch)
             {
                 _session!.Cue(launch);
@@ -231,7 +232,7 @@ public partial class Game
         var placements = MapPlacements.For(_plugins);
         foreach (var map in maps)
         {
-            if (map.Objects.OfType<MonsterPartyObject>().FirstOrDefault(p => p.Dialogue == script) is { } party && placements.First(map.Id) is { } place)
+            if (map.Objects.OfType<MonsterPartyObject>().FirstOrDefault(p => p.Script == script) is { } party && placements.First(map.Id) is { } place)
             {
                 _session!.Cue(record, new ScriptStart(0, MapRecord.VoxelId(map.Id, party.Index)), new ChunkRef(place.Set.Id, place.Chunk.Row, place.Chunk.Column));
                 return;

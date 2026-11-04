@@ -14,7 +14,7 @@ public static class Borg13Text
         var s = new StringBuilder();
         s.Append(CultureInfo.InvariantCulture,
             $"Borg13 {borgIndex}: {script.StartMode}, id {script.Id}, done flag {script.DoneFlag}");
-        if (script.StartMode == DialogueMode.Backdrop)
+        if (script.StartMode == ScriptMode.Backdrop)
             s.Append(CultureInfo.InvariantCulture, $", backdrop {script.Backdrop}");
         s.AppendLine();
         if (script.Actors.Count > 0)
@@ -50,8 +50,8 @@ public static class Borg13Text
 
     private static string Links(Borg13Script script, Borg13Node node) => node.Kind switch
     {
-        DialogueNodeKind.If => $"{node.Links[0]} if 1, else {node.Links[1]}",
-        DialogueNodeKind.Case => string.Join(", ", node.Links.Select(l => $"{l} [{Range(script.Nodes[l])}]")),
+        ScriptNodeKind.If => $"{node.Links[0]} if 1, else {node.Links[1]}",
+        ScriptNodeKind.Case => string.Join(", ", node.Links.Select(l => $"{l} [{Range(script.Nodes[l])}]")),
         _ => string.Join(", ", node.Links),
     };
 

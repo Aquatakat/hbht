@@ -236,7 +236,7 @@ public sealed record ChunkRef(RecordId MapSet, int Row, int Column);
 /// <param name="Visible">
 /// Whether it's there at all, as the chunk loads (flag C). Scenes, lights, sounds, wander nodes,
 /// reference points, teleporters, cameras, tripwires, and herb, spice, gem and custom containers
-/// have one. Monster parties, dialogues and save points are always there, but for their
+/// have one. Monster parties, script objects and save points are always there, but for their
 /// <see cref="Enabled"/>. Null means always, as the importer writes the original's flag 0 inverted.
 /// </param>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type", IgnoreUnrecognizedTypeDiscriminators = true)]
@@ -249,7 +249,7 @@ public sealed record ChunkRef(RecordId MapSet, int Row, int Column);
 [JsonDerivedType(typeof(ReferencePointObject), "refPoint")]
 [JsonDerivedType(typeof(TeleporterObject), "teleporter")]
 [JsonDerivedType(typeof(CameraObject), "camera")]
-[JsonDerivedType(typeof(DialogueObject), "dialogue")]
+[JsonDerivedType(typeof(ScriptObject), "script")]
 [JsonDerivedType(typeof(TripwireObject), "tripwire")]
 [JsonDerivedType(typeof(SavePointObject), "savePoint")]
 public record MapObject(
@@ -259,7 +259,7 @@ public record MapObject(
     [property: JsonPropertyOrder(-2)] FlagGate? Visible)
 {
     /// <summary>
-    /// Whether it works (flag A): whether a teleporter, tripwire, dialogue or herb, spice, gem or
+    /// Whether it works (flag A): whether a teleporter, tripwire, script object or herb, spice, gem or
     /// custom container can be used, and whether a monster party is there at all. Null means always.
     /// </summary>
     [JsonPropertyOrder(-1)]
@@ -273,7 +273,7 @@ public record MapObject(
     public FlagWrite? Used { get; init; }
 
     /// <summary>
-    /// A teleporter, tripwire or dialogue that goes off when the player walks within its radius,
+    /// A teleporter, tripwire or script object that goes off when the player walks within its radius,
     /// rather than when the player uses it. A tangible teleporter skips its lock, trap and secret.
     /// </summary>
     [JsonPropertyOrder(-1)]
@@ -538,7 +538,7 @@ public enum PartyFlags
     /// </summary>
     Walks = 0x2,
     /// <summary>
-    /// Talking to it does nothing, though it has a dialogue: it's the body in a scene a dialogue
+    /// Talking to it does nothing, though it has a script: it's the body in a scene a script
     /// object starts.
     /// </summary>
     Silent = 0x4,
@@ -546,7 +546,7 @@ public enum PartyFlags
 
 /// <summary>
 /// An NPC, or a group of enemies, which wanders from its home node. It's there while
-/// <see cref="MapObject.Enabled"/> holds. With a dialogue, using it talks to it and sets
+/// <see cref="MapObject.Enabled"/> holds. With a script, using it talks to it and sets
 /// <see cref="MapObject.Used"/>. Without, it's a fight: it's gone while <c>Used</c> is set, and
 /// winning sets it.
 /// </summary>
@@ -555,9 +555,9 @@ public enum PartyFlags
 /// <param name="MinSize">A battle with fewer enemies than this, after the random extras, has none.</param>
 /// <param name="MaxSize">The most enemies a battle with the party has.</param>
 /// <param name="Home">The wander node it starts from, in the same map.</param>
-/// <param name="Dialogue">The script talking to it starts.</param>
+/// <param name="Script">The script talking to it starts.</param>
 /// <param name="BattleFlag">
-/// With a dialogue that starts a battle, the flag winning it sets (flag C). Otherwise a battle sets
+/// With a script that starts a battle, the flag winning it sets (flag C). Otherwise a battle sets
 /// <see cref="MapObject.Used"/>.
 /// </param>
 public sealed record MonsterPartyObject(
@@ -572,11 +572,13 @@ public sealed record MonsterPartyObject(
     int MaxSize,
     RecordId? Home,
     PartyFlags Flags,
-    RecordId? Dialogue,
+    RecordId? Script,
     RecordId? BattleFlag) : MapObject(Index, Position, Radius, Visible);
 
 /// <summary>A named point that teleporters, cameras and scripts refer to. Most sit in clusters where cut-scenes place their cameras.</summary>
-/// <param name="Id">What scripts name it by, counting from their dialogue object's <see cref="DialogueObject.RefPointBase"/>.</param>
+/// <param name="Mark">
+/// What scripts name it by, counting from the number they were started with: a script object's <see cref="ScriptObject.Marks"/>.
+/// </param>
 /// <param name="Name">Battle arenas find their spawn and retreat points by name.</param>
 /// <param name="Facing">The way a teleporter that arrives at it turns the player.</param>
 public sealed record ReferencePointObject(
@@ -584,7 +586,7 @@ public sealed record ReferencePointObject(
     Vector3 Position,
     float Radius,
     FlagGate? Visible,
-    int Id,
+    int Mark,
     string Name,
     Vector3? Facing) : MapObject(Index, Position, Radius, Visible);
 
@@ -674,20 +676,23 @@ public sealed record CameraObject(
 
 /// <summary>
 /// Starts a script while <see cref="MapObject.Enabled"/> holds: when the player uses it, walks
-/// within its radius if it's tangible, or walks on a trigger triangle that names it.
+/// within its radius if it's tangible, or walks on a trigger triangle that names it. The original's dialogue object.
 /// </summary>
-/// <param name="Script">The script it starts: a conversation, cut-scene, sign or book.</param>
+/// <param name="Plays">The script it starts: a conversation, cut-scene, sign or book.</param>
 /// <param name="Stage">The chunk a cut-scene is staged in. Without one, the chunk it's in.</param>
-/// <param name="RefPointBase">Added to the reference point numbers the script names (the runner's <c>ScriptStart.RefPoint</c>).</param>
+/// <param name="Marks">
+/// The number the script's marks count from (<c>ScriptStart.Marks</c>): a script names mark 3, and the stage's reference point
+/// <see cref="ReferencePointObject.Mark"/> <c>Marks + 3</c> is meant. A script names marks, not map objects.
+/// </param>
 /// <param name="Name">For tools.</param>
-public sealed record DialogueObject(
+public sealed record ScriptObject(
     int Index,
     Vector3 Position,
     float Radius,
     FlagGate? Visible,
-    RecordId Script,
+    RecordId Plays,
     ChunkRef? Stage,
-    int RefPointBase,
+    int Marks,
     string Name) : MapObject(Index, Position, Radius, Visible);
 
 /// <summary>

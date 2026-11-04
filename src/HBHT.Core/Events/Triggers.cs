@@ -26,9 +26,9 @@ public static class GameEvents
 
 /// <summary>
 /// The installed plugins' triggers, by event, and their firing: each whose event and subject match and whose conditions
-/// hold does its effects in order, those on the game's state at once. An effect that takes over from trek (a cinematic, a
+/// hold does its ops in order, those on the game's state at once. An op that takes over from trek (a cinematic, a
 /// script, the credits, the game over) ends the firing and is handed back for <see cref="GameSession"/> to carry out.
-/// Conditions and ops run as a script's do (<see cref="ScriptOps"/>), but with no map object to keep a skill check.
+/// Conditions and ops run as a script's do (<see cref="ScriptOps"/>, ADR 0034), but with no map object to keep a skill check.
 /// </summary>
 public sealed class Triggers
 {
@@ -48,13 +48,25 @@ public sealed class Triggers
         {
             if (!GameEvents.All.Contains(trigger.On))
                 _problems.Add($"{trigger.Id} is on {trigger.On}, which the core never fires.");
-            foreach (var effect in trigger.Do.Where(e => e.GetType() == typeof(TriggerEffect)))
-                _problems.Add($"{trigger.Id} has an effect of a type this build doesn't know, which does nothing.");
+            foreach (var condition in trigger.If ?? [])
+            {
+                if (condition is not ScriptOp.Check)
+                    _problems.Add($"{trigger.Id} has a condition that isn't a check, which never holds.");
+            }
+            foreach (var op in trigger.Do)
+            {
+                if (op.Use == OpUse.None)
+                    _problems.Add($"{trigger.Id} has an op of a type this build doesn't know, which does nothing.");
+                else if (op is ScriptOp.Lua)
+                    _problems.Add($"{trigger.Id} has a lua op, which does nothing until Lua comes.");
+                else if ((op.Use & OpUse.Trigger) == 0)
+                    _problems.Add($"{trigger.Id} has {op.Name}, which a trigger can't run: it needs a stage, an actor or a running script.");
+            }
         }
         _byEvent = all.ToLookup(t => t.On);
     }
 
-    /// <summary>What's wrong with the installed triggers: an event never fired, an effect no build knows.</summary>
+    /// <summary>What's wrong with the installed triggers: an event never fired, an op no build knows or a trigger can't run.</summary>
     public IReadOnlyList<string> Problems => _problems;
 
     /// <summary>The triggers on an event, in the plugins' order.</summary>
@@ -62,11 +74,11 @@ public sealed class Triggers
 
     /// <summary>
     /// Fires an event about <paramref name="subject"/>: every trigger on it, about that subject or any, whose conditions hold,
-    /// does its effects in turn, until one takes over from trek, which is returned and ends the firing.
+    /// does its ops in turn, until one takes over from trek, which is returned and ends the firing.
     /// </summary>
-    /// <param name="warn">Where an effect that can't be carried out says so.</param>
+    /// <param name="warn">Where an op that can't be carried out says so.</param>
     /// <param name="host">Where the ops' sounds go, as a script's do: the gold's and the experience's. None plays nothing.</param>
-    public TriggerEffect? Fire(GameState game, string name, RecordId? subject, Action<string> warn, IScriptHost? host = null)
+    public ScriptOp? Fire(GameState game, string name, RecordId? subject, Action<string> warn, IScriptHost? host = null)
     {
         // Skill checks roll from the world stream as a script's do, and honour the random flag, but none is kept.
         var ops = new ScriptOps(game.Flags, game, game.Random.World, game.StateFlagsRecord.RandomSkillChecks, host);
@@ -76,51 +88,51 @@ public sealed class Triggers
                 continue;
             if (trigger.If is { } conditions && !conditions.All(c => Holds(ops, c)))
                 continue;
-            foreach (var effect in trigger.Do)
+            foreach (var op in trigger.Do)
             {
-                if (TakesOver(effect))
-                    return effect;
-                Apply(game, ops, trigger, effect, warn);
+                if (TakesOver(op))
+                    return op;
+                Apply(game, ops, trigger, op, warn);
             }
         }
         return null;
     }
 
-    /// <summary>Whether an effect takes over from trek, so <see cref="GameSession"/> carries it out.</summary>
-    public static bool TakesOver(TriggerEffect effect) =>
-        effect is TriggerEffect.Cinematic or TriggerEffect.Script or TriggerEffect.Credits or TriggerEffect.GameOver;
+    /// <summary>Whether an op takes over from trek, so <see cref="GameSession"/> carries it out.</summary>
+    public static bool TakesOver(ScriptOp op) =>
+        op is ScriptOp.CinematicPlay or ScriptOp.StartScript or ScriptOp.CreditsRoll or ScriptOp.GameOver;
 
     /// <summary>
-    /// Evaluates a condition as a script's If or Case does (<see cref="ScriptOps.Condition"/>), its target the speaker for
-    /// <see cref="DialogueCommand.CheckSpeakerStat"/>: it holds when the value is in its range, or exactly 1.
+    /// Evaluates a condition as a script's If or Case does (<see cref="ScriptOps.Condition"/>): it holds when the value is in
+    /// its range, or exactly 1. Anything but a check never holds.
     /// </summary>
-    private static bool Holds(ScriptOps ops, TriggerCondition condition)
+    private static bool Holds(ScriptOps ops, ScriptOp condition)
     {
-        var value = ops.Condition(condition.Command, condition.Target, condition.Value ?? 0, speaker: condition.Target);
-        return condition.Range is { } range ? range.Holds(value) : value == 1;
+        if (condition is not ScriptOp.Check check)
+            return false;
+        var value = ops.Condition(check);
+        return check.Range is { } range ? range.Holds(value) : value == 1;
     }
 
     /// <summary>
-    /// Does an effect on the game's state: a Borg13 op as a node runs it (<see cref="ScriptOps.Effect"/>), its target the
-    /// member for <see cref="DialogueCommand.AddExp"/>, or a True Name, which the member's sheet keeps and a save with it.
+    /// Does an op on the game's state: one a node's effect runs (<see cref="ScriptOps.Effect"/>), or a True Name, which the
+    /// member's sheet keeps and a save with it.
     /// </summary>
-    private static void Apply(GameState game, ScriptOps ops, TriggerRecord trigger, TriggerEffect effect, Action<string> warn)
+    private static void Apply(GameState game, ScriptOps ops, TriggerRecord trigger, ScriptOp op, Action<string> warn)
     {
-        switch (effect)
+        switch (op)
         {
-            case TriggerEffect.Op op when ScriptOps.ChangesState(op.Command)
-                && (op.Target is not null || op.Command is DialogueCommand.AddGold or DialogueCommand.TakeGold):
-                ops.Effect(op.Command, op.Target, op.Value ?? 0, member: op.Target);
+            case var _ when ScriptOps.ChangesState(op):
+                ops.Effect(op);
                 break;
-            case TriggerEffect.Op op:
-                warn($"{trigger.Id}: {op.Command} isn't an op a trigger can run.");
-                break;
-            case TriggerEffect.TrueName name:
+            case ScriptOp.PartyLearnTrueName name:
                 if (game.Party.Get(name.Member) is { } character)
                     character.TrueName = true;
                 break;
+            case ScriptOp.Lua:
+                break;
             default:
-                warn($"{trigger.Id} has an effect this build doesn't know.");
+                warn($"{trigger.Id}: {op.Name ?? "an op this build doesn't know"} isn't an op a trigger can run.");
                 break;
         }
     }

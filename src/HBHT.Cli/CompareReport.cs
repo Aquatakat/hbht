@@ -14,7 +14,7 @@ internal static class CompareReport
 {
     public const string Usage = """
           hbht movement compare [<script>...] [--read <ticks>] [--all]
-                                               every cut-scene (or those given, as aidyn:dialogue/0x… or 0x…) played
+                                               every cut-scene (or those given, as aidyn:script/0x… or 0x…) played
                                                under the original's movement and Modern's at the original's pace, and
                                                where they differ, worst first: an actor ending elsewhere, popping to
                                                its goal, off the ground or out of the world, and the walks' waits and
@@ -42,7 +42,7 @@ internal static class CompareReport
                     break;
                 case var name when name.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
                     && int.TryParse(name.AsSpan(2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var index):
-                    scripts.Add(RecordId.Hex(RecordTypes.Dialogue, index));
+                    scripts.Add(RecordId.Hex(RecordTypes.Script, index));
                     break;
                 case var other:
                     Console.Error.WriteLine($"Not a script or option: {other}.");
@@ -74,7 +74,7 @@ internal static class CompareReport
                 continue;
             var (o, m) = (d.Original, d.Modern);
             s.AppendLine(CultureInfo.InvariantCulture,
-                $"{d.Launch.Script} from {d.Launch.From.MapObject} (points from {d.Launch.From.RefPoint}, stage {d.Launch.Stage.MapSet} {d.Launch.Stage.Row},{d.Launch.Stage.Column}): {d.Severity}, " +
+                $"{d.Launch.Script} from {d.Launch.From.MapObject} (points from {d.Launch.From.Marks}, stage {d.Launch.Stage.MapSet} {d.Launch.Stage.Row},{d.Launch.Stage.Column}): {d.Severity}, " +
                 $"{Ticks(o)} ticks under the original, {Ticks(m)} under Modern ({d.TickDelta:+0;-0;0})");
             var waits = o.Waits.Keys.Union(m.Waits.Keys).Order()
                 .Select(k => (Kind: k, Delta: m.Waits.GetValueOrDefault(k) - o.Waits.GetValueOrDefault(k)))
@@ -98,7 +98,7 @@ internal static class CompareReport
             {
                 if (!all && Math.Abs(delta) <= MovementCompare.TimeTolerance)
                     continue;
-                var moves = string.Join(", ", wm.Moves.Select(mv => $"{mv.Actor} {(mv.Run ? "runs" : "walks")} to {mv.RefPoint}"));
+                var moves = string.Join(", ", wm.Moves.Select(mv => $"{mv.Actor} {(mv.Run ? "runs" : "walks")} to {mv.Mark}"));
                 s.AppendLine(CultureInfo.InvariantCulture,
                     $"  walk {index} ({moves}): {wo.Ticks} ticks under the original, {wm.Ticks} under Modern ({delta:+0;-0;0})");
             }

@@ -5,7 +5,7 @@ using HBHT.Rom.Dialogue;
 
 namespace HBHT.Rom.Tests;
 
-public class DialogueTests
+public class Borg13Tests
 {
     private static readonly Lazy<(BorgArchive Archive, List<(int Index, Borg13Script Script)> Scripts)> Na10 = new(() =>
     {
@@ -24,10 +24,10 @@ public class DialogueTests
         Assert.Equal(892, scripts.Count);
         Assert.Equal(26_837 - 153, nodes.Count);
         Assert.Equal([596, 211, 78, 6, 1],
-            Enum.GetValues<DialogueMode>().Select(m => scripts.Count(s => s.StartMode == m)));
+            Enum.GetValues<ScriptMode>().Select(m => scripts.Count(s => s.StartMode == m)));
         Assert.Equal([23_641 + 1_314, 937, 118, 674],
-            Enum.GetValues<DialogueNodeKind>().Select(k => nodes.Count(n => n.Kind == k)));
-        Assert.All(scripts, s => Assert.Equal(s.StartMode == DialogueMode.Backdrop, s.Backdrop != 14));
+            Enum.GetValues<ScriptNodeKind>().Select(k => nodes.Count(n => n.Kind == k)));
+        Assert.All(scripts, s => Assert.Equal(s.StartMode == ScriptMode.Backdrop, s.Backdrop != 14));
     }
 
     [Fact]
@@ -37,14 +37,14 @@ public class DialogueTests
         {
             switch (node.Kind)
             {
-                case DialogueNodeKind.Line:
+                case ScriptNodeKind.Line:
                     Assert.InRange(node.Links.Count, 0, 1);
                     break;
-                case DialogueNodeKind.If:
+                case ScriptNodeKind.If:
                     Assert.Equal(2, node.Links.Count);
                     Assert.True(node.Condition?.Opcode is Borg13Opcode.CheckMember or Borg13Opcode.CheckFlag or Borg13Opcode.CheckItem);
                     break;
-                case DialogueNodeKind.Case:
+                case ScriptNodeKind.Case:
                     Assert.InRange(node.Links.Count, 2, 8);
                     Assert.True(node.Condition?.Opcode is Borg13Opcode.CheckSkill or Borg13Opcode.CheckPartySize or Borg13Opcode.CheckGold);
                     break;
@@ -69,27 +69,6 @@ public class DialogueTests
             (1146, 78, Borg13Opcode.Wait)], extra);
     }
 
-    /// <summary>
-    /// <see cref="Borg13Opcode"/> is the raw byte, with the ops the importer drops; <see cref="DialogueCommand"/> is the
-    /// record's vocabulary without them. Every command is an opcode of the same name and number, and both sort it as a
-    /// condition or an effect the same way. Only <see cref="Borg13Opcode.Unknown59"/> differs: raw scripts have it, and
-    /// the effect range of the commands stops before it.
-    /// </summary>
-    [Fact]
-    public void OpcodesAgreeWithDialogueCommands()
-    {
-        var opcodes = Enum.GetValues<Borg13Opcode>().ToDictionary(o => o.ToString(), o => o);
-        foreach (var command in Enum.GetValues<DialogueCommand>())
-        {
-            var opcode = opcodes[command.ToString()];
-            Assert.Equal((int)command, (int)opcode);
-            Assert.Equal(command.IsCondition(), opcode.IsCondition());
-            Assert.Equal(command.IsEffect(), opcode.IsEffect());
-        }
-        Assert.True(Borg13Opcode.Unknown59.IsEffect());
-        Assert.False(((DialogueCommand)Borg13Opcode.Unknown59).IsEffect());
-    }
-
     [Fact]
     public void OperandsReferToThingsThatExist()
     {
@@ -101,7 +80,7 @@ public class DialogueTests
         foreach (var (_, script) in scripts)
         {
             // Conversations don't set their flag, and two of them name derived flags.
-            if (script.StartMode != DialogueMode.Conversation)
+            if (script.StartMode != ScriptMode.Conversation)
                 Assert.InRange(script.DoneFlag, 2, db.GameStateFunnel.BitFlagCount - 1);
             Assert.All(script.Actors, a => Assert.Contains(a, entities));
             foreach (var op in script.Nodes.SelectMany(n => n.Ops))

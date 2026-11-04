@@ -41,16 +41,16 @@ public sealed class CutSceneRealDataTests(Na10Import fixture, ITestOutputHelper 
             foreach (var o in map.Objects)
             {
                 var source = MapRecord.VoxelId(map.Id, o.Index);
-                if (o is DialogueObject { Stage: { } stage } d && Mode(plugins, d.Script) == DialogueMode.Cutscene)
-                    yield return new Start(d.Script, new ScriptStart(d.RefPointBase, source), stage);
-                else if (o is MonsterPartyObject { Dialogue: { } script } p && (p.Flags & PartyFlags.Silent) == 0
-                    && Mode(plugins, script) == DialogueMode.Cutscene && chunkOf.TryGetValue(map.Id, out var own))
+                if (o is ScriptObject { Stage: { } stage } d && Mode(plugins, d.Plays) == ScriptMode.Cutscene)
+                    yield return new Start(d.Plays, new ScriptStart(d.Marks, source), stage);
+                else if (o is MonsterPartyObject { Script: { } script } p && (p.Flags & PartyFlags.Silent) == 0
+                    && Mode(plugins, script) == ScriptMode.Cutscene && chunkOf.TryGetValue(map.Id, out var own))
                     yield return new Start(script, new ScriptStart(0, source), own);
             }
         }
     }
 
-    private static DialogueMode? Mode(PluginSet plugins, RecordId script) => plugins.TryGet<DialogueRecord>(script)?.Mode;
+    private static ScriptMode? Mode(PluginSet plugins, RecordId script) => plugins.TryGet<ScriptRecord>(script)?.Mode;
 
     private static CollisionWorld World(PluginSet plugins, MapSetRecord set, ChunkEntry centre)
     {
@@ -67,14 +67,14 @@ public sealed class CutSceneRealDataTests(Na10Import fixture, ITestOutputHelper 
     private CutScene Staged(PluginSet plugins, string script)
     {
         var id = RecordId.Parse(script);
-        var start = Starts(plugins).First(s => s.Script == id && s.From.MapObject is { } o && fixture.Data.Objects[o] is DialogueObject);
+        var start = Starts(plugins).First(s => s.Script == id && s.From.MapObject is { } o && fixture.Data.Objects[o] is ScriptObject);
         var bare = CutSceneStage.For(plugins, start.Stage, new CollisionWorld())!;
         var stage = bare with { World = World(plugins, bare.Set, bare.Chunk) };
-        return new CutScene(GameState.NewGame(plugins), plugins.Get<DialogueRecord>(id), start.From, stage);
+        return new CutScene(GameState.NewGame(plugins), plugins.Get<ScriptRecord>(id), start.From, stage);
     }
 
     /// <summary>
-    /// Shamsuk's close-up in his tower (<c>aidyn:dialogue/0x0494</c>, nodes 64, 72 and 116: <c>CameraCutToActor</c> Alaron and
+    /// Shamsuk's close-up in his tower (<c>aidyn:script/0x0494</c>, nodes 64, 72 and 116: <c>CameraCutToActor</c> Alaron and
     /// <c>CameraOn</c> point 3): the camera looks out of Alaron's eyes at the ground point beyond Shamsuk, who stands where his
     /// walk to point 9 (node 44) left him. Played with the actors' own animations and A pressed two seconds into each page, his
     /// walk's last step carries him on from within its radius of 1 to half a unit short of the point, as the user's screenshot
@@ -84,7 +84,7 @@ public sealed class CutSceneRealDataTests(Na10Import fixture, ITestOutputHelper 
     public void Shamsuks_close_up_frames_him_where_his_walk_ends()
     {
         var plugins = PluginSet.Load([fixture.Data.Dir]);
-        var scene = Staged(plugins, "aidyn:dialogue/0x0494");
+        var scene = Staged(plugins, "aidyn:script/0x0494");
         var motions = new Dictionary<CutSceneActor, IActorMotion>();
         IActorMotion Motion(CutSceneActor actor)
         {
@@ -125,7 +125,7 @@ public sealed class CutSceneRealDataTests(Na10Import fixture, ITestOutputHelper 
     }
 
     /// <summary>
-    /// Back in Port Saiid from the Namer's Isle (<c>aidyn:dialogue/0x0430</c>), Alaron is spawned at point 43, about 10 above
+    /// Back in Port Saiid from the Namer's Isle (<c>aidyn:script/0x0430</c>), Alaron is spawned at point 43, about 10 above
     /// the ground around it, over a hole in D15's collision: the set-down from on high finds nothing (<c>CreateActor</c>'s
     /// <c>Body.SetDown(body, 0, 0, 0)</c>, <c>0x8004f4e4</c>), so he's left at the point's height and falls until he's 30 from
     /// the camera's aim, where bodies stop stepping. The script's one camera (point 35, on point 11) has him 33° off its
@@ -135,7 +135,7 @@ public sealed class CutSceneRealDataTests(Na10Import fixture, ITestOutputHelper 
     public void Alaron_falls_where_a_4_by_3_picture_doesnt_show_him_back_in_Port_Saiid()
     {
         var plugins = PluginSet.Load([fixture.Data.Dir]);
-        var scene = Staged(plugins, "aidyn:dialogue/0x0430");
+        var scene = Staged(plugins, "aidyn:script/0x0430");
         scene.Start();
         var alaron = scene.Actor(GameState.Alaron)!;
         var spawned = alaron.Body.Sphere.Position;
@@ -152,7 +152,7 @@ public sealed class CutSceneRealDataTests(Na10Import fixture, ITestOutputHelper 
     }
 
     /// <summary>
-    /// The final cut-scene (<c>aidyn:dialogue/0x04FE</c>) spawns Phelan as his entity (<c>0x0230</c>), whose actor
+    /// The final cut-scene (<c>aidyn:script/0x04FE</c>) spawns Phelan as his entity (<c>0x0230</c>), whose actor
     /// (<c>aidyn:actor/0x2918</c>) is his one-legged model, at point 143 on the floor, set down from on high as every spawn is
     /// (<c>CreateActor</c>, <c>0x8004f4c8</c>). He stands (state 0) until the script asks for request 20, and lies from then on:
     /// states 9 and 10 for 20, 11 for 21, and his death (13, request 9) holds its last frame, never going on to 12. The pose is the views' to draw
@@ -162,7 +162,7 @@ public sealed class CutSceneRealDataTests(Na10Import fixture, ITestOutputHelper 
     public void Phelan_lies_from_his_first_animation_and_his_death_holds()
     {
         var plugins = PluginSet.Load([fixture.Data.Dir]);
-        var scene = Staged(plugins, "aidyn:dialogue/0x04FE");
+        var scene = Staged(plugins, "aidyn:script/0x04FE");
         var motions = new Dictionary<CutSceneActor, ActorMotion>();
         IActorMotion Motion(CutSceneActor actor)
         {
@@ -211,7 +211,7 @@ public sealed class CutSceneRealDataTests(Na10Import fixture, ITestOutputHelper 
             var game = GameState.NewGame(plugins);
             var stageWorld = CutSceneStage.For(plugins, start.Stage, new CollisionWorld())!;
             var stage = stageWorld with { World = World(plugins, stageWorld.Set, stageWorld.Chunk) };
-            var scene = new CutScene(game, plugins.Get<DialogueRecord>(start.Script), start.From, stage);
+            var scene = new CutScene(game, plugins.Get<ScriptRecord>(start.Script), start.From, stage);
             scene.Start();
             var ticks = 0;
             for (; !scene.Over && ticks < 100_000; ticks++)

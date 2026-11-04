@@ -20,7 +20,7 @@ public sealed class MemberQuestIndexTests(Na10Import fixture)
         var godric = Entity(0x0248);
 
         // Node 29 of Godric's recruiting script is his AddMember.
-        Assert.Equal("AddMember", Data.Set.Get<DialogueRecord>(script).Nodes[29].Ops!.Single().Command.ToString());
+        Assert.IsType<ScriptOp.PartyAddMember>(Data.Set.Get<ScriptRecord>(script).Nodes[29].Ops.Single());
         Assert.Contains(new FlagUse(Flag(90), script, FlagAccess.Set, FlagRole.MemberAdded, 29), index.UsesOf(Flag(90)));
         Assert.Contains(new FlagUse(Flag(90), godric, FlagAccess.Set, FlagRole.Member), index.UsesOf(Flag(90)));
         Assert.Contains(new FlagUse(Flag(686), script, FlagAccess.Clear, FlagRole.MemberAdded, 29), index.UsesOf(Flag(686)));
@@ -38,8 +38,8 @@ public sealed class MemberQuestIndexTests(Na10Import fixture)
         var script = Script(0x04EF);
 
         // Node 63 of script 0x04EF takes Dougal out of the party.
-        var op = Data.Set.Get<DialogueRecord>(script).Nodes[63].Ops!.Single();
-        Assert.Equal(("RemoveMember", Entity(0x0247)), (op.Command.ToString(), op.Target));
+        var op = Data.Set.Get<ScriptRecord>(script).Nodes[63].Ops.Single();
+        Assert.Equal(new ScriptOp.PartyRemoveMember(Entity(0x0247)), op);
         Assert.Contains(new FlagUse(Flag(574), script, FlagAccess.Clear, FlagRole.MemberRemoved, 63), index.UsesOf(Flag(574)));
         Assert.Contains(new FlagUse(Flag(695), script, FlagAccess.Set, FlagRole.MemberRemoved, 63), index.UsesOf(Flag(695)));
         Assert.Equal(

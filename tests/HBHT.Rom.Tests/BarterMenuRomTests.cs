@@ -118,7 +118,7 @@ public sealed class BarterMenuRomTests(Na10Import fixture)
 
         public void OpenLoot(ItemPile loot, int gold) => Loots.Add((loot, gold));
 
-        public void StartScript(HBHT.Core.MapObjects.LoadedMap map, DialogueObject dialogue) { }
+        public void StartScript(HBHT.Core.MapObjects.LoadedMap map, ScriptObject dialogue) { }
 
         public void Animate(HBHT.Core.MapObjects.LoadedMap map, SceneObject actor, int request) { }
 

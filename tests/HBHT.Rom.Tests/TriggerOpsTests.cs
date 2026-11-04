@@ -21,12 +21,10 @@ public sealed class TriggerOpsTests(Na10Import fixture)
     private static readonly RecordId Ended = Script(0xFFF0);
     private static readonly RecordId Marker = Flag(3442);
 
-    private static TriggerRecord On(int n, IReadOnlyList<TriggerCondition>? conditions, params TriggerEffect[] effects) =>
+    private static TriggerRecord On(int n, IReadOnlyList<ScriptOp>? conditions, params ScriptOp[] effects) =>
         new(RecordId.Decimal(RecordTypes.Trigger, 9000 + n), GameEvents.ScriptEnded, Ended, conditions, effects);
 
-    private static TriggerEffect.Op Op(DialogueCommand command, int? value = null, RecordId? target = null) => new(command, value, target);
-
-    private static TriggerEffect? Fire(Triggers triggers, GameState game, IScriptHost? host = null)
+    private static ScriptOp? Fire(Triggers triggers, GameState game, IScriptHost? host = null)
     {
         var warnings = new List<string>();
         var effect = triggers.Fire(game, GameEvents.ScriptEnded, Ended, warnings.Add, host);
@@ -51,16 +49,16 @@ public sealed class TriggerOpsTests(Na10Import fixture)
         var seed = Enumerable.Range(1, 1000).Select(s => (uint)s).First(s => Check(s) is var (step, roll) && step != roll);
         var (step, roll) = Check(seed);
 
-        var triggers = new Triggers([On(0, [new TriggerCondition(DialogueCommand.CheckSkill, (int)Skill.Ranger,
-            Range: new DialogueRange(roll, roll))], Op(DialogueCommand.SetFlag, target: Marker))]);
+        var triggers = new Triggers([On(0, [new ScriptOp.CheckSkill(RecordIds.Skill((int)Skill.Ranger))
+            { Range = new ScriptRange(roll, roll) }], new ScriptOp.FlagSet(Marker))]);
         game.Random.World.Seed = seed;
         Fire(triggers, game);
         Assert.True(game.Flags.IsSet(Marker));
 
         // The step alone, as the trigger's own copy of the op rolled, doesn't hold.
         game.Flags.Set(Marker, false);
-        var stepOnly = new Triggers([On(0, [new TriggerCondition(DialogueCommand.CheckSkill, (int)Skill.Ranger,
-            Range: new DialogueRange(step, step))], Op(DialogueCommand.SetFlag, target: Marker))]);
+        var stepOnly = new Triggers([On(0, [new ScriptOp.CheckSkill(RecordIds.Skill((int)Skill.Ranger))
+            { Range = new ScriptRange(step, step) }], new ScriptOp.FlagSet(Marker))]);
         game.Random.World.Seed = seed;
         Fire(stepOnly, game);
         Assert.False(game.Flags.IsSet(Marker));
@@ -71,10 +69,10 @@ public sealed class TriggerOpsTests(Na10Import fixture)
     {
         var game = GameState.NewGame(fixture.Data.Set);
         var triggers = new Triggers([On(0, null,
-            Op(DialogueCommand.AddGold, 0x1_0019),
-            Op(DialogueCommand.TakeGold, 10),
-            Op(DialogueCommand.TakeGold, 1000),
-            Op(DialogueCommand.AddExp, 50, GameState.Alaron))]);
+            new ScriptOp.PartyAddGold(0x1_0019),
+            new ScriptOp.PartyTakeGold(10),
+            new ScriptOp.PartyTakeGold(1000),
+            new ScriptOp.PartyAddExp(GameState.Alaron, 50))]);
         var gold = game.Party.Gold;
         var host = new CueLog();
 
@@ -98,7 +96,7 @@ public sealed class TriggerOpsTests(Na10Import fixture)
         // flag to, as a mod's member might.
         var member = set.All<EntityRecord>(RecordTypes.Entity).First(e => e.Sheet is { TrueName: false, TrueNameFlag: null }).Id;
         var game = GameState.NewGame(set);
-        var triggers = new Triggers([On(0, null, Op(DialogueCommand.AddMember, target: member), new TriggerEffect.TrueName(member))]);
+        var triggers = new Triggers([On(0, null, new ScriptOp.PartyAddMember(member), new ScriptOp.PartyLearnTrueName(member))]);
 
         Fire(triggers, game);
         Assert.True(game.Party.Get(member)!.TrueName);

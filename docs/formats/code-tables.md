@@ -35,7 +35,7 @@ Code tables name entities, dialogue entities, spells, armor, weapons and items b
 | New journal entry waiting (3617), and the derived flags that add journal entries (5556 on, each its entry's flag counted above 0) | `set_journalentry_flag`, `GameStateFunnel.Write` `0x800cb33c` | Fact | state flags; each entry's own flag's `journal` (the 71 derived flags aren't imported) |
 | Calendar, weather, terrain and best-party-stat flags (the stat and skill ones are never written: their setters' lookup always fails) | `gameStateFunnel.cpp` | Fact | state flags |
 | Camp dialogue check (4240, set while it runs) | `Camp.cpp` | Fact | camping `Checking` |
-| Camp scenes: the first dialogue object in the player's chunk whose flag A is one of eight, and holds, however far | `CampDialogueFlags` `0xD85F0` (`Camp_CheckDialougFlags`) | `EngineTables` | camping `Scenes` |
+| Camp scenes: the first script object in the player's chunk whose flag A is one of eight, and holds, however far | `CampDialogueFlags` `0xD85F0` (`Camp_CheckDialougFlags`) | `EngineTables` | camping `Scenes` |
 | Camp ambushes only while derived 5004 holds (`FLAG_Gwernia2MembersNoBrenna`: two of Abrecan, Godric and Rheda joined) | `Party::CampCheck` | Fact | camping `Ambushes` |
 | The lighthouse chunks' lit scenes while 5017 holds: the dark scenes tested, the flag and the lit scenes, as immediates | `CheckToggleZoneScene` `0x8000aa14`, from `0x8000aa3c` | `ToggledScenes` | map set chunks' `swap` ([maps](maps.md)) |
 | Minimap pieces by flag: the Ehud underground (4222–4232), the Roog entrance (4233–4237), the Barrows (4286–4294) | `MinimapFlagImages` `0xE07C8` (`minimap_dats_2`); which Barrows piece each shows, `MiniMap::BarrowsFlags` `0x8004bfac` | `Minimaps`, the Barrows' as facts (`MinimapImporter`) | `aidyn:minimap/<map set>` |
@@ -55,7 +55,7 @@ Which events the base plugin's triggers carry, with the call sites, is [events](
 | Scripts whose end leads somewhere: the death scenes, 1268 (Roog's), 1278 (the ending) | `ScriptEndings` `0xE0A1C` (`borg_short_list`, `CutScene.Free`) | `EngineTables` | triggers on `script.ended` |
 | Scripts after which eight hours pass: the eight camp scenes and the Campsite's | `CampfireScenes` `0xD8604` (`isCampfireScene`) | `EngineTables` | script `Rest` |
 | The death scenes; only the first, 1298, ever starts, from its object in the Dreamscape's Borg9 (3423) | `GameOverScenes` `0xCEDE0` (`Gameover_func`) | `EngineTables`, `CombatImporter` | combat `GameOver` |
-| Camping with no camp scene near starts the Campsite Borg9's (6236) first dialogue object | `campfire_func` | Fact | camping `Campsite` |
+| Camping with no camp scene near starts the Campsite Borg9's (6236) first script object | `campfire_func` | Fact | camping `Campsite` |
 | A new game: Overworld I08 at (16, 62), the body made 10 up and set down, Alaron alone with 1 gold | `Title.Leave` `0x80055718`, `Zones.SetMapSet` (`0x80026374`, `0x800ce7d8`), `InitGameTrek` `0x80021018`, `init_DBs` | Fact (`WorldImporter.BuildNewGame`) | `aidyn:newgame/0` |
 | The help menu is script 1355 | `gametrek.cpp` | Fact (`EngineFlags.HelpScript`) | none: `SystemMenu.HelpScript` ([hardcoded content](../hardcoded-content.md#trek-and-the-world)) |
 

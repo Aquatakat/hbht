@@ -9,12 +9,12 @@ namespace HBHT.Rom.Tests;
 /// <summary>
 /// The template eleven cut-scenes share for a recruit who finds the party full: they say there's no room, then ask each member in
 /// turn, and a member who would leave offers it in a menu: the first choice runs RemoveMember and goes back to the join node, the
-/// second stays. Here Keelin's (<c>aidyn:dialogue/0x0382</c>), played through the runner over the 1.0 checkpoints' parties.
+/// second stays. Here Keelin's (<c>aidyn:script/0x0382</c>), played through the runner over the 1.0 checkpoints' parties.
 /// </summary>
 [Collection(ImportedPluginCollection.Name)]
 public sealed class FullPartyScriptTests(Na10Import fixture)
 {
-    private static readonly RecordId KeelinsScript = RecordId.Hex(RecordTypes.Dialogue, 0x0382);
+    private static readonly RecordId KeelinsScript = RecordId.Hex(RecordTypes.Script, 0x0382);
 
     private const int WillYouJoinMe = 41, NoRoom = 46, KeelinJoins = 44, KeelinWalksOff = 134;
 
@@ -47,7 +47,7 @@ public sealed class FullPartyScriptTests(Na10Import fixture)
     /// </summary>
     private ScriptRunner Play(GameState game, Func<int, int?> choose, out List<int> menus)
     {
-        var runner = game.RunScript(Set.Get<DialogueRecord>(KeelinsScript), new CueLog());
+        var runner = game.RunScript(Set.Get<ScriptRecord>(KeelinsScript), new CueLog());
         var seen = new List<int>();
         runner.Start();
         for (var steps = 0; runner.Ending is null; steps++)
@@ -78,12 +78,12 @@ public sealed class FullPartyScriptTests(Na10Import fixture)
     [Fact]
     public void ScriptsStartAtTheNodeKeelinAsksWillYouJoinMeAndAFullPartyTakesTheNoRoomLine()
     {
-        var script = Set.Get<DialogueRecord>(KeelinsScript);
-        Assert.Equal(DialogueMode.Cutscene, script.Mode);
-        Assert.Equal(("Will you join me?", DialogueNodeKind.Case), (script.Nodes[WillYouJoinMe].Text, script.Nodes[WillYouJoinMe].Kind));
-        Assert.Equal(DialogueCommand.AddMember, script.Nodes[KeelinJoins].Ops!.Single().Command);
+        var script = Set.Get<ScriptRecord>(KeelinsScript);
+        Assert.Equal(ScriptMode.Cutscene, script.Mode);
+        Assert.Equal(("Will you join me?", ScriptNodeKind.Case), (script.Nodes[WillYouJoinMe].Text, script.Nodes[WillYouJoinMe].Kind));
+        Assert.IsType<ScriptOp.PartyAddMember>(script.Nodes[KeelinJoins].Ops.Single());
         Assert.StartsWith("I'm afraid there's no room", script.Nodes[NoRoom].Text);
-        Assert.Equal(DialogueCommand.CheckPartySize, script.Nodes[WillYouJoinMe].Ops![0].Command);
+        Assert.IsType<ScriptOp.CheckPartySize>(script.Nodes[WillYouJoinMe].Ops.First());
     }
 
     [Fact]

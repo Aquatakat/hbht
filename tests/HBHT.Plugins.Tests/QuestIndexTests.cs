@@ -20,21 +20,23 @@ public sealed class QuestIndexTests : IDisposable
         var plugins = _temp.Aidyn(("quests.json", """
             [
               {
-                "id": "aidyn:dialogue/0x0100", "number": 1, "mode": "Cutscene",
+                "id": "aidyn:script/0x0100", "number": 1, "mode": "Cutscene",
                 "doneFlag": "aidyn:flag/30", "battleFlag": "aidyn:flag/31",
                 "nodes": [
                   { "index": 0, "kind": "If", "text": "The Lighthouse is dark.",
-                    "ops": [ { "command": "CheckFlag", "target": "aidyn:flag/10" }, { "command": "SetSpeaker", "target": "aidyn:entity/0x0001" } ] },
+                    "speaker": "aidyn:entity/0x0001", "condition": { "op": "check.flag", "flag": "aidyn:flag/10" } },
                   { "index": 1, "kind": "Line", "text": "Take the key.",
-                    "ops": [ { "command": "CheckFlag", "target": "aidyn:flag/10" }, { "command": "SetFlag", "target": "aidyn:flag/20" }, { "command": "ClearFlag", "target": "aidyn:flag/20" } ] },
+                    "condition": { "op": "check.flag", "flag": "aidyn:flag/10" },
+                    "setup": [ { "op": "flag.clear", "flag": "aidyn:flag/20" } ], "effect": { "op": "flag.set", "flag": "aidyn:flag/20" } },
                   { "index": 2, "kind": "Line", "text": "" },
                 ],
               },
               {
-                "id": "aidyn:dialogue/0x0101", "number": 2, "mode": "Conversation",
+                "id": "aidyn:script/0x0101", "number": 2, "mode": "Conversation",
                 "nodes": [
                   { "index": 0, "kind": "Line", "text": "the LIGHTHOUSE keeper",
-                    "ops": [ { "command": "SetFlag", "target": "aidyn:flag/20" }, { "command": "CheckFlag", "target": "aidyn:flag/40" }, { "command": "AddGold", "value": 5 } ] },
+                    "condition": { "op": "check.flag", "flag": "aidyn:flag/40" },
+                    "setup": [ { "op": "party.addGold", "amount": 5 } ], "effect": { "op": "flag.set", "flag": "aidyn:flag/20" } },
                 ],
               },
               { "id": "aidyn:flag/10" },
@@ -63,8 +65,8 @@ public sealed class QuestIndexTests : IDisposable
         return QuestIndex.Build(plugins);
     }
 
-    private static readonly RecordId ScriptA = Id("aidyn:dialogue/0x0100");
-    private static readonly RecordId ScriptB = Id("aidyn:dialogue/0x0101");
+    private static readonly RecordId ScriptA = Id("aidyn:script/0x0100");
+    private static readonly RecordId ScriptB = Id("aidyn:script/0x0101");
     private static readonly RecordId State = Id("aidyn:stateflags/0");
 
     [Fact]
@@ -169,7 +171,7 @@ public sealed class QuestIndexTests : IDisposable
                 new FlagUse(Flag(31), ScriptA, FlagAccess.Set, FlagRole.ScriptBattle),
             ],
             index.UsesBy(ScriptA));
-        Assert.Empty(index.UsesBy(Id("aidyn:dialogue/0x0999")));
+        Assert.Empty(index.UsesBy(Id("aidyn:script/0x0999")));
     }
 
     [Fact]
@@ -252,19 +254,19 @@ public sealed class QuestIndexTests : IDisposable
                 "drops": [ { "item": "aidyn:item/0x0010", "chance": 100 } ] },
               { "id": "aidyn:shop/3", "shopkeeper": "aidyn:entity/0x0001", "stock": [ { "item": "aidyn:item/0x1200" }, { "item": "aidyn:item/0x0010" } ] },
               {
-                "id": "aidyn:dialogue/0x0100", "number": 1, "mode": "Conversation",
+                "id": "aidyn:script/0x0100", "number": 1, "mode": "Conversation",
                 "nodes": [
-                  { "index": 0, "kind": "Line", "text": "", "ops": [ { "command": "AddItem", "target": "aidyn:item/0x1200" } ] },
-                  { "index": 1, "kind": "Line", "text": "", "ops": [ { "command": "TakeItem", "target": "aidyn:item/0x1200" }, { "command": "AddItem", "target": "aidyn:item/0x0010" } ] },
-                  { "index": 2, "kind": "Line", "text": "", "ops": [ { "command": "AddItem", "target": "aidyn:item/0x1202" }, { "command": "TakeItem", "target": "aidyn:item/0x1201" } ] },
+                  { "index": 0, "kind": "Line", "text": "", "effect": { "op": "party.addItem", "item": "aidyn:item/0x1200" } },
+                  { "index": 1, "kind": "Line", "text": "", "setup": [ { "op": "party.addItem", "item": "aidyn:item/0x0010" } ], "effect": { "op": "party.takeItem", "item": "aidyn:item/0x1200" } },
+                  { "index": 2, "kind": "Line", "text": "", "setup": [ { "op": "party.addItem", "item": "aidyn:item/0x1202" } ], "effect": { "op": "party.takeItem", "item": "aidyn:item/0x1201" } },
                 ],
               },
               {
-                "id": "aidyn:dialogue/0x0101", "number": 2, "mode": "Conversation",
-                "nodes": [ { "index": 0, "kind": "Line", "text": "", "ops": [ { "command": "Battle" } ] } ],
+                "id": "aidyn:script/0x0101", "number": 2, "mode": "Conversation",
+                "nodes": [ { "index": 0, "kind": "Line", "text": "", "effect": { "op": "battle.start" } } ],
               },
               {
-                "id": "aidyn:dialogue/0x0102", "number": 3, "mode": "Conversation",
+                "id": "aidyn:script/0x0102", "number": 3, "mode": "Conversation",
                 "nodes": [ { "index": 0, "kind": "Line", "text": "" } ],
               },
               {
@@ -276,9 +278,9 @@ public sealed class QuestIndexTests : IDisposable
                   { "type": "container", "index": 3, {{Obj}}, "loot": "aidyn:loot/0x0800", "item": "aidyn:item/0x1200" },
                   { "type": "container", "index": 4, {{Obj}}, "item": "aidyn:item/0x1202" },
                   { "type": "monsterParty", "index": 5, {{Party}}, "loot": "aidyn:loot/0x0800" },
-                  { "type": "monsterParty", "index": 6, {{Party}}, "loot": "aidyn:loot/0x0800", "dialogue": "aidyn:dialogue/0x0101" },
-                  { "type": "monsterParty", "index": 7, {{Party}}, "loot": "aidyn:loot/0x0800", "dialogue": "aidyn:dialogue/0x0102" },
-                  { "type": "monsterParty", "index": 8, {{Party}}, "loot": "aidyn:loot/0x0800", "dialogue": "aidyn:dialogue/0x0101", "flags": "Silent" },
+                  { "type": "monsterParty", "index": 6, {{Party}}, "loot": "aidyn:loot/0x0800", "script": "aidyn:script/0x0101" },
+                  { "type": "monsterParty", "index": 7, {{Party}}, "loot": "aidyn:loot/0x0800", "script": "aidyn:script/0x0102" },
+                  { "type": "monsterParty", "index": 8, {{Party}}, "loot": "aidyn:loot/0x0800", "script": "aidyn:script/0x0101", "flags": "Silent" },
                   { "type": "monsterParty", "index": 9, {{Party}}, "loot": "aidyn:loot/0x0801" },
                 ],
               },
@@ -293,7 +295,7 @@ public sealed class QuestIndexTests : IDisposable
     public void ScriptsThatAddAKeyItemGiveItsHeldAndRegionFlagsAtTheirNode()
     {
         var index = ItemIndex();
-        var script = Id("aidyn:dialogue/0x0100");
+        var script = Id("aidyn:script/0x0100");
 
         // Node 0 adds a key item with a region. Node 1 adds a plain item, node 2 a key item whose flags are constants.
         Assert.Equal([Given(100, script.ToString(), 0), Given(101, script.ToString(), 0)], index.UsesBy(script).Where(u => u.Role == FlagRole.ItemGiven));
@@ -308,7 +310,7 @@ public sealed class QuestIndexTests : IDisposable
     public void ScriptsThatTakeAKeyItemClearOnlyItsHeldFlag()
     {
         var index = ItemIndex();
-        var script = Id("aidyn:dialogue/0x0100");
+        var script = Id("aidyn:script/0x0100");
 
         // Node 1 takes the key item with a region, and node 2 takes one nothing gives.
         Assert.Equal(
@@ -343,7 +345,7 @@ public sealed class QuestIndexTests : IDisposable
         var index = ItemIndex();
         Assert.Equal([Given(102, "aidyn:voxel/0x0300/5")], index.UsesBy(Id("aidyn:voxel/0x0300/5")).Where(u => u.Role == FlagRole.ItemGiven));
 
-        // No dialogue: a fight. A dialogue with a battle: a fight. One without, and a silent one: not.
+        // No script: a fight. A script with a battle: a fight. One without, and a silent one: not.
         Assert.Contains(Given(102, "aidyn:voxel/0x0300/6"), index.UsesBy(Id("aidyn:voxel/0x0300/6")));
         Assert.Empty(index.UsesBy(Id("aidyn:voxel/0x0300/7")));
         Assert.Empty(index.UsesBy(Id("aidyn:voxel/0x0300/8")));
@@ -390,14 +392,14 @@ public sealed class QuestIndexTests : IDisposable
               { "id": "aidyn:entity/0x0243", "name": "Brenna", "member": { "joined": "aidyn:flag/92", "died": "aidyn:flag/613" } },
               { "id": "aidyn:entity/0x0239", "name": "Trahern" },
               {
-                "id": "aidyn:dialogue/0x0100", "number": 1, "mode": "Conversation",
+                "id": "aidyn:script/0x0100", "number": 1, "mode": "Conversation",
                 "nodes": [
-                  { "index": 0, "kind": "Line", "text": "", "ops": [ { "command": "AddMember", "target": "aidyn:entity/0x0248" } ] },
-                  { "index": 1, "kind": "Line", "text": "", "ops": [ { "command": "RemoveMember", "target": "aidyn:entity/0x0248" } ] },
-                  { "index": 2, "kind": "Line", "text": "", "ops": [ { "command": "AddMember", "target": "aidyn:entity/0x0243" } ] },
-                  { "index": 3, "kind": "Line", "text": "", "ops": [ { "command": "AddMember", "target": "aidyn:entity/0x0239" } ] },
-                  { "index": 4, "kind": "Line", "text": "", "ops": [ { "command": "RemoveMember", "target": "aidyn:entity/0x0243" } ] },
-                  { "index": 5, "kind": "Line", "text": "", "ops": [ { "command": "AddMember", "target": "aidyn:entity/0x0248" }, { "command": "AddMember", "target": "aidyn:entity/0x0243" } ] },
+                  { "index": 0, "kind": "Line", "text": "", "effect": { "op": "party.addMember", "entity": "aidyn:entity/0x0248" } },
+                  { "index": 1, "kind": "Line", "text": "", "effect": { "op": "party.removeMember", "entity": "aidyn:entity/0x0248" } },
+                  { "index": 2, "kind": "Line", "text": "", "effect": { "op": "party.addMember", "entity": "aidyn:entity/0x0243" } },
+                  { "index": 3, "kind": "Line", "text": "", "effect": { "op": "party.addMember", "entity": "aidyn:entity/0x0239" } },
+                  { "index": 4, "kind": "Line", "text": "", "effect": { "op": "party.removeMember", "entity": "aidyn:entity/0x0243" } },
+                  { "index": 5, "kind": "Line", "text": "", "setup": [ { "op": "party.addMember", "entity": "aidyn:entity/0x0243" } ], "effect": { "op": "party.addMember", "entity": "aidyn:entity/0x0248" } },
                 ],
               },
             ]

@@ -34,7 +34,7 @@ public sealed class Wanderer
         Look = look;
         Body = body;
         Perception = perception;
-        Hunts = party.Dialogue is null;
+        Hunts = party.Script is null;
         Home = new Vector2(party.Position.X, party.Position.Z) + new Vector2(map.Origin.X, map.Origin.Z);
     }
 
@@ -55,7 +55,7 @@ public sealed class Wanderer
     public Audio.BodyAudio Audio { get; } = new();
 
     /// <summary>Whether it talks rather than fights: a party with a dialogue.</summary>
-    public bool Talks => Party.Dialogue is not null;
+    public bool Talks => Party.Script is not null;
 
     /// <summary>
     /// Whether it notices and chases the player (<c>moveType</c> 1): a party without a dialogue, until

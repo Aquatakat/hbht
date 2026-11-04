@@ -8,7 +8,7 @@ namespace HBHT.Core.Ui;
 public readonly record struct TextShadow(Rgba Color, int X, int Y);
 
 /// <summary>
-/// How a backdrop's picture number (the script's <see cref="DialogueRecord.Backdrop"/>, the original's
+/// How a backdrop's picture number (the script's <see cref="ScriptRecord.Backdrop"/>, the original's
 /// <c>libraryType</c>) dresses its page: the picture, the text's colour and shadow, what the cursor's choice pulses
 /// between, and where the text wraps (<c>Backdrop.Page</c>, <c>0x80047930</c> in 1.0). The choices off the cursor are
 /// in the text's colour, with its shadow.

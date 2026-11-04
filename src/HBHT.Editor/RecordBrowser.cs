@@ -398,7 +398,7 @@ public partial class RecordBrowser : Control
         {
             foreach (var (script, node) in quests.FindText(search))
             {
-                if (!said.ContainsKey(script) && _catalog.Plugins.TryGet<DialogueRecord>(script) is { } record)
+                if (!said.ContainsKey(script) && _catalog.Plugins.TryGet<ScriptRecord>(script) is { } record)
                     said[script] = $"node {node}: {record.Nodes[node].Text.Replace('\n', ' ')}";
             }
         }
@@ -612,7 +612,7 @@ public partial class RecordBrowser : Control
         var plugins = catalog.Plugins;
         if (id.Type is RecordTypes.Flag or RecordTypes.Journal)
             return _game is null ? Message("These plugins are too old for a game: import the ROM again.") : new FlagPanel(catalog, _game, id, FollowLink);
-        if (id.Type == RecordTypes.Dialogue && plugins.TryGet<DialogueRecord>(id) is { } script)
+        if (id.Type == RecordTypes.Script && plugins.TryGet<ScriptRecord>(id) is { } script)
             return new ScriptPanel(catalog, _game, _rules, _items, script, FollowLink);
         if (id.Type == RecordTypes.Entity && plugins.TryGet<EntityRecord>(id) is { Sheet: null } speaker)
             return new SpeakerPanel(catalog, speaker, FollowLink);

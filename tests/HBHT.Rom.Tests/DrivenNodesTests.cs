@@ -7,7 +7,7 @@ namespace HBHT.Rom.Tests;
 
 /// <summary>
 /// What a scene's animations drive, with the nodes' rest values (<see cref="DrivenNodes"/>), which the views pose where Godot's glTF
-/// loader leaves out a track held at rest. Phelan in the final cut-scene (<c>aidyn:dialogue/0x04FE</c>) is the case that showed it.
+/// loader leaves out a track held at rest. Phelan in the final cut-scene (<c>aidyn:script/0x04FE</c>) is the case that showed it.
 /// </summary>
 [Collection(ImportedPluginCollection.Name)]
 public sealed class DrivenNodesTests(Na10Import fixture)

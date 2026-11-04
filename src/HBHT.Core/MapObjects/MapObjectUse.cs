@@ -25,7 +25,7 @@ public interface IMapObjectHost
     void OpenLoot(ItemPile loot, int gold);
 
     /// <summary>Starts a dialogue object's script (<c>dialouge_vobject_func</c>).</summary>
-    void StartScript(LoadedMap map, DialogueObject dialogue);
+    void StartScript(LoadedMap map, ScriptObject dialogue);
 
     /// <summary>
     /// A pressed on a monster party's body (<c>monsterpary_func</c>): a talker's conversation starts
@@ -238,7 +238,7 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
         return o switch
         {
             ContainerObject c => distance <= c.Reach + radius && map.Container(o.Index)!.Usable(Flags),
-            TeleporterObject or TripwireObject or DialogueObject => distance <= o.Radius && Holds(o.Enabled),
+            TeleporterObject or TripwireObject or ScriptObject => distance <= o.Radius && Holds(o.Enabled),
             SavePointObject => distance <= o.Radius,
             _ => false,
         };
@@ -264,7 +264,7 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
             case TeleporterObject teleporter:
                 UseTeleporter(map, teleporter);
                 break;
-            case DialogueObject dialogue:
+            case ScriptObject dialogue:
                 host.StartScript(map, dialogue);
                 break;
             case TripwireObject tripwire:
@@ -309,7 +309,7 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
                 case TripwireObject tripwire:
                     Trip(map, tripwire);
                     break;
-                case DialogueObject dialogue:
+                case ScriptObject dialogue:
                     host.StartScript(map, dialogue);
                     return;
             }
@@ -336,7 +336,7 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
             case TeleporterObject teleporter:
                 host.Teleport(map, teleporter);
                 break;
-            case DialogueObject dialogue when Holds(o.Enabled):
+            case ScriptObject dialogue when Holds(o.Enabled):
                 host.StartScript(map, dialogue);
                 break;
         }

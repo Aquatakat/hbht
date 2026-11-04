@@ -31,7 +31,7 @@ public sealed class MapObjectImportTests(Na10Import fixture)
             [nameof(TeleporterObject)] = 894,
             [nameof(LightObject)] = 777,
             [nameof(ContainerObject)] = 370,
-            [nameof(DialogueObject)] = 364,
+            [nameof(ScriptObject)] = 364,
             [nameof(TripwireObject)] = 302,
             [nameof(CameraObject)] = 244,
             [nameof(SavePointObject)] = 3,
@@ -141,7 +141,7 @@ public sealed class MapObjectImportTests(Na10Import fixture)
                     failures.Add($"{id}: {point} isn't a reference point of {teleporter.Destination}'s map");
             }
         }
-        foreach (var (id, _, dialogue) in Data.Of<DialogueObject>().Where(d => d.Object.Stage is not null))
+        foreach (var (id, _, dialogue) in Data.Of<ScriptObject>().Where(d => d.Object.Stage is not null))
         {
             if (Data.Chunk(dialogue.Stage!) is null)
                 failures.Add($"{id}: no chunk {dialogue.Stage}");
@@ -160,17 +160,17 @@ public sealed class MapObjectImportTests(Na10Import fixture)
                 failures.Add($"{id}: {what} {record} isn't a record");
         }
 
-        foreach (var (id, _, dialogue) in Data.Of<DialogueObject>())
+        foreach (var (id, _, dialogue) in Data.Of<ScriptObject>())
         {
-            Has(id, dialogue.Script, "script");
-            if (dialogue.Script.Type != RecordTypes.Dialogue)
-                failures.Add($"{id}: script {dialogue.Script} isn't a dialogue");
+            Has(id, dialogue.Plays, "script");
+            if (dialogue.Plays.Type != RecordTypes.Script)
+                failures.Add($"{id}: script {dialogue.Plays} isn't a script");
         }
         foreach (var (id, _, party) in Data.Of<MonsterPartyObject>())
         {
-            Has(id, party.Dialogue, "dialogue");
-            if (party.Dialogue is { Type: not RecordTypes.Dialogue })
-                failures.Add($"{id}: dialogue {party.Dialogue} isn't a dialogue");
+            Has(id, party.Script, "script");
+            if (party.Script is { Type: not RecordTypes.Script })
+                failures.Add($"{id}: script {party.Script} isn't a script");
             Has(id, party.Entity, "entity");
             Has(id, party.Loot, "loot");
             foreach (var enemy in party.Enemies)
@@ -187,7 +187,7 @@ public sealed class MapObjectImportTests(Na10Import fixture)
         Assert.Contains(Data.Of<ContainerObject>(), c => c.Object.Item is { Type: RecordTypes.Item } item && item.Key.StartsWith("0x10", StringComparison.Ordinal));
 
         // Something of each is there to be checked.
-        Assert.Contains(Data.Of<MonsterPartyObject>(), p => p.Object.Loot is not null && p.Object.Dialogue is not null);
+        Assert.Contains(Data.Of<MonsterPartyObject>(), p => p.Object.Loot is not null && p.Object.Script is not null);
         Assert.Contains(Data.Of<ContainerObject>(), c => c.Object.Loot is not null);
         Assert.Contains(Data.Of<ContainerObject>(), c => c.Object.Item is not null);
     }
@@ -231,7 +231,7 @@ public sealed class MapObjectImportTests(Na10Import fixture)
                     if (point is not { } found)
                         continue;
                     var destination = Data.Map(Data.Chunk(o.Destination)!.Map.ToString());
-                    var first = destination.Objects.OfType<ReferencePointObject>().First(r => r.Id == id);
+                    var first = destination.Objects.OfType<ReferencePointObject>().First(r => r.Mark == id);
                     if (found != MapRecord.VoxelId(destination.Id, first.Index))
                         failures.Add($"{where}: {found} isn't the first point with ID {id}");
                 }
@@ -258,11 +258,11 @@ public sealed class MapObjectImportTests(Na10Import fixture)
 
             // Parties, dialogues and save points are always there, and so are the plain containers until they're opened.
             // A gate that always holds, flag 0 inverted, is written as none.
-            var alwaysThere = o is MonsterPartyObject or DialogueObject or SavePointObject || crate;
+            var alwaysThere = o is MonsterPartyObject or ScriptObject or SavePointObject || crate;
             if (o.Visible is not null && alwaysThere || o.Visible is { Invert: true } v && Number(v.Flag) == 0)
                 failures.Add($"{where}: a {o.GetType().Name} {kind} has visible gate {o.Visible}");
 
-            var works = o is TeleporterObject or TripwireObject or DialogueObject or MonsterPartyObject || (kind is not null && !crate);
+            var works = o is TeleporterObject or TripwireObject or ScriptObject or MonsterPartyObject || (kind is not null && !crate);
             if (o.Enabled is not null && !works || o.Enabled is { Invert: true } e && Number(e.Flag) == 0)
                 failures.Add($"{where}: a {o.GetType().Name} {kind} has enabled gate {o.Enabled}");
 
@@ -271,7 +271,7 @@ public sealed class MapObjectImportTests(Na10Import fixture)
             if (o is MonsterPartyObject && o.Used is { Clear: true })
                 failures.Add($"{where}: a party clears {o.Used.Flag}");
 
-            if (o.Tangible && o is not (TeleporterObject or TripwireObject or DialogueObject))
+            if (o.Tangible && o is not (TeleporterObject or TripwireObject or ScriptObject))
                 failures.Add($"{where}: a {o.GetType().Name} is tangible");
         }
         Assert.Empty(failures);
@@ -304,7 +304,7 @@ public sealed class MapObjectImportTests(Na10Import fixture)
         Assert.Equal(5283, uses.Count);
 
         // What starts each script: a map object, or another script's RandomLine.
-        var starters = Data.Set.All<DialogueRecord>(RecordTypes.Dialogue).SelectMany(s => Data.Index.StartersOf(s.Id)).ToHashSet();
+        var starters = Data.Set.All<ScriptRecord>(RecordTypes.Script).SelectMany(s => Data.Index.StartersOf(s.Id)).ToHashSet();
         Assert.Contains(starters, s => s.At is null);
         Assert.Contains(starters, s => s.At is not null);
 
@@ -316,14 +316,14 @@ public sealed class MapObjectImportTests(Na10Import fixture)
     public void ScriptsAndShopsGiveAndTakeKeyItems()
     {
         // Every write of a key item's flags by a script or a shop, second effects of a node included.
-        var plugin = Data.Set.All<DialogueRecord>(RecordTypes.Dialogue).Select(s => s.Id)
+        var plugin = Data.Set.All<ScriptRecord>(RecordTypes.Script).Select(s => s.Id)
             .Concat(Data.Set.All<ShopRecord>(RecordTypes.Shop).Select(s => s.Id))
             .SelectMany(id => Data.Index.UsesBy(id))
             .Where(u => u.Role is FlagRole.ItemGiven or FlagRole.ItemTaken)
             .Select(u => (u.By, u.At, Flag: Number(u.Flag), Access: u.Access.ToString(), Role: u.Role.ToString()))
             .ToHashSet();
-        Assert.Contains(plugin, u => u is { Role: "ItemGiven", By.Type: RecordTypes.Dialogue });
-        Assert.Contains(plugin, u => u is { Role: "ItemTaken", By.Type: RecordTypes.Dialogue });
+        Assert.Contains(plugin, u => u is { Role: "ItemGiven", By.Type: RecordTypes.Script });
+        Assert.Contains(plugin, u => u is { Role: "ItemTaken", By.Type: RecordTypes.Script });
         Assert.Contains(plugin, u => u is { Role: "ItemGiven", By.Type: RecordTypes.Shop });
 
         // Taking an item clears its held flag and never its region flag, and giving sets both.
@@ -353,14 +353,14 @@ public sealed class MapObjectImportTests(Na10Import fixture)
         }
 
         // What gives them: scripts, shops, containers and a monster party that's fought.
-        var given = Data.Set.All<DialogueRecord>(RecordTypes.Dialogue).Select(s => s.Id)
+        var given = Data.Set.All<ScriptRecord>(RecordTypes.Script).Select(s => s.Id)
             .Concat(Data.Set.All<ShopRecord>(RecordTypes.Shop).Select(s => s.Id))
             .Concat(Data.Objects.Keys)
             .SelectMany(id => Data.Index.UsesBy(id))
             .Where(u => u.Role == FlagRole.ItemGiven)
             .ToList();
         Assert.Equal(
-            new Dictionary<string, int> { [RecordTypes.Dialogue] = 8, [RecordTypes.Shop] = 2, [RecordTypes.Voxel] = 8 },
+            new Dictionary<string, int> { [RecordTypes.Script] = 8, [RecordTypes.Shop] = 2, [RecordTypes.Voxel] = 8 },
             given.GroupBy(u => u.By.Type).ToDictionary(g => g.Key, g => g.Count()));
         var voxels = given.Where(u => u.By.Type == RecordTypes.Voxel).GroupBy(u => Data.Objects[u.By].GetType().Name)
             .ToDictionary(g => g.Key, g => g.Count());
@@ -396,8 +396,8 @@ public sealed class MapObjectImportTests(Na10Import fixture)
                 new FlagUse(Flag(3430), key.Id, FlagAccess.Set, FlagRole.KeyItem),
             ],
             held.Where(u => u.Role is FlagRole.ItemGiven or FlagRole.ItemTaken or FlagRole.KeyItem));
-        var nodes = Data.Set.Get<DialogueRecord>(keeper).Nodes;
-        Assert.All([15, 37], n => Assert.Contains(nodes[n].Ops!, op => op.Command == DialogueCommand.AddItem && op.Target == key.Id));
+        var nodes = Data.Set.Get<ScriptRecord>(keeper).Nodes;
+        Assert.All([15, 37], n => Assert.Contains(nodes[n].Ops, op => op is ScriptOp.PartyAddItem add && add.Item == key.Id));
 
         // The conversation's own flag 285, which it checks first and sets, is a different flag from the key's.
         Assert.Contains(new FlagUse(Flag(285), keeper, FlagAccess.Set, FlagRole.ScriptOp, 28), Data.Index.UsesOf(Flag(285)));
@@ -414,10 +414,10 @@ public sealed class MapObjectImportTests(Na10Import fixture)
         // Cradawgh's Body is given by one conversation (0x042D, node 52) and taken by another (0x043F, node 19).
         var body = Data.Set.Get<ItemRecord>(RecordId.Parse("aidyn:item/0x0119"));
         Assert.Equal(new KeyItemFlags(Flag(3417), Flag(799)), body.KeyItem);
-        var taker = RecordId.Parse("aidyn:dialogue/0x043F");
+        var taker = RecordId.Parse("aidyn:script/0x043F");
         Assert.Equal([new FlagUse(Flag(3417), taker, FlagAccess.Clear, FlagRole.ItemTaken, 19)], Data.Index.UsesBy(taker).Where(u => u.Role == FlagRole.ItemTaken));
         Assert.DoesNotContain(Data.Index.UsesOf(Flag(799)), u => u.Role == FlagRole.ItemTaken);
-        Assert.Contains(new FlagUse(Flag(799), RecordId.Parse("aidyn:dialogue/0x042D"), FlagAccess.Set, FlagRole.ItemGiven, 52), Data.Index.UsesOf(Flag(799)));
+        Assert.Contains(new FlagUse(Flag(799), RecordId.Parse("aidyn:script/0x042D"), FlagAccess.Set, FlagRole.ItemGiven, 52), Data.Index.UsesOf(Flag(799)));
     }
 
     [Fact]

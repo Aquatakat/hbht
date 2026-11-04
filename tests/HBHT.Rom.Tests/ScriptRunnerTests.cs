@@ -15,14 +15,14 @@ namespace HBHT.Rom.Tests;
 /// <summary>Runs every imported script through the core's script runner, with random game states and choices.</summary>
 public class ScriptRunnerTests
 {
-    private static readonly Lazy<(List<DialogueRecord> Scripts, List<FlagRecord> Flags)> Data = new(() =>
+    private static readonly Lazy<(List<ScriptRecord> Scripts, List<FlagRecord> Flags)> Data = new(() =>
     {
         var rom = TestRoms.Get(RomVersionId.Na10);
         var db = GameDb.Read(rom);
-        return (DialogueImporter.BuildDialogues(BorgArchive.Open(rom), EngineTables.Read(rom)), FlagImporter.BuildFlags(db, FlagLabels.Read(rom, db)));
+        return (ScriptImporter.BuildScripts(BorgArchive.Open(rom), EngineTables.Read(rom)), FlagImporter.BuildFlags(db, FlagLabels.Read(rom, db)));
     });
 
-    private static Dictionary<RecordId, DialogueRecord> ById => Data.Value.Scripts.ToDictionary(s => s.Id);
+    private static Dictionary<RecordId, ScriptRecord> ById => Data.Value.Scripts.ToDictionary(s => s.Id);
 
     /// <summary>A party and inventory that answer at random, the same way for the whole run.</summary>
     private sealed class RandomWorld(Random random) : IScriptWorld
@@ -59,7 +59,7 @@ public class ScriptRunnerTests
     }
 
     /// <summary>Plays a script to its end with random flags, answers and choices, and returns how it ended.</summary>
-    private static ScriptEnding? Play(DialogueRecord script, int seed, Dictionary<RecordId, DialogueRecord> scripts, out string trailText)
+    private static ScriptEnding? Play(ScriptRecord script, int seed, Dictionary<RecordId, ScriptRecord> scripts, out string trailText)
     {
         var random = new Random(seed);
         var flags = new FlagNetwork(Data.Value.Flags, RecordId.Decimal(RecordTypes.Flag, EngineFlags.NewJournalEntry));
@@ -117,15 +117,15 @@ public class ScriptRunnerTests
         }
         Assert.Equal(
         [
-            "aidyn:dialogue/0x03A8 loops",
-            "aidyn:dialogue/0x0410: Node 24 has no link and there's no menu to go back to: the original reads past the script's nodes.",
+            "aidyn:script/0x03A8 loops",
+            "aidyn:script/0x0410: Node 24 has no link and there's no menu to go back to: the original reads past the script's nodes.",
         ], found);
     }
 
     [Fact]
     public void TheKendallCutSceneSetsItsDoneFlag()
     {
-        var script = ById[RecordId.Hex(RecordTypes.Dialogue, 866)];
+        var script = ById[RecordId.Hex(RecordTypes.Script, 866)];
         var flags = new FlagNetwork(Data.Value.Flags, RecordId.Decimal(RecordTypes.Flag, EngineFlags.NewJournalEntry));
         var host = new Cues();
         var runner = new ScriptRunner(script, flags, new RandomWorld(new Random(0)), host, new Lcg(), _ => null);

@@ -26,7 +26,7 @@ internal static class ConversationPlugins
     public static readonly RecordId Trahern = RecordId.Hex(RecordTypes.Entity, 0x0239);
     public static readonly RecordId Sign = RecordId.Hex(RecordTypes.Entity, 0x1405);
 
-    public static RecordId Script(int n) => RecordId.Parse($"convtest:dialogue/0x{n:x4}");
+    public static RecordId Script(int n) => RecordId.Parse($"convtest:script/0x{n:x4}");
 
     public static readonly RecordId Talk = Script(1), Animates = Script(2), Waits = Script(3), Joins = Script(4), Menus = Script(5),
         Ends = Script(6), Starts = Script(7), CutSpawns = Script(8), CutCameras = Script(9), CutItems = Script(10), CutAnimates = Script(11);
@@ -36,89 +36,89 @@ internal static class ConversationPlugins
     private static readonly object Lock = new();
     private static PluginSet? _set;
 
-    private static DialogueOp Op(DialogueCommand command, int? value = null, RecordId? target = null) => new(command, value, target);
+    private static ScriptNode Line(int index, string text, int? link, RecordId? speaker = null, params ScriptOp[] ops) =>
+        ScriptNodes.Line(index, text, link, speaker, ops);
 
-    private static DialogueNode Line(int index, string text, int? link, params DialogueOp[] ops) =>
-        new(index, DialogueNodeKind.Line, text, ops, link is { } l ? [l] : null);
+    private static readonly ScriptOp End = new ScriptOp.ScriptEnd();
 
-    private static DialogueOp Says(RecordId speaker) => Op(DialogueCommand.SetSpeaker, target: speaker);
-
-    private static readonly DialogueOp End = Op(DialogueCommand.EndDialogue);
-
-    private static DialogueRecord Record(RecordId id, params DialogueNode[] nodes) => new(id, 9000, DialogueMode.Conversation, nodes);
+    private static ScriptRecord Record(RecordId id, params ScriptNode[] nodes) => new(id, 9000, ScriptMode.Conversation, nodes);
 
     /// <summary>A cut-scene of Alaron and Trahern.</summary>
-    private static DialogueRecord Cut(RecordId id, params DialogueNode[] nodes) =>
-        new(id, 9001, DialogueMode.Cutscene, nodes, [GameState.Alaron, Trahern]);
+    private static ScriptRecord Cut(RecordId id, params ScriptNode[] nodes) =>
+        new(id, 9001, ScriptMode.Cutscene, nodes, Actors: [GameState.Alaron, Trahern]);
 
-    private static DialogueOp Op(DialogueCommand command, RecordId target) => new(command, null, target);
+    private static ScriptOp Request(RecordId actor, int n) => new ScriptOp.ActorAnimate(actor, RecordIds.Request(n));
 
-    private static IEnumerable<DialogueRecord> Scripts() =>
-    [
+    private static IEnumerable<ScriptRecord> Scripts()
+    {
+        var alaron = GameState.Alaron;
+        return
+        [
         // Trahern, Alaron, a sign and Trahern again.
         Record(Talk,
-            Line(0, "Hello.", 1, Says(Trahern)),
-            Line(1, "Hmm.", 2, Says(GameState.Alaron)),
-            Line(2, "Woof.", 3, Says(Sign)),
-            Line(3, "Bye.", null, Says(Trahern), End)),
+            Line(0, "Hello.", 1, Trahern),
+            Line(1, "Hmm.", 2, alaron),
+            Line(2, "Woof.", 3, Sign),
+            Line(3, "Bye.", null, Trahern, End)),
         // Lines that play an animation, as each shows: Trahern's actor has no state for 5, so he talks; Alaron's has one for 19.
         Record(Animates,
-            Line(0, "Hello.", 1, Says(Trahern)),
-            Line(1, "Watch.", 2, Says(Trahern), Op(DialogueCommand.PlayAnimation, 5)),
-            Line(2, "Here.", 3, Says(GameState.Alaron), Op(DialogueCommand.PlayAnimation, 19)),
-            Line(3, "Ta-da.", null, Says(Trahern), End)),
+            Line(0, "Hello.", 1, Trahern),
+            Line(1, "Watch.", 2, Trahern, Request(Trahern, 5)),
+            Line(2, "Here.", 3, alaron, Request(alaron, 19)),
+            Line(3, "Ta-da.", null, Trahern, End)),
         // A wait of three ticks before the second line.
         Record(Waits,
-            Line(0, "", 1, Op(DialogueCommand.Wait, 3)),
-            Line(1, "Done.", null, Says(Trahern), End)),
+            Line(0, "", 1, null, new ScriptOp.ScriptWait(3)),
+            Line(1, "Done.", null, Trahern, End)),
         // Someone joins the party as the first line is left.
         Record(Joins,
-            Line(0, "Join me.", 1, Says(Trahern), Op(DialogueCommand.AddMember, target: Trahern)),
-            Line(1, "Welcome.", null, Says(Trahern), End)),
+            Line(0, "Join me.", 1, Trahern, new ScriptOp.PartyAddMember(Trahern)),
+            Line(1, "Welcome.", null, Trahern, End)),
         // A menu: its choice is Alaron's and the answer Trahern's.
         Record(Menus,
-            new DialogueNode(0, DialogueNodeKind.Menu, "What?", [Says(Trahern)], [1, 2]),
-            Line(1, "Tell me.", 3, Says(GameState.Alaron)),
-            Line(2, "Bye.", null, Says(GameState.Alaron), End),
-            Line(3, "Reply.", null, Says(Trahern))),
+            ScriptNodes.Node(0, ScriptNodeKind.Menu, "What?", [1, 2], Trahern),
+            Line(1, "Tell me.", 3, alaron),
+            Line(2, "Bye.", null, alaron, End),
+            Line(3, "Reply.", null, Trahern)),
         // Over before it starts.
-        Record(Ends, Line(0, "", null, End)),
+        Record(Ends, Line(0, "", null, null, End)),
         // Alaron and Trahern spawn at reference points 1 and 2, and the camera cuts to 3, aimed at 4. Alaron turns to 2,
         // which snaps, then to 4, which turns, then walks to 4.
         Cut(CutSpawns,
-            Line(0, "", 1, Says(GameState.Alaron), Op(DialogueCommand.CreateActor, 1)),
-            Line(1, "", 2, Says(Trahern), Op(DialogueCommand.CreateActor, 2), Op(DialogueCommand.CameraCutTo, 3), Op(DialogueCommand.CameraOn, 4)),
-            Line(2, "Hello.", 3, Says(Trahern)),
-            Line(3, "", 4, Says(GameState.Alaron), Op(DialogueCommand.FaceRefPoint, 2)),
-            Line(4, "Turn.", 5, Op(DialogueCommand.FaceRefPoint, 4)),
-            Line(5, "", 6, Op(DialogueCommand.WalkTo, 4)),
-            Line(6, "Arrived.", null, End)),
+            Line(0, "", 1, alaron, new ScriptOp.ActorSpawn(alaron, 1)),
+            Line(1, "", 2, Trahern, new ScriptOp.ActorSpawn(Trahern, 2), new ScriptOp.CameraCutTo { Mark = 3 }, new ScriptOp.CameraLookAt { Mark = 4 }),
+            Line(2, "Hello.", 3, Trahern),
+            Line(3, "", 4, alaron, new ScriptOp.ActorFace(alaron, 2)),
+            Line(4, "Turn.", 5, alaron, new ScriptOp.ActorFace(alaron, 4)),
+            Line(5, "", 6, alaron, new ScriptOp.ActorWalkTo(alaron, 4)),
+            Line(6, "Arrived.", null, alaron, End)),
         // The camera pans its aim to 1 over 40 ticks (angle-to a point), eases it back to 4 (pan-to a point), waiting each
         // time, then looks out of Trahern's eyes.
         Cut(CutCameras,
-            Line(0, "", 1, Says(Trahern), Op(DialogueCommand.CreateActor, 2), Op(DialogueCommand.CameraCutTo, 3), Op(DialogueCommand.CameraOn, 4)),
-            Line(1, "", 2, Op(DialogueCommand.CameraTime, 40), Op(DialogueCommand.CameraAngleTo, 1), Op(DialogueCommand.WaitForCamera)),
-            Line(2, "", 3, Op(DialogueCommand.CameraPanTo, 4), Op(DialogueCommand.WaitForCamera)),
-            Line(3, "Eyes.", null, Op(DialogueCommand.CameraCutToActor, Trahern), End)),
+            Line(0, "", 1, Trahern, new ScriptOp.ActorSpawn(Trahern, 2), new ScriptOp.CameraCutTo { Mark = 3 }, new ScriptOp.CameraLookAt { Mark = 4 }),
+            Line(1, "", 2, null, new ScriptOp.CameraTime(40), new ScriptOp.CameraTurnTo(Steady: true) { Mark = 1 }, new ScriptOp.CameraWait()),
+            Line(2, "", 3, null, new ScriptOp.CameraTurnTo { Mark = 4 }, new ScriptOp.CameraWait()),
+            Line(3, "Eyes.", null, Trahern, new ScriptOp.CameraCutTo { Actor = Trahern }, End)),
         // Alaron holds a short sword, then a spell, which has no model, then nothing.
         Cut(CutItems,
-            Line(0, "", 1, Says(GameState.Alaron), Op(DialogueCommand.CreateActor, 1), Op(DialogueCommand.CameraCutTo, 3), Op(DialogueCommand.CameraOn, 4)),
-            Line(1, "Sword.", 2, Op(DialogueCommand.ShowItem, ShortSword)),
-            Line(2, "Spell.", 3, Op(DialogueCommand.ShowItem, ASpell)),
-            Line(3, "Hide.", 4, Op(DialogueCommand.HideItem)),
-            Line(4, "Bye.", null, End)),
+            Line(0, "", 1, alaron, new ScriptOp.ActorSpawn(alaron, 1), new ScriptOp.CameraCutTo { Mark = 3 }, new ScriptOp.CameraLookAt { Mark = 4 }),
+            Line(1, "Sword.", 2, alaron, new ScriptOp.ActorHold(alaron, ShortSword)),
+            Line(2, "Spell.", 3, alaron, new ScriptOp.ActorHold(alaron, ASpell)),
+            Line(3, "Hide.", 4, alaron, new ScriptOp.ActorPutAway(alaron)),
+            Line(4, "Bye.", null, alaron, End)),
         // Alaron plays animation 7, then the screen dips, and a line shows.
         Cut(CutAnimates,
-            Line(0, "", 1, Says(GameState.Alaron), Op(DialogueCommand.CreateActor, 1), Op(DialogueCommand.CameraCutTo, 3), Op(DialogueCommand.CameraOn, 4)),
-            Line(1, "", 2, Op(DialogueCommand.PlayAnimation, 7)),
-            Line(2, "", 3, Op(DialogueCommand.FadeOut)),
-            Line(3, "Done.", null, End)),
+            Line(0, "", 1, alaron, new ScriptOp.ActorSpawn(alaron, 1), new ScriptOp.CameraCutTo { Mark = 3 }, new ScriptOp.CameraLookAt { Mark = 4 }),
+            Line(1, "", 2, null, Request(alaron, 7)),
+            Line(2, "", 3, null, new ScriptOp.ScreenDip()),
+            Line(3, "Done.", null, alaron, End)),
         // Checks a skill, which a map object remembers, and cuts the camera to reference point 2 from the script's own.
         Record(Starts,
-            new DialogueNode(0, DialogueNodeKind.If, "", [Op(DialogueCommand.CheckSkill, 0)], [1, 2]),
-            Line(1, "Yes.", null, Says(Trahern), Op(DialogueCommand.CameraCutTo, 2), End),
-            Line(2, "No.", null, Says(Trahern), Op(DialogueCommand.CameraCutTo, 2), End)),
-    ];
+            ScriptNodes.Node(0, ScriptNodeKind.If, "", [1, 2], null, new ScriptOp.CheckSkill(RecordIds.Skill(0))),
+            Line(1, "Yes.", null, Trahern, new ScriptOp.CameraCutTo { Mark = 2 }, End),
+            Line(2, "No.", null, Trahern, new ScriptOp.CameraCutTo { Mark = 2 }, End)),
+        ];
+    }
 
     /// <summary>NA 1.0's plugin with the test scripts' plugin after it, loaded once.</summary>
     public static PluginSet Get(string baseDirectory)
@@ -129,7 +129,7 @@ internal static class ConversationPlugins
                 return _set;
             var temp = new TempPlugins();
             var records = new JsonArray(Scripts().Select(s => JsonSerializer.SerializeToNode(s, PluginJson.Options)).ToArray());
-            var dir = temp.Add("convtest", ["aidyn"], ("dialogue.json", records.ToJsonString()));
+            var dir = temp.Add("convtest", ["aidyn"], ("scripts.json", records.ToJsonString()));
             _set = PluginSet.Load([baseDirectory, dir]);
             AppDomain.CurrentDomain.ProcessExit += (_, _) => temp.Dispose();
             return _set;
@@ -154,7 +154,7 @@ internal sealed class TalkHost : IMapObjectHost
 
     public void OpenLoot(ItemPile loot, int gold) { }
 
-    public void StartScript(LoadedMap map, DialogueObject dialogue) { }
+    public void StartScript(LoadedMap map, ScriptObject dialogue) { }
 
     public void Talk(LoadedMap map, MonsterPartyObject party) => Talks.Add(party);
 
@@ -193,7 +193,7 @@ public sealed class ConversationTests(Na10Import fixture)
     }
 
     /// <summary>A real talker's entity, which has a body.</summary>
-    private RecordId Entity => fixture.Data.Of<MonsterPartyObject>().First(p => p.Object.Dialogue is not null).Object.Entity;
+    private RecordId Entity => fixture.Data.Of<MonsterPartyObject>().First(p => p.Object.Script is not null).Object.Entity;
 
     /// <summary>A plain flag nothing has set, which a party's flag B can set.</summary>
     private static RecordId SpareFlag(GameState game)
@@ -239,7 +239,7 @@ public sealed class ConversationTests(Na10Import fixture)
     {
         var game = GameState.NewGame(Plugins);
         Assert.All(new[] { ConversationPlugins.Talk, ConversationPlugins.Animates, ConversationPlugins.Waits, ConversationPlugins.Joins,
-            ConversationPlugins.Menus, ConversationPlugins.Ends, ConversationPlugins.Starts }, id => Assert.NotNull(Plugins.TryGet<DialogueRecord>(id)));
+            ConversationPlugins.Menus, ConversationPlugins.Ends, ConversationPlugins.Starts }, id => Assert.NotNull(Plugins.TryGet<ScriptRecord>(id)));
         Assert.NotNull(game.Recruit(ConversationPlugins.Trahern));
         Assert.False(game.Party.Contains(ConversationPlugins.Trahern));
     }
@@ -249,7 +249,7 @@ public sealed class ConversationTests(Na10Import fixture)
     {
         var game = GameState.NewGame(Plugins);
         var cues = new CueLog();
-        var runner = game.RunScript(Plugins.Get<DialogueRecord>(ConversationPlugins.Joins), cues);
+        var runner = game.RunScript(Plugins.Get<ScriptRecord>(ConversationPlugins.Joins), cues);
         runner.Start();
 
         Assert.Equal("Join me.", runner.Page!.Line.Text);
@@ -338,7 +338,7 @@ public sealed class ConversationTests(Na10Import fixture)
         var conversation = s.Talk();
 
         Assert.Equal(ScriptStatus.Showing, conversation.Runner.Status);
-        Assert.Contains(s.Cues.Seen, c => c is CameraCue { Command: DialogueCommand.CameraCutTo, RefPoint: 2 });
+        Assert.Contains(s.Cues.Seen, c => c is CameraCue { Shot: CameraShot.CutTo, Mark: 2 });
         var voxel = MapRecord.VoxelId(MapId, s.Wanderer.Party.Index);
         Assert.NotNull(s.Game.Memory.Find(new Memory(voxel, MemoryKind.SkillCheck, 0)));
     }
@@ -440,7 +440,7 @@ public sealed class ConversationTests(Na10Import fixture)
     {
         // Borg13 890 with the keeper rescued (derived 5349: 1294, 1442 and 1443 set, 277 clear) and not yet thanked (285):
         // on to the menu at node 8, asking him to come.
-        var s = Make(RecordId.Hex(RecordTypes.Dialogue, 0x037A));
+        var s = Make(RecordId.Hex(RecordTypes.Script, 0x037A));
         foreach (var n in new[] { 1294, 1442, 1443 })
             s.Game.Flags.Set(RecordId.Decimal(RecordTypes.Flag, n), true);
         s.Game.Flags.Process();
@@ -549,7 +549,7 @@ public sealed class ConversationTests(Na10Import fixture)
         Assert.Equal(middle.X, s.Camera.Aim.X, 0.05f);
         Assert.Equal(middle.Z, s.Camera.Aim.Z, 0.05f);
 
-        var sign = Conversation.Show(s.Game, Plugins.Get<DialogueRecord>(ConversationPlugins.Talk), new ScriptStart(), s.Cues, s.Player);
+        var sign = Conversation.Show(s.Game, Plugins.Get<ScriptRecord>(ConversationPlugins.Talk), new ScriptStart(), s.Cues, s.Player);
         var camera = new FollowCamera(Vector3.Zero, Vector2.UnitY);
         var (position, aim) = (camera.Position, camera.Aim);
         sign.Frame(camera, s.World);
@@ -653,7 +653,7 @@ public sealed class ConversationTests(Na10Import fixture)
     public void ASignHasNoWandererAndEndingItLeavesTheCameraAlone()
     {
         var s = Make(ConversationPlugins.Talk);
-        var sign = Conversation.Show(s.Game, Plugins.Get<DialogueRecord>(ConversationPlugins.Talk), new ScriptStart(), s.Cues, s.Player);
+        var sign = Conversation.Show(s.Game, Plugins.Get<ScriptRecord>(ConversationPlugins.Talk), new ScriptStart(), s.Cues, s.Player);
 
         Assert.Null(sign.With);
         Assert.Equal(ScriptStatus.Showing, sign.Runner.Status);
@@ -764,7 +764,7 @@ public sealed class ConversationTests(Na10Import fixture)
     // Every party in the game.
 
     /// <summary>
-    /// Godric's late-game cut-scene (<c>aidyn:dialogue/0x0529</c>), from his party on Overworld map <c>0x0FC5</c>: he joins,
+    /// Godric's late-game cut-scene (<c>aidyn:script/0x0529</c>), from his party on Overworld map <c>0x0FC5</c>: he joins,
     /// the cut-scene rebuilds trek as it ends, and the chunk loaded again has no body for him, as his party is there only
     /// while his joined flag (90) is clear. Before, the cut-scene's AddMember left him wandering, to be recruited again.
     /// </summary>
@@ -816,7 +816,7 @@ public sealed class ConversationTests(Na10Import fixture)
     [Fact]
     public void TalkingToEveryTalkerInTheGameStartsItsScriptWithoutAFault()
     {
-        var talkers = fixture.Data.Of<MonsterPartyObject>().Where(p => p.Object.Dialogue is not null).ToList();
+        var talkers = fixture.Data.Of<MonsterPartyObject>().Where(p => p.Object.Script is not null).ToList();
         var silent = talkers.Count(p => (p.Object.Flags & PartyFlags.Silent) != 0);
         var started = new Dictionary<string, int>();
         var faults = new List<string>();
@@ -850,7 +850,7 @@ public sealed class ConversationTests(Na10Import fixture)
                 var conversation = Conversation.TalkTo(game, wanderer, cues, player);
                 if (conversation is null)
                 {
-                    faults.Add($"{id}: no conversation ({party.Dialogue})");
+                    faults.Add($"{id}: no conversation ({party.Script})");
                     continue;
                 }
                 var kind = conversation.Runner.Status switch
@@ -860,7 +860,7 @@ public sealed class ConversationTests(Na10Import fixture)
                 };
                 started[kind] = started.GetValueOrDefault(kind) + 1;
                 if (conversation.Runner.Ending?.Fault is { } fault)
-                    faults.Add($"{id} ({party.Dialogue}): {fault}");
+                    faults.Add($"{id} ({party.Script}): {fault}");
                 else if (conversation.Runner.Status == ScriptStatus.Showing && conversation.Runner.Page is null)
                     faults.Add($"{id}: showing nothing");
                 Assert.True(wanderer.Body.Held && wanderer.Calmed);

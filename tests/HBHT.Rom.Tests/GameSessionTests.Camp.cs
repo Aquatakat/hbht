@@ -35,6 +35,6 @@ public sealed partial class GameSessionTests
         Assert.Null(trek.Cued);
         trek.Use.Accept();
         trek.Use.Tread(map, 1, new System.Numerics.Vector3(1000, 0, 1000));
-        Assert.Equal(RecordId.Hex(RecordTypes.Dialogue, 0x04E0), trek.Cued!.Value.Script.Id);
+        Assert.Equal(RecordId.Hex(RecordTypes.Script, 0x04E0), trek.Cued!.Value.Script.Id);
     }
 }

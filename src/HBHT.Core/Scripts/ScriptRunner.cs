@@ -8,13 +8,16 @@ using HBHT.Plugins;
 namespace HBHT.Core.Scripts;
 
 /// <summary>What a script needs from where it was started (<c>dialoug_func</c>'s arguments).</summary>
-/// <param name="RefPoint">The reference point the script's own are numbered from.</param>
+/// <param name="Marks">
+/// The number the script's marks count from: a script object's <see cref="ScriptObject.Marks"/>, or 0 for a talker. The stage's
+/// reference point whose <see cref="ReferencePointObject.Mark"/> is this plus the op's is the one meant.
+/// </param>
 /// <param name="MapObject">The map object that started it, which remembers skill checks and random lines. None when the engine starts it.</param>
-public sealed record ScriptStart(int RefPoint = 0, RecordId? MapObject = null);
+public sealed record ScriptStart(int Marks = 0, RecordId? MapObject = null);
 
 /// <summary>A line of text a script shows, as a line or a choice.</summary>
 /// <param name="Node">The node it comes from, which choosing it leaves.</param>
-/// <param name="Speaker">Who says it, for the portrait.</param>
+/// <param name="Speaker">Who says it, for the portrait: its node's <see cref="ScriptNode.Speaker"/>.</param>
 /// <param name="Text">
 /// With <see cref="ScriptRunner.PlayerToken"/> replaced by the first party member's name as it stood
 /// when the page was made. A page's line has its leading spaces trimmed, as the original trims
@@ -59,20 +62,20 @@ public enum ScriptWait
 public enum ScriptEndKind
 {
     Ended,
-    /// <summary>The speaker's shop opens.</summary>
+    /// <summary>The keeper's shop opens.</summary>
     Shop,
     /// <summary>A battle starts (<see cref="ScriptEnding.Battle"/>).</summary>
     Battle,
-    /// <summary>The speaker's training opens.</summary>
+    /// <summary>The trainer's training opens.</summary>
     Train,
-    /// <summary>The party was healed (<see cref="DialogueCommand.CampHeal"/>).</summary>
+    /// <summary>The party was healed (<see cref="ScriptOp.PartyCampHeal"/>).</summary>
     Camp,
 }
 
 /// <summary>How a script ended, for the runtime to carry on from.</summary>
 /// <param name="Speaker">
-/// The speaker at the end: the keeper of a shop or training. In a conversation with someone who
-/// wanders, the original uses them instead (<c>set_shopkeep</c>), and for a battle, their party.
+/// The keeper of a shop or the trainer the op names, or else the speaker of the last line shown. In a conversation with
+/// someone who wanders, the original has them keep the shop or train instead (<c>set_shopkeep</c>), and for a battle, their party.
 /// </param>
 /// <param name="RestHours">Hours to pass: 8 after a camp heal, and 8 more when the script is a camp scene.</param>
 /// <param name="PartnerJoined">
@@ -81,7 +84,7 @@ public enum ScriptEndKind
 /// </param>
 /// <param name="Fault">
 /// Why the script stopped where the original crashes or reads past its nodes. The runner ends it
-/// instead, as <see cref="DialogueCommand.EndDialogue"/> would.
+/// instead, as <see cref="ScriptOp.ScriptEnd"/> would.
 /// </param>
 /// <param name="Battle">The battle it starts (<c>encounterDat_func</c>), as the script has it, before where it starts is known.</param>
 public sealed record ScriptEnding(ScriptEndKind Kind, RecordId? Speaker, BattleSetup? Battle, int RestHours, bool PartnerJoined,
@@ -90,7 +93,7 @@ public sealed record ScriptEnding(ScriptEndKind Kind, RecordId? Speaker, BattleS
 /// <summary>
 /// Runs a script (Borg13) against the flags and the game state: the original's walk over its nodes
 /// (<c>DialogNode.cpp</c>) and the callbacks that carry out its ops (<c>dialogue.cpp</c>), checked
-/// against the debug build's machine code.
+/// against the debug build's machine code. The ops are the plugin's typed ones (ADR 0034).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -101,6 +104,10 @@ public sealed record ScriptEnding(ScriptEndKind Kind, RecordId? Speaker, BattleS
 /// Where the original crashes (a menu or case with no text, leaving a menu, a thirteenth enemy)
 /// or reads past its nodes (a line with no link and no menu to go back to, as node 24 of script
 /// 1040 is), the runner ends the script and says why in <see cref="ScriptEnding.Fault"/>.
+/// </para>
+/// <para>
+/// Ops a node can't run where they are (a trigger's own, one this build doesn't know, a reserved <c>lua</c>) do nothing;
+/// validation reports them.
 /// </para>
 /// </remarks>
 public sealed class ScriptRunner
@@ -115,12 +122,12 @@ public sealed class ScriptRunner
     /// <summary>Steps through nodes without the player before the runner gives up on a loop.</summary>
     private const int MaxSteps = 10_000;
 
-    private readonly DialogueRecord _script;
+    private readonly ScriptRecord _script;
     private readonly FlagNetwork _flags;
     private readonly IScriptWorld _world;
     private readonly IScriptHost _host;
     private readonly IRandom _random;
-    private readonly Func<RecordId, DialogueRecord?> _scripts;
+    private readonly Func<RecordId, ScriptRecord?> _scripts;
     private readonly ScriptStart _start;
     /// <summary>The condition ops and the effect ops that change the game's state, which triggers run too.</summary>
     private readonly ScriptOps _ops;
@@ -131,6 +138,7 @@ public sealed class ScriptRunner
     private readonly List<RecordId> _enemies = [];
     /// <summary>The script's actors spawned so far, which actor ops can move (<c>ActorAndID::pPlayer</c>).</summary>
     private readonly HashSet<RecordId> _spawned = [];
+    /// <summary>The speaker of the last line shown.</summary>
     private RecordId? _speaker;
     private int _cameraTime = 60;
     private int _collisionByte, _battlefield, _aniByte;
@@ -147,11 +155,11 @@ public sealed class ScriptRunner
     private bool _partnerJoined;
     private bool _started;
 
-    /// <param name="scripts">Finds another script, for <see cref="DialogueCommand.RandomLine"/>.</param>
+    /// <param name="scripts">Finds another script, for <see cref="ScriptOp.ScriptRandomLine"/>.</param>
     /// <param name="random">The stream skill rolls and random lines draw from.</param>
     /// <param name="randomSkillChecks">While this flag is set, skill checks roll 0–21 (<see cref="StateFlagsRecord.RandomSkillChecks"/>).</param>
-    public ScriptRunner(DialogueRecord script, FlagNetwork flags, IScriptWorld world, IScriptHost host, IRandom random,
-        Func<RecordId, DialogueRecord?> scripts, ScriptStart? start = null, RecordId? randomSkillChecks = null)
+    public ScriptRunner(ScriptRecord script, FlagNetwork flags, IScriptWorld world, IScriptHost host, IRandom random,
+        Func<RecordId, ScriptRecord?> scripts, ScriptStart? start = null, RecordId? randomSkillChecks = null)
     {
         _script = script;
         _flags = flags;
@@ -170,7 +178,7 @@ public sealed class ScriptRunner
         }
     }
 
-    public DialogueRecord Script => _script;
+    public ScriptRecord Script => _script;
 
     public ScriptStatus Status => Ending is not null ? ScriptStatus.Ended
         : _wait is null or ScriptWait.Player ? ScriptStatus.Showing
@@ -196,7 +204,7 @@ public sealed class ScriptRunner
     /// <summary>Set once the script has ended.</summary>
     public ScriptEnding? Ending { get; private set; }
 
-    /// <summary>The speaker the latest <see cref="DialogueCommand.SetSpeaker"/> named.</summary>
+    /// <summary>The speaker of the last line shown: a menu's last choice, a random line's asker.</summary>
     public RecordId? Speaker => _speaker;
 
     /// <summary>Where it starts from, and the map object that started it.</summary>
@@ -257,7 +265,7 @@ public sealed class ScriptRunner
     }
 
     /// <summary>
-    /// Ends the script at once, as <see cref="DialogueCommand.EndDialogue"/> does: the debug build's B.
+    /// Ends the script at once, as <see cref="ScriptOp.ScriptEnd"/> does: the debug build's B.
     /// 1.0 has no skip: the decomp's R + A + Z + B isn't in it (<c>cutScene_control_func</c> at
     /// <c>0x80051378</c> only tests B, which does nothing).
     /// </summary>
@@ -282,21 +290,21 @@ public sealed class ScriptRunner
             Fault("Nothing to show: the original would be left with no text on screen.");
     }
 
-    private DialogueNode Node(int index) => _script.Nodes[index];
+    private ScriptNode Node(int index) => _script.Nodes[index];
 
-    private static IReadOnlyList<int> Links(DialogueNode node) => node.Links ?? [];
+    private static IReadOnlyList<int> Links(ScriptNode node) => node.Links ?? [];
 
-    private static int? Link(DialogueNode node, int i) => node.Links is { } links && i < links.Count ? links[i] : null;
+    private static int? Link(ScriptNode node, int i) => node.Links is { } links && i < links.Count ? links[i] : null;
 
     /// <summary>Whether a choice can be offered: not yet taken, or the script lets choices be taken again.</summary>
-    private bool Takeable(int node) => !_visited[node] || _script.Mode is DialogueMode.Backdrop or DialogueMode.Help;
+    private bool Takeable(int node) => !_visited[node] || _script.Mode is ScriptMode.Backdrop or ScriptMode.Help;
 
     private bool Selects(int node, int value) => Node(node).Selects?.Holds(value) == true;
 
     private bool Stopped => Ending is not null || _waitingNode is not null;
 
     /// <summary>
-    /// Adds a line with the current speaker (<c>FUN_800b6b54</c>), the player's name in place of
+    /// Adds a line under its node's speaker (<c>FUN_800b6b54</c>), the player's name in place of
     /// <see cref="PlayerToken"/>. The original has room for nine.
     /// </summary>
     private void Push(int node, string text)
@@ -305,20 +313,21 @@ public sealed class ScriptRunner
         {
             if (_world.PlayerName is { } name)
                 text = text.Replace(PlayerToken, name, StringComparison.Ordinal);
+            _speaker = Node(node).Speaker;
             _lines.Add(new ScriptLine(node, _speaker, text));
         }
     }
 
     /// <summary>
     /// Shows a line node's text as the page's line. In a conversation, a line whose effect is
-    /// <see cref="DialogueCommand.PlayAnimation"/> asks its speaker, the one the box shows, for the request as it shows,
+    /// <see cref="ScriptOp.ActorAnimate"/> asks its actor, the speaker the box shows, for the request as it shows,
     /// in place of the talk (<see cref="AnimateCue"/>). That's the port's fix: 1.0 animates no one there (<see cref="Effect"/>).
     /// </summary>
     private void Show(int node)
     {
         Push(node, Node(node).Text);
-        if (_script.Mode == DialogueMode.Conversation && EffectOp(node) is { Command: DialogueCommand.PlayAnimation } op)
-            _host.Cue(new AnimateCue(_speaker, op.Value ?? 0));
+        if (_script.Mode == ScriptMode.Conversation && Node(node).Effect is ScriptOp.ActorAnimate animate)
+            _host.Cue(new AnimateCue(animate.Actor, Requests.Number(animate.Request)));
     }
 
     /// <summary>The start: node 0 is reached, and shown or walked through (<c>DialogNode_func</c>).</summary>
@@ -329,21 +338,21 @@ public sealed class ScriptRunner
         var start = Node(0);
         switch (start.Kind)
         {
-            case DialogueNodeKind.Line:
+            case ScriptNodeKind.Line:
                 if (start.Text.Length == 0)
                     Advance(0);
                 else
                     Show(0);
                 break;
-            case DialogueNodeKind.If:
+            case ScriptNodeKind.If:
                 if (Branch(0) is { } through)
                     Advance(through);
                 break;
-            case DialogueNodeKind.Case:
+            case ScriptNodeKind.Case:
                 _lastMenu = 0;
                 ShowCase(0, setUp: true);
                 break;
-            case DialogueNodeKind.Menu:
+            case ScriptNodeKind.Menu:
                 _lastMenu = 0;
                 ShowMenu(0, setUp: true);
                 break;
@@ -395,14 +404,14 @@ public sealed class ScriptRunner
             var current = Node(node);
             switch (current.Kind)
             {
-                case DialogueNodeKind.If:
+                case ScriptNodeKind.If:
                     if (Branch(node) is { } through)
                     {
                         node = through;
                         continue;
                     }
                     return;
-                case DialogueNodeKind.Line:
+                case ScriptNodeKind.Line:
                     if ((Link(current, 0) ?? _lastMenu) is not { } next)
                     {
                         Fault($"Node {node} has no link and there's no menu to go back to: the original reads past the script's nodes.");
@@ -410,11 +419,11 @@ public sealed class ScriptRunner
                     }
                     switch (Node(next).Kind)
                     {
-                        case DialogueNodeKind.Menu:
+                        case ScriptNodeKind.Menu:
                             _lastMenu = next;
                             ShowMenu(next, setUp: false);
                             return;
-                        case DialogueNodeKind.Case:
+                        case ScriptNodeKind.Case:
                             _lastMenu = next;
                             ShowCase(next, setUp: false);
                             return;
@@ -533,168 +542,159 @@ public sealed class ScriptRunner
     }
 
     /// <summary>
-    /// Runs a node's setup ops as it's reached (<c>Dialoug_commands</c>): the speaker from any op,
-    /// then the settings, then the cameras and actors, each in order.
+    /// Runs a node's setup ops as it's reached (<c>Dialoug_commands</c>), in order. 1.0 runs the ones that set something up
+    /// for later (the camera's time, the battle's enemies and bytes, the choices reset) in a pass before the cameras and
+    /// actors, and the importer writes them first.
     /// </summary>
     private void Setup(int node)
     {
-        var ops = Node(node).Ops;
-        if (ops is null)
+        if (Node(node).Setup is not { } ops)
             return;
         foreach (var op in ops)
         {
-            if (op.Command == DialogueCommand.SetSpeaker)
-                _speaker = op.Target;
-        }
-        foreach (var op in ops)
-        {
-            switch (op.Command)
+            switch (op)
             {
-                case DialogueCommand.CameraTime:
-                    _cameraTime = op.Value ?? 0;
+                case ScriptOp.CameraTime time:
+                    _cameraTime = time.Ticks;
                     break;
-                case DialogueCommand.AddEnemy:
+                case ScriptOp.BattleAddEnemy enemy:
                     if (_enemies.Count == MaxEnemies)
                     {
                         Fault($"Node {node} adds a thirteenth enemy: the original crashes (\"Too many monsters\").");
                         return;
                     }
-                    if (op.Target is { } enemy)
-                        _enemies.Add(enemy);
+                    _enemies.Add(enemy.Entity);
                     break;
-                case DialogueCommand.SetCollideByte:
-                    _collisionByte = (op.Value ?? 0) & 0xFF;
+                case ScriptOp.BattleCollisionByte collision:
+                    _collisionByte = collision.Value & 0xFF;
                     break;
-                case DialogueCommand.SetBattlefield:
-                    _battlefield = (op.Value ?? 0) & 0xFF;
+                case ScriptOp.BattleArena arena:
+                    _battlefield = arena.Arena & 0xFF;
                     break;
-                case DialogueCommand.SetAniByte:
-                    _aniByte = (op.Value ?? 0) & 0xFF;
+                case ScriptOp.BattleAnimationByte animation:
+                    _aniByte = animation.Value & 0xFF;
                     break;
-                case DialogueCommand.ResetVisited:
+                case ScriptOp.ScriptResetChoices:
                     Array.Clear(_visited);
                     break;
-            }
-        }
-        foreach (var op in ops)
-        {
-            switch (op.Command)
-            {
-                case DialogueCommand.CameraCutTo or DialogueCommand.CameraOn:
-                    _host.Cue(new CameraCue(op.Command, RefPoint(op), null, _speaker, 1));
+                case ScriptOp.CameraCutTo cut:
+                    _host.Cue(new CameraCue(CameraShot.CutTo, Mark(cut.Mark), cut.Actor, 1));
                     break;
-                case DialogueCommand.CameraAngleTo or DialogueCommand.CameraPanTo or DialogueCommand.CameraSineTo:
-                    _host.Cue(new CameraCue(op.Command, RefPoint(op), null, _speaker, _cameraTime));
+                case ScriptOp.CameraLookAt look:
+                    _host.Cue(new CameraCue(CameraShot.LookAt, Mark(look.Mark), look.Actor, 1));
                     break;
-                case DialogueCommand.CameraCutToActor or DialogueCommand.CameraOnActor:
-                    _host.Cue(new CameraCue(op.Command, null, op.Target, _speaker, 1));
+                case ScriptOp.CameraTurnTo turn:
+                    _host.Cue(new CameraCue(CameraShot.TurnTo, Mark(turn.Mark), turn.Actor, turn.Ticks ?? _cameraTime, turn.Steady));
                     break;
-                case DialogueCommand.CameraAngleToActor or DialogueCommand.CameraPanToActor or DialogueCommand.CameraSineToActor
-                    or DialogueCommand.CameraTrackOn:
-                    _host.Cue(new CameraCue(op.Command, null, op.Target, _speaker, _cameraTime));
+                case ScriptOp.CameraMoveTo move:
+                    _host.Cue(new CameraCue(CameraShot.MoveTo, Mark(move.Mark), move.Actor, move.Ticks ?? _cameraTime));
                     break;
-                case DialogueCommand.FaceRefPoint:
-                    _host.Cue(new FaceCue(_speaker, RefPoint(op)));
+                case ScriptOp.CameraFollow follow:
+                    _host.Cue(new CameraCue(CameraShot.Follow, null, follow.Actor, _cameraTime));
                     break;
-                case DialogueCommand.CreateActor:
-                    if (IsActor(_speaker))
-                        _spawned.Add(_speaker!.Value);
-                    _host.Cue(new SpawnCue(_speaker, RefPoint(op)));
+                case ScriptOp.ActorFace face:
+                    _host.Cue(new FaceCue(face.Actor, Mark(face.Mark)));
+                    break;
+                case ScriptOp.ActorSpawn spawn:
+                    if (IsActor(spawn.Actor))
+                        _spawned.Add(spawn.Actor);
+                    _host.Cue(new SpawnCue(spawn.Actor, Mark(spawn.Mark)));
                     break;
             }
         }
     }
 
-    private int RefPoint(DialogueOp op) => ((op.Value ?? 0) + _start.RefPoint) & 0xFFFF;
+    /// <summary>A mark of the stage: the script's, counted from the number it was started with.</summary>
+    private int Mark(int mark) => (mark + _start.Marks) & 0xFFFF;
+
+    private int? Mark(int? mark) => mark is { } m ? Mark(m) : null;
 
     /// <summary>
-    /// Evaluates a node's first condition op, or 0 if it has none (<c>DialogEvalCallback</c>, <see cref="ScriptOps.Condition"/>):
+    /// Evaluates a node's condition, or 0 if it has none (<c>DialogEvalCallback</c>, <see cref="ScriptOps.Condition"/>):
     /// a skill check's first result is kept for the rest of the script, and the map object that started it remembers it.
     /// </summary>
-    private int Condition(int node) =>
-        Node(node).Ops?.FirstOrDefault(o => o.Command.IsCondition()) is { } op ? _ops.Condition(op.Command, op.Target, op.Value ?? 0, _speaker) : 0;
+    private int Condition(int node) => Node(node).Condition is ScriptOp.Check check ? _ops.Condition(check) : 0;
 
     /// <summary>
-    /// Runs a node's first effect op (<c>dialoug_func_c_check</c> and <c>DialogCallbackC</c>). Ops
-    /// that take time mark the node as waiting; ops that end the script end it.
+    /// Runs a node's effect (<c>dialoug_func_c_check</c> and <c>DialogCallbackC</c>). Ops that take time mark the node as
+    /// waiting, unless they say not to wait; ops that end the script end it.
     /// </summary>
     private void Effect(int node)
     {
-        if (EffectOp(node) is not { } op)
+        if (Node(node).Effect is not { } op)
             return;
-        var value = op.Value ?? 0;
-        if (ScriptOps.ChangesState(op.Command))
+        if (ScriptOps.ChangesState(op))
         {
-            // AddExp gives to the speaker. A member joining a conversation leaves the map with the party.
-            if (_ops.Effect(op.Command, op.Target, value, _speaker) && op.Command == DialogueCommand.AddMember
-                && _script.Mode == DialogueMode.Conversation)
+            // A member joining a conversation leaves the map with the party.
+            if (_ops.Effect(op) && op is ScriptOp.PartyAddMember && _script.Mode == ScriptMode.Conversation)
                 _partnerJoined = true;
             return;
         }
-        switch (op.Command)
+        switch (op)
         {
-            case DialogueCommand.EndDialogue:
+            case ScriptOp.ScriptEnd:
                 End(ScriptEndKind.Ended);
                 break;
-            case DialogueCommand.FadeOut:
+            case ScriptOp.ScreenDip:
                 _host.Cue(new FadeOutCue());
                 break;
-            case DialogueCommand.WalkTo or DialogueCommand.RunTo:
-                WaitOn(node, ScriptWait.Move);
-                _host.Cue(new MoveCue(_speaker, RefPoint(op), op.Command == DialogueCommand.RunTo));
+            case ScriptOp.ActorWalkTo walk:
+                if (walk.Wait != false)
+                    WaitOn(node, ScriptWait.Move);
+                _host.Cue(new MoveCue(walk.Actor, Mark(walk.Mark), Run: false));
                 break;
-            case DialogueCommand.PlayAnimation:
+            case ScriptOp.ActorRunTo run:
+                if (run.Wait != false)
+                    WaitOn(node, ScriptWait.Move);
+                _host.Cue(new MoveCue(run.Actor, Mark(run.Mark), Run: true));
+                break;
+            case ScriptOp.ActorAnimate animate:
                 // In a conversation the original looks the actor up from the page it has just cleared (FUN_800591e4), so
                 // no one animates, and it waits for A with the line showing again. The port's fix plays it as the line
                 // shows instead (Show), and leaves nothing to wait for. Other scripts only animate actors they've
                 // spawned (FUN_80059ae8).
-                if (_script.Mode == DialogueMode.Conversation)
+                if (_script.Mode == ScriptMode.Conversation)
                     break;
-                var actor = _script.Mode != DialogueMode.Conversation && _speaker is { } speaker && _spawned.Contains(speaker) ? speaker : (RecordId?)null;
-                WaitOn(node, actor is null ? ScriptWait.Player : ScriptWait.Animation);
-                _host.Cue(new AnimateCue(actor, value));
+                var actor = _spawned.Contains(animate.Actor) ? animate.Actor : (RecordId?)null;
+                if (animate.Wait != false)
+                    WaitOn(node, actor is null ? ScriptWait.Player : ScriptWait.Animation);
+                _host.Cue(new AnimateCue(actor, Requests.Number(animate.Request)));
                 break;
-            case DialogueCommand.PlaySound:
-                _host.Cue(new SoundCue(ScriptSound.Table, value));
+            case ScriptOp.SoundPlay sound:
+                _host.Cue(new SoundCue(ScriptSound.Table, sound.Sound));
                 break;
-            case DialogueCommand.Shop:
-                End(ScriptEndKind.Shop);
+            case ScriptOp.ShopOpen shop:
+                End(ScriptEndKind.Shop, keeper: shop.Keeper);
                 break;
-            case DialogueCommand.Battle:
+            case ScriptOp.BattleStart:
                 End(ScriptEndKind.Battle);
                 break;
-            case DialogueCommand.Train:
-                End(ScriptEndKind.Train);
+            case ScriptOp.TrainingOpen training:
+                End(ScriptEndKind.Train, keeper: training.Trainer);
                 break;
-            case DialogueCommand.Unimplemented:
-                Fault($"Node {node} runs command 49: the original crashes (\"This command has not been implemented yet!\").");
-                break;
-            case DialogueCommand.RandomLine:
+            case ScriptOp.ScriptRandomLine random:
                 WaitOn(node, ScriptWait.Player);
-                RandomLine(node, op.Target);
+                RandomLine(node, random);
                 break;
-            case DialogueCommand.ShowItem:
-                _host.Cue(new HoldCue(_speaker, op.Target));
+            case ScriptOp.ActorHold hold:
+                _host.Cue(new HoldCue(hold.Actor, hold.Item));
                 break;
-            case DialogueCommand.HideItem:
-                _host.Cue(new HoldCue(_speaker, null));
+            case ScriptOp.ActorPutAway putAway:
+                _host.Cue(new HoldCue(putAway.Actor, null));
                 break;
-            case DialogueCommand.CampHeal:
+            case ScriptOp.PartyCampHeal:
                 _world.CampHeal();
                 End(ScriptEndKind.Camp);
                 break;
-            case DialogueCommand.Wait:
+            case ScriptOp.ScriptWait wait:
                 WaitOn(node, ScriptWait.Timer);
-                _timer = value;
+                _timer = wait.Ticks;
                 break;
-            case DialogueCommand.WaitForCamera:
+            case ScriptOp.CameraWait:
                 WaitOn(node, ScriptWait.Camera);
                 break;
         }
     }
-
-    /// <summary>A node's first effect op, the one that runs as it's left.</summary>
-    private DialogueOp? EffectOp(int node) => Node(node).Ops?.FirstOrDefault(o => o.Command.IsEffect());
 
     private void WaitOn(int node, ScriptWait wait)
     {
@@ -702,18 +702,19 @@ public sealed class ScriptRunner
         _wait = wait;
     }
 
-    private bool IsActor(RecordId? entity) => entity is { } id && _script.Actors?.Contains(id) == true;
+    private bool IsActor(RecordId entity) => _script.Actors?.Contains(entity) == true;
 
     /// <summary>
     /// Shows a line of another script, chosen by a roll of 0–100 that the map object remembers
-    /// (<c>FUN_800b6e4c</c>). The roll picks among the script's nodes and blank nodes, and a blank
-    /// node shows node 0's text. The node that asked for it waits for the player.
+    /// (<c>FUN_800b6e4c</c>). The roll picks among the script's nodes, its first counted
+    /// <see cref="ScriptOp.ScriptRandomLine.FirstLineWeight"/> times: 1.0 counts an empty node a script ends with, and shows
+    /// node 0's text for it. The line shows under the asking node's speaker, and the node waits for the player.
     /// </summary>
-    private void RandomLine(int node, RecordId? target)
+    private void RandomLine(int node, ScriptOp.ScriptRandomLine op)
     {
-        if (target is not { } id || _scripts(id) is not { } other)
+        if (_scripts(op.From) is not { } other)
         {
-            Fault($"Node {node} shows a random line of {target?.ToString() ?? "no script"}, which isn't loaded.");
+            Fault($"Node {node} shows a random line of {op.From}, which isn't loaded.");
             return;
         }
         var roll = _random.Range(0, 100);
@@ -725,12 +726,13 @@ public sealed class ScriptRunner
             else
                 _world.Remember(memory, roll);
         }
-        var count = other.Nodes.Count + other.BlankNodes;
-        if (count == 0)
+        if (other.Nodes.Count == 0)
             return;
+        var count = other.Nodes.Count + Math.Max(op.FirstLineWeight ?? 1, 1) - 1;
         var fraction = roll / 100f;
         var index = fraction == 1f ? count - 1 : (byte)(int)(fraction / (1f / count));
         _lines.Clear();
+        // Pushed as the asking node's line, so under its speaker.
         Push(node, other.Nodes[index < other.Nodes.Count ? index : 0].Text);
     }
 
@@ -738,7 +740,8 @@ public sealed class ScriptRunner
     /// Ends the script (<c>DialogCallbackC</c>'s ends, then the mode's end, such as
     /// <c>FUN_80059c70</c>): cut-scenes, backdrops and the help menu set their done flag.
     /// </summary>
-    private void End(ScriptEndKind kind, string? fault = null)
+    /// <param name="keeper">Who keeps the shop or trains, by the op.</param>
+    private void End(ScriptEndKind kind, string? fault = null, RecordId? keeper = null)
     {
         if (Ending is not null)
             return;
@@ -746,10 +749,10 @@ public sealed class ScriptRunner
         if (kind == ScriptEndKind.Battle)
         {
             battle = BattleSetup.Scripted(_enemies, _battlefield > MaxBattlefield ? 0 : _battlefield, _collisionByte, _aniByte,
-                _script.Mode != DialogueMode.Cutscene, _script.BattleFlag);
+                _script.Mode != ScriptMode.Cutscene, _script.BattleFlag);
         }
         var rest = (kind == ScriptEndKind.Camp ? 8 : 0) + (_script.Rest ? 8 : 0);
-        Ending = new ScriptEnding(kind, _speaker, battle, rest, _partnerJoined, fault);
+        Ending = new ScriptEnding(kind, keeper ?? _speaker, battle, rest, _partnerJoined, fault);
         _waitingNode = null;
         _wait = null;
         if (_script.DoneFlag is { } done)

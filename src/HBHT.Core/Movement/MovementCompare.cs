@@ -160,19 +160,19 @@ public static class MovementCompare
             foreach (var o in map.Objects)
             {
                 var source = MapRecord.VoxelId(map.Id, o.Index);
-                if (o is DialogueObject { Stage: { } stage } d && Mode(plugins, d.Script) == DialogueMode.Cutscene)
-                    found.Add((d.Script, new ScriptStart(d.RefPointBase, source), stage));
-                else if (o is MonsterPartyObject { Dialogue: { } script } p && (p.Flags & PartyFlags.Silent) == 0
-                    && Mode(plugins, script) == DialogueMode.Cutscene && chunkOf.TryGetValue(map.Id, out var own))
+                if (o is ScriptObject { Stage: { } stage } d && Mode(plugins, d.Plays) == ScriptMode.Cutscene)
+                    found.Add((d.Plays, new ScriptStart(d.Marks, source), stage));
+                else if (o is MonsterPartyObject { Script: { } script } p && (p.Flags & PartyFlags.Silent) == 0
+                    && Mode(plugins, script) == ScriptMode.Cutscene && chunkOf.TryGetValue(map.Id, out var own))
                     found.Add((script, new ScriptStart(0, source), own));
             }
         }
-        return [.. found.GroupBy(f => (f.Script, f.From.RefPoint, f.Stage))
+        return [.. found.GroupBy(f => (f.Script, f.From.Marks, f.Stage))
             .Select(g => new Launch(g.Key.Script, g.First().From, g.Key.Stage, g.Count()))
-            .OrderBy(l => l.Script.ToString(), StringComparer.Ordinal).ThenBy(l => l.From.RefPoint)];
+            .OrderBy(l => l.Script.ToString(), StringComparer.Ordinal).ThenBy(l => l.From.Marks)];
     }
 
-    private static DialogueMode? Mode(PluginSet plugins, RecordId script) => plugins.TryGet<DialogueRecord>(script)?.Mode;
+    private static ScriptMode? Mode(PluginSet plugins, RecordId script) => plugins.TryGet<ScriptRecord>(script)?.Mode;
 
     /// <summary>
     /// Plays every launch under both movements, in parallel by stage, and returns each one's outcomes, those that differ worst
@@ -194,7 +194,7 @@ public static class MovementCompare
             }
             foreach (var launch in group)
             {
-                if (plugins.TryGet<DialogueRecord>(launch.Script) is not { } script)
+                if (plugins.TryGet<ScriptRecord>(launch.Script) is not { } script)
                 {
                     missed.Add($"{launch.Script}: no plugin has it.");
                     continue;
@@ -211,7 +211,7 @@ public static class MovementCompare
     /// <summary>The differences worst first: by <see cref="Difference.Severity"/>, then <see cref="Difference.Magnitude"/>, then by script.</summary>
     public static IReadOnlyList<Difference> Rank(IEnumerable<Difference> differences) =>
         [.. differences.OrderByDescending(d => d.Severity).ThenByDescending(d => d.Magnitude)
-            .ThenBy(d => d.Launch.Script.ToString(), StringComparer.Ordinal).ThenBy(d => d.Launch.From.RefPoint)];
+            .ThenBy(d => d.Launch.Script.ToString(), StringComparer.Ordinal).ThenBy(d => d.Launch.From.Marks)];
 
     /// <summary>A chunk as a stage, with the 3 × 3 about it loaded as <see cref="GameSession"/> loads it, in a new game.</summary>
     public static CutSceneStage? Stage(PluginSet plugins, ChunkRef chunk)
@@ -228,7 +228,7 @@ public static class MovementCompare
 
     /// <summary>Plays a cut-scene on its stage under a movement, from a new game, till it ends or the limit.</summary>
     /// <param name="watch">Called after each tick with the tick and the cut-scene, for following one.</param>
-    public static Outcome Play(PluginSet plugins, DialogueRecord script, ScriptStart from, CutSceneStage stage, MovementMode movement,
+    public static Outcome Play(PluginSet plugins, ScriptRecord script, ScriptStart from, CutSceneStage stage, MovementMode movement,
         Options options, ConcurrentDictionary<RecordId, Lazy<ActorClips?>>? clips = null, Action<int, CutScene>? watch = null)
     {
         clips ??= new();

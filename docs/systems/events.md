@@ -1,6 +1,6 @@
 # Events and triggers (roadmap 2.10)
 
-ADR 0008's layer 2: *on an event, if its conditions hold, do its effects*. The core fires named events where the original's engine code does something the data doesn't say, and the plugins' trigger records say what follows. The base plugin's triggers carry what the original hardcodes at those places, so a mod changes or adds to them like any record, with no hook the base game has and mods don't.
+ADR 0008's layer 2: *on an event, if its conditions hold, do its ops*. The core fires named events where the original's engine code does something the data doesn't say, and the plugins' trigger records say what follows. The base plugin's triggers carry what the original hardcodes at those places, so a mod changes or adds to them like any record, with no hook the base game has and mods don't.
 
 `GameEvents` and `Triggers` in `HBHT.Core.Events`, `TriggerRecord` in `HBHT.Plugins.Records`, `TriggerImporter` in `HBHT.Rom.Import`. `GameSession` fires the events and carries out what takes over.
 
@@ -10,21 +10,22 @@ ADR 0008's layer 2: *on an event, if its conditions hold, do its effects*. The c
 
 - **`on`**: the event's name.
 - **`subject`**: what the event must be about, such as the script that ended. None matches any.
-- **`if`**: conditions, all of which must hold: Borg13's condition ops (`CheckFlag`, `CheckMember`, `CheckItem`, `CheckSkill`, `CheckBestStat`, `CheckWorstStat`, `CheckSpeakerStat` with the member as its target, `CheckPartySize`, `CheckGold`), each holding when its value is in its `range`, or exactly 1 without one, as an If node's first link takes.
-- **`do`**: effects, in order, each written with its `type`:
+- **`if`**: conditions, all of which must hold: a script's condition ops (`check.flag`, `check.member`, `check.item`, `check.skill`, `check.bestStat`, `check.worstStat`, `check.stat` with its `member`, `check.partySize`, `check.gold`), each holding when its value is in its `range`, or exactly 1 without one, as an If node's first link takes.
+- **`do`**: ops, in order, a script's vocabulary (ADR 0034, every op in [scripts](scripts.md#the-ops)): the effects a trigger can run, which need no stage, actor or running script, and five of a trigger's own.
 
-| Type | What | Takes over |
+| Op | What | Takes over |
 | --- | --- | --- |
-| `op` | One of Borg13's effect ops that needs no speaker or actor, run as a node runs it: `SetFlag`, `ClearFlag`, `AddGold`, `TakeGold`, `AddItem`, `TakeItem`, `AddMember`, `RemoveMember`, and `AddExp` with the member as its target | |
-| `trueName` | The party member `member` knows his True Name, which a save keeps ([saves](saves.md)) | |
-| `cinematic` | The cinematic `play` plays over everything; trek comes back after it unless its own end leads elsewhere | Yes |
-| `script` | The cut-scene a dialogue object (`from`, an `aidyn:voxel/…`) starts plays at once, on its stage from its reference points, with no trek before it | Yes |
-| `credits` | The credits roll; with `ending`, they can't be skipped, end with "The End", and end the game | Yes |
-| `gameOver` | The game is over: it goes back to the title, its intro cards first ([ui](ui.md#coming-back-to-it)) | Yes |
+| `flag.set`, `flag.clear`, `party.addGold`, `party.takeGold`, `party.addItem`, `party.takeItem`, `party.addMember`, `party.removeMember`, `party.addExp` | As a node's effect runs them | |
+| `party.learnTrueName` | The party member `member` knows his True Name, which a save keeps ([saves](saves.md)) | |
+| `cinematic.play` | The `cinematic` plays over everything; trek comes back after it unless its own end leads elsewhere | Yes |
+| `script.start` | The cut-scene a script object (`from`, an `aidyn:voxel/…`) starts plays at once, on its stage from its marks, with no trek before it | Yes |
+| `credits.roll` | The credits roll; with `ending`, they can't be skipped, end with "The End", and end the game | Yes |
+| `game.over` | The game is over: it goes back to the title, its intro cards first ([ui](ui.md#coming-back-to-it)) | Yes |
+| `lua` | Reserved for Phase 5: does nothing, and is reported | |
 
-Conditions and ops go through the script VM's own, `ScriptOps` in `HBHT.Core.Scripts`, so they mask and roll as a node does, and the gold's and experience's sounds go to the session's host. A condition's or op's target is also the speaker `CheckSpeakerStat` reads and the member `AddExp` gives to. The one difference is that a trigger has no map object and keeps nothing: each `CheckSkill` rolls the party's check afresh, though it still rolls 0–21 while `randomSkillChecks` is set.
+Conditions and ops go through the script VM's own, `ScriptOps` in `HBHT.Core.Scripts`, so they mask and roll as a node does, and the gold's and experience's sounds go to the session's host. The one difference is that a trigger has no map object and keeps nothing: each `check.skill` rolls the party's check afresh, honouring the random-checks flag. An op that needs a stage, an actor or a running script (`actor.*`, `camera.*`, `battle.*`, `script.end`, `shop.open` and the rest) is refused in a trigger by its type: `PluginSet.Validate` reports it, `Triggers.Problems` says so, and firing passes over it with a warning. A trigger's own ops are refused in a script the same way.
 
-An effect that takes over from trek ends the firing: the triggers after it on that event don't go off. One that can't be carried out (a cinematic no plugin has) is reported and the event's place goes on as it would without it. A type no build knows loads as a plain effect that does nothing, and `Triggers.Problems` reports it, as it does a trigger on an event the core never fires.
+An op that takes over from trek ends the firing: the triggers after it on that event don't go off. One that can't be carried out (a cinematic no plugin has) is reported and the event's place goes on as it would without it. An op no build knows loads as a plain op that does nothing, and `Triggers.Problems` reports it, as it does a trigger on an event the core never fires.
 
 ## The events
 
@@ -42,13 +43,13 @@ An effect that takes over from trek ends the firing: the triggers after it on th
 
 | Trigger | On | If | Do | The original |
 | --- | --- | --- | --- | --- |
-| 0 | `game.started` | | the opening (`cinematic/0`) | `Title.ModeFrame`, above |
-| 1 | `cinematic.ended` 0 | | `script` from `voxel/0x0FDB/7`: script 866 (`0x0362`, number 1004) on its stage | `Cinematic.EndOpening` (`0x8005403c`) loads Borg9 0x0FDB, takes the last dialogue object whose script is 0x0362 (`+0x28`), and calls `Script.Start` with its stage, returning mode 0xC: no trek is built first |
-| 2 | `script.ended` 0x04F4 (the Rooughah scene, 1268) | `CheckFlag` 3442 | Roog's (`cinematic/2`) | `CutScene.Free`'s kind 3: `FlagNetwork.Get(0xD72)` at `0x8005179c`, then `Cinematic.Load(2, 3, 1)`; with 3442 clear, the ordinary end |
-| 3 | `script.ended` 0x04FE (the last scene, 1278) | | the ending (`cinematic/3`) | Kind 1: `Cinematic.Load(3, 2, 0)` |
-| 4–6 | `script.ended` 0x0512–0x0514 (the death scenes) | | `gameOver` | Kind 2: the return mode 0, the restart at the title (`Game.Restart`, `0x8001f284`) |
-| 7 | `cinematic.ended` 2 | | `trueName` Alaron | `Cinematic.EndRoog` (`0x80054104`) finds the member whose id is entity DB record 153's, Alaron's, and sets his sheet's True Name bit, then returns trek (the literal 1) |
-| 8 | `cinematic.ended` 3 | | `credits` with `ending` | `Cinematic.EndEnding` (`0x800540f0`) sets `Credits.Source` to 2 and returns the credits' mode 0x13; their end (`Credits.Frame`, `0x8001f648`) takes source 2 to mode 0, the title |
+| 0 | `game.started` | | `cinematic.play` the opening (`cinematic/0`) | `Title.ModeFrame`, above |
+| 1 | `cinematic.ended` 0 | | `script.start` from `voxel/0x0FDB/7`: script 866 (`0x0362`, number 1004) on its stage | `Cinematic.EndOpening` (`0x8005403c`) loads Borg9 0x0FDB, takes the last script object whose script is 0x0362 (`+0x28`), and calls `Script.Start` with its stage, returning mode 0xC: no trek is built first |
+| 2 | `script.ended` 0x04F4 (the Rooughah scene, 1268) | `check.flag` 3442 | `cinematic.play` Roog's (`cinematic/2`) | `CutScene.Free`'s kind 3: `FlagNetwork.Get(0xD72)` at `0x8005179c`, then `Cinematic.Load(2, 3, 1)`; with 3442 clear, the ordinary end |
+| 3 | `script.ended` 0x04FE (the last scene, 1278) | | `cinematic.play` the ending (`cinematic/3`) | Kind 1: `Cinematic.Load(3, 2, 0)` |
+| 4–6 | `script.ended` 0x0512–0x0514 (the death scenes) | | `game.over` | Kind 2: the return mode 0, the restart at the title (`Game.Restart`, `0x8001f284`) |
+| 7 | `cinematic.ended` 2 | | `party.learnTrueName` Alaron | `Cinematic.EndRoog` (`0x80054104`) finds the member whose id is entity DB record 153's, Alaron's, and sets his sheet's True Name bit, then returns trek (the literal 1) |
+| 8 | `cinematic.ended` 3 | | `credits.roll` with `ending` | `Cinematic.EndEnding` (`0x800540f0`) sets `Credits.Source` to 2 and returns the credits' mode 0x13; their end (`Credits.Frame`, `0x8001f648`) takes source 2 to mode 0, the title |
 
 Every kind of the endings table takes over from trek, so a cinematic after a cut-scene starts straight from its end, with no trek built and none drawn. After Roog's, trek is built again where the player stood and fades in, as after any cut-scene; Alaron's True Name also comes back whenever his sheet is built while 590, that cinematic's done flag, is set ([characters](characters.md)).
 
@@ -56,7 +57,7 @@ Every kind of the endings table takes over from trek, so a cinematic after a cut
 
 ### Where the port differs
 
-- **Script 866 is also trek's.** The dialogue object `EndOpening` takes it from, `voxel/0x0FDB/7` at (12.6, −17.1, 60.3) with a radius of 10, is enabled while flag 5 is clear (derived 5424), and 866 sets 5 as it ends. A new game arrives about 4 from it, so trek there before 866 has played starts it, in 1.0 as in the port: a save of a new game's flags at the arrival plays 866 in trek.
+- **Script 866 is also trek's.** The script object `EndOpening` takes it from, `voxel/0x0FDB/7` at (12.6, −17.1, 60.3) with a radius of 10, is enabled while flag 5 is clear (derived 5424), and 866 sets 5 as it ends. A new game arrives about 4 from it, so trek there before 866 has played starts it, in 1.0 as in the port: a save of a new game's flags at the arrival plays 866 in trek.
 - **A new game builds trek's world before the opening.** The original builds it only after script 866 has ended (`InitGameTrek` runs on `TrekLoop.Frame`'s first frame, with `TrekLoop.Restoring` clear, so the player arrives at the new game's place). The port builds it where the player arrives, plays the opening over it, frees it for 866's stage and builds it again there after: the same place and the same pictures.
 - **The ending's credits end the game** by `Transition.GameOver`, which goes back to the title, as after the game over.
 

@@ -16,12 +16,12 @@ public sealed partial class GameSessionTests
     /// <summary>A script's battle, as its cut-scene's end starts it (<see cref="BattleSetup.Scripted"/>), begun and faded in.</summary>
     private Battle ScriptBattle(GameSession session, int script)
     {
-        var dialogue = Data.Set.Get<DialogueRecord>(RecordId.Hex(RecordTypes.Dialogue, script));
-        var ops = dialogue.Nodes.SelectMany(n => n.Ops ?? []).ToList();
-        var enemies = ops.Where(o => o.Command == DialogueCommand.AddEnemy).Select(o => o.Target!.Value).ToList();
-        var arena = ops.First(o => o.Command == DialogueCommand.SetBattlefield).Value!.Value;
+        var dialogue = Data.Set.Get<ScriptRecord>(RecordId.Hex(RecordTypes.Script, script));
+        var ops = dialogue.Nodes.SelectMany(n => n.Ops).ToList();
+        var enemies = ops.OfType<ScriptOp.BattleAddEnemy>().Select(o => o.Entity).ToList();
+        var arena = ops.OfType<ScriptOp.BattleArena>().First().Arena;
         var (place, terrain) = session.Trek.Here();
-        var setup = BattleSetup.Scripted(enemies, arena, 0, 0, dialogue.Mode != DialogueMode.Cutscene, dialogue.BattleFlag)
+        var setup = BattleSetup.Scripted(enemies, arena, 0, 0, dialogue.Mode != ScriptMode.Cutscene, dialogue.BattleFlag)
             with { Place = place, Terrain = terrain };
         session.CueBattle(setup);
         var step = SessionStep.Trek;

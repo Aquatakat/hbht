@@ -169,7 +169,7 @@ internal static class MapImporter
                 MonsterPartyData m => new MonsterPartyObject(o.Index, o.Position, o.Radius, null,
                     [.. m.Enemies.Select(e => new PartyEnemy(Db(e.Enemy), e.Min, e.Max))], Db(m.Entity), OptionalDb(m.Loot),
                     m.MinSize, m.MaxSize, Own(m.WanderNode, VoxelType.WanderNode, "home node"), m.PartyFlags,
-                    m.Dialogue == 0 ? null : Borg(BorgType.Dialogue, m.Dialogue, RecordTypes.Dialogue),
+                    m.Dialogue == 0 ? null : Borg(BorgType.Dialogue, m.Dialogue, RecordTypes.Script),
                     m.Dialogue == 0 ? null : OptionalFlag(o.FlagC))
                 {
                     Enabled = enabled,
@@ -189,8 +189,8 @@ internal static class MapImporter
                 },
                 CameraData c => new CameraObject(o.Index, o.Position, o.Radius, visible,
                     c.RefPoint == 0 ? null : RefPoint(index, c.RefPoint), c.CameraFlags, Ticks: c.Values.Z, Pitch: c.Values.X, Distance: c.Values.Y),
-                DialogueData d => new DialogueObject(o.Index, o.Position, o.Radius, null,
-                    Borg(BorgType.Dialogue, d.Script, RecordTypes.Dialogue), d.Map.Row == 0 ? null : Chunk(d.Map), d.RefPoint, d.Name)
+                DialogueData d => new ScriptObject(o.Index, o.Position, o.Radius, null,
+                    Borg(BorgType.Dialogue, d.Script, RecordTypes.Script), d.Map.Row == 0 ? null : Chunk(d.Map), d.RefPoint, d.Name)
                 {
                     Enabled = enabled,
                     Tangible = o.Flags.HasFlag(VoxelFlags.Tangible),

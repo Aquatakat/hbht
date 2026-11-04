@@ -126,8 +126,13 @@ public static class BasePlugin
     /// merged into their entities; the sheet's skills and stats keyed by ID and its weapons named; the combat, inventory, magic and
     /// progression lists about one entity or item on it; and schools, elements and animation requests are records, weapon skills
     /// in place of weapon classes.
+    /// 69 is the format's third slice (ADR 0034): <c>dialogue</c> records are <c>script</c> records (<c>aidyn:script/0xHHHH</c>), one
+    /// file each under <c>records/scripts/</c> with a <c>label</c>; each node names its <c>speaker</c>, and SetSpeaker is gone; ops are
+    /// typed and polymorphic on <c>op</c>, naming their actor, with one <c>condition</c> and one <c>effect</c> per node; the script map
+    /// object is <c>script</c> with <c>plays</c> and <c>marks</c>, a reference point's <c>id</c> is its <c>mark</c>; and triggers' <c>if</c>
+    /// and <c>do</c> hold the same ops.
     /// </summary>
-    public const int ImporterVersion = 68;
+    public const int ImporterVersion = 69;
 
     /// <summary>
     /// What's wrong with the imported base plugin under <paramref name="pluginsDirectory"/>, worded for the player, or null if
