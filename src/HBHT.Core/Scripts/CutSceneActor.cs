@@ -28,7 +28,7 @@ public sealed class CutSceneActor
         Body = body;
     }
 
-    /// <summary>The entity or dialogue entity it is: one of the script's actors.</summary>
+    /// <summary>The entity it is, with a sheet or without: one of the script's actors.</summary>
     public RecordId Entity { get; }
 
     /// <summary>Its entity's actor, radius, scale and height.</summary>

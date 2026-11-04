@@ -6,7 +6,7 @@ namespace HBHT.Rom.Import;
 
 /// <summary>
 /// Corrections the importer makes to the ROM's maps, each the user's choice and a departure from the original
-/// (docs/systems/importer.md#the-players-choices), and the player's at import (<see cref="ImportOptions"/>). Each is applied to the parsed Borg9 before its map record and its
+/// (docs/systems/importer.md#the-players-choices), and the player's at import (<see cref="ImportOptions"/>). Each is applied to the parsed Borg9 before its chunk record and its
 /// collision are written, so what's drawn and what's hit stay together, and checks first that the ROM holds what it corrects.
 /// </summary>
 internal static class MapCorrections

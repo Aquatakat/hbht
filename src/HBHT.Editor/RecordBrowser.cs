@@ -524,7 +524,7 @@ public partial class RecordBrowser : Control
         var plugins = catalog.Plugins;
         var entry = catalog.Find(id);
         var voxel = id.Type == RecordTypes.MapObject;
-        // A map object's fields are its map record's.
+        // A map object's fields are its chunk record's.
         var json = voxel ? MapObjects.Json(plugins, id) : plugins.GetJson(id);
         var references = catalog.ReferencesTo(id);
 

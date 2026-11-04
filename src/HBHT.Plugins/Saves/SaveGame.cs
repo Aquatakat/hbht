@@ -1,5 +1,7 @@
 using System.Numerics;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using HBHT.Plugins.Records;
 
 namespace HBHT.Plugins.Saves;
@@ -16,10 +18,20 @@ namespace HBHT.Plugins.Saves;
 /// </remarks>
 public sealed record SaveGame
 {
-    /// <summary>The format's version, raised when it changes in a way older readers can't follow.</summary>
-    public const int CurrentFormat = 1;
+    /// <summary>
+    /// The format's version, raised when it changes in a way older readers can't follow. 2 since the data format overhaul
+    /// (ADR 0037); a format-1 save is brought up as it's read (<see cref="SaveUpconverter"/>).
+    /// </summary>
+    public const int CurrentFormat = 2;
 
     public int Format { get; init; } = CurrentFormat;
+
+    /// <summary>
+    /// What reading brought up from an older format, if it was written in one (ADR 0037), with what it left out, which
+    /// <c>GameState.Load</c> lists in its problems. Not saved: the save is format 2 once read.
+    /// </summary>
+    [JsonIgnore]
+    public SaveUpconversion? Upconverted { get; init; }
 
     /// <summary>A name for it, such as the checkpoint it was made from.</summary>
     public string? Label { get; init; }
@@ -223,14 +235,28 @@ public static class SaveFile
 {
     public const string Extension = ".json";
 
-    public static SaveGame Read(string path) => Parse(File.ReadAllText(path));
+    /// <summary>Reads a save, bringing one of an older format up as <see cref="Parse"/> does.</summary>
+    public static SaveGame Read(string path, PluginSet? plugins = null) => Parse(File.ReadAllText(path), plugins);
 
-    public static SaveGame Parse(string json)
+    /// <summary>
+    /// Reads a save. One of format 1, or with no format, which only format 1's writers left out, is brought up to format 2 first,
+    /// silently (ADR 0037), finding its map objects' chunks in <paramref name="plugins"/>; what that leaves out is in
+    /// <see cref="SaveGame.Upconverted"/>. A format-2 save doesn't need the plugins. A newer format than this version's is refused.
+    /// </summary>
+    public static SaveGame Parse(string json, PluginSet? plugins = null)
     {
-        var save = JsonSerializer.Deserialize<SaveGame>(json, PluginJson.Options) ?? throw new JsonException("The save is empty.");
-        if (save.Format > SaveGame.CurrentFormat)
-            throw new InvalidDataException($"The save's format is {save.Format}, newer than this version reads ({SaveGame.CurrentFormat}).");
-        return save;
+        if (JsonNode.Parse(json, documentOptions: PluginJson.DocumentOptions) is not JsonObject node)
+            throw new JsonException("The save isn't a JSON object.");
+        var format = node["format"] is JsonValue value && value.TryGetValue(out int f) ? f : 1;
+        if (format > SaveGame.CurrentFormat)
+            throw new InvalidDataException($"The save's format is {format}, newer than this version reads ({SaveGame.CurrentFormat}).");
+        if (format < 1)
+            throw new InvalidDataException($"The save's format is {format}, which no version wrote.");
+        SaveUpconversion? upconverted = null;
+        if (format == 1)
+            upconverted = new SaveUpconversion(format, SaveUpconverter.FromFormat1(node, plugins));
+        var save = node.Deserialize<SaveGame>(PluginJson.Options) ?? throw new JsonException("The save is empty.");
+        return upconverted is null ? save : save with { Upconverted = upconverted };
     }
 
     public static string Serialize(SaveGame save) => JsonSerializer.Serialize(save, PluginJson.Options);

@@ -8,14 +8,14 @@ public enum MemoryKind
 {
     /// <summary>
     /// A conversation's random line: the roll, 0–100, that picked it, so talking again shows the same one. The
-    /// one talking is a dialogue object or a monster party.
+    /// one talking is a script object or an npc or encounter.
     /// </summary>
     RandomLine,
     /// <summary>A conversation's skill check: the party's step the first time, so talking again can't do better.</summary>
     SkillCheck,
     /// <summary>A container emptied that has no opened flag, which stays empty while it's remembered.</summary>
     Opened,
-    /// <summary>A monster party beaten, which stays away while it's remembered.</summary>
+    /// <summary>An npc or encounter beaten, which stays away while it's remembered.</summary>
     Beaten,
     /// <summary>
     /// A scene object put out as the player reached it, one of Oriana's path lights (<see cref="SceneObject.GoesOut"/>),
@@ -41,7 +41,7 @@ public sealed class MemoryEntry(Memory key, int value, int lifetime)
 
 /// <summary>
 /// What map objects remember for a while (the original's <c>VoxelChart</c>): a conversation's random
-/// line and skill checks, a container emptied that has no opened flag, a monster party beaten, a path
+/// line and skill checks, a container emptied that has no opened flag, an npc or encounter beaten, a path
 /// light put out.
 /// It holds 19 memories. Each lasts a number of map loads, a teleport or a chunk crossed, and
 /// is saved with the game.
@@ -67,7 +67,7 @@ public sealed class MapObjectMemory
     /// <summary>How many map loads a conversation's memory and a container's last, and a recalled memory lasts again.</summary>
     public const int Long = 10;
 
-    /// <summary>How many map loads a beaten monster party is remembered.</summary>
+    /// <summary>How many map loads a beaten npc or encounter is remembered.</summary>
     public const int Short = 3;
 
     /// <summary>How many map loads a path light put out is remembered (<c>RenderVoxelScenes</c>, <c>0x8000cdec</c> in 1.0).</summary>
@@ -101,7 +101,7 @@ public sealed class MapObjectMemory
     /// <summary>
     /// Remembers something for <paramref name="lifetime"/> map loads (<c>WriteTo_VoxelChart</c>). The
     /// caller looks first, as the original's do, so a key isn't written twice. When all 19 are
-    /// taken, it forgets the beaten monster parties, then the random lines, then everything, until
+    /// taken, it forgets the beaten npcs and encounters, then the random lines, then everything, until
     /// there's room.
     /// </summary>
     public MemoryEntry Remember(Memory key, int value, int lifetime = Long)

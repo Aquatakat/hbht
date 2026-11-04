@@ -15,7 +15,7 @@ namespace HBHT.Game;
 /// <summary>
 /// Draws the chunks the core's <see cref="ChunkStreamer"/> has loaded: each chunk's scenery, its
 /// see-through scenery and the models its scene objects place (<see cref="ChunkScenery"/>), and the
-/// bodies of its monster parties that have them (<see cref="WandererView"/>). Trek's also draws the scenery round the 3×3:
+/// bodies of its npcs and encounters that have them (<see cref="WandererView"/>). Trek's also draws the scenery round the 3×3:
 /// what its chunks show, and the 5×5 under the Draw Distance setting's Extended (<see cref="SceneryRing"/>).
 /// </summary>
 /// <remarks>
@@ -63,7 +63,7 @@ public partial class ChunkStreamerView : Node3D
     }
 
     /// <param name="wanderers">
-    /// The wanderers whose bodies to draw. None for a cut-scene's stage, where monster parties have no
+    /// The wanderers whose bodies to draw. None for a cut-scene's stage, where npcs and encounters have no
     /// bodies (<c>look_for_monsterparties</c>, <c>0x8000ef20</c>).
     /// </param>
     /// <param name="shadow">The texture of bodies' shadows.</param>
@@ -310,7 +310,7 @@ public partial class ChunkStreamerView : Node3D
     /// <summary>
     /// Reads ahead, off the main thread, what the next crossing could load: the surfaces and assets of the chunks two from the
     /// centre, which come into the 3×3, and under the ring three from it, which come into the ring, and the actors of their
-    /// monster parties' bodies. Each time the centre moves; what was still to read about the old one is dropped.
+    /// npcs' and encounters' bodies. Each time the centre moves; what was still to read about the old one is dropped.
     /// </summary>
     public void ReadAhead()
     {

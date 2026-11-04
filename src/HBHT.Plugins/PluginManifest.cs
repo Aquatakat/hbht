@@ -65,7 +65,7 @@ public static class BasePlugin
     /// 17 gives collision triangles the object a trigger triangle runs, or a toggle's id (<c>_TARGET</c>).
     /// 18 gives containers their reach, and maps the grid of the objects each cell lists.
     /// 19 names camera objects' flags 0x8, 0x10, 0x100 and 0x200.
-    /// 20 gives entities and dialogue entities their bodies: actor, radius, scale and height.
+    /// 20 gives entities and former dialogue entities their bodies: actor, radius, scale and height.
     /// 21 gives recruitable members their joined, left and died flags, and whether their sheet is kept.
     /// 22 gives weapons, shields and six items their models.
     /// 23 adds the world map and camping. 24 adds the minimaps. 25 adds sequences and samples.
@@ -105,14 +105,14 @@ public static class BasePlugin
     /// 57 cuts cut-outs out from an eighth of texel alpha, as the N64's coverage does (<c>alphaCutoff</c> 0.125 for 0.5).
     /// 58 writes how a trapped container's explosion is drawn (<c>aidyn:explosion/0</c>): its particles' texture.
     /// 59 marks a lit list's vertices that the RSP loads second of a pair (<c>TEXCOORD_1</c>'s S of 1), which a body's lights don't reach.
-    /// 60 moves the Roog Cave's mushroom (<c>aidyn:voxel/0x1205/12</c>) and its collision out of the passage's neck (<c>MapCorrections</c>).
+    /// 60 moves the Roog Cave's mushroom (<c>aidyn:mapobject/10/D01/12</c>) and its collision out of the passage's neck (<c>MapCorrections</c>).
     /// 61 gives each title fly-through its animation's length (<c>length</c>), and names its coordinates' origin (<c>originRow</c>, <c>originColumn</c>).
     /// Its manifest later records the import's options (<c>import.options</c>, <see cref="ImportOptions"/>), whose defaults leave the
     /// records as 61 wrote them, and a 61 import without them had the defaults, so the version stayed.
     /// 62 welds the seams between meshes that miss by a hair (<see cref="ImportOptions.WeldSeams"/>).
     /// 63 has Wind on an ally hold combat's weather clear while it lasts (<c>weather</c>'s <c>during</c> 0), where 1.0's sets fog as it ends.
     /// 64 gives each entity's body its combat alpha (<c>alpha</c>): 127 for the seven bosses on actor 0x33DB and the Spirit Wolf, 255 for the rest.
-    /// 65 gives each dialogue entity the sounds 1.0 gives its body (<c>sounds</c>): the profile of the entity at its place in the dialogue entity list.
+    /// 65 gives each former dialogue entity the sounds 1.0 gives its body (<c>sounds</c>): the profile of the entity at its place in the dialogue entity list.
     /// 66 takes out of the Overworld's chunk scenes what they drew over other chunks' cells: a copy of a chunk is dropped for the chunk
     /// (<c>shows</c>), and the rest moves into the chunk of the cell it's over (<c>fill</c>, <c>aidyn:fill/n</c>), made where there was none;
     /// and marks the chunks Draw Distance's Extended draws the 5×5 round (<c>extended</c>).

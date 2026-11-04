@@ -6,7 +6,7 @@ namespace HBHT.Core.MapObjects;
 /// <summary>
 /// Whether a map object is there as its chunk loads, by the flags (the original's
 /// <c>gVoxelFuncs2</c>, checked in 1.0's code; see docs/formats/maps.md). Whether it works once
-/// there, its <see cref="MapObject.Enabled"/>, is another question, except for monster parties.
+/// there, its <see cref="MapObject.Enabled"/>, is another question, except for npcs and encounters.
 /// </summary>
 public static class MapObjectPresence
 {
@@ -15,7 +15,7 @@ public static class MapObjectPresence
 
     /// <summary>
     /// Whether the object is there. Most types are there while their <see cref="MapObject.Visible"/>
-    /// holds, which the types that don't read it leave out. A monster party is there while its
+    /// holds, which the types that don't read it leave out. An npc or encounter is there while its
     /// <see cref="MapObject.Enabled"/> holds and, if it has no dialogue, until beating it sets its
     /// <see cref="MapObject.Used"/>. A chest, sack, crate or barrel is there until it's opened or
     /// destroyed, when its model shows it opened or destroyed instead. A herb, spice, gem or custom

@@ -41,7 +41,7 @@ public enum ScriptEnding
 /// by its position in this list, not by its ID.
 /// </param>
 /// <param name="CampDialogueFlags">
-/// When the party camps, a dialogue object nearby whose flag A is one of these starts instead of
+/// When the party camps, a script object nearby whose flag A is one of these starts instead of
 /// the usual campfire.
 /// </param>
 /// <param name="ScriptBattleFlags">
@@ -50,7 +50,7 @@ public enum ScriptEnding
 /// </param>
 /// <param name="CampfireScenes">Eight hours pass when one of these scripts ends.</param>
 /// <param name="GameOverScript">
-/// When the party is wiped out, this script starts from its dialogue object in the Dreamscape
+/// When the party is wiped out, this script starts from its script object in the Dreamscape
 /// Borg9. The code's list has two more death scenes that it never uses.
 /// </param>
 public sealed record EngineTables(

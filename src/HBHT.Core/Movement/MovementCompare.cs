@@ -31,7 +31,7 @@ public static class MovementCompare
     public sealed record Options(int ReadTicks = 120, int Limit = 100_000);
 
     /// <summary>
-    /// A cut-scene the game starts: from a dialogue object, on its stage with its reference points numbered from its own, or from
+    /// A cut-scene the game starts: from a script object, on its stage with its reference points numbered from its own, or from
     /// a talker's party in the chunk it stands in, numbered from 0. <paramref name="Sources"/> is how many map objects start it so.
     /// </summary>
     public sealed record Launch(RecordId Script, ScriptStart From, RecordId Stage, int Sources);
@@ -145,7 +145,7 @@ public static class MovementCompare
     }
 
     /// <summary>
-    /// The cut-scenes the base game starts, as <see cref="GameSession"/> starts them: every dialogue object whose script is a
+    /// The cut-scenes the base game starts, as <see cref="GameSession"/> starts them: every script object whose script is a
     /// cut-scene with a stage, and every talking npc's, staged in the npc's own chunk or by its stage (<see cref="TrekLoop.TalkerLaunch"/>).
     /// Those that start the same script the same way on the same stage are one.
     /// </summary>

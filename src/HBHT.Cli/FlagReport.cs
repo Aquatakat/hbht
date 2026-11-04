@@ -97,8 +97,8 @@ internal sealed class FlagReport
             + (starters.Count > 3 ? $" and {starters.Count - 3} more" : "");
     }
 
-    /// <summary>A map object as text: what it is, where its map sits, and its index.</summary>
-    private string Object(RecordId voxel) => $"{_catalog.Describe(voxel)} (object {ChunkRecord.IndexOf(voxel)})";
+    /// <summary>A map object as text: what it is, where its chunk sits, and its index.</summary>
+    private string Object(RecordId mapObject) => $"{_catalog.Describe(mapObject)} (object {ChunkRecord.IndexOf(mapObject)})";
 
     /// <summary>The node's own text, or the nearest text on the way to it.</summary>
     private static string LineNear(ScriptRecord script, int node)

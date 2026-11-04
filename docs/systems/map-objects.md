@@ -26,7 +26,7 @@ Ported from `objectJumpTables.cpp`, `voxObjects.cpp`, `voxObjects2.cpp` (`obj_re
 | Container | Within its reach plus the player's radius (0.5), from the player's centre in 3D: 2.5 for most. Its reach isn't its radius, which is 10 for most (see [maps](../formats/maps.md#map-objects-in-the-base-plugin-06)). Then a herb, spice, gem or custom container always; a chest, sack, crate or barrel only until opened, and only if it holds gold, a loot table or an item (`container_obj_check`) |
 | Teleporter, tripwire, script object | Within its radius, while its Enabled holds |
 | Save point | Within its radius, and using it does nothing |
-| Monster party | Only the player's nearest body, if it's a wanderer's within reach and its party isn't silent, weighed by its distance and its body's position ([wanderers](wanderers.md#talking)) |
+| Npc, encounter | Only the player's nearest body, if it's a wanderer's within reach and its party isn't silent, weighed by its distance and its body's position ([wanderers](wanderers.md#talking)) |
 
 One alone is used. Of several, the one with the best (farthest − its distance) / farthest + (1 + the cosine of its bearing off the player's heading) / 2 is used, the later on a tie. The original walks its grid cell's object list rather than the chunk's; every container, teleporter, trigger and save point is listed in every cell it reaches, so the two agree, except for the 11 dialogues that trigger triangles name, which no cell lists (below).
 

@@ -1,0 +1,1624 @@
+{
+ "format": 1,
+ "label": "Format 1 fixture",
+ "plugins": [
+  {
+   "id": "aidyn",
+   "version": "1.0.0"
+  }
+ ],
+ "playTime": 3904117,
+ "time": 354174888,
+ "place": {
+  "mapSet": "aidyn:mapset/0",
+  "chunk": "0,13",
+  "position": [50, -1, 50],
+  "heading": [0, 1]
+ },
+ "flags": [
+  "aidyn:flag/2",
+  "aidyn:flag/3",
+  "aidyn:flag/5",
+  "aidyn:flag/9",
+  "aidyn:flag/11",
+  "aidyn:flag/36",
+  "aidyn:flag/39",
+  "aidyn:flag/45",
+  "aidyn:flag/46",
+  "aidyn:flag/47",
+  "aidyn:flag/48",
+  "aidyn:flag/49",
+  "aidyn:flag/50",
+  "aidyn:flag/51",
+  "aidyn:flag/53",
+  "aidyn:flag/54",
+  "aidyn:flag/63",
+  "aidyn:flag/67",
+  "aidyn:flag/68",
+  "aidyn:flag/71",
+  "aidyn:flag/73",
+  "aidyn:flag/91",
+  "aidyn:flag/92",
+  "aidyn:flag/93",
+  "aidyn:flag/98",
+  "aidyn:flag/100",
+  "aidyn:flag/102",
+  "aidyn:flag/106",
+  "aidyn:flag/112",
+  "aidyn:flag/113",
+  "aidyn:flag/121",
+  "aidyn:flag/122",
+  "aidyn:flag/130",
+  "aidyn:flag/131",
+  "aidyn:flag/138",
+  "aidyn:flag/140",
+  "aidyn:flag/141",
+  "aidyn:flag/145",
+  "aidyn:flag/148",
+  "aidyn:flag/153",
+  "aidyn:flag/154",
+  "aidyn:flag/156",
+  "aidyn:flag/158",
+  "aidyn:flag/166",
+  "aidyn:flag/169",
+  "aidyn:flag/190",
+  "aidyn:flag/192",
+  "aidyn:flag/194",
+  "aidyn:flag/201",
+  "aidyn:flag/203",
+  "aidyn:flag/204",
+  "aidyn:flag/205",
+  "aidyn:flag/206",
+  "aidyn:flag/213",
+  "aidyn:flag/214",
+  "aidyn:flag/215",
+  "aidyn:flag/216",
+  "aidyn:flag/217",
+  "aidyn:flag/218",
+  "aidyn:flag/220",
+  "aidyn:flag/222",
+  "aidyn:flag/231",
+  "aidyn:flag/233",
+  "aidyn:flag/236",
+  "aidyn:flag/237",
+  "aidyn:flag/238",
+  "aidyn:flag/239",
+  "aidyn:flag/240",
+  "aidyn:flag/243",
+  "aidyn:flag/244",
+  "aidyn:flag/245",
+  "aidyn:flag/246",
+  "aidyn:flag/249",
+  "aidyn:flag/250",
+  "aidyn:flag/254",
+  "aidyn:flag/260",
+  "aidyn:flag/263",
+  "aidyn:flag/266",
+  "aidyn:flag/276",
+  "aidyn:flag/277",
+  "aidyn:flag/278",
+  "aidyn:flag/286",
+  "aidyn:flag/296",
+  "aidyn:flag/298",
+  "aidyn:flag/300",
+  "aidyn:flag/301",
+  "aidyn:flag/302",
+  "aidyn:flag/303",
+  "aidyn:flag/305",
+  "aidyn:flag/308",
+  "aidyn:flag/316",
+  "aidyn:flag/319",
+  "aidyn:flag/320",
+  "aidyn:flag/321",
+  "aidyn:flag/322",
+  "aidyn:flag/323",
+  "aidyn:flag/327",
+  "aidyn:flag/332",
+  "aidyn:flag/334",
+  "aidyn:flag/335",
+  "aidyn:flag/337",
+  "aidyn:flag/343",
+  "aidyn:flag/344",
+  "aidyn:flag/345",
+  "aidyn:flag/351",
+  "aidyn:flag/353",
+  "aidyn:flag/358",
+  "aidyn:flag/359",
+  "aidyn:flag/360",
+  "aidyn:flag/363",
+  "aidyn:flag/364",
+  "aidyn:flag/372",
+  "aidyn:flag/373",
+  "aidyn:flag/383",
+  "aidyn:flag/385",
+  "aidyn:flag/403",
+  "aidyn:flag/407",
+  "aidyn:flag/411",
+  "aidyn:flag/413",
+  "aidyn:flag/414",
+  "aidyn:flag/420",
+  "aidyn:flag/425",
+  "aidyn:flag/438",
+  "aidyn:flag/446",
+  "aidyn:flag/447",
+  "aidyn:flag/448",
+  "aidyn:flag/449",
+  "aidyn:flag/451",
+  "aidyn:flag/452",
+  "aidyn:flag/453",
+  "aidyn:flag/456",
+  "aidyn:flag/457",
+  "aidyn:flag/458",
+  "aidyn:flag/460",
+  "aidyn:flag/461",
+  "aidyn:flag/462",
+  "aidyn:flag/463",
+  "aidyn:flag/464",
+  "aidyn:flag/471",
+  "aidyn:flag/477",
+  "aidyn:flag/478",
+  "aidyn:flag/480",
+  "aidyn:flag/481",
+  "aidyn:flag/483",
+  "aidyn:flag/492",
+  "aidyn:flag/493",
+  "aidyn:flag/503",
+  "aidyn:flag/504",
+  "aidyn:flag/508",
+  "aidyn:flag/509",
+  "aidyn:flag/510",
+  "aidyn:flag/516",
+  "aidyn:flag/518",
+  "aidyn:flag/523",
+  "aidyn:flag/524",
+  "aidyn:flag/525",
+  "aidyn:flag/526",
+  "aidyn:flag/527",
+  "aidyn:flag/529",
+  "aidyn:flag/533",
+  "aidyn:flag/544",
+  "aidyn:flag/545",
+  "aidyn:flag/546",
+  "aidyn:flag/547",
+  "aidyn:flag/548",
+  "aidyn:flag/550",
+  "aidyn:flag/551",
+  "aidyn:flag/552",
+  "aidyn:flag/559",
+  "aidyn:flag/560",
+  "aidyn:flag/563",
+  "aidyn:flag/564",
+  "aidyn:flag/566",
+  "aidyn:flag/567",
+  "aidyn:flag/569",
+  "aidyn:flag/570",
+  "aidyn:flag/571",
+  "aidyn:flag/572",
+  "aidyn:flag/578",
+  "aidyn:flag/579",
+  "aidyn:flag/583",
+  "aidyn:flag/584",
+  "aidyn:flag/588",
+  "aidyn:flag/590",
+  "aidyn:flag/591",
+  "aidyn:flag/592",
+  "aidyn:flag/593",
+  "aidyn:flag/595",
+  "aidyn:flag/635",
+  "aidyn:flag/639",
+  "aidyn:flag/653",
+  "aidyn:flag/660",
+  "aidyn:flag/686",
+  "aidyn:flag/689",
+  "aidyn:flag/692",
+  "aidyn:flag/697",
+  "aidyn:flag/788",
+  "aidyn:flag/789",
+  "aidyn:flag/790",
+  "aidyn:flag/791",
+  "aidyn:flag/792",
+  "aidyn:flag/793",
+  "aidyn:flag/794",
+  "aidyn:flag/795",
+  "aidyn:flag/796",
+  "aidyn:flag/797",
+  "aidyn:flag/798",
+  "aidyn:flag/799",
+  "aidyn:flag/800",
+  "aidyn:flag/801",
+  "aidyn:flag/802",
+  "aidyn:flag/803",
+  "aidyn:flag/804",
+  "aidyn:flag/805",
+  "aidyn:flag/944",
+  "aidyn:flag/949",
+  "aidyn:flag/952",
+  "aidyn:flag/955",
+  "aidyn:flag/956",
+  "aidyn:flag/957",
+  "aidyn:flag/958",
+  "aidyn:flag/960",
+  "aidyn:flag/961",
+  "aidyn:flag/962",
+  "aidyn:flag/963",
+  "aidyn:flag/982",
+  "aidyn:flag/986",
+  "aidyn:flag/998",
+  "aidyn:flag/1000",
+  "aidyn:flag/1003",
+  "aidyn:flag/1004",
+  "aidyn:flag/1005",
+  "aidyn:flag/1008",
+  "aidyn:flag/1049",
+  "aidyn:flag/1051",
+  "aidyn:flag/1053",
+  "aidyn:flag/1055",
+  "aidyn:flag/1061",
+  "aidyn:flag/1063",
+  "aidyn:flag/1065",
+  "aidyn:flag/1067",
+  "aidyn:flag/1081",
+  "aidyn:flag/1110",
+  "aidyn:flag/1114",
+  "aidyn:flag/1117",
+  "aidyn:flag/1119",
+  "aidyn:flag/1121",
+  "aidyn:flag/1122",
+  "aidyn:flag/1124",
+  "aidyn:flag/1126",
+  "aidyn:flag/1128",
+  "aidyn:flag/1131",
+  "aidyn:flag/1132",
+  "aidyn:flag/1136",
+  "aidyn:flag/1155",
+  "aidyn:flag/1156",
+  "aidyn:flag/1158",
+  "aidyn:flag/1206",
+  "aidyn:flag/1207",
+  "aidyn:flag/1210",
+  "aidyn:flag/1240",
+  "aidyn:flag/1241",
+  "aidyn:flag/1242",
+  "aidyn:flag/1243",
+  "aidyn:flag/1244",
+  "aidyn:flag/1252",
+  "aidyn:flag/1269",
+  "aidyn:flag/1270",
+  "aidyn:flag/1271",
+  "aidyn:flag/1273",
+  "aidyn:flag/1274",
+  "aidyn:flag/1276",
+  "aidyn:flag/1278",
+  "aidyn:flag/1280",
+  "aidyn:flag/1282",
+  "aidyn:flag/1284",
+  "aidyn:flag/1296",
+  "aidyn:flag/1303",
+  "aidyn:flag/1306",
+  "aidyn:flag/1308",
+  "aidyn:flag/1315",
+  "aidyn:flag/1319",
+  "aidyn:flag/1322",
+  "aidyn:flag/1323",
+  "aidyn:flag/1328",
+  "aidyn:flag/1329",
+  "aidyn:flag/1330",
+  "aidyn:flag/1340",
+  "aidyn:flag/1341",
+  "aidyn:flag/1363",
+  "aidyn:flag/1365",
+  "aidyn:flag/1375",
+  "aidyn:flag/1376",
+  "aidyn:flag/1378",
+  "aidyn:flag/1380",
+  "aidyn:flag/1387",
+  "aidyn:flag/1388",
+  "aidyn:flag/1389",
+  "aidyn:flag/1390",
+  "aidyn:flag/1392",
+  "aidyn:flag/1395",
+  "aidyn:flag/1396",
+  "aidyn:flag/1397",
+  "aidyn:flag/1398",
+  "aidyn:flag/1399",
+  "aidyn:flag/1405",
+  "aidyn:flag/1428",
+  "aidyn:flag/1441",
+  "aidyn:flag/1462",
+  "aidyn:flag/1463",
+  "aidyn:flag/1465",
+  "aidyn:flag/1467",
+  "aidyn:flag/1472",
+  "aidyn:flag/1474",
+  "aidyn:flag/1475",
+  "aidyn:flag/1477",
+  "aidyn:flag/1479",
+  "aidyn:flag/1482",
+  "aidyn:flag/1483",
+  "aidyn:flag/1484",
+  "aidyn:flag/1485",
+  "aidyn:flag/1493",
+  "aidyn:flag/1495",
+  "aidyn:flag/1497",
+  "aidyn:flag/1498",
+  "aidyn:flag/1502",
+  "aidyn:flag/1516",
+  "aidyn:flag/1533",
+  "aidyn:flag/1561",
+  "aidyn:flag/1562",
+  "aidyn:flag/1607",
+  "aidyn:flag/1611",
+  "aidyn:flag/1612",
+  "aidyn:flag/1615",
+  "aidyn:flag/1618",
+  "aidyn:flag/1620",
+  "aidyn:flag/1628",
+  "aidyn:flag/1630",
+  "aidyn:flag/1631",
+  "aidyn:flag/1632",
+  "aidyn:flag/1640",
+  "aidyn:flag/1766",
+  "aidyn:flag/1769",
+  "aidyn:flag/1825",
+  "aidyn:flag/1827",
+  "aidyn:flag/1893",
+  "aidyn:flag/1894",
+  "aidyn:flag/1942",
+  "aidyn:flag/1944",
+  "aidyn:flag/1945",
+  "aidyn:flag/1962",
+  "aidyn:flag/1963",
+  "aidyn:flag/1991",
+  "aidyn:flag/2021",
+  "aidyn:flag/2022",
+  "aidyn:flag/2049",
+  "aidyn:flag/2104",
+  "aidyn:flag/2133",
+  "aidyn:flag/2134",
+  "aidyn:flag/2240",
+  "aidyn:flag/2254",
+  "aidyn:flag/2273",
+  "aidyn:flag/2299",
+  "aidyn:flag/2306",
+  "aidyn:flag/2307",
+  "aidyn:flag/2310",
+  "aidyn:flag/2313",
+  "aidyn:flag/2315",
+  "aidyn:flag/2316",
+  "aidyn:flag/2321",
+  "aidyn:flag/2322",
+  "aidyn:flag/3010",
+  "aidyn:flag/3011",
+  "aidyn:flag/3019",
+  "aidyn:flag/3035",
+  "aidyn:flag/3037",
+  "aidyn:flag/3054",
+  "aidyn:flag/3064",
+  "aidyn:flag/3065",
+  "aidyn:flag/3066",
+  "aidyn:flag/3067",
+  "aidyn:flag/3068",
+  "aidyn:flag/3070",
+  "aidyn:flag/3071",
+  "aidyn:flag/3072",
+  "aidyn:flag/3073",
+  "aidyn:flag/3074",
+  "aidyn:flag/3075",
+  "aidyn:flag/3076",
+  "aidyn:flag/3077",
+  "aidyn:flag/3078",
+  "aidyn:flag/3079",
+  "aidyn:flag/3080",
+  "aidyn:flag/3081",
+  "aidyn:flag/3088",
+  "aidyn:flag/3089",
+  "aidyn:flag/3090",
+  "aidyn:flag/3091",
+  "aidyn:flag/3099",
+  "aidyn:flag/3100",
+  "aidyn:flag/3101",
+  "aidyn:flag/3106",
+  "aidyn:flag/3107",
+  "aidyn:flag/3109",
+  "aidyn:flag/3125",
+  "aidyn:flag/3130",
+  "aidyn:flag/3147",
+  "aidyn:flag/3155",
+  "aidyn:flag/3174",
+  "aidyn:flag/3179",
+  "aidyn:flag/3182",
+  "aidyn:flag/3187",
+  "aidyn:flag/3189",
+  "aidyn:flag/3194",
+  "aidyn:flag/3201",
+  "aidyn:flag/3202",
+  "aidyn:flag/3211",
+  "aidyn:flag/3212",
+  "aidyn:flag/3213",
+  "aidyn:flag/3214",
+  "aidyn:flag/3215",
+  "aidyn:flag/3235",
+  "aidyn:flag/3236",
+  "aidyn:flag/3243",
+  "aidyn:flag/3244",
+  "aidyn:flag/3248",
+  "aidyn:flag/3251",
+  "aidyn:flag/3254",
+  "aidyn:flag/3256",
+  "aidyn:flag/3257",
+  "aidyn:flag/3262",
+  "aidyn:flag/3267",
+  "aidyn:flag/3268",
+  "aidyn:flag/3269",
+  "aidyn:flag/3270",
+  "aidyn:flag/3281",
+  "aidyn:flag/3282",
+  "aidyn:flag/3283",
+  "aidyn:flag/3284",
+  "aidyn:flag/3285",
+  "aidyn:flag/3296",
+  "aidyn:flag/3353",
+  "aidyn:flag/3355",
+  "aidyn:flag/3395",
+  "aidyn:flag/3404",
+  "aidyn:flag/3426",
+  "aidyn:flag/3428",
+  "aidyn:flag/3432",
+  "aidyn:flag/3437",
+  "aidyn:flag/3442",
+  "aidyn:flag/3448",
+  "aidyn:flag/3461",
+  "aidyn:flag/3469",
+  "aidyn:flag/3470",
+  "aidyn:flag/3471",
+  "aidyn:flag/3472",
+  "aidyn:flag/3475",
+  "aidyn:flag/3476",
+  "aidyn:flag/3477",
+  "aidyn:flag/3479",
+  "aidyn:flag/3480",
+  "aidyn:flag/3483",
+  "aidyn:flag/3488",
+  "aidyn:flag/3491",
+  "aidyn:flag/3492",
+  "aidyn:flag/3493",
+  "aidyn:flag/3499",
+  "aidyn:flag/3505",
+  "aidyn:flag/3506",
+  "aidyn:flag/3508",
+  "aidyn:flag/3510",
+  "aidyn:flag/3511",
+  "aidyn:flag/3514",
+  "aidyn:flag/3515",
+  "aidyn:flag/3517",
+  "aidyn:flag/3519",
+  "aidyn:flag/3548",
+  "aidyn:flag/3549",
+  "aidyn:flag/3551",
+  "aidyn:flag/3552",
+  "aidyn:flag/3554",
+  "aidyn:flag/3557",
+  "aidyn:flag/3563",
+  "aidyn:flag/3603",
+  "aidyn:flag/3608",
+  "aidyn:flag/3611",
+  "aidyn:flag/3612",
+  "aidyn:flag/3640",
+  "aidyn:flag/3641",
+  "aidyn:flag/3643",
+  "aidyn:flag/3649",
+  "aidyn:flag/3665",
+  "aidyn:flag/3670",
+  "aidyn:flag/3671",
+  "aidyn:flag/3681",
+  "aidyn:flag/3682",
+  "aidyn:flag/3685",
+  "aidyn:flag/3686",
+  "aidyn:flag/3687",
+  "aidyn:flag/3688",
+  "aidyn:flag/3689",
+  "aidyn:flag/3690",
+  "aidyn:flag/3701",
+  "aidyn:flag/3720",
+  "aidyn:flag/3722",
+  "aidyn:flag/3723",
+  "aidyn:flag/3724",
+  "aidyn:flag/3725",
+  "aidyn:flag/3726",
+  "aidyn:flag/3732",
+  "aidyn:flag/3733",
+  "aidyn:flag/3734",
+  "aidyn:flag/3735",
+  "aidyn:flag/3736",
+  "aidyn:flag/3737",
+  "aidyn:flag/3738",
+  "aidyn:flag/3739",
+  "aidyn:flag/3740",
+  "aidyn:flag/3741",
+  "aidyn:flag/3742",
+  "aidyn:flag/3744",
+  "aidyn:flag/3745",
+  "aidyn:flag/3746",
+  "aidyn:flag/3747",
+  "aidyn:flag/3748",
+  "aidyn:flag/3749",
+  "aidyn:flag/3750",
+  "aidyn:flag/3753",
+  "aidyn:flag/3754",
+  "aidyn:flag/3755",
+  "aidyn:flag/4218",
+  "aidyn:flag/4248",
+  "aidyn:flag/4249",
+  "aidyn:flag/4250",
+  "aidyn:flag/4251",
+  "aidyn:flag/4252",
+  "aidyn:flag/4253",
+  "aidyn:flag/4254",
+  "aidyn:flag/4255",
+  "aidyn:flag/4256",
+  "aidyn:flag/4257",
+  "aidyn:flag/4258",
+  "aidyn:flag/4259",
+  "aidyn:flag/4260",
+  "aidyn:flag/4261",
+  "aidyn:flag/4262",
+  "aidyn:flag/4263",
+  "aidyn:flag/4264",
+  "aidyn:flag/4265",
+  "aidyn:flag/4266",
+  "aidyn:flag/4267",
+  "aidyn:flag/4268",
+  "aidyn:flag/4273",
+  "aidyn:flag/4274",
+  "aidyn:flag/4275",
+  "aidyn:flag/4276",
+  "aidyn:flag/4277",
+  "aidyn:flag/4278",
+  "aidyn:flag/4279",
+  "aidyn:flag/4281",
+  "aidyn:flag/4285"
+ ],
+ "journal": [
+  "aidyn:journal/0",
+  "aidyn:journal/1",
+  "aidyn:journal/3",
+  "aidyn:journal/9",
+  "aidyn:journal/13",
+  "aidyn:journal/14",
+  "aidyn:journal/15",
+  "aidyn:journal/16",
+  "aidyn:journal/17",
+  "aidyn:journal/18",
+  "aidyn:journal/19",
+  "aidyn:journal/20",
+  "aidyn:journal/23",
+  "aidyn:journal/24",
+  "aidyn:journal/26",
+  "aidyn:journal/30",
+  "aidyn:journal/32",
+  "aidyn:journal/37",
+  "aidyn:journal/39",
+  "aidyn:journal/40",
+  "aidyn:journal/44",
+  "aidyn:journal/47",
+  "aidyn:journal/53",
+  "aidyn:journal/55",
+  "aidyn:journal/57",
+  "aidyn:journal/58",
+  "aidyn:journal/62",
+  "aidyn:journal/63",
+  "aidyn:journal/64",
+  "aidyn:journal/65",
+  "aidyn:journal/67",
+  "aidyn:journal/68"
+ ],
+ "party": {
+  "gold": 321306,
+  "members": [
+   {
+    "entity": "aidyn:entity/0x023F",
+    "trueName": true,
+    "totalExp": 1602076,
+    "spendableExp": 659576,
+    "trained": {
+     "intelligence": 21,
+     "willpower": 15,
+     "dexterity": 30,
+     "endurance": 18,
+     "strength": 21,
+     "stamina": 79,
+     "level": 20
+    },
+    "current": {
+     "intelligence": 21,
+     "willpower": 15,
+     "dexterity": 30,
+     "endurance": 18,
+     "strength": 4,
+     "stamina": 78,
+     "level": 20
+    },
+    "skills": {
+     "alchemist": 0,
+     "diplomat": 0,
+     "healer": 0,
+     "loremaster": 2,
+     "mechanic": 0,
+     "merchant": 0,
+     "ranger": 0,
+     "stealth": 10,
+     "thief": 0,
+     "troubadour": 5,
+     "warrior": 3,
+     "wizard": 10
+    },
+    "weaponSkills": {
+     "hafted": 1,
+     "missile": 3,
+     "pole": 0,
+     "sword": 4,
+     "thrown": 0
+    },
+    "shieldSkill": 3,
+    "weapon": {
+     "item": "aidyn:weapon/0x0734",
+     "charges": 3
+    },
+    "armor": {
+     "item": "aidyn:armor/0x0507"
+    },
+    "shield": {
+     "item": "aidyn:armor/0x0612"
+    },
+    "gear": [],
+    "spells": [
+     {
+      "spell": "aidyn:spell/0x031D",
+      "level": 10
+     },
+     {
+      "spell": "aidyn:spell/0x031E",
+      "level": 10
+     },
+     {
+      "spell": "aidyn:spell/0x031F",
+      "level": 10
+     },
+     {
+      "spell": "aidyn:spell/0x0320",
+      "level": 10
+     },
+     {
+      "spell": "aidyn:spell/0x0300",
+      "level": 3
+     },
+     {
+      "spell": "aidyn:spell/0x0309",
+      "level": 10
+     },
+     {
+      "spell": "aidyn:spell/0x031C",
+      "level": 10
+     }
+    ],
+    "potions": []
+   },
+   {
+    "entity": "aidyn:entity/0x024C",
+    "trueName": true,
+    "totalExp": 1340751,
+    "spendableExp": 788839,
+    "trained": {
+     "intelligence": 22,
+     "willpower": 16,
+     "dexterity": 30,
+     "endurance": 16,
+     "strength": 10,
+     "stamina": 68,
+     "level": 19
+    },
+    "current": {
+     "intelligence": 22,
+     "willpower": 16,
+     "dexterity": 30,
+     "endurance": 16,
+     "strength": 10,
+     "stamina": 68,
+     "level": 19
+    },
+    "skills": {
+     "alchemist": 0,
+     "diplomat": 0,
+     "healer": 0,
+     "loremaster": 1,
+     "mechanic": 0,
+     "merchant": 1,
+     "ranger": 0,
+     "stealth": 0,
+     "thief": 0,
+     "troubadour": 0,
+     "warrior": 0,
+     "wizard": 4
+    },
+    "weaponSkills": {
+     "hafted": 0,
+     "pole": 5,
+     "sword": 3
+    },
+    "shieldSkill": 0,
+    "weapon": {
+     "item": "aidyn:weapon/0x0721"
+    },
+    "armor": {
+     "item": "aidyn:armor/0x0501"
+    },
+    "gear": [],
+    "spells": [
+     {
+      "spell": "aidyn:spell/0x031F",
+      "level": 1
+     },
+     {
+      "spell": "aidyn:spell/0x0310",
+      "level": 4
+     },
+     {
+      "spell": "aidyn:spell/0x0312",
+      "level": 1
+     },
+     {
+      "spell": "aidyn:spell/0x0313",
+      "level": 4
+     }
+    ],
+    "potions": []
+   },
+   {
+    "entity": "aidyn:entity/0x0243",
+    "trueName": true,
+    "totalExp": 1334251,
+    "spendableExp": 450399,
+    "trained": {
+     "intelligence": 14,
+     "willpower": 10,
+     "dexterity": 30,
+     "endurance": 16,
+     "strength": 8,
+     "stamina": 65,
+     "level": 19
+    },
+    "current": {
+     "intelligence": 14,
+     "willpower": 10,
+     "dexterity": 30,
+     "endurance": 16,
+     "strength": 8,
+     "stamina": 65,
+     "level": 19
+    },
+    "skills": {
+     "alchemist": 0,
+     "diplomat": 0,
+     "healer": 0,
+     "loremaster": 0,
+     "mechanic": 1,
+     "merchant": 0,
+     "ranger": 0,
+     "stealth": 3,
+     "thief": 10,
+     "troubadour": 0,
+     "warrior": 0,
+     "wizard": 0
+    },
+    "weaponSkills": {
+     "pole": 0,
+     "sword": 5,
+     "thrown": 2
+    },
+    "weapon": {
+     "item": "aidyn:weapon/0x0726"
+    },
+    "armor": {
+     "item": "aidyn:armor/0x0502"
+    },
+    "gear": [
+     {
+      "item": "aidyn:item/0x0D1D"
+     }
+    ],
+    "spells": [],
+    "potions": []
+   },
+   {
+    "entity": "aidyn:entity/0x024D",
+    "trueName": true,
+    "totalExp": 2011232,
+    "spendableExp": 576232,
+    "trained": {
+     "intelligence": 3,
+     "willpower": 25,
+     "dexterity": 30,
+     "endurance": 30,
+     "strength": 20,
+     "stamina": 60,
+     "level": 22
+    },
+    "current": {
+     "intelligence": 3,
+     "willpower": 25,
+     "dexterity": 30,
+     "endurance": 30,
+     "strength": 20,
+     "stamina": 60,
+     "level": 22
+    },
+    "skills": {
+     "alchemist": 0,
+     "diplomat": 0,
+     "healer": 10,
+     "loremaster": 0,
+     "mechanic": 0,
+     "merchant": 0,
+     "ranger": 6,
+     "stealth": 6,
+     "thief": 0,
+     "troubadour": 0,
+     "warrior": 10,
+     "wizard": 8
+    },
+    "weaponSkills": {
+     "hafted": 5,
+     "missile": 7,
+     "pole": 0,
+     "sword": 10
+    },
+    "weapon": {
+     "item": "aidyn:weapon/0x072B"
+    },
+    "armor": {
+     "item": "aidyn:armor/0x0509"
+    },
+    "gear": [],
+    "spells": [
+     {
+      "spell": "aidyn:spell/0x0322",
+      "level": 8
+     },
+     {
+      "spell": "aidyn:spell/0x0324",
+      "level": 8
+     },
+     {
+      "spell": "aidyn:spell/0x0335",
+      "level": 8
+     },
+     {
+      "spell": "aidyn:spell/0x032F",
+      "level": 8
+     },
+     {
+      "spell": "aidyn:spell/0x0330",
+      "level": 8
+     }
+    ],
+    "potions": []
+   }
+  ],
+  "kept": [
+   {
+    "entity": "aidyn:entity/0x0240",
+    "totalExp": 628818,
+    "spendableExp": 303818,
+    "trained": {
+     "intelligence": 6,
+     "willpower": 11,
+     "dexterity": 14,
+     "endurance": 30,
+     "strength": 30,
+     "stamina": 60,
+     "level": 15
+    },
+    "current": {
+     "intelligence": 6,
+     "willpower": 11,
+     "dexterity": 14,
+     "endurance": 30,
+     "strength": 30,
+     "stamina": 60,
+     "level": 15
+    },
+    "skills": {
+     "diplomat": 0,
+     "healer": 0,
+     "mechanic": 0,
+     "merchant": 0,
+     "ranger": 0,
+     "stealth": 1,
+     "warrior": 6
+    },
+    "weaponSkills": {
+     "hafted": 0,
+     "pole": 6,
+     "sword": 6
+    },
+    "shieldSkill": 4,
+    "gear": [],
+    "spells": [],
+    "potions": []
+   },
+   {
+    "entity": "aidyn:entity/0x0242",
+    "totalExp": 129335,
+    "spendableExp": 114335,
+    "trained": {
+     "intelligence": 15,
+     "willpower": 15,
+     "dexterity": 18,
+     "endurance": 20,
+     "strength": 25,
+     "stamina": 40,
+     "level": 8
+    },
+    "current": {
+     "intelligence": 15,
+     "willpower": 15,
+     "dexterity": 18,
+     "endurance": 20,
+     "strength": 25,
+     "stamina": 37,
+     "level": 8
+    },
+    "skills": {
+     "diplomat": 0,
+     "healer": 0,
+     "loremaster": 0,
+     "mechanic": 0,
+     "merchant": 0,
+     "ranger": 4,
+     "stealth": 3,
+     "thief": 0,
+     "troubadour": 0,
+     "warrior": 5
+    },
+    "weaponSkills": {
+     "hafted": 5,
+     "missile": 3,
+     "pole": 0
+    },
+    "shieldSkill": 3,
+    "gear": [],
+    "spells": [],
+    "potions": []
+   },
+   {
+    "entity": "aidyn:entity/0x0248",
+    "totalExp": 12550,
+    "spendableExp": 10050,
+    "trained": {
+     "intelligence": 22,
+     "willpower": 18,
+     "dexterity": 15,
+     "endurance": 15,
+     "strength": 10,
+     "stamina": 20,
+     "level": 3
+    },
+    "current": {
+     "intelligence": 22,
+     "willpower": 18,
+     "dexterity": 15,
+     "endurance": 15,
+     "strength": 10,
+     "stamina": 17,
+     "level": 1
+    },
+    "skills": {
+     "alchemist": 3,
+     "diplomat": 0,
+     "healer": 0,
+     "loremaster": 2,
+     "mechanic": 2,
+     "merchant": 0,
+     "ranger": 0,
+     "stealth": 0,
+     "thief": 0,
+     "troubadour": 0,
+     "warrior": 0,
+     "wizard": 2
+    },
+    "weaponSkills": {
+     "pole": 0,
+     "sword": 1,
+     "thrown": 1
+    },
+    "gear": [],
+    "spells": [
+     {
+      "spell": "aidyn:spell/0x0303",
+      "level": 2
+     }
+    ],
+    "potions": []
+   },
+   {
+    "entity": "aidyn:dialogentity/0x1404",
+    "totalExp": 628818,
+    "spendableExp": 303818,
+    "trained": {
+     "intelligence": 6,
+     "willpower": 11,
+     "dexterity": 14,
+     "endurance": 30,
+     "strength": 30,
+     "stamina": 60,
+     "level": 15
+    },
+    "current": {
+     "intelligence": 6,
+     "willpower": 11,
+     "dexterity": 14,
+     "endurance": 30,
+     "strength": 30,
+     "stamina": 60,
+     "level": 15
+    },
+    "skills": {
+     "diplomat": 0,
+     "healer": 0,
+     "mechanic": 0,
+     "merchant": 0,
+     "ranger": 0,
+     "stealth": 1,
+     "warrior": 6
+    },
+    "weaponSkills": {
+     "hafted": 0,
+     "pole": 6,
+     "sword": 6
+    },
+    "shieldSkill": 4,
+    "gear": [],
+    "spells": [],
+    "potions": []
+   }
+  ],
+  "inventory": [
+   {
+    "item": "aidyn:weapon/0x0711",
+    "quantity": 1
+   },
+   {
+    "item": "aidyn:weapon/0x072B",
+    "quantity": 11
+   },
+   {
+    "item": "aidyn:armor/0x0500",
+    "quantity": 5
+   },
+   {
+    "item": "aidyn:armor/0x0614",
+    "quantity": 6
+   },
+   {
+    "item": "aidyn:weapon/0x0726",
+    "quantity": 2
+   },
+   {
+    "item": "aidyn:armor/0x0501",
+    "quantity": 20
+   },
+   {
+    "item": "aidyn:weapon/0x070F",
+    "quantity": 2
+   },
+   {
+    "item": "aidyn:armor/0x0612",
+    "quantity": 6
+   },
+   {
+    "item": "aidyn:item/0x0E07",
+    "quantity": 1
+   },
+   {
+    "item": "aidyn:armor/0x0507",
+    "quantity": 1
+   },
+   {
+    "item": "aidyn:weapon/0x071A",
+    "quantity": 8
+   },
+   {
+    "item": "aidyn:armor/0x0504",
+    "quantity": 5
+   },
+   {
+    "item": "aidyn:weapon/0x075D",
+    "quantity": 2
+   },
+   {
+    "item": "aidyn:weapon/0x0713",
+    "quantity": 3
+   },
+   {
+    "item": "aidyn:weapon/0x0738",
+    "quantity": 1,
+    "battery": 15,
+    "charges": 2
+   },
+   {
+    "item": "aidyn:armor/0x0613",
+    "quantity": 9
+   },
+   {
+    "item": "aidyn:armor/0x0502",
+    "quantity": 6
+   },
+   {
+    "item": "aidyn:weapon/0x074D",
+    "quantity": 4
+   },
+   {
+    "item": "aidyn:weapon/0x0725",
+    "quantity": 5
+   },
+   {
+    "item": "aidyn:weapon/0x071D",
+    "quantity": 1
+   },
+   {
+    "item": "aidyn:item/0x0A00",
+    "quantity": 4
+   },
+   {
+    "item": "aidyn:armor/0x0503",
+    "quantity": 11
+   },
+   {
+    "item": "aidyn:weapon/0x071E",
+    "quantity": 1
+   },
+   {
+    "item": "aidyn:weapon/0x0736",
+    "quantity": 5
+   },
+   {
+    "item": "aidyn:weapon/0x072F",
+    "quantity": 5
+   },
+   {
+    "item": "aidyn:item/0x0F04",
+    "quantity": 3
+   },
+   {
+    "item": "aidyn:weapon/0x0715",
+    "quantity": 8
+   },
+   {
+    "item": "aidyn:weapon/0x0754",
+    "quantity": 2
+   },
+   {
+    "item": "aidyn:weapon/0x0710",
+    "quantity": 1
+   },
+   {
+    "item": "aidyn:item/0x1309",
+    "quantity": 1,
+    "charges": 10
+   },
+   {
+    "item": "aidyn:armor/0x061B",
+    "quantity": 9
+   },
+   {
+    "item": "aidyn:armor/0x053D",
+    "quantity": 9
+   },
+   {
+    "item": "aidyn:weapon/0x0718",
+    "quantity": 2
+   },
+   {
+    "item": "aidyn:armor/0x0508",
+    "quantity": 2
+   },
+   {
+    "item": "aidyn:weapon/0x0728",
+    "quantity": 1
+   },
+   {
+    "item": "aidyn:armor/0x0506",
+    "quantity": 1
+   },
+   {
+    "item": "aidyn:armor/0x0615",
+    "quantity": 1
+   },
+   {
+    "item": "aidyn:weapon/0x0755",
+    "quantity": 1
+   },
+   {
+    "item": "aidyn:weapon/0x0730",
+    "quantity": 1
+   },
+   {
+    "item": "aidyn:weapon/0x071F",
+    "quantity": 3
+   },
+   {
+    "item": "aidyn:armor/0x0623",
+    "quantity": 2
+   },
+   {
+    "item": "aidyn:weapon/0x0719",
+    "quantity": 10
+   },
+   {
+    "item": "aidyn:weapon/0x072C",
+    "quantity": 16
+   },
+   {
+    "item": "aidyn:armor/0x050E",
+    "quantity": 2
+   },
+   {
+    "item": "aidyn:item/0x1305",
+    "quantity": 1
+   },
+   {
+    "item": "aidyn:weapon/0x073F",
+    "quantity": 1
+   },
+   {
+    "item": "aidyn:armor/0x0509",
+    "quantity": 1
+   },
+   {
+    "item": "aidyn:weapon/0x0717",
+    "quantity": 1
+   },
+   {
+    "item": "aidyn:weapon/0x0729",
+    "quantity": 7
+   },
+   {
+    "item": "aidyn:armor/0x061D",
+    "quantity": 3
+   },
+   {
+    "item": "aidyn:item/0x1139",
+    "quantity": 1,
+    "charges": 1
+   },
+   {
+    "item": "aidyn:item/0x0906",
+    "quantity": 1,
+    "battery": 15
+   },
+   {
+    "item": "aidyn:weapon/0x073E",
+    "quantity": 1,
+    "battery": 30,
+    "charges": 10
+   },
+   {
+    "item": "aidyn:armor/0x050F",
+    "quantity": 1
+   },
+   {
+    "item": "aidyn:item/0x0111",
+    "quantity": 99
+   },
+   {
+    "item": "aidyn:item/0x0112",
+    "quantity": 97
+   },
+   {
+    "item": "aidyn:item/0x0113",
+    "quantity": 99
+   },
+   {
+    "item": "aidyn:item/0x010E",
+    "quantity": 9
+   },
+   {
+    "item": "aidyn:item/0x0121",
+    "quantity": 2
+   },
+   {
+    "item": "aidyn:item/0x0122",
+    "quantity": 7
+   },
+   {
+    "item": "aidyn:item/0x0123",
+    "quantity": 46
+   },
+   {
+    "item": "aidyn:item/0x0124",
+    "quantity": 4
+   },
+   {
+    "item": "aidyn:item/0x1136",
+    "quantity": 1,
+    "charges": 1
+   },
+   {
+    "item": "aidyn:item/0x113C",
+    "quantity": 1,
+    "charges": 1
+   },
+   {
+    "item": "aidyn:item/0x113E",
+    "quantity": 1,
+    "charges": 1
+   },
+   {
+    "item": "aidyn:item/0x114A",
+    "quantity": 1,
+    "charges": 1
+   },
+   {
+    "item": "aidyn:item/0x1153",
+    "quantity": 1,
+    "charges": 1
+   },
+   {
+    "item": "aidyn:item/0x1158",
+    "quantity": 1,
+    "charges": 1
+   },
+   {
+    "item": "aidyn:item/0x1004",
+    "quantity": 32
+   },
+   {
+    "item": "aidyn:item/0x1005",
+    "quantity": 6
+   },
+   {
+    "item": "aidyn:item/0x1006",
+    "quantity": 34
+   },
+   {
+    "item": "aidyn:item/0x1008",
+    "quantity": 3
+   },
+   {
+    "item": "aidyn:item/0x1009",
+    "quantity": 3
+   },
+   {
+    "item": "aidyn:item/0x1010",
+    "quantity": 31
+   },
+   {
+    "item": "aidyn:item/0x0101",
+    "quantity": 1
+   },
+   {
+    "item": "aidyn:item/0x1201",
+    "quantity": 1
+   },
+   {
+    "item": "aidyn:item/0x1203",
+    "quantity": 1
+   },
+   {
+    "item": "aidyn:item/0x1207",
+    "quantity": 1
+   },
+   {
+    "item": "aidyn:item/0x0D03",
+    "quantity": 1
+   },
+   {
+    "item": "aidyn:item/0x0D02",
+    "quantity": 1
+   }
+  ]
+ },
+ "memories": [
+  {
+   "mapObject": "aidyn:voxel/0x1063/2",
+   "kind": "RandomLine",
+   "value": 99,
+   "lifetime": 7
+  },
+  {
+   "mapObject": "aidyn:voxel/0x1063/2",
+   "kind": "SkillCheck",
+   "value": 2,
+   "lifetime": 7,
+   "skill": 1
+  },
+  {
+   "mapObject": "aidyn:voxel/0x0ECF/14",
+   "kind": "Opened",
+   "value": 1,
+   "lifetime": 10
+  },
+  {
+   "mapObject": "aidyn:voxel/0x0E96/0",
+   "kind": "Beaten",
+   "value": 1,
+   "lifetime": 3
+  },
+  {
+   "mapObject": "aidyn:voxel/0x13D4/32",
+   "kind": "RandomLine",
+   "value": 100,
+   "lifetime": 10
+  },
+  {
+   "mapObject": "aidyn:voxel/0x3559/0",
+   "kind": "RandomLine",
+   "value": 5,
+   "lifetime": 10
+  },
+  {
+   "mapObject": "aidyn:voxel/0x0E87/0",
+   "kind": "RandomLine",
+   "value": 6,
+   "lifetime": 10
+  }
+ ],
+ "random": {
+  "combat": 64730829,
+  "loot": 64730829,
+  "world": 64730829,
+  "wander": 64730829,
+  "cosmetic": 64730829,
+  "twinkle": 64730829
+ },
+ "weather": {
+  "kind": "Clear",
+  "precipitation": "None",
+  "intensity": 0,
+  "fog": 0,
+  "storm": 0,
+  "wind": [0.016327444, -0.0016327444, 0.016327444],
+  "falling": "None",
+  "fallIntensity": 0,
+  "fogTime": 0
+ },
+ "minimaps": [
+  {
+   "minimap": "aidyn:minimap/10",
+   "seen": [
+    0,
+    1,
+    2,
+    3
+   ]
+  },
+  {
+   "minimap": "aidyn:minimap/11",
+   "seen": [
+    0,
+    5,
+    6,
+    7,
+    8
+   ]
+  },
+  {
+   "minimap": "aidyn:minimap/12",
+   "seen": [
+    0,
+    1,
+    2,
+    3,
+    37,
+    41,
+    43,
+    44,
+    45,
+    47,
+    48,
+    52,
+    53,
+    54,
+    55,
+    56,
+    57,
+    58,
+    59,
+    60,
+    61,
+    62,
+    63,
+    64,
+    65,
+    66,
+    67,
+    68,
+    69,
+    70,
+    71,
+    72,
+    73,
+    74,
+    75
+   ]
+  },
+  {
+   "minimap": "aidyn:minimap/14",
+   "seen": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ]
+  },
+  {
+   "minimap": "aidyn:minimap/4",
+   "seen": [
+    6,
+    7,
+    8,
+    19,
+    20,
+    22,
+    30,
+    34,
+    36,
+    38,
+    39,
+    42,
+    45
+   ]
+  },
+  {
+   "minimap": "aidyn:minimap/6",
+   "seen": [
+    0,
+    1
+   ]
+  },
+  {
+   "minimap": "aidyn:minimap/7",
+   "seen": [
+    0,
+    1,
+    2,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11
+   ]
+  },
+  {
+   "minimap": "aidyn:minimap/9",
+   "seen": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    16,
+    17,
+    18,
+    20,
+    21,
+    22,
+    23
+   ]
+  }
+ ]
+}

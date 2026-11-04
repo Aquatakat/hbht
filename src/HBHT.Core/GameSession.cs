@@ -768,7 +768,7 @@ public sealed class GameSession
 
     /// <summary>
     /// The cut-scene a cut-scene's end chains into, in place of trek (<c>CutScene.Free</c>'s last check, <c>0x80051810</c>):
-    /// while trek starts again at a named place (<see cref="TrekLoop.AtPlace"/>), the first dialogue object, in the map's
+    /// while trek starts again at a named place (<see cref="TrekLoop.AtPlace"/>), the first script object, in the map's
     /// order, of the chunk the player stands in, that's tangible, holds his place within its radius and whose
     /// <see cref="MapObject.Enabled"/> holds (<c>0x800113bc</c>), whether it was active or not. So Oriana's first cut-scene after
     /// the Goblin Ambush leads straight into the next, and the screen goes from one to the other without trek between.
@@ -901,7 +901,7 @@ public sealed class GameSession
 
     /// <summary>
     /// The game over (<c>Combat.StartGameOverScript</c>, <c>0x8001F860</c>, then mode <c>0xC</c>): its script plays as a cut-scene,
-    /// started from its dialogue object in the Dreamscape's map (<see cref="CombatRecord.GameOver"/>), and its end is the game's
+    /// started from its script object in the Dreamscape's map (<see cref="CombatRecord.GameOver"/>), and its end is the game's
     /// (<see cref="EndCutScene"/>). The battle has already healed the party's leader.
     /// </summary>
     private void PlayGameOver()
@@ -1197,10 +1197,10 @@ public sealed class GameSession
     /// marks, trek's world going first if it hasn't. False if the object or its script isn't a cut-scene a
     /// plugin has.
     /// </summary>
-    private bool StartFrom(RecordId voxel)
+    private bool StartFrom(RecordId mapObject)
     {
-        if (ChunkRecord.Find(Game.Plugins, voxel) is not ScriptObject dialogue
-            || CutSceneLaunch.Of(Game.Plugins, dialogue, voxel) is not { } launch)
+        if (ChunkRecord.Find(Game.Plugins, mapObject) is not ScriptObject scriptObject
+            || CutSceneLaunch.Of(Game.Plugins, scriptObject, mapObject) is not { } launch)
             return false;
         Trek.Free();
         StartCutScene(launch);

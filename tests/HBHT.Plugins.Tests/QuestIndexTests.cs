@@ -9,8 +9,8 @@ public sealed class QuestIndexTests : IDisposable
     private static RecordId Id(string text) => RecordId.Parse(text);
 
     /// <summary>
-    /// Script 0x0100 checks flag 10 twice and sets and clears flag 20; it ends by setting 30, and
-    /// winning its battle sets 31. Script 0x0101 sets flag 20 and checks 40. Flag 50 is derived
+    /// Script 0x0100 checks flag 10 twice and sets flag 20 at node 1 and clears it at node 3; it ends by setting 30, and
+    /// winning its battle sets 31. Script 0x0101 sets flag 20, checks 40 and adds gold. Flag 50 is derived
     /// from 10 and 20. Flag 60 lists journal entry 2. Chunk A01 has objects gated
     /// on flag 10, on flag 20 inverted, and on flags 0 and 1. The engine writes 70 and 71, and
     /// reads 72.
@@ -27,8 +27,9 @@ public sealed class QuestIndexTests : IDisposable
                     "speaker": "aidyn:entity/0x0001", "condition": { "op": "check.flag", "flag": "aidyn:flag/10" } },
                   { "index": 1, "kind": "Line", "text": "Take the key.",
                     "condition": { "op": "check.flag", "flag": "aidyn:flag/10" },
-                    "setup": [ { "op": "flag.clear", "flag": "aidyn:flag/20" } ], "effect": { "op": "flag.set", "flag": "aidyn:flag/20" } },
+                    "effect": { "op": "flag.set", "flag": "aidyn:flag/20" } },
                   { "index": 2, "kind": "Line", "text": "" },
+                  { "index": 3, "kind": "Line", "text": "", "effect": { "op": "flag.clear", "flag": "aidyn:flag/20" } },
                 ],
               },
               {
@@ -36,7 +37,8 @@ public sealed class QuestIndexTests : IDisposable
                 "nodes": [
                   { "index": 0, "kind": "Line", "text": "the LIGHTHOUSE keeper",
                     "condition": { "op": "check.flag", "flag": "aidyn:flag/40" },
-                    "setup": [ { "op": "party.addGold", "amount": 5 } ], "effect": { "op": "flag.set", "flag": "aidyn:flag/20" } },
+                    "effect": { "op": "flag.set", "flag": "aidyn:flag/20" } },
+                  { "index": 1, "kind": "Line", "text": "", "effect": { "op": "party.addGold", "amount": 5 } },
                 ],
               },
               { "id": "aidyn:flag/10" },
@@ -85,7 +87,7 @@ public sealed class QuestIndexTests : IDisposable
         Assert.Equal(
             [
                 new FlagUse(Flag(20), ScriptA, FlagAccess.Set, FlagRole.ScriptOp, 1),
-                new FlagUse(Flag(20), ScriptA, FlagAccess.Clear, FlagRole.ScriptOp, 1),
+                new FlagUse(Flag(20), ScriptA, FlagAccess.Clear, FlagRole.ScriptOp, 3),
                 new FlagUse(Flag(20), ScriptB, FlagAccess.Set, FlagRole.ScriptOp, 0),
                 new FlagUse(Flag(20), Id("aidyn:flag/50"), FlagAccess.Read, FlagRole.DerivedInput),
                 new FlagUse(Flag(20), Id("aidyn:mapobject/0/A01/1"), FlagAccess.Read, FlagRole.ObjectVisible, Inverted: true),
@@ -166,7 +168,7 @@ public sealed class QuestIndexTests : IDisposable
                 new FlagUse(Flag(10), ScriptA, FlagAccess.Read, FlagRole.ScriptOp, 0),
                 new FlagUse(Flag(10), ScriptA, FlagAccess.Read, FlagRole.ScriptOp, 1),
                 new FlagUse(Flag(20), ScriptA, FlagAccess.Set, FlagRole.ScriptOp, 1),
-                new FlagUse(Flag(20), ScriptA, FlagAccess.Clear, FlagRole.ScriptOp, 1),
+                new FlagUse(Flag(20), ScriptA, FlagAccess.Clear, FlagRole.ScriptOp, 3),
                 new FlagUse(Flag(30), ScriptA, FlagAccess.Set, FlagRole.ScriptDone),
                 new FlagUse(Flag(31), ScriptA, FlagAccess.Set, FlagRole.ScriptBattle),
             ],
@@ -233,7 +235,7 @@ public sealed class QuestIndexTests : IDisposable
     /// <summary>
     /// Key items 0x1200 (held flag 100, region flag 101), 0x1201 (held 102) and 0x1202 (held 1 and region 0,
     /// the constant flags), and the plain item 0x0010. Loot 0x0800 drops 0x1201 and an empty roll, and loot
-    /// 0x0801 drops only 0x0010. Script 0x0100 adds, takes and adds a plain item; script 0x0101 starts a
+    /// 0x0801 drops only 0x0010. Script 0x0100 adds key item 0x1200, takes it and 0x1201, and adds the plain item and 0x1202; script 0x0101 starts a
     /// battle. Chunk A02 has containers, encounters and npcs that give them. Shop 3 sells 0x1200 and 0x0010.
     /// </summary>
     private QuestIndex ItemIndex()
@@ -258,8 +260,10 @@ public sealed class QuestIndexTests : IDisposable
                 "id": "aidyn:script/0x0100", "number": 1, "mode": "Conversation",
                 "nodes": [
                   { "index": 0, "kind": "Line", "text": "", "effect": { "op": "party.addItem", "item": "aidyn:item/0x1200" } },
-                  { "index": 1, "kind": "Line", "text": "", "setup": [ { "op": "party.addItem", "item": "aidyn:item/0x0010" } ], "effect": { "op": "party.takeItem", "item": "aidyn:item/0x1200" } },
-                  { "index": 2, "kind": "Line", "text": "", "setup": [ { "op": "party.addItem", "item": "aidyn:item/0x1202" } ], "effect": { "op": "party.takeItem", "item": "aidyn:item/0x1201" } },
+                  { "index": 1, "kind": "Line", "text": "", "effect": { "op": "party.takeItem", "item": "aidyn:item/0x1200" } },
+                  { "index": 2, "kind": "Line", "text": "", "effect": { "op": "party.takeItem", "item": "aidyn:item/0x1201" } },
+                  { "index": 3, "kind": "Line", "text": "", "effect": { "op": "party.addItem", "item": "aidyn:item/0x0010" } },
+                  { "index": 4, "kind": "Line", "text": "", "effect": { "op": "party.addItem", "item": "aidyn:item/0x1202" } },
                 ],
               },
               {
@@ -383,7 +387,7 @@ public sealed class QuestIndexTests : IDisposable
     /// <summary>
     /// Entity 0x0248 is recruitable, with joined flag 90, left flag 686 and died flag 616. Entity 0x0243 is too, but has no left flag
     /// (joined 92, died 613), and entity 0x0239 isn't. Script 0x0100 adds 0x0248 at node 0, removes it at node 1, adds 0x0243 at
-    /// node 2, adds 0x0239 at node 3 and removes 0x0243 at node 4; its node 5 adds 0x0248 and 0x0243 together.
+    /// node 2, adds 0x0239 at node 3 and removes 0x0243 at node 4; its node 5 adds 0x0248 again and node 6 0x0243.
     /// </summary>
     private QuestIndex MemberIndex()
     {
@@ -400,7 +404,8 @@ public sealed class QuestIndexTests : IDisposable
                   { "index": 2, "kind": "Line", "text": "", "effect": { "op": "party.addMember", "entity": "aidyn:entity/0x0243" } },
                   { "index": 3, "kind": "Line", "text": "", "effect": { "op": "party.addMember", "entity": "aidyn:entity/0x0239" } },
                   { "index": 4, "kind": "Line", "text": "", "effect": { "op": "party.removeMember", "entity": "aidyn:entity/0x0243" } },
-                  { "index": 5, "kind": "Line", "text": "", "setup": [ { "op": "party.addMember", "entity": "aidyn:entity/0x0243" } ], "effect": { "op": "party.addMember", "entity": "aidyn:entity/0x0248" } },
+                  { "index": 5, "kind": "Line", "text": "", "effect": { "op": "party.addMember", "entity": "aidyn:entity/0x0248" } },
+                  { "index": 6, "kind": "Line", "text": "", "effect": { "op": "party.addMember", "entity": "aidyn:entity/0x0243" } },
                 ],
               },
             ]
@@ -451,12 +456,12 @@ public sealed class QuestIndexTests : IDisposable
     {
         var index = MemberIndex();
 
-        // Brenna: joined at nodes 2 and 5, cleared at node 4, and nothing on a left flag.
+        // Brenna: joined at nodes 2 and 6, cleared at node 4, and nothing on a left flag.
         Assert.Equal(
             [
                 new FlagUse(Flag(92), ScriptA, FlagAccess.Set, FlagRole.MemberAdded, 2),
                 new FlagUse(Flag(92), ScriptA, FlagAccess.Clear, FlagRole.MemberRemoved, 4),
-                new FlagUse(Flag(92), ScriptA, FlagAccess.Set, FlagRole.MemberAdded, 5),
+                new FlagUse(Flag(92), ScriptA, FlagAccess.Set, FlagRole.MemberAdded, 6),
             ],
             index.UsesBy(ScriptA).Where(u => u.Flag == Flag(92)).OrderBy(u => u.At));
         // The script touches only the three flags of Godric's and Brenna's records it names: no left flag for her, nothing for Trahern at node 3.

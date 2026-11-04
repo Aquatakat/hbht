@@ -25,10 +25,15 @@ Each node now names its speaker, which the importer works out from the links int
 
 - **Cadme's "Farewell."** (script 1446, `aidyn:script/0x03B9`, node 6): it's now always Alaron's. In 1.0 it shows Alaron's portrait after his "I have no time to tell it now." and Cadme's after her own closing lines ("Go gently." and the like). Talk to her through a few of her topics and end the talk: see whether Alaron's "Farewell." reads right, or whether it should be hers.
 - **"Let's see what the old man has."** (script 1470, `aidyn:script/0x03C3`, node 37, a cut-scene at a shop, with Dougal not in the party): now Alaron's, as the camera frames him. In 1.0 its portrait is Rheda's, Brenna's or Alaron's, by who spoke before. Play it with Rheda or Brenna in the party.
+- **The cut-scenes' camera at the merge nodes** ([scripts](systems/scripts.md#speakers)): 138 textless nodes are reached with more than one speaker in force, every one holding only camera moves onto marks, so no op's actor depends on the speaker. All 262 cut-scene launches replayed tick for tick as before against the old import, but none has been watched since. Play one or two in the game or the editor, such as 1384 (`aidyn:script/0x0568`) and 1391 (`0x056F`): the camera should move as it did.
 
 ### The data format's fourth slice (importer 70)
 
 - **Keelin's scene from her body** ([scripts](systems/scripts.md#the-world-it-plays-in), [wanderers](systems/wanderers.md#talking)): in Terminor's inn (C05), before she's recruited, talk to Keelin's body rather than using the script object beside her (stand so that A reaches her body: face her from the side away from the object). In 1.0 her scene crashes after "Kisses." as she walks to point 34; started from the object, it plays to its end. The port now starts it from her body as the object does (her npc's `stage`, `aidyn:mapobject/8/C05/12`), the user's fix: it should play as the object's start does in 1.0, Keelin walking off and the scene ending. The other five talkers with a stage (Edur in I08 and four more, listed in the scripts doc) should play from their bodies as from their objects too.
+
+### The data format's fifth slice: saves (format 2)
+
+- **A save of yours from before the overhaul** ([saves](systems/saves.md#older-formats)): run `hbht import` first (the base plugin is at importer 66), then load a save the game wrote before it, from the System tab or with `--save`. It should load with no message, at the place it was made, the party wearing its weapons, armor and shields, the inventory and the World tab's minimap pieces as they were. Save it and load the new save: the same again. `hbht save show <save>` on the old one says `Format 1, read as 2` and should list nothing left out.
 
 ### What changed on Nov 3, 2026, by eye
 

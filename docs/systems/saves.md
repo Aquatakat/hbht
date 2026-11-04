@@ -16,7 +16,7 @@ The CLI makes saves without the game, with the installed plugins:
 
 - `hbht save new [<save>]` writes a new game.
 - `hbht save from <checkpoint> [<save>]` turns a checkpoint into a save (below).
-- `hbht save show <save>` loads a save with the core and prints what it makes of it (time, place, flags, each member's sheet, gold, inventory, memories), then anything it couldn't use, with exit code 1.
+- `hbht save show <save>` loads a save with the core and prints what it makes of it (the format it was written in, time, place, flags, each member's sheet, gold, inventory, memories), then anything it couldn't use, with exit code 1. A format-1 save's line says it was read as format 2 and how many memories were left out ([below](#older-formats)).
 
 They write to the data folder's `saves` unless given a path, where the System tab's save and load screens find them too, newest first. A save can be edited by hand, and `save show` says whether the game can use it.
 
@@ -26,15 +26,17 @@ Three more read and write the original's saves in a Controller Pak ([below](#the
 - `hbht save to-pak <rom> <save> [<slot>]` writes a save into a slot, A to P (default A), replacing the one there. It keeps the pak as it was beside it first (`<pak>.<time>.bak`), and makes a blank pak if there's none. A save without a place, a new game's, is written where a new game arrives, on the ground; loading it in 1.0 skips the opening cinematic, but trek there starts the opening's script ([events](events.md#where-the-port-differs)). ares writes its pak back as it closes, over anything written while it ran.
 - `hbht save from-pak <rom> [<slot>] [--out <save>]` turns a slot's save into one of the port's.
 
+Every command that writes a save writes format 2, and every one that reads one reads format 1 too, through the same `SaveFile.Read`.
+
 ## The format
 
-A save is JSON, like plugin source (ADR 0005), with records named by ID, so it can be read, diffed and edited by hand. Saves go in the data folder's `saves` (`DataPaths.Saves`). It holds what the original's save holds (`SaveDatStruct`), and no more: what the rules can work out again isn't kept, as the original's isn't.
+A save is JSON, like plugin source (ADR 0005), with records named by ID, so it can be read, diffed and edited by hand. Its `format` is 2 (`SaveGame.CurrentFormat`, [ADR 0037](../adr/0037-save-format-2.md)); a newer one is refused, and an older one is brought up as it's read ([below](#older-formats)). Saves go in the data folder's `saves` (`DataPaths.Saves`). It holds what the original's save holds (`SaveDatStruct`), and no more: what the rules can work out again isn't kept, as the original's isn't.
 
 A save made from the "Before final encounter" checkpoint, cut short:
 
 ```jsonc
 {
- "format": 1,
+ "format": 2,
  "label": "Before final encounter",
  "plugins": [{ "id": "aidyn", "version": "1.0.0" }],
  "playTime": 3905657,                  // 60 Hz ticks: 18:04:54
@@ -81,6 +83,23 @@ A save made from the "Before final encounter" checkpoint, cut short:
 - **The weather** (`weather`): what the roll left (its kind, what falls, its intensity, fog and storm, and the wind) and what's drawn as it sets in (what's falling, how hard, and the fog's thickness), as [weather](weather.md) has them. Without it, the weather starts as a new game's, and the rain flags stay as saved until it next changes.
 - **Spells' effects** aren't saved, as the original's aren't: a battle's end takes every one off, and the only ones in trek are worn enchantments, which come back on as loading puts the gear on. **Where the port differs:** 1.0's load puts them on and then writes the save's empty effect slots over them, so they're gone until the item is put on again or a battle ends ([magic](magic.md#gear)); the user chose the fix. What a spell leaves on the sheet for good (Spirit Shield's protection, Wind's Stamina) is gone after a load, as in the original, which saves the trained and current stats only.
 - **Not kept:** The original's volumes and resolution, which it saves too, are the player's settings in the port ([ADR 0013](../adr/0013-settings-in-the-options-menu.md)). The original also keeps three timers of how long the party has run, walked and sneaked (`Party::TickMoveCounters`), which nothing reads.
+
+## Older formats
+
+Format 1 is the save as the port wrote it before the data format overhaul (ADRs 0031–0036), to importer 66. `SaveFile.Parse` reads one, or a save with no `format`, which only format 1's writers could have left out, by rewriting its JSON as format 2 before the typed read (`SaveUpconverter.FromFormat1`, [ADR 0037](../adr/0037-save-format-2.md)). Nothing is asked of the player, and the next save is format 2. The rules, by ID wherever the save names one:
+
+| Format 1 | Format 2 |
+| --- | --- |
+| `<ns>:weapon/K`, `<ns>:armor/K` (a member's weapon, armor and shield, gear, the inventory) | `<ns>:item/K` |
+| `aidyn:dialogentity/K` | `aidyn:entity/K`, but `0x1404` → `0x02DD`, `0x1406` → `0x0224`, `0x1418` → `0x0214`, `0x1419` → `0x02DB` (the twins, ADR 0032) |
+| `<ns>:dialogue/K` | `<ns>:script/K` (format 1 names none) |
+| a memory's `aidyn:voxel/<borg>/<n>` | `aidyn:mapobject/<set>/<name>/<n>`, in the chunk whose `borg` is that Borg9; of a Borg9 shared between cells (the sea's `0x3559` and eight Battlefields arenas'), the one the save's place is in |
+| a minimap's `minimap`, `aidyn:minimap/n` | `mapSet`, `aidyn:mapset/n` |
+| the place's chunk `"<row>,<column>"`, outside rows A–Z | `"<row>_<column>"` (the importer's northern sea) |
+
+What can't be brought up is left out, never a failure, and said in `SaveGame.Upconverted`, which `GameState.Load` adds to its problems: a memory of a shared Borg9 the save doesn't stand in, of a Borg9 no chunk came from, or of a mod's map. None can be met in a save of the base game, as the shared Borg9s hold no object a memory names. A flag no plugin has is a load problem already, as for any save; format 1 saved only plain flags, so it never named the derived journal flags 5556–5626 the overhaul stopped importing.
+
+The Borg9 → chunks table is built from the installed plugins only when a format-1 save names a map object, by scanning each base chunk's file for its `borg` without keeping it (`PluginSet.PeekString`), about 45 ms for the 680 chunks; reading a format-2 save doesn't build it. The four story saves on the rig's pak, written as format 1 by the port at `aca1a8b` and brought up, are byte for byte what `from-pak` writes from them now. `tests/HBHT.Rom.Tests/Saves/format-1.json` is a format-1 save that old code wrote, with memories in five chunks, a northern-sea place and a twin's kept sheet (`SaveFormat1Tests`).
 
 ## Loading, as the original does
 

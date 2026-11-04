@@ -92,7 +92,7 @@ public sealed class EditorGame
     /// <summary>A save in the port's format.</summary>
     public void LoadSave(string path)
     {
-        var game = GameState.Load(_plugins, SaveFile.Read(path));
+        var game = GameState.Load(_plugins, SaveFile.Read(path, _plugins));
         Start(game, game.Label ?? Path.GetFileNameWithoutExtension(path), isNew: false);
         Check = game.Problems.Count == 0 ? null : $"Loading it couldn't use: {string.Join(" ", game.Problems)}";
     }

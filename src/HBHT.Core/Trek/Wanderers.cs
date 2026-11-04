@@ -51,7 +51,7 @@ public sealed class Wanderers(PluginSet plugins)
     public IReadOnlyList<Wanderer> All => _all;
 
     /// <summary>
-    /// Gives the chunk's monster parties their bodies (<c>look_for_monsterparties</c>, <c>AllocWanderer</c>):
+    /// Gives the chunk's npcs and encounters their bodies (<c>look_for_monsterparties</c>, <c>AllocWanderer</c>):
     /// each that's active and not remembered as beaten, however many there are already. Its body stands at the
     /// party's position, set down on the ground near the party's height, and makes for its home node.
     /// The chunk's collision must be in <paramref name="world"/>.

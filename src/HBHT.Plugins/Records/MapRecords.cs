@@ -734,7 +734,8 @@ public sealed record NpcObject(
 {
     /// <summary>
     /// Who fights the party when its script starts a battle, or none. The original gives every npc a list, most naming only the npc
-    /// itself; the importer leaves those out where the script starts no battle.
+    /// itself; the importer leaves out those that name only the npc, or none, where the script starts no battle (355), and keeps the
+    /// rest.
     /// </summary>
     public IReadOnlyList<PartyEnemy>? Enemies { get; init; }
 

@@ -5,7 +5,7 @@ using Godot;
 
 namespace HBHT.Editor;
 
-/// <summary>Map objects' colours and fields, for the editor's views. Their names and places are <see cref="MapObjectKinds"/> and <see cref="MapPlacements"/>.</summary>
+/// <summary>Map objects' colours and fields, for the editor's views. Their names and places are <see cref="MapObjectKinds"/>.</summary>
 public static class MapObjects
 {
     /// <summary>A kind of map object: its name, for the legend, and its marker's colour.</summary>
@@ -34,7 +34,7 @@ public static class MapObjects
     public static Kind KindOf(MapObject o) =>
         Kinds.FirstOrDefault(k => k.Type == o.GetType()).Kind ?? new Kind(o.GetType().Name, Colors.Gray);
 
-    /// <summary>An object's fields as its map record holds them.</summary>
+    /// <summary>An object's fields as its chunk record holds them.</summary>
     public static JsonObject? Json(PluginSet plugins, RecordId voxel)
     {
         var index = ChunkRecord.IndexOf(voxel);

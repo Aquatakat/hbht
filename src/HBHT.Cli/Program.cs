@@ -514,9 +514,10 @@ static int SavePak(string rom, string? pak)
 static int SaveToPak(string rom, string path, char slot, string? pak)
 {
     pak = PakPath(rom, pak);
-    var saves = new PakSaves(InstalledPlugins(), RomImage.Load(rom));
+    var plugins = InstalledPlugins();
+    var saves = new PakSaves(plugins, RomImage.Load(rom));
     var problems = new List<string>();
-    var save = saves.FromSave(SaveFile.Read(path), problems);
+    var save = saves.FromSave(SaveFile.Read(path, plugins), problems);
     var target = File.Exists(pak) ? ControllerPak.Read(pak) : ControllerPak.Blank();
     try
     {
@@ -582,10 +583,17 @@ static int SaveFrom(string checkpoint, string? path)
 
 static int SaveShow(string path)
 {
-    var game = GameState.Load(InstalledPlugins(), SaveFile.Read(path));
+    var plugins = InstalledPlugins();
+    var save = SaveFile.Read(path, plugins);
+    var game = GameState.Load(plugins, save);
     var played = TimeSpan.FromSeconds(game.PlayTime / 60.0);
     var date = game.Clock.Date;
     Console.WriteLine(game.Label ?? Path.GetFileNameWithoutExtension(path));
+    // A save of an older format is brought up as it's read (ADR 0037); what that left out is among the problems below.
+    Console.WriteLine(save.Upconverted is { } upconverted
+        ? $"Format      {upconverted.From}, read as {SaveGame.CurrentFormat}" +
+            (upconverted.Dropped.Count == 0 ? ", nothing left out" : $", {upconverted.Dropped.Count} left out")
+        : $"Format      {save.Format}");
     Console.WriteLine($"Played      {(int)played.TotalHours}:{played.Minutes:D2}:{played.Seconds:D2}");
     Console.WriteLine($"Date        season {date.Season}, week {date.Week}, day {date.DayOfWeek}, {date.Hour:D2}:00 ({date.PartOfDay})");
     Console.WriteLine(game.Place is { } place

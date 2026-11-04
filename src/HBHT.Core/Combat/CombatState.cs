@@ -43,7 +43,7 @@ public enum CombatState
     /// <summary>Placing an area: the stick moves its centre.</summary>
     PlaceArea = 11,
 
-    /// <summary>After the fade: the flags, the monster party remembered, the loot, then the post-battle windows (<c>Combat.StateVictory</c>).</summary>
+    /// <summary>After the fade: the flags, the npc or encounter remembered, the loot, then the post-battle windows (<c>Combat.StateVictory</c>).</summary>
     Victory = 12,
 
     /// <summary>After the fade: the game over script, or the non-lethal ending (<c>Combat.StateDefeat</c>).</summary>

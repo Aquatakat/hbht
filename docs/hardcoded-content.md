@@ -18,12 +18,12 @@ Nothing found needs Lua. What stays in code is engine vocabulary: the animation 
 | The name "Alaron": the token captions replace with the leader's name (and "ALARON" in capitals), and the default name | `CinematicPlayer.Named`; `GameSession`, `SystemMenu` | `Text.ReplaceAll` `0x800548f0` | 1: a default name on the new game record |
 | The player's sphere is 0.5, Alaron's, whoever leads | `PlayerMotion.Radius`; `Reach.Alaron` (actor `0x25F9`) | `ConfirmPlayerWithinZone` `0x8000c078` | 1: the leader's entity `Body` radius. Low |
 | A body of Alaron's actor, `0x25F9`, falls straight: past −0.048 a tick its animation doesn't move it and its velocity across the ground is zeroed, and it has the ground rule on plain collision, wherever it plays (the player, a combatant, a cut-scene's actor) | `Body.AlaronActor`, `Body.FallsStraight`, `Body.Falls`, `Body.KeepHeight`; `Reach.Alaron` | `Bodies.LoadActor` `0x800147E8` (`+0x70B`), `ProcessPlayers` `0x800132F4` | 1: a flag on the entity's `Body` (the rule is keyed by the actor, so a mod can't give it to another's without one). Low |
-| Party slot 0 is whom a battle hangs on: its death loses; it's healed before the game over script, gets the Goblin Ambush's heal and Strength back, takes the Shadow's merge, and the Shadow walks at it | `Battle.Advance`, `StepDefeat`, `Build`, `Leave`, `StepShadowMerge`, `KeelsOver`, `ShadowGoal` | `TurnOrder.Advance` `0x8006AC4C`, `Combat.StateDefeat` `0x80022590`, `Combat.Exit` `0x80023060`, `Combat.MergeShadow` `0x800675C0`, `EnemyAI.RunStyle` `0x80059628` | 1: the battle reads the leader through the new game record; the encounter rule's `KeelOver.Member` and the Shadow's `Merges` already name him |
+| Party slot 0 is whom a battle hangs on: its death loses; it's healed before the game over script, gets the Goblin Ambush's heal and Strength back, takes the Shadow's merge, and the Shadow walks at it | `Battle.Advance`, `StepDefeat`, `Build`, `Leave`, `StepShadowMerge`, `KeelsOver`, `ShadowGoal` | `TurnOrder.Advance` `0x8006AC4C`, `Combat.StateDefeat` `0x80022590`, `Combat.Exit` `0x80023060`, `Combat.MergeShadow` `0x800675C0`, `EnemyAI.RunStyle` `0x80059628` | 1: the battle reads the leader through the new game record; the Goblin Ambush's `battleRules.keelOver.member` and the Shadow's `merges` already name him |
 | A party of four | `Party.MaxSize` | `Party::AddMember` `0x80074AC4` | 1: a game setting. Low: the menus and saves are four wide |
 
 ## Combat
 
-Most of what's left. The combat record (`aidyn:combat/0`, `CombatRecord`), `aidyn:magic/0` and the entity, weapon and spell records already carry what [code tables](formats/code-tables.md#combat) lists. [combat](systems/combat.md) has how each rule plays.
+Most of what's left. The combat record (`aidyn:combat/0`, `CombatRecord`), `aidyn:magic/0` and the entity, item and spell records already carry what [code tables](formats/code-tables.md#combat) lists. [combat](systems/combat.md) has how each rule plays.
 
 ### Who and what a battle special-cases
 
@@ -62,7 +62,7 @@ Most of what's left. The combat record (`aidyn:combat/0`, `CombatRecord`), `aidy
 
 | What | Port | 1.0 | Needs |
 | --- | --- | --- | --- |
-| The style: clever at base Int 15 or more; no weapon 5; melee 0 (clever 1), with spells 6 (a boss 9); ranged 2 (clever 3), 4 if it may strike in melee, with spells 7 or 8, a boss 10 | `EnemyAI.Init`; `Battle.Style` maps the styles | `EnemyAI.Init` `0x8005BA7C`, `StyleTable` `0x800E0B80` | 1: the threshold and table on an AI record, and a style by name on the entity (`bossStyles` becoming an override); the styles stay engine (3) |
+| The style: clever at base Int 15 or more; no weapon 5; melee 0 (clever 1), with spells 6 (a boss 9); ranged 2 (clever 3), 4 if it may strike in melee, with spells 7 or 8, a boss 10 | `EnemyAI.Init`; `Battle.Style` maps the styles | `EnemyAI.Init` `0x8005BA7C`, `StyleTable` `0x800E0B80` | 1: the threshold and table on an AI record, and a style by name on the entity (`combat.bossStyle` becoming an override); the styles stay engine (3) |
 | Cell and target scores: 25 for standing, 20 flanking or behind, 50 above, up to 15 by the target's hurt, +10 against a ranged one; ±5 an ally in an area's danger; a spell's value + 10 a target past the first + its level | `Battle.ScoreAttackCells`, `AreaDanger`, `ScoreSpellAt`, `IsFlanking`, `Archer`, `FarthestCell` | `EnemyAI.ScoreAttackCells` `0x80058C7C`, `AreaDanger` `0x80058A48`, `ScoreSpellCells` `0x800581C8`, `ChooseSpellOrAttack` `0x800590B0`, `Combatant.IsFlanking` `0x8006167C` | 3: weights on an AI record |
 | Morale: the entity's, −1 for its aspect against the time, −2 once a weakness hit it, −1 no Stamina, −1 under half its side able, −1 a harmful effect, +2 under half the party able, +3 its target without Stamina, +2 steady (nothing sets it), −4 the leader gone, +1 the leader's 8–10, +2 from 11; held to 2–11; 12 never flees; flees below 2d6; a reserve arriving the same | `Battle.Morale`, `CheckFlee`, `ReserveFleesOnArrival`; `EnemyAI.Fearless` | `EnemyAI.Morale` `0x80056FA8`, `MayCheckMorale` `0x8005722C`, `CheckFlee` `0x800572AC`, `ReserveFleesOnArrival` `0x80056E18` | 3: a morale table (condition, change) on an AI record |
 | The leader: the first on the field unless a later one has more base Int; its morale seeds the others' | `Battle.Build`, `LeaderBonus` | `Combat.CreateEnemyCombatants` | 1 |
@@ -75,8 +75,8 @@ Most of what's left. The combat record (`aidyn:combat/0`, `CombatRecord`), `aidy
 | --- | --- | --- | --- |
 | The arenas are map set 16's chunks, a body made at (20, 0, 20) | `Arena.MapSet`, `Battle.ZonePoint` | `Zones.ArenaChunks` `0x800DCA74`; `dialoug_func` | Records name an arena by its chunk (ADR 0035), so the numbers, their count and a script's arena above `0x1B` are the importer's; the map set the arena tools list stays named |
 | Enemy counts: trimmed by 0.3, 0.2, 0.1 or 0 by party level × 3 ÷ enemy level; 12 at most, 4 on the field (the boss flags read the same four) | `BattleSetup.LevelTrim`, `Battle.MaxEnemies`, `OnField`; `ScriptRunner.MaxEnemies` | `BattleSetup.FillEnemies` `0x80009374`, `TrimByLevel` `0x800088E4`, `0x800CD470` | 1: the combat record |
-| Fleeing by where a battle comes from: a monster party's allows it, a camp ambush's doesn't, a script's does unless it's a cut-scene; the record's lists come after | `BattleSetup.WithParty`, `CampAmbush`, `Scripted` | | 1: the combat record |
-| Spawns: reference points named `good` or `bad`, a set and a letter; the set 4 − the pace byte (run 3, walk 2, sneak 1, from the player's pace as noticed or talked to); reserves at set 0, then the other four; the direction drawn 1–3 or 5–7; an ambush's collision byte 2; the Ranger's roll shifting the set; Sholeh at letter d | `Battle.SpawnPoint`, `Spawn`, `SpawnSets`, `AmbushByte`, `Build`; `TrekLoop.AniByte`, `TalkByte` | `Combat.SpawnPosition` `0x8005C294`, `Combat.ChooseSpawn` `0x8005D748`; `0x8000FAD4`–`0x8000FB78`, `0x80010AA8`–`0x80010B74` | 3: an arena convention a mod's arenas follow, on the combat record; Sholeh's letter on its `ally` |
+| Fleeing by where a battle comes from: an npc's or an encounter's allows it, a camp ambush's doesn't, a script's does unless it's a cut-scene; the entities' `combat.flee` and the source's `battleRules.flee` come after | `BattleSetup.WithParty`, `CampAmbush`, `Scripted` | | 1: the combat record |
+| Spawns: reference points named `good` or `bad`, a set and a letter; the set 4 − the pace byte (run 3, walk 2, sneak 1, from the player's pace as noticed or talked to); reserves at set 0, then the other four; the direction drawn 1–3 or 5–7; an ambush's collision byte 2; the Ranger's roll shifting the set; Sholeh at letter d | `Battle.SpawnPoint`, `Spawn`, `SpawnSets`, `AmbushByte`, `Build`; `TrekLoop.AniByte`, `TalkByte` | `Combat.SpawnPosition` `0x8005C294`, `Combat.ChooseSpawn` `0x8005D748`; `0x8000FAD4`–`0x8000FB78`, `0x80010AA8`–`0x80010B74` | 3: an arena convention a mod's arenas follow, on the combat record; Sholeh's letter on her entity's `combat` |
 | The Ranger's ambush roll: the best Ranger with Stamina max(1, 5 − Ranger) rolls a d100 against Int × 3 + Ranger × 10 for the margin's step, paying that Stamina; with none it's 2 | `Battle.AmbushRoll`, `NoAmbushRoll` | `Party.BattleAmbushRoll` `0x80076C60` | 3: the skill-check feature |
 
 ### Rewards and ends
@@ -85,7 +85,7 @@ Most of what's left. The combat record (`aidyn:combat/0`, `CombatRecord`), `aidy
 | --- | --- | --- | --- |
 | Rewards: each enemy's experience and the looted items' worth to every living member whole; fled enemies pay as killed; the chest's reagent one of spice, herb or gem evenly. The gold's doubling is the combat record's `lootGoldMultiplier`, and each drop's count its own (`min`, `max`) | `Battle.TallyRewards`, `AddChestLoot`, `ExperienceValue` | `Combat.TallyRewards` `0x8005E2AC`, `AddChestLoot` `0x8005E0F0`, `RollChestItem` `0x8005DF38` | 1: on the combat or loot record, shared with containers' roll ([items](#items-and-shops)) |
 | An entity's chest byte is loot record `0x7FF` + the byte | `Battle.ChestOf` | | 1: the importer writes the loot record's ID on the entity |
-| A beaten monster party stays away 3 map loads | `Battle.RememberBeaten`, `MapObjectMemory.Short` | `MapObjectMemory.Remember` | 1: with the memory's lifetimes ([trek](#trek-and-the-world)) |
+| A beaten encounter or npc stays away 3 map loads | `Battle.RememberBeaten`, `MapObjectMemory.Short` | `MapObjectMemory.Remember` | 1: with the memory's lifetimes ([trek](#trek-and-the-world)) |
 
 ### What it draws
 
@@ -95,14 +95,14 @@ Most of what's left. The combat record (`aidyn:combat/0`, `CombatRecord`), `aidy
 
 ### Lists that moved onto the records they're about
 
-Data format slice 2 (ADRs 0031 and 0032) took the lists on the singletons that named one entity or item each and made each a field
+ADRs 0031 and 0032 took the lists on the singletons that named one entity or item each and made each a field
 of the record, so two mods adding to one no longer conflict. Each is layer 1, done:
 
 | Was | Is | 1.0 |
 | --- | --- | --- |
 | combat `ally` | entity `combat.fightsForParty` (Sholeh) | `Combat.FindSholeh` `0x8005C6C0` |
 | combat `bystanders` | entity `combat.bystander` | `Combat.IsExcludedEnemy` `0x8005C0C0` |
-| combat `noFlee`, `flee` | entity `combat.flee`: `forbids` or `allows` | `Combat.NoFleeEntities` `0x800D2688`, `ForbidFleeForBosses` `0x8005CCCC` |
+| combat `noFlee`, `flee` | entity `combat.flee`: `Forbids` or `Allows` | `Combat.NoFleeEntities` `0x800D2688`, `ForbidFleeForBosses` `0x8005CCCC` |
 | combat `rooted` | entity `combat.rooted` (Pochanargat) | `Combatant.UpdateRadius`, `0x800E28EB` |
 | combat `untargetable` | entity `combat.untargetable` (the Shadow) | `Combatant.CanAttack`, `CanCast` |
 | combat `bosses` | entity `combat.bossFlag` | `Combat.SetKillFlags` `0x80067860` |
@@ -138,7 +138,7 @@ name one value, and the core names its base ID for them (`HBHT.Core.Magic.School
 
 ## Bespoke behaviours
 
-ADR 0008 names six behaviours as bespoke. Brenna's Ranger check is the camp ambush's roll, Lugash and Pochanargat are records, Sholeh is the combat record's `ally` and her member flags, and Alaron's True Name is an entity field and a trigger ([code tables](formats/code-tables.md)). The two that need layer 3 are the Goblin Ambush and the Shadow, features on the combat record. [combat](systems/combat.md#the-special-battles) has how they run.
+ADR 0008 names six behaviours as bespoke. Brenna's Ranger check is the camp ambush's roll, Lugash and Pochanargat are records, Sholeh is her entity's `combat.fightsForParty` and her member flags, and Alaron's True Name is an entity field and a trigger ([code tables](formats/code-tables.md)). The two that need layer 3 are the Goblin Ambush and the Shadow, features on the combat record. [combat](systems/combat.md#the-special-battles) has how they run.
 
 **The Goblin Ambush** (encounter flag 978) is `battleRules` on script `0x0365` and its three npcs (ADR 0035):
 
@@ -151,13 +151,13 @@ ADR 0008 names six behaviours as bespoke. Brenna's Ranger check is the camp ambu
 | No victory line; boss flags and loot still come | `quietVictory` | `TurnOrder.Victory` |
 | However it ends: the leader's Strength back, Alaron healed, flag 47, the party in Oriana's hut (MiscInteriors E03) at (5.9, 0.5, 3.0) | `end` (`EncounterEnd`) | `Combat.Exit` |
 
-Still in code: the wake at 6:00 the next day (`GameState.WakeNextMorning`), the 120 frames the field holds (`Battle.SparedFrames`, `StateDefeatWait` `0x80022998`) and the line (`Battle.SparedLine`, `0x74`). Layer 1: fields of `EncounterRule` and `EncounterEnd`.
+Still in code: the wake at 6:00 the next day (`GameState.WakeNextMorning`), the 120 frames the field holds (`Battle.SparedFrames`, `StateDefeatWait` `0x80022998`) and the line (`Battle.SparedLine`, `0x74`). Layer 1: fields of `BattleRules` and `EncounterEnd`.
 
 **The Shadow** (entity `0x0226`) is the combat record's `shadow` (`ShadowRule`), with the Horn of Kynon as its item:
 
 | Behaviour | Carried as | 1.0 |
 | --- | --- | --- |
-| The party may flee while it's in the battle | its entity's `combat.flee` (`allows`) | `Combat.ForbidFleeForBosses` `0x8005CCCC` |
+| The party may flee while it's in the battle | its entity's `combat.flee` (`Allows`) | `Combat.ForbidFleeForBosses` `0x8005CCCC` |
 | No one attacks it or casts at it, and it casts nothing | its entity's `combat.untargetable` | `Combatant.CanAttack` `0x80060590`, `Combatant.CanCast` `0x80060C38` |
 | Its aura: at each round's end, 10 − distance to each within 10 not of chaos, squared without the item | `radius` (10) | `Combat.ShadowAura` `0x80023AD0` |
 | Slowing within 10, the vortex line; the AI's paths cut at 10 | `radius` | `Combat.NearShadow` `0x80023F34`, `EnemyAI.ShadowSmoothPath` |
@@ -210,7 +210,7 @@ One shape runs through them all: the best member (or the living pooled) rolls a 
 | What | Port | 1.0 | Needs |
 | --- | --- | --- | --- |
 | Wanderers: a hunter notices at Perception × (1 − fog × 0.75), × 1.5 running, × 0.6 × sneak sneaking, × 0.55 × sneak otherwise, gives up past 2 × Perception, stands 300 ticks, runs to within 2 and ambushes within 7; a talker faces the player within 3; sneak is 1 − min(best Stealth ÷ 10, 1) × 0.8 | `Wanderer` (`GiveUpTicks`, `AmbushDistance`, `FaceDistance`), `NoticeRanges.SneakFor` | `Wanderer.Tick` `0x8000f6a4`, `0x8000fa38`, `0x8000fc0c`, `0x8000fc28` | 3: a wanderer settings record ([wanderers](systems/wanderers.md)) |
-| A party hunts when it has no script | `Wanderer` (`Hunts`) | `moveType` 1 against 0 | 1: a field of the monster party object |
+| An encounter hunts and an npc doesn't | `Wanderer` (`Hunts`) | `moveType` 1 against 0 | 1: a field of the encounter and npc objects |
 | One from the dialogue entity table notices at 10, and a wanderer whose entity no plugin has | The entities' `perception`, which the importer writes 10 on those (`CharacterImporter.DialoguePerception`); `Wanderers.DialoguePerception` for none | `EntityDB::GetPerception` | Done, ADR 0032. Unsettled whether 1.0 reads it per dialogue entity |
 | Camp ambushes are Ranger's | `Camping.AmbushChance` | `Party::CampAmbushCheck` `0x80078d14` | 1: a skill on the camping record (its numbers are there) |
 | Rest: 8 hours after a camp heal and 8 more for a camp scene; the heal full | `ScriptRunner` (`ScriptEnding.RestHours`), `Party.CampHeal` | `World::Lapse8Hours`, `camp_healing` (1.0, 0.5) `0x800d386c` | 1: hours on the script and camping records |

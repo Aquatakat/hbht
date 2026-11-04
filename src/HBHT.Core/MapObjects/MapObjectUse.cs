@@ -24,11 +24,11 @@ public interface IMapObjectHost
     /// </summary>
     void OpenLoot(ItemPile loot, int gold);
 
-    /// <summary>Starts a dialogue object's script (<c>dialouge_vobject_func</c>).</summary>
-    void StartScript(LoadedMap map, ScriptObject dialogue);
+    /// <summary>Starts a script object's script (<c>dialouge_vobject_func</c>).</summary>
+    void StartScript(LoadedMap map, ScriptObject script);
 
     /// <summary>
-    /// A pressed on a monster party's body (<c>monsterpary_func</c>): a talker's conversation starts
+    /// A pressed on an npc's or encounter's body (<c>monsterpary_func</c>): a talker's conversation starts
     /// (<see cref="Trek.Conversation"/>), and a hunter's battle. Does nothing by default.
     /// </summary>
     void Talk(LoadedMap map, PartyObject party) { }
@@ -201,7 +201,7 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
     /// <param name="heading">The way the player faces, in X and Z.</param>
     /// <param name="radius">The player's radius, which a container's reach adds.</param>
     /// <param name="body">
-    /// The monster party whose body A reaches (see <see cref="Trek.Wanderers.Reaches"/>), where its body is in
+    /// The npc or encounter whose body A reaches (see <see cref="Trek.Wanderers.Reaches"/>), where its body is in
     /// the chunk's coordinates, and how far across the ground, which it's weighed by.
     /// </param>
     public MapObject? Reach(LoadedMap map, Vector3 at, Vector2 heading, float radius, (PartyObject Party, Vector3 At, float Distance)? body = null)
@@ -264,8 +264,8 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
             case TeleporterObject teleporter:
                 UseTeleporter(map, teleporter);
                 break;
-            case ScriptObject dialogue:
-                host.StartScript(map, dialogue);
+            case ScriptObject script:
+                host.StartScript(map, script);
                 break;
             case TripwireObject tripwire:
                 Trip(map, tripwire);
@@ -282,11 +282,11 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
     /// What walking within a tangible object's radius does, each tick (<c>ProcessVoxelObjects</c>, <c>0x80083838</c>): of the
     /// objects the grid cell under the player lists (<c>0x800838a4</c>), as A's reach takes them, an active tangible
     /// teleporter whose <see cref="MapObject.Enabled"/> holds takes the player through, skipping its secret, trap and lock; a
-    /// trigger goes off; a dialogue starts its script. A popup doesn't stop the world: triggers still go off under one, but a
-    /// teleporter waits for it to close (<c>MapObjects.CanStart</c>, <c>0x80010d08</c>), and so does a dialogue.
+    /// trigger goes off; a script object starts its script. A popup doesn't stop the world: triggers still go off under one, but a
+    /// teleporter waits for it to close (<c>MapObjects.CanStart</c>, <c>0x80010d08</c>), and so does a script object.
     /// </summary>
     /// <remarks>
-    /// The 11 dialogues that trigger triangles name are listed in no cell, so walking near them never starts them, only
+    /// The 11 script objects that trigger triangles name are listed in no cell, so walking near them never starts them, only
     /// treading on their triangles (<see cref="Tread"/>): the camp south of Gwernia castle (M08's object 1, radius 200)
     /// waits for the player to leave over one of its 11 triangles, after the journal's popup.
     /// </remarks>
@@ -309,8 +309,8 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
                 case TripwireObject tripwire:
                     Trip(map, tripwire);
                     break;
-                case ScriptObject dialogue:
-                    host.StartScript(map, dialogue);
+                case ScriptObject script:
+                    host.StartScript(map, script);
                     return;
             }
         }
@@ -319,7 +319,7 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
     /// <summary>
     /// What touching a trigger triangle does (<c>check_trigger</c>, <c>0x8000a3ec</c>), if the object it names is active: a
     /// camera takes the camera for the next second (<see cref="StepCameras"/>); a teleporter takes the
-    /// player through at once, whatever its gates; a dialogue starts its script if its <see cref="MapObject.Enabled"/>
+    /// player through at once, whatever its gates; a script object starts its script if its <see cref="MapObject.Enabled"/>
     /// holds, however far it is: the gate's distance test is skipped (<c>0x8001141c</c> with 0, <c>0x8000a52c</c>).
     /// </summary>
     public void Tread(LoadedMap map, int index, Vector3 at)
@@ -336,8 +336,8 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
             case TeleporterObject teleporter:
                 host.Teleport(map, teleporter);
                 break;
-            case ScriptObject dialogue when Holds(o.Enabled):
-                host.StartScript(map, dialogue);
+            case ScriptObject script when Holds(o.Enabled):
+                host.StartScript(map, script);
                 break;
         }
     }

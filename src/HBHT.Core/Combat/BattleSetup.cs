@@ -21,7 +21,7 @@ public enum BattleSource
 }
 
 /// <summary>
-/// What a battle needs to start, the same from each place one starts: a wanderer catching the party, a monster party used,
+/// What a battle needs to start, the same from each place one starts: a wanderer catching the party, an npc or encounter used,
 /// a camp ambush and a script. Combat (M3) fills in the rest as it builds the battle: how many of each enemy come between
 /// their minimum and maximum, a camp ambush's enemies from the camp encounters by the terrain and the party's level, the
 /// arena by the chunk, the bosses' flags by the enemies' records (in the first four slots), and the flee rules
@@ -35,13 +35,13 @@ public enum BattleSource
 /// conversation whose script starts the battle, as the original fights the talker's party instead.
 /// </param>
 /// <param name="Enemies">
-/// Who fights: a monster party's kinds of enemy, each with how many always come and how many can, or a script's
+/// Who fights: an npc's or encounter's kinds of enemy, each with how many always come and how many can, or a script's
 /// <see cref="ScriptOp.BattleAddEnemy"/>s in order, one each, or a camp ambush's two kinds.
 /// </param>
 /// <param name="Arena">A script's arena, a chunk of the Battle arenas (<see cref="ScriptOp.BattleArena"/>), or null to choose by the terrain.</param>
 /// <param name="Ambush">Whether the enemies came at the party: a wanderer catching it, or a camp ambush.</param>
 /// <param name="CanFlee">
-/// Whether the party may flee before the bosses and encounter flags have their say: monster parties' battles yes, camp
+/// Whether the party may flee before the bosses and encounter flags have their say: npcs' and encounters' battles yes, camp
 /// ambushes no, scripts' unless the script is a cut-scene.
 /// </param>
 /// <param name="EncounterFlag">
@@ -93,7 +93,7 @@ public sealed record BattleSetup(
     /// <summary>
     /// A camp ambush where the party camped (<c>CampEncounters.Load</c>, <c>0x800096DC</c>): no fleeing, no loot of its own and no
     /// flag; its enemies the terrain's (<see cref="TerrainRecord.Ambushes"/>) at the tier of the party's average level, dead
-    /// members counted (<see cref="CampAmbushers"/>), rolled as a monster party's with its least and most the two kinds' summed.
+    /// members counted (<see cref="CampAmbushers"/>), rolled as an npc's or encounter's with its least and most the two kinds' summed.
     /// </summary>
     public static BattleSetup CampAmbush(RecordId? place, RecordId? terrain, PluginSet plugins, Characters.Party party)
     {
@@ -119,14 +119,14 @@ public sealed record BattleSetup(
         plugins.Singleton<CampingRecord>().AmbushLevels.Count(l => level > l);
 
     /// <summary>
-    /// What the monster party carries besides its enemies' chests (<c>0x800D9470</c>): a loot table rolled as a chest with no
+    /// What the npc or encounter carries besides its enemies' chests (<c>0x800D9470</c>): a loot table rolled as a chest with no
     /// enemy, or one item. A script's battle and a camp ambush have none; the original keeps the last monster party's for a
     /// script's battle, which the port doesn't, the user's choice.
     /// </summary>
     public RecordId? BonusLoot { get; init; }
 
     /// <summary>
-    /// The monster party's own gate, its flag A (<see cref="MapObject.Enabled"/>; <c>0x800D9482</c> and <c>0x800D9484</c>, which
+    /// The npc or encounter's own gate, its flag A (<see cref="MapObject.Enabled"/>; <c>0x800D9482</c> and <c>0x800D9484</c>, which
     /// <c>BattleSetup.FromMonsterParty</c> copies from the object's <c>+0x1C</c> and <c>+0x14</c>), which must still hold for a win to
     /// remember it when its encounter flag can't be set.
     /// </summary>
@@ -158,7 +158,7 @@ public sealed record BattleSetup(
         };
 
     /// <summary>
-    /// The enemy list, at most 12: a monster party's or a camp ambush's rolled (<see cref="FillEnemies"/>), or a script's as
+    /// The enemy list, at most 12: an npc's or encounter's or a camp ambush's rolled (<see cref="FillEnemies"/>), or a script's as
     /// it gave them.
     /// </summary>
     /// <param name="party">The party, whose level the roll trims by.</param>
@@ -169,7 +169,7 @@ public sealed record BattleSetup(
         : [.. Enemies.SelectMany(e => Enumerable.Repeat(e.Entity, e.Min)).Take(Battle.MaxEnemies)];
 
     /// <summary>
-    /// A monster party's enemies (<c>BattleSetup.FillEnemies</c>, <c>0x80009374</c>): first each kind's least, in the kinds'
+    /// An npc's or encounter's enemies (<c>BattleSetup.FillEnemies</c>, <c>0x80009374</c>): first each kind's least, in the kinds'
     /// order (<c>BattleSetup.SureKinds</c>, <c>0x80008EC8</c>); then, unless that reached the party's most, for each kind
     /// whose most is above its least, a roll of 0 to the difference more, in order (<c>BattleSetup.ChooseKinds</c>,
     /// <c>0x800090A4</c>), stopping at the party's most or 12, and none at all if it comes to fewer than the party's least.

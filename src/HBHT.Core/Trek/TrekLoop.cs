@@ -99,7 +99,7 @@ public sealed partial class TrekLoop : IMapObjectHost
     private ChunkRecord? _chunk;
     /// <summary>Whether trek has just been built again and hasn't ticked, so its fade-in hasn't stepped (<see cref="Resume"/>).</summary>
     private bool _resumed;
-    /// <summary>The last script a dialogue object asked to start that trek can't run yet, such as a backdrop.</summary>
+    /// <summary>The last script a script object asked to start that trek can't run yet, such as a backdrop.</summary>
     private RecordId? _lastScript;
     /// <summary>The frames scene objects are drawn in, which <see cref="PutOut"/> goes by.</summary>
     private readonly FrameGate _drawFrame = new(Cadence.FrameTicks);
@@ -146,7 +146,7 @@ public sealed partial class TrekLoop : IMapObjectHost
     /// <summary>The chunks around the player, which a teleport to another map set changes.</summary>
     public ChunkStreamer Chunks => Zone.Chunks;
 
-    /// <summary>The loaded chunks' monster parties' bodies.</summary>
+    /// <summary>The loaded chunks' npcs' and encounters' bodies.</summary>
     public Wanderers Wanderers { get; }
 
     /// <summary>Using map objects, and the popups that shows.</summary>
@@ -228,7 +228,7 @@ public sealed partial class TrekLoop : IMapObjectHost
     /// Whether trek starts again at a named place of its map set rather than simply where the player stood (the original's
     /// saved <c>Zones.Chunk</c>, <c>Zones.SavedPlace</c> at <c>0x800d9092</c>, not −1): only the Goblin Ambush's end puts the
     /// party there (<see cref="Keep"/>), and going through a teleporter leaves it (<c>TeleportPlayer</c>, <c>0x8000bb54</c>).
-    /// While it holds, a cut-scene's end chains into the tangible dialogue object at the player's place
+    /// While it holds, a cut-scene's end chains into the tangible script object at the player's place
     /// (<see cref="GameSession.EndCutScene"/>).
     /// </summary>
     public bool AtPlace { get; private set; }
@@ -800,7 +800,7 @@ public sealed partial class TrekLoop : IMapObjectHost
     /// <summary>
     /// Camps where the player stands (<c>Party::CampAmbushCheck</c>): refused where the chunk's terrain allows none, as the
     /// World tab's Camp already checks; otherwise ambushed, which waits for combat, or healed by half, with the camp
-    /// scene cued: the first dialogue object in the chunk whose enabling flag is one of the camping record's and holds
+    /// scene cued: the first script object in the chunk whose enabling flag is one of the camping record's and holds
     /// while its check flag is set, wherever it is (<c>dialoug_ref_obj_func</c>), or else the Campsite's
     /// (<c>campfire_func</c>). Eight hours pass when the scene ends, as it's a <c>rest</c> script. Where no one ambushes
     /// the party (<see cref="BattleSetup.CampAmbushers"/>: terrain 27) there's no ambush roll, the user's choice: the original

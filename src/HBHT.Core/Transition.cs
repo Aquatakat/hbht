@@ -146,7 +146,7 @@ public abstract record Transition
     /// </summary>
     /// <param name="keeper">Who keeps a shop or training it opens: the speaker at the end, or the one talking if they wander.</param>
     /// <param name="place">The chunk a battle would start in, and its terrain.</param>
-    /// <param name="talker">The monster party talking, whose party a battle fights instead (<see cref="BattleSetup.Against"/>).</param>
+    /// <param name="talker">The npc or encounter talking, whose party a battle fights instead (<see cref="BattleSetup.Against"/>).</param>
     public static IReadOnlyList<Transition> AfterScript(GameState game, ScriptEnding ending, RecordId? keeper,
         (RecordId? Chunk, RecordId? Terrain) place = default, (RecordId Id, PartyObject Party)? talker = null)
     {

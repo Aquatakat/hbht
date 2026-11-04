@@ -11,7 +11,7 @@ namespace HBHT.Core.Chunks;
 /// Keeps the 3×3 chunks around a point loaded, as the original's zone engine does (<c>ZoneDatMtx</c>):
 /// each chunk's collision, which goes into the <see cref="CollisionWorld"/> under its <see cref="ChunkKey"/>
 /// (its map set, row and column), and its map objects as they stand while it's loaded (<see cref="LoadedMap"/>).
-/// Trek gives a chunk's monster parties their bodies as it loads (<see cref="Loaded"/>); the runtime builds its
+/// Trek gives a chunk's npcs and encounters their bodies as it loads (<see cref="Loaded"/>); the runtime builds its
 /// scenery. Given a <see cref="VisibleWorld"/>, it keeps the solid surfaces the chunks draw there too,
 /// under the same keys, which rain and snow land on (<see cref="ChunkSurfaces"/>).
 /// </summary>

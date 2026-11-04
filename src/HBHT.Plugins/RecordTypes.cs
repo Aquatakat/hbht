@@ -57,7 +57,7 @@ public static class RecordTypes
     public const string Spell = "spell";
     /// <summary>Any item: weapons, armor and shields among them (ADR 0031).</summary>
     public const string Item = "item";
-    /// <summary>A loot table (<c>ChestDB</c>), which containers and monster parties roll.</summary>
+    /// <summary>A loot table (<c>ChestDB</c>), which containers and npcs and encounters roll.</summary>
     public const string Loot = "loot";
 
     // Event flags, keyed by their decimal index.
@@ -107,7 +107,7 @@ public static class RecordTypes
     /// <summary>How camping goes: the ambush, the heal and the camp scenes. There's one, <c>aidyn:camping/0</c>.</summary>
     public const string Camping = "camping";
 
-    /// <summary>What combat keeps of content: who fights with the party, who never fights, and the flee rules. There's one, <c>aidyn:combat/0</c>.</summary>
+    /// <summary>What combat keeps of content that isn't about one entity or battle: the fallback enemy, the default arena, loot's gold multiplier, its text, the game over scene and the Shadow's rules. There's one, <c>aidyn:combat/0</c>.</summary>
     public const string Combat = "combat";
 
     /// <summary>Casting's numbers: the chance, the resist roll, a round's ageing and the rest (ADR 0020). There's one, <c>aidyn:magic/0</c>.</summary>
@@ -180,7 +180,7 @@ public static class RecordTypes
     public const string Explosion = "explosion";
 
     /// <summary>
-    /// A chunk's fill (<see cref="ChunkEntry.Fill"/>): an asset alone, a glTF of what other chunks' scenes drew over its cell, keyed by
+    /// A chunk's fill (<see cref="Records.ChunkRecord.Fill"/>): an asset alone, a glTF of what other chunks' scenes drew over its cell, keyed by
     /// a decimal number.
     /// </summary>
     public const string Fill = "fill";

@@ -10,7 +10,7 @@ using HBHT.Plugins.Records;
 namespace HBHT.Core.Trek;
 
 /// <summary>
-/// A monster party's body in the world, wandering from node to node (the original's <c>Wanderer</c>):
+/// An npc's or encounter's body in the world, wandering from node to node (the original's <c>Wanderer</c>):
 /// an NPC to talk to, or the leader of a group of enemies, which the player sees alone.
 /// </summary>
 public sealed class Wanderer
@@ -63,7 +63,7 @@ public sealed class Wanderer
     /// </summary>
     public bool Hunts { get; private set; }
 
-    /// <summary>How far it notices the player: its entity's perception, and 10 for a dialogue entity (<c>EntityDB::GetPerception</c>).</summary>
+    /// <summary>How far it notices the player: its entity's perception, and 10 for an entity with no sheet (<c>EntityDB::GetPerception</c>).</summary>
     public int Perception { get; }
 
     /// <summary>The party's position, in the world's X and Z (<c>Wanderer.position</c>).</summary>

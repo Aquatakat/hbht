@@ -41,4 +41,4 @@ The base plugin has each font as a record, `aidyn:font/0` (main) and `aidyn:font
 
 ## Portraits
 
-Each entity and dialogue entity has a portrait, a 40 × 40 CI8 Borg8, in the same code tables as its model (see [actors](actors.md)); `EntityDB::GetPortrait` reads them. The base plugin puts it on the entity and dialogue entity records as `portrait`. All 221 entities have one, and 32 of the 37 dialogue entities. The other five, and a speaker that isn't an entity at all (a script with no speaker, or the tools' `0xCCCC`), get `BORG8_PortraitNPCMale1` (`0x0125`), a fallback in code.
+Each entity, with a sheet or without, has a portrait, a 40 × 40 CI8 Borg8, in the same code tables as its model (see [actors](actors.md)); `EntityDB::GetPortrait` reads them. The base plugin puts it on the entity records as `portrait`. All 221 entities with a sheet have one, and 32 of the 37 without. The other five, and a speaker that isn't an entity at all (a script with no speaker, or the tools' `0xCCCC`), get `BORG8_PortraitNPCMale1` (`0x0125`), a fallback in code.

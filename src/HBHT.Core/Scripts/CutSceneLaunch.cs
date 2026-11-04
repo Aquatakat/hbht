@@ -10,14 +10,14 @@ namespace HBHT.Core.Scripts;
 public readonly record struct CutSceneLaunch(ScriptRecord Script, ScriptStart Start, RecordId Stage)
 {
     /// <summary>
-    /// What a dialogue object starts when its script is a cut-scene a plugin has and it names a stage, its reference
+    /// What a script object starts when its script is a cut-scene a plugin has and it names a stage, its reference
     /// points numbered from its own; null if not.
     /// </summary>
-    /// <param name="voxel">The dialogue object's record ID, which remembers what the script's checks and random lines settle.</param>
-    public static CutSceneLaunch? Of(PluginSet plugins, ScriptObject dialogue, RecordId? voxel) =>
-        plugins.TryGet<ScriptRecord>(dialogue.Plays) is { Mode: ScriptMode.Cutscene } script ? Of(script, dialogue, voxel) : null;
+    /// <param name="mapObject">The script object's record ID, which remembers what the script's checks and random lines settle.</param>
+    public static CutSceneLaunch? Of(PluginSet plugins, ScriptObject scriptObject, RecordId? mapObject) =>
+        plugins.TryGet<ScriptRecord>(scriptObject.Plays) is { Mode: ScriptMode.Cutscene } script ? Of(script, scriptObject, mapObject) : null;
 
     /// <summary>As the other, for a <paramref name="script"/> the caller has found: null if the object names no stage.</summary>
-    public static CutSceneLaunch? Of(ScriptRecord script, ScriptObject dialogue, RecordId? voxel) =>
-        dialogue.Stage is { } stage ? new CutSceneLaunch(script, new ScriptStart(dialogue.Marks, voxel), stage) : null;
+    public static CutSceneLaunch? Of(ScriptRecord script, ScriptObject scriptObject, RecordId? mapObject) =>
+        scriptObject.Stage is { } stage ? new CutSceneLaunch(script, new ScriptStart(scriptObject.Marks, mapObject), stage) : null;
 }

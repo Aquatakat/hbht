@@ -264,7 +264,7 @@ public sealed partial class Battle
 
     /// <summary>
     /// State 30 once the screen has faded out (<c>Combat.StateLeaveAfterShadow</c>, <c>0x80022A2C</c>): the battle leaves for trek where
-    /// it began, with nothing won, no flag set and the monster party not remembered.
+    /// it began, with nothing won, no flag set and the npc or encounter not remembered.
     /// </summary>
     private void StepShadowVanishLeave()
     {

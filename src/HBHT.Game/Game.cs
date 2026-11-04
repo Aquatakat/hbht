@@ -240,7 +240,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     private GameState StartingGame(PluginSet plugins, LaunchOptions options)
     {
         var game = _pendingSave is { } pending ? GameState.Load(plugins, pending)
-            : options.Save is { } savePath && !_newGame ? GameState.Load(plugins, SaveFile.Read(savePath))
+            : options.Save is { } savePath && !_newGame ? GameState.Load(plugins, SaveFile.Read(savePath, plugins))
             : GameState.NewGame(plugins);
         _newGame = false;
         _pendingSave = null;
@@ -1229,7 +1229,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     {
         try
         {
-            _pendingSave = SaveFile.Read(path);
+            _pendingSave = SaveFile.Read(path, _plugins);
         }
         catch (Exception e) when (e is IOException or System.Text.Json.JsonException or InvalidDataException)
         {

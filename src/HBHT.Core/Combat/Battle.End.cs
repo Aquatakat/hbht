@@ -97,7 +97,7 @@ public sealed partial class Battle
     }
 
     /// <summary>
-    /// State 12 once the screen has faded out (<c>Combat.StateVictory</c>, <c>0x80022450</c>): a monster party's battle sets its
+    /// State 12 once the screen has faded out (<c>Combat.StateVictory</c>, <c>0x80022450</c>): an npc's or encounter's battle sets its
     /// encounter flag, and if that can't hold, remembers the party beaten while its own gate still holds; the bosses' flags again;
     /// and the gold pool goes to the party at once (<c>PauseMenu.PrepareLoot</c>, <c>0x80048FF8</c>). Then the battle leaves, for
     /// the post-battle windows (game mode 6).
@@ -126,7 +126,7 @@ public sealed partial class Battle
     /// <summary>
     /// State 13 once the screen has faded out (<c>Combat.StateDefeat</c>, <c>0x80022590</c>). A loss that is the game's end heals
     /// the party's first member in full and leaves for the game over script (<c>Combat.StartGameOverScript</c>, <c>0x8001F860</c>,
-    /// then state 21). A non-lethal one sets the encounter flag, remembers the monster party fought, whatever its gate, and the
+    /// then state 21). A non-lethal one sets the encounter flag, remembers the npc or encounter fought, whatever its gate, and the
     /// clock goes on to 6:00 the next day; then the battle leaves for trek.
     /// </summary>
     private void StepDefeat()
@@ -146,7 +146,7 @@ public sealed partial class Battle
         EndAs(BattleOutcome.Spared, CombatState.Leave);
     }
 
-    /// <summary>The monster party fought stays away a while (<c>MapObjectMemory.Remember</c>, kind 5, three map loads).</summary>
+    /// <summary>The npc or encounter fought stays away a while (<c>MapObjectMemory.Remember</c>, kind 5, three map loads).</summary>
     private void RememberBeaten(Plugins.RecordId party)
     {
         var key = new Memory(party, MemoryKind.Beaten);

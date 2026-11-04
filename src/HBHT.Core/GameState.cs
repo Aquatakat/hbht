@@ -141,6 +141,9 @@ public sealed class GameState : IScriptWorld
     {
         var game = new GameState(plugins) { Label = save.Label, Place = save.Place, PlayTime = save.PlayTime };
         game.CheckPlugins(save.Plugins);
+        // What bringing an older format's save up left out (ADR 0037).
+        if (save.Upconverted is { } upconverted)
+            game._problems.AddRange(upconverted.Dropped);
 
         // Flag 1 is always set, and formulas read it as stored.
         var set = new HashSet<int> { FlagNetwork.True };

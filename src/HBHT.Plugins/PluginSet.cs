@@ -617,6 +617,32 @@ public sealed class PluginSet
         }
     }
 
+    /// <summary>
+    /// A top-level string field of a record, such as a chunk's <c>borg</c>, without reading the record if it hasn't been: a lazily
+    /// indexed record's file is scanned for the field and not kept (ADR 0036). Null if the record or the field isn't there, or
+    /// the field isn't a string.
+    /// </summary>
+    public string? PeekString(RecordId id, string field)
+    {
+        if (_records.TryGetValue(id, out var json))
+            return json[field] is JsonValue value && value.TryGetValue(out string? text) ? text : null;
+        if (!_lazy.TryGetValue(id, out var file))
+            return null;
+        var reader = new Utf8JsonReader(File.ReadAllBytes(file),
+            new JsonReaderOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
+        if (!reader.Read() || reader.TokenType != JsonTokenType.StartObject)
+            return null;
+        while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
+        {
+            var found = reader.ValueTextEquals(field);
+            reader.Read();
+            if (found)
+                return reader.TokenType == JsonTokenType.String ? reader.GetString() : null;
+            reader.Skip();
+        }
+        return null;
+    }
+
     /// <summary>The merged record, read as <typeparamref name="T"/>, which must be its type's class or a view of it (<see cref="RecordTypeInfo.Reads"/>).</summary>
     public T Get<T>(RecordId id) where T : class =>
         TryGet<T>(id) ?? throw new KeyNotFoundException($"No record {id}.");

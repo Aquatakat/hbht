@@ -203,7 +203,7 @@ internal static class CombatImporter
 
     /// <summary>
     /// The Dreamscape's map (Borg9 <c>0xD5F</c>), in which <c>Combat.StartGameOverScript</c> (<c>0x8001F860</c>) looks for the
-    /// dialogue object that starts the game over script (<c>CodeTable.GameOverScenes</c>' first; its other two are never read).
+    /// script object that starts the game over script (<c>CodeTable.GameOverScenes</c>' first; its other two are never read).
     /// </summary>
     internal const int GameOverMap = 0x0D5F;
 
