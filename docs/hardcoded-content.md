@@ -83,7 +83,7 @@ Most of what's left. The combat record (`aidyn:combat/0`, `CombatRecord`), `aidy
 
 | What | Port | 1.0 | Needs |
 | --- | --- | --- | --- |
-| Rewards: each enemy's experience and the looted items' worth to every living member whole; the gold doubled; fled enemies pay as killed; the chest's reagent one of spice, herb or gem evenly; drops past the first two give 1 | `Battle.TallyRewards`, `AddChestLoot`, `ExperienceValue` | `Combat.TallyRewards` `0x8005E2AC`, `AddChestLoot` `0x8005E0F0`, `RollChestItem` `0x8005DF38` | 1: on the combat or loot record, shared with containers' roll ([items](#items-and-shops)) |
+| Rewards: each enemy's experience and the looted items' worth to every living member whole; fled enemies pay as killed; the chest's reagent one of spice, herb or gem evenly. The gold's doubling is the combat record's `lootGoldMultiplier`, and each drop's count its own (`min`, `max`) | `Battle.TallyRewards`, `AddChestLoot`, `ExperienceValue` | `Combat.TallyRewards` `0x8005E2AC`, `AddChestLoot` `0x8005E0F0`, `RollChestItem` `0x8005DF38` | 1: on the combat or loot record, shared with containers' roll ([items](#items-and-shops)) |
 | An entity's chest byte is loot record `0x7FF` + the byte | `Battle.ChestOf` | | 1: the importer writes the loot record's ID on the entity |
 | A beaten monster party stays away 3 map loads | `Battle.RememberBeaten`, `MapObjectMemory.Short` | `MapObjectMemory.Remember` | 1: with the memory's lifetimes ([trek](#trek-and-the-world)) |
 
@@ -154,7 +154,7 @@ One shape runs through them all: the best member (or the living pooled) rolls a 
 
 | What | Port | 1.0 | Needs |
 | --- | --- | --- | --- |
-| Loot: gold rolled then doubled; the reagent's kind chosen evenly before its chance; six drops, the first two counted, the rest one | `Containers.Roll` | `get_chest_loot` | 1: fields on the loot record, shared with a battle's |
+| Loot: the reagent's kind chosen evenly before its chance. The gold's doubling is the combat record's `lootGoldMultiplier`; the drops are a list on the loot record, each with its count | `Containers.Roll` | `get_chest_loot` | 1: fields on the loot record, shared with a battle's |
 | Container kinds: herb, spice and gem sources harvested with the inventory record's reagents; one with its own model hides it and plays nothing; sounds by kind | `Container.Usable`, `Reagent`; `MapObjectUse.Loot`, `Open`; `LoadedMap.ActivateContainer` | `loot_func`, `container_obj_check` | 1: a container kind record |
 | Bartering: the living member with the best modified Merchant, paying 15 − it in Stamina or counting 0; a shopkeeper without one at 255 | `Shop.BarterFactor`, `Open` | `Party::Barter`, `InitShop` | 1: beside the inventory record's `MerchantStep` |
 | Appraisal: judge (−0.0186603 b² + 2.366025 b + 50) ÷ 100, held to 0–125, b the best Int + Merchant × 6; worth price × judge × 3 ÷ the buy price, at most 6, picks Common line 384 on | `Shop.Appraise` | `Party::ApraisePrice` | 1: the inventory record |

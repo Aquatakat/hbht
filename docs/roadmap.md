@@ -24,6 +24,7 @@ This is the one list of what's open. A task's status is in its phase's table bel
 
 - **The menus' mouse:** the mouse choosing a row, and on the World tab ([pause menu](systems/pause-menu.md)); the user has set it aside for now. The menus' motion is otherwise 1.0's: their slides, fades and scroll, a battle's pause on a wide screen and the details' edge.
 - **Content still in code:** the [hardcoded content](hardcoded-content.md) log, planned in [Phase 5](#phase-5-mod-system-and-tools).
+- **The plugin data format's overhaul**, so its concepts are the game's as the player meets them: the noise is cut (importer 67: gates that always hold, the Pak, unread fields; the spell's `targeting`, `presentation` and `reagent`; the tripwire; loot's drops; the journal listed by each entry's own flag). Left: items as one type and entities with the dialogue entities folded in, scripts as typed ops with a node speaker, chunks as records with lazy loading, and save format 2.
 - **2.10:** what else could move onto triggers, each with its event ([events](systems/events.md#what-else-could-move-onto-triggers)): the first spell and potion's help (`spell.learned`, `item.bought`), the new journal entry's notice (`journal.added`), the camp scenes (`camp.started`), the Shadow's cinematic and the Goblin Ambush's end (`battle.ended` with its outcome), and a conversation's end as `script.ended`. The editor has no view of the triggers of its own, and the quest atlas doesn't show what they read and set.
 - **Rendering:** the items in [rendering](systems/rendering.md#whats-left).
 
