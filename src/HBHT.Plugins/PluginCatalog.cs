@@ -9,12 +9,16 @@ namespace HBHT.Plugins;
 /// <param name="HasRecord">Whether a plugin defines the record. Scenes, textures and UI images are assets alone.</param>
 /// <param name="Assets">Its asset files, by extension.</param>
 /// <param name="Summary">A line about it for the editor's list, such as a map set's name and size.</param>
-public sealed record CatalogEntry(RecordId Id, bool HasRecord, IReadOnlyList<AssetFile> Assets, string Summary)
+/// <param name="Imported">The Borg a base-game record names as its source, such as a chunk's Borg9, when its ID isn't one.</param>
+public sealed record CatalogEntry(RecordId Id, bool HasRecord, IReadOnlyList<AssetFile> Assets, string Summary, int? Imported = null)
 {
-    /// <summary>The Borg a base-game record or asset was imported from, for those keyed by archive index.</summary>
+    /// <summary>
+    /// The Borg a base-game record or asset was imported from: its key, for those keyed by archive index, else the one it names,
+    /// as a chunk names its Borg9.
+    /// </summary>
     public int? Borg => Id.Namespace == RecordId.BaseNamespace && RecordTypes.Info(Id.Type).Key == KeyKind.Borg
         ? int.Parse(Id.Key.AsSpan(2, 4), NumberStyles.HexNumber, CultureInfo.InvariantCulture)
-        : null;
+        : Imported;
 
     public AssetFile? Asset(string extension) => Assets.FirstOrDefault(a => a.Extension == extension);
 }
@@ -83,10 +87,21 @@ public sealed class PluginCatalog
             {
                 summary = $"‹{e.Message}›";
             }
-            entries[id] = new CatalogEntry(id, json is not null, files, summary);
+            entries[id] = new CatalogEntry(id, json is not null, files, summary, ImportedBorg(id, json));
         }
         return new PluginCatalog(plugins, entries, references);
     }
+
+    /// <summary>
+    /// The Borg a base-game record's <c>borg</c> field names (<see cref="ChunkRecord.Borg"/>, written <c>0x1436</c>), which a
+    /// mod's record doesn't have.
+    /// </summary>
+    private static int? ImportedBorg(RecordId id, JsonObject? json) =>
+        id.Namespace == RecordId.BaseNamespace && json?["borg"] is JsonValue value && value.TryGetValue(out string? text)
+        && text.StartsWith("0x", StringComparison.Ordinal)
+        && int.TryParse(text.AsSpan(2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var borg)
+            ? borg
+            : null;
 
     private static void FindReferences(RecordId from, string path, JsonNode? node, Dictionary<RecordId, List<RecordReference>> references)
     {

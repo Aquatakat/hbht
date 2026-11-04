@@ -270,7 +270,7 @@ public sealed class PluginSetTests : IDisposable
             ("mapsets.json", """[{ "id": "aidyn:mapset/0", "label": "Overworld", "cellSize": 100 }]"""),
             ("chunks.json", """
                 [{ "id": "aidyn:chunk/0/I08", "mapSet": "aidyn:mapset/0", "row": 9, "column": 8, "terrain": "aidyn:terrain/1",
-                  "collision": "aidyn:collision/0x0E87", "objects": [
+                  "borg": "0x0E87", "collision": "aidyn:collision/0x0E87", "objects": [
                   { "type": "scene", "index": 0, "visible": { "flag": "aidyn:flag/5" }, "models": [{ "model": "aidyn:scene/0x0B48" }] },
                   { "type": "scene", "index": 1, "visible": { "flag": "aidyn:flag/0" }, "models": [{ "model": "aidyn:scene/0x0B48" }] },
                 ] }]
@@ -295,7 +295,8 @@ public sealed class PluginSetTests : IDisposable
             catalog.Entries.Select(e => e.Id.ToString()));
         var chunk = catalog.Find(RecordId.Parse("aidyn:chunk/0/I08"))!;
         Assert.True(chunk.HasRecord);
-        Assert.Null(chunk.Borg);
+        // Keyed by its cell, it shows the Borg9 it names.
+        Assert.Equal(0x0E87, chunk.Borg);
         Assert.Equal("Overworld I08, 2 scenes", chunk.Summary);
         // Its collision is an asset alone, keyed by the Borg9 it was imported from.
         var collision = catalog.Find(RecordId.Parse("aidyn:collision/0x0E87"))!;
