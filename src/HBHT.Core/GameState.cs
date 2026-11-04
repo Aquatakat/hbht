@@ -1,3 +1,4 @@
+using HBHT.Core.Magic;
 using HBHT.Core.Calendar;
 using HBHT.Core.Characters;
 using HBHT.Core.Flags;
@@ -347,7 +348,7 @@ public sealed class GameState : IScriptWorld
     public static SaveCharacter SaveCharacter(Character member) => CharacterSaves.Save(member);
 
     /// <summary>A spellbook in the order loading a save leaves it (<see cref="CharacterSaves.SpellOrder"/>).</summary>
-    public static IReadOnlyList<LearnedSpell> SpellOrder(IEnumerable<LearnedSpell> spells, MagicSchool school, bool alaron) =>
+    public static IReadOnlyList<LearnedSpell> SpellOrder(IEnumerable<LearnedSpell> spells, RecordId school, bool alaron) =>
         CharacterSaves.SpellOrder(spells, school, alaron);
 
     private void CheckPlugins(IReadOnlyList<SavedPlugin> saved)

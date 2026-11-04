@@ -20,23 +20,20 @@ internal static class PotionData
             Effects = MagicData.Potion(potion).Effects,
             Duration = MagicData.Potion(potion).Duration,
             Use = MagicData.Use(potion),
+            KeptAfterBattle = potion == BasePotion.Stealth,
         };
 
     public static readonly InventoryMessages Messages = new("Not now.", "Not in trek.", "Only the lighthouse.");
 
-    public static ItemCatalog Catalog(params object[] more) => ItemData.CatalogWith(TradeData.Rules() with { Messages = Messages },
+    public static ItemCatalog Catalog(params ItemRecord[] more) => ItemData.CatalogWith(TradeData.Rules() with { Messages = Messages },
         [TradeData.Spice, TradeData.Herb, TradeData.Gem, TradeData.Hide, TradeData.Leather, .. Enum.GetValues<BasePotion>().Select(Of), .. more]);
 
     /// <summary>A member called <paramref name="name"/>, with the given skills and a distinct entity.</summary>
     public static Character Member(string name, int n = 0, SkillLevels? skills = null, int intelligence = 18, int stamina = 30,
-        int strength = 15) => ItemData.Alaron(e => e with
-        {
-            Id = RecordId.Hex(RecordTypes.Entity, 0x0300 + n),
-            Name = name,
-            Level = 1,
-            Attributes = new Attributes(intelligence, 12, 15, 15, strength, stamina),
-            Skills = skills ?? new SkillLevels(),
-        });
+        int strength = 15) => ItemData.Alaron(e => (e with { Id = RecordId.Hex(RecordTypes.Entity, 0x0300 + n), Name = name })
+            .WithLevel(1)
+            .WithAttributes(new Attributes(intelligence, 12, 15, 15, strength, stamina))
+            .WithSkills(skills ?? new SkillLevels()));
 }
 
 public class PotionTests
@@ -199,9 +196,9 @@ public class PotionTests
 
 public class PartyMenuActionTests
 {
-    private static readonly WeaponRecord Sword = ItemData.NewWeapon(1, WeaponClass.Sword);
-    private static readonly WeaponRecord Heavy = ItemData.NewWeapon(2, WeaponClass.Sword, strength: 40);
-    private static readonly WeaponRecord Staff = ItemData.NewWeapon(3, WeaponClass.Sword, isFixed: true);
+    private static readonly ItemRecord Sword = ItemData.NewWeapon(1, WeaponClass.Sword);
+    private static readonly ItemRecord Heavy = ItemData.NewWeapon(2, WeaponClass.Sword, strength: 40);
+    private static readonly ItemRecord Staff = ItemData.NewWeapon(3, WeaponClass.Sword, isFixed: true);
     private static readonly SpellRecord Fireball = Characters.Fireball;
     private static readonly ItemRecord Scroll = ItemData.NewItem(10, ItemKind.Scroll, bonuses: ItemData.CastsSpell(Fireball.Id));
     private static readonly ItemRecord Rock = ItemData.NewItem(11);

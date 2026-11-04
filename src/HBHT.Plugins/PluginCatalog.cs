@@ -185,8 +185,13 @@ public sealed class PluginCatalog
                 var first = nodes.OfType<JsonObject>().Select(n => (string?)n["text"]).FirstOrDefault(t => !string.IsNullOrWhiteSpace(t));
                 parts.Add($"{(string?)json["mode"]}, {Count(nodes, "node")}" + (first is null ? "" : $": {Truncate(first.Replace("\n", " ", StringComparison.Ordinal), 60)}"));
                 break;
-            case RecordTypes.Entity or RecordTypes.DialogEntity or RecordTypes.Weapon or RecordTypes.Armor or RecordTypes.Spell
-                or RecordTypes.Item or RecordTypes.Loot when json is not null:
+            case RecordTypes.Entity when json is not null:
+                parts.Add((string?)json["name"] ?? "");
+                break;
+            case RecordTypes.Item when json is not null:
+                parts.Add($"{(string?)json["name"]}, {(string?)json["kind"]}");
+                break;
+            case RecordTypes.Spell or RecordTypes.Loot or RecordTypes.School or RecordTypes.Element or RecordTypes.Request when json is not null:
                 parts.Add((string?)json["name"] ?? "");
                 break;
             case RecordTypes.Stat when json is not null:

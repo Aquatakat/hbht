@@ -8,61 +8,93 @@ using HBHT.Plugins.Records;
 namespace HBHT.Core.Tests;
 
 /// <summary>Hand-made weapons, armor, items and inventory rules for the item tests.</summary>
+/// <summary>The weapon skills by their old class numbers (<c>aidyn:weaponskill/n</c>), as a skill slot.</summary>
+internal static class WeaponClass
+{
+    public static readonly SkillId Bite = SkillId.WeaponSkill(0);
+    public static readonly SkillId Breath = SkillId.WeaponSkill(1);
+    public static readonly SkillId Claw = SkillId.WeaponSkill(2);
+    public static readonly SkillId Hafted = SkillId.WeaponSkill(3);
+    public static readonly SkillId Missile = SkillId.WeaponSkill(4);
+    public static readonly SkillId Pole = SkillId.WeaponSkill(5);
+    public static readonly SkillId Spit = SkillId.WeaponSkill(6);
+    public static readonly SkillId Sting = SkillId.WeaponSkill(7);
+    public static readonly SkillId Sword = SkillId.WeaponSkill(8);
+    public static readonly SkillId Thrown = SkillId.WeaponSkill(9);
+    public static readonly SkillId Tusk = SkillId.WeaponSkill(10);
+}
+
 internal static class ItemData
 {
     private static readonly RecordId Icon = RecordId.Hex(RecordTypes.Image, 0);
 
     public static RecordId Flag(int n) => Ids.Flag(n);
 
-    public static RecordId WeaponId(int n) => RecordId.Hex(RecordTypes.Weapon, 0x0700 + n);
+    public static RecordId WeaponId(int n) => RecordIds.Item(0x0700 + n);
 
-    public static RecordId ArmorId(int n) => RecordId.Hex(RecordTypes.Armor, 0x0500 + n);
+    public static RecordId ArmorId(int n) => RecordIds.Item(0x0500 + n);
 
     public static RecordId ThingId(int n) => RecordId.Hex(RecordTypes.Item, 0x0900 + n);
 
-    public static WeaponRecord NewWeapon(int n, WeaponClass weaponClass = WeaponClass.Sword, int strength = 0, GearBonuses? bonuses = null,
-        bool isFixed = false) => new(WeaponId(n), $"Weapon {n}", Icon, 100, weaponClass, strength, 0, 5, 10, 0, 0, Element.None,
-        bonuses ?? new GearBonuses(), null, isFixed);
+    public static ItemRecord NewWeapon(int n, SkillId? weaponClass = null, int strength = 0, ItemBonuses? bonuses = null,
+        bool isFixed = false) => new(WeaponId(n), $"Weapon {n}", Icon, 100, ItemKind.Weapon,
+        Weapon: new WeaponStats((weaponClass ?? WeaponClass.Sword).Record, 5, 10, 0, RecordIds.Request(16)),
+        Requirements: strength == 0 ? null : new Dictionary<RecordId, int> { [RecordIds.Stat(4)] = strength },
+        Bonuses: bonuses, Fixed: isFixed);
 
-    public static ArmorRecord NewArmor(int n, ArmorSlot slot = ArmorSlot.Body, int protection = 0, int defense = 0, int dexterity = 0,
-        int stealth = 0, GearBonuses? bonuses = null) => new(ArmorId(n), $"Armor {n}", Icon, 100, slot, defense, protection, dexterity,
-        stealth, 0, bonuses ?? new GearBonuses());
+    /// <summary>Body armor or a shield (<paramref name="kind"/>), whose dexterity and stealth are bonuses as the format has them.</summary>
+    public static ItemRecord NewArmor(int n, ItemKind kind = ItemKind.Body, int protection = 0, int defense = 0, int dexterity = 0,
+        int stealth = 0, ItemBonuses? bonuses = null)
+    {
+        var stats = new Dictionary<RecordId, int>(bonuses?.Stats ?? new Dictionary<RecordId, int>());
+        var skills = new Dictionary<RecordId, int>(bonuses?.Skills ?? new Dictionary<RecordId, int>());
+        if (dexterity != 0)
+            stats[RecordIds.Stat(2)] = dexterity;
+        if (stealth != 0)
+            skills[RecordIds.Skill(7)] = stealth;
+        var merged = (bonuses ?? new ItemBonuses()) with { Stats = stats.Count == 0 ? null : stats, Skills = skills.Count == 0 ? null : skills };
+        return new(ArmorId(n), $"Armor {n}", Icon, 100, kind, Bonuses: merged, Protection: protection, Defense: defense);
+    }
 
     public static ItemRecord NewItem(int n, ItemKind kind = ItemKind.Misc, int protection = 0, int damage = 0, int strength = 0,
-        int intelligence = 0, GearBonuses? bonuses = null, ItemTraits? traits = null, KeyItemFlags? key = null) => new(ThingId(n), $"Item {n}",
-        Icon, 10, kind, 0, damage, protection, strength, intelligence, bonuses, traits, key);
+        int intelligence = 0, ItemBonuses? bonuses = null, ItemTraits? traits = null, KeyItemFlags? key = null)
+    {
+        var requirements = new Dictionary<RecordId, int>();
+        if (strength != 0)
+            requirements[RecordIds.Stat(4)] = strength;
+        if (intelligence != 0)
+            requirements[RecordIds.Stat(0)] = intelligence;
+        return new(ThingId(n), $"Item {n}", Icon, 10, kind, Requirements: requirements.Count == 0 ? null : requirements, Bonuses: bonuses,
+            Damage: damage, Protection: protection, Traits: traits, KeyItem: key);
+    }
 
     /// <summary>A bonus to a stat.</summary>
-    public static GearBonuses Raises(Stat stat, int amount, Aspect aspect = Aspect.None) =>
-        new(aspect, new StatBonus(RecordId.Decimal(RecordTypes.Stat, (int)stat), amount));
+    public static ItemBonuses Raises(Stat stat, int amount, Aspect aspect = Aspect.None) =>
+        new(aspect, Stats: new Dictionary<RecordId, int> { [RecordId.Decimal(RecordTypes.Stat, (int)stat)] = amount });
 
     /// <summary>A bonus to a skill.</summary>
-    public static GearBonuses SkillGives(SkillId skill, int amount) => new(Skill: new SkillBonus(skill.Record, amount));
+    public static ItemBonuses SkillGives(SkillId skill, int amount) => new(Skills: new Dictionary<RecordId, int> { [skill.Record] = amount });
 
-    public static GearBonuses CastsSpell(RecordId spell, int level = 1, int charges = 3) => new(Spell: new ItemSpell(spell, level, charges));
+    public static ItemBonuses CastsSpell(RecordId spell, int level = 1, int charges = 3) => new(Spell: new ItemSpell(spell, level, charges));
 
-    public static GearBonuses Enchants(RecordId spell) => new(Enchantment: new ItemEnchantment(spell, 1));
+    public static ItemBonuses Enchants(RecordId spell) => new(Enchantment: new ItemEnchantment(spell, 1));
 
-    public static InventoryRecord Rules(int generalSlots = 8, RecordId[]? refused = null, ItemReplacement[]? replaced = null) => new(
+    public static InventoryRecord Rules(int generalSlots = 8) => new(
         RecordId.Decimal(RecordTypes.Inventory, 0), 99, generalSlots, ThingId(900), ThingId(901), ThingId(902), Icon, 0.1f, 0.5f,
-        refused ?? [], replaced ?? [], Flag(0));
+        [ItemKind.Body, ItemKind.Shield], Flag(0));
 
     /// <summary>A catalog of the records, whose loot gold is doubled as the base game's combat record has it.</summary>
-    public static ItemCatalog CatalogWith(InventoryRecord rules, params object[] records) =>
-        new(records.OfType<WeaponRecord>(), records.OfType<ArmorRecord>(), records.OfType<ItemRecord>(), rules) { LootGoldMultiplier = 2 };
+    public static ItemCatalog CatalogWith(InventoryRecord rules, params ItemRecord[] records) =>
+        new(records, rules) { LootGoldMultiplier = 2 };
 
-    public static ItemCatalog Catalog(params object[] records) => CatalogWith(Rules(), records);
+    public static ItemCatalog Catalog(params ItemRecord[] records) => CatalogWith(Rules(), records);
 
     /// <summary>A party with an empty inventory, for tests that don't use it.</summary>
     public static CharacterParty NewParty() => new(Catalog());
 
     public static FlagNetwork Flags() => new(Enumerable.Range(0, 20).Select(i => new FlagRecord(Flag(i))), Flag(9));
 
-    public static ItemInstance Inst(WeaponRecord record) => new(Item.From(record));
-
-    public static ItemInstance Inst(ArmorRecord record) => new(Item.From(record));
-
-    public static ItemInstance Inst(ItemRecord record) => new(Item.From(record));
+    public static ItemInstance Inst(ItemRecord record) => new(Item.From(record, Rules()));
 
     public static Character Alaron(Func<EntityRecord, EntityRecord>? edit = null) =>
         Characters.Create(edit is null ? Characters.Alaron() : edit(Characters.Alaron()));
@@ -76,10 +108,10 @@ public class ItemCatalogTests
     [Fact]
     public void ItemsAreWeaponsArmorAndOtherItemsByTheirIds()
     {
-        var catalog = ItemData.Catalog(ItemData.NewWeapon(1), ItemData.NewArmor(1), ItemData.NewArmor(2, ArmorSlot.Shield), ItemData.NewItem(1, ItemKind.Ring));
+        var catalog = ItemData.Catalog(ItemData.NewWeapon(1), ItemData.NewArmor(1), ItemData.NewArmor(2, ItemKind.Shield), ItemData.NewItem(1, ItemKind.Ring));
 
         Assert.Equal(ItemKind.Weapon, catalog[ItemData.WeaponId(1)].Kind);
-        Assert.Equal(ItemKind.Armor, catalog[ItemData.ArmorId(1)].Kind);
+        Assert.Equal(ItemKind.Body, catalog[ItemData.ArmorId(1)].Kind);
         Assert.Equal(ItemKind.Shield, catalog[ItemData.ArmorId(2)].Kind);
         Assert.Equal(ItemKind.Ring, catalog[ItemData.ThingId(1)].Kind);
         Assert.Equal(4, catalog.All.Count());
@@ -147,7 +179,7 @@ public class EquipmentTests
         return character.Equipment;
     }
 
-    private static ItemRecord Helmet(int n, GearBonuses? bonuses = null, int protection = 0, int damage = 0, int strength = 0, int intelligence = 0) =>
+    private static ItemRecord Helmet(int n, ItemBonuses? bonuses = null, int protection = 0, int damage = 0, int strength = 0, int intelligence = 0) =>
         ItemData.NewItem(n, ItemKind.Helmet, protection, damage, strength, intelligence, bonuses);
 
     [Fact]
@@ -197,7 +229,7 @@ public class EquipmentTests
     [Fact]
     public void ANegativeEnduranceBonusThatWouldReachZeroLeavesItAtOne()
     {
-        var alaron = ItemData.Alaron(e => e with { Attributes = new Attributes(18, 12, 15, 4, 15, 30) });
+        var alaron = ItemData.Alaron(e => e.WithAttributes(new Attributes(18, 12, 15, 4, 15, 30)));
 
         Wearing(alaron, Helmet(1, ItemData.Raises(Stat.Endurance, -5)));
 
@@ -209,11 +241,11 @@ public class EquipmentTests
     [Fact]
     public void ALevelBonusIsBoundedAtOneOnlyWhileModifiedEnduranceIsZero()
     {
-        var spent = ItemData.Alaron(e => e with { Level = 3, Attributes = new Attributes(18, 12, 15, 0, 15, 30) });
+        var spent = ItemData.Alaron(e => e.WithLevel(3).WithAttributes(new Attributes(18, 12, 15, 0, 15, 30)));
         Wearing(spent, Helmet(1, ItemData.Raises(Stat.Level, -3)));
         Assert.Equal(1, spent.Stats.RawModified(Stat.Level));
 
-        var healthy = ItemData.Alaron(e => e with { Level = 3 });
+        var healthy = ItemData.Alaron(e => e.WithLevel(3));
         Wearing(healthy, Helmet(1, ItemData.Raises(Stat.Level, -4)));
         Assert.Equal(-1, healthy.Stats.RawModified(Stat.Level));
     }
@@ -263,7 +295,7 @@ public class EquipmentTests
     [Fact]
     public void ASkillBonusLeavesASkillThatCantBeLearntAlone()
     {
-        var alaron = ItemData.Alaron(e => e with { Skills = new SkillLevels(Warrior: 3) });
+        var alaron = ItemData.Alaron(e => e.WithSkills(new SkillLevels(Warrior: 3)));
         var equipment = Wearing(alaron, Helmet(1, ItemData.SkillGives(Skill.Thief, 2)));
 
         Assert.Equal(CharacterSkills.CantLearn, alaron.Skills.Base(Skill.Thief));
@@ -280,7 +312,7 @@ public class EquipmentTests
         var equipment = alaron.Equipment;
 
         equipment.EquipArmor(ItemData.Inst(ItemData.NewArmor(1, dexterity: -2, stealth: -1)));
-        Assert.Equal(EquipRefusal.None, equipment.EquipShield(ItemData.Inst(ItemData.NewArmor(2, ArmorSlot.Shield, dexterity: -1, stealth: -2))));
+        Assert.Equal(EquipRefusal.None, equipment.EquipShield(ItemData.Inst(ItemData.NewArmor(2, ItemKind.Shield, dexterity: -1, stealth: -2))));
 
         Assert.Equal(12, alaron.Stats.RawModified(Stat.Dexterity));
         Assert.Equal(15, alaron.Stats.RawBase(Stat.Dexterity));
@@ -297,13 +329,13 @@ public class EquipmentTests
     [Fact]
     public void ArmorsStealthAppliesWhateverTheLevelButNotToASkillThatCantBeLearnt()
     {
-        var untrained = ItemData.Alaron(e => e with { Skills = new SkillLevels(Stealth: 0) });
+        var untrained = ItemData.Alaron(e => e.WithSkills(new SkillLevels(Stealth: 0)));
         untrained.Equipment.EquipArmor(ItemData.Inst(ItemData.NewArmor(1, stealth: -1)));
         Assert.Equal(-1, untrained.Skills.RawModified(Skill.Stealth));
         untrained.Equipment.RemoveArmor();
         Assert.Equal(0, untrained.Skills.RawModified(Skill.Stealth));
 
-        var unable = ItemData.Alaron(e => e with { Skills = new SkillLevels(Warrior: 3) });
+        var unable = ItemData.Alaron(e => e.WithSkills(new SkillLevels(Warrior: 3)));
         unable.Equipment.EquipArmor(ItemData.Inst(ItemData.NewArmor(1, stealth: -1)));
         Assert.Equal(0, unable.Skills.RawModified(Skill.Stealth));
     }
@@ -316,7 +348,7 @@ public class EquipmentTests
         Assert.Equal(5, equipment.ArmorProtection);
         Assert.Equal(0, equipment.ShieldDefense);
 
-        equipment.EquipShield(ItemData.Inst(ItemData.NewArmor(2, ArmorSlot.Shield, protection: 2, defense: 3)));
+        equipment.EquipShield(ItemData.Inst(ItemData.NewArmor(2, ItemKind.Shield, protection: 2, defense: 3)));
         Assert.Equal(7, equipment.ArmorProtection);
         Assert.Equal(3, equipment.ShieldDefense);
 
@@ -363,7 +395,7 @@ public class EquipmentTests
     public void ACharacterWithASoleWeaponWieldsOnlyThatWeapon()
     {
         var staff = ItemData.NewWeapon(1, WeaponClass.Hafted);
-        var niesen = ItemData.Alaron(e => e with { SoleWeapon = staff.Id });
+        var niesen = ItemData.Alaron(e => e.Sheeted(s => s with { SoleWeapon = staff.Id }));
 
         Assert.Equal(EquipRefusal.None, niesen.Equipment.CanWield(Item.From(staff)));
         Assert.Equal(EquipRefusal.CantUse, niesen.Equipment.CanWield(Item.From(ItemData.NewWeapon(2, WeaponClass.Sword))));
@@ -393,9 +425,9 @@ public class EquipmentTests
     public void AShieldNeedsTheShieldSkillAboveZero()
     {
         var skilled = ItemData.Alaron().Equipment;
-        var unskilled = ItemData.Alaron(e => e with { ShieldSkill = 0 }).Equipment;
-        var unable = ItemData.Alaron(e => e with { ShieldSkill = null }).Equipment;
-        var shield = ItemData.NewArmor(1, ArmorSlot.Shield);
+        var unskilled = ItemData.Alaron(e => e.WithShieldSkill(0)).Equipment;
+        var unable = ItemData.Alaron(e => e.WithShieldSkill(null)).Equipment;
+        var shield = ItemData.NewArmor(1, ItemKind.Shield);
 
         Assert.True(skilled.CanCarryShield);
         Assert.False(unskilled.CanCarryShield);
@@ -471,7 +503,7 @@ public class EquipmentTests
         var equipment = ItemData.Alaron().Equipment;
         var sword = ItemData.NewWeapon(1);
         var armor = ItemData.NewArmor(1);
-        var shield = ItemData.NewArmor(2, ArmorSlot.Shield);
+        var shield = ItemData.NewArmor(2, ItemKind.Shield);
         equipment.EquipWeapon(ItemData.Inst(sword));
         equipment.EquipArmor(ItemData.Inst(armor));
         equipment.EquipShield(ItemData.Inst(shield));
@@ -488,7 +520,7 @@ public class EquipmentTests
         var alaron = ItemData.Alaron();
         weapon = ItemData.Inst(ItemData.NewWeapon(1, bonuses: ItemData.Raises(Stat.Stamina, 5)));
         armor = ItemData.Inst(ItemData.NewArmor(1, bonuses: ItemData.Raises(Stat.Stamina, 3)));
-        shield = ItemData.Inst(ItemData.NewArmor(2, ArmorSlot.Shield, bonuses: ItemData.Raises(Stat.Stamina, 2)));
+        shield = ItemData.Inst(ItemData.NewArmor(2, ItemKind.Shield, bonuses: ItemData.Raises(Stat.Stamina, 2)));
         gear = ItemData.Inst(Helmet(1, ItemData.Raises(Stat.Stamina, 4)));
         alaron.Equipment.EquipWeapon(weapon);
         alaron.Equipment.EquipArmor(armor);
@@ -589,7 +621,7 @@ public class EquipmentTests
         var spells = Enumerable.Range(0, 4).Select(i => RecordId.Hex(RecordTypes.Spell, 0x0300 + i)).ToArray();
         equipment.EquipWeapon(ItemData.Inst(ItemData.NewWeapon(1, bonuses: ItemData.Enchants(spells[0]))));
         equipment.EquipArmor(ItemData.Inst(ItemData.NewArmor(1, bonuses: ItemData.Enchants(spells[1]))));
-        equipment.EquipShield(ItemData.Inst(ItemData.NewArmor(2, ArmorSlot.Shield, bonuses: ItemData.Enchants(spells[2]))));
+        equipment.EquipShield(ItemData.Inst(ItemData.NewArmor(2, ItemKind.Shield, bonuses: ItemData.Enchants(spells[2]))));
         equipment.EquipGear(ItemData.Inst(Helmet(1, ItemData.Enchants(spells[3]))));
 
         Assert.Equal(spells[1..], equipment.Enchantments.Select(e => e.Spell));
@@ -605,9 +637,29 @@ public class EquipmentTests
         equipment.EquipGear(ItemData.Inst(Helmet(1, ItemData.SkillGives(Skill.Warrior, 2))));
         equipment.EquipGear(ItemData.Inst(Helmet(2, ItemData.SkillGives(Skill.Thief, 5))));
 
-        Assert.Equal(4, equipment.SkillBonus(Skill.Warrior));
+        // Armor's bonuses already count for an unlearnt skill (SkillBonusesApplyUnlearnt), so the trainer leaves them out: 1 + 2, not 1 + 1 + 2.
+        Assert.Equal(3, equipment.SkillBonus(Skill.Warrior));
         Assert.Equal(5, equipment.SkillBonus(Skill.Thief));
         Assert.Equal(0, equipment.SkillBonus(Skill.Healer));
+    }
+
+    [Fact]
+    public void ArmorsSkillBonusCountsOnAnUnlearntSkillButARingsDoesNot()
+    {
+        // A member whose base Stealth is 0, wearing body armor and a ring that both give Stealth.
+        var alaron = ItemData.Alaron(e => e.WithSkills(new SkillLevels(Stealth: 0)));
+        var equipment = alaron.Equipment;
+        Assert.Equal(0, alaron.Skills.Base(Skill.Stealth));
+
+        equipment.EquipArmor(ItemData.Inst(ItemData.NewArmor(1, stealth: -2)));
+        Assert.Equal(-2, alaron.Skills.RawModified(Skill.Stealth));
+
+        var ring = ItemData.NewItem(1, ItemKind.Ring, bonuses: ItemData.SkillGives(Skill.Stealth, 4));
+        equipment.EquipGear(ItemData.Inst(ring));
+        Assert.Equal(-2, alaron.Skills.RawModified(Skill.Stealth));
+
+        // A trainer applies the ring's bonus when the skill goes from 0 to 1, and not the armor's, which already counts.
+        Assert.Equal(4, equipment.SkillBonus(Skill.Stealth));
     }
 }
 
@@ -667,11 +719,11 @@ public class SkillTrainingGearTests
 
 public class CharacterItemTests
 {
-    private static readonly WeaponRecord Sword = ItemData.NewWeapon(1, WeaponClass.Sword, strength: 10);
-    private static readonly WeaponRecord Axe = ItemData.NewWeapon(2, WeaponClass.Hafted, strength: 10);
-    private static readonly WeaponRecord Pole = ItemData.NewWeapon(3, WeaponClass.Pole);
-    private static readonly ArmorRecord Mail = ItemData.NewArmor(1, protection: 5);
-    private static readonly ArmorRecord Buckler = ItemData.NewArmor(2, ArmorSlot.Shield);
+    private static readonly ItemRecord Sword = ItemData.NewWeapon(1, WeaponClass.Sword, strength: 10);
+    private static readonly ItemRecord Axe = ItemData.NewWeapon(2, WeaponClass.Hafted, strength: 10);
+    private static readonly ItemRecord Pole = ItemData.NewWeapon(3, WeaponClass.Pole);
+    private static readonly ItemRecord Mail = ItemData.NewArmor(1, protection: 5);
+    private static readonly ItemRecord Buckler = ItemData.NewArmor(2, ItemKind.Shield);
     private static readonly ItemCatalog Catalog = ItemData.Catalog(Sword, Axe, Pole, Mail, Buckler);
 
     private static Character Create(Func<EntityRecord, EntityRecord> edit) =>
@@ -680,7 +732,7 @@ public class CharacterItemTests
     [Fact]
     public void ACharacterWearsItsEntitysArmorAndCarriesItsShieldWhenItHasTheSkill()
     {
-        var alaron = Create(e => e with { Armor = Mail.Id, Shield = Buckler.Id });
+        var alaron = Create(e => e.WithArmor(Mail.Id, Buckler.Id));
 
         Assert.Equal(Mail.Id, alaron.Equipment.Armor?.Id);
         Assert.Equal(Buckler.Id, alaron.Equipment.Shield?.Id);
@@ -689,7 +741,7 @@ public class CharacterItemTests
     [Fact]
     public void ACharacterWithoutTheShieldSkillDoesntCarryItsShield()
     {
-        var alaron = Create(e => e with { Armor = Mail.Id, Shield = Buckler.Id, ShieldSkill = 0 });
+        var alaron = Create(e => e.WithShieldSkill(0).WithArmor(Mail.Id, Buckler.Id));
 
         Assert.Null(alaron.Equipment.Shield);
         Assert.Equal(Mail.Id, alaron.Equipment.Armor?.Id);
@@ -698,7 +750,7 @@ public class CharacterItemTests
     [Fact]
     public void ACharacterWieldsTheFirstWeaponItCanAndBringsTheOthersAsSpares()
     {
-        var alaron = Create(e => e with { Weapons = [Pole.Id, Sword.Id, Axe.Id] });
+        var alaron = Create(e => e.WithWeapons(Pole.Id, Sword.Id, Axe.Id));
 
         Assert.Equal(Sword.Id, alaron.Equipment.Weapon?.Id);
         // The pole it couldn't wield came before any it could, and is lost.
@@ -708,7 +760,7 @@ public class CharacterItemTests
     [Fact]
     public void WeaponsAfterTheOneWieldedAreSparesWhetherOrNotItCouldWieldThem()
     {
-        var alaron = Create(e => e with { Weapons = [Sword.Id, Axe.Id, Pole.Id] });
+        var alaron = Create(e => e.WithWeapons(Sword.Id, Axe.Id, Pole.Id));
 
         Assert.Equal(Sword.Id, alaron.Equipment.Weapon?.Id);
         Assert.Equal(new[] { Axe.Id, Pole.Id }, alaron.Spares.Select(s => s.Id));
@@ -717,7 +769,7 @@ public class CharacterItemTests
     [Fact]
     public void AWeaponACharacterCantWieldWhileItWieldsNoneIsLost()
     {
-        var alaron = Create(e => e with { Weapons = [Pole.Id, null, null] });
+        var alaron = Create(e => e.WithWeapons(Pole.Id, null, null));
 
         Assert.Null(alaron.Equipment.Weapon);
         Assert.Empty(alaron.Spares);
@@ -726,7 +778,7 @@ public class CharacterItemTests
     [Fact]
     public void JoiningThePartyMovesTheSparesToTheInventory()
     {
-        var alaron = Create(e => e with { Weapons = [Sword.Id, Axe.Id, Pole.Id] });
+        var alaron = Create(e => e.WithWeapons(Sword.Id, Axe.Id, Pole.Id));
         var party = new CharacterParty(Catalog);
 
         Assert.True(party.Add(alaron));
@@ -868,8 +920,7 @@ public class PartyInventoryTests
     {
         var aspect = ItemData.NewItem(6, ItemKind.Potion);
         var healing = ItemData.NewItem(7, ItemKind.Potion);
-        var rules = ItemData.Rules(replaced: [new ItemReplacement(aspect.Id, healing.Id)]);
-        var inventory = new PartyInventory(ItemData.CatalogWith(rules, aspect, healing));
+        var inventory = new PartyInventory(ItemData.Catalog(aspect with { Becomes = healing.Id }, healing));
 
         Assert.True(inventory.Add(aspect.Id, 2));
 
@@ -887,8 +938,8 @@ public class ItemPileTests
     private static readonly ItemRecord Plain = ItemData.NewItem(5);
 
     private static ItemPile Pile(params ItemRecord[] extra) => new(ItemData.CatalogWith(
-        ItemData.Rules(refused: [Club.Id], replaced: [new ItemReplacement(AspectPotion.Id, Healing.Id)]),
-        [Club, AspectPotion, Healing, Quest, Plain, .. extra]));
+        ItemData.Rules(),
+        [Club with { Refused = true }, AspectPotion with { Becomes = Healing.Id }, Healing, Quest, Plain, .. extra]));
 
     [Fact]
     public void APileRefusesTheItemsTheRulesRefuse()
@@ -957,13 +1008,13 @@ public class ItemPileTests
 
 public class PartyItemTests
 {
-    private static readonly WeaponRecord Sword = ItemData.NewWeapon(1, WeaponClass.Sword, strength: 10);
-    private static readonly WeaponRecord Blade = ItemData.NewWeapon(2, WeaponClass.Sword, strength: 10);
-    private static readonly WeaponRecord Staff = ItemData.NewWeapon(3, WeaponClass.Hafted, isFixed: true);
-    private static readonly ArmorRecord Mail = ItemData.NewArmor(1, protection: 5, dexterity: -2);
-    private static readonly ArmorRecord Plate = ItemData.NewArmor(2, protection: 9);
-    private static readonly ArmorRecord Buckler = ItemData.NewArmor(3, ArmorSlot.Shield, defense: 2);
-    private static readonly ArmorRecord Tower = ItemData.NewArmor(4, ArmorSlot.Shield, defense: 6);
+    private static readonly ItemRecord Sword = ItemData.NewWeapon(1, WeaponClass.Sword, strength: 10);
+    private static readonly ItemRecord Blade = ItemData.NewWeapon(2, WeaponClass.Sword, strength: 10);
+    private static readonly ItemRecord Staff = ItemData.NewWeapon(3, WeaponClass.Hafted, isFixed: true);
+    private static readonly ItemRecord Mail = ItemData.NewArmor(1, protection: 5, dexterity: -2);
+    private static readonly ItemRecord Plate = ItemData.NewArmor(2, protection: 9);
+    private static readonly ItemRecord Buckler = ItemData.NewArmor(3, ItemKind.Shield, defense: 2);
+    private static readonly ItemRecord Tower = ItemData.NewArmor(4, ItemKind.Shield, defense: 6);
     private static readonly ItemRecord Cap = ItemData.NewItem(1, ItemKind.Helmet, protection: 1, bonuses: ItemData.Raises(Stat.Strength, 2));
     private static readonly ItemRecord Helm = ItemData.NewItem(2, ItemKind.Helmet, protection: 3);
     private static readonly ItemRecord Ring1 = ItemData.NewItem(3, ItemKind.Ring);
@@ -982,7 +1033,7 @@ public class PartyItemTests
         bonuses: ItemData.Raises(Stat.Stamina, 10) with { Spell = new ItemSpell(Spark, 1, 5) });
     private static readonly ItemRecord Filler = ItemData.NewItem(27);
 
-    private static readonly object[] All =
+    private static readonly ItemRecord[] All =
     [
         Sword, Blade, Staff, Mail, Plate, Buckler, Tower, Cap, Helm, Ring1, Ring2, Ring3, .. Scrolls, Blank, Potion, Hide, LunarGem,
         SolarGem, Heavy, Charm, Filler,
@@ -1043,7 +1094,7 @@ public class PartyItemTests
     public void EquippingAShieldSwapsLikeArmorButNeedsTheShieldSkill()
     {
         var (party, alaron) = Setup();
-        var unskilled = ItemData.Alaron(e => e with { ShieldSkill = 0 });
+        var unskilled = ItemData.Alaron(e => e.WithShieldSkill(0));
         party.Add(unskilled);
         party.Inventory.Add(Buckler.Id, 2);
         party.Inventory.Add(Tower.Id);
@@ -1075,7 +1126,7 @@ public class PartyItemTests
     [Fact]
     public void AWeaponTheCharacterCantWieldIsRefusedWithTheReason()
     {
-        var (party, weak) = Setup(edit: e => e with { Attributes = new Attributes(18, 12, 15, 15, 5, 30) });
+        var (party, weak) = Setup(edit: e => e.WithAttributes(new Attributes(18, 12, 15, 15, 5, 30)));
         party.Inventory.Add(Sword.Id);
 
         Assert.Equal(EquipRefusal.NeedsStrength, party.Equip(weak, Sword.Id));
@@ -1117,7 +1168,7 @@ public class PartyItemTests
     [Fact]
     public void GearOfADifferentKindIsWornAlongside()
     {
-        var (party, alaron) = Setup(edit: e => e with { Attributes = new Attributes(18, 12, 15, 15, 25, 30) });
+        var (party, alaron) = Setup(edit: e => e.WithAttributes(new Attributes(18, 12, 15, 15, 25, 30)));
         party.Inventory.Add(Cap.Id);
         party.Inventory.Add(Heavy.Id);
 
@@ -1354,9 +1405,9 @@ public class PartyItemTests
         Assert.False(party.TakeItem(Sword.Id));
     }
 
-    private static readonly SpellRecord Elemental1 = Characters.Spell(0x0401, MagicSchool.Elemental, wizard: 1, cost: 100);
-    private static readonly SpellRecord Hard = Characters.Spell(0x0402, MagicSchool.Elemental, wizard: 5, cost: 100);
-    private static readonly SpellRecord Unschooled = Characters.Spell(0x0403, MagicSchool.None, wizard: 1, cost: 100);
+    private static readonly SpellRecord Elemental1 = Characters.Spell(0x0401, Magic.Schools.Elemental, wizard: 1, cost: 100);
+    private static readonly SpellRecord Hard = Characters.Spell(0x0402, Magic.Schools.Elemental, wizard: 5, cost: 100);
+    private static readonly SpellRecord Unschooled = Characters.Spell(0x0403, Magic.Schools.Unschooled, wizard: 1, cost: 100);
 
     private static SpellRecord Lookup(RecordId id) => new[] { Elemental1, Hard, Unschooled, Characters.Fireball }.Single(s => s.Id == id);
 
@@ -1384,7 +1435,7 @@ public class PartyItemTests
     public void OnlyACharacterWhoCanLearnWizardCanReadScrollsAndThatIsCheckedFirst()
     {
         var (party, scroll) = WithScroll(Elemental1);
-        var layman = ItemData.Alaron(e => e with { Skills = new SkillLevels(Warrior: 3) });
+        var layman = ItemData.Alaron(e => e.WithSkills(new SkillLevels(Warrior: 3)));
 
         Assert.Equal(ScrollResult.NotAWizard, party.ReadScroll(layman, scroll, Lookup));
         Assert.Equal(ScrollResult.NotAWizard, party.ReadScroll(layman, ItemData.ThingId(99), Lookup));
@@ -1420,7 +1471,7 @@ public class PartyItemTests
     public void ASpellNeedsBaseWizardAtLeastItsOwnEvenBeforeTheSchoolIsChecked()
     {
         var (party, scroll) = WithScroll(Hard);
-        var naming = ItemData.Alaron(e => e with { School = MagicSchool.Naming });
+        var naming = ItemData.Alaron(e => e.WithSchool(Magic.Schools.Naming));
 
         Assert.Equal(ScrollResult.NeedsWizard, party.ReadScroll(naming, scroll, Lookup));
         Assert.Null(naming.FindSpell(Hard.Id));
@@ -1429,7 +1480,7 @@ public class PartyItemTests
     [Fact]
     public void ASpellOfAnotherSchoolIsRefusedUnlessTheCharacterIsChaosOrTheSpellIsUnschooled()
     {
-        var naming = ItemData.Alaron(e => e with { School = MagicSchool.Naming });
+        var naming = ItemData.Alaron(e => e.WithSchool(Magic.Schools.Naming));
         var (party, scroll) = WithScroll(Elemental1, quantity: 2);
         Assert.Equal(ScrollResult.WrongSchool, party.ReadScroll(naming, scroll, Lookup));
         Assert.Equal(2, party.Inventory.Count(scroll));
@@ -1437,7 +1488,7 @@ public class PartyItemTests
         var chaos = ItemData.Alaron();
         Assert.Equal(ScrollResult.Learned, party.ReadScroll(chaos, scroll, Lookup));
 
-        var elemental = ItemData.Alaron(e => e with { School = MagicSchool.Elemental });
+        var elemental = ItemData.Alaron(e => e.WithSchool(Magic.Schools.Elemental));
         Assert.Equal(ScrollResult.Learned, party.ReadScroll(elemental, scroll, Lookup));
 
         var (unschooledParty, unschooledScroll) = WithScroll(Unschooled);

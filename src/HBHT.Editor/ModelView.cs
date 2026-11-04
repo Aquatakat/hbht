@@ -235,6 +235,7 @@ public partial class ModelView : VBoxContainer
             _pivot = file.Clips(actor.RootTransform).Pivot.ToGodot();
             _motion = Vector3.Zero;
             var clips = file.Clips(actor.RootTransform);
+            _actorPanel.RequestNames = n => _plugins?.TryGet<RequestRecord>(Requests.Id(n))?.Name;
             _actorPanel.Show(actor, n => clips.Clip(actor.States[n].Animation)?.Length ?? 0);
             _actorPanel.Visible = true;
             _ground = Ground(radius);

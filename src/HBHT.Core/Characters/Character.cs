@@ -50,19 +50,23 @@ public sealed partial class Character
         CharacterSkills skills, List<LearnedSpell> spells)
     {
         Record = record;
+        Sheet = record.CharacterSheet;
         Name = RecordName = record.Name;
         Rules = rules;
         Stats = stats;
         Skills = skills;
         _spells = spells;
-        TrueName = record.TrueName || (record.TrueNameFlag is { } flag && flags?.Invoke(flag) == true);
-        Protection = (byte)record.Protection;
-        Damage = (byte)record.Damage;
+        TrueName = Sheet.TrueName || (Sheet.TrueNameFlag is { } flag && flags?.Invoke(flag) == true);
+        Protection = (byte)Sheet.Protection;
+        Damage = (byte)Sheet.Damage;
         Equipment = new Equipment(this);
     }
 
     /// <summary>The record the sheet started from, whose traits that don't change it reads.</summary>
     public EntityRecord Record { get; }
+
+    /// <summary>The record's sheet, which an entity must have to be a character (ADR 0032).</summary>
+    public EntitySheet Sheet { get; }
 
     public RecordId Entity => Record.Id;
 
@@ -83,8 +87,8 @@ public sealed partial class Character
 
     public Equipment Equipment { get; }
 
-    /// <summary>The only weapon it can wield (<see cref="EntityRecord.SoleWeapon"/>): Niesen's staff.</summary>
-    public RecordId? SoleWeapon => Record.SoleWeapon;
+    /// <summary>The only weapon it can wield (<see cref="EntitySheet.SoleWeapon"/>): Niesen's staff.</summary>
+    public RecordId? SoleWeapon => Sheet.SoleWeapon;
 
     /// <summary>
     /// Weapons its entity brings that it doesn't wield. Joining the party puts them in the inventory
@@ -92,10 +96,10 @@ public sealed partial class Character
     /// </summary>
     public List<Item> Spares { get; } = [];
 
-    public Aspect Aspect => Record.Aspect;
+    public Aspect Aspect => Sheet.Aspect;
 
-    /// <summary>The school it learns spells from. Chaos learns any.</summary>
-    public MagicSchool School => Record.School;
+    /// <summary>The school it learns spells from (<c>aidyn:school/n</c>). Chaos learns any.</summary>
+    public RecordId School => Sheet.School;
 
     /// <summary>
     /// Whether its True Name is known: its record's, or its flag being set (Alaron's, 590) when the sheet was made, unless a
@@ -103,7 +107,7 @@ public sealed partial class Character
     /// </summary>
     public bool TrueName { get; set; }
 
-    public bool Heavy => Record.Heavy;
+    public bool Heavy => Sheet.Heavy;
 
     /// <summary>Protection from spells and gear, over the entity's base (<c>CharExp::protection</c>), as a byte.</summary>
     public int Protection { get; set; }
@@ -129,27 +133,28 @@ public sealed partial class Character
     /// is lost.
     /// </summary>
     /// <param name="spells">The spell records its spells name.</param>
-    /// <param name="flags">Whether a flag is set, for <see cref="EntityRecord.TrueNameFlag"/>.</param>
+    /// <param name="flags">Whether a flag is set, for <see cref="EntitySheet.TrueNameFlag"/>.</param>
     public static Character Create(EntityRecord entity, CharacterRules rules, Func<RecordId, SpellRecord> spells,
         Func<RecordId, bool>? flags = null, ItemCatalog? items = null)
     {
-        var a = entity.Attributes;
-        var stats = new CharacterStats(rules, [a.Intelligence, a.Willpower, a.Dexterity, a.Endurance, a.Strength, a.Stamina, entity.Level]);
+        var sheet = entity.CharacterSheet;
+        var stats = new CharacterStats(rules,
+            [.. Enumerable.Range(0, CharacterRules.StatCount - 1).Select(s => sheet.Attribute(StatId.Record((Stat)s))), sheet.Level]);
         var skills = new CharacterSkills(rules, SkillLevels(entity));
         var character = new Character(entity, flags, rules, stats, skills,
-            [.. entity.Spells.Select(s => new LearnedSpell(spells(s.Spell), s.Level))]);
+            [.. sheet.Spells.Select(s => new LearnedSpell(spells(s.Spell), s.Level))]);
         if (items is not null)
         {
-            if (entity.Armor is { } armor)
+            if (sheet.Armor is { } armor)
                 character.Equipment.EquipArmor(new ItemInstance(items[armor]));
-            if (entity.Shield is { } shield)
+            if (sheet.Shield is { } shield)
                 character.Equipment.EquipShield(new ItemInstance(items[shield]));
         }
         // Entity::EquipFunc0, as a party member joins. Enemies' sheets start at 0, which nothing reads.
         character.TotalExp = (uint)rules.Progression.Levels[Math.Min(stats.Base(Stat.Level), rules.Progression.Levels.Count - 1)];
         if (items is not null)
         {
-            foreach (var weapon in entity.Weapons.OfType<RecordId>().Select(w => items[w]))
+            foreach (var weapon in sheet.Weapons.Slots.OfType<RecordId>().Select(w => items[w]))
             {
                 if (character.Equipment.Weapon is null)
                     character.Equipment.EquipWeapon(new ItemInstance(weapon));
@@ -165,13 +170,13 @@ public sealed partial class Character
     /// traits that don't change from <paramref name="entity"/>'s record, which is the one installed now, whatever
     /// the sheet was made from. The caller sets the rest.
     /// </summary>
-    /// <param name="flags">Whether a flag is set, for <see cref="EntityRecord.TrueNameFlag"/>. Without it, only the record's True Name counts.</param>
+    /// <param name="flags">Whether a flag is set, for <see cref="EntitySheet.TrueNameFlag"/>. Without it, only the record's True Name counts.</param>
     public static Character Restore(EntityRecord entity, CharacterRules rules, CharacterStats stats, CharacterSkills skills,
         IEnumerable<LearnedSpell> spells, Func<RecordId, bool>? flags = null) =>
         new(entity, flags, rules, stats, skills, [.. spells]);
 
     /// <summary>An entity's skill levels by <see cref="SkillId.Slot"/>.</summary>
-    public static int?[] SkillLevels(EntityRecord entity) => SkillSlots.ToArray(entity.Skills, entity.WeaponSkills, entity.ShieldSkill);
+    public static int?[] SkillLevels(EntityRecord entity) => SkillSlots.ToArray(entity.CharacterSheet);
 
     /// <summary>Its level, from its base Level stat.</summary>
     public int Level => Stats.Base(Stat.Level);
@@ -282,7 +287,7 @@ public sealed partial class Character
     {
         if (Skills.Base(Skill.Wizard) < spell.Wizard)
             return SpellLearnability.WizardTooLow;
-        if (School != MagicSchool.Chaos && spell.School != MagicSchool.None && School != spell.School)
+        if (!Rules.LearnsEverySchool(School) && spell.School != CharacterRules.Unschooled && School != spell.School)
             return SpellLearnability.WrongSchool;
         return SpellLearnability.Learnable;
     }

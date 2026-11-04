@@ -1,5 +1,7 @@
+using HBHT.Core.Magic;
 using HBHT.Core.Combat;
 using HBHT.Core.Items;
+using HBHT.Core.Characters;
 using HBHT.Plugins;
 using HBHT.Plugins.Records;
 
@@ -58,15 +60,7 @@ public sealed class CombatMenu
     public static readonly RecordId UpArrow = HudSprite.Id(0x38D0), DownArrow = HudSprite.Id(0x38CF);
 
     /// <summary>The schools' icons (<c>Spell.SchoolIcons</c>, <c>0x800DEFC0</c>): none for the unschooled.</summary>
-    public static RecordId? SchoolIcon(MagicSchool school) => school switch
-    {
-        MagicSchool.Chaos => HudSprite.Id(0x01A9),
-        MagicSchool.Elemental => HudSprite.Id(0x01A5),
-        MagicSchool.Naming => HudSprite.Id(0x01A6),
-        MagicSchool.Necromancy => HudSprite.Id(0x01A7),
-        MagicSchool.Star => HudSprite.Id(0x01A8),
-        _ => null,
-    };
+    public static RecordId? SchoolIcon(CharacterRules rules, RecordId school) => rules.Schools.GetValueOrDefault(school)?.Icon;
 
     /// <summary>The list's width and centre, its tallest (with the Expansion Pak; 55 without), and the screen's middle it's centred on.</summary>
     public const int Width = 120, CentreX = 160, MostHeight = 95, CentreY = 120;

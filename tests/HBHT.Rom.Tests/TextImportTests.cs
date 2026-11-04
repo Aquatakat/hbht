@@ -107,20 +107,17 @@ public class TextImportTests
         var rom = TestRoms.Get(RomVersionId.Na10);
         var db = GameDb.Read(rom);
         var models = EntityModels.Read(rom);
-        var names = CharacterImporter.BuildNames(db, models).ToDictionary(f => f.File, f => f.Records);
         var entities = CharacterImporter.BuildEntities(db, models);
 
-        Assert.Equal(221, entities.Count);
-        Assert.All(entities, r => Assert.NotNull(r.Portrait));
+        // The 221 entities with sheets and the 33 dialogue entities that are not an entity too (ADR 0032).
+        Assert.Equal(254, entities.Count);
+        var withSheets = entities.Where(r => r.Sheet is not null).ToList();
+        Assert.Equal(221, withSheets.Count);
+        Assert.All(withSheets, r => Assert.NotNull(r.Portrait));
         Assert.Equal(RecordId.Hex(RecordTypes.Image, 0x0108), entities.Single(r => r.Id == RecordId.Hex(RecordTypes.Entity, 0x023F)).Portrait);
 
-        Assert.Equal((37, 32), (names["dialogentities.json"].Count, names["dialogentities.json"].Count(r => r.Portrait is not null)));
-        Assert.All(names["dialogentities.json"].Where(r => r.Portrait is not null), r => Assert.Equal(RecordTypes.Image, r.Portrait!.Value.Type));
-
-        Assert.DoesNotContain("entities.json", names.Keys);
-        Assert.DoesNotContain("spells.json", names.Keys);
-        // Weapons, armor, items and loot tables have records of their own (ItemImporter).
-        foreach (var file in new[] { "weapons.json", "armor.json", "items.json", "loot.json" })
-            Assert.DoesNotContain(file, names.Keys);
+        var speakers = entities.Where(r => r.Sheet is null).ToList();
+        Assert.Equal((33, 30), (speakers.Count, speakers.Count(r => r.Portrait is not null)));
+        Assert.All(speakers.Where(r => r.Portrait is not null), r => Assert.Equal(RecordTypes.Image, r.Portrait!.Value.Type));
     }
 }

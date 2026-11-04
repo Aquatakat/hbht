@@ -68,6 +68,13 @@ public static class PluginJson
 
         public override void Write(Utf8JsonWriter writer, RecordId value, JsonSerializerOptions options) =>
             writer.WriteStringValue(value.ToString());
+
+        // An object keyed by record ID, such as a sheet's skills (ADR 0032), which merges key by key.
+        public override RecordId ReadAsPropertyName(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+            RecordId.TryParse(reader.GetString(), out var id, out var error) ? id : throw new JsonException(error);
+
+        public override void WriteAsPropertyName(Utf8JsonWriter writer, RecordId value, JsonSerializerOptions options) =>
+            writer.WritePropertyName(value.ToString());
     }
 
     private sealed class Vector2Converter : JsonConverter<Vector2>

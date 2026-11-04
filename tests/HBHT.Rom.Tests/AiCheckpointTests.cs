@@ -624,17 +624,15 @@ public sealed class AiCheckpointTests(Na10Import fixture, ITestOutputHelper outp
     public void EveryFightersStyleAndWeaponIsTheOriginals()
     {
         var game = GameState.NewGame(Set);
-        var rules = Set.Singleton<CombatRecord>();
         var counts = new SortedDictionary<int, int>();
         var styles = new Dictionary<RecordId, (int Style, RecordId? Weapon, RecordId? Spare)>();
         foreach (var entity in Set.All<EntityRecord>(RecordTypes.Entity))
         {
-            if (rules.Bystanders.Contains(entity.Id) || game.Recruit(entity.Id) is not { } sheet)
+            if (entity.Sheet is null || entity.Combat?.Bystander == true || game.Recruit(entity.Id) is not { } sheet)
                 continue;
             var spare = Battle.ArmFromList(sheet, game.Items);
             var c = new Combatant(4, sheet, entity.Body ?? new EntityBody(entity.Id, 1, 1, 1), new Body(Vector3.Zero, 1), CombatantFlags.Hostile);
-            var ai = EnemyAI.Init(c, spare, w => w.Range == 0 || w.Class is WeaponClass.Breath or WeaponClass.Spit || rules.CloseRange!.Contains(w.Id),
-                rules.BossStyles!.Contains(entity.Id));
+            var ai = EnemyAI.Init(c, spare, Battle.AllowsMelee, entity.Combat?.BossStyle == true);
             counts[ai.Style] = counts.GetValueOrDefault(ai.Style) + 1;
             styles[entity.Id] = (ai.Style, sheet.Equipment.Weapon?.Id, spare?.Id);
         }
@@ -646,6 +644,6 @@ public sealed class AiCheckpointTests(Na10Import fixture, ITestOutputHelper outp
         Assert.Equal((3, W(0x0718), W(0x072B)), styles[E(0x0208)]);
 
         static RecordId E(int id) => RecordId.Hex(RecordTypes.Entity, id);
-        static RecordId? W(int id) => RecordId.Hex(RecordTypes.Weapon, id);
+        static RecordId? W(int id) => RecordId.Hex(RecordTypes.Item, id);
     }
 }

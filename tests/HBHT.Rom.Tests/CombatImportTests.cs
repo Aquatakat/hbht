@@ -12,7 +12,7 @@ namespace HBHT.Rom.Tests;
 [Collection(ImportedPluginCollection.Name)]
 public sealed class CombatImportTests(Na10Import fixture)
 {
-    private static RecordId Weapon(int id) => RecordId.Hex(RecordTypes.Weapon, id);
+    private static RecordId Weapon(int id) => RecordId.Hex(RecordTypes.Item, id);
 
     private CombatRecord Combat => fixture.Data.Set.Get<CombatRecord>(RecordId.Decimal(RecordTypes.Combat, 0));
 
@@ -39,45 +39,48 @@ public sealed class CombatImportTests(Na10Import fixture)
         { 0x0730, "Javelin", false, 5, 90 },
     };
 
+    private IReadOnlyList<ItemRecord> Flyers => [.. fixture.Data.Set.All<ItemRecord>(RecordTypes.Item).Where(i => i.Weapon?.Missile is not null)];
+
+    private IReadOnlyList<EntityRecord> Entities => [.. fixture.Data.Set.All<EntityRecord>(RecordTypes.Entity)];
+
     [Fact]
     public void SixteenWeaponsFly()
     {
-        var missiles = Combat.Missiles!;
-        Assert.Equal(16, missiles.Count);
-        Assert.Equal(16, missiles.Select(m => m.Weapon).Distinct().Count());
+        Assert.Equal(16, Flyers.Count);
+        Assert.Equal(16, Flyers.Select(m => m.Id).Distinct().Count());
     }
 
     [Theory]
     [MemberData(nameof(Flying))]
     public void AWeaponThatFliesIsAnArrowOrItsOwnModel(int id, string name, bool bow, float speed, float turn)
     {
-        var missile = Assert.Single(Combat.Missiles!, m => m.Weapon == Weapon(id));
-        Assert.Equal(name, fixture.Data.Set.Get<WeaponRecord>(missile.Weapon).Name);
-        Assert.Equal(bow ? Arrow : null, missile.Scene);
+        var item = Assert.Single(Flyers, m => m.Id == Weapon(id));
+        var missile = item.Weapon!.Missile!;
+        Assert.Equal(name, item.Name);
+        Assert.Equal(bow ? Arrow : (RecordId?)null, missile.Scene);
         Assert.Equal(speed, missile.Speed);
         Assert.Equal(turn, missile.Turn);
         // What a thrown one flies as, its own model, is on its record.
         if (!bow)
-            Assert.NotNull(fixture.Data.Set.Get<WeaponRecord>(missile.Weapon).Model);
+            Assert.NotNull(item.Model);
     }
 
     [Fact]
     public void BowsAreTheBowsOfTheMissileClassAndThrownWeaponsTheThrownOnes()
     {
-        var set = fixture.Data.Set;
-        Assert.All(Combat.Missiles!.Where(m => m.Scene is not null), m => Assert.Equal(WeaponClass.Missile, set.Get<WeaponRecord>(m.Weapon).Class));
-        Assert.All(Combat.Missiles!.Where(m => m.Scene is null), m => Assert.Equal(WeaponClass.Thrown, set.Get<WeaponRecord>(m.Weapon).Class));
-        Assert.Equal(8, Combat.Missiles!.Count(m => m.Scene is not null));
+        Assert.All(Flyers.Where(m => m.Weapon!.Missile!.Scene is not null), m => Assert.Equal(RomIds.WeaponSkill(WeaponClass.Missile), m.Weapon!.Skill));
+        Assert.All(Flyers.Where(m => m.Weapon!.Missile!.Scene is null), m => Assert.Equal(RomIds.WeaponSkill(WeaponClass.Thrown), m.Weapon!.Skill));
+        Assert.Equal(8, Flyers.Count(m => m.Weapon!.Missile!.Scene is not null));
     }
 
     [Fact]
     public void OnlySpikesMayStrikeInMelee()
     {
-        var spikes = Assert.Single(Combat.CloseRange!);
-        Assert.Equal(Weapon(0x071B), spikes);
-        Assert.Equal("Spikes", fixture.Data.Set.Get<WeaponRecord>(spikes).Name);
-        // It's a thrown weapon that doesn't fly: it isn't in either list.
-        Assert.DoesNotContain(Combat.Missiles!, m => m.Weapon == spikes);
+        var spikes = Assert.Single(fixture.Data.Set.All<ItemRecord>(RecordTypes.Item), i => i.Weapon?.StrikesInMelee == true);
+        Assert.Equal(Weapon(0x071B), spikes.Id);
+        Assert.Equal("Spikes", spikes.Name);
+        // It is a thrown weapon that does not fly: it is in neither list.
+        Assert.Null(spikes.Weapon!.Missile);
     }
 
     /// <summary>The lists are the same set in every version, which <c>CodeTable.BowKindWeapons</c> and <c>ThrownKindWeapons</c> find.</summary>
@@ -145,14 +148,16 @@ public sealed class CombatImportTests(Na10Import fixture)
     [Fact]
     public void TheElementNamesAreOneForEachElementInOrder()
     {
-        var names = Combat.Text!.Aura.Elements;
-        Assert.Equal(Enum.GetValues<Element>(), names.Keys.OrderBy(e => e));
+        // The names are the element records' now (None has no record).
+        var elements = Enum.GetValues<Db.Element>().Where(e => e != Db.Element.None).ToList();
+        var names = elements.ToDictionary(e => e, e => fixture.Data.Set.Get<ElementRecord>(RomIds.Element(e)).Name);
         Assert.Equal(
-            ["None", "Earth", "Solar", "Physical", "Necromancy", "Fire", "Lunar", "Naming", "Water", "Magic", "Air", "Star", "Elemental",
+            ["Earth", "Solar", "Physical", "Necromancy", "Fire", "Lunar", "Naming", "Water", "Magic", "Air", "Star", "Elemental",
              "Chaos", "Cutting", "Smashing", "Holy"],
-            Enum.GetValues<Element>().Select(e => names[e]));
+            elements.Select(e => names[e]));
         // The names read as the enum's own, so the order is the code's: the element byte indexes the pointer.
-        Assert.All(Enum.GetValues<Element>(), e => Assert.Equal(e.ToString(), names[e]));
+        Assert.All(elements, e => Assert.Equal(e.ToString(), names[e]));
+        Assert.Equal(16, Set.All<ElementRecord>(RecordTypes.Element).Count());
     }
 
     /// <summary>The menus' strings sit elsewhere in each version but read the same, as do the element names' Common lines.</summary>
@@ -161,15 +166,14 @@ public sealed class CombatImportTests(Na10Import fixture)
     public void TheTextIsTheSameInEveryVersion(RomVersionId id)
     {
         var rom = TestRoms.Get(id);
-        var text = CombatImporter.ReadText(rom, GameDb.Read(rom));
+        var text = CombatImporter.ReadText(rom);
         var na10 = Combat.Text!;
         Assert.Equal(na10.LayOnHands, text.LayOnHands);
         Assert.Equal(na10.HealWithHerbs, text.HealWithHerbs);
         Assert.Equal(na10.Perform, text.Perform);
         Assert.Equal(na10.NoSpells, text.NoSpells);
         Assert.Equal(na10.NoItems, text.NoItems);
-        Assert.Equal(na10.Aura with { Elements = null! }, text.Aura with { Elements = null! });
-        Assert.Equal(na10.Aura.Elements, text.Aura.Elements);
+        Assert.Equal(na10.Aura, text.Aura);
     }
 
     private PluginSet Set => fixture.Data.Set;
@@ -179,7 +183,7 @@ public sealed class CombatImportTests(Na10Import fixture)
     {
         // The jump table's cases by entity list place, read as the entities the old fact table named by ID.
         Assert.Equal(Quests.EngineFlags.BossFlags.OrderBy(b => b.Value).Select(b => (Import.DbRecordIds.For(b.Key), RecordId.Decimal(RecordTypes.Flag, b.Value))),
-            Combat.Bosses!.OrderBy(b => int.Parse(b.Flag.Key)).Select(b => ((RecordId?)b.Entity, b.Flag)));
+            Entities.Where(e => e.Combat?.BossFlag is not null).OrderBy(e => int.Parse(e.Combat!.BossFlag!.Value.Key)).Select(e => ((RecordId?)e.Id, e.Combat!.BossFlag!.Value)));
     }
 
     [Fact]
@@ -240,11 +244,12 @@ public sealed class CombatImportTests(Na10Import fixture)
     [Fact]
     public void TheWeaponsNotDrawnAndTheOtherHandsAreTheCodesEntities()
     {
-        string Name(RecordId id) => Set.Get<EntityRecord>(id).Name;
-        Assert.Equal(["Shamsuk", "Gorgon", "Chaos Lieutenant", "Harpy", "Marquis", "Minotaur", "Minotaur Lord", "Niesen"],
-            Combat.UndrawnWeapons!.Select(Name));
-        Assert.Equal(["Bandit Boss", "Bandit Boss", "Bandit Boss", "Bandit Woodsman", "Bandit Woodsman", "Bandit Boss", "Bandit Boss",
-            "Bandit Woodsman", "Bandit Boss", "Becan", "Keelin"], Combat.OtherHand!.Select(Name));
+        // They are flags on the entities' bodies now, so by ID rather than in the code's order.
+        Assert.Equal(new[] { "Shamsuk", "Gorgon", "Chaos Lieutenant", "Harpy", "Marquis", "Minotaur", "Minotaur Lord", "Niesen" }.Order(StringComparer.Ordinal),
+            Entities.Where(e => e.Body!.WeaponsInModel).Select(e => e.Name).Order(StringComparer.Ordinal));
+        Assert.Equal(new[] { "Bandit Boss", "Bandit Boss", "Bandit Boss", "Bandit Woodsman", "Bandit Woodsman", "Bandit Boss", "Bandit Boss",
+            "Bandit Woodsman", "Bandit Boss", "Becan", "Keelin" }.Order(StringComparer.Ordinal),
+            Entities.Where(e => e.Body!.BowHand == BowHand.Other).Select(e => e.Name).Order(StringComparer.Ordinal));
 
         var cp = CombatCheckpoints.Combat(1);
         Assert.Equal([.. CombatImporter.UndrawnWeaponPlaces, 0xFF],
@@ -280,11 +285,25 @@ public sealed class CombatImportTests(Na10Import fixture)
         for (var a = 0x800D2688u; rom.Data[(int)(a - 0x80000400u + 0x1000)] is var b && b != 0xFF; a++)
             noFlee.Add(b);
         Assert.Equal(12, noFlee.Count);
-        Assert.Equal(noFlee.Select(At), Combat.NoFlee);
+        Assert.Equal(noFlee.Select(At).OrderBy(i => i.Key, StringComparer.Ordinal),
+            Entities.Where(e => e.Combat?.Flee == FleeSay.Forbids).Select(e => e.Id).OrderBy(i => i.Key, StringComparer.Ordinal));
 
-        Assert.Equal([At(0xAC)], Combat.Flee);
-        Assert.Equal([At(0xAC)], Combat.Untargetable!);
+        Assert.Equal([At(0xAC)], Entities.Where(e => e.Combat?.Flee == FleeSay.Allows).Select(e => e.Id));
+        Assert.Equal([At(0xAC)], Entities.Where(e => e.Combat?.Untargetable == true).Select(e => e.Id));
         Assert.Equal(Combat.Shadow!.Entity, At(0xAC));
         Assert.Equal("Shadow", Set.Get<EntityRecord>(At(0xAC)).Name);
+    }
+
+    /// <summary>The combat traits that one entity alone has, now carried by the entities themselves (ADR 0032).</summary>
+    [Fact]
+    public void SholehAloneFightsForThePartyTheShadowAloneIsUntargetableAndPochanargatAloneIsRooted()
+    {
+        Assert.Equal(["Sholeh"], Entities.Where(e => e.Combat?.FightsForParty == true).Select(e => e.Name));
+        Assert.Equal(["Shadow"], Entities.Where(e => e.Combat?.Untargetable == true).Select(e => e.Name));
+        Assert.Equal(["Shadow"], Entities.Where(e => e.Combat?.Flee == FleeSay.Allows).Select(e => e.Name));
+        Assert.Equal(["Pochanargat"], Entities.Where(e => e.Combat?.Rooted == true).Select(e => e.Name));
+        Assert.Equal(["Oriana"], Entities.Where(e => e.TrainsFree).Select(e => e.Name));
+        Assert.Single(fixture.Data.Set.All<ItemRecord>(RecordTypes.Item), i => i.Weapon?.StrikesInMelee == true);
+        Assert.Equal("Spikes", fixture.Data.Set.All<ItemRecord>(RecordTypes.Item).Single(i => i.Weapon?.StrikesInMelee == true).Name);
     }
 }

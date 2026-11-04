@@ -340,8 +340,8 @@ public sealed class PartyMemberTests(Na10Import fixture)
     [Fact]
     public void TheArchmageStaffStaysWithNiesenAndTheRestOfWhatHeWearsGoesToTheInventory()
     {
-        var staff = RecordId.Hex(RecordTypes.Weapon, 0x0735);
-        Assert.True(Set.Get<WeaponRecord>(staff).Fixed);
+        var staff = RecordId.Hex(RecordTypes.Item, 0x0735);
+        Assert.True(Set.Get<ItemRecord>(staff).Fixed);
         var game = PartyOf(Niesen);
         var niesen = game.Party.Get(Niesen)!;
         Assert.Equal(staff, niesen.Equipment.Weapon?.Id);

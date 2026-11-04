@@ -15,8 +15,8 @@ public sealed class PluginSetTests : IDisposable
     private string Base() => Plugin("aidyn", null, ("weapons.json", """
         [
           // Comments and trailing commas are allowed.
-          { "id": "aidyn:weapon/0x0712", "name": "Club", "damage": 3, "stats": { "hit": 5, "range": 1 }, },
-          { "id": "aidyn:weapon/0x0713", "name": "Mace", "damage": 5 },
+          { "id": "aidyn:item/0x0712", "name": "Club", "damage": 3, "stats": { "hit": 5, "range": 1 }, },
+          { "id": "aidyn:item/0x0713", "name": "Mace", "damage": 5 },
         ]
         """));
 
@@ -25,10 +25,10 @@ public sealed class PluginSetTests : IDisposable
     {
         var set = PluginSet.Load([
             Base(),
-            Plugin("mymod", ["aidyn"], ("club.json", """{ "patch": "aidyn:weapon/0x0712", "damage": 9, "stats": { "range": null } }""")),
+            Plugin("mymod", ["aidyn"], ("club.json", """{ "patch": "aidyn:item/0x0712", "damage": 9, "stats": { "range": null } }""")),
         ]);
 
-        var club = set.GetJson(RecordId.Parse("aidyn:weapon/0x0712"))!;
+        var club = set.GetJson(RecordId.Parse("aidyn:item/0x0712"))!;
         Assert.Equal(9, (int)club["damage"]!);
         Assert.Equal("Club", (string)club["name"]!);
         Assert.Equal(5, (int)club["stats"]!["hit"]!);
@@ -40,8 +40,8 @@ public sealed class PluginSetTests : IDisposable
     {
         var set = PluginSet.Load([
             Base(),
-            Plugin("one", ["aidyn"], ("a.json", """{ "patch": "aidyn:weapon/0x0712", "damage": 9 }""")),
-            Plugin("two", ["aidyn"], ("b.json", """{ "patch": "aidyn:weapon/0x0712", "damage": 7, "name": "Big club" }""")),
+            Plugin("one", ["aidyn"], ("a.json", """{ "patch": "aidyn:item/0x0712", "damage": 9 }""")),
+            Plugin("two", ["aidyn"], ("b.json", """{ "patch": "aidyn:item/0x0712", "damage": 7, "name": "Big club" }""")),
         ]);
 
         // The base sets every field of its records, and "name" patched by one mod is a patch, not a conflict.
@@ -49,7 +49,7 @@ public sealed class PluginSetTests : IDisposable
         Assert.Equal("damage", conflict.Path);
         Assert.Equal(["one", "two"], conflict.Plugins);
         Assert.Equal("two", conflict.Winner);
-        Assert.Equal(7, (int)set.GetJson(RecordId.Parse("aidyn:weapon/0x0712"))!["damage"]!);
+        Assert.Equal(7, (int)set.GetJson(RecordId.Parse("aidyn:item/0x0712"))!["damage"]!);
     }
 
     private const string MapWithThreeObjects = """
@@ -150,10 +150,10 @@ public sealed class PluginSetTests : IDisposable
         // A list without a class, or a keyed list patched with something other than a list, is replaced too.
         var weapons = PluginSet.Load([
             Base(),
-            Plugin("mymod", ["aidyn"], ("club.json", """{ "patch": "aidyn:weapon/0x0712", "tags": ["a"] }""")),
-            Plugin("other", ["mymod"], ("club.json", """{ "patch": "aidyn:weapon/0x0712", "tags": ["b", "c"] }""")),
+            Plugin("mymod", ["aidyn"], ("club.json", """{ "patch": "aidyn:item/0x0712", "tags": ["a"] }""")),
+            Plugin("other", ["mymod"], ("club.json", """{ "patch": "aidyn:item/0x0712", "tags": ["b", "c"] }""")),
         ]);
-        Assert.Equal(["b", "c"], ((JsonArray)weapons.GetJson(RecordId.Parse("aidyn:weapon/0x0712"))!["tags"]!).Select(t => (string)t!));
+        Assert.Equal(["b", "c"], ((JsonArray)weapons.GetJson(RecordId.Parse("aidyn:item/0x0712"))!["tags"]!).Select(t => (string)t!));
     }
 
     [Fact]
@@ -171,13 +171,13 @@ public sealed class PluginSetTests : IDisposable
     public void AnEditorsSchemaPointerIsIgnored()
     {
         var set = PluginSet.Load([
-            Plugin("aidyn", null, ("weapons.json", """{ "$schema": "weapon.schema.json", "id": "aidyn:weapon/0x0712", "name": "Club" }""")),
-            Plugin("mymod", ["aidyn"], ("club.json", """{ "$schema": "weapon.patch.schema.json", "patch": "aidyn:weapon/0x0712", "name": "Big club" }""")),
+            Plugin("aidyn", null, ("weapons.json", """{ "$schema": "weapon.schema.json", "id": "aidyn:item/0x0712", "name": "Club" }""")),
+            Plugin("mymod", ["aidyn"], ("club.json", """{ "$schema": "weapon.patch.schema.json", "patch": "aidyn:item/0x0712", "name": "Big club" }""")),
         ]);
-        var club = set.GetJson(RecordId.Parse("aidyn:weapon/0x0712"))!;
+        var club = set.GetJson(RecordId.Parse("aidyn:item/0x0712"))!;
         Assert.False(club.ContainsKey("$schema"));
         Assert.Equal("Big club", (string)club["name"]!);
-        Assert.Empty(set.Setters(RecordId.Parse("aidyn:weapon/0x0712"), "$schema"));
+        Assert.Empty(set.Setters(RecordId.Parse("aidyn:item/0x0712"), "$schema"));
     }
 
     [Fact]
@@ -185,23 +185,23 @@ public sealed class PluginSetTests : IDisposable
     {
         var error = Assert.Throws<InvalidDataException>(() => PluginSet.Load([
             Base(),
-            Plugin("mymod", ["aidyn"], ("new.json", """{ "id": "aidyn:weapon/0x0799", "damage": 1 }""")),
+            Plugin("mymod", ["aidyn"], ("new.json", """{ "id": "aidyn:item/0x0799", "damage": 1 }""")),
         ]));
         Assert.Contains("own namespace", error.Message, StringComparison.Ordinal);
 
         Directory.Delete(_temp.Root, recursive: true);
         var set = PluginSet.Load([
             Base(),
-            Plugin("mymod", ["aidyn"], ("new.json", """{ "id": "mymod:weapon/sword_of_tests", "damage": 1 }""")),
+            Plugin("mymod", ["aidyn"], ("new.json", """{ "id": "mymod:item/sword_of_tests", "damage": 1 }""")),
         ]);
-        Assert.True(set.Contains(RecordId.Parse("mymod:weapon/sword_of_tests")));
+        Assert.True(set.Contains(RecordId.Parse("mymod:item/sword_of_tests")));
     }
 
     [Fact]
     public void PatchesNeedATarget()
     {
         Assert.Throws<InvalidDataException>(() => PluginSet.Load([
-            Base(), Plugin("mymod", ["aidyn"], ("p.json", """{ "patch": "aidyn:weapon/0x0799", "damage": 1 }""")),
+            Base(), Plugin("mymod", ["aidyn"], ("p.json", """{ "patch": "aidyn:item/0x0799", "damage": 1 }""")),
         ]));
     }
 
@@ -243,14 +243,14 @@ public sealed class PluginSetTests : IDisposable
     {
         var set = PluginSet.Load([
             Base(),
-            Plugin("mymod", ["aidyn"], ("club.json", """{ "patch": "aidyn:weapon/0x0712", "damage": 9 }""")),
+            Plugin("mymod", ["aidyn"], ("club.json", """{ "patch": "aidyn:item/0x0712", "damage": 9 }""")),
         ]);
-        var club = RecordId.Parse("aidyn:weapon/0x0712");
+        var club = RecordId.Parse("aidyn:item/0x0712");
         Assert.Equal("aidyn", set.DefinedBy(club));
         Assert.Equal(["aidyn", "mymod"], set.Setters(club, "damage"));
         Assert.Equal(["aidyn"], set.Setters(club, "name"));
         Assert.Empty(set.Setters(club, "weight"));
-        Assert.Null(set.DefinedBy(RecordId.Parse("aidyn:weapon/0x0799")));
+        Assert.Null(set.DefinedBy(RecordId.Parse("aidyn:item/0x0799")));
     }
 
     [Fact]
@@ -309,25 +309,25 @@ public sealed class PluginSetTests : IDisposable
     {
         var set = PluginSet.Load([
             Base(),
-            Plugin("mymod", ["aidyn"], ("club.json", """{ "patch": "aidyn:weapon/0x0712", "name": "Big club", "price": 9 }""")),
+            Plugin("mymod", ["aidyn"], ("club.json", """{ "patch": "aidyn:item/0x0712", "name": "Big club", "price": 9 }""")),
         ]);
-        var club = RecordId.Parse("aidyn:weapon/0x0712");
+        var club = RecordId.Parse("aidyn:item/0x0712");
 
         var read = set.Get<DbRecord>(club);
         Assert.Equal("Big club", read.Name);
         Assert.Same(read, set.Get<DbRecord>(club));
         Assert.Same(read, set.TryGet<DbRecord>(club));
-        Assert.Same(read, set.All<DbRecord>(RecordTypes.Weapon)[0]);
+        Assert.Same(read, set.All<DbRecord>(RecordTypes.Item)[0]);
 
         // The same record read as its class is that type's own object; a type the record doesn't read as is refused.
-        var weapon = set.Get<WeaponRecord>(club);
+        var weapon = set.Get<ItemRecord>(club);
         Assert.Equal(9, weapon.Price);
-        Assert.Same(weapon, set.Get<WeaponRecord>(club));
-        Assert.Null(set.TryGet<DbRecord>(RecordId.Parse("aidyn:weapon/0x0799")));
-        Assert.Throws<ArgumentException>(() => set.TryGet<ArmorRecord>(club));
+        Assert.Same(weapon, set.Get<ItemRecord>(club));
+        Assert.Null(set.TryGet<DbRecord>(RecordId.Parse("aidyn:item/0x0799")));
+        Assert.Throws<ArgumentException>(() => set.TryGet<SpellRecord>(club));
         Assert.Throws<ArgumentException>(() => set.All<WeatherRecord>(RecordTypes.Combat));
         Assert.Throws<ArgumentException>(() => set.All<SkillRecord>());
-        Assert.Same(set.All<WeaponRecord>(RecordTypes.Weapon), set.All<WeaponRecord>());
+        Assert.Same(set.All<ItemRecord>(RecordTypes.Item), set.All<ItemRecord>());
     }
 
     [Fact]
@@ -335,16 +335,16 @@ public sealed class PluginSetTests : IDisposable
     {
         var set = PluginSet.Load([
             Plugin("aidyn", null,
-                ("b.json", """[{ "id": "aidyn:weapon/0x0713", "name": "Mace" }, { "id": "aidyn:flag/1" }]"""),
-                ("a.json", """{ "id": "aidyn:weapon/0x0712", "name": "Club" }""")),
-            Plugin("mymod", ["aidyn"], ("sword.json", """{ "id": "mymod:weapon/sword", "name": "Sword" }""")),
+                ("b.json", """[{ "id": "aidyn:item/0x0713", "name": "Mace" }, { "id": "aidyn:flag/1" }]"""),
+                ("a.json", """{ "id": "aidyn:item/0x0712", "name": "Club" }""")),
+            Plugin("mymod", ["aidyn"], ("sword.json", """{ "id": "mymod:item/sword", "name": "Sword" }""")),
         ]);
 
-        var weapons = set.All<DbRecord>(RecordTypes.Weapon);
-        Assert.Equal(["aidyn:weapon/0x0712", "aidyn:weapon/0x0713", "mymod:weapon/sword"], weapons.Select(w => w.Id.ToString()));
-        Assert.Same(weapons, set.All<DbRecord>(RecordTypes.Weapon));
-        Assert.Same(weapons[2], set.Get<DbRecord>(RecordId.Parse("mymod:weapon/sword")));
-        Assert.Empty(set.All<DbRecord>(RecordTypes.Armor));
+        var weapons = set.All<DbRecord>(RecordTypes.Item);
+        Assert.Equal(["aidyn:item/0x0712", "aidyn:item/0x0713", "mymod:item/sword"], weapons.Select(w => w.Id.ToString()));
+        Assert.Same(weapons, set.All<DbRecord>(RecordTypes.Item));
+        Assert.Same(weapons[2], set.Get<DbRecord>(RecordId.Parse("mymod:item/sword")));
+        Assert.Empty(set.All<DbRecord>(RecordTypes.Spell));
     }
 
     [Fact]
@@ -363,7 +363,7 @@ public sealed class PluginSetTests : IDisposable
         Assert.Null(set.TrySingleton<SkyRecord>());
         Assert.Throws<KeyNotFoundException>(() => set.Singleton<SkyRecord>());
         // A type with many records, or one that's the class of two types, has no singleton.
-        Assert.Throws<ArgumentException>(() => set.Singleton<WeaponRecord>());
+        Assert.Throws<ArgumentException>(() => set.Singleton<ItemRecord>());
         Assert.Throws<ArgumentException>(() => set.Singleton<SkillRecord>());
     }
 

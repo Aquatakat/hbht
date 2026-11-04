@@ -31,8 +31,9 @@ Use these words in code and docs. Where the original's name clashes with ours, u
 | **Borg** | An asset in the ROM's archive, by type (Borg1 texture … Borg13 script) and archive index. | |
 | **Scene** | A Borg5: a tree of transforms with models, a camera and lights. Record `aidyn:scene/0x…`. | A Godot scene (`.tscn`). Say "Godot scene" for those. |
 | **Actor** | A Borg7: a scene with a state machine of animations. Record `aidyn:actor/0x…`. | The decomp's `Actor::` functions and `PlayerData`, which are a **body** moving through the world: the player, an NPC or a combatant. That code is in `Movement` and `Physics`. |
-| **Request** | The animation number the game asks an actor for (0 idle, 2 walk, 3 run, …). | An actor's states. |
-| **Entity** | An EntityDB record: a kind of character or creature, with its stats. Record `aidyn:entity/0x…`. | An ECS entity. |
+| **Request** | The animation number the game asks an actor for (0 idle, 2 walk, 3 run, …), a record `aidyn:request/n` (ADR 0033). | An actor's states. |
+| **Entity** | Anyone who stands, talks or fights: a kind of character or creature, record `aidyn:entity/0x…`. The EntityDB's have a character **sheet** with their stats; the original's dialogue entities (`0x14xx`: signs, animals, passers-by) are entities with none, which can't fight or join (ADR 0032). | An ECS entity. |
+| **Item** | An item record, `aidyn:item/0x…`: weapons (`0x07…`), body armor (`0x05…`) and shields (`0x06…`) among them, by `kind` (ADR 0031). | |
 | **Map set** | One of the 17 grids of chunks: the Overworld, the Gwernia interiors, the Battle arenas and so on (`EnumMapDatA`). Record `aidyn:mapset/<n>`. | |
 | **Chunk** | One cell of a map set, named by row letter and column (I08, M07): a Borg9 and up to two scenes. The 3×3 around the player are loaded (the decomp's `ZoneEngine`; ours is the chunk streamer, which our `ZoneEngine` holds). | |
 | **Fill** | What other chunks' scenes drew over a chunk's cell, which the importer moved into it, drawn with it. Record `aidyn:fill/<n>`. A cell that had only that gets a chunk of its own. | A chunk's **shows**: the chunks whose own art replaced a copy it drew, drawn while it's loaded. |

@@ -81,7 +81,7 @@ public sealed partial class Battle
     /// </summary>
     public bool CanCast(Combatant c, SpellSource source, Combatant t, Vector2 from, Vector2 centre)
     {
-        if (_rules.Untargetable.Contains(t.Entity) || _rules.Untargetable.Contains(c.Entity))
+        if (t.Sheet.Record.Combat?.Untargetable == true || c.Sheet.Record.Combat?.Untargetable == true)
             return false;
         var spell = source.Spell;
         if (!Casting.CanTarget(c, spell, t) || Casting.Requirement(spell, t.Sheet) != CastRefusal.None)
@@ -239,7 +239,7 @@ public sealed partial class Battle
             known.Add((spell.Name, i, spell));
         }
         foreach (var (name, index, spell) in known.OrderBy(k => k.Name, StringComparer.Ordinal))
-            rows.Add(new(CombatMenuChoice.Spell, name, CombatMenu.SchoolIcon(spell.School), CombatMenu.SpellColor, new SpellChoice(SpellSourceKind.Known, index)));
+            rows.Add(new(CombatMenuChoice.Spell, name, CombatMenu.SchoolIcon(c.Sheet.Rules, spell.School), CombatMenu.SpellColor, new SpellChoice(SpellSourceKind.Known, index)));
         return rows;
     }
 
@@ -503,7 +503,7 @@ public sealed partial class Battle
         };
         _cast = new CastUnderway(a, t, source.Spell, kind, damage != 0 || outcome.Result == CastResult.Effect, _teleportTo);
         _teleportTo = null;
-        if (a.Look.CastStrike <= 0)
+        if (a.Look.StrikeFor(CastRequest) <= 0)
             StartCastFx(_cast);
         return damage;
     }
@@ -570,7 +570,7 @@ public sealed partial class Battle
         if (body.Playing == CastRequest)
             cast.Seen = true;
         var start = animation is null || cast.Caster.Freed
-            || cast.Seen && (body.Playing != CastRequest || animation.Frame >= (int)(animation.StateLength * cast.Caster.Look.CastStrike))
+            || cast.Seen && (body.Playing != CastRequest || animation.Frame >= (int)(animation.StateLength * cast.Caster.Look.StrikeFor(CastRequest)))
             || !cast.Seen && ++cast.Waited > Cadence.FrameTicks + 1;
         if (start)
             StartCastFx(cast);

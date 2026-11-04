@@ -64,7 +64,7 @@ public sealed class MeleeVectorTests(Na10Import fixture, ITestOutputHelper outpu
             ("adjusted", outcome.Adjusted),
             ("damage", outcome.Damage),
             ("draws", draws.Count),
-            ("skill", a.Sheet.Skills.RawBase(weapon.Class)),
+            ("skill", a.Sheet.Skills.RawBase(SkillId.FromRecord(weapon.Skill))),
             ("aiflags", (int)(t.Ai?.Flags ?? 0)),
             ("margin", a.CastMargin),
         };

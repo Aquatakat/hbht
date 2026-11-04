@@ -3,6 +3,7 @@ using HBHT.Plugins;
 using HBHT.Plugins.Records;
 using HBHT.Rom.Db;
 using HBHT.Rom.Engine;
+using HBHT.Rom.Import;
 
 namespace HBHT.Rom.Tests;
 
@@ -87,8 +88,10 @@ public class MenuTablesTests
 
         foreach (var aspect in Enum.GetValues<Aspect>())
             Assert.Equal(items.AspectIcons[(int)aspect] is var a and not 0 ? Image(a) : (RecordId?)null, MenuImages.AspectIcon(aspect));
+        // The schools' icons are the school records' now, which the importer makes from the ROM's table.
+        var schools = KindImporter.BuildSchools(items).ToDictionary(r => r.Id);
         foreach (var school in Enum.GetValues<MagicSchool>())
-            Assert.Equal(items.SchoolIcons[(int)school] is var s and not 0 ? Image(s) : (RecordId?)null, MenuImages.SchoolIcon(school));
+            Assert.Equal(items.SchoolIcons[(int)school] is var s and not 0 ? Image(s) : (RecordId?)null, schools[RomIds.School(school)].Icon);
     }
 
     /// <summary>

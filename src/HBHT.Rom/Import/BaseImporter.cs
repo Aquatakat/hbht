@@ -40,6 +40,7 @@ public static class BaseImporter
             Import: new ImportInfo(BasePlugin.ImporterVersion, rom.Sha1, rom.Version.Name, options)));
 
         WorldImporter.Import(context);
+        KindImporter.Import(context);
         CombatImporter.Import(context);
         MagicImporter.Import(context);
         FlagImporter.Import(context);

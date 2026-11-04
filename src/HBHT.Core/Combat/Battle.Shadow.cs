@@ -202,7 +202,7 @@ public sealed partial class Battle
         }
         for (var i = 0; i < InPlay; i++)
         {
-            if (_slots[i] is not { } c || c == shadow || c.Gone || c.Sheet.IsDead || c.Sheet.Record.Category == EntityCategory.Chaos)
+            if (_slots[i] is not { } c || c == shadow || c.Gone || c.Sheet.IsDead || c.Sheet.Sheet.Category == EntityCategory.Chaos)
                 continue;
             var distance = Vector2.Distance(c.Cell, shadow.Cell);
             if (rules.Radius <= distance)

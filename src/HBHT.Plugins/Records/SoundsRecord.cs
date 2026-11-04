@@ -39,7 +39,7 @@ public sealed record SoundsRecord(
 /// animation started by <paramref name="Request"/> reaches <c>Frac / 65500</c> of its length, at least its first frame.
 /// </summary>
 /// <param name="Sounds">One plays at random. With none, the body's weapon's sound plays, in combat.</param>
-public sealed record SoundKey(int Frac, int Request, IReadOnlyList<RecordId> Sounds);
+public sealed record SoundKey(int Frac, RecordId Request, IReadOnlyList<RecordId> Sounds);
 
 /// <summary>A body's sounds: its kind, which its footsteps go by, and its voice's and weapon's keys.</summary>
 /// <param name="Kind">An index into <see cref="SoundsRecord.Kinds"/>. Kind 0 makes no sound at all.</param>

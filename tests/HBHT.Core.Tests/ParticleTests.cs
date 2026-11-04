@@ -29,7 +29,7 @@ public class ParticleTests
     /// <summary>An emitter at locator 0 with no jitter, no speed and no acceleration, one particle a frame.</summary>
     private static ParticleEmitter Emitter(int lifetime = 20, int particleLifetime = 10, int delay = 0, int interval = 1, int burst = 0,
         ParticleEmitterFlags flags = ParticleEmitterFlags.ActorRequest) => new(
-        new ParticleLocator(0, 0), new ParticleLocator(1, 0), 5, flags, lifetime, particleLifetime, delay, interval, burst,
+        new ParticleLocator(0, 0), new ParticleLocator(1, 0), RecordIds.Request(5), flags, lifetime, particleLifetime, delay, interval, burst,
         RecordId.Hex(RecordTypes.Texture, 11), 13, 0, Vector3.Zero, 0, Vector3.Zero, 0, 0,
         Vector3.Zero, 0, Vector3.Zero, 0, Vector3.Zero, 0, Vector3.Zero, 0, Vector3.Zero, 0, 1, 1, 1, White, White, White);
 
@@ -230,7 +230,7 @@ public class ParticleTests
     {
         var head = new ParticleHead(new Lcg());
         var emitters = new EmittersRecord(RecordId.Hex(RecordTypes.Emitters, 0x2BCB),
-            [Emitter(lifetime: 100), Emitter(lifetime: 100) with { Request = 0 }, Emitter(lifetime: 100) with { Flags = 0 }]);
+            [Emitter(lifetime: 100), Emitter(lifetime: 100) with { Request = RecordIds.Request(0) }, Emitter(lifetime: 100) with { Flags = 0 }]);
         var actor = new ActorParticles(head, emitters, new Anchor(Vector3.Zero));
         actor.Entered(5);
         Assert.Equal(1, head.EmittersInUse);

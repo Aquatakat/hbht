@@ -130,13 +130,10 @@ public sealed class QuestIndexTests : IDisposable
     [Fact]
     public void WinningABattleWithABossSetsItsFlag()
     {
-        var plugins = _temp.Aidyn(("combat.json", """
+        var plugins = _temp.Aidyn(("entities.json", """
             [
-              {
-                "id": "aidyn:combat/0", "ally": "aidyn:entity/0x0001", "bystanders": [], "fallback": "aidyn:entity/0x0001",
-                "noFlee": [], "flee": [], "fleeByEncounter": [],
-                "bosses": [ { "entity": "aidyn:entity/0x0248", "flag": "aidyn:flag/90" }, { "entity": "aidyn:entity/0x0243", "flag": "aidyn:flag/0" } ],
-              },
+              { "id": "aidyn:entity/0x0248", "name": "Boss", "combat": { "bossFlag": "aidyn:flag/90" } },
+              { "id": "aidyn:entity/0x0243", "name": "Other", "combat": { "bossFlag": "aidyn:flag/0" } },
             ]
             """));
         var index = QuestIndex.Build(plugins);
@@ -247,10 +244,10 @@ public sealed class QuestIndexTests : IDisposable
               { "id": "aidyn:item/0x1201", "name": "Key B", "icon": "aidyn:image/0x0001", "price": 0, "kind": "Key", "keyItem": { "held": "aidyn:flag/102" } },
               { "id": "aidyn:item/0x1202", "name": "Key C", "icon": "aidyn:image/0x0001", "price": 0, "kind": "Key", "keyItem": { "held": "aidyn:flag/1", "region": "aidyn:flag/0" } },
               { "id": "aidyn:item/0x0010", "name": "Ring", "icon": "aidyn:image/0x0001", "price": 5, "kind": "Ring" },
-              { "id": "aidyn:loot/0x0800", "name": "Loot A", "goldMin": 0, "goldMax": 0, "armorChance": 0, "shieldChance": 0, "weaponChances": [0, 0, 0],
+              { "id": "aidyn:loot/0x0800", "name": "Loot A", "goldMin": 0, "goldMax": 0, "armorChance": 0, "shieldChance": 0, "weaponChances": {},
                 "reagentChance": 0, "reagentMin": 0, "reagentMax": 0,
                 "drops": [ { "item": "aidyn:item/0x1201", "chance": 100 }, { "chance": 50 } ] },
-              { "id": "aidyn:loot/0x0801", "name": "Loot B", "goldMin": 0, "goldMax": 0, "armorChance": 0, "shieldChance": 0, "weaponChances": [0, 0, 0],
+              { "id": "aidyn:loot/0x0801", "name": "Loot B", "goldMin": 0, "goldMax": 0, "armorChance": 0, "shieldChance": 0, "weaponChances": {},
                 "reagentChance": 0, "reagentMin": 0, "reagentMax": 0,
                 "drops": [ { "item": "aidyn:item/0x0010", "chance": 100 } ] },
               { "id": "aidyn:shop/3", "shopkeeper": "aidyn:entity/0x0001", "stock": [ { "item": "aidyn:item/0x1200" }, { "item": "aidyn:item/0x0010" } ] },

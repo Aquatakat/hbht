@@ -51,14 +51,14 @@ A save made from the "Before final encounter" checkpoint, cut short:
    "skills": { "alchemist": 0, "loremaster": 2, "stealth": 10, "troubadour": 5, "warrior": 3, "wizard": 10, … },
    "weaponSkills": { "hafted": 1, "missile": 3, "pole": 0, "sword": 4, "thrown": 0 },
    "shieldSkill": 3,
-   "weapon": { "item": "aidyn:weapon/0x0734", "charges": 3 },
-   "armor": { "item": "aidyn:armor/0x0507" },
-   "shield": { "item": "aidyn:armor/0x0612" },
+   "weapon": { "item": "aidyn:item/0x0734", "charges": 3 },
+   "armor": { "item": "aidyn:item/0x0507" },
+   "shield": { "item": "aidyn:item/0x0612" },
    "gear": [],
    "spells": [{ "spell": "aidyn:spell/0x031D", "level": 10 }, …]
   }, …],
   "kept": [{ "entity": "aidyn:entity/0x0240", "totalExp": 628818, … }, …],   // Arturo, Becan and Godric, who left
-  "inventory": [{ "item": "aidyn:weapon/0x0711", "quantity": 1 }, { "item": "aidyn:weapon/0x072B", "quantity": 11 }, …]
+  "inventory": [{ "item": "aidyn:item/0x0711", "quantity": 1 }, { "item": "aidyn:item/0x072B", "quantity": 11 }, …]
  },
  "memories": [
   { "mapObject": "aidyn:voxel/0x1063/2", "kind": "RandomLine", "value": 99, "lifetime": 7 },

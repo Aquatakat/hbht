@@ -8,16 +8,20 @@ using HBHT.Rom.Text;
 namespace HBHT.Rom.Import;
 
 /// <summary>Combat's record (<c>aidyn:combat/0</c>): who fights, who doesn't, and the flee rules.</summary>
+/// <summary>What combat's tables in code say of each item: which weapons fly and which strike in melee, and how far each flask spreads the AI.</summary>
+internal sealed record ItemFacts(
+    IReadOnlyDictionary<RecordId, Missile> Missiles, IReadOnlySet<RecordId> StrikesInMelee, IReadOnlyDictionary<RecordId, int> AiSpread);
+
+/// <summary>What combat's tables in code say of each entity: its combat traits, and how its body holds weapons.</summary>
+internal sealed record EntityFacts(
+    IReadOnlyDictionary<RecordId, EntityCombat> Combat, IReadOnlySet<RecordId> WeaponsInModel, IReadOnlySet<RecordId> OtherHand);
+
 internal static class CombatImporter
 {
     public static void Import(ImportContext ctx)
     {
         ctx.Report("Combat");
-        ctx.WriteRecords("combat.json", new[]
-        {
-            BuildCombat(ctx.Engine, ctx.Db, ctx.Items, ctx.Rom.Table(CodeTable.BowKindWeapons), ctx.Rom.Table(CodeTable.ThrownKindWeapons),
-                ReadText(ctx.Rom, ctx.Db)),
-        });
+        ctx.WriteRecords("combat.json", new[] { BuildCombat(ctx.Engine, ReadText(ctx.Rom)) });
     }
 
     /// <summary>
@@ -28,33 +32,17 @@ internal static class CombatImporter
     private static readonly System.Numerics.Vector2 OrianasHutHeading = new(-1, 0);
 
     /// <summary>
-    /// The combat record. The code names entities by their place in the entity list (<see cref="EngineTables.EntityList"/>),
-    /// read from the ROM; the places, and the encounter flags' table, are carried as facts, checked in 1.0's code: Sholeh
-    /// is 0xA4 (<c>Combat.FindSholeh</c>), the Skeleton 0xBB (<c>BattleSetup.FillEnemies</c>), the Shadow 0xAC, with whom the party can
-    /// flee (<c>Combat.ForbidFleeForBosses</c>) and whom no one can attack or cast at (<c>Combatant.CanAttack</c>, <c>Combatant.CanCast</c>
-    /// through <c>Combat.ShadowSlot</c>), Pochanargat 0xAB, who never moves in battle (<c>Combatant.UpdateRadius</c>); the bystanders
-    /// 0–0x56, 0x82–0x90 and 0x92–0x96 (<c>Combat.IsExcludedEnemy</c>); the bosses who forbid fleeing the twelve of
-    /// <c>Combat.NoFleeEntities</c> (<c>0x800D2688</c>); the thirteen the AI gives the bosses' styles (<c>EnemyAI.HasBossStyle</c>,
-    /// <c>0x8005BA40</c>, by its jump table at <c>0x800D24B0</c>); the encounters <c>0x800D26A0</c>'s three; the boss flags (<see cref="BossFlags"/>);
-    /// the weapon classes that drop (<c>0x800D26C8</c>); the Goblin Ambush's rules (<c>Combat.Init</c>, <c>TurnOrder.Defeat</c>,
-    /// <c>Combat.StateDefeat</c> and <c>Combat.Exit</c>); and the game over's map, with its script read from the ROM's list
-    /// (<see cref="EngineTables.GameOverScript"/>). The weapons that fly are the
-    /// ROM's two lists of weapon DB positions (<c>Combat.BowKindWeapons</c> <c>0x800E0C08</c> and <c>Combat.ThrownKindWeapons</c>
-    /// <c>0x800E0C14</c>, read per version), each with the numbers <see cref="Muzzles"/> carries; a listed weapon with no fact, a fact
-    /// for none listed, or a name that differs is an error. Spikes, position 100, is the one ranged weapon allowed in melee.
+    /// The combat record: the Skeleton 0xBB (<c>BattleSetup.FillEnemies</c>), the encounters <c>0x800D26A0</c>'s three, the Goblin
+    /// Ambush's rules (<c>Combat.Init</c>, <c>TurnOrder.Defeat</c>, <c>Combat.StateDefeat</c> and <c>Combat.Exit</c>), the game over's
+    /// map, with its script read from the ROM's list (<see cref="EngineTables.GameOverScript"/>), and the Shadow's rules. What the code
+    /// keeps about one entity or item goes on it (<see cref="Entities"/>, <see cref="Items"/>).
     /// </summary>
-    internal static CombatRecord BuildCombat(
-        EngineTables tables, GameDb db, ItemTables items, ReadOnlySpan<byte> bowList, ReadOnlySpan<byte> thrownList, CombatText text)
+    internal static CombatRecord BuildCombat(EngineTables tables, CombatText text)
     {
-        RecordId At(int place) => DbRecordIds.Required(tables.EntityList[place], $"entity list place {place}");
-        static bool Bystander(int place) => place <= 0x56 || place is >= 0x82 and <= 0x90 or >= 0x92 and <= 0x96;
+        RecordId At(int place) => EntityAt(tables, place);
         return new CombatRecord(
             RecordId.Decimal(RecordTypes.Combat, 0),
-            Ally: At(0xA4),
-            Bystanders: [.. Enumerable.Range(0, tables.EntityList.Count).Where(Bystander).Select(At)],
             Fallback: At(0xBB),
-            NoFlee: [.. new[] { 0xA8, 0xAA, 0xAB, 0xAD, 0xAE, 0xB4, 0xB3, 0xB2, 0xB1, 0xB0, 0xAF, 0xB5 }.Select(At)],
-            Flee: [At(ShadowPlace)],
             FleeByEncounter:
             [
                 new(DbRecordIds.Flag(978), false),
@@ -62,12 +50,6 @@ internal static class CombatImporter
                 new(DbRecordIds.Flag(3749), true),
             ],
             LootGoldMultiplier: 2,
-            Rooted: [At(0xAB)],
-            Missiles: Missiles(db, items, Positions(bowList), Positions(thrownList)),
-            CloseRange: [Weapon(db, SpikesPosition, "Spikes")],
-            Bosses: [.. BossFlags.Select(b => new BossFlag(At(b.Place), DbRecordIds.Flag(b.Flag)))],
-            BossStyles: [.. new[] { 0x57, 0x58, 0x59, 0x5E, 0x5F, 0x7A, 0xA7, 0xA8, 0xA9, 0xAB, 0xAD, 0xBA, 0xBC }.Select(At)],
-            DroppedClasses: [WeaponClass.Hafted, WeaponClass.Missile, WeaponClass.Pole, WeaponClass.Sword, WeaponClass.Thrown],
             Encounters:
             [
                 new(DbRecordIds.Flag(978), NonLethal: true, QuietVictory: true, Speaker: At(AlaronPlace),
@@ -77,12 +59,66 @@ internal static class CombatImporter
             ],
             GameOver: new GameOverScene(RecordId.Hex(RecordTypes.Map, GameOverMap), RecordId.Hex(RecordTypes.Dialogue, tables.GameOverScript)),
             Text: text,
-            FlaskDanger: [.. FlaskDangers.Select(f => new FlaskDanger(RecordId.Hex(RecordTypes.Item, f.Item), f.Radius))],
-            Shadow: Shadow(At),
-            UndrawnWeapons: [.. UndrawnWeaponPlaces.Select(At)],
-            OtherHand: [.. OtherHandPlaces.Select(At)],
-            Untargetable: [At(ShadowPlace)]);
+            Shadow: Shadow(At));
     }
+
+    private static RecordId EntityAt(EngineTables tables, int place) => DbRecordIds.Required(tables.EntityList[place], $"entity list place {place}");
+
+    /// <summary>
+    /// What the code keeps of each entity by its place in the entity list (<see cref="EngineTables.EntityList"/>), read from the ROM;
+    /// the places are carried as facts, checked in 1.0's code: Sholeh is 0xA4 (<c>Combat.FindSholeh</c>); the Shadow 0xAC, with whom
+    /// the party can flee (<c>Combat.ForbidFleeForBosses</c>) and whom no one can attack or cast at (<c>Combatant.CanAttack</c>,
+    /// <c>Combatant.CanCast</c> through <c>Combat.ShadowSlot</c>); Pochanargat 0xAB, who never moves in battle
+    /// (<c>Combatant.UpdateRadius</c>); the bystanders 0–0x56, 0x82–0x90 and 0x92–0x96 (<c>Combat.IsExcludedEnemy</c>); the bosses who
+    /// forbid fleeing the twelve of <c>Combat.NoFleeEntities</c> (<c>0x800D2688</c>); the thirteen the AI gives the bosses' styles
+    /// (<c>EnemyAI.HasBossStyle</c>, <c>0x8005BA40</c>, by its jump table at <c>0x800D24B0</c>); the boss flags (<see cref="BossFlags"/>);
+    /// and the bodies that hold their weapons in their models and their bows the other way round.
+    /// </summary>
+    internal static EntityFacts Entities(EngineTables tables)
+    {
+        RecordId At(int place) => EntityAt(tables, place);
+        static bool Bystander(int place) => place <= 0x56 || place is >= 0x82 and <= 0x90 or >= 0x92 and <= 0x96;
+        var combat = new Dictionary<RecordId, EntityCombat>();
+        void Set(int place, Func<EntityCombat, EntityCombat> change) =>
+            combat[At(place)] = change(combat.GetValueOrDefault(At(place)) ?? new EntityCombat());
+
+        Set(0xA4, c => c with { FightsForParty = true });
+        foreach (var place in Enumerable.Range(0, tables.EntityList.Count).Where(Bystander))
+            Set(place, c => c with { Bystander = true });
+        foreach (var place in NoFleePlaces)
+            Set(place, c => c with { Flee = FleeSay.Forbids });
+        Set(ShadowPlace, c => c with { Flee = FleeSay.Allows, Untargetable = true });
+        Set(0xAB, c => c with { Rooted = true });
+        foreach (var (place, flag) in BossFlags)
+            Set(place, c => c with { BossFlag = DbRecordIds.Flag(flag) });
+        foreach (var place in BossStylePlaces)
+            Set(place, c => c with { BossStyle = true });
+        return new EntityFacts(combat, UndrawnWeaponPlaces.Select(At).ToHashSet(), OtherHandPlaces.Select(At).ToHashSet());
+    }
+
+    /// <summary><c>Combat.NoFleeEntities</c> (<c>0x800D2688</c>), in its order.</summary>
+    internal static readonly IReadOnlyList<int> NoFleePlaces = [0xA8, 0xAA, 0xAB, 0xAD, 0xAE, 0xB4, 0xB3, 0xB2, 0xB1, 0xB0, 0xAF, 0xB5];
+
+    /// <summary>The places <c>EnemyAI.HasBossStyle</c> (<c>0x8005BA40</c>) gives the bosses' styles.</summary>
+    internal static readonly IReadOnlyList<int> BossStylePlaces = [0x57, 0x58, 0x59, 0x5E, 0x5F, 0x7A, 0xA7, 0xA8, 0xA9, 0xAB, 0xAD, 0xBA, 0xBC];
+
+    /// <summary>The weapon classes whose weapons can drop as loot (<c>Combat.DropWeaponClasses</c>, <c>0x800D26C8</c>).</summary>
+    internal static readonly IReadOnlyList<WeaponClass> DroppedClasses =
+        [WeaponClass.Hafted, WeaponClass.Missile, WeaponClass.Pole, WeaponClass.Sword, WeaponClass.Thrown];
+
+    internal static ItemFacts ItemFacts(ImportContext ctx) =>
+        Items(ctx.Db, ctx.Items, ctx.Rom.Table(CodeTable.BowKindWeapons), ctx.Rom.Table(CodeTable.ThrownKindWeapons));
+
+    /// <summary>
+    /// What the code keeps of each item: the weapons that fly are the ROM's two lists of weapon DB positions
+    /// (<c>Combat.BowKindWeapons</c> <c>0x800E0C08</c> and <c>Combat.ThrownKindWeapons</c> <c>0x800E0C14</c>, read per version), each with
+    /// the numbers <see cref="Muzzles"/> carries; a listed weapon with no fact, a fact for none listed, or a name that differs is an
+    /// error. Spikes, position 100, is the one ranged weapon allowed in melee. The flasks' radii are <see cref="FlaskDangers"/>.
+    /// </summary>
+    internal static ItemFacts Items(GameDb db, ItemTables items, ReadOnlySpan<byte> bowList, ReadOnlySpan<byte> thrownList) => new(
+        Missiles(db, items, Positions(bowList), Positions(thrownList)).ToDictionary(m => m.Weapon, m => m.Missile),
+        new HashSet<RecordId> { Weapon(db, SpikesPosition, "Spikes") },
+        FlaskDangers.ToDictionary(f => RecordId.Hex(RecordTypes.Item, f.Item), f => f.Radius));
 
     /// <summary>
     /// The entities whose weapon isn't drawn in the hand, by their places in the entity list (<c>Combatant.HasNoWeaponAttachment</c>,
@@ -119,35 +155,27 @@ internal static class CombatImporter
     /// <summary>The Horn of Kynon, whose carrying makes the Shadow merge rather than vanish.</summary>
     private const int HornOfKynon = 0x0D03;
 
-    /// <summary><c>Combat.PartyPotionTier</c>'s tests (<c>0x8005C750</c>), in its order: the first flask the party holds gives the radius.</summary>
+    /// <summary>
+    /// <c>Combat.PartyPotionTier</c>'s tests (<c>0x8005C750</c>), in its order: the first flask the party holds gives the radius. The
+    /// radii fall in that order, so the first held is the one with the greatest, which is how the port reads <see cref="ItemRecord.AiSpread"/>.
+    /// </summary>
     internal static readonly IReadOnlyList<(int Item, int Radius)> FlaskDangers = [(0x1001, 7), (0x1000, 5), (0x1002, 4), (0x1003, 4)];
 
     /// <summary>
-    /// Where the element names are in <c>String/Common</c>: lines 241 to 257, one per <see cref="Element"/> in its order, in all three
-    /// versions. The code reaches them by a pointer at <c>0x800E0C00</c> (<c>0x80083620</c> sets it to the table's line 241, and
-    /// <c>Entity.AppendResistanceLine</c>, <c>0x8006FFB0</c>, indexes it by a resistance's element byte).
-    /// </summary>
-    internal const int ElementNameLine = 241;
-
-    /// <summary>
-    /// The combat menus' and Sense Aura's words, C strings in the code segment (<see cref="CodeTable.CombatLayOnHands"/> on), with
-    /// the element names from the Common string table. Sense Aura's <c>Entity.AppendResistanceLine</c> picks the resistance
+    /// The combat menus' and Sense Aura's words, C strings in the code segment (<see cref="CodeTable.CombatLayOnHands"/> on); the element
+    /// names are the elements' own (<see cref="KindImporter"/>). Sense Aura's <c>Entity.AppendResistanceLine</c> picks the resistance
     /// line by the multiplier <c>m</c> (<c>0x8006FFB0</c>): "Immune" for <c>m &lt;= 0</c>, "Resistant" for <c>0 &lt; m &lt; 2.0</c>
     /// (the float at <c>0x800D3248</c>), "Vulnerable" for <c>m &gt;= 2.0</c>.
     /// </summary>
-    internal static CombatText ReadText(RomImage rom, GameDb db)
+    internal static CombatText ReadText(RomImage rom)
     {
         string Line(CodeTable table) => MenuTables.Text(rom, table);
-        var common = db.Strings[RomStringTable.Common];
-        var elements = Enum.GetValues<Element>().ToDictionary(e => e, e => (int)e + ElementNameLine < common.Count
-            ? DialogueText.Unescape(common[ElementNameLine + (int)e])
-            : throw new InvalidDataException($"The Common strings have no line {ElementNameLine + (int)e} for the element {e}."));
         var below = rom.Table(CodeTable.AuraResistantBelow);
         return new CombatText(Line(CodeTable.CombatLayOnHands), Line(CodeTable.CombatHealWithHerbs), Line(CodeTable.CombatPerform),
             Line(CodeTable.CombatNoSpells), Line(CodeTable.CombatNoItems),
             new SenseAuraText(Line(CodeTable.AuraFollower), Line(CodeTable.AuraLeader), Line(CodeTable.AuraHitpoints), Line(CodeTable.AuraLevel),
                 Line(CodeTable.AuraProtection), Line(CodeTable.AuraImmune), Line(CodeTable.AuraResistant), Line(CodeTable.AuraVulnerable),
-                Be.F32(below, 0), elements));
+                Be.F32(below, 0)));
     }
 
     /// <summary>
@@ -236,20 +264,20 @@ internal static class CombatImporter
     };
 
     /// <summary>The weapons that fly: the bow list's with the arrow, then the thrown list's with their own models (<c>LoadWeaponScene</c>).</summary>
-    private static List<Missile> Missiles(GameDb db, ItemTables items, List<int> bows, List<int> thrown)
+    private static List<(RecordId Weapon, Missile Missile)> Missiles(GameDb db, ItemTables items, List<int> bows, List<int> thrown)
     {
         var listed = bows.Concat(thrown).ToList();
         if (listed.Count != Muzzles.Count || listed.Except(Muzzles.Keys).Any())
             throw new InvalidDataException($"The weapons that fly are {string.Join(", ", listed)}, but the facts are for {string.Join(", ", Muzzles.Keys)}.");
         return [.. bows.Select(p => Flying(p, true)).Concat(thrown.Select(p => Flying(p, false)))];
 
-        Missile Flying(int position, bool bow)
+        (RecordId, Missile) Flying(int position, bool bow)
         {
             var (name, speed, turn) = Muzzles[position];
             // A weapon with no model loads no scene at all, so it couldn't fly.
             if (!items.WeaponModels.ContainsKey(position))
                 throw new InvalidDataException($"{name} (position {position}) flies but has no model.");
-            return new(Weapon(db, position, name), bow ? RecordId.Hex(RecordTypes.Scene, ArrowScene) : null, speed, turn);
+            return (Weapon(db, position, name), new Missile(bow ? RecordId.Hex(RecordTypes.Scene, ArrowScene) : null, speed, turn));
         }
     }
 }

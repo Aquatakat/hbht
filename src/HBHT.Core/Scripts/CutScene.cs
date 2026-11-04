@@ -470,13 +470,7 @@ public sealed class CutScene
     }
 
     /// <summary>The scene the original draws for an item in a hand (<c>get_item_borg5</c>), if any.</summary>
-    private RecordId? ItemModel(RecordId item) => item.Type switch
-    {
-        RecordTypes.Weapon => _game.Plugins.TryGet<WeaponRecord>(item)?.Model,
-        RecordTypes.Armor => _game.Plugins.TryGet<ArmorRecord>(item)?.Model,
-        RecordTypes.Item => _game.Plugins.TryGet<ItemRecord>(item)?.Model,
-        _ => null,
-    };
+    private RecordId? ItemModel(RecordId item) => item.Type == RecordTypes.Item ? _game.Plugins.TryGet<ItemRecord>(item)?.Model : null;
 
     private sealed class Cues(CutScene scene) : IScriptHost
     {

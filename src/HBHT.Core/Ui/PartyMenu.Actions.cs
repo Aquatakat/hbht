@@ -193,12 +193,12 @@ public sealed partial class PartyMenu
         {
             // Body armor and a shield can't come off in combat (Party.TakeOffArmor, 0x80076140); a weapon goes with no turn spent and
             // leaves the member unarmed (Party.StowHeldItem).
-            if (row.Item.Kind is ItemKind.Armor or ItemKind.Shield)
+            if (row.Item.Kind is ItemKind.Body or ItemKind.Shield)
             {
                 Say(_text[MenuText.NotInCombat]);
                 return false;
             }
-            if (row.Item.Kind == ItemKind.Weapon && row.Item.Weapon?.Fixed != true)
+            if (row.Item.Kind == ItemKind.Weapon && row.Item.Record.Fixed != true)
             {
                 var off = TakeOff(row, row.Wearer.Value);
                 combat.WeaponChanged(false);
@@ -216,7 +216,7 @@ public sealed partial class PartyMenu
             case ItemKind.Potion:
                 Say(_text[MenuText.PotionFromCUp]);
                 return false;
-            case ItemKind.Armor or ItemKind.Shield:
+            case ItemKind.Body or ItemKind.Shield:
                 Say(_text[MenuText.CantEquip]);
                 return false;
             case ItemKind.Weapon:
@@ -241,7 +241,7 @@ public sealed partial class PartyMenu
     {
         if (Party.Slots.ElementAtOrDefault(slot) is not { } wearer)
             return false;
-        if (row.Item.Weapon?.Fixed == true)
+        if (row.Item.Record.Fixed == true)
         {
             Say(Format(MenuText.PowerfulMagic, row.Item.Name, wearer.Name));
             return false;

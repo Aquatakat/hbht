@@ -182,7 +182,7 @@ public sealed class SpellVisualTests(Na10Import fixture)
             Assert.False(clips.Animated);
             Assert.All(actor.States, s => Assert.True(clips.Clip(s.Animation)?.Length > 0));
             var emitters = set.Get<EmittersRecord>(RecordId.Hex(RecordTypes.Emitters, Convert.ToInt32(actor.Scene.Key, 16))).Emitters;
-            Assert.Contains(emitters, e => e.Request == 5 && e.Flags.HasFlag(ParticleEmitterFlags.ActorRequest));
+            Assert.Contains(emitters, e => e.Request == Requests.Id(5) && e.Flags.HasFlag(ParticleEmitterFlags.ActorRequest));
         });
     }
 }

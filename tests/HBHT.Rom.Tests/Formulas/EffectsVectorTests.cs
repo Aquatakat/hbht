@@ -196,7 +196,7 @@ public sealed class EffectsVectorTests(Na10Import fixture, ITestOutputHelper out
         yield return ($"skills{s}", string.Join('.', Skills.Select(k => sheet.Skills.RawModified(FormulaState.SkillOf(k)))));
         var positions = game.Plugins.All<SpellRecord>(RecordTypes.Spell).Where(r => r.Position is not null).ToDictionary(r => r.Id, r => r.Position!.Value);
         var fx = SpellSlots(sheet).Select((r, i) => r is null ? null
-            : $"{i}:{positions[r.Source]}.{PowerByte(r)}.{(int)r.School}.{(byte)r.Margin}.{(r.Harmful ? 1 : 0)}.{r.Timer}").OfType<string>();
+            : $"{i}:{positions[r.Source]}.{PowerByte(r)}.{int.Parse(r.School.Key)}.{(byte)r.Margin}.{(r.Harmful ? 1 : 0)}.{r.Timer}").OfType<string>();
         yield return ($"fx{s}", Join(fx));
         var potions = PotionSlots(sheet).Select((r, i) => r is null ? null : $"{i}:{Key(r.Source) - 0x1000}.{r.Power}.{r.Timer}").OfType<string>();
         yield return ($"potions{s}", Join(potions));

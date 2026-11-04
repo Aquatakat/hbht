@@ -2,7 +2,6 @@ using System.Numerics;
 using HBHT.Core.MapObjects;
 using HBHT.Plugins;
 using HBHT.Plugins.Records;
-using static HBHT.TestSupport.Ids;
 
 namespace HBHT.Core.Tests;
 

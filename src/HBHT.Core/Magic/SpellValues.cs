@@ -1,5 +1,6 @@
 using HBHT.Core.Calendar;
 using HBHT.Core.Combat;
+using HBHT.Plugins;
 using HBHT.Plugins.Records;
 
 namespace HBHT.Core.Magic;
@@ -59,7 +60,7 @@ public static class SpellValues
     }
 
     // A dispel: +1 for each of the school's timed effects that harms the caster's side or helps the other's, −1 for the rest.
-    private static int Harm(MagicSchool school, Combatant caster, IReadOnlyList<Combatant> candidates) =>
+    private static int Harm(RecordId school, Combatant caster, IReadOnlyList<Combatant> candidates) =>
         candidates.Sum(c => c.Sheet.Effects.Where(e => e.School == school && e.Timer != ActiveEffect.Never)
             .Sum(e => e.Harmful == (c.Hostile == caster.Hostile) ? 1 : -1));
 }

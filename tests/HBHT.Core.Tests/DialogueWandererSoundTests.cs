@@ -15,12 +15,12 @@ namespace HBHT.Core.Tests;
 /// </summary>
 public class DialogueWandererSoundTests
 {
-    private static readonly RecordId Talker = RecordId.Hex(RecordTypes.DialogEntity, 0x1400), Step = RecordId.Hex(RecordTypes.Sequence, 1);
+    private static readonly RecordId Talker = RecordId.Hex(RecordTypes.Entity, 0x1400), Step = RecordId.Hex(RecordTypes.Sequence, 1);
     private static readonly RecordId MapId = RecordId.Hex(RecordTypes.Map, 0x1000);
 
     private const int Walk = 2, Grass = 4;
 
-    private static readonly BodySounds Profile = new(1, [new SoundKey(0, 7, [Step])]);
+    private static readonly BodySounds Profile = new(1, [new SoundKey(0, RecordIds.Request(7), [Step])]);
 
     private static Wanderer Load(BodySounds? sounds)
     {
@@ -44,10 +44,10 @@ public class DialogueWandererSoundTests
     [Fact]
     public void ADialogueEntitysWandererStepsAudibly()
     {
-        var wanderer = Load(new BodySounds(1, [new SoundKey(65500, Walk, [Step])]));
+        var wanderer = Load(new BodySounds(1, [new SoundKey(65500, RecordIds.Request(Walk), [Step])]));
         var none = RecordId.Hex(RecordTypes.Sequence, 0);
         var surfaces = Enumerable.Range(0, 26)
-            .Select(s => new FootstepSurface(null, s == Grass ? new SoundKey(65500, Walk, [Step]) : null, null)).ToList();
+            .Select(s => new FootstepSurface(null, s == Grass ? new SoundKey(65500, RecordIds.Request(Walk), [Step]) : null, null)).ToList();
         var sounds = new SoundsRecord(RecordId.Decimal(RecordTypes.Sounds, 0),
             new MenuSounds(none, none, none, none, none, none, none, none, none, none),
             [], none, none, none, [], [], none, [], none, none, [null, new BodyKind(0.5f, surfaces)]);

@@ -220,11 +220,11 @@ public sealed partial class Battle
     {
         if (!HasFleePoints)
             return false;
-        var morale = (int)(sbyte)entity.Morale;
+        var morale = (int)(sbyte)entity.CharacterSheet.Morale;
         if (morale > 11 || ActiveCounts.Enemies <= EnemiesOnField >> 1)
             return false;
         var m = morale;
-        if (AspectOpposed(entity.Aspect == Aspect.Solar ? Aspect.Solar : Aspect.Lunar))
+        if (AspectOpposed(entity.CharacterSheet.Aspect == Aspect.Solar ? Aspect.Solar : Aspect.Lunar))
             m--;
         if (LeaderGone || LeaderNow is not { Active: true })
             m -= 4;

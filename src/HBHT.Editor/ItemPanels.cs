@@ -1,3 +1,4 @@
+using System.Globalization;
 using HBHT.Core.Characters;
 using HBHT.Core.Items;
 using HBHT.Core.Rng;
@@ -17,32 +18,20 @@ public static class ItemText
         var bonuses = item.Bonuses;
         if (bonuses.Aspect != Aspect.None)
             yield return $"only for the {bonuses.Aspect} aspect";
-        if (item.Armor is { } armor)
-        {
-            if (armor.Protection != 0)
-                yield return $"{armor.Protection:+0;-0} protection";
-            if (armor.Dexterity != 0)
-                yield return $"{armor.Dexterity:+0;-0} Dexterity";
-            if (armor.Stealth != 0)
-                yield return $"{armor.Stealth:+0;-0} Stealth";
-        }
-        if (item.Gear is { } gear)
-        {
-            if (gear.Protection != 0)
-                yield return $"{gear.Protection:+0;-0} protection";
-            if (gear.Damage != 0)
-                yield return $"{gear.Damage:+0;-0} damage";
-        }
-        if (bonuses.Stat is { } stat)
-            yield return item.BatteryCapacity is { } capacity ? $"a battery of {capacity} Stamina for spells" : $"{stat.Amount:+0;-0} {name(stat.Stat)}";
-        if (bonuses.Skill is { } skill)
-            yield return $"{skill.Amount:+0;-0} {name(skill.Skill)}";
+        if (item.Protection != 0)
+            yield return $"{item.Protection:+0;-0} protection";
+        if (item.Damage != 0)
+            yield return $"{item.Damage:+0;-0} damage";
+        foreach (var (stat, amount) in bonuses.Stats ?? new Dictionary<RecordId, int>())
+            yield return stat == Item.StaminaStat ? $"a battery of {amount} Stamina for spells" : $"{amount:+0;-0} {name(stat)}";
+        foreach (var (skill, amount) in bonuses.Skills ?? new Dictionary<RecordId, int>())
+            yield return $"{amount:+0;-0} {name(skill)}";
         if (bonuses.Spell is { } spell)
             yield return $"casts {name(spell.Spell)} at level {spell.Level}, {spell.Charges} charge{(spell.Charges == 1 ? "" : "s")}";
         if (bonuses.Enchantment is { } enchantment)
             yield return $"{name(enchantment.Spell)} at level {enchantment.Level} " + (item.Kind == ItemKind.Weapon ? "as it strikes" : "while worn");
-        if (bonuses.Resistance is { } resistance)
-            yield return $"takes {resistance.Damage.ToString(System.Globalization.CultureInfo.InvariantCulture)} × {resistance.Element} damage";
+        foreach (var (element, damage) in bonuses.Resistances ?? new Dictionary<RecordId, float>())
+            yield return $"takes {damage.ToString(System.Globalization.CultureInfo.InvariantCulture)} × {name(element)} damage";
     }
 
     /// <summary>What's left in an item's battery and of its charges, where it has them and they've been used.</summary>
@@ -61,7 +50,7 @@ public static class ItemText
     {
         EquipRefusal.CantUse => item.Kind switch
         {
-            ItemKind.Weapon => $"they can't wield {item.Weapon!.Class} weapons",
+            ItemKind.Weapon => $"they can't wield weapons of {item.Weapon!.Skill}",
             ItemKind.Shield => "they have no shield skill",
             _ => "it isn't worn",
         },
@@ -129,7 +118,7 @@ public partial class ItemPanel : PagePanel
             traits.Add("a slot of its own");
         if (item.Traits.MustTake)
             traits.Add("loot can't be left with it");
-        if (item.Weapon?.Fixed == true)
+        if (item.Record.Fixed)
             traits.Add("can't be taken off");
         text.AddChild(new Label { Text = string.Join(" · ", traits), Modulate = Dim });
         header.AddChild(text);
@@ -138,11 +127,24 @@ public partial class ItemPanel : PagePanel
         if (item.Weapon is { } weapon)
         {
             Heading("Wielding it");
-            Body.AddChild(LinkButton(RecordId.Decimal(RecordTypes.WeaponSkill, (int)weapon.Class), $"{weapon.Class} skill, which must be above 0"));
-            Line($"Damage {weapon.Damage}, hit {weapon.Hit}, range {weapon.Range}" + (weapon.DamageType != Element.None ? $", {weapon.DamageType} damage" : "") + ".");
+            Body.AddChild(LinkButton(weapon.Skill, $"{NameOf(weapon.Skill)} skill, which must be above 0"));
+            Line($"Damage {weapon.Damage}, hit {weapon.Hit}, range {weapon.Range}" + (weapon.DamageType is { } type ? $", {NameOf(type)} damage" : "") + ".");
+            Body.AddChild(LinkButton(weapon.Animation, $"Attacks with {NameOf(weapon.Animation)}"));
+            if (weapon.Missile is { } missile)
+                Line($"Flies to its target in battle (speed {missile.Speed.ToString(CultureInfo.InvariantCulture)}).");
+            if (weapon.StrikesInMelee)
+                Line("Strikes in melee too.");
         }
-        if (item.Armor is { Slot: ArmorSlot.Shield } shield)
-            Line($"Defense {shield.Defense}. Carrying it needs the shield skill.");
+        if (item.Kind == ItemKind.Shield)
+            Line($"Defense {item.Record.Defense}. Carrying it needs the shield skill.");
+        if (item.Record.Refused)
+            Line("No container, shop or loot window takes it.");
+        if (item.Record.Becomes is { } becomes)
+            Body.AddChild(LinkButton(becomes, $"Becomes {NameOf(becomes)} when gained"));
+        if (item.Record.AiSpread > 0)
+            Line($"While the party holds it, the enemies keep {item.Record.AiSpread} apart.");
+        if (item.Record.KeptAfterBattle)
+            Line("Its effects outlast the battle it's drunk in.");
         var needs = new List<string>();
         if (item.RequiredStrength > 0)
             needs.Add($"base Strength {item.RequiredStrength}");
@@ -159,8 +161,9 @@ public partial class ItemPanel : PagePanel
                 Line(char.ToUpperInvariant(phrase[0]) + phrase[1..] + ".");
             foreach (var spell in new[] { item.Bonuses.Spell?.Spell, item.Bonuses.Enchantment?.Spell }.OfType<RecordId>().Distinct())
                 Body.AddChild(LinkButton(spell, NameOf(spell)));
-            if (item.Bonuses.Skill is not null)
-                Line("A skill bonus counts only while the wearer's base level in it is above 0.", Dim);
+            if (item.Bonuses.Skills is { Count: > 0 })
+                Line(item.SkillBonusesApplyUnlearnt ? "Its skill bonuses count whatever the wearer's level in the skill (the inventory's skillBonusesApplyUnlearnt)."
+                    : "A skill bonus counts only while the wearer's base level in it is above 0.", Dim);
         }
         if (item.Kind == ItemKind.Potion)
             Line("What potions do comes with combat (2.5).", Dim);
@@ -177,14 +180,14 @@ public partial class ItemPanel : PagePanel
             }
         }
 
-        if (_rules is not null && (item.Kind is ItemKind.Weapon or ItemKind.Armor or ItemKind.Shield || item.IsGear))
+        if (_rules is not null && (item.Kind is ItemKind.Weapon or ItemKind.Body or ItemKind.Shield || item.IsGear))
             ShowOnParty(_rules);
     }
 
     private static string Kind(Item item) => item.Kind switch
     {
-        ItemKind.Weapon => $"{item.Weapon!.Class} weapon",
-        ItemKind.Armor => "body armor",
+        ItemKind.Weapon => "weapon",
+        ItemKind.Body => "body armor",
         ItemKind.Misc => "item",
         _ => item.Kind.ToString().ToLowerInvariant(),
     };
@@ -300,7 +303,7 @@ public partial class ShopPanel : PagePanel
             Line($"No entity {_record.Shopkeeper} runs it.");
             return;
         }
-        Body.AddChild(LinkButton(_shopkeeper.Id, $"{_shopkeeper.Name}'s shop, Merchant {_shopkeeper.Skills.Merchant ?? 0}"));
+        Body.AddChild(LinkButton(_shopkeeper.Id, $"{_shopkeeper.Name}'s shop, Merchant {_shopkeeper.Sheet?.SkillLevel(RecordId.Decimal(RecordTypes.Skill, 5)) ?? 0}"));
         var members = string.Join(", ", _party.Members.Select(m => m.Name));
         Line($"For {(_game is { IsNewGame: false } ? $"{_game.Name}'s party" : "a new game's party")} ({members}): {_barter} "
             + $"The barter factor is {Num(shop.Barter)}: buying costs the price × {Num(1 + shop.Barter)}, and selling pays it × {Num((1 - shop.Barter) * _items.Rules.SellShare)}.");
@@ -409,7 +412,7 @@ public partial class LootPanel : PagePanel
         }
         Body.AddChild(grid);
         Line("A roll at 0% never hits.", Dim);
-        Line($"Beaten enemies drop their armor {loot.ArmorChance}%, shield {loot.ShieldChance}% and weapons {string.Join(", ", loot.WeaponChances.Select(c => $"{c}%"))} of the time, which combat's rewards read (2.5).", Dim);
+        Line($"Beaten enemies drop their armor {loot.ArmorChance}%, shield {loot.ShieldChance}% and weapons {loot.WeaponChances.Joins}% (joining), {loot.WeaponChances.Spare}% (spare) and {loot.WeaponChances.Fights}% (fighting) of the time, which combat's rewards read (2.5).", Dim);
 
         Heading("Rolls");
         var row = new HBoxContainer();

@@ -66,12 +66,12 @@ public sealed partial class Battle
         var distance = (byte)(float)System.Numerics.Vector2.Distance(a.Cell, t.Cell);
         var chance = ThrowChance(a, t, distance);
         var roll = Casting.AdjustRoll(random.RollD(1, 100), chance, a.Sheet.Skills.Modified(Skill.Warrior), random);
-        var skill = a.Sheet.Skills.Modified(WeaponClass.Thrown);
+        var skill = a.Sheet.Skills.Modified(SkillId.Thrown);
         var points = skill < 6 ? (byte)((8 - skill) * (8 - skill)) : 5;
         if (chance <= roll)
         {
             // Combatant.ThrowMiss (0x80065120).
-            GainExperience(a, points >> 1, WeaponClass.Thrown);
+            GainExperience(a, points >> 1, SkillId.Thrown);
             Animate(a, ThrowRequest);
             ConsumeFlask(a, potion);
             Write(Line2(AttacksLine, a, t));
@@ -83,7 +83,7 @@ public sealed partial class Battle
         Lines.Queue(Line2(AttacksLine, a, t));
         BlastCell = (ArenaGrid.CellOf(t.Cell.X), ArenaGrid.CellOf(t.Cell.Y));
         a.Damage = (byte)damage;
-        GainExperience(a, points, WeaponClass.Thrown);
+        GainExperience(a, points, SkillId.Thrown);
         Animate(a, ThrowRequest);
         ConsumeFlask(a, potion);
         return 0;
@@ -100,7 +100,7 @@ public sealed partial class Battle
     {
         var (sheet, target) = (a.Sheet, t.Sheet);
         var s = (short)(sheet.Stats.Modified(Stat.Intelligence) + sheet.Stats.Modified(Stat.Dexterity) + sheet.Stats.Base(Stat.Level));
-        s = (short)(s + sheet.Skills.Modified(WeaponClass.Thrown) * 6 + sheet.Skills.Modified(Skill.Warrior) * 2 + 40);
+        s = (short)(s + sheet.Skills.Modified(SkillId.Thrown) * 6 + sheet.Skills.Modified(Skill.Warrior) * 2 + 40);
         s = (short)(s - (((ShieldDefence(target) >> 1) & 0xFF) + target.Stats.Modified(Stat.Dexterity) + target.Stats.Base(Stat.Level)));
         if (distance > 6)
             s = (short)(s - (distance - 5));
@@ -170,7 +170,7 @@ public sealed partial class Battle
     {
         if (a.Potion is not { } potion || Game.Rules.Magic.Potion(potion.Id) is not { } record)
             return 0;
-        var landing = new Landing(record.Id, MagicSchool.None, 0, Potions.Margin, new EffectTarget(a.Sheet, a, this),
+        var landing = new Landing(record.Id, Schools.Unschooled, 0, Potions.Margin, new EffectTarget(a.Sheet, a, this),
             new EffectTarget(t.Sheet, t, this), Game.Random.Combat) { RecordMargin = 0, Centre = BlastCell, Blast = damage };
         (_blastTarget, _blastTaken) = (t, null);
         var result = EffectLanding.Land(record.Effects ?? [], record.Duration, landing);
@@ -207,7 +207,7 @@ public sealed partial class Battle
             var d = squared > 1 ? squared : 1;
             if (corrode is not null && d <= radius)
             {
-                e.Sheet.AddEffect(source, [new ProtectionEffect(new Magnitude(PerLevel: -1))], radius / d, MagicSchool.None, 0,
+                e.Sheet.AddEffect(source, [new ProtectionEffect(new Magnitude(PerLevel: -1))], radius / d, Schools.Unschooled, 0,
                     CorrosionTicks, e, this, null);
                 if (potion is not null)
                     AttachPotionVisual(e, potion);
@@ -267,7 +267,7 @@ public sealed partial class Battle
     /// </summary>
     private void DrinkPotion(Combatant a, Item item)
     {
-        var effects = item.Gear?.Effects ?? [];
+        var effects = item.Record.Effects ?? [];
         var before = a.Sheet.Hp;
         var drunk = Potions.Drink(Game.Party, a.Sheet, item, Game.Random.Combat, a, this);
         a.RevertAction(Game.Party.Inventory, _rules);
@@ -455,10 +455,10 @@ public sealed partial class Battle
             lines.Add(Printf(text.Level, target.Sheet.Stats.Base(Stat.Level)));
         if (level >= 7)
         {
-            foreach (var resistance in target.Sheet.Record.Resistances.Take(2).Where(r => r.Element != Element.None))
+            foreach (var resistance in target.Sheet.Sheet.Resistances.Take(2))
             {
                 var form = resistance.Damage <= 0 ? text.Immune : resistance.Damage < text.ResistantBelow ? text.Resistant : text.Vulnerable;
-                var name = text.Elements.GetValueOrDefault(resistance.Element) ?? resistance.Element.ToString();
+                var name = target.Sheet.Rules.Elements.GetValueOrDefault(resistance.Element)?.Name ?? resistance.Element.Key;
                 lines.Add((form ?? "").Replace("%s", name, StringComparison.Ordinal));
             }
         }

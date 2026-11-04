@@ -513,7 +513,7 @@ public partial class PartyTabView : Control
             icons.Add((aspect, x));
             x += _ui.Size(aspect).X + 2;
         }
-        if (MenuImages.SchoolIcon(member.School) is { } school)
+        if (MenuImages.SchoolIcon(member.Rules, member.School) is { } school)
             icons.Add((school, x));
         return icons;
     }

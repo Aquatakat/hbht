@@ -357,7 +357,7 @@ public sealed class PartyMenuCheckpointTests(Na10Import fixture)
     {
         var menu = Menu();
         var alaron = menu.Shown!.Equipment;
-        Assert.Equal((6, 4), (alaron.ArmorProtection, alaron.Armor!.Item.Armor!.Protection));
+        Assert.Equal((6, 4), (alaron.ArmorProtection, alaron.Armor!.Item.Protection));
 
         menu.Point(4);
         var leather = menu.Details()!;
@@ -379,13 +379,13 @@ public sealed class PartyMenuCheckpointTests(Na10Import fixture)
     {
         var menu = Menu();
         var current = menu.Shown!.Equipment.ArmorProtection;
-        var worn = menu.Shown.Equipment.Armor!.Item.Armor!.Protection;
+        var worn = menu.Shown.Equipment.Armor!.Item.Protection;
         var checkedGain = false;
         var checkedLoss = false;
 
         for (var row = 0; row < menu.Inventory.Rows.Count; row++)
         {
-            if (menu.Inventory.Rows[row] is not { Wearer: null, Item.Armor: { Slot: ArmorSlot.Body } armor })
+            if (menu.Inventory.Rows[row] is not { Wearer: null, Item: { Kind: ItemKind.Body } armor })
                 continue;
             menu.Point(row);
             var total = menu.Details()!.Footer[0].Right.OfType<DetailText>().ToList();

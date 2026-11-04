@@ -1,3 +1,4 @@
+using HBHT.Core.Characters;
 using System.Numerics;
 using HBHT.Plugins;
 using HBHT.Plugins.Records;
@@ -62,39 +63,39 @@ public sealed partial class Combatant
     /// emptied first and the notes left be. The arm holds the shield (its armor's model, at locator 2), unless its entity can never
     /// learn the shield skill (<c>Combatant.CannotUseShield</c>, <c>0x80066C18</c>). With no action the hand holds nothing; a flask or
     /// a potion in hand holds the flask; a bow holds its arrow in the hand and the bow itself in the arm in place of the shield, at
-    /// locators 0 and 1, or 1 and 0 for <see cref="CombatRecord.OtherHand"/>; any other weapon holds its own model, none for a bite
-    /// or a claw. The hand stays empty for <see cref="CombatRecord.UndrawnWeapons"/>, whose models have their weapons.
+    /// locators 0 and 1, or 1 and 0 for a body whose <see cref="EntityBody.BowHand"/> is the other; any other weapon holds its own
+    /// model, none for a bite or a claw. The hand stays empty for a body whose model has its weapons (<see cref="EntityBody.WeaponsInModel"/>).
     /// </summary>
     internal void EquipVisuals(CombatRecord? rules)
     {
         _held[HandSlot] = _held[ArmSlot] = null;
         var handLocator = DefaultLocators[HandSlot];
         var armLocator = DefaultLocators[ArmSlot];
-        var arm = Sheet.Record.ShieldSkill is null ? null : Sheet.Equipment.Shield?.Item.Armor?.Model;
+        var arm = Sheet.Skills.CanLearn(SkillId.Shield) ? Sheet.Equipment.Shield?.Item.Record.Model : null;
         RecordId? hand = null;
         if (Action == CombatAction.Flask)
         {
             hand = Battle.FlaskScene;
         }
-        else if (Action != CombatAction.None && Sheet.Equipment.Weapon?.Item.Weapon is { } weapon)
+        else if (Action != CombatAction.None && Sheet.Equipment.Weapon?.Item is { Weapon: { } weapon } held)
         {
             // Combatant.WeaponIsBowKind (0x80066908): the weapons that fly as the arrow.
-            if (rules?.Missiles.FirstOrDefault(m => m.Weapon == weapon.Id) is { Scene: { } arrow })
+            if (weapon.Missile is { Scene: { } arrow })
             {
                 hand = arrow;
-                arm = weapon.Model;
-                var other = rules.OtherHand.Contains(Entity);
+                arm = held.Record.Model;
+                var other = Look.BowHand == BowHand.Other;
                 armLocator = other ? 0 : 1;
                 handLocator = other ? 1 : 0;
             }
             else
             {
-                hand = weapon.Model;
+                hand = held.Record.Model;
             }
         }
         if (arm is { } a)
             _held[ArmSlot] = new HeldModel(a, armLocator);
-        if (hand is { } h && rules?.UndrawnWeapons.Contains(Entity) != true)
+        if (hand is { } h && !Look.WeaponsInModel)
             _held[HandSlot] = new HeldModel(h, handLocator);
         HandLocator = handLocator;
     }
@@ -195,7 +196,7 @@ public sealed partial class Combatant
     /// <summary>
     /// What A does with its weapon (<c>Combatant.SetDefaultAction</c>, <c>0x800672D4</c>): nothing without one; melee with no range;
     /// with a range, ranged, or melee or ranged for a weapon that may strike in melee too (<c>Weapon.AllowsMelee</c>,
-    /// <c>0x8007B730</c>: a Breath or a Spit, or one of <see cref="CombatRecord.CloseRange"/>). Whether it aims freely too.
+    /// <c>0x8007B730</c>: a Breath or a Spit, or one that says so, <see cref="WeaponStats.StrikesInMelee"/>). Whether it aims freely too.
     /// </summary>
     internal void SetDefaultAction(CombatRecord? rules)
     {
@@ -209,11 +210,11 @@ public sealed partial class Combatant
         }
         if (weapon.Range == 0)
             Action = CombatAction.Melee;
-        else if (weapon.Class is WeaponClass.Breath or WeaponClass.Spit || rules?.CloseRange.Contains(weapon.Id) == true)
+        else if (Battle.AllowsMelee(weapon))
             Action = CombatAction.MeleeOrRanged;
         else
             Action = CombatAction.Ranged;
-        Drawn = rules?.Missiles.Any(m => m.Weapon == weapon.Id) == true;
+        Drawn = weapon.Missile is not null;
         EquipVisuals(rules);
     }
 }

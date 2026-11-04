@@ -47,11 +47,12 @@ public sealed partial class Battle
         var plugins = game.Plugins;
         var rules = plugins.Singleton<CombatRecord>();
         var random = game.Random.Combat;
-        var list = setup.EnemyList(game.Party, e => plugins.TryGet<EntityRecord>(e)?.Level ?? 0, random, rules.Fallback).ToList();
+        var list = setup.EnemyList(game.Party, e => plugins.TryGet<EntityRecord>(e)?.Sheet?.Level ?? 0, random, rules.Fallback).ToList();
 
-        // Combat.FindSholeh: she's taken from the first four to fight with the party, and the list closes up.
+        // Combat.FindSholeh: she's taken from the first four to fight with the party, and the list closes up
+        // (EntityCombat.FightsForParty; the first such).
         var onField = Math.Min(list.Count, OnField);
-        var ally = list.Take(OnField).Contains(rules.Ally) ? rules.Ally : (RecordId?)null;
+        var ally = list.Take(OnField).Cast<RecordId?>().FirstOrDefault(e => plugins.TryGet<EntityRecord>(e!.Value)?.Combat?.FightsForParty == true);
         if (ally is { } sholeh)
         {
             list.RemoveAt(list.IndexOf(sholeh));
@@ -126,9 +127,15 @@ public sealed partial class Battle
         for (var i = 0; i < EnemiesOnField; i++)
         {
             var entity = Enemies[i];
-            if (rules.Bystanders.Contains(entity))
+            var record = Game.Plugins.TryGet<EntityRecord>(entity);
+            if (record?.Combat?.Bystander == true)
             {
                 _problems.Add($"{entity} never fights, and is left out.");
+                continue;
+            }
+            if (record is { Sheet: null })
+            {
+                _problems.Add($"{entity} has no character sheet, so it can't fight, and is left out.");
                 continue;
             }
             if (Game.Recruit(entity) is not { } sheet)
@@ -141,10 +148,8 @@ public sealed partial class Battle
             var enemy = Add(slot, sheet, hostile: true, party: false, letter: i, roll);
             GiveAi(enemy, spare);
             // Combat.ForbidFleeForBosses: the last on the field with a say has it.
-            if (rules.NoFlee.Contains(entity))
-                CanFlee = false;
-            else if (rules.Flee.Contains(entity))
-                CanFlee = true;
+            if (record?.Combat?.Flee is { } say)
+                CanFlee = say == FleeSay.Allows;
             // The leader: the first enemy, unless a later one is strictly cleverer by base Intelligence.
             if (Leader is null || sheet.Stats.Base(Stat.Intelligence) > Leader.Sheet.Stats.Base(Stat.Intelligence))
                 Leader = enemy;
@@ -164,7 +169,6 @@ public sealed partial class Battle
             CanFlee = rule.CanFlee;
 
         // Combat.CreateBody: each body as it's made works its radius out and is held in its field where it stands.
-        _rooted = rules.Rooted;
         foreach (var combatant in Combatants)
         {
             // 1.0 makes the bodies here, in slot order, after Combat.Setup has built the turn order (Combat.Init, 0x80022ED8), so a
@@ -197,9 +201,9 @@ public sealed partial class Battle
     /// </summary>
     internal static Items.ItemInstance? ArmFromList(Character sheet, Items.ItemCatalog items)
     {
-        var weapons = sheet.Record.Weapons;
-        var first = weapons.Count > 0 ? weapons[0] : null;
-        var third = weapons.Count > 2 ? weapons[2] : null;
+        var weapons = sheet.Sheet.Weapons;
+        var first = weapons.Joins;
+        var third = weapons.Fights;
         sheet.Equipment.RemoveWeapon();
         sheet.Spares.Clear();
         if (third is { } t)
@@ -243,7 +247,7 @@ public sealed partial class Battle
     private void GiveAi(Combatant c, Items.ItemInstance? spare)
     {
         c.Controlled = true;
-        c.Ai = EnemyAI.Init(c, spare, AllowsMelee, _rules.BossStyles.Contains(c.Entity));
+        c.Ai = EnemyAI.Init(c, spare, AllowsMelee, c.Sheet.Record.Combat?.BossStyle == true);
     }
 
     /// <summary>The flee points' most: <c>flee0</c>–<c>flee7</c>.</summary>

@@ -1,3 +1,4 @@
+using HBHT.Core.Magic;
 using HBHT.Core.Flags;
 using HBHT.Core.Items;
 using HBHT.Plugins;
@@ -118,7 +119,7 @@ public sealed class CharacterSaves(PluginSet plugins, CharacterRules rules, Item
             else
                 problems.Add($"{entity.Name} knows {known.Spell}, which no plugin has.");
         }
-        var character = Character.Restore(entity, rules, stats, skills, SpellOrder(spells, entity.School, alaron), flags.IsSet);
+        var character = Character.Restore(entity, rules, stats, skills, SpellOrder(spells, entity.CharacterSheet.School, alaron), flags.IsSet);
         if (saved.Name is { Length: > 0 } name)
             character.Name = name;
         // A save from before True Names were saved leaves the record's and the flags'.
@@ -157,11 +158,12 @@ public sealed class CharacterSaves(PluginSet plugins, CharacterRules rules, Item
     /// Alaron the Elemental, Naming and Necromancy spells, each school in the spell table's order. The
     /// original drops a spell of any other school; the port keeps it, last.
     /// </summary>
-    public static IReadOnlyList<LearnedSpell> SpellOrder(IEnumerable<LearnedSpell> spells, MagicSchool school, bool alaron)
+    public static IReadOnlyList<LearnedSpell> SpellOrder(IEnumerable<LearnedSpell> spells, RecordId school, bool alaron)
     {
-        List<MagicSchool> schools = [MagicSchool.None, school == MagicSchool.Chaos ? MagicSchool.Star : school];
+        // The base's: Chaos's block holds the Star spells (docs/hardcoded-content.md).
+        List<RecordId> schools = [Schools.Unschooled, school == Schools.Chaos ? Schools.Star : school];
         if (alaron)
-            schools.AddRange([MagicSchool.Elemental, MagicSchool.Naming, MagicSchool.Necromancy]);
+            schools.AddRange([Schools.Elemental, Schools.Naming, Schools.Necromancy]);
         return [.. spells.OrderBy(s => schools.IndexOf(s.Spell.School) is var rank and >= 0 ? rank : schools.Count)
             .ThenBy(s => s.Spell.Position ?? int.MaxValue)];
     }

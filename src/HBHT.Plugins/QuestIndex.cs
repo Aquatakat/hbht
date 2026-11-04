@@ -319,9 +319,9 @@ public sealed class QuestIndex
         }
 
         // Winning a battle with the boss sets its flag, however the battle started.
-        foreach (var combat in plugins.All<CombatRecord>(RecordTypes.Combat))
-            foreach (var boss in combat.Bosses)
-                Use(boss.Flag, boss.Entity, FlagAccess.Set, FlagRole.BossFlag);
+        foreach (var entity in plugins.All<EntityRecord>(RecordTypes.Entity))
+            if (entity.Combat?.BossFlag is { } boss)
+                Use(boss, entity.Id, FlagAccess.Set, FlagRole.BossFlag);
 
         foreach (var (item, key) in keyItems)
         {

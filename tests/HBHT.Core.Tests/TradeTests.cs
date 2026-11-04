@@ -33,7 +33,7 @@ internal static class TradeData
     public static readonly ItemRecord Potion = ItemData.NewItem(3, ItemKind.Potion) with { Price = 40 };
     public static readonly ItemRecord Hide = ItemData.NewItem(4);
     public static readonly ItemRecord Quest = ItemData.NewItem(5, traits: new ItemTraits(MustTake: true));
-    public static readonly ArmorRecord Leather = ItemData.NewArmor(1, protection: 3);
+    public static readonly ItemRecord Leather = ItemData.NewArmor(1, protection: 3);
 
     /// <summary>Flags 0 and 1 are the constants false and true, which can't be set.</summary>
     public static readonly RecordId PotionFlag = ItemData.Flag(5);
@@ -48,13 +48,10 @@ internal static class TradeData
 
     /// <summary>A member with the given skills (all others unlearnable, so 0) and attributes, with a distinct entity.</summary>
     public static Character Member(int n = 0, SkillLevels? skills = null, int intelligence = 18, int stamina = 30, int endurance = 15, int dexterity = 15) =>
-        ItemData.Alaron(e => e with
-        {
-            Id = RecordId.Hex(RecordTypes.Entity, 0x0300 + n),
-            Level = 1,
-            Attributes = new Attributes(intelligence, 12, dexterity, endurance, 15, stamina),
-            Skills = skills ?? new SkillLevels(),
-        });
+        ItemData.Alaron(e => (e with { Id = RecordId.Hex(RecordTypes.Entity, 0x0300 + n) })
+            .WithLevel(1)
+            .WithAttributes(new Attributes(intelligence, 12, dexterity, endurance, 15, stamina))
+            .WithSkills(skills ?? new SkillLevels()));
 
     public static Character Dead(Character member)
     {
@@ -71,12 +68,12 @@ internal static class TradeData
         return party;
     }
 
-    public static EntityRecord Keeper(int? merchant) => Characters.Alaron() with { Skills = new SkillLevels(Merchant: merchant) };
+    public static EntityRecord Keeper(int? merchant) => Characters.Alaron().WithSkills(new SkillLevels(Merchant: merchant));
 
     public static ShopRecord ShopOf(EntityRecord keeper, params ShopStock[] stock) => new(RecordId.Decimal(RecordTypes.Shop, 0), keeper.Id, stock);
 
     public static LootRecord Table(int goldMin, int goldMax, int reagentChance, int reagentMin, int reagentMax, params LootDrop[] drops) => new(
-        RecordId.Hex(RecordTypes.Loot, 0x0800), "Loot", goldMin, goldMax, 0, 0, [0, 0, 0], reagentChance, reagentMin, reagentMax,
+        RecordId.Hex(RecordTypes.Loot, 0x0800), "Loot", goldMin, goldMax, 0, 0, new WeaponChances(), reagentChance, reagentMin, reagentMax,
         drops);
 
     public static RecipeRecord Recipe(int n, RecordId skill, RecordId product, int level, int step, params Ingredient[] ingredients) =>
@@ -1314,7 +1311,7 @@ public class ContainerTests
 
 public class CraftingTests
 {
-    private static readonly ArmorRecord Armor = TradeData.Leather;
+    private static readonly ItemRecord Armor = TradeData.Leather;
     private static readonly RecordId AlchemistSkill = Crafting.Alchemist;
     private static readonly RecordId MechanicSkill = Crafting.Mechanic;
 

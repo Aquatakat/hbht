@@ -3,6 +3,8 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
+using HBHT.Plugins.Records;
+
 namespace HBHT.Plugins;
 
 /// <summary>A plugin folder and its manifest.</summary>
@@ -205,9 +207,10 @@ public sealed class PluginSet
         {
             if (RecordTypes.ClassOf(id.Type) is not { } type)
                 continue;
+            object? record = null;
             try
             {
-                _typed.GetOrAdd((id, type), static (_, arg) => arg.json.Deserialize(arg.type, PluginJson.Strict)!, (json, type));
+                record = _typed.GetOrAdd((id, type), static (_, arg) => arg.json.Deserialize(arg.type, PluginJson.Strict)!, (json, type));
             }
             catch (JsonException e)
             {
@@ -215,8 +218,35 @@ public sealed class PluginSet
                 problems.Add(new RecordProblem(id, path, Blame(id, path), TrimMessage(e.Message)));
             }
             CheckShape(id, json, type, "", problems);
+            foreach (var (path, message) in Rules(record))
+                problems.Add(new RecordProblem(id, path, Blame(id, path), message));
         }
         return new ValidationReport(problems);
+    }
+
+    /// <summary>
+    /// What a record's type asks of its fields together, which their shapes alone can't say: a weapon's own fields on a weapon alone
+    /// (ADR 0031), and an entity's combat traits and free training only with a sheet (ADR 0032).
+    /// </summary>
+    private static IEnumerable<(string Path, string Message)> Rules(object? record)
+    {
+        switch (record)
+        {
+            case ItemRecord { Kind: ItemKind.Weapon, Weapon: null }:
+                yield return ("weapon", "A weapon needs its weapon fields.");
+                break;
+            case ItemRecord { Weapon: not null } item when item.Kind != ItemKind.Weapon:
+                yield return ("weapon", $"Only a weapon has weapon fields, and this is a {item.Kind}.");
+                break;
+            case EntityRecord { Sheet: null } entity:
+                if (entity.Combat is not null)
+                    yield return ("combat", "An entity with no sheet can't fight, so it has no combat traits.");
+                if (entity.TrainsFree)
+                    yield return ("trainsFree", "An entity with no sheet can't train anyone.");
+                if (entity.Member is not null)
+                    yield return ("member", "An entity with no sheet can't join the party.");
+                break;
+        }
     }
 
     /// <summary>The plugin that last set <paramref name="path"/> or what encloses it, else the record's definer.</summary>

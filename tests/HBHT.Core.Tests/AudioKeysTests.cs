@@ -19,7 +19,7 @@ public class AudioKeysTests
     {
         var none = RecordId.Hex(RecordTypes.Sequence, 0);
         var surfaces = Enumerable.Range(0, 26)
-            .Select(s => new FootstepSurface(null, s == Grass ? new SoundKey(65500, Walk, [Step]) : null, null)).ToList();
+            .Select(s => new FootstepSurface(null, s == Grass ? new SoundKey(65500, RecordIds.Request(Walk), [Step]) : null, null)).ToList();
         return new SoundsRecord(RecordId.Decimal(RecordTypes.Sounds, 0),
             new MenuSounds(none, none, none, none, none, none, none, none, none, none),
             [], none, none, none, [], [], none, [], none, none, [null, new BodyKind(0.5f, surfaces)]);
@@ -34,7 +34,7 @@ public class AudioKeysTests
         return (new AudioKeys(audio, Sounds(), new Lcg()), audio);
     }
 
-    private static readonly BodySounds Profile = new(1, [new SoundKey(32750, Hurt, [Ouch])]);
+    private static readonly BodySounds Profile = new(1, [new SoundKey(32750, RecordIds.Request(Hurt), [Ouch])]);
 
     private static bool Heard(GameAudio audio)
     {
@@ -47,12 +47,12 @@ public class AudioKeysTests
     public void AKeyFiresOnTheFrameItsFracReachesForTheRequestLatchedOnTheFirstFrame()
     {
         // Half of a 20-frame animation is frame 10.
-        Assert.False(AudioKeys.Reached(new SoundKey(32750, Hurt, []), Hurt, 9, 20));
-        Assert.True(AudioKeys.Reached(new SoundKey(32750, Hurt, []), Hurt, 10, 20));
-        Assert.False(AudioKeys.Reached(new SoundKey(32750, Hurt, []), Walk, 10, 20));
+        Assert.False(AudioKeys.Reached(new SoundKey(32750, RecordIds.Request(Hurt), []), Hurt, 9, 20));
+        Assert.True(AudioKeys.Reached(new SoundKey(32750, RecordIds.Request(Hurt), []), Hurt, 10, 20));
+        Assert.False(AudioKeys.Reached(new SoundKey(32750, RecordIds.Request(Hurt), []), Walk, 10, 20));
         // A frac of 0 is the first frame, and the whole is the last.
-        Assert.True(AudioKeys.Reached(new SoundKey(0, Hurt, []), Hurt, 1, 20));
-        Assert.True(AudioKeys.Reached(new SoundKey(65500, Hurt, []), Hurt, 20, 20));
+        Assert.True(AudioKeys.Reached(new SoundKey(0, RecordIds.Request(Hurt), []), Hurt, 1, 20));
+        Assert.True(AudioKeys.Reached(new SoundKey(65500, RecordIds.Request(Hurt), []), Hurt, 20, 20));
 
         var (keys, audio) = Make();
         var body = new BodyAudio();
@@ -88,7 +88,7 @@ public class AudioKeysTests
     [Fact]
     public void AKeyWithNoSoundsPlaysTheWeaponsAndWithoutAWeaponNothing()
     {
-        var swing = new BodySounds(1, [new SoundKey(0, 12, []), new SoundKey(0, 12, [Step])]);
+        var swing = new BodySounds(1, [new SoundKey(0, RecordIds.Request(12), []), new SoundKey(0, RecordIds.Request(12), [Step])]);
         var (keys, audio) = Make();
         var body = new BodyAudio();
         keys.Process(body, swing, 12, 1, 20, Vector3.Zero, 0, new Vector3(0, 0, 5), Vector3.Zero);

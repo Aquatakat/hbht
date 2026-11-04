@@ -718,7 +718,7 @@ public record TripwireAction;
 public sealed record SetFlagAction(RecordId Flag) : TripwireAction;
 
 /// <summary>Asks the tripwire's linked model, an actor, for an animation request.</summary>
-public sealed record AnimateAction(int Request) : TripwireAction;
+public sealed record AnimateAction(RecordId Request) : TripwireAction;
 
 /// <summary>
 /// Changes the collision flags of the map's toggle triangles with id <see cref="Toggle"/>: ANDs them with <see cref="KeepFlags"/>,

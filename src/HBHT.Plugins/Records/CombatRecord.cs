@@ -1,27 +1,12 @@
 namespace HBHT.Plugins.Records;
 
 /// <summary>
-/// What combat keeps of content, there being one, <c>aidyn:combat/0</c>: who fights on the party's side from an enemy list,
-/// who never fights, the enemy a roll that comes to none fights, and who and which encounters decide whether the party can
-/// flee. docs/systems/combat.md says where each is in the original.
+/// What combat keeps of content, there being one, <c>aidyn:combat/0</c>: the enemy a roll that comes to none fights, which
+/// encounters decide whether the party can flee and have rules of their own, loot's gold, the game over, the menus' words and the
+/// Shadow's rules. What's about one entity or item is on it (<see cref="EntityCombat"/>, <see cref="WeaponStats"/>,
+/// <see cref="ItemRecord"/>). docs/systems/combat.md says where each is in the original.
 /// </summary>
-/// <param name="Ally">
-/// The entity who, among an enemy list's first four, fights on the party's side instead (<c>Combat.FindSholeh</c>,
-/// <c>0x8005C6C0</c>): Sholeh.
-/// </param>
-/// <param name="Bystanders">
-/// Entities dropped from an enemy list, who never fight (<c>Combat.IsExcludedEnemy</c>, <c>0x8005C0C0</c>): the townsfolk,
-/// the shopkeepers and trainers and the like.
-/// </param>
 /// <param name="Fallback">The enemy a monster party's roll fights when it comes to none (<c>BattleSetup.FillEnemies</c>): a Skeleton.</param>
-/// <param name="NoFlee">
-/// Enemies on the field who keep the party from fleeing (<c>Combat.NoFleeEntities</c>, <c>0x800D2688</c>), and
-/// <paramref name="Flee"/> those who let it, the last on the field having the say (<c>Combat.ForbidFleeForBosses</c>).
-/// </param>
-/// <param name="Flee">
-/// The Shadow, with whom the party can flee (<c>Combat.ForbidFleeForBosses</c>, <c>0x8005CCCC</c>, which compares the entity's place
-/// with <c>0xAC</c>). Who can't be attacked is <paramref name="Untargetable"/>.
-/// </param>
 /// <param name="FleeByEncounter">
 /// Encounter flags that have the last word on fleeing (<c>Combat.ApplyFleeRuleByFlag</c>, <c>0x800D26A0</c>): the Goblin
 /// Ambush's forbids it, Lugash's and the Marquis's allow it.
@@ -29,31 +14,6 @@ namespace HBHT.Plugins.Records;
 /// <param name="LootGoldMultiplier">
 /// What the gold a loot table rolls is multiplied by (<see cref="LootRecord.GoldMin"/>): 2, as a container doubles its roll
 /// (<c>get_chest_loot</c>, a shift left by one) and a battle the sum of its chests' (<c>Combat.AddChestLoot</c>, <c>0x8005E0F0</c>).
-/// </param>
-/// <param name="Rooted">
-/// Entities whose field of influence is 0, who never move in battle (<c>Combatant.UpdateRadius</c>, by the entity list's
-/// place in <c>0x800E28EB</c>): Pochanargat.
-/// </param>
-/// <param name="Missiles">
-/// The weapons that fly to their target in battle (<c>Combatant.UpdateDrawnFlag</c>, <c>0x80066A2C</c>, through the bow list
-/// <c>Combat.BowKindWeapons</c> <c>0x800E0C08</c> and the thrown list <c>Combat.ThrownKindWeapons</c> <c>0x800E0C14</c>): aimed
-/// freely rather than at a target in reach, and drawn in flight.
-/// </param>
-/// <param name="CloseRange">
-/// Ranged weapons that may strike in melee too (<c>Weapon.AllowsMelee</c>, <c>0x8007B730</c>, by the weapon's place): Spikes.
-///
-/// </param>
-/// <param name="Bosses">
-/// The flags a win sets for a boss among the enemy list's first four (<c>Combat.SetKillFlags</c>, <c>0x80067860</c>, by the
-/// jump table <c>0x800D2B60</c>), however the battle started and whether the boss fell or not.
-/// </param>
-/// <param name="BossStyles">
-/// Those whose AI takes the bosses' styles when they have spells (<c>EnemyAI.HasBossStyle</c>, <c>0x8005BA40</c>), 9 and 10 rather
-/// than 6 and 8.
-/// </param>
-/// <param name="DroppedClasses">
-/// The weapon classes an enemy's weapons can drop as loot (<c>Combat.DropWeaponClasses</c>, <c>0x800D26C8</c>): its natural
-/// weapons never do.
 /// </param>
 /// <param name="Encounters">
 /// The battles with rules of their own, by their encounter flag (the Goblin Ambush's 978): a loss that isn't the game's end,
@@ -66,48 +26,14 @@ namespace HBHT.Plugins.Records;
 /// <param name="Text">
 /// The combat menus' and Sense Aura's words, which the code keeps rather than a string table.
 /// </param>
-/// <param name="FlaskDanger">
-/// The flasks the party may hold, and the radius each makes the AI spread out by, the first held counting
-/// (<c>Combat.PartyPotionTier</c>, <c>0x8005C750</c>).
-/// </param>
 /// <param name="Shadow">The Shadow's rules in any battle it's in (<c>gamecombat.cpp</c>'s Shadow functions). With none, no battle has them.</param>
-/// <param name="UndrawnWeapons">
-/// Entities whose weapon, arrow or flask isn't drawn in the hand, their models having their weapons already
-/// (<c>Combatant.HasNoWeaponAttachment</c>, <c>0x80066C5C</c>, the entity list's places at <c>0x800D2A0C</c>): Shamsuk, the Gorgon,
-/// the Chaos Lieutenant, the Harpy, the Marquis, the Minotaur, the Minotaur Lord and Niesen. A shield or a bow is drawn all the same.
-///
-/// </param>
-/// <param name="OtherHand">
-/// Entities who hold a bow at their actor's locator 0 and its arrow at 1, the other way round from the rest (<c>EntityBody.Hand</c>,
-/// <c>0x8006C8BC</c>, a switch on the entity list's place): the bandit bosses and woodsmen, Becan and Keelin.
-/// </param>
-/// <param name="Untargetable">
-/// Entities no one can attack or cast at, and who cast nothing themselves: the Shadow. <c>Combatant.CanAttack</c> (<c>0x80060590</c>)
-/// refuses a target whose entity is the entity list's place <c>0xAC</c> (the byte at <c>0x800E28EC</c>), and <c>Combatant.CanCast</c>
-/// (<c>0x80060C38</c>) a caster or target in <c>Combat.ShadowSlot</c> (<c>0x800D94CC</c>), which <c>Combat.CreateBody</c> sets for that
-/// place; the original keeps no list.
-/// </param>
 public sealed record CombatRecord(
     RecordId Id,
-    RecordId Ally,
-    IReadOnlyList<RecordId> Bystanders,
     RecordId Fallback,
-    IReadOnlyList<RecordId> NoFlee,
-    IReadOnlyList<RecordId> Flee,
     [property: KeyedList(nameof(EncounterFlee.Flag))] IReadOnlyList<EncounterFlee> FleeByEncounter,
     int LootGoldMultiplier,
-    IReadOnlyList<RecordId> Rooted,
-    [property: KeyedList(nameof(Missile.Weapon))] IReadOnlyList<Missile> Missiles,
-    IReadOnlyList<RecordId> CloseRange,
-    [property: KeyedList(nameof(BossFlag.Entity))] IReadOnlyList<BossFlag> Bosses,
-    IReadOnlyList<RecordId> BossStyles,
-    IReadOnlyList<WeaponClass> DroppedClasses,
     [property: KeyedList(nameof(EncounterRule.Flag))] IReadOnlyList<EncounterRule> Encounters,
     CombatText Text,
-    [property: KeyedList(nameof(Records.FlaskDanger.Item))] IReadOnlyList<FlaskDanger> FlaskDanger,
-    IReadOnlyList<RecordId> UndrawnWeapons,
-    IReadOnlyList<RecordId> OtherHand,
-    IReadOnlyList<RecordId> Untargetable,
     GameOverScene? GameOver = null,
     ShadowRule? Shadow = null)
 {
@@ -147,12 +73,6 @@ public sealed record ShadowBoost(IReadOnlyList<StatGain> Stats, int Protection, 
 /// <summary>A stat (<c>aidyn:stat/n</c>) raised by so much.</summary>
 public sealed record StatGain(RecordId Stat, int Amount);
 
-/// <summary>A flask the party holds, and how far apart it makes the AI's combatants keep (<c>Combat+0x12</c>).</summary>
-public sealed record FlaskDanger(RecordId Item, int Radius);
-
-/// <summary>Winning a battle with <paramref name="Entity"/> among the enemy list's first four sets <paramref name="Flag"/>.</summary>
-public sealed record BossFlag(RecordId Entity, RecordId Flag);
-
 /// <summary>The game over: <paramref name="Script"/>, started from its dialogue object in <paramref name="Map"/> (the Dreamscape's).</summary>
 public sealed record GameOverScene(RecordId Map, RecordId Script);
 
@@ -189,15 +109,6 @@ public sealed record KeelOver(RecordId Member, int Hits);
 public sealed record EncounterEnd(RecordId? Flag, ChunkRef Place, System.Numerics.Vector3 Position, System.Numerics.Vector2 Heading,
     RecordId? Healed, bool RestoresStrength);
 
-/// <summary>
-/// A weapon that flies (<c>Combatant.LoadWeaponScene</c>, <c>0x80066CF8</c>, and <c>Combatant.WeaponMuzzle</c>, <c>0x80066DD0</c>).
-/// </summary>
-/// <param name="Weapon">The weapon.</param>
-/// <param name="Scene">What flies: a bow's arrow (<c>aidyn:scene/0x348F</c>), or null for the weapon's own model (<see cref="WeaponRecord.Model"/>), as a thrown one does.</param>
-/// <param name="Speed">Its muzzle number, the first of <c>WeaponMuzzle</c>'s: the higher, the faster and flatter it flies.</param>
-/// <param name="Turn">Degrees it's rolled about its own X axis as it flies, before it's turned along its flight, <c>WeaponMuzzle</c>'s fourth: 90 for the Javelin, else 0.</param>
-public sealed record Missile(RecordId Weapon, RecordId? Scene, float Speed, float Turn = 0);
-
 /// <summary>Whether the party can flee a battle under the encounter flag <paramref name="Flag"/>.</summary>
 public sealed record EncounterFlee(RecordId Flag, bool CanFlee);
 
@@ -233,11 +144,7 @@ public sealed record CombatText(
 /// <param name="Vulnerable">A resistance line for a multiplier of <paramref name="ResistantBelow"/> or more, <c>0x800D3234</c>.</param>
 /// <param name="ResistantBelow">
 /// The float the resistance's multiplier (<c>Resistance.Damage</c>) is compared with (<c>0x800D3248</c>): 2.0. A line shows only for an
-/// element the entity has a resistance entry for.
-/// </param>
-/// <param name="Elements">
-/// The element names, by element: <c>String/Common</c>'s lines 241 to 257 (<c>0x800E0C00</c> points at the first, set by the loader
-/// <c>0x80083620</c>, and the element byte indexes it).
+/// element the entity has a resistance entry for, by the element's name (<see cref="ElementRecord.Name"/>).
 /// </param>
 public sealed record SenseAuraText(
     string Follower,
@@ -248,5 +155,4 @@ public sealed record SenseAuraText(
     string Immune,
     string Resistant,
     string Vulnerable,
-    float ResistantBelow,
-    IReadOnlyDictionary<Element, string> Elements);
+    float ResistantBelow);

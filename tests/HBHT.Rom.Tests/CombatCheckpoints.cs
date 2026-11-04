@@ -408,7 +408,7 @@ internal static class CombatCheckpoints
             var effects = !harmful && gain.Count > 0 ? gain
                 : [.. lasting.Except(gain).Where(e => e.For == EffectFor.Any || e.For == EffectFor.Opponents == harmful)];
             var power = cp.ReadByte(r + 1);
-            var record = new ActiveEffect(spell.Id, effects, power, (MagicSchool)cp.ReadByte(r + 2), (sbyte)cp.ReadByte(r + 3), cp.ReadWord(r + 8))
+            var record = new ActiveEffect(spell.Id, effects, power, RomIds.School((HBHT.Rom.Db.MagicSchool)cp.ReadByte(r + 2)), (sbyte)cp.ReadByte(r + 3), cp.ReadWord(r + 8))
             {
                 Harmful = harmful,
             };
@@ -431,7 +431,7 @@ internal static class CombatCheckpoints
             // A flask's corrosion (kind 3, Acid's) is the protection its burst takes, a level a point (IMagicHost.Burst).
             if (sheet.Rules.Magic.Potion(potion)?.Effects?.OfType<CorrodeEffect>().Any() == true)
                 effects = [new ProtectionEffect(new Magnitude(PerLevel: -1))];
-            potionSlots[i] = new ActiveEffect(potion, effects, cp.ReadByte(r + 1), MagicSchool.None, 0, cp.ReadWord(r + 4));
+            potionSlots[i] = new ActiveEffect(potion, effects, cp.ReadByte(r + 1), RomIds.School(HBHT.Rom.Db.MagicSchool.None), 0, cp.ReadWord(r + 4));
         }
         typeof(Character).GetField("_spellEffects", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(sheet, spellSlots);
         typeof(Character).GetField("_potionEffects", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(sheet, potionSlots);

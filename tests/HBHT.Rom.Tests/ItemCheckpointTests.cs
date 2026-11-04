@@ -53,7 +53,7 @@ public sealed class ItemCheckpointTests(Na10Import fixture)
             Assert.Equal(sheet.Gear.Count(g => g is not null), sheet.GearCount);
             Assert.Equal(ItemKind.Weapon, items[TestRoms.ItemId(sheet.Weapon!.Id)].Kind);
             if (sheet.Armor is { } armor)
-                Assert.Equal(ItemKind.Armor, items[TestRoms.ItemId(armor.Id)].Kind);
+                Assert.Equal(ItemKind.Body, items[TestRoms.ItemId(armor.Id)].Kind);
             if (sheet.Shield is { } shield)
                 Assert.Equal(ItemKind.Shield, items[TestRoms.ItemId(shield.Id)].Kind);
             Assert.All(sheet.Gear.OfType<CheckpointItem>(), g => Assert.True(items[TestRoms.ItemId(g.Id)].IsGear));
@@ -90,8 +90,8 @@ public sealed class ItemCheckpointTests(Na10Import fixture)
             }
             foreach (var skill in SkillId.All.Where(s => character.Skills.RawBase(s) >= 0))
                 Assert.Equal(character.Skills.RawBase(skill), character.Skills.RawModified(skill));
-            Assert.Equal(entity.Protection, character.Protection);
-            Assert.Equal(entity.Damage, character.Damage);
+            Assert.Equal(entity.CharacterSheet.Protection, character.Protection);
+            Assert.Equal(entity.CharacterSheet.Damage, character.Damage);
         }
     }
 
@@ -110,8 +110,9 @@ public sealed class ItemCheckpointTests(Na10Import fixture)
             // Only a battery's StatMod changes; any other is the item's bonus as it is.
             if (record.BatteryCapacity is { } capacity)
                 Assert.InRange(item.StatMod!.Value.Amount, 0, capacity);
-            else if (record.Bonuses.Stat is { } bonus)
-                Assert.Equal((int.Parse(bonus.Stat.Key), bonus.Amount), item.StatMod);
+            // (A body armor's or shield's Dexterity entry is its weight, which the checkpoint does not hold as a bonus.)
+            else if (record.Bonuses.Stats?.Where(s => !(record.IsArmor && s.Key == RecordIds.Stat(2))).ToList() is { Count: > 0 } bonuses)
+                Assert.Equal((int.Parse(bonuses.Single().Key.Key), bonuses.Single().Value), item.StatMod);
             else
                 Assert.Null(item.StatMod);
             Assert.Equal(record.Bonuses.Spell is not null, item.Charges is not null);

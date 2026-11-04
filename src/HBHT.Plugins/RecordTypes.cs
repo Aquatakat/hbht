@@ -39,13 +39,11 @@ public sealed record RecordTypeInfo(string Name, Type? Class, KeyKind Key, bool 
 public static class RecordTypes
 {
     // DB records, keyed by ItemID.
+    /// <summary>Anyone who stands, talks or fights, with or without a character sheet (ADR 0032).</summary>
     public const string Entity = "entity";
-    public const string Weapon = "weapon";
-    public const string Armor = "armor";
     public const string Spell = "spell";
+    /// <summary>Any item: weapons, armor and shields among them (ADR 0031).</summary>
     public const string Item = "item";
-    /// <summary>A <c>DialogEntity</c>: a sign, animal or other simple speaker.</summary>
-    public const string DialogEntity = "dialogentity";
     /// <summary>A loot table (<c>ChestDB</c>), which containers and monster parties roll.</summary>
     public const string Loot = "loot";
 
@@ -112,6 +110,15 @@ public static class RecordTypes
     /// <summary>A weapon skill, keyed by the original's decimal weapon class; 11 is the shield.</summary>
     public const string WeaponSkill = "weaponskill";
 
+    /// <summary>A school of magic, keyed by the original's decimal number (ADR 0033).</summary>
+    public const string School = "school";
+
+    /// <summary>A damage and resistance element, keyed by the original's decimal number (ADR 0033).</summary>
+    public const string Element = "element";
+
+    /// <summary>An animation request a body asks its actor for, keyed by the original's decimal number (ADR 0033).</summary>
+    public const string Request = "request";
+
     /// <summary>How characters level and train. There's one, <c>aidyn:progression/0</c>.</summary>
     public const string Progression = "progression";
 
@@ -163,11 +170,8 @@ public static class RecordTypes
     public static IReadOnlyList<RecordTypeInfo> Registry { get; } =
     [
         new(Entity, typeof(EntityRecord), KeyKind.Db, Views: DbViews),
-        new(Weapon, typeof(WeaponRecord), KeyKind.Db, Views: DbViews),
-        new(Armor, typeof(ArmorRecord), KeyKind.Db, Views: DbViews),
         new(Spell, typeof(SpellRecord), KeyKind.Db, Views: DbViews),
         new(Item, typeof(ItemRecord), KeyKind.Db, Views: DbViews),
-        new(DialogEntity, typeof(DbRecord), KeyKind.Db),
         new(Loot, typeof(LootRecord), KeyKind.Db, Views: DbViews),
         new(Flag, typeof(FlagRecord), KeyKind.Decimal),
         new(Texture, null, KeyKind.Borg),
@@ -208,6 +212,9 @@ public static class RecordTypes
         new(Magic, typeof(MagicRecord), KeyKind.Decimal, Singleton: true),
         new(Trigger, typeof(TriggerRecord), KeyKind.Decimal),
         new(Explosion, typeof(ExplosionRecord), KeyKind.Decimal, Singleton: true),
+        new(School, typeof(SchoolRecord), KeyKind.Decimal),
+        new(Element, typeof(ElementRecord), KeyKind.Decimal),
+        new(Request, typeof(RequestRecord), KeyKind.Decimal),
         new(Fill, null, KeyKind.Decimal),
     ];
 
@@ -234,7 +241,7 @@ public static class RecordTypes
     /// <summary>
     /// The one type whose records read as <typeparamref name="T"/> as their class, such as <see cref="RecordTypes.Entity"/> for
     /// <see cref="EntityRecord"/>, or an <see cref="ArgumentException"/> where there's none or more than one
-    /// (<see cref="SkillRecord"/> is a skill's and a weapon skill's; <see cref="DbRecord"/> is a dialogue entity's, and a view of the rest).
+    /// (<see cref="SkillRecord"/> is a skill's and a weapon skill's).
     /// </summary>
     public static RecordTypeInfo Of<T>() where T : class
     {

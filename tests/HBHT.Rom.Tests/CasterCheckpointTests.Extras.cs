@@ -187,8 +187,9 @@ public sealed partial class CasterCheckpointTests
         var rules = (CombatRecord)BattleRules.GetValue(battle)!;
 
         // The party as 1.0 had it: no flasks, every member's Wizard level as it was, then the case's changes.
-        foreach (var flask in rules.FlaskDanger!)
-            game.Party.Inventory.Take(flask.Item, int.MaxValue);
+        var flasks = Set.All<ItemRecord>(RecordTypes.Item).Where(i => i.AiSpread > 0).ToList();
+        foreach (var flask in flasks)
+            game.Party.Inventory.Take(flask.Id, int.MaxValue);
         foreach (var flask in k.Flasks)
             Assert.True(game.Party.Inventory.Add(RecordId.Hex(RecordTypes.Item, flask)));
         var fireball = Set.All<SpellRecord>(RecordTypes.Spell).Single(s => s.Targeting.Blast);
@@ -208,7 +209,8 @@ public sealed partial class CasterCheckpointTests
             Assert.True(battle.Slots[member]!.Sheet.IsDead);
         }
 
-        var tier = rules.FlaskDanger!.FirstOrDefault(f => game.Party.Inventory.Has(f.Item))?.Radius ?? 0;
+        // The flasks' radii fall in the code's order, so the first held is the greatest held (ItemRecord.AiSpread).
+        var tier = flasks.Where(f => game.Party.Inventory.Has(f.Id)).Select(f => f.AiSpread).DefaultIfEmpty(0).Max();
         var danger = (int)PartyDanger.Invoke(battle, [rules])!;
         Assert.Equal((k.Tier, k.Value), (tier, danger));
     }

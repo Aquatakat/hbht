@@ -98,14 +98,15 @@ internal static class FormulaState
         ["resist"] = (b, a) =>
         {
             var sheet = Slot(b, a[0]).Sheet;
-            var list = sheet.Record.Resistances.ToList();
+            var list = sheet.Record.CharacterSheet.Resistances.ToList();
             var i = Int(a[1]);
+            var none = RecordIds.Element(0);
             while (list.Count <= i)
-                list.Add(new Resistance(Element.None, 1));
-            list[i] = new Resistance((Element)Int(a[2]), Float(a[3]));
-            SetRecord(sheet, sheet.Record with { Resistances = [.. list.Where(r => r.Element != Element.None)] });
+                list.Add(new Resistance(none, 1));
+            list[i] = new Resistance(RecordIds.Element(Int(a[2])), Float(a[3]));
+            SetRecord(sheet, sheet.Record with { Sheet = sheet.Record.CharacterSheet with { Resistances = [.. list.Where(r => r.Element != none)] } });
         },
-        ["aspect"] = (b, a) => SetRecord(Slot(b, a[0]).Sheet, Slot(b, a[0]).Sheet.Record with { Aspect = (Aspect)Int(a[1]) }),
+        ["aspect"] = (b, a) => SetRecord(Slot(b, a[0]).Sheet, Slot(b, a[0]).Sheet.Record with { Sheet = Slot(b, a[0]).Sheet.Record.CharacterSheet with { Aspect = (Aspect)Int(a[1]) } }),
         ["acted"] = (b, a) =>
         {
             var c = Slot(b, a[0]);
@@ -131,7 +132,7 @@ internal static class FormulaState
 
     /// <summary>A skill by the port's name: a <see cref="Skill"/>, a <see cref="WeaponClass"/>, or Shield.</summary>
     public static SkillId SkillOf(string name) =>
-        Enum.TryParse<Skill>(name, out var skill) ? skill : Enum.TryParse<WeaponClass>(name, out var weapon) ? weapon
+        Enum.TryParse<Skill>(name, out var skill) ? skill : Enum.TryParse<HBHT.Rom.Db.WeaponClass>(name, out var weapon) ? SkillId.WeaponSkill((int)weapon)
         : name == "Shield" ? SkillId.Shield : throw new InvalidDataException($"No skill {name}.");
 
     private static void SetPart(CharacterStats stats, Stat stat, int? current = null, int? @base = null, int? modified = null) =>
@@ -170,8 +171,12 @@ internal static class FormulaState
         cells[i] = (byte)(cells[i] & ArenaGrid.Taken | height & 0x7F);
     }
 
-    private static void SetRecord(Character sheet, EntityRecord record) =>
+    /// <summary>Replaces a character's record, and its sheet, which the character keeps from creating it.</summary>
+    private static void SetRecord(Character sheet, EntityRecord record)
+    {
         typeof(Character).GetField("<Record>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(sheet, record);
+        typeof(Character).GetField("<Sheet>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(sheet, record.CharacterSheet);
+    }
 
     /// <summary>A change to the gear with the stats and skills put back after: the RAM's poke changes the pointer alone.</summary>
     private static void KeepingStats(Character sheet, Action<Character> change)

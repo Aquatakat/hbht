@@ -16,7 +16,7 @@ public class TrainingMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlug
 {
     private static readonly RecordId Keeper = RecordId.Hex(RecordTypes.Entity, 0x02D8);
 
-    private static readonly SpellRecord Spark = Characters.Spell(0x0306, MagicSchool.Elemental, wizard: 1, cost: 200);
+    private static readonly SpellRecord Spark = Characters.Spell(0x0306, Magic.Schools.Elemental, wizard: 1, cost: 200);
 
     private readonly PluginSet _plugins = fixture.Plugins;
 

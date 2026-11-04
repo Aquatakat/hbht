@@ -77,12 +77,9 @@ public sealed class BattleRulesTests
 
     // Party.BattleAmbushRoll (0x80076C60).
     private static Character Member(int n, int ranger, int stamina = 30, int intelligence = 18) =>
-        Characters.Create(Characters.Alaron() with
-        {
-            Id = Entity(0x3000 + n),
-            Attributes = new Attributes(intelligence, 12, 15, 15, 15, stamina),
-            Skills = new SkillLevels(0, 0, 0, 0, 0, 0, ranger, 0, 0, 0, 0, 0),
-        });
+        Characters.Create((Characters.Alaron() with { Id = Entity(0x3000 + n) })
+            .WithAttributes(new Attributes(intelligence, 12, 15, 15, 15, stamina))
+            .WithSkills(new SkillLevels(0, 0, 0, 0, 0, 0, ranger, 0, 0, 0, 0, 0)));
 
     private static CharacterParty PartyOf(params Character[] members)
     {
@@ -360,7 +357,8 @@ public sealed class BattleRulesTests
     [InlineData(16, 0.23f)]
     public void AShotOrAThrowLeavesAtItsOwnShare(int request, float expected)
     {
-        var look = new EntityBody(RecordId.Hex(RecordTypes.Actor, 0x302A), 1, 1, 1, Strike: 0.23f, ShotStrike: 0.7f, ThrowStrike: 0.55f);
+        var look = new EntityBody(RecordId.Hex(RecordTypes.Actor, 0x302A), 1, 1, 1, Strike: 0.23f,
+            Strikes: new Dictionary<RecordId, float> { [RecordIds.Request(14)] = 0.7f, [RecordIds.Request(15)] = 0.55f });
         Assert.Equal(expected, Battle.StrikeShare(look, request));
         var plain = JsonSerializer.Deserialize<EntityBody>("""{"actor": "aidyn:actor/0x302A", "radius": 1, "scale": 1, "height": 1}""",
             PluginJson.Options)!;

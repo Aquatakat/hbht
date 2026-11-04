@@ -78,7 +78,7 @@ public class DialogueImportTests
                 Assert.True(op.Target is not null ^ op.Value is not null, op.ToString());
                 if (op.Target is { } target)
                 {
-                    Assert.Contains(target.Type, new[] { RecordTypes.Entity, RecordTypes.DialogEntity, RecordTypes.Item, RecordTypes.Weapon, RecordTypes.Armor, RecordTypes.Spell });
+                    Assert.Contains(target.Type, new[] { RecordTypes.Entity, RecordTypes.Item, RecordTypes.Spell });
                 }
                 else
                 {
@@ -131,7 +131,7 @@ public class DialogueImportTests
             Assert.Equal(r.Mode is DialogueMode.Backdrop or DialogueMode.Help, r.Backdrop is not null);
         });
         Assert.Equal([596, 211, 78, 6, 1], Enum.GetValues<DialogueMode>().Select(m => records.Count(r => r.Mode == m)));
-        Assert.All(records.Where(r => r.Actors is not null), r => Assert.All(r.Actors!, a => Assert.Contains(a.Type, new[] { RecordTypes.Entity, RecordTypes.DialogEntity })));
+        Assert.All(records.Where(r => r.Actors is not null), r => Assert.All(r.Actors!, a => Assert.Equal(RecordTypes.Entity, a.Type)));
     }
 
     [Fact]
@@ -234,10 +234,12 @@ public class DialogueImportTests
     public void DbIdsNameRecordsByTheirWholeId()
     {
         Assert.Equal(RecordId.Parse("aidyn:entity/0x023F"), DbRecordIds.For(new ItemId(0x023F)));
-        Assert.Equal(RecordTypes.DialogEntity, DbRecordIds.For(ItemId.Of(DbType.DialogEntity, 3))!.Value.Type);
-        Assert.Equal(RecordTypes.Armor, DbRecordIds.For(ItemId.Of(DbType.Shield, 1))!.Value.Type);
+        // A dialogue entity is an entity (ADR 0032), and the four twins are the entity they are twins of.
+        Assert.Equal(RecordId.Parse("aidyn:entity/0x1403"), DbRecordIds.For(ItemId.Of(DbType.DialogEntity, 3)));
+        Assert.Equal(RecordId.Parse("aidyn:entity/0x02DD"), DbRecordIds.For(ItemId.Of(DbType.DialogEntity, 4)));
+        Assert.Equal(RecordTypes.Item, DbRecordIds.For(ItemId.Of(DbType.Shield, 1))!.Value.Type);
         Assert.Equal(RecordTypes.Item, DbRecordIds.For(ItemId.Of(DbType.KeyItem, 1))!.Value.Type);
-        Assert.Equal(RecordTypes.Weapon, DbRecordIds.For(ItemId.Of(DbType.Weapon, 9))!.Value.Type);
+        Assert.Equal(RecordTypes.Item, DbRecordIds.For(ItemId.Of(DbType.Weapon, 9))!.Value.Type);
         Assert.Equal(RecordTypes.Spell, DbRecordIds.For(ItemId.Of(DbType.Spell, 2))!.Value.Type);
         Assert.Equal(RecordId.Parse("aidyn:loot/0x0801"), DbRecordIds.For(new ItemId(0x0801)));
         Assert.All(new ushort[] { 0, 0x0401, 0xCCCC, 0x1501 }, v => Assert.Null(DbRecordIds.For(new ItemId(v))));
@@ -266,15 +268,14 @@ public class DialogueImportTests
         var rom = TestRoms.Get(RomVersionId.Na10);
         var db = GameDb.Read(rom);
         var models = EntityModels.Read(rom);
-        // Entities, spells and items have records of their own, which name them too.
-        var names = CharacterImporter.BuildNames(db, models).SelectMany(f => f.Records).ToDictionary(r => r.Id, r => r.Name);
+        // Entities (the dialogue entities among them), spells and items have records of their own, which name them too.
+        var names = new Dictionary<RecordId, string>();
         foreach (var entity in CharacterImporter.BuildEntities(db, models))
             names.Add(entity.Id, entity.Name);
         foreach (var spell in CharacterImporter.BuildSpells(db))
             names.Add(spell.Id, spell.Name);
-        var (weapons, armor, items) = ItemImporter.BuildItems(db, ItemTables.Read(rom), Quests.EngineTables.Read(rom));
-        foreach (var (id, name) in weapons.Select(w => (w.Id, w.Name)).Concat(armor.Select(a => (a.Id, a.Name))).Concat(items.Select(i => (i.Id, i.Name))))
-            names.Add(id, name);
+        foreach (var item in ItemImporter.BuildItems(db, ItemTables.Read(rom), Quests.EngineTables.Read(rom)))
+            names.Add(item.Id, item.Name);
         Assert.Equal("Alaron", names[RecordId.Hex(RecordTypes.Entity, 0x023F)]);
         Assert.Equal("Trahern", names[RecordId.Hex(RecordTypes.Entity, 0x0239)]);
         // Potions have no DB table: they're named by their own string table, by index.

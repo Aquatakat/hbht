@@ -588,14 +588,14 @@ public sealed class TrekLoopTests(Na10Import fixture)
     }
 
     /// <summary>
-    /// A mod's leader whose teleporterStrike is 0.5 uses a door at half his animation for it, once his actor has entered a state
+    /// A mod's leader whose teleport strike is 0.5 uses a door at half his animation for it, once his actor has entered a state
     /// for the request, with the controls dead meanwhile; A and Start do nothing till then.
     /// </summary>
     [Fact]
     public void ALeadersTeleporterStrikeTimesTheDoorByItsAnimation()
     {
         var (trek, _, door) = StartOnADoor();
-        trek.PlayerLook = new EntityBody(Body.AlaronActor, 0.5f, 1, 1, TeleporterStrike: 0.5f);
+        trek.PlayerLook = new EntityBody(Body.AlaronActor, 0.5f, 1, 1, Strikes: new Dictionary<RecordId, float> { [Requests.Id(EntityBody.UseTeleporterRequest)] = 0.5f });
         var motion = new StatesOf(20);
         trek.PlayerAnimation = motion;
         // The state he's in plays out first: 5 frames of idling are left.

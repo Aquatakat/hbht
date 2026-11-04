@@ -45,7 +45,7 @@ public sealed partial class Battle
         GoldPool = ExperiencePool = 0;
         foreach (var id in Enemies.Take(MaxEnemies))
         {
-            if (Game.Plugins.TryGet<EntityRecord>(id) is not { } entity)
+            if (Game.Plugins.TryGet<EntityRecord>(id)?.Sheet is not { } entity)
                 continue;
             ExperiencePool += entity.Experience;
             if (entity.LootCategory != 0 && Game.Plugins.TryGet<LootRecord>(ChestOf(entity.LootCategory)) is { } chest)
@@ -86,7 +86,7 @@ public sealed partial class Battle
     /// A container's roll (<see cref="Containers.Roll"/>) is the same table, read otherwise: it picks the reagent before rolling
     /// its chance, and never reads the equipment chances.
     /// </remarks>
-    private void AddChestLoot(LootRecord chest, EntityRecord? entity)
+    private void AddChestLoot(LootRecord chest, EntitySheet? entity)
     {
         var random = Game.Random.Loot;
         GoldPool += random.Range(chest.GoldMin, chest.GoldMax);
@@ -113,19 +113,18 @@ public sealed partial class Battle
     }
 
     /// <summary>
-    /// The enemy's own gear (<c>Combat.RollEquipmentDrops</c>, <c>0x8005DC78</c>): its armor and shield, then its three weapons, each
-    /// rolled by the chest's chance if it has one and the enemy the item, a weapon only of a class that drops
-    /// (<see cref="CombatRecord.DroppedClasses"/>).
+    /// The enemy's own gear (<c>Combat.RollEquipmentDrops</c>, <c>0x8005DC78</c>): its armor and shield, then its weapons slot by slot
+    /// (<see cref="EntityWeapons"/>), each rolled by the chest's chance for the slot if it has one and the enemy the item, a weapon
+    /// only of a weapon skill whose weapons drop (<see cref="SkillRecord.Drops"/>).
     /// </summary>
-    private void RollEquipmentDrops(LootRecord chest, EntityRecord entity, IRandom random)
+    private void RollEquipmentDrops(LootRecord chest, EntitySheet entity, IRandom random)
     {
         Roll(entity.Armor, chest.ArmorChance);
         Roll(entity.Shield, chest.ShieldChance);
-        for (var i = 0; i < 3; i++)
+        var chances = chest.WeaponChances;
+        foreach (var (weapon, chance) in new[] { (entity.Weapons.Joins, chances.Joins), (entity.Weapons.Spare, chances.Spare), (entity.Weapons.Fights, chances.Fights) })
         {
-            var weapon = i < entity.Weapons.Count ? entity.Weapons[i] : null;
-            var chance = i < chest.WeaponChances.Count ? chest.WeaponChances[i] : 0;
-            if (weapon is { } w && Game.Plugins.TryGet<WeaponRecord>(w) is { } record && !_rules.DroppedClasses.Contains(record.Class))
+            if (weapon is { } w && Game.Items.TryGet(w)?.Weapon is { } stats && Game.Plugins.TryGet<SkillRecord>(stats.Skill)?.Drops != true)
                 continue;
             Roll(weapon, chance);
         }
@@ -140,16 +139,10 @@ public sealed partial class Battle
     }
 
     /// <summary>
-    /// What an item adds to the experience pool as it's looted: a weapon's <see cref="WeaponRecord.ExpModifier"/>, armor's
-    /// <see cref="ArmorRecord.ExpBonus"/>, and another item's <see cref="ItemRecord.ExpMultiplier"/>; a potion's nothing.
+    /// What an item adds to the experience pool as it's looted (<see cref="ItemRecord.LootExperience"/>); a potion's nothing.
     /// </summary>
-    public int ExperienceValue(RecordId item) => item.Type switch
-    {
-        RecordTypes.Weapon => Game.Plugins.TryGet<WeaponRecord>(item)?.ExpModifier ?? 0,
-        RecordTypes.Armor => Game.Plugins.TryGet<ArmorRecord>(item)?.ExpBonus ?? 0,
-        RecordTypes.Item => Game.Plugins.TryGet<ItemRecord>(item) is { Kind: not ItemKind.Potion } other ? other.ExpMultiplier : 0,
-        _ => 0,
-    };
+    public int ExperienceValue(RecordId item) =>
+        Game.Plugins.TryGet<ItemRecord>(item) is { Kind: not ItemKind.Potion } looted ? looted.LootExperience : 0;
 
     /// <summary>Puts <paramref name="count"/> of an item in the loot, if a plugin has it and the pile has room.</summary>
     private void Add(RecordId item, int count)
@@ -160,16 +153,15 @@ public sealed partial class Battle
 
     /// <summary>
     /// The bosses' flags (<c>Combat.SetKillFlags</c>, <c>0x80067860</c>): for each of the enemy list's first four that's a boss
-    /// (<see cref="CombatRecord.Bosses"/>), its flag, whether it fell or not. A win sets them twice, as the battle's won and once
+    /// (<see cref="EntityCombat.BossFlag"/>), its flag, whether it fell or not. A win sets them twice, as the battle's won and once
     /// it has faded out.
     /// </summary>
     internal void SetKillFlags()
     {
-        var bosses = _rules.Bosses;
         foreach (var id in Enemies.Take(OnField))
         {
-            if (bosses.FirstOrDefault(b => b.Entity == id) is { } boss)
-                Game.Flags.TrySet(boss.Flag, true);
+            if (Game.Plugins.TryGet<EntityRecord>(id)?.Combat?.BossFlag is { } boss)
+                Game.Flags.TrySet(boss, true);
         }
     }
 }

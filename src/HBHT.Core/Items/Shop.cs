@@ -86,7 +86,7 @@ public sealed class Shop
                 stack.Instance.Price = (ushort)(uint)(price * slot.PriceMultiplier);
             }
         }
-        return new Shop(record, stock, BarterFactor(party, shopkeeper.Skills.Merchant ?? 0xFF, items.Rules.MerchantStep), party, items, flags);
+        return new Shop(record, stock, BarterFactor(party, shopkeeper.Sheet?.SkillLevel(new SkillId((int)Skill.Merchant).Record) ?? 0xFF, items.Rules.MerchantStep), party, items, flags);
     }
 
     /// <summary>The barter factor, taking its Stamina from the member who barters (<c>Party::Barter</c>).</summary>

@@ -59,13 +59,13 @@ public static class MenuDetailsBuilder
         var item = instance.Item;
         if (item.Weapon is { } weapon)
             return Weapon(instance, weapon, text, spells, wearer);
-        if (item.Armor is { } armor)
-            return Armor(instance, armor, text, spells, wearer);
+        if (item.IsArmor)
+            return Armor(instance, item.Record, text, spells, wearer);
         if (item.Kind is ItemKind.Key)
             return null;
         if (item.Kind is ItemKind.Potion or ItemKind.Scroll or ItemKind.Misc)
         {
-            if (item.Gear?.Description is not { } description)
+            if (item.Record.Description is not { } description)
                 return null;
             var footer = new List<DetailLine>();
             if (item.Kind == ItemKind.Scroll && item.Bonuses.Spell is { } scroll && spells(scroll.Spell) is { } spell)
@@ -102,31 +102,33 @@ public static class MenuDetailsBuilder
     /// <summary>The reagent's icon is squared to a line's height less 2.</summary>
     public const int ReagentIcon = 9;
 
-    private static MenuDetails Weapon(ItemInstance instance, WeaponRecord weapon, MenuText text, Func<RecordId, SpellRecord?> spells,
+    private static MenuDetails Weapon(ItemInstance instance, WeaponStats weapon, MenuText text, Func<RecordId, SpellRecord?> spells,
         Character? wearer)
     {
-        var lines = new List<DetailLine> { Pair(text[MenuText.Skill], SkillName(wearer, SkillId.FromRecord(WeaponSkill(weapon.Class)))) };
-        AspectLine(lines, weapon.Bonuses.Aspect, text);
-        if (weapon.RequiredStrength != 0)
-            lines.Add(Pair(text[MenuText.MinStrength], Num(weapon.RequiredStrength)));
+        var lines = new List<DetailLine> { Pair(text[MenuText.Skill], SkillName(wearer, weapon.Skill)) };
+        AspectLine(lines, instance.Item.Bonuses.Aspect, text);
+        if (instance.Item.RequiredStrength != 0)
+            lines.Add(Pair(text[MenuText.MinStrength], Num(instance.Item.RequiredStrength)));
         lines.Add(Pair(text[MenuText.BaseHit], Num(weapon.Hit)));
         lines.Add(Pair(text[MenuText.Damage], Num(weapon.Damage)));
         Bonuses(lines, instance, text, spells, wearer);
         return new MenuDetails(instance.Item.Icon, instance.Item.Name, lines, []);
     }
 
-    private static MenuDetails Armor(ItemInstance instance, ArmorRecord armor, MenuText text, Func<RecordId, SpellRecord?> spells,
+    private static MenuDetails Armor(ItemInstance instance, ItemRecord armor, MenuText text, Func<RecordId, SpellRecord?> spells,
         Character? wearer)
     {
         var lines = new List<DetailLine>();
-        AspectLine(lines, armor.Bonuses.Aspect, text);
+        var bonuses = instance.Item.Bonuses;
+        AspectLine(lines, bonuses.Aspect, text);
         lines.Add(Pair(text[MenuText.Protection], Num(armor.Protection)));
-        if (armor.Slot == ArmorSlot.Shield)
+        if (armor.Kind == ItemKind.Shield)
             lines.Add(Pair(text[MenuText.Defense], Num(armor.Defense)));
-        lines.Add(Pair(text[MenuText.Dexterity], Plus(armor.Dexterity)));
+        // Armor's Dexterity and Stealth have lines of their own, as the original's fields did.
+        lines.Add(Pair(text[MenuText.Dexterity], Plus(bonuses.Stat(DexterityStat))));
         // The decomp labels Stealth with the armor's name.
-        lines.Add(Pair(text[MenuText.Stealth], Plus(armor.Stealth)));
-        Bonuses(lines, instance, text, spells, wearer);
+        lines.Add(Pair(text[MenuText.Stealth], Plus(bonuses.Skills?.GetValueOrDefault(StealthSkill) ?? 0)));
+        Bonuses(lines, instance, text, spells, wearer, shown: [DexterityStat, StealthSkill]);
 
         var footer = new List<DetailLine>();
         if (wearer is not null)
@@ -134,13 +136,13 @@ public static class MenuDetailsBuilder
             var equipment = wearer.Equipment;
             var protection = equipment.ArmorProtection;
             var withIt = protection;
-            if (armor.Slot == ArmorSlot.Body || equipment.CanCarryShield)
+            if (armor.Kind == ItemKind.Body || equipment.CanCarryShield)
             {
-                var replaced = armor.Slot == ArmorSlot.Body ? equipment.Armor : equipment.Shield;
-                withIt = protection - (replaced?.Item.Armor?.Protection ?? 0) + armor.Protection;
+                var replaced = armor.Kind == ItemKind.Body ? equipment.Armor : equipment.Shield;
+                withIt = protection - (replaced?.Item.Protection ?? 0) + armor.Protection;
             }
             var defense = equipment.ShieldDefense;
-            var defenseWithIt = armor.Slot == ArmorSlot.Shield && equipment.CanCarryShield ? armor.Defense : defense;
+            var defenseWithIt = armor.Kind == ItemKind.Shield && equipment.CanCarryShield ? armor.Defense : defense;
             footer.Add(Total(text[MenuText.TotalProtection], protection, withIt));
             footer.Add(Total(text[MenuText.TotalDefense], defense, defenseWithIt));
         }
@@ -154,31 +156,36 @@ public static class MenuDetailsBuilder
     private static MenuDetails Gear(ItemInstance instance, MenuText text, Func<RecordId, SpellRecord?> spells)
     {
         var item = instance.Item;
-        var gear = item.Gear;
         var lines = new List<DetailLine>();
         AspectLine(lines, item.Bonuses.Aspect, text);
         lines.Add(Pair(text[MenuText.MinIntelligence], Num(item.RequiredIntelligence)));
         if (item.RequiredStrength != 0)
             lines.Add(Pair(text[MenuText.MinStrength], Num(item.RequiredStrength)));
-        lines.Add(Pair(text[MenuText.Damage], PlusNonzero(gear?.Damage ?? 0)));
-        lines.Add(Pair(text[MenuText.Protection], PlusNonzero(gear?.Protection ?? 0)));
+        lines.Add(Pair(text[MenuText.Damage], PlusNonzero(item.Damage)));
+        lines.Add(Pair(text[MenuText.Protection], PlusNonzero(item.Protection)));
         Bonuses(lines, instance, text, spells, null, charges: item.Kind == ItemKind.Wand);
         return new MenuDetails(item.Icon, item.Name, lines, []);
     }
 
-    /// <summary>What wearing it adds: a stat, a skill, an enchantment, a spell and its charges, and a resistance.</summary>
+    /// <summary>What wearing it adds: its stats, its skills, an enchantment, a spell and its charges, and its resistances.</summary>
+    /// <param name="shown">Stats and skills with lines of their own already: armor's Dexterity and Stealth.</param>
     private static void Bonuses(List<DetailLine> lines, ItemInstance instance, MenuText text, Func<RecordId, SpellRecord?> spells,
-        Character? wearer, bool charges = false)
+        Character? wearer, bool charges = false, RecordId[]? shown = null)
     {
         var bonuses = instance.Item.Bonuses;
-        if (bonuses.Stat is { } stat)
+        foreach (var (stat, amount) in bonuses.Stats ?? Empty)
         {
+            if (shown?.Contains(stat) == true)
+                continue;
             // A Stamina bonus is a battery: what it holds now.
-            var stamina = stat.Stat == Items.Item.StaminaStat;
-            lines.Add(Pair(stamina ? text[MenuText.SpellBattery] : NameOf(stat.Stat, wearer), Plus(stamina ? instance.Battery ?? stat.Amount : stat.Amount)));
+            var stamina = stat == Items.Item.StaminaStat;
+            lines.Add(Pair(stamina ? text[MenuText.SpellBattery] : NameOf(stat, wearer), Plus(stamina ? instance.Battery ?? amount : amount)));
         }
-        if (bonuses.Skill is { } skill)
-            lines.Add(Pair(SkillName(wearer, SkillId.FromRecord(skill.Skill)) ?? skill.Skill.Key, Plus(skill.Amount)));
+        foreach (var (skill, amount) in bonuses.Skills ?? Empty)
+        {
+            if (shown?.Contains(skill) != true)
+                lines.Add(Pair(SkillName(wearer, skill), Plus(amount)));
+        }
         if (bonuses.Enchantment is { } magic)
         {
             lines.Add(Line(text[MenuText.Magic]));
@@ -191,11 +198,11 @@ public static class MenuDetailsBuilder
             if (charges && (instance.Charges ?? spell.Charges) is var left and not 0)
                 lines.Add(Pair(text[MenuText.Charges], Num(left)));
         }
-        if (bonuses.Resistance is { Element: not Element.None } resistance)
+        foreach (var (element, damage) in bonuses.Resistances ?? Resisting)
         {
             lines.Add(Line(text[MenuText.Resists]));
-            lines.Add(new DetailLine([new DetailText(resistance.Element.ToString(), TextColor)],
-                [new DetailText(((1 - resistance.Damage) * 100).ToString("0", CultureInfo.InvariantCulture), TextColor)], Indent: true));
+            lines.Add(new DetailLine([new DetailText(wearer?.Rules.Elements.GetValueOrDefault(element)?.Name ?? element.Key, TextColor)],
+                [new DetailText(((1 - damage) * 100).ToString("0", CultureInfo.InvariantCulture), TextColor)], Indent: true));
         }
     }
 
@@ -212,9 +219,14 @@ public static class MenuDetailsBuilder
     private static (RecordId Icon, string Name)? Reagent(RecordId? reagent, ItemCatalog? items) =>
         reagent is { } i && items?.TryGet(i) is { } item ? (item.Icon, item.Name) : null;
 
-    private static RecordId WeaponSkill(WeaponClass weapon) => RecordId.Decimal(RecordTypes.WeaponSkill, (int)weapon);
+    private static readonly Dictionary<RecordId, int> Empty = [];
 
-    private static string? SkillName(Character? character, SkillId skill) => character?.Rules[skill].Name ?? skill.ToString();
+    private static readonly Dictionary<RecordId, float> Resisting = [];
+
+    private static readonly RecordId DexterityStat = StatId.Record(Characters.Stat.Dexterity), StealthSkill = new SkillId((int)Characters.Skill.Stealth).Record;
+
+    private static string SkillName(Character? character, RecordId skill) =>
+        SkillId.TryFromRecord(skill) is { } id ? character?.Rules[id].Name ?? id.ToString() : skill.Key;
 
     private static string NameOf(RecordId stat, Character? character) =>
         character is not null && int.TryParse(stat.Key, out var n) && n < CharacterRules.StatCount ? character.Rules[(Stat)n].Name

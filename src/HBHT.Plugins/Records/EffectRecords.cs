@@ -108,14 +108,14 @@ public sealed record SkillEffect(RecordId Skill, Magnitude Amount) : Effect;
 public sealed record ProtectionEffect(Magnitude Amount, Magnitude? Leaves = null) : Effect;
 
 /// <summary>Adds to the target's resist roll against one school's spells while it lasts (<c>Combatant.ResistBonusFromEffects</c>). The four vs. spells, 6 a level.</summary>
-public sealed record WardEffect(MagicSchool School, Magnitude Amount) : Effect;
+public sealed record WardEffect(RecordId School, Magnitude Amount) : Effect;
 
 /// <summary>
 /// Damage, once: (the cast's margin + <see cref="Dice"/>) d6, times the target's resistances to the spell
 /// (<c>Combatant.SpellDamage</c>). The spell's school and aspect always meet resistances; these elements add to them.
 /// </summary>
 /// <param name="Dice">The dice over the margin: the damage byte (Lightning's 2), or a level each (Fireball's).</param>
-public sealed record DamageEffect(Magnitude Dice, IReadOnlyList<Element> Elements) : Effect;
+public sealed record DamageEffect(Magnitude Dice, IReadOnlyList<RecordId> Elements) : Effect;
 
 /// <summary>Damage each round while it lasts, no more than the target's hit points (<c>Entity.AgeEffects</c>). Immolation and Acid Bolt 1d6, Web of Starlight 2d6.</summary>
 public sealed record DamagePerRoundEffect(Dice Dice) : Effect;
@@ -183,7 +183,7 @@ public sealed record CureEffect(IReadOnlyList<RecordId> Spells, bool BeatsMargin
 /// Ends every effect of one school on the target, once, if the cast's margin times their number reaches the sum of their margins
 /// (<c>Entity.Dispel</c>). Unschooled effects can't be dispelled. The four dispels.
 /// </summary>
-public sealed record DispelEffect(MagicSchool School) : Effect;
+public sealed record DispelEffect(RecordId School) : Effect;
 
 /// <summary>Holds the battle at night or by day while it lasts, ending the other's effects on everyone (<c>Entity.SetLight</c>). Darkness and Light.</summary>
 public sealed record PartOfDayEffect(bool Night) : Effect;
@@ -260,7 +260,6 @@ public enum Resisted
 /// (<c>Combatant.ResolveCastRoll</c>).
 /// </param>
 /// <param name="MaxLevel">A spell's highest level.</param>
-/// <param name="KeptAfterBattle">Potions whose effects outlast a battle (<c>Entity.ClearEffects</c>): Stealth.</param>
 /// <param name="SpellEffects">A character's room for spells' effects (<c>entity+0x34</c>, 15).</param>
 /// <param name="PotionEffects">A character's room for potions' effects (<c>entity+0x38</c>, 7).</param>
 /// <param name="Refused">
@@ -276,7 +275,6 @@ public sealed record MagicRecord(
     int MostDisabled,
     float Improvement,
     int MaxLevel,
-    IReadOnlyList<RecordId> KeptAfterBattle,
     int SpellEffects = 15,
     int PotionEffects = 7,
     RecordId? Refused = null,

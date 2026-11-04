@@ -23,7 +23,10 @@ public sealed class Wanderers(PluginSet plugins)
     /// </summary>
     public const int OriginalLimit = 39;
 
-    /// <summary>A dialogue entity's perception (<c>EntityDB::GetPerception</c>).</summary>
+    /// <summary>
+    /// The perception of one from the original's dialogue entity table (<c>EntityDB::GetPerception</c>), which the importer gives
+    /// those entities (ADR 0032), and a wanderer whose entity no plugin has.
+    /// </summary>
     public const int DialoguePerception = 10;
 
     /// <summary>
@@ -72,9 +75,7 @@ public sealed class Wanderers(PluginSet plugins)
             // AllocWanderer sweeps from 1 above the party to 1 below, its sphere's centre there, or failing that from on high.
             var body = Body.Spawn(world, at, look, random, near: at.Y);
             body.Bounds = Body.ChunkBounds(map.Origin, cellSize);
-            // A talker may be a dialogue entity, which has no entity record.
-            var entity = party.Entity.Type == RecordTypes.Entity ? plugins.TryGet<EntityRecord>(party.Entity) : null;
-            var perception = entity?.Perception ?? DialoguePerception;
+            var perception = plugins.TryGet<EntityRecord>(party.Entity)?.Perception ?? DialoguePerception;
             var wanderer = new Wanderer(map, party, look, body, perception) { Sounds = record.Sounds };
             wanderer.Take(home);
             wanderer.Resume();

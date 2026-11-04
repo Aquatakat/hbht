@@ -358,7 +358,7 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
                 Flags.TrySetAndProcess(set.Flag, true);
                 break;
             case AnimateAction animate when map.Linked<SceneObject>(tripwire) is { } actor:
-                host.Animate(map, actor, animate.Request);
+                host.Animate(map, actor, Requests.Number(animate.Request));
                 break;
             case ChangeCollisionAction change:
                 World?.ChangeToggles(map.Key, change.Toggle, change.KeepFlags, change.AddFlags);

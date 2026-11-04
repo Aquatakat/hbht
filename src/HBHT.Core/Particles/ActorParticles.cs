@@ -43,7 +43,7 @@ public sealed class ActorParticles(ParticleHead head, EmittersRecord emitters, I
             return;
         foreach (var e in emitters.Emitters)
         {
-            if (e.Flags.HasFlag(ParticleEmitterFlags.ActorRequest) && e.Request == request)
+            if (e.Flags.HasFlag(ParticleEmitterFlags.ActorRequest) && e.Request is { } r && Requests.Number(r) == request)
                 head.Start(e, _anchor);
         }
     }

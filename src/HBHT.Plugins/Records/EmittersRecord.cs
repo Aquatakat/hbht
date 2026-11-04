@@ -60,7 +60,7 @@ public readonly record struct ParticleLocator(int Index, int Scene);
 public sealed record ParticleEmitter(
     ParticleLocator Locator,
     ParticleLocator Target,
-    int? Request,
+    RecordId? Request,
     ParticleEmitterFlags Flags,
     int Lifetime,
     int ParticleLifetime,

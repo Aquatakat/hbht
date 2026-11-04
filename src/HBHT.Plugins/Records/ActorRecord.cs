@@ -23,7 +23,12 @@ public sealed record ActorHead(RecordId Scene, int Locator);
 public sealed record ActorState(RecordId Animation, IReadOnlyList<ActorBranch> Branches);
 
 /// <summary>
-/// A way out of a state: taken for <see cref="Request"/> (255 is any) with a chance in 100.
+/// A way out of a state: taken for <see cref="Request"/> (<c>aidyn:request/n</c>; none is any, the original's 255) with a chance in 100.
 /// </summary>
 /// <param name="Interrupts">Rolled for as soon as the request changes, not only when the animation ends.</param>
-public sealed record ActorBranch(int Request, int Chance, bool Interrupts, int State);
+public sealed record ActorBranch(RecordId? Request, int Chance, bool Interrupts, int State)
+{
+    /// <summary>The number its request is played by, or <see cref="Requests.Any"/> for any.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int Number => Requests.NumberOrAny(Request);
+}

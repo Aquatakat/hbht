@@ -58,7 +58,7 @@ public sealed partial class GameSessionTests
             foreach (var actor in scene.Actors)
             {
                 if (motions.GetValueOrDefault(actor) is { } motion && motion.Entered && profile.Keys.Any(k =>
-                        k.Request == Body.Dying && AudioKeys.Reached(k, actor.Audio.Request, motion.Frame, motion.StateLength)))
+                        k.Request == Requests.Id(Body.Dying) && AudioKeys.Reached(k, actor.Audio.Request, motion.Frame, motion.StateLength)))
                     cries.Add(actor.Entity);
             }
         }
@@ -70,7 +70,7 @@ public sealed partial class GameSessionTests
     /// <summary>The state an actor's death takes it to from idle, and that state's length.</summary>
     private static (int State, int Length) Death(ActorStateMachine machine)
     {
-        var state = machine.Actor.States[0].Branches.Single(b => b.Request == Body.Dying).State;
+        var state = machine.Actor.States[0].Branches.Single(b => b.Request == Requests.Id(Body.Dying)).State;
         return (state, machine.Length(state));
     }
 

@@ -152,7 +152,7 @@ public sealed class AudioKeys(GameAudio audio, SoundsRecord sounds, IRandom rand
     /// <summary>Whether a key fires: its request's animation at its frame, at least the first.</summary>
     public static bool Reached(SoundKey key, int request, int frame, int length)
     {
-        if (key.Request != request)
+        if (Requests.Number(key.Request) != request)
             return false;
         var target = (ushort)(int)(key.Frac / WholeFrac * length);
         return frame == (target == 0 ? 1 : target);

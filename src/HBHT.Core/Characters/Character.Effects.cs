@@ -56,7 +56,7 @@ public sealed partial class Character
     /// <param name="effects">Those of the record's effects that land on this target.</param>
     /// <param name="power">The cast's effective level, an enchantment's level, or a potion's 0.</param>
     /// <param name="margin">The cast's margin after the resist step; an enchantment's level.</param>
-    internal ActiveEffect? AddEffect(RecordId source, IReadOnlyList<Effect> effects, int power, MagicSchool school, int margin, uint timer,
+    internal ActiveEffect? AddEffect(RecordId source, IReadOnlyList<Effect> effects, int power, RecordId school, int margin, uint timer,
         Combatant? on, IMagicHost? host, IRandom? random, bool worn = false, bool start = true)
     {
         var slots = Slots(source);
@@ -102,7 +102,7 @@ public sealed partial class Character
     public ActiveEffect? ApplyPotionEffect(RecordId potion, int power, uint timer)
     {
         var effects = Rules.Magic.Potion(potion)?.Effects?.Where(EffectRules.Lasting).ToList() ?? [];
-        return AddEffect(potion, effects, power, MagicSchool.None, 0, timer, null, null, null);
+        return AddEffect(potion, effects, power, Schools.Unschooled, 0, timer, null, null, null);
     }
 
     /// <summary>
@@ -168,8 +168,7 @@ public sealed partial class Character
     /// </summary>
     public void EndBattleEffects(IMagicHost? host = null)
     {
-        var kept = Rules.Magic.Record.KeptAfterBattle;
-        foreach (var potion in PotionEffects.Where(p => !kept.Contains(p.Source)))
+        foreach (var potion in PotionEffects.Where(p => Rules.Magic.Potion(p.Source)?.KeptAfterBattle != true))
             RemoveEffect(potion, null, host);
         foreach (var effect in Effects)
             RemoveEffect(effect, null, host);

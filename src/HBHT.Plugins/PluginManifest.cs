@@ -121,8 +121,13 @@ public static class BasePlugin
     /// <c>appeal</c> and <c>presentation</c> with its sound; the camera object's <c>ticks</c>, <c>pitch</c> and <c>distance</c>; the scene
     /// object's <c>opened</c> and <c>destroyed</c>; the <c>tripwire</c>; loot's drops as a list with counts; the combat record's
     /// <c>lootGoldMultiplier</c>; and each journal entry listed by its own flag, without the derived flags 5556 on.
+    /// 68 is the format's second slice (ADRs 0031–0033): weapons and armor are items with a kind (<c>aidyn:item/0x07xx</c>), their
+    /// requirements and bonuses keyed by stat, skill and element; the dialogue entities are entities with no sheet, the four twins
+    /// merged into their entities; the sheet's skills and stats keyed by ID and its weapons named; the combat, inventory, magic and
+    /// progression lists about one entity or item on it; and schools, elements and animation requests are records, weapon skills
+    /// in place of weapon classes.
     /// </summary>
-    public const int ImporterVersion = 67;
+    public const int ImporterVersion = 68;
 
     /// <summary>
     /// What's wrong with the imported base plugin under <paramref name="pluginsDirectory"/>, worded for the player, or null if

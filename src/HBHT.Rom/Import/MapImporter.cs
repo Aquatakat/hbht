@@ -198,7 +198,7 @@ internal static class MapImporter
                 TriggerData t => new TripwireObject(o.Index, o.Position, o.Radius, visible, t.Kind switch
                 {
                     TriggerKind.SetFlag => new SetFlagAction(DbRecordIds.Flag(t.A)),
-                    TriggerKind.Animate => new AnimateAction(t.A),
+                    TriggerKind.Animate => new AnimateAction(Requests.Id(t.A)),
                     TriggerKind.ChangeCollision => new ChangeCollisionAction(t.A, t.B, t.C),
                     // Kinds 0, 3 and 5 do nothing in 1.0, and no object has one.
                     _ => throw new InvalidDataException($"Borg9 {index}: trigger {o.Index} is kind {t.Kind}, which does nothing."),

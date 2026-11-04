@@ -110,7 +110,7 @@ public sealed partial class Battle
     /// </remarks>
     public bool CanAttack(Combatant a, Combatant t, CombatAction action)
     {
-        if (_rules.Untargetable.Contains(t.Entity))
+        if (t.Sheet.Record.Combat?.Untargetable == true)
             return false;
         if (!a.Healing)
         {
@@ -486,7 +486,7 @@ public sealed partial class Battle
         }
         LastAttack = outcome;
         if (WeaponOf(a) is { } weapon)
-            Animate(a, AttackRequest(weapon.Animation));
+            Animate(a, Requests.Number(weapon.Animation));
         return outcome.Damage;
     }
 
@@ -519,7 +519,7 @@ public sealed partial class Battle
     internal void Death(Combatant c)
     {
         Cue(new CombatantDied(c));
-        if (c.Entity == _rules.Ally && Game?.Plugins.TryGet<EntityRecord>(c.Entity)?.Member is { } ally)
+        if (c.Sheet.Record is { Combat.FightsForParty: true, Member: { } ally } && Game is not null)
             Game.Flags.TrySet(ally.Died, true);
         foreach (var held in c.Sheet.Effects.Where(e => e.Effects.Any(x => x is ImmobiliseEffect)).ToList())
             c.Sheet.RemoveEffect(held, c, this);
@@ -635,9 +635,9 @@ public sealed partial class Battle
             Cue(new MissileLaunched(Flight));
             return true;
         }
-        if (WeaponOf(a) is not { } weapon || _rules.Missiles.FirstOrDefault(m => m.Weapon == weapon.Id) is not { } missile)
+        if (WeaponOf(a)?.Missile is not { } missile)
             return false;
-        if ((missile.Scene ?? weapon.Model) is not { } scene)
+        if ((missile.Scene ?? a.Sheet.Equipment.Weapon?.Item.Record.Model) is not { } scene)
             return false;
         Flight = new MissileFlight(scene, Hand(a), Middle(t), missile.Speed, a.Look.Scale, missile.Turn);
         a.EmptyHand();
@@ -789,15 +789,10 @@ public sealed partial class Battle
     /// <summary>
     /// The share of an attack's animation at which its blow lands or its missile leaves: the entity's strike
     /// (<see cref="EntityBody.Strike"/>, <c>EntityBody.StrikePoint</c>, <c>0x8006C7FC</c>), or for a bow's shot or a throw the
-    /// entity's shot or throw strike (<see cref="EntityBody.ShotStrike"/>, <see cref="EntityBody.ThrowStrike"/>), which
-    /// <c>EntityBody.ShotStrike</c> (<c>0x8006C884</c>) makes 0.4 for both and every entity, unless a mod sets them.
+    /// entity's own for the request (<see cref="EntityBody.StrikeFor"/>), which <c>EntityBody.ShotStrike</c> (<c>0x8006C884</c>)
+    /// makes 0.4 for both and every entity, unless a mod sets them.
     /// </summary>
-    public static float StrikeShare(EntityBody look, int request) => request switch
-    {
-        ShotRequest => look.ShotStrike,
-        ThrowRequest => look.ThrowStrike,
-        _ => look.Strike,
-    };
+    public static float StrikeShare(EntityBody look, int request) => look.StrikeFor(request);
 
     /// <summary>
     /// After each tick's bodies have stepped (<c>Combat.AfterFrame</c>, and <c>ProcessPlayers</c>'s part): a body takes the request its

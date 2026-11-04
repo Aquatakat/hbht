@@ -1,3 +1,4 @@
+using HBHT.Plugins;
 using System.Numerics;
 using HBHT.Core.Calendar;
 using HBHT.Core.Characters;
@@ -63,7 +64,7 @@ public sealed partial class Battle
     }
 
     /// <summary>The weapon a combatant attacks with (the sheet's <c>+0x24</c>): a party member's in hand, an enemy's natural one.</summary>
-    public static WeaponRecord? WeaponOf(Combatant c) => c.Sheet.Equipment.Weapon?.Item.Weapon;
+    public static WeaponStats? WeaponOf(Combatant c) => c.Sheet.Equipment.Weapon?.Item.Weapon;
 
     /// <summary>
     /// Whether <paramref name="attacker"/> strikes <paramref name="target"/> from behind (<c>Combatant.IsBehind</c>,
@@ -105,9 +106,9 @@ public sealed partial class Battle
     /// </summary>
     public static int Protection(Character c, bool behind)
     {
-        var total = c.Protection + (c.Equipment.Armor?.Item.Armor?.Protection ?? 0) + c.Skills.Modified(Skill.Warrior) / 5 + c.PotionProtection;
+        var total = c.Protection + (c.Equipment.Armor?.Item.Protection ?? 0) + c.Skills.Modified(Skill.Warrior) / 5 + c.PotionProtection;
         total = total < 1 ? 0 : total & 0xFF;
-        if (!behind && c.Equipment.Shield?.Item.Armor is { } shield)
+        if (!behind && c.Equipment.Shield?.Item is { } shield)
             total += shield.Protection;
         return total & 0xFF;
     }
@@ -137,7 +138,7 @@ public sealed partial class Battle
         var (sheet, target) = (a.Sheet, t.Sheet);
         var weapon = WeaponOf(a)!;
         var s = (short)(sheet.Stats.Modified(Stat.Strength) + sheet.Stats.Modified(Stat.Endurance) + sheet.Stats.Base(Stat.Level));
-        s = (short)(s + weapon.Hit + 6 * sheet.Skills.Modified(weapon.Class) + 2 * sheet.Skills.Modified(Skill.Warrior));
+        s = (short)(s + weapon.Hit + 6 * WeaponSkill(sheet, weapon) + 2 * sheet.Skills.Modified(Skill.Warrior));
         var held = t.IsImmobilised;
         var defence = 2 * (held ? 0 : target.Stats.Modified(Stat.Dexterity)) + target.Stats.Base(Stat.Level) + (held ? 0 : ShieldDefence(target));
         var raw = (short)(s - defence);
@@ -169,7 +170,7 @@ public sealed partial class Battle
         var weapon = WeaponOf(a)!;
         var distance = (byte)(int)Vector2.Distance(a.Cell, t.Cell);
         var s = (short)(sheet.Stats.Modified(Stat.Intelligence) + sheet.Stats.Modified(Stat.Dexterity) + sheet.Stats.Base(Stat.Level));
-        s = (short)(s + weapon.Hit + 6 * sheet.Skills.Modified(weapon.Class) + 2 * sheet.Skills.Modified(Skill.Warrior));
+        s = (short)(s + weapon.Hit + 6 * WeaponSkill(sheet, weapon) + 2 * sheet.Skills.Modified(Skill.Warrior));
         if (distance > 6)
             s = (short)(s - (distance - 5));
         s = (short)(s - target.Stats.Base(Stat.Level));
@@ -219,18 +220,18 @@ public sealed partial class Battle
         var chance = ranged ? RangedChance(a, t, behind) : MeleeChance(a, t, behind);
         var roll = random.RollD(1, 100);
         var adjusted = Casting.AdjustRoll(roll, chance, a.Sheet.Skills.Modified(Skill.Warrior), random);
-        var skill = a.Sheet.Skills.Modified(weapon.Class);
+        var skill = WeaponSkill(a.Sheet, weapon);
         var experience = skill < 6 ? (byte)((8 - skill) * (8 - skill)) : 5;
         var strike = new AttackOutcome(chance, roll, adjusted, 0, behind);
         if (!strike.Hit)
         {
-            GainExperience(a, experience >> 1, weapon.Class);
+            GainExperience(a, experience >> 1, weapon.Skill);
             LogMiss(a, t, ranged);
             return strike;
         }
         var damage = Damage(a, chance, adjusted, t, ranged ? 0 : 1, ranged ? false : behind);
         if (!ranged)
-            GainExperience(a, experience, weapon.Class);
+            GainExperience(a, experience, weapon.Skill);
         var line = Line2(strike.Critical ? CriticalLine : AttacksLine, a, t);
         Write(line);
         Lines.Queue(line);
@@ -239,7 +240,7 @@ public sealed partial class Battle
         else
             LogHpLoss(t, damage);
         if (ranged)
-            GainExperience(a, experience, weapon.Class);
+            GainExperience(a, experience, weapon.Skill);
         return strike with { Damage = damage };
     }
 
@@ -267,15 +268,18 @@ public sealed partial class Battle
     /// <summary>
     /// A weapon's damage through the target's resistances (<c>Combatant.ApplyResistance</c>, <c>0x80062704</c>): every resistance of
     /// its own and its gear's that meets the element (<c>ResistanceApplies</c>, <c>0x80061A30</c>: the element itself, Physical for
-    /// Cutting and Smashing too, Magic for all the magical ones), multiplied, the damage truncated and at least 1 unless one is 0
-    /// (immune), none below 0. A weakness makes an enemy's morale due a check.
+    /// Cutting and Smashing too, Magic for all the magical ones: <see cref="ElementRecord.Covers"/>), multiplied, the damage truncated
+    /// and at least 1 unless one is 0 (immune), none below 0. A weakness makes an enemy's morale due a check. A weapon with no
+    /// element meets none.
     /// </summary>
-    public static int ApplyResistance(Combatant t, int damage, Element element)
+    public static int ApplyResistance(Combatant t, int damage, RecordId? element)
     {
+        if (element is not { } e)
+            return damage;
         float? product = null;
-        foreach (var resistance in t.Sheet.Record.Resistances.Concat(t.Sheet.Equipment.Resistances))
+        foreach (var resistance in t.Sheet.Sheet.Resistances.Concat(t.Sheet.Equipment.Resistances))
         {
-            if (Applies(resistance.Element, element))
+            if (t.Sheet.Rules.Elements.GetValueOrDefault(resistance.Element)?.Meets(e) ?? resistance.Element == e)
                 product = (product ?? 1) * resistance.Damage;
         }
         if (product is not { } multiplier)
@@ -285,13 +289,6 @@ public sealed partial class Battle
             d = 1;
         HitByWeakness(t, multiplier);
         return d < 0 ? 0 : d;
-
-        static bool Applies(Element resistance, Element element) => resistance == element || resistance switch
-        {
-            Element.Physical => element is Element.Cutting or Element.Smashing,
-            Element.Magic => element is not (Element.None or Element.Physical or Element.Cutting or Element.Smashing or Element.Holy),
-            _ => false,
-        };
     }
 
     /// <summary>
@@ -309,12 +306,25 @@ public sealed partial class Battle
     /// A chance to learn from an attack (<c>Combatant.GainSkillExperience</c>, <c>0x80062650</c>): a d100, always; at or under a tenth
     /// of <paramref name="points"/>, the weapon skill's base rises a level (<see cref="CharacterSkills.Train"/>).
     /// </summary>
-    private void GainExperience(Combatant a, int points, WeaponClass weapon)
+    private void GainExperience(Combatant a, int points, SkillId weapon)
     {
         var roll = Game.Random.Combat.RollD(1, 100);
         if (roll <= ((int)(points * 0.1f) & 0xFF))
             a.Sheet.Skills.Train(weapon, 1);
     }
+
+    /// <summary>A weapon skill's chance to learn, as <see cref="GainExperience(Combatant, int, SkillId)"/>; a mod's own weapon skill isn't played, but the roll is.</summary>
+    private void GainExperience(Combatant a, int points, RecordId weapon)
+    {
+        if (SkillId.TryFromRecord(weapon) is { } id)
+            GainExperience(a, points, id);
+        else
+            Game.Random.Combat.RollD(1, 100);
+    }
+
+    /// <summary>The modified level of the weapon skill a weapon uses; a mod's own weapon skill, which a character doesn't hold, is 0.</summary>
+    internal static int WeaponSkill(Character sheet, WeaponStats weapon) =>
+        SkillId.TryFromRecord(weapon.Skill) is { } id ? sheet.Skills.Modified(id) : 0;
 
     // Combatant.LogMiss and LogMissed: the attack shown, and "avoids the attack" or "misses" queued.
     private void LogMiss(Combatant a, Combatant t, bool ranged)

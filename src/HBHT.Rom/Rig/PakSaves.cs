@@ -3,6 +3,7 @@ using System.Numerics;
 using HBHT.Plugins;
 using HBHT.Plugins.Records;
 using HBHT.Plugins.Saves;
+using HBHT.Rom.Db;
 using HBHT.Rom.Engine;
 using HBHT.Rom.Import;
 
@@ -32,21 +33,32 @@ public sealed class PakSaves
     private readonly List<ushort> _reserved, _keyGear;
     private readonly Dictionary<MagicSchool, IReadOnlyList<RecordId>> _spellGroups;
 
+    /// <summary>
+    /// Each item's stat mod as the DB gives it (the bonus's stat and amount), which an instance keeps and a save writes: the ROM's,
+    /// since a record's <see cref="ItemBonuses.Stats"/> also holds armor's Dexterity, which isn't the instance's.
+    /// </summary>
+    private readonly Dictionary<int, (int Stat, int Amount)> _statMods;
+
     public PakSaves(PluginSet plugins, RomImage rom)
     {
         _plugins = plugins;
         var tables = ItemTables.Read(rom);
         _reserved = [.. tables.ReservedItems.Select(i => i.Value)];
         _keyGear = [.. tables.KeyEquipment.Select(i => i.Value)];
+        var db = GameDb.Read(rom);
+        _statMods = db.Weapons.Select(w => (w.Id, w.Bonuses)).Concat(db.Armor.Select(a => (a.Id, a.Bonuses)))
+            .Concat(db.Gear.Select(g => (g.Id, g.Bonuses)))
+            .Where(i => i.Bonuses.Stat != 0xFF).GroupBy(i => (int)i.Id.Value)
+            .ToDictionary(g => g.Key, g => ((int)g.First().Bonuses.Stat, (int)g.First().Bonuses.StatBonus));
         // The spell table groups the spells by school, in the order of their places (SaveFile's WriteSchoolSpells).
         _spellGroups = plugins.All<SpellRecord>(RecordTypes.Spell).Where(s => s.Position is not null)
-            .GroupBy(s => s.School)
+            .GroupBy(s => Numbering.SchoolOf(s.School))
             .ToDictionary(g => g.Key, g => (IReadOnlyList<RecordId>)[.. g.OrderBy(s => s.Position).Select(s => s.Id)]);
     }
 
     /// <summary>An entity's school; one no plugin has is taken as the commonest, None.</summary>
     public MagicSchool SchoolOf(int entity) =>
-        _plugins.TryGet<EntityRecord>(RecordId.Hex(RecordTypes.Entity, entity))?.School ?? MagicSchool.None;
+        Numbering.SchoolOf(_plugins.TryGet<EntityRecord>(RecordId.Hex(RecordTypes.Entity, entity))?.Sheet?.School);
 
     public PakSave Decode(ReadOnlySpan<byte> note) => PakSave.Decode(note, SchoolOf);
 
@@ -244,12 +256,7 @@ public sealed class PakSaves
     };
 
     /// <summary>A gear record's bonuses, whichever kind of item it is.</summary>
-    private GearBonuses? Bonuses(RecordId item) => item.Type switch
-    {
-        RecordTypes.Weapon => _plugins.TryGet<WeaponRecord>(item)?.Bonuses,
-        RecordTypes.Armor => _plugins.TryGet<ArmorRecord>(item)?.Bonuses,
-        _ => _plugins.TryGet<ItemRecord>(item)?.Bonuses,
-    };
+    private ItemBonuses? Bonuses(RecordId item) => _plugins.TryGet<ItemRecord>(item)?.Bonuses;
 
     private const int StaminaStatNumber = 5;
 
@@ -263,8 +270,8 @@ public sealed class PakSaves
     {
         var bonuses = Bonuses(item.Item);
         var charges = item.Charges ?? bonuses?.Spell?.Charges ?? 0;
-        var statMod = bonuses?.Stat is { Stat: var stat, Amount: var amount }
-            ? PakItem.MakeStatMod(Number(stat), stat == StaminaStat ? item.Battery ?? amount : amount)
+        var statMod = _statMods.TryGetValue(Number(item.Item), out var mod)
+            ? PakItem.MakeStatMod(mod.Stat, mod.Stat == StaminaStatNumber ? item.Battery ?? mod.Amount : mod.Amount)
             : 0;
         return new PakItem(Number(item.Item), Math.Clamp(charges, 0, 31), statMod);
     }
@@ -276,7 +283,7 @@ public sealed class PakSaves
         return new SaveItem(id)
         {
             Battery = item.Stat is (StaminaStatNumber, var left) ? left
-                : bonuses?.Stat is { Stat: var stat, Amount: var amount } && stat == StaminaStat ? amount : null,
+                : bonuses?.Stat(StaminaStat) is var amount and not 0 ? amount : null,
             Charges = bonuses?.Spell is null ? null : item.Charges,
         };
     }

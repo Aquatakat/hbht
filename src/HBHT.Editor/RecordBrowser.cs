@@ -614,11 +614,13 @@ public partial class RecordBrowser : Control
             return _game is null ? Message("These plugins are too old for a game: import the ROM again.") : new FlagPanel(catalog, _game, id, FollowLink);
         if (id.Type == RecordTypes.Dialogue && plugins.TryGet<DialogueRecord>(id) is { } script)
             return new ScriptPanel(catalog, _game, _rules, _items, script, FollowLink);
+        if (id.Type == RecordTypes.Entity && plugins.TryGet<EntityRecord>(id) is { Sheet: null } speaker)
+            return new SpeakerPanel(catalog, speaker, FollowLink);
         if (id.Type == RecordTypes.Entity && plugins.TryGet<EntityRecord>(id) is { } entity && _rules is { } rules)
             return new CharacterPanel(catalog, _game, entity, rules, _items, FollowLink);
         if (_items is { } items)
         {
-            if (id.Type is RecordTypes.Weapon or RecordTypes.Armor or RecordTypes.Item && items.TryGet(id) is { } item)
+            if (id.Type is RecordTypes.Item && items.TryGet(id) is { } item)
                 return new ItemPanel(catalog, _game, _rules, items, item, FollowLink);
             if (id.Type == RecordTypes.Shop && plugins.TryGet<ShopRecord>(id) is { } shop)
                 return new ShopPanel(catalog, _game, _rules, items, shop, FollowLink);

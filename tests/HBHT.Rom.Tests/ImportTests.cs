@@ -164,11 +164,11 @@ public sealed class ImportTests(Na10Import fixture)
         // four, walking at the walk's last frame. The squid makes none.
         var alaron = set.All<EntityRecord>(RecordTypes.Entity).Single(e => e.Name == "Alaron").Sounds!;
         Assert.Equal((2, 8), (alaron.Kind, alaron.Keys.Count));
-        Assert.Equal(["0x06C1", "0x06C2"], alaron.Keys.Single(k => k.Request == 7).Sounds.Select(s => s.Key).Distinct().Order());
+        Assert.Equal(["0x06C1", "0x06C2"], alaron.Keys.Single(k => k.Request == Requests.Id(7)).Sounds.Select(s => s.Key).Distinct().Order());
         var grass = engineSounds.Kinds[2]!.Surfaces[4].Walk!;
-        Assert.Equal((65500, 2, "0x0649"), (grass.Frac, grass.Request, grass.Sounds.Select(s => s.Key).Order().First()));
+        Assert.Equal((65500, Requests.Id(2), "0x0649"), (grass.Frac, grass.Request, grass.Sounds.Select(s => s.Key).Order().First()));
         Assert.Null(engineSounds.Kinds[0]);
-        Assert.Contains(set.All<WeaponRecord>(RecordTypes.Weapon), w => w.Sounds is [_, _]);
+        Assert.Contains(set.All<ItemRecord>(RecordTypes.Item), w => w.Weapon?.Sounds is [_, _]);
         Assert.Equal(59, set.All<SpellRecord>(RecordTypes.Spell).Count(s => s.Presentation?.Sound is not null));
 
         // The scenes' particle emitters, each drawn with a texture of the engine's particle list, and Oriana's orb
@@ -177,7 +177,7 @@ public sealed class ImportTests(Na10Import fixture)
         Assert.Equal((75, 218), (emitterRecords.Count, emitterRecords.Sum(r => r.Emitters.Count)));
         Assert.All(emitterRecords.SelectMany(r => r.Emitters), e => Assert.NotNull(set.FindAsset(e.Texture!.Value, "png")));
         var orb = set.Get<EmittersRecord>(RecordId.Hex(RecordTypes.Emitters, 11211)).Emitters.Single();
-        Assert.Equal((5, 13, 6, 3), (orb.Request, orb.TextureSlot, orb.Burst, orb.Interval));
+        Assert.Equal((Requests.Id(5), 13, 6, 3), (orb.Request, orb.TextureSlot, orb.Burst, orb.Interval));
         Assert.Equal(new Rgba(226, 230, 255, 131), orb.FadeColor);
 
         // The cinematics, with each shot's planes, which replace its scene camera's.

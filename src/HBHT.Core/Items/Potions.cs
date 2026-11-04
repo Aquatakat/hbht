@@ -35,7 +35,7 @@ public static class Potions
     public const int Margin = 255;
 
     /// <summary>How a potion is used, by its record; nothing for an item that isn't a potion.</summary>
-    public static PotionUse Use(Item item) => item.Kind == ItemKind.Potion ? item.Gear?.Use ?? PotionUse.None : PotionUse.None;
+    public static PotionUse Use(Item item) => item.Kind == ItemKind.Potion ? item.Record.Use ?? PotionUse.None : PotionUse.None;
 
     /// <summary>Whether the item is a flask, thrown in a battle rather than drunk, which the crafting messages call so.</summary>
     public static bool IsFlask(Item item) => Use(item).HasFlag(PotionUse.Throw);
@@ -53,7 +53,7 @@ public static class Potions
     public static DrinkResult CanDrink(Character member, Item potion, bool inBattle = false)
     {
         var drunkHere = inBattle ? PotionUse.DrinkInBattle : PotionUse.DrinkInTrek;
-        if (potion.Gear is not { Effects: [_, ..] effects } record || IsFlask(potion) || !Use(potion).HasFlag(drunkHere))
+        if (potion.Record is not { Effects: [_, ..] effects } record || IsFlask(potion) || !Use(potion).HasFlag(drunkHere))
             return DrinkResult.NotInTrek;
         if (record.Duration is not null && effects.Any(EffectRules.Lasting))
             return member.HasEffect(record.Id) ? DrinkResult.NotNow : DrinkResult.Drunk;
@@ -85,9 +85,9 @@ public static class Potions
         var can = CanDrink(member, item, inBattle: on is not null);
         if (can != DrinkResult.Drunk)
             return can;
-        var record = item.Gear!;
+        var record = item.Record;
         var drinker = new EffectTarget(member, on, host);
-        var landing = new Landing(record.Id, MagicSchool.None, 0, Margin, drinker, drinker, random) { RecordMargin = 0 };
+        var landing = new Landing(record.Id, Schools.Unschooled, 0, Margin, drinker, drinker, random) { RecordMargin = 0 };
         var result = EffectLanding.Land(record.Effects!, record.Duration, landing);
         if (result.Dice is { } dice)
             member.TakeDamage(random.RollD(dice & 0xFF, 6), on);

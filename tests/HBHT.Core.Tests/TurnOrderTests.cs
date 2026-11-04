@@ -16,7 +16,7 @@ internal static class BattleFixtures
     private static readonly BattleSetup NoSetup = new(BattleSource.Script, null, null, null, [], null, false, false, null);
 
     /// <summary>A combat record that names no one and has no rules, as a hand-made battle plays by.</summary>
-    private static readonly CombatRecord NoRules = Combats.Rules(Entity(0), Entity(0));
+    private static readonly CombatRecord NoRules = Combats.Rules(Entity(0));
 
     public static Battle Create(int partySize, int onField, params Combatant?[] combatants) =>
         Battle.Of(NoSetup, NoRules, null, partySize, onField, combatants);
@@ -27,7 +27,7 @@ internal static class BattleFixtures
     /// <summary>A combatant of base Dexterity <paramref name="dexterity"/> in slot <paramref name="slot"/>.</summary>
     public static Combatant Fighter(int slot, int dexterity, bool dead = false, bool gone = false, bool active = true)
     {
-        var entity = Characters.Alaron() with { Id = Entity(0x2000 + slot), Attributes = new Attributes(15, 12, dexterity, 15, 15, 30) };
+        var entity = (Characters.Alaron() with { Id = Entity(0x2000 + slot) }).WithAttributes(new Attributes(15, 12, dexterity, 15, 15, 30));
         var sheet = Characters.Create(entity);
         if (dead)
         {

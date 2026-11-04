@@ -35,7 +35,7 @@ public sealed class TradeImportTests(Na10Import fixture)
             foreach (var slot in record.Stock.Where(s => record.Stock.Count(o => o.Item == s.Item) == 1))
                 Assert.Equal((ushort)(uint)(items[slot.Item].Price * slot.PriceMultiplier), shop.Stock.Find(slot.Item)!.Instance.Price);
             // Alaron starts with no Merchant, so the shopkeeper's level sets the factor alone.
-            Assert.Equal(shopkeeper.Skills.Merchant!.Value * items.Rules.MerchantStep, shop.Barter);
+            Assert.Equal(shopkeeper.CharacterSheet.Skills[RecordIds.Skill(5)] * items.Rules.MerchantStep, shop.Barter);
         }
     }
 
@@ -97,7 +97,7 @@ public sealed class TradeImportTests(Na10Import fixture)
         var entity = Set.Get<EntityRecord>(RecordId.Hex(RecordTypes.Entity, 0x023F));
         var alaron = NewParty(items, FlagNetwork.Load(Set)).Members.Single();
 
-        Assert.Equal(entity.Armor, alaron.Equipment.Armor?.Id);
-        Assert.Equal(entity.Weapons.OfType<RecordId>().First(), alaron.Equipment.Weapon?.Id);
+        Assert.Equal(entity.CharacterSheet.Armor, alaron.Equipment.Armor?.Id);
+        Assert.Equal(entity.CharacterSheet.Weapons.Slots.OfType<RecordId>().First(), alaron.Equipment.Weapon?.Id);
     }
 }

@@ -82,7 +82,7 @@ public static class PartyMenuRows
     /// <summary>The spells the character knows, in the order learnt (<c>WidgetSpellTrain::InitMenu</c>).</summary>
     public static IReadOnlyList<SpellRow> Spells(Character character) =>
     [
-        .. character.Spells.Select(s => new SpellRow(s, MenuImages.AspectIcon(SpellAspect(s.Spell)), MenuImages.SchoolIcon(s.Spell.School),
+        .. character.Spells.Select(s => new SpellRow(s, MenuImages.AspectIcon(SpellAspect(s.Spell)), MenuImages.SchoolIcon(character.Rules, s.Spell.School),
             s.Spell.Icon)),
     ];
 

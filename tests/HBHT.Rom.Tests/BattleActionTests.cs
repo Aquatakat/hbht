@@ -361,7 +361,7 @@ public sealed class BattleActionTests(Na10Import fixture)
         // Rheda's vs. Naming at herself, whose effect is its caster's actor (0x1E4F's cast state, 159 ticks); her cast runs 239.
         var run = Start();
         var rheda = run.TurnOf("Rheda");
-        rheda.Look = rheda.Look with { CastStrike = castStrike };
+        rheda.Look = rheda.Look with { Strikes = new Dictionary<RecordId, float> { [RecordIds.Request(EntityBody.CastRequest)] = castStrike } };
         var spell = run.Built.Game.Rules.Magic!.Spell(RecordId.Hex(RecordTypes.Spell, 0x031E))! with { Strike = strike };
         rheda.Sheet.LearnSpell(spell);
         rheda.Sheet.Skills.Train(HBHT.Core.Characters.Skill.Wizard, 10);

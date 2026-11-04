@@ -1,3 +1,4 @@
+using HBHT.Plugins;
 using System.Numerics;
 using HBHT.Core.Characters;
 using HBHT.Core.Movement;
@@ -644,9 +645,15 @@ public sealed partial class Battle
         return swapped;
     }
 
-    /// <summary>Whether a weapon may strike in melee (<c>Weapon.AllowsMelee</c>, <c>0x8007B730</c>): no range, a Breath or a Spit, or Spikes.</summary>
-    private bool AllowsMelee(WeaponRecord w) =>
-        w.Range == 0 || w.Class is WeaponClass.Breath or WeaponClass.Spit || _rules.CloseRange.Contains(w.Id);
+    /// <summary>
+    /// Whether a weapon may strike in melee (<c>Weapon.AllowsMelee</c>, <c>0x8007B730</c>): no range, a Breath or a Spit, or one that
+    /// says so (<see cref="WeaponStats.StrikesInMelee"/>, Spikes).
+    /// </summary>
+    internal static bool AllowsMelee(WeaponStats w) =>
+        w.Range == 0 || w.Skill == BreathSkill || w.Skill == SpitSkill || w.StrikesInMelee;
+
+    /// <summary>The Breath and Spit weapon skills, whose weapons always strike in melee (<c>Weapon.AllowsMelee</c>).</summary>
+    internal static readonly RecordId BreathSkill = RecordId.Decimal(RecordTypes.WeaponSkill, 1), SpitSkill = RecordId.Decimal(RecordTypes.WeaponSkill, 6);
 
     /// <summary>
     /// Trades the held weapon for the spare (<c>EnemyAI.SwapWeapon</c>, <c>0x8005A560</c>): "changes weapons", and the turn's spent
@@ -662,7 +669,7 @@ public sealed partial class Battle
         if (equipment.EquipWeapon(spare) != Items.EquipRefusal.None)
             equipment.Restore(spare);
         ai.Spare = held;
-        c.Drawn = _rules.Missiles.Any(m => m.Weapon == spare.Id);
+        c.Drawn = spare.Item.Weapon?.Missile is not null;
         Write(Line(ChangesWeaponsLine, c));
         EnterRest();
         if (spare.Item.Weapon is { } w && AllowsMelee(w) && w.Range != 0)

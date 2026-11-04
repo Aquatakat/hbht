@@ -15,10 +15,10 @@ public class ActorStateMachineTests
     /// </summary>
     private static ActorStateMachine Walker() => new(new ActorRecord(RecordId.Parse("aidyn:actor/0x29E3"), Scene, 2, 0,
     [
-        new(RecordId.Parse("aidyn:animation/0x29D2"), [new(2, 100, true, 1), new(7, 100, true, 3), new(0, 100, false, 0)]),
-        new(RecordId.Parse("aidyn:animation/0x29D3"), [new(2, 100, false, 2), new(ActorStateMachine.AnyRequest, 100, false, 0)]),
-        new(RecordId.Parse("aidyn:animation/0x29D4"), [new(2, 100, false, 2), new(ActorStateMachine.AnyRequest, 100, false, 0)]),
-        new(RecordId.Parse("aidyn:animation/0x29D5"), [new(ActorStateMachine.AnyRequest, 100, false, 0)]),
+        new(RecordId.Parse("aidyn:animation/0x29D2"), [new(RecordIds.Request(2), 100, true, 1), new(RecordIds.Request(7), 100, true, 3), new(RecordIds.Request(0), 100, false, 0)]),
+        new(RecordId.Parse("aidyn:animation/0x29D3"), [new(RecordIds.Request(2), 100, false, 2), new(null, 100, false, 0)]),
+        new(RecordId.Parse("aidyn:animation/0x29D4"), [new(RecordIds.Request(2), 100, false, 2), new(null, 100, false, 0)]),
+        new(RecordId.Parse("aidyn:animation/0x29D5"), [new(null, 100, false, 0)]),
     ]), _ => 4, new Lcg(0));
 
     [Fact]
@@ -125,7 +125,7 @@ public class ActorStateMachineTests
     {
         var record = new ActorRecord(RecordId.Parse("aidyn:actor/0x0001"), Scene, 2, 0,
         [
-            new(RecordId.Parse("aidyn:animation/0x0002"), [new(ActorStateMachine.AnyRequest, chance, false, 1), new(ActorStateMachine.AnyRequest, 100, false, 2)]),
+            new(RecordId.Parse("aidyn:animation/0x0002"), [new(null, chance, false, 1), new(null, 100, false, 2)]),
             new(RecordId.Parse("aidyn:animation/0x0003"), []),
             new(RecordId.Parse("aidyn:animation/0x0004"), []),
         ]);
@@ -142,9 +142,9 @@ public class ActorStateMachineTests
         // 30 then 70 of any: every roll takes one of the two, the first about 30% of the time.
         var record = new ActorRecord(RecordId.Parse("aidyn:actor/0x0001"), Scene, 2, 0,
         [
-            new(RecordId.Parse("aidyn:animation/0x0002"), [new(ActorStateMachine.AnyRequest, 30, false, 1), new(ActorStateMachine.AnyRequest, 70, false, 2)]),
-            new(RecordId.Parse("aidyn:animation/0x0003"), [new(ActorStateMachine.AnyRequest, 100, false, 0)]),
-            new(RecordId.Parse("aidyn:animation/0x0004"), [new(ActorStateMachine.AnyRequest, 100, false, 0)]),
+            new(RecordId.Parse("aidyn:animation/0x0002"), [new(null, 30, false, 1), new(null, 70, false, 2)]),
+            new(RecordId.Parse("aidyn:animation/0x0003"), [new(null, 100, false, 0)]),
+            new(RecordId.Parse("aidyn:animation/0x0004"), [new(null, 100, false, 0)]),
         ]);
         var actor = new ActorStateMachine(record, _ => 1, new Lcg(0));
         var counts = new int[3];

@@ -24,7 +24,7 @@ public sealed class ItemStack(ItemInstance instance, int quantity)
 /// <remarks>
 /// A key item sets its region flag and its held flag when the party first gains it, and clears the
 /// held flag when the last is taken (<c>AddKeyItem2</c>, <c>key_item_flags</c>). The Aspect potion
-/// becomes a Healing potion as it's gained (<see cref="Plugins.Records.InventoryRecord.Replaced"/>).
+/// becomes a Healing potion as it's gained (<see cref="Plugins.Records.ItemRecord.Becomes"/>).
 /// </remarks>
 public sealed class PartyInventory(ItemCatalog catalog, FlagNetwork? flags = null)
 {
@@ -105,12 +105,12 @@ public sealed class PartyInventory(ItemCatalog catalog, FlagNetwork? flags = nul
     }
 
     internal static Item Replace(ItemCatalog catalog, Item item) =>
-        catalog.Rules.Replaced.FirstOrDefault(r => r.Item == item.Id) is { } replacement ? catalog[replacement.With] : item;
+        item.Record.Becomes is { } becomes ? catalog[becomes] : item;
 }
 
 /// <summary>
 /// A pile of items: a container's or a beaten party's loot, or a shop's stock (<c>GenericInventory</c>).
-/// It holds up to 64 stacks. It won't take a refused item (<see cref="Plugins.Records.InventoryRecord.Refused"/>),
+/// It holds up to 64 stacks. It won't take a refused item (<see cref="Plugins.Records.ItemRecord.Refused"/>),
 /// and the Aspect potion becomes a Healing potion.
 /// </summary>
 public sealed class ItemPile(ItemCatalog catalog)
@@ -129,7 +129,7 @@ public sealed class ItemPile(ItemCatalog catalog)
     /// <inheritdoc cref="Add(RecordId, int)"/>
     public bool Add(Item item, int quantity = 1)
     {
-        if (catalog.Rules.Refused.Contains(item.Id))
+        if (item.Record.Refused)
             return false;
         item = PartyInventory.Replace(catalog, item);
         if (Find(item.Id) is { } stack)

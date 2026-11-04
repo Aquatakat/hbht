@@ -211,8 +211,8 @@ public sealed class MagicCheckpointTests(Na10Import fixture)
         {
             var effect = Assert.Single(sheet.Effects);
             Assert.Equal(Endurance, effect.Source);
-            Assert.Equal(original, new Record(0x13, effect.Power, (int)effect.School, effect.Margin, effect.Harmful ? 1u : 0u, effect.Timer));
-            Assert.Equal((MagicSchool.Naming, 4, 4, false, 7200u), (effect.School, effect.Power, effect.Margin, effect.Harmful, effect.Timer));
+            Assert.Equal(original, new Record(0x13, effect.Power, Ids.Number(effect.School), effect.Margin, effect.Harmful ? 1u : 0u, effect.Timer));
+            Assert.Equal((RomIds.School(HBHT.Rom.Db.MagicSchool.Naming), 4, 4, false, 7200u), (effect.School, effect.Power, effect.Margin, effect.Harmful, effect.Timer));
         }
         Assert.Equal(19, built.Game.Rules.Magic!.Spell(Endurance)!.Position);
     }

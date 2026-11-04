@@ -145,7 +145,7 @@ public static class Casting
     public static bool Allows(TargetFilter? filter, Character target) =>
         filter is null
         || (filter.Entities is not { } entities || entities.Contains(target.Entity))
-        && (filter.NotCategories is not { } categories || !categories.Contains(target.Record.Category));
+        && (filter.NotCategories is not { } categories || !categories.Contains(target.Sheet.Category));
 
     /// <summary>
     /// The chance to cast (<c>Combatant.CastChance</c>, <c>0x80063CA0</c>): (modified Intelligence × 4 + the level × 6 + the base
@@ -233,7 +233,7 @@ public static class Casting
     /// A character's ward against a school (<c>Combatant.ResistBonusFromEffects</c>, <c>0x80061F3C</c>): its first effect, by slot,
     /// that wards the school.
     /// </summary>
-    public static int Ward(Character target, MagicSchool school)
+    public static int Ward(Character target, RecordId school)
     {
         foreach (var effect in target.Effects)
         {
@@ -249,10 +249,10 @@ public static class Casting
     /// elements, the spell's school's element, its aspect's, or Magic.
     /// </summary>
     /// <returns>The product, or null if none applies.</returns>
-    public static float? ResistanceMultiplier(SpellRecord spell, IReadOnlyList<Element> elements, Character target)
+    public static float? ResistanceMultiplier(SpellRecord spell, IReadOnlyList<RecordId> elements, Character target)
     {
         float? product = null;
-        foreach (var resistance in target.Record.Resistances.Concat(target.Equipment.Resistances))
+        foreach (var resistance in target.Sheet.Resistances.Concat(target.Equipment.Resistances))
         {
             if (Meets(resistance.Element, spell, elements))
                 product = (product ?? 1) * resistance.Damage;
@@ -260,19 +260,25 @@ public static class Casting
         return product;
     }
 
-    private static bool Meets(Element element, SpellRecord spell, IReadOnlyList<Element> elements) => element switch
-    {
-        Element.Magic => true,
-        Element.Solar => spell.Aspect == Aspect.Solar,
-        Element.Lunar => spell.Aspect == Aspect.Lunar,
-        Element.Necromancy => spell.School == MagicSchool.Necromancy,
-        Element.Naming => spell.School == MagicSchool.Naming,
-        Element.Star => spell.School == MagicSchool.Star,
-        Element.Elemental => spell.School == MagicSchool.Elemental,
-        Element.Chaos => spell.School == MagicSchool.Chaos,
-        Element.Earth or Element.Fire or Element.Water or Element.Air => elements.Contains(element),
-        _ => false,
-    };
+    // The base elements' rule (docs/hardcoded-content.md): Magic meets every spell, Solar and Lunar a spell of that aspect, the five
+    // schools' elements a spell of that school, and the four natural ones a damage of theirs. Any other, a mod's among them, meets
+    // a damage of its own.
+    private static bool Meets(RecordId element, SpellRecord spell, IReadOnlyList<RecordId> elements) =>
+        element == Elements.Magic
+        || element == Elements.Solar && spell.Aspect == Aspect.Solar
+        || element == Elements.Lunar && spell.Aspect == Aspect.Lunar
+        || element == Elements.Necromancy && spell.School == Schools.Necromancy
+        || element == Elements.Naming && spell.School == Schools.Naming
+        || element == Elements.Star && spell.School == Schools.Star
+        || element == Elements.Elemental && spell.School == Schools.Elemental
+        || element == Elements.Chaos && spell.School == Schools.Chaos
+        || !IsBaseRuled(element) && elements.Contains(element);
+
+    // The base elements that meet a spell only by its aspect or school, or never (Physical, Cutting, Smashing and Holy).
+    private static bool IsBaseRuled(RecordId element) =>
+        element == Elements.Magic || element == Elements.Solar || element == Elements.Lunar || element == Elements.Necromancy
+        || element == Elements.Naming || element == Elements.Star || element == Elements.Elemental || element == Elements.Chaos
+        || element == Elements.Physical || element == Elements.Cutting || element == Elements.Smashing || element == Elements.Holy;
 
     /// <summary>
     /// A spell's damage after resistances (<c>Combatant.SpellDamage</c>, <c>0x800649E4</c>): the dice times the product, truncated,

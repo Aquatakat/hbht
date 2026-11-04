@@ -66,7 +66,7 @@ public sealed class CharacterCheckpointTests(Na10Import fixture)
             Assert.Equal((sheet.Flags & 1) != 0, character.TrueName);
             Assert.Equal((sheet.Flags & 2) != 0, character.Heavy);
             Assert.Equal((sheet.Flags & 4) != 0, character.Aspect == Aspect.Solar);
-            Assert.Equal((int)entity.School, sheet.School);
+            Assert.Equal(Ids.Number(entity.CharacterSheet.School), sheet.School);
         }
         // Alaron has his True Name only once the Roog cinematic has played.
         Assert.Equal(checkpoint.Flags[AlaronsTrueNameFlag], (checkpoint.Party[0].Flags & 1) != 0);
@@ -101,7 +101,7 @@ public sealed class CharacterCheckpointTests(Na10Import fixture)
             Assert.All(book, s => Assert.NotNull(Set.TryGet<SpellRecord>(s)));
             // Saves keep spells by school in the spell DB's order (SaveParty::SaveSpell), so after a
             // load the book is in that order rather than the order learnt.
-            Assert.Subset(book.ToHashSet(), entity.Spells.Select(s => s.Spell).ToHashSet());
+            Assert.Subset(book.ToHashSet(), entity.CharacterSheet.Spells.Select(s => s.Spell).ToHashSet());
         }
     }
 }

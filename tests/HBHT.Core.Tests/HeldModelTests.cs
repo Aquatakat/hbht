@@ -14,29 +14,30 @@ public sealed class HeldModelTests
     private static RecordId Scene(int n) => RecordId.Hex(RecordTypes.Scene, n);
 
     private static readonly RecordId Arrow = Scene(0x348F);
-    private static readonly WeaponRecord Sword = ItemData.NewWeapon(1) with { Model = Scene(0x34DF) };
-    private static readonly WeaponRecord Bite = ItemData.NewWeapon(2, WeaponClass.Bite);
-    private static readonly WeaponRecord Bow = ItemData.NewWeapon(3, WeaponClass.Missile) with { Range = 10, Model = Scene(0x34D2) };
-    private static readonly ArmorRecord Shield = ItemData.NewArmor(4, ArmorSlot.Shield, defense: 2) with { Model = Scene(0x3534) };
+    private static readonly ItemRecord Sword = ItemData.NewWeapon(1) with { Model = Scene(0x34DF) };
+    private static readonly ItemRecord Bite = ItemData.NewWeapon(2, WeaponClass.Bite);
+    private static readonly ItemRecord Bow = NewBow();
 
-    private static CombatRecord Rules(IReadOnlyList<RecordId>? undrawn = null, IReadOnlyList<RecordId>? otherHand = null) =>
-        Combats.Rules(Ids.Entity(1), Ids.Entity(2)) with
-        {
-            Missiles = [new Missile(Bow.Id, Arrow, 8)], UndrawnWeapons = undrawn ?? [], OtherHand = otherHand ?? [],
-        };
+    private static ItemRecord NewBow()
+    {
+        var bow = ItemData.NewWeapon(3, WeaponClass.Missile);
+        return bow with { Model = Scene(0x34D2), Weapon = bow.Weapon! with { Range = 10, Missile = new Missile(Arrow, 8) } };
+    }
+    private static readonly ItemRecord Shield = ItemData.NewArmor(4, ItemKind.Shield, defense: 2) with { Model = Scene(0x3534) };
 
-    private static Combatant Holding(WeaponRecord? weapon, ArmorRecord? shield = null, bool shieldSkill = true)
+    private static CombatRecord Rules() => Combats.Rules(Ids.Entity(1));
+
+    private static Combatant Holding(ItemRecord? weapon, ItemRecord? shield = null, bool shieldSkill = true, BowHand bowHand = BowHand.Usual,
+        bool weaponsInModel = false)
     {
         var fighter = BattleFixtures.Fighter(0, 20);
-        if (!shieldSkill)
-        {
-            var record = fighter.Sheet.Record with { ShieldSkill = null };
-            fighter = new Combatant(0, Characters.Create(record), fighter.Look, fighter.Body, fighter.Flags);
-        }
+        var look = fighter.Look with { BowHand = bowHand, WeaponsInModel = weaponsInModel };
+        var record = shieldSkill ? fighter.Sheet.Record : fighter.Sheet.Record.WithShieldSkill(null);
+        fighter = new Combatant(0, Characters.Create(record), look, fighter.Body, fighter.Flags);
         if (weapon is not null)
             fighter.Sheet.Equipment.Restore(ItemData.Inst(weapon));
         if (shield is not null)
-            fighter.Sheet.Equipment.Restore(new ItemInstance(Item.From(shield)));
+            fighter.Sheet.Equipment.Restore(ItemData.Inst(shield));
         return fighter;
     }
 
@@ -71,7 +72,8 @@ public sealed class HeldModelTests
         Assert.Equal(new HeldModel(Bow.Model!.Value, 1), c.Held[Combatant.ArmSlot]);
 
         // EntityBody.Hand's entities hold it the other way round.
-        c.SetDefaultAction(Rules(otherHand: [c.Entity]));
+        c = Holding(Bow, Shield, bowHand: BowHand.Other);
+        c.SetDefaultAction(Rules());
         Assert.Equal(new HeldModel(Arrow, 1), c.Held[Combatant.HandSlot]);
         Assert.Equal(new HeldModel(Bow.Model!.Value, 0), c.Held[Combatant.ArmSlot]);
     }
@@ -79,8 +81,8 @@ public sealed class HeldModelTests
     [Fact]
     public void AnEntityWhoseModelHasItsWeaponHoldsOnlyItsShieldOrBow()
     {
-        var c = Holding(Bow);
-        c.SetDefaultAction(Rules(undrawn: [c.Entity]));
+        var c = Holding(Bow, weaponsInModel: true);
+        c.SetDefaultAction(Rules());
 
         Assert.Null(c.Held[Combatant.HandSlot]);
         Assert.Equal(new HeldModel(Bow.Model!.Value, 1), c.Held[Combatant.ArmSlot]);

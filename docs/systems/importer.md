@@ -21,7 +21,8 @@ A choice changes the records but not the importer version: `BasePlugin.Diagnose`
 - `CombatImporter`: the combat record (`aidyn:combat/0`) and its `text` ([combat](combat.md), [hardcoded content](../hardcoded-content.md#bespoke-behaviours)).
 - `MagicImporter`: spells' and potions' effects and visuals, and the magic record (`aidyn:magic/0`) ([magic](magic.md)). The original's code switches on a spell's kind, so each effect is a fact, and the importer fails on a spell without one, a fact without a spell, or a name or entity place that differs.
 - `FlagImporter`: flags, the journal, the state flags.
-- `CharacterImporter`: dialogue entities' names, entities, spells, stats, skills, progression.
+- `CharacterImporter`: entities, the dialogue entities among them (ADR 0032), spells, stats, skills, progression.
+- `KindImporter`: the schools, elements and animation requests (ADR 0033).
 - `ItemImporter`: weapons, armor, items, loot, shops, recipes, inventory.
 - `TextImporter`: strings, fonts ([text](../formats/text.md)).
 - `DialogueImporter`: Borg13 scripts.

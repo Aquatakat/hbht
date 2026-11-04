@@ -183,11 +183,12 @@ public sealed class Conversation
 
     /// <summary>
     /// Asks a speaker's body for a request until the bodies next step: Alaron's for his lines, and the wanderer's for
-    /// anyone else's. A speaker that isn't an entity, as a sign is, has no body.
+    /// anyone else's (<c>Conversation.Speaker</c>, <c>0x800514CC</c>). A speaker with no sheet, as a sign is, has no body: 1.0 tests
+    /// the speaker's ID for the entity DB's type (<c>0x800514EC</c>), so one from the dialogue entity table (ADR 0032) animates nobody.
     /// </summary>
     private void Ask(RecordId? speaker, int request)
     {
-        if (speaker is not { Type: RecordTypes.Entity } entity)
+        if (!HasBody(speaker) || speaker is not { } entity)
             return;
         if (entity == GameState.Alaron)
             _player.Asked = request;
@@ -202,14 +203,18 @@ public sealed class Conversation
     /// </summary>
     private bool Animate(RecordId speaker, int request)
     {
-        if (speaker.Type != RecordTypes.Entity || (speaker != GameState.Alaron && With is null)
+        if (!HasBody(speaker) || (speaker != GameState.Alaron && With is null)
             || _plugins.TryGet<EntityRecord>(speaker)?.Body?.Actor is not { } actor
             || _plugins.TryGet<ActorRecord>(actor) is not { } record
-            || !record.States.Any(s => s.Branches.Any(b => b.Request == request)))
+            || !record.States.Any(s => s.Branches.Any(b => b.Number == request)))
             return false;
         Ask(speaker, request);
         return true;
     }
+
+    // Conversation.Speaker's test: an entity with a sheet, the entity DB's.
+    private bool HasBody(RecordId? speaker) =>
+        speaker is { Type: RecordTypes.Entity } entity && _plugins.TryGet<EntityRecord>(entity)?.Sheet is not null;
 
     private void Stand()
     {

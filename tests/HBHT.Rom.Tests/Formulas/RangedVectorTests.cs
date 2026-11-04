@@ -105,7 +105,7 @@ public sealed class RangedVectorTests(Na10Import fixture, ITestOutputHelper outp
             a.Damage = 0;
             ThrowFlask.Invoke(battle, [a, t]);
             if (n == 0)
-                (firstDamage, throwDraws, skill) = (a.Damage, draws.Count, a.Sheet.Skills.RawBase(WeaponClass.Thrown));
+                (firstDamage, throwDraws, skill) = (a.Damage, draws.Count, a.Sheet.Skills.RawBase(SkillId.Thrown));
             if (battle.BlastCell == (0xFF, 0xFF))
             {
                 // Missed, and burst about the last flask's cell all the same, as Combat.EndCast does with more of the flask in hand.
@@ -169,7 +169,7 @@ public sealed class RangedVectorTests(Na10Import fixture, ITestOutputHelper outp
             ("adjusted", outcome.Adjusted),
             ("damage", outcome.Damage),
             ("draws", draws.Count),
-            ("skill", a.Sheet.Skills.RawBase(weapon.Class)),
+            ("skill", a.Sheet.Skills.RawBase(SkillId.FromRecord(weapon.Skill))),
             ("aiflags", (int)(t.Ai?.Flags ?? 0)),
         };
         return FormulaState.Differences(v.Expect, actual);

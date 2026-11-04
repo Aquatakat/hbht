@@ -190,17 +190,20 @@ public sealed class ItemImportTests(Na10Import fixture)
 
     private static RomImage Rom => TestRoms.Get(RomVersionId.Na10);
 
-    private IReadOnlyList<WeaponRecord> Weapons => [.. Set.All<WeaponRecord>(RecordTypes.Weapon)];
+    private IReadOnlyList<ItemRecord> AllItems => [.. Set.All<ItemRecord>(RecordTypes.Item)];
 
-    private IReadOnlyList<ArmorRecord> Armor => [.. Set.All<ArmorRecord>(RecordTypes.Armor)];
+    private IReadOnlyList<ItemRecord> Weapons => [.. AllItems.Where(i => i.Kind == ItemKind.Weapon)];
 
-    private IReadOnlyList<ItemRecord> Items => [.. Set.All<ItemRecord>(RecordTypes.Item)];
+    private IReadOnlyList<ItemRecord> Armor => [.. AllItems.Where(i => i.Kind is ItemKind.Body or ItemKind.Shield)];
+
+    /// <summary>The 214 items that were neither weapons nor armor before the restructure.</summary>
+    private IReadOnlyList<ItemRecord> Items => [.. AllItems.Where(i => i.Kind is not (ItemKind.Weapon or ItemKind.Body or ItemKind.Shield))];
 
     private ItemRecord Item(int id) => Set.Get<ItemRecord>(RecordId.Hex(RecordTypes.Item, id));
 
-    private ArmorRecord ArmorPiece(int id) => Set.Get<ArmorRecord>(RecordId.Hex(RecordTypes.Armor, id));
+    private ItemRecord ArmorPiece(int id) => Item(id);
 
-    private WeaponRecord Weapon(int id) => Set.Get<WeaponRecord>(RecordId.Hex(RecordTypes.Weapon, id));
+    private ItemRecord Weapon(int id) => Item(id);
 
     private List<ShopRecord> Shops => [.. Set.All<ShopRecord>(RecordTypes.Shop).OrderBy(s => int.Parse(s.Id.Key))];
 
@@ -225,17 +228,33 @@ public sealed class ItemImportTests(Na10Import fixture)
         Assert.Equal(105, Weapons.Count);
         Assert.Equal(68, Armor.Count);
         Assert.Equal(214, Items.Count);
+        Assert.Equal(387, AllItems.Count);
         Assert.Equal(17, Items.Count(i => i.Kind == ItemKind.Potion));
         Assert.Equal(db.Weapons.Select(w => w.Name).Order(), Weapons.Select(w => w.Name).Order());
+    }
+
+    /// <summary>Weapons, armor and dialogue entities are items and entities now (ADRs 0031, 0032): no record names the old types.</summary>
+    [Fact]
+    public void NoRecordAnywhereNamesAWeaponAnArmorOrADialogEntityRecord()
+    {
+        string[] old = ["aidyn:weapon/", "aidyn:armor/", "aidyn:dialogentity/"];
+        var found = new List<string>();
+        foreach (var file in Directory.EnumerateFiles(fixture.Data.Dir, "*.json", SearchOption.AllDirectories))
+        {
+            var text = File.ReadAllText(file);
+            found.AddRange(old.Where(text.Contains).Select(o => $"{Path.GetFileName(file)} names {o}"));
+        }
+        Assert.Empty(found);
+        Assert.DoesNotContain(AllItems, i => i.Id.Type != RecordTypes.Item);
     }
 
     [Fact]
     public void TheListsAreUniqueAndSortedByKey()
     {
         var rom = Rom;
-        var (weapons, armor, items) = ItemImporter.BuildItems(GameDb.Read(rom), ItemTables.Read(rom), EngineTables.Read(rom));
+        var items = ItemImporter.BuildItems(GameDb.Read(rom), ItemTables.Read(rom), EngineTables.Read(rom));
 
-        foreach (var ids in new[] { weapons.Select(w => w.Id), armor.Select(a => a.Id), items.Select(i => i.Id) })
+        foreach (var ids in new[] { items.Select(i => i.Id) })
         {
             var list = ids.ToList();
             Assert.Equal(list.Count, list.Distinct().Count());
@@ -248,7 +267,7 @@ public sealed class ItemImportTests(Na10Import fixture)
     {
         var db = GameDb.Read(Rom);
 
-        Assert.All(db.Weapons, rom => Assert.Equal(Math.Min(rom.Range * 5 / 3, 255), Weapon(rom.Id.Value).Range));
+        Assert.All(db.Weapons, rom => Assert.Equal(Math.Min(rom.Range * 5 / 3, 255), Weapon(rom.Id.Value).Weapon!.Range));
         Assert.Contains(db.Weapons, rom => rom.Range * 5 / 3 > 255);
     }
 
@@ -257,17 +276,17 @@ public sealed class ItemImportTests(Na10Import fixture)
     {
         var rom = Rom;
         var db = GameDb.Read(rom);
-        var staff = RecordId.Hex(RecordTypes.Weapon, 0x0735);
+        var staff = RecordId.Hex(RecordTypes.Item, 0x0735);
         var models = EntityModels.Read(rom);
 
         Assert.Equal([staff], Weapons.Where(w => w.Fixed).Select(w => w.Id));
 
         var entities = ItemImporter.WithSoleWeapons(db, CharacterImporter.BuildEntities(db, models));
-        var sole = Assert.Single(entities, e => e.SoleWeapon is not null);
+        var sole = Assert.Single(entities, e => e.Sheet?.SoleWeapon is not null);
         Assert.Equal(RecordId.Hex(RecordTypes.Entity, 0x024A), sole.Id);
-        Assert.Equal(staff, sole.SoleWeapon);
+        Assert.Equal(staff, sole.Sheet!.SoleWeapon);
         Assert.Equal("Niesen", sole.Name);
-        Assert.Equal([sole.Id], Set.All<EntityRecord>(RecordTypes.Entity).Where(e => e.SoleWeapon is not null).Select(e => e.Id));
+        Assert.Equal([sole.Id], Set.All<EntityRecord>(RecordTypes.Entity).Where(e => e.Sheet?.SoleWeapon is not null).Select(e => e.Id));
     }
 
     [Fact]
@@ -288,9 +307,9 @@ public sealed class ItemImportTests(Na10Import fixture)
         var wand = Item(0x0D0B);
 
         Assert.Equal("Wizard's Wand", wand.Name);
-        Assert.Equal(new StatBonus(Stat(5), 20), wand.Bonuses!.Stat);
-        Assert.Equal(new SkillBonus(SkillId(11), 1), wand.Bonuses.Skill);
-        Assert.Equal(15, wand.RequiredIntelligence);
+        Assert.Equal(20, wand.Bonuses!.Stat(Stat(5)));
+        Assert.Equal(1, wand.Bonuses.Skills![SkillId(11)]);
+        Assert.Equal(15, wand.Requires(Stat(0)));
     }
 
     [Fact]
@@ -301,8 +320,8 @@ public sealed class ItemImportTests(Na10Import fixture)
         Assert.Equal("Helm of Tempests", helm.Name);
         Assert.Equal(ItemKind.Helmet, helm.Kind);
         Assert.Equal(new ItemSpell(RecordId.Hex(RecordTypes.Spell, 0x0306), 3, 25), helm.Bonuses!.Spell);
-        Assert.Equal(new SkillBonus(SkillId(10), 2), helm.Bonuses.Skill);
-        Assert.Equal(new Resistance(Element.Air, 0.5f), helm.Bonuses.Resistance);
+        Assert.Equal(2, helm.Bonuses.Skills![SkillId(10)]);
+        Assert.Equal(0.5f, helm.Bonuses.Resistances![RomIds.Element(Db.Element.Air)]);
         Assert.Equal((1, 1), (helm.Damage, helm.Protection));
     }
 
@@ -313,10 +332,10 @@ public sealed class ItemImportTests(Na10Import fixture)
         var amulet = Item(0x1307);
 
         Assert.Equal("Kendall's Hat", hat.Name);
-        Assert.Equal(new SkillBonus(SkillId(7), -1), hat.Bonuses!.Skill);
+        Assert.Equal(-1, hat.Bonuses!.Skills![SkillId(7)]);
         Assert.Equal("Amulet of Pork", amulet.Name);
-        Assert.Equal(new StatBonus(Stat(3), -5), amulet.Bonuses!.Stat);
-        Assert.Equal(new Resistance(Element.Physical, 2f), amulet.Bonuses.Resistance);
+        Assert.Equal(-5, amulet.Bonuses!.Stat(Stat(3)));
+        Assert.Equal(2f, amulet.Bonuses.Resistances![RomIds.Element(Db.Element.Physical)]);
     }
 
     [Fact]
@@ -333,7 +352,8 @@ public sealed class ItemImportTests(Na10Import fixture)
         var chainmail = ArmorPiece(0x0503);
 
         Assert.Equal("Chainmail", chainmail.Name);
-        Assert.Equal((ArmorSlot.Body, 5, -2, -5), (chainmail.Slot, chainmail.Protection, chainmail.Dexterity, chainmail.Stealth));
+        Assert.Equal((ItemKind.Body, 5, -2, -5),
+            (chainmail.Kind, chainmail.Protection, chainmail.Bonuses!.Stat(Stat(2)), chainmail.Bonuses.Skills![SkillId(7)]));
     }
 
     [Fact]
@@ -356,7 +376,7 @@ public sealed class ItemImportTests(Na10Import fixture)
         Assert.Null(ArmorPiece(0x0503).Model);
         Assert.Equal("0x353A", ArmorPiece(0x0615).Model!.Value.Key);
         Assert.Null(ArmorPiece(0x063C).Model);
-        Assert.All(Armor.Where(a => a.Slot == ArmorSlot.Body), a => Assert.Null(a.Model));
+        Assert.All(Armor.Where(a => a.Kind == ItemKind.Body), a => Assert.Null(a.Model));
 
         Assert.Equal(
             ["0x0CCE", "0x09D0", "0x34FB", "0x3502", "0x3553", "0x3517"],
@@ -370,9 +390,10 @@ public sealed class ItemImportTests(Na10Import fixture)
         var shield = ArmorPiece(0x0615);
 
         Assert.Equal("Tower Shield", shield.Name);
-        Assert.Equal((ArmorSlot.Shield, 6, 5, -6), (shield.Slot, shield.Defense, shield.Protection, shield.Dexterity));
-        Assert.All(Armor.Where(a => a.Slot == ArmorSlot.Body), a => Assert.Equal(0, a.Defense));
-        Assert.All(Armor, a => Assert.Equal(a.Id.Key.StartsWith("0x06", StringComparison.Ordinal) ? ArmorSlot.Shield : ArmorSlot.Body, a.Slot));
+        Assert.Equal((ItemKind.Shield, 6, 5, -6),
+            (shield.Kind, shield.Defense, shield.Protection, shield.Bonuses!.Stat(Stat(2))));
+        Assert.All(Armor.Where(a => a.Kind == ItemKind.Body), a => Assert.Equal(0, a.Defense));
+        Assert.All(Armor, a => Assert.Equal(a.Id.Key.StartsWith("0x06", StringComparison.Ordinal) ? ItemKind.Shield : ItemKind.Body, a.Kind));
     }
 
     [Fact]
@@ -381,8 +402,8 @@ public sealed class ItemImportTests(Na10Import fixture)
         var robes = ArmorPiece(0x053D);
 
         Assert.Equal("Chaos Robes", robes.Name);
-        Assert.Equal(new StatBonus(Stat(3), -2), robes.Bonuses.Stat);
-        Assert.Equal(new Resistance(Element.Magic, 0.75f), robes.Bonuses.Resistance);
+        Assert.Equal(-2, robes.Bonuses!.Stat(Stat(3)));
+        Assert.Equal(0.75f, robes.Bonuses.Resistances![RomIds.Element(Db.Element.Magic)]);
     }
 
     /// <summary>A weapon reads its spell's level from its own field, not from the bonuses block, whose byte is unread.</summary>
@@ -395,11 +416,11 @@ public sealed class ItemImportTests(Na10Import fixture)
         Assert.NotEmpty(withSpell);
         Assert.All(withSpell, rom =>
         {
-            var spell = Weapon(rom.Id.Value).Bonuses.Spell!;
+            var spell = Weapon(rom.Id.Value).Bonuses!.Spell!;
             Assert.Equal(DbRecordIds.For(rom.Bonuses.Spell), spell.Spell);
             Assert.Equal((rom.SpellLevel, rom.Bonuses.SpellCharges), (spell.Level, spell.Charges));
         });
-        Assert.All(db.Weapons.Where(w => w.Bonuses.Spell.IsNone), rom => Assert.Null(Weapon(rom.Id.Value).Bonuses.Spell));
+        Assert.All(db.Weapons.Where(w => w.Bonuses.Spell.IsNone), rom => Assert.Null(Weapon(rom.Id.Value).Bonuses?.Spell));
     }
 
     [Fact]
@@ -439,7 +460,7 @@ public sealed class ItemImportTests(Na10Import fixture)
             .Where(existing.Contains).Select(i => DbRecordIds.For(i)!.Value).Distinct().OrderBy(i => i.Key, StringComparer.Ordinal).ToList();
         var mustTake = tables.MustTakeItems.Select(i => DbRecordIds.For(i)!.Value).OrderBy(i => i.Key, StringComparer.Ordinal).ToList();
 
-        var traits = Weapons.Select(w => (w.Id, w.Traits)).Concat(Armor.Select(a => (a.Id, a.Traits))).Concat(Items.Select(i => (i.Id, i.Traits))).ToList();
+        var traits = AllItems.Select(i => (i.Id, i.Traits)).ToList();
         Assert.Equal(ownSlot, traits.Where(t => t.Traits?.OwnSlot == true).Select(t => t.Id).OrderBy(i => i.Key, StringComparer.Ordinal));
         Assert.Equal(mustTake, traits.Where(t => t.Traits?.MustTake == true).Select(t => t.Id).OrderBy(i => i.Key, StringComparer.Ordinal));
         Assert.Contains(Weapons, w => w.Traits?.OwnSlot == true);
@@ -456,7 +477,6 @@ public sealed class ItemImportTests(Na10Import fixture)
         Assert.All(loot, l =>
         {
             Assert.InRange(l.Drops.Count, 0, 6);
-            Assert.Equal(3, l.WeaponChances.Count);
             Assert.All(l.Drops, d => Assert.NotEqual(0, d.Chance));
         });
         Assert.Contains(loot, l => l.Drops.Any(d => d.Most > 1));
@@ -475,7 +495,7 @@ public sealed class ItemImportTests(Na10Import fixture)
             var l = loot[DbRecordIds.For(rom.Id)!.Value];
             Assert.Equal(rom.Name, l.Name);
             Assert.Equal((rom.GoldMin, rom.GoldMax, rom.ArmorChance, rom.ShieldChance), (l.GoldMin, l.GoldMax, l.ArmorChance, l.ShieldChance));
-            Assert.Equal(rom.WeaponChances.Select(c => (int)c), l.WeaponChances);
+            Assert.Equal(rom.WeaponChances.Select(c => (int)c), [l.WeaponChances.Joins, l.WeaponChances.Spare, l.WeaponChances.Fights]);
             Assert.Equal((rom.ReagentChance, rom.ReagentMin, rom.ReagentMax), (l.ReagentChance, l.ReagentMin, l.ReagentMax));
             // The drops that hold an item, in order, each with its count where 1.0 rolls one: the first two slots.
             var held = rom.Drops.Select((d, i) => (d, i)).Where(x => !x.d.Item.IsNone).ToList();
@@ -522,7 +542,7 @@ public sealed class ItemImportTests(Na10Import fixture)
         Assert.All(stock, s =>
         {
             Assert.True(Set.Contains(s.Item));
-            Assert.Contains(s.Item.Type, new[] { RecordTypes.Weapon, RecordTypes.Armor, RecordTypes.Item });
+            Assert.Equal(RecordTypes.Item, s.Item.Type);
             Assert.Contains(s.PriceMultiplier, new[] { 0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f, 3f, 5f });
         });
     }
@@ -547,7 +567,7 @@ public sealed class ItemImportTests(Na10Import fixture)
         Assert.Equal(20, recipes.Count);
         Assert.Equal(Enumerable.Range(0, 20).Select(i => RecordId.Decimal(RecordTypes.Recipe, i)), recipes.Select(r => r.Id));
         Assert.All(recipes.Take(15), r => Assert.Equal((SkillId(0), RecordTypes.Item), (r.Skill, r.Product.Type)));
-        Assert.All(recipes.Skip(15), r => Assert.Equal((SkillId(4), RecordTypes.Armor), (r.Skill, r.Product.Type)));
+        Assert.All(recipes.Skip(15), r => Assert.Equal((SkillId(4), RecordTypes.Item), (r.Skill, r.Product.Type)));
     }
 
     [Fact]
@@ -586,11 +606,11 @@ public sealed class ItemImportTests(Na10Import fixture)
         var scorpion = recipes[19];
 
         Assert.Equal(SkillId(4), hellhound.Skill);
-        Assert.Equal(RecordId.Hex(RecordTypes.Armor, 0x051F), hellhound.Product);
+        Assert.Equal(RecordId.Hex(RecordTypes.Item, 0x051F), hellhound.Product);
         Assert.Equal([new Ingredient(ItemRecordId(0x0121), 1)], hellhound.Ingredients);
         Assert.Equal((5, 7), (hellhound.Level, hellhound.Step));
 
-        Assert.Equal(RecordId.Hex(RecordTypes.Armor, 0x061D), scorpion.Product);
+        Assert.Equal(RecordId.Hex(RecordTypes.Item, 0x061D), scorpion.Product);
         Assert.Equal([new Ingredient(ItemRecordId(0x0124), 1)], scorpion.Ingredients);
         Assert.Equal((3, 4), (scorpion.Level, scorpion.Step));
     }
@@ -605,9 +625,10 @@ public sealed class ItemImportTests(Na10Import fixture)
         Assert.Equal((ItemRecordId(0x0111), ItemRecordId(0x0112), ItemRecordId(0x0113)), (inventory.Spice, inventory.Herb, inventory.Gemstone));
         Assert.Equal(ImageId(0x35DC), inventory.DefaultIcon);
         Assert.Equal((0.05f, 0.5f), (inventory.MerchantStep, inventory.SellShare));
-        Assert.Equal([RecordId.Hex(RecordTypes.Weapon, db.Weapons[32].Id.Value)], inventory.Refused);
+        Assert.Equal([RecordId.Hex(RecordTypes.Item, db.Weapons[32].Id.Value)], AllItems.Where(i => i.Refused).Select(i => i.Id));
         Assert.Equal("Cyclops Club", Weapon(db.Weapons[32].Id.Value).Name);
-        Assert.Equal([new ItemReplacement(ItemRecordId(0x100B), ItemRecordId(0x1004))], inventory.Replaced);
+        Assert.Equal([(ItemRecordId(0x100B), ItemRecordId(0x1004))], AllItems.Where(i => i.Becomes is not null).Select(i => (i.Id, i.Becomes!.Value)));
+        Assert.Equal([ItemKind.Body, ItemKind.Shield], inventory.SkillBonusesApplyUnlearnt);
         Assert.Equal(RecordId.Decimal(RecordTypes.Flag, 3612), inventory.FirstPotionFlag);
         Assert.Equal(["Spice", "Herb", "Gemstone"], new[] { inventory.Spice, inventory.Herb, inventory.Gemstone }.Select(i => Set.Get<ItemRecord>(i).Name));
         var messages = MenuTables.Read(Rom).Messages;
@@ -638,30 +659,27 @@ public sealed class ItemImportTests(Na10Import fixture)
             if (Set.FindAsset(icon, "png") is null)
                 missingImages.Add($"{from} has no image {icon}");
         }
-        void Bonuses(string from, GearBonuses? b)
+        void Bonuses(string from, ItemBonuses? b)
         {
-            if (b?.Stat is not null)
-                references.Add((from, b.Stat.Stat));
-            if (b?.Skill is not null)
-                references.Add((from, b.Skill.Skill));
+            references.AddRange((b?.Stats?.Keys ?? []).Select(k => (from, k)));
+            references.AddRange((b?.Skills?.Keys ?? []).Select(k => (from, k)));
+            references.AddRange((b?.Resistances?.Keys ?? []).Select(k => (from, k)));
             if (b?.Spell is not null)
                 references.Add((from, b.Spell.Spell));
             if (b?.Enchantment is not null)
                 references.Add((from, b.Enchantment.Spell));
         }
 
-        foreach (var w in Weapons)
+        foreach (var i in AllItems)
         {
-            Image($"{w.Id}", w.Icon);
-            Bonuses($"{w.Id}", w.Bonuses);
-        }
-        foreach (var a in Armor)
-        {
-            Image($"{a.Id}", a.Icon);
-            Bonuses($"{a.Id}", a.Bonuses);
-        }
-        foreach (var i in Items)
-        {
+            if (i.Weapon is { } weapon)
+            {
+                references.Add(($"{i.Id}", weapon.Skill));
+                references.Add(($"{i.Id}", weapon.Animation));
+                if (weapon.DamageType is { } type)
+                    references.Add(($"{i.Id}", type));
+            }
+            references.AddRange((i.Requirements?.Keys ?? []).Select(k => ($"{i.Id}", k)));
             Image($"{i.Id}", i.Icon);
             Bonuses($"{i.Id}", i.Bonuses);
             if (i.KeyItem is { } key)
@@ -687,11 +705,10 @@ public sealed class ItemImportTests(Na10Import fixture)
         var inventory = Set.Get<InventoryRecord>(RecordId.Decimal(RecordTypes.Inventory, 0));
         Image("the inventory", inventory.DefaultIcon);
         references.AddRange(new[] { inventory.Spice, inventory.Herb, inventory.Gemstone, inventory.FirstPotionFlag }.Select(x => ("the inventory", x)));
-        references.AddRange(inventory.Refused.Select(x => ("the inventory", x)));
-        references.AddRange(inventory.Replaced.SelectMany(x => new[] { ("the inventory", x.Item), ("the inventory", x.With) }));
+        references.AddRange(AllItems.Where(i => i.Becomes is not null).Select(i => ($"{i.Id}", i.Becomes!.Value)));
         foreach (var s in Enumerable.Range(0, 12).Select(n => Set.Get<SkillRecord>(SkillId(n))))
             Image($"{s.Id}", s.Icon!.Value);
-        references.AddRange(Set.All<EntityRecord>(RecordTypes.Entity).Where(e => e.SoleWeapon is not null).Select(e => ($"{e.Id}", e.SoleWeapon!.Value)));
+        references.AddRange(Set.All<EntityRecord>(RecordTypes.Entity).Where(e => e.Sheet?.SoleWeapon is not null).Select(e => ($"{e.Id}", e.Sheet!.SoleWeapon!.Value)));
 
         Assert.NotEmpty(references);
         Assert.Empty(missingImages);
@@ -703,8 +720,9 @@ public sealed class ItemImportTests(Na10Import fixture)
     {
         var catalog = PluginCatalog.Build(Set);
 
-        Assert.Equal("Healing Potion", catalog.Find(ItemRecordId(0x1004))!.Summary);
-        Assert.Contains("Archmage", catalog.Find(RecordId.Hex(RecordTypes.Weapon, 0x0735))!.Summary);
-        Assert.Contains(catalog.ReferencesTo(RecordId.Hex(RecordTypes.Weapon, 0x0735)), r => r.From == RecordId.Hex(RecordTypes.Entity, 0x024A));
+        // The summary names an item's kind now that weapons and armor are items too.
+        Assert.Equal("Healing Potion, Potion", catalog.Find(ItemRecordId(0x1004))!.Summary);
+        Assert.Contains("Archmage", catalog.Find(RecordId.Hex(RecordTypes.Item, 0x0735))!.Summary);
+        Assert.Contains(catalog.ReferencesTo(RecordId.Hex(RecordTypes.Item, 0x0735)), r => r.From == RecordId.Hex(RecordTypes.Entity, 0x024A));
     }
 }

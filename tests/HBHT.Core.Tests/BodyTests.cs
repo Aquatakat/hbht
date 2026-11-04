@@ -326,8 +326,8 @@ public class BodyTests
     private static MachineMotion Mortal() => new(new ActorStateMachine(new ActorRecord(RecordId.Parse("aidyn:actor/0x2FBA"),
         RecordId.Parse("aidyn:scene/0x2FB0"), 2, 0,
         [
-            new(RecordId.Parse("aidyn:animation/0x2FB4"), [new(Body.Dying, 100, true, 1), new(ActorStateMachine.AnyRequest, 100, false, 0)]),
-            new(RecordId.Parse("aidyn:animation/0x2FB9"), [new(ActorStateMachine.AnyRequest, 100, false, 0)]),
+            new(RecordId.Parse("aidyn:animation/0x2FB4"), [new(RecordIds.Request(Body.Dying), 100, true, 1), new(null, 100, false, 0)]),
+            new(RecordId.Parse("aidyn:animation/0x2FB9"), [new(null, 100, false, 0)]),
         ]), state => state == 0 ? 6 : 4, new Lcg(0)));
 
     [Fact]

@@ -19,7 +19,7 @@ public static class InventoryOrder
     private static readonly ItemKind[] KindOrder =
     [
         ItemKind.Potion, ItemKind.Weapon, ItemKind.Wand, ItemKind.Scroll, ItemKind.Amulet, ItemKind.Ring, ItemKind.Helmet,
-        ItemKind.Cloak, ItemKind.Gloves, ItemKind.Boots, ItemKind.Belt, ItemKind.Armor, ItemKind.Shield, ItemKind.Key, ItemKind.Misc,
+        ItemKind.Cloak, ItemKind.Gloves, ItemKind.Boots, ItemKind.Belt, ItemKind.Body, ItemKind.Shield, ItemKind.Key, ItemKind.Misc,
     ];
 
     /// <summary>

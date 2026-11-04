@@ -36,7 +36,7 @@ internal static class MagicImporter
     /// level, at least 5; <c>Combatant.ResistRoll</c>: Willpower × 3 + Endurance + level), the 600 a round is
     /// <c>EffectRecord.Age</c> (<c>0x8007ABD8</c>), the 2 enemies disabled at most is <c>Combatant.CheckDisableLimit</c>
     /// (<c>0x80063A00</c>), 10 the top of <c>ResolveCastRoll</c>'s improvement, and 15 and 7 the sizes of the arrays at
-    /// <c>entity+0x34</c> and <c>+0x38</c>. The Stealth potion alone outlasts a battle (<c>Entity.ClearEffects</c>, <c>0x80071830</c>).
+    /// <c>entity+0x34</c> and <c>+0x38</c>.
     /// The floats are the code segment's, read per ROM.
     /// </summary>
     internal static MagicRecord BuildMagic(CastingFactors factors) => new(
@@ -46,10 +46,10 @@ internal static class MagicImporter
         RoundTicks: 600,
         MostDisabled: 2,
         factors.Improvement,
-        MaxLevel: 10,
-        [DbRecordIds.Required(ItemId.Of(DbType.Potion, (byte)StealthPotion))]);
+        MaxLevel: 10);
 
-    private const int StealthPotion = 16;
+    /// <summary>The Stealth potion, whose effects alone outlast a battle (<c>Entity.ClearEffects</c>, <c>0x80071830</c>; <see cref="ItemRecord.KeptAfterBattle"/>).</summary>
+    internal const int StealthPotion = 16;
 
     /// <summary>
     /// The record of a Borg a visual names, which must be of <paramref name="type"/> in the archive: an actor for roles 0 to 4, a scene for
@@ -124,6 +124,8 @@ internal static class MagicImporter
 
     private static RecordId Spell(int id) => RecordId.Hex(RecordTypes.Spell, id);
 
+    private static RecordId[] Elements(params Element[] elements) => [.. elements.Select(e => Numbering.Element(e)!.Value)];
+
     /// <summary>The ticks a cast's effects last for each level (<c>ApplySpellEffect</c>, <c>0x800646E0</c>: <c>level × 1800</c>).</summary>
     private static readonly EffectDuration Lasting = new(PerLevel: 1800);
 
@@ -170,10 +172,10 @@ internal static class MagicImporter
         // Wraith Touch's four (0x800D34B0: Intelligence, Willpower, Dexterity, Strength); Restore's six (0x800D34B4).
         RecordId[] wraithStats = [Stat(Intelligence), Stat(Willpower), Stat(Dexterity), Stat(Strength)];
 
-        Effect Ward(MagicSchool school) => new WardEffect(school, Magnitude.Per(6));
-        Effect Dispel(MagicSchool school) => new DispelEffect(school);
+        Effect Ward(MagicSchool school) => new WardEffect(Numbering.School(school), Magnitude.Per(6));
+        Effect Dispel(MagicSchool school) => new DispelEffect(Numbering.School(school));
         Effect Burn(int count) => new DamagePerRoundEffect(new Dice(count));
-        Effect Hit(int dice, params Element[] elements) => new DamageEffect(Magnitude.Fixed(dice), elements);
+        Effect Hit(int dice, params Element[] elements) => new DamageEffect(Magnitude.Fixed(dice), Elements(elements));
         Effect Shield() => new ProtectionEffect(Magnitude.Per(2));
         Effect LeakyShield() => new ProtectionEffect(Magnitude.Per(2), Magnitude.Per(1));
 
@@ -187,12 +189,12 @@ internal static class MagicImporter
             F(0x0302, "Debilitation", 31, [Boost(Strength, -2)], Lasting, Resisted.Always),
             F(0x0303, "Dragon Flames", 12, [Hit(2, Element.Fire)], resisted: Resisted.Always),
             F(0x0304, "Earth Smite", 13, [Hit(4, Element.Earth)], resisted: Resisted.Always),
-            F(0x0305, "Fireball", 14, [new DamageEffect(Magnitude.Per(1), [Element.Fire])], resisted: Resisted.Always, area: true),
+            F(0x0305, "Fireball", 14, [new DamageEffect(Magnitude.Per(1), Elements(Element.Fire))], resisted: Resisted.Always, area: true),
             F(0x0306, "Lightning", 11, [Hit(2, Element.Water)], resisted: Resisted.Always),
             F(0x0308, "Strength", 51, [Boost(Strength, 2)], Lasting),
             F(0x0309, "Wind", 12,
             [
-                new DamageEffect(Magnitude.Fixed(2), [Element.Air]) { For = EffectFor.Opponents },
+                new DamageEffect(Magnitude.Fixed(2), Elements(Element.Air)) { For = EffectFor.Opponents },
                 new StaminaEffect(Magnitude.Per(2), RaisesMaximum: true) { For = EffectFor.Allies },
                 new WeatherEffect(During: 0) { For = EffectFor.Allies },
             ], Lasting, Resisted.Opponents),

@@ -624,7 +624,7 @@ public sealed partial class TrekLoop : IMapObjectHost
     /// <summary>
     /// A in trek: uses the map object the player reaches in the chunk he's in (<c>obj_ref_func</c>). A container or a teleporter
     /// asks for his animation for it, which holds while the use keeps trek from reading the controls (<see cref="PlayerMotion.Latched"/>),
-    /// and is used at its share of that animation (<see cref="EntityBody.ContainerStrike"/>, <see cref="EntityBody.TeleporterStrike"/>):
+    /// and is used at its share of that animation (<see cref="EntityBody.StrikeFor"/>):
     /// at once in the base game, as in 1.0, which uses it and then asks (<c>MapObjectUse.Reach</c>, <c>0x80004A58</c>). 1.0 asks
     /// only when A weighed more than one object, and the port always does, the user's choice.
     /// </summary>
@@ -640,8 +640,8 @@ public sealed partial class TrekLoop : IMapObjectHost
             return false;
         var (request, strike) = o switch
         {
-            ContainerObject => (Body.OpenContainer, PlayerLook?.ContainerStrike ?? EntityBody.DefaultOpenStrike),
-            TeleporterObject => (Body.UseTeleporter, PlayerLook?.TeleporterStrike ?? EntityBody.DefaultOpenStrike),
+            ContainerObject => ((int?)Body.OpenContainer, PlayerLook?.StrikeFor(Body.OpenContainer) ?? EntityBody.DefaultOpenStrike),
+            TeleporterObject => (Body.UseTeleporter, PlayerLook?.StrikeFor(Body.UseTeleporter) ?? EntityBody.DefaultOpenStrike),
             _ => ((int?)null, 0f),
         };
         Player.Latched = request;

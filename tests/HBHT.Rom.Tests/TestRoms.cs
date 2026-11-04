@@ -75,8 +75,6 @@ public static class TestRoms
     /// <summary>The record of the item a checkpoint's 16-bit item ID names: a weapon, armor or other item, by its high byte.</summary>
     public static RecordId ItemId(ushort id) => (id >> 8) switch
     {
-        7 => RecordId.Hex(RecordTypes.Weapon, id),
-        5 or 6 => RecordId.Hex(RecordTypes.Armor, id),
         _ => RecordId.Hex(RecordTypes.Item, id),
     };
 

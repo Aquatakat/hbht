@@ -54,14 +54,27 @@ internal static class ItemImporter
     /// <summary>The Alchemist's and Mechanic's skill numbers.</summary>
     private const int Alchemist = 0, Mechanic = 4;
 
-    /// <summary>Writes the weapons (with their sounds), armor, items, loot tables, shops, recipes and the inventory's rules.</summary>
+    /// <summary>
+    /// The request each weapon animation byte asks of the attacker (<c>Combat.AnimationByWeaponClass</c>, <c>0x800D27E0</c>, byte pairs
+    /// <c>00 10</c>, <c>01 11</c>, <c>02 0D</c>, <c>03 0C</c>, <c>04 0F</c>, <c>05 0E</c> ended by <c>FF</c>, which
+    /// <c>Combatant.AnimationForWeapon</c>, <c>0x8005FEE4</c>, walks), and 18 for any other.
+    /// </summary>
+    internal static readonly IReadOnlyList<int> AttackRequests = [16, 17, 13, 12, 15, 14];
+
+    /// <summary>The attack request for a weapon animation byte not in <see cref="AttackRequests"/>.</summary>
+    internal const int OtherAttackRequest = 18;
+
+    /// <summary>The request a weapon's animation byte asks of the attacker's body.</summary>
+    internal static RecordId AttackRequest(int animation) =>
+        Requests.Id(animation >= 0 && animation < AttackRequests.Count ? AttackRequests[animation] : OtherAttackRequest);
+
+    /// <summary>Writes the items (with their weapons' sounds), loot tables, shops, recipes and the inventory's rules.</summary>
     public static void Import(ImportContext ctx)
     {
         var db = ctx.Db;
         ctx.Report("Items");
-        var (weapons, armor, items) = BuildItems(db, ctx.Items, ctx.Engine, ctx.Menus);
-        ctx.WriteRecords("weapons.json", BodySoundImporter.WithSounds(db, ctx.BodySounds, weapons));
-        ctx.WriteRecords("armor.json", armor);
+        var items = BuildItems(db, ctx.Items, ctx.Engine, ctx.Menus, CombatImporter.ItemFacts(ctx));
+        items = BodySoundImporter.WithSounds(db, ctx.BodySounds, items);
         ctx.WriteRecords("items.json", MagicImporter.WithPotionVisuals(items, ctx.SpellVisuals, ctx.Archive));
         ctx.WriteRecords("loot.json", BuildLoot(db));
         ctx.WriteRecords("shops.json", BuildShops(db));
@@ -76,14 +89,21 @@ internal static class ItemImporter
     internal static string? Description(GameDb db, RomStringTable table, IReadOnlyDictionary<ItemId, int> lines, ItemId id) =>
         lines.TryGetValue(id, out var line) ? DialogueText.Unescape(db.Strings[table][line]) : null;
 
+    /// <summary>
+    /// Every item (ADR 0031): the weapon DB's, the armor DB's, the item DB's and the potions, sorted by ID. A weapon's facts from
+    /// combat's tables (<paramref name="facts"/>) and the inventory's own go on the items they're about.
+    /// </summary>
     /// <param name="menu">Where items' and potions' descriptions come from. Without it, none have one.</param>
-    public static (List<WeaponRecord> Weapons, List<ArmorRecord> Armor, List<ItemRecord> Items) BuildItems(
-        GameDb db, ItemTables tables, EngineTables engine, MenuTables? menu = null)
+    /// <param name="facts">Combat's facts about items. Without them, no weapon flies or strikes in melee and no flask spreads the AI.</param>
+    public static List<ItemRecord> BuildItems(GameDb db, ItemTables tables, EngineTables engine, MenuTables? menu = null, ItemFacts? facts = null)
     {
         var reserved = tables.ReservedItems.Concat(tables.KeyEquipment).Concat(engine.KeyItems.Select(k => k.Item)).ToHashSet();
         var mustTake = tables.MustTakeItems.ToHashSet();
         var keyItems = engine.KeyItems.ToDictionary(k => k.Item);
         var staff = db.Weapons[ArchmageStaffPosition].Id;
+        var club = DbRecordIds.Required(db.Weapons[CyclopsClubPosition].Id);
+        var aspect = DbRecordIds.Required(AspectPotion);
+        var kept = DbRecordIds.Required(ItemId.Of(DbType.Potion, (byte)MagicImporter.StealthPotion));
 
         ItemTraits? Traits(ItemId id) =>
             reserved.Contains(id) || mustTake.Contains(id) ? new ItemTraits(reserved.Contains(id), mustTake.Contains(id)) : null;
@@ -92,28 +112,35 @@ internal static class ItemImporter
         RecordId? Model(IReadOnlyDictionary<int, ushort> models, int position) =>
             models.TryGetValue(position, out var scene) ? Scene(scene) : null;
 
-        var weapons = db.Weapons.Select((w, i) => new WeaponRecord(
-            DbRecordIds.Required(w.Id), w.Name, Icon(w.Id), w.Price, w.Class, w.RequiredStrength, w.Hit, w.Damage,
-            Math.Min(w.Range * RangeTimesThree / 3, 255), w.Animation, w.ExpModifier, w.DamageType,
-            Bonuses(w.Bonuses, w.SpellLevel), Traits(w.Id), Fixed: w.Id == staff,
-            Model: Model(tables.WeaponModels, i)));
-
-        var armor = db.Armor.Select((a, i) => new ArmorRecord(
-            DbRecordIds.Required(a.Id), a.Name, Icon(a.Id), a.Price, a.Slot == 0 ? ArmorSlot.Body : ArmorSlot.Shield, a.Defense, a.Protection,
-            a.Dexterity, a.Stealth, a.ExpBonus, Bonuses(a.Bonuses, a.Bonuses.SpellLevel), Traits(a.Id),
-            Model(ItemTables.ShieldModels, i)));
-
-        var gear = db.Gear.Select((g, i) =>
+        var weapons = db.Weapons.Select((w, i) =>
         {
-            var bonuses = Bonuses(g.Bonuses, g.Bonuses.SpellLevel);
-            return new ItemRecord(DbRecordIds.Required(g.Id), g.Name, Icon(g.Id), g.Price, (ItemKind)g.Id.Type, g.ExpMultiplier, g.Damage, g.Protection,
-                g.RequiredStrength, g.RequiredIntelligence, bonuses == new GearBonuses() ? null : bonuses, Traits(g.Id),
-                keyItems.TryGetValue(g.Id, out var key)
-                    ? new KeyItemFlags(DbRecordIds.Flag(key.Held), key.Region == 0 ? null : DbRecordIds.Flag(key.Region))
-                    : null,
-                menu is null ? null : Description(db, RomStringTable.Items, menu.ItemDescriptions, g.Id),
-                Model(tables.ItemModels, i));
+            var id = DbRecordIds.Required(w.Id);
+            return new ItemRecord(id, w.Name, Icon(w.Id), w.Price, ItemKind.Weapon,
+                Weapon: new WeaponStats(Numbering.WeaponSkill(w.Class), w.Damage, Math.Min(w.Range * RangeTimesThree / 3, 255), w.Hit,
+                    AttackRequest(w.Animation), Numbering.Element(w.DamageType), facts?.Missiles.GetValueOrDefault(id),
+                    facts?.StrikesInMelee.Contains(id) == true),
+                Requirements: Requirements((Strength, w.RequiredStrength)),
+                Bonuses: Bonuses(w.Bonuses, w.SpellLevel), LootExperience: w.ExpModifier, Traits: Traits(w.Id), Fixed: w.Id == staff,
+                Model: Model(tables.WeaponModels, i), Refused: id == club);
         });
+
+        // Armor's Dexterity is a modified-only add, as a stat bonus is (Stats.AddModdedOnly, 0x8007B498), and its Stealth a skill
+        // bonus that the inventory's rule lets count unlearnt.
+        var armor = db.Armor.Select((a, i) => new ItemRecord(DbRecordIds.Required(a.Id), a.Name, Icon(a.Id), a.Price,
+            a.Slot == 0 ? ItemKind.Body : ItemKind.Shield,
+            Bonuses: Bonuses(a.Bonuses, a.Bonuses.SpellLevel, dexterity: a.Dexterity, stealth: a.Stealth),
+            LootExperience: a.ExpBonus, Protection: a.Protection, Defense: a.Defense, Traits: Traits(a.Id),
+            Model: Model(ItemTables.ShieldModels, i)));
+
+        var gear = db.Gear.Select((g, i) => new ItemRecord(DbRecordIds.Required(g.Id), g.Name, Icon(g.Id), g.Price, (ItemKind)g.Id.Type,
+            Requirements: Requirements((Strength, g.RequiredStrength), (Intelligence, g.RequiredIntelligence)),
+            Bonuses: Bonuses(g.Bonuses, g.Bonuses.SpellLevel), LootExperience: g.ExpMultiplier, Damage: g.Damage, Protection: g.Protection,
+            Traits: Traits(g.Id),
+            KeyItem: keyItems.TryGetValue(g.Id, out var key)
+                ? new KeyItemFlags(DbRecordIds.Flag(key.Held), key.Region == 0 ? null : DbRecordIds.Flag(key.Region))
+                : null,
+            Description: menu is null ? null : Description(db, RomStringTable.Items, menu.ItemDescriptions, g.Id),
+            Model: Model(tables.ItemModels, i)));
 
         // Potions aren't in the item DB: potion n is named by line n of their own string table, and
         // priced by the table in code (ItemInstance::InitPotion).
@@ -121,21 +148,31 @@ internal static class ItemImporter
         var potions = Enumerable.Range(0, ItemTables.PotionCount).Select(i =>
         {
             var id = ItemId.Of(DbType.Potion, (byte)i);
+            var record = DbRecordIds.Required(id);
             var (effects, duration) = MagicImporter.Potion(i);
-            return new ItemRecord(DbRecordIds.Required(id), names[i], Image(ItemTables.PotionIcon), tables.PotionPrices[i], ItemKind.Potion,
+            return new ItemRecord(record, names[i], Image(ItemTables.PotionIcon), tables.PotionPrices[i], ItemKind.Potion,
                 Traits: Traits(id), Description: menu is null ? null : Description(db, RomStringTable.PotionDetails, menu.PotionDescriptions, id),
-                Effects: effects, Duration: duration, Use: MagicImporter.PotionUse(i));
+                Effects: effects, Duration: duration, Use: MagicImporter.PotionUse(i),
+                AiSpread: facts?.AiSpread.GetValueOrDefault(record) ?? 0,
+                Becomes: record == aspect ? DbRecordIds.Required(HealingPotion) : null, KeptAfterBattle: record == kept);
         });
 
-        return (Sorted(weapons, w => w.Id), Sorted(armor, a => a.Id), Sorted(gear.Concat(potions), i => i.Id));
+        return Sorted(weapons.Concat(armor).Concat(gear).Concat(potions), i => i.Id);
     }
+
+    private static readonly RecordId Strength = RecordId.Decimal(RecordTypes.Stat, 4), Intelligence = RecordId.Decimal(RecordTypes.Stat, 0),
+        Dexterity = RecordId.Decimal(RecordTypes.Stat, 2), Stealth = RecordId.Decimal(RecordTypes.Skill, 7);
+
+    /// <summary>A requirements map of the stats whose least value isn't 0, or null for none.</summary>
+    private static Dictionary<RecordId, int>? Requirements(params (RecordId Stat, int Least)[] requirements) =>
+        requirements.Any(r => r.Least != 0) ? requirements.Where(r => r.Least != 0).ToDictionary(r => r.Stat, r => r.Least) : null;
 
     /// <summary>Niesen can equip only the Archmage Staff (<c>Entity::canEquipWeapon</c>).</summary>
     public static List<EntityRecord> WithSoleWeapons(GameDb db, List<EntityRecord> entities)
     {
         var niesen = DbRecordIds.Required(db.Entities[NiesenDbPosition].Id);
         var staff = DbRecordIds.Required(db.Weapons[ArchmageStaffPosition].Id);
-        return [.. entities.Select(e => e.Id == niesen ? e with { SoleWeapon = staff } : e)];
+        return [.. entities.Select(e => e.Id == niesen && e.Sheet is { } sheet ? e with { Sheet = sheet with { SoleWeapon = staff } } : e)];
     }
 
     /// <summary>Each skill's icon (<c>GetSkillIcons</c>).</summary>
@@ -143,7 +180,9 @@ internal static class ItemImporter
         [.. skills.Select(s => int.Parse(s.Id.Key) is var n && n < tables.SkillIcons.Count ? s with { Icon = Image(tables.SkillIcons[n]) } : s)];
 
     public static List<LootRecord> BuildLoot(GameDb db) => Sorted(db.Loot.Select(l => new LootRecord(
-        DbRecordIds.Required(l.Id), l.Name, l.GoldMin, l.GoldMax, l.ArmorChance, l.ShieldChance, [.. l.WeaponChances.Select(c => (int)c)],
+        DbRecordIds.Required(l.Id), l.Name, l.GoldMin, l.GoldMax, l.ArmorChance, l.ShieldChance,
+        l.WeaponChances.Count == 3 ? new WeaponChances(l.WeaponChances[0], l.WeaponChances[1], l.WeaponChances[2])
+            : throw new InvalidDataException($"Loot table {l.Id} has {l.WeaponChances.Count} weapon chances."),
         l.ReagentChance, l.ReagentMin, l.ReagentMax,
         [.. l.Drops.Select((d, i) => (d, i)).Where(x => Drop(l.Id, x.d)).Select(x => new LootDrop(DbRecordIds.Required(x.d.Item), x.d.Chance,
             // 1.0 rolls a count for its first two drops alone (Combat.RollChestItem, 0x8005DF38; get_chest_loot); the rest give one.
@@ -193,9 +232,7 @@ internal static class ItemImporter
         var m = menuTables.Messages;
         var (spice, herb, gemstone) = Reagents(db);
         return new InventoryRecord(RecordId.Decimal(RecordTypes.Inventory, 0), StackLimit, GeneralSlots, spice, herb, gemstone,
-            Image(ItemTables.DefaultIcon), MerchantStep, SellShare,
-            [DbRecordIds.Required(db.Weapons[CyclopsClubPosition].Id)],
-            [new ItemReplacement(DbRecordIds.Required(AspectPotion), DbRecordIds.Required(HealingPotion))],
+            Image(ItemTables.DefaultIcon), MerchantStep, SellShare, [ItemKind.Body, ItemKind.Shield],
             DbRecordIds.Flag(FirstPotionFlag), new InventoryMessages(m.PotionNotNow, m.PotionNotInTrek, m.ScrollNoSpell));
     }
 
@@ -203,15 +240,32 @@ internal static class ItemImporter
         (DbRecordIds.Required(db.Gear[SpicePosition].Id), DbRecordIds.Required(db.Gear[HerbPosition].Id), DbRecordIds.Required(db.Gear[GemstonePosition].Id));
 
     /// <param name="spellLevel">A weapon's is its own field; armor's and gear's is in the bonuses.</param>
-    private static GearBonuses Bonuses(EquipmentBonuses b, int spellLevel) => new(
-        b.Aspect,
-        b.Stat == 0xFF ? null
-            : b.Stat < 6 ? new StatBonus(RecordId.Decimal(RecordTypes.Stat, b.Stat), b.StatBonus)
-            : throw new InvalidDataException($"Gear raises stat {b.Stat}."),
-        b.Skill == 0xFF ? null : new SkillBonus(Skill(b.Skill), b.SkillBonus),
-        b.Spell.IsNone ? null : new ItemSpell(DbRecordIds.Required(b.Spell), spellLevel, b.SpellCharges),
-        b.Magic.IsNone ? null : new ItemEnchantment(DbRecordIds.Required(b.Magic), b.MagicLevel),
-        b.Resist == Element.None ? null : new Resistance(b.Resist, b.ResistAmount * ResistanceStep));
+    /// <param name="dexterity">Armor's Dexterity penalty, which goes with the stat bonus.</param>
+    /// <param name="stealth">Armor's Stealth, which goes with the skill bonus.</param>
+    /// <returns>Null for none.</returns>
+    private static ItemBonuses? Bonuses(EquipmentBonuses b, int spellLevel, int dexterity = 0, int stealth = 0)
+    {
+        var stats = new Dictionary<RecordId, int>();
+        if (b.Stat != 0xFF)
+            stats[b.Stat < 6 ? RecordId.Decimal(RecordTypes.Stat, b.Stat) : throw new InvalidDataException($"Gear raises stat {b.Stat}.")] = b.StatBonus;
+        if (dexterity != 0)
+            stats[Dexterity] = stats.GetValueOrDefault(Dexterity) + dexterity;
+        var skills = new Dictionary<RecordId, int>();
+        if (b.Skill != 0xFF)
+            skills[Skill(b.Skill)] = b.SkillBonus;
+        if (stealth != 0)
+            skills[Stealth] = skills.GetValueOrDefault(Stealth) + stealth;
+        var resistances = b.Resist == Element.None ? null
+            : new Dictionary<RecordId, float> { [Numbering.Element(b.Resist)!.Value] = b.ResistAmount * ResistanceStep };
+        var bonuses = new ItemBonuses(
+            b.Aspect,
+            stats.Count == 0 ? null : stats,
+            skills.Count == 0 ? null : skills,
+            b.Spell.IsNone ? null : new ItemSpell(DbRecordIds.Required(b.Spell), spellLevel, b.SpellCharges),
+            b.Magic.IsNone ? null : new ItemEnchantment(DbRecordIds.Required(b.Magic), b.MagicLevel),
+            resistances);
+        return bonuses == new ItemBonuses() ? null : bonuses;
+    }
 
     /// <summary>
     /// The code indexes a character's 24 bytes of skills with a gear's skill byte: the 12 skills, the

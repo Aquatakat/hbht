@@ -5,79 +5,80 @@ using HBHT.Plugins.Records;
 namespace HBHT.Core.Items;
 
 /// <summary>
-/// A weapon, piece of armor or other item, whichever record it comes from, with what the rules read
-/// of it (the original's <c>ItemInstance</c> and its kinds).
+/// An item (ADR 0031): a weapon, a piece of armor, a shield or any other, with what the rules read of it (the original's
+/// <c>ItemInstance</c> and its kinds).
 /// </summary>
 public sealed class Item
 {
-    private Item(RecordId id, string name, RecordId icon, int price, ItemKind kind, GearBonuses? bonuses, ItemTraits? traits)
+    private Item(ItemRecord record, bool skillBonusesApplyUnlearnt)
     {
-        Id = id;
-        Name = name;
-        Icon = icon;
-        Price = price;
-        Kind = kind;
-        Bonuses = bonuses ?? new GearBonuses();
-        Traits = traits ?? new ItemTraits();
+        Record = record;
+        SkillBonusesApplyUnlearnt = skillBonusesApplyUnlearnt;
+        Bonuses = record.Bonuses ?? new ItemBonuses();
+        Traits = record.Traits ?? new ItemTraits();
     }
 
-    public RecordId Id { get; }
+    /// <summary>The record it's made from.</summary>
+    public ItemRecord Record { get; }
 
-    public string Name { get; }
+    public RecordId Id => Record.Id;
 
-    public RecordId Icon { get; }
+    public string Name => Record.Name;
+
+    public RecordId Icon => Record.Icon;
 
     /// <summary>Its base price, before a shop's multiplier or the Merchant skill.</summary>
-    public int Price { get; }
+    public int Price => Record.Price;
 
-    public ItemKind Kind { get; }
+    public ItemKind Kind => Record.Kind;
 
-    public GearBonuses Bonuses { get; }
+    public ItemBonuses Bonuses { get; }
 
     public ItemTraits Traits { get; }
 
-    public WeaponRecord? Weapon { get; private init; }
+    /// <summary>What only a weapon has, or null for any other item.</summary>
+    public WeaponStats? Weapon => Record.Weapon;
 
     /// <summary>Body armor or a shield.</summary>
-    public ArmorRecord? Armor { get; private init; }
-
-    /// <summary>Any other item.</summary>
-    public ItemRecord? Gear { get; private init; }
+    public bool IsArmor => Kind is ItemKind.Body or ItemKind.Shield;
 
     /// <summary>The flags a key item sets.</summary>
-    public KeyItemFlags? KeyItem => Gear?.KeyItem;
+    public KeyItemFlags? KeyItem => Record.KeyItem;
 
     /// <summary>What wearing it adds to the wearer's protection: armor's, or a worn item's.</summary>
-    public int Protection => Armor?.Protection ?? Gear?.Protection ?? 0;
+    public int Protection => Record.Protection;
 
-    /// <summary>What a worn item adds to the wearer's damage. A weapon's own damage is combat's (2.5).</summary>
-    public int Damage => Gear?.Damage ?? 0;
+    /// <summary>What a worn item adds to the wearer's damage. A weapon's own damage is combat's.</summary>
+    public int Damage => Record.Damage;
 
     /// <summary>The base Strength wearing or wielding it needs.</summary>
-    public int RequiredStrength => Weapon?.RequiredStrength ?? Gear?.RequiredStrength ?? 0;
+    public int RequiredStrength => Record.Requires(StatId.Record(Stat.Strength));
 
     /// <summary>The base Intelligence wearing it needs.</summary>
-    public int RequiredIntelligence => Gear?.RequiredIntelligence ?? 0;
+    public int RequiredIntelligence => Record.Requires(StatId.Record(Stat.Intelligence));
 
     /// <summary>
     /// How much Stamina its battery holds when full: its stat bonus, if that's to Stamina
     /// (<c>get_equip_stamMod</c>). Null for an item without one.
     /// </summary>
-    public int? BatteryCapacity => Bonuses.Stat is { } stat && stat.Stat == StaminaStat ? stat.Amount : null;
+    public int? BatteryCapacity => Bonuses.Stats?.TryGetValue(StaminaStat, out var amount) == true ? amount : null;
 
     /// <summary>Whether it's worn in the gear slots rather than as the weapon, armor or shield.</summary>
     public bool IsGear => Kind is ItemKind.Helmet or ItemKind.Cloak or ItemKind.Gloves or ItemKind.Ring or ItemKind.Wand
         or ItemKind.Belt or ItemKind.Boots or ItemKind.Amulet or ItemKind.Scroll;
 
-    internal static readonly RecordId StaminaStat = StatId.Record(Stat.Stamina);
+    /// <summary>The Stamina stat, whose bonus is a battery.</summary>
+    public static readonly RecordId StaminaStat = StatId.Record(Stat.Stamina);
 
-    public static Item From(WeaponRecord w) =>
-        new(w.Id, w.Name, w.Icon, w.Price, ItemKind.Weapon, w.Bonuses, w.Traits) { Weapon = w };
+    /// <summary>
+    /// Its skill bonuses count even for a skill the wearer's base level is 0 in: its kind is one of the inventory's
+    /// <see cref="InventoryRecord.SkillBonusesApplyUnlearnt"/>.
+    /// </summary>
+    public bool SkillBonusesApplyUnlearnt { get; }
 
-    public static Item From(ArmorRecord a) =>
-        new(a.Id, a.Name, a.Icon, a.Price, a.Slot == ArmorSlot.Shield ? ItemKind.Shield : ItemKind.Armor, a.Bonuses, a.Traits) { Armor = a };
-
-    public static Item From(ItemRecord i) => new(i.Id, i.Name, i.Icon, i.Price, i.Kind, i.Bonuses, i.Traits) { Gear = i };
+    /// <param name="rules">The inventory's rules, whose kinds say whether its skill bonuses count unlearnt; without them, they don't.</param>
+    public static Item From(ItemRecord record, InventoryRecord? rules = null) =>
+        new(record, rules?.SkillBonusesApplyUnlearnt.Contains(record.Kind) == true);
 
     public override string ToString() => Name;
 }
@@ -87,9 +88,9 @@ public sealed class ItemCatalog
 {
     private readonly Dictionary<RecordId, Item> _items;
 
-    public ItemCatalog(IEnumerable<WeaponRecord> weapons, IEnumerable<ArmorRecord> armor, IEnumerable<ItemRecord> items, InventoryRecord rules)
+    public ItemCatalog(IEnumerable<ItemRecord> items, InventoryRecord rules)
     {
-        _items = weapons.Select(Item.From).Concat(armor.Select(Item.From)).Concat(items.Select(Item.From)).ToDictionary(i => i.Id);
+        _items = items.Select(i => Item.From(i, rules)).ToDictionary(i => i.Id);
         Rules = rules;
     }
 
@@ -102,9 +103,7 @@ public sealed class ItemCatalog
     public Item? TryGet(RecordId id) => _items.GetValueOrDefault(id);
 
     /// <summary>The installed plugins' items.</summary>
-    public static ItemCatalog From(PluginSet plugins) => new(
-        plugins.All<WeaponRecord>(RecordTypes.Weapon), plugins.All<ArmorRecord>(RecordTypes.Armor), plugins.All<ItemRecord>(RecordTypes.Item),
-        plugins.Singleton<InventoryRecord>())
+    public static ItemCatalog From(PluginSet plugins) => new(plugins.All<ItemRecord>(RecordTypes.Item), plugins.Singleton<InventoryRecord>())
     {
         LootGoldMultiplier = plugins.TrySingleton<CombatRecord>()?.LootGoldMultiplier ?? 1,
     };

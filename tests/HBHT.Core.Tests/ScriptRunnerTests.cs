@@ -13,7 +13,7 @@ public class ScriptRunnerTests
     private static readonly RecordId Alaron = RecordId.Hex(RecordTypes.Entity, 0x023F);
     private static readonly RecordId Trahern = RecordId.Hex(RecordTypes.Entity, 0x0239);
     private static readonly RecordId Goblin = RecordId.Hex(RecordTypes.Entity, 0x0280);
-    private static readonly RecordId Sword = RecordId.Hex(RecordTypes.Weapon, 0x073A);
+    private static readonly RecordId Sword = RecordId.Hex(RecordTypes.Item, 0x073A);
     private static readonly RecordId Chest = RecordId.Parse("aidyn:voxel/0x1A20/3");
     private static readonly RecordId ScriptId = RecordId.Hex(RecordTypes.Dialogue, 0x0400);
     private static readonly RecordId Rumours = RecordId.Hex(RecordTypes.Dialogue, 0x0325);

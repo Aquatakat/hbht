@@ -24,14 +24,14 @@ namespace HBHT.Rom.Tests;
 internal static class ConversationPlugins
 {
     public static readonly RecordId Trahern = RecordId.Hex(RecordTypes.Entity, 0x0239);
-    public static readonly RecordId Sign = RecordId.Hex(RecordTypes.DialogEntity, 5);
+    public static readonly RecordId Sign = RecordId.Hex(RecordTypes.Entity, 0x1405);
 
     public static RecordId Script(int n) => RecordId.Parse($"convtest:dialogue/0x{n:x4}");
 
     public static readonly RecordId Talk = Script(1), Animates = Script(2), Waits = Script(3), Joins = Script(4), Menus = Script(5),
         Ends = Script(6), Starts = Script(7), CutSpawns = Script(8), CutCameras = Script(9), CutItems = Script(10), CutAnimates = Script(11);
 
-    public static readonly RecordId ShortSword = RecordId.Hex(RecordTypes.Weapon, 0x072C), ASpell = RecordId.Hex(RecordTypes.Spell, 0x03EB);
+    public static readonly RecordId ShortSword = RecordId.Hex(RecordTypes.Item, 0x072C), ASpell = RecordId.Hex(RecordTypes.Spell, 0x03EB);
 
     private static readonly object Lock = new();
     private static PluginSet? _set;

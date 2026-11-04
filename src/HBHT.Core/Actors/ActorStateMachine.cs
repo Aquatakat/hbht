@@ -74,7 +74,7 @@ public sealed class ActorStateMachine
     /// </summary>
     public void Join(int request, int clock)
     {
-        var branch = _actor.States[State].Branches.FirstOrDefault(b => b.Request == request)
+        var branch = _actor.States[State].Branches.FirstOrDefault(b => b.Number == request)
             ?? throw new ArgumentException($"{_actor.Id}'s state {State} has no branch for request {request}.", nameof(request));
         Enter(branch.State);
         Clock = Math.Clamp(clock, 1, Length(State));
@@ -97,7 +97,7 @@ public sealed class ActorStateMachine
     /// state has a branch for it exactly (any request's 255 doesn't count), otherwise none, idle (the actor's default,
     /// <c>+0x10</c>, which <c>ActorStateMachine.Tick</c> puts back after every tick).
     /// </summary>
-    public int Taken => _actor.States[State].Branches.Any(b => b.Request == Request) ? Request : 0;
+    public int Taken => _actor.States[State].Branches.Any(b => b.Number == Request) ? Request : 0;
 
     private bool Advance()
     {
@@ -106,7 +106,7 @@ public sealed class ActorStateMachine
         _lastRequest = request;
         if (Clock >= Length(State))
         {
-            Enter(Roll(b => b.Request == request || b.Request == AnyRequest)?.State ?? State);
+            Enter(Roll(b => b.Number == request || b.Number == AnyRequest)?.State ?? State);
             return true;
         }
         // A new request can cut the animation short through a branch that interrupts. Either way,
@@ -114,7 +114,7 @@ public sealed class ActorStateMachine
         // a state is entered for a request it has no branch for doesn't advance it either.
         if (changed)
         {
-            if (Roll(b => b.Request == request && b.Interrupts) is not { } branch)
+            if (Roll(b => b.Number == request && b.Interrupts) is not { } branch)
                 return false;
             Enter(branch.State);
             return true;

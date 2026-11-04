@@ -1,3 +1,5 @@
+using HBHT.Core.Magic;
+using HBHT.Core.Characters;
 using HBHT.Plugins;
 using HBHT.Plugins.Records;
 
@@ -81,15 +83,7 @@ public static class MenuImages
     };
 
     /// <summary>Each school's icon (<c>getSchoolIcon</c>). Unschooled has none.</summary>
-    public static RecordId? SchoolIcon(MagicSchool school) => school switch
-    {
-        MagicSchool.Chaos => Image(0x01A9),
-        MagicSchool.Elemental => Image(0x01A5),
-        MagicSchool.Naming => Image(0x01A6),
-        MagicSchool.Necromancy => Image(0x01A7),
-        MagicSchool.Star => Image(0x01A8),
-        _ => null,
-    };
+    public static RecordId? SchoolIcon(CharacterRules rules, RecordId school) => rules.Schools.GetValueOrDefault(school)?.Icon;
 
     private static RecordId Image(int borg8) => RecordId.Hex(RecordTypes.Image, borg8);
 }

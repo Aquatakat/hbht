@@ -319,7 +319,7 @@ public sealed partial class Battle
                 HBHT.Core.Movement.Crowd.Push(crowd, i, start);
                 continue;
             }
-            combatant.Audio.Weapon = WeaponOf(combatant) is { Model: not null } weapon ? weapon.Sounds : null;
+            combatant.Audio.Weapon = combatant.Sheet.Equipment.Weapon?.Item is { Record.Model: not null, Weapon: { } weapon } ? weapon.Sounds : null;
             var own = motion(combatant);
             var animation = own is { } m ? keys.Sounding(m, combatant.Audio, combatant.Sounds, combatant.Body.Sphere) : IActorMotion.Still;
             // A body that has fallen holds its last frame; one a web or hold keeps doesn't step its idle (Body.IsHeld, 0x80012754).

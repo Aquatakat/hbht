@@ -96,18 +96,66 @@ internal static class CharacterImporter
     /// <summary>A spell's training cost per point of its record's byte (<c>TempSpell::Init</c>).</summary>
     private const int SpellCostPerPoint = 50;
 
-    public static List<EntityRecord> BuildEntities(GameDb db, EntityModels models)
+    /// <summary>
+    /// The entities (ADR 0032): the entity DB's, each with its sheet, and the dialogue entity table's but the four that are an entity
+    /// too (<see cref="DbRecordIds.Twins"/>), with none, the twins' references being the entity's. A twin's names must match.
+    /// </summary>
+    /// <param name="facts">Combat's facts about entities. Without them, none has combat traits or holds its weapons apart.</param>
+    public static List<EntityRecord> BuildEntities(GameDb db, EntityModels models, EntityFacts? facts = null)
     {
         var portraits = models.Entities.ToDictionary(m => m.Entity, m => RecordId.Hex(RecordTypes.Image, m.Portrait));
         var bodies = models.Entities.ToDictionary(m => m.Entity, m => new EntityBody(RecordId.Hex(RecordTypes.Actor, m.Actor), m.Radius, m.Scale, m.Height, m.Strike, Alpha: m.Alpha));
         var alaron = db.Entities[AlaronDbPosition].Id;
+        var oriana = DbRecordIds.Required(db.Entities[OrianaDbPosition].Id);
+        var entities = db.Entities.Where(e => DbRecordIds.For(e.Id) is not null)
+            .Select(e => Entity(e, portraits.GetValueOrDefault(e.Id), e.Id == alaron) with { Body = bodies.GetValueOrDefault(e.Id, Fallback(EntityRadius)) })
+            .DistinctBy(e => e.Id)
+            .Select(e => e with { TrainsFree = e.Id == oriana })
+            .Select(e => facts is null ? e : e with
+            {
+                Combat = facts.Combat.GetValueOrDefault(e.Id),
+                Body = e.Body! with
+                {
+                    WeaponsInModel = facts.WeaponsInModel.Contains(e.Id),
+                    BowHand = facts.OtherHand.Contains(e.Id) ? BowHand.Other : BowHand.Usual,
+                },
+            })
+            .ToList();
+        foreach (var (dialogue, entity) in DbRecordIds.Twins)
+        {
+            var speaker = db.DialogEntities.FirstOrDefault(d => d.Id.Value == dialogue)
+                ?? throw new InvalidDataException($"There's no dialogue entity 0x{dialogue:X4} to merge.");
+            if (entities.FirstOrDefault(e => e.Id == RecordId.Hex(RecordTypes.Entity, entity)) is not { } twin || twin.Name != speaker.Name)
+                throw new InvalidDataException($"Dialogue entity 0x{dialogue:X4}, {speaker.Name}, isn't entity 0x{entity:X4}'s twin.");
+        }
+        return [.. entities.Concat(BuildSpeakers(db, models)).OrderBy(e => e.Id.Key, StringComparer.Ordinal)];
+    }
+
+    /// <summary>
+    /// The dialogue entity table's entities, with their portraits and bodies and no sheet, but the twins (<see cref="DbRecordIds.Twins"/>).
+    /// The five without a portrait get the code's fallback at run time, and a bat for a body. Each notices the party at 10
+    /// (<see cref="DialoguePerception"/>).
+    /// </summary>
+    internal static List<EntityRecord> BuildSpeakers(GameDb db, EntityModels models)
+    {
+        var portraits = models.DialogEntities.ToDictionary(m => m.Entity, m => RecordId.Hex(RecordTypes.Image, m.Portrait));
+        var bodies = models.DialogEntities.ToDictionary(m => m.Entity,
+            m => new EntityBody(RecordId.Hex(RecordTypes.Actor, m.Actor), DialogEntityRadius, m.Scale, m.Height));
+        var fallback = Fallback(DialogEntityRadius);
         return
         [
-            .. db.Entities.Where(e => DbRecordIds.For(e.Id) is not null)
-                .Select(e => Entity(e, portraits.GetValueOrDefault(e.Id), e.Id == alaron) with { Body = bodies.GetValueOrDefault(e.Id, Fallback(EntityRadius)) })
-                .DistinctBy(e => e.Id).OrderBy(e => e.Id.Key, StringComparer.Ordinal),
+            .. db.DialogEntities.Where(e => !DbRecordIds.Twins.ContainsKey(e.Id.Value) && DbRecordIds.For(e.Id) is not null)
+                .Select(e => new EntityRecord(DbRecordIds.For(e.Id)!.Value, e.Name, portraits.TryGetValue(e.Id, out var p) ? p : null,
+                    DialoguePerception, bodies.GetValueOrDefault(e.Id, fallback)))
+                .DistinctBy(e => e.Id),
         ];
     }
+
+    /// <summary>
+    /// How far one from the dialogue entity table notices the party: 10, the port's (<c>Wanderers.DialoguePerception</c>), as the
+    /// original's own entity check (<c>EntityDB::GetPerception</c>) reads past the entity DB for one.
+    /// </summary>
+    internal const int DialoguePerception = 10;
 
     /// <summary>
     /// The entity list positions whose sheets <c>SaveEntity::GetSlot</c> keeps in slots 4 to 8 (a jump
@@ -115,48 +163,19 @@ internal static class CharacterImporter
     /// </summary>
     internal static readonly int[] KeptMemberPositions = [0x98, 0x9A, 0x9C, 0xA0, 0xA1];
 
-    /// <summary>Writes the entities (with their members' flags and sounds), the spells, the stats, skills and progression, and the dialogue entities' names.</summary>
+    /// <summary>Writes the entities (with their members' flags and sounds), the spells, the stats, skills and progression.</summary>
     public static void Import(ImportContext ctx)
     {
         var db = ctx.Db;
-        ctx.Report("Names");
-        foreach (var (file, records) in BuildNames(db, ctx.Models))
-            ctx.WriteRecords(file, file == DialogEntitiesFile ? BodySoundImporter.WithSounds(db, ctx.BodySounds, records) : records);
-
         ctx.Report("Characters");
         ctx.WriteRecords("entities.json", BodySoundImporter.WithSounds(db, ctx.BodySounds,
-            WithMembers(ItemImporter.WithSoleWeapons(db, BuildEntities(db, ctx.Models)), ctx.Engine)));
+            WithMembers(ItemImporter.WithSoleWeapons(db, BuildEntities(db, ctx.Models, CombatImporter.Entities(ctx.Engine))), ctx.Engine)));
         ctx.WriteRecords("spells.json", BodySoundImporter.WithSounds(db, ctx.BodySounds,
             MagicImporter.WithVisuals(MagicImporter.WithEffects(BuildSpells(db, ctx.Items, ctx.Menus), ctx.Engine), ctx.SpellVisuals, ctx.Archive)));
         ctx.WriteRecords("stats.json", BuildStats(db, ctx.Characters));
         ctx.WriteRecords("skills.json", ItemImporter.WithIcons(ctx.Items, BuildSkills(db, ctx.Characters)));
         ctx.WriteRecords("weaponskills.json", BuildWeaponSkills(db, ctx.Characters));
-        ctx.WriteRecords("progression.json", new[] { BuildProgression(db, ctx.Characters) });
-    }
-
-    /// <summary>
-    /// The names of the DB records that have no fields of their own yet, by file: dialogue entities, with
-    /// their portraits and bodies. The five without a portrait get the code's fallback at run time, as
-    /// speakers that aren't entities do, and a bat for a body. Entities and spells have records of their own (<see cref="CharacterImporter"/>),
-    /// and so do weapons, armor, items and loot tables (<see cref="ItemImporter"/>).
-    /// </summary>
-    internal static List<(string File, List<DbRecord> Records)> BuildNames(GameDb db, EntityModels models)
-    {
-        var portraits = models.DialogEntities.ToDictionary(m => m.Entity, m => RecordId.Hex(RecordTypes.Image, m.Portrait));
-        var bodies = models.DialogEntities.Where(m => DbRecordIds.For(m.Entity) is not null).ToDictionary(m => DbRecordIds.For(m.Entity)!.Value,
-            m => new EntityBody(RecordId.Hex(RecordTypes.Actor, m.Actor), CharacterImporter.DialogEntityRadius, m.Scale, m.Height));
-        var fallback = CharacterImporter.Fallback(CharacterImporter.DialogEntityRadius);
-        return
-        [
-            (DialogEntitiesFile, [.. Names(db.DialogEntities.Select(e => (e.Id, e.Name)), portraits)
-                .Select(r => r with { Body = bodies.GetValueOrDefault(r.Id, fallback) })]),
-        ];
-
-        static List<DbRecord> Names(IEnumerable<(ItemId Id, string Name)> records, IReadOnlyDictionary<ItemId, RecordId>? portraits = null) =>
-        [
-            .. records.Select(r => (Id: DbRecordIds.For(r.Id), r.Name, Portrait: portraits?.TryGetValue(r.Id, out var p) == true ? p : (RecordId?)null)).Where(r => r.Id is not null)
-                .Select(r => new DbRecord(r.Id!.Value, r.Name, r.Portrait)).DistinctBy(r => r.Id).OrderBy(r => r.Id.Key, StringComparer.Ordinal),
-        ];
+        ctx.WriteRecords("progression.json", new[] { BuildProgression(ctx.Characters) });
     }
 
     /// <summary>Gives each recruitable member the flags the engine keeps for them (<c>Party::CheckFlags</c>).</summary>
@@ -179,8 +198,6 @@ internal static class CharacterImporter
     /// <summary>Every dialogue entity's collision radius (<c>EntityDB::GetCollideRadius</c>).</summary>
     public const float DialogEntityRadius = 0.55f;
 
-    private const string DialogEntitiesFile = "dialogentities.json";
-
     private const float EntityRadius = 0.75f;
     private const int BatActor = 0x2D4A;
 
@@ -198,20 +215,19 @@ internal static class CharacterImporter
         }
         if (e.Weapons.Count != 3)
             throw new InvalidDataException($"Entity {e.Id} has {e.Weapons.Count} weapon slots.");
-        var (skills, weaponSkills, shieldSkill) = SkillSlots.Split([.. e.Skills.Concat(e.WeaponSkills).Append(e.ShieldSkill).Select(Skill)]);
-        var a = e.Stats;
-        return new EntityRecord(
-            DbRecordIds.For(e.Id)!.Value, e.Name, portrait, category, e.Aspect, e.School,
-            e.HasTrueName != 0, e.IsHeavy != 0, e.Level,
-            new Attributes(a[0], a[1], a[2], a[3], a[4], a[5]),
-            skills, weaponSkills, shieldSkill, spells,
-            [.. e.Weapons.Select(i => i.IsNone ? (RecordId?)null : Record(i, DbType.Weapon, e.Id))],
+        var (skills, weaponSkills) = SkillSlots.Maps([.. e.Skills.Concat(e.WeaponSkills).Append(e.ShieldSkill).Select(Skill)]);
+        RecordId? Weapon(int slot) => e.Weapons[slot].IsNone ? null : Record(e.Weapons[slot], DbType.Weapon, e.Id);
+        var sheet = new EntitySheet(category, e.Aspect, Numbering.School(e.School), e.HasTrueName != 0, e.IsHeavy != 0, e.Level,
+            Enumerable.Range(0, 6).ToDictionary(n => RecordId.Decimal(RecordTypes.Stat, n), n => (int)e.Stats[n]),
+            skills, weaponSkills, spells,
+            new EntityWeapons(Weapon(0), Weapon(1), Weapon(2)),
             e.Armor.IsNone ? null : Record(e.Armor, DbType.Armor, e.Id),
             e.Shield.IsNone ? null : Record(e.Shield, DbType.Shield, e.Id),
             e.BaseProtection, e.Unk4E, e.Morale,
-            [.. e.Resistances.Where(r => r.Element != Element.None).Select(r => new Resistance(r.Element, r.Amount * ResistanceStep))],
-            e.ExpReward * ExpPerRewardPoint, e.LootCategory, e.Unk55,
+            [.. e.Resistances.Where(r => r.Element != Element.None).Select(r => new Resistance(Numbering.Element(r.Element)!.Value, r.Amount * ResistanceStep))],
+            e.ExpReward * ExpPerRewardPoint, e.LootCategory,
             alaron ? DbRecordIds.Flag(AlaronTrueNameFlag) : null);
+        return new EntityRecord(DbRecordIds.For(e.Id)!.Value, e.Name, portrait, e.Unk55, Sheet: sheet);
     }
 
     private static int? Skill(byte level) => level == CantLearn ? null : level;
@@ -256,7 +272,7 @@ internal static class CharacterImporter
             _ => throw new InvalidDataException($"Spell {s.Id} has reagent {s.Reagent}."),
         };
         return new SpellRecord(
-            DbRecordIds.For(s.Id)!.Value, s.Name, s.School, s.StaminaCost,
+            DbRecordIds.For(s.Id)!.Value, s.Name, Numbering.School(s.School), s.StaminaCost,
             new SpellTargeting(s.TargetType, s.TargetCount, Placed: (s.Unk1E & PlacedBit) != 0),
             s.WizardRequired, special, s.Range, reagent,
             s.ExpModifier * SpellCostPerPoint,
@@ -296,7 +312,10 @@ internal static class CharacterImporter
         ];
     }
 
-    /// <summary>The eleven weapon classes, <c>aidyn:weaponskill/0</c> to <c>10</c>, and the shield, <c>11</c>.</summary>
+    /// <summary>
+    /// The eleven weapon classes, <c>aidyn:weaponskill/0</c> to <c>10</c>, each saying whether its weapons drop as loot
+    /// (<see cref="CombatImporter.DroppedClasses"/>), and the shield, <c>11</c>.
+    /// </summary>
     public static List<SkillRecord> BuildWeaponSkills(GameDb db, CharacterTables tables)
     {
         var common = db.Strings[RomStringTable.Common];
@@ -306,15 +325,14 @@ internal static class CharacterImporter
             .. Enumerable.Range(0, CharacterTables.WeaponClassCount).Select(n => new SkillRecord(
                 RecordId.Decimal(RecordTypes.WeaponSkill, n), DialogueText.Unescape(common[WeaponNameLine + n]),
                 WeaponDescriptionLines.TryGetValue(n, out var line) ? DialogueText.Unescape(descriptions[line]) : null,
-                tables.WeaponTrainingCosts[n], SkillBaseCap, SkillCap)),
+                tables.WeaponTrainingCosts[n], SkillBaseCap, SkillCap, Drops: CombatImporter.DroppedClasses.Contains((WeaponClass)n))),
             new SkillRecord(RecordId.Decimal(RecordTypes.WeaponSkill, CharacterTables.WeaponClassCount), ShieldName,
                 DialogueText.Unescape(descriptions[ShieldDescriptionLine]), ShieldTrainingCost, SkillBaseCap, SkillCap),
         ];
     }
 
-    /// <summary>The progression, <c>aidyn:progression/0</c>. Oriana is the free trainer.</summary>
-    public static ProgressionRecord BuildProgression(GameDb db, CharacterTables tables) => new(
+    /// <summary>The progression, <c>aidyn:progression/0</c>.</summary>
+    public static ProgressionRecord BuildProgression(CharacterTables tables) => new(
         RecordId.Decimal(RecordTypes.Progression, 0), tables.LevelExperience, ExpAward,
-        new TrainingPrices(FirstLevelGold, GoldPerLevel, TrainerExp, [DbRecordIds.For(db.Entities[OrianaDbPosition].Id)!.Value], SpellMaxLevel,
-            DbRecordIds.Flag(FirstSpellFlag)));
+        new TrainingPrices(FirstLevelGold, GoldPerLevel, TrainerExp, SpellMaxLevel, DbRecordIds.Flag(FirstSpellFlag)));
 }

@@ -11,12 +11,8 @@ namespace HBHT.Editor;
 /// </summary>
 public partial class ActorPanel : VBoxContainer
 {
-    /// <summary>What the decomp names requests (<c>AniTypes</c>). The rest show as numbers.</summary>
-    private static readonly Dictionary<int, string> RequestNames = new()
-    {
-        [0] = "idle", [2] = "walk", [3] = "run", [7] = "hit", [9] = "dying", [25] = "sneak",
-        [ActorStateMachine.AnyRequest] = "any",
-    };
+    /// <summary>The requests' names, from their records (<c>aidyn:request/n</c>); a request with none shows as its number.</summary>
+    public Func<int, string?>? RequestNames { get; set; }
 
     private static readonly Color Interrupting = new(1f, 0.75f, 0.4f);
 
@@ -110,7 +106,7 @@ public partial class ActorPanel : VBoxContainer
 
         // Idle, and every request a branch answers.
         _request.Clear();
-        foreach (var r in actor.States.SelectMany(s => s.Branches).Select(b => b.Request).Where(r => r != ActorStateMachine.AnyRequest)
+        foreach (var r in actor.States.SelectMany(s => s.Branches).Select(b => b.Number).Where(r => r != ActorStateMachine.AnyRequest)
                      .Append(0).Distinct().Order())
             _request.AddItem(RequestName(r), r);
         _request.Select(0);
@@ -129,11 +125,9 @@ public partial class ActorPanel : VBoxContainer
         _selecting = false;
     }
 
-    private static string Branch(ActorBranch b) =>
-        $"{RequestName(b.Request)}{(b.Chance < 100 ? $" {b.Chance}%" : "")} → {b.State}";
+    private string Branch(ActorBranch b) =>
+        $"{RequestName(b.Number)}{(b.Chance < 100 ? $" {b.Chance}%" : "")} → {b.State}";
 
-    private static string RequestName(int request) =>
-        RequestNames.TryGetValue(request, out var name)
-            ? request == ActorStateMachine.AnyRequest ? name : $"{request} {name}"
-            : request.ToString(CultureInfo.InvariantCulture);
+    private string RequestName(int request) =>
+        request == ActorStateMachine.AnyRequest ? "any" : RequestNames?.Invoke(request) is { } name ? name.ToLowerInvariant() : request.ToString(CultureInfo.InvariantCulture);
 }

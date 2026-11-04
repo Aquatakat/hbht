@@ -7,20 +7,33 @@ namespace HBHT.Rom.Import;
 internal static class DbRecordIds
 {
     /// <summary>
-    /// The record an ID names, keyed by the whole u16, such as <c>aidyn:entity/0x023F</c>. Null for
-    /// IDs that have no record: none, rituals, and bytes the game never defined,
-    /// such as the tools' fill value 0xCC.
+    /// The dialogue entities that are an entity too, by the same name, which the import merges into the entity (ADR 0032): Cadme,
+    /// Pochanargat, Tamberlain and Xibid. <see cref="CharacterImporter"/> checks each pair's names.
+    /// </summary>
+    public static readonly IReadOnlyDictionary<ushort, ushort> Twins = new Dictionary<ushort, ushort>
+    {
+        [0x1404] = 0x02DD,
+        [0x1406] = 0x0224,
+        [0x1418] = 0x0214,
+        [0x1419] = 0x02DB,
+    };
+
+    /// <summary>
+    /// The record an ID names, keyed by the whole u16, such as <c>aidyn:entity/0x023F</c>: a dialogue entity's is an entity's
+    /// (<c>aidyn:entity/0x14xx</c>), or its twin's (<see cref="Twins"/>); a weapon's, armor's or shield's an item's
+    /// (<c>aidyn:item/0x07xx</c>). Null for IDs that have no record: none, rituals, and bytes the game never defined, such as the
+    /// tools' fill value 0xCC.
     /// </summary>
     public static RecordId? For(ItemId id)
     {
+        if (id.Type == DbType.DialogEntity && Twins.TryGetValue(id.Value, out var twin))
+            return RecordId.Hex(RecordTypes.Entity, twin);
         var type = id.Type switch
         {
-            DbType.Entity => RecordTypes.Entity,
-            DbType.DialogEntity => RecordTypes.DialogEntity,
+            DbType.Entity or DbType.DialogEntity => RecordTypes.Entity,
             DbType.Spell => RecordTypes.Spell,
             DbType.Loot => RecordTypes.Loot,
-            DbType.Weapon => RecordTypes.Weapon,
-            DbType.Armor or DbType.Shield => RecordTypes.Armor,
+            DbType.Weapon or DbType.Armor or DbType.Shield => RecordTypes.Item,
             DbType.Misc or DbType.Helmet or DbType.Cloak or DbType.Glove or DbType.Ring or DbType.Wand
                 or DbType.Belt or DbType.Boots or DbType.Potion or DbType.Scroll or DbType.KeyItem or DbType.Amulet => RecordTypes.Item,
             _ => null,
@@ -33,10 +46,7 @@ internal static class DbRecordIds
     public static RecordId Required(ItemId id, string? where = null) =>
         For(id) ?? throw new InvalidDataException($"{(where is null ? "" : where + ": ")}DB ID {id} has no record.");
 
-    /// <summary>
-    /// The record of an item in a console's inventory or hands, by its ID: weapons are 0x07…, armor and shields 0x05… and
-    /// 0x06…, and the rest items.
-    /// </summary>
+    /// <summary>The record of an item in a console's inventory or hands, by its ID.</summary>
     public static RecordId Item(ushort id) => For(new ItemId(id)) ?? RecordId.Hex(RecordTypes.Item, id);
 
     /// <summary>The record of event flag <paramref name="flag"/>, such as <c>aidyn:flag/3612</c>.</summary>

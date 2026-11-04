@@ -153,8 +153,8 @@ public sealed class AttackCheckpointTests(Na10Import fixture, ITestOutputHelper 
     }
 
     /// <summary>
-    /// Fleeing and being untargetable are the combat record's two rules (<see cref="CombatRecord.Flee"/>,
-    /// <see cref="CombatRecord.Untargetable"/>): a mod's enemy the party may flee from can still be attacked, and only an untargetable
+    /// Fleeing and being untargetable are the entity's two rules (<see cref="EntityCombat.Flee"/>,
+    /// <see cref="EntityCombat.Untargetable"/>): a mod's enemy the party may flee from can still be attacked, and only an untargetable
     /// one can't be, though it still attacks.
     /// </summary>
     [Fact]
@@ -162,13 +162,13 @@ public sealed class AttackCheckpointTests(Na10Import fixture, ITestOutputHelper 
     {
         var built = At(5);
         var (battle, alaron, rat) = (built.Battle, built[0], built[7]);
-        var rules = battle.Rules!;
-        var field = typeof(Battle).GetField("_rules", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        var field = typeof(Character).GetField("<Record>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        var record = rat.Sheet.Record;
 
-        field.SetValue(battle, rules with { Flee = [.. rules.Flee, rat.Entity] });
+        field.SetValue(rat.Sheet, record with { Combat = new EntityCombat(Flee: FleeSay.Allows) });
         Assert.True(battle.CanAttack(alaron, rat));
 
-        field.SetValue(battle, rules with { Untargetable = [rat.Entity] });
+        field.SetValue(rat.Sheet, record with { Combat = new EntityCombat(Untargetable: true) });
         Assert.False(battle.CanAttack(alaron, rat));
         Assert.True(battle.CanAttack(rat, alaron));
     }
@@ -248,16 +248,17 @@ public sealed class AttackCheckpointTests(Na10Import fixture, ITestOutputHelper 
     /// </summary>
     private static void GiveLongBow(Combatant sholeh)
     {
-        var weapon = sholeh.Sheet.Equipment.Weapon!.Item.Weapon! with
+        var record = sholeh.Sheet.Equipment.Weapon!.Item.Record;
+        var weapon = record.Weapon! with
         {
-            Class = WeaponClass.Missile,
+            Skill = RomIds.WeaponSkill(HBHT.Rom.Db.WeaponClass.Missile),
             Hit = 30,
             Damage = 4,
             Range = 255,
-            Animation = 5,
-            DamageType = Element.Cutting,
+            Animation = RecordIds.Request(14),
+            DamageType = RomIds.Element(HBHT.Rom.Db.Element.Cutting),
         };
-        sholeh.Sheet.Equipment.Restore(new ItemInstance(Item.From(weapon)));
+        sholeh.Sheet.Equipment.Restore(new ItemInstance(Item.From(record with { Weapon = weapon })));
         sholeh.Action = CombatAction.Ranged;
     }
 

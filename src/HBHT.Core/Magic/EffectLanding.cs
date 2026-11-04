@@ -18,7 +18,7 @@ namespace HBHT.Core.Magic;
 /// </param>
 /// <param name="Caster">Who cast, drank or threw it: Teleportation moves it, and Tap Stamina's gain goes on it.</param>
 /// <param name="Target">Whom it lands on.</param>
-internal sealed record Landing(RecordId Source, MagicSchool School, int Level, int Margin, EffectTarget Caster, EffectTarget Target, IRandom Random)
+internal sealed record Landing(RecordId Source, RecordId School, int Level, int Margin, EffectTarget Caster, EffectTarget Target, IRandom Random)
 {
     /// <summary>The margin a lasting record keeps, which Photosynthesis heals and Cheat Death twice: the cast's, or a potion's 0.</summary>
     public int RecordMargin { get; init; } = Margin;
@@ -181,9 +181,9 @@ internal static class EffectLanding
 
     // Entity.Dispel (0x80071CD8): every effect of the school comes off, if the margin times their number reaches their margins.
     // Unschooled effects can't be dispelled, and a potion's aren't among a character's spells' effects.
-    private static bool Dispel(EffectTarget target, MagicSchool school, int margin)
+    private static bool Dispel(EffectTarget target, RecordId school, int margin)
     {
-        if (school == MagicSchool.None)
+        if (school == Schools.Unschooled)
             return false;
         var effects = target.Sheet.Effects.Where(e => e.School == school).ToList();
         if (effects.Count == 0 || (uint)(byte)margin * (uint)effects.Count < (uint)effects.Sum(e => e.Margin))

@@ -67,7 +67,7 @@ Most of what's left. The combat record (`aidyn:combat/0`, `CombatRecord`), `aidy
 | Morale: the entity's, −1 for its aspect against the time, −2 once a weakness hit it, −1 no Stamina, −1 under half its side able, −1 a harmful effect, +2 under half the party able, +3 its target without Stamina, +2 steady (nothing sets it), −4 the leader gone, +1 the leader's 8–10, +2 from 11; held to 2–11; 12 never flees; flees below 2d6; a reserve arriving the same | `Battle.Morale`, `CheckFlee`, `ReserveFleesOnArrival`; `EnemyAI.Fearless` | `EnemyAI.Morale` `0x80056FA8`, `MayCheckMorale` `0x8005722C`, `CheckFlee` `0x800572AC`, `ReserveFleesOnArrival` `0x80056E18` | 3: a morale table (condition, change) on an AI record |
 | The leader: the first on the field unless a later one has more base Int; its morale seeds the others' | `Battle.Build`, `LeaderBonus` | `Combat.CreateEnemyCombatants` | 1 |
 | Flight and approach: flee points within 1.5, reached at 2.25, eight of them; flight lasts 4 turns; approach to 2.25 | `Battle.FleePointNear`, `FleePointReach`, `MaxFleePoints`, `ApproachReach`; `EnemyAI.FlightTurns` | `0x800D2498`, `0x800D2480`, `0x800D2488` | 1: an AI record |
-| Which weapon an enemy wields: its third if it has one, else its first, which is its spare; the second is never read | `Battle.ArmFromList`, `SwapWeapon`; `EnemyAI.Spare` | `0x8006E2E8`–`0x8006E434` | 1: wield and spare on the entity record |
+| Which weapon an enemy wields: its `fights` weapon if it has one, else its `joins`; with both, `joins` is what its AI swaps to, and the `spare` slot is never read in combat (the slots are named on the entity, ADR 0032) | `Battle.ArmFromList`, `SwapWeapon`; `EnemyAI.Spare` | `0x8006E2E8`–`0x8006E434` | 1: wield and spare on the entity record |
 
 ### Setup and spawns
 
@@ -93,6 +93,49 @@ Most of what's left. The combat record (`aidyn:combat/0`, `CombatRecord`), `aidy
 | --- | --- | --- | --- |
 | The flask's model `0x34C5`, the Troubadour's notes `0x1ABB` raised 1.0, the target marker `0x0794`, the aim marker `0x0797`, the damage digits' textures, the locators a slot's item goes to (hand 0, shield arm 2, head 3), and the bat `0x2D4A` for a body with none (it never runs) | `Battle.FlaskScene`, `NoBody`; `Combatant.NotesScene`, `NotesRaise`, `DefaultLocators`; `CombatMarkers.Scene`; `CombatNumbers.DigitTextures`; `AimMarkerView` | `Combatant.EquipVisuals` `0x80066AEC`, `LoadWeaponScene` `0x80066CF8`, `CombatStatIndicator.Frame` `0x8008A630`, `Combat.DrawTargetCounts` `0x80021448`, `0x800CDC0C` | 1: a visuals block on the combat record; until then a mod replaces the assets |
 
+### Lists that moved onto the records they're about
+
+Data format slice 2 (ADRs 0031 and 0032) took the lists on the singletons that named one entity or item each and made each a field
+of the record, so two mods adding to one no longer conflict. Each is layer 1, done:
+
+| Was | Is | 1.0 |
+| --- | --- | --- |
+| combat `ally` | entity `combat.fightsForParty` (Sholeh) | `Combat.FindSholeh` `0x8005C6C0` |
+| combat `bystanders` | entity `combat.bystander` | `Combat.IsExcludedEnemy` `0x8005C0C0` |
+| combat `noFlee`, `flee` | entity `combat.flee`: `forbids` or `allows` | `Combat.NoFleeEntities` `0x800D2688`, `ForbidFleeForBosses` `0x8005CCCC` |
+| combat `rooted` | entity `combat.rooted` (Pochanargat) | `Combatant.UpdateRadius`, `0x800E28EB` |
+| combat `untargetable` | entity `combat.untargetable` (the Shadow) | `Combatant.CanAttack`, `CanCast` |
+| combat `bosses` | entity `combat.bossFlag` | `Combat.SetKillFlags` `0x80067860` |
+| combat `bossStyles` | entity `combat.bossStyle` | `EnemyAI.HasBossStyle` `0x8005BA40` |
+| combat `undrawnWeapons` | entity `body.weaponsInModel` | `Combatant.HasNoWeaponAttachment` `0x80066C5C` |
+| combat `otherHand` | entity `body.bowHand: "Other"` | `EntityBody.Hand` `0x8006C8BC` |
+| progression `training.freeTrainers` | entity `trainsFree` (Oriana) | `shopkeepNotOriana` |
+| combat `missiles` | item `weapon.missile` | `Combat.BowKindWeapons`, `ThrownKindWeapons`, `Combatant.WeaponMuzzle` |
+| combat `closeRange` | item `weapon.strikesInMelee` (Spikes) | `Weapon.AllowsMelee` `0x8007B730` |
+| combat `flaskDanger` | item `aiSpread`; the AI takes the greatest of the flasks held, as the first held in 1.0's order is | `Combat.PartyPotionTier` `0x8005C750` |
+| inventory `refused` | item `refused` (the Cyclops Club) | `GenericInventory::AddItem` |
+| inventory `replaced` | item `becomes` (the Aspect potion) | `PartyInventory::AddItem` |
+| magic `keptAfterBattle` | item `keptAfterBattle` (the Stealth potion) | `Entity.ClearEffects` `0x80071830` |
+| combat `droppedClasses` | weapon skill `drops` | `Combat.DropWeaponClasses` `0x800D26C8` |
+| combat `text.aura.elements` | element `name` | `0x800E0C00` |
+
+`combat.fleeByEncounter` and `encounters` wait for the chunks' slice, which gives encounters a place of their own.
+
+### Values the original's rules name, which are records now
+
+ADR 0033 made schools, elements, weapon skills and animation requests records, keyed by the original's numbers, but some of 1.0's rules
+name one value, and the core names its base ID for them (`HBHT.Core.Magic.Schools`, `Elements`):
+
+| What | Port | 1.0 | Needs |
+| --- | --- | --- | --- |
+| A Chaos character's spellbook keeps the Star spells' block; Alaron's keeps Elemental, Naming and Necromancy after his own | `CharacterSaves.SpellOrder` | `SaveParty::LoadSpellsFromSchool` | 1: a school field naming the block |
+| Which element meets which spell: Magic every spell, Solar and Lunar a spell of that aspect, the five schools' elements a spell of that school, Earth, Fire, Water and Air (and a mod's) a damage of theirs; Physical, Cutting, Smashing and Holy none | `Casting.Meets` | `SpellResistanceApplies` `0x80061C5C` | 1: `school` and `aspect` fields on the element |
+| A Breath's or Spit's weapon always strikes in melee | `Battle.AllowsMelee` (`BreathSkill`, `SpitSkill`) | `Weapon.AllowsMelee` `0x8007B730` | 1: a weapon skill field |
+| A flask's throw trains Thrown | `Battle.Skills` (`SkillId.Thrown`) | `Combatant.ThrowFlask` | 1: a field on the inventory or the flask |
+| The requests the engine asks for: idle 0, walk 2, run 3, talk 4, cast 5, hit 7, dodge 8, dying 9 (held), helped 10, open 11, the shot 14 and throw 15, use 19, sneak 25 | `Body` constants, `Battle` constants | [actors](formats/actors.md) | Engine (3): a request is what the engine asks for; the records name and describe them |
+| A body's default strikes: 0.4 for the shot and the throw, 0 for the cast, a container and a teleporter | `EntityBody.StrikeFor` | `EntityBody.ShotStrike` `0x8006C884` | Done as data on the body (`strikes`); the defaults stay |
+| The four sheetless dialogue entities merged into their twins | `DbRecordIds.Twins` | none: the twins are two records in 1.0 | Done, ADR 0032 |
+
 ## Bespoke behaviours
 
 ADR 0008 names six behaviours as bespoke. Brenna's Ranger check is the camp ambush's roll, Lugash and Pochanargat are records, Sholeh is the combat record's `ally` and her member flags, and Alaron's True Name is an entity field and a trigger ([code tables](formats/code-tables.md)). The two that need layer 3 are the Goblin Ambush and the Shadow, features on the combat record. [combat](systems/combat.md#the-special-battles) has how they run.
@@ -114,8 +157,8 @@ Still in code: the wake at 6:00 the next day (`GameState.WakeNextMorning`), the 
 
 | Behaviour | Carried as | 1.0 |
 | --- | --- | --- |
-| The party may flee while it's in the battle | combat `flee` | `Combat.ForbidFleeForBosses` `0x8005CCCC` |
-| No one attacks it or casts at it, and it casts nothing | combat `untargetable` | `Combatant.CanAttack` `0x80060590`, `Combatant.CanCast` `0x80060C38` |
+| The party may flee while it's in the battle | its entity's `combat.flee` (`allows`) | `Combat.ForbidFleeForBosses` `0x8005CCCC` |
+| No one attacks it or casts at it, and it casts nothing | its entity's `combat.untargetable` | `Combatant.CanAttack` `0x80060590`, `Combatant.CanCast` `0x80060C38` |
 | Its aura: at each round's end, 10 − distance to each within 10 not of chaos, squared without the item | `radius` (10) | `Combat.ShadowAura` `0x80023AD0` |
 | Slowing within 10, the vortex line; the AI's paths cut at 10 | `radius` | `Combat.NearShadow` `0x80023F34`, `EnemyAI.ShadowSmoothPath` |
 | Without the item, the aura works at four round ends and it goes at the fifth, nothing won | `vanishRounds` (4) | `Combat.ShadowAura`, `Combat.ShadowDissipates`, states 29 and 30 |
@@ -168,7 +211,7 @@ One shape runs through them all: the best member (or the living pooled) rolls a 
 | --- | --- | --- | --- |
 | Wanderers: a hunter notices at Perception × (1 − fog × 0.75), × 1.5 running, × 0.6 × sneak sneaking, × 0.55 × sneak otherwise, gives up past 2 × Perception, stands 300 ticks, runs to within 2 and ambushes within 7; a talker faces the player within 3; sneak is 1 − min(best Stealth ÷ 10, 1) × 0.8 | `Wanderer` (`GiveUpTicks`, `AmbushDistance`, `FaceDistance`), `NoticeRanges.SneakFor` | `Wanderer.Tick` `0x8000f6a4`, `0x8000fa38`, `0x8000fc0c`, `0x8000fc28` | 3: a wanderer settings record ([wanderers](systems/wanderers.md)) |
 | A party hunts when it has no dialogue | `Wanderer` (`Hunts`) | `moveType` 1 against 0 | 1: a field of the monster party object |
-| Every dialogue entity's perception is 10 | `Wanderers.DialoguePerception` | `EntityDB::GetPerception` | 1 if 1.0 reads it per entity: a dialogue entity field. Unsettled |
+| One from the dialogue entity table notices at 10, and a wanderer whose entity no plugin has | The entities' `perception`, which the importer writes 10 on those (`CharacterImporter.DialoguePerception`); `Wanderers.DialoguePerception` for none | `EntityDB::GetPerception` | Done, ADR 0032. Unsettled whether 1.0 reads it per dialogue entity |
 | Camp ambushes are Ranger's | `Camping.AmbushChance` | `Party::CampAmbushCheck` `0x80078d14` | 1: a skill on the camping record (its numbers are there) |
 | Rest: 8 hours after a camp heal and 8 more for a camp scene; the heal full | `ScriptRunner` (`ScriptEnding.RestHours`), `Party.CampHeal` | `World::Lapse8Hours`, `camp_healing` (1.0, 0.5) `0x800d386c` | 1: hours on the script and camping records |
 | Map objects' memory: 19 slots; random lines, kept checks and emptied containers 10 map loads, a beaten party 3, a put-out light 16 | `MapObjectMemory` (`Slots`, `Long`, `Short`, `PutOutLoads`) | `MapObjectMemory.Write` `0x80056950` | 1. Low |

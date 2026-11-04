@@ -70,7 +70,7 @@ public sealed partial class Party
         var equipment = member.Equipment;
         switch (thing.Kind)
         {
-            case ItemKind.Armor:
+            case ItemKind.Body:
                 return Swap(stack, equipment.Armor, equipment.RemoveArmor, i => { equipment.EquipArmor(i); return EquipRefusal.None; });
             case ItemKind.Shield:
                 return equipment.CanCarryShield
@@ -80,7 +80,7 @@ public sealed partial class Party
                 var wield = equipment.CanWield(thing);
                 if (wield != EquipRefusal.None)
                     return wield;
-                if (equipment.Weapon?.Item.Weapon?.Fixed == true)
+                if (equipment.Weapon?.Item.Record.Fixed == true)
                     return EquipRefusal.Fixed;
                 return Swap(stack, equipment.Weapon, equipment.RemoveWeapon, equipment.EquipWeapon);
             case ItemKind.Ring:
@@ -105,7 +105,7 @@ public sealed partial class Party
     /// </summary>
     public bool Unequip(Character member, ItemInstance item)
     {
-        if (item.Item.Weapon?.Fixed == true || !Stow(item))
+        if (item.Item.Record.Fixed == true || !Stow(item))
             return false;
         member.Equipment.Remove(item);
         return true;

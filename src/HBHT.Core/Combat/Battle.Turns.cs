@@ -47,9 +47,8 @@ public sealed partial class Battle
     private bool _orbiting;
 
     /// <summary>Whether an entity never moves in its field, which is 0 (Pochanargat, <c>0x800E28EB</c>).</summary>
-    public bool Rooted(RecordId entity) => _rooted.Contains(entity);
+    public bool Rooted(RecordId entity) => Game?.Plugins.TryGet<EntityRecord>(entity)?.Combat?.Rooted == true;
 
-    private IReadOnlyList<RecordId> _rooted = [];
 
     /// <summary>
     /// Whether no opponent is within reach of <paramref name="combatant"/> (<c>Combatant.IsFreeOfOpponents</c>,

@@ -51,7 +51,7 @@ public sealed class SpellCheckpointTests(Na10Import fixture)
         // The skills blue, the spells red with their schools' icons.
         var rheda = battle.SpellRows(built[1]);
         Assert.All(rheda, r => Assert.Equal(CombatMenu.SpellColor, r.Color));
-        Assert.Equal(CombatMenu.SchoolIcon(MagicSchool.Naming), rheda[0].Icon);
+        Assert.Equal(CombatMenu.SchoolIcon(built.Game.Rules, RomIds.School(HBHT.Rom.Db.MagicSchool.Naming)), rheda[0].Icon);
         Assert.Null(rheda[3].Icon);
         Assert.Equal(CombatMenu.SkillColor, battle.SpellRows(built[0])[0].Color);
     }

@@ -79,14 +79,17 @@ public sealed class CharacterImportTests(Na10Import fixture)
         var alaron = Set.Get<EntityRecord>(Alaron);
 
         Assert.Equal("Alaron", alaron.Name);
-        Assert.Equal(1, alaron.Level);
-        Assert.Equal(new Attributes(18, 12, 15, 15, 15, 30), alaron.Attributes);
-        Assert.False(alaron.TrueName);
-        Assert.Equal(RecordId.Decimal(RecordTypes.Flag, 590), alaron.TrueNameFlag);
-        Assert.True(alaron.Heavy);
-        Assert.Equal((Aspect.Solar, MagicSchool.Chaos, EntityCategory.Party),
-            (alaron.Aspect, alaron.School, alaron.Category));
-        Assert.Equal(2, alaron.Damage);
+        var sheet = alaron.CharacterSheet;
+        Assert.Equal(1, sheet.Level);
+        // Intelligence, Willpower, Dexterity, Endurance, Strength, Stamina: stats 0 to 5.
+        Assert.Equal([18, 12, 15, 15, 15, 30], Enumerable.Range(0, 6).Select(n => sheet.Attributes[RecordIds.Stat(n)]));
+        Assert.Equal(6, sheet.Attributes.Count);
+        Assert.False(sheet.TrueName);
+        Assert.Equal(RecordId.Decimal(RecordTypes.Flag, 590), sheet.TrueNameFlag);
+        Assert.True(sheet.Heavy);
+        Assert.Equal((Aspect.Solar, RomIds.School(MagicSchool.Chaos), EntityCategory.Party),
+            (sheet.Aspect, sheet.School, sheet.Category));
+        Assert.Equal(2, sheet.Damage);
     }
 
     [Fact]
@@ -111,14 +114,17 @@ public sealed class CharacterImportTests(Na10Import fixture)
 
         var amann = Set.Get<DbRecord>(DbRecordIds.For(db.DialogEntities[36].Id)!.Value);
         Assert.Equal("Amann", amann.Name);
-        Assert.Equal(RecordId.Hex(RecordTypes.DialogEntity, 0x1400), amann.Id);
+        Assert.Equal(RecordId.Hex(RecordTypes.Entity, 0x1400), amann.Id);
         var peer = Set.Get<EntityRecord>(DbRecordIds.For(db.Entities[36].Id)!.Value);
         Assert.NotNull(peer.Sounds);
         Assert.Equal(Json(peer.Sounds), Json(amann.Sounds));
 
         // Every place the dialogue entities fill has a profile of the entities, and every one is people's steps.
+        // (A twin is its entity, with the entity's own profile, so it is not at its place's.)
         for (var place = 0; place < db.DialogEntities.Count; place++)
         {
+            if (DbRecordIds.Twins.ContainsKey(db.DialogEntities[place].Id.Value))
+                continue;
             var talker = Set.Get<DbRecord>(DbRecordIds.For(db.DialogEntities[place].Id)!.Value);
             var entity = Set.Get<EntityRecord>(DbRecordIds.For(db.Entities[place].Id)!.Value);
             Assert.Equal(Json(entity.Sounds), Json(talker.Sounds));
@@ -127,8 +133,9 @@ public sealed class CharacterImportTests(Na10Import fixture)
 
         // The dialogue entities that monster parties walk as.
         var walkers = Set.All<MapRecord>(RecordTypes.Map).SelectMany(m => m.Objects).OfType<MonsterPartyObject>()
-            .Select(p => p.Entity).Where(e => e.Type == RecordTypes.DialogEntity).Distinct().ToList();
-        Assert.Equal(18, walkers.Count);
+            .Select(p => p.Entity).Where(e => e.Key.StartsWith("0x14", StringComparison.Ordinal)).Distinct().ToList();
+        // (16 of what were 18: two of the walkers were twins, which are their entities now.)
+        Assert.Equal(16, walkers.Count);
         Assert.All(walkers, w => Assert.Equal(2, Set.Get<DbRecord>(w).Sounds?.Kind));
     }
 
@@ -137,8 +144,9 @@ public sealed class CharacterImportTests(Na10Import fixture)
     {
         var entities = Set.All<EntityRecord>(RecordTypes.Entity).ToList();
 
-        Assert.Equal(221, entities.Count);
-        Assert.Equal([Alaron], entities.Where(e => e.TrueNameFlag is not null).Select(e => e.Id));
+        // 221 entities with sheets and the 33 dialogue entities that are not an entity too: 254.
+        Assert.Equal(254, entities.Count);
+        Assert.Equal([Alaron], entities.Where(e => e.Sheet?.TrueNameFlag is not null).Select(e => e.Id));
     }
 
     /// <summary>The flags of each recruitable member (<c>Party::CheckFlags</c>), from the engine's table in 1.0, and whose sheets the game keeps.</summary>
@@ -178,19 +186,72 @@ public sealed class CharacterImportTests(Na10Import fixture)
         Assert.Null(Set.Get<EntityRecord>(RecordId.Hex(RecordTypes.Entity, 0x0239)).Member);
     }
 
+    /// <summary>
+    /// A recruit joins with one weapon and fights with another (the entity's first and third weapon slots), which the original's
+    /// <c>Party::AddMember</c> and enemy build read apart: the five whose two differ.
+    /// </summary>
+    [Fact]
+    public void FiveRecruitsJoinWithOneWeaponAndFightWithAnother()
+    {
+        string? Name(RecordId? id) => id is { } i ? Set.Get<ItemRecord>(i).Name : null;
+        (string? Joins, string? Spare, string? Fights) Weapons(string name)
+        {
+            var w = Set.All<EntityRecord>(RecordTypes.Entity).Single(e => e.Name == name).CharacterSheet.Weapons;
+            return (Name(w.Joins), Name(w.Spare), Name(w.Fights));
+        }
+
+        Assert.Equal(("Broadsword", null, "Javelin"), Weapons("Abrecan"));
+        Assert.Equal(("Great Axe", null, "Javelin"), Weapons("Baird"));
+        Assert.Equal(("Battle Axe", null, "Long Bow"), Weapons("Becan"));
+        Assert.Equal(("Short Sword", "Dagger", "Short Bow"), Weapons("Keelin"));
+        Assert.Equal(("Sabre", "War Hammer", "Long Bow"), Weapons("Sholeh"));
+    }
+
+    /// <summary>The four dialogue entities that are an entity too have its sheet; every other dialogue entity has none and notices at 10.</summary>
+    [Fact]
+    public void TheFourTwinsHaveSheetsAndEveryOtherFormerDialogueEntityHasNoneAndPerceptionTen()
+    {
+        var entities = Set.All<EntityRecord>(RecordTypes.Entity).ToList();
+        foreach (var (name, id) in new[] { ("Cadme", 0x02DD), ("Pochanargat", 0x0224), ("Tamberlain", 0x0214), ("Xibid", 0x02DB) })
+        {
+            var twin = Set.Get<EntityRecord>(RecordId.Hex(RecordTypes.Entity, id));
+            Assert.Equal(name, twin.Name);
+            Assert.NotNull(twin.Sheet);
+        }
+        // The twins' own dialogue entity records (0x1404, 0x1406, 0x1418, 0x1419) are not made.
+        Assert.DoesNotContain(entities, e => e.Id.Key is "0x1404" or "0x1406" or "0x1418" or "0x1419");
+
+        var speakers = entities.Where(e => e.Id.Key.StartsWith("0x14", StringComparison.Ordinal)).ToList();
+        Assert.Equal(33, speakers.Count);
+        Assert.All(speakers, e =>
+        {
+            Assert.Null(e.Sheet);
+            Assert.Equal(10, e.Perception);
+        });
+        // Everything else has a sheet.
+        Assert.All(entities.Except(speakers), e => Assert.NotNull(e.Sheet));
+    }
+
     [Fact]
     public void AlaronsSkillsAndGearAreThoseOfTheRecord()
     {
         var alaron = Set.Get<EntityRecord>(Alaron);
 
-        Assert.Equal((3, 1, 1, 1), (alaron.Skills.Warrior, alaron.Skills.Wizard, alaron.Skills.Stealth, alaron.Skills.Troubadour));
-        // No natural weapons: null is a skill that can never be learnt, as a zero is one that hasn't been yet.
-        Assert.Equal(new WeaponSkillLevels(Hafted: 1, Missile: 3, Pole: 0, Sword: 3, Thrown: 0), alaron.WeaponSkills);
-        Assert.Equal(3, alaron.ShieldSkill);
+        var sheet = alaron.CharacterSheet;
+        Assert.Equal((3, 1, 1, 1), (sheet.Skills[RecordIds.Skill(10)], sheet.Skills[RecordIds.Skill(11)], sheet.Skills[RecordIds.Skill(7)], sheet.Skills[RecordIds.Skill(9)]));
+        // No natural weapons: a skill missing from the map can never be learnt, as a zero is one that has not been yet.
+        Assert.Equal(
+            new Dictionary<RecordId, int>
+            {
+                [RomIds.WeaponSkill(WeaponClass.Hafted)] = 1, [RomIds.WeaponSkill(WeaponClass.Missile)] = 3, [RomIds.WeaponSkill(WeaponClass.Pole)] = 0,
+                [RomIds.WeaponSkill(WeaponClass.Sword)] = 3, [RomIds.WeaponSkill(WeaponClass.Thrown)] = 0,
+            }.OrderBy(k => k.Key.Key),
+            sheet.WeaponSkills.Where(k => k.Key != RecordIds.WeaponSkill(11)).OrderBy(k => k.Key.Key));
+        Assert.Equal(3, sheet.WeaponSkills[RecordIds.WeaponSkill(11)]);
 
-        Assert.Equal([RecordId.Hex(RecordTypes.Weapon, 0x072C), RecordId.Hex(RecordTypes.Weapon, 0x0711), null], alaron.Weapons);
-        Assert.Equal(RecordId.Hex(RecordTypes.Armor, 0x0501), alaron.Armor);
-        Assert.Equal(RecordId.Hex(RecordTypes.Armor, 0x0612), alaron.Shield);
+        Assert.Equal(new EntityWeapons(RecordId.Hex(RecordTypes.Item, 0x072C), RecordId.Hex(RecordTypes.Item, 0x0711), null), sheet.Weapons);
+        Assert.Equal(RecordId.Hex(RecordTypes.Item, 0x0501), sheet.Armor);
+        Assert.Equal(RecordId.Hex(RecordTypes.Item, 0x0612), sheet.Shield);
     }
 
     [Fact]
@@ -200,50 +261,51 @@ public sealed class CharacterImportTests(Na10Import fixture)
         var farris = Get<EntityRecord>("aidyn:entity/0x0299");
 
         Assert.Equal("Brenna", brenna.Name);
-        Assert.Null(brenna.ShieldSkill);
+        Assert.DoesNotContain(RecordIds.WeaponSkill(11), brenna.CharacterSheet.WeaponSkills.Keys);
         Assert.Equal("Farris", farris.Name);
-        Assert.Null(farris.Skills.Wizard);
+        Assert.DoesNotContain(RecordIds.Skill(11), farris.CharacterSheet.Skills.Keys);
     }
 
     [Fact]
     public void EmptySpellSlotsAreDroppedAndKnownOnesKeepTheirOrder()
     {
         var db = GameDb.Read(TestRoms.Get(RomVersionId.Na10));
-        var entities = Set.All<EntityRecord>(RecordTypes.Entity).ToDictionary(e => e.Id);
+        var entities = Set.All<EntityRecord>(RecordTypes.Entity).Where(e => e.Sheet is not null).ToDictionary(e => e.Id);
 
         foreach (var rom in db.Entities)
         {
             var known = Enumerable.Range(0, 5).Where(i => !rom.Spells[i].IsNone).ToList();
-            var spells = entities[DbRecordIds.For(rom.Id)!.Value].Spells;
+            var spells = entities[DbRecordIds.For(rom.Id)!.Value].Sheet!.Spells;
             Assert.Equal(known.Select(i => DbRecordIds.For(rom.Spells[i])!.Value), spells.Select(s => s.Spell));
             Assert.Equal(known.Select(i => (int)rom.SpellLevels[i]), spells.Select(s => s.Level));
             Assert.All(spells, s => Assert.Equal(RecordTypes.Spell, s.Spell.Type));
         }
-        Assert.Contains(entities.Values, e => e.Spells.Count > 0);
-        Assert.Contains(entities.Values, e => e.Spells.Count == 0);
+        Assert.Contains(entities.Values, e => e.Sheet!.Spells.Count > 0);
+        Assert.Contains(entities.Values, e => e.Sheet!.Spells.Count == 0);
     }
 
     [Fact]
     public void EveryEntitysWeaponSlotsKeepTheirPositions()
     {
-        var entities = Set.All<EntityRecord>(RecordTypes.Entity).ToList();
+        var entities = Set.All<EntityRecord>(RecordTypes.Entity).Where(e => e.Sheet is not null).Select(e => e.Sheet!).ToList();
 
-        Assert.All(entities, e => Assert.Equal(3, e.Weapons.Count));
-        Assert.All(entities, e => Assert.All(e.Weapons, w => Assert.True(w is null || w.Value.Type == RecordTypes.Weapon)));
-        Assert.Contains(entities, e => e.Weapons[0] is null && e.Weapons[2] is not null || e.Weapons[0] is not null && e.Weapons[1] is null);
+        Assert.All(entities, e => Assert.Equal(3, e.Weapons.Slots.Count));
+        Assert.All(entities, e => Assert.All(e.Weapons.Slots, w => Assert.True(w is null || w.Value.Type == RecordTypes.Item)));
+        Assert.Contains(entities, e => e.Weapons.Joins is null && e.Weapons.Fights is not null || e.Weapons.Joins is not null && e.Weapons.Spare is null);
     }
 
     [Fact]
     public void ResistancesNameAnElementAndMultiplyDamageInQuarters()
     {
-        var entities = Set.All<EntityRecord>(RecordTypes.Entity).ToList();
+        var entities = Set.All<EntityRecord>(RecordTypes.Entity).Where(e => e.Sheet is not null).Select(e => e.Sheet!).ToList();
 
         Assert.All(entities, e =>
         {
             Assert.InRange(e.Resistances.Count, 0, 2);
             Assert.All(e.Resistances, r =>
             {
-                Assert.NotEqual(Element.None, r.Element);
+                Assert.Equal(RecordTypes.Element, r.Element.Type);
+                Assert.True(Set.Contains(r.Element));
                 Assert.InRange(r.Damage, 0f, 2.5f);
                 Assert.Equal(0f, r.Damage * 4 % 1f);
             });
@@ -255,13 +317,13 @@ public sealed class CharacterImportTests(Na10Import fixture)
     public void ExperienceIsFiftyPerPointOfTheRewardByte()
     {
         var db = GameDb.Read(TestRoms.Get(RomVersionId.Na10));
-        var entities = Set.All<EntityRecord>(RecordTypes.Entity).ToDictionary(e => e.Id);
+        var entities = Set.All<EntityRecord>(RecordTypes.Entity).Where(e => e.Sheet is not null).ToDictionary(e => e.Id);
 
         Assert.All(db.Entities, rom =>
         {
             var entity = entities[DbRecordIds.For(rom.Id)!.Value];
-            Assert.Equal(rom.ExpReward * 50, entity.Experience);
-            Assert.Equal((rom.Unk55, (int)rom.LootCategory), (entity.Perception, entity.LootCategory));
+            Assert.Equal(rom.ExpReward * 50, entity.Sheet!.Experience);
+            Assert.Equal((rom.Unk55, (int)rom.LootCategory), (entity.Perception, entity.Sheet.LootCategory));
         });
     }
 
@@ -281,7 +343,7 @@ public sealed class CharacterImportTests(Na10Import fixture)
         var immolation = Get<SpellRecord>("aidyn:spell/0x033D");
 
         Assert.Equal("Immolation", immolation.Name);
-        Assert.Equal((MagicSchool.Elemental, 4, 8, 200), (immolation.School, immolation.Wizard, immolation.Stamina, immolation.TrainingCost));
+        Assert.Equal((RomIds.School(MagicSchool.Elemental), 4, 8, 200), (immolation.School, immolation.Wizard, immolation.Stamina, immolation.TrainingCost));
 
         var db = GameDb.Read(TestRoms.Get(RomVersionId.Na10));
         var spells = Set.All<SpellRecord>(RecordTypes.Spell).ToDictionary(s => s.Id);
@@ -350,9 +412,9 @@ public sealed class CharacterImportTests(Na10Import fixture)
         Assert.Equal((200, 40, 0.8f, 10), (progression.Training.FirstLevelGold, progression.Training.GoldPerLevel, progression.Training.TrainerExp, progression.Training.SpellMaxLevel));
         Assert.Equal(RecordId.Decimal(RecordTypes.Flag, 3611), progression.Training.FirstSpellFlag);
 
-        var oriana = Assert.Single(progression.Training.FreeTrainers);
-        Assert.Equal(RecordId.Hex(RecordTypes.Entity, 0x0236), oriana);
-        Assert.Equal("Oriana", Get<EntityRecord>(oriana.ToString()).Name);
+        var oriana = Assert.Single(Set.All<EntityRecord>(RecordTypes.Entity), e => e.TrainsFree);
+        Assert.Equal(RecordId.Hex(RecordTypes.Entity, 0x0236), oriana.Id);
+        Assert.Equal("Oriana", oriana.Name);
         // shopkeepNotOriana adds 0x200 to entityList[144].
         Assert.Equal(new ItemId((ushort)(0x200 + rom.Table(CodeTable.EntityList)[CharacterImporter.OrianaDbPosition])), db.Entities[CharacterImporter.OrianaDbPosition].Id);
     }
@@ -368,10 +430,12 @@ public sealed class CharacterImportTests(Na10Import fixture)
         Assert.Contains("Merchant", catalog.Find(RecordId.Decimal(RecordTypes.Skill, 5))!.Summary);
         Assert.Contains("41 levels", catalog.Find(RecordId.Decimal(RecordTypes.Progression, 0))!.Summary);
 
-        Assert.Contains(catalog.ReferencesTo(RecordId.Hex(RecordTypes.Weapon, 0x072C)), r => r.From == Alaron && r.Path == "weapons[0]");
-        Assert.Contains(catalog.ReferencesTo(RecordId.Hex(RecordTypes.Armor, 0x0612)), r => r.From == Alaron && r.Path == "shield");
-        Assert.Contains(catalog.ReferencesTo(RecordId.Decimal(RecordTypes.Flag, 590)), r => r.From == Alaron && r.Path == "trueNameFlag");
-        Assert.Contains(catalog.ReferencesTo(RecordId.Hex(RecordTypes.Entity, 0x0236)), r => r.From == RecordId.Decimal(RecordTypes.Progression, 0));
+        Assert.Contains(catalog.ReferencesTo(RecordId.Hex(RecordTypes.Item, 0x072C)), r => r.From == Alaron && r.Path == "sheet.weapons.joins");
+        Assert.Contains(catalog.ReferencesTo(RecordId.Hex(RecordTypes.Item, 0x0612)), r => r.From == Alaron && r.Path == "sheet.shield");
+        Assert.Contains(catalog.ReferencesTo(RecordId.Decimal(RecordTypes.Flag, 590)), r => r.From == Alaron && r.Path == "sheet.trueNameFlag");
+        // The progression no longer names Oriana: she trains free by her own entity (TrainsFree).
+        Assert.DoesNotContain(catalog.ReferencesTo(RecordId.Hex(RecordTypes.Entity, 0x0236)), r => r.From == RecordId.Decimal(RecordTypes.Progression, 0));
+        Assert.Equal("Oriana", catalog.Find(RecordId.Hex(RecordTypes.Entity, 0x0236))!.Summary);
     }
 
     [Fact]
@@ -380,12 +444,16 @@ public sealed class CharacterImportTests(Na10Import fixture)
         var models = EntityModels.Read(TestRoms.Get(RomVersionId.Na10)).Entities.ToDictionary(m => DbRecordIds.For(m.Entity)!.Value);
         var entities = Set.All<EntityRecord>(RecordTypes.Entity).ToList();
 
+        Assert.Equal(254, entities.Count);
+        entities = [.. entities.Where(e => e.Sheet is not null)];
         Assert.Equal(221, entities.Count);
         Assert.Equal(entities.Count, models.Count);
         Assert.All(entities, e =>
         {
             var model = models[e.Id];
-            Assert.Equal(new EntityBody(RecordId.Hex(RecordTypes.Actor, model.Actor), model.Radius, model.Scale, model.Height, model.Strike, Alpha: model.Alpha), e.Body);
+            // The body also says whether its weapons are in its model and which hand it holds a bow in, which come from the code, not the model table.
+            Assert.Equal(new EntityBody(RecordId.Hex(RecordTypes.Actor, model.Actor), model.Radius, model.Scale, model.Height, model.Strike, Alpha: model.Alpha),
+                e.Body! with { WeaponsInModel = false, BowHand = BowHand.Usual });
             Assert.NotNull(Set.TryGet<ActorRecord>(e.Body!.Actor));
             Assert.Equal(e.Body, Set.Get<DbRecord>(e.Id).Body);
         });
@@ -414,9 +482,11 @@ public sealed class CharacterImportTests(Na10Import fixture)
     {
         var rom = TestRoms.Get(RomVersionId.Na10);
         var models = EntityModels.Read(rom).DialogEntities.ToDictionary(m => DbRecordIds.For(m.Entity)!.Value);
-        var records = GameDb.Read(rom).DialogEntities.Select(e => DbRecordIds.For(e.Id)).Where(id => id is not null).Select(id => id!.Value).Distinct().ToList();
+        // The four twins are entities with sheets, and their bodies are the entities'.
+        var records = GameDb.Read(rom).DialogEntities.Where(e => !DbRecordIds.Twins.ContainsKey(e.Id.Value)).Select(e => DbRecordIds.For(e.Id)).Where(id => id is not null)
+            .Select(id => id!.Value).Distinct().ToList();
 
-        Assert.Equal(37, records.Count);
+        Assert.Equal(33, records.Count);
         var fallback = new EntityBody(RecordId.Hex(RecordTypes.Actor, 0x2D4A), 0.55f, 1, 1);
         var without = new List<RecordId>();
         foreach (var id in records)
@@ -431,7 +501,8 @@ public sealed class CharacterImportTests(Na10Import fixture)
             }
             Assert.NotNull(Set.TryGet<ActorRecord>(body!.Actor));
         }
-        Assert.Equal(5, without.Count);
-        Assert.Equal(32, records.Count - without.Count);
+        // Two of the five without a table body were twins, whose bodies are their entities'.
+        Assert.Equal(3, without.Count);
+        Assert.Equal(30, records.Count - without.Count);
     }
 }

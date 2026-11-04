@@ -20,73 +20,72 @@ internal static class MagicData
 
     public static readonly MagicRecord Record = new(RecordId.Decimal(RecordTypes.Magic, 0),
         new CastChance(4, 6, 1, 5, [0.75f, 1.25f, 1.25f, 0.75f, 0.75f], [0.5f, 0.75f, 1.25f, 1.5f]),
-        new ResistRoll(3, 1, 1, 0.75f, 1.25f), RoundTicks: 600, MostDisabled: 2, Improvement: 0.1f, MaxLevel: 10,
-        KeptAfterBattle: [PotionId(BasePotion.Stealth)]);
+        new ResistRoll(3, 1, 1, 0.75f, 1.25f), RoundTicks: 600, MostDisabled: 2, Improvement: 0.1f, MaxLevel: 10);
 
     /// <summary>The inventory's record, with the reagents' items.</summary>
     public static readonly InventoryRecord Inventory = new(RecordId.Decimal(RecordTypes.Inventory, 0), StackLimit: 99, GeneralSlots: 20,
         Spice: RecordId.Hex(RecordTypes.Item, 0x1101), Herb: RecordId.Hex(RecordTypes.Item, 0x1102), Gemstone: RecordId.Hex(RecordTypes.Item, 0x1103),
-        DefaultIcon: RecordId.Hex(RecordTypes.Image, 0), MerchantStep: 0.1f, SellShare: 0.5f, Refused: [], Replaced: [], FirstPotionFlag: Flag(1));
+        DefaultIcon: RecordId.Hex(RecordTypes.Image, 0), MerchantStep: 0.1f, SellShare: 0.5f, SkillBonusesApplyUnlearnt: [ItemKind.Body, ItemKind.Shield], FirstPotionFlag: Flag(1));
 
-    public static SpellRecord Spell(int id, string name, MagicSchool school, IReadOnlyList<Effect> effects, EffectDuration? duration = null,
+    public static SpellRecord Spell(int id, string name, RecordId school, IReadOnlyList<Effect> effects, EffectDuration? duration = null,
         SpellTargetType type = SpellTargetType.Party, SpellTargetCount count = SpellTargetCount.ByLevel, Resisted resisted = Resisted.Never,
         int stamina = 6, bool noReagent = false, int? ai = null, int position = 0, SpellSpecial special = SpellSpecial.None) =>
         new(RecordId.Hex(RecordTypes.Spell, id), name, school, stamina, new SpellTargeting(type, count), 1, special, 3,
             noReagent ? null : Inventory.Spice, 100,
             Effects: effects, Duration: duration, Resisted: resisted, Appeal: ai, Position: position);
 
-    public static readonly SpellRecord Endurance = Spell(0x0310, "Endurance", MagicSchool.Naming,
+    public static readonly SpellRecord Endurance = Spell(0x0310, "Endurance", Magic.Schools.Naming,
         [new StatEffect(Stat(HBHT.Core.Characters.Stat.Endurance), Magnitude.Per(2))], Cast, ai: 52, position: 19);
 
-    public static readonly SpellRecord Weakness = Spell(0x0313, "Weakness", MagicSchool.Naming,
+    public static readonly SpellRecord Weakness = Spell(0x0313, "Weakness", Magic.Schools.Naming,
         [new StatEffect(Stat(HBHT.Core.Characters.Stat.Endurance), Magnitude.Per(-2))], Cast, SpellTargetType.Enemy, resisted: Resisted.Always, ai: 32);
 
-    public static readonly SpellRecord Exhaustion = Spell(0x0318, "Exhaustion", MagicSchool.Necromancy,
+    public static readonly SpellRecord Exhaustion = Spell(0x0318, "Exhaustion", Magic.Schools.Necromancy,
         [new StatEffect(Stat(HBHT.Core.Characters.Stat.Stamina), Magnitude.Per(-2))], Cast, SpellTargetType.Enemy, resisted: Resisted.Always, ai: 34);
 
-    public static readonly SpellRecord Clumsiness = Spell(0x032A, "Clumsiness", MagicSchool.Star,
+    public static readonly SpellRecord Clumsiness = Spell(0x032A, "Clumsiness", Magic.Schools.Star,
         [new StatEffect(Stat(HBHT.Core.Characters.Stat.Dexterity), Magnitude.Per(-2))], Cast, SpellTargetType.Enemy, resisted: Resisted.Always, ai: 35);
 
-    public static readonly SpellRecord Poison = Spell(0x0332, "Poison", MagicSchool.None, [new PoisonEffect(Magnitude.Per(0.5f))], Cast,
+    public static readonly SpellRecord Poison = Spell(0x0332, "Poison", Magic.Schools.Unschooled, [new PoisonEffect(Magnitude.Per(0.5f))], Cast,
         SpellTargetType.Enemy, SpellTargetCount.One, Resisted.Always, ai: 21, special: SpellSpecial.Heavy);
 
-    public static readonly SpellRecord RemovePoison = Spell(0x0338, "Remove Poison", MagicSchool.Elemental,
+    public static readonly SpellRecord RemovePoison = Spell(0x0338, "Remove Poison", Magic.Schools.Elemental,
         [new CureEffect([Poison.Id], BeatsMargin: true)], count: SpellTargetCount.One, ai: 83);
 
-    public static readonly SpellRecord CheatDeath = Spell(0x033F, "Cheat Death", MagicSchool.Necromancy, [new CheatDeathEffect()], Cast,
+    public static readonly SpellRecord CheatDeath = Spell(0x033F, "Cheat Death", Magic.Schools.Necromancy, [new CheatDeathEffect()], Cast,
         count: SpellTargetCount.One, ai: 82);
 
-    public static readonly SpellRecord SpiritShield = Spell(0x031C, "Spirit Shield", MagicSchool.Necromancy,
+    public static readonly SpellRecord SpiritShield = Spell(0x031C, "Spirit Shield", Magic.Schools.Necromancy,
         [new ProtectionEffect(Magnitude.Per(2), Magnitude.Per(1))], Cast, count: SpellTargetCount.All, ai: 61);
 
-    public static readonly SpellRecord AirShield = Spell(0x0300, "Air Shield", MagicSchool.Elemental,
+    public static readonly SpellRecord AirShield = Spell(0x0300, "Air Shield", Magic.Schools.Elemental,
         [new ProtectionEffect(Magnitude.Per(2))], Cast, count: SpellTargetCount.All, ai: 61);
 
-    public static readonly SpellRecord Haste = Spell(0x0317, "Haste", MagicSchool.Necromancy, [new FieldRadiusEffect(Magnitude.Per(1))], Cast,
+    public static readonly SpellRecord Haste = Spell(0x0317, "Haste", Magic.Schools.Necromancy, [new FieldRadiusEffect(Magnitude.Per(1))], Cast,
         count: SpellTargetCount.All, ai: 73);
 
-    public static readonly SpellRecord StellarGravity = Spell(0x032F, "Stellar Gravity", MagicSchool.Star,
+    public static readonly SpellRecord StellarGravity = Spell(0x032F, "Stellar Gravity", Magic.Schools.Star,
         [new FieldRadiusEffect(Magnitude.Per(-1))], Cast, SpellTargetType.Enemy, SpellTargetCount.One, Resisted.Always, ai: 41);
 
-    public static readonly SpellRecord WebOfStarlight = Spell(0x0330, "Web Of Starlight", MagicSchool.Star,
+    public static readonly SpellRecord WebOfStarlight = Spell(0x0330, "Web Of Starlight", Magic.Schools.Star,
         [new ImmobiliseEffect(2), new DamagePerRoundEffect(new Dice(2))], Cast, SpellTargetType.Enemy, SpellTargetCount.One, Resisted.Always,
         ai: 43);
 
-    public static readonly SpellRecord WraithTouch = Spell(0x0333, "Wraith Touch", MagicSchool.Necromancy,
+    public static readonly SpellRecord WraithTouch = Spell(0x0333, "Wraith Touch", Magic.Schools.Necromancy,
         [new DrainStatEffect([Stat(HBHT.Core.Characters.Stat.Intelligence), Stat(HBHT.Core.Characters.Stat.Willpower), Stat(HBHT.Core.Characters.Stat.Dexterity),
             Stat(HBHT.Core.Characters.Stat.Strength)], new Dice(2))], new EffectDuration(Battle: true), SpellTargetType.Enemy, SpellTargetCount.One,
         Resisted.Always, ai: 36);
 
-    public static readonly SpellRecord DispelNaming = Spell(0x0322, "Dispel Naming", MagicSchool.None, [new DispelEffect(MagicSchool.Naming)],
+    public static readonly SpellRecord DispelNaming = Spell(0x0322, "Dispel Naming", Magic.Schools.Unschooled, [new DispelEffect(Magic.Schools.Naming)],
         type: SpellTargetType.Area, count: SpellTargetCount.All, ai: 81);
 
-    public static readonly SpellRecord Photosynthesis = Spell(0x0339, "Photosynthesis", MagicSchool.Star, [new HealPerRoundEffect()], Cast,
+    public static readonly SpellRecord Photosynthesis = Spell(0x0339, "Photosynthesis", Magic.Schools.Star, [new HealPerRoundEffect()], Cast,
         ai: 83);
 
-    public static readonly SpellRecord VsNaming = Spell(0x031E, "vs. Naming", MagicSchool.None,
-        [new WardEffect(MagicSchool.Naming, Magnitude.Per(6))], Cast, ai: 71);
+    public static readonly SpellRecord VsNaming = Spell(0x031E, "vs. Naming", Magic.Schools.Unschooled,
+        [new WardEffect(Magic.Schools.Naming, Magnitude.Per(6))], Cast, ai: 71);
 
-    public static readonly SpellRecord Weakening2 = Spell(0x0302, "Debilitation", MagicSchool.Elemental,
+    public static readonly SpellRecord Weakening2 = Spell(0x0302, "Debilitation", Magic.Schools.Elemental,
         [new StatEffect(Stat(HBHT.Core.Characters.Stat.Strength), Magnitude.Per(-2))], Cast, SpellTargetType.Enemy, resisted: Resisted.Always, ai: 31);
 
     public static readonly SpellRecord[] Spells =

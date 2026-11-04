@@ -92,7 +92,7 @@ public partial class CharacterPanel : PagePanel
         (_game, _entity, _rules, _items) = (game, entity, rules, items);
         // Trainers are the plain NPCs, recruits who teach and anyone who trains for free.
         _trainers = [.. catalog.Plugins.All<EntityRecord>(RecordTypes.Entity)
-            .Where(e => e.Category is EntityCategory.Generic or EntityCategory.Party || rules.Training.FreeTrainers.Contains(e.Id))
+            .Where(e => e.Sheet?.Category is EntityCategory.Generic or EntityCategory.Party || e is { TrainsFree: true, Sheet: not null })
             .OrderBy(e => e.Name, StringComparer.OrdinalIgnoreCase)];
         _fromGame = InGame;
         _character = Build();
@@ -201,14 +201,37 @@ public partial class CharacterPanel : PagePanel
 
         Heading("In combat");
         var armor = c.Equipment.ArmorProtection;
-        Line($"Protection {c.Protection + armor}{(armor != 0 ? $" ({armor} of it from armor and shield)" : "")}, damage {c.Damage}, morale {_entity.Morale}. "
-            + $"Worth {_entity.Experience:N0} experience before the award's × {_rules.Progression.ExpAward.ToString(CultureInfo.InvariantCulture)}.");
-        if (_entity.Resistances.Count > 0)
-            Line("Takes " + string.Join(", ", _entity.Resistances.Select(r => $"{r.Damage.ToString(CultureInfo.InvariantCulture)} × {r.Element} damage")) + ".");
+        Line($"Protection {c.Protection + armor}{(armor != 0 ? $" ({armor} of it from armor and shield)" : "")}, damage {c.Damage}, morale {_entity.CharacterSheet.Morale}. "
+            + $"Worth {_entity.CharacterSheet.Experience:N0} experience before the award's × {_rules.Progression.ExpAward.ToString(CultureInfo.InvariantCulture)}.");
+        var sheet = _entity.CharacterSheet;
+        if (sheet.Resistances.Count > 0)
+            Line("Takes " + string.Join(", ", sheet.Resistances.Select(r => $"{r.Damage.ToString(CultureInfo.InvariantCulture)} × {NameOf(r.Element)} damage")) + ".");
+        if (_entity.Combat is { } combat)
+        {
+            var traits = new List<string>();
+            if (combat.FightsForParty)
+                traits.Add("fights for the party from an enemy list");
+            if (combat.Bystander)
+                traits.Add("never fights, dropped from enemy lists");
+            if (combat.Flee is { } flee)
+                traits.Add(flee == FleeSay.Forbids ? "keeps the party from fleeing" : "lets the party flee");
+            if (combat.Rooted)
+                traits.Add("never moves in battle");
+            if (combat.Untargetable)
+                traits.Add("can't be attacked or cast at");
+            if (combat.BossStyle)
+                traits.Add("has the bosses' AI styles");
+            if (traits.Count > 0)
+                Line(char.ToUpperInvariant(traits[0][0]) + string.Join("; ", traits)[1..] + ".");
+            if (combat.BossFlag is { } boss)
+                Body.AddChild(LinkButton(boss, $"A won battle with it sets flag {boss.Key}"));
+        }
         if (_party is null)
         {
-            foreach (var gear in _entity.Weapons.Append(_entity.Armor).Append(_entity.Shield).OfType<RecordId>())
-                Body.AddChild(LinkButton(gear, Catalog.Find(gear)?.Summary ?? gear.ToString()));
+            var w = sheet.Weapons;
+            foreach (var (gear, role) in new[] { (w.Joins, "wields on joining"), (w.Spare, "spare"), (w.Fights, "wields as an enemy"), (sheet.Armor, "armor"), (sheet.Shield, "shield") }
+                .Where(g => g.Item1 is not null).Select(g => (g.Item1!.Value, g.Item2)))
+                Body.AddChild(LinkButton(gear, $"{Catalog.Find(gear)?.Summary ?? gear.ToString()} ({role})"));
         }
         Line("Spell and potion effects, and what enchantments and resistances do, come with combat (2.5).", Dim);
 
@@ -243,7 +266,7 @@ public partial class CharacterPanel : PagePanel
             off.Pressed += () =>
             {
                 _result.Text = party.Unequip(c, item) ? $"{item.Item.Name} taken off."
-                    : item.Item.Weapon?.Fixed == true ? $"{item.Item.Name} can't be taken off." : "The inventory has no room for it.";
+                    : item.Item.Record.Fixed ? $"{item.Item.Name} can't be taken off." : "The inventory has no room for it.";
                 Refresh();
             };
             worn.AddChild(off);
@@ -260,7 +283,7 @@ public partial class CharacterPanel : PagePanel
             Line("Carried: " + string.Join(", ", carried.Select(s => s.Quantity > 1 ? $"{s.Item.Name} × {s.Quantity}" : s.Item.Name)) + ".", Dim);
 
         // Anything worn, what the party carries first. Scrolls are read in trek, and worn only in combat.
-        var wearable = _items!.All.Where(i => i.Kind is ItemKind.Weapon or ItemKind.Armor or ItemKind.Shield || (i.IsGear && i.Kind != ItemKind.Scroll))
+        var wearable = _items!.All.Where(i => i.Kind is ItemKind.Weapon or ItemKind.Body or ItemKind.Shield || (i.IsGear && i.Kind != ItemKind.Scroll))
             .OrderBy(i => party.Inventory.Has(i.Id) ? 0 : 1).ThenBy(i => i.Kind).ThenBy(i => i.Name, StringComparer.OrdinalIgnoreCase).ToList();
         var row = new HBoxContainer();
         var choice = new OptionButton { TooltipText = "An item to put on. If the party doesn't carry it, it's given one first.", FitToLongestItem = false };
@@ -308,10 +331,10 @@ public partial class CharacterPanel : PagePanel
         text.AddChild(name);
         var next = c.NextLevelExp is { } n ? $", level {c.Level + 1} at {n:N0}" : ", the last level";
         text.AddChild(new Label { Text = $"Level {c.Level} · {c.Hp} of {c.MaxHp} hit points · {c.TotalExp:N0} experience{next} · {c.SpendableExp:N0} to spend" });
-        var traits = new List<string> { _entity.Category.ToString(), c.Aspect.ToString(), c.School == MagicSchool.None ? "unschooled" : $"{c.School} school" };
+        var traits = new List<string> { _entity.CharacterSheet.Category.ToString(), c.Aspect.ToString(), $"{NameOf(c.School)} school" };
         if (c.TrueName)
             traits.Add("True Name");
-        else if (_entity.TrueNameFlag is { } flag)
+        else if (_entity.CharacterSheet.TrueNameFlag is { } flag)
             traits.Add($"True Name from {flag}");
         if (c.Heavy)
             traits.Add("heavy");
@@ -406,4 +429,25 @@ public partial class CharacterPanel : PagePanel
 
     private static string Modified(int modified, int @base) => modified == @base ? Num(modified) : $"{modified} ({modified - @base:+0;-0})";
 
+}
+
+/// <summary>
+/// An entity with no character sheet (ADR 0032): one from the original's dialogue entity table, a sign, an animal or a passer-by. It
+/// talks and walks, but can't fight or join the party.
+/// </summary>
+public partial class SpeakerPanel : PagePanel
+{
+    public SpeakerPanel(PluginCatalog catalog, EntityRecord entity, Action<RecordId> open) : base(catalog, open)
+    {
+        var name = new Label { Text = entity.Name };
+        name.AddThemeFontSizeOverride("font_size", 20);
+        Body.AddChild(name);
+        Line("No character sheet: it talks and walks, but can't fight or join the party.", Dim);
+        Line($"Notices the party at {entity.Perception}.");
+        if (entity.Body is { } body)
+            Body.AddChild(LinkButton(body.Actor, $"Its actor, at scale {body.Scale.ToString(CultureInfo.InvariantCulture)}"));
+        if (entity.Portrait is { } portrait)
+            Body.AddChild(LinkButton(portrait, "Its portrait"));
+        Line(entity.Sounds is null ? "Silent." : $"Its sounds are body kind {entity.Sounds.Kind}'s.", Dim);
+    }
 }

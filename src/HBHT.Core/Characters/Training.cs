@@ -26,14 +26,14 @@ public sealed class Trainer
     /// <summary>The spells they teach, up to these levels.</summary>
     public IReadOnlyList<(SpellRecord Spell, int Level)> Spells { get; }
 
-    /// <summary>They charge no gold (<see cref="TrainingPrices.FreeTrainers"/>).</summary>
+    /// <summary>They charge no gold (<see cref="EntityRecord.TrainsFree"/>).</summary>
     public bool Free { get; }
 
     public static Trainer From(EntityRecord entity, CharacterRules rules, Func<RecordId, SpellRecord> spells) => new(
         entity.Id,
         new CharacterSkills(rules, Character.SkillLevels(entity)),
-        [.. entity.Spells.Select(s => (spells(s.Spell), (int)(byte)s.Level))],
-        rules.Training.FreeTrainers.Contains(entity.Id));
+        [.. entity.CharacterSheet.Spells.Select(s => (spells(s.Spell), (int)(byte)s.Level))],
+        entity.TrainsFree);
 
     /// <summary>What they teach, in the skill screen's order: the skills, weapon skills and shield they're above level 0 in.</summary>
     public IEnumerable<SkillId> SkillsOffered => Skills.Learnt;

@@ -49,7 +49,7 @@ public sealed class TrainingMenu : IPartyWindow
         Skills = Layout.List<SkillRow>([.. trainer.SkillsOffered.Select(s => new SkillRow(s, party.Shown!.Rules[s].Name,
             s.IsSkill ? party.Shown.Rules[s].Icon : null, trainer.Skills.Base(s), trainer.Skills.Modified(s) - trainer.Skills.Base(s)))]);
         Spells = Layout.List<SpellRow>([.. trainer.Spells.Select(s => new SpellRow(new LearnedSpell(s.Spell, s.Level),
-            MenuImages.AspectIcon(PartyMenuRows.SpellAspect(s.Spell)), MenuImages.SchoolIcon(s.Spell.School), s.Spell.Icon))]);
+            MenuImages.AspectIcon(PartyMenuRows.SpellAspect(s.Spell)), MenuImages.SchoolIcon(party.Shown!.Rules, s.Spell.School), s.Spell.Icon))]);
         Party.ShowList(PartyList.Skills);
         Follow();
     }

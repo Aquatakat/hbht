@@ -111,9 +111,9 @@ public sealed class EnemyAI
     /// <param name="spare">The entity's first weapon, when it has a third too.</param>
     /// <param name="closeRange">Whether a weapon strikes in melee too (<c>Weapon.AllowsMelee</c>).</param>
     /// <param name="boss">Whether the entity has the bosses' style (<c>EnemyAI.HasBossStyle</c>, <c>0x8005BA40</c>).</param>
-    public static EnemyAI Init(Combatant c, ItemInstance? spare, Func<WeaponRecord, bool> closeRange, bool boss)
+    public static EnemyAI Init(Combatant c, ItemInstance? spare, Func<WeaponStats, bool> closeRange, bool boss)
     {
-        var ai = new EnemyAI(c) { Spare = spare, Morale = (sbyte)c.Sheet.Record.Morale };
+        var ai = new EnemyAI(c) { Spare = spare, Morale = (sbyte)c.Sheet.Sheet.Morale };
         var sheet = c.Sheet;
         for (var i = 0; i < 5; i++)
             ai.Slots[i] = i < sheet.Spells.Count ? sheet.Spells[i].Spell.Id : null;

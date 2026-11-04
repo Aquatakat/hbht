@@ -63,7 +63,7 @@ public sealed class PotionRecordTests(Na10Import fixture)
         {
             Id = RecordId.Parse("testmod:spell/mending"),
             Name = "Mending",
-            School = MagicSchool.None,
+            School = RecordIds.School(4),
             Effects = [new HealEffect(50, 50)],
             Duration = null,
             Position = null,
@@ -76,7 +76,7 @@ public sealed class PotionRecordTests(Na10Import fixture)
             Id = RecordId.Parse("testmod:item/clearing_draught"),
             Name = "Clearing Draught",
             Description = null,
-            Effects = [new DispelEffect(MagicSchool.Elemental)],
+            Effects = [new DispelEffect(RecordIds.School(1))],
             Duration = null,
             Use = PotionUse.DrinkInTrek | PotionUse.DrinkInBattle,
         };
@@ -113,7 +113,7 @@ public sealed class PotionRecordTests(Na10Import fixture)
         // Air Shield on Rheda, an Elemental effect for the draught to take off.
         var protection = rheda.Sheet.Protection;
         var shield = magic.Spell(AirShield)!;
-        Assert.Equal(MagicSchool.Elemental, shield.School);
+        Assert.Equal(RecordIds.School(1), shield.School);
         Assert.Equal(CastResult.Effect, Assert.Single(battle.Cast(rheda, new SpellSource(shield, Item: wand, ItemLevel: 2), [rheda])).Result);
         Assert.True(rheda.Sheet.HasEffect(AirShield));
         Assert.Equal(protection + 4, rheda.Sheet.Protection);

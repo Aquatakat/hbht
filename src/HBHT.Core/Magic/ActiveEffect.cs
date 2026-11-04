@@ -13,7 +13,7 @@ public sealed class ActiveEffect
     /// <summary>A timer that never runs down: a worn enchantment, or one that lasts the battle (<c>0xFFFFFFFF</c>).</summary>
     public const uint Never = uint.MaxValue;
 
-    internal ActiveEffect(RecordId source, IReadOnlyList<Effect> effects, int power, MagicSchool school, int margin, uint timer, bool worn = false)
+    internal ActiveEffect(RecordId source, IReadOnlyList<Effect> effects, int power, RecordId school, int margin, uint timer, bool worn = false)
     {
         Source = source;
         Effects = effects;
@@ -34,7 +34,7 @@ public sealed class ActiveEffect
     public int Power { get; }
 
     /// <summary>The casting spell's school (<c>+0x02</c>), which a dispel matches; a potion's is unschooled.</summary>
-    public MagicSchool School { get; }
+    public RecordId School { get; }
 
     /// <summary>
     /// The cast's margin after the target's resist step (<c>+0x03</c>), as a signed byte: what a dispel weighs, Photosynthesis

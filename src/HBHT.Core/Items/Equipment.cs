@@ -85,17 +85,20 @@ public sealed class Equipment
         new[] { Weapon, Armor, Shield }.Concat(_gear).OfType<ItemInstance>();
 
     /// <summary>Body armor's and the shield's protection (<c>Entity::GetArmorProtect</c>). Gear's is in <see cref="Character.Protection"/>.</summary>
-    public int ArmorProtection => (Armor?.Item.Armor?.Protection ?? 0) + (Shield?.Item.Armor?.Protection ?? 0);
+    public int ArmorProtection => (Armor?.Item.Protection ?? 0) + (Shield?.Item.Protection ?? 0);
 
     /// <summary>The shield's defense (<c>Entity::GetShieldDefence</c>), which combat reads (2.5).</summary>
-    public int ShieldDefense => Shield?.Item.Armor?.Defense ?? 0;
+    public int ShieldDefense => Shield?.Item.Record.Defense ?? 0;
 
     /// <summary>The spells on the character while armor and gear are worn (<c>Entity::ApplyEquipEffect</c>).</summary>
     public IEnumerable<ItemEnchantment> Enchantments =>
         new[] { Armor, Shield }.Concat(_gear).OfType<ItemInstance>().Select(i => i.Item.Bonuses.Enchantment).OfType<ItemEnchantment>();
 
     /// <summary>The resistances what's worn gives, which combat reads (2.5).</summary>
-    public IEnumerable<Resistance> Resistances => All.Select(i => i.Item.Bonuses.Resistance).OfType<Resistance>();
+    public IEnumerable<Resistance> Resistances =>
+        All.SelectMany(i => i.Item.Bonuses.Resistances ?? Resisting).Select(r => new Resistance(r.Key, r.Value));
+
+    private static readonly Dictionary<RecordId, float> Resisting = [];
 
     /// <summary>
     /// The equipped item with this ID, or null (<c>Entity::HasItemEquipped</c>). Weapons, armor and
@@ -103,14 +106,12 @@ public sealed class Equipment
     /// </summary>
     public ItemInstance? Find(RecordId id)
     {
-        var slot = id.Type switch
-        {
-            RecordTypes.Weapon => Weapon,
-            RecordTypes.Armor => Armor?.Id == id ? Armor : Shield,
-            _ => null,
-        };
-        if (id.Type is RecordTypes.Weapon or RecordTypes.Armor)
-            return slot?.Id == id ? slot : null;
+        if (Weapon?.Id == id)
+            return Weapon;
+        if (Armor?.Id == id)
+            return Armor;
+        if (Shield?.Id == id)
+            return Shield;
         return _gear.Take(GearCount).FirstOrDefault(g => g?.Id == id);
     }
 
@@ -122,9 +123,9 @@ public sealed class Equipment
     {
         if (weapon.Weapon is not { } record)
             return EquipRefusal.CantUse;
-        if (_owner.Stats.Base(Stat.Strength) < record.RequiredStrength)
+        if (_owner.Stats.Base(Stat.Strength) < weapon.RequiredStrength)
             return EquipRefusal.NeedsStrength;
-        if (_owner.Skills.Modified(record.Class) == 0)
+        if (SkillId.TryFromRecord(record.Skill) is not { } skill || _owner.Skills.Modified(skill) == 0)
             return EquipRefusal.CantUse;
         return _owner.SoleWeapon is { } sole && sole != weapon.Id ? EquipRefusal.CantUse : EquipRefusal.None;
     }
@@ -270,7 +271,7 @@ public sealed class Equipment
             case ItemKind.Weapon:
                 Weapon = item;
                 break;
-            case ItemKind.Armor:
+            case ItemKind.Body:
                 Armor = item;
                 break;
             case ItemKind.Shield:
@@ -288,8 +289,12 @@ public sealed class Equipment
     /// What the worn weapon, armor, shield and gear add to a skill: what a trainer applies when the
     /// skill goes from 0 to 1 (<c>WidgetSkillTrain::Purchase</c>, which looks at all 12 gear slots).
     /// </summary>
-    public int SkillBonus(SkillId skill) => All.Select(i => i.Item.Bonuses.Skill).OfType<SkillBonus>()
-        .Where(b => SkillId.FromRecord(b.Skill) == skill).Sum(b => b.Amount);
+    /// <remarks>Armor's and the shield's count already (<see cref="Item.SkillBonusesApplyUnlearnt"/>), so they aren't among them.</remarks>
+    public int SkillBonus(SkillId skill) => All.Where(i => !i.Item.SkillBonusesApplyUnlearnt)
+        .SelectMany(i => i.Item.Bonuses.Skills ?? Empty)
+        .Where(b => SkillId.TryFromRecord(b.Key) == skill).Sum(b => b.Value);
+
+    private static readonly Dictionary<RecordId, int> Empty = [];
 
     /// <summary>
     /// Pays a spell's Stamina cost from the batteries first, then from Stamina, if the two together
@@ -366,17 +371,24 @@ public sealed class Equipment
         item.Battery = capacity < battery + gain ? (sbyte)capacity : (sbyte)(battery + gain);
     }
 
-    // An item's bonuses going on (sign 1; Entity::ApplyEquipment) or coming off (sign -1; FUN_80078874): the skill
-    // bonus if the skill's base level isn't 0, then the stat bonus, which Bounded limits either way.
+    // An item's bonuses going on (sign 1; Entity::ApplyEquipment, Entity.ApplyItem 0x8006F2A8) or coming off (sign -1;
+    // FUN_80078874): the skill bonuses, each if the skill's base level isn't 0 or the item's kind counts them unlearnt (armor's
+    // Stealth, which Skills.AddModifiedNotify 0x8007A6EC adds whatever the level), then the stat bonuses, which Bounded limits
+    // either way (armor's Dexterity a modified-only add, Stats.AddModdedOnly 0x8007B498, as any but Endurance is). A skill or stat
+    // that isn't the original's, a mod's, isn't played.
     private void Bonus(ItemInstance item, int sign)
     {
         var bonuses = item.Item.Bonuses;
-        if (bonuses.Skill is { } skill && _owner.Skills.Base(SkillId.FromRecord(skill.Skill)) != 0)
-            _owner.Skills.Modify(SkillId.FromRecord(skill.Skill), sign * skill.Amount);
-        if (bonuses.Stat is { } stat && stat.Stat != Item.StaminaStat)
+        foreach (var (skill, amount) in bonuses.Skills ?? Empty)
         {
-            var which = StatId.FromRecord(stat.Stat);
-            var amount = sign * Bounded(which, (sbyte)stat.Amount, adding: sign > 0);
+            if (SkillId.TryFromRecord(skill) is { } id && (item.Item.SkillBonusesApplyUnlearnt || _owner.Skills.Base(id) != 0))
+                _owner.Skills.Modify(id, sign * amount);
+        }
+        foreach (var (stat, bonus) in bonuses.Stats ?? Empty)
+        {
+            if (stat == Item.StaminaStat || StatId.TryFromRecord(stat) is not { } which)
+                continue;
+            var amount = sign * Bounded(which, (sbyte)bonus, adding: sign > 0);
             if (which == Stat.Endurance)
                 _owner.Stats.ChangeBase(which, amount);
             else
@@ -384,14 +396,8 @@ public sealed class Equipment
         }
     }
 
-    // Armor's bonuses and then its Dexterity and Stealth (Entity::EquipArmorOrShield, RemoveArmorOrShield).
-    private void ApplyArmor(ItemInstance armor, int sign)
-    {
-        Bonus(armor, sign);
-        var record = armor.Item.Armor!;
-        _owner.Stats.ChangeModified(Stat.Dexterity, sign * record.Dexterity);
-        _owner.Skills.Modify(Skill.Stealth, sign * record.Stealth);
-    }
+    // Armor's bonuses, its Dexterity and Stealth among them (Entity::EquipArmorOrShield, RemoveArmorOrShield).
+    private void ApplyArmor(ItemInstance armor, int sign) => Bonus(armor, sign);
 
     /// <summary>
     /// How much of a bonus to Endurance or the Level applies, so it can't take it to 0

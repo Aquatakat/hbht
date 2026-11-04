@@ -72,7 +72,7 @@ public sealed class MagicImportTests(Na10Import fixture)
         Assert.Equal(Aspect.Solar, fireball.Aspect);
         var damage = Assert.IsType<DamageEffect>(Assert.Single(fireball.Effects!));
         Assert.Equal(Magnitude.Per(1), damage.Dice);
-        Assert.Equal([Element.Fire], damage.Elements);
+        Assert.Equal([RomIds.Element(HBHT.Rom.Db.Element.Fire)], damage.Elements);
         Assert.Null(fireball.Duration);
     }
 
@@ -85,8 +85,8 @@ public sealed class MagicImportTests(Na10Import fixture)
             Assert.True(spell.Targeting.Placed, spell.Name);
             Assert.Equal(Resisted.Never, spell.Resisted);
         }
-        Assert.Equal(MagicSchool.Elemental, Assert.IsType<DispelEffect>(Assert.Single(Get(0x0321).Effects!)).School);
-        Assert.Equal(MagicSchool.Star, Assert.IsType<DispelEffect>(Assert.Single(Get(0x0324).Effects!)).School);
+        Assert.Equal(RomIds.School(HBHT.Rom.Db.MagicSchool.Elemental), Assert.IsType<DispelEffect>(Assert.Single(Get(0x0321).Effects!)).School);
+        Assert.Equal(RomIds.School(HBHT.Rom.Db.MagicSchool.Star), Assert.IsType<DispelEffect>(Assert.Single(Get(0x0324).Effects!)).School);
         Assert.Equal(81, Get(0x0322).Appeal);
         Assert.IsType<TeleportEffect>(Assert.Single(Get(0x033A).Effects!));
         // Only Fireball, Teleportation and the dispels have the placed bit.
@@ -101,7 +101,7 @@ public sealed class MagicImportTests(Na10Import fixture)
         Assert.Equal(3, wind.Effects!.Count);
         var damage = Assert.IsType<DamageEffect>(wind.Effects[0]);
         Assert.Equal(EffectFor.Opponents, damage.For);
-        Assert.Equal([Element.Air], damage.Elements);
+        Assert.Equal([RomIds.Element(HBHT.Rom.Db.Element.Air)], damage.Elements);
         var stamina = Assert.IsType<StaminaEffect>(wind.Effects[1]);
         Assert.Equal(EffectFor.Allies, stamina.For);
         Assert.True(stamina.RaisesMaximum);
@@ -266,7 +266,8 @@ public sealed class MagicImportTests(Na10Import fixture)
         Assert.Equal([0.5f, 0.75f, 1.25f, 1.5f], magic.Chance.ByMoon);
         Assert.Equal((3, 1, 1, 0.75f, 1.25f), (magic.Resist.Willpower, magic.Resist.Endurance, magic.Resist.Level, magic.Resist.SameAspect, magic.Resist.OtherAspect));
         Assert.Equal((600, 2, 0.1f, 10, 15, 7), (magic.RoundTicks, magic.MostDisabled, magic.Improvement, magic.MaxLevel, magic.SpellEffects, magic.PotionEffects));
-        Assert.Equal([Potion(16)], magic.KeptAfterBattle);
+        // The potion kept after a battle, the Stealth potion, is its item's own flag now (ADR 0031).
+        Assert.Equal([Potion(16)], fixture.Data.Set.All<ItemRecord>(RecordTypes.Item).Where(i => i.KeptAfterBattle).Select(i => i.Id));
     }
 
     [Theory]

@@ -122,11 +122,11 @@ public sealed class QuestIndexRealDataTests(Na10Import fixture)
     [Fact]
     public void BossFlagsAreSetByTheirEntities()
     {
-        var bosses = Data.Set.Singleton<CombatRecord>().Bosses!;
+        var bosses = Data.Set.All<EntityRecord>(RecordTypes.Entity).Where(e => e.Combat?.BossFlag is not null).ToList();
         Assert.Equal(11, bosses.Count);
         foreach (var (name, flag) in new[] { ("Kitarak", 154), ("Pochanargat", 3204) })
         {
-            var entity = Data.Set.Get<EntityRecord>(bosses.Single(b => b.Flag == Flag(flag)).Entity);
+            var entity = bosses.Single(b => b.Combat!.BossFlag == Flag(flag));
             Assert.Equal(name, entity.Name);
             Assert.Equal([new FlagUse(Flag(flag), entity.Id, FlagAccess.Set, FlagRole.BossFlag)],
                 Data.Index.UsesOf(Flag(flag)).Where(u => u.Role == FlagRole.BossFlag));

@@ -168,7 +168,9 @@ public sealed partial class Battle
     private int PartyDanger(Plugins.Records.CombatRecord rules)
     {
         var inventory = Game.Party.Inventory;
-        var danger = rules.FlaskDanger.FirstOrDefault(f => inventory.Has(f.Item))?.Radius ?? 0;
+        // Combat.PartyPotionTier tests the flasks in turn, the first held giving the radius; their radii fall in that order, so
+        // it's the greatest of those held (ItemRecord.AiSpread).
+        var danger = Game.Items.All.Where(i => i.Record.AiSpread > 0 && inventory.Has(i.Id)).Select(i => i.Record.AiSpread).DefaultIfEmpty(0).Max();
         for (var k = 0; k < PartySize; k++)
         {
             if (_slots[k] is not { } member || member.Sheet.IsDead)

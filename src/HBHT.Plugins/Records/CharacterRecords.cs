@@ -1,60 +1,83 @@
 namespace HBHT.Plugins.Records;
 
 /// <summary>
-/// An entity (<c>aidyn:entity/0x…</c>): a party member, NPC, trainer or enemy, with the character
-/// sheet it starts with (<c>EntityDB::Load</c>, <c>Entity::Init</c>). A trainer teaches from its own
-/// skills and spells (<c>init_skill_trainer</c>), so a recruit who also trains, such as Becan, has
-/// one record for both.
+/// An entity (<c>aidyn:entity/0x…</c>, ADR 0032): anyone who stands in the world, talks or fights. One with a character
+/// <see cref="Sheet"/> is a party member, NPC, trainer or enemy from the entity DB (<c>EntityDB::Load</c>, <c>Entity::Init</c>);
+/// one without is a simple speaker, a sign, an animal or a passer-by, from the original's dialogue entity table
+/// (<c>0x14xx</c>, <c>dailougEnt_info_array</c>), who talks and walks but can't fight or join the party. A trainer teaches from its
+/// own skills and spells (<c>init_skill_trainer</c>), so a recruit who also trains, such as Becan, has one record for both.
 /// </summary>
 /// <param name="Portrait">The image beside what it says (<c>EntityDB::GetPortrait</c>).</param>
-/// <param name="Category">Only <see cref="EntityCategory.Chaos"/> is tested: Charming fails on it.</param>
-/// <param name="TrueNameFlag">
-/// While this flag is set, the character has a True Name even if <paramref name="TrueName"/> is
-/// false. It's Alaron's, set when the Roog cinematic ends (<c>CharExp::Init</c>).
+/// <param name="Perception">
+/// How far it notices the party in trek, 10 or 0 (<c>EntityDB::GetPerception</c>); 10 for one from the dialogue entity table
+/// (<c>Wanderers.DialoguePerception</c>).
 /// </param>
-/// <param name="Heavy">Spells that need a heavy target work on it (<c>Magic_IsHeavy</c>).</param>
-/// <param name="Attributes">
-/// Base attributes. Some enemies' are above what a base value can reach (<see cref="StatRecord.BaseCap"/>);
-/// they read as the cap, but the excess still counts toward modified values.
+/// <param name="Body">How it stands in the world, as a wanderer or a cut-scene's actor.</param>
+/// <param name="Sounds">
+/// Its body's footsteps and voice (the original's audio keys), or null for silence. One from the dialogue entity table has the
+/// profile of the entity at its place in that table, which 1.0 borrows for it (docs/systems/audio.md).
 /// </param>
-/// <param name="Skills">Base skill levels. A skill it doesn't have can never be learnt.</param>
-/// <param name="WeaponSkills">Base weapon skill levels, by weapon class. As <paramref name="Skills"/>.</param>
-/// <param name="ShieldSkill">The base shield skill, or null if it can never be learnt.</param>
-/// <param name="Spells">Spells it knows, at their levels, in its record's order.</param>
-/// <param name="Weapons">
-/// Three weapon slots, which may be empty. A party member equips the first that it can and carries
-/// the rest; in combat an enemy tries the third, then the first (<c>Entity::EquipFunc0</c>–<c>2</c>).
-/// </param>
-/// <param name="Protection">Base protection (<c>CharExp::protection</c>). Protective spells and gear add to it.</param>
-/// <param name="Damage">Base damage (<c>CharExp::damage</c>). Gear adds to it.</param>
-/// <param name="Morale">How likely an enemy is to flee. 12 or more never flees.</param>
-/// <param name="Resistances">What each element's damage is multiplied by: 0 is immune, 2 vulnerable.</param>
-/// <param name="Experience">What beating it is worth, before the award multiplier (<see cref="ProgressionRecord.ExpAward"/>).</param>
-/// <param name="LootCategory">Which loot table beaten enemies roll. Resolved with combat's rewards (2.5).</param>
-/// <param name="Perception">How far it notices the party in trek, 10 or 0 (<c>EntityDB::GetPerception</c>).</param>
-/// <param name="SoleWeapon">
-/// The only weapon it can equip (<c>Entity::canEquipWeapon</c>): Niesen's Archmage Staff. Null for
-/// everyone else.
-/// </param>
-/// <param name="Body">How it stands in the world, as a wanderer.</param>
+/// <param name="Sheet">Its character sheet, or null for one who can't fight or join.</param>
 /// <param name="Member">The flags the engine keeps for a recruitable party member. Null for everyone else, Alaron and Trahern among them.</param>
-/// <param name="Sounds">Its body's footsteps and voice (the original's audio keys), or null for silence.</param>
+/// <param name="Combat">What's its own in combat: whose side it fights on, whether it fights at all, and the rest. Needs a sheet.</param>
+/// <param name="TrainsFree">As a trainer, it charges no gold (<c>shopkeepNotOriana</c>): Oriana. Needs a sheet.</param>
 public sealed record EntityRecord(
     RecordId Id,
     string Name,
-    RecordId? Portrait,
+    RecordId? Portrait = null,
+    int Perception = 0,
+    EntityBody? Body = null,
+    BodySounds? Sounds = null,
+    EntitySheet? Sheet = null,
+    MemberFlags? Member = null,
+    EntityCombat? Combat = null,
+    bool TrainsFree = false)
+{
+    /// <summary>Its sheet, for an entity the rules need to fight, join or train: an <see cref="InvalidOperationException"/> without one.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public EntitySheet CharacterSheet => Sheet ?? throw new InvalidOperationException($"{Name} ({Id}) has no character sheet, so it can't fight or join.");
+}
+
+/// <summary>An entity's character sheet as it starts (<c>EntityDB::Load</c>, <c>Entity::Init</c>).</summary>
+/// <param name="Category">Only <see cref="EntityCategory.Chaos"/> is tested: Charming fails on it.</param>
+/// <param name="School">The school whose spells it can learn (<c>aidyn:school/n</c>), with the unschooled's.</param>
+/// <param name="TrueNameFlag">
+/// While this flag is set, the character has a True Name even if <paramref name="TrueName"/> is false. It's Alaron's, set when
+/// the Roog cinematic ends (<c>CharExp::Init</c>).
+/// </param>
+/// <param name="Heavy">Spells that need a heavy target work on it (<c>Magic_IsHeavy</c>).</param>
+/// <param name="Attributes">
+/// Base attributes by stat (<c>aidyn:stat/0</c>–<c>5</c>). Some enemies' are above what a base value can reach
+/// (<see cref="StatRecord.BaseCap"/>); they read as the cap, but the excess still counts toward modified values.
+/// </param>
+/// <param name="Skills">Base skill levels by skill (<c>aidyn:skill/n</c>). A skill left out can never be learnt.</param>
+/// <param name="WeaponSkills">
+/// Base weapon skill levels by weapon skill (<c>aidyn:weaponskill/n</c>), the shield's <c>aidyn:weaponskill/11</c>. As
+/// <paramref name="Skills"/>.
+/// </param>
+/// <param name="Spells">Spells it knows, at their levels, in its record's order.</param>
+/// <param name="Weapons">What it wields as a member and as an enemy, and the spare it carries.</param>
+/// <param name="Protection">Base protection (<c>CharExp::protection</c>). Protective spells and gear add to it.</param>
+/// <param name="Damage">Base damage (<c>CharExp::damage</c>). Gear adds to it.</param>
+/// <param name="Morale">How likely an enemy is to flee. 12 or more never flees.</param>
+/// <param name="Resistances">What each element's damage is multiplied by: 0 is immune, 2 vulnerable. Sense Aura shows the first two.</param>
+/// <param name="Experience">What beating it is worth, before the award multiplier (<see cref="ProgressionRecord.ExpAward"/>).</param>
+/// <param name="LootCategory">Which loot table beaten enemies roll.</param>
+/// <param name="SoleWeapon">
+/// The only weapon it can equip (<c>Entity::canEquipWeapon</c>): Niesen's Archmage Staff. Null for everyone else.
+/// </param>
+public sealed record EntitySheet(
     EntityCategory Category,
     Aspect Aspect,
-    MagicSchool School,
+    RecordId School,
     bool TrueName,
     bool Heavy,
     int Level,
-    Attributes Attributes,
-    SkillLevels Skills,
-    WeaponSkillLevels WeaponSkills,
-    int? ShieldSkill,
+    IReadOnlyDictionary<RecordId, int> Attributes,
+    IReadOnlyDictionary<RecordId, int> Skills,
+    IReadOnlyDictionary<RecordId, int> WeaponSkills,
     [property: KeyedList(nameof(KnownSpell.Spell))] IReadOnlyList<KnownSpell> Spells,
-    IReadOnlyList<RecordId?> Weapons,
+    EntityWeapons Weapons,
     RecordId? Armor,
     RecordId? Shield,
     int Protection,
@@ -63,12 +86,82 @@ public sealed record EntityRecord(
     [property: KeyedList(nameof(Resistance.Element))] IReadOnlyList<Resistance> Resistances,
     int Experience,
     int LootCategory,
-    int Perception,
     RecordId? TrueNameFlag = null,
-    RecordId? SoleWeapon = null,
-    EntityBody? Body = null,
-    MemberFlags? Member = null,
-    BodySounds? Sounds = null);
+    RecordId? SoleWeapon = null)
+{
+    /// <summary>Its base value of an attribute, 0 if the sheet leaves it out.</summary>
+    public int Attribute(RecordId stat) => Attributes.GetValueOrDefault(stat);
+
+    /// <summary>Its base level in a skill or weapon skill, or null for one it can't learn.</summary>
+    public int? SkillLevel(RecordId skill) =>
+        (skill.Type == RecordTypes.WeaponSkill ? WeaponSkills : Skills).TryGetValue(skill, out var level) ? level : null;
+}
+
+/// <summary>
+/// An entity's weapons (<c>Entity::EquipFunc0</c>–<c>2</c>), by the original's three slots. Loot rolls each with its own chance
+/// (<see cref="WeaponChances"/>).
+/// </summary>
+/// <param name="Joins">What it wields as it joins the party (the first slot); the others go to the inventory.</param>
+/// <param name="Spare">A spare it carries (the second slot), which joining puts in the inventory.</param>
+/// <param name="Fights">What it wields as an enemy (the third slot); without one, <paramref name="Joins"/>.</param>
+public sealed record EntityWeapons(RecordId? Joins = null, RecordId? Spare = null, RecordId? Fights = null)
+{
+    /// <summary>The slots in the original's order, empty ones included.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public IReadOnlyList<RecordId?> Slots => [Joins, Spare, Fights];
+
+    /// <summary>What it wields as an enemy (<c>Entity::EquipFunc2</c>, then <c>EquipFunc0</c>).</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public RecordId? AsEnemy => Fights ?? Joins;
+}
+
+/// <summary>What's an entity's own in combat (ADR 0032), each from a list in the original's code. docs/systems/combat.md has them.</summary>
+/// <param name="FightsForParty">
+/// Among an enemy list's first four, it fights on the party's side instead (<c>Combat.FindSholeh</c>, <c>0x8005C6C0</c>): Sholeh.
+/// </param>
+/// <param name="Bystander">
+/// It's dropped from an enemy list and never fights (<c>Combat.IsExcludedEnemy</c>, <c>0x8005C0C0</c>): the townsfolk, the
+/// shopkeepers and trainers and the like.
+/// </param>
+/// <param name="Flee">
+/// Whether it keeps the party from fleeing while it's on the field (<c>Combat.NoFleeEntities</c>, <c>0x800D2688</c>) or lets it
+/// (the Shadow, <c>Combat.ForbidFleeForBosses</c>, <c>0x8005CCCC</c>, which compares the entity's place with <c>0xAC</c>), the last
+/// on the field with a say having it; null for no say.
+/// </param>
+/// <param name="Rooted">
+/// Its field of influence is 0, so it never moves in battle (<c>Combatant.UpdateRadius</c>, by the entity list's place in
+/// <c>0x800E28EB</c>): Pochanargat.
+/// </param>
+/// <param name="Untargetable">
+/// No one can attack it or cast at it, and it casts nothing itself: the Shadow. <c>Combatant.CanAttack</c> (<c>0x80060590</c>)
+/// refuses a target whose entity is the entity list's place <c>0xAC</c>, and <c>Combatant.CanCast</c> (<c>0x80060C38</c>) a
+/// caster or target in <c>Combat.ShadowSlot</c> (<c>0x800D94CC</c>).
+/// </param>
+/// <param name="BossFlag">
+/// The flag a won battle sets with it among the enemy list's first four (<c>Combat.SetKillFlags</c>, <c>0x80067860</c>, by the
+/// jump table <c>0x800D2B60</c>), however the battle started and whether it fell or not.
+/// </param>
+/// <param name="BossStyle">
+/// Its AI takes the bosses' styles when it has spells (<c>EnemyAI.HasBossStyle</c>, <c>0x8005BA40</c>), 9 and 10 rather than 6
+/// and 8.
+/// </param>
+public sealed record EntityCombat(
+    bool FightsForParty = false,
+    bool Bystander = false,
+    FleeSay? Flee = null,
+    bool Rooted = false,
+    bool Untargetable = false,
+    RecordId? BossFlag = null,
+    bool BossStyle = false);
+
+/// <summary>What an entity on the field says of the party's fleeing.</summary>
+public enum FleeSay
+{
+    /// <summary>The party can't flee.</summary>
+    Forbids,
+    /// <summary>The party can flee.</summary>
+    Allows,
+}
 
 /// <summary>
 /// What the engine does for a recruitable party member (<c>Party::CheckFlags</c>, <c>SaveEntity::GetSlot</c>).
@@ -106,49 +199,14 @@ public enum Aspect
     Solar = 2,
 }
 
-public enum MagicSchool
-{
-    /// <summary>On an entity, every school: it can learn any spell.</summary>
-    Chaos = 0,
-    Elemental = 1,
-    Naming = 2,
-    Necromancy = 3,
-    /// <summary>On an entity, "Neutral": it can learn only unschooled spells. On a spell, unschooled.</summary>
-    None = 4,
-    Star = 5,
-}
-
-/// <summary>Damage and resistance elements.</summary>
-public enum Element
-{
-    None,
-    Earth,
-    Solar,
-    /// <summary>A resistance to it also covers <see cref="Cutting"/> and <see cref="Smashing"/>.</summary>
-    Physical,
-    Necromancy,
-    Fire,
-    Lunar,
-    Naming,
-    Water,
-    /// <summary>A resistance to it covers the magical elements.</summary>
-    Magic,
-    Air,
-    Star,
-    Elemental,
-    Chaos,
-    Cutting,
-    Smashing,
-    Holy,
-}
-
 /// <param name="Damage">What that element's damage is multiplied by, in quarters in the original.</param>
-public sealed record Resistance(Element Element, float Damage);
+/// <param name="Element">The element (<c>aidyn:element/n</c>).</param>
+public sealed record Resistance(RecordId Element, float Damage);
 
-/// <summary>The six attributes, as the original numbers them (stats 0–5).</summary>
+/// <summary>The six attributes, as the original numbers them (stats 0–5), as a save holds them.</summary>
 public sealed record Attributes(int Intelligence, int Willpower, int Dexterity, int Endurance, int Strength, int Stamina);
 
-/// <summary>Skill levels, as the original numbers them (skills 0–11). Null is a skill that can't be learnt.</summary>
+/// <summary>Skill levels, as the original numbers them (skills 0–11), as a save holds them. Null is a skill that can't be learnt.</summary>
 public sealed record SkillLevels(
     int? Alchemist = null,
     int? Diplomat = null,
@@ -188,7 +246,45 @@ public static class SkillSlots
 {
     public const int Count = 24;
 
-    /// <summary>The row of levels for a record's, save's or checkpoint's three parts.</summary>
+    /// <summary>The row of levels a sheet starts with: the base's skills and weapon skills by their numbers. A mod's own aren't in the row.</summary>
+    public static int?[] ToArray(EntitySheet sheet)
+    {
+        var row = new int?[Count];
+        foreach (var (skill, level) in sheet.Skills.Concat(sheet.WeaponSkills))
+        {
+            if (Slot(skill) is { } slot)
+                row[slot] = level;
+        }
+        return row;
+    }
+
+    /// <summary>The slot a base skill (<c>aidyn:skill/0</c>–<c>11</c>) or weapon skill (<c>aidyn:weaponskill/0</c>–<c>11</c>) is held in, or null for another.</summary>
+    public static int? Slot(RecordId skill) =>
+        skill.Namespace != RecordId.BaseNamespace || !int.TryParse(skill.Key, out var n) ? null
+            : skill.Type == RecordTypes.Skill && n is >= 0 and < 12 ? n
+            : skill.Type == RecordTypes.WeaponSkill && n is >= 0 and < 12 ? 12 + n
+            : null;
+
+    /// <summary>The skill held in <paramref name="slot"/>.</summary>
+    public static RecordId Id(int slot) =>
+        slot < 12 ? RecordId.Decimal(RecordTypes.Skill, slot) : RecordId.Decimal(RecordTypes.WeaponSkill, slot - 12);
+
+    /// <summary>A sheet's skills and weapon skills from a row of <see cref="Count"/> levels, leaving out those that can't be learnt.</summary>
+    public static (IReadOnlyDictionary<RecordId, int> Skills, IReadOnlyDictionary<RecordId, int> WeaponSkills) Maps(IReadOnlyList<int?> levels)
+    {
+        if (levels.Count != Count)
+            throw new ArgumentException($"There are {Count} skills, weapon skills and the shield.", nameof(levels));
+        var skills = new Dictionary<RecordId, int>();
+        var weapons = new Dictionary<RecordId, int>();
+        for (var slot = 0; slot < Count; slot++)
+        {
+            if (levels[slot] is { } level)
+                (slot < 12 ? skills : weapons)[Id(slot)] = level;
+        }
+        return (skills, weapons);
+    }
+
+    /// <summary>The row of levels for a save's or checkpoint's three parts.</summary>
     public static int?[] ToArray(SkillLevels skills, WeaponSkillLevels weapons, int? shield) =>
         [skills.Alchemist, skills.Diplomat, skills.Healer, skills.Loremaster, skills.Mechanic, skills.Merchant, skills.Ranger,
             skills.Stealth, skills.Thief, skills.Troubadour, skills.Warrior, skills.Wizard,
@@ -240,7 +336,12 @@ public sealed record StatRecord(RecordId Id, string Name, string? Description, i
 /// <param name="BaseCap">The most training raises it to, and the most its base level reads as (<c>SKILLMAXBASE</c>).</param>
 /// <param name="Cap">The most it reads as with gear and spells (<c>SKILLMAXMOD</c>).</param>
 /// <param name="Icon">The skill's icon (<c>GetSkillIcons</c>). Weapon skills have none.</param>
-public sealed record SkillRecord(RecordId Id, string Name, string? Description, int TrainingCost, int BaseCap, int Cap, RecordId? Icon = null);
+/// <param name="Drops">
+/// A weapon skill's: a beaten enemy's weapons of it can drop as loot (<c>Combat.DropWeaponClasses</c>, <c>0x800D26C8</c>). Natural
+/// weapons, bites and claws and the like, never do. Skills leave it out.
+/// </param>
+public sealed record SkillRecord(RecordId Id, string Name, string? Description, int TrainingCost, int BaseCap, int Cap, RecordId? Icon = null,
+    bool Drops = false);
 
 /// <summary>
 /// How characters level and train (<c>aidyn:progression/0</c>, the only one).
@@ -263,10 +364,9 @@ public sealed record ProgressionRecord(RecordId Id, IReadOnlyList<int> Levels, f
 /// <param name="FirstLevelGold">A trainer's price for a skill or spell the character is at level 0 in, or doesn't know.</param>
 /// <param name="GoldPerLevel">A trainer's price for raising level <c>n</c> is (n + 1) × this.</param>
 /// <param name="TrainerExp">A trainer's experience price is the full price times this, truncated.</param>
-/// <param name="FreeTrainers">Trainers who charge no gold: Oriana (<c>shopkeepNotOriana</c>).</param>
 /// <param name="SpellMaxLevel">A spell can't be raised past this (<c>TempSpell::IsMaxRank</c>).</param>
 /// <param name="FirstSpellFlag">Set when a character first learns a spell at a trainer, which shows help (<c>WidgetSpellTrain::Purchase</c>).</param>
-public sealed record TrainingPrices(int FirstLevelGold, int GoldPerLevel, float TrainerExp, IReadOnlyList<RecordId> FreeTrainers, int SpellMaxLevel,
+public sealed record TrainingPrices(int FirstLevelGold, int GoldPerLevel, float TrainerExp, int SpellMaxLevel,
     RecordId? FirstSpellFlag = null);
 
 /// <summary>A spell (<c>aidyn:spell/0x…</c>), from the spell DB (<c>SpellDB</c>, <c>TempSpell::Init</c>).</summary>
@@ -316,7 +416,7 @@ public sealed record TrainingPrices(int FirstLevelGold, int GoldPerLevel, float 
 public sealed record SpellRecord(
     RecordId Id,
     string Name,
-    MagicSchool School,
+    RecordId School,
     int Stamina,
     SpellTargeting Targeting,
     int Wizard,

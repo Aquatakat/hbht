@@ -205,7 +205,7 @@ public sealed class BattleTurnTests
     {
         // A body of radius 0.7 scaled by 2 reaches 1.4, so with the hero's 0.7 and 0.75 it reaches 2.85.
         var hero = Fighter(0, 20, x: 0, z: 0);
-        var big = new Combatant(1, Characters.Create(Characters.Alaron() with { Id = Entity(0x2001), Attributes = new Attributes(15, 12, 20, 15, 15, 30) }),
+        var big = new Combatant(1, Characters.Create((Characters.Alaron() with { Id = Entity(0x2001) }).WithAttributes(new Attributes(15, 12, 20, 15, 15, 30))),
             new EntityBody(RecordId.Hex(RecordTypes.Actor, 0x2D4A), 0.7f, 2, 1), new Body(new Vector3(2.8f, 0.5f, 0), 0.7f, 2),
             CombatantFlags.Active | CombatantFlags.Hostile);
         var battle = BattleFixtures.Create(1, 1, hero, big);
@@ -541,7 +541,7 @@ public sealed class BattleTurnTests
 
     private static Combatant Walker(int dexterity, float scale = 1, bool controlled = false, float turnX = 10, float turnZ = 20)
     {
-        var entity = Characters.Alaron() with { Id = Entity(0x2000), Attributes = new Attributes(15, 12, dexterity, 15, 15, 30) };
+        var entity = (Characters.Alaron() with { Id = Entity(0x2000) }).WithAttributes(new Attributes(15, 12, dexterity, 15, 15, 30));
         var look = new EntityBody(RecordId.Hex(RecordTypes.Actor, 0x2D4A), 1, scale, 1);
         var fighter = new Combatant(0, Characters.Create(entity), look, new Body(new Vector3(turnX, 0.5f, turnZ), 1, scale), CombatantFlags.Active)
         {

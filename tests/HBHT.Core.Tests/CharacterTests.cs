@@ -23,33 +23,41 @@ internal static class Characters
             .Select((s, i) => new StatRecord(RecordId.Decimal(RecordTypes.Stat, i), ((Stat)i).ToString(), null, s.BaseCap, s.Cap, s.Cost))],
         [.. new[] { 1500, 500, 1000, 750, 500, 750, 1000, 500, 1000, 1000, 1000, 1500, 0, 0, 0, 400, 600, 400, 0, 0, 600, 400, 0, 500 }
             .Select((cost, i) => new SkillRecord(new SkillId(i).Record, new SkillId(i).ToString(), null, cost, 10, 15))],
-        new ProgressionRecord(RecordId.Decimal(RecordTypes.Progression, 0), Levels, 1.5f, new TrainingPrices(200, 40, 0.8f, [Oriana], 10,
+        new ProgressionRecord(RecordId.Decimal(RecordTypes.Progression, 0), Levels, 1.5f, new TrainingPrices(200, 40, 0.8f, 10,
             FirstSpellFlag)))
     {
         Magic = MagicData.Rules,
+        Schools = Kinds.Schools,
+        Elements = Kinds.Elements,
     };
 
     /// <summary>Set when a character first learns a spell at a trainer; one of <see cref="ItemData.Flags"/>.</summary>
     public static RecordId FirstSpellFlag => RecordId.Decimal(RecordTypes.Flag, 12);
 
-    public static readonly SpellRecord Fireball = Spell(0x0305, MagicSchool.Elemental, wizard: 3, cost: 200);
+    public static readonly SpellRecord Fireball = Spell(0x0305, Magic.Schools.Elemental, wizard: 3, cost: 200);
 
-    public static SpellRecord Spell(int id, MagicSchool school, int wizard, int cost) => new(RecordId.Hex(RecordTypes.Spell, id),
+    public static SpellRecord Spell(int id, RecordId school, int wizard, int cost) => new(RecordId.Hex(RecordTypes.Spell, id),
         $"Spell {id:X4}", school, 5, new SpellTargeting(SpellTargetType.Enemy, SpellTargetCount.One), wizard, SpellSpecial.None, 3,
         RecordId.Hex(RecordTypes.Item, 0x1101), cost);
 
     /// <summary>Alaron as the entity DB starts him.</summary>
-    public static EntityRecord Alaron(int level = 1, KnownSpell[]? spells = null) => new(
-        RecordId.Hex(RecordTypes.Entity, 0x023F), "Alaron", null, EntityCategory.Party, Aspect.Solar, MagicSchool.Chaos,
-        TrueName: false, Heavy: true, level, new Attributes(18, 12, 15, 15, 15, 30),
-        new SkillLevels(0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 3, 1), new WeaponSkillLevels(Hafted: 1, Missile: 3, Pole: 0, Sword: 3, Thrown: 0),
-        ShieldSkill: 3, spells ?? [], [null, null, null], null, null, 0, 2, 0, [], 0, 0, 0, RecordId.Decimal(RecordTypes.Flag, 590));
-
-    public static EntityRecord Trainer(RecordId id, SkillLevels skills, KnownSpell[]? spells = null) => Alaron() with
+    public static EntityRecord Alaron(int level = 1, KnownSpell[]? spells = null)
     {
-        Id = id, Name = "Trainer", Skills = skills, WeaponSkills = new WeaponSkillLevels(Sword: 6), ShieldSkill = null, Spells = spells ?? [],
-        TrueNameFlag = null,
-    };
+        var (skills, weaponSkills) = SkillSlots.Maps(SkillSlots.ToArray(new SkillLevels(0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 3, 1),
+            new WeaponSkillLevels(Hafted: 1, Missile: 3, Pole: 0, Sword: 3, Thrown: 0), 3));
+        return new(RecordId.Hex(RecordTypes.Entity, 0x023F), "Alaron", Sheet: new EntitySheet(EntityCategory.Party, Aspect.Solar, Magic.Schools.Chaos,
+            TrueName: false, Heavy: true, level, new Dictionary<RecordId, int>
+            {
+                [RecordIds.Stat(0)] = 18, [RecordIds.Stat(1)] = 12, [RecordIds.Stat(2)] = 15, [RecordIds.Stat(3)] = 15, [RecordIds.Stat(4)] = 15, [RecordIds.Stat(5)] = 30,
+            }, skills, weaponSkills, spells ?? [], new EntityWeapons(), null, null, 0, 2, 0, [], 0, 0, RecordId.Decimal(RecordTypes.Flag, 590)));
+    }
+
+    public static EntityRecord Trainer(RecordId id, SkillLevels skills, KnownSpell[]? spells = null)
+    {
+        var alaron = Alaron();
+        return (alaron with { Id = id, Name = "Trainer", TrainsFree = id == Oriana, Sheet = alaron.CharacterSheet with { TrueNameFlag = null } })
+            .WithSkills(skills).WithWeaponSkills(new WeaponSkillLevels(Sword: 6)).WithShieldSkill(null).WithSpells(spells ?? []);
+    }
 
     public static Character Create(EntityRecord entity) => Character.Create(entity, Rules, _ => Fireball);
 
@@ -98,7 +106,7 @@ public class CharacterTests
     public void BaseValuesReadAsTheirCapsButCountTheirExcessWhenModified()
     {
         // Some monsters start above the base caps, such as 120 Stamina.
-        var ogre = Characters.Create(Characters.Alaron() with { Attributes = new Attributes(10, 10, 10, 45, 10, 120) });
+        var ogre = Characters.Create(Characters.Alaron().WithAttributes(new Attributes(10, 10, 10, 45, 10, 120)));
 
         Assert.Equal(90, ogre.Stats.Base(Stat.Stamina));
         Assert.Equal(120, ogre.Stats.Modified(Stat.Stamina));
@@ -155,7 +163,7 @@ public class CharacterTests
     [Fact]
     public void RestoringStaminaToEightyPercentTruncates()
     {
-        var alaron = Characters.Create(Characters.Alaron() with { Attributes = new Attributes(18, 12, 15, 15, 15, 33) });
+        var alaron = Characters.Create(Characters.Alaron().WithAttributes(new Attributes(18, 12, 15, 15, 15, 33)));
         alaron.DrainStamina(33);
 
         alaron.RestoreStamina(toEightyPercent: true);
@@ -263,7 +271,7 @@ public class CharacterTests
     [Fact]
     public void ASkillsModifiedLevelGainsWhatItsCappedBaseGains()
     {
-        var skills = Characters.Create(Characters.Alaron() with { Skills = new SkillLevels(Thief: 13, Stealth: 8) }).Skills;
+        var skills = Characters.Create(Characters.Alaron().WithSkills(new SkillLevels(Thief: 13, Stealth: 8))).Skills;
         skills.Modify(Skill.Stealth, 5);
 
         skills.Train(Skill.Stealth, 5);
@@ -385,7 +393,7 @@ public class TrainingTests
     public void ASkillThatCantBeLearntIsRefusedFirst()
     {
         var gold = 1000u;
-        var student = Characters.Create(Characters.Alaron() with { Skills = new SkillLevels() });
+        var student = Characters.Create(Characters.Alaron().WithSkills(new SkillLevels()));
 
         var quote = Training.TrainSkill(student, Skill.Healer, Teacher(new SkillLevels(Healer: 4)), ref gold);
 
@@ -419,7 +427,7 @@ public class TrainingTests
     [Fact]
     public void ANewSpellComesFromATrainerOfTheRightSchoolToAGoodEnoughWizard()
     {
-        var niesen = Characters.Create(Characters.Alaron() with { School = MagicSchool.Elemental, Skills = new SkillLevels(Wizard: 3) });
+        var niesen = Characters.Create(Characters.Alaron().WithSchool(Magic.Schools.Elemental).WithSkills(new SkillLevels(Wizard: 3)));
         niesen.SpendableExp = 1000;
         var gold = 1000u;
         var fireball = Characters.Fireball;
@@ -432,9 +440,9 @@ public class TrainingTests
         Assert.True(learnt);
         Assert.Equal(1, niesen.FindSpell(fireball.Id)!.Level);
 
-        var star = Characters.Spell(0x0330, MagicSchool.Star, wizard: 1, cost: 100);
+        var star = Characters.Spell(0x0330, Magic.Schools.Star, wizard: 1, cost: 100);
         Assert.Equal(TrainingRefusal.WrongSchool, Training.QuoteSpell(niesen, star, trainer, gold).Refusal);
-        var hard = Characters.Spell(0x0331, MagicSchool.None, wizard: 4, cost: 100);
+        var hard = Characters.Spell(0x0331, Magic.Schools.Unschooled, wizard: 4, cost: 100);
         Assert.Equal(TrainingRefusal.WizardTooLow, Training.QuoteSpell(niesen, hard, trainer, gold).Refusal);
     }
 
@@ -469,10 +477,8 @@ public class PartyTests
         return party;
     }
 
-    private static EntityRecord Member(int id, SkillLevels skills, Attributes? attributes = null) => Characters.Alaron() with
-    {
-        Id = RecordId.Hex(RecordTypes.Entity, id), Skills = skills, Attributes = attributes ?? new Attributes(18, 12, 15, 15, 15, 30),
-    };
+    private static EntityRecord Member(int id, SkillLevels skills, Attributes? attributes = null) => (Characters.Alaron() with { Id = RecordId.Hex(RecordTypes.Entity, id) })
+        .WithSkills(skills).WithAttributes(attributes ?? new Attributes(18, 12, 15, 15, 15, 30));
 
     [Fact]
     public void ThePartyHoldsFourAndPacksItsSlotsWhenOneLeaves()
@@ -558,7 +564,7 @@ public class PartyTests
     [Fact]
     public void TheAverageLevelCountsDamage()
     {
-        var party = Party(Member(1, new()) with { Level = 5 }, Member(2, new()) with { Level = 8 });
+        var party = Party(Member(1, new()).WithLevel(5), Member(2, new()).WithLevel(8));
         party.Slots[1]!.TakeDamage(4);
 
         Assert.Equal((5 + 4) / 2, party.AverageLevel);

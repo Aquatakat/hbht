@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Numerics;
 using System.Text;
 using HBHT.Plugins.Records;
+using HBHT.Rom.Db;
 
 namespace HBHT.Rom.Rig;
 

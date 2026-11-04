@@ -96,7 +96,7 @@ public sealed class TriggerOpsTests(Na10Import fixture)
         var set = fixture.Data.Set;
         // Everyone who can join knows theirs from their record, so a character who can't, whose record gives none and has no
         // flag to, as a mod's member might.
-        var member = set.All<EntityRecord>(RecordTypes.Entity).First(e => e is { TrueName: false, TrueNameFlag: null }).Id;
+        var member = set.All<EntityRecord>(RecordTypes.Entity).First(e => e.Sheet is { TrueName: false, TrueNameFlag: null }).Id;
         var game = GameState.NewGame(set);
         var triggers = new Triggers([On(0, null, Op(DialogueCommand.AddMember, target: member), new TriggerEffect.TrueName(member))]);
 

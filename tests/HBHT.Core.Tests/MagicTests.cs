@@ -47,7 +47,7 @@ public sealed class MagicTests
         var alaron = Alaron();
         var first = Cast(alaron, MagicData.Endurance, 4);
         alaron.AgeRound(null, null, PartOfDay.Midday, new Lcg());
-        Assert.Null(alaron.AddEffect(MagicData.Endurance.Id, MagicData.Endurance.Effects!, 6, MagicSchool.Naming, 4, 9999, null, null, null));
+        Assert.Null(alaron.AddEffect(MagicData.Endurance.Id, MagicData.Endurance.Effects!, 6, Magic.Schools.Naming, 4, 9999, null, null, null));
         Assert.Equal(6600u, Assert.Single(alaron.Effects).Timer);
         Assert.Same(first, alaron.Effects[0]);
     }
@@ -56,7 +56,7 @@ public sealed class MagicTests
     public void AMoraleSpellLeavesNoRecordOnOneWithNoMorale()
     {
         // Entity.AddEffect's case for Aura of Death and Solar Wrath (0x800702F0) adds nothing to a target with no AI record.
-        var aura = MagicData.Spell(0x0334, "Aura of Death", MagicSchool.Necromancy, [new MoraleEffect(Magnitude.Per(-1))], MagicData.Cast);
+        var aura = MagicData.Spell(0x0334, "Aura of Death", Magic.Schools.Necromancy, [new MoraleEffect(Magnitude.Per(-1))], MagicData.Cast);
         var alaron = Alaron();
         var on = new EffectTarget(alaron, null, null);
         EffectLanding.Land(aura.Effects!, aura.Duration, new Landing(aura.Id, aura.School, 4, 5, on, on, new Lcg()));
@@ -203,7 +203,7 @@ public sealed class MagicTests
     public void TheChanceToCastIsCheckpoint08s()
     {
         // Rheda in checkpoint 07: Intelligence 22, Endurance at 4, Level 19, Solar, at midday: (88 + 24 + 19) × 1.25.
-        var rheda = Characters.Create(Characters.Alaron() with { Level = 19, Attributes = new Attributes(22, 12, 15, 16, 15, 68) });
+        var rheda = Characters.Create(Characters.Alaron().WithLevel(19).WithAttributes(new Attributes(22, 12, 15, 16, 15, 68)));
         Assert.Equal(163, Casting.Chance(rheda, 4, MagicData.Record.Chance, PartOfDay.Midday, 0, 0, hostile: false));
         Assert.Equal(98, Casting.Chance(rheda, 4, MagicData.Record.Chance, PartOfDay.Night, 0, 0, hostile: false));
         Assert.Equal(4, CharacterParty.SkillCheckStep(163 - 100));
@@ -214,8 +214,8 @@ public sealed class MagicTests
     {
         var alaron = Alaron();
         Cast(alaron, MagicData.VsNaming, 2);
-        Assert.Equal(12, Casting.Ward(alaron, MagicSchool.Naming));
-        Assert.Equal(0, Casting.Ward(alaron, MagicSchool.Star));
+        Assert.Equal(12, Casting.Ward(alaron, Magic.Schools.Naming));
+        Assert.Equal(0, Casting.Ward(alaron, Magic.Schools.Star));
     }
 
     [Fact]
@@ -245,7 +245,7 @@ public sealed class MagicTests
     [Fact]
     public void ALuaEffectAndAnUnknownTypeAreReportedAndDoNothing()
     {
-        var modded = MagicData.Spell(0x0340, "Modded", MagicSchool.Star, [new LuaEffect("mod.lua", "OnCast"), new Effect()], MagicData.Cast);
+        var modded = MagicData.Spell(0x0340, "Modded", Magic.Schools.Star, [new LuaEffect("mod.lua", "OnCast"), new Effect()], MagicData.Cast);
         var rules = new MagicRules(MagicData.Record, [modded], [], MagicData.Inventory);
         Assert.Equal(2, rules.Problems.Count());
         // Neither lasts, so a cast leaves no record of them.
